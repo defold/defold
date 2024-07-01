@@ -19,6 +19,7 @@
             [editor.resource :as resource]
             [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
+            [editor.types :as types]
             [editor.workspace :as workspace]
             [schema.core :as s]
             [util.text-util :as text-util])
@@ -41,7 +42,6 @@
 (g/deftype CursorRanges [TCursorRange])
 (g/deftype IndentType (s/enum :tabs :two-spaces :four-spaces))
 (g/deftype InvalidatedRows [Long])
-(g/deftype Lines [String])
 (g/deftype Region TRegion)
 (g/deftype Regions [TRegion])
 (g/deftype RegionGrouping {s/Any [TRegion]})
@@ -183,7 +183,7 @@
   (property invalidated-rows InvalidatedRows (default []) (dynamic visible (g/constantly false)))
   (property modified-indent-type IndentType (dynamic visible (g/constantly false)))
 
-  (property modified-lines Lines (dynamic visible (g/constantly false))
+  (property modified-lines types/Lines (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self _old-value new-value]
                    (let [basis (:basis evaluation-context)
                          lsp (lsp/get-node-lsp basis self)]
@@ -210,13 +210,13 @@
                                                    default-indent-type
                                                    (guess-indent-type lines))))))
 
-  (output lines Lines (g/fnk [_node-id save-value resource] (or save-value
-                                                                (resource-io/with-error-translation resource _node-id :lines
-                                                                  (read-fn resource)))))
+  (output lines types/Lines (g/fnk [_node-id save-value resource] (or save-value
+                                                                      (resource-io/with-error-translation resource _node-id :lines
+                                                                        (read-fn resource)))))
 
-  (output save-value Lines (g/fnk [_node-id modified-lines]
-                             (or modified-lines
-                                 (loaded-unmodified-lines _node-id)))))
+  (output save-value types/Lines (g/fnk [_node-id modified-lines]
+                                   (or modified-lines
+                                       (loaded-unmodified-lines _node-id)))))
 
 (defn code-resource-type? [resource-type]
   (and (:textual? resource-type)

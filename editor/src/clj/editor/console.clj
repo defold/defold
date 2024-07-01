@@ -37,6 +37,7 @@
             [editor.handler :as handler]
             [editor.prefs :as prefs]
             [editor.resource :as resource]
+            [editor.types :as types]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [util.coll :as coll]
@@ -444,9 +445,9 @@
   (property indent-type r/IndentType (default :two-spaces))
   (property cursor-ranges r/CursorRanges (default [data/document-start-cursor-range]) (dynamic visible (g/constantly false)))
   (property invalidated-rows r/InvalidatedRows (default []) (dynamic visible (g/constantly false)))
-  (property modified-lines r/Lines (default [""]) (dynamic visible (g/constantly false)))
+  (property modified-lines types/Lines (default [""]) (dynamic visible (g/constantly false)))
   (property regions r/Regions (default []) (dynamic visible (g/constantly false)))
-  (output lines r/Lines (gu/passthrough modified-lines))
+  (output lines types/Lines (gu/passthrough modified-lines))
   (output request-response g/Any :cached produce-request-response))
 
 (defn- gutter-metrics []

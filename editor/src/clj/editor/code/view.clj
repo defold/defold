@@ -33,7 +33,7 @@
             [editor.code-completion :as code-completion]
             [editor.code.data :as data]
             [editor.code.resource :as r]
-            [editor.code.util :refer [split-lines find-insert-index]]
+            [editor.code.util :refer [find-insert-index split-lines]]
             [editor.error-reporting :as error-reporting]
             [editor.fxui :as fxui]
             [editor.graph-util :as gu]
@@ -44,6 +44,8 @@
             [editor.notifications :as notifications]
             [editor.prefs :as prefs]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
+            [editor.types :as types]
             [editor.ui :as ui]
             [editor.ui.bindings :as b]
             [editor.ui.fuzzy-choices :as fuzzy-choices]
@@ -1090,7 +1092,7 @@
   (input cursor-ranges r/CursorRanges)
   (input indent-type r/IndentType)
   (input invalidated-rows r/InvalidatedRows)
-  (input lines r/Lines :substitute [""])
+  (input lines types/Lines :substitute [""])
   (input regions r/Regions)
   (input debugger-execution-locations g/Any)
 
@@ -1100,7 +1102,7 @@
   (output suggested-choices g/Any :cached produce-suggested-choices)
   ;; We cache the lines in the view instead of the resource node, since the
   ;; resource node will read directly from disk unless edits have been made.
-  (output lines r/Lines :cached (gu/passthrough lines))
+  (output lines types/Lines :cached (gu/passthrough lines))
   (output regions r/Regions :cached (g/fnk [regions diagnostics]
                                       (vec (sort (into regions diagnostics)))))
   (output indent-type r/IndentType produce-indent-type)
@@ -3030,31 +3032,40 @@
 
 (defn- setup-view! [resource-node view-node app-view lsp]
   ;; Grab the unmodified lines or io error before opening the
-  ;; file. Otherwise this will happen on the first edit. If a
+  ;; file. Otherwise, this will happen on the first edit. If a
   ;; background process has modified (or even deleted) the file
   ;; without the editor knowing, the "original" unmodified lines
   ;; reached after a series of undo's could be something else entirely
   ;; than what the user saw.
-  (g/with-auto-evaluation-context ec
-    (r/ensure-loaded! resource-node ec)
-    (let [glyph-metrics (g/node-value view-node :glyph-metrics ec)
-          tab-spaces (g/node-value view-node :tab-spaces ec)
-          tab-stops (data/tab-stops glyph-metrics tab-spaces)
-          lines (g/node-value resource-node :lines ec)
-          document-width (data/max-line-width glyph-metrics tab-stops lines)
-          resource (g/node-value resource-node :resource ec)]
-      (when (resource/file-resource? resource)
-        (lsp/open-view! lsp view-node resource lines))
+  (let [resource (resource-node/resource resource-node)
+        resource-type (resource/resource-type resource)
+        resource-node-type (:node-type resource-type)
+        is-code-resource-type (r/code-resource-type? resource-type)]
+    (when is-code-resource-type
+      (g/with-auto-evaluation-context evaluation-context
+        (r/ensure-loaded! resource-node evaluation-context)))
+    (let [[lines document-width]
+          (g/with-auto-evaluation-context evaluation-context
+            (let [glyph-metrics (g/node-value view-node :glyph-metrics evaluation-context)
+                  tab-spaces (g/node-value view-node :tab-spaces evaluation-context)
+                  tab-stops (data/tab-stops glyph-metrics tab-spaces)
+                  lines (g/node-value resource-node :lines evaluation-context)
+                  document-width (data/max-line-width glyph-metrics tab-stops lines)]
+              [lines document-width]))]
       (g/transact
         (concat
           (g/set-property view-node :document-width document-width)
-          (g/connect resource-node :completions view-node :completions)
-          (g/connect resource-node :cursor-ranges view-node :cursor-ranges)
-          (g/connect resource-node :indent-type view-node :indent-type)
-          (g/connect resource-node :invalidated-rows view-node :invalidated-rows)
-          (g/connect resource-node :lines view-node :lines)
-          (g/connect resource-node :regions view-node :regions)
-          (g/connect app-view :debugger-execution-locations view-node :debugger-execution-locations)))
+          (g/connect app-view :debugger-execution-locations view-node :debugger-execution-locations)
+          (gu/connect-existing-outputs resource-node-type resource-node view-node
+            [[:completions :completions]
+             [:cursor-ranges :cursor-ranges]
+             [:indent-type :indent-type]
+             [:invalidated-rows :invalidated-rows]
+             [:lines :lines]
+             [:regions :regions]])))
+      (when (and is-code-resource-type
+                 (resource/file-resource? resource))
+        (lsp/open-view! lsp view-node resource lines))
       view-node)))
 
 (defn- cursor-opacity

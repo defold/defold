@@ -17,12 +17,14 @@
   ordinary paths."
   (:require [clojure.java.io :as io]
             [dynamo.graph :as g]
+            [editor.code.util :as code.util]
             [editor.core :as core]
             [editor.outline :as outline]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-io :as resource-io]
             [editor.settings-core :as settings-core]
+            [editor.types :as types]
             [editor.workspace :as workspace]
             [internal.graph.types :as gt]
             [internal.util :as util]
@@ -42,7 +44,16 @@
    :dirty dirty
    :save-value save-value})
 
-(declare save-data-content)
+(defn save-content
+  ^String [save-value resource-type]
+  (when (some? save-value)
+    (when-let [write-fn (:write-fn resource-type)]
+      (write-fn save-value))))
+
+(defn save-data-content
+  ^String [{:keys [resource save-value]}]
+  (let [resource-type (resource/resource-type resource)]
+    (save-content save-value resource-type)))
 
 (defn save-data-sha256 [save-data]
   (if (g/error-value? save-data)
@@ -104,6 +115,11 @@
     (g/user-data-merge! user-data-values-by-key-by-node-id)
     (g/invalidate-outputs! invalidated-endpoints)))
 
+(g/defnk produce-lines [resource save-value]
+  (let [resource-type (resource/resource-type resource)
+        content (save-content save-value resource-type)]
+    (code.util/split-lines content)))
+
 (g/defnk produce-sha256 [save-data]
   (save-data-sha256 save-data))
 
@@ -115,6 +131,7 @@
   (output save-data g/Any :cached produce-save-data)
   (output save-value g/Any (g/constantly nil))
   (output source-value g/Any :unjammable produce-source-value)
+  (output lines types/Lines produce-lines)
 
   (output dirty g/Bool (g/fnk [save-data] (:dirty save-data false)))
   (output node-id+resource g/Any :unjammable (g/fnk [_node-id resource] [_node-id resource]))
@@ -223,15 +240,6 @@
   ([basis node-id]
    (some->> (owner-resource-node-id basis node-id)
             (resource basis))))
-
-(defn save-data-content
-  ^String [save-data]
-  (when-some [save-value (:save-value save-data)]
-    (let [resource (:resource save-data)
-          resource-type (resource/resource-type resource)
-          write-fn (:write-fn resource-type)]
-      (when write-fn
-        (write-fn save-value)))))
 
 (defn sha256-or-throw
   ^String [resource-node-id evaluation-context]
