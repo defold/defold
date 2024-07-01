@@ -164,77 +164,67 @@ task createLuaJitShareZip(type: Zip, dependsOn: [compileSrc, compileGenerated]) 
 
 task compileBobLight(dependsOn: [getGitRevision, compileSrc, createLuaJitShareZip]) {
     doLast {
-        ['x86_64-macos', 'arm64-macos', 'x86_64-linux', 'x86_64-win32', 'x86-win32'].each { platform ->
+        def platformFiles = [
+                'x86_64-macos': ['glslc', 'spirv-cross', 'spirv-opt', 'luajit-32', 'luajit-64', 'lipo'],
+                'arm64-macos': ['glslc', 'spirv-cross', 'spirv-opt', 'luac-32', 'luajit-64', 'lipo'],
+                'x86_64-linux': ['glslc', 'spirv-cross', 'spirv-opt', 'luajit-32', 'luajit-64', 'lipo'],
+                'x86_64-win32': ['glslc.exe', 'spirv-cross.exe', 'spirv-opt.exe', 'luajit-64.exe', 'lipo.exe'],
+                'x86-win32': ['glslc.exe', 'spirv-cross.exe', 'spirv-opt.exe', 'luajit-32.exe']
+        ]
+
+        platformFiles.each { platform, files ->
             copy {
-                from fileTree("${project.dynamoHome}/ext/bin/$platform")
+                from fileTree("${project.dynamoHome}/ext/bin/$platform") {
+                    include files.collect { it.toString() }
+                }
                 into "${project.bobDir}/libexec/$platform"
-                include '*'
             }
         }
-        copy {
-            from tarTree(resources.gzip(file("../../packages/luajit-2.1.0-6c4826f-x86_64-linux.tar.gz")))
-            into "${project.bobDir}/libexec"
-            include 'bin/x86_64-linux/**'
+
+        def tarFiles = [
+                'x86_64-linux': 'bin/x86_64-linux/**',
+                'x86_64-win32': 'bin/x86_64-win32/**',
+                'x86_64-macos': 'bin/x86_64-macos/**',
+                'arm64-macos': 'bin/arm64-macos/**'
+        ]
+
+        tarFiles.each { platform, includePattern ->
+            copy {
+                from tarTree(resources.gzip(file("../../packages/luajit-2.1.0-6c4826f-${platform}.tar.gz")))
+                into "${project.bobDir}/libexec/${platform}"
+                eachFile { fileCopyDetails ->
+                    fileCopyDetails.path = fileCopyDetails.path.replaceFirst("^bin/$platform/", "")
+                }
+                include includePattern
+            }
         }
-        copy {
-            from tarTree(resources.gzip(file("../../packages/luajit-2.1.0-6c4826f-x86_64-win32.tar.gz")))
-            into "${project.bobDir}/libexec"
-            include 'bin/x86_64-win32/**'
-        }
-        copy {
-            from tarTree(resources.gzip(file("../../packages/luajit-2.1.0-6c4826f-x86_64-macos.tar.gz")))
-            into "${project.bobDir}/libexec"
-            include 'bin/x86_64-macos/**'
-        }
-        copy {
-            from tarTree(resources.gzip(file("../../packages/luajit-2.1.0-6c4826f-arm64-macos.tar.gz")))
-            into "${project.bobDir}/libexec"
-            include 'bin/arm64-macos/**'
-        }
+
         copy {
             from fileTree("${project.bobDir}/src") {
                 exclude '**/*.java'
             }
             into project.classesDir
         }
-        copy {
-            from fileTree("${project.dynamoHome}/lib") {
-                include 'x86_64-macos/*texc_shared*'
-                include 'x86_64-macos/*modelc_shared*'
-                exclude '**/*dSYM.zip'
+
+        def sharedLibs = [
+                'x86_64-macos': ['x86_64-macos/*texc_shared*', 'x86_64-macos/*modelc_shared*'],
+                'arm64-macos': ['arm64-macos/*texc_shared*', 'arm64-macos/*modelc_shared*'],
+                'x86_64-linux': ['x86_64-linux/*texc_shared*', 'x86_64-linux/*modelc_shared*'],
+                'win32': ['win32/*texc_shared*', 'win32/*modelc_shared*'],
+                'x86_64-win32': ['x86_64-win32/*texc_shared*', 'x86_64-win32/*modelc_shared*']
+        ]
+
+        sharedLibs.each { platform, includePatterns ->
+            copy {
+                from fileTree("${project.dynamoHome}/lib") {
+                    include includePatterns
+                    exclude '**/*dSYM.zip'
+                }
+                into "${project.bobDir}/lib/${platform}"
+                eachFile { fileCopyDetails ->
+                    fileCopyDetails.path = fileCopyDetails.path.replaceFirst("^${platform}/", "")
+                }
             }
-            into "${project.bobDir}/lib/x86_64-macos"
-        }
-        copy {
-            from fileTree("${project.dynamoHome}/lib") {
-                include 'arm64-macos/*texc_shared*'
-                include 'arm64-macos/*modelc_shared*'
-            }
-            into "${project.bobDir}/lib/arm64-macos"
-        }
-        copy {
-            from fileTree("${project.dynamoHome}/lib") {
-                include 'x86_64-linux/*texc_shared*'
-                include 'x86_64-linux/*modelc_shared*'
-                exclude '**/*dSYM.zip'
-            }
-            into "${project.bobDir}/lib/x86_64-linux"
-        }
-        copy {
-            from fileTree("${project.dynamoHome}/lib") {
-                include 'win32/*texc_shared*'
-                include 'win32/*modelc_shared*'
-                exclude '**/*dSYM.zip'
-            }
-            into "${project.bobDir}/lib/x86-win32"
-        }
-        copy {
-            from fileTree("${project.dynamoHome}/lib") {
-                include 'x86_64-win32/*texc_shared*'
-                include 'x86_64-win32/*modelc_shared*'
-                exclude '**/*dSYM.zip'
-            }
-            into "${project.bobDir}/lib/x86_64-win32"
         }
     }
 }
