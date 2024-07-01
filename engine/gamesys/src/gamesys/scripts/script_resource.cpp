@@ -222,6 +222,31 @@ namespace dmGameSystem
  * ```
  */
 
+/*# reference to render target resource
+ *
+ * Constructor-like function with two purposes:
+ *
+ * - Load the specified resource as part of loading the script
+ * - Return a hash to the run-time version of the resource
+ *
+ * [icon:attention] This function can only be called within [ref:go.property] function calls.
+ *
+ * @name resource.render_target
+ * @param [path] [type:string] optional resource path string to the resource
+ * @return path [type:hash] a path hash to the binary version of the resource
+ * @examples
+ *
+ * Set a render target color attachment as a model texture:
+ *
+ * ```lua
+ * go.property("my_render_target", resource.render_target("/rt.render_target"))
+ * function init(self)
+ *   local rt_info = resource.get_render_target_info(self.my_render_target)
+ *   go.set("#model", "texture0", rt_info.attachments[1].texture)
+ * end
+ * ```
+ */
+
 struct SetTextureAsyncRequest
 {
     dmhash_t                   m_PathHash;
@@ -1709,6 +1734,9 @@ static int GetTextureInfo(lua_State* L)
  * - `resource.BUFFER_TYPE_DEPTH`
  * - `resource.BUFFER_TYPE_STENCIL`
  *
+ * * `texture`
+ * : [type:hash] The hashed path to the attachment texture resource. This field is only available if the render target passed in is a resource. 
+ *
  * @examples
  * Get the metadata from a render target resource
  *
@@ -1721,11 +1749,25 @@ static int GetTextureInfo(lua_State* L)
  *     local info_attachment_1 = resource.get_texture_info(info.attachments[1].handle)
  * end
  * ```
+ *
+ * @examples
+ * Get a texture attachment from a render target and set it on a model component
+ *
+ * ```lua
+ * function init(self)
+ *     local info = resource.get_render_target_info("/my_render_target.render_targetc")
+ *     local attachment = info.attachments[1].texture
+ *     -- you can also get texture info from the 'texture' field, since it's a resource hash
+ *     local texture_info = resource.get_texture_info(attachment)
+ *     go.set("#model", "texture0", attachment)
+ * end
+ * ```
  */
 static int GetRenderTargetInfo(lua_State* L)
 {
     int top = lua_gettop(L);
     dmGraphics::HRenderTarget rt_handle = 0;
+    RenderTargetResource* rt_res = 0;
 
     if (lua_isnumber(L, 1))
     {
@@ -1737,9 +1779,9 @@ static int GetRenderTargetInfo(lua_State* L)
     }
     else
     {
-        dmhash_t path_hash           = dmScript::CheckHashOrString(L, 1);
-        RenderTargetResource* rt_res = (RenderTargetResource*) CheckResource(L, g_ResourceModule.m_Factory, path_hash, "render_targetc");
-        rt_handle                    = rt_res->m_RenderTarget;
+        dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
+        rt_res             = (RenderTargetResource*) CheckResource(L, g_ResourceModule.m_Factory, path_hash, "render_targetc");
+        rt_handle          = rt_res->m_RenderTarget;
 
         if (!dmGraphics::IsAssetHandleValid(g_ResourceModule.m_GraphicsContext, rt_handle))
         {
@@ -1770,9 +1812,10 @@ static int GetRenderTargetInfo(lua_State* L)
     lua_newtable(L);
 
     uint32_t attachment_count = 0;
-    for (int i = 0; i < dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS + 2; ++i)
+    for (int i = 0; i < DM_ARRAY_SIZE(color_buffer_flags); ++i)
     {
-        dmGraphics::HTexture t = dmGraphics::GetRenderTargetTexture(rt_handle, color_buffer_flags[i]);
+        dmGraphics::BufferType buffer_type = color_buffer_flags[i];
+        dmGraphics::HTexture t = dmGraphics::GetRenderTargetTexture(rt_handle, buffer_type);
         if (t)
         {
             lua_pushinteger(L, (lua_Integer) (attachment_count+1));
@@ -1780,8 +1823,23 @@ static int GetRenderTargetInfo(lua_State* L)
 
             PushTextureInfo(L, t);
 
-            lua_pushinteger(L, color_buffer_flags[i]);
+            lua_pushinteger(L, buffer_type);
             lua_setfield(L, -2, "buffer_type");
+
+            if (rt_res)
+            {
+                if (dmGraphics::IsColorBufferType(buffer_type))
+                {
+                    dmScript::PushHash(L, rt_res->m_ColorAttachmentPaths[i]);
+                    lua_setfield(L, -2, "texture");
+                }
+                else if (buffer_type == dmGraphics::BUFFER_TYPE_DEPTH_BIT)
+                {
+                    dmScript::PushHash(L, rt_res->m_DepthAttachmentPath);
+                    lua_setfield(L, -2, "texture");
+                }
+                // Separate stencil attachment textures are not supported (yet)
+            }
 
             lua_rawset(L, -3);
 

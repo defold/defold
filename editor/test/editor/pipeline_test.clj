@@ -174,20 +174,24 @@
   (with-clean-system
     (let [tile-set-target (make-asserting-build-target workspace "1" nil {})
           material-target (make-asserting-build-target workspace "2" nil {})
-          sprite-target   (pipeline/make-protobuf-build-target
-                            (workspace/file-resource workspace "/dir/test.sprite")
-                            [tile-set-target material-target]
-                            Sprite$SpriteDesc
-                            {:tile-set          (-> tile-set-target :resource :resource)
-                             :default-animation "gurka"
-                             :material          (-> material-target :resource :resource)}
-                            [:tile-set :material])]
+          sprite-resource (workspace/file-resource workspace "/dir/test.sprite")
+          sprite-node-id 12345
+          sprite-target (pipeline/make-protobuf-build-target
+                          sprite-node-id
+                          sprite-resource
+                          Sprite$SpriteDesc
+                          {:tile-set (-> tile-set-target :resource :resource)
+                           :default-animation "gurka"
+                           :material (-> material-target :resource :resource resource/proj-path)}
+                          [tile-set-target material-target])]
       (testing "produces correct build-target"
+        (is (= sprite-node-id (:node-id sprite-target)))
+        (is (= sprite-resource (-> sprite-target :resource :resource)))
         (is (= (set (:deps sprite-target)) #{tile-set-target material-target})))
       (testing "produces correct build content"
         (let [build-results (pipeline-build! project [sprite-target])
               sprite-result (first (filter #(= (:resource %) (:resource sprite-target)) (:artifacts build-results)))
-              pb-data (protobuf/bytes->map Sprite$SpriteDesc (content-bytes sprite-result))]
+              pb-data (protobuf/bytes->map-with-defaults Sprite$SpriteDesc (content-bytes sprite-result))]
           ;; assert resource paths have been resolved to build paths
           (is (= {:tile-set (-> tile-set-target :resource resource/proj-path)
                   :default-animation "gurka"

@@ -283,7 +283,7 @@ namespace dmGameSystem
                 if (ResourcePathToRenderResourceType(texture->m_Texture) == dmRender::RENDER_RESOURCE_TYPE_RENDER_TARGET)
                 {
                     texture_info->m_RenderTarget = (RenderTargetResource*) resource;
-                    texture_info->m_Texture      = texture_info->m_RenderTarget->m_TextureResource;
+                    texture_info->m_Texture      = texture_info->m_RenderTarget->m_ColorAttachmentResources[0];
                 }
                 else
                 {

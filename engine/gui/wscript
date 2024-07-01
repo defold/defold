@@ -37,6 +37,7 @@ def configure(conf):
     conf.env['STLIB_SCRIPT'] = 'script'
     conf.env['STLIB_RESOURCE'] = 'resource'
     conf.env['STLIB_EXTENSION'] = 'extension'
+    conf.env['STLIB_GAMEOBJECT'] = 'gameobject'
     conf.env['STLIB_GRAPHICS_PROTO'] = ['graphics_proto']
 
     platform = conf.env['PLATFORM']

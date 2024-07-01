@@ -11,7 +11,6 @@ size {
   x: 64.0
   y: 64.0
   z: 0.001
-  w: 0.0
 }
 size_mode: SIZE_MODE_MANUAL
 offset: 0.1

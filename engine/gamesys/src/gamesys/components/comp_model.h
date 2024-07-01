@@ -45,6 +45,8 @@ namespace dmGameSystem
 
     dmGameObject::PropertyResult CompModelSetProperty(const dmGameObject::ComponentSetPropertyParams& params);
 
+    void*                   CompModelGetComponent(const dmGameObject::ComponentGetParams& params);
+
     void CompModelIterProperties(dmGameObject::SceneNodePropertyIterator* pit, dmGameObject::SceneNode* node);
 
     // Used in the script_model.cpp
@@ -52,7 +54,6 @@ namespace dmGameSystem
     struct ModelWorld;
     struct ModelResource;
 
-    ModelComponent*         CompModelGetComponent(ModelWorld* world, dmGameObject::HComponentInternal user_data);
     ModelResource*          CompModelGetModelResource(ModelComponent* component);
     dmGameObject::HInstance CompModelGetNodeInstance(ModelComponent* component, uint32_t bone_index);
     bool                    CompModelSetMeshEnabled(ModelComponent* component, dmhash_t mesh_id, bool enabled);

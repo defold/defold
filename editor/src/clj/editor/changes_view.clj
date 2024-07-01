@@ -23,7 +23,6 @@
             [editor.fxui :as fxui]
             [editor.git :as git]
             [editor.handler :as handler]
-            [editor.progress :as progress]
             [editor.resource :as resource]
             [editor.sync :as sync]
             [editor.ui :as ui]
@@ -33,7 +32,7 @@
   (:import [java.io File]
            [javafx.beans.value ChangeListener]
            [javafx.scene Parent]
-           [javafx.scene.control SelectionMode ListView]
+           [javafx.scene.control ListView SelectionMode]
            [org.eclipse.jgit.api Git]))
 
 (set! *warn-on-reflection* true)
@@ -41,8 +40,9 @@
 (defn- refresh-list-view! [list-view unified-status]
   (ui/items! list-view unified-status))
 
-(defn refresh! [changes-view render-progress!]
+(defn refresh! [changes-view]
   (let [list-view (g/node-value changes-view :list-view)
+        progress-overlay (g/node-value changes-view :progress-overlay)
         git (g/node-value changes-view :git)
         refresh-pending (ui/user-data list-view :refresh-pending)
         schedule-refresh (ref nil)]
@@ -51,16 +51,20 @@
         (ref-set schedule-refresh (not @refresh-pending))
         (ref-set refresh-pending true))
       (when @schedule-refresh
-        (render-progress! (progress/make-indeterminate "Refreshing file status..."))
+        (ui/select! list-view nil)
+        (ui/visible! progress-overlay true)
         (future
           (try
             (dosync (ref-set refresh-pending false))
             (let [unified-status (git/unified-status git)]
               (ui/run-later
-                (ui/with-progress [render-progress! render-progress!]
-                  (refresh-list-view! list-view unified-status))))
+                (try
+                  (refresh-list-view! list-view unified-status)
+                  (finally
+                    (ui/visible! progress-overlay false)))))
             (catch Throwable error
-              (render-progress! progress/done)
+              (ui/run-later
+                (ui/visible! progress-overlay false))
               (error-reporting/report-exception! error))))))))
 
 (handler/register-menu! ::changes-menu
@@ -164,6 +168,7 @@
 (g/defnode ChangesView
   (inherits core/Scope)
   (property list-view g/Any)
+  (property progress-overlay g/Any)
   (property git g/Any)
   (property prefs g/Any))
 
@@ -186,8 +191,9 @@
   (let [^ListView list-view     (.lookup parent "#changes")
         diff-button             (.lookup parent "#changes-diff")
         revert-button           (.lookup parent "#changes-revert")
+        progress-overlay        (.lookup parent "#changes-progress-overlay")
         git                     (try-open-git workspace)
-        view-id                 (g/make-node! view-graph ChangesView :list-view list-view :git git :prefs prefs)
+        view-id                 (g/make-node! view-graph ChangesView :list-view list-view :progress-overlay progress-overlay :git git :prefs prefs)
         disk-available-listener (reify ChangeListener
                                   (changed [_this _observable _old _new]
                                     (ui/refresh-bound-action-enabled! revert-button)))]
@@ -202,6 +208,7 @@
     (ui/bind-action! revert-button :revert)
     (ui/disable! diff-button true)
     (ui/disable! revert-button true)
+    (ui/visible! progress-overlay false)
     (ui/bind-double-click! list-view :open)
     ; TODO: try/catch to protect against project without git setup
     ; Show warning/error etc?

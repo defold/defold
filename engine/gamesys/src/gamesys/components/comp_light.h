@@ -32,6 +32,8 @@ namespace dmGameSystem
     dmGameObject::UpdateResult CompLightUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result);
 
     dmGameObject::UpdateResult CompLightOnMessage(const dmGameObject::ComponentOnMessageParams& params);
+
+    void*                      CompLightGetComponent(const dmGameObject::ComponentGetParams& params);
 }
 
 #endif

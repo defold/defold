@@ -13,6 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.math
+  (:require [util.coll :as coll])
   (:import [java.lang Math]
            [java.math RoundingMode]
            [javax.vecmath Matrix3d Matrix4d Point3d Quat4d Tuple2d Tuple3d Tuple4d Vector3d Vector4d]))
@@ -30,6 +31,14 @@
 
 (def ^:const precision-general 0.000001)
 (def ^:const precision-coarse 0.001)
+
+(def ^Vector3d zero-v3 (Vector3d. 0.0 0.0 0.0))
+(def ^Vector3d one-v3 (Vector3d. 1.0 1.0 1.0))
+(def ^Quat4d identity-quat (Quat4d. 0.0 0.0 0.0 1.0))
+(def ^Matrix4d identity-mat4 (doto (Matrix4d.) (.setIdentity)))
+
+(definline float32? [value]
+  `(instance? Float ~value))
 
 (defn deg->rad
   ^double [^double deg]
@@ -62,6 +71,39 @@
    (.doubleValue (.setScale (BigDecimal. n)
                             (int (- (Math/log10 precision)))
                             rounding-mode))))
+
+(defn zip-clj-v3
+  "Takes a three-element Clojure vector and returns a new three-element Clojure
+  vector whose components are the result of applying component-fn to both
+  components of a and b. Supports a Clojure vector, a javax.vecmath.Tuple3d, or
+  a number for the second argument. If the second argument is a number, it will
+  be combined with every component from the first vector."
+  [a b component-fn]
+  {:pre [(vector? a)
+         (= 3 (count a))]}
+  (cond
+    (instance? Tuple3d b)
+    (-> (coll/empty-with-meta a)
+        (conj (component-fn (a 0) (.getX ^Tuple3d b)))
+        (conj (component-fn (a 1) (.getY ^Tuple3d b)))
+        (conj (component-fn (a 2) (.getZ ^Tuple3d b))))
+
+    (vector? b)
+    (-> (coll/empty-with-meta a)
+        (conj (component-fn (a 0) (b 0)))
+        (conj (component-fn (a 1) (b 1)))
+        (conj (component-fn (a 2) (b 2))))
+
+    (number? b)
+    (-> (coll/empty-with-meta a)
+        (conj (component-fn (a 0) b))
+        (conj (component-fn (a 1) b))
+        (conj (component-fn (a 2) b)))
+
+    :else
+    (throw (ex-info "Second argument must be a number or a vector type."
+                    {:b b
+                     :type (type b)}))))
 
 (defn project [^Vector3d from ^Vector3d onto] ^Double
   (let [onto-dot (.dot onto onto)]
@@ -407,48 +449,82 @@
 
 (defprotocol VecmathConverter
   (clj->vecmath [this v])
-  (vecmath->clj [this]))
+  (vecmath->clj [this])
+  (vecmath-into-clj [this dest]))
 
 (extend-protocol VecmathConverter
   Tuple2d
   (clj->vecmath [this v] (.set this (nth v 0) (nth v 1)))
   (vecmath->clj [this] [(.getX this) (.getY this)])
+  (vecmath-into-clj [this dest] (-> dest (conj (.getX this)) (conj (.getY this))))
   Tuple3d
   (clj->vecmath [this v] (.set this (nth v 0) (nth v 1) (nth v 2)))
   (vecmath->clj [this] [(.getX this) (.getY this) (.getZ this)])
+  (vecmath-into-clj [this dest] (-> dest (conj (.getX this)) (conj (.getY this)) (conj (.getZ this))))
   Tuple4d
   (clj->vecmath [this v] (.set this (nth v 0) (nth v 1) (nth v 2) (nth v 3)))
   (vecmath->clj [this] [(.getX this) (.getY this) (.getZ this) (.getW this)])
+  (vecmath-into-clj [this dest] (-> dest (conj (.getX this)) (conj (.getY this)) (conj (.getZ this)) (conj (.getW this))))
   Matrix4d
   (clj->vecmath [this v] (.set this (double-array v)))
   (vecmath->clj [this] [(.m00 this) (.m01 this) (.m02 this) (.m03 this)
                         (.m10 this) (.m11 this) (.m12 this) (.m13 this)
                         (.m20 this) (.m21 this) (.m22 this) (.m23 this)
-                        (.m30 this) (.m31 this) (.m32 this) (.m33 this)]))
+                        (.m30 this) (.m31 this) (.m32 this) (.m33 this)])
+  (vecmath-into-clj [this dest]
+    (if (coll/supports-transient? dest)
+      (-> (transient dest)
+          (conj! (.m00 this)) (conj! (.m01 this)) (conj! (.m02 this)) (conj! (.m03 this))
+          (conj! (.m10 this)) (conj! (.m11 this)) (conj! (.m12 this)) (conj! (.m13 this))
+          (conj! (.m20 this)) (conj! (.m21 this)) (conj! (.m22 this)) (conj! (.m23 this))
+          (conj! (.m30 this)) (conj! (.m31 this)) (conj! (.m32 this)) (conj! (.m33 this))
+          (persistent!)
+          (with-meta (meta dest)))
+      (-> dest
+          (conj (.m00 this)) (conj (.m01 this)) (conj (.m02 this)) (conj (.m03 this))
+          (conj (.m10 this)) (conj (.m11 this)) (conj (.m12 this)) (conj (.m13 this))
+          (conj (.m20 this)) (conj (.m21 this)) (conj (.m22 this)) (conj (.m23 this))
+          (conj (.m30 this)) (conj (.m31 this)) (conj (.m32 this)) (conj (.m33 this))))))
 
 (defn clj->mat4
   ^Matrix4d [position rotation scale]
-  (let [position-v3 (doto (Vector3d.) (clj->vecmath position))
-        rotation-q4 (doto (Quat4d.) (clj->vecmath rotation))]
-    (if (number? scale)
-      (->mat4-uniform position-v3 rotation-q4 (double scale))
-      (let [scale-v3 (doto (Vector3d.) (clj->vecmath scale))]
-        (->mat4-non-uniform position-v3 rotation-q4 scale-v3)))))
+  (if (and (nil? position)
+           (nil? rotation)
+           (nil? scale))
+    identity-mat4
+    (let [position-v3 (if (nil? position)
+                        zero-v3
+                        (doto (Vector3d.) (clj->vecmath position)))
+          rotation-q4 (if (nil? rotation)
+                        identity-quat
+                        (doto (Quat4d.) (clj->vecmath rotation)))]
+      (cond
+        (nil? scale)
+        (->mat4-uniform position-v3 rotation-q4 1.0)
 
-(defn hermite [y0 y1 t0 t1 t]
-  (let [t2 (* t t)
-        t3 (* t2 t)]
-    (+ (* (+ (* 2 t3) (* -3 t2) 1.0) y0)
-       (* (+ t3 (* -2 t2) t) t0)
-       (* (+ (* -2 t3) (* 3 t2)) y1)
-       (* (- t3 t2) t1))))
+        (number? scale)
+        (->mat4-uniform position-v3 rotation-q4 (double scale))
 
-(defn hermite' [y0 y1 t0 t1 t]
-  (let [t2 (* t t)]
-    (+ (* (+ (* 6 t2) (* -6 t)) y0)
-       (* (+ (* 3 t2) (* -4 t) 1) t0)
-       (* (+ (* -6 t2) (* 6 t)) y1)
-       (* (+ (* 3 t2) (* -2 t)) t1))))
+        :else
+        (let [scale-v3 (doto (Vector3d.) (clj->vecmath scale))]
+          (->mat4-non-uniform position-v3 rotation-q4 scale-v3))))))
+
+(defmacro hermite [y0 y1 t0 t1 t]
+  `(let [t# ~t
+         t2# (* t# t#)
+         t3# (* t2# t#)]
+     (+ (* (+ (* 2.0 t3#) (* -3.0 t2#) 1.0) ~y0)
+        (* (+ t3# (* -2.0 t2#) t#) ~t0)
+        (* (+ (* -2.0 t3#) (* 3.0 t2#)) ~y1)
+        (* (- t3# t2#) ~t1))))
+
+(defmacro hermite' [y0 y1 t0 t1 t]
+  `(let [t# ~t
+         t2# (* t# t#)]
+     (+ (* (+ (* 6.0 t2#) (* -6.0 t#)) ~y0)
+        (* (+ (* 3.0 t2#) (* -4.0 t#) 1.0) ~t0)
+        (* (+ (* -6.0 t2#) (* 6.0 t#)) ~y1)
+        (* (+ (* 3.0 t2#) (* -2.0 t#)) ~t1))))
 
 (defn derive-normal-transform
   ^Matrix4d [^Matrix4d transform]
