@@ -2358,89 +2358,15 @@
                    (data/split-selection-into-lines (get-property view-node :lines)
                                                     (get-property view-node :cursor-ranges))))
 
-(handler/defhandler :select-up :code-view
-  (run [view-node] (move! view-node :selection :up)))
-
-(handler/defhandler :select-down :code-view
-  (run [view-node] (move! view-node :selection :down)))
-
-(handler/defhandler :select-left :code-view
-  (run [view-node] (move! view-node :selection :left)))
-
-(handler/defhandler :select-right :code-view
-  (run [view-node] (move! view-node :selection :right)))
-
-(handler/defhandler :prev-word :code-view
-  (run [view-node] (move! view-node :navigation :prev-word)))
-
-(handler/defhandler :select-prev-word :code-view
-  (run [view-node] (move! view-node :selection :prev-word)))
-
-(handler/defhandler :next-word :code-view
-  (run [view-node] (move! view-node :navigation :next-word)))
-
-(handler/defhandler :select-next-word :code-view
-  (run [view-node] (move! view-node :selection :next-word)))
-
-(handler/defhandler :beginning-of-line :code-view
-  (run [view-node] (move! view-node :navigation :line-start)))
-
-(handler/defhandler :select-beginning-of-line :code-view
-  (run [view-node] (move! view-node :selection :line-start)))
-
-(handler/defhandler :beginning-of-line-text :code-view
-  (run [view-node] (move! view-node :navigation :home)))
-
-(handler/defhandler :select-beginning-of-line-text :code-view
-  (run [view-node] (move! view-node :selection :home)))
-
-(handler/defhandler :end-of-line :code-view
-  (run [view-node] (move! view-node :navigation :end)))
-
-(handler/defhandler :select-end-of-line :code-view
-  (run [view-node] (move! view-node :selection :end)))
-
-(handler/defhandler :page-up :code-view
-  (run [view-node] (page-up! view-node :navigation)))
-
-(handler/defhandler :select-page-up :code-view
-  (run [view-node] (page-up! view-node :selection)))
-
-(handler/defhandler :page-down :code-view
-  (run [view-node] (page-down! view-node :navigation)))
-
-(handler/defhandler :select-page-down :code-view
-  (run [view-node] (page-down! view-node :selection)))
-
-(handler/defhandler :beginning-of-file :code-view
-  (run [view-node] (move! view-node :navigation :file-start)))
-
-(handler/defhandler :select-beginning-of-file :code-view
-  (run [view-node] (move! view-node :selection :file-start)))
-
-(handler/defhandler :end-of-file :code-view
-  (run [view-node] (move! view-node :navigation :file-end)))
-
-(handler/defhandler :select-end-of-file :code-view
-  (run [view-node] (move! view-node :selection :file-end)))
-
 (handler/defhandler :cut :code-view
   (enabled? [view-node evaluation-context]
             (has-selection? view-node evaluation-context))
   (run [view-node clipboard] (cut! view-node clipboard)))
 
-(handler/defhandler :copy :code-view
-  (enabled? [view-node evaluation-context]
-            (has-selection? view-node evaluation-context))
-  (run [view-node clipboard] (copy! view-node clipboard)))
-
 (handler/defhandler :paste :code-view
   (enabled? [view-node clipboard evaluation-context]
             (can-paste? view-node clipboard evaluation-context))
   (run [view-node clipboard] (paste! view-node clipboard)))
-
-(handler/defhandler :select-all :code-view
-  (run [view-node] (select-all! view-node)))
 
 (handler/defhandler :delete :code-view
   (run [view-node] (delete! view-node :delete-after)))
@@ -2458,15 +2384,6 @@
 
 (handler/defhandler :delete-next-word :code-view
   (run [view-node] (delete! view-node :delete-word-after)))
-
-(handler/defhandler :select-next-occurrence :code-view
-  (run [view-node] (select-next-occurrence! view-node)))
-
-(handler/defhandler :select-next-occurrence :code-view-tools
-  (run [view-node] (select-next-occurrence! view-node)))
-
-(handler/defhandler :split-selection-into-lines :code-view
-  (run [view-node] (split-selection-into-lines! view-node)))
 
 (handler/defhandler :toggle-breakpoint :code-view
   (run [view-node]
@@ -3703,6 +3620,130 @@
                   (ui/run-later (slog/smoke-log "code-view-visible")))
     view-node))
 
+(def ^:private fundamental-read-only-handlers
+  {[:view/select-up]
+   {:run (g/fnk [view-node]
+           (move! view-node :selection :up))}
+
+   [:view/select-down]
+   {:run (g/fnk [view-node]
+           (move! view-node :selection :down))}
+
+   [:view/select-left]
+   {:run (g/fnk [view-node]
+           (move! view-node :selection :left))}
+
+   [:view/select-right]
+   {:run (g/fnk [view-node]
+           (move! view-node :selection :right))}
+
+   [:view/prev-word]
+   {:run (g/fnk [view-node]
+           (move! view-node :navigation :prev-word))}
+
+   [:view/select-prev-word]
+   {:run (g/fnk [view-node]
+           (move! view-node :selection :prev-word))}
+
+   [:view/next-word]
+   {:run (g/fnk [view-node]
+           (move! view-node :navigation :next-word))}
+
+   [:view/select-next-word]
+   {:run (g/fnk [view-node]
+           (move! view-node :selection :next-word))}
+
+   [:view/beginning-of-line]
+   {:run (g/fnk [view-node]
+           (move! view-node :navigation :line-start))}
+
+   [:view/select-beginning-of-line]
+   {:run (g/fnk [view-node]
+           (move! view-node :selection :line-start))}
+
+   [:view/beginning-of-line-text]
+   {:run (g/fnk [view-node]
+           (move! view-node :navigation :home))}
+
+   [:view/select-beginning-of-line-text]
+   {:run (g/fnk [view-node]
+           (move! view-node :selection :home))}
+
+   [:view/end-of-line]
+   {:run (g/fnk [view-node]
+           (move! view-node :navigation :end))}
+
+   [:view/select-end-of-line]
+   {:run (g/fnk [view-node]
+           (move! view-node :selection :end))}
+
+   [:view/page-up]
+   {:run (g/fnk [view-node]
+           (page-up! view-node :navigation))}
+
+   [:view/select-page-up]
+   {:run (g/fnk [view-node]
+           (page-up! view-node :selection))}
+
+   [:view/page-down]
+   {:run (g/fnk [view-node]
+           (page-down! view-node :navigation))}
+
+   [:view/select-page-down]
+   {:run (g/fnk [view-node]
+           (page-down! view-node :selection))}
+
+   [:view/beginning-of-file]
+   {:run (g/fnk [view-node]
+           (move! view-node :navigation :file-start))}
+
+   [:view/select-beginning-of-file]
+   {:run (g/fnk [view-node]
+           (move! view-node :selection :file-start))}
+
+   [:view/end-of-file]
+   {:run (g/fnk [view-node]
+           (move! view-node :navigation :file-end))}
+
+   [:view/select-end-of-file]
+   {:run (g/fnk [view-node]
+           (move! view-node :selection :file-end))}
+
+   [:view/copy]
+   {:enabled? (g/fnk [view-node evaluation-context]
+                (has-selection? view-node evaluation-context))
+    :run (g/fnk [view-node clipboard]
+           (copy! view-node clipboard))}
+
+   [:view/select-all]
+   {:run (g/fnk [view-node]
+           (select-all! view-node))}
+
+   [:view/select-next-occurrence :tool/select-next-occurrence]
+   {:run (g/fnk [view-node]
+           (select-next-occurrence! view-node))}
+
+   [:view/split-selection-into-lines]
+   {:run (g/fnk [view-node]
+           (split-selection-into-lines! view-node))}})
+
+(defn register-fundamental-read-only-handlers!
+  "Register UI handlers for fundamental navigation and selection actions. Shared
+  between the code editor view and the console view."
+  [ns view-context-definition tool-context-definition]
+  (let [namespace-name (str ns)]
+    (doseq [[prefixed-commands fnks] fundamental-read-only-handlers
+            prefixed-command prefixed-commands]
+      (let [prefix (keyword (namespace prefixed-command))
+            command-name (name prefixed-command)
+            command (keyword command-name)
+            handler-id (keyword namespace-name command-name)]
+        (assert (#{:tool :view} prefix))
+        (when (= :view prefix)
+          (handler/register-handler! handler-id command view-context-definition fnks))
+        (when (= :tool prefix)
+          (handler/register-handler! handler-id command tool-context-definition fnks))))))
+
 (defn- focus-view! [view-node opts]
   (.requestFocus ^Node (g/node-value view-node :canvas))
   (when-some [cursor-range (:cursor-range opts)]
@@ -3718,3 +3759,5 @@
                                 :make-view-fn (fn [graph parent resource-node opts] (make-view! graph parent resource-node opts))
                                 :focus-fn (fn [view-node opts] (focus-view! view-node opts))
                                 :text-selection-fn non-empty-single-selection-text))
+
+(register-fundamental-read-only-handlers! *ns* :code-view :code-view-tools)
