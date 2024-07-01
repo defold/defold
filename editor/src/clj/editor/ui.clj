@@ -769,10 +769,11 @@
   (on-action! [node update-fn]
     (.setOnAction node (event-handler e
                          (clear-auto-commit! node)
-                         (update-fn e)
-                         (if (zero? (.getLength (.getSelection node)))
-                           (.selectAll node)
-                           (.deselect node)))))
+                         (let [length (.getLength (.getSelection node))]
+                           (update-fn e)
+                           (if (zero? length)
+                             (.selectAll node)
+                             (.deselect node))))))
   Cancellable
   (on-cancel! [node cancel-fn]
     (bind-key! node "Esc" (fn []
@@ -785,11 +786,12 @@
   HasAction
   (on-action! [node update-fn]
     (bind-key! node "Shortcut+Enter" (fn []
-                                         (clear-auto-commit! node)
+                                       (clear-auto-commit! node)
+                                       (let [length (.getLength (.getSelection node))]
                                          (update-fn node)
-                                         (if (zero? (.getLength (.getSelection node)))
+                                         (if (zero? length)
                                            (.selectAll node)
-                                           (.deselect node)))))
+                                           (.deselect node))))))
   Cancellable
   (on-cancel! [node cancel-fn]
     (bind-key! node "Esc" (fn []

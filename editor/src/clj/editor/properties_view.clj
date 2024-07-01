@@ -240,7 +240,7 @@
                 update-fn (fn update-fn [_]
                             (let [property (property-fn)
                                   current-vals (properties/values property)
-                                  old-num (ffirst current-vals)
+                                  old-num (get (get current-vals 0) index)
                                   num (parse-num (.getText text-field) old-num)]
                               (if (and num (not= num old-num))
                                 (properties/set-values! property (mapv #(assoc % index num) current-vals))
