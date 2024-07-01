@@ -19,7 +19,6 @@ from waflib.TaskGen import extension, feature, after, before, task_gen
 from waflib.Logs import error
 from waflib.Task import RUN_ME
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
-import run
 import sdk
 
 if not 'DYNAMO_HOME' in os.environ:

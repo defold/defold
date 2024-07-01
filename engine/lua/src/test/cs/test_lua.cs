@@ -35,7 +35,7 @@ public unsafe class TestLua
     }
 
     [UnmanagedCallersOnly(EntryPoint = "csRunTestsLua")]
-    public static int csRunTestsHash(Lua.State* L)
+    public static int csRunTestsLua(Lua.State* L)
     {
         int top = Lua.gettop(L);
 
