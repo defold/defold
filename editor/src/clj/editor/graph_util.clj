@@ -39,6 +39,12 @@
            [src-label [tgt-id tgt-label]])
          (g/explicit-outputs basis node-id))))
 
+(defn connect-existing-outputs [source-node-type source-node-id target-node-id connections]
+  (let [existing-source-output-labels (g/output-labels source-node-type)]
+    (for [[source-output-label target-output-label] connections
+          :when (contains? existing-source-output-labels source-output-label)]
+      (g/connect source-node-id source-output-label target-node-id target-output-label))))
+
 
 ;; -----------------------------------------------------------------------------
 ;; set-properties-from-pb-map macro

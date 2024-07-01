@@ -37,6 +37,7 @@
           <entry key="editor.gl/gl-push-matrix" value="-1" />
           <entry key="editor.gl/with-drawable-as-current" value="1" />
           <entry key="editor.gl/with-gl-bindings" value="-1" />
+          <entry key="editor.graph-util/connect-existing-outputs" value="-1" />
           <entry key="editor.graph-util/set-properties-from-pb-map" value="-1" />
           <entry key="editor.handler/defhandler" value="-1" />
           <entry key="editor.handler/register-dynamic!" value="-1" />

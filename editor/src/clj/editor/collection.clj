@@ -682,15 +682,15 @@
         scale :scale3)
       (g/connect go-node :url resource-node :base-url)
       (project/load-embedded-resource-node project resource-node resource prototype-desc)
-      (project/connect-if-output node-type resource-node go-node
-                                 [[:_node-id :source-id]
-                                  [:resource :source-resource]
-                                  [:node-outline :source-outline]
-                                  [:proto-msg :proto-msg]
-                                  [:build-targets :source-build-targets]
-                                  [:scene :scene]
-                                  [:ddf-component-properties :ddf-component-properties]
-                                  [:resource-property-build-targets :resource-property-build-targets]])
+      (gu/connect-existing-outputs node-type resource-node go-node
+        [[:_node-id :source-id]
+         [:resource :source-resource]
+         [:node-outline :source-outline]
+         [:proto-msg :proto-msg]
+         [:build-targets :source-build-targets]
+         [:scene :scene]
+         [:ddf-component-properties :ddf-component-properties]
+         [:resource-property-build-targets :resource-property-build-targets]])
       (attach-coll-embedded-go self go-node)
       (when parent
         (if (= parent self)
