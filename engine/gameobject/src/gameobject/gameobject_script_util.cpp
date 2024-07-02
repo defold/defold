@@ -20,6 +20,7 @@
 #include <dmsdk/gameobject/res_lua.h>
 #include "../proto/gameobject/lua_ddf.h"
 #include "gameobject_script_util.h"
+#include "gameobject_props_lua.h"
 
 namespace dmGameObject
 {
@@ -81,6 +82,115 @@ namespace dmGameObject
         return dmGameObject::RESULT_OK;
     }
 
+    int LuaToPropertyOptions(lua_State* L, int index, PropertyOptions* property_options, dmhash_t property_id, bool* index_requested)
+    {
+        luaL_checktype(L, index, LUA_TTABLE);
+        lua_pushvalue(L, index);
+
+        lua_getfield(L, -1, "key");
+        if (!lua_isnil(L, -1))
+        {
+            property_options->m_Key = dmScript::CheckHashOrString(L, -1);
+            property_options->m_HasKey = 1;
+        }
+        lua_pop(L, 1);
+
+        lua_getfield(L, -1, "index");
+        if (!lua_isnil(L, -1)) // make it optional
+        {
+            if (property_options->m_HasKey)
+            {
+                return luaL_error(L, "Options table cannot contain both 'key' and 'index'.");
+            }
+            if (!lua_isnumber(L, -1))
+            {
+                return luaL_error(L, "Invalid number passed as index argument in options table.");
+            }
+
+            property_options->m_Index = luaL_checkinteger(L, -1) - 1;
+
+            if (property_options->m_Index < 0)
+            {
+                return luaL_error(L, "Negative numbers passed as index argument in options table (%d).", property_options->m_Index);
+            }
+
+            if (index_requested)
+            {
+                *index_requested = true;
+            }
+        }
+        lua_pop(L, 1);
+
+        lua_pop(L, 1);
+
+        return 0;
+    }
+
+    int CheckGetPropertyResult(lua_State* L, const char* module_name, dmGameObject::PropertyResult result, const PropertyDesc& property_desc, dmhash_t property_id, const dmMessage::URL& target, const dmGameObject::PropertyOptions& property_options, bool index_requested)
+    {
+        DM_HASH_REVERSE_MEM(hash_ctx, 512);
+        switch (result)
+        {
+        case dmGameObject::PROPERTY_RESULT_OK:
+            {
+                if (index_requested && (property_desc.m_ValueType != dmGameObject::PROP_VALUE_ARRAY))
+                {
+                    return luaL_error(L, "Options table contains index, but property '%s' is not an array.", dmHashReverseSafe64Alloc(&hash_ctx, property_id));
+                }
+                else if (property_options.m_HasKey && (property_desc.m_ValueType != dmGameObject::PROP_VALUE_HASHTABLE))
+                {
+                    return luaL_error(L, "Options table contains key, but property '%s' is not a hashtable.", dmHashReverseSafe64Alloc(&hash_ctx, property_id));
+                }
+
+                dmGameObject::LuaPushVar(L, property_desc.m_Variant);
+
+                return 1;
+            }
+        case dmGameObject::PROPERTY_RESULT_RESOURCE_NOT_FOUND:
+            {
+                if (property_options.m_HasKey)
+                {
+                    return luaL_error(L, "Resource `%s` for property '%s' not found!", dmHashReverseSafe64Alloc(&hash_ctx, property_options.m_Key), dmHashReverseSafe64Alloc(&hash_ctx, property_id));
+                }
+                else
+                {
+                    return luaL_error(L, "Property '%s' not found!", dmHashReverseSafe64Alloc(&hash_ctx, property_id));
+                }
+            }
+        case dmGameObject::PROPERTY_RESULT_INVALID_INDEX:
+            {
+                if (property_options.m_HasKey)
+                {
+                    return luaL_error(L, "Property '%s' is an array, but in options table specified key instead of index.", dmHashReverseSafe64Alloc(&hash_ctx, property_id));
+                }
+                return luaL_error(L, "Invalid index %d for property '%s'", property_options.m_Index+1, dmHashReverseSafe64Alloc(&hash_ctx, property_id));
+            }
+        case dmGameObject::PROPERTY_RESULT_INVALID_KEY:
+            {
+                if (!property_options.m_HasKey)
+                {
+                    return luaL_error(L, "Property '%s' is a hashtable, but in options table specified index instead of key.", dmHashReverseSafe64Alloc(&hash_ctx, property_id));
+                }
+                return luaL_error(L, "Invalid key '%s' for property '%s'", dmHashReverseSafe64Alloc(&hash_ctx, property_options.m_Key), dmHashReverseSafe64Alloc(&hash_ctx, property_id));
+            }
+        case dmGameObject::PROPERTY_RESULT_NOT_FOUND:
+            {
+                const char* path = dmHashReverseSafe64Alloc(&hash_ctx, target.m_Path);
+                const char* property = dmHashReverseSafe64Alloc(&hash_ctx, property_id);
+                if (target.m_Fragment)
+                {
+                    return luaL_error(L, "'%s#%s' does not have any property called '%s'", path, dmHashReverseSafe64Alloc(&hash_ctx, target.m_Fragment), property);
+                }
+                return luaL_error(L, "'%s' does not have any property called '%s'", path, property);
+            }
+        case dmGameObject::PROPERTY_RESULT_COMP_NOT_FOUND:
+            return luaL_error(L, "Could not find component '%s' when resolving '%s'", dmHashReverseSafe64Alloc(&hash_ctx, target.m_Fragment), lua_tostring(L, 1));
+        default:
+            // Should never happen, programmer error
+            return luaL_error(L, "%s.get failed with error code %d", module_name, result);
+        }
+        return 0;
+    }
 }
 
 

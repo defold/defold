@@ -543,7 +543,7 @@
              io/file
              .toPath
              Files/readAllBytes
-             (protobuf/bytes->map Lua$LuaModule))))
+             (protobuf/bytes->map-with-defaults Lua$LuaModule))))
 
 (defn attach!
   [debug-view project target build-artifacts]

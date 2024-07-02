@@ -468,7 +468,7 @@
 
      (map? value)
      (finalize-coll-value-fn
-       (into (empty value)
+       (into (coll/empty-with-meta value)
              (map (fn [[k v]]
                     (let [v' (deep-map finalize-coll-value-fn value-fn v)]
                       (pair k v'))))
@@ -476,7 +476,7 @@
 
      (coll? value)
      (finalize-coll-value-fn
-       (into (empty value)
+       (into (coll/empty-with-meta value)
              (map #(deep-map finalize-coll-value-fn value-fn %))
              value))
 

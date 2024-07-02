@@ -107,6 +107,7 @@
                     {:label "Enable Texture Compression" :type :boolean :key "general-enable-texture-compression" :default false}
                     {:label "Escape Quits Game" :type :boolean :key "general-quit-on-esc" :default false}
                     {:label "Track Active Tab in Asset Browser" :type :boolean :key "asset-browser-track-active-tab?" :default false}
+                    {:label "Lint Code on Build" :type :boolean :key "general-lint-on-build" :default true}
                     {:label "Path to Custom Keymap" :type :string :key "custom-keymap-path" :default ""}]}
            {:name  "Code"
             :prefs [{:label "Custom Editor" :type :string :key "code-custom-editor" :default ""}

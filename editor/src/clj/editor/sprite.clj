@@ -251,27 +251,17 @@
 ; Node defs
 
 (g/defnk produce-save-value [textures default-animation material material-attribute-infos blend-mode size-mode manual-size slice9 offset playback-rate vertex-attribute-overrides]
-  (cond-> {:default-animation default-animation
-           :material (resource/resource->proj-path material)
-           :blend-mode blend-mode
-           :attributes (graphics/vertex-attribute-overrides->save-values vertex-attribute-overrides material-attribute-infos)
-           :textures (mapv #(update % :texture resource/proj-path) textures)}
-
-          (not= [0.0 0.0 0.0 0.0] slice9)
-          (assoc :slice9 slice9)
-
-          (not= 0.0 offset)
-          (assoc :offset offset)
-
-          (not= 1.0 playback-rate)
-          (assoc :playback-rate playback-rate)
-
-          (not= :size-mode-auto size-mode)
-          (cond-> :always
-                  (assoc :size-mode size-mode)
-
-                  (not= [0.0 0.0 0.0] manual-size)
-                  (assoc :size (v3->v4 manual-size)))))
+  (protobuf/make-map-without-defaults Sprite$SpriteDesc
+    :default-animation default-animation
+    :material (resource/resource->proj-path material)
+    :blend-mode blend-mode
+    :slice9 slice9
+    :size-mode size-mode
+    :size (v3->v4 manual-size)
+    :offset offset
+    :playback-rate playback-rate
+    :attributes (graphics/vertex-attribute-overrides->save-values vertex-attribute-overrides material-attribute-infos)
+    :textures (mapv #(update % :texture resource/proj-path) textures)))
 
 (g/defnk produce-scene
   [_node-id aabb material-shader scene-infos blend-mode size-mode size slice9 material-attribute-infos vertex-attribute-bytes]
@@ -344,8 +334,7 @@
           [unassigned-default-animation-error])))
 
     [(pipeline/make-protobuf-build-target
-       resource dep-build-targets
-       Sprite$SpriteDesc
+       _node-id resource Sprite$SpriteDesc
        {:default-animation default-animation
         :material material
         :blend-mode blend-mode
@@ -356,8 +345,7 @@
         :playback-rate playback-rate
         :attributes (graphics/vertex-attribute-overrides->build-target vertex-attribute-overrides vertex-attribute-bytes material-attribute-infos)
         :textures textures}
-       [:material
-        [:textures :texture]])]))
+       dep-build-targets)]))
 
 (def ^:private fake-resource
   (reify resource/Resource
@@ -377,8 +365,8 @@
     (editable? [_] false)))
 
 (g/defnode TextureBinding
-  (property sampler g/Str (default ""))
-  (property texture resource/Resource
+  (property sampler g/Str) ; Required protobuf field.
+  (property texture resource/Resource ; Required protobuf field.
             (value (gu/passthrough texture-resource))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
@@ -532,7 +520,7 @@
 
 (g/defnode SpriteNode
   (inherits resource-node/ResourceNode)
-  (property default-animation g/Str
+  (property default-animation g/Str ; Required protobuf field.
             (dynamic error (g/fnk [_node-id textures primary-texture-binding-info default-animation]
                              (when (pos? (count textures))
                                (or (validation/prop-error :info _node-id :default-animation validation/prop-empty? default-animation "Default Animation")
@@ -540,7 +528,7 @@
                                      (validation/prop-error :fatal _node-id :default-animation validation/prop-anim-missing-in? default-animation anim-data sampler))))))
             (dynamic edit-type (g/fnk [anim-ids] (properties/->choicebox anim-ids))))
 
-  (property material resource/Resource
+  (property material resource/Resource ; Default assigned in load-fn.
             (value (gu/passthrough material-resource))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
@@ -554,10 +542,10 @@
             (dynamic error (g/fnk [_node-id material]
                              (validate-material _node-id material))))
 
-  (property blend-mode g/Any (default :blend-mode-alpha)
+  (property blend-mode g/Any (default (protobuf/default Sprite$SpriteDesc :blend-mode))
             (dynamic tip (validation/blend-mode-tip blend-mode Sprite$SpriteDesc$BlendMode))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Sprite$SpriteDesc$BlendMode))))
-  (property size-mode g/Keyword (default :size-mode-auto)
+  (property size-mode g/Keyword (default (protobuf/default Sprite$SpriteDesc :size-mode))
             (set (fn [evaluation-context self old-value new-value]
                    ;; Use the texture size for the :manual-size when the user switches
                    ;; from :size-mode-auto to :size-mode-manual.
@@ -568,9 +556,9 @@
                        (let [texture-size [(double (:width animation)) (double (:height animation)) 0.0]]
                          (g/set-property self :manual-size texture-size))))))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Sprite$SpriteDesc$SizeMode))))
-  (property manual-size types/Vec3 (default [0.0 0.0 0.0])
+  (property manual-size types/Vec3 (default (v4->v3 (protobuf/default Sprite$SpriteDesc :size)))
             (dynamic visible (g/constantly false)))
-  (property size types/Vec3
+  (property size types/Vec3 ; Just for presentation.
             (value (g/fnk [manual-size size-mode ^:try scene-infos]
                      (let [first-animation (when-not (g/error-value? scene-infos)
                                              (:animation (first scene-infos)))]
@@ -582,17 +570,16 @@
             (set (fn [_evaluation-context self _old-value new-value]
                    (g/set-property self :manual-size new-value)))
             (dynamic read-only? (g/fnk [size-mode] (= :size-mode-auto size-mode))))
-  (property slice9 types/Vec4 (default [0.0 0.0 0.0 0.0])
+  (property slice9 types/Vec4 (default (protobuf/default Sprite$SpriteDesc :slice9))
             (dynamic read-only? (g/fnk [size-mode] (= :size-mode-auto size-mode)))
             (dynamic edit-type (g/constantly {:type types/Vec4 :labels ["L" "T" "R" "B"]})))
-  (property playback-rate g/Num (default 1.0))
-  (property offset g/Num (default 0.0)
+  (property playback-rate g/Num (default (protobuf/default Sprite$SpriteDesc :playback-rate)))
+  (property offset g/Num (default (protobuf/default Sprite$SpriteDesc :offset))
             (dynamic edit-type (g/constantly {:type :slider
                                               :min 0.0
                                               :max 1.0
                                               :precision 0.01})))
-  (property vertex-attribute-overrides g/Any
-            (default {})
+  (property vertex-attribute-overrides g/Any (default {})
             (dynamic visible (g/constantly false)))
 
   (input texture-binding-infos g/Any :array)
@@ -645,46 +632,46 @@
   (output vertex-attribute-bytes g/Any :cached (g/fnk [_node-id material-attribute-infos vertex-attribute-overrides]
                                                  (graphics/attribute-bytes-by-attribute-key _node-id material-attribute-infos vertex-attribute-overrides))))
 
-(defn- sanitize-sprite [{:keys [offset playback-rate size size-mode slice9 textures tile-set] :as sprite-desc}]
+(def ^:private default-material-proj-path (protobuf/default Sprite$SpriteDesc :material))
+
+(defn- sanitize-sprite [{:keys [size size-mode slice9 material textures tile-set] :as sprite-desc}]
   {:pre [(map? sprite-desc)]} ; Sprite$SpriteDesc in map format.
   (cond-> (dissoc sprite-desc :tile-set)
 
           (= protobuf/vector4-zero slice9)
           (dissoc :slice9)
 
-          (= protobuf/float-zero offset)
-          (dissoc :offset)
-
-          (= protobuf/float-one playback-rate)
-          (dissoc :playback-rate)
-
           (= :size-mode-auto size-mode)
-          (dissoc :size-mode)
+          (dissoc :size-mode :size)
 
           (= protobuf/vector4-zero size)
           (dissoc :size)
+
+          (nil? material)
+          (assoc :material default-material-proj-path)
 
           (and (zero? (count textures))
                (pos? (count tile-set)))
           (assoc :textures [{:sampler "texture_sampler"
                              :texture tile-set}])))
 
-(defn load-sprite [project self resource sprite]
-  (let [material (workspace/resolve-resource resource (:material sprite))
-        vertex-attribute-overrides (graphics/override-attributes->vertex-attribute-overrides (:attributes sprite))]
+(defn- load-sprite [project self resource sprite-desc]
+  {:pre [(map? sprite-desc)]} ; Sprite$SpriteDesc in map format.
+  (let [resolve-resource #(workspace/resolve-resource resource %)]
     (concat
       (g/connect project :default-tex-params self :default-tex-params)
-      (g/set-property self :default-animation (:default-animation sprite))
-      (g/set-property self :material material)
-      (g/set-property self :blend-mode (:blend-mode sprite))
-      (g/set-property self :size-mode (:size-mode sprite :size-mode-auto))
-      (g/set-property self :manual-size (v4->v3 (:size sprite protobuf/vector4-zero)))
-      (g/set-property self :slice9 (:slice9 sprite protobuf/vector4-zero))
-      (g/set-property self :offset (:offset sprite protobuf/float-zero))
-      (g/set-property self :playback-rate (:playback-rate sprite protobuf/float-one))
-      (g/set-property self :vertex-attribute-overrides vertex-attribute-overrides)
-      (for [{:keys [sampler texture]} (:textures sprite)]
-        (create-texture-binding-tx self sampler (workspace/resolve-resource resource texture))))))
+      (gu/set-properties-from-pb-map self Sprite$SpriteDesc sprite-desc
+        default-animation :default-animation
+        material (resolve-resource (:material :or default-material-proj-path))
+        blend-mode :blend-mode
+        size-mode :size-mode
+        manual-size (v4->v3 :size)
+        slice9 :slice9
+        offset :offset
+        playback-rate :playback-rate
+        vertex-attribute-overrides (graphics/override-attributes->vertex-attribute-overrides :attributes))
+      (for [{:keys [sampler texture]} (:textures sprite-desc)]
+        (create-texture-binding-tx self sampler (resolve-resource texture))))))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace

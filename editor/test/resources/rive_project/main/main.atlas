@@ -1,0 +1,4 @@
+images {
+  image: "/defold-rive/assets/bone.png"
+}
+extrude_borders: 2

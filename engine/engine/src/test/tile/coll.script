@@ -14,7 +14,7 @@
 
 function init(self)
 
-    local res, tile, group
+    local res, tile, group, tile_info
 
     -- get_bounds
     x, y, w, h = tilemap.get_bounds("#tilemap")
@@ -37,6 +37,18 @@ function init(self)
     assert(tile == 0)
     tile = tilemap.get_tile("#tilemap", "layer", 1, 1)
     assert(tile == 1)
+
+    -- get_tile_info
+    tile_info = tilemap.get_tile_info("#tilemap", "layer", -1, 0)
+    assert(tile_info.index == 1)
+    assert(tile_info.rotate_90 == true)
+    assert(tile_info.v_flip == true)
+    assert(tile_info.h_flip == true)
+    tile_info = tilemap.get_tile_info("#tilemap", "layer", 1, 1)
+    assert(tile_info.index == 1)
+    assert(tile_info.rotate_90 == true)
+    assert(tile_info.v_flip == false)
+    assert(tile_info.h_flip == false)
 
     -- out of range
     tile = tilemap.get_tile("#tilemap", "layer", 2, 1)

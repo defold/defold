@@ -380,7 +380,7 @@
 (defn adapt [selection t]
   (if (empty? selection)
     selection
-    (let [selection (if (g/isa-node-type? t)
+    (let [selection (if (g/node-type? t)
                       (adapt selection Long)
                       selection)
           adapters *adapters*
@@ -392,7 +392,7 @@
               (and (:on-interface t) (instance? (:on-interface t) v)) identity
               ;; test for node types specifically by checking for longs
               ;; we can't use g/NodeID because that is actually a wrapped ValueTypeRef
-              (and (g/isa-node-type? t) (= (type v) Long)) (fn [v] (when (g/node-instance? t v) v))
+              (and (g/node-type? t) (= (type v) Long)) (fn [v] (when (g/node-instance? t v) v))
               (satisfies? core/Adaptable v) (fn [v] (core/adapt v t))
               true (get adapters t (constantly nil)))]
       (mapv f selection))))

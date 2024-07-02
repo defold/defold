@@ -36,6 +36,8 @@ namespace dmGameSystem
     dmGameObject::PropertyResult CompSoundGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value);
 
     dmGameObject::PropertyResult CompSoundSetProperty(const dmGameObject::ComponentSetPropertyParams& params);
+
+    void*                       CompSoundGetComponent(const dmGameObject::ComponentGetParams& params);
 }
 
 #endif

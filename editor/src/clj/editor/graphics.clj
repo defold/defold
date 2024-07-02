@@ -3,10 +3,10 @@
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
-;; 
+;;
 ;; Unless required by applicable law or agreed to in writing, software distributed
 ;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
@@ -24,10 +24,11 @@
             [editor.validation :as validation]
             [internal.util :as iutil]
             [potemkin.namespaces :as namespaces]
-            [util.coll :refer [pair]]
+            [util.coll :as coll :refer [pair]]
+            [util.fn :as fn]
             [util.murmur :as murmur]
             [util.num :as num])
-  (:import [com.dynamo.graphics.proto Graphics$VertexAttribute$SemanticType]
+  (:import [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$VertexAttribute Graphics$VertexAttribute$SemanticType]
            [com.google.protobuf ByteString]
            [com.jogamp.opengl GL2]
            [editor.gl.vertex2 VertexBuffer]
@@ -36,6 +37,8 @@
 (set! *warn-on-reflection* true)
 
 (namespaces/import-vars [editor.gl.vertex2 attribute-name->key])
+
+(def ^:private default-attribute-data-type (protobuf/default Graphics$VertexAttribute :data-type))
 
 (def ^:private attribute-data-type-infos
   [{:data-type :type-byte
@@ -60,26 +63,35 @@
     :value-keyword :double-values
     :byte-size 4}])
 
-(def ^:private attribute-data-type->attribute-value-keyword
-  (into {}
-        (map (juxt :data-type :value-keyword))
+(def attribute-data-type?
+  (into #{}
+        (map :data-type)
         attribute-data-type-infos))
 
+(def coordinate-space? (protobuf/valid-enum-values Graphics$CoordinateSpace))
+
+(def semantic-type? (protobuf/valid-enum-values Graphics$VertexAttribute$SemanticType))
+
+(def ^:private attribute-data-type->attribute-value-keyword
+  (fn/make-case-fn (map (juxt :data-type :value-keyword)
+                        attribute-data-type-infos)))
+
 (defn attribute-value-keyword [attribute-data-type normalize]
+  {:pre [(attribute-data-type? attribute-data-type)]}
   (if normalize
     :double-values
     (attribute-data-type->attribute-value-keyword attribute-data-type)))
 
 (def ^:private attribute-data-type->byte-size
-  (into {}
-        (map (juxt :data-type :byte-size))
-        attribute-data-type-infos))
+  (fn/make-case-fn (map (juxt :data-type :byte-size)
+                        attribute-data-type-infos)))
 
-(defn attribute->doubles [attribute]
+(defn attribute->doubles [{:keys [data-type] :as attribute}]
+  {:pre [(attribute-data-type? data-type)]}
   (into (vector-of :double)
         (map unchecked-double)
         (if (or (:normalize attribute)
-                (= :type-float (:data-type attribute)))
+                (= :type-float data-type))
           (:v (:double-values attribute))
           (:v (:long-values attribute)))))
 
@@ -172,7 +184,8 @@
       :else
       double-values)))
 
-(defn- default-attribute-doubles-raw [semantic-type element-count]
+(defn- default-attribute-doubles-raw [semantic-type ^long element-count]
+  {:pre [(semantic-type? semantic-type)]}
   (resize-doubles (vector-of :double) semantic-type element-count))
 
 (def default-attribute-doubles (memoize default-attribute-doubles-raw))
@@ -199,17 +212,19 @@
     (vtx/buf-push! byte-buffer buffer-data-type normalize attribute-values)
     attribute-bytes))
 
-(defn- default-attribute-bytes-raw [semantic-type data-type element-count normalize]
+(defn- default-attribute-bytes-raw [semantic-type attribute-data-type element-count normalize]
   (let [default-values (default-attribute-doubles semantic-type element-count)]
-    (make-attribute-bytes data-type normalize default-values)))
+    (make-attribute-bytes attribute-data-type normalize default-values)))
 
 (def default-attribute-bytes (memoize default-attribute-bytes-raw))
 
 (defn attribute->bytes+error-message
   ([attribute]
    (attribute->bytes+error-message attribute nil))
-  ([{:keys [data-type normalize] :as attribute} override-values]
+  ([{:keys [data-type element-count normalize] :as attribute} override-values]
    {:pre [(map? attribute)
+          (attribute-data-type? data-type)
+          (integer? element-count)
           (contains? attribute :values)
           (or (nil? override-values) (sequential? override-values))]}
    (try
@@ -217,7 +232,7 @@
            bytes (make-attribute-bytes data-type normalize values)]
        [bytes nil])
      (catch IllegalArgumentException exception
-       (let [{:keys [element-count name semantic-type]} attribute
+       (let [{:keys [name semantic-type]} attribute
              default-bytes (default-attribute-bytes semantic-type data-type element-count normalize)
              exception-message (ex-message exception)
              error-message (format "Vertex attribute '%s' - %s" name exception-message)]
@@ -225,6 +240,7 @@
 
 (defn attribute-info->build-target-attribute [attribute-info]
   {:pre [(map? attribute-info)
+         (string? (:name attribute-info))
          (keyword? (:name-key attribute-info))]}
   (let [^bytes attribute-bytes (:bytes attribute-info)]
     (-> attribute-info
@@ -232,16 +248,22 @@
         (assoc :name-hash (murmur/hash64 (:name attribute-info))
                :binary-values (ByteString/copyFrom attribute-bytes)))))
 
-(defn- attribute-info->vtx-attribute [attribute-info]
+(defn- attribute-info->vtx-attribute [{:keys [coordinate-space data-type element-count name name-key normalize semantic-type] :as attribute-info}]
   {:pre [(map? attribute-info)
-         (keyword? (:name-key attribute-info))]}
-  {:name (:name attribute-info)
-   :name-key (:name-key attribute-info)
-   :semantic-type (:semantic-type attribute-info)
-   :coordinate-space (:coordinate-space attribute-info)
-   :type (attribute-data-type->buffer-data-type (:data-type attribute-info))
-   :components (:element-count attribute-info)
-   :normalize (:normalize attribute-info false)})
+         (coordinate-space? coordinate-space)
+         (attribute-data-type? data-type)
+         (integer? element-count)
+         (string? name)
+         (keyword? name-key)
+         (or (nil? normalize) (boolean? normalize))
+         (semantic-type? semantic-type)]}
+  {:name name
+   :name-key name-key
+   :semantic-type semantic-type
+   :coordinate-space coordinate-space
+   :type (attribute-data-type->buffer-data-type data-type)
+   :components element-count
+   :normalize (true? normalize)})
 
 (defn make-vertex-description [attribute-infos]
   (let [vtx-attributes (mapv attribute-info->vtx-attribute attribute-infos)]
@@ -269,9 +291,16 @@
          #(:coordinate-space % :coordinate-space-local)
          :semantic-type)))
 
-(defn sanitize-attribute [{:keys [data-type normalize] :as attribute}]
+;; TODO(save-value-cleanup): We only really need to sanitize the attributes if a resource type has :read-defaults true.
+(defn sanitize-attribute-value-v [attribute-value]
+  (protobuf/sanitize-repeated attribute-value :v))
+
+(defn sanitize-attribute-value-field [attribute attribute-value-keyword]
+  (protobuf/sanitize attribute attribute-value-keyword sanitize-attribute-value-v))
+
+(defn sanitize-attribute-definition [{:keys [data-type normalize] :as attribute}]
   ;; Graphics$VertexAttribute in map format.
-  (let [attribute-value-keyword (attribute-value-keyword data-type normalize)
+  (let [attribute-value-keyword (attribute-value-keyword (or data-type default-attribute-data-type) normalize)
         attribute-values (:v (get attribute attribute-value-keyword))]
     ;; TODO:
     ;; Currently the protobuf read function returns empty instances of every
@@ -282,67 +311,81 @@
         (dissoc :name-hash :double-values :long-values :binary-values)
         (assoc attribute-value-keyword {:v attribute-values}))))
 
+(defn sanitize-attribute-override [attribute]
+  ;; Graphics$VertexAttribute in map format.
+  (-> attribute
+      (dissoc :binary-values :coordinate-space :data-type :element-count :name-hash :normalize :semantic-type)
+      (sanitize-attribute-value-field :double-values)
+      (sanitize-attribute-value-field :long-values)))
+
 (def attribute-key->default-attribute-info
-  (into {}
-        (map (fn [{:keys [data-type element-count name normalize semantic-type] :as attribute}]
-               (let [attribute-key (attribute-name->key name)
-                     values (default-attribute-doubles semantic-type element-count)
-                     bytes (default-attribute-bytes semantic-type data-type element-count normalize)
-                     attribute-info (assoc attribute
-                                      :name-key attribute-key
-                                      :values values
-                                      :bytes bytes)]
-                 [attribute-key attribute-info])))
-        [{:name "position"
-          :semantic-type :semantic-type-position
-          :coordinate-space :coordinate-space-world
-          :data-type :type-float
-          :element-count 4}
-         {:name "color"
-          :semantic-type :semantic-type-color
-          :data-type :type-float
-          :element-count 4}
-         {:name "texcoord0"
-          :semantic-type :semantic-type-texcoord
-          :data-type :type-float
-          :element-count 2}
-         {:name "page_index"
-          :semantic-type :semantic-type-page-index
-          :data-type :type-float
-          :element-count 1}
-         {:name "normal"
-          :semantic-type :semantic-type-normal
-          :coordinate-space :coordinate-space-world
-          :data-type :type-float
-          :element-count 3}
-         {:name "tangent"
-          :semantic-type :semantic-type-tangent
-          :coordinate-space :coordinate-space-world
-          :data-type :type-float
-          :element-count 4}]))
+  (fn/make-case-fn
+    (into {}
+          (map (fn [{:keys [data-type element-count name normalize semantic-type] :as attribute}]
+                 (let [attribute-key (attribute-name->key name)
+                       values (default-attribute-doubles semantic-type element-count)
+                       bytes (default-attribute-bytes semantic-type data-type element-count normalize)
+                       attribute-info (assoc attribute
+                                        :name-key attribute-key
+                                        :values values
+                                        :bytes bytes)]
+                   [attribute-key attribute-info])))
+          [{:name "position"
+            :semantic-type :semantic-type-position
+            :coordinate-space :default ; Assigned default-coordinate-space parameter.
+            :data-type :type-float
+            :element-count 4}
+           {:name "color"
+            :semantic-type :semantic-type-color
+            :coordinate-space :coordinate-space-local
+            :data-type :type-float
+            :element-count 4}
+           {:name "texcoord0"
+            :semantic-type :semantic-type-texcoord
+            :coordinate-space :coordinate-space-local
+            :data-type :type-float
+            :element-count 2}
+           {:name "page_index"
+            :semantic-type :semantic-type-page-index
+            :coordinate-space :coordinate-space-local
+            :data-type :type-float
+            :element-count 1}
+           {:name "normal"
+            :semantic-type :semantic-type-normal
+            :coordinate-space :default ; Assigned default-coordinate-space parameter.
+            :data-type :type-float
+            :element-count 3}
+           {:name "tangent"
+            :semantic-type :semantic-type-tangent
+            :coordinate-space :default ; Assigned default-coordinate-space parameter.
+            :data-type :type-float
+            :element-count 4}])))
 
 (defn shader-bound-attributes [^GL2 gl shader material-attribute-infos manufactured-attribute-keys default-coordinate-space]
-  {:pre [(#{:coordinate-space-local :coordinate-space-world} default-coordinate-space)]}
+  {:pre [(coordinate-space? default-coordinate-space)]}
   (let [shader-bound-attribute? (comp boolean (shader/attribute-infos shader gl) :name)
         declared-material-attribute-key? (into #{} (map :name-key) material-attribute-infos)
-        manufactured-attribute-infos (into []
-                                           (comp (remove declared-material-attribute-key?)
-                                                 (map attribute-key->default-attribute-info))
-                                           manufactured-attribute-keys)
-        manufactured-attribute-infos (mapv (fn [attribute]
-                                             (if (contains? attribute :coordinate-space)
-                                               (assoc attribute :coordinate-space default-coordinate-space)
-                                               attribute))
-                                           manufactured-attribute-infos)
-        all-attributes (into manufactured-attribute-infos material-attribute-infos)]
-    (filterv shader-bound-attribute? all-attributes)))
+
+        manufactured-attribute-infos
+        (eduction
+          (remove declared-material-attribute-key?)
+          (map attribute-key->default-attribute-info)
+          (map (fn [attribute-info]
+                 (cond-> attribute-info
+                         (= :default (:coordinate-space attribute-info))
+                         (assoc :coordinate-space default-coordinate-space))))
+          manufactured-attribute-keys)]
+
+    (filterv shader-bound-attribute?
+             (concat manufactured-attribute-infos
+                     material-attribute-infos))))
 
 (defn vertex-attribute-overrides->save-values [vertex-attribute-overrides material-attribute-infos]
   (let [declared-material-attribute-key? (into #{} (map :name-key) material-attribute-infos)
         material-attribute-save-values
         (into []
               (keep (fn [{:keys [data-type element-count name name-key normalize semantic-type]}]
-                      (when-some [override-values (:values (get vertex-attribute-overrides name-key))]
+                      (when-some [override-values (some-> vertex-attribute-overrides (get name-key) :values coll/not-empty)]
                         ;; Ensure our saved values have the expected element-count.
                         ;; If the material has been edited, this might have changed,
                         ;; but specialized widgets like the one we use to edit color
@@ -350,8 +393,9 @@
                         ;; what the material dictates.
                         (let [resized-values (resize-doubles override-values semantic-type element-count)
                               [attribute-value-keyword stored-values] (doubles->storage resized-values data-type normalize)]
-                          {:name name
-                           attribute-value-keyword {:v stored-values}}))))
+                          (protobuf/make-map-without-defaults Graphics$VertexAttribute
+                            :name name
+                            attribute-value-keyword {:v stored-values})))))
               material-attribute-infos)
         orphaned-attribute-save-values
         (into []
@@ -360,7 +404,10 @@
                         (let [attribute-name (:name attribute-info)
                               attribute-value-keyword (:value-keyword attribute-info)
                               attribute-values (:values attribute-info)]
-                          {:name attribute-name attribute-value-keyword {:v attribute-values}})))
+                          (protobuf/make-map-without-defaults Graphics$VertexAttribute
+                            :name attribute-name
+                            attribute-value-keyword (when (coll/not-empty attribute-values)
+                                                      {:v attribute-values})))))
                     vertex-attribute-overrides))]
     (concat material-attribute-save-values orphaned-attribute-save-values)))
 
@@ -392,32 +439,35 @@
       3 types/Vec3
       4 types/Vec4)))
 
-(defn- attribute-expected-element-count [attribute]
-  (case (:semantic-type attribute)
+(defn- attribute-expected-element-count [{:keys [element-count semantic-type] :as _attribute}]
+  {:pre [(integer? element-count)]}
+  (case semantic-type
     :semantic-type-color 4
-    (:element-count attribute)))
+    element-count))
 
 (defn- attribute-update-property [current-property-value attribute new-value]
-  (let [override-info ((:name-key attribute) current-property-value)
+  (let [name-key (:name-key attribute)
+        override-info (name-key current-property-value)
         attribute-value-keyword (attribute-value-keyword (:data-type attribute) (:normalize attribute))
         override-value-keyword (or attribute-value-keyword (:value-keyword override-info))
         override-name (or (:name attribute) (:name override-info))]
-    (assoc current-property-value (:name-key attribute) {:values new-value
-                                                         :value-keyword override-value-keyword
-                                                         :name override-name})))
+    (assoc current-property-value name-key {:values new-value
+                                            :value-keyword override-value-keyword
+                                            :name override-name})))
 
-(defn- attribute-clear-property [current-property-value attribute]
-  (dissoc current-property-value (:name-key attribute)))
+(defn- attribute-clear-property [current-property-value {:keys [name-key] :as _attribute}]
+  {:pre [(keyword? name-key)]}
+  (dissoc current-property-value name-key))
 
 (defn- attribute-key->property-key-raw [attribute-key]
   (keyword (str "attribute_" (name attribute-key))))
 
 (def attribute-key->property-key (memoize attribute-key->property-key-raw))
 
-(defn- attribute-edit-type [attribute property-type]
-  (let [attribute-element-count (:element-count attribute)
-        attribute-semantic-type (:semantic-type attribute)
-        attribute-update-fn (fn [_evaluation-context self _old-value new-value]
+(defn- attribute-edit-type [{:keys [element-count semantic-type] :as attribute} property-type]
+  {:pre [(integer? element-count)
+         (semantic-type? semantic-type)]}
+  (let [attribute-update-fn (fn [_evaluation-context self _old-value new-value]
                               (let [values (if (= g/Num property-type)
                                              (vector-of :double new-value)
                                              new-value)]
@@ -428,10 +478,12 @@
              :set-fn attribute-update-fn
              :clear-fn attribute-clear-fn}
 
-            (= attribute-semantic-type :semantic-type-color)
-            (assoc :ignore-alpha? (not= 4 attribute-element-count)))))
+            (= semantic-type :semantic-type-color)
+            (assoc :ignore-alpha? (not= 4 element-count)))))
 
 (defn- attribute-value [attribute-values property-type semantic-type expected-element-count]
+  {:pre [(semantic-type? semantic-type)
+         (integer? expected-element-count)]}
   (if (= g/Num property-type)
     (first attribute-values) ; The widget expects a number, not a vector.
     (resize-doubles attribute-values semantic-type expected-element-count)))
@@ -470,11 +522,12 @@
             :let [values (:values vertex-override-info)
                   element-count (if (number? values) 1 (count values))
                   assumed-attribute-info {:element-count element-count
-                                          :name-key name-key}
+                                          :name-key name-key
+                                          :semantic-type :semantic-type-none}
                   property-type (attribute-property-type assumed-attribute-info)]]
         [(attribute-key->property-key name-key)
          {:node-id _node-id
-          :value (attribute-value values property-type nil element-count)
+          :value (attribute-value values property-type :semantic-type-none element-count)
           :label (properties/keyword->name name-key)
           :type property-type
           :edit-type (attribute-edit-type assumed-attribute-info property-type)
@@ -484,6 +537,7 @@
   (let [vertex-attribute-bytes
         (into {}
               (map (fn [{:keys [name-key] :as attribute-info}]
+                     {:pre [(keyword? name-key)]}
                      (let [override-info (get vertex-attribute-overrides name-key)
                            override-values (:values override-info)
                            [bytes error] (if (nil? override-values)

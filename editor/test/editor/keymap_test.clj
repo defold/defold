@@ -13,12 +13,13 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.keymap-test
-  (:require [clojure.test :refer [are deftest is testing]]
-            [editor.keymap :as keymap]))
+  (:require [clojure.test :refer [deftest is]]
+            [editor.keymap :as keymap]
+            [util.fn :as fn]))
 
 (deftest default-bindings-are-valid
   (doseq [[platform key-bindings] keymap/platform->default-key-bindings]
-    (is (keymap/make-keymap key-bindings {:valid-command? (constantly true)
+    (is (keymap/make-keymap key-bindings {:valid-command? fn/constantly-true
                                           :platform platform
                                           :throw-on-error? true}))))
 

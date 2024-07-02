@@ -174,7 +174,8 @@
 
   :profiles          {:test    {:injections [(com.defold.libs.ResourceUnpacker/unpackResources)]
                                 :resource-paths ["test/resources"]
-                                :jvm-opts ["-Ddefold.tests=true"]}
+                                :jvm-opts ["-Ddefold.tests=true"
+                                           "-Ddefold.cache.libraries=true"]}
                       :preflight {:dependencies [[jonase/kibit "0.1.6" :exclusions [org.clojure/clojure]]
                                                  [cljfmt-mg "0.6.4" :exclusions [org.clojure/clojure]]]}
                       :sidecar {:source-paths ["sidecar"]}
@@ -192,6 +193,7 @@
                       :headless {:jvm-opts ["-Dtestfx.robot=glass" "-Dglass.platform=Monocle" "-Dmonocle.platform=Headless" "-Dprism.order=sw"]
                                  :dependencies [[org.testfx/openjfx-monocle "jdk-12.0.1+2"]]}
                       :smoke-test {:jvm-opts ["-Ddefold.smoke.log=true"]}
+                      :cache-libraries {:jvm-opts ["-Ddefold.cache.libraries=true"]}
                       :reveal {:source-paths ["src/reveal"]
                                :injections [(require 'editor.reveal)]
                                :dependencies [[vlaaad/reveal "1.3.280"]]}
@@ -201,7 +203,10 @@
                                            (.replace (System/getProperty "user.home") \\ \/)
                                            "/.m2/repository/com/github/jbellis/jamm/0.4.0/jamm-0.4.0.jar")]}
                       :no-asserts {:global-vars {*assert* false}}
+                      :no-decorated-exceptions {:jvm-opts ["-Ddefold.exception.decorate.disable=true"]}
                       :no-schemas {:jvm-opts ["-Ddefold.schema.check.disable=true"]}
+                      :no-spec-asserts {:jvm-opts ["-Dclojure.spec.compile-asserts=false"]}
+                      :performance [:no-decorated-exceptions :no-schemas :no-spec-asserts]
                       :x86_64-linux {:dependencies [[org.openjfx/javafx-base "23-ea+3" :classifier "linux" :exclusions [org.openjfx/javafx-base]]
                                                     [org.openjfx/javafx-controls "23-ea+3" :classifier "linux" :exclusions [org.openjfx/javafx-controls org.openjfx/javafx-graphics]]
                                                     [org.openjfx/javafx-graphics "23-ea+3" :classifier "linux" :exclusions [org.openjfx/javafx-graphics org.openjfx/javafx-base]]
@@ -253,8 +258,12 @@
                                 :repl-options      {:init-ns user}
                                 :proto-paths       ["test/proto"]
                                 :resource-paths    ["test/resources"]
-                                :jvm-opts          ["-Ddefold.extension.spine.url=https://github.com/defold/extension-spine/archive/main.zip"
+                                :jvm-opts          ["-Ddefold.extension.lua-preprocessor.url=https://github.com/defold/extension-lua-preprocessor/archive/main.zip"
+                                                    "-Ddefold.extension.rive.url=https://github.com/defold/extension-rive/archive/refs/tags/2.4.0.zip"
+                                                    "-Ddefold.extension.simpledata.url=https://github.com/defold/extension-simpledata/archive/refs/tags/v1.1.0.zip"
+                                                    "-Ddefold.extension.spine.url=https://github.com/defold/extension-spine/archive/refs/tags/3.5.0.zip"
                                                     "-Ddefold.extension.teal.url=https://github.com/defold/extension-teal/archive/main.zip"
+                                                    "-Ddefold.extension.texturepacker.url=https://github.com/defold/extension-texturepacker/archive/refs/tags/1.2.zip"
                                                     "-Ddefold.unpack.path=tmp/unpack"
                                                     "-Ddefold.nrepl=true"
                                                     "-Ddefold.log.dir="

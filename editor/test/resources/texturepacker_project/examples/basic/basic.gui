@@ -1,0 +1,103 @@
+script: ""
+fonts {
+  name: "default_font"
+  font: "/builtins/fonts/default.font"
+}
+textures {
+  name: "anim_trim"
+  texture: "/examples/anim_trim/anim_trim.tpatlas"
+}
+textures {
+  name: "basic"
+  texture: "/examples/basic/basic.tpatlas"
+}
+background_color {
+  x: 0.0
+  y: 0.0
+  z: 0.0
+  w: 0.0
+}
+nodes {
+  position {
+    x: 816.0
+    y: 550.0
+  }
+  scale {
+    x: 0.8
+    y: 0.8
+  }
+  size {
+    x: 200.0
+    y: 100.0
+  }
+  type: TYPE_BOX
+  id: "box"
+  inherit_alpha: true
+  size_mode: SIZE_MODE_AUTO
+}
+nodes {
+  size {
+    x: 200.0
+    y: 100.0
+  }
+  color {
+    x: 0.0
+    y: 0.0
+    z: 0.0
+  }
+  type: TYPE_TEXT
+  text: "Gui"
+  font: "default_font"
+  id: "text"
+  outline {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+  }
+  shadow {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+  }
+  parent: "box"
+  inherit_alpha: true
+}
+nodes {
+  position {
+    x: -55.0
+    y: -136.25
+  }
+  size {
+    x: 200.0
+    y: 100.0
+  }
+  type: TYPE_BOX
+  texture: "anim_trim/anim_trim"
+  id: "green"
+  parent: "box"
+  inherit_alpha: true
+  size_mode: SIZE_MODE_AUTO
+}
+nodes {
+  position {
+    x: 86.25
+    y: -136.25
+  }
+  size {
+    x: 200.0
+    y: 100.0
+  }
+  type: TYPE_BOX
+  texture: "basic/box_small_128"
+  id: "blue"
+  parent: "box"
+  inherit_alpha: true
+  size_mode: SIZE_MODE_AUTO
+  material: "gui_paged_atlas"
+}
+material: "/builtins/materials/gui.material"
+adjust_reference: ADJUST_REFERENCE_PARENT
+materials {
+  name: "gui_paged_atlas"
+  material: "/builtins/materials/gui_paged_atlas.material"
+}

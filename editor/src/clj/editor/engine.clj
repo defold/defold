@@ -200,7 +200,7 @@
     (let [dmengine-entry (.getEntry zip-file entry-name)
           stream (.getInputStream zip-file dmengine-entry)]
       (io/copy stream engine-file)
-      (fs/set-executable! engine-file)
+      (fs/set-executable! engine-file true)
       engine-file)))
 
 (defn- zip-entries! [^ZipFile zipfile]
@@ -247,7 +247,7 @@
       (fs/delete-directory! engine-dir {:missing :ignore})
       (fs/create-directories! engine-dir)
       (unpack-build-zip! engine-archive engine-dir)
-      (fs/set-executable! engine-file)
+      (fs/set-executable! engine-file true)
       (copy-dmengine-dependencies! engine-dir extender-platform)
       engine-file)))
 

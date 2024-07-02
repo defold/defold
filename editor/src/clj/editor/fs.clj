@@ -76,11 +76,11 @@
 (defn same-file? [^File file1 ^File file2]
   (same-path? (.toPath file1) (.toPath file2)))
 
-(defn set-executable! ^File [^File target]
-  (.setExecutable target true))
+(defn set-executable! [^File target executable]
+  (.setExecutable target executable))
 
-(defn set-writable! ^File [^File target]
-  (.setWritable target true))
+(defn set-writable! [^File target writable]
+  (.setWritable target writable))
 
 (defn locked-file?
   "Returns true if we are unable to read from or write to the target location.
@@ -157,7 +157,7 @@
   [target & body]
   `(try ~@body
         (catch AccessDeniedException ~'_
-          (set-writable! ~target)
+          (set-writable! ~target true)
           ~@body)))
 
 ;; delete

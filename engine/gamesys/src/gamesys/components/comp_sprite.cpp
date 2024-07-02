@@ -622,6 +622,12 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
+    void* CompSpriteGetComponent(const dmGameObject::ComponentGetParams& params)
+    {
+        SpriteWorld* world = (SpriteWorld*)params.m_World;
+        return (void*)&world->m_Components.Get(params.m_UserData);
+    }
+
     dmGameObject::CreateResult CompSpriteDestroy(const dmGameObject::ComponentDestroyParams& params)
     {
         SpriteWorld* sprite_world = (SpriteWorld*)params.m_World;
@@ -1519,7 +1525,10 @@ namespace dmGameSystem
                     message.m_CurrentTile = component->m_CurrentAnimationFrame + 1; // Engine has 0-based indices, scripts use 1-based
                     message.m_Id = component->m_CurrentAnimation;
 
-                    dmGameObject::Result go_result = dmGameObject::PostDDF(&message, &sender, &component->m_Listener, component->m_FunctionRef, false);
+                    // This is a 'done' callback, so we should tell the message system to remove the callback once it's been consumed
+                    dmGameObject::Result go_result = dmGameObject::PostDDF(&message, &sender, &component->m_Listener, component->m_FunctionRef, true);
+                    component->m_FunctionRef = 0;
+
                     dmMessage::ResetURL(&component->m_Listener);
                     if (go_result != dmGameObject::RESULT_OK)
                     {
@@ -1921,6 +1930,13 @@ namespace dmGameSystem
                 dmGameSystemDDF::PlayAnimation* ddf = (dmGameSystemDDF::PlayAnimation*)params.m_Message->m_Data;
                 if (PlayAnimation(component, ddf->m_Id, ddf->m_Offset, ddf->m_PlaybackRate))
                 {
+                    // Remove the currently assigned callback by sending an unref message
+                    if (component->m_FunctionRef)
+                    {
+                        dmMessage::URL sender = {};
+                        GetSender(component, &sender);
+                        dmGameObject::PostScriptUnrefMessage(&sender, &component->m_Listener, component->m_FunctionRef);
+                    }
                     component->m_Listener = params.m_Message->m_Sender;
                     component->m_FunctionRef = params.m_Message->m_UserData2;
                 }

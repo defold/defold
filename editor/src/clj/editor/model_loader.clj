@@ -37,8 +37,8 @@
         animation-ids (ArrayList.)]
     (ColladaUtil/loadSkeleton scene skeleton-builder)
     (ColladaUtil/loadModels scene mesh-set-builder)
-    (let [mesh-set (protobuf/pb->map (.build mesh-set-builder))
-          skeleton (protobuf/pb->map (.build skeleton-builder))]
+    (let [mesh-set (protobuf/pb->map-with-defaults (.build mesh-set-builder))
+          skeleton (protobuf/pb->map-with-defaults (.build skeleton-builder))]
       {:mesh-set mesh-set
        :skeleton skeleton
        :bones bones
@@ -60,8 +60,8 @@
     (when-not (empty? bones)
       (ModelUtil/skeletonToDDF bones skeleton-builder))
     (ModelUtil/loadModels scene mesh-set-builder)
-    (let [mesh-set (protobuf/pb->map (.build mesh-set-builder))
-          skeleton (protobuf/pb->map (.build skeleton-builder))]
+    (let [mesh-set (protobuf/pb->map-with-defaults (.build mesh-set-builder))
+          skeleton (protobuf/pb->map-with-defaults (.build skeleton-builder))]
       {:mesh-set mesh-set
        :skeleton skeleton
        :bones bones
