@@ -88,11 +88,11 @@ TEST_F(ScriptHashTest, TestHashUnknown)
         // string .. tostring(hash)
         "test('concat: ' .. tostring(test_hash), 'concat: hash: [<unknown:1234>]')\n"
         // string .. hash
-        "test('concat: ' .. test_hash,           'concat: <unknown:1234>')\n"
+        "test('concat: ' .. test_hash,           'concat: [<unknown:1234>]')\n"
         // hash .. string
-        "test(test_hash .. ' :concat',           '<unknown:1234> :concat')\n"
+        "test(test_hash .. ' :concat',           '[<unknown:1234>] :concat')\n"
         // hash .. hash
-        "test(test_hash .. test_hash,            '<unknown:1234><unknown:1234>')\n";
+        "test(test_hash .. test_hash,            '[<unknown:1234>][<unknown:1234>]')\n";
     ASSERT_TRUE(RunString(L, script));
 
     lua_getglobal(L, "test_fail");
