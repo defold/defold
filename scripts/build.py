@@ -1190,6 +1190,11 @@ class Configuration(object):
         plf_args = ['--platform=%s' % platform]
         run.env_command(self._form_env(), args + plf_args + self.waf_options + skip_build_tests, cwd = cwd)
 
+# For now gradle right in
+# - 'com.dynamo.cr/com.dynamo.cr.bob'
+# - 'com.dynamo.cr/com.dynamo.cr.test'
+# - 'com.dynamo.cr/com.dynamo.cr.common'
+# Maybe in the future we consider to move it into install_ext
     def get_gradle_wrapper(self):
         if os.name == 'nt':  # Windows
             return join('.', 'gradlew.bat')

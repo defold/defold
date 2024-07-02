@@ -9,6 +9,7 @@
       <sourceFolder url="file://$MODULE_DIR$/com.dynamo.cr.common.test/src" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/com.dynamo.cr.common/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/src" isTestSource="false" />
+      <excludeFolder url="file://$MODULE_DIR$/com.dynamo.cr.bob.test/build" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
@@ -43,6 +44,16 @@
         <JAVADOC />
         <SOURCES />
         <jarDirectory url="file://$MODULE_DIR$/com.dynamo.cr.bob.test/lib" recursive="false" />
+      </library>
+    </orderEntry>
+    <orderEntry type="module-library">
+      <library>
+        <CLASSES>
+          <root url="file://$MODULE_DIR$/com.dynamo.cr.common/ext/aws" />
+        </CLASSES>
+        <JAVADOC />
+        <SOURCES />
+        <jarDirectory url="file://$MODULE_DIR$/com.dynamo.cr.common/ext/aws" recursive="false" />
       </library>
     </orderEntry>
   </component>
