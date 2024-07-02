@@ -66,10 +66,10 @@ gradle.taskGraph.whenReady { taskGraph ->
             if (ext.hostPlatform) {
                 println "Host Platform: ${ext.hostPlatform}"
             } else {
-                throw new GradleException("Failed to determine host platform: output is empty")
+                throw new RuntimeException("Failed to determine host platform: output is empty")
             }
         } else {
-            throw new GradleException("Failed to determine host platform: ${outputString}")
+            throw new RuntimeException("Failed to determine host platform: ${outputString}")
         }
     } catch (Exception e) {
         println "Exception occurred: ${e.message}"

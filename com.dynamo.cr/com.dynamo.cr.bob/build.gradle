@@ -47,7 +47,7 @@ gradle.projectsEvaluated {
     project.protoFiles.each { proto ->
         def protoDir = file(proto.dir)
         def protoFilePath = file("${proto.dir}/${proto.file}")
-        def protoTaskName = "protoTask_${proto.file.replace('/', '_').replace('.', '_')}"
+        def protoTaskName = "protoTask_${proto.file.replace('/', '_').replace('.', '_')}" as Object
 
         tasks.create(name: protoTaskName, type: Exec) {
             group = 'build'
@@ -55,14 +55,14 @@ gradle.projectsEvaluated {
             outputs.dir('generated')
             doFirst {
                 if (!protoDir.exists()) {
-                    throw new GradleException("Directory '${protoDir}' does not exist")
+                    throw new RuntimeException("Directory '${protoDir}' does not exist")
                 }
                 if (!protoFilePath.exists()) {
-                    throw new GradleException("File '${protoFilePath}' does not exist")
+                    throw new RuntimeException("File '${protoFilePath}' does not exist")
                 }
                 mkdir 'generated'
                 if (!project.hostPlatform) {
-                    throw new GradleException("hostPlatform is not set. Make sure 'getHostPlatform' task is executed.")
+                    throw new RuntimeException("hostPlatform is not set. Make sure 'getHostPlatform' task is executed.")
                 }
                 commandLine "${project.dynamoHome}/ext/bin/${project.hostPlatform}/protoc", "--java_out=generated",
                         "-I${protoDir}", "-I${project.dynamoHome}/ext/include", "-I../../engine/gameobject/proto",
@@ -86,13 +86,13 @@ task proto(type: Exec) {
     outputs.dir('generated')
     doFirst {
         if (!protoDir || !protoFile) {
-            throw new GradleException("Properties 'protoDir' and 'protoFile' must be specified")
+            throw new RuntimeException("Properties 'protoDir' and 'protoFile' must be specified")
         }
         mkdir 'generated'
     }
     doLast {
         if (!project.hostPlatform) {
-            throw new GradleException("hostPlatform is not set. Make sure 'getHostPlatform' task is executed.")
+            throw new RuntimeException("hostPlatform is not set. Make sure 'getHostPlatform' task is executed.")
         }
         commandLine "${project.dynamoHome}/ext/bin/${project.hostPlatform}/protoc", "--java_out=generated",
                 "-I${protoDir}", "-I${project.dynamoHome}/ext/include", "-I../../engine/gameobject/proto",
@@ -103,7 +103,7 @@ task proto(type: Exec) {
 sourceSets {
     main {
         java {
-            srcDirs = ["${project.bobDir}/src", 'generated']
+            srcDirs = ["${project.bobDir}/src", "${project.bobDir}/generated"]
         }
     }
 }
@@ -122,7 +122,7 @@ task copyDependencies {
         }
         includeJars.each { jar ->
             if (!file("${project.bobDir}/lib/$jar").exists()) {
-                throw new GradleException("$jar is missing")
+                throw new RuntimeException("$jar is missing")
             }
         }
     }
@@ -172,7 +172,7 @@ task compileBobLight(dependsOn: [getGitRevision, compileSrc, createLuaJitShareZi
                 'x86-win32': ['glslc.exe', 'spirv-cross.exe', 'spirv-opt.exe', 'luajit-32.exe']
         ]
 
-        platformFiles.each { platform, files ->
+        platformFiles.forEach { platform, files ->
             copy {
                 from fileTree("${project.dynamoHome}/ext/bin/$platform") {
                     include files.collect { it.toString() }
@@ -188,7 +188,7 @@ task compileBobLight(dependsOn: [getGitRevision, compileSrc, createLuaJitShareZi
                 'arm64-macos': 'bin/arm64-macos/**'
         ]
 
-        tarFiles.each { platform, includePattern ->
+        tarFiles.forEach { platform, includePattern ->
             copy {
                 from tarTree(resources.gzip(file("../../packages/luajit-2.1.0-6c4826f-${platform}.tar.gz")))
                 into "${project.bobDir}/libexec/${platform}"
@@ -214,7 +214,7 @@ task compileBobLight(dependsOn: [getGitRevision, compileSrc, createLuaJitShareZi
                 'x86_64-win32': ['x86_64-win32/*texc_shared*', 'x86_64-win32/*modelc_shared*']
         ]
 
-        sharedLibs.each { platform, includePatterns ->
+        sharedLibs.forEach { platform, includePatterns ->
             copy {
                 from fileTree("${project.dynamoHome}/lib") {
                     include includePatterns
@@ -274,7 +274,7 @@ task createExternalLibsLightJar(type: Jar, dependsOn: compileSrc) {
 
     doLast {
         if (!file("${project.bobDir}/tmp/external-libs-light.jar").exists()) {
-            throw new GradleException("File '${project.bobDir}/tmp/external-libs-light.jar' was not created")
+            throw new RuntimeException("File '${project.bobDir}/tmp/external-libs-light.jar' was not created")
         } else {
             println "external-libs-light.jar successfully created"
         }
@@ -326,16 +326,16 @@ task createExternalLibsBuiltinsJar(type: Jar, dependsOn: [compileSrc, compileGen
     destinationDirectory = file("${project.bobDir}/tmp")
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 
-    def jarFiles = []
+    Set<File> jarFiles = new HashSet<>()
 
     jarFiles.addAll(fileTree(dir: "${project.commonDir}/ext", include: [
             'protobuf-java*.jar', 'commons*.jar', 'vecmath.jar',
             'extender-client-*.jar', 'snakeyaml-1.24.jar', 'jsoup-1.11.3.jar'
-    ]).files)
+    ]).files as Set<File>)
 
-    jarFiles.addAll(fileTree(dir: "${project.commonDir}/ext/aws", include: '*.jar').files)
+    jarFiles.addAll(fileTree(dir: "${project.commonDir}/ext/aws", include: '*.jar').files as Set<File>)
 
-    jarFiles.addAll(fileTree(dir: "${project.bobDir}/lib", include: '*.jar', exclude: 'android.jar').files)
+    jarFiles.addAll(fileTree(dir: "${project.bobDir}/lib", include: '*.jar', exclude: 'android.jar').files as Set<File>)
 
     from {
         jarFiles.collect { zipTree(it) }
@@ -347,7 +347,7 @@ task createExternalLibsBuiltinsJar(type: Jar, dependsOn: [compileSrc, compileGen
     doLast {
         def outputFile = file("${project.bobDir}/tmp/external-libs-builtins.jar")
         if (!outputFile.exists()) {
-            throw new GradleException("File '${outputFile}' was not created")
+            throw new RuntimeException("File '${outputFile}' was not created")
         } else {
             println "external-libs-builtins.jar successfully created"
         }

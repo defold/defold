@@ -32,7 +32,7 @@ task compileTest(type: JavaCompile, dependsOn: distBob) {
 
     doFirst {
         if (!file("$project.bobDir/dist/bob.jar").exists()) {
-            throw new GradleException("bob.jar is missing")
+            throw new RuntimeException("bob.jar is missing")
         }
         mkdir testClassesDir
     }
