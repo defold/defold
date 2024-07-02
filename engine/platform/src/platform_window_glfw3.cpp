@@ -186,8 +186,14 @@ namespace dmPlatform
         // Create aux context
         glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
 
+        GLFWmonitor* fullscreen_monitor = NULL;
+        if (params.m_Fullscreen)
+        {
+            fullscreen_monitor = glfwGetPrimaryMonitor();
+        }
+
         // Note: We can't create a 0x0 window
-        wnd->m_AuxWindow = glfwCreateWindow(1, 1, "aux_window", NULL, wnd->m_Window);
+        wnd->m_AuxWindow = glfwCreateWindow(1, 1, "aux_window", fullscreen_monitor, wnd->m_Window);
 
         return PLATFORM_RESULT_OK;
     }
