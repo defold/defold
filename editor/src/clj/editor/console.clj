@@ -604,7 +604,7 @@
                                         clear (assoc :cursor-ranges [data/document-start-cursor-range])
                                         clear (assoc :invalidated-row 0)
                                         clear (data/frame-cursor prev-layout)))))))
-  (view/repaint-view! view-node elapsed-time {:cursor-visible false}))
+  (view/repaint-view! view-node elapsed-time {:cursor-visible false :editable false}))
 
 (def ^:private console-grammar
   {:name "Console"
@@ -696,7 +696,7 @@
     ;; Configure canvas.
     (doto canvas
       (.setFocusTraversable true)
-      (.addEventFilter KeyEvent/KEY_PRESSED (ui/event-handler event (view/handle-key-pressed! view-node event)))
+      (.addEventFilter KeyEvent/KEY_PRESSED (ui/event-handler event (view/handle-key-pressed! view-node event false)))
       (.addEventHandler MouseEvent/MOUSE_MOVED (ui/event-handler event (view/handle-mouse-moved! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_PRESSED (ui/event-handler event (view/handle-mouse-pressed! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_DRAGGED (ui/event-handler event (view/handle-mouse-moved! view-node event)))

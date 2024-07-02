@@ -2042,10 +2042,6 @@ If you do not specifically require different script states, consider changing th
            (let [^SplitPane editor-tabs-split (g/node-value app-view :editor-tabs-split)
                  tab-panes (.getItems editor-tabs-split)
                  open-tabs (mapcat #(.getTabs ^TabPane %) tab-panes)
-                 view-type (if (and (= :code view-type-id)
-                                    (not (g/connected? (g/now) resource-node :save-data project :save-data)))
-                             text-view-type
-                             view-type)
                  make-view-fn (:make-view-fn view-type)
                  existing-tab (some #(when (and (= (tab->resource-node %) resource-node)
                                                 (= view-type (ui/user-data % ::view-type)))
@@ -2117,11 +2113,12 @@ If you do not specifically require different script states, consider changing th
                      (if is-custom-code-editor-configured
                        (mapcat (fn [{:keys [id label] :as view-type}]
                                  (case id
-                                   :code [(make-option (str label " in Custom Editor")
-                                                       {:selected-view-type view-type})
-                                          (make-option (str label " in Defold Editor")
-                                                       {:selected-view-type view-type
-                                                        :use-custom-editor false})]
+                                   (:code :text)
+                                   [(make-option (str label " in Custom Editor")
+                                                 {:selected-view-type view-type})
+                                    (make-option (str label " in Defold Editor")
+                                                 {:selected-view-type view-type
+                                                  :use-custom-editor false})]
                                    [(view-type->option view-type)])))
                        (map view-type->option))
                      (:view-types resource-type))))))

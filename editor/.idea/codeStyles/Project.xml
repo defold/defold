@@ -54,9 +54,6 @@
           <entry key="editor.resource-node/register-ddf-resource-type" value="-1" />
           <entry key="editor.resource-node/register-settings-resource-type" value="-1" />
           <entry key="editor.settings/register-simple-settings-resource-type" value="-1" />
-          <entry key="editor.resource-node/register-ddf-resource-type" value="-1" />
-          <entry key="editor.resource-node/register-settings-resource-type" value="-1" />
-          <entry key="editor.settings/register-simple-settings-resource-type" value="-1" />
           <entry key="editor.ui.bindings/-if" value="-1" />
           <entry key="editor.ui.bindings/when" value="-1" />
           <entry key="editor.ui.bindings/when-not" value="-1" />
@@ -69,6 +66,7 @@
           <entry key="editor.ui/with-progress" value="-1" />
           <entry key="editor.updater-test/with-server" value="2" />
           <entry key="editor.workspace/register-resource-type" value="-1" />
+          <entry key="editor.workspace/register-view-type" value="-1" />
           <entry key="editor.yaml/with-error-translation" value="-1" />
           <entry key="integration.build-test/with-build-results" value="-1" />
           <entry key="integration.test-util/set-code-editor-lines" value="-1" />

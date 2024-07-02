@@ -115,10 +115,14 @@
     (g/user-data-merge! user-data-values-by-key-by-node-id)
     (g/invalidate-outputs! invalidated-endpoints)))
 
-(g/defnk produce-lines [resource save-value]
-  (let [resource-type (resource/resource-type resource)
-        content (save-content save-value resource-type)]
-    (code.util/split-lines content)))
+(g/defnk produce-lines [_node-id resource save-value]
+  (if (nil? save-value)
+    (resource-io/with-error-translation resource _node-id :lines
+      (let [content (slurp resource)]
+        (code.util/split-lines content)))
+    (let [resource-type (resource/resource-type resource)
+          content (save-content save-value resource-type)]
+      (code.util/split-lines content))))
 
 (g/defnk produce-sha256 [save-data]
   (save-data-sha256 save-data))
