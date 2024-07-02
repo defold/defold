@@ -67,5 +67,6 @@ editor/.lsp/sqlite.db
 #build bob
 /com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/pipeline/antlr/**/*.interp
 /com.dynamo.cr/com.dynamo.cr.bob/src/com/dynamo/bob/pipeline/antlr/**/*.tokens
-/com.dynamo.cr/com.dynamo.cr.bob/lib/
-/com.dynamo.cr/com.dynamo.cr.bob/libexec/
+/com.dynamo.cr/com.dynamo.cr.bob/libexec/**/lipo*
+/com.dynamo.cr/com.dynamo.cr.bob/lib/**/OpenAL*
+/com.dynamo.cr/com.dynamo.cr.bob/lib/**/wrap_oal*
