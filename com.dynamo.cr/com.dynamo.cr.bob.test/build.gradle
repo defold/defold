@@ -70,7 +70,7 @@ task testJar(type: Test, dependsOn: createTestJar) {
     }
 
     testLogging {
-        events 'passed', 'skipped', 'failed', 'standardOut', 'standardError'
+        events 'passed', 'skipped', 'failed', 'standardOut'
         exceptionFormat 'short'
         showExceptions true
         showCauses true
@@ -88,7 +88,7 @@ task runSingleTest(type: Test, dependsOn: createTestJar) {
     useJUnit()
 
     testLogging {
-        events 'passed', 'skipped', 'failed', 'standardOut', 'standardError'
+        events 'passed', 'skipped', 'failed', 'standardOut'
         exceptionFormat 'short'
         showExceptions true
         showCauses true
