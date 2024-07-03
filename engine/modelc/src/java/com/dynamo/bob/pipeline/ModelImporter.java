@@ -43,7 +43,8 @@ public class ModelImporter {
                 File lib = (File)getSharedLib.invoke(null, LIBRARY_NAME);
                 System.load(lib.getAbsolutePath());
             } catch (Exception e) {
-                System.err.printf("Failed to find functions in Bob: %s\n", e);
+                System.err.printf("Failed to find functions in Bob: %s\n", e.getMessage());
+                e.printStackTrace();
                 System.exit(1);
             }
         }
@@ -52,7 +53,8 @@ public class ModelImporter {
                 System.out.printf("Fallback to regular System.loadLibrary(%s)\n", LIBRARY_NAME);
                 System.loadLibrary(LIBRARY_NAME); // Requires the java.library.path to be set
             } catch (Exception e) {
-                System.err.printf("Native code library failed to load: %s\n", e);
+                System.err.printf("Native code library failed to load: %s\n", e.getMessage());
+                e.printStackTrace();
                 System.exit(1);
             }
         }

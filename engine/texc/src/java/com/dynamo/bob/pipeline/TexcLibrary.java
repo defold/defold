@@ -62,7 +62,8 @@ public class TexcLibrary {
                 addToPaths.invoke(null, libPath);
                 Native.register(LIBRARY_NAME);
             } catch (Exception e) {
-                System.err.printf("Failed to find functions in Bob: %s\n", e);
+                System.err.printf("Failed to find functions in Bob: %s\n", e.getMessage());
+                e.printStackTrace();
                 System.exit(1);
             }
         }
@@ -71,7 +72,8 @@ public class TexcLibrary {
                 System.out.printf("Fallback to regular System.register(%s)\n", LIBRARY_NAME);
                 Native.register(LIBRARY_NAME);
             } catch (Exception e) {
-                System.err.printf("Native code library failed to load: %s\n", e);
+                System.err.printf("Native code library failed to load: %s\n", e.getMessage());
+                e.printStackTrace();
                 System.exit(1);
             }
         }
