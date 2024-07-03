@@ -1015,7 +1015,20 @@
 (g/defnode CodeEditorView
   (inherits view/WorkbenchView)
 
+  ;; For files that can be edited as code, the `CursorRanges` that keep track of
+  ;; text selections are stored in a `cursor-ranges` property alongside the
+  ;; `modified-lines` on the edited resource node. This is necessary to ensure
+  ;; the lines and the selections stay in sync when undoing.
+  ;;
+  ;; However, we also use the `CodeEditorView` to open other resources as text.
+  ;; In that situation, you cannot edit the text, and we don't need the text
+  ;; selection to stay in sync with the file contents.
+  ;;
+  ;; To avoid having to pollute every resource node type with a `cursor-ranges`
+  ;; property, we store the text selections in this `fallback-cursor-ranges`
+  ;; property on the `CodeEditorView` itself when viewing these resources.
   (property fallback-cursor-ranges r/CursorRanges (default [data/document-start-cursor-range]) (dynamic visible (g/constantly false)))
+
   (property repaint-trigger g/Num (default 0) (dynamic visible (g/constantly false)))
   (property undo-grouping-info UndoGroupingInfo (dynamic visible (g/constantly false)))
   (property canvas Canvas (dynamic visible (g/constantly false)))
