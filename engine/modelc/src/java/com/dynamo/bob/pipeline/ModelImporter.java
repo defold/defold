@@ -9,6 +9,7 @@ import java.io.FileInputStream;
 import java.io.InputStream;
 import java.io.IOException;
 import java.lang.reflect.Method;
+import java.lang.reflect.InvocationTargetException;
 
 public class ModelImporter {
 
@@ -42,8 +43,13 @@ public class ModelImporter {
                 Method addToPaths = clsbob.getMethod("addToPaths", String.class);
                 File lib = (File)getSharedLib.invoke(null, LIBRARY_NAME);
                 System.load(lib.getAbsolutePath());
+            } catch (InvocationTargetException e) {
+                Throwable cause = e.getCause();
+                System.err.printf("Failed to find functions in Bob: %s\n", cause.getMessage());
+                cause.printStackTrace();
+                System.exit(1);
             } catch (Exception e) {
-                System.err.printf("Failed to find functions in Bob: %s\n", e.getMessage());
+                System.err.printf("Failed to find functions in Bob: %s\n", e);
                 e.printStackTrace();
                 System.exit(1);
             }
@@ -53,7 +59,7 @@ public class ModelImporter {
                 System.out.printf("Fallback to regular System.loadLibrary(%s)\n", LIBRARY_NAME);
                 System.loadLibrary(LIBRARY_NAME); // Requires the java.library.path to be set
             } catch (Exception e) {
-                System.err.printf("Native code library failed to load: %s\n", e.getMessage());
+                System.err.printf("Native code library failed to load: %s\n", e);
                 e.printStackTrace();
                 System.exit(1);
             }

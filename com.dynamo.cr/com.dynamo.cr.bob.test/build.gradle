@@ -84,6 +84,7 @@ task testJar(type: Test, dependsOn: createTestJar) {
     }
 }
 
+// old-fashioned way to run a single test in jar
 task runSingleTest(type: Test, dependsOn: createTestJar) {
     useJUnit()
 
@@ -97,13 +98,13 @@ task runSingleTest(type: Test, dependsOn: createTestJar) {
 
     classpath = files(configurations.testClasspath, "${project.bobDir}/dist/bob.jar", "${testTmpDir}/bob-tests.jar")
     testClassesDirs = files(testClassesDir).asFileTree.matching {
+        //provide a test class name with -PtestClass=com.example.MyTestClass to ./gradlew if run from terminal
         if (project.hasProperty('testClass')) {
             include "**/${project.testClass.replaceAll('\\.', '/')}.class"
         } else if (System.getProperty('idea.active') != null) {
+            // Specify needed class here if run from idea
             def test_class = "com.dynamo.bob.pipeline.ShaderProgramBuilderTest"
             include "**/${test_class.replaceAll('\\.', '/')}.class"
-        } else {
-            println("Please provide a test class name with -PtestClass=com.example.MyTestClass")
         }
     }
 }

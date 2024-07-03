@@ -24,6 +24,7 @@ import java.awt.image.DataBufferByte;
 import com.sun.jna.Native;
 import com.sun.jna.Pointer;
 import java.lang.reflect.Method;
+import java.lang.reflect.InvocationTargetException;
 
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
@@ -61,6 +62,11 @@ public class TexcLibrary {
                 String libPath = lib.getParent();
                 addToPaths.invoke(null, libPath);
                 Native.register(LIBRARY_NAME);
+            } catch (InvocationTargetException e) {
+                Throwable cause = e.getCause();
+                System.err.printf("Failed to find functions in Bob: %s\n", cause.getMessage());
+                cause.printStackTrace();
+                System.exit(1);
             } catch (Exception e) {
                 System.err.printf("Failed to find functions in Bob: %s\n", e.getMessage());
                 e.printStackTrace();
