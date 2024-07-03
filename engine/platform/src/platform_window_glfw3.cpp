@@ -231,6 +231,7 @@ namespace dmPlatform
         }
 
         glfwWindowHint(GLFW_FOCUSED, GLFW_TRUE);
+        glfwWindowHintString(GLFW_COCOA_FRAME_NAME, params.m_Title);
 
         PlatformResult res = PLATFORM_RESULT_WINDOW_OPEN_ERROR;
 
