@@ -195,8 +195,6 @@ namespace dmPlatform
         // Note: We can't create a 0x0 window
         wnd->m_AuxWindow = glfwCreateWindow(1, 1, "aux_window", NULL, wnd->m_Window);
 
-        glfwShowWindow(wnd->m_Window);
-
         return PLATFORM_RESULT_OK;
     }
 
@@ -218,8 +216,6 @@ namespace dmPlatform
             return PLATFORM_RESULT_WINDOW_OPEN_ERROR;
         }
 
-        glfwShowWindow(wnd->m_Window);
-
         return PLATFORM_RESULT_OK;
     }
 
@@ -231,7 +227,10 @@ namespace dmPlatform
         }
 
         glfwWindowHint(GLFW_FOCUSED, GLFW_TRUE);
+        // This hint saves both size and position, but we need only position
+        // That's why we hide window here and then later set default size and show window
         glfwWindowHintString(GLFW_COCOA_FRAME_NAME, params.m_Title);
+        glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
 
         PlatformResult res = PLATFORM_RESULT_WINDOW_OPEN_ERROR;
 
@@ -248,6 +247,10 @@ namespace dmPlatform
 
         if (res == PLATFORM_RESULT_OK)
         {
+            // Set size from settings, and show window
+            glfwSetWindowSize(window->m_Window, params.m_Width, params.m_Height);
+            glfwShowWindow(window->m_Window);
+
             glfwSetWindowUserPointer(window->m_Window, (void*) window);
             glfwSetWindowSizeCallback(window->m_Window, OnWindowResize);
             glfwSetWindowCloseCallback(window->m_Window, OnWindowClose);
