@@ -1610,12 +1610,11 @@ bail:
         {
             return;
         }
-        
-        // Coherent memory writes does not seem to work properly on MoltenVK, 
-        // so we have to mark the buffer for deletion for every set call unfortunately.
-        // Note: This workaround is only needed for MoltenVK, on windows it works perfectly.
+
+        // Coherent memory writes does not seem to be properly synced on MoltenVK,
+        // so for now we always mark the old buffer for destruction when updating the data.
     #ifndef __MACH__
-        if (size != buffer_ptr->m_MemorySize)
+        if (size != buffer->m_MemorySize)
     #endif
         {
             DestroyResourceDeferred(g_VulkanContext->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], buffer);
