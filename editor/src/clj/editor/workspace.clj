@@ -1019,7 +1019,7 @@ ordinary paths."
                            - all opts from resource-type's :view-opts
                            - any extra opts passed from the code
                            if not present, the resource will be opened in
-                           an external editor
+                           the OS-associated application
     :make-preview-fn       fn of graph, resource node, opts, width and height
                            that should return a node id with :image output (with
                            value of type Image); opts is a map with:

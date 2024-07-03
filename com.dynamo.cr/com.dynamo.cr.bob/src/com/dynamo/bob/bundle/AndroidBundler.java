@@ -137,8 +137,6 @@ public class AndroidBundler implements IBundler {
                 Bob.atomicCopy(libc_url, f, false);
             }
 
-            Bob.extract(Bob.class.getResource("/lib/android-res.zip"), rootFolder);
-
             // NOTE: android.jar and classes.dex aren't are only available in "full bob", i.e. from CI
             URL android_jar = Bob.class.getResource("/lib/android.jar");
             if (android_jar != null) {

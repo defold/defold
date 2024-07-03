@@ -1993,6 +1993,13 @@ If you do not specifically require different script states, consider changing th
             (string/replace tmpl (format "{%s}" (name key)) (str val)))
     tmpl args))
 
+(defn- custom-code-editor-executable-path-preference
+  ^String [prefs]
+  (some-> prefs
+          (prefs/get-prefs "code-custom-editor" nil)
+          (string/trim)
+          (not-empty)))
+
 (defn open-resource
   ([app-view prefs workspace project resource]
    (open-resource app-view prefs workspace project resource {}))
@@ -2004,21 +2011,26 @@ If you do not specifically require different script states, consider changing th
          text-view-type (workspace/get-view-type workspace :text)
          view-type      (or (:selected-view-type opts)
                             (first (:view-types resource-type))
-                            text-view-type)]
+                            text-view-type)
+         view-type-id (:id view-type)
+         specific-view-type-selected (some? (:selected-view-type opts))]
      (if (g/defective? resource-node)
        (do (dialogs/make-info-dialog
              {:title "Unable to Open Resource"
               :icon :icon/triangle-error
               :header (format "Unable to open '%s', since it contains unrecognizable data. Could the project be missing a required extension?" (resource/proj-path resource))})
            false)
-       (if-let [custom-editor (and (#{:code :text} (:id view-type))
-                                   (let [ed-pref (some->
-                                                   (prefs/get-prefs prefs "code-custom-editor" "")
-                                                   string/trim)]
-                                     (and (not (string/blank? ed-pref)) ed-pref)))]
+       (if-let [custom-editor
+                (when (:use-custom-editor opts true)
+                  (let [is-code-editor-view-type (contains? #{:code :text} view-type-id)
+                        default-to-custom-editor (get-in resource-type [:view-opts view-type-id :use-custom-editor] true)]
+                    (when (and is-code-editor-view-type
+                               (or default-to-custom-editor
+                                   specific-view-type-selected))
+                      (custom-code-editor-executable-path-preference prefs))))]
          (let [cursor-range (:cursor-range opts)
                arg-tmpl (string/trim (if cursor-range (prefs/get-prefs prefs "code-open-file-at-line" "{file}:{line}") (prefs/get-prefs prefs "code-open-file" "{file}")))
-               arg-sub (cond-> {:file (resource/abs-path resource)}
+               arg-sub (cond-> {:file (resource/externally-available-absolute-path resource)}
                                cursor-range (assoc :line (CursorRange->line-number cursor-range)))
                args (->> (string/split arg-tmpl #" ")
                          (map #(substitute-args % arg-sub)))]
@@ -2030,7 +2042,7 @@ If you do not specifically require different script states, consider changing th
            (let [^SplitPane editor-tabs-split (g/node-value app-view :editor-tabs-split)
                  tab-panes (.getItems editor-tabs-split)
                  open-tabs (mapcat #(.getTabs ^TabPane %) tab-panes)
-                 view-type (if (and (= :code (:id view-type))
+                 view-type (if (and (= :code view-type-id)
                                     (not (g/connected? (g/now) resource-node :save-data project :save-data)))
                              text-view-type
                              view-type)
@@ -2083,17 +2095,36 @@ If you do not specifically require different script states, consider changing th
   (enabled? [selection user-data] (resource/exists? (selection->single-openable-resource selection)))
   (run [selection app-view prefs workspace project user-data]
        (let [resource (selection->single-openable-resource selection)]
-         (open-resource app-view prefs workspace project resource (when-let [view-type (:selected-view-type user-data)]
-                                                                    {:selected-view-type view-type}))))
-  (options [workspace selection user-data]
+         (open-resource app-view prefs workspace project resource user-data)))
+  (options [prefs workspace selection user-data]
            (when-not user-data
              (let [resource (selection->single-openable-resource selection)
-                   resource-type (resource/resource-type resource)]
-               (map (fn [vt]
-                      {:label     (or (:label vt) "External Editor")
-                       :command   :open-as
-                       :user-data {:selected-view-type vt}})
-                    (:view-types resource-type))))))
+                   resource-type (resource/resource-type resource)
+                   is-custom-code-editor-configured (some? (custom-code-editor-executable-path-preference prefs))
+
+                   make-option
+                   (fn make-option [label user-data]
+                     {:label label
+                      :command :open-as
+                      :user-data user-data})
+
+                   view-type->option
+                   (fn view-type->option [{:keys [label] :as view-type}]
+                     (make-option (or label "Associated Application")
+                                  {:selected-view-type view-type}))]
+
+               (into []
+                     (if is-custom-code-editor-configured
+                       (mapcat (fn [{:keys [id label] :as view-type}]
+                                 (case id
+                                   :code [(make-option (str label " in Custom Editor")
+                                                       {:selected-view-type view-type})
+                                          (make-option (str label " in Defold Editor")
+                                                       {:selected-view-type view-type
+                                                        :use-custom-editor false})]
+                                   [(view-type->option view-type)])))
+                       (map view-type->option))
+                     (:view-types resource-type))))))
 
 (handler/defhandler :recent-files :global
   (enabled? [prefs workspace evaluation-context]
@@ -2119,7 +2150,8 @@ If you do not specifically require different script states, consider changing th
 (handler/defhandler :open-selected-recent-file :global
   (run [prefs app-view workspace project user-data]
     (let [[resource view-type] user-data]
-      (open-resource app-view prefs workspace project resource {:selected-view-type view-type}))))
+      (open-resource app-view prefs workspace project resource {:selected-view-type view-type
+                                                                :use-custom-editor false}))))
 
 (handler/defhandler :open-recent-file :global
   (active? [prefs workspace evaluation-context]
@@ -2127,7 +2159,8 @@ If you do not specifically require different script states, consider changing th
   (run [prefs app-view workspace project]
     (g/with-auto-evaluation-context evaluation-context
       (doseq [[resource view-type] (recent-files/select prefs workspace evaluation-context)]
-        (open-resource app-view prefs workspace project resource {:selected-view-type view-type})))))
+        (open-resource app-view prefs workspace project resource {:selected-view-type view-type
+                                                                  :use-custom-editor false})))))
 
 (handler/defhandler :reopen-recent-file :global
   (enabled? [prefs workspace evaluation-context app-view]
@@ -2135,7 +2168,8 @@ If you do not specifically require different script states, consider changing th
   (run [prefs app-view workspace project]
     (g/with-auto-evaluation-context evaluation-context
       (let [[resource view-type] (recent-files/last-closed prefs workspace app-view evaluation-context)]
-        (open-resource app-view prefs workspace project resource {:selected-view-type view-type})))))
+        (open-resource app-view prefs workspace project resource {:selected-view-type view-type
+                                                                  :use-custom-editor false})))))
 
 (defn- async-save!
   ([app-view changes-view project save-data-fn]
@@ -2633,7 +2667,7 @@ If you do not specifically require different script states, consider changing th
              (let [f (future/make)
                    render-reload-progress! (make-render-task-progress :resource-sync)
                    render-save-progress! (make-render-task-progress :save-all)]
-               (disk/async-save! render-reload-progress! render-save-progress! project changes-view
+               (disk/async-save! render-reload-progress! render-save-progress! project/dirty-save-data project changes-view
                                  (fn [successful?]
                                    (if successful?
                                      (do (ui/user-data! (g/node-value app-view :scene) ::ui/refresh-requested? true)

@@ -366,7 +366,7 @@ public class BMFont
                 } break;
                 case "char":
                 {
-                    assert(this.chars <= this.charArray.size() + 1 );
+                    assert(this.chars >= this.charArray.size());
 
                     Char c = new Char();
                     c.id       = parseInt(entries.get("id", "0"), "char", "id");

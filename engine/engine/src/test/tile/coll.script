@@ -50,6 +50,13 @@ function init(self)
     assert(tile_info.v_flip == false)
     assert(tile_info.h_flip == false)
 
+    -- get_tiles
+    local tiles = tilemap.get_tiles("#tilemap", "layer")
+    assert(tiles[0][-1] == 1)
+    assert(tiles[0][1] == 0)
+    assert(tiles[1][1] == 1)
+    assert(tiles[1][-1] == 0)
+
     -- out of range
     tile = tilemap.get_tile("#tilemap", "layer", 2, 1)
     assert(tile == nil)
