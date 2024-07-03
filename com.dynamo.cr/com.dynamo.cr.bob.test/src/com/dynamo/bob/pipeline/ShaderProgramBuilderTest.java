@@ -468,7 +468,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         String source;
         String expected;
 
-        source = ShaderCompilerHelpers.compileGLSL("", ShaderUtil.ShaderDesc.ShaderType.SHADER_TYPE_VERTEX, ShaderDesc.Language.LANGUAGE_GLSL_SM140, true);
+        source = ShaderCompilerHelpers.compileGLSL("", ShaderDesc.ShaderType.SHADER_TYPE_VERTEX, ShaderDesc.Language.LANGUAGE_GLSL_SM140, true);
         expected =  "#version 140\n" +
                     "#ifndef GL_ES\n" +
                     "#define lowp\n" +
@@ -481,7 +481,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
         source = "#extension GL_OES_standard_derivatives : enable\n" +
                  "varying highp vec2 var_texcoord0;";
-        source = ShaderCompilerHelpers.compileGLSL(source, ShaderUtil.ShaderDesc.ShaderType.SHADER_TYPE_VERTEX, ShaderDesc.Language.LANGUAGE_GLSL_SM140, true);
+        source = ShaderCompilerHelpers.compileGLSL(source, ShaderDesc.ShaderType.SHADER_TYPE_VERTEX, ShaderDesc.Language.LANGUAGE_GLSL_SM140, true);
         expected =  "#version 140\n" +
                     "#extension GL_OES_standard_derivatives : enable\n" +
                     "\n" +
@@ -499,7 +499,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
                  "void main() {\n" +
                  "    gl_FragColor = vec4(1.0);\n" +
                  "}";
-        source = ShaderCompilerHelpers.compileGLSL(source, ShaderUtil.ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT, ShaderDesc.Language.LANGUAGE_GLES_SM100, true);
+        source = ShaderCompilerHelpers.compileGLSL(source, ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT, ShaderDesc.Language.LANGUAGE_GLES_SM100, true);
         expected =  "#extension GL_OES_standard_derivatives : enable\n" +
                     "\n" +
                     "precision mediump float;\n" +
@@ -513,7 +513,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
                  "void main() {\n" +
                  "    gl_FragColor = vec4(1.0);\n" +
                  "}";
-        source = ShaderCompilerHelpers.compileGLSL(source, ShaderUtil.ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT, ShaderDesc.Language.LANGUAGE_GLES_SM300, true);
+        source = ShaderCompilerHelpers.compileGLSL(source, ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT, ShaderDesc.Language.LANGUAGE_GLES_SM300, true);
         expected =  "#version 300 es\n" +
                     "#extension GL_OES_standard_derivatives : enable\n" +
                     "\n" +
@@ -543,7 +543,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             "   gl_FragColor = my_uniform + my_varying;\n" +
             "}\n";
 
-        ShaderUtil.ES2ToES3Converter.Result res = ShaderUtil.ES2ToES3Converter.transform(source, ShaderUtil.ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT, "", 140, true);
+        ShaderUtil.ES2ToES3Converter.Result res = ShaderUtil.ES2ToES3Converter.transform(source, ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT, "", 140, true);
 
         expected =
             "#version 140\n" +
@@ -630,7 +630,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
         assert(shaderDesc.getShadersCount() > 0);
         assertNotNull(getShaderByLanguage(shaderDesc, ShaderDesc.Language.LANGUAGE_SPIRV));
-        assertEquals(ShaderDesc.ShaderClass.SHADER_CLASS_COMPUTE, shaderDesc.getShaderClass());
+        assertEquals(ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE, shaderDesc.getShaderType());
 
         // Compute not supported for OSX on GL contexts
         if (Platform.getHostPlatform() == Platform.X86_64Win32 || Platform.getHostPlatform() == Platform.X86_64Win32) {

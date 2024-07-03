@@ -58,5 +58,4 @@ public class FragmentProgramBuilder extends ShaderProgramBuilder {
         builder.soft_fail = false;
         builder.BuildShader(args, SHADER_TYPE, cmd, compiler);
     }
-
 }
