@@ -554,7 +554,7 @@ namespace dmGraphics
     void                 DeleteFragmentProgram(HFragmentProgram prog);
     void                 DeleteComputeProgram(HComputeProgram prog);
 
-    ShaderDesc::Language GetShaderProgramLanguage(HContext context, ShaderDesc::ShaderClass shader_class);
+    ShaderDesc::Language GetShaderProgramLanguage(HContext context, ShaderDesc::ShaderType shader_type);
     ShaderDesc::Language GetProgramLanguage(HProgram program);
     ShaderDesc::Shader*  GetShaderProgram(HContext context, ShaderDesc* shader_desc);
 

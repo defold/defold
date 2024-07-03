@@ -2177,7 +2177,7 @@ static void LogFrameBufferError(GLenum status)
         return ((OpenGLProgram*) program)->m_Language;
     }
 
-    static ShaderDesc::Language OpenGLGetShaderProgramLanguage(HContext _context, ShaderDesc::ShaderClass shader_class)
+    static ShaderDesc::Language OpenGLGetShaderProgramLanguage(HContext _context, ShaderDesc::ShaderType shader_type)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
         if (context->m_IsShaderLanguageGles) // 0 == glsl, 1 == gles
@@ -2188,7 +2188,7 @@ static void LogFrameBufferError(GLenum status)
             }
             return ShaderDesc::LANGUAGE_GLES_SM100;
         }
-        else if (shader_class == ShaderDesc::SHADER_CLASS_COMPUTE)
+        else if (shader_type == ShaderDesc::SHADER_TYPE_COMPUTE)
         {
             return ShaderDesc::LANGUAGE_GLSL_SM430;
         }

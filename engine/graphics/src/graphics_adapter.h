@@ -94,7 +94,7 @@ namespace dmGraphics
     typedef bool (*ReloadFragmentProgramFn)(HFragmentProgram prog, ShaderDesc::Shader* ddf);
     typedef void (*DeleteVertexProgramFn)(HVertexProgram prog);
     typedef void (*DeleteFragmentProgramFn)(HFragmentProgram prog);
-    typedef ShaderDesc::Language (*GetShaderProgramLanguageFn)(HContext context, ShaderDesc::ShaderClass shader_class);
+    typedef ShaderDesc::Language (*GetShaderProgramLanguageFn)(HContext context, ShaderDesc::ShaderType shader_class);
     typedef ShaderDesc::Language (*GetProgramLanguageFn)(HProgram program);
     typedef void (*EnableProgramFn)(HContext context, HProgram program);
     typedef void (*DisableProgramFn)(HContext context);

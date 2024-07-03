@@ -32,7 +32,7 @@ public class ShaderCompilePipelineTest {
 	@Test
     public void testSimple() throws Exception {
 
-    	String fullShaderSource =
+    	String vsShader =
     		"#version 140\n" +
     		"in vec4 position;\n" +
     		"uniform uniforms\n" +
@@ -43,20 +43,26 @@ public class ShaderCompilePipelineTest {
     		"	gl_Position = view * position;\n" +
     		"}\n";
 
-    	ShaderCompilePipeline pipeline = new ShaderCompilePipeline();
-    	pipeline.addOutputLanguage(ShaderDesc.Language.LANGUAGE_GLES_SM100);
-    	pipeline.compile(ShaderDesc.ShaderType.SHADER_TYPE_VERTEX, fullShaderSource, "testSimple");
+		String fsShader =
+				"#version 140\n" +
+				"out vec4 color;\n" +
+				"void main() {\n" +
+				"	color = vec4(1.0);\n" +
+				"}\n";
+
+		ShaderCompilePipeline pipeline = ShaderCompilePipeline.createShaderPipelineGraphics("testSimple", vsShader, fsShader);
+		byte[] source = pipeline.crossCompile(ShaderDesc.ShaderType.SHADER_TYPE_VERTEX, ShaderDesc.Language.LANGUAGE_GLES_SM100);
 
     	SPIRVReflector reflector 	     			 = pipeline.getReflectionData();
     	ArrayList<SPIRVReflector.Resource> inputs    = reflector.getInputs();
-		ArrayList<SPIRVReflector.Resource> ouputs    = reflector.getOutputs();
+		ArrayList<SPIRVReflector.Resource> outputs   = reflector.getOutputs();
 		ArrayList<SPIRVReflector.Resource> ubos      = reflector.getUBOs();
 		ArrayList<SPIRVReflector.ResourceType> types = reflector.getTypes();
 
 		for (SPIRVReflector.Resource res : inputs) {
 			System.out.println("Input: " + res.name);
 		}
-		for (SPIRVReflector.Resource res : ouputs) {
+		for (SPIRVReflector.Resource res : outputs) {
 			System.out.println("Output: " + res.name);
 		}
 		for (SPIRVReflector.Resource res : ubos) {

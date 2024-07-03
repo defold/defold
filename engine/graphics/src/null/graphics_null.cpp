@@ -123,8 +123,9 @@ namespace dmGraphics
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_16BPP;
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_ETC1;
 
-        m_ShaderClassLanguage[(int) ShaderDesc::SHADER_CLASS_GRAPHICS] = ShaderDesc::LANGUAGE_GLSL_SM140;
-        m_ShaderClassLanguage[(int) ShaderDesc::SHADER_CLASS_COMPUTE]  = ShaderDesc::LANGUAGE_GLSL_SM430;
+        m_ShaderTypeLanguage[(int) ShaderDesc::SHADER_TYPE_VERTEX]   = ShaderDesc::LANGUAGE_GLSL_SM140;
+        m_ShaderTypeLanguage[(int) ShaderDesc::SHADER_TYPE_FRAGMENT] = ShaderDesc::LANGUAGE_GLSL_SM140;
+        m_ShaderTypeLanguage[(int) ShaderDesc::SHADER_TYPE_COMPUTE]  = ShaderDesc::LANGUAGE_GLSL_SM430;
     }
 
     static HContext NullNewContext(const ContextParams& params)
@@ -917,9 +918,9 @@ namespace dmGraphics
         delete p;
     }
 
-    void SetOverrideShaderLanguage(HContext context, ShaderDesc::ShaderClass shader_class, ShaderDesc::Language language)
+    void SetOverrideShaderLanguage(HContext context, ShaderDesc::ShaderType shader_type, ShaderDesc::Language language)
     {
-        ((NullContext*) context)->m_ShaderClassLanguage[(int) shader_class] = language;
+        ((NullContext*) context)->m_ShaderTypeLanguage[(int) shader_type] = language;
     }
 
     static ShaderDesc::Language NullGetProgramLanguage(HProgram program)
@@ -927,7 +928,7 @@ namespace dmGraphics
         return ((ShaderProgram*) program)->m_Language;
     }
 
-    static ShaderDesc::Language NullGetShaderProgramLanguage(HContext context, ShaderDesc::ShaderClass shader_class)
+    static ShaderDesc::Language NullGetShaderProgramLanguage(HContext context, ShaderDesc::ShaderType shader_type)
     {
 #if defined(DM_PLATFORM_VENDOR)
         #if defined(DM_GRAPHICS_NULL_SHADER_LANGUAGE)
@@ -936,7 +937,7 @@ namespace dmGraphics
             #error "You must define the platform default shader language using DM_GRAPHICS_NULL_SHADER_LANGUAGE"
         #endif
 #else
-        return ((NullContext*) context)->m_ShaderClassLanguage[(int) shader_class];
+        return ((NullContext*) context)->m_ShaderTypeLanguage[(int) shader_type];
 #endif
     }
 
