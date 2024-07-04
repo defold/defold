@@ -69,6 +69,10 @@
 
 (def ^:private cell-height (inc line-height))
 
+(def ^:private small-max-width 120)
+(def ^:private normal-max-width 400)
+(def ^:private large-max-width 1000)
+
 (g/defnk produce-form-view [renderer form-data ui-state]
   (renderer {:form-data form-data
              :ui-state ui-state})
@@ -252,6 +256,7 @@
 
 (defmethod form-input-view :string [{:keys [value on-value-changed]}]
   {:fx/type text-field
+   :max-width normal-max-width
    :text-formatter {:fx/type fx.text-formatter/lifecycle
                     :value-converter :default
                     :value value
@@ -277,12 +282,12 @@
 
 ;; region integer input
 
-(defmethod form-input-view :integer [{:keys [value on-value-changed] :as field}]
+(defmethod form-input-view :integer [{:keys [value on-value-changed custom-max-width] :as field}]
   (let [value (ensure-value value field)
         value-converter (number-string-converter value)]
     {:fx/type text-field
      :alignment :center-right
-     :max-width 80
+     :max-width (or custom-max-width small-max-width)
      :text-formatter {:fx/type fx.text-formatter/lifecycle
                       :value-converter value-converter
                       :value value
@@ -295,12 +300,12 @@
 
 ;; region number input
 
-(defmethod form-input-view :number [{:keys [value on-value-changed] :as field}]
+(defmethod form-input-view :number [{:keys [value on-value-changed custom-max-width] :as field}]
   (let [value (ensure-value value field)
         value-converter (number-string-converter value)]
     {:fx/type text-field
      :alignment :center-right
-     :max-width 80
+     :max-width (or custom-max-width small-max-width)
      :text-formatter {:fx/type fx.text-formatter/lifecycle
                       :value-converter value-converter
                       :value value
@@ -319,6 +324,7 @@
 
 (defmethod form-input-view :url [{:keys [value on-value-changed]}]
   {:fx/type text-field
+   :max-width normal-max-width
    :text-formatter {:fx/type fx.text-formatter/lifecycle
                     :value-converter uri-string-converter
                     :value value
@@ -353,6 +359,7 @@
                                      {:fx/type form-input-view
                                       :type :number
                                       :h-box/hgrow :always
+                                      :custom-max-width normal-max-width
                                       :value n
                                       :on-value-changed {:event-type :on-vec4-element-change
                                                          :on-value-changed on-value-changed
@@ -410,6 +417,8 @@
     {:fx/type fx.combo-box/lifecycle
      :style-class ["combo-box" "combo-box-base" "cljfx-form-combo-box"]
      :value value
+     :pref-width :use-computed-size
+     :min-width  small-max-width
      :on-value-changed on-value-changed
      :converter (proxy [StringConverter] []
                   (toString
@@ -603,6 +612,7 @@
                           :desc
                           {:fx/type fx.list-view/lifecycle
                            :style-class ["list-view" "cljfx-form-list-view"]
+                           :max-width normal-max-width
                            :items (into [] (map-indexed vector) value)
                            :editable true
                            :on-edit-start {:event-type :on-list-edit-start
@@ -661,6 +671,7 @@
                                    :or {value []}
                                    :as field}]
   (assoc field :fx/type list-input
+               :max-width normal-max-width
                :on-edited {:event-type :edit-list-item
                            :value value
                            :on-value-changed on-value-changed}
@@ -691,6 +702,7 @@
                                               resource-string-converter]}]
   {:fx/type fx.h-box/lifecycle
    :spacing 4
+   :max-width normal-max-width
    :children [{:fx/type text-field
                :h-box/hgrow :always
                :text-formatter {:fx/type fx.text-formatter/lifecycle
@@ -734,6 +746,7 @@
 (defmethod form-input-view :file [{:keys [on-value-changed value filter title in-project]}]
   {:fx/type fx.h-box/lifecycle
    :spacing 4
+   :max-width normal-max-width
    :children [{:fx/type text-field
                :h-box/hgrow :always
                :text-formatter {:fx/type fx.text-formatter/lifecycle
@@ -761,6 +774,7 @@
 (defmethod form-input-view :directory [{:keys [on-value-changed value title in-project]}]
   {:fx/type fx.h-box/lifecycle
    :spacing 4
+   :max-width normal-max-width
    :children [{:fx/type text-field
                :h-box/hgrow :always
                :text-formatter {:fx/type fx.text-formatter/lifecycle
@@ -876,6 +890,7 @@
       (-> column
           (assoc :fx/type cell-input-view
                  :value item
+                 :custom-max-width normal-max-width
                  :on-value-changed {:event-type :keep-table-edit
                                     :state-path state-path}
                  :on-cancel {:event-type :cancel-table-edit
@@ -1277,7 +1292,7 @@
                                                  {:fx/type fx.column-constraints/lifecycle
                                                   :hgrow :always
                                                   :min-width 200
-                                                  :max-width 400}]
+                                                  :max-width large-max-width}]
                             :children (first
                                         (reduce
                                           (fn [[acc row] field]
