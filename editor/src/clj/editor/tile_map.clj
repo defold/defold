@@ -1234,7 +1234,8 @@
           start (g/node-value self :op-select-start evaluation-context)
           end (g/node-value self :op-select-end evaluation-context)]
       (concat
-        [(g/set-property self :brush (brush-fn cell-map start end))]
+        (when brush-fn
+         [(g/set-property self :brush (brush-fn cell-map start end))])
         (when erase?
           [(g/update-property active-layer :cell-map erase-area start end)])
         [(g/set-property self :op-select-start nil)
@@ -1280,7 +1281,7 @@
 
 (defmethod end-op :select-erase
   [op self action state evaluation-context]
-  (common-end-select self evaluation-context (fn [cell-map start end] nil) true))
+  (common-end-select self evaluation-context nil true))
 
 (defn- handle-input-editor
   [self action state evaluation-context]
