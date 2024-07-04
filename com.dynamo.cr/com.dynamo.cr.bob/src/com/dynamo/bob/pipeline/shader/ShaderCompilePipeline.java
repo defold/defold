@@ -69,11 +69,15 @@ public class ShaderCompilePipeline {
         return pipeline;
     }
 
-    public static ShaderCompilePipeline createShaderPipelineCompute(String pipelineName, String computeShaderSource) throws IOException, CompileExceptionError {
+    public static ShaderCompilePipeline createShaderPipeline(String pipelineName, String source, ShaderDesc.ShaderType type) throws IOException, CompileExceptionError {
         ShaderCompilePipeline pipeline = new ShaderCompilePipeline(pipelineName);
-        pipeline.addShaderModule(computeShaderSource, ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE);
+        pipeline.addShaderModule(source, type);
         pipeline.prepare();
         return pipeline;
+    }
+
+    public static ShaderCompilePipeline createShaderPipelineCompute(String pipelineName, String computeShaderSource) throws IOException, CompileExceptionError {
+        return createShaderPipeline(pipelineName, computeShaderSource, ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE);
     }
 
     private void addShaderModule(String source, ShaderDesc.ShaderType type) {
@@ -151,6 +155,10 @@ public class ShaderCompilePipeline {
             if(tokenizedResult.length != 1) {
                 message = tokenizedResult[1];
             }
+
+            String err = new String(result.stdOutErr);
+
+            System.out.println("Error: " + err);
             throw new CompileExceptionError(message);
         }
     }
@@ -186,25 +194,26 @@ public class ShaderCompilePipeline {
     }
 
     private void generateCrossCompiledShader(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, String pathFileInSpv, String pathFileOut, int versionOut) throws IOException, CompileExceptionError{
-        String optionUbosAsPlainUniforms = "";
-        String optionEsProfile = "";
+
+        ArrayList<String> options = new ArrayList<String>();
+        options.add("--remove-unused-variables");
 
         if (shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100 || shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM120) {
-            optionUbosAsPlainUniforms = "--glsl-emit-ubo-as-plain-uniforms";
+            options.add("--glsl-emit-ubo-as-plain-uniforms");
         }
 
         if (shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100 || shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM300) {
-            optionEsProfile = "--es";
+            options.add("--es");
         }
+
+        String optionsStr = String.join(" ", list);
 
         Result result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "spirv-cross"),
             pathFileInSpv,
             "--version", String.valueOf(versionOut),
             "--output", pathFileOut,
             "--stage", shaderTypeToSpirvStage(shaderType),
-            "--remove-unused-variables",
-            optionUbosAsPlainUniforms,
-            optionEsProfile
+            optionsStr
         );
         checkResult(result);
     }
@@ -222,6 +231,10 @@ public class ShaderCompilePipeline {
     }
 
     private void prepare() throws IOException, CompileExceptionError {
+        if (this.shaderModules.size() == 0) {
+            return;
+        }
+
         // 1. Generate SPIR-V for each module that can be linked afterwards
         for (ShaderModule module : this.shaderModules) {
             String baseName = this.pipelineName + "." + shaderTypeToSpirvStage(module.type);
@@ -238,10 +251,16 @@ public class ShaderCompilePipeline {
             module.spirvFile = fileOutSpv;
         }
 
-        // 2. Link all the .spv files together
-        File fileOutSpvLinked = File.createTempFile(this.pipelineName, ".linked.spv");
-        FileUtil.deleteOnExit(fileOutSpvLinked);
-        linkSPIRvModules(this.shaderModules, fileOutSpvLinked.getAbsolutePath());
+        // Link step is only needed if there is more than one module
+        File fileOutSpvLinked = null;
+        if (this.shaderModules.size() == 1) {
+            fileOutSpvLinked = this.shaderModules.get(0).spirvFile;
+        } else {
+            // 2. Link all the .spv files together
+            fileOutSpvLinked = File.createTempFile(this.pipelineName, ".linked.spv");
+            FileUtil.deleteOnExit(fileOutSpvLinked);
+            linkSPIRvModules(this.shaderModules, fileOutSpvLinked.getAbsolutePath());
+        }
 
         // 3. Generate an optimized version of the final .spv file
         File fileOutSpvOpt = File.createTempFile(this.pipelineName, ".optimized.spv");

@@ -44,7 +44,7 @@ public class VertexProgramBuilder extends ShaderProgramBuilder {
         System.setProperty("java.awt.headless", "true");
         VertexProgramBuilder builder = new VertexProgramBuilder();
 
-        CommandLine cmd = builder.GetShaderCommandLineOptions(args);
+        CommandLine cmd = builder.getShaderCommandLineOptions(args);
         String platformName = cmd.getOptionValue("platform", "");
         Platform platform = Platform.get(platformName);
         if (platform == null) {

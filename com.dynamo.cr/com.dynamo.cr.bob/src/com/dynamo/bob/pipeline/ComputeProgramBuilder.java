@@ -43,7 +43,7 @@ public class ComputeProgramBuilder extends ShaderProgramBuilder {
     public static void main(String[] args) throws IOException, CompileExceptionError {
     	System.setProperty("java.awt.headless", "true");
         ComputeProgramBuilder builder = new ComputeProgramBuilder();
-        CommandLine cmd = builder.GetShaderCommandLineOptions(args);
+        CommandLine cmd = builder.getShaderCommandLineOptions(args);
         String platformName = cmd.getOptionValue("platform", "");
         Platform platform = Platform.get(platformName);
         if (platform == null) {

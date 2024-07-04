@@ -40,10 +40,12 @@ public class FragmentProgramBuilder extends ShaderProgramBuilder {
         task.output(0).setContent(getCompiledShaderDesc(task, SHADER_TYPE).toByteArray());
     }
 
+    // Running standalone:
+    // java -classpath $DYNAMO_HOME/share/java/bob-light.jar com.dynamo.bob.pipeline.FragmentProgramBuilder <path-in.fp> <path-out.fpc>
     public static void main(String[] args) throws IOException, CompileExceptionError {
         System.setProperty("java.awt.headless", "true");
         FragmentProgramBuilder builder = new FragmentProgramBuilder();
-        CommandLine cmd = builder.GetShaderCommandLineOptions(args);
+        CommandLine cmd = builder.getShaderCommandLineOptions(args);
         String platformName = cmd.getOptionValue("platform", "");
         Platform platform = Platform.get(platformName);
         if (platform == null) {

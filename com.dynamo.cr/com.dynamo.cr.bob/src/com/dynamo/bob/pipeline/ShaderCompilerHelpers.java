@@ -351,7 +351,7 @@ public class ShaderCompilerHelpers {
         return -1;
     }
 
-    static private ShaderDesc.ResourceType.Builder getResourceTypeBuilder(ArrayList<SPIRVReflector.ResourceType> types, String typeName) {
+    static public ShaderDesc.ResourceType.Builder getResourceTypeBuilder(ArrayList<SPIRVReflector.ResourceType> types, String typeName) {
         ShaderDesc.ResourceType.Builder resourceTypeBuilder = ShaderDesc.ResourceType.newBuilder();
         ShaderDesc.ShaderDataType knownType = Common.stringTypeToShaderType(typeName);
 
@@ -366,7 +366,7 @@ public class ShaderCompilerHelpers {
         return resourceTypeBuilder;
     }
 
-    static private ShaderDesc.ResourceBinding.Builder SPIRVResourceToResourceBindingBuilder(ArrayList<SPIRVReflector.ResourceType> types, SPIRVReflector.Resource res) {
+    static public ShaderDesc.ResourceBinding.Builder SPIRVResourceToResourceBindingBuilder(ArrayList<SPIRVReflector.ResourceType> types, SPIRVReflector.Resource res) {
         ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderDesc.ResourceBinding.newBuilder();
         ShaderDesc.ResourceType.Builder typeBuilder = getResourceTypeBuilder(types, res.type);
         resourceBindingBuilder.setType(typeBuilder);
