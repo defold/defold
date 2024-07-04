@@ -42,9 +42,9 @@ import com.dynamo.bob.pipeline.ShaderUtil.ES2ToES3Converter;
 import com.dynamo.bob.pipeline.ShaderUtil.VariantTextureArrayFallback;
 import com.dynamo.bob.pipeline.ShaderUtil.Common;
 import com.dynamo.bob.pipeline.ShaderUtil.SPIRVReflector;
-
 import com.dynamo.bob.pipeline.ShaderCompilePipeline;
 import com.dynamo.bob.pipeline.ShaderCompilerHelpers;
+import com.dynamo.bob.util.MurmurHash;
 
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
@@ -234,7 +234,7 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         return ShaderCompilePipeline.createShaderPipeline(resourcePath, shaderSource, type);
     }
 
-    private ShaderDesc.Shader.Builder getShaderBuilder(ShaderDesc.Language language, byte[] source, SPIRVReflector reflector) {
+    private ShaderDesc.Shader.Builder makeShaderBuilder(ShaderDesc.Language language, byte[] source, SPIRVReflector reflector) {
         ShaderDesc.Shader.Builder builder = ShaderDesc.Shader.newBuilder();
         builder.setLanguage(language);
         builder.setSource(ByteString.copyFrom(source));
@@ -251,33 +251,27 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
             builder.addInputs(resourceBindingBuilder);
         }
 
-        /*
-        for (SPIRVReflector.Resource input : compile_res.inputs) {
-            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(compile_res.types, input);
-            builder.addInputs(resourceBindingBuilder);
-        }
-
-        for (SPIRVReflector.Resource output : compile_res.outputs) {
-            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(compile_res.types, output);
+        for (SPIRVReflector.Resource output : outputs) {
+            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderCompilerHelpers.SPIRVResourceToResourceBindingBuilder(types, output);
             builder.addOutputs(resourceBindingBuilder);
         }
 
-        for (SPIRVReflector.Resource ubo : compile_res.ubos) {
-            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(compile_res.types, ubo);
+        for (SPIRVReflector.Resource ubo : ubos) {
+            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderCompilerHelpers.SPIRVResourceToResourceBindingBuilder(types, ubo);
             builder.addUniformBuffers(resourceBindingBuilder);
         }
 
-        for (SPIRVReflector.Resource ssbo : compile_res.ssbos) {
-            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(compile_res.types, ssbo);
+        for (SPIRVReflector.Resource ssbo : ssbos) {
+            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderCompilerHelpers.SPIRVResourceToResourceBindingBuilder(types, ssbo);
             builder.addStorageBuffers(resourceBindingBuilder);
         }
 
-        for (SPIRVReflector.Resource texture : compile_res.textures) {
-            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(compile_res.types, texture);
+        for (SPIRVReflector.Resource texture : textures) {
+            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderCompilerHelpers.SPIRVResourceToResourceBindingBuilder(types, texture);
             builder.addTextures(resourceBindingBuilder);
         }
 
-        for (SPIRVReflector.ResourceType type : compile_res.types) {
+        for (SPIRVReflector.ResourceType type : types) {
             ShaderDesc.ResourceTypeInfo.Builder resourceTypeInfoBuilder = ShaderDesc.ResourceTypeInfo.newBuilder();
 
             resourceTypeInfoBuilder.setName(type.name);
@@ -286,7 +280,7 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
             for (SPIRVReflector.ResourceMember member : type.members) {
                 ShaderDesc.ResourceMember.Builder typeMemberBuilder = ShaderDesc.ResourceMember.newBuilder();
 
-                ShaderDesc.ResourceType.Builder typeBuilder = getResourceTypeBuilder(compile_res.types, member.type);
+                ShaderDesc.ResourceType.Builder typeBuilder = ShaderCompilerHelpers.getResourceTypeBuilder(types, member.type);
                 typeMemberBuilder.setType(typeBuilder);
                 typeMemberBuilder.setName(member.name);
                 typeMemberBuilder.setNameHash(MurmurHash.hash64(member.name));
@@ -297,7 +291,7 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
 
             builder.addTypes(resourceTypeInfoBuilder);
         }
-        */
+
         return builder;
     }
 
@@ -319,32 +313,13 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
 
             ShaderCompilePipeline pipeline = getShaderPipelineFromShaderSource(shaderType, args[1], finalShaderSource);
 
-            byte[] source100es = pipeline.crossCompile(shaderType, ShaderDesc.Language.LANGUAGE_GLES_SM100);
-            byte[] source300es = pipeline.crossCompile(shaderType, ShaderDesc.Language.LANGUAGE_GLES_SM300);
-
             ShaderDesc.Builder shaderDescBuilder = ShaderDesc.newBuilder();
             shaderDescBuilder.setShaderType(shaderType);
-            shaderDescBuilder.addShaders(getShaderBuilder(ShaderDesc.Language.LANGUAGE_GLES_SM100, source100es, pipeline.getReflectionData()));
-
-            /*
-            for (ShaderBuildResult shaderBuildResult : shaderBuildResults) {
-                if (shaderBuildResult != null) {
-                    if (shaderBuildResult.buildWarnings != null) {
-                        shaderDescBuildResult.buildWarnings = shaderBuildResult.buildWarnings;
-                        return shaderDescBuildResult;
-                    }
-
-                    shaderDescBuilder.addShaders(shaderBuildResult.shaderBuilder);
-                }
-            }
-            */
-
-            // ShaderDesc.Shader.Builder builder = ShaderDesc.Shader.newBuilder();
-            // builder.setLanguage(shaderLanguage);
-            // builder.setSource(ByteString.copyFrom(source, "UTF-8"));
-
-            // shaderDescBuilder.setShaderType(shaderType);
-            // shaderDescBuildResult.shaderDesc = shaderDescBuilder.build();
+            shaderDescBuilder.addShaders(makeShaderBuilder(ShaderDesc.Language.LANGUAGE_GLSL_SM120, pipeline.crossCompile(shaderType, ShaderDesc.Language.LANGUAGE_GLSL_SM120), pipeline.getReflectionData()));
+            shaderDescBuilder.addShaders(makeShaderBuilder(ShaderDesc.Language.LANGUAGE_GLSL_SM140, pipeline.crossCompile(shaderType, ShaderDesc.Language.LANGUAGE_GLSL_SM140), pipeline.getReflectionData()));
+            shaderDescBuilder.addShaders(makeShaderBuilder(ShaderDesc.Language.LANGUAGE_GLES_SM100, pipeline.crossCompile(shaderType, ShaderDesc.Language.LANGUAGE_GLES_SM100), pipeline.getReflectionData()));
+            shaderDescBuilder.addShaders(makeShaderBuilder(ShaderDesc.Language.LANGUAGE_GLES_SM300, pipeline.crossCompile(shaderType, ShaderDesc.Language.LANGUAGE_GLES_SM300), pipeline.getReflectionData()));
+            shaderDescBuilder.addShaders(makeShaderBuilder(ShaderDesc.Language.LANGUAGE_SPIRV, pipeline.crossCompile(shaderType, ShaderDesc.Language.LANGUAGE_SPIRV), pipeline.getReflectionData()));
 
             /*
             boolean outputSpirv = true;

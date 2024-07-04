@@ -156,9 +156,8 @@ public class ShaderCompilePipeline {
                 message = tokenizedResult[1];
             }
 
-            String err = new String(result.stdOutErr);
-
-            System.out.println("Error: " + err);
+            //String err = new String(result.stdOutErr);
+            //System.out.println("Error: " + err);
             throw new CompileExceptionError(message);
         }
     }
@@ -195,26 +194,26 @@ public class ShaderCompilePipeline {
 
     private void generateCrossCompiledShader(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, String pathFileInSpv, String pathFileOut, int versionOut) throws IOException, CompileExceptionError{
 
-        ArrayList<String> options = new ArrayList<String>();
-        options.add("--remove-unused-variables");
+        ArrayList<String> args = new ArrayList<String>();
+        args.add(Bob.getExe(Platform.getHostPlatform(), "spirv-cross"));
+        args.add(pathFileInSpv);
+        args.add("--version");
+        args.add(String.valueOf(versionOut));
+        args.add("--output");
+        args.add(pathFileOut);
+        args.add("--stage");
+        args.add(shaderTypeToSpirvStage(shaderType));
+        args.add("--remove-unused-variables");
 
         if (shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100 || shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM120) {
-            options.add("--glsl-emit-ubo-as-plain-uniforms");
+            args.add("--glsl-emit-ubo-as-plain-uniforms");
         }
 
         if (shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100 || shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM300) {
-            options.add("--es");
+            args.add("--es");
         }
 
-        String optionsStr = String.join(" ", list);
-
-        Result result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "spirv-cross"),
-            pathFileInSpv,
-            "--version", String.valueOf(versionOut),
-            "--output", pathFileOut,
-            "--stage", shaderTypeToSpirvStage(shaderType),
-            optionsStr
-        );
+        Result result = Exec.execResult(args.toArray(new String[0]));
         checkResult(result);
     }
 
