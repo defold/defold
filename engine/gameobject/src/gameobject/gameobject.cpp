@@ -1510,7 +1510,9 @@ namespace dmGameObject
                         {
                             if (strcmp(type->m_Name, "scriptc") == 0)
                             {
-                                lua_properties = *instance_properties;
+                                // TODO: Investigate if it's enough to have one property set, (to save time/memory)
+                                // and only register the Free function once (letting the first instance "own" it)
+                                lua_properties = PropertyContainerCopy(*instance_properties);
                             }
                         }
 
