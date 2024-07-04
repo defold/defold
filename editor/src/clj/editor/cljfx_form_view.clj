@@ -417,8 +417,6 @@
     {:fx/type fx.combo-box/lifecycle
      :style-class ["combo-box" "combo-box-base" "cljfx-form-combo-box"]
      :value value
-     :pref-width :use-computed-size
-     :min-width  small-max-width
      :on-value-changed on-value-changed
      :converter (proxy [StringConverter] []
                   (toString
