@@ -13,7 +13,6 @@
 // specific language governing permissions and limitations under the License.
 
 #include <dmsdk/resource/resource.h>
-
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 

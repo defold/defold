@@ -903,7 +903,7 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
  * ```
  *
  * `flags`
- * : [type:number] Texture creation flags that can be used to dictate how the texture is created. The default value is [ref:resource.TEXTURE_USAGE_FLAG_SAMPLE], which means that the texture can be sampled from a shader. 
+ * : [type:number] Texture creation flags that can be used to dictate how the texture is created. The default value is [ref:resource.TEXTURE_USAGE_FLAG_SAMPLE], which means that the texture can be sampled from a shader.
  * These flags may or may not be supported on the running device and/or the underlying graphics API and is simply used internally as a 'hint' when creating the texture. There is no guarantee that any of these will have any effect. Supported values:
  *
  * - `resource.TEXTURE_USAGE_FLAG_SAMPLE` - The texture can be sampled from a shader (default)

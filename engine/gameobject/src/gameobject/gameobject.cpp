@@ -39,6 +39,9 @@
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/resource/resource.h>
 
+#include <dmsdk/dlib/vmath.h>
+#include <dmsdk/resource/resource.hpp>
+
 DM_PROPERTY_GROUP(rmtp_GameObject, "Gameobjects");
 
 DM_PROPERTY_U32(rmtp_GOInstances, 0, FrameReset, "# alive go instances / frame", &rmtp_GameObject);

@@ -98,7 +98,7 @@ def get_cpp_func(decl):
             continue
         args.append('%s %s' % (inner['type']['qualType'], inner.get('name','')))
 
-    return '%s %s(%s)' % (ret_type, decl['name'], ','.join(args))
+    return '%s %s(%s)' % (ret_type, decl['name'], ', '.join(args))
 
 def gen_cpp_header(basepath, c_header_path, out_path, info, ast, state, includes):
     _reset_globals()
