@@ -759,7 +759,7 @@
 (def color-shader (shader/make-shader ::color-shader pos-color-vert pos-color-frag))
 
 (def ^:private white-color (double-array (map #(/ % 255.0) [255 255 255])))
-(def ^:private blue-color (double-array (map #(/ % 255.0) [0 191 255]  )))
+(def ^:private blue-color (double-array (map #(/ % 255.0) [0 191 255])))
 (def ^:private red-color (double-array (map #(/ % 255.0) [255 0 0])))
 (def ^:private orange-color (double-array (map #(/ % 255.0) [255 140 0])))
 
