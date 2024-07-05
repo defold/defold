@@ -14,7 +14,7 @@
 
 #include "res_animationset.h"
 
-#include <dmsdk/resource/resource.h>
+#include <dmsdk/resource/resource.hpp>
 #include <resource/resource.h>
 #include <dlib/log.h>
 #include <dmsdk/dlib/vmath.h>

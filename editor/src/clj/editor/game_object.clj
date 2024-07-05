@@ -521,14 +521,14 @@
         rotation :rotation
         scale :scale)
       (project/load-embedded-resource-node project resource-node resource pb-map)
-      (project/connect-if-output node-type resource-node comp-node
-                                 [[:_node-id :embedded-resource-id]
-                                  [:resource :source-resource]
-                                  [:_properties :source-properties]
-                                  [:node-outline :source-outline]
-                                  [:save-value :source-save-value]
-                                  [:scene :scene]
-                                  [:build-targets :source-build-targets]])
+      (gu/connect-existing-outputs node-type resource-node comp-node
+        [[:_node-id :embedded-resource-id]
+         [:resource :source-resource]
+         [:_properties :source-properties]
+         [:node-outline :source-outline]
+         [:save-value :source-save-value]
+         [:scene :scene]
+         [:build-targets :source-build-targets]])
       (attach-embedded-component self comp-node)
       (when select-fn
         (select-fn [comp-node])))))

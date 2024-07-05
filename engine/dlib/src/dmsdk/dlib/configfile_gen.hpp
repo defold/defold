@@ -1,5 +1,5 @@
 // Generated, do not edit!
-// Generated with cwd=/Users/mawe/work/defold/engine/dlib and cmd=/Users/mawe/work/defold/scripts/dmsdk/gen_sdk.py -i /Users/mawe/work/defold/engine/dlib/sdk_gen.json
+// Generated with cwd=/Users/mathiaswesterdahl/work/defold/engine/dlib and cmd=/Users/mathiaswesterdahl/work/defold/scripts/dmsdk/gen_sdk.py -i /Users/mathiaswesterdahl/work/defold/engine/dlib/sdk_gen.json
 
 // Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
@@ -47,17 +47,17 @@ namespace dmConfigFile
     /*#
     * Generated from [ref:ConfigFileGetString]
     */
-    const char * GetString(HConfig config,const char * key,const char * default_value);
+    const char * GetString(HConfig config, const char * key, const char * default_value);
 
     /*#
     * Generated from [ref:ConfigFileGetInt]
     */
-    int32_t GetInt(HConfig config,const char * key,int32_t default_value);
+    int32_t GetInt(HConfig config, const char * key, int32_t default_value);
 
     /*#
     * Generated from [ref:ConfigFileGetFloat]
     */
-    float GetFloat(HConfig config,const char * key,float default_value);
+    float GetFloat(HConfig config, const char * key, float default_value);
 
 
 } // namespace dmConfigFile

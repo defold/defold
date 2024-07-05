@@ -334,7 +334,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
             debugPrintShader("Reflection Test 2", shader);
 
-            assert(shader.getTexturesCount() == 9);
+            assertEquals(8, shader.getTexturesCount());
             validateResourceBindingWithKnownType(shader.getTextures(0), "sampler_2d",       ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D);
             validateResourceBindingWithKnownType(shader.getTextures(1), "sampler_2d_array", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY);
             validateResourceBindingWithKnownType(shader.getTextures(2), "sampler_cube",     ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_CUBE);

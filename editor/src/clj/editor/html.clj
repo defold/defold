@@ -44,5 +44,5 @@
     :search-fn search-fn
     :search-value-fn search-value-fn
     :node-type HtmlNode
-    :view-types [:html]
+    :view-types [:html :text]
     :view-opts nil))

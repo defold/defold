@@ -460,6 +460,75 @@ namespace dmGameSystem
         return TileMap_Get(L, true);
     }
 
+    /*# get all the tiles from a layer in a tilemap
+     * Retrieves all the tiles for the specified layer in the tilemap.
+     * It returns a table of rows where the keys are the
+     * tile positions (see [ref:tilemap.get_bounds()]).
+     * You can iterate it using `tiles[row_index][column_index]`.
+     *
+     * @name tilemap.get_tiles
+     * @param url [type:string|hash|url] the tilemap
+     * @param layer [type:string|hash] the name of the layer for the tiles
+     * @return tiles [type:table] a table of rows representing the layer
+     * @examples
+     *
+     * ```lua
+     * local left, bottom, columns_count, rows_count = tilemap.get_bounds("#tilemap")
+     * local tiles = tilemap.get_tiles("#tilemap", "layer")
+     * local tile, count = 0, 0
+     * for row_index = bottom, bottom + rows_count - 1 do
+     *     for column_index = left, left + columns_count - 1 do
+     *         tile = tiles[row_index][column_index]
+     *         count = count + 1
+     *     end
+     * end
+     * ```
+     */
+    static int TileMap_GetTiles(lua_State* L)
+    {
+        int top = lua_gettop(L);
+
+        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+
+        TileGridComponent* component;
+        dmGameObject::GetComponentFromLua(L, 1, collection, TILE_MAP_EXT, (dmGameObject::HComponent*)&component, 0, 0);
+
+        dmhash_t layer_id = dmScript::CheckHashOrString(L, 2);
+        uint32_t layer_index = GetLayerIndex(component, layer_id);
+        if (layer_index == ~0u)
+        {
+            dmLogError("Could not find layer '%s'.", dmHashReverseSafe64(layer_id));
+            lua_pushnil(L);
+            assert(top + 1 == lua_gettop(L));
+            return 1;
+        }
+
+        int min_x, min_y, grid_w, grid_h;
+        GetTileGridBounds(component, &min_x, &min_y, &grid_w, &grid_h);
+
+        int32_t cell_x, cell_y;
+        GetTileGridCellCoord(component, min_x, min_y, cell_x, cell_y);
+
+        lua_newtable(L);
+        for (int iy = 0; iy < grid_h; iy++)
+        {
+            lua_pushinteger(L, min_y + iy + 1);
+            lua_newtable(L);
+            for (int ix = 0; ix < grid_w; ix++)
+            {
+                uint16_t cell = GetTileGridTile(component, layer_index, cell_x + ix, cell_y + iy);
+                lua_pushinteger(L, min_x + ix + 1);
+                lua_pushinteger(L, cell);
+                lua_settable(L, -3);
+            }
+
+            lua_settable(L, -3);
+        }
+        assert(top + 1 == lua_gettop(L));
+        return 1;
+    }
+
     /*# get the bounds of a tile map
      * Get the bounds for a tile map. This function returns multiple values:
      * The lower left corner index x and y coordinates (1-indexed),
@@ -570,6 +639,7 @@ namespace dmGameSystem
         {"reset_constant",  TileMap_ResetConstant},
         {"set_tile",        TileMap_SetTile},
         {"get_tile",        TileMap_GetTile},
+        {"get_tiles",       TileMap_GetTiles},
         {"get_tile_info",   TileMap_GetTileInfo},
         {"get_bounds",      TileMap_GetBounds},
         {"set_visible",     TileMap_SetVisible},

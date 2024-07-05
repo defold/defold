@@ -28,6 +28,8 @@
 
 #include <dmsdk/resource/resource.h>
 
+#include <dmsdk/resource/resource.hpp>
+
 using namespace dmVMath;
 
 dmResource::Result ResCreate(const dmResource::ResourceCreateParams* params)

@@ -52,7 +52,7 @@
         graph (g/node-id->graph-id host-node-id)]
     (g/make-nodes graph [embedded-resource-node-id [embedded-resource-node-type :resource embedded-resource]]
       (project/load-embedded-resource-node project embedded-resource-node-id embedded-resource embedded-resource-pb-map)
-      (project/connect-if-output embedded-resource-node-type embedded-resource-node-id host-node-id embedded-component-connections))))
+      (gu/connect-existing-outputs embedded-resource-node-type embedded-resource-node-id host-node-id embedded-component-connections))))
 
 (g/defnk produce-embedded-component-build-targets [embedded-component-build-targets]
   (into []
