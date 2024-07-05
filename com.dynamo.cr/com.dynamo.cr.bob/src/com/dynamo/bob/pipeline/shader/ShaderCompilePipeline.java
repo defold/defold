@@ -41,7 +41,7 @@ import org.apache.commons.io.FilenameUtils;
 
 public class ShaderCompilePipeline {
 
-    private class ShaderModule {
+    protected class ShaderModule {
         public String                source;
         public ShaderDesc.ShaderType type;
         public File                  spirvFile;
@@ -52,32 +52,13 @@ public class ShaderCompilePipeline {
         }
     };
 
-    private String pipelineName                   = null;
-    private File spirvFileOut                     = null;
-    private SPIRVReflector spirvReflector         = null;
-    private ArrayList<ShaderModule> shaderModules = new ArrayList<ShaderModule>();
+    protected String pipelineName                   = null;
+    protected File spirvFileOut                     = null;
+    protected SPIRVReflector spirvReflector         = null;
+    protected ArrayList<ShaderModule> shaderModules = new ArrayList<ShaderModule>();
 
     public ShaderCompilePipeline(String pipelineName) {
         this.pipelineName = pipelineName;
-    }
-
-    public static ShaderCompilePipeline createShaderPipelineGraphics(String pipelineName, String vertexShaderSource, String fragmentShaderSource) throws IOException, CompileExceptionError {
-        ShaderCompilePipeline pipeline = new ShaderCompilePipeline(pipelineName);
-        pipeline.addShaderModule(vertexShaderSource, ShaderDesc.ShaderType.SHADER_TYPE_VERTEX);
-        pipeline.addShaderModule(fragmentShaderSource, ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT);
-        pipeline.prepare();
-        return pipeline;
-    }
-
-    public static ShaderCompilePipeline createShaderPipeline(String pipelineName, String source, ShaderDesc.ShaderType type) throws IOException, CompileExceptionError {
-        ShaderCompilePipeline pipeline = new ShaderCompilePipeline(pipelineName);
-        pipeline.addShaderModule(source, type);
-        pipeline.prepare();
-        return pipeline;
-    }
-
-    public static ShaderCompilePipeline createShaderPipelineCompute(String pipelineName, String computeShaderSource) throws IOException, CompileExceptionError {
-        return createShaderPipeline(pipelineName, computeShaderSource, ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE);
     }
 
     private void addShaderModule(String source, ShaderDesc.ShaderType type) {
@@ -229,7 +210,7 @@ public class ShaderCompilePipeline {
         checkResult(result);
     }
 
-    private void prepare() throws IOException, CompileExceptionError {
+    protected void prepare() throws IOException, CompileExceptionError {
         if (this.shaderModules.size() == 0) {
             return;
         }
@@ -303,43 +284,21 @@ public class ShaderCompilePipeline {
         return this.spirvReflector;
     }
 
-    // java -classpath $DYNAMO_HOME/share/java/bob-light.jar com.dynamo.bob.pipeline.ShaderCompilePipeline <path-in.stage> <path-out.stagec>
-    // where .stage is either .vp for vertex shaders, .fp for fragment shaders or .cp for compute shaders
-    public static void main(String[] args) throws IOException, CompileExceptionError {
-        System.setProperty("java.awt.headless", "true");
+    // TODO: Maybe better API here
+    public static ShaderCompilePipeline createShaderPipelineGraphics(ShaderCompilePipeline pipeline, String vertexShaderSource, String fragmentShaderSource) throws IOException, CompileExceptionError {
+        pipeline.addShaderModule(vertexShaderSource, ShaderDesc.ShaderType.SHADER_TYPE_VERTEX);
+        pipeline.addShaderModule(fragmentShaderSource, ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT);
+        pipeline.prepare();
+        return pipeline;
+    }
 
-        if (args.length < 2) {
-            System.out.println("Usage: java -classpath $DYNAMO_HOME/share/java/bob-light.jar com.dynamo.bob.pipeline.ShaderCompilePipeline <path-in.stage> <path-out.stage> [shader-language]");
-            System.exit(1);
-        }
+    public static ShaderCompilePipeline createShaderPipeline(ShaderCompilePipeline pipeline, String source, ShaderDesc.ShaderType type) throws IOException, CompileExceptionError {
+        pipeline.addShaderModule(source, type);
+        pipeline.prepare();
+        return pipeline;
+    }
 
-        /*
-        String shaderIn  = args[0];
-        String shaderOut = args[1];
-        String shaderLanguage = null;
-
-        if (args.length > 2) {
-            shaderLanguage = args[2];
-        }
-
-        ShaderDesc.ShaderType shaderType = pathToShaderType(shaderIn);
-
-        List<String> lines = Files.readAllLines(Paths.get(shaderIn));
-        String content     = String.join("\n", lines);
-
-        ShaderCompilePipeline pipeline = createShaderPipelineGraphics("ShaderCompilePipelineBuilder", String vertexShaderSource, String fragmentShaderSource);
-
-        if (shaderLanguage == null) {
-            pipeline.addOutputLanguage(ShaderDesc.Language.LANGUAGE_GLES_SM100);
-            pipeline.addOutputLanguage(ShaderDesc.Language.LANGUAGE_GLSL_SM120);
-            pipeline.addOutputLanguage(ShaderDesc.Language.LANGUAGE_GLSL_SM140);
-            pipeline.addOutputLanguage(ShaderDesc.Language.LANGUAGE_GLES_SM300);
-            pipeline.addOutputLanguage(ShaderDesc.Language.LANGUAGE_GLSL_SM430);
-            pipeline.addOutputLanguage(ShaderDesc.Language.LANGUAGE_SPIRV);
-        } else {
-            pipeline.addOutputLanguage(shaderLanguageStrToEnum(shaderLanguage));
-        }
-        pipeline.compile(shaderType, content, shaderIn);
-        */
+    public static ShaderCompilePipeline createShaderPipelineCompute(ShaderCompilePipeline pipeline, String computeShaderSource) throws IOException, CompileExceptionError {
+        return createShaderPipeline(pipeline, computeShaderSource, ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE);
     }
 }

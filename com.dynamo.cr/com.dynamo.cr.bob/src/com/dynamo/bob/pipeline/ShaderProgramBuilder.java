@@ -43,6 +43,7 @@ import com.dynamo.bob.pipeline.ShaderUtil.VariantTextureArrayFallback;
 import com.dynamo.bob.pipeline.ShaderUtil.Common;
 import com.dynamo.bob.pipeline.ShaderUtil.SPIRVReflector;
 import com.dynamo.bob.pipeline.ShaderCompilePipeline;
+import com.dynamo.bob.pipeline.ShaderCompilePipelineLegacy;
 import com.dynamo.bob.pipeline.ShaderCompilerHelpers;
 import com.dynamo.bob.util.MurmurHash;
 
@@ -229,9 +230,17 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
     }
 
     private ShaderCompilePipeline getShaderPipelineFromShaderSource(ShaderDesc.ShaderType type, String resourcePath, String shaderSource) throws IOException, CompileExceptionError {
+        ShaderCompilePipeline pipeline = null;
+
         Common.GLSLShaderInfo shaderInfo = Common.getShaderInfo(shaderSource);
 
-        return ShaderCompilePipeline.createShaderPipeline(resourcePath, shaderSource, type);
+        if (shaderInfo == null) {
+            pipeline = new ShaderCompilePipelineLegacy(resourcePath);
+        } else {
+            pipeline = new ShaderCompilePipeline(resourcePath);
+        }
+
+        return ShaderCompilePipeline.createShaderPipeline(pipeline, shaderSource, type);
     }
 
     private ShaderDesc.Shader.Builder makeShaderBuilder(ShaderDesc.Language language, byte[] source, SPIRVReflector reflector) {
@@ -320,20 +329,6 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
             shaderDescBuilder.addShaders(makeShaderBuilder(ShaderDesc.Language.LANGUAGE_GLES_SM100, pipeline.crossCompile(shaderType, ShaderDesc.Language.LANGUAGE_GLES_SM100), pipeline.getReflectionData()));
             shaderDescBuilder.addShaders(makeShaderBuilder(ShaderDesc.Language.LANGUAGE_GLES_SM300, pipeline.crossCompile(shaderType, ShaderDesc.Language.LANGUAGE_GLES_SM300), pipeline.getReflectionData()));
             shaderDescBuilder.addShaders(makeShaderBuilder(ShaderDesc.Language.LANGUAGE_SPIRV, pipeline.crossCompile(shaderType, ShaderDesc.Language.LANGUAGE_SPIRV), pipeline.getReflectionData()));
-
-            /*
-            boolean outputSpirv = true;
-            boolean softFail = false;
-
-            ShaderDescBuildResult shaderDescBuildResult = makeShaderDesc(args[1], shaderPreprocessor,
-                shaderType, cmd.getOptionValue("platform", ""),
-                cmd.getOptionValue("variant", "").equals("debug") ? true : false,
-                outputSpirv, softFail);
-
-            handleShaderDescBuildResult(shaderDescBuildResult, args[1]);
-
-            shaderDescBuildResult.shaderDesc.writeTo(os);
-            */
 
             shaderDescBuilder.build().writeTo(os);
             os.close();
