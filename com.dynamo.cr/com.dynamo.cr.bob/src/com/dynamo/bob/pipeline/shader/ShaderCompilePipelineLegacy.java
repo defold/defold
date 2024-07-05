@@ -37,11 +37,34 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
         return null;
     }
 
+    private boolean isLanguageClassGLSL(ShaderDesc.Language shaderLanguage) {
+        return shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100 ||
+               shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM120 ||
+               shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM140 ||
+               shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM300 ||
+               shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM430;
+    }
+
     @Override
     protected void prepare() throws IOException, CompileExceptionError {
-        for (ShaderModule module : this.shaderModules) {
-            module.source = ShaderCompilerHelpers.compileGLSL(module.source, module.type, ShaderDesc.Language.LANGUAGE_GLSL_SM140, false);
+        // We can't run the prepare step on the legacy pipeline
+    }
+
+    @Override
+    public byte[] crossCompile(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage) throws IOException, CompileExceptionError {
+        String source = getShaderSource(shaderType);
+        if (source == null) {
+            throw new CompileExceptionError("No source for " + shaderType);
         }
-        super.prepare();
-	}
+
+        if (shaderLanguage == ShaderDesc.Language.LANGUAGE_SPIRV) {
+            ShaderCompilerHelpers.SPIRVCompileResult result = ShaderCompilerHelpers.compileGLSLToSPIRV(source, shaderType, this.pipelineName, "", false, false);
+            return result.source;
+        } else if (isLanguageClassGLSL(shaderLanguage)) {
+            String result = ShaderCompilerHelpers.compileGLSL(source, shaderType, shaderLanguage, false);
+            return result.getBytes();
+        }
+
+        throw new CompileExceptionError("Unsupported shader language: " + shaderLanguage);
+    }
 }

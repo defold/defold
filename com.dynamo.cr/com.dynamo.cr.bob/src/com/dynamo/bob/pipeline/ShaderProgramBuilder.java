@@ -248,57 +248,59 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         builder.setLanguage(language);
         builder.setSource(ByteString.copyFrom(source));
 
-        ArrayList<SPIRVReflector.Resource> inputs    = reflector.getInputs();
-        ArrayList<SPIRVReflector.Resource> outputs   = reflector.getOutputs();
-        ArrayList<SPIRVReflector.Resource> ubos      = reflector.getUBOs();
-        ArrayList<SPIRVReflector.Resource> ssbos     = reflector.getSsbos();
-        ArrayList<SPIRVReflector.Resource> textures  = reflector.getTextures();
-        ArrayList<SPIRVReflector.ResourceType> types = reflector.getTypes();
+        if (reflector != null) {
+            ArrayList<SPIRVReflector.Resource> inputs    = reflector.getInputs();
+            ArrayList<SPIRVReflector.Resource> outputs   = reflector.getOutputs();
+            ArrayList<SPIRVReflector.Resource> ubos      = reflector.getUBOs();
+            ArrayList<SPIRVReflector.Resource> ssbos     = reflector.getSsbos();
+            ArrayList<SPIRVReflector.Resource> textures  = reflector.getTextures();
+            ArrayList<SPIRVReflector.ResourceType> types = reflector.getTypes();
 
-        for (SPIRVReflector.Resource input : inputs) {
-            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderCompilerHelpers.SPIRVResourceToResourceBindingBuilder(types, input);
-            builder.addInputs(resourceBindingBuilder);
-        }
-
-        for (SPIRVReflector.Resource output : outputs) {
-            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderCompilerHelpers.SPIRVResourceToResourceBindingBuilder(types, output);
-            builder.addOutputs(resourceBindingBuilder);
-        }
-
-        for (SPIRVReflector.Resource ubo : ubos) {
-            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderCompilerHelpers.SPIRVResourceToResourceBindingBuilder(types, ubo);
-            builder.addUniformBuffers(resourceBindingBuilder);
-        }
-
-        for (SPIRVReflector.Resource ssbo : ssbos) {
-            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderCompilerHelpers.SPIRVResourceToResourceBindingBuilder(types, ssbo);
-            builder.addStorageBuffers(resourceBindingBuilder);
-        }
-
-        for (SPIRVReflector.Resource texture : textures) {
-            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderCompilerHelpers.SPIRVResourceToResourceBindingBuilder(types, texture);
-            builder.addTextures(resourceBindingBuilder);
-        }
-
-        for (SPIRVReflector.ResourceType type : types) {
-            ShaderDesc.ResourceTypeInfo.Builder resourceTypeInfoBuilder = ShaderDesc.ResourceTypeInfo.newBuilder();
-
-            resourceTypeInfoBuilder.setName(type.name);
-            resourceTypeInfoBuilder.setNameHash(MurmurHash.hash64(type.name));
-
-            for (SPIRVReflector.ResourceMember member : type.members) {
-                ShaderDesc.ResourceMember.Builder typeMemberBuilder = ShaderDesc.ResourceMember.newBuilder();
-
-                ShaderDesc.ResourceType.Builder typeBuilder = ShaderCompilerHelpers.getResourceTypeBuilder(types, member.type);
-                typeMemberBuilder.setType(typeBuilder);
-                typeMemberBuilder.setName(member.name);
-                typeMemberBuilder.setNameHash(MurmurHash.hash64(member.name));
-                typeMemberBuilder.setElementCount(member.elementCount);
-
-                resourceTypeInfoBuilder.addMembers(typeMemberBuilder);
+            for (SPIRVReflector.Resource input : inputs) {
+                ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderCompilerHelpers.SPIRVResourceToResourceBindingBuilder(types, input);
+                builder.addInputs(resourceBindingBuilder);
             }
 
-            builder.addTypes(resourceTypeInfoBuilder);
+            for (SPIRVReflector.Resource output : outputs) {
+                ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderCompilerHelpers.SPIRVResourceToResourceBindingBuilder(types, output);
+                builder.addOutputs(resourceBindingBuilder);
+            }
+
+            for (SPIRVReflector.Resource ubo : ubos) {
+                ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderCompilerHelpers.SPIRVResourceToResourceBindingBuilder(types, ubo);
+                builder.addUniformBuffers(resourceBindingBuilder);
+            }
+
+            for (SPIRVReflector.Resource ssbo : ssbos) {
+                ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderCompilerHelpers.SPIRVResourceToResourceBindingBuilder(types, ssbo);
+                builder.addStorageBuffers(resourceBindingBuilder);
+            }
+
+            for (SPIRVReflector.Resource texture : textures) {
+                ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderCompilerHelpers.SPIRVResourceToResourceBindingBuilder(types, texture);
+                builder.addTextures(resourceBindingBuilder);
+            }
+
+            for (SPIRVReflector.ResourceType type : types) {
+                ShaderDesc.ResourceTypeInfo.Builder resourceTypeInfoBuilder = ShaderDesc.ResourceTypeInfo.newBuilder();
+
+                resourceTypeInfoBuilder.setName(type.name);
+                resourceTypeInfoBuilder.setNameHash(MurmurHash.hash64(type.name));
+
+                for (SPIRVReflector.ResourceMember member : type.members) {
+                    ShaderDesc.ResourceMember.Builder typeMemberBuilder = ShaderDesc.ResourceMember.newBuilder();
+
+                    ShaderDesc.ResourceType.Builder typeBuilder = ShaderCompilerHelpers.getResourceTypeBuilder(types, member.type);
+                    typeMemberBuilder.setType(typeBuilder);
+                    typeMemberBuilder.setName(member.name);
+                    typeMemberBuilder.setNameHash(MurmurHash.hash64(member.name));
+                    typeMemberBuilder.setElementCount(member.elementCount);
+
+                    resourceTypeInfoBuilder.addMembers(typeMemberBuilder);
+                }
+
+                builder.addTypes(resourceTypeInfoBuilder);
+            }
         }
 
         return builder;

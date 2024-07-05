@@ -144,6 +144,8 @@ public class ShaderCompilePipeline {
     }
 
     private void generateSPIRv(ShaderDesc.ShaderType shaderType, String fullShaderSource, String pathFileInGLSL, String pathFileOutSpv) throws IOException, CompileExceptionError {
+        System.out.println("Compiling: " + pathFileInGLSL);
+        System.out.println(fullShaderSource);
         Result result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "glslc"),
             "-w",
             "-fauto-bind-uniforms",
