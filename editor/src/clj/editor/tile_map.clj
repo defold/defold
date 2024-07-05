@@ -177,9 +177,7 @@
      :height height
      :tiles tiles}))
 
-(def erase-brush (make-brush nil))
-
-(def ^:private empty-brush {:width 1 :height 1 :tiles [{:tile nil :h-flip false :v-flip false :rotate90 false}]})
+(def ^:private empty-brush (make-brush nil))
 
 (defn flip-brush-horizontally
   [brush]
@@ -864,7 +862,7 @@
 
 (def ^:private clamp-palette-mouse-offset (geom/clamper -0.5 0.5))
 
-(def ^:private select-mods #{:select-mode :cut-mode :erase-mode})
+(def ^:private select-modes #{:select-mode :cut-mode :erase-mode})
 
 (defn- make-palette-transform
   [tile-source-attributes viewport ^Vector3d cursor-screen-pos]
@@ -1153,7 +1151,7 @@
                         [{:world-transform (:world-transform active-layer-renderable)
                           :render-fn render-editor
                           :user-data {:cell current-tile
-                                      :brush (if (contains? select-mods cursor-mode)
+                                      :brush (if (contains? select-modes cursor-mode)
                                                empty-brush
                                                brush)
                                       :tile-dimensions tile-dimensions
@@ -1173,7 +1171,7 @@
                     [{:world-transform (:world-transform active-layer-renderable)
                       :render-fn render-editor
                       :user-data {:cell current-tile
-                                  :brush (if (contains? select-mods cursor-mode)
+                                  :brush (if (contains? select-modes cursor-mode)
                                            empty-brush
                                            brush)
                                   :color (case cursor-mode
@@ -1457,7 +1455,7 @@
   (run [selection user-data] (add-layer-handler (selection->tile-map selection))))
 
 (defn- erase-tool-handler [tool-controller]
-  (g/set-property! tool-controller :brush erase-brush))
+  (g/set-property! tool-controller :brush empty-brush))
 
 (defn- active-tile-map [app-view evaluation-context]
   (when-let [resource-node (g/node-value app-view :active-resource-node evaluation-context)]
