@@ -113,6 +113,21 @@
             (recur sx (inc y) tiles cell-map))
           (persistent! cell-map))))))
 
+(defn erase-area
+  [cell-map [sx sy] [ex ey]]
+  (let [x0 (min sx ex)
+        y0 (min sy ey)
+        x1 (inc (max sx ex))
+        y1 (inc (max sy ey))]
+    (loop [x x0
+           y y0
+           cell-map (transient cell-map)]
+      (if (< y y1)
+        (if (< x x1)
+          (recur (inc x) y (dissoc! cell-map (cell-index x y)))
+          (recur x0 (inc y) cell-map))
+        (persistent! cell-map)))))
+
 (defn make-brush
   [tile]
   {:width 1 :height 1 :tiles [{:tile tile :h-flip false :v-flip false :rotate90 false}]})
@@ -742,7 +757,9 @@
 
 (def color-shader (shader/make-shader ::color-shader pos-color-vert pos-color-frag))
 
-
+(def ^:private white-color (double-array (map #(/ % 255.0) [255 255 255])))
+(def ^:private red-color (double-array (map #(/ % 255.0) [255 0 0])))
+(def ^:private orange-color (double-array (map #(/ % 255.0) [255 140 0])))
 
 ;; brush
 
@@ -760,7 +777,7 @@
             x1 (+ x0 (* width tile-width))
             y1 (+ y0 (* height tile-height))
             z 0.0
-            c (double-array (map #(/ % 255.0) [255 255 255]))]
+            c white-color]
         (.glMatrixMode gl GL2/GL_MODELVIEW)
         (gl/gl-push-matrix gl
           (gl/gl-mult-matrix-4d gl world-transform)
@@ -843,6 +860,8 @@
 (def ^:private edge-offset 100)
 
 (def ^:private clamp-palette-mouse-offset (geom/clamper -0.5 0.5))
+
+(def ^:private select-ops #{:select :select-cut :select-erase})
 
 (defn- make-palette-transform
   [tile-source-attributes viewport ^Vector3d cursor-screen-pos]
@@ -1072,6 +1091,7 @@
         user-data (:user-data renderable)
         [sx sy] (:start user-data)
         [ex ey] (:end user-data)
+        color (:color user-data)
         [tile-width tile-height] (:tile-dimensions user-data)]
     (when (and sx sy ex ey)
       (let [x0 (* tile-width (min-l sx ex))
@@ -1079,7 +1099,7 @@
             x1 (* tile-width (inc (max-l sx ex)))
             y1 (* tile-height (inc (max-l sy ey)))
             z 0.0
-            c (double-array (map #(/ % 255.0) [255 255 255]))]
+            c color]
         (.glMatrixMode gl GL2/GL_MODELVIEW)
         (gl/gl-push-matrix gl
           (gl/gl-mult-matrix-4d gl world-transform)
@@ -1124,7 +1144,7 @@
   [active-layer-renderable op op-select-start op-select-end current-tile tile-dimensions brush viewport texture-set-data gpu-texture]
   (when active-layer-renderable
     {pass/transparent (cond
-                        (= :select op)
+                        (contains? select-ops op)
                         []
 
                         current-tile
@@ -1135,18 +1155,22 @@
                                       :tile-dimensions tile-dimensions
                                       :texture-set-data texture-set-data
                                       :gpu-texture gpu-texture}}])
-     pass/outline     (cond
-                        (= :select op) [{:world-transform (:world-transform active-layer-renderable)
-                                         :render-fn render-editor-select
-                                         :user-data {:start op-select-start
-                                                     :end op-select-end
-                                                     :tile-dimensions tile-dimensions}}]
-                        current-tile
-                        [{:world-transform (:world-transform active-layer-renderable)
-                          :render-fn render-editor
-                          :user-data {:cell current-tile
-                                      :brush brush
-                                      :tile-dimensions tile-dimensions}}])}))
+     pass/outline (cond
+                    (contains? select-ops op) [{:world-transform (:world-transform active-layer-renderable)
+                                                :render-fn render-editor-select
+                                                :user-data {:start op-select-start
+                                                            :end op-select-end
+                                                            :tile-dimensions tile-dimensions
+                                                            :color (case op
+                                                                     :select-cut orange-color
+                                                                     :select-erase red-color
+                                                                     white-color)}}]
+                    current-tile
+                    [{:world-transform (:world-transform active-layer-renderable)
+                      :render-fn render-editor
+                      :user-data {:cell current-tile
+                                  :brush brush
+                                  :tile-dimensions tile-dimensions}}])}))
 
 (g/defnk produce-tool-renderables
   [mode editor-renderables palette-renderables]
@@ -1191,32 +1215,73 @@
   (swap! state dissoc :last-tile)
   [(g/set-property self :op-seq nil)])
 
+;; common selections operations
 
-;; selecting brush from cell-map
-
-(defmethod begin-op :select
-  [op self action state evaluation-context]
+(defn common-begin-select [self evaluation-context]
   (when-let [active-layer (g/node-value self :active-layer evaluation-context)]
     (when-let [current-tile (g/node-value self :current-tile evaluation-context)]
       [(g/set-property self :op-select-start current-tile)
        (g/set-property self :op-select-end current-tile)])))
 
-(defmethod update-op :select
-  [op self action state evaluation-context]
+(defn common-update-select [self evaluation-context]
   (when-let [active-layer (g/node-value self :active-layer evaluation-context)]
     (when-let [current-tile (g/node-value self :current-tile evaluation-context)]
       [(g/set-property self :op-select-end current-tile)])))
 
-(defmethod end-op :select
-  [op self action state evaluation-context]
+(defn common-end-select [self evaluation-context brush-fn & [erase?]]
   (when-let [active-layer (g/node-value self :active-layer evaluation-context)]
     (let [cell-map (g/node-value active-layer :cell-map evaluation-context)
           start (g/node-value self :op-select-start evaluation-context)
           end (g/node-value self :op-select-end evaluation-context)]
-      [(g/set-property self :brush (make-brush-from-selection cell-map start end))
-       (g/set-property self :op-select-start nil)
-       (g/set-property self :op-select-end nil)])))
+      (concat
+        (when brush-fn
+         [(g/set-property self :brush (brush-fn cell-map start end))])
+        (when erase?
+          [(g/update-property active-layer :cell-map erase-area start end)])
+        [(g/set-property self :op-select-start nil)
+         (g/set-property self :op-select-end nil)]))))
 
+;; selecting brush from cell-map
+
+(defmethod begin-op :select
+  [op self action state evaluation-context]
+  (common-begin-select self evaluation-context))
+
+(defmethod update-op :select
+  [op self action state evaluation-context]
+  (common-update-select self evaluation-context))
+
+(defmethod end-op :select
+  [op self action state evaluation-context]
+  (common-end-select self evaluation-context make-brush-from-selection))
+
+;; selecting brush and cut cells from cell-map
+
+(defmethod begin-op :select-cut
+  [op self action state evaluation-context]
+  (common-begin-select self evaluation-context))
+
+(defmethod update-op :select-cut
+  [op self action state evaluation-context]
+  (common-update-select self evaluation-context))
+
+(defmethod end-op :select-cut
+  [op self action state evaluation-context]
+  (common-end-select self evaluation-context make-brush-from-selection true))
+
+;; selecting brush and erase cells from cell-map
+
+(defmethod begin-op :select-erase
+  [op self action state evaluation-context]
+  (common-begin-select self evaluation-context))
+
+(defmethod update-op :select-erase
+  [op self action state evaluation-context]
+  (common-update-select self evaluation-context))
+
+(defmethod end-op :select-erase
+  [op self action state evaluation-context]
+  (common-end-select self evaluation-context nil true))
 
 (defn- handle-input-editor
   [self action state evaluation-context]
@@ -1224,9 +1289,11 @@
         tx (case (:type action)
              :mouse-pressed
              (when-not (some? op)
-               (let [op (if (true? (:shift action))
-                          :select
-                          :paint)
+               (let [op (cond
+                          (and (true? (:shift action)) (true? (:control action))) :select-cut
+                          (and (true? (:shift action)) (true? (:alt action))) :select-erase
+                          (true? (:shift action)) :select
+                          :else :paint)
                      op-tx (begin-op op self action state evaluation-context)]
                  (when (seq op-tx)
                    (concat
