@@ -14,8 +14,11 @@
 
 (ns util.text-util
   (:require [clojure.java.io :as io]
-            [clojure.string :as string])
-  (:import (java.io Reader)))
+            [clojure.string :as string]
+            [util.coll :refer [pair]])
+  (:import [clojure.lang IReduceInit]
+           [java.io BufferedReader Reader StringReader]
+           [java.util.regex MatchResult Pattern]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -204,3 +207,105 @@
                (if (== code-point (.codePointAt str index))
                  (inc found-count)
                  found-count))))))
+
+(defn- line-info-coll [make-buffered-reader]
+  (reify IReduceInit
+    (reduce [_ rf init]
+      (with-open [^BufferedReader reader (make-buffered-reader)]
+        (loop [ret init
+               row 0
+               caret-position 0]
+          (if-some [line (.readLine reader)]
+            (let [ret (rf ret {:line line
+                               :row row
+                               :caret-position caret-position})]
+              (if (reduced? ret)
+                @ret
+                (recur ret
+                       (inc row)
+                       (+ caret-position (count line)))))
+            ret))))))
+
+(defn- readable->line-infos [readable]
+  (line-info-coll #(io/reader readable)))
+
+(defn- text->line-infos [^String text]
+  (line-info-coll #(BufferedReader. (StringReader. text))))
+
+(defn- make-text-match
+  ([^String text ^MatchResult match-result]
+   (make-text-match text match-result 0 0))
+  ([^String text ^MatchResult match-result ^long row ^long row-start-caret-position]
+   (let [start-col (.start match-result)
+         end-col (.end match-result)]
+     {:match-type :match-type-text
+      :text text
+      :row row
+      :start-col start-col
+      :end-col end-col
+      :caret-position (+ row-start-caret-position start-col)})))
+
+(defn- line-infos->text-matches [line-infos ^Pattern re-pattern]
+  (persistent!
+    (reduce
+      (fn [matches line-info]
+        (let [line (:line line-info)
+              matcher (re-matcher re-pattern line)]
+          (loop [matches matches]
+            (if-not (.find matcher)
+              matches
+              (recur (conj! matches
+                            (make-text-match line matcher (:row line-info) (:caret-position line-info))))))))
+      (transient [])
+      line-infos)))
+
+(defn lines->text-matches [lines ^Pattern re-pattern]
+  (persistent!
+    (second
+      (reduce-kv
+        (fn [[^long line-start-pos matches] ^long row ^String line]
+          (let [next-line-start-pos (+ line-start-pos (count line))
+                matcher (re-matcher re-pattern line)]
+            (loop [matches matches]
+              (if-not (.find matcher)
+                (pair next-line-start-pos matches)
+                (recur (conj! matches
+                              (make-text-match line matcher row line-start-pos)))))))
+        (pair 0 (transient []))
+        lines))))
+
+(defn readable->text-matches [readable ^Pattern re-pattern]
+  (line-infos->text-matches (readable->line-infos readable) re-pattern))
+
+(defn text->text-matches [^String text ^Pattern re-pattern]
+  (line-infos->text-matches (text->line-infos text) re-pattern))
+
+(defn string->text-match [^String string ^Pattern re-pattern]
+  (let [matcher (re-matcher re-pattern string)]
+    (when (.find matcher)
+      (make-text-match string matcher))))
+
+(defn search-string-numeric?
+  "Returns true if the supplied search string might match a numeric value."
+  [^String string-with-wildcards]
+  (and (pos? (.length string-with-wildcards))
+       (some? (re-matches #"^-?[\d*]*\.?[\d*]*$" string-with-wildcards))))
+
+(defn search-string->re-pattern
+  "Convert a search string that may contain wildcards and special characters to
+  a Java regex Pattern. The case-sensitivity can be either :case-sensitive or
+  :case-insensitive."
+  ^Pattern [^String string-with-wildcards case-sensitivity]
+  (let [re-string (->> (string/split string-with-wildcards #"\*")
+                       (map #(Pattern/quote %))
+                       (string/join ".*"))]
+    (re-pattern
+      (case case-sensitivity
+        :case-sensitive re-string
+        :case-insensitive (str "(?i)" re-string)))))
+
+(defn includes-re-pattern?
+  "Returns true if the re-pattern matches any part of the text."
+  [^String text ^Pattern re-pattern]
+  (let [matcher (re-matcher re-pattern text)]
+    (.find matcher)))

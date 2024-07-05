@@ -35,19 +35,78 @@ namespace dmRender
         uint32_t total_constants_count = dmGraphics::GetUniformCount(program->m_Program);
 
         uint32_t constants_count = 0;
-        uint32_t sampler_count   = 0;
-        GetProgramUniformCount(program->m_Program, total_constants_count, &constants_count, &sampler_count);
+        uint32_t samplers_count  = 0;
+        GetProgramUniformCount(program->m_Program, total_constants_count, &constants_count, &samplers_count);
+        uint32_t total_uniforms_count = constants_count + samplers_count;
 
-        if (constants_count > 0)
+        if (total_uniforms_count > 0)
         {
-            program->m_NameHashToLocation.SetCapacity(constants_count, constants_count * 2);
-            program->m_Constants.SetCapacity(constants_count);
+            program->m_NameHashToLocation.SetCapacity(total_uniforms_count, total_uniforms_count * 2);
+            program->m_Constants.SetCapacity(total_uniforms_count);
         }
 
-        dmArray<Sampler> samplers;
-        SetMaterialConstantValues(render_context->m_GraphicsContext, program->m_Program, total_constants_count, program->m_NameHashToLocation, program->m_Constants, samplers);
+        if (samplers_count > 0)
+        {
+            program->m_Samplers.SetCapacity(samplers_count);
+            for (uint32_t i = 0; i < samplers_count; ++i)
+            {
+                program->m_Samplers.Push(Sampler());
+            }
+        }
+
+        SetProgramConstantValues(render_context->m_GraphicsContext, program->m_Program, total_constants_count, program->m_NameHashToLocation, program->m_Constants, program->m_Samplers);
 
         return (HComputeProgram) program;
+    }
+
+    void ApplyComputeProgramConstants(dmRender::HRenderContext render_context, HComputeProgram compute_program)
+    {
+        dmGraphics::HContext graphics_context           = dmRender::GetGraphicsContext(render_context);
+        const dmArray<RenderConstant>& render_constants = compute_program->m_Constants;
+        dmGraphics::HProgram program                    = compute_program->m_Program;
+        dmGraphics::ShaderDesc::Language language       = dmGraphics::GetProgramLanguage(program);
+
+        dmVMath::Matrix4 world_matrix;
+        dmVMath::Matrix4 texture_matrix;
+
+        for (int i = 0; i < render_constants.Size(); ++i)
+        {
+            const RenderConstant& material_constant      = render_constants[i];
+            const HConstant constant                     = material_constant.m_Constant;
+            dmGraphics::HUniformLocation location        = GetConstantLocation(constant);
+            dmRenderDDF::MaterialDesc::ConstantType type = GetConstantType(constant);
+            SetProgramConstant(render_context, graphics_context, world_matrix, texture_matrix, language, type, program, location, constant);
+        }
+    }
+
+    void SetComputeProgramConstant(HComputeProgram compute_program, dmhash_t name_hash, Vector4* values, uint32_t count)
+    {
+        SetProgramRenderConstant(compute_program->m_Constants, name_hash, values, count);
+    }
+
+    void SetComputeProgramConstantType(HComputeProgram compute_program, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type)
+    {
+        SetProgramConstantType(compute_program->m_Constants, name_hash, type);
+    }
+
+    bool GetComputeProgramConstant(HComputeProgram compute_program, dmhash_t name_hash, HConstant& out_value)
+    {
+        return GetProgramConstant(compute_program->m_Constants, name_hash, out_value);
+    }
+
+    bool SetComputeProgramSampler(HComputeProgram compute_program, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy)
+    {
+        return SetProgramSampler(compute_program->m_Samplers, compute_program->m_NameHashToLocation, name_hash, unit, u_wrap, v_wrap, min_filter, mag_filter, max_anisotropy);
+    }
+
+    uint32_t GetComputeProgramSamplerUnit(HComputeProgram compute_program, dmhash_t name_hash)
+    {
+        return GetProgramSamplerUnit(compute_program->m_Samplers, name_hash);
+    }
+
+    HSampler GetComputeProgramSampler(HComputeProgram program, uint32_t unit)
+    {
+        return GetProgramSampler(program->m_Samplers, unit);
     }
 
     dmGraphics::HComputeProgram GetComputeProgramShader(HComputeProgram program)

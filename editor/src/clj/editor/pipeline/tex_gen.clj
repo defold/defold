@@ -50,7 +50,7 @@
 (defn match-texture-profile
   [texture-profiles ^String path]
   (when-some [texture-profile (match-texture-profile-pb texture-profiles path)]
-    (protobuf/pb->map texture-profile)))
+    (protobuf/pb->map-with-defaults texture-profile)))
 
 (defn make-texture-image
   (^Graphics$TextureImage [^BufferedImage image texture-profile]

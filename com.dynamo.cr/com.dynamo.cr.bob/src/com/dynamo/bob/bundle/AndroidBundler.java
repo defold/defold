@@ -137,8 +137,6 @@ public class AndroidBundler implements IBundler {
                 Bob.atomicCopy(libc_url, f, false);
             }
 
-            Bob.extract(Bob.class.getResource("/lib/android-res.zip"), rootFolder);
-
             // NOTE: android.jar and classes.dex aren't are only available in "full bob", i.e. from CI
             URL android_jar = Bob.class.getResource("/lib/android.jar");
             if (android_jar != null) {
@@ -682,13 +680,21 @@ public class AndroidBundler implements IBundler {
     private static File createBundle(Project project, File outDir, File baseZip, ICanceled canceled) throws CompileExceptionError {
         logger.info("Creating Android Application Bundle");
         try {
+            BobProjectProperties projectProperties = project.getProjectProperties();
+            Boolean extractNativeLibs = projectProperties.getBooleanValue("android", "extract_native_libs");
+
             File bundletool = new File(Bob.getLibExecPath("bundletool-all.jar"));
             File baseAab = new File(outDir, getBinaryNameFromProject(project) + ".aab");
 
             File aabDir = new File(outDir, "aab");
             File baseConfig = new File(aabDir, "BundleConfig.json");
             try (BufferedWriter writer = new BufferedWriter(new FileWriter(baseConfig))) {
-                writer.write("{\"compression\":{\"uncompressedGlob\": [\"assets/game.arcd\"]}}");
+                String uncompressedGlob = "\"assets/game.arcd\"";
+                if (!extractNativeLibs) {
+                    uncompressedGlob += ",";
+                    uncompressedGlob += "\"lib/**/*.so\"";
+                }
+                writer.write("{\"compression\":{\"uncompressedGlob\": [" + uncompressedGlob + "]}}");
             }
 
             List<String> args = new ArrayList<String>();

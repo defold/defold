@@ -15,18 +15,18 @@
 #ifndef DM_GAMESYS_RES_SPINE_SCENE_H
 #define DM_GAMESYS_RES_SPINE_SCENE_H
 
-#include <resource/resource.h>
+#include <dmsdk/resource/resource.h>
 #include <dmsdk/gamesys/resources/res_rig_scene.h>
 
 namespace dmGameSystem
 {
-    dmResource::Result ResRigScenePreload(const dmResource::ResourcePreloadParams& params);
+    dmResource::Result ResRigScenePreload(const dmResource::ResourcePreloadParams* params);
 
-    dmResource::Result ResRigSceneCreate(const dmResource::ResourceCreateParams& params);
+    dmResource::Result ResRigSceneCreate(const dmResource::ResourceCreateParams* params);
 
-    dmResource::Result ResRigSceneDestroy(const dmResource::ResourceDestroyParams& params);
+    dmResource::Result ResRigSceneDestroy(const dmResource::ResourceDestroyParams* params);
 
-    dmResource::Result ResRigSceneRecreate(const dmResource::ResourceRecreateParams& params);
+    dmResource::Result ResRigSceneRecreate(const dmResource::ResourceRecreateParams* params);
 }
 
 #endif // DM_GAMESYS_RES_SPINE_SCENE_H

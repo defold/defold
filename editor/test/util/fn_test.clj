@@ -98,6 +98,82 @@
       (is (= 2 @call-count-atom))
       (is (= "1, 2, 3, 4, 5, 6, 7, 8, 9" (memoized-fn 1 2 3 4 5 6 7 8 9))))))
 
+(deftest clear-memoized!-test
+  (testing "Non-memoized function"
+    (is (thrown-with-msg? IllegalArgumentException #"The function was not memoized by us." (fn/clear-memoized! compare))))
+
+  (testing "Unary function"
+    (let [call-count-atom (atom 0)
+          memoized-fn (fn/memoize
+                        (fn unary-fn [arg]
+                          (swap! call-count-atom inc)
+                          (str arg)))]
+      (is (= "1" (memoized-fn 1)))
+      (is (= 1 @call-count-atom))
+      (is (= "1" (memoized-fn 1)))
+      (is (= 1 @call-count-atom))
+      (is (= "2" (memoized-fn 2)))
+      (is (= 2 @call-count-atom))
+      (is (nil? (fn/clear-memoized! memoized-fn)))
+      (is (= "1" (memoized-fn 1)))
+      (is (= 3 @call-count-atom))
+      (is (= "2" (memoized-fn 2)))
+      (is (= 4 @call-count-atom))))
+
+  (testing "Binary function"
+    (let [call-count-atom (atom 0)
+          memoized-fn (fn/memoize
+                        (fn binary-fn [arg1 arg2]
+                          (swap! call-count-atom inc)
+                          (str arg1 ", " arg2)))]
+      (is (= "1, 2" (memoized-fn 1 2)))
+      (is (= 1 @call-count-atom))
+      (is (= "1, 2" (memoized-fn 1 2)))
+      (is (= 1 @call-count-atom))
+      (is (= "2, 3" (memoized-fn 2 3)))
+      (is (= 2 @call-count-atom))
+      (is (nil? (fn/clear-memoized! memoized-fn)))
+      (is (= "1, 2" (memoized-fn 1 2)))
+      (is (= 3 @call-count-atom))
+      (is (= "2, 3" (memoized-fn 2 3)))
+      (is (= 4 @call-count-atom))))
+
+  (testing "General function"
+    (let [call-count-atom (atom 0)
+          memoized-fn (fn/memoize
+                        (fn general-fn [arg1 arg2 arg3 arg4]
+                          (swap! call-count-atom inc)
+                          (str arg1 ", " arg2 ", " arg3 ", " arg4)))]
+      (is (= "1, 2, 3, 4" (memoized-fn 1 2 3 4)))
+      (is (= 1 @call-count-atom))
+      (is (= "1, 2, 3, 4" (memoized-fn 1 2 3 4)))
+      (is (= 1 @call-count-atom))
+      (is (= "2, 3, 4, 5" (memoized-fn 2 3 4 5)))
+      (is (= 2 @call-count-atom))
+      (is (nil? (fn/clear-memoized! memoized-fn)))
+      (is (= "1, 2, 3, 4" (memoized-fn 1 2 3 4)))
+      (is (= 3 @call-count-atom))
+      (is (= "2, 3, 4, 5" (memoized-fn 2 3 4 5)))
+      (is (= 4 @call-count-atom))))
+
+  (testing "Variadic function"
+    (let [call-count-atom (atom 0)
+          memoized-fn (fn/memoize
+                        (fn variadic-fn [arg & args]
+                          (swap! call-count-atom inc)
+                          (apply str (interpose ", " (cons arg args)))))]
+      (is (= "1, 2, 3, 4, 5" (memoized-fn 1 2 3 4 5)))
+      (is (= 1 @call-count-atom))
+      (is (= "1, 2, 3, 4, 5" (memoized-fn 1 2 3 4 5)))
+      (is (= 1 @call-count-atom))
+      (is (= "2, 3, 4, 5, 6" (memoized-fn 2 3 4 5 6)))
+      (is (= 2 @call-count-atom))
+      (is (nil? (fn/clear-memoized! memoized-fn)))
+      (is (= "1, 2, 3, 4, 5" (memoized-fn 1 2 3 4 5)))
+      (is (= 3 @call-count-atom))
+      (is (= "2, 3, 4, 5, 6" (memoized-fn 2 3 4 5 6)))
+      (is (= 4 @call-count-atom)))))
+
 (deftest evict-memoized!-test
   (testing "Non-memoized function"
     (is (thrown-with-msg? IllegalArgumentException #"The function was not memoized by us." (fn/evict-memoized! compare 1 2))))
@@ -230,3 +306,18 @@
   (testing "Strings are interned"
     (is (identical? (name `defined-function) (name (fn/declared-symbol defined-function))))
     (is (identical? (namespace `defined-function) (namespace (fn/declared-symbol defined-function))))))
+
+
+(deftest make-case-fn-test
+  (let [case-fn (fn/make-case-fn {:a 1 :b 2 nil nil})]
+
+    (testing "Returned fn resolves keys to values"
+      (is (= 1 (case-fn :a)))
+      (is (= 2 (case-fn :b)))
+      (is (nil? (case-fn nil))))
+
+    (testing "Returned fn throws on invalid key"
+      (is (thrown-with-msg? IllegalArgumentException #"No matching clause: :non-existing-key" (case-fn :non-existing-key)))))
+
+  (is (= 1 ((fn/make-case-fn [[:a 1]]) :a)) "Accepts sequence of pairs")
+  (is (= 1 ((fn/make-case-fn {:a 1}) :a)) "Accepts map"))

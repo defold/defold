@@ -132,10 +132,12 @@
   (= raw "1"))
 
 (defmethod parse-setting-value :integer [_ raw]
+  ;; Parsed as 32-bit integer in the engine runtime.
   (Integer/parseInt raw))
 
 (defmethod parse-setting-value :number [_ raw]
-  (Double/parseDouble raw))
+  ;; Parsed as 32-bit float in the engine runtime.
+  (Float/parseFloat raw))
 
 (defmethod parse-setting-value :resource [_ raw]
   raw)
@@ -175,39 +177,51 @@
    :comma-separated-list []
    :string ""
    :boolean false
-   :integer 0
-   :number 0.0})
+   :integer (int 0) ; Parsed as 32-bit integer in the engine runtime.
+   :number (float 0.0)}) ; Parsed as 32-bit float in the engine runtime.
 
-(defn- add-type-defaults [meta-info]
-  (update-in meta-info [:settings]
-             (partial map (fn [setting] (update setting :default #(if (nil? %) (type-defaults (:type setting)) %))))))
+(defn- sanitize-default [default type]
+  (case type
+    :integer (int default) ; Parsed as 32-bit integer in the engine runtime.
+    :number (float default) ; Parsed as 32-bit float in the engine runtime.
+    default))
+
+(defn- ensure-type-defaults [meta-info]
+  (update meta-info :settings
+          (fn [settings]
+            (mapv (fn [{:keys [type] :as meta-setting}]
+                    (update meta-setting :default
+                            (fn [default]
+                              (if (some? default)
+                                (sanitize-default default type)
+                                (type-defaults type)))))
+                  settings))))
 
 (declare render-raw-setting-value)
 
 (defn- add-to-from-string [meta-info]
-  (update-in meta-info [:settings]
-             (fn [settings]
-               (map (fn [meta-setting]
-                      (if (contains? meta-setting :options)
-                        (assoc meta-setting
-                          :from-string #(parse-setting-value meta-setting %)
-                          :to-string #(render-raw-setting-value meta-setting %))
-                        meta-setting))
-                    settings))))
+  (update meta-info :settings
+          (fn [settings]
+            (mapv (fn [meta-setting]
+                    (if (contains? meta-setting :options)
+                      (assoc meta-setting
+                        :from-string #(parse-setting-value meta-setting %)
+                        :to-string #(render-raw-setting-value meta-setting %))
+                      meta-setting))
+                  settings))))
 
 (defn remove-to-from-string [meta-info]
-  (update-in meta-info [:settings]
-             (fn [settings]
-               (map (fn [meta-setting]
-                      (if (contains? meta-setting :options)
-                        (let [type (:type meta-setting)]
-                          (dissoc meta-setting :from-string :to-string))
-                        meta-setting))
-                    settings))))
+  (update meta-info :settings
+          (fn [settings]
+            (mapv (fn [meta-setting]
+                    (if (contains? meta-setting :options)
+                      (dissoc meta-setting :from-string :to-string)
+                      meta-setting))
+                  settings))))
 
 (defn finalize-meta-info [meta-info]
   (-> meta-info
-      add-type-defaults
+      ensure-type-defaults
       add-to-from-string))
 
 (defn load-meta-info [reader]
@@ -388,3 +402,17 @@
 
 (defn settings-with-value [settings]
   (filter #(contains? % :value) settings))
+
+(defn raw-settings-search-fn
+  ([search-string]
+   (text-util/search-string->re-pattern search-string :case-insensitive))
+  ([raw-settings re-pattern]
+   (into []
+         (keep (fn [{:keys [value] :as raw-setting}]
+                 (some-> value
+                         (text-util/string->text-match re-pattern)
+                         (assoc
+                           :match-type :match-type-setting
+                           :value value
+                           :path (:path raw-setting)))))
+         raw-settings)))

@@ -35,6 +35,8 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompParticleFXOnMessage(const dmGameObject::ComponentOnMessageParams& params);
 
+    void*                      CompParticleFXGetComponent(const dmGameObject::ComponentGetParams& params);
+
     void CompParticleFXOnReload(const dmGameObject::ComponentOnReloadParams& params);
 }
 

@@ -513,7 +513,7 @@
                   :severity :fatal})])
 
 (defn- generic-error-causes [ex]
-  [(g/map->error {:message (str "Failed: " (ex-message ex))
+  [(g/map->error {:message (str (or (some-> ex class .getSimpleName) "Failed") ": " (ex-message ex))
                   :severity :fatal})])
 
 (defn exception->error-value [exception project evaluation-context]

@@ -409,7 +409,7 @@ namespace dmGameSystem
         return component->m_Resource->m_NumTextures;
     }
 
-    static inline TextureSetResource* GetTextureSet(const SpriteComponent* component, uint32_t index) {
+    static inline TextureSetResource* GetTextureSetByIndex(const SpriteComponent* component, uint32_t index) {
         const SpriteResourceOverrides* overrides = component->m_Overrides;
         const SpriteTexture* texture = 0;
         if (overrides && index < overrides->m_Textures.Size())
@@ -419,9 +419,31 @@ namespace dmGameSystem
         return texture ? texture->m_TextureSet : 0;
     }
 
+    static inline TextureSetResource* GetTextureSetByHash(const SpriteComponent* component, dmhash_t sampler_name_hash)
+    {
+        if (component->m_Overrides)
+        {
+            for (uint32_t i = 0; i < component->m_Overrides->m_Textures.Size(); ++i)
+            {
+                if (sampler_name_hash == component->m_Overrides->m_Textures[i].m_SamplerNameHash)
+                {
+                    return component->m_Overrides->m_Textures[i].m_TextureSet;
+                }
+            }
+        }
+        for (uint32_t i = 0; i < component->m_Resource->m_NumTextures; ++i)
+        {
+            if (sampler_name_hash == component->m_Resource->m_Textures[i].m_SamplerNameHash)
+            {
+                return component->m_Resource->m_Textures[i].m_TextureSet;
+            }
+        }
+        return 0;
+    }
+
     // Until we can set multiple play cursors, we'll use the first texture set as the driving animation
     static inline TextureSetResource* GetFirstTextureSet(const SpriteComponent* component) {
-        return GetTextureSet(component, 0);
+        return GetTextureSetByIndex(component, 0);
     }
 
     TextureResource* GetTextureResource(const SpriteComponent* component, uint32_t texture_unit)
@@ -600,6 +622,12 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
+    void* CompSpriteGetComponent(const dmGameObject::ComponentGetParams& params)
+    {
+        SpriteWorld* world = (SpriteWorld*)params.m_World;
+        return (void*)&world->m_Components.Get(params.m_UserData);
+    }
+
     dmGameObject::CreateResult CompSpriteDestroy(const dmGameObject::ComponentDestroyParams& params)
     {
         SpriteWorld* sprite_world = (SpriteWorld*)params.m_World;
@@ -614,6 +642,8 @@ namespace dmGameSystem
         }
 
         DeleteOverrides(factory, component);
+
+        FreeMaterialAttribute(sprite_world->m_DynamicVertexAttributePool, component->m_DynamicVertexAttributeIndex);
 
         sprite_world->m_Components.Free(index, true);
         return dmGameObject::CREATE_RESULT_OK;
@@ -1060,13 +1090,13 @@ namespace dmGameSystem
         dmArray<float> scratch_pos;
 
         // The list of pointers to the scratch uvs
-        float* scratch_uv_ptrs[MAX_TEXTURE_COUNT];
+        float* scratch_uv_ptrs[MAX_TEXTURE_COUNT] = {};
 
         TexturesData textures = {};
         textures.m_NumTextures = GetNumTextures(first);
         for (uint32_t i = 0; i < textures.m_NumTextures; ++i)
         {
-            textures.m_Resources[i] = GetTextureSet(first, i);
+            textures.m_Resources[i] = GetTextureSetByIndex(first, i);
             textures.m_TextureSets[i] = textures.m_Resources[i]->m_TextureSet;
         }
 
@@ -1495,7 +1525,10 @@ namespace dmGameSystem
                     message.m_CurrentTile = component->m_CurrentAnimationFrame + 1; // Engine has 0-based indices, scripts use 1-based
                     message.m_Id = component->m_CurrentAnimation;
 
-                    dmGameObject::Result go_result = dmGameObject::PostDDF(&message, &sender, &component->m_Listener, component->m_FunctionRef, false);
+                    // This is a 'done' callback, so we should tell the message system to remove the callback once it's been consumed
+                    dmGameObject::Result go_result = dmGameObject::PostDDF(&message, &sender, &component->m_Listener, component->m_FunctionRef, true);
+                    component->m_FunctionRef = 0;
+
                     dmMessage::ResetURL(&component->m_Listener);
                     if (go_result != dmGameObject::RESULT_OK)
                     {
@@ -1599,7 +1632,7 @@ namespace dmGameSystem
 
             for (uint32_t i = 0; i < textures.m_NumTextures; ++i)
             {
-                textures.m_Resources[i] = GetTextureSet(component, i);
+                textures.m_Resources[i] = GetTextureSetByIndex(component, i);
                 textures.m_TextureSets[i] = textures.m_Resources[i]->m_TextureSet;
             }
 
@@ -1897,6 +1930,13 @@ namespace dmGameSystem
                 dmGameSystemDDF::PlayAnimation* ddf = (dmGameSystemDDF::PlayAnimation*)params.m_Message->m_Data;
                 if (PlayAnimation(component, ddf->m_Id, ddf->m_Offset, ddf->m_PlaybackRate))
                 {
+                    // Remove the currently assigned callback by sending an unref message
+                    if (component->m_FunctionRef)
+                    {
+                        dmMessage::URL sender = {};
+                        GetSender(component, &sender);
+                        dmGameObject::PostScriptUnrefMessage(&sender, &component->m_Listener, component->m_FunctionRef);
+                    }
                     component->m_Listener = params.m_Message->m_Sender;
                     component->m_FunctionRef = params.m_Message->m_UserData2;
                 }
@@ -1986,9 +2026,21 @@ namespace dmGameSystem
         }
         else if (get_property == PROP_IMAGE)
         {
-            TextureSetResource* texture_set = GetFirstTextureSet(component);
+            TextureSetResource* texture_set = 0;
+
+            if (params.m_Options.m_HasKey)
+            {
+                out_value.m_ValueType = dmGameObject::PROP_VALUE_HASHTABLE;
+                texture_set = GetTextureSetByHash(component, params.m_Options.m_Key);
+            }
             if (!texture_set)
+            {
+                texture_set = GetFirstTextureSet(component);
+            }
+            if (!texture_set)
+            {
                 return dmGameObject::PROPERTY_RESULT_RESOURCE_NOT_FOUND;
+            }
             return GetResourceProperty(dmGameObject::GetFactory(params.m_Instance), texture_set, out_value);
         }
         else if (get_property == PROP_TEXTURE[0])
@@ -2074,9 +2126,7 @@ namespace dmGameSystem
         }
         else if (set_property == PROP_IMAGE)
         {
-            // TODO: use the sampler name as the key
-            // For now, we'll use hash("")==0 as the default sampler name
-            dmhash_t sampler_name_hash = 0;
+            dmhash_t sampler_name_hash = params.m_Options.m_HasKey ? params.m_Options.m_Key : 0;
             dmGameObject::PropertyResult res = AddOverrideTextureSet(dmGameObject::GetFactory(params.m_Instance), component, sampler_name_hash, params.m_Value.m_Hash);
             component->m_ReHash |= res == dmGameObject::PROPERTY_RESULT_OK;
 
@@ -2232,5 +2282,10 @@ namespace dmGameSystem
         SpriteWorld* world = (SpriteWorld*) sprite_world;
         *vx_buffer = world->m_VertexBuffer;
         *ix_buffer = world->m_IndexBuffer;
+    }
+
+    void GetSpriteWorldDynamicAttributePool(void* sprite_world, DynamicAttributePool** pool_out)
+    {
+        *pool_out = &((SpriteWorld*) sprite_world)->m_DynamicVertexAttributePool;
     }
 }

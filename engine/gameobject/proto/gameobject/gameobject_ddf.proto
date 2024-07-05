@@ -38,7 +38,7 @@ message ComponentDesc
     optional dmMath.Quat    rotation    = 4;
     repeated PropertyDesc properties    = 5;
     optional dmPropertiesDDF.PropertyDeclarations property_decls = 6 [(runtime_only) = true];
-    optional dmMath.Vector3 scale       = 7;
+    optional dmMath.Vector3One scale    = 7;
 }
 
 message EmbeddedComponentDesc
@@ -48,7 +48,7 @@ message EmbeddedComponentDesc
     required string data = 3;
     optional dmMath.Point3  position    = 4;
     optional dmMath.Quat    rotation    = 5;
-    optional dmMath.Vector3 scale       = 6;
+    optional dmMath.Vector3One scale    = 6;
 }
 
 message PrototypeDesc
@@ -80,7 +80,7 @@ message InstanceDesc
     optional dmMath.Quat    rotation    = 5;
     repeated ComponentPropertyDesc component_properties = 6;
     optional float          scale       = 7 [default = 1.0];
-    optional dmMath.Vector3 scale3      = 8;
+    optional dmMath.Vector3One scale3   = 8;
 }
 
 message EmbeddedInstanceDesc
@@ -92,7 +92,7 @@ message EmbeddedInstanceDesc
     optional dmMath.Quat    rotation    = 5;
     repeated ComponentPropertyDesc component_properties = 6;
     optional float          scale       = 7 [default = 1.0];
-    optional dmMath.Vector3 scale3      = 8;
+    optional dmMath.Vector3One scale3   = 8;
 }
 
 message InstancePropertyDesc
@@ -108,7 +108,7 @@ message CollectionInstanceDesc
     optional dmMath.Point3  position    = 3;
     optional dmMath.Quat    rotation    = 4;
     optional float          scale       = 5 [default = 1.0];
-    optional dmMath.Vector3 scale3      = 7;
+    optional dmMath.Vector3One scale3   = 7;
     repeated InstancePropertyDesc instance_properties = 6;
 }
 
@@ -134,16 +134,16 @@ message CollectionDesc
  *
  * Post this message to a game object instance to make that instance acquire the user input focus.
  *
- * User input is distributed by the engine to every instance that has 
+ * User input is distributed by the engine to every instance that has
  * requested it. The last instance to request focus will receive it first.
  * This means that the scripts in the instance will have first-hand-chance
- * at reacting on user input, possibly consuming it (by returning 
+ * at reacting on user input, possibly consuming it (by returning
  * <code>true</code> from <code>on_input</code>) so that no other instances
  * can react on it. The most common case is for a script to send this message
  * to itself when it needs to respond to user input.
  *
  * A script belonging to an instance which has the user input focus will
- * receive the input actions in its <code>on_input</code> callback function. 
+ * receive the input actions in its <code>on_input</code> callback function.
  * See [ref:on_input] for more information on how user input can be
  * handled.
  *
@@ -229,6 +229,7 @@ message SetParent
  *
  * [icon:alert] Components that currently supports this message are:
  *
+ * - Camera
  * - Collection Proxy
  * - Collision Object
  * - Gui
@@ -260,6 +261,7 @@ message Enable
  *
  * [icon:alert] Components that currently supports this message are:
  *
+ * - Camera
  * - Collection Proxy
  * - Collision Object
  * - Gui
@@ -285,11 +287,17 @@ message Disable
 }
 
 
-// Script message wrapper for added typesafety
+// Internal engine script message wrapper for added typesafety
 message ScriptMessage
 {
     required uint64 descriptor_hash     = 1; // The descriptor name hash of the message
     required uint32 payload_size        = 2; // The payload ddf message. The payload will begin directly after this message
     optional uint32 function            = 3; // If 0, it will call the "on_message" function
     optional bool   unref_function      = 4; // unreference function after call
+}
+
+// Internal engine message for removing script references (typically used for callbacks)
+message ScriptUnrefMessage
+{
+    required uint32 reference = 1;
 }

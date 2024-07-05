@@ -15,16 +15,16 @@
 #ifndef DM_GAMESYS_INPUT_BINDING_H
 #define DM_GAMESYS_INPUT_BINDING_H
 
-#include <resource/resource.h>
+#include <dmsdk/resource/resource.h>
 #include <dmsdk/gamesys/resources/res_input_binding.h>
 
 namespace dmGameSystem
 {
-    dmResource::Result ResInputBindingCreate(const dmResource::ResourceCreateParams& params);
+    dmResource::Result ResInputBindingCreate(const dmResource::ResourceCreateParams* params);
 
-    dmResource::Result ResInputBindingDestroy(const dmResource::ResourceDestroyParams& params);
+    dmResource::Result ResInputBindingDestroy(const dmResource::ResourceDestroyParams* params);
 
-    dmResource::Result ResInputBindingRecreate(const dmResource::ResourceRecreateParams& params);
+    dmResource::Result ResInputBindingRecreate(const dmResource::ResourceRecreateParams* params);
 }
 
 #endif // DM_GAMESYS_INPUT_BINDING_H

@@ -3,9 +3,9 @@ name: CI - Main
 on:
   push:
     branches-ignore:
-       - 'skip-ci-*'
-       - 'DEFEDIT-*'
-       - 'editor-dev'
+      - 'skip-ci-*'
+      - 'DEFEDIT-*'
+      - 'editor-dev'
   repository_dispatch: {}
 
 env:
@@ -27,16 +27,18 @@ env:
   SLACK_NOTIFICATIONS_ENABLED: ${{ github.ref == 'refs/heads/dev' || github.ref == 'refs/heads/beta' || github.ref == 'refs/heads/master' }}
 
 jobs:
-# ---- BUILD ENGINE VERSIONS ------------------
+  # ---- BUILD ENGINE VERSIONS ------------------
   bld-eng-windows:
     strategy:
       matrix:
         platform: [win32, x86_64-win32]
+
     runs-on: windows-latest
     steps: [
       { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12, architecture: x64 } },
+      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12} },
       { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '17.0.5+8', distribution: 'temurin'} },
+      { name: 'Setup dotnet', uses: actions/setup-dotnet@v4, with: {dotnet-version: '9.x', dotnet-quality: 'preview'}},
       { name: 'Install dependencies', shell: bash, run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
@@ -45,34 +47,35 @@ jobs:
         run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-builtins --skip-docs engine'
       },
       {
-       name: 'Notify if build status changed',
-       uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96,
-       if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
-       with: { type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
+        name: 'Notify if build status changed',
+        uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96,
+        if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
+        with: {type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'}
       }]
 
   bld-eng-darwin:
     strategy:
       matrix:
         platform: [x86_64-macos, arm64-macos, arm64-ios, x86_64-ios]
-    runs-on: macos-13
+    runs-on: macos-14
     steps: [
       { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12, architecture: x64 } },
-      { name: 'XCode', uses: maxim-lobanov/setup-xcode@60606e260d2fc5762a71e64e74b2174e8ea3c8bd, with: { xcode-version: '15.1' } },
+      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12} },
+      { name: 'XCode', uses: maxim-lobanov/setup-xcode@60606e260d2fc5762a71e64e74b2174e8ea3c8bd, with: { xcode-version: '15.4' } },
       { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '17.0.5+8', distribution: 'temurin'} },
+      { name: 'Setup dotnet', uses: actions/setup-dotnet@v4, with: {dotnet-version: '9.x', dotnet-quality: 'preview'}},
       {
         name: 'Build engine',
         if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
         run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-builtins --skip-docs engine'
       },
       {
-       name: 'Notify if build status changed',
-       uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96,
-       if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
-       with: { type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
+        name: 'Notify if build status changed',
+        uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96,
+        if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
+        with: {type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'}
       }]
 
   bld-eng-web:
@@ -82,8 +85,9 @@ jobs:
     runs-on: ubuntu-20.04
     steps: [
       { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12, architecture: x64 } },
+      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12} },
       { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '17.0.5+8', distribution: 'temurin'} },
+      { name: 'Setup dotnet', uses: actions/setup-dotnet@v4, with: {dotnet-version: '9.x', dotnet-quality: 'preview'}},
       { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
@@ -91,11 +95,11 @@ jobs:
         run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-tests --skip-builtins --skip-docs --skip-build-tests engine'
       },
       {
-       name: 'Notify if build status changed',
-       uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96,
-       if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
-       with: { type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
+        name: 'Notify if build status changed',
+        uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96,
+        if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
+        with: {type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'}
       }]
 
   bld-eng-android:
@@ -105,8 +109,9 @@ jobs:
     runs-on: ubuntu-20.04
     steps: [
       { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12, architecture: x64 } },
+      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12} },
       { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '17.0.5+8', distribution: 'temurin'} },
+      { name: 'Setup dotnet', uses: actions/setup-dotnet@v4, with: {dotnet-version: '9.x', dotnet-quality: 'preview'}},
       { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
@@ -114,11 +119,11 @@ jobs:
         run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-tests --skip-builtins --skip-docs engine'
       },
       {
-       name: 'Notify if build status changed',
-       uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96,
-       if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
-       with: { type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
+        name: 'Notify if build status changed',
+        uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96,
+        if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
+        with: {type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'}
       }]
 
   bld-eng-linux:
@@ -128,8 +133,9 @@ jobs:
     runs-on: ubuntu-20.04
     steps: [
       { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12, architecture: x64 } },
+      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12} },
       { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '17.0.5+8', distribution: 'temurin'} },
+      { name: 'Setup dotnet', uses: actions/setup-dotnet@v4, with: {dotnet-version: '9.x', dotnet-quality: 'preview'}},
       { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
@@ -137,11 +143,11 @@ jobs:
         run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive engine'
       },
       {
-       name: 'Notify if build status changed',
-       uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96,
-       if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
-       with: { type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
+        name: 'Notify if build status changed',
+        uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96,
+        if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
+        with: {type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'}
       }]
 
   bld-eng-switch:
@@ -151,8 +157,9 @@ jobs:
     runs-on: windows-latest
     steps: [
       { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12, architecture: x64 } },
+      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12} },
       { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '17.0.5+8', distribution: 'temurin'} },
+      { name: 'Setup dotnet', uses: actions/setup-dotnet@v4, with: {dotnet-version: '9.x', dotnet-quality: 'preview'}},
       { name: 'Install dependencies', shell: bash, run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
@@ -161,11 +168,11 @@ jobs:
         run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-docs --skip-tests engine'
       },
       {
-       name: 'Notify if build status changed',
-       uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96,
-       if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
-       with: { type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
+        name: 'Notify if build status changed',
+        uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96,
+        if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
+        with: {type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'}
       }]
 
   bld-eng-ps:
@@ -175,8 +182,9 @@ jobs:
     runs-on: windows-latest
     steps: [
       { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12, architecture: x64 } },
+      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12} },
       { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '17.0.5+8', distribution: 'temurin'} },
+      { name: 'Setup dotnet', uses: actions/setup-dotnet@v4, with: {dotnet-version: '9.x', dotnet-quality: 'preview'}},
       { name: 'Install dependencies', shell: bash, run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
@@ -185,21 +193,21 @@ jobs:
         run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-docs --skip-tests engine'
       },
       {
-       name: 'Notify if build status changed',
-       uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96,
-       if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
-       with: { type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
+        name: 'Notify if build status changed',
+        uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96,
+        if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
+        with: {type: '${{ job.status }}', job_name: '${{ job.status }}: platform: ${{ matrix.platform }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'}
       }]
 
-# ---- BUILD BOB AND SDK ------------------
+  # ---- BUILD BOB AND SDK ------------------
 
   build-bob:
     needs: [bld-eng-darwin, bld-eng-windows, bld-eng-linux, bld-eng-android, bld-eng-web, bld-eng-switch, bld-eng-ps]
     runs-on: ubuntu-20.04
     steps: [
       { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12, architecture: x64 } },
+      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12} },
       { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '17.0.5+8', distribution: 'temurin'} },
       {
         name: 'Build bob',
@@ -207,11 +215,11 @@ jobs:
         run: 'ci/ci.sh bob'
       },
       {
-       name: 'Notify if build status changed',
-       uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96,
-       if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
-       with: { type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
+        name: 'Notify if build status changed',
+        uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96,
+        if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
+        with: {type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'}
       }]
 
   build-sdk:
@@ -219,35 +227,35 @@ jobs:
     runs-on: ubuntu-20.04
     steps: [
       { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12, architecture: x64 } },
+      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12} },
       {
         name: 'Build SDK',
         if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_sdk != true)),
         run: 'ci/ci.sh sdk'
       },
       {
-       name: 'Notify if build status changed',
-       uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96,
-       if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
-       with: { type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
+        name: 'Notify if build status changed',
+        uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96,
+        if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
+        with: {type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'}
       }]
 
-# ---- BUILD EDITOR ------------------
+  # ---- BUILD EDITOR ------------------
 
   build-editor:
     needs: [build-bob]
     runs-on: ubuntu-20.04
     steps: [
-      { 
+      {
         name: 'Checkout',
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11,
-        with: { 
+        with: {
           ref: '${{env.BUILD_BRANCH}}',
           fetch-tags: true
         }
       },
-      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12, architecture: x64 } },
+      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12} },
       { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '17.0.5+8', distribution: 'temurin'} },
       { name: 'Install Leiningen', uses: DeLaGuardo/setup-clojure@bc7570e912b028bbcc22f457adec7fdf98e2f4ed, with: { lein: 2.8.3 } },
       { name: 'Install dependencies', run: sudo apt-get install -y libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev },
@@ -262,22 +270,22 @@ jobs:
         run: 'ci/ci.sh archive-editor'
       },
       {
-       name: 'Notify if build status changed',
-       uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96,
-       if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
-       with: { type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
+        name: 'Notify if build status changed',
+        uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96,
+        if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
+        with: {type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'}
       }]
 
   sign-editor-darwin:
     needs: [build-editor]
-    runs-on: macOS-13
+    runs-on: macOS-14
     strategy:
       matrix:
         platform: [x86_64-macos, arm64-macos]
     steps: [
       { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12, architecture: x64 } },
+      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12} },
       { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '17.0.5+8', distribution: 'temurin'} },
       {
         name: 'Download editor',
@@ -305,11 +313,11 @@ jobs:
         run: 'ci/ci.sh archive-editor --platform=${{ matrix.platform }}'
       },
       {
-       name: 'Notify if build status changed',
-       uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96,
-       if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
-       with: { type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
+        name: 'Notify if build status changed',
+        uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96,
+        if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
+        with: {type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'}
       }]
 
 
@@ -321,7 +329,7 @@ jobs:
         platform: [x86_64-win32]
     steps: [
       { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
-      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12, architecture: x64 } },
+      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12} },
       { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '17.0.5+8', distribution: 'temurin'} },
       {
         name: 'Download editor',
@@ -354,32 +362,33 @@ jobs:
         run: 'ci/ci.sh archive-editor --platform=${{ matrix.platform }}'
       },
       {
-       name: 'Notify if build status changed',
-       uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96,
-       if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
-       with: { type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
+        name: 'Notify if build status changed',
+        uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96,
+        if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
+        with: {type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'}
       }]
 
-# ---- RELEASE ------------------
+  # ---- RELEASE ------------------
 
   release:
     needs: [sign-editor-darwin, sign-editor-windows]
     runs-on: ubuntu-20.04
     steps: [
-      { 
+      {
         name: 'Checkout',
         uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11,
-        with: { 
+        with: {
           ref: '${{env.BUILD_BRANCH}}',
           fetch-tags: true
         }
       },
-      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12, architecture: x64 } },
+      { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12} },
       { name: 'Setup git user', run: 'git config --global user.email "services@defold.se" && git config --global user.name "Defold Services"' },
       { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }} --steam-config-b64="${{env.STEAM_CONFIG_VDF}}"' },
       {
-        name: 'Install ext dependencies', # only needed for some python dependencies (should have a separate python setup function?)
+        # only needed for some python dependencies (should have a separate python setup function?)
+        name: 'Install ext dependencies',
         shell: bash,
         run: 'ci/ci.sh install_ext'
       },
@@ -392,16 +401,16 @@ jobs:
         uses: defold/repository-dispatch@1.2.1,
         if: (github.ref == 'refs/heads/master') || (github.ref == 'refs/heads/beta') || (github.ref == 'refs/heads/dev'),
         with: {
-            repo: 'defold/defold.github.io',
-            token: '${{ secrets.SERVICES_GITHUB_TOKEN }}',
-            user: 'services@defold.se',
-            action: 'refdoc'
+          repo: 'defold/defold.github.io',
+          token: '${{ secrets.SERVICES_GITHUB_TOKEN }}',
+          user: 'services@defold.se',
+          action: 'refdoc'
         }
       },
       {
-       name: 'Notify if build status changed',
-       uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96,
-       if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
-       with: { type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
-               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}' }
+        name: 'Notify if build status changed',
+        uses: homoluctus/slatify@cd4b4a1158cfb3e26fe1ee35c1cd4f0247dfbf96,
+        if: failure() && env.SLACK_NOTIFICATIONS_ENABLED == 'true',
+        with: {type: '${{ job.status }}', job_name: '${{ job.status }}', channel: '#defold-alarms-build', url: '${{ secrets.SLACK_WEBHOOK }}',
+               mention: 'here', mention_if: 'failure', commit: true, token: '${{ secrets.SERVICES_GITHUB_TOKEN }}'}
       }]

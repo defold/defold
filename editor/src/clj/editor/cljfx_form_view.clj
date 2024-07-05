@@ -44,8 +44,8 @@
             [editor.field-expression :as field-expression]
             [editor.form :as form]
             [editor.fxui :as fxui]
-            [editor.icons :as icons]
             [editor.handler :as handler]
+            [editor.icons :as icons]
             [editor.resource :as resource]
             [editor.resource-dialog :as resource-dialog]
             [editor.settings :as settings]
@@ -54,19 +54,24 @@
             [editor.view :as view]
             [editor.workspace :as workspace]
             [internal.util :as util]
+            [util.coll :as coll]
             [util.fn :as fn])
   (:import [java.io File]
            [javafx.event Event]
            [javafx.scene Node]
-           [javafx.scene.control Cell ComboBox ListView$EditEvent TableColumn$CellEditEvent TableView ListView]
+           [javafx.scene.control Cell ComboBox ListView ListView$EditEvent TableColumn TableColumn$CellEditEvent TableView TableView$ResizeFeatures]
            [javafx.scene.input KeyCode KeyEvent]
-           [javafx.util StringConverter]))
+           [javafx.util Callback StringConverter]))
 
 (set! *warn-on-reflection* true)
 
 (def ^:private line-height 27)
 
 (def ^:private cell-height (inc line-height))
+
+(def ^:private small-max-width 120)
+(def ^:private normal-max-width 400)
+(def ^:private large-max-width 1000)
 
 (g/defnk produce-form-view [renderer form-data ui-state]
   (renderer {:form-data form-data
@@ -93,7 +98,7 @@
 (defmethod handle-event :set [{:keys [path fx/event]}]
   {:set [path event]})
 
-(def uri-string-converter
+(def ^:private uri-string-converter
   (proxy [StringConverter] []
     (toString
       ([] "uri-string-converter")
@@ -101,23 +106,48 @@
     (fromString [v]
       (url/try-parse v))))
 
-(def number-converter
+(def ^:private float-converter
   (proxy [StringConverter] []
     (toString
-      ([] "number-string-converter")
-      ([v] (field-expression/format-number v)))
+      ([] "float-string-converter")
+      ([v] (field-expression/format-real v)))
+    (fromString [v]
+      (or (field-expression/to-float v)
+          (throw (RuntimeException.))))))
+
+(def ^:private double-converter
+  (proxy [StringConverter] []
+    (toString
+      ([] "double-string-converter")
+      ([v] (field-expression/format-real v)))
     (fromString [v]
       (or (field-expression/to-double v)
           (throw (RuntimeException.))))))
 
-(def int-converter
+(def ^:private int-converter
   (proxy [StringConverter] []
     (toString
       ([] "int-string-converter")
       ([v] (field-expression/format-int v)))
     (fromString [v]
-      (or (int (field-expression/to-double v))
+      (or (field-expression/to-int v)
           (throw (RuntimeException.))))))
+
+(def ^:private long-converter
+  (proxy [StringConverter] []
+    (toString
+      ([] "long-string-converter")
+      ([v] (field-expression/format-int v)))
+    (fromString [v]
+      (or (field-expression/to-long v)
+          (throw (RuntimeException.))))))
+
+(defn- number-string-converter [value]
+  (condp instance? value
+    Float float-converter
+    Double double-converter
+    Integer int-converter
+    Long long-converter))
 
 (defn- make-resource-string-converter [workspace]
   (proxy [StringConverter] []
@@ -226,6 +256,7 @@
 
 (defmethod form-input-view :string [{:keys [value on-value-changed]}]
   {:fx/type text-field
+   :max-width normal-max-width
    :text-formatter {:fx/type fx.text-formatter/lifecycle
                     :value-converter :default
                     :value value
@@ -251,14 +282,16 @@
 
 ;; region integer input
 
-(defmethod form-input-view :integer [{:keys [value on-value-changed] :as field}]
-  {:fx/type text-field
-   :alignment :center-right
-   :max-width 80
-   :text-formatter {:fx/type fx.text-formatter/lifecycle
-                    :value-converter int-converter
-                    :value (int (ensure-value value field))
-                    :on-value-changed on-value-changed}})
+(defmethod form-input-view :integer [{:keys [value on-value-changed custom-max-width] :as field}]
+  (let [value (ensure-value value field)
+        value-converter (number-string-converter value)]
+    {:fx/type text-field
+     :alignment :center-right
+     :max-width (or custom-max-width small-max-width)
+     :text-formatter {:fx/type fx.text-formatter/lifecycle
+                      :value-converter value-converter
+                      :value value
+                      :on-value-changed on-value-changed}}))
 
 (defmethod cell-input-view :integer [field]
   (wrap-focus-text-field (default-cell-input-view field)))
@@ -267,14 +300,16 @@
 
 ;; region number input
 
-(defmethod form-input-view :number [{:keys [value on-value-changed] :as field}]
-  {:fx/type text-field
-   :alignment :center-right
-   :max-width 80
-   :text-formatter {:fx/type fx.text-formatter/lifecycle
-                    :value-converter number-converter
-                    :value (ensure-value value field)
-                    :on-value-changed on-value-changed}})
+(defmethod form-input-view :number [{:keys [value on-value-changed custom-max-width] :as field}]
+  (let [value (ensure-value value field)
+        value-converter (number-string-converter value)]
+    {:fx/type text-field
+     :alignment :center-right
+     :max-width (or custom-max-width small-max-width)
+     :text-formatter {:fx/type fx.text-formatter/lifecycle
+                      :value-converter value-converter
+                      :value value
+                      :on-value-changed on-value-changed}}))
 
 (defmethod cell-input-view :number [field]
   (wrap-focus-text-field (default-cell-input-view field)))
@@ -289,6 +324,7 @@
 
 (defmethod form-input-view :url [{:keys [value on-value-changed]}]
   {:fx/type text-field
+   :max-width normal-max-width
    :text-formatter {:fx/type fx.text-formatter/lifecycle
                     :value-converter uri-string-converter
                     :value value
@@ -323,6 +359,7 @@
                                      {:fx/type form-input-view
                                       :type :number
                                       :h-box/hgrow :always
+                                      :custom-max-width normal-max-width
                                       :value n
                                       :on-value-changed {:event-type :on-vec4-element-change
                                                          :on-value-changed on-value-changed
@@ -573,6 +610,7 @@
                           :desc
                           {:fx/type fx.list-view/lifecycle
                            :style-class ["list-view" "cljfx-form-list-view"]
+                           :max-width normal-max-width
                            :items (into [] (map-indexed vector) value)
                            :editable true
                            :on-edit-start {:event-type :on-list-edit-start
@@ -608,10 +646,10 @@
                              :fit-size 16}]}]}))
 
 (defmethod handle-event :add-list-items [{:keys [value on-value-changed fx/event]}]
-  {:dispatch (assoc on-value-changed :fx/event (into value event))})
+  {:dispatch (assoc on-value-changed :fx/event (coll/into-vector value event))})
 
 (defn- keep-indices [indices coll]
-  (into []
+  (into (coll/empty-with-meta coll)
         (keep-indexed
           (fn [i x]
             (when (indices i) x)))
@@ -631,6 +669,7 @@
                                    :or {value []}
                                    :as field}]
   (assoc field :fx/type list-input
+               :max-width normal-max-width
                :on-edited {:event-type :edit-list-item
                            :value value
                            :on-value-changed on-value-changed}
@@ -661,6 +700,7 @@
                                               resource-string-converter]}]
   {:fx/type fx.h-box/lifecycle
    :spacing 4
+   :max-width normal-max-width
    :children [{:fx/type text-field
                :h-box/hgrow :always
                :text-formatter {:fx/type fx.text-formatter/lifecycle
@@ -704,6 +744,7 @@
 (defmethod form-input-view :file [{:keys [on-value-changed value filter title in-project]}]
   {:fx/type fx.h-box/lifecycle
    :spacing 4
+   :max-width normal-max-width
    :children [{:fx/type text-field
                :h-box/hgrow :always
                :text-formatter {:fx/type fx.text-formatter/lifecycle
@@ -731,6 +772,7 @@
 (defmethod form-input-view :directory [{:keys [on-value-changed value title in-project]}]
   {:fx/type fx.h-box/lifecycle
    :spacing 4
+   :max-width normal-max-width
    :children [{:fx/type text-field
                :h-box/hgrow :always
                :text-formatter {:fx/type fx.text-formatter/lifecycle
@@ -803,7 +845,7 @@
                                                          value
                                                          on-value-changed
                                                          element]}]
-  (let [new-value (into value [element])]
+  (let [new-value (util/conjv value element)]
     [[:dispatch (assoc on-value-changed :fx/event new-value)]
      [:set-ui-state (assoc-in ui-state
                               (conj state-path :selected-indices)
@@ -846,6 +888,7 @@
       (-> column
           (assoc :fx/type cell-input-view
                  :value item
+                 :custom-max-width normal-max-width
                  :on-value-changed {:event-type :keep-table-edit
                                     :state-path state-path}
                  :on-cancel {:event-type :cancel-table-edit
@@ -913,6 +956,25 @@
      :cell-value-factory (fn/partial table-cell-value-factory path)
      :cell-factory (fn/partial table-cell-factory column (dissoc edit :value))}))
 
+(def custom-table-resize-policy
+  (reify Callback
+    (call [_ resize-features]
+      (let [^TableView$ResizeFeatures resize-features resize-features
+            ^TableColumn resized-column (.getColumn resize-features)
+            delta (.getDelta resize-features)
+            ^TableView table (.getTable resize-features)
+            columns (.getColumns table)
+            total-width (.getWidth table)
+            ^TableColumn last-column (last columns)]
+        (when resized-column
+          (let [new-width (max (.getMinWidth resized-column) (+ (.getPrefWidth resized-column) delta))]
+            (.setPrefWidth resized-column new-width)))
+        (when (and last-column (not= resized-column last-column))
+          (let [used-width (reduce + (map #(.getWidth ^TableColumn %) (butlast columns)))
+                remaining-width (- total-width used-width (* 2 (.size columns)))]
+            (.setPrefWidth last-column (max (.getMinWidth last-column) remaining-width))))
+        true))))
+
 (defmethod form-input-view :table [{:keys [value
                                            on-value-changed
                                            columns
@@ -963,6 +1025,7 @@
                                                         9   ;; bottom scrollbar
                                                         (* line-height
                                                            (max 1 (count value))))
+                                        :column-resize-policy custom-table-resize-policy
                                         :columns (mapv #(table-column % field)
                                                        columns)
                                         :items (into [] (map-indexed vector) value)
@@ -998,9 +1061,10 @@
                                                    key-path
                                                    default-row
                                                    fx/event]}]
-  (let [new-value (into value
-                        (map #(assoc-in default-row key-path %))
-                        event)]
+  (let [new-value (coll/into-vector
+                    value
+                    (map #(assoc-in default-row key-path %))
+                    event)]
     (if on-add
       (do (on-add) nil)
       {:dispatch (assoc on-value-changed :fx/event new-value)})))
@@ -1226,7 +1290,7 @@
                                                  {:fx/type fx.column-constraints/lifecycle
                                                   :hgrow :always
                                                   :min-width 200
-                                                  :max-width 400}]
+                                                  :max-width large-max-width}]
                             :children (first
                                         (reduce
                                           (fn [[acc row] field]
@@ -1546,17 +1610,16 @@
                          :parent parent
                          :resource-string-converter resource-string-converter}))))))
 
+(defn- make-form-view-node [graph parent resource-node workspace project]
+  (g/make-nodes graph [view CljfxFormView]
+    (g/set-property view :renderer (create-renderer view parent workspace project))
+    (g/connect resource-node :form-data view :form-data)))
+
+(def make-form-view-node! (comp first g/tx-nodes-added g/transact make-form-view-node))
+
 (defn- make-form-view [graph parent resource-node opts]
   (let [{:keys [workspace project tab]} opts
-        view-id (-> (g/make-nodes graph [view [CljfxFormView]]
-                      (g/set-property view :renderer (create-renderer view
-                                                                      parent
-                                                                      workspace
-                                                                      project))
-                      (g/connect resource-node :form-data view :form-data))
-                    g/transact
-                    g/tx-nodes-added
-                    first)
+        view-id (make-form-view-node! graph parent resource-node workspace project)
         repaint-timer (ui/->timer 30 "refresh-form-view"
                                   (fn [_timer _elapsed _dt]
                                     (g/node-value view-id :form-view)))]

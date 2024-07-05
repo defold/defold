@@ -13,25 +13,18 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.factory
-  (:require [clojure.string :as s]
-            [plumbing.core :as pc]
-            [dynamo.graph :as g]
-            [editor.colors :as colors]
+  (:require [dynamo.graph :as g]
             [editor.build-target :as bt]
             [editor.defold-project :as project]
             [editor.graph-util :as gu]
-            [editor.handler :as handler]
             [editor.outline :as outline]
-            [editor.properties :as properties]
             [editor.protobuf :as protobuf]
+            [editor.protobuf-forms-util :as protobuf-forms-util]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
-            [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace])
-  (:import [com.dynamo.gamesys.proto
-            GameSystem$FactoryDesc
-            GameSystem$CollectionFactoryDesc]))
+  (:import [com.dynamo.gamesys.proto GameSystem$CollectionFactoryDesc GameSystem$FactoryDesc]))
 
 (set! *warn-on-reflection* true)
 
@@ -45,17 +38,11 @@
                  :ext "collection"
                  :pb-type GameSystem$CollectionFactoryDesc}})
 
-(defn- set-form-op [{:keys [node-id]} [property] value]
-  (g/set-property! node-id property value))
-
-(defn- clear-form-op [{:keys [node-id]} [property]]
-  (g/clear-property! node-id property))
-
 (g/defnk produce-form-data
   [_node-id factory-type prototype-resource load-dynamically dynamic-prototype]
   {:form-ops {:user-data {:node-id _node-id}
-              :set set-form-op
-              :clear clear-form-op}
+              :set protobuf-forms-util/set-form-op
+              :clear protobuf-forms-util/clear-form-op}
    :navigation false
    :sections [{:title (get-in factory-types [factory-type :title])
                :fields [{:path [:prototype]
@@ -72,11 +59,13 @@
             [:load-dynamically] load-dynamically
             [:dynamic-prototype] dynamic-prototype}})
 
-(g/defnk produce-pb-msg
-  [prototype-resource load-dynamically dynamic-prototype]
-  {:prototype (resource/resource->proj-path prototype-resource)
-   :load-dynamically load-dynamically
-   :dynamic-prototype dynamic-prototype})
+(g/defnk produce-save-value
+  [prototype-resource load-dynamically dynamic-prototype factory-type]
+  (let [pb-class (-> factory-types factory-type :pb-type)]
+    (protobuf/make-map-without-defaults pb-class
+      :prototype (resource/resource->proj-path prototype-resource)
+      :load-dynamically load-dynamically
+      :dynamic-prototype dynamic-prototype)))
 
 (defn build-factory
   [resource dep-resources user-data]
@@ -87,7 +76,7 @@
      :content (protobuf/map->bytes (:pb-type user-data) pb-msg)}))
 
 (g/defnk produce-build-targets
-  [_node-id resource factory-type prototype pb-msg dep-build-targets]
+  [_node-id resource factory-type prototype save-value dep-build-targets]
   (or (validation/prop-error :fatal _node-id :prototype validation/prop-nil? prototype "prototype")
       (let [dep-build-targets (flatten dep-build-targets)
             deps-by-resource (into {} (map (juxt (comp :resource :resource) :resource) dep-build-targets))
@@ -98,18 +87,30 @@
            {:node-id _node-id
             :resource (workspace/make-build-resource resource)
             :build-fn build-factory
-            :user-data {:pb-msg pb-msg
+            :user-data {:pb-msg save-value
                         :pb-type (get-in factory-types [factory-type :pb-type])
                         :dep-resources dep-resources}
             :deps dep-build-targets})])))
 
 (defn load-factory
-  [factory-type project self resource factory]
-  (g/set-property self
-                  :factory-type factory-type
-                  :prototype (workspace/resolve-resource resource (:prototype factory))
-                  :load-dynamically (:load-dynamically factory)
-                  :dynamic-prototype (:dynamic-prototype factory)))
+  [factory-type _project self resource any-factory-desc]
+  {:pre [(contains? factory-types factory-type)
+         (map? any-factory-desc)]} ; GameSystem$FactoryDesc or GameSystem$CollectionFactoryDesc in map format.
+  (let [pb-class (:pb-type (get factory-types factory-type))
+        resolve-resource #(workspace/resolve-resource resource %)]
+    (into [(g/set-property self :factory-type factory-type)]
+          (gu/set-properties-from-pb-map self pb-class any-factory-desc
+            prototype (resolve-resource :prototype)
+            load-dynamically :load-dynamically
+            dynamic-prototype :dynamic-prototype))))
+
+;; For these fields, we use the default from GameSystem$FactoryDesc in both
+;; cases since we share a single defnode between two protobuf classes.
+(assert (= (protobuf/default GameSystem$FactoryDesc :load-dynamically)
+           (protobuf/default GameSystem$CollectionFactoryDesc :load-dynamically)))
+
+(assert (= (protobuf/default GameSystem$FactoryDesc :dynamic-prototype)
+           (protobuf/default GameSystem$CollectionFactoryDesc :dynamic-prototype)))
 
 (g/defnode FactoryNode
   (inherits resource-node/ResourceNode)
@@ -117,10 +118,10 @@
   (input dep-build-targets g/Any)
   (input prototype-resource resource/Resource)
 
-  (property factory-type g/Any
+  (property factory-type g/Any ; Always assigned in load-fn.
             (dynamic visible (g/constantly false)))
 
-  (property prototype resource/Resource
+  (property prototype resource/Resource ; Required protobuf field.
             (value (gu/passthrough prototype-resource))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
@@ -131,8 +132,8 @@
                                       (validation/prop-error :fatal _node-id :prototype validation/prop-resource-not-exists? prototype-resource "Prototype"))))
             (dynamic edit-type (g/fnk [factory-type]
                                  {:type resource/Resource :ext (get-in factory-types [factory-type :ext])})))
-  (property load-dynamically g/Bool)
-  (property dynamic-prototype g/Bool)
+  (property load-dynamically g/Bool (default (protobuf/default GameSystem$FactoryDesc :load-dynamically)))
+  (property dynamic-prototype g/Bool (default (protobuf/default GameSystem$FactoryDesc :dynamic-prototype)))
 
   (output form-data g/Any produce-form-data)
 
@@ -147,8 +148,7 @@
                                                                (resource/openable-resource? prototype)
                                                                (assoc :link prototype :outline-reference? false)))))
 
-  (output pb-msg g/Any :cached produce-pb-msg)
-  (output save-value g/Any (gu/passthrough pb-msg))
+  (output save-value g/Any :cached produce-save-value)
   (output build-targets g/Any :cached produce-build-targets))
 
 

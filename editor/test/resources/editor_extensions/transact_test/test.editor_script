@@ -1,0 +1,25 @@
+local M = {}
+
+function M.get_commands()
+    return {{
+        label = "Transact",
+        locations = {"Outline"},
+        query = {selection = {type="outline", cardinality="one"}},
+        run = function (opts)
+            local node = opts.selection
+            local old_id = editor.get(node, "id")
+            editor.transact {
+                editor.tx.set(node, "id", "My node id"),
+                editor.tx.set(node, "__num", 15.5),
+                editor.tx.set(node, "__boolean", true),
+                editor.tx.set(node, "__resource", "/builtins/graphics/particle_blob.tilesource"),
+                editor.tx.set(node, "__vec3", {1, 2, 3}),
+                editor.tx.set(node, "__vec4", {1, 2, 3, 4})
+            }
+            local new_id = editor.get(node, "id")
+            print(("old id = %s, new id = %s"):format(old_id, new_id))
+        end
+    }}
+end
+
+return M

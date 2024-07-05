@@ -95,6 +95,38 @@ You also need `easy_install` to install additional packages.
 </p></details>
 
 
+
+### Required Software - DotNet 9
+
+(optional)
+
+*NOTE* The DotNet 9 preview currently only supports macOS platform
+
+In order to build and test the csharp languange bindings locally, you need to install DotNet.
+
+<details><summary>Install...</summary><p>
+
+There are a few ways to install the DotNet sdk:
+
+* Install via https://dotnet.microsoft.com/en-us/download/dotnet/9.0
+* Install via your package manager
+  * macOS: `brew install dotnet-sdk@preview`
+  * Windows: `choco install dotnet --pre`
+
+* Install via [dotnet-install.sh](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-install-script):
+
+Bash:
+```sh
+> ./dotnet-install.sh --channel 9.0 --quality preview
+```
+
+PowerShell (Windows):
+```sh
+> ./dotnet-install.ps1 -Channel 9.0 -Quality preview
+```
+</p></details>
+
+
 ### Required Software
 
 <details><summary>macOS...</summary><p>

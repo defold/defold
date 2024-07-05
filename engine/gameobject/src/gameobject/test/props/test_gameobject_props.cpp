@@ -26,18 +26,22 @@
 #include "../gameobject_props.h"
 #include "../gameobject_props_lua.h"
 
+#include <dmsdk/resource/resource.h>
+
+#include <dmsdk/resource/resource.hpp>
+
 using namespace dmVMath;
 
-dmResource::Result ResCreate(const dmResource::ResourceCreateParams& params)
+dmResource::Result ResCreate(const dmResource::ResourceCreateParams* params)
 {
     // The resource is not relevant for this test
-    params.m_Resource->m_Resource = (void*)new uint8_t[4];
+    ResourceDescriptorSetResource(params->m_Resource, new uint8_t[4]);
     return dmResource::RESULT_OK;
 }
-dmResource::Result ResDestroy(const dmResource::ResourceDestroyParams& params)
+dmResource::Result ResDestroy(const dmResource::ResourceDestroyParams* params)
 {
     // The resource is not relevant for this test
-    delete [] (uint8_t*)params.m_Resource->m_Resource;
+    delete [] (uint8_t*)ResourceDescriptorGetResource(params->m_Resource);
     return dmResource::RESULT_OK;
 }
 
@@ -94,7 +98,7 @@ protected:
         dmResource::Result e = dmResource::RegisterType(m_Factory, "no_user_datac", this, 0, ResCreate, 0, ResDestroy, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
-        dmResource::ResourceType resource_type;
+        HResourceType resource_type;
         dmGameObject::Result result;
 
         e = dmResource::GetTypeFromExtension(m_Factory, "no_user_datac", &resource_type);
@@ -172,9 +176,9 @@ TEST_F(PropsTest, PropsDefault)
     SetProperties(go);
     bool result = dmGameObject::Init(m_Collection);
     ASSERT_TRUE(result);
-    ASSERT_EQ(dmResource::RESULT_OK, ReloadResource(m_Factory, "/props_default.scriptc", 0x0));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, "/props_default.scriptc", 0x0));
     // Twice since we had crash here
-    ASSERT_EQ(dmResource::RESULT_OK, ReloadResource(m_Factory, "/props_default.scriptc", 0x0));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, "/props_default.scriptc", 0x0));
     dmGameObject::Delete(m_Collection, go, false);
 }
 
@@ -185,7 +189,7 @@ TEST_F(PropsTest, PropsGO)
     SetProperties(go);
     bool result = dmGameObject::Init(m_Collection);
     ASSERT_TRUE(result);
-    ASSERT_EQ(dmResource::RESULT_OK, ReloadResource(m_Factory, "/props_go.scriptc", 0x0));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, "/props_go.scriptc", 0x0));
     dmGameObject::Delete(m_Collection, go, false);
 }
 
@@ -196,7 +200,7 @@ TEST_F(PropsTest, PropsCollection)
     ASSERT_EQ(dmResource::RESULT_OK, res);
     bool result = dmGameObject::Init(collection);
     ASSERT_TRUE(result);
-    ASSERT_EQ(dmResource::RESULT_OK, ReloadResource(m_Factory, "/props_coll.scriptc", 0x0));
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::ReloadResource(m_Factory, "/props_coll.scriptc", 0x0));
     dmResource::Release(m_Factory, collection);
 }
 

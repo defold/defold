@@ -50,10 +50,10 @@
       ;; test2.model has textures that don't match the names of the material, so
       ;; loading the model renames the texture bindings
       (let [node-id (test-util/resource-node project "/test.model")]
-        (is (g/node-value node-id :dirty?))
+        (is (g/node-value node-id :dirty))
         (is (= #{"tex_foo" "tex_bar" "tex_baz"}
                (->> (g/node-value node-id :resource)
-                    (protobuf/read-text ModelProto$ModelDesc)
+                    (protobuf/read-map-without-defaults ModelProto$ModelDesc)
                     :materials
                     (into #{}
                           (comp

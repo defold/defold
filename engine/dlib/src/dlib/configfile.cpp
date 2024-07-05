@@ -30,65 +30,182 @@
 #include "sys.h"
 #include "static_assert.h"
 
+struct ConfigFileEntry
+{
+    uint64_t m_Key;
+    uint32_t m_ValueIndex;
+    ConfigFileEntry(uint64_t k, uint32_t i) :
+        m_Key(k), m_ValueIndex(i)
+    {
+    }
+};
+
+struct ConfigFile
+{
+    dmArray<ConfigFileEntry>  m_Entries;
+    dmArray<char>               m_StringBuffer;
+};
+
+struct ConfigFilePluginDesc
+{
+    const char* m_Name;
+    FConfigFileCreate m_Create;
+    FConfigFileDestroy m_Destroy;
+    FConfigFileGetString m_GetString;
+    FConfigFileGetInt m_GetInt;
+    FConfigFileGetFloat m_GetFloat;
+
+    const ConfigFilePluginDesc* m_Next;
+};
+
+ConfigFilePluginDesc* g_FirstExtension = 0;
+
+static const ConfigFilePluginDesc* GetFirstExtension()
+{
+    return g_FirstExtension;
+}
+
+void ConfigFileRegisterExtension(void* _desc,
+    uint32_t desc_size,
+    const char* name,
+    FConfigFileCreate create,
+    FConfigFileDestroy destroy,
+    FConfigFileGetString get_string,
+    FConfigFileGetInt get_int,
+    FConfigFileGetFloat get_float)
+{
+    struct ConfigFilePluginDesc* desc = (struct ConfigFilePluginDesc*)_desc;
+    DM_STATIC_ASSERT(ConfigFileExtensionDescBufferSize >= sizeof(struct ConfigFilePluginDesc), Invalid_Struct_Size);
+    desc->m_Name = name;
+    desc->m_Create = create;
+    desc->m_Destroy = destroy;
+    desc->m_GetString = get_string;
+    desc->m_GetInt = get_int;
+    desc->m_GetFloat = get_float;
+
+    desc->m_Next = g_FirstExtension;
+    g_FirstExtension = desc;
+}
+
+
+static const char* GetBaseString(HConfigFile config, const char* key, const char* default_value)
+{
+    uint64_t key_hash = dmHashString64(key);
+    for (uint32_t i = 0; i < config->m_Entries.Size(); ++i)
+    {
+        const ConfigFileEntry*e = &config->m_Entries[i];
+        if (e->m_Key == key_hash)
+        {
+            return &config->m_StringBuffer[e->m_ValueIndex];
+        }
+    }
+
+    return default_value;
+}
+
+static bool GetStringOverride(HConfigFile config, const char* key, const char* default_value, const char** out_value)
+{
+    const ConfigFilePluginDesc* plugin = GetFirstExtension();
+    while (plugin != 0)
+    {
+        if (plugin->m_GetString && plugin->m_GetString(config, key, default_value, out_value))
+            return true;
+        plugin = plugin->m_Next;
+    }
+    return false;
+}
+
+static int32_t GetBaseInt(HConfigFile config, const char* key, int32_t default_value)
+{
+    const char* tmp = GetBaseString(config, key, 0);
+    if (tmp == 0)
+        return default_value;
+    int l = strlen(tmp);
+    char* end = 0;
+    int32_t ret = strtol(tmp, &end, 10);
+    if (end != (tmp + l) || end == tmp)
+    {
+        dmLogWarning("Unable to convert '%s' to int", tmp);
+        return default_value;
+    }
+    return ret;
+}
+
+static bool GetIntOverride(HConfigFile config, const char* key, int32_t default_value, int32_t* out_value)
+{
+    const ConfigFilePluginDesc* plugin = GetFirstExtension();
+    while (plugin != 0)
+    {
+        if (plugin->m_GetInt && plugin->m_GetInt(config, key, default_value, out_value))
+            return true;
+        plugin = plugin->m_Next;
+    }
+    return false;
+}
+
+static float GetBaseFloat(HConfigFile config, const char* key, float default_value)
+{
+    const char* tmp = GetBaseString(config, key, 0);
+    if (tmp == 0)
+        return default_value;
+    int l = strlen(tmp);
+    char* end = 0;
+    float ret = (float) strtod(tmp, &end);
+    if (end != (tmp + l) || end == tmp)
+    {
+        dmLogWarning("Unable to convert '%s' to float", tmp);
+        return default_value;
+    }
+    return ret;
+}
+
+static bool GetFloatOverride(HConfigFile config, const char* key, float default_value, float* out_value)
+{
+    const ConfigFilePluginDesc* plugin = GetFirstExtension();
+    while (plugin != 0)
+    {
+        if (plugin->m_GetFloat && plugin->m_GetFloat(config, key, default_value, out_value))
+            return true;
+        plugin = plugin->m_Next;
+    }
+    return false;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// C api
+
+const char* ConfigFileGetString(HConfigFile config, const char* key, const char* default_value)
+{
+    const char* base_value = GetBaseString(config, key, default_value);
+    const char* out_value = 0;
+    if (GetStringOverride(config, key, base_value, &out_value))
+        return out_value;
+    return base_value;
+}
+
+int32_t ConfigFileGetInt(HConfigFile config, const char* key, int32_t default_value)
+{
+    int32_t base_value = GetBaseInt(config, key, default_value);
+    int32_t out_value = 0;
+    if (GetIntOverride(config, key, base_value, &out_value))
+        return out_value;
+    return base_value;
+}
+
+float ConfigFileGetFloat(HConfigFile config, const char* key, float default_value)
+{
+    float base_value = GetBaseFloat(config, key, default_value);
+    float out_value = 0;
+    if (GetFloatOverride(config, key, base_value, &out_value))
+        return out_value;
+    return base_value;
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
 namespace dmConfigFile
 {
-    struct PluginDesc
-    {
-        const char* m_Name;
-        void (*m_Create)(HConfig config);
-        void (*m_Destroy)(HConfig config);
-        bool (*m_GetString)(HConfig config, const char* key, const char* default_value, const char** out);
-        bool (*m_GetInt)(HConfig config, const char* key, int32_t default_value, int32_t* out);
-        bool (*m_GetFloat)(HConfig config, const char* key, float default_value, float* out);
-        const PluginDesc* m_Next;
-    };
-
-    PluginDesc* g_FirstExtension = 0;
-    extern const uint32_t m_ExtensionDescBufferSize;
-
-    void Register(struct PluginDesc* desc,
-        uint32_t desc_size,
-        const char *name,
-        void (*create)(HConfig config),
-        void (*destroy)(HConfig config),
-        bool (*get_string)(HConfig config, const char* key, const char* default_value, const char** out),
-        bool (*get_int)(HConfig config, const char* key, int32_t default_value, int32_t* out),
-        bool (*get_float)(HConfig config, const char* key, float default_value, float* out))
-    {
-        DM_STATIC_ASSERT(dmConfigFile::m_ExtensionDescBufferSize >= sizeof(struct PluginDesc), Invalid_Struct_Size);
-        desc->m_Name = name;
-        desc->m_Create = create;
-        desc->m_Destroy = destroy;
-        desc->m_GetString = get_string;
-        desc->m_GetInt = get_int;
-        desc->m_GetFloat = get_float;
-
-        desc->m_Next = g_FirstExtension;
-        g_FirstExtension = desc;
-    }
-
-    static const PluginDesc* GetFirstExtension()
-    {
-        return g_FirstExtension;
-    }
-
     const int32_t CATEGORY_MAX_SIZE = 512;
-
-    struct Entry
-    {
-        uint64_t m_Key;
-        uint32_t m_ValueIndex;
-        Entry(uint64_t k, uint32_t i) :
-            m_Key(k), m_ValueIndex(i)
-        {
-        }
-    };
-
-    struct Config
-    {
-        dmArray<Entry> m_Entries;
-        dmArray<char>  m_StringBuffer;
-    };
 
     struct Context
     {
@@ -106,8 +223,8 @@ namespace dmConfigFile
         char            m_CategoryBuffer[CATEGORY_MAX_SIZE];
         uint32_t        m_Line;
 
-        dmArray<Entry>  m_Entries;
-        dmArray<char>   m_StringBuffer;
+        dmArray<ConfigFileEntry>  m_Entries;
+        dmArray<char>               m_StringBuffer;
     };
 
     void ParseError(Context* context, Result result)
@@ -236,11 +353,11 @@ namespace dmConfigFile
         return s;
     }
 
-    static bool ContainsKey(const dmArray<Entry>& entries, uint64_t key_hash)
+    static bool ContainsKey(const dmArray<ConfigFileEntry>& entries, uint64_t key_hash)
     {
         for (uint32_t i = 0; i < entries.Size(); ++i)
         {
-            const Entry*e = &entries[i];
+            const ConfigFileEntry*e = &entries[i];
             if (e->m_Key == key_hash)
             {
                 return true;
@@ -264,7 +381,7 @@ namespace dmConfigFile
         {
             context->m_Entries.OffsetCapacity(32);
         }
-        context->m_Entries.Push(Entry(key_hash, i));
+        context->m_Entries.Push(ConfigFileEntry(key_hash, i));
     }
 
     static void AddEntryWithHashedKey(Context* context, uint64_t key_hash, const char* value)
@@ -274,7 +391,7 @@ namespace dmConfigFile
         {
             context->m_Entries.OffsetCapacity(32);
         }
-        context->m_Entries.Push(Entry(key_hash, i));
+        context->m_Entries.Push(ConfigFileEntry(key_hash, i));
     }
 
     static void ParseLiteral(Context* context, char* buf, int buf_len)
@@ -390,7 +507,7 @@ namespace dmConfigFile
         dmArray<char> m_Buffer;
     };
 
-    void HttpHeader(dmHttpClient::HResponse response, void* user_data, int status_code, const char* key, const char* value)
+    static void HttpHeader(dmHttpClient::HResponse response, void* user_data, int status_code, const char* key, const char* value)
     {
         (void) response;
         (void) user_data;
@@ -399,7 +516,7 @@ namespace dmConfigFile
         (void) value;
     }
 
-    void HttpContent(dmHttpClient::HResponse response , void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length)
+    static void HttpContent(dmHttpClient::HResponse response , void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length)
     {
         HttpContext* context = (HttpContext*) user_data;
         if (status_code != 200)
@@ -473,7 +590,7 @@ namespace dmConfigFile
                 }
             }
 
-            Config* c = new Config();
+            ConfigFile* c = new ConfigFile();
 
             if (context.m_Entries.Size() > 0)
             {
@@ -500,7 +617,7 @@ namespace dmConfigFile
 
     static void PluginsCreate(HConfig config)
     {
-        const PluginDesc* plugin = GetFirstExtension();
+        const ConfigFilePluginDesc* plugin = GetFirstExtension();
         while (plugin != 0)
         {
             if (plugin->m_Create)
@@ -511,7 +628,7 @@ namespace dmConfigFile
 
     static void PluginsDestroy(HConfig config)
     {
-        const PluginDesc* plugin = GetFirstExtension();
+        const ConfigFilePluginDesc* plugin = GetFirstExtension();
         while (plugin != 0)
         {
             if (plugin->m_Destroy)
@@ -670,114 +787,18 @@ namespace dmConfigFile
         delete config;
     }
 
-    static const char* GetBaseString(HConfig config, const char* key, const char* default_value)
-    {
-        uint64_t key_hash = dmHashString64(key);
-        for (uint32_t i = 0; i < config->m_Entries.Size(); ++i)
-        {
-            const Entry*e = &config->m_Entries[i];
-            if (e->m_Key == key_hash)
-            {
-                return &config->m_StringBuffer[e->m_ValueIndex];
-            }
-        }
-
-        return default_value;
-    }
-
-    static bool GetStringOverride(HConfig config, const char* key, const char* default_value, const char** out_value)
-    {
-        const PluginDesc* plugin = GetFirstExtension();
-        while (plugin != 0)
-        {
-            if (plugin->m_GetString && plugin->m_GetString(config, key, default_value, out_value))
-                return true;
-            plugin = plugin->m_Next;
-        }
-        return false;
-    }
-
     const char* GetString(HConfig config, const char* key, const char* default_value)
     {
-        const char* base_value = GetBaseString(config, key, default_value);
-        const char* out_value = 0;
-        if (GetStringOverride(config, key, base_value, &out_value))
-            return out_value;
-        return base_value;
-    }
-
-    static int32_t GetBaseInt(HConfig config, const char* key, int32_t default_value)
-    {
-        const char* tmp = GetBaseString(config, key, 0);
-        if (tmp == 0)
-            return default_value;
-        int l = strlen(tmp);
-        char* end = 0;
-        int32_t ret = strtol(tmp, &end, 10);
-        if (end != (tmp + l) || end == tmp)
-        {
-            dmLogWarning("Unable to convert '%s' to int", tmp);
-            return default_value;
-        }
-        return ret;
-    }
-
-    static bool GetIntOverride(HConfig config, const char* key, int32_t default_value, int32_t* out_value)
-    {
-        const PluginDesc* plugin = GetFirstExtension();
-        while (plugin != 0)
-        {
-            if (plugin->m_GetInt && plugin->m_GetInt(config, key, default_value, out_value))
-                return true;
-            plugin = plugin->m_Next;
-        }
-        return false;
+        return ConfigFileGetString(config, key, default_value);
     }
 
     int32_t GetInt(HConfig config, const char* key, int32_t default_value)
     {
-        int32_t base_value = GetBaseInt(config, key, default_value);
-        int32_t out_value = 0;
-        if (GetIntOverride(config, key, base_value, &out_value))
-            return out_value;
-        return base_value;
-    }
-
-    static float GetBaseFloat(HConfig config, const char* key, float default_value)
-    {
-        const char* tmp = GetBaseString(config, key, 0);
-        if (tmp == 0)
-            return default_value;
-        int l = strlen(tmp);
-        char* end = 0;
-        float ret = (float) strtod(tmp, &end);
-        if (end != (tmp + l) || end == tmp)
-        {
-            dmLogWarning("Unable to convert '%s' to float", tmp);
-            return default_value;
-        }
-        return ret;
-    }
-
-    static bool GetFloatOverride(HConfig config, const char* key, float default_value, float* out_value)
-    {
-        const PluginDesc* plugin = GetFirstExtension();
-        while (plugin != 0)
-        {
-            if (plugin->m_GetFloat && plugin->m_GetFloat(config, key, default_value, out_value))
-                return true;
-            plugin = plugin->m_Next;
-        }
-        return false;
+        return ConfigFileGetInt(config, key, default_value);
     }
 
     float GetFloat(HConfig config, const char* key, float default_value)
     {
-        float base_value = GetBaseFloat(config, key, default_value);
-        float out_value = 0;
-        if (GetFloatOverride(config, key, base_value, &out_value))
-            return out_value;
-        return base_value;
+        return ConfigFileGetFloat(config, key, default_value);
     }
-
 }

@@ -15,18 +15,15 @@
 #ifndef DM_GAMESYS_RES_COLLISION_OBJECT_H
 #define DM_GAMESYS_RES_COLLISION_OBJECT_H
 
-#include <dmsdk/resource/resource.h>
+#include <dmsdk/resource/resource.hpp>
 #include <dmsdk/gamesys/resources/res_collision_object.h>
 
 namespace dmGameSystem
 {
-    dmResource::Result ResCollisionObjectCreate(const dmResource::ResourceCreateParams& params);
+    dmResource::Result ResCollisionObjectCreate(const dmResource::ResourceCreateParams* params);
 
-    dmResource::Result ResCollisionObjectDestroy(const dmResource::ResourceDestroyParams& params);
+    dmResource::Result ResCollisionObjectDestroy(const dmResource::ResourceDestroyParams* params);
 
-    dmResource::Result ResCollisionObjectRecreate(const dmResource::ResourceRecreateParams& params);
-
-    dmResource::Result ResCollisionObjectRecreate(const dmResource::ResourceRecreateParams& params);
+    dmResource::Result ResCollisionObjectRecreate(const dmResource::ResourceRecreateParams* params);
 }
-
 #endif

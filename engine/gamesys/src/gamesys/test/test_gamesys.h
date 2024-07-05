@@ -151,6 +151,8 @@ public:
         m_Scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
         m_Scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
         m_Scriptlibcontext.m_ScriptContext   = m_ScriptContext;
+
+        dmGameSystem::InitializeScriptLibs(m_Scriptlibcontext);
     }
     virtual ~ScriptBaseTest() {}
     dmGameSystem::ScriptLibContext m_Scriptlibcontext;
@@ -397,6 +399,19 @@ class GuiTest : public ScriptBaseTest
 {
 public:
     virtual ~GuiTest() {}
+};
+
+struct ScriptComponentTestParams
+{
+    const char* m_GOPath;
+    const char* m_ComponentType; // E.g. "modelc"
+    const char* m_ComponentName; // E.g. "model"
+};
+
+class ScriptComponentTest : public GamesysTest<ScriptComponentTestParams>
+{
+public:
+    virtual ~ScriptComponentTest() {}
 };
 
 class SoundTest : public GamesysTest<const char*>

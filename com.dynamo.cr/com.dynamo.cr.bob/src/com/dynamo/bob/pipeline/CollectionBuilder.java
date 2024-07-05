@@ -271,7 +271,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
                     Quat4d instR = MathUtil.ddfToVecmath(inst.getRotation());
                     instR.mul(r, instR);
                     instBuilder.setRotation(MathUtil.vecmathToDDF(instR));
-                    instBuilder.setScale3(MathUtil.vecmathToDDF(instS));
+                    instBuilder.setScale3(MathUtil.vecmathToDDFOne(instS));
                 }
                 // adjust child ids
                 for (int i = 0; i < instBuilder.getChildrenCount(); ++i) {
@@ -315,7 +315,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
                     Quat4d instR = MathUtil.ddfToVecmath(inst.getRotation());
                     instR.mul(r, instR);
                     instBuilder.setRotation(MathUtil.vecmathToDDF(instR));
-                    instBuilder.setScale3(MathUtil.vecmathToDDF(instS));
+                    instBuilder.setScale3(MathUtil.vecmathToDDFOne(instS));
                 }
                 // adjust child ids
                 for (int i = 0; i < instBuilder.getChildrenCount(); ++i) {
@@ -419,7 +419,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
                 instBuilder.setScale3(desc.getScale3());
             } else {
                 double s = desc.getScale();
-                instBuilder.setScale3(MathUtil.vecmathToDDF(new Vector3d(s, s, s)));
+                instBuilder.setScale3(MathUtil.vecmathToDDFOne(new Vector3d(s, s, s)));
             }
 
             messageBuilder.addInstances(instBuilder);
@@ -448,7 +448,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
             // Promote to scale3
             if (!b.hasScale3()) {
                 double s = b.getScale();
-                b.setScale3(MathUtil.vecmathToDDF(new Vector3d(s, s, s)));
+                b.setScale3(MathUtil.vecmathToDDFOne(new Vector3d(s, s, s)));
             }
 
             b.setPrototype(BuilderUtil.replaceExt(b.getPrototype(), ".go", ".goc"));

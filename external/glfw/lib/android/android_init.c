@@ -36,6 +36,8 @@
 
 #include <android/sensor.h>
 
+#include <math.h> // ceil
+
 //************************************************************************
 //****                  GLFW internal functions                       ****
 //************************************************************************
@@ -62,7 +64,8 @@ static GLFWTouch* g_MouseEmulationTouch = 0;
 uint32_t g_EventLock = 0;
 int g_AppCommands[MAX_APP_COMMANDS];
 int g_NumAppCommands = 0;
-struct InputEvent g_AppInputEvents[MAX_APP_INPUT_EVENTS];
+struct InputEvent* g_AppInputEvents = 0;
+int g_MaxAppInputEvents = 0;
 int g_NumAppInputEvents = 0;
 pthread_t g_MainThread = 0;
 bool g_AppResumed = false;
@@ -381,7 +384,7 @@ static GLFWTouch* touchUpdate(void *ref, int32_t x, int32_t y, int phase)
         int newPhase = phase;
 
         // If previous phase was TAPPED, we need to return early since we currently cannot buffer actions/phases.
-        if (prevPhase == GLFW_PHASE_TAPPED) {
+        if (prevPhase == GLFW_PHASE_TAPPED || prevPhase == GLFW_PHASE_CANCELLED) {
             return 0x0;
         }
 
@@ -405,7 +408,6 @@ static GLFWTouch* touchUpdate(void *ref, int32_t x, int32_t y, int phase)
         // just update the coordinates but leave the phase as began.
         if (prevPhase == GLFW_PHASE_BEGAN && newPhase == GLFW_PHASE_MOVED) {
             return touch;
-
         // If a touch both began and ended during one frame/update, set the phase as
         // tapped and we will send the released event during next update (see input.c).
         } else if (prevPhase == GLFW_PHASE_BEGAN && newPhase == GLFW_PHASE_ENDED) {
@@ -479,7 +481,7 @@ int32_t _glfwAndroidHandleInput(struct android_app* app, JNIEnv* env, struct Inp
                 }
                 break;
             case AMOTION_EVENT_ACTION_CANCEL:
-                if (touchUpdate(pointer_ref, x, y, GLFW_PHASE_ENDED) == g_MouseEmulationTouch || !g_MouseEmulationTouch) {
+                if (touchUpdate(pointer_ref, x, y, GLFW_PHASE_CANCELLED) == g_MouseEmulationTouch || !g_MouseEmulationTouch) {
                     updateGlfwMousePos(x,y);
                     _glfwInputMouseClick( GLFW_MOUSE_BUTTON_LEFT, GLFW_RELEASE );
                 }
@@ -670,6 +672,36 @@ int32_t _glfwAndroidHandleInput(struct android_app* app, JNIEnv* env, struct Inp
     return 0;
 }
 
+static uint32_t countInputEvents(struct android_app* app, const AInputEvent* event)
+{
+    uint32_t count = 0;
+    int32_t event_type = AInputEvent_getType(event);
+
+    if (event_type == AINPUT_EVENT_TYPE_MOTION)
+    {
+        int32_t action = AMotionEvent_getAction(event);
+        int32_t action_action = action & AMOTION_EVENT_ACTION_MASK;
+        switch (action_action)
+        {
+            case AMOTION_EVENT_ACTION_DOWN:
+            case AMOTION_EVENT_ACTION_UP:
+            case AMOTION_EVENT_ACTION_POINTER_DOWN:
+            case AMOTION_EVENT_ACTION_POINTER_UP:
+            case AMOTION_EVENT_ACTION_CANCEL:
+                count++;
+                break;
+            case AMOTION_EVENT_ACTION_MOVE:
+                count += AMotionEvent_getPointerCount(event);
+                break;
+        }
+    }
+    else if (event_type == AINPUT_EVENT_TYPE_KEY)
+    {
+        count++;
+    }
+    return count;
+}
+
 static int32_t addInputEvents(struct android_app* app, const AInputEvent* event, struct InputEvent* out, int* out_count, int max_out_count)
 {
     out->m_Type = AInputEvent_getType(event);
@@ -682,8 +714,6 @@ static int32_t addInputEvents(struct android_app* app, const AInputEvent* event,
         int32_t action = AMotionEvent_getAction(event);
         int32_t pointer_index = (action & AMOTION_EVENT_ACTION_POINTER_INDEX_MASK) >> AMOTION_EVENT_ACTION_POINTER_INDEX_SHIFT;
         int32_t pointer_id = AMotionEvent_getPointerId(event, pointer_index);
-
-
         int32_t action_action = action & AMOTION_EVENT_ACTION_MASK;
 
         switch (action_action)
@@ -837,14 +867,21 @@ int32_t glfwAndroidHandleInput(struct android_app* app, AInputEvent* event)
     int ret = 0;
     spinlock_lock(&g_EventLock);
 
-    if (g_NumAppInputEvents < MAX_APP_INPUT_EVENTS)
+    // We need to make sure we process all events in the queue, otherwise some gestures might end up
+    // in a wrong state and get stuck forever.
+    uint32_t all_event_count = countInputEvents(app, event);
+    if ((g_NumAppInputEvents + all_event_count) >= g_MaxAppInputEvents)
+    {
+        uint32_t size_increase = APP_INPUT_EVENTS_SIZE_INCREASE_STEP * (uint32_t) ceil((float) all_event_count / (float) APP_INPUT_EVENTS_SIZE_INCREASE_STEP);
+        g_MaxAppInputEvents += size_increase;
+        g_AppInputEvents = realloc(g_AppInputEvents, sizeof(struct InputEvent) * g_MaxAppInputEvents);
+        memset(g_AppInputEvents + g_NumAppInputEvents, 0, sizeof(struct InputEvent) * size_increase);
+    }
+
+    if (g_MaxAppInputEvents > 0)
     {
         // This will let the engine thread know (engine_main)
-        ret = addInputEvents(app, event, &g_AppInputEvents[g_NumAppInputEvents], &g_NumAppInputEvents, MAX_APP_INPUT_EVENTS);
-    }
-    else
-    {
-        LOGE("glfwAndroidHandleInput: max num app input events per frame reached");
+        ret = addInputEvents(app, event, &g_AppInputEvents[g_NumAppInputEvents], &g_NumAppInputEvents, g_MaxAppInputEvents);
     }
 
     spinlock_unlock(&g_EventLock);

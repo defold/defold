@@ -28,37 +28,37 @@ extern "C"
 int g_TestAppInitCount = 0;
 int g_TestAppEventCount = 0;
 
-dmExtension::Result AppInitializeTest(dmExtension::AppParams* params)
+static dmExtension::Result AppInitializeTest(dmExtension::AppParams* params)
 {
     g_TestAppInitCount++;
     return dmExtension::RESULT_OK;
 }
 
-dmExtension::Result AppFinalizeTest(dmExtension::AppParams* params)
+static dmExtension::Result AppFinalizeTest(dmExtension::AppParams* params)
 {
     g_TestAppInitCount--;
     return dmExtension::RESULT_OK;
 }
 
-dmExtension::Result InitializeTest(dmExtension::Params* params)
+static dmExtension::Result InitializeTest(dmExtension::Params* params)
 {
     return dmExtension::RESULT_OK;
 }
 
-dmExtension::Result UpdateTest(dmExtension::Params* params)
+static dmExtension::Result UpdateTest(dmExtension::Params* params)
 {
     return dmExtension::RESULT_OK;
 }
 
 void OnEventTest(dmExtension::Params* params, const dmExtension::Event* event)
 {
-    if( event->m_Event == dmExtension::EVENT_ID_ACTIVATEAPP )
+    if( event->m_Event == EXTENSION_EVENT_ID_ACTIVATEAPP )
         ++g_TestAppEventCount;
-    else if(event->m_Event == dmExtension::EVENT_ID_DEACTIVATEAPP)
+    else if(event->m_Event == EXTENSION_EVENT_ID_DEACTIVATEAPP)
         --g_TestAppEventCount;
 }
 
-dmExtension::Result FinalizeTest(dmExtension::Params* params)
+static dmExtension::Result FinalizeTest(dmExtension::Params* params)
 {
     return dmExtension::RESULT_OK;
 }

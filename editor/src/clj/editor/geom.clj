@@ -557,6 +557,16 @@
             [(.x n) (.y n) (.z n) 0.0])
           normals)))
 
+(defn transf-tangents
+  [^Matrix4d m4d tangents]
+  (let [n (Vector3d.)]
+    (mapv (fn [[^double x ^double y ^double z ^double w]]
+            (.set n x y z)
+            (.transform m4d n)
+            (.normalize n) ; Need to normalize since the matrix may be scaled.
+            [(.x n) (.y n) (.z n) w])
+          tangents)))
+
 (defn chain [n f ps]
   (loop [i n
          v ps

@@ -37,6 +37,7 @@
 
 #include <dmsdk/script/script.h>
 #include <dmsdk/gamesys/script.h>
+#include <dmsdk/resource/resource.h>
 
 namespace dmGameSystem
 {
@@ -221,6 +222,31 @@ namespace dmGameSystem
  * ```
  */
 
+/*# reference to render target resource
+ *
+ * Constructor-like function with two purposes:
+ *
+ * - Load the specified resource as part of loading the script
+ * - Return a hash to the run-time version of the resource
+ *
+ * [icon:attention] This function can only be called within [ref:go.property] function calls.
+ *
+ * @name resource.render_target
+ * @param [path] [type:string] optional resource path string to the resource
+ * @return path [type:hash] a path hash to the binary version of the resource
+ * @examples
+ *
+ * Set a render target color attachment as a model texture:
+ *
+ * ```lua
+ * go.property("my_render_target", resource.render_target("/rt.render_target"))
+ * function init(self)
+ *   local rt_info = resource.get_render_target_info(self.my_render_target)
+ *   go.set("#model", "texture0", rt_info.attachments[1].texture)
+ * end
+ * ```
+ */
+
 struct SetTextureAsyncRequest
 {
     dmhash_t                   m_PathHash;
@@ -248,6 +274,7 @@ struct CreateTextureResourceParams
     uint32_t                                  m_Height;
     uint32_t                                  m_MaxMipMaps;
     uint32_t                                  m_TextureBpp;
+    uint32_t                                  m_UsageFlags;
 };
 
 struct ResourceModule
@@ -273,32 +300,26 @@ static int ReportPathError(lua_State* L, dmResource::Result result, dmhash_t pat
 
 static void* CheckResource(lua_State* L, dmResource::HFactory factory, dmhash_t path_hash, const char* resource_ext)
 {
-    dmResource::SResourceDescriptor* rd = dmResource::FindByHash(factory, path_hash);
+    HResourceDescriptor rd = dmResource::FindByHash(factory, path_hash);
     if (!rd) {
         luaL_error(L, "Could not get %s type resource: %s", resource_ext, dmHashReverseSafe64(path_hash));
         return 0;
     }
 
-    dmResource::ResourceType resource_type;
-    dmResource::Result r = dmResource::GetType(factory, rd->m_Resource, &resource_type);
+    HResourceType expected_resource_type;
+    dmResource::Result r = dmResource::GetTypeFromExtension(factory, resource_ext, &expected_resource_type);
     if( r != dmResource::RESULT_OK )
     {
         ReportPathError(L, r, path_hash);
     }
 
-    dmResource::ResourceType expected_resource_type;
-    r = dmResource::GetTypeFromExtension(factory, resource_ext, &expected_resource_type);
-    if( r != dmResource::RESULT_OK )
-    {
-        ReportPathError(L, r, path_hash);
-    }
-
+    HResourceType resource_type = dmResource::GetType(rd);
     if (resource_type != expected_resource_type) {
         luaL_error(L, "Resource %s is not of type %s.", dmHashReverseSafe64(path_hash), resource_ext);
         return 0;
     }
 
-    return rd->m_Resource;
+    return dmResource::GetResource(rd);
 }
 
 static dmhash_t GetCanonicalPathHash(const char* path)
@@ -578,6 +599,7 @@ static dmGraphics::TextureImage::Type GraphicsTextureTypeToImageType(dmGraphics:
         case dmGraphics::TEXTURE_TYPE_2D:       return dmGraphics::TextureImage::TYPE_2D;
         case dmGraphics::TEXTURE_TYPE_2D_ARRAY: return dmGraphics::TextureImage::TYPE_2D_ARRAY;
         case dmGraphics::TEXTURE_TYPE_CUBE_MAP: return dmGraphics::TextureImage::TYPE_CUBEMAP;
+        case dmGraphics::TEXTURE_TYPE_IMAGE_2D: return dmGraphics::TextureImage::TYPE_2D_IMAGE;
         default: assert(0);
     }
     dmLogError("Unsupported texture type (%d)", texturetype);
@@ -636,6 +658,7 @@ static void MakeTextureImage(CreateTextureResourceParams params, dmGraphics::Tex
     texture_image->m_Alternatives.m_Count  = 1;
     texture_image->m_Type                  = params.m_TextureType;
     texture_image->m_Count                 = layer_count;
+    texture_image->m_UsageFlags            = params.m_UsageFlags;
 
     image->m_Width                = params.m_Width;
     image->m_Height               = params.m_Height;
@@ -692,6 +715,7 @@ static int CheckCreateTextureResourceParams(lua_State* L, CreateTextureResourceP
     int width                        = CheckTableInteger(L, 2, "width");
     int height                       = CheckTableInteger(L, 2, "height");
     uint32_t max_mipmaps             = (uint32_t) CheckTableInteger(L, 2, "max_mipmaps", 0);
+    uint32_t usage_flags             = (uint32_t) CheckTableInteger(L, 2, "flags", dmGraphics::TEXTURE_USAGE_FLAG_SAMPLE);
 
     if (width < 1 || height < 1)
     {
@@ -699,7 +723,7 @@ static int CheckCreateTextureResourceParams(lua_State* L, CreateTextureResourceP
     }
 
     // TODO: Texture arrays
-    if (!(type == dmGraphics::TEXTURE_TYPE_2D || type == dmGraphics::TEXTURE_TYPE_CUBE_MAP))
+    if (!(type == dmGraphics::TEXTURE_TYPE_2D || type == dmGraphics::TEXTURE_TYPE_CUBE_MAP || type == dmGraphics::TEXTURE_TYPE_IMAGE_2D))
     {
         return luaL_error(L, "Unable to create texture, unsupported texture type '%s'.", dmGraphics::GetTextureTypeLiteral(type));
     }
@@ -762,6 +786,7 @@ static int CheckCreateTextureResourceParams(lua_State* L, CreateTextureResourceP
     params->m_CompressionType = compression_type;
     params->m_Buffer          = buffer;
     params->m_Collection      = dmGameObject::GetCollection(sender_instance);
+    params->m_UsageFlags      = usage_flags;
     return 0;
 }
 
@@ -831,6 +856,7 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
  *
  * - `resource.TEXTURE_TYPE_2D`
  * - `resource.TEXTURE_TYPE_CUBE_MAP`
+ * - `resource.TEXTURE_TYPE_IMAGE_2D`
  *
  * `width`
  * : [type:number] The width of the texture (in pixels). Must be larger than 0.
@@ -875,6 +901,14 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
  *     -- it is safe to use this format
  * end
  * ```
+ *
+ * `flags`
+ * : [type:number] Texture creation flags that can be used to dictate how the texture is created. The default value is [ref:resource.TEXTURE_USAGE_FLAG_SAMPLE], which means that the texture can be sampled from a shader.
+ * These flags may or may not be supported on the running device and/or the underlying graphics API and is simply used internally as a 'hint' when creating the texture. There is no guarantee that any of these will have any effect. Supported values:
+ *
+ * - `resource.TEXTURE_USAGE_FLAG_SAMPLE` - The texture can be sampled from a shader (default)
+ * - `resource.TEXTURE_USAGE_FLAG_MEMORYLESS` - The texture can be used as a memoryless texture, i.e only transient memory for the texture is used during rendering
+ * - `resource.TEXTURE_USAGE_FLAG_STORAGE` - The texture can be used as a storage texture, which is required for a shader to write to the texture
  *
  * `max_mipmaps`
  * : [type:number] optional max number of mipmaps. Defaults to zero, i.e no mipmap support
@@ -1032,6 +1066,13 @@ static int CreateTexture(lua_State* L)
  * - `resource.TEXTURE_FORMAT_RG16F`
  * - `resource.TEXTURE_FORMAT_R32F`
  * - `resource.TEXTURE_FORMAT_RG32F`
+ *
+ * `flags`
+ * : [type:number] Texture creation flags that can be used to dictate how the texture is created. Supported values:
+ *
+ * - `resource.TEXTURE_USAGE_FLAG_SAMPLE` - The texture can be sampled from a shader (default)
+ * - `resource.TEXTURE_USAGE_FLAG_MEMORYLESS` - The texture can be used as a memoryless texture, i.e only transient memory for the texture is used during rendering
+ * - `resource.TEXTURE_USAGE_FLAG_STORAGE` - The texture can be used as a storage texture, which is required for a shader to write to the texture
  *
  * You can test if the device supports these values by checking if a specific enum is nil or not:
  *
@@ -1243,7 +1284,7 @@ static int ReleaseResource(lua_State* L)
     DM_LUA_STACK_CHECK(L, 0);
     dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
 
-    dmResource::SResourceDescriptor* rd = dmResource::FindByHash(g_ResourceModule.m_Factory, path_hash);
+    HResourceDescriptor rd = dmResource::FindByHash(g_ResourceModule.m_Factory, path_hash);
     if (!rd)
     {
         return DM_LUA_ERROR("Could not get resource: %s", dmHashReverseSafe64(path_hash));
@@ -1255,7 +1296,7 @@ static int ReleaseResource(lua_State* L)
     // This will remove the entry in the collections list of dynamically allocated resource (if it exists),
     // but we do the actual release here since we allow releasing arbitrary resources now
     dmGameObject::RemoveDynamicResourceHash(collection, path_hash);
-    dmResource::Release(g_ResourceModule.m_Factory, rd->m_Resource);
+    dmResource::Release(g_ResourceModule.m_Factory, dmResource::GetResource(rd));
 
     return 0;
 }
@@ -1434,7 +1475,7 @@ static int SetTexture(lua_State* L)
     }
 
     // TODO: Texture arrays
-    if (!(type == dmGraphics::TEXTURE_TYPE_2D || type == dmGraphics::TEXTURE_TYPE_CUBE_MAP))
+    if (!(type == dmGraphics::TEXTURE_TYPE_2D || type == dmGraphics::TEXTURE_TYPE_CUBE_MAP || type == dmGraphics::TEXTURE_TYPE_IMAGE_2D))
     {
         return luaL_error(L, "Unable to set texture, unsupported texture type '%s'.", dmGraphics::GetTextureTypeLiteral(type));
     }
@@ -1526,10 +1567,14 @@ static int SetTexture(lua_State* L)
  * `mipmaps`
  * : [type:integer] number of mipmaps of the texture
  *
+ * `flags`
+ * : [type:integer] usage hints of the texture.
+ *
  * `type`
  * : [type:number] The texture type. Supported values:
  *
  * - `resource.TEXTURE_TYPE_2D`
+ * - `resource.TEXTURE_TYPE_IMAGE_2D`
  * - `resource.TEXTURE_TYPE_CUBE_MAP`
  * - `resource.TEXTURE_TYPE_2D_ARRAY`
  *
@@ -1556,7 +1601,8 @@ static int SetTexture(lua_State* L)
  *     --      height = 128,
  *     --      depth = 1
  *     --      mipmaps = 1,
- *     --      type = resource.TEXTURE_TYPE_2D
+ *     --      type = resource.TEXTURE_TYPE_2D,
+ *     --      flags = resource.TEXTURE_USAGE_FLAG_SAMPLE
  *     -- }
  * end
  * ```
@@ -1581,6 +1627,7 @@ static void PushTextureInfo(lua_State* L, dmGraphics::HTexture texture_handle)
     uint32_t texture_depth               = dmGraphics::GetTextureDepth(texture_handle);
     uint32_t texture_mipmaps             = dmGraphics::GetTextureMipmapCount(texture_handle);
     dmGraphics::TextureType texture_type = dmGraphics::GetTextureType(texture_handle);
+    uint32_t texture_flags               = dmGraphics::GetTextureUsageHintFlags(texture_handle);
 
     lua_pushnumber(L, texture_handle);
     lua_setfield(L, -2, "handle");
@@ -1599,6 +1646,9 @@ static void PushTextureInfo(lua_State* L, dmGraphics::HTexture texture_handle)
 
     lua_pushinteger(L, texture_type);
     lua_setfield(L, -2, "type");
+
+    lua_pushinteger(L, texture_flags);
+    lua_setfield(L, -2, "flags");
 }
 
 static int GetTextureInfo(lua_State* L)
@@ -1684,6 +1734,9 @@ static int GetTextureInfo(lua_State* L)
  * - `resource.BUFFER_TYPE_DEPTH`
  * - `resource.BUFFER_TYPE_STENCIL`
  *
+ * * `texture`
+ * : [type:hash] The hashed path to the attachment texture resource. This field is only available if the render target passed in is a resource. 
+ *
  * @examples
  * Get the metadata from a render target resource
  *
@@ -1696,11 +1749,25 @@ static int GetTextureInfo(lua_State* L)
  *     local info_attachment_1 = resource.get_texture_info(info.attachments[1].handle)
  * end
  * ```
+ *
+ * @examples
+ * Get a texture attachment from a render target and set it on a model component
+ *
+ * ```lua
+ * function init(self)
+ *     local info = resource.get_render_target_info("/my_render_target.render_targetc")
+ *     local attachment = info.attachments[1].texture
+ *     -- you can also get texture info from the 'texture' field, since it's a resource hash
+ *     local texture_info = resource.get_texture_info(attachment)
+ *     go.set("#model", "texture0", attachment)
+ * end
+ * ```
  */
 static int GetRenderTargetInfo(lua_State* L)
 {
     int top = lua_gettop(L);
     dmGraphics::HRenderTarget rt_handle = 0;
+    RenderTargetResource* rt_res = 0;
 
     if (lua_isnumber(L, 1))
     {
@@ -1712,9 +1779,9 @@ static int GetRenderTargetInfo(lua_State* L)
     }
     else
     {
-        dmhash_t path_hash           = dmScript::CheckHashOrString(L, 1);
-        RenderTargetResource* rt_res = (RenderTargetResource*) CheckResource(L, g_ResourceModule.m_Factory, path_hash, "render_targetc");
-        rt_handle                    = rt_res->m_RenderTarget;
+        dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
+        rt_res             = (RenderTargetResource*) CheckResource(L, g_ResourceModule.m_Factory, path_hash, "render_targetc");
+        rt_handle          = rt_res->m_RenderTarget;
 
         if (!dmGraphics::IsAssetHandleValid(g_ResourceModule.m_GraphicsContext, rt_handle))
         {
@@ -1745,9 +1812,10 @@ static int GetRenderTargetInfo(lua_State* L)
     lua_newtable(L);
 
     uint32_t attachment_count = 0;
-    for (int i = 0; i < dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS + 2; ++i)
+    for (int i = 0; i < DM_ARRAY_SIZE(color_buffer_flags); ++i)
     {
-        dmGraphics::HTexture t = dmGraphics::GetRenderTargetTexture(rt_handle, color_buffer_flags[i]);
+        dmGraphics::BufferType buffer_type = color_buffer_flags[i];
+        dmGraphics::HTexture t = dmGraphics::GetRenderTargetTexture(rt_handle, buffer_type);
         if (t)
         {
             lua_pushinteger(L, (lua_Integer) (attachment_count+1));
@@ -1755,8 +1823,23 @@ static int GetRenderTargetInfo(lua_State* L)
 
             PushTextureInfo(L, t);
 
-            lua_pushinteger(L, color_buffer_flags[i]);
+            lua_pushinteger(L, buffer_type);
             lua_setfield(L, -2, "buffer_type");
+
+            if (rt_res)
+            {
+                if (dmGraphics::IsColorBufferType(buffer_type))
+                {
+                    dmScript::PushHash(L, rt_res->m_ColorAttachmentPaths[i]);
+                    lua_setfield(L, -2, "texture");
+                }
+                else if (buffer_type == dmGraphics::BUFFER_TYPE_DEPTH_BIT)
+                {
+                    dmScript::PushHash(L, rt_res->m_DepthAttachmentPath);
+                    lua_setfield(L, -2, "texture");
+                }
+                // Separate stencil attachment textures are not supported (yet)
+            }
 
             lua_rawset(L, -3);
 
@@ -3392,6 +3475,24 @@ static const luaL_reg Module_methods[] =
  * @variable
  */
 
+/*# Usage hint for creating textures that can be sampled in a shader
+ *
+ * @name resource.TEXTURE_USAGE_FLAG_SAMPLE
+ * @variable
+ */
+
+/*# Usage hint for creating textures that uses temporary memory
+ *
+ * @name resource.TEXTURE_USAGE_FLAG_MEMORYLESS
+ * @variable
+ */
+
+/*# Usage hint for creating textures that can be used for writing in a shader
+ *
+ * @name resource.TEXTURE_USAGE_FLAG_STORAGE
+ * @variable
+ */
+
 /*# COMPRESSION_TYPE_DEFAULT compression type
  *
  * @name resource.COMPRESSION_TYPE_DEFAULT
@@ -3416,6 +3517,7 @@ static void LuaInit(lua_State* L, dmGraphics::HContext graphics_context)
     SETGRAPHICS_ENUM(TEXTURE_TYPE_2D);
     SETGRAPHICS_ENUM(TEXTURE_TYPE_CUBE_MAP);
     SETGRAPHICS_ENUM(TEXTURE_TYPE_2D_ARRAY);
+    SETGRAPHICS_ENUM(TEXTURE_TYPE_IMAGE_2D);
 
     SETGRAPHICS_ENUM(BUFFER_TYPE_COLOR0_BIT);
     SETGRAPHICS_ENUM(BUFFER_TYPE_COLOR1_BIT);
@@ -3423,6 +3525,10 @@ static void LuaInit(lua_State* L, dmGraphics::HContext graphics_context)
     SETGRAPHICS_ENUM(BUFFER_TYPE_COLOR3_BIT);
     SETGRAPHICS_ENUM(BUFFER_TYPE_DEPTH_BIT);
     SETGRAPHICS_ENUM(BUFFER_TYPE_STENCIL_BIT);
+
+    SETGRAPHICS_ENUM(TEXTURE_USAGE_FLAG_SAMPLE);
+    SETGRAPHICS_ENUM(TEXTURE_USAGE_FLAG_MEMORYLESS);
+    SETGRAPHICS_ENUM(TEXTURE_USAGE_FLAG_STORAGE);
 #undef SETGRAPHICS_ENUM
 
 #define SETTEXTUREFORMAT_IF_SUPPORTED(name) \
