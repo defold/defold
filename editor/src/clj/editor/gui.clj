@@ -956,6 +956,8 @@
 
 (def ^:private default-size-mode (protobuf/default Gui$NodeDesc :size-mode))
 
+(def ^:private default-manual-size [(float 200.0) (float 100.0) protobuf/float-zero])
+
 (defn- strip-size-from-overridden-fields [overridden-fields]
   (util/removev is-size-pb-field-index? overridden-fields))
 
@@ -1020,16 +1022,15 @@
 (g/defnode ShapeNode
   (inherits VisualNode)
 
-  (property manual-size types/Vec3 (default (protobuf/vector4->vector3 (protobuf/default Gui$NodeDesc :size)))
-            (dynamic visible (g/constantly false)))
-  (property size types/Vec3 ; Just for presentation.
-            (value (g/fnk [manual-size size-mode texture-size]
-                          (if (= :size-mode-auto size-mode)
-                            (or texture-size manual-size)
-                            manual-size)))
-            (set (fn [_evaluation-context self _old-value new-value]
-                   (g/set-property self :manual-size new-value)))
-            (dynamic read-only? (g/fnk [size-mode] (= :size-mode-auto size-mode))))
+  (property manual-size types/Vec3 (default (protobuf/vector4->vector3 (protobuf/default Gui$NodeDesc :size))))
+  (property texture-size types/Vec3 ; Just for presentation.
+            (value (g/fnk [anim-data]
+                     (if (some? anim-data)
+                       [(float (:width anim-data)) (float (:height anim-data)) protobuf/float-zero]
+                       protobuf/vector3-zero)))
+            (dynamic read-only? (g/constantly true))
+            (dynamic visible (g/fnk [texture]
+                               (coll/not-empty texture))))
   (property size-mode g/Keyword (default (protobuf/default Gui$NodeDesc :size-mode))
             (set (fn [evaluation-context self old-value new-value]
                    ;; Use the texture size for the :manual-size when the user switches
@@ -1040,7 +1041,7 @@
                      (when-some [texture (not-empty (g/node-value self :texture evaluation-context))]
                        (when-some [texture-infos (not-empty (g/node-value self :texture-infos evaluation-context))]
                          (when-some [anim-data (:anim-data (texture-infos texture))]
-                           (let [texture-size [(double (:width anim-data)) (double (:height anim-data)) 0.0]]
+                           (let [texture-size [(float (:width anim-data)) (float (:height anim-data)) protobuf/float-zero]]
                              (g/set-property self :manual-size texture-size))))))))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$SizeMode))))
   (property material g/Str (default (protobuf/default Gui$NodeDesc :material))
@@ -1067,9 +1068,11 @@
   (output gpu-texture TextureLifecycle (g/fnk [texture-gpu-textures texture]
                                          (or (texture-gpu-textures texture)
                                              (texture-gpu-textures ""))))
-  (output texture-size g/Any (g/fnk [anim-data]
-                                    (when (some? anim-data)
-                                      [(double (:width anim-data)) (double (:height anim-data)) 0.0])))
+  (output size types/Vec3 (g/fnk [manual-size size-mode texture texture-size]
+                            (if (or (= :size-mode-manual size-mode)
+                                    (coll/empty? texture))
+                              manual-size
+                              texture-size)))
   (output build-errors-shape-node g/Any (g/fnk [build-errors-visual-node _node-id material material-infos material-shader texture texture-infos]
                                           (g/package-errors _node-id
                                                             build-errors-visual-node ; Validates material name.
@@ -1110,7 +1113,7 @@
             (dynamic edit-type (g/constantly {:type types/Vec4 :labels ["L" "T" "R" "B"]})))
 
   (display-order (into base-display-order
-                       [:size :size-mode :enabled :visible :texture :material :slice9 :color :alpha :inherit-alpha :layer :blend-mode :pivot :x-anchor :y-anchor
+                       [:manual-size :texture-size :size-mode :enabled :visible :texture :material :slice9 :color :alpha :inherit-alpha :layer :blend-mode :pivot :x-anchor :y-anchor
                         :adjust-mode :clipping :visible-clipper :inverted-clipper]))
 
   ;; Overloaded outputs
@@ -1159,7 +1162,7 @@
   (property pie-fill-angle g/Num (default (protobuf/default Gui$NodeDesc :pie-fill-angle)))
 
   (display-order (into base-display-order
-                       [:size :size-mode :enabled :visible :texture :material :inner-radius :outer-bounds :perimeter-vertices :pie-fill-angle
+                       [:manual-size :texture-size :size-mode :enabled :visible :texture :material :inner-radius :outer-bounds :perimeter-vertices :pie-fill-angle
                         :color :alpha :inherit-alpha :layer :blend-mode :pivot :x-anchor :y-anchor
                         :adjust-mode :clipping :visible-clipper :inverted-clipper]))
 
@@ -3394,7 +3397,7 @@
 ;; SDK api
 (def shape-base-node-defaults
   (assoc visual-base-node-defaults
-    :manual-size [200.0 100.0 0.0]
+    :manual-size default-manual-size
     :size-mode :size-mode-auto))
 
 (def ^:private base-node-type-infos
@@ -3416,7 +3419,7 @@
     :custom-type 0
     :icon text-icon
     :defaults (assoc visual-base-node-defaults
-                :manual-size [200.0 100.0 0.0]
+                :manual-size default-manual-size
                 :text "<text>")}
    {:node-type :type-template
     :node-cls TemplateNode
