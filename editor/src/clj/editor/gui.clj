@@ -1019,26 +1019,50 @@
                :clipping-inverted clipping-inverted))
       (fixup-shape-base-node-size-overrides)))
 
+(defn- visible-size-property-label [size-mode texture]
+  (if (and (= :size-mode-auto size-mode)
+           (coll/not-empty texture))
+    :texture-size
+    :manual-size))
+
 (g/defnode ShapeNode
   (inherits VisualNode)
 
-  (property manual-size types/Vec3 (default (protobuf/vector4->vector3 (protobuf/default Gui$NodeDesc :size))))
+  (property manual-size types/Vec3 (default (protobuf/vector4->vector3 (protobuf/default Gui$NodeDesc :size)))
+            (dynamic label (g/constantly "Size"))
+            (dynamic visible (g/fnk [size-mode texture]
+                               (= :manual-size (visible-size-property-label size-mode texture)))))
   (property texture-size types/Vec3 ; Just for presentation.
             (value (g/fnk [anim-data]
                      (if (some? anim-data)
                        [(float (:width anim-data)) (float (:height anim-data)) protobuf/float-zero]
                        protobuf/vector3-zero)))
+            (dynamic label (g/constantly "Size"))
             (dynamic read-only? (g/constantly true))
-            (dynamic visible (g/fnk [texture]
-                               (coll/not-empty texture))))
+            (dynamic visible (g/fnk [size-mode texture]
+                               (= :texture-size (visible-size-property-label size-mode texture)))))
   (property size-mode g/Keyword (default (protobuf/default Gui$NodeDesc :size-mode))
-            (set (fn [evaluation-context self old-value new-value]
-                   ;; Use the texture size for the :manual-size when the user switches
-                   ;; from :size-mode-auto to :size-mode-manual.
-                   (when (and (= :size-mode-auto old-value)
-                              (= :size-mode-manual new-value)
-                              (properties/user-edit? self :size-mode evaluation-context))
-                     (when-some [texture (not-empty (g/node-value self :texture evaluation-context))]
+            (set (fn [{:keys [basis] :as evaluation-context} self old-value new-value]
+                   (when-some [texture (coll/not-empty (g/node-value self :texture evaluation-context))]
+                     (cond
+                       ;; Clear existing :manual-size override when switching
+                       ;; from :size-mode-manual to :size-mode-auto with a
+                       ;; texture assigned.
+                       (and (= :manual-size (visible-size-property-label old-value texture))
+                            (g/property-overridden? basis self :manual-size)
+                            (let [effective-new-value
+                                  (or new-value
+                                      (let [original-node-id (g/override-original basis self)]
+                                        (g/node-value original-node-id :size-mode evaluation-context)))]
+                              (= :texture-size (visible-size-property-label effective-new-value texture))))
+                       (g/clear-property self :manual-size)
+
+                       ;; Use the size of the assigned texture as :manual-size
+                       ;; when the user switches from :size-mode-auto to
+                       ;; :size-mode-manual.
+                       (and (= :size-mode-auto old-value)
+                            (= :size-mode-manual new-value)
+                            (properties/user-edit? self :size-mode evaluation-context))
                        (when-some [texture-infos (not-empty (g/node-value self :texture-infos evaluation-context))]
                          (when-some [anim-data (:anim-data (texture-infos texture))]
                            (let [texture-size [(float (:width anim-data)) (float (:height anim-data)) protobuf/float-zero]]
@@ -1050,6 +1074,18 @@
                              (or (validate-material-resource _node-id material-infos material)
                                  (validate-material-capabilities _node-id material-infos material material-shader texture-infos texture)))))
   (property texture g/Str (default (protobuf/default Gui$NodeDesc :texture))
+            (set (fn [{:keys [basis] :as evaluation-context} self old-value new-value]
+                   ;; Clear any existing :manual-size override when assigning a
+                   ;; texture will hide the :manual-size property.
+                   (let [size-mode (g/node-value self :size-mode evaluation-context)]
+                     (when (and (= :manual-size (visible-size-property-label size-mode old-value))
+                                (g/property-overridden? basis self :manual-size)
+                                (let [effective-new-value
+                                      (or new-value
+                                          (let [original-node-id (g/override-original basis self)]
+                                            (g/node-value original-node-id :texture evaluation-context)))]
+                                  (= :texture-size (visible-size-property-label size-mode effective-new-value))))
+                       (g/clear-property self :manual-size)))))
             (dynamic edit-type (g/fnk [texture-infos] (optional-gui-resource-choicebox (keys texture-infos))))
             (dynamic error (g/fnk [_node-id texture-infos texture]
                              (validate-texture-resource _node-id texture-infos texture))))
