@@ -59,6 +59,7 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
 
         if (shaderLanguage == ShaderDesc.Language.LANGUAGE_SPIRV) {
             ShaderCompilerHelpers.SPIRVCompileResult result = ShaderCompilerHelpers.compileGLSLToSPIRV(source, shaderType, this.pipelineName, "", false, false);
+            this.spirvReflector = result.reflector;
             return result.source;
         } else if (isLanguageClassGLSL(shaderLanguage)) {
             String result = ShaderCompilerHelpers.compileGLSL(source, shaderType, shaderLanguage, false);

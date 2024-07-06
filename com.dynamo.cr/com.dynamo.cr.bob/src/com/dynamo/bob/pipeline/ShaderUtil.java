@@ -22,6 +22,8 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.io.IOException;
+import java.util.Comparator;
+import java.util.Collections;
 
 import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.node.ArrayNode;
@@ -266,6 +268,12 @@ public class ShaderUtil {
             public ArrayList<ResourceMember> members = new ArrayList<ResourceMember>();
         }
 
+        static private class SortBindingsComparator implements Comparator<SPIRVReflector.Resource> {
+            public int compare(SPIRVReflector.Resource a, SPIRVReflector.Resource b) {
+                return a.binding - b.binding;
+            }
+        }
+
         public static ArrayList<ResourceType> getTypes() {
             ArrayList<ResourceType> resourceTypes = new ArrayList<ResourceType>();
             JsonNode typesNode = root.get("types");
@@ -333,6 +341,8 @@ public class ShaderUtil {
                 ubos.add(ubo);
             }
 
+            Collections.sort(ubos, new SortBindingsComparator());
+
             return ubos;
         }
 
@@ -358,6 +368,8 @@ public class ShaderUtil {
                 ssbos.add(ssbo);
             }
 
+            Collections.sort(ssbos, new SortBindingsComparator());
+
             return ssbos;
         }
 
@@ -382,6 +394,8 @@ public class ShaderUtil {
             addTexturesFromNode(root.get("separate_images"),   textures);
             addTexturesFromNode(root.get("images"),            textures);
             addTexturesFromNode(root.get("separate_samplers"), textures);
+
+            Collections.sort(textures, new SortBindingsComparator());
             return textures;
         }
 
@@ -403,6 +417,8 @@ public class ShaderUtil {
                 inputs.add(res);
             }
 
+            Collections.sort(inputs, new SortBindingsComparator());
+
             return inputs;
         }
 
@@ -423,6 +439,8 @@ public class ShaderUtil {
                 res.binding  = outputNode.get("location").asInt();
                 outputs.add(res);
             }
+
+            Collections.sort(outputs, new SortBindingsComparator());
 
             return outputs;
         }
