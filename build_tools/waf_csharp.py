@@ -145,7 +145,11 @@ def configure(conf):
     if platform not in ['x86_64-macos', 'arm64-macos']:
         return # not currently supported
 
-    conf.find_program('dotnet', var='DOTNET', mandatory = True)
+    path = conf.find_program('dotnet', var='DOTNET', mandatory = False)
+    if not path:
+        print("DotNet was not found. Building C# tests will be disabled. See README_SETUP.md for info on how to install DotNet.")
+        return
+
     conf.env.DOTNET_VERSION, conf.env.DOTNET_SDK = _get_dotnet_version()
 
     build_util = create_build_utility(conf.env)
