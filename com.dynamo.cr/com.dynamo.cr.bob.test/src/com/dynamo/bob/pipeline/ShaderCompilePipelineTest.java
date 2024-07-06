@@ -50,7 +50,8 @@ public class ShaderCompilePipelineTest {
 				"	color = vec4(1.0);\n" +
 				"}\n";
 
-		ShaderCompilePipeline pipeline = ShaderCompilePipeline.createShaderPipelineGraphics("testSimple", vsShader, fsShader);
+		ShaderCompilePipeline pipeline = new ShaderCompilePipeline("testSimple");
+		ShaderCompilePipeline.createShaderPipelineGraphics(pipeline, vsShader, fsShader);
 		byte[] source = pipeline.crossCompile(ShaderDesc.ShaderType.SHADER_TYPE_VERTEX, ShaderDesc.Language.LANGUAGE_GLES_SM100);
 
     	SPIRVReflector reflector 	     			 = pipeline.getReflectionData();

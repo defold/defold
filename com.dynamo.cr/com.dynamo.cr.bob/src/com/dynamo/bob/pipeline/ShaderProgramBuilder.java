@@ -333,7 +333,6 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
             shaderDescBuilder.addShaders(makeShaderBuilder(ShaderDesc.Language.LANGUAGE_SPIRV, pipeline.crossCompile(shaderType, ShaderDesc.Language.LANGUAGE_SPIRV), pipeline.getReflectionData()));
 
             shaderDescBuilder.build().writeTo(os);
-            os.close();
         }
     }
 }
