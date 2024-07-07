@@ -273,13 +273,14 @@ namespace dmScript
         return 1;
     }
 
-    static void PushStringHelper(dmAllocator* allocator, lua_State* L, int index)
+    static void PushStringHelper(lua_State* L, int index)
     {
         if (dmScript::IsHash(L, index))
         {
             char buffer[256];
             dmhash_t hash = *(dmhash_t*)lua_touserdata(L, index);
-            dmSnPrintf(buffer, sizeof(buffer), "[%s]", dmHashReverseSafe64Alloc(allocator, hash));
+            DM_HASH_REVERSE_MEM(hash_ctx, 256);
+            dmSnPrintf(buffer, sizeof(buffer), "[%s]", dmHashReverseSafe64Alloc(&hash_ctx, hash));
             lua_pushstring(L, buffer);
         }
         else
@@ -293,11 +294,8 @@ namespace dmScript
         // string .. hash
         // hash .. string
         // hash .. hash
-        DM_HASH_REVERSE_MEM(hash_ctx1, 256);
-        PushStringHelper(&hash_ctx1, L, 1);
-
-        DM_HASH_REVERSE_MEM(hash_ctx2, 256);
-        PushStringHelper(&hash_ctx2, L, 2);
+        PushStringHelper(L, 1);
+        PushStringHelper(L, 2);
 
         lua_concat(L, 2);
         return 1;
