@@ -234,10 +234,8 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         Common.GLSLShaderInfo shaderInfo = Common.getShaderInfo(shaderSource);
 
         if (shaderInfo == null) {
-            System.out.println("ShaderCompilePipelineLegacy " + resourcePath);
             pipeline = new ShaderCompilePipelineLegacy(resourcePath);
         } else {
-            System.out.println("ShaderCompilePipeline " + resourcePath);
             pipeline = new ShaderCompilePipeline(resourcePath);
         }
 
@@ -249,8 +247,8 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         builder.setLanguage(language);
         builder.setSource(ByteString.copyFrom(source));
 
-        String shaderSrc = new String(source);
-        System.out.println("crossCompile: " + language + ", src:\n" + shaderSrc);
+        // String shaderSrc = new String(source);
+        // System.out.println("crossCompile: " + language + ", src:\n" + shaderSrc);
 
         if (reflector != null) {
             ArrayList<SPIRVReflector.Resource> inputs    = reflector.getInputs();

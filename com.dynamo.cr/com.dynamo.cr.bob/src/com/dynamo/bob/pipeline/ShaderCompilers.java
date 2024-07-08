@@ -111,7 +111,15 @@ public class ShaderCompilers {
                 shaderLanguages.add(ShaderDesc.Language.LANGUAGE_SPIRV);
             }
 
-            return getBaseShaderBuildResults(resourceOutputPath, shaderSource, shaderType, shaderLanguages.toArray(new ShaderDesc.Language[0]), "", isDebug, softFail);
+            ShaderCompilePipeline pipeline = ShaderProgramBuilder.getShaderPipelineFromShaderSource(shaderType, resourceOutputPath, shaderSource);
+            ArrayList<ShaderProgramBuilder.ShaderBuildResult> shaderBuildResults = new ArrayList<ShaderProgramBuilder.ShaderBuildResult>();
+
+            for (ShaderDesc.Language shaderLanguage : shaderLanguages) {
+                ShaderDesc.Shader.Builder builder = ShaderProgramBuilder.makeShaderBuilder(shaderLanguage, pipeline.crossCompile(shaderType, shaderLanguage), pipeline.getReflectionData());
+                shaderBuildResults.add(new ShaderProgramBuilder.ShaderBuildResult(builder));
+            }
+
+            return shaderBuildResults;
         }
     }
 
@@ -130,7 +138,15 @@ public class ShaderCompilers {
                 shaderLanguages.add(ShaderDesc.Language.LANGUAGE_SPIRV);
             }
 
-            return getBaseShaderBuildResults(resourceOutputPath, shaderSource, shaderType, shaderLanguages.toArray(new ShaderDesc.Language[0]), "", isDebug, softFail);
+            ShaderCompilePipeline pipeline = ShaderProgramBuilder.getShaderPipelineFromShaderSource(shaderType, resourceOutputPath, shaderSource);
+            ArrayList<ShaderProgramBuilder.ShaderBuildResult> shaderBuildResults = new ArrayList<ShaderProgramBuilder.ShaderBuildResult>();
+
+            for (ShaderDesc.Language shaderLanguage : shaderLanguages) {
+                ShaderDesc.Shader.Builder builder = ShaderProgramBuilder.makeShaderBuilder(shaderLanguage, pipeline.crossCompile(shaderType, shaderLanguage), pipeline.getReflectionData());
+                shaderBuildResults.add(new ShaderProgramBuilder.ShaderBuildResult(builder));
+            }
+
+            return shaderBuildResults;
         }
     }
 
@@ -147,7 +163,15 @@ public class ShaderCompilers {
                 }
             }
 
-            return getBaseShaderBuildResults(resourceOutputPath, shaderSource, shaderType, shaderLanguages.toArray(new ShaderDesc.Language[0]), "es", isDebug, softFail);
+            ShaderCompilePipeline pipeline = ShaderProgramBuilder.getShaderPipelineFromShaderSource(shaderType, resourceOutputPath, shaderSource);
+            ArrayList<ShaderProgramBuilder.ShaderBuildResult> shaderBuildResults = new ArrayList<ShaderProgramBuilder.ShaderBuildResult>();
+
+            for (ShaderDesc.Language shaderLanguage : shaderLanguages) {
+                ShaderDesc.Shader.Builder builder = ShaderProgramBuilder.makeShaderBuilder(shaderLanguage, pipeline.crossCompile(shaderType, shaderLanguage), pipeline.getReflectionData());
+                shaderBuildResults.add(new ShaderProgramBuilder.ShaderBuildResult(builder));
+            }
+
+            return shaderBuildResults;
         }
     }
 
@@ -165,12 +189,21 @@ public class ShaderCompilers {
                 }
             }
 
-            return getBaseShaderBuildResults(resourceOutputPath, shaderSource, shaderType, shaderLanguages.toArray(new ShaderDesc.Language[0]), "", isDebug, softFail);
+            ShaderCompilePipeline pipeline = ShaderProgramBuilder.getShaderPipelineFromShaderSource(shaderType, resourceOutputPath, shaderSource);
+            ArrayList<ShaderProgramBuilder.ShaderBuildResult> shaderBuildResults = new ArrayList<ShaderProgramBuilder.ShaderBuildResult>();
+
+            for (ShaderDesc.Language shaderLanguage : shaderLanguages) {
+                ShaderDesc.Shader.Builder builder = ShaderProgramBuilder.makeShaderBuilder(shaderLanguage, pipeline.crossCompile(shaderType, shaderLanguage), pipeline.getReflectionData());
+                shaderBuildResults.add(new ShaderProgramBuilder.ShaderBuildResult(builder));
+            }
+
+            return shaderBuildResults;
         }
     }
 
     public static class WebShaderCompiler implements IShaderCompiler {
         public ArrayList<ShaderProgramBuilder.ShaderBuildResult> compile(String shaderSource, ShaderDesc.ShaderType shaderType, String resourceOutputPath, String resourceOutput, boolean isDebug, boolean outputSpirv, boolean softFail) throws IOException, CompileExceptionError {
+
             ArrayList<ShaderDesc.Language> shaderLanguages = new ArrayList<ShaderDesc.Language>();
 
             if (shaderType != ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE) {
@@ -178,7 +211,15 @@ public class ShaderCompilers {
                 shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);
             }
 
-            return getBaseShaderBuildResults(resourceOutputPath, shaderSource, shaderType, shaderLanguages.toArray(new ShaderDesc.Language[0]), "", isDebug, softFail);
+            ShaderCompilePipeline pipeline = ShaderProgramBuilder.getShaderPipelineFromShaderSource(shaderType, resourceOutputPath, shaderSource);
+            ArrayList<ShaderProgramBuilder.ShaderBuildResult> shaderBuildResults = new ArrayList<ShaderProgramBuilder.ShaderBuildResult>();
+
+            for (ShaderDesc.Language shaderLanguage : shaderLanguages) {
+                ShaderDesc.Shader.Builder builder = ShaderProgramBuilder.makeShaderBuilder(shaderLanguage, pipeline.crossCompile(shaderType, shaderLanguage), pipeline.getReflectionData());
+                shaderBuildResults.add(new ShaderProgramBuilder.ShaderBuildResult(builder));
+            }
+
+            return shaderBuildResults;
         }
     }
 
@@ -186,7 +227,16 @@ public class ShaderCompilers {
         public ArrayList<ShaderProgramBuilder.ShaderBuildResult> compile(String shaderSource, ShaderDesc.ShaderType shaderType, String resourceOutputPath, String resourceOutput, boolean isDebug, boolean outputSpirv, boolean softFail) throws IOException, CompileExceptionError {
             ArrayList<ShaderDesc.Language> shaderLanguages = new ArrayList<ShaderDesc.Language>();
             shaderLanguages.add(ShaderDesc.Language.LANGUAGE_SPIRV);
-            return getBaseShaderBuildResults(resourceOutputPath, shaderSource, shaderType, shaderLanguages.toArray(new ShaderDesc.Language[0]), "", isDebug, softFail);
+
+            ShaderCompilePipeline pipeline = ShaderProgramBuilder.getShaderPipelineFromShaderSource(shaderType, resourceOutputPath, shaderSource);
+            ArrayList<ShaderProgramBuilder.ShaderBuildResult> shaderBuildResults = new ArrayList<ShaderProgramBuilder.ShaderBuildResult>();
+
+            for (ShaderDesc.Language shaderLanguage : shaderLanguages) {
+                ShaderDesc.Shader.Builder builder = ShaderProgramBuilder.makeShaderBuilder(shaderLanguage, pipeline.crossCompile(shaderType, shaderLanguage), pipeline.getReflectionData());
+                shaderBuildResults.add(new ShaderProgramBuilder.ShaderBuildResult(builder));
+            }
+
+            return shaderBuildResults;
         }
     }
 }

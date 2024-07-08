@@ -1738,20 +1738,23 @@ static void LogFrameBufferError(GLenum status)
     {
         OpenGLProgram* program = context->m_CurrentProgram;
 
-        for (int i = 0; i < program->m_UniformBuffers.Size(); ++i)
+        if (context->m_IsGles3Version)
         {
-            OpenGLUniformBuffer& ubo = program->m_UniformBuffers[i];
-
-            if (ubo.m_ActiveUniforms > 0)
+            for (int i = 0; i < program->m_UniformBuffers.Size(); ++i)
             {
-                glBindBufferBase(GL_UNIFORM_BUFFER, ubo.m_Binding, ubo.m_Id);
-                CHECK_GL_ERROR;
+                OpenGLUniformBuffer& ubo = program->m_UniformBuffers[i];
 
-                if (ubo.m_Dirty > 0)
+                if (ubo.m_ActiveUniforms > 0)
                 {
-                    glBufferData(GL_UNIFORM_BUFFER, ubo.m_BlockSize, ubo.m_BlockMemory, GL_STATIC_DRAW);
+                    glBindBufferBase(GL_UNIFORM_BUFFER, ubo.m_Binding, ubo.m_Id);
                     CHECK_GL_ERROR;
-                    ubo.m_Dirty = false;
+
+                    if (ubo.m_Dirty > 0)
+                    {
+                        glBufferData(GL_UNIFORM_BUFFER, ubo.m_BlockSize, ubo.m_BlockMemory, GL_STATIC_DRAW);
+                        CHECK_GL_ERROR;
+                        ubo.m_Dirty = false;
+                    }
                 }
             }
         }
@@ -1937,7 +1940,7 @@ static void LogFrameBufferError(GLenum status)
         return str;
     }
 
-    static void BuildUniforms(OpenGLProgram* program, OpenGLShader** shaders, uint32_t num_shaders)
+    static void BuildUniformBuffers(OpenGLProgram* program, OpenGLShader** shaders, uint32_t num_shaders)
     {
         uint32_t num_ubos = 0;
         for (uint32_t i = 0; i < num_shaders; ++i)
@@ -2013,6 +2016,14 @@ static void LogFrameBufferError(GLenum status)
                 CHECK_GL_ERROR;
             }
         }
+    }
+
+    static void BuildUniforms(OpenGLContext* context, OpenGLProgram* program, OpenGLShader** shaders, uint32_t num_shaders)
+    {
+        if (context->m_IsGles3Version)
+        {
+            BuildUniformBuffers(program, shaders, num_shaders);
+        }
 
         uint32_t texture_unit = 0;
         char uniform_name_buffer[256];
@@ -2037,10 +2048,13 @@ static void LogFrameBufferError(GLenum status)
                 uniform_name_buffer);
             CHECK_GL_ERROR;
 
-            GLint uniform_block_index;
-            glGetActiveUniformsiv(program->m_Id, 1, (GLuint*)&i, GL_UNIFORM_BLOCK_INDEX, &uniform_block_index);
+            GLint uniform_block_index = -1;
+            if (context->m_IsGles3Version)
+            {
+                glGetActiveUniformsiv(program->m_Id, 1, (GLuint*)&i, GL_UNIFORM_BLOCK_INDEX, &uniform_block_index);
+            }
 
-            char* uniform_name = uniform_name_buffer;
+            char* uniform_name = GetBaseUniformName(uniform_name_buffer, uniform_name_length);
 
             HUniformLocation uniform_location = INVALID_UNIFORM_LOCATION;
 
@@ -2057,8 +2071,6 @@ static void LogFrameBufferError(GLenum status)
                         break;
                     }
                 }
-
-                uniform_name = GetBaseUniformName(uniform_name_buffer, uniform_name_length);
                 uniform_location = ((uint64_t) 1) << 32 | uniform_member_index << 16 | uniform_block_index;
             }
             else
@@ -2074,7 +2086,7 @@ static void LogFrameBufferError(GLenum status)
             uniform.m_Type          = uniform_type;
             uniform.m_IsTextureType = IsTypeTextureType(GetGraphicsType(uniform_type));
 
-        #if 0
+        #if 1
             dmLogInfo("Uniform[%d]: %s, %llu", i, uniform.m_Name, uniform.m_Location);
         #endif
 
@@ -2152,7 +2164,7 @@ static void LogFrameBufferError(GLenum status)
         program->m_Id       = p;
         program->m_Language = compute_shader->m_Language;
 
-        BuildUniforms(program, &compute_shader, 1);
+        BuildUniforms((OpenGLContext*) context, program, &compute_shader, 1);
         return (HProgram) program;
     #else
         dmLogInfo("Compute Shaders are not supported for OpenGL on this platform.");
@@ -2207,7 +2219,7 @@ static void LogFrameBufferError(GLenum status)
 
         OpenGLShader* shaders[] = { vertex_shader, fragment_shader };
 
-        BuildUniforms(program, shaders, DM_ARRAY_SIZE(shaders));
+        BuildUniforms((OpenGLContext*) context, program, shaders, DM_ARRAY_SIZE(shaders));
         BuildAttributes(program);
         return (HProgram) program;
     }
