@@ -663,7 +663,6 @@
                     (ui/add-styles! ["clear-button" "button-small"])
                     (ui/on-action! (fn [_]
                                      (properties/clear-override! (property-fn key))
-                                     (ui/suppress-auto-commit! control)
                                      (.requestFocus control))))
 
         label-box (let [box (GridPane.)]
