@@ -429,6 +429,21 @@ static void LogFrameBufferError(GLenum status)
 
     typedef void (* DM_PFNGLBINDIMAGETEXTUREPROC) (GLuint unit, GLuint texture, GLint level, GLboolean layered, GLint layer, GLenum access, GLenum format);
     DM_PFNGLBINDIMAGETEXTUREPROC glBindImageTexture = NULL;
+
+    typedef void (* DM_PFNGLBINDBUFFERBASEPROC) (GLenum target, GLuint index, GLuint buffer);
+    DM_PFNGLBINDBUFFERBASEPROC glBindBufferBase = NULL;
+
+    typedef GLuint (* DM_PFNGLGETUNIFORMBLOCKINDEXPROC) (GLuint program, const GLchar *uniformBlockName);
+    DM_PFNGLGETUNIFORMBLOCKINDEXPROC glGetUniformBlockIndex = NULL;
+
+    typedef void (* DM_PFNGLGETACTIVEUNIFORMBLOCKIVPROC) (GLuint program, GLuint uniformBlockIndex, GLenum pname, GLint *params);
+    DM_PFNGLGETACTIVEUNIFORMBLOCKIVPROC glGetActiveUniformBlockiv = NULL;
+
+    typedef void (* DM_PFNGLGETACTIVEUNIFORMSIVPROC) (GLuint program, GLsizei uniformCount, const GLuint *uniformIndices, GLenum pname, GLint *params);
+    DM_PFNGLGETACTIVEUNIFORMSIVPROC glGetActiveUniformsiv = NULL;
+
+    typedef void (* DM_PFNGLUNIFORMBLOCKBINDINGPROC) (GLuint program, GLuint uniformBlockIndex, GLuint uniformBlockBinding);
+    DM_PFNGLUNIFORMBLOCKBINDINGPROC glUniformBlockBinding = NULL;
 #endif
 
     OpenGLContext* g_Context = 0x0;
@@ -1069,6 +1084,13 @@ static void LogFrameBufferError(GLenum status)
         DMGRAPHICS_GET_PROC_ADDRESS_EXT(glMemoryBarrier,    "glMemoryBarrier",    "shader_image_load_store", "glMemoryBarrier",    DM_PFNGLMEMORYBARRIERPROC,    context);
         DMGRAPHICS_GET_PROC_ADDRESS_EXT(glBindImageTexture, "glBindImageTexture", "shader_image_load_store", "glBindImageTexture", DM_PFNGLBINDIMAGETEXTUREPROC, context);
         DMGRAPHICS_GET_PROC_ADDRESS_EXT(glDispatchCompute,  "glDispatchCompute",  "compute_shader",          "glDispatchCompute",  DM_PFNGLDISPATCHCOMPUTEPROC,  context);
+
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glBindBufferBase,           "glBindBufferBase",           "", "glBindBufferBase",           DM_PFNGLBINDBUFFERBASEPROC,   context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glGetUniformBlockIndex,     "glGetUniformBlockIndex",     "", "glGetUniformBlockIndex",     DM_PFNGLGETUNIFORMBLOCKINDEXPROC,  context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glGetActiveUniformBlockiv,  "glGetActiveUniformBlockiv",  "", "glGetActiveUniformBlockiv",  DM_PFNGLGETACTIVEUNIFORMBLOCKIVPROC,  context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glGetActiveUniformsiv,      "glGetActiveUniformsiv",      "", "glGetActiveUniformsiv",      DM_PFNGLGETACTIVEUNIFORMSIVPROC,  context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glUniformBlockBinding,      "glUniformBlockBinding",      "", "glUniformBlockBinding",      DM_PFNGLUNIFORMBLOCKBINDINGPROC,  context);
+
     #endif
     #undef DMGRAPHICS_GET_PROC_ADDRESS_EXT
 
@@ -2086,7 +2108,7 @@ static void LogFrameBufferError(GLenum status)
             uniform.m_Type          = uniform_type;
             uniform.m_IsTextureType = IsTypeTextureType(GetGraphicsType(uniform_type));
 
-        #if 1
+        #if 0
             dmLogInfo("Uniform[%d]: %s, %llu", i, uniform.m_Name, uniform.m_Location);
         #endif
 
