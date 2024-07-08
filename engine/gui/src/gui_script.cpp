@@ -617,6 +617,8 @@ namespace dmGui
      * - `"size"`
      * - `"fill_angle"` (pie)
      * - `"inner_radius"` (pie)
+     * - `"leading"` (text)
+     * - `"tracking"` (text)
      * - `"slice9"` (slice9)
      *
      * The value returned will either be a vmath.vector4 or a single number, i.e getting the "position"
@@ -746,6 +748,8 @@ namespace dmGui
      * - `"size"`
      * - `"fill_angle"` (pie)
      * - `"inner_radius"` (pie)
+     * - `"leading"` (text)
+     * - `"tracking"` (text)
      * - `"slice9"` (slice9)
      *
      * The value to set must either be a vmath.vector4, vmath.vector3, vmath.quat or a single number and depends on the property name you want to set.
@@ -1305,6 +1309,8 @@ namespace dmGui
      * - `"size"`
      * - `"fill_angle"` (pie)
      * - `"inner_radius"` (pie)
+     * - `"leading"` (text)
+     * - `"tracking"` (text)
      * - `"slice9"` (slice9)
      *
      * The following property constants are defined equaling the corresponding property string names.
@@ -1319,6 +1325,8 @@ namespace dmGui
      * - `gui.PROP_SIZE`
      * - `gui.PROP_FILL_ANGLE`
      * - `gui.PROP_INNER_RADIUS`
+     * - `gui.PROP_LEADING`
+     * - `gui.PROP_TRACKING`
      * - `gui.PROP_SLICE9`
      *
      * @param to [type:number|vector3|vector4|quaternion] target property value
@@ -1504,6 +1512,8 @@ namespace dmGui
      * - `"size"`
      * - `"fill_angle"` (pie)
      * - `"inner_radius"` (pie)
+     * - `"leading"` (text)
+     * - `"tracking"` (text)
      * - `"slice9"` (slice9)
      *
      * @examples
@@ -4971,6 +4981,18 @@ namespace dmGui
      * @variable
      */
 
+    /*# leading property
+     *
+     * @name gui.PROP_LEADING
+     * @variable
+     */
+
+    /*# tracking property
+     *
+     * @name gui.PROP_TRACKING
+     * @variable
+     */
+
     /*# slice9 property
      *
      * @name gui.PROP_SLICE9
@@ -5189,6 +5211,8 @@ namespace dmGui
         SETPROP(size, SIZE)
         SETPROP(fill_angle, FILL_ANGLE)
         SETPROP(inner_radius, INNER_RADIUS)
+        SETPROP(leading, LEADING)
+        SETPROP(tracking, TRACKING)
         SETPROP(slice9, SLICE9)
 
 #undef SETPROP
