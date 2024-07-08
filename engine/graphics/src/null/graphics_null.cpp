@@ -928,17 +928,17 @@ namespace dmGraphics
         return ((ShaderProgram*) program)->m_Language;
     }
 
-    static ShaderDesc::Language NullGetShaderProgramLanguage(HContext context, ShaderDesc::ShaderType shader_type)
+    static bool NullIsShaderLanguageSupported(HContext context, ShaderDesc::Language language, ShaderDesc::ShaderType shader_type)
     {
-#if defined(DM_PLATFORM_VENDOR)
+    #if defined(DM_PLATFORM_VENDOR)
         #if defined(DM_GRAPHICS_NULL_SHADER_LANGUAGE)
-            return ShaderDesc:: DM_GRAPHICS_NULL_SHADER_LANGUAGE ;
+            return language == ShaderDesc:: DM_GRAPHICS_NULL_SHADER_LANGUAGE ;
         #else
             #error "You must define the platform default shader language using DM_GRAPHICS_NULL_SHADER_LANGUAGE"
         #endif
-#else
-        return ((NullContext*) context)->m_ShaderTypeLanguage[(int) shader_type];
-#endif
+    #else
+        return language == ((NullContext*) context)->m_ShaderTypeLanguage[(int) shader_type];
+    #endif
     }
 
     static void NullEnableProgram(HContext context, HProgram program)

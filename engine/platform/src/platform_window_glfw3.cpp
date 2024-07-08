@@ -165,8 +165,10 @@ namespace dmPlatform
     {
         // TODO: This is the setup required for OSX, when we implement the other desktop
         //       platforms we might want to do this according to platform.
+
+        // Require OpenGL 3.3 or higher
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 
         glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);

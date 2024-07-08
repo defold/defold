@@ -619,6 +619,35 @@ static void* EngineCreate(int argc, char** argv)
     engine->m_Test = new ClearBackbufferTest();
     engine->m_Test->Initialize(engine);
 
+    const char vs_source[] = 
+        "#version 330\n"
+        "layout(std140) uniform uniforms\n"
+        "{\n"
+        "    mat4 view_proj;\n"
+        "} _13;\n"
+        "in vec4 position;\n"
+        "out vec2 var_texcoord0;\n"
+        "in vec2 texcoord0;\n"
+        "void main()\n"
+        "{\n"
+        "    gl_Position = _13.view_proj * vec4(position.xyz, 1.0);\n"
+        "    var_texcoord0 = texcoord0;\n"
+        "}\n";
+
+    char error_buffer[512];
+
+    dmGraphics::ShaderDesc::Shader vs_shader = {};
+    vs_shader.m_Language       = dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140;
+    vs_shader.m_Source.m_Data  = (uint8_t*) vs_source;
+    vs_shader.m_Source.m_Count = strlen(vs_source);
+    dmGraphics::HFragmentProgram fs_program = dmGraphics::NewVertexProgram(engine->m_GraphicsContext, &vs_shader, error_buffer, sizeof(error_buffer));
+
+    if (fs_program == 0)
+    {
+        dmLogError("%s", error_buffer);
+    }
+    assert(fs_program);
+
     engine->m_WasCreated++;
     engine->m_TimeStart = dmTime::GetTime();
     return &g_EngineCtx;

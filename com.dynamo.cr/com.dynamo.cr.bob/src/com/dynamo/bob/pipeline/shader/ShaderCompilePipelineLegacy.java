@@ -37,14 +37,6 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
         return null;
     }
 
-    private boolean isLanguageClassGLSL(ShaderDesc.Language shaderLanguage) {
-        return shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100 ||
-               shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM120 ||
-               shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM140 ||
-               shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM300 ||
-               shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM430;
-    }
-
     @Override
     protected void prepare() throws IOException, CompileExceptionError {
         // We can't run the prepare step on the legacy pipeline
@@ -61,7 +53,7 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
             ShaderCompilerHelpers.SPIRVCompileResult result = ShaderCompilerHelpers.compileGLSLToSPIRV(source, shaderType, this.pipelineName, "", false, false);
             this.spirvReflector = result.reflector;
             return result.source;
-        } else if (isLanguageClassGLSL(shaderLanguage)) {
+        } else if (canBeCrossCompiled(shaderLanguage)) {
             String result = ShaderCompilerHelpers.compileGLSL(source, shaderType, shaderLanguage, false);
             return result.getBytes();
         }

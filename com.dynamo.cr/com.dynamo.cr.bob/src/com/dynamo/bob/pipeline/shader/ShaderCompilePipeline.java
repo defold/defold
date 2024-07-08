@@ -98,6 +98,8 @@ public class ShaderCompilePipeline {
                 return 100;
             case LANGUAGE_GLES_SM300:
                 return 300;
+            case LANGUAGE_GLSL_SM330:
+                return 330;
             case LANGUAGE_GLSL_SM430:
                 return 430;
         }
@@ -113,6 +115,8 @@ public class ShaderCompilePipeline {
             return ShaderDesc.Language.LANGUAGE_GLSL_SM140;
         } else if (fromString.equals("300")) {
             return ShaderDesc.Language.LANGUAGE_GLES_SM300;
+        } else if (fromString.equals("330")) {
+            return ShaderDesc.Language.LANGUAGE_GLSL_SM330;
         } else if (fromString.equals("430")) {
             return ShaderDesc.Language.LANGUAGE_GLSL_SM430;
         } else if (fromString.equals("spv")) {
@@ -121,11 +125,12 @@ public class ShaderCompilePipeline {
         throw new CompileExceptionError("Unknown shader language: " + fromString);
     }
 
-    private static boolean canBeCrossCompiled(ShaderDesc.Language shaderLanguage) {
+    protected static boolean canBeCrossCompiled(ShaderDesc.Language shaderLanguage) {
         return shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM120 ||
                shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM140 ||
                shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100 ||
                shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM300 ||
+               shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM330 ||
                shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM430;
     }
 
@@ -144,8 +149,6 @@ public class ShaderCompilePipeline {
     }
 
     private void generateSPIRv(ShaderDesc.ShaderType shaderType, String fullShaderSource, String pathFileInGLSL, String pathFileOutSpv) throws IOException, CompileExceptionError {
-        System.out.println("Compiling: " + pathFileInGLSL);
-        System.out.println(fullShaderSource);
         Result result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "glslc"),
             "-w",
             "-fauto-bind-uniforms",
@@ -187,6 +190,7 @@ public class ShaderCompilePipeline {
         args.add("--stage");
         args.add(shaderTypeToSpirvStage(shaderType));
         args.add("--remove-unused-variables");
+        args.add("--no-420pack-extension");
 
         if (shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100 || shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM120) {
             args.add("--glsl-emit-ubo-as-plain-uniforms");

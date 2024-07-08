@@ -22,6 +22,7 @@ import com.dynamo.bob.Platform;
 import com.dynamo.bob.pipeline.IShaderCompiler;
 import com.dynamo.bob.pipeline.ShaderCompilerHelpers;
 import com.dynamo.bob.pipeline.ShaderProgramBuilder;
+import com.dynamo.bob.pipeline.ShaderCompilePipeline;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
 public class ShaderCompilers {
@@ -72,19 +73,26 @@ public class ShaderCompilers {
 
     public static class MacOSShaderCompiler implements IShaderCompiler {
         public ArrayList<ShaderProgramBuilder.ShaderBuildResult> compile(String shaderSource, ShaderDesc.ShaderType shaderType, String resourceOutputPath, String resourceOutput, boolean isDebug, boolean outputSpirv, boolean softFail) throws IOException, CompileExceptionError {
+
             ArrayList<ShaderDesc.Language> shaderLanguages = new ArrayList<ShaderDesc.Language>();
 
-            // Compute shaders not supported on osx for OpenGL
             if (shaderType != ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE) {
-                shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM140);
+                shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM330);
             }
 
-            if (outputSpirv)
-            {
+            if (outputSpirv) {
                 shaderLanguages.add(ShaderDesc.Language.LANGUAGE_SPIRV);
             }
 
-            return getBaseShaderBuildResults(resourceOutputPath, shaderSource, shaderType, shaderLanguages.toArray(new ShaderDesc.Language[0]), "", isDebug, softFail);
+            ShaderCompilePipeline pipeline = ShaderProgramBuilder.getShaderPipelineFromShaderSource(shaderType, resourceOutputPath, shaderSource);
+            ArrayList<ShaderProgramBuilder.ShaderBuildResult> shaderBuildResults = new ArrayList<ShaderProgramBuilder.ShaderBuildResult>();
+
+            for (ShaderDesc.Language shaderLanguage : shaderLanguages) {
+                ShaderDesc.Shader.Builder builder = ShaderProgramBuilder.makeShaderBuilder(shaderLanguage, pipeline.crossCompile(shaderType, shaderLanguage), pipeline.getReflectionData());
+                shaderBuildResults.add(new ShaderProgramBuilder.ShaderBuildResult(builder));
+            }
+
+            return shaderBuildResults;
         }
     }
 

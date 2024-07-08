@@ -299,13 +299,14 @@ namespace dmGraphics
     ShaderDesc::Shader* GetShaderProgram(HContext context, ShaderDesc* shader_desc)
     {
         assert(shader_desc);
-        ShaderDesc::Language language = GetShaderProgramLanguage(context, shader_desc->m_ShaderType);
+        // ShaderDesc::Language language = GetShaderProgramLanguage(context, shader_desc->m_ShaderType);
+
         ShaderDesc::Shader* selected_shader = 0x0;
 
         for(uint32_t i = 0; i < shader_desc->m_Shaders.m_Count; ++i)
         {
             ShaderDesc::Shader* shader = &shader_desc->m_Shaders.m_Data[i];
-            if(shader->m_Language == language)
+            if(IsShaderLanguageSupported(context, shader->m_Language, shader_desc->m_ShaderType))
             {
                 if (shader->m_VariantTextureArray)
                 {
@@ -324,6 +325,7 @@ namespace dmGraphics
 
         if (selected_shader == 0)
         {
+            /*
             const char* error_hint = "";
             if (language == ShaderDesc::LANGUAGE_SPIRV)
             {
@@ -332,6 +334,7 @@ namespace dmGraphics
 
             dmLogError("Unable to get a valid shader with shader language \"%s\" from a ShaderDesc for this context. %s",
                 GetShaderProgramLanguageLiteral(language), error_hint);
+            */
         }
 
         return selected_shader;
@@ -1374,9 +1377,9 @@ namespace dmGraphics
     {
         return g_functions.m_GetProgramLanguage(program);
     }
-    ShaderDesc::Language GetShaderProgramLanguage(HContext context, ShaderDesc::ShaderType shader_class)
+    bool IsShaderLanguageSupported(HContext context, ShaderDesc::Language language, ShaderDesc::ShaderType shader_type)
     {
-        return g_functions.m_GetShaderProgramLanguage(context, shader_class);
+        return g_functions.m_IsShaderLanguageSupported(context, language, shader_type);
     }
     void EnableProgram(HContext context, HProgram program)
     {

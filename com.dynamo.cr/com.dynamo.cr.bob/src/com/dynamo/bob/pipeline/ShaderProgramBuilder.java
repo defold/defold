@@ -198,8 +198,7 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         return variantCompileResult;
     }
 
-    public ShaderDesc getCompiledShaderDesc(Task<ShaderPreprocessor> task, ShaderDesc.ShaderType shaderType)
-            throws IOException, CompileExceptionError {
+    public ShaderDesc getCompiledShaderDesc(Task<ShaderPreprocessor> task, ShaderDesc.ShaderType shaderType) throws IOException, CompileExceptionError {
         IResource in                          = task.input(0);
         ShaderPreprocessor shaderPreprocessor = task.getData();
         boolean isDebug                       = (this.project.hasOption("debug") || (this.project.option("variant", Bob.VARIANT_RELEASE) != Bob.VARIANT_RELEASE));
@@ -229,24 +228,29 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         return cmd;
     }
 
-    private ShaderCompilePipeline getShaderPipelineFromShaderSource(ShaderDesc.ShaderType type, String resourcePath, String shaderSource) throws IOException, CompileExceptionError {
+    static public ShaderCompilePipeline getShaderPipelineFromShaderSource(ShaderDesc.ShaderType type, String resourcePath, String shaderSource) throws IOException, CompileExceptionError {
         ShaderCompilePipeline pipeline = null;
 
         Common.GLSLShaderInfo shaderInfo = Common.getShaderInfo(shaderSource);
 
         if (shaderInfo == null) {
+            System.out.println("ShaderCompilePipelineLegacy " + resourcePath);
             pipeline = new ShaderCompilePipelineLegacy(resourcePath);
         } else {
+            System.out.println("ShaderCompilePipeline " + resourcePath);
             pipeline = new ShaderCompilePipeline(resourcePath);
         }
 
         return ShaderCompilePipeline.createShaderPipeline(pipeline, shaderSource, type);
     }
 
-    private ShaderDesc.Shader.Builder makeShaderBuilder(ShaderDesc.Language language, byte[] source, SPIRVReflector reflector) {
+    static public ShaderDesc.Shader.Builder makeShaderBuilder(ShaderDesc.Language language, byte[] source, SPIRVReflector reflector) {
         ShaderDesc.Shader.Builder builder = ShaderDesc.Shader.newBuilder();
         builder.setLanguage(language);
         builder.setSource(ByteString.copyFrom(source));
+
+        String shaderSrc = new String(source);
+        System.out.println("crossCompile: " + language + ", src:\n" + shaderSrc);
 
         if (reflector != null) {
             ArrayList<SPIRVReflector.Resource> inputs    = reflector.getInputs();
@@ -324,13 +328,20 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
 
             ShaderCompilePipeline pipeline = getShaderPipelineFromShaderSource(shaderType, args[1], finalShaderSource);
 
+            ArrayList<ShaderDesc.Language> languages = new ArrayList<ShaderDesc.Language>();
+            languages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM120);
+            languages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM140);
+            languages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);
+            languages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
+            languages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM330);
+            languages.add(ShaderDesc.Language.LANGUAGE_SPIRV);
+
             ShaderDesc.Builder shaderDescBuilder = ShaderDesc.newBuilder();
             shaderDescBuilder.setShaderType(shaderType);
-            shaderDescBuilder.addShaders(makeShaderBuilder(ShaderDesc.Language.LANGUAGE_GLSL_SM120, pipeline.crossCompile(shaderType, ShaderDesc.Language.LANGUAGE_GLSL_SM120), pipeline.getReflectionData()));
-            shaderDescBuilder.addShaders(makeShaderBuilder(ShaderDesc.Language.LANGUAGE_GLSL_SM140, pipeline.crossCompile(shaderType, ShaderDesc.Language.LANGUAGE_GLSL_SM140), pipeline.getReflectionData()));
-            shaderDescBuilder.addShaders(makeShaderBuilder(ShaderDesc.Language.LANGUAGE_GLES_SM100, pipeline.crossCompile(shaderType, ShaderDesc.Language.LANGUAGE_GLES_SM100), pipeline.getReflectionData()));
-            shaderDescBuilder.addShaders(makeShaderBuilder(ShaderDesc.Language.LANGUAGE_GLES_SM300, pipeline.crossCompile(shaderType, ShaderDesc.Language.LANGUAGE_GLES_SM300), pipeline.getReflectionData()));
-            shaderDescBuilder.addShaders(makeShaderBuilder(ShaderDesc.Language.LANGUAGE_SPIRV, pipeline.crossCompile(shaderType, ShaderDesc.Language.LANGUAGE_SPIRV), pipeline.getReflectionData()));
+
+            for (ShaderDesc.Language language : languages) {
+                shaderDescBuilder.addShaders(makeShaderBuilder(language, pipeline.crossCompile(shaderType, language), pipeline.getReflectionData()));
+            }
 
             shaderDescBuilder.build().writeTo(os);
         }

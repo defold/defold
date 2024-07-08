@@ -87,9 +87,16 @@ public class ShaderCompilerHelpers {
                    shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM300;
 
             gles3Standard = shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM140 ||
-                            shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM300;
+                            shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM300 ||
+                            shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM330;
 
-            version = shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM300 ? 300 : 140;
+            if (shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM300) {
+                version = 300;
+            } else if (shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM330) {
+                version = 330;
+            } else {
+                version = 140;
+            }
 
             // Write our directives.
             if (shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100) {

@@ -2685,9 +2685,9 @@ bail:
         delete shader;
     }
 
-    static ShaderDesc::Language VulkanGetShaderProgramLanguage(HContext context, ShaderDesc::ShaderType shader_type)
+    static bool VulkanIsShaderLanguageSupported(HContext context, ShaderDesc::Language language, ShaderDesc::ShaderType shader_type)
     {
-        return ShaderDesc::LANGUAGE_SPIRV;
+        return language == ShaderDesc::LANGUAGE_SPIRV;
     }
 
     static ShaderDesc::Language VulkanGetProgramLanguage(HProgram program)
@@ -2865,7 +2865,7 @@ bail:
         uint32_t member      = UNIFORM_LOCATION_GET_FS(base_location);
         assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
 
-        ProgramResourceBinding& pgm_res          = program_ptr->m_ResourceBindings[set][binding];
+        ProgramResourceBinding& pgm_res                   = program_ptr->m_ResourceBindings[set][binding];
         const dmArray<ShaderResourceTypeInfo>& type_infos = *pgm_res.m_TypeInfos;
         const ShaderResourceTypeInfo&           type_info = type_infos[pgm_res.m_Res->m_Type.m_TypeIndex];
 
@@ -2885,7 +2885,7 @@ bail:
         uint32_t member      = UNIFORM_LOCATION_GET_FS(base_location);
         assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
 
-        ProgramResourceBinding& pgm_res          = program_ptr->m_ResourceBindings[set][binding];
+        ProgramResourceBinding& pgm_res                   = program_ptr->m_ResourceBindings[set][binding];
         const dmArray<ShaderResourceTypeInfo>& type_infos = *pgm_res.m_TypeInfos;
         const ShaderResourceTypeInfo&           type_info = type_infos[pgm_res.m_Res->m_Type.m_TypeIndex];
 
