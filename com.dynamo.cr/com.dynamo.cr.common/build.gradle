@@ -6,7 +6,7 @@ apply from: '../com.dynamo.cr.bob/basic.gradle'
 
 task cleanGenerated {
     doLast {
-        delete 'generated'
+        delete "${project.commonDir}/generated"
     }
 }
 
@@ -40,7 +40,7 @@ def protoTasks = [
 
 task generateProtos(dependsOn: extGeneratedCopy) {
     doLast {
-        file('generated').mkdirs()
+        file("${project.commonDir}/generated").mkdirs()
 
         def executor = Executors.newFixedThreadPool(10)
         def futures = []
@@ -49,7 +49,7 @@ task generateProtos(dependsOn: extGeneratedCopy) {
             futures << executor.submit({ ->
                 def command = [
                         "${project.dynamoHome}/ext/bin/${project.hostPlatform}/protoc",
-                        "--java_out=generated",
+                        "--java_out=${project.commonDir}/generated",
                         "-I${proto.dir}",
                         "-I${project.dynamoHome}/ext/include",
                         "-I../../engine/ddf/src",
