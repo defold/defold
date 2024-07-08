@@ -671,10 +671,16 @@ namespace dmInput
                     switch (trigger.m_Input)
                     {
                     case dmInputDDF::MOUSE_WHEEL_UP:
-                        v = (float) (packet->m_Wheel - prev_packet->m_Wheel);
+                        if (packet->m_Wheel > 0)
+                        {
+                            v = (float) (packet->m_Wheel - prev_packet->m_Wheel);
+                        }
                         break;
                     case dmInputDDF::MOUSE_WHEEL_DOWN:
-                        v = (float) -(packet->m_Wheel - prev_packet->m_Wheel);
+                        if (packet->m_Wheel < 0)
+                        {
+                            v = (float) -(packet->m_Wheel - prev_packet->m_Wheel);
+                        }
                         break;
                     default:
                         v = dmHID::GetMouseButton(packet, MOUSE_BUTTON_MAP[trigger.m_Input]) ? 1.0f : 0.0f;
