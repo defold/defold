@@ -389,7 +389,6 @@ task createBobJar(type: Jar, dependsOn: [createExternalLibsBuiltinsJar, createLu
     }
 
     inputs.dir(project.classesDir)
-    inputs.dir(project.bobDir)
     outputs.file("${project.bobDir}/dist/bob.jar")
 
     manifest {
