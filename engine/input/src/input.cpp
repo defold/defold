@@ -653,6 +653,10 @@ namespace dmInput
         }
         if (binding->m_MouseBinding != 0x0)
         {
+            bool is_wheel_offsets = false; // glfw 2.x
+            #if defined(DM_INPUT_USE_GLFW3)
+                is_wheel_offsets = true; // glfw 3, the wheel scroll is offsets
+            #endif
             MouseBinding* mouse_binding = binding->m_MouseBinding;
             dmHID::MousePacket* packet = &mouse_binding->m_Packet;
             dmHID::MousePacket* prev_packet = &mouse_binding->m_PreviousPacket;
@@ -671,13 +675,27 @@ namespace dmInput
                     switch (trigger.m_Input)
                     {
                     case dmInputDDF::MOUSE_WHEEL_UP:
-                        if (packet->m_Wheel > 0)
+                        if (is_wheel_offsets)
+                        {
+                            if (packet->m_Wheel > 0)
+                            {
+                                v = (float) (packet->m_Wheel - prev_packet->m_Wheel);
+                            }
+                        }
+                        else
                         {
                             v = (float) (packet->m_Wheel - prev_packet->m_Wheel);
                         }
                         break;
                     case dmInputDDF::MOUSE_WHEEL_DOWN:
-                        if (packet->m_Wheel < 0)
+                        if (is_wheel_offsets)
+                        {
+                            if (packet->m_Wheel < 0)
+                            {
+                                v = (float) -(packet->m_Wheel - prev_packet->m_Wheel);
+                            }
+                        }
+                        else
                         {
                             v = (float) -(packet->m_Wheel - prev_packet->m_Wheel);
                         }

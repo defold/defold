@@ -5,8 +5,14 @@ def configure(conf):
     pass
 
 def build(bld):
+
+    defines = []
+    if bld.env.PLATFORM in ['arm64-macos', 'x86_64-macos']:
+        defines = ['DM_INPUT_USE_GLFW3']
+
     lib = bld.stlib(features        = 'cxx c ddf',
                     includes        = '../proto .',
+                    defines         = defines,
                     target          = 'input',
                     source          = bld.path.ant_glob('input.cpp') + bld.path.parent.ant_glob('proto/input/*'),
                     proto_gen_py    = True,
