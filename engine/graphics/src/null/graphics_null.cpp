@@ -122,10 +122,6 @@ namespace dmGraphics
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_16BPP;
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_16BPP;
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_ETC1;
-
-        m_ShaderTypeLanguage[(int) ShaderDesc::SHADER_TYPE_VERTEX]   = ShaderDesc::LANGUAGE_GLSL_SM140;
-        m_ShaderTypeLanguage[(int) ShaderDesc::SHADER_TYPE_FRAGMENT] = ShaderDesc::LANGUAGE_GLSL_SM140;
-        m_ShaderTypeLanguage[(int) ShaderDesc::SHADER_TYPE_COMPUTE]  = ShaderDesc::LANGUAGE_GLSL_SM430;
     }
 
     static HContext NullNewContext(const ContextParams& params)
@@ -918,11 +914,6 @@ namespace dmGraphics
         delete p;
     }
 
-    void SetOverrideShaderLanguage(HContext context, ShaderDesc::ShaderType shader_type, ShaderDesc::Language language)
-    {
-        ((NullContext*) context)->m_ShaderTypeLanguage[(int) shader_type] = language;
-    }
-
     static ShaderDesc::Language NullGetProgramLanguage(HProgram program)
     {
         return ((ShaderProgram*) program)->m_Language;
@@ -937,7 +928,18 @@ namespace dmGraphics
             #error "You must define the platform default shader language using DM_GRAPHICS_NULL_SHADER_LANGUAGE"
         #endif
     #else
-        return language == ((NullContext*) context)->m_ShaderTypeLanguage[(int) shader_type];
+        switch(shader_type)
+        {
+            case ShaderDesc::SHADER_TYPE_VERTEX:
+                return language == ShaderDesc::LANGUAGE_GLSL_SM140 ||
+                       language == ShaderDesc::LANGUAGE_GLSL_SM330;
+            case ShaderDesc::SHADER_TYPE_FRAGMENT:
+                return language == ShaderDesc::LANGUAGE_GLSL_SM140 ||
+                       language == ShaderDesc::LANGUAGE_GLSL_SM330;
+            case ShaderDesc::SHADER_TYPE_COMPUTE:
+                return language == ShaderDesc::LANGUAGE_GLSL_SM430;
+        }
+        return language == ShaderDesc::LANGUAGE_SPIRV;
     #endif
     }
 

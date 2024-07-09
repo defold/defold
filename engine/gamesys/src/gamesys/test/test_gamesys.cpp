@@ -5343,8 +5343,6 @@ TEST_F(ShaderTest, Compute)
 
 TEST_F(ShaderTest, ComputeResource)
 {
-    dmGraphics::SetOverrideShaderLanguage(m_GraphicsContext, dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE, dmGraphics::ShaderDesc::LANGUAGE_SPIRV);
-
     dmGameSystem::ComputeResource* compute_program_res;
     dmResource::Result res = dmResource::Get(m_Factory, "/shader/inputs.computec", (void**) &compute_program_res);
 
