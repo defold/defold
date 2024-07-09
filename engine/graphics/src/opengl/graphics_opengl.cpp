@@ -2377,7 +2377,7 @@ static void LogFrameBufferError(GLenum status)
             {
                 return language == ShaderDesc::LANGUAGE_GLES_SM300;
             }
-            return ShaderDesc::LANGUAGE_GLES_SM100;
+            return language == ShaderDesc::LANGUAGE_GLES_SM100;
         }
         else if (shader_type == ShaderDesc::SHADER_TYPE_COMPUTE)
         {

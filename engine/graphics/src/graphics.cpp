@@ -299,8 +299,6 @@ namespace dmGraphics
     ShaderDesc::Shader* GetShaderProgram(HContext context, ShaderDesc* shader_desc)
     {
         assert(shader_desc);
-        // ShaderDesc::Language language = GetShaderProgramLanguage(context, shader_desc->m_ShaderType);
-
         ShaderDesc::Shader* selected_shader = 0x0;
 
         for(uint32_t i = 0; i < shader_desc->m_Shaders.m_Count; ++i)
@@ -325,16 +323,7 @@ namespace dmGraphics
 
         if (selected_shader == 0)
         {
-            /*
-            const char* error_hint = "";
-            if (language == ShaderDesc::LANGUAGE_SPIRV)
-            {
-                error_hint = "Has the project been built with spir-v output enabled?";
-            }
-
-            dmLogError("Unable to get a valid shader with shader language \"%s\" from a ShaderDesc for this context. %s",
-                GetShaderProgramLanguageLiteral(language), error_hint);
-            */
+            dmLogError("Unable to get a valid shader from a ShaderDesc for this context.");
         }
 
         return selected_shader;
