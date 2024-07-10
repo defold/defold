@@ -327,11 +327,17 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
             ShaderCompilePipeline pipeline = getShaderPipelineFromShaderSource(shaderType, args[1], finalShaderSource);
 
             ArrayList<ShaderDesc.Language> languages = new ArrayList<ShaderDesc.Language>();
-            languages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM120);
-            languages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM140);
-            languages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);
-            languages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
-            languages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM330);
+
+            if (shaderType == ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE) {
+                languages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM430);
+            } else {
+                languages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM120);
+                languages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM140);
+                languages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);
+                languages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
+                languages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM330);
+            }
+
             languages.add(ShaderDesc.Language.LANGUAGE_SPIRV);
 
             ShaderDesc.Builder shaderDescBuilder = ShaderDesc.newBuilder();

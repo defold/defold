@@ -24,37 +24,57 @@ import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
 public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
 
+    protected class ShaderModuleLegacy extends ShaderCompilePipeline.ShaderModule {
+        public ShaderCompilerHelpers.SPIRVCompileResult spirvResult;
+
+        public ShaderModuleLegacy(String source, ShaderDesc.ShaderType type) {
+            super(source, type);
+        }
+    }
+
 	public ShaderCompilePipelineLegacy(String pipelineName) {
         super(pipelineName);
     }
 
-    private String getShaderSource(ShaderDesc.ShaderType shaderType) {
+    private ShaderModuleLegacy getShaderModule(ShaderDesc.ShaderType shaderType) {
         for (ShaderModule m : this.shaderModules) {
-            if (m.type == shaderType) {
-                return m.source;
+            if (m.type == shaderType && m instanceof ShaderModuleLegacy) {
+                return (ShaderModuleLegacy) m;
             }
         }
         return null;
     }
 
     @Override
+    protected void addShaderModule(String source, ShaderDesc.ShaderType type) {
+        shaderModules.add(new ShaderModuleLegacy(source, type));
+    }
+
+    @Override
     protected void prepare() throws IOException, CompileExceptionError {
-        // We can't run the prepare step on the legacy pipeline
+        // Generate spirv for each shader module so we can utilize the reflection from it
+        for (ShaderModule module : this.shaderModules) {
+            ShaderCompilerHelpers.SPIRVCompileResult result = ShaderCompilerHelpers.compileGLSLToSPIRV(module.source, module.type, this.pipelineName, "", false, false);
+
+            ShaderModuleLegacy moduleLegacy = (ShaderModuleLegacy) module;
+            moduleLegacy.spirvResult = result;
+        }
     }
 
     @Override
     public byte[] crossCompile(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage) throws IOException, CompileExceptionError {
-        String source = getShaderSource(shaderType);
-        if (source == null) {
-            throw new CompileExceptionError("No source for " + shaderType);
+        ShaderModuleLegacy module = getShaderModule(shaderType);
+        if (module == null) {
+            throw new CompileExceptionError("No module found for " + shaderType);
         }
 
+        // Todo: this function should return a reflector and the byte source
+        this.spirvReflector = module.spirvResult.reflector;
+
         if (shaderLanguage == ShaderDesc.Language.LANGUAGE_SPIRV) {
-            ShaderCompilerHelpers.SPIRVCompileResult result = ShaderCompilerHelpers.compileGLSLToSPIRV(source, shaderType, this.pipelineName, "", false, false);
-            this.spirvReflector = result.reflector;
-            return result.source;
+            return module.spirvResult.source;
         } else if (canBeCrossCompiled(shaderLanguage)) {
-            String result = ShaderCompilerHelpers.compileGLSL(source, shaderType, shaderLanguage, false);
+            String result = ShaderCompilerHelpers.compileGLSL(module.source, shaderType, shaderLanguage, false);
             return result.getBytes();
         }
 

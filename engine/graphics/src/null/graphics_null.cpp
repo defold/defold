@@ -692,6 +692,7 @@ namespace dmGraphics
         char*                  m_Data;
         ShaderDesc::Language   m_Language;
         dmArray<ShaderBinding> m_Uniforms;
+        dmArray<ShaderBinding> m_Attributes;
     };
 
     static void PushBinding(dmArray<ShaderBinding>* binding_array, const char* name, uint32_t name_length, dmGraphics::Type type, uint32_t size)
@@ -726,6 +727,7 @@ namespace dmGraphics
                 GLSLAttributeParse(m_VP->m_Language, m_VP->m_Data, ProgramShaderResourceCallback, (uintptr_t)this);
                 GLSLUniformParse(m_VP->m_Language, m_VP->m_Data, ProgramShaderResourceCallback, (uintptr_t)this);
                 TransferUniforms(m_VP);
+                TransferAttributes(m_VP);
                 m_Language = m_VP->m_Language;
             }
             if (m_FP != 0x0)
@@ -756,6 +758,14 @@ namespace dmGraphics
             for (int i = 0; i < p->m_Uniforms.Size(); ++i)
             {
                 PushBinding(&m_Uniforms, p->m_Uniforms[i].m_Name, strlen(p->m_Uniforms[i].m_Name), p->m_Uniforms[i].m_Type, p->m_Uniforms[i].m_Size);
+            }
+        }
+
+        void TransferAttributes(ShaderProgram* p)
+        {
+            for (int i = 0; i < p->m_Attributes.Size(); ++i)
+            {
+                PushBinding(&m_Attributes, p->m_Attributes[i].m_Name, strlen(p->m_Attributes[i].m_Name), p->m_Attributes[i].m_Type, p->m_Attributes[i].m_Size);
             }
         }
 
@@ -795,6 +805,12 @@ namespace dmGraphics
         memcpy(p->m_Data, ddf->m_Source.m_Data, ddf->m_Source.m_Count);
         p->m_Data[ddf->m_Source.m_Count] = '\0';
         p->m_Language = ddf->m_Language;
+
+        for (int i = 0; i < ddf->m_Inputs.m_Count; ++i)
+        {
+            ShaderDesc::ResourceBinding& res = ddf->m_Inputs[i];
+            PushBinding(&p->m_Attributes, res.m_Name, strlen(res.m_Name), ShaderDataTypeToGraphicsType(res.m_Type.m_Type.m_ShaderType), 1);
+        }
 
         for (int i = 0; i < ddf->m_UniformBuffers.m_Count; ++i)
         {

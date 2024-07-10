@@ -61,10 +61,6 @@ public class ShaderCompilePipeline {
         this.pipelineName = pipelineName;
     }
 
-    private void addShaderModule(String source, ShaderDesc.ShaderType type) {
-        shaderModules.add(new ShaderModule(source, type));
-    }
-
     private static ShaderDesc.ShaderType pathToShaderType(String path) throws CompileExceptionError {
         if (path.endsWith(".vp")) {
             return ShaderDesc.ShaderType.SHADER_TYPE_VERTEX;
@@ -214,6 +210,10 @@ public class ShaderCompilePipeline {
             allFiles,
             "--output", pathFileOutSpvLinked);
         checkResult(result);
+    }
+
+    protected void addShaderModule(String source, ShaderDesc.ShaderType type) {
+        shaderModules.add(new ShaderModule(source, type));
     }
 
     protected void prepare() throws IOException, CompileExceptionError {
