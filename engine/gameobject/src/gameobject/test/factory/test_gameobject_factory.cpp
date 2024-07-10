@@ -26,6 +26,8 @@
 
 #include <dmsdk/resource/resource.h>
 
+#include <dmsdk/resource/resource.hpp>
+
 using namespace dmVMath;
 
 class FactoryTest : public jc_test_base_class

@@ -9,30 +9,12 @@
       <sourceFolder url="file://$MODULE_DIR$/com.dynamo.cr.common.test/src" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/com.dynamo.cr.common/generated" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/com.dynamo.cr.common/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/com.dynamo.cr.bob" type="java-resource" />
+      <sourceFolder url="file://$MODULE_DIR$/com.dynamo.cr.bob.test/test" type="java-test-resource" />
       <excludeFolder url="file://$MODULE_DIR$/com.dynamo.cr.bob/build" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
-    <orderEntry type="module-library">
-      <library>
-        <CLASSES>
-          <root url="file://$MODULE_DIR$/com.dynamo.cr.common/ext" />
-        </CLASSES>
-        <JAVADOC />
-        <SOURCES />
-        <jarDirectory url="file://$MODULE_DIR$/com.dynamo.cr.common/ext" recursive="false" />
-      </library>
-    </orderEntry>
-    <orderEntry type="module-library">
-      <library>
-        <CLASSES>
-          <root url="file://$MODULE_DIR$/com.dynamo.cr.bob.test/lib" />
-        </CLASSES>
-        <JAVADOC />
-        <SOURCES />
-        <jarDirectory url="file://$MODULE_DIR$/com.dynamo.cr.bob.test/lib" recursive="false" />
-      </library>
-    </orderEntry>
     <orderEntry type="module-library">
       <library>
         <CLASSES>
@@ -49,11 +31,41 @@
     <orderEntry type="module-library">
       <library>
         <CLASSES>
+          <root url="file://$MODULE_DIR$/com.dynamo.cr.bob.test/lib" />
+        </CLASSES>
+        <JAVADOC />
+        <SOURCES />
+        <jarDirectory url="file://$MODULE_DIR$/com.dynamo.cr.bob.test/lib" recursive="false" />
+      </library>
+    </orderEntry>
+    <orderEntry type="module-library">
+      <library>
+        <CLASSES>
+          <root url="file://$MODULE_DIR$/com.dynamo.cr.common/ext" />
+        </CLASSES>
+        <JAVADOC />
+        <SOURCES />
+        <jarDirectory url="file://$MODULE_DIR$/com.dynamo.cr.common/ext" recursive="false" />
+      </library>
+    </orderEntry>
+    <orderEntry type="module-library">
+      <library>
+        <CLASSES>
           <root url="file://$MODULE_DIR$/com.dynamo.cr.common/ext/aws" />
         </CLASSES>
         <JAVADOC />
         <SOURCES />
         <jarDirectory url="file://$MODULE_DIR$/com.dynamo.cr.common/ext/aws" recursive="false" />
+      </library>
+    </orderEntry>
+    <orderEntry type="module-library">
+      <library>
+        <CLASSES />
+        <JAVADOC />
+        <NATIVE>
+          <root url="file://$MODULE_DIR$/com.dynamo.cr.bob/lib/arm64-macos" />
+        </NATIVE>
+        <SOURCES />
       </library>
     </orderEntry>
   </component>

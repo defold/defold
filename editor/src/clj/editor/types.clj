@@ -85,6 +85,8 @@
                     (s/one s/Num "z")
                     (s/one s/Num "w")])
 
+(g/deftype Lines [s/Str])
+
 (defn Point3d->Vec3 [^Point3d p]
   [(.getX p) (.getY p) (.getZ p)])
 

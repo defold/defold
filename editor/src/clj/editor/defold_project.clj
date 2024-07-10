@@ -447,12 +447,6 @@
                  (not (Boolean/getBoolean "defold.tests")))
         (log/info :message "Some files were migrated and will be saved in an updated format." :migrated-proj-paths migrated-proj-paths)))))
 
-(defn connect-if-output [src-type src tgt connections]
-  (let [outputs (g/output-labels src-type)]
-    (for [[src-label tgt-label] connections
-          :when (contains? outputs src-label)]
-      (g/connect src src-label tgt tgt-label))))
-
 (defn- make-nodes! [project resources]
   (let [project-graph (graph project)
         file-resources (filter #(= :file (resource/source-type %)) resources)]
@@ -1129,7 +1123,7 @@
                       (concat
                         creation-tx-data
                         load-tx-data
-                        (connect-if-output node-type node-id consumer-node connections))))}))))
+                        (gu/connect-existing-outputs node-type node-id consumer-node connections))))}))))
 
 (deftype ProjectResourceListener [project-id]
   resource/ResourceListener

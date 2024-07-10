@@ -49,7 +49,6 @@
             [editor.sync :as sync]
             [editor.system :as system]
             [editor.targets :as targets]
-            [editor.text :as text]
             [editor.ui :as ui]
             [editor.ui.updater :as ui.updater]
             [editor.util :as util]
@@ -91,7 +90,6 @@
   (let [workspace (workspace/make-workspace *workspace-graph* project-path build-settings workspace-config)]
     (g/transact
       (concat
-        (text/register-view-types workspace)
         (code-view/register-view-types workspace)
         (scene/register-view-types workspace)
         (cljfx-form-view/register-view-types workspace)

@@ -25,6 +25,7 @@
             [editor.lua-parser :as lua-parser]
             [editor.properties :as properties]
             [editor.resource :as resource]
+            [editor.types :as types]
             [schema.core :as s]))
 
 (set! *warn-on-reflection* true)
@@ -354,7 +355,7 @@
   (property completion-info g/Any (default {}) (dynamic visible (g/constantly false)))
 
   ;; Overrides modified-lines property in CodeEditorResourceNode.
-  (property modified-lines r/Lines
+  (property modified-lines types/Lines
             (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self _old-value new-value]
                    (let [basis (:basis evaluation-context)
