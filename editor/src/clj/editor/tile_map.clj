@@ -113,6 +113,21 @@
             (recur sx (inc y) tiles cell-map))
           (persistent! cell-map))))))
 
+(defn erase-area
+  [cell-map [sx sy] [ex ey]]
+  (let [x0 (min sx ex)
+        y0 (min sy ey)
+        x1 (inc (max sx ex))
+        y1 (inc (max sy ey))]
+    (loop [x x0
+           y y0
+           cell-map (transient cell-map)]
+      (if (< y y1)
+        (if (< x x1)
+          (recur (inc x) y (dissoc! cell-map (cell-index x y)))
+          (recur x0 (inc y) cell-map))
+        (persistent! cell-map)))))
+
 (defn make-brush
   [tile]
   {:width 1 :height 1 :tiles [{:tile tile :h-flip false :v-flip false :rotate90 false}]})
@@ -162,7 +177,7 @@
      :height height
      :tiles tiles}))
 
-(def erase-brush (make-brush nil))
+(def ^:private empty-brush (make-brush nil))
 
 (defn flip-brush-horizontally
   [brush]
@@ -550,7 +565,6 @@
 (defn- sanitize-tile-map [{:keys [material] :as tile-grid}]
   {:pre [(map? tile-grid)]} ; Tile$TileGrid in map format.
   (cond-> tile-grid
-
           (nil? material)
           (assoc :material default-material-proj-path)))
 
@@ -742,7 +756,10 @@
 
 (def color-shader (shader/make-shader ::color-shader pos-color-vert pos-color-frag))
 
-
+(def ^:private white-color (double-array (map #(/ % 255.0) [255 255 255])))
+(def ^:private blue-color (double-array (map #(/ % 255.0) [0 191 255])))
+(def ^:private red-color (double-array (map #(/ % 255.0) [255 0 0])))
+(def ^:private orange-color (double-array (map #(/ % 255.0) [255 140 0])))
 
 ;; brush
 
@@ -752,6 +769,7 @@
         world-transform (:world-transform renderable)
         user-data (:user-data renderable)
         [x y] (:cell user-data)
+        color (:color user-data)
         {:keys [width height]} (:brush user-data)
         [tile-width tile-height] (:tile-dimensions user-data)]
     (when (and x y)
@@ -760,7 +778,7 @@
             x1 (+ x0 (* width tile-width))
             y1 (+ y0 (* height tile-height))
             z 0.0
-            c (double-array (map #(/ % 255.0) [255 255 255]))]
+            c color]
         (.glMatrixMode gl GL2/GL_MODELVIEW)
         (gl/gl-push-matrix gl
           (gl/gl-mult-matrix-4d gl world-transform)
@@ -843,6 +861,8 @@
 (def ^:private edge-offset 100)
 
 (def ^:private clamp-palette-mouse-offset (geom/clamper -0.5 0.5))
+
+(def ^:private select-modes #{:select-mode :cut-mode :erase-mode})
 
 (defn- make-palette-transform
   [tile-source-attributes viewport ^Vector3d cursor-screen-pos]
@@ -1013,27 +1033,29 @@
           x1 (+ (* (inc (max start-x end-x)) width) (* (max start-x end-x) tile-border-size))
           y0 (* (min start-y end-y) (+ height tile-border-size))
           y1 (+ (* (inc (max start-y end-y)) height) (* (max start-y end-y) tile-border-size))
+          [r g b] blue-color
+          a 1.0
           vbuf (-> (->color-vtx 16)
                    ;; left edge
-                   (color-vtx-put! x0 y0 0 1.0 1.0 1.0 1.0)
-                   (color-vtx-put! x0 y1 0 1.0 1.0 1.0 1.0)
-                   (color-vtx-put! (+ x0 tile-border-size) y1 0 1.0 1.0 1.0 1.0)
-                   (color-vtx-put! (+ x0 tile-border-size) y0 0 1.0 1.0 1.0 1.0)
+                   (color-vtx-put! x0 y0 0 r g b a)
+                   (color-vtx-put! x0 y1 0 r g b a)
+                   (color-vtx-put! (+ x0 tile-border-size) y1 0 r g b a)
+                   (color-vtx-put! (+ x0 tile-border-size) y0 0 r g b a)
                    ;; right edge
-                   (color-vtx-put! x1 y0 0 1.0 1.0 1.0 1.0)
-                   (color-vtx-put! x1 y1 0 1.0 1.0 1.0 1.0)
-                   (color-vtx-put! (+ x1 tile-border-size) y1 0 1.0 1.0 1.0 1.0)
-                   (color-vtx-put! (+ x1 tile-border-size) y0 0 1.0 1.0 1.0 1.0)
+                   (color-vtx-put! x1 y0 0 r g b a)
+                   (color-vtx-put! x1 y1 0 r g b a)
+                   (color-vtx-put! (+ x1 tile-border-size) y1 0 r g b a)
+                   (color-vtx-put! (+ x1 tile-border-size) y0 0 r g b a)
                    ;; bottom edge
-                   (color-vtx-put! x0 y0 0 1.0 1.0 1.0 1.0)
-                   (color-vtx-put! x1 y0 0 1.0 1.0 1.0 1.0)
-                   (color-vtx-put! x1 (+ y0 tile-border-size) 0 1.0 1.0 1.0 1.0)
-                   (color-vtx-put! x0 (+ y0 tile-border-size) 0 1.0 1.0 1.0 1.0)
+                   (color-vtx-put! x0 y0 0 r g b a)
+                   (color-vtx-put! x1 y0 0 r g b a)
+                   (color-vtx-put! x1 (+ y0 tile-border-size) 0 r g b a)
+                   (color-vtx-put! x0 (+ y0 tile-border-size) 0 r g b a)
                    ;; top edge
-                   (color-vtx-put! x0 y1 0 1.0 1.0 1.0 1.0)
-                   (color-vtx-put! (+ x1 tile-border-size) y1 0 1.0 1.0 1.0 1.0)
-                   (color-vtx-put! (+ x1 tile-border-size) (+ y1 tile-border-size) 0 1.0 1.0 1.0 1.0)
-                   (color-vtx-put! x0 (+ y1 tile-border-size) 0 1.0 1.0 1.0 1.0)
+                   (color-vtx-put! x0 y1 0 r g b a)
+                   (color-vtx-put! (+ x1 tile-border-size) y1 0 r g b a)
+                   (color-vtx-put! (+ x1 tile-border-size) (+ y1 tile-border-size) 0 r g b a)
+                   (color-vtx-put! x0 (+ y1 tile-border-size) 0 r g b a)
                    (vtx/flip!))
           vb (vtx/use-with ::palette-active vbuf color-shader)]
       (gl/with-gl-bindings gl render-args [color-shader vb]
@@ -1072,6 +1094,7 @@
         user-data (:user-data renderable)
         [sx sy] (:start user-data)
         [ex ey] (:end user-data)
+        color (:color user-data)
         [tile-width tile-height] (:tile-dimensions user-data)]
     (when (and sx sy ex ey)
       (let [x0 (* tile-width (min-l sx ex))
@@ -1079,7 +1102,7 @@
             x1 (* tile-width (inc (max-l sx ex)))
             y1 (* tile-height (inc (max-l sy ey)))
             z 0.0
-            c (double-array (map #(/ % 255.0) [255 255 255]))]
+            c color]
         (.glMatrixMode gl GL2/GL_MODELVIEW)
         (gl/gl-push-matrix gl
           (gl/gl-mult-matrix-4d gl world-transform)
@@ -1121,32 +1144,42 @@
                               :end-tile palette-tile}}]})
 
 (g/defnk produce-editor-renderables
-  [active-layer-renderable op op-select-start op-select-end current-tile tile-dimensions brush viewport texture-set-data gpu-texture]
+  [active-layer-renderable op op-select-start op-select-end current-tile tile-dimensions brush viewport texture-set-data gpu-texture cursor-mode]
   (when active-layer-renderable
     {pass/transparent (cond
-                        (= :select op)
-                        []
-
                         current-tile
                         [{:world-transform (:world-transform active-layer-renderable)
                           :render-fn render-editor
                           :user-data {:cell current-tile
-                                      :brush brush
+                                      :brush (if (contains? select-modes cursor-mode)
+                                               empty-brush
+                                               brush)
                                       :tile-dimensions tile-dimensions
                                       :texture-set-data texture-set-data
                                       :gpu-texture gpu-texture}}])
-     pass/outline     (cond
-                        (= :select op) [{:world-transform (:world-transform active-layer-renderable)
-                                         :render-fn render-editor-select
-                                         :user-data {:start op-select-start
-                                                     :end op-select-end
-                                                     :tile-dimensions tile-dimensions}}]
-                        current-tile
-                        [{:world-transform (:world-transform active-layer-renderable)
-                          :render-fn render-editor
-                          :user-data {:cell current-tile
-                                      :brush brush
-                                      :tile-dimensions tile-dimensions}}])}))
+     pass/outline (cond
+                    (= :select op) [{:world-transform (:world-transform active-layer-renderable)
+                                     :render-fn render-editor-select
+                                     :user-data {:start op-select-start
+                                                 :end op-select-end
+                                                 :tile-dimensions tile-dimensions
+                                                 :color (case cursor-mode
+                                                          :cut-mode orange-color
+                                                          :erase-mode red-color
+                                                          blue-color)}}]
+                    current-tile
+                    [{:world-transform (:world-transform active-layer-renderable)
+                      :render-fn render-editor
+                      :user-data {:cell current-tile
+                                  :brush (if (contains? select-modes cursor-mode)
+                                           empty-brush
+                                           brush)
+                                  :color (case cursor-mode
+                                           :cut-mode orange-color
+                                           :erase-mode red-color
+                                           :select-mode blue-color
+                                           white-color)
+                                  :tile-dimensions tile-dimensions}}])}))
 
 (g/defnk produce-tool-renderables
   [mode editor-renderables palette-renderables]
@@ -1158,14 +1191,14 @@
 ;;--------------------------------------------------------------------
 ;; input handling
 
-(defmulti begin-op (fn [op node action state evaluation-context] op))
-(defmulti update-op (fn [op node action state evaluation-context] op))
-(defmulti end-op (fn [op node action state evaluation-context] op))
+(defmulti begin-op (fn [op node action state evaluation-context cursor-mode] op))
+(defmulti update-op (fn [op node action state evaluation-context cursor-mode] op))
+(defmulti end-op (fn [op node action state evaluation-context cursor-mode] op))
 
 ;; painting tiles from brush
 
 (defmethod begin-op :paint
-  [op self action state evaluation-context]
+  [op self action state evaluation-context cursor-mode]
   (when-let [active-layer (g/node-value self :active-layer evaluation-context)]
     (when-let [current-tile (g/node-value self :current-tile evaluation-context)]
       (let [brush (g/node-value self :brush evaluation-context)
@@ -1176,7 +1209,7 @@
          (g/update-property active-layer :cell-map paint current-tile brush)]))))
 
 (defmethod update-op :paint
-  [op self action state evaluation-context]
+  [op self action state evaluation-context cursor-mode]
   (when-let [active-layer (g/node-value self :active-layer evaluation-context)]
     (when-let [current-tile (g/node-value self :current-tile evaluation-context)]
       (when (not= current-tile (-> state deref :last-tile))
@@ -1187,64 +1220,73 @@
            (g/update-property active-layer :cell-map paint current-tile brush)])))))
 
 (defmethod end-op :paint
-  [op self action state evaluation-context]
+  [op self action state evaluation-context cursor-mode]
   (swap! state dissoc :last-tile)
   [(g/set-property self :op-seq nil)])
-
 
 ;; selecting brush from cell-map
 
 (defmethod begin-op :select
-  [op self action state evaluation-context]
+  [op self action state evaluation-context cursor-mode]
   (when-let [active-layer (g/node-value self :active-layer evaluation-context)]
     (when-let [current-tile (g/node-value self :current-tile evaluation-context)]
       [(g/set-property self :op-select-start current-tile)
        (g/set-property self :op-select-end current-tile)])))
 
 (defmethod update-op :select
-  [op self action state evaluation-context]
+  [op self action state evaluation-context cursor-mode]
   (when-let [active-layer (g/node-value self :active-layer evaluation-context)]
     (when-let [current-tile (g/node-value self :current-tile evaluation-context)]
       [(g/set-property self :op-select-end current-tile)])))
 
 (defmethod end-op :select
-  [op self action state evaluation-context]
+  [op self action state evaluation-context cursor-mode]
   (when-let [active-layer (g/node-value self :active-layer evaluation-context)]
     (let [cell-map (g/node-value active-layer :cell-map evaluation-context)
           start (g/node-value self :op-select-start evaluation-context)
           end (g/node-value self :op-select-end evaluation-context)]
-      [(g/set-property self :brush (make-brush-from-selection cell-map start end))
-       (g/set-property self :op-select-start nil)
-       (g/set-property self :op-select-end nil)])))
-
+      (concat
+        (when (or (= :cut-mode cursor-mode) (= :select-mode cursor-mode))
+          [(g/set-property self :brush (make-brush-from-selection cell-map start end))])
+        (when (or (= :erase-mode cursor-mode) (= :cut-mode cursor-mode))
+          [(g/update-property active-layer :cell-map erase-area start end)])
+        [(g/set-property self :op-select-start nil)
+         (g/set-property self :op-select-end nil)]))))
 
 (defn- handle-input-editor
   [self action state evaluation-context]
   (let [op (g/node-value self :op evaluation-context)
+        cursor-mode (cond
+                      (and (true? (:shift action)) (true? (:control action))) :cut-mode
+                      (and (true? (:shift action)) (true? (:alt action))) :erase-mode
+                      (true? (:shift action)) :select-mode
+                      :else :paint-mode)
         tx (case (:type action)
              :mouse-pressed
              (when-not (some? op)
                (let [op (if (true? (:shift action))
                           :select
                           :paint)
-                     op-tx (begin-op op self action state evaluation-context)]
+                     op-tx (begin-op op self action state evaluation-context cursor-mode)]
                  (when (seq op-tx)
                    (concat
                      (g/set-property self :op op)
+                     (g/set-property self :cursor-mode cursor-mode)
                      op-tx))))
 
              :mouse-moved
              (concat
                (g/set-property self :cursor-world-pos (:world-pos action))
                (g/set-property self :cursor-screen-pos (:screen-pos action))
+               (g/set-property self :cursor-mode cursor-mode)
                (when (some? op)
-                 (update-op op self action state evaluation-context)))
+                 (update-op op self action state evaluation-context cursor-mode)))
 
              :mouse-released
              (when (some? op)
                (concat
                  (g/set-property self :op nil)
-                 (end-op op self action state evaluation-context)))
+                 (end-op op self action state evaluation-context (g/node-value self :cursor-mode evaluation-context))))
 
              nil)]
     (when (seq tx)
@@ -1308,6 +1350,7 @@
   (property mode g/Keyword (default :editor))
 
   (property op g/Keyword)
+  (property cursor-mode g/Keyword)
   (property op-seq g/Any)
   (property op-select-start g/Any)
   (property op-select-end g/Any)
@@ -1352,10 +1395,10 @@
   (output renderables pass/RenderData :cached produce-tool-renderables)
   (output input-handler Runnable :cached (g/constantly (make-input-handler)))
   (output info-text g/Str (g/fnk [cursor-world-pos tile-dimensions mode palette-tile]
-                            (case mode 
-                              :editor  (when-some [[x y] (get-current-tile cursor-world-pos tile-dimensions)] 
-                                         (format "Cell: %d, %d" (+ 1 x) (+ 1 y)))
-                              :palette (when palette-tile 
+                            (case mode
+                              :editor (when-some [[x y] (get-current-tile cursor-world-pos tile-dimensions)]
+                                        (format "Cell: %d, %d" (+ 1 x) (+ 1 y)))
+                              :palette (when palette-tile
                                          (format "Tile: %d" (+ 1 palette-tile)))))))
 
 (defmethod scene/attach-tool-controller ::TileMapController
@@ -1412,7 +1455,7 @@
   (run [selection user-data] (add-layer-handler (selection->tile-map selection))))
 
 (defn- erase-tool-handler [tool-controller]
-  (g/set-property! tool-controller :brush erase-brush))
+  (g/set-property! tool-controller :brush empty-brush))
 
 (defn- active-tile-map [app-view evaluation-context]
   (when-let [resource-node (g/node-value app-view :active-resource-node evaluation-context)]

@@ -16,17 +16,18 @@ Caching of libraries is based on the Git SHA1, to the actual commit
 * The SHA1 is stored in the zip file comment
 * The SHA1 is used as ETag and If-None-Match/"304 Not modified" for cache validation
 * Note that the SHA1, in general, is not identical to the requested version as the requested version can be
-  symbolic, e..g HEAD, 1.0, etc. Moreover, for tags, the underlying SHA1 to the actual commit in question is used
+  symbolic, e.g. HEAD, 1.0, etc. Moreover, for tags, the underlying SHA1 to the actual commit in question is used
   and not the SHA1 for the tag-object.
 
 Setup IDEA
 ---------
+First of all, follow the engine setup instructions and build the engine at least once, as well as Bob.
 
 1. Download and install IntelliJ IDEA Community Edition from here: https://www.jetbrains.com/idea/download .
 
 2. Start the IDE and on the initial welcome screen choose _Open_ project. Navigate to Bob's source directory `com.dynamo.cr`.
 
-3. In case there is a popup that detected maven/eclipse configuration and asks about it, just choose _maven_. It should make no difference.
+3. In case there is a popup that detected maven/eclipse configuration and asks about it, just choose _maven_. It should make no difference. Open `com.dynamo.cr.bob/build.gradle` and run `installBob` task. Open `com.dynamo.cr.common/build.gradle` and run `generateProtos` task.
 
 4. Open `File -> Project Structure` and in `Project Settings -> Project` add JDK 17
 
@@ -36,11 +37,13 @@ Setup IDEA
 
 7. Select `com.dynamo.cr.bob.test/src` and `com.dynamo.cr.common.test/src` folders and click `Mark as: Tests` ![Mark as: Tests](https://github.com/defold/defold/assets/2209596/88d4bde5-5d37-4f6b-8781-ffcc57519f2e)
 
-8. Select `com.dynamo.cr.bob.test/build` folder and click `Mark as: Excluded` ![Excluded](https://github.com/defold/defold/assets/2209596/a3c9bf3a-0989-46c1-a47d-448205d0b4fc)
+8. Add `com.dynamo.cr.bob` as Resource Folder and `com.dynamo.cr.bob.test/test` ![resources](https://github.com/defold/defold/assets/2209596/49cec23b-f15c-411b-bdfc-495f78f44936)
 
-9. Change language level to `17 - Sealed types, always-strict floating-point semantics` ![Change language level](https://github.com/defold/defold/assets/2209596/39e61b02-3867-4ca8-9d74-a960561aadfe)
+9. Select `com.dynamo.cr.bob.test/build` folder and click `Mark as: Excluded` ![Excluded](https://github.com/defold/defold/assets/2209596/a3c9bf3a-0989-46c1-a47d-448205d0b4fc)
 
-10. In  `Project Settings -> Modules -> Dependencies` click `+` then  `1 JARs or Directories...` and choose `com.dynamo.cr/com.dynamo.cr.common/ext` and repeat for `com.dynamo.cr/com.dynamo.cr.bob/lib`, `com.dynamo.cr/com.dynamo.cr.common/ext/aws`  and `com.dynamo.cr/com.dynamo.cr.bob.test/lib` ![Dependencies](https://github.com/defold/defold/assets/2209596/dd86e706-b91f-475b-b43d-aaac596ffa1f)
+10. Change language level to `17 - Sealed types, always-strict floating-point semantics` ![Change language level](https://github.com/defold/defold/assets/2209596/39e61b02-3867-4ca8-9d74-a960561aadfe)
+
+11. In  `Project Settings -> Modules -> Dependencies` click `+` then  `1 JARs or Directories...` and choose `com.dynamo.cr/com.dynamo.cr.common/ext` and repeat for `com.dynamo.cr/com.dynamo.cr.bob/lib`, `com.dynamo.cr/com.dynamo.cr.common/ext/aws`  and `com.dynamo.cr/com.dynamo.cr.bob.test/lib` ![Dependencies](https://github.com/defold/defold/assets/2209596/dd86e706-b91f-475b-b43d-aaac596ffa1f)
 
 Testing
 ---------

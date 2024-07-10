@@ -1,5 +1,5 @@
 // Generated, do not edit!
-// Generated with cwd=/Users/mawe/work/defold/engine/resource and cmd=/Users/mawe/work/defold/scripts/dmsdk/gen_sdk.py -i /Users/mawe/work/defold/engine/resource/sdk_gen.json
+// Generated with cwd=/Users/mathiaswesterdahl/work/defold/engine/resource and cmd=/Users/mathiaswesterdahl/work/defold/scripts/dmsdk/gen_sdk.py -i /Users/mathiaswesterdahl/work/defold/engine/resource/sdk_gen.json
 
 // Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
@@ -97,37 +97,42 @@ namespace dmResource
     /*#
     * Generated from [ref:ResourceGet]
     */
-    Result Get(HFactory factory,const char * name,void ** resource);
+    Result Get(HFactory factory, const char * name, void ** resource);
 
     /*#
     * Generated from [ref:ResourceGetByHash]
     */
-    Result GetByHash(HFactory factory,dmhash_t name,void ** resource);
+    Result GetByHash(HFactory factory, dmhash_t name, void ** resource);
+
+    /*#
+    * Generated from [ref:ResourceGetRaw]
+    */
+    Result GetRaw(HFactory factory, const char * name, void ** resource, uint32_t * resource_size);
 
     /*#
     * Generated from [ref:ResourceRelease]
     */
-    void Release(HFactory factory,void * resource);
+    void Release(HFactory factory, void * resource);
 
     /*#
     * Generated from [ref:ResourcePreloadHint]
     */
-    bool PreloadHint(HPreloadHintInfo preloader,const char * path);
+    bool PreloadHint(HPreloadHintInfo preloader, const char * path);
 
     /*#
     * Generated from [ref:ResourceGetPath]
     */
-    Result GetPath(HFactory factory,const void * resource,dmhash_t * hash);
+    Result GetPath(HFactory factory, const void * resource, dmhash_t * hash);
 
     /*#
     * Generated from [ref:ResourceAddFile]
     */
-    Result AddFile(HFactory factory,const char * path,uint32_t size,const void * resource);
+    Result AddFile(HFactory factory, const char * path, uint32_t size, const void * resource);
 
     /*#
     * Generated from [ref:ResourceRemoveFile]
     */
-    Result RemoveFile(HFactory factory,const char * path);
+    Result RemoveFile(HFactory factory, const char * path);
 
     /*#
     * Generated from [ref:ResourceDescriptorGetNameHash]
@@ -137,7 +142,7 @@ namespace dmResource
     /*#
     * Generated from [ref:ResourceDescriptorSetResource]
     */
-    void SetResource(HDescriptor rd,void * resource);
+    void SetResource(HDescriptor rd, void * resource);
 
     /*#
     * Generated from [ref:ResourceDescriptorGetResource]
@@ -147,7 +152,7 @@ namespace dmResource
     /*#
     * Generated from [ref:ResourceDescriptorSetPrevResource]
     */
-    void SetPrevResource(HDescriptor rd,void * resource);
+    void SetPrevResource(HDescriptor rd, void * resource);
 
     /*#
     * Generated from [ref:ResourceDescriptorGetPrevResource]
@@ -157,7 +162,7 @@ namespace dmResource
     /*#
     * Generated from [ref:ResourceDescriptorSetResourceSize]
     */
-    void SetResourceSize(HDescriptor rd,uint32_t size);
+    void SetResourceSize(HDescriptor rd, uint32_t size);
 
     /*#
     * Generated from [ref:ResourceDescriptorGetResourceSize]

@@ -38,7 +38,7 @@ task compileTest(type: JavaCompile, dependsOn: distBob) {
     }
 }
 
-task createTestJar(type: Jar, dependsOn: compileTest) {
+task createTestJar(type: Jar, dependsOn: [compileTest, 'compileJava']) {
     archiveFileName = 'bob-tests.jar'
     destinationDirectory = testTmpDir
     includeEmptyDirs = false
@@ -70,17 +70,42 @@ task testJar(type: Test, dependsOn: createTestJar) {
     }
 
     testLogging {
-        events 'passed', 'skipped', 'failed', 'standardOut', 'standardError'
+        events 'passed', 'skipped', 'failed', 'standardOut'
         exceptionFormat 'short'
         showExceptions true
         showCauses true
         showStackTraces true
     }
 
-    classpath = files(configurations.testClasspath, "$project.bobDir/dist/bob.jar", "$testTmpDir/bob-tests.jar")
+    classpath = files(configurations.testClasspath, "${project.bobDir}/dist/bob.jar", "${testTmpDir}/bob-tests.jar")
     testClassesDirs = files(testClassesDir).asFileTree.matching {
         include '**/*Test*.class'
         exclude '**/Abstract*.class', '**/TestClassLoaderScanner.class', '**/TestLibrariesRule.class', '**/PropertiesTestUtil.class'
+    }
+}
+
+// old-fashioned way to run a single test in jar
+task runSingleTest(type: Test, dependsOn: createTestJar) {
+    useJUnit()
+
+    testLogging {
+        events 'passed', 'skipped', 'failed', 'standardOut'
+        exceptionFormat 'short'
+        showExceptions true
+        showCauses true
+        showStackTraces true
+    }
+
+    classpath = files(configurations.testClasspath, "${project.bobDir}/dist/bob.jar", "${testTmpDir}/bob-tests.jar")
+    testClassesDirs = files(testClassesDir).asFileTree.matching {
+        //provide a test class name with -PtestClass=com.example.MyTestClass to ./gradlew if run from terminal
+        if (project.hasProperty('testClass')) {
+            include "**/${project.testClass.replaceAll('\\.', '/')}.class"
+        } else if (System.getProperty('idea.active') != null) {
+            // Specify needed class here if run from idea
+            def test_class = "com.dynamo.bob.pipeline.ShaderProgramBuilderTest"
+            include "**/${test_class.replaceAll('\\.', '/')}.class"
+        }
     }
 }
 

@@ -33,7 +33,7 @@
             [editor.code-completion :as code-completion]
             [editor.code.data :as data]
             [editor.code.resource :as r]
-            [editor.code.util :refer [split-lines find-insert-index]]
+            [editor.code.util :refer [find-insert-index split-lines]]
             [editor.error-reporting :as error-reporting]
             [editor.fxui :as fxui]
             [editor.graph-util :as gu]
@@ -44,6 +44,8 @@
             [editor.notifications :as notifications]
             [editor.prefs :as prefs]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
+            [editor.types :as types]
             [editor.ui :as ui]
             [editor.ui.bindings :as b]
             [editor.ui.fuzzy-choices :as fuzzy-choices]
@@ -659,8 +661,9 @@
 ;; -----------------------------------------------------------------------------
 
 (g/defnk produce-indent-type [indent-type]
-  ;; Defaults to :tabs when not connected to a resource node.
-  (or indent-type :tabs))
+  ;; Defaults to :two-spaces when not connected to a resource node. This is what
+  ;; the Protobuf-based file formats use.
+  (or indent-type :two-spaces))
 
 (g/defnk produce-indent-string [indent-type]
   (data/indent-type->indent-string indent-type))
@@ -1012,6 +1015,20 @@
 (g/defnode CodeEditorView
   (inherits view/WorkbenchView)
 
+  ;; For files that can be edited as code, the `CursorRanges` that keep track of
+  ;; text selections are stored in a `cursor-ranges` property alongside the
+  ;; `modified-lines` on the edited resource node. This is necessary to ensure
+  ;; the lines and the selections stay in sync when undoing.
+  ;;
+  ;; However, we also use the `CodeEditorView` to open other resources as text.
+  ;; In that situation, you cannot edit the text, and we don't need the text
+  ;; selection to stay in sync with the file contents.
+  ;;
+  ;; To avoid having to pollute every resource node type with a `cursor-ranges`
+  ;; property, we store the text selections in this `fallback-cursor-ranges`
+  ;; property on the `CodeEditorView` itself when viewing these resources.
+  (property fallback-cursor-ranges r/CursorRanges (default [data/document-start-cursor-range]) (dynamic visible (g/constantly false)))
+
   (property repaint-trigger g/Num (default 0) (dynamic visible (g/constantly false)))
   (property undo-grouping-info UndoGroupingInfo (dynamic visible (g/constantly false)))
   (property canvas Canvas (dynamic visible (g/constantly false)))
@@ -1064,7 +1081,6 @@
   (property find-whole-word? g/Bool (dynamic visible (g/constantly false)))
   (property focus-state FocusState (default :not-focused) (dynamic visible (g/constantly false)))
 
-  (property completions-enabled g/Bool (default false) (dynamic visible (g/constantly false)))
   (property completions-showing g/Bool (default false) (dynamic visible (g/constantly false)))
   (property completions-doc g/Bool (default false) (dynamic visible (g/constantly false)))
   (property completions-shortcut-text g/Any (dynamic visible (g/constantly false)))
@@ -1090,17 +1106,19 @@
   (input cursor-ranges r/CursorRanges)
   (input indent-type r/IndentType)
   (input invalidated-rows r/InvalidatedRows)
-  (input lines r/Lines :substitute [""])
+  (input lines types/Lines :substitute [""])
   (input regions r/Regions)
   (input debugger-execution-locations g/Any)
 
   (output completion-context g/Any :cached produce-completion-context)
+  (output cursor-ranges r/CursorRanges (g/fnk [cursor-ranges fallback-cursor-ranges]
+                                         (or cursor-ranges fallback-cursor-ranges)))
   (output visible-completion-ranges g/Any :cached produce-visible-completion-ranges)
   (output suggested-completions g/Any produce-suggested-completions)
   (output suggested-choices g/Any :cached produce-suggested-choices)
   ;; We cache the lines in the view instead of the resource node, since the
   ;; resource node will read directly from disk unless edits have been made.
-  (output lines r/Lines :cached (gu/passthrough lines))
+  (output lines types/Lines :cached (gu/passthrough lines))
   (output regions r/Regions :cached (g/fnk [regions diagnostics]
                                       (vec (sort (into regions diagnostics)))))
   (output indent-type r/IndentType produce-indent-type)
@@ -1191,13 +1209,16 @@
   [view-node undo-grouping values-by-prop-kw]
   (if (empty? values-by-prop-kw)
     false
-    (let [resource-node (g/node-value view-node :resource-node)]
+    (let [resource-node (g/node-value view-node :resource-node)
+          resource-node-type (g/node-type* resource-node)]
       (g/transact
         (into (prelude-tx-data view-node undo-grouping values-by-prop-kw)
               (mapcat (fn [[prop-kw value]]
                         (case prop-kw
                           :cursor-ranges
-                          (g/set-property resource-node prop-kw value)
+                          (if (g/has-property? resource-node-type :cursor-ranges)
+                            (g/set-property resource-node :cursor-ranges value)
+                            (g/set-property view-node :fallback-cursor-ranges value))
 
                           :regions
                           (let [{diagnostics true regions false} (group-by #(= :diagnostic (:type %)) value)]
@@ -1439,19 +1460,16 @@
 
 (defn- suggestions-shown? [view-node]
   (g/with-auto-evaluation-context evaluation-context
-    (and (get-property view-node :completions-enabled evaluation-context)
-         (get-property view-node :completions-showing evaluation-context))))
+    (get-property view-node :completions-showing evaluation-context)))
 
 (defn- suggestions-visible? [view-node]
   (g/with-auto-evaluation-context evaluation-context
-    (and (get-property view-node :completions-enabled evaluation-context)
-         (get-property view-node :completions-showing evaluation-context)
+    (and (get-property view-node :completions-showing evaluation-context)
          (pos? (count (get-property view-node :completions-combined evaluation-context))))))
 
 (defn- selected-suggestion [view-node]
   (g/with-auto-evaluation-context evaluation-context
-    (when (and (get-property view-node :completions-enabled evaluation-context)
-               (get-property view-node :completions-showing evaluation-context))
+    (when (get-property view-node :completions-showing evaluation-context)
       (get-property view-node :completions-selection evaluation-context))))
 
 (defn- in-tab-trigger? [view-node]
@@ -2111,12 +2129,15 @@
     (deindent! view-node)))
 
 (handler/defhandler :tab :code-view
+  (active? [editable] editable)
   (run [view-node] (tab! view-node)))
 
 (handler/defhandler :backwards-tab-trigger :code-view
+  (active? [editable] editable)
   (run [view-node] (shift-tab! view-node)))
 
 (handler/defhandler :proposals :code-view
+  (active? [editable] editable)
   (run [view-node] (show-suggestions! view-node :explicit true)))
 
 ;; -----------------------------------------------------------------------------
@@ -2180,7 +2201,7 @@
           (show-suggestions! view-node :typed typed)
           (hide-suggestions! view-node))))))
 
-(defn handle-key-pressed! [view-node ^KeyEvent event]
+(defn handle-key-pressed! [view-node ^KeyEvent event editable]
   ;; Only handle bare key events that cannot be bound to handlers here.
   (when-not (or (.isAltDown event)
                 (.isMetaDown event)
@@ -2194,7 +2215,8 @@
                   KeyCode/RIGHT (move! view-node :navigation :right)
                   KeyCode/UP    (move! view-node :navigation :up)
                   KeyCode/DOWN  (move! view-node :navigation :down)
-                  KeyCode/ENTER (insert-text! view-node "\r")
+                  KeyCode/ENTER (when editable
+                                  (insert-text! view-node "\r"))
                   ::unhandled))
       (.consume event))))
 
@@ -2356,115 +2378,39 @@
                    (data/split-selection-into-lines (get-property view-node :lines)
                                                     (get-property view-node :cursor-ranges))))
 
-(handler/defhandler :select-up :code-view
-  (run [view-node] (move! view-node :selection :up)))
-
-(handler/defhandler :select-down :code-view
-  (run [view-node] (move! view-node :selection :down)))
-
-(handler/defhandler :select-left :code-view
-  (run [view-node] (move! view-node :selection :left)))
-
-(handler/defhandler :select-right :code-view
-  (run [view-node] (move! view-node :selection :right)))
-
-(handler/defhandler :prev-word :code-view
-  (run [view-node] (move! view-node :navigation :prev-word)))
-
-(handler/defhandler :select-prev-word :code-view
-  (run [view-node] (move! view-node :selection :prev-word)))
-
-(handler/defhandler :next-word :code-view
-  (run [view-node] (move! view-node :navigation :next-word)))
-
-(handler/defhandler :select-next-word :code-view
-  (run [view-node] (move! view-node :selection :next-word)))
-
-(handler/defhandler :beginning-of-line :code-view
-  (run [view-node] (move! view-node :navigation :line-start)))
-
-(handler/defhandler :select-beginning-of-line :code-view
-  (run [view-node] (move! view-node :selection :line-start)))
-
-(handler/defhandler :beginning-of-line-text :code-view
-  (run [view-node] (move! view-node :navigation :home)))
-
-(handler/defhandler :select-beginning-of-line-text :code-view
-  (run [view-node] (move! view-node :selection :home)))
-
-(handler/defhandler :end-of-line :code-view
-  (run [view-node] (move! view-node :navigation :end)))
-
-(handler/defhandler :select-end-of-line :code-view
-  (run [view-node] (move! view-node :selection :end)))
-
-(handler/defhandler :page-up :code-view
-  (run [view-node] (page-up! view-node :navigation)))
-
-(handler/defhandler :select-page-up :code-view
-  (run [view-node] (page-up! view-node :selection)))
-
-(handler/defhandler :page-down :code-view
-  (run [view-node] (page-down! view-node :navigation)))
-
-(handler/defhandler :select-page-down :code-view
-  (run [view-node] (page-down! view-node :selection)))
-
-(handler/defhandler :beginning-of-file :code-view
-  (run [view-node] (move! view-node :navigation :file-start)))
-
-(handler/defhandler :select-beginning-of-file :code-view
-  (run [view-node] (move! view-node :selection :file-start)))
-
-(handler/defhandler :end-of-file :code-view
-  (run [view-node] (move! view-node :navigation :file-end)))
-
-(handler/defhandler :select-end-of-file :code-view
-  (run [view-node] (move! view-node :selection :file-end)))
-
 (handler/defhandler :cut :code-view
+  (active? [editable] editable)
   (enabled? [view-node evaluation-context]
             (has-selection? view-node evaluation-context))
   (run [view-node clipboard] (cut! view-node clipboard)))
 
-(handler/defhandler :copy :code-view
-  (enabled? [view-node evaluation-context]
-            (has-selection? view-node evaluation-context))
-  (run [view-node clipboard] (copy! view-node clipboard)))
-
 (handler/defhandler :paste :code-view
+  (active? [editable] editable)
   (enabled? [view-node clipboard evaluation-context]
             (can-paste? view-node clipboard evaluation-context))
   (run [view-node clipboard] (paste! view-node clipboard)))
 
-(handler/defhandler :select-all :code-view
-  (run [view-node] (select-all! view-node)))
-
 (handler/defhandler :delete :code-view
+  (active? [editable] editable)
   (run [view-node] (delete! view-node :delete-after)))
 
 (handler/defhandler :toggle-comment :code-view
-  (active? [view-node evaluation-context]
-           (contains? (get-property view-node :grammar evaluation-context) :line-comment))
+  (active? [editable view-node evaluation-context]
+           (and editable
+                (contains? (get-property view-node :grammar evaluation-context) :line-comment)))
   (run [view-node] (toggle-comment! view-node)))
 
 (handler/defhandler :delete-backward :code-view
+  (active? [editable] editable)
   (run [view-node] (delete! view-node :delete-before)))
 
 (handler/defhandler :delete-prev-word :code-view
+  (active? [editable] editable)
   (run [view-node] (delete! view-node :delete-word-before)))
 
 (handler/defhandler :delete-next-word :code-view
+  (active? [editable] editable)
   (run [view-node] (delete! view-node :delete-word-after)))
-
-(handler/defhandler :select-next-occurrence :code-view
-  (run [view-node] (select-next-occurrence! view-node)))
-
-(handler/defhandler :select-next-occurrence :code-view-tools
-  (run [view-node] (select-next-occurrence! view-node)))
-
-(handler/defhandler :split-selection-into-lines :code-view
-  (run [view-node] (split-selection-into-lines! view-node)))
 
 (handler/defhandler :toggle-breakpoint :code-view
   (run [view-node]
@@ -2488,6 +2434,7 @@
         (data/edit-breakpoint-from-single-cursor-range lines cursor-ranges regions)))))
 
 (handler/defhandler :reindent :code-view
+  (active? [editable] editable)
   (enabled? [view-node evaluation-context]
             (not-every? data/cursor-range-empty?
                         (get-property view-node :cursor-ranges evaluation-context)))
@@ -2502,6 +2449,7 @@
                                        (get-property view-node :layout)))))
 
 (handler/defhandler :convert-indentation :code-view
+  (active? [editable] editable)
   (run [view-node user-data]
        (set-properties! view-node nil
                         (data/convert-indentation (get-property view-node :indent-type)
@@ -2623,10 +2571,12 @@
                                     sort-key-fn)))
 
 (handler/defhandler :sort-lines :code-view
+  (active? [editable] editable)
   (enabled? [view-node evaluation-context] (can-sort-lines? view-node evaluation-context))
   (run [view-node] (sort-lines! view-node string/lower-case)))
 
 (handler/defhandler :sort-lines-case-sensitive :code-view
+  (active? [editable] editable)
   (enabled? [view-node evaluation-context] (can-sort-lines? view-node evaluation-context))
   (run [view-node] (sort-lines! view-node identity)))
 
@@ -2822,10 +2772,10 @@
     (b/unbind-bidirectional! (.selectedProperty case-sensitive) find-case-sensitive-property)
     (b/unbind-bidirectional! (.selectedProperty wrap) find-wrap-property)))
 
-(defn- setup-replace-bar! [^GridPane replace-bar view-node]
+(defn- setup-replace-bar! [^GridPane replace-bar view-node editable]
   (doto replace-bar
     (b/bind-presence! (b/= :replace bar-ui-type-property))
-    (ui/context! :code-view-replace-bar {:replace-bar replace-bar :view-node view-node} nil)
+    (ui/context! :code-view-replace-bar {:editable editable :replace-bar replace-bar :view-node view-node} nil)
     (.setMaxWidth Double/MAX_VALUE)
     (GridPane/setConstraints 0 1))
   (ui/with-controls replace-bar [^CheckBox whole-word ^CheckBox case-sensitive ^CheckBox wrap ^TextField term ^TextField replacement ^Button next ^Button replace ^Button replace-all]
@@ -2918,6 +2868,7 @@
        (focus-term-field! find-bar)))
 
 (handler/defhandler :replace-text :code-view
+  (active? [editable] editable)
   (run [replace-bar view-node]
        (when-some [selected-text (non-empty-single-selection-text view-node)]
          (set-find-term! selected-text))
@@ -2930,6 +2881,7 @@
        (focus-term-field! find-bar)))
 
 (handler/defhandler :replace-text :code-view-tools
+  (active? [editable] editable)
   (run [replace-bar]
        (set-bar-ui-type! :replace)
        (focus-term-field! replace-bar)))
@@ -2970,12 +2922,15 @@
   (run [view-node] (find-prev! view-node)))
 
 (handler/defhandler :replace-next :code-view-replace-bar
+  (active? [editable] editable)
   (run [view-node] (replace-next! view-node)))
 
 (handler/defhandler :replace-next :code-view
+  (active? [editable] editable)
   (run [view-node] (replace-next! view-node)))
 
 (handler/defhandler :replace-all :code-view-replace-bar
+  (active? [editable] editable)
   (run [view-node] (replace-all! view-node)))
 
 ;; -----------------------------------------------------------------------------
@@ -3030,31 +2985,40 @@
 
 (defn- setup-view! [resource-node view-node app-view lsp]
   ;; Grab the unmodified lines or io error before opening the
-  ;; file. Otherwise this will happen on the first edit. If a
+  ;; file. Otherwise, this will happen on the first edit. If a
   ;; background process has modified (or even deleted) the file
   ;; without the editor knowing, the "original" unmodified lines
   ;; reached after a series of undo's could be something else entirely
   ;; than what the user saw.
-  (g/with-auto-evaluation-context ec
-    (r/ensure-loaded! resource-node ec)
-    (let [glyph-metrics (g/node-value view-node :glyph-metrics ec)
-          tab-spaces (g/node-value view-node :tab-spaces ec)
-          tab-stops (data/tab-stops glyph-metrics tab-spaces)
-          lines (g/node-value resource-node :lines ec)
-          document-width (data/max-line-width glyph-metrics tab-stops lines)
-          resource (g/node-value resource-node :resource ec)]
-      (when (resource/file-resource? resource)
-        (lsp/open-view! lsp view-node resource lines))
+  (let [resource (resource-node/resource resource-node)
+        resource-type (resource/resource-type resource)
+        resource-node-type (:node-type resource-type)
+        is-code-resource-type (r/code-resource-type? resource-type)]
+    (when is-code-resource-type
+      (g/with-auto-evaluation-context evaluation-context
+        (r/ensure-loaded! resource-node evaluation-context)))
+    (let [[lines document-width]
+          (g/with-auto-evaluation-context evaluation-context
+            (let [glyph-metrics (g/node-value view-node :glyph-metrics evaluation-context)
+                  tab-spaces (g/node-value view-node :tab-spaces evaluation-context)
+                  tab-stops (data/tab-stops glyph-metrics tab-spaces)
+                  lines (g/node-value resource-node :lines evaluation-context)
+                  document-width (data/max-line-width glyph-metrics tab-stops lines)]
+              [lines document-width]))]
       (g/transact
         (concat
           (g/set-property view-node :document-width document-width)
-          (g/connect resource-node :completions view-node :completions)
-          (g/connect resource-node :cursor-ranges view-node :cursor-ranges)
-          (g/connect resource-node :indent-type view-node :indent-type)
-          (g/connect resource-node :invalidated-rows view-node :invalidated-rows)
-          (g/connect resource-node :lines view-node :lines)
-          (g/connect resource-node :regions view-node :regions)
-          (g/connect app-view :debugger-execution-locations view-node :debugger-execution-locations)))
+          (g/connect app-view :debugger-execution-locations view-node :debugger-execution-locations)
+          (gu/connect-existing-outputs resource-node-type resource-node view-node
+            [[:completions :completions]
+             [:cursor-ranges :cursor-ranges]
+             [:indent-type :indent-type]
+             [:invalidated-rows :invalidated-rows]
+             [:lines :lines]
+             [:regions :regions]])))
+      (when (and is-code-resource-type
+                 (resource/file-resource? resource))
+        (lsp/open-view! lsp view-node resource lines))
       view-node)))
 
 (defn- cursor-opacity
@@ -3074,7 +3038,7 @@
     (.setFill gc Color/WHITE)
     (.fillText gc (format "%.3f fps" fps) (- right 5.0) (+ top 16.0))))
 
-(defn repaint-view! [view-node elapsed-time {:keys [cursor-visible] :as _opts}]
+(defn repaint-view! [view-node elapsed-time {:keys [cursor-visible editable] :as _opts}]
   (assert (boolean? cursor-visible))
 
   ;; Since the elapsed time updates at 60 fps, we store it as user-data to avoid transaction churn.
@@ -3102,13 +3066,11 @@
 
         [resource-node
          canvas-repaint-info
-         cursor-repaint-info
-         completions-enabled]
+         cursor-repaint-info]
         (g/with-auto-evaluation-context evaluation-context
           [(g/node-value view-node :resource-node evaluation-context)
            (g/node-value view-node :canvas-repaint-info evaluation-context)
-           (g/node-value view-node :cursor-repaint-info evaluation-context)
-           (g/node-value view-node :completions-enabled evaluation-context)])]
+           (g/node-value view-node :cursor-repaint-info evaluation-context)])]
 
     ;; Repaint canvas if needed.
     (when-not (identical? prev-canvas-repaint-info canvas-repaint-info)
@@ -3116,7 +3078,8 @@
       (let [row (data/last-visible-row (:layout canvas-repaint-info))]
         (repaint-canvas! canvas-repaint-info (get-valid-syntax-info resource-node canvas-repaint-info row))))
 
-    (when completions-enabled
+    ;; Show completion suggestions if appropriate.
+    (when editable
       (let [renderer (or existing-completion-popup-renderer
                          (g/user-data!
                            view-node
@@ -3544,11 +3507,15 @@
 
 (defn- make-view! [graph parent resource-node opts]
   (let [{:keys [^Tab tab app-view grammar open-resource-fn project]} opts
+        basis (g/now)
+        resource-node-type (g/node-type* basis resource-node)
+        editable (and (g/has-property? resource-node-type :modified-lines)
+                      (g/connected? basis resource-node :save-data project :save-data))
         grid (GridPane.)
         canvas (Canvas.)
         canvas-pane (Pane. (into-array Node [canvas]))
         undo-grouping-info (pair :navigation (gensym))
-        lsp (lsp/get-node-lsp resource-node)
+        lsp (lsp/get-node-lsp basis resource-node)
         completions-shortcut-text (transduce
                                     (comp
                                       (mapcat val)
@@ -3570,7 +3537,6 @@
                        :highlighted-find-term (.getValue highlighted-find-term-property)
                        :line-height-factor 1.2
                        :completions-shortcut-text completions-shortcut-text
-                       :completions-enabled true
                        :undo-grouping-info undo-grouping-info
                        :visible-indentation-guides? (.getValue visible-indentation-guides-property)
                        :visible-minimap? (.getValue visible-minimap-property)
@@ -3583,14 +3549,15 @@
           lsp)
         goto-line-bar (setup-goto-line-bar! (ui/load-fxml "goto-line.fxml") view-node)
         find-bar (setup-find-bar! (ui/load-fxml "find.fxml") view-node)
-        replace-bar (setup-replace-bar! (ui/load-fxml "replace.fxml") view-node)
+        replace-bar (setup-replace-bar! (ui/load-fxml "replace.fxml") view-node editable)
         repainter (ui/->timer "repaint-code-editor-view"
                               (fn [_ elapsed-time _]
                                 (when (and (.isSelected tab) (not (ui/ui-disabled?)))
-                                  (repaint-view! view-node elapsed-time {:cursor-visible true}))))
+                                  (repaint-view! view-node elapsed-time {:cursor-visible true :editable editable}))))
         dispose-hover! (create-hover! view-node canvas tab)
         dispose-breakpoint-editor! (create-breakpoint-editor! view-node canvas tab)
         context-env {:clipboard (Clipboard/getSystemClipboard)
+                     :editable editable
                      :goto-line-bar goto-line-bar
                      :find-bar find-bar
                      :replace-bar replace-bar
@@ -3607,16 +3574,19 @@
     (doto canvas
       (.setFocusTraversable true)
       (.setCursor javafx.scene.Cursor/TEXT)
-      (setup-input-method-requests! view-node)
-      (.addEventFilter KeyEvent/KEY_PRESSED (ui/event-handler event (handle-key-pressed! view-node event)))
-      (.addEventHandler KeyEvent/KEY_TYPED (wrap-disallow-diaeresis-after-tilde
-                                             (ui/event-handler event (handle-key-typed! view-node event))))
+      (.addEventFilter KeyEvent/KEY_PRESSED (ui/event-handler event (handle-key-pressed! view-node event editable)))
       (.addEventHandler MouseEvent/MOUSE_MOVED (ui/event-handler event (handle-mouse-moved! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_PRESSED (ui/event-handler event (handle-mouse-pressed! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_DRAGGED (ui/event-handler event (handle-mouse-moved! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_RELEASED (ui/event-handler event (handle-mouse-released! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_EXITED (ui/event-handler event (handle-mouse-exited! view-node event)))
       (.addEventHandler ScrollEvent/SCROLL (ui/event-handler event (handle-scroll! view-node event))))
+
+    (when editable
+      (doto canvas
+        (setup-input-method-requests! view-node)
+        (.addEventHandler KeyEvent/KEY_TYPED (wrap-disallow-diaeresis-after-tilde
+                                               (ui/event-handler event (handle-key-typed! view-node event))))))
 
     (ui/context! grid :code-view-tools context-env nil)
 
@@ -3688,9 +3658,133 @@
     ;; Start repaint timer.
     (ui/timer-start! repainter)
     ;; Initial draw
-    (ui/run-later (repaint-view! view-node 0 {:cursor-visible true})
+    (ui/run-later (repaint-view! view-node 0 {:cursor-visible true :editable editable})
                   (ui/run-later (slog/smoke-log "code-view-visible")))
     view-node))
+
+(def ^:private fundamental-read-only-handlers
+  {[:view/select-up]
+   {:run (g/fnk [view-node]
+           (move! view-node :selection :up))}
+
+   [:view/select-down]
+   {:run (g/fnk [view-node]
+           (move! view-node :selection :down))}
+
+   [:view/select-left]
+   {:run (g/fnk [view-node]
+           (move! view-node :selection :left))}
+
+   [:view/select-right]
+   {:run (g/fnk [view-node]
+           (move! view-node :selection :right))}
+
+   [:view/prev-word]
+   {:run (g/fnk [view-node]
+           (move! view-node :navigation :prev-word))}
+
+   [:view/select-prev-word]
+   {:run (g/fnk [view-node]
+           (move! view-node :selection :prev-word))}
+
+   [:view/next-word]
+   {:run (g/fnk [view-node]
+           (move! view-node :navigation :next-word))}
+
+   [:view/select-next-word]
+   {:run (g/fnk [view-node]
+           (move! view-node :selection :next-word))}
+
+   [:view/beginning-of-line]
+   {:run (g/fnk [view-node]
+           (move! view-node :navigation :line-start))}
+
+   [:view/select-beginning-of-line]
+   {:run (g/fnk [view-node]
+           (move! view-node :selection :line-start))}
+
+   [:view/beginning-of-line-text]
+   {:run (g/fnk [view-node]
+           (move! view-node :navigation :home))}
+
+   [:view/select-beginning-of-line-text]
+   {:run (g/fnk [view-node]
+           (move! view-node :selection :home))}
+
+   [:view/end-of-line]
+   {:run (g/fnk [view-node]
+           (move! view-node :navigation :end))}
+
+   [:view/select-end-of-line]
+   {:run (g/fnk [view-node]
+           (move! view-node :selection :end))}
+
+   [:view/page-up]
+   {:run (g/fnk [view-node]
+           (page-up! view-node :navigation))}
+
+   [:view/select-page-up]
+   {:run (g/fnk [view-node]
+           (page-up! view-node :selection))}
+
+   [:view/page-down]
+   {:run (g/fnk [view-node]
+           (page-down! view-node :navigation))}
+
+   [:view/select-page-down]
+   {:run (g/fnk [view-node]
+           (page-down! view-node :selection))}
+
+   [:view/beginning-of-file]
+   {:run (g/fnk [view-node]
+           (move! view-node :navigation :file-start))}
+
+   [:view/select-beginning-of-file]
+   {:run (g/fnk [view-node]
+           (move! view-node :selection :file-start))}
+
+   [:view/end-of-file]
+   {:run (g/fnk [view-node]
+           (move! view-node :navigation :file-end))}
+
+   [:view/select-end-of-file]
+   {:run (g/fnk [view-node]
+           (move! view-node :selection :file-end))}
+
+   [:view/copy]
+   {:enabled? (g/fnk [view-node evaluation-context]
+                (has-selection? view-node evaluation-context))
+    :run (g/fnk [view-node clipboard]
+           (copy! view-node clipboard))}
+
+   [:view/select-all]
+   {:run (g/fnk [view-node]
+           (select-all! view-node))}
+
+   [:view/select-next-occurrence :tool/select-next-occurrence]
+   {:run (g/fnk [view-node]
+           (select-next-occurrence! view-node))}
+
+   [:view/split-selection-into-lines]
+   {:run (g/fnk [view-node]
+           (split-selection-into-lines! view-node))}})
+
+(defn register-fundamental-read-only-handlers!
+  "Register UI handlers for fundamental navigation and selection actions. Shared
+  between the code editor view and the console view."
+  [ns view-context-definition tool-context-definition]
+  (let [namespace-name (str ns)]
+    (doseq [[prefixed-commands fnks] fundamental-read-only-handlers
+            prefixed-command prefixed-commands]
+      (let [prefix (keyword (namespace prefixed-command))
+            command-name (name prefixed-command)
+            command (keyword command-name)
+            handler-id (keyword namespace-name command-name)]
+        (assert (#{:tool :view} prefix))
+        (when (= :view prefix)
+          (handler/register-handler! handler-id command view-context-definition fnks))
+        (when (= :tool prefix)
+          (handler/register-handler! handler-id command tool-context-definition fnks))))))
 
 (defn- focus-view! [view-node opts]
   (.requestFocus ^Node (g/node-value view-node :canvas))
@@ -3701,9 +3795,18 @@
                                             cursor-range))))
 
 (defn register-view-types [workspace]
-  (workspace/register-view-type workspace
-                                :id :code
-                                :label "Code"
-                                :make-view-fn (fn [graph parent resource-node opts] (make-view! graph parent resource-node opts))
-                                :focus-fn (fn [view-node opts] (focus-view! view-node opts))
-                                :text-selection-fn non-empty-single-selection-text))
+  (concat
+    (workspace/register-view-type workspace
+      :id :code
+      :label "Code"
+      :make-view-fn make-view!
+      :focus-fn focus-view!
+      :text-selection-fn non-empty-single-selection-text)
+    (workspace/register-view-type workspace
+      :id :text
+      :label "Text"
+      :make-view-fn make-view!
+      :focus-fn focus-view!
+      :text-selection-fn non-empty-single-selection-text)))
+
+(register-fundamental-read-only-handlers! *ns* :code-view :code-view-tools)

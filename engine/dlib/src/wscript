@@ -320,13 +320,18 @@ def build(bld):
         srcdir='java_test',
         outdir='java_test')
 
+    # ************************************************************************
     if not Options.options.skip_build_tests:
+        bld.stlib(features= 'cs_stlib',
+                  project = 'cs/dlib_cs.csproj')
+
         bld.recurse('test')
 
     # Install step
 
     # the dmsdk_add_files needs to be after a build group for some reason
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
+    dmsdk_add_files(bld, '${PREFIX}/sdk/cs/dmsdk', 'cs/dmsdk')
 
     bld.install_files('${PREFIX}/include/dlib', 'dlib/align.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/array.h')

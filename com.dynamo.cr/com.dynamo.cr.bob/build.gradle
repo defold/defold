@@ -48,11 +48,13 @@ gradle.projectsEvaluated {
         def protoDir = file(proto.dir)
         def protoFilePath = file("${proto.dir}/${proto.file}")
         def protoTaskName = "protoTask_${proto.file.replace('/', '_').replace('.', '_')}" as Object
-
+        tasks.named('compileJava').configure {
+            dependsOn protoTaskName
+        }
         tasks.create(name: protoTaskName, type: Exec) {
             group = 'build'
             inputs.file(protoFilePath)
-            outputs.dir('generated')
+            outputs.dir("${project.bobDir}/generated")
             doFirst {
                 if (!protoDir.exists()) {
                     throw new RuntimeException("Directory '${protoDir}' does not exist")
@@ -60,11 +62,11 @@ gradle.projectsEvaluated {
                 if (!protoFilePath.exists()) {
                     throw new RuntimeException("File '${protoFilePath}' does not exist")
                 }
-                mkdir 'generated'
+                mkdir "${project.bobDir}/generated"
                 if (!project.hostPlatform) {
                     throw new RuntimeException("hostPlatform is not set. Make sure 'getHostPlatform' task is executed.")
                 }
-                commandLine "${project.dynamoHome}/ext/bin/${project.hostPlatform}/protoc", "--java_out=generated",
+                commandLine "${project.dynamoHome}/ext/bin/${project.hostPlatform}/protoc", "--java_out=${project.bobDir}/generated",
                         "-I${protoDir}", "-I${project.dynamoHome}/ext/include", "-I../../engine/gameobject/proto",
                         "-I../../engine/script/src", "-I../../engine/ddf/src", "-I../../engine/graphics/proto", "${protoFilePath}"
             }
@@ -83,18 +85,18 @@ task proto(type: Exec) {
     def protoDir = project.findProperty('protoDir') ?: ''
     def protoFile = project.findProperty('protoFile') ?: ''
     inputs.file("${protoDir}/${protoFile}")
-    outputs.dir('generated')
+    outputs.dir("${project.bobDir}/generated")
     doFirst {
         if (!protoDir || !protoFile) {
             throw new RuntimeException("Properties 'protoDir' and 'protoFile' must be specified")
         }
-        mkdir 'generated'
+        mkdir "${project.bobDir}/generated"
     }
     doLast {
         if (!project.hostPlatform) {
             throw new RuntimeException("hostPlatform is not set. Make sure 'getHostPlatform' task is executed.")
         }
-        commandLine "${project.dynamoHome}/ext/bin/${project.hostPlatform}/protoc", "--java_out=generated",
+        commandLine "${project.dynamoHome}/ext/bin/${project.hostPlatform}/protoc", "--java_out=${project.bobDir}/generated",
                 "-I${protoDir}", "-I${project.dynamoHome}/ext/include", "-I../../engine/gameobject/proto",
                 "-I../../engine/script/src", "-I../../engine/ddf/src", "-I../../engine/graphics/proto", "${protoDir}/${protoFile}"
     }
@@ -130,7 +132,7 @@ task copyDependencies {
 
 task compileGenerated(type: JavaCompile, dependsOn: execProtoTasks) {
     mkdir project.classesDir
-    source = fileTree('generated')
+    source = fileTree("${project.bobDir}/generated")
     destinationDirectory = project.classesDir
     include '**/*.java'
     classpath = sourceSets.main.compileClasspath
@@ -386,8 +388,6 @@ task createBobJar(type: Jar, dependsOn: [createExternalLibsBuiltinsJar, createLu
         zipTree(file("${project.bobDir}/lib/builtins.zip"))
     }
 
-    inputs.dir(project.classesDir)
-    inputs.dir(project.bobDir)
     outputs.file("${project.bobDir}/dist/bob.jar")
 
     manifest {
