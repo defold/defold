@@ -201,12 +201,13 @@ public class ShaderCompilerHelpers {
             file_out_spv = File.createTempFile(FilenameUtils.getName(resourceOutput), ".spv");
             FileUtil.deleteOnExit(file_out_spv);
 
-            result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "glslc"),
+            result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "glslang"),
                     "-w",
-                    "-fauto-bind-uniforms",
-                    "-fauto-map-locations",
+                    "-V",
+                    "--auto-map-bindings",
+                    "--auto-map-locations",
                     // JG: Do we need to pass in -std flag?
-                    "-fshader-stage=compute",
+                    "-S", "comp",
                     "-o", file_out_spv.getAbsolutePath(),
                     file_in_compute.getAbsolutePath());
         } else {
@@ -249,12 +250,14 @@ public class ShaderCompilerHelpers {
             FileUtil.deleteOnExit(file_out_spv);
 
             String spirvShaderStage = (shaderType == ShaderDesc.ShaderType.SHADER_TYPE_VERTEX ? "vert" : "frag");
-            result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "glslc"),
+            result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "glslang"),
                     "-w",
-                    "-fauto-bind-uniforms",
-                    "-fauto-map-locations",
-                    "-std=" + shaderVersionStr + shaderProfileStr,
-                    "-fshader-stage=" + spirvShaderStage,
+                    "-V",
+                    "--auto-map-bindings",
+                    "--auto-map-locations",
+                    "--resource-set-binding", "frag", "1",
+                    //"-std=" + shaderVersionStr + shaderProfileStr,
+                    "-S", spirvShaderStage,
                     "-o", file_out_spv.getAbsolutePath(),
                     file_in_glsl.getAbsolutePath());
         }

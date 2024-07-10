@@ -145,14 +145,16 @@ public class ShaderCompilePipeline {
     }
 
     private void generateSPIRv(ShaderDesc.ShaderType shaderType, String fullShaderSource, String pathFileInGLSL, String pathFileOutSpv) throws IOException, CompileExceptionError {
-        Result result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "glslc"),
+        Result result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "glslang"),
             "-w",
-            "-fauto-bind-uniforms",
-            "-fauto-map-locations",
-            "-std=140", // TODO
+            "--auto-map-bindings",
+            "--auto-map-locations",
+            "--resource-set-binding", "frag", "1",
+            //"-std=140", // TODO
             // "-std=" + shaderVersionStr + shaderProfileStr,
-            "-fshader-stage=" + shaderTypeToSpirvStage(shaderType),
+            "-S", shaderTypeToSpirvStage(shaderType),
             "-o", pathFileOutSpv,
+            "-V",
             pathFileInGLSL);
         checkResult(result);
     }
