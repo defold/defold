@@ -188,7 +188,7 @@ ResourceResult ResourceGet(HResourceFactory factory, const char* name, void** re
 
 /*#
  * Get a resource from factory
- * @name Get
+ * @name ResourceGetByHash
  * @param factory [type: HResourceFactory] Factory handle
  * @param name [type: dmhash_t] Resource name
  * @param resource [type: void**] Created resource
@@ -196,6 +196,18 @@ ResourceResult ResourceGet(HResourceFactory factory, const char* name, void** re
  */
 ResourceResult ResourceGetByHash(HResourceFactory factory, dmhash_t name, void** resource);
 
+
+/*#
+ * Get raw resource data. Unregistered resources can be loaded with this function.
+ * If successful, the returned resource data must be deallocated with free()
+ * @name ResourceGetRaw
+ * @param factory [type: HResourceFactory] Factory handle
+ * @param name [type: dmhash_t] Resource name
+ * @param resource [type: void**] Created resource
+ * @param resource_size [type: uint32_t*] Resource size
+ * @return result [type: ResourceResult]  RESULT_OK on success
+ */
+ResourceResult ResourceGetRaw(HResourceFactory factory, const char* name, void** resource, uint32_t* resource_size);
 
 /*#
  * Release resource

@@ -1783,6 +1783,8 @@ static void LogFrameBufferError(GLenum status)
 
                     if (ubo.m_Dirty > 0)
                     {
+                        glBindBuffer(GL_UNIFORM_BUFFER, ubo.m_Id);
+                        CHECK_GL_ERROR;
                         glBufferData(GL_UNIFORM_BUFFER, ubo.m_BlockSize, ubo.m_BlockMemory, GL_STATIC_DRAW);
                         CHECK_GL_ERROR;
                         ubo.m_Dirty = false;
@@ -1975,6 +1977,7 @@ static void LogFrameBufferError(GLenum status)
     static void BuildUniformBuffers(OpenGLProgram* program, OpenGLShader** shaders, uint32_t num_shaders)
     {
         uint32_t num_ubos = 0;
+        uint32_t ubo_binding = 0;
         for (uint32_t i = 0; i < num_shaders; ++i)
         {
             OpenGLShader* shader = shaders[i];
@@ -2014,13 +2017,13 @@ static void LogFrameBufferError(GLenum status)
                 glGetActiveUniformBlockiv(program->m_Id, blockIndex, GL_UNIFORM_BLOCK_ACTIVE_UNIFORMS, &activeUniforms);
                 CHECK_GL_ERROR;
 
-                OpenGLUniformBuffer& ubo = program->m_UniformBuffers[binding];
+                OpenGLUniformBuffer& ubo = program->m_UniformBuffers[blockIndex];
 
                 ubo.m_Indices.SetCapacity(activeUniforms);
                 ubo.m_Indices.SetSize(activeUniforms);
                 ubo.m_Offsets.SetCapacity(activeUniforms);
                 ubo.m_Offsets.SetSize(activeUniforms);
-                ubo.m_Binding        = binding;
+                ubo.m_Binding        = ubo_binding++; // binding;
                 ubo.m_BlockSize      = blockSize;
                 ubo.m_ActiveUniforms = activeUniforms;
                 ubo.m_BlockMemory    = new uint8_t[ubo.m_BlockSize];
