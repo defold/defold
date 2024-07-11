@@ -176,6 +176,16 @@
     PFNGLMEMORYBARRIERPROC    glMemoryBarrier    = NULL;
     PFNGLBINDIMAGETEXTUREPROC glBindImageTexture = NULL;
 
+    // Uniform buffer objects
+    PFNGLBINDBUFFERBASEPROC          glBindBufferBase          = NULL;
+    PFNGLBUFFERDATAPROC              glBufferData              = NULL;
+    PFNGLGETUNIFORMBLOCKINDEXPROC    glGetUniformBlockIndex    = NULL;
+    PFNGLGETACTIVEUNIFORMBLOCKIVPROC glGetActiveUniformBlockiv = NULL;
+    PFNGLGETACTIVEUNIFORMSIVPROC     glGetActiveUniformsiv     = NULL;
+    PFNGLGENBUFFERSPROC              glGenBuffers              = NULL;
+    PFNGLBINDBUFFERPROC              glBindBuffer              = NULL;
+    PFNGLUNIFORMBLOCKBINDINGPROC     glUniformBlockBinding     = NULL;
+
     #if !defined(GL_ES_VERSION_2_0)
         PFNGLGETSTRINGIPROC glGetStringi = NULL;
         PFNGLGENVERTEXARRAYSPROC glGenVertexArrays = NULL;
