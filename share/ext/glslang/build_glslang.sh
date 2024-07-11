@@ -62,7 +62,7 @@ if [ ! -d "$SOURCE_DIR" ]; then
     git clone https://github.com/KhronosGroup/glslang.git $SOURCE_DIR
 
     pushd $SOURCE_DIR
-    ./update_glslang_sources.py
+    python update_glslang_sources.py
     popd
 fi
 
@@ -81,7 +81,7 @@ EXE_SUFFIX=
 case $PLATFORM in
     win32|x86_64-win32)
         EXE_SUFFIX=.exe
-        cp -v ./glslc/Release/glslc${EXE_SUFFIX} ./bin/$PLATFORM
+        cp -v ./StandAlone/Release/glslang${EXE_SUFFIX} ./bin/$PLATFORM
         ;;
     *)
         cp -v ./StandAlone/glslang${EXE_SUFFIX} ./bin/$PLATFORM
@@ -109,3 +109,4 @@ tar cfvz ${PACKAGE} bin
 popd
 
 echo "Wrote ${PACKAGE}"
+
