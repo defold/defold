@@ -103,6 +103,14 @@ typedef struct ExtensionAppParams
     HConfigFile m_ConfigFile; // here for backwards compatibility
 } ExtensionAppParams;
 
+/*#
+ * The global parameters avalable when registering and unregistering an extensioin
+ * @struct
+ * @name ExtensionParams
+ * @member m_ConfigFile [type:HConfigFile] The game project settings (including overrides and plugins)
+ * @member m_ResourceFactory [type:HResourceFactory] The game resource factory / repository
+ * @member m_L [type:lua_State*] The Lua state.
+ */
 typedef struct ExtensionParams
 {
     HConfigFile         m_ConfigFile;
@@ -193,7 +201,7 @@ const size_t ExtensionDescBufferSize = 128;
 /*#
  * Extension declaration helper. Internal function. Use DM_DECLARE_EXTENSION
  * @name ExtensionRegister
- * @param desc
+ * @param desc [type:void*] A persistent buffer of at least 128 bytes.
  * @param desc_size [type:const char*] size of buffer holding desc. in bytes
  * @param name [type:const char*] extension name. human readble. max 16 characters long.
  * @param app_initialize [type:FExtensionAppInitialize] app-init function. May be null
@@ -227,7 +235,7 @@ bool ExtensionRegisterCallback(ExtensionCallbackType callback_type, FExtensionCa
  *
  * This function is only available on iOS. [icon:ios]
  *
- * @name RegisteriOSUIApplicationDelegate
+ * @name ExtensionRegisteriOSUIApplicationDelegate
  * @param delegate [type:id<UIApplicationDelegate>] An UIApplicationDelegate, see: https://developer.apple.com/documentation/uikit/uiapplicationdelegate?language=objc
  *
  * @examples
@@ -237,19 +245,19 @@ bool ExtensionRegisterCallback(ExtensionCallbackType callback_type, FExtensionCa
  *
  * id<UIApplicationDelegate> g_MyApplicationDelegate;
  *
- * @interface MyApplicationDelegate : NSObject <UIApplicationDelegate>
+ * \@interface MyApplicationDelegate : NSObject <UIApplicationDelegate>
  *
  * - (void) applicationDidBecomeActive:(UIApplication *) application;
  *
- * @end
+ * \@end
  *
- * @implementation MyApplicationDelegate
+ * \@implementation MyApplicationDelegate
  *
  * - (void) applicationDidBecomeActive:(UIApplication *) application {
  *     dmLogWarning("applicationDidBecomeActive - MyAppDelegate");
  * }
  *
- * @end
+ * \@end
  *
  * struct MyAppDelegateRegister
  * {
@@ -275,8 +283,8 @@ void ExtensionRegisteriOSUIApplicationDelegate(void* delegate);
  *
  * This function is only available on iOS. [icon:ios]
  *
- * @name UnregisteriOSUIApplicationDelegate
- * @param delegate an id<UIApplicationDelegate>
+ * @name ExtensionUnregisteriOSUIApplicationDelegate
+ * @param delegate [type:void*] an id<UIApplicationDelegate>
  */
 void ExtensionUnregisteriOSUIApplicationDelegate(void* delegate);
 
@@ -285,7 +293,7 @@ void ExtensionUnregisteriOSUIApplicationDelegate(void* delegate);
 // internal
 #define DM_EXTENSION_PASTE_SYMREG2(x, y) DM_EXTENSION_PASTE_SYMREG(x, y)
 
-// interal
+// internal
 #define DM_REGISTER_EXTENSION(symbol, desc, desc_size, name, app_init, app_final, init, update, on_event, final) extern "C" void symbol () { \
         ExtensionRegister((void*) &desc, desc_size, name, \
                     (FExtensionAppInitialize)app_init, \

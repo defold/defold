@@ -20,7 +20,7 @@
 
 
 
-import os, sys, pprint
+import os, sys, re, pprint
 
 ###########################################
 # state while parsing
@@ -65,13 +65,14 @@ def rename_symbols(renames, line):
         line = line.replace(k, v)
     return line
 
-def gen_doc_header(name, description, namespace, source):
+def gen_doc_header(name, brief, description, language, namespace, source):
     return f"""
-/*# {name}
+/*# {brief}
  *
  * {description}
  *
  * @document
+ * @language {language}
  * @name {name}
  * @namespace {namespace}
  * @path {source}
@@ -81,12 +82,64 @@ def gen_doc_header(name, description, namespace, source):
 def get_indent(indent):
     return '    ' * indent
 
-def gen_doc_link(name, indent):
-    spaces =  get_indent(indent)
-    s  = f'{spaces}/*#\n'
-    s += f'{spaces}* Generated from [ref:{name}]\n'
-    s += f'{spaces}*/'
-    return s
+def _find_doc(docs, name):
+    for doc in docs['items']:
+        if doc.get('name', '') == name:
+            return doc
+    return None
+
+def _add_line(lines, tag, s):
+    if s is None:
+        return
+    if not tag:
+        lines.append(s)
+    else:
+        lines.append(f'@{tag} {s}')
+
+def _add_param(lines, tag, doc):
+    if doc is None:
+        return
+    name = doc.get('name', '')
+    typ = doc.get('type', '')
+    cstyp = rename_type(typ)
+    desc = doc.get('desc', '')
+    lines.append(f'<{tag} name="{name}" type="{cstyp}">{desc}</{tag}>')
+
+def _format_doc_lines(lines, indent):
+    indent_str =  get_indent(indent)
+    if isinstance(lines, str):
+        lines = lines.splitlines()
+    return ('\n' + indent_str + '/// ').join(lines)
+
+def gen_doc(docs, name, indent):
+    indent_str =  get_indent(indent)
+    doc = _find_doc(docs, name)
+    if not doc:
+        s  = f'{indent_str}/// <summary>\n'
+        s += f'{indent_str}/// Generated from [ref:{name}]\n'
+        s += f'{indent_str}/// </summary>'
+        return s
+
+    lines = []
+    _add_line(lines, None, '<summary>')
+    desc = doc.get('desc', doc.get('brief', ''))
+    desc = _format_doc_lines(desc, indent)
+    _add_line(lines, None, desc)
+    _add_line(lines, None, '</summary>')
+
+    for param in doc.get('params', []):
+        _add_param(lines, 'param', param)
+
+    _add_param(lines, 'returns', doc.get('return', None))
+
+    for (_, v) in doc.get('examples', []):
+        # TODO: Filter out languages that aren't C#
+        v = _format_doc_lines('\n' + v, indent)
+        _add_line(lines, 'examples', v)
+
+    indent_str = get_indent(indent)
+    return indent_str + '/// ' + _format_doc_lines(lines, indent)
+
 
 def rename_type(name):
     return c_to_cstypes.get(name, name)
@@ -152,7 +205,7 @@ def gen_cs_struct(decl, rename_patterns, opaque, indent):
 
 
 
-def gen_csharp(basepath, c_header_path, out_path, info, ast, state):
+def gen_csharp(basepath, c_header_path, out_path, info, ast, state, docs):
     _reset_globals()
 
     l('// Generated, do not edit!')
@@ -181,6 +234,27 @@ def gen_csharp(basepath, c_header_path, out_path, info, ast, state):
     spaces = '    ' * indent
     spaces1 = '    ' * (indent+1)
 
+    # Dock header
+    api_name = docs.get('name', None)
+    if api_name is None:
+        api_name = os.path.splitext(os.path.basename(out_path))[0].capitalize()
+
+    language = 'C#'
+    brief = docs.get('brief', '')
+    description = docs.get('desc', '')
+    description = description.replace('\n', '\n * ')
+
+    if api_name is None:
+        api_name = os.path.splitext(os.path.basename(out_path))[0].capitalize()
+
+    namespace = info.get('namespace', None)
+
+    source_path = os.path.relpath(out_path, basepath)
+
+    doc_header = gen_doc_header(api_name, brief, description, language, namespace, source_path)
+    l(doc_header)
+
+    # C# begin
     l(f'using System.Runtime.InteropServices;')
     l(f'using System.Reflection.Emit;')
 
@@ -195,31 +269,6 @@ def gen_csharp(basepath, c_header_path, out_path, info, ast, state):
     l(f'{spaces}public unsafe partial class {classname}')
     l(f'{spaces}{{')
 
-
-    # basename = os.path.basename(out_path).replace('.', '_')
-    # basename = basename.upper()
-    # l('#ifndef DMSDK_%s' % basename)
-    # l('#define DMSDK_%s' % basename)
-    # l('')
-    # l('#if !defined(__cplusplus)')
-    # l('   #error "This file is supported in C++ only!"')
-    # l('#endif')
-    # l('')
-
-    # namespace = info.get('namespace', None)
-    # source_path = os.path.relpath(out_path, basepath)
-    # doc_header = gen_doc_header(os.path.splitext(os.path.basename(out_path))[0].capitalize(), "description", namespace, source_path)
-    # l(doc_header)
-
-    # # for include in includes:
-    # #     if os.path.normpath(out_path).endswith(os.path.normpath(include)):
-    # #         continue # skip self includes
-    # #     l('#include <%s>' % include)
-
-    # l('')
-    # l('#include <%s>' % c_header_path)
-    # l('')
-
     ignores = info.get('ignore', [])
     prefixes = info.get('rename', {})
 
@@ -231,7 +280,7 @@ def gen_csharp(basepath, c_header_path, out_path, info, ast, state):
 
     #     # out_doc = get_cpp_doc(prefixes, doc)
     #     # if out_doc is None:
-    #     out_doc = gen_doc_link(enum_type.name)
+    #     out_doc = gen_doc(docs, enum_type.name)
     #     l(out_doc)
     #     l('    enum %s {' % renamed)
     #     for enum_value in enum_type.values:
@@ -251,7 +300,7 @@ def gen_csharp(basepath, c_header_path, out_path, info, ast, state):
 
         struct_typedef = gen_cs_struct(decl, prefixes, False, indent+1)
 
-        out_doc = gen_doc_link(n, indent+1)
+        out_doc = gen_doc(docs, n, indent+1)
         l(out_doc)
         l(f'{struct_typedef}')
         l('')
@@ -264,7 +313,7 @@ def gen_csharp(basepath, c_header_path, out_path, info, ast, state):
 
     #     # out_doc = get_cpp_doc(prefixes, doc)
     #     # if out_doc is None:
-    #     out_doc = gen_doc_link(decl['name'])
+    #     out_doc = gen_doc(docs, decl['name'])
     #     l(out_doc)
     #     l('    typedef %s %s;' % (n, renamed))
     #     l('')
@@ -280,7 +329,7 @@ def gen_csharp(basepath, c_header_path, out_path, info, ast, state):
 
         # out_doc = get_cpp_doc(prefixes, doc)
         # if out_doc is None:
-        out_doc = gen_doc_link(decl['name'], indent+1)
+        out_doc = gen_doc(docs, decl['name'], indent+1)
         l(out_doc)
         l(f'{spaces1}{cs_func_prefix}')
         l(f'{spaces1}{cs_func};')

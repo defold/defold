@@ -23,14 +23,15 @@
 #endif
 
 
-/*# Resource_gen
+/*# Resource
  *
- * description
+ * Functions for managing resource types.
  *
  * @document
- * @name Resource_gen
+ * @language C++
+ * @name Resource
  * @namespace dmResource
- * @path dmsdk/resource/resource_gen.hpp
+ * @path engine/resource/src/dmsdk/resource/resource_gen.hpp
  */
 
 #include <stdint.h>
@@ -41,9 +42,33 @@
 
 namespace dmResource
 {
-    /*#
-    * Generated from [ref:ResourceResult]
-    */
+    /*# 
+     * ResourceResult
+     * @enum
+     * @name Result
+     * @member  RESOURCE_RESULT_OK
+     * @member  RESOURCE_RESULT_INVALID_DATA
+     * @member  RESOURCE_RESULT_DDF_ERROR
+     * @member  RESOURCE_RESULT_RESOURCE_NOT_FOUND
+     * @member  RESOURCE_RESULT_MISSING_FILE_EXTENSION
+     * @member  RESOURCE_RESULT_ALREADY_REGISTERED
+     * @member  RESOURCE_RESULT_INVAL
+     * @member  RESOURCE_RESULT_UNKNOWN_RESOURCE_TYPE
+     * @member  RESOURCE_RESULT_OUT_OF_MEMORY
+     * @member  RESOURCE_RESULT_IO_ERROR
+     * @member  RESOURCE_RESULT_NOT_LOADED
+     * @member  RESOURCE_RESULT_OUT_OF_RESOURCES
+     * @member  RESOURCE_RESULT_STREAMBUFFER_TOO_SMALL
+     * @member  RESOURCE_RESULT_FORMAT_ERROR
+     * @member  RESOURCE_RESULT_CONSTANT_ERROR
+     * @member  RESOURCE_RESULT_NOT_SUPPORTED
+     * @member  RESOURCE_RESULT_RESOURCE_LOOP_ERROR
+     * @member  RESOURCE_RESULT_PENDING
+     * @member  RESOURCE_RESULT_INVALID_FILE_EXTENSION
+     * @member  RESOURCE_RESULT_VERSION_MISMATCH
+     * @member  RESOURCE_RESULT_SIGNATURE_MISMATCH
+     * @member  RESOURCE_RESULT_UNKNOWN_ERROR
+     */
     enum Result {
         RESULT_OK = 0,
         RESULT_INVALID_DATA = -1,
@@ -69,109 +94,146 @@ namespace dmResource
         RESULT_UNKNOWN_ERROR = -21,
     };
 
-    /*#
-    * Generated from [ref:HResourceFactory]
-    */
+    /*# 
+     * Resource factory handle. Holds references to all currently loaded resources.
+     * @typedef
+     * @name HFactory
+     */
     typedef HResourceFactory HFactory;
 
-    /*#
-    * Generated from [ref:HResourcePreloadHintInfo]
-    */
+    /*# 
+     * Holds information about preloading resources
+     * @typedef
+     * @name HPreloadHintInfo
+     */
     typedef HResourcePreloadHintInfo HPreloadHintInfo;
 
-    /*#
-    * Generated from [ref:HResourceDescriptor]
-    */
+    /*# 
+     * Holds information about a currently loaded resource.
+     * @typedef
+     * @name HDescriptor
+     */
     typedef HResourceDescriptor HDescriptor;
 
-    /*#
-    * Generated from [ref:ResourceReloadedParams]
-    */
+    /*# 
+     * Parameters to ResourceReloaded function of the resource type
+     * @name ResourceReloadedParams
+     */
     typedef ResourceReloadedParams ResourceReloadedParams;
 
     /*#
-    * Generated from [ref:FResourceReloadedCallback]
-    */
+        * Generated from [ref:FResourceReloadedCallback]
+        */
     typedef FResourceReloadedCallback FReloadedCallback;
 
-    /*#
-    * Generated from [ref:ResourceGet]
-    */
+    /*# 
+     * Get a resource from factory
+     * @name Get
+     * @param factory [type:HResourceFactory] Factory handle
+     * @param name [type:const char*] Resource name
+     * @param resource [type:void**] Created resource
+     * @return result [type:ResourceResult] RESULT_OK on success
+     */
     Result Get(HFactory factory, const char * name, void ** resource);
 
-    /*#
-    * Generated from [ref:ResourceGetByHash]
-    */
+    /*# 
+     * Get a resource from factory
+     * @name GetByHash
+     * @param factory [type:HResourceFactory] Factory handle
+     * @param name [type:dmhash_t] Resource name
+     * @param resource [type:void**] Created resource
+     * @return result [type:ResourceResult] RESULT_OK on success
+     */
     Result GetByHash(HFactory factory, dmhash_t name, void ** resource);
 
-    /*#
-    * Generated from [ref:ResourceGetRaw]
-    */
+    /*# 
+     * Get raw resource data. Unregistered resources can be loaded with this function.
+     * If successful, the returned resource data must be deallocated with free()
+     * @name GetRaw
+     * @param factory [type:HResourceFactory] Factory handle
+     * @param name [type:dmhash_t] Resource name
+     * @param resource [type:void**] Created resource
+     * @param resource_size [type:uint32_t*] Resource size
+     * @return result [type:ResourceResult] RESULT_OK on success
+     */
     Result GetRaw(HFactory factory, const char * name, void ** resource, uint32_t * resource_size);
 
     /*#
-    * Generated from [ref:ResourceRelease]
-    */
+        * Generated from [ref:ResourceRelease]
+        */
     void Release(HFactory factory, void * resource);
 
     /*#
-    * Generated from [ref:ResourcePreloadHint]
-    */
+        * Generated from [ref:ResourcePreloadHint]
+        */
     bool PreloadHint(HPreloadHintInfo preloader, const char * path);
 
     /*#
-    * Generated from [ref:ResourceGetPath]
-    */
+        * Generated from [ref:ResourceGetPath]
+        */
     Result GetPath(HFactory factory, const void * resource, dmhash_t * hash);
 
-    /*#
-    * Generated from [ref:ResourceAddFile]
-    */
+    /*# 
+     * Adds a file to the resource system
+     * Any request for this path will go through any existing mounts first.
+     * If you wish to provide file overrides, please use the LiveUpdate feature for that.
+     * The file isn't persisted between sessions.
+     * @name AddFile
+     * @param factory [type:HResourceFactory] Factory handle
+     * @param path [type:const char*] The path of the resource
+     * @param size [type:uint32_t] The size of the resource (in bytes)
+     * @param resource [type:const void*] The resource payload
+     * @return result [type:ResourceResult] RESULT_OK on success
+     */
     Result AddFile(HFactory factory, const char * path, uint32_t size, const void * resource);
 
-    /*#
-    * Generated from [ref:ResourceRemoveFile]
-    */
+    /*# 
+     * Removes a previously registered file from the resource system
+     * @name RemoveFile
+     * @param factory [type:HResourceFactory] Factory handle
+     * @param path [type:const char*] The path of the resource
+     * @return result [type:ResourceResult] RESULT_OK on success
+     */
     Result RemoveFile(HFactory factory, const char * path);
 
     /*#
-    * Generated from [ref:ResourceDescriptorGetNameHash]
-    */
+        * Generated from [ref:ResourceDescriptorGetNameHash]
+        */
     dmhash_t GetNameHash(HDescriptor rd);
 
     /*#
-    * Generated from [ref:ResourceDescriptorSetResource]
-    */
+        * Generated from [ref:ResourceDescriptorSetResource]
+        */
     void SetResource(HDescriptor rd, void * resource);
 
     /*#
-    * Generated from [ref:ResourceDescriptorGetResource]
-    */
+        * Generated from [ref:ResourceDescriptorGetResource]
+        */
     void * GetResource(HDescriptor rd);
 
     /*#
-    * Generated from [ref:ResourceDescriptorSetPrevResource]
-    */
+        * Generated from [ref:ResourceDescriptorSetPrevResource]
+        */
     void SetPrevResource(HDescriptor rd, void * resource);
 
     /*#
-    * Generated from [ref:ResourceDescriptorGetPrevResource]
-    */
+        * Generated from [ref:ResourceDescriptorGetPrevResource]
+        */
     void * GetPrevResource(HDescriptor rd);
 
     /*#
-    * Generated from [ref:ResourceDescriptorSetResourceSize]
-    */
+        * Generated from [ref:ResourceDescriptorSetResourceSize]
+        */
     void SetResourceSize(HDescriptor rd, uint32_t size);
 
     /*#
-    * Generated from [ref:ResourceDescriptorGetResourceSize]
-    */
+        * Generated from [ref:ResourceDescriptorGetResourceSize]
+        */
     uint32_t GetResourceSize(HDescriptor rd);
 
     /*#
-    * Generated from [ref:ResourceDescriptorGetType]
-    */
+        * Generated from [ref:ResourceDescriptorGetType]
+        */
     HResourceType GetType(HDescriptor rd);
 
 
