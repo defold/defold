@@ -945,6 +945,14 @@ static void LogFrameBufferError(GLenum status)
         GET_PROC_ADDRESS(glDispatchCompute, "glDispatchCompute", PFNGLDISPATCHCOMPUTEPROC);
         GET_PROC_ADDRESS(glMemoryBarrier, "glMemoryBarrier", PFNGLMEMORYBARRIERPROC);
         GET_PROC_ADDRESS(glBindImageTexture, "glBindImageTexture", PFNGLBINDIMAGETEXTUREPROC);
+        GET_PROC_ADDRESS(glBindBufferBase, "glBindBufferBase", PFNGLBINDBUFFERBASEPROC);
+        GET_PROC_ADDRESS(glBufferData, "glBufferData", PFNGLBUFFERDATAPROC);
+        GET_PROC_ADDRESS(glGetUniformBlockIndex, "glGetUniformBlockIndex", PFNGLGETUNIFORMBLOCKINDEXPROC);
+        GET_PROC_ADDRESS(glGetActiveUniformBlockiv, "glGetActiveUniformBlockiv", PFNGLGETACTIVEUNIFORMBLOCKIVPROC);
+        GET_PROC_ADDRESS(glGetActiveUniformsiv, "glGetActiveUniformsiv", PFNGLGETACTIVEUNIFORMSIVPROC);
+        GET_PROC_ADDRESS(glGenBuffers, "glGenBuffers", PFNGLGENBUFFERSPROC);
+        GET_PROC_ADDRESS(glBindBuffer, "glBindBuffer", PFNGLBINDBUFFERPROC);
+        GET_PROC_ADDRESS(glUniformBlockBinding, "glUniformBlockBinding", PFNGLUNIFORMBLOCKBINDINGPROC);
 
     #if !defined(GL_ES_VERSION_2_0)
         GET_PROC_ADDRESS(glGetStringi,"glGetStringi",PFNGLGETSTRINGIPROC);
