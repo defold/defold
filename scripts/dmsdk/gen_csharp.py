@@ -112,7 +112,7 @@ def _format_doc_lines(lines, indent):
     return ('\n' + indent_str + '/// ').join(lines)
 
 def gen_doc(docs, name, indent):
-    indent_str =  get_indent(indent)
+    indent_str = get_indent(indent)
     doc = _find_doc(docs, name)
     if not doc:
         s  = f'{indent_str}/// <summary>\n'

@@ -46,6 +46,7 @@ namespace dmResource
      * ResourceResult
      * @enum
      * @name Result
+     * @language C++
      * @member  RESOURCE_RESULT_OK
      * @member  RESOURCE_RESULT_INVALID_DATA
      * @member  RESOURCE_RESULT_DDF_ERROR
@@ -98,6 +99,7 @@ namespace dmResource
      * Resource factory handle. Holds references to all currently loaded resources.
      * @typedef
      * @name HFactory
+     * @language C++
      */
     typedef HResourceFactory HFactory;
 
@@ -105,6 +107,7 @@ namespace dmResource
      * Holds information about preloading resources
      * @typedef
      * @name HPreloadHintInfo
+     * @language C++
      */
     typedef HResourcePreloadHintInfo HPreloadHintInfo;
 
@@ -112,23 +115,29 @@ namespace dmResource
      * Holds information about a currently loaded resource.
      * @typedef
      * @name HDescriptor
+     * @language C++
      */
     typedef HResourceDescriptor HDescriptor;
 
     /*# 
      * Parameters to ResourceReloaded function of the resource type
      * @name ResourceReloadedParams
+     * @language C++
      */
     typedef ResourceReloadedParams ResourceReloadedParams;
 
-    /*#
-        * Generated from [ref:FResourceReloadedCallback]
-        */
+    /*# 
+     * Function called when a resource has been reloaded.
+     * @name FReloadedCallback
+     * @language C++
+     * @param  params Parameters
+     */
     typedef FResourceReloadedCallback FReloadedCallback;
 
     /*# 
      * Get a resource from factory
      * @name Get
+     * @language C++
      * @param factory [type:HResourceFactory] Factory handle
      * @param name [type:const char*] Resource name
      * @param resource [type:void**] Created resource
@@ -139,6 +148,7 @@ namespace dmResource
     /*# 
      * Get a resource from factory
      * @name GetByHash
+     * @language C++
      * @param factory [type:HResourceFactory] Factory handle
      * @param name [type:dmhash_t] Resource name
      * @param resource [type:void**] Created resource
@@ -150,6 +160,7 @@ namespace dmResource
      * Get raw resource data. Unregistered resources can be loaded with this function.
      * If successful, the returned resource data must be deallocated with free()
      * @name GetRaw
+     * @language C++
      * @param factory [type:HResourceFactory] Factory handle
      * @param name [type:dmhash_t] Resource name
      * @param resource [type:void**] Created resource
@@ -168,9 +179,15 @@ namespace dmResource
         */
     bool PreloadHint(HPreloadHintInfo preloader, const char * path);
 
-    /*#
-        * Generated from [ref:ResourceGetPath]
-        */
+    /*# 
+     * Returns the canonical path hash of a resource
+     * @name GetPath
+     * @language C++
+     * @param factory [type:HResourceFactory] Factory handle
+     * @param resource [type:void*] The resource pointer
+     * @param hash [type:dmhash_t*] (out) The path hash of the resource
+     * @return result [type:ResourceResult] RESULT_OK on success
+     */
     Result GetPath(HFactory factory, const void * resource, dmhash_t * hash);
 
     /*# 
@@ -179,6 +196,7 @@ namespace dmResource
      * If you wish to provide file overrides, please use the LiveUpdate feature for that.
      * The file isn't persisted between sessions.
      * @name AddFile
+     * @language C++
      * @param factory [type:HResourceFactory] Factory handle
      * @param path [type:const char*] The path of the resource
      * @param size [type:uint32_t] The size of the resource (in bytes)
@@ -190,6 +208,7 @@ namespace dmResource
     /*# 
      * Removes a previously registered file from the resource system
      * @name RemoveFile
+     * @language C++
      * @param factory [type:HResourceFactory] Factory handle
      * @param path [type:const char*] The path of the resource
      * @return result [type:ResourceResult] RESULT_OK on success
@@ -240,4 +259,257 @@ namespace dmResource
 } // namespace dmResource
 
 #endif // #define DMSDK_RESOURCE_GEN_HPP
+/*# 
+ * Resource factory handle. Holds references to all currently loaded resources.
+ * @typedef
+ * @name HResourceFactory
+ * @language C
+ */
+
+/*# 
+ * Holds information about preloading resources
+ * @typedef
+ * @name HResourcePreloadHintInfo
+ * @language C
+ */
+
+/*# 
+ * Holds the resource types, as well as extra in engine contexts that can be shared across type functions.
+ * @typedef
+ * @name HResourceTypeContext
+ * @language C
+ */
+
+/*# 
+ * Represents a resource type, with a context and type functions for creation and destroying a resource.
+ * @typedef
+ * @name HResourceType
+ * @language C
+ */
+
+/*# 
+ * Holds information about a currently loaded resource.
+ * @typedef
+ * @name HResourceDescriptor
+ * @language C
+ */
+
+/*# 
+ * ResourceResult
+ * @enum
+ * @name ResourceResult
+ * @language C
+ * @member  RESOURCE_RESULT_OK
+ * @member  RESOURCE_RESULT_INVALID_DATA
+ * @member  RESOURCE_RESULT_DDF_ERROR
+ * @member  RESOURCE_RESULT_RESOURCE_NOT_FOUND
+ * @member  RESOURCE_RESULT_MISSING_FILE_EXTENSION
+ * @member  RESOURCE_RESULT_ALREADY_REGISTERED
+ * @member  RESOURCE_RESULT_INVAL
+ * @member  RESOURCE_RESULT_UNKNOWN_RESOURCE_TYPE
+ * @member  RESOURCE_RESULT_OUT_OF_MEMORY
+ * @member  RESOURCE_RESULT_IO_ERROR
+ * @member  RESOURCE_RESULT_NOT_LOADED
+ * @member  RESOURCE_RESULT_OUT_OF_RESOURCES
+ * @member  RESOURCE_RESULT_STREAMBUFFER_TOO_SMALL
+ * @member  RESOURCE_RESULT_FORMAT_ERROR
+ * @member  RESOURCE_RESULT_CONSTANT_ERROR
+ * @member  RESOURCE_RESULT_NOT_SUPPORTED
+ * @member  RESOURCE_RESULT_RESOURCE_LOOP_ERROR
+ * @member  RESOURCE_RESULT_PENDING
+ * @member  RESOURCE_RESULT_INVALID_FILE_EXTENSION
+ * @member  RESOURCE_RESULT_VERSION_MISMATCH
+ * @member  RESOURCE_RESULT_SIGNATURE_MISMATCH
+ * @member  RESOURCE_RESULT_UNKNOWN_ERROR
+ */
+
+/*# 
+ * Function called when a resource has been reloaded.
+ * @name FResourceReloadedCallback
+ * @language C
+ * @param  params Parameters
+ */
+
+/*# 
+ * Encrypts a resource in-place
+ * @typedef
+ * @name FResourceDecrypt
+ * @language C
+ * @param buffer [type:void*] The input/output buffer
+ * @param buffer_len [type:uint32_t] The size of the buffer (in bytes)
+ * @return  RESULT_OK on success
+ */
+
+/*# 
+ * Registers a custom resource decryption function
+ * @name ResourceRegisterDecryptionFunction
+ * @language C
+ * @param decrypt_resource [type:dmResource::FDecryptResource] The decryption function
+ */
+
+/*# 
+ * Get a resource from factory
+ * @name ResourceGet
+ * @language C
+ * @param factory [type:HResourceFactory] Factory handle
+ * @param name [type:const char*] Resource name
+ * @param resource [type:void**] Created resource
+ * @return result [type:ResourceResult] RESULT_OK on success
+ */
+
+/*# 
+ * Get a resource from factory
+ * @name ResourceGetByHash
+ * @language C
+ * @param factory [type:HResourceFactory] Factory handle
+ * @param name [type:dmhash_t] Resource name
+ * @param resource [type:void**] Created resource
+ * @return result [type:ResourceResult] RESULT_OK on success
+ */
+
+/*# 
+ * Get raw resource data. Unregistered resources can be loaded with this function.
+ * If successful, the returned resource data must be deallocated with free()
+ * @name ResourceGetRaw
+ * @language C
+ * @param factory [type:HResourceFactory] Factory handle
+ * @param name [type:dmhash_t] Resource name
+ * @param resource [type:void**] Created resource
+ * @param resource_size [type:uint32_t*] Resource size
+ * @return result [type:ResourceResult] RESULT_OK on success
+ */
+
+/*# 
+ * Release resource
+ * @name Release
+ * @language C
+ * @param factory [type:HResourceFactory] Factory handle
+ * @param resource [type:void*] Resource pointer
+ * @note Decreases ref count by 1. If it reaches 0, the resource destroy function is called.
+ */
+
+/*# 
+ * Hint the preloader what to load before Create is called on the resource.
+ * The resources are not guaranteed to be loaded before Create is called.
+ * This function can be called from a worker thread.
+ * @name PreloadHint
+ * @language C
+ * @param factory [type:dmResource::HResourcePreloadHintInfo] Preloader handle
+ * @param path [type:const char*] Resource path
+ * @return result [type:bool] if successfully invoking preloader.
+ */
+
+/*# 
+ * Returns the canonical path hash of a resource
+ * @name ResourceGetPath
+ * @language C
+ * @param factory [type:HResourceFactory] Factory handle
+ * @param resource [type:void*] The resource pointer
+ * @param hash [type:dmhash_t*] (out) The path hash of the resource
+ * @return result [type:ResourceResult] RESULT_OK on success
+ */
+
+/*# 
+ * Adds a file to the resource system
+ * Any request for this path will go through any existing mounts first.
+ * If you wish to provide file overrides, please use the LiveUpdate feature for that.
+ * The file isn't persisted between sessions.
+ * @name ResourceAddFile
+ * @language C
+ * @param factory [type:HResourceFactory] Factory handle
+ * @param path [type:const char*] The path of the resource
+ * @param size [type:uint32_t] The size of the resource (in bytes)
+ * @param resource [type:const void*] The resource payload
+ * @return result [type:ResourceResult] RESULT_OK on success
+ */
+
+/*# 
+ * Removes a previously registered file from the resource system
+ * @name ResourceRemoveFile
+ * @language C
+ * @param factory [type:HResourceFactory] Factory handle
+ * @param path [type:const char*] The path of the resource
+ * @return result [type:ResourceResult] RESULT_OK on success
+ */
+
+/*# 
+ * Parameters to ResourcePreload function of the resource type
+ * @name ResourcePreloadParams
+ * @language C
+ */
+
+/*# 
+ * Parameters to ResourceCreate function of the resource type
+ * @name ResourceCreateParams
+ * @language C
+ */
+
+/*# 
+ * Parameters to ResourcePostCreate function of the resource type
+ * @name ResourcePostCreateParams
+ * @language C
+ */
+
+/*# 
+ * Parameters to ResourceRecreate function of the resource type
+ * @name ResourceRecreateParams
+ * @language C
+ */
+
+/*# 
+ * Parameters to ResourceDestroy function of the resource type
+ * @name ResourceDestroyParams
+ * @language C
+ */
+
+/*# 
+ * Parameters to ResourceReloaded function of the resource type
+ * @name ResourceReloadedParams
+ * @language C
+ */
+
+/*# declare a new resource type
+ * Declare and register new resource type to the engine.
+ * This macro is used to declare the resource type callback functions used by the engine to communicate with the extension.
+ * @macro
+ * @name DM_DECLARE_RESOURCE_TYPE
+ * @language C
+ * @examples 
+ * Register a new type:
+ * 
+ * ```cpp
+ * #include <dmsdk/resource/resource_params.h>
+ * #include <dmsdk/resource/resource_type.h>
+ * 
+ * static ResourceResult MyResourceTypeScriptCreate(const ResourceCreateParams* params) {}
+ * static ResourceResult MyResourceTypeScriptDestroy(const ResourceDestroyParams* params) {}
+ * static ResourceResult MyResourceTypeScriptRecreate(const ResourceRereateParams* params) {}
+ * 
+ * struct MyContext
+ * {
+ *     // ...
+ * };
+ * 
+ * static ResourceResult RegisterResourceTypeBlob(HResourceTypeRegisterContext ctx, HResourceType type)
+ * {
+ *     // The engine.cpp creates the contexts for our built in types.
+ *     // Here we register a custom type
+ *     MyContext* context = new MyContext;
+ * 
+ *     ResourceTypeSetContext(type, (void*)context);
+ *     ResourceTypeSetCreateFn(type, MyResourceTypeScriptCreate);
+ *     ResourceTypeSetDestroyFn(type, MyResourceTypeScriptDestroy);
+ *     ResourceTypeSetRecreateFn(type, MyResourceTypeScriptRecreate);
+ * }
+ * 
+ * static ResourceResult DeregisterResourceTypeBlob(ResourceTypeRegisterContext& ctx)
+ * {
+ *     MyContext** context = (MyContext*)ResourceTypeGetContext(type);
+ *     delete *context;
+ * }
+ * 
+ * DM_DECLARE_RESOURCE_TYPE(ResourceTypeBlob, "blobc", RegisterResourceTypeBlob, DeregisterResourceTypeBlob);
+ * ```
+ */
+
 

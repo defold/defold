@@ -51,8 +51,8 @@ def gen_doc_header(name, brief, description, language, namespace, source):
  */
 """
 
-INDENT = 4
-INDENT_STR = ' ' * INDENT
+def get_indent(indent):
+    return '    ' * indent
 
 def _find_doc(docs, name):
     for doc in docs['items']:
@@ -79,15 +79,15 @@ def _add_param(lines, tag, doc):
     else:
         lines.append(f'@{tag} {name} [type:{typ}] {desc}')
 
-def _format_doc_lines(lines):
+def _format_doc_lines(lines, indent):
+    indent_str = get_indent(indent)
     if isinstance(lines, str):
         lines = lines.splitlines()
-    return ('\n' + INDENT_STR + ' * ').join(lines)
+    return ('\n' + indent_str + ' * ').join(lines)
 
-def gen_cpp_doc(docs, name, renamed):
+def gen_doc(docs, name, renamed, indent=1, language='C++'):
     doc = _find_doc(docs, name)
     if not doc:
-        print("MAWE NOT FOUND ", name)
         return f"""    /*#
         * Generated from [ref:{name}]
         */"""
@@ -96,7 +96,7 @@ def gen_cpp_doc(docs, name, renamed):
     _add_line(lines, None, doc.get('brief', ''))
 
     desc = doc.get('desc', doc.get('brief', ''))
-    desc = _format_doc_lines(desc)
+    desc = _format_doc_lines(desc, indent)
     _add_line(lines, None, desc)
 
     doctype = doc.get('type', None)
@@ -106,8 +106,9 @@ def gen_cpp_doc(docs, name, renamed):
         doctype = 'function'
 
     _add_line(lines, 'name', renamed)
+    _add_line(lines, 'language', language)
 
-    if doctype in ['function']:
+    if doctype in ['function', 'typedef']:
         for param in doc.get('params', []):
             _add_param(lines, 'param', param)
 
@@ -118,7 +119,7 @@ def gen_cpp_doc(docs, name, renamed):
             _add_param(lines, 'member', member)
 
     for (_, v) in doc.get('notes', []):
-        v = _format_doc_lines(v)
+        v = _format_doc_lines(v, indent)
         _add_line(lines, 'note', v)
 
     for (_, v) in doc.get('examples', []):
@@ -126,10 +127,11 @@ def gen_cpp_doc(docs, name, renamed):
         if 'objective-c' in v:
             v = v.replace('\\@', '@')
 
-        v = _format_doc_lines('\n' + v)
+        v = _format_doc_lines('\n' + v, indent)
         _add_line(lines, 'examples', v)
 
-    return INDENT_STR + '/*# ' + _format_doc_lines(lines) + '\n'+ INDENT_STR + ' */'
+    indent_str = get_indent(indent)
+    return indent_str + '/*# ' + _format_doc_lines(lines, indent) + '\n'+ indent_str + ' */'
 
 def get_cpp_func(decl):
     ret_type = decl['type']['qualType']
@@ -144,6 +146,16 @@ def get_cpp_func(decl):
         args.append('%s %s' % (inner['type']['qualType'], inner.get('name','')))
 
     return '%s %s(%s)' % (ret_type, decl['name'], ', '.join(args))
+
+def add_c_docs(docs):
+    for doc in docs['items']:
+        if not 'name' in doc:
+            import pprint
+            pprint.pp(doc)
+        name = doc['name']
+        out = gen_doc(docs, name, name, indent=0, language='C')
+        l(out)
+        l('')
 
 def gen_cpp_header(basepath, c_header_path, out_path, info, ast, state, includes, docs):
     _reset_globals()
@@ -209,7 +221,7 @@ def gen_cpp_header(basepath, c_header_path, out_path, info, ast, state, includes
             continue
         renamed = rename_symbols(prefixes, n)
 
-        out_doc = gen_cpp_doc(docs, enum_type.name, renamed)
+        out_doc = gen_doc(docs, enum_type.name, renamed)
         l(out_doc)
         l('    enum %s {' % renamed)
         for enum_value in enum_type.values:
@@ -230,7 +242,7 @@ def gen_cpp_header(basepath, c_header_path, out_path, info, ast, state, includes
 
         # out_doc = get_cpp_doc(prefixes, doc)
         # if out_doc is None:
-        out_doc = gen_cpp_doc(docs, decl['name'], renamed)
+        out_doc = gen_doc(docs, decl['name'], renamed)
         l(out_doc)
         l('    typedef %s %s;' % (n, renamed))
         l('')
@@ -243,7 +255,7 @@ def gen_cpp_header(basepath, c_header_path, out_path, info, ast, state, includes
 
         # out_doc = get_cpp_doc(prefixes, doc)
         # if out_doc is None:
-        out_doc = gen_cpp_doc(docs, decl['name'], renamed)
+        out_doc = gen_doc(docs, decl['name'], renamed)
         l(out_doc)
         l('    typedef %s %s;' % (n, renamed))
         l('')
@@ -258,7 +270,7 @@ def gen_cpp_header(basepath, c_header_path, out_path, info, ast, state, includes
 
         # out_doc = get_cpp_doc(prefixes, doc)
         # if out_doc is None:
-        out_doc = gen_cpp_doc(docs, decl['name'], renamed)
+        out_doc = gen_doc(docs, decl['name'], renamed)
         l(out_doc)
         l('    %s;' % cpp_func)
         l('')
@@ -274,6 +286,10 @@ def gen_cpp_header(basepath, c_header_path, out_path, info, ast, state, includes
 
     l('')
     l('#endif // #define DMSDK_' + basename.upper())
+
+    # Workaround, until we have proper multi language support.
+    # We attach the C documentation at the end of this file.
+    add_c_docs(docs)
 
     l('') # always have a newline at the end
     return out_lines

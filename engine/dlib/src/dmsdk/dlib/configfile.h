@@ -176,8 +176,9 @@ typedef bool (*FConfigFileGetInt)(HConfigFile config, const char* key, int32_t d
  */
 typedef bool (*FConfigFileGetFloat)(HConfigFile config, const char* key, float default_value, float* out);
 
-/*# Used when registering new config file extensions
- * @constant
+/*# Used when registering new config file extensions.
+ * It defines the minimum size of the description blob being registered.
+ * @variable
  * @name ConfigFileExtensionDescBufferSize
  */
 const uint32_t ConfigFileExtensionDescBufferSize = 64;
@@ -197,7 +198,7 @@ const uint32_t ConfigFileExtensionDescBufferSize = 64;
  */
 void ConfigFileRegisterExtension(void* desc,
     uint32_t desc_size,
-    const char *name,
+    const char* name,
     FConfigFileCreate create,
     FConfigFileDestroy destroy,
     FConfigFileGetString get_string,

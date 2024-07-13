@@ -83,6 +83,7 @@ def is_function_typedef(inp):
 
 ##############################################################################
 
+# Deprecated. We now use gen_doc.py for documentation extraction
 class Documentation(object):
     def __init__(self, short_desc='', desc='', params=None, examples=None):
         self.short_desc = short_desc
