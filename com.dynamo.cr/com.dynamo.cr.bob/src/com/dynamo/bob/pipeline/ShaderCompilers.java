@@ -58,7 +58,7 @@ public class ShaderCompilers {
             ShaderDesc.ShaderType shaderType, ShaderDesc.Language[] shaderLanguages,
             String spirvTargetProfile, boolean isDebug, boolean softFail) throws IOException, CompileExceptionError {
 
-        ArrayList<ShaderProgramBuilder.ShaderBuildResult> shaderBuildResults = new ArrayList<ShaderProgramBuilder.ShaderBuildResult>();
+        ArrayList<ShaderProgramBuilder.ShaderBuildResult> shaderBuildResults = new ArrayList();
 
         for (ShaderDesc.Language shaderLanguage : shaderLanguages) {
             if (shaderLanguage == ShaderDesc.Language.LANGUAGE_SPIRV) {

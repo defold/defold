@@ -19,7 +19,6 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
 import java.util.ArrayList;
-import java.util.List;
 
 import org.junit.Test;
 
@@ -51,7 +50,7 @@ public class ShaderCompilePipelineTest {
 				"}\n";
 
 		ShaderCompilePipeline pipeline = new ShaderCompilePipeline("testSimple");
-		ShaderCompilePipeline.createShaderPipelineGraphics(pipeline, vsShader, fsShader);
+		ShaderCompilePipeline.createShaderPipeline(pipeline, vsShader, ShaderDesc.ShaderType.SHADER_TYPE_VERTEX);
 		byte[] source = pipeline.crossCompile(ShaderDesc.ShaderType.SHADER_TYPE_VERTEX, ShaderDesc.Language.LANGUAGE_GLES_SM100);
 
     	SPIRVReflector reflector 	     			 = pipeline.getReflectionData();

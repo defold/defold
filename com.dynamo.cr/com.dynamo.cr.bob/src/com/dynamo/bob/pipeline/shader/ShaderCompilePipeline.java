@@ -15,16 +15,9 @@
 package com.dynamo.bob.pipeline;
 
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Paths;
-import java.nio.file.Path;
 import java.io.File;
 import java.io.IOException;
-import java.util.List;
 import java.util.ArrayList;
-
-import java.util.HashMap;
-import java.util.Map;
 
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.Platform;
@@ -37,7 +30,6 @@ import com.dynamo.bob.pipeline.ShaderUtil.SPIRVReflector;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
 import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.FilenameUtils;
 
 public class ShaderCompilePipeline {
 
@@ -52,24 +44,13 @@ public class ShaderCompilePipeline {
         }
     };
 
-    protected String pipelineName                   = null;
+    protected String pipelineName;
     protected File spirvFileOut                     = null;
     protected SPIRVReflector spirvReflector         = null;
     protected ArrayList<ShaderModule> shaderModules = new ArrayList<ShaderModule>();
 
     public ShaderCompilePipeline(String pipelineName) {
         this.pipelineName = pipelineName;
-    }
-
-    private static ShaderDesc.ShaderType pathToShaderType(String path) throws CompileExceptionError {
-        if (path.endsWith(".vp")) {
-            return ShaderDesc.ShaderType.SHADER_TYPE_VERTEX;
-        } else if (path.endsWith(".fp")) {
-            return ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT;
-        } else if (path.endsWith(".cp")) {
-            return ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE;
-        }
-        throw new CompileExceptionError("Unable to deduce shader type from path: " + path);
     }
 
     private static String shaderTypeToSpirvStage(ShaderDesc.ShaderType shaderType) throws CompileExceptionError {
@@ -79,7 +60,7 @@ public class ShaderCompilePipeline {
             case SHADER_TYPE_FRAGMENT:
                 return "frag";
             case SHADER_TYPE_COMPUTE:
-                return "compute";
+                return "comp";
         }
         throw new CompileExceptionError("Unknown shader type: " + shaderType);
     }
@@ -202,18 +183,6 @@ public class ShaderCompilePipeline {
         checkResult(result);
     }
 
-    private void linkSPIRvModules(ArrayList<ShaderModule> shaderModules, String pathFileOutSpvLinked) throws IOException, CompileExceptionError{
-        String allFiles = "";
-        for (ShaderModule s : shaderModules) {
-            allFiles += s.spirvFile.getAbsolutePath() + " ";
-        }
-
-        Result result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "spirv-link"),
-            allFiles,
-            "--output", pathFileOutSpvLinked);
-        checkResult(result);
-    }
-
     protected void addShaderModule(String source, ShaderDesc.ShaderType type) {
         shaderModules.add(new ShaderModule(source, type));
     }
@@ -239,16 +208,8 @@ public class ShaderCompilePipeline {
             module.spirvFile = fileOutSpv;
         }
 
-        // Link step is only needed if there is more than one module
-        File fileOutSpvLinked = null;
-        if (this.shaderModules.size() == 1) {
-            fileOutSpvLinked = this.shaderModules.get(0).spirvFile;
-        } else {
-            // 2. Link all the .spv files together
-            fileOutSpvLinked = File.createTempFile(this.pipelineName, ".linked.spv");
-            FileUtil.deleteOnExit(fileOutSpvLinked);
-            linkSPIRvModules(this.shaderModules, fileOutSpvLinked.getAbsolutePath());
-        }
+        // 2. TODO: link all the shader modules together. For now we only need to support single modules
+        File fileOutSpvLinked = this.shaderModules.get(0).spirvFile;
 
         // 3. Generate an optimized version of the final .spv file
         File fileOutSpvOpt = File.createTempFile(this.pipelineName, ".optimized.spv");
@@ -292,21 +253,9 @@ public class ShaderCompilePipeline {
         return this.spirvReflector;
     }
 
-    // TODO: Maybe better API here
-    public static ShaderCompilePipeline createShaderPipelineGraphics(ShaderCompilePipeline pipeline, String vertexShaderSource, String fragmentShaderSource) throws IOException, CompileExceptionError {
-        pipeline.addShaderModule(vertexShaderSource, ShaderDesc.ShaderType.SHADER_TYPE_VERTEX);
-        pipeline.addShaderModule(fragmentShaderSource, ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT);
-        pipeline.prepare();
-        return pipeline;
-    }
-
     public static ShaderCompilePipeline createShaderPipeline(ShaderCompilePipeline pipeline, String source, ShaderDesc.ShaderType type) throws IOException, CompileExceptionError {
         pipeline.addShaderModule(source, type);
         pipeline.prepare();
         return pipeline;
-    }
-
-    public static ShaderCompilePipeline createShaderPipelineCompute(ShaderCompilePipeline pipeline, String computeShaderSource) throws IOException, CompileExceptionError {
-        return createShaderPipeline(pipeline, computeShaderSource, ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE);
     }
 }

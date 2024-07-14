@@ -247,9 +247,6 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         builder.setLanguage(language);
         builder.setSource(ByteString.copyFrom(source));
 
-        // String shaderSrc = new String(source);
-        // System.out.println("crossCompile: " + language + ", src:\n" + shaderSrc);
-
         if (reflector != null) {
             ArrayList<SPIRVReflector.Resource> inputs    = reflector.getInputs();
             ArrayList<SPIRVReflector.Resource> outputs   = reflector.getOutputs();
