@@ -143,6 +143,7 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         return null;
     }
 
+    /*
     // Called from editor for producing a ShaderDesc with a list of finalized shaders,
     // fully transformed from source to context shaders based on a list of languages
     static public ShaderDescBuildResult makeShaderDescWithVariants(String resourceOutputPath, String shaderSource, ShaderDesc.ShaderType shaderType,
@@ -158,6 +159,7 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
 
         return buildResultsToShaderDescBuildResults(shaderBuildResults, shaderType);
     }
+    */
 
     // Called from bob
     public ShaderDescBuildResult makeShaderDesc(String resourceOutputPath, ShaderPreprocessor shaderPreprocessor, ShaderDesc.ShaderType shaderType,

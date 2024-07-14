@@ -36,7 +36,6 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ShaderUtil.ES2ToES3Converter;
 import com.dynamo.bob.pipeline.ShaderUtil.SPIRVReflector;
 import com.dynamo.bob.pipeline.ShaderUtil.Common;
-import com.dynamo.bob.pipeline.ShaderProgramBuilder;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.util.Exec.Result;
@@ -138,7 +137,7 @@ public class ShaderCompilerHelpers {
         scanner.close();
         writer.flush();
 
-        String source = source = os.toString().replace("\r", "");
+        String source = os.toString().replace("\r", "");
 
         if (gles3Standard) {
             ES2ToES3Converter.Result es3Result = ES2ToES3Converter.transform(source, shaderType, gles ? "es" : "", version, false);
@@ -353,67 +352,5 @@ public class ShaderCompilerHelpers {
         resourceBindingBuilder.setBinding(res.binding);
         resourceBindingBuilder.setBlockSize(res.blockSize);
         return resourceBindingBuilder;
-    }
-
-    static public ShaderProgramBuilder.ShaderBuildResult buildSpirvFromGLSL(String source, ShaderDesc.ShaderType shaderType, String resourceOutputPath, String targetProfile, boolean isDebug, boolean soft_fail)  throws IOException, CompileExceptionError {
-        source = Common.stripComments(source);
-        SPIRVCompileResult compile_res = compileGLSLToSPIRV(source, shaderType, resourceOutputPath, targetProfile, isDebug, soft_fail);
-
-        if (compile_res.compile_warnings.size() > 0)
-        {
-            return new ShaderProgramBuilder.ShaderBuildResult(compile_res.compile_warnings);
-        }
-
-        ShaderDesc.Shader.Builder builder = ShaderDesc.Shader.newBuilder();
-        builder.setLanguage(ShaderDesc.Language.LANGUAGE_SPIRV);
-        builder.setSource(ByteString.copyFrom(compile_res.source));
-
-        for (SPIRVReflector.Resource input : compile_res.reflector.getInputs()) {
-            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(compile_res.reflector.getTypes(), input);
-            builder.addInputs(resourceBindingBuilder);
-        }
-
-        for (SPIRVReflector.Resource output : compile_res.reflector.getOutputs()) {
-            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(compile_res.reflector.getTypes(), output);
-            builder.addOutputs(resourceBindingBuilder);
-        }
-
-        for (SPIRVReflector.Resource ubo : compile_res.reflector.getUBOs()) {
-            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(compile_res.reflector.getTypes(), ubo);
-            builder.addUniformBuffers(resourceBindingBuilder);
-        }
-
-        for (SPIRVReflector.Resource ssbo : compile_res.reflector.getSsbos()) {
-            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(compile_res.reflector.getTypes(), ssbo);
-            builder.addStorageBuffers(resourceBindingBuilder);
-        }
-
-        for (SPIRVReflector.Resource texture : compile_res.reflector.getTextures()) {
-            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(compile_res.reflector.getTypes(), texture);
-            builder.addTextures(resourceBindingBuilder);
-        }
-
-        for (SPIRVReflector.ResourceType type : compile_res.reflector.getTypes()) {
-            ShaderDesc.ResourceTypeInfo.Builder resourceTypeInfoBuilder = ShaderDesc.ResourceTypeInfo.newBuilder();
-
-            resourceTypeInfoBuilder.setName(type.name);
-            resourceTypeInfoBuilder.setNameHash(MurmurHash.hash64(type.name));
-
-            for (SPIRVReflector.ResourceMember member : type.members) {
-                ShaderDesc.ResourceMember.Builder typeMemberBuilder = ShaderDesc.ResourceMember.newBuilder();
-
-                ShaderDesc.ResourceType.Builder typeBuilder = getResourceTypeBuilder(compile_res.reflector.getTypes(), member.type);
-                typeMemberBuilder.setType(typeBuilder);
-                typeMemberBuilder.setName(member.name);
-                typeMemberBuilder.setNameHash(MurmurHash.hash64(member.name));
-                typeMemberBuilder.setElementCount(member.elementCount);
-
-                resourceTypeInfoBuilder.addMembers(typeMemberBuilder);
-            }
-
-            builder.addTypes(resourceTypeInfoBuilder);
-        }
-
-        return new ShaderProgramBuilder.ShaderBuildResult(builder);
     }
 }

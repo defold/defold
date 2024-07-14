@@ -69,6 +69,20 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             "   FragColorOut = fragColor; \n" +
             "}\n";
 
+    private static ShaderDesc.Language getPlatformGLSLLanguage() {
+        switch(Platform.getHostPlatform())
+        {
+            case Arm64MacOS:
+            case X86_64MacOS:
+                return ShaderDesc.Language.LANGUAGE_GLSL_SM330;
+            case X86_64Linux:
+            case X86_64Win32:
+                return ShaderDesc.Language.LANGUAGE_GLSL_SM140;
+            default:break;
+        }
+        return null;
+    }
+
     private static boolean hasPlatformSupportsSpirv() {
         switch(Platform.getHostPlatform())
         {
@@ -87,7 +101,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         List<Message> outputs = build("/test_shader.vp", vp);
         ShaderDesc shader = (ShaderDesc)outputs.get(0);
         assertNotNull(shader.getShaders(0).getSource());
-        assertEquals(ShaderDesc.Language.LANGUAGE_GLSL_SM140, shader.getShaders(0).getLanguage());
+        assertEquals(getPlatformGLSLLanguage(), shader.getShaders(0).getLanguage());
 
         if (expectSpirv && hasPlatformSupportsSpirv()) {
             assertEquals(2, shader.getShadersCount());
@@ -100,9 +114,9 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         // Test GL fp
         outputs = build("/test_shader.fp", fp);
         shader = (ShaderDesc)outputs.get(0);
-        assert(shader.getShaders(0).getLanguage() == ShaderDesc.Language.LANGUAGE_GLSL_SM140);
+        assert(shader.getShaders(0).getLanguage() == getPlatformGLSLLanguage());
         assertNotNull(shader.getShaders(0).getSource());
-        assertEquals(ShaderDesc.Language.LANGUAGE_GLSL_SM140, shader.getShaders(0).getLanguage());
+        assertEquals(getPlatformGLSLLanguage(), shader.getShaders(0).getLanguage());
 
         if (expectSpirv && hasPlatformSupportsSpirv()) {
             assertEquals(2, shader.getShadersCount());
@@ -124,7 +138,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
                 assertEquals(ShaderDesc.Language.LANGUAGE_SPIRV, shader.getShaders(1).getLanguage());
             }
         } else {
-            outputs = build("/test_shader.vp", "#version 310 es\n" + vp);
+            outputs = build("/test_shader.vp", vpEs3);
             shader = (ShaderDesc)outputs.get(0);
             assertEquals(1, shader.getShadersCount());
         }
@@ -139,7 +153,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
                 assertEquals(ShaderDesc.Language.LANGUAGE_SPIRV, shader.getShaders(1).getLanguage());
             }
         } else {
-            outputs = build("/test_shader.fp", "#version 310 es\n" + fpEs3);
+            outputs = build("/test_shader.fp", fpEs3);
             shader = (ShaderDesc)outputs.get(0);
             assertEquals(1, shader.getShadersCount());
         }
