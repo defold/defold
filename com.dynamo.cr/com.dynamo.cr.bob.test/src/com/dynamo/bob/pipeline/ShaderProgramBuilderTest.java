@@ -83,6 +83,20 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         return null;
     }
 
+    private static int getPlatformGLSLVersion() {
+        switch(Platform.getHostPlatform())
+        {
+            case Arm64MacOS:
+            case X86_64MacOS:
+                return 330;
+            case X86_64Linux:
+            case X86_64Win32:
+                return 140;
+            default:break;
+        }
+        return 0;
+    }
+
     private static boolean hasPlatformSupportsSpirv() {
         switch(Platform.getHostPlatform())
         {
@@ -208,15 +222,6 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
                 }
             }
         }
-    }
-
-    private static ShaderDesc.ResourceTypeInfo getShaderTypeInfo(ShaderDesc.Shader shader, String typeName) {
-        for (ShaderDesc.ResourceTypeInfo t : shader.getTypesList()) {
-            if (t.getName().equals(typeName)) {
-                return t;
-            }
-        }
-        return null;
     }
 
     private static void validateResourceBindingWithKnownType(ShaderDesc.ResourceBinding binding, String expectedName, ShaderDesc.ShaderDataType expectedDataType) {
@@ -385,7 +390,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             "   gl_FragColor = vec4(1.0);\n" +
             "}\n";
 
-        String expected_base = "#version 140\n" +
+        String expected_base = "#version " + getPlatformGLSLVersion() + "\n" +
                                "\n" +
                                "\n" +
                                "#ifndef GL_ES\n" +
