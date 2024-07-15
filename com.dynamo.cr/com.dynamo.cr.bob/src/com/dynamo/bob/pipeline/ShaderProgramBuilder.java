@@ -81,8 +81,7 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
             .addInput(input);
 
         // Parse source for includes and add the include nodes as inputs/dependancies to the shader
-        String source     = new String(input.getContent(), StandardCharsets.UTF_8);
-        String projectDir = this.project.getRootDirectory();
+        String source = new String(input.getContent(), StandardCharsets.UTF_8);
         ShaderPreprocessor shaderPreprocessor = new ShaderPreprocessor(this.project, input.getPath(), source);
         String[] includes = shaderPreprocessor.getIncludes();
 
@@ -91,10 +90,11 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         }
 
         // Include the spir-v flag into the cache key so we can invalidate the output results accordingly
-        String spirvCacheKey = "output_spirv=" + getOutputSpirvFlag();
+        String shaderCacheKey = "output_spirv=" + getOutputSpirvFlag();
+
         taskBuilder.addOutput(input.changeExt(params.outExt()));
         taskBuilder.setData(shaderPreprocessor);
-        taskBuilder.addExtraCacheKey(spirvCacheKey);
+        taskBuilder.addExtraCacheKey(shaderCacheKey);
 
         Task<ShaderPreprocessor> tsk = taskBuilder.build();
         return tsk;
@@ -231,8 +231,7 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
     }
 
     static public ShaderCompilePipeline getShaderPipelineFromShaderSource(ShaderDesc.ShaderType type, String resourcePath, String shaderSource) throws IOException, CompileExceptionError {
-        ShaderCompilePipeline pipeline = null;
-
+        ShaderCompilePipeline pipeline;
         Common.GLSLShaderInfo shaderInfo = Common.getShaderInfo(shaderSource);
 
         if (shaderInfo == null) {

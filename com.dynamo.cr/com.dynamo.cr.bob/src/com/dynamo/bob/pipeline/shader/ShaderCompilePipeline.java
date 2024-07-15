@@ -83,25 +83,6 @@ public class ShaderCompilePipeline {
         return 0;
     }
 
-    private static ShaderDesc.Language shaderLanguageStrToEnum(String fromString) throws CompileExceptionError {
-        if (fromString.equals("100")) {
-            return ShaderDesc.Language.LANGUAGE_GLES_SM100;
-        } else if (fromString.equals("120")) {
-            return ShaderDesc.Language.LANGUAGE_GLSL_SM120;
-        } else if (fromString.equals("140")) {
-            return ShaderDesc.Language.LANGUAGE_GLSL_SM140;
-        } else if (fromString.equals("300")) {
-            return ShaderDesc.Language.LANGUAGE_GLES_SM300;
-        } else if (fromString.equals("330")) {
-            return ShaderDesc.Language.LANGUAGE_GLSL_SM330;
-        } else if (fromString.equals("430")) {
-            return ShaderDesc.Language.LANGUAGE_GLSL_SM430;
-        } else if (fromString.equals("spv")) {
-            return ShaderDesc.Language.LANGUAGE_SPIRV;
-        }
-        throw new CompileExceptionError("Unknown shader language: " + fromString);
-    }
-
     protected static boolean canBeCrossCompiled(ShaderDesc.Language shaderLanguage) {
         return shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM120 ||
                shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM140 ||

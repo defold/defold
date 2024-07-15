@@ -221,7 +221,6 @@ public class ShaderUtil {
                     shaderBody.add("");
                     generateTextureArrayFn(shaderBody, uniformName, maxPageCount);
                     arraySamplers.add(uniformName);
-
                 } else {
                     shaderBody.add(line);
                 }
@@ -233,6 +232,13 @@ public class ShaderUtil {
 
             String shaderBodyStr = String.join("\n", shaderBody);
             shaderBodyStr        = shaderBodyStr.replaceAll(arrayReplaceTextureRegex, "texture2DArray_$1(");
+
+            for (String samplerName : arraySamplers) {
+                String texture2DReplaceTextureRegex = String.format("texture2D(\\W?)+\\((\\W?)+%s(\\W?)+,", samplerName);
+                String texture2DReplaceTextureReplacement = String.format("texture2DArray_%s(", samplerName);
+                shaderBodyStr = shaderBodyStr.replaceAll(texture2DReplaceTextureRegex,  texture2DReplaceTextureReplacement);
+            }
+
             result.source        = shaderBodyStr + "\n";
             result.arraySamplers = arraySamplers.toArray(new String[0]);
 
