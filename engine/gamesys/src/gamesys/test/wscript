@@ -73,7 +73,8 @@ def build(bld):
                         'ComponentTypeGui',
                         'ComponentTypeMesh',
                         'ResourceTypeGui','ResourceTypeGuiScript',
-                        'GraphicsAdapterNull']
+                        'GraphicsAdapterNull',
+                        'ScriptImageExt']
 
     test_gamesys = bld.program(features = 'cxx cprogram test',
                                includes = '../../../src ../../../proto',

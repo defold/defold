@@ -158,20 +158,5 @@ namespace dmImage
         return image->m_Buffer;
     }
 
-    uint32_t BytesPerPixel(Type type)
-    {
-        switch (type)
-        {
-        case dmImage::TYPE_RGB:
-            return 3;
-        case dmImage::TYPE_RGBA:
-            return 4;
-        case dmImage::TYPE_LUMINANCE:
-            return 1;
-        case dmImage::TYPE_LUMINANCE_ALPHA:
-            return 2;
-        }
-        return 0;
-    }
 }
 
