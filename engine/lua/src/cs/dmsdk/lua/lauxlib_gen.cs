@@ -1,5 +1,5 @@
 // Generated, do not edit!
-// Generated with cwd=/Users/mathiaswesterdahl/work/defold/engine/lua and cmd=../../scripts/dmsdk/gen_sdk.py -i ./sdk_gen.json
+// Generated with cwd=/Users/mathiaswesterdahl/work/defold/engine/lua and cmd=/Users/mathiaswesterdahl/work/defold/scripts/dmsdk/gen_sdk.py -i /Users/mathiaswesterdahl/work/defold/engine/lua/sdk_gen.json
 
 // Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
@@ -15,6 +15,18 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+
+/*# 
+ *
+ * 
+ *
+ * @document
+ * @language C#
+ * @name Lauxlib_gen
+ * @namespace Lua
+ * @path engine/lua/src/cs/dmsdk/lua/lauxlib_gen.cs
+ */
+
 using System.Runtime.InteropServices;
 using System.Reflection.Emit;
 
@@ -23,159 +35,159 @@ using static dmSDK.Lua.Lua;
 namespace dmSDK.Lua {
     public unsafe partial class LuaL
     {
-        /*#
-        * Generated from [ref:luaL_openlib]
-        */
+        /// <summary>
+        /// Generated from [ref:luaL_openlib]
+        /// </summary>
         [DllImport("luajit-5.1", EntryPoint="luaL_openlib", CallingConvention = CallingConvention.Cdecl)]
         public static extern void openlib(State * L, String libname, Reg * l, int nup);
 
-        /*#
-        * Generated from [ref:luaL_register]
-        */
+        /// <summary>
+        /// Generated from [ref:luaL_register]
+        /// </summary>
         [DllImport("luajit-5.1", EntryPoint="luaL_register", CallingConvention = CallingConvention.Cdecl)]
         public static extern void register(State * L, String libname, Reg * l);
 
-        /*#
-        * Generated from [ref:luaL_getmetafield]
-        */
+        /// <summary>
+        /// Generated from [ref:luaL_getmetafield]
+        /// </summary>
         [DllImport("luajit-5.1", EntryPoint="luaL_getmetafield", CallingConvention = CallingConvention.Cdecl)]
         public static extern int getmetafield(State * L, int obj, String e);
 
-        /*#
-        * Generated from [ref:luaL_callmeta]
-        */
+        /// <summary>
+        /// Generated from [ref:luaL_callmeta]
+        /// </summary>
         [DllImport("luajit-5.1", EntryPoint="luaL_callmeta", CallingConvention = CallingConvention.Cdecl)]
         public static extern int callmeta(State * L, int obj, String e);
 
-        /*#
-        * Generated from [ref:luaL_typerror]
-        */
+        /// <summary>
+        /// Generated from [ref:luaL_typerror]
+        /// </summary>
         [DllImport("luajit-5.1", EntryPoint="luaL_typerror", CallingConvention = CallingConvention.Cdecl)]
         public static extern int typerror(State * L, int narg, String tname);
 
-        /*#
-        * Generated from [ref:luaL_argerror]
-        */
+        /// <summary>
+        /// Generated from [ref:luaL_argerror]
+        /// </summary>
         [DllImport("luajit-5.1", EntryPoint="luaL_argerror", CallingConvention = CallingConvention.Cdecl)]
         public static extern int argerror(State * L, int numarg, String extramsg);
 
-        /*#
-        * Generated from [ref:luaL_checklstring]
-        */
+        /// <summary>
+        /// Generated from [ref:luaL_checklstring]
+        /// </summary>
         [DllImport("luajit-5.1", EntryPoint="luaL_checklstring", CallingConvention = CallingConvention.Cdecl)]
         public static extern String checklstring(State * L, int numArg, int * l);
 
-        /*#
-        * Generated from [ref:luaL_optlstring]
-        */
+        /// <summary>
+        /// Generated from [ref:luaL_optlstring]
+        /// </summary>
         [DllImport("luajit-5.1", EntryPoint="luaL_optlstring", CallingConvention = CallingConvention.Cdecl)]
         public static extern String optlstring(State * L, int numArg, String def, int * l);
 
-        /*#
-        * Generated from [ref:luaL_checknumber]
-        */
+        /// <summary>
+        /// Generated from [ref:luaL_checknumber]
+        /// </summary>
         [DllImport("luajit-5.1", EntryPoint="luaL_checknumber", CallingConvention = CallingConvention.Cdecl)]
         public static extern double checknumber(State * L, int numArg);
 
-        /*#
-        * Generated from [ref:luaL_optnumber]
-        */
+        /// <summary>
+        /// Generated from [ref:luaL_optnumber]
+        /// </summary>
         [DllImport("luajit-5.1", EntryPoint="luaL_optnumber", CallingConvention = CallingConvention.Cdecl)]
         public static extern double optnumber(State * L, int nArg, double def);
 
-        /*#
-        * Generated from [ref:luaL_checkinteger]
-        */
+        /// <summary>
+        /// Generated from [ref:luaL_checkinteger]
+        /// </summary>
         [DllImport("luajit-5.1", EntryPoint="luaL_checkinteger", CallingConvention = CallingConvention.Cdecl)]
         public static extern int checkinteger(State * L, int numArg);
 
-        /*#
-        * Generated from [ref:luaL_optinteger]
-        */
+        /// <summary>
+        /// Generated from [ref:luaL_optinteger]
+        /// </summary>
         [DllImport("luajit-5.1", EntryPoint="luaL_optinteger", CallingConvention = CallingConvention.Cdecl)]
         public static extern int optinteger(State * L, int nArg, int def);
 
-        /*#
-        * Generated from [ref:luaL_checkstack]
-        */
+        /// <summary>
+        /// Generated from [ref:luaL_checkstack]
+        /// </summary>
         [DllImport("luajit-5.1", EntryPoint="luaL_checkstack", CallingConvention = CallingConvention.Cdecl)]
         public static extern void checkstack(State * L, int sz, String msg);
 
-        /*#
-        * Generated from [ref:luaL_checktype]
-        */
+        /// <summary>
+        /// Generated from [ref:luaL_checktype]
+        /// </summary>
         [DllImport("luajit-5.1", EntryPoint="luaL_checktype", CallingConvention = CallingConvention.Cdecl)]
         public static extern void checktype(State * L, int narg, int t);
 
-        /*#
-        * Generated from [ref:luaL_checkany]
-        */
+        /// <summary>
+        /// Generated from [ref:luaL_checkany]
+        /// </summary>
         [DllImport("luajit-5.1", EntryPoint="luaL_checkany", CallingConvention = CallingConvention.Cdecl)]
         public static extern void checkany(State * L, int narg);
 
-        /*#
-        * Generated from [ref:luaL_newmetatable]
-        */
+        /// <summary>
+        /// Generated from [ref:luaL_newmetatable]
+        /// </summary>
         [DllImport("luajit-5.1", EntryPoint="luaL_newmetatable", CallingConvention = CallingConvention.Cdecl)]
         public static extern int newmetatable(State * L, String tname);
 
-        /*#
-        * Generated from [ref:luaL_checkudata]
-        */
+        /// <summary>
+        /// Generated from [ref:luaL_checkudata]
+        /// </summary>
         [DllImport("luajit-5.1", EntryPoint="luaL_checkudata", CallingConvention = CallingConvention.Cdecl)]
         public static extern void * checkudata(State * L, int ud, String tname);
 
-        /*#
-        * Generated from [ref:luaL_where]
-        */
+        /// <summary>
+        /// Generated from [ref:luaL_where]
+        /// </summary>
         [DllImport("luajit-5.1", EntryPoint="luaL_where", CallingConvention = CallingConvention.Cdecl)]
         public static extern void where(State * L, int lvl);
 
-        /*#
-        * Generated from [ref:luaL_error]
-        */
+        /// <summary>
+        /// Generated from [ref:luaL_error]
+        /// </summary>
         [DllImport("luajit-5.1", EntryPoint="luaL_error", CallingConvention = CallingConvention.Cdecl)]
         public static extern int error(State * L, String fmt);
 
-        /*#
-        * Generated from [ref:luaL_ref]
-        */
+        /// <summary>
+        /// Generated from [ref:luaL_ref]
+        /// </summary>
         [DllImport("luajit-5.1", EntryPoint="luaL_ref", CallingConvention = CallingConvention.Cdecl)]
         public static extern int incref(State * L, int t);
 
-        /*#
-        * Generated from [ref:luaL_unref]
-        */
+        /// <summary>
+        /// Generated from [ref:luaL_unref]
+        /// </summary>
         [DllImport("luajit-5.1", EntryPoint="luaL_unref", CallingConvention = CallingConvention.Cdecl)]
         public static extern void decref(State * L, int t, int _ref);
 
-        /*#
-        * Generated from [ref:luaL_loadfile]
-        */
+        /// <summary>
+        /// Generated from [ref:luaL_loadfile]
+        /// </summary>
         [DllImport("luajit-5.1", EntryPoint="luaL_loadfile", CallingConvention = CallingConvention.Cdecl)]
         public static extern int loadfile(State * L, String filename);
 
-        /*#
-        * Generated from [ref:luaL_loadstring]
-        */
+        /// <summary>
+        /// Generated from [ref:luaL_loadstring]
+        /// </summary>
         [DllImport("luajit-5.1", EntryPoint="luaL_loadstring", CallingConvention = CallingConvention.Cdecl)]
         public static extern int loadstring(State * L, String s);
 
-        /*#
-        * Generated from [ref:luaL_newstate]
-        */
+        /// <summary>
+        /// Generated from [ref:luaL_newstate]
+        /// </summary>
         [DllImport("luajit-5.1", EntryPoint="luaL_newstate", CallingConvention = CallingConvention.Cdecl)]
         public static extern State * newstate();
 
-        /*#
-        * Generated from [ref:luaL_gsub]
-        */
+        /// <summary>
+        /// Generated from [ref:luaL_gsub]
+        /// </summary>
         [DllImport("luajit-5.1", EntryPoint="luaL_gsub", CallingConvention = CallingConvention.Cdecl)]
         public static extern String gsub(State * L, String s, String p, String r);
 
-        /*#
-        * Generated from [ref:luaL_findtable]
-        */
+        /// <summary>
+        /// Generated from [ref:luaL_findtable]
+        /// </summary>
         [DllImport("luajit-5.1", EntryPoint="luaL_findtable", CallingConvention = CallingConvention.Cdecl)]
         public static extern String findtable(State * L, int idx, String fname, int szhint);
 
