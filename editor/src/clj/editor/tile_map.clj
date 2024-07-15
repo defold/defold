@@ -841,7 +841,7 @@
         vb (vtx/use-with ::brush vbuf tex-shader)
         ^Matrix4d layer-transform (:world-transform renderable)
         local-transform (doto (Matrix4d. geom/Identity4d)
-                          (.set (Vector3d. (* x w) (* y h) 0)))
+                          (.set (Vector3d. (* x w) (* y h) 0.001)))
         brush-transform (doto (Matrix4d. local-transform)
                           (.mul layer-transform))]
     (.glMatrixMode gl GL2/GL_MODELVIEW)
@@ -1125,7 +1125,7 @@
   [^GL2 gl render-args renderables n]
   (let [pass (:pass render-args)]
     (condp = pass
-      pass/transparent
+      pass/opaque
       (render-brush gl render-args renderables n)
 
       pass/outline
@@ -1146,7 +1146,7 @@
 (g/defnk produce-editor-renderables
   [active-layer-renderable op op-select-start op-select-end current-tile tile-dimensions brush viewport texture-set-data gpu-texture cursor-mode]
   (when active-layer-renderable
-    {pass/transparent (cond
+    {pass/opaque (cond
                         current-tile
                         [{:world-transform (:world-transform active-layer-renderable)
                           :render-fn render-editor
