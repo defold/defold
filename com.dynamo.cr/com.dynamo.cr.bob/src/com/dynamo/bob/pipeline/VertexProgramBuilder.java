@@ -31,9 +31,7 @@ import org.apache.commons.cli.CommandLine;
 
 @BuilderParams(name = "VertexProgram", inExts = ".vp", outExt = ".vpc")
 public class VertexProgramBuilder extends ShaderProgramBuilder {
-
     private static final ShaderDesc.ShaderType SHADER_TYPE = ShaderDesc.ShaderType.SHADER_TYPE_VERTEX;
-    private boolean soft_fail = true;
 
     @Override
     public void build(Task<ShaderPreprocessor> task) throws IOException, CompileExceptionError {
@@ -44,19 +42,13 @@ public class VertexProgramBuilder extends ShaderProgramBuilder {
         System.setProperty("java.awt.headless", "true");
         VertexProgramBuilder builder = new VertexProgramBuilder();
 
-        CommandLine cmd = builder.getShaderCommandLineOptions(args);
-        String platformName = cmd.getOptionValue("platform", "");
-        Platform platform = Platform.get(platformName);
-        if (platform == null) {
-            throw new CompileExceptionError(String.format("Invalid platform '%s'\n", platformName));
-        }
+        Platform platform = builder.getPlatformFromCommandLine(args);
 
         Project project = new Project(new DefaultFileSystem());
         project.scanJavaClasses();
         IShaderCompiler compiler = project.getShaderCompiler(platform);
 
         builder.setProject(project);
-        builder.soft_fail = false;
-        builder.BuildShader(args, SHADER_TYPE, cmd, compiler);
+        builder.BuildShader(args, SHADER_TYPE, compiler);
     }
 }

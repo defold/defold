@@ -41,8 +41,9 @@ import com.dynamo.bob.pipeline.antlr.glsl.GLSLLexer;
 
 public class ShaderUtil {
     public static class Common {
+        // Used in editor
         public static final int     MAX_ARRAY_SAMPLERS                   = 8;
-        public static final String  glSampler2DArrayRegex                = "(.+)sampler2DArray\\s+(\\w+);";
+
         public static final Pattern regexUniformKeywordPattern           = Pattern.compile("((?<keyword>uniform)\\s+|(?<layout>layout\\s*\\(.*\\n*.*\\)\\s*)\\s+|(?<precision>lowp|mediump|highp)\\s+)*(?<type>\\S+)\\s+(?<identifier>\\S+)\\s*(?<any>.*)\\s*;");
         public static final Pattern regexUniformBlockBeginKeywordPattern = Pattern.compile("((?<keyword>uniform)\\s+|(?<layout>layout\\s*\\(.*\\n*.*\\)\\s*)\\s+)*(?<type>\\S+)(?<any>.*)");
         public static String        includeDirectiveReplaceBaseStr       = "[^\\S\r\n]?\\s*\\#include\\s+(?:<%s>|\"%s\")";
@@ -101,19 +102,6 @@ public class ShaderUtil {
             return rewriter.getText();
         }
 
-        public static boolean isShaderTypeTexture(ShaderDesc.ShaderDataType data_type)
-        {
-            return data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_CUBE    ||
-                   data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D       ||
-                   data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY ||
-                   data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D       ||
-                   data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_TEXTURE2D       ||
-                   data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_UTEXTURE2D      ||
-                   data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER         ||
-                   data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_UIMAGE2D        ||
-                   data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_IMAGE2D;
-        }
-
         private static class ShaderDataTypeConversionEntry {
             public String                    asStr;
             public ShaderDesc.ShaderDataType asDataType;
@@ -155,15 +143,6 @@ public class ShaderUtil {
                 }
             }
             return ShaderDesc.ShaderDataType.SHADER_TYPE_UNKNOWN;
-        }
-
-        public static String shaderTypeToString(ShaderDesc.ShaderDataType dataType) {
-            for (ShaderDataTypeConversionEntry e : shaderDataTypeConversionLut) {
-                if (e.asDataType == dataType) {
-                    return e.asStr;
-                }
-            }
-            return null;
         }
     }
 

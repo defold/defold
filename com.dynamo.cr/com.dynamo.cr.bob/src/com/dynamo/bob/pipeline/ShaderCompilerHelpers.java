@@ -153,11 +153,6 @@ public class ShaderCompilerHelpers {
         return new ShaderProgramBuilder.ShaderBuildResult(builder);
     }
 
-	static public ShaderProgramBuilder.ShaderBuildResult buildGLSL(String source, ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, boolean isDebug)  throws IOException, CompileExceptionError {
-        String glslSource = compileGLSL(source, shaderType, shaderLanguage, isDebug);
-        return makeShaderBuilderFromGLSLSource(glslSource, shaderLanguage);
-    }
-
     static public String getResultString(Result r)
     {
         if (r.ret != 0 ) {

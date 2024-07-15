@@ -31,9 +31,7 @@ import org.apache.commons.cli.CommandLine;
 
 @BuilderParams(name = "FragmentProgram", inExts = ".fp", outExt = ".fpc")
 public class FragmentProgramBuilder extends ShaderProgramBuilder {
-
     private static final ShaderDesc.ShaderType SHADER_TYPE = ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT;
-    private boolean soft_fail = true;
 
     @Override
     public void build(Task<ShaderPreprocessor> task) throws IOException, CompileExceptionError {
@@ -45,19 +43,13 @@ public class FragmentProgramBuilder extends ShaderProgramBuilder {
     public static void main(String[] args) throws IOException, CompileExceptionError {
         System.setProperty("java.awt.headless", "true");
         FragmentProgramBuilder builder = new FragmentProgramBuilder();
-        CommandLine cmd = builder.getShaderCommandLineOptions(args);
-        String platformName = cmd.getOptionValue("platform", "");
-        Platform platform = Platform.get(platformName);
-        if (platform == null) {
-            throw new CompileExceptionError(String.format("Invalid platform '%s'\n", platformName));
-        }
+        Platform platform = builder.getPlatformFromCommandLine(args);
 
         Project project = new Project(new DefaultFileSystem());
         project.scanJavaClasses();
         IShaderCompiler compiler = project.getShaderCompiler(platform);
 
         builder.setProject(project);
-        builder.soft_fail = false;
-        builder.BuildShader(args, SHADER_TYPE, cmd, compiler);
+        builder.BuildShader(args, SHADER_TYPE, compiler);
     }
 }

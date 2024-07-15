@@ -143,12 +143,25 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         return null;
     }
 
-    /*
     // Called from editor for producing a ShaderDesc with a list of finalized shaders,
     // fully transformed from source to context shaders based on a list of languages
     static public ShaderDescBuildResult makeShaderDescWithVariants(String resourceOutputPath, String shaderSource, ShaderDesc.ShaderType shaderType,
             ShaderDesc.Language[] shaderLanguages, int maxPageCount) throws IOException, CompileExceptionError {
 
+        ShaderCompilePipeline pipeline = ShaderProgramBuilder.getShaderPipelineFromShaderSource(shaderType, resourceOutputPath, shaderSource);
+        ArrayList<ShaderProgramBuilder.ShaderBuildResult> shaderBuildResults = new ArrayList<>();
+
+        // This will not generate array variants
+        for (ShaderDesc.Language shaderLanguage : shaderLanguages) {
+            ShaderDesc.Shader.Builder builder = ShaderProgramBuilder.makeShaderBuilder(shaderLanguage,
+                    pipeline.crossCompile(shaderType, shaderLanguage),
+                    pipeline.getReflectionData());
+            shaderBuildResults.add(new ShaderProgramBuilder.ShaderBuildResult(builder));
+        }
+
+        return buildResultsToShaderDescBuildResults(shaderBuildResults, shaderType);
+
+        /*
         ArrayList<ShaderBuildResult> shaderBuildResults = ShaderCompilers.getBaseShaderBuildResults(resourceOutputPath, shaderSource, shaderType, shaderLanguages, "", false, true);
 
         for (ShaderDesc.Language shaderLanguage : shaderLanguages) {
@@ -158,12 +171,10 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         }
 
         return buildResultsToShaderDescBuildResults(shaderBuildResults, shaderType);
+        */
     }
-    */
-
     // Called from bob
-    public ShaderDescBuildResult makeShaderDesc(String resourceOutputPath, ShaderPreprocessor shaderPreprocessor, ShaderDesc.ShaderType shaderType,
-            String platform, boolean isDebug, boolean outputSpirv, boolean softFail) throws IOException, CompileExceptionError {
+    public ShaderDescBuildResult makeShaderDesc(String resourceOutputPath, ShaderPreprocessor shaderPreprocessor, ShaderDesc.ShaderType shaderType, String platform, boolean outputSpirv) throws IOException, CompileExceptionError {
         Platform platformKey = Platform.get(platform);
         if(platformKey == null) {
             throw new CompileExceptionError("Unknown platform for shader program '" + resourceOutputPath + "'': " + platform);
@@ -171,7 +182,7 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
 
         String finalShaderSource                          = shaderPreprocessor.getCompiledSource();
         IShaderCompiler shaderCompiler                    = project.getShaderCompiler(platformKey);
-        ArrayList<ShaderBuildResult> shaderCompilerResult = shaderCompiler.compile(finalShaderSource, shaderType, resourceOutputPath, resourceOutputPath, isDebug, outputSpirv, false);
+        ArrayList<ShaderBuildResult> shaderCompilerResult = shaderCompiler.compile(finalShaderSource, shaderType, resourceOutputPath, outputSpirv);
         return buildResultsToShaderDescBuildResults(shaderCompilerResult, shaderType);
     }
 
@@ -201,21 +212,19 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
     }
 
     public ShaderDesc getCompiledShaderDesc(Task<ShaderPreprocessor> task, ShaderDesc.ShaderType shaderType) throws IOException, CompileExceptionError {
-        IResource in                          = task.input(0);
         ShaderPreprocessor shaderPreprocessor = task.getData();
-        boolean isDebug                       = (this.project.hasOption("debug") || (this.project.option("variant", Bob.VARIANT_RELEASE) != Bob.VARIANT_RELEASE));
         boolean outputSpirv                   = getOutputSpirvFlag();
         String resourceOutputPath             = task.getOutputs().get(0).getPath();
 
         ShaderDescBuildResult shaderDescBuildResult = makeShaderDesc(resourceOutputPath, shaderPreprocessor,
-            shaderType, this.project.getPlatformStrings()[0], isDebug, outputSpirv, false);
+            shaderType, this.project.getPlatformStrings()[0], outputSpirv);
 
         handleShaderDescBuildResult(shaderDescBuildResult, resourceOutputPath);
 
         return shaderDescBuildResult.shaderDesc;
     }
 
-    public CommandLine getShaderCommandLineOptions(String[] args) {
+    private CommandLine getShaderCommandLineOptions(String[] args) {
         Options options = new Options();
         options.addOption("p", "platform", true, "Platform");
         options.addOption(null, "variant", true, "Specify debug or release");
@@ -228,6 +237,16 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
             System.exit(5);
         }
         return cmd;
+    }
+
+    public Platform getPlatformFromCommandLine(String args[]) throws CompileExceptionError {
+        CommandLine cmd = getShaderCommandLineOptions(args);
+        String platformName = cmd.getOptionValue("platform", "");
+        Platform platform = Platform.get(platformName);
+        if (platform == null) {
+            throw new CompileExceptionError(String.format("Invalid platform '%s'\n", platformName));
+        }
+        return platform;
     }
 
     static public ShaderCompilePipeline getShaderPipelineFromShaderSource(ShaderDesc.ShaderType type, String resourcePath, String shaderSource) throws IOException, CompileExceptionError {
@@ -306,7 +325,7 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         return builder;
     }
 
-    public void BuildShader(String[] args, ShaderDesc.ShaderType shaderType, CommandLine cmd, IShaderCompiler shaderCompiler) throws IOException, CompileExceptionError {
+    public void BuildShader(String[] args, ShaderDesc.ShaderType shaderType, IShaderCompiler shaderCompiler) throws IOException, CompileExceptionError {
         if (shaderCompiler == null) {
             System.err.println(String.format("Unable to build shader %s - no shader compiler found.", args[0]));
             return;
@@ -322,30 +341,10 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
             ShaderPreprocessor shaderPreprocessor = new ShaderPreprocessor(this.project, args[0], source);
             String finalShaderSource              = shaderPreprocessor.getCompiledSource();
 
-            ShaderCompilePipeline pipeline = getShaderPipelineFromShaderSource(shaderType, args[1], finalShaderSource);
+            ArrayList<ShaderBuildResult> shaderCompilerResult = shaderCompiler.compile(finalShaderSource, shaderType, args[1], true);
+            ShaderDescBuildResult shaderDescResult = buildResultsToShaderDescBuildResults(shaderCompilerResult, shaderType);
 
-            ArrayList<ShaderDesc.Language> languages = new ArrayList<ShaderDesc.Language>();
-
-            if (shaderType == ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE) {
-                languages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM430);
-            } else {
-                languages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM120);
-                languages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM140);
-                languages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);
-                languages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
-                languages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM330);
-            }
-
-            languages.add(ShaderDesc.Language.LANGUAGE_SPIRV);
-
-            ShaderDesc.Builder shaderDescBuilder = ShaderDesc.newBuilder();
-            shaderDescBuilder.setShaderType(shaderType);
-
-            for (ShaderDesc.Language language : languages) {
-                shaderDescBuilder.addShaders(makeShaderBuilder(language, pipeline.crossCompile(shaderType, language), pipeline.getReflectionData()));
-            }
-
-            shaderDescBuilder.build().writeTo(os);
+            shaderDescResult.shaderDesc.writeTo(os);
         }
     }
 }

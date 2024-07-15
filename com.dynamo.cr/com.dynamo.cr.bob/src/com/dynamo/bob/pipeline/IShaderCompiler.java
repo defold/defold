@@ -23,5 +23,5 @@ import com.dynamo.bob.pipeline.ShaderProgramBuilder;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
 public interface IShaderCompiler {
-    public ArrayList<ShaderProgramBuilder.ShaderBuildResult> compile(String shaderSource, ShaderDesc.ShaderType shaderType, String resourceOutputPath, String resourceOutput, boolean isDebug, boolean outputSpirv, boolean soft_fail) throws IOException, CompileExceptionError;
+    public ArrayList<ShaderProgramBuilder.ShaderBuildResult> compile(String shaderSource, ShaderDesc.ShaderType shaderType, String resourceOutputPath, boolean outputSpirv) throws IOException, CompileExceptionError;
 }

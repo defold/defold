@@ -88,7 +88,7 @@ public class ShaderCompilers {
             return shaderLanguages;
         }
 
-        public ArrayList<ShaderProgramBuilder.ShaderBuildResult> compile(String shaderSource, ShaderDesc.ShaderType shaderType, String resourceOutputPath, String resourceOutput, boolean isDebug, boolean outputSpirv, boolean softFail) throws IOException, CompileExceptionError {
+        public ArrayList<ShaderProgramBuilder.ShaderBuildResult> compile(String shaderSource, ShaderDesc.ShaderType shaderType, String resourceOutputPath, boolean outputSpirv) throws IOException, CompileExceptionError {
             ShaderCompilePipeline pipeline = ShaderProgramBuilder.getShaderPipelineFromShaderSource(shaderType, resourceOutputPath, shaderSource);
             ArrayList<ShaderProgramBuilder.ShaderBuildResult> shaderBuildResults = new ArrayList<>();
             ArrayList<ShaderDesc.Language> shaderLanguages = getPlatformShaderLanguages(shaderType, outputSpirv);
@@ -105,24 +105,4 @@ public class ShaderCompilers {
     public static IShaderCompiler getCommonShaderCompiler(Platform platform) {
         return new CommonShaderCompiler(platform);
     }
-
-    /*
-    // Generate a shader desc struct that consists of either the built shader desc, or a list of compile warnings/errors
-    public static ArrayList<ShaderProgramBuilder.ShaderBuildResult> getBaseShaderBuildResults(String resourceOutputPath, String fullShaderSource,
-            ShaderDesc.ShaderType shaderType, ShaderDesc.Language[] shaderLanguages,
-            String spirvTargetProfile, boolean isDebug, boolean softFail) throws IOException, CompileExceptionError {
-
-        ArrayList<ShaderProgramBuilder.ShaderBuildResult> shaderBuildResults = new ArrayList();
-
-        for (ShaderDesc.Language shaderLanguage : shaderLanguages) {
-            if (shaderLanguage == ShaderDesc.Language.LANGUAGE_SPIRV) {
-                shaderBuildResults.add(ShaderCompilerHelpers.buildSpirvFromGLSL(fullShaderSource, shaderType, resourceOutputPath, spirvTargetProfile, isDebug, softFail));
-            } else {
-                shaderBuildResults.add(ShaderCompilerHelpers.buildGLSL(fullShaderSource, shaderType, shaderLanguage, isDebug));
-            }
-        }
-
-        return shaderBuildResults;
-    }
-     */
 }
