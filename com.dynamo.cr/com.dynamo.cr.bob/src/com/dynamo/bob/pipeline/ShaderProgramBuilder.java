@@ -197,12 +197,16 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
 
     // Called from editor and bob
     static public Common.GLSLCompileResult buildGLSLVariantTextureArray(String source, ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, boolean isDebug, int maxPageCount) throws IOException, CompileExceptionError {
-        Common.GLSLCompileResult variantCompileResult = VariantTextureArrayFallback.transform(source, maxPageCount);
+        ShaderCompilePipeline pipeline = ShaderProgramBuilder.getShaderPipelineFromShaderSource(shaderType, "editor-shader", source);
+        byte[] result = pipeline.crossCompile(shaderType, shaderLanguage);
+        String compiledSource = new String(result);
+
+        Common.GLSLCompileResult variantCompileResult = VariantTextureArrayFallback.transform(compiledSource, maxPageCount);
 
         // If the variant transformation didn't do anything, we pass the original source but without array samplers
         if (variantCompileResult == null) {
             Common.GLSLCompileResult originalRes = new Common.GLSLCompileResult();
-            originalRes.source = ShaderCompilerHelpers.compileGLSL(source, shaderType, shaderLanguage, isDebug);
+            originalRes.source = ShaderCompilerHelpers.compileGLSL(compiledSource, shaderType, shaderLanguage, isDebug);
             return originalRes;
         }
 

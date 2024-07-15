@@ -24,8 +24,8 @@
             [editor.types :as types]
             [editor.workspace :as workspace]
             [schema.core :as s])
-  (:import [com.dynamo.bob.pipeline ShaderProgramBuilder ShaderUtil$ES2ToES3Converter$ShaderType]
-           [com.dynamo.graphics.proto Graphics$ShaderDesc Graphics$ShaderDesc$Language]))
+  (:import [com.dynamo.bob.pipeline ShaderProgramBuilder]
+           [com.dynamo.graphics.proto Graphics$ShaderDesc Graphics$ShaderDesc$Language Graphics$ShaderDesc$ShaderType]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -103,12 +103,12 @@
                    :view-types [:code :default]
                    :view-opts glsl-opts}])
 
-(defn shader-stage-from-ext
-  ^ShaderUtil$ES2ToES3Converter$ShaderType [^String resource-ext]
+(defn shader-type-from-ext
+  ^Graphics$ShaderDesc$ShaderType [^String resource-ext]
   (case resource-ext
-    "fp" ShaderUtil$ES2ToES3Converter$ShaderType/FRAGMENT_SHADER
-    "vp" ShaderUtil$ES2ToES3Converter$ShaderType/VERTEX_SHADER
-    "cp" ShaderUtil$ES2ToES3Converter$ShaderType/COMPUTE_SHADER))
+    "fp" Graphics$ShaderDesc$ShaderType/SHADER_TYPE_FRAGMENT
+    "vp" Graphics$ShaderDesc$ShaderType/SHADER_TYPE_VERTEX
+    "cp" Graphics$ShaderDesc$ShaderType/SHADER_TYPE_COMPUTE))
 
 (defn shader-language-to-java
   ^Graphics$ShaderDesc$Language [language]
@@ -139,7 +139,7 @@
         java-shader-languages (if compile-spirv
                                 java-shader-languages-with-spirv
                                 java-shader-languages-without-spirv)
-        shader-stage (shader-stage-from-ext resource-ext)
+        shader-stage (shader-type-from-ext resource-ext)
         result (ShaderProgramBuilder/makeShaderDescWithVariants resource-path shader-source shader-stage java-shader-languages max-page-count)
         compile-warning-messages (.-buildWarnings result)
         compile-error-values (mapv error-string->error-value compile-warning-messages)]

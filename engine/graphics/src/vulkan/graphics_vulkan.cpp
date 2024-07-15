@@ -2473,7 +2473,9 @@ bail:
             VkDescriptorSetLayoutBinding& binding = bindings[res.m_Set][res.m_Binding];
             ProgramResourceBinding& program_resource_binding = program->m_ResourceBindings[res.m_Set][res.m_Binding];
 
+        #if 0
             dmLogInfo("    name=%s, set=%d, binding=%d", res.m_Name, res.m_Set, res.m_Binding);
+        #endif
 
             if (binding.descriptorCount == 0)
             {
@@ -2552,8 +2554,6 @@ bail:
         uint32_t ssbo_alignment = (uint32_t) context->m_PhysicalDevice.m_Properties.limits.minStorageBufferOffsetAlignment;
 
         ProgramResourceBindingsInfo binding_info = {};
-
-        dmLogInfo("CreateProgramResourceBindings");
 
         if (program->m_ComputeModule)
         {

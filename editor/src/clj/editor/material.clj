@@ -149,10 +149,10 @@
             :deps dep-build-targets})])))
 
 (defn- transpile-shader-source [shader-ext ^String shader-source ^long max-page-count]
-  (let [shader-stage (code.shader/shader-stage-from-ext shader-ext)
+  (let [shader-type (code.shader/shader-type-from-ext shader-ext)
         shader-language (code.shader/shader-language-to-java :language-glsl-sm120) ; use the old gles2 compatible shaders
         is-debug true
-        result (ShaderProgramBuilder/buildGLSLVariantTextureArray shader-source shader-stage shader-language is-debug max-page-count)
+        result (ShaderProgramBuilder/buildGLSLVariantTextureArray shader-source shader-type shader-language is-debug max-page-count)
         full-source (.source result)
         array-sampler-names-array (.arraySamplers result)]
     {:shader-source full-source
