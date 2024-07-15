@@ -953,10 +953,11 @@ namespace dmGraphics
                 return language == ShaderDesc::LANGUAGE_GLSL_SM140 ||
                        language == ShaderDesc::LANGUAGE_GLSL_SM330;
             case ShaderDesc::SHADER_TYPE_COMPUTE:
-                return language == ShaderDesc::LANGUAGE_GLSL_SM430;
+                return language == ShaderDesc::LANGUAGE_GLSL_SM430 ||
+                       language == ShaderDesc::LANGUAGE_SPIRV;
         }
-        return language == ShaderDesc::LANGUAGE_SPIRV;
     #endif
+        return false;
     }
 
     static void NullEnableProgram(HContext context, HProgram program)
