@@ -24,6 +24,8 @@
 #include <script/script.h>
 #include <algorithm> // std::stable_sort
 
+#include "test_render.h"
+
 #include "../../../graphics/src/graphics_private.h"
 #include "../../../graphics/src/null/graphics_null_private.h"
 
@@ -428,20 +430,11 @@ static void TestDrawStateDispatch(dmRender::RenderListDispatchParams const & par
     }
 }
 
-static inline dmGraphics::ShaderDesc::Shader MakeDDFShader(const char* data, uint32_t count)
-{
-    dmGraphics::ShaderDesc::Shader ddf;
-    memset(&ddf,0,sizeof(ddf));
-    ddf.m_Source.m_Data  = (uint8_t*)data;
-    ddf.m_Source.m_Count = count;
-    return ddf;
-}
-
 TEST_F(dmRenderTest, TestRenderListDrawState)
 {
     dmRender::RenderListBegin(m_Context);
 
-    dmGraphics::ShaderDesc::Shader shader = MakeDDFShader("foo", 3);
+    dmGraphics::ShaderDesc::Shader shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLES_SM100, "foo", 3, 0, 0, 0, 0);
     dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(m_GraphicsContext, &shader, 0, 0);
     dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_GraphicsContext, &shader, 0, 0);
     dmRender::HMaterial material = dmRender::NewMaterial(m_Context, vp, fp);
@@ -560,8 +553,14 @@ TEST_F(dmRenderTest, TestEnableTextureByHash)
                              "uniform lowp sampler2DArray texture_sampler_3;\n"
                              "uniform lowp sampler2D texture_sampler_4;\n";
 
-    dmGraphics::ShaderDesc::Shader vs_shader = MakeDDFShader("foo", 3);
-    dmGraphics::ShaderDesc::Shader fs_shader = MakeDDFShader(shader_src, strlen(shader_src));
+    dmGraphics::ShaderDesc::ResourceBinding fs_uniforms[4] = {};
+    FillResourceBinding(&fs_uniforms[0], "texture_sampler_1", dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+    FillResourceBinding(&fs_uniforms[1], "texture_sampler_2", dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+    FillResourceBinding(&fs_uniforms[2], "texture_sampler_3", dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D_ARRAY);
+    FillResourceBinding(&fs_uniforms[3], "texture_sampler_4", dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+
+    dmGraphics::ShaderDesc::Shader vs_shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLES_SM100, "foo", 3, 0, 0, 0, 0);
+    dmGraphics::ShaderDesc::Shader fs_shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLES_SM100, shader_src, strlen(shader_src), 0, 0, fs_uniforms, 4);
 
     dmGraphics::HVertexProgram vp   = dmGraphics::NewVertexProgram(m_GraphicsContext, &vs_shader, 0, 0);
     dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_GraphicsContext, &fs_shader, 0, 0);
@@ -714,8 +713,8 @@ TEST_F(dmRenderTest, TestEnableTextureByHash)
 
 TEST_F(dmRenderTest, TestEnableDisableContextTextures)
 {
-    dmGraphics::ShaderDesc::Shader vs_shader = MakeDDFShader("foo", 3);
-    dmGraphics::ShaderDesc::Shader fs_shader = MakeDDFShader("foo", 3);
+    dmGraphics::ShaderDesc::Shader vs_shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLES_SM100, "foo", 3, 0, 0, 0, 0);
+    dmGraphics::ShaderDesc::Shader fs_shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLES_SM100, "foo", 3, 0, 0, 0, 0);
 
     dmGraphics::HVertexProgram vp   = dmGraphics::NewVertexProgram(m_GraphicsContext, &vs_shader, 0, 0);
     dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_GraphicsContext, &fs_shader, 0, 0);
@@ -831,7 +830,12 @@ TEST_F(dmRenderTest, TestDefaultSamplerFilters)
                              "uniform lowp sampler2D texture_sampler_2;\n"
                              "uniform lowp sampler2D texture_sampler_3;\n";
 
-    dmGraphics::ShaderDesc::Shader shader    = MakeDDFShader(shader_src, strlen(shader_src));
+    dmGraphics::ShaderDesc::ResourceBinding uniforms[3] = {};
+    FillResourceBinding(&uniforms[0], "texture_sampler_1", dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+    FillResourceBinding(&uniforms[1], "texture_sampler_2", dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+    FillResourceBinding(&uniforms[2], "texture_sampler_3", dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+
+    dmGraphics::ShaderDesc::Shader shader    = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLES_SM100, shader_src, strlen(shader_src), 0, 0, uniforms, 3);
     dmGraphics::HVertexProgram vp            = dmGraphics::NewVertexProgram(m_GraphicsContext, &shader, 0, 0);
     dmGraphics::HFragmentProgram fp          = dmGraphics::NewFragmentProgram(m_GraphicsContext, &shader, 0, 0);
     dmRender::HMaterial material             = dmRender::NewMaterial(m_Context, vp, fp);
