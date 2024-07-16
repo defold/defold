@@ -22,7 +22,6 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.List;
 
-import com.dynamo.bob.Bob;
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
@@ -30,12 +29,9 @@ import com.dynamo.bob.Task;
 import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.fs.IResource;
 
-import com.dynamo.bob.pipeline.ShaderPreprocessor;
-import com.dynamo.bob.pipeline.ShaderCompilerHelpers;
 import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.pipeline.ShaderUtil.Common;
 import com.dynamo.bob.pipeline.ShaderUtil.VariantTextureArrayFallback;
-import com.dynamo.bob.pipeline.ShaderUtil.ES2ToES3Converter;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 import com.dynamo.graphics.proto.Graphics.VertexAttribute;
@@ -133,12 +129,12 @@ public class MaterialBuilder extends Builder<Void>  {
         int maxPageCount = materialBuilder.getMaxPageCount();
         String shaderSource = new String(shader.getSource().toByteArray());
 
-        Common.GLSLCompileResult variantCompileResult = ShaderProgramBuilder.buildGLSLVariantTextureArray(shaderSource, ctx.type, shader.getLanguage(), false, maxPageCount);
-        if (variantCompileResult.arraySamplers.length == 0) {
+        Common.GLSLCompileResult variantCompileResult = VariantTextureArrayFallback.transform(shaderSource, maxPageCount);
+        if (variantCompileResult == null || variantCompileResult.arraySamplers.length == 0) {
             return;
         }
 
-        ShaderProgramBuilder.ShaderBuildResult variantBuildResult = ShaderCompilerHelpers.makeShaderBuilderFromGLSLSource(variantCompileResult.source, shader.getLanguage());
+        ShaderProgramBuilder.ShaderBuildResult variantBuildResult = ShaderProgramBuilder.makeShaderBuilderFromGLSLSource(variantCompileResult.source, shader.getLanguage());
         variantBuildResult.shaderBuilder.setVariantTextureArray(true);
 
         if (variantBuildResult.buildWarnings != null) {

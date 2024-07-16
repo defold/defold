@@ -23,8 +23,8 @@ import java.util.ArrayList;
 import org.junit.Test;
 
 import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.pipeline.ShaderCompilePipeline;
-import com.dynamo.bob.pipeline.ShaderUtil.SPIRVReflector;
+import com.dynamo.bob.pipeline.shader.ShaderCompilePipeline;
+import com.dynamo.bob.pipeline.shader.SPIRVReflector;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
 public class ShaderCompilePipelineTest {

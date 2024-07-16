@@ -12,7 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-package com.dynamo.bob.pipeline;
+package com.dynamo.bob.pipeline.shader;
 
 import java.nio.charset.StandardCharsets;
 import java.io.File;
@@ -25,7 +25,6 @@ import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.util.Exec.Result;
-import com.dynamo.bob.pipeline.ShaderUtil.SPIRVReflector;
 
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
@@ -112,8 +111,6 @@ public class ShaderCompilePipeline {
             "--auto-map-bindings",
             "--auto-map-locations",
             "--resource-set-binding", "frag", "1",
-            //"-std=140", // TODO
-            // "-std=" + shaderVersionStr + shaderProfileStr,
             "-S", shaderTypeToSpirvStage(shaderType),
             "-o", pathFileOutSpv,
             "-V",

@@ -24,7 +24,6 @@ import org.junit.Test;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
-import com.dynamo.bob.pipeline.ShaderCompilerHelpers;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 import com.google.protobuf.Message;
 
@@ -487,7 +486,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         String source;
         String expected;
 
-        source = ShaderCompilerHelpers.compileGLSL("", ShaderDesc.ShaderType.SHADER_TYPE_VERTEX, ShaderDesc.Language.LANGUAGE_GLSL_SM140, true);
+        source = ShaderUtil.Common.compileGLSL("", ShaderDesc.ShaderType.SHADER_TYPE_VERTEX, ShaderDesc.Language.LANGUAGE_GLSL_SM140, true);
         expected =  "#version 140\n" +
                     "#ifndef GL_ES\n" +
                     "#define lowp\n" +
@@ -500,7 +499,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
         source = "#extension GL_OES_standard_derivatives : enable\n" +
                  "varying highp vec2 var_texcoord0;";
-        source = ShaderCompilerHelpers.compileGLSL(source, ShaderDesc.ShaderType.SHADER_TYPE_VERTEX, ShaderDesc.Language.LANGUAGE_GLSL_SM140, true);
+        source = ShaderUtil.Common.compileGLSL(source, ShaderDesc.ShaderType.SHADER_TYPE_VERTEX, ShaderDesc.Language.LANGUAGE_GLSL_SM140, true);
         expected =  "#version 140\n" +
                     "#extension GL_OES_standard_derivatives : enable\n" +
                     "\n" +
@@ -518,7 +517,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
                  "void main() {\n" +
                  "    gl_FragColor = vec4(1.0);\n" +
                  "}";
-        source = ShaderCompilerHelpers.compileGLSL(source, ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT, ShaderDesc.Language.LANGUAGE_GLES_SM100, true);
+        source = ShaderUtil.Common.compileGLSL(source, ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT, ShaderDesc.Language.LANGUAGE_GLES_SM100, true);
         expected =  "#extension GL_OES_standard_derivatives : enable\n" +
                     "\n" +
                     "precision mediump float;\n" +
@@ -532,7 +531,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
                  "void main() {\n" +
                  "    gl_FragColor = vec4(1.0);\n" +
                  "}";
-        source = ShaderCompilerHelpers.compileGLSL(source, ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT, ShaderDesc.Language.LANGUAGE_GLES_SM300, true);
+        source = ShaderUtil.Common.compileGLSL(source, ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT, ShaderDesc.Language.LANGUAGE_GLES_SM300, true);
         expected =  "#version 300 es\n" +
                     "#extension GL_OES_standard_derivatives : enable\n" +
                     "\n" +

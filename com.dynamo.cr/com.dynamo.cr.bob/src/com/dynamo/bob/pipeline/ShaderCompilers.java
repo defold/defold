@@ -19,11 +19,9 @@ import java.util.ArrayList;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
-import com.dynamo.bob.pipeline.IShaderCompiler;
-import com.dynamo.bob.pipeline.ShaderCompilerHelpers;
-import com.dynamo.bob.pipeline.ShaderProgramBuilder;
-import com.dynamo.bob.pipeline.ShaderCompilePipeline;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
+
+import com.dynamo.bob.pipeline.shader.ShaderCompilePipeline;
 
 public class ShaderCompilers {
 
@@ -93,6 +91,7 @@ public class ShaderCompilers {
             ArrayList<ShaderProgramBuilder.ShaderBuildResult> shaderBuildResults = new ArrayList<>();
             ArrayList<ShaderDesc.Language> shaderLanguages = getPlatformShaderLanguages(shaderType, outputSpirv);
 
+            assert shaderLanguages != null;
             for (ShaderDesc.Language shaderLanguage : shaderLanguages) {
                 ShaderDesc.Shader.Builder builder = ShaderProgramBuilder.makeShaderBuilder(shaderLanguage, pipeline.crossCompile(shaderType, shaderLanguage), pipeline.getReflectionData());
                 shaderBuildResults.add(new ShaderProgramBuilder.ShaderBuildResult(builder));

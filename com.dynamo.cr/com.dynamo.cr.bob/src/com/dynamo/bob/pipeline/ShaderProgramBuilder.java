@@ -23,6 +23,7 @@ import java.io.FileOutputStream;
 import java.nio.charset.StandardCharsets;
 
 import java.util.ArrayList;
+import java.util.Objects;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -32,7 +33,6 @@ import org.apache.commons.cli.PosixParser;
 
 import com.google.protobuf.ByteString;
 
-import com.dynamo.bob.Bob;
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Task;
@@ -40,11 +40,11 @@ import com.dynamo.bob.Platform;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ShaderUtil.VariantTextureArrayFallback;
 import com.dynamo.bob.pipeline.ShaderUtil.Common;
-import com.dynamo.bob.pipeline.ShaderUtil.SPIRVReflector;
-import com.dynamo.bob.pipeline.ShaderCompilePipeline;
-import com.dynamo.bob.pipeline.ShaderCompilePipelineLegacy;
-import com.dynamo.bob.pipeline.ShaderCompilerHelpers;
 import com.dynamo.bob.util.MurmurHash;
+
+import com.dynamo.bob.pipeline.shader.ShaderCompilePipeline;
+import com.dynamo.bob.pipeline.shader.ShaderCompilePipelineLegacy;
+import com.dynamo.bob.pipeline.shader.SPIRVReflector;
 
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
@@ -53,14 +53,6 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
     static public class ShaderBuildResult {
         public ShaderDesc.Shader.Builder shaderBuilder;
         public String[]                  buildWarnings;
-
-        public ShaderBuildResult(String fromWarning) {
-            this.buildWarnings = new String[] { fromWarning };
-        }
-
-        public ShaderBuildResult(ArrayList<String> fromWarnings) {
-            this.buildWarnings = fromWarnings.toArray(new String[0]);
-        }
 
         public ShaderBuildResult(ShaderDesc.Shader.Builder fromBuilder) {
             this.shaderBuilder = fromBuilder;
@@ -95,8 +87,7 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         taskBuilder.setData(shaderPreprocessor);
         taskBuilder.addExtraCacheKey(shaderCacheKey);
 
-        Task<ShaderPreprocessor> tsk = taskBuilder.build();
-        return tsk;
+        return taskBuilder.build();
     }
 
     private boolean getOutputSpirvFlag() {
@@ -127,21 +118,6 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         return shaderDescBuildResult;
     }
 
-    // Generate a texture array variant builder, but only if necessary
-    static private ShaderBuildResult getGLSLVariantTextureArrayBuilder(String source, ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, boolean isDebug, int maxPageCount) throws IOException, CompileExceptionError {
-        Common.GLSLCompileResult variantCompileResult = buildGLSLVariantTextureArray(source, shaderType, shaderLanguage, isDebug, maxPageCount);
-
-        // make a builder if the array transformation has picked up any array samplers
-        if (variantCompileResult.arraySamplers.length > 0) {
-            ShaderBuildResult buildResult = ShaderCompilerHelpers.makeShaderBuilderFromGLSLSource(variantCompileResult.source, shaderLanguage);
-            assert(buildResult != null);
-            buildResult.shaderBuilder.setVariantTextureArray(true);
-            return buildResult;
-        }
-
-        return null;
-    }
-
     // Called from editor for producing a ShaderDesc with a list of finalized shaders,
     // fully transformed from source to context shaders based on a list of languages
     static public ShaderDescBuildResult makeShaderDescWithVariants(String resourceOutputPath, String shaderSource, ShaderDesc.ShaderType shaderType,
@@ -150,29 +126,31 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         ShaderCompilePipeline pipeline = ShaderProgramBuilder.getShaderPipelineFromShaderSource(shaderType, resourceOutputPath, shaderSource);
         ArrayList<ShaderProgramBuilder.ShaderBuildResult> shaderBuildResults = new ArrayList<>();
 
-        // This will not generate array variants
         for (ShaderDesc.Language shaderLanguage : shaderLanguages) {
-            ShaderDesc.Shader.Builder builder = ShaderProgramBuilder.makeShaderBuilder(shaderLanguage,
-                    pipeline.crossCompile(shaderType, shaderLanguage),
-                    pipeline.getReflectionData());
+            byte[] source = pipeline.crossCompile(shaderType, shaderLanguage);
+            boolean variantTextureArray = false;
+
+            if (VariantTextureArrayFallback.isRequired(shaderLanguage)) {
+                Common.GLSLCompileResult variantCompileResult = VariantTextureArrayFallback.transform(new String(source), maxPageCount);
+                if (variantCompileResult != null && variantCompileResult.arraySamplers.length > 0) {
+                    source = variantCompileResult.source.getBytes();
+                    variantTextureArray = true;
+                }
+            }
+
+            ShaderDesc.Shader.Builder builder = ShaderProgramBuilder.makeShaderBuilder(shaderLanguage, source, pipeline.getReflectionData());
+
+            // Note: We are not doing builder.setVariantTextureArray(variantTextureArray); because calling that function
+            //       will mark the field as being set, regardless of the value. We only want to mark the field if we need to.
+            if (variantTextureArray) {
+                builder.setVariantTextureArray(true);
+            }
             shaderBuildResults.add(new ShaderProgramBuilder.ShaderBuildResult(builder));
         }
 
         return buildResultsToShaderDescBuildResults(shaderBuildResults, shaderType);
-
-        /*
-        ArrayList<ShaderBuildResult> shaderBuildResults = ShaderCompilers.getBaseShaderBuildResults(resourceOutputPath, shaderSource, shaderType, shaderLanguages, "", false, true);
-
-        for (ShaderDesc.Language shaderLanguage : shaderLanguages) {
-            if (VariantTextureArrayFallback.isRequired(shaderLanguage)) {
-                shaderBuildResults.add(getGLSLVariantTextureArrayBuilder(shaderSource, shaderType, shaderLanguage, true, maxPageCount));
-            }
-        }
-
-        return buildResultsToShaderDescBuildResults(shaderBuildResults, shaderType);
-        */
     }
-    // Called from bob
+
     public ShaderDescBuildResult makeShaderDesc(String resourceOutputPath, ShaderPreprocessor shaderPreprocessor, ShaderDesc.ShaderType shaderType, String platform, boolean outputSpirv) throws IOException, CompileExceptionError {
         Platform platformKey = Platform.get(platform);
         if(platformKey == null) {
@@ -194,24 +172,21 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         }
     }
 
-    // Called from editor and bob
+    // Called from editor
     static public Common.GLSLCompileResult buildGLSLVariantTextureArray(String source, ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, boolean isDebug, int maxPageCount) throws IOException, CompileExceptionError {
-        ShaderCompilePipeline pipeline = ShaderProgramBuilder.getShaderPipelineFromShaderSource(shaderType, "editor-shader", source);
+        if (!VariantTextureArrayFallback.isRequired(shaderLanguage)) {
+            return new Common.GLSLCompileResult(source);
+        }
+
+        // Make sure we have the correct output language
+        ShaderCompilePipeline pipeline = ShaderProgramBuilder.getShaderPipelineFromShaderSource(shaderType, "variant-texture-array", source);
         byte[] result = pipeline.crossCompile(shaderType, shaderLanguage);
         String compiledSource = new String(result);
 
         Common.GLSLCompileResult variantCompileResult = VariantTextureArrayFallback.transform(compiledSource, maxPageCount);
 
         // If the variant transformation didn't do anything, we pass the original source but without array samplers
-        if (variantCompileResult == null) {
-            Common.GLSLCompileResult originalRes = new Common.GLSLCompileResult();
-            originalRes.source = ShaderCompilerHelpers.compileGLSL(compiledSource, shaderType, shaderLanguage, isDebug);
-            return originalRes;
-        }
-
-        variantCompileResult.source = ShaderCompilerHelpers.compileGLSL(variantCompileResult.source, shaderType, shaderLanguage, isDebug);
-
-        return variantCompileResult;
+        return Objects.requireNonNullElseGet(variantCompileResult, () -> new Common.GLSLCompileResult(compiledSource));
     }
 
     public ShaderDesc getCompiledShaderDesc(Task<ShaderPreprocessor> task, ShaderDesc.ShaderType shaderType) throws IOException, CompileExceptionError {
@@ -265,6 +240,49 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         return ShaderCompilePipeline.createShaderPipeline(pipeline, shaderSource, type);
     }
 
+    static private int getTypeIndex(ArrayList<SPIRVReflector.ResourceType> types, String typeName) {
+        for (int i=0; i < types.size(); i++) {
+            if (types.get(i).key.equals(typeName)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    static public ShaderProgramBuilder.ShaderBuildResult makeShaderBuilderFromGLSLSource(String source, ShaderDesc.Language shaderLanguage) throws IOException {
+        ShaderDesc.Shader.Builder builder = ShaderDesc.Shader.newBuilder();
+        builder.setLanguage(shaderLanguage);
+        builder.setSource(ByteString.copyFrom(source, "UTF-8"));
+        return new ShaderProgramBuilder.ShaderBuildResult(builder);
+    }
+
+    static public ShaderDesc.ResourceType.Builder getResourceTypeBuilder(ArrayList<SPIRVReflector.ResourceType> types, String typeName) {
+        ShaderDesc.ResourceType.Builder resourceTypeBuilder = ShaderDesc.ResourceType.newBuilder();
+        ShaderDesc.ShaderDataType knownType = Common.stringTypeToShaderType(typeName);
+
+        if (knownType == ShaderDesc.ShaderDataType.SHADER_TYPE_UNKNOWN) {
+            resourceTypeBuilder.setTypeIndex(getTypeIndex(types, typeName));
+            resourceTypeBuilder.setUseTypeIndex(true);
+        } else {
+            resourceTypeBuilder.setShaderType(knownType);
+            resourceTypeBuilder.setUseTypeIndex(false);
+        }
+
+        return resourceTypeBuilder;
+    }
+
+    static public ShaderDesc.ResourceBinding.Builder SPIRVResourceToResourceBindingBuilder(ArrayList<SPIRVReflector.ResourceType> types, SPIRVReflector.Resource res) {
+        ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderDesc.ResourceBinding.newBuilder();
+        ShaderDesc.ResourceType.Builder typeBuilder = getResourceTypeBuilder(types, res.type);
+        resourceBindingBuilder.setType(typeBuilder);
+        resourceBindingBuilder.setName(res.name);
+        resourceBindingBuilder.setNameHash(MurmurHash.hash64(res.name));
+        resourceBindingBuilder.setSet(res.set);
+        resourceBindingBuilder.setBinding(res.binding);
+        resourceBindingBuilder.setBlockSize(res.blockSize);
+        return resourceBindingBuilder;
+    }
+
     static public ShaderDesc.Shader.Builder makeShaderBuilder(ShaderDesc.Language language, byte[] source, SPIRVReflector reflector) {
         ShaderDesc.Shader.Builder builder = ShaderDesc.Shader.newBuilder();
         builder.setLanguage(language);
@@ -279,27 +297,27 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
             ArrayList<SPIRVReflector.ResourceType> types = reflector.getTypes();
 
             for (SPIRVReflector.Resource input : inputs) {
-                ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderCompilerHelpers.SPIRVResourceToResourceBindingBuilder(types, input);
+                ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(types, input);
                 builder.addInputs(resourceBindingBuilder);
             }
 
             for (SPIRVReflector.Resource output : outputs) {
-                ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderCompilerHelpers.SPIRVResourceToResourceBindingBuilder(types, output);
+                ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(types, output);
                 builder.addOutputs(resourceBindingBuilder);
             }
 
             for (SPIRVReflector.Resource ubo : ubos) {
-                ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderCompilerHelpers.SPIRVResourceToResourceBindingBuilder(types, ubo);
+                ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(types, ubo);
                 builder.addUniformBuffers(resourceBindingBuilder);
             }
 
             for (SPIRVReflector.Resource ssbo : ssbos) {
-                ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderCompilerHelpers.SPIRVResourceToResourceBindingBuilder(types, ssbo);
+                ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(types, ssbo);
                 builder.addStorageBuffers(resourceBindingBuilder);
             }
 
             for (SPIRVReflector.Resource texture : textures) {
-                ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderCompilerHelpers.SPIRVResourceToResourceBindingBuilder(types, texture);
+                ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(types, texture);
                 builder.addTextures(resourceBindingBuilder);
             }
 
@@ -312,7 +330,7 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
                 for (SPIRVReflector.ResourceMember member : type.members) {
                     ShaderDesc.ResourceMember.Builder typeMemberBuilder = ShaderDesc.ResourceMember.newBuilder();
 
-                    ShaderDesc.ResourceType.Builder typeBuilder = ShaderCompilerHelpers.getResourceTypeBuilder(types, member.type);
+                    ShaderDesc.ResourceType.Builder typeBuilder = getResourceTypeBuilder(types, member.type);
                     typeMemberBuilder.setType(typeBuilder);
                     typeMemberBuilder.setName(member.name);
                     typeMemberBuilder.setNameHash(MurmurHash.hash64(member.name));
