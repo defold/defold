@@ -38,7 +38,6 @@ import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.fs.IResource;
-import com.dynamo.bob.pipeline.ShaderUtil.ES2ToES3Converter;
 import com.dynamo.bob.pipeline.ShaderUtil.VariantTextureArrayFallback;
 import com.dynamo.bob.pipeline.ShaderUtil.Common;
 import com.dynamo.bob.pipeline.ShaderUtil.SPIRVReflector;
@@ -243,7 +242,7 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         return cmd;
     }
 
-    public Platform getPlatformFromCommandLine(String args[]) throws CompileExceptionError {
+    public Platform getPlatformFromCommandLine(String[] args) throws CompileExceptionError {
         CommandLine cmd = getShaderCommandLineOptions(args);
         String platformName = cmd.getOptionValue("platform", "");
         Platform platform = Platform.get(platformName);
@@ -331,7 +330,7 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
 
     public void BuildShader(String[] args, ShaderDesc.ShaderType shaderType, IShaderCompiler shaderCompiler) throws IOException, CompileExceptionError {
         if (shaderCompiler == null) {
-            System.err.println(String.format("Unable to build shader %s - no shader compiler found.", args[0]));
+            System.err.printf("Unable to build shader %s - no shader compiler found.%n", args[0]);
             return;
         }
 

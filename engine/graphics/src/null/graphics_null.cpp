@@ -804,7 +804,8 @@ namespace dmGraphics
                 ShaderDesc::ResourceTypeInfo& type = ddf->m_Types[res.m_Type.m_Type.m_TypeIndex];
                 for (int j = 0; j < type.m_Members.m_Count; ++j)
                 {
-                    PushBinding(&p->m_Uniforms, type.m_Members[j].m_Name, strlen(type.m_Members[j].m_Name), ShaderDataTypeToGraphicsType(type.m_Members[j].m_Type.m_Type.m_ShaderType), 1);
+                    uint32_t element_count = dmMath::Max(type.m_Members[j].m_ElementCount, 1u);
+                    PushBinding(&p->m_Uniforms, type.m_Members[j].m_Name, strlen(type.m_Members[j].m_Name), ShaderDataTypeToGraphicsType(type.m_Members[j].m_Type.m_Type.m_ShaderType), element_count);
                 }
             }
             else
