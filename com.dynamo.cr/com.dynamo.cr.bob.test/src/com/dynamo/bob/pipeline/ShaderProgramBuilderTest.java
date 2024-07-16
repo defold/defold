@@ -618,7 +618,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         debugPrintShader("uniform_buffer_test", shader);
 
         ShaderDesc.ResourceBinding ubo = shader.getUniformBuffers(0);
-        assertTrue(ubo.getName().equals("uniform_buffer"));
+        assertEquals("uniform_buffer", ubo.getName());
 
         ShaderDesc.ResourceTypeInfo ubo_type = shader.getTypes(ubo.getType().getTypeIndex());
         assertEquals("uniform_buffer", ubo_type.getName());
@@ -659,7 +659,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
     }
 
     @Test
-    public void testStripComments() throws Exception {
+    public void testStripComments()  {
         String shader_base =
             "#version 430 //Comment0\n" +
             "#ifndef MY_DEFINE //Comment1\n" +
@@ -689,5 +689,50 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             "}\n";
         String result = ShaderUtil.Common.stripComments(shader_base);
         testOutput(expected_base, result);
+    }
+
+    @Test
+    public void testShaderCompilePipelines() throws Exception {
+        String shaderNewPipeline =
+            """
+            #version 140
+            uniform my_uniforms
+            {
+                vec4 tint;
+            };
+            
+            out vec4 color;
+            void main()
+            {
+                color = tint;
+            }
+            """;
+
+        List<Message> outputs = build("/test_new_pipeline.fp", shaderNewPipeline);
+        ShaderDesc shaderDesc = (ShaderDesc) outputs.get(0);
+        assert(shaderDesc.getShadersCount() > 0);
+
+        ShaderDesc.Shader s = shaderDesc.getShaders(0);
+        assertEquals("color", s.getOutputs(0).getName());
+        assertEquals("my_uniforms", s.getUniformBuffers(0).getName());
+        assertEquals("my_uniforms", s.getTypes(0).getName());
+        assertEquals("tint", s.getTypes(0).getMembers(0).getName());
+
+        String shaderLegacyPipeline =
+            """
+            uniform vec4 tint;
+            void main()
+            {
+                gl_FragColor = tint;
+            }
+            """;
+
+        outputs = build("/test_old_pipeline.fp", shaderLegacyPipeline);
+        shaderDesc = (ShaderDesc) outputs.get(0);
+        assert(shaderDesc.getShadersCount() > 0);
+
+        s = shaderDesc.getShaders(0);
+        assertEquals("tint", s.getTypes(0).getMembers(0).getName());
+        assertEquals("_DMENGINE_GENERATED_UB_FS_0", s.getUniformBuffers(0).getName());
     }
 }
