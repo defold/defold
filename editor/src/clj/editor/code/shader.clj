@@ -24,7 +24,7 @@
             [editor.types :as types]
             [editor.workspace :as workspace]
             [schema.core :as s])
-  (:import [com.dynamo.bob.pipeline ShaderProgramBuilder]
+  (:import [com.dynamo.bob.pipeline ShaderProgramBuilderEditor]
            [com.dynamo.graphics.proto Graphics$ShaderDesc Graphics$ShaderDesc$Language Graphics$ShaderDesc$ShaderType]))
 
 (set! *warn-on-reflection* true)
@@ -118,6 +118,7 @@
     :language-glsl-sm430 Graphics$ShaderDesc$Language/LANGUAGE_GLSL_SM430
     :language-gles-sm100 Graphics$ShaderDesc$Language/LANGUAGE_GLES_SM100
     :language-gles-sm300 Graphics$ShaderDesc$Language/LANGUAGE_GLES_SM300
+    :language-glsl-sm330 Graphics$ShaderDesc$Language/LANGUAGE_GLSL_SM330
     :language-spirv Graphics$ShaderDesc$Language/LANGUAGE_SPIRV))
 
 (defn- error-string->error-value [^String error-string]
@@ -126,12 +127,12 @@
 (defonce ^:private ^"[Lcom.dynamo.graphics.proto.Graphics$ShaderDesc$Language;" java-shader-languages-without-spirv
   (into-array Graphics$ShaderDesc$Language
               (map shader-language-to-java
-                   [:language-glsl-sm140 :language-gles-sm300 :language-gles-sm100 :language-glsl-sm430])))
+                   [:language-glsl-sm140 :language-glsl-sm330 :language-gles-sm300 :language-gles-sm100 :language-glsl-sm430])))
 
 (defonce ^:private ^"[Lcom.dynamo.graphics.proto.Graphics$ShaderDesc$Language;" java-shader-languages-with-spirv
   (into-array Graphics$ShaderDesc$Language
               (map shader-language-to-java
-                   [:language-glsl-sm140 :language-gles-sm300 :language-gles-sm100 :language-glsl-sm430 :language-spirv])))
+                   [:language-glsl-sm140 :language-glsl-sm330 :language-gles-sm300 :language-gles-sm100 :language-glsl-sm430 :language-spirv])))
 
 (defn- build-shader [build-resource _dep-resources user-data]
   (let [{:keys [compile-spirv ^long max-page-count ^String shader-source resource-ext]} user-data
@@ -140,7 +141,7 @@
                                 java-shader-languages-with-spirv
                                 java-shader-languages-without-spirv)
         shader-stage (shader-type-from-ext resource-ext)
-        result (ShaderProgramBuilder/makeShaderDescWithVariants resource-path shader-source shader-stage java-shader-languages max-page-count)
+        result (ShaderProgramBuilderEditor/makeShaderDescWithVariants resource-path shader-source shader-stage java-shader-languages max-page-count)
         compile-warning-messages (.-buildWarnings result)
         compile-error-values (mapv error-string->error-value compile-warning-messages)]
     (g/precluding-errors compile-error-values

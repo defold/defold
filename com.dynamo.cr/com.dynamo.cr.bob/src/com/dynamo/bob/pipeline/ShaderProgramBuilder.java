@@ -23,7 +23,6 @@ import java.io.FileOutputStream;
 import java.nio.charset.StandardCharsets;
 
 import java.util.ArrayList;
-import java.util.Objects;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
@@ -38,7 +37,6 @@ import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.fs.IResource;
-import com.dynamo.bob.pipeline.ShaderUtil.VariantTextureArrayFallback;
 import com.dynamo.bob.pipeline.ShaderUtil.Common;
 import com.dynamo.bob.util.MurmurHash;
 
@@ -96,7 +94,7 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         return fromProjectOptions || fromProjectProperties;
     }
 
-    static private ShaderDescBuildResult buildResultsToShaderDescBuildResults(ArrayList<ShaderBuildResult> shaderBuildResults, ShaderDesc.ShaderType shaderType) {
+    static public ShaderDescBuildResult buildResultsToShaderDescBuildResults(ArrayList<ShaderBuildResult> shaderBuildResults, ShaderDesc.ShaderType shaderType) {
 
         ShaderDescBuildResult shaderDescBuildResult = new ShaderDescBuildResult();
         ShaderDesc.Builder shaderDescBuilder = ShaderDesc.newBuilder();
@@ -118,39 +116,6 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         return shaderDescBuildResult;
     }
 
-    // Called from editor for producing a ShaderDesc with a list of finalized shaders,
-    // fully transformed from source to context shaders based on a list of languages
-    static public ShaderDescBuildResult makeShaderDescWithVariants(String resourceOutputPath, String shaderSource, ShaderDesc.ShaderType shaderType,
-            ShaderDesc.Language[] shaderLanguages, int maxPageCount) throws IOException, CompileExceptionError {
-
-        ShaderCompilePipeline pipeline = ShaderProgramBuilder.getShaderPipelineFromShaderSource(shaderType, resourceOutputPath, shaderSource);
-        ArrayList<ShaderProgramBuilder.ShaderBuildResult> shaderBuildResults = new ArrayList<>();
-
-        for (ShaderDesc.Language shaderLanguage : shaderLanguages) {
-            byte[] source = pipeline.crossCompile(shaderType, shaderLanguage);
-            boolean variantTextureArray = false;
-
-            if (VariantTextureArrayFallback.isRequired(shaderLanguage)) {
-                Common.GLSLCompileResult variantCompileResult = VariantTextureArrayFallback.transform(new String(source), maxPageCount);
-                if (variantCompileResult != null && variantCompileResult.arraySamplers.length > 0) {
-                    source = variantCompileResult.source.getBytes();
-                    variantTextureArray = true;
-                }
-            }
-
-            ShaderDesc.Shader.Builder builder = ShaderProgramBuilder.makeShaderBuilder(shaderLanguage, source, pipeline.getReflectionData());
-
-            // Note: We are not doing builder.setVariantTextureArray(variantTextureArray); because calling that function
-            //       will mark the field as being set, regardless of the value. We only want to mark the field if we need to.
-            if (variantTextureArray) {
-                builder.setVariantTextureArray(true);
-            }
-            shaderBuildResults.add(new ShaderProgramBuilder.ShaderBuildResult(builder));
-        }
-
-        return buildResultsToShaderDescBuildResults(shaderBuildResults, shaderType);
-    }
-
     public ShaderDescBuildResult makeShaderDesc(String resourceOutputPath, ShaderPreprocessor shaderPreprocessor, ShaderDesc.ShaderType shaderType, String platform, boolean outputSpirv) throws IOException, CompileExceptionError {
         Platform platformKey = Platform.get(platform);
         if(platformKey == null) {
@@ -170,23 +135,6 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
             }
             throw new CompileExceptionError("Errors when producing output " + resourceOutputPath);
         }
-    }
-
-    // Called from editor
-    static public Common.GLSLCompileResult buildGLSLVariantTextureArray(String source, ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, boolean isDebug, int maxPageCount) throws IOException, CompileExceptionError {
-        if (!VariantTextureArrayFallback.isRequired(shaderLanguage)) {
-            return new Common.GLSLCompileResult(source);
-        }
-
-        // Make sure we have the correct output language
-        ShaderCompilePipeline pipeline = ShaderProgramBuilder.getShaderPipelineFromShaderSource(shaderType, "variant-texture-array", source);
-        byte[] result = pipeline.crossCompile(shaderType, shaderLanguage);
-        String compiledSource = new String(result);
-
-        Common.GLSLCompileResult variantCompileResult = VariantTextureArrayFallback.transform(compiledSource, maxPageCount);
-
-        // If the variant transformation didn't do anything, we pass the original source but without array samplers
-        return Objects.requireNonNullElseGet(variantCompileResult, () -> new Common.GLSLCompileResult(compiledSource));
     }
 
     public ShaderDesc getCompiledShaderDesc(Task<ShaderPreprocessor> task, ShaderDesc.ShaderType shaderType) throws IOException, CompileExceptionError {
