@@ -29,7 +29,6 @@
 #include "../graphics_native.h"
 #include "../graphics_adapter.h"
 #include "graphics_null_private.h"
-#include "glsl_uniform_parser.h"
 
 uint64_t g_DrawCount = 0;
 uint64_t g_Flipped = 0;
@@ -675,8 +674,6 @@ namespace dmGraphics
         return g_DrawCount;
     }
 
-    static void ProgramShaderResourceCallback(dmGraphics::GLSLUniformParserBindingType binding_type, const char* name, uint32_t name_length, dmGraphics::Type type, uint32_t size, uintptr_t userdata);
-
     struct ShaderBinding
     {
         ShaderBinding() : m_Name(0) {};
@@ -724,15 +721,12 @@ namespace dmGraphics
             m_FP      = fp;
             if (m_VP != 0x0)
             {
-                GLSLAttributeParse(m_VP->m_Language, m_VP->m_Data, ProgramShaderResourceCallback, (uintptr_t)this);
-                GLSLUniformParse(m_VP->m_Language, m_VP->m_Data, ProgramShaderResourceCallback, (uintptr_t)this);
                 TransferUniforms(m_VP);
                 TransferAttributes(m_VP);
                 m_Language = m_VP->m_Language;
             }
             if (m_FP != 0x0)
             {
-                GLSLUniformParse(m_FP->m_Language, m_FP->m_Data, ProgramShaderResourceCallback, (uintptr_t)this);
                 TransferUniforms(m_FP);
                 m_Language = m_FP->m_Language;
             }
@@ -747,7 +741,6 @@ namespace dmGraphics
 
             if (m_Compute != 0x0)
             {
-                GLSLUniformParse(m_Compute->m_Language, m_Compute->m_Data, ProgramShaderResourceCallback, (uintptr_t) this);
                 TransferUniforms(m_Compute);
                 m_Language = compute->m_Language;
             }
@@ -787,16 +780,6 @@ namespace dmGraphics
         dmArray<ShaderBinding> m_Attributes;
     };
 
-    static void ProgramShaderResourceCallback(dmGraphics::GLSLUniformParserBindingType binding_type, const char* name, uint32_t name_length, dmGraphics::Type type, uint32_t size, uintptr_t userdata)
-    {
-        Program* program = (Program*) userdata;
-
-        dmArray<ShaderBinding>* binding_array = binding_type == GLSLUniformParserBindingType::UNIFORM ?
-            &program->m_Uniforms : &program->m_Attributes;
-
-        PushBinding(binding_array, name, name_length, type, size);
-    }
-
     static ShaderProgram* NewShaderProgramFromDDF(ShaderDesc::Shader* ddf)
     {
         assert(ddf);
@@ -816,11 +799,17 @@ namespace dmGraphics
         {
             ShaderDesc::ResourceBinding& res = ddf->m_UniformBuffers[i];
 
-            ShaderDesc::ResourceTypeInfo& type = ddf->m_Types[res.m_Type.m_Type.m_TypeIndex];
-
-            for (int j = 0; j < type.m_Members.m_Count; ++j)
+            if (res.m_Type.m_UseTypeIndex)
             {
-                PushBinding(&p->m_Uniforms, type.m_Members[j].m_Name, strlen(type.m_Members[j].m_Name), ShaderDataTypeToGraphicsType(type.m_Members[j].m_Type.m_Type.m_ShaderType), 1);
+                ShaderDesc::ResourceTypeInfo& type = ddf->m_Types[res.m_Type.m_Type.m_TypeIndex];
+                for (int j = 0; j < type.m_Members.m_Count; ++j)
+                {
+                    PushBinding(&p->m_Uniforms, type.m_Members[j].m_Name, strlen(type.m_Members[j].m_Name), ShaderDataTypeToGraphicsType(type.m_Members[j].m_Type.m_Type.m_ShaderType), 1);
+                }
+            }
+            else
+            {
+                PushBinding(&p->m_Uniforms, res.m_Name, strlen(res.m_Name), ShaderDataTypeToGraphicsType(res.m_Type.m_Type.m_ShaderType), 1);
             }
         }
 
