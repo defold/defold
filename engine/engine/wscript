@@ -119,7 +119,7 @@ def configure(conf):
     conf.env['STLIB_EXTENSION'] = 'extension'
     conf.env['STLIB_RESOURCE'] = 'resource'
     conf.env['STLIB_RENDER'] = 'render'
-    conf.env['STLIB_GAMESYS'] = 'gamesys script_box2d'.split()
+    conf.env['STLIB_GAMESYS'] = 'gamesys gamesys_model gamesys_rig script_box2d'.split()
     conf.env['STLIB_GAMEOBJECT'] = 'gameobject'
     conf.env['STLIB_SCRIPT'] = 'script'
     conf.env['STLIB_DMGLFW'] = glfw_lib

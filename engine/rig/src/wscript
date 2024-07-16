@@ -14,6 +14,14 @@ def build(bld):
               use             = 'DDF DLIB SOCKET',
               source          = 'rig.cpp ../proto/rig/rig_ddf.proto')
 
+    bld.stlib(features        = 'cxx ddf',
+              includes        = ['.', '..', '../proto'],
+              proto_gen_py    = True,
+              protoc_includes = '../proto',
+              target          = 'rig_null',
+              use             = 'DDF DLIB SOCKET',
+              source          = 'rig_null.cpp ../proto/rig/rig_ddf.proto')
+
     bld.add_group()
 
     # We only need this library in the editor

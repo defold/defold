@@ -350,6 +350,13 @@
       (libs-toggles all-platforms ["image_null"])
       (generic-contains-toggles all-platforms :excludeSymbols ["ScriptImageExt"]))))
 
+(def rig-setting
+  (make-choice-setting
+    :none (concat (libs-toggles all-platforms ["gamesys_rig_null" "gamesys_model_null" "rig_null"]) (exclude-libs-toggles all-platforms ["gamesys_model" "gamesys_rig" "rig"]) (generic-contains-toggles all-platforms :excludeSymbols ["ScriptModelExt"]))
+    :rig   (concat (libs-toggles all-platforms ["gamesys_model_null"])   (exclude-libs-toggles all-platforms ["gamesys_model"]) (generic-contains-toggles all-platforms :excludeSymbols ["ScriptModelExt"]))
+    :model))
+
+
 (def vulkan-toggles
   (concat
     (exclude-libs-toggles [:x86_64-osx :arm64-osx] ["platform"])
@@ -440,6 +447,14 @@
                                                         [:none "None"]]}))
             (value (setting-property-getter physics-setting))
             (set (setting-property-setter physics-setting)))
+  (property Rig+Model g/Any
+            (dynamic tooltip (g/constantly "Rig, Model or none"))
+            (dynamic edit-type (g/constantly {:type :choicebox
+                                              :options [[:model "Rig & Model"]
+                                                        [:rig "Rig only"]
+                                                        [:none "None"]]}))
+            (value (setting-property-getter rig-setting))
+            (set (setting-property-setter rig-setting)))
   (property exclude-record g/Any
             (dynamic tooltip (g/constantly "Remove the video recording capabilities (desktop platforms)"))
             (dynamic edit-type (g/constantly {:type g/Bool}))
