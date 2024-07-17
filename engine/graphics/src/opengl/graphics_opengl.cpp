@@ -2278,6 +2278,11 @@ static void LogFrameBufferError(GLenum status)
             free(program_ptr->m_Uniforms[i].m_Name);
         }
 
+        for (int i = 0; i < program_ptr->m_UniformBuffers.Size(); ++i)
+        {
+            delete program_ptr->m_UniformBuffers[i].m_BlockMemory;
+        }
+
         delete program_ptr;
     }
 
