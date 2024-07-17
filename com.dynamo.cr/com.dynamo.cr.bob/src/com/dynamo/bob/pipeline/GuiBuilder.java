@@ -526,20 +526,6 @@ public class GuiBuilder extends ProtoBuilder<SceneDesc.Builder> {
                 node = newNode.build();
             }
 
-            // backwards compatibility
-            if(!node.hasAlpha()) {
-                // We copy the color Vector4 W component from the old gui file format to the new separate alpha fields for color, outline and shadow.
-                // They need to be separate fields as they can be separately overridden from their corresponding color property.
-                // We distinct the new color/alpha separation by the fact that the alpha field (color alpha) is always present in the new format.
-                // Scenes containing layouts won't need this conversion (they will have been saved with separate fields), so this is a good place to do it in code.
-                // Templates are updated recursively, so conversion point will always be applied to default layout nodes.
-                NodeDesc.Builder newNode = node.toBuilder();
-                newNode.setAlpha(newNode.getColor().getW());
-                newNode.setShadowAlpha(newNode.getShadow().getW());
-                newNode.setOutlineAlpha(newNode.getOutline().getW());
-                node = newNode.build();
-            }
-
             // add current scene nodes
             newScene.get("").add(node);
             validateNodeResources(node, builder, input, resourceNames, fontNames, particlefxNames, textureNames, layerNames, materialNames);
