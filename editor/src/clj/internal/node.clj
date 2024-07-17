@@ -16,17 +16,19 @@
   (:require [clojure.pprint :as pp]
             [clojure.set :as set]
             [clojure.string :as str]
-            [internal.util :as util]
             [internal.cache :as c]
-            [internal.graph.types :as gt]
             [internal.graph.error-values :as ie]
+            [internal.graph.types :as gt]
+            [internal.util :as util]
             [plumbing.core :as pc]
             [schema.core :as s]
             [util.coll :refer [pair]]
             [util.fn :as fn])
   (:import [internal.graph.error_values ErrorValue]
-           [schema.core Maybe ConditionalSchema]
-           [java.lang.ref WeakReference]))
+           [internal.graph.types Endpoint]
+           [java.lang.ref WeakReference]
+           [java.util Collections]
+           [schema.core ConditionalSchema Maybe]))
 
 (set! *warn-on-reflection* true)
 
@@ -105,7 +107,7 @@
 (defn inherits? [^NodeTypeRef node-type ^NodeTypeRef node-supertype]
   (isa? (:key @node-type) (:key @node-supertype)))
 
-(defrecord NodeTypeImpl [name supertypes output input property input-dependencies property-display-order cascade-deletes behavior property-behavior declared-property]
+(defrecord NodeTypeImpl [name supertypes output input property input-dependencies property-display-order cascade-deletes behavior property-behavior declared-property sorted-labels]
   NodeType
   Type)
 
@@ -163,6 +165,9 @@
                 (when-not (unjammable? outdef)
                   label)))
         (declared-outputs nt)))
+
+(defn sorted-labels [nt]
+  (some-> nt deref :sorted-labels))
 
 ;;; ----------------------------------------
 ;;; Registry of node types
@@ -280,9 +285,31 @@
 (defn value-type-dispatch-value [value-type-ref] (when (ref? value-type-ref) (some-> value-type-ref deref dispatch-value)))
 
 ;;; ----------------------------------------
+;;; Endpoints
+
+(defn make-sorted-endpoint-array
+  ^"[Linternal.graph.types.Endpoint;" [node-type ^long node-id]
+  (let [sorted-labels (sorted-labels node-type)
+        ^"[Linternal.graph.types.Endpoint;" sorted-endpoint-array (make-array Endpoint (count sorted-labels))]
+    (assert (vector? sorted-labels))
+    (reduce-kv
+      (fn [_ ^long index label]
+        (aset sorted-endpoint-array index (gt/->Endpoint node-id label)))
+      nil
+      sorted-labels)
+    sorted-endpoint-array))
+
+(defn find-endpoint
+  ^Endpoint [node-type ^"[Linternal.graph.types.Endpoint;" sorted-endpoint-array label]
+  (let [sorted-labels (sorted-labels node-type)
+        endpoint-index (Collections/binarySearch sorted-labels label)]
+    (when-not (neg? endpoint-index)
+      (aget sorted-endpoint-array endpoint-index))))
+
+;;; ----------------------------------------
 ;;; Construction support
 
-(defrecord NodeImpl [node-type]
+(defrecord NodeImpl [node-type ^"[Linternal.graph.types.Endpoint;" sorted-endpoint-array]
   gt/Node
   (node-id [this]
     (:_node-id this))
@@ -301,7 +328,10 @@
 
   (own-properties [this] (.__extmap this))
   (overridden-properties [this] {})
-  (property-overridden?  [this property] false)
+  (property-overridden? [this property] false)
+
+  (label-endpoint [_ label]
+    (find-endpoint node-type sorted-endpoint-array label))
 
   gt/Evaluation
   (produce-value [this label evaluation-context]
@@ -359,9 +389,11 @@
                (args-without-properties node-type-ref args)
                ", but those don't exist on nodes of type "
                (:k node-type-ref)))
-  (merge (->NodeImpl node-type-ref)
-         (defaults node-type-ref)
-         args))
+  (let [node-id (:_node-id args)
+        sorted-endpoint-array (make-sorted-endpoint-array node-type-ref node-id)]
+    (merge (->NodeImpl node-type-ref sorted-endpoint-array)
+           (defaults node-type-ref)
+           args)))
 
 ;;; ----------------------------------------
 ;;; Evaluating outputs
@@ -1437,7 +1469,7 @@
     (conj in-production endpoint)))
 
 (defn mark-in-production [node-id label evaluation-context]
-  (update evaluation-context :in-production update-in-production (gt/endpoint node-id label)))
+  (update evaluation-context :in-production update-in-production (gt/endpoint (:basis evaluation-context) node-id label)))
 
 (defn- mark-in-production-form [node-id-sym label-sym evaluation-context-sym forms]
   `(let [~evaluation-context-sym (mark-in-production ~node-id-sym ~label-sym ~evaluation-context-sym)]
@@ -1450,7 +1482,9 @@
   (if (nil? v) ::cached-nil v))
 
 (defn check-caches! [node-id label evaluation-context]
-  (let [cache-key (gt/endpoint node-id label)
+  (let [basis (:basis evaluation-context)
+        node (gt/node-by-id-at basis node-id)
+        cache-key (gt/label-endpoint node label)
         local-cache @(:local evaluation-context)
         local-cache-value (get local-cache cache-key ::not-found)]
     (if (identical? ::not-found local-cache-value)
@@ -1464,9 +1498,13 @@
       (trace-expr-result node-id label evaluation-context :cache local-cache-value))))
 
 (defn check-local-temp-cache [node-id label evaluation-context]
-  (let [local-temp (some-> (:local-temp evaluation-context) deref)
-        weak-cached-value ^WeakReference (get local-temp (gt/endpoint node-id label))]
-    (and weak-cached-value (.get weak-cached-value))))
+  (when-let [local-temp (some-> (:local-temp evaluation-context) deref)]
+    (let [basis (:basis evaluation-context)
+          node (gt/node-by-id-at basis node-id)]
+      (when node
+        (let [endpoint (gt/label-endpoint node label)
+              weak-cached-value ^WeakReference (get local-temp endpoint)]
+          (and weak-cached-value (.get weak-cached-value)))))))
 
 (defn- check-caches-form [description label node-id-sym label-sym evaluation-context-sym forms]
   (let [result-sym 'result]
@@ -1507,11 +1545,18 @@
        ~forms)))
 
 (defn update-local-cache! [node-id label evaluation-context value]
-  (swap! (:local evaluation-context) assoc (gt/endpoint node-id label) value))
+  (let [basis (:basis evaluation-context)
+        node (gt/node-by-id-at basis node-id)
+        endpoint (gt/label-endpoint node label)]
+    (swap! (:local evaluation-context) assoc endpoint value)))
 
 (defn update-local-temp-cache! [node-id label evaluation-context value]
   (when-let [local-temp (:local-temp evaluation-context)]
-    (swap! local-temp assoc (gt/endpoint node-id label) (WeakReference. (nil->cached-nil value)))))
+    (let [basis (:basis evaluation-context)
+          node (gt/node-by-id-at basis node-id)
+          endpoint (gt/label-endpoint node label)
+          weak-reference (WeakReference. (nil->cached-nil value))]
+      (swap! local-temp assoc endpoint weak-reference))))
 
 (defn- cache-result-form [description label node-id-sym label-sym evaluation-context-sym result-sym forms]
   (if (contains? (get-in description [:output label :flags]) :cached)
@@ -1657,7 +1702,7 @@
 ;;; ----------------------------------------
 ;;; Overrides
 
-(defrecord OverrideNode [override-id node-id node-type original-id properties]
+(defrecord OverrideNode [override-id node-id node-type original-id properties sorted-endpoint-array]
   gt/Node
   (node-id [this] node-id)
   (node-type [this] node-type)
@@ -1673,6 +1718,9 @@
   (own-properties [this] properties)
   (overridden-properties [this] properties)
   (property-overridden?  [this property] (contains? properties property))
+
+  (label-endpoint [_ label]
+    (find-endpoint node-type sorted-endpoint-array label))
 
   gt/Evaluation
   (produce-value [this output evaluation-context]
@@ -1753,4 +1801,5 @@
   (set-original [this original-id] (assoc this :original-id original-id)))
 
 (defn make-override-node [override-id node-id node-type original-id properties]
-  (->OverrideNode override-id node-id node-type original-id properties))
+  (let [sorted-endpoint-array (make-sorted-endpoint-array node-type node-id)]
+    (->OverrideNode override-id node-id node-type original-id properties sorted-endpoint-array)))

@@ -893,12 +893,6 @@
      :max-elapsed-nanoseconds max-elapsed-nanoseconds
      :attempt-frequencies attempt-frequencies}))
 
-(defn endpoint-interner-stats []
-  ;; Trigger a GC and give it a moment to clear out unused weak references.
-  (System/gc)
-  (Thread/sleep 500)
-  (weak-interner-stats gt/endpoint-interner))
-
 (defn scene-cache-stats-by-context-id
   "Returns a sorted map where the keys are scene cache context ids mapped to a
   sorted map of cache-ids, to the number of entries in the context cache for that

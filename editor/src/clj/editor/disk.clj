@@ -156,17 +156,18 @@
     (resource-node/merge-source-values! (:written-source-values-by-node-id post-save-actions))
     (g/cache-output-values!
       (g/with-auto-evaluation-context evaluation-context
-        (into []
-              (keep (fn [{:keys [node-id] :as save-data}]
-                      ;; It's possible the user might have edited a resource
-                      ;; while we were saving on a background thread. We need to
-                      ;; make sure we don't add a stale save-data entry to the
-                      ;; cache.
-                      (let [save-data-endpoint (g/endpoint node-id :save-data)]
-                        (when-not (endpoint-invalidated-since-snapshot? save-data-endpoint)
-                          (pair save-data-endpoint
-                                (assoc save-data :dirty false))))))
-              (:written-save-datas post-save-actions))))
+        (let [basis (:basis evaluation-context)]
+          (into []
+                (keep (fn [{:keys [node-id] :as save-data}]
+                        ;; It's possible the user might have edited a resource
+                        ;; while we were saving on a background thread. We need to
+                        ;; make sure we don't add a stale save-data entry to the
+                        ;; cache.
+                        (let [save-data-endpoint (g/endpoint basis node-id :save-data)]
+                          (when-not (endpoint-invalidated-since-snapshot? save-data-endpoint)
+                            (pair save-data-endpoint
+                                  (assoc save-data :dirty false))))))
+                (:written-save-datas post-save-actions)))))
     (project/log-cache-info! (g/cache) "Cached written save data in system cache.")))
 
 (defn- write-message-fn [save-data]

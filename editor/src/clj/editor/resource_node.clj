@@ -97,21 +97,24 @@
     (g/user-data _node-id :source-value)
     (resource-io/file-not-found-error _node-id :source-value :fatal resource)))
 
-(defn set-source-value! [node-id source-value]
+(defn set-source-value! [basis node-id source-value]
   (g/user-data! node-id :source-value source-value)
-  (g/invalidate-outputs! [(g/endpoint node-id :source-value)]))
+  (g/invalidate-outputs! [(g/endpoint basis node-id :source-value)]))
 
 (defn merge-source-values! [node-id+source-value-pairs]
-  (let [[invalidated-endpoints
+  (let [basis (g/now)
+
+        [invalidated-endpoints
          user-data-values-by-key-by-node-id]
         (util/into-multiple
           (pair []
                 {})
           (pair (map (fn [[node-id]]
-                       (g/endpoint node-id :source-value)))
+                       (g/endpoint basis node-id :source-value)))
                 (map (fn [[node-id source-value]]
                        (pair node-id {:source-value source-value}))))
           node-id+source-value-pairs)]
+
     (g/user-data-merge! user-data-values-by-key-by-node-id)
     (g/invalidate-outputs! invalidated-endpoints)))
 

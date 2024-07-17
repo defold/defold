@@ -189,25 +189,27 @@
     (assoc ctx
       :nodes-affected
       (into nodes-affected
-            (map #(gt/endpoint node-id %))
+            (map #(gt/endpoint basis node-id %))
             dirty-deps))))
 
 (defn- mark-output-activated
   [ctx node-id output-label]
   ;; This gets called a lot, so we're trying to keep allocations to a minimum.
-  (let [nodes-affected (:nodes-affected ctx)]
+  (let [basis (:basis ctx)
+        nodes-affected (:nodes-affected ctx)]
     (assoc ctx
       :nodes-affected
-      (conj nodes-affected (gt/endpoint node-id output-label)))))
+      (conj nodes-affected (gt/endpoint basis node-id output-label)))))
 
 (defn- mark-outputs-activated
   [ctx node-id output-labels]
   ;; This gets called a lot, so we're trying to keep allocations to a minimum.
-  (let [nodes-affected (:nodes-affected ctx)]
+  (let [basis (:basis ctx)
+        nodes-affected (:nodes-affected ctx)]
     (assoc ctx
       :nodes-affected
       (into nodes-affected
-            (map #(gt/endpoint node-id %))
+            (map #(gt/endpoint basis node-id %))
             output-labels))))
 
 (defn- mark-all-outputs-activated
@@ -221,7 +223,7 @@
     (assoc ctx
       :nodes-affected
       (into nodes-affected
-            (map #(gt/endpoint node-id %))
+            (map #(gt/endpoint basis node-id %))
             output-labels))))
 
 (defn- next-node-id [ctx graph-id]

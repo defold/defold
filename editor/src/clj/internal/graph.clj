@@ -1126,10 +1126,10 @@
                                                      (let [old-arcs (old-arcs-by-source-label source-label)
                                                            old-arc? #(some (partial = %) old-arcs)]
                                                        (when (not-every? old-arc? external-arcs)
-                                                         (gt/endpoint source-id source-label))))
+                                                         (gt/endpoint basis source-id source-label))))
                                                    external-arcs-by-source-label)
-                                             (map (partial gt/endpoint source-id)
-                                                  (keys external-arcs-by-source-label)))))
+                                             (map #(gt/endpoint basis source-id (key %))
+                                                  external-arcs-by-source-label))))
                                  external-sarcs)]
 
     {:basis (update basis :graphs assoc graph-id (assoc graph-state :sarcs new-sarcs))
@@ -1180,18 +1180,18 @@
 
                                                                                                   ;; The internal dependent outputs.
                                                                                                   (doseq [dep-label dep-labels]
-                                                                                                    (.add deps (gt/endpoint node-id dep-label)))
+                                                                                                    (.add deps (gt/endpoint basis node-id dep-label)))
 
                                                                                                   ;; The closest overrides.
                                                                                                   (doseq [override-node-id overrides]
-                                                                                                    (.add deps (gt/endpoint override-node-id label)))
+                                                                                                    (.add deps (gt/endpoint basis override-node-id label)))
 
                                                                                                   ;; The connected nodes and their outputs.
                                                                                                   (doseq [^Arc outgoing-arc outgoing-arcs
                                                                                                           :let [target-id (.target-id outgoing-arc)
                                                                                                                 target-label (.target-label outgoing-arc)]
                                                                                                           dep-label (get (input-deps basis target-id) target-label)]
-                                                                                                    (.add deps (gt/endpoint target-id dep-label)))
+                                                                                                    (.add deps (gt/endpoint basis target-id dep-label)))
 
                                                                                                   (if (.isEmpty deps)
                                                                                                     (dissoc new-node-successors label)

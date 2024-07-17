@@ -147,7 +147,7 @@
   ;; This function is called externally for its side effects, so we need to
   ;; invalidate any outputs that depend on the disk-state.
   (when-some [[resource source-value disk-sha256] (init-disk-state node-id evaluation-context)]
-    (resource-node/set-source-value! node-id source-value)
+    (resource-node/set-source-value! (:basis evaluation-context) node-id source-value)
     (when disk-sha256
       (g/transact
         (workspace/set-disk-sha256 (resource/workspace resource) node-id disk-sha256)))))
@@ -190,7 +190,7 @@
                      (if-some [[resource source-value disk-sha256] (init-disk-state self evaluation-context)]
                        (do
                          (lsp/notify-lines-modified! lsp resource source-value new-value)
-                         (resource-node/set-source-value! self source-value)
+                         (resource-node/set-source-value! basis self source-value)
                          (when disk-sha256
                            (workspace/set-disk-sha256 (resource/workspace resource) self disk-sha256)))
                        (let [resource (resource-node/resource basis self)

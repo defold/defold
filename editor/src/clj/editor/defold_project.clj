@@ -365,7 +365,7 @@
                           (let [{:keys [read-error resource]} node-load-info
 
                                 save-data-endpoint+cached-value
-                                (pair (g/endpoint node-id :save-data)
+                                (pair (g/endpoint basis node-id :save-data)
                                       (or read-error
                                           (resource-node/make-save-data node-id resource source-value false)))
 
@@ -377,7 +377,7 @@
                             (cond-> [save-data-endpoint+cached-value]
 
                                     is-save-value-output-cached
-                                    (conj (pair (g/endpoint node-id :save-value)
+                                    (conj (pair (g/endpoint basis node-id :save-value)
                                                 (or read-error source-value))))))))
               node-load-infos)]
 
@@ -838,12 +838,12 @@
             (doseq [node-id (:invalidate-outputs plan)]
               (du/measuring resource-metrics (resource/proj-path (resource-node/resource basis node-id)) :invalidate-outputs
                 (g/invalidate-outputs! (mapv (fn [[_ src-label]]
-                                               (g/endpoint node-id src-label))
+                                               (g/endpoint basis node-id src-label))
                                              (g/explicit-outputs basis node-id)))))
             (g/invalidate-outputs! (into []
                                          (mapcat (fn [node-id]
                                                    (map (fn [[_ src-label]]
-                                                          (g/endpoint node-id src-label))
+                                                          (g/endpoint basis node-id src-label))
                                                         (g/explicit-outputs basis node-id))))
                                          (:invalidate-outputs plan))))))
 
@@ -1208,7 +1208,7 @@
                      output-cached? (g/cached-outputs node-type)]
                  (eduction
                    (filter output-cached?)
-                   (map #(g/endpoint node-id %))
+                   (map #(g/endpoint basis node-id %))
                    [:save-data :save-value])))))
          (g/sources-of basis project :save-data))))
 

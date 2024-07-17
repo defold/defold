@@ -147,10 +147,13 @@
      (swap! sys-atom assoc :cache cleared-cache)
      nil))
   ([sys-atom node-id]
-   (let [outputs (cached-outputs (node-type* node-id))
-         entries (map (partial endpoint node-id) outputs)]
-     (swap! sys-atom update :cache c/cache-invalidate entries)
-     nil)))
+   (swap! sys-atom
+          (fn [system]
+            (let [basis (is/basis system)
+                  outputs (cached-outputs (node-type* basis node-id))
+                  endpoints (mapv #(endpoint basis node-id %) outputs)]
+              (update system :cache c/cache-invalidate endpoints))))
+   nil))
 
 (defn cache-info
   "Return a map detailing cache utilization."
@@ -437,7 +440,13 @@
         ;; in release builds, since we don't do schema checking?
         type-regs (for [[key-form value-type-form] (:register-type-info node-type-def)]
                     `(in/register-value-type ~key-form ~value-type-form))
-        node-type-def (dissoc node-type-def :register-type-info)]
+        sorted-labels (->> (:behavior node-type-def)
+                           (keys)
+                           (sort)
+                           (vec))
+        node-type-def (-> node-type-def
+                          (dissoc :register-type-info)
+                          (assoc :sorted-labels sorted-labels))]
     `(do
        ~@type-regs
        ~@fn-defs

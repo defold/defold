@@ -14,7 +14,6 @@
 
 (ns internal.graph.types
   (:import [clojure.lang IHashEq Keyword Murmur3 Util]
-           [com.defold.util WeakInterner]
            [java.io Writer]))
 
 (set! *warn-on-reflection* true)
@@ -65,13 +64,8 @@
   (.write writer (str (.-label ep)))
   (.write writer "]"))
 
-(defonce ^WeakInterner endpoint-interner (WeakInterner. 65536))
-
-(definline endpoint [node-id label]
-  `(.intern endpoint-interner (->Endpoint ~node-id ~label)))
-
 (defn- read-endpoint [[node-id-expr label-expr]]
-  `(endpoint ~node-id-expr ~label-expr))
+  `(->Endpoint ~node-id-expr ~label-expr))
 
 (definline endpoint-node-id [endpoint]
   `(.-node-id ~(with-meta endpoint {:tag `Endpoint})))
@@ -94,7 +88,8 @@
   (set-property          [this basis property value]     "Set the named property")
   (own-properties        [this]                          "Return a map of property name to value explicitly assigned to this node")
   (overridden-properties [this]                          "Return a map of property name to override value")
-  (property-overridden?  [this property]))
+  (property-overridden?  [this property]                 "Return true if the specified property is overridden by this node.")
+  (label-endpoint        [this label]                    "Return the Endpoint that corresponds to the specified label in this node."))
 
 (defprotocol OverrideNode
   (clear-property      [this basis property]           "Clear the named property (this is only valid for override nodes)")
@@ -131,6 +126,11 @@
 
 (defn basis? [value]
   (satisfies? IBasis value))
+
+(defn endpoint
+  ^Endpoint [basis node-id label]
+  (let [node (node-by-id-at basis node-id)]
+    (label-endpoint node label)))
 
 ;; ---------------------------------------------------------------------------
 ;; ID helpers

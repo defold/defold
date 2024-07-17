@@ -539,10 +539,10 @@
                      values)]
     (mapv vector node-ids prop-kws old-values new-values)))
 
-(defn- edited-endpoints [set-operations]
+(defn- edited-endpoints [basis set-operations]
   (into #{}
         (map (fn [[node-id prop-kw]]
-               (g/endpoint node-id prop-kw)))
+               (g/endpoint basis node-id prop-kw)))
         set-operations))
 
 (defn- set-values [evaluation-context property set-operations]
@@ -583,7 +583,7 @@
             :tx-data-context
             deref
             :edited-endpoints
-            (contains? (g/endpoint node-id prop-kw)))))
+            (contains? (g/endpoint (:basis evaluation-context) node-id prop-kw)))))
 
 (defn set-values!
   "Set values as a result of a user-edit in the Property Editor."
@@ -592,8 +592,9 @@
   ([property values op-seq]
    (when (not (read-only? property))
      (let [evaluation-context (g/make-evaluation-context)
+           basis (:basis evaluation-context)
            set-operations (resolve-set-operations property values)
-           edited-endpoints (edited-endpoints set-operations)]
+           edited-endpoints (edited-endpoints basis set-operations)]
        (g/transact
          {:tx-data-context-map {:edited-endpoints edited-endpoints}}
          (concat
