@@ -283,6 +283,7 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
                     typeMemberBuilder.setName(member.name);
                     typeMemberBuilder.setNameHash(MurmurHash.hash64(member.name));
                     typeMemberBuilder.setElementCount(member.elementCount);
+                    typeMemberBuilder.setOffset(member.offset);
 
                     resourceTypeInfoBuilder.addMembers(typeMemberBuilder);
                 }

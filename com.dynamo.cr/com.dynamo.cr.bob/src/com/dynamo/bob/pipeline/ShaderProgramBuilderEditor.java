@@ -17,7 +17,14 @@ public class ShaderProgramBuilderEditor {
         }
 
         // Make sure we have the correct output language
-        ShaderCompilePipeline pipeline = ShaderProgramBuilder.getShaderPipelineFromShaderSource(shaderType, "variant-texture-array", source);
+        ShaderCompilePipeline pipeline;
+        try {
+            pipeline = ShaderProgramBuilder.getShaderPipelineFromShaderSource(shaderType, "variant-texture-array", source);
+        } catch (Exception e) {
+            // We don't have a graceful way to handle shader errors in the editor except for building/bundling
+            return new ShaderUtil.Common.GLSLCompileResult(source);
+        }
+
         byte[] result = pipeline.crossCompile(shaderType, shaderLanguage);
         String compiledSource = new String(result);
 
@@ -32,7 +39,15 @@ public class ShaderProgramBuilderEditor {
     static public ShaderProgramBuilder.ShaderDescBuildResult makeShaderDescWithVariants(String resourceOutputPath, String shaderSource, Graphics.ShaderDesc.ShaderType shaderType,
                                                                                         Graphics.ShaderDesc.Language[] shaderLanguages, int maxPageCount) throws IOException, CompileExceptionError {
 
-        ShaderCompilePipeline pipeline = ShaderProgramBuilder.getShaderPipelineFromShaderSource(shaderType, resourceOutputPath, shaderSource);
+        ShaderCompilePipeline pipeline;
+        try {
+            pipeline = ShaderProgramBuilder.getShaderPipelineFromShaderSource(shaderType, resourceOutputPath, shaderSource);
+        } catch (Exception e) {
+            ShaderProgramBuilder.ShaderDescBuildResult res = new ShaderProgramBuilder.ShaderDescBuildResult();
+            res.buildWarnings = new String[] { e.getMessage()};
+            return res;
+        }
+
         ArrayList<ShaderProgramBuilder.ShaderBuildResult> shaderBuildResults = new ArrayList<>();
 
         for (Graphics.ShaderDesc.Language shaderLanguage : shaderLanguages) {
