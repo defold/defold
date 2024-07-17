@@ -110,6 +110,7 @@ public class ShaderCompilePipeline {
             "-w",
             "--auto-map-bindings",
             "--auto-map-locations",
+            "-Os",
             "--resource-set-binding", "frag", "1",
             "-S", shaderTypeToSpirvStage(shaderType),
             "-o", pathFileOutSpv,

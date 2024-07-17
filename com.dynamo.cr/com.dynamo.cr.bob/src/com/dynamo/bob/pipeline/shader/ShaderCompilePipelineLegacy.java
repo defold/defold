@@ -98,7 +98,7 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
                     "-V",
                     "--auto-map-bindings",
                     "--auto-map-locations",
-                    // JG: Do we need to pass in -std flag?
+                    "-Os",
                     "-S", "comp",
                     "-o", file_out_spv.getAbsolutePath(),
                     file_in_compute.getAbsolutePath());
@@ -141,6 +141,7 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
                     "--auto-map-bindings",
                     "--auto-map-locations",
                     "--resource-set-binding", "frag", "1",
+                    "-Os",
                     "-S", spirvShaderStage,
                     "-o", file_out_spv.getAbsolutePath(),
                     file_in_glsl.getAbsolutePath());
@@ -228,7 +229,6 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
             throw new CompileExceptionError("No module found for " + shaderType);
         }
 
-        // Todo: this function should return a reflector and the byte source
         this.spirvReflector = module.spirvResult.reflector;
 
         if (shaderLanguage == ShaderDesc.Language.LANGUAGE_SPIRV) {
