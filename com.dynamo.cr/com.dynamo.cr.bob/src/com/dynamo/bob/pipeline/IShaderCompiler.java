@@ -18,10 +18,8 @@ import java.io.IOException;
 import java.util.ArrayList;
 
 import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.pipeline.ShaderProgramBuilder;
-
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
 public interface IShaderCompiler {
-    public ArrayList<ShaderProgramBuilder.ShaderBuildResult> compile(String shaderSource, ShaderDesc.ShaderType shaderType, String resourceOutputPath, boolean outputSpirv) throws IOException, CompileExceptionError;
+    ArrayList<ShaderProgramBuilder.ShaderBuildResult> compile(String shaderSource, ShaderDesc.ShaderType shaderType, String resourceOutputPath, boolean outputSpirv) throws IOException, CompileExceptionError;
 }

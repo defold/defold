@@ -78,8 +78,10 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
             taskBuilder.addInput(this.project.getResource(path));
         }
 
+        String platformString = this.project.getPlatformStrings()[0];
+
         // Include the spir-v flag into the cache key so we can invalidate the output results accordingly
-        String shaderCacheKey = "output_spirv=" + getOutputSpirvFlag();
+        String shaderCacheKey = String.format("output_spirv=%s;platform_key=%s", getOutputSpirvFlag(), platformString);
 
         taskBuilder.addOutput(input.changeExt(params.outExt()));
         taskBuilder.setData(shaderPreprocessor);
