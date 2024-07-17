@@ -32,7 +32,7 @@ import org.apache.commons.io.FileUtils;
 
 public class ShaderCompilePipeline {
 
-    protected class ShaderModule {
+    protected static class ShaderModule {
         public String                source;
         public ShaderDesc.ShaderType type;
         public File                  spirvFile;
@@ -41,45 +41,41 @@ public class ShaderCompilePipeline {
             this.source = source;
             this.type = type;
         }
-    };
+    }
 
     protected String pipelineName;
     protected File spirvFileOut                     = null;
     protected SPIRVReflector spirvReflector         = null;
-    protected ArrayList<ShaderModule> shaderModules = new ArrayList<ShaderModule>();
+    protected ArrayList<ShaderModule> shaderModules = new ArrayList<>();
 
     public ShaderCompilePipeline(String pipelineName) {
         this.pipelineName = pipelineName;
     }
 
-    private static String shaderTypeToSpirvStage(ShaderDesc.ShaderType shaderType) throws CompileExceptionError {
-        switch (shaderType) {
-            case SHADER_TYPE_VERTEX:
-                return "vert";
-            case SHADER_TYPE_FRAGMENT:
-                return "frag";
-            case SHADER_TYPE_COMPUTE:
-                return "comp";
-        }
-        throw new CompileExceptionError("Unknown shader type: " + shaderType);
+    protected void reset() {
+        spirvFileOut = null;
+        spirvReflector = null;
+        shaderModules.clear();
+    }
+
+    private static String shaderTypeToSpirvStage(ShaderDesc.ShaderType shaderType) {
+        return switch (shaderType) {
+            case SHADER_TYPE_VERTEX -> "vert";
+            case SHADER_TYPE_FRAGMENT -> "frag";
+            case SHADER_TYPE_COMPUTE -> "comp";
+        };
     }
 
     private static int shaderLanguageToVersion(ShaderDesc.Language shaderLanguage) {
-        switch (shaderLanguage) {
-            case LANGUAGE_GLSL_SM120:
-                return 120;
-            case LANGUAGE_GLSL_SM140:
-                return 140;
-            case LANGUAGE_GLES_SM100:
-                return 100;
-            case LANGUAGE_GLES_SM300:
-                return 300;
-            case LANGUAGE_GLSL_SM330:
-                return 330;
-            case LANGUAGE_GLSL_SM430:
-                return 430;
-        }
-        return 0;
+        return switch (shaderLanguage) {
+            case LANGUAGE_GLSL_SM120 -> 120;
+            case LANGUAGE_GLSL_SM140 -> 140;
+            case LANGUAGE_GLES_SM100 -> 100;
+            case LANGUAGE_GLES_SM300 -> 300;
+            case LANGUAGE_GLSL_SM330 -> 330;
+            case LANGUAGE_GLSL_SM430 -> 430;
+            default -> 0;
+        };
     }
 
     protected static boolean canBeCrossCompiled(ShaderDesc.Language shaderLanguage) {
@@ -99,13 +95,11 @@ public class ShaderCompilePipeline {
                 message = tokenizedResult[1];
             }
 
-            //String err = new String(result.stdOutErr);
-            //System.out.println("Error: " + err);
             throw new CompileExceptionError(message);
         }
     }
 
-    private void generateSPIRv(ShaderDesc.ShaderType shaderType, String fullShaderSource, String pathFileInGLSL, String pathFileOutSpv) throws IOException, CompileExceptionError {
+    private void generateSPIRv(ShaderDesc.ShaderType shaderType, String pathFileInGLSL, String pathFileOutSpv) throws IOException, CompileExceptionError {
         Result result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "glslang"),
             "-w",
             "--auto-map-bindings",
@@ -138,7 +132,7 @@ public class ShaderCompilePipeline {
 
     private void generateCrossCompiledShader(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, String pathFileInSpv, String pathFileOut, int versionOut) throws IOException, CompileExceptionError{
 
-        ArrayList<String> args = new ArrayList<String>();
+        ArrayList<String> args = new ArrayList<>();
         args.add(Bob.getExe(Platform.getHostPlatform(), "spirv-cross"));
         args.add(pathFileInSpv);
         args.add("--version");
@@ -182,7 +176,7 @@ public class ShaderCompilePipeline {
             File fileOutSpv = File.createTempFile(baseName, ".spv");
             FileUtil.deleteOnExit(fileOutSpv);
 
-            generateSPIRv(module.type, module.source, fileInGLSL.getAbsolutePath(), fileOutSpv.getAbsolutePath());
+            generateSPIRv(module.type, fileInGLSL.getAbsolutePath(), fileOutSpv.getAbsolutePath());
 
             module.spirvFile = fileOutSpv;
         }
@@ -233,6 +227,7 @@ public class ShaderCompilePipeline {
     }
 
     public static ShaderCompilePipeline createShaderPipeline(ShaderCompilePipeline pipeline, String source, ShaderDesc.ShaderType type) throws IOException, CompileExceptionError {
+        pipeline.reset();
         pipeline.addShaderModule(source, type);
         pipeline.prepare();
         return pipeline;

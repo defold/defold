@@ -32,8 +32,7 @@ import org.apache.commons.io.FilenameUtils;
 
 public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
 
-    static private class SPIRVCompileResult
-    {
+    static private class SPIRVCompileResult {
         public byte[] source;
         public ArrayList<String> compile_warnings = new ArrayList<String>();
         public SPIRVReflector reflector;
@@ -219,6 +218,7 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
 
             ShaderModuleLegacy moduleLegacy = (ShaderModuleLegacy) module;
             moduleLegacy.spirvResult = result;
+            this.spirvReflector = moduleLegacy.spirvResult.reflector;
         }
     }
 
