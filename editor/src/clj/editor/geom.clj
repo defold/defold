@@ -387,6 +387,17 @@
          (= (.y min-p) (.y max-p))
          (= (.z min-p) (.z max-p)))))
 
+(def minimalXY-bounding-box (coords->aabb [0 0 0] [0.0011 0.0011 0]))
+
+(defn minimalXY-aabb? [^AABB aabb]
+  (let [min-p ^Point3d (.min aabb)
+        max-p ^Point3d (.max aabb)]
+    (and (= (.x min-p) (- (.x max-p) 0.0011))
+         (= (.y min-p) (- (.y max-p) 0.0011)))))
+
+(defn predefined-aabb? [^AABB aabb]
+  (or (null-aabb? aabb) (empty-aabb? aabb) (minimalXY-aabb? aabb)))
+
 ;; From Graphics Gems:
 ;; https://github.com/erich666/GraphicsGems/blob/master/gems/TransBox.c
 (defn aabb-transform [^AABB aabb ^Matrix4d transform]

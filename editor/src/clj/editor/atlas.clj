@@ -637,7 +637,8 @@
   (let [[width height] layout-size
         pages (group-by :page layout-rects)
         child-renderables (into [] (for [[page-index page-rects] pages] (produce-page-renderables aabb width height page-index page-rects gpu-texture)))]
-    {:aabb aabb
+    {:node-id _node-id
+     :aabb aabb
      :info-text (format "%d x %d (%s profile)" width height (:name texture-profile))
      :children (into child-renderables
                      child-scenes)}))
@@ -843,8 +844,8 @@
   
   (output texture-set-pb   g/Any               :cached produce-atlas-texture-set-pb)
 
-  (output aabb             AABB                (g/fnk [layout-size]
-                                                 (if (= [0 0] layout-size)
+  (output aabb             AABB                (g/fnk [layout-size layout-rects]
+                                                 (if (or (= [0 0] layout-size) (empty? layout-rects))
                                                    geom/null-aabb
                                                    (let [[w h] layout-size]
                                                      (types/->AABB (Point3d. 0 0 0) (Point3d. w h 0))))))

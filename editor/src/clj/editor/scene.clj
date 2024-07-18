@@ -600,6 +600,22 @@
             union-aabb
             (:children scene))))
 
+(declare active-scene-view)
+(declare frame-selection)
+
+(defn- reframe [scene scene-aabb active-view]
+  (when (:node-id scene)
+    (let [node-id (:node-id scene)
+          prev-aabb (g/user-data node-id :prev-scene-aabb)
+          reframe? (if prev-aabb
+                     (and (geom/predefined-aabb? prev-aabb)
+                          (not (geom/predefined-aabb? scene-aabb)))
+                     false)]
+      (g/user-data! node-id :prev-scene-aabb scene-aabb)
+      (when reframe?
+        (when active-view
+          (frame-selection active-view true scene-aabb))))))
+
 (g/defnode SceneRenderer
   (property info-label Label (dynamic visible (g/constantly false)))
   (property render-mode g/Keyword (default :normal))
@@ -629,8 +645,9 @@
                                          (if (seq selected-aabbs)
                                            (reduce geom/aabb-union geom/null-aabb selected-aabbs)
                                            scene-aabb))))
-  (output scene-aabb AABB :cached (g/fnk [scene]
+  (output scene-aabb AABB :cached (g/fnk [scene active-view]
                                     (let [scene-aabb (calculate-scene-aabb geom/null-aabb geom/Identity4d scene)]
+                                      (reframe scene scene-aabb active-view)
                                       (if (geom/null-aabb? scene-aabb)
                                         geom/empty-bounding-box
                                         scene-aabb))))
@@ -1020,13 +1037,17 @@
                           (cond-> (.y max-p) zero-y inc)
                           (cond-> (.z max-p) zero-z inc)]))))
 
-(defn frame-selection [view animate?]
-  (let [aabb (fudge-empty-aabb (g/node-value view :selected-aabb))
-        camera (view->camera view)
-        viewport (g/node-value view :viewport)
-        local-cam (g/node-value camera :local-camera)
-        end-camera (c/camera-frame-aabb local-cam viewport aabb)]
-    (set-camera! camera local-cam end-camera animate?)))
+(defn frame-selection
+  ([view animate?]
+   (let [aabb (fudge-empty-aabb (g/node-value view :selected-aabb))]
+     (frame-selection view animate? aabb)))
+  ([view animate? aabb]
+   (let [camera (view->camera view)
+         viewport (g/node-value view :viewport)
+         local-cam (g/node-value camera :local-camera)
+         end-camera (c/camera-frame-aabb local-cam viewport aabb)]
+     (set-camera! camera local-cam end-camera animate?))))
+
 
 (defn realign-camera [view animate?]
   (let [aabb (fudge-empty-aabb (g/node-value view :selected-aabb))
