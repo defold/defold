@@ -134,6 +134,7 @@ public class MaterialBuilder extends Builder<Void>  {
         ShaderDesc.Builder variantShaderDescBuilder = ShaderDesc.newBuilder();
         variantShaderDescBuilder.addAllShaders(ctx.desc.getShadersList());
         variantShaderDescBuilder.addShaders(variantBuildResult.shaderBuilder);
+        variantShaderDescBuilder.setReflection(ctx.desc.getReflection());
         variantResource.setContent(variantShaderDescBuilder.build().toByteArray());
 
         ctx.buildPath             = variantResource.getPath();
