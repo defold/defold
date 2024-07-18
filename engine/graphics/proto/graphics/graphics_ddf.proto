@@ -352,5 +352,5 @@ message ShaderDesc
 
     repeated Shader shaders              = 1;
     required ShaderReflection reflection = 2;
-    optional ShaderType shader_type      = 3;
+    required ShaderType shader_type      = 3;
 }
