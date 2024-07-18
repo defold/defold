@@ -980,7 +980,7 @@ namespace dmGraphics
         }
     }
 
-    void CreateShaderMeta(ShaderDesc::Shader* ddf, ShaderMeta* meta)
+    void CreateShaderMeta(ShaderDesc::ShaderReflection* ddf, ShaderMeta* meta)
     {
         PutShaderResourceBindings(ddf->m_UniformBuffers.m_Data, ddf->m_UniformBuffers.m_Count, meta->m_UniformBuffers, ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER);
         PutShaderResourceBindings(ddf->m_StorageBuffers.m_Data, ddf->m_StorageBuffers.m_Count, meta->m_StorageBuffers, ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER);
@@ -1330,12 +1330,14 @@ namespace dmGraphics
     {
         g_functions.m_DispatchCompute(context, group_count_x, group_count_y, group_count_z);
     }
-    HVertexProgram NewVertexProgram(HContext context, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size)
+    HVertexProgram NewVertexProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
+        assert(ddf->m_ShaderType == dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX);
         return g_functions.m_NewVertexProgram(context, ddf, error_buffer, error_buffer_size);
     }
-    HFragmentProgram NewFragmentProgram(HContext context, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size)
+    HFragmentProgram NewFragmentProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
+        assert(ddf->m_ShaderType == dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT);
         return g_functions.m_NewFragmentProgram(context, ddf, error_buffer, error_buffer_size);
     }
     HProgram NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
@@ -1346,12 +1348,14 @@ namespace dmGraphics
     {
         g_functions.m_DeleteProgram(context, program);
     }
-    bool ReloadVertexProgram(HVertexProgram prog, ShaderDesc::Shader* ddf)
+    bool ReloadVertexProgram(HVertexProgram prog, ShaderDesc* ddf)
     {
+        assert(ddf->m_ShaderType == dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX);
         return g_functions.m_ReloadVertexProgram(prog, ddf);
     }
-    bool ReloadFragmentProgram(HFragmentProgram prog, ShaderDesc::Shader* ddf)
+    bool ReloadFragmentProgram(HFragmentProgram prog, ShaderDesc* ddf)
     {
+        assert(ddf->m_ShaderType == dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT);
         return g_functions.m_ReloadFragmentProgram(prog, ddf);
     }
     void DeleteVertexProgram(HVertexProgram prog)
@@ -1386,8 +1390,9 @@ namespace dmGraphics
     {
         return g_functions.m_ReloadProgramCompute(context, program, compute_program);
     }
-    bool ReloadComputeProgram(HComputeProgram prog, ShaderDesc::Shader* ddf)
+    bool ReloadComputeProgram(HComputeProgram prog, ShaderDesc* ddf)
     {
+        assert(ddf->m_ShaderType == dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE);
         return g_functions.m_ReloadComputeProgram(prog, ddf);
     }
     uint32_t GetAttributeCount(HProgram prog)
@@ -1627,8 +1632,9 @@ namespace dmGraphics
         assert(asset_handle <= MAX_ASSET_HANDLE_VALUE);
         return g_functions.m_IsAssetHandleValid(context, asset_handle);
     }
-    HComputeProgram NewComputeProgram(HContext context, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size)
+    HComputeProgram NewComputeProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
+        assert(ddf->m_ShaderType == dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE);
         return g_functions.m_NewComputeProgram(context, ddf, error_buffer, error_buffer_size);
     }
     HProgram NewProgram(HContext context, HComputeProgram compute_program)

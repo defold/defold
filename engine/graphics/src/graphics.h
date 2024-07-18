@@ -64,8 +64,6 @@ namespace dmGraphics
     //       to the users via lua: http://lua-users.org/wiki/NumbersTutorial
     typedef uint64_t HAssetHandle;
 
-    typedef uintptr_t HComputeProgram;
-
     const static uint64_t MAX_ASSET_HANDLE_VALUE  = 0x20000000000000-1; // 2^53 - 1
     static const uint8_t  MAX_BUFFER_TYPE_COUNT   = 2 + MAX_BUFFER_COLOR_ATTACHMENTS;
     const static uint8_t  MAX_VERTEX_STREAM_COUNT = 8;
@@ -539,24 +537,24 @@ namespace dmGraphics
     void DispatchCompute(HContext context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z);
 
     // Shaders
-    HVertexProgram       NewVertexProgram(HContext context, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size);
-    HFragmentProgram     NewFragmentProgram(HContext context, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size);
-    HComputeProgram      NewComputeProgram(HContext context, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size);
+    HVertexProgram       NewVertexProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size);
+    HFragmentProgram     NewFragmentProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size);
+    HComputeProgram      NewComputeProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size);
 
     HProgram             NewProgram(HContext context, HComputeProgram compute_program);
     HProgram             NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program);
     void                 DeleteProgram(HContext context, HProgram program);
 
-    bool                 ReloadVertexProgram(HVertexProgram prog, ShaderDesc::Shader* ddf);
-    bool                 ReloadFragmentProgram(HFragmentProgram prog, ShaderDesc::Shader* ddf);
-    bool                 ReloadComputeProgram(HComputeProgram prog, ShaderDesc::Shader* ddf);
+    bool                 ReloadVertexProgram(HVertexProgram prog, ShaderDesc* ddf);
+    bool                 ReloadFragmentProgram(HFragmentProgram prog, ShaderDesc* ddf);
+    bool                 ReloadComputeProgram(HComputeProgram prog, ShaderDesc* ddf);
     void                 DeleteVertexProgram(HVertexProgram prog);
     void                 DeleteFragmentProgram(HFragmentProgram prog);
     void                 DeleteComputeProgram(HComputeProgram prog);
 
     bool                 IsShaderLanguageSupported(HContext _context, ShaderDesc::Language language, ShaderDesc::ShaderType shader_type);
     ShaderDesc::Language GetProgramLanguage(HProgram program);
-    ShaderDesc::Shader*  GetShaderProgram(HContext context, ShaderDesc* shader_desc);
+    //ShaderDesc::Shader*  GetShaderProgram(HContext context, ShaderDesc* shader_desc);
 
     void                 EnableProgram(HContext context, HProgram program);
     void                 DisableProgram(HContext context);

@@ -196,8 +196,9 @@ namespace dmGraphics
     ShaderDesc::Language GetShaderProgramLanguage(HContext context);
     uint32_t             GetShaderTypeSize(ShaderDesc::ShaderDataType type);
     Type                 ShaderDataTypeToGraphicsType(ShaderDesc::ShaderDataType shader_type);
+    ShaderDesc::Shader*  GetShaderProgram(HContext context, ShaderDesc* shader_desc);
 
-    void                 CreateShaderMeta(ShaderDesc::Shader* ddf, ShaderMeta* meta);
+    void                 CreateShaderMeta(ShaderDesc::ShaderReflection* ddf, ShaderMeta* meta);
     void                 DestroyShaderMeta(ShaderMeta& meta);
     bool                 GetUniformIndices(const dmArray<ShaderResourceBinding>& uniforms, dmhash_t name_hash, uint64_t* index_out, uint64_t* index_member_out);
 

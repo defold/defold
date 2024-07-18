@@ -53,11 +53,11 @@ public class MaterialBuilder extends Builder<Void>  {
     private static final String TextureArrayFilenameVariantFormat = "_max_pages_%d.%s";
 
     private static class ShaderProgramBuildContext {
-        public String                       buildPath;
-        public String                       projectPath;
-        public IResource                    resource;
+        public String                buildPath;
+        public String                projectPath;
+        public IResource             resource;
         public ShaderDesc.ShaderType type;
-        public ShaderDesc                   desc;
+        public ShaderDesc            desc;
 
         // Variant specific state
         public boolean hasTextureArrayVariant;
@@ -70,26 +70,10 @@ public class MaterialBuilder extends Builder<Void>  {
         return builder.getCompiledShaderDesc(task, shaderType);
     }
 
-    private ShaderDesc.Shader getSpirvShader(ShaderDesc shaderDesc) {
-        for (int i=0; i < shaderDesc.getShadersCount(); i++) {
-            ShaderDesc.Shader shader = shaderDesc.getShaders(i);
-            if (shader.getLanguage() == ShaderDesc.Language.LANGUAGE_SPIRV) {
-                return shader;
-            }
-        }
-        return null;
-    }
-
     private void validateSpirvShaders(ShaderProgramBuildContext vertexBuildContext, ShaderProgramBuildContext fragmentBuildContext) throws CompileExceptionError {
-        ShaderDesc.Shader spirvVertex = getSpirvShader(vertexBuildContext.desc);
-        if (spirvVertex == null) {
-            return;
-        }
-        ShaderDesc.Shader spirvFragment = getSpirvShader(fragmentBuildContext.desc);
-
-        for (ShaderDesc.ResourceBinding input : spirvFragment.getInputsList()) {
+        for (ShaderDesc.ResourceBinding input : fragmentBuildContext.desc.getReflection().getInputsList()) {
             boolean input_found = false;
-            for (ShaderDesc.ResourceBinding output : spirvVertex.getOutputsList()) {
+            for (ShaderDesc.ResourceBinding output : vertexBuildContext.desc.getReflection().getOutputsList()) {
                 if (output.getNameHash() == input.getNameHash()) {
                     input_found = true;
 

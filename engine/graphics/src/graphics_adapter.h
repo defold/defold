@@ -86,12 +86,12 @@ namespace dmGraphics
     typedef void (*DrawElementsFn)(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer);
     typedef void (*DrawFn)(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count);
     typedef void (*DispatchComputeFn)(HContext context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z);
-    typedef HVertexProgram (*NewVertexProgramFn)(HContext context, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size);
-    typedef HFragmentProgram (*NewFragmentProgramFn)(HContext context, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size);
+    typedef HVertexProgram (*NewVertexProgramFn)(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size);
+    typedef HFragmentProgram (*NewFragmentProgramFn)(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size);
     typedef HProgram (*NewProgramFn)(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program);
     typedef void (*DeleteProgramFn)(HContext context, HProgram program);
-    typedef bool (*ReloadVertexProgramFn)(HVertexProgram prog, ShaderDesc::Shader* ddf);
-    typedef bool (*ReloadFragmentProgramFn)(HFragmentProgram prog, ShaderDesc::Shader* ddf);
+    typedef bool (*ReloadVertexProgramFn)(HVertexProgram prog, ShaderDesc* ddf);
+    typedef bool (*ReloadFragmentProgramFn)(HFragmentProgram prog, ShaderDesc* ddf);
     typedef void (*DeleteVertexProgramFn)(HVertexProgram prog);
     typedef void (*DeleteFragmentProgramFn)(HFragmentProgram prog);
     typedef bool (*IsShaderLanguageSupportedFn)(HContext context, ShaderDesc::Language language, ShaderDesc::ShaderType shader_type);
@@ -99,7 +99,7 @@ namespace dmGraphics
     typedef void (*EnableProgramFn)(HContext context, HProgram program);
     typedef void (*DisableProgramFn)(HContext context);
     typedef bool (*ReloadProgramGraphicsFn)(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program);
-    typedef bool (*ReloadComputeProgramFn)(HComputeProgram prog, ShaderDesc::Shader* ddf);
+    typedef bool (*ReloadComputeProgramFn)(HComputeProgram prog, ShaderDesc* ddf);
     typedef bool (*ReloadProgramComputeFn)(HContext context, HProgram program, HComputeProgram compute_program);
     typedef uint32_t (*GetAttributeCountFn)(HProgram prog);
     typedef void (*GetAttributeFn)(HProgram prog, uint32_t index, dmhash_t* name_hash, Type* type, uint32_t* element_count, uint32_t* num_values, int32_t* location);
@@ -159,7 +159,7 @@ namespace dmGraphics
     typedef uint32_t (*GetTextureUsageHintFlagsFn)(HTexture texture);
     typedef bool (*IsContextFeatureSupportedFn)(HContext context, ContextFeature feature);
     typedef bool (*IsAssetHandleValidFn)(HContext context, HAssetHandle asset_handle);
-    typedef HComputeProgram (*NewComputeProgramFn)(HContext context, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size);
+    typedef HComputeProgram (*NewComputeProgramFn)(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size);
     typedef HProgram (*NewProgramFromComputeFn)(HContext context, HComputeProgram compute_program);
     typedef void (*DeleteComputeProgramFn)(HComputeProgram prog);
 

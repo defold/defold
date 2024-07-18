@@ -66,8 +66,7 @@ namespace dmRender
             }
             else
             {
-                dmGraphics::ShaderDesc::Shader* shader =  dmGraphics::GetShaderProgram(render_context->m_GraphicsContext, shader_desc);
-                vertex_program = dmGraphics::NewVertexProgram(render_context->m_GraphicsContext, shader, 0, 0);
+                vertex_program = dmGraphics::NewVertexProgram(render_context->m_GraphicsContext, shader_desc, 0, 0);
                 dmDDF::FreeMessage(shader_desc);
             }
         }
@@ -81,8 +80,7 @@ namespace dmRender
             }
             else
             {
-                dmGraphics::ShaderDesc::Shader* shader =  dmGraphics::GetShaderProgram(render_context->m_GraphicsContext, shader_desc);
-                fragment_program = dmGraphics::NewFragmentProgram(render_context->m_GraphicsContext, shader, 0, 0);
+                fragment_program = dmGraphics::NewFragmentProgram(render_context->m_GraphicsContext, shader_desc, 0, 0);
                 dmDDF::FreeMessage(shader_desc);
             }
         }

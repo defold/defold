@@ -1901,36 +1901,42 @@ static void LogFrameBufferError(GLenum status)
         return shader_id;
     }
 
-    static OpenGLShader* CreateShader(GLenum type, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size)
+    static OpenGLShader* CreateShader(HContext context, GLenum type, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
-        GLuint shader_id = DoCreateShader(type, ddf->m_Source.m_Data, ddf->m_Source.m_Count, error_buffer, error_buffer_size);
+        ShaderDesc::Shader* ddf_shader = GetShaderProgram(context, ddf);
+        if (ddf_shader == 0x0)
+        {
+            return 0x0;
+        }
+
+        GLuint shader_id = DoCreateShader(type, ddf_shader->m_Source.m_Data, ddf_shader->m_Source.m_Count, error_buffer, error_buffer_size);
         if (!shader_id)
         {
             return 0;
         }
         OpenGLShader* shader = new OpenGLShader();
         shader->m_Id         = shader_id;
-        shader->m_Language   = ddf->m_Language;
+        shader->m_Language   = ddf_shader->m_Language;
 
-        CreateShaderMeta(ddf, &shader->m_ShaderMeta);
+        CreateShaderMeta(&ddf->m_Reflection, &shader->m_ShaderMeta);
 
         return shader;
     }
 
-    static HVertexProgram OpenGLNewVertexProgram(HContext context, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size)
+    static HVertexProgram OpenGLNewVertexProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
-        return (HVertexProgram) CreateShader(GL_VERTEX_SHADER, ddf, error_buffer, error_buffer_size);
+        return (HVertexProgram) CreateShader(context, GL_VERTEX_SHADER, ddf, error_buffer, error_buffer_size);
     }
 
-    static HFragmentProgram OpenGLNewFragmentProgram(HContext context, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size)
+    static HFragmentProgram OpenGLNewFragmentProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
-        return (HFragmentProgram) CreateShader(GL_FRAGMENT_SHADER, ddf, error_buffer, error_buffer_size);
+        return (HFragmentProgram) CreateShader(context, GL_FRAGMENT_SHADER, ddf, error_buffer, error_buffer_size);
     }
 
-    static HComputeProgram OpenGLNewComputeProgram(HContext context, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size)
+    static HComputeProgram OpenGLNewComputeProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
     #ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
-        return (HVertexProgram) CreateShader(DMGRAPHICS_TYPE_COMPUTE_SHADER, ddf, error_buffer, error_buffer_size);
+        return (HVertexProgram) CreateShader(context, DMGRAPHICS_TYPE_COMPUTE_SHADER, ddf, error_buffer, error_buffer_size);
     #else
         dmSnPrintf(error_buffer, error_buffer_size, "Compute Shaders are not supported for OpenGL on this platform.");
         return 0;
@@ -2319,20 +2325,26 @@ static void LogFrameBufferError(GLenum status)
         return true;
     }
 
-    static bool OpenGLReloadVertexProgram(HVertexProgram prog, ShaderDesc::Shader* ddf)
+    static bool OpenGLReloadVertexProgram(HVertexProgram prog, ShaderDesc* ddf)
     {
         assert(prog);
         assert(ddf);
 
+        ShaderDesc::Shader* ddf_shader = GetShaderProgram((HContext) g_Context, ddf);
+        if (ddf_shader == 0x0)
+        {
+            return 0x0;
+        }
+
         GLuint tmp_shader = glCreateShader(GL_VERTEX_SHADER);
-        bool success = TryCompileShader(tmp_shader, ddf->m_Source.m_Data, ddf->m_Source.m_Count);
+        bool success = TryCompileShader(tmp_shader, ddf_shader->m_Source.m_Data, ddf_shader->m_Source.m_Count);
         glDeleteShader(tmp_shader);
         CHECK_GL_ERROR;
 
         if (success)
         {
             GLuint id = ((OpenGLShader*) prog)->m_Id;
-            glShaderSource(id, 1, (const GLchar**) &ddf->m_Source.m_Data, (GLint*) &ddf->m_Source.m_Count);
+            glShaderSource(id, 1, (const GLchar**) &ddf_shader->m_Source.m_Data, (GLint*) &ddf_shader->m_Source.m_Count);
             CHECK_GL_ERROR;
             glCompileShader(id);
             CHECK_GL_ERROR;
@@ -2341,20 +2353,26 @@ static void LogFrameBufferError(GLenum status)
         return success;
     }
 
-    static bool OpenGLReloadFragmentProgram(HFragmentProgram prog, ShaderDesc::Shader* ddf)
+    static bool OpenGLReloadFragmentProgram(HFragmentProgram prog, ShaderDesc* ddf)
     {
         assert(prog);
         assert(ddf);
 
+        ShaderDesc::Shader* ddf_shader = GetShaderProgram((HContext) g_Context, ddf);
+        if (ddf_shader == 0x0)
+        {
+            return 0x0;
+        }
+
         GLuint tmp_shader = glCreateShader(GL_FRAGMENT_SHADER);
-        bool success = TryCompileShader(tmp_shader, ddf->m_Source.m_Data, ddf->m_Source.m_Count);
+        bool success = TryCompileShader(tmp_shader, ddf_shader->m_Source.m_Data, ddf_shader->m_Source.m_Count);
         glDeleteShader(tmp_shader);
         CHECK_GL_ERROR;
 
         if (success)
         {
             GLuint id = ((OpenGLShader*) prog)->m_Id;
-            glShaderSource(id, 1, (const GLchar**) &ddf->m_Source.m_Data, (GLint*) &ddf->m_Source.m_Count);
+            glShaderSource(id, 1, (const GLchar**) &ddf_shader->m_Source.m_Data, (GLint*) &ddf_shader->m_Source.m_Count);
             CHECK_GL_ERROR;
             glCompileShader(id);
             CHECK_GL_ERROR;
@@ -2496,20 +2514,26 @@ static void LogFrameBufferError(GLenum status)
         return true;
     }
 
-    static bool OpenGLReloadComputeProgram(HComputeProgram prog, ShaderDesc::Shader* ddf)
+    static bool OpenGLReloadComputeProgram(HComputeProgram prog, ShaderDesc* ddf)
     {
         assert(prog);
         assert(ddf);
 
+        ShaderDesc::Shader* ddf_shader = GetShaderProgram((HContext) g_Context, ddf);
+        if (ddf_shader == 0x0)
+        {
+            return 0x0;
+        }
+
         GLuint tmp_shader = glCreateShader(DMGRAPHICS_TYPE_COMPUTE_SHADER);
-        bool success = TryCompileShader(tmp_shader, ddf->m_Source.m_Data, ddf->m_Source.m_Count);
+        bool success = TryCompileShader(tmp_shader, ddf_shader->m_Source.m_Data, ddf_shader->m_Source.m_Count);
         glDeleteShader(tmp_shader);
         CHECK_GL_ERROR;
 
         if (success)
         {
             GLuint id = ((OpenGLShader*) prog)->m_Id;
-            glShaderSource(id, 1, (const GLchar**) &ddf->m_Source.m_Data, (GLint*) &ddf->m_Source.m_Count);
+            glShaderSource(id, 1, (const GLchar**) &ddf_shader->m_Source.m_Data, (GLint*) &ddf_shader->m_Source.m_Count);
             CHECK_GL_ERROR;
             glCompileShader(id);
             CHECK_GL_ERROR;

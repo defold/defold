@@ -21,22 +21,34 @@
 
 #include <graphics/graphics_ddf.h>
 
-static inline dmGraphics::ShaderDesc::Shader MakeDDFShader(dmGraphics::ShaderDesc::Language language, const char* data, uint32_t data_size,
+static inline dmGraphics::ShaderDesc MakeDDFShaderDesc(dmGraphics::ShaderDesc::Shader* shader,
+    dmGraphics::ShaderDesc::ShaderType type,
     dmGraphics::ShaderDesc::ResourceBinding* inputs, uint32_t input_count,
     dmGraphics::ShaderDesc::ResourceBinding* ubos, uint32_t ubos_count)
+{
+    dmGraphics::ShaderDesc ddf;
+    memset(&ddf,0,sizeof(ddf));
+
+    ddf.m_Shaders.m_Data = shader;
+    ddf.m_Shaders.m_Count = 1;
+    ddf.m_ShaderType = type;
+
+    ddf.m_Reflection.m_Inputs.m_Data  = inputs;
+    ddf.m_Reflection.m_Inputs.m_Count = input_count;
+
+    ddf.m_Reflection.m_UniformBuffers.m_Data  = ubos;
+    ddf.m_Reflection.m_UniformBuffers.m_Count = ubos_count;
+
+    return ddf;
+}
+
+static inline dmGraphics::ShaderDesc::Shader MakeDDFShader(dmGraphics::ShaderDesc::Language language, const char* data, uint32_t data_size)
 {
     dmGraphics::ShaderDesc::Shader ddf;
     memset(&ddf,0,sizeof(ddf));
     ddf.m_Source.m_Data  = (uint8_t*)data;
     ddf.m_Source.m_Count = data_size;
     ddf.m_Language       = language;
-
-    ddf.m_Inputs.m_Data  = inputs;
-    ddf.m_Inputs.m_Count = input_count;
-
-    ddf.m_UniformBuffers.m_Data  = ubos;
-    ddf.m_UniformBuffers.m_Count = ubos_count;
-
     return ddf;
 }
 

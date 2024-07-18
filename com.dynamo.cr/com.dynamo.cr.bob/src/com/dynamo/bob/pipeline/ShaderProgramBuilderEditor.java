@@ -62,7 +62,7 @@ public class ShaderProgramBuilderEditor {
                 }
             }
 
-            Graphics.ShaderDesc.Shader.Builder builder = ShaderProgramBuilder.makeShaderBuilder(shaderLanguage, source, pipeline.getReflectionData());
+            Graphics.ShaderDesc.Shader.Builder builder = ShaderProgramBuilder.makeShaderBuilder(shaderLanguage, source);
 
             // Note: We are not doing builder.setVariantTextureArray(variantTextureArray); because calling that function
             //       will mark the field as being set, regardless of the value. We only want to mark the field if we need to.
@@ -72,6 +72,10 @@ public class ShaderProgramBuilderEditor {
             shaderBuildResults.add(new ShaderProgramBuilder.ShaderBuildResult(builder));
         }
 
-        return buildResultsToShaderDescBuildResults(shaderBuildResults, shaderType);
+        ShaderProgramBuilder.ShaderCompileResult compileResult = new ShaderProgramBuilder.ShaderCompileResult();
+        compileResult.reflector = pipeline.getReflectionData();
+        compileResult.shaderBuildResults = shaderBuildResults;
+
+        return buildResultsToShaderDescBuildResults(compileResult, shaderType);
     }
 }

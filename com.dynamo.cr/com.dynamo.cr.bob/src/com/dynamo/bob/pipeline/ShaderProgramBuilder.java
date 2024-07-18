@@ -62,6 +62,11 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         public String[]   buildWarnings;
     }
 
+    static public class ShaderCompileResult {
+        ArrayList<ShaderBuildResult> shaderBuildResults;
+        SPIRVReflector reflector;
+    }
+
     @Override
     public Task<ShaderPreprocessor> create(IResource input) throws IOException, CompileExceptionError {
 
@@ -96,12 +101,12 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         return fromProjectOptions || fromProjectProperties;
     }
 
-    static public ShaderDescBuildResult buildResultsToShaderDescBuildResults(ArrayList<ShaderBuildResult> shaderBuildResults, ShaderDesc.ShaderType shaderType) {
+    static public ShaderDescBuildResult buildResultsToShaderDescBuildResults(ShaderCompileResult shaderCompileresult, ShaderDesc.ShaderType shaderType) {
 
         ShaderDescBuildResult shaderDescBuildResult = new ShaderDescBuildResult();
         ShaderDesc.Builder shaderDescBuilder = ShaderDesc.newBuilder();
 
-        for (ShaderBuildResult shaderBuildResult : shaderBuildResults) {
+        for (ShaderBuildResult shaderBuildResult : shaderCompileresult.shaderBuildResults) {
             if (shaderBuildResult != null) {
                 if (shaderBuildResult.buildWarnings != null) {
                     shaderDescBuildResult.buildWarnings = shaderBuildResult.buildWarnings;
@@ -113,6 +118,8 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         }
 
         shaderDescBuilder.setShaderType(shaderType);
+        shaderDescBuilder.setReflection(makeShaderReflectionBuilder(shaderCompileresult.reflector).build());
+
         shaderDescBuildResult.shaderDesc = shaderDescBuilder.build();
 
         return shaderDescBuildResult;
@@ -124,9 +131,9 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
             throw new CompileExceptionError("Unknown platform for shader program '" + resourceOutputPath + "'': " + platform);
         }
 
-        String finalShaderSource                          = shaderPreprocessor.getCompiledSource();
-        IShaderCompiler shaderCompiler                    = project.getShaderCompiler(platformKey);
-        ArrayList<ShaderBuildResult> shaderCompilerResult = shaderCompiler.compile(finalShaderSource, shaderType, resourceOutputPath, outputSpirv);
+        String finalShaderSource                 = shaderPreprocessor.getCompiledSource();
+        IShaderCompiler shaderCompiler           = project.getShaderCompiler(platformKey);
+        ShaderCompileResult shaderCompilerResult = shaderCompiler.compile(finalShaderSource, shaderType, resourceOutputPath, outputSpirv);
         return buildResultsToShaderDescBuildResults(shaderCompilerResult, shaderType);
     }
 
@@ -233,67 +240,69 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         return resourceBindingBuilder;
     }
 
-    static public ShaderDesc.Shader.Builder makeShaderBuilder(ShaderDesc.Language language, byte[] source, SPIRVReflector reflector) {
+    static private ShaderDesc.ShaderReflection.Builder makeShaderReflectionBuilder(SPIRVReflector reflector) {
+        ShaderDesc.ShaderReflection.Builder builder = ShaderDesc.ShaderReflection.newBuilder();
+
+        ArrayList<SPIRVReflector.Resource> inputs    = reflector.getInputs();
+        ArrayList<SPIRVReflector.Resource> outputs   = reflector.getOutputs();
+        ArrayList<SPIRVReflector.Resource> ubos      = reflector.getUBOs();
+        ArrayList<SPIRVReflector.Resource> ssbos     = reflector.getSsbos();
+        ArrayList<SPIRVReflector.Resource> textures  = reflector.getTextures();
+        ArrayList<SPIRVReflector.ResourceType> types = reflector.getTypes();
+
+        for (SPIRVReflector.Resource input : inputs) {
+            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(types, input);
+            builder.addInputs(resourceBindingBuilder);
+        }
+
+        for (SPIRVReflector.Resource output : outputs) {
+            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(types, output);
+            builder.addOutputs(resourceBindingBuilder);
+        }
+
+        for (SPIRVReflector.Resource ubo : ubos) {
+            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(types, ubo);
+            builder.addUniformBuffers(resourceBindingBuilder);
+        }
+
+        for (SPIRVReflector.Resource ssbo : ssbos) {
+            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(types, ssbo);
+            builder.addStorageBuffers(resourceBindingBuilder);
+        }
+
+        for (SPIRVReflector.Resource texture : textures) {
+            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(types, texture);
+            builder.addTextures(resourceBindingBuilder);
+        }
+
+        for (SPIRVReflector.ResourceType type : types) {
+            ShaderDesc.ResourceTypeInfo.Builder resourceTypeInfoBuilder = ShaderDesc.ResourceTypeInfo.newBuilder();
+
+            resourceTypeInfoBuilder.setName(type.name);
+            resourceTypeInfoBuilder.setNameHash(MurmurHash.hash64(type.name));
+
+            for (SPIRVReflector.ResourceMember member : type.members) {
+                ShaderDesc.ResourceMember.Builder typeMemberBuilder = ShaderDesc.ResourceMember.newBuilder();
+
+                ShaderDesc.ResourceType.Builder typeBuilder = getResourceTypeBuilder(types, member.type);
+                typeMemberBuilder.setType(typeBuilder);
+                typeMemberBuilder.setName(member.name);
+                typeMemberBuilder.setNameHash(MurmurHash.hash64(member.name));
+                typeMemberBuilder.setElementCount(member.elementCount);
+                typeMemberBuilder.setOffset(member.offset);
+
+                resourceTypeInfoBuilder.addMembers(typeMemberBuilder);
+            }
+
+            builder.addTypes(resourceTypeInfoBuilder);
+        }
+        return builder;
+    }
+
+    static public ShaderDesc.Shader.Builder makeShaderBuilder(ShaderDesc.Language language, byte[] source) {
         ShaderDesc.Shader.Builder builder = ShaderDesc.Shader.newBuilder();
         builder.setLanguage(language);
         builder.setSource(ByteString.copyFrom(source));
-
-        if (reflector != null) {
-            ArrayList<SPIRVReflector.Resource> inputs    = reflector.getInputs();
-            ArrayList<SPIRVReflector.Resource> outputs   = reflector.getOutputs();
-            ArrayList<SPIRVReflector.Resource> ubos      = reflector.getUBOs();
-            ArrayList<SPIRVReflector.Resource> ssbos     = reflector.getSsbos();
-            ArrayList<SPIRVReflector.Resource> textures  = reflector.getTextures();
-            ArrayList<SPIRVReflector.ResourceType> types = reflector.getTypes();
-
-            for (SPIRVReflector.Resource input : inputs) {
-                ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(types, input);
-                builder.addInputs(resourceBindingBuilder);
-            }
-
-            for (SPIRVReflector.Resource output : outputs) {
-                ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(types, output);
-                builder.addOutputs(resourceBindingBuilder);
-            }
-
-            for (SPIRVReflector.Resource ubo : ubos) {
-                ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(types, ubo);
-                builder.addUniformBuffers(resourceBindingBuilder);
-            }
-
-            for (SPIRVReflector.Resource ssbo : ssbos) {
-                ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(types, ssbo);
-                builder.addStorageBuffers(resourceBindingBuilder);
-            }
-
-            for (SPIRVReflector.Resource texture : textures) {
-                ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(types, texture);
-                builder.addTextures(resourceBindingBuilder);
-            }
-
-            for (SPIRVReflector.ResourceType type : types) {
-                ShaderDesc.ResourceTypeInfo.Builder resourceTypeInfoBuilder = ShaderDesc.ResourceTypeInfo.newBuilder();
-
-                resourceTypeInfoBuilder.setName(type.name);
-                resourceTypeInfoBuilder.setNameHash(MurmurHash.hash64(type.name));
-
-                for (SPIRVReflector.ResourceMember member : type.members) {
-                    ShaderDesc.ResourceMember.Builder typeMemberBuilder = ShaderDesc.ResourceMember.newBuilder();
-
-                    ShaderDesc.ResourceType.Builder typeBuilder = getResourceTypeBuilder(types, member.type);
-                    typeMemberBuilder.setType(typeBuilder);
-                    typeMemberBuilder.setName(member.name);
-                    typeMemberBuilder.setNameHash(MurmurHash.hash64(member.name));
-                    typeMemberBuilder.setElementCount(member.elementCount);
-                    typeMemberBuilder.setOffset(member.offset);
-
-                    resourceTypeInfoBuilder.addMembers(typeMemberBuilder);
-                }
-
-                builder.addTypes(resourceTypeInfoBuilder);
-            }
-        }
-
         return builder;
     }
 
@@ -313,7 +322,7 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
             ShaderPreprocessor shaderPreprocessor = new ShaderPreprocessor(this.project, args[0], source);
             String finalShaderSource              = shaderPreprocessor.getCompiledSource();
 
-            ArrayList<ShaderBuildResult> shaderCompilerResult = shaderCompiler.compile(finalShaderSource, shaderType, args[1], true);
+            ShaderCompileResult shaderCompilerResult = shaderCompiler.compile(finalShaderSource, shaderType, args[1], true);
             ShaderDescBuildResult shaderDescResult = buildResultsToShaderDescBuildResults(shaderCompilerResult, shaderType);
 
             shaderDescResult.shaderDesc.writeTo(os);

@@ -780,28 +780,37 @@ namespace dmGraphics
         dmArray<ShaderBinding> m_Attributes;
     };
 
-    static ShaderProgram* NewShaderProgramFromDDF(ShaderDesc::Shader* ddf)
+    static ShaderProgram* NewShaderProgramFromDDF(HContext context, ShaderDesc* ddf)
     {
         assert(ddf);
-        ShaderProgram* p = new ShaderProgram();
-        p->m_Data = new char[ddf->m_Source.m_Count+1];
-        memcpy(p->m_Data, ddf->m_Source.m_Data, ddf->m_Source.m_Count);
-        p->m_Data[ddf->m_Source.m_Count] = '\0';
-        p->m_Language = ddf->m_Language;
 
-        for (int i = 0; i < ddf->m_Inputs.m_Count; ++i)
+        ShaderDesc::Shader* shader = GetShaderProgram(context, ddf);
+        if (shader == 0x0)
         {
-            ShaderDesc::ResourceBinding& res = ddf->m_Inputs[i];
+            return 0x0;
+        }
+
+        ShaderProgram* p = new ShaderProgram();
+        p->m_Data = new char[shader->m_Source.m_Count+1];
+        memcpy(p->m_Data, shader->m_Source.m_Data, shader->m_Source.m_Count);
+        p->m_Data[shader->m_Source.m_Count] = '\0';
+        p->m_Language = shader->m_Language;
+
+        ShaderDesc::ShaderReflection* reflection = &ddf->m_Reflection;
+
+        for (int i = 0; i < reflection->m_Inputs.m_Count; ++i)
+        {
+            ShaderDesc::ResourceBinding& res = reflection->m_Inputs[i];
             PushBinding(&p->m_Attributes, res.m_Name, strlen(res.m_Name), ShaderDataTypeToGraphicsType(res.m_Type.m_Type.m_ShaderType), 1);
         }
 
-        for (int i = 0; i < ddf->m_UniformBuffers.m_Count; ++i)
+        for (int i = 0; i < reflection->m_UniformBuffers.m_Count; ++i)
         {
-            ShaderDesc::ResourceBinding& res = ddf->m_UniformBuffers[i];
+            ShaderDesc::ResourceBinding& res = reflection->m_UniformBuffers[i];
 
             if (res.m_Type.m_UseTypeIndex)
             {
-                ShaderDesc::ResourceTypeInfo& type = ddf->m_Types[res.m_Type.m_Type.m_TypeIndex];
+                ShaderDesc::ResourceTypeInfo& type = reflection->m_Types[res.m_Type.m_Type.m_TypeIndex];
                 for (int j = 0; j < type.m_Members.m_Count; ++j)
                 {
                     uint32_t element_count = dmMath::Max(type.m_Members[j].m_ElementCount, 1u);
@@ -814,24 +823,24 @@ namespace dmGraphics
             }
         }
 
-        for (int i = 0; i < ddf->m_StorageBuffers.m_Count; ++i)
+        for (int i = 0; i < reflection->m_StorageBuffers.m_Count; ++i)
         {
-            ShaderDesc::ResourceBinding& res = ddf->m_StorageBuffers[i];
+            ShaderDesc::ResourceBinding& res = reflection->m_StorageBuffers[i];
             PushBinding(&p->m_Uniforms, res.m_Name, strlen(res.m_Name), ShaderDataTypeToGraphicsType(res.m_Type.m_Type.m_ShaderType), 1);
         }
 
-        for (int i = 0; i < ddf->m_Textures.m_Count; ++i)
+        for (int i = 0; i < reflection->m_Textures.m_Count; ++i)
         {
-            ShaderDesc::ResourceBinding& res = ddf->m_Textures[i];
+            ShaderDesc::ResourceBinding& res = reflection->m_Textures[i];
             PushBinding(&p->m_Uniforms, res.m_Name, strlen(res.m_Name), ShaderDataTypeToGraphicsType(res.m_Type.m_Type.m_ShaderType), 1);
         }
 
         return p;
     }
 
-    static HComputeProgram NullNewComputeProgram(HContext context, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size)
+    static HComputeProgram NullNewComputeProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
-        return (HComputeProgram) NewShaderProgramFromDDF(ddf);
+        return (HComputeProgram) NewShaderProgramFromDDF(context, ddf);
     }
 
     static HProgram NullNewProgramFromCompute(HContext context, HComputeProgram compute_program)
@@ -868,35 +877,50 @@ namespace dmGraphics
         delete (Program*) program;
     }
 
-    static HVertexProgram NullNewVertexProgram(HContext context, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size)
+    static HVertexProgram NullNewVertexProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
-        return (HVertexProgram) NewShaderProgramFromDDF(ddf);
+        return (HVertexProgram) NewShaderProgramFromDDF(context, ddf);
     }
 
-    static HFragmentProgram NullNewFragmentProgram(HContext context, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size)
+    static HFragmentProgram NullNewFragmentProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
-        return (HFragmentProgram) NewShaderProgramFromDDF(ddf);
+        return (HFragmentProgram) NewShaderProgramFromDDF(context, ddf);
     }
 
-    static bool NullReloadVertexProgram(HVertexProgram prog, ShaderDesc::Shader* ddf)
+    static bool NullReloadVertexProgram(HVertexProgram prog, ShaderDesc* ddf)
     {
         assert(prog);
         assert(ddf);
-        ShaderProgram* p = (ShaderProgram*)prog;
+
+        ShaderDesc::Shader* shader = GetShaderProgram((HContext) g_NullContext, ddf);
+        if (shader == 0x0)
+        {
+            return false;
+        }
+
+
+        ShaderProgram* p = (ShaderProgram*) prog;
         delete [] (char*)p->m_Data;
-        p->m_Data = new char[ddf->m_Source.m_Count];
-        memcpy((char*)p->m_Data, ddf->m_Source.m_Data, ddf->m_Source.m_Count);
+        p->m_Data = new char[shader->m_Source.m_Count];
+        memcpy((char*)p->m_Data, shader->m_Source.m_Data, shader->m_Source.m_Count);
         return !g_ForceVertexReloadFail;
     }
 
-    static bool NullReloadFragmentProgram(HFragmentProgram prog, ShaderDesc::Shader* ddf)
+    static bool NullReloadFragmentProgram(HFragmentProgram prog, ShaderDesc* ddf)
     {
         assert(prog);
         assert(ddf);
+
+        ShaderDesc::Shader* shader = GetShaderProgram((HContext) g_NullContext, ddf);
+        if (shader == 0x0)
+        {
+            return false;
+        }
+
         ShaderProgram* p = (ShaderProgram*)prog;
         delete [] (char*)p->m_Data;
-        p->m_Data = new char[ddf->m_Source.m_Count];
-        memcpy((char*)p->m_Data, ddf->m_Source.m_Data, ddf->m_Source.m_Count);
+        p->m_Data = new char[shader->m_Source.m_Count];
+        memcpy((char*)p->m_Data, shader->m_Source.m_Data, shader->m_Source.m_Count);
         return !g_ForceFragmentReloadFail;
     }
 
@@ -977,7 +1001,7 @@ namespace dmGraphics
         return true;
     }
 
-    static bool NullReloadComputeProgram(HComputeProgram prog, ShaderDesc::Shader* ddf)
+    static bool NullReloadComputeProgram(HComputeProgram prog, ShaderDesc* ddf)
     {
         (void)prog;
         return true;

@@ -85,17 +85,21 @@ public class ShaderCompilers {
             return shaderLanguages;
         }
 
-        public ArrayList<ShaderProgramBuilder.ShaderBuildResult> compile(String shaderSource, ShaderDesc.ShaderType shaderType, String resourceOutputPath, boolean outputSpirv) throws IOException, CompileExceptionError {
+        public ShaderProgramBuilder.ShaderCompileResult compile(String shaderSource, ShaderDesc.ShaderType shaderType, String resourceOutputPath, boolean outputSpirv) throws IOException, CompileExceptionError {
             ShaderCompilePipeline pipeline = ShaderProgramBuilder.getShaderPipelineFromShaderSource(shaderType, resourceOutputPath, shaderSource);
             ArrayList<ShaderProgramBuilder.ShaderBuildResult> shaderBuildResults = new ArrayList<>();
             ArrayList<ShaderDesc.Language> shaderLanguages = getPlatformShaderLanguages(shaderType, outputSpirv);
 
+            assert shaderLanguages != null;
             for (ShaderDesc.Language shaderLanguage : shaderLanguages) {
-                ShaderDesc.Shader.Builder builder = ShaderProgramBuilder.makeShaderBuilder(shaderLanguage, pipeline.crossCompile(shaderType, shaderLanguage), pipeline.getReflectionData());
+                ShaderDesc.Shader.Builder builder = ShaderProgramBuilder.makeShaderBuilder(shaderLanguage, pipeline.crossCompile(shaderType, shaderLanguage));
                 shaderBuildResults.add(new ShaderProgramBuilder.ShaderBuildResult(builder));
             }
 
-            return shaderBuildResults;
+            ShaderProgramBuilder.ShaderCompileResult compileResult = new ShaderProgramBuilder.ShaderCompileResult();
+            compileResult.shaderBuildResults = shaderBuildResults;
+            compileResult.reflector = pipeline.getReflectionData();
+            return compileResult;
         }
     }
 
