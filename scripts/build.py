@@ -94,7 +94,7 @@ assert(hasattr(build_private, 'get_tag_suffix'))
 def get_target_platforms():
     return BASE_PLATFORMS + build_private.get_target_platforms()
 
-PACKAGES_ALL="protobuf-3.20.1 waf-2.0.3 junit-4.6 jsign-4.2 protobuf-java-3.20.1 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 luajit-2.1.0-6c4826f tremolo-b0cb4d1 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.10.2 vulkan-1.3.261.1".split()
+PACKAGES_ALL="protobuf-3.20.1 waf-2.0.3 junit-4.6 jsign-4.2 protobuf-java-3.20.1 openal-1.1 maven-3.0.1 vecmath vpx-1.7.0 luajit-2.1.0-6c4826f tremolo-b0cb4d1 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.10.2 vulkan-1.3.261.1".split()
 PACKAGES_HOST="vpx-1.7.0 luajit-2.1.0-6c4826f tremolo-b0cb4d1".split()
 PACKAGES_IOS_X86_64="protobuf-3.20.1 luajit-2.1.0-6c4826f tremolo-b0cb4d1 bullet-2.77 glfw-2.7.1".split()
 PACKAGES_IOS_64="protobuf-3.20.1 luajit-2.1.0-6c4826f tremolo-b0cb4d1 bullet-2.77 moltenvk-1.3.261.1 glfw-2.7.1".split()
@@ -888,6 +888,12 @@ class Configuration(object):
                 paths = _findfiles(protodir, ('.proto',))
                 self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
+            # C# files
+            for d in ['sdk/cs']:
+                protodir = os.path.join(self.dynamo_home, d)
+                paths = _findfiles(protodir, ('.csproj','.cs'))
+                self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+
             # pipeline tools
             if platform in ('x86_64-macos','arm64-macos','x86_64-linux','x86_64-win32'): # needed for the linux build server
                 # protoc
@@ -1190,34 +1196,42 @@ class Configuration(object):
         plf_args = ['--platform=%s' % platform]
         run.env_command(self._form_env(), args + plf_args + self.waf_options + skip_build_tests, cwd = cwd)
 
+# For now gradle right in
+# - 'com.dynamo.cr/com.dynamo.cr.bob'
+# - 'com.dynamo.cr/com.dynamo.cr.test'
+# - 'com.dynamo.cr/com.dynamo.cr.common'
+# Maybe in the future we consider to move it into install_ext
+    def get_gradle_wrapper(self):
+        if os.name == 'nt':  # Windows
+            return join('.', 'gradlew.bat')
+        else:  # Linux, macOS, or other Unix-like OS
+            return join('.', 'gradlew')
+
     def build_bob_light(self):
         self._log('Building bob light')
 
         bob_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
-        common_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.common')
+        # common_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.common')
 
         sha1 = self._git_sha1()
         if os.path.exists(os.path.join(self.dynamo_home, 'archive', sha1)):
-            run.env_shell_command(self._form_env(), "./scripts/copy.sh", cwd = bob_dir)
+            run.env_shell_command(self._form_env(), "./scripts/copy.sh", cwd=bob_dir)
         else:
             self.copy_local_bob_artefacts()
 
-        ant = join(self.dynamo_home, 'ext/share/ant/bin/ant')
-        ant_args = ['-logger', 'org.apache.tools.ant.listener.AnsiColorLogger']
-        if self.verbose:
-            ant_args += ['-v']
-
         env = self._form_env()
-        env['ANT_OPTS'] = '-Dant.logger.defaults=%s/ant-logger-colors.txt' % join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
 
-        s = run.command(" ".join([ant, 'clean', 'compile-bob-light'] + ant_args),
-                                    cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob'), shell = True, env = env)
+        gradle = self.get_gradle_wrapper()
+        gradle_args = []
         if self.verbose:
-            print (s)
+            gradle_args += ['--info']
 
-        s = run.command(" ".join([ant, 'install-bob-light'] + ant_args), cwd = bob_dir, shell = True, env = env)
+        env['GRADLE_OPTS'] = '-Dorg.gradle.parallel=true' #-Dorg.gradle.daemon=true 
+
+        # Clean and build the project
+        s = run.command(" ".join([gradle, 'clean', 'installBobLight'] + gradle_args), cwd = bob_dir, shell = True, env = env)
         if self.verbose:
-            print (s)
+        	print (s)
 
     def build_engine(self):
         self.check_sdk()
@@ -1263,6 +1277,9 @@ class Configuration(object):
             run.command(self.get_python() + ['./scripts/scan_build_gather_report.py', '-o', report_dir, '-i', scan_output_dir])
             print("Wrote report to %s. Open with 'scan-view .' or 'python -m SimpleHTTPServer'" % report_dir)
             shutil.rmtree(scan_output_dir)
+
+        self._log("Copy platform.sdks.json")
+        shutil.copyfile(join(self.defold_root, "share", "platform.sdks.json"), join(self.dynamo_home, "platform.sdks.json"))
 
         if os.path.exists(os.environ['DM_BOB_ROOTFOLDER']):
             print ("Removing", os.environ['DM_BOB_ROOTFOLDER'])
@@ -1362,34 +1379,32 @@ class Configuration(object):
             print(json.dumps(missing, indent=2))
 
     def build_bob(self):
-        cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
-
         bob_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
-        common_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.common')
+        # common_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.common')
+        test_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
 
         sha1 = self._git_sha1()
         if os.path.exists(os.path.join(self.dynamo_home, 'archive', sha1)):
-            run.env_shell_command(self._form_env(), "./scripts/copy.sh", cwd = bob_dir)
+            run.env_shell_command(self._form_env(), "./scripts/copy.sh", cwd=bob_dir)
         else:
             self.copy_local_bob_artefacts()
 
         env = self._form_env()
 
-        ant = join(self.dynamo_home, 'ext/share/ant/bin/ant')
-        ant_args = ['-logger', 'org.apache.tools.ant.listener.AnsiColorLogger']
+        gradle = self.get_gradle_wrapper()
+        gradle_args = []
         if self.verbose:
-            ant_args += ['-v']
+            gradle_args += ['--info']
 
-        env['ANT_OPTS'] = '-Dant.logger.defaults=%s/ant-logger-colors.txt' % join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
+        env['GRADLE_OPTS'] = '-Dorg.gradle.parallel=true' #-Dorg.gradle.daemon=true
 
-        run.command(" ".join([ant, 'clean', 'compile'] + ant_args), cwd = bob_dir, shell = True, env = env)
+        # Clean and build the project
+        run.command(" ".join([gradle, 'clean', 'install'] + gradle_args), cwd=bob_dir, shell = True, env = env)
 
-        run.command(" ".join([ant, 'install'] + ant_args), cwd = bob_dir, shell = True, env = env)
-
+        # Run tests if not skipped
         if not self.skip_tests:
-            cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
-            args = [ant, 'test-clean', 'test'] + ant_args
-            run.command(" ".join(args), cwd = cwd, shell = True, env = env, stdout = None)
+            run.command(" ".join([gradle, 'testJar'] + gradle_args), cwd = test_dir, shell = True, env = env, stdout = None)
+
 
     def build_sdk_headers(self):
         # Used to provide a small sized bundle with the headers for any C++ auto completion tools
@@ -1460,6 +1475,9 @@ class Configuration(object):
         print("Create sdk signature")
         sig_filename = self._create_sha256_signature_file(sdkpath)
         self.upload_to_archive(join(dirname(sdkpath), sig_filename), '%s/defoldsdk.sha256' % sdkurl)
+
+        print("Upload platform sdks mappings")
+        self.upload_to_archive(join(self.defold_root, "share", "platform.sdks.json"), '%s/platform.sdks.json' % sdkurl)
 
         shutil.rmtree(tempdir)
         print ("Removed", tempdir)

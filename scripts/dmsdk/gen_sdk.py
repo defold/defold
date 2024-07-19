@@ -1,22 +1,31 @@
-#-------------------------------------------------------------------------------
-#   Generate Java+Jni bindings from C++
+# Copyright 2020-2024 The Defold Foundation
+# Copyright 2014-2020 King
+# Copyright 2009-2014 Ragnar Svensson, Christian Murray
+# Licensed under the Defold License version 1.0 (the "License"); you may not use
+# this file except in compliance with the License.
 #
-#   C++ coding style:
-#   ...
-#   Notes
-#   - functions are not supported
-#-------------------------------------------------------------------------------
+# You may obtain a copy of the License, together with FAQs at
+# https://www.defold.com/license
+#
+# Unless required by applicable law or agreed to in writing, software distributed
+# under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+# CONDITIONS OF ANY KIND, either express or implied. See the License for the
+# specific language governing permissions and limitations under the License.
 
 import argparse
 import os, sys, json, pprint, re, collections
-#sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'external'))
 
+# The parsing idea is based on Sokol's code generation: https://github.com/floooh/sokol/tree/master/bindgen
 import gen_ir
 import gen_util as util
 import gen_cpp
+import gen_csharp
+import gen_doc
 
 # until we have a DEFOLD_HOME
-sys.path.insert(0, os.path.normpath(os.path.join(os.environ["DYNAMO_HOME"], '../..')))
+if not 'DEFOLD_HOME' in os.environ:
+    os.environ['DEFOLD_HOME'] = os.path.normpath(os.path.join(os.environ["DYNAMO_HOME"], '../..'))
+sys.path.insert(0, os.environ['DEFOLD_HOME'])
 import apply_license
 
 class State(object):
@@ -74,6 +83,7 @@ def is_function_typedef(inp):
 
 ##############################################################################
 
+# Deprecated. We now use gen_doc.py for documentation extraction
 class Documentation(object):
     def __init__(self, short_desc='', desc='', params=None, examples=None):
         self.short_desc = short_desc
@@ -265,7 +275,9 @@ def generate(gen_info, includes, basepath, outdir):
         relative_path = os.path.relpath(path, basepath)
 
         parsed_includes = parse_c_includes(path)
-        
+
+        parsed_docs = gen_doc.parse_docs(path)
+
         data = None
         with open(path, 'r', encoding='utf-8') as f:
             data = f.read()
@@ -273,26 +285,45 @@ def generate(gen_info, includes, basepath, outdir):
         ast = gen_ir.gen(path, includes)
         ast = cleanup_ast(ast, path)
 
-        with open('debug.json', 'w') as f:
-            pprint.pprint(ast, f)
+        # with open('debug.json', 'w') as f:
+        #     pprint.pprint(ast, f)
 
         state = State()
         parse(data, ast, state)
 
-        for lang_key in file_info["languages"].keys():
+        languages = file_info["languages"]
+        for lang_key in languages.keys():
             info = dict(file_info["languages"].get(lang_key))
             info['license'] = apply_license.LICENSE
 
+            out_data = None
+
+            out_path = info.get('outpath', None)
+
             if lang_key == "cpp":
-                out = os.path.join(outdir, os.path.splitext(path)[0] + "_gen.hpp")
+                out = out_path or os.path.join(outdir, os.path.splitext(path)[0] + "_gen.hpp")
 
                 parsed_includes = prune_includes(parsed_includes)
 
-                out_data = gen_cpp.gen_cpp_header(basepath, relative_path, out, info, ast, state, parsed_includes)
+                out_data = gen_cpp.gen_cpp_header(os.environ['DEFOLD_HOME'], relative_path, out, info, ast, state, parsed_includes, parsed_docs)
 
-                with open(out, 'w', encoding='utf-8') as f:
-                    f.write(out_data)
-                    print("Generated", out)
+            elif lang_key == "csharp":
+                out = out_path or os.path.join(basepath, 'cs', os.path.splitext(relative_path)[0] + "_gen.cs")
+                out_data = gen_csharp.gen_csharp(os.environ['DEFOLD_HOME'], relative_path, out, info, ast, state, parsed_docs)
+
+            else:
+                print("Unsupported language", lang_key)
+                return False
+
+            if not out_data:
+                print("Failed to generate file", out)
+                return False
+
+            with open(out, 'w', encoding='utf-8') as f:
+                f.write(out_data)
+                print("Generated", out)
+
+    return True
 
 def Usage(parser):
     parser.print_help()
@@ -326,7 +357,11 @@ if __name__ == "__main__":
     includes = info["includes"]
     includes = [os.path.expandvars(i) for i in includes]
     includes = [os.path.join(cwd, i) for i in includes]
-    generate(info, includes, args.basepath, args.output)
+    result = generate(info, includes, args.basepath, args.output)
+
+    if not result:
+        print("Generation failed for", args.input)
+        sys.exit(1)
 
 
 

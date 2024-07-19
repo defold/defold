@@ -17,6 +17,7 @@ package com.dynamo.bob.pipeline;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.graphics.proto.Graphics.VertexAttribute;
+import com.dynamo.render.proto.Material.MaterialDesc;
 import com.google.protobuf.ByteString;
 
 import java.nio.ByteBuffer;
@@ -234,5 +235,17 @@ public class GraphicsUtil {
         attributeBuilder.setBinaryValues(makeBinaryValues(sourceAttr, dataType, normalize));
         migrateAttribute(attributeBuilder);
         return attributeBuilder.build();
+    }
+
+    public static MaterialDesc.Sampler buildSampler(MaterialDesc.Sampler samplerIn) throws CompileExceptionError {
+        MaterialDesc.Sampler.Builder samplerBuilder = MaterialDesc.Sampler.newBuilder(samplerIn);
+        samplerBuilder.setNameHash(MurmurHash.hash64(samplerBuilder.getName()));
+
+        String texture = samplerIn.getTexture();
+        if (!texture.isEmpty()) {
+            samplerBuilder.setTexture(ProtoBuilders.replaceTextureName(texture));
+        }
+
+        return samplerBuilder.build();
     }
 }

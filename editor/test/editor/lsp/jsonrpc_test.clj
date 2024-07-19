@@ -17,7 +17,8 @@
             [clojure.data.json :as json]
             [clojure.test :refer :all]
             [editor.lsp.jsonrpc :as lsp.jsonrpc]
-            [support.async-support :as async-support]))
+            [support.async-support :as async-support]
+            [util.fn :as fn]))
 
 (set! *warn-on-reflection* true)
 
@@ -46,7 +47,7 @@
       jsonrpc)))
 
 (deftest requests-test
-  (let [jsonrpc (make-jsonrpc-with-test-server {} {"initialize" (constantly true)
+  (let [jsonrpc (make-jsonrpc-with-test-server {} {"initialize" fn/constantly-true
                                                    "initialize_slow" (fn [_] (Thread/sleep 1000))
                                                    "initialize_broken" (fn [_] (throw (Exception. "BROKEN")))})]
     (is (= {:result true} (async-support/eventually (lsp.jsonrpc/request! jsonrpc "initialize" 100))))

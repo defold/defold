@@ -23,6 +23,7 @@
             [editor.lsp.server :as lsp.server]
             [editor.resource :as resource]
             [editor.resource-io :as resource-io]
+            [editor.resource-node :as resource-node]
             [editor.system :as system]
             [editor.ui :as ui]
             [internal.util :as util]
@@ -386,10 +387,10 @@
     (did-change! state resource lines)
     (open-resource! state resource lines)))
 
-(defn- sync-modified-lines-of-existing-node! [state resource resource-node new-lines evaluation-context]
-  (let [clean (= (g/node-value resource-node :source-value evaluation-context)
-                 (hash new-lines))]
-    (if clean
+(defn- sync-modified-lines-of-existing-node! [state resource old-source-value new-lines]
+  (let [resource-type (resource/resource-type resource)
+        dirty (resource-node/dirty-save-value? new-lines old-source-value resource-type)]
+    (if-not dirty
       (cond
         ;; viewed implies open
         (resource-viewed? state resource) (did-change! state resource new-lines)
@@ -430,8 +431,9 @@
                  (and (resource-open? state resource) (not (resource-viewed? state resource)))
                  (close-resource! resource)))
        ;; exists, check if clean or dirty
-       (let [lines (g/node-value resource-node :lines evaluation-context)]
-         (sync-modified-lines-of-existing-node! state resource resource-node lines evaluation-context))))))
+       (let [source-value (g/node-value resource-node :source-value evaluation-context)
+             lines (g/node-value resource-node :lines evaluation-context)]
+         (sync-modified-lines-of-existing-node! state resource source-value lines))))))
 
 (s/def ::new-servers (s/coll-of ::server :kind set?))
 
@@ -578,12 +580,11 @@
 
 (defn notify-lines-modified!
   "Notify the LSP manager about new lines of a resource node"
-  [lsp resource-node lines evaluation-context]
+  [lsp resource old-source-value new-lines]
   (lsp (fn notify-lines-modified [state]
-         (let [resource (g/node-value resource-node :resource evaluation-context)]
-           (cond-> state
-                   (resource/file-resource? resource)
-                   (sync-modified-lines-of-existing-node! resource resource-node lines evaluation-context))))))
+         (cond-> state
+                 (resource/file-resource? resource)
+                 (sync-modified-lines-of-existing-node! resource old-source-value new-lines)))))
 
 (defn check-if-polled-resources-are-modified!
   "Notify the LSP manager that some previously modified resources might change

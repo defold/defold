@@ -1908,8 +1908,8 @@ static void LogFrameBufferError(GLenum status)
             glGetShaderiv(shader_id, GL_INFO_LOG_LENGTH, &logLength);
             if (logLength > 0)
             {
-                GLchar *log = (GLchar *)malloc(logLength);
-                glGetShaderInfoLog(shader_id, logLength, &logLength, log);
+                log_str = (GLchar *)malloc(logLength);
+                glGetShaderInfoLog(shader_id, logLength, &logLength, log_str);
             }
 #endif
             if (error_buffer)

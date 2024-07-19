@@ -13,8 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns integration.gui-test
-  (:require [clojure.test :refer :all]
-            [clojure.string :as str]
+  (:require [clojure.string :as str]
+            [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.defold-project :as project]
@@ -22,8 +22,9 @@
             [editor.gui :as gui]
             [editor.handler :as handler]
             [editor.workspace :as workspace]
-            [integration.test-util :as test-util])
-  (:import [javax.vecmath Point3d Matrix4d Vector3d]))
+            [integration.test-util :as test-util]
+            [util.fn :as fn])
+  (:import [javax.vecmath Matrix4d Vector3d]))
 
 (defn- prop [node-id label]
   (test-util/prop node-id label))
@@ -33,7 +34,7 @@
 
 (defn- gui-node [scene id]
   (let [id->node (->> (get-in (g/node-value scene :node-outline) [:children 0])
-                   (tree-seq (constantly true) :children)
+                   (tree-seq fn/constantly-true :children)
                    (map :node-id)
                    (map (fn [node-id] [(g/node-value node-id :id) node-id]))
                    (into {}))]
@@ -110,6 +111,7 @@
           size [150.0 50.0 0.0]
           sizes {:ball [64.0 32.0 0.0]
                  :left-hud [200.0 640.0 0.0]}]
+      (is (= :size-mode-manual (g/node-value box :size-mode)))
       (is (= size (g/node-value box :size)))
       (g/set-property! box :texture "atlas_texture/left_hud")
       (is (= size (g/node-value box :size)))
@@ -360,7 +362,7 @@
                        ;; we're not interested in the outline subscenes for gui nodes
                        (remove (fn [scene] (contains? (get-in scene [:renderable :tags]) :outline)))
                        (map (fn [s] [(:node-id s) s])))
-                     (tree-seq (constantly true) :children (strip-scene scene)))]
+                     (tree-seq fn/constantly-true :children (strip-scene scene)))]
     (scenes node-id)))
 
 (deftest gui-template-alpha
@@ -455,7 +457,7 @@
     (g/node-value :text)))
 
 (defn- trans-x [root-id target-id]
-  (let [s (tree-seq (constantly true) :children (g/node-value root-id :scene))]
+  (let [s (tree-seq fn/constantly-true :children (g/node-value root-id :scene))]
     (when-let [^Matrix4d m (some #(and (= (:node-id %) target-id) (:transform %)) s)]
       (let [t (Vector3d.)]
         (.get m t)
@@ -469,10 +471,10 @@
                (set-visible-layout! node-id "Landscape")
                (is (= "Testing Text" (gui-text node-id "scene/text"))))
       (testing "scene generation"
-        (is (= {:device-models [] :width 1280 :height 720}
+        (is (= {:width 1280 :height 720}
                (g/node-value node-id :scene-dims)))
         (set-visible-layout! node-id "Portrait")
-        (is (= {:device-models [] :width 720 :height 1280}
+        (is (= {:width 720 :height 1280}
                (g/node-value node-id :scene-dims)))))))
 
 (deftest gui-legacy-alpha

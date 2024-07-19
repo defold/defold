@@ -417,6 +417,19 @@ public:
     virtual ~GuiTest() {}
 };
 
+struct ScriptComponentTestParams
+{
+    const char* m_GOPath;
+    const char* m_ComponentType; // E.g. "modelc"
+    const char* m_ComponentName; // E.g. "model"
+};
+
+class ScriptComponentTest : public GamesysTest<ScriptComponentTestParams>
+{
+public:
+    virtual ~ScriptComponentTest() {}
+};
+
 class SoundTest : public GamesysTest<const char*>
 {
 public:

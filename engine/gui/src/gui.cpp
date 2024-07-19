@@ -364,6 +364,11 @@ namespace dmGui
         scene->m_CreateCustomNodeCallbackContext = params->m_CreateCustomNodeCallbackContext;
         scene->m_GetResourceCallback = params->m_GetResourceCallback;
         scene->m_GetResourceCallbackContext = params->m_GetResourceCallbackContext;
+        scene->m_GetMaterialPropertyCallback = params->m_GetMaterialPropertyCallback;
+        scene->m_GetMaterialPropertyCallbackContext = params->m_GetMaterialPropertyCallbackContext;
+        scene->m_SetMaterialPropertyCallback = params->m_SetMaterialPropertyCallback;
+        scene->m_SetMaterialPropertyCallbackContext = params->m_SetMaterialPropertyCallbackContext;
+        scene->m_DestroyRenderConstantsCallback = params->m_DestroyRenderConstantsCallback;
         scene->m_OnWindowResizeCallback = params->m_OnWindowResizeCallback;
         scene->m_ScriptWorld = params->m_ScriptWorld;
 
@@ -2616,6 +2621,11 @@ namespace dmGui
             scene->m_DestroyCustomNodeCallback(scene->m_CreateCustomNodeCallbackContext, scene, node, n->m_Node.m_CustomType, n->m_Node.m_CustomData);
         }
 
+        if (n->m_Node.m_RenderConstants)
+        {
+            scene->m_DestroyRenderConstantsCallback(n->m_Node.m_RenderConstants);
+        }
+
         // Stop (or destroy) any living particle instances started on this node
         uint32_t count = scene->m_AliveParticlefxs.Size();
         uint32_t i = 0;
@@ -2956,6 +2966,47 @@ namespace dmGui
 
         n->m_Node.m_Properties[property] = value;
         n->m_Node.m_DirtyLocal = 1;
+    }
+
+    bool GetMaterialProperty(HScene scene, HNode node, dmhash_t property_hash, dmGameObject::PropertyDesc& property_desc, const dmGameObject::PropertyOptions* material_prop_options)
+    {
+        if (!scene->m_GetMaterialPropertyCallback)
+        {
+            return false;
+        }
+        return scene->m_GetMaterialPropertyCallback(scene->m_GetMaterialPropertyCallbackContext, scene, node, property_hash, property_desc, material_prop_options);
+    }
+
+    bool SetMaterialProperty(HScene scene, HNode node, dmhash_t property_hash, const dmGameObject::PropertyVar& property_var, const dmGameObject::PropertyOptions* material_prop_options)
+    {
+        if (!scene->m_SetMaterialPropertyCallback)
+        {
+            return false;
+        }
+        return scene->m_SetMaterialPropertyCallback(scene->m_SetMaterialPropertyCallbackContext, scene, node, property_hash, property_var, material_prop_options);
+    }
+
+    const void* GetNodeRenderConstants(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return n->m_Node.m_RenderConstants;
+    }
+
+    void SetNodeRenderConstants(HScene scene, HNode node, void* render_constants)
+    {
+        InternalNode* n = GetNode(scene, node);
+        n->m_Node.m_RenderConstants = render_constants;
+    }
+
+    void SetNodeRenderConstantsHash(HScene scene, HNode node, uint32_t render_constants_hash)
+    {
+        InternalNode* n = GetNode(scene, node);
+        n->m_Node.m_RenderConstantsHash = render_constants_hash;
+    }
+    uint32_t GetNodeRenderConstantsHash(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return n->m_Node.m_RenderConstantsHash;
     }
 
     void SetNodeResetPoint(HScene scene, HNode node)

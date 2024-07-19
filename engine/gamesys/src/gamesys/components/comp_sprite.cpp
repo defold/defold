@@ -622,6 +622,12 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
+    void* CompSpriteGetComponent(const dmGameObject::ComponentGetParams& params)
+    {
+        SpriteWorld* world = (SpriteWorld*)params.m_World;
+        return (void*)&world->m_Components.Get(params.m_UserData);
+    }
+
     dmGameObject::CreateResult CompSpriteDestroy(const dmGameObject::ComponentDestroyParams& params)
     {
         SpriteWorld* sprite_world = (SpriteWorld*)params.m_World;

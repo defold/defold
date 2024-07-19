@@ -46,6 +46,7 @@
             [editor.mesh :as mesh]
             [editor.model :as model]
             [editor.particlefx :as particlefx]
+            [editor.placeholder-resource :as placeholder-resource]
             [editor.protobuf-types :as protobuf-types]
             [editor.render-pb :as render-pb]
             [editor.render-target :as render-target]
@@ -89,6 +90,7 @@
       (mesh/register-resource-types workspace)
       (model/register-resource-types workspace)
       (particlefx/register-resource-types workspace)
+      (placeholder-resource/register-resource-types workspace)
       (protobuf-types/register-resource-types workspace)
       (render-pb/register-resource-types workspace)
       (render-target/register-resource-types workspace)

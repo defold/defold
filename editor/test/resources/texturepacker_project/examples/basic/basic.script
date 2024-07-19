@@ -1,0 +1,3 @@
+function init(self)
+    go.animate("shape_L", "euler.z", go.PLAYBACK_LOOP_FORWARD, 360, go.EASING_LINEAR, 2)
+end

@@ -128,6 +128,7 @@ typedef enum ResourceResult
 
 /*#
  * Function called when a resource has been reloaded.
+ * @name FResourceReloadedCallback
  * @param params Parameters
  * @see RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT (internal flag)
  * @see [ref:ResourceRegisterReloadedCallback]
@@ -158,7 +159,7 @@ void ResourceUnregisterReloadedCallback(HResourceFactory factory, FResourceReloa
 
 
 /*#
- * Returns the canonical path hash of a resource
+ * Encrypts a resource in-place
  * @typedef
  * @name FResourceDecrypt
  * @param buffer [type: void*] The input/output buffer
@@ -188,7 +189,7 @@ ResourceResult ResourceGet(HResourceFactory factory, const char* name, void** re
 
 /*#
  * Get a resource from factory
- * @name Get
+ * @name ResourceGetByHash
  * @param factory [type: HResourceFactory] Factory handle
  * @param name [type: dmhash_t] Resource name
  * @param resource [type: void**] Created resource
@@ -196,6 +197,18 @@ ResourceResult ResourceGet(HResourceFactory factory, const char* name, void** re
  */
 ResourceResult ResourceGetByHash(HResourceFactory factory, dmhash_t name, void** resource);
 
+
+/*#
+ * Get raw resource data. Unregistered resources can be loaded with this function.
+ * If successful, the returned resource data must be deallocated with free()
+ * @name ResourceGetRaw
+ * @param factory [type: HResourceFactory] Factory handle
+ * @param name [type: dmhash_t] Resource name
+ * @param resource [type: void**] Created resource
+ * @param resource_size [type: uint32_t*] Resource size
+ * @return result [type: ResourceResult]  RESULT_OK on success
+ */
+ResourceResult ResourceGetRaw(HResourceFactory factory, const char* name, void** resource, uint32_t* resource_size);
 
 /*#
  * Release resource
@@ -219,9 +232,10 @@ bool ResourcePreloadHint(HResourcePreloadHintInfo preloader, const char* path);
 
 /*#
  * Returns the canonical path hash of a resource
+ * @name ResourceGetPath
  * @param factory [type: HResourceFactory] Factory handle
  * @param resource [type: void*] The resource pointer
- * @param hash [type: dmhash_t] The path hash of the resource
+ * @param hash [type: dmhash_t*] (out) The path hash of the resource
  * @return result [type: ResourceResult] RESULT_OK on success
  */
 ResourceResult ResourceGetPath(HResourceFactory factory, const void* resource, dmhash_t* hash);
@@ -429,7 +443,12 @@ typedef struct ResourceReloadedParams
 // TYPE REGISTERING MACROS
 
 
-// Internal. Resource type creator desc bytesize declaration.
+/*#
+ * Resource type creator desc byte size declaration.
+ * The registered description data passeed to ResourceRegisterTypeCreatorDesc must be of at least this size.
+ * @variable
+ * @name ResourceTypeCreatorDescBufferSize
+ */
 const uint32_t ResourceTypeCreatorDescBufferSize = 128;
 
 /** Internal

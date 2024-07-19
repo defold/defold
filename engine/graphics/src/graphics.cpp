@@ -352,6 +352,21 @@ namespace dmGraphics
         return ~0u;
     }
 
+    BufferType GetBufferTypeFromIndex(uint32_t index)
+    {
+        switch(index)
+        {
+            case 0: return BUFFER_TYPE_COLOR0_BIT;
+            case 1: return BUFFER_TYPE_COLOR1_BIT;
+            case 2: return BUFFER_TYPE_COLOR2_BIT;
+            case 3: return BUFFER_TYPE_COLOR3_BIT;
+            case 4: return BUFFER_TYPE_DEPTH_BIT;
+            case 5: return BUFFER_TYPE_STENCIL_BIT;
+            default: break;
+        }
+        return (BufferType) ~0u;
+    }
+
     uint32_t GetTypeSize(dmGraphics::Type type)
     {
         if (type == dmGraphics::TYPE_BYTE || type == dmGraphics::TYPE_UNSIGNED_BYTE)

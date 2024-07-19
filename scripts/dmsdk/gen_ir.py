@@ -215,13 +215,13 @@ import os, sys, json, subprocess
 #     return subprocess.check_output(cmd)
 
 def clang(csrc_path, includes=[]):
-    cmd = ['clang', '-Xclang', '-ast-dump=json', '-c', '-fparse-all-comments']
+    cmd = ['clang', '-Xclang', '-ast-dump=json', '-c', '-DLUA_API=']
     cmd.extend([ '-I%s' % include for include in includes])
     cmd.append(csrc_path)
     return subprocess.check_output(cmd)
 
 def clang_cpp(csrc_path, includes=[]):
-    cmd = ['clang++', '-Xclang', '-ast-dump=json', '-c', '-fparse-all-comments']
+    cmd = ['clang++', '-Xclang', '-ast-dump=json', '-c', '-DLUA_API=']
     cmd.extend([ '-I%s' % include for include in includes])
     cmd.append(csrc_path)
     return subprocess.check_output(cmd)

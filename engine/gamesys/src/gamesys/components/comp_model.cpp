@@ -877,6 +877,12 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
+    void* CompModelGetComponent(const dmGameObject::ComponentGetParams& params)
+    {
+        ModelWorld* world = (ModelWorld*)params.m_World;
+        return (void*)world->m_Components.Get(params.m_UserData);
+    }
+
     static void DestroyComponent(ModelWorld* world, uint32_t index)
     {
         ModelComponent* component = world->m_Components.Get(index);
@@ -1901,11 +1907,6 @@ namespace dmGameSystem
     dmGameObject::HInstance CompModelGetNodeInstance(ModelComponent* component, uint32_t bone_index)
     {
         return component->m_NodeInstances[bone_index];
-    }
-
-    ModelComponent* CompModelGetComponent(ModelWorld* world, dmGameObject::HComponentInternal user_data)
-    {
-        return world->m_Components.Get(user_data);
     }
 
     bool CompModelSetMeshEnabled(ModelComponent* component, dmhash_t mesh_id, bool enabled)

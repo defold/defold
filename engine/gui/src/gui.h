@@ -30,6 +30,7 @@
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/gui/gui.h>
 #include <dmsdk/render/render.h>
+#include <dmsdk/gameobject/gameobject.h>
 
 /**
  * Defold GUI system
@@ -140,6 +141,20 @@ namespace dmGui
      */
     typedef void* (*GetResourceCallback)(void* ctx, dmGui::HScene scene, dmhash_t resource_id, dmhash_t suffix_with_dot);
 
+    /**
+     * Callback to get material property
+     */
+    typedef bool (*GetMaterialPropertyCallback)(void* ctx, dmGui::HScene scene, dmGui::HNode node, dmhash_t property_id, dmGameObject::PropertyDesc& property_desc, const dmGameObject::PropertyOptions* options);
+
+    /**
+     * Callback to set material property
+     */
+    typedef bool (*SetMaterialPropertyCallback)(void* ctx, dmGui::HScene scene, dmGui::HNode node, dmhash_t property_id, const dmGameObject::PropertyVar& property_var, const dmGameObject::PropertyOptions* options);
+
+    /**
+     * Callback to destroy render constants
+     */
+    typedef void (*DestroyRenderConstantsCallback)(void* render_constants);
 
     /**
      * Scene creation
@@ -168,11 +183,15 @@ namespace dmGui
         void*                       m_CreateCustomNodeCallbackContext;
         GetResourceCallback         m_GetResourceCallback;
         void*                       m_GetResourceCallbackContext;
-
+        GetMaterialPropertyCallback m_GetMaterialPropertyCallback;
+        void*                       m_GetMaterialPropertyCallbackContext;
+        SetMaterialPropertyCallback m_SetMaterialPropertyCallback;
+        void*                       m_SetMaterialPropertyCallbackContext;
+        DestroyRenderConstantsCallback m_DestroyRenderConstantsCallback;
         FetchTextureSetAnimCallback m_FetchTextureSetAnimCallback;
-        OnWindowResizeCallback m_OnWindowResizeCallback;
-        AdjustReference m_AdjustReference;
-        dmScript::ScriptWorld* m_ScriptWorld;
+        OnWindowResizeCallback      m_OnWindowResizeCallback;
+        AdjustReference             m_AdjustReference;
+        dmScript::ScriptWorld*      m_ScriptWorld;
 
         NewSceneParams()
         {
@@ -894,6 +913,11 @@ namespace dmGui
     void*    GetNodeMaterial(HScene scene, HNode node);
     dmhash_t GetNodeMaterialId(HScene scene, HNode node);
 
+    const void* GetNodeRenderConstants(HScene scene, HNode node);
+    void        SetNodeRenderConstants(HScene scene, HNode node, void* render_constants);
+    void        SetNodeRenderConstantsHash(HScene scene, HNode node, uint32_t render_constants_hash);
+    uint32_t    GetNodeRenderConstantsHash(HScene scene, HNode node);
+
     Result PlayNodeFlipbookAnim(HScene scene, HNode node, dmhash_t anim, float offset, float playback_rate, AnimationComplete anim_complete_callback = 0x0, void* callback_userdata1 = 0x0, void* callback_userdata2 = 0x0);
     Result PlayNodeFlipbookAnim(HScene scene, HNode node, const char* anim, float offset, float playback_rate, AnimationComplete anim_complete_callback = 0x0, void* callback_userdata1 = 0x0, void* callback_userdata2 = 0x0);
     float GetNodeFlipbookCursor(HScene scene, HNode node);
@@ -1091,7 +1115,7 @@ namespace dmGui
      * @param visible whether the node should be rendered
      */
     void SetNodeVisible(HScene scene, HNode node, bool visible);
-    
+
     void SetScreenPosition(HScene scene, HNode node, const dmVMath::Point3& screen_position);
 
     dmVMath::Point3 ScreenToLocalPosition(HScene scene, HNode node, const dmVMath::Point3& screen_position);

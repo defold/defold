@@ -62,6 +62,10 @@
                   "extensions" {:help "Common settings for native extensions"
                                 :group "Shared Settings"}}}))
 
+(defn shared-editor-settings-file
+  ^File [project-directory]
+  (io/file project-directory project-shared-editor-settings-filename))
+
 (defn get-setting [project setting-path evaluation-context]
   (when-let [settings-node (project/get-resource-node project project-shared-editor-settings-proj-path evaluation-context)]
     (get (g/node-value settings-node :settings-map evaluation-context) setting-path)))
@@ -126,7 +130,7 @@
 (defn- load-project-config [project-directory config-type parse-config-fn]
   {:pre [(keyword? config-type)
          (ifn? parse-config-fn)]}
-  (let [shared-editor-settings-file (io/file project-directory project-shared-editor-settings-filename)]
+  (let [shared-editor-settings-file (shared-editor-settings-file project-directory)]
     (when (.isFile shared-editor-settings-file)
       (log/info :message (str "Loading " (name config-type) " from Shared Editor Settings file."))
       (when-some [config (not-empty (load-config shared-editor-settings-file parse-config-fn))]
@@ -168,9 +172,8 @@
       default-workspace-config))
 
 ;; Used by tests.
-(defn write-config! [project-directory config-map]
+(defn map->save-data-content
+  ^String [config-map]
   (let [meta-settings (:settings meta-info)
-        settings (map->settings config-map)
-        settings-string (settings-core/settings->str settings meta-settings :multi-line-list)
-        shared-editor-settings-file (io/file project-directory project-shared-editor-settings-filename)]
-    (spit shared-editor-settings-file settings-string)))
+        settings (map->settings config-map)]
+    (settings-core/settings->str settings meta-settings :multi-line-list)))

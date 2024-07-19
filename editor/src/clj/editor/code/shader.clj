@@ -21,6 +21,7 @@
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
+            [editor.types :as types]
             [editor.workspace :as workspace]
             [schema.core :as s])
   (:import [com.dynamo.bob.pipeline ShaderProgramBuilder ShaderUtil$ES2ToES3Converter$ShaderType]
@@ -202,7 +203,7 @@
   (inherits r/CodeEditorResourceNode)
 
   ;; Overrides modified-lines property in CodeEditorResourceNode.
-  (property modified-lines r/Lines
+  (property modified-lines types/Lines
             (dynamic visible (g/constantly false))
             (set (fn [_evaluation-context self _old-value new-value]
                    (let [includes (into #{}
@@ -236,5 +237,5 @@
         :let [args (assoc def
                      :node-type ShaderNode
                      :built-pb-class Graphics$ShaderDesc
-                     :eager-loading? true)]]
+                     :lazy-loaded false)]]
     (apply r/register-code-resource-type workspace (mapcat identity args))))
