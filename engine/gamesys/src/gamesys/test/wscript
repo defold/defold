@@ -9,6 +9,9 @@ from waf_dynamo import platform_supports_feature
 sys.path.insert(0, "src")
 import waf_gamesys
 
+def configure(conf):
+    pass
+
 def build(bld):
     dirs = ['animationset/*',
             'atlas/*',

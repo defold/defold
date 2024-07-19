@@ -119,11 +119,6 @@ namespace dmRender
         return program->m_Program;
     }
 
-    HSampler GetComputeProgramSampler(HComputeProgram compute_program, uint32_t unit)
-    {
-        return &compute_program->m_Samplers[unit];
-    }
-
     bool GetComputeProgramConstantNameHash(HComputeProgram program, uint32_t index, dmhash_t* out_name_hash)
     {
         if (index < program->m_Constants.Size())
