@@ -27,17 +27,17 @@ namespace dmPlatform
 {
     id GetOSXNSWindow(HWindow window)
     {
-    	return glfwGetCocoaWindow(window->m_Window);
+        return glfwGetCocoaWindow(window->m_Window);
     }
 
     id GetOSXNSView(HWindow window)
     {
-    	return glfwGetCocoaView(window->m_Window);
+        return glfwGetCocoaView(window->m_Window);
     }
 
     id GetOSXNSOpenGLContext(HWindow window)
     {
-    	return glfwGetNSGLContext(window->m_Window);
+        return glfwGetNSGLContext(window->m_Window);
     }
 }
 

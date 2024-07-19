@@ -104,6 +104,11 @@ namespace dmRender
         return GetProgramSamplerUnit(compute_program->m_Samplers, name_hash);
     }
 
+    HSampler GetComputeProgramSampler(HComputeProgram program, uint32_t unit)
+    {
+        return GetProgramSampler(program->m_Samplers, unit);
+    }
+
     dmGraphics::HComputeProgram GetComputeProgramShader(HComputeProgram program)
     {
         return program->m_Shader;

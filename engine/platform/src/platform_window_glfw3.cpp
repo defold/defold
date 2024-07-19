@@ -165,14 +165,22 @@ namespace dmPlatform
     {
         // TODO: This is the setup required for OSX, when we implement the other desktop
         //       platforms we might want to do this according to platform.
+
+        // Require OpenGL 3.3 or higher
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 
         glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
         glfwWindowHint(GLFW_SAMPLES, params.m_Samples);
 
-        wnd->m_Window = glfwCreateWindow(params.m_Width, params.m_Height, params.m_Title, NULL, NULL);
+        GLFWmonitor* fullscreen_monitor = NULL;
+        if (params.m_Fullscreen)
+        {
+            fullscreen_monitor = glfwGetPrimaryMonitor();
+        }
+
+        wnd->m_Window = glfwCreateWindow(params.m_Width, params.m_Height, params.m_Title, fullscreen_monitor, NULL);
 
         if (!wnd->m_Window)
         {
@@ -197,7 +205,13 @@ namespace dmPlatform
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
         glfwWindowHint(GLFW_SAMPLES, params.m_Samples);
 
-        wnd->m_Window = glfwCreateWindow(params.m_Width, params.m_Height, params.m_Title, NULL, NULL);
+        GLFWmonitor* fullscreen_monitor = NULL;
+        if (params.m_Fullscreen)
+        {
+            fullscreen_monitor = glfwGetPrimaryMonitor();
+        }
+
+        wnd->m_Window = glfwCreateWindow(params.m_Width, params.m_Height, params.m_Title, fullscreen_monitor, NULL);
 
         if (!wnd->m_Window)
         {
@@ -215,6 +229,10 @@ namespace dmPlatform
         }
 
         glfwWindowHint(GLFW_FOCUSED, GLFW_TRUE);
+        // This hint saves both size and position, but we need only position
+        // That's why we hide window here and then later set default size and show window
+        glfwWindowHintString(GLFW_COCOA_FRAME_NAME, params.m_Title);
+        glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
 
         PlatformResult res = PLATFORM_RESULT_WINDOW_OPEN_ERROR;
 
@@ -231,6 +249,10 @@ namespace dmPlatform
 
         if (res == PLATFORM_RESULT_OK)
         {
+            // Set size from settings, and show window
+            glfwSetWindowSize(window->m_Window, params.m_Width, params.m_Height);
+            glfwShowWindow(window->m_Window);
+
             glfwSetWindowUserPointer(window->m_Window, (void*) window);
             glfwSetWindowSizeCallback(window->m_Window, OnWindowResize);
             glfwSetWindowCloseCallback(window->m_Window, OnWindowClose);

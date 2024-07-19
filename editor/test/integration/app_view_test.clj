@@ -21,9 +21,10 @@
             [editor.build :as build]
             [editor.defold-project :as project]
             [editor.git :as git]
-            [editor.pipeline :as pipeline]
+            [editor.prefs :as prefs]
             [editor.progress :as progress]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
             [internal.graph.types :as gt]
@@ -106,9 +107,11 @@
   ;; that differ from the editor state.
   (let [previous-margin (g/node-value atlas :margin)]
     (g/set-property! atlas :margin margin)
-    (let [save-data (g/node-value atlas :save-data)]
+    (let [save-data (g/node-value atlas :save-data)
+          resource (:resource save-data)
+          content (resource-node/save-data-content save-data)]
       (g/set-property! atlas :margin previous-margin)
-      (spit-until-new-mtime (:resource save-data) (:content save-data))
+      (spit-until-new-mtime resource content)
       (workspace/resource-sync! workspace []))))
 
 (defn- revert-all! [workspace git]
@@ -204,6 +207,7 @@
                                      :debug false
                                      :build-engine false
                                      :old-artifact-map artifact-map
+                                     :prefs (prefs/make-prefs "unit-test")
                                      :result-fn (fn [build-results]
                                                   (when (is (nil? (:error build-results)))
 

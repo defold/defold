@@ -192,17 +192,6 @@ namespace dmResource
     const char* GetExtFromPath(const char* path);
 
     /**
-     * Get raw resource data. Unregistered resources can be loaded with this function.
-     * The returned resource data must be deallocated with free()
-     * @param factory Factory handle
-     * @param name Resource name
-     * @param resource Resource data
-     * @param resource_size Resource size
-     * @return RESULT_OK on success
-     */
-    Result GetRaw(HFactory factory, const char* name, void** resource, uint32_t* resource_size);
-
-    /**
      * Updates a preexisting resource with new data
      * @param factory Factory handle
      * @param hashed_name The hashed canonical name (E.g. hash("/my/icon.texturec") or hash("/my/icon.texturec_123"))

@@ -22,6 +22,10 @@
 
 (def ^:private project-path "test/resources/transpile_teal_project")
 
+(deftest registered-resource-types-test
+  (test-util/with-loaded-project project-path
+    (is (= #{} (test-util/protobuf-resource-exts-that-read-defaults workspace)))))
+
 (deftest dirty-save-data-test
   (test-util/with-loaded-project project-path
     (test-util/clear-cached-save-data! project)

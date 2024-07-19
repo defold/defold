@@ -285,3 +285,75 @@
   (is (= 3 (text-util/character-count "ababb" \b)))
   (is (= 2 (text-util/character-count (String. (int-array [0x100000 0x10FFFF 0x100000 0x10FFFF 0x10FFFF]) 0 5) 0x100000)))
   (is (= 3 (text-util/character-count (String. (int-array [0x100000 0x10FFFF 0x100000 0x10FFFF 0x10FFFF]) 0 5) 0x10FFFF))))
+
+(deftest search-string-numeric?-test
+  (testing "Returns true for patterns that might match a numeric value."
+    (is (true? (text-util/search-string-numeric? ".")))
+    (is (true? (text-util/search-string-numeric? "-")))
+    (is (true? (text-util/search-string-numeric? "*")))
+    (is (true? (text-util/search-string-numeric? "**")))
+    (is (true? (text-util/search-string-numeric? "-*")))
+    (is (true? (text-util/search-string-numeric? "5.")))
+    (is (true? (text-util/search-string-numeric? ".5")))
+    (is (true? (text-util/search-string-numeric? "*.")))
+    (is (true? (text-util/search-string-numeric? ".*")))
+    (is (true? (text-util/search-string-numeric? "*.*")))
+    (is (true? (text-util/search-string-numeric? "-*.*")))
+    (is (true? (text-util/search-string-numeric? "-50.*")))
+    (is (true? (text-util/search-string-numeric? "-*.05")))
+    (is (true? (text-util/search-string-numeric? "1234567890")))
+    (is (true? (text-util/search-string-numeric? "1234.56789")))
+    (is (true? (text-util/search-string-numeric? "-1234.56789")))
+    (is (true? (text-util/search-string-numeric? "-*12*34*.*56*78*"))))
+
+  (testing "Returns false for patterns that cannot match a numeric value."
+    (is (false? (text-util/search-string-numeric? "")))
+    (is (false? (text-util/search-string-numeric? "a")))
+    (is (false? (text-util/search-string-numeric? "1a")))
+    (is (false? (text-util/search-string-numeric? "a1")))
+    (is (false? (text-util/search-string-numeric? "..")))
+    (is (false? (text-util/search-string-numeric? "--")))
+    (is (false? (text-util/search-string-numeric? "*-")))
+    (is (false? (text-util/search-string-numeric? "*.*.*")))))
+
+(defn- search-text [text search-string case-sensitivity]
+  (let [pattern (text-util/search-string->re-pattern search-string case-sensitivity)
+        matcher (re-matcher pattern text)]
+    (when (.find matcher)
+      (.group matcher))))
+
+(deftest search-string->re-pattern-test
+  (testing "Case-sensitivity patterns."
+    (is (= "\\Qfoo\\E" (str (text-util/search-string->re-pattern "foo" :case-sensitive))))
+    (is (= "(?i)\\Qfoo\\E" (str (text-util/search-string->re-pattern "foo" :case-insensitive)))))
+
+  (testing "Match-anything wildcards are handled correctly."
+    (is (= "(?i)\\Qfoo\\E.*\\Qbar\\E" (str (text-util/search-string->re-pattern "foo*bar" :case-insensitive)))))
+
+  (testing "Other wildcard chars are quoted."
+    (is (= "(?i)\\Qfoo\\E.*\\Qbar[]().$^\\E" (str (text-util/search-string->re-pattern "foo*bar[]().$^" :case-insensitive)))))
+
+  (testing "Partial matches."
+    (is (= "Partial" (search-text "Partial sentence" "Partial" :case-sensitive)))
+    (is (= "Partial" (search-text "Partial sentence" "partial" :case-insensitive))))
+
+  (testing "Quote behavior when matching against strings."
+    (is (= "'quoted'" (search-text "'quoted'" "'quoted'" :case-sensitive)))
+    (is (= "'quot" (search-text "'quoted'" "'quot" :case-sensitive)))
+    (is (= "\"quoted\"" (search-text "\"quoted\"" "\"quoted\"" :case-sensitive)))
+    (is (= "\"quot" (search-text "\"quoted\"" "\"quot" :case-sensitive)))
+    (is (nil? (search-text "quoted" "'quoted'" :case-sensitive)))
+    (is (nil? (search-text "quoted" "\"quoted\"" :case-sensitive))))
+
+  (testing "Case-sensitivity when matching against strings."
+    (let [case-sensitive-pattern (text-util/search-string->re-pattern "fOoO" :case-sensitive)
+          case-insensitive-pattern (text-util/search-string->re-pattern "fOoO" :case-insensitive)]
+      (is (= "fOoO" (re-matches case-sensitive-pattern "fOoO")))
+      (is (nil? (re-matches case-sensitive-pattern "fooo")))
+      (is (= "fOoO" (re-matches case-insensitive-pattern "fOoO")))
+      (is (= "fooo" (re-matches case-insensitive-pattern "fooo"))))))
+
+(deftest includes-re-pattern?-test
+  (is (true? (text-util/includes-re-pattern? "exact" #"exact")))
+  (is (true? (text-util/includes-re-pattern? "two words" #"word")))
+  (is (false? (text-util/includes-re-pattern? "two words" #"missing"))))

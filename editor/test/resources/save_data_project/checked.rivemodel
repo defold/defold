@@ -1,0 +1,7 @@
+scene: "/checked.rivescene"
+default_animation: "idle"
+material: "/defold-rive/assets/rivemodel.material"
+blend_mode: BLEND_MODE_ADD
+default_state_machine: "Button"
+create_go_bones: true
+artboard: "New Artboard"

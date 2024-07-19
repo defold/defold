@@ -29,6 +29,15 @@ message Vector3
     optional float d = 4 [default = 0.0];
 }
 
+message Vector3One
+{
+    option (alias) = "dmVMath::Vector3";
+
+    optional float x = 1 [default = 1.0];
+    optional float y = 2 [default = 1.0];
+    optional float z = 3 [default = 1.0];
+    optional float d = 4 [default = 1.0];
+}
 
 message Vector4
 {
@@ -38,6 +47,26 @@ message Vector4
     optional float y = 2 [default = 0.0];
     optional float z = 3 [default = 0.0];
     optional float w = 4 [default = 0.0];
+}
+
+message Vector4One
+{
+    option (alias) = "dmVMath::Vector4";
+
+    optional float x = 1 [default = 1.0];
+    optional float y = 2 [default = 1.0];
+    optional float z = 3 [default = 1.0];
+    optional float w = 4 [default = 1.0];
+}
+
+message Vector4WOne
+{
+    option (alias) = "dmVMath::Vector4";
+
+    optional float x = 1 [default = 0.0];
+    optional float y = 2 [default = 0.0];
+    optional float z = 3 [default = 0.0];
+    optional float w = 4 [default = 1.0];
 }
 
 message Quat

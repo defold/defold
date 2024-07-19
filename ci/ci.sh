@@ -34,6 +34,7 @@ source ci/env.sh
 # so we've stored the old paths, and append them.
 export PATH=$PATH:$OLDPATH
 echo "PATH=" $PATH
+echo "PYTHON=" $(which python)
 
 echo "Calling ci.py with args: $@"
 # # -u to run python unbuffered to guarantee that output ends up in the correct order in logs

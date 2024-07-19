@@ -20,7 +20,6 @@
 #include <dlib/log.h>
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/resource/resource.h>
-
 #include "../gameobject.h"
 #include "../gameobject_private.h"
 

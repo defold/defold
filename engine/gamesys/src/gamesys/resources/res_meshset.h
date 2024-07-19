@@ -15,7 +15,7 @@
 #ifndef DM_GAMESYS_RES_MESHSET_H
 #define DM_GAMESYS_RES_MESHSET_H
 
-#include <dmsdk/resource/resource.h>
+#include <dmsdk/resource/resource.hpp>
 #include <dmsdk/gamesys/resources/res_meshset.h>
 
 namespace dmGameSystem

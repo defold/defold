@@ -203,63 +203,6 @@ TYPED_TEST(PhysicsTest, UseBullet)
 }
 
 
-TYPED_TEST(PhysicsTest, SetLinearVelocity)
-{
-    const float vo_x = 0.5f;
-
-    VisualObject vo1;
-    vo1.m_Position = dmVMath::Point3(vo_x, 3.0f, 0.0f);
-    dmPhysics::CollisionObjectData data1;
-    data1.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_KINEMATIC;
-    data1.m_Mass = 0.0f;
-    data1.m_UserData = &vo1;
-    data1.m_Group = 1 << 3;
-    data1.m_Mask = 1 << 2;
-    typename TypeParam::CollisionShapeType shape1 = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, dmVMath::Vector3(0.5f, 0.5f, 0.0f));
-    typename TypeParam::CollisionObjectType kinematic_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data1, &shape1, 1u);
-    dmPhysics::SetLinearVelocity2D(TestFixture::m_Context, kinematic_co, dmVMath::Vector3(100.0f, 0.0f, 0.0f));
-
-    VisualObject vo2;
-    vo2.m_Position = dmVMath::Point3(vo_x, 3.0f, 0.0f);
-    dmPhysics::CollisionObjectData data2;
-    data2.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_DYNAMIC;
-    data2.m_Mass = 1.0f;
-    data2.m_UserData = &vo2;
-    data2.m_Group = 1 << 3;
-    data2.m_Mask = 1 << 2;
-    typename TypeParam::CollisionShapeType shape2 = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, dmVMath::Vector3(0.5f, 0.5f, 0.0f));
-    typename TypeParam::CollisionObjectType dynamic_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data2, &shape2, 1u);
-    dmPhysics::SetLinearVelocity2D(TestFixture::m_Context, dynamic_co, dmVMath::Vector3(100.0f, 0.0f, 0.0f));
-
-    VisualObject vo3;
-    vo3.m_Position = dmVMath::Point3(vo_x, 3.0f, 0.0f);
-    dmPhysics::CollisionObjectData data3;
-    data3.m_Type = dmPhysics::COLLISION_OBJECT_TYPE_STATIC;
-    data3.m_Mass = 0.0f;
-    data3.m_UserData = &vo3;
-    data3.m_Group = 1 << 3;
-    data3.m_Mask = 1 << 2;
-    typename TypeParam::CollisionShapeType shape3 = (*TestFixture::m_Test.m_NewBoxShapeFunc)(TestFixture::m_Context, dmVMath::Vector3(0.5f, 0.5f, 0.0f));
-    typename TypeParam::CollisionObjectType static_co = (*TestFixture::m_Test.m_NewCollisionObjectFunc)(TestFixture::m_World, data3, &shape3, 1u);
-    dmPhysics::SetLinearVelocity2D(TestFixture::m_Context, static_co, dmVMath::Vector3(100.0f, 0.0f, 0.0f));
-
-    for (uint32_t i = 0; i < 40; ++i)
-    {
-        (*TestFixture::m_Test.m_StepWorldFunc)(TestFixture::m_World, TestFixture::m_StepWorldContext);
-    }
-
-    ASSERT_NE(vo_x, vo1.m_Position.getX());
-    ASSERT_NE(vo_x, vo2.m_Position.getX());
-    ASSERT_NEAR(vo_x, vo3.m_Position.getX(), 0.01f);
-
-    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, kinematic_co);
-    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, dynamic_co);
-    (*TestFixture::m_Test.m_DeleteCollisionObjectFunc)(TestFixture::m_World, static_co);
-    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape1);
-    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape2);
-    (*TestFixture::m_Test.m_DeleteCollisionShapeFunc)(shape3);
-}
-
 TYPED_TEST(PhysicsTest, SetGridShapeHull)
 {
     int32_t rows = 1;

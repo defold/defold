@@ -27,79 +27,86 @@
 
 (set! *warn-on-reflection* true)
 
-(defn- resolve-resource-paths
-  [pb dep-resources resource-props]
-  (reduce (fn [m [path resource]]
-            (assoc-in m path (resource/proj-path (get dep-resources resource))))
-          pb
-          resource-props))
+(defn- replace-build-resources-with-fused-build-resource-paths
+  [pb-map dep-resources build-resource-field-value-paths]
+  (reduce (fn [pb-map [field-path build-resource]]
+            (let [fused-build-resource
+                  (when build-resource
+                    (or (get dep-resources build-resource)
+                        (throw (ex-info "dep-resources is missing a referenced build-resource."
+                                        {:build-resource build-resource
+                                         :dep-resources dep-resources}))))]
+              (coll/assoc-in-ex pb-map field-path (resource/resource->proj-path fused-build-resource))))
+          pb-map
+          build-resource-field-value-paths))
 
-(defn- make-resource-props
-  [dep-build-targets m resource-keys]
-  (let [deps-by-source (into {}
-                             (map (fn [build-target]
-                                    (let [build-resource (:resource build-target)
-                                          source-resource (:resource build-resource)]
-                                      (when-not (and (satisfies? resource/Resource build-resource)
-                                                     (satisfies? resource/Resource source-resource))
-                                        (throw (ex-info "dep-build-targets contains an invalid build target"
-                                                        {:build-target build-target
-                                                         :build-resource build-resource
-                                                         :source-resource source-resource})))
-                                      [source-resource build-resource])))
-                             dep-build-targets)]
-    (letfn [(fill-from-path [x path path-index]
-              (let [end (= path-index (count path))]
-                (if end
-                  (when x
-                    (when-not (satisfies? resource/Resource x)
-                      (throw (ex-info "value for resource path in m is not a Resource"
-                                      {:path path
-                                       :value x
-                                       :resource-keys resource-keys})))
-                    (if-let [build-resource (deps-by-source x)]
-                      [(pair path build-resource)]
-                      (throw (ex-info "deps-by-source is missing a referenced source-resource"
-                                      {:path path
-                                       :deps-by-source deps-by-source
-                                       :source-resource x}))))
-                  (let [k (path path-index)
-                        v (x k)]
-                    (if (vector? v)
-                      (->Eduction
-                        (mapcat (fn [i]
-                                  (let [next-path-index (inc path-index)
-                                        vec-path (-> path
-                                                     (subvec 0 next-path-index)
-                                                     (conj i)
-                                                     (into (subvec path next-path-index)))]
-                                    (fill-from-path v vec-path next-path-index))))
-                        (range (count v)))
-                      (fill-from-path v path (inc path-index)))))))]
-      (into []
-            (mapcat (fn [resource-key]
-                      (let [path (if (vector? resource-key) resource-key [resource-key])]
-                        (fill-from-path m path 0))))
-            resource-keys))))
+(defn- make-build-resource-field-value-paths
+  [^Class pb-class pb-map dep-build-targets]
+  (let [resource-field-path-specs (protobuf/resource-field-path-specs pb-class)
+        pb-map->resource-field-value-paths (protobuf/get-field-value-paths-fn resource-field-path-specs)
+        resource-field-value-paths (pb-map->resource-field-value-paths pb-map)
+
+        resource-field-value->build-resource
+        (into {nil nil
+               "" nil}
+              (mapcat (fn [build-target]
+                        (let [build-resource (:resource build-target)
+                              source-resource (:resource build-resource)]
+                          (when-not (and (workspace/build-resource? build-resource)
+                                         (workspace/source-resource? source-resource))
+                            (throw (ex-info "dep-build-targets contains an invalid build target."
+                                            {:build-target build-target
+                                             :build-resource build-resource
+                                             :source-resource source-resource})))
+                          [(pair build-resource build-resource)
+                           (pair (resource/proj-path build-resource) build-resource)
+                           (pair source-resource build-resource)
+                           (pair (resource/proj-path source-resource) build-resource)])))
+              dep-build-targets)]
+
+    (mapv (fn [[field-path field-value]]
+            (when-not (or (nil? field-value)
+                          (string? field-value)
+                          (resource/resource? field-value))
+              (throw (ex-info "value for resource field in pb-map is not a Resource or proj-path."
+                              {:field-value field-value
+                               :field-path field-path
+                               :resource-field-path-specs resource-field-path-specs})))
+            (if-let [build-resource (resource-field-value->build-resource field-value)]
+              (pair field-path build-resource)
+              (throw (ex-info "deps-by-source is missing a referenced source-resource. Ensure it is among the dep-build-targets."
+                              {:field-value field-value
+                               :field-path field-path
+                               :deps-by-source resource-field-value->build-resource
+                               :source-resource field-value}))))
+          resource-field-value-paths)))
 
 (defn- build-protobuf
   [resource dep-resources user-data]
-  (let [{:keys [pb-class pb-msg resource-keys]} user-data
-        pb-msg (resolve-resource-paths pb-msg dep-resources resource-keys)]
+  (let [{:keys [pb-class pb-map build-resource-field-value-paths]} user-data
+        pb-map (replace-build-resources-with-fused-build-resource-paths pb-map dep-resources build-resource-field-value-paths)]
     {:resource resource
-     :content (protobuf/map->bytes pb-class pb-msg)}))
+     :content (protobuf/map->bytes pb-class pb-map)}))
 
 (defn make-protobuf-build-target
-  [resource dep-build-targets pb-class pb-msg pb-resource-fields]
-  (let [dep-build-targets (flatten dep-build-targets)
-        resource-keys (make-resource-props dep-build-targets pb-msg pb-resource-fields)]
-    (bt/with-content-hash
-      {:resource (workspace/make-build-resource resource)
-       :build-fn build-protobuf
-       :user-data {:pb-class pb-class
-                   :pb-msg pb-msg
-                   :resource-keys resource-keys}
-       :deps dep-build-targets})))
+  ([node-id source-resource pb-class pb-map]
+   (make-protobuf-build-target node-id source-resource pb-class pb-map nil))
+  ([node-id source-resource pb-class pb-map dep-build-targets]
+   {:pre [(g/node-id? node-id)
+          (protobuf/pb-class? pb-class)
+          (map? pb-map)]}
+   (let [dep-build-targets (some-> dep-build-targets coll/not-empty flatten vec)
+         build-resource-field-value-paths (make-build-resource-field-value-paths pb-class pb-map dep-build-targets)]
+     (bt/with-content-hash
+       (cond-> {:node-id node-id
+                :resource (workspace/make-build-resource source-resource)
+                :build-fn build-protobuf
+                :user-data {:pb-class pb-class
+                            :pb-map pb-map
+                            :build-resource-field-value-paths build-resource-field-value-paths}}
+
+               dep-build-targets
+               (assoc :deps dep-build-targets))))))
 
 ;;--------------------------------------------------------------------
 

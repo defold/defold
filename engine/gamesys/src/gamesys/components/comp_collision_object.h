@@ -51,6 +51,8 @@ namespace dmGameSystem
 
     dmGameObject::UpdateResult CompCollisionObjectOnMessage(const dmGameObject::ComponentOnMessageParams& params);
 
+    void*                      CompCollisionObjectGetComponent(const dmGameObject::ComponentGetParams& params);
+
     void CompCollisionObjectOnReload(const dmGameObject::ComponentOnReloadParams& params);
 
     dmGameObject::PropertyResult CompCollisionObjectGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value);

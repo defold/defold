@@ -27,7 +27,10 @@ import java.util.HashSet;
 import com.dynamo.bob.util.BobNLS;
 import org.apache.commons.io.FilenameUtils;
 
+import com.dynamo.proto.DdfMath.Vector3;
+import com.dynamo.proto.DdfMath.Vector3One;
 import com.dynamo.proto.DdfMath.Vector4;
+import com.dynamo.proto.DdfMath.Vector4One;
 
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
@@ -46,7 +49,6 @@ import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
 import com.dynamo.gamesys.proto.Sound.SoundDesc;
 import com.dynamo.gamesys.proto.Label.LabelDesc;
-import com.dynamo.proto.DdfMath.Vector3;
 import com.google.protobuf.TextFormat;
 
 @BuilderParams(name = "GameObject", inExts = ".go", outExt = ".goc")
@@ -169,8 +171,6 @@ public class GameObjectBuilder extends Builder<Void> {
             BuilderUtil.checkResource(this.project, input, "component", component);
         }
 
-        final Vector3 defaultScale = Vector3.newBuilder().setX(1.0f).setY(1.0f).setZ(1.0f).build();
-
         // convert embedded components to generated components in the build folder
         for (EmbeddedComponentDesc ec : protoBuilder.getEmbeddedComponentsList()) {
             if (ec.getId().length() == 0) {
@@ -226,8 +226,6 @@ public class GameObjectBuilder extends Builder<Void> {
     private PrototypeDesc.Builder transformGo(IResource resource,
             PrototypeDesc.Builder protoBuilder, ComponentsCounter.Storage compStorage) throws CompileExceptionError {
 
-        final Vector3 defaultScale = Vector3.newBuilder().setX(1.0f).setY(1.0f).setZ(1.0f).build();
-
         protoBuilder.clearPropertyResources();
         Collection<String> propertyResources = new HashSet<String>();
         List<ComponentDesc> newList = new ArrayList<ComponentDesc>();
@@ -268,21 +266,14 @@ public class GameObjectBuilder extends Builder<Void> {
                     LabelDesc.Builder lb = LabelDesc.newBuilder();
                     TextFormat.merge(reader, lb);
                     if (lb.hasScale()) {
-                        Vector4 labelScaleV4 = lb.getScale();
-                        Vector3 labelScaleV3 = Vector3.newBuilder().setX(labelScaleV4.getX()).setY(labelScaleV4.getY()).setZ(labelScaleV4.getZ()).build();
+                        Vector4One labelScaleV4 = lb.getScale();
+                        Vector3One labelScaleV3 = Vector3One.newBuilder().setX(labelScaleV4.getX()).setY(labelScaleV4.getY()).setZ(labelScaleV4.getZ()).build();
                         compBuilder.setScale(labelScaleV3);
                     }
                 }
                 catch(IOException e) {
                     throw new CompileExceptionError(e);
                 }
-            }
-
-            // #3981
-            // if the component doesn't have a scale we set a default of v3(1.0)
-            // if we do not set a scale it will have a scale of v3(0.0) at runtime
-            if (!compBuilder.hasScale()) {
-                compBuilder.setScale(defaultScale);
             }
 
             compBuilder.setComponent(c);

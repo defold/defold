@@ -1854,6 +1854,7 @@ def detect(conf):
         conf.env['STLIB_VULKAN'] = Options.options.with_vulkan_validation and 'vulkan' or 'MoltenVK'
         conf.env['FRAMEWORK_VULKAN'] = ['Metal', 'IOSurface', 'QuartzCore']
         conf.env['FRAMEWORK_DMGLFW'] = ['QuartzCore']
+
     elif platform in ('arm64-ios','x86_64-ios'):
         conf.env['STLIB_VULKAN'] = 'MoltenVK'
         conf.env['FRAMEWORK_VULKAN'] = ['Metal', 'IOSurface']
@@ -1902,6 +1903,8 @@ def detect(conf):
 
             conf.env['LIB_JNI'] = ['jni']
             conf.env['LIB_JNI_NOASAN'] = ['jni_noasan']
+
+    conf.load('waf_csharp')
 
     if Options.options.generate_compile_commands:
         conf.load('clang_compilation_database')

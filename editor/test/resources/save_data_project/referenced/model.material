@@ -7,10 +7,6 @@ vertex_constants {
   name: "viewproj"
   type: CONSTANT_TYPE_VIEWPROJ
   value {
-    x: 0.0
-    y: 0.0
-    z: 0.0
-    w: 0.0
   }
 }
 samplers {
@@ -34,8 +30,6 @@ attributes {
   name: "position"
   semantic_type: SEMANTIC_TYPE_POSITION
   element_count: 3
-  normalize: false
-  data_type: TYPE_FLOAT
   coordinate_space: COORDINATE_SPACE_WORLD
   double_values {
     v: 0.0
@@ -48,8 +42,6 @@ attributes {
   semantic_type: SEMANTIC_TYPE_TEXCOORD
   element_count: 2
   normalize: true
-  data_type: TYPE_FLOAT
-  coordinate_space: COORDINATE_SPACE_LOCAL
   double_values {
     v: 0.0
     v: 0.0
@@ -59,9 +51,7 @@ attributes {
   name: "texpage0"
   semantic_type: SEMANTIC_TYPE_PAGE_INDEX
   element_count: 1
-  normalize: false
   data_type: TYPE_UNSIGNED_INT
-  coordinate_space: COORDINATE_SPACE_LOCAL
   long_values {
     v: 0
   }
@@ -71,8 +61,6 @@ attributes {
   semantic_type: SEMANTIC_TYPE_TEXCOORD
   element_count: 2
   normalize: true
-  data_type: TYPE_FLOAT
-  coordinate_space: COORDINATE_SPACE_LOCAL
   double_values {
     v: 0.0
     v: 0.0
@@ -82,9 +70,7 @@ attributes {
   name: "texpage1"
   semantic_type: SEMANTIC_TYPE_PAGE_INDEX
   element_count: 1
-  normalize: false
   data_type: TYPE_UNSIGNED_INT
-  coordinate_space: COORDINATE_SPACE_LOCAL
   long_values {
     v: 0
   }
@@ -172,7 +158,6 @@ attributes {
   semantic_type: SEMANTIC_TYPE_COLOR
   element_count: 3
   normalize: true
-  data_type: TYPE_FLOAT
   coordinate_space: COORDINATE_SPACE_WORLD
   double_values {
     v: 1.0
@@ -182,9 +167,7 @@ attributes {
 }
 attributes {
   name: "byte"
-  semantic_type: SEMANTIC_TYPE_NONE
   element_count: 1
-  normalize: false
   data_type: TYPE_BYTE
   coordinate_space: COORDINATE_SPACE_WORLD
   long_values {
@@ -193,9 +176,7 @@ attributes {
 }
 attributes {
   name: "unsigned_byte"
-  semantic_type: SEMANTIC_TYPE_NONE
   element_count: 1
-  normalize: false
   data_type: TYPE_UNSIGNED_BYTE
   coordinate_space: COORDINATE_SPACE_WORLD
   long_values {
@@ -204,9 +185,7 @@ attributes {
 }
 attributes {
   name: "short"
-  semantic_type: SEMANTIC_TYPE_NONE
   element_count: 1
-  normalize: false
   data_type: TYPE_SHORT
   coordinate_space: COORDINATE_SPACE_WORLD
   long_values {
@@ -215,9 +194,7 @@ attributes {
 }
 attributes {
   name: "unsigned_short"
-  semantic_type: SEMANTIC_TYPE_NONE
   element_count: 1
-  normalize: false
   data_type: TYPE_UNSIGNED_SHORT
   coordinate_space: COORDINATE_SPACE_WORLD
   long_values {
@@ -226,9 +203,7 @@ attributes {
 }
 attributes {
   name: "int"
-  semantic_type: SEMANTIC_TYPE_NONE
   element_count: 1
-  normalize: false
   data_type: TYPE_INT
   coordinate_space: COORDINATE_SPACE_WORLD
   long_values {
@@ -237,9 +212,7 @@ attributes {
 }
 attributes {
   name: "unsigned_int"
-  semantic_type: SEMANTIC_TYPE_NONE
   element_count: 1
-  normalize: false
   data_type: TYPE_UNSIGNED_INT
   coordinate_space: COORDINATE_SPACE_WORLD
   long_values {
@@ -248,10 +221,7 @@ attributes {
 }
 attributes {
   name: "float"
-  semantic_type: SEMANTIC_TYPE_NONE
   element_count: 1
-  normalize: false
-  data_type: TYPE_FLOAT
   coordinate_space: COORDINATE_SPACE_WORLD
   double_values {
     v: 1.0

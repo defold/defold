@@ -1,0 +1,79 @@
+{
+	"basepath": "src",
+	
+	"includes": [
+		"src"
+	],
+
+	"files": [
+		{"file": "src/dmsdk/lua/lua.h", "languages": {
+			"csharp": {
+				"outpath": "./src/cs/dmsdk/lua/lua_gen.cs",
+				"namespace": "Lua",
+				"class": "Lua",
+				"dllimport": "luajit-5.1",
+				"ignore": [
+					"lua_Debug",
+					"lua_getlocal",
+					"lua_setlocal",
+					"lua_newstate",
+					"lua_close",
+					"lua_atpanic",
+					"lua_pushvfstring",
+					"lua_load",
+					"lua_dump",
+					"lua_getallocf",
+					"lua_setallocf",
+					"lua_getstack",
+					"lua_getinfo",
+					"lua_gethook",
+					"lua_sethook"
+				],
+				"rename": {
+					"size_t": "int",
+					"lua_Number": "double",
+					"lua_Integer": "int",
+					"CFunction": "IntPtr",
+					"const lua_": "lua_",
+					"lua_": ""
+				}
+			}
+		}},
+		{"file": "src/dmsdk/lua/lauxlib.h", "languages": {
+			"csharp": {
+				"outpath": "./src/cs/dmsdk/lua/lauxlib_gen.cs",
+				"namespace": "Lua",
+				"class": "LuaL",
+				"dllimport": "luajit-5.1",
+				"using": [
+				],
+				"using_static": [
+					"dmSDK.Lua.Lua"
+				],
+				"ignore": [
+					"luaL_Reg",
+					"luaL_Buffer",
+					"luaL_loadbuffer",
+					"luaL_buffinit",
+					"luaL_prepbuffer",
+					"luaL_addlstring",
+					"luaL_addstring",
+					"luaL_addvalue",
+					"luaL_pushresult",
+					"luaL_checkoption"
+				],
+				"rename": {
+					"size_t": "int",
+					"lua_Number": "double",
+					"lua_Integer": "int",
+					"CFunction": "IntPtr",
+					"const luaL_": "luaL_",
+					"luaL_ref": "luaL_incref",
+					"luaL_unref": "luaL_decref",
+					"lua_": "",
+					"luaL_": ""
+				}
+			}
+		}}
+	]
+}

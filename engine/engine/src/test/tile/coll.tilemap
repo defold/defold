@@ -7,10 +7,16 @@ layers {
         x: 0
         y: 0
         tile: 0
+        h_flip: 0
+        v_flip: 0
+        rotate90: 1
     }
     cell {
         x: -2
         y: -1
         tile: 0
+        h_flip: 1
+        v_flip: 1
+        rotate90: 1
     }
 }
