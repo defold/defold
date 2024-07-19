@@ -130,7 +130,9 @@
 
 (defn make-brush
   [tile]
-  {:width 1 :height 1 :tiles [{:tile tile :h-flip false :v-flip false :rotate90 false}]})
+  (if-not tile
+    {:width 1 :height 1 :tiles [nil]}
+    {:width 1 :height 1 :tiles [{:tile tile :h-flip false :v-flip false :rotate90 false}]}))
 
 (defn make-brush-from-selection
   [cell-map start-cell end-cell]
@@ -1178,7 +1180,9 @@
                                            :cut-mode orange-color
                                            :erase-mode red-color
                                            :select-mode blue-color
-                                           white-color)
+                                           (if (every? nil? (:tiles brush))
+                                             red-color
+                                             white-color))
                                   :tile-dimensions tile-dimensions}}])}))
 
 (g/defnk produce-tool-renderables
