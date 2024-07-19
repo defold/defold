@@ -577,12 +577,7 @@
                                     (when (user-data node ::auto-commit)
                                       (commit-fn nil)))))
   (on-edit! node (fn [_old _new]
-                   (if (user-data node ::suppress-auto-commit)
-                     (user-data! node ::suppress-auto-commit false)
-                     (user-data! node ::auto-commit true)))))
-
-(defn suppress-auto-commit! [^Node node]
-  (user-data! node ::suppress-auto-commit true))
+                   (user-data! node ::auto-commit true))))
 
 (defn- clear-auto-commit! [^Node node]
   ;; Clear the auto-commit flag. You should call this whenever data has been

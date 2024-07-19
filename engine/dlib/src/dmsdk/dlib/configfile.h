@@ -34,12 +34,15 @@ extern "C" {
 
 /*# HConfigFile type definition
  *
+ * Each game session has a single config file that holds all parameters from game.projec,t and any overridden values.
+ * @note Properties can be overridden on command line or via the config file extension system. (See [ref:DM_DECLARE_CONFIGFILE_EXTENSION])
+ *
  * @typedef
  * @name HConfigFile
  */
 typedef struct ConfigFile* HConfigFile;
 
-/*# get config value as string
+/*#
  *
  * Get config value as string, returns default if the key isn't found
  *
@@ -63,7 +66,7 @@ typedef struct ConfigFile* HConfigFile;
  * {
  *     const char* projectTitle = dmConfigFile::GetString(params->m_ConfigFile, "project.title", "Untitled");
  * }
- *
+ * ```
  */
 const char* ConfigFileGetString(HConfigFile config, const char* key, const char* default_value);
 
@@ -91,7 +94,7 @@ const char* ConfigFileGetString(HConfigFile config, const char* key, const char*
  * {
  *     int32_t displayWidth = dmConfigFile::GetInt(params->m_ConfigFile, "display.width", 640);
  * }
- *
+ * ```
  */
 int32_t ConfigFileGetInt(HConfigFile config, const char* key, int32_t default_value);
 
@@ -119,6 +122,7 @@ int32_t ConfigFileGetInt(HConfigFile config, const char* key, int32_t default_va
  * {
  *     float gravity = dmConfigFile::GetFloat(params->m_ConfigFile, "physics.gravity_y", -9.8f);
  * }
+ * ```
  *
  */
 float ConfigFileGetFloat(HConfigFile config, const char* key, float default_value);
@@ -172,8 +176,9 @@ typedef bool (*FConfigFileGetInt)(HConfigFile config, const char* key, int32_t d
  */
 typedef bool (*FConfigFileGetFloat)(HConfigFile config, const char* key, float default_value, float* out);
 
-/*# Used when registering new config file extensions
- * @constant
+/*# Used when registering new config file extensions.
+ * It defines the minimum size of the description blob being registered.
+ * @variable
  * @name ConfigFileExtensionDescBufferSize
  */
 const uint32_t ConfigFileExtensionDescBufferSize = 64;
@@ -193,7 +198,7 @@ const uint32_t ConfigFileExtensionDescBufferSize = 64;
  */
 void ConfigFileRegisterExtension(void* desc,
     uint32_t desc_size,
-    const char *name,
+    const char* name,
     FConfigFileCreate create,
     FConfigFileDestroy destroy,
     FConfigFileGetString get_string,

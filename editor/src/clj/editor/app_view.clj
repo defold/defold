@@ -2430,24 +2430,24 @@ If you do not specifically require different script states, consider changing th
 
 (handler/defhandler :copy-project-path :global
   (active? [app-view selection evaluation-context]
-           (context-resource-file app-view selection evaluation-context))
+           (context-resource app-view selection evaluation-context))
   (enabled? [app-view selection evaluation-context]
-            (when-let [r (context-resource-file app-view selection evaluation-context)]
+            (when-let [r (context-resource app-view selection evaluation-context)]
               (and (resource/proj-path r)
                    (resource/exists? r))))
   (run [selection app-view]
-    (when-let [r (context-resource-file app-view selection)]
+    (when-let [r (context-resource app-view selection)]
       (put-on-clipboard! (resource/proj-path r)))))
 
 (handler/defhandler :copy-full-path :global
   (active? [app-view selection evaluation-context]
-           (context-resource-file app-view selection evaluation-context))
+           (context-resource app-view selection evaluation-context))
   (enabled? [app-view selection evaluation-context]
-            (when-let [r (context-resource-file app-view selection evaluation-context)]
+            (when-let [r (context-resource app-view selection evaluation-context)]
               (and (resource/abs-path r)
                    (resource/exists? r))))
   (run [selection app-view]
-    (when-let [r (context-resource-file app-view selection)]
+    (when-let [r (context-resource app-view selection)]
       (put-on-clipboard! (resource/abs-path r)))))
 
 (handler/defhandler :copy-require-path :global
