@@ -19,15 +19,10 @@ import java.io.IOException;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Task;
-import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.DefaultFileSystem;
-import com.dynamo.bob.pipeline.IShaderCompiler;
-import com.dynamo.bob.pipeline.ShaderPreprocessor;
 
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
-
-import org.apache.commons.cli.CommandLine;
 
 @BuilderParams(name = "FragmentProgram", inExts = ".fp", outExt = ".fpc")
 public class FragmentProgramBuilder extends ShaderProgramBuilder {
@@ -39,17 +34,15 @@ public class FragmentProgramBuilder extends ShaderProgramBuilder {
     }
 
     // Running standalone:
-    // java -classpath $DYNAMO_HOME/share/java/bob-light.jar com.dynamo.bob.pipeline.FragmentProgramBuilder <path-in.fp> <path-out.fpc>
+    // java -classpath $DYNAMO_HOME/share/java/bob-light.jar com.dynamo.bob.pipeline.FragmentProgramBuilder <path-in.fp> <path-out.fpc> <platform>
     public static void main(String[] args) throws IOException, CompileExceptionError {
         System.setProperty("java.awt.headless", "true");
         FragmentProgramBuilder builder = new FragmentProgramBuilder();
-        Platform platform = builder.getPlatformFromCommandLine(args);
 
         Project project = new Project(new DefaultFileSystem());
         project.scanJavaClasses();
-        IShaderCompiler compiler = project.getShaderCompiler(platform);
 
         builder.setProject(project);
-        builder.BuildShader(args, SHADER_TYPE, compiler);
+        builder.BuildShader(args, SHADER_TYPE);
     }
 }

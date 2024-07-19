@@ -19,15 +19,10 @@ import java.io.IOException;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Task;
-import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.DefaultFileSystem;
-import com.dynamo.bob.pipeline.IShaderCompiler;
-import com.dynamo.bob.pipeline.ShaderPreprocessor;
 
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
-
-import org.apache.commons.cli.CommandLine;
 
 @BuilderParams(name = "VertexProgram", inExts = ".vp", outExt = ".vpc")
 public class VertexProgramBuilder extends ShaderProgramBuilder {
@@ -38,17 +33,16 @@ public class VertexProgramBuilder extends ShaderProgramBuilder {
         task.output(0).setContent(getCompiledShaderDesc(task, SHADER_TYPE).toByteArray());
     }
 
+    // Running standalone:
+    // java -classpath $DYNAMO_HOME/share/java/bob-light.jar com.dynamo.bob.pipeline.VertexProgramBuilder <path-in.vp> <path-out.vpc> <platform>
     public static void main(String[] args) throws IOException, CompileExceptionError {
         System.setProperty("java.awt.headless", "true");
         VertexProgramBuilder builder = new VertexProgramBuilder();
 
-        Platform platform = builder.getPlatformFromCommandLine(args);
-
         Project project = new Project(new DefaultFileSystem());
         project.scanJavaClasses();
-        IShaderCompiler compiler = project.getShaderCompiler(platform);
 
         builder.setProject(project);
-        builder.BuildShader(args, SHADER_TYPE, compiler);
+        builder.BuildShader(args, SHADER_TYPE);
     }
 }

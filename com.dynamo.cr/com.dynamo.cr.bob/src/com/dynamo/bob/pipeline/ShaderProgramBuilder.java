@@ -24,12 +24,6 @@ import java.nio.charset.StandardCharsets;
 
 import java.util.ArrayList;
 
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.CommandLineParser;
-import org.apache.commons.cli.Options;
-import org.apache.commons.cli.ParseException;
-import org.apache.commons.cli.PosixParser;
-
 import com.google.protobuf.ByteString;
 
 import com.dynamo.bob.Builder;
@@ -86,6 +80,9 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         String platformString = this.project.getPlatformStrings()[0];
 
         // Include the spir-v flag into the cache key so we can invalidate the output results accordingly
+        // NOTE: We include the platform string as well for the same reason as spirv, but it doesn't seem to work correctly.
+        //       Keeping the build folder and rebuilding for a different platform _should_ invalidate the cache, but it doesn't.
+        //       Needs further investigation!
         String shaderCacheKey = String.format("output_spirv=%s;platform_key=%s", getOutputSpirvFlag(), platformString);
 
         taskBuilder.addOutput(input.changeExt(params.outExt()));
@@ -157,31 +154,6 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         handleShaderDescBuildResult(shaderDescBuildResult, resourceOutputPath);
 
         return shaderDescBuildResult.shaderDesc;
-    }
-
-    private CommandLine getShaderCommandLineOptions(String[] args) {
-        Options options = new Options();
-        options.addOption("p", "platform", true, "Platform");
-        options.addOption(null, "variant", true, "Specify debug or release");
-        CommandLineParser parser = new PosixParser();
-        CommandLine cmd = null;
-        try {
-            cmd = parser.parse(options, args);
-        } catch (ParseException e) {
-            System.err.println(e.getMessage());
-            System.exit(5);
-        }
-        return cmd;
-    }
-
-    public Platform getPlatformFromCommandLine(String[] args) throws CompileExceptionError {
-        CommandLine cmd = getShaderCommandLineOptions(args);
-        String platformName = cmd.getOptionValue("platform", "");
-        Platform platform = Platform.get(platformName);
-        if (platform == null) {
-            throw new CompileExceptionError(String.format("Invalid platform '%s'\n", platformName));
-        }
-        return platform;
     }
 
     static public ShaderCompilePipeline getShaderPipelineFromShaderSource(ShaderDesc.ShaderType type, String resourcePath, String shaderSource) throws IOException, CompileExceptionError {
@@ -306,7 +278,16 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         return builder;
     }
 
-    public void BuildShader(String[] args, ShaderDesc.ShaderType shaderType, IShaderCompiler shaderCompiler) throws IOException, CompileExceptionError {
+    public void BuildShader(String[] args, ShaderDesc.ShaderType shaderType) throws IOException, CompileExceptionError {
+
+        if (args.length < 3) {
+            System.err.println("Unable to build shader %s - no platform passed in.%n");
+            return;
+        }
+
+        Platform outputPlatform = Platform.get(args[2]);
+        IShaderCompiler shaderCompiler = project.getShaderCompiler(outputPlatform);
+
         if (shaderCompiler == null) {
             System.err.printf("Unable to build shader %s - no shader compiler found.%n", args[0]);
             return;
