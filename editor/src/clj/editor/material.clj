@@ -33,7 +33,7 @@
             [util.murmur :as murmur]
             [util.num :as num])
   (:import [com.dynamo.bob.pipeline ShaderProgramBuilder]
-           [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$VertexAttribute Graphics$VertexAttribute$DataType Graphics$VertexAttribute$SemanticType]
+           [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$VertexAttribute Graphics$VertexAttribute$DataType Graphics$VertexAttribute$SemanticType Graphics$VertexAttribute$ShaderType]
            [com.dynamo.render.proto Material$MaterialDesc Material$MaterialDesc$Sampler Material$MaterialDesc$VertexSpace]
            [com.jogamp.opengl GL2]
            [editor.gl.shader ShaderLifecycle]
@@ -224,9 +224,10 @@
        :columns (let [semantic-type-values (protobuf/enum-values Graphics$VertexAttribute$SemanticType)
                       data-type-values (protobuf/enum-values Graphics$VertexAttribute$DataType)
                       coordinate-space-values (protobuf/enum-values Graphics$CoordinateSpace)
+                      shader-type-values (protobuf/enum-values Graphics$VertexAttribute$ShaderType)
                       default-semantic-type :semantic-type-none
-                      default-element-count 3
-                      default-values (graphics/resize-doubles (vector-of :double) default-semantic-type default-element-count)]
+                      default-shader-type :shader-type-vec3
+                      default-values (graphics/resize-doubles (vector-of :double) default-semantic-type default-shader-type)]
                   [{:path [:name]
                     :label "Name"
                     :type :string}
@@ -240,10 +241,11 @@
                     :type :choicebox
                     :options (protobuf-forms/make-options data-type-values)
                     :default :type-float}
-                   {:path [:element-count]
-                    :label "Count"
-                    :type :integer
-                    :default default-element-count}
+                   {:path [:shader-type]
+                    :label "Shader Type"
+                    :type :choicebox
+                    :options (protobuf-forms/make-options shader-type-values)
+                    :default default-shader-type}
                    {:path [:normalize]
                     :label "Normalize"
                     :type :boolean
