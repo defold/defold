@@ -22,7 +22,6 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.List;
 
-import com.dynamo.bob.Bob;
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
@@ -30,12 +29,9 @@ import com.dynamo.bob.Task;
 import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.fs.IResource;
 
-import com.dynamo.bob.pipeline.ShaderPreprocessor;
-import com.dynamo.bob.pipeline.ShaderCompilerHelpers;
 import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.pipeline.ShaderUtil.Common;
 import com.dynamo.bob.pipeline.ShaderUtil.VariantTextureArrayFallback;
-import com.dynamo.bob.pipeline.ShaderUtil.ES2ToES3Converter;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 import com.dynamo.graphics.proto.Graphics.VertexAttribute;
@@ -56,67 +52,30 @@ public class MaterialBuilder extends Builder<Void>  {
 
     private static final String TextureArrayFilenameVariantFormat = "_max_pages_%d.%s";
 
-    private class ShaderProgramBuildContext {
-        public String                       buildPath;
-        public String                       projectPath;
-        public IResource                    resource;
-        public ES2ToES3Converter.ShaderType type;
-        public ShaderDesc                   desc;
+    private static class ShaderProgramBuildContext {
+        public String                buildPath;
+        public String                projectPath;
+        public IResource             resource;
+        public ShaderDesc.ShaderType type;
+        public ShaderDesc            desc;
 
         // Variant specific state
-        public boolean hasVertexArrayVariant;
+        public boolean hasTextureArrayVariant;
         public String[] arraySamplers = new String[0];
     }
 
-    private ShaderDesc getShaderDesc(IResource resource, ShaderProgramBuilder builder, ES2ToES3Converter.ShaderType shaderType) throws IOException, CompileExceptionError {
+    private ShaderDesc getShaderDesc(IResource resource, ShaderProgramBuilder builder, ShaderDesc.ShaderType shaderType) throws IOException, CompileExceptionError {
         builder.setProject(this.project);
         Task<ShaderPreprocessor> task = builder.create(resource);
         return builder.getCompiledShaderDesc(task, shaderType);
     }
 
-    private ShaderDesc.Language findTextureArrayShaderLanguage(ShaderDesc shaderDesc) {
-        ShaderDesc.Language selected = null;
-        for (int i=0; i < shaderDesc.getShadersCount(); i++) {
-            ShaderDesc.Shader shader = shaderDesc.getShaders(i);
-            if (VariantTextureArrayFallback.isRequired(shader.getLanguage())) {
-                assert(selected == null);
-                selected = shader.getLanguage();
-            }
-        }
-
-        return selected;
-    }
-
-    private ShaderDesc.Shader getSpirvShader(ShaderDesc shaderDesc) {
-        for (int i=0; i < shaderDesc.getShadersCount(); i++) {
-            ShaderDesc.Shader shader = shaderDesc.getShaders(i);
-            if (shader.getLanguage() == ShaderDesc.Language.LANGUAGE_SPIRV) {
-                return shader;
-            }
-        }
-        return null;
-    }
-
     private void validateSpirvShaders(ShaderProgramBuildContext vertexBuildContext, ShaderProgramBuildContext fragmentBuildContext) throws CompileExceptionError {
-        ShaderDesc.Shader spirvVertex = getSpirvShader(vertexBuildContext.desc);
-        if (spirvVertex == null) {
-            return;
-        }
-        ShaderDesc.Shader spirvFragment = getSpirvShader(fragmentBuildContext.desc);
-
-        for (ShaderDesc.ResourceBinding input : spirvFragment.getInputsList()) {
+        for (ShaderDesc.ResourceBinding input : fragmentBuildContext.desc.getReflection().getInputsList()) {
             boolean input_found = false;
-            for (ShaderDesc.ResourceBinding output : spirvVertex.getOutputsList()) {
+            for (ShaderDesc.ResourceBinding output : vertexBuildContext.desc.getReflection().getOutputsList()) {
                 if (output.getNameHash() == input.getNameHash()) {
                     input_found = true;
-
-                    if (input.getBinding() != output.getBinding()) {
-                        throw new CompileExceptionError(
-                            String.format("Location mismatch for fragment shader input '%s': The vertex shader specifies the input at location %d, and location %d in the fragment shader.",
-                            input.getName(),
-                            output.getBinding(),
-                            input.getBinding()));
-                    }
                     break;
                 }
             }
@@ -126,29 +85,32 @@ public class MaterialBuilder extends Builder<Void>  {
         }
     }
 
+    private ShaderDesc.Shader getTextureArrayShader(ShaderDesc desc) {
+        for (int i=0; i < desc.getShadersCount(); i++) {
+            ShaderDesc.Shader shader = desc.getShaders(i);
+            if (VariantTextureArrayFallback.isRequired(shader.getLanguage())) {
+                return shader;
+            }
+        }
+        return null;
+    }
+
     private void applyVariantTextureArray(MaterialDesc.Builder materialBuilder, ShaderProgramBuildContext ctx, String inExt, String outExt) throws IOException, CompileExceptionError {
 
-        ShaderDesc.Language shaderLanguage = findTextureArrayShaderLanguage(ctx.desc);
-        if (shaderLanguage == null) {
+        ShaderDesc.Shader shader = getTextureArrayShader(ctx.desc);
+        if (shader == null) {
             return;
         }
-
-        String shaderInputSource = new String(ctx.resource.getContent());
 
         int maxPageCount = materialBuilder.getMaxPageCount();
+        String shaderSource = new String(shader.getSource().toByteArray());
 
-        // Taken from ShaderProgramBuilder.java
-        boolean isDebug = (this.project.hasOption("debug") || (this.project.option("variant", Bob.VARIANT_RELEASE) != Bob.VARIANT_RELEASE));
-        Common.GLSLCompileResult variantCompileResult = ShaderProgramBuilder.buildGLSLVariantTextureArray(shaderInputSource, ctx.type, shaderLanguage, isDebug, maxPageCount);
-
-        // No array samplers, we can use original source
-        if (variantCompileResult.arraySamplers.length == 0) {
+        Common.GLSLCompileResult variantCompileResult = VariantTextureArrayFallback.transform(shaderSource, maxPageCount);
+        if (variantCompileResult == null || variantCompileResult.arraySamplers.length == 0) {
             return;
         }
 
-        ShaderProgramBuilder.ShaderBuildResult variantBuildResult = ShaderCompilerHelpers.makeShaderBuilderFromGLSLSource(variantCompileResult.source, shaderLanguage);
-
-        // JG: AAaah this should not be here, but we need to know of the parsed array samplers for building the indirection map..
+        ShaderProgramBuilder.ShaderBuildResult variantBuildResult = ShaderProgramBuilder.makeShaderBuilderFromGLSLSource(variantCompileResult.source, shader.getLanguage());
         variantBuildResult.shaderBuilder.setVariantTextureArray(true);
 
         if (variantBuildResult.buildWarnings != null) {
@@ -164,12 +126,14 @@ public class MaterialBuilder extends Builder<Void>  {
         ShaderDesc.Builder variantShaderDescBuilder = ShaderDesc.newBuilder();
         variantShaderDescBuilder.addAllShaders(ctx.desc.getShadersList());
         variantShaderDescBuilder.addShaders(variantBuildResult.shaderBuilder);
+        variantShaderDescBuilder.setReflection(ctx.desc.getReflection());
+        variantShaderDescBuilder.setShaderType(ctx.desc.getShaderType());
         variantResource.setContent(variantShaderDescBuilder.build().toByteArray());
 
         ctx.buildPath             = variantResource.getPath();
         ctx.projectPath           = BuilderUtil.replaceExt(ctx.projectPath, "." + inExt, String.format(TextureArrayFilenameVariantFormat, maxPageCount, inExt));
         ctx.arraySamplers         = variantCompileResult.arraySamplers;
-        ctx.hasVertexArrayVariant = true;
+        ctx.hasTextureArrayVariant = true;
     }
 
     private ShaderProgramBuildContext makeShaderProgramBuildContext(MaterialDesc.Builder materialBuilder, String shaderResourcePath) throws CompileExceptionError, IOException {
@@ -177,14 +141,14 @@ public class MaterialBuilder extends Builder<Void>  {
         String shaderFileInExt   = FilenameUtils.getExtension(shaderResourcePath);
         String shaderFileOutExt  = shaderFileInExt + "c";
 
-        ES2ToES3Converter.ShaderType shaderType;
+        ShaderDesc.ShaderType shaderType;
         ShaderProgramBuilder shaderBuilder;
 
         if (shaderFileInExt.equals("vp")) {
-            shaderType    = ES2ToES3Converter.ShaderType.VERTEX_SHADER;
+            shaderType    = ShaderDesc.ShaderType.SHADER_TYPE_VERTEX;
             shaderBuilder = new VertexProgramBuilder();
         } else {
-            shaderType    = ES2ToES3Converter.ShaderType.FRAGMENT_SHADER;
+            shaderType    = ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT;
             shaderBuilder = new FragmentProgramBuilder();
         }
 
@@ -203,7 +167,7 @@ public class MaterialBuilder extends Builder<Void>  {
     }
 
     private void applyShaderProgramBuildContexts(MaterialDesc.Builder materialBuilder, ShaderProgramBuildContext vertexBuildContext, ShaderProgramBuildContext fragmentBuildContext) {
-        if (!vertexBuildContext.hasVertexArrayVariant || fragmentBuildContext.hasVertexArrayVariant) {
+        if (!(vertexBuildContext.hasTextureArrayVariant || fragmentBuildContext.hasTextureArrayVariant)) {
             return;
         }
 

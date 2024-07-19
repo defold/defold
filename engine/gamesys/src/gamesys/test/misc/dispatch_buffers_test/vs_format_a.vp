@@ -1,7 +1,10 @@
 attribute vec3 position;
 attribute float page_index;
 
+varying float var_page_index;
+
 void main()
 {
     gl_Position = vec4(position.xyz, 1.0);
+    var_page_index = page_index;
 }

@@ -5309,7 +5309,7 @@ TEST_F(ShaderTest, Compute)
 {
     dmGraphics::ShaderDesc* ddf;
     ASSERT_EQ(dmDDF::RESULT_OK, dmDDF::LoadMessageFromFile("build/src/gamesys/test/shader/valid.cpc", dmGraphics::ShaderDesc::m_DDFDescriptor, (void**) &ddf));
-    ASSERT_EQ(dmGraphics::ShaderDesc::SHADER_CLASS_COMPUTE, ddf->m_ShaderClass);
+    ASSERT_EQ(dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE, ddf->m_ShaderType);
     ASSERT_NE(0, ddf->m_Shaders.m_Count);
 
     dmGraphics::ShaderDesc::Shader* compute_shader = 0;
@@ -5328,23 +5328,21 @@ TEST_F(ShaderTest, Compute)
     //       When we can create actual dmGraphics::HProgram from compute we can verify this via the GFX context.
     if (compute_shader->m_Language == dmGraphics::ShaderDesc::LANGUAGE_SPIRV)
     {
-        dmGraphics::ShaderDesc::ResourceTypeInfo color_type_info = compute_shader->m_Types[compute_shader->m_UniformBuffers[0].m_Type.m_Type.m_TypeIndex];
+        dmGraphics::ShaderDesc::ResourceTypeInfo color_type_info = ddf->m_Reflection.m_Types[ddf->m_Reflection.m_UniformBuffers[0].m_Type.m_Type.m_TypeIndex];
 
         // Slot 1
-        ASSERT_EQ(1,                                        compute_shader->m_UniformBuffers.m_Count);
+        ASSERT_EQ(1,                                        ddf->m_Reflection.m_UniformBuffers.m_Count);
         ASSERT_EQ(dmHashString64("color"),                  color_type_info.m_Members[0].m_NameHash);
         ASSERT_EQ(dmGraphics::ShaderDesc::SHADER_TYPE_VEC4, color_type_info.m_Members[0].m_Type.m_Type.m_ShaderType);
         // Slot 2,
-        ASSERT_EQ(1,                                           compute_shader->m_Textures.m_Count);
-        ASSERT_EQ(dmHashString64("texture_out"),               compute_shader->m_Textures[0].m_NameHash);
-        ASSERT_EQ(dmGraphics::ShaderDesc::SHADER_TYPE_IMAGE2D, compute_shader->m_Textures[0].m_Type.m_Type.m_ShaderType);
+        ASSERT_EQ(1,                                           ddf->m_Reflection.m_Textures.m_Count);
+        ASSERT_EQ(dmHashString64("texture_out"),               ddf->m_Reflection.m_Textures[0].m_NameHash);
+        ASSERT_EQ(dmGraphics::ShaderDesc::SHADER_TYPE_IMAGE2D, ddf->m_Reflection.m_Textures[0].m_Type.m_Type.m_ShaderType);
     }
 }
 
 TEST_F(ShaderTest, ComputeResource)
 {
-    dmGraphics::SetOverrideShaderLanguage(m_GraphicsContext, dmGraphics::ShaderDesc::SHADER_CLASS_COMPUTE, dmGraphics::ShaderDesc::LANGUAGE_SPIRV);
-
     dmGameSystem::ComputeResource* compute_program_res;
     dmResource::Result res = dmResource::Get(m_Factory, "/shader/inputs.computec", (void**) &compute_program_res);
 
