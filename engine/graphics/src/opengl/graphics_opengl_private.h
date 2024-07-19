@@ -104,8 +104,8 @@ namespace dmGraphics
         HUniformLocation m_Location;
         GLint            m_Count;
         GLenum           m_Type;
-        uint16_t         m_TextureUnit   : 7;
-        uint16_t         m_IsTextureType : 1;
+        uint8_t          m_TextureUnit   : 7;
+        uint8_t          m_IsTextureType : 1;
     };
 
     struct OpenGLProgram

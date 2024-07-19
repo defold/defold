@@ -354,14 +354,19 @@ void AddShaderTypeMember(dmGraphics::ShaderDesc* desc, dmGraphics::ShaderDesc::R
 
 void DeleteShaderDesc(dmGraphics::ShaderDesc* desc)
 {
-    if (desc->m_Reflection.m_Inputs.m_Count > 0)
-        free(desc->m_Reflection.m_Inputs.m_Data);
-    if (desc->m_Reflection.m_Textures.m_Count > 0)
-        free(desc->m_Reflection.m_Textures.m_Data);
-    if (desc->m_Reflection.m_Outputs.m_Count > 0)
-        free(desc->m_Reflection.m_Outputs.m_Data);
-    if (desc->m_Shaders.m_Count > 0)
-        free(desc->m_Shaders.m_Data);
+#define FREE_IF_SIZE_NOT_ZERO(x) if (x.m_Count > 0) free(x.m_Data);
+
+    FREE_IF_SIZE_NOT_ZERO(desc->m_Reflection.m_Inputs);
+    FREE_IF_SIZE_NOT_ZERO(desc->m_Reflection.m_Textures);
+    FREE_IF_SIZE_NOT_ZERO(desc->m_Reflection.m_Outputs);
+    FREE_IF_SIZE_NOT_ZERO(desc->m_Shaders);
+    FREE_IF_SIZE_NOT_ZERO(desc->m_Reflection.m_UniformBuffers);
+    FREE_IF_SIZE_NOT_ZERO(desc->m_Reflection.m_StorageBuffers);
+    FREE_IF_SIZE_NOT_ZERO(desc->m_Reflection.m_Types);
+
+#undef FREE_IF_SIZE_NOT_ZERO
+
+    free(desc);
 }
 
 struct SubPassTest : ITest

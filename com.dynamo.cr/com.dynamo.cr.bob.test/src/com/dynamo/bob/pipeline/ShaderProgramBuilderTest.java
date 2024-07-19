@@ -127,7 +127,6 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         // Test GL fp
         outputs = build("/test_shader.fp", fp);
         shader = (ShaderDesc)outputs.get(0);
-        assert(shader.getShaders(0).getLanguage() == getPlatformGLSLLanguage());
         assertNotNull(shader.getShaders(0).getSource());
         assertEquals(getPlatformGLSLLanguage(), shader.getShaders(0).getLanguage());
 
@@ -251,12 +250,12 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             List<Message> outputs = build("/reflection_0.fp", fs_src);
             ShaderDesc shaderDesc = (ShaderDesc) outputs.get(0);
 
-            assert(shaderDesc.getShadersCount() > 0);
+            assertTrue(shaderDesc.getShadersCount() > 0);
             ShaderDesc.Shader shader = getShaderByLanguage(shaderDesc, ShaderDesc.Language.LANGUAGE_SPIRV);
             assertNotNull(shader);
 
             ShaderDesc.ShaderReflection r = shaderDesc.getReflection();
-            assert(r.getUniformBuffersCount() == 1);
+            assertEquals(1, r.getUniformBuffersCount());
 
             debugPrintShaderReflection("Reflection Test 0", r);
 
@@ -304,14 +303,14 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             List<Message> outputs = build("/reflection_1.fp", fs_src);
             ShaderDesc shaderDesc = (ShaderDesc) outputs.get(0);
 
-            assert(shaderDesc.getShadersCount() > 0);
+            assertTrue(shaderDesc.getShadersCount() > 0);
             ShaderDesc.Shader shader = getShaderByLanguage(shaderDesc, ShaderDesc.Language.LANGUAGE_SPIRV);
             assertNotNull(shader);
 
             ShaderDesc.ShaderReflection r = shaderDesc.getReflection();
             debugPrintShaderReflection("Reflection Test 1", r);
 
-            assert(r.getStorageBuffersCount() == 1);
+            assertEquals(1, r.getStorageBuffersCount());
             ShaderDesc.ResourceBinding binding_test = r.getStorageBuffers(0);
             assertEquals("Test", binding_test.getName());
 
@@ -350,7 +349,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             List<Message> outputs = build("/reflection_2.fp", fs_src);
             ShaderDesc shaderDesc = (ShaderDesc) outputs.get(0);
 
-            assert(shaderDesc.getShadersCount() > 0);
+            assertTrue(shaderDesc.getShadersCount() > 0);
             ShaderDesc.Shader shader = getShaderByLanguage(shaderDesc, ShaderDesc.Language.LANGUAGE_SPIRV);
             assertNotNull(shader);
 
@@ -615,7 +614,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         List<Message> outputs = build("/test_shader.vp", vp);
         ShaderDesc shaderDesc = (ShaderDesc) outputs.get(0);
 
-        assert(shaderDesc.getShadersCount() > 0);
+        assertTrue(shaderDesc.getShadersCount() > 0);
 
         ShaderDesc.Shader shader = getShaderByLanguage(shaderDesc, ShaderDesc.Language.LANGUAGE_SPIRV);
         assertNotNull(shader);
@@ -653,7 +652,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         List<Message> outputs = build("/test_compute.cp", source_no_version);
         ShaderDesc shaderDesc = (ShaderDesc) outputs.get(0);
 
-        assert(shaderDesc.getShadersCount() > 0);
+        assertTrue(shaderDesc.getShadersCount() > 0);
         assertNotNull(getShaderByLanguage(shaderDesc, ShaderDesc.Language.LANGUAGE_SPIRV));
         assertEquals(ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE, shaderDesc.getShaderType());
 
@@ -717,7 +716,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
         List<Message> outputs = build("/test_new_pipeline.fp", shaderNewPipeline);
         ShaderDesc shaderDesc = (ShaderDesc) outputs.get(0);
-        assert(shaderDesc.getShadersCount() > 0);
+        assertTrue(shaderDesc.getShadersCount() > 0);
 
         ShaderDesc.ShaderReflection s = shaderDesc.getReflection();
 
@@ -737,7 +736,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
         outputs = build("/test_old_pipeline.fp", shaderLegacyPipeline);
         shaderDesc = (ShaderDesc) outputs.get(0);
-        assert(shaderDesc.getShadersCount() > 0);
+        assertTrue(shaderDesc.getShadersCount() > 0);
 
         s = shaderDesc.getReflection();
         assertEquals("tint", s.getTypes(0).getMembers(0).getName());

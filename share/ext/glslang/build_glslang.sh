@@ -27,14 +27,8 @@ if [ -z "$PLATFORM" ]; then
     exit 1
 fi
 
-case $PLATFORM in
-    x86_64-macos)
-        OSX_MIN_SDK_VERSION=11.0
-        ;;
-    arm64-macos)
-        OSX_MIN_SDK_VERSION=11.0
-        ;;
-esac
+eval $(python ..PATH_TO../build_tools/set_sdk_vars.py VERSION_MACOSX_MIN)
+OSX_MIN_SDK_VERSION = $VERSION_MACOSX_MIN
 
 
 CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Release ${CMAKE_FLAGS}"

@@ -76,14 +76,6 @@ public class MaterialBuilder extends Builder<Void>  {
             for (ShaderDesc.ResourceBinding output : vertexBuildContext.desc.getReflection().getOutputsList()) {
                 if (output.getNameHash() == input.getNameHash()) {
                     input_found = true;
-
-                    if (input.getBinding() != output.getBinding()) {
-                        throw new CompileExceptionError(
-                            String.format("Location mismatch for fragment shader input '%s': The vertex shader specifies the input at location %d, and location %d in the fragment shader.",
-                            input.getName(),
-                            output.getBinding(),
-                            input.getBinding()));
-                    }
                     break;
                 }
             }
