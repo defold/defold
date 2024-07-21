@@ -2363,16 +2363,22 @@ bail:
         return true;
     }
 
-    static HVertexProgram VulkanNewVertexProgram(HContext _context, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size)
+    static HVertexProgram VulkanNewVertexProgram(HContext _context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
+        ShaderDesc::Shader* ddf_shader = GetShaderProgram(_context, ddf);
+        if (ddf_shader == 0x0)
+        {
+            return 0x0;
+        }
+
         ShaderModule* shader = new ShaderModule;
         memset(shader, 0, sizeof(*shader));
         VulkanContext* context = (VulkanContext*) _context;
 
-        VkResult res = CreateShaderModule(context->m_LogicalDevice.m_Device, ddf->m_Source.m_Data, ddf->m_Source.m_Count, VK_SHADER_STAGE_VERTEX_BIT, shader);
+        VkResult res = CreateShaderModule(context->m_LogicalDevice.m_Device, ddf_shader->m_Source.m_Data, ddf_shader->m_Source.m_Count, VK_SHADER_STAGE_VERTEX_BIT, shader);
         CHECK_VK_ERROR(res);
 
-        CreateShaderMeta(ddf, &shader->m_ShaderMeta);
+        CreateShaderMeta(&ddf->m_Reflection, &shader->m_ShaderMeta);
 
         if (!ValidateShaderModule(context, shader, error_buffer, error_buffer_size))
         {
@@ -2383,16 +2389,22 @@ bail:
         return (HVertexProgram) shader;
     }
 
-    static HFragmentProgram VulkanNewFragmentProgram(HContext _context, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size)
+    static HFragmentProgram VulkanNewFragmentProgram(HContext _context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
+        ShaderDesc::Shader* ddf_shader = GetShaderProgram(_context, ddf);
+        if (ddf_shader == 0x0)
+        {
+            return 0x0;
+        }
+
         ShaderModule* shader = new ShaderModule;
         memset(shader, 0, sizeof(*shader));
         VulkanContext* context = (VulkanContext*) _context;
 
-        VkResult res = CreateShaderModule(context->m_LogicalDevice.m_Device, ddf->m_Source.m_Data, ddf->m_Source.m_Count, VK_SHADER_STAGE_FRAGMENT_BIT, shader);
+        VkResult res = CreateShaderModule(context->m_LogicalDevice.m_Device, ddf_shader->m_Source.m_Data, ddf_shader->m_Source.m_Count, VK_SHADER_STAGE_FRAGMENT_BIT, shader);
         CHECK_VK_ERROR(res);
 
-        CreateShaderMeta(ddf, &shader->m_ShaderMeta);
+        CreateShaderMeta(&ddf->m_Reflection, &shader->m_ShaderMeta);
 
         if (!ValidateShaderModule(context, shader, error_buffer, error_buffer_size))
         {
@@ -2479,6 +2491,10 @@ bail:
             ShaderResourceBinding& res            = resources[i];
             VkDescriptorSetLayoutBinding& binding = bindings[res.m_Set][res.m_Binding];
             ProgramResourceBinding& program_resource_binding = program->m_ResourceBindings[res.m_Set][res.m_Binding];
+
+        #if 0
+            dmLogInfo("    name=%s, set=%d, binding=%d", res.m_Name, res.m_Set, res.m_Binding);
+        #endif
 
             if (binding.descriptorCount == 0)
             {
@@ -2648,10 +2664,15 @@ bail:
         DestroyShaderMeta(shader->m_ShaderMeta);
     }
 
-    static bool ReloadShader(ShaderModule* shader, ShaderDesc::Shader* ddf, VkShaderStageFlagBits stage_flag)
+    static bool ReloadShader(ShaderModule* shader, ShaderDesc* ddf, VkShaderStageFlagBits stage_flag)
     {
+        ShaderDesc::Shader* ddf_shader = GetShaderProgram((HContext) g_VulkanContext, ddf);
+        if (ddf_shader == 0x0)
+        {
+            return false;
+        }
         ShaderModule tmp_shader;
-        VkResult res = CreateShaderModule(g_VulkanContext->m_LogicalDevice.m_Device, ddf->m_Source.m_Data, ddf->m_Source.m_Count, stage_flag, &tmp_shader);
+        VkResult res = CreateShaderModule(g_VulkanContext->m_LogicalDevice.m_Device, ddf_shader->m_Source.m_Data, ddf_shader->m_Source.m_Count, stage_flag, &tmp_shader);
         if (res == VK_SUCCESS)
         {
             DestroyShader(shader);
@@ -2661,19 +2682,19 @@ bail:
             shader->m_Hash    = tmp_shader.m_Hash;
             shader->m_Module  = tmp_shader.m_Module;
 
-            CreateShaderMeta(ddf, &shader->m_ShaderMeta);
+            CreateShaderMeta(&ddf->m_Reflection, &shader->m_ShaderMeta);
             return true;
         }
 
         return false;
     }
 
-    static bool VulkanReloadVertexProgram(HVertexProgram prog, ShaderDesc::Shader* ddf)
+    static bool VulkanReloadVertexProgram(HVertexProgram prog, ShaderDesc* ddf)
     {
         return ReloadShader((ShaderModule*) prog, ddf, VK_SHADER_STAGE_VERTEX_BIT);
     }
 
-    static bool VulkanReloadFragmentProgram(HFragmentProgram prog, ShaderDesc::Shader* ddf)
+    static bool VulkanReloadFragmentProgram(HFragmentProgram prog, ShaderDesc* ddf)
     {
         return ReloadShader((ShaderModule*) prog, ddf, VK_SHADER_STAGE_FRAGMENT_BIT);
     }
@@ -2692,9 +2713,9 @@ bail:
         delete shader;
     }
 
-    static ShaderDesc::Language VulkanGetShaderProgramLanguage(HContext context, ShaderDesc::ShaderClass shader_class)
+    static bool VulkanIsShaderLanguageSupported(HContext context, ShaderDesc::Language language, ShaderDesc::ShaderType shader_type)
     {
-        return ShaderDesc::LANGUAGE_SPIRV;
+        return language == ShaderDesc::LANGUAGE_SPIRV;
     }
 
     static ShaderDesc::Language VulkanGetProgramLanguage(HProgram program)
@@ -2728,7 +2749,7 @@ bail:
         return true;
     }
 
-    static bool VulkanReloadComputeProgram(HComputeProgram prog, ShaderDesc::Shader* ddf)
+    static bool VulkanReloadComputeProgram(HComputeProgram prog, ShaderDesc* ddf)
     {
         return ReloadShader((ShaderModule*) prog, ddf, VK_SHADER_STAGE_COMPUTE_BIT);
     }
@@ -2872,7 +2893,7 @@ bail:
         uint32_t member      = UNIFORM_LOCATION_GET_FS(base_location);
         assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
 
-        ProgramResourceBinding& pgm_res          = program_ptr->m_ResourceBindings[set][binding];
+        ProgramResourceBinding& pgm_res                   = program_ptr->m_ResourceBindings[set][binding];
         const dmArray<ShaderResourceTypeInfo>& type_infos = *pgm_res.m_TypeInfos;
         const ShaderResourceTypeInfo&           type_info = type_infos[pgm_res.m_Res->m_Type.m_TypeIndex];
 
@@ -2892,7 +2913,7 @@ bail:
         uint32_t member      = UNIFORM_LOCATION_GET_FS(base_location);
         assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
 
-        ProgramResourceBinding& pgm_res          = program_ptr->m_ResourceBindings[set][binding];
+        ProgramResourceBinding& pgm_res                   = program_ptr->m_ResourceBindings[set][binding];
         const dmArray<ShaderResourceTypeInfo>& type_infos = *pgm_res.m_TypeInfos;
         const ShaderResourceTypeInfo&           type_info = type_infos[pgm_res.m_Res->m_Type.m_TypeIndex];
 
@@ -4202,15 +4223,21 @@ bail:
         return false;
     }
 
-    static HComputeProgram VulkanNewComputeProgram(HContext _context, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size)
+    static HComputeProgram VulkanNewComputeProgram(HContext _context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
+        ShaderDesc::Shader* ddf_shader = GetShaderProgram(_context, ddf);
+        if (ddf_shader == 0x0)
+        {
+            return 0x0;
+        }
+
         VulkanContext* context = (VulkanContext*) _context;
         ShaderModule* shader   = new ShaderModule;
         memset(shader, 0, sizeof(*shader));
 
-        VkResult res = CreateShaderModule(context->m_LogicalDevice.m_Device, ddf->m_Source.m_Data, ddf->m_Source.m_Count, VK_SHADER_STAGE_COMPUTE_BIT, shader);
+        VkResult res = CreateShaderModule(context->m_LogicalDevice.m_Device, ddf_shader->m_Source.m_Data, ddf_shader->m_Source.m_Count, VK_SHADER_STAGE_COMPUTE_BIT, shader);
         CHECK_VK_ERROR(res);
-        CreateShaderMeta(ddf, &shader->m_ShaderMeta);
+        CreateShaderMeta(&ddf->m_Reflection, &shader->m_ShaderMeta);
 
         if (!ValidateShaderModule(context, shader, error_buffer, error_buffer_size))
         {

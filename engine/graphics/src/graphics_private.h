@@ -177,8 +177,9 @@ namespace dmGraphics
     ShaderDesc::Language GetShaderProgramLanguage(HContext context);
     uint32_t             GetShaderTypeSize(ShaderDesc::ShaderDataType type);
     Type                 ShaderDataTypeToGraphicsType(ShaderDesc::ShaderDataType shader_type);
+    ShaderDesc::Shader*  GetShaderProgram(HContext context, ShaderDesc* shader_desc);
 
-    void                 CreateShaderMeta(ShaderDesc::Shader* ddf, ShaderMeta* meta);
+    void                 CreateShaderMeta(ShaderDesc::ShaderReflection* ddf, ShaderMeta* meta);
     void                 DestroyShaderMeta(ShaderMeta& meta);
     bool                 GetUniformIndices(const dmArray<ShaderResourceBinding>& uniforms, dmhash_t name_hash, uint64_t* index_out, uint64_t* index_member_out);
 
@@ -220,7 +221,7 @@ namespace dmGraphics
     uint64_t GetDrawCount();
     void     GetTextureFilters(HContext context, uint32_t unit, TextureFilter& min_filter, TextureFilter& mag_filter);
     void     EnableVertexDeclaration(HContext _context, HVertexDeclaration vertex_declaration, uint32_t binding_index);
-    void     SetOverrideShaderLanguage(HContext context, ShaderDesc::ShaderClass shader_class, ShaderDesc::Language language);
+    void     SetOverrideShaderLanguage(HContext context, ShaderDesc::ShaderType shader_class, ShaderDesc::Language language);
 }
 
 #endif // #ifndef DM_GRAPHICS_PRIVATE_H

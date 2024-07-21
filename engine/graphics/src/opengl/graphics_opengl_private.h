@@ -73,6 +73,7 @@ namespace dmGraphics
     struct OpenGLShader
     {
         GLuint               m_Id;
+        ShaderMeta           m_ShaderMeta;
         ShaderDesc::Language m_Language;
     };
 
@@ -82,6 +83,18 @@ namespace dmGraphics
         int32_t  m_Location;
         GLint    m_Count;
         GLenum   m_Type;
+    };
+
+    struct OpenGLUniformBuffer
+    {
+        dmArray<GLint> m_Indices;
+        dmArray<GLint> m_Offsets;
+        uint8_t*       m_BlockMemory;
+        GLuint         m_Id;
+        GLint          m_Binding;
+        GLint          m_BlockSize;
+        GLint          m_ActiveUniforms;
+        uint8_t        m_Dirty : 1;
     };
 
     struct OpenGLUniform
@@ -100,6 +113,7 @@ namespace dmGraphics
         GLuint                         m_Id;
         ShaderDesc::Language           m_Language;
         dmArray<OpenGLVertexAttribute> m_Attributes;
+        dmArray<OpenGLUniformBuffer>   m_UniformBuffers;
         dmArray<OpenGLUniform>         m_Uniforms;
     };
 

@@ -24,8 +24,8 @@
             [editor.types :as types]
             [editor.workspace :as workspace]
             [schema.core :as s])
-  (:import [com.dynamo.bob.pipeline ShaderProgramBuilder ShaderUtil$ES2ToES3Converter$ShaderType]
-           [com.dynamo.graphics.proto Graphics$ShaderDesc Graphics$ShaderDesc$Language]))
+  (:import [com.dynamo.bob.pipeline ShaderProgramBuilderEditor]
+           [com.dynamo.graphics.proto Graphics$ShaderDesc Graphics$ShaderDesc$Language Graphics$ShaderDesc$ShaderType]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -103,12 +103,12 @@
                    :view-types [:code :default]
                    :view-opts glsl-opts}])
 
-(defn shader-stage-from-ext
-  ^ShaderUtil$ES2ToES3Converter$ShaderType [^String resource-ext]
+(defn shader-type-from-ext
+  ^Graphics$ShaderDesc$ShaderType [^String resource-ext]
   (case resource-ext
-    "fp" ShaderUtil$ES2ToES3Converter$ShaderType/FRAGMENT_SHADER
-    "vp" ShaderUtil$ES2ToES3Converter$ShaderType/VERTEX_SHADER
-    "cp" ShaderUtil$ES2ToES3Converter$ShaderType/COMPUTE_SHADER))
+    "fp" Graphics$ShaderDesc$ShaderType/SHADER_TYPE_FRAGMENT
+    "vp" Graphics$ShaderDesc$ShaderType/SHADER_TYPE_VERTEX
+    "cp" Graphics$ShaderDesc$ShaderType/SHADER_TYPE_COMPUTE))
 
 (defn shader-language-to-java
   ^Graphics$ShaderDesc$Language [language]
@@ -118,6 +118,7 @@
     :language-glsl-sm430 Graphics$ShaderDesc$Language/LANGUAGE_GLSL_SM430
     :language-gles-sm100 Graphics$ShaderDesc$Language/LANGUAGE_GLES_SM100
     :language-gles-sm300 Graphics$ShaderDesc$Language/LANGUAGE_GLES_SM300
+    :language-glsl-sm330 Graphics$ShaderDesc$Language/LANGUAGE_GLSL_SM330
     :language-spirv Graphics$ShaderDesc$Language/LANGUAGE_SPIRV))
 
 (defn- error-string->error-value [^String error-string]
@@ -126,12 +127,12 @@
 (defonce ^:private ^"[Lcom.dynamo.graphics.proto.Graphics$ShaderDesc$Language;" java-shader-languages-without-spirv
   (into-array Graphics$ShaderDesc$Language
               (map shader-language-to-java
-                   [:language-glsl-sm140 :language-gles-sm300 :language-gles-sm100 :language-glsl-sm430])))
+                   [:language-glsl-sm140 :language-glsl-sm330 :language-gles-sm300 :language-gles-sm100 :language-glsl-sm430])))
 
 (defonce ^:private ^"[Lcom.dynamo.graphics.proto.Graphics$ShaderDesc$Language;" java-shader-languages-with-spirv
   (into-array Graphics$ShaderDesc$Language
               (map shader-language-to-java
-                   [:language-glsl-sm140 :language-gles-sm300 :language-gles-sm100 :language-glsl-sm430 :language-spirv])))
+                   [:language-glsl-sm140 :language-glsl-sm330 :language-gles-sm300 :language-gles-sm100 :language-glsl-sm430 :language-spirv])))
 
 (defn- build-shader [build-resource _dep-resources user-data]
   (let [{:keys [compile-spirv ^long max-page-count ^String shader-source resource-ext]} user-data
@@ -139,8 +140,8 @@
         java-shader-languages (if compile-spirv
                                 java-shader-languages-with-spirv
                                 java-shader-languages-without-spirv)
-        shader-stage (shader-stage-from-ext resource-ext)
-        result (ShaderProgramBuilder/makeShaderDescWithVariants resource-path shader-source shader-stage java-shader-languages max-page-count)
+        shader-stage (shader-type-from-ext resource-ext)
+        result (ShaderProgramBuilderEditor/makeShaderDescWithVariants resource-path shader-source shader-stage java-shader-languages max-page-count)
         compile-warning-messages (.-buildWarnings result)
         compile-error-values (mapv error-string->error-value compile-warning-messages)]
     (g/precluding-errors compile-error-values

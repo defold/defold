@@ -15,7 +15,7 @@
 
 
 # License: MIT
-# Copyright 2023 The Defold Foundation
+# Copyright 2022 The Defold Foundation
 
 PLATFORM=$1
 PWD=$(pwd)
@@ -27,24 +27,38 @@ if [ -z "$PLATFORM" ]; then
     exit 1
 fi
 
+eval $(python ..PATH_TO../build_tools/set_sdk_vars.py VERSION_MACOSX_MIN)
+OSX_MIN_SDK_VERSION = $VERSION_MACOSX_MIN
+
+
 CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Release ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DCMAKE_OSX_DEPLOYMENT_TARGET=${OSX_MIN_SDK_VERSION} ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DSHADERC_SKIP_TESTS=ON ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DSHADERC_SKIP_EXAMPLES=ON ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DSHADERC_SKIP_COPYRIGHT_CHECK=ON ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DSHADERC_SKIP_INSTALL=ON ${CMAKE_FLAGS}"
+# static link on MSVC
+CMAKE_FLAGS="-DSHADERC_ENABLE_SHARED_CRT=OFF ${CMAKE_FLAGS}"
+# Size opt
+CMAKE_FLAGS="-DSPIRV_CROSS_EXCEPTIONS_TO_ASSERTIONS=ON ${CMAKE_FLAGS}"
 
 case $PLATFORM in
     arm64-macos)
         CMAKE_FLAGS="-DCMAKE_OSX_ARCHITECTURES=arm64 ${CMAKE_FLAGS}"
-        CMAKE_FLAGS="-DCMAKE_OSX_DEPLOYMENT_TARGET=12.0 ${CMAKE_FLAGS}"
         ;;
     x86_64-macos)
         CMAKE_FLAGS="-DCMAKE_OSX_ARCHITECTURES=x86_64 ${CMAKE_FLAGS}"
-        CMAKE_FLAGS="-DCMAKE_OSX_DEPLOYMENT_TARGET=11.0 ${CMAKE_FLAGS}"
         ;;
 esac
 
-if [ ! -d "${SOURCE_DIR}" ]; then
-    git clone https://github.com/KhronosGroup/SPIRV-Tools.git ${SOURCE_DIR}
-fi
+# Follow the build instructions on https://github.com/google/shaderc
+if [ ! -d "$SOURCE_DIR" ]; then
+    git clone https://github.com/KhronosGroup/glslang.git $SOURCE_DIR
 
-python ${SOURCE_DIR}/utils/git-sync-deps
+    pushd $SOURCE_DIR
+    python update_glslang_sources.py
+    popd
+fi
 
 # Build
 
@@ -52,49 +66,41 @@ mkdir -p ${BUILD_DIR}
 
 pushd $BUILD_DIR
 
-echo "CMAKE_FLAGS: '${CMAKE_FLAGS}"
-cmake ${CMAKE_FLAGS} ${SOURCE_DIR}
-cmake --build . --config Release
+cmake ${CMAKE_FLAGS} $SOURCE_DIR
+cmake --build . --config Release -j 8
+
+mkdir -p ./bin/$PLATFORM
 
 EXE_SUFFIX=
 case $PLATFORM in
     win32|x86_64-win32)
         EXE_SUFFIX=.exe
-        SRC_EXE_SPIRV_OPT=./tools/Release/spirv-opt${EXE_SUFFIX}
-        SRC_EXE_SPIRV_LINK=./tools/Release/spirv-link${EXE_SUFFIX}
+        cp -v ./StandAlone/Release/glslang${EXE_SUFFIX} ./bin/$PLATFORM
         ;;
     *)
-        SRC_EXE_SPIRV_OPT=./tools/spirv-opt${EXE_SUFFIX}
-        SRC_EXE_SPIRV_LINK=./tools/spirv-link${EXE_SUFFIX}
+        cp -v ./StandAlone/glslang${EXE_SUFFIX} ./bin/$PLATFORM
         ;;
 esac
-
-TARGET_EXE_SPIRV_OPT=./bin/$PLATFORM/spirv-opt${EXE_SUFFIX}
-TARGET_EXE_SPIRV_LINK=./bin/$PLATFORM/spirv-link${EXE_SUFFIX}
-
-mkdir -p ./bin/$PLATFORM
-
-cp -v ${SRC_EXE_SPIRV_OPT} ${TARGET_EXE_SPIRV_OPT}
-cp -v ${SRC_EXE_SPIRV_LINK} ${TARGET_EXE_SPIRV_LINK}
 
 case $PLATFORM in
     win32|x86_64-win32)
         ;;
     *)
-        strip ${TARGET_EXE_SPIRV_OPT}
-        strip ${TARGET_EXE_SPIRV_LINK}
+        strip ./bin/$PLATFORM/glslang${EXE_SUFFIX}
         ;;
 esac
 
 popd
 
 # Package
-
 VERSION=$(cd $SOURCE_DIR && git rev-parse --short HEAD)
 echo VERSION=${VERSION}
 
-PACKAGE=spirv-tools-${VERSION}-${PLATFORM}.tar.gz
+PACKAGE=glslang-${VERSION}-${PLATFORM}.tar.gz
 
 pushd $BUILD_DIR
-tar cfvz $PACKAGE bin
+tar cfvz ${PACKAGE} bin
 popd
+
+echo "Wrote ${PACKAGE}"
+
