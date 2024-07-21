@@ -247,11 +247,13 @@ TEST_F(dmRenderMaterialTest, TestMaterialInstanceNotSupported)
     // Turn off all context features manually
     null_context->m_ContextFeatures = 0;
 
-    dmGraphics::ShaderDesc::Shader vp_shader = MakeDDFShader(vs_src, strlen(vs_src));
-    dmGraphics::HVertexProgram vp            = dmGraphics::NewVertexProgram(m_GraphicsContext, &vp_shader, 0, 0);
+    dmGraphics::ShaderDesc::Shader vp_shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, vs_src, strlen(vs_src));
+    dmGraphics::ShaderDesc vs_desc           = MakeDDFShaderDesc(&vp_shader, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, 0, 0, 0, 0);
+    dmGraphics::HVertexProgram vp            = dmGraphics::NewVertexProgram(m_GraphicsContext, &vs_desc, 0, 0);
 
-    dmGraphics::ShaderDesc::Shader fp_shader = MakeDDFShader("foo", 3);
-    dmGraphics::HFragmentProgram fp          = dmGraphics::NewFragmentProgram(m_GraphicsContext, &fp_shader, 0, 0);
+    dmGraphics::ShaderDesc::Shader fp_shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, "foo", 3);
+    dmGraphics::ShaderDesc fs_desc           = MakeDDFShaderDesc(&fp_shader, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, 0, 0, 0, 0);
+    dmGraphics::HFragmentProgram fp          = dmGraphics::NewFragmentProgram(m_GraphicsContext, &fs_desc, 0, 0);
     dmRender::HMaterial material             = dmRender::NewMaterial(m_RenderContext, vp, fp);
 
     dmGraphics::HVertexDeclaration vx_decl_shared = dmRender::GetVertexDeclaration(material);
@@ -274,11 +276,13 @@ TEST_F(dmRenderMaterialTest, TestMaterialInstanceAttributes)
         attribute mat3 mtx_normal;\n \
         attribute mat4 mtx_world;\n";
 
-    dmGraphics::ShaderDesc::Shader vp_shader = MakeDDFShader(vs_src, strlen(vs_src));
-    dmGraphics::HVertexProgram vp            = dmGraphics::NewVertexProgram(m_GraphicsContext, &vp_shader, 0, 0);
+    dmGraphics::ShaderDesc::Shader vp_shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, vs_src, strlen(vs_src));
+    dmGraphics::ShaderDesc vs_desc           = MakeDDFShaderDesc(&vp_shader, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, 0, 0, 0, 0);
+    dmGraphics::HVertexProgram vp            = dmGraphics::NewVertexProgram(m_GraphicsContext, &vs_desc, 0, 0);
 
-    dmGraphics::ShaderDesc::Shader fp_shader = MakeDDFShader("foo", 3);
-    dmGraphics::HFragmentProgram fp          = dmGraphics::NewFragmentProgram(m_GraphicsContext, &fp_shader, 0, 0);
+    dmGraphics::ShaderDesc::Shader fp_shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, "foo", 3);
+    dmGraphics::ShaderDesc fs_desc           = MakeDDFShaderDesc(&fp_shader, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, 0, 0, 0, 0);
+    dmGraphics::HFragmentProgram fp          = dmGraphics::NewFragmentProgram(m_GraphicsContext, &fs_desc, 0, 0);
     dmRender::HMaterial material             = dmRender::NewMaterial(m_RenderContext, vp, fp);
 
     const dmGraphics::VertexAttribute* attributes;
