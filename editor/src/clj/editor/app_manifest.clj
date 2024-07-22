@@ -325,6 +325,11 @@
       (exclude-libs-toggles all-platforms ["liveupdate"])
       (libs-toggles all-platforms ["liveupdate_null"]))))
 
+(def types-setting
+  (make-check-box-setting
+    (concat
+      (generic-contains-toggles all-platforms :excludeSymbols ["ScriptTypesExt"]))))
+
 (def basis-transcoder-setting
   (make-check-box-setting
     (concat
@@ -481,6 +486,10 @@
             (dynamic edit-type (g/constantly {:type g/Bool}))
             (value (setting-property-getter image-setting))
             (set (setting-property-setter image-setting)))
+  (property exclude-types g/Any
+            (dynamic edit-type (g/constantly {:type g/Bool}))
+            (value (setting-property-getter types-setting))
+            (set (setting-property-setter types-setting)))
   (property exclude-basis-transcoder g/Any
             (dynamic edit-type (g/constantly {:type g/Bool}))
             (value (setting-property-getter basis-transcoder-setting))
