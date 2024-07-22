@@ -1,5 +1,5 @@
 // Generated, do not edit!
-// Generated with cwd=/Users/mathiaswesterdahl/work/defold/engine/resource and cmd=/Users/mathiaswesterdahl/work/defold/scripts/dmsdk/gen_sdk.py -i /Users/mathiaswesterdahl/work/defold/engine/resource/sdk_gen.json
+// Generated with cwd=/Users/agulev/projects/defold/engine/resource and cmd=/Users/agulev/projects/defold/scripts/dmsdk/gen_sdk.py -i /Users/agulev/projects/defold/engine/resource/sdk_gen.json
 
 // Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
@@ -465,6 +465,13 @@ namespace dmResource
 /*# 
  * Parameters to ResourceReloaded function of the resource type
  * @name ResourceReloadedParams
+ * @language C
+ */
+
+/*# 
+ * Resource type creator desc byte size declaration.
+ * The registered description data passeed to ResourceRegisterTypeCreatorDesc must be of at least this size.
+ * @name ResourceTypeCreatorDescBufferSize
  * @language C
  */
 
