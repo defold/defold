@@ -1466,10 +1466,10 @@ TEST_F(GuiTest, TextureResources)
 
         dmGui::NodeTextureType texture_type;
         dmGui::HTextureSource texture_source = dmGui::GetNodeTexture(gui_comp->m_Scene, box3, &texture_type);
-        ASSERT_EQ(dmGui::NODE_TEXTURE_TYPE_DYNAMIC, texture_type);
+        ASSERT_EQ(dmGui::NODE_TEXTURE_TYPE_TEXTURE, texture_type);
 
-        dmGraphics::HTexture texture_h = (dmGraphics::HTexture) texture_source;
-        ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_GraphicsContext, texture_h));
+        dmGameSystem::TextureResource* texture_res = (dmGameSystem::TextureResource*) texture_source;
+        ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_GraphicsContext, texture_res->m_Texture));
     }
 
     dmGameSystem::FinalizeScriptLibs(m_Scriptlibcontext);
