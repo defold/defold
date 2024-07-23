@@ -75,9 +75,9 @@ namespace dmGameSystem
     static void UpdateCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data, float dt);
     static const CompGuiNodeType* GetCompGuiCustomType(const CompGuiContext* gui_context, uint32_t custom_type);
 
-    static dmGui::HTextureSource NewTextureResourceCallback(dmGui::HScene scene, const dmhash_t path, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer);
-    static void                  DeleteTextureResourceCallback(dmGui::HScene scene, dmhash_t texture_hash, dmGui::HTextureSource texture_source);
-    static void                  SetTextureResourceCallback(dmGui::HScene scene, dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer);
+    static dmGui::HTextureSource NewTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer);
+    static void                  DeleteTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, dmGui::HTextureSource texture_source);
+    static void                  SetTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer);
 
     static inline dmRender::HMaterial GetNodeMaterial(void* material_res);
 
@@ -2274,7 +2274,7 @@ namespace dmGameSystem
         return (dmGui::HTextureSource) resource_out;
     }
 
-    static void DeleteTextureResourceCallback(dmGui::HScene scene, dmhash_t path_hash, dmGui::HTextureSource texture_source)
+    static void DeleteTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, dmGui::HTextureSource texture_source)
     {
         GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
         GuiSceneResource* resource = component->m_Resource;
@@ -2286,7 +2286,7 @@ namespace dmGameSystem
         ReleaseDynamicResource(dmGameObject::GetFactory(component->m_Instance), dmGameObject::GetCollection(component->m_Instance), resolved_path_hash);
     }
 
-    static void SetTextureResourceCallback(dmGui::HScene scene, dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer)
+    static void SetTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer)
     {
         GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
         GuiSceneResource* resource = component->m_Resource;
@@ -2472,10 +2472,6 @@ namespace dmGameSystem
 
         dmGui::RenderSceneParams rp;
         rp.m_RenderNodes = &RenderNodes;
-
-        //rp.m_NewTexture = &NewTexture;
-        //rp.m_DeleteTexture = &DeleteTexture;
-        //rp.m_SetTextureData = &SetTextureData;
 
         RenderGuiContext render_gui_context;
         render_gui_context.m_RenderContext = gui_context->m_RenderContext;

@@ -164,12 +164,12 @@ namespace dmGui
     /**
      * Callback to delete a texture resource
      */
-    typedef void (*DeleteTextureResourceCallback)(HScene scene, dmhash_t texture_hash, HTextureSource texture_source);
+    typedef void (*DeleteTextureResourceCallback)(HScene scene, const dmhash_t path_hash, HTextureSource texture_source);
 
     /**
      * Callback to set the data for a texture resource
      */
-    typedef void (*SetTextureResourceCallback)(HScene scene, HTextureSource texture, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer);
+    typedef void (*SetTextureResourceCallback)(HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer);
 
     /**
      * Scene creation
@@ -768,9 +768,6 @@ namespace dmGui
      * @struct
      * @name RenderSceneParams
      * @member m_RenderNodes [type:RenderNodes] Callback to render nodes
-     * @member m_NewTexture [type:NewTexture] Callback to create a new texture
-     * @member m_DeleteTexture [type:DeleteTexture] Callback to delete a texture
-     * @member m_SetTextureData [type:SetTextureData] Callback to update texture data
      */
     struct RenderSceneParams
     {
@@ -779,10 +776,7 @@ namespace dmGui
             memset(this, 0, sizeof(*this));
         }
 
-        RenderNodes                 m_RenderNodes;
-        NewTexture                  m_NewTexture;
-        DeleteTexture               m_DeleteTexture;
-        SetTextureData              m_SetTextureData;
+        RenderNodes m_RenderNodes;
     };
 
     /** Renders a gui scene

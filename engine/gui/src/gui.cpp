@@ -636,7 +636,7 @@ namespace dmGui
         TextureInfo* t = scene->m_DynamicTextures.Get(texture_hash);
         if (!t)
         {
-            return RESULT_RESOURCE_NOT_FOUND;
+            return RESULT_INVAL_ERROR;
         }
 
         void* data = MakeDynamicTextureData(width, height, type, flip, buffer, buffer_size);
