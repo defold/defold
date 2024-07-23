@@ -103,6 +103,9 @@ namespace dmPlatform
 
     static void OnContentScaleCallback(GLFWwindow* glfw_window, float xscale, float yscale)
     {
+        (void)xscale;
+        (void)yscale;
+
         int width, height;
         glfwGetWindowSize(glfw_window, &width, &height);
         OnWindowResize(glfw_window, width, height);
