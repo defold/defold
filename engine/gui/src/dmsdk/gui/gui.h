@@ -116,14 +116,12 @@ namespace dmGui
      * @member NODE_TEXTURE_TYPE_NONE
      * @member NODE_TEXTURE_TYPE_TEXTURE
      * @member NODE_TEXTURE_TYPE_TEXTURE_SET
-     * @member NODE_TEXTURE_TYPE_DYNAMIC
      */
     enum NodeTextureType
     {
         NODE_TEXTURE_TYPE_NONE,
         NODE_TEXTURE_TYPE_TEXTURE,
         NODE_TEXTURE_TYPE_TEXTURE_SET,
-        NODE_TEXTURE_TYPE_DYNAMIC
     };
 
     // NOTE: These enum values are duplicated in scene desc in gamesys (gui_ddf.proto)

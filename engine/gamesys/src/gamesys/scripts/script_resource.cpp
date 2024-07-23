@@ -30,6 +30,7 @@
 #include "script_buffer.h"
 
 #include "../gamesys.h"
+#include "../gamesys_private.h"
 #include "../resources/res_buffer.h"
 #include "../resources/res_texture.h"
 #include "../resources/res_textureset.h"
@@ -257,24 +258,6 @@ struct SetTextureAsyncRequest
     int32_t                    m_BufferRef;
     HOpaqueHandle              m_Handle;
     bool                       m_UseUploadBuffer;
-};
-
-struct CreateTextureResourceParams
-{
-    const char*                               m_Path;
-    dmhash_t                                  m_PathHash;
-    dmGameObject::HCollection                 m_Collection;
-    dmGraphics::TextureType                   m_Type;
-    dmGraphics::TextureFormat                 m_Format;
-    dmGraphics::TextureImage::Type            m_TextureType;
-    dmGraphics::TextureImage::TextureFormat   m_TextureFormat;
-    dmGraphics::TextureImage::CompressionType m_CompressionType;
-    dmBuffer::HBuffer                         m_Buffer;
-    uint32_t                                  m_Width;
-    uint32_t                                  m_Height;
-    uint32_t                                  m_MaxMipMaps;
-    uint32_t                                  m_TextureBpp;
-    uint32_t                                  m_UsageFlags;
 };
 
 struct ResourceModule
@@ -559,139 +542,6 @@ static float CheckTableNumber(lua_State* L, int index, const char* name, float d
     return CheckTableValue<float>(L, index, name, default_value);
 }
 
-static dmGraphics::TextureImage::TextureFormat GraphicsTextureFormatToImageFormat(int textureformat)
-{
-    #define GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(x) case dmGraphics::x: return dmGraphics::TextureImage::x
-    switch(textureformat)
-    {
-        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_LUMINANCE);
-        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RGB);
-        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RGBA);
-        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RGB_PVRTC_2BPPV1);
-        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RGB_PVRTC_4BPPV1);
-        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1);
-        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1);
-        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RGB_ETC1);
-        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RGBA_ETC2);
-        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RGBA_ASTC_4x4);
-        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RGB_BC1);
-        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RGBA_BC3);
-        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_R_BC4);
-        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RG_BC5);
-        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RGBA_BC7);
-        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RGB16F);
-        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RGB32F);
-        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RGBA16F);
-        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RGBA32F);
-        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_R16F);
-        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RG16F);
-        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_R32F);
-        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RG32F);
-    };
-    #undef GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE
-    return (dmGraphics::TextureImage::TextureFormat) -1;
-}
-
-static dmGraphics::TextureImage::Type GraphicsTextureTypeToImageType(dmGraphics::TextureType texturetype)
-{
-    switch(texturetype)
-    {
-        case dmGraphics::TEXTURE_TYPE_2D:       return dmGraphics::TextureImage::TYPE_2D;
-        case dmGraphics::TEXTURE_TYPE_2D_ARRAY: return dmGraphics::TextureImage::TYPE_2D_ARRAY;
-        case dmGraphics::TEXTURE_TYPE_CUBE_MAP: return dmGraphics::TextureImage::TYPE_CUBEMAP;
-        case dmGraphics::TEXTURE_TYPE_IMAGE_2D: return dmGraphics::TextureImage::TYPE_2D_IMAGE;
-        default: assert(0);
-    }
-    dmLogError("Unsupported texture type (%d)", texturetype);
-    return (dmGraphics::TextureImage::Type) -1;
-}
-
-static inline uint32_t GetLayerCount(dmGraphics::TextureType type)
-{
-    return type == dmGraphics::TEXTURE_TYPE_CUBE_MAP ? 6 : 1;
-}
-
-static void MakeTextureImage(CreateTextureResourceParams params, dmGraphics::TextureImage* texture_image)
-{
-    uint32_t* mip_map_sizes              = new uint32_t[params.m_MaxMipMaps];
-    uint32_t* mip_map_offsets            = new uint32_t[params.m_MaxMipMaps];
-    uint32_t* mip_map_offsets_compressed = new uint32_t[1];
-    uint8_t layer_count                  = GetLayerCount(params.m_Type);
-
-    uint32_t data_size = 0;
-    uint16_t mm_width  = params.m_Width;
-    uint16_t mm_height = params.m_Height;
-    for (uint32_t i = 0; i < params.m_MaxMipMaps; ++i)
-    {
-        mip_map_sizes[i]    = dmMath::Max(mm_width, mm_height);
-        mip_map_offsets[i]  = (data_size / 8);
-        data_size          += mm_width * mm_height * params.m_TextureBpp * layer_count;
-        mm_width           /= 2;
-        mm_height          /= 2;
-    }
-    assert(data_size > 0);
-
-    data_size                *= layer_count;
-    uint32_t image_data_size  = data_size / 8; // bits -> bytes for compression formats
-    uint8_t* image_data       = 0;
-
-    if (params.m_Buffer)
-    {
-        uint8_t* data     = 0;
-        uint32_t datasize = 0;
-        dmBuffer::GetBytes(params.m_Buffer, (void**)&data, &datasize);
-        image_data      = data;
-        image_data_size = datasize;
-    }
-    else
-    {
-        image_data = new uint8_t[image_data_size];
-        memset(image_data, 0, image_data_size);
-    }
-
-    // Note: Right now we only support creating compressed 2D textures with 1 mipmap,
-    //       so we only need a pointer here for the data offset.
-    mip_map_offsets_compressed[0] = image_data_size;
-
-    dmGraphics::TextureImage::Image* image = new dmGraphics::TextureImage::Image();
-    texture_image->m_Alternatives.m_Data   = image;
-    texture_image->m_Alternatives.m_Count  = 1;
-    texture_image->m_Type                  = params.m_TextureType;
-    texture_image->m_Count                 = layer_count;
-    texture_image->m_UsageFlags            = params.m_UsageFlags;
-
-    image->m_Width                = params.m_Width;
-    image->m_Height               = params.m_Height;
-    image->m_OriginalWidth        = params.m_Width;
-    image->m_OriginalHeight       = params.m_Height;
-    image->m_Format               = params.m_TextureFormat;
-    image->m_CompressionType      = params.m_CompressionType;
-    image->m_CompressionFlags     = 0;
-    image->m_Data.m_Data          = image_data;
-    image->m_Data.m_Count         = image_data_size;
-
-    image->m_MipMapOffset.m_Data  = mip_map_offsets;
-    image->m_MipMapOffset.m_Count = params.m_MaxMipMaps;
-    image->m_MipMapSize.m_Data    = mip_map_sizes;
-    image->m_MipMapSize.m_Count   = params.m_MaxMipMaps;
-    image->m_MipMapSizeCompressed.m_Data  = mip_map_offsets_compressed;
-    image->m_MipMapSizeCompressed.m_Count = 1;
-}
-
-static void DestroyTextureImage(dmGraphics::TextureImage& texture_image, bool destroy_image_data)
-{
-    for (int i = 0; i < texture_image.m_Alternatives.m_Count; ++i)
-    {
-        dmGraphics::TextureImage::Image& image = texture_image.m_Alternatives.m_Data[i];
-        delete[] image.m_MipMapOffset.m_Data;
-        delete[] image.m_MipMapSize.m_Data;
-        delete[] image.m_MipMapSizeCompressed.m_Data;
-        if (destroy_image_data)
-            delete[] image.m_Data.m_Data;
-    }
-    delete[] texture_image.m_Alternatives.m_Data;
-}
-
 static void CheckTextureResource(lua_State* L, int i, const char* field_name, dmhash_t* texture_path_out, dmGraphics::HTexture* texture_out)
 {
     lua_getfield(L, i, field_name);
@@ -787,6 +637,7 @@ static int CheckCreateTextureResourceParams(lua_State* L, CreateTextureResourceP
     params->m_Buffer          = buffer;
     params->m_Collection      = dmGameObject::GetCollection(sender_instance);
     params->m_UsageFlags      = usage_flags;
+    params->m_Data            = 0;
     return 0;
 }
 
@@ -983,25 +834,13 @@ static int CreateTexture(lua_State* L)
     CreateTextureResourceParams create_params = {};
     CheckCreateTextureResourceParams(L, &create_params);
 
-    dmGraphics::TextureImage texture_image = {};
-    MakeTextureImage(create_params, &texture_image);
-
-    dmArray<uint8_t> ddf_buffer;
-    dmDDF::Result ddf_result = dmDDF::SaveMessageToArray(&texture_image, dmGraphics::TextureImage::m_DDFDescriptor, ddf_buffer);
-    assert(ddf_result == dmDDF::RESULT_OK);
-
-    void* resource = 0x0;
-    dmResource::Result res = dmResource::CreateResource(g_ResourceModule.m_Factory, create_params.m_Path, ddf_buffer.Begin(), ddf_buffer.Size(), &resource);
-
-    DestroyTextureImage(texture_image, create_params.m_Buffer == 0);
-
+    void* resource_out = 0;
+    dmResource::Result res = CreateTextureResource(g_ResourceModule.m_Factory, create_params, &resource_out);
     if (res != dmResource::RESULT_OK)
     {
         assert(top == lua_gettop(L));
         return ReportPathError(L, res, create_params.m_PathHash);
     }
-
-    dmGameObject::AddDynamicResourceHash(create_params.m_Collection, create_params.m_PathHash);
 
     dmScript::PushHash(L, create_params.m_PathHash);
     assert((top+1) == lua_gettop(L));
@@ -1282,22 +1121,14 @@ static int CreateTextureAsync(lua_State* L)
 static int ReleaseResource(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
-    dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
-
-    HResourceDescriptor rd = dmResource::FindByHash(g_ResourceModule.m_Factory, path_hash);
-    if (!rd)
-    {
-        return DM_LUA_ERROR("Could not get resource: %s", dmHashReverseSafe64(path_hash));
-    }
-
+    dmhash_t path_hash                      = dmScript::CheckHashOrString(L, 1);
     dmGameObject::HInstance sender_instance = dmScript::CheckGOInstance(L);
     dmGameObject::HCollection collection    = dmGameObject::GetCollection(sender_instance);
 
-    // This will remove the entry in the collections list of dynamically allocated resource (if it exists),
-    // but we do the actual release here since we allow releasing arbitrary resources now
-    dmGameObject::RemoveDynamicResourceHash(collection, path_hash);
-    dmResource::Release(g_ResourceModule.m_Factory, dmResource::GetResource(rd));
-
+    if (ReleaseDynamicResource(g_ResourceModule.m_Factory, collection, path_hash) != dmResource::RESULT_OK)
+    {
+        return DM_LUA_ERROR("Could not release resource: %s", dmHashReverseSafe64(path_hash));
+    }
     return 0;
 }
 
@@ -1452,8 +1283,6 @@ static int ReleaseResource(lua_State* L)
  */
 static int SetTexture(lua_State* L)
 {
-    // Note: We only support uploading a single mipmap for a single slice at a time
-    const uint32_t NUM_MIP_MAPS = 1;
     const int32_t DEFAULT_INT_NOT_SET = -1;
 
     int top = lua_gettop(L);
@@ -1493,46 +1322,21 @@ static int SetTexture(lua_State* L)
     uint32_t datasize = 0;
     dmBuffer::GetBytes(buffer_handle, (void**)&data, &datasize);
 
-    dmGraphics::TextureImage::Image image  = {};
-    dmGraphics::TextureImage texture_image = {};
-    texture_image.m_Alternatives.m_Data    = &image;
-    texture_image.m_Alternatives.m_Count   = 1;
-    texture_image.m_Type                   = GraphicsTextureTypeToImageType(type);
-    texture_image.m_Count                  = 1;
+    SetTextureResourceParams params = {};
+    params.m_PathHash               = path_hash;
+    params.m_TextureType            = type;
+    params.m_TextureFormat          = format;
+    params.m_CompressionType        = compression_type;
+    params.m_Data                   = data;
+    params.m_DataSize               = datasize;
+    params.m_Width                  = width;
+    params.m_Height                 = height;
+    params.m_X                      = x;
+    params.m_Y                      = y;
+    params.m_MipMap                 = mipmap;
+    params.m_SubUpdate              = sub_update;
 
-    image.m_Width                = width;
-    image.m_Height               = height;
-    image.m_OriginalWidth        = width;
-    image.m_OriginalHeight       = height;
-    image.m_Format               = GraphicsTextureFormatToImageFormat(format);
-    image.m_CompressionType      = compression_type;
-    image.m_CompressionFlags     = 0;
-    image.m_Data.m_Data          = data;
-    image.m_Data.m_Count         = datasize;
-
-    // Note: When uploading cubemap faces on OpenGL, we expect that the "data size" is **per** slice
-    //       and not the entire data size of the buffer. For vulkan we don't look at this value but instead
-    //       calculate a slice size. Maybe we should do one or the other..
-    uint32_t mip_map_offsets             = 0;
-    uint32_t mip_map_sizes               = datasize / GetLayerCount(type);
-    image.m_MipMapOffset.m_Data          = &mip_map_offsets;
-    image.m_MipMapOffset.m_Count         = NUM_MIP_MAPS;
-    image.m_MipMapSize.m_Data            = &mip_map_sizes;
-    image.m_MipMapSize.m_Count           = NUM_MIP_MAPS;
-    image.m_MipMapSizeCompressed.m_Data  = &mip_map_sizes;
-    image.m_MipMapSizeCompressed.m_Count = NUM_MIP_MAPS;
-
-    ResTextureReCreateParams recreate_params;
-    recreate_params.m_TextureImage = &texture_image;
-
-    ResTextureUploadParams& upload_params = recreate_params.m_UploadParams;
-    upload_params.m_X                     = x;
-    upload_params.m_Y                     = y;
-    upload_params.m_MipMap                = mipmap;
-    upload_params.m_SubUpdate             = sub_update;
-    upload_params.m_UploadSpecificMipmap  = 1;
-
-    dmResource::Result r = dmResource::SetResource(g_ResourceModule.m_Factory, path_hash, (void*) &recreate_params);
+    dmResource::Result r = SetTextureResource(g_ResourceModule.m_Factory, params);
 
     if( r != dmResource::RESULT_OK )
     {
