@@ -609,11 +609,6 @@ public class Bob {
             TimeProfiler.stop();
         }
         project.mount(new ClassLoaderResourceScanner());
-
-        Set<String> skipDirs = new HashSet<String>(Arrays.asList(".git", project.getBuildDirectory(), ".internal", "build"));
-        TimeProfiler.start("findSources");
-        project.findSources(sourceDirectory, skipDirs);
-        TimeProfiler.stop();
     }
 
     private static void validateChoices(String optionName, String value, List<String> validChoices) {

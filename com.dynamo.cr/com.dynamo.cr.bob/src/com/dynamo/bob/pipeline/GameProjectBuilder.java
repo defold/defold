@@ -77,7 +77,7 @@ import com.dynamo.rig.proto.Rig.Skeleton;
 import com.dynamo.rig.proto.Rig.RigScene;
 import com.dynamo.rig.proto.Rig.AnimationSet;
 
-@BuilderParams(name = "GameProjectBuilder", inExts = ".project", outExt = "", createOrder = 1000)
+@BuilderParams(name = "GameProjectBuilder", inExts = ".project", outExt = "")
 public class GameProjectBuilder extends Builder<Void> {
 
     private static Logger logger = Logger.getLogger(GameProjectBuilder.class.getName());

@@ -361,9 +361,6 @@ public class BundlerTest {
 
         setProjectProperties(project);
 
-        Set<String> skipDirs = new HashSet<String>(Arrays.asList(".git", project.getBuildDirectory(), ".internal"));
-
-        project.findSources(contentRoot, skipDirs);
         List<TaskResult> result = project.build(new NullProgress(), "clean", "build", "bundle");
         for (TaskResult taskResult : result) {
             assertTrue(taskResult.toString(), taskResult.isOk());
@@ -484,7 +481,6 @@ public class BundlerTest {
         setProjectProperties(project);
         project.setOption("keep-unused", "true");
 
-        project.findSources(contentRootUnused, new HashSet<String>());
         List<TaskResult> result = project.build(new NullProgress(), "clean", "build");
         for (TaskResult taskResult : result) {
             assertTrue(taskResult.toString(), taskResult.isOk());

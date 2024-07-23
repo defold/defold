@@ -116,9 +116,6 @@ public class JarTest {
         p.scan(scanner, "com.dynamo.bob");
         p.scan(scanner, "com.dynamo.bob.pipeline");
 
-        Set<String> skipDirs = new HashSet<String>(Arrays.asList(".git", "build/default"));
-
-        p.findSources("", skipDirs);
         List<TaskResult> result = p.build(new ConsoleProgress(), "distclean", "build");
         assertFalse(result.isEmpty());
         boolean res = true;

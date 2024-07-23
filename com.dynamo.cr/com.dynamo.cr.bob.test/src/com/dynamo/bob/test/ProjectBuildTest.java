@@ -77,7 +77,6 @@ public class ProjectBuildTest {
         project.scan(scanner, "com.dynamo.bob.pipeline");
 
         // project.setOption("platform", Platform.X86Win32.getPair());
-        project.findSources(contentRoot, new HashSet<String>());
         List<TaskResult> result = project.build(new NullProgress(), "clean", "build");
         for (TaskResult taskResult : result) {
             assertTrue(taskResult.toString(), taskResult.isOk());

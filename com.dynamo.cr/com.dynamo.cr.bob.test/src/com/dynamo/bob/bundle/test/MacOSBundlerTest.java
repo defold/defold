@@ -94,7 +94,6 @@ public class MacOSBundlerTest {
             project.setOption("architectures", Platform.X86_64MacOS.getPair());
             project.setOption("archive", "true");
             project.setOption("bundle-output", outputDir);
-            project.findSources(contentRoot, new HashSet<String>());
             project.build(new NullProgress(), "clean", "build", "bundle");
         } catch (Exception e) {
             System.err.printf("Failed to build: %s\n", e.getMessage());

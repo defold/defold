@@ -60,7 +60,7 @@ public class JBobTest {
     @BuilderParams(name = "InCopyBuilderMulti", inExts = ".in2", outExt = ".out")
     public static class InCopyBuilderMulti extends InCopyBuilder {}
 
-    @BuilderParams(name = "ArcBuilder", inExts = ".proj", outExt = ".arc", createOrder = 1000)
+    @BuilderParams(name = "ArcBuilder", inExts = ".proj", outExt = ".arc")
     public static class ArcBuilder extends Builder<Void> {
 
         @Override

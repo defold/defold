@@ -217,7 +217,6 @@ public class ProjectTest {
         System.out.printf("testMountPointFindSources start");
         project.resolveLibUrls(new NullProgress());
         project.mount(new ClassLoaderResourceScanner());
-        project.findSources(".", null);
         List<TaskResult> results = build("build");
         assertFalse(results.isEmpty());
         for (TaskResult result : results) {
