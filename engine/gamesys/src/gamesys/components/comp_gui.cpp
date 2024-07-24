@@ -2235,20 +2235,25 @@ namespace dmGameSystem
             default:
                 assert(false);
         }
-        return (dmGraphics::TextureFormat) 0; // Never reached
+        return (dmGraphics::TextureFormat) -1; // Never reached
+    }
+
+    static inline dmhash_t ResolveDynamicTexturePath(GuiComponent* component, dmhash_t path_hash, char* buffer, uint32_t buffer_size)
+    {
+        dmSnPrintf(buffer, buffer_size, "%s/%llu.texturec", component->m_Resource->m_Path, (unsigned long long) path_hash);
+        return dmHashString64(buffer);
     }
 
     static dmGui::HTextureSource NewTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* data)
     {
         GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
-        GuiSceneResource* resource = component->m_Resource;
 
         char resource_path[dmResource::RESOURCE_PATH_MAX];
-        dmSnPrintf(resource_path, sizeof(resource_path), "%s/%llu.texturec", resource->m_Path, path_hash);
+        dmhash_t resolved_path_hash = ResolveDynamicTexturePath(component, path_hash, resource_path, sizeof(resource_path));
 
         CreateTextureResourceParams params = {};
         params.m_Path               = resource_path;
-        params.m_PathHash           = dmHashString64(resource_path);
+        params.m_PathHash           = resolved_path_hash;
         params.m_Collection         = dmGameObject::GetCollection(component->m_Instance);
         params.m_Type               = dmGraphics::TEXTURE_TYPE_2D;
         params.m_Format             = ToGraphicsFormat(type);
@@ -2267,7 +2272,7 @@ namespace dmGameSystem
         dmResource::Result res = CreateTextureResource(dmGameObject::GetFactory(component->m_Instance), params, &resource_out);
         if (res != dmResource::RESULT_OK)
         {
-            dmLogError("Failed to create texture resource %s", resource_path);
+            dmLogError("Failed to create texture resource %s (status=%d)", resource_path, (int) res);
             return 0;
         }
 
@@ -2277,23 +2282,16 @@ namespace dmGameSystem
     static void DeleteTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, dmGui::HTextureSource texture_source)
     {
         GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
-        GuiSceneResource* resource = component->m_Resource;
-
         char resource_path[dmResource::RESOURCE_PATH_MAX];
-        dmSnPrintf(resource_path, sizeof(resource_path), "%s/%llu.texturec", resource->m_Path, path_hash);
-
-        dmhash_t resolved_path_hash = dmHashString64(resource_path);
+        dmhash_t resolved_path_hash = ResolveDynamicTexturePath(component, path_hash, resource_path, sizeof(resource_path));
         ReleaseDynamicResource(dmGameObject::GetFactory(component->m_Instance), dmGameObject::GetCollection(component->m_Instance), resolved_path_hash);
     }
 
     static void SetTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer)
     {
         GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
-        GuiSceneResource* resource = component->m_Resource;
-
         char resource_path[dmResource::RESOURCE_PATH_MAX];
-        dmSnPrintf(resource_path, sizeof(resource_path), "%s/%llu.texturec", resource->m_Path, path_hash);
-        dmhash_t resolved_path_hash = dmHashString64(resource_path);
+        dmhash_t resolved_path_hash = ResolveDynamicTexturePath(component, path_hash, resource_path, sizeof(resource_path));
 
         SetTextureResourceParams params = {};
         params.m_PathHash               = resolved_path_hash;
@@ -2312,7 +2310,7 @@ namespace dmGameSystem
         dmResource::Result res = SetTextureResource(dmGameObject::GetFactory(component->m_Instance), params);
         if (res != dmResource::RESULT_OK)
         {
-            dmLogError("Failed to set texture resource %s", dmHashReverseSafe64(resolved_path_hash));
+            dmLogError("Failed to set texture resource %s (status=%d)", dmHashReverseSafe64(resolved_path_hash), (int) res);
         }
     }
 
