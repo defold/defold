@@ -3509,8 +3509,7 @@
   (let [{:keys [^Tab tab app-view grammar open-resource-fn project]} opts
         basis (g/now)
         resource-node-type (g/node-type* basis resource-node)
-        editable (and (g/has-property? resource-node-type :modified-lines)
-                      (g/connected? basis resource-node :save-data project :save-data))
+        editable (g/has-property? resource-node-type :modified-lines)
         grid (GridPane.)
         canvas (Canvas.)
         canvas-pane (Pane. (into-array Node [canvas]))

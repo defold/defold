@@ -12,11 +12,12 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_GAMESYS_PRIVER_H
-#define DM_GAMESYS_PRIVER_H
+#ifndef DM_GAMESYS_PRIVATE_H
+#define DM_GAMESYS_PRIVATE_H
 
 #include <dlib/message.h>
 #include <dlib/object_pool.h>
+#include <dlib/buffer.h>
 
 #include <render/render.h>
 
@@ -137,6 +138,50 @@ namespace dmGameSystem
     void  PushTextureInfo(lua_State* L, dmGraphics::HTexture texture_handle);
     void  PushSampler(lua_State* L, dmRender::HSampler sampler, dmGraphics::HTexture texture);
     void  PushRenderConstant(lua_State* L, dmRender::HConstant constant);
+
+    // gamesys_resource.cpp
+    struct CreateTextureResourceParams
+    {
+        const char*                               m_Path;
+        dmhash_t                                  m_PathHash;
+        dmGameObject::HCollection                 m_Collection;
+        dmGraphics::TextureType                   m_Type;
+        dmGraphics::TextureFormat                 m_Format;
+        dmGraphics::TextureImage::Type            m_TextureType;
+        dmGraphics::TextureImage::TextureFormat   m_TextureFormat;
+        dmGraphics::TextureImage::CompressionType m_CompressionType;
+        dmBuffer::HBuffer                         m_Buffer;
+        const void*                               m_Data;
+        uint32_t                                  m_Width;
+        uint32_t                                  m_Height;
+        uint32_t                                  m_MaxMipMaps;
+        uint32_t                                  m_TextureBpp;
+        uint32_t                                  m_UsageFlags;
+    };
+
+    struct SetTextureResourceParams
+    {
+        dmhash_t                                  m_PathHash;
+        dmGraphics::TextureType                   m_TextureType;
+        dmGraphics::TextureFormat                 m_TextureFormat;
+        dmGraphics::TextureImage::CompressionType m_CompressionType;
+        const void*                               m_Data;
+        size_t                                    m_DataSize;
+        uint32_t                                  m_Width;
+        uint32_t                                  m_Height;
+        uint32_t                                  m_X;
+        uint32_t                                  m_Y;
+        uint32_t                                  m_MipMap;
+        bool                                      m_SubUpdate;
+    };
+
+    dmGraphics::TextureImage::TextureFormat GraphicsTextureFormatToImageFormat(dmGraphics::TextureFormat textureformat);
+    dmGraphics::TextureImage::Type GraphicsTextureTypeToImageType(dmGraphics::TextureType texturetype);
+    void MakeTextureImage(CreateTextureResourceParams params, dmGraphics::TextureImage* texture_image);
+    void DestroyTextureImage(dmGraphics::TextureImage& texture_image, bool destroy_image_data);
+    dmResource::Result CreateTextureResource(dmResource::HFactory factory, const CreateTextureResourceParams& create_params, void** resource_out);
+    dmResource::Result SetTextureResource(dmResource::HFactory factory, const SetTextureResourceParams& params);
+    dmResource::Result ReleaseDynamicResource(dmResource::HFactory factory, dmGameObject::HCollection collection, dmhash_t path_hash);
 }
 
-#endif // DM_GAMESYS_PRIVER_H
+#endif // DM_GAMESYS_PRIVATE_H

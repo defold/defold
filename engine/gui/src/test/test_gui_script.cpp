@@ -21,6 +21,8 @@
 #include <ddf/ddf.h>
 #include <script/lua_source_ddf.h>
 
+#include "test_gui_shared.h"
+
 #include "../gui.h"
 #include "../gui_private.h"
 #include "../gui_script.h"
@@ -62,6 +64,8 @@ public:
     dmGui::HContext m_Context;
     dmGui::RenderSceneParams m_RenderParams;
 
+    DynamicTextureContainer m_DynamicTextures;
+
     virtual void SetUp()
     {
         dmPlatform::WindowParams window_params = {};
@@ -88,9 +92,6 @@ public:
         m_Context = dmGui::NewContext(&context_params);
 
         m_RenderParams.m_RenderNodes = RenderNodesStoreTransform;
-        m_RenderParams.m_NewTexture = 0;
-        m_RenderParams.m_DeleteTexture = 0;
-        m_RenderParams.m_SetTextureData = 0;
     }
 
     virtual void TearDown()
@@ -1264,14 +1265,36 @@ TEST_F(dmGuiScriptTest, TestGuiAnimateEuler)
     dmGui::DeleteScript(script);
 }
 
+static dmGui::HTextureSource DynamicNewTexture(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer)
+{
+    dmGuiScriptTest* self = (dmGuiScriptTest*) scene->m_UserData;
+    return (dmGui::HTextureSource) self->m_DynamicTextures.New(path_hash, width, height, type, buffer);
+}
+
+static void DynamicDeleteTexture(dmGui::HScene scene, dmhash_t path_hash, dmGui::HTextureSource texture_source)
+{
+    dmGuiScriptTest* self = (dmGuiScriptTest*) scene->m_UserData;
+    self->m_DynamicTextures.Delete(path_hash);
+}
+
+static void DynamicSetTextureData(dmGui::HScene scene, dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer)
+{
+    dmGuiScriptTest* self = (dmGuiScriptTest*) scene->m_UserData;
+    self->m_DynamicTextures.Set(path_hash, width, height, type, buffer);
+}
+
 TEST_F(dmGuiScriptTest, TestRecreateDynamicTexture)
 {
     dmGui::HScript script = NewScript(m_Context);
 
-    dmGui::NewSceneParams params;
-    params.m_MaxNodes = 64;
-    params.m_MaxAnimations = 32;
-    params.m_UserData = this;
+    dmGui::NewSceneParams params = {};
+    params.m_MaxNodes                      = 64;
+    params.m_MaxAnimations                 = 32;
+    params.m_UserData                      = this;
+    params.m_NewTextureResourceCallback    = DynamicNewTexture;
+    params.m_DeleteTextureResourceCallback = DynamicDeleteTexture;
+    params.m_SetTextureResourceCallback    = DynamicSetTextureData;
+
     dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
     dmGui::SetSceneScript(scene, script);
 
@@ -1305,14 +1328,12 @@ TEST_F(dmGuiScriptTest, TestRecreateDynamicTexture)
     result = dmGui::UpdateScene(scene, 1.0f / 60);
     ASSERT_EQ(dmGui::RESULT_OK, result);
 
-    uint32_t width, height;
-    dmImage::Type type;
-    const void* buffer = 0;
+    dmhash_t path_hash = dmHashString64("tex");
 
-    result = dmGui::GetDynamicTextureData(scene, dmHashString64("tex"), &width, &height, &type, &buffer);
-    ASSERT_EQ(dmGui::RESULT_OK, result);
-    ASSERT_EQ(8, width);
-    ASSERT_EQ(8, height);
+    TestDynamicTexture* tex = m_DynamicTextures.Get(path_hash);
+    ASSERT_NE((TestDynamicTexture*) 0, tex);
+    ASSERT_EQ(8, tex->m_Width);
+    ASSERT_EQ(8, tex->m_Height);
 
     dmGui::DeleteScene(scene);
 

@@ -707,6 +707,11 @@ namespace dmGraphics
                type == TYPE_IMAGE_2D;
     }
 
+    static inline uint32_t GetLayerCount(TextureType type)
+    {
+        return type == TEXTURE_TYPE_CUBE_MAP ? 6 : 1;
+    }
+
     /**
      * Get status of texture.
      *

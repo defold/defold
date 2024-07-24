@@ -101,6 +101,16 @@ namespace dmPlatform
         }
     }
 
+    static void OnContentScaleCallback(GLFWwindow* glfw_window, float xscale, float yscale)
+    {
+        (void)xscale;
+        (void)yscale;
+
+        int width, height;
+        glfwGetWindowSize(glfw_window, &width, &height);
+        OnWindowResize(glfw_window, width, height);
+    }
+
     static void OnMouseScroll(GLFWwindow* glfw_window, double xoffset, double yoffset)
     {
         HWindow window = (HWindow) glfwGetWindowUserPointer(glfw_window);
@@ -261,6 +271,7 @@ namespace dmPlatform
             glfwSetScrollCallback(window->m_Window, OnMouseScroll);
             glfwSetCharCallback(window->m_Window, OnAddCharacterCallback);
             glfwSetMarkedTextCallback(window->m_Window, OnMarkedTextCallback);
+            glfwSetWindowContentScaleCallback(window->m_Window, OnContentScaleCallback);
 
             glfwSetJoystickCallback(OnJoystick);
 
