@@ -21,6 +21,8 @@
 #include <ddf/ddf.h>
 #include <script/lua_source_ddf.h>
 
+#include "test_gui_shared.h"
+
 #include "../gui.h"
 #include "../gui_private.h"
 #include "../gui_script.h"
@@ -53,14 +55,6 @@ void GetTextMetricsCallback(const void* font, const char* text, float width, boo
 void RenderNodesStoreTransform(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const dmVMath::Matrix4* node_transforms, const float* node_opacities,
         const dmGui::StencilScope** stencil_scopes, uint32_t node_count, void* context);
 
-struct TestDynamicTexture
-{
-    dmhash_t m_PathHash;
-    void* m_Buffer;
-    uint32_t m_Width;
-    uint32_t m_Height;
-};
-
 class dmGuiScriptTest : public jc_test_base_class
 {
 public:
@@ -70,7 +64,7 @@ public:
     dmGui::HContext m_Context;
     dmGui::RenderSceneParams m_RenderParams;
 
-    dmArray<TestDynamicTexture*> m_DynamicTextures;
+    DynamicTextureContainer m_DynamicTextures;
 
     virtual void SetUp()
     {
@@ -108,18 +102,6 @@ public:
         dmHID::Final(m_HidContext);
         dmHID::DeleteContext(m_HidContext);
         dmPlatform::DeleteWindow(m_Window);
-
-        for (int i = 0; i < m_DynamicTextures.Size(); ++i)
-        {
-            if (!m_DynamicTextures[i])
-                continue;
-
-            if (m_DynamicTextures[i]->m_Buffer)
-            {
-                free(m_DynamicTextures[i]->m_Buffer);
-            }
-            delete m_DynamicTextures[i];
-        }
     }
 };
 
@@ -1285,53 +1267,20 @@ TEST_F(dmGuiScriptTest, TestGuiAnimateEuler)
 
 static dmGui::HTextureSource DynamicNewTexture(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer)
 {
-    uint32_t buffer_size = width * height * dmImage::BytesPerPixel(type);
-
-    TestDynamicTexture* p = (TestDynamicTexture*) malloc(sizeof(TestDynamicTexture));
-    p->m_Width = width;
-    p->m_Height = height;
-    p->m_Buffer = (uint8_t*) malloc(buffer_size);
-    p->m_PathHash = path_hash;
-    memcpy(p->m_Buffer, buffer, buffer_size);
-
     dmGuiScriptTest* self = (dmGuiScriptTest*) scene->m_UserData;
-
-    if (self->m_DynamicTextures.Full())
-    {
-        self->m_DynamicTextures.OffsetCapacity(1);
-    }
-
-    self->m_DynamicTextures.Push(p);
-    return (dmGui::HTextureSource) p;
+    return (dmGui::HTextureSource) self->m_DynamicTextures.New(path_hash, width, height, type, buffer);
 }
 
 static void DynamicDeleteTexture(dmGui::HScene scene, dmhash_t path_hash, dmGui::HTextureSource texture_source)
 {
-    assert(texture_source);
     dmGuiScriptTest* self = (dmGuiScriptTest*) scene->m_UserData;
-    for (int i = 0; i < self->m_DynamicTextures.Size(); ++i)
-    {
-        if (self->m_DynamicTextures[i]->m_PathHash == path_hash)
-        {
-            free(self->m_DynamicTextures[i]->m_Buffer);
-            free(self->m_DynamicTextures[i]);
-            self->m_DynamicTextures[i] = 0;
-        }
-    }
+    self->m_DynamicTextures.Delete(path_hash);
 }
 
 static void DynamicSetTextureData(dmGui::HScene scene, dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer)
 {
     dmGuiScriptTest* self = (dmGuiScriptTest*) scene->m_UserData;
-    for (int i = 0; i < self->m_DynamicTextures.Size(); ++i)
-    {
-        if (self->m_DynamicTextures[i]->m_PathHash == path_hash)
-        {
-            self->m_DynamicTextures[i]->m_Width = width;
-            self->m_DynamicTextures[i]->m_Height = height;
-            memcpy(self->m_DynamicTextures[i]->m_Buffer, buffer, width * height * dmImage::BytesPerPixel(type));
-        }
-    }
+    self->m_DynamicTextures.Set(path_hash, width, height, type, buffer);
 }
 
 TEST_F(dmGuiScriptTest, TestRecreateDynamicTexture)
@@ -1380,21 +1329,11 @@ TEST_F(dmGuiScriptTest, TestRecreateDynamicTexture)
     ASSERT_EQ(dmGui::RESULT_OK, result);
 
     dmhash_t path_hash = dmHashString64("tex");
-    bool found = false;
-    for (int i = 0; i < this->m_DynamicTextures.Size(); ++i)
-    {
-        if (this->m_DynamicTextures[i] && this->m_DynamicTextures[i]->m_PathHash == path_hash)
-        {
-            found = true;
 
-            ASSERT_EQ(8, this->m_DynamicTextures[i]->m_Width);
-            ASSERT_EQ(8, this->m_DynamicTextures[i]->m_Height);
-
-            break;
-        }
-    }
-
-    ASSERT_TRUE(found);
+    TestDynamicTexture* tex = m_DynamicTextures.Get(path_hash);
+    ASSERT_NE((TestDynamicTexture*) 0, tex);
+    ASSERT_EQ(8, tex->m_Width);
+    ASSERT_EQ(8, tex->m_Height);
 
     dmGui::DeleteScene(scene);
 

@@ -33,6 +33,8 @@
 #include "../gui_private.h"
 #include "test_gui_ddf.h"
 
+#include "test_gui_shared.h"
+
 extern "C"
 {
 #include "lua/lua.h"
@@ -79,15 +81,14 @@ dmhash_t ResolvePathCallback(dmGui::HScene scene, const char* path, uint32_t pat
 
 void GetTextMetricsCallback(const void* font, const char* text, float width, bool line_break, float leading, float tracking, dmGui::TextMetrics* out_metrics);
 
-static const float EPSILON = 0.000001f;
-static const float TEXT_GLYPH_WIDTH = 1.0f;
-static const float TEXT_MAX_ASCENT = 0.75f;
-static const float TEXT_MAX_DESCENT = 0.25f;
-
 static dmGui::HTextureSource DynamicNewTexture(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer);
 static void DynamicDeleteTexture(dmGui::HScene scene, dmhash_t path_hash, dmGui::HTextureSource texture_source);
 static void DynamicSetTextureData(dmGui::HScene scene, dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer);
 
+static const float EPSILON = 0.000001f;
+static const float TEXT_GLYPH_WIDTH = 1.0f;
+static const float TEXT_MAX_ASCENT = 0.75f;
+static const float TEXT_MAX_DESCENT = 0.25f;
 
 static dmLuaDDF::LuaSource* LuaSourceFromStr(const char *str, int length = -1)
 {
@@ -128,6 +129,8 @@ public:
     std::map<std::string, dmGui::HNode> m_NodeTextToNode;
     std::map<std::string, Point3> m_NodeTextToRenderedPosition;
     std::map<std::string, Vector3> m_NodeTextToRenderedSize;
+
+    DynamicTextureContainer m_DynamicTextures;
 
     virtual void SetUp()
     {
@@ -203,6 +206,24 @@ public:
 
 private:
 };
+
+static dmGui::HTextureSource DynamicNewTexture(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer)
+{
+    dmGuiTest* self = (dmGuiTest*) scene->m_UserData;
+    return (dmGui::HTextureSource) self->m_DynamicTextures.New(path_hash, width, height, type, buffer);
+}
+
+static void DynamicDeleteTexture(dmGui::HScene scene, dmhash_t path_hash, dmGui::HTextureSource texture_source)
+{
+    dmGuiTest* self = (dmGuiTest*) scene->m_UserData;
+    self->m_DynamicTextures.Delete(texture_source);
+}
+
+static void DynamicSetTextureData(dmGui::HScene scene, dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer)
+{
+    dmGuiTest* self = (dmGuiTest*) scene->m_UserData;
+    self->m_DynamicTextures.Set(path_hash, width, height, type, buffer);
+}
 
 void GetURLCallback(dmGui::HScene scene, dmMessage::URL* url)
 {
@@ -631,24 +652,6 @@ TEST_F(dmGuiTest, TextureFontLayer)
     dmGui::DeleteNode(m_Scene, node, true);
 }
 
-static dmGui::HTextureSource DynamicNewTexture(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer)
-{
-    uint32_t buffer_size = width * height * dmImage::BytesPerPixel(type);
-    void* p = malloc(buffer_size);
-    memcpy(p, buffer, buffer_size);
-    return (dmGui::HTextureSource) p;
-}
-
-static void DynamicDeleteTexture(dmGui::HScene scene, dmhash_t path_hash, dmGui::HTextureSource texture_source)
-{
-    assert(texture_source);
-    free((void*) texture_source);
-}
-
-static void DynamicSetTextureData(dmGui::HScene scene, dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer)
-{
-}
-
 static void DynamicRenderNodes(dmGui::HScene scene, const dmGui::RenderEntry* nodes, const dmVMath::Matrix4* node_transforms, const float* node_opacities,
         const dmGui::StencilScope** stencil_scopes, uint32_t node_count, void* context)
 {
@@ -755,50 +758,40 @@ TEST_F(dmGuiTest, DynamicTextureFlip)
             255, 0, 0, 255,  0, 255, 0, 255,
         };
 
-    // Vars to fetch data results
-    uint32_t out_width = 0;
-    uint32_t out_height = 0;
-    dmImage::Type out_type = dmImage::TYPE_LUMINANCE;
-    const uint8_t* out_buffer = NULL;
-
     // Create and upload RGB image + flip
     dmGui::Result r;
     r = dmGui::NewDynamicTexture(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_RGB, true, data_rgb, sizeof(data_rgb));
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
-    dmGui::HTextureSource t1_res = dmGui::GetTexture(m_Scene, dmHashString64("t1"));
-
     // Get buffer, verify same as input but flipped
-    // r = dmGui::GetDynamicTextureData(m_Scene, dmHashString64("t1"), &out_width, &out_height, &out_type, (const void**)&out_buffer);
-    // ASSERT_EQ(r, dmGui::RESULT_OK);
-    // ASSERT_EQ(width, out_width);
-    // ASSERT_EQ(height, out_height);
-    // ASSERT_EQ(dmImage::TYPE_RGB, out_type);
-    // ASSERT_BUFFER(data_rgb_flip, out_buffer, width*height*3);
+    TestDynamicTexture* t1 = m_DynamicTextures.Get(dmHashString64("t1"));
+    uint8_t* t1_buffer = (uint8_t*) t1->m_Buffer;
+
+    ASSERT_NE((TestDynamicTexture*) 0, t1);
+    ASSERT_EQ(width, t1->m_Width);
+    ASSERT_EQ(height, t1->m_Height);
+    ASSERT_EQ(dmImage::TYPE_RGB, t1->m_Type);
+    ASSERT_BUFFER(data_rgb_flip, t1_buffer, width*height*3);
 
     // Upload RGBA data and flip
     r = dmGui::SetDynamicTextureData(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_RGBA, true, data_rgba, sizeof(data_rgba));
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     // Verify flipped result
-    // r = dmGui::GetDynamicTextureData(m_Scene, dmHashString64("t1"), &out_width, &out_height, &out_type, (const void**)&out_buffer);
-    // ASSERT_EQ(r, dmGui::RESULT_OK);
-    // ASSERT_EQ(width, out_width);
-    // ASSERT_EQ(height, out_height);
-    // ASSERT_EQ(dmImage::TYPE_RGBA, out_type);
-    // ASSERT_BUFFER(data_rgba_flip, out_buffer, width*height*4);
+    ASSERT_EQ(width, t1->m_Width);
+    ASSERT_EQ(height, t1->m_Height);
+    ASSERT_EQ(dmImage::TYPE_RGBA, t1->m_Type);
+    ASSERT_BUFFER(data_rgba_flip, t1_buffer, width*height*4);
 
     // Upload luminance data and flip
     r = dmGui::SetDynamicTextureData(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_LUMINANCE, true, data_lum, sizeof(data_lum));
     ASSERT_EQ(r, dmGui::RESULT_OK);
 
     // Verify flipped result
-    // r = dmGui::GetDynamicTextureData(m_Scene, dmHashString64("t1"), &out_width, &out_height, &out_type, (const void**)&out_buffer);
-    // ASSERT_EQ(r, dmGui::RESULT_OK);
-    // ASSERT_EQ(width, out_width);
-    // ASSERT_EQ(height, out_height);
-    // ASSERT_EQ(dmImage::TYPE_LUMINANCE, out_type);
-    // ASSERT_BUFFER(data_lum_flip, out_buffer, width*height);
+    ASSERT_EQ(width, t1->m_Width);
+    ASSERT_EQ(height, t1->m_Height);
+    ASSERT_EQ(dmImage::TYPE_LUMINANCE, t1->m_Type);
+    ASSERT_BUFFER(data_lum_flip, t1_buffer, width*height);
 
     r = dmGui::DeleteDynamicTexture(m_Scene, dmHashString64("t1"));
     ASSERT_EQ(r, dmGui::RESULT_OK);

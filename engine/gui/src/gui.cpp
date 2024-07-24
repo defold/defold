@@ -604,7 +604,7 @@ namespace dmGui
             return RESULT_DATA_ERROR;
         }
 
-        HTextureSource res = scene->m_NewTextureResourceCallback(scene, path, width, height, type, buffer);
+        HTextureSource res = scene->m_NewTextureResourceCallback(scene, path, width, height, type, data);
         free(data);
 
         uint32_t buffer_size_mb = expected_buffer_size / 1024.0 / 1024.0;
