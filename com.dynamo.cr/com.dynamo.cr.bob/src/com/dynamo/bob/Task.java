@@ -33,16 +33,15 @@ import com.dynamo.bob.fs.IResource;
  */
 public class Task<T> {
     private String name;
-    private List<IResource> inputs = new ArrayList<IResource>();
-    private List<IResource> outputs = new ArrayList<IResource>();
-    private List<String> extraCacheKeys = new ArrayList<String>();
+    private final List<IResource> inputs = new ArrayList<IResource>();
+    private final List<IResource> outputs = new ArrayList<IResource>();
+    private final List<String> extraCacheKeys = new ArrayList<String>();
     private Task<?> productOf;
 
-    private HashSet<IResource> inputLookup = new HashSet<IResource>();
+    private final HashSet<IResource> inputLookup = new HashSet<IResource>();
 
     public T data;
-    private Builder<T> builder;
-    private byte[] signature;
+    private final Builder<T> builder;
     private boolean cacheable = true;
 
     /**
@@ -84,6 +83,11 @@ public class Task<T> {
                 throw new IllegalArgumentException(String.format("Resource '%s' is not an output resource", output));
             }
             task.outputs.add(output);
+            return this;
+        }
+
+        public TaskBuilder<T> addInputsFromOutputs(Task<?> outputsTask) {
+            task.inputs.addAll(outputsTask.getOutputs());
             return this;
         }
 
@@ -156,12 +160,12 @@ public class Task<T> {
      * A copy of the list of resources will be used and the copy will be sorted
      * before added to the digest. This guarantees that we get the same digest
      * each time given the same set of resources.
-     * @param, digest The digest to update with the resources
+     * @param digest The digest to update with the resources
      * @param resources A list of resources to add
      */
     private void updateDigestWithResources(MessageDigest digest, List<IResource> resources) throws IOException {
         List<IResource> sortedResources = new ArrayList<IResource>(resources);
-        Collections.sort(sortedResources, new Comparator<IResource>() {
+        sortedResources.sort(new Comparator<IResource>() {
             @Override
             public int compare(IResource r1, IResource r2) {
                 return r1.getAbsPath().compareTo(r2.getAbsPath());
@@ -174,11 +178,11 @@ public class Task<T> {
 
     /**
      * Update a message digest with a list of extra cache parameters.
-     * @param, digest The digest to update with the resources
+     * @param digest The digest to update with the resources
      * @param keys A list of keys to add
      */
-    private void updateDigestWithExtraCacheKeys(MessageDigest digest, List<String> keys) throws IOException {
-        if (keys.size() == 0)
+    private void updateDigestWithExtraCacheKeys(MessageDigest digest, List<String> keys) {
+        if (keys.isEmpty())
         {
             return;
         }
@@ -207,8 +211,7 @@ public class Task<T> {
 
     public byte[] calculateSignature() throws IOException {
         MessageDigest digest = calculateSignatureDigest();
-        signature = digest.digest();
-        return signature;
+        return digest.digest();
     }
 
     public void setProductOf(Task<?> task) {

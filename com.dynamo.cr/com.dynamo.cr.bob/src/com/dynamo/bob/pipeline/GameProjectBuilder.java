@@ -80,7 +80,7 @@ import com.dynamo.rig.proto.Rig.AnimationSet;
 @BuilderParams(name = "GameProjectBuilder", inExts = ".project", outExt = "")
 public class GameProjectBuilder extends Builder<Void> {
 
-    private static Logger logger = Logger.getLogger(GameProjectBuilder.class.getName());
+    private static final Logger logger = Logger.getLogger(GameProjectBuilder.class.getName());
 
     private RandomAccessFile createRandomAccessFile(File handle) throws IOException {
         FileUtil.deleteOnExit(handle);
@@ -113,7 +113,7 @@ public class GameProjectBuilder extends Builder<Void> {
 
         boolean shouldPublish = project.option("liveupdate", "false").equals("true");
         project.createPublisher(shouldPublish);
-        TaskBuilder<Void> builder = Task.<Void> newBuilder(this)
+        TaskBuilder<Void> builder = Task.newBuilder(this)
                 .setName(params.name())
                 .disableCache()
                 .addInput(input)
@@ -136,7 +136,8 @@ public class GameProjectBuilder extends Builder<Void> {
         }
         TimeProfiler.stop();
 
-        project.createTask(input, CopyCustomResourcesBuilder.class);
+        Task<?> subTask = project.createTask(input, CopyCustomResourcesBuilder.class);
+        builder.addInputsFromOutputs(subTask);
 
         // Load texture profile message if supplied and enabled
         String textureProfilesPath = project.getProjectProperties().getStringValue("graphics", "texture_profiles");
@@ -221,7 +222,7 @@ public class GameProjectBuilder extends Builder<Void> {
         for (IResource resource : resources) {
             String path = resource.getAbsPath();
             EnumSet<Project.OutputFlags> flags = outputs.get(path);
-            boolean compress = (flags != null && flags.contains(Project.OutputFlags.UNCOMPRESSED)) ? false : doCompress;
+            boolean compress = (flags == null || !flags.contains(Project.OutputFlags.UNCOMPRESSED)) && doCompress;
             boolean encrypt = (flags != null && flags.contains(Project.OutputFlags.ENCRYPTED));
             archiveBuilder.add(path, compress, encrypt);
         }
@@ -253,7 +254,7 @@ public class GameProjectBuilder extends Builder<Void> {
         String[] custom_resources = project.getProjectProperties().getStringValue("project", "custom_resources", "").split(",");
         for (String s : custom_resources) {
             s = s.trim();
-            if (s.length() > 0) {
+            if (!s.isEmpty()) {
                 ArrayList<String> paths = new ArrayList<String>();
                 project.findResourcePaths(s, paths);
                 for (String path : paths) {
@@ -381,12 +382,12 @@ public class GameProjectBuilder extends Builder<Void> {
 
     // Used to transform an input game.project properties map to a game.projectc representation.
     // Can be used for doing build time properties conversion.
-    static public void transformGameProjectFile(BobProjectProperties properties) throws IOException {
+    static public void transformGameProjectFile(BobProjectProperties properties) {
         properties.removePrivateFields();
 
         // Map deprecated 'variable_dt' to new settings resulting in same runtime behavior
         Boolean variableDt = properties.getBooleanValue("display", "variable_dt");
-        if (variableDt != null && variableDt == true) {
+        if (variableDt != null && variableDt) {
             System.err.println("\nWarning! Setting 'variable_dt' in 'game.project' is deprecated. Disabling 'Vsync' and setting 'Frame cap' to 0 for equivalent behavior.");
             properties.putBooleanValue("display", "vsync", false);
             properties.putIntValue("display", "update_frequency", 0);
@@ -402,7 +403,6 @@ public class GameProjectBuilder extends Builder<Void> {
     public void build(Task<Void> task) throws CompileExceptionError, IOException {
         FileInputStream archiveIndexInputStream = null;
         FileInputStream archiveDataInputStream = null;
-        FileInputStream resourcePackInputStream = null;
         FileInputStream publicKeyInputStream = null;
 
         IResource input = task.input(0);
@@ -436,7 +436,7 @@ public class GameProjectBuilder extends Builder<Void> {
                 logger.info("Creation of the excluded resources list.");
                 tstart = System.currentTimeMillis();
                 boolean shouldPublishLU = project.option("liveupdate", "false").equals("true");
-                List<String> excludedResources = null;
+                List<String> excludedResources;
                 if (shouldPublishLU) {
                     excludedResources = resourceGraph.createExcludedResourcesList();
                 }
@@ -493,7 +493,7 @@ public class GameProjectBuilder extends Builder<Void> {
                 File manifestTmpFileHandle = new File(FilenameUtils.concat(manifestFileHandle.getParent(), liveupdateManifestFilename));
                 FileUtils.copyFile(manifestFileHandle, manifestTmpFileHandle);
 
-                ArchiveEntry manifestArchiveEntry = new ArchiveEntry(root, manifestTmpFileHandle.getAbsolutePath().toString());
+                ArchiveEntry manifestArchiveEntry = new ArchiveEntry(root, manifestTmpFileHandle.getAbsolutePath());
                 project.getPublisher().AddEntry(manifestTmpFileHandle, manifestArchiveEntry);
                 project.getPublisher().Publish();
 
@@ -525,7 +525,6 @@ public class GameProjectBuilder extends Builder<Void> {
         } finally {
             IOUtils.closeQuietly(archiveIndexInputStream);
             IOUtils.closeQuietly(archiveDataInputStream);
-            IOUtils.closeQuietly(resourcePackInputStream);
             IOUtils.closeQuietly(publicKeyInputStream);
         }
     }
