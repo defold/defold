@@ -12,21 +12,24 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <glfw/glfw.h>
+#include <glfw/glfw3.h>
 
-#include <glfw/glfw_native.h>
+#define GLFW_EXPOSE_NATIVE_WIN32
+#define GLFW_EXPOSE_NATIVE_WGL
+#include <glfw/glfw3native.h>
 
+#include "platform_window_glfw3_private.h"
 #include "platform_window_win32.h"
 
 namespace dmPlatform
 {
-    HWND GetWindowsHWND()
+    HWND GetWindowsHWND(HWindow window)
     {
-    	return glfwGetWindowsHWND();
+    	return glfwGetWin32Window(window->m_Window);
     }
 
-    HGLRC GetWindowsHGLRC()
+    HGLRC GetWindowsHGLRC(HWindow window)
     {
-    	return glfwGetWindowsHGLRC();
+    	return glfwGetWGLContext(window->m_Window);
     }
 }

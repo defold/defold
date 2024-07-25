@@ -88,8 +88,8 @@ def build(bld):
         obj.source = [x for x in obj.source if not x.abspath().endswith(os.path.join('vulkan','graphics_native.cpp'))]
         obj.source.append(_get_native_source(build_util.get_target_os(), 'vulkan'))
 
-        if bld.env.PLATFORM in ('x86_64-macos','arm64-macos'):
-            obj.source.append('vulkan/macosx/graphics_vulkan_macosx_surface.mm')
+        if bld.env.PLATFORM in ('x86_64-macos','arm64-macos', 'x86_64-win32') or bld.env.PLATFORM == 'win32':
+            obj.source.append('vulkan/desktop/graphics_vulkan_surface.cpp')
         elif bld.env.PLATFORM in ('arm64-ios',):
             obj.source.append('vulkan/ios/graphics_vulkan_ios_surface.mm')
         elif bld.env.PLATFORM in ['armv7-android', 'arm64-android']:
@@ -97,8 +97,6 @@ def build(bld):
             obj.source.append('vulkan/android/graphics_vulkan_android.cpp')
         elif bld.env.PLATFORM == 'x86_64-linux':
             obj.source.append('vulkan/linux/graphics_vulkan_linux_surface.cpp')
-        elif bld.env.PLATFORM == 'x86_64-win32' or bld.env.PLATFORM == 'win32':
-            obj.source.append('vulkan/win32/graphics_vulkan_win32_surface.cpp')
 
     if bld.env.PLATFORM in ('x86_64-ps4','x86_64-ps5'):
         bld.recurse('ps4')

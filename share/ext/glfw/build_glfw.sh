@@ -31,6 +31,8 @@ SOURCE_DIR=${PWD}/source
 BUILD_DIR=${PWD}/build/${PLATFORM}
 LIB_SUFFIX=a
 LIB_PREFIX=lib
+LIB_OUTPUT_PATH=
+LIB_TARGET_NAME=${LIB_PREFIX}glfw3.${LIB_SUFFIX}
 
 if [ -z "$PLATFORM" ]; then
     echo "No platform specified!"
@@ -41,12 +43,16 @@ fi
 CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Release ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DGLFW_BUILD_EXAMPLES=OFF ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DGLFW_BUILD_TESTS=OFF ${CMAKE_FLAGS}"
-CMAKE_FLAGS="-DGLFW_BUILD_DOCS=OFF ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DGLFW_BUILD_DOCS=OFF ${CMAKE_FLAGS}" 
 
 case $PLATFORM in
     win32|x86_64-win32)
         LIB_SUFFIX=lib
         LIB_PREFIX=
+        LIB_OUTPUT_PATH=Release/
+        LIB_TARGET_NAME=libglfw3.${LIB_SUFFIX}
+
+        CMAKE_FLAGS="-DUSE_MSVC_RUNTIME_LIBRARY_DLL=OFF ${CMAKE_FLAGS}"
         ;;
     arm64-macos)
         CMAKE_FLAGS="-DCMAKE_OSX_ARCHITECTURES=arm64 -DCMAKE_OSX_DEPLOYMENT_TARGET=${OSX_MIN_SDK_VERSION} ${CMAKE_FLAGS}"
@@ -71,8 +77,6 @@ pushd $SOURCE_DIR
 
 cmi_unpack
 
-echo "WUT? $(pwd)"
-
 cmi_patch
 
 ## BUILD
@@ -83,14 +87,16 @@ cmake --build . --config Release
 
 
 ## PACKAGE
-SRC_LIB=./src/${LIB_PREFIX}glfw3.${LIB_SUFFIX}
-TARGET_LIB=./lib/$PLATFORM
+SRC_LIB=src/$LIB_OUTPUT_PATH${LIB_PREFIX}glfw3.${LIB_SUFFIX}
+TARGET_LIB=lib/$PLATFORM
+
+echo $TARGET_LIB
 
 # clean out anything previously built
 rm -rf ./lib/
 mkdir -p $TARGET_LIB
 
-cp -v ${SRC_LIB} ${TARGET_LIB}
+cp -v ${SRC_LIB} ${TARGET_LIB}/${LIB_TARGET_NAME}
 
 PACKAGE=glfw-${VERSION}-${PLATFORM}.tar.gz
 

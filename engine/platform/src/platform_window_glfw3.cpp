@@ -38,6 +38,9 @@ namespace dmPlatform
     {
         glfwGetFramebufferSize(window->m_Window, &window->m_Width, &window->m_Height);
         glfwGetWindowSize(window->m_Window, &window->m_WidthScreen, &window->m_HeightScreen);
+
+        // TODO: Remove this
+        dmLogInfo("W/H: %d, %d - %d, %d", window->m_Width, window->m_Height, window->m_WidthScreen, window->m_HeightScreen);
     }
 
     static void OnError(int error, const char* description)
@@ -173,10 +176,6 @@ namespace dmPlatform
 
     static PlatformResult OpenWindowOpenGL(Window* wnd, const WindowParams& params)
     {
-        // TODO: This is the setup required for OSX, when we implement the other desktop
-        //       platforms we might want to do this according to platform.
-
-        // Require OpenGL 3.3 or higher
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 
