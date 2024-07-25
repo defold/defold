@@ -7,10 +7,15 @@ srcdir = '.'
 blddir = 'build'
 
 import sys
-import waf_dynamo, waf_ddf
+import waf_dynamo, waf_ddf, waflib
+import TestContext
+
+test_context = None
 
 def init(ctx):
-    pass
+    global test_context
+    if 'build' in waflib.Options.commands:
+        test_context = TestContext.create_test_context()
 
 def options(opt):
     opt.load('waf_dynamo')
@@ -21,4 +26,10 @@ def configure(conf):
     conf.recurse('src')
 
 def build(bld):
+    global test_context
     bld.recurse('src')
+    TestContext.initialize_test_context(test_context, bld)
+
+def shutdown(self):
+    waf_dynamo.run_tests(test_context, valgrind = True)
+

@@ -481,4 +481,6 @@
     :label "App Manifest"
     :icon "icons/32/Icons_05-Project-info.png"
     :node-type AppManifestNode
-    :view-types [:code :default]))
+    :view-types [:code :default]
+    :view-opts {:code {:use-custom-editor false}}
+    :lazy-loaded true))

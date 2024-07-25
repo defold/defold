@@ -16,6 +16,7 @@
   (:require [clojure.test :refer :all]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.settings-core :as settings-core]
             [integration.test-util :as tu]
             [support.test-support :refer [with-clean-system]]
             [util.murmur :as murmur])
@@ -23,7 +24,7 @@
 
 (set! *warn-on-reflection* true)
 
-(defonce ^:private extension-lua-preprocessor-url "https://github.com/defold/extension-lua-preprocessor/archive/main.zip")
+(defonce ^:private extension-lua-preprocessor-url (settings-core/inject-jvm-properties "{{defold.extension.lua-preprocessor.url}}"))
 
 (deftest extension-lua-preprocessor-test
   (with-clean-system
@@ -123,7 +124,7 @@
                          (texture-build-resource "/from-script-release-variant.atlas")}
                        (tu/node-built-build-resources script)))
             (with-open [_ (tu/build! script)]
-              (let [built-script (protobuf/bytes->map Lua$LuaModule (tu/node-build-output script))
+              (let [built-script (protobuf/bytes->map-with-defaults Lua$LuaModule (tu/node-build-output script))
                     built-lines (tu/lua-module-lines built-script)]
                 (is (= expected-built-lines-before-preprocessing built-lines))
                 (is (= {"atlas"         (build-resource-path-hash "/from-script.atlas")
@@ -151,7 +152,7 @@
                          (texture-build-resource "/from-script-debug-variant.atlas")}
                        (tu/node-built-build-resources script)))
             (with-open [_ (tu/build! script)]
-              (let [built-script (protobuf/bytes->map Lua$LuaModule (tu/node-build-output script))
+              (let [built-script (protobuf/bytes->map-with-defaults Lua$LuaModule (tu/node-build-output script))
                     built-lines (tu/lua-module-lines built-script)]
                 (is (= expected-built-lines-after-preprocessing built-lines))
                 (is (= {"atlas" (build-resource-path-hash "/from-script.atlas")

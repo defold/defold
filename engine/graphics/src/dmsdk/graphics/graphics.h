@@ -65,6 +65,13 @@ namespace dmGraphics
     typedef uintptr_t HFragmentProgram;
 
     /*#
+     * Compute program handle
+     * @typedef
+     * @name HComputeProgram
+     */
+    typedef uintptr_t HComputeProgram;
+
+    /*#
      * Program handle
      * @typedef
      * @name HProgram

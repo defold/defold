@@ -1,0 +1,17 @@
+file: "/examples/anim_trim/anim_trim.tpinfo"
+rename_patterns: "sq=square"
+animations {
+  id: "anim_trim"
+  images: "sq1"
+  images: "sq2"
+  images: "sq3"
+  images: "sq4"
+  images: "sq5"
+  images: "sq6"
+  images: "sq7"
+  images: "sq8"
+  images: "sq9"
+  images: "sq10"
+  playback: PLAYBACK_LOOP_FORWARD
+  fps: 6
+}

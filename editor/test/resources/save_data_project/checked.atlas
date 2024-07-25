@@ -1,18 +1,14 @@
 images {
   image: "/referenced/images/white.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
 }
 images {
   image: "/referenced/images/red.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
 }
 images {
   image: "/referenced/images/green.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
 }
 images {
   image: "/referenced/images/blue.png"
-  sprite_trim_mode: SPRITE_TRIM_MODE_OFF
 }
 images {
   image: "/referenced/images/diamond.png"
@@ -22,7 +18,6 @@ animations {
   id: "spinning"
   images {
     image: "/referenced/images/white.png"
-    sprite_trim_mode: SPRITE_TRIM_MODE_OFF
   }
   images {
     image: "/referenced/images/diamond.png"

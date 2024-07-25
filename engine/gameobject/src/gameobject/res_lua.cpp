@@ -15,7 +15,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
 
-#include <dmsdk/resource/resource.h>
+#include <dmsdk/resource/resource.hpp>
 #include "res_lua.h"
 #include "gameobject_script.h"
 

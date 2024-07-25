@@ -394,6 +394,13 @@ namespace dmGameSystem
             lua_newtable(L);
         }
 
+        // Free the property containers
+        dmGameObject::InstancePropertyBuffers::Iterator iter(prop_bufs);
+        while (iter.Next())
+        {
+            dmGameObject::PropertyContainerDestroy(iter.GetValue());
+        }
+
         assert(top + 1 == lua_gettop(L));
         return 1;
     }

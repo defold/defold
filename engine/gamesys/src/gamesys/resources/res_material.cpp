@@ -222,6 +222,32 @@ namespace dmGameSystem
         }
     }
 
+    static dmRender::HMaterial CreateAndInitializeRenderMaterial(dmResource::HFactory factory, dmRender::HRenderContext render_context, const MaterialResources& resources, const dmRenderDDF::MaterialDesc* ddf)
+    {
+        dmRender::HMaterial material = dmRender::NewMaterial(render_context, resources.m_VertexProgram, resources.m_FragmentProgram);
+        if (!material)
+        {
+            dmResource::Release(factory, (void*)resources.m_VertexProgram);
+            dmResource::Release(factory, (void*)resources.m_FragmentProgram);
+            return 0;
+        }
+
+        HResourceDescriptor desc;
+        dmResource::Result factory_e;
+
+        factory_e = dmResource::GetDescriptor(factory, ddf->m_VertexProgram, &desc);
+        assert(factory_e == dmResource::RESULT_OK); // Should not fail at this point
+        dmRender::SetMaterialUserData1(material, ResourceDescriptorGetNameHash(desc));
+
+        factory_e = dmResource::GetDescriptor(factory, ddf->m_FragmentProgram, &desc);
+        assert(factory_e == dmResource::RESULT_OK); // Should not fail at this point
+        dmRender::SetMaterialUserData2(material, ResourceDescriptorGetNameHash(desc));
+
+        dmResource::RegisterResourceReloadedCallback(factory, ResourceReloadedCallback, material);
+
+        return material;
+    }
+
     dmResource::Result ResMaterialCreate(const dmResource::ResourceCreateParams* params)
     {
         dmRender::HRenderContext render_context = (dmRender::HRenderContext) params->m_Context;
@@ -230,26 +256,12 @@ namespace dmGameSystem
         dmResource::Result r = AcquireResources(params->m_Factory, ddf, &resources);
         if (r == dmResource::RESULT_OK)
         {
-            dmRender::HMaterial material = dmRender::NewMaterial(render_context, resources.m_VertexProgram, resources.m_FragmentProgram);
+            dmRender::HMaterial material = CreateAndInitializeRenderMaterial(params->m_Factory, render_context, resources, ddf);
+
             if (!material)
             {
-                dmResource::Release(params->m_Factory, (void*)resources.m_VertexProgram);
-                dmResource::Release(params->m_Factory, (void*)resources.m_FragmentProgram);
                 return dmResource::RESULT_DDF_ERROR;
             }
-
-            HResourceDescriptor desc;
-            dmResource::Result factory_e;
-
-            factory_e = dmResource::GetDescriptor(params->m_Factory, ddf->m_VertexProgram, &desc);
-            assert(factory_e == dmResource::RESULT_OK); // Should not fail at this point
-            dmRender::SetMaterialUserData1(material, ResourceDescriptorGetNameHash(desc));
-
-            factory_e = dmResource::GetDescriptor(params->m_Factory, ddf->m_FragmentProgram, &desc);
-            assert(factory_e == dmResource::RESULT_OK); // Should not fail at this point
-            dmRender::SetMaterialUserData2(material, ResourceDescriptorGetNameHash(desc));
-
-            dmResource::RegisterResourceReloadedCallback(params->m_Factory, ResourceReloadedCallback, material);
 
             MaterialResource* resource = new MaterialResource;
             memset(resource, 0, sizeof(MaterialResource));
@@ -263,19 +275,24 @@ namespace dmGameSystem
         return r;
     }
 
+    static void ReleaseMaterialFromResource(dmResource::HFactory factory, MaterialResource* resource, dmRender::HRenderContext render_context)
+    {
+        ReleaseTextures(factory, resource->m_Textures);
+
+        dmRender::HMaterial material = resource->m_Material;
+        dmResource::UnregisterResourceReloadedCallback(factory, ResourceReloadedCallback, material);
+
+        dmResource::Release(factory, (void*)dmRender::GetMaterialFragmentProgram(material));
+        dmResource::Release(factory, (void*)dmRender::GetMaterialVertexProgram(material));
+        dmRender::DeleteMaterial(render_context, material);
+    }
+
     dmResource::Result ResMaterialDestroy(const dmResource::ResourceDestroyParams* params)
     {
         dmRender::HRenderContext render_context = (dmRender::HRenderContext) params->m_Context;
         MaterialResource* resource = (MaterialResource*) dmResource::GetResource(params->m_Resource);
 
-        ReleaseTextures(params->m_Factory, resource->m_Textures);
-
-        dmRender::HMaterial material = resource->m_Material;
-        dmResource::UnregisterResourceReloadedCallback(params->m_Factory, ResourceReloadedCallback, material);
-
-        dmResource::Release(params->m_Factory, (void*)dmRender::GetMaterialFragmentProgram(material));
-        dmResource::Release(params->m_Factory, (void*)dmRender::GetMaterialVertexProgram(material));
-        dmRender::DeleteMaterial(render_context, material);
+        ReleaseMaterialFromResource(params->m_Factory, resource, render_context);
 
         delete resource;
         return dmResource::RESULT_OK;
@@ -300,12 +317,17 @@ namespace dmGameSystem
         if (r == dmResource::RESULT_OK)
         {
             MaterialResource* resource = (MaterialResource*) dmResource::GetResource(params->m_Resource);
-            // Release old resources
-            ReleaseTextures(params->m_Factory, resource->m_Textures);
-            dmResource::Release(params->m_Factory, (void*)dmRender::GetMaterialFragmentProgram(resource->m_Material));
-            dmResource::Release(params->m_Factory, (void*)dmRender::GetMaterialVertexProgram(resource->m_Material));
-            dmRender::ClearMaterialTags(resource->m_Material);
-            // Set up resources
+            dmRender::HRenderContext render_context = (dmRender::HRenderContext) params->m_Context;
+
+            ReleaseMaterialFromResource(params->m_Factory, resource, render_context);
+
+            dmRender::HMaterial material = CreateAndInitializeRenderMaterial(params->m_Factory, render_context, resources, ddf);
+            if (!material)
+            {
+                return dmResource::RESULT_DDF_ERROR;
+            }
+
+            resource->m_Material = material;
             SetMaterial(params->m_Filename, resource, &resources, ddf);
         }
         dmDDF::FreeMessage(ddf);

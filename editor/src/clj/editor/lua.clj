@@ -41,7 +41,7 @@
   (format "doc/%s_doc.sdoc" doc))
 
 (defn- load-sdoc [doc-name]
-  (:elements (protobuf/read-text ScriptDoc$Document (io/resource (sdoc-path doc-name)))))
+  (:elements (protobuf/read-map-with-defaults ScriptDoc$Document (io/resource (sdoc-path doc-name)))))
 
 (defn- make-args-doc-html [args]
   (str "<dl>"

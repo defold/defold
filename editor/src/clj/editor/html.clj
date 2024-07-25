@@ -14,20 +14,35 @@
 
 (ns editor.html
   (:require [dynamo.graph :as g]
+            [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
-            [editor.workspace :as workspace]))
+            [editor.workspace :as workspace]
+            [util.text-util :as text-util]))
 
 (g/defnode HtmlNode
   (inherits resource-node/ResourceNode)
 
-  (output html g/Str (g/fnk [resource] (slurp resource :encoding "UTF-8"))))
+  (output html g/Str :cached (g/fnk [_node-id resource]
+                               (resource-io/with-error-translation resource _node-id :html
+                                 (slurp resource :encoding "UTF-8")))))
+
+(defn- search-value-fn [node-id _resource evaluation-context]
+  (g/node-value node-id :html evaluation-context))
+
+(defn search-fn
+  ([search-string]
+   (text-util/search-string->re-pattern search-string :case-insensitive))
+  ([html re-pattern]
+   (text-util/text->text-matches html re-pattern)))
 
 (defn register-resource-types
   [workspace]
   (workspace/register-resource-type workspace
-                                    :ext "html"
-                                    :label "HTML"
-                                    :textual? true
-                                    :node-type HtmlNode
-                                    :view-types [:html]
-                                    :view-opts nil))
+    :ext "html"
+    :label "HTML"
+    :textual? true
+    :search-fn search-fn
+    :search-value-fn search-value-fn
+    :node-type HtmlNode
+    :view-types [:html :text]
+    :view-opts nil))

@@ -39,6 +39,9 @@
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/resource/resource.h>
 
+#include <dmsdk/dlib/vmath.h>
+#include <dmsdk/resource/resource.hpp>
+
 DM_PROPERTY_GROUP(rmtp_GameObject, "Gameobjects");
 
 DM_PROPERTY_U32(rmtp_GOInstances, 0, FrameReset, "# alive go instances / frame", &rmtp_GameObject);
@@ -1510,7 +1513,9 @@ namespace dmGameObject
                         {
                             if (strcmp(type->m_Name, "scriptc") == 0)
                             {
-                                lua_properties = *instance_properties;
+                                // TODO: Investigate if it's enough to have one property set, (to save time/memory)
+                                // and only register the Free function once (letting the first instance "own" it)
+                                lua_properties = PropertyContainerCopy(*instance_properties);
                             }
                         }
 

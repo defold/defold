@@ -17,76 +17,76 @@
 
 dmhash_t ResourceDescriptorGetNameHash(HResourceDescriptor rd)
 {
-	return rd->m_NameHash;
+    return rd->m_NameHash;
 }
 
 void ResourceDescriptorSetResource(HResourceDescriptor rd, void* resource)
 {
-	rd->m_Resource = resource;
+    rd->m_Resource = resource;
 }
 
 void* ResourceDescriptorGetResource(HResourceDescriptor rd)
 {
-	return rd->m_Resource;
+    return rd->m_Resource;
 }
 
 void ResourceDescriptorSetPrevResource(HResourceDescriptor rd, void* resource)
 {
-	rd->m_PrevResource = resource;
+    rd->m_PrevResource = resource;
 }
 
 void* ResourceDescriptorGetPrevResource(HResourceDescriptor rd)
 {
-	return rd->m_PrevResource;
+    return rd->m_PrevResource;
 }
 
 void ResourceDescriptorSetResourceSize(HResourceDescriptor rd, uint32_t size)
 {
-	rd->m_ResourceSize = size;
+    rd->m_ResourceSize = size;
 }
 
 uint32_t ResourceDescriptorGetResourceSize(HResourceDescriptor rd)
 {
-	return rd->m_ResourceSize;
+    return rd->m_ResourceSize;
 }
 
 HResourceType ResourceDescriptorGetType(HResourceDescriptor rd)
 {
-	return rd->m_ResourceType;
+    return rd->m_ResourceType;
 }
 
 namespace dmResource
 {
     dmhash_t GetNameHash(HResourceDescriptor rd)
     {
-    	return ResourceDescriptorGetNameHash(rd);
+        return ResourceDescriptorGetNameHash(rd);
     }
     void SetResource(HResourceDescriptor rd, void* resource)
     {
-    	ResourceDescriptorSetResource(rd, resource);
+        ResourceDescriptorSetResource(rd, resource);
     }
     void* GetResource(HResourceDescriptor rd)
     {
-    	return ResourceDescriptorGetResource(rd);
+        return ResourceDescriptorGetResource(rd);
     }
     void SetPrevResource(HResourceDescriptor rd, void* resource)
     {
-    	ResourceDescriptorSetPrevResource(rd, resource);
+        ResourceDescriptorSetPrevResource(rd, resource);
     }
     void* GetPrevResource(HResourceDescriptor rd)
     {
-    	return ResourceDescriptorGetPrevResource(rd);
+        return ResourceDescriptorGetPrevResource(rd);
     }
     void SetResourceSize(HResourceDescriptor rd, uint32_t size)
     {
-    	ResourceDescriptorSetResourceSize(rd, size);
+        ResourceDescriptorSetResourceSize(rd, size);
     }
     uint32_t GetResourceSize(HResourceDescriptor rd)
     {
-    	return ResourceDescriptorGetResourceSize(rd);
+        return ResourceDescriptorGetResourceSize(rd);
     }
     HResourceType GetType(HResourceDescriptor rd)
     {
-    	return ResourceDescriptorGetType(rd);
+        return ResourceDescriptorGetType(rd);
     }
 }

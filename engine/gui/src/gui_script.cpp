@@ -23,6 +23,9 @@
 
 #include <script/script.h>
 
+#include <gameobject/gameobject_props_lua.h>
+#include <gameobject/gameobject_script_util.h>
+
 #include "gui.h"
 #include "gui_private.h"
 
@@ -602,7 +605,7 @@ namespace dmGui
      * Instead of using specific getters such as gui.get_position or gui.get_scale,
      * you can use gui.get instead and supply the property as a string or a hash.
      * While this function is similar to go.get, there are a few more restrictions
-     * when operating in the gui namespace. Most notably, only these propertie identifiers are supported:
+     * when operating in the gui namespace. Most notably, only these explicitly named properties are supported:
      *
      * - `"position"`
      * - `"rotation"`
@@ -614,14 +617,20 @@ namespace dmGui
      * - `"size"`
      * - `"fill_angle"` (pie)
      * - `"inner_radius"` (pie)
+     * - `"leading"` (text)
+     * - `"tracking"` (text)
      * - `"slice9"` (slice9)
      *
      * The value returned will either be a vmath.vector4 or a single number, i.e getting the "position"
      * property will return a vec4 while getting the "position.x" property will return a single value.
+     * You can also use this function to get material constants.
      *
      * @name gui.get
      * @param node [type:node] node to get the property for
      * @param property [type:string|hash|constant] the property to retrieve 
+     * @param [options] [type:table] optional options table (only applicable for material constants)
+     * - `index` [type:integer] index into array property (1 based)
+     *
      * @examples
      *
      * Get properties on existing nodes:
@@ -640,34 +649,86 @@ namespace dmGui
         HNode hnode;
         LuaCheckNodeInternal(L, 1, &hnode);
 
-        dmhash_t property_hash = dmScript::CheckHashOrString(L, 2);
+        dmhash_t property_id = dmScript::CheckHashOrString(L, 2);
 
-        dmGui::PropDesc* pd = dmGui::GetPropertyDesc(property_hash);
-        if (!pd)
+        dmGui::PropDesc* pd = dmGui::GetPropertyDesc(property_id);
+        if (pd)
         {
-            return DM_LUA_ERROR("property '%s' not found", dmHashReverseSafe64(property_hash));
-        }
+            Vector4 base_value = dmGui::GetNodeProperty(scene, hnode, pd->m_Property);
 
-        Vector4 base_value = dmGui::GetNodeProperty(scene, hnode, pd->m_Property);
-
-        if (pd->m_Component == 0xff)
-        {
-            if (pd->m_Property == PROPERTY_ROTATION)
+            if (pd->m_Component == 0xff)
             {
-                dmVMath::Quat r = dmVMath::Quat(base_value);
-                dmScript::PushQuat(L, r);
+                if (pd->m_Property == PROPERTY_ROTATION)
+                {
+                    dmVMath::Quat r = dmVMath::Quat(base_value);
+                    dmScript::PushQuat(L, r);
+                }
+                else
+                {
+                    dmScript::PushVector4(L, base_value);
+                }
             }
             else
             {
-                dmScript::PushVector4(L, base_value);
+                lua_pushnumber(L, base_value.getElem(pd->m_Component));
             }
-        }
-        else
-        {
-            lua_pushnumber(L, base_value.getElem(pd->m_Component));
+
+            return 1;
         }
 
-        return 1;
+        dmGameObject::PropertyOptions property_options = {};
+        bool index_requested = false;
+
+        if (lua_gettop(L) >= 3)
+        {
+            dmGameObject::LuaToPropertyOptions(L, 3, &property_options, property_id, &index_requested);
+        }
+
+        dmMessage::URL target = {};
+        dmGameObject::PropertyDesc property_desc;
+        dmGameObject::PropertyResult property_res = dmGui::GetMaterialProperty(scene, hnode, property_id, property_desc, &property_options) ?
+             dmGameObject::PROPERTY_RESULT_OK : dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+
+        bool is_matrix_type = property_desc.m_Variant.m_Type == dmGameObject::PROPERTY_TYPE_MATRIX4;
+        uint32_t array_size = property_desc.m_ArrayLength;
+        if (is_matrix_type)
+        {
+            array_size = property_desc.m_ArrayLength / 4;
+        }
+
+        if (property_res == dmGameObject::PROPERTY_RESULT_OK && !index_requested && property_desc.m_ValueType == dmGameObject::PROP_VALUE_ARRAY && array_size > 1)
+        {
+            lua_newtable(L);
+
+            // We already have the first value, so no need to get it again.
+            // But we do need to check the result, we could still get errors even if the result is OK
+            int handle_go_get_result = dmGameObject::CheckGetPropertyResult(L, "gui", property_res, property_desc, property_id, target, property_options, index_requested);
+            if (handle_go_get_result != 1)
+            {
+                return handle_go_get_result;
+            }
+
+            lua_rawseti(L, -2, 1);
+
+            for (int i = 1; i < array_size; ++i)
+            {
+                property_options.m_Index = i;
+                property_res = dmGui::GetMaterialProperty(scene, hnode, property_id, property_desc, &property_options) ?
+                        dmGameObject::PROPERTY_RESULT_OK : dmGameObject::PROPERTY_RESULT_NOT_FOUND;
+
+                handle_go_get_result = dmGameObject::CheckGetPropertyResult(L, "gui", property_res, property_desc, property_id, target, property_options, index_requested);
+                if (handle_go_get_result != 1)
+                {
+                    return handle_go_get_result;
+                }
+
+                lua_rawseti(L, -2, i + 1);
+            }
+
+            return 1;
+        }
+
+        return dmGameObject::CheckGetPropertyResult(L, "gui", property_res, property_desc, property_id, target, property_options, index_requested);
     }
 
     /*# sets the named property of a specified gui node 
@@ -675,7 +736,7 @@ namespace dmGui
      * Instead of using specific setteres such as gui.set_position or gui.set_scale,
      * you can use gui.set instead and supply the property as a string or a hash.
      * While this function is similar to go.get and go.set, there are a few more restrictions
-     * when operating in the gui namespace. Most notably, only these propertie identifiers are supported:
+     * when operating in the gui namespace. Most notably, only these named properties identifiers are supported:
      *
      * - `"position"`
      * - `"rotation"`
@@ -687,6 +748,8 @@ namespace dmGui
      * - `"size"`
      * - `"fill_angle"` (pie)
      * - `"inner_radius"` (pie)
+     * - `"leading"` (text)
+     * - `"tracking"` (text)
      * - `"slice9"` (slice9)
      *
      * The value to set must either be a vmath.vector4, vmath.vector3, vmath.quat or a single number and depends on the property name you want to set.
@@ -697,10 +760,17 @@ namespace dmGui
      * the intention is to move new functionality closer to go namespace so that migrating between gui and go is easier. To set the rotation using degrees instead,
      * use the "euler" property instead. The rotation and euler properties are linked, changing one of them will change the backing data of the other.
      *
+     * Similar to go.set, you can also use gui.set for setting material constant values on a node. E.g if a material has specified a constant called `tint` in
+     * the .material file, you can use gui.set to set the value of that constant by calling `gui.set(node, "tint", vmath.vec4(1,0,0,1))`, or `gui.set(node, "matrix", vmath.matrix4())`
+     * if the constant is a matrix. Arrays are also supported by gui.set - to set an array constant, you need to pass in an options table with the 'index' key set.
+     * If the material has a constant array called 'tint_array' specified in the material, you can use `gui.set(node, "tint_array", vmath.vec4(1,0,0,1), { index = 4})` to set the fourth array element to a different value.
+     *
      * @name gui.set
      * @param node [type:node] node to set the property for
      * @param property [type:string|hash|constant] the property to set 
      * @param value [type:number|vector4|vector3|quat] the property to set
+     * @param [options] [type:table] optional options table (only applicable for material constants)
+     * - `index` [type:integer] index into array property (1 based)
      *
      * @examples
      *
@@ -724,6 +794,25 @@ namespace dmGui
      * -- or using the set_rotation
      * gui.set_rotation(node, vmath.vector3(0,0,45))
      * ```
+     *
+     * Sets various material constants for a node:
+     *
+     * ```lua
+     * local node = gui.get_node("my_box_node")
+     * gui.set(node, "tint", vmath.vector4(1,0,0,1))
+     * -- matrix4 is also supported
+     * gui.set(node, "light_matrix", vmath.matrix4())
+     * -- update a constant in an array at position 4. the array is specified in the shader as:
+     * -- uniform vec4 tint_array[4]; // lua is 1 based, shader is 0 based
+     * gui.set(node, "tint_array", vmath.vector4(1,0,0,1), { index = 4 })
+     * -- update a matrix constant in an array at position 4. the array is specified in the shader as:
+     * -- uniform mat4 light_matrix_array[4];
+     * gui.set(node, "light_matrix_array", vmath.matrix4(), { index = 4 })
+     * -- update a sub-element in a constant
+     * gui.set(node, "tint.x", 1)
+     * -- update a sub-element in an array constant at position 4
+     * gui.set(node, "tint_array.x", 1, {index = 4})
+     * ```
      */
     static int LuaSet(lua_State* L)
     {
@@ -737,58 +826,76 @@ namespace dmGui
         dmhash_t property_hash = dmScript::CheckHashOrString(L, 2);
         dmGui::PropDesc* pd = dmGui::GetPropertyDesc(property_hash);
 
-        if (!pd)
+        if (pd)
         {
-            return DM_LUA_ERROR("property '%s' not found", dmHashReverseSafe64(property_hash));
-        }
-
-        if (pd->m_Component == 0xff)
-        {
-            if (pd->m_Property == dmGui::PROPERTY_ROTATION)
+            if (pd->m_Component == 0xff)
             {
-                Quat* q = dmScript::ToQuat(L, 3);
-                if (q)
+                if (pd->m_Property == dmGui::PROPERTY_ROTATION)
                 {
-                    dmGui::SetNodeProperty(scene, hnode, pd->m_Property, Vector4(*q));
-                    return 0;
+                    Quat* q = dmScript::ToQuat(L, 3);
+                    if (q)
+                    {
+                        dmGui::SetNodeProperty(scene, hnode, pd->m_Property, Vector4(*q));
+                        return 0;
+                    }
+                    return DM_LUA_ERROR("Unable to set property '%s', the value must be a vmath.quat", dmHashReverseSafe64(property_hash));
                 }
-                return DM_LUA_ERROR("Unable to set property '%s', the value must be a vmath.quat", dmHashReverseSafe64(property_hash));
+                else
+                {
+                    Vector4* v4 = dmScript::ToVector4(L, 3);
+
+                    if (v4)
+                    {
+                        Vector4* new_value = dmScript::ToVector4(L, 3);
+                        dmGui::SetNodeProperty(scene, hnode, pd->m_Property, *new_value);
+                        return 0;
+                    }
+
+                    Vector3* v3 = dmScript::ToVector3(L, 3);
+
+                    if (v3)
+                    {
+                        Vector3* new_value = dmScript::ToVector3(L, 3);
+                        Vector4 current_value = dmGui::GetNodeProperty(scene, hnode, pd->m_Property);
+                        current_value.setXYZ(*new_value);
+                        dmGui::SetNodeProperty(scene, hnode, pd->m_Property, current_value);
+                        return 0;
+                    }
+
+                    return DM_LUA_ERROR("Unable to set property '%s', the value must be a vmath.vector4 or a vmath.vector3", dmHashReverseSafe64(property_hash));
+                }
             }
-            else
+            else if (!lua_isnumber(L, 3))
             {
-                Vector4* v4 = dmScript::ToVector4(L, 3);
+                return DM_LUA_ERROR("Unable to set property '%s', vector elements can only be set by numbers", dmHashReverseSafe64(property_hash));
+            }
 
-                if (v4)
-                {
-                    Vector4* new_value = dmScript::ToVector4(L, 3);
-                    dmGui::SetNodeProperty(scene, hnode, pd->m_Property, *new_value);
-                    return 0;
-                }
+            Vector4 current_value = dmGui::GetNodeProperty(scene, hnode, pd->m_Property);
+            float new_element_value = (float) lua_tonumber(L, 3);
+            current_value.setElem(pd->m_Component, new_element_value);
+            dmGui::SetNodeProperty(scene, hnode, pd->m_Property, current_value);
+            return 0;
+        }
 
-                Vector3* v3 = dmScript::ToVector3(L, 3);
+        dmGameObject::PropertyVar property_var;
+        dmGameObject::PropertyOptions property_options = {};
+        dmGameObject::PropertyResult result = dmGameObject::LuaToVar(L, 3, property_var);
 
-                if (v3)
-                {
-                    Vector3* new_value = dmScript::ToVector3(L, 3);
-                    Vector4 current_value = dmGui::GetNodeProperty(scene, hnode, pd->m_Property);
-                    current_value.setXYZ(*new_value);
-                    dmGui::SetNodeProperty(scene, hnode, pd->m_Property, current_value);
-                    return 0;
-                }
-
-                return DM_LUA_ERROR("Unable to set property '%s', the value must be a vmath.vector4 or a vmath.vector3", dmHashReverseSafe64(property_hash));
+        if (lua_gettop(L) > 3)
+        {
+            int options_result = LuaToPropertyOptions(L, 4, &property_options, property_hash, 0);
+            if (options_result != 0)
+            {
+                return options_result;
             }
         }
-        else if (!lua_isnumber(L, 3))
+
+        if (result == dmGameObject::PROPERTY_RESULT_OK && dmGui::SetMaterialProperty(scene, hnode, property_hash, property_var, &property_options))
         {
-            return DM_LUA_ERROR("Unable to set property '%s', vector elements can only be set by numbers", dmHashReverseSafe64(property_hash));
+            return 0;
         }
 
-        Vector4 current_value = dmGui::GetNodeProperty(scene, hnode, pd->m_Property);
-        float new_element_value = (float) lua_tonumber(L, 3);
-        current_value.setElem(pd->m_Component, new_element_value);
-        dmGui::SetNodeProperty(scene, hnode, pd->m_Property, current_value);
-        return 0;
+        return DM_LUA_ERROR("property '%s' not found", dmHashReverseSafe64(property_hash));
     }
 
     /*# gets the index of the specified node
@@ -1202,6 +1309,8 @@ namespace dmGui
      * - `"size"`
      * - `"fill_angle"` (pie)
      * - `"inner_radius"` (pie)
+     * - `"leading"` (text)
+     * - `"tracking"` (text)
      * - `"slice9"` (slice9)
      *
      * The following property constants are defined equaling the corresponding property string names.
@@ -1216,6 +1325,8 @@ namespace dmGui
      * - `gui.PROP_SIZE`
      * - `gui.PROP_FILL_ANGLE`
      * - `gui.PROP_INNER_RADIUS`
+     * - `gui.PROP_LEADING`
+     * - `gui.PROP_TRACKING`
      * - `gui.PROP_SLICE9`
      *
      * @param to [type:number|vector3|vector4|quaternion] target property value
@@ -1401,6 +1512,8 @@ namespace dmGui
      * - `"size"`
      * - `"fill_angle"` (pie)
      * - `"inner_radius"` (pie)
+     * - `"leading"` (text)
+     * - `"tracking"` (text)
      * - `"slice9"` (slice9)
      *
      * @examples
@@ -1964,7 +2077,8 @@ namespace dmGui
         Scene* scene = GuiScriptInstance_Check(L);
 
         bool flip = false;
-        if (top > 5) {
+        if (top > 5)
+        {
             luaL_checktype(L, 6, LUA_TBOOLEAN);
             flip = (bool)lua_toboolean(L, 6);
         }
@@ -1977,13 +2091,18 @@ namespace dmGui
 
         dmImage::Type type = ToImageType(L, type_str);
         Result r = NewDynamicTexture(scene, name, width, height, type, flip, buffer, buffer_size);
-        if (r == RESULT_OK) {
+
+        if (r == RESULT_OK)
+        {
             lua_pushboolean(L, 1);
             lua_pushnil(L);
-        } else {
+        }
+        else
+        {
             lua_pushboolean(L, 0);
             lua_pushnumber(L, r);
         }
+
         assert(top + 2 == lua_gettop(L));
         return 2;
     }
@@ -4868,6 +4987,18 @@ namespace dmGui
      * @variable
      */
 
+    /*# leading property
+     *
+     * @name gui.PROP_LEADING
+     * @variable
+     */
+
+    /*# tracking property
+     *
+     * @name gui.PROP_TRACKING
+     * @variable
+     */
+
     /*# slice9 property
      *
      * @name gui.PROP_SLICE9
@@ -5086,6 +5217,8 @@ namespace dmGui
         SETPROP(size, SIZE)
         SETPROP(fill_angle, FILL_ANGLE)
         SETPROP(inner_radius, INNER_RADIUS)
+        SETPROP(leading, LEADING)
+        SETPROP(tracking, TRACKING)
         SETPROP(slice9, SLICE9)
 
 #undef SETPROP

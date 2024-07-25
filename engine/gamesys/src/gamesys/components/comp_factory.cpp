@@ -120,6 +120,11 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
+    void* CompFactoryGetComponent(const dmGameObject::ComponentGetParams& params)
+    {
+        return (void*)params.m_UserData;
+    }
+
     dmGameObject::CreateResult CompFactoryDestroy(const dmGameObject::ComponentDestroyParams& params)
     {
         FactoryWorld* world = (FactoryWorld*)params.m_World;

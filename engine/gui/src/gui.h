@@ -30,6 +30,7 @@
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/gui/gui.h>
 #include <dmsdk/render/render.h>
+#include <dmsdk/gameobject/gameobject.h>
 
 /**
  * Defold GUI system
@@ -140,6 +141,35 @@ namespace dmGui
      */
     typedef void* (*GetResourceCallback)(void* ctx, dmGui::HScene scene, dmhash_t resource_id, dmhash_t suffix_with_dot);
 
+    /**
+     * Callback to get material property
+     */
+    typedef bool (*GetMaterialPropertyCallback)(void* ctx, dmGui::HScene scene, dmGui::HNode node, dmhash_t property_id, dmGameObject::PropertyDesc& property_desc, const dmGameObject::PropertyOptions* options);
+
+    /**
+     * Callback to set material property
+     */
+    typedef bool (*SetMaterialPropertyCallback)(void* ctx, dmGui::HScene scene, dmGui::HNode node, dmhash_t property_id, const dmGameObject::PropertyVar& property_var, const dmGameObject::PropertyOptions* options);
+
+    /**
+     * Callback to destroy render constants
+     */
+    typedef void (*DestroyRenderConstantsCallback)(void* render_constants);
+
+    /**
+     * Callback to create a texture resource
+     */
+    typedef HTextureSource (*NewTextureResourceCallback)(HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer);
+
+    /**
+     * Callback to delete a texture resource
+     */
+    typedef void (*DeleteTextureResourceCallback)(HScene scene, const dmhash_t path_hash, HTextureSource texture_source);
+
+    /**
+     * Callback to set the data for a texture resource
+     */
+    typedef void (*SetTextureResourceCallback)(HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer);
 
     /**
      * Scene creation
@@ -159,20 +189,28 @@ namespace dmGui
         uint32_t m_MaxParticlefx;
         uint32_t m_MaxLayers;
 
-        dmParticle::HParticleContext m_ParticlefxContext;
-        void*                       m_UserData;
-        CreateCustomNodeCallback    m_CreateCustomNodeCallback;
-        DestroyCustomNodeCallback   m_DestroyCustomNodeCallback;
-        CloneCustomNodeCallback     m_CloneCustomNodeCallback;
-        UpdateCustomNodeCallback    m_UpdateCustomNodeCallback;
-        void*                       m_CreateCustomNodeCallbackContext;
-        GetResourceCallback         m_GetResourceCallback;
-        void*                       m_GetResourceCallbackContext;
+        dmParticle::HParticleContext   m_ParticlefxContext;
+        void*                          m_UserData;
+        CreateCustomNodeCallback       m_CreateCustomNodeCallback;
+        DestroyCustomNodeCallback      m_DestroyCustomNodeCallback;
+        CloneCustomNodeCallback        m_CloneCustomNodeCallback;
+        UpdateCustomNodeCallback       m_UpdateCustomNodeCallback;
+        void*                          m_CreateCustomNodeCallbackContext;
+        GetResourceCallback            m_GetResourceCallback;
+        void*                          m_GetResourceCallbackContext;
+        GetMaterialPropertyCallback    m_GetMaterialPropertyCallback;
+        void*                          m_GetMaterialPropertyCallbackContext;
+        SetMaterialPropertyCallback    m_SetMaterialPropertyCallback;
+        void*                          m_SetMaterialPropertyCallbackContext;
+        DestroyRenderConstantsCallback m_DestroyRenderConstantsCallback;
+        FetchTextureSetAnimCallback    m_FetchTextureSetAnimCallback;
+        OnWindowResizeCallback         m_OnWindowResizeCallback;
+        NewTextureResourceCallback     m_NewTextureResourceCallback;
+        DeleteTextureResourceCallback  m_DeleteTextureResourceCallback;
+        SetTextureResourceCallback     m_SetTextureResourceCallback;
 
-        FetchTextureSetAnimCallback m_FetchTextureSetAnimCallback;
-        OnWindowResizeCallback m_OnWindowResizeCallback;
-        AdjustReference m_AdjustReference;
-        dmScript::ScriptWorld* m_ScriptWorld;
+        AdjustReference                m_AdjustReference;
+        dmScript::ScriptWorld*         m_ScriptWorld;
 
         NewSceneParams()
         {
@@ -490,6 +528,8 @@ namespace dmGui
 
     AdjustReference GetSceneAdjustReference(HScene scene);
 
+    const char* GetResultLiteral(Result result);
+
     /**
      * Adds a texture and optional textureset with the specified name to the scene.
      * @note Any nodes connected to the same texture_name will also be connected to the new texture/textureset. This makes this function O(n), where n is #nodes.
@@ -538,7 +578,7 @@ namespace dmGui
      * @param buffer_size
      * @return
      */
-    Result NewDynamicTexture(HScene scene, const dmhash_t texture_hash, uint32_t width, uint32_t height, dmImage::Type type, bool flip, const void* buffer, uint32_t buffer_size);
+    Result NewDynamicTexture(HScene scene, const dmhash_t path, uint32_t width, uint32_t height, dmImage::Type type, bool flip, const void* buffer, uint32_t buffer_size);
 
     /**
      * Delete dynamic texture
@@ -728,9 +768,6 @@ namespace dmGui
      * @struct
      * @name RenderSceneParams
      * @member m_RenderNodes [type:RenderNodes] Callback to render nodes
-     * @member m_NewTexture [type:NewTexture] Callback to create a new texture
-     * @member m_DeleteTexture [type:DeleteTexture] Callback to delete a texture
-     * @member m_SetTextureData [type:SetTextureData] Callback to update texture data
      */
     struct RenderSceneParams
     {
@@ -739,10 +776,7 @@ namespace dmGui
             memset(this, 0, sizeof(*this));
         }
 
-        RenderNodes                 m_RenderNodes;
-        NewTexture                  m_NewTexture;
-        DeleteTexture               m_DeleteTexture;
-        SetTextureData              m_SetTextureData;
+        RenderNodes m_RenderNodes;
     };
 
     /** Renders a gui scene
@@ -764,10 +798,9 @@ namespace dmGui
     /**
      * Run the final-function of the scene script.
      * @param scene Scene for which to run the script
-     * @param deleteTexture DeleteTexture Callback to delete a texture
      * @return RESULT_OK on success
      */
-    Result FinalScene(HScene scene, DeleteTexture delete_texture);
+    Result FinalScene(HScene scene);
 
     /**
      * Run the update-function of the scene script.
@@ -893,6 +926,11 @@ namespace dmGui
     Result   SetNodeMaterial(HScene scene, HNode node, dmhash_t material_id); // if material_id == 0, it will clear the assignment
     void*    GetNodeMaterial(HScene scene, HNode node);
     dmhash_t GetNodeMaterialId(HScene scene, HNode node);
+
+    const void* GetNodeRenderConstants(HScene scene, HNode node);
+    void        SetNodeRenderConstants(HScene scene, HNode node, void* render_constants);
+    void        SetNodeRenderConstantsHash(HScene scene, HNode node, uint32_t render_constants_hash);
+    uint32_t    GetNodeRenderConstantsHash(HScene scene, HNode node);
 
     Result PlayNodeFlipbookAnim(HScene scene, HNode node, dmhash_t anim, float offset, float playback_rate, AnimationComplete anim_complete_callback = 0x0, void* callback_userdata1 = 0x0, void* callback_userdata2 = 0x0);
     Result PlayNodeFlipbookAnim(HScene scene, HNode node, const char* anim, float offset, float playback_rate, AnimationComplete anim_complete_callback = 0x0, void* callback_userdata1 = 0x0, void* callback_userdata2 = 0x0);
@@ -1091,7 +1129,7 @@ namespace dmGui
      * @param visible whether the node should be rendered
      */
     void SetNodeVisible(HScene scene, HNode node, bool visible);
-    
+
     void SetScreenPosition(HScene scene, HNode node, const dmVMath::Point3& screen_position);
 
     dmVMath::Point3 ScreenToLocalPosition(HScene scene, HNode node, const dmVMath::Point3& screen_position);

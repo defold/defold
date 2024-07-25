@@ -195,12 +195,51 @@ namespace dmGameSystem
             dmResource::Release(factory, resource->m_Material);
     }
 
+    static void EnsureAutoSizedNodesHaveNonZeroArea(dmGuiDDF::NodeDesc* node_descs, uint32_t count)
+    {
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            dmGuiDDF::NodeDesc& node_desc = node_descs[i];
+
+            if (node_desc.m_SizeMode == dmGuiDDF::NodeDesc::SizeMode::SIZE_MODE_AUTO)
+            {
+                dmVMath::Vector4& size = node_desc.m_Size;
+
+                if (size.getX() == 0.0f)
+                    size.setX(1.0f);
+
+                if (size.getY() == 0.0f)
+                    size.setY(1.0f);
+            }
+        }
+    }
+
+    static void EnsureAutoSizedNodesInSceneHaveNonZeroArea(dmGuiDDF::SceneDesc* scene_desc)
+    {
+        // Scene nodes.
+        EnsureAutoSizedNodesHaveNonZeroArea(scene_desc->m_Nodes.m_Data, scene_desc->m_Nodes.m_Count);
+
+        // Layout nodes.
+        for (uint32_t i = 0, len = scene_desc->m_Layouts.m_Count; i < len; ++i)
+        {
+            dmGuiDDF::SceneDesc::LayoutDesc& layout_desc = scene_desc->m_Layouts[i];
+            EnsureAutoSizedNodesHaveNonZeroArea(layout_desc.m_Nodes.m_Data, layout_desc.m_Nodes.m_Count);
+        }
+    }
+
     static dmResource::Result ResPreloadSceneDesc(const dmResource::ResourcePreloadParams* params)
     {
         dmGuiDDF::SceneDesc* scene_desc;
         dmDDF::Result e = dmDDF::LoadMessage<dmGuiDDF::SceneDesc>(params->m_Buffer, params->m_BufferSize, &scene_desc);
         if ( e != dmDDF::RESULT_OK )
             return dmResource::RESULT_FORMAT_ERROR;
+
+        // HACK: Gui nodes that have zero area are culled, but we can't know the
+        // size of nodes that have SIZE_MODE_AUTO at build time. Rather than
+        // having both Bob and the editor write bogus size values into the
+        // binaries, we patch it here. We can remove this hack once we address
+        // the culling issue properly.
+        EnsureAutoSizedNodesInSceneHaveNonZeroArea(scene_desc);
 
         dmResource::PreloadHint(params->m_HintInfo, scene_desc->m_Material);
         if (*scene_desc->m_Script != 0)
