@@ -98,6 +98,8 @@ def build(bld):
         elif bld.env.PLATFORM == 'x86_64-linux':
             obj.source.append('vulkan/linux/graphics_vulkan_linux_surface.cpp')
 
+        bld.add_group()
+
     if bld.env.PLATFORM in ('x86_64-ps4','x86_64-ps5'):
         bld.recurse('ps4')
 
