@@ -80,8 +80,6 @@ def configure(conf):
         if waflib.Options.options.with_vulkan:
             platform_lib = "platform_vulkan"
 
-    print("HELLO", platform_lib)
-
     if operating_sys == 'macos':
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo', '-framework', 'QuartzCore'])
 
