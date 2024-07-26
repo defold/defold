@@ -1773,8 +1773,6 @@ static void LogFrameBufferError(GLenum status)
             DM_PROFILE(__FUNCTION__);
             DM_PROPERTY_ADD_U32(rmtp_DispatchCalls, 1);
 
-            DrawSetup((OpenGLContext*) _context);
-
             glDispatchCompute(group_count_x, group_count_y, group_count_z);
             CHECK_GL_ERROR;
 
