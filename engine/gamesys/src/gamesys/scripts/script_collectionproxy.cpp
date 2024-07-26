@@ -167,7 +167,7 @@ namespace dmGameSystem
                 break;
             case SET_COLLECTION_PATH_RESULT_COLLECTION_NOT_EXCLUDED:
                 lua_pushboolean(L, 0);
-                lua_pushnumber(L, SET_COLLECTION_PATH_RESULT_COLLECTION_IS_NOT_EXCLUDED);
+                lua_pushnumber(L, SET_COLLECTION_PATH_RESULT_COLLECTION_NOT_EXCLUDED);
                 dmLogError("Cannot set collection `%s` for a collectionproxy '%s:%s#%s' which isn't excluded",
                                         path,
                                         dmMessage::GetSocketName(url.m_Socket),
