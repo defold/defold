@@ -78,13 +78,20 @@ namespace dmGameSystem
         uint32_t                        m_DelayedEnable : 1;
         uint32_t                        m_Unloaded : 1;
         uint32_t                        m_AddedToUpdate : 1;
+        uint32_t                        m_Loading : 1;
 
         dmResource::HPreloader          m_Preloader;
         dmMessage::URL                  m_LoadSender, m_LoadReceiver;
 
         ProxyLoadCallback               m_Callback;
         void*                           m_CallbackCtx;
+        char*                           m_CollectionResPath;  // set from script as an override
     };
+
+    static const char* GetCollectionResorcePath(CollectionProxyComponent* proxy)
+    {
+        return proxy->m_CollectionResPath ? proxy->m_CollectionResPath : proxy->m_Resource->m_DDF->m_Collection;
+    }
 
     struct CollectionProxyWorld
     {
@@ -95,10 +102,11 @@ namespace dmGameSystem
 
     static dmGameObject::UpdateResult DoLoad(dmResource::HFactory factory, CollectionProxyComponent* proxy)
     {
-        dmResource::Result result = dmResource::Get(factory, proxy->m_Resource->m_DDF->m_Collection, (void**)&proxy->m_Collection);
+        const char* collection_path = GetCollectionResorcePath(proxy);
+        dmResource::Result result = dmResource::Get(factory, collection_path, (void**)&proxy->m_Collection);
         if (result != dmResource::RESULT_OK)
         {
-            dmLogError("The collection %s could not be loaded.", proxy->m_Resource->m_DDF->m_Collection);
+            dmLogError("The collection %s could not be loaded.", collection_path);
             return dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
         }
         return dmGameObject::UPDATE_RESULT_OK;
@@ -106,9 +114,10 @@ namespace dmGameSystem
 
     void LoadComplete(CollectionProxyComponent* proxy, dmGameObject::Result result)
     {
+        proxy->m_Loading = 0;
         if (proxy->m_Callback)
         {
-            proxy->m_Callback(proxy->m_Resource->m_DDF->m_Collection, result, proxy->m_CallbackCtx);
+            proxy->m_Callback(GetCollectionResorcePath(proxy), result, proxy->m_CallbackCtx);
         }
         else if(dmGameObject::RESULT_OK == result)
         {
@@ -129,7 +138,7 @@ namespace dmGameSystem
         proxy->m_Unloaded = 0;
         if (proxy->m_Callback)
         {
-            proxy->m_Callback(proxy->m_Resource->m_DDF->m_Collection, result, proxy->m_CallbackCtx);
+            proxy->m_Callback(GetCollectionResorcePath(proxy), result, proxy->m_CallbackCtx);
         }
         else if (dmMessage::IsSocketValid(proxy->m_Unloader.m_Socket))
         {
@@ -174,6 +183,39 @@ namespace dmGameSystem
         return comp_url_hash;
     }
 
+    SetCollectionForProxyPathResult CollectionProxySetCollectionPath(const HCollectionProxyWorld world, HCollectionProxyComponent component, const char* path)
+    {
+        CollectionProxyComponent* proxy = (CollectionProxyComponent*)component;
+
+        if (proxy->m_Loading)
+        {
+            return SET_COLLECTION_PATH_RESULT_COLLECTION_LOADING;
+        }
+        if (proxy->m_Collection)
+        {
+            return SET_COLLECTION_PATH_RESULT_COLLECTION_ALREADY_LOADED;
+        }
+        if (!proxy->m_Resource->m_DDF->m_Exclude)
+        {
+            return SET_COLLECTION_PATH_RESULT_COLLECTION_NOT_EXCLUDED;
+        }
+
+        if (proxy->m_CollectionResPath)
+        {
+            free(proxy->m_CollectionResPath);
+        }
+        else if (!path)
+        {
+            proxy->m_CollectionResPath = 0;
+
+        }
+        else
+        {
+            proxy->m_CollectionResPath = strdup(path);
+        }
+        return SET_COLLECTION_PATH_RESULT_OK;
+    }
+
     dmGameObject::CreateResult CompCollectionProxyNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
         CollectionProxyWorld* proxy_world = new CollectionProxyWorld();
@@ -195,7 +237,13 @@ namespace dmGameSystem
         dmResource::HFactory factory = context->m_Factory;
         for (uint32_t i = 0; i < proxy_world->m_Components.Size(); ++i)
         {
-            dmGameObject::HCollection collection = proxy_world->m_Components[i].m_Collection;
+            CollectionProxyComponent* proxy = &proxy_world->m_Components[i];
+            dmGameObject::HCollection collection = proxy->m_Collection;
+
+            if (proxy->m_CollectionResPath)
+            {
+                free(proxy->m_CollectionResPath);
+            }
             if (collection != 0)
             {
                 if (proxy_world->m_Components[i].m_Initialized)
@@ -432,13 +480,13 @@ namespace dmGameSystem
 
         if (proxy->m_Collection != 0)
         {
-            LogMessageError(message, "The collection %s could not be loaded since it was already.", proxy->m_Resource->m_DDF->m_Collection);
+            LogMessageError(message, "The collection %s could not be loaded since it was already.", GetCollectionResorcePath(proxy));
             if (message)
                 return dmGameObject::RESULT_OK;
             return dmGameObject::RESULT_UNKNOWN_ERROR;
         }
 
-        const char* path = proxy->m_Resource->m_DDF->m_Collection;
+        const char* path = GetCollectionResorcePath(proxy);
         if (proxy->m_Collection != 0)
         {
             LogMessageError(message, "Collection proxy %s: '%s'", "already loaded", path);
@@ -468,6 +516,7 @@ namespace dmGameSystem
 
         proxy->m_Callback = cbk;
         proxy->m_CallbackCtx = cbk_ctx;
+        proxy->m_Loading = 1;
 
         if (load_async)
         {
@@ -504,7 +553,7 @@ namespace dmGameSystem
         }
         if (proxy->m_Collection == 0)
         {
-            LogMessageError(message, "The collection %s could not be unloaded since it was never loaded.", proxy->m_Resource->m_DDF->m_Collection);
+            LogMessageError(message, "The collection %s could not be unloaded since it was never loaded.", GetCollectionResorcePath(proxy));
             if (message)
                 return dmGameObject::RESULT_OK;
             return dmGameObject::RESULT_UNKNOWN_ERROR;
@@ -547,7 +596,7 @@ namespace dmGameSystem
             }
             else
             {
-                LogMessageError(message, "The collection %s could not be initialized since it has been already.", proxy->m_Resource->m_DDF->m_Collection);
+                LogMessageError(message, "The collection %s could not be initialized since it has been already.", GetCollectionResorcePath(proxy));
                 if (message)
                     return dmGameObject::RESULT_OK; // The message code path doesn't catch errors
                 return dmGameObject::RESULT_UNKNOWN_ERROR;
@@ -555,7 +604,7 @@ namespace dmGameSystem
         }
         else
         {
-            LogMessageError(message, "The collection %s could not be initialized since it has not been loaded.", proxy->m_Resource->m_DDF->m_Collection);
+            LogMessageError(message, "The collection %s could not be initialized since it has not been loaded.", GetCollectionResorcePath(proxy));
             if (message)
                 return dmGameObject::RESULT_OK; // The message code path doesn't catch errors
             return dmGameObject::RESULT_UNKNOWN_ERROR;
@@ -578,7 +627,7 @@ namespace dmGameSystem
         }
         else
         {
-            LogMessageError(message, "The collection %s could not be finalized since it was never initialized.", proxy->m_Resource->m_DDF->m_Collection);
+            LogMessageError(message, "The collection %s could not be finalized since it was never initialized.", GetCollectionResorcePath(proxy));
             if (message)
                 return dmGameObject::RESULT_OK; // The message code path doesn't catch errors
             return dmGameObject::RESULT_UNKNOWN_ERROR;
@@ -608,7 +657,7 @@ namespace dmGameSystem
             }
             else
             {
-                LogMessageError(message, "The collection %s could not be enabled since it is already.", proxy->m_Resource->m_DDF->m_Collection);
+                LogMessageError(message, "The collection %s could not be enabled since it is already.", GetCollectionResorcePath(proxy));
                 if (message)
                     return dmGameObject::RESULT_OK; // The message code path doesn't catch errors
                 return dmGameObject::RESULT_UNKNOWN_ERROR;
@@ -616,7 +665,7 @@ namespace dmGameSystem
         }
         else
         {
-            LogMessageError(message, "The collection %s could not be initialized since it has not been loaded.", proxy->m_Resource->m_DDF->m_Collection);
+            LogMessageError(message, "The collection %s could not be initialized since it has not been loaded.", GetCollectionResorcePath(proxy));
             if (message)
                 return dmGameObject::RESULT_OK; // The message code path doesn't catch errors
             return dmGameObject::RESULT_UNKNOWN_ERROR;
@@ -639,7 +688,7 @@ namespace dmGameSystem
         }
         else
         {
-            LogMessageError(message, "The collection %s could not be disabled since it is not enabled.", proxy->m_Resource->m_DDF->m_Collection);
+            LogMessageError(message, "The collection %s could not be disabled since it is not enabled.", GetCollectionResorcePath(proxy));
             if (message)
                 return dmGameObject::RESULT_OK; // The message code path doesn't catch errors
             return dmGameObject::RESULT_UNKNOWN_ERROR;
@@ -1042,5 +1091,51 @@ namespace dmGameSystem
      *     end
      * end
      * ```
+     */
+
+    /*# changes the collection for a collection proxy.
+     * 
+     * The collection should be loaded by the collection proxy.
+     * Setting the collection to "nil" will revert it back to the original collection.
+     * 
+     * The collection proxy shouldn't be loaded and should have the 'Exclude' checkbox checked.
+     *
+     * @name collectionproxy.set_collection
+     * @param [url] [type:string|hash|url] the collection proxy component
+     * @param [prototype] [type:string|nil] the path to the new collection, or `nil`
+     * @return success [type:boolean] collection change was successful
+     * @return code [type:number] one of the collectionproxy.RESULT_* codes if unsuccessful
+     *
+     * The example assume the script belongs to an instance with collection-proxy-component with id "proxy".
+     *
+     * ```lua
+     * local ok, error = collectionproxy.set_collection("/go#collectionproxy", "/LU/3.collectionc")
+     *  if ok then
+     *      print("The collection has been changed to /LU/3.collectionc")
+     *  else
+     *      print("Error changing collection to /LU/3.collectionc ", error)
+     *  end
+     *  msg.post("/go#collectionproxy", "load")
+     *  msg.post("/go#collectionproxy", "init")
+     *  msg.post("/go#collectionproxy", "enable")
+     * ```
+     */
+
+    /*# collection proxy is loading now
+     * It's impossible to change the collection while the collection proxy is loading.
+     * @name gui.RESULT_LOADING
+     * @variable
+     */
+
+    /*# collection proxy is already loaded
+     * It's impossible to change the collection if the collection is already loaded.
+     * @name gui.RESULT_ALREADY_LOADED
+     * @variable
+     */
+
+    /*# collection proxy isn't excluded
+     * It's impossible to change the collection for a proxy that isn't excluded.
+     * @name gui.RESULT_NOT_EXCLUDED
+     * @variable
      */
 }
