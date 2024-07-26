@@ -469,7 +469,7 @@
           ;; This makes the brush for yet-to-be-painted tiles visible.
           visibility-aabb
           (if (geom/empty-aabb? aabb)
-            geom/minimalXY-bounding-box
+            geom/minimal-xy-aabb
             aabb)]
       {:node-id _node-id
        :node-outline-key id
