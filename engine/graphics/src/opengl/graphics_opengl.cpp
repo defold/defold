@@ -847,7 +847,7 @@ static void LogFrameBufferError(GLenum status)
         OpenGLContext* context = (OpenGLContext*) _context;
 
 #if defined (_WIN32)
-    #define GET_PROC_ADDRESS(function, name, type)\
+    #define GET_PROC_ADDRESS_OPTIONAL(function, name, type) \
         function = (type)wglGetProcAddress(name);\
         if (function == 0x0)\
         {\
@@ -856,7 +856,10 @@ static void LogFrameBufferError(GLenum status)
         if (function == 0x0)\
         {\
             function = (type)wglGetProcAddress(name "EXT");\
-        }\
+        }
+
+    #define GET_PROC_ADDRESS(function, name, type)\
+        GET_PROC_ADDRESS_OPTIONAL(function, name, type) \
         if (function == 0x0)\
         {\
             dmLogError("Could not find gl function '%s'.", name);\
@@ -917,9 +920,10 @@ static void LogFrameBufferError(GLenum status)
         GET_PROC_ADDRESS(glTexImage3D, "glTexImage3D", PFNGLTEXIMAGE3DPROC);
         GET_PROC_ADDRESS(glCompressedTexImage3D, "glCompressedTexImage3D", PFNGLCOMPRESSEDTEXIMAGE3DPROC);
         GET_PROC_ADDRESS(glCompressedTexSubImage3D, "glCompressedTexSubImage3D", PFNGLCOMPRESSEDTEXSUBIMAGE3DPROC);
-        GET_PROC_ADDRESS(glDispatchCompute, "glDispatchCompute", PFNGLDISPATCHCOMPUTEPROC);
-        GET_PROC_ADDRESS(glMemoryBarrier, "glMemoryBarrier", PFNGLMEMORYBARRIERPROC);
-        GET_PROC_ADDRESS(glBindImageTexture, "glBindImageTexture", PFNGLBINDIMAGETEXTUREPROC);
+
+        GET_PROC_ADDRESS_OPTIONAL(glDispatchCompute,  "glDispatchCompute",  PFNGLDISPATCHCOMPUTEPROC);
+        GET_PROC_ADDRESS_OPTIONAL(glMemoryBarrier,    "glMemoryBarrier",    PFNGLMEMORYBARRIERPROC);
+        GET_PROC_ADDRESS_OPTIONAL(glBindImageTexture, "glBindImageTexture", PFNGLBINDIMAGETEXTUREPROC);
 
     #if !defined(GL_ES_VERSION_2_0)
         GET_PROC_ADDRESS(glGetStringi,"glGetStringi",PFNGLGETSTRINGIPROC);
@@ -1312,6 +1316,10 @@ static void LogFrameBufferError(GLenum status)
         #else
             context->m_ComputeSupport = COMPUTE_VERSION_NEEDED(4,3);
         #endif
+
+        context->m_ComputeSupport &= glDispatchCompute  != 0;
+        context->m_ComputeSupport &= glMemoryBarrier    != 0;
+        context->m_ComputeSupport &= glBindImageTexture != 0;
 
         #undef COMPUTE_VERSION_NEEDED
     #endif
@@ -1759,14 +1767,20 @@ static void LogFrameBufferError(GLenum status)
     static void OpenGLDispatchCompute(HContext _context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z)
     {
     #ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
-        DM_PROFILE(__FUNCTION__);
-        DM_PROPERTY_ADD_U32(rmtp_DispatchCalls, 1);
+        OpenGLContext* context = (OpenGLContext*) _context;
+        if (context->m_ComputeSupport)
+        {
+            DM_PROFILE(__FUNCTION__);
+            DM_PROPERTY_ADD_U32(rmtp_DispatchCalls, 1);
 
-        glDispatchCompute(group_count_x, group_count_y, group_count_z);
-        CHECK_GL_ERROR;
+            DrawSetup((OpenGLContext*) _context);
 
-        glMemoryBarrier(DMGRAPHICS_BARRIER_BIT_SHADER_IMAGE_ACCESS);
-        CHECK_GL_ERROR;
+            glDispatchCompute(group_count_x, group_count_y, group_count_z);
+            CHECK_GL_ERROR;
+
+            glMemoryBarrier(DMGRAPHICS_BARRIER_BIT_SHADER_IMAGE_ACCESS);
+            CHECK_GL_ERROR;
+        }
     #endif
     }
 
@@ -3716,6 +3730,9 @@ static void LogFrameBufferError(GLenum status)
     static bool BindImage2D(OpenGLContext* context, OpenGLTexture* tex, uint32_t unit, uint32_t id_index, bool do_unbind = false)
     {
     #ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
+        if (!context->m_ComputeSupport)
+            return false;
+
         int32_t uniform_index;
         Type type;
 
