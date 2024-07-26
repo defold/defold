@@ -201,12 +201,81 @@ namespace dmGameSystem
         return 1;
     }
 
+    static int Material_SetVertexAttribute(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        MaterialResource* material_res = CheckMaterialResource(L, 1);
+        dmhash_t name_hash = dmScript::CheckHashOrString(L, 2);
+
+        dmRender::MaterialProgramAttributeInfo info;
+        if (!dmRender::GetMaterialProgramAttributeInfo(material_res->m_Material, name_hash, info))
+        {
+            return luaL_error(L, "Material attribute '%s' not found", dmHashReverseSafe64(name_hash));
+        }
+
+        luaL_checktype(L, 3, LUA_TTABLE);
+        lua_pushvalue(L, 3);
+
+        lua_getfield(L, -1, "value");
+        if (!lua_isnil(L, -1))
+        {
+            if (dmScript::IsVector4(L, -1))
+            {
+                dmVMath::Vector4* v4 = dmScript::ToVector4(L, -1);
+            }
+            else if (dmScript::IsVector3(L, -1))
+            {
+                dmVMath::Vector3* v3 = dmScript::ToVector3(L, -1);
+            }
+            else if (lua_isnumber(L, -1))
+            {
+                float v1 = lua_tonumber(L, -1);
+            }
+            else
+            {
+                return luaL_error(L, "Invalid value type for material attribute '%s'", dmHashReverseSafe64(name_hash));
+            }
+
+            lua_pop(L, 1);
+        }
+
+        lua_pop(L, 1); // args table
+
+        return 0;
+    }
+
+    static int Material_SetSampler(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        MaterialResource* material_res = CheckMaterialResource(L, 1);
+        return 0;
+    }
+
+    static int Material_SetConstant(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        MaterialResource* material_res = CheckMaterialResource(L, 1);
+        return 0;
+    }
+
+    static int Material_SetTexture(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        MaterialResource* material_res = CheckMaterialResource(L, 1);
+        return 0;
+    }
+
     static const luaL_reg ScriptCompute_methods[] =
     {
         {"get_vertex_attributes", Material_GetVertexAttributes},
         {"get_samplers",          Material_GetSamplers},
         {"get_constants",         Material_GetConstants},
         {"get_textures",          Material_GetTextures},
+
+        {"set_vertex_attribute",  Material_SetVertexAttribute},
+        {"set_sampler",           Material_SetSampler},
+        {"set_constant",          Material_SetConstant},
+        {"set_texture",           Material_SetTexture},
         {0, 0}
     };
 
