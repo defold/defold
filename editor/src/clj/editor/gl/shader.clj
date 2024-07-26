@@ -573,7 +573,12 @@ of GLSL strings and returns an object that satisfies GlBind and GlEnable."
             location (.glGetUniformLocation gl program name)
             type (gl-uniform-type->uniform-type (aget out-type 0))
             count (aget out-count 0)
-            sanitized-name (string/replace name name-array-suffix-pattern "")]
+            ;; 1. strip brackets from uniform name, i.e "uniform_name[123]"
+            sanitized-name (string/replace name name-array-suffix-pattern "")
+            ;; 2. take the last part of the uniform name, in case it's
+            ;;    a uniform buffer so we can match it to constants.
+            ;;    I.e, "uniform_buffer.my_uniform" -> "my_uniform"
+            sanitized-name (last (string/split sanitized-name #"\."))]
         {:name sanitized-name
          :index location
          :type type

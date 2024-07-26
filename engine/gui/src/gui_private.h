@@ -228,33 +228,19 @@ namespace dmGui
 
     struct TextureInfo
     {
-        TextureInfo(HTextureSource texture_source, NodeTextureType texture_source_type, uint32_t original_width, uint32_t original_height)
+        TextureInfo(HTextureSource texture_source, NodeTextureType texture_source_type, uint32_t original_width, uint32_t original_height, dmImage::Type image_type)
         : m_TextureSource(texture_source)
         , m_TextureSourceType(texture_source_type)
+        , m_ImageType(image_type)
         , m_OriginalWidth(original_width)
-        , m_OriginalHeight(original_height) {}
+        , m_OriginalHeight(original_height)
+        {}
 
         HTextureSource  m_TextureSource;
         NodeTextureType m_TextureSourceType;
+        dmImage::Type   m_ImageType;
         uint32_t        m_OriginalWidth : 16;
         uint32_t        m_OriginalHeight : 16;
-    };
-
-    struct DynamicTexture
-    {
-        DynamicTexture(HTextureSource handle)
-        {
-            memset(this, 0, sizeof(*this));
-            m_Handle = handle;
-            m_Type = (dmImage::Type) -1;
-        }
-        HTextureSource  m_Handle;
-        uint32_t        m_Created : 1;
-        uint32_t        m_Deleted : 1;
-        uint32_t        m_Width;
-        uint32_t        m_Height;
-        void*           m_Buffer;
-        dmImage::Type   m_Type;
     };
 
     struct ParticlefxComponent
@@ -270,53 +256,55 @@ namespace dmGui
 
     struct Scene
     {
-        int                     m_InstanceReference;
-        int                     m_DataReference;
-        int                     m_ContextTableReference;
-        Context*                m_Context;
-        Script*                 m_Script;
-        dmIndexPool16           m_NodePool;
-        dmArray<InternalNode>   m_Nodes;
-        dmArray<Animation>      m_Animations;
+        int                                   m_InstanceReference;
+        int                                   m_DataReference;
+        int                                   m_ContextTableReference;
+        Context*                              m_Context;
+        Script*                               m_Script;
+        dmIndexPool16                         m_NodePool;
+        dmArray<InternalNode>                 m_Nodes;
+        dmArray<Animation>                    m_Animations;
         dmHashTable<uintptr_t, dmhash_t>      m_ResourceToPath;
         dmHashTable64<void*>                  m_Fonts;
         dmHashTable64<TextureInfo>            m_Textures;
-        dmHashTable64<DynamicTexture>         m_DynamicTextures;
+        dmHashTable64<TextureInfo>            m_DynamicTextures;
         dmHashTable64<void*>                  m_MaterialResources;
         dmParticle::HParticleContext          m_ParticlefxContext;
         dmHashTable64<dmParticle::HPrototype> m_Particlefxs;
         dmArray<ParticlefxComponent>          m_AliveParticlefxs;
-        dmHashTable64<uint16_t> m_Layers;
-        dmArray<dmhash_t>       m_Layouts;
-        dmArray<void*>          m_LayoutsNodeDescs;
-        dmhash_t                m_LayoutId;
-        AdjustReference         m_AdjustReference;
-        dmArray<dmhash_t>       m_DeletedDynamicTextures;
-        void*                   m_DefaultFont;
-        void*                   m_UserData;
-        uint16_t                m_RenderHead;
-        uint16_t                m_RenderTail;
-        uint16_t                m_NextVersionNumber;
-        uint16_t                m_RenderOrder; // For the render-key
-        uint16_t                m_NextLayerIndex;
-        uint16_t                m_ResChanged : 1;
-        uint32_t                m_Width;
-        uint32_t                m_Height;
-        dmScript::ScriptWorld*  m_ScriptWorld;
-        CreateCustomNodeCallback    m_CreateCustomNodeCallback;
-        DestroyCustomNodeCallback   m_DestroyCustomNodeCallback;
-        CloneCustomNodeCallback     m_CloneCustomNodeCallback;
-        UpdateCustomNodeCallback    m_UpdateCustomNodeCallback;
-        void*                       m_CreateCustomNodeCallbackContext;
-        GetResourceCallback         m_GetResourceCallback;
-        void*                       m_GetResourceCallbackContext;
-        FetchTextureSetAnimCallback m_FetchTextureSetAnimCallback;
-        OnWindowResizeCallback      m_OnWindowResizeCallback;
-        GetMaterialPropertyCallback m_GetMaterialPropertyCallback;
-        void*                       m_GetMaterialPropertyCallbackContext;
-        SetMaterialPropertyCallback m_SetMaterialPropertyCallback;
-        void*                       m_SetMaterialPropertyCallbackContext;
-        DestroyRenderConstantsCallback m_DestroyRenderConstantsCallback;
+        dmHashTable64<uint16_t>               m_Layers;
+        dmArray<dmhash_t>                     m_Layouts;
+        dmArray<void*>                        m_LayoutsNodeDescs;
+        dmhash_t                              m_LayoutId;
+        AdjustReference                       m_AdjustReference;
+        void*                                 m_DefaultFont;
+        void*                                 m_UserData;
+        uint16_t                              m_RenderHead;
+        uint16_t                              m_RenderTail;
+        uint16_t                              m_NextVersionNumber;
+        uint16_t                              m_RenderOrder; // For the render-key
+        uint16_t                              m_NextLayerIndex;
+        uint16_t                              m_ResChanged : 1;
+        uint32_t                              m_Width;
+        uint32_t                              m_Height;
+        dmScript::ScriptWorld*                m_ScriptWorld;
+        CreateCustomNodeCallback              m_CreateCustomNodeCallback;
+        DestroyCustomNodeCallback             m_DestroyCustomNodeCallback;
+        CloneCustomNodeCallback               m_CloneCustomNodeCallback;
+        UpdateCustomNodeCallback              m_UpdateCustomNodeCallback;
+        void*                                 m_CreateCustomNodeCallbackContext;
+        GetResourceCallback                   m_GetResourceCallback;
+        void*                                 m_GetResourceCallbackContext;
+        FetchTextureSetAnimCallback           m_FetchTextureSetAnimCallback;
+        OnWindowResizeCallback                m_OnWindowResizeCallback;
+        GetMaterialPropertyCallback           m_GetMaterialPropertyCallback;
+        void*                                 m_GetMaterialPropertyCallbackContext;
+        SetMaterialPropertyCallback           m_SetMaterialPropertyCallback;
+        void*                                 m_SetMaterialPropertyCallbackContext;
+        DestroyRenderConstantsCallback        m_DestroyRenderConstantsCallback;
+        NewTextureResourceCallback            m_NewTextureResourceCallback;
+        DeleteTextureResourceCallback         m_DeleteTextureResourceCallback;
+        SetTextureResourceCallback            m_SetTextureResourceCallback;
     };
 
     InternalNode* GetNode(HScene scene, HNode node);

@@ -98,11 +98,11 @@ PACKAGES_ALL="protobuf-3.20.1 waf-2.0.3 junit-4.6 jsign-4.2 protobuf-java-3.20.1
 PACKAGES_HOST="vpx-1.7.0 luajit-2.1.0-6c4826f tremolo-b0cb4d1".split()
 PACKAGES_IOS_X86_64="protobuf-3.20.1 luajit-2.1.0-6c4826f tremolo-b0cb4d1 bullet-2.77 glfw-2.7.1".split()
 PACKAGES_IOS_64="protobuf-3.20.1 luajit-2.1.0-6c4826f tremolo-b0cb4d1 bullet-2.77 moltenvk-1.3.261.1 glfw-2.7.1".split()
-PACKAGES_MACOS_X86_64="protobuf-3.20.1 luajit-2.1.0-6c4826f vpx-1.7.0 tremolo-b0cb4d1 bullet-2.77 spirv-cross-37fee00a spirv-tools-4fab7435 glslc-31bddbb moltenvk-1.3.261.1 lipo-9ffdea2 sassc-5472db213ec223a67482df2226622be372921847 glfw-3.4".split()
-PACKAGES_MACOS_ARM64="protobuf-3.20.1 luajit-2.1.0-6c4826f vpx-1.7.0 tremolo-b0cb4d1 bullet-2.77 spirv-cross-edd66a2f spirv-tools-d24a39a7 glslc-40bced4 moltenvk-1.3.261.1 lipo-9ffdea2 glfw-3.4".split() # sassc-5472db213ec223a67482df2226622be372921847
+PACKAGES_MACOS_X86_64="protobuf-3.20.1 luajit-2.1.0-6c4826f vpx-1.7.0 tremolo-b0cb4d1 bullet-2.77 spirv-cross-37fee00a spirv-tools-4fab7435 glslang-42d9adf5 moltenvk-1.3.261.1 lipo-9ffdea2 sassc-5472db213ec223a67482df2226622be372921847 glfw-3.4".split()
+PACKAGES_MACOS_ARM64="protobuf-3.20.1 luajit-2.1.0-6c4826f vpx-1.7.0 tremolo-b0cb4d1 bullet-2.77 spirv-cross-edd66a2f spirv-tools-c91d9ec1 glslang-42d9adf5 moltenvk-1.3.261.1 lipo-9ffdea2 glfw-3.4".split() # sassc-5472db213ec223a67482df2226622be372921847
 PACKAGES_WIN32="protobuf-3.20.1 luajit-2.1.0-6c4826f openal-1.1 glut-3.7.6 bullet-2.77 vulkan-1.3.261.1 glfw-2.7.1".split()
-PACKAGES_WIN32_64="protobuf-3.20.1 luajit-2.1.0-6c4826f openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-edd66a2f spirv-tools-d24a39a7 glslc-31bddbb vulkan-1.3.261.1 lipo-9ffdea2 glfw-2.7.1".split()
-PACKAGES_LINUX_64="protobuf-3.20.1 luajit-2.1.0-6c4826f sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-edd66a2f spirv-tools-d24a39a7 glslc-31bddbb vulkan-1.1.108 lipo-9ffdea2 glfw-2.7.1".split()
+PACKAGES_WIN32_64="protobuf-3.20.1 luajit-2.1.0-6c4826f openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 glslang-42d9adf5 spirv-cross-edd66a2f spirv-tools-d24a39a7 vulkan-1.3.261.1 lipo-9ffdea2 glfw-2.7.1".split()
+PACKAGES_LINUX_64="protobuf-3.20.1 luajit-2.1.0-6c4826f sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 glslang-ba5c010c spirv-cross-edd66a2f spirv-tools-d24a39a7 vulkan-1.1.108 lipo-9ffdea2 glfw-2.7.1".split()
 PACKAGES_ANDROID="protobuf-3.20.1 android-support-multidex androidx-multidex luajit-2.1.0-6c4826f tremolo-b0cb4d1 bullet-2.77 glfw-2.7.1".split()
 PACKAGES_ANDROID.append(sdk.ANDROID_PACKAGE)
 PACKAGES_ANDROID_64="protobuf-3.20.1 android-support-multidex androidx-multidex luajit-2.1.0-6c4826f tremolo-b0cb4d1 bullet-2.77 glfw-2.7.1".split()
@@ -1278,6 +1278,9 @@ class Configuration(object):
             print("Wrote report to %s. Open with 'scan-view .' or 'python -m SimpleHTTPServer'" % report_dir)
             shutil.rmtree(scan_output_dir)
 
+        self._log("Copy platform.sdks.json")
+        shutil.copyfile(join(self.defold_root, "share", "platform.sdks.json"), join(self.dynamo_home, "platform.sdks.json"))
+
         if os.path.exists(os.environ['DM_BOB_ROOTFOLDER']):
             print ("Removing", os.environ['DM_BOB_ROOTFOLDER'])
             shutil.rmtree(os.environ['DM_BOB_ROOTFOLDER'])
@@ -1472,6 +1475,9 @@ class Configuration(object):
         print("Create sdk signature")
         sig_filename = self._create_sha256_signature_file(sdkpath)
         self.upload_to_archive(join(dirname(sdkpath), sig_filename), '%s/defoldsdk.sha256' % sdkurl)
+
+        print("Upload platform sdks mappings")
+        self.upload_to_archive(join(self.defold_root, "share", "platform.sdks.json"), '%s/platform.sdks.json' % sdkurl)
 
         shutil.rmtree(tempdir)
         print ("Removed", tempdir)

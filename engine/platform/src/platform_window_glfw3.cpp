@@ -101,6 +101,16 @@ namespace dmPlatform
         }
     }
 
+    static void OnContentScaleCallback(GLFWwindow* glfw_window, float xscale, float yscale)
+    {
+        (void)xscale;
+        (void)yscale;
+
+        int width, height;
+        glfwGetWindowSize(glfw_window, &width, &height);
+        OnWindowResize(glfw_window, width, height);
+    }
+
     static void OnMouseScroll(GLFWwindow* glfw_window, double xoffset, double yoffset)
     {
         HWindow window = (HWindow) glfwGetWindowUserPointer(glfw_window);
@@ -165,8 +175,10 @@ namespace dmPlatform
     {
         // TODO: This is the setup required for OSX, when we implement the other desktop
         //       platforms we might want to do this according to platform.
+
+        // Require OpenGL 3.3 or higher
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 
         glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
@@ -259,6 +271,7 @@ namespace dmPlatform
             glfwSetScrollCallback(window->m_Window, OnMouseScroll);
             glfwSetCharCallback(window->m_Window, OnAddCharacterCallback);
             glfwSetMarkedTextCallback(window->m_Window, OnMarkedTextCallback);
+            glfwSetWindowContentScaleCallback(window->m_Window, OnContentScaleCallback);
 
             glfwSetJoystickCallback(OnJoystick);
 

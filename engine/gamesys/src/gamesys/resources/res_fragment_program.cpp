@@ -20,13 +20,8 @@ namespace dmGameSystem
 {
     static dmResource::Result AcquireResources(dmGraphics::HContext context, dmResource::HFactory factory, const char* filename, dmGraphics::ShaderDesc* ddf, dmGraphics::HVertexProgram* program)
     {
-        dmGraphics::ShaderDesc::Shader* shader = dmGraphics::GetShaderProgram(context, ddf);
-        if (shader == 0x0)
-        {
-            return dmResource::RESULT_FORMAT_ERROR;
-        }
         char error_buffer[1024] = {};
-        dmGraphics::HFragmentProgram prog = dmGraphics::NewFragmentProgram(context, shader, error_buffer, sizeof(error_buffer));
+        dmGraphics::HFragmentProgram prog = dmGraphics::NewFragmentProgram(context, ddf, error_buffer, sizeof(error_buffer));
         if (prog == 0)
         {
             dmLogError("Failed to create fragment program '%s': %s", filename, error_buffer);
@@ -85,12 +80,7 @@ namespace dmGameSystem
         }
 
         dmResource::Result res = dmResource::RESULT_OK;
-        dmGraphics::ShaderDesc::Shader* shader =  dmGraphics::GetShaderProgram((dmGraphics::HContext)params->m_Context, ddf);
-        if (shader == 0x0)
-        {
-            res = dmResource::RESULT_FORMAT_ERROR;
-        }
-        else if(!dmGraphics::ReloadFragmentProgram(resource, shader))
+        if(!dmGraphics::ReloadFragmentProgram(resource, ddf))
         {
             res = dmResource::RESULT_FORMAT_ERROR;
         }

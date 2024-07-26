@@ -63,10 +63,10 @@
    "${DYNAMO-HOME}/ext/bin/arm64-macos/luajit-32"            "arm64-macos/bin/luajit-32"
    "${DYNAMO-HOME}/ext/bin/arm64-macos/luajit-64"            "arm64-macos/bin/luajit-64"
 
-   "$DYNAMO_HOME/ext/bin/x86_64-macos/glslc"                  "x86_64-macos/glslc"
-   "$DYNAMO_HOME/ext/bin/arm64-macos/glslc"                   "arm64-macos/glslc"
-   "$DYNAMO_HOME/ext/bin/x86_64-linux/glslc"                  "x86_64-linux/glslc"
-   "$DYNAMO_HOME/ext/bin/x86_64-win32/glslc.exe"              "x86_64-win32/glslc.exe"
+   "$DYNAMO_HOME/ext/bin/x86_64-macos/glslang"                  "x86_64-macos/glslang"
+   "$DYNAMO_HOME/ext/bin/arm64-macos/glslang"                   "arm64-macos/glslang"
+   "$DYNAMO_HOME/ext/bin/x86_64-linux/glslang"                  "x86_64-linux/glslang"
+   "$DYNAMO_HOME/ext/bin/x86_64-win32/glslang.exe"              "x86_64-win32/glslang.exe"
 
    "$DYNAMO_HOME/ext/bin/x86_64-macos/spirv-cross"            "x86_64-macos/spirv-cross"
    "$DYNAMO_HOME/ext/bin/arm64-macos/spirv-cross"             "arm64-macos/spirv-cross"

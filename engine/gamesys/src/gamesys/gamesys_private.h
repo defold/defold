@@ -17,6 +17,7 @@
 
 #include <dlib/message.h>
 #include <dlib/object_pool.h>
+#include <dlib/buffer.h>
 
 #include <render/render.h>
 
@@ -129,6 +130,50 @@ namespace dmGameSystem
     dmGameObject::PropertyResult ClearMaterialAttribute(DynamicAttributePool& pool, uint32_t dynamic_attribute_index, dmhash_t name_hash);
     dmGameObject::PropertyResult SetMaterialAttribute(DynamicAttributePool& pool, uint32_t* dynamic_attribute_index, dmRender::HMaterial material, dmhash_t name_hash, const dmGameObject::PropertyVar& var, CompGetMaterialAttributeCallback callback, void* callback_user_data);
     dmGameObject::PropertyResult GetMaterialAttribute(DynamicAttributePool& pool, uint32_t dynamic_attribute_index, dmRender::HMaterial material, dmhash_t name_hash, dmGameObject::PropertyDesc& out_desc, CompGetMaterialAttributeCallback callback, void* callback_user_data);
+
+    // gamesys_resource.cpp
+    struct CreateTextureResourceParams
+    {
+        const char*                               m_Path;
+        dmhash_t                                  m_PathHash;
+        dmGameObject::HCollection                 m_Collection;
+        dmGraphics::TextureType                   m_Type;
+        dmGraphics::TextureFormat                 m_Format;
+        dmGraphics::TextureImage::Type            m_TextureType;
+        dmGraphics::TextureImage::TextureFormat   m_TextureFormat;
+        dmGraphics::TextureImage::CompressionType m_CompressionType;
+        dmBuffer::HBuffer                         m_Buffer;
+        const void*                               m_Data;
+        uint32_t                                  m_Width;
+        uint32_t                                  m_Height;
+        uint32_t                                  m_MaxMipMaps;
+        uint32_t                                  m_TextureBpp;
+        uint32_t                                  m_UsageFlags;
+    };
+
+    struct SetTextureResourceParams
+    {
+        dmhash_t                                  m_PathHash;
+        dmGraphics::TextureType                   m_TextureType;
+        dmGraphics::TextureFormat                 m_TextureFormat;
+        dmGraphics::TextureImage::CompressionType m_CompressionType;
+        const void*                               m_Data;
+        size_t                                    m_DataSize;
+        uint32_t                                  m_Width;
+        uint32_t                                  m_Height;
+        uint32_t                                  m_X;
+        uint32_t                                  m_Y;
+        uint32_t                                  m_MipMap;
+        bool                                      m_SubUpdate;
+    };
+
+    dmGraphics::TextureImage::TextureFormat GraphicsTextureFormatToImageFormat(dmGraphics::TextureFormat textureformat);
+    dmGraphics::TextureImage::Type GraphicsTextureTypeToImageType(dmGraphics::TextureType texturetype);
+    void MakeTextureImage(CreateTextureResourceParams params, dmGraphics::TextureImage* texture_image);
+    void DestroyTextureImage(dmGraphics::TextureImage& texture_image, bool destroy_image_data);
+    dmResource::Result CreateTextureResource(dmResource::HFactory factory, const CreateTextureResourceParams& create_params, void** resource_out);
+    dmResource::Result SetTextureResource(dmResource::HFactory factory, const SetTextureResourceParams& params);
+    dmResource::Result ReleaseDynamicResource(dmResource::HFactory factory, dmGameObject::HCollection collection, dmhash_t path_hash);
 }
 
 #endif // DM_GAMESYS_PRIVER_H

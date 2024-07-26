@@ -38,10 +38,10 @@ mkdir -p libexec/wasm-web
 SHA1=`git log --pretty=%H -n1`
 
 # SPIRV toolchain
-cp -v $DYNAMO_HOME/ext/bin/x86_64-macos/glslc libexec/x86_64-macos/glslc
-cp -v $DYNAMO_HOME/ext/bin/arm64-macos/glslc libexec/arm64-macos/glslc
-cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/glslc libexec/x86_64-linux/glslc
-cp -v $DYNAMO_HOME/ext/bin/x86_64-win32/glslc.exe libexec/x86_64-win32/glslc.exe
+cp -v $DYNAMO_HOME/ext/bin/x86_64-macos/glslang libexec/x86_64-macos/glslang
+cp -v $DYNAMO_HOME/ext/bin/arm64-macos/glslang libexec/arm64-macos/glslang
+cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/glslang libexec/x86_64-linux/glslang
+cp -v $DYNAMO_HOME/ext/bin/x86_64-win32/glslang.exe libexec/x86_64-win32/glslang.exe
 
 cp -v $DYNAMO_HOME/ext/bin/x86_64-macos/spirv-cross libexec/x86_64-macos/spirv-cross
 cp -v $DYNAMO_HOME/ext/bin/arm64-macos/spirv-cross libexec/arm64-macos/spirv-cross
