@@ -235,7 +235,8 @@
         page-offset-x (get-rect-page-offset layout-width page-index)
         adjusted-editor-rect (assoc editor-rect :x (+ (:x editor-rect) page-offset-x))
         aabb (geom/rect->aabb adjusted-editor-rect)]
-    {:aabb aabb
+    {:node-id _node-id
+     :aabb aabb
      :renderable {:render-fn render-image-outlines
                   :tags #{:atlas :outline}
                   :batch-key ::atlas-image
@@ -636,8 +637,7 @@
   (let [[width height] layout-size
         pages (group-by :page layout-rects)
         child-renderables (into [] (for [[page-index page-rects] pages] (produce-page-renderables aabb width height page-index page-rects gpu-texture)))]
-    {:node-id _node-id
-     :aabb aabb
+    {:aabb aabb
      :info-text (format "%d x %d (%s profile)" width height (:name texture-profile))
      :children (into child-renderables
                      child-scenes)}))
