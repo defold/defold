@@ -776,7 +776,7 @@
   (try
     (report-build-launch-progress! "Launching engine...")
     (let [engine (engine/install-engine! project-directory engine-descriptor)
-          count 4                                           ;TODO: move setting somewhere
+          count 2                                           ;TODO: move setting somewhere
           instance-index-range (if (= count 1) (range (inc 0)) (range 1 (inc count)))
           launched-targets (for [instance-index instance-index-range]
                              (->> (engine/launch! engine project-directory prefs debug? instance-index)
@@ -785,7 +785,7 @@
           last-launched-target (last launched-targets)]
       (targets/select-target! prefs last-launched-target)
       (report-build-launch-progress! (format "Launched %s" (targets/target-message-label last-launched-target)))
-      last-launched-target)
+      launched-targets)
     (catch Exception e
       (targets/kill-launched-targets!)
       (report-build-launch-progress! "Launch failed")
@@ -836,14 +836,16 @@
   (let [selected-target (targets/selected-target prefs)
         launch-new-engine! (fn []
                              (targets/kill-launched-targets!)
-                             (let [launched-target (launch-engine! engine-descriptor project-directory prefs debug?)
-                                   log-stream      (:log-stream launched-target)]
-                               (targets/when-url (:id launched-target)
-                                                 #(on-launched-hook! project (:process launched-target) %))
-                               (reset-console-stream! log-stream)
-                               (reset-remote-log-pump-thread! nil)
-                               (start-log-pump! log-stream (make-launched-log-sink launched-target))
-                               launched-target))]
+                             (let [launched-targets (launch-engine! engine-descriptor project-directory prefs debug?)
+                                   last-launched-target (last launched-targets)]
+                               (targets/when-url (:id last-launched-target)
+                                                 #(on-launched-hook! project (:process last-launched-target) %))
+                               (doseq [launched-target launched-targets]
+                                 (let [log-stream (:log-stream launched-target)]
+                                   (reset-console-stream! log-stream)
+                                   (reset-remote-log-pump-thread! nil)
+                                   (start-log-pump! log-stream (make-launched-log-sink launched-target))))
+                               last-launched-target))]
     (try
       (cond
         (not selected-target)
