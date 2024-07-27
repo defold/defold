@@ -235,8 +235,7 @@
         page-offset-x (get-rect-page-offset layout-width page-index)
         adjusted-editor-rect (assoc editor-rect :x (+ (:x editor-rect) page-offset-x))
         aabb (geom/rect->aabb adjusted-editor-rect)]
-    {:node-id _node-id
-     :aabb aabb
+    {:aabb aabb
      :renderable {:render-fn render-image-outlines
                   :tags #{:atlas :outline}
                   :batch-key ::atlas-image
