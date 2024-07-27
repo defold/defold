@@ -849,6 +849,17 @@ namespace dmEngine
         // This scope is mainly here to make sure the "Main" scope is created first
         DM_PROFILE("Init");
 
+        char window_title[512];
+        const char* project_title = dmConfigFile::GetString(engine->m_Config, "project.title", "TestTitle");
+        int instance_index = 0;
+#if !defined(DM_RELEASE)
+        instance_index = dmConfigFile::GetInt(engine->m_Config, "project.instance_index", 0);
+        if (instance_index)
+        {
+            dmSnPrintf(window_title, sizeof(window_title), "%s - %d", project_title, instance_index);
+        }
+#endif
+
         float clear_color_red = dmConfigFile::GetFloat(engine->m_Config, "render.clear_color_red", 0.0);
         float clear_color_green = dmConfigFile::GetFloat(engine->m_Config, "render.clear_color_green", 0.0);
         float clear_color_blue = dmConfigFile::GetFloat(engine->m_Config, "render.clear_color_blue", 0.0);
@@ -875,7 +886,7 @@ namespace dmEngine
         window_params.m_Width                   = engine->m_Width;
         window_params.m_Height                  = engine->m_Height;
         window_params.m_Samples                 = dmConfigFile::GetInt(engine->m_Config, "display.samples", 0);
-        window_params.m_Title                   = dmConfigFile::GetString(engine->m_Config, "project.title", "TestTitle");
+        window_params.m_Title                   = instance_index ? window_title : project_title;
         window_params.m_Fullscreen              = (bool) dmConfigFile::GetInt(engine->m_Config, "display.fullscreen", 0);
         window_params.m_HighDPI                 = (bool) dmConfigFile::GetInt(engine->m_Config, "display.high_dpi", 0);
         window_params.m_BackgroundColor         = clear_color;
