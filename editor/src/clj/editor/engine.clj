@@ -251,18 +251,22 @@
       (copy-dmengine-dependencies! engine-dir extender-platform)
       engine-file)))
 
-(defn launch! [^File engine project-directory prefs debug?]
+(defn launch! [^File engine project-directory prefs debug? instance-index]
+  (println "instance-index" instance-index)
   (let [defold-log-dir (some-> (System/getProperty "defold.log.dir")
                                (File.)
                                (.getAbsolutePath))
         command (.getAbsolutePath engine)
         args (cond-> []
-               defold-log-dir
-               (into ["--config=project.write_log=1"
-                      (format "--config=project.log_dir=%s" defold-log-dir)])
+                     defold-log-dir
+                     (into ["--config=project.write_log=1"
+                            (format "--config=project.log_dir=%s" defold-log-dir)])
 
-               debug?
-               (into ["--config=bootstrap.debug_init_script=/_defold/debugger/start.luac"]))
+                     debug?
+                     (into ["--config=bootstrap.debug_init_script=/_defold/debugger/start.luac"])
+
+                     (> instance-index 0)
+                     (into [(format "--config=project.instance_index=%d" instance-index)]))
         env {"DM_SERVICE_PORT" "dynamic"
              "DM_QUIT_ON_ESC" (if (prefs/get-prefs prefs "general-quit-on-esc" false)
                                 "1" "0")

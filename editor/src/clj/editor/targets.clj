@@ -79,12 +79,14 @@
 (defn remote-target? [target]
   (not (launched-target? target)))
 
-(defn add-launched-target! [target]
+(defn add-launched-target! [instance-index target]
   (assert (launched-target? target))
   (let [launched-target (assoc target
-                               :local-address "127.0.0.1"
-                               :id (str (UUID/randomUUID)))]
-    (kill-launched-targets!)
+                          :local-address "127.0.0.1"
+                          :id (str (UUID/randomUUID))
+                          :instance-index instance-index)]
+    (when (= instance-index 0)
+      (kill-launched-targets!))
     (swap! launched-targets conj launched-target)
     (clear-selected-target-hint!)
     (invalidate-target-menu!)
@@ -327,7 +329,14 @@
       "invalid host")))
 
 (defn target-menu-label [target]
-  (format "%s - %s" (str (if (local-target? target) "Local " "") (:name target)) (url-string (:url target))))
+  (println "target:" target)
+  (let [instance-index (:instance-index target)]
+    (format "%s - %s %s"
+           (str (if (local-target? target) "Local " "") (:name target))
+           (url-string (:url target))
+           (if (or (nil? instance-index) (= instance-index 0))
+             ""
+             (format "- instance %d" instance-index)))))
 
 (defn target-message-label [target]
   (let [url (:url target)]

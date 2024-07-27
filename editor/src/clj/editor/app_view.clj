@@ -776,12 +776,16 @@
   (try
     (report-build-launch-progress! "Launching engine...")
     (let [engine (engine/install-engine! project-directory engine-descriptor)
-          launched-target (->> (engine/launch! engine project-directory prefs debug?)
-                               (decorate-target engine-descriptor)
-                               (targets/add-launched-target!)
-                               (targets/select-target! prefs))]
-      (report-build-launch-progress! (format "Launched %s" (targets/target-message-label launched-target)))
-      launched-target)
+          count 4                                           ;TODO: move setting somewhere
+          instance-index-range (if (= count 1) (range (inc 0)) (range 1 (inc count)))
+          launched-targets (for [instance-index instance-index-range]
+                             (->> (engine/launch! engine project-directory prefs debug? instance-index)
+                                  (decorate-target engine-descriptor)
+                                  (targets/add-launched-target! instance-index)))
+          last-launched-target (last launched-targets)]
+      (targets/select-target! prefs last-launched-target)
+      (report-build-launch-progress! (format "Launched %s" (targets/target-message-label last-launched-target)))
+      last-launched-target)
     (catch Exception e
       (targets/kill-launched-targets!)
       (report-build-launch-progress! "Launch failed")
