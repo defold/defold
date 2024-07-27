@@ -142,6 +142,12 @@ namespace dmGameSystem
 
     void* CheckResource(lua_State* L, dmResource::HFactory factory, dmhash_t path_hash, const char* resource_ext)
     {
+        if (path_hash == 0)
+        {
+            luaL_error(L, "Could not get %s type resource from zero path hash", resource_ext);
+            return 0;
+        }
+
         HResourceDescriptor rd = dmResource::FindByHash(factory, path_hash);
         if (!rd)
         {
@@ -166,7 +172,7 @@ namespace dmGameSystem
         return dmResource::GetResource(rd);
     }
 
-    void PushTextureInfo(lua_State* L, dmGraphics::HTexture texture_handle)
+    void PushTextureInfo(lua_State* L, dmGraphics::HTexture texture_handle, dmhash_t texture_resource_path)
     {
         uint32_t texture_width               = dmGraphics::GetTextureWidth(texture_handle);
         uint32_t texture_height              = dmGraphics::GetTextureHeight(texture_handle);
@@ -174,6 +180,12 @@ namespace dmGameSystem
         uint32_t texture_mipmaps             = dmGraphics::GetTextureMipmapCount(texture_handle);
         dmGraphics::TextureType texture_type = dmGraphics::GetTextureType(texture_handle);
         uint32_t texture_flags               = dmGraphics::GetTextureUsageHintFlags(texture_handle);
+
+        if (texture_resource_path != 0)
+        {
+            dmScript::PushHash(L, texture_resource_path);
+            lua_setfield(L, -2, "path");
+        }
 
         lua_pushnumber(L, texture_handle);
         lua_setfield(L, -2, "handle");
@@ -197,7 +209,7 @@ namespace dmGameSystem
         lua_setfield(L, -2, "flags");
     }
 
-    void PushSampler(lua_State* L, dmRender::HSampler sampler, dmGraphics::HTexture texture)
+    void PushSampler(lua_State* L, dmRender::HSampler sampler)
     {
         dmhash_t name_hash;
         uint32_t location;
@@ -225,13 +237,6 @@ namespace dmGameSystem
 
         lua_pushnumber(L, max_anisotropy);
         lua_setfield(L, -2, "max_anisotropy");
-
-        // TODO: Should get from overridden if any
-        if (texture)
-        {
-            lua_pushnumber(L, texture);
-            lua_setfield(L, -2, "texture");
-        }
     }
 
     void PushRenderConstant(lua_State* L, dmRender::HConstant constant)
@@ -273,6 +278,59 @@ namespace dmGameSystem
 
         lua_pushboolean(L, readonly);
         lua_setfield(L, -2, "readonly");
+    }
+
+    void GetSamplerParametersFromLua(lua_State* L, dmGraphics::TextureWrap* u_wrap, dmGraphics::TextureWrap* v_wrap, dmGraphics::TextureFilter* min_filter, dmGraphics::TextureFilter* mag_filter, float* max_anisotropy)
+    {
+        // parse u_wrap
+        {
+            lua_getfield(L, -1, "u_wrap");
+            if (!lua_isnil(L, -1))
+            {
+                *u_wrap = (dmGraphics::TextureWrap) lua_tointeger(L, -1);
+            }
+            lua_pop(L, 1);
+        }
+
+        // parse v_wrap
+        {
+            lua_getfield(L, -1, "v_wrap");
+            if (!lua_isnil(L, -1))
+            {
+                *v_wrap = (dmGraphics::TextureWrap) lua_tointeger(L, -1);
+            }
+            lua_pop(L, 1);
+        }
+
+        // parse min_filter
+        {
+            lua_getfield(L, -1, "min_filter");
+            if (!lua_isnil(L, -1))
+            {
+                *min_filter = (dmGraphics::TextureFilter) lua_tointeger(L, -1);
+            }
+            lua_pop(L, 1);
+        }
+
+        // parse mag_filter
+        {
+            lua_getfield(L, -1, "mag_filter");
+            if (!lua_isnil(L, -1))
+            {
+                *mag_filter = (dmGraphics::TextureFilter) lua_tointeger(L, -1);
+            }
+            lua_pop(L, 1);
+        }
+
+        // parse max_anisotropy
+        {
+            lua_getfield(L, -1, "max_anisotropy");
+            if (!lua_isnil(L, -1))
+            {
+                *max_anisotropy = lua_tonumber(L, -1);
+            }
+            lua_pop(L, 1);
+        }
     }
 
     ScriptLibContext::ScriptLibContext()

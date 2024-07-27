@@ -26,10 +26,7 @@ namespace dmGameSystem
         dmRender::HMaterial m_Material;
         // Sorted on sampler appearance in the material
         TextureResource*    m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
-
-        // TODO:
-        // TextureResource*    m_OverriddenTextures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
-        // dmhash_t            m_TextureResourcePaths[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+        dmhash_t            m_TextureResourcePaths[dmRender::RenderObject::MAX_TEXTURE_COUNT];
 
         dmhash_t            m_SamplerNames[dmRender::RenderObject::MAX_TEXTURE_COUNT];
         uint32_t            m_NumTextures;

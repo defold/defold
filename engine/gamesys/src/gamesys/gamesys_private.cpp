@@ -357,7 +357,7 @@ namespace dmGameSystem
         return 0;
     }
 
-    static inline void FloatToVertexAttributeDataType(float value, dmGraphics::VertexAttribute::DataType data_type, uint8_t* value_write_ptr)
+    void FloatToVertexAttributeDataType(float value, dmGraphics::VertexAttribute::DataType data_type, uint8_t* value_write_ptr)
     {
         switch (data_type)
         {

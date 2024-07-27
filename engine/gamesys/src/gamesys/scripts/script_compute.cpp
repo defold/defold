@@ -71,7 +71,7 @@ namespace dmGameSystem
                 lua_pushinteger(L, (lua_Integer) sampler_index++);
                 lua_newtable(L);
 
-                PushSampler(L, sampler, compute_res->m_Textures[i] ? compute_res->m_Textures[i]->m_Texture : 0);
+                PushSampler(L, sampler);
 
                 lua_rawset(L, -3);
             }
@@ -130,7 +130,7 @@ namespace dmGameSystem
                 lua_pushinteger(L, (lua_Integer) texture_index++);
                 lua_newtable(L);
 
-                PushTextureInfo(L, texture_res->m_Texture);
+                PushTextureInfo(L, texture_res->m_Texture, compute_res->m_TextureResourcePaths[i]);
                 lua_rawset(L, -3);
             }
         }
@@ -138,11 +138,117 @@ namespace dmGameSystem
         return 1;
     }
 
+    static int Compute_SetSampler(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        ComputeResource* compute_res = CheckComputeResource(L, 1);
+        dmhash_t name_hash = dmScript::CheckHashOrString(L, 2);
+
+        uint32_t unit = dmRender::GetComputeProgramSamplerUnit(compute_res->m_Program, name_hash);
+        if (unit == dmRender::INVALID_SAMPLER_UNIT)
+        {
+            return luaL_error(L, "Compute program sampler '%s' not found", dmHashReverseSafe64(name_hash));
+        }
+
+        dmRender::HSampler sampler = dmRender::GetComputeProgramSampler(compute_res->m_Program, unit);
+
+        uint32_t location;
+        dmGraphics::TextureWrap u_wrap, v_wrap;
+        dmGraphics::TextureFilter min_filter, mag_filter;
+        float max_anisotropy;
+        dmRender::GetSamplerInfo(sampler, &name_hash, &location, &u_wrap, &v_wrap, &min_filter, &mag_filter, &max_anisotropy);
+
+        luaL_checktype(L, 3, LUA_TTABLE);
+        lua_pushvalue(L, 3);
+
+        GetSamplerParametersFromLua(L, &u_wrap, &v_wrap, &min_filter, &mag_filter, &max_anisotropy);
+
+        lua_pop(L, 1);
+
+        dmRender::SetComputeProgramSampler(compute_res->m_Program, name_hash, unit, u_wrap, v_wrap, min_filter, mag_filter, max_anisotropy);
+
+        return 0;
+    }
+
+    static int Compute_SetConstant(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        ComputeResource* compute_res = CheckComputeResource(L, 1);
+        dmhash_t name_hash = dmScript::CheckHashOrString(L, 2);
+
+        dmRender::HConstant constant;
+        if (!dmRender::GetComputeProgramConstant(compute_res->m_Program, name_hash, constant))
+        {
+            return luaL_error(L, "Compute program constant '%s' not found", dmHashReverseSafe64(name_hash));
+        }
+
+        luaL_checktype(L, 3, LUA_TTABLE);
+        lua_pushvalue(L, 3);
+
+        // parse value
+        {
+            lua_getfield(L, -1, "value");
+            if (!lua_isnil(L, -1))
+            {
+                dmVMath::Vector4* v4 = dmScript::CheckVector4(L, -1);
+                dmRender::SetComputeProgramConstant(compute_res->m_Program, name_hash, v4, 1);
+            }
+            lua_pop(L, 1);
+        }
+
+        // parse type
+        {
+            lua_getfield(L, -1, "type");
+            if (!lua_isnil(L, -1))
+            {
+                dmRenderDDF::MaterialDesc::ConstantType type = (dmRenderDDF::MaterialDesc::ConstantType) lua_tointeger(L, -1);
+                dmRender::SetComputeProgramConstantType(compute_res->m_Program, name_hash, type);
+            }
+            lua_pop(L, 1);
+        }
+
+        lua_pop(L, 1);
+        return 0;
+    }
+
+    static int Compute_SetTexture(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        ComputeResource* compute_res = CheckComputeResource(L, 1);
+        dmhash_t name_hash = dmScript::CheckHashOrString(L, 2);
+
+        uint32_t unit = dmRender::GetComputeProgramSamplerUnit(compute_res->m_Program, name_hash);
+        if (unit == dmRender::INVALID_SAMPLER_UNIT)
+        {
+            return luaL_error(L, "Compute program sampler '%s' not found", dmHashReverseSafe64(name_hash));
+        }
+
+        dmhash_t texture_path = dmScript::CheckHashOrString(L, 3);
+        TextureResource* texture_res = (TextureResource*) CheckResource(L, g_ComputeModule.m_Factory, texture_path, "texturec");
+
+        compute_res->m_TextureResourcePaths[unit] = texture_path;
+
+        if (compute_res->m_Textures[unit] != texture_res)
+        {
+            if (compute_res->m_Textures[unit])
+            {
+                dmResource::Release(g_ComputeModule.m_Factory, compute_res->m_Textures[unit]);
+            }
+            dmResource::IncRef(g_ComputeModule.m_Factory, texture_res);
+            compute_res->m_Textures[unit] = texture_res;
+        }
+        return 0;
+    }
+
     static const luaL_reg ScriptCompute_methods[] =
     {
-        {"get_samplers",  Compute_GetSamplers},
-        {"get_constants", Compute_GetConstants},
-        {"get_textures",  Compute_GetTextures},
+        {"get_samplers",          Compute_GetSamplers},
+        {"get_constants",         Compute_GetConstants},
+        {"get_textures",          Compute_GetTextures},
+
+        {"set_sampler",           Compute_SetSampler},
+        {"set_constant",          Compute_SetConstant},
+        {"set_texture",           Compute_SetTexture},
         {0, 0}
     };
 

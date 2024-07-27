@@ -117,6 +117,7 @@ namespace dmGameSystem
     typedef dmObjectPool<DynamicAttributeInfo> DynamicAttributePool;
     typedef bool (*CompGetMaterialAttributeCallback)(void* user_data, dmhash_t name_hash, const dmGraphics::VertexAttribute** attribute);
 
+    void    FloatToVertexAttributeDataType(float value, dmGraphics::VertexAttribute::DataType data_type, uint8_t* value_write_ptr);
     void    VertexAttributeToFloats(const dmGraphics::VertexAttribute* attribute, const uint8_t* value_ptr, float* out);
     int32_t FindAttributeIndex(const dmGraphics::VertexAttribute* attributes, uint32_t attributes_count, dmhash_t name_hash);
     void    FillMaterialAttributeInfos(dmRender::HMaterial material, dmGraphics::HVertexDeclaration vx_decl, dmGraphics::VertexAttributeInfos* infos);
@@ -135,9 +136,10 @@ namespace dmGameSystem
     // Script resource helpers (Maybe these should be in a "gamesys_script.h" file?)
     int   ReportPathError(lua_State* L, dmResource::Result result, dmhash_t path_hash);
     void* CheckResource(lua_State* L, dmResource::HFactory factory, dmhash_t path_hash, const char* resource_ext);
-    void  PushTextureInfo(lua_State* L, dmGraphics::HTexture texture_handle);
-    void  PushSampler(lua_State* L, dmRender::HSampler sampler, dmGraphics::HTexture texture);
+    void  PushTextureInfo(lua_State* L, dmGraphics::HTexture texture_handle, dmhash_t texture_resource_path);
+    void  PushSampler(lua_State* L, dmRender::HSampler sampler);
     void  PushRenderConstant(lua_State* L, dmRender::HConstant constant);
+    void  GetSamplerParametersFromLua(lua_State* L, dmGraphics::TextureWrap* u_wrap, dmGraphics::TextureWrap* v_wrap, dmGraphics::TextureFilter* min_filter, dmGraphics::TextureFilter* mag_filter, float* max_anisotropy);
 
     // gamesys_resource.cpp
     struct CreateTextureResourceParams
