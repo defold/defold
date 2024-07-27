@@ -801,18 +801,26 @@ namespace dmEngine
             return false;
         }
 
+        int instance_index = 0;
+#if !defined(DM_RELEASE)
+        instance_index = dmConfigFile::GetInt(engine->m_Config, "project.instance_index", 0);
+#endif
         int write_log = dmConfigFile::GetInt(engine->m_Config, "project.write_log", 0);
         if (write_log) {
             uint32_t count = 0;
             char* log_paths[3];
 
-            const char* LOG_FILE_NAME = "log.txt";
+            char log_file_name[32] = "log.txt";
+            if (instance_index > 0)
+            {
+                dmSnPrintf(log_file_name, sizeof(log_file_name), "instance_%d_log.txt", instance_index);
+            }
 
             const char* log_dir = dmConfigFile::GetString(engine->m_Config, "project.log_dir", NULL);
             char log_config_path[DMPATH_MAX_PATH];
             if (log_dir != NULL)
             {
-                dmPath::Concat(log_dir, LOG_FILE_NAME, log_config_path, sizeof(log_config_path));
+                dmPath::Concat(log_dir, log_file_name, log_config_path, sizeof(log_config_path));
                 log_paths[count] = log_config_path;
                 count++;
             }
@@ -821,7 +829,7 @@ namespace dmEngine
             char main_log_path[DMPATH_MAX_PATH];
             if (dmSys::GetLogPath(sys_path, sizeof(sys_path)) == dmSys::RESULT_OK)
             {
-                dmPath::Concat(sys_path, LOG_FILE_NAME, main_log_path, sizeof(main_log_path));
+                dmPath::Concat(sys_path, log_file_name, main_log_path, sizeof(main_log_path));
                 log_paths[count] = main_log_path;
                 count++;
             }
@@ -831,7 +839,7 @@ namespace dmEngine
             const char* logs_dir = dmConfigFile::GetString(engine->m_Config, "project.title_as_file_name", "defoldlogs");
             if (dmSys::GetApplicationSupportPath(logs_dir, application_support_path, sizeof(application_support_path)) == dmSys::RESULT_OK)
             {
-                dmPath::Concat(application_support_path, LOG_FILE_NAME, application_support_log_path, sizeof(application_support_log_path));
+                dmPath::Concat(application_support_path, log_file_name, application_support_log_path, sizeof(application_support_log_path));
                 log_paths[count] = application_support_log_path;
                 count++;
             }
@@ -851,9 +859,7 @@ namespace dmEngine
 
         char window_title[512];
         const char* project_title = dmConfigFile::GetString(engine->m_Config, "project.title", "TestTitle");
-        int instance_index = 0;
 #if !defined(DM_RELEASE)
-        instance_index = dmConfigFile::GetInt(engine->m_Config, "project.instance_index", 0);
         if (instance_index)
         {
             dmSnPrintf(window_title, sizeof(window_title), "%s - %d", project_title, instance_index);
