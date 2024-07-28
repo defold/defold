@@ -776,7 +776,7 @@
   (try
     (report-build-launch-progress! "Launching engine...")
     (let [engine (engine/install-engine! project-directory engine-descriptor)
-          count 2                                           ;TODO: move setting somewhere
+          count 4                                           ;TODO: move setting somewhere
           instance-index-range (if (= count 1) (range (inc 0)) (range 1 (inc count)))
           launched-targets (for [instance-index instance-index-range]
                              (->> (engine/launch! engine project-directory prefs debug? instance-index)
