@@ -85,14 +85,19 @@
         (.disconnect conn)))))
 
 (defn reboot! [target local-url debug?]
-  (let [uri  (URI. (format "%s/post/@system/reboot" (:url target)))
+  (let [uri (URI. (format "%s/post/@system/reboot" (:url target)))
         conn ^HttpURLConnection (get-connection uri)
+        instance-index (:instance-index target)
+        instance-index? (some? instance-index)
         args (cond-> [(str "--config=resource.uri=" local-url)]
-               debug?
-               (conj (str "--config=bootstrap.debug_init_script=/_defold/debugger/start.luac"))
+                     debug?
+                     (conj (str "--config=bootstrap.debug_init_script=/_defold/debugger/start.luac"))
 
-               true
-               (conj (str local-url "/game.projectc")))]
+                     true
+                     (conj (str local-url "/game.projectc"))
+
+                     (and instance-index? (> instance-index 0))
+                     (into [(format "--config=project.instance_index=%d" instance-index)]))]
     (try
       (with-open [os (.getOutputStream conn)]
         (.write os ^bytes (protobuf/map->bytes
@@ -252,7 +257,6 @@
       engine-file)))
 
 (defn launch! [^File engine project-directory prefs debug? instance-index]
-  (println "instance-index" instance-index)
   (let [defold-log-dir (some-> (System/getProperty "defold.log.dir")
                                (File.)
                                (.getAbsolutePath))
