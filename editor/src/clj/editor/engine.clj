@@ -282,7 +282,7 @@
               :err :stdout
               :env env}]
     ;; Closing "is" seems to cause any dmengine output to stdout/err
-    ;; to generate SIGPIPE and close/crash. Also we need to read
+    ;; to generate SIGPIPE and close/crash. Also, we need to read
     ;; the output of dmengine because there is a risk of the stream
     ;; buffer filling up, stopping the process.
     ;; https://www.securecoding.cert.org/confluence/display/java/FIO07-J.+Do+not+let+external+processes+block+on+IO+buffers

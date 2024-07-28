@@ -329,7 +329,6 @@
       "invalid host")))
 
 (defn target-menu-label [target]
-  (println "target:" target)
   (let [instance-index (:instance-index target)]
     (format "%s - %s %s"
            (str (if (local-target? target) "Local " "") (:name target))
