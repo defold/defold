@@ -7,8 +7,8 @@ if not defined PLATFORM goto :FAIL
 set TMP_TARGET=tmp_%PLATFORM%
 
 set URL=https://github.com/LuaJIT/LuaJIT/archive/
-set SHA1=6c4826f12c4d33b8b978004bc681eb1eef2be977
-set SHA1_SHORT=6c4826f
+set SHA1=7421a1b33c7ea46f12bba9700c15b5c90253fee0
+set SHA1_SHORT=7421a1b
 set VERSION=2.1.0-%SHA1_SHORT%
 set PRODUCT=luajit
 set TARGET_FILE=%PRODUCT%-%VERSION%

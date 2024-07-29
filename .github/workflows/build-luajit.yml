@@ -50,7 +50,7 @@ jobs:
     - name: Build
       run: |
         cd share/ext/luajit
-        ./build_luajit.sh x86_64-win32
+        ./build_win32.bat
 
     - name: Archive results
       uses: actions/upload-artifact@v3
