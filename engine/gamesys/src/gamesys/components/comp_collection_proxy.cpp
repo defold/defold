@@ -204,7 +204,8 @@ namespace dmGameSystem
         {
             free(proxy->m_CollectionResPath);
         }
-        else if (!path)
+        
+        if (!path)
         {
             proxy->m_CollectionResPath = 0;
 
