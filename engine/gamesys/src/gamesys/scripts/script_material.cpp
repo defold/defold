@@ -221,7 +221,7 @@ namespace dmGameSystem
 
         lua_newtable(L);
 
-        for (int i = 0; i < material_res->m_NumTextures; ++i)
+        for (int i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
         {
             dmRender::HSampler sampler = dmRender::GetMaterialSampler(material_res->m_Material, i);
 
@@ -605,10 +605,11 @@ namespace dmGameSystem
         dmRender::HSampler sampler = dmRender::GetMaterialSampler(material_res->m_Material, unit);
 
         uint32_t location;
+        dmGraphics::TextureType texture_type;
         dmGraphics::TextureWrap u_wrap, v_wrap;
         dmGraphics::TextureFilter min_filter, mag_filter;
         float max_anisotropy;
-        dmRender::GetSamplerInfo(sampler, &name_hash, &location, &u_wrap, &v_wrap, &min_filter, &mag_filter, &max_anisotropy);
+        dmRender::GetSamplerInfo(sampler, &name_hash, &texture_type, &location, &u_wrap, &v_wrap, &min_filter, &mag_filter, &max_anisotropy);
 
         luaL_checktype(L, 3, LUA_TTABLE);
         lua_pushvalue(L, 3);

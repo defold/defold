@@ -432,6 +432,12 @@ public:
     virtual ~MaterialTest() {}
 };
 
+class MiscTests : public ScriptBaseTest
+{
+public:
+    virtual ~MiscTests() {}
+};
+
 class ShaderTest : public GamesysTest<const char*>
 {
 public:

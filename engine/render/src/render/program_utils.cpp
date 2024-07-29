@@ -202,12 +202,13 @@ namespace dmRender
         return 0x0;
     }
 
-    bool GetSamplerInfo(HSampler sampler, dmhash_t* name_hash, uint32_t* location, dmGraphics::TextureWrap* u_wrap, dmGraphics::TextureWrap* v_wrap, dmGraphics::TextureFilter* min_filter, dmGraphics::TextureFilter* mag_filter, float* max_anisotropy)
+    bool GetSamplerInfo(HSampler sampler, dmhash_t* name_hash, dmGraphics::TextureType* texture_type, uint32_t* location, dmGraphics::TextureWrap* u_wrap, dmGraphics::TextureWrap* v_wrap, dmGraphics::TextureFilter* min_filter, dmGraphics::TextureFilter* mag_filter, float* max_anisotropy)
     {
         if (!sampler)
             return false;
 
         *name_hash      = sampler->m_NameHash;
+        *texture_type   = sampler->m_Type;
         *location       = sampler->m_Location;
         *u_wrap         = sampler->m_UWrap;
         *v_wrap         = sampler->m_VWrap;
@@ -348,6 +349,8 @@ namespace dmRender
                 Sampler& s           = samplers[sampler_index];
                 s.m_UnitValueCount   = num_values;
                 s.m_Type             = TypeToTextureType(type);
+                s.m_NameHash         = name_hash;
+                s.m_Location         = location;
                 sampler_index++;
             }
         }

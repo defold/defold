@@ -153,10 +153,11 @@ namespace dmGameSystem
         dmRender::HSampler sampler = dmRender::GetComputeProgramSampler(compute_res->m_Program, unit);
 
         uint32_t location;
+        dmGraphics::TextureType texture_type;
         dmGraphics::TextureWrap u_wrap, v_wrap;
         dmGraphics::TextureFilter min_filter, mag_filter;
         float max_anisotropy;
-        dmRender::GetSamplerInfo(sampler, &name_hash, &location, &u_wrap, &v_wrap, &min_filter, &mag_filter, &max_anisotropy);
+        dmRender::GetSamplerInfo(sampler, &name_hash, &texture_type, &location, &u_wrap, &v_wrap, &min_filter, &mag_filter, &max_anisotropy);
 
         luaL_checktype(L, 3, LUA_TTABLE);
         lua_pushvalue(L, 3);

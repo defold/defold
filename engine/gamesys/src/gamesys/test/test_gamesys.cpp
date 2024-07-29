@@ -5191,6 +5191,17 @@ TEST_F(MaterialTest, GoGetSetConstants)
     dmGameSystem::FinalizeScriptLibs(m_Scriptlibcontext);
 }
 
+TEST_F(MiscTests, MaterialModule)
+{
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/misc/material_compute_modules/material_module.goc", dmHashString64("/material_module"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+    dmGameSystem::FinalizeScriptLibs(m_Scriptlibcontext);
+}
+
 TEST_F(ComponentTest, GetSetCollisionShape)
 {
     dmHashEnableReverseHash(true);

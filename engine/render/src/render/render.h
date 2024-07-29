@@ -253,7 +253,7 @@ namespace dmRender
     void                            SetMaterialProgramConstantType(HMaterial material, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type);
     bool                            GetMaterialProgramConstant(HMaterial, dmhash_t name_hash, HConstant& out_value);
 
-    bool                            GetSamplerInfo(HSampler sampler, dmhash_t* name_hash, uint32_t* location, dmGraphics::TextureWrap* u_wrap, dmGraphics::TextureWrap* v_wrap, dmGraphics::TextureFilter* min_filter, dmGraphics::TextureFilter* mag_filter, float* max_anisotropy);
+    bool                            GetSamplerInfo(HSampler sampler, dmhash_t* name_hash, dmGraphics::TextureType* texture_type, uint32_t* location, dmGraphics::TextureWrap* u_wrap, dmGraphics::TextureWrap* v_wrap, dmGraphics::TextureFilter* min_filter, dmGraphics::TextureFilter* mag_filter, float* max_anisotropy);
 
     struct MaterialProgramAttributeInfo
     {

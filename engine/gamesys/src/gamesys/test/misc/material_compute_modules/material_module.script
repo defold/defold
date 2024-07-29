@@ -1,0 +1,42 @@
+-- Copyright 2020-2024 The Defold Foundation
+-- Copyright 2014-2020 King
+-- Copyright 2009-2014 Ragnar Svensson, Christian Murray
+-- Licensed under the Defold License version 1.0 (the "License"); you may not use
+-- this file except in compliance with the License.
+--
+-- You may obtain a copy of the License, together with FAQs at
+-- https://www.defold.com/license
+--
+-- Unless required by applicable law or agreed to in writing, software distributed
+-- under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+-- CONDITIONS OF ANY KIND, either express or implied. See the License for the
+-- specific language governing permissions and limitations under the License.
+
+function assert_sampler(sampler, name, u_wrap, v_wrap, min_filter, mag_filter, anisotropy)
+    assert(sampler.name == hash(name))
+    assert(sampler.u_wrap == u_wrap)
+    assert(sampler.v_wrap == v_wrap)
+    assert(sampler.min_filter == min_filter)
+    assert(sampler.mag_filter == mag_filter)
+    assert(sampler.anisotropy == anisotropy)
+end
+
+function init(self)
+    self.material = "/misc/material_compute_modules/material_module.materialc"
+
+    local material_samplers = material.get_samplers(self.material)
+    assert_sampler(material_samplers[1], "u_sampler2d")
+    assert_sampler(material_samplers[2], "u_samplerCube")
+    assert_sampler(material_samplers[3], "u_sampler2dArray")
+
+    pprint(material_samplers)
+
+    local material_attributes = material.get_vertex_attributes(self.material)
+    pprint(material_attributes)
+
+    local material_constants = material.get_constants(self.material)
+    pprint(material_constants)
+
+    local material_textures = material.get_textures(self.material)
+    pprint(material_textures)
+end

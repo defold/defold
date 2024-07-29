@@ -212,16 +212,20 @@ namespace dmGameSystem
     void PushSampler(lua_State* L, dmRender::HSampler sampler)
     {
         dmhash_t name_hash;
+        dmGraphics::TextureType texture_type;
         uint32_t location;
         dmGraphics::TextureWrap u_wrap;
         dmGraphics::TextureWrap v_wrap;
         dmGraphics::TextureFilter min_filter;
         dmGraphics::TextureFilter mag_filter;
         float max_anisotropy;
-        dmRender::GetSamplerInfo(sampler, &name_hash, &location, &u_wrap, &v_wrap, &min_filter, &mag_filter, &max_anisotropy);
+        dmRender::GetSamplerInfo(sampler, &name_hash, &texture_type, &location, &u_wrap, &v_wrap, &min_filter, &mag_filter, &max_anisotropy);
 
         dmScript::PushHash(L, name_hash);
         lua_setfield(L, -2, "name");
+
+        lua_pushinteger(L, (lua_Integer) texture_type);
+        lua_setfield(L, -2, "type");
 
         lua_pushinteger(L, (lua_Integer) u_wrap);
         lua_setfield(L, -2, "u_wrap");
