@@ -47,6 +47,9 @@ jobs:
     - name: Checkout repo
       uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
 
+    - name: Setup MSVS
+      uses: TheMrMilchmann/setup-msvc-dev@v3
+
     - name: Build
       run: |
         cd share/ext/luajit
