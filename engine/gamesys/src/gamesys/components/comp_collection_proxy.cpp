@@ -1100,6 +1100,7 @@ namespace dmGameSystem
      * Setting the collection to "nil" will revert it back to the original collection.
      * 
      * The collection proxy shouldn't be loaded and should have the 'Exclude' checkbox checked.
+     * This functionality is designed to simplify the management of Live Update resources.
      *
      * @name collectionproxy.set_collection
      * @param [url] [type:string|hash|url] the collection proxy component
