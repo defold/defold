@@ -38,9 +38,6 @@ namespace dmPlatform
     {
         glfwGetFramebufferSize(window->m_Window, &window->m_Width, &window->m_Height);
         glfwGetWindowSize(window->m_Window, &window->m_WidthScreen, &window->m_HeightScreen);
-
-        // TODO: Remove this
-        dmLogInfo("W/H: %d, %d - %d, %d", window->m_Width, window->m_Height, window->m_WidthScreen, window->m_HeightScreen);
     }
 
     static void OnError(int error, const char* description)
@@ -242,6 +239,7 @@ namespace dmPlatform
         // That's why we hide window here and then later set default size and show window
         glfwWindowHintString(GLFW_COCOA_FRAME_NAME, params.m_Title);
         glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+        glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_TRUE);
 
         PlatformResult res = PLATFORM_RESULT_WINDOW_OPEN_ERROR;
 
@@ -258,8 +256,6 @@ namespace dmPlatform
 
         if (res == PLATFORM_RESULT_OK)
         {
-            // Set size from settings, and show window
-            glfwSetWindowSize(window->m_Window, params.m_Width, params.m_Height);
             glfwShowWindow(window->m_Window);
 
             glfwSetWindowUserPointer(window->m_Window, (void*) window);

@@ -93,8 +93,6 @@ echo "CMAKE_FLAGS: '${CMAKE_FLAGS}"
 cmake ${CMAKE_FLAGS} ${SOURCE_DIR}
 cmake --build . --config Release
 
-
-
 ## PACKAGE
 SRC_LIB=src/$LIB_OUTPUT_PATH${LIB_PREFIX}glfw3.${LIB_SUFFIX}
 TARGET_LIB=lib/$PLATFORM
