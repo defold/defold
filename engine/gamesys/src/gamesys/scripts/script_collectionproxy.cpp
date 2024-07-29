@@ -14,6 +14,7 @@
 
 #include "script_collectionproxy.h"
 
+#include <dlib/dstrings.h>
 #include <script/script.h>
 #include <gameobject/script.h>
 #include <gameobject/gameobject.h>
@@ -25,7 +26,7 @@
 
 namespace dmGameSystem
 {
-    static dmhash_t GetCollectionProxyUrlHash(lua_State* L, int index, dmResource::HFactory* factory)
+    static dmhash_t GetCollectionUrlHashFromCollectionProxy(lua_State* L, int index, dmResource::HFactory* factory)
     {
         dmMessage::URL sender;
         dmMessage::URL receiver;
@@ -50,7 +51,7 @@ namespace dmGameSystem
         if (factory)
             *factory = dmGameObject::GetFactory(receiver_instance);
 
-        return dmGameSystem::GetUrlHashFromComponent(world, dmGameObject::GetIdentifier(receiver_instance), component_index);
+        return dmGameSystem::GetCollectionUrlHashFromComponent(world, dmGameObject::GetIdentifier(receiver_instance), component_index);
     }
 
     struct GetResourceHashContext
@@ -77,7 +78,7 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 1);
 
         dmResource::HFactory factory;
-        dmhash_t url_hash = GetCollectionProxyUrlHash(L, 1, &factory);
+        dmhash_t url_hash = GetCollectionUrlHashFromCollectionProxy(L, 1, &factory);
 
         if (url_hash == 0)
         {
@@ -94,6 +95,7 @@ namespace dmGameSystem
         params.m_UrlHash = url_hash;
         params.m_OnlyMissing = only_missing;
         params.m_Recursive = false;
+        params.m_IncludeRequestedUrl = true;
         dmResource::GetDependencies(factory, &params, GetResourceHashCallback, &ctx);
 
         return 1;

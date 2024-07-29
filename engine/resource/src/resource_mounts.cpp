@@ -539,6 +539,7 @@ struct DependencyIterContext
     void*               m_UserCallbackCtx;
     bool                m_OnlyMissing;
     bool                m_Resursive;
+    bool                m_IncludeRequestedUrl;
 };
 
 // Returns true if existed.
@@ -570,6 +571,7 @@ static dmResource::Result GetDependenciesInternal(DependencyIterContext* ctx, co
 
     uint32_t num_mounts = mounts_ctx->m_Mounts.Size();
     bool only_missing = ctx->m_OnlyMissing;
+    bool include_requested_url =  ctx->m_IncludeRequestedUrl;
 
     dmArray<dmhash_t> dependencies; // allocate it outside of the loop
 
@@ -586,6 +588,15 @@ static dmResource::Result GetDependenciesInternal(DependencyIterContext* ctx, co
         dmResource::Result result = dmResource::GetDependencies(manifest, url_hash, dependencies);
         if (dmResource::RESULT_RESOURCE_NOT_FOUND == result)
             continue;
+
+        if (include_requested_url) {
+            // include only once
+            include_requested_url = false;
+            dependencies.SetCapacity(dependencies.Capacity() + 1);
+            int size = dependencies.Size();
+            dependencies.SetSize(size + 1);
+            dependencies[size] = url_hash;
+        }
 
         uint32_t hash_len = dmResource::GetEntryHashLength(manifest);
 
@@ -645,6 +656,7 @@ dmResource::Result GetDependencies(HContext ctx, const SGetDependenciesParams* r
     iter_ctx.m_UserCallbackCtx = callback_context;
     iter_ctx.m_Resursive = request->m_Recursive;
     iter_ctx.m_OnlyMissing = request->m_OnlyMissing;
+    iter_ctx.m_IncludeRequestedUrl = request->m_IncludeRequestedUrl;
 
     return GetDependenciesInternal(&iter_ctx, request->m_UrlHash);
 }

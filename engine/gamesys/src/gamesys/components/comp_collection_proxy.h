@@ -40,7 +40,7 @@ namespace dmGameSystem
         SET_COLLECTION_PATH_RESULT_COLLECTION_NOT_EXCLUDED = 3
     };
 
-    dmhash_t GetUrlHashFromComponent(const HCollectionProxyWorld world, dmhash_t instanceId, uint32_t index);
+    dmhash_t GetCollectionUrlHashFromComponent(const HCollectionProxyWorld world, dmhash_t instanceId, uint32_t index);
 
     SetCollectionForProxyPathResult CollectionProxySetCollectionPath(const HCollectionProxyWorld world, HCollectionProxyComponent component, const char* path);
 

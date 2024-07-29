@@ -160,7 +160,7 @@ namespace dmGameSystem
     }
 
 
-    dmhash_t GetUrlHashFromComponent(const HCollectionProxyWorld world, dmhash_t instanceId, uint32_t index)
+    dmhash_t GetCollectionUrlHashFromComponent(const HCollectionProxyWorld world, dmhash_t instanceId, uint32_t index)
     {
         dmhash_t comp_url_hash = 0;
         for (uint32_t i = 0; i < world->m_Components.Size(); ++i)
@@ -175,7 +175,7 @@ namespace dmGameSystem
             dmhash_t component_instance_id = dmGameObject::GetIdentifier(c->m_Instance);
             if (component_instance_id == instanceId && c->m_ComponentIndex == index)
             {
-                comp_url_hash = c->m_Resource->m_UrlHash;
+                comp_url_hash = dmHashString64(GetCollectionResorcePath(c));
                 break;
             }
         }
