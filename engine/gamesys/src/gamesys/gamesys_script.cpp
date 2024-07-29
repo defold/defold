@@ -250,20 +250,7 @@ namespace dmGameSystem
         lua_pushinteger(L, (lua_Integer) type);
         lua_setfield(L, -2, "type");
 
-        bool readonly = true;
-
-        if (type == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER)
-        {
-            uint32_t num_values;
-            dmVMath::Vector4* values = dmRender::GetConstantValues(constant, &num_values);
-            dmScript::PushVector4(L, values[0]);
-            lua_setfield(L, -2, "value");
-
-            readonly = false;
-
-            // TODO: array
-        }
-        else if (type == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4)
+        if (type == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4)
         {
             uint32_t num_values;
             dmVMath::Vector4* values = dmRender::GetConstantValues(constant, &num_values);
@@ -271,13 +258,44 @@ namespace dmGameSystem
             dmScript::PushMatrix4(L, matrix[0]);
             lua_setfield(L, -2, "value");
 
-            readonly = false;
+            // TODO: array
+        }
+        else
+        {
+            uint32_t num_values;
+            dmVMath::Vector4* values = dmRender::GetConstantValues(constant, &num_values);
+            dmScript::PushVector4(L, values[0]);
+            lua_setfield(L, -2, "value");
 
             // TODO: array
         }
+    }
 
-        lua_pushboolean(L, readonly);
-        lua_setfield(L, -2, "readonly");
+    void PushVertexAttribute(lua_State* L, const dmGraphics::VertexAttribute* attribute, const uint8_t* value_ptr)
+    {
+        float values[4] = {};
+        VertexAttributeToFloats(attribute, value_ptr, values);
+
+        if (attribute->m_ElementCount == 4)
+        {
+            dmVMath::Vector4 v(values[0], values[1], values[2], values[3]);
+            dmScript::PushVector4(L, v);
+        }
+        else if (attribute->m_ElementCount == 3 || attribute->m_ElementCount == 2)
+        {
+            dmVMath::Vector3 v(values[0], values[1], values[2]);
+            dmScript::PushVector3(L, v);
+        }
+        else if (attribute->m_ElementCount == 1)
+        {
+            lua_pushnumber(L, values[0]);
+        }
+        else
+        {
+            // We need to catch this error because it means there are type combinations
+            // that we have added, but don't have support for here.
+            assert("Not supported!");
+        }
     }
 
     void GetSamplerParametersFromLua(lua_State* L, dmGraphics::TextureWrap* u_wrap, dmGraphics::TextureWrap* v_wrap, dmGraphics::TextureFilter* min_filter, dmGraphics::TextureFilter* mag_filter, float* max_anisotropy)
