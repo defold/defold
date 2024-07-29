@@ -63,4 +63,4 @@ jobs:
       with:
         name: x86_64-win32-luajit
         path: |
-          ${{ github.workspace }}/share/ext/build/luajit*.tar.gz
+          ${{ github.workspace }}\\share\\ext\\luajit\\package\\luajit*.tar.gz
