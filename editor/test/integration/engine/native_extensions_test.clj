@@ -144,7 +144,7 @@
     (let [workspace (test-util/setup-scratch-workspace! world "test/resources/trivial_extension")
           project (test-util/setup-project! workspace)
           test-prefs (test-util/make-test-prefs)]
-      (assert (= (native-extensions/get-build-server-url test-prefs project) "https://build-stage.defold.com"))
+      (assert (= (native-extensions/get-build-server-url test-prefs project) "https://build.defold.com"))
       (testing "clean project builds on server"
         (let [{:keys [error artifacts artifact-map etags engine]} (blocking-async-build! project test-prefs)]
           (is (nil? error))
