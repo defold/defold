@@ -20,6 +20,6 @@ jobs:
       with:
         name: Linux luajit
         path: |
-          echo "PATH ${GITHUB_WORKSPACE}"
-          ls -la ${GITHUB_WORKSPACE}/share/ext/build/
-          ${GITHUB_WORKSPACE}/share/ext/build/luajit*.tar.gz
+          echo "PATH ${{ github.workspace }}"
+          ls -la ${{ github.workspace }}/share/ext/build/
+          ${{ github.workspace }}/share/ext/build/luajit*.tar.gz
