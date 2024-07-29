@@ -20,4 +20,6 @@ jobs:
       with:
         name: Linux luajit
         path: |
-          ./share/build/luajit*.tar.gz
+          echo "PATH ${{env.GITHUB_WORKSPACE}}"
+          ls -la ${{env.GITHUB_WORKSPACE}}/share/ext/build/
+          ${{env.GITHUB_WORKSPACE}}/share/ext/build/luajit*.tar.gz
