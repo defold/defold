@@ -150,7 +150,7 @@ case $1 in
 		export TARGET_SYS=iOS
 		;;
 	armv7-android)
-		# using insttructions from here: file:///Users/mawe/work/defold-ps4/share/ext/luajit/tmp/doc/install.html
+		# using instructions from here: file:///Users/mawe/work/defold-ps4/share/ext/luajit/tmp/doc/install.html
 		export TARGET_SYS=Android
 		function cmi_make() {
 			local host_platform=`uname | awk '{print tolower($0)}'`
@@ -164,7 +164,7 @@ case $1 in
 		}
 		;;
 	arm64-android)
-		# using insttructions from here: file:///Users/mawe/work/defold-ps4/share/ext/luajit/tmp/doc/install.html
+		# using instructions from here: file:///Users/mawe/work/defold-ps4/share/ext/luajit/tmp/doc/install.html
 		export TARGET_SYS=Android
 		function cmi_make() {
 			local host_platform=`uname | awk '{print tolower($0)}'`
