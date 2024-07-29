@@ -25,7 +25,7 @@ ORIGINAL_REPO=git@github.com:LuaJIT/LuaJIT.git
 CHANGED_REPO=git@github.com:Defold/LuaJIT.git
 
 BRANCH_A=${SHA1}
-BRANCH_B=v2.1-defold-6c4826f
+BRANCH_B=v2.1-defold
 
 DIR_A=repo_a
 DIR_B=repo_b

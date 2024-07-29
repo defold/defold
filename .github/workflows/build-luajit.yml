@@ -18,8 +18,43 @@ jobs:
     - name: Archive results
       uses: actions/upload-artifact@v3
       with:
-        name: Linux luajit
+        name: x86_64-linux-luajit
         path: |
-          echo "PATH ${{ github.workspace }}"
-          ls -la ${{ github.workspace }}/share/ext/build/
+          ${{ github.workspace }}/share/ext/build/luajit*.tar.gz
+
+  build-x86_64-macos:
+    runs-on: macOS-14
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+
+    - name: Build
+      run: |
+        cd share/ext/luajit
+        ./build_luajit.sh x86_64-macos
+
+    - name: Archive results
+      uses: actions/upload-artifact@v3
+      with:
+        name: x86_64-macos-luajit
+        path: |
+          ${{ github.workspace }}/share/ext/build/luajit*.tar.gz
+
+
+  build-x86_64-win32:
+    runs-on: windows-latest
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+
+    - name: Build
+      run: |
+        cd share/ext/luajit
+        ./build_luajit.sh x86_64-win32
+
+    - name: Archive results
+      uses: actions/upload-artifact@v3
+      with:
+        name: x86_64-win32-luajit
+        path: |
           ${{ github.workspace }}/share/ext/build/luajit*.tar.gz
