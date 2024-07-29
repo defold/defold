@@ -49,6 +49,8 @@ jobs:
 
     - name: Setup MSVS
       uses: TheMrMilchmann/setup-msvc-dev@v3
+      with:
+        arch: x64
 
     - name: Build
       run: |
