@@ -358,11 +358,10 @@
   (property modified-lines types/Lines
             (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self _old-value new-value]
-                   (let [basis (:basis evaluation-context)
-                         lsp (lsp/get-node-lsp basis self)
-                         source-value (g/node-value self :source-value evaluation-context)]
-                     (lsp/notify-lines-modified! lsp self source-value new-value))
                    (let [resource (g/node-value self :resource evaluation-context)
+                         basis (:basis evaluation-context)
+                         source-value (g/node-value self :source-value evaluation-context)
+                         lsp (lsp/get-node-lsp basis self)
                          workspace (resource/workspace resource)
                          lua-info (with-open [reader (data/lines-reader new-value)]
                                     (lua-parser/lua-info workspace script-compilation/valid-resource-kind? reader))
@@ -370,6 +369,7 @@
                          completion-info (assoc lua-info :module own-module)
                          modules (script-compilation/lua-info->modules lua-info)
                          script-properties (script-compilation/lua-info->script-properties lua-info)]
+                     (lsp/notify-lines-modified! lsp resource source-value new-value)
                      (concat
                        (g/set-property self :completion-info completion-info)
                        (g/set-property self :modules modules)
