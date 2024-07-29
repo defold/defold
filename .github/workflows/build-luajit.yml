@@ -54,6 +54,7 @@ jobs:
 
     - name: Build
       run: |
+        choco install wget -y
         cd share/ext/luajit
         ./build_win32.bat
 
