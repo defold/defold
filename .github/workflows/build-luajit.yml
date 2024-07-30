@@ -5,7 +5,7 @@ on:
 
 jobs:
   build-linux:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     steps:
     - name: Checkout repo
       uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
@@ -21,6 +21,7 @@ jobs:
         name: x86_64-linux-luajit
         path: |
           ${{ github.workspace }}/share/ext/build/luajit*.tar.gz
+
 
   build-x86_64-macos:
     runs-on: macOS-14
@@ -41,7 +42,10 @@ jobs:
           ${{ github.workspace }}/share/ext/build/luajit*.tar.gz
 
 
-  build-x86_64-win32:
+  build-windows:
+    strategy:
+      matrix:
+        arch: [x64, x86]
     runs-on: windows-latest
     steps:
     - name: Checkout repo
@@ -50,7 +54,7 @@ jobs:
     - name: Setup MSVS
       uses: TheMrMilchmann/setup-msvc-dev@v3
       with:
-        arch: x64
+        arch: ${{ matrix.arch }}
 
     - name: Build
       run: |
@@ -61,6 +65,37 @@ jobs:
     - name: Archive results
       uses: actions/upload-artifact@v3
       with:
-        name: x86_64-win32-luajit
+        name: ${{ matrix.arch }}-win32-luajit
         path: |
           ${{ github.workspace }}\\share\\ext\\luajit\\package\\luajit*.tar.gz
+
+
+  build-android:
+    strategy:
+      matrix:
+        platform: [armv7-android, arm64-android]
+    runs-on: ubuntu-20.04
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+
+    - name: Setup NDK
+      uses: nttld/setup-ndk@v1
+      with:
+        ndk-version: r25b
+
+    - name: Build
+      run: |
+        cd share/ext/luajit
+        ./build_luajit.sh ${{ matrix.platform }}
+
+    - name: Archive results
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ matrix.platform }}-luajit
+        path: |
+          ${{ github.workspace }}/share/ext/build/luajit*.tar.gz
+
+
+
+
