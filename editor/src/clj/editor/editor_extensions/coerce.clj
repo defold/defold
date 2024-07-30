@@ -18,9 +18,9 @@
   (:require [clojure.string :as string]
             [editor.editor-extensions.vm :as vm]
             [editor.util :as util]
-            [util.coll :as coll])
-  (:import [clojure.lang ITransientCollection]
-           [org.luaj.vm2 LuaDouble LuaError LuaInteger LuaString LuaValue Varargs]))
+            [util.coll :as coll]
+            [util.fn :as fn])
+  (:import [org.luaj.vm2 LuaDouble LuaError LuaInteger LuaString LuaValue]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -50,19 +50,22 @@
       (throw (LuaError. (failure-message vm ret)))
       ret)))
 
+(def enum-lua-value-cache
+  "A memoized function that converts a Clojure value to Lua value"
+  (fn/memoize vm/->lua))
+
 (defn enum
   "Coercer that deserializes a LuaValue into one of the provided constants
 
   Works with keywords too."
   [& values]
-  (let [m (coll/pair-map-by vm/->lua values)]
+  (let [m (coll/pair-map-by enum-lua-value-cache values)
+        ks (mapv enum-lua-value-cache values)]
     (fn coerce-enum [vm x]
       (let [v (m x ::not-found)]
         (if (identical? ::not-found v)
-          (failure x (str "is not " (->> m
-                                         keys
+          (failure x (str "is not " (->> ks
                                          (mapv #(vm/lua-value->string vm %))
-                                         (sort)
                                          (util/join-words ", " " or "))))
           v)))))
 

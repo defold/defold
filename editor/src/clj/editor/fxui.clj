@@ -326,25 +326,30 @@
 
 (defn show-dialog-and-await-result!
   "Creates a dialog, shows it and block current thread until dialog has a result
-  (which is checked by presence of a `:result` key in state map)
+  (which is checked by presence of a ::result key in state map)
 
-  Options:
-  - `:initial-state` (optional, default `{}`) - map containing initial state of
-    a dialog, should not contain `::result` key to be shown
-  - `:event-handler` (required) - 2-argument event handler, receives current
-    state as first argument and event map as second, returns new state. Once
-    state of a dialog has `::result` key in it, dialog interaction is considered
-    complete and dialog will close
-  - `:description` (required) - fx description used for this dialog, gets merged
-    into current state map, meaning that state map contents, including
-    eventually a `::result` key, will also be present in description props. You
-    can use `editor.fxui/dialog-showing?` and pass it resulting props to check
-    if dialog stage's `:showing` property should be set to true"
-  [& {:keys [initial-state event-handler description]
-      :or {initial-state {}}}]
+  Kv-args:
+    :event-handler    required, 2-argument event handler, receives current state
+                      as a first argument and event map as second, returns new
+                      state. Once state of a dialog has ::result key in it, the
+                      dialog interaction is considered complete and dialog will
+                      close
+    :description      required, fx description used for this dialog, gets merged
+                      into current state map, meaning that state map contents,
+                      including eventually a ::result key, will also be present
+                      in description props. Use `editor.fxui/dialog-showing?`
+                      and pass it resulting props to check if dialog stage's
+                      :showing property should be set to true
+    :initial-state    optional, defaults to {}, map containing initial state of
+                      a dialog, should not contain ::result key to be shown
+    :error-handler    optional, 1-arg Throwable handler, reports to sentry by
+                      default"
+  [& {:keys [initial-state event-handler description error-handler]
+      :or {initial-state {}
+           error-handler error-reporting/report-exception!}}]
   (let [state-atom (atom initial-state)
         renderer (fx/create-renderer
-                   :error-handler error-reporting/report-exception!
+                   :error-handler error-handler
                    :opts {:fx.opt/map-event-handler #(swap! state-atom event-handler %)}
                    :middleware (fx/wrap-map-desc merge description))]
     (mount-renderer-and-await-result! state-atom renderer)))

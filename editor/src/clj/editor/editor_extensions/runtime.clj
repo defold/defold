@@ -360,6 +360,16 @@
                       (invoke-suspending-impl execution-context runtime co (vm/wrap-userdata result))))))))
         (future/failed (LuaError. ^String (->clj runtime coerce/string lua-ret)))))))
 
+(defn stdout
+  "Get runtime output stream"
+  ^PrintStream [^EditorExtensionsRuntime rt]
+  (.-STDOUT (vm/env (.-lua-vm rt))))
+
+(defn stderr
+  "Get runtime error stream"
+  ^PrintStream [^EditorExtensionsRuntime rt]
+  (.-STDERR (vm/env (.-lua-vm rt))))
+
 (defn invoke-suspending
   "Invoke a potentially long-running LuaFunction
 

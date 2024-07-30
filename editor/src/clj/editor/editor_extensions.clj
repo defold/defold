@@ -24,6 +24,7 @@
             [editor.editor-extensions.actions :as actions]
             [editor.editor-extensions.coerce :as coerce]
             [editor.editor-extensions.commands :as commands]
+            [editor.editor-extensions.components :as components]
             [editor.editor-extensions.error-handling :as error-handling]
             [editor.editor-extensions.graph :as graph]
             [editor.editor-extensions.runtime :as rt]
@@ -492,6 +493,7 @@
                                               "save" (make-ext-save-fn save!)
                                               "transact" ext-transact
                                               "tx" {"set" (make-ext-tx-set-fn project)}
+                                              "ui" (components/env)
                                               "version" (system/defold-version)
                                               "engine_sha1" (system/defold-engine-sha1)
                                               "editor_sha1" (system/defold-editor-sha1)}
