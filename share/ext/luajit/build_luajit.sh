@@ -155,7 +155,7 @@ case $1 in
 		function cmi_make() {
 			local host_platform=`uname | awk '{print tolower($0)}'`
 			export NDKBIN=${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/${host_platform}-x86_64/bin
-			NDKCROSS=$NDKBIN/arm-linux-androideabi-
+			export NDKCROSS=$NDKBIN/arm-linux-androideabi-
 			make -j8 CROSS=$NDKCROSS \
 					STATIC_CC=${CC} DYNAMIC_CC="${CC} ${CFLAGS}" \
 					TARGET_LD=${CC} TARGET_AR="${AR} rcus" \
