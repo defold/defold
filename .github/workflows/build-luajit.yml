@@ -79,16 +79,9 @@ jobs:
     - name: Checkout repo
       uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
 
-    - name: Setup NDK
-      uses: nttld/setup-ndk@v1
-      with:
-        ndk-version: r25b
-        add-to-path: false
-
     - name: Build
-      env:
-        ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
       run: |
+        echo "ANDROID_NDK_ROOT=${ANDROID_NDK_ROOT}"
         cd share/ext/luajit
         ./build_luajit.sh ${{ matrix.platform }}
 
