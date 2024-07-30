@@ -496,19 +496,23 @@ public class ManifestBuilder {
 
         builder.addAllEngineVersions(this.supportedEngineVersions);
 
+        int resourceIndex = 0;
+        HashMap<String, Integer> resourceToIndex = new HashMap<>(); // at what index is the resource stored?
+        for (ResourceEntry entry : this.resourceEntries) {
+            resourceToIndex.put(entry.getUrl(), resourceIndex);
+            resourceIndex++;
+        }
+
         for (ResourceEntry entry : this.resourceEntries) {
             String url = entry.getUrl();
             ResourceEntry.Builder resourceEntryBuilder = entry.toBuilder();
 
-            // Since we'll only ever ask collection proxies we store lists only for
-            // collections in such proxies. We can't store it in collection proxy itself
-            // because it is possible to change collection for a collection proxy
-            ResourceNode node = resourceGraph.getResourceNodeFromPath(url);
-            // We'll only store the dependencies for the collections in the excluded collection proxies
-            if (node != null && node.checkType(ResourceNode.Type.ExcludedCollection))
-            {
-                HashSet<ResourceNode> allCollectionDependants = this.getAllDependants(node);
-                for (ResourceNode dependant : allCollectionDependants) {
+            // Since we'll only ever ask collection proxies, we only store those lists
+            ResourceNode proxyNode = resourceGraph.getResourceNodeFromPath(url);
+            // We'll only store the dependencies for the excluded collection proxies
+            if (proxyNode != null && proxyNode.checkType(ResourceNode.Type.ExcludedCollectionProxy)) {
+                HashSet<ResourceNode> allProxyDependants = this.getAllDependants(proxyNode);
+                for (ResourceNode dependant : allProxyDependants) {
                     // Exclude resources referenced from the main bundle
                     if (dependant.isInMainBundle()) {
                         continue;
@@ -520,6 +524,7 @@ public class ManifestBuilder {
                     resourceEntryBuilder.addDependants(resource.getUrlHash());
                 }
             }
+
             builder.addResources(resourceEntryBuilder.build());
         }
 

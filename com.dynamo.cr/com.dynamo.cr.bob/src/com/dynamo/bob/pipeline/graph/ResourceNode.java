@@ -24,7 +24,6 @@ public class ResourceNode {
     public enum Type {
         None,
         CollectionProxy,
-        ExcludedCollection,
         ExcludedCollectionProxy
     }
 

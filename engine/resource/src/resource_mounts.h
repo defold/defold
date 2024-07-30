@@ -71,10 +71,9 @@ namespace dmResourceMounts
 
     struct SGetDependenciesParams
     {
-        dmhash_t m_UrlHash;         // The requested url
-        bool m_OnlyMissing;         // Only report assets that aren't available in the mounts
-        bool m_Recursive;           // Traverse down for each resource that has dependencies
-        bool m_IncludeRequestedUrl; // If requested url should be included into result
+        dmhash_t m_UrlHash; // The requested url
+        bool m_OnlyMissing; // Only report assets that aren't available in the mounts
+        bool m_Recursive;   // Traverse down for each resource that has dependencies
     };
 
     struct SGetDependenciesResult

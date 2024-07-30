@@ -329,10 +329,9 @@ namespace dmResource
 
     struct SGetDependenciesParams
     {
-        dmhash_t m_UrlHash;         // The requested url
-        bool m_OnlyMissing;         // Only report assets that aren't available in the mounts
-        bool m_Recursive;           // Traverse down for each resource that has dependencies
-        bool m_IncludeRequestedUrl; // If requested url should be included into result
+        dmhash_t m_UrlHash; // The requested url
+        bool m_OnlyMissing; // Only report assets that aren't available in the mounts
+        bool m_Recursive;   // Traverse down for each resource that has dependencies
     };
 
     struct SGetDependenciesResult
@@ -349,7 +348,7 @@ namespace dmResource
      * @note Only reports dependencies from mounts that have a .dmanifest available
      * @param factory [type: dmResource::HFactory] Factory handle
      * @param url_hash [type: dmhash_t] url hash
-     * @return result [type: dmResource::Result] resource result
+     * @return result [type: dmResource::Result] The mounts context
     */
     typedef void (*FGetDependency)(void* context, const SGetDependenciesResult* result);
     dmResource::Result GetDependencies(const dmResource::HFactory factory, const SGetDependenciesParams* params, FGetDependency callback, void* callback_context);

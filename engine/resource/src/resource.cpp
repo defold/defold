@@ -492,10 +492,9 @@ dmResource::Result GetDependencies(const dmResource::HFactory factory, const SGe
     ctx.m_CallbackContext = callback_context;
 
     dmResourceMounts::SGetDependenciesParams params;
-    params.m_UrlHash                = _params->m_UrlHash;
-    params.m_OnlyMissing            = _params->m_OnlyMissing;
-    params.m_Recursive              = _params->m_Recursive;
-    params.m_IncludeRequestedUrl    = _params->m_IncludeRequestedUrl;
+    params.m_UrlHash        = _params->m_UrlHash;
+    params.m_OnlyMissing    = _params->m_OnlyMissing;
+    params.m_Recursive      = _params->m_Recursive;
     return dmResourceMounts::GetDependencies(factory->m_Mounts, &params, ResourceDependencyCallback, &ctx);
 }
 

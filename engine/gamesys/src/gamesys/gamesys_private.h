@@ -16,8 +16,6 @@
 #define DM_GAMESYS_PRIVER_H
 
 #include <dlib/message.h>
-#include <dlib/object_pool.h>
-#include <dlib/buffer.h>
 
 #include <render/render.h>
 
@@ -44,8 +42,6 @@ namespace dmGameSystem
     EXT_CONSTANTS(TEXTURE, "texturec")
     EXT_CONSTANTS(TEXTURE_SET, "texturesetc")
     EXT_CONSTANTS(TILE_MAP, "tilemapc")
-    EXT_CONSTANTS(RENDER_TARGET, "render_targetc")
-    EXT_CONSTANTS(COLLECTION_PROXY, "collectionproxyc")
 
 #undef EXT_CONSTANTS
 
