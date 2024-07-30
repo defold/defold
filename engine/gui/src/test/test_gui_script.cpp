@@ -76,7 +76,8 @@ public:
         m_Window = dmPlatform::NewWindow();
         dmPlatform::OpenWindow(m_Window, window_params);
 
-        m_ScriptContext = dmScript::NewContext(0, 0, true);
+        dmScript::ContextParams script_context_params = {};
+        m_ScriptContext = dmScript::NewContext(script_context_params);
         dmScript::Initialize(m_ScriptContext);
 
         m_HidContext = dmHID::NewContext(dmHID::NewContextParams());

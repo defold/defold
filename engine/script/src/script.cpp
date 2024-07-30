@@ -26,6 +26,7 @@
 #include "script_vmath.h"
 #include "script_sys.h"
 #include "script_module.h"
+#include "script_graphics.h"
 #include "script_json.h"
 #include "script_zlib.h"
 #include "script_html5.h"
@@ -71,18 +72,17 @@ namespace dmScript
     // A debug value for profiling lua references
     int g_LuaReferenceCount = 0;
 
-    HContext NewContext(dmConfigFile::HConfig config_file, dmResource::HFactory factory, bool enable_extensions)
+    HContext NewContext(const ContextParams& params)
     {
         Context* context = new Context();
         context->m_Modules.SetCapacity(127, 256);
         context->m_PathToModule.SetCapacity(127, 256);
         context->m_HashInstances.SetCapacity(443, 256);
         context->m_ScriptExtensions.SetCapacity(8);
-        context->m_ConfigFile = config_file;
-        context->m_ResourceFactory = factory;
+        context->m_ConfigFile = params.m_ConfigFile;
+        context->m_ResourceFactory = params.m_Factory;
         context->m_LuaState = lua_open();
         context->m_ContextTableRef = LUA_NOREF;
-        context->m_EnableExtensions = enable_extensions;
         return context;
     }
 
@@ -171,6 +171,7 @@ namespace dmScript
         InitializeHtml5(L);
         InitializeLuasocket(L);
         InitializeBitop(L);
+        InitializeGraphics(L);
 
         lua_register(L, "print", LuaPrint);
         lua_register(L, "pprint", LuaPPrint);
@@ -205,10 +206,7 @@ namespace dmScript
         context->m_ContextTableRef = Ref(L, LUA_REGISTRYINDEX);
 
         InitializeTimer(context);
-        if (context->m_EnableExtensions)
-        {
-            InitializeExtensions(context);
-        }
+        InitializeExtensions(context);
 
         for (HScriptExtension* l = context->m_ScriptExtensions.Begin(); l != context->m_ScriptExtensions.End(); ++l)
         {

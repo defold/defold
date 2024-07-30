@@ -475,7 +475,9 @@ void GamesysTest<T>::SetUp()
     m_Factory = dmResource::NewFactory(&params, "build/src/gamesys/test");
     ASSERT_NE((dmResource::HFactory)0, m_Factory); // Probably a sign that the previous test wasn't properly shut down
 
-    m_ScriptContext = dmScript::NewContext(0, m_Factory, true);
+    dmScript::ContextParams script_context_params = {};
+    script_context_params.m_Factory = m_Factory;
+    m_ScriptContext = dmScript::NewContext(script_context_params);
     dmScript::Initialize(m_ScriptContext);
     m_Register = dmGameObject::NewRegister();
     dmGameObject::Initialize(m_Register, m_ScriptContext);
@@ -725,7 +727,9 @@ protected:
     virtual void SetUp()
     {
         dmBuffer::NewContext();
-        m_Context = dmScript::NewContext(0, 0, true);
+
+        dmScript::ContextParams script_context_params = {};
+        m_Context = dmScript::NewContext(script_context_params);
         dmScript::Initialize(m_Context);
 
         m_ScriptLibContext.m_Factory = 0x0;
@@ -779,7 +783,8 @@ protected:
     virtual void SetUp()
     {
         dmBuffer::NewContext();
-        m_Context = dmScript::NewContext(0, 0, true);
+        dmScript::ContextParams script_context_params = {};
+        m_Context = dmScript::NewContext(script_context_params);
 
         m_ScriptLibContext.m_Factory = 0x0;
         m_ScriptLibContext.m_Register = 0x0;

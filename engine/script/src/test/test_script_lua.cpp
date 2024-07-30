@@ -853,7 +853,8 @@ static void TestScriptExtensionFinalizeScriptInstance(dmScript::HScriptWorld scr
 
 TEST_F(ScriptTestLua, ScriptExtension)
 {
-    dmScript::HContext context = dmScript::NewContext(0x0, 0, true);
+    dmScript::ContextParams script_context_params = {};
+    dmScript::HContext context = dmScript::NewContext(script_context_params);
 
     static dmScript::ScriptExtension extension =
     {
