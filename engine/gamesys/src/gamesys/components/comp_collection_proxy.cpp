@@ -81,14 +81,15 @@ namespace dmGameSystem
         uint32_t                        m_Loading : 1;
 
         dmResource::HPreloader          m_Preloader;
-        dmMessage::URL                  m_LoadSender, m_LoadReceiver;
+        dmMessage::URL                  m_LoadSender;
+        dmMessage::URL                  m_LoadReceiver;
 
         ProxyLoadCallback               m_Callback;
         void*                           m_CallbackCtx;
         char*                           m_CollectionResPath;  // set from script as an override
     };
 
-    static const char* GetCollectionResorcePath(CollectionProxyComponent* proxy)
+    inline static const char* GetCollectionResorcePath(CollectionProxyComponent* proxy)
     {
         return proxy->m_CollectionResPath ? proxy->m_CollectionResPath : proxy->m_Resource->m_DDF->m_Collection;
     }
@@ -191,11 +192,11 @@ namespace dmGameSystem
         {
             return SET_COLLECTION_PATH_RESULT_COLLECTION_LOADING;
         }
-        if (proxy->m_Collection)
+        else if (proxy->m_Collection)
         {
             return SET_COLLECTION_PATH_RESULT_COLLECTION_ALREADY_LOADED;
         }
-        if (!proxy->m_Resource->m_DDF->m_Exclude)
+        else if (!proxy->m_Resource->m_DDF->m_Exclude)
         {
             return SET_COLLECTION_PATH_RESULT_COLLECTION_NOT_EXCLUDED;
         }
@@ -205,14 +206,13 @@ namespace dmGameSystem
             free(proxy->m_CollectionResPath);
         }
         
-        if (!path)
+        if (path)
         {
-            proxy->m_CollectionResPath = 0;
-
+            proxy->m_CollectionResPath = strdup(path);
         }
         else
         {
-            proxy->m_CollectionResPath = strdup(path);
+            proxy->m_CollectionResPath = 0;
         }
         return SET_COLLECTION_PATH_RESULT_OK;
     }
@@ -479,15 +479,8 @@ namespace dmGameSystem
         assert(context != 0);
         assert(proxy != 0);
 
-        if (proxy->m_Collection != 0)
-        {
-            LogMessageError(message, "The collection %s could not be loaded since it was already.", GetCollectionResorcePath(proxy));
-            if (message)
-                return dmGameObject::RESULT_OK;
-            return dmGameObject::RESULT_UNKNOWN_ERROR;
-        }
-
         const char* path = GetCollectionResorcePath(proxy);
+
         if (proxy->m_Collection != 0)
         {
             LogMessageError(message, "Collection proxy %s: '%s'", "already loaded", path);
@@ -597,7 +590,7 @@ namespace dmGameSystem
             }
             else
             {
-                LogMessageError(message, "The collection %s could not be initialized since it has been already.", GetCollectionResorcePath(proxy));
+                LogMessageError(message, "The collection %s is already initialized.", GetCollectionResorcePath(proxy));
                 if (message)
                     return dmGameObject::RESULT_OK; // The message code path doesn't catch errors
                 return dmGameObject::RESULT_UNKNOWN_ERROR;
@@ -658,7 +651,7 @@ namespace dmGameSystem
             }
             else
             {
-                LogMessageError(message, "The collection %s could not be enabled since it is already.", GetCollectionResorcePath(proxy));
+                LogMessageError(message, "The collection %s is already enabled", GetCollectionResorcePath(proxy));
                 if (message)
                     return dmGameObject::RESULT_OK; // The message code path doesn't catch errors
                 return dmGameObject::RESULT_UNKNOWN_ERROR;
@@ -1107,6 +1100,8 @@ namespace dmGameSystem
      * @param [prototype] [type:string|nil] the path to the new collection, or `nil`
      * @return success [type:boolean] collection change was successful
      * @return code [type:number] one of the collectionproxy.RESULT_* codes if unsuccessful
+     *
+     * @examples
      *
      * The example assume the script belongs to an instance with collection-proxy-component with id "proxy".
      *

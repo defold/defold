@@ -35,9 +35,9 @@ namespace dmGameSystem
     enum SetCollectionForProxyPathResult
     {
         SET_COLLECTION_PATH_RESULT_OK = 0,
-        SET_COLLECTION_PATH_RESULT_COLLECTION_LOADING = 1,
-        SET_COLLECTION_PATH_RESULT_COLLECTION_ALREADY_LOADED = 2,
-        SET_COLLECTION_PATH_RESULT_COLLECTION_NOT_EXCLUDED = 3
+        SET_COLLECTION_PATH_RESULT_COLLECTION_LOADING = -1,
+        SET_COLLECTION_PATH_RESULT_COLLECTION_ALREADY_LOADED = -2,
+        SET_COLLECTION_PATH_RESULT_COLLECTION_NOT_EXCLUDED = -3
     };
 
     dmhash_t GetCollectionUrlHashFromComponent(const HCollectionProxyWorld world, dmhash_t instanceId, uint32_t index);

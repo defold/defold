@@ -592,7 +592,7 @@ static dmResource::Result GetDependenciesInternal(DependencyIterContext* ctx, co
         if (include_requested_url) {
             // include only once
             include_requested_url = false;
-            dependencies.SetCapacity(dependencies.Capacity() + 1);
+            dependencies.OffsetCapacity(1);
             int size = dependencies.Size();
             dependencies.SetSize(size + 1);
             dependencies[size] = url_hash;
