@@ -83,6 +83,7 @@ jobs:
       uses: nttld/setup-ndk@v1
       with:
         ndk-version: r25b
+        add-to-path: false
 
     - name: Build
       env:
