@@ -85,6 +85,8 @@ jobs:
         ndk-version: r25b
 
     - name: Build
+      env:
+        ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
       run: |
         cd share/ext/luajit
         ./build_luajit.sh ${{ matrix.platform }}
