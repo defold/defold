@@ -79,6 +79,10 @@ jobs:
     - name: Checkout repo
       uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
 
+    - name: Install dependencies
+      run: |
+        ci/ci.sh install --platform=${{ matrix.platform }}
+
     - name: Build
       run: |
         echo "ANDROID_NDK_ROOT=${ANDROID_NDK_ROOT}"
