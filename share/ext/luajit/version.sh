@@ -15,7 +15,7 @@
 
 
 
-export SHA1=7421a1b33c7ea46f12bba9700c15b5c90253fee0
+export SHA1=04dca7911ea255f37be799c18d74c305b921c1a6
 export SHA1_SHORT=${SHA1:0:7}
 export VERSION=2.1.0-${SHA1_SHORT}
 export PRODUCT=luajit
