@@ -161,8 +161,7 @@ def install(args):
             "libglw1-mesa-dev",
             "lib32z1",
             "libc6-dev-i386",       # cross-compile to a 32 bit target on a 64 bit host
-            "linux-libc-dev:i386",
-            #"gcc-multilib",
+            "gcc-multilib",
             "openssl",
             "tofrodos",
             "tree",
