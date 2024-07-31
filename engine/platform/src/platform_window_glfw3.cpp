@@ -256,7 +256,10 @@ namespace dmPlatform
 
         if (res == PLATFORM_RESULT_OK)
         {
-            glfwShowWindow(window->m_Window);
+        #ifdef __MACH__
+            // Set size from settings
+            glfwSetWindowSize(window->m_Window, params.m_Width, params.m_Height);
+        #endif
 
             glfwSetWindowUserPointer(window->m_Window, (void*) window);
             glfwSetWindowSizeCallback(window->m_Window, OnWindowResize);
@@ -308,7 +311,14 @@ namespace dmPlatform
 
     void PollEvents(HWindow window)
     {
+        window->m_MouseScrollX = 0.0;
+        window->m_MouseScrollY = 0.0;
         glfwPollEvents();
+    }
+
+    void ShowWindow(HWindow window)
+    {
+        glfwShowWindow(window->m_Window);
     }
 
     void SwapBuffers(HWindow window)

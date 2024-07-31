@@ -265,6 +265,7 @@ namespace dmHID
                 {
                     wheel *= -1;
                 }
+
                 packet.m_Wheel = wheel;
 
                 dmPlatform::GetMousePosition(context->m_Window, &packet.m_PositionX, &packet.m_PositionY);
