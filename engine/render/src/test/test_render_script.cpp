@@ -438,7 +438,7 @@ TEST_F(dmRenderScriptTest, TestLuaRenderTargetTooLarge)
     "        u_wrap = graphics.TEXTURE_WRAP_REPEAT,\n"
     "        v_wrap = graphics.TEXTURE_WRAP_MIRRORED_REPEAT\n"
     "    }\n"
-    "    self.rt = render.render_target({[graphics.BUFFER_TYPE_COLOR_BIT] = params_color})\n"
+    "    self.rt = render.render_target({[graphics.BUFFER_TYPE_COLOR0_BIT] = params_color})\n"
     "end\n";
 
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
@@ -479,13 +479,13 @@ TEST_F(dmRenderScriptTest, TestLuaRenderTarget)
     "        u_wrap = graphics.TEXTURE_WRAP_REPEAT,\n"
     "        v_wrap = graphics.TEXTURE_WRAP_MIRRORED_REPEAT\n"
     "    }\n"
-    "    self.rt = render.render_target({[graphics.BUFFER_TYPE_COLOR_BIT] = params_color, [graphics.BUFFER_TYPE_DEPTH_BIT] = params_depth, [graphics.BUFFER_TYPE_STENCIL_BIT] = params_stencil})\n"
+    "    self.rt = render.render_target({[graphics.BUFFER_TYPE_COLOR0_BIT] = params_color, [graphics.BUFFER_TYPE_DEPTH_BIT] = params_depth, [graphics.BUFFER_TYPE_STENCIL_BIT] = params_stencil})\n"
     "    render.set_render_target(self.rt, {transient = {graphics.BUFFER_TYPE_DEPTH_BIT, graphics.BUFFER_TYPE_STENCIL_BIT}})\n"
     "    render.set_render_target(self.rt)\n"
     "    render.set_render_target_size(self.rt, 3, 4)\n"
-            " local rt_w = render.get_render_target_width(self.rt, graphics.BUFFER_TYPE_COLOR_BIT)\n"
+            " local rt_w = render.get_render_target_width(self.rt, graphics.BUFFER_TYPE_COLOR0_BIT)\n"
             " assert(rt_w == 3)\n"
-            " local rt_h = render.get_render_target_height(self.rt, graphics.BUFFER_TYPE_COLOR_BIT)\n"
+            " local rt_h = render.get_render_target_height(self.rt, graphics.BUFFER_TYPE_COLOR0_BIT)\n"
             " assert(rt_h == 4)\n"
             " local rt_w = render.get_render_target_width(self.rt, graphics.BUFFER_TYPE_DEPTH_BIT)\n"
             " assert(rt_w == 3)\n"
@@ -495,7 +495,7 @@ TEST_F(dmRenderScriptTest, TestLuaRenderTarget)
             " assert(rt_w == 3)\n"
             " local rt_h = render.get_render_target_height(self.rt, graphics.BUFFER_TYPE_DEPTH_BIT)\n"
             " assert(rt_h == 4)\n"
-    "    render.set_render_target(nil, {transient = {graphics.BUFFER_TYPE_COLOR_BIT}})\n"
+    "    render.set_render_target(nil, {transient = {graphics.BUFFER_TYPE_COLOR0_BIT}})\n"
     "    render.delete_render_target(self.rt)\n"
     "    render.set_render_target(nil, {transient = {}})\n"
     "    render.set_render_target(nil, {})\n"
@@ -571,13 +571,13 @@ TEST_F(dmRenderScriptTest, TestLuaRenderTargetDeprecated)
     "        u_wrap = graphics.TEXTURE_WRAP_REPEAT,\n"
     "        v_wrap = graphics.TEXTURE_WRAP_MIRRORED_REPEAT\n"
     "    }\n"
-    "    self.rt = render.render_target({[graphics.BUFFER_TYPE_COLOR_BIT] = params_color, [graphics.BUFFER_TYPE_DEPTH_BIT] = params_depth, [graphics.BUFFER_TYPE_STENCIL_BIT] = params_stencil})\n"
+    "    self.rt = render.render_target({[graphics.BUFFER_TYPE_COLOR0_BIT] = params_color, [graphics.BUFFER_TYPE_DEPTH_BIT] = params_depth, [graphics.BUFFER_TYPE_STENCIL_BIT] = params_stencil})\n"
     "    render.enable_render_target(self.rt)\n"
     "    render.disable_render_target(self.rt)\n"
     "    render.set_render_target_size(self.rt, 3, 4)\n"
-            " local rt_w = render.get_render_target_width(self.rt, graphics.BUFFER_TYPE_COLOR_BIT)\n"
+            " local rt_w = render.get_render_target_width(self.rt, graphics.BUFFER_TYPE_COLOR0_BIT)\n"
             " assert(rt_w == 3)\n"
-            " local rt_h = render.get_render_target_height(self.rt, graphics.BUFFER_TYPE_COLOR_BIT)\n"
+            " local rt_h = render.get_render_target_height(self.rt, graphics.BUFFER_TYPE_COLOR0_BIT)\n"
             " assert(rt_h == 4)\n"
             " local rt_w = render.get_render_target_width(self.rt, graphics.BUFFER_TYPE_DEPTH_BIT)\n"
             " assert(rt_w == 3)\n"
@@ -625,7 +625,7 @@ TEST_F(dmRenderScriptTest, TestLuaRenderTargetRequiredKeys)
     "        u_wrap = graphics.TEXTURE_WRAP_REPEAT,\n"
     "        v_wrap = graphics.TEXTURE_WRAP_MIRRORED_REPEAT\n"
     "    }\n"
-    "    self.rt = render.render_target({[graphics.BUFFER_TYPE_COLOR_BIT] = params_color})\n"
+    "    self.rt = render.render_target({[graphics.BUFFER_TYPE_COLOR0_BIT] = params_color})\n"
     "end\n";
 
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
@@ -645,7 +645,7 @@ TEST_F(dmRenderScriptTest, TestLuaRenderTargetRequiredKeys)
     "        u_wrap = graphics.TEXTURE_WRAP_REPEAT,\n"
     "        v_wrap = graphics.TEXTURE_WRAP_MIRRORED_REPEAT\n"
     "    }\n"
-    "    self.rt = render.render_target({[graphics.BUFFER_TYPE_COLOR_BIT] = params_color})\n"
+    "    self.rt = render.render_target({[graphics.BUFFER_TYPE_COLOR0_BIT] = params_color})\n"
     "end\n";
 
     render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
@@ -665,7 +665,7 @@ TEST_F(dmRenderScriptTest, TestLuaRenderTargetRequiredKeys)
     "        u_wrap = graphics.TEXTURE_WRAP_REPEAT,\n"
     "        v_wrap = graphics.TEXTURE_WRAP_MIRRORED_REPEAT\n"
     "    }\n"
-    "    self.rt = render.render_target({[graphics.BUFFER_TYPE_COLOR_BIT] = params_color})\n"
+    "    self.rt = render.render_target({[graphics.BUFFER_TYPE_COLOR0_BIT] = params_color})\n"
     "end\n";
 
     render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
@@ -679,7 +679,7 @@ TEST_F(dmRenderScriptTest, TestLuaClear)
 {
     const char* script =
     "function update(self)\n"
-    "    render.clear({[graphics.BUFFER_TYPE_COLOR_BIT] = vmath.vector4(0, 0, 0, 0), [graphics.BUFFER_TYPE_DEPTH_BIT] = 1})\n"
+    "    render.clear({[graphics.BUFFER_TYPE_COLOR0_BIT] = vmath.vector4(0, 0, 0, 0), [graphics.BUFFER_TYPE_DEPTH_BIT] = 1})\n"
     "end\n";
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
@@ -712,7 +712,7 @@ TEST_F(dmRenderScriptTest, TestStencilBufferCleared)
 {
     const char* script_no_stencil_clear =
     "function update(self)\n"
-    "    render.clear({[graphics.BUFFER_TYPE_COLOR_BIT] = vmath.vector4(0, 0, 0, 0), [graphics.BUFFER_TYPE_DEPTH_BIT] = 1})\n"
+    "    render.clear({[graphics.BUFFER_TYPE_COLOR0_BIT] = vmath.vector4(0, 0, 0, 0), [graphics.BUFFER_TYPE_DEPTH_BIT] = 1})\n"
     "end\n";
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script_no_stencil_clear));
     dmRender::HRenderScriptInstance render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
@@ -726,7 +726,7 @@ TEST_F(dmRenderScriptTest, TestStencilBufferCleared)
 
     const char* script_stencil_clear =
     "function update(self)\n"
-    "    render.clear({[graphics.BUFFER_TYPE_COLOR_BIT] = vmath.vector4(0, 0, 0, 0), [graphics.BUFFER_TYPE_DEPTH_BIT] = 1, [graphics.BUFFER_TYPE_STENCIL_BIT] = 0})\n"
+    "    render.clear({[graphics.BUFFER_TYPE_COLOR0_BIT] = vmath.vector4(0, 0, 0, 0), [graphics.BUFFER_TYPE_DEPTH_BIT] = 1, [graphics.BUFFER_TYPE_STENCIL_BIT] = 0})\n"
     "end\n";
     render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script_stencil_clear));
     render_script_instance = dmRender::NewRenderScriptInstance(m_Context, render_script);
@@ -1160,7 +1160,7 @@ TEST_F(dmRenderScriptTest, TestAssetHandlesValidRenderTarget)
 {
     const char* script =
         "function init(self)\n"
-        "   self.my_rt = render.render_target({[graphics.BUFFER_TYPE_COLOR_BIT] = { format = graphics.FORMAT_RGBA, width = 128, height = 128 }})\n"
+        "   self.my_rt = render.render_target({[graphics.BUFFER_TYPE_COLOR0_BIT] = { format = graphics.FORMAT_RGBA, width = 128, height = 128 }})\n"
         "end\n"
         "function update(self)\n"
         "    render.enable_texture(0, self.my_rt)\n"

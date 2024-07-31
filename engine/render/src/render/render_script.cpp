@@ -791,7 +791,7 @@ namespace dmRender
      *                            height = render.get_window_height(),
      *                            u_wrap = graphics.TEXTURE_WRAP_CLAMP_TO_EDGE,
      *                            v_wrap = graphics.TEXTURE_WRAP_CLAMP_TO_EDGE }
-     *     self.my_render_target = render.render_target({[graphics.BUFFER_TYPE_COLOR_BIT] = color_params, [graphics.BUFFER_TYPE_DEPTH_BIT] = depth_params })
+     *     self.my_render_target = render.render_target({[graphics.BUFFER_TYPE_COLOR0_BIT] = color_params, [graphics.BUFFER_TYPE_DEPTH_BIT] = depth_params })
      * end
      *
      * function update(self, dt)
@@ -1129,7 +1129,7 @@ namespace dmRender
      *  Default is all non-transient. Be aware that some hardware uses a combined depth stencil buffer and when this is the case both are considered non-transient if exclusively selected!
      *  A buffer type defined that doesn't exist in the render target is silently ignored.
      *
-     * - `graphics.BUFFER_TYPE_COLOR_BIT`
+     * - `graphics.BUFFER_TYPE_COLOR0_BIT`
      * - `graphics.BUFFER_TYPE_DEPTH_BIT`
      * - `graphics.BUFFER_TYPE_STENCIL_BIT`
      *
@@ -1344,9 +1344,9 @@ namespace dmRender
      * @name render.enable_texture
      * @param binding [type:number|string|hash] texture binding, either by texture unit, string or hash for the sampler name that the texture should be bound to
      * @param handle_or_name [type:texture|string|hash] render target or texture handle that should be bound, or a named resource in the "Render Resource" table in the currently assigned .render file
-     * @param [buffer_type] [type:constant] optional buffer type from which to enable the texture. Note that this argument only applies to render targets. Defaults to `graphics.BUFFER_TYPE_COLOR_BIT`. These values are supported:
+     * @param [buffer_type] [type:constant] optional buffer type from which to enable the texture. Note that this argument only applies to render targets. Defaults to `graphics.BUFFER_TYPE_COLOR0_BIT`. These values are supported:
      *
-     * - `graphics.BUFFER_TYPE_COLOR_BIT`
+     * - `graphics.BUFFER_TYPE_COLOR0_BIT`
      *
      * If The render target has been created as depth and/or stencil textures, these buffer types can be used:
      *
@@ -1374,7 +1374,7 @@ namespace dmRender
      *     -- disable target
      *     render.set_render_target(render.RENDER_TARGET_DEFAULT)
      *
-     *     render.enable_texture(0, self.my_render_target, graphics.BUFFER_TYPE_COLOR_BIT)
+     *     render.enable_texture(0, self.my_render_target, graphics.BUFFER_TYPE_COLOR0_BIT)
      *     -- draw a predicate with the render target available as texture 0 in the predicate
      *     -- material shader.
      *     render.draw(self.my_pred)
@@ -1388,7 +1388,7 @@ namespace dmRender
      *     render.draw(self.my_pred)
      *     render.set_render_target(render.RENDER_TARGET_DEFAULT)
      *
-     *     render.enable_texture(0, 'my_rt_resource', graphics.BUFFER_TYPE_COLOR_BIT)
+     *     render.enable_texture(0, 'my_rt_resource', graphics.BUFFER_TYPE_COLOR0_BIT)
      *     -- draw a predicate with the render target available as texture 0 in the predicate
      *     -- material shader.
      *     render.draw(self.my_pred)
@@ -1504,7 +1504,7 @@ namespace dmRender
      *
      * ```lua
      * function update(self, dt)
-     *     render.enable_texture(0, self.my_render_target, graphics.BUFFER_TYPE_COLOR_BIT)
+     *     render.enable_texture(0, self.my_render_target, graphics.BUFFER_TYPE_COLOR0_BIT)
      *     -- draw a predicate with the render target available as texture 0 in the predicate
      *     -- material shader.
      *     render.draw(self.my_pred)
@@ -1542,7 +1542,7 @@ namespace dmRender
      * @param render_target [type:render_target] render target from which to retrieve the buffer width
      * @param buffer_type [type:constant] which type of buffer to retrieve the width from
      *
-     * - `graphics.BUFFER_TYPE_COLOR_BIT`
+     * - `graphics.BUFFER_TYPE_COLOR0_BIT`
      * - `graphics.BUFFER_TYPE_COLOR[x]_BIT` (x: [0..3], if supported!)
      * - `graphics.BUFFER_TYPE_DEPTH_BIT`
      * - `graphics.BUFFER_TYPE_STENCIL_BIT`
@@ -1552,9 +1552,9 @@ namespace dmRender
      *
      * ```lua
      * -- get the width of the render target color buffer
-     * local w = render.get_render_target_width(self.target_right, graphics.BUFFER_TYPE_COLOR_BIT)
+     * local w = render.get_render_target_width(self.target_right, graphics.BUFFER_TYPE_COLOR0_BIT)
      * -- get the width of a render target resource
-     * local w = render.get_render_target_width('my_rt_resource', graphics.BUFFER_TYPE_COLOR_BIT)
+     * local w = render.get_render_target_width('my_rt_resource', graphics.BUFFER_TYPE_COLOR0_BIT)
      * ```
      */
     int RenderScript_GetRenderTargetWidth(lua_State* L)
@@ -1582,7 +1582,7 @@ namespace dmRender
      * @param render_target [type:render_target] render target from which to retrieve the buffer height
      * @param buffer_type [type:constant] which type of buffer to retrieve the height from
      *
-     * - `graphics.BUFFER_TYPE_COLOR_BIT`
+     * - `graphics.BUFFER_TYPE_COLOR0_BIT`
      * - `graphics.BUFFER_TYPE_DEPTH_BIT`
      * - `graphics.BUFFER_TYPE_STENCIL_BIT`
      *
@@ -1591,9 +1591,9 @@ namespace dmRender
      *
      * ```lua
      * -- get the height of the render target color buffer
-     * local h = render.get_render_target_height(self.target_right, graphics.BUFFER_TYPE_COLOR_BIT)
+     * local h = render.get_render_target_height(self.target_right, graphics.BUFFER_TYPE_COLOR0_BIT)
      * -- get the height of a render target resource
-     * local w = render.get_render_target_height('my_rt_resource', graphics.BUFFER_TYPE_COLOR_BIT)
+     * local w = render.get_render_target_height('my_rt_resource', graphics.BUFFER_TYPE_COLOR0_BIT)
      * ```
      */
     int RenderScript_GetRenderTargetHeight(lua_State* L)
@@ -1618,7 +1618,7 @@ namespace dmRender
      * @name render.clear
      * @param buffers [type:table] table with keys specifying which buffers to clear and values set to clear values. Available keys are:
      *
-     * - `graphics.BUFFER_TYPE_COLOR_BIT`
+     * - `graphics.BUFFER_TYPE_COLOR0_BIT`
      * - `graphics.BUFFER_TYPE_DEPTH_BIT`
      * - `graphics.BUFFER_TYPE_STENCIL_BIT`
      *
@@ -1627,7 +1627,7 @@ namespace dmRender
      * Clear the color buffer and the depth buffer.
      *
      * ```lua
-     * render.clear({[graphics.BUFFER_TYPE_COLOR_BIT] = vmath.vector4(0, 0, 0, 0), [graphics.BUFFER_TYPE_DEPTH_BIT] = 1})
+     * render.clear({[graphics.BUFFER_TYPE_COLOR0_BIT] = vmath.vector4(0, 0, 0, 0), [graphics.BUFFER_TYPE_DEPTH_BIT] = 1})
      * ```
      */
     int RenderScript_Clear(lua_State* L)
@@ -2817,7 +2817,7 @@ namespace dmRender
      *     local color_params = { format = graphics.FORMAT_RGBA,
      *                            width = render.get_window_width(),
      *                            height = render.get_window_height()}
-     *     self.scene_rt = render.render_target({[graphics.BUFFER_TYPE_COLOR_BIT] = color_params})
+     *     self.scene_rt = render.render_target({[graphics.BUFFER_TYPE_COLOR0_BIT] = color_params})
      * end
      *
      * function update(self, dt)
@@ -3152,7 +3152,7 @@ namespace dmRender
      */
 
     /*#
-    * Deprecated in favor of [ref:graphics.BLEND_FACTOR_ONE_MINUS_CONSTANT]
+    * Deprecated in favor of [ref:graphics.BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA]
      * @name render.BLEND_ONE_MINUS_CONSTANT_ALPHA
      * @variable
      */

@@ -49,6 +49,13 @@ namespace dmScript
         lua_pushnumber(L, (lua_Number) dmGraphics:: enum_name); \
         lua_setfield(L, -2, #name);
 
+    #define SET_TEXTUREFORMAT_IF_SUPPORTED(name) \
+        if (graphics_context && dmGraphics::IsTextureFormatSupported(graphics_context, dmGraphics::name)) \
+        { \
+            lua_pushnumber(L, (lua_Number) dmGraphics:: name); \
+            lua_setfield(L, -2, #name); \
+        }
+
         // Buffer
         SET_GRAPHICS_ENUM(BUFFER_TYPE_COLOR0_BIT);
         SET_GRAPHICS_ENUM(BUFFER_TYPE_DEPTH_BIT);
@@ -148,15 +155,9 @@ namespace dmScript
         SET_GRAPHICS_ENUM_NAMED(TextureImage::COMPRESSION_TYPE_BASIS_UASTC, COMPRESSION_TYPE_BASIS_UASTC);
         SET_GRAPHICS_ENUM_NAMED(TextureImage::COMPRESSION_TYPE_BASIS_ETC1S, COMPRESSION_TYPE_BASIS_ETC1S);
 
-    #undef SET_GRAPHICS_ENUM_NAMED
-    #undef SET_GRAPHICS_ENUM
-
-    #define SET_TEXTUREFORMAT_IF_SUPPORTED(name) \
-        if (graphics_context && dmGraphics::IsTextureFormatSupported(graphics_context, dmGraphics::name)) \
-        { \
-            lua_pushnumber(L, (lua_Number) dmGraphics:: name); \
-            lua_setfield(L, -2, #name); \
-        }
+        // TextureFormat custom
+        SET_GRAPHICS_ENUM(TEXTURE_FORMAT_DEPTH);
+        SET_GRAPHICS_ENUM(TEXTURE_FORMAT_STENCIL);
 
         // TextureFormat
         SET_TEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_LUMINANCE);
@@ -165,8 +166,6 @@ namespace dmScript
         SET_TEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGBA);
         SET_TEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGB_16BPP);
         SET_TEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGBA_16BPP);
-        SET_TEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_DEPTH);
-        SET_TEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_STENCIL);
         SET_TEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGB_PVRTC_2BPPV1);
         SET_TEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGB_PVRTC_4BPPV1);
         SET_TEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1);
@@ -193,6 +192,8 @@ namespace dmScript
         SET_TEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_BGRA8U);
         SET_TEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_R32UI);
 
+    #undef SET_GRAPHICS_ENUM_NAMED
+    #undef SET_GRAPHICS_ENUM
     #undef SET_TEXTUREFORMAT_IF_SUPPORTED
 
         // Register enums here

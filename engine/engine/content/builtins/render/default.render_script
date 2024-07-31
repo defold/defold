@@ -62,7 +62,7 @@ end
 
 local function update_clear_color(state, color)
     if color then
-        state.clear_buffers[graphics.BUFFER_TYPE_COLOR_BIT] = color
+        state.clear_buffers[graphics.BUFFER_TYPE_COLOR0_BIT] = color
     end
 end
 
@@ -127,7 +127,7 @@ local function create_state()
     color.z = sys.get_config_number("render.clear_color_blue", 0)
     color.w = sys.get_config_number("render.clear_color_alpha", 0)
     state.clear_buffers = {
-        [graphics.BUFFER_TYPE_COLOR_BIT] = color,
+        [graphics.BUFFER_TYPE_COLOR0_BIT] = color,
         [graphics.BUFFER_TYPE_DEPTH_BIT] = 1,
         [graphics.BUFFER_TYPE_STENCIL_BIT] = 0
     }
