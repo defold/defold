@@ -170,10 +170,10 @@ namespace dmHID
         for (int i = 0; i < gamepad->m_HatCount; ++i)
         {
             uint32_t hat_base = i * gamepad->m_HatCount;
-            buttons_remapped[hat_base + 0] = buttons[hats_start];
-            buttons_remapped[hat_base + 1] = buttons[hats_start + 2];
-            buttons_remapped[hat_base + 2] = buttons[hats_start + 3];
-            buttons_remapped[hat_base + 3] = buttons[hats_start + 1];
+            buttons_remapped[hat_base + 0] = buttons[hats_start + hat_base];
+            buttons_remapped[hat_base + 1] = buttons[hats_start + hat_base + 2];
+            buttons_remapped[hat_base + 2] = buttons[hats_start + hat_base + 3];
+            buttons_remapped[hat_base + 3] = buttons[hats_start + hat_base + 1];
         }
 
         return buttons_remapped;
