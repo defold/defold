@@ -475,15 +475,6 @@ void GamesysTest<T>::SetUp()
     m_Factory = dmResource::NewFactory(&params, "build/src/gamesys/test");
     ASSERT_NE((dmResource::HFactory)0, m_Factory); // Probably a sign that the previous test wasn't properly shut down
 
-    dmScript::ContextParams script_context_params = {};
-    script_context_params.m_Factory = m_Factory;
-    m_ScriptContext = dmScript::NewContext(script_context_params);
-    dmScript::Initialize(m_ScriptContext);
-    m_Register = dmGameObject::NewRegister();
-    dmGameObject::Initialize(m_Register, m_ScriptContext);
-
-    dmGraphics::InstallAdapter();
-
     dmPlatform::WindowParams win_params = {};
     m_Window = dmPlatform::NewWindow();
     dmPlatform::OpenWindow(m_Window, win_params);
@@ -492,6 +483,26 @@ void GamesysTest<T>::SetUp()
     dmHID::Init(m_HidContext);
     dmHID::SetWindow(m_HidContext, m_Window);
 
+    dmJobThread::JobThreadCreationParams job_thread_create_param;
+    job_thread_create_param.m_ThreadNames[0] = "test_gamesys_thread";
+    job_thread_create_param.m_ThreadCount    = 1;
+    m_JobThread = dmJobThread::Create(job_thread_create_param);
+
+    dmGraphics::InstallAdapter();
+    dmGraphics::ResetDrawCount(); // for the unit test
+
+    dmGraphics::ContextParams graphics_context_params;
+    graphics_context_params.m_Window = m_Window;
+    graphics_context_params.m_JobThread = m_JobThread;
+
+    m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
+
+    dmScript::ContextParams script_context_params = {};
+    script_context_params.m_Factory = m_Factory;
+    script_context_params.m_GraphicsContext = m_GraphicsContext;
+    m_ScriptContext = dmScript::NewContext(script_context_params);
+    dmScript::Initialize(m_ScriptContext);
+
     dmGui::NewContextParams gui_params;
     gui_params.m_ScriptContext = m_ScriptContext;
     gui_params.m_HidContext = m_HidContext;
@@ -499,6 +510,9 @@ void GamesysTest<T>::SetUp()
     gui_params.m_GetUserDataCallback = dmGameSystem::GuiGetUserDataCallback;
     gui_params.m_ResolvePathCallback = dmGameSystem::GuiResolvePathCallback;
     m_GuiContext = dmGui::NewContext(&gui_params);
+
+    m_Register = dmGameObject::NewRegister();
+    dmGameObject::Initialize(m_Register, m_ScriptContext);
 
     m_Contexts.SetCapacity(7,16);
     m_Contexts.Put(dmHashString64("goc"), m_Register);
@@ -510,19 +524,6 @@ void GamesysTest<T>::SetUp()
 
     dmResource::RegisterTypes(m_Factory, &m_Contexts);
 
-    dmGraphics::InstallAdapter();
-    dmGraphics::ResetDrawCount(); // for the unit test
-
-    dmJobThread::JobThreadCreationParams job_thread_create_param;
-    job_thread_create_param.m_ThreadNames[0] = "test_gamesys_thread";
-    job_thread_create_param.m_ThreadCount    = 1;
-    m_JobThread = dmJobThread::Create(job_thread_create_param);
-
-    dmGraphics::ContextParams graphics_context_params;
-    graphics_context_params.m_Window = m_Window;
-    graphics_context_params.m_JobThread = m_JobThread;
-
-    m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
     dmRender::RenderContextParams render_params;
     render_params.m_MaxRenderTypes = 10;
     render_params.m_MaxInstances = 1000;

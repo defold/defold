@@ -36,8 +36,8 @@ local function test_atlas()
     local tparams = {
        width          = 16,
        height         = 16,
-       type           = resource.TEXTURE_TYPE_2D,
-       format         = resource.TEXTURE_FORMAT_RGBA,
+       type           = graphics.TEXTURE_TYPE_2D,
+       format         = graphics.TEXTURE_FORMAT_RGBA,
     }
     local texture    = resource.create_texture("/my_texture.texturec", tparams)
     local num_frames = 12

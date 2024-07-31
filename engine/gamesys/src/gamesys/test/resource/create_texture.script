@@ -27,33 +27,36 @@ end
 local tparams = {
     width          = 128,
     height         = 128,
-    type           = resource.TEXTURE_TYPE_2D,
-    format         = resource.TEXTURE_FORMAT_RGBA,
+    type           = graphics.TEXTURE_TYPE_2D,
+    format         = graphics.TEXTURE_FORMAT_RGBA,
 }
 
 local tparams_invalid = {
     width          = 0,
     height         = 0,
-    type           = resource.TEXTURE_TYPE_2D,
-    format         = resource.TEXTURE_FORMAT_RGBA,
+    type           = graphics.TEXTURE_TYPE_2D,
+    format         = graphics.TEXTURE_FORMAT_RGBA,
 }
 
 local tparams_cube = {
     width          = 128,
     height         = 128,
-    type           = resource.TEXTURE_TYPE_CUBE_MAP,
-    format         = resource.TEXTURE_FORMAT_RGBA,
+    type           = graphics.TEXTURE_TYPE_CUBE_MAP,
+    format         = graphics.TEXTURE_FORMAT_RGBA,
 }
 
 local tparams_compressed = {
-    type             = resource.TEXTURE_TYPE_2D,
+    type             = graphics.TEXTURE_TYPE_2D,
     width            = 32,
     height           = 32,
-    format           = resource.TEXTURE_FORMAT_RGB_ETC1,
-    compression_type = resource.COMPRESSION_TYPE_BASIS_UASTC,
+    format           = graphics.TEXTURE_FORMAT_RGB_ETC1,
+    compression_type = graphics.COMPRESSION_TYPE_BASIS_UASTC,
 }
 
 function test_simple()
+
+    pprint(graphics)
+
     local t_id = resource.create_texture("/test_simple.texturec", tparams)
     go.set("#model", "texture0", t_id)
 end
@@ -201,7 +204,7 @@ function test_get_texture_info()
     assert(t_info_by_handle.height  == 128)
     assert(t_info_by_handle.depth   == 1)
     assert(t_info_by_handle.mipmaps == 1)
-    assert(t_info_by_handle.type    == resource.TEXTURE_TYPE_2D)
+    assert(t_info_by_handle.type    == graphics.TEXTURE_TYPE_2D)
 
     resource.release(t_id)
 
@@ -212,7 +215,7 @@ function test_get_texture_info()
     assert(t_info_cube.height  == 128)
     assert(t_info_cube.depth   == 6)
     assert(t_info_cube.mipmaps == 1)
-    assert(t_info_cube.type    == resource.TEXTURE_TYPE_CUBE_MAP)
+    assert(t_info_cube.type    == graphics.TEXTURE_TYPE_CUBE_MAP)
 
     resource.release(t_id_cube)
 

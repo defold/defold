@@ -234,8 +234,8 @@ namespace dmGameSystem
     *         local tparams = {
     *             width  = img.width,
     *             height = img.height,
-    *             type   = resource.TEXTURE_TYPE_2D,
-    *             format = resource.TEXTURE_FORMAT_RGBA }
+    *             type   = graphics.TEXTURE_TYPE_2D,
+    *             format = graphics.TEXTURE_FORMAT_RGBA }
     *
     *         local my_texture_id = resource.create_texture("/my_custom_texture.texturec", tparams, img.buffer)
     *         -- Apply the texture to a model
