@@ -23,7 +23,10 @@ jobs:
           ${{ github.workspace }}/share/ext/build/luajit*.tar.gz
 
 
-  build-x86_64-macos:
+  build-macos:
+    strategy:
+      matrix:
+        arch: [arm64-macos, x86_64-macos]
     runs-on: macOS-14
     steps:
     - name: Checkout repo
@@ -32,12 +35,34 @@ jobs:
     - name: Build
       run: |
         cd share/ext/luajit
-        ./build_luajit.sh x86_64-macos
+        ./build_luajit.sh ${{ matrix.arch }}
 
     - name: Archive results
       uses: actions/upload-artifact@v3
       with:
-        name: x86_64-macos-luajit
+        name: ${{ matrix.arch }}-luajit
+        path: |
+          ${{ github.workspace }}/share/ext/build/luajit*.tar.gz
+
+
+  build-ios:
+    strategy:
+      matrix:
+        arch: [arm64-ios, x86_64-ios]
+    runs-on: macOS-14
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+
+    - name: Build
+      run: |
+        cd share/ext/luajit
+        ./build_luajit.sh ${{ matrix.arch }}
+
+    - name: Archive results
+      uses: actions/upload-artifact@v3
+      with:
+        name: ${{ matrix.arch }}-luajit
         path: |
           ${{ github.workspace }}/share/ext/build/luajit*.tar.gz
 
@@ -95,7 +120,3 @@ jobs:
         name: ${{ matrix.platform }}-luajit
         path: |
           ${{ github.workspace }}/share/ext/build/luajit*.tar.gz
-
-
-
-
