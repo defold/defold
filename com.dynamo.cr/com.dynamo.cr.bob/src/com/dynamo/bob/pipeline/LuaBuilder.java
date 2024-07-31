@@ -288,29 +288,36 @@ public abstract class LuaBuilder extends Builder<Void> {
     }
     */
 
-    public byte[] constructLuaJITBytecode(Task<Void> task, String luajitExe, String source) throws IOException, CompileExceptionError {
+    public byte[] constructLuaJITBytecode(Task<Void> task, String luajitExe, String source, boolean gen32bit) throws IOException, CompileExceptionError {
 
         Bob.initLua(); // unpack the lua resources
 
         File outputFile = File.createTempFile("script", ".raw");
         File inputFile = File.createTempFile("script", ".lua");
 
-        // Doing a bit of custom set up here as the path is required.
+        // -b = generate bytecode
+        // 
+        // -W = Generate 32 bit (non-GC64) bytecode.
+        // -X = Generate 64 bit (GC64) bytecode.
+        // -d = Generate bytecode in deterministic manner.
+        // 
+        // -F = supply the correct chunk name (the original source file)
+        //      The chunk name is prefixed with @ so that the last 60
+        //      characters of the name are shown. See implementation of
+        //      luaO_chunkid in lobject.c. If a script error occurs in
+        //      runtime we want Lua to report the end of the filepath
+        //      associated with the chunk, since this is where the filename
+        //      is visible.
         //
-        // NOTE: The -F option for bytecode is a small custom modification to bcsave.lua in LuaJIT which allows us to supply the
-        //       correct chunk name (the original source file) already here.
-        //
-        // See implementation of luaO_chunkid and why a prefix '@' is used; it is to show the last 60 characters of the name.
-        //
-        // If a script error occurs in runtime we want Lua to report the end of the filepath
-        // associated with the chunk, since this is where the filename is visible.
-        //
+        // -g = keep debug info
         final String chunkName = getChunkName(task);
         List<String> options = new ArrayList<String>();
         options.add(Bob.getExe(Platform.getHostPlatform(), luajitExe));
         options.add("-b");
-        options.add("-g"); // Keep debug info
-        options.add("-F"); options.add(task.input(0).getPath()); // The @ is added in the tool
+        options.add("-d");
+        options.add("-g");
+        options.add(gen32bit ? "-W" : "-X")
+        options.add("-F"); options.add(task.input(0).getPath());
         options.add(inputFile.getAbsolutePath());
         options.add(outputFile.getAbsolutePath());
 
@@ -488,12 +495,13 @@ public abstract class LuaBuilder extends Builder<Void> {
                     needs32bit = true;
             }
 
+            final String luajitExe = Platform.getHostPlatform().is64bit() ? "luajit-64" : "luajit-32";
             byte[] bytecode32 = new byte[0];
             byte[] bytecode64 = new byte[0];
             if (needs32bit)
-                bytecode32 = constructLuaJITBytecode(task, "luajit-32", script);
+                bytecode32 = constructLuaJITBytecode(task, luajitExe, script, true);
             if (needs64bit)
-                bytecode64 = constructLuaJITBytecode(task, "luajit-64", script);
+                bytecode64 = constructLuaJITBytecode(task, luajitExe, script, false);
 
             if ( needs32bit ^ needs64bit ) { // if only one of them is set
                 if (needs64bit) {

@@ -217,10 +217,6 @@ case $1 in
 		function cmi_make() {
 			export MACOSX_DEPLOYMENT_TARGET=${OSX_MIN_SDK_VERSION}
 
-			# Since GC32 mode isn't supported on macOS, in the new version.
-			# We'll just use the old built executable from the previous package
-			# (we need the GC32 for generating 32 bit Lua source for 32 bit platforms: win32, armv7-android)
-
 			export DEFOLD_ARCH="64"
 			export TARGET_CFLAGS=""
 			export XCFLAGS="${COMMON_XCFLAGS}"
@@ -229,12 +225,6 @@ case $1 in
 			make -j8
 			make install
 			mv $PREFIX/bin/$CONF_TARGET/${TARGET_FILE} $PREFIX/bin/$CONF_TARGET/luajit-${DEFOLD_ARCH}
-			set +e
-
-			# grab our old 32 bit executable and store it in the host package
-			set -e
-			tar xvf ${DIR}/luajit-2.1.0-beta3-x86_64-macos.tar.gz
-			cp -v bin/x86_64-macos/luajit-32 $PREFIX/bin/$CONF_TARGET/luajit-32
 			set +e
 		}
 		;;
@@ -251,12 +241,6 @@ case $1 in
 			make -j8
 			make install
 			mv $PREFIX/bin/$CONF_TARGET/${TARGET_FILE} $PREFIX/bin/$CONF_TARGET/luajit-${DEFOLD_ARCH}
-			set +e
-
-			# grab our old 32 bit executable and store it in the host package
-			set -e
-			tar xvf ${DIR}/luajit-2.1.0-beta3-x86_64-macos.tar.gz
-			cp -v bin/x86_64-macos/luajit-32 $PREFIX/bin/$CONF_TARGET/luajit-32
 			set +e
 		}
 		;;
