@@ -39,14 +39,14 @@ del %ZIPFILENAME%
 if not exist %PATCH_FILE% goto ZIPEXTRACTED
 
 echo "**************************************************"
-echo "Applying patch $PATCH_FILE"
+echo "Applying patch %PATCH_FILE%"
 echo "**************************************************"
 
 set FOLDER=%~dp0\%TMP_TARGET%\%PACKAGEDIR%\
 set PATCH_PATH=%~dp0\%PATCH_FILE%
 
 pushd %FOLDER%
-git apply --unsafe-paths %PATCH_PATH%
+git apply --unsafe-paths --ignore-space-change --ignore-whitespace %PATCH_PATH%
 popd
 
 
