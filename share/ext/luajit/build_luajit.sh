@@ -180,36 +180,36 @@ case $1 in
 	x86_64-linux)
 		export TARGET_SYS=Linux
 		function cmi_make() {
-					export DEFOLD_ARCH="32"
-					export XCFLAGS="-DLUAJIT_DISABLE_GC64 ${COMMON_XCFLAGS}"
+			export DEFOLD_ARCH="32"
+			export XCFLAGS="-DLUAJIT_DISABLE_GC64 ${COMMON_XCFLAGS}"
 
-					export HOST_CC="clang"
-					export HOST_CFLAGS="${COMMON_XCFLAGS} -I."
-					export HOST_ALDFLAGS=""
-					export TARGET_LDFLAGS=""
+			export HOST_CC="clang"
+			export HOST_CFLAGS="${COMMON_XCFLAGS} -I."
+			export HOST_ALDFLAGS=""
+			export TARGET_LDFLAGS=""
 
-					echo "Building $CONF_TARGET ($DEFOLD_ARCH) with '$XCFLAGS'"
-					set -e
-					make -j8
-					make install
-					mv $PREFIX/bin/$CONF_TARGET/${TARGET_FILE} $PREFIX/bin/$CONF_TARGET/luajit-${DEFOLD_ARCH}
-					make clean
-					set +e
+			echo "Building $CONF_TARGET ($DEFOLD_ARCH) with '$XCFLAGS'"
+			set -e
+			make -j8
+			make install
+			mv $PREFIX/bin/$CONF_TARGET/${TARGET_FILE} $PREFIX/bin/$CONF_TARGET/luajit-${DEFOLD_ARCH}
+			make clean
+			set +e
 
-					export DEFOLD_ARCH="64"
-					export XCFLAGS=" ${COMMON_XCFLAGS}"
+			export DEFOLD_ARCH="64"
+			export XCFLAGS=" ${COMMON_XCFLAGS}"
 
-					export HOST_CC="clang"
-					export HOST_CFLAGS="${COMMON_XCFLAGS} -m64 -I."
-					export HOST_ALDFLAGS="-m64"
-					export TARGET_LDFLAGS="-m64"
+			export HOST_CC="clang"
+			export HOST_CFLAGS="${COMMON_XCFLAGS} -m64 -I."
+			export HOST_ALDFLAGS="-m64"
+			export TARGET_LDFLAGS="-m64"
 
-					echo "Building $CONF_TARGET ($DEFOLD_ARCH) with '$XCFLAGS'"
-					set -e
-					make -j8
-					make install
-					mv $PREFIX/bin/$CONF_TARGET/${TARGET_FILE} $PREFIX/bin/$CONF_TARGET/luajit-${DEFOLD_ARCH}
-					set +e
+			echo "Building $CONF_TARGET ($DEFOLD_ARCH) with '$XCFLAGS'"
+			set -e
+			make -j8
+			make install
+			mv $PREFIX/bin/$CONF_TARGET/${TARGET_FILE} $PREFIX/bin/$CONF_TARGET/luajit-${DEFOLD_ARCH}
+			set +e
 		}
 		;;
 	x86_64-macos)
