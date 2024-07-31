@@ -171,6 +171,20 @@ namespace dmPlatform
         return 0;
     }
 
+    static void CenterWindowByMonitor(Window* wnd, GLFWmonitor* monitor)
+    {
+        if (!monitor)
+            return;
+
+        const GLFWvidmode* video_mode = glfwGetVideoMode(monitor);
+        if (!video_mode)
+            return;
+
+        int32_t x = video_mode->width/2 - wnd->m_Width/2;
+        int32_t y = video_mode->height/2 - wnd->m_Height/2;
+        glfwSetWindowPos(wnd->m_Window, x, y);
+    }
+
     static PlatformResult OpenWindowOpenGL(Window* wnd, const WindowParams& params)
     {
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
@@ -234,6 +248,9 @@ namespace dmPlatform
             return PLATFORM_RESULT_WINDOW_ALREADY_OPENED;
         }
 
+        // A reboot doesn't shut down GLFW, so we reset all window hints here to defaults first.
+        glfwDefaultWindowHints();
+
         glfwWindowHint(GLFW_FOCUSED, GLFW_TRUE);
         // This hint saves both size and position, but we need only position
         // That's why we hide window here and then later set default size and show window
@@ -276,6 +293,13 @@ namespace dmPlatform
             UpdateWindowSize(window);
 
             SetSwapInterval(window, 1);
+
+        #ifdef _WIN32
+            if (!params.m_Fullscreen)
+            {
+                CenterWindowByMonitor(window, glfwGetPrimaryMonitor());
+            }
+        #endif
 
             // glfwSetWindowBackgroundColor does not exist in GLFW3, but we could potentially
             // set glfwWindowHint(GLFW_TRANSPARENT_FRAMEBUFFER, GLFW_TRUE); to get a transparent framebuffer
