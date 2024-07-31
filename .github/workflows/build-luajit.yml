@@ -70,7 +70,7 @@ jobs:
   build-windows:
     strategy:
       matrix:
-        arch: [x64, x86]
+        arch: [x64, amd64_x86]
     runs-on: windows-latest
     steps:
     - name: Checkout repo
