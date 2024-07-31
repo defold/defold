@@ -319,6 +319,9 @@ namespace dmPlatform
     void ShowWindow(HWindow window)
     {
         glfwShowWindow(window->m_Window);
+    #if _WIN32
+        glfwFocusWindow(window->m_Window);
+    #endif
     }
 
     void SwapBuffers(HWindow window)
