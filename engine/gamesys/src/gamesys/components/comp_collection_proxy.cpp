@@ -954,19 +954,19 @@ namespace dmGameSystem
 
     /*# collection proxy is loading now
      * It's impossible to change the collection while the collection proxy is loading.
-     * @name gui.RESULT_LOADING
+     * @name collectionproxy.RESULT_LOADING
      * @variable
      */
 
     /*# collection proxy is already loaded
      * It's impossible to change the collection if the collection is already loaded.
-     * @name gui.RESULT_ALREADY_LOADED
+     * @name collectionproxy.RESULT_ALREADY_LOADED
      * @variable
      */
 
     /*# collection proxy isn't excluded
      * It's impossible to change the collection for a proxy that isn't excluded.
-     * @name gui.RESULT_NOT_EXCLUDED
+     * @name collectionproxy.RESULT_NOT_EXCLUDED
      * @variable
      */
 }
