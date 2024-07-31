@@ -81,6 +81,7 @@ namespace dmScript
         context->m_ScriptExtensions.SetCapacity(8);
         context->m_ConfigFile = params.m_ConfigFile;
         context->m_ResourceFactory = params.m_Factory;
+        context->m_GraphicsContext = params.m_GraphicsContext;
         context->m_LuaState = lua_open();
         context->m_ContextTableRef = LUA_NOREF;
         return context;
@@ -171,7 +172,7 @@ namespace dmScript
         InitializeHtml5(L);
         InitializeLuasocket(L);
         InitializeBitop(L);
-        InitializeGraphics(L);
+        InitializeGraphics(L, context->m_GraphicsContext);
 
         lua_register(L, "print", LuaPrint);
         lua_register(L, "pprint", LuaPPrint);

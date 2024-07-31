@@ -71,6 +71,7 @@ namespace dmScript
     {
         dmConfigFile::HConfig       m_ConfigFile;
         dmResource::HFactory        m_ResourceFactory;
+        dmGraphics::HContext        m_GraphicsContext;
         dmHashTable64<Module>       m_Modules;
         dmHashTable64<Module*>      m_PathToModule;
         dmHashTable64<int>          m_HashInstances;

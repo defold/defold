@@ -15,11 +15,13 @@
 #ifndef DM_SCRIPT_GRAPHICS_H
 #define DM_SCRIPT_GRAPHICS_H
 
+#include <dmsdk/graphics/graphics.h>
+
 struct lua_State;
 
 namespace dmScript
 {
-    void InitializeGraphics(lua_State* L);
+    void InitializeGraphics(lua_State* L, dmGraphics::HContext graphics_context);
 }
 
 #endif // DM_SCRIPT_GRAPHICS_H

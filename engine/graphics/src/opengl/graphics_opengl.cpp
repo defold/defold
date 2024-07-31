@@ -4022,7 +4022,7 @@ static void LogFrameBufferError(GLenum status)
                 if (!do_unbind)
                 {
                     id     = tex->m_TextureIds[id_index];
-                    access = tex->m_UsageHintFlags & TEXTURE_USAGE_HINT_STORAGE ? DMGRAPHICS_READ_WRITE : DMGRAPHICS_READ_ONLY;
+                    access = tex->m_UsageHintFlags & TEXTURE_USAGE_FLAG_STORAGE ? DMGRAPHICS_READ_WRITE : DMGRAPHICS_READ_ONLY;
                 }
                 glBindImageTexture(unit, id, 0, GL_FALSE, 0, access, gl_internal_format);
                 CHECK_GL_ERROR;
