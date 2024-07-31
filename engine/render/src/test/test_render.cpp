@@ -73,6 +73,7 @@ protected:
         m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
         dmRender::RenderContextParams params;
         dmScript::ContextParams script_context_params = {};
+        script_context_params.m_GraphicsContext = m_GraphicsContext;
         m_ScriptContext = dmScript::NewContext(script_context_params);
         params.m_MaxRenderTargets = 1;
         params.m_MaxInstances = 2;

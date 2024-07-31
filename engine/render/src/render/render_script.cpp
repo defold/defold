@@ -745,7 +745,7 @@ namespace dmRender
      *
      * Key                     | Values
      * ----------------------- | ----------------------------
-     * `format`                |  `graphics.FORMAT_LUMINANCE`<br/>`graphics.FORMAT_RGB`<br/>`graphics.FORMAT_RGBA`<br/>`graphics.FORMAT_DEPTH`<br/>`graphics.FORMAT_STENCIL`<br/>`graphics.FORMAT_RGBA32F`<br/>`graphics.FORMAT_RGBA16F`<br/>
+     * `format`                |  `graphics.TEXTURE_FORMAT_LUMINANCE`<br/>`graphics.TEXTURE_FORMAT_RGB`<br/>`graphics.TEXTURE_FORMAT_RGBA`<br/>`graphics.TEXTURE_FORMAT_DEPTH`<br/>`graphics.TEXTURE_FORMAT_STENCIL`<br/>`graphics.TEXTURE_FORMAT_RGBA32F`<br/>`graphics.TEXTURE_FORMAT_RGBA16F`<br/>
      * `width`                 | number
      * `height`                | number
      * `min_filter` (optional) | `graphics.TEXTURE_FILTER_LINEAR`<br/>`graphics.TEXTURE_FILTER_NEAREST`
@@ -779,14 +779,14 @@ namespace dmRender
      * ```lua
      * function init(self)
      *     -- render target buffer parameters
-     *     local color_params = { format = graphics.FORMAT_RGBA,
+     *     local color_params = { format = graphics.TEXTURE_FORMAT_RGBA,
      *                            width = render.get_window_width(),
      *                            height = render.get_window_height(),
      *                            min_filter = graphics.TEXTURE_FILTER_LINEAR,
      *                            mag_filter = graphics.TEXTURE_FILTER_LINEAR,
      *                            u_wrap = graphics.TEXTURE_WRAP_CLAMP_TO_EDGE,
      *                            v_wrap = graphics.TEXTURE_WRAP_CLAMP_TO_EDGE }
-     *     local depth_params = { format = graphics.FORMAT_DEPTH,
+     *     local depth_params = { format = graphics.TEXTURE_FORMAT_DEPTH,
      *                            width = render.get_window_width(),
      *                            height = render.get_window_height(),
      *                            u_wrap = graphics.TEXTURE_WRAP_CLAMP_TO_EDGE,
@@ -808,14 +808,14 @@ namespace dmRender
      * ```lua
      * function init(self)
      *     -- render target buffer parameters
-     *     local color_params_rgba = { format = graphics.FORMAT_RGBA,
+     *     local color_params_rgba = { format = graphics.TEXTURE_FORMAT_RGBA,
      *                                 width = render.get_window_width(),
      *                                 height = render.get_window_height(),
      *                                 min_filter = graphics.TEXTURE_FILTER_LINEAR,
      *                                 mag_filter = graphics.TEXTURE_FILTER_LINEAR,
      *                                 u_wrap = graphics.TEXTURE_WRAP_CLAMP_TO_EDGE,
      *                                 v_wrap = graphics.TEXTURE_WRAP_CLAMP_TO_EDGE }
-     *     local color_params_float = { format = graphics.FORMAT_RG32F,
+     *     local color_params_float = { format = graphics.TEXTURE_FORMAT_RG32F,
      *                            width = render.get_window_width(),
      *                            height = render.get_window_height(),
      *                            min_filter = graphics.TEXTURE_FILTER_LINEAR,
@@ -2814,7 +2814,7 @@ namespace dmRender
      *
      * ```lua
      * function init(self)
-     *     local color_params = { format = graphics.FORMAT_RGBA,
+     *     local color_params = { format = graphics.TEXTURE_FORMAT_RGBA,
      *                            width = render.get_window_width(),
      *                            height = render.get_window_height()}
      *     self.scene_rt = render.render_target({[graphics.BUFFER_TYPE_COLOR0_BIT] = color_params})

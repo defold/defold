@@ -86,9 +86,6 @@ protected:
 
     virtual void SetUp()
     {
-        dmScript::ContextParams script_context_params = {};
-        m_ScriptContext = dmScript::NewContext(script_context_params);
-        dmScript::Initialize(m_ScriptContext);
         dmGraphics::InstallAdapter();
 
         dmPlatform::WindowParams win_params = {};
@@ -104,6 +101,12 @@ protected:
         graphics_context_params.m_Window = m_Window;
 
         m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
+
+        dmScript::ContextParams script_context_params = {};
+        script_context_params.m_GraphicsContext = m_GraphicsContext;
+        m_ScriptContext = dmScript::NewContext(script_context_params);
+        dmScript::Initialize(m_ScriptContext);
+
         dmRender::FontMapParams font_map_params;
         font_map_params.m_CacheWidth = 128;
         font_map_params.m_CacheHeight = 128;
@@ -354,7 +357,7 @@ TEST_F(dmRenderScriptTest, TestLuaState)
     "    render.set_stencil_mask(1)\n"
     "    render.set_stencil_func(graphics.COMPARE_FUNC_ALWAYS, 1, 2)\n"
     "    render.set_stencil_op(graphics.STENCIL_OP_REPLACE, graphics.STENCIL_OP_KEEP, graphics.STENCIL_OP_INVERT)\n"
-    "    render.set_cull_face(render.FACE_TYPE_BACK)\n"
+    "    render.set_cull_face(graphics.FACE_TYPE_BACK)\n"
     "    render.set_polygon_offset(1, 2)\n"
     "end\n";
     dmRender::HRenderScript render_script = dmRender::NewRenderScript(m_Context, LuaSourceFromString(script));
@@ -430,7 +433,7 @@ TEST_F(dmRenderScriptTest, TestLuaRenderTargetTooLarge)
     const char* script =
     "function init(self)\n"
     "    local params_color = {\n"
-    "        format = graphics.FORMAT_RGBA,\n"
+    "        format = graphics.TEXTURE_FORMAT_RGBA,\n"
     "        width = 1000000000,\n"
     "        height = 2,\n"
     "        min_filter = graphics.TEXTURE_FILTER_NEAREST,\n"
@@ -453,7 +456,7 @@ TEST_F(dmRenderScriptTest, TestLuaRenderTarget)
     const char* script =
     "function update(self)\n"
     "    local params_color = {\n"
-    "        format = graphics.FORMAT_RGBA,\n"
+    "        format = graphics.TEXTURE_FORMAT_RGBA,\n"
     "        width = 1,\n"
     "        height = 2,\n"
     "        min_filter = graphics.TEXTURE_FILTER_NEAREST,\n"
@@ -462,7 +465,7 @@ TEST_F(dmRenderScriptTest, TestLuaRenderTarget)
     "        v_wrap = graphics.TEXTURE_WRAP_MIRRORED_REPEAT\n"
     "    }\n"
     "    local params_depth = {\n"
-    "        format = graphics.FORMAT_DEPTH,\n"
+    "        format = graphics.TEXTURE_FORMAT_DEPTH,\n"
     "        width = 1,\n"
     "        height = 2,\n"
     "        min_filter = graphics.TEXTURE_FILTER_NEAREST,\n"
@@ -471,7 +474,7 @@ TEST_F(dmRenderScriptTest, TestLuaRenderTarget)
     "        v_wrap = graphics.TEXTURE_WRAP_MIRRORED_REPEAT\n"
     "    }\n"
     "    local params_stencil = {\n"
-    "        format = graphics.FORMAT_STENCIL,\n"
+    "        format = graphics.TEXTURE_FORMAT_STENCIL,\n"
     "        width = 1,\n"
     "        height = 2,\n"
     "        min_filter = graphics.TEXTURE_FILTER_NEAREST,\n"
@@ -545,7 +548,7 @@ TEST_F(dmRenderScriptTest, TestLuaRenderTargetDeprecated)
     const char* script =
     "function update(self)\n"
     "    local params_color = {\n"
-    "        format = graphics.FORMAT_RGBA,\n"
+    "        format = graphics.TEXTURE_FORMAT_RGBA,\n"
     "        width = 1,\n"
     "        height = 2,\n"
     "        min_filter = graphics.TEXTURE_FILTER_NEAREST,\n"
@@ -554,7 +557,7 @@ TEST_F(dmRenderScriptTest, TestLuaRenderTargetDeprecated)
     "        v_wrap = graphics.TEXTURE_WRAP_MIRRORED_REPEAT\n"
     "    }\n"
     "    local params_depth = {\n"
-    "        format = graphics.FORMAT_DEPTH,\n"
+    "        format = graphics.TEXTURE_FORMAT_DEPTH,\n"
     "        width = 1,\n"
     "        height = 2,\n"
     "        min_filter = graphics.TEXTURE_FILTER_NEAREST,\n"
@@ -563,7 +566,7 @@ TEST_F(dmRenderScriptTest, TestLuaRenderTargetDeprecated)
     "        v_wrap = graphics.TEXTURE_WRAP_MIRRORED_REPEAT\n"
     "    }\n"
     "    local params_stencil = {\n"
-    "        format = graphics.FORMAT_STENCIL,\n"
+    "        format = graphics.TEXTURE_FORMAT_STENCIL,\n"
     "        width = 1,\n"
     "        height = 2,\n"
     "        min_filter = graphics.TEXTURE_FILTER_NEAREST,\n"
@@ -617,7 +620,7 @@ TEST_F(dmRenderScriptTest, TestLuaRenderTargetRequiredKeys)
     const char* script =
     "function init(self)\n"
     "    local params_color = {\n"
-    //"        format = graphics.FORMAT_RGBA,\n"
+    //"        format = graphics.TEXTURE_FORMAT_RGBA,\n"
     "        width = 1,\n"
     "        height = 2,\n"
     "        min_filter = graphics.TEXTURE_FILTER_NEAREST,\n"
@@ -637,7 +640,7 @@ TEST_F(dmRenderScriptTest, TestLuaRenderTargetRequiredKeys)
     script =
     "function init(self)\n"
     "    local params_color = {\n"
-    "        format = graphics.FORMAT_RGBA,\n"
+    "        format = graphics.TEXTURE_FORMAT_RGBA,\n"
     //"        width = 1,\n"
     "        height = 2,\n"
     "        min_filter = graphics.TEXTURE_FILTER_NEAREST,\n"
@@ -657,7 +660,7 @@ TEST_F(dmRenderScriptTest, TestLuaRenderTargetRequiredKeys)
     script =
     "function init(self)\n"
     "    local params_color = {\n"
-    "        format = graphics.FORMAT_RGBA,\n"
+    "        format = graphics.TEXTURE_FORMAT_RGBA,\n"
     "        width = 1,\n"
     //"        height = 2,\n"
     "        min_filter = graphics.TEXTURE_FILTER_NEAREST,\n"
@@ -1160,7 +1163,7 @@ TEST_F(dmRenderScriptTest, TestAssetHandlesValidRenderTarget)
 {
     const char* script =
         "function init(self)\n"
-        "   self.my_rt = render.render_target({[graphics.BUFFER_TYPE_COLOR0_BIT] = { format = graphics.FORMAT_RGBA, width = 128, height = 128 }})\n"
+        "   self.my_rt = render.render_target({[graphics.BUFFER_TYPE_COLOR0_BIT] = { format = graphics.TEXTURE_FORMAT_RGBA, width = 128, height = 128 }})\n"
         "end\n"
         "function update(self)\n"
         "    render.enable_texture(0, self.my_rt)\n"
