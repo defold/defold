@@ -109,7 +109,7 @@ int main(int argc, char *argv[])
 
     dmPlatform::HWindow window = dmPlatform::NewWindow();
     dmPlatform::OpenWindow(window, window_params);
-    dmPlatform::ShowWindow(engine->m_Window);
+    dmPlatform::ShowWindow(window);
 
     dmGraphics::ContextParams graphics_context_params;
     graphics_context_params.m_DefaultTextureMinFilter = dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
