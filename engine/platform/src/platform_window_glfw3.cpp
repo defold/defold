@@ -256,11 +256,6 @@ namespace dmPlatform
 
         if (res == PLATFORM_RESULT_OK)
         {
-        #ifdef __MACH__
-            // Set size from settings
-            glfwSetWindowSize(window->m_Window, params.m_Width, params.m_Height);
-        #endif
-
             glfwSetWindowUserPointer(window->m_Window, (void*) window);
             glfwSetWindowSizeCallback(window->m_Window, OnWindowResize);
             glfwSetWindowCloseCallback(window->m_Window, OnWindowClose);
@@ -318,6 +313,10 @@ namespace dmPlatform
 
     void ShowWindow(HWindow window)
     {
+    #ifdef __MACH__
+        // Set size from settings
+        glfwSetWindowSize(window->m_Window, window->m_WidthScreen, window->m_HeightScreen);
+    #endif
         glfwShowWindow(window->m_Window);
     }
 
