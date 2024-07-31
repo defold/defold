@@ -470,6 +470,9 @@ namespace dmPlatform
     {
         int32_t count = 0;
         const float* axes_values = glfwGetJoystickAxes(joystick_index, &count);
+
+        // dmLogInfo("GLFW axis count: %d", count);
+
         count = dmMath::Min(count, (int32_t) values_capacity);
         if (count > 0)
         {
@@ -482,6 +485,9 @@ namespace dmPlatform
     {
         int32_t count = 0;
         const unsigned char* hats_values = glfwGetJoystickHats(joystick_index, &count);
+
+        // dmLogInfo("GLFW hat count: %d", count);
+
         count = dmMath::Min(count, (int32_t) values_capacity);
         if (count > 0)
         {
@@ -494,6 +500,7 @@ namespace dmPlatform
     {
         int32_t count = 0;
         const unsigned char* buttons_values = glfwGetJoystickButtons(joystick_index, &count);
+
         count = dmMath::Min(count, (int32_t) values_capacity);
         if (count > 0)
         {

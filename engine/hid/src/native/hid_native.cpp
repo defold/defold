@@ -114,10 +114,6 @@ namespace dmHID
         }
 
         InstallGamepadDriver(context, CreateGamepadDriverGLFW(context), "GLFW");
-
-    #ifdef DM_HID_DINPUT
-        InstallGamepadDriver(context, CreateGamepadDriverDInput(context), "Direct Input");
-    #endif
     }
 
     // Called from gamepad drivers
@@ -345,6 +341,8 @@ namespace dmHID
         assert(gamepad->m_Driver < user_data->m_GamepadDrivers.Size());
         GamepadDriver* driver = user_data->m_GamepadDrivers[gamepad->m_Driver];
         driver->m_GetGamepadDeviceName(context, driver, gamepad, buffer, buffer_length);
+
+        dmLogInfo("Gamepad: %s", buffer);
     }
 
     void ResetKeyboard(HContext context)
