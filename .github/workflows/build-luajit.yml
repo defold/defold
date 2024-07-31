@@ -36,6 +36,7 @@ jobs:
       run: |
         cd share/ext/luajit
         ./build_luajit.sh ${{ matrix.arch }}
+        ls -la ${{ github.workspace }}/share/ext/build/
 
     - name: Archive results
       uses: actions/upload-artifact@v3
@@ -58,6 +59,7 @@ jobs:
       run: |
         cd share/ext/luajit
         ./build_luajit.sh ${{ matrix.arch }}
+        ls -la ${{ github.workspace }}/share/ext/build/
 
     - name: Archive results
       uses: actions/upload-artifact@v3
@@ -110,9 +112,9 @@ jobs:
 
     - name: Build
       run: |
-        echo "ANDROID_NDK_ROOT=${ANDROID_NDK_ROOT}"
         cd share/ext/luajit
         ./build_luajit.sh ${{ matrix.platform }}
+        ls -la ${{ github.workspace }}/share/ext/build/
 
     - name: Archive results
       uses: actions/upload-artifact@v3
