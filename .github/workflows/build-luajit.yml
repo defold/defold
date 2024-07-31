@@ -15,10 +15,6 @@ jobs:
         cd share/ext/luajit
         ./build_luajit.sh x86_64-linux
 
-    - name: List files
-      run: |
-        ls -la ${{ github.workspace }}/share/ext/build/
-
     - name: Archive results
       uses: actions/upload-artifact@v3
       with:
@@ -40,10 +36,6 @@ jobs:
       run: |
         cd share/ext/luajit
         ./build_luajit.sh ${{ matrix.arch }}
-
-    - name: List files
-      run: |
-        ls -la ${{ github.workspace }}/share/ext/build/
 
     - name: Archive results
       uses: actions/upload-artifact@v3
@@ -67,10 +59,6 @@ jobs:
         cd share/ext/luajit
         ./build_luajit.sh ${{ matrix.arch }}
 
-    - name: List files
-      run: |
-        ls -la ${{ github.workspace }}/share/ext/build/
-
     - name: Archive results
       uses: actions/upload-artifact@v3
       with:
@@ -93,15 +81,14 @@ jobs:
       with:
         arch: ${{ matrix.arch }}
 
-    - name: Build
+    - name: Install
       run: |
         choco install wget -y
+
+    - name: Build
+      run: |
         cd share/ext/luajit
         ./build_win32.bat
-
-    - name: List files
-      run: |
-        ls -la ${{ github.workspace }}\\share\\ext\\luajit\\package\\
 
     - name: Archive results
       uses: actions/upload-artifact@v3
@@ -128,10 +115,6 @@ jobs:
       run: |
         cd share/ext/luajit
         ./build_luajit.sh ${{ matrix.platform }}
-
-    - name: List files
-      run: |
-        ls -la ${{ github.workspace }}/share/ext/build/
 
     - name: Archive results
       uses: actions/upload-artifact@v3
