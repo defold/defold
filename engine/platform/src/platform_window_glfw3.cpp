@@ -164,6 +164,7 @@ namespace dmPlatform
     void DeleteWindow(HWindow window)
     {
         delete window;
+        glfwTerminate();
     }
 
     int32_t OpenGLGetDefaultFramebufferId()
