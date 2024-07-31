@@ -119,6 +119,8 @@ pushd %TMP_TARGET%\package
     tar cfvz %PACKAGE_NAME% lib bin
     tar cfvz %COMMON_PACKAGE_NAME% include share
 
+    dir /s "%SOURCE_TARGET%"
+
 rem package
 popd
 
