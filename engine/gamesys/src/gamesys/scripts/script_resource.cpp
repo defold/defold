@@ -3123,196 +3123,17 @@ static const luaL_reg Module_methods[] =
     {0, 0}
 };
 
-/*# 2D texture type
- *
- * @name resource.TEXTURE_TYPE_2D
- * @variable
- */
-
-/*# Cube map texture type
- *
- * @name resource.TEXTURE_TYPE_CUBE_MAP
- * @variable
- */
-
-/*# 2D Array texture type
- *
- * @name resource.TEXTURE_TYPE_2D_ARRAY
- * @variable
- */
-
-/*# luminance type texture format
- *
- * @name resource.TEXTURE_FORMAT_LUMINANCE
- * @variable
- */
-
-/*# RGB type texture format
- *
- * @name resource.TEXTURE_FORMAT_RGB
- * @variable
- */
-
-/*# RGBA type texture format
- *
- * @name resource.TEXTURE_FORMAT_RGBA
- * @variable
- */
-
-/*# RGB_PVRTC_2BPPV1 type texture format
- *
- * @name resource.TEXTURE_FORMAT_RGB_PVRTC_2BPPV1
- * @variable
- */
-
-/*# RGB_PVRTC_4BPPV1 type texture format
- *
- * @name resource.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1
- * @variable
- */
-
-/*# RGBA_PVRTC_2BPPV1 type texture format
- *
- * @name resource.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1
- * @variable
- */
-
-/*# RGBA_PVRTC_4BPPV1 type texture format
- *
- * @name resource.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1
- * @variable
- */
-
-/*# RGB_ETC1 type texture format
- *
- * @name resource.TEXTURE_FORMAT_RGB_ETC1
- * @variable
- */
-
-/*# RGBA_ETC2 type texture format
- *
- * @name resource.TEXTURE_FORMAT_RGBA_ETC2
- * @variable
- */
-
-/*# RGBA_ASTC_4x4 type texture format
- *
- * @name resource.TEXTURE_FORMAT_RGBA_ASTC_4x4
- * @variable
- */
-
-/*# RGB_BC1 type texture format
- *
- * @name resource.TEXTURE_FORMAT_RGB_BC1
- * @variable
- */
-
-/*# RGBA_BC3 type texture format
- *
- * @name resource.TEXTURE_FORMAT_RGBA_BC3
- * @variable
- */
-
-/*# R_BC4 type texture format
- *
- * @name resource.TEXTURE_FORMAT_R_BC4
- * @variable
- */
-
-/*# RG_BC5 type texture format
- *
- * @name resource.TEXTURE_FORMAT_RG_BC5
- * @variable
- */
-
-/*# RGBA_BC7 type texture format
- *
- * @name resource.TEXTURE_FORMAT_RGBA_BC7
- * @variable
- */
-
-/*# RGB16F type texture format
- *
- * @name resource.TEXTURE_FORMAT_RGB16F
- * @variable
- */
-
-/*# RGB32F type texture format
- *
- * @name resource.TEXTURE_FORMAT_RGB32F
- * @variable
- */
-
-/*# RGBA16F type texture format
- *
- * @name resource.TEXTURE_FORMAT_RGBA16F
- * @variable
- */
-
-/*# RGBA32F type texture format
- *
- * @name resource.TEXTURE_FORMAT_RGBA32F
- * @variable
- */
-
-/*# R16F type texture format
- *
- * @name resource.TEXTURE_FORMAT_R16F
- * @variable
- */
-
-/*# RG16F type texture format
- *
- * @name resource.TEXTURE_FORMAT_RG16F
- * @variable
- */
-
-/*# R32F type texture format
- *
- * @name resource.TEXTURE_FORMAT_R32F
- * @variable
- */
-
-/*# RG32F type texture format
- *
- * @name resource.TEXTURE_FORMAT_RG32F
- * @variable
- */
-
-/*# Usage hint for creating textures that can be sampled in a shader
- *
- * @name resource.TEXTURE_USAGE_FLAG_SAMPLE
- * @variable
- */
-
-/*# Usage hint for creating textures that uses temporary memory
- *
- * @name resource.TEXTURE_USAGE_FLAG_MEMORYLESS
- * @variable
- */
-
-/*# Usage hint for creating textures that can be used for writing in a shader
- *
- * @name resource.TEXTURE_USAGE_FLAG_STORAGE
- * @variable
- */
-
-/*# COMPRESSION_TYPE_DEFAULT compression type
- *
- * @name resource.COMPRESSION_TYPE_DEFAULT
- * @variable
- */
-
-/*# BASIS_UASTC compression type
- *
- * @name resource.COMPRESSION_TYPE_BASIS_UASTC
- * @variable
- */
-
 static void LuaInit(lua_State* L, dmGraphics::HContext graphics_context)
 {
     int top = lua_gettop(L);
     luaL_register(L, "resource", Module_methods);
+
+    ////////////////////////////////////////////////////////////////////
+    // DEPRECATED!
+    // -----------
+    // The graphics enums are now exposed in script_graphics.cpp instead
+    // DO NOT add any more graphics enums in this file
+    ////////////////////////////////////////////////////////////////////
 
 #define SETGRAPHICS_ENUM(name) \
     lua_pushnumber(L, (lua_Number) dmGraphics:: name); \
@@ -3342,10 +3163,6 @@ static void LuaInit(lua_State* L, dmGraphics::HContext graphics_context)
         lua_setfield(L, -2, #name); \
     }
 
-    // JG: Perhaps these should be in a 'graphics' namespace shared with the render script,
-    //     feels a bit strange to have different modules that expose the same enums but with different names.
-    //     In the render scripts we call them "FORMAT_RGB16F" but here it's "TEXTURE_FORMAT_RGB16F", and we only expose
-    //     a couple of select formats in render scripts. Would be nice to have a single point of exposure for these things
     SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_LUMINANCE);
     SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGB);
     SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGBA);

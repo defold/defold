@@ -8,7 +8,7 @@ new_copy_task('luascript', '.lua', '.luac')
 def build(bld):
     if options.skip_build_tests:
        return
-    libs = ['TESTMAIN', 'SCRIPT', 'EXTENSION', 'THREAD', 'RESOURCE', 'DDF', 'DLIB', 'PROFILE_NULL', 'LUA', 'SCRIPT']
+    libs = ['TESTMAIN', 'SCRIPT', 'EXTENSION', 'THREAD', 'RESOURCE', 'DDF', 'DLIB', 'PROFILE_NULL', 'LUA', 'GRAPHICS_NULL', 'PLATFORM_NULL']
     if 'android' in bld.env['PLATFORM']:
         libs.append('UNWIND')
 
