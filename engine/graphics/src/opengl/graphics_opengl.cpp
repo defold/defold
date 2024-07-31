@@ -4107,7 +4107,7 @@ static void LogFrameBufferError(GLenum status)
     #if !defined(GL_ES_VERSION_2_0)
         if (state == STATE_ALPHA_TEST)
         {
-            dmLogOnceWarning("Enabling the render.STATE_ALPHA_TEST state is not supported in this OpenGL version.");
+            dmLogOnceWarning("Enabling the graphics.STATE_ALPHA_TEST state is not supported in this OpenGL version.");
             return;
         }
     #endif
@@ -4123,7 +4123,7 @@ static void LogFrameBufferError(GLenum status)
     #if !defined(GL_ES_VERSION_2_0)
         if (state == STATE_ALPHA_TEST)
         {
-            dmLogOnceWarning("Disabling the render.STATE_ALPHA_TEST state is not supported in this OpenGL version.");
+            dmLogOnceWarning("Disabling the graphics.STATE_ALPHA_TEST state is not supported in this OpenGL version.");
             return;
         }
     #endif
