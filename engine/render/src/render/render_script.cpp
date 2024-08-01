@@ -758,7 +758,7 @@ namespace dmRender
      * but attachments must be added in sequence, meaning you cannot create a render target at slot 0 and 3.
      * Instead it has to be created with all four buffer types ranging from [0..3] (as denoted by graphics.BUFFER_TYPE_COLORX_BIT where 'X' is the attachment you want to create).
      * It is not guaranteed that the device running the script can support creating render targets with multiple color attachments. To check if the device can support multiple attachments,
-     * you can check if the `render` table contains any of the `BUFFER_COLOR1_BIT`, `BUFFER_COLOR2_BIT` or `BUFFER_COLOR3_BIT` constants:
+     * you can check if the `render` table contains any of the `BUFFER_TYPE_COLOR1_BIT`, `BUFFER_TYPE_COLOR2_BIT` or `BUFFER_TYPE_COLOR3_BIT` constants:
      *
      * ```lua
      * function init(self)

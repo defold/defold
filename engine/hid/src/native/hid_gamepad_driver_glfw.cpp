@@ -168,8 +168,6 @@ namespace dmHID
             if (buttons[j])
             {
                 packet.m_Buttons[j / 32] |= 1 << (j % 32);
-
-                dmLogInfo("Button %d", j);
             }
             else
             {

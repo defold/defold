@@ -196,7 +196,6 @@ namespace dmScript
     #undef SET_GRAPHICS_ENUM
     #undef SET_TEXTUREFORMAT_IF_SUPPORTED
 
-        // Register enums here
         lua_pop(L, 1);
     }
 

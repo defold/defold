@@ -54,9 +54,6 @@ local tparams_compressed = {
 }
 
 function test_simple()
-
-    pprint(graphics)
-
     local t_id = resource.create_texture("/test_simple.texturec", tparams)
     go.set("#model", "texture0", t_id)
 end
