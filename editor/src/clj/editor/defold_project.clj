@@ -656,6 +656,14 @@
                 :command :build}
                {:label "Rebuild"
                 :command :rebuild}
+               {:label "Instance Count On Build"
+                :children (mapv (fn [i]
+                                  {:label (str i (if (> i 1)
+                                                   " Intances"
+                                                   " Instance"))
+                                   :command :set-instance-count
+                                   :user-data {:instance-count i}})
+                                (range 1 5))}
                {:label "Build HTML5"
                 :command :build-html5}
                {:label "Bundle"

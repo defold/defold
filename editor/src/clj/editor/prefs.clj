@@ -16,6 +16,7 @@
 (ns editor.prefs
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
+            [dynamo.graph :as g]
             [service.log :as log]
             [cognitect.transit :as transit])
   (:import [java.util.prefs Preferences]
@@ -59,6 +60,13 @@
   (-> (Preferences/userRoot)
       (.node namespace)
       sanitize-prefs!))
+
+(defn make-project-specific-key
+  ([key workspace]
+   (g/with-auto-evaluation-context evaluation-context
+                                   (make-project-specific-key key workspace evaluation-context)))
+  ([key workspace evaluation-context]
+   (str key "-" (hash (g/node-value workspace :root evaluation-context)))))
 
 (extend-type Preferences
   PreferenceStore

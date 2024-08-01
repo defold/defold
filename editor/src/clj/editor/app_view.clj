@@ -772,11 +772,11 @@
 (defn- decorate-target [engine-descriptor target]
   (assoc target :engine-id (:id engine-descriptor)))
 
-(defn- launch-engine! [engine-descriptor project-directory prefs debug?]
+(defn- launch-engine! [engine-descriptor project-directory prefs debug? workspace]
   (try
     (report-build-launch-progress! "Launching engine...")
     (let [engine (engine/install-engine! project-directory engine-descriptor)
-          count 4                                           ;TODO: move setting somewhere
+          count (prefs/get-prefs prefs (prefs/make-project-specific-key "instance-count" workspace) 1)
           pause-ms 100
           instance-index-range (if (= count 1) (range (inc 0)) (range 1 (inc count)))
           launched-targets (for [instance-index instance-index-range]
@@ -836,11 +836,11 @@
        (targets/controllable-target? target)
        (targets/remote-target? target)))
 
-(defn- launch-built-project! [project engine-descriptor project-directory prefs web-server debug?]
+(defn- launch-built-project! [project engine-descriptor project-directory prefs web-server debug? workspace]
   (let [selected-target (targets/selected-target prefs)
         launch-new-engine! (fn []
                              (targets/kill-launched-targets!)
-                             (let [launched-targets (launch-engine! engine-descriptor project-directory prefs debug?)
+                             (let [launched-targets (launch-engine! engine-descriptor project-directory prefs debug? workspace)
                                    last-launched-target (last launched-targets)]
                                (doseq [launched-target launched-targets]
                                  (targets/when-url (:id launched-target)
@@ -1225,13 +1225,19 @@
                                (when (handle-build-results! workspace render-build-error! build-results)
                                  (when (or engine skip-engine)
                                    (show-console! main-scene tool-tab-pane)
-                                   (launch-built-project! project engine project-directory prefs web-server false)))))))
+                                   (launch-built-project! project engine project-directory prefs web-server false workspace)))))))
 
 (handler/defhandler :build :global
   (enabled? [] (not (build-in-progress?)))
   (run [project workspace prefs web-server build-errors-view debug-view main-stage tool-tab-pane]
     (debug-view/detach! debug-view)
     (build-handler project workspace prefs web-server build-errors-view main-stage tool-tab-pane)))
+
+(handler/defhandler :set-instance-count :global
+  (enabled? [] true)
+  (run [prefs user-data workspace]
+       (let [count (:instance-count user-data)]
+         (prefs/set-prefs prefs (prefs/make-project-specific-key "instance-count" workspace) count))))
 
 (defn- debugging-supported?
   [project]
@@ -1260,7 +1266,7 @@ If you do not specifically require different script states, consider changing th
                   :result-fn (fn [{:keys [engine] :as build-results}]
                                (when (handle-build-results! workspace render-build-error! build-results)
                                  (when (or engine skip-engine)
-                                   (when-let [target (launch-built-project! project engine project-directory prefs web-server true)]
+                                   (when-let [target (launch-built-project! project engine project-directory prefs web-server true workspace)]
                                      (when (nil? (debug-view/current-session debug-view))
                                        (debug-view/start-debugger! debug-view project (:address target "localhost"))))))))))
 
