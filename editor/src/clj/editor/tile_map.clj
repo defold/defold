@@ -43,6 +43,7 @@
   (:import [com.dynamo.gamesys.proto Tile$TileCell Tile$TileGrid Tile$TileGrid$BlendMode Tile$TileLayer]
            [com.jogamp.opengl GL2]
            [editor.gl.shader ShaderLifecycle]
+           [editor.types AABB]
            [javax.vecmath Matrix4d Point3d Vector3d]))
 
 (set! *warn-on-reflection* true)
@@ -468,8 +469,7 @@
           ;; This makes the brush for yet-to-be-painted tiles visible.
           visibility-aabb
           (if (geom/empty-aabb? aabb)
-            (geom/make-aabb (Point3d. 0.0 0.0 0.0)
-                            (Point3d. 0.001 0.001 0.0))
+            geom/minimal-xy-aabb
             aabb)]
       {:node-id _node-id
        :node-outline-key id
@@ -586,11 +586,11 @@
         (make-layer-node self tile-layer)))))
 
 (g/defnk produce-scene
-  [_node-id child-scenes]
-  {:node-id  _node-id
-   :aabb geom/null-aabb
-   :renderable {:passes [pass/selection]}
-   :children child-scenes})
+  [_node-id child-scenes scene-aabb]
+  {:node-id           _node-id
+   :aabb              scene-aabb
+   :renderable        {:passes [pass/selection]}
+   :children          child-scenes})
 
 (g/defnk produce-node-outline
   [_node-id child-outlines]
@@ -707,6 +707,13 @@
               (let [{:keys [width height]} tile-source-attributes]
                 (when (and width height)
                   [width height])))))
+
+  (output scene-aabb AABB :cached
+          (g/fnk [tile-dimensions]
+            (if-not tile-dimensions
+              geom/null-aabb
+              (geom/make-aabb (Point3d. 0.0 0.0 0.0)
+                              (Point3d. (* 16 (first tile-dimensions)) (* 9 (second tile-dimensions)) 0.0)))))
 
   (output texture-set-data g/Any (gu/passthrough texture-set-data))
   (output tex-params g/Any (g/fnk [material-samplers default-tex-params]

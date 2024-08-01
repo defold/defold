@@ -843,8 +843,8 @@
   
   (output texture-set-pb   g/Any               :cached produce-atlas-texture-set-pb)
 
-  (output aabb             AABB                (g/fnk [layout-size]
-                                                 (if (= [0 0] layout-size)
+  (output aabb             AABB                (g/fnk [layout-size layout-rects]
+                                                 (if (or (= [0 0] layout-size) (empty? layout-rects))
                                                    geom/null-aabb
                                                    (let [[w h] layout-size]
                                                      (types/->AABB (Point3d. 0 0 0) (Point3d. w h 0))))))

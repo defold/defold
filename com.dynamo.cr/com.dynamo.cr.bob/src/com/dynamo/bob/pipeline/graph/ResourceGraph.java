@@ -75,7 +75,7 @@ public class ResourceGraph implements IResourceVisitor {
             // multiple places in the graph
             // in this case we reuse the node and don't visit it again
             ResourceNode parentNode = (parentResource != null) ? resourceToNodeLookup.get(parentResource) : root;
-            parentNode.addChild(currentNode);
+            addNodeToParent(parentNode, currentNode);
             return false;
         }
         return true;
@@ -96,7 +96,7 @@ public class ResourceGraph implements IResourceVisitor {
 
         // add resource node to graph
         ResourceNode parentNode = (parentResource != null) ? resourceToNodeLookup.get(parentResource) : root;
-        parentNode.addChild(currentNode);
+        addNodeToParent(parentNode, currentNode);
     }
 
     @Override
@@ -127,6 +127,13 @@ public class ResourceGraph implements IResourceVisitor {
         ResourceWalker.walk(project, rootResource, this);
     }
 
+    private void addNodeToParent(ResourceNode parentNode, ResourceNode childNode) {
+        if (parentNode.checkType(ResourceNode.Type.ExcludedCollectionProxy)) {
+            childNode.setType(ResourceNode.Type.ExcludedCollection);
+        }
+        parentNode.addChild(childNode);
+    }
+
     // used in tests
     public ResourceNode add(String resourcePath, ResourceNode parentNode) {
         IResource currentResource = project.getResource(resourcePath);
@@ -141,7 +148,7 @@ public class ResourceGraph implements IResourceVisitor {
                 currentNode.setType(ResourceNode.Type.CollectionProxy);
             }
         }
-        parentNode.addChild(currentNode);
+        addNodeToParent(parentNode, currentNode);
         return currentNode;
     }
     public ResourceNode add(ResourceNode resourceNode, ResourceNode parentNode) {
