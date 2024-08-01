@@ -384,7 +384,7 @@ def build(bld):
                                     includes = '../../../src . .. ../../../proto',
                                     source = ['test_main.cpp'] + bld.path.ant_glob('%s/*' % (dir), incl=exts),
                                     exported_symbols = exported_symbols,
-                                    use = 'TESTMAIN APP SOCKET PLATFORM_THREAD RESOURCE DDF SCRIPT LUA EXTENSION DLIB PLATFORM_NULL PROFILE_NULL RIG HID gameobject',
+                                    use = 'TESTMAIN APP SOCKET PLATFORM_THREAD RESOURCE DDF SCRIPT GRAPHICS_NULL PLATFORM_NULL LUA EXTENSION DLIB PLATFORM_NULL PROFILE_NULL RIG HID gameobject',
                                     web_libs = ['library_sys.js', 'library_script.js'],
                                     proto_gen_py = True,
                                     target = 'test_gameobject_%s' % dir)

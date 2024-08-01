@@ -705,9 +705,9 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
  * `type`
  * : [type:number] The texture type. Supported values:
  *
- * - `resource.TEXTURE_TYPE_2D`
- * - `resource.TEXTURE_TYPE_CUBE_MAP`
- * - `resource.TEXTURE_TYPE_IMAGE_2D`
+ * - `graphics.TEXTURE_TYPE_2D`
+ * - `graphics.TEXTURE_TYPE_CUBE_MAP`
+ * - `graphics.TEXTURE_TYPE_IMAGE_2D`
  *
  * `width`
  * : [type:number] The width of the texture (in pixels). Must be larger than 0.
@@ -718,55 +718,55 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
  * `format`
  * : [type:number] The texture format, note that some of these formats might not be supported by the running device. Supported values:
  *
- * - `resource.TEXTURE_FORMAT_LUMINANCE`
- * - `resource.TEXTURE_FORMAT_RGB`
- * - `resource.TEXTURE_FORMAT_RGBA`
+ * - `graphics.TEXTURE_FORMAT_LUMINANCE`
+ * - `graphics.TEXTURE_FORMAT_RGB`
+ * - `graphics.TEXTURE_FORMAT_RGBA`
  *
  * These constants might not be available on the device:
  *
- * - `resource.TEXTURE_FORMAT_RGB_PVRTC_2BPPV1`
- * - `resource.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1`
- * - `resource.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1`
- * - `resource.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1`
- * - `resource.TEXTURE_FORMAT_RGB_ETC1`
- * - `resource.TEXTURE_FORMAT_RGBA_ETC2`
- * - `resource.TEXTURE_FORMAT_RGBA_ASTC_4x4`
- * - `resource.TEXTURE_FORMAT_RGB_BC1`
- * - `resource.TEXTURE_FORMAT_RGBA_BC3`
- * - `resource.TEXTURE_FORMAT_R_BC4`
- * - `resource.TEXTURE_FORMAT_RG_BC5`
- * - `resource.TEXTURE_FORMAT_RGBA_BC7`
- * - `resource.TEXTURE_FORMAT_RGB16F`
- * - `resource.TEXTURE_FORMAT_RGB32F`
- * - `resource.TEXTURE_FORMAT_RGBA16F`
- * - `resource.TEXTURE_FORMAT_RGBA32F`
- * - `resource.TEXTURE_FORMAT_R16F`
- * - `resource.TEXTURE_FORMAT_RG16F`
- * - `resource.TEXTURE_FORMAT_R32F`
- * - `resource.TEXTURE_FORMAT_RG32F`
+ * - `graphics.TEXTURE_FORMAT_RGB_PVRTC_2BPPV1`
+ * - `graphics.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1`
+ * - `graphics.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1`
+ * - `graphics.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1`
+ * - `graphics.TEXTURE_FORMAT_RGB_ETC1`
+ * - `graphics.TEXTURE_FORMAT_RGBA_ETC2`
+ * - `graphics.TEXTURE_FORMAT_RGBA_ASTC_4x4`
+ * - `graphics.TEXTURE_FORMAT_RGB_BC1`
+ * - `graphics.TEXTURE_FORMAT_RGBA_BC3`
+ * - `graphics.TEXTURE_FORMAT_R_BC4`
+ * - `graphics.TEXTURE_FORMAT_RG_BC5`
+ * - `graphics.TEXTURE_FORMAT_RGBA_BC7`
+ * - `graphics.TEXTURE_FORMAT_RGB16F`
+ * - `graphics.TEXTURE_FORMAT_RGB32F`
+ * - `graphics.TEXTURE_FORMAT_RGBA16F`
+ * - `graphics.TEXTURE_FORMAT_RGBA32F`
+ * - `graphics.TEXTURE_FORMAT_R16F`
+ * - `graphics.TEXTURE_FORMAT_RG16F`
+ * - `graphics.TEXTURE_FORMAT_R32F`
+ * - `graphics.TEXTURE_FORMAT_RG32F`
  *
  * You can test if the device supports these values by checking if a specific enum is nil or not:
  *
  * ```lua
- * if resource.TEXTURE_FORMAT_RGBA16F ~= nil then
+ * if graphics.TEXTURE_FORMAT_RGBA16F ~= nil then
  *     -- it is safe to use this format
  * end
  * ```
  *
  * `flags`
- * : [type:number] Texture creation flags that can be used to dictate how the texture is created. The default value is [ref:resource.TEXTURE_USAGE_FLAG_SAMPLE], which means that the texture can be sampled from a shader.
+ * : [type:number] Texture creation flags that can be used to dictate how the texture is created. The default value is [ref:graphics.TEXTURE_USAGE_FLAG_SAMPLE], which means that the texture can be sampled from a shader.
  * These flags may or may not be supported on the running device and/or the underlying graphics API and is simply used internally as a 'hint' when creating the texture. There is no guarantee that any of these will have any effect. Supported values:
  *
- * - `resource.TEXTURE_USAGE_FLAG_SAMPLE` - The texture can be sampled from a shader (default)
- * - `resource.TEXTURE_USAGE_FLAG_MEMORYLESS` - The texture can be used as a memoryless texture, i.e only transient memory for the texture is used during rendering
- * - `resource.TEXTURE_USAGE_FLAG_STORAGE` - The texture can be used as a storage texture, which is required for a shader to write to the texture
+ * - `graphics.TEXTURE_USAGE_FLAG_SAMPLE` - The texture can be sampled from a shader (default)
+ * - `graphics.TEXTURE_USAGE_FLAG_MEMORYLESS` - The texture can be used as a memoryless texture, i.e only transient memory for the texture is used during rendering
+ * - `graphics.TEXTURE_USAGE_FLAG_STORAGE` - The texture can be used as a storage texture, which is required for a shader to write to the texture
  *
  * `max_mipmaps`
  * : [type:number] optional max number of mipmaps. Defaults to zero, i.e no mipmap support
  *
  * `compression_type`
  * : [type:number] optional specify the compression type for the data in the buffer object that holds the texture data. Will only be used when a compressed buffer has been passed into the function.
- * Creating an empty texture with no buffer data is not supported as a core feature. Defaults to resource.COMPRESSION_TYPE_DEFAULT, i.e no compression. Supported values:
+ * Creating an empty texture with no buffer data is not supported as a core feature. Defaults to graphics.COMPRESSION_TYPE_DEFAULT, i.e no compression. Supported values:
  *
  * - `COMPRESSION_TYPE_DEFAULT`
  * - `COMPRESSION_TYPE_BASIS_UASTC`
@@ -783,8 +783,8 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
  *     local tparams = {
  *        width          = 128,
  *        height         = 128,
- *        type           = resource.TEXTURE_TYPE_2D,
- *        format         = resource.TEXTURE_FORMAT_RGBA,
+ *        type           = graphics.TEXTURE_TYPE_2D,
+ *        format         = graphics.TEXTURE_FORMAT_RGBA,
  *    }
  *    local my_texture_id = resource.create_texture("/my_custom_texture.texturec", tparams)
  *    go.set("#model", "texture0", my_texture_id)
@@ -815,8 +815,8 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
  *     local tparams = {
  *        width          = 128,
  *        height         = 128,
- *        type           = resource.TEXTURE_TYPE_2D,
- *        format         = resource.TEXTURE_FORMAT_RGBA32F,
+ *        type           = graphics.TEXTURE_TYPE_2D,
+ *        format         = graphics.TEXTURE_FORMAT_RGBA32F,
  *    }
  *
  *    -- Note that we pass the buffer as the last argument here!
@@ -867,8 +867,8 @@ static int CreateTexture(lua_State* L)
  * `type`
  * : [type:number] The texture type. Supported values:
  *
- * - `resource.TEXTURE_TYPE_2D`
- * - `resource.TEXTURE_TYPE_CUBE_MAP`
+ * - `graphics.TEXTURE_TYPE_2D`
+ * - `graphics.TEXTURE_TYPE_CUBE_MAP`
  *
  * `width`
  * : [type:number] The width of the texture (in pixels). Must be larger than 0.
@@ -879,44 +879,44 @@ static int CreateTexture(lua_State* L)
  * `format`
  * : [type:number] The texture format, note that some of these formats might not be supported by the running device. Supported values:
  *
- * - `resource.TEXTURE_FORMAT_LUMINANCE`
- * - `resource.TEXTURE_FORMAT_RGB`
- * - `resource.TEXTURE_FORMAT_RGBA`
+ * - `graphics.TEXTURE_FORMAT_LUMINANCE`
+ * - `graphics.TEXTURE_FORMAT_RGB`
+ * - `graphics.TEXTURE_FORMAT_RGBA`
  *
  * These constants might not be available on the device:
  *
- * - `resource.TEXTURE_FORMAT_RGB_PVRTC_2BPPV1`
- * - `resource.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1`
- * - `resource.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1`
- * - `resource.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1`
- * - `resource.TEXTURE_FORMAT_RGB_ETC1`
- * - `resource.TEXTURE_FORMAT_RGBA_ETC2`
- * - `resource.TEXTURE_FORMAT_RGBA_ASTC_4x4`
- * - `resource.TEXTURE_FORMAT_RGB_BC1`
- * - `resource.TEXTURE_FORMAT_RGBA_BC3`
- * - `resource.TEXTURE_FORMAT_R_BC4`
- * - `resource.TEXTURE_FORMAT_RG_BC5`
- * - `resource.TEXTURE_FORMAT_RGBA_BC7`
- * - `resource.TEXTURE_FORMAT_RGB16F`
- * - `resource.TEXTURE_FORMAT_RGB32F`
- * - `resource.TEXTURE_FORMAT_RGBA16F`
- * - `resource.TEXTURE_FORMAT_RGBA32F`
- * - `resource.TEXTURE_FORMAT_R16F`
- * - `resource.TEXTURE_FORMAT_RG16F`
- * - `resource.TEXTURE_FORMAT_R32F`
- * - `resource.TEXTURE_FORMAT_RG32F`
+ * - `graphics.TEXTURE_FORMAT_RGB_PVRTC_2BPPV1`
+ * - `graphics.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1`
+ * - `graphics.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1`
+ * - `graphics.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1`
+ * - `graphics.TEXTURE_FORMAT_RGB_ETC1`
+ * - `graphics.TEXTURE_FORMAT_RGBA_ETC2`
+ * - `graphics.TEXTURE_FORMAT_RGBA_ASTC_4x4`
+ * - `graphics.TEXTURE_FORMAT_RGB_BC1`
+ * - `graphics.TEXTURE_FORMAT_RGBA_BC3`
+ * - `graphics.TEXTURE_FORMAT_R_BC4`
+ * - `graphics.TEXTURE_FORMAT_RG_BC5`
+ * - `graphics.TEXTURE_FORMAT_RGBA_BC7`
+ * - `graphics.TEXTURE_FORMAT_RGB16F`
+ * - `graphics.TEXTURE_FORMAT_RGB32F`
+ * - `graphics.TEXTURE_FORMAT_RGBA16F`
+ * - `graphics.TEXTURE_FORMAT_RGBA32F`
+ * - `graphics.TEXTURE_FORMAT_R16F`
+ * - `graphics.TEXTURE_FORMAT_RG16F`
+ * - `graphics.TEXTURE_FORMAT_R32F`
+ * - `graphics.TEXTURE_FORMAT_RG32F`
  *
  * `flags`
  * : [type:number] Texture creation flags that can be used to dictate how the texture is created. Supported values:
  *
- * - `resource.TEXTURE_USAGE_FLAG_SAMPLE` - The texture can be sampled from a shader (default)
- * - `resource.TEXTURE_USAGE_FLAG_MEMORYLESS` - The texture can be used as a memoryless texture, i.e only transient memory for the texture is used during rendering
- * - `resource.TEXTURE_USAGE_FLAG_STORAGE` - The texture can be used as a storage texture, which is required for a shader to write to the texture
+ * - `graphics.TEXTURE_USAGE_FLAG_SAMPLE` - The texture can be sampled from a shader (default)
+ * - `graphics.TEXTURE_USAGE_FLAG_MEMORYLESS` - The texture can be used as a memoryless texture, i.e only transient memory for the texture is used during rendering
+ * - `graphics.TEXTURE_USAGE_FLAG_STORAGE` - The texture can be used as a storage texture, which is required for a shader to write to the texture
  *
  * You can test if the device supports these values by checking if a specific enum is nil or not:
  *
  * ```lua
- * if resource.TEXTURE_FORMAT_RGBA16F ~= nil then
+ * if graphics.TEXTURE_FORMAT_RGBA16F ~= nil then
  *     -- it is safe to use this format
  * end
  * ```
@@ -926,7 +926,7 @@ static int CreateTexture(lua_State* L)
  *
  * `compression_type`
  * : [type:number] optional specify the compression type for the data in the buffer object that holds the texture data. Will only be used when a compressed buffer has been passed into the function.
- * Creating an empty texture with no buffer data is not supported as a core feature. Defaults to resource.COMPRESSION_TYPE_DEFAULT, i.e no compression. Supported values:
+ * Creating an empty texture with no buffer data is not supported as a core feature. Defaults to graphics.COMPRESSION_TYPE_DEFAULT, i.e no compression. Supported values:
  *
  * - `COMPRESSION_TYPE_DEFAULT`
  * - `COMPRESSION_TYPE_BASIS_UASTC`
@@ -952,8 +952,8 @@ static int CreateTexture(lua_State* L)
  *     local tparams = {
  *         width          = 128,
  *         height         = 128,
- *         type           = resource.TEXTURE_TYPE_2D,
- *         format         = resource.TEXTURE_FORMAT_RGBA,
+ *         type           = graphics.TEXTURE_TYPE_2D,
+ *         format         = graphics.TEXTURE_FORMAT_RGBA,
  *     }
  *
  *     -- Create a new buffer with 4 components
@@ -987,8 +987,8 @@ static int CreateTexture(lua_State* L)
  *     local tparams = {
  *         width          = 128,
  *         height         = 128,
- *         type           = resource.TEXTURE_TYPE_2D,
- *         format         = resource.TEXTURE_FORMAT_RGBA,
+ *         type           = graphics.TEXTURE_TYPE_2D,
+ *         format         = graphics.TEXTURE_FORMAT_RGBA,
  *     }
  *
  *     -- Create a new buffer with 4 components
@@ -1143,8 +1143,8 @@ static int ReleaseResource(lua_State* L)
  * `type`
  * : [type:number] The texture type. Supported values:
  *
- * - `resource.TEXTURE_TYPE_2D`
- * - `resource.TEXTURE_TYPE_CUBE_MAP`
+ * - `graphics.TEXTURE_TYPE_2D`
+ * - `graphics.TEXTURE_TYPE_CUBE_MAP`
  *
  * `width`
  * : [type:number] The width of the texture (in pixels)
@@ -1155,36 +1155,36 @@ static int ReleaseResource(lua_State* L)
  * `format`
  * : [type:number] The texture format, note that some of these formats are platform specific. Supported values:
  *
- * - `resource.TEXTURE_FORMAT_LUMINANCE`
- * - `resource.TEXTURE_FORMAT_RGB`
- * - `resource.TEXTURE_FORMAT_RGBA`
+ * - `graphics.TEXTURE_FORMAT_LUMINANCE`
+ * - `graphics.TEXTURE_FORMAT_RGB`
+ * - `graphics.TEXTURE_FORMAT_RGBA`
  *
  * These constants might not be available on the device:
- * - `resource.TEXTURE_FORMAT_RGB_PVRTC_2BPPV1`
- * - `resource.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1`
- * - `resource.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1`
- * - `resource.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1`
- * - `resource.TEXTURE_FORMAT_RGB_ETC1`
- * - `resource.TEXTURE_FORMAT_RGBA_ETC2`
- * - `resource.TEXTURE_FORMAT_RGBA_ASTC_4x4`
- * - `resource.TEXTURE_FORMAT_RGB_BC1`
- * - `resource.TEXTURE_FORMAT_RGBA_BC3`
- * - `resource.TEXTURE_FORMAT_R_BC4`
- * - `resource.TEXTURE_FORMAT_RG_BC5`
- * - `resource.TEXTURE_FORMAT_RGBA_BC7`
- * - `resource.TEXTURE_FORMAT_RGB16F`
- * - `resource.TEXTURE_FORMAT_RGB32F`
- * - `resource.TEXTURE_FORMAT_RGBA16F`
- * - `resource.TEXTURE_FORMAT_RGBA32F`
- * - `resource.TEXTURE_FORMAT_R16F`
- * - `resource.TEXTURE_FORMAT_RG16F`
- * - `resource.TEXTURE_FORMAT_R32F`
- * - `resource.TEXTURE_FORMAT_RG32F`
+ * - `graphics.TEXTURE_FORMAT_RGB_PVRTC_2BPPV1`
+ * - `graphics.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1`
+ * - `graphics.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1`
+ * - `graphics.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1`
+ * - `graphics.TEXTURE_FORMAT_RGB_ETC1`
+ * - `graphics.TEXTURE_FORMAT_RGBA_ETC2`
+ * - `graphics.TEXTURE_FORMAT_RGBA_ASTC_4x4`
+ * - `graphics.TEXTURE_FORMAT_RGB_BC1`
+ * - `graphics.TEXTURE_FORMAT_RGBA_BC3`
+ * - `graphics.TEXTURE_FORMAT_R_BC4`
+ * - `graphics.TEXTURE_FORMAT_RG_BC5`
+ * - `graphics.TEXTURE_FORMAT_RGBA_BC7`
+ * - `graphics.TEXTURE_FORMAT_RGB16F`
+ * - `graphics.TEXTURE_FORMAT_RGB32F`
+ * - `graphics.TEXTURE_FORMAT_RGBA16F`
+ * - `graphics.TEXTURE_FORMAT_RGBA32F`
+ * - `graphics.TEXTURE_FORMAT_R16F`
+ * - `graphics.TEXTURE_FORMAT_RG16F`
+ * - `graphics.TEXTURE_FORMAT_R32F`
+ * - `graphics.TEXTURE_FORMAT_RG32F`
  *
  * You can test if the device supports these values by checking if a specific enum is nil or not:
  *
  * ```lua
- * if resource.TEXTURE_FORMAT_RGBA16F ~= nil then
+ * if graphics.TEXTURE_FORMAT_RGBA16F ~= nil then
  *     -- it is safe to use this format
  * end
  * ```
@@ -1199,7 +1199,7 @@ static int ReleaseResource(lua_State* L)
  * : [type:number] optional mipmap to upload the data to
  *
  * `compression_type`
- * : [type:number] optional specify the compression type for the data in the buffer object that holds the texture data. Defaults to resource.COMPRESSION_TYPE_DEFAULT, i.e no compression. Supported values:
+ * : [type:number] optional specify the compression type for the data in the buffer object that holds the texture data. Defaults to graphics.COMPRESSION_TYPE_DEFAULT, i.e no compression. Supported values:
  *
  * - `COMPRESSION_TYPE_DEFAULT`
  * - `COMPRESSION_TYPE_BASIS_UASTC`
@@ -1228,7 +1228,7 @@ static int ReleaseResource(lua_State* L)
  *   end
  *
  *   local resource_path = go.get("#model", "texture0")
- *   local args = { width=self.width, height=self.height, type=resource.TEXTURE_TYPE_2D, format=resource.TEXTURE_FORMAT_RGB, num_mip_maps=1 }
+ *   local args = { width=self.width, height=self.height, type=graphics.TEXTURE_TYPE_2D, format=graphics.TEXTURE_FORMAT_RGB, num_mip_maps=1 }
  *   resource.set_texture( resource_path, args, self.buffer )
  * end
  * ```
@@ -1255,7 +1255,7 @@ static int ReleaseResource(lua_State* L)
  *   end
  *
  *   local resource_path = go.get("#model", "texture0")
- *   local args = { width=self.width, height=self.height, x=self.x, y=self.y, type=resource.TEXTURE_TYPE_2D, format=resource.TEXTURE_FORMAT_RGB, num_mip_maps=1 }
+ *   local args = { width=self.width, height=self.height, x=self.x, y=self.y, type=graphics.TEXTURE_TYPE_2D, format=graphics.TEXTURE_FORMAT_RGB, num_mip_maps=1 }
  *   resource.set_texture(resource_path, args, self.buffer )
  * end
  * ```
@@ -1271,8 +1271,8 @@ static int ReleaseResource(lua_State* L)
  *     local args = {
  *          width  = 128,
  *          height = 128,
- *          type   = resource.TEXTURE_TYPE_2D,
- *          format = resource.TEXTURE_FORMAT_RGB
+ *          type   = graphics.TEXTURE_TYPE_2D,
+ *          format = graphics.TEXTURE_FORMAT_RGB
  *      }
  *     -- Note that the extra resource.get_buffer call is a requirement here
  *     -- since the "self.my_buffer" is just pointing to a buffer resource path
@@ -1377,10 +1377,10 @@ static int SetTexture(lua_State* L)
  * `type`
  * : [type:number] The texture type. Supported values:
  *
- * - `resource.TEXTURE_TYPE_2D`
- * - `resource.TEXTURE_TYPE_IMAGE_2D`
- * - `resource.TEXTURE_TYPE_CUBE_MAP`
- * - `resource.TEXTURE_TYPE_2D_ARRAY`
+ * - `graphics.TEXTURE_TYPE_2D`
+ * - `graphics.TEXTURE_TYPE_IMAGE_2D`
+ * - `graphics.TEXTURE_TYPE_CUBE_MAP`
+ * - `graphics.TEXTURE_TYPE_2D_ARRAY`
  *
  * @examples
  * Create a new texture and get the metadata from it
@@ -1391,8 +1391,8 @@ static int SetTexture(lua_State* L)
  *     local tparams = {
  *         width          = 128,
  *         height         = 128,
- *         type           = resource.TEXTURE_TYPE_2D,
- *         format         = resource.TEXTURE_FORMAT_RGBA,
+ *         type           = graphics.TEXTURE_TYPE_2D,
+ *         format         = graphics.TEXTURE_FORMAT_RGBA,
  *     }
  *
  *     local my_texture_path = resource.create_texture("/my_texture.texturec", tparams)
@@ -1405,8 +1405,8 @@ static int SetTexture(lua_State* L)
  *     --      height = 128,
  *     --      depth = 1
  *     --      mipmaps = 1,
- *     --      type = resource.TEXTURE_TYPE_2D,
- *     --      flags = resource.TEXTURE_USAGE_FLAG_SAMPLE
+ *     --      type = graphics.TEXTURE_TYPE_2D,
+ *     --      flags = graphics.TEXTURE_USAGE_FLAG_SAMPLE
  *     -- }
  * end
  * ```
@@ -1524,9 +1524,9 @@ static int GetTextureInfo(lua_State* L)
  * `type`
  * : [type:number] The texture type. Supported values:
  *
- * - `resource.TEXTURE_TYPE_2D`
- * - `resource.TEXTURE_TYPE_CUBE_MAP`
- * - `resource.TEXTURE_TYPE_2D_ARRAY`
+ * - `graphics.TEXTURE_TYPE_2D`
+ * - `graphics.TEXTURE_TYPE_CUBE_MAP`
+ * - `graphics.TEXTURE_TYPE_2D_ARRAY`
  *
  * `buffer_type`
  * : [type:number] The attachment buffer type. Supported values:
@@ -2165,8 +2165,8 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
  *     local tparams = {
  *         width          = 128,
  *         height         = 128,
- *         type           = resource.TEXTURE_TYPE_2D,
- *         format         = resource.TEXTURE_FORMAT_RGBA,
+ *         type           = graphics.TEXTURE_TYPE_2D,
+ *         format         = graphics.TEXTURE_FORMAT_RGBA,
  *     }
  *     local my_texture_id = resource.create_texture("/my_texture.texturec", tparams)
  *
@@ -3104,215 +3104,36 @@ static int GetTextMetrics(lua_State* L)
 
 static const luaL_reg Module_methods[] =
 {
-    {"set", Set},
-    {"load", Load},
-    {"create_atlas", CreateAtlas},
-    {"create_buffer", CreateBuffer},
-    {"create_texture", CreateTexture},
-    {"create_texture_async", CreateTextureAsync},
-    {"release", ReleaseResource},
-    {"set_atlas", SetAtlas},
-    {"get_atlas", GetAtlas},
-    {"set_texture", SetTexture},
-    {"get_texture_info", GetTextureInfo},
-    {"get_render_target_info", GetRenderTargetInfo},
-    {"set_sound", SetSound},
-    {"get_buffer", GetBuffer},
-    {"set_buffer", SetBuffer},
-    {"get_text_metrics", GetTextMetrics},
+    {"set",                     Set},
+    {"load",                    Load},
+    {"create_atlas",            CreateAtlas},
+    {"create_buffer",           CreateBuffer},
+    {"create_texture",          CreateTexture},
+    {"create_texture_async",    CreateTextureAsync},
+    {"release",                 ReleaseResource},
+    {"set_atlas",               SetAtlas},
+    {"get_atlas",               GetAtlas},
+    {"set_texture",             SetTexture},
+    {"get_texture_info",        GetTextureInfo},
+    {"get_render_target_info",  GetRenderTargetInfo},
+    {"set_sound",               SetSound},
+    {"get_buffer",              GetBuffer},
+    {"set_buffer",              SetBuffer},
+    {"get_text_metrics",        GetTextMetrics},
     {0, 0}
 };
-
-/*# 2D texture type
- *
- * @name resource.TEXTURE_TYPE_2D
- * @variable
- */
-
-/*# Cube map texture type
- *
- * @name resource.TEXTURE_TYPE_CUBE_MAP
- * @variable
- */
-
-/*# 2D Array texture type
- *
- * @name resource.TEXTURE_TYPE_2D_ARRAY
- * @variable
- */
-
-/*# luminance type texture format
- *
- * @name resource.TEXTURE_FORMAT_LUMINANCE
- * @variable
- */
-
-/*# RGB type texture format
- *
- * @name resource.TEXTURE_FORMAT_RGB
- * @variable
- */
-
-/*# RGBA type texture format
- *
- * @name resource.TEXTURE_FORMAT_RGBA
- * @variable
- */
-
-/*# RGB_PVRTC_2BPPV1 type texture format
- *
- * @name resource.TEXTURE_FORMAT_RGB_PVRTC_2BPPV1
- * @variable
- */
-
-/*# RGB_PVRTC_4BPPV1 type texture format
- *
- * @name resource.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1
- * @variable
- */
-
-/*# RGBA_PVRTC_2BPPV1 type texture format
- *
- * @name resource.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1
- * @variable
- */
-
-/*# RGBA_PVRTC_4BPPV1 type texture format
- *
- * @name resource.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1
- * @variable
- */
-
-/*# RGB_ETC1 type texture format
- *
- * @name resource.TEXTURE_FORMAT_RGB_ETC1
- * @variable
- */
-
-/*# RGBA_ETC2 type texture format
- *
- * @name resource.TEXTURE_FORMAT_RGBA_ETC2
- * @variable
- */
-
-/*# RGBA_ASTC_4x4 type texture format
- *
- * @name resource.TEXTURE_FORMAT_RGBA_ASTC_4x4
- * @variable
- */
-
-/*# RGB_BC1 type texture format
- *
- * @name resource.TEXTURE_FORMAT_RGB_BC1
- * @variable
- */
-
-/*# RGBA_BC3 type texture format
- *
- * @name resource.TEXTURE_FORMAT_RGBA_BC3
- * @variable
- */
-
-/*# R_BC4 type texture format
- *
- * @name resource.TEXTURE_FORMAT_R_BC4
- * @variable
- */
-
-/*# RG_BC5 type texture format
- *
- * @name resource.TEXTURE_FORMAT_RG_BC5
- * @variable
- */
-
-/*# RGBA_BC7 type texture format
- *
- * @name resource.TEXTURE_FORMAT_RGBA_BC7
- * @variable
- */
-
-/*# RGB16F type texture format
- *
- * @name resource.TEXTURE_FORMAT_RGB16F
- * @variable
- */
-
-/*# RGB32F type texture format
- *
- * @name resource.TEXTURE_FORMAT_RGB32F
- * @variable
- */
-
-/*# RGBA16F type texture format
- *
- * @name resource.TEXTURE_FORMAT_RGBA16F
- * @variable
- */
-
-/*# RGBA32F type texture format
- *
- * @name resource.TEXTURE_FORMAT_RGBA32F
- * @variable
- */
-
-/*# R16F type texture format
- *
- * @name resource.TEXTURE_FORMAT_R16F
- * @variable
- */
-
-/*# RG16F type texture format
- *
- * @name resource.TEXTURE_FORMAT_RG16F
- * @variable
- */
-
-/*# R32F type texture format
- *
- * @name resource.TEXTURE_FORMAT_R32F
- * @variable
- */
-
-/*# RG32F type texture format
- *
- * @name resource.TEXTURE_FORMAT_RG32F
- * @variable
- */
-
-/*# Usage hint for creating textures that can be sampled in a shader
- *
- * @name resource.TEXTURE_USAGE_FLAG_SAMPLE
- * @variable
- */
-
-/*# Usage hint for creating textures that uses temporary memory
- *
- * @name resource.TEXTURE_USAGE_FLAG_MEMORYLESS
- * @variable
- */
-
-/*# Usage hint for creating textures that can be used for writing in a shader
- *
- * @name resource.TEXTURE_USAGE_FLAG_STORAGE
- * @variable
- */
-
-/*# COMPRESSION_TYPE_DEFAULT compression type
- *
- * @name resource.COMPRESSION_TYPE_DEFAULT
- * @variable
- */
-
-/*# BASIS_UASTC compression type
- *
- * @name resource.COMPRESSION_TYPE_BASIS_UASTC
- * @variable
- */
 
 static void LuaInit(lua_State* L, dmGraphics::HContext graphics_context)
 {
     int top = lua_gettop(L);
     luaL_register(L, "resource", Module_methods);
+
+    ////////////////////////////////////////////////////////////////////
+    // DEPRECATED!
+    // -----------
+    // The graphics enums are now exposed in script_graphics.cpp instead
+    // DO NOT add any more graphics enums in this file
+    ////////////////////////////////////////////////////////////////////
 
 #define SETGRAPHICS_ENUM(name) \
     lua_pushnumber(L, (lua_Number) dmGraphics:: name); \
@@ -3342,10 +3163,6 @@ static void LuaInit(lua_State* L, dmGraphics::HContext graphics_context)
         lua_setfield(L, -2, #name); \
     }
 
-    // JG: Perhaps these should be in a 'graphics' namespace shared with the render script,
-    //     feels a bit strange to have different modules that expose the same enums but with different names.
-    //     In the render scripts we call them "FORMAT_RGB16F" but here it's "TEXTURE_FORMAT_RGB16F", and we only expose
-    //     a couple of select formats in render scripts. Would be nice to have a single point of exposure for these things
     SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_LUMINANCE);
     SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGB);
     SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGBA);
