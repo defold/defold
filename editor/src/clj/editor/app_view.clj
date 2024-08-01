@@ -780,10 +780,12 @@
           pause-ms 100
           instance-index-range (if (= count 1) (range (inc 0)) (range 1 (inc count)))
           launched-targets (for [instance-index instance-index-range]
-                             (let [launched-target (->> (engine/launch! engine project-directory prefs debug? instance-index)
+                             (let [last-instance? (or (= count 1) (= instance-index count))
+                                   instance-debug? (and debug? last-instance?)
+                                   launched-target (->> (engine/launch! engine project-directory prefs instance-debug? instance-index)
                                                         (decorate-target engine-descriptor)
                                                         (targets/add-launched-target! instance-index))]
-                               (when (and (> count 1) (not= instance-index count))
+                               (when (not last-instance?)
                                  (Thread/sleep pause-ms))        ;pause needed to make sure the launch order of instances is right
                                launched-target))
           last-launched-target (last launched-targets)]
@@ -1271,7 +1273,7 @@ If you do not specifically require different script states, consider changing th
                                  (when (or engine skip-engine)
                                    (when-let [target (launch-built-project! project engine project-directory prefs web-server true workspace)]
                                      (when (nil? (debug-view/current-session debug-view))
-                                       (debug-view/start-debugger! debug-view project (:address target "localhost"))))))))))
+                                       (debug-view/start-debugger! debug-view project (:address target "localhost") (:instance-index target 0))))))))))
 
 (defn- attach-debugger! [workspace project prefs debug-view render-build-error!]
   (async-build! project

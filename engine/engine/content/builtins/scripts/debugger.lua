@@ -177,6 +177,9 @@ end
 -- end lightweight hook layer
 
 function M.start(port)
+  -- use different ports in case of multi-intance mode
+  port = port + sys.get_config_int("project.instance_index", 0)
+  
   mobdebug.line = identity
   mobdebug.dump = edn.encode
 
