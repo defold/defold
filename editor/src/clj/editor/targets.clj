@@ -365,7 +365,9 @@
                    ssdp-options (mapv target-option @ssdp-targets)]
                (cond
                  (seq launched-options)
-                 (into launched-options (concat [separator] ssdp-options))
+                 (if (> (count launched-options) 1)
+                 (into [{:label "Restart All Instances" :check true :command :target :user-data :new-local-engine}] (concat launched-options [separator] ssdp-options))
+                 (into launched-options (concat [separator] ssdp-options)))
 
                  :else
                  (into [{:label "New Local Engine" :check true :command :target :user-data :new-local-engine} separator] ssdp-options))))))

@@ -777,11 +777,15 @@
     (report-build-launch-progress! "Launching engine...")
     (let [engine (engine/install-engine! project-directory engine-descriptor)
           count 4                                           ;TODO: move setting somewhere
+          pause-ms 100
           instance-index-range (if (= count 1) (range (inc 0)) (range 1 (inc count)))
           launched-targets (for [instance-index instance-index-range]
-                             (->> (engine/launch! engine project-directory prefs debug? instance-index)
-                                  (decorate-target engine-descriptor)
-                                  (targets/add-launched-target! instance-index)))
+                             (let [launched-target (->> (engine/launch! engine project-directory prefs debug? instance-index)
+                                                        (decorate-target engine-descriptor)
+                                                        (targets/add-launched-target! instance-index))]
+                               (when (> count 1)
+                                 (Thread/sleep pause-ms))        ;pause needed to make sure the launch order of instances is right
+                               launched-target))
           last-launched-target (last launched-targets)]
       (targets/select-target! prefs last-launched-target)
       (report-build-launch-progress! (format "Launched %s" (targets/target-message-label last-launched-target)))
@@ -838,9 +842,9 @@
                              (targets/kill-launched-targets!)
                              (let [launched-targets (launch-engine! engine-descriptor project-directory prefs debug?)
                                    last-launched-target (last launched-targets)]
-                               (targets/when-url (:id last-launched-target)
-                                                 #(on-launched-hook! project (:process last-launched-target) %))
                                (doseq [launched-target launched-targets]
+                                 (targets/when-url (:id launched-target)
+                                                   #(on-launched-hook! project (:process launched-target) %))
                                  (let [log-stream (:log-stream launched-target)]
                                    (reset-console-stream! log-stream)
                                    (reset-remote-log-pump-thread! nil)
