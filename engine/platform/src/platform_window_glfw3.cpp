@@ -172,20 +172,6 @@ namespace dmPlatform
         return 0;
     }
 
-    static void CenterWindowByMonitor(Window* wnd, GLFWmonitor* monitor)
-    {
-        if (!monitor)
-            return;
-
-        const GLFWvidmode* video_mode = glfwGetVideoMode(monitor);
-        if (!video_mode)
-            return;
-
-        int32_t x = video_mode->width/2 - wnd->m_Width/2;
-        int32_t y = video_mode->height/2 - wnd->m_Height/2;
-        glfwSetWindowPos(wnd->m_Window, x, y);
-    }
-
     static PlatformResult OpenWindowOpenGL(Window* wnd, const WindowParams& params)
     {
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
@@ -252,11 +238,11 @@ namespace dmPlatform
         // A reboot doesn't shut down GLFW, so we reset all window hints here to defaults first.
         glfwDefaultWindowHints();
 
-        glfwWindowHint(GLFW_FOCUSED, GLFW_TRUE);
         // This hint saves both size and position, but we need only position
         // That's why we hide window here and then later set default size and show window
         glfwWindowHintString(GLFW_COCOA_FRAME_NAME, params.m_Title);
         glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+        glfwWindowHint(GLFW_FOCUSED, GLFW_FALSE);
         glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_TRUE);
 
         PlatformResult res = PLATFORM_RESULT_WINDOW_OPEN_ERROR;
@@ -274,6 +260,8 @@ namespace dmPlatform
 
         if (res == PLATFORM_RESULT_OK)
         {
+            FocusWindowNative(window);
+
         #ifdef __MACH__
             // Set size from settings
             glfwSetWindowSize(window->m_Window, params.m_Width, params.m_Height);
@@ -295,12 +283,10 @@ namespace dmPlatform
 
             SetSwapInterval(window, 1);
 
-        #ifdef _WIN32
             if (!params.m_Fullscreen)
             {
-                CenterWindowByMonitor(window, glfwGetPrimaryMonitor());
+                CenterWindowNative(window, glfwGetPrimaryMonitor());
             }
-        #endif
 
             // glfwSetWindowBackgroundColor does not exist in GLFW3, but we could potentially
             // set glfwWindowHint(GLFW_TRANSPARENT_FRAMEBUFFER, GLFW_TRUE); to get a transparent framebuffer
@@ -344,9 +330,6 @@ namespace dmPlatform
     void ShowWindow(HWindow window)
     {
         glfwShowWindow(window->m_Window);
-    #if _WIN32
-        glfwFocusWindow(window->m_Window);
-    #endif
     }
 
     void SwapBuffers(HWindow window)

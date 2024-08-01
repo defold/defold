@@ -12,6 +12,8 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
+#include <dlib/time.h>
+
 #include <glfw/glfw3.h>
 
 #define GLFW_EXPOSE_NATIVE_WIN32
@@ -31,5 +33,41 @@ namespace dmPlatform
     HGLRC GetWindowsHGLRC(HWindow window)
     {
     	return glfwGetWGLContext(window->m_Window);
+    }
+
+    static inline bool IsWindowForeground(HWindow window)
+    {
+        return GetWindowsHWND(window) == GetForegroundWindow();
+    }
+
+    void FocusWindowNative(HWindow window)
+    {
+        glfwFocusWindow(window->m_Window);
+
+        // Windows doesn't always bring the window to front immediately when
+        // the engine is rebooted. So we need to introduce a bit of lag here
+        // to make sure our window will be on top eventually.
+        uint32_t attempts = 0;
+        const uint32_t attempts_max = 100;
+        while(!IsWindowForeground(window) && attempts < attempts_max)
+        {
+            dmTime::Sleep(16000);
+            attempts++;
+            glfwFocusWindow(window->m_Window);
+        }
+    }
+
+    void CenterWindowNative(Window* wnd, GLFWmonitor* monitor)
+    {
+        if (!monitor)
+            return;
+
+        const GLFWvidmode* video_mode = glfwGetVideoMode(monitor);
+        if (!video_mode)
+            return;
+
+        int32_t x = video_mode->width/2 - wnd->m_Width/2;
+        int32_t y = video_mode->height/2 - wnd->m_Height/2;
+        glfwSetWindowPos(wnd->m_Window, x, y);
     }
 }
