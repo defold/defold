@@ -14,6 +14,8 @@
 
 #include <graphics/graphics_ddf.h>
 
+#include <render/material_ddf.h>
+
 #include "../gamesys.h"
 #include "../gamesys_private.h"
 
@@ -73,30 +75,30 @@ namespace dmGameSystem
      * `data_type`
      * : [type:number] the data type of the vertex attribute. Supported values:
      *
-     *   - `material.DATA_TYPE_BYTE`
-     *   - `material.DATA_TYPE_UNSIGNED_BYTE`
-     *   - `material.DATA_TYPE_SHORT`
-     *   - `material.DATA_TYPE_UNSIGNED_SHORT`
-     *   - `material.DATA_TYPE_INT`
-     *   - `material.DATA_TYPE_UNSIGNED_INT`
-     *   - `material.DATA_TYPE_FLOAT`
+     *   - `graphics.DATA_TYPE_BYTE`
+     *   - `graphics.DATA_TYPE_UNSIGNED_BYTE`
+     *   - `graphics.DATA_TYPE_SHORT`
+     *   - `graphics.DATA_TYPE_UNSIGNED_SHORT`
+     *   - `graphics.DATA_TYPE_INT`
+     *   - `graphics.DATA_TYPE_UNSIGNED_INT`
+     *   - `graphics.DATA_TYPE_FLOAT`
      *
      * `coordinate_space`
      * : [type:number] the coordinate space of the vertex attribute. Supported values:
      *
-     *   - `material.COORDINATE_SPACE_WORLD`
-     *   - `material.COORDINATE_SPACE_LOCAL`
+     *   - `graphics.COORDINATE_SPACE_WORLD`
+     *   - `graphics.COORDINATE_SPACE_LOCAL`
      *
      * `semantic_type`
      * : [type:number] the semantic type of the vertex attribute. Supported values:
      *
-     *   - `material.SEMANTIC_TYPE_NONE`
-     *   - `material.SEMANTIC_TYPE_POSITION`
-     *   - `material.SEMANTIC_TYPE_TEXCOORD`
-     *   - `material.SEMANTIC_TYPE_PAGE_INDEX`
-     *   - `material.SEMANTIC_TYPE_COLOR`
-     *   - `material.SEMANTIC_TYPE_NORMAL`
-     *   - `material.SEMANTIC_TYPE_TANGENT`
+     *   - `graphics.SEMANTIC_TYPE_NONE`
+     *   - `graphics.SEMANTIC_TYPE_POSITION`
+     *   - `graphics.SEMANTIC_TYPE_TEXCOORD`
+     *   - `graphics.SEMANTIC_TYPE_PAGE_INDEX`
+     *   - `graphics.SEMANTIC_TYPE_COLOR`
+     *   - `graphics.SEMANTIC_TYPE_NORMAL`
+     *   - `graphics.SEMANTIC_TYPE_TANGENT`
      *
      * @examples
      * Get the vertex attributes from a material specified as a resource property
@@ -168,36 +170,36 @@ namespace dmGameSystem
      * `u_wrap`
      * : [type:number] the u wrap mode of the texture sampler. Supported values:
      *
-     *   - `material.TEXTURE_WRAP_CLAMP_TO_BORDER`
-     *   - `material.TEXTURE_WRAP_CLAMP_TO_EDGE`
-     *   - `material.TEXTURE_WRAP_MIRRORED_REPEAT`
-     *   - `material.TEXTURE_WRAP_REPEAT`
+     *   - `graphics.TEXTURE_WRAP_CLAMP_TO_BORDER`
+     *   - `graphics.TEXTURE_WRAP_CLAMP_TO_EDGE`
+     *   - `graphics.TEXTURE_WRAP_MIRRORED_REPEAT`
+     *   - `graphics.TEXTURE_WRAP_REPEAT`
      *
      * `v_wrap`
      * : [type:number] the v wrap mode of the texture sampler. Supported values:
      *
-     *   - `material.TEXTURE_WRAP_CLAMP_TO_BORDER`
-     *   - `material.TEXTURE_WRAP_CLAMP_TO_EDGE`
-     *   - `material.TEXTURE_WRAP_MIRRORED_REPEAT`
-     *   - `material.TEXTURE_WRAP_REPEAT`
+     *   - `graphics.TEXTURE_WRAP_CLAMP_TO_BORDER`
+     *   - `graphics.TEXTURE_WRAP_CLAMP_TO_EDGE`
+     *   - `graphics.TEXTURE_WRAP_MIRRORED_REPEAT`
+     *   - `graphics.TEXTURE_WRAP_REPEAT`
      *
      * `min_filter`
      * : [type:number] the min filter mode of the texture sampler. Supported values:
      *
-     *   - `material.TEXTURE_FILTER_DEFAULT`
-     *   - `material.TEXTURE_FILTER_NEAREST`
-     *   - `material.TEXTURE_FILTER_LINEAR`
-     *   - `material.TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST`
-     *   - `material.TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR`
-     *   - `material.TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST`
-     *   - `material.TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR`
+     *   - `graphics.TEXTURE_FILTER_DEFAULT`
+     *   - `graphics.TEXTURE_FILTER_NEAREST`
+     *   - `graphics.TEXTURE_FILTER_LINEAR`
+     *   - `graphics.TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST`
+     *   - `graphics.TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR`
+     *   - `graphics.TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST`
+     *   - `graphics.TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR`
      *
      * `mag_filter`
      * : [type:number] the mag filter mode of the texture sampler
      *
-     *   - `material.TEXTURE_FILTER_DEFAULT`
-     *   - `material.TEXTURE_FILTER_NEAREST`
-     *   - `material.TEXTURE_FILTER_LINEAR`
+     *   - `graphics.TEXTURE_FILTER_DEFAULT`
+     *   - `graphics.TEXTURE_FILTER_NEAREST`
+     *   - `graphics.TEXTURE_FILTER_LINEAR`
      *
      * `max_anisotropy`
      * : [type:number] the max anisotropy of the texture sampler
@@ -338,20 +340,20 @@ namespace dmGameSystem
      * `type`
      * : [type:number] the type of the texture. Supported values:
      *
-     *   - `material.TEXTURE_TYPE_2D`
-     *   - `material.TEXTURE_TYPE_2D_ARRAY`
-     *   - `material.TEXTURE_TYPE_CUBE_MAP`
-     *   - `material.TEXTURE_TYPE_IMAGE_2D`
+     *   - `graphics.TEXTURE_TYPE_2D`
+     *   - `graphics.TEXTURE_TYPE_2D_ARRAY`
+     *   - `graphics.TEXTURE_TYPE_CUBE_MAP`
+     *   - `graphics.TEXTURE_TYPE_IMAGE_2D`
      *
      * `flags`
      * : [type:number] the flags of the texture. This field is a bit mask of these supported flags:
      *
-     *   - `material.TEXTURE_USAGE_HINT_NONE`
-     *   - `material.TEXTURE_USAGE_HINT_SAMPLE`
-     *   - `material.TEXTURE_USAGE_HINT_MEMORYLESS`
-     *   - `material.TEXTURE_USAGE_HINT_STORAGE`
-     *   - `material.TEXTURE_USAGE_HINT_INPUT`
-     *   - `material.TEXTURE_USAGE_HINT_COLOR`
+     *   - `graphics.TEXTURE_USAGE_HINT_NONE`
+     *   - `graphics.TEXTURE_USAGE_HINT_SAMPLE`
+     *   - `graphics.TEXTURE_USAGE_HINT_MEMORYLESS`
+     *   - `graphics.TEXTURE_USAGE_HINT_STORAGE`
+     *   - `graphics.TEXTURE_USAGE_HINT_INPUT`
+     *   - `graphics.TEXTURE_USAGE_HINT_COLOR`
      *
      * @examples
      * Get the shader constants from a material specified as a resource property
@@ -405,30 +407,30 @@ namespace dmGameSystem
      * `data_type`
      * : [type:number] the data type of the vertex attribute. Supported values:
      *
-     *   - `material.DATA_TYPE_BYTE`
-     *   - `material.DATA_TYPE_UNSIGNED_BYTE`
-     *   - `material.DATA_TYPE_SHORT`
-     *   - `material.DATA_TYPE_UNSIGNED_SHORT`
-     *   - `material.DATA_TYPE_INT`
-     *   - `material.DATA_TYPE_UNSIGNED_INT`
-     *   - `material.DATA_TYPE_FLOAT`
+     *   - `graphics.DATA_TYPE_BYTE`
+     *   - `graphics.DATA_TYPE_UNSIGNED_BYTE`
+     *   - `graphics.DATA_TYPE_SHORT`
+     *   - `graphics.DATA_TYPE_UNSIGNED_SHORT`
+     *   - `graphics.DATA_TYPE_INT`
+     *   - `graphics.DATA_TYPE_UNSIGNED_INT`
+     *   - `graphics.DATA_TYPE_FLOAT`
      *
      * `coordinate_space`
      * : [type:number] the coordinate space of the vertex attribute. Supported values:
      *
-     *   - `material.COORDINATE_SPACE_WORLD`
-     *   - `material.COORDINATE_SPACE_LOCAL`
+     *   - `graphics.COORDINATE_SPACE_WORLD`
+     *   - `graphics.COORDINATE_SPACE_LOCAL`
      *
      * `semantic_type`
      * : [type:number] the semantic type of the vertex attribute. Supported values:
      *
-     *   - `material.SEMANTIC_TYPE_NONE`
-     *   - `material.SEMANTIC_TYPE_POSITION`
-     *   - `material.SEMANTIC_TYPE_TEXCOORD`
-     *   - `material.SEMANTIC_TYPE_PAGE_INDEX`
-     *   - `material.SEMANTIC_TYPE_COLOR`
-     *   - `material.SEMANTIC_TYPE_NORMAL`
-     *   - `material.SEMANTIC_TYPE_TANGENT`
+     *   - `graphics.SEMANTIC_TYPE_NONE`
+     *   - `graphics.SEMANTIC_TYPE_POSITION`
+     *   - `graphics.SEMANTIC_TYPE_TEXCOORD`
+     *   - `graphics.SEMANTIC_TYPE_PAGE_INDEX`
+     *   - `graphics.SEMANTIC_TYPE_COLOR`
+     *   - `graphics.SEMANTIC_TYPE_NORMAL`
+     *   - `graphics.SEMANTIC_TYPE_TANGENT`
      *
      *
      * @examples
@@ -440,8 +442,8 @@ namespace dmGameSystem
      * function init(self)
      *     material.set_sampler(self.my_material, "tint_attribute",
      *         { value         = vmath.vec4(1, 0, 0, 1),
-     *           semantic_type = material.SEMANTIC_TYPE_COLOR,
-     *           data_type     = material.DATA_TYPE_FLOAT })
+     *           semantic_type = graphics.SEMANTIC_TYPE_COLOR,
+     *           data_type     = graphics.DATA_TYPE_FLOAT })
      * end
      * ```
      */
@@ -545,36 +547,36 @@ namespace dmGameSystem
      * `u_wrap`
      * : [type:number] the u wrap mode of the texture sampler. Supported values:
      *
-     *   - `material.TEXTURE_WRAP_CLAMP_TO_BORDER`
-     *   - `material.TEXTURE_WRAP_CLAMP_TO_EDGE`
-     *   - `material.TEXTURE_WRAP_MIRRORED_REPEAT`
-     *   - `material.TEXTURE_WRAP_REPEAT`
+     *   - `graphics.TEXTURE_WRAP_CLAMP_TO_BORDER`
+     *   - `graphics.TEXTURE_WRAP_CLAMP_TO_EDGE`
+     *   - `graphics.TEXTURE_WRAP_MIRRORED_REPEAT`
+     *   - `graphics.TEXTURE_WRAP_REPEAT`
      *
      * `v_wrap`
      * : [type:number] the v wrap mode of the texture sampler. Supported values:
      *
-     *   - `material.TEXTURE_WRAP_CLAMP_TO_BORDER`
-     *   - `material.TEXTURE_WRAP_CLAMP_TO_EDGE`
-     *   - `material.TEXTURE_WRAP_MIRRORED_REPEAT`
-     *   - `material.TEXTURE_WRAP_REPEAT`
+     *   - `graphics.TEXTURE_WRAP_CLAMP_TO_BORDER`
+     *   - `graphics.TEXTURE_WRAP_CLAMP_TO_EDGE`
+     *   - `graphics.TEXTURE_WRAP_MIRRORED_REPEAT`
+     *   - `graphics.TEXTURE_WRAP_REPEAT`
      *
      * `min_filter`
      * : [type:number] the min filter mode of the texture sampler. Supported values:
      *
-     *   - `material.TEXTURE_FILTER_DEFAULT`
-     *   - `material.TEXTURE_FILTER_NEAREST`
-     *   - `material.TEXTURE_FILTER_LINEAR`
-     *   - `material.TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST`
-     *   - `material.TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR`
-     *   - `material.TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST`
-     *   - `material.TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR`
+     *   - `graphics.TEXTURE_FILTER_DEFAULT`
+     *   - `graphics.TEXTURE_FILTER_NEAREST`
+     *   - `graphics.TEXTURE_FILTER_LINEAR`
+     *   - `graphics.TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST`
+     *   - `graphics.TEXTURE_FILTER_NEAREST_MIPMAP_LINEAR`
+     *   - `graphics.TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST`
+     *   - `graphics.TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR`
      *
      * `mag_filter`
      * : [type:number] the mag filter mode of the texture sampler
      *
-     *   - `material.TEXTURE_FILTER_DEFAULT`
-     *   - `material.TEXTURE_FILTER_NEAREST`
-     *   - `material.TEXTURE_FILTER_LINEAR`
+     *   - `graphics.TEXTURE_FILTER_DEFAULT`
+     *   - `graphics.TEXTURE_FILTER_NEAREST`
+     *   - `graphics.TEXTURE_FILTER_LINEAR`
      *
      * `max_anisotropy`
      * : [type:number] the max anisotropy of the texture sampler
@@ -586,7 +588,7 @@ namespace dmGameSystem
      * go.property("my_material", resource.material())
      *
      * function init(self)
-     *     material.set_sampler(self.my_material, "texture_sampler", { u_wrap = material.TEXTURE_WRAP_REPEAT, v_wrap = material.TEXTURE_WRAP_MIRRORED_REPEAT })
+     *     material.set_sampler(self.my_material, "texture_sampler", { u_wrap = graphics.TEXTURE_WRAP_REPEAT, v_wrap = graphics.TEXTURE_WRAP_MIRRORED_REPEAT })
      * end
      * ```
      */
@@ -765,7 +767,6 @@ namespace dmGameSystem
         {"get_samplers",          Material_GetSamplers},
         {"get_constants",         Material_GetConstants},
         {"get_textures",          Material_GetTextures},
-
         {"set_vertex_attribute",  Material_SetVertexAttribute},
         {"set_sampler",           Material_SetSampler},
         {"set_constant",          Material_SetConstant},
@@ -773,44 +774,32 @@ namespace dmGameSystem
         {0, 0}
     };
 
+    void RegisterMaterialConstantTypes(lua_State* L)
+    {
+        #define SET_MATERIAL_DDF_ENUM_NAMED(enum_name, name) \
+            lua_pushnumber(L, (lua_Number) dmRenderDDF::MaterialDesc:: enum_name); \
+            lua_setfield(L, -2, #name);
+
+        SET_MATERIAL_DDF_ENUM_NAMED(ConstantType::CONSTANT_TYPE_USER,          CONSTANT_TYPE_USER);
+        SET_MATERIAL_DDF_ENUM_NAMED(ConstantType::CONSTANT_TYPE_USER_MATRIX4,  CONSTANT_TYPE_USER_MATRIX4);
+        SET_MATERIAL_DDF_ENUM_NAMED(ConstantType::CONSTANT_TYPE_VIEWPROJ,      CONSTANT_TYPE_VIEWPROJ);
+        SET_MATERIAL_DDF_ENUM_NAMED(ConstantType::CONSTANT_TYPE_WORLD,         CONSTANT_TYPE_WORLD);
+        SET_MATERIAL_DDF_ENUM_NAMED(ConstantType::CONSTANT_TYPE_TEXTURE,       CONSTANT_TYPE_TEXTURE);
+        SET_MATERIAL_DDF_ENUM_NAMED(ConstantType::CONSTANT_TYPE_VIEW,          CONSTANT_TYPE_VIEW);
+        SET_MATERIAL_DDF_ENUM_NAMED(ConstantType::CONSTANT_TYPE_PROJECTION,    CONSTANT_TYPE_PROJECTION);
+        SET_MATERIAL_DDF_ENUM_NAMED(ConstantType::CONSTANT_TYPE_NORMAL,        CONSTANT_TYPE_NORMAL);
+        SET_MATERIAL_DDF_ENUM_NAMED(ConstantType::CONSTANT_TYPE_WORLDVIEW,     CONSTANT_TYPE_WORLDVIEW);
+        SET_MATERIAL_DDF_ENUM_NAMED(ConstantType::CONSTANT_TYPE_WORLDVIEWPROJ, CONSTANT_TYPE_WORLDVIEWPROJ);
+
+        #undef SET_MATERIAL_DDF_ENUM_NAMED
+    }
+
     static void LuaInit(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
         luaL_register(L, LIB_NAME, ScriptMaterial_methods);
 
-        /*
-    #define SET_VERTEX_ATTRIBUTE_ENUM(ename, name) \
-        lua_pushnumber(L, (lua_Number) dmGraphics:: ename); \
-        lua_setfield(L, -2, #name);
-
-        // VertexAttribute::DataType
-        SET_VERTEX_ATTRIBUTE_ENUM(VertexAttribute::TYPE_BYTE,           DATA_TYPE_BYTE);
-        SET_VERTEX_ATTRIBUTE_ENUM(VertexAttribute::TYPE_UNSIGNED_BYTE,  DATA_TYPE_UNSIGNED_BYTE);
-        SET_VERTEX_ATTRIBUTE_ENUM(VertexAttribute::TYPE_SHORT,          DATA_TYPE_SHORT);
-        SET_VERTEX_ATTRIBUTE_ENUM(VertexAttribute::TYPE_UNSIGNED_SHORT, DATA_TYPE_UNSIGNED_SHORT);
-        SET_VERTEX_ATTRIBUTE_ENUM(VertexAttribute::TYPE_INT,            DATA_TYPE_INT);
-        SET_VERTEX_ATTRIBUTE_ENUM(VertexAttribute::TYPE_UNSIGNED_INT,   DATA_TYPE_UNSIGNED_INT);
-        SET_VERTEX_ATTRIBUTE_ENUM(VertexAttribute::TYPE_FLOAT,          DATA_TYPE_FLOAT);
-
-        // VertexAttribute::SemanticType
-        SET_VERTEX_ATTRIBUTE_ENUM(VertexAttribute::SEMANTIC_TYPE_NONE,       SEMANTIC_TYPE_NONE);
-        SET_VERTEX_ATTRIBUTE_ENUM(VertexAttribute::SEMANTIC_TYPE_POSITION,   SEMANTIC_TYPE_POSITION);
-        SET_VERTEX_ATTRIBUTE_ENUM(VertexAttribute::SEMANTIC_TYPE_TEXCOORD,   SEMANTIC_TYPE_TEXCOORD);
-        SET_VERTEX_ATTRIBUTE_ENUM(VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX, SEMANTIC_TYPE_PAGE_INDEX);
-        SET_VERTEX_ATTRIBUTE_ENUM(VertexAttribute::SEMANTIC_TYPE_COLOR,      SEMANTIC_TYPE_COLOR);
-        SET_VERTEX_ATTRIBUTE_ENUM(VertexAttribute::SEMANTIC_TYPE_NORMAL,     SEMANTIC_TYPE_NORMAL);
-        SET_VERTEX_ATTRIBUTE_ENUM(VertexAttribute::SEMANTIC_TYPE_TANGENT,    SEMANTIC_TYPE_TANGENT);
-    #undef SET_VERTEX_ATTRIBUTE_ENUM
-
-    #define SET_GRAPHICS_ENUM(name) \
-        lua_pushnumber(L, (lua_Number) dmGraphics:: name); \
-        lua_setfield(L, -2, #name);
-
-        // VertexAttribute::CoordinateSpace
-        SET_GRAPHICS_ENUM(COORDINATE_SPACE_WORLD);
-        SET_GRAPHICS_ENUM(COORDINATE_SPACE_LOCAL);
-    #undef SET_GRAPHICS_ENUM
-        */
+        RegisterMaterialConstantTypes(L);
 
         lua_pop(L, 1);
     }

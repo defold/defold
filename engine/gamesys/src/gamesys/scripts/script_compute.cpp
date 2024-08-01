@@ -19,6 +19,7 @@
 #include "../resources/res_texture.h"
 
 #include "script_compute.h"
+#include "script_material.h"
 
 extern "C"
 {
@@ -243,13 +244,12 @@ namespace dmGameSystem
 
     static const luaL_reg ScriptCompute_methods[] =
     {
-        {"get_samplers",          Compute_GetSamplers},
-        {"get_constants",         Compute_GetConstants},
-        {"get_textures",          Compute_GetTextures},
-
-        {"set_sampler",           Compute_SetSampler},
-        {"set_constant",          Compute_SetConstant},
-        {"set_texture",           Compute_SetTexture},
+        {"get_samplers",  Compute_GetSamplers},
+        {"get_constants", Compute_GetConstants},
+        {"get_textures",  Compute_GetTextures},
+        {"set_sampler",   Compute_SetSampler},
+        {"set_constant",  Compute_SetConstant},
+        {"set_texture",   Compute_SetTexture},
         {0, 0}
     };
 
@@ -257,6 +257,7 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 0);
         luaL_register(L, LIB_NAME, ScriptCompute_methods);
+        RegisterMaterialConstantTypes(L);
         lua_pop(L, 1);
     }
 
