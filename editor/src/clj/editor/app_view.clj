@@ -783,7 +783,7 @@
                              (let [launched-target (->> (engine/launch! engine project-directory prefs debug? instance-index)
                                                         (decorate-target engine-descriptor)
                                                         (targets/add-launched-target! instance-index))]
-                               (when (> count 1)
+                               (when (and (> count 1) (not= instance-index count))
                                  (Thread/sleep pause-ms))        ;pause needed to make sure the launch order of instances is right
                                launched-target))
           last-launched-target (last launched-targets)]
@@ -1237,7 +1237,10 @@
   (enabled? [] true)
   (run [prefs user-data workspace]
        (let [count (:instance-count user-data)]
-         (prefs/set-prefs prefs (prefs/make-project-specific-key "instance-count" workspace) count))))
+         (prefs/set-prefs prefs (prefs/make-project-specific-key "instance-count" workspace) count)))
+  (state [prefs user-data workspace]
+         (= (:instance-count user-data)
+            (prefs/get-prefs prefs (prefs/make-project-specific-key "instance-count" workspace) 1))))
 
 (defn- debugging-supported?
   [project]

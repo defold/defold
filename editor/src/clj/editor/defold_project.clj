@@ -662,6 +662,7 @@
                                                    " Intances"
                                                    " Instance"))
                                    :command :set-instance-count
+                                   :check true
                                    :user-data {:instance-count i}})
                                 (range 1 5))}
                {:label "Build HTML5"
