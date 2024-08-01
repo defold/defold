@@ -22,7 +22,7 @@ def build(bld):
               source = 'test_script.cpp test_script_private.cpp')
 
     web_libs = ['library_sys.js', 'library_script.js']
-    libs = 'TESTMAIN SOCKET APP THREAD EXTENSION RESOURCE DDF DLIB PROFILE_NULL LUA script test_script'
+    libs = 'TESTMAIN SOCKET APP THREAD EXTENSION RESOURCE GRAPHICS_NULL PLATFORM_NULL DDF DLIB PROFILE_NULL LUA script test_script'
     exported_symbols = ['ResourceProviderFile']
 
     test_script_ddf = bld.program(features = flist,

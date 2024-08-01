@@ -1,0 +1,23 @@
+name: Build LuaJIT
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout repo
+      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+
+    - name: Build
+      run: |
+        cd share/ext/luajit
+        ./build_luajit.sh x86_64-linux
+
+    - name: Archive results
+      uses: actions/upload-artifact@v3
+      with:
+        name: Linux luajit
+        path: |
+          ./share/build/luajit*.tar.gz

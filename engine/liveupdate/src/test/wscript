@@ -10,7 +10,7 @@ def configure(conf):
     pass
 
 def build(bld):
-    uselib = ['TESTMAIN', 'DLIB', 'SOCKET', 'DDF', 'THREAD', 'EXTENSION', 'PROFILE_NULL', 'RESOURCE', 'SCRIPT', 'LUA']
+    uselib = ['TESTMAIN', 'DLIB', 'SOCKET', 'DDF', 'THREAD', 'EXTENSION', 'PROFILE_NULL', 'RESOURCE', 'SCRIPT', 'GRAPHICS_NULL', 'PLATFORM_NULL', 'LUA']
     exported_symbols = ['LiveUpdateExt', 'ResourceProviderFile']
 
     for thread_version in ['multi', 'single']:
