@@ -130,6 +130,9 @@
 (defn launched-targets? []
   (seq @launched-targets))
 
+(defn get-all-launched-targets []
+  @launched-targets)
+
 (defn- http-get [^URL url]
   (let [conn   ^URLConnection (doto (.openConnection url)
                                 (.setRequestProperty "Connection" "close")
@@ -312,6 +315,9 @@
 (defn controllable-target? [target]
   (some? (:url target)))
 
+(defn all-launched-targets? [target]
+  (= :all-local-engines (:id target)))
+
 (defn select-target! [prefs target]
   (reset! selected-target-atom target)
   (prefs/set-prefs prefs "selected-target-id" (:id target))
@@ -366,7 +372,7 @@
                (cond
                  (seq launched-options)
                  (if (> (count launched-options) 1)
-                 (into [{:label "Restart All Instances" :check true :command :target :user-data :new-local-engine}] (concat launched-options [separator] ssdp-options))
+                 (into [{:label "All Launched Instances" :check true :command :target :user-data {:id :all-local-engines}}] (concat launched-options [separator] ssdp-options))
                  (into launched-options (concat [separator] ssdp-options)))
 
                  :else

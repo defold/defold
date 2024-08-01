@@ -854,7 +854,7 @@
                                last-launched-target))]
     (try
       (cond
-        (not selected-target)
+        (or (not selected-target) (targets/all-launched-targets? selected-target))
         (launch-new-engine!)
 
         (not (targets/controllable-target? selected-target))
@@ -1367,7 +1367,7 @@ If you do not specifically require different script states, consider changing th
 
 (defn- can-hot-reload? [debug-view prefs evaluation-context]
   (when-some [target (targets/selected-target prefs)]
-    (and (targets/controllable-target? target)
+    (and (or (targets/controllable-target? target) (targets/all-launched-targets? target))
          (not (debug-view/suspended? debug-view evaluation-context))
          (not (build-in-progress?)))))
 
@@ -1403,7 +1403,10 @@ If you do not specifically require different script states, consider changing th
                                                  (not-empty
                                                    (g/with-auto-evaluation-context evaluation-context
                                                      (updated-build-resources evaluation-context project old-etags etags "/game.project")))]
-                                       (engine/reload-build-resources! target updated-build-resources))
+                                       (if (targets/all-launched-targets? target)
+                                         (doseq [launched-target (targets/get-all-launched-targets)]
+                                           (engine/reload-build-resources! launched-target updated-build-resources))
+                                         (engine/reload-build-resources! target updated-build-resources)))
                                      (catch Exception e
                                        (dialogs/make-info-dialog
                                          {:title "Hot Reload Failed"
