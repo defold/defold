@@ -418,6 +418,12 @@
   (run []
        (dialogs/make-target-log-dialog event-log #(reset! event-log []) restart)))
 
+(handler/defhandler :close-engine :global
+  (enabled? [app-view] (launched-targets?))
+  (active? [] true)
+  (run []
+       (kill-launched-targets!)))
+
 (handler/register-menu! ::menubar :editor.defold-project/project-end
   [{:label "Target"
     :id ::target

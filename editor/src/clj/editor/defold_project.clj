@@ -665,6 +665,8 @@
                                    :check true
                                    :user-data {:instance-count i}})
                                 (range 1 5))}
+               {:label "Close Engine"
+                :command :close-engine}
                {:label "Build HTML5"
                 :command :build-html5}
                {:label "Bundle"
