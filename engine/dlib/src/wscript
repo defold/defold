@@ -75,7 +75,7 @@ def build(bld):
         return [x for x in sources if not matches(x.abspath(), patterns)]
 
     # build image sources as separate libraries to make it excludable
-    remove_files(source_files, ['image.cpp', 'image_null.cpp', 'image_common.cpp'])
+    remove_files(source_files, ['image.cpp', 'image_null.cpp'])
 
     if 'arm64-nx64' in bld.env.PLATFORM:
         source_files = remove_files(source_files, ['condition_variable.cpp',
@@ -177,7 +177,7 @@ def build(bld):
 
     image = bld.stlib(features  = 'c cxx',
                     includes    = '.',
-                    source      = 'dlib/image.cpp dlib/image_common.cpp',
+                    source      = 'dlib/image.cpp',
                     target      = 'image',
                     defines     = ['VALGRIND'] + extra_defines)
 
@@ -190,7 +190,7 @@ def build(bld):
 
     image_null = bld.stlib(features = 'c cxx',
                         includes    = '.',
-                        source      = 'dlib/image_null.cpp dlib/image_common.cpp',
+                        source      = 'dlib/image_null.cpp',
                         target      = 'image_null',
                         defines     = ['VALGRIND'] + extra_defines)
 
