@@ -1,6 +1,6 @@
 diff -ruw --exclude=.git repo_a/src/Makefile repo_b/src/Makefile
---- repo_a/src/Makefile	2024-07-31 10:52:58
-+++ repo_b/src/Makefile	2024-07-31 10:53:04
+--- repo_a/src/Makefile	2024-08-02 08:55:48
++++ repo_b/src/Makefile	2024-08-02 08:55:53
 @@ -70,10 +70,10 @@
  # as dynamic mode.
  #
@@ -15,8 +15,8 @@ diff -ruw --exclude=.git repo_a/src/Makefile repo_b/src/Makefile
  # Dynamic mode creates a dynamic library and a dynamically linked luajit.
  # Note: this executable will only run when the library is installed!
 diff -ruw --exclude=.git repo_a/src/lj_alloc.c repo_b/src/lj_alloc.c
---- repo_a/src/lj_alloc.c	2024-07-31 10:52:58
-+++ repo_b/src/lj_alloc.c	2024-07-31 10:53:04
+--- repo_a/src/lj_alloc.c	2024-08-02 08:55:48
++++ repo_b/src/lj_alloc.c	2024-08-02 08:55:53
 @@ -36,7 +36,7 @@
  #ifndef LUAJIT_USE_SYSMALLOC
  
@@ -27,8 +27,8 @@ diff -ruw --exclude=.git repo_a/src/lj_alloc.c repo_b/src/lj_alloc.c
  #define DEFAULT_GRANULARITY	((size_t)128U * (size_t)1024U)
  #define DEFAULT_TRIM_THRESHOLD	((size_t)2U * (size_t)1024U * (size_t)1024U)
 diff -ruw --exclude=.git repo_a/src/lj_jit.h repo_b/src/lj_jit.h
---- repo_a/src/lj_jit.h	2024-07-31 10:52:58
-+++ repo_b/src/lj_jit.h	2024-07-31 10:53:04
+--- repo_a/src/lj_jit.h	2024-08-02 08:55:48
++++ repo_b/src/lj_jit.h	2024-08-02 08:55:53
 @@ -452,11 +452,11 @@
    int32_t retdepth;	/* Return frame depth (count of RETF). */
  
@@ -44,8 +44,8 @@ diff -ruw --exclude=.git repo_a/src/lj_jit.h repo_b/src/lj_jit.h
  
    IRIns *irbuf;		/* Temp. IR instruction buffer. Biased with REF_BIAS. */
 diff -ruw --exclude=.git repo_a/src/lj_obj.h repo_b/src/lj_obj.h
---- repo_a/src/lj_obj.h	2024-07-31 10:52:58
-+++ repo_b/src/lj_obj.h	2024-07-31 10:53:04
+--- repo_a/src/lj_obj.h	2024-08-02 08:55:48
++++ repo_b/src/lj_obj.h	2024-08-02 08:55:53
 @@ -320,15 +320,22 @@
  /* -- Userdata object ----------------------------------------------------- */
  
@@ -71,3 +71,57 @@ diff -ruw --exclude=.git repo_a/src/lj_obj.h repo_b/src/lj_obj.h
  
  /* Userdata types. */
  enum {
+diff -ruw --exclude=.git repo_a/src/msvcbuild.bat repo_b/src/msvcbuild.bat
+--- repo_a/src/msvcbuild.bat	2024-08-02 08:55:48
++++ repo_b/src/msvcbuild.bat	2024-08-02 08:55:53
+@@ -10,6 +10,12 @@
+ @rem   amalg    amalgamated build
+ @rem   static   static linkage
+ 
++echo "ARGUMENTS = '%*'"
++echo "ARG 0 = '%0'"
++echo "ARG 1 = '%1'"
++echo "ARG 2 = '%2'"
++echo "ARG 3 = '%3'"
++
+ @if not defined INCLUDE goto :FAIL
+ 
+ @setlocal
+@@ -60,6 +66,7 @@
+ :X64
+ @if "%1" neq "nogc64" goto :DA
+ @shift
++echo "ARG is 'nogc64'"
+ @set DASC=vm_x86.dasc
+ @set LJCOMPILE=%LJCOMPILE% /DLUAJIT_DISABLE_GC64
+ :DA
+@@ -96,6 +103,7 @@
+ 
+ @if "%1" neq "debug" goto :NODEBUG
+ @shift
++echo "ARG is 'debug'"
+ @set LJCOMPILE=%LJCOMPILE% %DEBUGCFLAGS%
+ @set LJDYNBUILD=%LJDYNBUILD_DEBUG%
+ @set LJLINKTYPE=%LJLINKTYPE_DEBUG%
+@@ -104,18 +112,21 @@
+ @set LJLINK=%LJLINK% %LJLINKTYPE% %LJLINKTARGET%
+ @if "%1"=="amalg" goto :AMALGDLL
+ @if "%1"=="static" goto :STATIC
++echo "ARG is not 'amalg' and not 'static'"
+ %LJCOMPILE% %LJDYNBUILD% lj_*.c lib_*.c
+ @if errorlevel 1 goto :BAD
+ %LJLINK% /DLL /out:%LJDLLNAME% lj_*.obj lib_*.obj
+ @if errorlevel 1 goto :BAD
+ @goto :MTDLL
+ :STATIC
++echo "ARG is 'static'"
+ %LJCOMPILE% lj_*.c lib_*.c
+ @if errorlevel 1 goto :BAD
+ %LJLIB% /OUT:%LJLIBNAME% lj_*.obj lib_*.obj
+ @if errorlevel 1 goto :BAD
+ @goto :MTDLL
+ :AMALGDLL
++echo "ARG is 'amalg'"
+ %LJCOMPILE% %LJDYNBUILD% ljamalg.c
+ @if errorlevel 1 goto :BAD
+ %LJLINK% /DLL /out:%LJDLLNAME% ljamalg.obj lj_vm.obj
