@@ -659,7 +659,7 @@
                {:label "Instance Count On Build"
                 :children (mapv (fn [i]
                                   {:label (str i (if (> i 1)
-                                                   " Intances"
+                                                   " Instances"
                                                    " Instance"))
                                    :command :set-instance-count
                                    :check true
