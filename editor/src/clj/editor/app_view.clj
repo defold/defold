@@ -789,7 +789,7 @@
                                  (Thread/sleep pause-ms))        ;pause needed to make sure the launch order of instances is right
                                launched-target))
           last-launched-target (last launched-targets)]
-      (targets/select-target! prefs last-launched-target)
+      (targets/select-target! prefs {:id :all-launched-targets})
       (report-build-launch-progress! (format "Launched %s" (targets/target-message-label last-launched-target)))
       launched-targets)
     (catch Exception e

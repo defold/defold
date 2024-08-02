@@ -302,7 +302,7 @@
   (start))
 
 (defn all-targets []
-  (concat @launched-targets @ssdp-targets))
+  (concat [{:id :all-launched-targets}] @launched-targets @ssdp-targets))
 
 (defn selected-target [prefs]
   (swap! selected-target-atom
@@ -316,7 +316,7 @@
   (some? (:url target)))
 
 (defn all-launched-targets? [target]
-  (= :all-local-engines (:id target)))
+  (= :all-launched-targets (:id target)))
 
 (defn select-target! [prefs target]
   (reset! selected-target-atom target)
@@ -363,6 +363,7 @@
   (state [user-data prefs]
          (let [selected-target (selected-target prefs)]
            (or (= user-data selected-target)
+               (= (:id user-data) (:id selected-target) :all-launched-targets)
                (and (nil? selected-target)
                     (= user-data :new-local-engine)))))
   (options [user-data]
@@ -372,7 +373,7 @@
                (cond
                  (seq launched-options)
                  (if (> (count launched-options) 1)
-                 (into [{:label "All Launched Instances" :check true :command :target :user-data {:id :all-local-engines}}] (concat launched-options [separator] ssdp-options))
+                 (into [{:label "All Launched Instances" :check true :command :target :user-data {:id :all-launched-targets}}] (concat launched-options [separator] ssdp-options))
                  (into launched-options (concat [separator] ssdp-options)))
 
                  :else
