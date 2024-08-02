@@ -112,6 +112,16 @@ jobs:
       run: |
         ci/ci.sh install --platform=${{ matrix.platform }}
 
+    - uses: nttld/setup-ndk@v1
+      name: Setup NDK
+      with:
+        ndk-version: r25b
+        add-to-path: false
+    - run: ./build.sh
+      env:
+        ANDROID_NDK_HOME: ${{ steps.setup-ndk.outputs.ndk-path }}
+        ANDROID_NDK_ROOT: ${{ steps.setup-ndk.outputs.ndk-path }}
+
     - name: Build
       run: |
         cd share/ext/luajit
