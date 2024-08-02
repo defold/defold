@@ -226,8 +226,8 @@
                   (filter some?))
         errors (filter string? targets-result)
         {external-targets false local-targets true} (group-by local-target? targets)
-        targets (into [] (comp cat (distinct)) [(sort-by :name util/natural-order local-targets)
-                                                (sort-by :name util/natural-order external-targets)])]
+        targets (into [] (comp cat (distinct)) [(sort-by :url local-targets)
+                                                (sort-by :url external-targets)])]
     (doseq [error errors]
       (log-fn error))
     (reset! targets-atom targets)
