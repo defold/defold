@@ -114,6 +114,7 @@ jobs:
 
     - uses: nttld/setup-ndk@v1
       name: Setup NDK
+      id: setup-ndk
       with:
         ndk-version: r25b
         add-to-path: false
