@@ -16,7 +16,7 @@ jobs:
         ./build_luajit.sh x86_64-linux
 
     - name: Archive results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: x86_64-linux-luajit
         path: |
@@ -38,7 +38,7 @@ jobs:
         ./build_luajit.sh ${{ matrix.arch }}
 
     - name: Archive results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: ${{ matrix.arch }}-luajit
         path: |
@@ -60,7 +60,7 @@ jobs:
         ./build_luajit.sh ${{ matrix.arch }}
 
     - name: Archive results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: ${{ matrix.arch }}-luajit
         path: |
@@ -92,7 +92,7 @@ jobs:
         ./build_win32.bat
 
     - name: Archive results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: ${{ matrix.arch }}-win32-luajit
         path: |
@@ -128,7 +128,7 @@ jobs:
         ./build_luajit.sh ${{ matrix.platform }}
 
     - name: Archive results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: ${{ matrix.platform }}-luajit
         path: |
