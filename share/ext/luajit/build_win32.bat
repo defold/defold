@@ -66,7 +66,7 @@ pushd %SOURCE_TARGET%
 if "%platform%" == "x64" goto :BUILD_X64
 
 :BUILD_X32
-cmd "/C msvcbuild.bat nogc64 static dummy"
+cmd "/C msvcbuild.bat static dummy"
 set TARGET_PLATFORM=win32
 set BITDEPTH=32
 goto :BUILD_DONE
