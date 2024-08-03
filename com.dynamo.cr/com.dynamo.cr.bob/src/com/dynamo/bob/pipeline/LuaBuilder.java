@@ -316,7 +316,7 @@ public abstract class LuaBuilder extends Builder<Void> {
         options.add("-b");
         options.add("-d");
         options.add("-g");
-        options.add(gen32bit ? "-W" : "-X")
+        options.add(gen32bit ? "-W" : "-X");
         options.add("-F"); options.add(task.input(0).getPath());
         options.add(inputFile.getAbsolutePath());
         options.add(outputFile.getAbsolutePath());
