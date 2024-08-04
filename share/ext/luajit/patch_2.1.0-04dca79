@@ -1,6 +1,6 @@
 diff -ruw --exclude=.git repo_a/src/Makefile repo_b/src/Makefile
---- repo_a/src/Makefile	2024-08-04 10:10:47
-+++ repo_b/src/Makefile	2024-08-04 10:10:52
+--- repo_a/src/Makefile	2024-08-04 10:18:46
++++ repo_b/src/Makefile	2024-08-04 10:18:50
 @@ -70,10 +70,10 @@
  # as dynamic mode.
  #
@@ -14,18 +14,21 @@ diff -ruw --exclude=.git repo_a/src/Makefile repo_b/src/Makefile
  #
  # Dynamic mode creates a dynamic library and a dynamically linked luajit.
  # Note: this executable will only run when the library is installed!
-@@ -319,7 +319,7 @@
+@@ -319,7 +319,11 @@
      $(error missing: export MACOSX_DEPLOYMENT_TARGET=XX.YY)
    endif
    TARGET_STRIP+= -x
--  TARGET_XCFLAGS+= -DLUAJIT_UNWIND_EXTERNAL
-+  TARGET_XCFLAGS+= -DLUAJIT_UNWIND_INTERNAL
++  ifeq (arm64,$(TARGET_LJARCH))
++    TARGET_XCFLAGS+= -DLUAJIT_UNWIND_INTERNAL
++  else
+     TARGET_XCFLAGS+= -DLUAJIT_UNWIND_EXTERNAL
++  endif
    TARGET_XSHLDFLAGS= -dynamiclib -single_module -undefined dynamic_lookup -fPIC
    TARGET_DYNXLDOPTS=
    TARGET_XSHLDFLAGS+= -install_name $(TARGET_DYLIBPATH) -compatibility_version $(MAJVER).$(MINVER) -current_version $(MAJVER).$(MINVER).255
 diff -ruw --exclude=.git repo_a/src/lj_alloc.c repo_b/src/lj_alloc.c
---- repo_a/src/lj_alloc.c	2024-08-04 10:10:47
-+++ repo_b/src/lj_alloc.c	2024-08-04 10:10:52
+--- repo_a/src/lj_alloc.c	2024-08-04 10:18:46
++++ repo_b/src/lj_alloc.c	2024-08-04 10:18:50
 @@ -36,7 +36,7 @@
  #ifndef LUAJIT_USE_SYSMALLOC
  
@@ -36,8 +39,8 @@ diff -ruw --exclude=.git repo_a/src/lj_alloc.c repo_b/src/lj_alloc.c
  #define DEFAULT_GRANULARITY	((size_t)128U * (size_t)1024U)
  #define DEFAULT_TRIM_THRESHOLD	((size_t)2U * (size_t)1024U * (size_t)1024U)
 diff -ruw --exclude=.git repo_a/src/lj_jit.h repo_b/src/lj_jit.h
---- repo_a/src/lj_jit.h	2024-08-04 10:10:47
-+++ repo_b/src/lj_jit.h	2024-08-04 10:10:52
+--- repo_a/src/lj_jit.h	2024-08-04 10:18:46
++++ repo_b/src/lj_jit.h	2024-08-04 10:18:50
 @@ -452,11 +452,11 @@
    int32_t retdepth;	/* Return frame depth (count of RETF). */
  
@@ -53,8 +56,8 @@ diff -ruw --exclude=.git repo_a/src/lj_jit.h repo_b/src/lj_jit.h
  
    IRIns *irbuf;		/* Temp. IR instruction buffer. Biased with REF_BIAS. */
 diff -ruw --exclude=.git repo_a/src/lj_obj.h repo_b/src/lj_obj.h
---- repo_a/src/lj_obj.h	2024-08-04 10:10:47
-+++ repo_b/src/lj_obj.h	2024-08-04 10:10:52
+--- repo_a/src/lj_obj.h	2024-08-04 10:18:46
++++ repo_b/src/lj_obj.h	2024-08-04 10:18:50
 @@ -320,15 +320,22 @@
  /* -- Userdata object ----------------------------------------------------- */
  
