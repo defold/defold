@@ -142,6 +142,7 @@ namespace dmGameSystem
     void  PushRenderConstant(lua_State* L, dmRender::HConstant constant);
     void  PushVertexAttribute(lua_State* L, const dmGraphics::VertexAttribute* attribute, const uint8_t* value_ptr);
     void  GetSamplerParametersFromLua(lua_State* L, dmGraphics::TextureWrap* u_wrap, dmGraphics::TextureWrap* v_wrap, dmGraphics::TextureFilter* min_filter, dmGraphics::TextureFilter* mag_filter, float* max_anisotropy);
+    void  GetConstantValuesFromLua(lua_State* L, dmRenderDDF::MaterialDesc::ConstantType* type, dmArray<dmVMath::Vector4>* scratch_values);
 
     // gamesys_resource.cpp
     struct CreateTextureResourceParams

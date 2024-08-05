@@ -383,6 +383,114 @@ namespace dmGameSystem
         }
     }
 
+    static dmVMath::Vector4* FillConstantsFromLua(lua_State* L, int index, dmVMath::Vector4* v4_in)
+    {
+        if (dmScript::IsVector4(L, index))
+        {
+            dmVMath::Vector4* v4 = dmScript::CheckVector4(L, index);
+            *v4_in = *v4;
+            v4_in++;
+        }
+        else if (dmScript::IsVector3(L, index))
+        {
+            dmVMath::Vector3* v3 = dmScript::CheckVector3(L, index);
+            v4_in->setXYZ(*v3);
+            v4_in++;
+        }
+        else if (dmScript::IsMatrix4(L, index))
+        {
+            dmVMath::Matrix4* m4 = dmScript::CheckMatrix4(L, index);
+            memcpy(v4_in, m4, sizeof(dmVMath::Vector4) * 4);
+            v4_in += 4;
+        }
+        else
+        {
+            float value = luaL_checknumber(L, index);
+            dmVMath::Vector4 v4;
+            v4.setX(value);
+            v4_in++;
+        }
+        return v4_in;
+    }
+
+    void GetConstantValuesFromLua(lua_State* L, dmRenderDDF::MaterialDesc::ConstantType* type, dmArray<dmVMath::Vector4>* scratch_values)
+    {
+        // parse type
+        {
+            lua_getfield(L, -1, "type");
+            if (!lua_isnil(L, -1))
+            {
+                *type = (dmRenderDDF::MaterialDesc::ConstantType) lua_tointeger(L, -1);
+            }
+            lua_pop(L, 1);
+        }
+
+        // parse value
+        {
+            lua_getfield(L, -1, "value");
+            if (!lua_isnil(L, -1))
+            {
+                if (lua_istable(L, -1))
+                {
+                    uint32_t count = 0;
+
+                    // Count number of values. We can't use lua_objlen here because a matrix types
+                    // equals four value slots, so we need to know exactly what is in the table.
+                    lua_pushvalue(L, -1);
+                    lua_pushnil(L);
+                    while (lua_next(L, -2) != 0)
+                    {
+                        if (dmScript::IsVector4(L, -1) || dmScript::IsVector3(L, -1) || lua_isnumber(L, -1))
+                        {
+                            count++;
+                        }
+                        else if (dmScript::IsMatrix4(L, -1))
+                        {
+                            count += 4;
+                        }
+                        lua_pop(L, 1);
+                    }
+                    lua_pop(L, 1);
+
+                    if (scratch_values->Capacity() < count)
+                    {
+                        scratch_values->SetCapacity(count);
+                    }
+                    scratch_values->SetSize(count);
+
+                    dmVMath::Vector4* write_ptr = scratch_values->Begin();
+
+                    lua_pushvalue(L, -1);
+                    lua_pushnil(L);
+                    while (lua_next(L, -2) != 0)
+                    {
+                        write_ptr = FillConstantsFromLua(L, -1, write_ptr);
+                        lua_pop(L, 1);
+                    }
+                    lua_pop(L, 1);
+                }
+                else
+                {
+                    uint32_t count = 1;
+                    if (dmScript::IsMatrix4(L, -1))
+                    {
+                        count = 4;
+                    }
+
+                    if (scratch_values->Capacity() < count)
+                    {
+                        scratch_values->SetCapacity(count);
+                    }
+
+                    scratch_values->SetSize(count);
+
+                    FillConstantsFromLua(L, -1, scratch_values->Begin());
+                }
+            }
+            lua_pop(L, 1);
+        }
+    }
+
     ScriptLibContext::ScriptLibContext()
     {
         memset(this, 0, sizeof(*this));
