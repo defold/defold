@@ -97,7 +97,7 @@
                      (conj (str local-url "/game.projectc"))
 
                      (and instance-index? (> instance-index 0))
-                     (into [(format "--config=project.instance_index=%d" instance-index)]))]
+                     (conj (format "--config=project.instance_index=%d" instance-index)))]
     (try
       (with-open [os (.getOutputStream conn)]
         (.write os ^bytes (protobuf/map->bytes
