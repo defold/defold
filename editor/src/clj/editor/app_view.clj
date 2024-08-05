@@ -1404,7 +1404,7 @@ If you do not specifically require different script states, consider changing th
                                                    (g/with-auto-evaluation-context evaluation-context
                                                      (updated-build-resources evaluation-context project old-etags etags "/game.project")))]
                                        (if (targets/all-launched-targets? target)
-                                         (doseq [launched-target (targets/get-all-launched-targets)]
+                                         (doseq [launched-target (targets/all-launched-targets)]
                                            (engine/reload-build-resources! launched-target updated-build-resources))
                                          (engine/reload-build-resources! target updated-build-resources)))
                                      (catch Exception e

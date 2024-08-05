@@ -130,7 +130,7 @@
 (defn launched-targets? []
   (seq @launched-targets))
 
-(defn get-all-launched-targets []
+(defn all-launched-targets []
   @launched-targets)
 
 (defn- http-get [^URL url]
@@ -429,6 +429,17 @@
     :id ::target
     :on-submenu-open update!
     :command :target}
+   {:label "Close Engine"
+    :command :close-engine}
+   {:label "Launched Instance Count"
+    :children (mapv (fn [i]
+                      {:label (str i (if (> i 1)
+                                       " Instances"
+                                       " Instance"))
+                       :command :set-instance-count
+                       :check true
+                       :user-data {:instance-count i}})
+                    (range 1 5))}
    {:label "Enter Target IP"
     :command :target-ip}
    {:label "Target Discovery Log"
