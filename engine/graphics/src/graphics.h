@@ -176,16 +176,6 @@ namespace dmGraphics
         AttachmentToBufferType();
     };
 
-    enum TextureUsageHint
-    {
-        TEXTURE_USAGE_HINT_NONE       = 0,
-        TEXTURE_USAGE_HINT_SAMPLE     = 1,
-        TEXTURE_USAGE_HINT_MEMORYLESS = 2,
-        TEXTURE_USAGE_HINT_STORAGE    = 4,
-        TEXTURE_USAGE_HINT_INPUT      = 8,
-        TEXTURE_USAGE_HINT_COLOR      = 16,
-    };
-
     struct TextureCreationParams
     {
         TextureCreationParams()
@@ -196,7 +186,7 @@ namespace dmGraphics
         , m_OriginalWidth(0)
         , m_OriginalHeight(0)
         , m_MipMapCount(1)
-        , m_UsageHintBits(TEXTURE_USAGE_HINT_SAMPLE)
+        , m_UsageHintBits(TEXTURE_USAGE_FLAG_SAMPLE)
         {}
 
         TextureType m_Type;
@@ -705,6 +695,11 @@ namespace dmGraphics
                type == TYPE_SAMPLER_CUBE ||
                type == TYPE_SAMPLER_2D_ARRAY ||
                type == TYPE_IMAGE_2D;
+    }
+
+    static inline uint32_t GetLayerCount(TextureType type)
+    {
+        return type == TEXTURE_TYPE_CUBE_MAP ? 6 : 1;
     }
 
     /**

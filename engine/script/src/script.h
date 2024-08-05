@@ -17,6 +17,7 @@
 
 #include <stdint.h>
 #include <dmsdk/script/script.h>
+#include <dmsdk/graphics/graphics.h>
 
 #include <dlib/vmath.h>
 #include <dlib/hash.h>
@@ -81,14 +82,19 @@ namespace dmScript
      */
     static const char* DEPRECATION_FUNCTION_FMT = "Function '%s.%s' is deprecated. Please use '%s.%s' instead.";
 
+    struct ContextParams
+    {
+        dmConfigFile::HConfig m_ConfigFile;
+        dmResource::HFactory  m_Factory;
+        dmGraphics::HContext  m_GraphicsContext;
+    };
+
     /**
      * Create and return a new context.
-     * @param config_file optional config file handle
-     * @param factory resource factory
-     * @param enable_extensions true if extensions should be initialized for this context
+     * @param params context creation params
      * @return context
      */
-    HContext NewContext(dmConfigFile::HConfig config_file, dmResource::HFactory factory, bool enable_extensions);
+    HContext NewContext(const ContextParams& params);
 
     /**
      * Delete an existing context.

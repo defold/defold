@@ -787,7 +787,7 @@ namespace dmEngineService
         SendText(request, dmHashReverseSafe64(property->m_NameHash));
         SendText(request, "\": ");
 
-        char buffer[128];
+        char buffer[512];
         buffer[0] = 0;
 
         switch(property->m_Type)

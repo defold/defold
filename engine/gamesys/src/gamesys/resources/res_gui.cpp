@@ -200,11 +200,11 @@ namespace dmGameSystem
         for (uint32_t i = 0; i < count; ++i)
         {
             dmGuiDDF::NodeDesc& node_desc = node_descs[i];
-            
+
             if (node_desc.m_SizeMode == dmGuiDDF::NodeDesc::SizeMode::SIZE_MODE_AUTO)
             {
                 dmVMath::Vector4& size = node_desc.m_Size;
-                
+
                 if (size.getX() == 0.0f)
                     size.setX(1.0f);
 

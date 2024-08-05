@@ -27,8 +27,8 @@ local function test_success_simple(self)
 	local header = {
 		width        = width,
 		height       = height,
-		type         = resource.TEXTURE_TYPE_2D,
-		format       = resource.TEXTURE_FORMAT_RGB,
+		type         = graphics.TEXTURE_TYPE_2D,
+		format       = graphics.TEXTURE_FORMAT_RGB,
 		x            = x,
 		y            = y,
 	}
@@ -43,8 +43,8 @@ local function test_success_resize(self)
 	local header = {
 		width        = width,
 		height       = height,
-		type         = resource.TEXTURE_TYPE_2D,
-		format       = resource.TEXTURE_FORMAT_RGB,
+		type         = graphics.TEXTURE_TYPE_2D,
+		format       = graphics.TEXTURE_FORMAT_RGB,
 	}
 	resource.set_texture(resource_path, header, buf)
 end
@@ -59,8 +59,8 @@ local function test_fail_out_of_bounds(self)
 	local header = {
 		width        = width,
 		height       = height,
-		type         = resource.TEXTURE_TYPE_2D,
-		format       = resource.TEXTURE_FORMAT_RGB,
+		type         = graphics.TEXTURE_TYPE_2D,
+		format       = graphics.TEXTURE_FORMAT_RGB,
 		x            = x,
 		y            = y,
 	}
@@ -75,8 +75,8 @@ local function test_fail_wrong_mipmap(self)
 	local header = {
 		width        = width,
 		height       = height,
-		type         = resource.TEXTURE_TYPE_2D,
-		format       = resource.TEXTURE_FORMAT_RGB,
+		type         = graphics.TEXTURE_TYPE_2D,
+		format       = graphics.TEXTURE_FORMAT_RGB,
 		mipmap       = 31,
 	}
 	resource.set_texture(resource_path, header, buf)
@@ -97,11 +97,11 @@ local function test_success_compressed(self)
 	end
 
 	local args = {
-		type             = resource.TEXTURE_TYPE_2D,
+		type             = graphics.TEXTURE_TYPE_2D,
 		width            = 32,
 		height           = 32,
-		format           = resource.TEXTURE_FORMAT_RGB_ETC1,
-		compression_type = resource.COMPRESSION_TYPE_BASIS_UASTC,
+		format           = graphics.TEXTURE_FORMAT_RGB_ETC1,
+		compression_type = graphics.COMPRESSION_TYPE_BASIS_UASTC,
 	}
 
     resource.set_texture(go.get("#sprite", "texture0"), args, tex_buffer)
