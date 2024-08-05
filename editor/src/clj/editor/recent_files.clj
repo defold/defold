@@ -27,13 +27,6 @@
 
 (def ^:private history-size 32)
 
-(defn- make-prefs-key
-  ([workspace]
-   (g/with-auto-evaluation-context evaluation-context
-     (make-prefs-key workspace evaluation-context)))
-  ([workspace evaluation-context]
-   (str "recent-files-by-workspace-root-" (hash (g/node-value workspace :root evaluation-context)))))
-
 (defn- conj-history-item [items x]
   (let [new-items (into [] (remove #(= x %)) items)
         drop-count (- (count new-items)
@@ -46,7 +39,7 @@
   {:pre [(resource/openable? resource)
          (some? (:id view-type))]}
   (let [item [(resource/proj-path resource) (:id view-type)]
-        k (make-prefs-key workspace)]
+        k (prefs/make-project-specific-key "recent-files-by-workspace-root" workspace)]
     (prefs/set-prefs prefs k (conj-history-item (prefs/get-prefs prefs k []) item))
     nil))
 
@@ -57,7 +50,7 @@
         [res view-type]))))
 
 (defn- ordered-resource+view-types [prefs workspace evaluation-context]
-  (-> (prefs/get-prefs prefs (make-prefs-key workspace evaluation-context) [])
+  (-> (prefs/get-prefs prefs (prefs/make-project-specific-key "recent-files-by-workspace-root" workspace evaluation-context) [])
       rseq
       (->> (keep #(project-path+view-type-id->resource+view-type workspace evaluation-context %)))))
 

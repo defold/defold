@@ -90,6 +90,8 @@ enum TextureUsageFlag
     TEXTURE_USAGE_FLAG_SAMPLE     = 1;
     TEXTURE_USAGE_FLAG_MEMORYLESS = 2;
     TEXTURE_USAGE_FLAG_STORAGE    = 4;
+    TEXTURE_USAGE_FLAG_INPUT      = 8;
+    TEXTURE_USAGE_FLAG_COLOR      = 16;
 }
 
 message TextureImage

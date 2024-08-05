@@ -1020,13 +1020,17 @@
                           (cond-> (.y max-p) zero-y inc)
                           (cond-> (.z max-p) zero-z inc)]))))
 
-(defn frame-selection [view animate?]
-  (let [aabb (fudge-empty-aabb (g/node-value view :selected-aabb))
-        camera (view->camera view)
-        viewport (g/node-value view :viewport)
-        local-cam (g/node-value camera :local-camera)
-        end-camera (c/camera-frame-aabb local-cam viewport aabb)]
-    (set-camera! camera local-cam end-camera animate?)))
+(defn frame-selection
+  ([view animate?]
+   (let [aabb (fudge-empty-aabb (g/node-value view :selected-aabb))]
+     (frame-selection view animate? aabb)))
+  ([view animate? aabb]
+   (let [camera (view->camera view)
+         viewport (g/node-value view :viewport)
+         local-cam (g/node-value camera :local-camera)
+         end-camera (c/camera-frame-aabb local-cam viewport aabb)]
+     (set-camera! camera local-cam end-camera animate?))))
+
 
 (defn realign-camera [view animate?]
   (let [aabb (fudge-empty-aabb (g/node-value view :selected-aabb))
@@ -1216,6 +1220,17 @@
               (ui/user-data! image-view ::last-frame-version frame-version)
               (scene-cache/prune-context! gl)
               (reset! async-copy-state-atom (scene-async/finish-image! (scene-async/begin-read! @async-copy-state-atom gl) gl))))))
+      ;; call frame-selection if it's the very first aabb change for the scene
+      (let [prev-aabb (ui/user-data image-view ::prev-scene-aabb)
+            scene-aabb (g/node-value view-id :scene-aabb evaluation-context)
+            active-view (g/node-value view-id :active-view evaluation-context)
+            reframe? (and prev-aabb
+                          (geom/predefined-aabb? prev-aabb)
+                          (not (geom/predefined-aabb? scene-aabb)))]
+        (ui/user-data! image-view ::prev-scene-aabb scene-aabb)
+        (when reframe?
+          (when active-view
+            (frame-selection active-view true scene-aabb))))
       (let [new-image (scene-async/image @async-copy-state-atom)]
         (when-not (identical? (.getImage image-view) new-image)
           (.setImage image-view new-image))))))
