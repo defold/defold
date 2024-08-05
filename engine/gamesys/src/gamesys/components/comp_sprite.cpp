@@ -1840,7 +1840,8 @@ namespace dmGameSystem
     static void CompSpriteSetConstantCallback(void* user_data, dmhash_t name_hash, int32_t value_index, uint32_t* element_index, const dmGameObject::PropertyVar& var)
     {
         SpriteComponent* component = (SpriteComponent*)user_data;
-        if (!component->m_RenderConstants) {
+        if (!component->m_RenderConstants)
+        {
             component->m_RenderConstants = dmGameSystem::CreateRenderConstants();
         }
         dmGameSystem::SetRenderConstant(component->m_RenderConstants, GetMaterial(component), name_hash, value_index, element_index, var);

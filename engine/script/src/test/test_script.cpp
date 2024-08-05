@@ -71,7 +71,10 @@ void ScriptTest::SetUp()
         dmResource::NewFactoryParams factory_params;
         m_ResourceFactory = dmResource::NewFactory(&factory_params, ".");
 
-        m_Context = dmScript::NewContext(m_ConfigFile, m_ResourceFactory, true);
+        dmScript::ContextParams context_params = {};
+        context_params.m_ConfigFile = m_ConfigFile;
+        context_params.m_Factory    = m_ResourceFactory;
+        m_Context = dmScript::NewContext(context_params);
         dmScript::Initialize(m_Context);
         L = dmScript::GetLuaState(m_Context);
     }

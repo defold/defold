@@ -698,11 +698,11 @@ namespace dmGraphics
         default_texture_params.m_Format                 = TEXTURE_FORMAT_RGBA;
         default_texture_creation_params.m_Depth         = 1;
         default_texture_creation_params.m_Type          = TEXTURE_TYPE_IMAGE_2D;
-        default_texture_creation_params.m_UsageHintBits = TEXTURE_USAGE_HINT_STORAGE | TEXTURE_USAGE_HINT_SAMPLE;
+        default_texture_creation_params.m_UsageHintBits = TEXTURE_USAGE_FLAG_STORAGE | TEXTURE_USAGE_FLAG_SAMPLE;
         context->m_DefaultStorageImage2D                = VulkanNewTextureInternal(default_texture_creation_params);
         VulkanSetTextureInternal(context->m_DefaultStorageImage2D, default_texture_params);
 
-        default_texture_creation_params.m_UsageHintBits = TEXTURE_USAGE_HINT_SAMPLE;
+        default_texture_creation_params.m_UsageHintBits = TEXTURE_USAGE_FLAG_SAMPLE;
         default_texture_creation_params.m_Type          = TEXTURE_TYPE_2D_ARRAY;
         default_texture_creation_params.m_Depth         = 1;
         context->m_DefaultTexture2DArray                = VulkanNewTextureInternal(default_texture_creation_params);
@@ -3235,11 +3235,11 @@ bail:
     #define APPEND_IF_SET(usage_hint, vk_enum) \
         if (hint_bits & usage_hint) vk_flags |= vk_enum;
 
-        APPEND_IF_SET(TEXTURE_USAGE_HINT_SAMPLE,     VK_IMAGE_USAGE_SAMPLED_BIT);
-        APPEND_IF_SET(TEXTURE_USAGE_HINT_MEMORYLESS, VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT);
-        APPEND_IF_SET(TEXTURE_USAGE_HINT_INPUT,      VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT);
-        APPEND_IF_SET(TEXTURE_USAGE_HINT_COLOR,      VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
-        APPEND_IF_SET(TEXTURE_USAGE_HINT_STORAGE,    VK_IMAGE_USAGE_STORAGE_BIT);
+        APPEND_IF_SET(TEXTURE_USAGE_FLAG_SAMPLE,     VK_IMAGE_USAGE_SAMPLED_BIT);
+        APPEND_IF_SET(TEXTURE_USAGE_FLAG_MEMORYLESS, VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT);
+        APPEND_IF_SET(TEXTURE_USAGE_FLAG_INPUT,      VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT);
+        APPEND_IF_SET(TEXTURE_USAGE_FLAG_COLOR,      VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT);
+        APPEND_IF_SET(TEXTURE_USAGE_FLAG_STORAGE,    VK_IMAGE_USAGE_STORAGE_BIT);
     #undef APPEND_IF_SET
 
         return vk_flags;
@@ -3554,10 +3554,10 @@ bail:
         InitializeVulkanTexture(tex);
 
     #ifdef __MACH__
-        if (params.m_UsageHintBits & dmGraphics::TEXTURE_USAGE_HINT_INPUT &&
-            params.m_UsageHintBits & dmGraphics::TEXTURE_USAGE_HINT_MEMORYLESS)
+        if (params.m_UsageHintBits & dmGraphics::TEXTURE_USAGE_FLAG_INPUT &&
+            params.m_UsageHintBits & dmGraphics::TEXTURE_USAGE_FLAG_MEMORYLESS)
         {
-            dmLogWarning("Using both usage hints 'TEXTURE_USAGE_HINT_INPUT' and 'TEXTURE_USAGE_HINT_MEMORYLESS' when creating a texture on MoltenVK is not supported. The texture will not be created as memoryless.");
+            dmLogWarning("Using both usage hints 'TEXTURE_USAGE_FLAG_INPUT' and 'TEXTURE_USAGE_FLAG_MEMORYLESS' when creating a texture on MoltenVK is not supported. The texture will not be created as memoryless.");
         }
     #endif
 

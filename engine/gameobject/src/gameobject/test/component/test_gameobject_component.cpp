@@ -41,8 +41,11 @@ protected:
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
         m_Factory = dmResource::NewFactory(&params, "build/src/gameobject/test/component");
-        m_ScriptContext = dmScript::NewContext(0, 0, true);
+
+        dmScript::ContextParams script_context_params = {};
+        m_ScriptContext = dmScript::NewContext(script_context_params);
         dmScript::Initialize(m_ScriptContext);
+
         m_Register = dmGameObject::NewRegister();
         dmGameObject::Initialize(m_Register, m_ScriptContext);
 
@@ -664,7 +667,9 @@ TEST(ComponentApi, CreateDestroyType)
     params.m_MaxResources = 16;
     params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
     dmResource::HFactory factory = dmResource::NewFactory(&params, "build/src/gameobject/test/component");
-    dmScript::HContext script_context = dmScript::NewContext(0, 0, true);
+
+    dmScript::ContextParams script_context_params = {};
+    dmScript::HContext script_context = dmScript::NewContext(script_context_params);
     dmScript::Initialize(script_context);
     dmGameObject::HRegister regist = dmGameObject::NewRegister();
     dmGameObject::Initialize(regist, script_context);

@@ -60,8 +60,11 @@ public:
         dmGraphics::ContextParams graphics_context_params;
         graphics_context_params.m_Window = m_Window;
 
-        m_GraphicsContext        = dmGraphics::NewContext(graphics_context_params);
-        m_Params.m_ScriptContext = dmScript::NewContext(0, 0, true);
+        m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
+
+        dmScript::ContextParams script_context_params = {};
+        script_context_params.m_GraphicsContext = m_GraphicsContext;
+        m_Params.m_ScriptContext = dmScript::NewContext(script_context_params);
         m_Params.m_MaxCharacters = 256;
         m_Params.m_MaxBatches    = 128;
         m_RenderContext          = dmRender::NewRenderContext(m_GraphicsContext, m_Params);
