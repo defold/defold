@@ -100,6 +100,10 @@ public class Task<T> {
             task.data = data;
             return this;
         }
+
+        public IResource firstInput() {
+            return task.inputs.get(0);
+        }
     }
 
     public Task(Builder<T> builder) {

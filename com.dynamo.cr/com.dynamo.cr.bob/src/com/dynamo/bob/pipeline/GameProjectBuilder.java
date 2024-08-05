@@ -80,6 +80,16 @@ import com.dynamo.rig.proto.Rig.AnimationSet;
 @BuilderParams(name = "GameProjectBuilder", inExts = ".project", outExt = "")
 public class GameProjectBuilder extends Builder<Void> {
 
+    // Root nodes to follow (default values from engine.cpp)
+    static final String[][] ROOT_NODES = new String[][] {
+            {"bootstrap", "main_collection", "/logic/main.collectionc"},
+            {"bootstrap", "render", "/builtins/render/default.renderc"},
+            {"bootstrap", "debug_init_script", null},
+            {"input", "game_binding", "/input/game.input_bindingc"},
+            {"input", "gamepads", "/builtins/input/default.gamepadsc"},
+            {"display", "display_profiles", "/builtins/render/default.display_profilesc"}};
+    static String[] gameProjectDependencies;
+
     private static final Logger logger = Logger.getLogger(GameProjectBuilder.class.getName());
 
     private RandomAccessFile createRandomAccessFile(File handle) throws IOException {
@@ -91,6 +101,18 @@ public class GameProjectBuilder extends Builder<Void> {
 
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
+        gameProjectDependencies = new String[ROOT_NODES.length + 1];
+        int index = 0;
+        for (String[] tuples : ROOT_NODES) {
+            gameProjectDependencies[index] = project.getProjectProperties().getStringValue(tuples[0], tuples[1], tuples[2]);
+            index++;
+        }
+        // Editor debugger scripts
+        if (project.option("variant", Bob.VARIANT_RELEASE).equals(Bob.VARIANT_DEBUG)) {
+            gameProjectDependencies[index] = "/builtins/scripts/debugger.luac";
+            index++;
+        }
+
         boolean nonStandardGameProjectFile = !project.getGameProjectResource().getAbsPath().equals(input.getAbsPath());
         if (nonStandardGameProjectFile) {
             throw new CompileExceptionError(input, -1, "Found non-standard game.project file: " + input.getPath());
@@ -136,8 +158,17 @@ public class GameProjectBuilder extends Builder<Void> {
         }
         TimeProfiler.stop();
 
-        Task<?> subTask = project.createTask(input, CopyCustomResourcesBuilder.class);
-        builder.addInputsFromOutputs(subTask);
+        createSubTask(input, CopyCustomResourcesBuilder.class, builder);
+        index = 0;
+        for (String path : gameProjectDependencies) {
+            // initial values already have 'c' in the end
+            if (path != null && path.length() > 0) {
+                path = path.substring(0, path.length() - 1);
+                String[] tuples = ROOT_NODES[index];
+                createSubTask(path, String.format("%s.%s", tuples[0], tuples[1]), builder);
+            }
+            index++;
+        }
 
         // Load texture profile message if supplied and enabled
         String textureProfilesPath = project.getProjectProperties().getStringValue("graphics", "texture_profiles");
@@ -186,14 +217,6 @@ public class GameProjectBuilder extends Builder<Void> {
             project.setTextureProfiles(textureProfiles);
             TimeProfiler.stop();
         }
-
-        TimeProfiler.start("Add inputs");
-        for (Task<?> task : project.getTasks()) {
-            for (IResource output : task.getOutputs()) {
-                builder.addInput(output);
-            }
-        }
-        TimeProfiler.stop();
 
         return builder.build();
     }
@@ -281,26 +304,11 @@ public class GameProjectBuilder extends Builder<Void> {
             return graph;
         }
 
-        // Root nodes to follow (default values from engine.cpp)
-        final String[][] ROOT_NODES = new String[][] {
-            {"bootstrap", "main_collection", "/logic/main.collectionc"},
-            {"bootstrap", "render", "/builtins/render/default.renderc"},
-            {"bootstrap", "debug_init_script", null},
-            {"input", "game_binding", "/input/game.input_bindingc"},
-            {"input", "gamepads", "/builtins/input/default.gamepadsc"},
-            {"display", "display_profiles", "/builtins/render/default.display_profilesc"}};
-        for (String[] tuples : ROOT_NODES) {
-            String path = project.getProjectProperties().getStringValue(tuples[0], tuples[1], tuples[2]);
+        for (String path : gameProjectDependencies) {
             if (path != null) {
                 IResource resource = project.getResource(path);
                 graph.add(resource);
             }
-        }
-
-        // Editor debugger scripts
-        if (project.option("variant", Bob.VARIANT_RELEASE).equals(Bob.VARIANT_DEBUG)) {
-            IResource resource = project.getResource("/builtins/scripts/debugger.luac");
-            graph.add(resource);
         }
         return graph;
     }

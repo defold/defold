@@ -18,6 +18,7 @@ import java.io.IOException;
 import java.security.MessageDigest;
 
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.pipeline.BuilderUtil;
 
 /**
  * Abstract builder class. Extend this class to create a builder
@@ -53,6 +54,33 @@ public abstract class Builder<T> {
                 .addOutput(input.changeExt(params.outExt()))
                 .build();
         return task;
+    }
+
+    /**
+     * Create a task whose outputs will be added to the current task's inputs.
+     * @param input input resource
+     * @param builderClass class to build resource with
+     * @param builder current task builder
+     * @return new subtask with single input/output
+     */
+    protected Task<?> createSubTask(IResource input, Class<? extends Builder<?>> builderClass, Task.TaskBuilder<?> builder) throws CompileExceptionError {
+        Task<?> subTask = project.createTask(input, builderClass);
+        builder.addInputsFromOutputs(subTask);
+        return subTask;
+    }
+
+    /**
+     * Create a task whose outputs will be added to the current task's inputs.
+     * @param inputPath input path to resource
+     * @param field where specified path to the resource
+     * @param builder current task builder
+     * @return new subtask with single input/output
+     */
+    protected Task<?> createSubTask(String inputPath, String field, Task.TaskBuilder<?> builder) throws CompileExceptionError {
+        IResource res = BuilderUtil.checkResource(project, builder.firstInput(), field, inputPath);
+        Task<?> subTask = project.createTask(res);
+        builder.addInputsFromOutputs(subTask);
+        return subTask;
     }
 
     /**
