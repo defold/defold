@@ -114,10 +114,12 @@ namespace dmGameSystem
                 dmResource::PreloadHint(params->m_HintInfo, ddf->m_Textures[i].m_Texture);
             }
         }
-        else
+
+        if (ddf->m_TileSet[0] != '\0')
         {
-            dmResource::PreloadHint(params->m_HintInfo, ddf->m_TileSet);
+            dmLogInfo("Using tilesets for sprites is deprecated. '%s' will not be loaded or used.", ddf->m_TileSet);
         }
+
         dmResource::PreloadHint(params->m_HintInfo, ddf->m_Material);
 
         *params->m_PreloadData = ddf;
