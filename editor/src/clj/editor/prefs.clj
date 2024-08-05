@@ -64,7 +64,7 @@
 (defn make-project-specific-key
   ([key workspace]
    (g/with-auto-evaluation-context evaluation-context
-                                   (make-project-specific-key key workspace evaluation-context)))
+     (make-project-specific-key key workspace evaluation-context)))
   ([key workspace evaluation-context]
    (str key "-" (hash (g/node-value workspace :root evaluation-context)))))
 
