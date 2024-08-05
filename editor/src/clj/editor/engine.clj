@@ -85,14 +85,19 @@
         (.disconnect conn)))))
 
 (defn reboot! [target local-url debug?]
-  (let [uri  (URI. (format "%s/post/@system/reboot" (:url target)))
+  (let [uri (URI. (format "%s/post/@system/reboot" (:url target)))
         conn ^HttpURLConnection (get-connection uri)
+        instance-index (:instance-index target)
+        instance-index? (some? instance-index)
         args (cond-> [(str "--config=resource.uri=" local-url)]
-               debug?
-               (conj (str "--config=bootstrap.debug_init_script=/_defold/debugger/start.luac"))
+                     debug?
+                     (conj (str "--config=bootstrap.debug_init_script=/_defold/debugger/start.luac"))
 
-               true
-               (conj (str local-url "/game.projectc")))]
+                     true
+                     (conj (str local-url "/game.projectc"))
+
+                     (and instance-index? (> instance-index 0))
+                     (conj (format "--config=project.instance_index=%d" instance-index)))]
     (try
       (with-open [os (.getOutputStream conn)]
         (.write os ^bytes (protobuf/map->bytes
@@ -251,18 +256,21 @@
       (copy-dmengine-dependencies! engine-dir extender-platform)
       engine-file)))
 
-(defn launch! [^File engine project-directory prefs debug?]
+(defn launch! [^File engine project-directory prefs debug? instance-index]
   (let [defold-log-dir (some-> (System/getProperty "defold.log.dir")
                                (File.)
                                (.getAbsolutePath))
         command (.getAbsolutePath engine)
         args (cond-> []
-               defold-log-dir
-               (into ["--config=project.write_log=1"
-                      (format "--config=project.log_dir=%s" defold-log-dir)])
+                     defold-log-dir
+                     (into ["--config=project.write_log=1"
+                            (format "--config=project.log_dir=%s" defold-log-dir)])
 
-               debug?
-               (into ["--config=bootstrap.debug_init_script=/_defold/debugger/start.luac"]))
+                     debug?
+                     (into ["--config=bootstrap.debug_init_script=/_defold/debugger/start.luac"])
+
+                     (> instance-index 0)
+                     (into [(format "--config=project.instance_index=%d" instance-index)]))
         env {"DM_SERVICE_PORT" "dynamic"
              "DM_QUIT_ON_ESC" (if (prefs/get-prefs prefs "general-quit-on-esc" false)
                                 "1" "0")
@@ -274,7 +282,7 @@
               :err :stdout
               :env env}]
     ;; Closing "is" seems to cause any dmengine output to stdout/err
-    ;; to generate SIGPIPE and close/crash. Also we need to read
+    ;; to generate SIGPIPE and close/crash. Also, we need to read
     ;; the output of dmengine because there is a risk of the stream
     ;; buffer filling up, stopping the process.
     ;; https://www.securecoding.cert.org/confluence/display/java/FIO07-J.+Do+not+let+external+processes+block+on+IO+buffers

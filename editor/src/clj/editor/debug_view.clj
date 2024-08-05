@@ -473,8 +473,8 @@
 
 (def ^:private mobdebug-port 8172)
 
-(defn- show-connect-failed-dialog! [target-address ^Exception exception]
-  (let [msg (str "Failed to attach debugger to " target-address ":" mobdebug-port ".\n"
+(defn- show-connect-failed-dialog! [target-address port ^Exception exception]
+  (let [msg (str "Failed to attach debugger to " target-address ":" port ".\n"
                  "Check that the game is running and is reachable over the network.\n")]
     (log/error :msg msg :exception exception)
     (dialogs/make-info-dialog
@@ -484,9 +484,9 @@
        :content (.getMessage exception)})))
 
 (defn start-debugger!
-  [debug-view project target-address]
+  [debug-view project target-address instance-index]
   (try
-    (mobdebug/connect! target-address mobdebug-port
+    (mobdebug/connect! target-address (+ mobdebug-port instance-index)
                        (fn [debug-session]
                          (ui/run-now
                            (g/update-property! debug-view :debug-session
@@ -504,7 +504,7 @@
                                             :suspension-state nil)
                            (state-changed! debug-view false))))
     (catch Exception exception
-      (show-connect-failed-dialog! target-address exception))))
+      (show-connect-failed-dialog! target-address (+ mobdebug-port instance-index) exception))))
 
 (defn current-session
   ([debug-view]
@@ -548,16 +548,17 @@
 (defn attach!
   [debug-view project target build-artifacts]
   (let [target-address (:address target "localhost")
+        target-port (+ mobdebug-port (:instance-index target 0))
         lua-module (built-lua-module build-artifacts debugger-init-script)]
     (assert lua-module)
     (let [attach-successful? (try
                                (engine/run-script! target lua-module)
                                true
                                (catch Exception exception
-                                 (show-connect-failed-dialog! target-address exception)
+                                 (show-connect-failed-dialog! target-address target-port exception)
                                  false))]
       (when attach-successful?
-        (start-debugger! debug-view project target-address)))))
+        (start-debugger! debug-view project target-address (:instance-index target 0))))))
 
 (defn detach!
   [debug-view]
