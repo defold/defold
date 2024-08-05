@@ -207,6 +207,8 @@ namespace dmGameSystem
 
         lua_pushinteger(L, texture_flags);
         lua_setfield(L, -2, "flags");
+
+        // JG: We should probably expose format as well.
     }
 
     void PushSampler(lua_State* L, dmRender::HSampler sampler)
@@ -257,22 +259,48 @@ namespace dmGameSystem
         if (type == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4)
         {
             uint32_t num_values;
-            dmVMath::Vector4* values = dmRender::GetConstantValues(constant, &num_values);
-            dmVMath::Matrix4* matrix = (dmVMath::Matrix4*) values;
-            dmScript::PushMatrix4(L, matrix[0]);
-            lua_setfield(L, -2, "value");
+            dmVMath::Vector4* values   = dmRender::GetConstantValues(constant, &num_values);
+            dmVMath::Matrix4* matrices = (dmVMath::Matrix4*) values;
+            uint32_t num_matrices      = num_values / 4;
 
-            // TODO: array
+            if (num_matrices > 1)
+            {
+                lua_newtable(L);
+                for (uint32_t i = 0; i < num_matrices; ++i)
+                {
+                    dmScript::PushMatrix4(L, matrices[i]);
+                    lua_rawseti(L, -2, i + 1);
+                }
+            }
+            else
+            {
+                dmScript::PushMatrix4(L, matrices[0]);
+            }
+
+            lua_setfield(L, -2, "value");
         }
-        else
+        else if (type == dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER)
         {
             uint32_t num_values;
             dmVMath::Vector4* values = dmRender::GetConstantValues(constant, &num_values);
-            dmScript::PushVector4(L, values[0]);
-            lua_setfield(L, -2, "value");
 
-            // TODO: array
+            if (num_values > 1)
+            {
+                lua_newtable(L);
+                for (uint32_t i = 0; i < num_values; ++i)
+                {
+                    dmScript::PushVector4(L, values[i]);
+                    lua_rawseti(L, -2, i + 1);
+                }
+            }
+            else
+            {
+                dmScript::PushVector4(L, values[0]);
+            }
+
+            lua_setfield(L, -2, "value");
         }
+        // Other constant types doesn't have a value
     }
 
     void PushVertexAttribute(lua_State* L, const dmGraphics::VertexAttribute* attribute, const uint8_t* value_ptr)

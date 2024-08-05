@@ -12,31 +12,191 @@
 -- CONDITIONS OF ANY KIND, either express or implied. See the License for the
 -- specific language governing permissions and limitations under the License.
 
+require "lua.test_helpers"
+
 function assert_sampler(sampler, name, u_wrap, v_wrap, min_filter, mag_filter, anisotropy)
-    assert(sampler.name == hash(name))
+    assert(sampler.name == name)
     assert(sampler.u_wrap == u_wrap)
     assert(sampler.v_wrap == v_wrap)
     assert(sampler.min_filter == min_filter)
     assert(sampler.mag_filter == mag_filter)
-    assert(sampler.anisotropy == anisotropy)
+    assert(sampler.max_anisotropy == anisotropy)
+end
+
+function assert_vertex_attribute(attribute, name, value, data_type, coordinate_space, normalize, semantic_type)
+    if is_vec4(attribute.value) then
+        assert(is_vec4(value))
+        assert_vec4(attribute.value, value)
+    elseif is_vec3(attribute.value) then
+        assert(is_vec3(value))
+        assert_vec3(attribute.value, value)
+    else
+        assert(is_number(attribute.value))
+        assert(is_number(value))
+        assert_number(attribute.value, value)
+    end
+
+    assert(attribute.data_type == data_type)
+    assert(attribute.coordinate_space == coordinate_space)
+    assert(attribute.normalize == normalize)
+    assert(attribute.semantic_type == semantic_type)
+    assert(attribute.name == name)
+end
+
+function assert_constant(constant, name, value, type)
+
+    if constant.type == material.CONSTANT_TYPE_USER or constant.type == material.CONSTANT_TYPE_USER_MATRIX4 then
+        if is_table(constant.value) then
+            assert(is_table(value))
+            if constant.type == material.CONSTANT_TYPE_USER then
+               for k,v in pairs(constant.value) do
+                    assert_vec4(v, value[k])
+                end
+            elseif constant.type == material.CONSTANT_TYPE_USER_MATRIX4 then
+                for k,v in pairs(constant.value) do
+                    assert_mat4(v, value[k])
+                end
+            end
+        elseif is_mat4(constant.value) then
+            assert(is_mat4(value))
+            assert_mat4(constant.value, value)
+        elseif is_vec4(constant.value) then
+            assert(is_vec4(value))
+            assert_vec4(constant.value, value)
+        end
+    end
+
+    assert(constant.type == type)
+    assert(constant.name == name)
+end
+
+function assert_texture_resource(texture, path, width, height, type)
+    assert(texture.path == path)
+    assert(texture.width == width)
+    assert(texture.height == height)
+    assert(texture.type == type)
+end
+
+function make_mat4(a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p)
+    local m4 = vmath.matrix4()
+    m4.m00 = a
+    m4.m10 = b
+    m4.m20 = c
+    m4.m30 = d
+    m4.m01 = e
+    m4.m11 = f
+    m4.m21 = g
+    m4.m31 = h
+    m4.m02 = i
+    m4.m12 = j
+    m4.m22 = k
+    m4.m32 = l
+    m4.m03 = m
+    m4.m13 = n
+    m4.m23 = o
+    m4.m33 = p
+    return m4
+end
+
+function test_get(self)
+    local material_samplers = material.get_samplers(self.material)
+    assert_sampler(material_samplers[1], hash("u_sampler2d"), graphics.TEXTURE_WRAP_CLAMP_TO_EDGE, graphics.TEXTURE_WRAP_CLAMP_TO_EDGE, graphics.TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST, graphics.TEXTURE_FILTER_LINEAR, 1)
+    assert_sampler(material_samplers[2], hash("u_samplerCube"), graphics.TEXTURE_WRAP_CLAMP_TO_EDGE, graphics.TEXTURE_WRAP_CLAMP_TO_EDGE, graphics.TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST, graphics.TEXTURE_FILTER_LINEAR, 1)
+    assert_sampler(material_samplers[3], hash("u_sampler2dArray"), graphics.TEXTURE_WRAP_CLAMP_TO_EDGE, graphics.TEXTURE_WRAP_CLAMP_TO_EDGE, graphics.TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST, graphics.TEXTURE_FILTER_LINEAR, 1)
+
+    local material_attributes = material.get_vertex_attributes(self.material)
+    assert_vertex_attribute(material_attributes[1], hash("position"), vmath.vector4(), graphics.DATA_TYPE_FLOAT, graphics.COORDINATE_SPACE_WORLD, false, graphics.SEMANTIC_TYPE_POSITION)
+    assert_vertex_attribute(material_attributes[2], hash("page_index"), 0, graphics.DATA_TYPE_FLOAT, graphics.COORDINATE_SPACE_WORLD, false, graphics.SEMANTIC_TYPE_PAGE_INDEX)
+    assert_vertex_attribute(material_attributes[3], hash("custom_one"), vmath.vector3(), graphics.DATA_TYPE_FLOAT, graphics.COORDINATE_SPACE_WORLD, false, graphics.SEMANTIC_TYPE_NONE)
+    assert_vertex_attribute(material_attributes[4], hash("custom_two"), vmath.vector3(), graphics.DATA_TYPE_FLOAT, graphics.COORDINATE_SPACE_WORLD, false, graphics.SEMANTIC_TYPE_NONE)
+    assert_vertex_attribute(material_attributes[5], hash("custom_three"), vmath.vector4(), graphics.DATA_TYPE_FLOAT, graphics.COORDINATE_SPACE_WORLD, false, graphics.SEMANTIC_TYPE_NONE)
+
+    local material_constants = material.get_constants(self.material)
+    assert_constant(material_constants[1], hash("world"), nil, material.CONSTANT_TYPE_WORLD)
+    assert_constant(material_constants[2], hash("view"), nil, material.CONSTANT_TYPE_VIEW)
+    assert_constant(material_constants[3], hash("proj"), nil, material.CONSTANT_TYPE_PROJECTION)
+    assert_constant(material_constants[4], hash("u_user"), vmath.vector4(1,2,3,4), material.CONSTANT_TYPE_USER)
+    assert_constant(material_constants[5], hash("u_user_mat4"), make_mat4(11,12,13,14,21,22,23,24,31,32,33,34,41,42,43,44), material.CONSTANT_TYPE_USER_MATRIX4)
+    assert_constant(material_constants[6], hash("u_user_arr"), { vmath.vector4(11,12,13,14), vmath.vector4(21,22,23,24) }, material.CONSTANT_TYPE_USER)
+    assert_constant(material_constants[7], hash("u_user_mat4_arr"), { make_mat4(11,12,13,14,21,22,23,24,31,32,33,34,41,42,43,44), make_mat4(101,102,103,104,201,202,203,204,301,302,303,304,401,402,403,404) }, material.CONSTANT_TYPE_USER_MATRIX4)
+
+    local material_textures = material.get_textures(self.material)
+    assert(is_table(material_textures))
+end
+
+function test_set(self)
+    local material_samplers = material.get_samplers(self.material)
+    local material_attributes = material.get_vertex_attributes(self.material)
+    local material_constants = material.get_constants(self.material)
+    local material_textures = material.get_textures(self.material)
+
+    -- Test setting sampler
+    local s1 = material_samplers[1]
+    s1.u_wrap = graphics.TEXTURE_WRAP_REPEAT
+    s1.v_wrap = graphics.TEXTURE_WRAP_REPEAT
+    material.set_sampler(self.material, "u_sampler2d", s1)
+    assert_sampler(material.get_samplers(self.material)[1], s1.name, s1.u_wrap, s1.v_wrap, s1.min_filter, s1.mag_filter, s1.max_anisotropy)
+
+    -- Test setting attribute
+    local a1         = material_attributes[1]
+    a1.value         = vmath.vector3(1,2,3)
+    a1.semantic_type = graphics.SEMANTIC_TYPE_NONE
+    material.set_vertex_attribute(self.material, "position", a1)
+    assert_vertex_attribute(material.get_vertex_attributes(self.material)[1], a1.name, a1.value, a1.data_type, a1.coordinate_space, a1.normalize, a1.semantic_type)
+
+    -- Test setting constant
+    local c1 = material_constants[1]
+    c1.value = make_mat4(11,12,13,14,21,22,23,24,31,32,33,34,41,42,43,44)
+    c1.type = material.CONSTANT_TYPE_USER_MATRIX4
+    material.set_constant(self.material, "world", c1)
+    assert_constant(material.get_constants(self.material)[1], c1.name, c1.value, c1.type)
+
+    -- Test setting constant array
+    local c6 = material_constants[6]
+    c6.value = { vmath.vector4(99,98,97,96),
+                 vmath.vector4(81,82,83,84) }
+    c6.type  = material.CONSTANT_TYPE_USER
+    material.set_constant(self.material, "u_user_arr", c6)
+    assert_constant(material.get_constants(self.material)[6], c6.name, c6.value, c6.type)
+
+    -- Test setting constant array with matrices
+    local c7 = material_constants[7]
+    c7.value = { make_mat4(11,12,13,14,21,22,23,24,31,32,33,34,41,42,43,44),
+                 make_mat4(101,102,103,104,201,202,203,204,301,302,303,304,401,402,403,404) }
+    c7.type  = material.CONSTANT_TYPE_USER_MATRIX4
+    material.set_constant(self.material, "u_user_mat4_arr", c7)
+    assert_constant(material.get_constants(self.material)[7], c7.name, c7.value, c7.type)
+
+    -- Test setting texture(s)
+    local t_id = resource.create_texture("/test_2d.texturec", {
+        width  = 128,
+        height = 128,
+        type   = graphics.TEXTURE_TYPE_2D,
+        format = graphics.TEXTURE_FORMAT_RGBA,
+    })
+    material.set_texture(self.material, "u_sampler2d", t_id)
+    assert_texture_resource(material.get_textures(self.material)[1], t_id, 128, 128, graphics.TEXTURE_TYPE_2D)
+
+    local t_id_cube = resource.create_texture("/test_2d_cube.texturec", {
+        width  = 128,
+        height = 128,
+        type   = graphics.TEXTURE_TYPE_CUBE_MAP,
+        format = graphics.TEXTURE_FORMAT_RGBA,
+    })
+
+    material.set_texture(self.material, "u_samplerCube", t_id_cube)
+    assert_texture_resource(material.get_textures(self.material)[2], t_id_cube, 128, 128, graphics.TEXTURE_TYPE_CUBE_MAP)
+
+    -- TODO: Add test for array textures when we can create them!
+
+    -- Assigning wrong texture type should not work
+    assert_error(function() material.set_texture(self.material, "u_sampler2d", t_id_cube) end)
+    assert_error(function() material.set_texture(self.material, "u_samplerCube", t_id) end)
 end
 
 function init(self)
     self.material = "/misc/material_compute_modules/material_module.materialc"
 
-    local material_samplers = material.get_samplers(self.material)
-    assert_sampler(material_samplers[1], "u_sampler2d")
-    assert_sampler(material_samplers[2], "u_samplerCube")
-    assert_sampler(material_samplers[3], "u_sampler2dArray")
-
-    pprint(material_samplers)
-
-    local material_attributes = material.get_vertex_attributes(self.material)
-    pprint(material_attributes)
-
-    local material_constants = material.get_constants(self.material)
-    pprint(material_constants)
-
-    local material_textures = material.get_textures(self.material)
-    pprint(material_textures)
+    test_get(self)
+    test_set(self)
 end

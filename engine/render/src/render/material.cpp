@@ -474,6 +474,7 @@ namespace dmRender
             }
         }
 
+        // TODO: Compare if the vertex declaration has changed and update it if necessary
         CreateVertexDeclaration(GetGraphicsContext(material->m_RenderContext), material);
     }
 

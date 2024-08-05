@@ -28,6 +28,23 @@ fragment_constants {
 }
 
 fragment_constants {
+  name: "u_user_arr"
+  type: CONSTANT_TYPE_USER
+  value {
+    x: 11.0
+    y: 12.0
+    z: 13.0
+    w: 14.0
+  }
+  value {
+    x: 21.0
+    y: 22.0
+    z: 23.0
+    w: 24.0
+  }
+}
+
+fragment_constants {
   name: "u_user_not_found"
   type: CONSTANT_TYPE_USER
 }
@@ -58,6 +75,60 @@ fragment_constants {
     y: 42.0
     z: 43.0
     w: 44.0
+  }
+}
+
+fragment_constants {
+  name: "u_user_mat4_arr"
+  type: CONSTANT_TYPE_USER_MATRIX4
+  value {
+    x: 11.0
+    y: 12.0
+    z: 13.0
+    w: 14.0
+  }
+  value {
+    x: 21.0
+    y: 22.0
+    z: 23.0
+    w: 24.0
+  }
+  value {
+    x: 31.0
+    y: 32.0
+    z: 33.0
+    w: 34.0
+  }
+  value {
+    x: 41.0
+    y: 42.0
+    z: 43.0
+    w: 44.0
+  }
+
+  value {
+    x: 101.0
+    y: 102.0
+    z: 103.0
+    w: 104.0
+  }
+  value {
+    x: 201.0
+    y: 202.0
+    z: 203.0
+    w: 204.0
+  }
+  value {
+    x: 301.0
+    y: 302.0
+    z: 303.0
+    w: 304.0
+  }
+  value {
+    x: 401.0
+    y: 402.0
+    z: 403.0
+    w: 404.0
   }
 }
 

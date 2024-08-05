@@ -257,7 +257,6 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 0);
         luaL_register(L, LIB_NAME, ScriptCompute_methods);
-        RegisterMaterialConstantTypes(L);
         lua_pop(L, 1);
     }
 

@@ -46,6 +46,7 @@ namespace dmGameSystem
     struct MaterialModule
     {
         dmResource::HFactory m_Factory;
+        dmArray<dmVMath::Vector4> m_ScratchValues;
     } g_MaterialModule;
 
     static inline MaterialResource* CheckMaterialResource(lua_State* L, int index)
@@ -460,10 +461,11 @@ namespace dmGameSystem
         }
 
         dmGraphics::VertexAttribute attribute = {};
-        memcpy(&attribute, &info.m_Attribute, sizeof(dmGraphics::VertexAttribute));
+        memcpy(&attribute, info.m_Attribute, sizeof(dmGraphics::VertexAttribute));
 
-        uint8_t values_bytes[sizeof(dmVMath::Vector4)] = {};
-        float values_float[4] = {};
+        uint8_t values_bytes[sizeof(dmVMath::Matrix4)] = {};
+        uint32_t values_size = 0;
+        float values_float[16] = {};
 
         luaL_checktype(L, 3, LUA_TTABLE);
         lua_pushvalue(L, 3);
@@ -473,11 +475,29 @@ namespace dmGameSystem
             lua_getfield(L, -1, "value");
             if (!lua_isnil(L, -1))
             {
-                dmVMath::Vector4* v4 = dmScript::CheckVector4(L, -1);
-                values_float[0] = v4->getX();
-                values_float[1] = v4->getY();
-                values_float[2] = v4->getZ();
-                values_float[3] = v4->getW();
+                if (dmScript::IsVector4(L, -1))
+                {
+                    dmVMath::Vector4* v4 = dmScript::CheckVector4(L, -1);
+                    values_size = sizeof(dmVMath::Vector4);
+                    memcpy(values_float, v4, values_size);
+                }
+                else if (dmScript::IsVector3(L, -1))
+                {
+                    dmVMath::Vector3* v3 = dmScript::CheckVector3(L, -1);
+                    values_size = sizeof(dmVMath::Vector3);
+                    memcpy(values_float, v3, values_size);
+                }
+                else if (dmScript::IsMatrix4(L, -1))
+                {
+                    dmVMath::Matrix4* m4 = dmScript::CheckMatrix4(L, -1);
+                    values_size = sizeof(dmVMath::Matrix4);
+                    memcpy(values_float, m4, values_size);
+                }
+                else
+                {
+                    values_float[0] = luaL_checknumber(L, -1);
+                    values_size = sizeof(float);
+                }
             }
             lua_pop(L, 1);
         }
@@ -524,9 +544,15 @@ namespace dmGameSystem
 
         lua_pop(L, 1); // args table
 
-        for (int i = 0; i < attribute.m_ElementCount; ++i)
+        if (values_size > 0)
         {
-            FloatToVertexAttributeDataType(values_float[i], attribute.m_DataType, values_bytes);
+            for (int i = 0; i < attribute.m_ElementCount; ++i)
+            {
+                FloatToVertexAttributeDataType(values_float[i], attribute.m_DataType, values_bytes + i * sizeof(float));
+            }
+
+            attribute.m_Values.m_BinaryValues.m_Data = values_bytes;
+            attribute.m_Values.m_BinaryValues.m_Count = values_size;
         }
 
         dmRender::SetMaterialProgramAttributes(material_res->m_Material, &attribute, 1);
@@ -625,6 +651,36 @@ namespace dmGameSystem
         return 0;
     }
 
+    static dmVMath::Vector4* FillConstantsFromLua(lua_State* L, int index, dmVMath::Vector4* v4_in)
+    {
+        if (dmScript::IsVector4(L, index))
+        {
+            dmVMath::Vector4* v4 = dmScript::CheckVector4(L, index);
+            *v4_in = *v4;
+            v4_in++;
+        }
+        else if (dmScript::IsVector3(L, index))
+        {
+            dmVMath::Vector3* v3 = dmScript::CheckVector3(L, index);
+            v4_in->setXYZ(*v3);
+            v4_in++;
+        }
+        else if (dmScript::IsMatrix4(L, index))
+        {
+            dmVMath::Matrix4* m4 = dmScript::CheckMatrix4(L, index);
+            memcpy(v4_in, m4, sizeof(dmVMath::Vector4) * 4);
+            v4_in += 4;
+        }
+        else
+        {
+            float value = luaL_checknumber(L, index);
+            dmVMath::Vector4 v4;
+            v4.setX(value);
+            v4_in++;
+        }
+        return v4_in;
+    }
+
     /*# sets a shader constant in a material
      * Sets a shader constant in a material, if the constant exists.
      *
@@ -680,17 +736,6 @@ namespace dmGameSystem
         luaL_checktype(L, 3, LUA_TTABLE);
         lua_pushvalue(L, 3);
 
-        // parse value
-        {
-            lua_getfield(L, -1, "value");
-            if (!lua_isnil(L, -1))
-            {
-                dmVMath::Vector4* v4 = dmScript::CheckVector4(L, -1);
-                dmRender::SetMaterialProgramConstant(material_res->m_Material, name_hash, v4, 1);
-            }
-            lua_pop(L, 1);
-        }
-
         // parse type
         {
             lua_getfield(L, -1, "type");
@@ -698,6 +743,72 @@ namespace dmGameSystem
             {
                 dmRenderDDF::MaterialDesc::ConstantType type = (dmRenderDDF::MaterialDesc::ConstantType) lua_tointeger(L, -1);
                 dmRender::SetMaterialProgramConstantType(material_res->m_Material, name_hash, type);
+            }
+            lua_pop(L, 1);
+        }
+
+        // parse value
+        {
+            lua_getfield(L, -1, "value");
+            if (!lua_isnil(L, -1))
+            {
+                if (lua_istable(L, -1))
+                {
+                    uint32_t count = 0;
+
+                    lua_pushvalue(L, -1);
+                    lua_pushnil(L);
+                    while (lua_next(L, -2) != 0)
+                    {
+                        if (dmScript::IsVector4(L, -1) || dmScript::IsVector3(L, -1) || lua_isnumber(L, -1))
+                        {
+                            count++;
+                        }
+                        else if (dmScript::IsMatrix4(L, -1))
+                        {
+                            count += 4;
+                        }
+                        lua_pop(L, 1);
+                    }
+                    lua_pop(L, 1);
+
+                    if (g_MaterialModule.m_ScratchValues.Capacity() < count)
+                    {
+                        g_MaterialModule.m_ScratchValues.SetCapacity(count);
+                    }
+
+                    g_MaterialModule.m_ScratchValues.SetSize(count);
+
+                    dmVMath::Vector4* write_ptr = g_MaterialModule.m_ScratchValues.Begin();
+
+                    lua_pushvalue(L, -1);
+                    lua_pushnil(L);
+                    while (lua_next(L, -2) != 0)
+                    {
+                        write_ptr = FillConstantsFromLua(L, -1, write_ptr);
+                        lua_pop(L, 1);
+                    }
+                    lua_pop(L, 1);
+                }
+                else
+                {
+                    uint32_t count = 1;
+                    if (dmScript::IsMatrix4(L, -1))
+                    {
+                        count = 4;
+                    }
+
+                    if (g_MaterialModule.m_ScratchValues.Capacity() < count)
+                    {
+                        g_MaterialModule.m_ScratchValues.SetCapacity(count);
+                    }
+
+                    g_MaterialModule.m_ScratchValues.SetSize(count);
+
+                    FillConstantsFromLua(L, -1, g_MaterialModule.m_ScratchValues.Begin());
+                }
+
+                dmRender::SetMaterialProgramConstant(material_res->m_Material, name_hash, g_MaterialModule.m_ScratchValues.Begin(), g_MaterialModule.m_ScratchValues.Size());
             }
             lua_pop(L, 1);
         }
@@ -735,7 +846,7 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 0);
         MaterialResource* material_res = CheckMaterialResource(L, 1);
-        dmhash_t name_hash = dmScript::CheckHashOrString(L, 2);
+        dmhash_t name_hash             = dmScript::CheckHashOrString(L, 2);
 
         uint32_t unit = dmRender::GetMaterialSamplerUnit(material_res->m_Material, name_hash);
         if (unit == dmRender::INVALID_SAMPLER_UNIT)
@@ -743,10 +854,28 @@ namespace dmGameSystem
             return luaL_error(L, "Material sampler '%s' not found", dmHashReverseSafe64(name_hash));
         }
 
-        dmhash_t texture_path = dmScript::CheckHashOrString(L, 3);
+        dmhash_t texture_path        = dmScript::CheckHashOrString(L, 3);
         TextureResource* texture_res = (TextureResource*) CheckResource(L, g_MaterialModule.m_Factory, texture_path, "texturec");
 
+        dmGraphics::TextureType texture_type_in = dmGraphics::GetTextureType(texture_res->m_Texture);
+        dmRender::HSampler sampler              = dmRender::GetMaterialSampler(material_res->m_Material, unit);
+
+        uint32_t location;
+        dmGraphics::TextureType texture_type;
+        dmGraphics::TextureWrap u_wrap, v_wrap;
+        dmGraphics::TextureFilter min_filter, mag_filter;
+        float max_anisotropy;
+        dmRender::GetSamplerInfo(sampler, &name_hash, &texture_type, &location, &u_wrap, &v_wrap, &min_filter, &mag_filter, &max_anisotropy);
+
+        if (texture_type != texture_type_in)
+        {
+            return luaL_error(L, "Texture type mismatch. Can't bind a %s texture to a %s sampler",
+                dmGraphics::GetTextureTypeLiteral(texture_type_in),
+                dmGraphics::GetTextureTypeLiteral(texture_type));
+        }
+
         material_res->m_TextureResourcePaths[unit] = texture_path;
+        material_res->m_SamplerNames[unit]         = name_hash;
 
         if (material_res->m_Textures[unit] != texture_res)
         {
@@ -758,6 +887,17 @@ namespace dmGameSystem
             material_res->m_Textures[unit] = texture_res;
         }
 
+        // Recalculate number of textures (similar to res_material.cpp) by checking which samplers exist
+        material_res->m_NumTextures = 0;
+        for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
+        {
+            uint32_t unit = dmRender::GetMaterialSamplerUnit(material_res->m_Material, material_res->m_SamplerNames[i]);
+            if (unit == dmRender::INVALID_SAMPLER_UNIT)
+            {
+                continue;
+            }
+            material_res->m_NumTextures++;
+        }
         return 0;
     }
 
@@ -774,8 +914,11 @@ namespace dmGameSystem
         {0, 0}
     };
 
-    void RegisterMaterialConstantTypes(lua_State* L)
+    static void LuaInit(lua_State* L)
     {
+        DM_LUA_STACK_CHECK(L, 0);
+        luaL_register(L, LIB_NAME, ScriptMaterial_methods);
+
         #define SET_MATERIAL_DDF_ENUM_NAMED(enum_name, name) \
             lua_pushnumber(L, (lua_Number) dmRenderDDF::MaterialDesc:: enum_name); \
             lua_setfield(L, -2, #name);
@@ -792,14 +935,6 @@ namespace dmGameSystem
         SET_MATERIAL_DDF_ENUM_NAMED(ConstantType::CONSTANT_TYPE_WORLDVIEWPROJ, CONSTANT_TYPE_WORLDVIEWPROJ);
 
         #undef SET_MATERIAL_DDF_ENUM_NAMED
-    }
-
-    static void LuaInit(lua_State* L)
-    {
-        DM_LUA_STACK_CHECK(L, 0);
-        luaL_register(L, LIB_NAME, ScriptMaterial_methods);
-
-        RegisterMaterialConstantTypes(L);
 
         lua_pop(L, 1);
     }

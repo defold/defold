@@ -21,7 +21,6 @@ namespace dmGameSystem
 {
     struct ScriptLibContext;
     void ScriptMaterialRegister(const ScriptLibContext& context);
-    void RegisterMaterialConstantTypes(lua_State* L);
 }
 
 #endif // DM_GAMESYS_SCRIPT_MATERIAL_H
