@@ -160,8 +160,6 @@ def install(args):
             "libgl1-mesa-dev",
             "libglw1-mesa-dev",
             "lib32z1",
-            "libc6-dev-i386",       # cross-compile to a 32 bit target on a 64 bit host (LuaJIT)
-            "gcc-multilib",         # cross-compile to a 32 bit target on a 64 bit host (LuaJIT)
             "openssl",
             "tofrodos",
             "tree",
