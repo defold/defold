@@ -16,7 +16,7 @@ jobs:
         ./build_luajit.sh x86_64-linux
 
     - name: Archive results
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: Linux luajit
         path: |
