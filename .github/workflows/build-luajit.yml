@@ -108,16 +108,17 @@ jobs:
     - name: Checkout repo
       uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
 
-    - name: Install dependencies
-      run: |
-        ci/ci.sh install --platform=${{ matrix.platform }}
-
-    - uses: nttld/setup-ndk@v1
-      name: Setup NDK
+    - name: Setup NDK
+      uses: nttld/setup-ndk@v1
       id: setup-ndk
       with:
         ndk-version: r25b
         add-to-path: false
+
+    - name: Install
+      run: |
+        sudo apt-get install -y --no-install-recommends libc6-dev-i386
+        sudo apt-get install -y --no-install-recommends gcc-multilib
 
     - name: Build
       env:
