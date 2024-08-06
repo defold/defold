@@ -16,11 +16,20 @@ def remove_from_node_list(lst, name):
     return [x for x in lst if not has_ext(x, name)]
 
 def build(bld):
+    sources = bld.path.ant_glob(['*.cpp', 'resources/*.cpp', 'components/*.cpp', 'scripts/*.cpp']) + bld.path.parent.parent.ant_glob('proto/gamesys/*')
+    sources = remove_from_node_list(sources, 'comp_model.cpp')
+    sources = remove_from_node_list(sources, 'comp_model_null.cpp')
+    sources = remove_from_node_list(sources, 'model_ddf.proto')
+    sources = remove_from_node_list(sources, 'res_model.cpp')
+    sources = remove_from_node_list(sources, 'res_model_null.cpp')
+    sources = remove_from_node_list(sources, 'script_model.cpp')
+    sources = remove_from_node_list(sources, 'res_rig_scene.cpp')
+    sources = remove_from_node_list(sources, 'res_rig_scene_null.cpp')
     resource = bld.stlib(features = 'cxx ddf embed',
         includes = '. .. ../../src ../../proto',
         proto_gen_py = True,
         protoc_includes = '../../proto',
-        source = bld.path.ant_glob(['*.cpp', 'resources/*.cpp', 'components/*.cpp', 'scripts/*.cpp']) + bld.path.parent.parent.ant_glob('proto/gamesys/*'),
+        source = sources,
         target = 'gamesys')
 
     if bld.env.PLATFORM in ('arm64-ios', 'x86_64-ios'):
@@ -34,6 +43,35 @@ def build(bld):
         resource.source = remove_from_node_list(resource.source, 'script_http.cpp')
     else:
         resource.source = remove_from_node_list(resource.source, 'script_http_js.cpp')
+
+    bld.stlib(features = 'cxx ddf',
+        includes = '. .. ../../src ../../proto',
+        proto_gen_py = True,
+        protoc_includes = '../../proto',
+        source = 'resources/res_model.cpp components/comp_model.cpp scripts/script_model.cpp ../../proto/gamesys/model_ddf.proto',
+        target = 'gamesys_model')
+
+    bld.stlib(features = 'cxx',
+        includes = '. .. ../../src ../../proto',
+        proto_gen_py = True,
+        protoc_includes = '../../proto',
+        source = 'resources/res_model_null.cpp components/comp_model_null.cpp',
+        target = 'gamesys_model_null')
+
+    bld.stlib(features = 'cxx ddf',
+        includes = '. .. ../../src ../../proto',
+        proto_gen_py = True,
+        protoc_includes = '../../proto',
+        source = 'resources/res_rig_scene.cpp',
+        target = 'gamesys_rig')
+
+    bld.stlib(features = 'cxx',
+        includes = '. .. ../../src ../../proto',
+        proto_gen_py = True,
+        protoc_includes = '../../proto',
+        source = 'resources/res_rig_scene_null.cpp',
+        target = 'gamesys_rig_null')
+
 
     bld.add_group() # depends on the proto files (_ddf.h) generated in the previous step
 

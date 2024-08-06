@@ -26,8 +26,7 @@
 
 #include <gamesys/gamesys_ddf.h>
 #include <gamesys/model_ddf.h>
-
-#include "script_model.h"
+#include <extension/extension.h>
 
 extern "C"
 {
@@ -625,11 +624,19 @@ namespace dmGameSystem
             {0, 0}
     };
 
-    void ScriptModelRegister(const ScriptLibContext& context)
+    static dmExtension::Result ScriptModelInitialize(dmExtension::Params* params)
     {
-        lua_State* L = context.m_LuaState;
+        lua_State* L = params->m_L;
         luaL_register(L, MODEL_MODULE_NAME, MODEL_COMP_FUNCTIONS);
         lua_pop(L, 1);
+        return dmExtension::RESULT_OK;
     }
 
+
+    static dmExtension::Result ScriptModelFinalize(dmExtension::Params* params)
+    {
+        return dmExtension::RESULT_OK;
+    }
+
+    DM_DECLARE_EXTENSION(ScriptModelExt, "ScriptModel", 0, 0, ScriptModelInitialize, 0, 0, ScriptModelFinalize)
 }

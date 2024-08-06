@@ -12,21 +12,44 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <glfw/glfw.h>
+#include "image.h"
 
-#include <glfw/glfw_native.h>
-
-#include "platform_window_win32.h"
-
-namespace dmPlatform
+namespace dmImage
 {
-    HWND GetWindowsHWND()
+    HImage NewImage(const void* buffer, uint32_t buffer_size, bool premult)
     {
-    	return glfwGetWindowsHWND();
+        return 0;
     }
 
-    HGLRC GetWindowsHGLRC()
+    void DeleteImage(Image* image)
+    { }
+
+    Result Load(const void* buffer, uint32_t buffer_size, bool premult, bool flip_vertically, Image* image)
     {
-    	return glfwGetWindowsHGLRC();
+        return RESULT_OK;
+    }
+
+    void Free(Image* image)
+    { }
+
+    Type GetType(HImage image)
+    {
+        return dmImage::TYPE_RGB;
+    }
+
+    uint32_t GetWidth(HImage image)
+    {
+        return 0;
+    }
+
+    uint32_t GetHeight(HImage image)
+    {
+        return 0;
+    }
+
+    const void* GetData(HImage image)
+    {
+        return 0;
     }
 }
+

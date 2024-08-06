@@ -12,8 +12,8 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_PLATFORM_WINDOW_WINDOWS_H
-#define DM_PLATFORM_WINDOW_WINDOWS_H
+#ifndef DM_PLATFORM_WINDOW_WIN32_H
+#define DM_PLATFORM_WINDOW_WIN32_H
 
 #include <Windows.h>
 
@@ -21,8 +21,8 @@
 
 namespace dmPlatform
 {
-    HWND  GetWindowsHWND();
-    HGLRC GetWindowsHGLRC();
+    HWND  GetWindowsHWND(HWindow window);
+    HGLRC GetWindowsHGLRC(HWindow window);
 }
 
-#endif // DM_PLATFORM_WINDOW_WINDOWS_H
+#endif // DM_PLATFORM_WINDOW_WIN32_H

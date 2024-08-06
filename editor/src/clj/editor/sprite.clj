@@ -99,7 +99,7 @@
                         vertex-data (if (= :size-mode-auto size-mode)
                                       (texture-set/vertex-data animation-frame)
                                       (slice9/vertex-data animation-frame size slice9 :pivot-center))]
-                    (assoc vertex-data :page-index (:page-index animation-frame))))
+                    (assoc vertex-data :page-index (:page-index animation-frame 0))))
                 scene-infos))]
 
     (conj {:texcoord-datas texcoord-datas
@@ -212,9 +212,7 @@
         pass (:pass render-args)
 
         renderable-datas (mapv renderable-data renderables)
-        num-vertices (count-vertices renderable-datas)
-
-        num-outline-vertices (* 6 (count-quads renderables))]
+        num-vertices (count-vertices renderable-datas)]
     (condp = pass
       pass/transparent
       (let [shader (:shader user-data)

@@ -148,6 +148,7 @@ static void* EngineCreate(int argc, char** argv)
     engine->m_Window = dmPlatform::NewWindow();
 
     dmPlatform::OpenWindow(engine->m_Window, params);
+    dmPlatform::ShowWindow(engine->m_Window);
 
     return &g_EngineCtx;
 }
