@@ -12,20 +12,44 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <dlib/math.h>
-#include <dlib/array.h>
+#include "image.h"
 
-#include <objc/objc.h>
-
-#include "../graphics_vulkan_defines.h"
-#include "../graphics_vulkan_private.h"
-
-#include <platform/platform_window_vulkan.h>
-
-namespace dmGraphics
+namespace dmImage
 {
-    VkResult CreateWindowSurface(dmPlatform::HWindow window, VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, const bool enableHighDPI)
+    HImage NewImage(const void* buffer, uint32_t buffer_size, bool premult)
     {
-        return dmPlatform::VulkanCreateWindowSurface(vkInstance, window, vkSurfaceOut);
+        return 0;
+    }
+
+    void DeleteImage(Image* image)
+    { }
+
+    Result Load(const void* buffer, uint32_t buffer_size, bool premult, bool flip_vertically, Image* image)
+    {
+        return RESULT_OK;
+    }
+
+    void Free(Image* image)
+    { }
+
+    Type GetType(HImage image)
+    {
+        return dmImage::TYPE_RGB;
+    }
+
+    uint32_t GetWidth(HImage image)
+    {
+        return 0;
+    }
+
+    uint32_t GetHeight(HImage image)
+    {
+        return 0;
+    }
+
+    const void* GetData(HImage image)
+    {
+        return 0;
     }
 }
+
