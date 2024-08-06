@@ -3,6 +3,7 @@
             [cljfx.fx.button :as fx.button]
             [cljfx.fx.check-box :as fx.check-box]
             [cljfx.fx.column-constraints :as fx.column-constraints]
+            [cljfx.fx.combo-box :as fx.combo-box]
             [cljfx.fx.grid-pane :as fx.grid-pane]
             [cljfx.fx.h-box :as fx.h-box]
             [cljfx.fx.image-view :as fx.image-view]
@@ -26,7 +27,8 @@
             [editor.util :as util]
             [internal.util :as iutil]
             [util.coll :as coll])
-  (:import [javafx.beans Observable]
+  (:import [com.defold.control DefoldStringConverter]
+           [javafx.beans Observable]
            [javafx.beans.binding Bindings]
            [javafx.scene.control ScrollPane]
            [javafx.scene.control.skin ScrollPaneSkin]
@@ -530,8 +532,20 @@
               :coerce coerce/function
               :doc "button press callback")])
 
-(defn- report-callback-exception [label rt ^Throwable ex]
-  (.println (rt/stderr rt) (str label " failed: " (or (ex-message ex) (.getSimpleName (class ex))))))
+(defn- report-async-error-to-script [future rt label]
+  (future/catch
+    future
+    (fn report-exception [ex]
+      (.println (rt/stderr rt)
+                (str label " failed: " (or (ex-message ex) (.getSimpleName (class ex))))))))
+
+(defn- make-event-handler-0 [rt label lua-fn]
+  (fn event-handler-0 [_]
+    (report-async-error-to-script (rt/invoke-suspending rt lua-fn) rt label)))
+
+(defn- make-event-handler-1 [rt label lua-fn]
+  (fn event-handler-1 [value]
+    (report-async-error-to-script (rt/invoke-suspending rt lua-fn (rt/->lua value)) rt label)))
 
 (defn- button-view-impl [{:keys [rt on_pressed disabled alignment style-class child]
                           :or {disabled false}}]
@@ -542,10 +556,7 @@
        :style-class ["ext-button" style-class]
        :graphic child}
       (cond-> on_pressed
-              (assoc :on-action (fn on-button-pressed [_]
-                                  (future/catch
-                                    (rt/invoke-suspending rt on_pressed)
-                                    #(report-callback-exception "on_pressed" rt %)))))
+              (assoc :on-action (make-event-handler-0 rt "on_pressed" on_pressed)))
       (wrap-in-alignment-container alignment)))
 
 (defn- button-view [props]
@@ -581,15 +592,46 @@
       (cond-> child (assoc :graphic {:fx/type fx.v-box/lifecycle
                                      :style-class "ext-check-box-child"
                                      :children [child]})
-              on_value_changed (assoc :on-selected-changed
-                                      (fn on-value-changed [new-value]
-                                        (future/catch
-                                          (rt/invoke-suspending rt on_value_changed (rt/->lua new-value))
-                                          #(report-callback-exception "on_value_changed" rt %)))))
+              on_value_changed (assoc :on-selected-changed (make-event-handler-1 rt "on_value_changed" on_value_changed)))
       (wrap-in-alignment-container alignment)))
 
 (defn- check-box-view [props]
   {:fx/type fx/ext-get-env :env [:rt] :desc (assoc props :fx/type check-box-view-impl)})
+
+(def ^:private select-box-specific-props
+  [(make-prop :value :coerce coerce/untouched :doc "selected value")
+   (make-prop :on_value_changed :coerce coerce/function :doc "change callback, will receive the new value")
+   (make-prop :options :coerce (coerce/vector-of coerce/untouched) :doc "selectable options" :types ["any[]"])
+   (make-prop :to_string :coerce coerce/function :doc "function that converts an item to string, defaults to <code>tostring</code>")])
+
+(defn- create-select-box-string-converter [rt to_string]
+  (if to_string
+    (DefoldStringConverter.
+      (fn user-provided-to-string [lua-value]
+        (rt/->clj rt coerce/to-string (rt/invoke-immediate rt to_string lua-value))))
+    (DefoldStringConverter.
+      (fn default-to-string [lua-value]
+        (rt/->clj rt coerce/to-string lua-value)))))
+
+(defn- select-box-view-impl [{:keys [rt alignment variant disabled value options on_value_changed to_string]
+                              :or {options []
+                                   disabled false}}]
+  ;; todo:
+  ;;  - converter
+  ;;  - alignment
+  ;;  - variant
+  {:fx/type fxui/ext-memo
+   :fn create-select-box-string-converter
+   :args [rt to_string]
+   :key :converter
+   :desc (cond-> {:fx/type fx.combo-box/lifecycle
+                  :value value
+                  :items options
+                  :disable disabled}
+                 on_value_changed (assoc :on-value-changed (make-event-handler-1 rt "on_value_changed" on_value_changed)))})
+
+(defn- select-box-view [props]
+  {:fx/type fx/ext-get-env :env [:rt] :desc (assoc props :fx/type select-box-view-impl)})
 
 (defn- text-check-box-view [props]
   (check-box-view (assoc props :child (label-view (dissoc props :alignment :variant)))))
@@ -619,7 +661,12 @@
      "check_box"
      :props (into [] cat [check-box-specific-props [(assoc required-child-prop :required false)] input-with-variant-props])
      :description "Generic check box with an optional child component"
-     :fn check-box-view)])
+     :fn check-box-view)
+   (make-component
+     "select_box"
+     :props (into select-box-specific-props input-with-variant-props)
+     :description "Dropdown option select box"
+     :fn select-box-view)])
 
 ;; endregion
 

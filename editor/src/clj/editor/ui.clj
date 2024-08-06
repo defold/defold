@@ -22,8 +22,8 @@
             [editor.error-reporting :as error-reporting]
             [editor.handler :as handler]
             [editor.icons :as icons]
-            [editor.progress :as progress]
             [editor.math :as math]
+            [editor.progress :as progress]
             [editor.util :as eutil]
             [internal.util :as util]
             [service.log :as log]
@@ -31,7 +31,7 @@
             [util.profiler :as profiler])
   (:import [com.defold.control ListCell]
            [com.defold.control LongField]
-           [com.defold.control TreeCell]
+           [com.defold.control DefoldStringConverter TreeCell]
            [com.sun.javafx.application PlatformImpl]
            [com.sun.javafx.event DirectEvent]
            [java.awt Desktop Desktop$Action]
@@ -48,14 +48,13 @@
            [javafx.fxml FXMLLoader]
            [javafx.geometry Orientation Point2D]
            [javafx.scene Group Node Parent Scene]
-           [javafx.scene.control ButtonBase Cell CheckBox CheckMenuItem ChoiceBox ColorPicker ComboBox ComboBoxBase ContextMenu Control Label Labeled ListView Menu MenuBar MenuItem MultipleSelectionModel ProgressBar SelectionMode SelectionModel Separator SeparatorMenuItem Tab TableView TabPane TextArea TextField TextInputControl Toggle ToggleButton Tooltip TreeItem TreeTableView TreeView]
+           [javafx.scene.control ButtonBase Cell CheckBox CheckMenuItem ChoiceBox ColorPicker ComboBox ComboBoxBase ContextMenu Control Label Labeled ListView Menu MenuBar MenuItem MultipleSelectionModel ProgressBar SelectionMode SelectionModel Separator SeparatorMenuItem Tab TabPane TableView TextArea TextField TextInputControl Toggle ToggleButton Tooltip TreeItem TreeTableView TreeView]
            [javafx.scene.image Image ImageView]
            [javafx.scene.input Clipboard ContextMenuEvent DragEvent KeyCode KeyCombination KeyEvent MouseButton MouseEvent]
            [javafx.scene.layout AnchorPane HBox Pane]
            [javafx.scene.shape SVGPath]
-           [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter]
-           [javafx.stage Stage Modality PopupWindow StageStyle Window]
-           [javafx.util Callback Duration StringConverter]))
+           [javafx.stage Modality PopupWindow Stage StageStyle Window]
+           [javafx.util Callback Duration]))
 
 (set! *warn-on-reflection* true)
 
@@ -1777,9 +1776,7 @@
                                                  (let [hbox (doto (HBox.)
                                                               (add-style! "cell"))
                                                        cb (doto (ChoiceBox.)
-                                                            (.setConverter (proxy [StringConverter] []
-                                                                             (fromString [str] (some #{str} (map :label opts)))
-                                                                             (toString [v] (:label v)))))]
+                                                            (.setConverter (DefoldStringConverter. :label #(some #{%} (map :label opts)))))]
                                                    (.setAll (.getItems cb) ^Collection opts)
                                                    (observe (.valueProperty cb) (fn [this old new]
                                                                                   (when new

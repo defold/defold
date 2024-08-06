@@ -56,12 +56,13 @@
             [internal.util :as util]
             [util.coll :as coll]
             [util.fn :as fn])
-  (:import [java.io File]
+  (:import [com.defold.control DefoldStringConverter]
+           [java.io File]
            [javafx.event Event]
            [javafx.scene Node]
            [javafx.scene.control Cell ComboBox ListView ListView$EditEvent TableColumn TableColumn$CellEditEvent TableView TableView$ResizeFeatures]
            [javafx.scene.input KeyCode KeyEvent]
-           [javafx.util Callback StringConverter]))
+           [javafx.util Callback]))
 
 (set! *warn-on-reflection* true)
 
@@ -99,48 +100,27 @@
   {:set [path event]})
 
 (def ^:private uri-string-converter
-  (proxy [StringConverter] []
-    (toString
-      ([] "uri-string-converter")
-      ([v] (str v)))
-    (fromString [v]
-      (url/try-parse v))))
+  (DefoldStringConverter. str url/try-parse))
 
 (def ^:private float-converter
-  (proxy [StringConverter] []
-    (toString
-      ([] "float-string-converter")
-      ([v] (field-expression/format-real v)))
-    (fromString [v]
-      (or (field-expression/to-float v)
-          (throw (RuntimeException.))))))
+  (DefoldStringConverter.
+    field-expression/format-real
+    #(or (field-expression/to-float %) (throw (RuntimeException.)))))
 
 (def ^:private double-converter
-  (proxy [StringConverter] []
-    (toString
-      ([] "double-string-converter")
-      ([v] (field-expression/format-real v)))
-    (fromString [v]
-      (or (field-expression/to-double v)
-          (throw (RuntimeException.))))))
+  (DefoldStringConverter.
+    field-expression/format-real
+    #(or (field-expression/to-double %) (throw (RuntimeException.)))))
 
 (def ^:private int-converter
-  (proxy [StringConverter] []
-    (toString
-      ([] "int-string-converter")
-      ([v] (field-expression/format-int v)))
-    (fromString [v]
-      (or (field-expression/to-int v)
-          (throw (RuntimeException.))))))
+  (DefoldStringConverter.
+    field-expression/format-int
+    #(or (field-expression/to-int %) (throw (RuntimeException.)))))
 
 (def ^:private long-converter
-  (proxy [StringConverter] []
-    (toString
-      ([] "long-string-converter")
-      ([v] (field-expression/format-int v)))
-    (fromString [v]
-      (or (field-expression/to-long v)
-          (throw (RuntimeException.))))))
+  (DefoldStringConverter.
+    field-expression/format-int
+    #(or (field-expression/to-long %) (throw (RuntimeException.)))))
 
 (defn- number-string-converter [value]
   (condp instance? value
@@ -150,14 +130,11 @@
     Long long-converter))
 
 (defn- make-resource-string-converter [workspace]
-  (proxy [StringConverter] []
-    (toString
-      ([] "resource-string-converter")
-      ([v] (resource/resource->proj-path v)))
-    (fromString [v]
-      (some->> (when-not (string/blank? v) v)
-               (workspace/to-absolute-path)
-               (workspace/resolve-workspace-resource workspace)))))
+  (DefoldStringConverter.
+    resource/resource->proj-path
+    #(some->> (when-not (string/blank? %) %)
+              (workspace/to-absolute-path)
+              (workspace/resolve-workspace-resource workspace))))
 
 (defn- contains-ignore-case? [^String str ^String sub]
   (let [sub-length (.length sub)]
@@ -418,13 +395,9 @@
      :style-class ["combo-box" "combo-box-base" "cljfx-form-combo-box"]
      :value value
      :on-value-changed on-value-changed
-     :converter (proxy [StringConverter] []
-                  (toString
-                    ([] "string-converter")
-                    ([value]
-                     (get value->label value (to-string value))))
-                  (fromString [s]
-                    (get label->value s (and from-string (from-string s)))))
+     :converter (DefoldStringConverter.
+                  #(get value->label % (to-string %))
+                  #(get label->value % (and from-string (from-string %))))
      :editable (some? from-string)
      :button-cell (fn [x]
                     {:text (value->label x)})

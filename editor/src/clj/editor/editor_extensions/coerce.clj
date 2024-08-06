@@ -70,12 +70,22 @@
           v)))))
 
 (def string
-  "Coercer the deserializes a Lua string into a string"
+  "Coercer that deserializes a Lua string into a string"
   (fn coerce-string
     [_ x]
     (if (instance? LuaString x)
       (str x)
       (failure x "is not a string"))))
+
+(def to-string
+  "Coercer that deserializes any Lua value to string"
+  (fn coerce-to-string [_ x]
+    ;; This coercer is equivalent to a simple toString call because default
+    ;; toString implementation in LuaJ is thread-safe. It's useful to have such
+    ;; a coercer still: any code that does Lua->Clojure transformation can use
+    ;; this namespace without concern if some functions are thread-safe and some
+    ;; are not
+    (str x)))
 
 (def integer
   "Coercer that deserializes a Lua integer into long"

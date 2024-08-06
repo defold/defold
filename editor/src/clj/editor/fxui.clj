@@ -179,6 +179,43 @@
             {})
    :desc scroll-pane-desc})
 
+(def ^:private child-instance-meta
+  {`fx.component/instance #(-> % :child fx.component/instance)})
+
+(def ext-memo
+  "Extension lifecycle similar to react's useMemo hook
+
+  The result of invoking :fn with :args will be memoized in the cljfx tree and
+  supplied as a value at :key to the child :desc
+
+  Expected props (all required):
+    :fn      function that will be invoked to produce a memoized value
+    :args    a vector of args to the function
+    :key     a key that will be used to assoc memoized value into a child desc
+    :desc    description of the underlying component"
+  (reify fx.lifecycle/Lifecycle
+    (create [_ {:keys [fn args key desc]} opts]
+      (let [value (apply fn args)]
+        (with-meta {:fn fn
+                    :args args
+                    :value value
+                    :child (fx.lifecycle/create fx.lifecycle/dynamic (assoc desc key value) opts)}
+                   child-instance-meta)))
+    (advance [_ component {:keys [fn args key desc]} opts]
+      (if (and (= (:fn component) fn)
+               (= (:args component) args))
+        (update component :child #(fx.lifecycle/advance
+                                    fx.lifecycle/dynamic
+                                    %
+                                    (assoc desc key (:value component))
+                                    opts))
+        (let [value (apply fn args)]
+          (-> component
+              (assoc :fn fn :args args :value value)
+              (update :child #(fx.lifecycle/advance fx.lifecycle/dynamic % (assoc desc key value) opts))))))
+    (delete [_ component opts]
+      (fx.lifecycle/delete fx.lifecycle/dynamic (:child component) opts))))
+
 (defn make-event-filter-prop
   "Creates a prop-config that will add event filter for specified `event-type`
 
@@ -277,7 +314,7 @@
       (with-meta
         {:desc desc
          :child (fx.lifecycle/create lifecycle desc opts)}
-        {`fx.component/instance #(-> % :child fx.component/instance)}))
+        child-instance-meta))
     (advance [_ component desc opts]
       (if (= desc (:desc component))
         component
