@@ -39,5 +39,15 @@ namespace dmPlatform
     {
         return glfwGetNSGLContext(window->m_Window);
     }
+
+    void FocusWindowNative(HWindow window)
+    {
+        glfwFocusWindow(window->m_Window);
+    }
+
+    void CenterWindowNative(Window* wnd, GLFWmonitor* monitor)
+    {
+        // NOP
+    }
 }
 

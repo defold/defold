@@ -152,20 +152,54 @@ namespace dmHID
         }
     }
 
+    static inline uint8_t* RemapGamepadWin32(Gamepad* gamepad, uint8_t* buttons, uint8_t* buttons_remapped)
+    {
+        if (gamepad->m_HatCount == 0)
+        {
+            return buttons;
+        }
+
+        // For win32, hats are placed at the END of the button array on later glfw version,
+        // but old Defold expects the hats to be placed first. So to avoid forcing people to
+        // do a new remapping for their gamepads, we just copy and adjust the hats from the new
+        // glfw format to the old one.
+        int32_t hats_button_count = gamepad->m_HatCount * 4;
+        int32_t hats_start        = gamepad->m_ButtonCount - hats_button_count;
+
+        memcpy(buttons_remapped + hats_button_count, buttons, hats_start);
+        for (int i = 0; i < gamepad->m_HatCount; ++i)
+        {
+            uint32_t hat_base = i * gamepad->m_HatCount;
+            buttons_remapped[hat_base + 0] = buttons[hats_start + hat_base];
+            buttons_remapped[hat_base + 1] = buttons[hats_start + hat_base + 2];
+            buttons_remapped[hat_base + 2] = buttons[hats_start + hat_base + 3];
+            buttons_remapped[hat_base + 3] = buttons[hats_start + hat_base + 1];
+        }
+
+        return buttons_remapped;
+    }
+
     static void GLFWGamepadDriverUpdate(HContext context, GamepadDriver* driver, Gamepad* gamepad)
     {
         int id                = GLFWGetGamepadId((GLFWGamepadDriver*) driver, gamepad);
         int glfw_joystick     = GLFW_JOYSTICKS[id];
         GamepadPacket& packet = gamepad->m_Packet;
 
-        unsigned char buttons[MAX_GAMEPAD_BUTTON_COUNT];
+        uint8_t buttons[MAX_GAMEPAD_BUTTON_COUNT] = {};
+        uint8_t* buttons_ptr = buttons;
+
         gamepad->m_AxisCount   = dmPlatform::GetJoystickAxes(context->m_Window, glfw_joystick, packet.m_Axis, MAX_GAMEPAD_AXIS_COUNT);
         gamepad->m_HatCount    = dmPlatform::GetJoystickHats(context->m_Window, glfw_joystick, packet.m_Hat, MAX_GAMEPAD_HAT_COUNT);
         gamepad->m_ButtonCount = dmPlatform::GetJoystickButtons(context->m_Window, glfw_joystick, buttons, MAX_GAMEPAD_BUTTON_COUNT);
 
+    #ifdef _WIN32
+        uint8_t buttons_remapped[MAX_GAMEPAD_BUTTON_COUNT] = {};
+        buttons_ptr = RemapGamepadWin32(gamepad, buttons, buttons_remapped);
+    #endif
+
         for (uint32_t j = 0; j < gamepad->m_ButtonCount; ++j)
         {
-            if (buttons[j])
+            if (buttons_ptr[j])
             {
                 packet.m_Buttons[j / 32] |= 1 << (j % 32);
             }
