@@ -531,11 +531,6 @@
                     :doc "determines if the input component can be interacted with")]
         common-props))
 
-(def ^:private button-specific-props
-  [(make-prop :on_pressed
-              :coerce coerce/function
-              :doc "button press callback")])
-
 (defn- report-async-error-to-script [future rt label]
   (future/catch
     future
@@ -550,6 +545,13 @@
 (defn- make-event-handler-1 [rt label lua-fn]
   (fn event-handler-1 [value]
     (report-async-error-to-script (rt/invoke-suspending rt lua-fn (rt/->lua value)) rt label)))
+
+;; region button
+
+(def ^:private button-specific-props
+  [(make-prop :on_pressed
+              :coerce coerce/function
+              :doc "button press callback")])
 
 (defn- button-view-impl [{:keys [rt on_pressed disabled alignment style-class child]
                           :or {disabled false}}]
@@ -575,9 +577,13 @@
 (defn- default-button-view [props]
   (button-view (assoc props :style-class "ext-button-default")))
 
+;; endregion
+
 (def ^:private input-with-variant-props
   (into [(enum-prop :variant :enum :input_variant :doc "input variant")]
         common-input-props))
+
+;; region check_box
 
 (def ^:private check-box-specific-props
   [(make-prop :value :coerce coerce/boolean :doc "checked value")
@@ -601,6 +607,13 @@
 
 (defn- check-box-view [props]
   {:fx/type fx/ext-get-env :env [:rt] :desc (assoc props :fx/type check-box-view-impl)})
+
+(defn- text-check-box-view [props]
+  (check-box-view (assoc props :child (label-view (dissoc props :alignment :variant)))))
+
+;; endregion
+
+;; region select_box
 
 (def ^:private select-box-specific-props
   [(make-prop :value :coerce coerce/untouched :doc "selected value")
@@ -643,8 +656,7 @@
 (defn- select-box-view [props]
   {:fx/type fx/ext-get-env :env [:rt] :desc (assoc props :fx/type select-box-view-impl)})
 
-(defn- text-check-box-view [props]
-  (check-box-view (assoc props :child (label-view (dissoc props :alignment :variant)))))
+;; endregion
 
 (def ^:private input-components
   [(make-component
