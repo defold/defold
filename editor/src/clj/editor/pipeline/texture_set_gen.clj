@@ -80,6 +80,16 @@
             (TextureSetGenerator/layoutImages layout inner-padding extrude-borders id->image))
           (.-layouts layout-result))))
 
+(def sprite-trim-mode-edit-type
+  ;; Excludes runtime-only values from the selectable options.
+  (let [selectable-value? (complement #{:sprite-trim-polygons})]
+    {:type :choicebox
+     :options (into []
+                    (keep (fn [[value opts]]
+                            (when (selectable-value? value)
+                              (pair value (:display-name opts)))))
+                    (protobuf/enum-values Tile$SpriteTrimmingMode))}))
+
 (defn- sprite-trim-mode->enum
   [sprite-trim-mode]
   (protobuf/val->pb-enum Tile$SpriteTrimmingMode sprite-trim-mode))
