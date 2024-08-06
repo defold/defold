@@ -134,8 +134,8 @@ namespace dmRender
 
             num_attribute_byte_size += dmGraphics::GetTypeSize(base_type) * element_count;
 
-        #if 1 // Debugging
-            dmLogInfo("Vertex Attribute: %s (%llu)", dmHashReverseSafe64(name_hash), name_hash);
+        #if 0 // Debugging
+            dmLogInfo("Vertex Attribute: %s", dmHashReverseSafe64(name_hash));
             dmLogInfo("type: %d, ele_count: %d, num_vals: %d, loc: %d, valueIndex: %d",
                 (int) type, element_count, num_values, location, material_attribute.m_ValueIndex);
         #endif
