@@ -74,6 +74,9 @@ def build(bld):
             return False
         return [x for x in sources if not matches(x.abspath(), patterns)]
 
+    # build image sources as separate libraries to make it excludable
+    remove_files(source_files, ['image.cpp', 'image_null.cpp'])
+
     if 'arm64-nx64' in bld.env.PLATFORM:
         source_files = remove_files(source_files, ['condition_variable.cpp',
                                                     'mutex.cpp',
@@ -171,6 +174,31 @@ def build(bld):
                         target    = 'zip_noasan')
     libzip_noasan.source = [x for x in libzip.source]
     libzip_noasan.env.append_unique('CFLAGS', FLAG_ST % 's')
+
+    image = bld.stlib(features  = 'c cxx',
+                    includes    = '.',
+                    source      = 'dlib/image.cpp',
+                    target      = 'image',
+                    defines     = ['VALGRIND'] + extra_defines)
+
+    image_noasan = bld(features   = image.features + ['skip_asan'],
+                        includes  = image.includes,
+                        defines   = image.defines,
+                        target    = 'image_noasan')
+    image_noasan.source = image.source
+    image_noasan.env.append_unique('CFLAGS', FLAG_ST % 's')
+
+    image_null = bld.stlib(features = 'c cxx',
+                        includes    = '.',
+                        source      = 'dlib/image_null.cpp',
+                        target      = 'image_null',
+                        defines     = ['VALGRIND'] + extra_defines)
+
+    image_null_noasan = bld.stlib(features          = image_null.features + ['skip_asan'],
+                                       includes     = image_null.includes,
+                                       defines      = image_null.defines,
+                                       target       = 'image_null_noasan')
+    image_null_noasan.source = image_null.source
 
     # ******************************************************************
 

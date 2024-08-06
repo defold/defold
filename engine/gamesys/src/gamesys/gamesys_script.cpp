@@ -34,7 +34,6 @@
 #include "scripts/script_window.h"
 #include "scripts/script_collectionproxy.h"
 #include "scripts/script_buffer.h"
-#include "scripts/script_image.h"
 #include "scripts/script_sys_gamesys.h"
 #include "scripts/script_camera.h"
 #include "scripts/script_http.h"
@@ -146,7 +145,6 @@ namespace dmGameSystem
         ScriptModelRegister(context);
         ScriptWindowRegister(context);
         ScriptCollectionProxyRegister(context);
-        ScriptImageRegister(context);
         ScriptSysGameSysRegister(context);
         ScriptHttpRegister(context);
 
