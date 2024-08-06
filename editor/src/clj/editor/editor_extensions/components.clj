@@ -42,7 +42,6 @@
 ;; both for runtime behavior (coercion) and autocomplete generation.
 
 ;; TODO components:
-;;  - select_box
 ;;  - text_field
 ;;  - external_file_field
 ;;  - resource_field
@@ -605,30 +604,36 @@
    (make-prop :to_string :coerce coerce/function :doc "function that converts an item to string, defaults to <code>tostring</code>")])
 
 (defn- create-select-box-string-converter [rt to_string]
+  ;; if a combo box has no value provided, the default is JVM null
   (if to_string
     (DefoldStringConverter.
-      (fn user-provided-to-string [lua-value]
-        (rt/->clj rt coerce/to-string (rt/invoke-immediate rt to_string lua-value))))
+      (fn user-provided-to-string [maybe-lua-value]
+        (if (nil? maybe-lua-value)
+          ""
+          (rt/->clj rt coerce/to-string (rt/invoke-immediate rt to_string maybe-lua-value)))))
     (DefoldStringConverter.
-      (fn default-to-string [lua-value]
-        (rt/->clj rt coerce/to-string lua-value)))))
+      (fn default-to-string [maybe-lua-value]
+        (if (nil? maybe-lua-value)
+          ""
+          (rt/->clj rt coerce/to-string maybe-lua-value))))))
 
 (defn- select-box-view-impl [{:keys [rt alignment variant disabled value options on_value_changed to_string]
                               :or {options []
-                                   disabled false}}]
-  ;; todo:
-  ;;  - converter
-  ;;  - alignment
-  ;;  - variant
-  {:fx/type fxui/ext-memo
-   :fn create-select-box-string-converter
-   :args [rt to_string]
-   :key :converter
-   :desc (cond-> {:fx/type fx.combo-box/lifecycle
-                  :value value
-                  :items options
-                  :disable disabled}
-                 on_value_changed (assoc :on-value-changed (make-event-handler-1 rt "on_value_changed" on_value_changed)))})
+                                   disabled false
+                                   variant :default}}]
+  (wrap-in-alignment-container
+    {:fx/type fxui/ext-memo
+     :fn create-select-box-string-converter
+     :args [rt to_string]
+     :key :converter
+     :desc (cond-> {:fx/type fx.combo-box/lifecycle
+                    :value value
+                    :pseudo-classes #{variant}
+                    :items options
+                    :disable disabled}
+                   ;(some? value) (assoc :value value)
+                   on_value_changed (assoc :on-value-changed (make-event-handler-1 rt "on_value_changed" on_value_changed)))}
+    alignment))
 
 (defn- select-box-view [props]
   {:fx/type fx/ext-get-env :env [:rt] :desc (assoc props :fx/type select-box-view-impl)})
