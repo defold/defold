@@ -1814,7 +1814,7 @@ def detect(conf):
     elif platform in ('x86_64-linux',):
         conf.env['LIB_OPENAL'] = ['openal']
 
-    conf.env['STLIB_DLIB'] = ['dlib', 'mbedtls', 'zip']
+    conf.env['STLIB_DLIB'] = ['dlib', 'image', 'mbedtls', 'zip']
     conf.env['STLIB_DDF'] = 'ddf'
     conf.env['STLIB_CRASH'] = 'crashext'
     conf.env['STLIB_CRASH_NULL'] = 'crashext_null'
