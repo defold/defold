@@ -43,6 +43,11 @@
 
 ;; TODO components:
 ;;  - text_field
+;;  - value_field
+;;  - value_field's friends:
+;;    - string_field
+;;    - number_field
+;;    - integer_field
 ;;  - external_file_field
 ;;  - resource_field
 
@@ -599,8 +604,8 @@
 
 (def ^:private select-box-specific-props
   [(make-prop :value :coerce coerce/untouched :doc "selected value")
-   (make-prop :on_value_changed :coerce coerce/function :doc "change callback, will receive the new value")
-   (make-prop :options :coerce (coerce/vector-of coerce/untouched) :doc "selectable options" :types ["any[]"])
+   (make-prop :on_value_changed :coerce coerce/function :doc "change callback, will receive the selected value")
+   (make-prop :options :coerce (coerce/vector-of coerce/untouched) :doc "array of selectable options" :types ["any[]"])
    (make-prop :to_string :coerce coerce/function :doc "function that converts an item to string, defaults to <code>tostring</code>")])
 
 (defn- create-select-box-string-converter [rt to_string]
@@ -670,7 +675,7 @@
    (make-component
      "select_box"
      :props (into select-box-specific-props input-with-variant-props)
-     :description "Dropdown option select box"
+     :description "Dropdown select box with an array of options"
      :fn select-box-view)])
 
 ;; endregion
