@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.slice9
-  (:require [editor.geom :as geom]))
+  (:require [editor.geom :as geom]
+            [util.coll :as coll :refer [pair]]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -108,8 +109,8 @@
 
 (defn vertex-data
   [{:keys [width height tex-coords] :as _frame} size slice9 pivot]
-  (let [^double texture-width (or width (first size) 1.0)
-        ^double texture-height (or height (second size) 1.0)
+  (let [texture-width (max 1.0 (double (or width (first size) 0.0)))
+        texture-height (max 1.0 (double (or height (second size) 0.0)))
         ;; Sample tex-coords if anim from tile source:
         ;;
         ;;  no flip:  [[0.0 0.140625] [0.0 1.0] [0.5566406 1.0] [0.5566406 0.140625]]   TL BL BR TR     T-B-B-T L-L-R-R
@@ -220,10 +221,20 @@
         x-steps [0.0 ^double (get slice9 0) (- box-width ^double (get slice9 2)) box-width]
         y-steps [0.0 ^double (get slice9 3) (- box-height ^double (get slice9 1)) box-height]
         xy-box-coords (ranges->box-corner-coords (steps->ranges x-steps) (steps->ranges y-steps))
-        non-empty-xy-box-coords+uv-boxes (into []
-                                               (filter (fn [[[x0 y0 x1 y1] _uv-box]]
-                                                         (and (not= x0 x1) (not= y0 y1))))
-                                               (map vector xy-box-coords uv-boxes))
+        empty-xy-box-coords+uv-boxes (mapv pair xy-box-coords uv-boxes)
+
+        non-empty-xy-box-coords+uv-boxes
+        (or (coll/not-empty
+              (filterv
+                (fn [[[x0 y0 x1 y1] _uv-box]]
+                  (and (not= x0 x1) (not= y0 y1)))
+                empty-xy-box-coords+uv-boxes))
+            ;; We need *some* geometry, or it will eventually result in invalid
+            ;; buffers that will likely crash the GL driver. When all 9 boxes
+            ;; are empty, use the center slice. This can happen with a manual
+            ;; size of zero.
+            [(empty-xy-box-coords+uv-boxes 4)])
+
         non-empty-xy-boxes (mapv (comp (partial geom/transl (pivot-offset pivot size))
                                        box-corner-coords->vertices3
                                        first)

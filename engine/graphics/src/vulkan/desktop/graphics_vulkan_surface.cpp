@@ -12,11 +12,6 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <dlib/math.h>
-#include <dlib/array.h>
-
-#include <objc/objc.h>
-
 #include "../graphics_vulkan_defines.h"
 #include "../graphics_vulkan_private.h"
 

@@ -51,8 +51,8 @@ namespace dmGraphics
 #endif
 
 #if defined(_MSC_VER)
-    HWND GetNativeWindowsHWND()             { return dmPlatform::GetWindowsHWND(); }
-    HGLRC GetNativeWindowsHGLRC()           { return dmPlatform::GetWindowsHGLRC(); }
+    HWND GetNativeWindowsHWND()             { return dmPlatform::GetWindowsHWND(GetWindow(GetInstalledContext())); }
+    HGLRC GetNativeWindowsHGLRC()           { return dmPlatform::GetWindowsHGLRC(GetWindow(GetInstalledContext())); }
 #else
     HWND GetNativeWindowsHWND()             { return 0; }
     HGLRC GetNativeWindowsHGLRC()           { return 0; }
