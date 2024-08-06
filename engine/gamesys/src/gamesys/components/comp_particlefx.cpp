@@ -263,6 +263,18 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
+    static inline dmRender::HMaterial GetComponentMaterial(const dmParticle::EmitterRenderData* rd)
+    {
+        dmGameSystem::MaterialResource* material_res = (dmGameSystem::MaterialResource*) rd->m_Material;
+        return material_res->m_Material;
+    }
+
+    static inline dmRender::HMaterial GetRenderMaterial(dmRender::HRenderContext render_context, const dmParticle::EmitterRenderData* rd)
+    {
+        dmRender::HMaterial context_material = dmRender::GetContextMaterial(render_context);
+        return context_material ? context_material : GetComponentMaterial(rd);
+    }
+
     static void RenderBatch(ParticleFXWorld* pfx_world, dmRender::HRenderContext render_context, dmRender::RenderListEntry* buf, uint32_t* begin, uint32_t* end)
     {
         DM_PROFILE("ParticleRenderBatch");
@@ -270,8 +282,9 @@ namespace dmGameSystem
         ParticleFXContext* pfx_context = pfx_world->m_Context;
         dmParticle::HParticleContext particle_context = pfx_world->m_ParticleContext;
 
-        dmGameSystem::MaterialResource* material_res = (dmGameSystem::MaterialResource*) first->m_Material;
-        dmGraphics::HVertexDeclaration vx_decl = dmRender::GetVertexDeclaration(material_res->m_Material);
+        dmRender::HMaterial material = GetRenderMaterial(render_context, first);
+
+        dmGraphics::HVertexDeclaration vx_decl = dmRender::GetVertexDeclaration(material);
         uint32_t vx_stride = dmGraphics::GetVertexDeclarationStride(vx_decl);
         uint32_t max_size = pfx_context->m_MaxParticleCount * 6 * vx_stride;
 
@@ -300,7 +313,7 @@ namespace dmGameSystem
 
         dmGraphics::VertexAttributeInfos emitter_attribute_info = {};
         dmGraphics::VertexAttributeInfos material_attribute_info;
-        FillMaterialAttributeInfos(material_res->m_Material, vx_decl, &material_attribute_info);
+        FillMaterialAttributeInfos(material, vx_decl, &material_attribute_info);
 
         for (uint32_t *i = begin; i != end; ++i)
         {
@@ -348,8 +361,8 @@ namespace dmGameSystem
 
         dmRender::RenderObject& ro = pfx_world->m_RenderObjects[ro_index];
         ro.Init();
-        ro.m_Material          = material_res->m_Material;
-        ro.m_VertexDeclaration = dmRender::GetVertexDeclaration(material_res->m_Material);
+        ro.m_Material          = GetComponentMaterial(first);
+        ro.m_VertexDeclaration = dmRender::GetVertexDeclaration(material);
         ro.m_Textures[0]       = texture;
         ro.m_VertexStart       = vertex_offset;
         ro.m_VertexCount       = ro_vertex_count;

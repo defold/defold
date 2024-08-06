@@ -293,6 +293,11 @@ namespace dmRender
         return render_context->m_View;
     }
 
+    HMaterial GetContextMaterial(HRenderContext render_context)
+    {
+        return render_context->m_Material;
+    }
+
     void SetViewMatrix(HRenderContext render_context, const Matrix4& view)
     {
         render_context->m_View = view;
