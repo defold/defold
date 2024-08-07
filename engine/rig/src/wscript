@@ -13,6 +13,7 @@ def build(bld):
               target          = 'rig',
               use             = 'DDF DLIB SOCKET',
               source          = 'rig.cpp ../proto/rig/rig_ddf.proto')
+    bld.add_group()
 
     bld.stlib(features        = 'cxx ddf',
               includes        = ['.', '..', '../proto'],
