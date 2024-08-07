@@ -738,7 +738,7 @@ namespace dmGameSystem
      * @param args [type:table] A table of what to update. Supported entries:
      *
      * `texture`
-     * : [type:hash|handle] the texture to set. Can be either a texture resource hash or a texture handle.
+     * : [type:hash] the texture resource to set.
      *
      * @examples
      * Set a texture in a material from a resource
