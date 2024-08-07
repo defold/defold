@@ -60,7 +60,21 @@ namespace dmImage
      * @param type
      * @return bytes per pixel. zero if the type is unknown
      */
-    uint32_t BytesPerPixel(Type type);
+    inline uint32_t BytesPerPixel(Type type)
+    {
+        switch (type)
+        {
+        case dmImage::TYPE_RGB:
+            return 3;
+        case dmImage::TYPE_RGBA:
+            return 4;
+        case dmImage::TYPE_LUMINANCE:
+            return 1;
+        case dmImage::TYPE_LUMINANCE_ALPHA:
+            return 2;
+        }
+        return 0;
+    }
 }
 
 #endif // #ifndef DM_IMAGE_H

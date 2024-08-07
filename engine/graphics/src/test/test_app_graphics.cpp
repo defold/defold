@@ -650,6 +650,7 @@ static void* EngineCreate(int argc, char** argv)
     }
 
     dmPlatform::OpenWindow(engine->m_Window, window_params);
+    dmPlatform::ShowWindow(engine->m_Window);
 
     dmGraphics::ContextParams graphics_context_params = {};
     graphics_context_params.m_DefaultTextureMinFilter = dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;

@@ -31,11 +31,9 @@
 #include "scripts/script_factory.h"
 #include "scripts/script_collection_factory.h"
 #include "scripts/script_resource.h"
-#include "scripts/script_model.h"
 #include "scripts/script_window.h"
 #include "scripts/script_collectionproxy.h"
 #include "scripts/script_buffer.h"
-#include "scripts/script_image.h"
 #include "scripts/script_sys_gamesys.h"
 #include "scripts/script_camera.h"
 #include "scripts/script_http.h"
@@ -516,10 +514,8 @@ namespace dmGameSystem
         ScriptSpriteRegister(context);
         ScriptSoundRegister(context);
         ScriptResourceRegister(context);
-        ScriptModelRegister(context);
         ScriptWindowRegister(context);
         ScriptCollectionProxyRegister(context);
-        ScriptImageRegister(context);
         ScriptSysGameSysRegister(context);
         ScriptHttpRegister(context);
         ScriptMaterialRegister(context);

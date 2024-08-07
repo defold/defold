@@ -7,8 +7,8 @@ if not defined PLATFORM goto :FAIL
 set TMP_TARGET=tmp_%PLATFORM%
 
 set URL=https://github.com/LuaJIT/LuaJIT/archive/
-set SHA1=6c4826f12c4d33b8b978004bc681eb1eef2be977
-set SHA1_SHORT=6c4826f
+set SHA1=04dca7911ea255f37be799c18d74c305b921c1a6
+set SHA1_SHORT=04dca79
 set VERSION=2.1.0-%SHA1_SHORT%
 set PRODUCT=luajit
 set TARGET_FILE=%PRODUCT%-%VERSION%
@@ -39,14 +39,14 @@ del %ZIPFILENAME%
 if not exist %PATCH_FILE% goto ZIPEXTRACTED
 
 echo "**************************************************"
-echo "Applying patch $PATCH_FILE"
+echo "Applying patch %PATCH_FILE%"
 echo "**************************************************"
 
 set FOLDER=%~dp0\%TMP_TARGET%\%PACKAGEDIR%\
 set PATCH_PATH=%~dp0\%PATCH_FILE%
 
 pushd %FOLDER%
-git apply --unsafe-paths %PATCH_PATH%
+git apply --unsafe-paths --ignore-space-change --ignore-whitespace %PATCH_PATH%
 popd
 
 
@@ -66,7 +66,7 @@ pushd %SOURCE_TARGET%
 if "%platform%" == "x64" goto :BUILD_X64
 
 :BUILD_X32
-cmd "/C msvcbuild.bat nogc64 static dummy"
+cmd "/C msvcbuild.bat static dummy"
 set TARGET_PLATFORM=win32
 set BITDEPTH=32
 goto :BUILD_DONE

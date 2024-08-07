@@ -116,11 +116,6 @@ namespace dmGui
         return ADJUST_REFERENCE_DISABLED;
     }
 
-    dmRig::HRigContext GetRigContext(HScene scene)
-    {
-        return 0;
-    }
-
     void SetDisplayProfiles(HContext context, void* display_profiles)
     {
     }
