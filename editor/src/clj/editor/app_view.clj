@@ -1273,7 +1273,7 @@ If you do not specifically require different script states, consider changing th
                                  (when (or engine skip-engine)
                                    (when-let [target (launch-built-project! project engine project-directory prefs web-server true workspace)]
                                      (when (nil? (debug-view/current-session debug-view))
-                                       (debug-view/start-debugger! debug-view project (:address target "localhost") (:instance-index target 0))))))))))
+                                       (debug-view/start-debugger! debug-view project (:address target "localhost") (:instance-index target 0) workspace)))))))))
 
 (defn- attach-debugger! [workspace project prefs debug-view render-build-error!]
   (async-build! project
@@ -1288,7 +1288,7 @@ If you do not specifically require different script states, consider changing th
                              (when (handle-build-results! workspace render-build-error! build-results)
                                (let [target (targets/selected-target prefs)]
                                  (when (targets/controllable-target? target)
-                                   (debug-view/attach! debug-view project target (:artifacts build-results))))))))
+                                   (debug-view/attach! debug-view project target (:artifacts build-results) workspace)))))))
 
 (handler/defhandler :start-debugger :global
   ;; NOTE: Shares a shortcut with :debug-view/continue.
