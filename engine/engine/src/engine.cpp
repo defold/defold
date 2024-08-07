@@ -1327,6 +1327,8 @@ namespace dmEngine
 
         dmGui::SetDisplayProfiles(engine->m_GuiContext, engine->m_DisplayProfiles);
 
+        dmPlatform::ShowWindow(engine->m_Window);
+
         // clear it a couple of times, due to initialization of extensions might stall the updates
         for (int i = 0; i < 3; ++i) {
             dmGraphics::BeginFrame(engine->m_GraphicsContext);

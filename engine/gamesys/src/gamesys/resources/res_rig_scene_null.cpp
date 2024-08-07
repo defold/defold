@@ -12,18 +12,27 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_GAMESYS_SCRIPT_MODEL_H
-#define DM_GAMESYS_SCRIPT_MODEL_H
-
-#include <dlib/configfile.h>
-
-#include <gameobject/gameobject.h>
-
-#include <render/render.h>
+#include "res_rig_scene.h"
 
 namespace dmGameSystem
 {
-    void ScriptModelRegister(const ScriptLibContext& context);
-}
+    dmResource::Result ResRigScenePreload(const dmResource::ResourcePreloadParams* params)
+    {
+        return dmResource::RESULT_OK;
+    }
 
-#endif // DM_GAMESYS_SCRIPT_MODEL_H
+    dmResource::Result ResRigSceneCreate(const dmResource::ResourceCreateParams* params)
+    {
+        return dmResource::RESULT_OK;
+    }
+
+    dmResource::Result ResRigSceneDestroy(const dmResource::ResourceDestroyParams* params)
+    {
+        return dmResource::RESULT_OK;
+    }
+
+    dmResource::Result ResRigSceneRecreate(const dmResource::ResourceRecreateParams* params)
+    {
+        return dmResource::RESULT_OK;
+    }
+}

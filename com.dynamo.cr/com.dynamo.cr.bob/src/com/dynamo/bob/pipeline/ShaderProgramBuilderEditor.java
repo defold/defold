@@ -34,6 +34,17 @@ public class ShaderProgramBuilderEditor {
         return Objects.requireNonNullElseGet(variantCompileResult, () -> new ShaderUtil.Common.GLSLCompileResult(compiledSource));
     }
 
+    static private boolean isCompatibleLanguage(Graphics.ShaderDesc.ShaderType shaderType, Graphics.ShaderDesc.Language shaderLanguage) {
+        if (shaderType == Graphics.ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE) {
+            return switch (shaderLanguage) {
+                case LANGUAGE_SPIRV, LANGUAGE_GLSL_SM430, LANGUAGE_PSSL -> true;
+                default -> false;
+            };
+        } else {
+            return true;
+        }
+    }
+
     // Called from editor for producing a ShaderDesc with a list of finalized shaders,
     // fully transformed from source to context shaders based on a list of languages
     static public ShaderProgramBuilder.ShaderDescBuildResult makeShaderDescWithVariants(String resourceOutputPath, String shaderSource, Graphics.ShaderDesc.ShaderType shaderType,
@@ -51,6 +62,12 @@ public class ShaderProgramBuilderEditor {
         ArrayList<ShaderProgramBuilder.ShaderBuildResult> shaderBuildResults = new ArrayList<>();
 
         for (Graphics.ShaderDesc.Language shaderLanguage : shaderLanguages) {
+
+            // Some languages might not be compatible with the shader type, e.g webgl and compute shaders
+            if (!isCompatibleLanguage(shaderType, shaderLanguage)) {
+                continue;
+            }
+
             byte[] source = pipeline.crossCompile(shaderType, shaderLanguage);
             boolean variantTextureArray = false;
 

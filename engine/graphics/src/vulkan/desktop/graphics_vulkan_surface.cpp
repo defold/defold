@@ -12,21 +12,15 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <glfw/glfw.h>
+#include "../graphics_vulkan_defines.h"
+#include "../graphics_vulkan_private.h"
 
-#include <glfw/glfw_native.h>
+#include <platform/platform_window_vulkan.h>
 
-#include "platform_window_win32.h"
-
-namespace dmPlatform
+namespace dmGraphics
 {
-    HWND GetWindowsHWND()
+    VkResult CreateWindowSurface(dmPlatform::HWindow window, VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, const bool enableHighDPI)
     {
-    	return glfwGetWindowsHWND();
-    }
-
-    HGLRC GetWindowsHGLRC()
-    {
-    	return glfwGetWindowsHGLRC();
+        return dmPlatform::VulkanCreateWindowSurface(vkInstance, window, vkSurfaceOut);
     }
 }

@@ -64,7 +64,7 @@ def build(bld):
                              'ResourceTypeAnim', 'ResourceTypeAnimationSet', 'ResourceTypeGui', 'ResourceTypeGuiScript',
                              'ResourceProviderFile', 'ResourceProviderArchive', 'ResourceProviderArchiveMutable']
     component_type_symbols = ['ComponentTypeAnim', 'ComponentTypeScript', 'ComponentTypeGui', 'ComponentTypeMesh']
-    exported_symbols = ['ProfilerExt', 'GraphicsAdapterNull']
+    exported_symbols = ['ProfilerExt', 'GraphicsAdapterNull', 'ScriptModelExt']
 
     bld.add_group()
     obj = bld(
