@@ -506,7 +506,7 @@
                                           :suspension-state nil)
                          (state-changed! debug-view false)))
                      (fn [e]
-                          (show-connect-failed-info! target-address (+ mobdebug-port instance-index) e workspace))))
+                       (show-connect-failed-info! target-address (+ mobdebug-port instance-index) e workspace))))
 
 (defn current-session
   ([debug-view]
