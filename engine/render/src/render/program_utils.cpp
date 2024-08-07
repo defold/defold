@@ -28,6 +28,10 @@ namespace dmRender
             case dmGraphics::TYPE_SAMPLER_2D_ARRAY: return dmGraphics::TEXTURE_TYPE_2D_ARRAY;
             case dmGraphics::TYPE_SAMPLER_CUBE:     return dmGraphics::TEXTURE_TYPE_CUBE_MAP;
             case dmGraphics::TYPE_IMAGE_2D:         return dmGraphics::TEXTURE_TYPE_IMAGE_2D;
+            case dmGraphics::TYPE_TEXTURE_2D:       return dmGraphics::TEXTURE_TYPE_TEXTURE_2D;
+            case dmGraphics::TYPE_TEXTURE_2D_ARRAY: return dmGraphics::TEXTURE_TYPE_TEXTURE_2D_ARRAY;
+            case dmGraphics::TYPE_TEXTURE_CUBE:     return dmGraphics::TEXTURE_TYPE_TEXTURE_CUBE;
+            case dmGraphics::TYPE_SAMPLER:          return dmGraphics::TEXTURE_TYPE_SAMPLER;
             default:break;
         }
         assert(0);

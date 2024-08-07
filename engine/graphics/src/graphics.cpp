@@ -248,6 +248,7 @@ namespace dmGraphics
             SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLSL_SM330);
             SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_SPIRV);
             SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_PSSL);
+            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_WGSL);
             default:break;
         }
         return "<unknown ShaderDesc::Language>";
@@ -519,10 +520,14 @@ namespace dmGraphics
             case ShaderDesc::SHADER_TYPE_MAT2:            return TYPE_FLOAT_MAT2;
             case ShaderDesc::SHADER_TYPE_MAT3:            return TYPE_FLOAT_MAT3;
             case ShaderDesc::SHADER_TYPE_MAT4:            return TYPE_FLOAT_MAT4;
+            case ShaderDesc::SHADER_TYPE_SAMPLER:         return TYPE_SAMPLER;
             case ShaderDesc::SHADER_TYPE_SAMPLER2D:       return TYPE_SAMPLER_2D;
             case ShaderDesc::SHADER_TYPE_SAMPLER_CUBE:    return TYPE_SAMPLER_CUBE;
             case ShaderDesc::SHADER_TYPE_SAMPLER2D_ARRAY: return TYPE_SAMPLER_2D_ARRAY;
             case ShaderDesc::SHADER_TYPE_IMAGE2D:         return TYPE_IMAGE_2D;
+            case ShaderDesc::SHADER_TYPE_TEXTURE2D:       return TYPE_TEXTURE_2D;
+            case ShaderDesc::SHADER_TYPE_TEXTURE2D_ARRAY: return TYPE_TEXTURE_2D_ARRAY;
+            case ShaderDesc::SHADER_TYPE_TEXTURE_CUBE:    return TYPE_TEXTURE_CUBE;
             default: break;
         }
 

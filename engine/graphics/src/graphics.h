@@ -120,10 +120,14 @@ namespace dmGraphics
     // Texture type
     enum TextureType
     {
-        TEXTURE_TYPE_2D       = 0,
-        TEXTURE_TYPE_2D_ARRAY = 1,
-        TEXTURE_TYPE_CUBE_MAP = 2,
-        TEXTURE_TYPE_IMAGE_2D = 3,
+        TEXTURE_TYPE_2D               = 0,
+        TEXTURE_TYPE_2D_ARRAY         = 1,
+        TEXTURE_TYPE_CUBE_MAP         = 2,
+        TEXTURE_TYPE_IMAGE_2D         = 3,
+        TEXTURE_TYPE_SAMPLER          = 4,
+        TEXTURE_TYPE_TEXTURE_2D       = 5,
+        TEXTURE_TYPE_TEXTURE_2D_ARRAY = 6,
+        TEXTURE_TYPE_TEXTURE_CUBE     = 7
     };
 
     // Texture filter
@@ -696,6 +700,10 @@ namespace dmGraphics
         return type == TYPE_SAMPLER_2D ||
                type == TYPE_SAMPLER_CUBE ||
                type == TYPE_SAMPLER_2D_ARRAY ||
+               type == TYPE_SAMPLER ||
+               type == TYPE_TEXTURE_2D ||
+               type == TYPE_TEXTURE_2D_ARRAY ||
+               type == TYPE_TEXTURE_CUBE ||
                type == TYPE_IMAGE_2D;
     }
 

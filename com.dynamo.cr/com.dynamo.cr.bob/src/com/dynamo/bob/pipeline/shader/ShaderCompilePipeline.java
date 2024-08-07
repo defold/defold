@@ -21,6 +21,7 @@ import java.util.ArrayList;
 
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.Platform;
+import com.dynamo.bob.pipeline.ShaderUtil;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.FileUtil;
@@ -31,7 +32,6 @@ import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 import org.apache.commons.io.FileUtils;
 
 public class ShaderCompilePipeline {
-
     protected static class ShaderModule {
         public String                source;
         public ShaderDesc.ShaderType type;
@@ -84,7 +84,8 @@ public class ShaderCompilePipeline {
                shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100 ||
                shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM300 ||
                shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM330 ||
-               shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM430;
+               shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM430 ||
+               shaderLanguage == ShaderDesc.Language.LANGUAGE_WGSL;
     }
 
     private static void checkResult(Result result) throws CompileExceptionError {
@@ -99,9 +100,18 @@ public class ShaderCompilePipeline {
         }
     }
 
+    protected static void generateWGSL(String pathFileInSpv, String pathFileOutWGSL) throws IOException, CompileExceptionError {
+        Result result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "tint"),
+            "--format", "wgsl",
+            "-o", pathFileOutWGSL,
+            pathFileInSpv);
+        checkResult(result);
+    }
+
     private void generateSPIRv(ShaderDesc.ShaderType shaderType, String pathFileInGLSL, String pathFileOutSpv) throws IOException, CompileExceptionError {
         Result result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "glslang"),
             "-w",
+            "--entry-point", "main",
             "--auto-map-bindings",
             "--auto-map-locations",
             "-Os",
@@ -125,12 +135,17 @@ public class ShaderCompilePipeline {
     private void generateSPIRvReflection(String pathFileInSpv, String pathFileOutSpvReflection) throws IOException, CompileExceptionError{
         Result result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "spirv-cross"),
             pathFileInSpv,
+            "--entry", "main",
             "--output", pathFileOutSpvReflection,
             "--reflect");
         checkResult(result);
     }
 
     private void generateCrossCompiledShader(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, String pathFileInSpv, String pathFileOut, int versionOut) throws IOException, CompileExceptionError{
+        if(shaderLanguage == ShaderDesc.Language.LANGUAGE_WGSL) {
+            generateWGSL(pathFileInSpv, pathFileOut);
+            return;
+        }
 
         ArrayList<String> args = new ArrayList<>();
         args.add(Bob.getExe(Platform.getHostPlatform(), "spirv-cross"));
@@ -139,6 +154,8 @@ public class ShaderCompilePipeline {
         args.add(String.valueOf(versionOut));
         args.add("--output");
         args.add(pathFileOut);
+        args.add("--entry");
+        args.add("main");
         args.add("--stage");
         args.add(shaderTypeToSpirvStage(shaderType));
         args.add("--remove-unused-variables");
@@ -171,13 +188,12 @@ public class ShaderCompilePipeline {
 
             File fileInGLSL = File.createTempFile(baseName, ".glsl");
             FileUtil.deleteOnExit(fileInGLSL);
-            FileUtils.writeByteArrayToFile(fileInGLSL, module.source.getBytes());
+            String glsl = ShaderUtil.Common.compileGLSL(module.source, module.type, ShaderDesc.Language.LANGUAGE_GLSL_SM430, false, true);
+            FileUtils.writeByteArrayToFile(fileInGLSL, glsl.getBytes());
 
             File fileOutSpv = File.createTempFile(baseName, ".spv");
             FileUtil.deleteOnExit(fileOutSpv);
-
             generateSPIRv(module.type, fileInGLSL.getAbsolutePath(), fileOutSpv.getAbsolutePath());
-
             module.spirvFile = fileOutSpv;
         }
 
