@@ -14,6 +14,8 @@ def build(bld):
               use             = 'DDF DLIB SOCKET',
               source          = 'rig.cpp ../proto/rig/rig_ddf.proto')
 
+    bld.add_group()
+
     bld.stlib(features        = 'cxx ddf',
               includes        = ['.', '..', '../proto'],
               proto_gen_py    = True,
