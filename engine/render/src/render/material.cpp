@@ -105,8 +105,6 @@ namespace dmRender
         m->m_VertexAttributes.SetCapacity(num_program_attributes);
         m->m_VertexAttributes.SetSize(num_program_attributes);
 
-        dmLogInfo("----");
-
         for (int i = 0; i < num_program_attributes; ++i)
         {
             dmhash_t name_hash     = 0;
