@@ -43,10 +43,9 @@
             [internal.util :as iutil]
             [util.coll :as coll])
   (:import [com.defold.control DefoldStringConverter]
-           [com.sun.javafx.scene.control.skin Utils]
            [javafx.beans Observable]
            [javafx.beans.binding Bindings]
-           [javafx.scene.control ComboBox ScrollPane TextField]
+           [javafx.scene.control ComboBox ScrollPane]
            [javafx.scene.control.skin ScrollPaneSkin]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.layout Region]))
@@ -688,45 +687,15 @@
   [(make-prop :text :coerce coerce/string :doc "text")
    (make-prop :on_text_changed :coerce coerce/function :doc "text change callback, will receive the new text")])
 
-(def ^:private ext-with-text-field-pref-width-bound-props
-  (fx/make-ext-with-props
-    {:bind (fx.prop/make
-             (fx.mutator/adder-remover
-               (fn bind-text-field-pref-width [^TextField text-field min-width]
-                 (.bind
-                   (.prefWidthProperty text-field)
-                   (Bindings/createDoubleBinding
-                     (fn []
-                       (let [padding (.getPadding text-field)]
-                         (max
-                           min-width
-                           (Math/ceil
-                             (+ 1.0                          ;; for cursor
-                                (.getLeft padding)
-                                (Utils/computeTextWidth (.getFont text-field) (.getText text-field) -1.0)
-                                (.getRight padding))))))
-                     (into-array
-                       Observable
-                       [(.fontProperty text-field)
-                        (.textProperty text-field)
-                        (.paddingProperty text-field)]))))
-               (fn unbind-text-field-pref-height [^TextField text-field _]
-                 (.unbind (.prefWidthProperty text-field))))
-             fx.lifecycle/scalar)}))
-
 (defn- text-field-view-impl [{:keys [rt text on_text_changed variant disabled alignment]
                               :or {text "" variant :default disabled false}}]
-  (wrap-in-alignment-container
-    {:fx/type ext-with-text-field-pref-width-bound-props
-     :props {:bind 120.0}
-     :desc (cond-> {:fx/type fx.text-field/lifecycle
-                    :style-class ["text-field" "ext-text-field"]
-                    :pseudo-classes #{variant}
-                    :disable disabled
-                    :text text}
-                   on_text_changed (assoc :on-text-changed (make-event-handler-1 rt "on_text_changed" on_text_changed)))}
-    alignment
-    true))
+  (-> {:fx/type fx.text-field/lifecycle
+       :style-class ["text-field" "ext-text-field"]
+       :pseudo-classes #{variant}
+       :disable disabled
+       :text text}
+      (cond-> on_text_changed (assoc :on-text-changed (make-event-handler-1 rt "on_text_changed" on_text_changed)))
+      (wrap-in-alignment-container alignment true)))
 
 (defn- text-field-view [props]
   {:fx/type fx/ext-get-env :env [:rt] :desc (assoc props :fx/type text-field-view-impl)})
