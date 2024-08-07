@@ -150,12 +150,12 @@ case $1 in
 		export TARGET_SYS=iOS
 		;;
 	armv7-android)
-		# using insttructions from here: file:///Users/mawe/work/defold-ps4/share/ext/luajit/tmp/doc/install.html
+		# using instructions from here: file:///Users/mawe/work/defold-ps4/share/ext/luajit/tmp/doc/install.html
 		export TARGET_SYS=Android
 		function cmi_make() {
 			local host_platform=`uname | awk '{print tolower($0)}'`
 			export NDKBIN=${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/${host_platform}-x86_64/bin
-			NDKCROSS=$NDKBIN/arm-linux-androideabi-
+			export NDKCROSS=$NDKBIN/arm-linux-androideabi-
 			make -j8 CROSS=$NDKCROSS \
 					STATIC_CC=${CC} DYNAMIC_CC="${CC} ${CFLAGS}" \
 					TARGET_LD=${CC} TARGET_AR="${AR} rcus" \
@@ -164,7 +164,7 @@ case $1 in
 		}
 		;;
 	arm64-android)
-		# using insttructions from here: file:///Users/mawe/work/defold-ps4/share/ext/luajit/tmp/doc/install.html
+		# using instructions from here: file:///Users/mawe/work/defold-ps4/share/ext/luajit/tmp/doc/install.html
 		export TARGET_SYS=Android
 		function cmi_make() {
 			local host_platform=`uname | awk '{print tolower($0)}'`
@@ -180,46 +180,42 @@ case $1 in
 	x86_64-linux)
 		export TARGET_SYS=Linux
 		function cmi_make() {
-					export DEFOLD_ARCH="32"
-					export XCFLAGS="-DLUAJIT_DISABLE_GC64 ${COMMON_XCFLAGS}"
+			export DEFOLD_ARCH="32"
+			export XCFLAGS="-DLUAJIT_DISABLE_GC64 ${COMMON_XCFLAGS}"
 
-					export HOST_CC="clang"
-					export HOST_CFLAGS="${COMMON_XCFLAGS} -I."
-					export HOST_ALDFLAGS=""
-					export TARGET_LDFLAGS=""
+			export HOST_CC="clang"
+			export HOST_CFLAGS="${COMMON_XCFLAGS} -I."
+			export HOST_ALDFLAGS=""
+			export TARGET_LDFLAGS=""
 
-					echo "Building $CONF_TARGET ($DEFOLD_ARCH) with '$XCFLAGS'"
-					set -e
-					make -j8
-					make install
-					mv $PREFIX/bin/$CONF_TARGET/${TARGET_FILE} $PREFIX/bin/$CONF_TARGET/luajit-${DEFOLD_ARCH}
-					make clean
-					set +e
+			echo "Building $CONF_TARGET ($DEFOLD_ARCH) with '$XCFLAGS'"
+			set -e
+			make -j8
+			make install
+			mv $PREFIX/bin/$CONF_TARGET/${TARGET_FILE} $PREFIX/bin/$CONF_TARGET/luajit-${DEFOLD_ARCH}
+			make clean
+			set +e
 
-					export DEFOLD_ARCH="64"
-					export XCFLAGS=" ${COMMON_XCFLAGS}"
+			export DEFOLD_ARCH="64"
+			export XCFLAGS=" ${COMMON_XCFLAGS}"
 
-					export HOST_CC="clang"
-					export HOST_CFLAGS="${COMMON_XCFLAGS} -m64 -I."
-					export HOST_ALDFLAGS="-m64"
-					export TARGET_LDFLAGS="-m64"
+			export HOST_CC="clang"
+			export HOST_CFLAGS="${COMMON_XCFLAGS} -m64 -I."
+			export HOST_ALDFLAGS="-m64"
+			export TARGET_LDFLAGS="-m64"
 
-					echo "Building $CONF_TARGET ($DEFOLD_ARCH) with '$XCFLAGS'"
-					set -e
-					make -j8
-					make install
-					mv $PREFIX/bin/$CONF_TARGET/${TARGET_FILE} $PREFIX/bin/$CONF_TARGET/luajit-${DEFOLD_ARCH}
-					set +e
+			echo "Building $CONF_TARGET ($DEFOLD_ARCH) with '$XCFLAGS'"
+			set -e
+			make -j8
+			make install
+			mv $PREFIX/bin/$CONF_TARGET/${TARGET_FILE} $PREFIX/bin/$CONF_TARGET/luajit-${DEFOLD_ARCH}
+			set +e
 		}
 		;;
 	x86_64-macos)
 		export TARGET_SYS=Darwin
 		function cmi_make() {
 			export MACOSX_DEPLOYMENT_TARGET=${OSX_MIN_SDK_VERSION}
-
-			# Since GC32 mode isn't supported on macOS, in the new version.
-			# We'll just use the old built executable from the previous package
-			# (we need the GC32 for generating 32 bit Lua source for 32 bit platforms: win32, armv7-android)
 
 			export DEFOLD_ARCH="64"
 			export TARGET_CFLAGS=""
@@ -229,12 +225,6 @@ case $1 in
 			make -j8
 			make install
 			mv $PREFIX/bin/$CONF_TARGET/${TARGET_FILE} $PREFIX/bin/$CONF_TARGET/luajit-${DEFOLD_ARCH}
-			set +e
-
-			# grab our old 32 bit executable and store it in the host package
-			set -e
-			tar xvf ${DIR}/luajit-2.1.0-beta3-x86_64-macos.tar.gz
-			cp -v bin/x86_64-macos/luajit-32 $PREFIX/bin/$CONF_TARGET/luajit-32
 			set +e
 		}
 		;;
@@ -251,12 +241,6 @@ case $1 in
 			make -j8
 			make install
 			mv $PREFIX/bin/$CONF_TARGET/${TARGET_FILE} $PREFIX/bin/$CONF_TARGET/luajit-${DEFOLD_ARCH}
-			set +e
-
-			# grab our old 32 bit executable and store it in the host package
-			set -e
-			tar xvf ${DIR}/luajit-2.1.0-beta3-x86_64-macos.tar.gz
-			cp -v bin/x86_64-macos/luajit-32 $PREFIX/bin/$CONF_TARGET/luajit-32
 			set +e
 		}
 		;;

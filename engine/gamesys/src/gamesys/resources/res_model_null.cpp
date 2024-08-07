@@ -12,20 +12,27 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <dlib/math.h>
-#include <dlib/array.h>
+#include "res_model.h"
 
-#include <objc/objc.h>
-
-#include "../graphics_vulkan_defines.h"
-#include "../graphics_vulkan_private.h"
-
-#include <platform/platform_window_vulkan.h>
-
-namespace dmGraphics
+namespace dmGameSystem
 {
-    VkResult CreateWindowSurface(dmPlatform::HWindow window, VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, const bool enableHighDPI)
+    dmResource::Result ResModelPreload(const dmResource::ResourcePreloadParams* params)
     {
-        return dmPlatform::VulkanCreateWindowSurface(vkInstance, window, vkSurfaceOut);
+        return dmResource::RESULT_OK;
+    }
+
+    dmResource::Result ResModelCreate(const dmResource::ResourceCreateParams* params)
+    {
+        return dmResource::RESULT_OK;
+    }
+
+    dmResource::Result ResModelDestroy(const dmResource::ResourceDestroyParams* params)
+    {
+        return dmResource::RESULT_OK;
+    }
+
+    dmResource::Result ResModelRecreate(const dmResource::ResourceRecreateParams* params)
+    {
+        return dmResource::RESULT_OK;
     }
 }

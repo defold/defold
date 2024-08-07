@@ -12,18 +12,15 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_GAMESYS_SCRIPT_MODEL_H
-#define DM_GAMESYS_SCRIPT_MODEL_H
+#include "../graphics_vulkan_defines.h"
+#include "../graphics_vulkan_private.h"
 
-#include <dlib/configfile.h>
+#include <platform/platform_window_vulkan.h>
 
-#include <gameobject/gameobject.h>
-
-#include <render/render.h>
-
-namespace dmGameSystem
+namespace dmGraphics
 {
-    void ScriptModelRegister(const ScriptLibContext& context);
+    VkResult CreateWindowSurface(dmPlatform::HWindow window, VkInstance vkInstance, VkSurfaceKHR* vkSurfaceOut, const bool enableHighDPI)
+    {
+        return dmPlatform::VulkanCreateWindowSurface(vkInstance, window, vkSurfaceOut);
+    }
 }
-
-#endif // DM_GAMESYS_SCRIPT_MODEL_H

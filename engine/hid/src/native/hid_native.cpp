@@ -114,10 +114,6 @@ namespace dmHID
         }
 
         InstallGamepadDriver(context, CreateGamepadDriverGLFW(context), "GLFW");
-
-    #ifdef DM_HID_DINPUT
-        InstallGamepadDriver(context, CreateGamepadDriverDInput(context), "Direct Input");
-    #endif
     }
 
     // Called from gamepad drivers
@@ -269,6 +265,7 @@ namespace dmHID
                 {
                     wheel *= -1;
                 }
+
                 packet.m_Wheel = wheel;
 
                 dmPlatform::GetMousePosition(context->m_Window, &packet.m_PositionX, &packet.m_PositionY);
