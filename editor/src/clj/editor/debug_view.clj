@@ -30,6 +30,7 @@
             [editor.resource :as resource]
             [editor.targets :as targets]
             [editor.ui :as ui]
+            [editor.notifications :as notifications]
             [editor.workspace :as workspace]
             [service.log :as log])
   (:import [com.dynamo.lua.proto Lua$LuaModule]
@@ -473,20 +474,21 @@
 
 (def ^:private mobdebug-port 8172)
 
-(defn- show-connect-failed-dialog! [target-address port ^Exception exception]
-  (let [msg (str "Failed to attach debugger to " target-address ":" port ".\n"
-                 "Check that the game is running and is reachable over the network.\n")]
-    (log/error :msg msg :exception exception)
-    (dialogs/make-info-dialog
-      {:title "Attach Debugger Failed"
-       :icon :icon/triangle-error
-       :header msg
-       :content (.getMessage exception)})))
+(defn- show-connect-failed-info! [target-address port ^Exception exception workspace]
+  (ui/run-later
+    (let [msg (str (.getMessage exception) "\n\n"
+                   "Check that the game is running and is reachable over the network.")]
+      (log/error :msg msg :exception exception)
+      (notifications/show!
+        (workspace/notifications workspace)
+        {:type :error
+         :id ::debugger-connection-error
+         :text msg}))))
 
 (defn start-debugger!
   [debug-view project target-address instance-index]
-  (try
-    (mobdebug/connect! target-address (+ mobdebug-port instance-index)
+  (let [debugger-port (+ mobdebug-port instance-index)]
+    (mobdebug/connect! target-address debugger-port
                        (fn [debug-session]
                          (ui/run-now
                            (g/update-property! debug-view :debug-session
@@ -502,9 +504,9 @@
                            (g/set-property! debug-view
                                             :debug-session nil
                                             :suspension-state nil)
-                           (state-changed! debug-view false))))
-    (catch Exception exception
-      (show-connect-failed-dialog! target-address (+ mobdebug-port instance-index) exception))))
+                           (state-changed! debug-view false)))
+                       (fn [exception]
+                         (show-connect-failed-info! target-address debugger-port exception (project/workspace project))))))
 
 (defn current-session
   ([debug-view]
@@ -555,7 +557,7 @@
                                (engine/run-script! target lua-module)
                                true
                                (catch Exception exception
-                                 (show-connect-failed-dialog! target-address target-port exception)
+                                 (show-connect-failed-info! target-address target-port exception (project/workspace project))
                                  false))]
       (when attach-successful?
         (start-debugger! debug-view project target-address (:instance-index target 0))))))
