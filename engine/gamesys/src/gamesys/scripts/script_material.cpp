@@ -454,7 +454,7 @@ namespace dmGameSystem
         MaterialResource* material_res = CheckMaterialResource(L, 1);
         dmhash_t name_hash = dmScript::CheckHashOrString(L, 2);
 
-        dmRender::MaterialProgramAttributeInfo info;
+        dmRender::MaterialProgramAttributeInfo info = {};
         if (!dmRender::GetMaterialProgramAttributeInfo(material_res->m_Material, name_hash, info))
         {
             return luaL_error(L, "Material attribute '%s' not found", dmHashReverseSafe64(name_hash));
