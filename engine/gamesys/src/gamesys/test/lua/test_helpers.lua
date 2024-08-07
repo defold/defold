@@ -61,6 +61,27 @@ function assert_not_error(func)
     assert_fn(r, err)
 end
 
+function make_mat4(a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p)
+    local m4 = vmath.matrix4()
+    m4.m00 = a
+    m4.m10 = b
+    m4.m20 = c
+    m4.m30 = d
+    m4.m01 = e
+    m4.m11 = f
+    m4.m21 = g
+    m4.m31 = h
+    m4.m02 = i
+    m4.m12 = j
+    m4.m22 = k
+    m4.m32 = l
+    m4.m03 = m
+    m4.m13 = n
+    m4.m23 = o
+    m4.m33 = p
+    return m4
+end
+
 function is_mat4(v)
     return pcall(function()
         return v.m00 + v.m11 + v.m22 + v.m33
