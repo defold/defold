@@ -476,9 +476,8 @@
 
 (defn- show-connect-failed-info! [target-address port ^Exception exception workspace]
   (ui/run-later
-    (let [msg (str "Failed to attach debugger to " target-address ":" port ".\n"
-                   "Check that the game is running and is reachable over the network.\n"
-                   "Error message:\n" (.getMessage exception))]
+    (let [msg (str (.getMessage exception) "\n\n"
+                   "Check that the game is running and is reachable over the network.")]
       (log/error :msg msg :exception exception)
       (notifications/show!
         (workspace/notifications workspace)
@@ -487,26 +486,27 @@
          :text msg}))))
 
 (defn start-debugger!
-  [debug-view project target-address instance-index workspace]
-  (mobdebug/connect! target-address (+ mobdebug-port instance-index)
-                     (fn [debug-session]
-                       (ui/run-now
-                         (g/update-property! debug-view :debug-session
-                                             (fn [old new]
-                                               (when old (mobdebug/close! old))
-                                               new)
-                                             debug-session)
-                         (update-breakpoints! debug-session (g/node-value project :breakpoints))
-                         (mobdebug/run! debug-session (make-debugger-callbacks debug-view))
-                         (state-changed! debug-view true)))
-                     (fn [_debug-session]
-                       (ui/run-now
-                         (g/set-property! debug-view
-                                          :debug-session nil
-                                          :suspension-state nil)
-                         (state-changed! debug-view false)))
-                     (fn [e]
-                       (show-connect-failed-info! target-address (+ mobdebug-port instance-index) e workspace))))
+  [debug-view project target-address instance-index]
+  (let [debugger-port (+ mobdebug-port instance-index)]
+    (mobdebug/connect! target-address debugger-port
+                       (fn [debug-session]
+                         (ui/run-now
+                           (g/update-property! debug-view :debug-session
+                                               (fn [old new]
+                                                 (when old (mobdebug/close! old))
+                                                 new)
+                                               debug-session)
+                           (update-breakpoints! debug-session (g/node-value project :breakpoints))
+                           (mobdebug/run! debug-session (make-debugger-callbacks debug-view))
+                           (state-changed! debug-view true)))
+                       (fn [_debug-session]
+                         (ui/run-now
+                           (g/set-property! debug-view
+                                            :debug-session nil
+                                            :suspension-state nil)
+                           (state-changed! debug-view false)))
+                       (fn [exception]
+                         (show-connect-failed-info! target-address debugger-port exception (project/workspace project))))))
 
 (defn current-session
   ([debug-view]
@@ -548,7 +548,7 @@
              (protobuf/bytes->map-with-defaults Lua$LuaModule))))
 
 (defn attach!
-  [debug-view project target build-artifacts workspace]
+  [debug-view project target build-artifacts]
   (let [target-address (:address target "localhost")
         target-port (+ mobdebug-port (:instance-index target 0))
         lua-module (built-lua-module build-artifacts debugger-init-script)]
@@ -557,10 +557,10 @@
                                (engine/run-script! target lua-module)
                                true
                                (catch Exception exception
-                                 (show-connect-failed-info! target-address target-port exception workspace)
+                                 (show-connect-failed-info! target-address target-port exception (project/workspace project))
                                  false))]
       (when attach-successful?
-        (start-debugger! debug-view project target-address (:instance-index target 0) workspace)))))
+        (start-debugger! debug-view project target-address (:instance-index target 0))))))
 
 (defn detach!
   [debug-view]

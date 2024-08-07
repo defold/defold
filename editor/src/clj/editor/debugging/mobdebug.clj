@@ -158,7 +158,7 @@
             (on-connected debug-session))
           (if (< retries 50)
             (do (Thread/sleep 200) (recur (inc retries)))
-            (throw (ex-info (format "Failed to connect to debugger on %s:%d" address port)
+            (throw (ex-info (format "Failed to connect to debugger on %s:%d." address port)
                             {:address address
                              :port port})))))
       (catch Exception e
