@@ -81,4 +81,19 @@ $ext-line-height: 1.42em; // approximation, discovered through experimentation
             &:focused > .box { -fx-border-color: -df-error-severity-fatal-dim -df-error-severity-fatal-dim -df-error-severity-fatal -df-error-severity-fatal-dim; }
         }
     }
+    &-text-field {
+        -fx-max-height: 26px;
+        -fx-min-width: 40px;
+        -fx-max-width: Infinity;
+        &:warning {
+            -fx-border-color: -df-error-severity-warning-dim;
+            &:hover {  -fx-border-color: -df-error-severity-warning; }
+            &:focused { -fx-border-color: -df-error-severity-warning-dim -df-error-severity-warning-dim -df-error-severity-warning -df-error-severity-warning-dim; }
+        }
+        &:error {
+            -fx-border-color: -df-error-severity-fatal-dim;
+            &:hover {  -fx-border-color: -df-error-severity-fatal; }
+            &:focused { -fx-border-color: -df-error-severity-fatal-dim -df-error-severity-fatal-dim -df-error-severity-fatal -df-error-severity-fatal-dim; }
+        }
+    }
 }

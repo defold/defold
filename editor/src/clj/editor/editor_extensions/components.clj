@@ -26,6 +26,7 @@
             [cljfx.fx.row-constraints :as fx.row-constraints]
             [cljfx.fx.scroll-pane :as fx.scroll-pane]
             [cljfx.fx.stage :as fx.stage]
+            [cljfx.fx.text-field :as fx.text-field]
             [cljfx.fx.v-box :as fx.v-box]
             [cljfx.lifecycle :as fx.lifecycle]
             [cljfx.mutator :as fx.mutator]
@@ -42,9 +43,10 @@
             [internal.util :as iutil]
             [util.coll :as coll])
   (:import [com.defold.control DefoldStringConverter]
+           [com.sun.javafx.scene.control.skin Utils]
            [javafx.beans Observable]
            [javafx.beans.binding Bindings]
-           [javafx.scene.control ComboBox ScrollPane]
+           [javafx.scene.control ComboBox ScrollPane TextField]
            [javafx.scene.control.skin ScrollPaneSkin]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.layout Region]))
@@ -57,7 +59,6 @@
 ;; both for runtime behavior (coercion) and autocomplete generation.
 
 ;; TODO components:
-;;  - text_field
 ;;  - value_field
 ;;  - value_field's friends:
 ;;    - string_field
@@ -488,13 +489,15 @@
 (defn- wrap-in-alignment-container
   "Wrapper for components that don't specify alignment
 
-  Will keep the child as small as possible"
-  [desc maybe-alignment]
-  (cond-> {:fx/type fx.v-box/lifecycle
-           :fill-width false
-           :children [desc]}
-          maybe-alignment
-          (apply-alignment maybe-alignment)))
+  Will keep the child as small as possible by default"
+  ([desc maybe-alignment]
+   (wrap-in-alignment-container desc maybe-alignment false))
+  ([desc maybe-alignment fill-horizontal]
+   (cond-> {:fx/type fx.v-box/lifecycle
+            :fill-width fill-horizontal
+            :children [desc]}
+           maybe-alignment
+           (apply-alignment maybe-alignment))))
 
 (defn- icon-view [{:keys [name alignment]}]
   (let [fit-size (case name
@@ -671,10 +674,62 @@
                     :items options
                     :disable disabled}
                    on_value_changed (assoc :on-value-changed (make-event-handler-1 rt "on_value_changed" on_value_changed)))}
-    alignment))
+    alignment
+    true))
 
 (defn- select-box-view [props]
   {:fx/type fx/ext-get-env :env [:rt] :desc (assoc props :fx/type select-box-view-impl)})
+
+;; endregion
+
+;; region text field
+
+(def ^:private text-field-specific-props
+  [(make-prop :text :coerce coerce/string :doc "text")
+   (make-prop :on_text_changed :coerce coerce/function :doc "text change callback, will receive the new text")])
+
+(def ^:private ext-with-text-field-pref-width-bound-props
+  (fx/make-ext-with-props
+    {:bind (fx.prop/make
+             (fx.mutator/adder-remover
+               (fn bind-text-field-pref-width [^TextField text-field min-width]
+                 (.bind
+                   (.prefWidthProperty text-field)
+                   (Bindings/createDoubleBinding
+                     (fn []
+                       (let [padding (.getPadding text-field)]
+                         (max
+                           min-width
+                           (Math/ceil
+                             (+ 1.0                          ;; for cursor
+                                (.getLeft padding)
+                                (Utils/computeTextWidth (.getFont text-field) (.getText text-field) -1.0)
+                                (.getRight padding))))))
+                     (into-array
+                       Observable
+                       [(.fontProperty text-field)
+                        (.textProperty text-field)
+                        (.paddingProperty text-field)]))))
+               (fn unbind-text-field-pref-height [^TextField text-field _]
+                 (.unbind (.prefWidthProperty text-field))))
+             fx.lifecycle/scalar)}))
+
+(defn- text-field-view-impl [{:keys [rt text on_text_changed variant disabled alignment]
+                              :or {text "" variant :default disabled false}}]
+  (wrap-in-alignment-container
+    {:fx/type ext-with-text-field-pref-width-bound-props
+     :props {:bind 120.0}
+     :desc (cond-> {:fx/type fx.text-field/lifecycle
+                    :style-class ["text-field" "ext-text-field"]
+                    :pseudo-classes #{variant}
+                    :disable disabled
+                    :text text}
+                   on_text_changed (assoc :on-text-changed (make-event-handler-1 rt "on_text_changed" on_text_changed)))}
+    alignment
+    true))
+
+(defn- text-field-view [props]
+  {:fx/type fx/ext-get-env :env [:rt] :desc (assoc props :fx/type text-field-view-impl)})
 
 ;; endregion
 
@@ -708,7 +763,12 @@
      "select_box"
      :props (into select-box-specific-props input-with-variant-props)
      :description "Dropdown select box with an array of options"
-     :fn select-box-view)])
+     :fn select-box-view)
+   (make-component
+     "text_field"
+     :props (into text-field-specific-props input-with-variant-props)
+     :description "Single-line text input"
+     :fn text-field-view)])
 
 ;; endregion
 

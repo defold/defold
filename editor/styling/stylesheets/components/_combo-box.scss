@@ -3,6 +3,7 @@
     -fx-border-radius: 0px;
     -fx-background-insets: 0;
     -fx-background-color: -df-component-dark;
+    -fx-max-width: Infinity;
     & > .list-cell {
         -fx-text-fill: -df-text;
         -fx-padding: 3px 8px 3px 8px;
