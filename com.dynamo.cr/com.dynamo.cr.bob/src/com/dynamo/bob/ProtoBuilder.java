@@ -18,12 +18,13 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ProtoUtil;
-import com.google.protobuf.GeneratedMessageV3;
-import com.google.protobuf.Message;
+import com.dynamo.proto.DdfExtensions;
+import com.google.protobuf.*;
 
 public abstract class ProtoBuilder<B extends GeneratedMessageV3.Builder<B>> extends Builder<Void> {
 
@@ -68,6 +69,31 @@ public abstract class ProtoBuilder<B extends GeneratedMessageV3.Builder<B>> exte
 
     protected B transform(Task<Void> task, IResource resource, B messageBuilder) throws IOException, CompileExceptionError {
         return messageBuilder;
+    }
+
+    protected void createSubTasks(MessageOrBuilder builder, Task.TaskBuilder<Void> taskBuilder) throws CompileExceptionError {
+        List<Descriptors.FieldDescriptor> fields = builder.getDescriptorForType().getFields();
+        for (Descriptors.FieldDescriptor fieldDescriptor : fields) {
+            DescriptorProtos.FieldOptions options = fieldDescriptor.getOptions();
+            Descriptors.FieldDescriptor resourceDesc = DdfExtensions.resource.getDescriptor();
+            boolean isResource = (Boolean) options.getField(resourceDesc);
+            Object value = builder.getField(fieldDescriptor);
+            if (value instanceof List) {
+                @SuppressWarnings("unchecked")
+                List<Object> list = (List<Object>) value;
+                for (Object v : list) {
+                    if (isResource && v instanceof String) {
+                        createSubTask((String) v, fieldDescriptor.getName(), taskBuilder);
+                    } else if (v instanceof MessageOrBuilder) {
+                        createSubTasks((MessageOrBuilder) v, taskBuilder);
+                    }
+                }
+            } else if (isResource && value instanceof String) {
+                createSubTask((String) value, fieldDescriptor.getName(), taskBuilder);
+            } else if (value instanceof MessageOrBuilder) {
+                createSubTasks((MessageOrBuilder) value, taskBuilder);
+            }
+        }
     }
 
     @Override

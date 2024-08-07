@@ -162,8 +162,7 @@ public class GameObjectBuilder extends Builder<Void> {
     }
 
     @Override
-    public void build(Task<Void> task) throws CompileExceptionError,
-            IOException {
+    public void build(Task<Void> task) throws CompileExceptionError, IOException {
         IResource input = task.input(0);
         PrototypeDesc.Builder protoBuilder = loadPrototype(input);
         for (ComponentDesc c : protoBuilder.getComponentsList()) {

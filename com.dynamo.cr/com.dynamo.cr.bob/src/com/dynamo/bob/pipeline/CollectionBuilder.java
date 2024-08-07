@@ -105,6 +105,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
                 .addOutput(input.changeExt(ComponentsCounter.EXT_COL));
         CollectionDesc.Builder builder = CollectionDesc.newBuilder();
         ProtoUtil.merge(input, builder);
+        createSubTasks(builder, taskBuilder);
 
         Map<IResource, Integer> subCollections = new HashMap<>();
         collectSubCollections(builder, subCollections);
@@ -121,7 +122,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
             createResourcePropertyTasks(sourceProperties, input);
             IResource res = project.getResource(inst.getPrototype());
             IResource compCounterInput = input.getResource(ComponentsCounter.replaceExt(res)).output();
-            taskBuilder.addInput(compCounterInput);
+//            taskBuilder.addInput(compCounterInput);
             compCounterInputsCount.put(compCounterInput, compCounterInputsCount.getOrDefault(compCounterInput, 0) + 1);
         }
 
@@ -132,12 +133,13 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         List<Task<?>> embedTasks = new ArrayList<>();
         for (long hash : uniqueResources.keySet()) {
             IResource genResource = uniqueResources.get(hash);
-            taskBuilder.addOutput(genResource);
-            Task<?> embedTask = project.createTask(genResource);
+//            taskBuilder.addOutput(genResource);
+//            Task<?> embedTask = project.createTask(genResource);
+            Task<?> embedTask = createSubTask(genResource, taskBuilder);
             if (embedTask == null) {
                 throw new CompileExceptionError(input,
                                                 0,
-                                                String.format("Failed to create build task for component '%s'", genResource.getPath()));
+                                                String.format("Failed to create build task for '%s'", genResource.getPath()));
             }
             embedTasks.add(embedTask);
         }

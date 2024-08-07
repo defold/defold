@@ -164,8 +164,13 @@ public class GameProjectBuilder extends Builder<Void> {
             // initial values already have 'c' in the end
             if (path != null && path.length() > 0) {
                 path = path.substring(0, path.length() - 1);
-                String[] tuples = ROOT_NODES[index];
-                createSubTask(path, String.format("%s.%s", tuples[0], tuples[1]), builder);
+                if (ROOT_NODES.length < index) {
+                    String[] tuples = ROOT_NODES[index];
+                    createSubTask(path, String.format("%s.%s", tuples[0], tuples[1]), builder);
+                }
+                else {
+                    createSubTask(path, "", builder);
+                }
             }
             index++;
         }

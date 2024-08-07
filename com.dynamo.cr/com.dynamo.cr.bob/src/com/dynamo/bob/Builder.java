@@ -71,6 +71,18 @@ public abstract class Builder<T> {
 
     /**
      * Create a task whose outputs will be added to the current task's inputs.
+     * @param input input resource
+     * @param builder current task builder
+     * @return new subtask with single input/output
+     */
+    protected Task<?> createSubTask(IResource input, Task.TaskBuilder<?> builder) throws CompileExceptionError {
+        Task<?> subTask = project.createTask(input);
+        builder.addInputsFromOutputs(subTask);
+        return subTask;
+    }
+
+    /**
+     * Create a task whose outputs will be added to the current task's inputs.
      * @param inputPath input path to resource
      * @param field where specified path to the resource
      * @param builder current task builder

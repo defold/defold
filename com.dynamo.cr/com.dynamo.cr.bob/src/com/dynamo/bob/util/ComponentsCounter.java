@@ -246,7 +246,7 @@ public class ComponentsCounter {
                     targetStorage.makeDynamic();
                 }
                 else {
-                    targetStorage.add(inputStorage, compCounterInputsCount.get(res));
+                    targetStorage.add(inputStorage, compCounterInputsCount.getOrDefault(res, 0));
                 }
             }
         }
