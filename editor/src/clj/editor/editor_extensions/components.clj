@@ -1,3 +1,17 @@
+;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2014-2020 King
+;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
+;; Licensed under the Defold License version 1.0 (the "License"); you may not use
+;; this file except in compliance with the License.
+;;
+;; You may obtain a copy of the License, together with FAQs at
+;; https://www.defold.com/license
+;;
+;; Unless required by applicable law or agreed to in writing, software distributed
+;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
+;; specific language governing permissions and limitations under the License.
+
 (ns editor.editor-extensions.components
   (:require [cljfx.api :as fx]
             [cljfx.fx.button :as fx.button]
@@ -30,8 +44,9 @@
   (:import [com.defold.control DefoldStringConverter]
            [javafx.beans Observable]
            [javafx.beans.binding Bindings]
-           [javafx.scene.control ScrollPane]
+           [javafx.scene.control ComboBox ScrollPane]
            [javafx.scene.control.skin ScrollPaneSkin]
+           [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.layout Region]))
 
 ;; See also:
@@ -635,6 +650,11 @@
           ""
           (rt/->clj rt coerce/to-string maybe-lua-value))))))
 
+(defn- on-select-box-key-pressed [^KeyEvent event]
+  (when (= KeyCode/SPACE (.getCode event))
+    (.show ^ComboBox (.getSource event))
+    (.consume event)))
+
 (defn- select-box-view-impl [{:keys [rt alignment variant disabled value options on_value_changed to_string]
                               :or {options []
                                    disabled false
@@ -647,9 +667,9 @@
      :desc (cond-> {:fx/type fx.combo-box/lifecycle
                     :value value
                     :pseudo-classes #{variant}
+                    :on-key-pressed on-select-box-key-pressed
                     :items options
                     :disable disabled}
-                   ;(some? value) (assoc :value value)
                    on_value_changed (assoc :on-value-changed (make-event-handler-1 rt "on_value_changed" on_value_changed)))}
     alignment))
 
