@@ -27,6 +27,7 @@
             [cljfx.fx.scroll-pane :as fx.scroll-pane]
             [cljfx.fx.stage :as fx.stage]
             [cljfx.fx.text-field :as fx.text-field]
+            [cljfx.fx.text-formatter :as fx.text-formatter]
             [cljfx.fx.v-box :as fx.v-box]
             [cljfx.lifecycle :as fx.lifecycle]
             [cljfx.mutator :as fx.mutator]
@@ -43,12 +44,14 @@
             [internal.util :as iutil]
             [util.coll :as coll])
   (:import [com.defold.control DefoldStringConverter]
+           [javafx.animation SequentialTransition TranslateTransition]
            [javafx.beans Observable]
            [javafx.beans.binding Bindings]
-           [javafx.scene.control ComboBox ScrollPane]
+           [javafx.scene.control ComboBox ScrollPane TextField]
            [javafx.scene.control.skin ScrollPaneSkin]
            [javafx.scene.input KeyCode KeyEvent]
-           [javafx.scene.layout Region]))
+           [javafx.scene.layout Region]
+           [javafx.util Duration]))
 
 ;; See also:
 ;; - Components doc: https://docs.google.com/document/d/1e6kmVLspQEoe17Ys1nmbbf54cqUn2fNPZowIe7JBwl4/edit
@@ -555,13 +558,19 @@
       (.println (rt/stderr rt)
                 (str label " failed: " (or (ex-message ex) (.getSimpleName (class ex))))))))
 
+(defn- invoke-event-handler
+  ([rt label lua-fn]
+   (report-async-error-to-script (rt/invoke-suspending rt lua-fn) rt label))
+  ([rt label lua-fn value]
+   (report-async-error-to-script (rt/invoke-suspending rt lua-fn (rt/->lua value)) rt label)))
+
 (defn- make-event-handler-0 [rt label lua-fn]
   (fn event-handler-0 [_]
-    (report-async-error-to-script (rt/invoke-suspending rt lua-fn) rt label)))
+    (invoke-event-handler rt label lua-fn)))
 
 (defn- make-event-handler-1 [rt label lua-fn]
   (fn event-handler-1 [value]
-    (report-async-error-to-script (rt/invoke-suspending rt lua-fn (rt/->lua value)) rt label)))
+    (invoke-event-handler rt label lua-fn value)))
 
 ;; region button
 
@@ -639,14 +648,13 @@
    (make-prop :to_string :coerce coerce/function :doc "function that converts an item to string, defaults to <code>tostring</code>")])
 
 (defn- create-select-box-string-converter [rt to_string]
-  ;; if a combo box has no value provided, the default is JVM null
-  (if to_string
-    (DefoldStringConverter.
+  ;; Note: if a combo box has no value provided, the default is JVM null
+  (DefoldStringConverter.
+    (if to_string
       (fn user-provided-to-string [maybe-lua-value]
         (if (nil? maybe-lua-value)
           ""
-          (rt/->clj rt coerce/to-string (rt/invoke-immediate rt to_string maybe-lua-value)))))
-    (DefoldStringConverter.
+          (rt/->clj rt coerce/to-string (rt/invoke-immediate rt to_string maybe-lua-value))))
       (fn default-to-string [maybe-lua-value]
         (if (nil? maybe-lua-value)
           ""
@@ -702,6 +710,111 @@
 
 ;; endregion
 
+;; region value field
+
+(def ^:private value-field-specific-props
+  [(make-prop :value :coerce coerce/untouched :doc "value")
+   (make-prop :on_value_changed :coerce coerce/function :doc "value change callback, will receive the new value")])
+
+(def ^:private convertible-value-field-specific-props
+  (into [(make-prop :to_value :coerce coerce/function :required true
+                    :doc "covert string to value, should return converted value or <code>nil</code> if not convertible")
+         (make-prop :to_string :coerce coerce/function :required true
+                    :doc "covert value to string, should always return string")]
+        value-field-specific-props))
+
+(def ^:private value-field-value-coercer
+  ;; if field value is null, coerce it to JVM null (for special handling in
+  ;; to-string part of the converter)
+  (coerce/one-of coerce/null coerce/untouched))
+
+(defn- create-value-field-text [rt to_string maybe-lua-value maybe-edit]
+  (cond
+    maybe-edit maybe-edit
+    (nil? maybe-lua-value) ""
+    :else (rt/->clj rt coerce/to-string (rt/invoke-immediate rt to_string maybe-lua-value))))
+
+(defn- notify-value-field-change [rt on_value_changed old-maybe-lua-value new-lua-value]
+  (let [notify (or (nil? old-maybe-lua-value)
+                   (not (rt/eq? rt old-maybe-lua-value new-lua-value)))]
+    (when (and notify on_value_changed)
+      (invoke-event-handler rt "on_value_changed" on_value_changed new-lua-value))
+    notify))
+
+(defn- on-value-field-key-pressed [rt value on_value_changed to_value edit swap-state ^KeyEvent e]
+  (condp = (.getCode e)
+    KeyCode/ENTER
+    (when edit
+      (let [maybe-new-lua-value (rt/->clj rt value-field-value-coercer (rt/invoke-immediate rt to_value (rt/->lua edit)))]
+        ;; nil result from `to_value` means couldn't convert => keep editing
+        (if (nil? maybe-new-lua-value)
+          (let [^TextField text-field (.getSource e)
+                anim (SequentialTransition. text-field)]
+            (doto (.getChildren anim)
+              (.add (doto (TranslateTransition. (Duration/millis 30.0)) (.setByX 5.0)))
+              (.add (doto (TranslateTransition. (Duration/millis 30.0)) (.setByX -10.0)))
+              (.add (doto (TranslateTransition. (Duration/millis 30.0)) (.setByX 8.0)))
+              (.add (doto (TranslateTransition. (Duration/millis 30.0)) (.setByX -5.0)))
+              (.add (doto (TranslateTransition. (Duration/millis 30.0)) (.setByX 2.0))))
+            (.play anim)
+            (.consume e))
+          ;; new value!
+          (do (swap-state assoc :value maybe-new-lua-value)
+              (when (notify-value-field-change rt on_value_changed value maybe-new-lua-value)
+                (.consume e))))))
+
+    KeyCode/ESCAPE
+    (when edit
+      (swap-state dissoc :edit)
+      (.consume e))
+
+    nil))
+
+(defn- on-value-field-focus-changed [rt value on_value_changed to_value edit swap-state focused]
+  (when (and (not focused) edit)
+    (let [maybe-new-lua-value (rt/->clj rt value-field-value-coercer (rt/invoke-immediate rt to_value (rt/->lua edit)))]
+      (if (nil? maybe-new-lua-value)
+        (swap-state dissoc :edit)
+        (do (swap-state #(-> % (assoc :value maybe-new-lua-value) (dissoc :edit)))
+            (notify-value-field-change rt on_value_changed value maybe-new-lua-value))))))
+
+(defn- value-field-view-impl-2 [{:keys [state swap-state rt value on_value_changed to_value to_string variant disabled alignment]
+                                 :or {variant :default
+                                      disabled false}}]
+  (let [{:keys [edit]} state
+        current-value (:value state value)]
+    (wrap-in-alignment-container
+      {:fx/type fxui/ext-memo
+       :fn create-value-field-text
+       :args [rt to_string current-value edit]
+       :key :text
+       :desc {:fx/type fx.text-field/lifecycle
+              :style-class ["text-field" "ext-text-field"]
+              :disable disabled
+              :pseudo-classes #{variant}
+              :on-text-changed #(swap-state assoc :edit %)
+              :on-key-pressed #(on-value-field-key-pressed rt current-value on_value_changed to_value edit swap-state %)
+              :on-focused-changed #(on-value-field-focus-changed rt current-value on_value_changed to_value edit swap-state %)}}
+      alignment
+      true)))
+
+
+(defn- value-field-view-impl-1 [props]
+  ;; adds :state and :swap-state to props
+  {:fx/type fx/ext-state
+   ;; we put value as a "key" of the initial state so that when value changes, the
+   ;; local state will reset. Other keys used by this local state are:
+   ;;   :value    last entered value, never lua nil
+   ;;   :edit     currently edited text, a string
+   :initial-state {:key (:value props)}
+   :desc (assoc props :fx/type value-field-view-impl-2)})
+
+(defn- value-field-view [props]
+  ;; adds :rt to props
+  {:fx/type fx/ext-get-env :env [:rt] :desc (assoc props :fx/type value-field-view-impl-1)})
+
+;; endregion
+
 (def ^:private input-components
   [(make-component
      "icon_button"
@@ -736,8 +849,13 @@
    (make-component
      "text_field"
      :props (into text-field-specific-props input-with-variant-props)
-     :description "Single-line text input"
-     :fn text-field-view)])
+     :description "Single-line text field, reports changes on typing"
+     :fn text-field-view)
+   (make-component
+     "value_field"
+     :props (into convertible-value-field-specific-props input-with-variant-props)
+     :description "Input component based on a text field, reports changes on commit (<code>Enter</code> or focus loss)"
+     :fn value-field-view)])
 
 ;; endregion
 

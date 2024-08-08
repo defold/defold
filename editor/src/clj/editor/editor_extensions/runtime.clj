@@ -410,3 +410,10 @@
     (when-not context-provided
       (g/update-cache-from-evaluation-context! evaluation-context))
     result))
+
+(defn eq?
+  "Checks 2 lua values for equality, with metadata processing"
+  [^EditorExtensionsRuntime rt ^LuaValue a ^LuaValue b]
+  {:pre [(instance? LuaValue a) (instance? LuaValue b)]}
+  (vm/with-lock (.-lua-vm rt)
+    (.eq_b a b)))
