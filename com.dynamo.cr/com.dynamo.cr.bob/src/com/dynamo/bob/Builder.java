@@ -20,9 +20,11 @@ import java.util.List;
 
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.BuilderUtil;
+import com.dynamo.bob.pipeline.ProtoUtil;
 import com.dynamo.proto.DdfExtensions;
 import com.google.protobuf.DescriptorProtos;
 import com.google.protobuf.Descriptors;
+import com.google.protobuf.GeneratedMessageV3;
 import com.google.protobuf.MessageOrBuilder;
 
 /**
@@ -52,13 +54,17 @@ public abstract class Builder<T> {
      * @param input input resource
      * @return new task with single input/output
      */
-    protected Task<T> defaultTask(IResource input) {
-        Task<T> task = Task.<T>newBuilder(this)
+    protected Task<T> defaultTask(IResource input) throws CompileExceptionError, IOException {
+        Task.TaskBuilder<T> taskBuilder = Task.<T>newBuilder(this)
                 .setName(params.name())
                 .addInput(input)
-                .addOutput(input.changeExt(params.outExt()))
-                .build();
-        return task;
+                .addOutput(input.changeExt(params.outExt()));
+
+        GeneratedMessageV3.Builder builder = ProtoBuilder.newBuilder(params.outExt());
+        ProtoUtil.merge(input, builder);
+        createSubTasks(builder, taskBuilder);
+
+        return taskBuilder.build();
     }
 
     /**
@@ -99,7 +105,7 @@ public abstract class Builder<T> {
         builder.addInputsFromOutputs(subTask);
         return subTask;
     }
-    protected void createSubTasks(MessageOrBuilder builder, Task.TaskBuilder<Void> taskBuilder) throws CompileExceptionError {
+    protected void createSubTasks(MessageOrBuilder builder, Task.TaskBuilder<T> taskBuilder) throws CompileExceptionError {
         List<Descriptors.FieldDescriptor> fields = builder.getDescriptorForType().getFields();
         for (Descriptors.FieldDescriptor fieldDescriptor : fields) {
             DescriptorProtos.FieldOptions options = fieldDescriptor.getOptions();
