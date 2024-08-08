@@ -419,6 +419,7 @@ namespace dmGraphics
         uint32_t                        m_Height;
         uint32_t                        m_WindowWidth;
         uint32_t                        m_WindowHeight;
+        uint32_t                        m_SwapInterval;
         uint32_t                        m_FrameBegun           : 1;
         uint32_t                        m_CurrentFrameInFlight : 1;
         uint32_t                        m_NumFramesInFlight    : 2;

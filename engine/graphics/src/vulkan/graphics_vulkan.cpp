@@ -116,6 +116,7 @@ namespace dmGraphics
         m_Window                  = params.m_Window;
         m_Width                   = params.m_Width;
         m_Height                  = params.m_Height;
+        m_SwapInterval            = params.m_SwapInterval;
 
         // We need to have some sort of valid default filtering
         if (m_DefaultTextureMinFilter == TEXTURE_FILTER_DEFAULT)
@@ -751,8 +752,10 @@ namespace dmGraphics
         GetSwapChainCapabilities(context->m_PhysicalDevice.m_Device, context->m_WindowSurface, swap_chain_capabilities);
         context->m_SwapChainCapabilities.Swap(swap_chain_capabilities);
 
+        const bool want_vsync = context->m_SwapInterval != 0;
+
         // Create the swap chain
-        VkResult res = UpdateSwapChain(&context->m_PhysicalDevice, &context->m_LogicalDevice, width, height, true, context->m_SwapChainCapabilities, context->m_SwapChain);
+        VkResult res = UpdateSwapChain(&context->m_PhysicalDevice, &context->m_LogicalDevice, width, height, want_vsync, context->m_SwapChainCapabilities, context->m_SwapChain);
         CHECK_VK_ERROR(res);
 
         // Create the main Depth/Stencil buffer
@@ -1027,7 +1030,7 @@ namespace dmGraphics
         LogicalDevice logical_device;
         uint32_t created_width  = context->m_Width;
         uint32_t created_height = context->m_Height;
-        const bool want_vsync   = true;
+        const bool want_vsync   = context->m_SwapInterval != 0;
         VkSampleCountFlagBits vk_closest_multisample_flag;
 
         void* device_pNext_chain = 0;
