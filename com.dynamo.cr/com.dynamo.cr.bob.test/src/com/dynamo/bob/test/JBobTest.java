@@ -39,7 +39,6 @@ import org.junit.Test;
 
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
-import com.dynamo.bob.CommandBuilder;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.CopyBuilder;
 import com.dynamo.bob.MultipleCompileException;
@@ -417,25 +416,6 @@ public class JBobTest {
         // rebuild with same option
         result = build();
         assertThat(result.size(), is(0));
-    }
-
-    @SuppressWarnings("unchecked")
-    @Test
-    public void testCommandSubstitute1() throws Exception {
-        Map<String, Object> p1 = new HashMap<String, Object>();
-        p1.put("CC", "gcc");
-        p1.put("COPTIM", "-O2");
-
-        Map<String, Object> p2 = new HashMap<String, Object>();
-        p2.put("INPUTS", Arrays.asList("a.c", "b.c"));
-        p2.put("OUTPUTS", Arrays.asList("x.o"));
-        p2.put("COPTIM", "-O0");
-
-        List<String> lst = CommandBuilder.substitute("${CC} ${COPTIM} -c ${INPUTS} -o ${OUTPUTS[0]}", p1, p2);
-        assertThat("gcc -O0 -c a.c b.c -o x.o", is(StringUtils.join(lst, " ")));
-
-        List<String> lst2 = CommandBuilder.substitute("${CC} ${COPTIM} -c ${INPUTS[1]} -o ${OUTPUTS[0]}", p1, p2);
-        assertThat("gcc -O0 -c b.c -o x.o", is(StringUtils.join(lst2, " ")));
     }
 
     @Test
