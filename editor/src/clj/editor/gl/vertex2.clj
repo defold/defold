@@ -225,6 +225,19 @@
    :vec3 3
    :vec4 4})
 
+(defn element-count+semantic-type->shader-type [element-count semantic-type]
+  (let [shader-type-is-matrix (or (= semantic-type :semantic-type-world-matrix)
+                                  (= semantic-type :semantic-type-normal-matrix))]
+    (case (int element-count)
+      1 :shader-type-number
+      2 :shader-type-vec2
+      3 :shader-type-vec3
+      4 (if shader-type-is-matrix
+          :shader-type-mat2
+          :shader-type-number)
+      9 :shader-type-mat3
+      16 :shader-type-mat4)))
+
 (defn- parse-attribute-definition
   [form]
   (let [[type nm & [normalize]] form
@@ -233,7 +246,8 @@
         suffix           (keyword (or suffix "float"))
         num-components   (type-component-counts prefix)
         attribute-name   (name nm)
-        attribute-key    (attribute-name->key attribute-name)]
+        attribute-key    (attribute-name->key attribute-name)
+        semantic-type    (attribute-key->semantic-type attribute-key)]
     (assert num-components (str type " is not a valid type name. It must start with vec1, vec2, vec3, or vec4."))
     (assert (get gl-types suffix) (str type " is not a valid type name. It must end with byte, short, int, float, or double. (Defaults to float if no suffix.)"))
     {:name attribute-name
@@ -242,7 +256,8 @@
      :components num-components
      :normalize (true? normalize)
      :coordinate-space :coordinate-space-world
-     :semantic-type (attribute-key->semantic-type attribute-key)})) ; TODO: Typically determined by vertex-space setting of material.
+     :shader-type (element-count+semantic-type->shader-type num-components semantic-type)
+     :semantic-type semantic-type})) ; TODO: Typically determined by vertex-space setting of material.
 
 (defmacro defvertex
   [name & attribute-definitions]

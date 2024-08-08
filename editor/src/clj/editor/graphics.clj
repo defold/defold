@@ -313,23 +313,10 @@
          #(:coordinate-space % :coordinate-space-local)
          :semantic-type)))
 
-(defn- element-count+semantic-type->shader-type [element-count semantic-type]
-  (let [shader-type-is-matrix (or (= semantic-type :semantic-type-world-matrix)
-                                  (= semantic-type :semantic-type-normal-matrix))]
-    (case (int element-count)
-      1 :shader-type-number
-      2 :shader-type-vec2
-      3 :shader-type-vec3
-      4 (if shader-type-is-matrix
-          :shader-type-mat2
-          :shader-type-number)
-      9 :shader-type-mat3
-      16 :shader-type-mat4)))
-
 (defn- attribute-info->shader-type [{:keys [element-count semantic-type shader-type] :as attribute-info}]
   (if (or (nil? element-count) (= element-count 0))
     shader-type
-    (element-count+semantic-type->shader-type element-count semantic-type)))
+    (vtx/element-count+semantic-type->shader-type element-count semantic-type)))
 
 ;; TODO(save-value-cleanup): We only really need to sanitize the attributes if a resource type has :read-defaults true.
 (defn sanitize-attribute-value-v [attribute-value]
@@ -582,7 +569,7 @@
             :let [values (:values vertex-override-info)
                   shader-type (if (number? values)
                                 :shader-type-number
-                                (element-count+semantic-type->shader-type (count values) nil))
+                                (vtx/element-count+semantic-type->shader-type (count values) nil))
                   assumed-attribute-info {:shader-type shader-type
                                           :name-key name-key
                                           :semantic-type :semantic-type-none}
