@@ -114,7 +114,7 @@ public class JBobTest {
     @BuilderParams(name = "FailingBuilder", inExts = ".in_err", outExt = ".out_err")
     public static class FailingBuilder extends Builder<Void> {
         @Override
-        public Task<Void> create(IResource input) {
+        public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
             return defaultTask(input);
         }
 
@@ -182,7 +182,7 @@ public class JBobTest {
     @BuilderParams(name = "NumberBuilder", inExts = ".number", outExt = ".numberc")
     public static class NumberBuilder extends Builder<Void> {
         @Override
-        public Task<Void> create(IResource input) {
+        public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
             return defaultTask(input);
         }
 
@@ -197,7 +197,7 @@ public class JBobTest {
     @BuilderParams(name = "FailOnEmptyAlwaysOutput", inExts = ".foeao", outExt = ".foeaoc")
     public static class FailOnEmptyAlwaysOutputBuilder extends Builder<Void> {
         @Override
-        public Task<Void> create(IResource input) {
+        public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
             return defaultTask(input);
         }
 
