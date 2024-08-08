@@ -174,6 +174,8 @@ namespace dmRender
     void SetViewMatrix(HRenderContext render_context, const dmVMath::Matrix4& view);
     void SetProjectionMatrix(HRenderContext render_context, const dmVMath::Matrix4& projection);
 
+    HMaterial GetContextMaterial(HRenderContext render_context);
+
     Result ClearRenderObjects(HRenderContext context);
 
     // Takes the contents of the render list, sorts by view and inserts all the objects in the

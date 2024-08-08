@@ -293,6 +293,11 @@ namespace dmRender
         return render_context->m_View;
     }
 
+    HMaterial GetContextMaterial(HRenderContext render_context)
+    {
+        return render_context->m_Material;
+    }
+
     dmVMath::Matrix4 GetNormalMatrix(HRenderContext render_context, const dmVMath::Matrix4& world_matrix)
     {
         // normalT = transp(inv(view * world))
