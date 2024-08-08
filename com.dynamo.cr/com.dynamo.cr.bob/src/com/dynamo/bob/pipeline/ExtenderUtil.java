@@ -152,6 +152,7 @@ public class ExtenderUtil {
     	private String rootDir;
     	private String path;
         private byte[] content;
+        private byte[] sha1DigestCache;
 
         public DynamicResource(String rootDir, String path, byte[] content) {
             this.rootDir = rootDir;
@@ -178,11 +179,14 @@ public class ExtenderUtil {
             this.content = content;
 		}
 
-		@Override
-		public byte[] sha1() throws IOException {
+        @Override
+        public byte[] sha1(boolean allowCached) throws IOException {
+            if (allowCached && sha1DigestCache != null) {
+                return sha1DigestCache;
+            }
             byte[] content = getContent();
             if (content == null) {
-                throw new IllegalArgumentException(String.format("Resource '%s' is not created", getPath()));
+                throw new IllegalArgumentException(String.format("Resource '%s' is not created", path));
             }
             MessageDigest sha1;
             try {
@@ -191,8 +195,14 @@ public class ExtenderUtil {
                 throw new RuntimeException(e);
             }
             sha1.update(content);
-            return sha1.digest();
-		}
+            sha1DigestCache = sha1.digest();
+            return sha1DigestCache;
+        }
+
+        @Override
+        public byte[] sha1() throws IOException {
+            return sha1(false);
+        }
 
 		@Override
 		public boolean exists() {
