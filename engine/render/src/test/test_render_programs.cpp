@@ -255,7 +255,7 @@ TEST_F(dmRenderMaterialTest, TestMaterialInstanceNotSupported)
     dmGraphics::HVertexProgram vp            = dmGraphics::NewVertexProgram(m_GraphicsContext, &vs_desc, 0, 0);
 
     dmGraphics::ShaderDesc::Shader fp_shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, "foo", 3);
-    dmGraphics::ShaderDesc fs_desc           = MakeDDFShaderDesc(&fp_shader, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, 0, 0, 0, 0);
+    dmGraphics::ShaderDesc fs_desc           = MakeDDFShaderDesc(&fp_shader, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, 0, 0, 0, 0);
     dmGraphics::HFragmentProgram fp          = dmGraphics::NewFragmentProgram(m_GraphicsContext, &fs_desc, 0, 0);
     dmRender::HMaterial material             = dmRender::NewMaterial(m_RenderContext, vp, fp);
 
@@ -279,12 +279,18 @@ TEST_F(dmRenderMaterialTest, TestMaterialInstanceAttributes)
         attribute mat3 mtx_normal;\n \
         attribute mat4 mtx_world;\n";
 
+    dmGraphics::ShaderDesc::ResourceBinding vx_inputs[4] = {};
+    FillResourceBinding(&vx_inputs[0], "position",   dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+    FillResourceBinding(&vx_inputs[1], "normal",     dmGraphics::ShaderDesc::SHADER_TYPE_VEC2);
+    FillResourceBinding(&vx_inputs[2], "mtx_normal", dmGraphics::ShaderDesc::SHADER_TYPE_MAT3);
+    FillResourceBinding(&vx_inputs[3], "mtx_world",  dmGraphics::ShaderDesc::SHADER_TYPE_MAT4);
+
     dmGraphics::ShaderDesc::Shader vp_shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, vs_src, strlen(vs_src));
-    dmGraphics::ShaderDesc vs_desc           = MakeDDFShaderDesc(&vp_shader, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, 0, 0, 0, 0);
+    dmGraphics::ShaderDesc vs_desc           = MakeDDFShaderDesc(&vp_shader, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, vx_inputs, 4, 0, 0);
     dmGraphics::HVertexProgram vp            = dmGraphics::NewVertexProgram(m_GraphicsContext, &vs_desc, 0, 0);
 
     dmGraphics::ShaderDesc::Shader fp_shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, "foo", 3);
-    dmGraphics::ShaderDesc fs_desc           = MakeDDFShaderDesc(&fp_shader, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, 0, 0, 0, 0);
+    dmGraphics::ShaderDesc fs_desc           = MakeDDFShaderDesc(&fp_shader, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, 0, 0, 0, 0);
     dmGraphics::HFragmentProgram fp          = dmGraphics::NewFragmentProgram(m_GraphicsContext, &fs_desc, 0, 0);
     dmRender::HMaterial material             = dmRender::NewMaterial(m_RenderContext, vp, fp);
 

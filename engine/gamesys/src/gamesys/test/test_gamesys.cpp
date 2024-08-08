@@ -407,6 +407,8 @@ TEST_F(ResourceTest, TestCreateTextureFromScript)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 
     ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, res_hash));
+
+     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
 TEST_F(ResourceTest, TestResourceScriptBuffer)
@@ -1504,8 +1506,6 @@ TEST_F(GuiTest, MaxDynamictextures)
     dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0);
 
     ASSERT_EQ(0, scene->m_DynamicTextures.Size());
-
-    dmGameSystem::FinalizeScriptLibs(m_Scriptlibcontext);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
@@ -3034,8 +3034,6 @@ TEST_F(ComponentTest, DispatchBuffersInstancingTest)
     dmRender::RenderListBegin(m_RenderContext);
     dmGameObject::Render(m_Collection);
     dmRender::RenderListEnd(m_RenderContext);
-
-    const uint8_t DISPATCH_NUMBER_OF_INSTANCES = 3;
     dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0);
 
     struct vs_format_a
@@ -5270,7 +5268,6 @@ TEST_F(MaterialTest, DynamicVertexAttributesCount)
     ASSERT_EQ(0, dynamic_attribute_pool->Size());
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
-    dmGameSystem::FinalizeScriptLibs(m_Scriptlibcontext);
 }
 
 TEST_F(MaterialTest, GoGetSetConstants)
