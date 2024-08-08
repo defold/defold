@@ -117,9 +117,16 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         }
 
         for (InstanceDesc inst : builder.getInstancesList()) {
-//            InstanceDesc.Builder instBuilder = InstanceDesc.newBuilder(inst);
-//            List<ComponentPropertyDesc> sourceProperties = instBuilder.getComponentPropertiesList();
-//            createResourcePropertyTasks(sourceProperties, input);
+            InstanceDesc.Builder instBuilder = InstanceDesc.newBuilder(inst);
+            List<ComponentPropertyDesc> sourceProperties = instBuilder.getComponentPropertiesList();
+//          createResourcePropertyTasks(sourceProperties, input);
+            for (ComponentPropertyDesc compProp : sourceProperties) {
+                Map<String, String> resources = PropertiesUtil.getPropertyDescResources(project, compProp.getPropertiesList());
+                for (Map.Entry<String, String> entry : resources.entrySet()) {
+                    createSubTask(entry.getValue(), entry.getKey(), taskBuilder);
+                }
+            }
+
             IResource res = project.getResource(inst.getPrototype());
             IResource compCounterInput = input.getResource(ComponentsCounter.replaceExt(res)).output();
 //            taskBuilder.addInput(compCounterInput);
