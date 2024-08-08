@@ -116,6 +116,7 @@ namespace dmRender
             dmGraphics::GetAttribute(m->m_Program, i, &name_hash, &type, &element_count, &num_values, &location);
 
             dmGraphics::VertexAttribute& vertex_attribute = m->m_VertexAttributes[i];
+            vertex_attribute.m_Name            = 0;
             vertex_attribute.m_NameHash        = name_hash;
             vertex_attribute.m_SemanticType    = GetAttributeSemanticType(name_hash);
             vertex_attribute.m_DataType        = GetAttributeDataType(type); // Convert from mat/vec to float if necessary
