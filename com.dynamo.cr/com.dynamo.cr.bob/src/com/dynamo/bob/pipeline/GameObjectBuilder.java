@@ -69,7 +69,6 @@ public class GameObjectBuilder extends Builder<Void> {
         List<ComponentDesc> lst = b.getComponentsList();
         List<ComponentDesc> newList = new ArrayList<GameObject.ComponentDesc>();
 
-
         for (ComponentDesc componentDesc : lst) {
             // Convert .wav and .ogg resource component to an embedded sound
             // Should be fixed in the editor, see https://github.com/defold/defold/issues/4959
@@ -95,27 +94,28 @@ public class GameObjectBuilder extends Builder<Void> {
 
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-        PrototypeDesc.Builder b = loadPrototype(input);
+        PrototypeDesc.Builder builder = loadPrototype(input);
         TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
                 .setName(params.name())
                 .addInput(input)
                 .addOutput(input.changeExt(params.outExt()))
                 .addOutput(input.changeExt(ComponentsCounter.EXT_GO));
 
-        for (ComponentDesc cd : b.getComponentsList()) {
+        for (ComponentDesc cd : builder.getComponentsList()) {
             Boolean isStatic = ComponentsCounter.ifStaticFactoryAddProtoAsInput(cd, taskBuilder, input, project);
             if (isStatic != null) {
                 ifObjectHasDynamicFactory |= !isStatic;
             }
-            Collection<String> resources = PropertiesUtil.getPropertyDescResources(project, cd.getPropertiesList());
-            for(String r : resources) {
-                IResource resource = BuilderUtil.checkResource(project, input, "resource", r);
-                taskBuilder.addInput(resource);
-                PropertiesUtil.createResourcePropertyTasks(project, resource, input);
-            }
+//            Collection<String> resources = PropertiesUtil.getPropertyDescResources(project, cd.getPropertiesList());
+//            for(String r : resources) {
+//                IResource resource = BuilderUtil.checkResource(project, input, "resource", r);
+//                taskBuilder.addInput(resource);
+//                PropertiesUtil.createResourcePropertyTasks(project, resource, input);
+//            }
         }
 
-        PrototypeDesc proto = b.build();
+        createSubTasks(builder, taskBuilder);
+        PrototypeDesc proto = builder.build();
 
         // Gather the unique resources first
         Map<Long, IResource> uniqueResources = new HashMap<>();

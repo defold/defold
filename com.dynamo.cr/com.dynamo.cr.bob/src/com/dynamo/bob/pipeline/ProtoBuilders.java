@@ -24,6 +24,7 @@ import java.util.Set;
 import javax.vecmath.Point3d;
 import javax.vecmath.Quat4d;
 
+import com.dynamo.gameobject.proto.GameObject;
 import org.apache.commons.io.FilenameUtils;
 
 import com.dynamo.bob.BuilderParams;
@@ -283,6 +284,18 @@ public class ProtoBuilders {
                 uniqueNames.add(name);
             }
             return true;
+        }
+        public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
+            Task.TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
+                    .setName(params.name())
+                    .addInput(input)
+                    .addOutput(input.changeExt(params.outExt()));
+
+            RenderPrototypeDesc.Builder builder = RenderPrototypeDesc.newBuilder();
+            ProtoUtil.merge(input, builder);
+            createSubTasks(builder, taskBuilder);
+
+            return taskBuilder.build();
         }
 
         @Override

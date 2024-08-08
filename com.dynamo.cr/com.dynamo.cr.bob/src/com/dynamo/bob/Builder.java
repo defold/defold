@@ -16,9 +16,14 @@ package com.dynamo.bob;
 
 import java.io.IOException;
 import java.security.MessageDigest;
+import java.util.List;
 
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.BuilderUtil;
+import com.dynamo.proto.DdfExtensions;
+import com.google.protobuf.DescriptorProtos;
+import com.google.protobuf.Descriptors;
+import com.google.protobuf.MessageOrBuilder;
 
 /**
  * Abstract builder class. Extend this class to create a builder
@@ -93,6 +98,30 @@ public abstract class Builder<T> {
         Task<?> subTask = project.createTask(res);
         builder.addInputsFromOutputs(subTask);
         return subTask;
+    }
+    protected void createSubTasks(MessageOrBuilder builder, Task.TaskBuilder<Void> taskBuilder) throws CompileExceptionError {
+        List<Descriptors.FieldDescriptor> fields = builder.getDescriptorForType().getFields();
+        for (Descriptors.FieldDescriptor fieldDescriptor : fields) {
+            DescriptorProtos.FieldOptions options = fieldDescriptor.getOptions();
+            Descriptors.FieldDescriptor resourceDesc = DdfExtensions.resource.getDescriptor();
+            boolean isResource = (Boolean) options.getField(resourceDesc);
+            Object value = builder.getField(fieldDescriptor);
+            if (value instanceof List) {
+                @SuppressWarnings("unchecked")
+                List<Object> list = (List<Object>) value;
+                for (Object v : list) {
+                    if (isResource && v instanceof String) {
+                        createSubTask((String) v, fieldDescriptor.getName(), taskBuilder);
+                    } else if (v instanceof MessageOrBuilder) {
+                        createSubTasks((MessageOrBuilder) v, taskBuilder);
+                    }
+                }
+            } else if (isResource && value instanceof String) {
+                createSubTask((String) value, fieldDescriptor.getName(), taskBuilder);
+            } else if (value instanceof MessageOrBuilder) {
+                createSubTasks((MessageOrBuilder) value, taskBuilder);
+            }
+        }
     }
 
     /**
