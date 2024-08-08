@@ -86,15 +86,15 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         }
     }
 
-    private void createResourcePropertyTasks(List<ComponentPropertyDesc> overrideProps, IResource input) throws CompileExceptionError {
-        for (ComponentPropertyDesc compProp : overrideProps) {
-            Collection<String> resources = PropertiesUtil.getPropertyDescResources(project, compProp.getPropertiesList());
-            for(String r : resources) {
-                IResource resource = BuilderUtil.checkResource(project, input, "resource", r);
-                PropertiesUtil.createResourcePropertyTasks(project, resource, input);
-            }
-        }
-    }
+//    private void createResourcePropertyTasks(List<ComponentPropertyDesc> overrideProps, IResource input) throws CompileExceptionError {
+//        for (ComponentPropertyDesc compProp : overrideProps) {
+//            Collection<String> resources = PropertiesUtil.getPropertyDescResources(project, compProp.getPropertiesList());
+//            for(String r : resources) {
+//                IResource resource = BuilderUtil.checkResource(project, input, "resource", r);
+//                PropertiesUtil.createResourcePropertyTasks(project, resource, input);
+//            }
+//        }
+//    }
 
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
@@ -117,9 +117,9 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         }
 
         for (InstanceDesc inst : builder.getInstancesList()) {
-            InstanceDesc.Builder instBuilder = InstanceDesc.newBuilder(inst);
-            List<ComponentPropertyDesc> sourceProperties = instBuilder.getComponentPropertiesList();
-            createResourcePropertyTasks(sourceProperties, input);
+//            InstanceDesc.Builder instBuilder = InstanceDesc.newBuilder(inst);
+//            List<ComponentPropertyDesc> sourceProperties = instBuilder.getComponentPropertiesList();
+//            createResourcePropertyTasks(sourceProperties, input);
             IResource res = project.getResource(inst.getPrototype());
             IResource compCounterInput = input.getResource(ComponentsCounter.replaceExt(res)).output();
 //            taskBuilder.addInput(compCounterInput);

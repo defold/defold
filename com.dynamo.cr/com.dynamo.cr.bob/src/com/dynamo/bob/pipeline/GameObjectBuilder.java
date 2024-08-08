@@ -106,12 +106,13 @@ public class GameObjectBuilder extends Builder<Void> {
             if (isStatic != null) {
                 ifObjectHasDynamicFactory |= !isStatic;
             }
-//            Collection<String> resources = PropertiesUtil.getPropertyDescResources(project, cd.getPropertiesList());
-//            for(String r : resources) {
-//                IResource resource = BuilderUtil.checkResource(project, input, "resource", r);
+            Map<String, String> resources = PropertiesUtil.getPropertyDescResources(project, cd.getPropertiesList());
+            for (Map.Entry<String, String> entry : resources.entrySet()) {
+                IResource resource = BuilderUtil.checkResource(project, input, "resource", entry.getValue());
 //                taskBuilder.addInput(resource);
 //                PropertiesUtil.createResourcePropertyTasks(project, resource, input);
-//            }
+                createSubTask(entry.getValue(), entry.getKey(), taskBuilder);
+            }
         }
 
         createSubTasks(builder, taskBuilder);
