@@ -43,31 +43,13 @@ import java.io.OutputStream;
 public class ComputeBuilder extends Builder<Void>  {
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-        TaskBuilder<Void> task = Task.<Void> newBuilder(this)
+        TaskBuilder<Void> taskBuilder = Task.<Void> newBuilder(this)
                 .setName(params.name())
                 .addInput(input)
                 .addOutput(input.changeExt(params.outExt()));
 
-        ComputeDesc.Builder computeBuilder = ComputeDesc.newBuilder();
-        ProtoUtil.merge(input, computeBuilder);
-
-        IResource computeProgramresource = this.project.getResource(computeBuilder.getComputeProgram()).changeExt(".cpc");
-        task.addInput(computeProgramresource);
-
-        for (MaterialDesc.Sampler sampler : computeBuilder.getSamplersList()) {
-            String texture = sampler.getTexture();
-            if (texture.isEmpty()) {
-                continue;
-            }
-
-            IResource res = BuilderUtil.checkResource(this.project, input, "texture", texture);
-            Task<?> embedTask = this.project.createTask(res);
-            if (embedTask == null) {
-                throw new CompileExceptionError(input, 0, String.format("Failed to create build task for component '%s'", res.getPath()));
-            }
-        }
-
-        return task.build();
+        createSubTasks(input, taskBuilder);
+        return taskBuilder.build();
     }
 
     private static void buildSamplers(ComputeDesc.Builder computeBuilder) throws CompileExceptionError {

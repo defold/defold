@@ -60,9 +60,7 @@ public abstract class Builder<T> {
                 .addInput(input)
                 .addOutput(input.changeExt(params.outExt()));
 
-        GeneratedMessageV3.Builder builder = ProtoBuilder.newBuilder(params.outExt());
-        ProtoUtil.merge(input, builder);
-        createSubTasks(builder, taskBuilder);
+        createSubTasks(input, taskBuilder);
 
         return taskBuilder.build();
     }
@@ -105,6 +103,7 @@ public abstract class Builder<T> {
         builder.addInputsFromOutputs(subTask);
         return subTask;
     }
+
     protected void createSubTasks(MessageOrBuilder builder, Task.TaskBuilder<T> taskBuilder) throws CompileExceptionError {
         List<Descriptors.FieldDescriptor> fields = builder.getDescriptorForType().getFields();
         for (Descriptors.FieldDescriptor fieldDescriptor : fields) {
@@ -123,11 +122,24 @@ public abstract class Builder<T> {
                     }
                 }
             } else if (isResource && value instanceof String) {
-                createSubTask((String) value, fieldDescriptor.getName(), taskBuilder);
+                boolean isOptional = fieldDescriptor.isOptional();
+                String resValue =  (String) value;
+                // We don't require optional fields to be filled
+                // if such a field has no value - just ignore it
+                if (isOptional && resValue.isEmpty()) {
+                    continue;
+                }
+                createSubTask(resValue, fieldDescriptor.getName(), taskBuilder);
             } else if (value instanceof MessageOrBuilder) {
                 createSubTasks((MessageOrBuilder) value, taskBuilder);
             }
         }
+    }
+
+    protected void createSubTasks(IResource input, Task.TaskBuilder<T> taskBuilder) throws CompileExceptionError, IOException {
+        GeneratedMessageV3.Builder builder = ProtoBuilder.newBuilder(params.outExt());
+        ProtoUtil.merge(input, builder);
+        createSubTasks(builder, taskBuilder);
     }
 
     /**
