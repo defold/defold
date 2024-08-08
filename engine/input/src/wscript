@@ -1,12 +1,19 @@
 #! /usr/bin/env python
 import waflib.Options
+from waf_dynamo import platform_glfw_version
 
 def configure(conf):
     pass
 
 def build(bld):
+    defines = []
+
+    if platform_glfw_version(bld.env.PLATFORM) == 3:
+        defines = ['DM_INPUT_USE_GLFW3']
+
     lib = bld.stlib(features        = 'cxx c ddf',
                     includes        = '../proto .',
+                    defines         = defines,
                     target          = 'input',
                     source          = bld.path.ant_glob('input.cpp') + bld.path.parent.ant_glob('proto/input/*'),
                     proto_gen_py    = True,

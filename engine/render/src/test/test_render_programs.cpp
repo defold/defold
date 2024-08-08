@@ -21,6 +21,8 @@
 #include <dlib/math.h>
 #include <script/script.h>
 
+#include "test_render.h"
+
 #include "render/render.h"
 #include "render/render_private.h"
 
@@ -53,8 +55,11 @@ public:
         dmGraphics::ContextParams graphics_context_params;
         graphics_context_params.m_Window = m_Window;
 
-        m_GraphicsContext        = dmGraphics::NewContext(graphics_context_params);
-        m_Params.m_ScriptContext = dmScript::NewContext(0, 0, true);
+        m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
+
+        dmScript::ContextParams script_context_params = {};
+        script_context_params.m_GraphicsContext = m_GraphicsContext;
+        m_Params.m_ScriptContext = dmScript::NewContext(script_context_params);
         m_Params.m_MaxCharacters = 256;
         m_Params.m_MaxBatches    = 128;
         m_RenderContext          = dmRender::NewRenderContext(m_GraphicsContext, m_Params);
@@ -72,20 +77,14 @@ public:
 class dmRenderMaterialTest : public RenderProgramTestBase {};
 class dmRenderComputeTest : public RenderProgramTestBase {};
 
-static inline dmGraphics::ShaderDesc::Shader MakeDDFShader(const char* data, uint32_t count)
-{
-    dmGraphics::ShaderDesc::Shader ddf;
-    memset(&ddf,0,sizeof(ddf));
-    ddf.m_Source.m_Data  = (uint8_t*)data;
-    ddf.m_Source.m_Count = count;
-    return ddf;
-}
-
 TEST_F(dmRenderMaterialTest, TestTags)
 {
-    dmGraphics::ShaderDesc::Shader shader = MakeDDFShader("foo", 3);
-    dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(m_GraphicsContext, &shader);
-    dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_GraphicsContext, &shader);
+    dmGraphics::ShaderDesc::Shader shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, "foo", 3);
+    dmGraphics::ShaderDesc vs_desc = MakeDDFShaderDesc(&shader, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, 0, 0, 0, 0);
+    dmGraphics::ShaderDesc fp_desc = MakeDDFShaderDesc(&shader, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, 0, 0, 0, 0);
+
+    dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(m_GraphicsContext, &vs_desc, 0, 0);
+    dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_GraphicsContext, &fp_desc, 0, 0);
     dmRender::HMaterial material = dmRender::NewMaterial(m_RenderContext, vp, fp);
 
     dmhash_t tags[] = {dmHashString64("tag1"), dmHashString64("tag2")};
@@ -100,12 +99,18 @@ TEST_F(dmRenderMaterialTest, TestTags)
 
 TEST_F(dmRenderMaterialTest, TestMaterialConstants)
 {
-    // create default material
-    dmGraphics::ShaderDesc::Shader vp_shader = MakeDDFShader("uniform vec4 tint;\n", 19);
-    dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(m_GraphicsContext, &vp_shader);
+    dmGraphics::ShaderDesc::ResourceBinding uniform = {};
+    FillResourceBinding(&uniform, "tint", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
 
-    dmGraphics::ShaderDesc::Shader fp_shader = MakeDDFShader("foo", 3);
-    dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_GraphicsContext, &fp_shader);
+    // create default material
+    dmGraphics::ShaderDesc::Shader vp_shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, "uniform vec4 tint;\n", 19);
+    dmGraphics::ShaderDesc vs_desc           = MakeDDFShaderDesc(&vp_shader, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, 0, 0, &uniform, 1);
+    dmGraphics::HVertexProgram vp            = dmGraphics::NewVertexProgram(m_GraphicsContext, &vs_desc, 0, 0);
+
+    dmGraphics::ShaderDesc::Shader fp_shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, "foo", 3);
+    dmGraphics::ShaderDesc fp_desc           = MakeDDFShaderDesc(&fp_shader, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, 0, 0, 0, 0);
+    dmGraphics::HFragmentProgram fp          = dmGraphics::NewFragmentProgram(m_GraphicsContext, &fp_desc, 0, 0);
+
     dmRender::HMaterial material = dmRender::NewMaterial(m_RenderContext, vp, fp);
 
     // Constants buffer
@@ -145,11 +150,18 @@ TEST_F(dmRenderMaterialTest, TestMaterialVertexAttributes)
         attribute vec2 attribute_two;\n \
         attribute float attribute_three;\n";
 
-    dmGraphics::ShaderDesc::Shader vp_shader = MakeDDFShader(vs_src, strlen(vs_src));
-    dmGraphics::HVertexProgram vp            = dmGraphics::NewVertexProgram(m_GraphicsContext, &vp_shader);
+    dmGraphics::ShaderDesc::ResourceBinding vx_inputs[3] = {};
+    FillResourceBinding(&vx_inputs[0], "attribute_one", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+    FillResourceBinding(&vx_inputs[1], "attribute_two", dmGraphics::ShaderDesc::SHADER_TYPE_VEC2);
+    FillResourceBinding(&vx_inputs[2], "attribute_three", dmGraphics::ShaderDesc::SHADER_TYPE_FLOAT);
 
-    dmGraphics::ShaderDesc::Shader fp_shader = MakeDDFShader("foo", 3);
-    dmGraphics::HFragmentProgram fp          = dmGraphics::NewFragmentProgram(m_GraphicsContext, &fp_shader);
+    dmGraphics::ShaderDesc::Shader vp_shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, vs_src, strlen(vs_src));
+    dmGraphics::ShaderDesc vs_desc           = MakeDDFShaderDesc(&vp_shader, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, vx_inputs, 3, 0, 0);
+    dmGraphics::HVertexProgram vp            = dmGraphics::NewVertexProgram(m_GraphicsContext, &vs_desc, 0, 0);
+
+    dmGraphics::ShaderDesc::Shader fp_shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, "foo", 3);
+    dmGraphics::ShaderDesc fp_desc           = MakeDDFShaderDesc(&fp_shader, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, 0, 0, 0, 0);
+    dmGraphics::HFragmentProgram fp          = dmGraphics::NewFragmentProgram(m_GraphicsContext, &fp_desc, 0, 0);
     dmRender::HMaterial material             = dmRender::NewMaterial(m_RenderContext, vp, fp);
 
     const dmGraphics::VertexAttribute* attributes;
@@ -223,18 +235,32 @@ TEST_F(dmRenderMaterialTest, TestMaterialVertexAttributes)
 
 TEST_F(dmRenderMaterialTest, TestMaterialConstantsOverride)
 {
+    dmGraphics::ShaderDesc::ResourceBinding uniform_one = {};
+    FillResourceBinding(&uniform_one, "tint", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+
     // create default material
-    dmGraphics::ShaderDesc::Shader vp_shader = MakeDDFShader("uniform vec4 tint;\n", 19);
-    dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(m_GraphicsContext, &vp_shader);
-    dmGraphics::ShaderDesc::Shader fp_shader = MakeDDFShader("foo", 3);
-    dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_GraphicsContext, &fp_shader);
+    dmGraphics::ShaderDesc::Shader vp_shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, "uniform vec4 tint;\n", 19);
+    dmGraphics::ShaderDesc vs_desc           = MakeDDFShaderDesc(&vp_shader, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, 0, 0, &uniform_one, 1);
+    dmGraphics::HVertexProgram vp            = dmGraphics::NewVertexProgram(m_GraphicsContext, &vs_desc, 0, 0);
+
+    dmGraphics::ShaderDesc::Shader fp_shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, "foo", 3);
+    dmGraphics::ShaderDesc fp_desc           = MakeDDFShaderDesc(&fp_shader, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, 0, 0, 0, 0);
+    dmGraphics::HFragmentProgram fp          = dmGraphics::NewFragmentProgram(m_GraphicsContext, &fp_desc, 0, 0);
+
     dmRender::HMaterial material = dmRender::NewMaterial(m_RenderContext, vp, fp);
     dmGraphics::HProgram program = dmRender::GetMaterialProgram(material);
 
+    dmGraphics::ShaderDesc::ResourceBinding uniforms[2] = {};
+    FillResourceBinding(&uniforms[0], "dummy", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+    FillResourceBinding(&uniforms[1], "tint", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+
     // create override material which contains tint, but at a different location
-    vp_shader = MakeDDFShader("uniform vec4 dummy;\nuniform vec4 tint;\n", 40);
-    dmGraphics::HVertexProgram vp_ovr = dmGraphics::NewVertexProgram(m_GraphicsContext, &vp_shader);
-    dmGraphics::HFragmentProgram fp_ovr = dmGraphics::NewFragmentProgram(m_GraphicsContext, &fp_shader);
+    vp_shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, "uniform vec4 dummy;\nuniform vec4 tint;\n", 40);
+    vs_desc = MakeDDFShaderDesc(&vp_shader, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, 0, 0, uniforms, 2);
+
+
+    dmGraphics::HVertexProgram vp_ovr = dmGraphics::NewVertexProgram(m_GraphicsContext, &vs_desc, 0, 0);
+    dmGraphics::HFragmentProgram fp_ovr = dmGraphics::NewFragmentProgram(m_GraphicsContext, &fp_desc, 0, 0);
     dmRender::HMaterial material_ovr = dmRender::NewMaterial(m_RenderContext, vp_ovr, fp_ovr);
     dmGraphics::HProgram program_ovr = dmRender::GetMaterialProgram(material_ovr);
 
@@ -312,11 +338,17 @@ TEST_F(dmRenderComputeTest, TestComputeConstants)
         "#version 430\n"
         "uniform vec4 tint_a;\n"
         "uniform vec4 tint_b;\n"
-        "uniform sampler2D texture_sampler;\n"
-        ;
+        "uniform sampler2D texture_sampler;\n";
 
-    dmGraphics::ShaderDesc::Shader cp_shader  = MakeDDFShader(shader_src, strlen(shader_src));
-    dmGraphics::HComputeProgram cp            = dmGraphics::NewComputeProgram(m_GraphicsContext, &cp_shader);
+
+    dmGraphics::ShaderDesc::ResourceBinding uniforms[3] = {};
+    FillResourceBinding(&uniforms[0], "tint_a", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+    FillResourceBinding(&uniforms[1], "tint_b", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+    FillResourceBinding(&uniforms[2], "texture_sampler", dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+
+    dmGraphics::ShaderDesc::Shader cp_shader  = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430, shader_src, strlen(shader_src));
+    dmGraphics::ShaderDesc cp_desc            = MakeDDFShaderDesc(&cp_shader, dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE, 0, 0, uniforms, 3);
+    dmGraphics::HComputeProgram cp            = dmGraphics::NewComputeProgram(m_GraphicsContext, &cp_desc, 0, 0);
     dmRender::HComputeProgram compute_program = dmRender::NewComputeProgram(m_RenderContext, cp);
     ASSERT_NE((dmRender::HComputeProgram) 0, compute_program);
 

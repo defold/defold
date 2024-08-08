@@ -85,16 +85,15 @@
   map format with the :data fields in each GameObject$EmbeddedComponentDesc
   converted to a map."
   [ext->embedded-component-resource-type string-encoded-prototype-desc]
-  (let [string-decode-embedded-component-desc (partial string-decode-embedded-component-desc ext->embedded-component-resource-type)
-        string-decode-embedded-component-descs (partial mapv string-decode-embedded-component-desc)]
-    (update string-encoded-prototype-desc :embedded-components string-decode-embedded-component-descs)))
+  (let [string-decode-embedded-component-desc (partial string-decode-embedded-component-desc ext->embedded-component-resource-type)]
+    (protobuf/sanitize-repeated string-encoded-prototype-desc :embedded-components string-decode-embedded-component-desc)))
 
 (defn string-decode-embedded-instance-desc
   "Takes a GameObject$EmbeddedInstanceDesc in map format with string :data and
   returns a GameObject$EmbeddedInstanceDesc in map format with the :data field
   converted to a map."
   [ext->embedded-component-resource-type string-encoded-embedded-instance-desc]
-  (let [game-object-read-fn (partial protobuf/str->map GameObject$PrototypeDesc)
+  (let [game-object-read-fn (partial protobuf/str->map-without-defaults GameObject$PrototypeDesc)
         string-decode-prototype-desc (partial string-decode-prototype-desc ext->embedded-component-resource-type)
         string-decode-embedded-prototype-desc (comp string-decode-prototype-desc game-object-read-fn)]
     (update string-encoded-embedded-instance-desc :data string-decode-embedded-prototype-desc)))
@@ -105,6 +104,49 @@
   map format with the :data fields in each GameObject$EmbeddedInstanceDescs
   converted to a map."
   [ext->embedded-component-resource-type string-encoded-collection-desc]
-  (let [string-decode-embedded-instance-desc (partial string-decode-embedded-instance-desc ext->embedded-component-resource-type)
-        string-decode-embedded-instance-descs (partial mapv string-decode-embedded-instance-desc)]
-    (update string-encoded-collection-desc :embedded-instances string-decode-embedded-instance-descs)))
+  (let [string-decode-embedded-instance-desc (partial string-decode-embedded-instance-desc ext->embedded-component-resource-type)]
+    (protobuf/sanitize-repeated string-encoded-collection-desc :embedded-instances string-decode-embedded-instance-desc)))
+
+;; -----------------------------------------------------------------------------
+;; Encoding embedded maps to strings.
+;; -----------------------------------------------------------------------------
+
+(defn string-encode-embedded-component-desc
+  "Takes a GameObject$EmbeddedComponentDesc in map format with map :data and
+  returns a GameObject$EmbeddedComponentDesc in map format with the :data field
+  converted to a string."
+  [ext->embedded-component-resource-type string-decoded-embedded-component-desc]
+  (let [component-ext (:type string-decoded-embedded-component-desc)
+        component-resource-type (ext->embedded-component-resource-type component-ext)
+        component-write-fn (:write-fn component-resource-type)]
+    (update string-decoded-embedded-component-desc :data component-write-fn)))
+
+(defn string-encode-prototype-desc
+  "Takes a GameObject$PrototypeDesc in map format with map :data in all its
+  GameObject$EmbeddedComponentDescs and returns a GameObject$PrototypeDesc in
+  map format with the :data fields in each GameObject$EmbeddedComponentDesc
+  converted to a string."
+  [ext->embedded-component-resource-type string-decoded-prototype-desc]
+  (let [string-encode-embedded-component-desc (partial string-encode-embedded-component-desc ext->embedded-component-resource-type)
+        string-encode-embedded-component-descs (partial mapv string-encode-embedded-component-desc)]
+    (update string-decoded-prototype-desc :embedded-components string-encode-embedded-component-descs)))
+
+(defn string-encode-embedded-instance-desc
+  "Takes a GameObject$EmbeddedInstanceDesc in map format with map :data and
+  returns a GameObject$EmbeddedInstanceDesc in map format with the :data field
+  converted to a string."
+  [ext->embedded-component-resource-type string-decoded-embedded-instance-desc]
+  (let [game-object-write-fn #(protobuf/map->str GameObject$PrototypeDesc % false)
+        string-encode-prototype-desc (partial string-encode-prototype-desc ext->embedded-component-resource-type)
+        string-encode-embedded-prototype-desc (comp game-object-write-fn string-encode-prototype-desc)]
+    (update string-decoded-embedded-instance-desc :data string-encode-embedded-prototype-desc)))
+
+(defn string-encode-collection-desc
+  "Takes a GameObject$CollectionDesc in map format with map :data in all its
+  GameObject$EmbeddedInstanceDescs and returns a GameObject$CollectionDesc in
+  map format with the :data fields in each GameObject$EmbeddedInstanceDescs
+  converted to a string."
+  [ext->embedded-component-resource-type string-decoded-collection-desc]
+  (let [string-encode-embedded-instance-desc (partial string-encode-embedded-instance-desc ext->embedded-component-resource-type)
+        string-encode-embedded-instance-descs (partial mapv string-encode-embedded-instance-desc)]
+    (update string-decoded-collection-desc :embedded-instances string-encode-embedded-instance-descs)))

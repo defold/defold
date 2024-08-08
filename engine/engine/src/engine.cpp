@@ -801,18 +801,26 @@ namespace dmEngine
             return false;
         }
 
+        int instance_index = 0;
+#if !defined(DM_RELEASE)
+        instance_index = dmConfigFile::GetInt(engine->m_Config, "project.instance_index", 0);
+#endif
         int write_log = dmConfigFile::GetInt(engine->m_Config, "project.write_log", 0);
         if (write_log) {
             uint32_t count = 0;
             char* log_paths[3];
 
-            const char* LOG_FILE_NAME = "log.txt";
+            char log_file_name[32] = "log.txt";
+            if (instance_index > 0)
+            {
+                dmSnPrintf(log_file_name, sizeof(log_file_name), "instance_%d_log.txt", instance_index);
+            }
 
             const char* log_dir = dmConfigFile::GetString(engine->m_Config, "project.log_dir", NULL);
             char log_config_path[DMPATH_MAX_PATH];
             if (log_dir != NULL)
             {
-                dmPath::Concat(log_dir, LOG_FILE_NAME, log_config_path, sizeof(log_config_path));
+                dmPath::Concat(log_dir, log_file_name, log_config_path, sizeof(log_config_path));
                 log_paths[count] = log_config_path;
                 count++;
             }
@@ -821,7 +829,7 @@ namespace dmEngine
             char main_log_path[DMPATH_MAX_PATH];
             if (dmSys::GetLogPath(sys_path, sizeof(sys_path)) == dmSys::RESULT_OK)
             {
-                dmPath::Concat(sys_path, LOG_FILE_NAME, main_log_path, sizeof(main_log_path));
+                dmPath::Concat(sys_path, log_file_name, main_log_path, sizeof(main_log_path));
                 log_paths[count] = main_log_path;
                 count++;
             }
@@ -831,7 +839,7 @@ namespace dmEngine
             const char* logs_dir = dmConfigFile::GetString(engine->m_Config, "project.title_as_file_name", "defoldlogs");
             if (dmSys::GetApplicationSupportPath(logs_dir, application_support_path, sizeof(application_support_path)) == dmSys::RESULT_OK)
             {
-                dmPath::Concat(application_support_path, LOG_FILE_NAME, application_support_log_path, sizeof(application_support_log_path));
+                dmPath::Concat(application_support_path, log_file_name, application_support_log_path, sizeof(application_support_log_path));
                 log_paths[count] = application_support_log_path;
                 count++;
             }
@@ -848,6 +856,15 @@ namespace dmEngine
 
         // This scope is mainly here to make sure the "Main" scope is created first
         DM_PROFILE("Init");
+
+        char window_title[512];
+        const char* project_title = dmConfigFile::GetString(engine->m_Config, "project.title", "TestTitle");
+#if !defined(DM_RELEASE)
+        if (instance_index)
+        {
+            dmSnPrintf(window_title, sizeof(window_title), "%s - %d", project_title, instance_index);
+        }
+#endif
 
         float clear_color_red = dmConfigFile::GetFloat(engine->m_Config, "render.clear_color_red", 0.0);
         float clear_color_green = dmConfigFile::GetFloat(engine->m_Config, "render.clear_color_green", 0.0);
@@ -875,7 +892,7 @@ namespace dmEngine
         window_params.m_Width                   = engine->m_Width;
         window_params.m_Height                  = engine->m_Height;
         window_params.m_Samples                 = dmConfigFile::GetInt(engine->m_Config, "display.samples", 0);
-        window_params.m_Title                   = dmConfigFile::GetString(engine->m_Config, "project.title", "TestTitle");
+        window_params.m_Title                   = instance_index ? window_title : project_title;
         window_params.m_Fullscreen              = (bool) dmConfigFile::GetInt(engine->m_Config, "display.fullscreen", 0);
         window_params.m_HighDPI                 = (bool) dmConfigFile::GetInt(engine->m_Config, "display.high_dpi", 0);
         window_params.m_BackgroundColor         = clear_color;
@@ -983,21 +1000,29 @@ namespace dmEngine
 
         dmArray<dmScript::HContext>& module_script_contexts = engine->m_ModuleContext.m_ScriptContexts;
 
+        dmScript::ContextParams script_params = {};
+        script_params.m_Factory         = engine->m_Factory;
+        script_params.m_ConfigFile      = engine->m_Config;
+        script_params.m_GraphicsContext = engine->m_GraphicsContext;
+
         bool shared = dmConfigFile::GetInt(engine->m_Config, "script.shared_state", 0);
-        if (shared) {
-            engine->m_SharedScriptContext = dmScript::NewContext(engine->m_Config, engine->m_Factory, true);
+        if (shared)
+        {
+            engine->m_SharedScriptContext = dmScript::NewContext(script_params);
             dmScript::Initialize(engine->m_SharedScriptContext);
             engine->m_GOScriptContext = engine->m_SharedScriptContext;
             engine->m_RenderScriptContext = engine->m_SharedScriptContext;
             engine->m_GuiScriptContext = engine->m_SharedScriptContext;
             module_script_contexts.SetCapacity(1);
             module_script_contexts.Push(engine->m_SharedScriptContext);
-        } else {
-            engine->m_GOScriptContext = dmScript::NewContext(engine->m_Config, engine->m_Factory, true);
+        }
+        else
+        {
+            engine->m_GOScriptContext = dmScript::NewContext(script_params);
             dmScript::Initialize(engine->m_GOScriptContext);
-            engine->m_RenderScriptContext = dmScript::NewContext(engine->m_Config, engine->m_Factory, true);
+            engine->m_RenderScriptContext = dmScript::NewContext(script_params);
             dmScript::Initialize(engine->m_RenderScriptContext);
-            engine->m_GuiScriptContext = dmScript::NewContext(engine->m_Config, engine->m_Factory, true);
+            engine->m_GuiScriptContext = dmScript::NewContext(script_params);
             dmScript::Initialize(engine->m_GuiScriptContext);
             module_script_contexts.SetCapacity(3);
             module_script_contexts.Push(engine->m_GOScriptContext);
@@ -1300,6 +1325,8 @@ namespace dmEngine
 #endif
 
         dmGui::SetDisplayProfiles(engine->m_GuiContext, engine->m_DisplayProfiles);
+
+        dmPlatform::ShowWindow(engine->m_Window);
 
         // clear it a couple of times, due to initialization of extensions might stall the updates
         for (int i = 0; i < 3; ++i) {

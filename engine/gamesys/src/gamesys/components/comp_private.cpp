@@ -320,6 +320,15 @@ HComponentRenderConstants CreateRenderConstants()
 
 void DestroyRenderConstants(HComponentRenderConstants constants)
 {
+    uint32_t num_constants = constants->m_RenderConstants.Size();
+    for (uint32_t i = 0; i < num_constants; ++i)
+    {
+        if (constants->m_RenderConstants[i])
+        {
+            dmRender::DeleteConstant(constants->m_RenderConstants[i]);
+        }
+    }
+
     dmRender::DeleteNamedConstantBuffer(constants->m_ConstantBuffer);
     delete constants;
 }

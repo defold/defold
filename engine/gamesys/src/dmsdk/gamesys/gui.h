@@ -15,8 +15,8 @@
 #ifndef DMSDK_GAMESYSTEM_GUI_H
 #define DMSDK_GAMESYSTEM_GUI_H
 
-#include <dmsdk/dlib/configfile.h>
-#include <dmsdk/resource/resource.h>
+#include <dmsdk/dlib/configfile_gen.hpp>
+#include <dmsdk/resource/resource.hpp>
 #include <dmsdk/gameobject/gameobject.h>
 #include <dmsdk/gui/gui.h>
 #include <dmsdk/script/script.h>

@@ -13,16 +13,16 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.code.resource
-  (:require [clojure.string :as string]
-            [dynamo.graph :as g]
+  (:require [dynamo.graph :as g]
             [editor.code.data :as data]
-            [editor.code.util :as util]
             [editor.lsp :as lsp]
             [editor.resource :as resource]
             [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
+            [editor.types :as types]
             [editor.workspace :as workspace]
-            [schema.core :as s])
+            [schema.core :as s]
+            [util.text-util :as text-util])
   (:import [editor.code.data Cursor CursorRange]))
 
 (set! *warn-on-reflection* true)
@@ -42,7 +42,6 @@
 (g/deftype CursorRanges [TCursorRange])
 (g/deftype IndentType (s/enum :tabs :two-spaces :four-spaces))
 (g/deftype InvalidatedRows [Long])
-(g/deftype Lines [String])
 (g/deftype Region TRegion)
 (g/deftype Regions [TRegion])
 (g/deftype RegionGrouping {s/Any [TRegion]})
@@ -62,10 +61,29 @@
       default-indent-type))
 
 (defn read-fn [resource]
-  (util/split-lines (slurp resource)))
+  (data/string->lines (slurp resource)))
 
 (defn write-fn [lines]
-  (string/join "\n" lines))
+  (data/lines->string lines))
+
+;; To save memory, we don't store the source-value in the graph.
+;; Instead, we use its hash to determine if we've been dirtied.
+(def source-value-fn hash)
+
+(defn search-value-fn [node-id resource evaluation-context]
+  (let [loaded-lines (g/node-value node-id :save-value evaluation-context)]
+    (if (g/error-value? loaded-lines)
+      loaded-lines
+      {:resource resource
+       :loaded-lines loaded-lines})))
+
+(defn search-fn
+  ([search-string]
+   (text-util/search-string->re-pattern search-string :case-insensitive))
+  ([search-value re-pattern]
+   (if-some [loaded-lines (:loaded-lines search-value)]
+     (text-util/lines->text-matches loaded-lines re-pattern)
+     (resource/resource->text-matches (:resource search-value) re-pattern))))
 
 ;; To save memory, we defer loading the file contents until it has been modified
 ;; and read directly from disk up to that point. Once the file is edited we need
@@ -92,6 +110,9 @@
   "Returns the unmodified lines for the specified node-id, or nil if the node
   was never modified."
   [node-id]
+  ;; Note: Be really careful how you use this. It will be initialized only once,
+  ;; so any outputs that make use of it can potentially produce a stale value as
+  ;; it bypasses the established cache invalidation mechanism.
   (g/user-data node-id :unmodified-lines))
 
 (defn- set-unmodified-lines!
@@ -99,13 +120,12 @@
   [node-id lines]
   (g/user-data! node-id :unmodified-lines lines))
 
-(defn- ensure-disk-state
+(defn- init-disk-state
   "Ensures the disk state has been loaded for the specified node-id. The first
-  time this is called for a node-id, the state will be read from disk and the
-  supplied seq of invalidated output labels will be invalidated. Subsequent
-  calls will do nothing. The loaded-unmodified-lines function will return a
-  non-nil value after this function is called."
-  [node-id evaluation-context invalidated-labels]
+  time this is called for a node-id, the state will be read from disk and
+  returned. Subsequent calls will simply return nil. The loaded-unmodified-lines
+  function will return a non-nil value after this function is called."
+  [node-id evaluation-context]
   (let [read-volatile (volatile! nil)]
     (g/user-data-swap!
       node-id :unmodified-lines
@@ -113,15 +133,12 @@
         (or loaded-unmodified-lines
             (let [resource (g/node-value node-id :resource evaluation-context)
                   [lines-or-error-value disk-sha256] (read-lines+disk-sha256 node-id resource)]
-              (vreset! read-volatile [resource disk-sha256])
+              (vreset! read-volatile [resource lines-or-error-value disk-sha256])
               lines-or-error-value))))
-    (when-some [[resource disk-sha256] (deref read-volatile)]
-      (when (seq invalidated-labels)
-        (g/invalidate-outputs! (mapv #(g/endpoint node-id %)
-                                     invalidated-labels)))
-      (when (some? disk-sha256)
-        (let [workspace (resource/workspace resource)]
-          (workspace/set-disk-sha256 workspace node-id disk-sha256))))))
+    (when-some [[resource lines-or-error-value disk-sha256] (deref read-volatile)]
+      (let [resource-type (resource/resource-type resource)
+            source-value (resource-node/save-value->source-value lines-or-error-value resource-type)]
+        [resource source-value disk-sha256]))))
 
 (defn ensure-loaded!
   "Ensures a lazy-loaded CodeEditorResourceNode has loaded the contents of its
@@ -129,21 +146,26 @@
   [node-id evaluation-context]
   ;; This function is called externally for its side effects, so we need to
   ;; invalidate any outputs that depend on the disk-state.
-  (some-> (ensure-disk-state node-id evaluation-context [:save-value])
-          (g/transact)))
+  (when-some [[resource source-value disk-sha256] (init-disk-state node-id evaluation-context)]
+    (resource-node/set-source-value! node-id source-value)
+    (when disk-sha256
+      (g/transact
+        (workspace/set-disk-sha256 (resource/workspace resource) node-id disk-sha256)))))
 
-(defn- eager-load [self resource]
-  (let [[lines disk-sha256] (resource/read-source-value+sha256-hex resource read-fn)
-        indent-type (guess-indent-type lines)]
+(defn- eager-load [self lines]
+  {:pre [(and (vector? lines)
+              (string? (first lines)))]}
+  (let [indent-type (guess-indent-type lines)]
     (set-unmodified-lines! self lines) ; Avoids a disk read in modified-lines property setter.
-    (cond-> (g/set-property self :modified-lines lines :modified-indent-type indent-type)
-            disk-sha256 (concat (workspace/set-disk-sha256 (resource/workspace resource) self disk-sha256)))))
+    (g/set-property self
+      :modified-lines lines
+      :modified-indent-type indent-type)))
 
-(defn- load-fn [additional-load-fn eager-loading? connect-breakpoints? project self resource]
+(defn- load-fn [additional-load-fn lazy-loaded connect-breakpoints project self resource lines]
   (concat
-    (when eager-loading?
-      (eager-load self resource))
-    (when connect-breakpoints?
+    (when-not lazy-loaded
+      (eager-load self lines))
+    (when connect-breakpoints
       (g/connect self :breakpoints project :breakpoints))
     (when additional-load-fn
       (additional-load-fn project self resource))))
@@ -161,10 +183,20 @@
   (property invalidated-rows InvalidatedRows (default []) (dynamic visible (g/constantly false)))
   (property modified-indent-type IndentType (dynamic visible (g/constantly false)))
 
-  (property modified-lines Lines (dynamic visible (g/constantly false))
+  (property modified-lines types/Lines (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self _old-value new-value]
-                   (lsp/notify-lines-modified! (lsp/get-node-lsp (:basis evaluation-context) self) self new-value evaluation-context)
-                   (ensure-disk-state self evaluation-context [])))) ; No need to invalidate :save-value here since it depends on :modified-lines.
+                   (let [basis (:basis evaluation-context)
+                         lsp (lsp/get-node-lsp basis self)]
+                     (if-some [[resource source-value disk-sha256] (init-disk-state self evaluation-context)]
+                       (do
+                         (lsp/notify-lines-modified! lsp resource source-value new-value)
+                         (resource-node/set-source-value! self source-value)
+                         (when disk-sha256
+                           (workspace/set-disk-sha256 (resource/workspace resource) self disk-sha256)))
+                       (let [resource (resource-node/resource basis self)
+                             source-value (g/node-value self :source-value evaluation-context)]
+                         (lsp/notify-lines-modified! lsp resource source-value new-value)
+                         nil))))))
 
   (property regions Regions (default []) (dynamic visible (g/constantly false)))
 
@@ -178,39 +210,30 @@
                                                    default-indent-type
                                                    (guess-indent-type lines))))))
 
-  (output lines Lines (g/fnk [_node-id save-value resource] (or save-value
-                                                                (resource-io/with-error-translation resource _node-id :lines
-                                                                  (read-fn resource)))))
+  (output lines types/Lines (g/fnk [_node-id save-value resource] (or save-value
+                                                                      (resource-io/with-error-translation resource _node-id :lines
+                                                                        (read-fn resource)))))
 
-  (output save-value Lines (g/fnk [_node-id modified-lines] (or modified-lines (loaded-unmodified-lines _node-id))))
+  (output save-value types/Lines (g/fnk [_node-id modified-lines]
+                                   (or modified-lines
+                                       (loaded-unmodified-lines _node-id)))))
 
-  ;; To save memory, save-data is not cached. It is trivial to produce.
-  (output save-data g/Any resource-node/produce-save-data)
+(defn code-resource-type? [resource-type]
+  (and (:textual? resource-type)
+       (identical? read-fn (:read-fn resource-type))
+       (identical? write-fn (:write-fn resource-type))))
 
-  ;; To save memory, we don't store the source-value in the graph.
-  ;; Instead, we use its hash to determine if we've been dirtied.
-  ;; This output must still be named source-value since it is
-  ;; invalidated when saving.
-  (output source-value g/Any :cached (g/fnk [_node-id editable resource]
-                                       (when editable
-                                         (let [lines (resource-io/with-error-translation resource _node-id :source-value
-                                                       (read-fn resource))]
-                                           (if (g/error? lines)
-                                             lines
-                                             (hash lines))))))
-
-  ;; We're dirty if the hash of our non-nil save-value differs from the source.
-  (output dirty? g/Bool (g/fnk [_node-id editable save-value source-value]
-                          (and editable (some? save-value) (not= source-value (hash save-value))))))
-
-(defn register-code-resource-type [workspace & {:keys [ext node-type language icon view-types view-opts tags tag-opts label eager-loading? additional-load-fn built-pb-class] :as args}]
-  (let [debuggable? (contains? tags :debuggable)
-        load-fn (partial load-fn additional-load-fn eager-loading? debuggable?)
+(defn register-code-resource-type [workspace & {:keys [ext node-type language icon view-types view-opts tags tag-opts label lazy-loaded additional-load-fn built-pb-class] :as args}]
+  (let [connect-breakpoints (contains? tags :debuggable)
+        load-fn (partial load-fn additional-load-fn lazy-loaded connect-breakpoints)
         args (-> args
-                 (dissoc :additional-load-fn :eager-loading?)
+                 (dissoc :additional-load-fn)
                  (assoc :load-fn load-fn
                         :read-fn read-fn
                         :write-fn write-fn
+                        :search-fn search-fn
+                        :search-value-fn search-value-fn
+                        :source-value-fn source-value-fn
                         :textual? true
                         :test-info (cond-> {:type :code}
                                            built-pb-class (assoc :built-pb-class built-pb-class))))]

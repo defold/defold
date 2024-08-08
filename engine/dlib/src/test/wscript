@@ -90,6 +90,8 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
     js_lib_paths['library_sys.js'] = '../src/dlib/js'
     test.env['JS_LIB_PATHS'] = js_lib_paths
 
+    return test
+
 def configure(conf):
     conf.env.append_value('CLASSPATH', '../ext/*')
     conf.env.append_value('CLASSPATH', '../ext/jetty/*')
@@ -204,3 +206,14 @@ def build(bld):
     create_test(bld, 'test_opaque_handle_container')
     create_test(bld, 'test_crypt')
     create_test(bld, 'test_job_thread')
+
+    if bld.env.DOTNET:
+        b = bld.stlib(features= 'cs_stlib',
+                      project = 'cs/test_dlib_cs.csproj')
+        b.install_path = None
+
+        bld.add_group() # Until the cs_stlib can work with the 'use' mechanism properly
+        t = create_test(bld, 'test_csharp', extra_libs = ['CSHARP'])
+        t.env.append_value('LINKFLAGS', [t.env.LIB_ST % 'test_dlib_cs'])
+        t.env.append_value('LIBPATH', ['./src/test/cs'])
+

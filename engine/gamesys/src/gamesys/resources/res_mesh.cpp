@@ -208,7 +208,7 @@ namespace dmGameSystem
                 if (render_res_type == dmRender::RENDER_RESOURCE_TYPE_RENDER_TARGET)
                 {
                     render_targets[i] = (RenderTargetResource*) texture_res;
-                    textures[i]       = render_targets[i]->m_TextureResource;
+                    textures[i]       = render_targets[i]->m_ColorAttachmentResources[0];
                 }
                 else
                 {

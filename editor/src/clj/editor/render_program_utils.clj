@@ -15,7 +15,7 @@
 (ns editor.render-program-utils
   (:require [editor.protobuf :as protobuf]
             [editor.protobuf-forms :as protobuf-forms])
-  (:import [com.dynamo.render.proto Material$MaterialDesc$ConstantType Material$MaterialDesc$FilterModeMag Material$MaterialDesc$FilterModeMin Material$MaterialDesc$WrapMode]))
+  (:import [com.dynamo.render.proto Material$MaterialDesc$ConstantType Material$MaterialDesc$FilterModeMag Material$MaterialDesc$FilterModeMin Material$MaterialDesc$Sampler Material$MaterialDesc$WrapMode]))
 
 (set! *warn-on-reflection* true)
 
@@ -80,16 +80,29 @@
   "HACK/FIXME: See above for the detailed background. We must convert the legacy
   `optional` value to a `repeated` value when writing the runtime binary format."
   [downgraded-constant-value]
-  (if (some? downgraded-constant-value)
-    [downgraded-constant-value]
-    []))
+  [downgraded-constant-value])
 
 (defn- hack-downgrade-constant [constant]
-  (update constant :value hack-downgrade-constant-value))
+  (protobuf/sanitize constant :value hack-downgrade-constant-value))
 
 (defn- hack-upgrade-constant [constant]
-  (update constant :value hack-upgrade-constant-value))
+  (protobuf/sanitize constant :value hack-upgrade-constant-value))
 
 (def hack-downgrade-constants (partial mapv hack-downgrade-constant))
 
 (def hack-upgrade-constants (partial mapv hack-upgrade-constant))
+
+(def ^:private editable-sampler-optional-field-defaults
+  (-> Material$MaterialDesc$Sampler
+      (protobuf/default-message #{:optional})
+      (dissoc :name-hash :texture))) ; TODO: Support assigning a default :texture for Samplers.
+
+(defn sampler->editable-sampler [sampler]
+  (merge editable-sampler-optional-field-defaults sampler))
+
+(defn samplers->editable-samplers [samplers]
+  (mapv sampler->editable-sampler samplers))
+
+(defn editable-samplers->samplers [editable-samplers]
+  (mapv #(protobuf/clear-defaults Material$MaterialDesc$Sampler %)
+        editable-samplers))

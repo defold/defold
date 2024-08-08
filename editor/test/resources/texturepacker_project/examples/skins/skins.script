@@ -1,0 +1,21 @@
+go.property("skin1", resource.atlas())
+go.property("skin2", resource.atlas())
+
+local function switch_skin(self)
+	self.skin = self.skin + 1
+	if self.skin > 2 then
+		self.skin = 1
+	end
+	local texture = nil
+	if self.skin == 1 then
+		texture = self.skin1
+	elseif self.skin == 2 then
+		texture = self.skin2
+	end
+	go.set("#sprite", "image", texture)
+end
+
+function init(self)
+	self.skin = 1
+	timer.delay(1, true, switch_skin)
+end

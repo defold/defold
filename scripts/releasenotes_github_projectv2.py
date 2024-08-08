@@ -197,7 +197,7 @@ def get_issue_type_from_labels(labels):
 
 def get_closing_pr(issue):
     for t in issue["timelineItems"]["nodes"]:
-        if "source" in t and t["source"]:
+        if t and "source" in t and t["source"]:
             if t["source"].get("merged") == True:
                 return t["source"]
     return issue
@@ -261,8 +261,11 @@ def generate(version, hide_details = False):
         # strip from match to end of file
         entry["body"] = re.sub("## PR checklist.*", "", entry["body"], flags=re.DOTALL).strip()
         entry["body"] = re.sub("### Technical changes.*", "", entry["body"], flags=re.DOTALL).strip()
+        entry["body"] = re.sub("### Technical changes.*", "", entry["body"], flags=re.DOTALL).strip()
+        entry["body"] = re.sub("# Technical changes:.*", "", entry["body"], flags=re.DOTALL).strip()
         entry["body"] = re.sub("Technical changes:.*", "", entry["body"], flags=re.DOTALL).strip()
         entry["body"] = re.sub("Technical notes:.*", "", entry["body"], flags=re.DOTALL).strip()
+        entry["body"] = re.sub("## Technical details.*", "", entry["body"], flags=re.DOTALL).strip()
 
         # Remove closing keywords
         entry["body"] = re.sub("Fixes .*/.*#.....*", "", entry["body"], flags=re.IGNORECASE).strip()

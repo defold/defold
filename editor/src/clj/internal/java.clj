@@ -21,12 +21,15 @@
 
 (defonce no-classes-array (make-array Class 0))
 
+(defonce byte-array-class (.getClass (byte-array 0)))
+
 (defn- get-declared-methods-raw [^Class class]
   (.getDeclaredMethods class))
 
 (def get-declared-methods (memoize get-declared-methods-raw))
 
-(defn- get-declared-constructor-raw [^Class class args-classes]
+(defn- get-declared-constructor-raw
+  ^Constructor [^Class class args-classes]
   {:pre [(counted? args-classes)]}
   (.getDeclaredConstructor class (if (zero? (count args-classes))
                                    no-classes-array
@@ -34,7 +37,8 @@
 
 (def get-declared-constructor (memoize get-declared-constructor-raw))
 
-(defn- get-declared-method-raw [^Class class ^String method-name args-classes]
+(defn- get-declared-method-raw
+  ^Method [^Class class ^String method-name args-classes]
   {:pre [(counted? args-classes)]}
   (.getDeclaredMethod class method-name (if (zero? (count args-classes))
                                           no-classes-array

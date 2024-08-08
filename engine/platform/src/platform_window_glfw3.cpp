@@ -101,6 +101,16 @@ namespace dmPlatform
         }
     }
 
+    static void OnContentScaleCallback(GLFWwindow* glfw_window, float xscale, float yscale)
+    {
+        (void)xscale;
+        (void)yscale;
+
+        int width, height;
+        glfwGetWindowSize(glfw_window, &width, &height);
+        OnWindowResize(glfw_window, width, height);
+    }
+
     static void OnMouseScroll(GLFWwindow* glfw_window, double xoffset, double yoffset)
     {
         HWindow window = (HWindow) glfwGetWindowUserPointer(glfw_window);
@@ -154,6 +164,7 @@ namespace dmPlatform
     void DeleteWindow(HWindow window)
     {
         delete window;
+        glfwTerminate();
     }
 
     int32_t OpenGLGetDefaultFramebufferId()
@@ -163,16 +174,20 @@ namespace dmPlatform
 
     static PlatformResult OpenWindowOpenGL(Window* wnd, const WindowParams& params)
     {
-        // TODO: This is the setup required for OSX, when we implement the other desktop
-        //       platforms we might want to do this according to platform.
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
 
         glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
         glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
         glfwWindowHint(GLFW_SAMPLES, params.m_Samples);
 
-        wnd->m_Window = glfwCreateWindow(params.m_Width, params.m_Height, params.m_Title, NULL, NULL);
+        GLFWmonitor* fullscreen_monitor = NULL;
+        if (params.m_Fullscreen)
+        {
+            fullscreen_monitor = glfwGetPrimaryMonitor();
+        }
+
+        wnd->m_Window = glfwCreateWindow(params.m_Width, params.m_Height, params.m_Title, fullscreen_monitor, NULL);
 
         if (!wnd->m_Window)
         {
@@ -197,7 +212,13 @@ namespace dmPlatform
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
         glfwWindowHint(GLFW_SAMPLES, params.m_Samples);
 
-        wnd->m_Window = glfwCreateWindow(params.m_Width, params.m_Height, params.m_Title, NULL, NULL);
+        GLFWmonitor* fullscreen_monitor = NULL;
+        if (params.m_Fullscreen)
+        {
+            fullscreen_monitor = glfwGetPrimaryMonitor();
+        }
+
+        wnd->m_Window = glfwCreateWindow(params.m_Width, params.m_Height, params.m_Title, fullscreen_monitor, NULL);
 
         if (!wnd->m_Window)
         {
@@ -214,7 +235,15 @@ namespace dmPlatform
             return PLATFORM_RESULT_WINDOW_ALREADY_OPENED;
         }
 
-        glfwWindowHint(GLFW_FOCUSED, GLFW_TRUE);
+        // A reboot doesn't shut down GLFW, so we reset all window hints here to defaults first.
+        glfwDefaultWindowHints();
+
+        // This hint saves both size and position, but we need only position
+        // That's why we hide window here and then later set default size and show window
+        glfwWindowHintString(GLFW_COCOA_FRAME_NAME, params.m_Title);
+        glfwWindowHint(GLFW_VISIBLE, GLFW_FALSE);
+        glfwWindowHint(GLFW_FOCUSED, GLFW_FALSE);
+        glfwWindowHint(GLFW_SCALE_TO_MONITOR, GLFW_TRUE);
 
         PlatformResult res = PLATFORM_RESULT_WINDOW_OPEN_ERROR;
 
@@ -231,6 +260,13 @@ namespace dmPlatform
 
         if (res == PLATFORM_RESULT_OK)
         {
+            FocusWindowNative(window);
+
+        #ifdef __MACH__
+            // Set size from settings
+            glfwSetWindowSize(window->m_Window, params.m_Width, params.m_Height);
+        #endif
+
             glfwSetWindowUserPointer(window->m_Window, (void*) window);
             glfwSetWindowSizeCallback(window->m_Window, OnWindowResize);
             glfwSetWindowCloseCallback(window->m_Window, OnWindowClose);
@@ -239,12 +275,18 @@ namespace dmPlatform
             glfwSetScrollCallback(window->m_Window, OnMouseScroll);
             glfwSetCharCallback(window->m_Window, OnAddCharacterCallback);
             glfwSetMarkedTextCallback(window->m_Window, OnMarkedTextCallback);
+            glfwSetWindowContentScaleCallback(window->m_Window, OnContentScaleCallback);
 
             glfwSetJoystickCallback(OnJoystick);
 
             UpdateWindowSize(window);
 
             SetSwapInterval(window, 1);
+
+            if (!params.m_Fullscreen)
+            {
+                CenterWindowNative(window, glfwGetPrimaryMonitor());
+            }
 
             // glfwSetWindowBackgroundColor does not exist in GLFW3, but we could potentially
             // set glfwWindowHint(GLFW_TRANSPARENT_FRAMEBUFFER, GLFW_TRUE); to get a transparent framebuffer
@@ -280,7 +322,14 @@ namespace dmPlatform
 
     void PollEvents(HWindow window)
     {
+        window->m_MouseScrollX = 0.0;
+        window->m_MouseScrollY = 0.0;
         glfwPollEvents();
+    }
+
+    void ShowWindow(HWindow window)
+    {
+        glfwShowWindow(window->m_Window);
     }
 
     void SwapBuffers(HWindow window)
@@ -442,6 +491,7 @@ namespace dmPlatform
     {
         int32_t count = 0;
         const float* axes_values = glfwGetJoystickAxes(joystick_index, &count);
+
         count = dmMath::Min(count, (int32_t) values_capacity);
         if (count > 0)
         {
@@ -454,6 +504,7 @@ namespace dmPlatform
     {
         int32_t count = 0;
         const unsigned char* hats_values = glfwGetJoystickHats(joystick_index, &count);
+
         count = dmMath::Min(count, (int32_t) values_capacity);
         if (count > 0)
         {
@@ -466,6 +517,7 @@ namespace dmPlatform
     {
         int32_t count = 0;
         const unsigned char* buttons_values = glfwGetJoystickButtons(joystick_index, &count);
+
         count = dmMath::Min(count, (int32_t) values_capacity);
         if (count > 0)
         {

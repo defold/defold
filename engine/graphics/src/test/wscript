@@ -3,7 +3,7 @@ import waflib.Options
 from waf_dynamo import platform_supports_feature, platform_glfw_version
 
 def build(bld):
-    for name in ['test_graphics', 'test_glsl_uniform_parser']:
+    for name in ['test_graphics']:
         bld.program(features = 'cxx cprogram test',
                     includes = ['../../src', '../../proto'],
                     exported_symbols = ['GraphicsAdapterNull'],

@@ -20,7 +20,6 @@
 #include <dlib/log.h>
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/resource/resource.h>
-
 #include "../gameobject.h"
 #include "../gameobject_private.h"
 
@@ -37,7 +36,9 @@ protected:
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
         m_Factory = dmResource::NewFactory(&params, "build/src/gameobject/test/bones");
-        m_ScriptContext = dmScript::NewContext(0, m_Factory, true);
+        dmScript::ContextParams script_context_params = {};
+        script_context_params.m_Factory = m_Factory;
+        m_ScriptContext = dmScript::NewContext(script_context_params);
         dmScript::Initialize(m_ScriptContext);
         m_Register = dmGameObject::NewRegister();
         dmGameObject::Initialize(m_Register, m_ScriptContext);

@@ -192,17 +192,6 @@ namespace dmResource
     const char* GetExtFromPath(const char* path);
 
     /**
-     * Get raw resource data. Unregistered resources can be loaded with this function.
-     * The returned resource data must be deallocated with free()
-     * @param factory Factory handle
-     * @param name Resource name
-     * @param resource Resource data
-     * @param resource_size Resource size
-     * @return RESULT_OK on success
-     */
-    Result GetRaw(HFactory factory, const char* name, void** resource, uint32_t* resource_size);
-
-    /**
      * Updates a preexisting resource with new data
      * @param factory Factory handle
      * @param hashed_name The hashed canonical name (E.g. hash("/my/icon.texturec") or hash("/my/icon.texturec_123"))
@@ -361,9 +350,10 @@ namespace dmResource
 
     struct SGetDependenciesParams
     {
-        dmhash_t m_UrlHash; // The requested url
-        bool m_OnlyMissing; // Only report assets that aren't available in the mounts
-        bool m_Recursive;   // Traverse down for each resource that has dependencies
+        dmhash_t m_UrlHash;         // The requested url
+        bool m_OnlyMissing;         // Only report assets that aren't available in the mounts
+        bool m_Recursive;           // Traverse down for each resource that has dependencies
+        bool m_IncludeRequestedUrl; // If requested url should be included into result
     };
 
     struct SGetDependenciesResult
@@ -380,7 +370,7 @@ namespace dmResource
      * @note Only reports dependencies from mounts that have a .dmanifest available
      * @param factory [type: dmResource::HFactory] Factory handle
      * @param url_hash [type: dmhash_t] url hash
-     * @return result [type: dmResource::Result] The mounts context
+     * @return result [type: dmResource::Result] resource result
     */
     typedef void (*FGetDependency)(void* context, const SGetDependenciesResult* result);
     dmResource::Result GetDependencies(const dmResource::HFactory factory, const SGetDependenciesParams* params, FGetDependency callback, void* callback_context);

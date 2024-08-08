@@ -21,7 +21,8 @@
             [editor.settings-core :as settings-core]
             [editor.system :as system]
             [editor.url :as url]
-            [util.coll :refer [pair]])
+            [util.coll :refer [pair]]
+            [util.fn :as fn])
   (:import [java.io File InputStream]
            [java.net HttpURLConnection URI]
            [java.nio.file.attribute FileTime]
@@ -200,7 +201,7 @@
              :new-file (doto (fs/create-temp-file! name ".zip")
                          (write-local-library-zip! local-extension-dir))}))))))
 
-(defn- fetch-library! [resolver ^URI uri tag]
+(defn- fetch-library-raw! [resolver ^URI uri tag]
   (try
     (or (use-local-extension-dir! uri)
         (let [response (resolver uri tag)]
@@ -211,6 +212,16 @@
       {:status :error
        :reason :fetch-failed
        :exception e})))
+
+(def ^:private fetch-library!
+  ;; The tests are creating various new projects inside temporary folders. We
+  ;; can speed things up by caching the fetched artifacts, so they do not have
+  ;; to be downloaded over and over for each new project. This assumes the
+  ;; libraries will not be updated on the server during our process lifetime.
+  ;; True during tests, or when using the :cache-libraries lein profile.
+  (if (Boolean/getBoolean "defold.cache.libraries")
+    (fn/memoize fetch-library-raw!)
+    fetch-library-raw!))
 
 (defn- fetch-library-update! [{:keys [tag uri] :as lib-state} resolver render-progress!]
   (let [progress (progress/make (str "Fetching " uri))]

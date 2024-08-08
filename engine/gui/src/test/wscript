@@ -17,7 +17,7 @@ def create_simple_protoc_task(name, ext, compiled_ext, type, before, shell = Tru
 create_simple_protoc_task('particle_fx', '.particlefx', '.particlefxc', 'dmParticleDDF.ParticleFX', before='c cxx')
 
 def build(bld):
-    uselib = ['TESTMAIN', 'APP', 'SCRIPT', 'EXTENSION', 'RESOURCE', 'PARTICLE', 'RIG', 'HID_NULL', 'DDF', 'DLIB', 'PROFILE_NULL', 'PLATFORM_NULL', 'SOCKET', 'LUA', 'GRAPHICS_PROTO']
+    uselib = ['TESTMAIN', 'APP', 'SCRIPT', 'GRAPHICS_NULL', 'EXTENSION', 'RESOURCE', 'PARTICLE', 'RIG', 'HID_NULL', 'DDF', 'DLIB', 'PROFILE_NULL', 'PLATFORM_NULL', 'SOCKET', 'LUA', 'GRAPHICS_PROTO', 'GAMEOBJECT']
 
     test_gui = bld.program(features = 'cxx cprogram embed test',
                            includes = '. ..',

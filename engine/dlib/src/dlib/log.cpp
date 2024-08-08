@@ -38,6 +38,9 @@
 #if defined(__APPLE__)
 #include <TargetConditionals.h>
 #endif
+#ifdef __EMSCRIPTEN__
+#include <emscripten/emscripten.h>
+#endif
 
 namespace dmLog
 {
@@ -303,11 +306,16 @@ static void DoLogPlatform(LogSeverity severity, const char* output, int output_l
 #endif
 
 #ifdef __EMSCRIPTEN__
+
         //Emscripten maps stderr to console.error and stdout to console.log.
         if (severity == LOG_SEVERITY_ERROR || severity == LOG_SEVERITY_FATAL){
-            fwrite(output, 1, output_len, stderr);
+            EM_ASM_({
+                Module.printErr(UTF8ToString($0));
+            }, output);
         } else {
-            fwrite(output, 1, output_len, stdout);
+            EM_ASM_({
+                Module.print(UTF8ToString($0));
+            }, output);
         }
 #elif !defined(ANDROID)
         fwrite(output, 1, output_len, stderr);

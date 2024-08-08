@@ -40,6 +40,9 @@
                                   <AnchorPane VBox.vgrow="ALWAYS">
                                     <children>
                                       <ListView id="changes" prefHeight="200.0" prefWidth="200.0" styleClass="flat-list-view" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0" />
+                                      <StackPane id="changes-progress-overlay" AnchorPane.bottomAnchor="0.0" AnchorPane.leftAnchor="0.0" AnchorPane.rightAnchor="0.0" AnchorPane.topAnchor="0.0">
+                                        <ProgressIndicator prefHeight="128.0" prefWidth="128.0" StackPane.alignment="CENTER" />
+                                      </StackPane>
                                     </children>
                                   </AnchorPane>
                                   <ToolBar prefHeight="30.0" prefWidth="200.0">

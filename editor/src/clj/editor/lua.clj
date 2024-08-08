@@ -41,7 +41,7 @@
   (format "doc/%s_doc.sdoc" doc))
 
 (defn- load-sdoc [doc-name]
-  (:elements (protobuf/read-text ScriptDoc$Document (io/resource (sdoc-path doc-name)))))
+  (:elements (protobuf/read-map-with-defaults ScriptDoc$Document (io/resource (sdoc-path doc-name)))))
 
 (defn- make-args-doc-html [args]
   (str "<dl>"
@@ -360,11 +360,88 @@
                                     :doc "Resource path (starting with <code>/</code>) of a directory to delete"}]
                       :description "Delete a directory if it exists, and all existent child directories and files. Throws an error if the directory can't be deleted."
                       :examples "```\neditor.delete_directory(\"/assets/gen\")\n```"})]
-
+       [["editor"] (make-completion
+                     {:name "execute"
+                      :type :function
+                      :parameters [{:name "command"
+                                    :types ["string"]
+                                    :doc "Shell command name to execute"}
+                                   {:name "[...]"
+                                    :types ["string"]
+                                    :doc "Optional shell command arguments"}
+                                   {:name "[options]"
+                                    :types ["table"]
+                                    :doc "Optional options table. Supported entries:
+                                           <ul>
+                                             <li>
+                                               <span class=\"type\">boolean</span> <code>reload_resources</code>: make the editor reload the resources from disk after the command is executed, default <code>true</code>
+                                             </li>
+                                             <li>
+                                               <span class=\"type\">string</span> <code>out</code>: standard output mode, either:
+                                               <ul>
+                                                 <li>
+                                                   <code>\"pipe\"</code>: the output is piped to the editor console (this is the default behavior).
+                                                 </li>
+                                                 <li>
+                                                   <code>\"capture\"</code>: capture and return the output to the editor script with trailing newlines trimmed.
+                                                 </li>
+                                                 <li>
+                                                   <code>\"discard\"</code>: the output is discarded completely.
+                                                 </li>
+                                               </ul>
+                                             </li>
+                                             <li>
+                                               <span class=\"type\">string</span> <code>err</code>: standard error output mode, either:
+                                               <ul>
+                                                 <li>
+                                                   <code>\"pipe\"</code>: the error output is piped to the editor console (this is the default behavior).
+                                                 </li>
+                                                 <li>
+                                                   <code>\"stdout\"</code>: the error output is redirected to the standard output of the process.
+                                                 </li>
+                                                 <li>
+                                                   <code>\"discard\"</code>: the error output is discarded completely.
+                                                 </li>
+                                               </ul>
+                                             </li>
+                                           </ul>"}]
+                      :returnvalues [{:name "result"
+                                      :types ["nil" "string"]
+                                      :doc "If <code>out</code> option is set to <code>\"capture\"</code>, returns the output as string with trimmed trailing newlines. Otherwise, returns <code>nil</code>."}]
+                      :description "Execute a shell command. Any shell command arguments should be provided as separate argument strings to this function. If the exit code of the process is not zero, this function throws error. By default, the function returns `nil`, but it can be configured to capture the output of the shell command as string and return it — set `out` option to `\"capture\"` to do it.<br>By default, after this shell command is executed, the editor will reload resources from disk."
+                      :examples "Make a directory with spaces in it:\n```\neditor.execute(\"mkdir\", \"new dir\")\n```\nRead the git status:\n```\nlocal status = editor.execute(\"git\", \"status\", \"--porcelain\", {\n  reload_resources = false,\n  out = \"capture\"\n})\n```"})]
        [["editor"] (make-completion
                      {:name "platform"
                       :type :variable
                       :description "A `string`, either:\n- `\"x86_64-win32\"`\n- `\"x86_64-macos\"`\n- `\"arm64-macos\"`\n- `\"x86_64-linux\"`"})]
+       [["editor"] (make-completion
+                     {:name "save"
+                      :type :function
+                      :parameters []
+                      :description "Persist any unsaved changes to disk"})]
+       [["editor"] (make-completion
+                     {:name "transact"
+                      :type :function
+                      :parameters [{:name "txs"
+                                    :types ["transaction_step[]"]
+                                    :doc "An array of transaction steps created using <code>editor.tx.*</code> functions"}]
+                      :description "Change the editor state in a single, undoable transaction"})]
+       [["editor"] (make-completion
+                     {:name "tx"
+                      :type :module
+                      :description "The editor module that defines function for creating transaction steps for `editor.transact()` function."})]
+       [["editor" "tx"] (make-completion
+                          {:name "set"
+                           :type :function
+                           :parameters [node-param
+                                        property-param
+                                        {:name "value"
+                                         :types ["any"]
+                                         :doc "A new value for the property"}]
+                           :returnvalues [{:name "result"
+                                           :types ["transaction_step"]
+                                           :doc "A transaction step"}]
+                           :description "Create a transaction step that, when transacted using `editor.transact()`, will set the node's property to a supplied value"})]
        [["editor"] (make-completion
                      {:name "version"
                       :type :variable

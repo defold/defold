@@ -16,6 +16,10 @@
                     -fx-opacity: 0.5;
                     -fx-padding: 0.0 0.0 0.0 4.0;
                 }
+                &.value-path {
+                    -fx-opacity: 0.5;
+                    -fx-padding: 0.0 0.0 0.0 4.0;
+                }
                 &.matched {
                     -fx-text-fill: -df-defold-blue-lighter;
                 }

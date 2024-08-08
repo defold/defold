@@ -37,7 +37,8 @@
             [editor.types :as types]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
-            [internal.util :as util])
+            [internal.util :as util]
+            [util.coll :as coll])
   (:import [com.dynamo.gamesys.proto MeshProto$MeshDesc MeshProto$MeshDesc$PrimitiveType]
            [com.jogamp.opengl GL2]
            [editor.gl.shader ShaderLifecycle]
@@ -71,15 +72,14 @@
 
 (def id-shader (shader/make-shader ::model-id-shader model-id-vertex-shader model-id-fragment-shader {"id" :id "world_view_proj" :world-view-proj}))
 
-(g/defnk produce-pb-msg [primitive-type position-stream normal-stream material vertices textures]
-  (cond-> {:material (resource/resource->proj-path material)
-           :vertices (resource/resource->proj-path vertices)
-           :textures (mapv resource/resource->proj-path textures)
-           :primitive-type primitive-type}
-    (not (str/blank? position-stream))
-    (assoc :position-stream position-stream)
-    (not (str/blank? normal-stream))
-    (assoc :normal-stream normal-stream)))
+(g/defnk produce-save-value [primitive-type position-stream normal-stream material vertices textures]
+  (protobuf/make-map-without-defaults MeshProto$MeshDesc
+    :material (resource/resource->proj-path material)
+    :vertices (resource/resource->proj-path vertices)
+    :textures (mapv resource/resource->proj-path textures)
+    :primitive-type primitive-type
+    :position-stream position-stream
+    :normal-stream normal-stream))
 
 (defn- build-pb [resource dep-resources user-data]
   (let [pb  (:pb user-data)
@@ -124,7 +124,7 @@
     (= stream-name specified-normal-stream-name)
     (= stream-name "normal")))
 
-(g/defnk produce-build-targets [_node-id resource pb-msg dep-build-targets material vertices vertex-space position-stream normal-stream stream-ids]
+(g/defnk produce-build-targets [_node-id resource save-value dep-build-targets material vertices vertex-space position-stream normal-stream stream-ids]
   (or (some->> [(prop-resource-error :fatal _node-id :material material "Material")
                 (prop-resource-error :fatal _node-id :vertices vertices "Vertices")
                 (validate-stream-id _node-id :position-stream position-stream stream-ids vertices vertex-space)
@@ -132,7 +132,7 @@
                (filterv some?)
                not-empty
                g/error-aggregate)
-      (let [pb-msg (select-keys pb-msg [:material :vertices :textures :primitive-type :position-stream :normal-stream])
+      (let [pb-msg (select-keys save-value [:material :vertices :textures :primitive-type :position-stream :normal-stream])
             dep-build-targets (flatten dep-build-targets)
             deps-by-source (into {} (map #(let [res (:resource %)] [(resource/proj-path (:resource res)) res]) dep-build-targets))
             dep-resources (into (res-fields->resources pb-msg deps-by-source [:material :vertices])
@@ -376,15 +376,13 @@
 
 (defn- vset [v i value]
   (let [c (count v)
-        v (if (<= c i) (into v (repeat (- i c) nil)) v)]
+        v (if (<= c i) (coll/into-vector v (repeat (- i c) nil)) v)]
     (assoc v i value)))
 
 (g/defnode MeshNode
   (inherits resource-node/ResourceNode)
 
-  (property name g/Str (dynamic visible (g/constantly false)))
-
-  (property material resource/Resource
+  (property material resource/Resource ; Required protobuf field.
             (value (gu/passthrough material-resource))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
@@ -398,7 +396,7 @@
             (dynamic edit-type (g/constantly {:type resource/Resource
                                               :ext "material"})))
 
-  (property vertices resource/Resource
+  (property vertices resource/Resource ; Required protobuf field.
             (value (gu/passthrough vertices-resource))
             (set (fn [evaluation-context self old-value new-value]
                    (project/resource-setter evaluation-context self old-value new-value
@@ -408,7 +406,8 @@
                                             [:streams :streams])))
             (dynamic edit-type (g/constantly {:type resource/Resource
                                               :ext "buffer"})))
-  (property textures resource/ResourceVec
+
+  (property textures resource/ResourceVec ; Nil is valid default.
             (value (gu/passthrough texture-resources))
             (set (fn [evaluation-context self old-value new-value]
                    (let [project (project/get-project (:basis evaluation-context) self)
@@ -426,15 +425,15 @@
                            (g/connect project :nil-resource self :texture-resources)))))))
             (dynamic visible (g/constantly false)))
 
-  (property primitive-type g/Any (default :primitive-triangles)
+  (property primitive-type g/Any (default (protobuf/default MeshProto$MeshDesc :primitive-type))
             (dynamic edit-type (g/constantly (properties/->pb-choicebox MeshProto$MeshDesc$PrimitiveType))))
 
-  (property position-stream g/Str
+  (property position-stream g/Str (default (protobuf/default MeshProto$MeshDesc :position-stream))
             (dynamic error (g/fnk [_node-id vertices vertex-space stream-ids position-stream]
                              (validate-stream-id _node-id :position-stream position-stream stream-ids vertices vertex-space)))
             (dynamic edit-type (g/fnk [stream-ids] (properties/->choicebox (conj stream-ids "")))))
 
-  (property normal-stream g/Str
+  (property normal-stream g/Str (default (protobuf/default MeshProto$MeshDesc :normal-stream))
             (dynamic error (g/fnk [_node-id vertices vertex-space stream-ids normal-stream]
                              (validate-stream-id _node-id :normal-stream normal-stream stream-ids vertices vertex-space)))
             (dynamic edit-type (g/fnk [stream-ids] (properties/->choicebox (conj stream-ids "")))))
@@ -450,8 +449,7 @@
   (input shader ShaderLifecycle)
   (input vertex-space g/Keyword)
 
-  (output pb-msg g/Any :cached produce-pb-msg)
-  (output save-value g/Any (gu/passthrough pb-msg))
+  (output save-value g/Any :cached produce-save-value)
   (output build-targets g/Any :cached produce-build-targets)
   (output gpu-textures g/Any :cached produce-gpu-textures)
   (output scene g/Any :cached produce-scene)
@@ -476,18 +474,17 @@
                                                         (update :properties into p)
                                                         (update :display-order into (map first p)))))))
 
-(defn load-mesh [_project self resource pb]
-  (concat
-    (g/set-property self :primitive-type (:primitive-type pb))
-    (g/set-property self :position-stream (:position-stream pb))
-    (g/set-property self :normal-stream (:normal-stream pb))
-    (for [res [:material :vertices [:textures]]]
-      (if (vector? res)
-        (let [res (first res)]
-          (g/set-property self res (mapv #(workspace/resolve-resource resource %) (get pb res))))
-        (->> (get pb res)
-          (workspace/resolve-resource resource)
-          (g/set-property self res))))))
+(defn- load-mesh [_project self resource pb]
+  {:pre [(map? pb)]} ; MeshProto$MeshDesc in map format.
+  (let [resolve-resource #(workspace/resolve-resource resource %)
+        resolve-resources #(mapv resolve-resource %)]
+    (gu/set-properties-from-pb-map self MeshProto$MeshDesc pb
+      primitive-type :primitive-type
+      position-stream :position-stream
+      normal-stream :normal-stream
+      material (resolve-resource :material)
+      vertices (resolve-resource :vertices)
+      textures (resolve-resources :textures))))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace

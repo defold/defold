@@ -13,10 +13,6 @@ constants {
   name: "constant_2"
   type: CONSTANT_TYPE_VIEWPROJ
   value {
-    x: 0.0
-    y: 0.0
-    z: 0.0
-    w: 0.0
   }
 }
 samplers {
@@ -26,8 +22,6 @@ samplers {
   filter_min: FILTER_MODE_MIN_LINEAR
   filter_mag: FILTER_MODE_MAG_NEAREST
   max_anisotropy: 0.0
-  texture: ""
-  name_hash: 0
 }
 samplers {
   name: "texture1"
@@ -36,6 +30,4 @@ samplers {
   filter_min: FILTER_MODE_MIN_NEAREST
   filter_mag: FILTER_MODE_MAG_LINEAR
   max_anisotropy: 16.0
-  texture: ""
-  name_hash: 0
 }

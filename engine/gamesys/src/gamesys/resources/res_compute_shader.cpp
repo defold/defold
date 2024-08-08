@@ -14,19 +14,17 @@
 
 #include "res_compute_shader.h"
 #include <graphics/graphics.h>
+#include <dlib/log.h>
 
 namespace dmGameSystem
 {
-    static dmResource::Result AcquireResources(dmGraphics::HContext context, dmResource::HFactory factory, dmGraphics::ShaderDesc* ddf, dmGraphics::HComputeProgram* program)
+    static dmResource::Result AcquireResources(dmGraphics::HContext context, dmResource::HFactory factory, const char* filename, dmGraphics::ShaderDesc* ddf, dmGraphics::HComputeProgram* program)
     {
-        dmGraphics::ShaderDesc::Shader* shader =  dmGraphics::GetShaderProgram(context, ddf);
-        if (shader == 0x0)
-        {
-            return dmResource::RESULT_FORMAT_ERROR;
-        }
-        dmGraphics::HComputeProgram prog = dmGraphics::NewComputeProgram(context, shader);
+        char error_buffer[1024] = {};
+        dmGraphics::HComputeProgram prog = dmGraphics::NewComputeProgram(context, ddf, error_buffer, sizeof(error_buffer));
         if (prog == 0)
         {
+            dmLogError("Failed to create compute shader '%s': %s", filename, error_buffer);
             return dmResource::RESULT_FORMAT_ERROR;
         }
         *program = prog;
@@ -50,7 +48,7 @@ namespace dmGameSystem
     {
         dmGraphics::ShaderDesc* ddf         = (dmGraphics::ShaderDesc*) params->m_PreloadData;
         dmGraphics::HComputeProgram resource = 0x0;
-        dmResource::Result r                = AcquireResources((dmGraphics::HContext) params->m_Context, params->m_Factory, ddf, &resource);
+        dmResource::Result r                = AcquireResources((dmGraphics::HContext) params->m_Context, params->m_Factory, params->m_Filename, ddf, &resource);
         dmDDF::FreeMessage(ddf);
         if (r == dmResource::RESULT_OK)
         {
@@ -82,12 +80,7 @@ namespace dmGameSystem
         }
 
         dmResource::Result res = dmResource::RESULT_OK;
-        dmGraphics::ShaderDesc::Shader* shader =  dmGraphics::GetShaderProgram((dmGraphics::HContext) params->m_Context, ddf);
-        if (shader == 0x0)
-        {
-            res = dmResource::RESULT_FORMAT_ERROR;
-        }
-        else if(!dmGraphics::ReloadComputeProgram(resource, shader))
+        if(!dmGraphics::ReloadComputeProgram(resource, ddf))
         {
             res = dmResource::RESULT_FORMAT_ERROR;
         }

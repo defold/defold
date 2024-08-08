@@ -19,6 +19,7 @@
 
 #include <dlib/log.h>
 #include <dlib/image.h>
+#include <extension/extension.h>
 
 #include "script_buffer.h"
 
@@ -234,8 +235,8 @@ namespace dmGameSystem
     *         local tparams = {
     *             width  = img.width,
     *             height = img.height,
-    *             type   = resource.TEXTURE_TYPE_2D,
-    *             format = resource.TEXTURE_FORMAT_RGBA }
+    *             type   = graphics.TEXTURE_TYPE_2D,
+    *             format = graphics.TEXTURE_FORMAT_RGBA }
     *
     *         local my_texture_id = resource.create_texture("/my_custom_texture.texturec", tparams, img.buffer)
     *         -- Apply the texture to a model
@@ -335,9 +336,8 @@ namespace dmGameSystem
         {0, 0}
     };
 
-    void ScriptImageRegister(const ScriptLibContext& context)
+    static void ScriptImageRegister(lua_State* L)
     {
-        lua_State* L = context.m_LuaState;
         int top = lua_gettop(L);
 
         luaL_register(L, LIB_NAME, ScriptImage_methods);
@@ -356,4 +356,20 @@ namespace dmGameSystem
 
         assert(top == lua_gettop(L));
     }
+
+    static dmExtension::Result ScriptImageInitialize(dmExtension::Params* params)
+    {
+        lua_State* L = params->m_L;
+        ScriptImageRegister(L);
+        return dmExtension::RESULT_OK;
+    }
+
+
+    static dmExtension::Result ScriptImageFinalize(dmExtension::Params* params)
+    {
+        return dmExtension::RESULT_OK;
+    }
+
+
+    DM_DECLARE_EXTENSION(ScriptImageExt, "ScriptImage", 0, 0, ScriptImageInitialize, 0, 0, ScriptImageFinalize)
 }

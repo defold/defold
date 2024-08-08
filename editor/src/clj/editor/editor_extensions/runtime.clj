@@ -48,9 +48,10 @@
   (:require [cljfx.api :as fx]
             [clojure.java.io :as io]
             [dynamo.graph :as g]
+            [editor.editor-extensions.coerce :as coerce]
             [editor.editor-extensions.vm :as vm]
             [editor.future :as future])
-  (:import [com.defold.editor.luart DefoldBaseLib DefoldCoroutine$Create DefoldCoroutine$Yield DefoldIoLib DefoldVarArgFn SearchPath]
+  (:import [com.defold.editor.luart DefoldBaseLib DefoldCoroutine$Create DefoldCoroutine$Yield DefoldIoLib DefoldUserdata DefoldVarArgFn SearchPath]
            [java.io File PrintStream Writer]
            [java.nio.charset StandardCharsets]
            [org.apache.commons.io.output WriterOutputStream]
@@ -98,13 +99,24 @@
   "Convert Lua data structure to Clojure data structure
 
   Might lock the runtime Lua VM while deserializing tables
-  Converts tables either to:
+  By default, converts tables either to:
   - vectors, if not empty and all keys are positive ints
   - maps, otherwise. string keys are converted to keywords
 
+  When coercer argument is provided, a more efficient conversion is used,
+  converting to the exact specified data shape. See
+  editor.editor-extensions.coerce for coercer options.
+
   Preserves LuaThread, File (from IoLib) and LuaFunction"
-  [^EditorExtensionsRuntime runtime lua-value]
-  (vm/->clj lua-value (.-lua-vm runtime)))
+  ([^EditorExtensionsRuntime runtime lua-value]
+   (vm/->clj lua-value (.-lua-vm runtime)))
+  ([^EditorExtensionsRuntime runtime coercer lua-value]
+   (coerce/coerce (.-lua-vm runtime) coercer lua-value)))
+
+(defn coerces-to?
+  "Check if a LuaValue satisfies the coercer"
+  [^EditorExtensionsRuntime rt coercer lua-value]
+  (not (coerce/failure? (coercer (.-lua-vm rt) lua-value))))
 
 (def ^:private ^:dynamic *execution-context*
   "Map that holds editor-related data during editor script execution
@@ -202,8 +214,10 @@
 
 (defn wrap-userdata
   "Wraps the value into a LuaUserdata"
-  [x]
-  (vm/wrap-userdata x))
+  ([x]
+   (vm/wrap-userdata x))
+  ([x string-representation]
+   (DefoldUserdata. x string-representation)))
 
 (defn- writer->print-stream [^Writer writer]
   (-> writer
@@ -322,10 +336,10 @@
   (binding [*execution-context* execution-context]
     (let [vm (.-lua-vm runtime)
           [lua-success lua-ret] (apply vm/invoke-all vm (.-resume runtime) co lua-args)]
-      (if (->clj runtime lua-success)
+      (if (->clj runtime coerce/boolean lua-success)
         (if (= lua-str-dead (vm/invoke-1 vm (.-status runtime) co))
           (future/completed (or lua-ret LuaValue/NIL))
-          (let [^Suspend suspend (->clj runtime lua-ret)]
+          (let [^Suspend suspend (->clj runtime coerce/userdata lua-ret)]
             (-> (try
                   (future/wrap (apply (.-f suspend) execution-context (.-args suspend)))
                   (catch Throwable e (future/failed e)))
@@ -344,7 +358,7 @@
                         (fx/on-fx-thread (update-cache! (:evaluation-context execution-context)))
                         (invoke-suspending-impl new-context runtime co (vm/wrap-userdata result)))
                       (invoke-suspending-impl execution-context runtime co (vm/wrap-userdata result))))))))
-        (future/failed (LuaError. ^String (->clj runtime lua-ret)))))))
+        (future/failed (LuaError. ^String (->clj runtime coerce/string lua-ret)))))))
 
 (defn invoke-suspending
   "Invoke a potentially long-running LuaFunction

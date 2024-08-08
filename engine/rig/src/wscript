@@ -16,6 +16,16 @@ def build(bld):
 
     bld.add_group()
 
+    bld.stlib(features        = 'cxx ddf',
+              includes        = ['.', '..', '../proto'],
+              proto_gen_py    = True,
+              protoc_includes = '../proto',
+              target          = 'rig_null',
+              use             = 'DDF DLIB SOCKET',
+              source          = 'rig_null.cpp ../proto/rig/rig_ddf.proto')
+
+    bld.add_group()
+
     # We only need this library in the editor
     if bld.env.IS_TARGET_DESKTOP:
         bld.shlib(features        = 'cxx ddf skip_asan',

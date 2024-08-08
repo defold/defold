@@ -13,24 +13,22 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.render-pb
-  (:require
-   [dynamo.graph :as g]
-   [editor.build-target :as bt]
-   [editor.core :as core]
-   [editor.graph-util :as gu]
-   [editor.resource :as resource]
-   [editor.resource-node :as resource-node]
-   [editor.validation :as validation]
-   [editor.workspace :as workspace]
-   [editor.protobuf :as protobuf]
-   [editor.defold-project :as project])
-  (:import
-   [com.dynamo.render.proto Render$RenderPrototypeDesc]))
+  (:require [dynamo.graph :as g]
+            [editor.build-target :as bt]
+            [editor.core :as core]
+            [editor.defold-project :as project]
+            [editor.graph-util :as gu]
+            [editor.protobuf :as protobuf]
+            [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
+            [editor.validation :as validation]
+            [editor.workspace :as workspace])
+  (:import [com.dynamo.render.proto Render$RenderPrototypeDesc Render$RenderPrototypeDesc$RenderResourceDesc]))
 
 (g/defnode NamedRenderResource
-  (property name g/Str
+  (property name g/Str ; Required protobuf field.
             (dynamic visible (g/constantly false)))
-  (property render-resource resource/Resource
+  (property render-resource resource/Resource ; Required protobuf field.
             (value (gu/passthrough resource))
             (set (fn [evaluation-context self old-value new-value]
                    (let [project (project/get-project (:basis evaluation-context) self)
@@ -101,12 +99,14 @@
       (assoc :values {[:script] script-resource
                       [:named-render-resources] named-render-resources})))
 
-(g/defnk produce-pb-msg [script-resource named-render-resources]
-  {:script (resource/resource->proj-path script-resource)
-   :render-resources (mapv (fn [{:keys [name path]}]
-                             {:name name
-                              :path (resource/resource->proj-path path)})
-                           named-render-resources)})
+(g/defnk produce-save-value [script-resource named-render-resources]
+  (protobuf/make-map-without-defaults Render$RenderPrototypeDesc
+    :script (resource/resource->proj-path script-resource)
+    :render-resources (mapv (fn [{:keys [name path]}]
+                              (protobuf/make-map-without-defaults Render$RenderPrototypeDesc$RenderResourceDesc
+                                :name name
+                                :path (resource/resource->proj-path path)))
+                            named-render-resources)))
 
 (defn- build-render [resource dep-resources user-data]
   (let [{:keys [pb-msg built-resources]} user-data
@@ -118,14 +118,15 @@
 
 (defn- build-errors
   [_node-id script named-render-resources]
-  (when-let [errors (->> (into [(validation/prop-error :fatal _node-id :script validation/prop-resource-missing? script "Script")]
+  (when-let [errors (->> (into [(or (validation/prop-error :fatal _node-id :script validation/prop-resource-missing? script "Script")
+                                    (validation/prop-error :fatal _node-id :script validation/prop-resource-ext? script "render_script" "Script"))]
                                (for [{:keys [name path]} named-render-resources]
                                  (validation/prop-error :fatal _node-id :path validation/prop-resource-missing? path name)))
                          (remove nil?)
                          (seq))]
     (g/error-aggregate errors)))
 
-(g/defnk produce-build-targets [_node-id resource pb-msg dep-build-targets script named-render-resources]
+(g/defnk produce-build-targets [_node-id resource save-value dep-build-targets script named-render-resources]
   (or (build-errors _node-id script named-render-resources)
       (let [dep-build-targets (flatten dep-build-targets)
             deps-by-source (into {} (map #(let [build-resource (:resource %)
@@ -141,7 +142,7 @@
            {:node-id _node-id
             :resource (workspace/make-build-resource resource)
             :build-fn build-render
-            :user-data {:pb-msg pb-msg
+            :user-data {:pb-msg save-value
                         :built-resources built-resources}
             :deps dep-build-targets})])))
 
@@ -149,7 +150,7 @@
   (inherits core/Scope)
   (inherits resource-node/ResourceNode)
 
-  (property script resource/Resource
+  (property script resource/Resource ; Required protobuf field.
             (dynamic visible (g/constantly false))
             (value (gu/passthrough script-resource))
             (set (fn [evaluation-context self old-value new-value]
@@ -162,8 +163,7 @@
   (input dep-build-targets g/Any :array)
 
   (output form-data g/Any :cached produce-form-data)
-  (output pb-msg g/Any :cached produce-pb-msg)
-  (output save-value g/Any (gu/passthrough pb-msg))
+  (output save-value g/Any :cached produce-save-value)
   (output build-targets g/Any :cached produce-build-targets))
 
 (defn- load-render [project self resource render-ddf]
@@ -182,7 +182,7 @@
                                  (:materials render-ddf))]
     (-> render-ddf
         (dissoc :materials)
-        (assoc :render-resources (into migrated-materials (:render-resources render-ddf))))))
+        (protobuf/assign-repeated :render-resources (into migrated-materials (:render-resources render-ddf))))))
 
 (defn register-resource-types [workspace]
   (resource-node/register-ddf-resource-type workspace

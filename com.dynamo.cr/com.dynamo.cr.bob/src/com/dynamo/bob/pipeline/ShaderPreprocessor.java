@@ -115,7 +115,7 @@ public class ShaderPreprocessor {
     }
 
     // walks all the children of the tree root
-    public String getCompiledSource() throws CompileExceptionError {
+    public String getCompiledSource() {
         String source = this.root.source;
         for (Map.Entry<String, IncludeNode> child : this.root.children.entrySet()) {
 

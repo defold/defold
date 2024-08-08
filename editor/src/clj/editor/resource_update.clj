@@ -60,9 +60,6 @@
       (println "REDIRECTING:" (resource-node-info node) "TO:" (resource-info new))))
   plan)
 
-(defn- stateful? [resource]
-  (not (:stateless? (resource/resource-type resource))))
-
 (defn- merge-resource-change-plans [& plans]
   (apply merge-with into plans))
 
@@ -151,7 +148,7 @@
   ;; one that has the same file - thus, we must update the :resource field of the
   ;; node. Just like a redirect.
   (let [non-moved-changed (remove (comp (some-fn move-source-paths move-target-paths) resource/proj-path) changed)
-        {loadable-changed true stateless-changed false} (group-by stateful? non-moved-changed)
+        {loadable-changed true stateless-changed false} (group-by resource/stateful? non-moved-changed)
         {stateless-swapped true stateless-changed false} (group-by resource-swapped? stateless-changed)]
     (merge-resource-change-plans
       (replace-resources-plan plan-info loadable-changed false)
@@ -186,7 +183,7 @@
 
 (defmethod resource-moved-case-plan [:removed :changed] [_ move-pairs {:keys [resource->old-node]}]
   ;; We don't have to do the resource->changed-resource translation because move target always comes from new snapshot.
-  (let [{loadable-targets-changed true stateless-targets-changed false} (group-by stateful? (map second move-pairs))
+  (let [{loadable-targets-changed true stateless-targets-changed false} (group-by resource/stateful? (map second move-pairs))
         ;; Transfer overrides from old source nodes to the new target node, and from the old loadable target nodes.
         ;; We don't need to bother with stateless targets as those nodes are not replaced.
         transfer-overrides (into (mapv (fn [[source target]] [target (resource->old-node source)]) move-pairs)
@@ -205,7 +202,7 @@
 (defmethod resource-moved-case-plan [:changed :added] [_ move-pairs {:keys [resource->old-node resource-swapped? resource->changed-resource]}]
   ;; Just like in resource-changed-plan, we must handle the case of the actual resource value being updated
   ;; for stateless resources. I.e. redirect instead of invalidate-outputs.
-  (let [{loadable-sources-changed true stateless-sources-changed false} (group-by stateful? (map (comp resource->changed-resource first) move-pairs))
+  (let [{loadable-sources-changed true stateless-sources-changed false} (group-by resource/stateful? (map (comp resource->changed-resource first) move-pairs))
         new (concat loadable-sources-changed (map second move-pairs))
         transfer-overrides (into (mapv (fn [source] [source (resource->old-node source)]) loadable-sources-changed)
                                  (keep (fn [[_ target]] (when-let [old-target-node (resource->old-node target)] [target old-target-node])))
@@ -225,8 +222,8 @@
 (defmethod resource-moved-case-plan [:changed :changed] [_ move-pairs {:keys [resource->old-node resource-swapped? resource->changed-resource]}]
   ;; Just like in resource-changed-plan, we must handle the case of the actual resource value being updated
   ;; for stateless resources. I.e. redirect instead of invalidate-outputs.
-  (let [{loadable-sources-changed true stateless-sources-changed false} (group-by stateful? (map (comp resource->changed-resource first) move-pairs))
-        {loadable-targets-changed true stateless-targets-changed false} (group-by stateful? (map (comp resource->changed-resource second) move-pairs))
+  (let [{loadable-sources-changed true stateless-sources-changed false} (group-by resource/stateful? (map (comp resource->changed-resource first) move-pairs))
+        {loadable-targets-changed true stateless-targets-changed false} (group-by resource/stateful? (map (comp resource->changed-resource second) move-pairs))
         new (concat loadable-sources-changed loadable-targets-changed)
         transfer-overrides (into (mapv (fn [source] [source (resource->old-node source)]) loadable-sources-changed)
                                  (mapv (fn [target] [target (resource->old-node target)]) loadable-targets-changed))

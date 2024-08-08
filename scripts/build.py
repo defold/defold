@@ -94,17 +94,19 @@ assert(hasattr(build_private, 'get_tag_suffix'))
 def get_target_platforms():
     return BASE_PLATFORMS + build_private.get_target_platforms()
 
-PACKAGES_ALL="protobuf-3.20.1 waf-2.0.3 junit-4.6 jsign-4.2 protobuf-java-3.20.1 openal-1.1 maven-3.0.1 ant-1.9.3 vecmath vpx-1.7.0 luajit-2.1.0-6c4826f tremolo-b0cb4d1 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.10.2 vulkan-1.3.261.1".split()
-PACKAGES_HOST="vpx-1.7.0 luajit-2.1.0-6c4826f tremolo-b0cb4d1".split()
-PACKAGES_IOS_X86_64="protobuf-3.20.1 luajit-2.1.0-6c4826f tremolo-b0cb4d1 bullet-2.77 glfw-2.7.1".split()
-PACKAGES_IOS_64="protobuf-3.20.1 luajit-2.1.0-6c4826f tremolo-b0cb4d1 bullet-2.77 moltenvk-1.3.261.1 glfw-2.7.1".split()
-PACKAGES_MACOS_X86_64="protobuf-3.20.1 luajit-2.1.0-6c4826f vpx-1.7.0 tremolo-b0cb4d1 bullet-2.77 spirv-cross-37fee00a spirv-tools-4fab7435 glslc-31bddbb moltenvk-1.3.261.1 lipo-9ffdea2 sassc-5472db213ec223a67482df2226622be372921847 glfw-3.4".split()
-PACKAGES_MACOS_ARM64="protobuf-3.20.1 luajit-2.1.0-6c4826f vpx-1.7.0 tremolo-b0cb4d1 bullet-2.77 spirv-cross-edd66a2f spirv-tools-d24a39a7 glslc-40bced4 moltenvk-1.3.261.1 lipo-9ffdea2 glfw-3.4".split() # sassc-5472db213ec223a67482df2226622be372921847
-PACKAGES_WIN32="protobuf-3.20.1 luajit-2.1.0-6c4826f openal-1.1 glut-3.7.6 bullet-2.77 vulkan-1.3.261.1 glfw-2.7.1".split()
-PACKAGES_WIN32_64="protobuf-3.20.1 luajit-2.1.0-6c4826f openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-edd66a2f spirv-tools-d24a39a7 glslc-31bddbb vulkan-1.3.261.1 lipo-9ffdea2 glfw-2.7.1".split()
-PACKAGES_LINUX_64="protobuf-3.20.1 luajit-2.1.0-6c4826f sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 spirv-cross-edd66a2f spirv-tools-d24a39a7 glslc-31bddbb vulkan-1.1.108 lipo-9ffdea2 glfw-2.7.1".split()
-PACKAGES_ANDROID="protobuf-3.20.1 android-support-multidex androidx-multidex android-34 luajit-2.1.0-6c4826f tremolo-b0cb4d1 bullet-2.77 glfw-2.7.1".split()
-PACKAGES_ANDROID_64="protobuf-3.20.1 android-support-multidex androidx-multidex android-34 luajit-2.1.0-6c4826f tremolo-b0cb4d1 bullet-2.77 glfw-2.7.1".split()
+PACKAGES_ALL="protobuf-3.20.1 waf-2.0.3 junit-4.6 jsign-4.2 protobuf-java-3.20.1 openal-1.1 maven-3.0.1 vecmath vpx-1.7.0 luajit-2.1.0-04dca79 tremolo-b0cb4d1 defold-robot-0.7.0 bullet-2.77 libunwind-395b27b68c5453222378bc5fe4dab4c6db89816a jctest-0.10.2 vulkan-1.3.261.1".split()
+PACKAGES_HOST="vpx-1.7.0 luajit-2.1.0-04dca79 tremolo-b0cb4d1".split()
+PACKAGES_IOS_X86_64="protobuf-3.20.1 luajit-2.1.0-04dca79 tremolo-b0cb4d1 bullet-2.77 glfw-2.7.1".split()
+PACKAGES_IOS_64="protobuf-3.20.1 luajit-2.1.0-04dca79 tremolo-b0cb4d1 bullet-2.77 moltenvk-1.3.261.1 glfw-2.7.1".split()
+PACKAGES_MACOS_X86_64="protobuf-3.20.1 luajit-2.1.0-04dca79 vpx-1.7.0 tremolo-b0cb4d1 bullet-2.77 spirv-cross-37fee00a spirv-tools-4fab7435 glslang-42d9adf5 moltenvk-1.3.261.1 lipo-9ffdea2 sassc-5472db213ec223a67482df2226622be372921847 glfw-3.4".split()
+PACKAGES_MACOS_ARM64="protobuf-3.20.1 luajit-2.1.0-04dca79 vpx-1.7.0 tremolo-b0cb4d1 bullet-2.77 spirv-cross-edd66a2f spirv-tools-c91d9ec1 glslang-42d9adf5 moltenvk-1.3.261.1 lipo-9ffdea2 glfw-3.4".split() # sassc-5472db213ec223a67482df2226622be372921847
+PACKAGES_WIN32="protobuf-3.20.1 luajit-2.1.0-04dca79 openal-1.1 glut-3.7.6 bullet-2.77 vulkan-1.3.261.1 glfw-3.4".split()
+PACKAGES_WIN32_64="protobuf-3.20.1 luajit-2.1.0-04dca79 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 glslang-42d9adf5 spirv-cross-edd66a2f spirv-tools-d24a39a7 vulkan-1.3.261.1 lipo-9ffdea2 glfw-3.4".split()
+PACKAGES_LINUX_64="protobuf-3.20.1 luajit-2.1.0-04dca79 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 glslang-ba5c010c spirv-cross-edd66a2f spirv-tools-d24a39a7 vulkan-1.1.108 lipo-9ffdea2 glfw-2.7.1".split()
+PACKAGES_ANDROID="protobuf-3.20.1 android-support-multidex androidx-multidex luajit-2.1.0-04dca79 tremolo-b0cb4d1 bullet-2.77 glfw-2.7.1".split()
+PACKAGES_ANDROID.append(sdk.ANDROID_PACKAGE)
+PACKAGES_ANDROID_64="protobuf-3.20.1 android-support-multidex androidx-multidex luajit-2.1.0-04dca79 tremolo-b0cb4d1 bullet-2.77 glfw-2.7.1".split()
+PACKAGES_ANDROID_64.append(sdk.ANDROID_PACKAGE)
 PACKAGES_EMSCRIPTEN="protobuf-3.20.1 bullet-2.77 glfw-2.7.1".split()
 PACKAGES_NODE_MODULES="xhr2-0.1.0".split()
 
@@ -116,10 +118,8 @@ DEFAULT_RELEASE_REPOSITORY=os.environ.get("DM_RELEASE_REPOSITORY") if os.environ
 
 PACKAGES_TAPI_VERSION="tapi1.6"
 PACKAGES_NODE_MODULE_XHR2="xhr2-v0.1.0"
-PACKAGES_ANDROID_NDK="android-ndk-r25b"
+PACKAGES_ANDROID_NDK="android-ndk-r{0}".format(sdk.ANDROID_NDK_VERSION)
 PACKAGES_ANDROID_SDK="android-sdk"
-ANDROID_TARGET_API_LEVEL=34
-ANDROID_BUILD_TOOLS_VERSION="34.0.0"
 PACKAGES_CCTOOLS_PORT="cctools-port-darwin19-6c438753d2252274678d3e0839270045698c159b-linux"
 
 NODE_MODULE_LIB_DIR = os.path.join("ext", "lib", "node_modules")
@@ -328,9 +328,6 @@ class Configuration(object):
             os._exit(5)
 
     def get_python(self):
-        if 'macos' in self.host and 'arm64' == platform.machine():
-            if 'x86_64-macos' == self.target_platform:
-                return ['arch', '-x86_64', 'python']
         return ['python']
 
     def _create_common_dirs(self):
@@ -623,7 +620,7 @@ class Configuration(object):
             # Android NDK
             download_sdk(self, '%s/%s-%s.tar.gz' % (self.package_path, PACKAGES_ANDROID_NDK, host), join(sdkfolder, PACKAGES_ANDROID_NDK))
             # Android SDK
-            download_sdk(self, '%s/%s-%s-android-%s-%s.tar.gz' % (self.package_path, PACKAGES_ANDROID_SDK, host, ANDROID_TARGET_API_LEVEL, ANDROID_BUILD_TOOLS_VERSION), join(sdkfolder, PACKAGES_ANDROID_SDK))
+            download_sdk(self, '%s/%s-%s-android-%s-%s.tar.gz' % (self.package_path, PACKAGES_ANDROID_SDK, host, sdk.ANDROID_TARGET_API_LEVEL, sdk.ANDROID_BUILD_TOOLS_VERSION), join(sdkfolder, PACKAGES_ANDROID_SDK))
 
         if 'linux' in self.host:
             download_sdk(self, '%s/%s.tar.xz' % (self.package_path, sdk.PACKAGES_LINUX_TOOLCHAIN), join(sdkfolder, 'linux', sdk.PACKAGES_LINUX_CLANG), format='J')
@@ -891,6 +888,12 @@ class Configuration(object):
                 paths = _findfiles(protodir, ('.proto',))
                 self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
 
+            # C# files
+            for d in ['sdk/cs']:
+                protodir = os.path.join(self.dynamo_home, d)
+                paths = _findfiles(protodir, ('.csproj','.cs'))
+                self._add_files_to_zip(zip, paths, self.dynamo_home, topfolder)
+
             # pipeline tools
             if platform in ('x86_64-macos','arm64-macos','x86_64-linux','x86_64-win32'): # needed for the linux build server
                 # protoc
@@ -1031,8 +1034,7 @@ class Configuration(object):
 
         strip = "strip"
         if 'android' in self.target_platform:
-            ANDROID_NDK_VERSION = '25b'
-            ANDROID_NDK_ROOT = os.path.join(sdkfolder,'android-ndk-r%s' % ANDROID_NDK_VERSION)
+            ANDROID_NDK_ROOT = os.path.join(sdkfolder,'android-ndk-r%s' % sdk.ANDROID_NDK_VERSION)
 
             ANDROID_HOST = 'linux' if sys.platform == 'linux' else 'darwin'
             strip = "%s/toolchains/llvm/prebuilt/%s-x86_64/bin/llvm-strip" % (ANDROID_NDK_ROOT, ANDROID_HOST)
@@ -1194,34 +1196,42 @@ class Configuration(object):
         plf_args = ['--platform=%s' % platform]
         run.env_command(self._form_env(), args + plf_args + self.waf_options + skip_build_tests, cwd = cwd)
 
+# For now gradle right in
+# - 'com.dynamo.cr/com.dynamo.cr.bob'
+# - 'com.dynamo.cr/com.dynamo.cr.test'
+# - 'com.dynamo.cr/com.dynamo.cr.common'
+# Maybe in the future we consider to move it into install_ext
+    def get_gradle_wrapper(self):
+        if os.name == 'nt':  # Windows
+            return join('.', 'gradlew.bat')
+        else:  # Linux, macOS, or other Unix-like OS
+            return join('.', 'gradlew')
+
     def build_bob_light(self):
         self._log('Building bob light')
 
         bob_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
-        common_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.common')
+        # common_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.common')
 
         sha1 = self._git_sha1()
         if os.path.exists(os.path.join(self.dynamo_home, 'archive', sha1)):
-            run.env_shell_command(self._form_env(), "./scripts/copy.sh", cwd = bob_dir)
+            run.env_shell_command(self._form_env(), "./scripts/copy.sh", cwd=bob_dir)
         else:
             self.copy_local_bob_artefacts()
 
-        ant = join(self.dynamo_home, 'ext/share/ant/bin/ant')
-        ant_args = ['-logger', 'org.apache.tools.ant.listener.AnsiColorLogger']
-        if self.verbose:
-            ant_args += ['-v']
-
         env = self._form_env()
-        env['ANT_OPTS'] = '-Dant.logger.defaults=%s/ant-logger-colors.txt' % join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
 
-        s = run.command(" ".join([ant, 'clean', 'compile-bob-light'] + ant_args),
-                                    cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob'), shell = True, env = env)
+        gradle = self.get_gradle_wrapper()
+        gradle_args = []
         if self.verbose:
-            print (s)
+            gradle_args += ['--info']
 
-        s = run.command(" ".join([ant, 'install-bob-light'] + ant_args), cwd = bob_dir, shell = True, env = env)
+        env['GRADLE_OPTS'] = '-Dorg.gradle.parallel=true' #-Dorg.gradle.daemon=true 
+
+        # Clean and build the project
+        s = run.command(" ".join([gradle, 'clean', 'installBobLight'] + gradle_args), cwd = bob_dir, shell = True, env = env)
         if self.verbose:
-            print (s)
+        	print (s)
 
     def build_engine(self):
         self.check_sdk()
@@ -1268,6 +1278,9 @@ class Configuration(object):
             print("Wrote report to %s. Open with 'scan-view .' or 'python -m SimpleHTTPServer'" % report_dir)
             shutil.rmtree(scan_output_dir)
 
+        self._log("Copy platform.sdks.json")
+        shutil.copyfile(join(self.defold_root, "share", "platform.sdks.json"), join(self.dynamo_home, "platform.sdks.json"))
+
         if os.path.exists(os.environ['DM_BOB_ROOTFOLDER']):
             print ("Removing", os.environ['DM_BOB_ROOTFOLDER'])
             shutil.rmtree(os.environ['DM_BOB_ROOTFOLDER'])
@@ -1302,7 +1315,7 @@ class Configuration(object):
                     ['x86_64-linux', 'x86_64-linux'],
                     ['x86_64-macos', 'x86_64-macos'],
                     ['arm64-macos', 'arm64-macos']]:
-            luajit_path = join(cwd, '../../packages/luajit-2.1.0-6c4826f-%s.tar.gz' % (plf[0]))
+            luajit_path = join(cwd, '../../packages/luajit-2.1.0-04dca79-%s.tar.gz' % (plf[0]))
             if not os.path.exists(luajit_path):
                 add_missing(plf[1], "package '%s' could not be found" % (luajit_path))
             else:
@@ -1366,34 +1379,32 @@ class Configuration(object):
             print(json.dumps(missing, indent=2))
 
     def build_bob(self):
-        cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
-
         bob_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
-        common_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.common')
+        # common_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.common')
+        test_dir = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
 
         sha1 = self._git_sha1()
         if os.path.exists(os.path.join(self.dynamo_home, 'archive', sha1)):
-            run.env_shell_command(self._form_env(), "./scripts/copy.sh", cwd = bob_dir)
+            run.env_shell_command(self._form_env(), "./scripts/copy.sh", cwd=bob_dir)
         else:
             self.copy_local_bob_artefacts()
 
         env = self._form_env()
 
-        ant = join(self.dynamo_home, 'ext/share/ant/bin/ant')
-        ant_args = ['-logger', 'org.apache.tools.ant.listener.AnsiColorLogger']
+        gradle = self.get_gradle_wrapper()
+        gradle_args = []
         if self.verbose:
-            ant_args += ['-v']
+            gradle_args += ['--info']
 
-        env['ANT_OPTS'] = '-Dant.logger.defaults=%s/ant-logger-colors.txt' % join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
+        env['GRADLE_OPTS'] = '-Dorg.gradle.parallel=true' #-Dorg.gradle.daemon=true
 
-        run.command(" ".join([ant, 'clean', 'compile'] + ant_args), cwd = bob_dir, shell = True, env = env)
+        # Clean and build the project
+        run.command(" ".join([gradle, 'clean', 'install'] + gradle_args), cwd=bob_dir, shell = True, env = env)
 
-        run.command(" ".join([ant, 'install'] + ant_args), cwd = bob_dir, shell = True, env = env)
-
+        # Run tests if not skipped
         if not self.skip_tests:
-            cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob.test')
-            args = [ant, 'test-clean', 'test'] + ant_args
-            run.command(" ".join(args), cwd = cwd, shell = True, env = env, stdout = None)
+            run.command(" ".join([gradle, 'testJar'] + gradle_args), cwd = test_dir, shell = True, env = env, stdout = None)
+
 
     def build_sdk_headers(self):
         # Used to provide a small sized bundle with the headers for any C++ auto completion tools
@@ -1464,6 +1475,9 @@ class Configuration(object):
         print("Create sdk signature")
         sig_filename = self._create_sha256_signature_file(sdkpath)
         self.upload_to_archive(join(dirname(sdkpath), sig_filename), '%s/defoldsdk.sha256' % sdkurl)
+
+        print("Upload platform sdks mappings")
+        self.upload_to_archive(join(self.defold_root, "share", "platform.sdks.json"), '%s/platform.sdks.json' % sdkurl)
 
         shutil.rmtree(tempdir)
         print ("Removed", tempdir)

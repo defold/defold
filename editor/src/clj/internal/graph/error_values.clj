@@ -84,7 +84,8 @@
 (defn- error-messages [e]
   (distinct (keep :message (error-seq e))))
 
-(defn error-message [e]
+(defn error-message
+  ^String [e]
   (string/join "\n" (error-messages e)))
 
 (defn error-aggregate

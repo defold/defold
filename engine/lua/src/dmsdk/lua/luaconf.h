@@ -151,6 +151,7 @@
 ** the libraries, you may want to use the following definition (define
 ** LUA_BUILD_AS_DLL to get it).
 */
+#if !defined(LUA_API) // DEFOLD
 #if defined(LUA_BUILD_AS_DLL)
 
 #if defined(LUA_CORE) || defined(LUA_LIB)
@@ -164,6 +165,7 @@
 #define LUA_API		extern
 
 #endif
+#endif // LUA_API (DEFOLD)
 
 /* more often than not the libs go together with the core */
 #define LUALIB_API	LUA_API
