@@ -12,25 +12,15 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DMSDK_GAMESYS_RES_MATERIAL_H
-#define DMSDK_GAMESYS_RES_MATERIAL_H
+#ifndef DM_GAMESYS_SCRIPT_MATERIAL_H
+#define DM_GAMESYS_SCRIPT_MATERIAL_H
 
-#include <dmsdk/graphics/graphics.h>
-#include <dmsdk/render/render.h>
+struct lua_State;
 
 namespace dmGameSystem
 {
-    struct TextureResource;
-    struct MaterialResource
-    {
-        dmRender::HMaterial m_Material;
-        // Sorted on sampler appearance in the material
-        TextureResource*    m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
-        dmhash_t            m_TextureResourcePaths[dmRender::RenderObject::MAX_TEXTURE_COUNT];
-
-        dmhash_t            m_SamplerNames[dmRender::RenderObject::MAX_TEXTURE_COUNT];
-        uint32_t            m_NumTextures;
-    };
+    struct ScriptLibContext;
+    void ScriptMaterialRegister(const ScriptLibContext& context);
 }
 
-#endif
+#endif // DM_GAMESYS_SCRIPT_MATERIAL_H

@@ -116,6 +116,7 @@ namespace dmRender
             dmGraphics::GetAttribute(m->m_Program, i, &name_hash, &type, &element_count, &num_values, &location);
 
             dmGraphics::VertexAttribute& vertex_attribute = m->m_VertexAttributes[i];
+            vertex_attribute.m_Name            = 0;
             vertex_attribute.m_NameHash        = name_hash;
             vertex_attribute.m_SemanticType    = GetAttributeSemanticType(name_hash);
             vertex_attribute.m_DataType        = GetAttributeDataType(type); // Convert from mat/vec to float if necessary
@@ -238,6 +239,25 @@ namespace dmRender
         return GetProgramSamplerUnit(material->m_Samplers, name_hash);
     }
 
+    HSampler GetMaterialSampler(HMaterial material, uint32_t unit)
+    {
+        if (unit < material->m_Samplers.Size())
+        {
+            return &material->m_Samplers[unit];
+        }
+        return 0;
+    }
+
+    bool GetMaterialConstantNameHash(HMaterial material, uint32_t index, dmhash_t* out_name_hash)
+    {
+        if (index < material->m_Constants.Size())
+        {
+             *out_name_hash = GetConstantName(material->m_Constants[index].m_Constant);
+            return true;
+        }
+        return false;
+    }
+
     dmGraphics::HProgram GetMaterialProgram(HMaterial material)
     {
         return material->m_Program;
@@ -251,6 +271,11 @@ namespace dmRender
     dmGraphics::HFragmentProgram GetMaterialFragmentProgram(HMaterial material)
     {
         return material->m_FragmentProgram;
+    }
+
+    uint32_t GetMaterialConstantCount(HMaterial material)
+    {
+        return material->m_Constants.Size();
     }
 
     static int32_t FindMaterialAttributeIndex(HMaterial material, dmhash_t name_hash)
@@ -450,6 +475,7 @@ namespace dmRender
             }
         }
 
+        // TODO: Compare if the vertex declaration has changed and update it if necessary
         CreateVertexDeclaration(GetGraphicsContext(material->m_RenderContext), material);
     }
 

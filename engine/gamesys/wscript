@@ -45,6 +45,9 @@ def configure(conf):
     elif "win32" in platform:
         conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'dinput8.lib', 'dxguid.lib'])
 
+    if platform_supports_feature(conf.env.PLATFORM, 'compute', None):
+        conf.env.append_unique('DEFINES', 'DM_HAVE_PLATFORM_COMPUTE_SUPPORT')
+
     conf.env.append_value('INCLUDES', "default/src")
     conf.env['STLIB_DLIB'] = ['dlib', 'mbedtls', 'zip']
     conf.env['STLIB_DDF'] = 'ddf'

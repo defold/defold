@@ -1,0 +1,25 @@
+attribute vec3 position;
+attribute vec2 texcoord0;
+attribute float page_index;
+
+attribute vec2 custom_one;
+attribute vec3 custom_two;
+attribute vec4 custom_three;
+
+varying float var_page_index;
+varying vec2  var_custom_one;
+varying vec3  var_custom_two;
+varying vec4  var_custom_three;
+
+uniform mat4 world;
+uniform mat4 view;
+uniform mat4 proj;
+
+void main()
+{
+    gl_Position      = proj * view * world * vec4(position.xyz, 1.0);
+    var_page_index   = page_index;
+    var_custom_one   = custom_one;
+    var_custom_two   = custom_two;
+    var_custom_three = custom_three;
+}
