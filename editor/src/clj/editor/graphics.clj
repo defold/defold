@@ -726,11 +726,11 @@
 
                 :semantic-type-world-matrix
                 (and (zero? channel)
-                     (:world-matrix-data renderable-data))
+                     (some? (:world-matrix-bytes renderable-data)))
 
                 :semantic-type-normal-matrix
                 (and (zero? channel)
-                     (:normal-matrix-data renderable-data))
+                     (some? (:normal-matrix-bytes renderable-data)))
 
                 false))))]
 
@@ -811,10 +811,20 @@
                       (put-renderables! attribute-byte-offset :tangent-data put-attribute-doubles!))
 
                     :semantic-type-world-matrix
-                    (put-renderables! attribute-byte-offset :world-matrix-data put-attribute-doubles!)
+                    (put-renderables! attribute-byte-offset
+                                      (fn [renderable-data]
+                                        (let [vertex-count (count (:position-data renderable-data))
+                                              matrix-bytes (:world-matrix-bytes renderable-data)]
+                                          (repeat vertex-count matrix-bytes)))
+                                      put-attribute-bytes!)
 
                     :semantic-type-normal-matrix
-                    (put-renderables! attribute-byte-offset :normal-matrix-data put-attribute-doubles!))
+                    (put-renderables! attribute-byte-offset
+                                      (fn [renderable-data]
+                                        (let [vertex-count (count (:position-data renderable-data))
+                                              matrix-bytes (:normal-matrix-bytes renderable-data)]
+                                          (repeat vertex-count matrix-bytes)))
+                                      put-attribute-bytes!))
 
                   ;; Mesh data doesn't exist. Use the attribute data from the
                   ;; material or overrides.

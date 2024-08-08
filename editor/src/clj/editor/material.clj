@@ -33,7 +33,7 @@
             [util.murmur :as murmur]
             [util.num :as num])
   (:import [com.dynamo.bob.pipeline ShaderProgramBuilderEditor]
-           [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$VertexAttribute Graphics$VertexAttribute$DataType Graphics$VertexAttribute$SemanticType Graphics$VertexAttribute$ShaderType]
+           [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$VertexAttribute Graphics$VertexAttribute$DataType Graphics$VertexAttribute$SemanticType Graphics$VertexAttribute$ShaderType Graphics$VertexStepFunction]
            [com.dynamo.render.proto Material$MaterialDesc Material$MaterialDesc$Sampler Material$MaterialDesc$VertexSpace]
            [com.jogamp.opengl GL2]
            [editor.gl.shader ShaderLifecycle]
@@ -225,9 +225,11 @@
                       data-type-values (protobuf/enum-values Graphics$VertexAttribute$DataType)
                       coordinate-space-values (protobuf/enum-values Graphics$CoordinateSpace)
                       shader-type-values (protobuf/enum-values Graphics$VertexAttribute$ShaderType)
+                      vertex-step-function (protobuf/enum-values Graphics$VertexStepFunction)
                       default-semantic-type :semantic-type-none
                       default-shader-type :shader-type-vec3
-                      default-values (graphics/resize-doubles (vector-of :double) default-semantic-type default-shader-type)]
+                      default-values (graphics/resize-doubles (vector-of :double) default-semantic-type default-shader-type)
+                      default-step-function :vertex-step-function-vertex]
                   [{:path [:name]
                     :label "Name"
                     :type :string}
@@ -255,6 +257,11 @@
                     :type :choicebox
                     :options (protobuf-forms/make-options coordinate-space-values)
                     :default :coordinate-space-local}
+                   {:path [:step-function]
+                    :label "Step Function"
+                    :type :choicebox
+                    :options (protobuf-forms/make-options vertex-step-function)
+                    :default default-step-function}
                    {:path [:values]
                     :label "Value"
                     :type :vec4

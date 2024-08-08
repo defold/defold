@@ -172,19 +172,33 @@
                 (some some? texcoord-datas) (assoc :texcoord-datas texcoord-datas)))
       (error-values/error-fatal "Failed to produce vertex buffers from mesh set. The scene might contain invalid data."))))
 
-(defn mesh->vb! [^VertexBuffer vbuf ^Matrix4d world-transform ^Matrix4d normal-transform vertex-attribute-bytes mesh-renderable-data]
+(def my-atom (atom 0))
+
+(defn- matrix4->bytes [^Matrix4d mtx]
+  (let [matrix-array (math/vecmath->clj (doto ^Matrix4d mtx (.transpose)))
+        byte-array (byte-array (* 4 16))
+        byte-buffer (vtx/wrap-buf byte-array)]
+    (reset! my-atom byte-array)
+    (vtx/buf-push! byte-buffer :float false matrix-array)
+    byte-array))
+
+(defn mesh->vb! [^VertexBuffer vbuf ^Matrix4d world-transform ^Matrix4d normal-transform has-semantic-type-world-matrix has-semantic-type-normal-matrix vertex-attribute-bytes mesh-renderable-data]
   (let [mesh-renderable-data
         (cond-> mesh-renderable-data
                 world-transform (assoc :world-transform world-transform)
                 normal-transform (assoc :normal-transform normal-transform)
+                has-semantic-type-world-matrix (assoc :world-matrix-bytes (matrix4->bytes world-transform))
+                has-semantic-type-normal-matrix (assoc :normal-matrix-bytes (matrix4->bytes normal-transform))
                 vertex-attribute-bytes (assoc :vertex-attribute-bytes vertex-attribute-bytes))]
     (graphics/put-attributes! vbuf [mesh-renderable-data])
     vbuf))
 
-(defn- request-vb! [^GL2 gl request-id mesh-renderable-data ^Matrix4d attribute-world-transform ^Matrix4d attribute-normal-transform vertex-description vertex-attribute-bytes]
+(defn- request-vb! [^GL2 gl request-id mesh-renderable-data ^Matrix4d attribute-world-transform ^Matrix4d attribute-normal-transform has-semantic-type-world-matrix has-semantic-type-normal-matrix vertex-description vertex-attribute-bytes]
   (let [data {:mesh-renderable-data mesh-renderable-data
               :world-transform attribute-world-transform
               :normal-transform attribute-normal-transform
+              :has-semantic-type-world-matrix has-semantic-type-world-matrix
+              :has-semantic-type-normal-matrix has-semantic-type-normal-matrix
               :vertex-description vertex-description
               :vertex-attribute-bytes vertex-attribute-bytes}]
     (scene-cache/request-object! ::vb request-id gl data)))
@@ -215,23 +229,20 @@
                                                          coordinate-space-info)
         render-args (merge render-args render-transforms extra-render-args)
         world-space-semantic-types (:coordinate-space-world coordinate-space-info)
-        attribute-world-transform (when (contains? world-space-semantic-types :semantic-type-position)
+
+        has-semantic-type-world-matrix (graphics/contains-semantic-type? vertex-attributes :semantic-type-world-matrix)
+        has-semantic-type-normal-matrix (graphics/contains-semantic-type? vertex-attributes :semantic-type-normal-matrix)
+        attribute-world-transform (when (or (contains? world-space-semantic-types :semantic-type-position)
+                                            has-semantic-type-world-matrix)
                                     world-transform)
-        attribute-normal-transform (when (contains? world-space-semantic-types :semantic-type-normal)
+        attribute-normal-transform (when (or (contains? world-space-semantic-types :semantic-type-normal)
+                                             has-semantic-type-normal-matrix)
                                      normal-transform)
-
-        attribute-world-matrix-data (when (graphics/contains-semantic-type? vertex-attributes :semantic-type-world-matrix)
-                                      (make-matrix-attribute-data mesh-renderable-data world-transform))
-        attribute-world-normal-data (when (graphics/contains-semantic-type? vertex-attributes :semantic-type-normal-matrix)
-                                      (make-matrix-attribute-data mesh-renderable-data normal-transform))
-        mesh-renderable-data (assoc mesh-renderable-data
-                               :world-matrix-data attribute-world-matrix-data
-                               :normal-matrix-data attribute-world-normal-data)
-
-        request-id (if (or attribute-world-transform attribute-normal-transform attribute-world-matrix-data attribute-world-normal-data)
+        request-id (if (or attribute-world-transform attribute-normal-transform)
                      [request-prefix node-id mesh-renderable-data vertex-attribute-bytes vertex-description] ; World-space attributes present. The request needs to be unique for this node-id.
                      [request-prefix mesh-renderable-data vertex-attribute-bytes vertex-description]) ; No world-space attributes present. We can share the GPU objects between instances of this mesh.
-        vb (request-vb! gl request-id mesh-renderable-data attribute-world-transform attribute-normal-transform vertex-description vertex-attribute-bytes)
+
+        vb (request-vb! gl request-id mesh-renderable-data attribute-world-transform attribute-normal-transform has-semantic-type-world-matrix has-semantic-type-normal-matrix vertex-description vertex-attribute-bytes)
         vertex-binding (vtx/use-with request-id vb shader)]
     (gl/with-gl-bindings gl render-args [vertex-binding shader]
       (doseq [[name t] textures]
@@ -462,8 +473,9 @@
     :view-types [:scene :text]))
 
 (defn- update-vb [^GL2 _gl ^VertexBuffer vb data]
-  (let [{:keys [mesh-renderable-data ^Matrix4d world-transform ^Matrix4d normal-transform vertex-attribute-bytes]} data]
-    (mesh->vb! vb world-transform normal-transform vertex-attribute-bytes mesh-renderable-data)
+  (println 'update-vb)
+  (let [{:keys [mesh-renderable-data ^Matrix4d world-transform ^Matrix4d normal-transform has-semantic-type-world-matrix has-semantic-type-normal-matrix vertex-attribute-bytes]} data]
+    (mesh->vb! vb world-transform normal-transform has-semantic-type-world-matrix has-semantic-type-normal-matrix vertex-attribute-bytes mesh-renderable-data)
     vb))
 
 (defn- make-vb [^GL2 gl data]
