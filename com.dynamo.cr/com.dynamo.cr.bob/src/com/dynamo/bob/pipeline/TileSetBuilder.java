@@ -61,7 +61,7 @@ public class TileSetBuilder extends Builder<Void>  {
                     .addOutput(input.changeExt(params.outExt()));
             String texturePath = String.format("%s__%s_tilesource.%s", FilenameUtils.getPath(input.getPath()),
                     FilenameUtils.getBaseName(input.getPath()), "texturec");
-            taskBuilder.addOutput(input.getResource(texturePath).output());
+            taskBuilder.addOutput(this.project.getResource(texturePath).output());
             if (image.exists()) {
                 taskBuilder.addInput(image);
             }
