@@ -434,7 +434,7 @@ namespace dmGraphics
         *data_size = attribute.m_Values.m_BinaryValues.m_Count;
     }
 
-    uint8_t* WriteAttribute(const VertexAttributeInfos* attribute_infos, uint8_t* write_ptr, uint32_t vertex_index, const dmVMath::Matrix4* world_transform, const dmVMath::Point3& p, const dmVMath::Point3& p_local, const dmVMath::Vector4* color, float** uvs, uint32_t* page_indices, uint32_t num_textures)
+    uint8_t* WriteAttribute(const VertexAttributeInfos* attribute_infos, uint8_t* write_ptr, uint32_t vertex_index, const dmVMath::Matrix4* world_transform, const dmVMath::Matrix4* normal_transform, const dmVMath::Point3& p, const dmVMath::Point3& p_local, const dmVMath::Vector4* color, float** uvs, uint32_t* page_indices, uint32_t num_textures)
     {
         uint32_t num_texcoords = 0;
         uint32_t num_page_indices = 0;
@@ -476,6 +476,14 @@ namespace dmGraphics
                     uint32_t unit = num_page_indices++;
                     float page_index = (float) page_indices[unit];
                     memcpy(write_ptr, &page_index, info.m_ValueByteSize);
+                } break;
+                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_WORLD_MATRIX:
+                {
+                    memcpy(write_ptr, world_transform, info.m_ValueByteSize);
+                } break;
+                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL_MATRIX:
+                {
+                    memcpy(write_ptr, normal_transform, info.m_ValueByteSize);
                 } break;
                 default:
                 {
@@ -534,6 +542,13 @@ namespace dmGraphics
     {
         VertexStreamDeclaration* sd = new VertexStreamDeclaration();
         memset(sd, 0, sizeof(*sd));
+        return sd;
+    }
+
+    HVertexStreamDeclaration NewVertexStreamDeclaration(HContext context, VertexStepFunction step_function)
+    {
+        VertexStreamDeclaration* sd = NewVertexStreamDeclaration(context);
+        sd->m_StepFunction = step_function;
         return sd;
     }
 
@@ -600,7 +615,12 @@ namespace dmGraphics
 
     uint32_t GetVertexDeclarationStride(HVertexDeclaration vertex_declaration)
     {
-        return vertex_declaration->m_Stride;
+        return vertex_declaration ? vertex_declaration->m_Stride : 0;
+    }
+
+    uint32_t GetVertexDeclarationStreamCount(HVertexDeclaration vertex_declaration)
+    {
+        return vertex_declaration ? vertex_declaration->m_StreamCount : 0;
     }
 
     #define DM_TEXTURE_FORMAT_TO_STR_CASE(x) case TEXTURE_FORMAT_##x: return #x;
@@ -1300,9 +1320,9 @@ namespace dmGraphics
     {
         return g_functions.m_NewVertexDeclarationStride(context, stream_declaration, stride);
     }
-    void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, uint32_t binding_index, HProgram program)
+    void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, uint32_t binding_index, uint32_t base_offset, HProgram program)
     {
-        g_functions.m_EnableVertexDeclaration(context, vertex_declaration, binding_index, program);
+        g_functions.m_EnableVertexDeclaration(context, vertex_declaration, binding_index, base_offset, program);
     }
     void DisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration)
     {
@@ -1316,13 +1336,13 @@ namespace dmGraphics
     {
         g_functions.m_DisableVertexBuffer(context, vertex_buffer);
     }
-    void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
+    void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer, uint32_t instance_count)
     {
-        g_functions.m_DrawElements(context, prim_type, first, count, type, index_buffer);
+        g_functions.m_DrawElements(context, prim_type, first, count, type, index_buffer, instance_count);
     }
-    void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count)
+    void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count)
     {
-        g_functions.m_Draw(context, prim_type, first, count);
+        g_functions.m_Draw(context, prim_type, first, count, instance_count);
     }
     void DispatchCompute(HContext context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z)
     {

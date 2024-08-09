@@ -454,6 +454,15 @@ emitters {
       v: 2.0
     }
   }
+  attributes {
+    name: "instance_custom"
+    double_values {
+      v: 1.0
+      v: 0.0
+      v: 0.0
+      v: 0.0
+    }
+  }
 }
 emitters {
   id: "2d_cone_emitter"
@@ -909,6 +918,15 @@ emitters {
     name: "float"
     double_values {
       v: 2.0
+    }
+  }
+  attributes {
+    name: "instance_custom"
+    double_values {
+      v: 1.0
+      v: 0.0
+      v: 0.0
+      v: 0.0
     }
   }
 }
@@ -1368,6 +1386,15 @@ emitters {
       v: 2.0
     }
   }
+  attributes {
+    name: "instance_custom"
+    double_values {
+      v: 1.0
+      v: 0.0
+      v: 0.0
+      v: 0.0
+    }
+  }
 }
 emitters {
   id: "sphere_emitter"
@@ -1825,6 +1852,15 @@ emitters {
       v: 2.0
     }
   }
+  attributes {
+    name: "instance_custom"
+    double_values {
+      v: 1.0
+      v: 0.0
+      v: 0.0
+      v: 0.0
+    }
+  }
 }
 emitters {
   id: "cone_emitter"
@@ -2280,6 +2316,15 @@ emitters {
     name: "float"
     double_values {
       v: 2.0
+    }
+  }
+  attributes {
+    name: "instance_custom"
+    double_values {
+      v: 1.0
+      v: 0.0
+      v: 0.0
+      v: 0.0
     }
   }
 }

@@ -273,7 +273,7 @@ namespace dmGameSystem
         return -1;
     }
 
-    // Prepares the list of sprite attributes that could potentially overrides an already specified material attribute
+    // Prepares the list of attributes that could potentially overrides an already specified material attribute
     void FillAttributeInfos(DynamicAttributePool* dynamic_attribute_pool, uint16_t component_dynamic_attribute_index, const dmGraphics::VertexAttribute* component_attributes, uint32_t num_component_attributes, dmGraphics::VertexAttributeInfos* material_infos, dmGraphics::VertexAttributeInfos* component_infos)
     {
         component_infos->m_NumInfos     = material_infos->m_NumInfos;
@@ -307,9 +307,11 @@ namespace dmGameSystem
             int component_attribute_index = FindAttributeIndex(component_attributes, num_component_attributes, name_hash);
             if (component_attribute_index >= 0)
             {
+                // We don't use the byte size from the overridden attribute here, since we still need to match
+                // the stride of the materials vertex declaration
+                uint32_t value_byte_size_tmp;
                 dmGraphics::GetAttributeValues(component_attributes[component_attribute_index],
-                    &component_infos->m_Infos[i].m_ValuePtr,
-                    &component_infos->m_Infos[i].m_ValueByteSize);
+                    &component_infos->m_Infos[i].m_ValuePtr, &value_byte_size_tmp);
             }
 
             // 3. If all of the above failed, we fallback to using the material attribute instead
@@ -323,7 +325,6 @@ namespace dmGameSystem
         const dmGraphics::VertexAttribute* material_attributes;
         uint32_t material_attributes_count;
         dmRender::GetMaterialProgramAttributes(material, &material_attributes, &material_attributes_count);
-
         infos->m_NumInfos     = dmMath::Min(material_attributes_count, (uint32_t) dmGraphics::MAX_VERTEX_STREAM_COUNT);
         infos->m_VertexStride = dmGraphics::GetVertexDeclarationStride(vx_decl);
 
@@ -336,6 +337,7 @@ namespace dmGameSystem
             info.m_CoordinateSpace  = material_attributes[i].m_CoordinateSpace;
             info.m_ElementCount     = material_attributes[i].m_ElementCount;
             info.m_Normalize        = material_attributes[i].m_Normalize;
+            info.m_StepFunction     = material_attributes[i].m_StepFunction;
 
             dmRender::GetMaterialProgramAttributeValues(material, i, &info.m_ValuePtr, &info.m_ValueByteSize);
         }

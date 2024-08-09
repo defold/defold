@@ -38,22 +38,13 @@ static void SetHttpAddress(lua_State* L)
 
 TEST_F(ComponentTest, HTTPRequest)
 {
-    dmGameSystem::ScriptLibContext scriptlibcontext;
-    scriptlibcontext.m_Factory         = m_Factory;
-    scriptlibcontext.m_Register        = m_Register;
-    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
-    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
-    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
-
-    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
-
-    lua_State* L = scriptlibcontext.m_LuaState;
+    lua_State* L = m_Scriptlibcontext.m_LuaState;
 
     dmMessage::URL m_DefaultURL;
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::NewSocket("default_socket", &m_DefaultURL.m_Socket));
     m_DefaultURL.m_Path = dmHashString64("default_path");
     m_DefaultURL.m_Fragment = dmHashString64("default_fragment");
-    dmScript::PushURL(scriptlibcontext.m_LuaState, m_DefaultURL);
+    dmScript::PushURL(m_Scriptlibcontext.m_LuaState, m_DefaultURL);
     lua_setglobal(L, DEFAULT_URL);
 
     SetHttpAddress(L);
@@ -79,8 +70,6 @@ TEST_F(ComponentTest, HTTPRequest)
 
     ASSERT_TRUE(tests_done);
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
-
-    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
 extern "C" void dmExportedSymbols();

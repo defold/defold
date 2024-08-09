@@ -85,6 +85,7 @@
   (is (= [{:name "position"
            :name-key :position
            :type :byte
+           :vector-type :vector-type-scalar
            :components 1
            :normalize false
            :semantic-type :semantic-type-position

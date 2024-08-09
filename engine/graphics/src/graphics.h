@@ -167,6 +167,7 @@ namespace dmGraphics
         CONTEXT_FEATURE_TEXTURE_ARRAY          = 1,
         CONTEXT_FEATURE_COMPUTE_SHADER         = 2,
         CONTEXT_FEATURE_STORAGE_BUFFER         = 3,
+        CONTEXT_FEATURE_INSTANCING             = 4,
     };
 
     // Translation table to translate RenderTargetAttachment to BufferType
@@ -317,14 +318,15 @@ namespace dmGraphics
 
     struct VertexAttributeInfo
     {
-        dmhash_t                      m_NameHash;
-        VertexAttribute::SemanticType m_SemanticType;
-        VertexAttribute::DataType     m_DataType;
-        CoordinateSpace               m_CoordinateSpace;
-        const uint8_t*                m_ValuePtr;
-        uint32_t                      m_ValueByteSize;
-        uint32_t                      m_ElementCount;
-        bool                          m_Normalize;
+        dmhash_t                       m_NameHash;
+        VertexAttribute::SemanticType  m_SemanticType;
+        VertexAttribute::DataType      m_DataType;
+        dmGraphics::VertexStepFunction m_StepFunction;
+        CoordinateSpace                m_CoordinateSpace;
+        const uint8_t*                 m_ValuePtr;
+        uint32_t                       m_ValueByteSize;
+        uint32_t                       m_ElementCount;
+        bool                           m_Normalize;
     };
 
     struct VertexAttributeInfos
@@ -339,6 +341,27 @@ namespace dmGraphics
         uint32_t            m_VertexStride;
         uint32_t            m_NumInfos;
         uint32_t            m_StructSize;
+    };
+
+    struct VertexDeclaration
+    {
+        struct Stream
+        {
+            dmhash_t m_NameHash;
+            int16_t  m_Location;
+            uint16_t m_Size;
+            uint16_t m_Offset;
+            Type     m_Type;
+            bool     m_Normalize;
+        };
+
+        Stream             m_Streams[MAX_VERTEX_STREAM_COUNT];
+        dmhash_t           m_PipelineHash; // Vulkan
+        uint16_t           m_StreamCount;
+        uint16_t           m_Stride;
+        VertexStepFunction m_StepFunction;
+        HProgram           m_BoundForProgram;     // OpenGL
+        uint32_t           m_ModificationVersion; // OpenGL
     };
 
     /** Creates a graphics context
@@ -515,17 +538,18 @@ namespace dmGraphics
     void Clear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil);
 
     bool     SetStreamOffset(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset);
-    void     EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, uint32_t binding_index, HProgram program);
+    void     EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, uint32_t binding_index, uint32_t base_offset, HProgram program);
     void     DisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration);
     void     HashVertexDeclaration(HashState32 *state, HVertexDeclaration vertex_declaration);
     uint32_t GetVertexDeclarationStride(HVertexDeclaration vertex_declaration);
+    uint32_t GetVertexDeclarationStreamCount(HVertexDeclaration vertex_declaration);
 
     void     EnableVertexBuffer(HContext context, HVertexBuffer vertex_buffer, uint32_t binding_index);
     void     DisableVertexBuffer(HContext context, HVertexBuffer vertex_buffer);
 
-    void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer);
-    void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count);
-    void DispatchCompute(HContext context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z);
+    void     DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer, uint32_t instance_count);
+    void     Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count);
+    void     DispatchCompute(HContext context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z);
 
     // Shaders
     HVertexProgram       NewVertexProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size);
@@ -556,7 +580,7 @@ namespace dmGraphics
     void             GetAttribute(HProgram prog, uint32_t index, dmhash_t* name_hash, Type* type, uint32_t* element_count, uint32_t* num_values, int32_t* location);
     void             GetAttributeValues(const VertexAttribute& attribute, const uint8_t** data_ptr, uint32_t* data_size);
     Type             GetGraphicsType(VertexAttribute::DataType data_type);
-    uint8_t*         WriteAttribute(const VertexAttributeInfos* attribute_infos, uint8_t* write_ptr, uint32_t vertex_index, const dmVMath::Matrix4* world_transform, const dmVMath::Point3& p, const dmVMath::Point3& p_local, const dmVMath::Vector4* color, float** uvs, uint32_t* page_indices, uint32_t num_textures);
+    uint8_t*         WriteAttribute(const VertexAttributeInfos* attribute_infos, uint8_t* write_ptr, uint32_t vertex_index, const dmVMath::Matrix4* world_transform, const dmVMath::Matrix4* normal_transform, const dmVMath::Point3& p, const dmVMath::Point3& p_local, const dmVMath::Vector4* color, float** uvs, uint32_t* page_indices, uint32_t num_textures);
 
     uint32_t         GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size);
     uint32_t         GetUniformCount(HProgram prog);

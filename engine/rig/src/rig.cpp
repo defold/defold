@@ -937,28 +937,35 @@ namespace dmRig
         return out_buffer;
     }
 
-    uint8_t* WriteSingleVertexDataByAttributes(uint8_t* write_ptr, uint32_t idx, const dmGraphics::VertexAttributeInfos* attribute_infos, const float* positions, const float* normals, const float* tangents, const float* uv0, const float* uv1, const float* colors)
+    uint8_t* WriteSingleVertexDataByAttributes(uint8_t* write_ptr, const WriteVertexAttributeParams& params)
     {
         uint32_t num_texcoords = 0;
-        for (int a = 0; a < attribute_infos->m_NumInfos; ++a)
+        for (int a = 0; a < params.m_AttributeInfos->m_NumInfos; ++a)
         {
-            const dmGraphics::VertexAttributeInfo& info = attribute_infos->m_Infos[a];
+            const dmGraphics::VertexAttributeInfo& info = params.m_AttributeInfos->m_Infos[a];
             const size_t data_size                      = info.m_ValueByteSize;
+
+            assert(data_size != 0);
+
+            if (info.m_StepFunction != params.m_StepFunction)
+            {
+                continue;
+            }
 
             switch(info.m_SemanticType)
             {
                 case dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION:
                 {
-                    memcpy(write_ptr, &positions[idx*3], dmMath::Min(3 * sizeof(float), data_size));
+                    memcpy(write_ptr, &params.m_Positions[params.m_Index*3], dmMath::Min(3 * sizeof(float), data_size));
                 } break;
                 case dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD:
                 {
                     uint32_t src_copy_size = dmMath::Min(2 * sizeof(float), data_size);
-                    const float* uv = num_texcoords == 0 ? uv0 :
-                                      num_texcoords == 1 ? uv1 :
+                    const float* uv = num_texcoords == 0 ? params.m_UV0 :
+                                      num_texcoords == 1 ? params.m_UV1 :
                                       0;
                     if (uv)
-                        memcpy(write_ptr, &uv[idx*2], src_copy_size);
+                        memcpy(write_ptr, &uv[params.m_Index*2], src_copy_size);
                     else
                         memcpy(write_ptr, info.m_ValuePtr, data_size);
 
@@ -967,18 +974,26 @@ namespace dmRig
                 case dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR:
                 {
                     uint32_t src_copy_size = dmMath::Min(4 * sizeof(float), data_size);
-                    if (colors)
-                        memcpy(write_ptr, &colors[idx*4], src_copy_size);
+                    if (params.m_Colors)
+                        memcpy(write_ptr, &params.m_Colors[params.m_Index*4], src_copy_size);
                     else
                         memcpy(write_ptr, info.m_ValuePtr, data_size);
                 } break;
                 case dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL:
                 {
-                    memcpy(write_ptr, &normals[idx*3], dmMath::Min(3 * sizeof(float), data_size));
+                    memcpy(write_ptr, &params.m_Normals[params.m_Index*3], dmMath::Min(3 * sizeof(float), data_size));
                 } break;
                 case dmGraphics::VertexAttribute::SEMANTIC_TYPE_TANGENT:
                 {
-                    memcpy(write_ptr, &tangents[idx*4], dmMath::Min(4 * sizeof(float), data_size));
+                    memcpy(write_ptr, &params.m_Tangents[params.m_Index*4], dmMath::Min(4 * sizeof(float), data_size));
+                } break;
+                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_WORLD_MATRIX:
+                {
+                    memcpy(write_ptr, params.m_WorldTransform, dmMath::Min(sizeof(dmVMath::Matrix4), data_size));
+                } break;
+                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL_MATRIX:
+                {
+                    memcpy(write_ptr, params.m_NormalTransform, dmMath::Min(sizeof(dmVMath::Matrix4), data_size));
                 } break;
                 default:
                 {
@@ -991,7 +1006,7 @@ namespace dmRig
         return write_ptr;
     }
 
-    static uint8_t* WriteVertexDataByAttributes(const dmRigDDF::Mesh* mesh, const float* positions, const float* normals, const float* tangents, const dmGraphics::VertexAttributeInfos* attribute_infos, uint32_t vertex_stride, uint8_t* out_write_ptr)
+    static uint8_t* WriteVertexDataByAttributes(const dmRigDDF::Mesh* mesh, const float* positions, const float* normals, const float* tangents, const dmGraphics::VertexAttributeInfos* attribute_infos, uint32_t vertex_stride, const dmVMath::Matrix4& world_matrix, const dmVMath::Matrix4& normal_matrix, uint8_t* out_write_ptr)
     {
         const float* uv0 = mesh->m_Texcoord0.m_Count ? mesh->m_Texcoord0.m_Data : 0;
         const float* uv1 = mesh->m_Texcoord1.m_Count ? mesh->m_Texcoord1.m_Data : 0;
@@ -1013,11 +1028,23 @@ namespace dmRig
             num_indices = mesh->m_Indices.m_Count / 2;
         }
 
+        WriteVertexAttributeParams params = {};
+        params.m_AttributeInfos  = attribute_infos;
+        params.m_Positions       = positions;
+        params.m_Normals         = normals;
+        params.m_Tangents        = tangents;
+        params.m_UV0             = uv0;
+        params.m_UV1             = uv1;
+        params.m_Colors          = colors;
+        params.m_WorldTransform  = &world_matrix;
+        params.m_NormalTransform = &normal_matrix;
+
         for (uint32_t i = 0; i < num_indices; ++i)
         {
             uint32_t idx = indices32?indices32[i]:indices16[i];
+            params.m_Index = idx;
             // TODO: Use the shared dmGraphics function instead of this
-            out_write_ptr = WriteSingleVertexDataByAttributes(out_write_ptr, idx, attribute_infos, positions, normals, tangents, uv0, uv1, colors);
+            out_write_ptr = WriteSingleVertexDataByAttributes(out_write_ptr, params);
         }
 
         return out_write_ptr;
@@ -1109,7 +1136,7 @@ namespace dmRig
         array.SetSize(size);
     }
 
-    uint8_t* GenerateVertexDataFromAttributes(dmRig::HRigContext context, dmRig::HRigInstance instance, dmRigDDF::Mesh* mesh, const dmVMath::Matrix4& world_matrix, const dmGraphics::VertexAttributeInfos* attribute_infos, uint32_t vertex_stride, uint8_t* vertex_data_out)
+    uint8_t* GenerateVertexDataFromAttributes(dmRig::HRigContext context, dmRig::HRigInstance instance, dmRigDDF::Mesh* mesh, const dmVMath::Matrix4& world_matrix, const dmVMath::Matrix4& normal_matrix, const dmGraphics::VertexAttributeInfos* attribute_infos, uint32_t vertex_stride, uint8_t* vertex_data_out)
     {
         const dmRigDDF::Model* model = instance->m_Model;
 
@@ -1182,7 +1209,7 @@ namespace dmRig
             dmRig::GenerateNormalData(mesh, normal_matrix, pose_matrices, normals_buffer, tangents_buffer);
         }
 
-        return WriteVertexDataByAttributes(mesh, positions_buffer, normals_buffer, tangents_buffer, attribute_infos, vertex_stride, vertex_data_out);
+        return WriteVertexDataByAttributes(mesh, positions_buffer, normals_buffer, tangents_buffer, attribute_infos, vertex_stride, world_matrix, normal_matrix, vertex_data_out);
     }
 
     RigModelVertex* GenerateVertexData(dmRig::HRigContext context, dmRig::HRigInstance instance, dmRigDDF::Mesh* mesh, const Matrix4& world_matrix, RigModelVertex* vertex_data_out)

@@ -408,7 +408,7 @@ TEST_F(ResourceTest, TestCreateTextureFromScript)
 
     ASSERT_EQ(0, dmResource::GetRefCount(m_Factory, res_hash));
 
-    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+     dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
 TEST_F(ResourceTest, TestResourceScriptBuffer)
@@ -1472,8 +1472,6 @@ TEST_F(GuiTest, TextureResources)
         ASSERT_TRUE(dmGraphics::IsAssetHandleValid(m_GraphicsContext, texture_res->m_Texture));
     }
 
-    dmGameSystem::FinalizeScriptLibs(m_Scriptlibcontext);
-
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
@@ -1508,8 +1506,6 @@ TEST_F(GuiTest, MaxDynamictextures)
     dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0);
 
     ASSERT_EQ(0, scene->m_DynamicTextures.Size());
-
-    dmGameSystem::FinalizeScriptLibs(m_Scriptlibcontext);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
@@ -2190,12 +2186,11 @@ TEST_P(DrawCountTest, DrawCount)
 
 void AssertVertexEqual(const dmGameSystem::BoxVertex& lhs, const dmGameSystem::BoxVertex& rhs)
 {
-    static const float test_epsilon = 0.000001f;
-    EXPECT_NEAR(lhs.m_Position[0], rhs.m_Position[0], test_epsilon);
-    EXPECT_NEAR(lhs.m_Position[1], rhs.m_Position[1], test_epsilon);
-    EXPECT_NEAR(lhs.m_UV[0], rhs.m_UV[0], test_epsilon);
-    EXPECT_NEAR(lhs.m_UV[1], rhs.m_UV[1], test_epsilon);
-    EXPECT_NEAR(lhs.m_PageIndex, rhs.m_PageIndex, test_epsilon);
+    EXPECT_NEAR(lhs.m_Position[0], rhs.m_Position[0], EPSILON);
+    EXPECT_NEAR(lhs.m_Position[1], rhs.m_Position[1], EPSILON);
+    EXPECT_NEAR(lhs.m_UV[0], rhs.m_UV[0], EPSILON);
+    EXPECT_NEAR(lhs.m_UV[1], rhs.m_UV[1], EPSILON);
+    EXPECT_NEAR(lhs.m_PageIndex, rhs.m_PageIndex, EPSILON);
 }
 
 TEST_P(BoxRenderTest, BoxRender)
@@ -2601,14 +2596,6 @@ TEST_F(ComponentTest, JointTest)
     dmHashEnableReverseHash(true);
     lua_State* L = dmScript::GetLuaState(m_ScriptContext);
 
-    dmGameSystem::ScriptLibContext scriptlibcontext;
-    scriptlibcontext.m_Factory         = m_Factory;
-    scriptlibcontext.m_Register        = m_Register;
-    scriptlibcontext.m_LuaState        = L;
-    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
-    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
-    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
-
     const char* path_joint_test_a = "/collision_object/joint_test_a.goc";
     const char* path_joint_test_b = "/collision_object/joint_test_b.goc";
     const char* path_joint_test_c = "/collision_object/joint_test_c.goc";
@@ -2657,14 +2644,6 @@ TEST_F(ComponentTest, PhysicsListenerTest)
     dmHashEnableReverseHash(true);
     lua_State* L = dmScript::GetLuaState(m_ScriptContext);
 
-    dmGameSystem::ScriptLibContext scriptlibcontext;
-    scriptlibcontext.m_Factory         = m_Factory;
-    scriptlibcontext.m_Register        = m_Register;
-    scriptlibcontext.m_LuaState        = L;
-    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
-    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
-    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
-
     const char* path_test_object = "/collision_object/callback_object.goc";
     const char* path_test_trigger = "/collision_object/callback_trigger.goc";
 
@@ -2705,14 +2684,6 @@ TEST_F(ComponentTest, PhysicsUpdateMassTest)
     dmHashEnableReverseHash(true);
     lua_State* L = dmScript::GetLuaState(m_ScriptContext);
 
-    dmGameSystem::ScriptLibContext scriptlibcontext;
-    scriptlibcontext.m_Factory         = m_Factory;
-    scriptlibcontext.m_Register        = m_Register;
-    scriptlibcontext.m_LuaState        = L;
-    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
-    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
-    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
-
     const char* path_test_object = "/collision_object/mass_object.goc";
 
     dmhash_t hash_go_object = dmHashString64("/test_object");
@@ -2738,15 +2709,6 @@ TEST_F(ComponentTest, PhysicsUpdateMassTest)
 TEST_F(ComponentTest, DispatchBuffersTest)
 {
     dmHashEnableReverseHash(true);
-    lua_State* L = dmScript::GetLuaState(m_ScriptContext);
-
-    dmGameSystem::ScriptLibContext scriptlibcontext;
-    scriptlibcontext.m_Factory         = m_Factory;
-    scriptlibcontext.m_Register        = m_Register;
-    scriptlibcontext.m_LuaState        = L;
-    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
-    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
-    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
 
     dmRender::RenderContext* render_context_ptr  = (dmRender::RenderContext*) m_RenderContext;
     render_context_ptr->m_MultiBufferingRequired = 1;
@@ -3049,7 +3011,90 @@ TEST_F(ComponentTest, DispatchBuffersTest)
     #undef ASSERT_VTX_A_EQ
     #undef ASSERT_VTX_B_EQ
 
-    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
+TEST_F(ComponentTest, DispatchBuffersInstancingTest)
+{
+    dmHashEnableReverseHash(true);
+
+    dmRender::RenderContext* render_context_ptr  = (dmRender::RenderContext*) m_RenderContext;
+
+    render_context_ptr->m_MultiBufferingRequired = 1;
+
+    void* model_world = dmGameObject::GetWorld(m_Collection, dmGameObject::GetComponentTypeIndex(m_Collection, dmHashString64("modelc")));
+    ASSERT_NE((void*) 0, model_world);
+
+    ASSERT_TRUE(dmGameObject::Init(m_Collection));
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/misc/dispatch_buffers_instancing_test/dispatch_buffers_instancing_test.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0, go);
+
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+
+    dmRender::RenderListBegin(m_RenderContext);
+    dmGameObject::Render(m_Collection);
+    dmRender::RenderListEnd(m_RenderContext);
+    dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0);
+
+    struct vs_format_a
+    {
+        float position[3];
+        float page_index;
+    };
+
+    struct inst_format_a
+    {
+        float mtx_world[16];
+    };
+
+    struct vs_format_b
+    {
+        float position[3];
+        float my_custom_vertex_attribute[2];
+    };
+
+    struct inst_format_b
+    {
+        float mtx_world[16];
+        float my_custom_instance_attribute[4];
+    };
+
+    const uint32_t vertex_stride_a   = sizeof(vs_format_a);
+    const uint32_t vertex_stride_b   = sizeof(vs_format_b);
+    const uint32_t instance_stride_a = sizeof(inst_format_a);
+    const uint32_t instance_stride_b = sizeof(inst_format_b);
+
+    /////////////////////////////////////////////
+    // Model
+    /////////////////////////////////////////////
+    {
+        dmGameSystem::MaterialResource *material_a, *material_b;
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/misc/dispatch_buffers_instancing_test/material_a.materialc", (void**) &material_a));
+        ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/misc/dispatch_buffers_instancing_test/material_b.materialc", (void**) &material_b));
+
+        ASSERT_NE((void*)0, material_a->m_Material);
+        ASSERT_NE((void*)0, material_b->m_Material);
+
+        dmGraphics::HVertexDeclaration vx_decl_a   = dmRender::GetVertexDeclaration(material_a->m_Material, dmGraphics::VERTEX_STEP_FUNCTION_VERTEX);
+        dmGraphics::HVertexDeclaration vx_decl_b   = dmRender::GetVertexDeclaration(material_b->m_Material, dmGraphics::VERTEX_STEP_FUNCTION_VERTEX);
+        dmGraphics::HVertexDeclaration inst_decl_a = dmRender::GetVertexDeclaration(material_a->m_Material, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE);
+        dmGraphics::HVertexDeclaration inst_decl_b = dmRender::GetVertexDeclaration(material_b->m_Material, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE);
+
+        ASSERT_EQ(vertex_stride_a, dmGraphics::GetVertexDeclarationStride(vx_decl_a));
+        ASSERT_EQ(vertex_stride_b, dmGraphics::GetVertexDeclarationStride(vx_decl_b));
+
+        ASSERT_EQ(instance_stride_a, dmGraphics::GetVertexDeclarationStride(inst_decl_a));
+        ASSERT_EQ(instance_stride_b, dmGraphics::GetVertexDeclarationStride(inst_decl_b));
+
+        // TODO: Ideally we should test the actual result of the dispatch here, but there are 
+        //       currently limitations in how the content is generated via waf_gamesys.
+        //       Right now all rig scenes will be referencing a skeleton, which isn't compatible
+        //       with local spaced models.
+
+        dmResource::Release(m_Factory, material_a);
+        dmResource::Release(m_Factory, material_b);
+    }
+
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
@@ -3450,9 +3495,8 @@ INSTANTIATE_TEST_CASE_P(VertexProgram, ResourceFailTest, jc_test_values_in(inval
 
 void AssertPointEquals(const Vector4& p, float x, float y)
 {
-    static const float test_epsilon = 0.000001f;
-    EXPECT_NEAR(p.getX(), x, test_epsilon);
-    EXPECT_NEAR(p.getY(), y, test_epsilon);
+    EXPECT_NEAR(p.getX(), x, EPSILON);
+    EXPECT_NEAR(p.getY(), y, EPSILON);
 }
 
 TEST_F(LabelTest, LabelMovesWhenSwitchingPivot)
@@ -4661,6 +4705,55 @@ TEST_F(RenderConstantsTest, HashRenderConstants)
     dmGameSystem::DestroyRenderConstants(constants);
 }
 
+TEST_F(MaterialTest, CustomInstanceAttributes)
+{
+    dmGameSystem::MaterialResource* material_res;
+    dmResource::Result res = dmResource::Get(m_Factory, "/material/attributes_instancing_valid.materialc", (void**)&material_res);
+
+    ASSERT_EQ(dmResource::RESULT_OK, res);
+    ASSERT_NE((void*)0, material_res);
+
+    dmRender::HMaterial material = material_res->m_Material;
+    ASSERT_NE((void*)0, material);
+
+    const dmGraphics::VertexAttribute* attributes;
+    uint32_t attribute_count;
+    dmRender::GetMaterialProgramAttributes(material, &attributes, &attribute_count);
+    ASSERT_EQ(5, attribute_count);
+    ASSERT_EQ(dmHashString64("position"),   attributes[0].m_NameHash);
+    ASSERT_EQ(dmHashString64("normal"),     attributes[1].m_NameHash);
+    ASSERT_EQ(dmHashString64("texcoord0"),  attributes[2].m_NameHash);
+    ASSERT_EQ(dmHashString64("mtx_normal"), attributes[3].m_NameHash);
+    ASSERT_EQ(dmHashString64("mtx_world"),  attributes[4].m_NameHash);
+
+    ASSERT_EQ(2,  attributes[0].m_ElementCount); // Position has been overridden!
+    ASSERT_EQ(3,  attributes[1].m_ElementCount);
+    ASSERT_EQ(2,  attributes[2].m_ElementCount);
+    ASSERT_EQ(9,  attributes[3].m_ElementCount);
+    ASSERT_EQ(16, attributes[4].m_ElementCount);
+
+    ASSERT_EQ(dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION, attributes[0].m_SemanticType);
+    ASSERT_EQ(dmGraphics::VertexAttribute::SEMANTIC_TYPE_NONE,     attributes[1].m_SemanticType); // No normal semantic type (yet)
+    ASSERT_EQ(dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD, attributes[2].m_SemanticType);
+
+    ASSERT_EQ(dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL_MATRIX, attributes[3].m_SemanticType);
+    ASSERT_EQ(dmGraphics::VertexAttribute::SEMANTIC_TYPE_WORLD_MATRIX,  attributes[4].m_SemanticType);
+
+    ASSERT_EQ(dmGraphics::VertexAttribute::TYPE_FLOAT, attributes[0].m_DataType);
+    ASSERT_EQ(dmGraphics::VertexAttribute::TYPE_BYTE,  attributes[1].m_DataType);
+    ASSERT_EQ(dmGraphics::VertexAttribute::TYPE_SHORT, attributes[2].m_DataType);
+    ASSERT_EQ(dmGraphics::VertexAttribute::TYPE_FLOAT, attributes[3].m_DataType);
+    ASSERT_EQ(dmGraphics::VertexAttribute::TYPE_FLOAT, attributes[4].m_DataType);
+
+    ASSERT_EQ(dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE, attributes[0].m_StepFunction);
+    ASSERT_EQ(dmGraphics::VERTEX_STEP_FUNCTION_VERTEX,   attributes[1].m_StepFunction);
+    ASSERT_EQ(dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE, attributes[2].m_StepFunction);
+    ASSERT_EQ(dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE, attributes[3].m_StepFunction);
+    ASSERT_EQ(dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE, attributes[4].m_StepFunction);
+
+    dmResource::Release(m_Factory, material_res);
+}
+
 TEST_F(MaterialTest, CustomVertexAttributes)
 {
     dmGameSystem::MaterialResource* material_res;
@@ -5124,7 +5217,6 @@ TEST_F(MaterialTest, DynamicVertexAttributesWithGoAnimate)
     }
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
-    dmGameSystem::FinalizeScriptLibs(m_Scriptlibcontext);
 }
 
 TEST_F(MaterialTest, DynamicVertexAttributesGoSetGetSparse)
@@ -5135,7 +5227,6 @@ TEST_F(MaterialTest, DynamicVertexAttributesGoSetGetSparse)
     ASSERT_NE((void*)0, go);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
-    dmGameSystem::FinalizeScriptLibs(m_Scriptlibcontext);
 }
 
 TEST_F(MaterialTest, DynamicVertexAttributesCount)
@@ -5177,7 +5268,6 @@ TEST_F(MaterialTest, DynamicVertexAttributesCount)
     ASSERT_EQ(0, dynamic_attribute_pool->Size());
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
-    dmGameSystem::FinalizeScriptLibs(m_Scriptlibcontext);
 }
 
 TEST_F(MaterialTest, GoGetSetConstants)
@@ -5188,52 +5278,36 @@ TEST_F(MaterialTest, GoGetSetConstants)
     ASSERT_NE((void*)0, go);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
-    dmGameSystem::FinalizeScriptLibs(m_Scriptlibcontext);
 }
 
 TEST_F(ComponentTest, GetSetCollisionShape)
 {
     dmHashEnableReverseHash(true);
-    dmGameSystem::InitializeScriptLibs(m_Scriptlibcontext);
 
     dmGameObject::HInstance go_base = Spawn(m_Factory, m_Collection, "/collision_object/get_set_shape.goc", dmHashString64("/get_set_shape_go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go_base);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
-    dmGameSystem::FinalizeScriptLibs(m_Scriptlibcontext);
 }
 
 TEST_F(ComponentTest, GetSetErrorCollisionShape)
 {
     dmHashEnableReverseHash(true);
-    dmGameSystem::InitializeScriptLibs(m_Scriptlibcontext);
 
     dmGameObject::HInstance go_base = Spawn(m_Factory, m_Collection, "/collision_object/get_set_error_shape.goc", dmHashString64("/get_set_error_shape_go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go_base);
 
     ASSERT_FALSE(dmGameObject::Final(m_Collection));
-    dmGameSystem::FinalizeScriptLibs(m_Scriptlibcontext);
 }
 
 TEST_F(SysTest, LoadBufferSync)
 {
-    dmGameSystem::ScriptLibContext scriptlibcontext;
-    scriptlibcontext.m_Factory         = m_Factory;
-    scriptlibcontext.m_Register        = m_Register;
-    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
-    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
-    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
-
-    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
-
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sys/load_buffer_sync.goc", dmHashString64("/load_buffer_sync"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
-
-    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
 }
 
 static bool RunTestLoadBufferASync(int test_n,
@@ -5253,27 +5327,13 @@ static bool RunTestLoadBufferASync(int test_n,
 
 TEST_F(SysTest, LoadBufferASync)
 {
-    dmJobThread::JobThreadCreationParams job_thread_create_param;
-    job_thread_create_param.m_ThreadNames[0] = "test_gamesys_thread";
-    job_thread_create_param.m_ThreadCount    = 1;
-
-    dmGameSystem::ScriptLibContext scriptlibcontext;
-    scriptlibcontext.m_Factory         = m_Factory;
-    scriptlibcontext.m_Register        = m_Register;
-    scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
-    scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
-    scriptlibcontext.m_ScriptContext   = m_ScriptContext;
-    scriptlibcontext.m_JobThread       = dmJobThread::Create(job_thread_create_param);
-
-    dmGameSystem::InitializeScriptLibs(scriptlibcontext);
-
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
 
     dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/sys/load_buffer_async.goc", dmHashString64("/load_buffer_async"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
     // Test 1
-    ASSERT_TRUE(RunTestLoadBufferASync(1, scriptlibcontext, m_Collection, &m_UpdateContext, false));
+    ASSERT_TRUE(RunTestLoadBufferASync(1, m_Scriptlibcontext, m_Collection, &m_UpdateContext, false));
 
     // Test 2
     uint32_t large_buffer_size = 16 * 1024 * 1024;
@@ -5284,23 +5344,20 @@ TEST_F(SysTest, LoadBufferASync)
     large_buffer[large_buffer_size-1] = 255;
 
     dmResource::AddFile(m_Factory, "/sys/non_disk_content/large_file.raw", large_buffer_size, large_buffer);
-    ASSERT_TRUE(RunTestLoadBufferASync(2, scriptlibcontext, m_Collection, &m_UpdateContext, false));
+    ASSERT_TRUE(RunTestLoadBufferASync(2, m_Scriptlibcontext, m_Collection, &m_UpdateContext, false));
     dmResource::RemoveFile(m_Factory, "/sys/non_disk_content/large_file.raw");
     free(large_buffer);
 
     // Test 3
-    ASSERT_TRUE(RunTestLoadBufferASync(3, scriptlibcontext, m_Collection, &m_UpdateContext, true));
+    ASSERT_TRUE(RunTestLoadBufferASync(3, m_Scriptlibcontext, m_Collection, &m_UpdateContext, true));
 
     // Test 4
-    ASSERT_TRUE(RunTestLoadBufferASync(4, scriptlibcontext, m_Collection, &m_UpdateContext, true));
+    ASSERT_TRUE(RunTestLoadBufferASync(4, m_Scriptlibcontext, m_Collection, &m_UpdateContext, true));
 
     // Test 5
-    ASSERT_TRUE(RunTestLoadBufferASync(5, scriptlibcontext, m_Collection, &m_UpdateContext, true));
+    ASSERT_TRUE(RunTestLoadBufferASync(5, m_Scriptlibcontext, m_Collection, &m_UpdateContext, true));
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
-    dmGameSystem::FinalizeScriptLibs(scriptlibcontext);
-
-    dmJobThread::Destroy(scriptlibcontext.m_JobThread);
 }
 
 #ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT

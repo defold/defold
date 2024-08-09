@@ -114,6 +114,7 @@ public class ParticleLibrary {
         public long    nameHash;
         public int     semanticType;
         public int     dataType;
+        public int     stepFunction;
         public int     coordinateSpace;
         public Pointer valuePtr;
         public int     valueByteSize;
@@ -122,7 +123,7 @@ public class ParticleLibrary {
 
         @Override
         protected List<String> getFieldOrder() {
-            return Arrays.asList("nameHash", "semanticType", "dataType", "coordinateSpace", "valuePtr", "valueByteSize", "elementCount", "normalize");
+            return Arrays.asList("nameHash", "semanticType", "dataType", "stepFunction", "coordinateSpace", "valuePtr", "valueByteSize", "elementCount", "normalize");
         }
     }
 

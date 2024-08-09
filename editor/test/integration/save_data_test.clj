@@ -211,7 +211,9 @@
      "data_type" :unused
      "element_count" :unused
      "normalize" :unused
-     "semantic_type" :unused}}
+     "semantic_type" :unused
+     "step_function" :unused
+     "vector_type" :unused}}
 
    ['dmGraphics.VertexAttribute "[TYPE_FLOAT]"]
    {:default
@@ -670,7 +672,8 @@
                  :name "normal"
                  :wrap-u :wrap-mode-clamp-to-edge
                  :wrap-v :wrap-mode-clamp-to-edge}]
-               (g/node-value legacy-textures-material :samplers)))))
+               (g/node-value legacy-textures-material :samplers))))
+      #_(let [legacy-vertex-attribute-]))
 
     (testing "render"
       (let [legacy-render-prototype (project/get-resource-node project "/silently_migrated/legacy_render_prototype.render")]

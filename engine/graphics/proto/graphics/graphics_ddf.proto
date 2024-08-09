@@ -23,6 +23,12 @@ enum CoordinateSpace
     COORDINATE_SPACE_LOCAL = 2;
 }
 
+enum VertexStepFunction
+{
+    VERTEX_STEP_FUNCTION_VERTEX   = 0;
+    VERTEX_STEP_FUNCTION_INSTANCE = 1;
+}
+
 message VertexAttribute
 {
     enum DataType
@@ -36,15 +42,28 @@ message VertexAttribute
         TYPE_FLOAT            = 7;
     }
 
+    enum VectorType
+    {
+        VECTOR_TYPE_SCALAR = 1;
+        VECTOR_TYPE_VEC2   = 2;
+        VECTOR_TYPE_VEC3   = 3;
+        VECTOR_TYPE_VEC4   = 4;
+        VECTOR_TYPE_MAT2   = 5;
+        VECTOR_TYPE_MAT3   = 6;
+        VECTOR_TYPE_MAT4   = 7;
+    }
+
     enum SemanticType
     {
-        SEMANTIC_TYPE_NONE       = 1;
-        SEMANTIC_TYPE_POSITION   = 2;
-        SEMANTIC_TYPE_TEXCOORD   = 3;
-        SEMANTIC_TYPE_PAGE_INDEX = 4;
-        SEMANTIC_TYPE_COLOR      = 5;
-        SEMANTIC_TYPE_NORMAL     = 6;
-        SEMANTIC_TYPE_TANGENT    = 7;
+        SEMANTIC_TYPE_NONE          = 1;
+        SEMANTIC_TYPE_POSITION      = 2;
+        SEMANTIC_TYPE_TEXCOORD      = 3;
+        SEMANTIC_TYPE_PAGE_INDEX    = 4;
+        SEMANTIC_TYPE_COLOR         = 5;
+        SEMANTIC_TYPE_NORMAL        = 6;
+        SEMANTIC_TYPE_TANGENT       = 7;
+        SEMANTIC_TYPE_WORLD_MATRIX  = 8;
+        SEMANTIC_TYPE_NORMAL_MATRIX = 9;
     }
 
     message LongValues
@@ -60,10 +79,12 @@ message VertexAttribute
     required string          name             = 1;
     optional uint64          name_hash        = 2 [(runtime_only) = true];
     optional SemanticType    semantic_type    = 3 [default = SEMANTIC_TYPE_NONE];
-    optional int32           element_count    = 4 [default = 0];
+    optional int32           element_count    = 4 [default = 0]; // Deprecated
     optional bool            normalize        = 5 [default = false];
     optional DataType        data_type        = 6 [default = TYPE_FLOAT];
     optional CoordinateSpace coordinate_space = 7 [default = COORDINATE_SPACE_LOCAL];
+    optional VertexStepFunction step_function = 11 [default = VERTEX_STEP_FUNCTION_VERTEX];
+    optional VectorType vector_type           = 12 [default = VECTOR_TYPE_VEC4];
 
     // Note: Add a channel field here for identifying a semantic "channel", i.e a second UV set
 

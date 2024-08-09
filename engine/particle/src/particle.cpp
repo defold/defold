@@ -1033,11 +1033,12 @@ namespace dmParticle
     }
 
     // TODO: Use the shared dmGraphics function instead of this (needs to solve dynamic library linking for the particle library)
-    static uint8_t* WriteParticleVertex(const dmGraphics::VertexAttributeInfos& attribute_infos, uint8_t* write_ptr, const Vector3& p, const Vector3& p_local, const Vector4& color, float* uv, float page_index)
+    static uint8_t* WriteParticleVertex(const dmGraphics::VertexAttributeInfos& attribute_infos, uint8_t* write_ptr, const dmTransform::Transform& world_transform, const dmVMath::Matrix4& normal_matrix, const Vector3& p, const Vector3& p_local, const Vector4& color, float* uv, float page_index)
     {
         for (int i = 0; i < attribute_infos.m_NumInfos; ++i)
         {
             const dmGraphics::VertexAttributeInfo& info = attribute_infos.m_Infos[i];
+            const size_t data_size                      = info.m_ValueByteSize;
 
             switch(info.m_SemanticType)
             {
@@ -1064,6 +1065,15 @@ namespace dmParticle
                 case dmGraphics::VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX:
                 {
                     memcpy(write_ptr, &page_index, info.m_ValueByteSize);
+                } break;
+                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_WORLD_MATRIX:
+                {
+                    dmVMath::Matrix4 m = dmTransform::ToMatrix4(world_transform);
+                    memcpy(write_ptr, &m, dmMath::Min(sizeof(dmVMath::Matrix4), data_size));
+                } break;
+                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL_MATRIX:
+                {
+                    memcpy(write_ptr, &normal_matrix, dmMath::Min(sizeof(dmVMath::Matrix4), data_size));
                 } break;
                 default:
                 {
@@ -1142,6 +1152,9 @@ namespace dmParticle
         dmTransform::TransformS1 emission_transform;
         dmTransform::Transform particle_transform;
         emission_transform.SetIdentity();
+
+        dmVMath::Matrix4 normal_matrix;
+
         if (ddf->m_Space == EMISSION_SPACE_EMITTER)
         {
             emission_transform = instance->m_WorldTransform;
@@ -1295,12 +1308,12 @@ namespace dmParticle
             }
 
             uint8_t* write_ptr = vertex_buffer + vertex_index * attribute_infos.m_VertexStride;
-            write_ptr          = WriteParticleVertex(attribute_infos, write_ptr, p0, p0_local, c, tex_coord + tex_lookup[0] * 2, page_index);
-            write_ptr          = WriteParticleVertex(attribute_infos, write_ptr, p1, p1_local, c, tex_coord + tex_lookup[1] * 2, page_index);
-            write_ptr          = WriteParticleVertex(attribute_infos, write_ptr, p3, p3_local, c, tex_coord + tex_lookup[2] * 2, page_index);
-            write_ptr          = WriteParticleVertex(attribute_infos, write_ptr, p3, p3_local, c, tex_coord + tex_lookup[3] * 2, page_index);
-            write_ptr          = WriteParticleVertex(attribute_infos, write_ptr, p2, p2_local, c, tex_coord + tex_lookup[4] * 2, page_index);
-            write_ptr          = WriteParticleVertex(attribute_infos, write_ptr, p0, p0_local, c, tex_coord + tex_lookup[5] * 2, page_index);
+            write_ptr          = WriteParticleVertex(attribute_infos, write_ptr, particle_transform, normal_matrix, p0, p0_local, c, tex_coord + tex_lookup[0] * 2, page_index);
+            write_ptr          = WriteParticleVertex(attribute_infos, write_ptr, particle_transform, normal_matrix, p1, p1_local, c, tex_coord + tex_lookup[1] * 2, page_index);
+            write_ptr          = WriteParticleVertex(attribute_infos, write_ptr, particle_transform, normal_matrix, p3, p3_local, c, tex_coord + tex_lookup[2] * 2, page_index);
+            write_ptr          = WriteParticleVertex(attribute_infos, write_ptr, particle_transform, normal_matrix, p3, p3_local, c, tex_coord + tex_lookup[3] * 2, page_index);
+            write_ptr          = WriteParticleVertex(attribute_infos, write_ptr, particle_transform, normal_matrix, p2, p2_local, c, tex_coord + tex_lookup[4] * 2, page_index);
+            write_ptr          = WriteParticleVertex(attribute_infos, write_ptr, particle_transform, normal_matrix, p0, p0_local, c, tex_coord + tex_lookup[5] * 2, page_index);
             vertex_index += 6;
         }
 
