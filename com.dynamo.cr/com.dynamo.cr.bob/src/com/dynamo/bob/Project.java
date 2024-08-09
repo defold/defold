@@ -510,7 +510,14 @@ public class Project {
 
     private void createTasks() throws CompileExceptionError {
         tasks = new HashMap<String, Task<?>>();
-        createTask(getGameProjectResource());
+        if(this.inputs == null || this.inputs.isEmpty()) {
+            createTask(getGameProjectResource());
+        }
+        else {
+            for (String input : this.inputs) {
+                createTask(getResource(input));
+            }
+        }
     }
 
     private void logWarning(String fmt, Object... args) {
