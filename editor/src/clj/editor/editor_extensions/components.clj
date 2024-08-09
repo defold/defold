@@ -27,7 +27,6 @@
             [cljfx.fx.scroll-pane :as fx.scroll-pane]
             [cljfx.fx.stage :as fx.stage]
             [cljfx.fx.text-field :as fx.text-field]
-            [cljfx.fx.text-formatter :as fx.text-formatter]
             [cljfx.fx.v-box :as fx.v-box]
             [cljfx.lifecycle :as fx.lifecycle]
             [cljfx.mutator :as fx.mutator]
@@ -37,6 +36,7 @@
             [editor.dialogs :as dialogs]
             [editor.editor-extensions.coerce :as coerce]
             [editor.editor-extensions.runtime :as rt]
+            [editor.field-expression :as field-expression]
             [editor.future :as future]
             [editor.fxui :as fxui]
             [editor.icons :as icons]
@@ -44,6 +44,7 @@
             [internal.util :as iutil]
             [util.coll :as coll])
   (:import [com.defold.control DefoldStringConverter]
+           [com.defold.editor.luart DefoldVarArgFn]
            [javafx.animation SequentialTransition TranslateTransition]
            [javafx.beans Observable]
            [javafx.beans.binding Bindings]
@@ -51,7 +52,8 @@
            [javafx.scene.control.skin ScrollPaneSkin]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.layout Region]
-           [javafx.util Duration]))
+           [javafx.util Duration]
+           [org.luaj.vm2 LuaValue]))
 
 ;; See also:
 ;; - Components doc: https://docs.google.com/document/d/1e6kmVLspQEoe17Ys1nmbbf54cqUn2fNPZowIe7JBwl4/edit
@@ -61,11 +63,6 @@
 ;; both for runtime behavior (coercion) and autocomplete generation.
 
 ;; TODO components:
-;;  - value_field
-;;  - value_field's friends:
-;;    - string_field
-;;    - number_field
-;;    - integer_field
 ;;  - external_file_field
 ;;  - resource_field
 
@@ -754,15 +751,15 @@
           (let [^TextField text-field (.getSource e)
                 anim (SequentialTransition. text-field)]
             (doto (.getChildren anim)
-              (.add (doto (TranslateTransition. (Duration/millis 30.0)) (.setByX 5.0)))
-              (.add (doto (TranslateTransition. (Duration/millis 30.0)) (.setByX -10.0)))
-              (.add (doto (TranslateTransition. (Duration/millis 30.0)) (.setByX 8.0)))
-              (.add (doto (TranslateTransition. (Duration/millis 30.0)) (.setByX -5.0)))
-              (.add (doto (TranslateTransition. (Duration/millis 30.0)) (.setByX 2.0))))
+              (.add (doto (TranslateTransition. (Duration. 30.0)) (.setByX 5.0)))
+              (.add (doto (TranslateTransition. (Duration. 30.0)) (.setByX -10.0)))
+              (.add (doto (TranslateTransition. (Duration. 30.0)) (.setByX 8.0)))
+              (.add (doto (TranslateTransition. (Duration. 30.0)) (.setByX -5.0)))
+              (.add (doto (TranslateTransition. (Duration. 30.0)) (.setByX 2.0))))
             (.play anim)
             (.consume e))
           ;; new value!
-          (do (swap-state assoc :value maybe-new-lua-value)
+          (do (swap-state #(-> % (assoc :value maybe-new-lua-value) (dissoc :edit)))
               (when (notify-value-field-change rt on_value_changed maybe-lua-value maybe-new-lua-value)
                 (.consume e))))))
 
@@ -848,6 +845,47 @@
 
 ;; endregion
 
+;; regions value_field's friends
+
+(def ^:private lua-to-string-fn
+  (DefoldVarArgFn.
+    (fn to-string [^LuaValue arg]
+      ;; translated from package-private org.luaj.vm2.lib.BaseLib$tostring
+      (let [h (.metatag arg LuaValue/TOSTRING)]
+        (if-not (.isnil h)
+          (.call h arg)
+          (let [v (.tostring arg)]
+            (if-not (.isnil v)
+              v
+              (LuaValue/valueOf (.tojstring arg)))))))))
+
+(defn- string-field-view [props]
+  (assoc props :fx/type value-field-view
+               :to_string lua-to-string-fn
+               :to_value lua-to-string-fn))
+
+(def ^:private lua-to-integer-fn
+  (DefoldVarArgFn.
+    (fn to-lua-integer [^LuaValue arg]
+      (rt/->lua (field-expression/to-long (.tojstring arg))))))
+
+(defn- integer-field-view [props]
+  (assoc props :fx/type value-field-view
+               :to_string lua-to-string-fn
+               :to_value lua-to-integer-fn))
+
+(def ^:private lua-to-number-fn
+  (DefoldVarArgFn.
+    (fn to-lua-number [^LuaValue arg]
+      (rt/->lua (field-expression/to-double (.tojstring arg))))))
+
+(defn- number-field-view [props]
+  (assoc props :fx/type value-field-view
+               :to_string lua-to-string-fn
+               :to_value lua-to-number-fn))
+
+;; endregion
+
 (def ^:private input-components
   [(make-component
      "icon_button"
@@ -887,8 +925,23 @@
    (make-component
      "value_field"
      :props (into convertible-value-field-specific-props input-with-variant-props)
-     :description "Input component based on a text field, reports changes on commit (<code>Enter</code> or focus loss)"
-     :fn value-field-view)])
+     :description "Input component based on a text field, reports changes on commit (<code>Enter</code> or focus loss). See also: <code>string_field</code>, <code>number_field</code> and <code>integer_field</code>"
+     :fn value-field-view)
+   (make-component
+     "string_field"
+     :props (into value-field-specific-props input-with-variant-props)
+     :description "String input component based on a text field, reports changes on commit (<code>Enter</code> or focus loss)"
+     :fn string-field-view)
+   (make-component
+     "integer_field"
+     :props (into value-field-specific-props input-with-variant-props)
+     :description "Integer input component based on a text field, reports changes on commit (<code>Enter</code> or focus loss)"
+     :fn integer-field-view)
+   (make-component
+     "number_field"
+     :props (into value-field-specific-props input-with-variant-props)
+     :description "Number input component based on a text field, reports changes on commit (<code>Enter</code> or focus loss)"
+     :fn number-field-view)])
 
 ;; endregion
 
