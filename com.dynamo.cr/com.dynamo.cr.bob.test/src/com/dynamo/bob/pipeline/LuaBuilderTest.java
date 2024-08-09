@@ -46,8 +46,8 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testProps() throws Exception {
-        addFile("/vp.vp", "");
-        addFile("/fp.fp", "");
+        addFile("/vp.vp", ShaderProgramBuilderTest.vp);
+        addFile("/fp.fp", ShaderProgramBuilderTest.fp);
         addFile("/material.material", "name: \"material\"\nvertex_program: \"/vp.vp\"\nfragment_program: \"/fp.fp\"");
         StringBuilder src = new StringBuilder();
         src.append("\n");
@@ -64,7 +64,7 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
         src.append("\n");
         src.append("    go.property(  \"space_number\"  ,  1   )\n");
         src.append("go.property(\"semi_colon\", 1);\n");
-        LuaModule luaModule = (LuaModule)build("/test.script", src.toString()).get(0);
+        LuaModule luaModule = getMessage(build("/test.script", src.toString()), LuaModule.class);
         PropertyDeclarations properties = luaModule.getProperties();
         assertEquals(3, properties.getNumberEntriesCount());
         PropertiesTestUtil.assertNumber(properties, 1, 0);

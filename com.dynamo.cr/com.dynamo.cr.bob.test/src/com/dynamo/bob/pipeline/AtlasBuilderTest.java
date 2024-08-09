@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.HashSet;
 
+import com.dynamo.lua.proto.Lua;
 import org.junit.Test;
 
 import com.dynamo.graphics.proto.Graphics.TextureImage;
@@ -45,7 +46,7 @@ public class AtlasBuilderTest extends AbstractProtoBuilderTest {
         src.append("  image: \"/test.png\"");
         src.append("}");
         List<Message> outputs = build("/test.atlas", src.toString());
-        TextureSet textureSet = (TextureSet)outputs.get(0);
+        TextureSet textureSet = getMessage(outputs, TextureSet.class);
         TextureImage textureImage = (TextureImage)outputs.get(1);
         assertNotNull(textureSet);
         assertNotNull(textureImage);

@@ -70,7 +70,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         src.append("    properties { id: \"bool\" value: \"true\" type: PROPERTY_TYPE_BOOLEAN }\n");
         src.append("  }\n");
         src.append("}\n");
-        CollectionDesc collection = (CollectionDesc)build("/test.collection", src.toString()).get(0);
+        CollectionDesc collection = getMessage(build("/test.collection", src.toString()), CollectionDesc.class);
         for (InstanceDesc instance : collection.getInstancesList()) {
             for (ComponentPropertyDesc compProp : instance.getComponentPropertiesList()) {
                 PropertyDeclarations properties = compProp.getPropertyDecls();
@@ -204,7 +204,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         src.append("name: \"main\"\n");
         addCollectionInstance(src, "sub", "/sub.collection", p, r, s);
         addInstance(src, "test", "/test.go", p, r, s);
-        CollectionDesc collection = (CollectionDesc)build("/test.collection", src.toString()).get(0);
+        CollectionDesc collection = getMessage(build("/test.collection", src.toString()), CollectionDesc.class);
 
         Assert.assertEquals(6, collection.getInstancesCount());
         Assert.assertEquals(0, collection.getCollectionInstancesCount());
@@ -298,7 +298,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         StringBuilder src = new StringBuilder();
         src.append("name: \"main\"\n");
         addCollectionInstance(src, "sub", "/sub.collection", p, r, s);
-        CollectionDesc collection = (CollectionDesc)build("/test.collection", src.toString()).get(0);
+        CollectionDesc collection = getMessage(build("/test.collection", src.toString()), CollectionDesc.class);
 
         Assert.assertEquals(2, collection.getInstancesCount());
         Assert.assertEquals(0, collection.getCollectionInstancesCount());
@@ -460,7 +460,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         List<Message> messages = build("/test.collection", src.toString());
         Assert.assertEquals(3, messages.size()); // 7 original, but 3 when merged
 
-        CollectionDesc collection = (CollectionDesc)messages.get(0);
+        CollectionDesc collection = getMessage(messages, CollectionDesc.class);
         Assert.assertEquals(3, collection.getInstancesCount());
         Assert.assertEquals(0, collection.getCollectionInstancesCount());
         Assert.assertEquals(0, collection.getEmbeddedInstancesCount());
@@ -629,7 +629,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
 
         List<Message> mainColmsg = build("/mainf.collection", src.toString());
 
-        CollectionDesc collection = (CollectionDesc)mainColmsg.get(0);
+        CollectionDesc collection = getMessage(mainColmsg, CollectionDesc.class);
         List<ComponenTypeDesc> types = collection.getComponentTypesList();
         Assert.assertEquals(2, types.size());
         for (ComponenTypeDesc type: types) {
@@ -690,7 +690,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
 
         List<Message> mainColmsg = build("/mainf.collection", src.toString());
 
-        CollectionDesc collection = (CollectionDesc)mainColmsg.get(0);
+        CollectionDesc collection = getMessage(mainColmsg, CollectionDesc.class);
         List<ComponenTypeDesc> types = collection.getComponentTypesList();
         Assert.assertEquals(2, types.size());
         for (ComponenTypeDesc type: types) {
@@ -765,7 +765,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
 
         List<Message> mainColmsg = build("/mainf.collection", src.toString());
 
-        CollectionDesc collection = (CollectionDesc)mainColmsg.get(0);
+        CollectionDesc collection = getMessage(mainColmsg, CollectionDesc.class);
         List<ComponenTypeDesc> types = collection.getComponentTypesList();
         Assert.assertEquals(2, types.size());
         for (ComponenTypeDesc type: types) {
@@ -827,7 +827,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
 
         List<Message> mainColmsg = build("/mainf.collection", src.toString());
 
-        CollectionDesc collection = (CollectionDesc)mainColmsg.get(0);
+        CollectionDesc collection = getMessage(mainColmsg, CollectionDesc.class);
         List<ComponenTypeDesc> types = collection.getComponentTypesList();
         Assert.assertEquals(0, types.size());
     }
@@ -904,7 +904,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
 
         List<Message> mainColmsg = build("/mainf.collection", src.toString());
 
-        CollectionDesc collection = (CollectionDesc)mainColmsg.get(0);
+        CollectionDesc collection = getMessage(mainColmsg, CollectionDesc.class);
         List<ComponenTypeDesc> types = collection.getComponentTypesList();
         Assert.assertEquals(2, types.size());
         for (ComponenTypeDesc type: types) {
@@ -950,7 +950,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         src.append("  data: \"\"\n");
         src.append("}\n");
 
-        CollectionDesc collection = (CollectionDesc) build("/test.collection", src.toString()).get(0);
+        CollectionDesc collection = getMessage(build("/test.collection", src.toString()), CollectionDesc.class);
         List<GameObject.InstanceDesc> instances = collection.getInstancesList();
 
         Assert.assertEquals("Order of instances should be 0, 1, 2, 3", 4, instances.size());
