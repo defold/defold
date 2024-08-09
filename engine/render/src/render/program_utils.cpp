@@ -38,6 +38,7 @@ namespace dmRender
     {
         return language == dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM120 ||
                language == dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140 ||
+               language == dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM330 ||
                language == dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430 ||
                language == dmGraphics::ShaderDesc::LANGUAGE_GLES_SM100 ||
                language == dmGraphics::ShaderDesc::LANGUAGE_GLES_SM300;

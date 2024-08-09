@@ -268,6 +268,7 @@ namespace dmGraphics
         uint32_t              m_Width;
         uint32_t              m_Height;
         uint32_t              m_GraphicsMemorySize;             // The max allowed Gfx memory (default 0)
+        uint32_t              m_SwapInterval;                   // Initial VSync setting (default 1)
         uint8_t               m_VerifyGraphicsCalls : 1;
         uint8_t               m_PrintDeviceInfo : 1;
         uint8_t               m_RenderDocSupport : 1;           // Vulkan only
