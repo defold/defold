@@ -35,16 +35,8 @@ public class MeshBuilder extends Builder<Void> {
 
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-        Task.TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
-            .setName(params.name())
-            .addInput(input)
-            .addOutput(input.changeExt(params.outExt()));
-
-        createSubTasks(input, taskBuilder);
-
-        return taskBuilder.build();
+        return defaultTask(input);
     }
-
 
     @Override
     public void build(Task<Void> task) throws CompileExceptionError, IOException {

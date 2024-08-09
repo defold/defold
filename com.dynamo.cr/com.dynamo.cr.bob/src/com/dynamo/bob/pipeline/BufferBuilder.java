@@ -44,11 +44,10 @@ public class BufferBuilder extends Builder<Void> {
 
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-
         Task.TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
             .setName(params.name())
-            .addInput(input);
-        taskBuilder.addOutput(input.changeExt(params.outExt()));
+            .addInput(input)
+            .addOutput(input.changeExt(params.outExt()));
 
         return taskBuilder.build();
     }

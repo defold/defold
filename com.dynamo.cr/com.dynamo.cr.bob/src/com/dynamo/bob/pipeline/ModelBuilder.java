@@ -50,9 +50,9 @@ public class ModelBuilder extends Builder<Void> {
 
         Task.TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
             .setName(params.name())
-            .addInput(input);
-        taskBuilder.addOutput(input.changeExt(params.outExt()));
-        taskBuilder.addOutput(input.changeExt(".rigscenec"));
+            .addInput(input)
+            .addOutput(input.changeExt(params.outExt()))
+            .addOutput(input.changeExt(".rigscenec"));
 
         IResource mesh = BuilderUtil.checkResource(this.project, input, "mesh", modelDescBuilder.getMesh());
         taskBuilder.addInput(mesh);

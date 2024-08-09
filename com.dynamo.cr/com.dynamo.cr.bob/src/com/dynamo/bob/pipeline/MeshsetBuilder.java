@@ -68,11 +68,11 @@ public class MeshsetBuilder extends Builder<Void>  {
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
         Task.TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
             .setName(params.name())
-            .addInput(input);
-
-        taskBuilder.addOutput(input.changeExt(params.outExt()));
-        taskBuilder.addOutput(input.changeExt(".skeletonc"));
-        taskBuilder.addOutput(input.changeExt("_generated_0.animationsetc"));
+            .addInput(input)
+            .addOutput(input.changeExt(params.outExt()))
+            .addOutput(input.changeExt(".skeletonc"))
+            .addOutput(input.changeExt("_generated_0.animationsetc"));
+        createSubTasks(input, taskBuilder);
         return taskBuilder.build();
     }
 

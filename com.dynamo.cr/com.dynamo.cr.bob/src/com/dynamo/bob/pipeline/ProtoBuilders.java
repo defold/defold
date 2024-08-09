@@ -485,37 +485,6 @@ public class ProtoBuilders {
     @BuilderParams(name="ParticleFX", inExts=".particlefx", outExt=".particlefxc")
     public static class ParticleFXBuilder extends ProtoBuilder<ParticleFX.Builder> {
         @Override
-        public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-
-            Task.TaskBuilder<Void> task = Task.<Void>newBuilder(this)
-                .setName(params.name())
-                .addInput(input)
-                .addOutput(input.changeExt(params.outExt()));
-
-            ParticleFX.Builder particleFxBuilder = ParticleFX.newBuilder();
-            ProtoUtil.merge(input, particleFxBuilder);
-
-            for (int i = 0; i < particleFxBuilder.getEmittersCount(); ++i) {
-                Emitter emitter            = particleFxBuilder.getEmitters(i);
-                String tileSource          = emitter.getTileSource();
-                String extension = null;
-                try {
-                    extension = getTextureSetExt(tileSource);
-                } catch (Exception e) {
-                    throw new CompileExceptionError(input, -1, e.getMessage(), e);
-                }
-
-                IResource tileSourceOutput = project.getResource(tileSource).changeExt(extension);
-                IResource materialOutput   = project.getResource(emitter.getMaterial()).changeExt(".materialc");
-
-                task.addInput(tileSourceOutput);
-                task.addInput(materialOutput);
-            }
-
-            return task.build();
-        }
-
-        @Override
         protected ParticleFX.Builder transform(Task<Void> task, IResource resource, ParticleFX.Builder messageBuilder)
                 throws IOException, CompileExceptionError {
             int emitterCount = messageBuilder.getEmittersCount();
