@@ -1,0 +1,11 @@
+name: "legacy_vertex_attribute_element_count"
+vertex_program: ""
+fragment_program: ""
+attributes {
+  name: "legacy"
+  element_count: 2
+  double_values {
+    v: 1.0
+    v: 0.0
+  }
+}

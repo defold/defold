@@ -315,7 +315,7 @@
 
 (defn- attribute-info->vector-type [{:keys [element-count semantic-type vector-type] :as attribute-info}]
   (let [valid-vector-type? (some? vector-type)
-        valid-element-count? (and (some? element-count) (= element-count 0))]
+        valid-element-count? (pos-int? element-count)]
     (cond
       ;; If we already have a vector type, we use that
       valid-vector-type? vector-type
