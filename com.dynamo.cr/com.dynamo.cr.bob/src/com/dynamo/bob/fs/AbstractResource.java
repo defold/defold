@@ -48,6 +48,11 @@ public abstract class AbstractResource<F extends IFileSystem> implements IResour
     }
 
     @Override
+    public void setContent(byte[] content) throws IOException  {
+        sha1DigestCache = null;
+    }
+
+    @Override
     public byte[] sha1(boolean allowCached) throws IOException {
         if (allowCached && sha1DigestCache != null) {
             return sha1DigestCache;

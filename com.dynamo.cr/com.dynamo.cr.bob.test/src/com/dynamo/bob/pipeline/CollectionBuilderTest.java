@@ -473,7 +473,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         assertTrue(instances.containsKey("/sub/child"));
         assertTrue(instances.containsKey("/go"));
 
-        PrototypeDesc proto0 = (PrototypeDesc)messages.get(1);
+        PrototypeDesc proto0 = getMessage(messages, PrototypeDesc.class);
     }
 
     /**
