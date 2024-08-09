@@ -1830,10 +1830,10 @@ static void LogFrameBufferError(GLenum status)
                         base_location + j,
                         sub_vector_component_count,
                         GetOpenGLType(vertex_declaration->m_Streams[i].m_Type),
-                        vertex_declaration->m_Streams[i].m_Normalize,
-                        vertex_declaration->m_Stride,
-                        stream_offset + j * GetTypeSize(vertex_declaration->m_Streams[i].m_Type) * sub_vector_component_count,
-                        vertex_declaration->m_StepFunction);
+                                      vertex_declaration->m_Streams[i].m_Normalize,
+                                      vertex_declaration->m_Stride,
+                                      stream_offset + j * GetTypeSize(vertex_declaration->m_Streams[i].m_Type) * sub_vector_component_count,
+                                      vertex_declaration->m_StepFunction);
                 }
             }
         }

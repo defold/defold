@@ -120,4 +120,13 @@ materials {
       v: 2.0
     }
   }
+  attributes {
+    name: "instance_custom"
+    double_values {
+      v: 1.0
+      v: 0.0
+      v: 0.0
+      v: 0.0
+    }
+  }
 }

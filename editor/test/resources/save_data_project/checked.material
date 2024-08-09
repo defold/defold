@@ -234,3 +234,54 @@ attributes {
   }
   vector_type: VECTOR_TYPE_SCALAR
 }
+attributes {
+  name: "instance_world"
+  semantic_type: SEMANTIC_TYPE_WORLD_MATRIX
+  double_values {
+    v: 0.0
+    v: 0.0
+    v: 0.0
+    v: 0.0
+    v: 0.0
+    v: 1.0
+    v: 0.0
+    v: 0.0
+    v: 0.0
+    v: 0.0
+    v: 1.0
+    v: 0.0
+    v: 0.0
+    v: 0.0
+    v: 0.0
+    v: 1.0
+  }
+  step_function: VERTEX_STEP_FUNCTION_INSTANCE
+  vector_type: VECTOR_TYPE_MAT4
+}
+attributes {
+  name: "instance_normal"
+  semantic_type: SEMANTIC_TYPE_NORMAL_MATRIX
+  double_values {
+    v: 0.0
+    v: 0.0
+    v: 0.0
+    v: 0.0
+    v: 0.0
+    v: 1.0
+    v: 0.0
+    v: 0.0
+    v: 0.0
+  }
+  step_function: VERTEX_STEP_FUNCTION_INSTANCE
+  vector_type: VECTOR_TYPE_MAT3
+}
+attributes {
+  name: "instance_custom"
+  double_values {
+    v: 0.0
+    v: 0.0
+    v: 0.0
+    v: 0.0
+  }
+  step_function: VERTEX_STEP_FUNCTION_INSTANCE
+}

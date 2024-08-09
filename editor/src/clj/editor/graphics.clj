@@ -314,9 +314,15 @@
          :semantic-type)))
 
 (defn- attribute-info->vector-type [{:keys [element-count semantic-type vector-type] :as attribute-info}]
-  (if (or (nil? element-count) (= element-count 0))
-    vector-type
-    (vtx/element-count+semantic-type->vector-type element-count semantic-type)))
+  (let [valid-vector-type? (some? vector-type)
+        valid-element-count? (and (some? element-count) (= element-count 0))]
+    (cond
+      ;; If we already have a vector type, we use that
+      valid-vector-type? vector-type
+      ;; If we can derive it from the element count, we do that
+      valid-element-count? (vtx/element-count+semantic-type->vector-type element-count semantic-type)
+      ;; Otherwise, we return a default type
+      :else :vector-type-vec4)))
 
 ;; TODO(save-value-cleanup): We only really need to sanitize the attributes if a resource type has :read-defaults true.
 (defn sanitize-attribute-value-v [attribute-value]
@@ -365,41 +371,49 @@
             :semantic-type :semantic-type-position
             :coordinate-space :default ; Assigned default-coordinate-space parameter.
             :data-type :type-float
+            :step-function :vertex-step-function-vertex
             :vector-type :vector-type-vec4}
            {:name "color"
             :semantic-type :semantic-type-color
             :coordinate-space :coordinate-space-local
             :data-type :type-float
+            :step-function :vertex-step-function-vertex
             :vector-type :vector-type-vec4}
            {:name "texcoord0"
             :semantic-type :semantic-type-texcoord
             :coordinate-space :coordinate-space-local
             :data-type :type-float
+            :step-function :vertex-step-function-vertex
             :vector-type :vector-type-vec2}
            {:name "page_index"
             :semantic-type :semantic-type-page-index
             :coordinate-space :coordinate-space-local
             :data-type :type-float
+            :step-function :vertex-step-function-vertex
             :vector-type :vector-type-scalar}
            {:name "normal"
             :semantic-type :semantic-type-normal
             :coordinate-space :default ; Assigned default-coordinate-space parameter.
             :data-type :type-float
+            :step-function :vertex-step-function-vertex
             :vector-type :vector-type-vec3}
            {:name "tangent"
             :semantic-type :semantic-type-tangent
             :coordinate-space :default ; Assigned default-coordinate-space parameter.
             :data-type :type-float
+            :step-function :vertex-step-function-vertex
             :vector-type :vector-type-vec4}
            {:name "mtx_world"
             :semantic-type :semantic-type-world-matrix
             :coordinate-space :coordinate-space-world
             :data-type :type-float
+            :step-function :vertex-step-function-instance
             :vector-type :vector-type-mat4}
            {:name "mtx_normal"
             :semantic-type :semantic-type-normal-matrix
             :coordinate-space :coordinate-space-world
             :data-type :type-float
+            :step-function :vertex-step-function-instance
             :vector-type :vector-type-mat4}])))
 
 (defn shader-bound-attributes [^GL2 gl shader material-attribute-infos manufactured-attribute-keys default-coordinate-space]
