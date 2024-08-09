@@ -21,7 +21,6 @@ import java.io.FileInputStream;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.text.ParseException;
-import java.util.HashSet;
 import java.util.List;
 
 import static org.junit.Assert.assertTrue;

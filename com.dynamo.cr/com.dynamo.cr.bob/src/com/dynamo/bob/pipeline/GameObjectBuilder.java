@@ -27,9 +27,7 @@ import java.util.HashSet;
 import com.dynamo.bob.util.BobNLS;
 import org.apache.commons.io.FilenameUtils;
 
-import com.dynamo.proto.DdfMath.Vector3;
 import com.dynamo.proto.DdfMath.Vector3One;
-import com.dynamo.proto.DdfMath.Vector4;
 import com.dynamo.proto.DdfMath.Vector4One;
 
 import com.dynamo.bob.Builder;

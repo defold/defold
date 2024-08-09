@@ -18,15 +18,12 @@ import java.io.IOException;
 
 import com.google.protobuf.TextFormat;
 
-import com.dynamo.bob.Bob;
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Task;
-import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.ProtoParams;
-import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.render.proto.Compute.ComputeDesc;
 import com.dynamo.render.proto.Material.MaterialDesc;
 
