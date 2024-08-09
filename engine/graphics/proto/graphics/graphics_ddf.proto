@@ -42,15 +42,15 @@ message VertexAttribute
         TYPE_FLOAT            = 7;
     }
 
-    enum ShaderType
+    enum VectorType
     {
-        SHADER_TYPE_NUMBER = 1;
-        SHADER_TYPE_VEC2   = 2;
-        SHADER_TYPE_VEC3   = 3;
-        SHADER_TYPE_VEC4   = 4;
-        SHADER_TYPE_MAT2   = 5;
-        SHADER_TYPE_MAT3   = 6;
-        SHADER_TYPE_MAT4   = 7;
+        VECTOR_TYPE_SCALAR = 1;
+        VECTOR_TYPE_VEC2   = 2;
+        VECTOR_TYPE_VEC3   = 3;
+        VECTOR_TYPE_VEC4   = 4;
+        VECTOR_TYPE_MAT2   = 5;
+        VECTOR_TYPE_MAT3   = 6;
+        VECTOR_TYPE_MAT4   = 7;
     }
 
     enum SemanticType
@@ -84,7 +84,7 @@ message VertexAttribute
     optional DataType        data_type        = 6 [default = TYPE_FLOAT];
     optional CoordinateSpace coordinate_space = 7 [default = COORDINATE_SPACE_LOCAL];
     optional VertexStepFunction step_function = 11 [default = VERTEX_STEP_FUNCTION_VERTEX];
-    optional ShaderType shader_type           = 12 [default = SHADER_TYPE_NUMBER];
+    optional VectorType vector_type           = 12 [default = VECTOR_TYPE_VEC4];
 
     // Note: Add a channel field here for identifying a semantic "channel", i.e a second UV set
 

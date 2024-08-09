@@ -77,7 +77,7 @@ namespace dmRender
         return (dmGraphics::VertexAttribute::DataType) -1;
     }
 
-    static inline dmGraphics::VertexAttribute::ShaderType GetAttributeShaderType(dmGraphics::Type from_type)
+    static inline dmGraphics::VertexAttribute::VectorType GetAttributeShaderType(dmGraphics::Type from_type)
     {
         switch(from_type)
         {
@@ -87,30 +87,30 @@ namespace dmRender
             case dmGraphics::TYPE_SHORT:
             case dmGraphics::TYPE_UNSIGNED_SHORT:
             case dmGraphics::TYPE_INT:
-            case dmGraphics::TYPE_UNSIGNED_INT: return dmGraphics::VertexAttribute::SHADER_TYPE_NUMBER;
-            case dmGraphics::TYPE_FLOAT_VEC2:   return dmGraphics::VertexAttribute::SHADER_TYPE_VEC2;
-            case dmGraphics::TYPE_FLOAT_VEC3:   return dmGraphics::VertexAttribute::SHADER_TYPE_VEC3;
-            case dmGraphics::TYPE_FLOAT_VEC4:   return dmGraphics::VertexAttribute::SHADER_TYPE_VEC4;
-            case dmGraphics::TYPE_FLOAT_MAT2:   return dmGraphics::VertexAttribute::SHADER_TYPE_MAT2;
-            case dmGraphics::TYPE_FLOAT_MAT3:   return dmGraphics::VertexAttribute::SHADER_TYPE_MAT3;
-            case dmGraphics::TYPE_FLOAT_MAT4:   return dmGraphics::VertexAttribute::SHADER_TYPE_MAT4;
+            case dmGraphics::TYPE_UNSIGNED_INT: return dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR;
+            case dmGraphics::TYPE_FLOAT_VEC2:   return dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2;
+            case dmGraphics::TYPE_FLOAT_VEC3:   return dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3;
+            case dmGraphics::TYPE_FLOAT_VEC4:   return dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4;
+            case dmGraphics::TYPE_FLOAT_MAT2:   return dmGraphics::VertexAttribute::VECTOR_TYPE_MAT2;
+            case dmGraphics::TYPE_FLOAT_MAT3:   return dmGraphics::VertexAttribute::VECTOR_TYPE_MAT3;
+            case dmGraphics::TYPE_FLOAT_MAT4:   return dmGraphics::VertexAttribute::VECTOR_TYPE_MAT4;
             default: assert(0 && "Type not supported");
         }
 
-        return (dmGraphics::VertexAttribute::ShaderType) -1;
+        return (dmGraphics::VertexAttribute::VectorType) -1;
     }
 
-    static inline uint32_t GetAttributeElementCount(dmGraphics::VertexAttribute::ShaderType from_type)
+    static inline uint32_t GetAttributeElementCount(dmGraphics::VertexAttribute::VectorType from_type)
     {
         switch(from_type)
         {
-            case dmGraphics::VertexAttribute::SHADER_TYPE_NUMBER: return 1;
-            case dmGraphics::VertexAttribute::SHADER_TYPE_VEC2: return 2;
-            case dmGraphics::VertexAttribute::SHADER_TYPE_VEC3: return 3;
-            case dmGraphics::VertexAttribute::SHADER_TYPE_VEC4: return 4;
-            case dmGraphics::VertexAttribute::SHADER_TYPE_MAT2: return 4;
-            case dmGraphics::VertexAttribute::SHADER_TYPE_MAT3: return 9;
-            case dmGraphics::VertexAttribute::SHADER_TYPE_MAT4: return 16;
+            case dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR: return 1;
+            case dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2: return 2;
+            case dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3: return 3;
+            case dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4: return 4;
+            case dmGraphics::VertexAttribute::VECTOR_TYPE_MAT2: return 4;
+            case dmGraphics::VertexAttribute::VECTOR_TYPE_MAT3: return 9;
+            case dmGraphics::VertexAttribute::VECTOR_TYPE_MAT4: return 16;
             default:assert(0 && "ShaderType not supported");
         }
         return -1;
@@ -221,7 +221,7 @@ namespace dmRender
             vertex_attribute.m_ElementCount    = element_count;
             vertex_attribute.m_Normalize       = false;
             vertex_attribute.m_CoordinateSpace = dmGraphics::COORDINATE_SPACE_WORLD;
-            vertex_attribute.m_ShaderType      = GetAttributeShaderType(type);
+            vertex_attribute.m_VectorType      = GetAttributeShaderType(type);
             vertex_attribute.m_StepFunction    = instancing_supported ? GetAttributeVertexStepFunction(vertex_attribute.m_SemanticType) : dmGraphics::VERTEX_STEP_FUNCTION_VERTEX;
 
             MaterialAttribute& material_attribute = m->m_MaterialAttributes[i];
@@ -499,8 +499,8 @@ namespace dmRender
             dmGraphics::VertexAttribute& graphics_attribute = material->m_VertexAttributes[index];
             graphics_attribute.m_DataType                   = graphics_attribute_in.m_DataType;
             graphics_attribute.m_Normalize                  = graphics_attribute_in.m_Normalize;
-            graphics_attribute.m_ElementCount               = GetAttributeElementCount(graphics_attribute_in.m_ShaderType);
-            graphics_attribute.m_ShaderType                 = graphics_attribute_in.m_ShaderType;
+            graphics_attribute.m_ElementCount               = GetAttributeElementCount(graphics_attribute_in.m_VectorType);
+            graphics_attribute.m_VectorType                 = graphics_attribute_in.m_VectorType;
             graphics_attribute.m_SemanticType               = graphics_attribute_in.m_SemanticType;
             graphics_attribute.m_CoordinateSpace            = graphics_attribute_in.m_CoordinateSpace;
             graphics_attribute.m_StepFunction               = material->m_InstancingSupported ? graphics_attribute_in.m_StepFunction : dmGraphics::VERTEX_STEP_FUNCTION_VERTEX;
@@ -548,7 +548,7 @@ namespace dmRender
             dmGraphics::GetAttributeValues(graphics_attribute_in, &bytes, &byte_size);
 
             dmGraphics::Type graphics_type = dmGraphics::GetGraphicsType(graphics_attribute_in.m_DataType);
-            uint32_t attribute_byte_size   = dmGraphics::GetTypeSize(graphics_type) * GetAttributeElementCount(graphics_attribute_in.m_ShaderType) * material_attribute.m_ValueCount;
+            uint32_t attribute_byte_size   = dmGraphics::GetTypeSize(graphics_type) * GetAttributeElementCount(graphics_attribute_in.m_VectorType) * material_attribute.m_ValueCount;
             attribute_byte_size            = dmMath::Min(attribute_byte_size, byte_size);
             memcpy(&material->m_MaterialAttributeValues[material_attribute.m_ValueIndex], bytes, attribute_byte_size);
 

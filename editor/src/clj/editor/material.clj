@@ -33,7 +33,7 @@
             [util.murmur :as murmur]
             [util.num :as num])
   (:import [com.dynamo.bob.pipeline ShaderProgramBuilderEditor]
-           [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$VertexAttribute Graphics$VertexAttribute$DataType Graphics$VertexAttribute$SemanticType Graphics$VertexAttribute$ShaderType Graphics$VertexStepFunction]
+           [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$VertexAttribute Graphics$VertexAttribute$DataType Graphics$VertexAttribute$SemanticType Graphics$VertexAttribute$VectorType Graphics$VertexStepFunction]
            [com.dynamo.render.proto Material$MaterialDesc Material$MaterialDesc$Sampler Material$MaterialDesc$VertexSpace]
            [com.jogamp.opengl GL2]
            [editor.gl.shader ShaderLifecycle]
@@ -145,10 +145,10 @@
             :deps dep-build-targets})])))
 
 (defn- transpile-shader-source [shader-ext ^String shader-source ^long max-page-count]
-  (let [shader-type (code.shader/shader-type-from-ext shader-ext)
+  (let [vector-type (code.shader/shader-type-from-ext shader-ext)
         shader-language (code.shader/shader-language-to-java :language-glsl-sm120) ; use the old gles2 compatible shaders
         is-debug true
-        result (ShaderProgramBuilderEditor/buildGLSLVariantTextureArray shader-source shader-type shader-language is-debug max-page-count)
+        result (ShaderProgramBuilderEditor/buildGLSLVariantTextureArray shader-source vector-type shader-language is-debug max-page-count)
         full-source (.source result)
         array-sampler-names-array (.arraySamplers result)]
     {:shader-source full-source
@@ -224,11 +224,11 @@
        :columns (let [semantic-type-values (protobuf/enum-values Graphics$VertexAttribute$SemanticType)
                       data-type-values (protobuf/enum-values Graphics$VertexAttribute$DataType)
                       coordinate-space-values (protobuf/enum-values Graphics$CoordinateSpace)
-                      shader-type-values (protobuf/enum-values Graphics$VertexAttribute$ShaderType)
+                      vector-type-values (protobuf/enum-values Graphics$VertexAttribute$VectorType)
                       vertex-step-function (protobuf/enum-values Graphics$VertexStepFunction)
                       default-semantic-type :semantic-type-none
-                      default-shader-type :shader-type-vec3
-                      default-values (graphics/resize-doubles (vector-of :double) default-semantic-type default-shader-type)
+                      default-vector-type :vector-type-vec4
+                      default-values (graphics/resize-doubles (vector-of :double) default-semantic-type default-vector-type)
                       default-step-function :vertex-step-function-vertex]
                   [{:path [:name]
                     :label "Name"
@@ -243,11 +243,11 @@
                     :type :choicebox
                     :options (protobuf-forms/make-options data-type-values)
                     :default :type-float}
-                   {:path [:shader-type]
+                   {:path [:vector-type]
                     :label "Shader Type"
                     :type :choicebox
-                    :options (protobuf-forms/make-options shader-type-values)
-                    :default default-shader-type}
+                    :options (protobuf-forms/make-options vector-type-values)
+                    :default default-vector-type}
                    {:path [:normalize]
                     :label "Normalize"
                     :type :boolean
@@ -286,9 +286,9 @@
 (defn- coerce-attribute [new-attribute old-attribute]
   ;; This assumes only a single property will change at a time, which is the
   ;; case when editing an attribute using the form view.
-  (let [old-shader-type (:shader-type old-attribute)
+  (let [old-vector-type (:vector-type old-attribute)
         old-normalize (:normalize old-attribute)
-        new-shader-type (:shader-type new-attribute)
+        new-vector-type (:vector-type new-attribute)
         new-normalize (:normalize new-attribute)]
     (cond
       ;; If an attribute changes from a non-normalized value to a normalized one
@@ -322,9 +322,9 @@
       ;; If the shader type changes, resize the default value in the material.
       ;; This change will also cause attribute overrides stored elsewhere in the
       ;; project to be saved with the updated shader type.
-      (not= old-shader-type new-shader-type)
+      (not= old-vector-type new-vector-type)
       (let [semantic-type (:semantic-type new-attribute)]
-        (update new-attribute :values #(graphics/resize-doubles % semantic-type new-shader-type)))
+        (update new-attribute :values #(graphics/resize-doubles % semantic-type new-vector-type)))
 
       ;; If something else changed, do not attempt value coercion.
       :else

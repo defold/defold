@@ -176,39 +176,39 @@ public class GraphicsUtil {
     }
 
     private static void migrateAttribute(VertexAttribute.Builder attributeBuilder) throws CompileExceptionError {
-        if (!attributeBuilder.hasShaderType() && attributeBuilder.hasElementCount()) {
+        if (!attributeBuilder.hasVectorType() && attributeBuilder.hasElementCount()) {
             int elementCount = attributeBuilder.getElementCount();
             VertexAttribute.SemanticType semanticType = attributeBuilder.getSemanticType();
 
             switch(elementCount) {
                 case 1:
-                    attributeBuilder.setShaderType(VertexAttribute.ShaderType.SHADER_TYPE_NUMBER);
+                    attributeBuilder.setVectorType(VertexAttribute.VectorType.VECTOR_TYPE_SCALAR);
                     break;
                 case 2:
-                    attributeBuilder.setShaderType(VertexAttribute.ShaderType.SHADER_TYPE_VEC2);
+                    attributeBuilder.setVectorType(VertexAttribute.VectorType.VECTOR_TYPE_VEC2);
                     break;
                 case 3:
-                    attributeBuilder.setShaderType(VertexAttribute.ShaderType.SHADER_TYPE_VEC3);
+                    attributeBuilder.setVectorType(VertexAttribute.VectorType.VECTOR_TYPE_VEC3);
                     break;
                 case 4:
                     // Guess the type based on semantic type, since it can be either a vec4 or a mat2
                     if (semanticType == VertexAttribute.SemanticType.SEMANTIC_TYPE_WORLD_MATRIX ||
                         semanticType == VertexAttribute.SemanticType.SEMANTIC_TYPE_NORMAL_MATRIX) {
-                        attributeBuilder.setShaderType(VertexAttribute.ShaderType.SHADER_TYPE_MAT2);
+                        attributeBuilder.setVectorType(VertexAttribute.VectorType.VECTOR_TYPE_MAT2);
                     } else {
-                        attributeBuilder.setShaderType(VertexAttribute.ShaderType.SHADER_TYPE_VEC4);
+                        attributeBuilder.setVectorType(VertexAttribute.VectorType.VECTOR_TYPE_VEC4);
                     }
                     break;
                 case 9:
-                    attributeBuilder.setShaderType(VertexAttribute.ShaderType.SHADER_TYPE_MAT3);
+                    attributeBuilder.setVectorType(VertexAttribute.VectorType.VECTOR_TYPE_MAT3);
                     break;
                 case 16:
-                    attributeBuilder.setShaderType(VertexAttribute.ShaderType.SHADER_TYPE_MAT3);
+                    attributeBuilder.setVectorType(VertexAttribute.VectorType.VECTOR_TYPE_MAT3);
                     break;
                 default:break;
             }
 
-            if (!attributeBuilder.hasShaderType()) {
+            if (!attributeBuilder.hasVectorType()) {
                 throw new CompileExceptionError("Unable to determine shader type for attribute " + attributeBuilder.getName());
             }
 

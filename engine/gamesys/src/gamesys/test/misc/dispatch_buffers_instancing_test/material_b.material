@@ -5,7 +5,7 @@ fragment_program: "/fragment_program/valid.fp"
 attributes {
   name: "my_custom_vertex_attribute"
   semantic_type: SEMANTIC_TYPE_NONE
-  shader_type: SHADER_TYPE_VEC2
+  vector_type: VECTOR_TYPE_VEC2
   normalize: false
   data_type: TYPE_FLOAT
   coordinate_space: COORDINATE_SPACE_LOCAL
@@ -18,7 +18,7 @@ attributes {
 attributes {
   name: "my_custom_instance_attribute"
   semantic_type: SEMANTIC_TYPE_NONE
-  shader_type: SHADER_TYPE_VEC4
+  vector_type: VECTOR_TYPE_VEC4
   normalize: false
   data_type: TYPE_FLOAT
   coordinate_space: COORDINATE_SPACE_LOCAL

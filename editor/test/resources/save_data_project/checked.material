@@ -55,37 +55,36 @@ max_page_count: 4
 attributes {
   name: "position"
   semantic_type: SEMANTIC_TYPE_POSITION
-  element_count: 3
   coordinate_space: COORDINATE_SPACE_WORLD
   double_values {
     v: 0.0
     v: 0.0
     v: 0.0
   }
+  vector_type: VECTOR_TYPE_VEC3
 }
 attributes {
   name: "texcoord0"
   semantic_type: SEMANTIC_TYPE_TEXCOORD
-  element_count: 2
   normalize: true
   double_values {
     v: 0.0
     v: 0.0
   }
+  vector_type: VECTOR_TYPE_VEC2
 }
 attributes {
   name: "texpage0"
   semantic_type: SEMANTIC_TYPE_PAGE_INDEX
-  element_count: 1
   data_type: TYPE_UNSIGNED_INT
   long_values {
     v: 0
   }
+  vector_type: VECTOR_TYPE_SCALAR
 }
 attributes {
   name: "normalized_byte"
   semantic_type: SEMANTIC_TYPE_COLOR
-  element_count: 3
   normalize: true
   data_type: TYPE_BYTE
   coordinate_space: COORDINATE_SPACE_WORLD
@@ -94,11 +93,11 @@ attributes {
     v: 1.0
     v: 1.0
   }
+  vector_type: VECTOR_TYPE_VEC3
 }
 attributes {
   name: "normalized_unsigned_byte"
   semantic_type: SEMANTIC_TYPE_COLOR
-  element_count: 3
   normalize: true
   data_type: TYPE_UNSIGNED_BYTE
   coordinate_space: COORDINATE_SPACE_WORLD
@@ -107,11 +106,11 @@ attributes {
     v: 1.0
     v: 1.0
   }
+  vector_type: VECTOR_TYPE_VEC3
 }
 attributes {
   name: "normalized_short"
   semantic_type: SEMANTIC_TYPE_COLOR
-  element_count: 3
   normalize: true
   data_type: TYPE_SHORT
   coordinate_space: COORDINATE_SPACE_WORLD
@@ -120,11 +119,11 @@ attributes {
     v: 1.0
     v: 1.0
   }
+  vector_type: VECTOR_TYPE_VEC3
 }
 attributes {
   name: "normalized_unsigned_short"
   semantic_type: SEMANTIC_TYPE_COLOR
-  element_count: 3
   normalize: true
   data_type: TYPE_UNSIGNED_SHORT
   coordinate_space: COORDINATE_SPACE_WORLD
@@ -133,11 +132,11 @@ attributes {
     v: 1.0
     v: 1.0
   }
+  vector_type: VECTOR_TYPE_VEC3
 }
 attributes {
   name: "normalized_int"
   semantic_type: SEMANTIC_TYPE_COLOR
-  element_count: 3
   normalize: true
   data_type: TYPE_INT
   coordinate_space: COORDINATE_SPACE_WORLD
@@ -146,11 +145,11 @@ attributes {
     v: 1.0
     v: 1.0
   }
+  vector_type: VECTOR_TYPE_VEC3
 }
 attributes {
   name: "normalized_unsigned_int"
   semantic_type: SEMANTIC_TYPE_COLOR
-  element_count: 3
   normalize: true
   data_type: TYPE_UNSIGNED_INT
   coordinate_space: COORDINATE_SPACE_WORLD
@@ -159,11 +158,11 @@ attributes {
     v: 1.0
     v: 1.0
   }
+  vector_type: VECTOR_TYPE_VEC3
 }
 attributes {
   name: "normalized_float"
   semantic_type: SEMANTIC_TYPE_COLOR
-  element_count: 3
   normalize: true
   coordinate_space: COORDINATE_SPACE_WORLD
   double_values {
@@ -171,66 +170,67 @@ attributes {
     v: 1.0
     v: 1.0
   }
+  vector_type: VECTOR_TYPE_VEC3
 }
 attributes {
   name: "byte"
-  element_count: 1
   data_type: TYPE_BYTE
   coordinate_space: COORDINATE_SPACE_WORLD
   long_values {
     v: 1
   }
+  vector_type: VECTOR_TYPE_SCALAR
 }
 attributes {
   name: "unsigned_byte"
-  element_count: 1
   data_type: TYPE_UNSIGNED_BYTE
   coordinate_space: COORDINATE_SPACE_WORLD
   long_values {
     v: 1
   }
+  vector_type: VECTOR_TYPE_SCALAR
 }
 attributes {
   name: "short"
-  element_count: 1
   data_type: TYPE_SHORT
   coordinate_space: COORDINATE_SPACE_WORLD
   long_values {
     v: 1
   }
+  vector_type: VECTOR_TYPE_SCALAR
 }
 attributes {
   name: "unsigned_short"
-  element_count: 1
   data_type: TYPE_UNSIGNED_SHORT
   coordinate_space: COORDINATE_SPACE_WORLD
   long_values {
     v: 1
   }
+  vector_type: VECTOR_TYPE_SCALAR
 }
 attributes {
   name: "int"
-  element_count: 1
   data_type: TYPE_INT
   coordinate_space: COORDINATE_SPACE_WORLD
   long_values {
     v: 1
   }
+  vector_type: VECTOR_TYPE_SCALAR
 }
 attributes {
   name: "unsigned_int"
-  element_count: 1
   data_type: TYPE_UNSIGNED_INT
   coordinate_space: COORDINATE_SPACE_WORLD
   long_values {
     v: 1
   }
+  vector_type: VECTOR_TYPE_SCALAR
 }
 attributes {
   name: "float"
-  element_count: 1
   coordinate_space: COORDINATE_SPACE_WORLD
   double_values {
     v: 1.0
   }
+  vector_type: VECTOR_TYPE_SCALAR
 }

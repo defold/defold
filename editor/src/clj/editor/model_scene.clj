@@ -175,7 +175,7 @@
 (def my-atom (atom 0))
 
 (defn- matrix4->bytes [^Matrix4d mtx]
-  (let [matrix-array (math/vecmath->clj (doto ^Matrix4d mtx (.transpose)))
+  (let [matrix-array (math/vecmath->clj (doto (Matrix4d. mtx) (.transpose)))
         byte-array (byte-array (* 4 16))
         byte-buffer (vtx/wrap-buf byte-array)]
     (reset! my-atom byte-array)
@@ -200,7 +200,8 @@
               :has-semantic-type-world-matrix has-semantic-type-world-matrix
               :has-semantic-type-normal-matrix has-semantic-type-normal-matrix
               :vertex-description vertex-description
-              :vertex-attribute-bytes vertex-attribute-bytes}]
+              :vertex-attribute-bytes vertex-attribute-bytes
+              :this-one true}]
     (scene-cache/request-object! ::vb request-id gl data)))
 
 (defn- make-matrix-attribute-data [mesh-renderable-data ^Matrix4d mtx]
@@ -473,7 +474,6 @@
     :view-types [:scene :text]))
 
 (defn- update-vb [^GL2 _gl ^VertexBuffer vb data]
-  (println 'update-vb)
   (let [{:keys [mesh-renderable-data ^Matrix4d world-transform ^Matrix4d normal-transform has-semantic-type-world-matrix has-semantic-type-normal-matrix vertex-attribute-bytes]} data]
     (mesh->vb! vb world-transform normal-transform has-semantic-type-world-matrix has-semantic-type-normal-matrix vertex-attribute-bytes mesh-renderable-data)
     vb))

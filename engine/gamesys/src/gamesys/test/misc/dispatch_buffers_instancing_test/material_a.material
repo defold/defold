@@ -9,7 +9,7 @@ vertex_constants {
 attributes {
   name: "mtx_world_custom"
   semantic_type: SEMANTIC_TYPE_WORLD_MATRIX
-  shader_type: SHADER_TYPE_MAT4
+  vector_type: VECTOR_TYPE_MAT4
   normalize: false
   data_type: TYPE_FLOAT
   coordinate_space: COORDINATE_SPACE_LOCAL

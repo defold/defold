@@ -225,18 +225,18 @@
    :vec3 3
    :vec4 4})
 
-(defn element-count+semantic-type->shader-type [element-count semantic-type]
-  (let [shader-type-is-matrix (or (= semantic-type :semantic-type-world-matrix)
+(defn element-count+semantic-type->vector-type [element-count semantic-type]
+  (let [vector-type-is-matrix (or (= semantic-type :semantic-type-world-matrix)
                                   (= semantic-type :semantic-type-normal-matrix))]
     (case (int element-count)
-      1 :shader-type-number
-      2 :shader-type-vec2
-      3 :shader-type-vec3
-      4 (if shader-type-is-matrix
-          :shader-type-mat2
-          :shader-type-number)
-      9 :shader-type-mat3
-      16 :shader-type-mat4)))
+      1 :vector-type-scalar
+      2 :vector-type-vec2
+      3 :vector-type-vec3
+      4 (if vector-type-is-matrix
+          :vector-type-mat2
+          :vector-type-scalar)
+      9 :vector-type-mat3
+      16 :vector-type-mat4)))
 
 (defn- parse-attribute-definition
   [form]
@@ -256,7 +256,7 @@
      :components num-components
      :normalize (true? normalize)
      :coordinate-space :coordinate-space-world
-     :shader-type (element-count+semantic-type->shader-type num-components semantic-type)
+     :vector-type (element-count+semantic-type->vector-type num-components semantic-type)
      :semantic-type semantic-type})) ; TODO: Typically determined by vertex-space setting of material.
 
 (defmacro defvertex
@@ -322,11 +322,11 @@
   (scene-cache/request-object! ::vbo2 request-id gl {:vertex-buffer vertex-buffer :version (version vertex-buffer) :shader shader}))
 
 (defn- vertex-attribute-binding-info [vertex-attribute]
-  (let [shader-type (:shader-type vertex-attribute)
+  (let [vector-type (:vector-type vertex-attribute)
         component-count (:components vertex-attribute)]
-    (cond (= shader-type :shader-type-mat2) [2 true]
-          (= shader-type :shader-type-mat3) [3 true]
-          (= shader-type :shader-type-mat4) [4 true]
+    (cond (= vector-type :vector-type-mat2) [2 true]
+          (= vector-type :vector-type-mat3) [3 true]
+          (= vector-type :vector-type-mat4) [4 true]
           (= component-count 9) [3 true]
           (= component-count 16) [4 true]
           :else [1 false])))

@@ -193,21 +193,21 @@ TEST_F(dmRenderMaterialTest, TestMaterialVertexAttributes)
     // Reconfigure all streams and set new data
     uint8_t bytes_one[] = { 127, 32 };
     attribute_overrides[0].m_NameHash                      = dmHashString64("attribute_one");
-    attribute_overrides[0].m_ShaderType                    = dmGraphics::VertexAttribute::SHADER_TYPE_VEC2;
+    attribute_overrides[0].m_VectorType                    = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2;
     attribute_overrides[0].m_DataType                      = dmGraphics::VertexAttribute::TYPE_BYTE;
     attribute_overrides[0].m_Values.m_BinaryValues.m_Data  = bytes_one;
     attribute_overrides[0].m_Values.m_BinaryValues.m_Count = 2;
 
     uint8_t bytes_two[] = { 4, 3, 2, 1 };
     attribute_overrides[1].m_NameHash                      = dmHashString64("attribute_two");
-    attribute_overrides[1].m_ShaderType                    = dmGraphics::VertexAttribute::SHADER_TYPE_VEC4;
+    attribute_overrides[1].m_VectorType                    = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4;
     attribute_overrides[1].m_DataType                      = dmGraphics::VertexAttribute::TYPE_BYTE;
     attribute_overrides[1].m_Values.m_BinaryValues.m_Data  = bytes_two;
     attribute_overrides[1].m_Values.m_BinaryValues.m_Count = 4;
 
     uint8_t bytes_three[] = { 64, 32, 16 };
     attribute_overrides[2].m_NameHash                      = dmHashString64("attribute_three");
-    attribute_overrides[2].m_ShaderType                    = dmGraphics::VertexAttribute::SHADER_TYPE_VEC3;
+    attribute_overrides[2].m_VectorType                    = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3;
     attribute_overrides[2].m_DataType                      = dmGraphics::VertexAttribute::TYPE_BYTE;
     attribute_overrides[2].m_Values.m_BinaryValues.m_Data  = bytes_three;
     attribute_overrides[2].m_Values.m_BinaryValues.m_Count = 3;
@@ -304,22 +304,22 @@ TEST_F(dmRenderMaterialTest, TestMaterialInstanceAttributes)
 
     ASSERT_EQ(dmHashString64("position"),                    attributes[0].m_NameHash);
     ASSERT_EQ(4,                                             attributes[0].m_ElementCount);
-    ASSERT_EQ(dmGraphics::VertexAttribute::SHADER_TYPE_VEC4, attributes[0].m_ShaderType);
+    ASSERT_EQ(dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, attributes[0].m_VectorType);
     ASSERT_EQ(dmGraphics::VertexAttribute::TYPE_FLOAT,       attributes[0].m_DataType);
 
     ASSERT_EQ(dmHashString64("normal"),                      attributes[1].m_NameHash);
     ASSERT_EQ(2,                                             attributes[1].m_ElementCount);
-    ASSERT_EQ(dmGraphics::VertexAttribute::SHADER_TYPE_VEC2, attributes[1].m_ShaderType);
+    ASSERT_EQ(dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2, attributes[1].m_VectorType);
     ASSERT_EQ(dmGraphics::VertexAttribute::TYPE_FLOAT,       attributes[1].m_DataType);
 
     ASSERT_EQ(dmHashString64("mtx_normal"),                  attributes[2].m_NameHash);
     ASSERT_EQ(9,                                             attributes[2].m_ElementCount);
-    ASSERT_EQ(dmGraphics::VertexAttribute::SHADER_TYPE_MAT3, attributes[2].m_ShaderType);
+    ASSERT_EQ(dmGraphics::VertexAttribute::VECTOR_TYPE_MAT3, attributes[2].m_VectorType);
     ASSERT_EQ(dmGraphics::VertexAttribute::TYPE_FLOAT,       attributes[2].m_DataType);
 
     ASSERT_EQ(dmHashString64("mtx_world"),                   attributes[3].m_NameHash);
     ASSERT_EQ(16,                                            attributes[3].m_ElementCount);
-    ASSERT_EQ(dmGraphics::VertexAttribute::SHADER_TYPE_MAT4, attributes[3].m_ShaderType);
+    ASSERT_EQ(dmGraphics::VertexAttribute::VECTOR_TYPE_MAT4, attributes[3].m_VectorType);
     ASSERT_EQ(dmGraphics::VertexAttribute::TYPE_FLOAT,       attributes[3].m_DataType);
 
     dmGraphics::HVertexDeclaration vx_decl_shared = dmRender::GetVertexDeclaration(material);
@@ -357,28 +357,28 @@ TEST_F(dmRenderMaterialTest, TestMaterialInstanceAttributes)
 
     uint8_t bytes_position[] = { 127, 32 };
     attribute_overrides[0].m_NameHash                      = dmHashString64("position");
-    attribute_overrides[0].m_ShaderType                    = dmGraphics::VertexAttribute::SHADER_TYPE_VEC2;
+    attribute_overrides[0].m_VectorType                    = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2;
     attribute_overrides[0].m_DataType                      = dmGraphics::VertexAttribute::TYPE_BYTE;
     attribute_overrides[0].m_Values.m_BinaryValues.m_Data  = bytes_position;
     attribute_overrides[0].m_Values.m_BinaryValues.m_Count = sizeof(bytes_position);
 
     uint8_t bytes_normal[] = { 4, 3, 2, 1 };
     attribute_overrides[1].m_NameHash                      = dmHashString64("normal");
-    attribute_overrides[1].m_ShaderType                    = dmGraphics::VertexAttribute::SHADER_TYPE_VEC4;
+    attribute_overrides[1].m_VectorType                    = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4;
     attribute_overrides[1].m_DataType                      = dmGraphics::VertexAttribute::TYPE_BYTE;
     attribute_overrides[1].m_Values.m_BinaryValues.m_Data  = bytes_normal;
     attribute_overrides[1].m_Values.m_BinaryValues.m_Count = sizeof(bytes_normal);
 
     float bytes_mtx_normal_2x2[2][2] = { { 1.0f, 2.0f }, { 3.0f, 4.0f } };
     attribute_overrides[2].m_NameHash                      = dmHashString64("mtx_normal");
-    attribute_overrides[2].m_ShaderType                    = dmGraphics::VertexAttribute::SHADER_TYPE_MAT2;
+    attribute_overrides[2].m_VectorType                    = dmGraphics::VertexAttribute::VECTOR_TYPE_MAT2;
     attribute_overrides[2].m_DataType                      = dmGraphics::VertexAttribute::TYPE_FLOAT;
     attribute_overrides[2].m_Values.m_BinaryValues.m_Data  = (uint8_t*) bytes_mtx_normal_2x2;
     attribute_overrides[2].m_Values.m_BinaryValues.m_Count = sizeof(bytes_mtx_normal_2x2);
 
     float bytes_mtx_world_3x3[3][3] = { { 1.0f, 2.0f, 3.0f }, { 4.0f, 5.0f, 6.0f }, { 7.0f, 8.0f, 9.0f } };
     attribute_overrides[3].m_NameHash                      = dmHashString64("mtx_world");
-    attribute_overrides[3].m_ShaderType                    = dmGraphics::VertexAttribute::SHADER_TYPE_MAT3;
+    attribute_overrides[3].m_VectorType                    = dmGraphics::VertexAttribute::VECTOR_TYPE_MAT3;
     attribute_overrides[3].m_DataType                      = dmGraphics::VertexAttribute::TYPE_FLOAT;
     attribute_overrides[3].m_Values.m_BinaryValues.m_Data  = (uint8_t*) bytes_mtx_world_3x3;
     attribute_overrides[3].m_Values.m_BinaryValues.m_Count = sizeof(bytes_mtx_world_3x3);
