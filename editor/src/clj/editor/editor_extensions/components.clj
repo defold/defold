@@ -647,18 +647,22 @@
    (make-prop :options :coerce (coerce/vector-of coerce/untouched) :doc "array of selectable options" :types ["any[]"])
    (make-prop :to_string :coerce coerce/function :doc "function that converts an item to string, defaults to <code>tostring</code>")])
 
+(defn- stringify-lua-value
+  ([rt maybe-lua-value]
+   (if (nil? maybe-lua-value)
+     ""
+     (rt/->clj rt coerce/to-string maybe-lua-value)))
+  ([rt to_string maybe-lua-value]
+   (if (nil? maybe-lua-value)
+     ""
+     (rt/->clj rt coerce/to-string (rt/invoke-immediate rt to_string maybe-lua-value)))))
+
 (defn- create-select-box-string-converter [rt to_string]
   ;; Note: if a combo box has no value provided, the default is JVM null
   (DefoldStringConverter.
     (if to_string
-      (fn user-provided-to-string [maybe-lua-value]
-        (if (nil? maybe-lua-value)
-          ""
-          (rt/->clj rt coerce/to-string (rt/invoke-immediate rt to_string maybe-lua-value))))
-      (fn default-to-string [maybe-lua-value]
-        (if (nil? maybe-lua-value)
-          ""
-          (rt/->clj rt coerce/to-string maybe-lua-value))))))
+      #(stringify-lua-value rt to_string %)
+      #(stringify-lua-value rt %))))
 
 (defn- on-select-box-key-pressed [^KeyEvent event]
   (when (= KeyCode/SPACE (.getCode event))
@@ -728,12 +732,6 @@
   ;; to-string part of the converter)
   (coerce/one-of coerce/null coerce/untouched))
 
-(defn- create-value-field-text [rt to_string maybe-lua-value maybe-edit]
-  (cond
-    maybe-edit maybe-edit
-    (nil? maybe-lua-value) ""
-    :else (rt/->clj rt coerce/to-string (rt/invoke-immediate rt to_string maybe-lua-value))))
-
 (defn- notify-value-field-change [rt on_value_changed old-maybe-lua-value new-lua-value]
   (let [notify (or (nil? old-maybe-lua-value)
                    (not (rt/eq? rt old-maybe-lua-value new-lua-value)))]
@@ -741,10 +739,15 @@
       (invoke-event-handler rt "on_value_changed" on_value_changed new-lua-value))
     notify))
 
-(defn- on-value-field-key-pressed [rt value on_value_changed to_value edit swap-state ^KeyEvent e]
+(defn- meaningful-value-field-edit? [edit maybe-lua-value text]
+  (and (some? edit)
+       (or (nil? maybe-lua-value)
+           (not= edit text))))
+
+(defn- on-value-field-key-pressed [rt maybe-lua-value text on_value_changed to_value edit swap-state ^KeyEvent e]
   (condp = (.getCode e)
     KeyCode/ENTER
-    (when edit
+    (when (meaningful-value-field-edit? edit maybe-lua-value text)
       (let [maybe-new-lua-value (rt/->clj rt value-field-value-coercer (rt/invoke-immediate rt to_value (rt/->lua edit)))]
         ;; nil result from `to_value` means couldn't convert => keep editing
         (if (nil? maybe-new-lua-value)
@@ -760,7 +763,7 @@
             (.consume e))
           ;; new value!
           (do (swap-state assoc :value maybe-new-lua-value)
-              (when (notify-value-field-change rt on_value_changed value maybe-new-lua-value)
+              (when (notify-value-field-change rt on_value_changed maybe-lua-value maybe-new-lua-value)
                 (.consume e))))))
 
     KeyCode/ESCAPE
@@ -770,34 +773,64 @@
 
     nil))
 
-(defn- on-value-field-focus-changed [rt value on_value_changed to_value edit swap-state focused]
-  (when (and (not focused) edit)
+(defn- on-value-field-focus-changed [rt maybe-lua-value text on_value_changed to_value edit swap-state focused]
+  (when (and (not focused)
+             (meaningful-value-field-edit? edit maybe-lua-value text))
     (let [maybe-new-lua-value (rt/->clj rt value-field-value-coercer (rt/invoke-immediate rt to_value (rt/->lua edit)))]
       (if (nil? maybe-new-lua-value)
         (swap-state dissoc :edit)
         (do (swap-state #(-> % (assoc :value maybe-new-lua-value) (dissoc :edit)))
-            (notify-value-field-change rt on_value_changed value maybe-new-lua-value))))))
+            (notify-value-field-change rt on_value_changed maybe-lua-value maybe-new-lua-value))))))
 
-(defn- value-field-view-impl-2 [{:keys [state swap-state rt value on_value_changed to_value to_string variant disabled alignment]
-                                 :or {variant :default
-                                      disabled false}}]
-  (let [{:keys [edit]} state
-        current-value (:value state value)]
+(def ^:private ext-with-value-field-text-props
+  (fx/make-ext-with-props
+    {:text (fx.prop/make
+             (fx.mutator/setter
+               (fn [^TextField text-field text]
+                 (when-not (= text (.getText text-field))
+                   (.setText text-field text)
+                   (.selectAll text-field))))
+             fx.lifecycle/scalar)}))
+
+(defn- value-field-view-impl-3
+  [{:keys [text ;; text of the current value
+           state swap-state ;; local state, may contain :value and :edit
+           rt
+           value ;; current (maybe) lua value, either value from local state or from editor script
+           on_value_changed
+           to_value
+           #_to_string ;; the key is here, but unused, see value-field-view-impl-2
+           variant
+           disabled
+           alignment]
+    :or {variant :default
+         disabled false}}]
+  (let [{:keys [edit]} state]
     (wrap-in-alignment-container
-      {:fx/type fxui/ext-memo
-       :fn create-value-field-text
-       :args [rt to_string current-value edit]
-       :key :text
-       :desc {:fx/type fx.text-field/lifecycle
-              :style-class ["text-field" "ext-text-field"]
-              :disable disabled
-              :pseudo-classes #{variant}
-              :on-text-changed #(swap-state assoc :edit %)
-              :on-key-pressed #(on-value-field-key-pressed rt current-value on_value_changed to_value edit swap-state %)
-              :on-focused-changed #(on-value-field-focus-changed rt current-value on_value_changed to_value edit swap-state %)}}
+      {:fx/type ext-with-value-field-text-props
+       :props {:text (or edit text)}
+       :desc
+       {:fx/type fx.text-field/lifecycle
+        :style-class ["text-field" "ext-text-field"]
+        :disable disabled
+        :pseudo-classes #{variant}
+        :on-text-changed #(swap-state assoc :edit %)
+        :on-key-pressed #(on-value-field-key-pressed rt value text on_value_changed to_value edit swap-state %)
+        :on-focused-changed #(on-value-field-focus-changed rt value text on_value_changed to_value edit swap-state %)}}
       alignment
       true)))
 
+(defn- value-field-view-impl-2 [{:keys [state rt value to_string]
+                                 :as props}]
+  ;; overrides :value to point to the current value of the control, which might
+  ;; differ from the one assigned from outside.
+  ;; and value's :text to props
+  (let [current-value (:value state value)]
+    {:fx/type fxui/ext-memo
+     :fn stringify-lua-value
+     :args [rt to_string current-value]
+     :key :text
+     :desc (assoc props :fx/type value-field-view-impl-3 :value current-value)}))
 
 (defn- value-field-view-impl-1 [props]
   ;; adds :state and :swap-state to props
