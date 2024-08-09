@@ -32,9 +32,10 @@
 (def +& (lift-f1 +))
 (def -& (lift-f1 -))
 
-; -------------------------------------
-; 2D geometry
-; -------------------------------------
+;; -----------------------------------------------------------------------------
+;; 2D geometry
+;; -----------------------------------------------------------------------------
+
 (s/defn area :- double
   [r :- Rect]
   (if r
@@ -180,9 +181,9 @@
   [^Float fuv]
   (Geometry/toShortUV fuv))
 
-; -------------------------------------
-; Transformations
-; -------------------------------------
+;; -----------------------------------------------------------------------------
+;; Transformations
+;; -----------------------------------------------------------------------------
 
 (s/defn world-space [node :- {:world-transform Matrix4d s/Any s/Any} point :- Point3d]
   (let [p             (Point3d. point)
@@ -194,9 +195,10 @@
 (def ^Matrix3d Identity3d (doto (Matrix3d.) (.setIdentity)))
 (def ^Matrix4d Identity4d (doto (Matrix4d.) (.setIdentity)))
 
-; -------------------------------------
-; Matrix sloshing
-; -------------------------------------
+;; -----------------------------------------------------------------------------
+;; Matrix sloshing
+;; -----------------------------------------------------------------------------
+
 (defprotocol AsArray
   (^doubles as-array [this]))
 
@@ -242,9 +244,9 @@
   (doto (Matrix4d.)
     (.setIdentity)))
 
-; -------------------------------------
-; 3D geometry
-; -------------------------------------
+;; -----------------------------------------------------------------------------
+;; 3D geometry
+;; -----------------------------------------------------------------------------
 
 (defrecord DoubleRange [^double min ^double max])
 
@@ -481,10 +483,9 @@
                                (math/edge-normal near-br far-br)])]
     (types/->Frustum corners planes unique-edge-normals unique-face-normals)))
 
-; -------------------------------------
-; Primitive shapes as vertex arrays
-; -------------------------------------
-
+;; -----------------------------------------------------------------------------
+;; Primitive shapes as vertex arrays
+;; -----------------------------------------------------------------------------
 
 (s/defn unit-sphere-pos-nrm [lats longs]
   (for [lat-i (range lats)
@@ -606,3 +607,32 @@
              (.apply uv-trans p)
              [(.x p) (.y p)]) ps))
     ps))
+
+;; -----------------------------------------------------------------------------
+;; GUI Pivots
+;; -----------------------------------------------------------------------------
+
+(defn gui-pivot->h-align [gui-pivot]
+  (case gui-pivot
+    (:pivot-e :pivot-ne :pivot-se) :right
+    (:pivot-center :pivot-n :pivot-s) :center
+    (:pivot-w :pivot-nw :pivot-sw) :left))
+
+(defn gui-pivot->v-align [gui-pivot]
+  (case gui-pivot
+    (:pivot-ne :pivot-n :pivot-nw) :top
+    (:pivot-e :pivot-center :pivot-w) :middle
+    (:pivot-se :pivot-s :pivot-sw) :bottom))
+
+(defn gui-pivot-offset [gui-pivot size]
+  (let [h-align (gui-pivot->h-align gui-pivot)
+        v-align (gui-pivot->v-align gui-pivot)
+        xs (case h-align
+             :right -0.5
+             :center 0.0
+             :left 0.5)
+        ys (case v-align
+             :top -0.5
+             :middle 0.0
+             :bottom 0.5)]
+    (mapv * size [xs ys 0.0 0.0])))
