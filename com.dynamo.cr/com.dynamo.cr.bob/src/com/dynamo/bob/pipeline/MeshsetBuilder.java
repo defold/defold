@@ -72,7 +72,6 @@ public class MeshsetBuilder extends Builder<Void>  {
             .addOutput(input.changeExt(params.outExt()))
             .addOutput(input.changeExt(".skeletonc"))
             .addOutput(input.changeExt("_generated_0.animationsetc"));
-        createSubTasks(input, taskBuilder);
         return taskBuilder.build();
     }
 

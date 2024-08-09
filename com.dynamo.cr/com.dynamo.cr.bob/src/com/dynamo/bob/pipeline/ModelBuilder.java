@@ -54,16 +54,13 @@ public class ModelBuilder extends Builder<Void> {
             .addOutput(input.changeExt(params.outExt()))
             .addOutput(input.changeExt(".rigscenec"));
 
-        IResource mesh = BuilderUtil.checkResource(this.project, input, "mesh", modelDescBuilder.getMesh());
-        taskBuilder.addInput(mesh);
+        createSubTask(modelDescBuilder.getMesh(), "mesh", taskBuilder);
+
         if(!modelDescBuilder.getSkeleton().isEmpty()) {
-            IResource skeleton = BuilderUtil.checkResource(this.project, input, "skeleton", modelDescBuilder.getSkeleton());
-            taskBuilder.addInput(skeleton);
+            createSubTask(modelDescBuilder.getSkeleton(), "skeleton", taskBuilder);
         }
-        // Check if it's an individual file or not
-        if((!modelDescBuilder.getAnimations().isEmpty()) && !modelDescBuilder.getAnimations().endsWith(".animationset")) {
-            IResource animations = BuilderUtil.checkResource(this.project, input, "animation", modelDescBuilder.getAnimations());
-            taskBuilder.addInput(animations);
+        if((!modelDescBuilder.getAnimations().isEmpty())) {
+            createSubTask(modelDescBuilder.getAnimations(), "animations", taskBuilder);
         }
 
         if (modelDescBuilder.getMaterialsCount() > 0) {
@@ -72,37 +69,21 @@ public class ModelBuilder extends Builder<Void> {
                     String t = texture.getTexture();
                     if (t.isEmpty())
                         continue; // TODO: Perhaps we can check if the material expects textures?
-
-                    IResource res = BuilderUtil.checkResource(this.project, input, "texture", t);
-                    Task<?> embedTask = this.project.createTask(res);
-                    if (embedTask == null) {
-                        throw new CompileExceptionError(input,
-                                                        0,
-                                                        String.format("Failed to create build task for component '%s'", res.getPath()));
-                    }
+                    createSubTask(t, "texture", taskBuilder);
                 }
 
-                IResource materialOutput = this.project.getResource(material.getMaterial()).changeExt(".materialc");
-                taskBuilder.addInput(materialOutput);
+                createSubTask(material.getMaterial(), "material", taskBuilder);
             }
         } else {
             // Deprecated workflow
             for (String t : modelDescBuilder.getTexturesList()) {
                 if (t.isEmpty())
                     continue; // TODO: Perhaps we can check if the material expects textures?
-
-                IResource res = BuilderUtil.checkResource(this.project, input, "texture", t);
-                Task<?> embedTask = this.project.createTask(res);
-                if (embedTask == null) {
-                    throw new CompileExceptionError(input,
-                                                    0,
-                                                    String.format("Failed to create build task for component '%s'", res.getPath()));
-                }
+                createSubTask(t, "texture", taskBuilder);
             }
 
             if (!modelDescBuilder.getMaterial().isEmpty()) {
-                IResource materialOutput = this.project.getResource(modelDescBuilder.getMaterial()).changeExt(".materialc");
-                taskBuilder.addInput(materialOutput);
+                createSubTask(modelDescBuilder.getMaterial(), "material", taskBuilder);
             }
         }
 

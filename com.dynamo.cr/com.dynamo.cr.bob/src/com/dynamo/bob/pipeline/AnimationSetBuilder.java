@@ -56,7 +56,7 @@ public class AnimationSetBuilder extends Builder<Void>  {
             }
         }
     }
-    //TODO @AGULEV: rework create function
+
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
         Task.TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
