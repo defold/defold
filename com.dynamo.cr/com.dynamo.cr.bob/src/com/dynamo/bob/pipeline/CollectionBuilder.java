@@ -86,16 +86,6 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         }
     }
 
-//    private void createResourcePropertyTasks(List<ComponentPropertyDesc> overrideProps, IResource input) throws CompileExceptionError {
-//        for (ComponentPropertyDesc compProp : overrideProps) {
-//            Collection<String> resources = PropertiesUtil.getPropertyDescResources(project, compProp.getPropertiesList());
-//            for(String r : resources) {
-//                IResource resource = BuilderUtil.checkResource(project, input, "resource", r);
-//                PropertiesUtil.createResourcePropertyTasks(project, resource, input);
-//            }
-//        }
-//    }
-
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
         Task.TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
@@ -119,7 +109,6 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         for (InstanceDesc inst : builder.getInstancesList()) {
             InstanceDesc.Builder instBuilder = InstanceDesc.newBuilder(inst);
             List<ComponentPropertyDesc> sourceProperties = instBuilder.getComponentPropertiesList();
-//          createResourcePropertyTasks(sourceProperties, input);
             for (ComponentPropertyDesc compProp : sourceProperties) {
                 Map<String, String> resources = PropertiesUtil.getPropertyDescResources(project, compProp.getPropertiesList());
                 for (Map.Entry<String, String> entry : resources.entrySet()) {
@@ -129,7 +118,6 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
 
             IResource res = project.getResource(inst.getPrototype());
             IResource compCounterInput = input.getResource(ComponentsCounter.replaceExt(res)).output();
-//            taskBuilder.addInput(compCounterInput);
             compCounterInputsCount.put(compCounterInput, compCounterInputsCount.getOrDefault(compCounterInput, 0) + 1);
         }
 
@@ -140,8 +128,6 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         List<Task<?>> embedTasks = new ArrayList<>();
         for (long hash : uniqueResources.keySet()) {
             IResource genResource = uniqueResources.get(hash);
-//            taskBuilder.addOutput(genResource);
-//            Task<?> embedTask = project.createTask(genResource);
             Task<?> embedTask = createSubTask(genResource, taskBuilder);
             if (embedTask == null) {
                 throw new CompileExceptionError(input,

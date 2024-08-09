@@ -108,9 +108,6 @@ public class GameObjectBuilder extends Builder<Void> {
             }
             Map<String, String> resources = PropertiesUtil.getPropertyDescResources(project, cd.getPropertiesList());
             for (Map.Entry<String, String> entry : resources.entrySet()) {
-//                IResource resource = BuilderUtil.checkResource(project, input, "resource", entry.getValue());
-//                taskBuilder.addInput(resource);
-//                PropertiesUtil.createResourcePropertyTasks(project, resource, input);
                 createSubTask(entry.getValue(), entry.getKey(), taskBuilder);
             }
         }

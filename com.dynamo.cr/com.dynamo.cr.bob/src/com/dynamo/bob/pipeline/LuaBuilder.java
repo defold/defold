@@ -138,9 +138,6 @@ public abstract class LuaBuilder extends Builder<Void> {
                     throw new IOException(String.format("Resource '%s' referenced from script resource property '%s' does not exist", value, property.name));
                 }
 
-//                IResource resource = BuilderUtil.checkResource(this.project, input, property.name + " resource", value);
-//                taskBuilder.addInput(resource);
-//                PropertiesUtil.createResourcePropertyTasks(this.project, resource, input);
                 createSubTask(value, property.name, taskBuilder);
             }
         }

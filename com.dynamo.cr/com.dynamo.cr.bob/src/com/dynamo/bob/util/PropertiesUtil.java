@@ -160,17 +160,4 @@ public class PropertiesUtil {
         return resources;
     }
 
-//    public static void createResourcePropertyTasks(Project project, IResource resource, IResource input) throws CompileExceptionError {
-//        // Textures and cubemaps
-//        Class<? extends Builder<?>> klass = project.getBuilderFromExtension(resource);
-//        if ( klass == TextureBuilder.class || klass == CubemapBuilder.class) {
-//            Task<?> embedTask = project.createTask(resource);
-//            if (embedTask == null) {
-//                throw new CompileExceptionError(input,
-//                                                0,
-//                                                String.format("Failed to create build task for component '%s'", resource.getPath()));
-//            }
-//        }
-//    }
-
 }
