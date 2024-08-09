@@ -220,34 +220,14 @@ public class MaterialBuilder extends Builder<Void>  {
 
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-        TaskBuilder<Void> task = Task.<Void> newBuilder(this)
+        TaskBuilder<Void> taskBuilder = Task.<Void> newBuilder(this)
                 .setName(params.name())
                 .addInput(input)
                 .addOutput(input.changeExt(params.outExt()));
 
-        MaterialDesc.Builder materialBuilder = MaterialDesc.newBuilder();
-        ProtoUtil.merge(input, materialBuilder);
+        createSubTasks(input, taskBuilder);
 
-        IResource vertexProgramOutputResource   = this.project.getResource(materialBuilder.getVertexProgram()).changeExt(".vpc");
-        IResource fragmentProgramOutputResource = this.project.getResource(materialBuilder.getFragmentProgram()).changeExt(".fpc");
-
-        task.addInput(vertexProgramOutputResource);
-        task.addInput(fragmentProgramOutputResource);
-
-        migrateTexturesToSamplers(materialBuilder);
-
-        for (MaterialDesc.Sampler materialSampler : materialBuilder.getSamplersList()) {
-            String texture = materialSampler.getTexture();
-            if (texture.isEmpty())
-                continue;
-            IResource res = BuilderUtil.checkResource(this.project, input, "texture", texture);
-            Task<?> embedTask = this.project.createTask(res);
-            if (embedTask == null) {
-                throw new CompileExceptionError(input, 0, String.format("Failed to create build task for component '%s'", res.getPath()));
-            }
-        }
-
-        return task.build();
+        return taskBuilder.build();
     }
 
     private static void buildVertexAttributes(MaterialDesc.Builder materialBuilder) throws CompileExceptionError {
