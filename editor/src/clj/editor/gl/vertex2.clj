@@ -234,7 +234,7 @@
       3 :vector-type-vec3
       4 (if vector-type-is-matrix
           :vector-type-mat2
-          :vector-type-scalar)
+          :vector-type-vec4)
       9 :vector-type-mat3
       16 :vector-type-mat4)))
 

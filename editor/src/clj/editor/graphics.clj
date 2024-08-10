@@ -333,16 +333,15 @@
   ;; Graphics$VertexAttribute in map format.
   (let [attribute-value-keyword (attribute-value-keyword (or data-type default-attribute-data-type) normalize)
         attribute-values (:v (get attribute attribute-value-keyword))
-        attribute-vector-type (attribute-info->vector-type attribute)
-        attribute-wut (if (some? attribute-vector-type)
-                        (assoc attribute :vector-type attribute-vector-type)
-                        attribute)]
+        attribute-vector-type (attribute-info->vector-type attribute)]
     ;; TODO:
     ;; Currently the protobuf read function returns empty instances of every
     ;; OneOf variant. Strip out the empty ones.
     ;; Once we update the protobuf loader, we shouldn't need to do this here.
     ;; We still want to remove the default empty :name-hash string, though.
-    (-> attribute-wut
+    (-> (if (some? attribute-vector-type)
+          (assoc attribute :vector-type attribute-vector-type)
+          attribute)
         (dissoc :name-hash :double-values :long-values :binary-values)
         (assoc attribute-value-keyword {:v attribute-values})
         ;; element-count is deprecated in favor of vector-type
