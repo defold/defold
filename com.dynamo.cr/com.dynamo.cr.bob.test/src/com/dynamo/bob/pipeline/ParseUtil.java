@@ -82,6 +82,12 @@ public class ParseUtil {
                 return SoundDesc.parseFrom(content);
             }
         });
+        parseMap.put("oggc", new IParser() {
+            @Override
+            public Message parse(byte[] content) throws InvalidProtocolBufferException {
+                return null;
+            }
+        });
         parseMap.put("texturec", new IParser() {
             @Override
             public Message parse(byte[] content) throws InvalidProtocolBufferException {

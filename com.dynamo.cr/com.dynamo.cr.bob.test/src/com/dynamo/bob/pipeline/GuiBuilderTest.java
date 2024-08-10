@@ -84,6 +84,7 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
 
     private static StringBuilder createGui() {
         StringBuilder src = new StringBuilder();
+        src.append("material: \"\"");
         return src;
     }
 
