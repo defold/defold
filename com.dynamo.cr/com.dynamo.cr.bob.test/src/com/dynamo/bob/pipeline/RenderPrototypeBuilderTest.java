@@ -61,7 +61,7 @@ public class RenderPrototypeBuilderTest extends AbstractProtoBuilderTest {
                 "}\n";
 
             List<Message> outputs = build("/test.render", srcOneMaterial);
-            RenderPrototypeDesc output = (RenderPrototypeDesc) outputs.get(0);
+            RenderPrototypeDesc output = getMessage(outputs, RenderPrototypeDesc.class);
 
             assertEquals(0, output.getMaterialsList().size());
             assertEquals(1, output.getRenderResourcesList().size());
