@@ -64,6 +64,12 @@ public class ParseUtil {
                 return LuaModule.parseFrom(content);
             }
         });
+        parseMap.put("render_scriptc", new IParser() {
+            @Override
+            public Message parse(byte[] content) throws InvalidProtocolBufferException {
+                return LuaModule.parseFrom(content);
+            }
+        });
         parseMap.put("goc", new IParser() {
             @Override
             public Message parse(byte[] content) throws InvalidProtocolBufferException {
