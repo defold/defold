@@ -320,9 +320,7 @@
       ;; If we already have a vector type, we use that
       valid-vector-type? vector-type
       ;; If we can derive it from the element count, we do that
-      valid-element-count? (vtx/element-count+semantic-type->vector-type element-count semantic-type)
-      ;; Otherwise, we return a default type
-      :else :vector-type-vec4)))
+      valid-element-count? (vtx/element-count+semantic-type->vector-type element-count semantic-type))))
 
 ;; TODO(save-value-cleanup): We only really need to sanitize the attributes if a resource type has :read-defaults true.
 (defn sanitize-attribute-value-v [attribute-value]
@@ -335,18 +333,20 @@
   ;; Graphics$VertexAttribute in map format.
   (let [attribute-value-keyword (attribute-value-keyword (or data-type default-attribute-data-type) normalize)
         attribute-values (:v (get attribute attribute-value-keyword))
-        attribute-vector-type (attribute-info->vector-type attribute)]
+        attribute-vector-type (attribute-info->vector-type attribute)
+        attribute-wut (if (some? attribute-vector-type)
+                        (assoc attribute :vector-type attribute-vector-type)
+                        attribute)]
     ;; TODO:
     ;; Currently the protobuf read function returns empty instances of every
     ;; OneOf variant. Strip out the empty ones.
     ;; Once we update the protobuf loader, we shouldn't need to do this here.
     ;; We still want to remove the default empty :name-hash string, though.
-    (-> attribute
+    (-> attribute-wut
         (dissoc :name-hash :double-values :long-values :binary-values)
         (assoc attribute-value-keyword {:v attribute-values})
         ;; element-count is deprecated in favor of vector-type
-        (dissoc :element-count)
-        (assoc :vector-type attribute-vector-type))))
+        (dissoc :element-count))))
 
 (defn sanitize-attribute-override [attribute]
   ;; Graphics$VertexAttribute in map format.

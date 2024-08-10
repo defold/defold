@@ -53,10 +53,12 @@
   ;; This is fine, since doubles can accurately represent values in the entire
   ;; signed and unsigned 32-bit integer range from -2147483648 to 4294967295.
   (let [attribute (merge editable-attribute-optional-field-defaults attribute)
-        values (graphics/attribute->doubles attribute)]
+        values (graphics/attribute->doubles attribute)
+        vector-type (or (:vector-type attribute) :vector-type-vec4)]
     (-> attribute
         (dissoc :double-values :long-values) ; Only one of these will be present, but we want neither.
-        (assoc :values values))))
+        (assoc :values values)
+        (assoc :vector-type vector-type))))
 
 (defn- editable-attribute->attribute [{:keys [data-type normalize values] :as editable-attribute}]
   {:pre [(map? editable-attribute)

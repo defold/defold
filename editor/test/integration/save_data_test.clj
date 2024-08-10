@@ -204,12 +204,14 @@
     {"tile_set" :deprecated}} ; Replaced with 'textures'; Migration tested in integration.save-data-test/silent-migrations-test.
 
    'dmGraphics.VertexAttribute
-   {[["particlefx" "emitters" "[*]" "attributes"]
+   {:default
+    {"element_count" :deprecated}
+
+    [["particlefx" "emitters" "[*]" "attributes"]
      ["sprite" "attributes"]
      ["model" "materials" "attributes"]]
     {"coordinate_space" :unused
      "data_type" :unused
-     "element_count" :unused
      "normalize" :unused
      "semantic_type" :unused
      "step_function" :unused

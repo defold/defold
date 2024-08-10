@@ -285,3 +285,69 @@ attributes {
   }
   step_function: VERTEX_STEP_FUNCTION_INSTANCE
 }
+attributes {
+  name: "instance_custom_byte"
+  data_type: TYPE_BYTE
+  long_values {
+    v: 1
+    v: 0
+    v: 0
+    v: 0
+  }
+  step_function: VERTEX_STEP_FUNCTION_INSTANCE
+}
+attributes {
+  name: "instance_custom_int"
+  data_type: TYPE_INT
+  long_values {
+    v: 1
+    v: 0
+    v: 0
+    v: 0
+  }
+  step_function: VERTEX_STEP_FUNCTION_INSTANCE
+}
+attributes {
+  name: "instance_custom_short"
+  data_type: TYPE_SHORT
+  long_values {
+    v: 0
+    v: 0
+    v: 0
+    v: 0
+  }
+  step_function: VERTEX_STEP_FUNCTION_INSTANCE
+}
+attributes {
+  name: "instance_custom_ubyte"
+  data_type: TYPE_UNSIGNED_BYTE
+  long_values {
+    v: 0
+    v: 0
+    v: 0
+    v: 0
+  }
+  step_function: VERTEX_STEP_FUNCTION_INSTANCE
+}
+attributes {
+  name: "instance_custom_uint"
+  data_type: TYPE_UNSIGNED_INT
+  long_values {
+    v: 0
+    v: 0
+    v: 0
+    v: 0
+  }
+  step_function: VERTEX_STEP_FUNCTION_INSTANCE
+}
+attributes {
+  name: "instance_custom_ushort"
+  data_type: TYPE_UNSIGNED_SHORT
+  long_values {
+    v: 0
+    v: 0
+    v: 0
+    v: 0
+  }
+  step_function: VERTEX_STEP_FUNCTION_INSTANCE
+}
