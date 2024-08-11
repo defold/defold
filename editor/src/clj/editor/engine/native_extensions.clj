@@ -150,11 +150,12 @@
 (defn get-build-server-url
   (^String [prefs project]
    (g/with-auto-evaluation-context evaluation-context
-     (get-build-server-url prefs project evaluation-context)))
+     (string/trim (get-build-server-url prefs project evaluation-context))))
   (^String [prefs project evaluation-context]
-   (or (not-empty (prefs/get-prefs prefs "extensions-server" ""))
-       (not-empty (shared-editor-settings/get-setting project ["extensions" "build_server"] evaluation-context))
-       defold-build-server-url)))
+   (string/trim
+     (or (not-empty (prefs/get-prefs prefs "extensions-server" ""))
+         (not-empty (shared-editor-settings/get-setting project ["extensions" "build_server"] evaluation-context))
+         defold-build-server-url))))
 
 (defn get-build-server-headers
   ^String [prefs]
