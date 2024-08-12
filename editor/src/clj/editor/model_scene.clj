@@ -172,13 +172,10 @@
                 (some some? texcoord-datas) (assoc :texcoord-datas texcoord-datas)))
       (error-values/error-fatal "Failed to produce vertex buffers from mesh set. The scene might contain invalid data."))))
 
-(def my-atom (atom 0))
-
 (defn- matrix4->bytes [^Matrix4d mtx]
   (let [matrix-array (math/vecmath->clj (doto (Matrix4d. mtx) (.transpose)))
         byte-array (byte-array (* 4 16))
         byte-buffer (vtx/wrap-buf byte-array)]
-    (reset! my-atom byte-array)
     (vtx/buf-push! byte-buffer :float false matrix-array)
     byte-array))
 

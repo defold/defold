@@ -313,6 +313,9 @@
          #(:coordinate-space % :coordinate-space-local)
          :semantic-type)))
 
+;; This function can return nil if element-count and vector-type is nil,
+;; which happens for default values. This is only used for sanitation,
+;; so we shouldn't assign the default value here.
 (defn- attribute-info->vector-type [{:keys [element-count semantic-type vector-type] :as attribute-info}]
   (let [valid-vector-type? (some? vector-type)
         valid-element-count? (pos-int? element-count)]
@@ -649,16 +652,6 @@
   (let [tangents (:tangent-data renderable-data)
         normal-transform (:normal-transform renderable-data)]
     (geom/transf-tangents normal-transform tangents)))
-
-(defn- renderable-data->world-matrix [renderable-data]
-  (let [vertex-count (count (:position-data renderable-data))
-        world-transform-array (math/vecmath->clj (doto ^Matrix4d (:world-transform renderable-data) (.transpose)))]
-    (into [] (repeat vertex-count world-transform-array))))
-
-(defn- renderable-data->normal-matrix [renderable-data]
-  (let [vertex-count (count (:position-data renderable-data))
-        world-transform-array (math/vecmath->clj (doto ^Matrix4d (:normal-transform renderable-data) (.transpose)))]
-    (into [] (repeat vertex-count world-transform-array))))
 
 (def ^:private renderable-data->world-normal-v3 (partial renderable-data->world-direction-v3 :normal-data))
 (def ^:private renderable-data->world-normal-v4 (partial renderable-data->world-direction-v4 :normal-data))

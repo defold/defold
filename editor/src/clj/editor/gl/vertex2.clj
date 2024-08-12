@@ -247,7 +247,7 @@
         num-components   (type-component-counts prefix)
         attribute-name   (name nm)
         attribute-key    (attribute-name->key attribute-name)
-        semantic-type    (attribute-key->semantic-type attribute-key)]
+        semantic-type    (attribute-key->semantic-type attribute-key)] ; TODO: Typically determined by vertex-space setting of material.
     (assert num-components (str type " is not a valid type name. It must start with vec1, vec2, vec3, or vec4."))
     (assert (get gl-types suffix) (str type " is not a valid type name. It must end with byte, short, int, float, or double. (Defaults to float if no suffix.)"))
     {:name attribute-name
@@ -257,7 +257,7 @@
      :normalize (true? normalize)
      :coordinate-space :coordinate-space-world
      :vector-type (element-count+semantic-type->vector-type num-components semantic-type)
-     :semantic-type semantic-type})) ; TODO: Typically determined by vertex-space setting of material.
+     :semantic-type semantic-type}))
 
 (defmacro defvertex
   [name & attribute-definitions]
@@ -321,7 +321,7 @@
 (defn- request-vbo [^GL2 gl request-id ^VertexBuffer vertex-buffer shader]
   (scene-cache/request-object! ::vbo2 request-id gl {:vertex-buffer vertex-buffer :version (version vertex-buffer) :shader shader}))
 
-(defn- vertex-attribute-binding-info [vertex-attribute]
+(defn- vertex-attribute->row-column-count+is-matrix-type [vertex-attribute]
   (let [vector-type (:vector-type vertex-attribute)
         component-count (:components vertex-attribute)]
     (cond (= vector-type :vector-type-mat2) [2 true]
@@ -331,23 +331,27 @@
           (= component-count 16) [4 true]
           :else [1 false])))
 
+;; Takes a list of vertex attribute and a matching list of its attribute locations
+;; and expands these if the attribute vector type is a matrix.
+;; This is needed because to bind a matrix as attribute in OpenGL, we need
+;; to bind each column of the vector type individually.
 (defn- expand-vertex-attributes+locs [vertex-attributes vertex-attribute-locs]
   (let [vertex-attributes+locs (map vector vertex-attributes vertex-attribute-locs)
         expanded-vertex-attributes (mapcat (fn [[attribute _]]
-                                             (let [[row-column-count is-matrix-type] (vertex-attribute-binding-info attribute)]
+                                             (let [[row-column-count is-matrix-type] (vertex-attribute->row-column-count+is-matrix-type attribute)]
                                                (if is-matrix-type
                                                  (repeat row-column-count (assoc attribute :components row-column-count))
                                                  [attribute])))
                                            vertex-attributes+locs)
-        expandedn-vertex-locs (mapcat (fn [[attribute loc]]
-                                        (let [[row-column-count is-matrix-type] (vertex-attribute-binding-info attribute)]
+        expanded-vertex-locs (mapcat (fn [[attribute loc]]
+                                        (let [[row-column-count is-matrix-type] (vertex-attribute->row-column-count+is-matrix-type attribute)]
                                           (if is-matrix-type
                                             (map-indexed (fn [^long idx ^long loc-base]
                                                            (+ idx loc-base))
                                                          (repeat row-column-count loc))
                                             [loc])))
                                       vertex-attributes+locs)]
-    [expanded-vertex-attributes, expandedn-vertex-locs]))
+    [expanded-vertex-attributes, expanded-vertex-locs]))
 
 (defn- bind-vertex-buffer-with-shader! [^GL2 gl request-id ^VertexBuffer vertex-buffer shader]
   (let [[vbo attribute-locations] (request-vbo gl request-id vertex-buffer shader)
