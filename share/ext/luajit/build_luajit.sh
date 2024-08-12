@@ -209,6 +209,8 @@ case $1 in
 			make -j8
 			make install
 			mv $PREFIX/bin/$CONF_TARGET/${TARGET_FILE} $PREFIX/bin/$CONF_TARGET/luajit-${DEFOLD_ARCH}
+			# remove symlink. we don't need it, and it doesn't extract under git-bash
+			rm -v $PREFIX/bin/$CONF_TARGET/luajit
 			set +e
 		}
 		;;
