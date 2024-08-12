@@ -150,7 +150,7 @@
 (defn get-build-server-url
   (^String [prefs project]
    (g/with-auto-evaluation-context evaluation-context
-     (string/trim (get-build-server-url prefs project evaluation-context))))
+     (get-build-server-url prefs project evaluation-context)))
   (^String [prefs project evaluation-context]
    (string/trim
      (or (not-empty (prefs/get-prefs prefs "extensions-server" ""))
