@@ -80,6 +80,10 @@ def build(bld):
         graphics_lib += ' GRAPHICS_VULKAN VULKAN'
         graphics_lib_symbols.append('GraphicsAdapterVulkan')
 
+    if waflib.Options.options.with_webgpu and platform_supports_feature(bld.env.PLATFORM, 'webgpu', {}):
+        graphics_lib += ' GRAPHICS_WEBGPU'
+        graphics_lib_symbols.append('GraphicsAdapterWebGPU')
+
     if bld.env['PLATFORM'] in ('arm64-nx64',):
         graphics_lib = 'GRAPHICS_VULKAN DMGLFW VULKAN'
         graphics_lib_symbols = ['GraphicsAdapterVulkan']

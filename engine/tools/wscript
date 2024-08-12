@@ -60,6 +60,7 @@ def configure(conf):
     conf.env['STLIB_INPUT'] = 'input'
     conf.env['STLIB_DMGLFW'] = glfw_library
     conf.env['STLIB_GRAPHICS'] = 'graphics'
+    conf.env['STLIB_GRAPHICS_WEBGPU'] = ['graphics_webgpu']
     conf.env['STLIB_GRAPHICS_VULKAN'] = ['graphics_vulkan']
     conf.env['STLIB_GRAPHICS_PS4'] = ['graphics_ps4']
     conf.env['STLIB_PLATFORM_NULL'] = ['platform_null']

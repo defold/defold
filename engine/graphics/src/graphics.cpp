@@ -107,6 +107,8 @@ namespace dmGraphics
             return ADAPTER_FAMILY_OPENGL;
         if (dmStrCaseCmp("vulkan", adapter_name) == 0)
             return ADAPTER_FAMILY_VULKAN;
+        if (dmStrCaseCmp("webgpu", adapter_name) == 0)
+            return ADAPTER_FAMILY_WEBGPU;
         if (dmStrCaseCmp("vendor", adapter_name) == 0)
             return ADAPTER_FAMILY_VENDOR;
         assert(0 && "Adapter type not supported?");
@@ -124,6 +126,7 @@ namespace dmGraphics
             GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_OPENGL);
             GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_VULKAN);
             GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_VENDOR);
+            GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_WEBGPU);
             default:break;
         }
         return "<unknown dmGraphics::AdapterFamily>";

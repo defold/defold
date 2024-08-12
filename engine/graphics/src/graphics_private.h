@@ -34,7 +34,7 @@ namespace dmGraphics
     #define UNIFORM_LOCATION_GET_FS(loc)        ((loc & (UNIFORM_LOCATION_MAX << 32)) >> 32)
     #define UNIFORM_LOCATION_GET_FS_MEMBER(loc) ((loc & (UNIFORM_LOCATION_MAX << 48)) >> 48)
 
-    const static uint8_t MAX_BINDINGS_PER_SET_COUNT = 16;
+    const static uint8_t MAX_BINDINGS_PER_SET_COUNT = 32;
     const static uint8_t MAX_SET_COUNT              = 4;
     const static uint8_t MAX_STORAGE_BUFFERS        = 4;
 

@@ -84,6 +84,7 @@ namespace dmGraphics
         ADAPTER_FAMILY_OPENGL = 2,
         ADAPTER_FAMILY_VULKAN = 3,
         ADAPTER_FAMILY_VENDOR = 4,
+        ADAPTER_FAMILY_WEBGPU = 5,
     };
 
     enum AssetType

@@ -801,6 +801,22 @@ var Module = {
         return { stack:stack, message:message };
     },
 
+    hasWebGPUSupport: function() {
+        var webgpu_support = false;
+        try {
+            var canvas = document.createElement("canvas");
+            var webgpu = canvas.getContext("webgpu");
+            if (webgpu && webgpu instanceof WebGPURenderingContext) {
+                webgpu_support = true;
+            }
+        } catch (error) {
+            console.log("An error occurred while detecting WebGPU support: " + error);
+            webgpu_support = false;
+        }
+
+        return webgpu_support;
+    },
+
     hasWebGLSupport: function() {
         var webgl_support = false;
         try {
@@ -846,7 +862,7 @@ var Module = {
         }
         Module.fullScreenContainer = fullScreenContainer || Module.canvas;
 
-        if (Module.hasWebGLSupport()) {
+        if (Module.hasWebGLSupport() || Module.hasWebGPUSupport()) {
             Module.canvas.focus();
 
             // Add context menu hide-handler if requested
@@ -1008,7 +1024,7 @@ var Module = {
         }
     },
 
-    _callMain: function() {
+    _callMain: function(argc, argv) {
         ProgressView.removeProgress();
         if (Module.callMain === undefined) {
             Module.noInitialRun = false;

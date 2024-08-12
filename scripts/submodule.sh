@@ -86,6 +86,7 @@ done
     find "build" -type f -name "*dmengine*" | xargs -I% rm -f "%"
     find "build" -type f -name "classes.dex" | xargs -I% rm -f "%"
     find "build" -type d -name "*dmengine*" | xargs -I% rm -rf "%"
+    waf build --platform="${PLATFORM}" ${OPTIONS} --skip-codesign --skip-tests --skip-build-tests
     waf install --platform="${PLATFORM}" ${OPTIONS} --prefix="${DYNAMO_HOME}" --skip-codesign --skip-tests --skip-build-tests
 )
 

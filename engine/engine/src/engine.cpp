@@ -593,6 +593,7 @@ namespace dmEngine
             case dmGraphics::ADAPTER_FAMILY_OPENGL: return dmPlatform::PLATFORM_GRAPHICS_API_OPENGL;
             case dmGraphics::ADAPTER_FAMILY_VULKAN: return dmPlatform::PLATFORM_GRAPHICS_API_VULKAN;
             case dmGraphics::ADAPTER_FAMILY_VENDOR: return dmPlatform::PLATFORM_GRAPHICS_API_VENDOR;
+            case dmGraphics::ADAPTER_FAMILY_WEBGPU: return dmPlatform::PLATFORM_GRAPHICS_API_WEBGPU;
             default:break;
         }
         assert(0);

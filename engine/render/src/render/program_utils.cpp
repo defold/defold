@@ -364,7 +364,7 @@ namespace dmRender
             }
             case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_VIEWPROJ:
             {
-                if (program_language == dmGraphics::ShaderDesc::LANGUAGE_SPIRV)
+                if (program_language == dmGraphics::ShaderDesc::LANGUAGE_SPIRV || program_language == dmGraphics::ShaderDesc::LANGUAGE_WGSL)
                 {
                     Matrix4 ndc_matrix = Matrix4::identity();
                     ndc_matrix.setElem(2, 2, 0.5f );
@@ -397,7 +397,7 @@ namespace dmRender
             {
                 // Vulkan NDC is [0..1] for z, so we must transform
                 // the projection before setting the constant.
-                if (program_language == dmGraphics::ShaderDesc::LANGUAGE_SPIRV)
+                if (program_language == dmGraphics::ShaderDesc::LANGUAGE_SPIRV || program_language == dmGraphics::ShaderDesc::LANGUAGE_WGSL)
                 {
                     Matrix4 ndc_matrix = Matrix4::identity();
                     ndc_matrix.setElem(2, 2, 0.5f );
@@ -434,7 +434,7 @@ namespace dmRender
             }
             case dmRenderDDF::MaterialDesc::CONSTANT_TYPE_WORLDVIEWPROJ:
             {
-                if (program_language == dmGraphics::ShaderDesc::LANGUAGE_SPIRV)
+                if (program_language == dmGraphics::ShaderDesc::LANGUAGE_SPIRV || program_language == dmGraphics::ShaderDesc::LANGUAGE_WGSL)
                 {
                     Matrix4 ndc_matrix = Matrix4::identity();
                     ndc_matrix.setElem(2, 2, 0.5f );
