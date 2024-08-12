@@ -498,7 +498,6 @@ public class Bob {
 
         addOption(options, "tp", "texture-profiles", true, "DEPRECATED! Use --texture-compression instead", true);
         addOption(options, "tc", "texture-compression", true, "Use texture compression as specified in texture profiles", true);
-        addOption(options, "k", "keep-unused", false, "Keep unused resources in archived output", true);
 
         addOption(options, null, "exclude-build-folder", true, "DEPRECATED! Use '.defignore' file instead", true);
 

@@ -297,18 +297,6 @@ public class GameProjectBuilder extends Builder<Void> {
     private ResourceGraph createResourceGraph(Project project) throws CompileExceptionError {
         ResourceGraph graph = new ResourceGraph(project);
 
-        if (project.option("keep-unused", "false").equals("true")) {
-            // All outputs of the project should be considered resources
-            for (String path : project.getOutputs().keySet()) {
-                // the paths are absolute and include the root directory
-                // we need a path relative to the project root
-                String relativePath = project.getPathRelativeToRootDirectory(path);
-                IResource resource = project.getResource(relativePath);
-                graph.add(resource);
-            }
-            return graph;
-        }
-
         for (String path : gameProjectDependencies) {
             if (path != null) {
                 IResource resource = project.getResource(path);

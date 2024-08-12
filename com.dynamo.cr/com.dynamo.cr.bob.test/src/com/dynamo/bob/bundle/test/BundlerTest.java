@@ -466,32 +466,6 @@ public class BundlerTest {
     }
 
     @Test
-    public void testUnusedCollections() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
-        int builtins_count = createDefaultFiles(contentRootUnused);
-        createFile(contentRootUnused, "main.collection", "name: \"default\"\nscale_along_z: 0\n");
-        createFile(contentRootUnused, "unused.collection", "name: \"unused\"\nscale_along_z: 0\n");
-
-        Project project = new Project(new DefaultFileSystem(), contentRootUnused, "build");
-        project.setPublisher(new NullPublisher(new PublisherSettings()));
-
-        ClassLoaderScanner scanner = new ClassLoaderScanner();
-        project.scan(scanner, "com.dynamo.bob");
-        project.scan(scanner, "com.dynamo.bob.pipeline");
-
-        setProjectProperties(project);
-        project.setOption("keep-unused", "true");
-
-        List<TaskResult> result = project.build(new NullProgress(), "clean", "build");
-        for (TaskResult taskResult : result) {
-            assertTrue(taskResult.toString(), taskResult.isOk());
-        }
-
-        Set<byte[]> entries = readDarcEntries(contentRootUnused);
-
-        assertEquals(builtins_count + 2, entries.size());
-    }
-
-    @Test
     public void testCustomResourcesFile() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
         int numBuiltins = createDefaultFiles(contentRoot);
         createFile(contentRoot, "game.project", "[project]\ncustom_resources=m.txt\n[display]\nwidth=640\nheight=480\n");
