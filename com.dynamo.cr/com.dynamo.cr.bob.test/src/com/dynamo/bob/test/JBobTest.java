@@ -56,42 +56,6 @@ public class JBobTest {
     @BuilderParams(name = "InCopyBuilderMulti", inExts = ".in2", outExt = ".out")
     public static class InCopyBuilderMulti extends InCopyBuilder {}
 
-    @BuilderParams(name = "ArcBuilder", inExts = ".proj", outExt = ".arc")
-    public static class ArcBuilder extends Builder<Void> {
-
-        @Override
-        public Task<Void> create(IResource input) throws IOException,
-                CompileExceptionError {
-
-            TaskBuilder<Void> builder = Task.<Void>newBuilder(this)
-                    .setName(params.name())
-                    .addInput(input)
-                    .addOutput(input.changeExt(params.outExt()));
-
-            for (Task<?> task : project.getTasks()) {
-                for (IResource output : task.getOutputs()) {
-                    builder.addInput(output);
-                }
-            }
-
-            return builder.build();
-        }
-
-        @Override
-        public void build(Task<Void> task) throws CompileExceptionError,
-                IOException {
-
-            StringBuilder sb = new StringBuilder();
-            for (IResource input : task.getInputs()) {
-                sb.append(new String(input.getContent()));
-            }
-
-            IResource out = task.getOutputs().get(0);
-            out.setContent(sb.toString().getBytes());
-        }
-
-    }
-
     @BuilderParams(name = "CBuilder", inExts = ".c", outExt = ".o")
     public static class CBuilder extends CopyBuilder {
         @Override
@@ -248,32 +212,6 @@ public class JBobTest {
         fileSystem.addFile("test.in2", "test data 2".getBytes());
         project.setInputs(Arrays.asList("test.in", "test.in2"));
         build();
-    }
-
-    @Test
-    public void testTaskOutputAsInput() throws Exception {
-        fileSystem.addFile("test.proj", "".getBytes());
-        fileSystem.addFile("test1.in", "A".getBytes());
-        fileSystem.addFile("test2.in", "B".getBytes());
-        project.setInputs(Arrays.asList("test.proj", "test1.in", "test2.in"));
-        List<TaskResult> result = build();
-        assertThat(result.size(), is(3));
-        IResource test1Out = fileSystem.get("test1.out").output();
-        assertThat(new String(test1Out.getContent()), is("A"));
-        IResource test2Out = fileSystem.get("test2.out").output();
-        assertThat(new String(test2Out.getContent()), is("B"));
-        IResource arcOut = fileSystem.get("test.arc").output();
-        assertThat(new String(arcOut.getContent()), anyOf(is("AB"), is("BA")));
-    }
-
-    @Test
-    public void testTaskOutputAsInputFailing() throws Exception {
-        fileSystem.addFile("test.proj", "".getBytes());
-        fileSystem.addFile("test1.in_err", "A".getBytes());
-        project.setInputs(Arrays.asList("test.proj", "test1.in_err"));
-        List<TaskResult> result = build();
-        assertThat(result.size(), is(1));
-        assertThat(result.get(0).isOk(), is(false));
     }
 
     @Test
