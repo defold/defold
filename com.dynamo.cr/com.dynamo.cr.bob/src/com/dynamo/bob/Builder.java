@@ -59,7 +59,6 @@ public abstract class Builder<T> {
                 .setName(params.name())
                 .addInput(input)
                 .addOutput(input.changeExt(params.outExt()));
-        createSubTasks(input, taskBuilder);
         return taskBuilder.build();
     }
 

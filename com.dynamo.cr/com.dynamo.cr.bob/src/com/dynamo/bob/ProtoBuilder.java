@@ -71,7 +71,12 @@ public abstract class ProtoBuilder<B extends GeneratedMessageV3.Builder<B>> exte
 
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-        return defaultTask(input);
+        Task.TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
+                .setName(params.name())
+                .addInput(input)
+                .addOutput(input.changeExt(params.outExt()));
+        createSubTasks(input, taskBuilder);
+        return taskBuilder.build();
     }
 
     @SuppressWarnings("unchecked")
