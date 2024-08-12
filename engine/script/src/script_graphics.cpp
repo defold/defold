@@ -30,6 +30,15 @@ namespace dmScript
 {
     #define SCRIPT_LIB_NAME "graphics"
 
+    /*# Graphics API documentation
+     *
+     * Graphics functions and constants.
+     *
+     * @document
+     * @name Graphics
+     * @namespace graphics
+     */
+
     /*#
      * @name graphics.BUFFER_TYPE_COLOR0_BIT
      * @variable
