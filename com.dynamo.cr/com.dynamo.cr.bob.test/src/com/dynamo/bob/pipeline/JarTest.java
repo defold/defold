@@ -41,7 +41,7 @@ public class JarTest {
 
     private int bob(String command) throws IOException, InterruptedException, CompileExceptionError, URISyntaxException {
         String jarPath = "../com.dynamo.cr.bob/dist/bob.jar";
-        Process p = Runtime.getRuntime().exec(new String[] { "java", "-jar", jarPath, "-v", "-r", "test", "-i", ".", command });
+        Process p = Runtime.getRuntime().exec(new String[] { "java", "-jar", jarPath, "-v", "-r", "test/proj", "-i", ".", command });
         BufferedReader in = new BufferedReader(new InputStreamReader(p.getInputStream()));
         BufferedReader ein = new BufferedReader(new InputStreamReader(p.getErrorStream()));
         String line;
@@ -56,7 +56,7 @@ public class JarTest {
 
     private int bob(String[] commands, String outputMatch) throws IOException, InterruptedException, CompileExceptionError, URISyntaxException {
         String jarPath = "../com.dynamo.cr.bob/dist/bob.jar";
-        String[] bobArgs = new String[] { "java", "-jar", jarPath, "-v", "-r", "test", "-i", "."};
+        String[] bobArgs = new String[] { "java", "-jar", jarPath, "-v", "-r", "test/proj", "-i", "."};
         String[] allArgs = new String[bobArgs.length + commands.length];
         System.arraycopy(bobArgs, 0, allArgs, 0, bobArgs.length);
         System.arraycopy(commands, 0, allArgs, bobArgs.length, commands.length);
@@ -78,16 +78,16 @@ public class JarTest {
 
     @Test
     public void testBuild() throws Exception {
-        String[] outputs = new String[] {"atlas.texturec", "atlas.a.texturesetc", "simple_box_2bones_generated_0.animationsetc"};
+        String[] outputs = new String[] {"input/default.gamepadsc", "input/game.input_bindingc", "main/default.display_profilesc"};
         int result = bob("distclean");
         assertEquals(0, result);
         for (String output : outputs) {
-            assertFalse(new File("test/build/default/" + output).exists());
+            assertFalse(new File("test/proj/build/default/" + output).exists());
         }
         result = bob("build");
         assertEquals(0, result);
         for (String output : outputs) {
-            assertTrue(new File("test/build/default/" + output).exists());
+            assertTrue(new File("test/proj/build/default/" + output).exists());
         }
     }
 
@@ -105,7 +105,7 @@ public class JarTest {
     @Test
     public void testNonJarBuild() throws Exception {
         IFileSystem fs = new DefaultFileSystem();
-        String cwd = new File("test").getAbsolutePath();
+        String cwd = new File("test/proj").getAbsolutePath();
         Project p = new Project(fs, cwd, "build/default");
         p.setPublisher(new NullPublisher(new PublisherSettings()));
 
