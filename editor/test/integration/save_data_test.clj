@@ -675,7 +675,16 @@
                  :wrap-u :wrap-mode-clamp-to-edge
                  :wrap-v :wrap-mode-clamp-to-edge}]
                (g/node-value legacy-textures-material :samplers))))
-      #_(let [legacy-vertex-attribute-]))
+      (let [legacy-element-count-material (project/get-resource-node project "/silently_migrated/legacy_vertex_attribute_element_count.material")
+            legacy-attributes (g/node-value legacy-element-count-material :attributes)
+            filter-attribute-by-name (fn [attributes name]
+                                       (first (filterv #(= name (:name %)) attributes)))]
+        (is (= :vector-type-scalar (:vector-type (filter-attribute-by-name legacy-attributes "legacy_count_1"))))
+        (is (= :vector-type-vec2 (:vector-type (filter-attribute-by-name legacy-attributes "legacy_count_2"))))
+        (is (= :vector-type-vec3 (:vector-type (filter-attribute-by-name legacy-attributes "legacy_count_3"))))
+        (is (= :vector-type-vec4 (:vector-type (filter-attribute-by-name legacy-attributes "legacy_count_4"))))
+        (is (= :vector-type-mat3 (:vector-type (filter-attribute-by-name legacy-attributes "legacy_count_9"))))
+        (is (= :vector-type-mat4 (:vector-type (filter-attribute-by-name legacy-attributes "legacy_count_16"))))))
 
     (testing "render"
       (let [legacy-render-prototype (project/get-resource-node project "/silently_migrated/legacy_render_prototype.render")]

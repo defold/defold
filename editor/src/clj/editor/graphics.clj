@@ -320,9 +320,7 @@
   (let [valid-vector-type? (some? vector-type)
         valid-element-count? (pos-int? element-count)]
     (cond
-      ;; If we already have a vector type, we use that
       valid-vector-type? vector-type
-      ;; If we can derive it from the element count, we do that
       valid-element-count? (vtx/element-count+semantic-type->vector-type element-count semantic-type))))
 
 ;; TODO(save-value-cleanup): We only really need to sanitize the attributes if a resource type has :read-defaults true.
@@ -342,7 +340,7 @@
     ;; OneOf variant. Strip out the empty ones.
     ;; Once we update the protobuf loader, we shouldn't need to do this here.
     ;; We still want to remove the default empty :name-hash string, though.
-    (-> (if (some? attribute-vector-type)
+    (-> (if (and (some? attribute-vector-type) (not (= attribute-vector-type :vector-type-vec4)))
           (assoc attribute :vector-type attribute-vector-type)
           attribute)
         (dissoc :name-hash :double-values :long-values :binary-values)

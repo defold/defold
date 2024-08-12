@@ -201,11 +201,6 @@
               :this-one true}]
     (scene-cache/request-object! ::vb request-id gl data)))
 
-(defn- make-matrix-attribute-data [mesh-renderable-data ^Matrix4d mtx]
-  (let [vertex-count (count (:position-data mesh-renderable-data))
-        world-transform-array (math/vecmath->clj (doto ^Matrix4d mtx (.transpose)))]
-    (into [] (repeat vertex-count world-transform-array))))
-
 (defn- render-mesh-opaque-impl [^GL2 gl render-args renderable request-prefix override-shader override-vertex-description extra-render-args]
   (let [{:keys [node-id user-data ^Matrix4d world-transform]} renderable
         {:keys [material-attribute-infos mesh-renderable-data textures vertex-attribute-bytes]} user-data

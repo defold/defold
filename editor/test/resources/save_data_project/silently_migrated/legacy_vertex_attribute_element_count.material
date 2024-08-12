@@ -2,10 +2,58 @@ name: "legacy_vertex_attribute_element_count"
 vertex_program: ""
 fragment_program: ""
 attributes {
-  name: "legacy"
+  name: "legacy_count_1"
+  element_count: 1
+  double_values {
+    v: 1.0
+  }
+}
+attributes {
+  name: "legacy_count_2"
   element_count: 2
   double_values {
     v: 1.0
+    v: 0.0
+  }
+}
+attributes {
+  name: "legacy_count_3"
+  element_count: 3
+  double_values {
+    v: 1.0
+    v: 0.0
+    v: 0.0
+  }
+}
+attributes {
+  name: "legacy_count_4"
+  element_count: 4
+  double_values {
+    v: 1.0
+    v: 0.0
+    v: 0.0
+    v: 0.0
+  }
+}
+attributes {
+  name: "legacy_count_9"
+  semantic_type: SEMANTIC_TYPE_WORLD_MATRIX
+  element_count: 9
+  double_values {
+    v: 1.0
+    v: 0.0
+    v: 0.0
+    v: 0.0
+  }
+}
+attributes {
+  name: "legacy_count_16"
+  semantic_type: SEMANTIC_TYPE_WORLD_MATRIX
+  element_count: 16
+  double_values {
+    v: 1.0
+    v: 0.0
+    v: 0.0
     v: 0.0
   }
 }
