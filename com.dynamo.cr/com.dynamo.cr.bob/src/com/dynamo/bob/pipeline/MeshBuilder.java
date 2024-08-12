@@ -21,22 +21,19 @@ import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.ProtoBuilder;
+import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 
 import com.dynamo.gamesys.proto.MeshProto.MeshDesc;
 import com.google.protobuf.TextFormat;
 
+@ProtoParams(srcClass = MeshDesc.class, messageClass = MeshDesc.class)
 @BuilderParams(name="Mesh", inExts=".mesh", outExt=".meshc")
-public class MeshBuilder extends Builder<Void> {
-
-    @Override
-    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-        return defaultTask(input);
-    }
+public class MeshBuilder extends ProtoBuilder<MeshDesc.Builder> {
 
     @Override
     public void build(Task<Void> task) throws CompileExceptionError, IOException {

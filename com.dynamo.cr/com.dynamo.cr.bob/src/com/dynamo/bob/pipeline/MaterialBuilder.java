@@ -22,19 +22,19 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.List;
 
-import com.dynamo.bob.Builder;
-import com.dynamo.bob.BuilderParams;
-import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 
-import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.pipeline.ShaderUtil.Common;
 import com.dynamo.bob.pipeline.ShaderUtil.VariantTextureArrayFallback;
 import com.dynamo.bob.util.MurmurHash;
+import com.dynamo.bob.Task;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 import com.dynamo.graphics.proto.Graphics.VertexAttribute;
 import com.dynamo.render.proto.Material.MaterialDesc;
+import com.dynamo.bob.BuilderParams;
+import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.ProtoBuilder;
+import com.dynamo.bob.ProtoParams;
 
 // For tests
 import java.io.FileOutputStream;
@@ -47,7 +47,7 @@ import com.google.protobuf.TextFormat;
 
 @ProtoParams(srcClass = MaterialDesc.class, messageClass = MaterialDesc.class)
 @BuilderParams(name = "Material", inExts = {".material"}, outExt = ".materialc")
-public class MaterialBuilder extends Builder<Void>  {
+public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
 
     private static final String TextureArrayFilenameVariantFormat = "_max_pages_%d.%s";
 
@@ -215,11 +215,6 @@ public class MaterialBuilder extends Builder<Void>  {
         }
 
         materialBuilder.clearTextures();
-    }
-
-    @Override
-    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-        return defaultTask(input);
     }
 
     private static void buildVertexAttributes(MaterialDesc.Builder materialBuilder) throws CompileExceptionError {
