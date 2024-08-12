@@ -315,7 +315,7 @@
 
 ;; This function can return nil if element-count and vector-type is nil,
 ;; which happens for default values. This is only used for sanitation,
-;; so we shouldn't assign the default value here.
+;; so we shouldn't return the default value here.
 (defn- attribute-info->vector-type [{:keys [element-count semantic-type vector-type] :as attribute-info}]
   (let [valid-vector-type? (some? vector-type)
         valid-element-count? (pos-int? element-count)]

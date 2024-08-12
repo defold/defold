@@ -197,8 +197,7 @@
               :has-semantic-type-world-matrix has-semantic-type-world-matrix
               :has-semantic-type-normal-matrix has-semantic-type-normal-matrix
               :vertex-description vertex-description
-              :vertex-attribute-bytes vertex-attribute-bytes
-              :this-one true}]
+              :vertex-attribute-bytes vertex-attribute-bytes}]
     (scene-cache/request-object! ::vb request-id gl data)))
 
 (defn- render-mesh-opaque-impl [^GL2 gl render-args renderable request-prefix override-shader override-vertex-description extra-render-args]

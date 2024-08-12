@@ -594,12 +594,19 @@ namespace dmRender
     {
         if (step_function == dmGraphics::VERTEX_STEP_FUNCTION_VERTEX)
         {
-            return material->m_InstancingSupported ? material->m_VertexDeclarationPerVertex : material->m_VertexDeclarationShared;
+            if (material->m_InstancingSupported && material->m_VertexDeclarationPerVertex != 0)
+            {
+                return material->m_VertexDeclarationPerVertex;
+            }
+            return material->m_VertexDeclarationShared;
         }
-        else
+        else if (step_function == dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE)
         {
             return material->m_VertexDeclarationPerInstance;
         }
+        // We might add another step function at some point (like every x vertex, which OpenGL has support for)
+        assert(0 && "Step function not supported");
+        return 0;
     }
 
     HRenderContext GetMaterialRenderContext(HMaterial material)
