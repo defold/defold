@@ -309,7 +309,7 @@ public class ComponentsCounter {
         HashMap<String, Integer> mergedComponents = new HashMap<>();
         for (Map.Entry<String, Integer> entry : components.entrySet()) {
             // different input component names may have the same output name
-            // for example wav ans sound both are soundc
+            // for example wav and sound both are soundc
             String name = project.replaceExt("." + entry.getKey()).substring(1);
             if (mergedComponents.containsKey(name)) {
                 Integer mergedValue = mergedComponents.get(name);

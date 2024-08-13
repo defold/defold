@@ -95,7 +95,6 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
                 .addOutput(input.changeExt(ComponentsCounter.EXT_COL));
         CollectionDesc.Builder builder = CollectionDesc.newBuilder();
         ProtoUtil.merge(input, builder);
-        createSubTasks(builder, taskBuilder);
 
         Map<IResource, Integer> subCollections = new HashMap<>();
         collectSubCollections(builder, subCollections);
@@ -109,6 +108,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         for (InstanceDesc inst : builder.getInstancesList()) {
             InstanceDesc.Builder instBuilder = InstanceDesc.newBuilder(inst);
             List<ComponentPropertyDesc> sourceProperties = instBuilder.getComponentPropertiesList();
+            // resource properties
             for (ComponentPropertyDesc compProp : sourceProperties) {
                 Map<String, String> resources = PropertiesUtil.getPropertyDescResources(project, compProp.getPropertiesList());
                 for (Map.Entry<String, String> entry : resources.entrySet()) {
@@ -118,7 +118,12 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
 
             IResource res = project.getResource(inst.getPrototype());
             IResource compCounterInput = input.getResource(ComponentsCounter.replaceExt(res)).output();
-            compCounterInputsCount.put(compCounterInput, compCounterInputsCount.getOrDefault(compCounterInput, 0) + 1);
+            int count = compCounterInputsCount.getOrDefault(compCounterInput, 0);
+            // create only unique resources
+            if (count == 0) {
+                createSubTask(res, taskBuilder);
+            }
+            compCounterInputsCount.put(compCounterInput, count + 1);
         }
 
         Map<Long, IResource> uniqueResources = new HashMap<>();
