@@ -99,9 +99,10 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         Map<IResource, Integer> subCollections = new HashMap<>();
         collectSubCollections(builder, subCollections);
         for (IResource subCollection : subCollections.keySet()) {
-            taskBuilder.addInput(subCollection);
+//            taskBuilder.addInput(subCollection);
             IResource compCounterInput = input.getResource(ComponentsCounter.replaceExt(subCollection)).output();
-            taskBuilder.addInput(compCounterInput);
+//            taskBuilder.addInput(compCounterInput);
+            createSubTask(subCollection, taskBuilder);
             compCounterInputsCount.put(compCounterInput, subCollections.get(subCollection));
         }
 

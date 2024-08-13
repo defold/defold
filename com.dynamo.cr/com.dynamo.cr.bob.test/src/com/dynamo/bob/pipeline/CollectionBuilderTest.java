@@ -418,7 +418,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         src.append("}\n");
 
         List<Message> messages = build("/test.collection", src.toString());
-        Assert.assertEquals(2, messages.size());
+        Assert.assertEquals(3, messages.size());
 
         CollectionDesc collection = getMessage(messages, CollectionDesc.class);
         Assert.assertEquals(1, collection.getInstancesCount());
@@ -458,7 +458,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         addCollectionInstance(src, "sub", "/sub.collection", p, r, s);
         addEmbeddedInstance(src, "go", components, p, r, s);
         List<Message> messages = build("/test.collection", src.toString());
-        Assert.assertEquals(2, messages.size()); // 7 original, but 3 when merged
+        Assert.assertEquals(3, messages.size()); // 7 original, but 3 when merged
 
         CollectionDesc collection = getMessage(messages, CollectionDesc.class);
         Assert.assertEquals(3, collection.getInstancesCount());

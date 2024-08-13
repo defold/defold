@@ -93,7 +93,7 @@ def build(bld):
 
     # Build engine test content using bob
     # We always run distclean. Hook into waf clean/distclean in some way?
-    bob_command = 'java -jar ./build/content/bob-engine.jar -root ./src/test -k clean build %s' % bob_flags
+    bob_command = 'java -jar ./build/content/bob-engine.jar -root ./src/test clean build %s' % bob_flags
 
     bld(rule = run_bob,
         run_args = bob_command,
