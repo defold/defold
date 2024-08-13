@@ -649,7 +649,10 @@ public class Project {
     public List<IResource> getPropertyFilesAsResources() {
         List<IResource> resources = new ArrayList<>();
         for (String propertyFile : propertyFiles) {
-            resources.add(fileSystem.get(propertyFile));
+            Path rootDir = Paths.get(getRootDirectory()).normalize().toAbsolutePath();
+            Path settingsFile = Paths.get(propertyFile).normalize().toAbsolutePath();
+            Path relativePath = rootDir.relativize(settingsFile);
+            resources.add(fileSystem.get(relativePath.toString()));
         }
         return resources;
     }

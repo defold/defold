@@ -14,3 +14,25 @@ instances {
     w: 1.0
   }
 }
+embedded_instances {
+  id: "go"
+  data: "embedded_components {\n"
+  "  id: \"collectionproxy1\"\n"
+  "  type: \"collectionproxy\"\n"
+  "  data: \"collection: \\\"/render/drawcall.collection\\\"\\n"
+  "\"\n"
+  "}\n"
+  "embedded_components {\n"
+  "  id: \"collectionproxy2\"\n"
+  "  type: \"collectionproxy\"\n"
+  "  data: \"collection: \\\"/gui_render_crash/gui_render_crash.collection\\\"\\n"
+  "\"\n"
+  "}\n"
+  "embedded_components {\n"
+  "  id: \"collectionproxy3\"\n"
+  "  type: \"collectionproxy\"\n"
+  "  data: \"collection: \\\"/gui/material_script_functions.collection\\\"\\n"
+  "\"\n"
+  "}\n"
+  ""
+}
