@@ -534,6 +534,11 @@ namespace dmEngine
     {
         swap_interval = dmMath::Max(0, swap_interval);
         dmGraphics::SetSwapInterval(engine->m_GraphicsContext, swap_interval);
+
+        if (!dmGraphics::IsContextFeatureSupported(engine->m_GraphicsContext, dmGraphics::CONTEXT_FEATURE_VSYNC))
+        {
+            engine->m_UseSwVSync = swap_interval != 0;
+        }
     }
 
     static void SetUpdateFrequency(HEngine engine, uint32_t frequency)
@@ -939,6 +944,8 @@ namespace dmEngine
             dmLogFatal("Unable to create the graphics context.");
             return false;
         }
+
+        SetSwapInterval(engine, swap_interval);
 
         uint32_t physical_dpi = dmGraphics::GetDisplayDpi(engine->m_GraphicsContext);
         uint32_t physical_width = dmGraphics::GetWindowWidth(engine->m_GraphicsContext);
@@ -1563,6 +1570,8 @@ bail:
 
     static void StepFrame(HEngine engine, float dt)
     {
+        uint64_t frame_start = dmTime::GetTime();
+
         dmProfiler::SetUpdateFrequency((uint32_t)(1.0f / dt));
 
         if (dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, dmPlatform::WINDOW_STATE_ICONIFIED))
@@ -1795,6 +1804,24 @@ bail:
                     ext_params.m_L = dmScript::GetLuaState(engine->m_GOScriptContext);
                 }
                 dmExtension::PostRender(&ext_params);
+            }
+
+            if (engine->m_UseSwVSync && engine->m_UpdateFrequency > 0)
+            {
+                DM_PROFILE("SoftwareVsync");
+                uint64_t current = dmTime::GetTime();
+
+                float target_time = dt; // already pre calculated by CalcTimeStep
+                uint64_t elapsed = current - frame_start;
+                uint64_t remainder = uint64_t(target_time*1000000) - elapsed;
+
+                while (remainder > 500) // dont bother with less than 0.5ms
+                {
+                    uint64_t t1 = dmTime::GetTime();
+                    dmTime::Sleep(100); // sleep in chunks of 0.1ms
+                    uint64_t t2 = dmTime::GetTime();
+                    remainder -= (t2-t1);
+                }
             }
 
             dmGraphics::Flip(engine->m_GraphicsContext);
