@@ -18,7 +18,7 @@ import java.io.IOException;
 
 import com.google.protobuf.TextFormat;
 
-import com.dynamo.bob.Builder;
+import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Task;
@@ -37,11 +37,7 @@ import java.io.OutputStream;
 
 @ProtoParams(srcClass = ComputeDesc.class, messageClass = ComputeDesc.class)
 @BuilderParams(name = "Compute", inExts = {".compute"}, outExt = ".computec")
-public class ComputeBuilder extends Builder<Void>  {
-    @Override
-    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-        return defaultTask(input);
-    }
+public class ComputeBuilder extends ProtoBuilder<ComputeDesc.Builder> {
 
     private static void buildSamplers(ComputeDesc.Builder computeBuilder) throws CompileExceptionError {
         for (int i=0; i < computeBuilder.getSamplersCount(); i++) {
