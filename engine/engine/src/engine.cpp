@@ -951,12 +951,11 @@ namespace dmEngine
 #endif
 
         engine->m_FixedUpdateFrequency = dmConfigFile::GetInt(engine->m_Config, "engine.fixed_update_frequency", 60);
+        engine->m_MaxTimeStep = dmConfigFile::GetFloat(engine->m_Config, "engine.max_time_step", 0.5);
 
         dmGameSystem::OnWindowCreated(physical_width, physical_height);
 
-        engine->m_UpdateFrequency = dmConfigFile::GetInt(engine->m_Config, "display.update_frequency", 0);
-
-        SetUpdateFrequency(engine, engine->m_UpdateFrequency);
+        SetUpdateFrequency(engine, dmConfigFile::GetInt(engine->m_Config, "display.update_frequency", 0));
 
         const uint32_t max_resources = dmConfigFile::GetInt(engine->m_Config, dmResource::MAX_RESOURCES_KEY, 1024);
         dmResource::NewFactoryParams params;
@@ -1835,8 +1834,8 @@ bail:
         float frame_dt = (float)(frame_time / 1000000.0);
 
         // Never allow for large hitches
-        if (frame_dt > 0.5f) {
-            frame_dt = 0.5f;
+        if (frame_dt > engine->m_MaxTimeStep) {
+            frame_dt = engine->m_MaxTimeStep;
         }
 
         // Variable frame rate
