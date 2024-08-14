@@ -14,9 +14,11 @@
 
 (ns editor.pipeline
   (:require [clojure.java.io :as io]
+            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.build-target :as bt]
             [editor.fs :as fs]
+            [editor.graph-util :as gu]
             [editor.progress :as progress]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -186,8 +188,34 @@
 (def ^:private cheap-batch-size 500)
 (def ^:private expensive-batch-size 5)
 
+(defn decorate-build-exception [exception stage node-id resource-path evaluation-context]
+  (try
+    (let [{:keys [owner-resource-node-id node-debug-label-path] :as node-debug-info}
+          (gu/node-debug-info node-id evaluation-context)]
+
+      (ex-info (format "Failed to %s %s %s."
+                       (name stage)
+                       (if (= owner-resource-node-id node-id)
+                         "resource"
+                         "node")
+                       (string/join " -> "
+                                    (map #(str \' % \')
+                                         node-debug-label-path)))
+               node-debug-info
+               exception))
+    (catch Throwable error
+      (try
+        (if (coll/not-empty resource-path)
+          (ex-info (format "Failed for resource '%s'." resource-path)
+                   {:node-id node-id
+                    :stage stage
+                    :error error})
+          exception)
+        (catch Throwable _
+          exception)))))
+
 (defn build!
-  [flat-build-targets build-dir old-artifact-map render-progress!]
+  [flat-build-targets build-dir old-artifact-map evaluation-context render-progress!]
   (let [build-targets-by-content-hash (make-build-targets-by-content-hash flat-build-targets)
         pruned-old-artifact-map (prune-artifact-map old-artifact-map build-targets-by-content-hash)
         progress (atom (progress/make "" (count build-targets-by-content-hash)))]
@@ -205,6 +233,7 @@
                             message (str "Building " (resource/proj-path resource))]
                         (render-progress! (swap! progress progress/with-message message))
                         (let [result (or cached-artifact
+
                                          (let [dep-resources (make-dep-resources deps build-targets-by-content-hash)
                                                build-result (try
                                                               (build-fn resource dep-resources user-data)
@@ -213,7 +242,9 @@
                                                                   [(g/error-fatal
                                                                      (format "Failed to allocate memory while building '%s': %s."
                                                                              (resource/proj-path resource)
-                                                                             (.getMessage error)))])))]
+                                                                             (.getMessage error)))]))
+                                                              (catch Throwable error
+                                                                (throw (decorate-build-exception error :build node-id resource-path evaluation-context))))]
                                            ;; Error results are assumed to be error-aggregates.
                                            ;; We need to inject the node-id of the source build
                                            ;; target into the causes, since the build-fn will

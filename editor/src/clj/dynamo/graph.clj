@@ -928,6 +928,17 @@
                         :error value}))
        value))))
 
+(defn successful-node-value
+  "Like the node-value function, but returns nil if evaluation produced an
+  ErrorValue."
+  ([node-id label]
+   (with-auto-evaluation-context evaluation-context
+     (successful-node-value node-id label evaluation-context)))
+  ([node-id label evaluation-context]
+   (let [value (do-node-value node-id label evaluation-context)]
+     (when-not (error? value)
+       value))))
+
 (defn graph-value
   "Returns the graph from the system given a graph-id and key.  It returns the graph at the point in time of the bais, if provided.
   If the basis is not provided, it will take it from the current point of time in the system.

@@ -16,7 +16,11 @@
   (:require [clojure.set :as set]
             [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.core :as core]
+            [editor.outline :as outline]
             [editor.protobuf :as protobuf]
+            [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [internal.node :as in]
             [util.coll :as coll]))
 
@@ -45,6 +49,59 @@
           :when (contains? existing-source-output-labels source-output-label)]
       (g/connect source-node-id source-output-label target-node-id target-output-label))))
 
+(defn node-debug-label
+  ([node-id]
+   (g/with-auto-evaluation-context evaluation-context
+     (node-debug-label node-id evaluation-context)))
+  ([node-id {:keys [basis] :as evaluation-context}]
+   (let [node-type (g/node-type* basis node-id)]
+     (or (when (in/inherits? node-type resource/ResourceNode)
+           (let [resource (resource-node/resource basis node-id)]
+             (if (resource/memory-resource? resource)
+               (str "embedded." (resource/ext resource))
+               (resource/proj-path resource))))
+         (when (in/inherits? node-type outline/OutlineNode)
+           (coll/not-empty (:label (g/successful-node-value node-id :node-outline evaluation-context))))
+         (when (g/has-output? node-type :name)
+           (let [name (g/successful-node-value node-id :name evaluation-context)]
+             (when (string? name)
+               (coll/not-empty name))))
+         (when (g/has-output? node-type :id)
+           (let [id (g/successful-node-value node-id :id evaluation-context)]
+             (when (string? id)
+               (coll/not-empty id))))
+         (str (name (:k node-type)) \# node-id)))))
+
+(defn node-debug-label-path
+  ([node-id]
+   (g/with-auto-evaluation-context evaluation-context
+     (node-debug-label-path node-id evaluation-context)))
+  ([node-id {:keys [basis] :as evaluation-context}]
+   (let [graph-id (g/node-id->graph-id node-id)
+         project-node-id (g/graph-value basis graph-id :project-id)]
+     (->> node-id
+          (iterate #(core/owner-node-id basis %))
+          (take-while #(some-> % (not= project-node-id)))
+          (reverse)
+          (mapv #(node-debug-label % evaluation-context))))))
+
+(defn node-debug-info
+  ([node-id]
+   (g/with-auto-evaluation-context evaluation-context
+     (node-debug-info node-id evaluation-context)))
+  ([node-id {:keys [basis] :as evaluation-context}]
+   (let [node-type-kw (g/node-type-kw basis node-id)
+         node-debug-label-path (node-debug-label-path node-id evaluation-context)
+         owner-resource-node-id (try
+                                  (resource-node/owner-resource-node-id basis node-id)
+                                  (catch Exception _
+                                    nil))
+         owner-resource-node-type-kw (some->> owner-resource-node-id (g/node-type-kw basis))]
+     {:node-id node-id
+      :node-type-kw node-type-kw
+      :node-debug-label-path node-debug-label-path
+      :owner-resource-node-id owner-resource-node-id
+      :owner-resource-node-type-kw owner-resource-node-type-kw})))
 
 ;; -----------------------------------------------------------------------------
 ;; set-properties-from-pb-map macro

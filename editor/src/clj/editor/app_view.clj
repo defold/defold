@@ -903,6 +903,11 @@
 
       (format "This is caused by two or more resources referenced in a loop. One of the resources is: %s." resource-path))))
 
+(defn- ex-root-cause [exception]
+  (if-let [cause (ex-cause exception)]
+    (recur cause)
+    exception))
+
 (defn- build-project!
   [project evaluation-context extra-build-targets old-artifact-map render-progress!]
   (let [game-project (project/get-resource-node project "/game.project" evaluation-context)
@@ -911,7 +916,7 @@
       (ui/with-progress [render-progress! render-progress!]
         (build/build-project! project game-project evaluation-context extra-build-targets old-artifact-map render-progress!))
       (catch ExceptionInfo e
-        (if (= :cycle-detected (-> e ex-data :cause))
+        (if (= :cycle-detected (-> e ex-root-cause ex-data :cause))
           (ui/run-later
             (dialogs/make-info-dialog
               {:title "Build Error"
@@ -922,7 +927,7 @@
                          :text (get-cycle-detected-help-message (-> e ex-data :endpoint gt/endpoint-node-id))}}))
           (error-reporting/report-exception! e))
         {:error (g/map->error {:severity :fatal
-                               :message (or (when (= :cycle-detected (-> e ex-data :cause))
+                               :message (or (when (= :cycle-detected (-> e ex-root-cause ex-data :cause))
                                               (str "Cyclic resource dependency detected. " (get-cycle-detected-help-message (-> e ex-data :endpoint gt/endpoint-node-id))))
                                             (.getMessage e)
                                             (.getName (class e)))})})

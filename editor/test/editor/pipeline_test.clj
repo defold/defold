@@ -15,6 +15,7 @@
 (ns editor.pipeline-test
   (:require [clojure.java.io :as io]
             [clojure.test :refer :all]
+            [dynamo.graph :as g]
             [editor.build :as build]
             [editor.build-target :as bt]
             [editor.defold-project :as project]
@@ -92,10 +93,13 @@
     (String. "UTF-8")))
 
 (defn- pipeline-build! [project build-targets]
-  (let [workspace (project/workspace project)
-        old-artifact-map (workspace/artifact-map workspace)
-        flat-build-targets (build/resolve-dependencies build-targets project)
-        build-results (pipeline/build! flat-build-targets (workspace/build-path workspace) old-artifact-map progress/null-render-progress!)]
+  (let [[workspace build-results]
+        (g/with-auto-evaluation-context evaluation-context
+          (let [workspace (project/workspace project evaluation-context)
+                old-artifact-map (workspace/artifact-map workspace)
+                flat-build-targets (build/resolve-dependencies build-targets project evaluation-context)
+                build-results (pipeline/build! flat-build-targets (workspace/build-path workspace) old-artifact-map evaluation-context progress/null-render-progress!)]
+            [workspace build-results]))]
     (when-not (contains? build-results :error)
       (workspace/artifact-map! workspace (:artifact-map build-results))
       (workspace/etags! workspace (:etags build-results)))
