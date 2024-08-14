@@ -166,6 +166,7 @@ namespace dmEngine
         uint32_t                                    m_ClearColor;
         float                                       m_InvPhysicalWidth;
         float                                       m_InvPhysicalHeight;
+        float                                       m_MaxTimeStep;
 
         RecordData                                  m_RecordData;
     };
