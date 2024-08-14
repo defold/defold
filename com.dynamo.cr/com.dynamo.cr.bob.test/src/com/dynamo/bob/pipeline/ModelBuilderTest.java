@@ -39,22 +39,19 @@ public class ModelBuilderTest extends AbstractProtoBuilderTest {
         addFile("/test_meshset.dae", DAE);
         addFile("/test_skeleton.dae", DAE);
         addFile("/test_animationset.dae", DAE);
-        addFile("/test.material", "");
-        addFile("/testModelDae.vp", "");
-        addFile("/testModelDae.fp", "");
 
         StringBuilder srcShader = new StringBuilder();
         srcShader.append("void main() {}\n");
 
-        build("/testModelDae.vp", srcShader.toString());
-        build("/testModelDae.fp", srcShader.toString());
+        addFile("/testModelDae.vp", srcShader.toString());
+        addFile("/testModelDae.fp", srcShader.toString());
 
         StringBuilder src = new StringBuilder();
         src.append("name: \"test_material\"\n");
         src.append("vertex_program: \"/testModelDae.vp\"\n");
         src.append("fragment_program: \"/testModelDae.fp\"\n");
 
-        build("/test.material", src.toString());
+        addFile("/test.material", src.toString());
 
         src = new StringBuilder();
         src.append(" mesh: \"/test_meshset.dae\"");
@@ -89,22 +86,19 @@ public class ModelBuilderTest extends AbstractProtoBuilderTest {
         addFile("/test_meshset.gltf", GLTF);
         addFile("/test_skeleton.gltf", GLTF);
         addFile("/test_animation.gltf", GLTF);
-        addFile("/test.material", "");
-        addFile("/testModelGltf.vp", "");
-        addFile("/testModelGltf.fp", "");
 
         StringBuilder srcShader = new StringBuilder();
         srcShader.append("void main() {}\n");
 
-        build("/testModelGltf.vp", srcShader.toString());
-        build("/testModelGltf.fp", srcShader.toString());
+        addFile("/testModelGltf.vp", srcShader.toString());
+        addFile("/testModelGltf.fp", srcShader.toString());
 
         StringBuilder src = new StringBuilder();
         src.append("name: \"test_material\"\n");
         src.append("vertex_program: \"/testModelGltf.vp\"\n");
         src.append("fragment_program: \"/testModelGltf.fp\"\n");
 
-        build("/test.material", src.toString());
+        addFile("/test.material", src.toString());
 
         src = new StringBuilder();
         src.append(" mesh: \"/test_meshset.gltf\"");

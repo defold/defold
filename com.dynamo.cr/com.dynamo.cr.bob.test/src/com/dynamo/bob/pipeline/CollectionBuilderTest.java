@@ -593,9 +593,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         srcTest.append("  data: \"").append(StringEscapeUtils.escapeJava(goTestSrc.toString())).append("\"\n");
         srcTest.append("}\n");
 
-        List<Message> testColmsg = build("/test.collection", srcTest.toString());
         addFile("/factory.collection", srcTest.toString());
-        build("/factory.collection", srcTest.toString());
 
         StringBuilder collectionfactorySrc = new StringBuilder();
         collectionfactorySrc.append("prototype: \"/factory.collection\"\n");
@@ -655,7 +653,6 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         goTestSrc.append("  data: \"").append(StringEscapeUtils.escapeJava(spriteSrc.toString())).append("\"\n");
         goTestSrc.append("}\n");
 
-        List<Message> testColmsg = build("/go.go", goTestSrc.toString());
         addFile("/go.go", goTestSrc.toString());
 
         StringBuilder goFactorySrc = new StringBuilder();
@@ -720,7 +717,6 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         goTestSrc.append("  data: \"").append(StringEscapeUtils.escapeJava(spriteSrc.toString())).append("\"\n");
         goTestSrc.append("}\n");
 
-        List<Message> testColmsg = build("/go.go", goTestSrc.toString());
         addFile("/go.go", goTestSrc.toString());
 
         StringBuilder goFactorySrc = new StringBuilder();
@@ -738,7 +734,6 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         ComponentsCounter.Storage compStorage = ComponentsCounter.createStorage();
         compStorage.add("factoryc", 1);
         compStorage.add("sprite", ComponentsCounter.DYNAMIC_VALUE);
-        addFile(ComponentsCounter.replaceExt("/build/test1.go"), compStorage.toByteArray());
 
         StringBuilder src = new StringBuilder();
         src.append("name: \"main\"\n");
@@ -791,7 +786,6 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         goTestSrc.append("  data: \"").append(StringEscapeUtils.escapeJava(spriteSrc.toString())).append("\"\n");
         goTestSrc.append("}\n");
 
-        List<Message> testColmsg = build("/go.go", goTestSrc.toString());
         addFile("/go.go", goTestSrc.toString());
 
         StringBuilder goFactorySrc = new StringBuilder();
@@ -855,9 +849,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         subCol.append("  data: \"").append(StringEscapeUtils.escapeJava(goTestSrc.toString())).append("\"\n");
         subCol.append("}\n");
 
-        List<Message> testColmsg = build("/subCol.collection", subCol.toString());
         addFile("/subCol.collection", subCol.toString());
-        build("/subCol.collection", subCol.toString());
 
         Point3d p = new Point3d(1.0, 0.0, 0.0);
         Quat4d r = new Quat4d();
@@ -868,9 +860,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         col.append("name: \"factory_col\"\n");
         addCollectionInstance(col, "subCol", "/subCol.collection", p, r, s);
 
-        List<Message> colMsg = build("/factory.collection", col.toString());
         addFile("/factory.collection", col.toString());
-        build("/factory.collection", col.toString());
 
         StringBuilder collectionfactorySrc = new StringBuilder();
         collectionfactorySrc.append("prototype: \"/factory.collection\"\n");
