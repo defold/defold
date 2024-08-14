@@ -85,15 +85,6 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
             createGeneratedResources(project, subCollectionBuilder, uniqueResources, allResources);
         }
     }
-    private Task<?> createTask(IResource input, IResource genResource) throws CompileExceptionError {
-        Task<?> embedTask = project.createTask(genResource);
-        if (embedTask == null) {
-            throw new CompileExceptionError(input,
-                    0,
-                    String.format("Failed to create build task for '%s'", genResource.getPath()));
-        }
-        return embedTask;
-    }
 
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
@@ -104,44 +95,28 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
                 .addOutput(input.changeExt(ComponentsCounter.EXT_COL));
         CollectionDesc.Builder builder = CollectionDesc.newBuilder();
         ProtoUtil.merge(input, builder);
+        createSubTasks(builder, taskBuilder);
 
         Map<IResource, Integer> subCollections = new HashMap<>();
         collectSubCollections(builder, subCollections);
         for (IResource subCollection : subCollections.keySet()) {
-            createTask(input, subCollection);
-            taskBuilder.addInput(subCollection);
             IResource compCounterInput = input.getResource(ComponentsCounter.replaceExt(subCollection)).output();
-            taskBuilder.addInput(compCounterInput);
-//            createSubTask(subCollection, taskBuilder);
-            compCounterInputsCount.put(compCounterInput, subCollections.get(subCollection));
+            compCounterInputsCount.put(compCounterInput, 1);
         }
 
         for (InstanceDesc inst : builder.getInstancesList()) {
             InstanceDesc.Builder instBuilder = InstanceDesc.newBuilder(inst);
-//            createSubTask(instBuilder.getPrototype(), "GameObject", taskBuilder);
-            createTask(input, project.getResource(inst.getPrototype()));
             List<ComponentPropertyDesc> sourceProperties = instBuilder.getComponentPropertiesList();
-            // resource properties
             for (ComponentPropertyDesc compProp : sourceProperties) {
                 Map<String, String> resources = PropertiesUtil.getPropertyDescResources(project, compProp.getPropertiesList());
-//                for (Map.Entry<String, String> entry : resources.entrySet()) {
-//                    createSubTask(entry.getValue(), entry.getKey(), taskBuilder);
-//                }
-                for(String r : resources.values()) {
-                    IResource resource = BuilderUtil.checkResource(project, input, "resource", r);
-                    createTask(input, resource);
+                for (Map.Entry<String, String> entry : resources.entrySet()) {
+                    createSubTask(entry.getValue(), entry.getKey(), taskBuilder);
                 }
             }
 
             IResource res = project.getResource(inst.getPrototype());
             IResource compCounterInput = input.getResource(ComponentsCounter.replaceExt(res)).output();
-            int count = compCounterInputsCount.getOrDefault(compCounterInput, 0);
-            taskBuilder.addInput(compCounterInput);
-            // create only unique resources
-//            if (count == 0) {
-//                createSubTask(res, taskBuilder);
-//            }
-            compCounterInputsCount.put(compCounterInput, count + 1);
+            compCounterInputsCount.put(compCounterInput, 1);
         }
 
         Map<Long, IResource> uniqueResources = new HashMap<>();
@@ -151,11 +126,10 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         List<Task<?>> embedTasks = new ArrayList<>();
         for (long hash : uniqueResources.keySet()) {
             IResource genResource = uniqueResources.get(hash);
-//            Task<?> embedTask = createSubTask(genResource, taskBuilder);
-            Task<?> embedTask = createTask(input, genResource);
+            Task<?> embedTask = createSubTask(genResource, taskBuilder);
             embedTasks.add(embedTask);
         }
-        
+
         for (IResource genResource : allResources.values()) {
             Task<?> embedTask = project.createTask(genResource);
             // if embeded objects have factories, they should be in input for our collection

@@ -83,6 +83,11 @@ public abstract class Builder<T> {
      */
     protected Task<?> createSubTask(IResource input, Task.TaskBuilder<?> builder) throws CompileExceptionError {
         Task<?> subTask = project.createTask(input);
+        if (subTask == null) {
+            throw new CompileExceptionError(input,
+                    0,
+                    String.format("Failed to create build task for '%s'", input.getPath()));
+        }
         builder.addInputsFromOutputs(subTask);
         return subTask;
     }

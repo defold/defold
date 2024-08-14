@@ -905,6 +905,78 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
     }
 
     /**
+     * Test component counter fot sub colections
+     * Structure:
+     * - subCol [collection]
+     *   - child [emb_instance]
+     *     - sprite
+     * - subCol2 [collection]
+     *   - child [emb_instance]
+     *     - sprite
+     * @throws Exception
+     */
+    @Test
+    public void testSubCollectionCounter() throws Exception {
+        Point3d p = new Point3d(1.0, 0.0, 0.0);
+        Quat4d r = new Quat4d();
+        r.set(new AxisAngle4d(new Vector3d(0, 1, 0), Math.PI * 0.5));
+        double s = 0.5;
+
+        addFile("/test.atlas", "");
+        addFile("build/test.a.texturesetc", "DUMMY_DATA");
+
+        StringBuilder spriteSrc = new StringBuilder();
+        spriteSrc.append("tile_set: \"/test.atlas\"\n");
+        spriteSrc.append("default_animation: \"\"\n");
+        spriteSrc.append("material: \"\"\n");
+
+        StringBuilder goTestSrc = new StringBuilder();
+        goTestSrc.append("embedded_components {\n");
+        goTestSrc.append("  id: \"sprite\"\n");
+        goTestSrc.append("  type: \"sprite\"\n");
+        goTestSrc.append("  data: \"").append(StringEscapeUtils.escapeJava(spriteSrc.toString())).append("\"\n");
+        goTestSrc.append("}\n");
+
+        StringBuilder subCol = new StringBuilder();
+        subCol.append("name: \"sub_col\"\n");
+        subCol.append("embedded_instances {\n");
+        subCol.append("  id: \"go\"\n");
+        subCol.append("  data: \"").append(StringEscapeUtils.escapeJava(goTestSrc.toString())).append("\"\n");
+        subCol.append("}\n");
+
+        addFile("/subCol.collection", subCol.toString());
+
+        StringBuilder col = new StringBuilder();
+        col.append("name: \"test_col\"\n");
+        addCollectionInstance(col, "subCol", "/subCol.collection", p, r, s);
+        addCollectionInstance(col, "subCol2", "/subCol.collection", p, r, s);
+
+        List<Message> messages = build("/test.collection", col.toString());
+
+        Assert.assertEquals(7, messages.size());
+
+        CollectionDesc collection = getMessage(messages, CollectionDesc.class);
+        Assert.assertEquals(2, collection.getInstancesCount());
+        Assert.assertEquals(0, collection.getCollectionInstancesCount());
+        Assert.assertEquals(0, collection.getEmbeddedInstancesCount());
+
+        Map<String, InstanceDesc> instances = new HashMap<String, InstanceDesc>();
+        for (InstanceDesc inst : collection.getInstancesList()) {
+            instances.put(inst.getId(), inst);
+        }
+        assertTrue(instances.containsKey("/subCol/go"));
+        assertTrue(instances.containsKey("/subCol2/go"));
+
+        List<ComponenTypeDesc> types = collection.getComponentTypesList();
+        Assert.assertEquals(1, types.size());
+        for (ComponenTypeDesc type: types) {
+            if (type.getNameHash() == MurmurHash.hash64("spritec")) {
+                Assert.assertEquals(2, type.getMaxCount());
+            }
+        }
+    }
+
+    /**
      * Test that the objects in the collection sorted according to its transform hierarhy
      * Structure:
      * - go "0"
