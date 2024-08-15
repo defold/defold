@@ -895,7 +895,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
     }
 
     /**
-     * Test component counter fot sub colections
+     * Test component counter for sub collections
      * Structure:
      * - subCol [collection]
      *   - child [emb_instance]
