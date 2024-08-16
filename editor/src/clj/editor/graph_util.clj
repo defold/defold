@@ -61,15 +61,13 @@
                (str "embedded." (resource/ext resource))
                (resource/proj-path resource))))
          (when (in/inherits? node-type outline/OutlineNode)
-           (coll/not-empty (:label (g/successful-node-value node-id :node-outline evaluation-context))))
-         (when (g/has-output? node-type :name)
-           (let [name (g/successful-node-value node-id :name evaluation-context)]
-             (when (string? name)
-               (coll/not-empty name))))
-         (when (g/has-output? node-type :id)
-           (let [id (g/successful-node-value node-id :id evaluation-context)]
-             (when (string? id)
-               (coll/not-empty id))))
+           (coll/not-empty (:label (g/maybe-node-value node-id :node-outline evaluation-context))))
+         (let [name (g/maybe-node-value node-id :name evaluation-context)]
+           (when (string? name)
+             (coll/not-empty name)))
+         (let [id (g/maybe-node-value node-id :id evaluation-context)]
+           (when (string? id)
+             (coll/not-empty id)))
          (str (name (:k node-type)) \# node-id)))))
 
 (defn node-debug-label-path

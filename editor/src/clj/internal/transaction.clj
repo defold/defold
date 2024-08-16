@@ -625,7 +625,7 @@
       (let [;; Fetch the node value by either evaluating (value ...) for the property or looking in the node map
             ;; The context is intentionally bare, i.e. only :basis, for this reason
             evaluation-context (in/custom-evaluation-context {:basis basis :tx-data-context (:tx-data-context ctx)})
-            old-value (in/node-property-value* node property evaluation-context)
+            old-value (in/node-property-value node property evaluation-context)
             new-value (if inject-evaluation-context
                         (apply fn evaluation-context old-value args)
                         (apply fn old-value args))
