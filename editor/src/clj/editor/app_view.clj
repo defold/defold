@@ -55,6 +55,7 @@
             [editor.live-update-settings :as live-update-settings]
             [editor.lsp :as lsp]
             [editor.lua :as lua]
+            [editor.pipeline :as pipeline]
             [editor.pipeline.bob :as bob]
             [editor.prefs :as prefs]
             [editor.prefs-dialog :as prefs-dialog]
@@ -96,6 +97,7 @@
            [java.net URL]
            [java.nio.charset StandardCharsets]
            [java.util Collection List]
+           [java.util.concurrent ExecutionException]
            [javafx.beans.value ChangeListener]
            [javafx.collections ListChangeListener ObservableList]
            [javafx.event Event]
@@ -915,26 +917,41 @@
     (try
       (ui/with-progress [render-progress! render-progress!]
         (build/build-project! project game-project evaluation-context extra-build-targets old-artifact-map render-progress!))
-      (catch ExceptionInfo e
-        (if (= :cycle-detected (-> e ex-root-cause ex-data :cause))
-          (ui/run-later
-            (dialogs/make-info-dialog
-              {:title "Build Error"
-               :icon :icon/triangle-error
-               :header "Cyclic resource dependency detected"
-               :content {:fx/type fxui/label
-                         :style-class "dialog-content-padding"
-                         :text (get-cycle-detected-help-message (-> e ex-data :endpoint gt/endpoint-node-id))}}))
-          (error-reporting/report-exception! e))
-        {:error (g/map->error {:severity :fatal
-                               :message (or (when (= :cycle-detected (-> e ex-root-cause ex-data :cause))
-                                              (str "Cyclic resource dependency detected. " (get-cycle-detected-help-message (-> e ex-data :endpoint gt/endpoint-node-id))))
-                                            (.getMessage e)
-                                            (.getName (class e)))})})
       (catch Throwable error
-        (error-reporting/report-exception! error)
-        {:error (g/map->error {:severity :fatal
-                               :message (or (.getMessage error) (.getName (class error)))})}))))
+        (let [error (if (instance? ExecutionException error)
+                      (ex-cause error)
+                      error)
+              cause-ex-data (-> error ex-root-cause ex-data)
+              is-cyclic-resource-dependency-error (= :cycle-detected (:ex-type cause-ex-data))]
+          (if is-cyclic-resource-dependency-error
+            (ui/run-later
+              (dialogs/make-info-dialog
+                {:title "Build Error"
+                 :icon :icon/triangle-error
+                 :header "Cyclic resource dependency detected"
+                 :content {:fx/type fxui/label
+                           :style-class "dialog-content-padding"
+                           :text (get-cycle-detected-help-message (-> cause-ex-data :endpoint gt/endpoint-node-id))}}))
+            (error-reporting/report-exception! error))
+          {:error (cond
+                    is-cyclic-resource-dependency-error
+                    {:severity :fatal
+                     :message (str "Cyclic resource dependency detected. " (get-cycle-detected-help-message (-> cause-ex-data :endpoint gt/endpoint-node-id)))}
+
+                    (pipeline/decorated-build-exception? error)
+                    (let [{:keys [node-id owner-resource-node-id]} (ex-data error)]
+                      (g/map->error {:_node-id owner-resource-node-id
+                                     :severity :fatal
+                                     :causes [{:_node-id node-id
+                                               :severity :fatal
+                                               :message (str (ex-message error)
+                                                             \newline
+                                                             (ex-message (ex-cause error)))}]}))
+
+                    :else
+                    {:severity :fatal
+                     :message (or (ex-message error)
+                                  (.getName (class error)))})})))))
 
 (defn async-build!
   "Asynchronously build the project and notify the :result-fn with results

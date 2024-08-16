@@ -1428,7 +1428,7 @@
 (defn- update-in-production [in-production endpoint]
   (if (contains? in-production endpoint)
     (throw (ex-info "Cycle detected on node"
-                    {:cause :cycle-detected
+                    {:ex-type :cycle-detected
                      :endpoint endpoint
                      :in-production in-production}))
     (conj in-production endpoint)))

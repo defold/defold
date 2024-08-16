@@ -95,7 +95,10 @@
                                     (g/map->error {:_node-id (build-target :node-id)
                                                    :_label :build-targets
                                                    :severity :fatal
-                                                   :message (str "Dependency cycle detected: " (string/join " -> " cycle))}))
+                                                   :message (format "Dependency cycle detected: %s."
+                                                                    (string/join " -> "
+                                                                                 (map #(str \' % \')
+                                                                                      cycle)))}))
                                   (let [deps (build-target :deps)
                                         dynamic-deps (build-target :dynamic-deps)
                                         resolved-deps

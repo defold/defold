@@ -22,6 +22,7 @@
             [editor.progress :as progress]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
             [util.coll :as coll :refer [pair]]
             [util.digest :as digest])
@@ -188,11 +189,10 @@
 (def ^:private cheap-batch-size 500)
 (def ^:private expensive-batch-size 5)
 
-(defn decorate-build-exception [exception stage node-id resource-path evaluation-context]
+(defn decorate-build-exception [exception stage node-id resource-path {:keys [basis] :as evaluation-context}]
   (try
     (let [{:keys [owner-resource-node-id node-debug-label-path] :as node-debug-info}
           (gu/node-debug-info node-id evaluation-context)]
-
       (ex-info (format "Failed to %s %s %s."
                        (name stage)
                        (if (= owner-resource-node-id node-id)
@@ -201,18 +201,29 @@
                        (string/join " -> "
                                     (map #(str \' % \')
                                          node-debug-label-path)))
-               node-debug-info
+               (assoc node-debug-info
+                 :ex-type ::decorated-build-exception
+                 :node-id node-id
+                 :proj-path (or (some->> owner-resource-node-id
+                                         (resource-node/as-resource basis)
+                                         (resource/proj-path))
+                                resource-path))
                exception))
     (catch Throwable error
       (try
         (if (coll/not-empty resource-path)
           (ex-info (format "Failed for resource '%s'." resource-path)
                    {:node-id node-id
+                    :proj-path resource-path
                     :stage stage
-                    :error error})
+                    :error error}
+                   exception)
           exception)
         (catch Throwable _
           exception)))))
+
+(defn decorated-build-exception? [exception]
+  (= ::decorated-build-exception (:ex-type (ex-data exception))))
 
 (defn build!
   [flat-build-targets build-dir old-artifact-map evaluation-context render-progress!]
@@ -230,10 +241,9 @@
                             cached-artifact (when-some [artifact (get pruned-old-artifact-map resource-path)]
                                               (when (valid? resource artifact)
                                                 (assoc artifact :resource resource)))
-                            message (str "Building " (resource/proj-path resource))]
+                            message (str "Building " resource-path)]
                         (render-progress! (swap! progress progress/with-message message))
                         (let [result (or cached-artifact
-
                                          (let [dep-resources (make-dep-resources deps build-targets-by-content-hash)
                                                build-result (try
                                                               (build-fn resource dep-resources user-data)
@@ -241,7 +251,7 @@
                                                                 (g/error-aggregate
                                                                   [(g/error-fatal
                                                                      (format "Failed to allocate memory while building '%s': %s."
-                                                                             (resource/proj-path resource)
+                                                                             resource-path
                                                                              (.getMessage error)))]))
                                                               (catch Throwable error
                                                                 (throw (decorate-build-exception error :build node-id resource-path evaluation-context))))]

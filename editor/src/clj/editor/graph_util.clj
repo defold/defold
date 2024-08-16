@@ -95,8 +95,7 @@
                                   (catch Exception _
                                     nil))
          owner-resource-node-type-kw (some->> owner-resource-node-id (g/node-type-kw basis))]
-     {:node-id node-id
-      :node-type-kw node-type-kw
+     {:node-type-kw node-type-kw
       :node-debug-label-path node-debug-label-path
       :owner-resource-node-id owner-resource-node-id
       :owner-resource-node-type-kw owner-resource-node-type-kw})))
