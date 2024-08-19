@@ -436,11 +436,11 @@
 
 (defn unsupported-platform-error [platform]
   (ex-info (str "Unsupported platform " platform)
-           {:type ::unsupported-platform-error
+           {:ex-type ::unsupported-platform-error
             :platform platform}))
 
 (defn unsupported-platform-error? [exception]
-  (= ::unsupported-platform-error (:type (ex-data exception))))
+  (= ::unsupported-platform-error (:ex-type (ex-data exception))))
 
 (defn unsupported-platform-error-causes [project evaluation-context]
   [(g/map->error
@@ -450,12 +450,12 @@
 
 (defn missing-resource-error [prop-name referenced-proj-path referencing-node-id]
   (ex-info (format "%s '%s' could not be found" prop-name referenced-proj-path)
-           {:type ::missing-resource-error
+           {:ex-type ::missing-resource-error
             :node-id referencing-node-id
             :proj-path referenced-proj-path}))
 
 (defn- missing-resource-error? [exception]
-  (= ::missing-resource-error (:type (ex-data exception))))
+  (= ::missing-resource-error (:ex-type (ex-data exception))))
 
 (defn- missing-resource-error-causes [^Throwable exception]
   [(g/map->error
@@ -464,10 +464,10 @@
       :severity :fatal})])
 
 (defn build-error [message log]
-  (ex-info message {:type ::build-error :log log}))
+  (ex-info message {:ex-type ::build-error :log log}))
 
 (defn build-error? [exception]
-  (= ::build-error (:type (ex-data exception))))
+  (= ::build-error (:ex-type (ex-data exception))))
 
 (defn- build-error-causes [project evaluation-context exception]
   (let [log (:log (ex-data exception))

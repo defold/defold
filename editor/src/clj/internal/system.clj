@@ -385,15 +385,6 @@
                   (update :cache c/cache-encache safe-cache-misses (:basis evaluation-context))))))
     system))
 
-(defn node-value
-  "Get a value, possibly cached, from a node. This is the entry point
-  to the \"plumbing\". If the value is cacheable and exists in the
-  cache, then return that value. Otherwise, produce the value by
-  gathering inputs to call a production function, invoke the function,
-  maybe cache the value that was produced, and return it."
-  [system node-id label evaluation-context]
-  (in/node-value node-id label evaluation-context))
-
 (defn user-data [system node-id key]
   (let [graph-id (gt/node-id->graph-id node-id)]
     (get-in (:user-data system) [graph-id node-id key])))
