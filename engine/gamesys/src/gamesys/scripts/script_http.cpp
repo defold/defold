@@ -87,6 +87,8 @@ namespace dmGameSystem
      * - [type:table] `headers`: all the returned headers
      * - [type:string] `path`: the stored path (if saved to disc)
      * - [type:string] `error`: if any unforeseen errors occurred (e.g. file I/O)
+     * - [type:number] `bytes_received`: the amount of bytes received/sent for a request, only if option `report_progress` is true
+     * - [type:number] `bytes_total`: the total amount of bytes for a request, only if option `report_progress` is true
      *
      * @param [headers] [type:table] optional table with custom headers
      * @param [post_data] [type:string] optional data to send
@@ -96,6 +98,7 @@ namespace dmGameSystem
      * - [type:string] `path`: path on disc where to download the file. Only overwrites the path if status is 200. [icon:attention] Path should be absolute
      * - [type:boolean] `ignore_cache`: don't return cached data if we get a 304. [icon:attention] Not available in HTML5 build
      * - [type:boolean] `chunked_transfer`: use chunked transfer encoding for https requests larger than 16kb. Defaults to true. [icon:attention] Not available in HTML5 build
+     * - [type:boolean] `report_progress`: when it is true, the amount of bytes sent and/or received for a request will be passed into the callback function
      *
      *
      * @examples
@@ -105,13 +108,17 @@ namespace dmGameSystem
      *
      * ```lua
      * local function http_result(self, _, response)
-     *     print(response.status)
-     *     print(response.response)
-     *     pprint(response.headers)
+     *     if response.bytes_total ~= nil then
+     *         update_my_progress_bar(self, response.bytes_received / response.bytes_total)
+     *     else
+     *         print(response.status)
+     *         print(response.response)
+     *         pprint(response.headers)
+     *     end
      * end
      *
      * function init(self)
-     *     http.request("http://www.google.com", "GET", http_result)
+     *     http.request("http://www.google.com", "GET", http_result, nil, nil, { report_progress = true })
      * end
      * ```
      */

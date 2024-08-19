@@ -57,8 +57,8 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
     }
 
     static public class ShaderCompileResult {
-        ArrayList<ShaderBuildResult> shaderBuildResults;
-        SPIRVReflector reflector;
+        public ArrayList<ShaderBuildResult> shaderBuildResults;
+        public SPIRVReflector               reflector;
     }
 
     @Override
