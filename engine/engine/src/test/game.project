@@ -16,7 +16,7 @@ max_count = 17
 max_count = 1
 
 [display]
-update_frequency = 30
+update_frequency = 0
 
 [physics]
 update_frequency = 0
