@@ -1821,7 +1821,10 @@ bail:
                     uint64_t t1 = dmTime::GetTime();
                     dmTime::Sleep(100); // sleep in chunks of 0.1ms
                     uint64_t t2 = dmTime::GetTime();
-                    remainder -= (t2-t1);
+                    uint64_t slept = t2 - t1;
+                    if (slept >= remainder)
+                        break;
+                    remainder -= slept;
                 }
             }
 
