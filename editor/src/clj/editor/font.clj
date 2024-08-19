@@ -553,10 +553,10 @@
         {:resource resource
          :content (protobuf/map->bytes Font$GlyphBank compressed-font-map)}))))
 
-(defn- make-glyph-bank-build-target [node-id glyph-bank-build-resource user-data]
+(defn- make-glyph-bank-build-target [workspace node-id user-data]
   (bt/with-content-hash
     {:node-id node-id
-     :resource glyph-bank-build-resource
+     :resource (workspace/make-placeholder-build-resource workspace "glyph_bank")
      :build-fn build-glyph-bank
      :user-data user-data}))
 
@@ -569,14 +569,11 @@
       (let [workspace (resource/workspace resource)
             glyph-bank-pb-fields (protobuf/field-key-set Font$GlyphBank)
             glyph-bank-user-data {:font-map (select-keys font-map glyph-bank-pb-fields)}
-            glyph-bank-resource-type (workspace/get-resource-type workspace "glyph_bank")
-            glyph-bank-resource (resource/make-memory-resource workspace glyph-bank-resource-type glyph-bank-user-data)
-            glyph-bank-build-resource (workspace/make-build-resource glyph-bank-resource)
-            glyph-bank-build-target (make-glyph-bank-build-target _node-id glyph-bank-build-resource glyph-bank-user-data)
+            glyph-bank-build-target (make-glyph-bank-build-target workspace _node-id glyph-bank-user-data)
             dep-build-targets+glyph-bank (conj dep-build-targets glyph-bank-build-target)
             pb-map (protobuf/make-map-without-defaults Font$FontMap
                      :material material
-                     :glyph-bank glyph-bank-resource
+                     :glyph-bank (:resource glyph-bank-build-target)
                      :shadow-x (:shadow-x font-map)
                      :shadow-y (:shadow-y font-map)
                      :alpha (:alpha font-map)

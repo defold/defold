@@ -72,7 +72,7 @@
             dep-build-targets [component-source-build-target] ; The build-target of the referenced .wav file.
             sound-desc (protobuf/make-map-without-defaults Sound$SoundDesc
                          :sound (resource/proj-path source-resource))
-            sound-desc-resource (sound/make-sound-desc-memory-resource workspace sound-desc dep-build-targets)]
+            sound-desc-resource (workspace/make-placeholder-resource workspace "sound")]
         (sound/make-sound-desc-build-target _node-id sound-desc-resource sound-desc dep-build-targets)))))
 
 (defn- source-outline-subst [err]
@@ -154,9 +154,8 @@
                 build-resource (:resource build-target) ; The wrap-if-raw-sound call might have changed this.
                 proj-path->resource-property-build-target (bt/make-proj-path->build-target resource-property-build-targets)
                 component-instance-data (game-object-common/referenced-component-instance-data build-resource ddf-message pose proj-path->resource-property-build-target)]
-            [(bt/with-content-hash
-               (assoc build-target
-                 :component-instance-data component-instance-data))])))))
+            [(assoc build-target
+               :component-instance-data component-instance-data)])))))
 
 (g/defnk produce-embedded-component-build-targets [_node-id ddf-message pose source-build-targets]
   ;; Create a build-target for the embedded component. Also tag on
@@ -166,12 +165,10 @@
   (if-some [errors (not-empty (keep :error (:properties ddf-message)))]
     (g/error-aggregate errors :_node-id _node-id :_label :build-targets)
     (when-some [source-build-target (first source-build-targets)]
-      (let [build-resource (bt/make-content-hash-build-resource source-build-target)
+      (let [build-resource (:resource source-build-target)
             component-instance-data (game-object-common/embedded-component-instance-data build-resource ddf-message pose)]
-        [(bt/with-content-hash
-           (assoc source-build-target
-             :resource build-resource
-             :component-instance-data component-instance-data))]))))
+        [(assoc source-build-target
+           :component-instance-data component-instance-data)]))))
 
 (g/defnode ComponentNode
   (inherits scene/SceneNode)
@@ -377,14 +374,13 @@
 (g/defnk produce-build-targets [_node-id resource dep-build-targets id-counts]
   (or (let [dup-ids (keep (fn [[id count]] (when (> count 1) id)) id-counts)]
         (game-object-common/maybe-duplicate-id-error _node-id dup-ids))
-      (let [build-resource (workspace/make-build-resource resource)
-            component-instance-build-targets (flatten dep-build-targets)
+      (let [component-instance-build-targets (flatten dep-build-targets)
             component-instance-datas (mapv :component-instance-data component-instance-build-targets)
             component-build-targets (into []
                                           (comp (map #(dissoc % :component-instance-data))
                                                 (util/distinct-by (comp resource/proj-path :resource)))
                                           component-instance-build-targets)]
-        [(game-object-common/game-object-build-target build-resource _node-id component-instance-datas component-build-targets)])))
+        [(game-object-common/game-object-build-target resource _node-id component-instance-datas component-build-targets)])))
 
 (g/defnk produce-scene [_node-id child-scenes]
   (game-object-common/game-object-scene _node-id child-scenes))

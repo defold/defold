@@ -199,9 +199,8 @@
   (or (path-error _node-id source-resource)
       (component-property-error _node-id ddf-message)
       (let [game-object-build-target (first source-build-targets)
-            build-resource (:resource game-object-build-target)
             proj-path->resource-property-build-target (bt/make-proj-path->build-target resource-property-build-targets)]
-        [(collection-common/game-object-instance-build-target build-resource ddf-message pose game-object-build-target proj-path->resource-property-build-target)])))
+        [(collection-common/game-object-instance-build-target game-object-build-target ddf-message pose proj-path->resource-property-build-target)])))
 
 (g/defnk produce-embedded-go-build-targets [_node-id ddf-message resource-property-build-targets source-build-targets pose]
   ;; Create a build-target for the embedded game object. Also tag on
@@ -214,11 +213,9 @@
   ;; `game_object.clj`, since it is similar but less complicated there.
   (or (component-property-error _node-id ddf-message)
       (let [game-object-build-target (first source-build-targets)
-            build-resource (bt/make-content-hash-build-resource game-object-build-target)
-            build-target (assoc game-object-build-target :resource build-resource)
             proj-path->resource-property-build-target (bt/make-proj-path->build-target resource-property-build-targets)
             instance-desc-with-go-props (dissoc ddf-message :data)] ; GameObject$EmbeddedInstanceDesc in map format. We don't need the :data field.
-        [(collection-common/game-object-instance-build-target build-resource instance-desc-with-go-props pose build-target proj-path->resource-property-build-target)])))
+        [(collection-common/game-object-instance-build-target game-object-build-target instance-desc-with-go-props pose proj-path->resource-property-build-target)])))
 
 (g/defnode GameObjectInstanceNode
   (inherits scene/SceneNode)

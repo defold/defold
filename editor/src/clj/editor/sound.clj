@@ -149,16 +149,6 @@
   {:pre [(map? sound-desc)]} ; Sound$SoundDesc in map format.
   (pipeline/make-protobuf-build-target owner-resource-node-id sound-desc-resource Sound$SoundDesc sound-desc dep-build-targets))
 
-(defn make-sound-desc-memory-resource [workspace sound-desc dep-build-targets]
-  ;; We need the content-hash from the resulting build-target for the data
-  ;; field when constructing our MemoryResource. We can safely supply a dummy
-  ;; MemoryResource as the source-resource for the throwaway build-target since
-  ;; it will not affect the content-hash.
-  (let [dummy-memory-resource (workspace/make-embedded-resource workspace :editable "sound" nil)
-        build-target (make-sound-desc-build-target workspace dummy-memory-resource sound-desc dep-build-targets)
-        content-hash (:content-hash build-target)]
-    (workspace/make-embedded-resource workspace :editable "sound" content-hash)))
-
 (g/defnk produce-build-targets
   [_node-id resource sound dep-build-targets save-value]
   (or (validation/prop-error :fatal _node-id :sound validation/prop-nil? sound "Sound")
