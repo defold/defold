@@ -34,7 +34,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         addTestFiles();
     }
 
-    private final String vp =
+    public static final String vp =
             "attribute vec4 position; \n" +
             "varying vec4 fragColor; \n" +
             "uniform vec4 color; \n" +
@@ -53,7 +53,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             "   gl_Position = position; \n" +
             "}\n";
 
-    private final String fp =
+    public static final String fp =
             "varying vec4 fragColor; \n" +
             "void main(){ \n" +
             "gl_FragColor = fragColor; \n" +

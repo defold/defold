@@ -39,7 +39,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.Enumeration;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -509,79 +508,14 @@ public class Project {
         }
     }
 
-    private List<String> sortInputs() {
-        ArrayList<String> sortedInputs = new ArrayList<String>(inputs);
-        Collections.sort(sortedInputs, new Comparator<String>() {
-
-            @Override
-            public int compare(String i1, String i2) {
-                Class<? extends Builder<?>> b1 = getBuilderFromExtension(i1);
-                Class<? extends Builder<?>> b2 = getBuilderFromExtension(i2);
-
-                BuilderParams p1 = b1.getAnnotation(BuilderParams.class);
-                BuilderParams p2 = b2.getAnnotation(BuilderParams.class);
-
-                return p1.createOrder() - p2.createOrder();
-            }
-        });
-        return sortedInputs;
-    }
-
-    /*
-        The same logic implemented in the Editor.
-        If you change something here, make sure you change it in resource.clj
-        (defignore-pred).
-    */
-    private void loadIgnoredFilesAndFolders() throws CompileExceptionError {
-        String excludeFoldersStr = this.option("exclude-build-folder", "");
-        List<String> excludeFolders = BundleHelper.createArrayFromString(excludeFoldersStr);
-        excluedFilesAndFoldersEntries.addAll(excludeFolders);
-        List<String> defIgnoreEntries = new ArrayList<String>();
-        final File defIgnoreFile = new File(getRootDirectory(), ".defignore");
-        if (defIgnoreFile.isFile()) {
-            try {
-                defIgnoreEntries = FileUtils.readLines(defIgnoreFile, "UTF-8")
-                        .stream()
-                        .filter(s -> !s.isEmpty())
-                        .collect(Collectors.toList());
-            }
-            catch(IOException e) {
-                throw new CompileExceptionError("Unable to read .defignore", e);
-            }
-        }
-        excluedFilesAndFoldersEntries.addAll(defIgnoreEntries);
-        // remove initial "/" from excluded folder names
-        for(int i = 0; i < excluedFilesAndFoldersEntries.size(); i++) {
-            String entry = excluedFilesAndFoldersEntries.get(i);
-            if (entry.startsWith("/")) {
-                excluedFilesAndFoldersEntries.set(i, entry.substring(1));
-            }
-        }
-    }
-
     private void createTasks() throws CompileExceptionError {
         tasks = new HashMap<String, Task<?>>();
-        List<String> sortedInputs = sortInputs(); // from findSources
-
-        // To currently know the output resources, we need to parse the main.collectionc
-        // We would need to alter that to get a correct behavior (e.g. using GameProjectBuilder.findResources(this, rootNode))
-
-        // create tasks for inputs that are not excluded
-        for (String input : sortedInputs) {
-            boolean skipped = false;
-            // Ignore for resources.
-            // Check comment for loadIgnoredFilesAndFolders()
-            for (String excludeEntry : excluedFilesAndFoldersEntries) {
-                if (input.startsWith(excludeEntry)) {
-                    skipped = true;
-                    break;
-                }
-            }
-            if (!skipped) {
-                Class<? extends Builder<?>> builderClass = getBuilderFromExtension(input);
-                if (!ignoreTaskAutoCreation.contains(builderClass)) {
-                    Task<?> task = createTask(input, builderClass);
-                }
+        if(this.inputs == null || this.inputs.isEmpty()) {
+            createTask(getGameProjectResource());
+        }
+        else {
+            for (String input : this.inputs) {
+                createTask(getResource(input));
             }
         }
     }
@@ -599,7 +533,7 @@ public class Project {
             IResource publisherSettings = this.fileSystem.get(settingsPath);
             if (!publisherSettings.exists()) {
                 if (shouldPublish) {
-                    IResource gameProject = this.fileSystem.get("/game.project");
+                    IResource gameProject = getGameProjectResource();
                     throw new CompileExceptionError(gameProject, 0, "There is no liveupdate.settings file specified in game.project or the file is missing from disk.");
                 } else {
                     this.publisher = new NullPublisher(new PublisherSettings());
@@ -715,7 +649,10 @@ public class Project {
     public List<IResource> getPropertyFilesAsResources() {
         List<IResource> resources = new ArrayList<>();
         for (String propertyFile : propertyFiles) {
-            resources.add(fileSystem.get(propertyFile));
+            Path rootDir = Paths.get(getRootDirectory()).normalize().toAbsolutePath();
+            Path settingsFile = Paths.get(propertyFile).normalize().toAbsolutePath();
+            Path relativePath = rootDir.relativize(settingsFile);
+            resources.add(fileSystem.get(relativePath.toString()));
         }
         return resources;
     }
@@ -1547,7 +1484,6 @@ public class Project {
         TimeProfiler.start("Create tasks");
         BundleHelper.throwIfCanceled(monitor);
         configurePreBuildProjectOptions();
-        pruneSources();
         createTasks();
         validateBuildResourceMapping();
         TimeProfiler.addData("TasksCount", tasks.size());
@@ -1659,7 +1595,6 @@ public class Project {
             switch (command) {
                 case "build": {
                     ExtenderUtil.checkProjectForDuplicates(this); // Throws if there are duplicate files in the project (i.e. library and local files conflict)
-                    loadIgnoredFilesAndFolders(); // load once before building to be able to use it in a few places
                     final String[] platforms = getPlatformStrings();
                     Future<Void> remoteBuildFuture = null;
                     // Get or build engine binary
@@ -2224,44 +2159,6 @@ run:
             }
             return super.handleDirectory(path, results);
         }
-    }
-
-    /**
-     * Find source files under the root directory
-     * @param path path to begin in. Absolute or relative to root-directory
-     * @param skipDirs
-     * @throws IOException
-     */
-    public void findSources(String path, Set<String> skipDirs) throws IOException {
-        if (new File(path).isAbsolute()) {
-            path = normalizeNoEndSeparator(path, true);
-            if (path.startsWith(rootDirectory)) {
-                path = path.substring(rootDirectory.length());
-            } else {
-                throw new FileNotFoundException(String.format("the source '%s' must be located under the root '%s'", path, rootDirectory));
-            }
-        }
-        String absolutePath = normalizeNoEndSeparator(FilenameUtils.concat(rootDirectory, path), true);
-        if (!new File(absolutePath).exists()) {
-            throw new FileNotFoundException(String.format("the path '%s' can not be found under the root '%s'", path, rootDirectory));
-        }
-        Walker walker = new Walker(skipDirs);
-        List<String> results = new ArrayList<String>(1024);
-        fileSystem.walk(path, walker, results);
-        inputs = results;
-    }
-
-    private void pruneSources() {
-        List<String> results = new ArrayList<>();
-        for (String path : inputs) {
-            String ext = "." + FilenameUtils.getExtension(path);
-            Class<? extends Builder<?>> builderClass = extToBuilder.get(ext);
-            if (builderClass != null)
-            {
-                results.add(path);
-            }
-        }
-        inputs = results;
     }
 
     public IResource getResource(String path) {

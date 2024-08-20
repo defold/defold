@@ -336,62 +336,6 @@ public class ProtoBuilders {
     @BuilderParams(name="SpriteDesc", inExts=".sprite", outExt=".spritec")
     public static class SpriteDescBuilder extends ProtoBuilder<SpriteDesc.Builder>
     {
-        List<String> getImageResources(SpriteDesc.Builder builder) {
-            List<String> textures = new ArrayList<>();
-
-            for (SpriteTexture texture : builder.getTexturesList()) {
-                String t = texture.getTexture();
-                if (!t.isEmpty())
-                {
-                    textures.add(t);
-                }
-            }
-
-            // Deprecated
-            if (textures.isEmpty()) {
-                String t = builder.getTileSet();
-                if (!t.isEmpty()) {
-                    textures.add(t);
-                }
-            }
-            return textures;
-        }
-
-        @Override
-        public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-
-            Task.TaskBuilder<Void> task = Task.<Void>newBuilder(this)
-                .setName(params.name())
-                .addInput(input)
-                .addOutput(input.changeExt(params.outExt()));
-
-            SpriteDesc.Builder spriteBuilder = SpriteDesc.newBuilder();
-            ProtoUtil.merge(input, spriteBuilder);
-
-            // Material input is optional in the protobuf description
-            String material = spriteBuilder.getMaterial();
-            if (!material.isEmpty())
-            {
-                IResource materialOutput = project.getResource(material).changeExt(".materialc");
-                task.addInput(materialOutput);
-            }
-
-            List<String> images = getImageResources(spriteBuilder);
-            for (String atlas : images) {
-                String extension = null;
-                try {
-                    extension = getTextureSetExt(atlas);
-                } catch (Exception e) {
-                    throw new CompileExceptionError(input, -1, e.getMessage(), e);
-                }
-
-                IResource atlasOutput = project.getResource(atlas).changeExt(extension);
-                task.addInput(atlasOutput);
-            }
-
-            return task.build();
-        }
-
         @Override
         protected SpriteDesc.Builder transform(Task<Void> task, IResource resource, SpriteDesc.Builder messageBuilder)
                 throws IOException, CompileExceptionError {
@@ -484,37 +428,6 @@ public class ProtoBuilders {
     @ProtoParams(srcClass = ParticleFX.class, messageClass = ParticleFX.class)
     @BuilderParams(name="ParticleFX", inExts=".particlefx", outExt=".particlefxc")
     public static class ParticleFXBuilder extends ProtoBuilder<ParticleFX.Builder> {
-        @Override
-        public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-
-            Task.TaskBuilder<Void> task = Task.<Void>newBuilder(this)
-                .setName(params.name())
-                .addInput(input)
-                .addOutput(input.changeExt(params.outExt()));
-
-            ParticleFX.Builder particleFxBuilder = ParticleFX.newBuilder();
-            ProtoUtil.merge(input, particleFxBuilder);
-
-            for (int i = 0; i < particleFxBuilder.getEmittersCount(); ++i) {
-                Emitter emitter            = particleFxBuilder.getEmitters(i);
-                String tileSource          = emitter.getTileSource();
-                String extension = null;
-                try {
-                    extension = getTextureSetExt(tileSource);
-                } catch (Exception e) {
-                    throw new CompileExceptionError(input, -1, e.getMessage(), e);
-                }
-
-                IResource tileSourceOutput = project.getResource(tileSource).changeExt(extension);
-                IResource materialOutput   = project.getResource(emitter.getMaterial()).changeExt(".materialc");
-
-                task.addInput(tileSourceOutput);
-                task.addInput(materialOutput);
-            }
-
-            return task.build();
-        }
-
         @Override
         protected ParticleFX.Builder transform(Task<Void> task, IResource resource, ParticleFX.Builder messageBuilder)
                 throws IOException, CompileExceptionError {

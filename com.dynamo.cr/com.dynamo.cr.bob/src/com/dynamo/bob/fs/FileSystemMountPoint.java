@@ -86,6 +86,11 @@ public class FileSystemMountPoint implements IMountPoint {
         }
 
         @Override
+        public byte[] sha1(boolean allowCached) throws IOException {
+            return resource.sha1(allowCached);
+        }
+
+        @Override
         public boolean exists() {
             return resource.exists();
         }

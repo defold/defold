@@ -46,16 +46,6 @@ public @interface BuilderParams {
     String[] inExts();
 
     /**
-     * Task creating order. A task with create-order X
-     * is guaranteed to be created after every task with create-order Y
-     * and where X > Y
-     * The create-order can be used for task that collect inputs from
-     * task outputs
-     * @return create order
-     */
-    int createOrder() default 0;
-
-    /**
      * Get bool that shows if tasks should be created automaticly
      * for all files using this builder. 
      * @return if task should be ignored

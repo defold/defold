@@ -125,8 +125,7 @@ public abstract class LuaBuilder extends Builder<Void> {
         long finalLuaHash = MurmurHash.hash64(scanner.getParsedLua());
         taskBuilder.addExtraCacheKey(Long.toString(finalLuaHash));
 
-        List<LuaScanner.Property> properties = scanner.getProperties();
-        for (LuaScanner.Property property : properties) {
+        for (LuaScanner.Property property : scanner.getProperties()) {
 
             if (property.isResource) {
                 String value = (String) property.value;
@@ -139,10 +138,13 @@ public abstract class LuaBuilder extends Builder<Void> {
                     throw new IOException(String.format("Resource '%s' referenced from script resource property '%s' does not exist", value, property.name));
                 }
 
-                IResource resource = BuilderUtil.checkResource(this.project, input, property.name + " resource", value);
-                taskBuilder.addInput(resource);
-                PropertiesUtil.createResourcePropertyTasks(this.project, resource, input);
+                createSubTask(value, property.name, taskBuilder);
             }
+        }
+
+        for (String module : scanner.getModules()) {
+            String module_file = String.format("/%s.lua", module.replaceAll("\\.", "/"));
+            createSubTask(module_file, "Lua module", taskBuilder);
         }
 
         return taskBuilder.build();

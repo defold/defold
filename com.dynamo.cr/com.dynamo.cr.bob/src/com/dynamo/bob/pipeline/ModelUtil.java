@@ -70,16 +70,15 @@ public class ModelUtil {
 
         Scene scene = ModelImporter.LoadFromBuffer(options, path, content, dataResolver);
 
+        if (scene == null)
+            return null;
+
         for (ModelImporter.Buffer buffer : scene.buffers)
         {
             if (buffer.buffer == null)
                 throw new IOException(String.format("Failed to load buffer '%s' for file '%s", buffer.uri, path));
         }
-
-        if (scene != null)
-            return loadInternal(scene, options);
-
-        return scene;
+        return loadInternal(scene, options);
     }
 
     public static Scene loadScene(InputStream stream, String path, Options options, ModelImporter.DataResolver dataResolver) throws IOException {

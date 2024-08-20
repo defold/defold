@@ -175,6 +175,16 @@ public abstract class AbstractProtoBuilderTest {
         return messages;
     }
 
+    protected <T extends Message> T getMessage(List<Message> messages, Class<T> type) {
+        for (int i = messages.size() - 1; i >= 0; i--) {
+            Message message = messages.get(i);
+            if (type.isInstance(message)) {
+                return type.cast(message);
+            }
+        }
+        return null;
+    }
+
     protected byte[] getFile(String file) throws IOException {
         return this.fileSystem.get(file).getContent();
     }

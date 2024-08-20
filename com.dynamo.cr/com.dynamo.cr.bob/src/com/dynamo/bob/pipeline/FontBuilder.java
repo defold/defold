@@ -37,18 +37,17 @@ public class FontBuilder extends Builder<Void>  {
         ProtoUtil.merge(input, fontDescbuilder);
         FontDesc fontDesc = fontDescbuilder.build();
 
-        Task<?> embedTask = this.project.createTask(input, GlyphBankBuilder.class);
-
         Task.TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
                 .setName(params.name())
                 .addInput(input)
                 .addInput(input.getResource(fontDesc.getFont()))
                 .addOutput(input.changeExt(params.outExt()));
 
-        taskBuilder.addInput(embedTask.getOutputs().get(0));
+        Task<?> glyphBankTask = createSubTask(input, GlyphBankBuilder.class, taskBuilder);
+        createSubTask(fontDesc.getMaterial(),"material", taskBuilder);
 
         Task<Void> task = taskBuilder.build();
-        embedTask.setProductOf(task);
+        glyphBankTask.setProductOf(task);
         return task;
     }
 

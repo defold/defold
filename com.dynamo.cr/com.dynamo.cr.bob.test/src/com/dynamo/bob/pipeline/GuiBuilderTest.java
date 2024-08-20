@@ -84,11 +84,12 @@ public class GuiBuilderTest extends AbstractProtoBuilderTest {
 
     private static StringBuilder createGui() {
         StringBuilder src = new StringBuilder();
+        src.append("material: \"\"");
         return src;
     }
 
     private Gui.SceneDesc buildGui(StringBuilder src, String path) throws Exception {
-        return (Gui.SceneDesc)build(path, src.toString()).get(0);
+        return getMessage(build(path, src.toString()), Gui.SceneDesc.class);
     }
 
     private static void startBoxNode(StringBuilder src, String id, String parent) {

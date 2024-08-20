@@ -16,8 +16,16 @@ package com.dynamo.bob;
 
 import java.io.IOException;
 import java.security.MessageDigest;
+import java.util.List;
 
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.pipeline.BuilderUtil;
+import com.dynamo.bob.pipeline.ProtoUtil;
+import com.dynamo.proto.DdfExtensions;
+import com.google.protobuf.DescriptorProtos;
+import com.google.protobuf.Descriptors;
+import com.google.protobuf.GeneratedMessageV3;
+import com.google.protobuf.MessageOrBuilder;
 
 /**
  * Abstract builder class. Extend this class to create a builder
@@ -46,13 +54,94 @@ public abstract class Builder<T> {
      * @param input input resource
      * @return new task with single input/output
      */
-    protected Task<T> defaultTask(IResource input) {
-        Task<T> task = Task.<T>newBuilder(this)
+    protected Task<T> defaultTask(IResource input) throws CompileExceptionError, IOException {
+        Task.TaskBuilder<T> taskBuilder = Task.<T>newBuilder(this)
                 .setName(params.name())
                 .addInput(input)
-                .addOutput(input.changeExt(params.outExt()))
-                .build();
-        return task;
+                .addOutput(input.changeExt(params.outExt()));
+        return taskBuilder.build();
+    }
+
+    /**
+     * Create a task whose outputs will be added to the current task's inputs.
+     * @param input input resource
+     * @param builderClass class to build resource with
+     * @param builder current task builder
+     * @return new subtask with single input/output
+     */
+    protected Task<?> createSubTask(IResource input, Class<? extends Builder<?>> builderClass, Task.TaskBuilder<?> builder) throws CompileExceptionError {
+        Task<?> subTask = project.createTask(input, builderClass);
+        builder.addInputsFromOutputs(subTask);
+        return subTask;
+    }
+
+    /**
+     * Create a task whose outputs will be added to the current task's inputs.
+     * @param input input resource
+     * @param builder current task builder
+     * @return new subtask with single input/output
+     */
+    protected Task<?> createSubTask(IResource input, Task.TaskBuilder<?> builder) throws CompileExceptionError {
+        Task<?> subTask = project.createTask(input);
+        if (subTask == null) {
+            throw new CompileExceptionError(input,
+                    0,
+                    String.format("Failed to create build task for '%s'", input.getPath()));
+        }
+        builder.addInputsFromOutputs(subTask);
+        return subTask;
+    }
+
+    /**
+     * Create a task whose outputs will be added to the current task's inputs.
+     * @param inputPath input path to resource
+     * @param field where specified path to the resource
+     * @param builder current task builder
+     * @return new subtask with single input/output
+     */
+    protected Task<?> createSubTask(String inputPath, String field, Task.TaskBuilder<?> builder) throws CompileExceptionError {
+        IResource res = BuilderUtil.checkResource(project, builder.firstInput(), field, inputPath);
+        Task<?> subTask = project.createTask(res);
+        builder.addInputsFromOutputs(subTask);
+        return subTask;
+    }
+
+    protected void createSubTasks(MessageOrBuilder builder, Task.TaskBuilder<T> taskBuilder) throws CompileExceptionError {
+        List<Descriptors.FieldDescriptor> fields = builder.getDescriptorForType().getFields();
+        for (Descriptors.FieldDescriptor fieldDescriptor : fields) {
+            DescriptorProtos.FieldOptions options = fieldDescriptor.getOptions();
+            Descriptors.FieldDescriptor resourceDesc = DdfExtensions.resource.getDescriptor();
+            boolean isResource = (Boolean) options.getField(resourceDesc);
+            Object value = builder.getField(fieldDescriptor);
+            if (value instanceof List) {
+                @SuppressWarnings("unchecked")
+                List<Object> list = (List<Object>) value;
+                for (Object v : list) {
+                    if (isResource && v instanceof String) {
+                        createSubTask((String) v, fieldDescriptor.getName(), taskBuilder);
+                    } else if (v instanceof MessageOrBuilder) {
+                        createSubTasks((MessageOrBuilder) v, taskBuilder);
+                    }
+                }
+            } else if (isResource && value instanceof String) {
+                boolean isOptional = fieldDescriptor.isOptional();
+                String resValue =  (String) value;
+                // We don't require optional fields to be filled
+                // if such a field has no value - just ignore it
+                if (isOptional && resValue.isEmpty()) {
+                    continue;
+                }
+                createSubTask(resValue, fieldDescriptor.getName(), taskBuilder);
+            } else if (value instanceof MessageOrBuilder) {
+                createSubTasks((MessageOrBuilder) value, taskBuilder);
+            }
+        }
+    }
+
+    protected void createSubTasks(IResource input, Task.TaskBuilder<T> taskBuilder) throws CompileExceptionError, IOException {
+        GeneratedMessageV3.Builder builder = ProtoBuilder.newBuilder(params.outExt());
+        ProtoUtil.merge(input, builder);
+        createSubTasks(builder, taskBuilder);
     }
 
     /**

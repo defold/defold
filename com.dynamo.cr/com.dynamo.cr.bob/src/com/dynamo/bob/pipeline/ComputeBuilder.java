@@ -18,15 +18,12 @@ import java.io.IOException;
 
 import com.google.protobuf.TextFormat;
 
-import com.dynamo.bob.Bob;
-import com.dynamo.bob.Builder;
+import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Task;
-import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.ProtoParams;
-import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.render.proto.Compute.ComputeDesc;
 import com.dynamo.render.proto.Material.MaterialDesc;
 
@@ -40,35 +37,7 @@ import java.io.OutputStream;
 
 @ProtoParams(srcClass = ComputeDesc.class, messageClass = ComputeDesc.class)
 @BuilderParams(name = "Compute", inExts = {".compute"}, outExt = ".computec")
-public class ComputeBuilder extends Builder<Void>  {
-    @Override
-    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-        TaskBuilder<Void> task = Task.<Void> newBuilder(this)
-                .setName(params.name())
-                .addInput(input)
-                .addOutput(input.changeExt(params.outExt()));
-
-        ComputeDesc.Builder computeBuilder = ComputeDesc.newBuilder();
-        ProtoUtil.merge(input, computeBuilder);
-
-        IResource computeProgramresource = this.project.getResource(computeBuilder.getComputeProgram()).changeExt(".cpc");
-        task.addInput(computeProgramresource);
-
-        for (MaterialDesc.Sampler sampler : computeBuilder.getSamplersList()) {
-            String texture = sampler.getTexture();
-            if (texture.isEmpty()) {
-                continue;
-            }
-
-            IResource res = BuilderUtil.checkResource(this.project, input, "texture", texture);
-            Task<?> embedTask = this.project.createTask(res);
-            if (embedTask == null) {
-                throw new CompileExceptionError(input, 0, String.format("Failed to create build task for component '%s'", res.getPath()));
-            }
-        }
-
-        return task.build();
-    }
+public class ComputeBuilder extends ProtoBuilder<ComputeDesc.Builder> {
 
     private static void buildSamplers(ComputeDesc.Builder computeBuilder) throws CompileExceptionError {
         for (int i=0; i < computeBuilder.getSamplersCount(); i++) {

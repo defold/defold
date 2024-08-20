@@ -40,7 +40,7 @@ public class GameObjectBuilderTest extends AbstractProtoBuilderTest {
         src.append("  properties { id: \"quat\" value: \"8, 9, 10, 11\" type: PROPERTY_TYPE_QUAT }\n");
         src.append("  properties { id: \"bool\" value: \"true\" type: PROPERTY_TYPE_BOOLEAN }\n");
         src.append("}\n");
-        PrototypeDesc prototype = (PrototypeDesc)build("/test.go", src.toString()).get(0);
+        PrototypeDesc prototype = getMessage(build("/test.go", src.toString()), PrototypeDesc.class);
         for (ComponentDesc cd : prototype.getComponentsList()) {
             PropertyDeclarations properties = cd.getPropertyDecls();
             PropertiesTestUtil.assertNumber(properties, 1, 0);

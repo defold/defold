@@ -26,20 +26,16 @@ import java.io.IOException;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import org.apache.commons.io.FilenameUtils;
-import org.apache.commons.lang3.StringUtils;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
 import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
-import com.dynamo.bob.CommandBuilder;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.CopyBuilder;
 import com.dynamo.bob.MultipleCompileException;
@@ -60,42 +56,6 @@ public class JBobTest {
     @BuilderParams(name = "InCopyBuilderMulti", inExts = ".in2", outExt = ".out")
     public static class InCopyBuilderMulti extends InCopyBuilder {}
 
-    @BuilderParams(name = "ArcBuilder", inExts = ".proj", outExt = ".arc", createOrder = 1000)
-    public static class ArcBuilder extends Builder<Void> {
-
-        @Override
-        public Task<Void> create(IResource input) throws IOException,
-                CompileExceptionError {
-
-            TaskBuilder<Void> builder = Task.<Void>newBuilder(this)
-                    .setName(params.name())
-                    .addInput(input)
-                    .addOutput(input.changeExt(params.outExt()));
-
-            for (Task<?> task : project.getTasks()) {
-                for (IResource output : task.getOutputs()) {
-                    builder.addInput(output);
-                }
-            }
-
-            return builder.build();
-        }
-
-        @Override
-        public void build(Task<Void> task) throws CompileExceptionError,
-                IOException {
-
-            StringBuilder sb = new StringBuilder();
-            for (IResource input : task.getInputs()) {
-                sb.append(new String(input.getContent()));
-            }
-
-            IResource out = task.getOutputs().get(0);
-            out.setContent(sb.toString().getBytes());
-        }
-
-    }
-
     @BuilderParams(name = "CBuilder", inExts = ".c", outExt = ".o")
     public static class CBuilder extends CopyBuilder {
         @Override
@@ -114,7 +74,7 @@ public class JBobTest {
     @BuilderParams(name = "FailingBuilder", inExts = ".in_err", outExt = ".out_err")
     public static class FailingBuilder extends Builder<Void> {
         @Override
-        public Task<Void> create(IResource input) {
+        public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
             return defaultTask(input);
         }
 
@@ -182,7 +142,7 @@ public class JBobTest {
     @BuilderParams(name = "NumberBuilder", inExts = ".number", outExt = ".numberc")
     public static class NumberBuilder extends Builder<Void> {
         @Override
-        public Task<Void> create(IResource input) {
+        public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
             return defaultTask(input);
         }
 
@@ -197,7 +157,7 @@ public class JBobTest {
     @BuilderParams(name = "FailOnEmptyAlwaysOutput", inExts = ".foeao", outExt = ".foeaoc")
     public static class FailOnEmptyAlwaysOutputBuilder extends Builder<Void> {
         @Override
-        public Task<Void> create(IResource input) {
+        public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
             return defaultTask(input);
         }
 
@@ -252,32 +212,6 @@ public class JBobTest {
         fileSystem.addFile("test.in2", "test data 2".getBytes());
         project.setInputs(Arrays.asList("test.in", "test.in2"));
         build();
-    }
-
-    @Test
-    public void testTaskOutputAsInput() throws Exception {
-        fileSystem.addFile("test.proj", "".getBytes());
-        fileSystem.addFile("test1.in", "A".getBytes());
-        fileSystem.addFile("test2.in", "B".getBytes());
-        project.setInputs(Arrays.asList("test.proj", "test1.in", "test2.in"));
-        List<TaskResult> result = build();
-        assertThat(result.size(), is(3));
-        IResource test1Out = fileSystem.get("test1.out").output();
-        assertThat(new String(test1Out.getContent()), is("A"));
-        IResource test2Out = fileSystem.get("test2.out").output();
-        assertThat(new String(test2Out.getContent()), is("B"));
-        IResource arcOut = fileSystem.get("test.arc").output();
-        assertThat(new String(arcOut.getContent()), anyOf(is("AB"), is("BA")));
-    }
-
-    @Test
-    public void testTaskOutputAsInputFailing() throws Exception {
-        fileSystem.addFile("test.proj", "".getBytes());
-        fileSystem.addFile("test1.in_err", "A".getBytes());
-        project.setInputs(Arrays.asList("test.proj", "test1.in_err"));
-        List<TaskResult> result = build();
-        assertThat(result.size(), is(1));
-        assertThat(result.get(0).isOk(), is(false));
     }
 
     @Test
@@ -417,25 +351,6 @@ public class JBobTest {
         // rebuild with same option
         result = build();
         assertThat(result.size(), is(0));
-    }
-
-    @SuppressWarnings("unchecked")
-    @Test
-    public void testCommandSubstitute1() throws Exception {
-        Map<String, Object> p1 = new HashMap<String, Object>();
-        p1.put("CC", "gcc");
-        p1.put("COPTIM", "-O2");
-
-        Map<String, Object> p2 = new HashMap<String, Object>();
-        p2.put("INPUTS", Arrays.asList("a.c", "b.c"));
-        p2.put("OUTPUTS", Arrays.asList("x.o"));
-        p2.put("COPTIM", "-O0");
-
-        List<String> lst = CommandBuilder.substitute("${CC} ${COPTIM} -c ${INPUTS} -o ${OUTPUTS[0]}", p1, p2);
-        assertThat("gcc -O0 -c a.c b.c -o x.o", is(StringUtils.join(lst, " ")));
-
-        List<String> lst2 = CommandBuilder.substitute("${CC} ${COPTIM} -c ${INPUTS[1]} -o ${OUTPUTS[0]}", p1, p2);
-        assertThat("gcc -O0 -c b.c -o x.o", is(StringUtils.join(lst2, " ")));
     }
 
     @Test

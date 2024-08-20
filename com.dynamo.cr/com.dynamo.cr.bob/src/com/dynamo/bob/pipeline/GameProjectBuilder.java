@@ -77,10 +77,20 @@ import com.dynamo.rig.proto.Rig.Skeleton;
 import com.dynamo.rig.proto.Rig.RigScene;
 import com.dynamo.rig.proto.Rig.AnimationSet;
 
-@BuilderParams(name = "GameProjectBuilder", inExts = ".project", outExt = "", createOrder = 1000)
+@BuilderParams(name = "GameProjectBuilder", inExts = ".project", outExt = "")
 public class GameProjectBuilder extends Builder<Void> {
 
-    private static Logger logger = Logger.getLogger(GameProjectBuilder.class.getName());
+    // Root nodes to follow (default values from engine.cpp)
+    static final String[][] ROOT_NODES = new String[][] {
+            {"bootstrap", "main_collection", "/logic/main.collectionc"},
+            {"bootstrap", "render", "/builtins/render/default.renderc"},
+            {"bootstrap", "debug_init_script", null},
+            {"input", "game_binding", "/input/game.input_bindingc"},
+            {"input", "gamepads", "/builtins/input/default.gamepadsc"},
+            {"display", "display_profiles", "/builtins/render/default.display_profilesc"}};
+    static String[] gameProjectDependencies;
+
+    private static final Logger logger = Logger.getLogger(GameProjectBuilder.class.getName());
 
     private RandomAccessFile createRandomAccessFile(File handle) throws IOException {
         FileUtil.deleteOnExit(handle);
@@ -91,6 +101,18 @@ public class GameProjectBuilder extends Builder<Void> {
 
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
+        gameProjectDependencies = new String[ROOT_NODES.length + 1];
+        int index = 0;
+        for (String[] tuples : ROOT_NODES) {
+            gameProjectDependencies[index] = project.getProjectProperties().getStringValue(tuples[0], tuples[1], tuples[2]);
+            index++;
+        }
+        // Editor debugger scripts
+        if (project.option("variant", Bob.VARIANT_RELEASE).equals(Bob.VARIANT_DEBUG)) {
+            gameProjectDependencies[index] = "/builtins/scripts/debugger.luac";
+            index++;
+        }
+
         boolean nonStandardGameProjectFile = !project.getGameProjectResource().getAbsPath().equals(input.getAbsPath());
         if (nonStandardGameProjectFile) {
             throw new CompileExceptionError(input, -1, "Found non-standard game.project file: " + input.getPath());
@@ -113,7 +135,7 @@ public class GameProjectBuilder extends Builder<Void> {
 
         boolean shouldPublish = project.option("liveupdate", "false").equals("true");
         project.createPublisher(shouldPublish);
-        TaskBuilder<Void> builder = Task.<Void> newBuilder(this)
+        TaskBuilder<Void> builder = Task.newBuilder(this)
                 .setName(params.name())
                 .disableCache()
                 .addInput(input)
@@ -136,7 +158,22 @@ public class GameProjectBuilder extends Builder<Void> {
         }
         TimeProfiler.stop();
 
-        project.createTask(input, CopyCustomResourcesBuilder.class);
+        createSubTask(input, CopyCustomResourcesBuilder.class, builder);
+        index = 0;
+        for (String path : gameProjectDependencies) {
+            // initial values already have 'c' in the end
+            if (path != null && path.length() > 0) {
+                path = path.substring(0, path.length() - 1);
+                if (ROOT_NODES.length < index) {
+                    String[] tuples = ROOT_NODES[index];
+                    createSubTask(path, String.format("%s.%s", tuples[0], tuples[1]), builder);
+                }
+                else {
+                    createSubTask(path, "", builder);
+                }
+            }
+            index++;
+        }
 
         // Load texture profile message if supplied and enabled
         String textureProfilesPath = project.getProjectProperties().getStringValue("graphics", "texture_profiles");
@@ -186,14 +223,6 @@ public class GameProjectBuilder extends Builder<Void> {
             TimeProfiler.stop();
         }
 
-        TimeProfiler.start("Add inputs");
-        for (Task<?> task : project.getTasks()) {
-            for (IResource output : task.getOutputs()) {
-                builder.addInput(output);
-            }
-        }
-        TimeProfiler.stop();
-
         return builder.build();
     }
 
@@ -221,7 +250,7 @@ public class GameProjectBuilder extends Builder<Void> {
         for (IResource resource : resources) {
             String path = resource.getAbsPath();
             EnumSet<Project.OutputFlags> flags = outputs.get(path);
-            boolean compress = (flags != null && flags.contains(Project.OutputFlags.UNCOMPRESSED)) ? false : doCompress;
+            boolean compress = (flags == null || !flags.contains(Project.OutputFlags.UNCOMPRESSED)) && doCompress;
             boolean encrypt = (flags != null && flags.contains(Project.OutputFlags.ENCRYPTED));
             archiveBuilder.add(path, compress, encrypt);
         }
@@ -253,7 +282,7 @@ public class GameProjectBuilder extends Builder<Void> {
         String[] custom_resources = project.getProjectProperties().getStringValue("project", "custom_resources", "").split(",");
         for (String s : custom_resources) {
             s = s.trim();
-            if (s.length() > 0) {
+            if (!s.isEmpty()) {
                 ArrayList<String> paths = new ArrayList<String>();
                 project.findResourcePaths(s, paths);
                 for (String path : paths) {
@@ -268,38 +297,11 @@ public class GameProjectBuilder extends Builder<Void> {
     private ResourceGraph createResourceGraph(Project project) throws CompileExceptionError {
         ResourceGraph graph = new ResourceGraph(project);
 
-        if (project.option("keep-unused", "false").equals("true")) {
-            // All outputs of the project should be considered resources
-            for (String path : project.getOutputs().keySet()) {
-                // the paths are absolute and include the root directory
-                // we need a path relative to the project root
-                String relativePath = project.getPathRelativeToRootDirectory(path);
-                IResource resource = project.getResource(relativePath);
-                graph.add(resource);
-            }
-            return graph;
-        }
-
-        // Root nodes to follow (default values from engine.cpp)
-        final String[][] ROOT_NODES = new String[][] {
-            {"bootstrap", "main_collection", "/logic/main.collectionc"},
-            {"bootstrap", "render", "/builtins/render/default.renderc"},
-            {"bootstrap", "debug_init_script", null},
-            {"input", "game_binding", "/input/game.input_bindingc"},
-            {"input", "gamepads", "/builtins/input/default.gamepadsc"},
-            {"display", "display_profiles", "/builtins/render/default.display_profilesc"}};
-        for (String[] tuples : ROOT_NODES) {
-            String path = project.getProjectProperties().getStringValue(tuples[0], tuples[1], tuples[2]);
+        for (String path : gameProjectDependencies) {
             if (path != null) {
                 IResource resource = project.getResource(path);
                 graph.add(resource);
             }
-        }
-
-        // Editor debugger scripts
-        if (project.option("variant", Bob.VARIANT_RELEASE).equals(Bob.VARIANT_DEBUG)) {
-            IResource resource = project.getResource("/builtins/scripts/debugger.luac");
-            graph.add(resource);
         }
         return graph;
     }
@@ -381,12 +383,12 @@ public class GameProjectBuilder extends Builder<Void> {
 
     // Used to transform an input game.project properties map to a game.projectc representation.
     // Can be used for doing build time properties conversion.
-    static public void transformGameProjectFile(BobProjectProperties properties) throws IOException {
+    static public void transformGameProjectFile(BobProjectProperties properties) {
         properties.removePrivateFields();
 
         // Map deprecated 'variable_dt' to new settings resulting in same runtime behavior
         Boolean variableDt = properties.getBooleanValue("display", "variable_dt");
-        if (variableDt != null && variableDt == true) {
+        if (variableDt != null && variableDt) {
             System.err.println("\nWarning! Setting 'variable_dt' in 'game.project' is deprecated. Disabling 'Vsync' and setting 'Frame cap' to 0 for equivalent behavior.");
             properties.putBooleanValue("display", "vsync", false);
             properties.putIntValue("display", "update_frequency", 0);
@@ -402,7 +404,6 @@ public class GameProjectBuilder extends Builder<Void> {
     public void build(Task<Void> task) throws CompileExceptionError, IOException {
         FileInputStream archiveIndexInputStream = null;
         FileInputStream archiveDataInputStream = null;
-        FileInputStream resourcePackInputStream = null;
         FileInputStream publicKeyInputStream = null;
 
         IResource input = task.input(0);
@@ -436,7 +437,7 @@ public class GameProjectBuilder extends Builder<Void> {
                 logger.info("Creation of the excluded resources list.");
                 tstart = System.currentTimeMillis();
                 boolean shouldPublishLU = project.option("liveupdate", "false").equals("true");
-                List<String> excludedResources = null;
+                List<String> excludedResources;
                 if (shouldPublishLU) {
                     excludedResources = resourceGraph.createExcludedResourcesList();
                 }
@@ -493,7 +494,7 @@ public class GameProjectBuilder extends Builder<Void> {
                 File manifestTmpFileHandle = new File(FilenameUtils.concat(manifestFileHandle.getParent(), liveupdateManifestFilename));
                 FileUtils.copyFile(manifestFileHandle, manifestTmpFileHandle);
 
-                ArchiveEntry manifestArchiveEntry = new ArchiveEntry(root, manifestTmpFileHandle.getAbsolutePath().toString());
+                ArchiveEntry manifestArchiveEntry = new ArchiveEntry(root, manifestTmpFileHandle.getAbsolutePath());
                 project.getPublisher().AddEntry(manifestTmpFileHandle, manifestArchiveEntry);
                 project.getPublisher().Publish();
 
@@ -525,7 +526,6 @@ public class GameProjectBuilder extends Builder<Void> {
         } finally {
             IOUtils.closeQuietly(archiveIndexInputStream);
             IOUtils.closeQuietly(archiveDataInputStream);
-            IOUtils.closeQuietly(resourcePackInputStream);
             IOUtils.closeQuietly(publicKeyInputStream);
         }
     }
