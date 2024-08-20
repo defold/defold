@@ -14,12 +14,15 @@
 
 (ns editor.pipeline
   (:require [clojure.java.io :as io]
+            [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.build-target :as bt]
             [editor.fs :as fs]
+            [editor.graph-util :as gu]
             [editor.progress :as progress]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
             [util.coll :as coll :refer [pair]]
             [util.digest :as digest])
@@ -186,8 +189,44 @@
 (def ^:private cheap-batch-size 500)
 (def ^:private expensive-batch-size 5)
 
+(defn decorate-build-exception [exception stage node-id resource-path {:keys [basis] :as evaluation-context}]
+  (try
+    (let [{:keys [owner-resource-node-id node-debug-label-path] :as node-debug-info}
+          (gu/node-debug-info node-id evaluation-context)]
+      (ex-info (format "Failed to %s %s %s."
+                       (name stage)
+                       (if (= owner-resource-node-id node-id)
+                         "resource"
+                         "node")
+                       (string/join " -> "
+                                    (map #(str \' % \')
+                                         node-debug-label-path)))
+               (assoc node-debug-info
+                 :ex-type ::decorated-build-exception
+                 :node-id node-id
+                 :proj-path (or (some->> owner-resource-node-id
+                                         (resource-node/as-resource basis)
+                                         (resource/proj-path))
+                                resource-path))
+               exception))
+    (catch Throwable error
+      (try
+        (if (coll/not-empty resource-path)
+          (ex-info (format "Failed for resource '%s'." resource-path)
+                   {:node-id node-id
+                    :proj-path resource-path
+                    :stage stage
+                    :error error}
+                   exception)
+          exception)
+        (catch Throwable _
+          exception)))))
+
+(defn decorated-build-exception? [exception]
+  (= ::decorated-build-exception (:ex-type (ex-data exception))))
+
 (defn build!
-  [flat-build-targets build-dir old-artifact-map render-progress!]
+  [flat-build-targets build-dir old-artifact-map evaluation-context render-progress!]
   (let [build-targets-by-content-hash (make-build-targets-by-content-hash flat-build-targets)
         pruned-old-artifact-map (prune-artifact-map old-artifact-map build-targets-by-content-hash)
         progress (atom (progress/make "" (count build-targets-by-content-hash)))]
@@ -202,7 +241,7 @@
                             cached-artifact (when-some [artifact (get pruned-old-artifact-map resource-path)]
                                               (when (valid? resource artifact)
                                                 (assoc artifact :resource resource)))
-                            message (str "Building " (resource/proj-path resource))]
+                            message (str "Building " resource-path)]
                         (render-progress! (swap! progress progress/with-message message))
                         (let [result (or cached-artifact
                                          (let [dep-resources (make-dep-resources deps build-targets-by-content-hash)
@@ -212,8 +251,10 @@
                                                                 (g/error-aggregate
                                                                   [(g/error-fatal
                                                                      (format "Failed to allocate memory while building '%s': %s."
-                                                                             (resource/proj-path resource)
-                                                                             (.getMessage error)))])))]
+                                                                             resource-path
+                                                                             (.getMessage error)))]))
+                                                              (catch Throwable error
+                                                                (throw (decorate-build-exception error :build node-id resource-path evaluation-context))))]
                                            ;; Error results are assumed to be error-aggregates.
                                            ;; We need to inject the node-id of the source build
                                            ;; target into the causes, since the build-fn will

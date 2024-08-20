@@ -466,14 +466,11 @@
   gathering inputs to call a production function, invoke the function,
   return the result, meanwhile collecting stats on cache hits and
   misses (for later cache update) in the evaluation-context."
-  [node-id label evaluation-context]
+  [node label evaluation-context]
   (validate-evaluation-context evaluation-context)
-  (when (some? node-id)
-    (let [basis (:basis evaluation-context)
-          node (gt/node-by-id-at basis node-id)]
-      (gt/produce-value node label (apply-dry-run-cache evaluation-context)))))
+  (gt/produce-value node label (apply-dry-run-cache evaluation-context)))
 
-(defn node-property-value* [node label evaluation-context]
+(defn node-property-value [node label evaluation-context]
   (validate-evaluation-context evaluation-context)
   (let [node-type (gt/node-type node)]
     (when-let [behavior (property-behavior node-type label)]
@@ -1431,7 +1428,7 @@
 (defn- update-in-production [in-production endpoint]
   (if (contains? in-production endpoint)
     (throw (ex-info "Cycle detected on node"
-                    {:cause :cycle-detected
+                    {:ex-type :cycle-detected
                      :endpoint endpoint
                      :in-production in-production}))
     (conj in-production endpoint)))

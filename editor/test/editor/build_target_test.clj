@@ -42,11 +42,6 @@
      (.flush writer)
      (.toString writer))))
 
-(defn- make-lua-memory-resource [workspace source]
-  (assert (string? source))
-  (let [resource-type (workspace/get-resource-type workspace "lua")]
-    (resource/make-memory-resource workspace resource-type source)))
-
 (defn- make-fake-file-resource [workspace path text]
   (let [root-dir (workspace/project-path workspace)]
     (test-util/make-fake-file-resource workspace
@@ -67,7 +62,7 @@
           file-resource-node (project/get-resource-node project file-resource)
           zip-resource (workspace/find-resource workspace  "/builtins/graphics/particle_blob.png")
           zip-resource-node (project/get-resource-node project zip-resource)
-          memory-resource (make-lua-memory-resource workspace "return {key = 123}")
+          memory-resource (workspace/make-memory-resource workspace :editable "lua" "return {key = 123}")
           build-resource (workspace/make-build-resource memory-resource)
           fake-file-resource (make-fake-file-resource workspace "docs/readme.txt" "Defold")
           custom-resource (game-project/->CustomResource fake-file-resource)]

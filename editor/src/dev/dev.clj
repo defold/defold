@@ -59,6 +59,7 @@
            [editor.gl.vertex2 VertexBuffer]
            [editor.resource FileResource MemoryResource ZipResource]
            [editor.types AABB]
+           [editor.workspace BuildResource]
            [internal.graph.types Arc Endpoint]
            [java.beans BeanInfo Introspector MethodDescriptor PropertyDescriptor]
            [java.io ByteArrayOutputStream]
@@ -1054,7 +1055,10 @@
                     (project-resource-pprint-handler [printer resource]
                       (object-data-pprint-handler nil project-resource->value printer resource))]
 
-              {(namespaced-class-symbol FileResource)
+              {(namespaced-class-symbol BuildResource)
+               project-resource-pprint-handler
+
+               (namespaced-class-symbol FileResource)
                project-resource-pprint-handler
 
                (namespaced-class-symbol MemoryResource)

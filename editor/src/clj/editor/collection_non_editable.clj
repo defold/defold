@@ -75,20 +75,19 @@
     (assoc instance-property-desc :properties (mapv #(component-property-desc-with-go-props % proj-path->source-resource) component-property-descs))
     (dissoc instance-property-desc :properties)))
 
-(defn- game-object-instance-build-target [build-resource instance-desc pose game-object-build-target proj-path->resource-property-build-target]
+(defn- game-object-instance-build-target [game-object-build-target instance-desc pose proj-path->resource-property-build-target]
   ;; GameObject$InstanceDesc or GameObject$EmbeddedInstanceDesc in map format.
   (let [proj-path->source-resource (comp :resource :resource proj-path->resource-property-build-target)
         instance-desc-with-go-props (cond-> (instance-desc-with-go-props instance-desc proj-path->source-resource)
 
                                             (empty? (:children instance-desc))
                                             (dissoc :children))]
-    (collection-common/game-object-instance-build-target build-resource instance-desc-with-go-props pose game-object-build-target proj-path->resource-property-build-target)))
+    (collection-common/game-object-instance-build-target game-object-build-target instance-desc-with-go-props pose proj-path->resource-property-build-target)))
 
 (defn- instance-desc->game-object-instance-build-target [instance-desc game-object-build-target proj-path->build-target]
   ;; GameObject$InstanceDesc in map format.
-  (let [build-resource (:resource game-object-build-target)
-        pose (any-instance-desc->pose instance-desc)]
-    (game-object-instance-build-target build-resource instance-desc pose game-object-build-target proj-path->build-target)))
+  (let [pose (any-instance-desc->pose instance-desc)]
+    (game-object-instance-build-target game-object-build-target instance-desc pose proj-path->build-target)))
 
 (g/defnk produce-referenced-game-object-instance-build-targets [_node-id collection-desc proj-path->build-target resource]
   (let [build-targets
@@ -107,11 +106,10 @@
   (let [prototype-desc (:data embedded-instance-desc)
         embedded-instance-desc (dissoc embedded-instance-desc :data) ; We don't need or want the :data in the GameObject$EmbeddedInstanceDesc.
         component-instance-datas (game-object-non-editable/prototype-desc->component-instance-datas prototype-desc embedded-component-desc->build-resource proj-path->build-target)
-        embedded-game-object-build-target (game-object-common/game-object-build-target nil collection-node-id component-instance-datas component-build-targets)
-        embedded-game-object-resource (workspace/make-embedded-resource workspace :non-editable "go" (:content-hash embedded-game-object-build-target)) ; Content determines hash for merging with embedded components in other .go files.
-        embedded-game-object-build-resource (workspace/make-build-resource embedded-game-object-resource)
+        embedded-game-object-resource (workspace/make-placeholder-resource workspace :non-editable "go")
+        embedded-game-object-build-target (game-object-common/game-object-build-target embedded-game-object-resource collection-node-id component-instance-datas component-build-targets)
         pose (any-instance-desc->pose embedded-instance-desc)]
-    (game-object-instance-build-target embedded-game-object-build-resource embedded-instance-desc pose embedded-game-object-build-target proj-path->build-target)))
+    (game-object-instance-build-target embedded-game-object-build-target embedded-instance-desc pose proj-path->build-target)))
 
 (g/defnk produce-embedded-game-object-instance-build-targets [_node-id collection-desc embedded-component-resource-data->index embedded-component-build-targets referenced-component-build-targets resource proj-path->build-target]
   (let [workspace (resource/workspace resource)

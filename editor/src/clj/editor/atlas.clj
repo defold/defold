@@ -51,7 +51,7 @@
             [util.murmur :as murmur])
   (:import [com.dynamo.bob.pipeline AtlasUtil ShaderUtil$Common ShaderUtil$VariantTextureArrayFallback]
            [com.dynamo.bob.textureset TextureSetGenerator$LayoutResult]
-           [com.dynamo.gamesys.proto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage TextureSetProto$TextureSet Tile$Playback Tile$SpriteTrimmingMode]
+           [com.dynamo.gamesys.proto AtlasProto$Atlas AtlasProto$AtlasAnimation AtlasProto$AtlasImage TextureSetProto$TextureSet Tile$Playback]
            [com.jogamp.opengl GL GL2]
            [editor.gl.vertex2 VertexBuffer]
            [editor.types AABB Animation Image]
@@ -149,19 +149,6 @@
     (.glVertex3d gl x1 y1 0)
     (.glVertex3d gl x1 y0 0)
     (.glEnd gl)))
-
-(defn render-image-outline
-  [^GL2 gl render-args renderables]
-  (doseq [renderable renderables]
-    (let [user-data (-> renderable :user-data)
-          page-offset-x (get-rect-page-offset (:layout-width user-data) (:page-index user-data))
-          color (colors/renderable-outline-color renderable)]
-      (render-rect gl (:rect user-data) color page-offset-x)))
-  (doseq [renderable renderables]
-    (let [user-data (-> renderable :user-data)
-          page-offset-x (get-rect-page-offset (:layout-width user-data) (:page-index user-data))]
-      (when (= (-> renderable :updatable :state :frame) (:order user-data))
-        (render-rect gl (:rect user-data) colors/defold-pink page-offset-x)))))
 
 (defn- renderables->outline-vertex-component-count
   [renderables]
@@ -289,7 +276,7 @@
             (dynamic read-only? (g/constantly true)))
 
   (property sprite-trim-mode g/Keyword (default (protobuf/default AtlasProto$AtlasImage :sprite-trim-mode))
-            (dynamic edit-type (g/constantly (properties/->pb-choicebox Tile$SpriteTrimmingMode))))
+            (dynamic edit-type (g/constantly texture-set-gen/sprite-trim-mode-edit-type)))
 
   (property image resource/Resource ; Required protobuf field.
             (value (gu/passthrough maybe-image-resource))
