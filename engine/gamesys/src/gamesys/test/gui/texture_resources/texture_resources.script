@@ -19,8 +19,8 @@ function init(self)
     local tparams = {
 	       width  = 32,
 	       height = 32,
-	       type   = resource.TEXTURE_TYPE_2D,
-	       format = resource.TEXTURE_FORMAT_RGBA,
+	       type   = graphics.TEXTURE_TYPE_2D,
+	       format = graphics.TEXTURE_FORMAT_RGBA,
 	   }
 
 	resource.set_texture("/atlas/valid.texturec", tparams, tbuffer)

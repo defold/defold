@@ -19,7 +19,7 @@
 /libexec/*/*.swf
 /libexec/*/*dmengine*
 /libexec/*/*luajit*
-/libexec/*/glslc*
+/libexec/*/glslang*
 /libexec/*/spirv-cross*
 /libexec/*/spirv-opt*
 /libexec/*/luac-32*

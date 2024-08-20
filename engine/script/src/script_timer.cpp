@@ -166,6 +166,12 @@ namespace dmScript
         assert(timer_world != 0x0);
         assert(timer.m_IsAlive == 0);
 
+        LuaCallbackInfo* callback = (LuaCallbackInfo*) timer.m_UserData;
+        if (IsCallbackValid(callback))
+        {
+            DestroyCallback(callback);
+        }
+
         uint16_t lookup_index = GetLookupIndex(timer.m_Handle);
         uint16_t timer_index = timer_world->m_IndexLookup[lookup_index];
         timer_world->m_IndexPool.Push(lookup_index);

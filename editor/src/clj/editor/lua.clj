@@ -31,7 +31,7 @@
 
 (def ^:private docs
   ["base" "bit" "buffer" "b2d" "b2d.body" "builtins" "camera" "collectionfactory"
-   "collectionproxy" "coroutine" "crash" "debug" "factory" "go" "gui"
+   "collectionproxy" "coroutine" "crash" "debug" "factory" "go" "gui" "graphics"
    "html5" "http" "image" "io" "json" "label" "liveupdate" "math" "model" "msg"
    "os" "package" "particlefx" "physics" "profiler" "render" "resource"
    "socket" "sound" "sprite" "string" "sys" "table" "tilemap" "timer" "vmath"

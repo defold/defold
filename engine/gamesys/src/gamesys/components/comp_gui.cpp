@@ -74,7 +74,10 @@ namespace dmGameSystem
     static void DestroyCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data);
     static void UpdateCustomNodeCallback(void* context, dmGui::HScene scene, dmGui::HNode node, uint32_t custom_type, void* node_data, float dt);
     static const CompGuiNodeType* GetCompGuiCustomType(const CompGuiContext* gui_context, uint32_t custom_type);
-    static void DeleteTexture(dmGui::HScene scene, dmGui::HTextureSource texture_source, dmGui::NodeTextureType type, void* context);
+
+    static dmGui::HTextureSource NewTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer);
+    static void                  DeleteTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, dmGui::HTextureSource texture_source);
+    static void                  SetTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer);
 
     static inline dmRender::HMaterial GetNodeMaterial(void* material_res);
 
@@ -936,6 +939,11 @@ namespace dmGameSystem
         scene_params.m_SetMaterialPropertyCallbackContext = gui_component;
         scene_params.m_DestroyRenderConstantsCallback = DestroyRenderConstantsCallback;
         scene_params.m_OnWindowResizeCallback = &OnWindowResizeCallback;
+
+        scene_params.m_NewTextureResourceCallback    = &NewTextureResourceCallback;
+        scene_params.m_DeleteTextureResourceCallback = &DeleteTextureResourceCallback;
+        scene_params.m_SetTextureResourceCallback    = &SetTextureResourceCallback;
+
         scene_params.m_ScriptWorld = gui_world->m_ScriptWorld;
         gui_component->m_Scene = dmGui::NewScene(scene_resource->m_GuiContext, &scene_params);
         dmGui::HScene scene = gui_component->m_Scene;
@@ -987,8 +995,7 @@ namespace dmGameSystem
         dmGui::Result result = dmGui::InitScene(gui_component->m_Scene);
         if (result != dmGui::RESULT_OK)
         {
-            // TODO: Translate result
-            dmLogError("Error when initializing gui component: %d.", result);
+            dmLogError("Error when initializing gui component: %s.", dmGui::GetResultLiteral(result));
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
         gui_component->m_Initialized = 1;
@@ -998,11 +1005,10 @@ namespace dmGameSystem
     static dmGameObject::CreateResult CompGuiFinal(const dmGameObject::ComponentFinalParams& params)
     {
         GuiComponent* gui_component = (GuiComponent*)*params.m_UserData;
-        dmGui::Result result = dmGui::FinalScene(gui_component->m_Scene, &DeleteTexture);
+        dmGui::Result result = dmGui::FinalScene(gui_component->m_Scene);
         if (result != dmGui::RESULT_OK)
         {
-            // TODO: Translate result
-            dmLogError("Error when finalizing gui component: %d.", result);
+            dmLogError("Error when finalizing gui component: %s.", dmGui::GetResultLiteral(result));
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
         return dmGameObject::CREATE_RESULT_OK;
@@ -1108,10 +1114,6 @@ namespace dmGameSystem
         {
             TextureResource* texture_res = (TextureResource*) texture_source;
             return texture_res->m_Texture;
-        }
-        else if (texture_type == dmGui::NODE_TEXTURE_TYPE_DYNAMIC)
-        {
-            return (dmGraphics::HTexture) texture_source;
         }
         return 0;
     }
@@ -2218,7 +2220,8 @@ namespace dmGameSystem
         DM_PROPERTY_ADD_U32(rmtp_GuiVertexCount, gui_world->m_ClientVertexBuffer.Size());
     }
 
-    static dmGraphics::TextureFormat ToGraphicsFormat(dmImage::Type type) {
+    static dmGraphics::TextureFormat ToGraphicsFormat(dmImage::Type type)
+    {
         switch (type) {
             case dmImage::TYPE_RGB:
                 return dmGraphics::TEXTURE_FORMAT_RGB;
@@ -2232,54 +2235,83 @@ namespace dmGameSystem
             default:
                 assert(false);
         }
-        return (dmGraphics::TextureFormat) 0; // Never reached
+        return (dmGraphics::TextureFormat) -1; // Never reached
     }
 
-    static dmGui::HTextureSource NewTexture(dmGui::HScene scene, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer, void* context)
+    static inline dmhash_t ResolveDynamicTexturePath(GuiComponent* component, dmhash_t path_hash, char* buffer, uint32_t buffer_size)
     {
-        RenderGuiContext* gui_context = (RenderGuiContext*) context;
-        dmGraphics::HContext gcontext = dmRender::GetGraphicsContext(gui_context->m_RenderContext);
-
-        dmGraphics::TextureCreationParams tcparams;
-        dmGraphics::TextureParams tparams;
-
-        tcparams.m_Width = width;
-        tcparams.m_Height = height;
-        tcparams.m_OriginalWidth = width;
-        tcparams.m_OriginalHeight = height;
-
-        tparams.m_Width = width;
-        tparams.m_Height = height;
-        tparams.m_MinFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
-        tparams.m_MagFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
-        tparams.m_Data = buffer;
-        tparams.m_DataSize = dmImage::BytesPerPixel(type) * width * height;
-        tparams.m_Format = ToGraphicsFormat(type);
-
-        dmGraphics::HTexture t =  dmGraphics::NewTexture(gcontext, tcparams);
-        dmGraphics::SetTexture(t, tparams);
-        return (dmGui::HTextureSource) t;
+        dmSnPrintf(buffer, buffer_size, "%s/%llu.texturec", component->m_Resource->m_Path, (unsigned long long) path_hash);
+        return dmHashString64(buffer);
     }
 
-    static void DeleteTexture(dmGui::HScene scene, dmGui::HTextureSource texture_source, dmGui::NodeTextureType type, void* context)
+    static dmGui::HTextureSource NewTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* data)
     {
-        if (type == dmGui::NODE_TEXTURE_TYPE_DYNAMIC)
+        GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
+
+        char resource_path[dmResource::RESOURCE_PATH_MAX];
+        dmhash_t resolved_path_hash = ResolveDynamicTexturePath(component, path_hash, resource_path, sizeof(resource_path));
+
+        CreateTextureResourceParams params = {};
+        params.m_Path               = resource_path;
+        params.m_PathHash           = resolved_path_hash;
+        params.m_Collection         = dmGameObject::GetCollection(component->m_Instance);
+        params.m_Type               = dmGraphics::TEXTURE_TYPE_2D;
+        params.m_Format             = ToGraphicsFormat(type);
+        params.m_TextureType        = GraphicsTextureTypeToImageType(params.m_Type);
+        params.m_TextureFormat      = GraphicsTextureFormatToImageFormat(params.m_Format);
+        params.m_CompressionType    = dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT;
+        params.m_Buffer             = 0;
+        params.m_Data               = data;
+        params.m_Width              = width;
+        params.m_Height             = height;
+        params.m_MaxMipMaps         = 1;
+        params.m_TextureBpp         = dmGraphics::GetTextureFormatBitsPerPixel(params.m_Format);
+        params.m_UsageFlags         = dmGraphics::TEXTURE_USAGE_FLAG_SAMPLE;
+
+        void* resource_out = 0;
+        dmResource::Result res = CreateTextureResource(dmGameObject::GetFactory(component->m_Instance), params, &resource_out);
+        if (res != dmResource::RESULT_OK)
         {
-            dmGraphics::DeleteTexture((dmGraphics::HTexture) texture_source);
+            dmLogError("Failed to create texture resource %s (status=%d)", resource_path, (int) res);
+            return 0;
         }
+
+        return (dmGui::HTextureSource) resource_out;
     }
 
-    static void SetTextureData(dmGui::HScene scene, dmGui::HTextureSource texture_source, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer, void* context)
+    static void DeleteTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, dmGui::HTextureSource texture_source)
     {
-        dmGraphics::TextureParams tparams;
-        tparams.m_Width = width;
-        tparams.m_Height = height;
-        tparams.m_MinFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
-        tparams.m_MagFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
-        tparams.m_Data = buffer;
-        tparams.m_DataSize = dmImage::BytesPerPixel(type) * width * height;
-        tparams.m_Format = ToGraphicsFormat(type);
-        dmGraphics::SetTexture((dmGraphics::HTexture) texture_source, tparams);
+        GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
+        char resource_path[dmResource::RESOURCE_PATH_MAX];
+        dmhash_t resolved_path_hash = ResolveDynamicTexturePath(component, path_hash, resource_path, sizeof(resource_path));
+        ReleaseDynamicResource(dmGameObject::GetFactory(component->m_Instance), dmGameObject::GetCollection(component->m_Instance), resolved_path_hash);
+    }
+
+    static void SetTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* buffer)
+    {
+        GuiComponent* component = (GuiComponent*)dmGui::GetSceneUserData(scene);
+        char resource_path[dmResource::RESOURCE_PATH_MAX];
+        dmhash_t resolved_path_hash = ResolveDynamicTexturePath(component, path_hash, resource_path, sizeof(resource_path));
+
+        SetTextureResourceParams params = {};
+        params.m_PathHash               = resolved_path_hash;
+        params.m_TextureType            = dmGraphics::TEXTURE_TYPE_2D;
+        params.m_TextureFormat          = ToGraphicsFormat(type);
+        params.m_CompressionType        = dmGraphics::TextureImage::COMPRESSION_TYPE_DEFAULT;
+        params.m_Data                   = buffer;
+        params.m_DataSize               = dmImage::BytesPerPixel(type) * width * height;
+        params.m_Width                  = width;
+        params.m_Height                 = height;
+        params.m_X                      = 0;
+        params.m_Y                      = 0;
+        params.m_MipMap                 = 0;
+        params.m_SubUpdate              = 0;
+
+        dmResource::Result res = SetTextureResource(dmGameObject::GetFactory(component->m_Instance), params);
+        if (res != dmResource::RESULT_OK)
+        {
+            dmLogError("Failed to set texture resource %s (status=%d)", dmHashReverseSafe64(resolved_path_hash), (int) res);
+        }
     }
 
     static dmGui::FetchTextureSetAnimResult FetchTextureSetAnimCallback(dmGui::HTextureSource texture_source, dmhash_t animation, dmGui::TextureSetAnimDesc* out_data)
@@ -2438,9 +2470,6 @@ namespace dmGameSystem
 
         dmGui::RenderSceneParams rp;
         rp.m_RenderNodes = &RenderNodes;
-        rp.m_NewTexture = &NewTexture;
-        rp.m_DeleteTexture = &DeleteTexture;
-        rp.m_SetTextureData = &SetTextureData;
 
         RenderGuiContext render_gui_context;
         render_gui_context.m_RenderContext = gui_context->m_RenderContext;
@@ -2523,8 +2552,7 @@ namespace dmGameSystem
         dmGui::Result result = dmGui::DispatchMessage(gui_component->m_Scene, params.m_Message);
         if (result != dmGui::RESULT_OK)
         {
-            // TODO: Proper error message
-            LogMessageError(params.m_Message, "Error when dispatching message to gui scene: %d.", result);
+            LogMessageError(params.m_Message, "Error when dispatching message to gui scene: %s.", dmGui::GetResultLiteral(result));
         }
         return dmGameObject::UPDATE_RESULT_OK;
     }
@@ -2593,11 +2621,10 @@ namespace dmGameSystem
         GuiWorld* gui_world = (GuiWorld*)params.m_World;
         GuiSceneResource* scene_resource = (GuiSceneResource*) params.m_Resource;
         GuiComponent* gui_component = (GuiComponent*)*params.m_UserData;
-        dmGui::Result result = dmGui::FinalScene(gui_component->m_Scene, &DeleteTexture);
+        dmGui::Result result = dmGui::FinalScene(gui_component->m_Scene);
         if (result != dmGui::RESULT_OK)
         {
-            // TODO: Translate result
-            dmLogError("Error when finalizing gui component: %d.", result);
+            dmLogError("Error when finalizing gui component: %s.", dmGui::GetResultLiteral(result));
         }
         dmGui::ClearTextures(gui_component->m_Scene);
         dmGui::ClearFonts(gui_component->m_Scene);
@@ -2608,8 +2635,7 @@ namespace dmGameSystem
             result = dmGui::InitScene(gui_component->m_Scene);
             if (result != dmGui::RESULT_OK)
             {
-                // TODO: Translate result
-                dmLogError("Error when initializing gui component: %d.", result);
+                dmLogError("Error when initializing gui component: %s.", dmGui::GetResultLiteral(result));
             }
         }
         else

@@ -22,7 +22,6 @@ import org.junit.Test;
 
 import com.dynamo.render.proto.Material.MaterialDesc;
 import com.dynamo.render.proto.Compute.ComputeDesc;
-import com.google.protobuf.Message;
 
 public class ComputeBuilderTest extends AbstractProtoBuilderTest {
 
@@ -34,9 +33,13 @@ public class ComputeBuilderTest extends AbstractProtoBuilderTest {
     @Test
     public void testSimple() throws Exception {
 
+        StringBuilder srcCompute = new StringBuilder();
+        srcCompute.append("#version 430\n");
+        srcCompute.append("void main() {}\n");
+
         addFile("/test.cp", "");
 
-        build("/test.cp", "");
+        build("/test.cp", srcCompute.toString());
 
         StringBuilder src = new StringBuilder();
         src.append("compute_program: \"/test.cp\"\n");

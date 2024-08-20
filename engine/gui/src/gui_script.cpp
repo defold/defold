@@ -2077,7 +2077,8 @@ namespace dmGui
         Scene* scene = GuiScriptInstance_Check(L);
 
         bool flip = false;
-        if (top > 5) {
+        if (top > 5)
+        {
             luaL_checktype(L, 6, LUA_TBOOLEAN);
             flip = (bool)lua_toboolean(L, 6);
         }
@@ -2090,13 +2091,18 @@ namespace dmGui
 
         dmImage::Type type = ToImageType(L, type_str);
         Result r = NewDynamicTexture(scene, name, width, height, type, flip, buffer, buffer_size);
-        if (r == RESULT_OK) {
+
+        if (r == RESULT_OK)
+        {
             lua_pushboolean(L, 1);
             lua_pushnil(L);
-        } else {
+        }
+        else
+        {
             lua_pushboolean(L, 0);
             lua_pushnumber(L, r);
         }
+
         assert(top + 2 == lua_gettop(L));
         return 2;
     }

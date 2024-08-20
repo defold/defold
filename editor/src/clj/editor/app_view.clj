@@ -774,16 +774,28 @@
 (defn- decorate-target [engine-descriptor target]
   (assoc target :engine-id (:id engine-descriptor)))
 
-(defn- launch-engine! [engine-descriptor project-directory prefs debug?]
+(defn- launch-engine! [engine-descriptor project-directory prefs debug? workspace]
   (try
     (report-build-launch-progress! "Launching engine...")
     (let [engine (engine/install-engine! project-directory engine-descriptor)
-          launched-target (->> (engine/launch! engine project-directory prefs debug?)
-                               (decorate-target engine-descriptor)
-                               (targets/add-launched-target!)
-                               (targets/select-target! prefs))]
-      (report-build-launch-progress! (format "Launched %s" (targets/target-message-label launched-target)))
-      launched-target)
+          count (prefs/get-prefs prefs (prefs/make-project-specific-key "instance-count" workspace) 1)
+          pause-ms 100
+          instance-index-range (if (= count 1) (range (inc 0)) (range 1 (inc count)))
+          launched-targets (for [instance-index instance-index-range]
+                             (let [last-instance? (or (= count 1) (= instance-index count))
+                                   instance-debug? (and debug? last-instance?)
+                                   launched-target (->> (engine/launch! engine project-directory prefs instance-debug? instance-index)
+                                                        (decorate-target engine-descriptor)
+                                                        (targets/add-launched-target! instance-index))]
+                               (when (not last-instance?)
+                                 (Thread/sleep pause-ms))        ;pause needed to make sure the launch order of instances is right
+                               launched-target))
+          last-launched-target (last launched-targets)]
+      (if (= count 1)
+        (targets/select-target! prefs last-launched-target)
+        (targets/select-target! prefs {:id :all-launched-targets}))
+      (report-build-launch-progress! (format "Launched %s" (targets/target-message-label last-launched-target)))
+      launched-targets)
     (catch Exception e
       (targets/kill-launched-targets!)
       (report-build-launch-progress! "Launch failed")
@@ -830,21 +842,23 @@
        (targets/controllable-target? target)
        (targets/remote-target? target)))
 
-(defn- launch-built-project! [project engine-descriptor project-directory prefs web-server debug?]
+(defn- launch-built-project! [project engine-descriptor project-directory prefs web-server debug? workspace]
   (let [selected-target (targets/selected-target prefs)
         launch-new-engine! (fn []
                              (targets/kill-launched-targets!)
-                             (let [launched-target (launch-engine! engine-descriptor project-directory prefs debug?)
-                                   log-stream      (:log-stream launched-target)]
-                               (targets/when-url (:id launched-target)
-                                                 #(on-launched-hook! project (:process launched-target) %))
-                               (reset-console-stream! log-stream)
-                               (reset-remote-log-pump-thread! nil)
-                               (start-log-pump! log-stream (make-launched-log-sink launched-target))
-                               launched-target))]
+                             (let [launched-targets (launch-engine! engine-descriptor project-directory prefs debug? workspace)
+                                   last-launched-target (last launched-targets)]
+                               (doseq [launched-target launched-targets]
+                                 (targets/when-url (:id launched-target)
+                                                   #(on-launched-hook! project (:process launched-target) %))
+                                 (let [log-stream (:log-stream launched-target)]
+                                   (reset-console-stream! log-stream)
+                                   (reset-remote-log-pump-thread! nil)
+                                   (start-log-pump! log-stream (make-launched-log-sink launched-target))))
+                               last-launched-target))]
     (try
       (cond
-        (not selected-target)
+        (or (not selected-target) (targets/all-launched-targets? selected-target))
         (launch-new-engine!)
 
         (not (targets/controllable-target? selected-target))
@@ -1237,13 +1251,22 @@
                                (when (handle-build-results! workspace render-build-error! build-results)
                                  (when (or engine skip-engine)
                                    (show-console! main-scene tool-tab-pane)
-                                   (launch-built-project! project engine project-directory prefs web-server false)))))))
+                                   (launch-built-project! project engine project-directory prefs web-server false workspace)))))))
 
 (handler/defhandler :build :global
   (enabled? [] (not (build-in-progress?)))
   (run [project workspace prefs web-server build-errors-view debug-view main-stage tool-tab-pane]
     (debug-view/detach! debug-view)
     (build-handler project workspace prefs web-server build-errors-view main-stage tool-tab-pane)))
+
+(handler/defhandler :set-instance-count :global
+  (enabled? [] true)
+  (run [prefs user-data workspace]
+       (let [count (:instance-count user-data)]
+         (prefs/set-prefs prefs (prefs/make-project-specific-key "instance-count" workspace) count)))
+  (state [prefs user-data workspace]
+         (= (:instance-count user-data)
+            (prefs/get-prefs prefs (prefs/make-project-specific-key "instance-count" workspace) 1))))
 
 (defn- debugging-supported?
   [project]
@@ -1272,9 +1295,9 @@ If you do not specifically require different script states, consider changing th
                   :result-fn (fn [{:keys [engine] :as build-results}]
                                (when (handle-build-results! workspace render-build-error! build-results)
                                  (when (or engine skip-engine)
-                                   (when-let [target (launch-built-project! project engine project-directory prefs web-server true)]
+                                   (when-let [target (launch-built-project! project engine project-directory prefs web-server true workspace)]
                                      (when (nil? (debug-view/current-session debug-view))
-                                       (debug-view/start-debugger! debug-view project (:address target "localhost"))))))))))
+                                       (debug-view/start-debugger! debug-view project (:address target "localhost") (:instance-index target 0))))))))))
 
 (defn- attach-debugger! [workspace project prefs debug-view render-build-error!]
   (async-build! project
@@ -1368,7 +1391,7 @@ If you do not specifically require different script states, consider changing th
 
 (defn- can-hot-reload? [debug-view prefs evaluation-context]
   (when-some [target (targets/selected-target prefs)]
-    (and (targets/controllable-target? target)
+    (and (or (targets/controllable-target? target) (targets/all-launched-targets? target))
          (not (debug-view/suspended? debug-view evaluation-context))
          (not (build-in-progress?)))))
 
@@ -1404,7 +1427,10 @@ If you do not specifically require different script states, consider changing th
                                                  (not-empty
                                                    (g/with-auto-evaluation-context evaluation-context
                                                      (updated-build-resources evaluation-context project old-etags etags "/game.project")))]
-                                       (engine/reload-build-resources! target updated-build-resources))
+                                       (if (targets/all-launched-targets? target)
+                                         (doseq [launched-target (targets/all-launched-targets)]
+                                           (engine/reload-build-resources! launched-target updated-build-resources))
+                                         (engine/reload-build-resources! target updated-build-resources)))
                                      (catch Exception e
                                        (dialogs/make-info-dialog
                                          {:title "Hot Reload Failed"
@@ -2452,24 +2478,24 @@ If you do not specifically require different script states, consider changing th
 
 (handler/defhandler :copy-project-path :global
   (active? [app-view selection evaluation-context]
-           (context-resource-file app-view selection evaluation-context))
+           (context-resource app-view selection evaluation-context))
   (enabled? [app-view selection evaluation-context]
-            (when-let [r (context-resource-file app-view selection evaluation-context)]
+            (when-let [r (context-resource app-view selection evaluation-context)]
               (and (resource/proj-path r)
                    (resource/exists? r))))
   (run [selection app-view]
-    (when-let [r (context-resource-file app-view selection)]
+    (when-let [r (context-resource app-view selection)]
       (put-on-clipboard! (resource/proj-path r)))))
 
 (handler/defhandler :copy-full-path :global
   (active? [app-view selection evaluation-context]
-           (context-resource-file app-view selection evaluation-context))
+           (context-resource app-view selection evaluation-context))
   (enabled? [app-view selection evaluation-context]
-            (when-let [r (context-resource-file app-view selection evaluation-context)]
+            (when-let [r (context-resource app-view selection evaluation-context)]
               (and (resource/abs-path r)
                    (resource/exists? r))))
   (run [selection app-view]
-    (when-let [r (context-resource-file app-view selection)]
+    (when-let [r (context-resource app-view selection)]
       (put-on-clipboard! (resource/abs-path r)))))
 
 (handler/defhandler :copy-require-path :global

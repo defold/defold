@@ -19,43 +19,30 @@ import java.io.IOException;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Task;
-import com.dynamo.bob.Platform;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.DefaultFileSystem;
-import com.dynamo.bob.pipeline.ShaderUtil.ES2ToES3Converter;
-import com.dynamo.bob.pipeline.IShaderCompiler;
-import com.dynamo.bob.pipeline.ShaderPreprocessor;
 
-import org.apache.commons.cli.CommandLine;
+import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
 @BuilderParams(name = "VertexProgram", inExts = ".vp", outExt = ".vpc")
 public class VertexProgramBuilder extends ShaderProgramBuilder {
-
-    private static final ES2ToES3Converter.ShaderType SHADER_TYPE = ES2ToES3Converter.ShaderType.VERTEX_SHADER;
-    private boolean soft_fail = true;
+    private static final ShaderDesc.ShaderType SHADER_TYPE = ShaderDesc.ShaderType.SHADER_TYPE_VERTEX;
 
     @Override
     public void build(Task<ShaderPreprocessor> task) throws IOException, CompileExceptionError {
         task.output(0).setContent(getCompiledShaderDesc(task, SHADER_TYPE).toByteArray());
     }
 
+    // Running standalone:
+    // java -classpath $DYNAMO_HOME/share/java/bob-light.jar com.dynamo.bob.pipeline.VertexProgramBuilder <path-in.vp> <path-out.vpc> <platform>
     public static void main(String[] args) throws IOException, CompileExceptionError {
         System.setProperty("java.awt.headless", "true");
         VertexProgramBuilder builder = new VertexProgramBuilder();
 
-        CommandLine cmd = builder.GetShaderCommandLineOptions(args);
-        String platformName = cmd.getOptionValue("platform", "");
-        Platform platform = Platform.get(platformName);
-        if (platform == null) {
-            throw new CompileExceptionError(String.format("Invalid platform '%s'\n", platformName));
-        }
-
         Project project = new Project(new DefaultFileSystem());
         project.scanJavaClasses();
-        IShaderCompiler compiler = project.getShaderCompiler(platform);
 
         builder.setProject(project);
-        builder.soft_fail = false;
-        builder.BuildShader(args, SHADER_TYPE, cmd, compiler);
+        builder.BuildShader(args, SHADER_TYPE);
     }
 }

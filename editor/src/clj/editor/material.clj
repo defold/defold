@@ -32,7 +32,7 @@
             [util.coll :as coll :refer [pair]]
             [util.murmur :as murmur]
             [util.num :as num])
-  (:import [com.dynamo.bob.pipeline ShaderProgramBuilder]
+  (:import [com.dynamo.bob.pipeline ShaderProgramBuilderEditor]
            [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$VertexAttribute Graphics$VertexAttribute$DataType Graphics$VertexAttribute$SemanticType]
            [com.dynamo.render.proto Material$MaterialDesc Material$MaterialDesc$Sampler Material$MaterialDesc$VertexSpace]
            [com.jogamp.opengl GL2]
@@ -149,10 +149,10 @@
             :deps dep-build-targets})])))
 
 (defn- transpile-shader-source [shader-ext ^String shader-source ^long max-page-count]
-  (let [shader-stage (code.shader/shader-stage-from-ext shader-ext)
+  (let [shader-type (code.shader/shader-type-from-ext shader-ext)
         shader-language (code.shader/shader-language-to-java :language-glsl-sm120) ; use the old gles2 compatible shaders
         is-debug true
-        result (ShaderProgramBuilder/buildGLSLVariantTextureArray shader-source shader-stage shader-language is-debug max-page-count)
+        result (ShaderProgramBuilderEditor/buildGLSLVariantTextureArray shader-source shader-type shader-language is-debug max-page-count)
         full-source (.source result)
         array-sampler-names-array (.arraySamplers result)]
     {:shader-source full-source

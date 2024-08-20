@@ -41,8 +41,11 @@ public class ModelBuilderTest extends AbstractProtoBuilderTest {
         addFile("/test.vp", "");
         addFile("/test.fp", "");
 
-        build("/test.vp", "");
-        build("/test.fp", "");
+        StringBuilder srcShader = new StringBuilder();
+        srcShader.append("void main() {}\n");
+
+        build("/test.vp", srcShader.toString());
+        build("/test.fp", srcShader.toString());
 
         StringBuilder src = new StringBuilder();
         src.append("name: \"test_material\"\n");
@@ -88,8 +91,11 @@ public class ModelBuilderTest extends AbstractProtoBuilderTest {
         addFile("/test.vp", "");
         addFile("/test.fp", "");
 
-        build("/test.vp", "");
-        build("/test.fp", "");
+        StringBuilder srcShader = new StringBuilder();
+        srcShader.append("void main() {}\n");
+
+        build("/test.vp", srcShader.toString());
+        build("/test.fp", srcShader.toString());
 
         StringBuilder src = new StringBuilder();
         src.append("name: \"test_material\"\n");

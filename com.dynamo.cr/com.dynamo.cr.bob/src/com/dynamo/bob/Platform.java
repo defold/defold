@@ -26,7 +26,7 @@ import com.dynamo.graphics.proto.Graphics.PlatformProfile.OS;
 
 public enum Platform {
     // arch, is64bit, os, exeSuffixes, exePrefix, libSuffix, libPrefix, extenderPaths, architectures, extenderPair
-    //    extenderPaths: The extenderPaths are the searh directories that we use when looking for platform resources for a remote build
+    //    extenderPaths: The extenderPaths are the search directories that we use when looking for platform resources for a remote build
     X86_64MacOS( "x86_64",  true,   "macos",   new String[] {""}, "", "lib", ".dylib", new String[] {"osx", "x86_64-osx"}, PlatformArchitectures.MacOS, "x86_64-osx"),
     Arm64MacOS(  "arm64",   true,   "macos",   new String[] {""}, "", "lib", ".dylib", new String[] {"osx", "arm64-osx"}, PlatformArchitectures.MacOS, "arm64-osx"),
     X86Win32(    "x86",     false,  "win32",   new String[] {".exe"}, "", "", ".dll", new String[] {"win32", "x86-win32"}, PlatformArchitectures.Windows32, "x86-win32"),

@@ -46,7 +46,7 @@ def to_spirv(buffer_name, file_path, profile):
 	elif platform_str.startswith("macos"):
 		platform_str = "arm64-macos"
 
-	exe = '%s/ext/bin/%s/glslc' % (dynamo_home, platform_str)
+	exe = '%s/ext/bin/%s/glslang' % (dynamo_home, platform_str)
 
 	out_path = file_path + '.spv'
 

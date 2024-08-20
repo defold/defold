@@ -60,24 +60,29 @@ EXE_SUFFIX=
 case $PLATFORM in
     win32|x86_64-win32)
         EXE_SUFFIX=.exe
-        SRC_EXE=./tools/Release/spirv-opt${EXE_SUFFIX}
+        SRC_EXE_SPIRV_OPT=./tools/Release/spirv-opt${EXE_SUFFIX}
+        SRC_EXE_SPIRV_LINK=./tools/Release/spirv-link${EXE_SUFFIX}
         ;;
     *)
-        SRC_EXE=./tools/spirv-opt${EXE_SUFFIX}
+        SRC_EXE_SPIRV_OPT=./tools/spirv-opt${EXE_SUFFIX}
+        SRC_EXE_SPIRV_LINK=./tools/spirv-link${EXE_SUFFIX}
         ;;
 esac
 
-TARGET_EXE=./bin/$PLATFORM/spirv-opt${EXE_SUFFIX}
+TARGET_EXE_SPIRV_OPT=./bin/$PLATFORM/spirv-opt${EXE_SUFFIX}
+TARGET_EXE_SPIRV_LINK=./bin/$PLATFORM/spirv-link${EXE_SUFFIX}
 
 mkdir -p ./bin/$PLATFORM
 
-cp -v ${SRC_EXE} ${TARGET_EXE}
+cp -v ${SRC_EXE_SPIRV_OPT} ${TARGET_EXE_SPIRV_OPT}
+cp -v ${SRC_EXE_SPIRV_LINK} ${TARGET_EXE_SPIRV_LINK}
 
 case $PLATFORM in
     win32|x86_64-win32)
         ;;
     *)
-        strip ${TARGET_EXE}
+        strip ${TARGET_EXE_SPIRV_OPT}
+        strip ${TARGET_EXE_SPIRV_LINK}
         ;;
 esac
 
