@@ -265,9 +265,9 @@
 
 (defn- animation-frame->vertex-pos-uv
   [animation-frame world-transform]
-  (let [^double width (:width animation-frame)
-        ^double height (:height animation-frame)
-        frame-vertex-data (frame-vertex-data animation-frame width height)
+  (let [size [(:width animation-frame)
+              (:height animation-frame)]
+        frame-vertex-data (frame-vertex-data animation-frame size :pivot-center)
         page-index (:page-index animation-frame 0)]
     (mapv (fn [positions uvs]
             (let [x (get positions 0)
