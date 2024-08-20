@@ -87,7 +87,7 @@ def transform_runnable_path(platform, path):
     return waf_dynamo_vendor.transform_runnable_path(platform, path)
 
 def platform_glfw_version(platform):
-    if platform in ['x86_64-macos', 'arm64-macos']:
+    if platform in ['x86_64-macos', 'arm64-macos', 'x86_64-win32', 'win32']:
         return 3
     return 2
 
@@ -1814,7 +1814,7 @@ def detect(conf):
     elif platform in ('x86_64-linux',):
         conf.env['LIB_OPENAL'] = ['openal']
 
-    conf.env['STLIB_DLIB'] = ['dlib', 'mbedtls', 'zip']
+    conf.env['STLIB_DLIB'] = ['dlib', 'image', 'mbedtls', 'zip']
     conf.env['STLIB_DDF'] = 'ddf'
     conf.env['STLIB_CRASH'] = 'crashext'
     conf.env['STLIB_CRASH_NULL'] = 'crashext_null'

@@ -48,7 +48,7 @@ if [ "Darwin" == "$(uname)" ]; then
 fi
 
 ANDROID_NDK_VERSION=25b
-ANDROID_NDK_ROOT=${DYNAMO_HOME}/ext/SDKs/android-ndk-r${ANDROID_NDK_VERSION}
+ANDROID_NDK_ROOT=${ANDROID_NDK_ROOT:-"${DYNAMO_HOME}/ext/SDKs/android-ndk-r${ANDROID_NDK_VERSION}"}
 
 ANDROID_VERSION=19 # Android 4.4
 ANDROID_64_VERSION=21 # Android 5.0

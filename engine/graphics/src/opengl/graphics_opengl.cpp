@@ -176,6 +176,16 @@
     PFNGLMEMORYBARRIERPROC    glMemoryBarrier    = NULL;
     PFNGLBINDIMAGETEXTUREPROC glBindImageTexture = NULL;
 
+    // Uniform buffer objects
+    PFNGLBINDBUFFERBASEPROC          glBindBufferBase          = NULL;
+    PFNGLBUFFERDATAPROC              glBufferData              = NULL;
+    PFNGLGETUNIFORMBLOCKINDEXPROC    glGetUniformBlockIndex    = NULL;
+    PFNGLGETACTIVEUNIFORMBLOCKIVPROC glGetActiveUniformBlockiv = NULL;
+    PFNGLGETACTIVEUNIFORMSIVPROC     glGetActiveUniformsiv     = NULL;
+    PFNGLGENBUFFERSPROC              glGenBuffers              = NULL;
+    PFNGLBINDBUFFERPROC              glBindBuffer              = NULL;
+    PFNGLUNIFORMBLOCKBINDINGPROC     glUniformBlockBinding     = NULL;
+
     #if !defined(GL_ES_VERSION_2_0)
         PFNGLGETSTRINGIPROC glGetStringi = NULL;
         PFNGLGENVERTEXARRAYSPROC glGenVertexArrays = NULL;
@@ -429,6 +439,21 @@ static void LogFrameBufferError(GLenum status)
 
     typedef void (* DM_PFNGLBINDIMAGETEXTUREPROC) (GLuint unit, GLuint texture, GLint level, GLboolean layered, GLint layer, GLenum access, GLenum format);
     DM_PFNGLBINDIMAGETEXTUREPROC glBindImageTexture = NULL;
+
+    typedef void (* DM_PFNGLBINDBUFFERBASEPROC) (GLenum target, GLuint index, GLuint buffer);
+    DM_PFNGLBINDBUFFERBASEPROC glBindBufferBase = NULL;
+
+    typedef GLuint (* DM_PFNGLGETUNIFORMBLOCKINDEXPROC) (GLuint program, const GLchar *uniformBlockName);
+    DM_PFNGLGETUNIFORMBLOCKINDEXPROC glGetUniformBlockIndex = NULL;
+
+    typedef void (* DM_PFNGLGETACTIVEUNIFORMBLOCKIVPROC) (GLuint program, GLuint uniformBlockIndex, GLenum pname, GLint *params);
+    DM_PFNGLGETACTIVEUNIFORMBLOCKIVPROC glGetActiveUniformBlockiv = NULL;
+
+    typedef void (* DM_PFNGLGETACTIVEUNIFORMSIVPROC) (GLuint program, GLsizei uniformCount, const GLuint *uniformIndices, GLenum pname, GLint *params);
+    DM_PFNGLGETACTIVEUNIFORMSIVPROC glGetActiveUniformsiv = NULL;
+
+    typedef void (* DM_PFNGLUNIFORMBLOCKBINDINGPROC) (GLuint program, GLuint uniformBlockIndex, GLuint uniformBlockBinding);
+    DM_PFNGLUNIFORMBLOCKBINDINGPROC glUniformBlockBinding = NULL;
 #endif
 
     OpenGLContext* g_Context = 0x0;
@@ -925,6 +950,15 @@ static void LogFrameBufferError(GLenum status)
         GET_PROC_ADDRESS_OPTIONAL(glMemoryBarrier,    "glMemoryBarrier",    PFNGLMEMORYBARRIERPROC);
         GET_PROC_ADDRESS_OPTIONAL(glBindImageTexture, "glBindImageTexture", PFNGLBINDIMAGETEXTUREPROC);
 
+        GET_PROC_ADDRESS(glBindBufferBase, "glBindBufferBase", PFNGLBINDBUFFERBASEPROC);
+        GET_PROC_ADDRESS(glBufferData, "glBufferData", PFNGLBUFFERDATAPROC);
+        GET_PROC_ADDRESS(glGetUniformBlockIndex, "glGetUniformBlockIndex", PFNGLGETUNIFORMBLOCKINDEXPROC);
+        GET_PROC_ADDRESS(glGetActiveUniformBlockiv, "glGetActiveUniformBlockiv", PFNGLGETACTIVEUNIFORMBLOCKIVPROC);
+        GET_PROC_ADDRESS(glGetActiveUniformsiv, "glGetActiveUniformsiv", PFNGLGETACTIVEUNIFORMSIVPROC);
+        GET_PROC_ADDRESS(glGenBuffers, "glGenBuffers", PFNGLGENBUFFERSPROC);
+        GET_PROC_ADDRESS(glBindBuffer, "glBindBuffer", PFNGLBINDBUFFERPROC);
+        GET_PROC_ADDRESS(glUniformBlockBinding, "glUniformBlockBinding", PFNGLUNIFORMBLOCKBINDINGPROC);
+
     #if !defined(GL_ES_VERSION_2_0)
         GET_PROC_ADDRESS(glGetStringi,"glGetStringi",PFNGLGETSTRINGIPROC);
         GET_PROC_ADDRESS(glGenVertexArrays, "glGenVertexArrays", PFNGLGENVERTEXARRAYSPROC);
@@ -1073,6 +1107,13 @@ static void LogFrameBufferError(GLenum status)
         DMGRAPHICS_GET_PROC_ADDRESS_EXT(glMemoryBarrier,    "glMemoryBarrier",    "shader_image_load_store", "glMemoryBarrier",    DM_PFNGLMEMORYBARRIERPROC,    context);
         DMGRAPHICS_GET_PROC_ADDRESS_EXT(glBindImageTexture, "glBindImageTexture", "shader_image_load_store", "glBindImageTexture", DM_PFNGLBINDIMAGETEXTUREPROC, context);
         DMGRAPHICS_GET_PROC_ADDRESS_EXT(glDispatchCompute,  "glDispatchCompute",  "compute_shader",          "glDispatchCompute",  DM_PFNGLDISPATCHCOMPUTEPROC,  context);
+
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glBindBufferBase,           "glBindBufferBase",           "", "glBindBufferBase",           DM_PFNGLBINDBUFFERBASEPROC,   context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glGetUniformBlockIndex,     "glGetUniformBlockIndex",     "", "glGetUniformBlockIndex",     DM_PFNGLGETUNIFORMBLOCKINDEXPROC,  context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glGetActiveUniformBlockiv,  "glGetActiveUniformBlockiv",  "", "glGetActiveUniformBlockiv",  DM_PFNGLGETACTIVEUNIFORMBLOCKIVPROC,  context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glGetActiveUniformsiv,      "glGetActiveUniformsiv",      "", "glGetActiveUniformsiv",      DM_PFNGLGETACTIVEUNIFORMSIVPROC,  context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glUniformBlockBinding,      "glUniformBlockBinding",      "", "glUniformBlockBinding",      DM_PFNGLUNIFORMBLOCKBINDINGPROC,  context);
+
     #endif
     #undef DMGRAPHICS_GET_PROC_ADDRESS_EXT
 
@@ -1742,12 +1783,43 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR;
     }
 
+    static void DrawSetup(OpenGLContext* context)
+    {
+        OpenGLProgram* program = context->m_CurrentProgram;
+
+        if (context->m_IsGles3Version)
+        {
+            for (int i = 0; i < program->m_UniformBuffers.Size(); ++i)
+            {
+                OpenGLUniformBuffer& ubo = program->m_UniformBuffers[i];
+
+                if (ubo.m_ActiveUniforms > 0)
+                {
+                    glBindBufferBase(GL_UNIFORM_BUFFER, ubo.m_Binding, ubo.m_Id);
+                    CHECK_GL_ERROR;
+
+                    if (ubo.m_Dirty > 0)
+                    {
+                        glBindBuffer(GL_UNIFORM_BUFFER, ubo.m_Id);
+                        CHECK_GL_ERROR;
+                        glBufferData(GL_UNIFORM_BUFFER, ubo.m_BlockSize, ubo.m_BlockMemory, GL_STATIC_DRAW);
+                        CHECK_GL_ERROR;
+                        ubo.m_Dirty = false;
+                    }
+                }
+            }
+        }
+    }
+
     static void OpenGLDrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
     {
         DM_PROFILE(__FUNCTION__);
         DM_PROPERTY_ADD_U32(rmtp_DrawCalls, 1);
         assert(context);
         assert(index_buffer);
+
+        DrawSetup((OpenGLContext*) context);
+
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER, index_buffer);
         CHECK_GL_ERROR;
 
@@ -1760,6 +1832,8 @@ static void LogFrameBufferError(GLenum status)
         DM_PROFILE(__FUNCTION__);
         DM_PROPERTY_ADD_U32(rmtp_DrawCalls, 1);
         assert(context);
+
+        DrawSetup((OpenGLContext*) context);
         glDrawArrays(GetOpenGLPrimitiveType(prim_type), first, count);
         CHECK_GL_ERROR
     }
@@ -1772,6 +1846,8 @@ static void LogFrameBufferError(GLenum status)
         {
             DM_PROFILE(__FUNCTION__);
             DM_PROPERTY_ADD_U32(rmtp_DispatchCalls, 1);
+
+            DrawSetup((OpenGLContext*) _context);
 
             glDispatchCompute(group_count_x, group_count_y, group_count_z);
             CHECK_GL_ERROR;
@@ -1838,33 +1914,42 @@ static void LogFrameBufferError(GLenum status)
         return shader_id;
     }
 
-    static OpenGLShader* CreateShader(GLenum type, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size)
+    static OpenGLShader* CreateShader(HContext context, GLenum type, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
-        GLuint shader_id = DoCreateShader(type, ddf->m_Source.m_Data, ddf->m_Source.m_Count, error_buffer, error_buffer_size);
+        ShaderDesc::Shader* ddf_shader = GetShaderProgram(context, ddf);
+        if (ddf_shader == 0x0)
+        {
+            return 0x0;
+        }
+
+        GLuint shader_id = DoCreateShader(type, ddf_shader->m_Source.m_Data, ddf_shader->m_Source.m_Count, error_buffer, error_buffer_size);
         if (!shader_id)
         {
             return 0;
         }
         OpenGLShader* shader = new OpenGLShader();
         shader->m_Id         = shader_id;
-        shader->m_Language   = ddf->m_Language;
+        shader->m_Language   = ddf_shader->m_Language;
+
+        CreateShaderMeta(&ddf->m_Reflection, &shader->m_ShaderMeta);
+
         return shader;
     }
 
-    static HVertexProgram OpenGLNewVertexProgram(HContext context, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size)
+    static HVertexProgram OpenGLNewVertexProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
-        return (HVertexProgram) CreateShader(GL_VERTEX_SHADER, ddf, error_buffer, error_buffer_size);
+        return (HVertexProgram) CreateShader(context, GL_VERTEX_SHADER, ddf, error_buffer, error_buffer_size);
     }
 
-    static HFragmentProgram OpenGLNewFragmentProgram(HContext context, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size)
+    static HFragmentProgram OpenGLNewFragmentProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
-        return (HFragmentProgram) CreateShader(GL_FRAGMENT_SHADER, ddf, error_buffer, error_buffer_size);
+        return (HFragmentProgram) CreateShader(context, GL_FRAGMENT_SHADER, ddf, error_buffer, error_buffer_size);
     }
 
-    static HComputeProgram OpenGLNewComputeProgram(HContext context, ShaderDesc::Shader* ddf, char* error_buffer, uint32_t error_buffer_size)
+    static HComputeProgram OpenGLNewComputeProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
     #ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
-        return (HVertexProgram) CreateShader(DMGRAPHICS_TYPE_COMPUTE_SHADER, ddf, error_buffer, error_buffer_size);
+        return (HVertexProgram) CreateShader(context, DMGRAPHICS_TYPE_COMPUTE_SHADER, ddf, error_buffer, error_buffer_size);
     #else
         dmSnPrintf(error_buffer, error_buffer_size, "Compute Shaders are not supported for OpenGL on this platform.");
         return 0;
@@ -1903,46 +1988,177 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
-    static void BuildUniforms(OpenGLProgram* program)
+    static inline char* GetBaseUniformName(char* str, uint32_t len)
     {
+        char* ptr = str;
+        for (int i = len - 1; i >= 0; i--)
+        {
+            if (ptr[i] == '.')
+            {
+                return &ptr[i+1];
+            }
+        }
+        return str;
+    }
+
+    static void BuildUniformBuffers(OpenGLProgram* program, OpenGLShader** shaders, uint32_t num_shaders)
+    {
+        uint32_t num_ubos = 0;
+        uint32_t ubo_binding = 0;
+        for (uint32_t i = 0; i < num_shaders; ++i)
+        {
+            OpenGLShader* shader = shaders[i];
+            num_ubos += shader->m_ShaderMeta.m_UniformBuffers.Size();
+        }
+
+        program->m_UniformBuffers.SetCapacity(num_ubos);
+        program->m_UniformBuffers.SetSize(num_ubos);
+
+        memset(program->m_UniformBuffers.Begin(), 0, sizeof(OpenGLUniformBuffer) * num_ubos);
+
+        for (uint32_t i = 0; i < num_shaders; ++i)
+        {
+            OpenGLShader* shader = shaders[i];
+
+            for (uint32_t j = 0; j < shader->m_ShaderMeta.m_UniformBuffers.Size(); ++j)
+            {
+                ShaderResourceBinding& res = shader->m_ShaderMeta.m_UniformBuffers[j];
+
+                GLuint blockIndex = glGetUniformBlockIndex(program->m_Id, res.m_Name);
+                CHECK_GL_ERROR;
+
+                if (blockIndex == GL_INVALID_INDEX)
+                {
+                    continue;
+                }
+
+                GLint binding;
+                glGetActiveUniformBlockiv(program->m_Id, blockIndex, GL_UNIFORM_BLOCK_BINDING, &binding);
+                CHECK_GL_ERROR;
+
+                GLint blockSize;
+                glGetActiveUniformBlockiv(program->m_Id, blockIndex, GL_UNIFORM_BLOCK_DATA_SIZE, &blockSize);
+                CHECK_GL_ERROR;
+
+                GLint activeUniforms;
+                glGetActiveUniformBlockiv(program->m_Id, blockIndex, GL_UNIFORM_BLOCK_ACTIVE_UNIFORMS, &activeUniforms);
+                CHECK_GL_ERROR;
+
+                OpenGLUniformBuffer& ubo = program->m_UniformBuffers[blockIndex];
+
+                ubo.m_Indices.SetCapacity(activeUniforms);
+                ubo.m_Indices.SetSize(activeUniforms);
+                ubo.m_Offsets.SetCapacity(activeUniforms);
+                ubo.m_Offsets.SetSize(activeUniforms);
+                ubo.m_Binding        = ubo_binding++; // binding;
+                ubo.m_BlockSize      = blockSize;
+                ubo.m_ActiveUniforms = activeUniforms;
+                ubo.m_BlockMemory    = new uint8_t[ubo.m_BlockSize];
+                memset(ubo.m_BlockMemory, 0, ubo.m_BlockSize);
+
+                glGetActiveUniformBlockiv(program->m_Id, blockIndex, GL_UNIFORM_BLOCK_ACTIVE_UNIFORM_INDICES, ubo.m_Indices.Begin());
+                CHECK_GL_ERROR;
+                glGetActiveUniformsiv(program->m_Id, activeUniforms, (GLuint*) ubo.m_Indices.Begin(), GL_UNIFORM_OFFSET, ubo.m_Offsets.Begin());
+                CHECK_GL_ERROR;
+
+                // Create a handle for the UBO and link it to the program
+                glGenBuffers(1, &ubo.m_Id);
+                CHECK_GL_ERROR;
+                glBindBuffer(GL_UNIFORM_BUFFER, ubo.m_Id);
+                CHECK_GL_ERROR;
+
+                glBufferData(GL_UNIFORM_BUFFER, blockSize, ubo.m_BlockMemory, GL_STATIC_DRAW);
+                CHECK_GL_ERROR;
+
+                glBindBufferBase(GL_UNIFORM_BUFFER, ubo.m_Binding, ubo.m_Id);
+                CHECK_GL_ERROR;
+                glUniformBlockBinding(program->m_Id, blockIndex, ubo.m_Binding);
+                CHECK_GL_ERROR;
+                glBindBuffer(GL_UNIFORM_BUFFER, 0);
+                CHECK_GL_ERROR;
+            }
+        }
+    }
+
+    static void BuildUniforms(OpenGLContext* context, OpenGLProgram* program, OpenGLShader** shaders, uint32_t num_shaders)
+    {
+        if (context->m_IsGles3Version)
+        {
+            BuildUniformBuffers(program, shaders, num_shaders);
+        }
+
+        uint32_t texture_unit = 0;
+        char uniform_name_buffer[256];
+
         GLint num_uniforms;
         glGetProgramiv(program->m_Id, GL_ACTIVE_UNIFORMS, &num_uniforms);
         CHECK_GL_ERROR;
 
         program->m_Uniforms.SetCapacity(num_uniforms);
         program->m_Uniforms.SetSize(num_uniforms);
-        OpenGLUniform* ptr = program->m_Uniforms.Begin();
 
-        uint32_t texture_unit = 0;
-        char uniform_name[256];
         for (int i = 0; i < num_uniforms; ++i)
         {
             GLint uniform_size;
             GLenum uniform_type;
             GLsizei uniform_name_length;
             glGetActiveUniform(program->m_Id, i,
-                sizeof(uniform_name),
+                sizeof(uniform_name_buffer),
                 &uniform_name_length,
                 &uniform_size,
                 &uniform_type,
-                uniform_name);
+                uniform_name_buffer);
             CHECK_GL_ERROR;
 
-            OpenGLUniform* uniform   = ptr + i;
-            uniform->m_Location      = (HUniformLocation) glGetUniformLocation(program->m_Id, uniform_name);
-            uniform->m_Name          = strdup(uniform_name);
-            uniform->m_NameHash      = dmHashString64(uniform_name);
-            uniform->m_Count         = uniform_size;
-            uniform->m_Type          = uniform_type;
-            uniform->m_IsTextureType = IsTypeTextureType(GetGraphicsType(uniform_type));
-
-            if (uniform->m_IsTextureType)
+            GLint uniform_block_index = -1;
+            if (context->m_IsGles3Version)
             {
-                uniform->m_TextureUnit = texture_unit++;
+                glGetActiveUniformsiv(program->m_Id, 1, (GLuint*)&i, GL_UNIFORM_BLOCK_INDEX, &uniform_block_index);
+            }
+
+            char* uniform_name = GetBaseUniformName(uniform_name_buffer, uniform_name_length);
+
+            HUniformLocation uniform_location = INVALID_UNIFORM_LOCATION;
+
+            if (uniform_block_index != -1)
+            {
+                OpenGLUniformBuffer& ubo = program->m_UniformBuffers[uniform_block_index];
+                uint32_t uniform_member_index = 0;
+
+                for (int j = 0; j < ubo.m_Indices.Size(); ++j)
+                {
+                    if (ubo.m_Indices[j] == i)
+                    {
+                        uniform_member_index = j;
+                        break;
+                    }
+                }
+                uniform_location = ((uint64_t) 1) << 32 | uniform_member_index << 16 | uniform_block_index;
+            }
+            else
+            {
+                uniform_location = (HUniformLocation) glGetUniformLocation(program->m_Id, uniform_name_buffer);
+            }
+
+            OpenGLUniform& uniform  = program->m_Uniforms[i];
+            uniform.m_Location      = uniform_location;
+            uniform.m_Name          = strdup(uniform_name);
+            uniform.m_NameHash      = dmHashString64(uniform_name);
+            uniform.m_Count         = uniform_size;
+            uniform.m_Type          = uniform_type;
+            uniform.m_IsTextureType = IsTypeTextureType(GetGraphicsType(uniform_type));
+
+        #if 0
+            dmLogInfo("Uniform[%d]: %s, %llu", i, uniform.m_Name, uniform.m_Location);
+        #endif
+
+            if (uniform.m_IsTextureType)
+            {
+                uniform.m_TextureUnit = texture_unit++;
             }
 
             // JG: Original code did this, but I'm not sure why.
-            if (uniform->m_Location == -1)
+            if (uniform.m_Location == -1)
             {
                 // Clear error if uniform isn't found
                 CLEAR_GL_ERROR
@@ -2010,7 +2226,7 @@ static void LogFrameBufferError(GLenum status)
         program->m_Id       = p;
         program->m_Language = compute_shader->m_Language;
 
-        BuildUniforms(program);
+        BuildUniforms((OpenGLContext*) context, program, &compute_shader, 1);
         return (HProgram) program;
     #else
         dmLogInfo("Compute Shaders are not supported for OpenGL on this platform.");
@@ -2063,7 +2279,9 @@ static void LogFrameBufferError(GLenum status)
         program->m_Id       = p;
         program->m_Language = vertex_shader->m_Language;
 
-        BuildUniforms(program);
+        OpenGLShader* shaders[] = { vertex_shader, fragment_shader };
+
+        BuildUniforms((OpenGLContext*) context, program, shaders, DM_ARRAY_SIZE(shaders));
         BuildAttributes(program);
         return (HProgram) program;
     }
@@ -2077,6 +2295,11 @@ static void LogFrameBufferError(GLenum status)
         for (int i = 0; i < program_ptr->m_Uniforms.Size(); ++i)
         {
             free(program_ptr->m_Uniforms[i].m_Name);
+        }
+
+        for (int i = 0; i < program_ptr->m_UniformBuffers.Size(); ++i)
+        {
+            delete program_ptr->m_UniformBuffers[i].m_BlockMemory;
         }
 
         delete program_ptr;
@@ -2115,20 +2338,26 @@ static void LogFrameBufferError(GLenum status)
         return true;
     }
 
-    static bool OpenGLReloadVertexProgram(HVertexProgram prog, ShaderDesc::Shader* ddf)
+    static bool OpenGLReloadVertexProgram(HVertexProgram prog, ShaderDesc* ddf)
     {
         assert(prog);
         assert(ddf);
 
+        ShaderDesc::Shader* ddf_shader = GetShaderProgram((HContext) g_Context, ddf);
+        if (ddf_shader == 0x0)
+        {
+            return 0x0;
+        }
+
         GLuint tmp_shader = glCreateShader(GL_VERTEX_SHADER);
-        bool success = TryCompileShader(tmp_shader, ddf->m_Source.m_Data, ddf->m_Source.m_Count);
+        bool success = TryCompileShader(tmp_shader, ddf_shader->m_Source.m_Data, ddf_shader->m_Source.m_Count);
         glDeleteShader(tmp_shader);
         CHECK_GL_ERROR;
 
         if (success)
         {
             GLuint id = ((OpenGLShader*) prog)->m_Id;
-            glShaderSource(id, 1, (const GLchar**) &ddf->m_Source.m_Data, (GLint*) &ddf->m_Source.m_Count);
+            glShaderSource(id, 1, (const GLchar**) &ddf_shader->m_Source.m_Data, (GLint*) &ddf_shader->m_Source.m_Count);
             CHECK_GL_ERROR;
             glCompileShader(id);
             CHECK_GL_ERROR;
@@ -2137,20 +2366,26 @@ static void LogFrameBufferError(GLenum status)
         return success;
     }
 
-    static bool OpenGLReloadFragmentProgram(HFragmentProgram prog, ShaderDesc::Shader* ddf)
+    static bool OpenGLReloadFragmentProgram(HFragmentProgram prog, ShaderDesc* ddf)
     {
         assert(prog);
         assert(ddf);
 
+        ShaderDesc::Shader* ddf_shader = GetShaderProgram((HContext) g_Context, ddf);
+        if (ddf_shader == 0x0)
+        {
+            return 0x0;
+        }
+
         GLuint tmp_shader = glCreateShader(GL_FRAGMENT_SHADER);
-        bool success = TryCompileShader(tmp_shader, ddf->m_Source.m_Data, ddf->m_Source.m_Count);
+        bool success = TryCompileShader(tmp_shader, ddf_shader->m_Source.m_Data, ddf_shader->m_Source.m_Count);
         glDeleteShader(tmp_shader);
         CHECK_GL_ERROR;
 
         if (success)
         {
             GLuint id = ((OpenGLShader*) prog)->m_Id;
-            glShaderSource(id, 1, (const GLchar**) &ddf->m_Source.m_Data, (GLint*) &ddf->m_Source.m_Count);
+            glShaderSource(id, 1, (const GLchar**) &ddf_shader->m_Source.m_Data, (GLint*) &ddf_shader->m_Source.m_Count);
             CHECK_GL_ERROR;
             glCompileShader(id);
             CHECK_GL_ERROR;
@@ -2189,22 +2424,23 @@ static void LogFrameBufferError(GLenum status)
         return ((OpenGLProgram*) program)->m_Language;
     }
 
-    static ShaderDesc::Language OpenGLGetShaderProgramLanguage(HContext _context, ShaderDesc::ShaderClass shader_class)
+    static bool OpenGLIsShaderLanguageSupported(HContext _context, ShaderDesc::Language language, ShaderDesc::ShaderType shader_type)
     {
         OpenGLContext* context = (OpenGLContext*) _context;
+
         if (context->m_IsShaderLanguageGles) // 0 == glsl, 1 == gles
         {
             if (context->m_IsGles3Version)
             {
-                return ShaderDesc::LANGUAGE_GLES_SM300;
+                return language == ShaderDesc::LANGUAGE_GLES_SM300;
             }
-            return ShaderDesc::LANGUAGE_GLES_SM100;
+            return language == ShaderDesc::LANGUAGE_GLES_SM100;
         }
-        else if (shader_class == ShaderDesc::SHADER_CLASS_COMPUTE)
+        else if (shader_type == ShaderDesc::SHADER_TYPE_COMPUTE)
         {
-            return ShaderDesc::LANGUAGE_GLSL_SM430;
+            return language == ShaderDesc::LANGUAGE_GLSL_SM430;
         }
-        return ShaderDesc::LANGUAGE_GLSL_SM140;
+        return language == ShaderDesc::LANGUAGE_GLSL_SM140 || language == ShaderDesc::LANGUAGE_GLSL_SM330;
     }
 
     static void OpenGLEnableProgram(HContext _context, HProgram _program)
@@ -2291,20 +2527,26 @@ static void LogFrameBufferError(GLenum status)
         return true;
     }
 
-    static bool OpenGLReloadComputeProgram(HComputeProgram prog, ShaderDesc::Shader* ddf)
+    static bool OpenGLReloadComputeProgram(HComputeProgram prog, ShaderDesc* ddf)
     {
         assert(prog);
         assert(ddf);
 
+        ShaderDesc::Shader* ddf_shader = GetShaderProgram((HContext) g_Context, ddf);
+        if (ddf_shader == 0x0)
+        {
+            return 0x0;
+        }
+
         GLuint tmp_shader = glCreateShader(DMGRAPHICS_TYPE_COMPUTE_SHADER);
-        bool success = TryCompileShader(tmp_shader, ddf->m_Source.m_Data, ddf->m_Source.m_Count);
+        bool success = TryCompileShader(tmp_shader, ddf_shader->m_Source.m_Data, ddf_shader->m_Source.m_Count);
         glDeleteShader(tmp_shader);
         CHECK_GL_ERROR;
 
         if (success)
         {
             GLuint id = ((OpenGLShader*) prog)->m_Id;
-            glShaderSource(id, 1, (const GLchar**) &ddf->m_Source.m_Data, (GLint*) &ddf->m_Source.m_Count);
+            glShaderSource(id, 1, (const GLchar**) &ddf_shader->m_Source.m_Data, (GLint*) &ddf_shader->m_Source.m_Count);
             CHECK_GL_ERROR;
             glCompileShader(id);
             CHECK_GL_ERROR;
@@ -2399,14 +2641,44 @@ static void LogFrameBufferError(GLenum status)
 
     static void OpenGLSetConstantV4(HContext context, const Vector4* data, int count, HUniformLocation base_location)
     {
-        glUniform4fv(base_location, count, (const GLfloat*) data);
-        CHECK_GL_ERROR;
+        uint32_t block_member = UNIFORM_LOCATION_GET_FS(base_location);
+
+        if (block_member)
+        {
+            uint32_t block_index = UNIFORM_LOCATION_GET_VS(base_location);
+            uint32_t member_index = UNIFORM_LOCATION_GET_VS_MEMBER(base_location);
+            OpenGLUniformBuffer& ubo = ((OpenGLContext*) context)->m_CurrentProgram->m_UniformBuffers[block_index];
+
+            uint8_t* data_ptr = ubo.m_BlockMemory + ubo.m_Offsets[member_index];
+            memcpy(data_ptr, data, sizeof(Vector4) * count);
+            ubo.m_Dirty = true;
+        }
+        else
+        {
+            glUniform4fv(base_location, count, (const GLfloat*) data);
+            CHECK_GL_ERROR;
+        }
     }
 
     static void OpenGLSetConstantM4(HContext context, const Vector4* data, int count, HUniformLocation base_location)
     {
-        glUniformMatrix4fv(base_location, count, 0, (const GLfloat*) data);
-        CHECK_GL_ERROR;
+        uint32_t block_member = UNIFORM_LOCATION_GET_FS(base_location);
+
+        if (block_member)
+        {
+            uint32_t block_index = UNIFORM_LOCATION_GET_VS(base_location);
+            uint32_t member_index = UNIFORM_LOCATION_GET_VS_MEMBER(base_location);
+            OpenGLUniformBuffer& ubo = ((OpenGLContext*) context)->m_CurrentProgram->m_UniformBuffers[block_index];
+
+            uint8_t* data_ptr = ubo.m_BlockMemory + ubo.m_Offsets[member_index];
+            memcpy(data_ptr, data, sizeof(Vector4) * count * 4);
+            ubo.m_Dirty = true;
+        }
+        else
+        {
+            glUniformMatrix4fv(base_location, count, 0, (const GLfloat*) data);
+            CHECK_GL_ERROR;
+        }
     }
 
     static void OpenGLSetSampler(HContext context, HUniformLocation location, int32_t unit)
@@ -3750,7 +4022,7 @@ static void LogFrameBufferError(GLenum status)
                 if (!do_unbind)
                 {
                     id     = tex->m_TextureIds[id_index];
-                    access = tex->m_UsageHintFlags & TEXTURE_USAGE_HINT_STORAGE ? DMGRAPHICS_READ_WRITE : DMGRAPHICS_READ_ONLY;
+                    access = tex->m_UsageHintFlags & TEXTURE_USAGE_FLAG_STORAGE ? DMGRAPHICS_READ_WRITE : DMGRAPHICS_READ_ONLY;
                 }
                 glBindImageTexture(unit, id, 0, GL_FALSE, 0, access, gl_internal_format);
                 CHECK_GL_ERROR;
@@ -3835,7 +4107,7 @@ static void LogFrameBufferError(GLenum status)
     #if !defined(GL_ES_VERSION_2_0)
         if (state == STATE_ALPHA_TEST)
         {
-            dmLogOnceWarning("Enabling the render.STATE_ALPHA_TEST state is not supported in this OpenGL version.");
+            dmLogOnceWarning("Enabling the graphics.STATE_ALPHA_TEST state is not supported in this OpenGL version.");
             return;
         }
     #endif
@@ -3851,7 +4123,7 @@ static void LogFrameBufferError(GLenum status)
     #if !defined(GL_ES_VERSION_2_0)
         if (state == STATE_ALPHA_TEST)
         {
-            dmLogOnceWarning("Disabling the render.STATE_ALPHA_TEST state is not supported in this OpenGL version.");
+            dmLogOnceWarning("Disabling the graphics.STATE_ALPHA_TEST state is not supported in this OpenGL version.");
             return;
         }
     #endif

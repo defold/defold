@@ -187,6 +187,7 @@ namespace dmPlatform
     void           SetKeyboardDeviceChangedCallback(HWindow window, WindowDeviceChangedCallback cb, void* user_data);
     void           SetGamepadEventCallback(HWindow window, WindowGamepadEventCallback cb, void* user_data);
 
+    void           ShowWindow(HWindow window);
     void           IconifyWindow(HWindow window);
     void           PollEvents(HWindow window);
     void           SwapBuffers(HWindow window);
