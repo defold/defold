@@ -154,15 +154,13 @@
          (integer? max-page-count)]}
   (let [shader-resource (:resource shader-source-info)
         workspace (resource/workspace shader-resource)
-        shader-resource-type (resource/resource-type shader-resource)
         user-data {:compile-spirv compile-spirv
                    :shader-source (:shader-source shader-source-info)
                    :max-page-count max-page-count
-                   :resource-ext (resource/type-ext shader-resource)}
-        memory-resource (resource/make-memory-resource workspace shader-resource-type user-data)]
+                   :resource-ext (resource/type-ext shader-resource)}]
     (bt/with-content-hash
       {:node-id (:node-id shader-source-info)
-       :resource (workspace/make-build-resource memory-resource)
+       :resource (workspace/make-placeholder-build-resource workspace (resource/type-ext shader-resource))
        :build-fn build-shader
        :user-data user-data})))
 

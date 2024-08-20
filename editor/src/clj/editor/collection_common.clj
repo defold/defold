@@ -128,12 +128,12 @@
                             nil))))
               (:embedded-instances source-value))))))
 
-(defn game-object-instance-build-target [build-resource instance-desc-with-go-props pose game-object-build-target proj-path->resource-property-build-target]
-  {:pre [(workspace/build-resource? build-resource)
+(defn game-object-instance-build-target [game-object-build-target instance-desc-with-go-props pose proj-path->resource-property-build-target]
+  {:pre [(map? game-object-build-target)
+         (workspace/build-resource? (:resource game-object-build-target))
          (map? instance-desc-with-go-props) ; GameObject$InstanceDesc or GameObject$EmbeddedInstanceDesc in map format, but GameObject$PropertyDescs must have a :clj-value.
          (not (contains? instance-desc-with-go-props :data)) ; We don't need the :data from GameObject$EmbeddedInstanceDescs.
          (pose/pose? pose)
-         (map? game-object-build-target)
          (ifn? proj-path->resource-property-build-target)]}
   ;; Create a build-target for the referenced or embedded game object. Also tag
   ;; on :game-object-instance-data with the overrides for this instance. This
@@ -159,15 +159,14 @@
                                         (comp (mapcat second)
                                               (util/distinct-by (comp resource/proj-path :resource)))
                                         component-property-infos)
-        game-object-instance-data {:resource build-resource
+        game-object-build-resource (:resource game-object-build-target)
+        game-object-instance-data {:resource game-object-build-resource
                                    :pose pose
                                    :property-deps go-prop-dep-build-targets
                                    :instance-msg (protobuf/assign-repeated instance-desc-with-go-props
-                                                   :component-properties component-property-descs)}
-        build-target (assoc game-object-build-target
-                       :resource build-resource
-                       :game-object-instance-data game-object-instance-data)]
-    (bt/with-content-hash build-target)))
+                                                   :component-properties component-property-descs)}]
+    (assoc game-object-build-target
+      :game-object-instance-data game-object-instance-data)))
 
 (defn- source-resource-component-property-desc [component-property-desc]
   (protobuf/sanitize-repeated component-property-desc :properties properties/source-resource-go-prop))

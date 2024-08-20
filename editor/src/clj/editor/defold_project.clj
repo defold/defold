@@ -540,7 +540,7 @@
 
 (defn make-embedded-resource [project editability ext data]
   (let [workspace (g/node-value project :workspace)]
-    (workspace/make-embedded-resource workspace editability ext data)))
+    (workspace/make-memory-resource workspace editability ext data)))
 
 (defn all-save-data
   ([project]

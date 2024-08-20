@@ -52,15 +52,10 @@
   ([build-target]
    (with-content-hash build-target nil))
   ([build-target opts]
-   (assoc build-target :content-hash (content-hash build-target opts))))
-
-(defn make-content-hash-build-resource [memory-resource-build-target]
-  (let [build-resource (:resource memory-resource-build-target)
-        source-resource (:resource build-resource)
-        content-hash (:content-hash memory-resource-build-target)]
-    (assert (resource/memory-resource? source-resource))
-    (assert (string? content-hash))
-    (workspace/make-build-resource (assoc source-resource :data content-hash))))
+   (let [content-hash (content-hash build-target opts)]
+     (cond-> (assoc build-target :content-hash content-hash)
+             (resource/memory-resource? (:resource (:resource build-target)))
+             (assoc-in [:resource :resource :data] content-hash)))))
 
 (defn make-proj-path->build-target [build-targets]
   ;; Create a map that can be used to locate the build target that was produced

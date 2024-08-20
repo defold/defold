@@ -224,8 +224,8 @@
     {:resource build-resource
      :content (protobuf/map->bytes GameObject$PrototypeDesc prototype-desc)}))
 
-(defn game-object-build-target [build-resource host-resource-node-id component-instance-datas component-build-targets]
-  {:pre [(or (nil? build-resource) (workspace/build-resource? build-resource))
+(defn game-object-build-target [source-resource host-resource-node-id component-instance-datas component-build-targets]
+  {:pre [(workspace/source-resource? source-resource)
          (g/node-id? host-resource-node-id)
          (vector? component-instance-datas)
          (vector? component-build-targets)]}
@@ -235,7 +235,7 @@
   ;; script property overrides.
   (bt/with-content-hash
     {:node-id host-resource-node-id
-     :resource build-resource
+     :resource (workspace/make-build-resource source-resource)
      :build-fn build-game-object
      :user-data {:component-instance-datas (mapv #(dissoc % :property-deps)
                                                  component-instance-datas)}

@@ -160,8 +160,7 @@ ordinary paths."
   ([source-resource]
    (make-build-resource source-resource nil))
   ([source-resource prefix]
-   {:pre [(resource/resource? source-resource)
-          (not (build-resource? source-resource))]}
+   {:pre [(source-resource? source-resource)]}
    (BuildResource. source-resource prefix)))
 
 (defn counterpart-build-resource
@@ -377,7 +376,7 @@ ordinary paths."
   ([workspace editability ext]
    (get (get-resource-type-map workspace editability) ext)))
 
-(defn make-embedded-resource [workspace editability ext data]
+(defn make-memory-resource [workspace editability ext data]
   (let [resource-type-map (get-resource-type-map workspace editability)]
     (if-some [resource-type (resource-type-map ext)]
       (resource/make-memory-resource workspace resource-type data)
@@ -386,6 +385,18 @@ ordinary paths."
                       {:type ext
                        :registered-types (into (sorted-set)
                                                (keys resource-type-map))})))))
+
+(defn make-placeholder-resource
+  ([workspace ext]
+   (make-memory-resource workspace :editable ext nil))
+  ([workspace editability ext]
+   (make-memory-resource workspace editability ext nil)))
+
+(defn make-placeholder-build-resource
+  ([workspace ext]
+   (make-build-resource (make-placeholder-resource workspace :editable ext)))
+  ([workspace editability ext]
+   (make-build-resource (make-placeholder-resource workspace editability ext))))
 
 (defn resource-icon [resource]
   (when resource
