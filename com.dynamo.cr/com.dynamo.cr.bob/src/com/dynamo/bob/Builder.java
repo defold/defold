@@ -106,7 +106,12 @@ public abstract class Builder<T> {
         return subTask;
     }
 
-    protected void createSubTasks(MessageOrBuilder builder, Task.TaskBuilder<T> taskBuilder) throws CompileExceptionError {
+    /**
+     * Scan proto message and create a sub-task for each resource in it
+     * @param builder message or builder of the file that should be scanned
+     * @param taskBuilder the builder where result should be applied to
+     */
+    protected void createSubTasks(MessageOrBuilder builder, Task.TaskBuilder<Void> taskBuilder) throws CompileExceptionError {
         List<Descriptors.FieldDescriptor> fields = builder.getDescriptorForType().getFields();
         for (Descriptors.FieldDescriptor fieldDescriptor : fields) {
             DescriptorProtos.FieldOptions options = fieldDescriptor.getOptions();
@@ -138,7 +143,12 @@ public abstract class Builder<T> {
         }
     }
 
-    protected void createSubTasks(IResource input, Task.TaskBuilder<T> taskBuilder) throws CompileExceptionError, IOException {
+    /**
+     * Scan proto message and create a sub-task for each resource in it
+     * @param input resource that should be scanned
+     * @param taskBuilder the builder where result should be applied to
+     */
+    protected void createSubTasks(IResource input, Task.TaskBuilder<Void> taskBuilder) throws CompileExceptionError, IOException {
         GeneratedMessageV3.Builder builder = ProtoBuilder.newBuilder(params.outExt());
         ProtoUtil.merge(input, builder);
         createSubTasks(builder, taskBuilder);
