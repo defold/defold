@@ -24,16 +24,17 @@ import java.util.Map;
 import java.util.HashMap;
 import java.util.HashSet;
 
+import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.util.BobNLS;
 import org.apache.commons.io.FilenameUtils;
 
 import com.dynamo.proto.DdfMath.Vector3One;
 import com.dynamo.proto.DdfMath.Vector4One;
 
-import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Task;
+import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.MurmurHash;
@@ -49,8 +50,9 @@ import com.dynamo.gamesys.proto.Sound.SoundDesc;
 import com.dynamo.gamesys.proto.Label.LabelDesc;
 import com.google.protobuf.TextFormat;
 
+@ProtoParams(srcClass = PrototypeDesc.class, messageClass = PrototypeDesc.class)
 @BuilderParams(name = "GameObject", inExts = ".go", outExt = ".goc")
-public class GameObjectBuilder extends Builder<Void> {
+public class GameObjectBuilder extends ProtoBuilder<PrototypeDesc.Builder> {
     private Boolean ifObjectHasDynamicFactory = false;
 
     private boolean isComponentOfType(EmbeddedComponentDesc d, String type) {

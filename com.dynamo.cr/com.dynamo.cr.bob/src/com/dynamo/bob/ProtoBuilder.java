@@ -18,11 +18,17 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.lang.reflect.Method;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.ProtoUtil;
-import com.google.protobuf.*;
+import com.dynamo.proto.DdfExtensions;
+import com.google.protobuf.DescriptorProtos;
+import com.google.protobuf.Descriptors;
+import com.google.protobuf.GeneratedMessageV3;
+import com.google.protobuf.MessageOrBuilder;
+import com.google.protobuf.Message;
 
 public abstract class ProtoBuilder<B extends GeneratedMessageV3.Builder<B>> extends Builder<Void> {
 
@@ -67,6 +73,54 @@ public abstract class ProtoBuilder<B extends GeneratedMessageV3.Builder<B>> exte
 
     protected B transform(Task<Void> task, IResource resource, B messageBuilder) throws IOException, CompileExceptionError {
         return messageBuilder;
+    }
+
+    /**
+     * Scan proto message and create a sub-task for each resource in it
+     * @param builder message or builder of the file that should be scanned
+     * @param taskBuilder the builder where result should be applied to
+     */
+    protected void createSubTasks(MessageOrBuilder builder, Task.TaskBuilder<Void> taskBuilder) throws CompileExceptionError {
+        List<Descriptors.FieldDescriptor> fields = builder.getDescriptorForType().getFields();
+        for (Descriptors.FieldDescriptor fieldDescriptor : fields) {
+            DescriptorProtos.FieldOptions options = fieldDescriptor.getOptions();
+            Descriptors.FieldDescriptor resourceDesc = DdfExtensions.resource.getDescriptor();
+            boolean isResource = (Boolean) options.getField(resourceDesc);
+            Object value = builder.getField(fieldDescriptor);
+            if (value instanceof List) {
+                @SuppressWarnings("unchecked")
+                List<Object> list = (List<Object>) value;
+                for (Object v : list) {
+                    if (isResource && v instanceof String) {
+                        createSubTask((String) v, fieldDescriptor.getName(), taskBuilder);
+                    } else if (v instanceof MessageOrBuilder) {
+                        createSubTasks((MessageOrBuilder) v, taskBuilder);
+                    }
+                }
+            } else if (isResource && value instanceof String) {
+                boolean isOptional = fieldDescriptor.isOptional();
+                String resValue =  (String) value;
+                // We don't require optional fields to be filled
+                // if such a field has no value - just ignore it
+                if (isOptional && resValue.isEmpty()) {
+                    continue;
+                }
+                createSubTask(resValue, fieldDescriptor.getName(), taskBuilder);
+            } else if (value instanceof MessageOrBuilder) {
+                createSubTasks((MessageOrBuilder) value, taskBuilder);
+            }
+        }
+    }
+
+    /**
+     * Scan proto message and create a sub-task for each resource in it
+     * @param input resource that should be scanned
+     * @param taskBuilder the builder where result should be applied to
+     */
+    protected void createSubTasks(IResource input, Task.TaskBuilder<Void> taskBuilder) throws CompileExceptionError, IOException {
+        GeneratedMessageV3.Builder builder = ProtoBuilder.newBuilder(params.outExt());
+        ProtoUtil.merge(input, builder);
+        createSubTasks(builder, taskBuilder);
     }
 
     @Override
