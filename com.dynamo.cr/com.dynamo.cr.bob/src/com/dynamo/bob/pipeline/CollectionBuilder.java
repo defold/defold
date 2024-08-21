@@ -93,8 +93,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
                 .addInput(input)
                 .addOutput(input.changeExt(params.outExt()))
                 .addOutput(input.changeExt(ComponentsCounter.EXT_COL));
-        CollectionDesc.Builder builder = CollectionDesc.newBuilder();
-        ProtoUtil.merge(input, builder);
+        CollectionDesc.Builder builder = getMessageBuilder(input);
         createSubTasks(builder, taskBuilder);
 
         Map<IResource, Integer> subCollections = new HashMap<>();

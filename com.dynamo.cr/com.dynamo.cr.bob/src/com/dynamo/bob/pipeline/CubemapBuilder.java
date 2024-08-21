@@ -19,7 +19,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.EnumSet;
 
-import com.dynamo.bob.Builder;
+import com.dynamo.bob.ProtoBuilder;
+import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Task;
@@ -34,15 +35,15 @@ import com.dynamo.graphics.proto.Graphics.TextureImage.Image;
 import com.dynamo.graphics.proto.Graphics.TextureImage.Type;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
 
+@ProtoParams(srcClass = Cubemap.class, messageClass = Cubemap.class)
 @BuilderParams(name = "Cubemap", inExts = {".cubemap"}, outExt = ".texturec", ignoreTaskAutoCreation = true)
-public class CubemapBuilder extends Builder<Void> {
+public class CubemapBuilder extends ProtoBuilder<Cubemap.Builder> {
 
     private static Logger logger = Logger.getLogger(CubemapBuilder.class.getName());
 
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-        Cubemap.Builder builder = Cubemap.newBuilder();
-        ProtoUtil.merge(input, builder);
+        Cubemap.Builder builder = getMessageBuilder(input);
         Cubemap cubemap = builder.build();
 
         TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)

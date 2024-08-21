@@ -143,6 +143,10 @@ public class Task<T> {
         return inputs.size() > i ? inputs.get(i) : null;
     }
 
+    public IResource firstInput() {
+        return inputs.get(0);
+    }
+
     public List<IResource> getOutputs() {
         return Collections.unmodifiableList(outputs);
     }

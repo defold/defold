@@ -121,14 +121,10 @@ public class GameProjectBuilder extends Builder<Void> {
         // We currently don't have a file mapping with an input -> output for certain files
         // These should to be setup in the corresponding builder!
         ProtoBuilder.addMessageClass(".animationsetc", AnimationSet.class);
-        ProtoBuilder.addMessageClass(".cubemapc", Cubemap.class);
         ProtoBuilder.addMessageClass(".fontc", FontMap.class);
         ProtoBuilder.addMessageClass(".fpc", ShaderDesc.class);
         ProtoBuilder.addMessageClass(".vpc", ShaderDesc.class);
-        ProtoBuilder.addMessageClass(".goc", PrototypeDesc.class);
-        ProtoBuilder.addMessageClass(".meshc", MeshDesc.class);
         ProtoBuilder.addMessageClass(".meshsetc", MeshSet.class);
-        ProtoBuilder.addMessageClass(".modelc", Model.class);
         ProtoBuilder.addMessageClass(".rigscenec", RigScene.class);
         ProtoBuilder.addMessageClass(".skeletonc", Skeleton.class);
         ProtoBuilder.addMessageClass(".texturesetc", TextureSet.class);

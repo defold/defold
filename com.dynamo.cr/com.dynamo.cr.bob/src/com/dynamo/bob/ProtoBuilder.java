@@ -33,6 +33,7 @@ import com.google.protobuf.Message;
 public abstract class ProtoBuilder<B extends GeneratedMessageV3.Builder<B>> extends Builder<Void> {
 
     private ProtoParams protoParams;
+    private HashMap<IResource, B> messageBuilders = new HashMap<>();
 
     private static Map<String, Class<? extends GeneratedMessageV3>> extToMessageClass = new HashMap<String, Class<? extends GeneratedMessageV3>>();
 
@@ -112,15 +113,21 @@ public abstract class ProtoBuilder<B extends GeneratedMessageV3.Builder<B>> exte
         }
     }
 
-    /**
-     * Scan proto message and create a sub-task for each resource in it
-     * @param input resource that should be scanned
-     * @param taskBuilder the builder where result should be applied to
-     */
-    protected void createSubTasks(IResource input, Task.TaskBuilder<Void> taskBuilder) throws CompileExceptionError, IOException {
-        GeneratedMessageV3.Builder builder = ProtoBuilder.newBuilder(params.outExt());
-        ProtoUtil.merge(input, builder);
-        createSubTasks(builder, taskBuilder);
+    protected B getMessageBuilder(IResource input) throws IOException, CompileExceptionError {
+        B messageBuilder = messageBuilders.get(input);
+        if (messageBuilder != null) {
+            return messageBuilder;
+        }
+        try {
+            Method newBuilder = protoParams.messageClass().getDeclaredMethod("newBuilder");
+            messageBuilder = (B) newBuilder.invoke(null);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+
+        ProtoUtil.merge(input, messageBuilder);
+        messageBuilders.put(input, messageBuilder);
+        return messageBuilder;
     }
 
     @Override
@@ -129,7 +136,7 @@ public abstract class ProtoBuilder<B extends GeneratedMessageV3.Builder<B>> exte
                 .setName(params.name())
                 .addInput(input)
                 .addOutput(input.changeExt(params.outExt()));
-        createSubTasks(input, taskBuilder);
+        createSubTasks(getMessageBuilder(input), taskBuilder);
         return taskBuilder.build();
     }
 
@@ -138,16 +145,8 @@ public abstract class ProtoBuilder<B extends GeneratedMessageV3.Builder<B>> exte
     public void build(Task<Void> task) throws CompileExceptionError,
             IOException {
 
-        B builder;
-        try {
-            Method newBuilder = protoParams.messageClass().getDeclaredMethod("newBuilder");
-            builder = (B) newBuilder.invoke(null);
-        } catch (Exception e) {
-            throw new RuntimeException(e);
-        }
-
-        ProtoUtil.merge(task.input(0), builder);
-        builder = transform(task, task.input(0), builder);
+        B builder = getMessageBuilder(task.firstInput());
+        builder = transform(task, task.firstInput(), builder);
 
         Message msg = builder.build();
         ByteArrayOutputStream out = new ByteArrayOutputStream(4 * 1024);

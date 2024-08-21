@@ -22,9 +22,10 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Logger;
 
-import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.ProtoParams;
+import com.dynamo.bob.ProtoBuilder;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 
@@ -37,16 +38,15 @@ import com.dynamo.render.proto.Material.MaterialDesc;
 import com.dynamo.rig.proto.Rig.RigScene;
 import com.google.protobuf.TextFormat;
 
-
+@ProtoParams(srcClass = ModelDesc.class, messageClass = ModelDesc.class)
 @BuilderParams(name="Model", inExts=".model", outExt=".modelc")
-public class ModelBuilder extends Builder<Void> {
+public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
 
     private static Logger logger = Logger.getLogger(ModelBuilder.class.getName());
 
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-        ModelDesc.Builder modelDescBuilder = ModelDesc.newBuilder();
-        ProtoUtil.merge(input, modelDescBuilder);
+        ModelDesc.Builder modelDescBuilder = getMessageBuilder(input);
 
         Task.TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
             .setName(params.name())

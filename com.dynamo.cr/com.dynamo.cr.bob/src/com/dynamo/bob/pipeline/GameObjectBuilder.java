@@ -63,8 +63,7 @@ public class GameObjectBuilder extends ProtoBuilder<PrototypeDesc.Builder> {
     }
 
     private PrototypeDesc.Builder loadPrototype(IResource input) throws IOException, CompileExceptionError {
-        PrototypeDesc.Builder b = PrototypeDesc.newBuilder();
-        ProtoUtil.merge(input, b);
+        PrototypeDesc.Builder b = getMessageBuilder(input);
 
         List<ComponentDesc> lst = b.getComponentsList();
         List<ComponentDesc> newList = new ArrayList<GameObject.ComponentDesc>();
@@ -94,12 +93,13 @@ public class GameObjectBuilder extends ProtoBuilder<PrototypeDesc.Builder> {
 
     @Override
     public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-        PrototypeDesc.Builder builder = loadPrototype(input);
         TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
                 .setName(params.name())
                 .addInput(input)
                 .addOutput(input.changeExt(params.outExt()))
                 .addOutput(input.changeExt(ComponentsCounter.EXT_GO));
+
+        PrototypeDesc.Builder builder = loadPrototype(input);
 
         for (ComponentDesc cd : builder.getComponentsList()) {
             Boolean isStatic = ComponentsCounter.ifStaticFactoryAddProtoAsInput(cd, taskBuilder, input, project);
@@ -161,8 +161,8 @@ public class GameObjectBuilder extends ProtoBuilder<PrototypeDesc.Builder> {
 
     @Override
     public void build(Task<Void> task) throws CompileExceptionError, IOException {
-        IResource input = task.input(0);
-        PrototypeDesc.Builder protoBuilder = loadPrototype(input);
+        IResource input = task.firstInput();
+        PrototypeDesc.Builder protoBuilder = getMessageBuilder(input);
         for (ComponentDesc c : protoBuilder.getComponentsList()) {
             String component = c.getComponent();
             BuilderUtil.checkResource(this.project, input, "component", component);
