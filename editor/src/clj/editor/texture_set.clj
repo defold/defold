@@ -20,7 +20,7 @@
             [editor.gl.shader :as shader]
             [editor.gl.vertex2 :as vtx]
             [editor.slice9 :as slice9]
-            [util.coll :as coll])
+            [util.coll :refer [pair]])
   (:import [com.google.protobuf ByteString]
            [com.jogamp.opengl GL2]
            [editor.gl.vertex2 VertexBuffer]
@@ -30,23 +30,24 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(def ^:private tex-coord-orders
+(def ^:private flip-strategy->tex-coord-order
   [(vector-of :long 0 1 2 3)   ; no flip
    (vector-of :long 1 0 3 2)   ; flip v
    (vector-of :long 3 2 1 0)   ; flip h
    (vector-of :long 2 3 0 1)]) ; flip vh
 
-(defn- tex-coord-lookup
-  [^long flip-horizontal ^long flip-vertical]
-  (nth tex-coord-orders (bit-xor flip-vertical
-                                 (bit-shift-left flip-horizontal 1))))
+(def ^:private flip-strategy->scale-factors
+  [(vector-of :double 1.0 1.0)     ; no flip
+   (vector-of :double 1.0 -1.0)    ; flip v
+   (vector-of :double -1.0 1.0)    ; flip h
+   (vector-of :double -1.0 -1.0)]) ; flip vh
 
 (defn- ->uv-vertex
   [^long vert-index ^FloatBuffer tex-coords]
   (let [index (int (* vert-index 2))]
     (vector-of :double (.get tex-coords index) (.get tex-coords (inc index)))))
 
-(defn- ->uv-quad
+(defn- ->quad-tex-coords
   [^long quad-index tex-coords tex-coord-order]
   (let [offset (* quad-index 4)]
     (mapv (fn [^long tex-coord-index]
@@ -63,44 +64,59 @@
 ;; anim data
 
 (defn- ->anim-frame
-  [frame-index page-index tex-coords tex-coord-order tex-dims]
-  (let [tex-coords-data (->uv-quad frame-index tex-coords tex-coord-order)
-        {:keys [width height]} (->tex-dim frame-index tex-dims)]
-    {:page-index page-index
-     :tex-coords tex-coords-data
-     :width width
-     :height height}))
+  [page-index quad-tex-coords tex-dim]
+  {:page-index page-index
+   :tex-coords quad-tex-coords
+   :width (:width tex-dim)
+   :height (:height tex-dim)})
 
-(defn- flat-array->2d-points [flat-array]
-  (into []
-        (coll/partition-all-primitives :double 2)
-        flat-array))
+(defn- double-vector->2d-points
+  ([double-vector reverse]
+   (double-vector->2d-points double-vector reverse 1.0 1.0))
+  ([double-vector reverse ^double scale-x ^double scale-y]
+   (mapv (fn [^long index]
+           (let [^double x (double-vector index)
+                 ^double y (double-vector (inc index))]
+             (vector-of :double (* x scale-x) (* y scale-y))))
+         (if reverse
+           (range (- (count double-vector) 2) -2 -2)
+           (range 0 (count double-vector) 2)))))
 
 (defn- ->anim-frame-from-geometry
-  [frame-index page-index tex-coords tex-coord-order frame-geometry]
-  {:page-index page-index
-   :tex-coords (->uv-quad frame-index tex-coords tex-coord-order)
-   :vertex-coords (flat-array->2d-points (:vertices frame-geometry))
-   :vertex-tex-coords (flat-array->2d-points (:uvs frame-geometry))
-   :indices (:indices frame-geometry)
-   :use-geometries true
-   :width (:width frame-geometry)
-   :height (:height frame-geometry)})
+  [page-index quad-tex-coords frame-geometry scale-factors reverse]
+  (let [^double scale-x (scale-factors 0)
+        ^double scale-y (scale-factors 1)
+        vertex-coords (double-vector->2d-points (:vertices frame-geometry) reverse scale-x scale-y)
+        vertex-tex-coords (double-vector->2d-points (:uvs frame-geometry) reverse)]
+    {:page-index page-index
+     :tex-coords quad-tex-coords
+     :vertex-coords vertex-coords
+     :vertex-tex-coords vertex-tex-coords
+     :indices (:indices frame-geometry)
+     :use-geometries true
+     :width (:width frame-geometry)
+     :height (:height frame-geometry)}))
 
 (defn- ->anim-data
   [{:keys [start end fps flip-horizontal flip-vertical playback]} tex-coords tex-dims uv-transforms frame-indices page-indices geometries use-geometries]
   {:pre [(contains? #{nil 0 1} flip-horizontal)
          (contains? #{nil 0 1} flip-vertical)]}
-  (let [tex-coord-order (tex-coord-lookup (or flip-horizontal 0) (or flip-vertical 0))
+  (let [^long flip-horizontal (or flip-horizontal 0)
+        ^long flip-vertical (or flip-vertical 0)
+        flip-strategy (bit-or flip-vertical (bit-shift-left flip-horizontal 1))
+        tex-coord-order (flip-strategy->tex-coord-order flip-strategy)
+        scale-factors (flip-strategy->scale-factors flip-strategy)
+        reverse (not (zero? (bit-xor flip-horizontal flip-vertical)))
         frames (mapv (fn [i]
                        (let [frame-index (frame-indices i)
                              page-index (page-indices frame-index)
-                             frame-geometry (get geometries frame-index)]
+                             frame-geometry (geometries frame-index)
+                             quad-tex-coords (->quad-tex-coords frame-index tex-coords tex-coord-order)]
                          (if (and use-geometries
                                   (not= :sprite-trim-mode-off
                                         (:trim-mode frame-geometry)))
-                           (->anim-frame-from-geometry frame-index page-index tex-coords tex-coord-order frame-geometry)
-                           (->anim-frame frame-index page-index tex-coords tex-coord-order tex-dims))))
+                           (->anim-frame-from-geometry page-index quad-tex-coords frame-geometry scale-factors reverse)
+                           (->anim-frame page-index quad-tex-coords (->tex-dim frame-index tex-dims)))))
                      (range start end))]
     {:width (transduce (map :width) max 0 frames)
      :height (transduce (map :height) max 0 frames)
@@ -126,7 +142,7 @@
         frame-indices (:frame-indices texture-set)
         page-indices (:page-indices texture-set)]
     (into {}
-          (map #(vector (:id %) (->anim-data % tex-coords tex-dims uv-transforms frame-indices page-indices geometries use-geometries)))
+          (map #(pair (:id %) (->anim-data % tex-coords tex-dims uv-transforms frame-indices page-indices geometries use-geometries)))
           animations)))
 
 
