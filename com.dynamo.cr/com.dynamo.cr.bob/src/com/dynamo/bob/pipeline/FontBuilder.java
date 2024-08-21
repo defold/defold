@@ -23,8 +23,6 @@ import com.dynamo.bob.Task;
 import com.dynamo.bob.font.Fontc;
 import com.dynamo.bob.fs.IResource;
 
-import com.dynamo.bob.pipeline.GlyphBankBuilder;
-
 import com.dynamo.render.proto.Font.FontDesc;
 import com.dynamo.render.proto.Font.FontMap;
 

@@ -113,6 +113,7 @@ public abstract class ProtoBuilder<B extends GeneratedMessageV3.Builder<B>> exte
         }
     }
 
+    // This used to parse the main input resource ('firstInput()' or 'input.get(0)') and then reuse it on all the stages.
     protected B getMessageBuilder(IResource input) throws IOException, CompileExceptionError {
         B messageBuilder = messageBuilders.get(input);
         if (messageBuilder != null) {
