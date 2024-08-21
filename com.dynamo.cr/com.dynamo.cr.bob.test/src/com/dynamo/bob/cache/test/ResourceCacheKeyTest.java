@@ -37,8 +37,8 @@ import com.dynamo.bob.test.util.MockResource;
 
 public class ResourceCacheKeyTest {
 
-	private class DummyBuilder extends Builder<Void> {
-		private TaskBuilder<Void> builder;
+	private class DummyBuilder extends Builder {
+		private TaskBuilder builder;
 
 		public DummyBuilder() {
 			builder = Task.<Void> newBuilder(this);
@@ -52,7 +52,7 @@ public class ResourceCacheKeyTest {
 			return this;
 		}
 		@Override
-		public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
+		public Task create(IResource input) throws IOException, CompileExceptionError {
 			if (input != null) {
 				builder.addInput(input);
 			}
@@ -60,7 +60,7 @@ public class ResourceCacheKeyTest {
 		}
 
 		@Override
-		public void build(Task<Void> task) throws CompileExceptionError, IOException {
+		public void build(Task task) throws CompileExceptionError, IOException {
 
 		}
 	}
@@ -102,7 +102,7 @@ public class ResourceCacheKeyTest {
 		IResource output = createResource("someOutput").output();
 
 		DummyBuilder builder = new DummyBuilder();
-		Task<?> task = builder.addInput(input).addOutput(output).create(null);
+		Task task = builder.addInput(input).addOutput(output).create(null);
 		String key = ResourceCacheKey.calculate(task, createEmptyOptions(), output);
 		assertTrue(key != null);
 	}
@@ -114,11 +114,11 @@ public class ResourceCacheKeyTest {
 		IResource output = createResource("someOutput").output();
 
 		DummyBuilder builder1 = new DummyBuilder();
-		Task<?> task1 = builder1.addInput(input).addOutput(output).create(null);
+		Task task1 = builder1.addInput(input).addOutput(output).create(null);
 		String key1 = ResourceCacheKey.calculate(task1, createEmptyOptions(), output);
 
 		DummyBuilder builder2 = new DummyBuilder();
-		Task<?> task2 = builder2.addInput(input).addOutput(output).create(null);
+		Task task2 = builder2.addInput(input).addOutput(output).create(null);
 		String key2 = ResourceCacheKey.calculate(task2, createEmptyOptions(), output);
 
 		assertEquals(key1, key2);
@@ -131,7 +131,7 @@ public class ResourceCacheKeyTest {
 		IResource output = createResource("someOutput").output();
 
 		DummyBuilder builder = new DummyBuilder();
-		Task<?> task = builder.addInput(input).addOutput(output).create(null);
+		Task task = builder.addInput(input).addOutput(output).create(null);
 		String key1 = ResourceCacheKey.calculate(task, createImportantOptions(), output);
 		String key2 = ResourceCacheKey.calculate(task, createEmptyOptions(), output);
 
@@ -145,12 +145,12 @@ public class ResourceCacheKeyTest {
 		IResource output = createResource("someOutput").output();
 
 		DummyBuilder builder1 = new DummyBuilder();
-		Task<?> task1 = builder1.addInput(input).addOutput(output).create(null);
+		Task task1 = builder1.addInput(input).addOutput(output).create(null);
 		String key1 = ResourceCacheKey.calculate(task1, createEmptyOptions(), output);
 
 		DummyBuilder builder2 = new DummyBuilder();
 		input.setContent("someOtherInput".getBytes());
-		Task<?> task2 = builder2.addInput(input).addOutput(output).create(null);
+		Task task2 = builder2.addInput(input).addOutput(output).create(null);
 		String key2 = ResourceCacheKey.calculate(task2, createEmptyOptions(), output);
 
 		assertNotEquals(key1, key2);
@@ -163,12 +163,12 @@ public class ResourceCacheKeyTest {
 
 		DummyBuilder builder1 = new DummyBuilder();
 		IResource output1 = createResource("someOutput").output();
-		Task<?> task1 = builder1.addInput(input).addOutput(output1).create(null);
+		Task task1 = builder1.addInput(input).addOutput(output1).create(null);
 		String key1 = ResourceCacheKey.calculate(task1, createEmptyOptions(), output1);
 
 		DummyBuilder builder2 = new DummyBuilder();
 		IResource output2 = createResource("someOutput").output();
-		Task<?> task2 = builder2.addInput(input).addOutput(output2).create(null);
+		Task task2 = builder2.addInput(input).addOutput(output2).create(null);
 		String key2 = ResourceCacheKey.calculate(task2, createEmptyOptions(), output2);
 
 		assertNotEquals(key1, key2);
@@ -184,14 +184,14 @@ public class ResourceCacheKeyTest {
 		ignoredOptions1.put("email", "foo@bar.com");
 		ignoredOptions1.put("debug", "true");
 		DummyBuilder builder1 = new DummyBuilder();
-		Task<?> task1 = builder1.addInput(input).addOutput(output).create(null);
+		Task task1 = builder1.addInput(input).addOutput(output).create(null);
 		String key1 = ResourceCacheKey.calculate(task1, ignoredOptions1, output);
 
 		Map<String, String> ignoredOptions2 = new HashMap<String, String>();
 		ignoredOptions2.put("email", "bob@acme.com");
 		ignoredOptions2.put("debug", "false");
 		DummyBuilder builder2 = new DummyBuilder();
-		Task<?> task2 = builder2.addInput(input).addOutput(output).create(null);
+		Task task2 = builder2.addInput(input).addOutput(output).create(null);
 		String key2 = ResourceCacheKey.calculate(task2, ignoredOptions2, output);
 
 		assertEquals(key1, key2);

@@ -63,7 +63,7 @@ import com.google.protobuf.Message;
  * @author chmu
  *
  */
-public abstract class LuaBuilder extends Builder<Void> {
+public abstract class LuaBuilder extends Builder {
 
     private static Logger logger = Logger.getLogger(LuaBuilder.class.getName());
 
@@ -115,8 +115,8 @@ public abstract class LuaBuilder extends Builder<Void> {
     }
 
     @Override
-    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-        Task.TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
+    public Task create(IResource input) throws IOException, CompileExceptionError {
+        Task.TaskBuilder taskBuilder = Task.<Void>newBuilder(this)
                 .setName(params.name())
                 .addInput(input)
                 .addOutput(input.changeExt(params.outExt()));
@@ -150,7 +150,7 @@ public abstract class LuaBuilder extends Builder<Void> {
         return taskBuilder.build();
     }
 
-    public byte[] constructBytecode(Task<Void> task, String source, File inputFile, File outputFile, List<String> options, Map<String, String> env) throws IOException, CompileExceptionError {
+    public byte[] constructBytecode(Task task, String source, File inputFile, File outputFile, List<String> options, Map<String, String> env) throws IOException, CompileExceptionError {
         FileOutputStream fo = null;
         RandomAccessFile rdr = null;
 
@@ -229,13 +229,13 @@ public abstract class LuaBuilder extends Builder<Void> {
     // we always use @ + full path
     // if the path is shorter than 60 characters the runtime will show the full path
     // if the path is longer than 60 characters the runtime will show ... and the last portion of the path
-    private String getChunkName(Task<Void> task) {
+    private String getChunkName(Task task) {
         String chunkName = "@" + task.input(0).getPath();
         return chunkName;
     }
 
     /* We currently prefer source code over plain lua byte code due to the smaller size
-    public byte[] constructLuaBytecode(Task<Void> task, String luacExe, String source) throws IOException, CompileExceptionError {
+    public byte[] constructLuaBytecode(Task task, String luacExe, String source) throws IOException, CompileExceptionError {
         File outputFile = File.createTempFile("script", ".raw");
         File inputFile = File.createTempFile("script", ".lua");
 
@@ -290,7 +290,7 @@ public abstract class LuaBuilder extends Builder<Void> {
     }
     */
 
-    public byte[] constructLuaJITBytecode(Task<Void> task, String luajitExe, String source, boolean gen32bit) throws IOException, CompileExceptionError {
+    public byte[] constructLuaJITBytecode(Task task, String luajitExe, String source, boolean gen32bit) throws IOException, CompileExceptionError {
 
         Bob.initLua(); // unpack the lua resources
 
@@ -403,12 +403,12 @@ public abstract class LuaBuilder extends Builder<Void> {
     }
 
     @Override
-    public void build(Task<Void> task) throws CompileExceptionError, IOException {
+    public void build(Task task) throws CompileExceptionError, IOException {
 
         LuaModule.Builder builder = LuaModule.newBuilder();
 
         // get and remove require and properties from LuaScanner
-        LuaScanner scanner = getLuaScanner(task.input(0));
+        LuaScanner scanner = getLuaScanner(task.firstInput());
         String script = scanner.getParsedLua();
         List<String> modules = scanner.getModules();
         List<LuaScanner.Property> properties = scanner.getProperties();
@@ -416,14 +416,14 @@ public abstract class LuaBuilder extends Builder<Void> {
         // add detected modules to builder
         for (String module : modules) {
             String module_file = String.format("/%s.lua", module.replaceAll("\\.", "/"));
-            BuilderUtil.checkResource(this.project, task.input(0), "module", module_file);
+            BuilderUtil.checkResource(this.project, task.firstInput(), "module", module_file);
             builder.addModules(module);
             builder.addResources(module_file + "c");
         }
 
         // add detected properties to builder
         Collection<String> propertyResources = new HashSet<String>();
-        PropertyDeclarations propertiesMsg = buildProperties(task.input(0), properties, propertyResources);
+        PropertyDeclarations propertiesMsg = buildProperties(task.firstInput(), properties, propertyResources);
         builder.setProperties(propertiesMsg);
         builder.addAllPropertyResources(propertyResources);
 
@@ -436,7 +436,7 @@ public abstract class LuaBuilder extends Builder<Void> {
             }
         }
 
-        final IResource sourceResource = task.input(0);
+        final IResource sourceResource = task.firstInput();
         final String sourcePath = sourceResource.getAbsPath();
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
 

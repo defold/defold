@@ -66,42 +66,42 @@ public class JBobTest {
     @BuilderParams(name = "NoOutput", inExts = ".nooutput", outExt = ".nooutputc")
     public static class NoOutputBuilder extends CopyBuilder {
         @Override
-        public void build(Task<Void> task) {
+        public void build(Task task) {
         }
     }
 
     @BuilderParams(name = "FailingBuilder", inExts = ".in_err", outExt = ".out_err")
-    public static class FailingBuilder extends Builder<Void> {
+    public static class FailingBuilder extends Builder {
         @Override
-        public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
+        public Task create(IResource input) throws IOException, CompileExceptionError {
             return defaultTask(input);
         }
 
         @Override
-        public void build(Task<Void> task) throws CompileExceptionError {
+        public void build(Task task) throws CompileExceptionError {
             throw new CompileExceptionError(task.input(0), 0, "Failed to build");
         }
     }
 
     @BuilderParams(name = "CreateException", inExts = ".in_ce", outExt = ".out_ce")
-    public static class CreateExceptionBuilder extends Builder<Void> {
+    public static class CreateExceptionBuilder extends Builder {
         @Override
-        public Task<Void> create(IResource input) {
+        public Task create(IResource input) {
             throw new RuntimeException("error");
         }
 
         @Override
-        public void build(Task<Void> task) throws CompileExceptionError {
+        public void build(Task task) throws CompileExceptionError {
         }
     }
 
 
     @BuilderParams(name = "DynamicBuilder", inExts = ".dynamic", outExt = ".number")
-    public static class DynamicBuilder extends Builder<Void> {
+    public static class DynamicBuilder extends Builder {
 
         @Override
-        public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-            TaskBuilder<Void> builder = Task.<Void>newBuilder(this)
+        public Task create(IResource input) throws IOException, CompileExceptionError {
+            TaskBuilder builder = Task.<Void>newBuilder(this)
                     .setName(params.name())
                     .addInput(input);
 
@@ -109,24 +109,24 @@ public class JBobTest {
             String[] lst = content.split("\n");
             String baseName = FilenameUtils.removeExtension(input.getPath());
             int i = 0;
-            List<Task<?>> numberTasks = new ArrayList<Task<?>>();
+            List<Task> numberTasks = new ArrayList<Task>();
             for (@SuppressWarnings("unused") String s : lst) {
                 String numberName = String.format("%s_%d.number", baseName, i);
                 IResource numberInput = input.getResource(numberName).output();
                 builder.addOutput(numberInput);
-                Task<?> numberTask = project.createTask(numberInput);
+                Task numberTask = project.createTask(numberInput);
                 numberTasks.add(numberTask);
                 ++i;
             }
-            Task<Void> t = builder.build();
-            for (Task<?> task : numberTasks) {
+            Task t = builder.build();
+            for (Task task : numberTasks) {
                 task.setProductOf(t);
             }
             return t;
         }
 
         @Override
-        public void build(Task<Void> task)
+        public void build(Task task)
                 throws CompileExceptionError, IOException {
             IResource input = task.input(0);
             String content = new String(input.getContent());
@@ -139,14 +139,14 @@ public class JBobTest {
     }
 
     @BuilderParams(name = "NumberBuilder", inExts = ".number", outExt = ".numberc")
-    public static class NumberBuilder extends Builder<Void> {
+    public static class NumberBuilder extends Builder {
         @Override
-        public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
+        public Task create(IResource input) throws IOException, CompileExceptionError {
             return defaultTask(input);
         }
 
         @Override
-        public void build(Task<Void> task) throws CompileExceptionError, IOException {
+        public void build(Task task) throws CompileExceptionError, IOException {
             IResource input = task.input(0);
             int number = Integer.parseInt(new String(input.getContent()));
             task.output(0).setContent(Integer.toString(number * 10).getBytes());
@@ -154,14 +154,14 @@ public class JBobTest {
     }
 
     @BuilderParams(name = "FailOnEmptyAlwaysOutput", inExts = ".foeao", outExt = ".foeaoc")
-    public static class FailOnEmptyAlwaysOutputBuilder extends Builder<Void> {
+    public static class FailOnEmptyAlwaysOutputBuilder extends Builder {
         @Override
-        public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
+        public Task create(IResource input) throws IOException, CompileExceptionError {
             return defaultTask(input);
         }
 
         @Override
-        public void build(Task<Void> task) throws CompileExceptionError, IOException {
+        public void build(Task task) throws CompileExceptionError, IOException {
             task.output(0).setContent(new byte[0]);
             if (task.input(0).getContent().length == 0) {
                 throw new CompileExceptionError(task.input(0), 0, "Failed to build");

@@ -47,7 +47,7 @@ public class ComputeBuilder extends ProtoBuilder<ComputeDesc.Builder> {
     }
 
     @Override
-    public void build(Task<Void> task) throws CompileExceptionError, IOException {
+    public void build(Task task) throws CompileExceptionError, IOException {
         IResource res = task.firstInput();
         ComputeDesc.Builder computeBuilder = getMessageBuilder(res);
 

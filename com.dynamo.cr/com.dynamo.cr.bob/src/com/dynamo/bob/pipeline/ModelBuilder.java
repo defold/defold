@@ -45,10 +45,10 @@ public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
     private static Logger logger = Logger.getLogger(ModelBuilder.class.getName());
 
     @Override
-    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
+    public Task create(IResource input) throws IOException, CompileExceptionError {
         ModelDesc.Builder modelDescBuilder = getMessageBuilder(input);
 
-        Task.TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
+        Task.TaskBuilder taskBuilder = Task.<Void>newBuilder(this)
             .setName(params.name())
             .addInput(input)
             .addOutput(input.changeExt(params.outExt()))
@@ -91,7 +91,7 @@ public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
     }
 
     @Override
-    public void build(Task<Void> task) throws CompileExceptionError, IOException {
+    public void build(Task task) throws CompileExceptionError, IOException {
         ByteArrayInputStream model_is = new ByteArrayInputStream(task.input(0).getContent());
         InputStreamReader model_isr = new InputStreamReader(model_is);
         ModelDesc.Builder modelDescBuilder = ModelDesc.newBuilder();

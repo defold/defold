@@ -65,7 +65,7 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
 
     private ShaderDesc getShaderDesc(IResource resource, ShaderProgramBuilder builder, ShaderDesc.ShaderType shaderType) throws IOException, CompileExceptionError {
         builder.setProject(this.project);
-        Task<ShaderPreprocessor> task = builder.create(resource);
+        Task task = builder.create(resource);
         return builder.getCompiledShaderDesc(task, shaderType);
     }
 
@@ -232,7 +232,7 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
     }
 
     @Override
-    public void build(Task<Void> task) throws CompileExceptionError, IOException {
+    public void build(Task task) throws CompileExceptionError, IOException {
         IResource res = task.firstInput();
         MaterialDesc.Builder materialBuilder = getMessageBuilder(res);
 

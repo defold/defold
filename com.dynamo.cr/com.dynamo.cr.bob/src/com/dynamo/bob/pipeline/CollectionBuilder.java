@@ -87,8 +87,8 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
     }
 
     @Override
-    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-        Task.TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
+    public Task create(IResource input) throws IOException, CompileExceptionError {
+        Task.TaskBuilder taskBuilder = Task.<Void>newBuilder(this)
                 .setName(params.name())
                 .addInput(input)
                 .addOutput(input.changeExt(params.outExt()))
@@ -122,15 +122,15 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         Map<Long, IResource> allResources = new HashMap<>();
         createGeneratedResources(this.project, builder, uniqueResources, allResources);
 
-        List<Task<?>> embedTasks = new ArrayList<>();
+        List<Task> embedTasks = new ArrayList<>();
         for (long hash : uniqueResources.keySet()) {
             IResource genResource = uniqueResources.get(hash);
-            Task<?> embedTask = createSubTask(genResource, taskBuilder);
+            Task embedTask = createSubTask(genResource, taskBuilder);
             embedTasks.add(embedTask);
         }
 
         for (IResource genResource : allResources.values()) {
-            Task<?> embedTask = project.createTask(genResource);
+            Task embedTask = project.createTask(genResource);
             // if embeded objects have factories, they should be in input for our collection
             Set<IResource> counterInputs = ComponentsCounter.getCounterInputs(embedTask);
             for(IResource res : counterInputs) {
@@ -139,8 +139,8 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
             }
         }
 
-        Task<Void> task = taskBuilder.build();
-        for (Task<?> et : embedTasks) {
+        Task task = taskBuilder.build();
+        for (Task et : embedTasks) {
             et.setProductOf(task);
         }
         return task;
@@ -370,7 +370,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
     }
 
     @Override
-    protected CollectionDesc.Builder transform(Task<Void> task, IResource resource, CollectionDesc.Builder messageBuilder) throws CompileExceptionError, IOException {
+    protected CollectionDesc.Builder transform(Task task, IResource resource, CollectionDesc.Builder messageBuilder) throws CompileExceptionError, IOException {
         Integer countOfRealEmbededObjects = messageBuilder.getEmbeddedInstancesCount();
         mergeSubCollections(resource, messageBuilder);
         ComponentsCounter.Storage compStorage = ComponentsCounter.createStorage();

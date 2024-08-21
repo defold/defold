@@ -32,10 +32,10 @@ import com.dynamo.bob.font.Fontc.FontResourceResolver;
 import com.dynamo.render.proto.Font.FontDesc;
 
 @BuilderParams(name = "Glyph Bank", inExts = ".glyph_bank", outExt = ".glyph_bankc")
-public class GlyphBankBuilder extends Builder<Void> {
+public class GlyphBankBuilder extends Builder {
 
     @Override
-    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
+    public Task create(IResource input) throws IOException, CompileExceptionError {
 
     	FontDesc.Builder fontDescbuilder = FontDesc.newBuilder();
         ProtoUtil.merge(input, fontDescbuilder);
@@ -44,7 +44,7 @@ public class GlyphBankBuilder extends Builder<Void> {
         long fontDescHash = Fontc.FontDescToHash(fontDesc);
         IResource glyphBank = project.createGeneratedResource(fontDescHash, "glyph_bank");
 
-        Task.TaskBuilder<Void> task = Task.<Void> newBuilder(this)
+        Task.TaskBuilder task = Task.<Void> newBuilder(this)
                 .setName(params.name())
                 .addInput(input)
                 .addOutput(glyphBank.changeExt(params.outExt()));
@@ -52,7 +52,7 @@ public class GlyphBankBuilder extends Builder<Void> {
     }
 
     @Override
-    public void build(Task<Void> task) throws CompileExceptionError, IOException {
+    public void build(Task task) throws CompileExceptionError, IOException {
     	FontDesc.Builder fontDescbuilder = FontDesc.newBuilder();
         ProtoUtil.merge(task.firstInput(), fontDescbuilder);
         FontDesc fontDesc = fontDescbuilder.build();

@@ -46,14 +46,14 @@ public class TileSetBuilder extends ProtoBuilder<TileSet.Builder> {
     private static Logger logger = Logger.getLogger(TileSetBuilder.class.getName());
 
     @Override
-    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
+    public Task create(IResource input) throws IOException, CompileExceptionError {
         TileSet.Builder builder = getMessageBuilder(input);
         String imgPath = builder.getImage();
         String collisionPath = builder.getCollision();
         IResource image = this.project.getResource(imgPath);
         IResource collision = this.project.getResource(collisionPath);
         if (image.exists() || collision.exists()) {
-            TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
+            TaskBuilder taskBuilder = Task.<Void>newBuilder(this)
                     .setName(params.name())
                     .addInput(input)
                     .addOutput(input.changeExt(params.outExt()));
@@ -89,7 +89,7 @@ public class TileSetBuilder extends ProtoBuilder<TileSet.Builder> {
     }
 
     @Override
-    public void build(Task<Void> task) throws CompileExceptionError,
+    public void build(Task task) throws CompileExceptionError,
             IOException {
 
         TextureProfile texProfile = TextureUtil.getTextureProfileByPath(this.project.getTextureProfiles(), task.firstInput().getPath());

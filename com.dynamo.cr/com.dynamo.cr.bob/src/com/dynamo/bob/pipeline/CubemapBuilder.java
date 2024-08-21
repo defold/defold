@@ -42,11 +42,11 @@ public class CubemapBuilder extends ProtoBuilder<Cubemap.Builder> {
     private static Logger logger = Logger.getLogger(CubemapBuilder.class.getName());
 
     @Override
-    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
+    public Task create(IResource input) throws IOException, CompileExceptionError {
         Cubemap.Builder builder = getMessageBuilder(input);
         Cubemap cubemap = builder.build();
 
-        TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
+        TaskBuilder taskBuilder = Task.<Void>newBuilder(this)
                 .setName(params.name())
                 .addInput(input)
                 .addInput(input.getResource(cubemap.getRight()))
@@ -68,7 +68,7 @@ public class CubemapBuilder extends ProtoBuilder<Cubemap.Builder> {
     }
 
     @Override
-    public void build(Task<Void> task) throws CompileExceptionError, IOException {
+    public void build(Task task) throws CompileExceptionError, IOException {
 
         TextureProfile texProfile = TextureUtil.getTextureProfileByPath(this.project.getTextureProfiles(), task.input(0).getPath());
         logger.info("Compiling %s using profile %s", task.input(0).getPath(), texProfile!=null?texProfile.getName():"<none>");
@@ -108,7 +108,7 @@ public class CubemapBuilder extends ProtoBuilder<Cubemap.Builder> {
         }
     }
 
-    private void validate(Task<Void> task, TextureImage[] textures) throws CompileExceptionError {
+    private void validate(Task task, TextureImage[] textures) throws CompileExceptionError {
         for (int i = 1; i < 6; i++) {
             TextureImage t = textures[i];
             for (int j = 0; j < t.getAlternativesCount(); j++) {

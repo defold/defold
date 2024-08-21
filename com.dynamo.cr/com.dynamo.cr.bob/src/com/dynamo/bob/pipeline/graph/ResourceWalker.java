@@ -81,7 +81,7 @@ public class ResourceWalker {
             return;
         }
 
-        GeneratedMessageV3.Builder<?> builder = ProtoBuilder.newBuilder(ext);
+        GeneratedMessageV3.Builder builder = ProtoBuilder.newBuilder(ext);
         try {
             final byte[] content = resource.output().getContent();
             if(content == null) {

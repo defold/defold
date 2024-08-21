@@ -28,36 +28,31 @@ import com.dynamo.bob.fs.IResource;
 /**
  * Task abstraction. Contains the instance data for a {@link Builder}
  * @author Christian Murray
- *
- * @param <T> currently not used. The idea is to pass data directly. TODO: Remove?
  */
-public class Task<T> {
+public class Task {
     private String name;
     private final List<IResource> inputs = new ArrayList<IResource>();
     private final List<IResource> outputs = new ArrayList<IResource>();
     private final List<String> extraCacheKeys = new ArrayList<String>();
-    private Task<?> productOf;
+    private Task productOf;
 
     private final HashSet<IResource> inputLookup = new HashSet<IResource>();
 
-    public T data;
-    private final Builder<T> builder;
+    private final Builder builder;
     private boolean cacheable = true;
 
     /**
      * Task builder for create a {@link Task}.
      * @note Not to be confused with {@link Builder}
-     *
-     * @param <T> currently not used. The idea is to pass data directly. TODO: Remove?
      */
     public static class TaskBuilder<T> {
-        Task<T> task;
+        Task task;
 
-        public TaskBuilder(Builder<T> builder) {
-            task = new Task<T>(builder);
+        public TaskBuilder(Builder builder) {
+            task = new Task(builder);
         }
 
-        public Task<T> build() {
+        public Task build() {
             return task;
         }
 
@@ -86,7 +81,7 @@ public class Task<T> {
             return this;
         }
 
-        public TaskBuilder<T> addInputsFromOutputs(Task<?> outputsTask) {
+        public TaskBuilder addInputsFromOutputs(Task outputsTask) {
             task.inputs.addAll(outputsTask.getOutputs());
             return this;
         }
@@ -96,30 +91,21 @@ public class Task<T> {
             return this;
         }
 
-        public TaskBuilder<T> setData(T data) {
-            task.data = data;
-            return this;
-        }
-
         public IResource firstInput() {
             return task.inputs.get(0);
         }
     }
 
-    public Task(Builder<T> builder) {
+    public Task(Builder builder) {
         this.builder = builder;
     }
 
-    public Builder<T> getBuilder() {
+    public Builder getBuilder() {
         return builder;
     }
 
-    public static <T> TaskBuilder<T> newBuilder(Builder<T> builder) {
-        return new TaskBuilder<T>(builder);
-    }
-
-    public T getData() {
-        return data;
+    public static TaskBuilder newBuilder(Builder builder) {
+        return new TaskBuilder(builder);
     }
 
     public String getName() {
@@ -222,11 +208,11 @@ public class Task<T> {
         return digest.digest();
     }
 
-    public void setProductOf(Task<?> task) {
+    public void setProductOf(Task task) {
         this.productOf = task;
     }
 
-    public Task<?> getProductOf() {
+    public Task getProductOf() {
         return productOf;
     }
 

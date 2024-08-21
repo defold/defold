@@ -74,7 +74,7 @@ import com.dynamo.rig.proto.Rig.RigScene;
 import com.dynamo.rig.proto.Rig.AnimationSet;
 
 @BuilderParams(name = "GameProjectBuilder", inExts = ".project", outExt = "")
-public class GameProjectBuilder extends Builder<Void> {
+public class GameProjectBuilder extends Builder {
 
     // Root nodes to follow (default values from engine.cpp)
     static final String[][] ROOT_NODES = new String[][] {
@@ -96,7 +96,7 @@ public class GameProjectBuilder extends Builder<Void> {
     }
 
     @Override
-    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
+    public Task create(IResource input) throws IOException, CompileExceptionError {
         gameProjectDependencies = new String[ROOT_NODES.length + 1];
         int index = 0;
         for (String[] tuples : ROOT_NODES) {
@@ -127,7 +127,7 @@ public class GameProjectBuilder extends Builder<Void> {
 
         boolean shouldPublish = project.option("liveupdate", "false").equals("true");
         project.createPublisher(shouldPublish);
-        TaskBuilder<Void> builder = Task.newBuilder(this)
+        TaskBuilder builder = Task.newBuilder(this)
                 .setName(params.name())
                 .disableCache()
                 .addInput(input)
@@ -393,7 +393,7 @@ public class GameProjectBuilder extends Builder<Void> {
     }
 
     @Override
-    public void build(Task<Void> task) throws CompileExceptionError, IOException {
+    public void build(Task task) throws CompileExceptionError, IOException {
         FileInputStream archiveIndexInputStream = null;
         FileInputStream archiveDataInputStream = null;
         FileInputStream publicKeyInputStream = null;

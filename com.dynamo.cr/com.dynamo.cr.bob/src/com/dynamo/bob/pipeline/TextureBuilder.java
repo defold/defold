@@ -30,14 +30,14 @@ import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
 
 @BuilderParams(name = "Texture", inExts = {".png", ".jpg"}, outExt = ".texturec", ignoreTaskAutoCreation = true)
-public class TextureBuilder extends Builder<Void> {
+public class TextureBuilder extends Builder {
 
     private static Logger logger = Logger.getLogger(TextureBuilder.class.getName());
 
     @Override
-    public Task<Void> create(IResource input) throws IOException {
+    public Task create(IResource input) throws IOException {
 
-        TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
+        TaskBuilder taskBuilder = Task.<Void>newBuilder(this)
                 .setName(params.name())
                 .addInput(input)
                 .addOutput(input.changeExt(params.outExt()));
@@ -53,7 +53,7 @@ public class TextureBuilder extends Builder<Void> {
     }
 
     @Override
-    public void build(Task<Void> task) throws CompileExceptionError,
+    public void build(Task task) throws CompileExceptionError,
             IOException {
 
         TextureProfile texProfile = TextureUtil.getTextureProfileByPath(this.project.getTextureProfiles(), task.input(0).getPath());

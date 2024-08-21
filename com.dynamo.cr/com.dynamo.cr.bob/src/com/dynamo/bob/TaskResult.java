@@ -22,11 +22,11 @@ package com.dynamo.bob;
 public class TaskResult {
     private boolean ok = true;
     private String message = "OK";
-    private Task<?> task;
+    private Task task;
     private Throwable exception;
     private int lineNumber = 0;
 
-    public TaskResult(Task<?> task) {
+    public TaskResult(Task task) {
         this.task = task;
     }
 
@@ -66,7 +66,7 @@ public class TaskResult {
      * Get corresponding tas
      * @return {@link Task}
      */
-    public Task<?> getTask() {
+    public Task getTask() {
         return task;
     }
 

@@ -27,30 +27,30 @@ import com.dynamo.render.proto.Font.FontDesc;
 import com.dynamo.render.proto.Font.FontMap;
 
 @BuilderParams(name = "Font", inExts = ".font", outExt = ".fontc")
-public class FontBuilder extends Builder<Void>  {
+public class FontBuilder extends Builder  {
 
     @Override
-    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
+    public Task create(IResource input) throws IOException, CompileExceptionError {
         FontDesc.Builder fontDescbuilder = FontDesc.newBuilder();
         ProtoUtil.merge(input, fontDescbuilder);
         FontDesc fontDesc = fontDescbuilder.build();
 
-        Task.TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
+        Task.TaskBuilder taskBuilder = Task.<Void>newBuilder(this)
                 .setName(params.name())
                 .addInput(input)
                 .addInput(input.getResource(fontDesc.getFont()))
                 .addOutput(input.changeExt(params.outExt()));
 
-        Task<?> glyphBankTask = createSubTask(input, GlyphBankBuilder.class, taskBuilder);
+        Task glyphBankTask = createSubTask(input, GlyphBankBuilder.class, taskBuilder);
         createSubTask(fontDesc.getMaterial(),"material", taskBuilder);
 
-        Task<Void> task = taskBuilder.build();
+        Task task = taskBuilder.build();
         glyphBankTask.setProductOf(task);
         return task;
     }
 
     @Override
-    public void build(Task<Void> task) throws CompileExceptionError, IOException {
+    public void build(Task task) throws CompileExceptionError, IOException {
         FontDesc.Builder fontDescbuilder = FontDesc.newBuilder();
         ProtoUtil.merge(task.firstInput(), fontDescbuilder);
         FontDesc fontDesc = fontDescbuilder.build();

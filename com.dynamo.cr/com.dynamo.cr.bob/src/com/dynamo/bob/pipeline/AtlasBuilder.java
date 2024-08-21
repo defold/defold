@@ -26,15 +26,11 @@ import java.util.List;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
-import com.dynamo.bob.Builder;
-import com.dynamo.bob.BuilderParams;
-import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.Task;
+import com.dynamo.bob.*;
 import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.textureset.TextureSetGenerator.TextureSetResult;
 import com.dynamo.bob.logging.Logger;
-import com.dynamo.bob.pipeline.TextureGeneratorException;
 import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
@@ -44,16 +40,17 @@ import com.dynamo.gamesys.proto.AtlasProto.AtlasImage;
 
 import com.google.protobuf.TextFormat;
 
+@ProtoParams(srcClass = Atlas.class, messageClass = Atlas.class)
 @BuilderParams(name = "Atlas", inExts = {".atlas"}, outExt = ".a.texturesetc")
-public class AtlasBuilder extends Builder<TextureImage.Type>  {
+public class AtlasBuilder extends ProtoBuilder<Atlas.Builder> {
 
     private static Logger logger = Logger.getLogger(AtlasBuilder.class.getName());
 
-    private static TextureImage.Type getTexureType(Atlas atlas) {
+    private static TextureImage.Type getTexureType(Atlas.Builder builder) {
         // We can't just look at result of texture generation to decide the image type,
         // a texture specified with max page size can still generate one page but used with a material that has array samplers
         // so we need to know this beforehand for both validation and runtime
-        return atlas.getMaxPageWidth() > 0 && atlas.getMaxPageHeight() > 0 ? TextureImage.Type.TYPE_2D_ARRAY : TextureImage.Type.TYPE_2D;
+        return builder.getMaxPageWidth() > 0 && builder.getMaxPageHeight() > 0 ? TextureImage.Type.TYPE_2D_ARRAY : TextureImage.Type.TYPE_2D;
     }
 
     private static int getPageCount(List<BufferedImage> images, TextureImage.Type textureType) {
@@ -67,16 +64,12 @@ public class AtlasBuilder extends Builder<TextureImage.Type>  {
     }
 
     @Override
-    public Task<TextureImage.Type> create(IResource input) throws IOException, CompileExceptionError {
-        Atlas.Builder builder = Atlas.newBuilder();
-        ProtoUtil.merge(input, builder);
+    public Task create(IResource input) throws IOException, CompileExceptionError {
+        Atlas.Builder builder = getMessageBuilder(input);
         Atlas atlas = builder.build();
 
-        TextureImage.Type textureImageType = getTexureType(atlas);
-
-        TaskBuilder<TextureImage.Type> taskBuilder = Task.<TextureImage.Type>newBuilder(this)
+        TaskBuilder taskBuilder = Task.newBuilder(this)
                 .setName(params.name())
-                .setData(textureImageType)
                 .addInput(input)
                 .addOutput(input.changeExt(params.outExt()))
                 .addOutput(input.changeExt(".texturec"));
@@ -97,9 +90,10 @@ public class AtlasBuilder extends Builder<TextureImage.Type>  {
     }
 
     @Override
-    public void build(Task<TextureImage.Type> task) throws CompileExceptionError, IOException {
-        TextureSetResult result            = AtlasUtil.generateTextureSet(this.project, task.input(0));
-        TextureImage.Type textureImageType = task.getData();
+    public void build(Task task) throws CompileExceptionError, IOException {
+        Atlas.Builder builder = getMessageBuilder(task.firstInput());
+        TextureSetResult result            = AtlasUtil.generateTextureSet(this.project, task.firstInput(), builder);
+        TextureImage.Type textureImageType = getTexureType(builder);
 
         int buildDirLen         = project.getBuildDirectory().length();
         String texturePath      = task.output(1).getPath().substring(buildDirLen);
@@ -143,9 +137,9 @@ public class AtlasBuilder extends Builder<TextureImage.Type>  {
         TextFormat.merge(reader, builder);
         reader.close();
 
-        Atlas atlas = builder.build();
-        TextureImage.Type textureImageType = getTexureType(atlas);
+        TextureImage.Type textureImageType = getTexureType(builder);
 
+        Atlas atlas = builder.build();
         TextureSetResult result = AtlasUtil.generateTextureSet(atlas, new AtlasUtil.PathTransformer() {
             @Override
             public String transform(String path) {

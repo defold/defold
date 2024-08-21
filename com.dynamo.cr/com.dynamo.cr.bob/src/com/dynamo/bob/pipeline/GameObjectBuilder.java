@@ -92,8 +92,8 @@ public class GameObjectBuilder extends ProtoBuilder<PrototypeDesc.Builder> {
     }
 
     @Override
-    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-        TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
+    public Task create(IResource input) throws IOException, CompileExceptionError {
+        TaskBuilder taskBuilder = Task.<Void>newBuilder(this)
                 .setName(params.name())
                 .addInput(input)
                 .addOutput(input.changeExt(params.outExt()))
@@ -117,7 +117,7 @@ public class GameObjectBuilder extends ProtoBuilder<PrototypeDesc.Builder> {
 
         // Gather the unique resources first
         Map<Long, IResource> uniqueResources = new HashMap<>();
-        List<Task<?>> embedTasks = new ArrayList<>();
+        List<Task> embedTasks = new ArrayList<>();
 
         for (EmbeddedComponentDesc ec : proto.getEmbeddedComponentsList()) {
             byte[] data = ec.getData().getBytes();
@@ -142,7 +142,7 @@ public class GameObjectBuilder extends ProtoBuilder<PrototypeDesc.Builder> {
         for (long hash : uniqueResources.keySet()) {
             IResource genResource = uniqueResources.get(hash);
             taskBuilder.addOutput(genResource);
-            Task<?> embedTask = project.createTask(genResource);
+            Task embedTask = project.createTask(genResource);
             if (embedTask == null) {
                 throw new CompileExceptionError(input,
                                                 0,
@@ -151,8 +151,8 @@ public class GameObjectBuilder extends ProtoBuilder<PrototypeDesc.Builder> {
             embedTasks.add(embedTask);
         }
 
-        Task<Void> task = taskBuilder.build();
-        for (Task<?> et : embedTasks) {
+        Task task = taskBuilder.build();
+        for (Task et : embedTasks) {
             et.setProductOf(task);
         }
 
@@ -160,7 +160,7 @@ public class GameObjectBuilder extends ProtoBuilder<PrototypeDesc.Builder> {
     }
 
     @Override
-    public void build(Task<Void> task) throws CompileExceptionError, IOException {
+    public void build(Task task) throws CompileExceptionError, IOException {
         IResource input = task.firstInput();
         PrototypeDesc.Builder protoBuilder = getMessageBuilder(input);
         for (ComponentDesc c : protoBuilder.getComponentsList()) {

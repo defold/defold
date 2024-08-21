@@ -23,10 +23,8 @@ import com.dynamo.bob.pipeline.BuilderUtil;
 /**
  * Abstract builder class. Extend this class to create a builder
  * @author Christian Murray
- *
- * @param <T> currently not used. The idea is to pass data directly. TODO: Remove?
  */
-public abstract class Builder<T> {
+public abstract class Builder {
 
     protected BuilderParams params;
     protected Project project;
@@ -47,8 +45,8 @@ public abstract class Builder<T> {
      * @param input input resource
      * @return new task with single input/output
      */
-    protected Task<T> defaultTask(IResource input) throws CompileExceptionError, IOException {
-        Task.TaskBuilder<T> taskBuilder = Task.<T>newBuilder(this)
+    protected Task defaultTask(IResource input) {
+        Task.TaskBuilder taskBuilder = Task.newBuilder(this)
                 .setName(params.name())
                 .addInput(input)
                 .addOutput(input.changeExt(params.outExt()));
@@ -62,8 +60,8 @@ public abstract class Builder<T> {
      * @param builder current task builder
      * @return new subtask with single input/output
      */
-    protected Task<?> createSubTask(IResource input, Class<? extends Builder<?>> builderClass, Task.TaskBuilder<?> builder) throws CompileExceptionError {
-        Task<?> subTask = project.createTask(input, builderClass);
+    protected Task createSubTask(IResource input, Class<? extends Builder> builderClass, Task.TaskBuilder builder) throws CompileExceptionError {
+        Task subTask = project.createTask(input, builderClass);
         builder.addInputsFromOutputs(subTask);
         return subTask;
     }
@@ -74,8 +72,8 @@ public abstract class Builder<T> {
      * @param builder current task builder
      * @return new subtask with single input/output
      */
-    protected Task<?> createSubTask(IResource input, Task.TaskBuilder<?> builder) throws CompileExceptionError {
-        Task<?> subTask = project.createTask(input);
+    protected Task createSubTask(IResource input, Task.TaskBuilder builder) throws CompileExceptionError {
+        Task subTask = project.createTask(input);
         if (subTask == null) {
             throw new CompileExceptionError(input,
                     0,
@@ -92,9 +90,9 @@ public abstract class Builder<T> {
      * @param builder current task builder
      * @return new subtask with single input/output
      */
-    protected Task<?> createSubTask(String inputPath, String field, Task.TaskBuilder<?> builder) throws CompileExceptionError {
+    protected Task createSubTask(String inputPath, String field, Task.TaskBuilder builder) throws CompileExceptionError {
         IResource res = BuilderUtil.checkResource(project, builder.firstInput(), field, inputPath);
-        Task<?> subTask = project.createTask(res);
+        Task subTask = project.createTask(res);
         builder.addInputsFromOutputs(subTask);
         return subTask;
     }
@@ -106,7 +104,7 @@ public abstract class Builder<T> {
      * @throws IOException
      * @throws CompileExceptionError
      */
-    public abstract Task<T> create(IResource input) throws IOException, CompileExceptionError;
+    public abstract Task create(IResource input) throws IOException, CompileExceptionError;
 
     /**
      * Build task, ie compile
@@ -114,7 +112,7 @@ public abstract class Builder<T> {
      * @throws CompileExceptionError
      * @throws IOException
      */
-    public abstract void build(Task<T> task) throws CompileExceptionError, IOException;
+    public abstract void build(Task task) throws CompileExceptionError, IOException;
 
     /**
      * Add custom signature, eg command-line, etc

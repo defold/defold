@@ -30,7 +30,7 @@ import com.google.protobuf.GeneratedMessageV3;
 import com.google.protobuf.MessageOrBuilder;
 import com.google.protobuf.Message;
 
-public abstract class ProtoBuilder<B extends GeneratedMessageV3.Builder<B>> extends Builder<Void> {
+public abstract class ProtoBuilder<B extends GeneratedMessageV3.Builder<B>> extends Builder {
 
     private ProtoParams protoParams;
     private HashMap<IResource, B> messageBuilders = new HashMap<>();
@@ -57,13 +57,13 @@ public abstract class ProtoBuilder<B extends GeneratedMessageV3.Builder<B>> exte
         return klass != null;
     }
 
-    static public GeneratedMessageV3.Builder<?> newBuilder(String ext) throws CompileExceptionError {
+    static public GeneratedMessageV3.Builder newBuilder(String ext) throws CompileExceptionError {
         Class<? extends GeneratedMessageV3> klass = getMessageClassFromExt(ext);
         if (klass != null) {
-            GeneratedMessageV3.Builder<?> builder;
+            GeneratedMessageV3.Builder builder;
             try {
                 Method newBuilder = klass.getDeclaredMethod("newBuilder");
-                return (GeneratedMessageV3.Builder<?>) newBuilder.invoke(null);
+                return (GeneratedMessageV3.Builder) newBuilder.invoke(null);
             } catch(Exception e) {
                 throw new RuntimeException(e);
             }
@@ -72,7 +72,7 @@ public abstract class ProtoBuilder<B extends GeneratedMessageV3.Builder<B>> exte
         }
     }
 
-    protected B transform(Task<Void> task, IResource resource, B messageBuilder) throws IOException, CompileExceptionError {
+    protected B transform(Task task, IResource resource, B messageBuilder) throws IOException, CompileExceptionError {
         return messageBuilder;
     }
 
@@ -81,7 +81,7 @@ public abstract class ProtoBuilder<B extends GeneratedMessageV3.Builder<B>> exte
      * @param builder message or builder of the file that should be scanned
      * @param taskBuilder the builder where result should be applied to
      */
-    protected void createSubTasks(MessageOrBuilder builder, Task.TaskBuilder<Void> taskBuilder) throws CompileExceptionError {
+    protected void createSubTasks(MessageOrBuilder builder, Task.TaskBuilder taskBuilder) throws CompileExceptionError {
         List<Descriptors.FieldDescriptor> fields = builder.getDescriptorForType().getFields();
         for (Descriptors.FieldDescriptor fieldDescriptor : fields) {
             DescriptorProtos.FieldOptions options = fieldDescriptor.getOptions();
@@ -132,8 +132,8 @@ public abstract class ProtoBuilder<B extends GeneratedMessageV3.Builder<B>> exte
     }
 
     @Override
-    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-        Task.TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
+    public Task create(IResource input) throws IOException, CompileExceptionError {
+        Task.TaskBuilder taskBuilder = Task.<Void>newBuilder(this)
                 .setName(params.name())
                 .addInput(input)
                 .addOutput(input.changeExt(params.outExt()));
@@ -143,7 +143,7 @@ public abstract class ProtoBuilder<B extends GeneratedMessageV3.Builder<B>> exte
 
     @SuppressWarnings("unchecked")
     @Override
-    public void build(Task<Void> task) throws CompileExceptionError,
+    public void build(Task task) throws CompileExceptionError,
             IOException {
 
         B builder = getMessageBuilder(task.firstInput());
