@@ -65,11 +65,7 @@ import com.dynamo.graphics.proto.Graphics.TextureProfiles;
 import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
 import com.dynamo.liveupdate.proto.Manifest.SignAlgorithm;
 
-import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
-import com.dynamo.gamesys.proto.MeshProto.MeshDesc;
-import com.dynamo.gamesys.proto.ModelProto.Model;
 import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
-import com.dynamo.graphics.proto.Graphics.Cubemap;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 import com.dynamo.render.proto.Font.FontMap;
 import com.dynamo.rig.proto.Rig.MeshSet;

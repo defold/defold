@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.HashSet;
 
-import com.dynamo.lua.proto.Lua;
 import org.junit.Test;
 
 import com.dynamo.graphics.proto.Graphics.TextureImage;
