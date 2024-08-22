@@ -141,8 +141,7 @@ public class GameObjectBuilder extends ProtoBuilder<PrototypeDesc.Builder> {
 
         for (long hash : uniqueResources.keySet()) {
             IResource genResource = uniqueResources.get(hash);
-            taskBuilder.addOutput(genResource);
-            Task embedTask = project.createTask(genResource);
+            Task embedTask = createSubTask(genResource, taskBuilder);
             if (embedTask == null) {
                 throw new CompileExceptionError(input,
                                                 0,

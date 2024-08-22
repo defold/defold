@@ -130,7 +130,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         }
 
         for (IResource genResource : allResources.values()) {
-            Task embedTask = project.createTask(genResource);
+            Task embedTask = createSubTask(genResource, taskBuilder);
             // if embeded objects have factories, they should be in input for our collection
             Set<IResource> counterInputs = ComponentsCounter.getCounterInputs(embedTask);
             for(IResource res : counterInputs) {
