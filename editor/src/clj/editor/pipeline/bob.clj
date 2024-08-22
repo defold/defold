@@ -251,7 +251,6 @@
                 (ui/with-progress [render-progress! render-progress!]
                   (.resolveLibUrls bob-project (->progress render-progress! task-cancelled?)))))
             (.mount bob-project (->graph-resource-scanner ws))
-            (.findSources bob-project proj-path skip-dirs)
             (ui/with-progress [render-progress! render-progress!]
               (run-commands! project evaluation-context bob-project bob-commands render-progress! task-cancelled?))))
         (catch Throwable error
