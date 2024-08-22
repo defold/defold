@@ -35,17 +35,7 @@ import java.net.URL;
 import java.net.URI;
 import java.nio.file.attribute.FileTime;
 import java.text.ParseException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Enumeration;
-import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Callable;
@@ -135,6 +125,7 @@ public class Project {
     private List<String> inputs = new ArrayList<String>();
     private HashMap<String, EnumSet<OutputFlags>> outputs = new HashMap<String, EnumSet<OutputFlags>>();
     private HashMap<String, Task> tasks;
+    private Set<String> circularDependencyChecker = new LinkedHashSet<>();
     private State state;
     private String rootDirectory = ".";
     private String buildDirectory = "build";
@@ -409,6 +400,21 @@ public class Project {
         {".tilemap", ".tilemapc"},
     };
 
+    private String generateCircularDependencyErrorMessage(String dependency) {
+        StringBuilder errorMessage = new StringBuilder("\nCircular dependency detected:\n");
+
+        for (String element : circularDependencyChecker) {
+            if (element.equals(dependency)) {
+                errorMessage.append("-> ").append(element).append(" (Circular Point)\n");
+            } else {
+                errorMessage.append(element).append("\n");
+            }
+        }
+        errorMessage.append("-> ").append(dependency).append(" (Circular Point)");
+
+        return errorMessage.toString();
+    }
+
     public String replaceExt(String inExt) {
         for (int i = 0; i < extensionMapping.length; i++) {
             if (extensionMapping[i][0].equals(inExt))
@@ -465,8 +471,12 @@ public class Project {
     public Task createTask(IResource inputResource, Class<? extends Builder> builderClass) throws CompileExceptionError {
         // It's possible to build the same resource using different builders
         String key = inputResource.getPath()+" "+builderClass;
+        if (!circularDependencyChecker.add(key)) {
+            throw new CompileExceptionError(generateCircularDependencyErrorMessage(key), null);
+        }
         Task task = tasks.get(key);
         if (task != null) {
+            circularDependencyChecker.remove(key);
             return task;
         }
         TimeProfiler.start();
@@ -481,6 +491,7 @@ public class Project {
                 TimeProfiler.addData("name", task.getName());
                 tasks.put(key, task);
             }
+            circularDependencyChecker.remove(key);
             return task;
         } catch (CompileExceptionError e) {
             // Just pass CompileExceptionError on unmodified
@@ -493,6 +504,7 @@ public class Project {
     }
 
     private void createTasks() throws CompileExceptionError {
+        circularDependencyChecker = new LinkedHashSet<>();
         tasks = new HashMap<String, Task>();
         if(this.inputs == null || this.inputs.isEmpty()) {
             createTask(getGameProjectResource());
