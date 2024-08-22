@@ -438,18 +438,6 @@ public class Project {
     }
 
     /**
-     * Create task from resource path with explicit builder.
-     * @param inputPath input resource path
-     * @param builderClass class to build resource with
-     * @return task
-     * @throws CompileExceptionError
-     */
-    public Task createTask(String inputPath, Class<? extends Builder> builderClass) throws CompileExceptionError {
-        IResource inputResource = fileSystem.get(inputPath);
-        return createTask(inputResource, builderClass);
-    }
-
-    /**
      * Create task from resource. Typically called from builder
      * that create intermediate output/input-files
      * @param inputResource input resource
