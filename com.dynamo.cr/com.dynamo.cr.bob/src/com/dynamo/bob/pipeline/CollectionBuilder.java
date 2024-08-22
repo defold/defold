@@ -88,12 +88,12 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
 
     @Override
     public Task create(IResource input) throws IOException, CompileExceptionError {
-        Task.TaskBuilder taskBuilder = Task.<Void>newBuilder(this)
+        Task.TaskBuilder taskBuilder = Task.newBuilder(this)
                 .setName(params.name())
                 .addInput(input)
                 .addOutput(input.changeExt(params.outExt()))
                 .addOutput(input.changeExt(ComponentsCounter.EXT_COL));
-        CollectionDesc.Builder builder = getMessageBuilder(input);
+        CollectionDesc.Builder builder = getSrcBuilder(input);
         createSubTasks(builder, taskBuilder);
 
         Map<IResource, Integer> subCollections = new HashMap<>();

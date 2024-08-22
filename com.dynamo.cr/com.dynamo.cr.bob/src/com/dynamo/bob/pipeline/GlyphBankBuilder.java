@@ -44,7 +44,7 @@ public class GlyphBankBuilder extends Builder {
         long fontDescHash = Fontc.FontDescToHash(fontDesc);
         IResource glyphBank = project.createGeneratedResource(fontDescHash, "glyph_bank");
 
-        Task.TaskBuilder task = Task.<Void> newBuilder(this)
+        Task.TaskBuilder task = Task. newBuilder(this)
                 .setName(params.name())
                 .addInput(input)
                 .addOutput(glyphBank.changeExt(params.outExt()));

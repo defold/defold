@@ -65,7 +65,7 @@ public class AtlasBuilder extends ProtoBuilder<Atlas.Builder> {
 
     @Override
     public Task create(IResource input) throws IOException, CompileExceptionError {
-        Atlas.Builder builder = getMessageBuilder(input);
+        Atlas.Builder builder = getSrcBuilder(input);
         Atlas atlas = builder.build();
 
         TaskBuilder taskBuilder = Task.newBuilder(this)
@@ -91,7 +91,7 @@ public class AtlasBuilder extends ProtoBuilder<Atlas.Builder> {
 
     @Override
     public void build(Task task) throws CompileExceptionError, IOException {
-        Atlas.Builder builder = getMessageBuilder(task.firstInput());
+        Atlas.Builder builder = getSrcBuilder(task.firstInput());
         TextureSetResult result            = AtlasUtil.generateTextureSet(this.project, task.firstInput(), builder);
         TextureImage.Type textureImageType = getTexureType(builder);
 

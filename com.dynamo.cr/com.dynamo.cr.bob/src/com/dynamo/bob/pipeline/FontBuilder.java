@@ -35,7 +35,7 @@ public class FontBuilder extends Builder  {
         ProtoUtil.merge(input, fontDescbuilder);
         FontDesc fontDesc = fontDescbuilder.build();
 
-        Task.TaskBuilder taskBuilder = Task.<Void>newBuilder(this)
+        Task.TaskBuilder taskBuilder = Task.newBuilder(this)
                 .setName(params.name())
                 .addInput(input)
                 .addInput(input.getResource(fontDesc.getFont()))

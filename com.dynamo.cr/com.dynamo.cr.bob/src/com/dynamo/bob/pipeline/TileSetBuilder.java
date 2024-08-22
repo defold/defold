@@ -47,13 +47,13 @@ public class TileSetBuilder extends ProtoBuilder<TileSet.Builder> {
 
     @Override
     public Task create(IResource input) throws IOException, CompileExceptionError {
-        TileSet.Builder builder = getMessageBuilder(input);
+        TileSet.Builder builder = getSrcBuilder(input);
         String imgPath = builder.getImage();
         String collisionPath = builder.getCollision();
         IResource image = this.project.getResource(imgPath);
         IResource collision = this.project.getResource(collisionPath);
         if (image.exists() || collision.exists()) {
-            TaskBuilder taskBuilder = Task.<Void>newBuilder(this)
+            TaskBuilder taskBuilder = Task.newBuilder(this)
                     .setName(params.name())
                     .addInput(input)
                     .addOutput(input.changeExt(params.outExt()));
@@ -95,7 +95,7 @@ public class TileSetBuilder extends ProtoBuilder<TileSet.Builder> {
         TextureProfile texProfile = TextureUtil.getTextureProfileByPath(this.project.getTextureProfiles(), task.firstInput().getPath());
         logger.info("Compiling %s using profile %s", task.firstInput().getPath(), texProfile!=null?texProfile.getName():"<none>");
 
-        TileSet.Builder builder = getMessageBuilder(task.firstInput());
+        TileSet.Builder builder = getSrcBuilder(task.firstInput());
         TileSet tileSet = builder.build();
 
         String imgPath = tileSet.getImage();

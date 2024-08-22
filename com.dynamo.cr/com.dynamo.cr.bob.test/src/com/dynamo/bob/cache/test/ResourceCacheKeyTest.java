@@ -41,7 +41,7 @@ public class ResourceCacheKeyTest {
 		private TaskBuilder builder;
 
 		public DummyBuilder() {
-			builder = Task.<Void> newBuilder(this);
+			builder = Task. newBuilder(this);
 		}
 		public DummyBuilder addInput(IResource input) {
 			builder.addInput(input);

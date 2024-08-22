@@ -66,7 +66,7 @@ public class MeshsetBuilder extends Builder  {
 
     @Override
     public Task create(IResource input) throws IOException, CompileExceptionError {
-        Task.TaskBuilder taskBuilder = Task.<Void>newBuilder(this)
+        Task.TaskBuilder taskBuilder = Task.newBuilder(this)
             .setName(params.name())
             .addInput(input)
             .addOutput(input.changeExt(params.outExt()))

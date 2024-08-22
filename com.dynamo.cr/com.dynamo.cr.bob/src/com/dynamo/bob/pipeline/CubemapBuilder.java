@@ -36,26 +36,27 @@ import com.dynamo.graphics.proto.Graphics.TextureImage.Type;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
 
 @ProtoParams(srcClass = Cubemap.class, messageClass = Cubemap.class)
-@BuilderParams(name = "Cubemap", inExts = {".cubemap"}, outExt = ".texturec", ignoreTaskAutoCreation = true)
+@BuilderParams(name = "Cubemap", inExts = {".cubemap"}, outExt = ".cubemapc")
 public class CubemapBuilder extends ProtoBuilder<Cubemap.Builder> {
 
     private static Logger logger = Logger.getLogger(CubemapBuilder.class.getName());
 
     @Override
     public Task create(IResource input) throws IOException, CompileExceptionError {
-        Cubemap.Builder builder = getMessageBuilder(input);
-        Cubemap cubemap = builder.build();
+        Cubemap.Builder builder = getSrcBuilder(input);
 
-        TaskBuilder taskBuilder = Task.<Void>newBuilder(this)
+        TaskBuilder taskBuilder = Task.newBuilder(this)
                 .setName(params.name())
                 .addInput(input)
-                .addInput(input.getResource(cubemap.getRight()))
-                .addInput(input.getResource(cubemap.getLeft()))
-                .addInput(input.getResource(cubemap.getTop()))
-                .addInput(input.getResource(cubemap.getBottom()))
-                .addInput(input.getResource(cubemap.getFront()))
-                .addInput(input.getResource(cubemap.getBack()))
-                .addOutput(input.changeExt(params.outExt()));
+                .addInput(input.getResource(builder.getRight()))
+                .addInput(input.getResource(builder.getLeft()))
+                .addInput(input.getResource(builder.getTop()))
+                .addInput(input.getResource(builder.getBottom()))
+                .addInput(input.getResource(builder.getFront()))
+                .addInput(input.getResource(builder.getBack()))
+                // outExt should correspond to the protoclass used to parse proto message it produces
+                // '.texturec' can't be parsed with Cubemap, we specify this output manually
+                .addOutput(input.changeExt(".texturec"));
 
         // If there is a texture profiles file, we need to make sure
         // it has been read before building this tile set, add it as an input.
@@ -71,7 +72,7 @@ public class CubemapBuilder extends ProtoBuilder<Cubemap.Builder> {
     public void build(Task task) throws CompileExceptionError, IOException {
 
         TextureProfile texProfile = TextureUtil.getTextureProfileByPath(this.project.getTextureProfiles(), task.input(0).getPath());
-        logger.info("Compiling %s using profile %s", task.input(0).getPath(), texProfile!=null?texProfile.getName():"<none>");
+        logger.info("Compiling %s using profile %s", task.firstInput().getPath(), texProfile!=null?texProfile.getName():"<none>");
 
         TextureImage[] textures = new TextureImage[6];
         try {

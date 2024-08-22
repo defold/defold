@@ -234,7 +234,7 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
     @Override
     public void build(Task task) throws CompileExceptionError, IOException {
         IResource res = task.firstInput();
-        MaterialDesc.Builder materialBuilder = getMessageBuilder(res);
+        MaterialDesc.Builder materialBuilder = getSrcBuilder(res);
 
         ShaderProgramBuildContext vertexBuildContext   = makeShaderProgramBuildContext(materialBuilder, materialBuilder.getVertexProgram());
         ShaderProgramBuildContext fragmentBuildContext = makeShaderProgramBuildContext(materialBuilder, materialBuilder.getFragmentProgram());

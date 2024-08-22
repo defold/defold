@@ -63,7 +63,7 @@ public class GameObjectBuilder extends ProtoBuilder<PrototypeDesc.Builder> {
     }
 
     private PrototypeDesc.Builder loadPrototype(IResource input) throws IOException, CompileExceptionError {
-        PrototypeDesc.Builder b = getMessageBuilder(input);
+        PrototypeDesc.Builder b = getSrcBuilder(input);
 
         List<ComponentDesc> lst = b.getComponentsList();
         List<ComponentDesc> newList = new ArrayList<GameObject.ComponentDesc>();
@@ -93,7 +93,7 @@ public class GameObjectBuilder extends ProtoBuilder<PrototypeDesc.Builder> {
 
     @Override
     public Task create(IResource input) throws IOException, CompileExceptionError {
-        TaskBuilder taskBuilder = Task.<Void>newBuilder(this)
+        TaskBuilder taskBuilder = Task.newBuilder(this)
                 .setName(params.name())
                 .addInput(input)
                 .addOutput(input.changeExt(params.outExt()))
@@ -162,7 +162,7 @@ public class GameObjectBuilder extends ProtoBuilder<PrototypeDesc.Builder> {
     @Override
     public void build(Task task) throws CompileExceptionError, IOException {
         IResource input = task.firstInput();
-        PrototypeDesc.Builder protoBuilder = getMessageBuilder(input);
+        PrototypeDesc.Builder protoBuilder = getSrcBuilder(input);
         for (ComponentDesc c : protoBuilder.getComponentsList()) {
             String component = c.getComponent();
             BuilderUtil.checkResource(this.project, input, "component", component);

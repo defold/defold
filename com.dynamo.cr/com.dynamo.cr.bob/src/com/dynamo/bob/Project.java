@@ -132,7 +132,6 @@ public class Project {
     private IFileSystem fileSystem;
     private Map<String, Class<? extends Builder>> extToBuilder = new HashMap<String, Class<? extends Builder>>();
     private Map<String, String> inextToOutext = new HashMap<>();
-    private List<Class<? extends Builder>> ignoreTaskAutoCreation = new ArrayList<Class<? extends Builder>>();
     private List<String> inputs = new ArrayList<String>();
     private HashMap<String, EnumSet<OutputFlags>> outputs = new HashMap<String, EnumSet<OutputFlags>>();
     private HashMap<String, Task> tasks;
@@ -345,9 +344,6 @@ public class Project {
                         for (String inExt : builderParams.inExts()) {
                             extToBuilder.put(inExt, (Class<? extends Builder>) klass);
                             inextToOutext.put(inExt, builderParams.outExt());
-                            if (builderParams.ignoreTaskAutoCreation()) {
-                                ignoreTaskAutoCreation.add((Class<? extends Builder>) klass);
-                            }
                         }
 
                         ProtoParams protoParams = klass.getAnnotation(ProtoParams.class);

@@ -49,7 +49,7 @@ public class ComputeBuilder extends ProtoBuilder<ComputeDesc.Builder> {
     @Override
     public void build(Task task) throws CompileExceptionError, IOException {
         IResource res = task.firstInput();
-        ComputeDesc.Builder computeBuilder = getMessageBuilder(res);
+        ComputeDesc.Builder computeBuilder = getSrcBuilder(res);
 
         BuilderUtil.checkResource(this.project, res, "compute program", computeBuilder.getComputeProgram());
         computeBuilder.setComputeProgram(BuilderUtil.replaceExt(computeBuilder.getComputeProgram(), ".cp", ".cpc"));

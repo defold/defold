@@ -29,7 +29,7 @@ public class CopyCustomResourcesBuilder extends Builder {
 
         String[] resources = properties.getStringArrayValue("project", "custom_resources", new String[0]);
 
-        TaskBuilder b = Task.<Void>newBuilder(this)
+        TaskBuilder b = Task.newBuilder(this)
                 .setName("Copy Custom Resources")
                 .disableCache();
 

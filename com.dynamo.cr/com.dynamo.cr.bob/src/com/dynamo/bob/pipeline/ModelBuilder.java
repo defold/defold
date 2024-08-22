@@ -14,10 +14,8 @@
 
 package com.dynamo.bob.pipeline;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Logger;
@@ -36,9 +34,10 @@ import com.dynamo.gamesys.proto.ModelProto.Texture;
 import com.dynamo.graphics.proto.Graphics.VertexAttribute;
 import com.dynamo.render.proto.Material.MaterialDesc;
 import com.dynamo.rig.proto.Rig.RigScene;
-import com.google.protobuf.TextFormat;
 
-@ProtoParams(srcClass = ModelDesc.class, messageClass = ModelDesc.class)
+// for editing we use ModelDesc but in runtime Model
+// make sure '.model' and '.modelc' corresponds to right classes
+@ProtoParams(srcClass = ModelDesc.class, messageClass = Model.class)
 @BuilderParams(name="Model", inExts=".model", outExt=".modelc")
 public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
 
@@ -46,9 +45,9 @@ public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
 
     @Override
     public Task create(IResource input) throws IOException, CompileExceptionError {
-        ModelDesc.Builder modelDescBuilder = getMessageBuilder(input);
+        ModelDesc.Builder modelDescBuilder = getSrcBuilder(input);
 
-        Task.TaskBuilder taskBuilder = Task.<Void>newBuilder(this)
+        Task.TaskBuilder taskBuilder = Task.newBuilder(this)
             .setName(params.name())
             .addInput(input)
             .addOutput(input.changeExt(params.outExt()))
@@ -92,10 +91,7 @@ public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
 
     @Override
     public void build(Task task) throws CompileExceptionError, IOException {
-        ByteArrayInputStream model_is = new ByteArrayInputStream(task.input(0).getContent());
-        InputStreamReader model_isr = new InputStreamReader(model_is);
-        ModelDesc.Builder modelDescBuilder = ModelDesc.newBuilder();
-        TextFormat.merge(model_isr, modelDescBuilder);
+        ModelDesc.Builder modelDescBuilder = getSrcBuilder(task.firstInput());
 
         // Rigscene
         RigScene.Builder rigBuilder = RigScene.newBuilder();
@@ -117,7 +113,7 @@ public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
             // and because we also avoid possible resource name collision (ref: atlas <-> texture).
             rigBuilder.setAnimationSet(BuilderUtil.replaceExt(modelDescBuilder.getAnimations(), "_generated_0.animationsetc"));
         } else {
-            throw new CompileExceptionError(task.input(0), -1, "No animation set in model!");
+            throw new CompileExceptionError(task.firstInput(), -1, "No animation set in model!");
         }
 
         rigBuilder.setTextureSet(""); // this is set in the model
@@ -127,7 +123,7 @@ public class ModelBuilder extends ProtoBuilder<ModelDesc.Builder> {
         task.output(1).setContent(out.toByteArray());
 
         // Model
-        IResource resource = task.input(0);
+        IResource resource = task.firstInput();
         Model.Builder model = Model.newBuilder();
         model.setRigScene(task.output(1).getPath().replace(this.project.getBuildDirectory(), ""));
 

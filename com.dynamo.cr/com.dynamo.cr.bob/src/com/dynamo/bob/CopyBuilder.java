@@ -28,7 +28,7 @@ public abstract class CopyBuilder extends Builder {
 
     @Override
     public Task create(IResource input) throws IOException, CompileExceptionError {
-        Task task = Task.<Void>newBuilder(this)
+        Task task = Task.newBuilder(this)
                 .setName(params.name())
                 .disableCache()
                 .addInput(input)

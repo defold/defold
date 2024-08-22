@@ -33,7 +33,7 @@ import com.google.protobuf.Message;
 public abstract class ProtoBuilder<B extends GeneratedMessageV3.Builder<B>> extends Builder {
 
     private ProtoParams protoParams;
-    private HashMap<IResource, B> messageBuilders = new HashMap<>();
+    private HashMap<IResource, B> srcBuilders = new HashMap<>();
 
     private static Map<String, Class<? extends GeneratedMessageV3>> extToMessageClass = new HashMap<String, Class<? extends GeneratedMessageV3>>();
 
@@ -114,30 +114,30 @@ public abstract class ProtoBuilder<B extends GeneratedMessageV3.Builder<B>> exte
     }
 
     // This used to parse the main input resource ('firstInput()' or 'input.get(0)') and then reuse it on all the stages.
-    protected B getMessageBuilder(IResource input) throws IOException, CompileExceptionError {
-        B messageBuilder = messageBuilders.get(input);
-        if (messageBuilder != null) {
-            return messageBuilder;
+    protected B getSrcBuilder(IResource input) throws IOException, CompileExceptionError {
+        B srcBuilder = srcBuilders.get(input);
+        if (srcBuilder != null) {
+            return srcBuilder;
         }
         try {
-            Method newBuilder = protoParams.messageClass().getDeclaredMethod("newBuilder");
-            messageBuilder = (B) newBuilder.invoke(null);
+            Method newBuilder = protoParams.srcClass().getDeclaredMethod("newBuilder");
+            srcBuilder = (B) newBuilder.invoke(null);
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
 
-        ProtoUtil.merge(input, messageBuilder);
-        messageBuilders.put(input, messageBuilder);
-        return messageBuilder;
+        ProtoUtil.merge(input, srcBuilder);
+        srcBuilders.put(input, srcBuilder);
+        return srcBuilder;
     }
 
     @Override
     public Task create(IResource input) throws IOException, CompileExceptionError {
-        Task.TaskBuilder taskBuilder = Task.<Void>newBuilder(this)
+        Task.TaskBuilder taskBuilder = Task.newBuilder(this)
                 .setName(params.name())
                 .addInput(input)
                 .addOutput(input.changeExt(params.outExt()));
-        createSubTasks(getMessageBuilder(input), taskBuilder);
+        createSubTasks(getSrcBuilder(input), taskBuilder);
         return taskBuilder.build();
     }
 
@@ -146,7 +146,7 @@ public abstract class ProtoBuilder<B extends GeneratedMessageV3.Builder<B>> exte
     public void build(Task task) throws CompileExceptionError,
             IOException {
 
-        B builder = getMessageBuilder(task.firstInput());
+        B builder = getSrcBuilder(task.firstInput());
         builder = transform(task, task.firstInput(), builder);
 
         Message msg = builder.build();

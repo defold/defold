@@ -44,11 +44,4 @@ public @interface BuilderParams {
      * @return input extension(s)
      */
     String[] inExts();
-
-    /**
-     * Get bool that shows if tasks should be created automaticly
-     * for all files using this builder. 
-     * @return if task should be ignored
-     */
-    boolean ignoreTaskAutoCreation() default false;
 }

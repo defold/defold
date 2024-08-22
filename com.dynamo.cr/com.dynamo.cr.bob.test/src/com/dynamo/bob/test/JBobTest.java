@@ -101,7 +101,7 @@ public class JBobTest {
 
         @Override
         public Task create(IResource input) throws IOException, CompileExceptionError {
-            TaskBuilder builder = Task.<Void>newBuilder(this)
+            TaskBuilder builder = Task.newBuilder(this)
                     .setName(params.name())
                     .addInput(input);
 
