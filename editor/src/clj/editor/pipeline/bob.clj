@@ -46,7 +46,6 @@
 (defn set-verbose-logging! [enable]
   (LogHelper/setVerboseLogging enable))
 
-(def skip-dirs #{".git" "build" ".internal"})
 (def html5-url-prefix "/html5")
 (def html5-mime-types {"js" "application/javascript",
                        "json" "application/json",
