@@ -164,7 +164,7 @@ public abstract class AbstractProtoBuilderTest {
             if (!result.isOk()) {
                 throw new CompileExceptionError(project.getResource(file), result.getLineNumber(), result.getMessage());
             }
-            Task<?> task = result.getTask();
+            Task task = result.getTask();
             for (IResource output : task.getOutputs()) {
                 Message msg = ParseUtil.parse(output);
                 if (msg != null) {

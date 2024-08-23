@@ -65,11 +65,7 @@ import com.dynamo.graphics.proto.Graphics.TextureProfiles;
 import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
 import com.dynamo.liveupdate.proto.Manifest.SignAlgorithm;
 
-import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
-import com.dynamo.gamesys.proto.MeshProto.MeshDesc;
-import com.dynamo.gamesys.proto.ModelProto.Model;
 import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
-import com.dynamo.graphics.proto.Graphics.Cubemap;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 import com.dynamo.render.proto.Font.FontMap;
 import com.dynamo.rig.proto.Rig.MeshSet;
@@ -78,7 +74,7 @@ import com.dynamo.rig.proto.Rig.RigScene;
 import com.dynamo.rig.proto.Rig.AnimationSet;
 
 @BuilderParams(name = "GameProjectBuilder", inExts = ".project", outExt = "")
-public class GameProjectBuilder extends Builder<Void> {
+public class GameProjectBuilder extends Builder {
 
     // Root nodes to follow (default values from engine.cpp)
     static final String[][] ROOT_NODES = new String[][] {
@@ -100,7 +96,7 @@ public class GameProjectBuilder extends Builder<Void> {
     }
 
     @Override
-    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
+    public Task create(IResource input) throws IOException, CompileExceptionError {
         gameProjectDependencies = new String[ROOT_NODES.length + 1];
         int index = 0;
         for (String[] tuples : ROOT_NODES) {
@@ -121,21 +117,17 @@ public class GameProjectBuilder extends Builder<Void> {
         // We currently don't have a file mapping with an input -> output for certain files
         // These should to be setup in the corresponding builder!
         ProtoBuilder.addMessageClass(".animationsetc", AnimationSet.class);
-        ProtoBuilder.addMessageClass(".cubemapc", Cubemap.class);
         ProtoBuilder.addMessageClass(".fontc", FontMap.class);
         ProtoBuilder.addMessageClass(".fpc", ShaderDesc.class);
         ProtoBuilder.addMessageClass(".vpc", ShaderDesc.class);
-        ProtoBuilder.addMessageClass(".goc", PrototypeDesc.class);
-        ProtoBuilder.addMessageClass(".meshc", MeshDesc.class);
         ProtoBuilder.addMessageClass(".meshsetc", MeshSet.class);
-        ProtoBuilder.addMessageClass(".modelc", Model.class);
         ProtoBuilder.addMessageClass(".rigscenec", RigScene.class);
         ProtoBuilder.addMessageClass(".skeletonc", Skeleton.class);
         ProtoBuilder.addMessageClass(".texturesetc", TextureSet.class);
 
         boolean shouldPublish = project.option("liveupdate", "false").equals("true");
         project.createPublisher(shouldPublish);
-        TaskBuilder<Void> builder = Task.newBuilder(this)
+        TaskBuilder builder = Task.newBuilder(this)
                 .setName(params.name())
                 .disableCache()
                 .addInput(input)
@@ -401,7 +393,7 @@ public class GameProjectBuilder extends Builder<Void> {
     }
 
     @Override
-    public void build(Task<Void> task) throws CompileExceptionError, IOException {
+    public void build(Task task) throws CompileExceptionError, IOException {
         FileInputStream archiveIndexInputStream = null;
         FileInputStream archiveDataInputStream = null;
         FileInputStream publicKeyInputStream = null;

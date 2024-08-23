@@ -298,10 +298,8 @@ public class AtlasUtil {
         };
     }
 
-    public static TextureSetResult generateTextureSet(final Project project, IResource atlasResource) throws IOException, CompileExceptionError {
+    public static TextureSetResult generateTextureSet(final Project project, IResource atlasResource, Atlas.Builder builder) throws IOException, CompileExceptionError {
         TimeProfiler.start("generateTextureSet");
-        Atlas.Builder builder = Atlas.newBuilder();
-        ProtoUtil.merge(atlasResource, builder);
         Atlas atlas = builder.build();
 
         try {

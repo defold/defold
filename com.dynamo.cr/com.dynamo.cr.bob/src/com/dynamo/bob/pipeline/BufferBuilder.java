@@ -38,12 +38,12 @@ import com.dynamo.gamesys.proto.BufferProto.ValueType;
 
 
 @BuilderParams(name="Buffer", inExts=".buffer", outExt=".bufferc")
-public class BufferBuilder extends Builder<Void> {
+public class BufferBuilder extends Builder {
 
     static String allowedTypeStrings = "uint8, uint16, uint32, uint64, int8, int16, int32, int64, float32";
 
     @Override
-    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
+    public Task create(IResource input) throws IOException, CompileExceptionError {
         return defaultTask(input);
     }
 
@@ -140,7 +140,7 @@ public class BufferBuilder extends Builder<Void> {
     }
 
     @Override
-    public void build(Task<Void> task) throws CompileExceptionError, IOException {
+    public void build(Task task) throws CompileExceptionError, IOException {
         ByteArrayInputStream bufferJsonIs = new ByteArrayInputStream(task.input(0).getContent());
 
         BufferDesc.Builder bufferDescBuilder = BufferDesc.newBuilder();

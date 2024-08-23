@@ -40,9 +40,9 @@ import com.google.protobuf.TextFormat;
 import javax.xml.stream.XMLStreamException;
 
 @BuilderParams(name="AnimationSet", inExts=".animationset", outExt=".animationsetc")
-public class AnimationSetBuilder extends Builder<Void>  {
+public class AnimationSetBuilder extends Builder  {
 
-    public static void collectAnimations(Task.TaskBuilder<Void> taskBuilder, Project project, IResource owner, AnimationSetDesc.Builder animSetDescBuilder) throws IOException, CompileExceptionError  {
+    public static void collectAnimations(Task.TaskBuilder taskBuilder, Project project, IResource owner, AnimationSetDesc.Builder animSetDescBuilder) throws IOException, CompileExceptionError  {
         for(AnimationInstanceDesc instance : animSetDescBuilder.getAnimationsList()) {
             IResource animFile = BuilderUtil.checkResource(project, owner, "animationset", instance.getAnimation());
             taskBuilder.addInput(animFile);
@@ -58,8 +58,8 @@ public class AnimationSetBuilder extends Builder<Void>  {
     }
 
     @Override
-    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-        Task.TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
+    public Task create(IResource input) throws IOException, CompileExceptionError {
+        Task.TaskBuilder taskBuilder = Task.newBuilder(this)
             .setName(params.name())
             .addInput(input)
             .addOutput(input.changeExt(params.outExt()));
@@ -76,14 +76,14 @@ public class AnimationSetBuilder extends Builder<Void>  {
         return taskBuilder.build();
     }
 
-    private void validateAndAddFile(Task<Void> task, String path, ArrayList<String> animFiles) throws CompileExceptionError {
+    private void validateAndAddFile(Task task, String path, ArrayList<String> animFiles) throws CompileExceptionError {
         if(animFiles.contains(path)) {
             throw new CompileExceptionError(task.input(0), -1, "Animation file referenced more than once: " + path);
         }
         animFiles.add(path);
     }
 
-    private void buildAnimations(Task<Void> task, boolean isAnimationSet, ModelImporter.DataResolver dataResolver, AnimationSetDesc.Builder animSetDescBuilder, AnimationSet.Builder animationSetBuilder,
+    private void buildAnimations(Task task, boolean isAnimationSet, ModelImporter.DataResolver dataResolver, AnimationSetDesc.Builder animSetDescBuilder, AnimationSet.Builder animationSetBuilder,
                                             String parentId, ArrayList<String> animFiles) throws CompileExceptionError, IOException {
         ArrayList<String> idList = new ArrayList<>(animSetDescBuilder.getAnimationsCount());
 
@@ -254,7 +254,7 @@ public class AnimationSetBuilder extends Builder<Void>  {
 // END EDITOR SPECIFIC FUNCTIONS
 
     @Override
-    public void build(Task<Void> task) throws CompileExceptionError, IOException {
+    public void build(Task task) throws CompileExceptionError, IOException {
 
         ByteArrayInputStream animSetDescIS = new ByteArrayInputStream(task.input(0).getContent());
         InputStreamReader animSetDescISR = new InputStreamReader(animSetDescIS);

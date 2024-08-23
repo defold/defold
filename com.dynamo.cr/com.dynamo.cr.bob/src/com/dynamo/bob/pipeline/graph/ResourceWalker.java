@@ -81,14 +81,14 @@ public class ResourceWalker {
             return;
         }
 
-        GeneratedMessageV3.Builder<?> builder = ProtoBuilder.newBuilder(ext);
+        GeneratedMessageV3.Builder builder = ProtoBuilder.newBuilder(ext);
         try {
             final byte[] content = resource.output().getContent();
             if(content == null) {
                 throw new CompileExceptionError(resource, 0, "Unable to find resource " + resource.getPath());
             }
             builder.mergeFrom(content);
-            Message message = (Message)builder.build();
+            Message message = builder.build();
             visitor.visitMessage(message, resource, parentResource);
             visitMessage(project, resource, message, visitor);
         } catch(CompileExceptionError e) {

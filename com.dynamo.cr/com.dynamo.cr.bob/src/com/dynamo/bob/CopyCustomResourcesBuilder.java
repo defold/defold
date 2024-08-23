@@ -22,15 +22,14 @@ import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.BobProjectProperties;
 
-public class CopyCustomResourcesBuilder extends Builder<Void> {
-
+public class CopyCustomResourcesBuilder extends Builder {
     @Override
-    public Task<Void> create(IResource input) throws CompileExceptionError {
+    public Task create(IResource input) throws CompileExceptionError {
         BobProjectProperties properties = this.project.getProjectProperties();
 
         String[] resources = properties.getStringArrayValue("project", "custom_resources", new String[0]);
 
-        TaskBuilder<Void> b = Task.<Void>newBuilder(this)
+        TaskBuilder b = Task.newBuilder(this)
                 .setName("Copy Custom Resources")
                 .disableCache();
 
@@ -51,7 +50,7 @@ public class CopyCustomResourcesBuilder extends Builder<Void> {
     }
 
     @Override
-    public void build(Task<Void> task) throws IOException {
+    public void build(Task task) throws IOException {
         final List<IResource> outputs = task.getOutputs();
         final List<IResource> inputs = task.getInputs();
         final int n = inputs.size();

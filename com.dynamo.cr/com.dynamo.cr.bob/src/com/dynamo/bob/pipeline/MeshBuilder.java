@@ -36,7 +36,7 @@ import com.google.protobuf.TextFormat;
 public class MeshBuilder extends ProtoBuilder<MeshDesc.Builder> {
 
     @Override
-    public void build(Task<Void> task) throws CompileExceptionError, IOException {
+    public void build(Task task) throws CompileExceptionError, IOException {
         ByteArrayInputStream mesh_is = new ByteArrayInputStream(task.input(0).getContent());
         InputStreamReader mesh_isr = new InputStreamReader(mesh_is);
         MeshDesc.Builder meshDescBuilder = MeshDesc.newBuilder();

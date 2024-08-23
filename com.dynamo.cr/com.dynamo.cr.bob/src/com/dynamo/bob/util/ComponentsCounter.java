@@ -212,7 +212,7 @@ public class ComponentsCounter {
         return null;
     }
 
-    public static Set<IResource> getCounterInputs(Task<?> task) {
+    public static Set<IResource> getCounterInputs(Task task) {
         List<IResource> inputs = task.getInputs();
         Set<IResource> counterInputs = new HashSet<IResource>();
         for (IResource res : inputs) {
