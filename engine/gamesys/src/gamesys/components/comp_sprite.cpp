@@ -67,24 +67,25 @@ namespace dmGameSystem
 
     struct SpriteComponent
     {
-        dmGameObject::HInstance     m_Instance;
+        Matrix4                     m_World;
         Vector3                     m_Position;
         Quat                        m_Rotation;
         Vector3                     m_Scale;
         Vector3                     m_Size;     // The current size of the animation frame (in texels)
         Vector4                     m_Slice9;
-        Matrix4                     m_World;
-        dmMessage::URL              m_Listener;
-        int                         m_FunctionRef; // Animation callback function
-        // Hash of the m_Resource-pointer etc. Hash is used to be compatible with 64-bit arch as a 32-bit value is used for sorting
-        uint32_t                    m_MixedHash;
 
-        uint32_t                    m_AnimationID;
-        uint32_t                    m_DynamicVertexAttributeIndex;
-
+        dmGameObject::HInstance     m_Instance;
         SpriteResource*             m_Resource;
         SpriteResourceOverrides*    m_Overrides;
         HComponentRenderConstants   m_RenderConstants;
+
+        dmMessage::URL              m_Listener;
+        int32_t                     m_FunctionRef; // Animation callback function
+        // Hash of the m_Resource-pointer etc. Hash is used to be compatible with 64-bit arch as a 32-bit value is used for sorting
+        uint32_t                    m_MixedHash;
+
+        uint32_t                    m_AnimationID; // index into array
+        uint32_t                    m_DynamicVertexAttributeIndex;
 
         /// Currently playing animation
         dmhash_t                    m_CurrentAnimation;
@@ -105,7 +106,7 @@ namespace dmGameSystem
         uint16_t                    m_AddedToUpdate : 1;
         uint16_t                    m_ReHash : 1;
         uint16_t                    m_UseSlice9 : 1;
-        uint16_t                    m_Padding : 6;
+        uint16_t                    : 6;
     };
 
     struct SpriteWorld
@@ -200,6 +201,8 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompSpriteNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
+        dmLogWarning("MAWE sizeof(SpriteComponent): %u", (uint32_t)sizeof(SpriteComponent));
+
         SpriteContext* sprite_context = (SpriteContext*)params.m_Context;
         SpriteWorld* sprite_world = new SpriteWorld();
         uint32_t comp_count = dmMath::Min(params.m_MaxComponentInstances, sprite_context->m_MaxSpriteCount);
