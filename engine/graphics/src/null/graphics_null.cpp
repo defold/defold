@@ -1076,6 +1076,7 @@ namespace dmGraphics
     {
         Program* program = (Program*)prog;
         uint32_t count = program->m_Uniforms.Size();
+        /*
         for (uint32_t i = 0; i < count; ++i)
         {
             ShaderBinding& uniform = program->m_Uniforms[i];
@@ -1084,6 +1085,7 @@ namespace dmGraphics
                 return (int32_t)uniform.m_Index;
             }
         }
+        */
         return INVALID_UNIFORM_LOCATION;
     }
 
@@ -1098,7 +1100,8 @@ namespace dmGraphics
         assert(_context);
         NullContext* context = (NullContext*) _context;
         assert(context->m_Program != 0x0);
-        return context->m_ProgramRegisters[base_location];
+        // return context->m_ProgramRegisters[base_location];
+        return context->m_ProgramRegisters[0];
     }
 
     static void NullSetConstantV4(HContext _context, const Vector4* data, int count, HUniformLocation base_location)
@@ -1106,7 +1109,7 @@ namespace dmGraphics
         assert(_context);
         NullContext* context = (NullContext*) _context;
         assert(context->m_Program != 0x0);
-        memcpy(&context->m_ProgramRegisters[base_location], data, sizeof(Vector4) * count);
+        //memcpy(&context->m_ProgramRegisters[base_location], data, sizeof(Vector4) * count);
     }
 
     static void NullSetConstantM4(HContext _context, const Vector4* data, int count, HUniformLocation base_location)
@@ -1114,7 +1117,7 @@ namespace dmGraphics
         assert(_context);
         NullContext* context = (NullContext*) _context;
         assert(context->m_Program != 0x0);
-        memcpy(&context->m_ProgramRegisters[base_location], data, sizeof(Vector4) * 4 * count);
+        //memcpy(&context->m_ProgramRegisters[base_location], data, sizeof(Vector4) * 4 * count);
     }
 
     static void NullSetSampler(HContext context, HUniformLocation location, int32_t unit)

@@ -17,6 +17,7 @@
 
 #include <dlib/atomic.h>
 #include <dlib/math.h>
+#include <dlib/hashtable.h>
 #include <dmsdk/dlib/atomic.h>
 #include <dmsdk/vectormath/cpp/vectormath_aos.h>
 #include <dlib/opaque_handle_container.h>
@@ -101,7 +102,8 @@ namespace dmGraphics
     {
         char*            m_Name;
         dmhash_t         m_NameHash;
-        HUniformLocation m_Location;
+        GLint            m_Location;
+        GLint            m_BlockIndex;
         GLint            m_Count;
         GLenum           m_Type;
         uint8_t          m_TextureUnit   : 7;
@@ -115,6 +117,7 @@ namespace dmGraphics
         dmArray<OpenGLVertexAttribute> m_Attributes;
         dmArray<OpenGLUniformBuffer>   m_UniformBuffers;
         dmArray<OpenGLUniform>         m_Uniforms;
+        dmHashTable64<UniformLocation> m_UniformLocations;
     };
 
     struct OpenGLContext

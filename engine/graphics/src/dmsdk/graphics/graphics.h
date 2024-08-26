@@ -104,7 +104,7 @@ namespace dmGraphics
      * @typedef
      * @name HUniformLocation
      */
-    typedef int64_t HUniformLocation;
+    typedef struct UniformLocation* HUniformLocation;
 
     /*#
      * Vertex declaration handle

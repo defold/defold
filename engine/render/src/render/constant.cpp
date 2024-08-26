@@ -33,7 +33,7 @@ Constant::Constant(dmhash_t name_hash, dmGraphics::HUniformLocation location)
 
 HConstant NewConstant(dmhash_t name_hash)
 {
-    return new Constant(name_hash, -1);
+    return new Constant(name_hash, dmGraphics::INVALID_UNIFORM_LOCATION);
 }
 
 void DeleteConstant(HConstant constant)

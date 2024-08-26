@@ -75,7 +75,7 @@ namespace dmGraphics
 
     static const HVertexProgram   INVALID_VERTEX_PROGRAM_HANDLE   = ~0u;
     static const HFragmentProgram INVALID_FRAGMENT_PROGRAM_HANDLE = ~0u;
-    static const HUniformLocation INVALID_UNIFORM_LOCATION        = ~0ull;
+    static const HUniformLocation INVALID_UNIFORM_LOCATION        = 0;
 
     enum AdapterFamily
     {
@@ -275,6 +275,29 @@ namespace dmGraphics
         uint8_t               m_RenderDocSupport : 1;           // Vulkan only
         uint8_t               m_UseValidationLayers : 1;        // Vulkan only
         uint8_t               : 4;
+    };
+
+    struct UniformLocation
+    {
+        struct Location
+        {
+            union
+            {
+                struct
+                {
+                    uint8_t m_Set;
+                    uint8_t m_Binding;
+                    uint8_t m_MemberIndex;
+                };
+
+                uint32_t m_SharedLocation;
+            };
+
+            uint8_t m_UseSharedLocation : 1;
+            uint8_t m_IsValid           : 1;
+        };
+
+        Location m_ShaderLocations[2];
     };
 
     struct PipelineState

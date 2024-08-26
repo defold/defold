@@ -284,6 +284,7 @@ namespace dmGraphics
         uint8_t*                        m_UniformData;
         VulkanHandle                    m_Handle;
         ProgramResourceBinding          m_ResourceBindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
+        dmHashTable64<UniformLocation>  m_UniformLocations;
 
         ShaderModule*                   m_VertexModule;
         ShaderModule*                   m_FragmentModule;

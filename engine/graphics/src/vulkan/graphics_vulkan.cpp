@@ -2438,11 +2438,11 @@ bail:
         return VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
     }
 
-    static void CreatePipelineLayout(VulkanContext* context, Program* program, VkDescriptorSetLayoutBinding bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT], uint32_t max_sets)
+    static void CreatePipelineLayout(VulkanContext* context, Program* program, VkDescriptorSetLayoutBinding bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT])
     {
-        program->m_Handle.m_DescriptorSetLayoutsCount = max_sets;
+        program->m_Handle.m_DescriptorSetLayoutsCount = program->m_MaxSet;
 
-        for (int i = 0; i < max_sets; ++i)
+        for (int i = 0; i < program->m_MaxSet; ++i)
         {
             VkDescriptorSetLayoutBinding set_bindings[MAX_BINDINGS_PER_SET_COUNT] = {};
             uint32_t bindings_count = 0;
@@ -2470,6 +2470,102 @@ bail:
         vk_layout_create_info.pSetLayouts    = program->m_Handle.m_DescriptorSetLayouts;
 
         vkCreatePipelineLayout(context->m_LogicalDevice.m_Device, &vk_layout_create_info, 0, &program->m_Handle.m_PipelineLayout);
+    }
+
+    /*
+    switch(res.m_BindingFamily)
+    {
+        case ShaderResourceBinding::BINDING_FAMILY_TEXTURE:
+            program_resource_binding.m_TextureUnit = info.m_TextureCount;
+            info.m_TextureCount++;
+            info.m_TotalUniformCount++;
+            break;
+        case ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER:
+            program_resource_binding.m_StorageBufferUnit = info.m_StorageBufferCount;
+            info.m_StorageBufferCount++;
+            info.m_TotalUniformCount++;
+
+        #if 0
+            dmLogInfo("SSBO: name=%s, set=%d, binding=%d, ssbo-unit=%d", res.m_Name, res.m_Set, res.m_Binding, program_resource_binding.m_StorageBufferUnit);
+        #endif
+
+            break;
+        case ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER:
+        {
+            assert(res.m_Type.m_UseTypeIndex);
+            const ShaderResourceTypeInfo& type_info       = stage_type_infos[res.m_Type.m_TypeIndex];
+            program_resource_binding.m_DataOffset         = info.m_UniformDataSize;
+            program_resource_binding.m_DynamicOffsetIndex = info.m_UniformBufferCount;
+
+            info.m_UniformBufferCount++;
+            info.m_UniformDataSize        += res.m_BlockSize;
+            info.m_UniformDataSizeAligned += DM_ALIGN(res.m_BlockSize, ubo_alignment);
+            info.m_TotalUniformCount      += type_info.m_Members.Size();
+        }
+        break;
+        case ShaderResourceBinding::BINDING_FAMILY_GENERIC:
+        default:break;
+    }
+    */
+
+    static void SetUniformLocation(Program* program, const char* name, dmhash_t name_hash, UniformLocation::Location shader_location)
+    {
+        UniformLocation* loc = program->m_UniformLocations.Get(name_hash);
+        if (loc)
+        {
+            dmLogInfo("loc 1: %s, %d, %d", name, shader_location.m_Set, shader_location.m_Binding);
+            loc->m_ShaderLocations[1] = shader_location;
+        }
+        else
+        {
+            dmLogInfo("loc 0: %s, %d, %d", name, shader_location.m_Set, shader_location.m_Binding);
+            UniformLocation new_loc = {};
+            new_loc.m_ShaderLocations[0] = shader_location;
+            program->m_UniformLocations.Put(name_hash, new_loc);
+        }
+    }
+
+    static void CreateUniformLocations(VulkanContext* context, Program* program)
+    {
+        if (program->m_TotalUniformCount == 0)
+            return;
+
+        program->m_UniformLocations.SetCapacity(program->m_TotalUniformCount * 2, program->m_TotalUniformCount);
+        for (int i = 0; i < program->m_MaxSet; ++i)
+        {
+            for (int j = 0; j < program->m_MaxBinding; ++j)
+            {
+                ProgramResourceBinding& program_resource_binding = program->m_ResourceBindings[i][j];
+                if (program_resource_binding.m_StageFlags == 0)
+                    continue;
+
+                ShaderResourceBinding* res = program_resource_binding.m_Res;
+
+                UniformLocation::Location shader_location = {};
+                shader_location.m_Set     = i;
+                shader_location.m_Binding = j;
+                shader_location.m_IsValid = 1;
+
+                if (res->m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_TEXTURE ||
+                    res->m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER)
+                {
+                    SetUniformLocation(program, res->m_Name, res->m_NameHash, shader_location);
+                }
+                else if (res->m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER)
+                {
+                    assert(res->m_Type.m_UseTypeIndex);
+                    const dmArray<ShaderResourceTypeInfo>& type_infos = *program_resource_binding.m_TypeInfos;
+                    const ShaderResourceTypeInfo& type_info = type_infos[program_resource_binding.m_Res->m_Type.m_TypeIndex];
+                    const uint32_t num_members = type_info.m_Members.Size();
+                    for (int i = 0; i < num_members; ++i)
+                    {
+                        const ShaderResourceMember& member = type_info.m_Members[i];
+                        shader_location.m_MemberIndex = i;
+                        SetUniformLocation(program, member.m_Name, member.m_NameHash, shader_location);
+                    }
+                }
+            }
+        }
     }
 
     static void FillProgramResourceBindings(
@@ -2543,6 +2639,8 @@ bail:
             #endif
             }
 
+
+            program_resource_binding.m_StageFlags |= stage_flag;
             binding.stageFlags |= stage_flag;
         }
     }
@@ -2592,7 +2690,10 @@ bail:
         program->m_TotalResourcesCount    = binding_info.m_UniformBufferCount + binding_info.m_TextureCount + binding_info.m_StorageBufferCount; // num actual descriptors
         program->m_MaxSet                 = binding_info.m_MaxSet;
         program->m_MaxBinding             = binding_info.m_MaxBinding;
-        CreatePipelineLayout(context, program, bindings, binding_info.m_MaxSet);
+
+        CreateUniformLocations(context, program);
+
+        CreatePipelineLayout(context, program, bindings);
     }
 
     static void CreateComputeProgram(VulkanContext* context, Program* program, ShaderModule* compute_module)
@@ -2834,42 +2935,8 @@ bail:
         assert(prog);
         Program* program_ptr = (Program*) prog;
         dmhash_t name_hash   = dmHashString64(name);
-
-        for (int set = 0; set < program_ptr->m_MaxSet; ++set)
-        {
-            for (int binding = 0; binding < program_ptr->m_MaxBinding; ++binding)
-            {
-                ProgramResourceBinding& pgm_res = program_ptr->m_ResourceBindings[set][binding];
-
-                if (pgm_res.m_Res == 0x0)
-                    continue;
-
-                if (pgm_res.m_Res->m_NameHash == name_hash)
-                {
-                    return set | binding << 16;
-                }
-                else if (pgm_res.m_Res->m_Type.m_UseTypeIndex)
-                {
-                    // TODO: Generic type lookup is not supported yet!
-                    // We can only support one level of indirection here right now
-                    const dmArray<ShaderResourceTypeInfo>& type_infos = *pgm_res.m_TypeInfos;
-                    const ShaderResourceTypeInfo& type_info = type_infos[pgm_res.m_Res->m_Type.m_TypeIndex];
-
-                    const uint32_t num_members = type_info.m_Members.Size();
-                    for (int i = 0; i < num_members; ++i)
-                    {
-                        const ShaderResourceMember& member = type_info.m_Members[i];
-
-                        if (member.m_NameHash == name_hash)
-                        {
-                            return set | binding << 16 | ((uint64_t) i) << 32;
-                        }
-                    }
-                }
-            }
-        }
-
-        return INVALID_UNIFORM_LOCATION;
+        HUniformLocation location  = program_ptr->m_UniformLocations.Get(name_hash);
+        return location ? location : INVALID_UNIFORM_LOCATION;
     }
 
     static inline void WriteConstantData(uint32_t offset, uint8_t* uniform_data_ptr, uint8_t* data_ptr, uint32_t data_size)
@@ -2877,44 +2944,37 @@ bail:
         memcpy(&uniform_data_ptr[offset], data_ptr, data_size);
     }
 
-    static void VulkanSetConstantV4(HContext _context, const dmVMath::Vector4* data, int count, HUniformLocation base_location)
+    static inline void WriteConstantData(Program* program_ptr, const UniformLocation::Location& location, uint8_t* data_ptr, uint32_t data_size)
     {
-        VulkanContext* context = (VulkanContext*) _context;
-        assert(context->m_CurrentProgram);
-        assert(base_location != INVALID_UNIFORM_LOCATION);
-
-        Program* program_ptr = (Program*) context->m_CurrentProgram;
-        uint32_t set         = UNIFORM_LOCATION_GET_VS(base_location);
-        uint32_t binding     = UNIFORM_LOCATION_GET_VS_MEMBER(base_location);
-        uint32_t member      = UNIFORM_LOCATION_GET_FS(base_location);
-        assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
-
-        ProgramResourceBinding& pgm_res                   = program_ptr->m_ResourceBindings[set][binding];
+        ProgramResourceBinding& pgm_res                   = program_ptr->m_ResourceBindings[location.m_Set][location.m_Binding];
         const dmArray<ShaderResourceTypeInfo>& type_infos = *pgm_res.m_TypeInfos;
         const ShaderResourceTypeInfo&           type_info = type_infos[pgm_res.m_Res->m_Type.m_TypeIndex];
 
-        uint32_t offset = pgm_res.m_DataOffset + type_info.m_Members[member].m_Offset;
-        WriteConstantData(offset, program_ptr->m_UniformData, (uint8_t*) data, sizeof(dmVMath::Vector4) * count);
+        uint32_t offset = pgm_res.m_DataOffset + type_info.m_Members[location.m_MemberIndex].m_Offset;
+        WriteConstantData(offset, program_ptr->m_UniformData, data_ptr, data_size);
     }
 
-    static void VulkanSetConstantM4(HContext _context, const dmVMath::Vector4* data, int count, HUniformLocation base_location)
+    static void VulkanSetConstantV4(HContext _context, const dmVMath::Vector4* data, int count, HUniformLocation location)
     {
         VulkanContext* context = (VulkanContext*) _context;
         assert(context->m_CurrentProgram);
-        assert(base_location != INVALID_UNIFORM_LOCATION);
+        assert(location != INVALID_UNIFORM_LOCATION);
 
         Program* program_ptr = (Program*) context->m_CurrentProgram;
-        uint32_t set         = UNIFORM_LOCATION_GET_VS(base_location);
-        uint32_t binding     = UNIFORM_LOCATION_GET_VS_MEMBER(base_location);
-        uint32_t member      = UNIFORM_LOCATION_GET_FS(base_location);
-        assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
 
-        ProgramResourceBinding& pgm_res                   = program_ptr->m_ResourceBindings[set][binding];
-        const dmArray<ShaderResourceTypeInfo>& type_infos = *pgm_res.m_TypeInfos;
-        const ShaderResourceTypeInfo&           type_info = type_infos[pgm_res.m_Res->m_Type.m_TypeIndex];
+        WriteConstantData(program_ptr, location->m_ShaderLocations[0], (uint8_t*) data, sizeof(dmVMath::Vector4) * count);
+        WriteConstantData(program_ptr, location->m_ShaderLocations[1], (uint8_t*) data, sizeof(dmVMath::Vector4) * count);
+    }
 
-        uint32_t offset = pgm_res.m_DataOffset + type_info.m_Members[member].m_Offset;
-        WriteConstantData(offset, program_ptr->m_UniformData, (uint8_t*) data, sizeof(dmVMath::Vector4) * 4 * count);
+    static void VulkanSetConstantM4(HContext _context, const dmVMath::Vector4* data, int count, HUniformLocation location)
+    {
+        VulkanContext* context = (VulkanContext*) _context;
+        assert(context->m_CurrentProgram);
+        assert(location != INVALID_UNIFORM_LOCATION);
+
+        Program* program_ptr = (Program*) context->m_CurrentProgram;
+        WriteConstantData(program_ptr, location->m_ShaderLocations[0], (uint8_t*) data, sizeof(dmVMath::Vector4) * 4 * count);
+        WriteConstantData(program_ptr, location->m_ShaderLocations[1], (uint8_t*) data, sizeof(dmVMath::Vector4) * 4 * count);
     }
 
     static void VulkanSetSampler(HContext _context, HUniformLocation location, int32_t unit)
@@ -2924,12 +2984,20 @@ bail:
         assert(location != INVALID_UNIFORM_LOCATION);
 
         Program* program_ptr = (Program*) context->m_CurrentProgram;
-        uint32_t set         = UNIFORM_LOCATION_GET_VS(location);
-        uint32_t binding     = UNIFORM_LOCATION_GET_VS_MEMBER(location);
-        assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
+
+        uint32_t set     = location->m_ShaderLocations[0].m_Set;
+        uint32_t binding = location->m_ShaderLocations[0].m_Binding;
 
         assert(program_ptr->m_ResourceBindings[set][binding].m_Res);
         program_ptr->m_ResourceBindings[set][binding].m_TextureUnit = unit;
+
+        if (location->m_ShaderLocations[1].m_IsValid)
+        {
+            set     = location->m_ShaderLocations[1].m_Set;
+            binding = location->m_ShaderLocations[1].m_Binding;
+            assert(program_ptr->m_ResourceBindings[set][binding].m_Res);
+            program_ptr->m_ResourceBindings[set][binding].m_TextureUnit = unit;
+        }
     }
 
     static void VulkanSetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
@@ -4297,6 +4365,7 @@ bail:
         assert(base_location != INVALID_UNIFORM_LOCATION);
 
         Program* program_ptr = (Program*) context->m_CurrentProgram;
+        /*
         uint32_t set         = UNIFORM_LOCATION_GET_VS(base_location);
         uint32_t binding     = UNIFORM_LOCATION_GET_VS_MEMBER(base_location);
         assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
@@ -4305,6 +4374,7 @@ bail:
         assert(program_ptr->m_ComputeModule == 0x0);
         assert(program_ptr->m_ResourceBindings[set][binding].m_Res);
         program_ptr->m_ResourceBindings[set][binding].m_StorageBufferUnit = binding_index;
+        */
     }
 
     void VulkanSetStorageBufferData(HContext _context, HStorageBuffer storage_buffer, uint32_t size, const void* data)
@@ -4638,8 +4708,10 @@ bail:
         assert(base_location != INVALID_UNIFORM_LOCATION);
 
         Program* program_ptr = (Program*) context->m_CurrentProgram;
-        uint32_t set         = UNIFORM_LOCATION_GET_VS(base_location);
-        uint32_t binding     = UNIFORM_LOCATION_GET_VS_MEMBER(base_location);
+
+        /*
+        uint32_t set         = base_location->m_Set;
+        uint32_t binding     = base_location->m_Binding;
         assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
 
         DeviceBuffer* buffer   = (DeviceBuffer*) _buffer;
@@ -4655,6 +4727,7 @@ bail:
             program_ptr->m_ResourceBindings[set][binding].m_Res->m_BlockSize);
 
         buffer->UnmapMemory(context->m_LogicalDevice.m_Device);
+        */
     }
 
     HTexture VulkanGetActiveSwapChainTexture(HContext _context)

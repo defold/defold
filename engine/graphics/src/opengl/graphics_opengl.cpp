@@ -2099,6 +2099,10 @@ static void LogFrameBufferError(GLenum status)
         program->m_Uniforms.SetCapacity(num_uniforms);
         program->m_Uniforms.SetSize(num_uniforms);
 
+        uint32_t valid_uniform_count = 0;
+
+        dmLogInfo("BuildUniforms");
+
         for (int i = 0; i < num_uniforms; ++i)
         {
             GLint uniform_size;
@@ -2118,8 +2122,13 @@ static void LogFrameBufferError(GLenum status)
                 glGetActiveUniformsiv(program->m_Id, 1, (GLuint*)&i, GL_UNIFORM_BLOCK_INDEX, &uniform_block_index);
             }
 
-            char* uniform_name = GetBaseUniformName(uniform_name_buffer, uniform_name_length);
+            GLint uniform_location = -1;
+            if (uniform_block_index == -1)
+            {
+                uniform_location = glGetUniformLocation(program->m_Id, uniform_name_buffer);
+            }
 
+            /*
             HUniformLocation uniform_location = INVALID_UNIFORM_LOCATION;
 
             if (uniform_block_index != -1)
@@ -2141,17 +2150,21 @@ static void LogFrameBufferError(GLenum status)
             {
                 uniform_location = (HUniformLocation) glGetUniformLocation(program->m_Id, uniform_name_buffer);
             }
+            */
+
+            char* uniform_name = GetBaseUniformName(uniform_name_buffer, uniform_name_length);
 
             OpenGLUniform& uniform  = program->m_Uniforms[i];
             uniform.m_Location      = uniform_location;
+            uniform.m_BlockIndex    = uniform_block_index;
             uniform.m_Name          = strdup(uniform_name);
             uniform.m_NameHash      = dmHashString64(uniform_name);
             uniform.m_Count         = uniform_size;
             uniform.m_Type          = uniform_type;
             uniform.m_IsTextureType = IsTypeTextureType(GetGraphicsType(uniform_type));
 
-        #if 0
-            dmLogInfo("Uniform[%d]: %s, %llu", i, uniform.m_Name, uniform.m_Location);
+        #if 1
+            dmLogInfo("  Uniform[%d]: %s, %d, %d", i, uniform.m_Name, uniform_block_index, uniform_location);
         #endif
 
             if (uniform.m_IsTextureType)
@@ -2164,6 +2177,61 @@ static void LogFrameBufferError(GLenum status)
             {
                 // Clear error if uniform isn't found
                 CLEAR_GL_ERROR
+            }
+        }
+
+        if (num_uniforms)
+        {
+            program->m_UniformLocations.SetCapacity(num_uniforms * 2, num_uniforms);
+
+            for (int i = 0; i < num_uniforms; ++i)
+            {
+                OpenGLUniform& uniform = program->m_Uniforms[i];
+                if (uniform.m_Location == -1 && uniform.m_BlockIndex == -1)
+                {
+                    continue;
+                }
+
+                UniformLocation::Location shader_location = {};
+
+                if (uniform.m_BlockIndex != -1)
+                {
+                    OpenGLUniformBuffer& ubo = program->m_UniformBuffers[uniform.m_BlockIndex];
+                    uint32_t uniform_member_index = 0;
+
+                    for (int j = 0; j < ubo.m_Indices.Size(); ++j)
+                    {
+                        if (ubo.m_Indices[j] == i)
+                        {
+                            uniform_member_index = j;
+                            break;
+                        }
+                    }
+                    shader_location.m_Set         = uniform.m_BlockIndex;
+                    shader_location.m_MemberIndex = uniform_member_index;
+                }
+                else
+                {
+                    shader_location.m_SharedLocation    = uniform.m_Location;
+                    shader_location.m_UseSharedLocation = 1;
+                }
+
+                shader_location.m_IsValid = 1;
+
+                UniformLocation* loc = program->m_UniformLocations.Get(uniform.m_NameHash);
+
+                if (loc)
+                {
+                    loc->m_ShaderLocations[1] = shader_location;
+                    // dmLogInfo("loc 1: %s: %d, %d", uniform.m_Name, shader_location.m_Set, shader_location.m_MemberIndex);
+                }
+                else
+                {
+                    // dmLogInfo("loc 0: %s: %d, %d", uniform.m_Name, shader_location.m_Set, shader_location.m_MemberIndex);
+                    UniformLocation new_loc = {};
+                    new_loc.m_ShaderLocations[0] = shader_location;
+                    program->m_UniformLocations.Put(uniform.m_NameHash, new_loc);
+                }
             }
         }
     }
@@ -2620,17 +2688,8 @@ static void LogFrameBufferError(GLenum status)
     {
         OpenGLProgram* program_ptr = (OpenGLProgram*) prog;
         dmhash_t name_hash         = dmHashString64(name);
-        uint32_t num_uniforms      = program_ptr->m_Uniforms.Size();
-
-        for (int i = 0; i < num_uniforms; ++i)
-        {
-            if (program_ptr->m_Uniforms[i].m_NameHash == name_hash)
-            {
-                return program_ptr->m_Uniforms[i].m_Location;
-            }
-        }
-        
-        return INVALID_UNIFORM_LOCATION;
+        HUniformLocation location  = program_ptr->m_UniformLocations.Get(name_hash);
+        return location ? location : INVALID_UNIFORM_LOCATION;
     }
 
     static void OpenGLSetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
@@ -2641,53 +2700,65 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR;
     }
 
-    static void OpenGLSetConstantV4(HContext context, const Vector4* data, int count, HUniformLocation base_location)
+    static inline void ApplyGlConstant(OpenGLContext* context, dmGraphics::Type type, const UniformLocation::Location& loc, void* data, uint32_t data_size)
     {
-        uint32_t block_member = UNIFORM_LOCATION_GET_FS(base_location);
-
-        if (block_member)
+        if (!loc.m_IsValid)
         {
-            uint32_t block_index = UNIFORM_LOCATION_GET_VS(base_location);
-            uint32_t member_index = UNIFORM_LOCATION_GET_VS_MEMBER(base_location);
-            OpenGLUniformBuffer& ubo = ((OpenGLContext*) context)->m_CurrentProgram->m_UniformBuffers[block_index];
-
-            uint8_t* data_ptr = ubo.m_BlockMemory + ubo.m_Offsets[member_index];
-            memcpy(data_ptr, data, sizeof(Vector4) * count);
-            ubo.m_Dirty = true;
+            return;
+        }
+        if (loc.m_UseSharedLocation)
+        {
+            if (type == dmGraphics::TYPE_FLOAT_VEC4)
+            {
+                const uint32_t num_vecs = data_size / (sizeof(GLfloat) * 4);
+                glUniform4fv(loc.m_SharedLocation, num_vecs, (const GLfloat*) data);
+                CHECK_GL_ERROR;
+            }
+            else if (type == dmGraphics::TYPE_FLOAT_MAT4)
+            {
+                const uint32_t num_mats = data_size / (sizeof(GLfloat) * 16);
+                glUniformMatrix4fv(loc.m_SharedLocation, num_mats, GL_FALSE, (const GLfloat*) data);
+                CHECK_GL_ERROR;
+            }
+            else if (type == dmGraphics::TYPE_INT)
+            {
+                glUniform1i(loc.m_SharedLocation, *((const GLint*) data));
+                CHECK_GL_ERROR;
+            }
+            else
+            {
+                assert(0 && "Type not supported");
+            }
         }
         else
         {
-            glUniform4fv(base_location, count, (const GLfloat*) data);
-            CHECK_GL_ERROR;
+            OpenGLUniformBuffer& ubo = context->m_CurrentProgram->m_UniformBuffers[loc.m_Set];
+            dmLogInfo("Set buffer ubo=%d, member=%d, size=%d, offset=%d", loc.m_Set, loc.m_MemberIndex, data_size, ubo.m_Offsets[loc.m_MemberIndex]);
+            uint8_t* data_ptr = ubo.m_BlockMemory + ubo.m_Offsets[loc.m_MemberIndex];
+            memcpy(data_ptr, data, data_size);
+            ubo.m_Dirty = true;
         }
     }
 
-    static void OpenGLSetConstantM4(HContext context, const Vector4* data, int count, HUniformLocation base_location)
+    static void OpenGLSetConstantV4(HContext context, const Vector4* data, int count, HUniformLocation location)
     {
-        uint32_t block_member = UNIFORM_LOCATION_GET_FS(base_location);
+        OpenGLContext* ctx = (OpenGLContext*) context;
+        ApplyGlConstant(ctx, dmGraphics::TYPE_FLOAT_VEC4, location->m_ShaderLocations[0], (void*) data, sizeof(Vector4) * count);
+        ApplyGlConstant(ctx, dmGraphics::TYPE_FLOAT_VEC4, location->m_ShaderLocations[1], (void*) data, sizeof(Vector4) * count);
+    }
 
-        if (block_member)
-        {
-            uint32_t block_index = UNIFORM_LOCATION_GET_VS(base_location);
-            uint32_t member_index = UNIFORM_LOCATION_GET_VS_MEMBER(base_location);
-            OpenGLUniformBuffer& ubo = ((OpenGLContext*) context)->m_CurrentProgram->m_UniformBuffers[block_index];
-
-            uint8_t* data_ptr = ubo.m_BlockMemory + ubo.m_Offsets[member_index];
-            memcpy(data_ptr, data, sizeof(Vector4) * count * 4);
-            ubo.m_Dirty = true;
-        }
-        else
-        {
-            glUniformMatrix4fv(base_location, count, 0, (const GLfloat*) data);
-            CHECK_GL_ERROR;
-        }
+    static void OpenGLSetConstantM4(HContext context, const Vector4* data, int count, HUniformLocation location)
+    {
+        OpenGLContext* ctx = (OpenGLContext*) context;
+        ApplyGlConstant(ctx, dmGraphics::TYPE_FLOAT_MAT4, location->m_ShaderLocations[0], (void*) data, sizeof(Vector4) * 4 * count);
+        ApplyGlConstant(ctx, dmGraphics::TYPE_FLOAT_MAT4, location->m_ShaderLocations[1], (void*) data, sizeof(Vector4) * 4 * count);
     }
 
     static void OpenGLSetSampler(HContext context, HUniformLocation location, int32_t unit)
     {
-        assert(context);
-        glUniform1i(location, unit);
-        CHECK_GL_ERROR;
+        OpenGLContext* ctx = (OpenGLContext*) context;
+        ApplyGlConstant(ctx, dmGraphics::TYPE_INT, location->m_ShaderLocations[0], (void*) &unit, 0);
+        // ApplyGlConstant(ctx, dmGraphics::TYPE_INT, location->m_ShaderLocations[1], (void*) &unit, 0);
     }
 
     static inline GLint GetDepthBufferFormat(OpenGLContext* context)

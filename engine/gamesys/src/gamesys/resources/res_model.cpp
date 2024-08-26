@@ -212,8 +212,8 @@ namespace dmGameSystem
 
         bool operator ()(MaterialTextureInfo& a, MaterialTextureInfo& b) const
         {
-            uintptr_t ia = dmRender::GetMaterialConstantLocation(m_Material, a.m_SamplerNameHash);
-            uintptr_t ib = dmRender::GetMaterialConstantLocation(m_Material, b.m_SamplerNameHash);
+            uintptr_t ia = (uintptr_t) dmRender::GetMaterialConstantLocation(m_Material, a.m_SamplerNameHash);
+            uintptr_t ib = (uintptr_t) dmRender::GetMaterialConstantLocation(m_Material, b.m_SamplerNameHash);
             return ia < ib;
         }
     };
