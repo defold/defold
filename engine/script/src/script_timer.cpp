@@ -563,7 +563,7 @@ namespace dmScript
      * : [type:object] The current object
      *
      * `handle`
-     * : [type:number] The handle of the timer
+     * : [type:hash] The handle of the timer
      *
      * `time_elapsed`
      * : [type:number] The elapsed time - on first trigger it is time since timer.delay call, otherwise time since last trigger
