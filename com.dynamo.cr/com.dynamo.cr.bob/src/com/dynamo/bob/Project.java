@@ -1613,7 +1613,7 @@ public class Project {
             TimeProfiler.start(command);
             switch (command) {
                 case "build": {
-                    TimeProfiler.start("PrepExtensins");
+                    TimeProfiler.start("PrepExtensions");
                     ExtenderUtil.checkProjectForDuplicates(this); // Throws if there are duplicate files in the project (i.e. library and local files conflict)
                     final String[] platforms = getPlatformStrings();
                     Future<Void> remoteBuildFuture = null;
