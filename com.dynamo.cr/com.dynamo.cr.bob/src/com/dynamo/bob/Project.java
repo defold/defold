@@ -296,8 +296,7 @@ public class Project {
      * @param pkg package name to be scanned
      */
     public void scan(IClassScanner scanner, String pkg) {
-        TimeProfiler.start("scan");
-        TimeProfiler.addData("pkg", pkg);
+        TimeProfiler.startF("scan %s", pkg);
         Set<String> classNames = scanner.scan(pkg);
         doScan(scanner, classNames);
         TimeProfiler.stop();
@@ -332,8 +331,8 @@ public class Project {
 
     @SuppressWarnings("unchecked")
     private void doScan(IClassScanner scanner, Set<String> classNames) {
+        TimeProfiler.start("doScan");
         boolean is_bob_light = getManifestInfo("is-bob-light") != null;
-
         for (String className : classNames) {
             // Ignore TexcLibrary to avoid it being loaded and initialized
             // We're also skipping some of the bundler classes, since we're only building content,
@@ -391,6 +390,7 @@ public class Project {
                 }
             }
         }
+        TimeProfiler.stop();
     }
 
     static String[][] extensionMapping = new String[][] {
