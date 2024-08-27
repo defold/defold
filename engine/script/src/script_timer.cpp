@@ -563,12 +563,12 @@ namespace dmScript
      * : [type:object] The current object
      *
      * `handle`
-     * : [type:number] The handle of the timer
+     * : [type:integer] The handle of the timer
      *
      * `time_elapsed`
      * : [type:number] The elapsed time - on first trigger it is time since timer.delay call, otherwise time since last trigger
      *
-     * @return handle [type:hash] identifier for the create timer, returns timer.INVALID_TIMER_HANDLE if the timer can not be created
+     * @return handle [type:integer] identifier for the create timer, returns timer.INVALID_TIMER_HANDLE if the timer can not be created
      * @examples
      *
      * A simple one-shot timer
@@ -630,7 +630,7 @@ namespace dmScript
      * Cancelling a timer that is already executed or cancelled is safe.
      *
      * @name timer.cancel
-     * @param handle [type:hash] the timer handle returned by timer.delay()
+     * @param handle [type:integer] the timer handle returned by timer.delay()
      * @return true [type:boolean] if the timer was active, false if the timer is already cancelled / complete
      * @examples
      *
@@ -667,7 +667,7 @@ namespace dmScript
      * Manual triggering a callback for a timer.
      *
      * @name timer.trigger
-     * @param handle [type:hash] the timer handle returned by timer.delay()
+     * @param handle [type:integer] the timer handle returned by timer.delay()
      * @return true [type:boolean] if the timer was active, false if the timer is already cancelled / complete
      * @examples
      *
@@ -729,7 +729,7 @@ namespace dmScript
      * Get information about timer.
      *
      * @name  timer.get_info
-     * @param handle [type:hash] the timer handle returned by timer.delay()
+     * @param handle [type:integer] the timer handle returned by timer.delay()
      * @return data [type:table|nil] table or `nil` if timer is cancelled/completed. table with data in the following fields:
      *
      * `time_remaining`
