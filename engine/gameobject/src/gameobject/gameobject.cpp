@@ -328,6 +328,18 @@ namespace dmGameObject
         regist->m_Collections.SetSize(0);
     }
 
+    HCollection GetCollectionByHash(HRegister regist, dmhash_t socket_name)
+    {
+        uint32_t collection_count = regist->m_Collections.Size();
+        for (uint32_t i = 0; i < collection_count; ++i)
+        {
+            Collection* collection = regist->m_Collections[i];
+            if (collection->m_NameHash == socket_name)
+                return collection->m_HCollection;
+        }
+        return 0;
+    }
+
     void DeleteRegister(HRegister regist)
     {
         DeleteCollections(regist);
@@ -491,7 +503,7 @@ namespace dmGameObject
             return 0;
         }
 
-        collection->m_NameHash = dmHashString64(name);
+        collection->m_NameHash = dmHashString64(name); // Same as the socket name
 
         HCollection hcollection = (HCollection)new CollectionHandle;
         Result result = AttachCollection(collection, name, factory, regist, hcollection);
