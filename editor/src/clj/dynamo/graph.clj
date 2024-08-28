@@ -1467,13 +1467,14 @@
   "Returns a map of overridden prop-keywords to property values. Values will be
   produced by property value functions if possible."
   [node-id {:keys [basis] :as evaluation-context}]
-  (let [node-type (node-type* basis node-id)]
+  (let [node (node-by-id basis node-id)
+        node-type (gt/node-type node)]
     (into {}
           (map (fn [[prop-kw raw-prop-value]]
                  [prop-kw (if (has-property? node-type prop-kw)
-                            (node-value node-id prop-kw evaluation-context)
+                            (in/node-value node prop-kw evaluation-context)
                             raw-prop-value)]))
-          (node-value node-id :_overridden-properties evaluation-context))))
+          (in/node-value node :_overridden-properties evaluation-context))))
 
 (defn collect-overridden-properties
   "Collects overridden property values from override nodes originating from the

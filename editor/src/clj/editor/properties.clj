@@ -15,6 +15,7 @@
 (ns editor.properties
   (:require [camel-snake-kebab :as camel]
             [clojure.set :as set]
+            [clojure.string :as string]
             [cognitect.transit :as transit]
             [dynamo.graph :as g]
             [editor.core :as core]
@@ -27,6 +28,7 @@
             [internal.util :as util]
             [schema.core :as s]
             [util.coll :as coll :refer [pair]]
+            [util.fn :as fn]
             [util.id-vec :as iv]
             [util.murmur :as murmur])
   (:import [java.util StringTokenizer]
@@ -551,12 +553,14 @@
     (for [[node-id prop-kw old-value new-value] set-operations]
       (set-value-txs evaluation-context node-id prop-kw key set-fn old-value new-value))))
 
-(defn keyword->name [kw]
-  (-> kw
-    name
-    camel/->Camel_Snake_Case_String
-    (clojure.string/replace "_" " ")
-    clojure.string/trim))
+(defn- keyword->name-raw [property-keyword]
+  (-> property-keyword
+      (name)
+      (camel/->Camel_Snake_Case_String)
+      (string/replace "_" " ")
+      (string/trim)))
+
+(def keyword->name (fn/memoize keyword->name-raw))
 
 (defn label
   [property]

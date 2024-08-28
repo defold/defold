@@ -357,3 +357,79 @@
   (is (true? (text-util/includes-re-pattern? "exact" #"exact")))
   (is (true? (text-util/includes-re-pattern? "two words" #"word")))
   (is (false? (text-util/includes-re-pattern? "two words" #"missing"))))
+
+(deftest count->lower-case-string-test
+  (testing "Negative count."
+    (is (= ["-1" "-2" "-3" "-4" "-5" "-6" "-7" "-8" "-9"]
+           (mapv text-util/count->lower-case-string (range -1 -10 -1)))))
+
+  (testing "Low count."
+    (is (= ["no" "one" "two" "three" "four" "five" "six" "seven" "eight" "nine"]
+           (mapv text-util/count->lower-case-string (range 0 10)))))
+
+  (testing "High count."
+    (is (= ["10" "11" "12" "13" "14" "15" "16" "17" "18" "19"]
+           (mapv text-util/count->lower-case-string (range 10 20)))))
+
+  (testing "Returns supplied zero-result."
+    (let [zero-result (str "supplied" \- "zero" \- "result")]
+      (is (identical? zero-result (text-util/count->lower-case-string 0 zero-result))))))
+
+(deftest count->upper-case-string-test
+  (testing "Negative count."
+    (is (= ["-1" "-2" "-3" "-4" "-5" "-6" "-7" "-8" "-9"]
+           (mapv text-util/count->upper-case-string (range -1 -10 -1)))))
+
+  (testing "Low count."
+    (is (= ["No" "One" "Two" "Three" "Four" "Five" "Six" "Seven" "Eight" "Nine"]
+           (mapv text-util/count->upper-case-string (range 0 10)))))
+
+  (testing "High count."
+    (is (= ["10" "11" "12" "13" "14" "15" "16" "17" "18" "19"]
+           (mapv text-util/count->upper-case-string (range 10 20)))))
+
+  (testing "Returns supplied zero-result."
+    (let [zero-result (str "SUPPLIED" \_ "ZERO" \_ "RESULT")]
+      (is (identical? zero-result (text-util/count->upper-case-string 0 zero-result))))))
+
+(deftest amount-text-test
+  (testing "No count->string function supplied."
+    (testing "No plural form specified."
+      (testing "Lower-case behavior."
+        (is (= "-1 items" (text-util/amount-text -1 "item")))
+        (is (= "no items" (text-util/amount-text 0 "item")))
+        (is (= "one item" (text-util/amount-text 1 "item")))
+        (is (= "two items" (text-util/amount-text 2 "item"))))
+
+      (testing "Upper-case behavior."
+        (is (= "-1 Items" (text-util/amount-text -1 "Item")))
+        (is (= "No Items" (text-util/amount-text 0 "Item")))
+        (is (= "One Item" (text-util/amount-text 1 "Item")))
+        (is (= "Two Items" (text-util/amount-text 2 "Item")))))
+
+    (testing "Plural form specified."
+      (testing "Lower-case behavior."
+        (is (= "-1 foxes" (text-util/amount-text -1 "fox" "foxes")))
+        (is (= "no foxes" (text-util/amount-text 0 "fox" "foxes")))
+        (is (= "one fox" (text-util/amount-text 1 "fox" "foxes")))
+        (is (= "two foxes" (text-util/amount-text 2 "fox" "foxes"))))
+
+      (testing "Upper-case behavior."
+        (is (= "-1 Foxes" (text-util/amount-text -1 "Fox" "Foxes")))
+        (is (= "No Foxes" (text-util/amount-text 0 "Fox" "Foxes")))
+        (is (= "One Fox" (text-util/amount-text 1 "Fox" "Foxes")))
+        (is (= "Two Foxes" (text-util/amount-text 2 "Fox" "Foxes"))))))
+
+  (testing "Uses supplied count->string function."
+    (letfn [(count->string [^long count]
+              (case count
+                0 "an absence of"
+                1 "a single"
+                2 "a few"
+                (when (pos? count)
+                  "several")))]
+      (is (= "-1 tears" (text-util/amount-text -1 "tear" "tears" count->string)))
+      (is (= "an absence of tears" (text-util/amount-text 0 "tear" "tears" count->string)))
+      (is (= "a single tear" (text-util/amount-text 1 "tear" "tears" count->string)))
+      (is (= "a few tears" (text-util/amount-text 2 "tear" "tears" count->string)))
+      (is (= "several tears" (text-util/amount-text 3 "tear" "tears" count->string))))))

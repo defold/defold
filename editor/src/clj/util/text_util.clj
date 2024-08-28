@@ -309,3 +309,69 @@
   [^String text ^Pattern re-pattern]
   (let [matcher (re-matcher re-pattern text)]
     (.find matcher)))
+
+(defn count->lower-case-string
+  "Returns a human-readable string representation of the specified count.
+  Produces lower-case words for numbers nine and below. Uses numerals for
+  numbers above nine, as well as negative numbers. You can optionally specify
+  the result to be returned for a count of zero. Defaults to \"no\"."
+  (^String [^long count]
+   (count->lower-case-string count "no"))
+  (^String [^long count zero-result]
+   (case count
+     0 zero-result
+     1 "one"
+     2 "two"
+     3 "three"
+     4 "four"
+     5 "five"
+     6 "six"
+     7 "seven"
+     8 "eight"
+     9 "nine"
+     (str count))))
+
+(defn count->upper-case-string
+  "Returns a human-readable string representation of the specified count.
+  Produces upper-case words for numbers nine and below. Uses numerals for
+  numbers above nine, as well as negative numbers. You can optionally specify
+  the result to be returned for a count of zero. Defaults to \"No\"."
+  (^String [^long count]
+   (count->upper-case-string count "No"))
+  (^String [^long count zero-result]
+   (case count
+     0 (str zero-result)
+     1 "One"
+     2 "Two"
+     3 "Three"
+     4 "Four"
+     5 "Five"
+     6 "Six"
+     7 "Seven"
+     8 "Eight"
+     9 "Nine"
+     (str count))))
+
+(defn amount-text
+  "Returns a string in the form \"One Item\" or \"Seven Items\", depending on the
+  specified count. You can supply both the singular and the plural form to
+  handle irregular nouns. The optional count->string function will be called
+  with the count to obtain it in word form. It may return nil, in which case the
+  numeral representation will be used. If not supplied, the casing of the first
+  letter in the singular form will determine the casing of the word used to
+  represent the amount."
+  (^String [^long count ^String singular]
+   (amount-text count singular (str singular \s)))
+  (^String [^long count ^String singular ^String plural]
+   (amount-text count singular plural
+                (if (and (not (.isEmpty singular))
+                         (Character/isUpperCase (.codePointAt singular 0)))
+                  count->upper-case-string
+                  count->lower-case-string)))
+  (^String [^long count ^String singular ^String plural count->string]
+   (str (or (count->string count)
+            (str count))
+        \space
+        (case count
+          1 singular
+          plural))))

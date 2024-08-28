@@ -18,13 +18,16 @@
             [dynamo.graph :as g]
             [editor.core :as core]
             [editor.outline :as outline]
+            [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [internal.node :as in]
-            [util.coll :as coll]))
+            [util.coll :as coll]
+            [util.text-util :as text-util]))
 
 (set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
 (def ^:dynamic *check-pb-field-names* in/*check-schemas*)
 
@@ -49,6 +52,26 @@
           :when (contains? existing-source-output-labels source-output-label)]
       (g/connect source-node-id source-output-label target-node-id target-output-label))))
 
+(defn node-qualifier-label
+  "Given a node-id, returns a string that identifies the node for the user.
+  Typically, this will be the URL that uniquely identifies the node inside its
+  owner resource, or the id that the user has specified for the node. Returns
+  nil if there is no suitable qualifier for the given node."
+  ([node-id]
+   (g/with-auto-evaluation-context evaluation-context
+     (node-qualifier-label node-id evaluation-context)))
+  ([node-id {:keys [basis] :as evaluation-context}]
+   (when-some [node (g/node-by-id-at basis node-id)]
+     (let [node-type (g/node-type node)]
+       (or (when (in/behavior node-type :url)
+             (let [value (in/node-value node :url evaluation-context)]
+               (when (string? value)
+                 (coll/not-empty value))))
+           (when (in/behavior node-type :id)
+             (let [value (in/node-value node :id evaluation-context)]
+               (when (string? value)
+                 (coll/not-empty value)))))))))
+
 (defn node-debug-label
   ([node-id]
    (g/with-auto-evaluation-context evaluation-context
@@ -60,14 +83,12 @@
              (if (resource/memory-resource? resource)
                (str "embedded." (resource/ext resource))
                (resource/proj-path resource))))
+         (node-qualifier-label node-id evaluation-context)
          (when (in/inherits? node-type outline/OutlineNode)
            (coll/not-empty (:label (g/maybe-node-value node-id :node-outline evaluation-context))))
          (let [name (g/maybe-node-value node-id :name evaluation-context)]
            (when (string? name)
              (coll/not-empty name)))
-         (let [id (g/maybe-node-value node-id :id evaluation-context)]
-           (when (string? id)
-             (coll/not-empty id)))
          (str (name (:k node-type)) \# node-id)))))
 
 (defn node-debug-label-path
@@ -99,6 +120,74 @@
       :node-debug-label-path node-debug-label-path
       :owner-resource-node-id owner-resource-node-id
       :owner-resource-node-type-kw owner-resource-node-type-kw})))
+
+;; -----------------------------------------------------------------------------
+;; Property override transfer
+;; -----------------------------------------------------------------------------
+
+(defn lift-overrides-plan
+  "Returns a lift-overrides-plan for transferring overridden properties from the
+  specified source-node-id to its immediate override-original. You can specify a
+  sequence of property-labels to consider for transfer, or supply :all to
+  include all overridden properties. Returns nil if no properties match the
+  criteria. Otherwise, returns a map containing the :target-node-id and a
+  :lifted-properties map of overridden property labels to override values."
+  ([source-node-id property-labels]
+   (g/with-auto-evaluation-context evaluation-context
+     (lift-overrides-plan source-node-id property-labels evaluation-context)))
+  ([source-node-id property-labels {:keys [basis] :as evaluation-context}]
+   (when-some [target-node-id (g/override-original basis source-node-id)]
+     (let [overridden-properties (g/overridden-properties source-node-id evaluation-context)
+           lifted-properties (case property-labels
+                               :all overridden-properties
+                               (select-keys overridden-properties property-labels))]
+       (when (pos? (count lifted-properties))
+         {:source-node-id source-node-id
+          :target-node-id target-node-id
+          :lifted-properties lifted-properties})))))
+
+(defn lift-overrides-description
+  "Given a lift-overrides-plan, return a user-friendly textual description of
+  its effects if executed, or nil if we cannot proceed with the transfer. The
+  resulting string is suitable for use with user-interface elements such as menu
+  items or tooltips. If this function returns nil, you should disallow the
+  action in the user-interface."
+  (^String [lift-overrides-plan]
+   (g/with-auto-evaluation-context evaluation-context
+     (lift-overrides-description lift-overrides-plan evaluation-context)))
+  (^String [lift-overrides-plan {:keys [basis] :as evaluation-context}]
+   (when-some [{:keys [source-node-id target-node-id lifted-properties]} lift-overrides-plan]
+     (when-some [target-owner-resource (resource-node/owner-resource basis target-node-id)]
+       (when (and (resource/file-resource? target-owner-resource)
+                  (resource/editable? target-owner-resource))
+         (let [lifted-property-count (count lifted-properties)
+               overrides-qualifier (or (when (= 1 lifted-property-count)
+                                         (let [property-keyword (ffirst lifted-properties)
+                                               properties (:properties (g/maybe-node-value source-node-id :_declared-properties))]
+                                           (or (-> properties
+                                                   (get property-keyword)
+                                                   (:label))
+                                               (-> property-keyword
+                                                   (properties/keyword->name)
+                                                   (str " Override")))))
+                                       (text-util/amount-text lifted-property-count "Override"))
+               target-node-qualifier (or (node-qualifier-label target-node-id evaluation-context)
+                                         "Node")
+               target-owner-proj-path (resource/proj-path target-owner-resource)]
+           (format "Lift %s to '%s' in '%s'"
+                   overrides-qualifier
+                   target-node-qualifier
+                   target-owner-proj-path)))))))
+
+(defn lift-overrides-tx-data
+  "Given a lift-overrides-plan, return a sequence of transaction steps that will
+  transfer the overridden properties to their immediate override-original, or
+  nil if there is nothing to transfer."
+  [lift-overrides-plan]
+  (when-some [{:keys [source-node-id target-node-id lifted-properties]} lift-overrides-plan]
+    (into (vec (apply g/set-property target-node-id (mapcat identity lifted-properties)))
+          (map #(g/clear-property source-node-id %))
+          (keys lifted-properties))))
 
 ;; -----------------------------------------------------------------------------
 ;; set-properties-from-pb-map macro
