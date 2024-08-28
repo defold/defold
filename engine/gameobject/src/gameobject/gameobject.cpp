@@ -2235,23 +2235,7 @@ namespace dmGameObject
         DispatchMessagesContext* context = (DispatchMessagesContext*) user_ptr;
         Collection* collection = context->m_Collection;
 
-        Instance* instance = 0x0;
-        // Start by looking for the instance in the user-data,
-        // which is the case when an instance sends to itself.
-        if (message->m_UserData1 != 0
-                && message->m_Sender.m_Socket == message->m_Receiver.m_Socket
-                && message->m_Sender.m_Path == message->m_Receiver.m_Path)
-        {
-            Instance* user_data_instance = (Instance*)message->m_UserData1;
-            if (message->m_Receiver.m_Path == user_data_instance->m_Identifier)
-            {
-                instance = user_data_instance;
-            }
-        }
-        if (instance == 0x0)
-        {
-            instance = GetInstanceFromIdentifier(context->m_Collection, message->m_Receiver.m_Path);
-        }
+        Instance* instance = GetInstanceFromIdentifier(collection, message->m_Receiver.m_Path);
         if (instance == 0x0)
         {
             DM_HASH_REVERSE_MEM(hash_ctx, 512);
