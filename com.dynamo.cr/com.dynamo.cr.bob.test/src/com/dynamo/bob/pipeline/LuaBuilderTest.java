@@ -14,10 +14,6 @@
 
 package com.dynamo.bob.pipeline;
 
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.junit.Assert.assertFalse;
-
 import org.junit.Test;
 
 import com.dynamo.bob.Project;
@@ -28,6 +24,11 @@ import com.dynamo.lua.proto.Lua.LuaModule;
 import com.dynamo.script.proto.Lua.LuaSource;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarationEntry;
+
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 public class LuaBuilderTest extends AbstractProtoBuilderTest {
 
@@ -184,7 +185,6 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
         p.setOption("platform", "armv7-android");
         p.setOption("architectures", "arm64-android");
 
-        StringBuilder src = new StringBuilder();
         LuaModule luaModule = (LuaModule)build("/test.script", "function foo() print('foo') end").get(0);
         LuaSource luaSource = luaModule.getSource();
         assertTrue(luaSource.getScript().size() == 0);
@@ -214,7 +214,6 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
         p.setOption("platform", "armv7-android");
         p.setOption("architectures", "armv7-android,arm64-android");
 
-        StringBuilder src = new StringBuilder();
         LuaModule luaModule = (LuaModule)build("/test.script", "function foo() print('foo') end").get(0);
         LuaSource luaSource = luaModule.getSource();
         assertTrue(luaSource.getScript().size() == 0);
@@ -286,5 +285,19 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
         assertTrue((delta[260] & 0xff) == 1);
         // byte - the last diffing byte
         assertTrue(delta[261] == 99);
+    }
+
+    @Test
+    public void testCircularRequire() throws Exception {
+        addFile("/first.lua", "require(\"second\")");
+        addFile("/second.lua", "require(\"third\")");
+        addFile("/third.lua", "require(\"first\")");
+        try {
+            build("/main.lua", "require(\"first\")");
+            fail("Expected a CompileExceptionError due to circular dependency, but no exception was thrown.");
+        }
+        catch (CompileExceptionError e) {
+            assertTrue(e.getMessage().contains("Circular dependency detected"));
+        }
     }
 }

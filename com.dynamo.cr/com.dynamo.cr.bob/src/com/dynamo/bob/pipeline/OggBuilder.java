@@ -34,7 +34,7 @@ import com.dynamo.bob.fs.IResource;
 public class OggBuilder extends CopyBuilder{
 
     @Override
-    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
+    public Task create(IResource input) throws IOException, CompileExceptionError {
         Platform curr_platform = Platform.getHostPlatform();
         List<String> deps = List.of("libogg", "liboggz");
         Bob.unpackSharedLibraries(curr_platform, deps);

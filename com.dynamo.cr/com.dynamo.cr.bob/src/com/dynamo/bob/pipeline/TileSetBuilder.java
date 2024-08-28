@@ -18,16 +18,16 @@ import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
-import java.io.InputStreamReader;
 
 import javax.imageio.ImageIO;
 
+import com.dynamo.bob.ProtoBuilder;
+import com.dynamo.bob.ProtoParams;
+import com.dynamo.bob.BuilderParams;
+import com.dynamo.bob.Task;
+import com.dynamo.bob.CompileExceptionError;
 import org.apache.commons.io.FilenameUtils;
 
-import com.dynamo.bob.Builder;
-import com.dynamo.bob.BuilderParams;
-import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.Task;
 import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.textureset.TextureSetGenerator.TextureSetResult;
@@ -38,24 +38,22 @@ import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
 import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
 import com.dynamo.gamesys.proto.Tile.TileSet;
-import com.google.protobuf.TextFormat;
 
+@ProtoParams(srcClass = TileSet.class, messageClass = TileSet.class)
 @BuilderParams(name = "TileSet", inExts = {".tileset", ".tilesource"}, outExt = ".t.texturesetc")
-public class TileSetBuilder extends Builder<Void>  {
+public class TileSetBuilder extends ProtoBuilder<TileSet.Builder> {
 
     private static Logger logger = Logger.getLogger(TileSetBuilder.class.getName());
 
     @Override
-    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-        TileSet.Builder builder = TileSet.newBuilder();
-        TextFormat.merge(new InputStreamReader(new ByteArrayInputStream(input.getContent())), builder);
-        TileSet tileSet = builder.build();
-        String imgPath = tileSet.getImage();
-        String collisionPath = tileSet.getCollision();
+    public Task create(IResource input) throws IOException, CompileExceptionError {
+        TileSet.Builder builder = getSrcBuilder(input);
+        String imgPath = builder.getImage();
+        String collisionPath = builder.getCollision();
         IResource image = this.project.getResource(imgPath);
         IResource collision = this.project.getResource(collisionPath);
         if (image.exists() || collision.exists()) {
-            TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
+            TaskBuilder taskBuilder = Task.newBuilder(this)
                     .setName(params.name())
                     .addInput(input)
                     .addOutput(input.changeExt(params.outExt()));
@@ -91,14 +89,13 @@ public class TileSetBuilder extends Builder<Void>  {
     }
 
     @Override
-    public void build(Task<Void> task) throws CompileExceptionError,
+    public void build(Task task) throws CompileExceptionError,
             IOException {
 
-        TextureProfile texProfile = TextureUtil.getTextureProfileByPath(this.project.getTextureProfiles(), task.input(0).getPath());
-        logger.info("Compiling %s using profile %s", task.input(0).getPath(), texProfile!=null?texProfile.getName():"<none>");
+        TextureProfile texProfile = TextureUtil.getTextureProfileByPath(this.project.getTextureProfiles(), task.firstInput().getPath());
+        logger.info("Compiling %s using profile %s", task.firstInput().getPath(), texProfile!=null?texProfile.getName():"<none>");
 
-        TileSet.Builder builder = TileSet.newBuilder();
-        ProtoUtil.merge(task.input(0), builder);
+        TileSet.Builder builder = getSrcBuilder(task.firstInput());
         TileSet tileSet = builder.build();
 
         String imgPath = tileSet.getImage();
@@ -112,7 +109,7 @@ public class TileSetBuilder extends Builder<Void>  {
             image = ImageIO.read(new ByteArrayInputStream(imageRes.getContent()));
         }
         if (image != null && (image.getWidth() < tileSet.getTileWidth() || image.getHeight() < tileSet.getTileHeight())) {
-            throw new CompileExceptionError(task.input(0), -1, String.format(
+            throw new CompileExceptionError(task.firstInput(), -1, String.format(
                     "the image dimensions (%dx%d) are smaller than the tile dimensions (%dx%d)", image.getWidth(),
                     image.getHeight(), tileSet.getTileWidth(), tileSet.getTileHeight()));
         }

@@ -148,7 +148,8 @@ public class Bob {
     }
 
     public static void extractToFolder(final URL url, File toFolder, boolean deleteOnExit) throws IOException {
-
+        TimeProfiler.startF("extractToFolder %s", toFolder.toString());
+        TimeProfiler.addData("url", url.toString());
         ZipInputStream zipStream = new ZipInputStream(new BufferedInputStream(url.openStream()));
 
         try{
@@ -186,6 +187,7 @@ public class Bob {
         } finally {
             IOUtils.closeQuietly(zipStream);
         }
+        TimeProfiler.stop();
     }
 
     public static void extract(final URL url, File toFolder) throws IOException {
@@ -416,7 +418,7 @@ public class Bob {
 
     public static File getSharedLib(String name) throws IOException {
         init();
-
+        TimeProfiler.startF("getSharedLib %s", name);
         Platform platform = Platform.getHostPlatform();
         String libName = platform.getPair() + "/" + platform.getLibPrefix() + name + platform.getLibSuffix();
         File f = new File(rootFolder, libName);
@@ -428,6 +430,7 @@ public class Bob {
 
             atomicCopy(url, f, true);
         }
+        TimeProfiler.stop();
         return f;
     }
 
@@ -682,6 +685,7 @@ public class Bob {
             TimeProfiler.init(reportFiles, false);
         }
 
+        TimeProfiler.start("ParseCommandLine");
         if (cmd.hasOption("version")) {
             System.out.println(String.format("bob.jar version: %s  sha1: %s  built: %s", EngineVersion.version, EngineVersion.sha1, EngineVersion.timestamp));
             System.exit(0);
@@ -745,14 +749,18 @@ public class Bob {
                 project.addBuildServerHeader(header);
             }
         }
+        TimeProfiler.stop();
 
+        TimeProfiler.start("loadProjectFile");
         project.loadProjectFile();
+        TimeProfiler.stop();
 
         TimeProfiler.start("setupProject");
         // resolves libraries and finds all sources
         setupProject(project, shouldResolveLibs, sourceDirectory);
         TimeProfiler.stop();
 
+        TimeProfiler.start("setOptions");
         if (!cmd.hasOption("defoldsdk")) {
             project.setOption("defoldsdk", EngineVersion.sha1);
         }
@@ -874,6 +882,7 @@ public class Bob {
             String[] validArtifacts = {"engine", "plugins", "library"};
             validateChoicesList(project, "build-artifacts", validArtifacts);
         }
+        TimeProfiler.stop();
 
         boolean ret = true;
         StringBuilder errors = new StringBuilder();

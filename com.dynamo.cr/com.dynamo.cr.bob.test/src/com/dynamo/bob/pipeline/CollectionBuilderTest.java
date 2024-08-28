@@ -496,7 +496,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         src.append("}\n");
 
         List<Message> messages = build("/test.collection", src.toString());
-        Assert.assertEquals(6, messages.size());
+        Assert.assertEquals(5, messages.size());
 
         CollectionDesc collection = getMessage(messages, CollectionDesc.class);
         Assert.assertEquals(1, collection.getInstancesCount());
@@ -551,7 +551,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         src.append("}\n");
 
         List<Message> messages = build("/test.collection", src.toString());
-        Assert.assertEquals(6, messages.size());
+        Assert.assertEquals(5, messages.size());
 
         CollectionDesc collection = getMessage(messages, CollectionDesc.class);
         List<ComponenTypeDesc> types = collection.getComponentTypesList();
@@ -943,7 +943,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
 
         List<Message> messages = build("/test.collection", col.toString());
 
-        Assert.assertEquals(7, messages.size());
+        Assert.assertEquals(6, messages.size());
 
         CollectionDesc collection = getMessage(messages, CollectionDesc.class);
         Assert.assertEquals(2, collection.getInstancesCount());
