@@ -219,6 +219,12 @@ public class TimeProfiler {
                 String extension = "." + FilenameUtils.getExtension(reportFileName);
                 String finalReportFileName = reportFileName.replace(extension, FILENAME_POSTFIX + extension);
                 File finalReportFile = new File(reportFile.getParent(), finalReportFileName);
+                File parentDir = finalReportFile.getParentFile();
+                if (!parentDir.exists()) {
+                    if (!parentDir.mkdirs()) {
+                        System.out.println("Failed to create directories: " + parentDir);
+                    }
+                }
                 if (extension.equals(".json")) {
                     saveJSON(jsonReport, finalReportFile);
                 }

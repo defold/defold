@@ -107,6 +107,7 @@ import com.dynamo.graphics.proto.Graphics.TextureProfiles;
 
 import com.dynamo.bob.cache.ResourceCache;
 import com.dynamo.bob.cache.ResourceCacheKey;
+import org.jagatoo.util.timing.Time;
 
 /**
  * Project abstraction. Contains input files, builder, tasks, etc
@@ -295,8 +296,10 @@ public class Project {
      * @param pkg package name to be scanned
      */
     public void scan(IClassScanner scanner, String pkg) {
+        TimeProfiler.startF("scan %s", pkg);
         Set<String> classNames = scanner.scan(pkg);
         doScan(scanner, classNames);
+        TimeProfiler.stop();
     }
 
     private static String getManifestInfo(String attribute) {
@@ -328,8 +331,8 @@ public class Project {
 
     @SuppressWarnings("unchecked")
     private void doScan(IClassScanner scanner, Set<String> classNames) {
+        TimeProfiler.start("doScan");
         boolean is_bob_light = getManifestInfo("is-bob-light") != null;
-
         for (String className : classNames) {
             // Ignore TexcLibrary to avoid it being loaded and initialized
             // We're also skipping some of the bundler classes, since we're only building content,
@@ -387,6 +390,7 @@ public class Project {
                 }
             }
         }
+        TimeProfiler.stop();
     }
 
     static String[][] extensionMapping = new String[][] {
@@ -673,12 +677,18 @@ public class Project {
      */
     public List<TaskResult> build(IProgress monitor, String... commands) throws IOException, CompileExceptionError, MultipleCompileException {
         try {
+            TimeProfiler.start("prepReports");
             if (this.hasOption("build-report-html")) {
                 List<File> reportFiles = new ArrayList<>();
                 reportFiles.add(new File(this.option("build-report-html", "report.html")));
                 TimeProfiler.init(reportFiles, true);
             }
+            TimeProfiler.stop();
+
+            TimeProfiler.start("loadProjectFile");
             loadProjectFile();
+            TimeProfiler.stop();
+
             String title = projectProperties.getStringValue("project", "title");
             if (title != null && title.isEmpty()) {
                 throw new Exception("`project.title` in `game.project` must be non-empty.");
@@ -1582,10 +1592,12 @@ public class Project {
         monitor.beginTask("Working...", 100);
 
         {
+            TimeProfiler.start("scanJavaClasses");
             IProgress mrep = monitor.subProgress(1);
             mrep.beginTask("Reading classes...", 1);
             scanJavaClasses();
             mrep.done();
+            TimeProfiler.stop();
         }
 
         List<IPlugin> plugins = new ArrayList<>();
@@ -1601,20 +1613,28 @@ public class Project {
             TimeProfiler.start(command);
             switch (command) {
                 case "build": {
+                    TimeProfiler.start("PrepExtensions");
                     ExtenderUtil.checkProjectForDuplicates(this); // Throws if there are duplicate files in the project (i.e. library and local files conflict)
                     final String[] platforms = getPlatformStrings();
                     Future<Void> remoteBuildFuture = null;
                     // Get or build engine binary
+                    TimeProfiler.start("hasNativeExtensions");
                     boolean shouldBuildRemoteEngine = ExtenderUtil.hasNativeExtensions(this);
+                    TimeProfiler.stop();
                     boolean shouldBuildProject = shouldBuildEngine() && BundleHelper.isArchiveIncluded(this);
+                    TimeProfiler.stop();
 
                     if (shouldBuildProject) {
                         // do this before buildRemoteEngine to prevent concurrent modification exception, since
                         // lua transpilation adds new mounts with compiled Lua that buildRemoteEngine iterates over
                         // when sending to extender
+                        TimeProfiler.start("transpileLua");
                         transpileLua(monitor);
+                        TimeProfiler.stop();
                     }
 
+                    TimeProfiler.start("PrepEngine");
+                    TimeProfiler.addData("shouldBuildRemoteEngine", shouldBuildRemoteEngine);
                     if (shouldBuildRemoteEngine) {
                         remoteBuildFuture = buildRemoteEngine(monitor, executor);
                     }
@@ -1627,6 +1647,7 @@ public class Project {
                             progress.done();
                         }
                     }
+                    TimeProfiler.stop();
 
                     if (shouldBuildProject) {
                         result = createAndRunTasks(monitor);
