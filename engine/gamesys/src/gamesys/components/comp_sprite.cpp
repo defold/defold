@@ -201,8 +201,6 @@ namespace dmGameSystem
 
     dmGameObject::CreateResult CompSpriteNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
-        dmLogWarning("MAWE sizeof(SpriteComponent): %u", (uint32_t)sizeof(SpriteComponent));
-
         SpriteContext* sprite_context = (SpriteContext*)params.m_Context;
         SpriteWorld* sprite_world = new SpriteWorld();
         uint32_t comp_count = dmMath::Min(params.m_MaxComponentInstances, sprite_context->m_MaxSpriteCount);
