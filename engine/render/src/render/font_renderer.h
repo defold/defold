@@ -29,43 +29,15 @@
 
 namespace dmRender
 {
-    /**
-     * Glyph struct
-     */
-    struct Glyph
-    {
-        uint32_t    m_Character;
-        /// Width of the glyph
-        uint32_t    m_Width;
-        /// Total advancement of the glyph, measured from left to the next glyph
-        float       m_Advance;
-        /// Where the glyph starts, measured from the left
-        float       m_LeftBearing;
-        /// How far up the glyph starts, measured from the bottom line
-        uint32_t    m_Ascent;
-        /// How far up the glyph reaches, measured from the top line
-        uint32_t    m_Descent;
-        /// X coordinate of the glyph in the map
-        int32_t     m_X;
-        /// Y coordinate of the glyph in the map
-        int32_t     m_Y;
+    typedef dmRenderDDF::GlyphBank::Glyph FontGlyph;
+    typedef FontGlyph* (*FGetGlyph)(uint32_t utf8, void* user_ctx);
+    typedef void*  (*FGetGlyphData)(uint32_t utf8, void* user_ctx, uint32_t* out_size);
 
-        bool        m_InCache;
-        uint64_t    m_GlyphDataOffset;
-        uint64_t    m_GlyphDataSize;
-        uint32_t    m_Frame;
-    };
-
-    struct DM_ALIGNED(16) GlyphVertex
+    // The first byte of the texture data, is the compression
+    enum FontGlyphCompression
     {
-        // NOTE: The struct *must* be 16-bytes aligned due to SIMD operations.
-        float m_Position[4];
-        float m_UV[2];
-        float m_FaceColor[4];
-        float m_OutlineColor[4];
-        float m_ShadowColor[4];
-        float m_SdfParams[4];
-        float m_LayerMasks[3];
+        FONT_GLYPH_COMPRESSION_NONE = 0,
+        FONT_GLYPH_COMPRESSION_DEFLATE = 1,
     };
 
     /**
@@ -76,8 +48,11 @@ namespace dmRender
         /// Default constructor
         FontMapParams();
 
-        /// All glyphs represented in the map
-        dmArray<Glyph> m_Glyphs;
+        FGetGlyph       m_GetGlyph;
+        FGetGlyphData   m_GetGlyphData;
+
+        dmhash_t        m_NameHash;
+
         /// Offset of the shadow along the x-axis
         float m_ShadowX;
         /// Offset of the shadow along the y-axis
@@ -103,14 +78,13 @@ namespace dmRender
 
         uint32_t m_CacheWidth;
         uint32_t m_CacheHeight;
-        uint8_t m_GlyphChannels;
-        void* m_GlyphData;
-
         uint32_t m_CacheCellWidth;
         uint32_t m_CacheCellHeight;
         uint32_t m_CacheCellMaxAscent;
+        uint8_t m_GlyphChannels; // How many bitmap channels
         uint8_t m_CacheCellPadding;
         uint8_t m_LayerMask;
+
         uint8_t m_IsMonospaced:1;
         uint8_t m_Padding:7;
 
@@ -153,7 +127,7 @@ namespace dmRender
      * @param font_map Font map handle
      * @param params Parameters to update
      */
-    void SetFontMap(HFontMap font_map, FontMapParams& params);
+    void SetFontMap(HFontMap font_map, dmGraphics::HContext graphics_context, FontMapParams& params);
 
     /**
      * Get texture from a font map

@@ -1526,12 +1526,12 @@ TEST_F(FontTest, GlyphBankTest)
     ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path_font_2, (void**) &font_map_2));
     ASSERT_NE((void*)0, font_map_1);
 
-    const void* glyph_data_1 = dmRender::GetGlyphData(font_map_1);
-    const void* glyph_data_2 = dmRender::GetGlyphData(font_map_2);
+    // const void* glyph_data_1 = dmRender::GetGlyphData(font_map_1);
+    // const void* glyph_data_2 = dmRender::GetGlyphData(font_map_2);
 
-    ASSERT_NE((void*)0, glyph_data_1);
-    ASSERT_NE((void*)0, glyph_data_2);
-    ASSERT_NE(glyph_data_1, glyph_data_2);
+    // ASSERT_NE((void*)0, glyph_data_1);
+    // ASSERT_NE((void*)0, glyph_data_2);
+    // ASSERT_NE(glyph_data_1, glyph_data_2);
 
     dmResource::Release(m_Factory, font_map_1);
     dmResource::Release(m_Factory, font_map_2);

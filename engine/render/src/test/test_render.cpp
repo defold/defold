@@ -45,6 +45,17 @@ const static uint32_t HEIGHT = 400;
 
 using namespace dmVMath;
 
+static dmRender::FontGlyph* GetGlyph(uint32_t utf8, void* user_ctx)
+{
+    dmRender::FontGlyph* glyphs = (dmRender::FontGlyph*)user_ctx;
+    return &glyphs[utf8];
+}
+
+static void* GetGlyphData(uint32_t utf8, void* user_ctx, uint32_t* out_size)
+{
+    return 0;
+}
+
 class dmRenderTest : public jc_test_base_class
 {
 protected:
@@ -53,6 +64,7 @@ protected:
     dmGraphics::HContext m_GraphicsContext;
     dmScript::HContext m_ScriptContext;
     dmRender::HFontMap m_SystemFontMap;
+    dmRender::FontGlyph m_Glyphs[128];
 
     virtual void SetUp()
     {
@@ -90,19 +102,22 @@ protected:
         font_map_params.m_CacheCellHeight = 8;
         font_map_params.m_MaxAscent = 2;
         font_map_params.m_MaxDescent = 1;
-        font_map_params.m_Glyphs.SetCapacity(128);
-        font_map_params.m_Glyphs.SetSize(128);
-        memset((void*)&font_map_params.m_Glyphs[0], 0, sizeof(dmRender::Glyph)*128);
-        for (uint32_t i = 0; i < 128; ++i)
-        {
-            font_map_params.m_Glyphs[i].m_Character = i;
-            font_map_params.m_Glyphs[i].m_Width = 1;
-            font_map_params.m_Glyphs[i].m_LeftBearing = 1;
-            font_map_params.m_Glyphs[i].m_Advance = 2;
-            font_map_params.m_Glyphs[i].m_Ascent = 2;
-            font_map_params.m_Glyphs[i].m_Descent = 1;
-        }
+        font_map_params.m_GetGlyph = GetGlyph;
+        font_map_params.m_GetGlyphData = GetGlyphData;
+
         m_SystemFontMap = dmRender::NewFontMap(m_GraphicsContext, font_map_params);
+
+        memset(m_Glyphs, 0, sizeof(m_Glyphs));
+        for (uint32_t i = 0; i < DM_ARRAY_SIZE(m_Glyphs); ++i)
+        {
+            m_Glyphs[i].m_Character = i;
+            m_Glyphs[i].m_Width = 1;
+            m_Glyphs[i].m_LeftBearing = 1;
+            m_Glyphs[i].m_Advance = 2;
+            m_Glyphs[i].m_Ascent = 2;
+            m_Glyphs[i].m_Descent = 1;
+        }
+        dmRender::SetFontMapUserData(m_SystemFontMap, m_Glyphs);
     }
 
     virtual void TearDown()
@@ -121,25 +136,17 @@ TEST_F(dmRenderTest, TestFontMapTextureFiltering)
 {
     dmRender::HFontMap bitmap_font_map;
     dmRender::FontMapParams bitmap_font_map_params;
-    bitmap_font_map_params.m_CacheWidth = 1;
-    bitmap_font_map_params.m_CacheHeight = 1;
+    bitmap_font_map_params.m_CacheWidth = 8;
+    bitmap_font_map_params.m_CacheHeight = 8;
     bitmap_font_map_params.m_CacheCellWidth = 8;
     bitmap_font_map_params.m_CacheCellHeight = 8;
     bitmap_font_map_params.m_MaxAscent = 2;
     bitmap_font_map_params.m_MaxDescent = 1;
-    bitmap_font_map_params.m_Glyphs.SetCapacity(1);
-    bitmap_font_map_params.m_Glyphs.SetSize(1);
-    memset((void*)&bitmap_font_map_params.m_Glyphs[0], 0, sizeof(dmRender::Glyph)*1);
-    for (uint32_t i = 0; i < 1; ++i)
-    {
-        bitmap_font_map_params.m_Glyphs[i].m_Character = i;
-        bitmap_font_map_params.m_Glyphs[i].m_Width = 1;
-        bitmap_font_map_params.m_Glyphs[i].m_LeftBearing = 1;
-        bitmap_font_map_params.m_Glyphs[i].m_Advance = 2;
-        bitmap_font_map_params.m_Glyphs[i].m_Ascent = 2;
-        bitmap_font_map_params.m_Glyphs[i].m_Descent = 1;
-    }
+
     bitmap_font_map_params.m_ImageFormat = dmRenderDDF::TYPE_BITMAP;
+
+    bitmap_font_map_params.m_GetGlyph = GetGlyph;
+    bitmap_font_map_params.m_GetGlyphData = GetGlyphData;
 
     bitmap_font_map = dmRender::NewFontMap(m_GraphicsContext, bitmap_font_map_params);
     ASSERT_TRUE(VerifyFontMapMinFilter(bitmap_font_map, dmGraphics::TEXTURE_FILTER_LINEAR));
