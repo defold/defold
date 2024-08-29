@@ -958,7 +958,6 @@
       (assert (string? (not-empty (:platform bundle-options))))
       (when-let [output-directory (query-directory! "Output Directory" initial-directory stage)]
         (set-file-pref! prefs output-prefs-key output-directory)
-        (println bundle-options)
         (let [platform-bundle-output-directory (io/file output-directory (or (:platform-bundle-output-directory bundle-options)
                                                                              (:platform bundle-options)))
               platform-bundle-output-directory-exists? (.exists platform-bundle-output-directory)]
