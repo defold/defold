@@ -178,7 +178,7 @@
             (dynamic error (g/fnk [_node-id id id-counts]
                                   (or (validation/prop-error :fatal _node-id :id validation/prop-empty? id "Id")
                                       (validation/prop-error :fatal _node-id :id (partial validation/prop-id-duplicate? id-counts) id)
-                                      (validation/prop-error :warning _node-id :id validation/prop-contains-url-characters? id "Id"))))
+                                      (validation/prop-error :warning _node-id :id validation/prop-contains-prohibited-characters? id "Id"))))
             (dynamic read-only? (g/fnk [_node-id]
                                   (g/override? _node-id))))
   (property url g/Str ; Just for presentation.
