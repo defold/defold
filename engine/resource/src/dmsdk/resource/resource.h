@@ -213,7 +213,7 @@ ResourceResult ResourceGetRaw(HResourceFactory factory, const char* name, void**
 /*#
  * Release resource
  * @note Decreases ref count by 1. If it reaches 0, the resource destroy function is called.
- * @name Release
+ * @name ResourceRelease
  * @param factory [type: HResourceFactory] Factory handle
  * @param resource [type: void*] Resource pointer
  */
@@ -223,8 +223,8 @@ void ResourceRelease(HResourceFactory factory, void* resource);
  * Hint the preloader what to load before Create is called on the resource.
  * The resources are not guaranteed to be loaded before Create is called.
  * This function can be called from a worker thread.
- * @name PreloadHint
- * @param factory [type: dmResource::HResourcePreloadHintInfo] Preloader handle
+ * @name ResourcePreloadHint
+ * @param preloader [type: dmResource::HResourcePreloadHintInfo] Preloader handle
  * @param path [type: const char*] Resource path
  * @return result [type: bool] if successfully invoking preloader.
  */

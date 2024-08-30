@@ -1540,3 +1540,56 @@ const char* ResultToString(Result r)
 }
 
 } // namespace dmResource
+
+// The C interface
+void ResourceRegisterReloadedCallback(HResourceFactory factory, FResourceReloadedCallback callback, void* user_data)
+{
+    dmResource::RegisterResourceReloadedCallback(factory, callback, user_data);
+}
+
+void ResourceUnregisterReloadedCallback(HResourceFactory factory, FResourceReloadedCallback callback, void* user_data)
+{
+    dmResource::UnregisterResourceReloadedCallback(factory, callback, user_data);
+}
+
+void ResourceRegisterDecryptionFunction(FResourceDecryption decrypt_resource)
+{
+   dmResource::RegisterResourceDecryptionFunction((dmResource::FDecryptResource)decrypt_resource);
+}
+
+ResourceResult ResourceGet(HResourceFactory factory, const char* name, void** resource)
+{
+    return (ResourceResult)dmResource::Get(factory, name, resource);
+}
+
+ResourceResult ResourceGetByHash(HResourceFactory factory, dmhash_t name, void** resource)
+{
+    return (ResourceResult)dmResource::Get(factory, name, resource);
+}
+
+ResourceResult ResourceGetRaw(HResourceFactory factory, const char* name, void** resource, uint32_t* resource_size)
+{
+    return (ResourceResult)dmResource::GetRaw(factory, name, resource, resource_size);
+}
+
+void ResourceRelease(HResourceFactory factory, void* resource);
+
+bool ResourcePreloadHint(HResourcePreloadHintInfo info, const char* name)
+{
+    return dmResource::PreloadHint(info, name);
+}
+
+ResourceResult ResourceGetPath(HResourceFactory factory, const void* resource, dmhash_t* hash)
+{
+    return (ResourceResult)dmResource::GetPath(factory, resource, hash);
+}
+
+ResourceResult ResourceAddFile(HResourceFactory factory, const char* path, uint32_t size, const void* resource)
+{
+    return (ResourceResult)dmResource::AddFile(factory, path, size, resource);
+}
+
+ResourceResult ResourceRemoveFile(HResourceFactory factory, const char* path)
+{
+    return (ResourceResult)dmResource::RemoveFile(factory, path);
+}
