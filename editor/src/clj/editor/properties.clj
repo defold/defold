@@ -19,9 +19,11 @@
             [cognitect.transit :as transit]
             [dynamo.graph :as g]
             [editor.core :as core]
+            [editor.graph-util :as gu]
             [editor.math :as math]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.types :as t]
             [editor.util :as eutil]
             [editor.workspace :as workspace]
@@ -30,7 +32,8 @@
             [util.coll :as coll :refer [pair]]
             [util.fn :as fn]
             [util.id-vec :as iv]
-            [util.murmur :as murmur])
+            [util.murmur :as murmur]
+            [util.text-util :as text-util])
   (:import [java.util StringTokenizer]
            [javax.vecmath Matrix4d Point3d Quat4d]))
 
@@ -481,14 +484,17 @@
                                              :prop-kws (mapv (fn [{:keys [prop-kw]}]
                                                                (cond (some? prop-kw) prop-kw
                                                                      (vector? k) (first k)
-                                                                     :else k)) v)
+                                                                     :else k))
+                                                             v)
                                              :tooltip (some :tooltip v)
                                              :values (mapv (fn [{:keys [value]}]
                                                              (when-not (g/error? value)
-                                                               value)) v)
+                                                               value))
+                                                           v)
                                              :errors (mapv (fn [{:keys [value error]}]
                                                              (or error
-                                                                 (when (g/error? value) value))) v)
+                                                                 (when (g/error? value) value)))
+                                                           v)
                                              :edit-type (property-edit-type (first v))
                                              :label (:label (first v))
                                              :read-only? (reduce
@@ -498,22 +504,31 @@
                                                                acc))
                                                            false
                                                            v)}
-                                       default-vals (mapv :original-value (filter #(contains? % :original-value) v))
-                                       prop (if (empty? default-vals) prop (assoc prop :original-values default-vals))]
+                                       original-values (mapv (fn [{:keys [original-value]}]
+                                                               (when-not (g/error? original-value)
+                                                                 original-value))
+                                                             v)
+                                       prop (cond-> prop
+                                                    (not-every? nil? original-values)
+                                                    (assoc :original-values original-values))]
                                    (pair k prop)))))
                         visible-prop-colls)]
     {:properties coalesced
      :display-order (prune-display-order (first display-orders) (set (keys coalesced)))
      :original-node-ids node-ids}))
 
-(defn values [property]
-  (let [f (get-in property [:edit-type :to-type] identity)]
-    (mapv (fn [value default-value]
-            (f (if-not (nil? value)
-                 value
-                 default-value)))
-          (:values property)
-          (:original-values property (repeat nil)))))
+(defn values [{:keys [edit-type original-values values]}]
+  {:pre [(or (nil? original-values)
+             (= (count values)
+                (count original-values)))]}
+  (let [to-type (:to-type edit-type identity)]
+    (mapv (fn [value original-value]
+            (to-type (if-not (nil? value)
+                       value
+                       original-value)))
+          values
+          (or original-values
+              (repeat nil)))))
 
 (defn- set-value-txs [evaluation-context node-id prop-kw key set-fn old-value new-value]
   (cond
@@ -945,3 +960,68 @@
       (assert (workspace/build-resource? clj-value))
       (assert (= value (resource/proj-path clj-value)))
       value)))
+
+(defn lift-overrides-plan
+  "Returns a lift-overrides-plan for transferring overridden properties from the
+  specified source-node-id to its immediate override-original. You can specify a
+  sequence of property-labels to consider for transfer, or supply :all to
+  include all overridden properties. Returns nil if no properties match the
+  criteria. Otherwise, returns a map containing the :target-node-id and a
+  :lifted-properties map of overridden property labels to override values."
+  ([source-node-id property-labels]
+   (g/with-auto-evaluation-context evaluation-context
+     (lift-overrides-plan source-node-id property-labels evaluation-context)))
+  ([source-node-id property-labels {:keys [basis] :as evaluation-context}]
+   (when-some [target-node-id (g/override-original basis source-node-id)]
+     (let [overridden-properties (g/overridden-properties source-node-id evaluation-context)
+           lifted-properties (case property-labels
+                               :all overridden-properties
+                               (select-keys overridden-properties property-labels))]
+       (when (pos? (count lifted-properties))
+         {:source-node-id source-node-id
+          :target-node-id target-node-id
+          :lifted-properties lifted-properties})))))
+
+(defn lift-overrides-description
+  "Given a lift-overrides-plan, return a user-friendly textual description of
+  its effects if executed, or nil if we cannot proceed with the transfer. The
+  resulting string is suitable for use with user-interface elements such as menu
+  items or tooltips. If this function returns nil, you should disallow the
+  action in the user-interface."
+  (^String [lift-overrides-plan]
+   (g/with-auto-evaluation-context evaluation-context
+     (lift-overrides-description lift-overrides-plan evaluation-context)))
+  (^String [lift-overrides-plan {:keys [basis] :as evaluation-context}]
+   (when-some [{:keys [source-node-id target-node-id lifted-properties]} lift-overrides-plan]
+     (when-some [target-owner-resource (resource-node/owner-resource basis target-node-id)]
+       (when (and (resource/file-resource? target-owner-resource)
+                  (resource/editable? target-owner-resource))
+         (let [lifted-property-count (count lifted-properties)
+               overrides-qualifier (or (when (= 1 lifted-property-count)
+                                         (let [property-keyword (ffirst lifted-properties)
+                                               properties (:properties (g/maybe-node-value source-node-id :_declared-properties))]
+                                           (or (-> properties
+                                                   (get property-keyword)
+                                                   (:label))
+                                               (-> property-keyword
+                                                   (keyword->name)
+                                                   (str " Override")))))
+                                       (text-util/amount-text lifted-property-count "Override"))
+               target-node-qualifier (or (gu/node-qualifier-label target-node-id evaluation-context)
+                                         "Node")
+               target-owner-proj-path (resource/proj-path target-owner-resource)]
+           (-> (format "Lift %s to '%s' in '%s'"
+                       overrides-qualifier
+                       target-node-qualifier
+                       target-owner-proj-path)
+               (string/replace "_" "__"))))))))
+
+(defn lift-overrides-tx-data
+  "Given a lift-overrides-plan, return a sequence of transaction steps that will
+  transfer the overridden properties to their immediate override-original, or
+  nil if there is nothing to transfer."
+  [lift-overrides-plan]
+  (when-some [{:keys [source-node-id target-node-id lifted-properties]} lift-overrides-plan]
+    (into (vec (apply g/set-property target-node-id (mapcat identity lifted-properties)))
+          (map #(g/clear-property source-node-id %))
+          (keys lifted-properties))))

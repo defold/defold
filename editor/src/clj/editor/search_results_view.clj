@@ -559,16 +559,14 @@
                   (when (coll/not-empty lifted-property-labels)
                     (let [lift-overrides-plan
                           (when-some [source-node-id (:node-id selected-item)]
-                            (gu/lift-overrides-plan source-node-id lifted-property-labels))
+                            (properties/lift-overrides-plan source-node-id lifted-property-labels))
 
                           action-description
-                          (some-> lift-overrides-plan gu/lift-overrides-description)]
+                          (some-> lift-overrides-plan properties/lift-overrides-description)]
 
                       {:fx/type fx.context-menu/lifecycle
                        :items [{:fx/type fx.menu-item/lifecycle
-                                :text (or (some-> action-description)
-                                          "Lift Overrides")
-                                :mnemonic-parsing false
+                                :text (or action-description "Lift Overrides")
                                 :disable (nil? action-description)
                                 :on-action {:event-type :on-lift-overrides
                                             :lift-overrides-plan lift-overrides-plan}}]}))]
@@ -695,7 +693,7 @@
         (fx/wrap-effects
           handle-override-inspector-event
           {:lift-overrides (fn [lift-overrides-plan _]
-                             (let [tx-data (gu/lift-overrides-tx-data lift-overrides-plan)]
+                             (let [tx-data (properties/lift-overrides-tx-data lift-overrides-plan)]
                                (tap> {:kind :lift-overrides-effect
                                       :lift-overrides-plan lift-overrides-plan
                                       :tx-data tx-data})
