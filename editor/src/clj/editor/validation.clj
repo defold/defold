@@ -46,9 +46,13 @@
   (when (> (id-counts id) 1)
     (format "'%s' is in use by another instance" id)))
 
-(defn prop-contains-url-characters? [id name]
-  (when (re-find #"[#:]" id)
-    (format "%s should not contain special URL symbols such as '#' or ':'" name)))
+(defn prop-contains-prohibited-characters? [id name]
+  (cond
+    (re-find #"[#:]" id)
+    (format "%s should not contain special URL symbols such as '#' or ':'" name)
+
+    (or (= (first id) \space) (= (last id) \space))
+    (format "%s should not start or end with a space symbol" name)))
 
 (defn prop-negative? [v name]
   (when (< v 0)

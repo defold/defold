@@ -1407,10 +1407,11 @@
 
   (property template TemplateData
             (dynamic read-only? override-node?)
-            (dynamic edit-type (g/constantly {:type resource/Resource
-                                              :ext "gui"
-                                              :to-type (fn [v] (:resource v))
-                                              :from-type (fn [r] {:resource r :overrides {}})}))
+            (dynamic edit-type (g/fnk [_node-id] {:type resource/Resource
+                                                  :ext "gui"
+                                                  :dialog-accept-fn (fn [r] (not= r (g/node-value (node->gui-scene _node-id) :resource)))
+                                                  :to-type (fn [v] (:resource v))
+                                                  :from-type (fn [r] {:resource r :overrides {}})}))
             (dynamic error (g/fnk [_node-id template-resource]
                              (prop-resource-error _node-id :template template-resource "Template")))
             (value (g/fnk [_node-id id template-resource template-overrides]
