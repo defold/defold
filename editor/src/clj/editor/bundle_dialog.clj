@@ -459,14 +459,21 @@
                           bundle-format-choice-box
                           install-app-check-box
                           launch-app-check-box]
-    {:architecture-32bit? (ui/value architecture-32bit-check-box)
-     :architecture-64bit? (ui/value architecture-64bit-check-box)
-     :keystore (get-file keystore-text-field)
-     :keystore-pass (get-file keystore-pass-text-field)
-     :key-pass (get-file key-pass-text-field)
-     :bundle-format (ui/value bundle-format-choice-box)
-     :adb-install (ui/value install-app-check-box)
-     :adb-launch (ui/value launch-app-check-box)}))
+    (let [arch-32bit? (ui/value architecture-32bit-check-box)
+          arch-64bit? (ui/value architecture-64bit-check-box)]
+      {:architecture-32bit? arch-32bit?
+       :architecture-64bit? arch-64bit?
+       :platform-bundle-output-directory (cond
+                                           (and arch-32bit? arch-64bit?) "universal-android"
+                                           arch-32bit? "armv7-android"
+                                           arch-64bit? "arm64-android"
+                                           :else nil)
+       :keystore (get-file keystore-text-field)
+       :keystore-pass (get-file keystore-pass-text-field)
+       :key-pass (get-file key-pass-text-field)
+       :bundle-format (ui/value bundle-format-choice-box)
+       :adb-install (ui/value install-app-check-box)
+       :adb-launch (ui/value launch-app-check-box)})))
 
 (defn- set-android-options! [view
                              {:keys [architecture-32bit?
@@ -608,8 +615,15 @@
 
 (defn- get-macos-options [view]
   (ui/with-controls view [architecture-x86_64-check-box architecture-arm64-check-box]
-    {:architecture-x86_64? (ui/value architecture-x86_64-check-box)
-     :architecture-arm64? (ui/value architecture-arm64-check-box)}))
+    (let [arch-x86_64? (ui/value architecture-x86_64-check-box)
+          arch-arm64? (ui/value architecture-arm64-check-box)]
+      {:architecture-x86_64? arch-x86_64?
+       :architecture-arm64? arch-arm64?
+       :platform-bundle-output-directory (cond
+                                           (and arch-x86_64? arch-arm64?) "universal-macos"
+                                           arch-x86_64? "x86_64-macos"
+                                           arch-arm64? "arm64-macos"
+                                           :else nil)})))
 
 (defn- set-macos-options! [view {:keys [architecture-x86_64? architecture-arm64?] :as _options} issues]
   (ui/with-controls view [architecture-x86_64-check-box architecture-arm64-check-box ok-button]
@@ -734,13 +748,20 @@
                           architecture-simulator-check-box
                           install-app-check-box
                           launch-app-check-box]
-    {:architecture-64bit? (ui/value architecture-64bit-check-box)
-     :architecture-simulator? (ui/value architecture-simulator-check-box)
-     :code-signing-identity (ui/value code-signing-identity-choice-box)
-     :provisioning-profile (get-file provisioning-profile-text-field)
-     :sign-app? (ui/value sign-app-check-box)
-     :ios-deploy-install (ui/value install-app-check-box)
-     :ios-deploy-launch (ui/value launch-app-check-box)}))
+    (let [arch-64bit? (ui/value architecture-64bit-check-box)
+          arch-simulator? (ui/value architecture-simulator-check-box)]
+      {:architecture-64bit? arch-64bit?
+       :architecture-simulator? arch-simulator?
+       :platform-bundle-output-directory (cond
+                                           (and arch-64bit? arch-simulator?) "universal-ios"
+                                           arch-64bit? "arm64-ios"
+                                           arch-simulator? "x86_64-simulator-ios"
+                                           :else nil)
+       :code-signing-identity (ui/value code-signing-identity-choice-box)
+       :provisioning-profile (get-file provisioning-profile-text-field)
+       :sign-app? (ui/value sign-app-check-box)
+       :ios-deploy-install (ui/value install-app-check-box)
+       :ios-deploy-launch (ui/value launch-app-check-box)})))
 
 (defn- set-ios-options! [view
                          {:keys [architecture-64bit?
@@ -857,8 +878,15 @@
 
 (defn- get-html5-options [view]
   (ui/with-controls view [architecture-js-web-check-box architecture-wasm-web-check-box]
-    {:architecture-js-web? (ui/value architecture-js-web-check-box)
-     :architecture-wasm-web? (ui/value architecture-wasm-web-check-box)}))
+    (let [arch-js? (ui/value architecture-js-web-check-box)
+          arch-wasm? (ui/value architecture-wasm-web-check-box)]
+      {:architecture-js-web? arch-js?
+       :architecture-wasm-web? arch-wasm?
+       :platform-bundle-output-directory (cond
+                                           (and arch-js? arch-wasm?) "universal-web"
+                                           arch-js? "js-web"
+                                           arch-wasm? "wasm-web"
+                                           :else nil)})))
 
 (defn- set-html5-options! [view {:keys [architecture-js-web? architecture-wasm-web?] :as _options} issues]
   (ui/with-controls view [architecture-js-web-check-box architecture-wasm-web-check-box ok-button]
@@ -925,12 +953,13 @@
   (run [bundle! prefs presenter stage workspace]
     (save-prefs! presenter prefs)
     (let [bundle-options (get-options presenter)
-          output-prefs-key (str "bundle-output-directory-" (hash (g/node-value workspace :root)))
+          output-prefs-key (prefs/make-project-specific-key "bundle-output-directory" workspace)
           initial-directory (get-file-pref prefs output-prefs-key)]
       (assert (string? (not-empty (:platform bundle-options))))
       (when-let [output-directory (query-directory! "Output Directory" initial-directory stage)]
         (set-file-pref! prefs output-prefs-key output-directory)
-        (let [platform-bundle-output-directory (io/file output-directory (:platform bundle-options))
+        (let [platform-bundle-output-directory (io/file output-directory (or (:platform-bundle-output-directory bundle-options)
+                                                                             (:platform bundle-options)))
               platform-bundle-output-directory-exists? (.exists platform-bundle-output-directory)]
           (when (or (not platform-bundle-output-directory-exists?)
                     (query-overwrite! platform-bundle-output-directory stage))
