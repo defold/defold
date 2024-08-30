@@ -15,6 +15,16 @@
 #ifndef DMSDK_GAMESYS_RES_FONT_MAP_H
 #define DMSDK_GAMESYS_RES_FONT_MAP_H
 
-// The resource is an instance of dmRender::HFontMap
+#include <dmsdk/resource/resource.h>
+#include <dmsdk/gamesys/resources/res_font_map.h>
+#include <render/font_ddf.h>
+#include <dmsdk/render/render.h>
+
+namespace dmGameSystem
+{
+    struct FontResource;
+
+    dmRender::HFontMap ResFontMapGetHandle(FontResource* font);
+}
 
 #endif // DMSDK_GAMESYS_RES_FONT_MAP_H

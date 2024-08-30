@@ -27,26 +27,56 @@
 
 namespace dmGameSystem
 {
-    struct Resources
+    struct FontResource
     {
-        MaterialResource*  m_MaterialResource;
-        GlyphBankResource* m_GlyphBankResource;
+        dmRenderDDF::FontMap*   m_DDF;
+        dmRender::HFontMap      m_FontMap;
+        HResourceDescriptor     m_Resource; // For updating the resource size dynamically
+        MaterialResource*       m_MaterialResource;
+        GlyphBankResource*      m_GlyphBankResource;
 
         dmHashTable32<dmRenderDDF::GlyphBank::Glyph*> m_Glyphs;
+
+        FontResource()
+            : m_FontMap(0)
+            , m_Resource(0)
+            , m_MaterialResource(0)
+            , m_GlyphBankResource(0)
+        {
+        }
     };
 
-    static void ReleaseResources(dmResource::HFactory factory, void* font_map_user_data)
+    static void ReleaseResources(dmResource::HFactory factory, FontResource* resource)
     {
-        Resources* resources = (Resources*) font_map_user_data;
-        dmResource::Release(factory, (void*) resources->m_MaterialResource);
-        dmResource::Release(factory, (void*) resources->m_GlyphBankResource);
-        delete resources;
+        dmResource::Release(factory, (void*) resource->m_MaterialResource);
+        dmResource::Release(factory, (void*) resource->m_GlyphBankResource);
+
+        if (resource->m_DDF)
+            dmDDF::FreeMessage(resource->m_DDF);
+    }
+
+    static uint32_t GetResourceSize(FontResource* font_map)
+    {
+        uint32_t size = sizeof(FontResource);
+        size += sizeof(dmRenderDDF::FontMap); // the ddf pointer
+        size += font_map->m_Glyphs.Capacity() * sizeof(dmRenderDDF::GlyphBank::Glyph*);
+        return size + dmRender::GetFontMapResourceSize(font_map->m_FontMap);
+    }
+
+    static void DeleteFontResource(dmResource::HFactory factory, FontResource* font_map)
+    {
+        ReleaseResources(factory, font_map);
+
+        if (font_map->m_FontMap)
+            dmRender::DeleteFontMap(font_map->m_FontMap);
+
+        delete font_map;
     }
 
     static dmRender::FontGlyph* GetGlyph(uint32_t utf8, void* user_ctx)
     {
-        Resources* resources = (Resources*)user_ctx;
-        dmRender::FontGlyph** glyphp = resources->m_Glyphs.Get(utf8);
+        FontResource* resource = (FontResource*)user_ctx;
+        dmRender::FontGlyph** glyphp = resource->m_Glyphs.Get(utf8);
         //printf("Glyph: %u %p\n", utf8, glyphp ? *glyphp : 0);
         return glyphp ? *glyphp : 0;
     }
@@ -58,13 +88,13 @@ namespace dmGameSystem
 
     static void* GetGlyphData(uint32_t utf8, void* user_ctx, uint32_t* out_size)
     {
-        Resources* resources = (Resources*)user_ctx;
-        dmRender::FontGlyph** glyphp = resources->m_Glyphs.Get(utf8);
+        FontResource* resource = (FontResource*)user_ctx;
+        dmRender::FontGlyph** glyphp = resource->m_Glyphs.Get(utf8);
         if (!glyphp)
             return 0;
         dmRender::FontGlyph* glyph = *glyphp;
 
-        dmRenderDDF::GlyphBank* glyph_bank = resources->m_GlyphBankResource->m_DDF;
+        dmRenderDDF::GlyphBank* glyph_bank = resource->m_GlyphBankResource->m_DDF;
         void* data = glyph_bank->m_GlyphData.m_Data;
         *out_size = glyph->m_GlyphDataSize;
         void* glyph_data = GetPointer(data, glyph->m_GlyphDataOffset);
@@ -74,10 +104,8 @@ namespace dmGameSystem
     }
 
     static dmResource::Result AcquireResources(dmResource::HFactory factory, dmRender::HRenderContext context,
-        dmRenderDDF::FontMap* ddf, dmRender::HFontMap font_map, const char* filename, dmRender::HFontMap* font_map_out, bool reload)
+        dmRenderDDF::FontMap* ddf, FontResource* font_map, const char* filename)
     {
-        *font_map_out = 0;
-
         MaterialResource* material_res;
         dmResource::Result result = dmResource::Get(factory, ddf->m_Material, (void**) &material_res);
         if (result != dmResource::RESULT_OK)
@@ -90,6 +118,7 @@ namespace dmGameSystem
         result = dmResource::Get(factory, ddf->m_GlyphBank, (void**) &glyph_bank_res);
         if (result != dmResource::RESULT_OK)
         {
+            dmResource::Release(factory, (void*)material_res);
             dmDDF::FreeMessage(ddf);
             return result;
         }
@@ -131,46 +160,31 @@ namespace dmGameSystem
         params.m_GetGlyphData = (dmRender::FGetGlyphData)GetGlyphData;
 
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(context);
-        if (font_map == 0)
+        if (font_map->m_FontMap == 0)
         {
-            font_map = dmRender::NewFontMap(graphics_context, params);
+            font_map->m_FontMap = dmRender::NewFontMap(graphics_context, params);
         }
         else
         {
-            dmRender::SetFontMap(font_map, graphics_context, params);
-            ReleaseResources(factory, dmRender::GetFontMapUserData(font_map));
+            dmRender::SetFontMap(font_map->m_FontMap, graphics_context, params);
+            ReleaseResources(factory, font_map);
         }
 
-        // This is a workaround, ideally we'd have a FontmapResource* // MAWE + JG
-        Resources* font_map_resources           = new Resources;
-        font_map_resources->m_MaterialResource  = material_res;
-        font_map_resources->m_GlyphBankResource = glyph_bank_res;
+        font_map->m_MaterialResource  = material_res;
+        font_map->m_GlyphBankResource = glyph_bank_res;
+        font_map->m_DDF               = ddf;
 
         uint32_t capacity = glyph_bank->m_Glyphs.m_Count;
-        font_map_resources->m_Glyphs.SetCapacity(dmMath::Max(1U, (capacity*2)/3), capacity);
+        font_map->m_Glyphs.SetCapacity(dmMath::Max(1U, (capacity*2)/3), capacity);
         for (uint32_t i = 0; i < glyph_bank->m_Glyphs.m_Count; ++i)
         {
             dmRenderDDF::GlyphBank::Glyph* glyph = &glyph_bank->m_Glyphs[i];
-            font_map_resources->m_Glyphs.Put(glyph->m_Character, glyph);
-            // dmRender::Glyph& o_g = params.m_Glyphs[i];
-            // o_g.m_Character = i_g.m_Character;
-            // o_g.m_Advance = i_g.m_Advance;
-            // o_g.m_Ascent = i_g.m_Ascent;
-            // o_g.m_Descent = i_g.m_Descent;
-            // o_g.m_LeftBearing = i_g.m_LeftBearing;
-            // o_g.m_Width = i_g.m_Width;
-
-            // o_g.m_InCache = false;
-            // o_g.m_GlyphDataOffset = i_g.m_GlyphDataOffset;
-            // o_g.m_GlyphDataSize = i_g.m_GlyphDataSize;
+            font_map->m_Glyphs.Put(glyph->m_Character, glyph);
         }
 
-        dmRender::SetFontMapUserData(font_map, (void*) font_map_resources);
-        dmRender::SetFontMapMaterial(font_map, material_res->m_Material);
+        dmRender::SetFontMapMaterial(font_map->m_FontMap, material_res->m_Material);
+        dmRender::SetFontMapUserData(font_map->m_FontMap, (void*)font_map);
 
-        dmDDF::FreeMessage(ddf);
-
-        *font_map_out = font_map;
         return dmResource::RESULT_OK;
     }
 
@@ -190,26 +204,21 @@ namespace dmGameSystem
         return dmResource::RESULT_OK;
     }
 
-    // static uint32_t ResFontGetSize()
-    // {
-    //     m_Glyphs
-    // }
-
     dmResource::Result ResFontMapCreate(const dmResource::ResourceCreateParams* params)
     {
-        dmRender::HRenderContext render_context = (dmRender::HRenderContext) params->m_Context;
-        dmRender::HFontMap font_map;
+        FontResource* font_map = new FontResource;
+        font_map->m_Resource = params->m_Resource;
 
         dmRenderDDF::FontMap* ddf = (dmRenderDDF::FontMap*) params->m_PreloadData;
-        dmResource::Result r = AcquireResources(params->m_Factory, render_context, ddf, 0, params->m_Filename, &font_map, false);
+        dmResource::Result r = AcquireResources(params->m_Factory, (dmRender::HRenderContext) params->m_Context, ddf, font_map, params->m_Filename);
         if (r == dmResource::RESULT_OK)
         {
             dmResource::SetResource(params->m_Resource, font_map);
-            uint32_t font_map_size = dmRender::GetFontMapResourceSize(font_map);
-            dmResource::SetResourceSize(params->m_Resource, font_map_size);
+            dmResource::SetResourceSize(params->m_Resource, GetResourceSize(font_map));
         }
         else
         {
+            DeleteFontResource(params->m_Factory, font_map);
             dmResource::SetResource(params->m_Resource, 0);
         }
         return r;
@@ -217,15 +226,14 @@ namespace dmGameSystem
 
     dmResource::Result ResFontMapDestroy(const dmResource::ResourceDestroyParams* params)
     {
-        dmRender::HFontMap font_map = (dmRender::HFontMap)dmResource::GetResource(params->m_Resource);
-        ReleaseResources(params->m_Factory, dmRender::GetFontMapUserData(font_map));
-        dmRender::DeleteFontMap(font_map);
+        FontResource* font_map = (FontResource*)dmResource::GetResource(params->m_Resource);
+        DeleteFontResource(params->m_Factory, font_map);
         return dmResource::RESULT_OK;
     }
 
     dmResource::Result ResFontMapRecreate(const dmResource::ResourceRecreateParams* params)
     {
-        dmRender::HFontMap font_map = (dmRender::HFontMap)dmResource::GetResource(params->m_Resource);
+        FontResource* font_map = (FontResource*)dmResource::GetResource(params->m_Resource);
 
         dmRenderDDF::FontMap* ddf;
         dmDDF::Result e = dmDDF::LoadMessage<dmRenderDDF::FontMap>(params->m_Buffer, params->m_BufferSize, &ddf);
@@ -234,14 +242,21 @@ namespace dmGameSystem
             return dmResource::RESULT_FORMAT_ERROR;
         }
 
-        dmResource::Result r = AcquireResources(params->m_Factory, (dmRender::HRenderContext) params->m_Context, ddf, font_map, params->m_Filename, &font_map, true);
+        dmResource::Result r = AcquireResources(params->m_Factory, (dmRender::HRenderContext) params->m_Context, ddf, font_map, params->m_Filename);
         if(r != dmResource::RESULT_OK)
         {
             return r;
         }
 
-        uint32_t size = 0; // TODO: Better calculate the glyph bank size
-        dmResource::SetResourceSize(params->m_Resource, dmRender::GetFontMapResourceSize(font_map));
+        dmResource::SetResourceSize(params->m_Resource, GetResourceSize(font_map));
         return dmResource::RESULT_OK;
     }
+
+    dmRender::HFontMap ResFontMapGetHandle(FontResource* resource)
+    {
+        return resource->m_FontMap;
+    }
+
+    // TODO: Update the resource size!
+    //Result GetDescriptor(HFactory factory, const char* name, HResourceDescriptor* descriptor);
 }

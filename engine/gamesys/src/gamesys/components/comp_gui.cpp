@@ -32,6 +32,7 @@
 #include <gameobject/component.h>
 #include <gameobject/gameobject_ddf.h> // dmGameObjectDDF enable/disable
 #include <gamesys/atlas_ddf.h>
+#include <dmsdk/gamesys/resources/res_font_map.h>
 
 #include "comp_gui.h"
 #include "comp_gui_private.h"
@@ -2741,11 +2742,12 @@ namespace dmGameSystem
                 return dmGameObject::PROPERTY_RESULT_INVALID_KEY;
             }
             dmResource::HFactory factory = dmGameObject::GetFactory(params.m_Instance);
-            dmRender::HFontMap font = 0x0;
+            dmGameSystem::FontResource* font = 0;
             dmGameObject::PropertyResult res = SetResourceProperty(factory, params.m_Value, FONT_EXT_HASH, (void**)&font);
             if (res == dmGameObject::PROPERTY_RESULT_OK)
             {
-                dmGui::Result r = dmGui::AddFont(gui_component->m_Scene, params.m_Options.m_Key, (void*) font, params.m_Value.m_Hash);
+                dmRender::HFontMap font_map = dmGameSystem::ResFontMapGetHandle(font);
+                dmGui::Result r = dmGui::AddFont(gui_component->m_Scene, params.m_Options.m_Key, (void*)font_map, params.m_Value.m_Hash);
                 if (r != dmGui::RESULT_OK)
                 {
                     dmLogError("Unable to set font `%s` property in component `%s`", dmHashReverseSafe64(params.m_Options.m_Key), gui_component->m_Resource->m_Path);

@@ -7,18 +7,21 @@ import "ddf/ddf_math.proto";
 option java_package = "com.dynamo.render.proto";
 option java_outer_classname = "Font";
 
+// Public API
 enum FontTextureFormat
 {
     TYPE_BITMAP          = 0 [(displayName) = "Bitmap"];
     TYPE_DISTANCE_FIELD  = 1 [(displayName) = "Distance Field"];
 }
 
+// Public API
 enum FontRenderMode
 {
     MODE_SINGLE_LAYER = 0 [(displayName) = "Single Layer"];
     MODE_MULTI_LAYER  = 1 [(displayName) = "Multi Layer"];
 }
 
+// Source format only
 message FontDesc
 {
     required string font = 1 [(resource)=true];
@@ -42,6 +45,7 @@ message FontDesc
     optional string characters = 18 [default = ""];
 }
 
+// Used at runtime
 message GlyphBank
 {
     message Glyph
@@ -52,8 +56,8 @@ message GlyphBank
         optional float  left_bearing      = 4 [default = 0.0];
         optional uint32 ascent            = 5 [default = 0];
         optional uint32 descent           = 6 [default = 0];
-        optional int32  x                 = 7 [default = 0];
-        optional int32  y                 = 8 [default = 0];
+        optional int32  x                 = 7 [default = 0]; // only used in editor preview
+        optional int32  y                 = 8 [default = 0]; // only used in editor preview
         optional uint64 glyph_data_offset = 9;
         optional uint64 glyph_data_size   = 10;
     }
