@@ -1128,6 +1128,15 @@ bail:
 
     static bool VulkanIsSupported()
     {
+#if defined(DM_PLATFORM_VENDOR)
+        // If we are on a private platform, and this driver is registered, then it's already supported.
+        // We do this skip to avoid calling NativeInit(), or creating an extra api to support creating a vendor specific device twice with
+        // memory etc.
+        // It might make more sense if this function was queried with some actual parameters, but as it is now
+        // it is merely a question of "is Vulkan supported at all on this platform" /MAWE
+        return true;
+#else
+
     #if ANDROID
         if (!LoadVulkanLibrary())
         {
@@ -1135,6 +1144,7 @@ bail:
             return 0x0;
         }
     #endif
+
 
         // GLFW 3.4 doesn't support static linking with vulkan,
         // instead we need to pass in the function that loads symbol for any
@@ -1164,6 +1174,7 @@ bail:
         }
 
         return res == VK_SUCCESS;
+#endif
     }
 
     static HContext VulkanNewContext(const ContextParams& params)
@@ -1253,10 +1264,8 @@ bail:
         {
             if (res == VK_ERROR_OUT_OF_DATE_KHR)
             {
-                uint32_t width, height;
-                VulkanGetNativeWindowSize(context, &width, &height);
-                context->m_WindowWidth  = width;
-                context->m_WindowHeight = height;
+                context->m_WindowWidth  = dmPlatform::GetWindowWidth(context->m_Window);
+                context->m_WindowHeight = dmPlatform::GetWindowHeight(context->m_Window);
                 SwapChainChanged(context, &context->m_WindowWidth, &context->m_WindowHeight, 0, 0);
                 res = context->m_SwapChain->Advance(vk_device, current_frame_resource.m_ImageAvailable);
                 CHECK_VK_ERROR(res);
@@ -1370,7 +1379,7 @@ bail:
         context->m_CurrentFrameInFlight = (context->m_CurrentFrameInFlight + 1) % context->m_NumFramesInFlight;
         context->m_FrameBegun           = 0;
 
-        NativeSwapBuffers(context);
+        dmPlatform::SwapBuffers(context->m_Window);
     }
 
     static void VulkanClear(HContext _context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
@@ -4178,6 +4187,26 @@ bail:
         {
             BeginRenderPass(context, currentt_rt_h);
         }
+    }
+
+    static dmPlatform::HWindow VulkanGetWindow(HContext context)
+    {
+        return ((VulkanContext*) context)->m_Window;
+    }
+
+    static uint32_t VulkanGetWidth(HContext context)
+    {
+        return ((VulkanContext*) context)->m_Width;
+    }
+
+    static uint32_t VulkanGetHeight(HContext context)
+    {
+        return ((VulkanContext*) context)->m_Height;
+    }
+
+    static uint32_t VulkanGetDisplayDpi(HContext context)
+    {
+        return 0;
     }
 
     static void VulkanRunApplicationLoop(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running)

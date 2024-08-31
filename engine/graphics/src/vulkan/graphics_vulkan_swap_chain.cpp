@@ -316,7 +316,9 @@ namespace dmGraphics
         vkGetPhysicalDeviceSurfaceFormatsKHR(vk_device, surface, &format_count, 0);
         vkGetPhysicalDeviceSurfacePresentModesKHR(vk_device, surface, &present_modes_count, 0);
 
+#if defined(ANDROID)
         capabilities.m_SurfaceCapabilities.currentTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
+#endif
 
         if (format_count > 0)
         {
