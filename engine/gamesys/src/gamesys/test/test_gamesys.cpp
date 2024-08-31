@@ -4524,6 +4524,8 @@ TEST_F(RenderConstantsTest, CreateDestroy)
     dmGameSystem::DestroyRenderConstants(constants);
 }
 
+#if !defined(DM_PLATFORM_VENDOR) // we need to fix our test material/shader compiler to work with the constants
+
 TEST_F(RenderConstantsTest, SetGetConstant)
 {
     dmhash_t name_hash1 = dmHashString64("user_var1");
@@ -4584,7 +4586,7 @@ TEST_F(RenderConstantsTest, SetGetConstant)
 
     dmResource::Release(m_Factory, material);
 }
-
+#endif
 
 TEST_F(RenderConstantsTest, SetGetManyConstants)
 {
@@ -4661,6 +4663,7 @@ TEST_F(RenderConstantsTest, HashRenderConstants)
     dmGameSystem::DestroyRenderConstants(constants);
 }
 
+#if !defined(DM_PLATFORM_VENDOR) // we need to fix our test material/shader compiler to work with the constants
 TEST_F(MaterialTest, CustomVertexAttributes)
 {
     dmGameSystem::MaterialResource* material_res;
@@ -5190,6 +5193,8 @@ TEST_F(MaterialTest, GoGetSetConstants)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
     dmGameSystem::FinalizeScriptLibs(m_Scriptlibcontext);
 }
+
+#endif // !defined(DM_PLATFORM_VENDOR)
 
 TEST_F(ComponentTest, GetSetCollisionShape)
 {

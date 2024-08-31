@@ -79,7 +79,7 @@ def build(bld):
 
     if 'arm64-nx64' in bld.env.PLATFORM:
         source_files = remove_files(source_files, ['condition_variable.cpp',
-                                                    'mutex.cpp',
+                                                    'mutex_posix.cpp',
                                                     'sys_posix.cpp',
                                                     'socket_posix.cpp',
                                                     'time.cpp'])
