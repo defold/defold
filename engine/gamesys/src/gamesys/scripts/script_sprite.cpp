@@ -176,7 +176,7 @@ namespace dmGameSystem
     * ```lua
     * function init(self)
     *   -- Get the cursor value on component "sprite"
-    *   cursor = go.get("#sprite", "cursor")
+    *   local cursor = go.get("#sprite", "cursor")
     * end
     * ```
     *
@@ -184,7 +184,7 @@ namespace dmGameSystem
     *
     * ```lua
     * function init(self)
-    *   -- Get the current value on component "sprite"
+    *   -- Set the cursor on component "sprite" to make the animation go from 0
     *   go.set("#sprite", "cursor", 0.0)
     *   -- Animate the cursor value
     *   go.animate("#sprite", "cursor", go.PLAYBACK_LOOP_FORWARD, 1.0, go.EASING_LINEAR, 2)
