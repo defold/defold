@@ -1441,11 +1441,21 @@ def js_web_link_flags(self):
         pre_js = os.path.join(self.env['DYNAMO_HOME'], 'share', "js-web-pre.js")
         self.env.append_value('LINKFLAGS', ['--pre-js', pre_js])
 
+
+@task_gen
+@after('apply_obj_vars')
+@feature('test')
+def test_no_install(self):
+    if 'test_install' in self.features:
+        return # the user wanted it installed
+    self.install_path = None # the tests shouldn't normally be installed
+
 @task_gen
 @before('process_source')
 @feature('test')
 def test_flags(self):
-    self.install_path = None # the tests shouldn't be installed
+    # When building tests for the web, we disable emission of emscripten js.mem init files,
+    # as the assumption when these are loaded is that the cwd will contain these items.
     if 'web' in self.env['PLATFORM']:
         for f in ['CFLAGS', 'CXXFLAGS', 'LINKFLAGS']:
             if '-gsource-map' in self.env[f]:

@@ -2039,7 +2039,7 @@ bail:
                         UpdateImageDescriptor(context,
                             context->m_TextureUnits[pgm_res.m_TextureUnit],
                             pgm_res.m_Res,
-                            vk_write_image_descriptors[image_to_write_index++], 
+                            vk_write_image_descriptors[image_to_write_index++],
                             vk_write_desc_info);
                         break;
                     case ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER:
@@ -4854,7 +4854,7 @@ bail:
     {
         assert(prog);
         Program* program = (Program*) prog;
-        uint32_t search_index = 0;  
+        uint32_t search_index = 0;
 
         for (int set = 0; set < program->m_MaxSet; ++set)
         {
