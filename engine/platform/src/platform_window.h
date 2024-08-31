@@ -57,6 +57,7 @@ namespace dmPlatform
         DEVICE_STATE_KEYBOARD_PASSWORD   = 7,
         DEVICE_STATE_KEYBOARD_RESET      = 8,
         DEVICE_STATE_JOYSTICK_PRESENT    = 9,
+        DEVICE_STATE_MAX // Used to create arrays of correct size (private repo)
     };
 
     enum GamepadEvent
