@@ -203,6 +203,23 @@ namespace dmRender
         return 0x0;
     }
 
+    bool GetSamplerInfo(HSampler sampler, dmhash_t* name_hash, dmGraphics::TextureType* texture_type, uint32_t* location, dmGraphics::TextureWrap* u_wrap, dmGraphics::TextureWrap* v_wrap, dmGraphics::TextureFilter* min_filter, dmGraphics::TextureFilter* mag_filter, float* max_anisotropy)
+    {
+        if (!sampler)
+            return false;
+
+        *name_hash      = sampler->m_NameHash;
+        *texture_type   = sampler->m_Type;
+        *location       = sampler->m_Location;
+        *u_wrap         = sampler->m_UWrap;
+        *v_wrap         = sampler->m_VWrap;
+        *min_filter     = sampler->m_MinFilter;
+        *mag_filter     = sampler->m_MagFilter;
+        *max_anisotropy = sampler->m_MaxAnisotropy;
+
+        return true;
+    }
+
     void ApplyProgramSampler(dmRender::HRenderContext render_context, HSampler sampler, uint8_t unit, dmGraphics::HTexture texture)
     {
         if (!sampler)

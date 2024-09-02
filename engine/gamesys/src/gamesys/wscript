@@ -103,6 +103,8 @@ def build(bld):
         'scripts/script_image.cpp',
         'scripts/script_sys_gamesys.cpp',
         'scripts/script_http.cpp',
+        'scripts/script_material.cpp',
+        'scripts/script_compute.cpp',
         'scripts/box2d/script_box2d.cpp',
         'scripts/box2d/script_box2d_body.cpp',
         'components/comp_sound.cpp',

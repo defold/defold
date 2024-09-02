@@ -119,6 +119,21 @@ namespace dmRender
         return program->m_Program;
     }
 
+    bool GetComputeProgramConstantNameHash(HComputeProgram program, uint32_t index, dmhash_t* out_name_hash)
+    {
+        if (index < program->m_Constants.Size())
+        {
+             *out_name_hash = GetConstantName(program->m_Constants[index].m_Constant);
+            return true;
+        }
+        return false;
+    }
+
+    uint32_t GetComputeProgramConstantCount(HComputeProgram program)
+    {
+        return program->m_Constants.Size();
+    }
+
     void DeleteComputeProgram(dmRender::HRenderContext render_context, HComputeProgram program)
     {
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);

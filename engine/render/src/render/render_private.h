@@ -42,15 +42,15 @@ namespace dmRender
 
     struct Sampler
     {
-        dmhash_t                  m_NameHash;
-        dmGraphics::TextureType   m_Type;
-        dmGraphics::TextureFilter m_MinFilter;
-        dmGraphics::TextureFilter m_MagFilter;
-        dmGraphics::TextureWrap   m_UWrap;
-        dmGraphics::TextureWrap   m_VWrap;
+        dmhash_t                     m_NameHash;
+        dmGraphics::TextureType      m_Type;
+        dmGraphics::TextureFilter    m_MinFilter;
+        dmGraphics::TextureFilter    m_MagFilter;
+        dmGraphics::TextureWrap      m_UWrap;
+        dmGraphics::TextureWrap      m_VWrap;
         dmGraphics::HUniformLocation m_Location;
-        float                     m_MaxAnisotropy;
-        uint8_t                   m_UnitValueCount;
+        float                        m_MaxAnisotropy;
+        uint8_t                      m_UnitValueCount;
 
         Sampler()
             : m_NameHash(0)
