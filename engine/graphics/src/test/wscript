@@ -11,7 +11,7 @@ def build(bld):
                     use = 'TESTMAIN DDF DLIB SOCKET PROFILE_NULL PLATFORM_NULL graphics_null graphics_transcoder_null',
                     target = name)
 
-    if not bld.env.PLATFORM in ('x86_64-linux','x86_64-ios'):
+    if not bld.env.PLATFORM in ('x86_64-linux','x86_64-ios', 'x86_64-ps4', 'x86_64-ps5'):
 
         extra_libs = []
         extra_symbols = []
