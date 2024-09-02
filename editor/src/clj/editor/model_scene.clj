@@ -203,7 +203,6 @@
 (defn- render-mesh-opaque-impl [^GL2 gl render-args renderable request-prefix override-shader override-vertex-description extra-render-args]
   (let [{:keys [node-id user-data ^Matrix4d world-transform]} renderable
         {:keys [material-attribute-infos mesh-renderable-data textures vertex-attribute-bytes]} user-data
-        normal-transform (math/derive-normal-transform world-transform)
         shader (or override-shader (:shader user-data))
         default-coordinate-space (case (:vertex-space user-data :vertex-space-local)
                                    :vertex-space-local :coordinate-space-local

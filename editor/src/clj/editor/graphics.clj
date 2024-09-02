@@ -170,7 +170,7 @@
 (def ^:private default-position-element-values (vector-of :double 0.0 0.0 0.0 1.0))
 (def ^:private default-color-element-values (vector-of :double 1.0 1.0 1.0 1.0))
 
-(defn- attribute-vector-type->component-count [attribute-vector-type]
+(defn vector-type->component-count [attribute-vector-type]
   (case attribute-vector-type
     :vector-type-scalar 1
     :vector-type-vec2 2
@@ -185,7 +185,7 @@
          (or (nil? semantic-type) (keyword? semantic-type))
          (keyword? new-vector-type)]}
   (let [old-element-count (count double-values)
-        new-element-count (attribute-vector-type->component-count new-vector-type)]
+        new-element-count (vector-type->component-count new-vector-type)]
     (cond
       (< new-element-count old-element-count)
       (subvec double-values 0 new-element-count)
@@ -284,7 +284,7 @@
    :coordinate-space coordinate-space
    :vector-type vector-type
    :type (attribute-data-type->buffer-data-type data-type)
-   :components (attribute-vector-type->component-count vector-type)
+   :components (vector-type->component-count vector-type)
    :normalize (true? normalize)})
 
 (defn make-vertex-description [attribute-infos]

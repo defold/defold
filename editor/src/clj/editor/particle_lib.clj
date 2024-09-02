@@ -186,16 +186,6 @@
     :type-unsigned-int Graphics$VertexAttribute$DataType/TYPE_UNSIGNED_INT_VALUE
     :type-float Graphics$VertexAttribute$DataType/TYPE_FLOAT_VALUE))
 
-(defn- vector-type->element-count [vector-type]
-  (case vector-type
-    :vector-type-scalar 1
-    :vector-type-vec2 2
-    :vector-type-vec3 3
-    :vector-type-vec4 4
-    :vector-type-mat2 4
-    :vector-type-mat3 9
-    :vector-type-mat4 16))
-
 (defn- vertex-step-function->int [vertex-step-function]
   (case vertex-step-function
     :vertex-step-function-vertex Graphics$VertexStepFunction/VERTEX_STEP_FUNCTION_VERTEX_VALUE
@@ -220,7 +210,7 @@
     (set! (. particle-attribute-info coordinateSpace) attribute-coordinate-space)
     (set! (. particle-attribute-info valuePtr) context-attribute-scratch-ptr)
     (set! (. particle-attribute-info valueByteSize) attribute-byte-size)
-    (set! (. particle-attribute-info elementCount) (vector-type->element-count (:vector-type attribute-info)))
+    (set! (. particle-attribute-info elementCount) (graphics/vector-type->component-count (:vector-type attribute-info)))
     (set! (. particle-attribute-info normalize) (boolean (:normalize attribute-info)))
     particle-attribute-info))
 
