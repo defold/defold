@@ -268,12 +268,13 @@ message TriggerResponse
     required uint64 own_group               = 5;
 }
 
+// Runtime only (not public)
 message RequestRayCast
 {
-    required dmMath.Point3  from = 1;
-    required dmMath.Point3  to = 2;
-    required uint32         mask = 3;
-    required uint32         request_id = 4;
+    required dmMath.Point3  from            = 1;
+    required dmMath.Point3  to              = 2;
+    required uint32         mask            = 3;
+    required uint32         request_id      = 4;
 }
 
 /*# reports a ray cast hit

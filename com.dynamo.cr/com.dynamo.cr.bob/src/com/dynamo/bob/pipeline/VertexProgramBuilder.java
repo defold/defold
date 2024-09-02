@@ -29,7 +29,7 @@ public class VertexProgramBuilder extends ShaderProgramBuilder {
     private static final ShaderDesc.ShaderType SHADER_TYPE = ShaderDesc.ShaderType.SHADER_TYPE_VERTEX;
 
     @Override
-    public void build(Task<ShaderPreprocessor> task) throws IOException, CompileExceptionError {
+    public void build(Task task) throws IOException, CompileExceptionError {
         task.output(0).setContent(getCompiledShaderDesc(task, SHADER_TYPE).toByteArray());
     }
 

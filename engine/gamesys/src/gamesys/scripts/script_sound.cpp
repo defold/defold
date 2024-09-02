@@ -503,7 +503,7 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 1);
         int top = lua_gettop(L);
 
-        dmGameObject::HInstance instance = CheckGoInstance(L);
+        (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
 
         dmMessage::URL receiver;
         dmMessage::URL sender;
@@ -556,7 +556,7 @@ namespace dmGameSystem
         msg.m_Speed = speed;
         msg.m_PlayId = play_id;
 
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::PlaySound::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, functionref, (uintptr_t)dmGameSystemDDF::PlaySound::m_DDFDescriptor, &msg, sizeof(msg), 0);
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::PlaySound::m_DDFDescriptor->m_NameHash, 0, functionref, (uintptr_t)dmGameSystemDDF::PlaySound::m_DDFDescriptor, &msg, sizeof(msg), 0);
 
         lua_pushnumber(L, (double) msg.m_PlayId);
 
@@ -586,7 +586,7 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 0);
         int top = lua_gettop(L);
-        dmGameObject::HInstance instance = CheckGoInstance(L);
+        (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
 
         dmMessage::URL receiver;
         dmMessage::URL sender;
@@ -612,7 +612,7 @@ namespace dmGameSystem
         dmGameSystemDDF::StopSound msg;
         msg.m_PlayId = play_id;
 
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::StopSound::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::StopSound::m_DDFDescriptor, &msg, sizeof(msg), 0);
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::StopSound::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameSystemDDF::StopSound::m_DDFDescriptor, &msg, sizeof(msg), 0);
         return 0;
     }
 
@@ -634,7 +634,7 @@ namespace dmGameSystem
     static int Sound_Pause(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 0);
-        dmGameObject::HInstance instance = CheckGoInstance(L);
+        (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
 
         dmMessage::URL receiver;
         dmMessage::URL sender;
@@ -643,7 +643,7 @@ namespace dmGameSystem
         dmGameSystemDDF::PauseSound msg;
         msg.m_Pause = dmScript::CheckBoolean(L, 2);
 
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::PauseSound::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::PauseSound::m_DDFDescriptor, &msg, sizeof(msg), 0);
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::PauseSound::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameSystemDDF::PauseSound::m_DDFDescriptor, &msg, sizeof(msg), 0);
         return 0;
     }
 
@@ -670,7 +670,7 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 0);
 
-        dmGameObject::HInstance instance = CheckGoInstance(L);
+        (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
 
         dmMessage::URL receiver;
         dmMessage::URL sender;
@@ -681,7 +681,7 @@ namespace dmGameSystem
         dmGameSystemDDF::SetGain msg;
         msg.m_Gain = gain;
 
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetGain::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SetGain::m_DDFDescriptor, &msg, sizeof(msg), 0);
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetGain::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameSystemDDF::SetGain::m_DDFDescriptor, &msg, sizeof(msg), 0);
         return 0;
     }
 
@@ -708,7 +708,7 @@ namespace dmGameSystem
     {
         DM_LUA_STACK_CHECK(L, 0);
 
-        dmGameObject::HInstance instance = CheckGoInstance(L);
+        (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
 
         dmMessage::URL receiver;
         dmMessage::URL sender;
@@ -719,7 +719,7 @@ namespace dmGameSystem
         dmGameSystemDDF::SetPan msg;
         msg.m_Pan = pan;
 
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetPan::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SetPan::m_DDFDescriptor, &msg, sizeof(msg), 0);
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetPan::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameSystemDDF::SetPan::m_DDFDescriptor, &msg, sizeof(msg), 0);
         return 0;
     }
 

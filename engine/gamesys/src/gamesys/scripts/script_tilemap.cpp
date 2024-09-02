@@ -111,7 +111,7 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
-        dmGameObject::HInstance instance = CheckGoInstance(L);
+        (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
 
         dmhash_t name_hash = dmScript::CheckHashOrString(L, 2);
         dmVMath::Vector4* value = dmScript::CheckVector4(L, 3);
@@ -124,7 +124,7 @@ namespace dmGameSystem
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetConstantTileMap::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SetConstantTileMap::m_DDFDescriptor, &msg, sizeof(msg), 0);
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetConstantTileMap::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameSystemDDF::SetConstantTileMap::m_DDFDescriptor, &msg, sizeof(msg), 0);
         assert(top == lua_gettop(L));
         return 0;
     }
@@ -155,7 +155,7 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
-        dmGameObject::HInstance instance = CheckGoInstance(L);
+        (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
         dmhash_t name_hash = dmScript::CheckHashOrString(L, 2);
 
         dmGameSystemDDF::ResetConstantTileMap msg;
@@ -165,7 +165,7 @@ namespace dmGameSystem
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::ResetConstantTileMap::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::ResetConstantTileMap::m_DDFDescriptor, &msg, sizeof(msg), 0);
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::ResetConstantTileMap::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameSystemDDF::ResetConstantTileMap::m_DDFDescriptor, &msg, sizeof(msg), 0);
         assert(top == lua_gettop(L));
         return 0;
     }

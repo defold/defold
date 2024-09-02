@@ -54,12 +54,6 @@
       (project/load-embedded-resource-node project embedded-resource-node-id embedded-resource embedded-resource-pb-map)
       (gu/connect-existing-outputs embedded-resource-node-type embedded-resource-node-id host-node-id embedded-component-connections))))
 
-(g/defnk produce-embedded-component-build-targets [embedded-component-build-targets]
-  (into []
-        (map (comp #(assoc % :resource (bt/make-content-hash-build-resource %))
-                   util/only-or-throw))
-        embedded-component-build-targets))
-
 (g/defnk produce-embedded-component-resource-data->scene-index [embedded-component-resource-data->index resource]
   (let [workspace (resource/workspace resource)
         ext->resource-type (workspace/get-resource-type-map workspace :non-editable)]
@@ -143,7 +137,7 @@
   (input own-resource-property-build-targets g/Any :array)
   (input other-resource-property-build-targets g/Any :array)
 
-  (output embedded-component-build-targets g/Any :cached produce-embedded-component-build-targets)
+  (output embedded-component-build-targets g/Any :cached (g/fnk [embedded-component-build-targets] (mapv util/only-or-throw embedded-component-build-targets)))
   (output embedded-component-resource-data->scene-index g/Any :cached produce-embedded-component-resource-data->scene-index)
   (output embedded-component-scenes g/Any :cached (gu/passthrough embedded-component-scenes))
   (output referenced-component-build-targets g/Any :cached (g/fnk [referenced-component-build-targets] (mapv util/only-or-throw referenced-component-build-targets)))
@@ -315,10 +309,9 @@
 
             component-build-targets
             (into referenced-component-build-targets
-                  embedded-component-build-targets)
+                  embedded-component-build-targets)]
 
-            build-resource (workspace/make-build-resource resource)]
-        [(game-object-common/game-object-build-target build-resource _node-id component-instance-datas component-build-targets)])))
+        [(game-object-common/game-object-build-target resource _node-id component-instance-datas component-build-targets)])))
 
 (g/defnk produce-ddf-component-properties [prototype-desc]
   (prototype-desc->component-property-descs prototype-desc))

@@ -184,7 +184,8 @@
           :sprite-trim-mode-5
           :sprite-trim-mode-6
           :sprite-trim-mode-7
-          :sprite-trim-mode-8))
+          :sprite-trim-mode-8
+          :sprite-trim-polygons))
 
 (s/defrecord Image
   [path     :- s/Any

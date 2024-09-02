@@ -87,6 +87,10 @@ namespace dmGameSystem
         dmHttpDDF::HttpResponse* response = (dmHttpDDF::HttpResponse*)message->m_Data;
         free((void*) response->m_Headers);
         free((void*) response->m_Response);
+        if (response->m_Path)
+        {
+            free((void*) response->m_Path);
+        }
     }
 
     static void SendResponse(const RequestContext* ctx, int status,
@@ -110,6 +114,10 @@ namespace dmGameSystem
         {
             free((void*) resp.m_Headers);
             free((void*) resp.m_Response);
+            if (resp.m_Path)
+            {
+                free((void*) resp.m_Path);
+            }
             dmLogWarning("Failed to return http-response. Requester deleted?");
         }
     }
@@ -221,7 +229,15 @@ namespace dmGameSystem
             ctx->m_Callback = callback;
             ctx->m_Requester = sender;
             ctx->m_RequestData = request_params.m_SendData;
-            ctx->m_Path = path;
+            ctx->m_Path = 0;
+            if (path)
+            {
+                size_t length = strlen(path) + 1;
+                char *path_val = (char *)malloc(length);
+                memcpy(path_val, path, length);
+                path_val[length] = '\0';
+                ctx->m_Path = path_val;
+            }
 
             request_params.m_Args = ctx;
 

@@ -841,7 +841,7 @@
 (deftest build-process-detects-cyclic-lua-dependencies
   (with-loaded-project "test/resources/build_cyclic_lua_project"
     (g/with-auto-evaluation-context evaluation-context
-      (is (= "Dependency cycle detected: /main/1.lua -> /main/2.lua -> /main/1.lua"
+      (is (= "Dependency cycle detected: '/main/1.lua' -> '/main/2.lua' -> '/main/1.lua'."
              (->> (build/build-project! project
                                         (test-util/resource-node project "/game.project")
                                         evaluation-context

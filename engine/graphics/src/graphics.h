@@ -167,7 +167,8 @@ namespace dmGraphics
         CONTEXT_FEATURE_TEXTURE_ARRAY          = 1,
         CONTEXT_FEATURE_COMPUTE_SHADER         = 2,
         CONTEXT_FEATURE_STORAGE_BUFFER         = 3,
-        CONTEXT_FEATURE_INSTANCING             = 4,
+        CONTEXT_FEATURE_VSYNC                  = 4,
+        CONTEXT_FEATURE_INSTANCING             = 5,
     };
 
     // Translation table to translate RenderTargetAttachment to BufferType

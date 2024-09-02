@@ -244,7 +244,8 @@ namespace dmEngine
     , m_WasIconified(true)
     , m_QuitOnEsc(false)
     , m_ConnectionAppMode(false)
-    , m_RunWhileIconified(0)
+    , m_RunWhileIconified(false)
+    , m_UseSwVSync(false)
     , m_Width(960)
     , m_Height(640)
     , m_InvPhysicalWidth(1.0f/960)
@@ -534,6 +535,11 @@ namespace dmEngine
     {
         swap_interval = dmMath::Max(0, swap_interval);
         dmGraphics::SetSwapInterval(engine->m_GraphicsContext, swap_interval);
+
+        if (!dmGraphics::IsContextFeatureSupported(engine->m_GraphicsContext, dmGraphics::CONTEXT_FEATURE_VSYNC))
+        {
+            engine->m_UseSwVSync = swap_interval != 0;
+        }
     }
 
     static void SetUpdateFrequency(HEngine engine, uint32_t frequency)
@@ -940,6 +946,8 @@ namespace dmEngine
             return false;
         }
 
+        SetSwapInterval(engine, swap_interval);
+
         uint32_t physical_dpi = dmGraphics::GetDisplayDpi(engine->m_GraphicsContext);
         uint32_t physical_width = dmGraphics::GetWindowWidth(engine->m_GraphicsContext);
         uint32_t physical_height = dmGraphics::GetWindowHeight(engine->m_GraphicsContext);
@@ -951,12 +959,11 @@ namespace dmEngine
 #endif
 
         engine->m_FixedUpdateFrequency = dmConfigFile::GetInt(engine->m_Config, "engine.fixed_update_frequency", 60);
+        engine->m_MaxTimeStep = dmConfigFile::GetFloat(engine->m_Config, "engine.max_time_step", 0.5);
 
         dmGameSystem::OnWindowCreated(physical_width, physical_height);
 
-        engine->m_UpdateFrequency = dmConfigFile::GetInt(engine->m_Config, "display.update_frequency", 0);
-
-        SetUpdateFrequency(engine, engine->m_UpdateFrequency);
+        SetUpdateFrequency(engine, dmConfigFile::GetInt(engine->m_Config, "display.update_frequency", 0));
 
         const uint32_t max_resources = dmConfigFile::GetInt(engine->m_Config, dmResource::MAX_RESOURCES_KEY, 1024);
         dmResource::NewFactoryParams params;
@@ -1564,6 +1571,8 @@ bail:
 
     static void StepFrame(HEngine engine, float dt)
     {
+        uint64_t frame_start = dmTime::GetTime();
+
         dmProfiler::SetUpdateFrequency((uint32_t)(1.0f / dt));
 
         if (dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, dmPlatform::WINDOW_STATE_ICONIFIED))
@@ -1798,6 +1807,27 @@ bail:
                 dmExtension::PostRender(&ext_params);
             }
 
+            if (engine->m_UseSwVSync && engine->m_UpdateFrequency > 0)
+            {
+                DM_PROFILE("SoftwareVsync");
+                uint64_t current = dmTime::GetTime();
+
+                float target_time = dt; // already pre calculated by CalcTimeStep
+                uint64_t elapsed = current - frame_start;
+                uint64_t remainder = uint64_t(target_time*1000000) - elapsed;
+
+                while (remainder > 500) // dont bother with less than 0.5ms
+                {
+                    uint64_t t1 = dmTime::GetTime();
+                    dmTime::Sleep(100); // sleep in chunks of 0.1ms
+                    uint64_t t2 = dmTime::GetTime();
+                    uint64_t slept = t2 - t1;
+                    if (slept >= remainder)
+                        break;
+                    remainder -= slept;
+                }
+            }
+
             dmGraphics::Flip(engine->m_GraphicsContext);
 
             RecordData* record_data = &engine->m_RecordData;
@@ -1835,8 +1865,8 @@ bail:
         float frame_dt = (float)(frame_time / 1000000.0);
 
         // Never allow for large hitches
-        if (frame_dt > 0.5f) {
-            frame_dt = 0.5f;
+        if (frame_dt > engine->m_MaxTimeStep) {
+            frame_dt = engine->m_MaxTimeStep;
         }
 
         // Variable frame rate

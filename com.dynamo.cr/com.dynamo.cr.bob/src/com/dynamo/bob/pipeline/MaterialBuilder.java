@@ -22,20 +22,19 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.List;
 
-import com.dynamo.bob.Builder;
-import com.dynamo.bob.BuilderParams;
-import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.Task;
-import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.fs.IResource;
 
-import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.pipeline.ShaderUtil.Common;
 import com.dynamo.bob.pipeline.ShaderUtil.VariantTextureArrayFallback;
 import com.dynamo.bob.util.MurmurHash;
+import com.dynamo.bob.Task;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 import com.dynamo.graphics.proto.Graphics.VertexAttribute;
 import com.dynamo.render.proto.Material.MaterialDesc;
+import com.dynamo.bob.BuilderParams;
+import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.ProtoBuilder;
+import com.dynamo.bob.ProtoParams;
 
 // For tests
 import java.io.FileOutputStream;
@@ -48,7 +47,7 @@ import com.google.protobuf.TextFormat;
 
 @ProtoParams(srcClass = MaterialDesc.class, messageClass = MaterialDesc.class)
 @BuilderParams(name = "Material", inExts = {".material"}, outExt = ".materialc")
-public class MaterialBuilder extends Builder<Void>  {
+public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
 
     private static final String TextureArrayFilenameVariantFormat = "_max_pages_%d.%s";
 
@@ -66,7 +65,7 @@ public class MaterialBuilder extends Builder<Void>  {
 
     private ShaderDesc getShaderDesc(IResource resource, ShaderProgramBuilder builder, ShaderDesc.ShaderType shaderType) throws IOException, CompileExceptionError {
         builder.setProject(this.project);
-        Task<ShaderPreprocessor> task = builder.create(resource);
+        Task task = builder.create(resource);
         return builder.getCompiledShaderDesc(task, shaderType);
     }
 
@@ -218,38 +217,6 @@ public class MaterialBuilder extends Builder<Void>  {
         materialBuilder.clearTextures();
     }
 
-    @Override
-    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-        TaskBuilder<Void> task = Task.<Void> newBuilder(this)
-                .setName(params.name())
-                .addInput(input)
-                .addOutput(input.changeExt(params.outExt()));
-
-        MaterialDesc.Builder materialBuilder = MaterialDesc.newBuilder();
-        ProtoUtil.merge(input, materialBuilder);
-
-        IResource vertexProgramOutputResource   = this.project.getResource(materialBuilder.getVertexProgram()).changeExt(".vpc");
-        IResource fragmentProgramOutputResource = this.project.getResource(materialBuilder.getFragmentProgram()).changeExt(".fpc");
-
-        task.addInput(vertexProgramOutputResource);
-        task.addInput(fragmentProgramOutputResource);
-
-        migrateTexturesToSamplers(materialBuilder);
-
-        for (MaterialDesc.Sampler materialSampler : materialBuilder.getSamplersList()) {
-            String texture = materialSampler.getTexture();
-            if (texture.isEmpty())
-                continue;
-            IResource res = BuilderUtil.checkResource(this.project, input, "texture", texture);
-            Task<?> embedTask = this.project.createTask(res);
-            if (embedTask == null) {
-                throw new CompileExceptionError(input, 0, String.format("Failed to create build task for component '%s'", res.getPath()));
-            }
-        }
-
-        return task.build();
-    }
-
     private static void buildVertexAttributes(MaterialDesc.Builder materialBuilder) throws CompileExceptionError {
         for (int i=0; i < materialBuilder.getAttributesCount(); i++) {
             VertexAttribute materialAttribute = materialBuilder.getAttributes(i);
@@ -265,10 +232,9 @@ public class MaterialBuilder extends Builder<Void>  {
     }
 
     @Override
-    public void build(Task<Void> task) throws CompileExceptionError, IOException {
-        IResource res                        = task.input(0);
-        MaterialDesc.Builder materialBuilder = MaterialDesc.newBuilder();
-        ProtoUtil.merge(task.input(0), materialBuilder);
+    public void build(Task task) throws CompileExceptionError, IOException {
+        IResource res = task.firstInput();
+        MaterialDesc.Builder materialBuilder = getSrcBuilder(res);
 
         ShaderProgramBuildContext vertexBuildContext   = makeShaderProgramBuildContext(materialBuilder, materialBuilder.getVertexProgram());
         ShaderProgramBuildContext fragmentBuildContext = makeShaderProgramBuildContext(materialBuilder, materialBuilder.getFragmentProgram());

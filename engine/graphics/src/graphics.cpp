@@ -1631,6 +1631,11 @@ namespace dmGraphics
     }
     bool IsContextFeatureSupported(HContext context, ContextFeature feature)
     {
+        if (CONTEXT_FEATURE_VSYNC == feature)
+        {
+            AdapterFamily family = GetInstalledAdapterFamily();
+            return !(family == ADAPTER_FAMILY_NULL || family == ADAPTER_FAMILY_NONE);
+        }
         return g_functions.m_IsContextFeatureSupported(context, feature);
     }
     PipelineState GetPipelineState(HContext context)

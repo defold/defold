@@ -44,7 +44,6 @@
             [editor.resource-node :as resource-node]
             [editor.scene :as scene]
             [editor.scene-picking :as scene-picking]
-            [editor.slice9 :as slice9]
             [editor.texture-set :as texture-set]
             [editor.types :as types]
             [editor.util :as eutil]
@@ -1155,11 +1154,9 @@
   ;; Overloaded outputs
   (output node-msg g/Any :cached produce-box-node-msg)
   (output scene-renderable-user-data g/Any :cached
-          (g/fnk [pivot size color+alpha slice9 anim-data clipping-mode clipping-visible clipping-inverted]
+          (g/fnk [pivot size-mode size color+alpha slice9 anim-data clipping-mode clipping-visible clipping-inverted]
             (let [frame (get-in anim-data [:frames 0])
-                  vertex-data (if (and (:use-geometries frame))
-                                (texture-set/vertex-data frame)
-                                (slice9/vertex-data frame size slice9 pivot))
+                  vertex-data (texture-set/vertex-data frame size-mode size slice9 pivot)
                   user-data {:geom-data (:position-data vertex-data)
                              :line-data (:line-data vertex-data)
                              :uv-data (:uv-data vertex-data)
@@ -1410,10 +1407,11 @@
 
   (property template TemplateData
             (dynamic read-only? override-node?)
-            (dynamic edit-type (g/constantly {:type resource/Resource
-                                              :ext "gui"
-                                              :to-type (fn [v] (:resource v))
-                                              :from-type (fn [r] {:resource r :overrides {}})}))
+            (dynamic edit-type (g/fnk [_node-id] {:type resource/Resource
+                                                  :ext "gui"
+                                                  :dialog-accept-fn (fn [r] (not= r (g/node-value (node->gui-scene _node-id) :resource)))
+                                                  :to-type (fn [v] (:resource v))
+                                                  :from-type (fn [r] {:resource r :overrides {}})}))
             (dynamic error (g/fnk [_node-id template-resource]
                              (prop-resource-error _node-id :template template-resource "Template")))
             (value (g/fnk [_node-id id template-resource template-overrides]

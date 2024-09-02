@@ -173,7 +173,7 @@ namespace dmGameSystem
         float offset = 0.0f;
         float playback_rate = 1.0f;
 
-        dmGameObject::HInstance instance = CheckGoInstance(L);
+        (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
 
         dmhash_t anim_id = dmScript::CheckHashOrString(L, 2);
         lua_Integer playback = luaL_checkinteger(L, 3);
@@ -200,7 +200,7 @@ namespace dmGameSystem
         msg.m_Offset = offset;
         msg.m_PlaybackRate = playback_rate;
 
-        dmMessage::Post(&sender, &receiver, dmModelDDF::ModelPlayAnimation::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)functionref, (uintptr_t)dmModelDDF::ModelPlayAnimation::m_DDFDescriptor, &msg, sizeof(msg), 0);
+        dmMessage::Post(&sender, &receiver, dmModelDDF::ModelPlayAnimation::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)functionref, (uintptr_t)dmModelDDF::ModelPlayAnimation::m_DDFDescriptor, &msg, sizeof(msg), 0);
         assert(top == lua_gettop(L));
         return 0;
     }
@@ -293,7 +293,7 @@ namespace dmGameSystem
         DM_LUA_STACK_CHECK(L, 0);
         int top = lua_gettop(L);
 
-        dmGameObject::HInstance instance = CheckGoInstance(L);
+        (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
 
         dmhash_t anim_id = dmScript::CheckHashOrString(L, 2);
         lua_Integer playback = luaL_checkinteger(L, 3);
@@ -341,7 +341,7 @@ namespace dmGameSystem
         msg.m_Offset = offset;
         msg.m_PlaybackRate = playback_rate;
 
-        dmMessage::Post(&sender, &receiver, dmModelDDF::ModelPlayAnimation::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)functionref, (uintptr_t)dmModelDDF::ModelPlayAnimation::m_DDFDescriptor, &msg, sizeof(msg), 0);
+        dmMessage::Post(&sender, &receiver, dmModelDDF::ModelPlayAnimation::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)functionref, (uintptr_t)dmModelDDF::ModelPlayAnimation::m_DDFDescriptor, &msg, sizeof(msg), 0);
         return 0;
     }
 
@@ -355,7 +355,7 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
-        dmGameObject::HInstance instance = CheckGoInstance(L);
+        (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
 
         dmMessage::URL receiver;
         dmMessage::URL sender;
@@ -363,7 +363,7 @@ namespace dmGameSystem
 
         dmModelDDF::ModelCancelAnimation msg;
 
-        dmMessage::Post(&sender, &receiver, dmModelDDF::ModelCancelAnimation::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmModelDDF::ModelCancelAnimation::m_DDFDescriptor, &msg, sizeof(msg), 0);
+        dmMessage::Post(&sender, &receiver, dmModelDDF::ModelCancelAnimation::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmModelDDF::ModelCancelAnimation::m_DDFDescriptor, &msg, sizeof(msg), 0);
         assert(top == lua_gettop(L));
         return 0;
     }
@@ -464,7 +464,7 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
-        dmGameObject::HInstance instance = CheckGoInstance(L);
+        (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
 
         dmhash_t name_hash = dmScript::CheckHashOrString(L, 2);
         dmVMath::Vector4* value = dmScript::CheckVector4(L, 3);
@@ -478,7 +478,7 @@ namespace dmGameSystem
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetConstant::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SetConstant::m_DDFDescriptor, &msg, sizeof(msg), 0);
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetConstant::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameSystemDDF::SetConstant::m_DDFDescriptor, &msg, sizeof(msg), 0);
         assert(top == lua_gettop(L));
         return 0;
     }
@@ -509,7 +509,7 @@ namespace dmGameSystem
     {
         int top = lua_gettop(L);
 
-        dmGameObject::HInstance instance = CheckGoInstance(L);
+        (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
         dmhash_t name_hash = dmScript::CheckHashOrString(L, 2);
 
         dmGameSystemDDF::ResetConstant msg;
@@ -519,7 +519,7 @@ namespace dmGameSystem
         dmMessage::URL sender;
         dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::ResetConstant::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::ResetConstant::m_DDFDescriptor, &msg, sizeof(msg), 0);
+        dmMessage::Post(&sender, &receiver, dmGameSystemDDF::ResetConstant::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameSystemDDF::ResetConstant::m_DDFDescriptor, &msg, sizeof(msg), 0);
         assert(top == lua_gettop(L));
         return 0;
     }

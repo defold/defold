@@ -886,12 +886,9 @@
        (update-cache-from-evaluation-context! ~ec))
      result#))
 
-(defn- do-node-value [node-id label evaluation-context]
-  (is/node-value @*the-system* node-id label evaluation-context))
-
 (defn node-value
   "Pull a value from a node's output, property or input, identified by `label`.
-  The value may be cached or it may be computed on demand. This is
+  The value may be cached, or it may be computed on demand. This is
   transparent to the caller.
 
   This uses the value of the node and its output at the time the
@@ -909,9 +906,12 @@
   `(node-value node-id :chained-output)`"
   ([node-id label]
    (with-auto-evaluation-context evaluation-context
-     (do-node-value node-id label evaluation-context)))
+     (node-value node-id label evaluation-context)))
   ([node-id label evaluation-context]
-   (do-node-value node-id label evaluation-context)))
+   (when (some? node-id)
+     (let [basis (:basis evaluation-context)
+           node (gt/node-by-id-at basis node-id)]
+       (in/node-value node label evaluation-context)))))
 
 (defn valid-node-value
   "Like the node-value function, but throws an exception if evaluation produced
@@ -920,13 +920,28 @@
    (with-auto-evaluation-context evaluation-context
      (valid-node-value node-id label evaluation-context)))
   ([node-id label evaluation-context]
-   (let [value (do-node-value node-id label evaluation-context)]
+   (let [value (node-value node-id label evaluation-context)]
      (if (error? value)
        (throw (ex-info "Evaluation produced an ErrorValue."
                        {:node-type-kw (node-type-kw (:basis evaluation-context) node-id)
                         :label label
                         :error value}))
        value))))
+
+(defn maybe-node-value
+  "Like the node-value function, but returns nil if evaluation produced an
+  ErrorValue or the label does not exist on the node."
+  ([node-id label]
+   (with-auto-evaluation-context evaluation-context
+     (maybe-node-value node-id label evaluation-context)))
+  ([node-id label evaluation-context]
+   (when (some? node-id)
+     (let [basis (:basis evaluation-context)
+           node (gt/node-by-id-at basis node-id)]
+       (when (some-> node gt/node-type (in/behavior label))
+         (let [value (in/node-value node label evaluation-context)]
+           (when-not (error? value)
+             value)))))))
 
 (defn graph-value
   "Returns the graph from the system given a graph-id and key.  It returns the graph at the point in time of the bais, if provided.

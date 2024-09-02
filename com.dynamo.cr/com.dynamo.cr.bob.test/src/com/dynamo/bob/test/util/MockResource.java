@@ -45,7 +45,8 @@ public class MockResource extends AbstractResource<MockFileSystem> {
     }
 
     @Override
-    public void setContent(byte[] content) {
+    public void setContent(byte[] content) throws IOException {
+        super.setContent(content);
         this.content = Arrays.copyOf(content, content.length);
     }
 

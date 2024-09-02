@@ -13,15 +13,15 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns internal.graph.graph-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.core.cache :as cc]
+            [clojure.test :refer :all]
             [dynamo.graph :as g]
             [internal.graph :as ig]
-            [clojure.core.cache :as cc]
             [internal.graph.generator :as ggen]
             [internal.graph.types :as gt]
             [internal.node :as in]
             [schema.core :as s]
-            [support.test-support :refer [with-clean-system tx-nodes]]))
+            [support.test-support :refer [tx-nodes with-clean-system]]))
 
 (defn occurrences [coll]
   (vals (frequencies coll)))
@@ -123,7 +123,7 @@
   (property str-prop g/Str
             (value (g/fnk [str-in] str-in))
             (dynamic str-prop-dynamic (g/fnk [] 123)))
-  (input str-in g/Str)
+  (input str-in g/Str :cascade-delete)
   (output str-out g/Str :cached (g/fnk [str-in] str-in)))
 
 (deftest graph-override-cleanup
@@ -435,6 +435,76 @@
                   (is (= :internal.graph.graph-test/PassthroughNode (:node-type-kw ex-data)))
                   (is (= :str-out (:label ex-data)))
                   (is (= error-value (:error ex-data))))))))))))
+
+(deftest maybe-node-value
+  (with-clean-system
+    (let [check-valid-nodes!
+          (fn check-valid-nodes! [producer-node consumer-node]
+            (is (not (g/defective? producer-node)))
+            (is (not (g/defective? consumer-node)))
+            (testing "Declared property."
+              (is (= "initial" (g/maybe-node-value producer-node :val))))
+            (testing "Declared input."
+              (is (= "initial" (g/maybe-node-value consumer-node :str-in))))
+            (testing "Declared output."
+              (is (= "initial" (g/maybe-node-value consumer-node :str-out))))
+            (testing "Missing output."
+              (is (nil? (g/maybe-node-value producer-node :non-existing-label))))
+            (testing "Extern property."
+              (is (= producer-node (g/maybe-node-value producer-node :_node-id))))
+            (testing "Implicit :_properties."
+              (is (= "initial" (get-in (g/maybe-node-value producer-node :_properties) [:properties :val :value]))))
+            (testing "Implicit :_declared-properties."
+              (is (= "initial" (get-in (g/maybe-node-value producer-node :_declared-properties) [:properties :val :value])))))
+
+          check-defective-nodes!
+          (fn check-defective-nodes! [producer-node consumer-node]
+            (is (g/defective? producer-node))
+            (is (not (g/defective? consumer-node)))
+            (testing "Declared property."
+              (is (nil? (g/maybe-node-value producer-node :val))))
+            (testing "Declared input."
+              (is (nil? (g/maybe-node-value consumer-node :str-in))))
+            (testing "Declared output."
+              (is (nil? (g/maybe-node-value consumer-node :str-out))))
+            (testing "Missing output."
+              (is (nil? (g/maybe-node-value producer-node :non-existing-label))))
+            (testing "Extern property."
+              (is (= producer-node (g/maybe-node-value producer-node :_node-id))))
+            (testing "Implicit :_properties."
+              (is (nil? (g/maybe-node-value producer-node :_properties))))
+            (testing "Implicit :_declared-properties."
+              (is (= "initial" (get-in (g/maybe-node-value producer-node :_declared-properties) [:properties :val :value])))))
+
+          [producer-node consumer-node]
+          (tx-nodes
+            (g/make-nodes
+              world [producer-node (TestNode :val "initial")
+                     consumer-node PassthroughNode]
+              (g/connect producer-node :val consumer-node :str-in)))
+
+          [or-consumer-node or-producer-node]
+          (tx-nodes
+            (g/override consumer-node))]
+
+      (testing "Nil arguments."
+        (is (nil? (g/maybe-node-value nil nil)))
+        (is (nil? (g/maybe-node-value nil :_node-id)))
+        (is (nil? (g/maybe-node-value producer-node nil))))
+
+      (testing "Non-defective producer-node."
+        (testing "Original nodes."
+          (check-valid-nodes! producer-node consumer-node))
+        (testing "Override nodes."
+          (check-valid-nodes! or-producer-node or-consumer-node)))
+
+      (g/mark-defective! producer-node (g/error-fatal "bad"))
+
+      (testing "Defective producer-node."
+        (testing "Original nodes."
+          (check-defective-nodes! producer-node consumer-node))
+        (testing "Override nodes."
+          (check-defective-nodes! or-producer-node or-consumer-node))))))
 
 (deftest defective?-test
   (with-clean-system

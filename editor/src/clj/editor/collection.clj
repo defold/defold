@@ -68,7 +68,7 @@
   (property id g/Str ; Required pb field.
             (dynamic error (g/fnk [_node-id id id-counts]
                              (or (validation/prop-error :fatal _node-id :id (partial validation/prop-id-duplicate? id-counts) id)
-                                 (validation/prop-error :warning _node-id :id validation/prop-contains-url-characters? id "Id"))))
+                                 (validation/prop-error :warning _node-id :id validation/prop-contains-prohibited-characters? id "Id"))))
             (dynamic read-only? (g/fnk [_node-id]
                                   (g/override? _node-id))))
   (property url g/Str
@@ -177,25 +177,45 @@
    :icon ""
    :label ""})
 
-(g/defnk produce-go-build-targets [_node-id build-error build-resource ddf-message resource-property-build-targets source-build-targets pose]
-  ;; Create a build-target for the referenced or embedded game object. Also tag
-  ;; on :game-object-instance-data with the overrides for this instance. This
-  ;; will later be extracted and compiled into the Collection - the overrides do
-  ;; not end up in the resulting game object binary.
+(defn- path-error [node-id resource]
+  (or (validation/prop-error :fatal node-id :path validation/prop-nil? resource "Path")
+      (validation/prop-error :fatal node-id :path validation/prop-resource-not-exists? resource "Path")))
+
+(defn- component-property-error [node-id ddf-message]
+  (when-some [errors (not-empty (sequence (comp (mapcat :properties) ; Extract GameObject$PropertyDescs from GameObject$ComponentPropertyDescs.
+                                                (keep :error))
+                                          (:component-properties ddf-message)))]
+    (g/error-aggregate errors :_node-id node-id :_label :build-targets)))
+
+(g/defnk produce-referenced-go-build-targets [_node-id ddf-message resource-property-build-targets source-build-targets pose source-resource]
+  ;; Create a build-target for the referenced game object. Also tag on
+  ;; :game-object-instance-data with the overrides for this instance. This will
+  ;; later be extracted and compiled into the Collection - the overrides do not
+  ;; end up in the resulting game object binary.
   ;; Please refer to `/engine/gameobject/proto/gameobject/gameobject_ddf.proto`
   ;; when reading this. It describes how the ddf-message map is structured.
   ;; You might also want to familiarize yourself with how this process works in
   ;; `game_object.clj`, since it is similar but less complicated there.
-  (if-some [errors
-            (not-empty
-              (sequence (comp (mapcat :properties) ; Extract GameObject$PropertyDescs from GameObject$ComponentPropertyDescs.
-                              (keep :error))
-                        (:component-properties ddf-message)))]
-    (g/error-aggregate errors :_node-id _node-id :_label :build-targets)
-    (let [game-object-build-target (first source-build-targets)
-          proj-path->resource-property-build-target (bt/make-proj-path->build-target resource-property-build-targets)
-          instance-desc-with-go-props (dissoc ddf-message :data)] ; GameObject$InstanceDesc or GameObject$EmbeddedInstanceDesc in map format. We don't need the :data from GameObject$EmbeddedInstanceDesc.
-      [(collection-common/game-object-instance-build-target build-resource instance-desc-with-go-props pose game-object-build-target proj-path->resource-property-build-target)])))
+  (or (path-error _node-id source-resource)
+      (component-property-error _node-id ddf-message)
+      (let [game-object-build-target (first source-build-targets)
+            proj-path->resource-property-build-target (bt/make-proj-path->build-target resource-property-build-targets)]
+        [(collection-common/game-object-instance-build-target game-object-build-target ddf-message pose proj-path->resource-property-build-target)])))
+
+(g/defnk produce-embedded-go-build-targets [_node-id ddf-message resource-property-build-targets source-build-targets pose]
+  ;; Create a build-target for the embedded game object. Also tag on
+  ;; :game-object-instance-data with the overrides for this instance. This will
+  ;; later be extracted and compiled into the Collection - the overrides do not
+  ;; end up in the resulting game object binary.
+  ;; Please refer to `/engine/gameobject/proto/gameobject/gameobject_ddf.proto`
+  ;; when reading this. It describes how the ddf-message map is structured.
+  ;; You might also want to familiarize yourself with how this process works in
+  ;; `game_object.clj`, since it is similar but less complicated there.
+  (or (component-property-error _node-id ddf-message)
+      (let [game-object-build-target (first source-build-targets)
+            proj-path->resource-property-build-target (bt/make-proj-path->build-target resource-property-build-targets)
+            instance-desc-with-go-props (dissoc ddf-message :data)] ; GameObject$EmbeddedInstanceDesc in map format. We don't need the :data field.
+        [(collection-common/game-object-instance-build-target game-object-build-target instance-desc-with-go-props pose proj-path->resource-property-build-target)])))
 
 (g/defnode GameObjectInstanceNode
   (inherits scene/SceneNode)
@@ -216,9 +236,7 @@
   (output node-outline outline/OutlineData :cached produce-go-outline)
   (output ddf-message g/Any :abstract)
   (output node-outline-extras g/Any (g/constantly {}))
-  (output build-resource resource/Resource :abstract)
-  (output build-targets g/Any produce-go-build-targets)
-  (output build-error g/Err (g/constantly nil))
+  (output build-targets g/Any :abstract)
 
   (output scene g/Any :cached (g/fnk [_node-id id transform scene child-scenes]
                                 (-> (collection-common/any-instance-scene _node-id id transform scene)
@@ -234,8 +252,7 @@
   (input proto-msg g/Any)
   (output node-outline-extras g/Any (g/fnk [source-outline]
                                            {:alt-outline source-outline}))
-  (output build-resource resource/Resource (g/fnk [source-build-targets]
-                                             (some-> source-build-targets first bt/make-content-hash-build-resource)))
+  (output build-targets g/Any produce-embedded-go-build-targets)
   (output ddf-message g/Any (g/fnk [id child-ids position rotation scale proto-msg]
                               (gen-embed-ddf id child-ids position rotation scale proto-msg))))
 
@@ -286,15 +303,6 @@
 
             script/ScriptPropertyNode
             true))))))
-
-(defn- path-error [node-id resource]
-  (or (validation/prop-error :fatal node-id :path validation/prop-nil? resource "Path")
-      (validation/prop-error :fatal node-id :path validation/prop-resource-not-exists? resource "Path")))
-
-(defn- substitute-error [val-or-error substitute]
-  (if-not (g/error? val-or-error)
-    val-or-error
-    substitute))
 
 (g/defnode ReferencedGOInstanceNode
   (inherits GameObjectInstanceNode)
@@ -367,10 +375,7 @@
 
   (output ddf-message g/Any (g/fnk [id child-ids source-resource position rotation scale ddf-component-properties]
                                    (gen-ref-ddf id child-ids position rotation scale source-resource ddf-component-properties)))
-  (output build-error g/Err (g/fnk [_node-id source-resource]
-                                   (path-error _node-id source-resource)))
-  (output build-resource resource/Resource (g/fnk [source-build-targets]
-                                             (:resource (first source-build-targets)))))
+  (output build-targets g/Any produce-referenced-go-build-targets))
 
 (g/defnk produce-proto-msg [name scale-along-z ref-inst-ddf embed-inst-ddf ref-coll-ddf]
   (protobuf/make-map-without-defaults GameObject$CollectionDesc
@@ -449,7 +454,7 @@
 
   (property name g/Str
             (dynamic error (g/fnk [_node-id name]
-                                 (validation/prop-error :warning _node-id :id validation/prop-contains-url-characters? name "Name"))))
+                                 (validation/prop-error :warning _node-id :id validation/prop-contains-prohibited-characters? name "Name"))))
 
   ;; This property is legacy and purposefully hidden
   ;; The feature is only useful for uniform scaling, we use non-uniform now

@@ -1,8 +1,24 @@
-echo off
+@echo off
 
-if not defined INCLUDE goto :FAIL
-if not defined VCINSTALLDIR goto :FAIL
-if not defined PLATFORM goto :FAIL
+if not defined INCLUDE goto :FAIL_MSVS
+if not defined VCINSTALLDIR goto :FAIL_MSVS
+
+set PLATFORM=%1
+if "%PLATFORM%" equ "x86_64-win32" goto :PLATFORM_X64
+if "%PLATFORM%" equ "win32" goto :PLATFORM_X86
+goto :FAIL_PLATFORM
+
+:PLATFORM_X64
+if "%VSCMD_ARG_TGT_ARCH%" equ "x64" goto :PLATFORM_OK
+goto :PLATFORM_ARCH_FAIL
+:PLATFORM_X86
+if "%VSCMD_ARG_TGT_ARCH%" equ "x86" goto :PLATFORM_OK
+goto :PLATFORM_ARCH_FAIL
+
+:PLATFORM_ARCH_FAIL
+@echo "Platform chosen is %PLATFORM% but MSVS arch is %VSCMD_ARG_TGT_ARCH%"
+goto :END
+:PLATFORM_OK
 
 set TMP_TARGET=tmp_%PLATFORM%
 
@@ -63,7 +79,7 @@ echo "SOURCE_TARGET:" %SOURCE_TARGET%
 pushd %SOURCE_TARGET%
 
 
-if "%platform%" == "x64" goto :BUILD_X64
+if "%PLATFORM%" == "x86_64-win32" goto :BUILD_X64
 
 :BUILD_X32
 cmd "/C msvcbuild.bat static dummy"
@@ -134,8 +150,12 @@ echo *******************************************************
 echo *** Build FAILED -- Please check the error messages ***
 echo *******************************************************
 goto :END
-:FAIL
+:FAIL_MSVS
 echo To run this script you must open a "Native Tools Command Prompt for VS".
 echo.
 echo Either the x86 version, or x64.
+goto :END
+:FAIL_PLATFORM
+echo You need to supply a PLATFORM: win32 or x86_64-win32 (found '%PLATFORM%')
+goto :END
 :END

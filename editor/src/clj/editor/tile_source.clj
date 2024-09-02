@@ -46,7 +46,7 @@
             [editor.workspace :as workspace]
             [util.coll :as coll :refer [pair]]
             [util.digestable :as digestable])
-  (:import [com.dynamo.gamesys.proto TextureSetProto$TextureSet Tile$Animation Tile$ConvexHull Tile$Playback Tile$SpriteTrimmingMode Tile$TileSet]
+  (:import [com.dynamo.gamesys.proto TextureSetProto$TextureSet Tile$Animation Tile$ConvexHull Tile$Playback Tile$TileSet]
            [com.jogamp.opengl GL2]
            [editor.types AABB]
            [java.awt.image BufferedImage]
@@ -606,7 +606,7 @@
   (property original-convex-hulls g/Any ; No protobuf counterpart.
             (dynamic visible (g/constantly false)))
   (property sprite-trim-mode g/Keyword (default (protobuf/default Tile$TileSet :sprite-trim-mode))
-            (dynamic edit-type (g/constantly (properties/->pb-choicebox Tile$SpriteTrimmingMode))))
+            (dynamic edit-type (g/constantly texture-set-gen/sprite-trim-mode-edit-type)))
   (property tile->collision-group-node g/Any ; No protobuf counterpart.
             (dynamic visible (g/constantly false)))
 

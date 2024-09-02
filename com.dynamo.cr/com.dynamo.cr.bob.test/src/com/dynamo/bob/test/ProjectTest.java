@@ -217,7 +217,7 @@ public class ProjectTest {
         System.out.printf("testMountPointFindSources start");
         project.resolveLibUrls(new NullProgress());
         project.mount(new ClassLoaderResourceScanner());
-        project.findSources(".", null);
+        project.setInputs(Arrays.asList("test_lib2/file2.in", "test_lib1/file1.in", "test_lib6/file6.in", "test_lib5/file5.in"));
         List<TaskResult> results = build("build");
         assertFalse(results.isEmpty());
         for (TaskResult result : results) {
