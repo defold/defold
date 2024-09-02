@@ -161,5 +161,23 @@ def build(bld):
                                        target = 'test_script_bitop',
                                        source = 'test_script_bitop.cpp test_bitop.lua'.split())
 
+    test_script_types = bld.program(features = flist,
+                                       includes = '..',
+                                       use = libs,
+                                       web_libs = web_libs,
+                                       exported_symbols = exported_symbols + ['ScriptTypesExt'],
+                                       proto_gen_py = True,
+                                       target = 'test_script_types',
+                                       source = 'test_script_types.cpp test_types.lua'.split())
+
+    test_script_types_null = bld.program(features = flist,
+                                       includes = '..',
+                                       use = libs,
+                                       web_libs = web_libs,
+                                       exported_symbols = exported_symbols,
+                                       proto_gen_py = True,
+                                       target = 'test_script_types_null',
+                                       source = 'test_script_types_null.cpp test_types.lua'.split())
+
     bld.install_files('${PREFIX}/include/script', 'test_script.h')
 

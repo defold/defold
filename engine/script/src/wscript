@@ -65,6 +65,7 @@ def build(bld):
         'script_vmath.cpp',
         'script_zlib.cpp',
         'script_graphics.cpp',
+        'script_types.cpp',
         'luasocket/luasocket.doc_h',
         'script/sys_ddf.proto'])
 

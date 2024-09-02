@@ -62,7 +62,7 @@ def build(bld):
                              'ResourceProviderFile', 'ResourceProviderArchive', 'ResourceProviderArchiveMutable', 'ResourceProviderZip']
     component_type_symbols = ['ComponentTypeAnim', 'ComponentTypeScript', 'ComponentTypeGui', 'ComponentTypeMesh']
 
-    exported_symbols = ['DefaultSoundDevice', 'AudioDecoderWav', 'CrashExt', 'ProfilerExt', 'LiveUpdateExt', 'ScriptBox2DExt', 'ScriptImageExt', 'ScriptModelExt']
+    exported_symbols = ['DefaultSoundDevice', 'AudioDecoderWav', 'CrashExt', 'ProfilerExt', 'LiveUpdateExt', 'ScriptBox2DExt', 'ScriptImageExt', 'ScriptModelExt', 'ScriptTypesExt']
 
     # Add stb_vorbis and/or tremolo depending on platform
     if bld.env['PLATFORM'] in ('arm64-nx64', 'win32', 'x86_64-win32', 'js-web', 'wasm-web'):
@@ -199,7 +199,7 @@ def build(bld):
     obj = bld(
         features = 'c cxx cprogram apk web extract_symbols',
         use = 'RECORD_NULL GAMEOBJECT DDF LIVEUPDATE GAMESYS RESOURCE PHYSICS RENDER SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE PLATFORM_NULL RIG GUI CRASH DLIB SOUND_NULL engine engine_service'.split() + graphics_lib.split() + profile_lib + additional_libs,
-        exported_symbols = ['ProfilerExt', 'LiveUpdateExt', 'GraphicsAdapterNull'] + resource_type_symbols + component_type_symbols,
+        exported_symbols = ['ProfilerExt', 'LiveUpdateExt', 'ScriptTypesExt', 'GraphicsAdapterNull'] + resource_type_symbols + component_type_symbols,
         web_libs = web_libs,
         includes = '../build ../proto . ..',
         proto_gen_py = True,
