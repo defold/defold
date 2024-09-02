@@ -172,20 +172,13 @@
                 (some some? texcoord-datas) (assoc :texcoord-datas texcoord-datas)))
       (error-values/error-fatal "Failed to produce vertex buffers from mesh set. The scene might contain invalid data."))))
 
-(defn- matrix4->bytes [^Matrix4d mtx]
-  (let [matrix-array (math/vecmath->clj (doto (Matrix4d. mtx) (.transpose)))
-        byte-array (byte-array (* 4 16))
-        byte-buffer (vtx/wrap-buf byte-array)]
-    (vtx/buf-push! byte-buffer :float false matrix-array)
-    byte-array))
-
 (defn mesh->vb! [^VertexBuffer vbuf ^Matrix4d world-transform ^Matrix4d normal-transform has-semantic-type-world-matrix has-semantic-type-normal-matrix vertex-attribute-bytes mesh-renderable-data]
   (let [mesh-renderable-data
         (cond-> mesh-renderable-data
                 world-transform (assoc :world-transform world-transform)
                 normal-transform (assoc :normal-transform normal-transform)
-                has-semantic-type-world-matrix (assoc :world-matrix-bytes (matrix4->bytes world-transform))
-                has-semantic-type-normal-matrix (assoc :normal-matrix-bytes (matrix4->bytes normal-transform))
+                has-semantic-type-world-matrix (assoc :has-semantic-type-world-matrix true)
+                has-semantic-type-normal-matrix (assoc :has-semantic-type-normal-matrix true)
                 vertex-attribute-bytes (assoc :vertex-attribute-bytes vertex-attribute-bytes))]
     (graphics/put-attributes! vbuf [mesh-renderable-data])
     vbuf))

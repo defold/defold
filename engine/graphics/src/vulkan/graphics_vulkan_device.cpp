@@ -65,6 +65,7 @@ namespace dmGraphics
                 case 2:  return VK_FORMAT_R32G32_SFLOAT;
                 case 3:  return VK_FORMAT_R32G32B32_SFLOAT;
                 case 4:  return VK_FORMAT_R32G32B32A32_SFLOAT;
+                case 9:  return VK_FORMAT_R32G32B32_SFLOAT;
                 case 16: return VK_FORMAT_R32G32B32A32_SFLOAT;
                 default:break;
             }
@@ -77,6 +78,8 @@ namespace dmGraphics
                 case 2: return VK_FORMAT_R32G32_SINT;
                 case 3: return VK_FORMAT_R32G32B32_SINT;
                 case 4: return VK_FORMAT_R32G32B32A32_SINT;
+                case 9: return VK_FORMAT_R32G32B32_SINT;
+                case 16: return VK_FORMAT_R32G32B32A32_SINT;
                 default:break;
             }
         }
@@ -88,6 +91,8 @@ namespace dmGraphics
                 case 2: return VK_FORMAT_R32G32_UINT;
                 case 3: return VK_FORMAT_R32G32B32_UINT;
                 case 4: return VK_FORMAT_R32G32B32A32_UINT;
+                case 9: return VK_FORMAT_R32G32B32_UINT;
+                case 16: return VK_FORMAT_R32G32B32A32_UINT;
                 default:break;
             }
         }
@@ -99,6 +104,8 @@ namespace dmGraphics
                 case 2: return normalized ? VK_FORMAT_R8G8_SNORM : VK_FORMAT_R8G8_SINT;
                 case 3: return normalized ? VK_FORMAT_R8G8B8_SNORM : VK_FORMAT_R8G8B8_SINT;
                 case 4: return normalized ? VK_FORMAT_R8G8B8A8_SNORM : VK_FORMAT_R8G8B8A8_SINT;
+                case 9: return normalized ? VK_FORMAT_R8G8B8_SNORM : VK_FORMAT_R8G8B8_SINT;
+                case 16: return normalized ? VK_FORMAT_R8G8B8A8_SNORM : VK_FORMAT_R8G8B8A8_SINT;
                 default:break;
             }
         }
@@ -110,6 +117,8 @@ namespace dmGraphics
                 case 2: return normalized ? VK_FORMAT_R8G8_UNORM : VK_FORMAT_R8G8_UINT;
                 case 3: return normalized ? VK_FORMAT_R8G8B8_UNORM : VK_FORMAT_R8G8B8_UINT;
                 case 4: return normalized ? VK_FORMAT_R8G8B8A8_UNORM : VK_FORMAT_R8G8B8A8_UINT;
+                case 9: return normalized ? VK_FORMAT_R8G8B8_UNORM : VK_FORMAT_R8G8B8_UINT;
+                case 16: return normalized ? VK_FORMAT_R8G8B8A8_UNORM : VK_FORMAT_R8G8B8A8_UINT;
                 default:break;
             }
         }
@@ -121,6 +130,8 @@ namespace dmGraphics
                 case 2: return normalized ? VK_FORMAT_R16G16_SNORM : VK_FORMAT_R16G16_SINT;
                 case 3: return normalized ? VK_FORMAT_R16G16B16_SNORM : VK_FORMAT_R16G16B16_SINT;
                 case 4: return normalized ? VK_FORMAT_R16G16B16A16_SNORM : VK_FORMAT_R16G16B16A16_SINT;
+                case 9: return normalized ? VK_FORMAT_R16G16B16_SNORM : VK_FORMAT_R16G16B16_SINT;
+                case 16: return normalized ? VK_FORMAT_R16G16B16A16_SNORM : VK_FORMAT_R16G16B16A16_SINT;
                 default:break;
             }
         }
@@ -132,10 +143,12 @@ namespace dmGraphics
                 case 2: return normalized ? VK_FORMAT_R16G16_UNORM : VK_FORMAT_R16G16_UINT;
                 case 3: return normalized ? VK_FORMAT_R16G16B16_UNORM : VK_FORMAT_R16G16B16_UINT;
                 case 4: return normalized ? VK_FORMAT_R16G16B16A16_UNORM : VK_FORMAT_R16G16B16A16_UINT;
+                case 9: return normalized ? VK_FORMAT_R16G16B16_UNORM : VK_FORMAT_R16G16B16_UINT;
+                case 16: return normalized ? VK_FORMAT_R16G16B16A16_UNORM : VK_FORMAT_R16G16B16A16_UINT;
                 default:break;
             }
         }
-        else if (type == TYPE_FLOAT_MAT4)
+        else if (type == TYPE_FLOAT_MAT4 || type == TYPE_FLOAT_MAT3 || type == TYPE_FLOAT_MAT2)
         {
             return VK_FORMAT_R32_SFLOAT;
         }
@@ -1099,6 +1112,8 @@ bail:
                 vk_vertex_input_descs[ix].format = fmt;
 
             uint32_t stream_data_size = GetGraphicsTypeDataSize(stream.m_Type);
+
+            // TODO: This doesn't support 2x2 matrices - we can't distinguish between a vec4 and a 2x2 matrix here currently
             switch(stream.m_Size)
             {
             case 9: // 3x3 matrix

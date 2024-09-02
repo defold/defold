@@ -319,7 +319,7 @@
 (defn- request-vbo [^GL2 gl request-id ^VertexBuffer vertex-buffer shader]
   (scene-cache/request-object! ::vbo2 request-id gl {:vertex-buffer vertex-buffer :version (version vertex-buffer) :shader shader}))
 
-(defn- vertex-attribute->row-column-count+is-matrix-type [vertex-attribute]
+(defn vertex-attribute->row-column-count [vertex-attribute]
   (let [vector-type (:vector-type vertex-attribute)
         component-count (:components vertex-attribute)]
     (cond (= vector-type :vector-type-mat2) 2
@@ -336,13 +336,13 @@
   {:pre [(= (count vertex-attributes) (count vertex-attribute-locs))]}
   (let [vertex-attributes+locs (map vector vertex-attributes vertex-attribute-locs)
         expanded-vertex-attributes (mapcat (fn [[attribute _]]
-                                             (let [row-column-count (vertex-attribute->row-column-count+is-matrix-type attribute)]
+                                             (let [row-column-count (vertex-attribute->row-column-count attribute)]
                                                (if row-column-count
                                                  (repeat row-column-count (assoc attribute :components row-column-count))
                                                  [attribute])))
                                            vertex-attributes+locs)
         expanded-vertex-locs (mapcat (fn [[attribute loc]]
-                                        (let [row-column-count (vertex-attribute->row-column-count+is-matrix-type attribute)]
+                                        (let [row-column-count (vertex-attribute->row-column-count attribute)]
                                           (if row-column-count
                                             (map-indexed (fn [^long idx ^long loc-base]
                                                            (+ idx loc-base))

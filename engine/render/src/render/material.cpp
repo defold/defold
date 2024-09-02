@@ -77,7 +77,7 @@ namespace dmRender
         return (dmGraphics::VertexAttribute::DataType) -1;
     }
 
-    static inline dmGraphics::VertexAttribute::VectorType GetAttributeShaderType(dmGraphics::Type from_type)
+    static inline dmGraphics::VertexAttribute::VectorType GetAttributeVectorType(dmGraphics::Type from_type)
     {
         switch(from_type)
         {
@@ -111,7 +111,7 @@ namespace dmRender
             case dmGraphics::VertexAttribute::VECTOR_TYPE_MAT2: return 4;
             case dmGraphics::VertexAttribute::VECTOR_TYPE_MAT3: return 9;
             case dmGraphics::VertexAttribute::VECTOR_TYPE_MAT4: return 16;
-            default:assert(0 && "ShaderType not supported");
+            default:assert(0 && "VectorType not supported");
         }
         return -1;
     }
@@ -221,7 +221,7 @@ namespace dmRender
             vertex_attribute.m_ElementCount    = element_count;
             vertex_attribute.m_Normalize       = false;
             vertex_attribute.m_CoordinateSpace = dmGraphics::COORDINATE_SPACE_WORLD;
-            vertex_attribute.m_VectorType      = GetAttributeShaderType(type);
+            vertex_attribute.m_VectorType      = GetAttributeVectorType(type);
             vertex_attribute.m_StepFunction    = instancing_supported ? GetAttributeVertexStepFunction(vertex_attribute.m_SemanticType) : dmGraphics::VERTEX_STEP_FUNCTION_VERTEX;
 
             MaterialAttribute& material_attribute = m->m_MaterialAttributes[i];

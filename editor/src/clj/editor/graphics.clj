@@ -653,6 +653,26 @@
 (def ^:private renderable-data->world-normal-v4 (partial renderable-data->world-direction-v4 :normal-data))
 (def ^:private renderable-data->world-tangent-v3 (partial renderable-data->world-direction-v3 :tangent-data))
 
+(defn- matrix4+attribute->bytes [^Matrix4d matrix attribute]
+  (let [vector-component-count (vector-type->component-count (:vector-type attribute))
+        matrix-flat-array (math/vecmath->clj (doto (Matrix4d. matrix) (.transpose)))
+        matrix-4x4-array (partition 4 matrix-flat-array)
+        matrix-row-column-count (vtx/vertex-attribute->row-column-count attribute)
+        ;; Grab the flat list of float values from either the first n values of the array,
+        ;; or an n-by-n sub-matrix that should match the outgoing vector type
+        flat-vector-values (if (nil? matrix-row-column-count)
+                             (take vector-component-count matrix-flat-array)
+                             (vec (flatten
+                                    (map #(take matrix-row-column-count %)
+                                         (take matrix-row-column-count matrix-4x4-array)))))
+        num-floats (if (nil? matrix-row-column-count)
+                     vector-component-count
+                     (* matrix-row-column-count matrix-row-column-count))
+        byte-array (byte-array (* 4 num-floats))
+        byte-buffer (vtx/wrap-buf byte-array)]
+    (vtx/buf-push! byte-buffer :float false flat-vector-values)
+    byte-array))
+
 (defn put-attributes! [^VertexBuffer vbuf renderable-datas]
   (let [vertex-description (.vertex-description vbuf)
         vertex-byte-stride (:size vertex-description)
@@ -715,11 +735,11 @@
 
                 :semantic-type-world-matrix
                 (and (zero? channel)
-                     (some? (:world-matrix-bytes renderable-data)))
+                     (some? (:has-semantic-type-world-matrix renderable-data)))
 
                 :semantic-type-normal-matrix
                 (and (zero? channel)
-                     (some? (:normal-matrix-bytes renderable-data)))
+                     (some? (:has-semantic-type-normal-matrix renderable-data)))
 
                 false))))]
 
@@ -803,7 +823,7 @@
                     (put-renderables! attribute-byte-offset
                                       (fn [renderable-data]
                                         (let [vertex-count (count (:position-data renderable-data))
-                                              matrix-bytes (:world-matrix-bytes renderable-data)]
+                                              matrix-bytes (matrix4+attribute->bytes (:world-transform renderable-data) attribute)]
                                           (repeat vertex-count matrix-bytes)))
                                       put-attribute-bytes!)
 
@@ -811,7 +831,7 @@
                     (put-renderables! attribute-byte-offset
                                       (fn [renderable-data]
                                         (let [vertex-count (count (:position-data renderable-data))
-                                              matrix-bytes (:normal-matrix-bytes renderable-data)]
+                                              matrix-bytes (matrix4+attribute->bytes (:normal-transform renderable-data) attribute)]
                                           (repeat vertex-count matrix-bytes)))
                                       put-attribute-bytes!))
 

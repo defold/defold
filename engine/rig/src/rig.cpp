@@ -937,6 +937,53 @@ namespace dmRig
         return out_buffer;
     }
 
+    static inline void WriteMatrix(uint8_t* write_ptr, const Matrix4* matrix, uint32_t element_count, uint32_t data_size)
+    {
+        float buffer[16] = {};
+
+        // If the matrix is 4x4, we can use the matrix values directly
+        if (element_count == 16)
+        {
+            memcpy(write_ptr, matrix, dmMath::Min((uint32_t) (element_count * sizeof(float)), data_size));
+        }
+        else
+        {
+            // Convert to a 2x2 matrix
+            if (element_count == 4)
+            {
+                buffer[0] = matrix->getElem(0, 0);
+                buffer[1] = matrix->getElem(0, 1);
+                buffer[2] = matrix->getElem(1, 0);
+                buffer[3] = matrix->getElem(1, 1);
+            }
+            // Convert to a 3x3 matrix
+            else if (element_count == 9)
+            {
+                buffer[0] = matrix->getElem(0, 0);
+                buffer[1] = matrix->getElem(0, 1);
+                buffer[2] = matrix->getElem(0, 2);
+
+                buffer[3] = matrix->getElem(1, 0);
+                buffer[4] = matrix->getElem(1, 1);
+                buffer[5] = matrix->getElem(1, 2);
+
+                buffer[6] = matrix->getElem(2, 0);
+                buffer[7] = matrix->getElem(2, 1);
+                buffer[8] = matrix->getElem(2, 2);
+            }
+            // Copy first column if it's scalar, vec2, vec3 or vec4
+            else
+            {
+                for (uint32_t i = 0; i < element_count; ++i)
+                {
+                    buffer[i] = matrix->getElem(0, i);
+                }
+            }
+
+            memcpy(write_ptr, buffer, dmMath::Min((uint32_t) (element_count * sizeof(float)), data_size));
+        }
+    }
+
     uint8_t* WriteSingleVertexDataByAttributes(uint8_t* write_ptr, const WriteVertexAttributeParams& params)
     {
         uint32_t num_texcoords = 0;
@@ -989,11 +1036,11 @@ namespace dmRig
                 } break;
                 case dmGraphics::VertexAttribute::SEMANTIC_TYPE_WORLD_MATRIX:
                 {
-                    memcpy(write_ptr, params.m_WorldTransform, dmMath::Min(sizeof(dmVMath::Matrix4), data_size));
+                    WriteMatrix(write_ptr, params.m_WorldTransform, info.m_ElementCount, data_size);
                 } break;
                 case dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL_MATRIX:
                 {
-                    memcpy(write_ptr, params.m_NormalTransform, dmMath::Min(sizeof(dmVMath::Matrix4), data_size));
+                    WriteMatrix(write_ptr, params.m_NormalTransform, info.m_ElementCount, data_size);
                 } break;
                 default:
                 {
