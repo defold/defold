@@ -484,7 +484,7 @@
     true))
 
 (defn contains-semantic-type? [attributes semantic-type]
-  (some #(= semantic-type (:semantic-type %)) attributes))
+  (true? (some #(= semantic-type (:semantic-type %)) attributes)))
 
 (defn- attribute-property-type [attribute]
   (case (:semantic-type attribute)
@@ -581,7 +581,7 @@
             :let [values (:values vertex-override-info)
                   vector-type (if (number? values)
                                 :vector-type-scalar
-                                (vtx/element-count+semantic-type->vector-type (count values) nil))
+                                (vtx/element-count+semantic-type->vector-type (count values) :semantic-type-none))
                   assumed-attribute-info {:vector-type vector-type
                                           :name-key name-key
                                           :semantic-type :semantic-type-none}
