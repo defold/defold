@@ -1379,7 +1379,7 @@ bail:
         context->m_CurrentFrameInFlight = (context->m_CurrentFrameInFlight + 1) % context->m_NumFramesInFlight;
         context->m_FrameBegun           = 0;
 
-#if defined(ANDROID) || defined(DM_PLATFORM_IOS)
+#if defined(ANDROID) || defined(DM_PLATFORM_IOS) || defined(DM_PLATFORM_VENDOR)
         dmPlatform::SwapBuffers(((VulkanContext*) context)->m_Window);
 #endif
     }
