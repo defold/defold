@@ -23,11 +23,9 @@ goto :END
 set TMP_TARGET=tmp_%PLATFORM%
 
 set URL=https://github.com/LuaJIT/LuaJIT/archive/
-set SHA1=04dca7911ea255f37be799c18d74c305b921c1a6
-set SHA1_SHORT=04dca79
-set VERSION=2.1.0-%SHA1_SHORT%
-set PRODUCT=luajit
-set TARGET_FILE=%PRODUCT%-%VERSION%
+
+call version.bat
+
 set PATCH_FILE=patch_%VERSION%
 
 set ZIPFILENAME=%SHA1%.zip

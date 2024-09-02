@@ -47,8 +47,12 @@ try:
     import build_vendor
     sys.modules['build_private'] = build_vendor
     print("Imported %s from %s" % ('build_private', build_vendor.__file__))
-except ModuleNotFoundError:
-    pass
+except ModuleNotFoundError as e:
+    if "No module named 'build_vendor'" in str(e):
+        print("Couldn't find build_vendor.py. Skipping.")
+        pass
+    else:
+        raise e
 except Exception as e:
     print("Failed to import build_vendor.py:")
     raise e
@@ -1436,11 +1440,16 @@ class Configuration(object):
             platforms = build_private.get_target_platforms()
         else:
             platforms = get_target_platforms()
-            # Since we usually want to use the scripts in this package on a linux machine, we'll unpack
-            # it last, in order to preserve unix line endings in the files
-            if 'x86_64-linux' in platforms:
-                platforms.remove('x86_64-linux')
-                platforms.append('x86_64-linux')
+
+        # For the linux build tools (protoc, dlib_shared etc)
+        if 'x86_64-linux' not in platforms:
+            platforms.append('x86_64-linux')
+
+        # Since we usually want to use the scripts in this package on a linux machine, we'll unpack
+        # it last, in order to preserve unix line endings in the files
+        if 'x86_64-linux' in platforms:
+            platforms.remove('x86_64-linux')
+            platforms.append('x86_64-linux')
 
         for platform in platforms:
             prefix = os.path.join(base_prefix, 'engine', platform, 'defoldsdk.zip')

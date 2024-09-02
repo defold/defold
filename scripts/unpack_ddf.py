@@ -23,6 +23,13 @@
 
 import os, sys
 
+try:
+    from google.protobuf import text_format
+except:
+    dynamo_home = os.environ.get('DYNAMO_HOME')
+    sys.path.append(os.path.join(dynamo_home, "lib", "python"))
+    sys.path.append(os.path.join(dynamo_home, "ext", "lib", "python"))
+
 from google.protobuf import text_format
 import google.protobuf.message
 
