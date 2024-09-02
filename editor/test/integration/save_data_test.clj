@@ -677,14 +677,16 @@
                (g/node-value legacy-textures-material :samplers))))
       (let [legacy-element-count-material (project/get-resource-node project "/silently_migrated/legacy_vertex_attribute_element_count.material")
             legacy-attributes (g/node-value legacy-element-count-material :attributes)
-            filter-attribute-by-name (fn [attributes name]
-                                       (first (filterv #(= name (:name %)) attributes)))]
-        (is (= :vector-type-scalar (:vector-type (filter-attribute-by-name legacy-attributes "legacy_count_1"))))
-        (is (= :vector-type-vec2 (:vector-type (filter-attribute-by-name legacy-attributes "legacy_count_2"))))
-        (is (= :vector-type-vec3 (:vector-type (filter-attribute-by-name legacy-attributes "legacy_count_3"))))
-        (is (= :vector-type-vec4 (:vector-type (filter-attribute-by-name legacy-attributes "legacy_count_4"))))
-        (is (= :vector-type-mat3 (:vector-type (filter-attribute-by-name legacy-attributes "legacy_count_9"))))
-        (is (= :vector-type-mat4 (:vector-type (filter-attribute-by-name legacy-attributes "legacy_count_16"))))))
+            vector-types-by-attribute-name (into (sorted-map)
+                                                 (map (juxt :name :vector-type))
+                                                 legacy-attributes)]
+        (is (= {"legacy_count_1" :vector-type-scalar
+                "legacy_count_2" :vector-type-vec2
+                "legacy_count_3" :vector-type-vec3
+                "legacy_count_4" :vector-type-vec4
+                "legacy_count_9" :vector-type-mat3
+                "legacy_count_16" :vector-type-mat4}
+               vector-types-by-attribute-name))))
 
     (testing "render"
       (let [legacy-render-prototype (project/get-resource-node project "/silently_migrated/legacy_render_prototype.render")]
