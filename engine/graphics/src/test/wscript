@@ -31,10 +31,17 @@ def build(bld):
             graphics_libs += ['GRAPHICS_VULKAN']
             platform_lib = ['PLATFORM_VULKAN']
 
-        bld.program(features = 'cxx cprogram test skip_test',
-                    includes = ['../../src', '../../proto'],
-                    exported_symbols = ['GraphicsAdapterOpenGL'] + extra_symbols,
-                    source = 'test_app_graphics.cpp',
-                    use = 'TESTMAIN APP DDF DLIB PROFILE_NULL'.split() + graphics_libs + platform_lib + glfw_lib + extra_libs,
-                    web_libs = ['library_sys.js', glfw_js],
-                    target = 'test_app_graphics')
+        if platform_supports_feature(bld.env.PLATFORM, 'opengl', {}):
+            extra_symbols += ['GraphicsAdapterOpenGL']
+
+        if bld.env.PLATFORM in ('arm64-nx64'):
+            glfw_lib = []
+
+        if len(extra_symbols) > 0:
+            bld.program(features = 'cxx cprogram test skip_test',
+                        includes = ['../../src', '../../proto'],
+                        exported_symbols = extra_symbols,
+                        source = 'test_app_graphics.cpp',
+                        use = 'TESTMAIN APP DDF DLIB PROFILE_NULL'.split() + graphics_libs + platform_lib + glfw_lib + extra_libs,
+                        web_libs = ['library_sys.js', glfw_js],
+                        target = 'test_app_graphics')
