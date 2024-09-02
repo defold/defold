@@ -225,18 +225,16 @@
    :vec3 3
    :vec4 4})
 
-(defn element-count+semantic-type->vector-type [element-count semantic-type]
-  (let [vector-type-is-matrix (or (= semantic-type :semantic-type-world-matrix)
-                                  (= semantic-type :semantic-type-normal-matrix))]
-    (case (int element-count)
-      1 :vector-type-scalar
-      2 :vector-type-vec2
-      3 :vector-type-vec3
-      4 (if vector-type-is-matrix
-          :vector-type-mat2
-          :vector-type-vec4)
-      9 :vector-type-mat3
-      16 :vector-type-mat4)))
+(defn element-count+semantic-type->vector-type [^long element-count semantic-type]
+  (case element-count
+    1 :vector-type-scalar
+    2 :vector-type-vec2
+    3 :vector-type-vec3
+    4 (case semantic-type
+        (:semantic-type-world-matrix :semantic-type-normal-matrix) :vector-type-mat2
+        :vector-type-vec4)
+    9 :vector-type-mat3
+    16 :vector-type-mat4))
 
 (defn- parse-attribute-definition
   [form]
@@ -336,6 +334,7 @@
 ;; This is needed because to bind a matrix as attribute in OpenGL, we need
 ;; to bind each column of the vector type individually.
 (defn- expand-vertex-attributes+locs [vertex-attributes vertex-attribute-locs]
+  {:pre [(= (count vertex-attributes) (count vertex-attribute-locs))]}
   (let [vertex-attributes+locs (map vector vertex-attributes vertex-attribute-locs)
         expanded-vertex-attributes (mapcat (fn [[attribute _]]
                                              (let [[row-column-count is-matrix-type] (vertex-attribute->row-column-count+is-matrix-type attribute)]

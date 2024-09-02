@@ -321,9 +321,9 @@
                 :type-unsigned-int num/normalized->uint-double))]
         (update new-attribute :values #(into (empty %) (map coerce-fn) %)))
 
-      ;; If the shader type changes, resize the default value in the material.
+      ;; If the vector type changes, resize the default value in the material.
       ;; This change will also cause attribute overrides stored elsewhere in the
-      ;; project to be saved with the updated shader type.
+      ;; project to be saved with the updated vector type.
       (not= old-vector-type new-vector-type)
       (let [semantic-type (:semantic-type new-attribute)]
         (update new-attribute :values #(graphics/resize-doubles % semantic-type new-vector-type)))
@@ -336,7 +336,7 @@
   (case property
     :attributes
     ;; When setting the attributes, coerce the existing values to conform to the
-    ;; updated data and shader type. The attributes cannot be reordered
+    ;; updated data and vector type. The attributes cannot be reordered
     ;; using the form view, so we can assume any existing attribute will be at
     ;; the same index as the updated attribute.
     (let [old-attributes (:attributes user-data)]

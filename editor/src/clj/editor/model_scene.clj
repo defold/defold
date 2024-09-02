@@ -229,7 +229,7 @@
                                     world-transform)
         attribute-normal-transform (when (or (contains? world-space-semantic-types :semantic-type-normal)
                                              has-semantic-type-normal-matrix)
-                                     normal-transform)
+                                     (:normal render-transforms))
         request-id (if (or attribute-world-transform attribute-normal-transform)
                      [request-prefix node-id mesh-renderable-data vertex-attribute-bytes vertex-description] ; World-space attributes present. The request needs to be unique for this node-id.
                      [request-prefix mesh-renderable-data vertex-attribute-bytes vertex-description]) ; No world-space attributes present. We can share the GPU objects between instances of this mesh.
