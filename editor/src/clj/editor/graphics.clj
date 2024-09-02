@@ -317,11 +317,11 @@
 ;; which happens for default values. This is only used for sanitation,
 ;; so we shouldn't return the default value here.
 (defn- attribute-info->vector-type [{:keys [element-count semantic-type vector-type] :as attribute-info}]
-  (let [valid-vector-type? (some? vector-type)
-        valid-element-count? (pos-int? element-count)]
+  (let [is-valid-vector-type (some? vector-type)
+        is-valid-element-count (pos-int? element-count)]
     (cond
-      valid-vector-type? vector-type
-      valid-element-count? (vtx/element-count+semantic-type->vector-type element-count semantic-type))))
+      is-valid-vector-type vector-type
+      is-valid-element-count (vtx/element-count+semantic-type->vector-type element-count semantic-type))))
 
 ;; TODO(save-value-cleanup): We only really need to sanitize the attributes if a resource type has :read-defaults true.
 (defn sanitize-attribute-value-v [attribute-value]
@@ -343,10 +343,8 @@
     (-> (if (and (some? attribute-vector-type) (not (= attribute-vector-type :vector-type-vec4)))
           (assoc attribute :vector-type attribute-vector-type)
           attribute)
-        (dissoc :name-hash :double-values :long-values :binary-values)
-        (assoc attribute-value-keyword {:v attribute-values})
-        ;; element-count is deprecated in favor of vector-type
-        (dissoc :element-count))))
+        (dissoc :name-hash :element-count :double-values :long-values :binary-values)
+        (assoc attribute-value-keyword {:v attribute-values}))))
 
 (defn sanitize-attribute-override [attribute]
   ;; Graphics$VertexAttribute in map format.
