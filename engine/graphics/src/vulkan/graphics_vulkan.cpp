@@ -1616,6 +1616,25 @@ bail:
         return cached_pipeline;
     }
 
+    static void SetDeviceBuffer(VulkanContext* context, DeviceBuffer* buffer, uint32_t size, const void* data)
+    {
+        if (size == 0)
+        {
+            return;
+        }
+
+        // Coherent memory writes does not seem to be properly synced on MoltenVK,
+        // so for now we always mark the old buffer for destruction when updating the data.
+    #ifndef __MACH__
+        if (size != buffer->m_MemorySize)
+    #endif
+        {
+            DestroyResourceDeferred(g_VulkanContext->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], buffer);
+        }
+
+        DeviceBufferUploadHelper(g_VulkanContext, data, size, 0, buffer);
+    }
+
     static HVertexBuffer VulkanNewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         VkBufferUsageFlags usage_flags = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
@@ -1651,20 +1670,7 @@ bail:
     static void VulkanSetVertexBufferData(HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         DM_PROFILE(__FUNCTION__);
-
-        if (size == 0)
-        {
-            return;
-        }
-
-        DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
-
-        if (size != buffer_ptr->m_MemorySize)
-        {
-            DestroyResourceDeferred(g_VulkanContext->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], buffer_ptr);
-        }
-
-        DeviceBufferUploadHelper(g_VulkanContext, data, size, 0, buffer_ptr);
+        SetDeviceBuffer(g_VulkanContext, (DeviceBuffer*) buffer, size, data);
     }
 
     static void VulkanSetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
@@ -1721,22 +1727,7 @@ bail:
     static void VulkanSetIndexBufferData(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         DM_PROFILE(__FUNCTION__);
-
-        if (size == 0)
-        {
-            return;
-        }
-
-        assert(buffer);
-
-        DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
-
-        if (size != buffer_ptr->m_MemorySize)
-        {
-            DestroyResourceDeferred(g_VulkanContext->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], buffer_ptr);
-        }
-
-        DeviceBufferUploadHelper(g_VulkanContext, data, size, 0, buffer_ptr);
+        SetDeviceBuffer(g_VulkanContext, (DeviceBuffer*) buffer, size, data);
     }
 
     static void VulkanSetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
