@@ -1380,7 +1380,7 @@ bail:
         context->m_FrameBegun           = 0;
 
 #if defined(ANDROID) || defined(DM_PLATFORM_IOS) || defined(DM_PLATFORM_VENDOR)
-        dmPlatform::SwapBuffers(((VulkanContext*) context)->m_Window);
+        dmPlatform::SwapBuffers(context->m_Window);
 #endif
     }
 
