@@ -203,7 +203,7 @@ public class GraphicsUtil {
                     attributeBuilder.setVectorType(VertexAttribute.VectorType.VECTOR_TYPE_MAT3);
                     break;
                 case 16:
-                    attributeBuilder.setVectorType(VertexAttribute.VectorType.VECTOR_TYPE_MAT3);
+                    attributeBuilder.setVectorType(VertexAttribute.VectorType.VECTOR_TYPE_MAT4);
                     break;
                 default:break;
             }
