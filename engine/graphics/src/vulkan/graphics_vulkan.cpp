@@ -1379,7 +1379,9 @@ bail:
         context->m_CurrentFrameInFlight = (context->m_CurrentFrameInFlight + 1) % context->m_NumFramesInFlight;
         context->m_FrameBegun           = 0;
 
-        dmPlatform::SwapBuffers(context->m_Window);
+#if defined(ANDROID) || defined(DM_PLATFORM_IOS)
+        dmPlatform::SwapBuffers(((VulkanContext*) context)->m_Window);
+#endif
     }
 
     static void VulkanClear(HContext _context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
