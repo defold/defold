@@ -19,6 +19,8 @@
             [clojure.spec.alpha :as s]
             [clojure.string :as string]
             [editor.code-completion :as code-completion]
+            [editor.editor-extensions.ui-components :as ui-components]
+            [editor.lua-completion :as lua-completion]
             [editor.protobuf :as protobuf]
             [editor.system :as system]
             [internal.util :as util]
@@ -42,62 +44,6 @@
 
 (defn- load-sdoc [doc-name]
   (:elements (protobuf/read-map-with-defaults ScriptDoc$Document (io/resource (sdoc-path doc-name)))))
-
-(defn- make-args-doc-html [args]
-  (str "<dl>"
-       (->> args
-            (map
-              (fn [{:keys [name doc types]}]
-                (format "<dt><code>%s%s</code></dt>%s"
-                        name
-                        (if (pos? (count types))
-                          (format " <small>%s</small>" (string/join ", " types))
-                          "")
-                        (if doc
-                          (format "<dd>%s</dd>" doc)
-                          ""))))
-            string/join)
-       "</dl>"))
-
-(defn- make-markdown-doc [{:keys [description type examples parameters] :as el} ^URI base-url site-url]
-  (let [sections (cond-> []
-                         (pos? (count description))
-                         (conj description)
-
-                         (= :function type)
-                         (into (let [{:keys [returnvalues]} el]
-                                 (cond-> []
-                                         (pos? (count parameters))
-                                         (conj (str
-                                                 "**Parameters:**\n\n"
-                                                 (make-args-doc-html parameters)))
-                                         (pos? (count returnvalues))
-                                         (conj (str "**Returns:**\n\n"
-                                                    (make-args-doc-html returnvalues))))))
-
-                         (pos? (count examples))
-                         (conj (str "**Examples:**\n\n" examples))
-
-                         site-url
-                         (conj (format "[Open in Browser](%s)" site-url)))]
-    (cond-> {:type :markdown
-             :value (string/join "\n\n" sections)}
-            base-url
-            (assoc :base-url base-url))))
-
-(defn- make-display-string [{:keys [name type parameters]}]
-  (str name (when (= :function type)
-              (str "(" (string/join ", " (mapv :name parameters)) ")"))))
-
-(defn- make-snippet [{:keys [name type parameters]}]
-  (str name (when (= :function type)
-              (str "("
-                   (->> parameters
-                        (keep-indexed (fn [i {:keys [name]}]
-                                        (when-not (string/starts-with? name "[")
-                                          (format "${%s:%s}" (inc i) name))))
-                        (string/join ", "))
-                   ")"))))
 
 (defn make-completion-map
   "Make a completion map from reducible of ns path + completion tuples
@@ -139,32 +85,6 @@
 (s/def ::documentation
   (s/map-of string? (s/coll-of ::code-completion/completion)))
 
-(defn- make-completion
-  "Make a lua-specific code completion
-
-  Args:
-    el    documentation map with following keys:
-            :name            string, required, element name
-            :type            keyword
-            :parameters      for :function type, optional vector of parameter
-                             maps with following keys:
-                               :name     string, required
-                               :doc      optional html string
-                               :types    coll of strings, i.e. union
-            :returnvalues    for :function type, same as :parameters
-            :description     string, optional, markdown
-            :examples        string, optional, markdown
-
-  Optional kv-args:
-    :base-url    URI for resolving relative links in the docs and examples
-    :url         string, may be relative to :base-url if it was provided"
-  [el & {:keys [base-url url]}]
-  (code-completion/make (:name el)
-                        :type (:type el)
-                        :display-string (make-display-string el)
-                        :insert (make-snippet el)
-                        :doc (make-markdown-doc el base-url url)))
-
 (defn- defold-documentation []
   {:post [(s/assert ::documentation %)]}
   (make-completion-map
@@ -186,7 +106,7 @@
                                      (when (= :function type)
                                        (str ":" (string/join "-" (mapv :name parameters)))))
                                    #"[\"#*]" ""))]
-               [ns-path (make-completion el :base-url base-url :url site-url)])))
+               [ns-path (lua-completion/make el :base-url base-url :url site-url)])))
       docs)))
 
 (def logic-keywords #{"and" "or" "not"})
@@ -319,59 +239,78 @@
                         :types ["string"]
                         :doc "Either <code>\"path\"</code>, <code>\"text\"</code>, or a property from the Outline view (hover the label to see its editor script name)"}]
     (make-completion-map
-      [[[] (make-completion
-             {:name "editor"
-              :type :module
-              :description "The editor module, only available when the Lua code is run as [editor script](https://defold.com/manuals/editor-scripts/)."})]
-       [["editor"] (make-completion
-                     {:name "get"
-                      :type :function
-                      :parameters [node-param property-param]
-                      :returnvalues [{:name "value"
-                                      :types ["any"]}]
-                      :description "Get a value of a node inside the editor. Some properties might be read-only, and some might be unavailable in different contexts, so you should use `editor.can_get()` before reading them and `editor.can_set()` before making the editor set them."})]
-       [["editor"] (make-completion
-                     {:name "can_get"
-                      :type :function
-                      :parameters [node-param property-param]
-                      :returnvalues [{:name "value"
-                                      :types ["boolean"]}]
-                      :description "Check if you can get this property so `editor.get()` won't throw an error"})]
-       [["editor"] (make-completion
-                     {:name "can_set"
-                      :type :function
-                      :parameters [node-param property-param]
-                      :returnvalues [{:name "value"
-                                      :types ["boolean"]}]
-                      :description "Check if `\"set\"` action with this property won't throw an error"})]
-       [["editor"] (make-completion
-                     {:name "create_directory"
-                      :type :function
-                      :parameters [{:name "resource_path"
-                                    :types ["string"]
-                                    :doc "Resource path (starting with <code>/</code>) of a directory to create"}]
-                      :description "Create a directory if it does not exist, and all non-existent parent directories. Throws an error if the directory can't be created."
-                      :examples "```\neditor.create_directory(\"/assets/gen\")\n```"})]
-       [["editor"] (make-completion
-                     {:name "delete_directory"
-                      :type :function
-                      :parameters [{:name "resource_path"
-                                    :types ["string"]
-                                    :doc "Resource path (starting with <code>/</code>) of a directory to delete"}]
-                      :description "Delete a directory if it exists, and all existent child directories and files. Throws an error if the directory can't be deleted."
-                      :examples "```\neditor.delete_directory(\"/assets/gen\")\n```"})]
-       [["editor"] (make-completion
-                     {:name "execute"
-                      :type :function
-                      :parameters [{:name "command"
-                                    :types ["string"]
-                                    :doc "Shell command name to execute"}
-                                   {:name "[...]"
-                                    :types ["string"]
-                                    :doc "Optional shell command arguments"}
-                                   {:name "[options]"
-                                    :types ["table"]
-                                    :doc "Optional options table. Supported entries:
+      (-> [[[] (lua-completion/make
+                 {:name "editor"
+                  :type :module
+                  :description "The editor module, only available when the Lua code is run as [editor script](https://defold.com/manuals/editor-scripts/)."})]
+           [["editor"] (lua-completion/make
+                         {:name "get"
+                          :type :function
+                          :parameters [node-param property-param]
+                          :returnvalues [{:name "value"
+                                          :types ["any"]}]
+                          :description "Get a value of a node inside the editor. Some properties might be read-only, and some might be unavailable in different contexts, so you should use `editor.can_get()` before reading them and `editor.can_set()` before making the editor set them."})]
+           [["editor"] (lua-completion/make
+                         {:name "can_get"
+                          :type :function
+                          :parameters [node-param property-param]
+                          :returnvalues [{:name "value"
+                                          :types ["boolean"]}]
+                          :description "Check if you can get this property so `editor.get()` won't throw an error"})]
+           [["editor"] (lua-completion/make
+                         {:name "can_set"
+                          :type :function
+                          :parameters [node-param property-param]
+                          :returnvalues [{:name "value"
+                                          :types ["boolean"]}]
+                          :description "Check if `\"set\"` action with this property won't throw an error"})]
+           [["editor"] (lua-completion/make
+                         {:name "create_directory"
+                          :type :function
+                          :parameters [{:name "resource_path"
+                                        :types ["string"]
+                                        :doc "Resource path (starting with <code>/</code>) of a directory to create"}]
+                          :description "Create a directory if it does not exist, and all non-existent parent directories. Throws an error if the directory can't be created."
+                          :examples "```\neditor.create_directory(\"/assets/gen\")\n```"})]
+           [["editor"] (lua-completion/make
+                         {:name "delete_directory"
+                          :type :function
+                          :parameters [{:name "resource_path"
+                                        :types ["string"]
+                                        :doc "Resource path (starting with <code>/</code>) of a directory to delete"}]
+                          :description "Delete a directory if it exists, and all existent child directories and files. Throws an error if the directory can't be deleted."
+                          :examples "```\neditor.delete_directory(\"/assets/gen\")\n```"})]
+           [["editor"] (lua-completion/make
+                         {:name "external_file_attributes"
+                          :type :function
+                          :description "Query information about file system path"
+                          :parameters [{:name "path"
+                                        :types ["string"]
+                                        :doc "External file path, resolved against project root if relative"}]
+                          :returnvalues [{:name "attributes"
+                                          :types ["table"]
+                                          :doc "A table with following keys:<dl>
+                                                 <dt><code>path <small>string</small></code></dt>
+                                                 <dd>resolved file path</dd>
+                                                 <dt><code>exists <small>boolean</small></code></dt>
+                                                 <dd>whether there is a file system entry at the path</dd>
+                                                 <dt><code>is_file <small>boolean</small></code></dt>
+                                                 <dd>whether the path corresponds to a file</dd>
+                                                 <dt><code>is_directory <small>boolean</small></code></dt>
+                                                 <dd>whether the path corresponds to a directory</dd>
+                                               </dl>"}]})]
+           [["editor"] (lua-completion/make
+                         {:name "execute"
+                          :type :function
+                          :parameters [{:name "command"
+                                        :types ["string"]
+                                        :doc "Shell command name to execute"}
+                                       {:name "[...]"
+                                        :types ["string"]
+                                        :doc "Optional shell command arguments"}
+                                       {:name "[options]"
+                                        :types ["table"]
+                                        :doc "Optional options table. Supported entries:
                                            <ul>
                                              <li>
                                                <span class=\"type\">boolean</span> <code>reload_resources</code>: make the editor reload the resources from disk after the command is executed, default <code>true</code>
@@ -405,52 +344,70 @@
                                                </ul>
                                              </li>
                                            </ul>"}]
-                      :returnvalues [{:name "result"
-                                      :types ["nil" "string"]
-                                      :doc "If <code>out</code> option is set to <code>\"capture\"</code>, returns the output as string with trimmed trailing newlines. Otherwise, returns <code>nil</code>."}]
-                      :description "Execute a shell command. Any shell command arguments should be provided as separate argument strings to this function. If the exit code of the process is not zero, this function throws error. By default, the function returns `nil`, but it can be configured to capture the output of the shell command as string and return it — set `out` option to `\"capture\"` to do it.<br>By default, after this shell command is executed, the editor will reload resources from disk."
-                      :examples "Make a directory with spaces in it:\n```\neditor.execute(\"mkdir\", \"new dir\")\n```\nRead the git status:\n```\nlocal status = editor.execute(\"git\", \"status\", \"--porcelain\", {\n  reload_resources = false,\n  out = \"capture\"\n})\n```"})]
-       [["editor"] (make-completion
-                     {:name "platform"
-                      :type :variable
-                      :description "A `string`, either:\n- `\"x86_64-win32\"`\n- `\"x86_64-macos\"`\n- `\"arm64-macos\"`\n- `\"x86_64-linux\"`"})]
-       [["editor"] (make-completion
-                     {:name "save"
-                      :type :function
-                      :parameters []
-                      :description "Persist any unsaved changes to disk"})]
-       [["editor"] (make-completion
-                     {:name "transact"
-                      :type :function
-                      :parameters [{:name "txs"
-                                    :types ["transaction_step[]"]
-                                    :doc "An array of transaction steps created using <code>editor.tx.*</code> functions"}]
-                      :description "Change the editor state in a single, undoable transaction"})]
-       [["editor"] (make-completion
-                     {:name "tx"
-                      :type :module
-                      :description "The editor module that defines function for creating transaction steps for `editor.transact()` function."})]
-       [["editor" "tx"] (make-completion
-                          {:name "set"
-                           :type :function
-                           :parameters [node-param
-                                        property-param
-                                        {:name "value"
-                                         :types ["any"]
-                                         :doc "A new value for the property"}]
-                           :returnvalues [{:name "result"
-                                           :types ["transaction_step"]
-                                           :doc "A transaction step"}]
-                           :description "Create a transaction step that, when transacted using `editor.transact()`, will set the node's property to a supplied value"})]
-       [["editor"] (make-completion
-                     {:name "version"
-                      :type :variable
-                      :description (format "A string, version name of Defold, e.g. `\"%s\"`" (system/defold-version))})]
-       [["editor"] (make-completion
-                     {:name "engine_sha1"
-                      :type :variable
-                      :description "A string, SHA1 of Defold engine"})]
-       [["editor"] (make-completion
-                     {:name "editor_sha1"
-                      :type :variable
-                      :description "A string, SHA1 of Defold editor"})]])))
+                          :returnvalues [{:name "result"
+                                          :types ["nil" "string"]
+                                          :doc "If <code>out</code> option is set to <code>\"capture\"</code>, returns the output as string with trimmed trailing newlines. Otherwise, returns <code>nil</code>."}]
+                          :description "Execute a shell command. Any shell command arguments should be provided as separate argument strings to this function. If the exit code of the process is not zero, this function throws error. By default, the function returns `nil`, but it can be configured to capture the output of the shell command as string and return it — set `out` option to `\"capture\"` to do it.<br>By default, after this shell command is executed, the editor will reload resources from disk."
+                          :examples "Make a directory with spaces in it:\n```\neditor.execute(\"mkdir\", \"new dir\")\n```\nRead the git status:\n```\nlocal status = editor.execute(\"git\", \"status\", \"--porcelain\", {\n  reload_resources = false,\n  out = \"capture\"\n})\n```"})]
+           [["editor"] (lua-completion/make
+                         {:name "platform"
+                          :type :variable
+                          :description "A `string`, either:\n- `\"x86_64-win32\"`\n- `\"x86_64-macos\"`\n- `\"arm64-macos\"`\n- `\"x86_64-linux\"`"})]
+           [["editor"] (lua-completion/make
+                         {:name "save"
+                          :type :function
+                          :parameters []
+                          :description "Persist any unsaved changes to disk"})]
+           [["editor"] (lua-completion/make
+                         {:name "transact"
+                          :type :function
+                          :parameters [{:name "txs"
+                                        :types ["transaction_step[]"]
+                                        :doc "An array of transaction steps created using <code>editor.tx.*</code> functions"}]
+                          :description "Change the editor state in a single, undoable transaction"})]
+           [["editor"] (lua-completion/make
+                         {:name "tx"
+                          :type :module
+                          :description "The editor module that defines function for creating transaction steps for `editor.transact()` function."})]
+           [["editor" "tx"] (lua-completion/make
+                              {:name "set"
+                               :type :function
+                               :parameters [node-param
+                                            property-param
+                                            {:name "value"
+                                             :types ["any"]
+                                             :doc "A new value for the property"}]
+                               :returnvalues [{:name "result"
+                                               :types ["transaction_step"]
+                                               :doc "A transaction step"}]
+                               :description "Create a transaction step that, when transacted using `editor.transact()`, will set the node's property to a supplied value"})]
+           [["editor"] (lua-completion/make
+                         {:name "version"
+                          :type :variable
+                          :description (format "A string, version name of Defold, e.g. `\"%s\"`" (system/defold-version))})]
+           [["editor"] (lua-completion/make
+                         {:name "engine_sha1"
+                          :type :variable
+                          :description "A string, SHA1 of Defold engine"})]
+           [["editor"] (lua-completion/make
+                         {:name "editor_sha1"
+                          :type :variable
+                          :description "A string, SHA1 of Defold editor"})]]
+          (into
+            cat
+            [(eduction
+               (mapcat
+                 (fn [[k vs]]
+                   (eduction
+                     (map (fn [v]
+                            [["editor" "ui"]
+                             (lua-completion/make
+                               {:name (ui-components/enum-const-name k v)
+                                :type :constant
+                                :description (format "`\"%s\"`" (name v))})]))
+                     vs)))
+               ui-components/enums)
+             (eduction
+               (map (fn [completion-map]
+                      [["editor" "ui"] completion-map]))
+               (ui-components/completions))])))))

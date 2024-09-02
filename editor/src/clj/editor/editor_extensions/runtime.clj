@@ -55,7 +55,7 @@
            [java.io File PrintStream Writer]
            [java.nio.charset StandardCharsets]
            [org.apache.commons.io.output WriterOutputStream]
-           [org.luaj.vm2 LoadState LuaError LuaFunction LuaValue OrphanedThread]
+           [org.luaj.vm2 LoadState LuaError LuaFunction LuaTable LuaValue OrphanedThread]
            [org.luaj.vm2.compiler LuaC]
            [org.luaj.vm2.lib Bit32Lib CoroutineLib PackageLib PackageLib$lua_searcher PackageLib$preload_searcher StringLib TableLib]
            [org.luaj.vm2.lib.jse JseMathLib JseOsLib]))
@@ -94,6 +94,16 @@
   "Convert Clojure data structure to Lua data structure"
   ^LuaValue [x]
   (vm/->lua x))
+
+(defn ->varargs
+  "Convert 0 or more Clojure data structures into Lua varargs"
+  ;; all lua values are singleton varargs
+  ([] LuaValue/NIL)
+  ([x] (->lua x))
+  ([x y]
+   (LuaValue/varargsOf (->lua x) (->lua y)))
+  ([x y z & more]
+   (LuaValue/varargsOf (into-array LuaValue (map vm/->lua (cons x (cons y (cons z more))))))))
 
 (defn ->clj
   "Convert Lua data structure to Clojure data structure
@@ -176,7 +186,7 @@
 (defn wrap-immediate-function ^LuaFunction [f]
   (DefoldVarArgFn.
     (fn immediate-function-wrapper [& args]
-      (vm/->lua (apply f (current-execution-context) args)))))
+      (vm/->varargs (apply f (current-execution-context) args)))))
 
 (defmacro lua-fn
   "Defines a regular Lua function
@@ -360,11 +370,21 @@
                       (invoke-suspending-impl execution-context runtime co (vm/wrap-userdata result))))))))
         (future/failed (LuaError. ^String (->clj runtime coerce/string lua-ret)))))))
 
-(defn invoke-suspending
+(defn stdout
+  "Get runtime output stream"
+  ^PrintStream [^EditorExtensionsRuntime rt]
+  (.-STDOUT (vm/env (.-lua-vm rt))))
+
+(defn stderr
+  "Get runtime error stream"
+  ^PrintStream [^EditorExtensionsRuntime rt]
+  (.-STDERR (vm/env (.-lua-vm rt))))
+
+(defn invoke-suspending-1
   "Invoke a potentially long-running LuaFunction
 
-  Returns a CompletableFuture that will be either completed normally with the
-  returned LuaValue or exceptionally.
+  Returns a CompletableFuture that will be either completed normally with
+  the first returned LuaValue or exceptionally.
 
   Runtime will start invoking the LuaFunction on the calling thread, then will
   move the execution to background threads if necessary. This means that
@@ -376,27 +396,89 @@
                            :mode :suspendable}]
     (apply invoke-suspending-impl execution-context runtime co lua-args)))
 
-(defn invoke-immediate
+(defn- invoke-immediate-impl [^EditorExtensionsRuntime runtime vm-invoke-fn lua-fn lua-args evaluation-context]
+  (let [context-provided (some? evaluation-context)
+        evaluation-context (or evaluation-context (g/make-evaluation-context))
+        result (binding [*execution-context* {:evaluation-context evaluation-context
+                                              :rt runtime
+                                              :mode :immediate}]
+                 (apply vm-invoke-fn (.-lua-vm runtime) lua-fn lua-args))]
+    (when-not context-provided
+      (g/update-cache-from-evaluation-context! evaluation-context))
+    result))
+
+(defn invoke-immediate-1
   "Invoke a short-running LuaFunction
 
-  Returns the result LuaValue. No calls to suspending functions are allowed
-  during this invocation.
+  Returns the first returned LuaValue. No calls to suspending functions are
+  allowed during this invocation.
 
   Args:
     runtime                the editor Lua runtime
     lua-fn                 LuaFunction to invoke
-    args*                  0 or more LuaValue arguments
+    lua-args*                  0 or more LuaValue arguments
     evaluation-context?    optional evaluation context for the execution"
-  {:arglists '([runtime lua-fn args* evaluation-context?])}
+  {:arglists '([runtime lua-fn lua-args* evaluation-context?])}
+  [runtime lua-fn & rest-args]
+  (let [last-arg (last rest-args)
+        context-provided (g/evaluation-context? last-arg)
+        evaluation-context (when context-provided last-arg)
+        lua-args (if context-provided (butlast rest-args) rest-args)]
+    (invoke-immediate-impl runtime vm/invoke-1 lua-fn lua-args evaluation-context)))
+
+(defn invoke-immediate
+  "Invoke a short-running LuaFunction
+
+  Returns all returned LuaValues as a Varargs object. No calls to suspending
+  functions are allowed during this invocation.
+
+  Args:
+    runtime                the editor Lua runtime
+    lua-fn                 LuaFunction to invoke
+    lua-args*                  0 or more LuaValue arguments
+    evaluation-context?    optional evaluation context for the execution"
+  {:arglists '([runtime lua-fn lua-args* evaluation-context?])}
   [^EditorExtensionsRuntime runtime lua-fn & rest-args]
   (let [last-arg (last rest-args)
         context-provided (g/evaluation-context? last-arg)
-        evaluation-context (if context-provided last-arg (g/make-evaluation-context))
-        lua-args (if context-provided (butlast rest-args) rest-args)
-        result (binding [*execution-context* {:evaluation-context evaluation-context
-                                              :rt runtime
-                                              :mode :immediate}]
-                 (apply vm/invoke-1 (.-lua-vm runtime) lua-fn lua-args))]
-    (when-not context-provided
-      (g/update-cache-from-evaluation-context! evaluation-context))
-    result))
+        evaluation-context (when context-provided last-arg)
+        lua-args (if context-provided (butlast rest-args) rest-args)]
+    (invoke-immediate-impl runtime vm/invoke lua-fn lua-args evaluation-context)))
+
+(defn eq?
+  "Checks 2 lua values for equality, with metadata processing"
+  [^EditorExtensionsRuntime rt ^LuaValue a ^LuaValue b]
+  {:pre [(instance? LuaValue a) (instance? LuaValue b)]}
+  (vm/with-lock (.-lua-vm rt)
+    (.eq_b a b)))
+
+(defn tables-shallow-eq?
+  "Checks if 2 lua tables are shallow equal (i.e. have the same keys and values)"
+  [^EditorExtensionsRuntime rt ^LuaTable a ^LuaTable b]
+  {:pre [(instance? LuaTable a) (instance? LuaTable b)]}
+  (if (identical? a b)
+    true
+    (vm/with-lock (.-lua-vm rt)
+      (let [a-entry-count
+            (loop [entry-count 0
+                   prev-key LuaValue/NIL]
+              (let [varargs (.next a prev-key)
+                    lua-k (.arg1 varargs)]
+                (if (.isnil lua-k)
+                  entry-count
+                  (let [lua-v (.arg varargs 2)]
+                    (if (.eq_b (.get b lua-k) lua-v)
+                      (recur (inc entry-count) lua-k)
+                      -1)))))]
+        (if (neg? a-entry-count)
+          false
+          (zero?
+            (loop [count-diff a-entry-count
+                   prev-key LuaValue/NIL]
+              (let [lua-k (.arg1 (.next b prev-key))]
+                (if (.isnil lua-k)
+                  count-diff
+                  (let [next-count-diff (dec count-diff)]
+                    (if (neg? next-count-diff)
+                      next-count-diff
+                      (recur next-count-diff lua-k))))))))))))

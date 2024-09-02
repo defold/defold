@@ -31,7 +31,7 @@
             [util.profiler :as profiler])
   (:import [com.defold.control ListCell]
            [com.defold.control LongField]
-           [com.defold.control TreeCell]
+           [com.defold.control DefoldStringConverter TreeCell]
            [com.sun.javafx.application PlatformImpl]
            [com.sun.javafx.event DirectEvent]
            [java.awt Desktop Desktop$Action]
@@ -55,7 +55,7 @@
            [javafx.scene.layout AnchorPane HBox Pane]
            [javafx.scene.shape SVGPath]
            [javafx.stage Modality PopupWindow Stage StageStyle Window]
-           [javafx.util Callback Duration StringConverter]))
+           [javafx.util Callback Duration]))
 
 (set! *warn-on-reflection* true)
 
@@ -1803,9 +1803,7 @@
                                                  (let [hbox (doto (HBox.)
                                                               (add-style! "cell"))
                                                        cb (doto (ChoiceBox.)
-                                                            (.setConverter (proxy [StringConverter] []
-                                                                             (fromString [str] (some #{str} (map :label opts)))
-                                                                             (toString [v] (:label v)))))]
+                                                            (.setConverter (DefoldStringConverter. :label #(some #{%} (map :label opts)))))]
                                                    (.setAll (.getItems cb) ^Collection opts)
                                                    (observe (.valueProperty cb) (fn [this old new]
                                                                                   (when new

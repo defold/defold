@@ -18,9 +18,9 @@
   (:require [clojure.string :as string]
             [editor.editor-extensions.vm :as vm]
             [editor.util :as util]
-            [util.coll :as coll])
-  (:import [clojure.lang ITransientCollection]
-           [org.luaj.vm2 LuaDouble LuaError LuaInteger LuaString LuaValue Varargs]))
+            [util.coll :as coll]
+            [util.fn :as fn])
+  (:import [org.luaj.vm2 LuaDouble LuaError LuaInteger LuaString LuaValue]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -50,29 +50,42 @@
       (throw (LuaError. (failure-message vm ret)))
       ret)))
 
+(def enum-lua-value-cache
+  "A memoized function that converts a Clojure value to Lua value"
+  (fn/memoize vm/->lua))
+
 (defn enum
   "Coercer that deserializes a LuaValue into one of the provided constants
 
   Works with keywords too."
   [& values]
-  (let [m (coll/pair-map-by vm/->lua values)]
+  (let [m (coll/pair-map-by enum-lua-value-cache values)
+        ks (mapv enum-lua-value-cache values)]
     (fn coerce-enum [vm x]
       (let [v (m x ::not-found)]
         (if (identical? ::not-found v)
-          (failure x (str "is not " (->> m
-                                         keys
+          (failure x (str "is not " (->> ks
                                          (mapv #(vm/lua-value->string vm %))
-                                         (sort)
                                          (util/join-words ", " " or "))))
           v)))))
 
 (def string
-  "Coercer the deserializes a Lua string into a string"
+  "Coercer that deserializes a Lua string into a string"
   (fn coerce-string
     [_ x]
     (if (instance? LuaString x)
       (str x)
       (failure x "is not a string"))))
+
+(def to-string
+  "Coercer that deserializes any Lua value to string"
+  (fn coerce-to-string [_ x]
+    ;; This coercer is equivalent to a simple toString call because default
+    ;; toString implementation in LuaJ is thread-safe. It's useful to have such
+    ;; a coercer still: any code that does Lua->Clojure transformation can use
+    ;; this namespace without concern if some functions are thread-safe and some
+    ;; are not
+    (str x)))
 
 (def integer
   "Coercer that deserializes a Lua integer into long"
@@ -154,6 +167,11 @@
     (if (.isfunction x)
       x
       (failure x "is not a function"))))
+
+(def to-nothing
+  "Coercer that always returns nil, for use with e.g. one-of"
+  (fn coerce-to-nothing [_ _]
+    nil))
 
 (defn wrap-with-pred
   "Wrap a coercer with an additional predicate that checks the coerced value"

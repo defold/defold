@@ -54,7 +54,7 @@
 
 (set! *warn-on-reflection* true)
 
-(defn- dialog-stage
+(defn dialog-stage
   "Dialog `:stage` that manages scene graph itself and provides layout common
   for many dialogs.
 
@@ -111,7 +111,7 @@
      :text header}
     header))
 
-(defn- dialog-buttons [props]
+(defn dialog-buttons [props]
   (-> props
       (assoc :fx/type fx.h-box/lifecycle)
       (fxui/provide-defaults :alignment :center-right)

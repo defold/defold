@@ -1,0 +1,110 @@
+$ext-spacing-small: 4px;
+$ext-spacing-medium: 8px;
+$ext-spacing-large: 16px;
+$ext-line-height: 1.42em; // approximation, discovered through experimentation
+
+.ext {
+    &-spacing {
+        &-small       { -fx-spacing: $ext-spacing-small; }
+        &-medium      { -fx-spacing: $ext-spacing-medium; }
+        &-large       { -fx-spacing: $ext-spacing-large; }
+    }
+    &-grid-spacing {
+        &-small       { -fx-hgap: $ext-spacing-small; -fx-vgap: $ext-spacing-small; }
+        &-medium      { -fx-hgap: $ext-spacing-medium; -fx-vgap: $ext-spacing-medium; }
+        &-large       { -fx-hgap: $ext-spacing-large; -fx-vgap: $ext-spacing-large; }
+    }
+    &-padding {
+        &-small       { -fx-padding: 16px; }
+        &-medium      { -fx-padding: 24px; }
+        &-large       { -fx-padding: 40px; }
+    }
+    &-text-variant {
+        &-default {}
+        &-hint    { -fx-text-fill: -df-text-dark; }
+        &-warning { -fx-text-fill: -df-error-severity-warning; }
+        &-error   { -fx-text-fill: -df-error-severity-fatal; }
+    }
+    &-scroll-pane {
+        > .scroll-bar .thumb {
+            -fx-background-color: -df-component-dark;
+            &:hover {
+                -fx-background-color: -df-component-lighter;
+            }
+        }
+    }
+    &-separator {
+        -fx-min-width: 1px;
+        -fx-min-height: 1px;
+        -fx-background-color: -df-background-light;
+        &:horizontal {
+            -fx-max-height: 1px;
+        }
+        &:vertical {
+            -fx-max-width: 1px;
+        }
+    }
+    &-icon-container {
+        -fx-min-width: $ext-line-height;
+        -fx-min-height: $ext-line-height;
+        -fx-max-width: $ext-line-height;
+        -fx-max-height: $ext-line-height;
+    }
+    &-button {
+        -fx-background-color: -df-component-dark;
+        -fx-background-radius: 2px;
+        -fx-border-radius: 2px;
+        &:hover { -fx-background-color: -df-component-lighter; }
+        &:armed { -fx-background-color: -df-component-light; }
+        &:disabled { -fx-opacity: 0.4; }
+        &-icon {
+            -fx-padding: 4px 4px;
+        }
+        &-text {
+            -fx-padding: 4px 8px;
+            &:hover > .label { -fx-text-fill: -df-text-selected; }
+            &:armed > .label { -fx-text-fill: -df-text-selected; }
+            &:disabled > .label { -fx-opacity: 1.0; }
+        }
+        &-default {
+            -fx-padding: 4px 8px;
+        }
+    }
+    &-check-box {
+        & > .box {
+            -fx-border-radius: 2px;
+            -fx-background-radius: 2px;
+        }
+        &-child { -fx-padding: 0 0 0 $ext-spacing-small; }
+        &:warning {
+            & > .box { -fx-border-color: -df-error-severity-warning-dim; }
+            &:focused > .box { -fx-border-color: -df-error-severity-warning-dim -df-error-severity-warning-dim -df-error-severity-warning -df-error-severity-warning-dim; }
+        }
+        &:error {
+            & > .box { -fx-border-color: -df-error-severity-fatal-dim; }
+            &:focused > .box { -fx-border-color: -df-error-severity-fatal-dim -df-error-severity-fatal-dim -df-error-severity-fatal -df-error-severity-fatal-dim; }
+        }
+    }
+    &-text-field {
+        -fx-max-height: 26px;
+        -fx-min-width: 40px;
+        -fx-pref-width: 160px;
+        -fx-max-width: Infinity;
+        -fx-border-radius: 2px;
+        -fx-background-radius: 2px;
+        &:focused {
+            -fx-border-radius: 2px;
+            -fx-background-radius: 2px;
+        }
+        &:warning {
+            -fx-border-color: -df-error-severity-warning-dim;
+            &:hover {  -fx-border-color: -df-error-severity-warning; }
+            &:focused { -fx-border-color: -df-error-severity-warning-dim -df-error-severity-warning-dim -df-error-severity-warning -df-error-severity-warning-dim; }
+        }
+        &:error {
+            -fx-border-color: -df-error-severity-fatal-dim;
+            &:hover {  -fx-border-color: -df-error-severity-fatal; }
+            &:focused { -fx-border-color: -df-error-severity-fatal-dim -df-error-severity-fatal-dim -df-error-severity-fatal -df-error-severity-fatal-dim; }
+        }
+    }
+}
