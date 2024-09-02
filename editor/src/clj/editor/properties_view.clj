@@ -448,7 +448,13 @@
                         (.setMaxWidth 26)
                         (ui/add-style! "button-small"))
         text          (TextField.)
-        dialog-opts   (if (:ext edit-type) {:ext (:ext edit-type)} {})
+        dialog-opts (merge
+                      (if (:ext edit-type)
+                        {:ext (:ext edit-type)}
+                        {})
+                      (if (:dialog-accept-fn edit-type)
+                        {:accept-fn (:dialog-accept-fn edit-type)}
+                        {}))
         update-ui-fn  (fn [values message read-only?]
                         (update-text-fn text str (fn [v] (when v (resource/proj-path v))) values message read-only?)
                         (let [val (properties/unify-values values)]

@@ -151,6 +151,14 @@ namespace dmMessage
     const char* GetSocketName(HSocket socket);
 
     /*#
+     * Get socket name hash
+     * @name GetSocketNameHash
+     * @param socket [type: dmMessage::HSocket] Socket
+     * @return name_hash [type: dmhash_t] socket name hash. 0 if it was not found
+     */
+    dmhash_t GetSocketNameHash(HSocket socket);
+
+    /*#
      * Get the message path
      * @name GetPath
      * @param url [type: dmMessage::URL] url

@@ -46,7 +46,6 @@
 (defn set-verbose-logging! [enable]
   (LogHelper/setVerboseLogging enable))
 
-(def skip-dirs #{".git" "build" ".internal"})
 (def html5-url-prefix "/html5")
 (def html5-mime-types {"js" "application/javascript",
                        "json" "application/json",
@@ -251,7 +250,6 @@
                 (ui/with-progress [render-progress! render-progress!]
                   (.resolveLibUrls bob-project (->progress render-progress! task-cancelled?)))))
             (.mount bob-project (->graph-resource-scanner ws))
-            (.findSources bob-project proj-path skip-dirs)
             (ui/with-progress [render-progress! render-progress!]
               (run-commands! project evaluation-context bob-project bob-commands render-progress! task-cancelled?))))
         (catch Throwable error

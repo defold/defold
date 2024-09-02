@@ -15,7 +15,7 @@ def build(bld):
         bld.env['JS_LIB_PATHS'] = lib_dirs
 
 
-    bld.stlib(features = 'c cxx',
+    bld.stlib(features = 'c cxx test test_install',
               includes = '..',
               use = 'DLIB LUA script',
               target = 'test_script',

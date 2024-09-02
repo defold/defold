@@ -192,20 +192,30 @@
   ;; the resulting fused BuildResource. We also extract :component-instance-data
   ;; from the component build targets and embed these as ComponentDesc instances
   ;; in the PrototypeDesc that represents the game object.
-  (let [build-go-props (partial properties/build-go-props dep-resources)
+  (let [component-instance-data->fused-build-resource-proj-path
+        (fn component-instance-data->fused-build-resource-proj-path [component-instance-data]
+          (let [build-resource (:resource component-instance-data)]
+            (if-let [fused-build-resource (dep-resources build-resource)]
+              (resource/proj-path fused-build-resource)
+              (throw (ex-info (format "Failed to resolve fused build resource from '%s' referenced by component '%s'."
+                                      (resource/proj-path build-resource)
+                                      (-> component-instance-data :component-msg :id))
+                              {:resource-reference build-resource})))))
+
+        build-go-props (partial properties/build-go-props dep-resources)
         component-instance-datas (:component-instance-datas user-data)
         component-msgs (map :component-msg component-instance-datas)
         component-go-props (map (comp build-go-props :properties) component-msgs)
-        component-build-resource-paths (map (comp resource/proj-path dep-resources :resource) component-instance-datas)
-        component-descs (map (fn [component-msg fused-build-resource-path go-props]
-                               (-> component-msg
-                                   (dissoc :data :properties :type) ; Runtime uses :property-decls, not :properties
-                                   (assoc :component fused-build-resource-path)
-                                   (cond-> (seq go-props)
-                                           (assoc :property-decls (properties/go-props->decls go-props false)))))
-                             component-msgs
-                             component-build-resource-paths
-                             component-go-props)
+        component-build-resource-paths (map component-instance-data->fused-build-resource-proj-path component-instance-datas)
+        component-descs (mapv (fn [component-msg fused-build-resource-path go-props]
+                                (-> component-msg
+                                    (dissoc :data :properties :type) ; Runtime uses :property-decls, not :properties
+                                    (assoc :component fused-build-resource-path)
+                                    (cond-> (seq go-props)
+                                            (assoc :property-decls (properties/go-props->decls go-props false)))))
+                              component-msgs
+                              component-build-resource-paths
+                              component-go-props)
         property-resource-paths (into (sorted-set)
                                       (comp cat (keep properties/try-get-go-prop-proj-path))
                                       component-go-props)
@@ -214,8 +224,8 @@
     {:resource build-resource
      :content (protobuf/map->bytes GameObject$PrototypeDesc prototype-desc)}))
 
-(defn game-object-build-target [build-resource host-resource-node-id component-instance-datas component-build-targets]
-  {:pre [(or (nil? build-resource) (workspace/build-resource? build-resource))
+(defn game-object-build-target [source-resource host-resource-node-id component-instance-datas component-build-targets]
+  {:pre [(workspace/source-resource? source-resource)
          (g/node-id? host-resource-node-id)
          (vector? component-instance-datas)
          (vector? component-build-targets)]}
@@ -225,7 +235,7 @@
   ;; script property overrides.
   (bt/with-content-hash
     {:node-id host-resource-node-id
-     :resource build-resource
+     :resource (workspace/make-build-resource source-resource)
      :build-fn build-game-object
      :user-data {:component-instance-datas (mapv #(dissoc % :property-deps)
                                                  component-instance-datas)}

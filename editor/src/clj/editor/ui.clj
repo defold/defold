@@ -22,8 +22,8 @@
             [editor.error-reporting :as error-reporting]
             [editor.handler :as handler]
             [editor.icons :as icons]
-            [editor.progress :as progress]
             [editor.math :as math]
+            [editor.progress :as progress]
             [editor.util :as eutil]
             [internal.util :as util]
             [service.log :as log]
@@ -41,6 +41,7 @@
            [javafx.animation AnimationTimer KeyFrame KeyValue Timeline]
            [javafx.application Platform]
            [javafx.beans InvalidationListener]
+           [javafx.beans.property ReadOnlyProperty]
            [javafx.beans.value ChangeListener ObservableValue]
            [javafx.collections FXCollections ListChangeListener ObservableList]
            [javafx.css Styleable]
@@ -48,13 +49,12 @@
            [javafx.fxml FXMLLoader]
            [javafx.geometry Orientation Point2D]
            [javafx.scene Group Node Parent Scene]
-           [javafx.scene.control ButtonBase Cell CheckBox CheckMenuItem ChoiceBox ColorPicker ComboBox ComboBoxBase ContextMenu Control Label Labeled ListView Menu MenuBar MenuItem MultipleSelectionModel ProgressBar SelectionMode SelectionModel Separator SeparatorMenuItem Tab TableView TabPane TextArea TextField TextInputControl Toggle ToggleButton Tooltip TreeItem TreeTableView TreeView]
+           [javafx.scene.control ButtonBase Cell CheckBox CheckMenuItem ChoiceBox ColorPicker ComboBox ComboBoxBase ContextMenu Control Label Labeled ListView Menu MenuBar MenuItem MultipleSelectionModel ProgressBar SelectionMode SelectionModel Separator SeparatorMenuItem Tab TabPane TableView TextArea TextField TextInputControl Toggle ToggleButton Tooltip TreeItem TreeTableView TreeView]
            [javafx.scene.image Image ImageView]
            [javafx.scene.input Clipboard ContextMenuEvent DragEvent KeyCode KeyCombination KeyEvent MouseButton MouseEvent]
            [javafx.scene.layout AnchorPane HBox Pane]
            [javafx.scene.shape SVGPath]
-           [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter]
-           [javafx.stage Stage Modality PopupWindow StageStyle Window]
+           [javafx.stage Modality PopupWindow Stage StageStyle Window]
            [javafx.util Callback Duration StringConverter]))
 
 (set! *warn-on-reflection* true)
@@ -80,18 +80,44 @@
 (defn node? [value]
   (instance? Node value))
 
+(defn- set-application-focus-state [old-state focused window t]
+  ;; How we expect the focus to be changed over time (this works on e.g. macOS):
+  ;; [user opens dialog...]
+  ;; 1. main window: focus loss
+  ;; 2. dialog window: focus gain
+  ;; [...user interacts with dialog, then closes it...]
+  ;; 3. dialog window: focus loss
+  ;; 4. main window: focus gain
+  ;; How the focus actually works on Linux:
+  ;; [user opens dialog...]
+  ;; 1. dialog window: focus gain
+  ;; 2. main window: focus loss
+  ;; [...user interacts with dialog, then closes it...]
+  ;; 3. main window: focus gain
+  ;; When the dialog is open for longer than `application-unfocused-threshold-ms`,
+  ;; this Linux behavior causes resource sync to trigger after closing the dialog,
+  ;; which may lead to subtle bugs if the normal use of the dialog also triggers
+  ;; the resource sync. To fix the issue on Linux, we skip focus changes that
+  ;; report focus loss while another window is currently focused
+  (if (and (:focused old-state)
+           (not focused)
+           (not= (:window old-state) window))
+    old-state
+    {:focused focused :window window :t t}))
+
 (def focus-change-listener
   (reify ChangeListener
-    (changed [_ _ _ focused?]
-      (reset! focus-state {:focused? focused?
-                           :t (System/currentTimeMillis)}))))
+    (changed [_ observable-value _ focused]
+      (let [window (.getBean ^ReadOnlyProperty observable-value)
+            t (System/currentTimeMillis)]
+        (swap! focus-state set-application-focus-state focused window t)))))
 
 (defn add-application-focused-callback! [key application-focused! & args]
   (add-watch focus-state key
              (fn [_key _ref old new]
                (when (and old
-                          (not (:focused? old))
-                          (:focused? new))
+                          (not (:focused old))
+                          (:focused new))
                  (let [unfocused-ms (- (:t new) (:t old))]
                    (when (< application-unfocused-threshold-ms unfocused-ms)
                      (apply application-focused! args))))))

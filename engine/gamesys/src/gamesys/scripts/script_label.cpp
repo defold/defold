@@ -277,7 +277,7 @@ static int SetText(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
 
-    dmGameObject::HInstance instance = CheckGoInstance(L);
+    (void)CheckGoInstance(L); // left to check that it's not called from incorrect context.
 
     size_t text_len = 0;
     const char* text = luaL_checklstring(L, 2, &text_len);
@@ -302,7 +302,7 @@ static int SetText(lua_State* L)
     dmScript::GetURL(L, &sender);
     dmScript::ResolveURL(L, 1, &receiver, &sender);
 
-    if (dmMessage::RESULT_OK != dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetText::m_DDFDescriptor->m_NameHash, (uintptr_t)instance, (uintptr_t)dmGameSystemDDF::SetText::m_DDFDescriptor, data, data_size, 0) )
+    if (dmMessage::RESULT_OK != dmMessage::Post(&sender, &receiver, dmGameSystemDDF::SetText::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmGameSystemDDF::SetText::m_DDFDescriptor, data, data_size, 0) )
     {
         return DM_LUA_ERROR("Failed to send label string as message!");
     }

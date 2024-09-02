@@ -26,7 +26,7 @@ def build(bld):
                             source       = texc_sources,
                             includes     = ['.'],
                             target       = 'texc_shared',
-                            use          = 'BASIS_ENCODER DLIB_NOASAN PROFILE_NULL_NOASAN')
+                            use          = 'BASIS_ENCODER_NOASAN DLIB_NOASAN PROFILE_NULL_NOASAN')
 
     bld.install_files('${PREFIX}/include/texc', 'texc.h')
 

@@ -36,21 +36,17 @@ public class RenderPrototypeBuilderTest extends AbstractProtoBuilderTest {
     public void testDataMigration() throws Exception {
         addFile("/test.render_script", "");
 
-        addFile("/test.material", "");
-        addFile("/test.vp", "");
-        addFile("/test.fp", "");
-
         StringBuilder srcShader = new StringBuilder();
         srcShader.append("void main() {}\n");
 
-        build("/test.vp", srcShader.toString());
-        build("/test.fp", srcShader.toString());
+        addFile("/testDataMigration.vp", srcShader.toString());
+        addFile("/testDataMigration.fp", srcShader.toString());
 
         StringBuilder materialSrc = new StringBuilder();
         materialSrc.append("name: \"test_material\"\n");
-        materialSrc.append("vertex_program: \"/test.vp\"\n");
-        materialSrc.append("fragment_program: \"/test.fp\"\n");
-        build("/test.material", materialSrc.toString());
+        materialSrc.append("vertex_program: \"/testDataMigration.vp\"\n");
+        materialSrc.append("fragment_program: \"/testDataMigration.fp\"\n");
+        addFile("/test.material", materialSrc.toString());
 
         {
             final String srcOneMaterial =
@@ -61,7 +57,7 @@ public class RenderPrototypeBuilderTest extends AbstractProtoBuilderTest {
                 "}\n";
 
             List<Message> outputs = build("/test.render", srcOneMaterial);
-            RenderPrototypeDesc output = (RenderPrototypeDesc) outputs.get(0);
+            RenderPrototypeDesc output = getMessage(outputs, RenderPrototypeDesc.class);
 
             assertEquals(0, output.getMaterialsList().size());
             assertEquals(1, output.getRenderResourcesList().size());

@@ -360,6 +360,21 @@ namespace dmMessage
         }
     }
 
+    dmhash_t GetSocketNameHash(HSocket socket)
+    {
+        DM_SPINLOCK_SCOPED_LOCK(g_MessageSpinlock);
+
+        MessageSocket* message_socket = g_MessageContext->m_Sockets.Get(socket);
+        if (message_socket != 0x0)
+        {
+            return message_socket->m_NameHash;
+        }
+        else
+        {
+            return 0x0;
+        }
+    }
+
     bool IsSocketValid(HSocket socket)
     {
         if (socket != 0)

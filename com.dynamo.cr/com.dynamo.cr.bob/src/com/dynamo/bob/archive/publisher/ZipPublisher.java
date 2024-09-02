@@ -96,15 +96,4 @@ public class ZipPublisher extends Publisher {
             throw new CompileExceptionError("Unable to create zip archive for liveupdate resources: " + exception.getMessage(), exception);
         }
     }
-
-    public List<IResource> getOutputs(IResource input) {
-        List<IResource> outputs = new ArrayList<IResource>();
-        return outputs;
-    }
-
-    public List<InputStream> getOutputResults() {
-        List<InputStream> outputs = new ArrayList<InputStream>();
-        return outputs;
-    }
-
 }

@@ -1,0 +1,24 @@
+[bootstrap]
+main_collection = /main/main.collectionc
+render = /main/default.renderc
+
+[script]
+shared_state = 1
+
+[display]
+width = 960
+height = 640
+display_profiles = /main/default.display_profilesc
+
+[android]
+input_method = HiddenInputField
+
+[project]
+title = TMP
+
+[input]
+gamepads = /input/default.gamepadsc
+
+[graphics]
+texture_profiles = /main/default.texture_profiles
+

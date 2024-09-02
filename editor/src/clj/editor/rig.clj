@@ -14,7 +14,6 @@
 
 (ns editor.rig
   (:require [editor.build-target :as bt]
-            [editor.defold-project :as project]
             [editor.pipeline :as pipeline]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -27,16 +26,11 @@
 
 (defn make-skeleton-build-target
   [workspace node-id skeleton]
-  (let [skeleton-type (workspace/get-resource-type workspace "skeleton")
-        ;; data of memory-resource below only used for
-        ;; resource/resource-hash used to name the
-        ;; corresponding "generated" build resource.
-        skeleton-resource (resource/make-memory-resource workspace skeleton-type (protobuf/map->sha1-hex Rig$Skeleton skeleton))]
-    (bt/with-content-hash
-      {:node-id node-id
-       :resource (workspace/make-build-resource skeleton-resource)
-       :build-fn build-skeleton
-       :user-data {:skeleton skeleton}})))
+  (bt/with-content-hash
+    {:node-id node-id
+     :resource (workspace/make-placeholder-build-resource workspace "skeleton")
+     :build-fn build-skeleton
+     :user-data {:skeleton skeleton}}))
 
 
 (defn- build-animation-set
@@ -45,16 +39,11 @@
 
 (defn make-animation-set-build-target
   [workspace node-id animation-set]
-  (let [animation-set-type     (workspace/get-resource-type workspace "animationset")
-        ;; data of memory-resource below only used for
-        ;; resource/resource-hash used to name the
-        ;; corresponding "generated" build resource.
-        animation-set-resource (resource/make-memory-resource workspace animation-set-type (protobuf/map->sha1-hex Rig$AnimationSet animation-set))]
-    (bt/with-content-hash
-      {:node-id node-id
-       :resource (workspace/make-build-resource animation-set-resource)
-       :build-fn build-animation-set
-       :user-data {:animation-set animation-set}})))
+  (bt/with-content-hash
+    {:node-id node-id
+     :resource (workspace/make-placeholder-build-resource workspace "animationset")
+     :build-fn build-animation-set
+     :user-data {:animation-set animation-set}}))
 
 
 (defn- build-mesh-set
@@ -63,28 +52,22 @@
 
 (defn make-mesh-set-build-target
   [workspace node-id mesh-set]
-  (let [mesh-set-type     (workspace/get-resource-type workspace "meshset")
-        ;; data of memory-resource below only used for
-        ;; resource/resource-hash used to name the
-        ;; corresponding "generated" build resource.
-        mesh-set-resource (resource/make-memory-resource workspace mesh-set-type (protobuf/map->sha1-hex Rig$MeshSet mesh-set))]
-    (bt/with-content-hash
-      {:node-id node-id
-       :resource (workspace/make-build-resource mesh-set-resource)
-       :build-fn build-mesh-set
-       :user-data {:mesh-set mesh-set}})))
+  (bt/with-content-hash
+    {:node-id node-id
+     :resource (workspace/make-placeholder-build-resource workspace "meshset")
+     :build-fn build-mesh-set
+     :user-data {:mesh-set mesh-set}}))
 
-(defn make-rig-scene-build-targets
-  ([node-id resource pb dep-build-targets]
-   (let [workspace (project/workspace (project/get-project node-id))
-         skeleton-target (make-skeleton-build-target workspace node-id (:skeleton pb))
+(defn make-rig-scene-build-target
+  ([workspace node-id pb dep-build-targets]
+   (let [skeleton-target (make-skeleton-build-target workspace node-id (:skeleton pb))
          animation-set-target (make-animation-set-build-target workspace node-id (:animation-set pb))
          mesh-set-target (make-mesh-set-build-target workspace node-id (:mesh-set pb))
          build-targets {:skeleton skeleton-target
                         :animation-set animation-set-target
                         :mesh-set mesh-set-target}]
-     (make-rig-scene-build-targets node-id resource pb dep-build-targets build-targets)))
-  ([node-id resource pb dep-build-targets build-targets]
+     (make-rig-scene-build-target workspace node-id pb dep-build-targets build-targets)))
+  ([workspace node-id pb dep-build-targets build-targets]
    (let [dep-build-targets (into []
                                  (concat (remove nil? (vals build-targets))
                                          (flatten dep-build-targets)))
@@ -93,8 +76,9 @@
                             (assoc pb key (-> build-target :resource :resource))
                             (dissoc pb key)))
                         pb
-                        [:skeleton :animation-set :mesh-set :texture-set])]
-     [(pipeline/make-protobuf-build-target node-id resource Rig$RigScene pb-map dep-build-targets)])))
+                        [:skeleton :animation-set :mesh-set :texture-set])
+         resource (workspace/make-placeholder-resource workspace "rigscene")]
+     (pipeline/make-protobuf-build-target node-id resource Rig$RigScene pb-map dep-build-targets))))
 
 (defn register-resource-types
   [workspace]

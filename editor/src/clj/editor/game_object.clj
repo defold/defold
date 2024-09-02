@@ -69,10 +69,10 @@
     (if-not (sound/supported-audio-formats ext)
       component-source-build-target ; Not a raw sound. Return unaltered.
       (let [workspace (resource/workspace source-resource)
+            dep-build-targets [component-source-build-target] ; The build-target of the referenced .wav file.
             sound-desc (protobuf/make-map-without-defaults Sound$SoundDesc
                          :sound (resource/proj-path source-resource))
-            sound-desc-resource (workspace/make-embedded-resource workspace :editable "sound" sound-desc)
-            dep-build-targets [component-source-build-target]]
+            sound-desc-resource (workspace/make-placeholder-resource workspace "sound")]
         (sound/make-sound-desc-build-target _node-id sound-desc-resource sound-desc dep-build-targets)))))
 
 (defn- source-outline-subst [err]
@@ -136,34 +136,39 @@
       (update :display-order (fn [display-order]
                                (vec (distinct (concat display-order (:display-order source-properties))))))))
 
-(defn resource-path-error [_node-id source-resource]
+(defn- resource-path-error [_node-id source-resource]
     (or (validation/prop-error :fatal _node-id :path validation/prop-nil? source-resource "Path")
         (validation/prop-error :fatal _node-id :path validation/prop-resource-not-exists? source-resource "Path")
         (validation/prop-error :fatal _node-id :script validation/prop-resource-not-component? source-resource "Path")))
 
-(g/defnk produce-component-build-targets [_node-id build-resource ddf-message pose resource-property-build-targets source-build-targets]
-  ;; Create a build-target for the referenced or embedded component. Also tag on
+(g/defnk produce-referenced-component-build-targets [_node-id source-resource ddf-message pose resource-property-build-targets source-build-targets]
+  ;; Create a build-target for the referenced component. Also tag on
   ;; :component-instance-data with the overrides for this instance. This will
   ;; later be extracted and compiled into the GameObject - the overrides do not
   ;; end up in the resulting component binary.
-  ;;
-  ;; TODO: We can avoid some of this processing & input dependencies for embedded components. Separate into individual production functions?
-  ;; For example, embedded components do not have resource-property-build-targets, and cannot refer to raw sounds.
-  (or (resource-path-error _node-id (:resource build-resource))
-      (when-some [source-build-target (first source-build-targets)]
-        (if-some [errors (not-empty (keep :error (:properties ddf-message)))]
-          (g/error-aggregate errors :_node-id _node-id :_label :build-targets)
-          (let [is-embedded (contains? ddf-message :data)
-                build-target (-> source-build-target
-                                 (assoc :resource build-resource)
-                                 (wrap-if-raw-sound _node-id))
+  (or (resource-path-error _node-id source-resource)
+      (if-some [errors (not-empty (keep :error (:properties ddf-message)))]
+        (g/error-aggregate errors :_node-id _node-id :_label :build-targets)
+        (when-some [source-build-target (first source-build-targets)]
+          (let [build-target (wrap-if-raw-sound source-build-target _node-id)
                 build-resource (:resource build-target) ; The wrap-if-raw-sound call might have changed this.
-                component-instance-data (if is-embedded
-                                          (game-object-common/embedded-component-instance-data build-resource ddf-message pose)
-                                          (let [proj-path->resource-property-build-target (bt/make-proj-path->build-target resource-property-build-targets)]
-                                            (game-object-common/referenced-component-instance-data build-resource ddf-message pose proj-path->resource-property-build-target)))
-                build-target (assoc build-target :component-instance-data component-instance-data)]
-            [(bt/with-content-hash build-target)])))))
+                proj-path->resource-property-build-target (bt/make-proj-path->build-target resource-property-build-targets)
+                component-instance-data (game-object-common/referenced-component-instance-data build-resource ddf-message pose proj-path->resource-property-build-target)]
+            [(assoc build-target
+               :component-instance-data component-instance-data)])))))
+
+(g/defnk produce-embedded-component-build-targets [_node-id ddf-message pose source-build-targets]
+  ;; Create a build-target for the embedded component. Also tag on
+  ;; :component-instance-data with the overrides for this instance. This will
+  ;; later be extracted and compiled into the GameObject - the overrides do not
+  ;; end up in the resulting component binary.
+  (if-some [errors (not-empty (keep :error (:properties ddf-message)))]
+    (g/error-aggregate errors :_node-id _node-id :_label :build-targets)
+    (when-some [source-build-target (first source-build-targets)]
+      (let [build-resource (:resource source-build-target)
+            component-instance-data (game-object-common/embedded-component-instance-data build-resource ddf-message pose)]
+        [(assoc source-build-target
+           :component-instance-data component-instance-data)]))))
 
 (g/defnode ComponentNode
   (inherits scene/SceneNode)
@@ -173,7 +178,7 @@
             (dynamic error (g/fnk [_node-id id id-counts]
                                   (or (validation/prop-error :fatal _node-id :id validation/prop-empty? id "Id")
                                       (validation/prop-error :fatal _node-id :id (partial validation/prop-id-duplicate? id-counts) id)
-                                      (validation/prop-error :warning _node-id :id validation/prop-contains-url-characters? id "Id"))))
+                                      (validation/prop-error :warning _node-id :id validation/prop-contains-prohibited-characters? id "Id"))))
             (dynamic read-only? (g/fnk [_node-id]
                                   (g/override? _node-id))))
   (property url g/Str ; Just for presentation.
@@ -212,8 +217,7 @@
   (output ddf-message g/Any :abstract)
   (output scene g/Any :cached (g/fnk [_node-id id transform scene]
                                 (game-object-common/component-scene _node-id id transform scene)))
-  (output build-resource resource/Resource :abstract)
-  (output build-targets g/Any :cached produce-component-build-targets)
+  (output build-targets g/Any :abstract)
   (output resource-property-build-targets g/Any (gu/passthrough resource-property-build-targets))
   (output _properties g/Properties :cached produce-component-properties))
 
@@ -224,8 +228,7 @@
   (input source-save-value g/Any)
   (output ddf-message g/Any (g/fnk [id position rotation scale source-resource source-save-value]
                               (gen-embed-ddf id position rotation scale source-resource source-save-value)))
-  (output build-resource resource/Resource (g/fnk [source-build-targets]
-                                             (some-> source-build-targets first bt/make-content-hash-build-resource))))
+  (output build-targets g/Any produce-embedded-component-build-targets))
 
 ;; -----------------------------------------------------------------------------
 ;; Currently some source resources have scale properties. This was done so
@@ -335,7 +338,7 @@
                              (resource-path-error _node-id source-resource))))
 
   (input source-id g/NodeID :cascade-delete)
-  (output build-resource resource/Resource (g/fnk [source-build-targets] (:resource (first source-build-targets))))
+  (output build-targets g/Any produce-referenced-component-build-targets)
   (output ddf-properties g/Any :cached
           (g/fnk [source-properties]
                  (let [prop-order (into {} (map-indexed (fn [i k] [k i])) (:display-order source-properties))]
@@ -371,14 +374,13 @@
 (g/defnk produce-build-targets [_node-id resource dep-build-targets id-counts]
   (or (let [dup-ids (keep (fn [[id count]] (when (> count 1) id)) id-counts)]
         (game-object-common/maybe-duplicate-id-error _node-id dup-ids))
-      (let [build-resource (workspace/make-build-resource resource)
-            component-instance-build-targets (flatten dep-build-targets)
+      (let [component-instance-build-targets (flatten dep-build-targets)
             component-instance-datas (mapv :component-instance-data component-instance-build-targets)
             component-build-targets (into []
                                           (comp (map #(dissoc % :component-instance-data))
                                                 (util/distinct-by (comp resource/proj-path :resource)))
                                           component-instance-build-targets)]
-        [(game-object-common/game-object-build-target build-resource _node-id component-instance-datas component-build-targets)])))
+        [(game-object-common/game-object-build-target resource _node-id component-instance-datas component-build-targets)])))
 
 (g/defnk produce-scene [_node-id child-scenes]
   (game-object-common/game-object-scene _node-id child-scenes))

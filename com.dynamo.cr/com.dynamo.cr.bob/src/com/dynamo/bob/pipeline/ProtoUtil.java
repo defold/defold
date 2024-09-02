@@ -36,7 +36,7 @@ public class ProtoUtil {
             }
         }
         try {
-            TextFormat.merge(new String(input.getContent()), builder);
+            TextFormat.merge(new String(content), builder);
         } catch (TextFormat.ParseException e) {
             // 1:7: String missing ending quote.
             Pattern pattern = Pattern.compile("(\\d+):(\\d+): (.*)");

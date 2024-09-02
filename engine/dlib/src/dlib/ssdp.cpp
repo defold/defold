@@ -769,7 +769,7 @@ bail:
         if (sr != dmSocket::RESULT_OK)
         {
             // When returning from sleep mode on iOS socket is in state ECONNABORTED
-            if (sr == dmSocket::RESULT_CONNABORTED || sr == dmSocket::RESULT_NOTCONN)
+            if (sr == dmSocket::RESULT_CONNABORTED || sr == dmSocket::RESULT_NOTCONN || sr == dmSocket::RESULT_NETDOWN)
             {
                 dmLogDebug("SSDP permanent dispatch error");
                 return false;

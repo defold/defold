@@ -40,7 +40,9 @@ import com.dynamo.bob.pipeline.shader.SPIRVReflector;
 
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
-public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
+public abstract class ShaderProgramBuilder extends Builder {
+
+    ShaderPreprocessor shaderPreprocessor;
 
     static public class ShaderBuildResult {
         public ShaderDesc.Shader.Builder shaderBuilder;
@@ -62,7 +64,7 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
     }
 
     @Override
-    public Task<ShaderPreprocessor> create(IResource input) throws IOException, CompileExceptionError {
+    public Task create(IResource input) throws IOException, CompileExceptionError {
 
         Task.TaskBuilder<ShaderPreprocessor> taskBuilder = Task.<ShaderPreprocessor>newBuilder(this)
             .setName(params.name())
@@ -70,7 +72,7 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
 
         // Parse source for includes and add the include nodes as inputs/dependancies to the shader
         String source = new String(input.getContent(), StandardCharsets.UTF_8);
-        ShaderPreprocessor shaderPreprocessor = new ShaderPreprocessor(this.project, input.getPath(), source);
+        shaderPreprocessor = new ShaderPreprocessor(this.project, input.getPath(), source);
         String[] includes = shaderPreprocessor.getIncludes();
 
         for (String path : includes) {
@@ -86,7 +88,6 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         String shaderCacheKey = String.format("output_spirv=%s;platform_key=%s", getOutputSpirvFlag(), platformString);
 
         taskBuilder.addOutput(input.changeExt(params.outExt()));
-        taskBuilder.setData(shaderPreprocessor);
         taskBuilder.addExtraCacheKey(shaderCacheKey);
 
         return taskBuilder.build();
@@ -143,8 +144,7 @@ public abstract class ShaderProgramBuilder extends Builder<ShaderPreprocessor> {
         }
     }
 
-    public ShaderDesc getCompiledShaderDesc(Task<ShaderPreprocessor> task, ShaderDesc.ShaderType shaderType) throws IOException, CompileExceptionError {
-        ShaderPreprocessor shaderPreprocessor = task.getData();
+    public ShaderDesc getCompiledShaderDesc(Task task, ShaderDesc.ShaderType shaderType) throws IOException, CompileExceptionError {
         boolean outputSpirv                   = getOutputSpirvFlag();
         String resourceOutputPath             = task.getOutputs().get(0).getPath();
 

@@ -44,19 +44,13 @@
 (defn make-texture-build-target
   [workspace node-id image-generator texture-profile compress?]
   (assert (contains? image-generator :sha1))
-  (let [texture-type (workspace/get-resource-type workspace "texture")
-        texture-hash (digestable/sha1-hash
-                       {:compress? compress?
-                        :image-sha1 (:sha1 image-generator)
-                        :texture-profile texture-profile})
-        texture-resource (resource/make-memory-resource workspace texture-type texture-hash)]
-    (bt/with-content-hash
-      {:node-id node-id
-       :resource (workspace/make-build-resource texture-resource)
-       :build-fn build-texture
-       :user-data {:content-generator image-generator
-                   :compress? compress?
-                   :texture-profile texture-profile}})))
+  (bt/with-content-hash
+    {:node-id node-id
+     :resource (workspace/make-placeholder-build-resource workspace "texture")
+     :build-fn build-texture
+     :user-data {:content-generator image-generator
+                 :compress? compress?
+                 :texture-profile texture-profile}}))
 
 (defn- build-array-texture [resource _dep-resources user-data]
   (let [{:keys [content-generator texture-profile texture-page-count compress?]} user-data
@@ -71,21 +65,14 @@
 (defn make-array-texture-build-target
   [workspace node-id array-images-generator texture-profile texture-page-count compress?]
   (assert (contains? array-images-generator :sha1))
-  (let [texture-type (workspace/get-resource-type workspace "texture")
-        texture-hash (digestable/sha1-hash
-                       {:compress? compress?
-                        :image-sha1 (:sha1 array-images-generator)
-                        :texture-page-count texture-page-count
-                        :texture-profile texture-profile})
-        texture-resource (resource/make-memory-resource workspace texture-type texture-hash)]
-    (bt/with-content-hash
-      {:node-id node-id
-       :resource (workspace/make-build-resource texture-resource)
-       :build-fn build-array-texture
-       :user-data {:content-generator array-images-generator
-                   :compress? compress?
-                   :texture-page-count texture-page-count
-                   :texture-profile texture-profile}})))
+  (bt/with-content-hash
+    {:node-id node-id
+     :resource (workspace/make-placeholder-build-resource workspace "texture")
+     :build-fn build-array-texture
+     :user-data {:content-generator array-images-generator
+                 :compress? compress?
+                 :texture-page-count texture-page-count
+                 :texture-profile texture-profile}}))
 
 (g/defnk produce-build-targets [_node-id resource content-generator texture-profile build-settings]
   [(bt/with-content-hash

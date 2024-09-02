@@ -10,8 +10,7 @@ def build(bld):
                 use = 'TESTMAIN DLIB PROFILE_NULL platform_null',
                 target = 'test_platform')
 
-    if bld.env['PLATFORM'] not in ('js-web', 'wasm-web', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5'):
-
+    if platform_supports_feature(bld.env.PLATFORM, "opengl", None):
         use_libs = ["TESTMAIN", "APP", "DDF", "DLIB", "DMGLFW", "PROFILE", "OPENGL", "platform"]
 
         if waflib.Options.options.with_vulkan:

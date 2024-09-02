@@ -248,6 +248,22 @@ namespace dmGameSystem
         return 0;
     }
 
+    static int Body_GetAngularDamping(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+        lua_pushnumber(L, body->GetAngularDamping());
+        return 1;
+    }
+
+    static int Body_SetAngularDamping(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Body* body = CheckBody(L, 1);
+        body->SetAngularDamping(luaL_checknumber(L, 2));
+        return 0;
+    }
+
     static int Body_GetGravityScale(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
@@ -522,6 +538,9 @@ namespace dmGameSystem
 
         {"get_linear_damping", Body_GetLinearDamping},
         {"set_linear_damping", Body_SetLinearDamping},
+
+        {"get_angular_damping", Body_GetAngularDamping},
+        {"set_angular_damping", Body_SetAngularDamping},
 
         {"is_bullet", Body_IsBullet},
         {"set_bullet", Body_SetBullet},

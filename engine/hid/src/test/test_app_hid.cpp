@@ -191,6 +191,7 @@ static void* EngineCreate(int argc, char** argv)
 
 static const char* KeyToStr(dmHID::Key key)
 {
+#if !defined(DM_PLATFORM_VENDOR)
     switch(key)
     {
         case dmHID::KEY_SPACE:return "KEY_SPACE";
@@ -318,7 +319,9 @@ static const char* KeyToStr(dmHID::Key key)
         case dmHID::KEY_RSUPER:return "KEY_RSUPER";
         case dmHID::KEY_MENU:return "KEY_MENU";
         case dmHID::KEY_BACK:return "KEY_BACK";
+        default: break;
     }
+#endif // DM_PLATFORM_VENDOR
 
     return "<UNKNOWN-KEY>";
 }

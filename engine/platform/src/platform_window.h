@@ -57,6 +57,7 @@ namespace dmPlatform
         DEVICE_STATE_KEYBOARD_PASSWORD   = 7,
         DEVICE_STATE_KEYBOARD_RESET      = 8,
         DEVICE_STATE_JOYSTICK_PRESENT    = 9,
+        DEVICE_STATE_MAX // Used to create arrays of correct size (private repo)
     };
 
     enum GamepadEvent
@@ -191,9 +192,6 @@ namespace dmPlatform
     void           IconifyWindow(HWindow window);
     void           PollEvents(HWindow window);
     void           SwapBuffers(HWindow window);
-
-    void*          AcquireAuxContext(HWindow window);
-    void           UnacquireAuxContext(HWindow window, void* aux_context);
 
     void*          AcquireAuxContext(HWindow window);
     void           UnacquireAuxContext(HWindow window, void* aux_context);

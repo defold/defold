@@ -130,19 +130,16 @@
                g/error-aggregate)
       (let [workspace (resource/workspace resource)
             animation-set-build-target (if (nil? animation-set-build-target-single) animation-set-build-target animation-set-build-target-single)
-            rig-scene-type (workspace/get-resource-type workspace "rigscene")
-            rig-scene-pseudo-data (digest/string->sha1-hex (str/join (map #(-> % :resource :resource :data) [animation-set-build-target mesh-set-build-target skeleton-build-target])))
-            rig-scene-resource (resource/make-memory-resource workspace rig-scene-type rig-scene-pseudo-data)
             rig-scene-dep-build-targets {:animation-set animation-set-build-target
                                          :mesh-set mesh-set-build-target
                                          :skeleton skeleton-build-target}
             rig-scene-pb-msg {}
-            rig-scene-build-targets (rig/make-rig-scene-build-targets _node-id rig-scene-resource rig-scene-pb-msg dep-build-targets rig-scene-dep-build-targets)
-            rt-pb-msg (-> {:rig-scene rig-scene-resource
+            rig-scene-build-target (rig/make-rig-scene-build-target workspace _node-id rig-scene-pb-msg dep-build-targets rig-scene-dep-build-targets)
+            rt-pb-msg (-> {:rig-scene (:resource rig-scene-build-target)
                            :default-animation (:default-animation pb-msg)
                            :materials (:materials pb-msg)}
                           (update-build-target-vertex-attributes material-binding-infos))
-            dep-build-targets (into rig-scene-build-targets (flatten dep-build-targets))]
+            dep-build-targets (into [rig-scene-build-target] (flatten dep-build-targets))]
         [(pipeline/make-protobuf-build-target _node-id resource ModelProto$Model rt-pb-msg dep-build-targets)])))
 
 (g/defnk produce-gpu-textures [_node-id samplers texture-binding-infos :as m]

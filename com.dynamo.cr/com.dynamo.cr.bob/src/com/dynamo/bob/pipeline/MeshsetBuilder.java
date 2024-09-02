@@ -38,7 +38,7 @@ import com.dynamo.rig.proto.Rig.Skeleton;
 
 
 @BuilderParams(name="Meshset", inExts={".dae",".gltf",".glb"}, outExt=".meshsetc")
-public class MeshsetBuilder extends Builder<Void>  {
+public class MeshsetBuilder extends Builder  {
     public static class ResourceDataResolver implements ModelImporter.DataResolver
     {
         Project project;
@@ -65,18 +65,17 @@ public class MeshsetBuilder extends Builder<Void>  {
     };
 
     @Override
-    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-        Task.TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
+    public Task create(IResource input) throws IOException, CompileExceptionError {
+        Task.TaskBuilder taskBuilder = Task.newBuilder(this)
             .setName(params.name())
-            .addInput(input);
-
-        taskBuilder.addOutput(input.changeExt(params.outExt()));
-        taskBuilder.addOutput(input.changeExt(".skeletonc"));
-        taskBuilder.addOutput(input.changeExt("_generated_0.animationsetc"));
+            .addInput(input)
+            .addOutput(input.changeExt(params.outExt()))
+            .addOutput(input.changeExt(".skeletonc"))
+            .addOutput(input.changeExt("_generated_0.animationsetc"));
         return taskBuilder.build();
     }
 
-    public void buildCollada(Task<Void> task) throws CompileExceptionError, IOException {
+    public void buildCollada(Task task) throws CompileExceptionError, IOException {
         // Previously ColladaModelBuilder.java
         ByteArrayInputStream collada_is = new ByteArrayInputStream(task.input(0).getContent());
 
@@ -128,7 +127,7 @@ public class MeshsetBuilder extends Builder<Void>  {
     }
 
     @Override
-    public void build(Task<Void> task) throws CompileExceptionError, IOException {
+    public void build(Task task) throws CompileExceptionError, IOException {
 
         String suffix = BuilderUtil.getSuffix(task.input(0).getPath());
 

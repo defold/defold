@@ -1526,11 +1526,12 @@ static void LogFrameBufferError(GLenum status)
 #endif
     }
 
-    static void OpenGLFlip(HContext context)
+    static void OpenGLFlip(HContext _context)
     {
         DM_PROFILE(__FUNCTION__);
-        PostDeleteTextures((OpenGLContext*) context, false);
-        dmPlatform::SwapBuffers(((OpenGLContext*) context)->m_Window);
+        OpenGLContext* context = (OpenGLContext*) _context;
+        PostDeleteTextures(context, false);
+        dmPlatform::SwapBuffers(context->m_Window);
         CHECK_GL_ERROR;
     }
 

@@ -31,7 +31,6 @@
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.scene-picking :as scene-picking]
-            [editor.slice9 :as slice9]
             [editor.texture-set :as texture-set]
             [editor.types :as types]
             [editor.validation :as validation]
@@ -90,16 +89,11 @@
         frame-index (get-in updatable [:state :frame] 0)
 
         texcoord-datas
-        (if (and (coll/empty? scene-infos)
-                 (= :size-mode-manual size-mode))
-          (let [vertex-data (slice9/vertex-data nil size slice9 :pivot-center)]
-            [(assoc vertex-data :page-index 0)])
+        (if (coll/empty? scene-infos)
+          [(texture-set/vertex-data nil size-mode size slice9 :pivot-center)]
           (mapv (fn [{:keys [animation]}]
-                  (let [animation-frame (get-in animation [:frames frame-index])
-                        vertex-data (if (= :size-mode-auto size-mode)
-                                      (texture-set/vertex-data animation-frame)
-                                      (slice9/vertex-data animation-frame size slice9 :pivot-center))]
-                    (assoc vertex-data :page-index (:page-index animation-frame 0))))
+                  (let [animation-frame (get-in animation [:frames frame-index])]
+                    (texture-set/vertex-data animation-frame size-mode size slice9 :pivot-center)))
                 scene-infos))]
 
     (conj {:texcoord-datas texcoord-datas
@@ -108,28 +102,9 @@
           (select-keys (first texcoord-datas) [:position-data :line-data]))))
 
 (defn- gen-outline-vertex [^Matrix4d wt ^Point3d pt x y cr cg cb]
-  (.set pt x y 0)
+  (.set pt x y 0.0)
   (.transform wt pt)
   (vector-of :float (.x pt) (.y pt) (.z pt) cr cg cb 1.0))
-
-(defn- conj-outline-quad! [^ByteBuffer buf ^Matrix4d wt ^Point3d pt width height cr cg cb]
-  (let [x1 (* 0.5 width)
-        y1 (* 0.5 height)
-        x0 (- x1)
-        y0 (- y1)
-        v0 (gen-outline-vertex wt pt x0 y0 cr cg cb)
-        v1 (gen-outline-vertex wt pt x1 y0 cr cg cb)
-        v2 (gen-outline-vertex wt pt x1 y1 cr cg cb)
-        v3 (gen-outline-vertex wt pt x0 y1 cr cg cb)]
-    (doto buf
-      (vtx/buf-push-floats! v0)
-      (vtx/buf-push-floats! v1)
-      (vtx/buf-push-floats! v1)
-      (vtx/buf-push-floats! v2)
-      (vtx/buf-push-floats! v2)
-      (vtx/buf-push-floats! v3)
-      (vtx/buf-push-floats! v3)
-      (vtx/buf-push-floats! v0))))
 
 (defn- conj-outline-slice9-quad! [buf line-data ^Matrix4d world-transform tmp-point cr cg cb]
   (let [outline-points (map (fn [[x y]]
@@ -145,16 +120,12 @@
     (doseq [renderable renderables]
       (let [[cr cg cb] (colors/renderable-outline-color renderable)
             world-transform (:world-transform renderable)
-            {:keys [scene-infos size size-mode slice9]} (:user-data renderable)
-            animation (:animation (first scene-infos))
-            [quad-width quad-height] size
+            {:keys [animation size size-mode slice9]} (:user-data renderable)
             animation-frame-index (or (some-> renderable :updatable :state :frame) 0)
-            animation-frame (get-in animation [:frames animation-frame-index])]
-        (if (= :size-mode-auto size-mode)
-          (conj-outline-quad! buf world-transform tmp-point quad-width quad-height cr cg cb)
-          (let [slice9-data (slice9/vertex-data animation-frame size slice9 :pivot-center)
-                line-data (:line-data slice9-data)]
-            (conj-outline-slice9-quad! buf line-data world-transform tmp-point cr cg cb)))))
+            animation-frame (get-in animation [:frames animation-frame-index])
+            vertex-data (texture-set/vertex-data animation-frame size-mode size slice9 :pivot-center)
+            line-data (:line-data vertex-data)]
+        (conj-outline-slice9-quad! buf line-data world-transform tmp-point cr cg cb)))
     (vtx/flip! vbuf)))
 
 ; Rendering
