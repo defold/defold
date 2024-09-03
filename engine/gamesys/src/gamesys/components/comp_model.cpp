@@ -724,6 +724,7 @@ namespace dmGameSystem
 
             for (int i = 0; i < vertex_count; ++i)
             {
+                params.m_Index = i;
                 vertex_write_ptr = dmRig::WriteSingleVertexDataByAttributes(vertex_write_ptr, params);
             }
 

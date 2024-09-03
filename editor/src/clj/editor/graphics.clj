@@ -167,13 +167,27 @@
                                                                 0.0 0.0 0.0 0.0
                                                                 0.0 0.0 0.0 0.0
                                                                 0.0 0.0 0.0 0.0))
-(def ^:private default-attribute-element-values-identity-mat4 (vector-of :double
-                                                                1.0 0.0 0.0 0.0
-                                                                0.0 1.0 0.0 0.0
-                                                                0.0 0.0 1.0 0.0
-                                                                0.0 0.0 0.0 1.0))
+;; Transform values (i.e identity world, normal matrices)
+(def ^:private default-attribute-transform-values-mat4 (vector-of :double
+                                                                  1.0 0.0 0.0 0.0
+                                                                  0.0 1.0 0.0 0.0
+                                                                  0.0 0.0 1.0 0.0
+                                                                  0.0 0.0 0.0 1.0))
+
+;; Position semantic values
 (def ^:private default-position-element-values (vector-of :double 0.0 0.0 0.0 1.0))
+(def ^:private default-position-element-values-mat4 (vector-of :double
+                                                               0.0 0.0 0.0 1.0
+                                                               0.0 0.0 0.0 1.0
+                                                               0.0 0.0 0.0 1.0
+                                                               0.0 0.0 0.0 1.0))
+;; Color semantic values
 (def ^:private default-color-element-values (vector-of :double 1.0 1.0 1.0 1.0))
+(def ^:private default-color-element-values-mat4 (vector-of :double
+                                                            1.0 1.0 1.0 1.0
+                                                            1.0 1.0 1.0 1.0
+                                                            1.0 1.0 1.0 1.0
+                                                            1.0 1.0 1.0 1.0))
 
 (defn- vector-type-is-matrix? [attribute-vector-type]
   (case attribute-vector-type
@@ -204,13 +218,17 @@
 
       (> new-element-count old-element-count)
       (let [default-element-values
-            (case semantic-type
-              :semantic-type-position default-position-element-values
-              :semantic-type-color default-color-element-values
-              :semantic-type-world-matrix default-attribute-element-values-identity-mat4
-              :semantic-type-normal-matrix default-attribute-element-values-identity-mat4
-              (if (vector-type-is-matrix? new-vector-type)
-                default-attribute-element-values-mat4
+            (if (vector-type-is-matrix? new-vector-type)
+              (case semantic-type
+                :semantic-type-position default-position-element-values-mat4
+                :semantic-type-color default-color-element-values-mat4
+                :semantic-type-world-matrix default-attribute-transform-values-mat4
+                :semantic-type-normal-matrix default-attribute-transform-values-mat4
+                default-attribute-element-values-mat4)
+
+              (case semantic-type
+                :semantic-type-position default-position-element-values
+                :semantic-type-color default-color-element-values
                 default-attribute-element-values))]
         (into double-values
               (subvec default-element-values old-element-count new-element-count)))
