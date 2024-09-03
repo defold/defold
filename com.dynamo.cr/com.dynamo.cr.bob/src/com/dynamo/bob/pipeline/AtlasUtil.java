@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.io.FileInputStream;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
@@ -168,6 +169,18 @@ public class AtlasUtil {
                 }
             }
         }
+
+        images.sort(new Comparator<AtlasImage>() {
+            @Override
+            public int compare(AtlasImage img1, AtlasImage img2) {
+                int nameComparison = img1.getImage().compareTo(img2.getImage());
+                if (nameComparison == 0) {
+                    return Integer.compare(img1.getSpriteTrimMode().getNumber(), img2.getSpriteTrimMode().getNumber());
+                }
+                return nameComparison;
+            }
+        });
+
         return images;
     }
 
@@ -256,7 +269,7 @@ public class AtlasUtil {
     }
 
     // These are for the Atlas animation
-    private static List<MappedAnimDesc> createAnimDescs(Atlas atlas, PathTransformer transformer) throws CompileExceptionError {
+    private static List<MappedAnimDesc> createAnimDescs(Atlas atlas, PathTransformer transformer, List<AtlasImage> atlasImages) throws CompileExceptionError {
         List<MappedAnimDesc> animDescs = new ArrayList<MappedAnimDesc>(atlas.getAnimationsCount() + atlas.getImagesCount());
         for (AtlasAnimation anim : atlas.getAnimationsList()) {
             List<String> framePaths = new ArrayList<String>();
@@ -273,7 +286,7 @@ public class AtlasUtil {
 
             animDescs.add(new MappedAnimDesc(anim.getId(), framePaths, frameIds, anim.getPlayback(), anim.getFps(), anim.getFlipHorizontal() != 0, anim.getFlipVertical() != 0));
         }
-        for (AtlasImage image : atlas.getImagesList()) {
+        for (AtlasImage image : atlasImages) {
             String id = transformer.transform(image.getImage());
             animDescs.add(new MappedAnimDesc(id, Collections.singletonList(image.getImage()), Collections.singletonList(id)));
         }
@@ -330,7 +343,7 @@ public class AtlasUtil {
             imageNames.add(imageName);
         }
 
-        List<MappedAnimDesc> animDescs = createAnimDescs(atlas, transformer);
+        List<MappedAnimDesc> animDescs = createAnimDescs(atlas, transformer, atlasImages);
         MappedAnimIterator iterator = new MappedAnimIterator(animDescs, imageResourcePaths);
         try {
             TextureSetResult result = TextureSetGenerator.generate(images, imageTrimModes, imageNames, iterator,
@@ -401,7 +414,7 @@ public class AtlasUtil {
 
         List<BufferedImage> imageDatas = loadImagesFromPaths(imageAbsolutePaths);
 
-        List<MappedAnimDesc> animDescs = createAnimDescs(atlas, nameTransformer);
+        List<MappedAnimDesc> animDescs = createAnimDescs(atlas, nameTransformer, atlasImages);
         MappedAnimIterator iterator = new MappedAnimIterator(animDescs, imagePaths);
         try {
             TextureSetResult result = TextureSetGenerator.generate(imageDatas, imageTrimModes, imageNames, iterator,
