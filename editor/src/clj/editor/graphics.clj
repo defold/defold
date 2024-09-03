@@ -163,12 +163,24 @@
 ;; transformed correctly by a 4D matrix. For colors, we default to opaque white.
 (def ^:private default-attribute-element-values (vector-of :double 0.0 0.0 0.0 0.0))
 (def ^:private default-attribute-element-values-mat4 (vector-of :double
+                                                                0.0 0.0 0.0 0.0
+                                                                0.0 0.0 0.0 0.0
+                                                                0.0 0.0 0.0 0.0
+                                                                0.0 0.0 0.0 0.0))
+(def ^:private default-attribute-element-values-identity-mat4 (vector-of :double
                                                                 1.0 0.0 0.0 0.0
                                                                 0.0 1.0 0.0 0.0
                                                                 0.0 0.0 1.0 0.0
                                                                 0.0 0.0 0.0 1.0))
 (def ^:private default-position-element-values (vector-of :double 0.0 0.0 0.0 1.0))
 (def ^:private default-color-element-values (vector-of :double 1.0 1.0 1.0 1.0))
+
+(defn- vector-type-is-matrix? [attribute-vector-type]
+  (case attribute-vector-type
+    :vector-type-mat2 true
+    :vector-type-mat3 true
+    :vector-type-mat4 true
+    false))
 
 (defn vector-type->component-count [attribute-vector-type]
   (case attribute-vector-type
@@ -195,9 +207,11 @@
             (case semantic-type
               :semantic-type-position default-position-element-values
               :semantic-type-color default-color-element-values
-              :semantic-type-world-matrix default-attribute-element-values-mat4
-              :semantic-type-normal-matrix default-attribute-element-values-mat4
-              default-attribute-element-values)]
+              :semantic-type-world-matrix default-attribute-element-values-identity-mat4
+              :semantic-type-normal-matrix default-attribute-element-values-identity-mat4
+              (if (vector-type-is-matrix? new-vector-type)
+                default-attribute-element-values-mat4
+                default-attribute-element-values))]
         (into double-values
               (subvec default-element-values old-element-count new-element-count)))
 
