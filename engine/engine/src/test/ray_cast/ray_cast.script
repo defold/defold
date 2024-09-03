@@ -38,6 +38,8 @@ local function check_messages(m)
 end
 
 function init(self)
+	print("A few zero length ray casts are expected")
+
 	-- refer to ray_cast.collection for more details on the orientation and
 	-- arrangement of the game objects
 	-- The game objects are basically arranged along the cardinal directions

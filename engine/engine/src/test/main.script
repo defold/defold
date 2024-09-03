@@ -14,26 +14,69 @@
 
 local test_duration = 3
 
+local function activate_proxy(self, index)
+    local proxy = self.test_proxies[index]
+    print("Activating proxy " .. proxy)
+    msg.post(proxy, "init")
+    msg.post(proxy, "enable")
+    self.timer = test_duration
+end
+
+local function deactivate_proxy(self, index)
+    local proxy = self.test_proxies[index]
+    print("Deactivating proxy " .. proxy)
+    msg.post(proxy, "disable")
+    msg.post(proxy, "final")
+    msg.post(proxy, "unload")
+end
+
 function init(self)
     self.timer = test_duration
     self.loading_proxy = "#loading_proxy"
+    print("Init of main.script", msg.url())
+
+     -- these are loaded in loading.gui_script, all at once
     self.test_proxies = {
-        "#sprite_proxy", "#particlefx_proxy",
-        "#collection_proxy_proxy", "#tile_proxy",
-        "#script_props_proxy", "#factory_proxy",
-        "#collectionfactory_proxy", "#physics_proxy",
-        "#gui_proxy", "#attacker_target_proxy",
-        "#identifiers_proxy", "#shared_state_proxy",
-        "#label_proxy", "#ray_cast_proxy",
-        "#collision_groups_proxy", "#collectionfactoryprops_proxy"
-	}
+        "#sprite_proxy",
+        "#particlefx_proxy",
+        "#collection_proxy_proxy",
+        "#tile_proxy",
+        "#script_props_proxy",
+        "#factory_proxy",
+        "#collectionfactory_proxy",
+        "#physics_proxy",
+        "#gui_proxy",
+        "#attacker_target_proxy",
+        "#identifiers_proxy",
+        "#shared_state_proxy",
+        "#label_proxy",
+        "#ray_cast_proxy",
+        "#collision_groups_proxy",
+        "#collectionfactoryprops_proxy"
+    }
     self.test_index = 1
     msg.post(self.loading_proxy, "load")
     self.proxies_unloaded = 0
+    self.frame = 0
+    self.activate_next_proxy = false
 end
 
 function update(self, dt)
+    self.frame = self.frame + 1
     self.timer = self.timer - dt
+
+    if self.activate_next_proxy then
+        -- doing it here in the update loop make sure we introduce a 1 frame delay
+        -- this is to prevent extra messages about disabling a proxy that wasn't enabled (which _does_ seems strange, but an issue for another day)
+        deactivate_proxy(self, self.test_index)
+
+        self.activate_next_proxy = false
+        self.test_index = self.test_index + 1
+        if self.test_index <= #self.test_proxies then
+            activate_proxy(self, self.test_index)
+        end
+    end
+
     if self.timer < 0 then
         local error_code = -1
         if self.started then
@@ -45,25 +88,11 @@ function update(self, dt)
     end
 end
 
-local function activate_proxy(self, index)
-	print("Running tests in", self.test_proxies[index])
-    msg.post(self.test_proxies[index], "init")
-    msg.post(self.test_proxies[index], "enable")
-    self.timer = test_duration
-end
-
-local function deactivate_proxy(self, index)
-    local proxy = self.test_proxies[index]
-    msg.post(proxy, "disable")
-    msg.post(proxy, "final")
-    msg.post(proxy, "unload")
-end
-
- --TODO: Rearrange this mess: Make sure each state is only started after the previous is unloaded!
 function on_message(self, message_id, message, sender)
     if message_id == hash("proxy_loaded") then
         msg.post(self.loading_proxy, "init")
         msg.post(self.loading_proxy, "enable")
+        -- the loader.gui_script handles all the loading of the proxies
         msg.post("test_loading:/loading#gui", "start", {proxies = self.test_proxies})
     elseif message_id == hash("proxy_unloaded") then
         self.proxies_unloaded = self.proxies_unloaded + 1
@@ -71,13 +100,11 @@ function on_message(self, message_id, message, sender)
             msg.post("@system:", "exit", { code = 0 })
         end
     elseif message_id == hash("start") then
+        print("Main script starting (all proxies are loaded)")
         self.started = true
         activate_proxy(self, self.test_index)
     elseif message_id == hash("done") then
-        deactivate_proxy(self, self.test_index)
-        self.test_index = self.test_index + 1
-        if self.test_index <= #self.test_proxies then
-            activate_proxy(self, self.test_index)
-        end
+        --print("Done received from", sender, "while testing proxy", self.test_proxies[self.test_index])
+        self.activate_next_proxy = true
     end
 end

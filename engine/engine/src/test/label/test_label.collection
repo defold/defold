@@ -1,4 +1,4 @@
-name: "test_lacel"
+name: "test_label"
 instances {
   id: "label"
   prototype: "/label/label.go"

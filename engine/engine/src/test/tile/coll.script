@@ -90,8 +90,9 @@ function init(self)
 
     -- Set tile out-of-range. Test for previous bug
     msg.post("#tilemap", "set_tile", {layer_id = hash("layer"), position = go.get_position(), dx = 1})
-    msg.post("main:/main#script", "done")
-
     -- testing the render constants
     go.set("#tilemap", "tint", vmath.vector4(1,1,1,1))
+
+    -- finish the suite
+    msg.post("main:/main#script", "done")
 end
