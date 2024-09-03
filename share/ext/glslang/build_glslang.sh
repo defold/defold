@@ -27,9 +27,8 @@ if [ -z "$PLATFORM" ]; then
     exit 1
 fi
 
-eval $(python ..PATH_TO../build_tools/set_sdk_vars.py VERSION_MACOSX_MIN)
-OSX_MIN_SDK_VERSION = $VERSION_MACOSX_MIN
-
+eval $(python ${DYNAMO_HOME}/../../build_tools/set_sdk_vars.py VERSION_MACOSX_MIN)
+OSX_MIN_SDK_VERSION=$VERSION_MACOSX_MIN
 
 CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Release ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DCMAKE_OSX_DEPLOYMENT_TARGET=${OSX_MIN_SDK_VERSION} ${CMAKE_FLAGS}"

@@ -1128,6 +1128,15 @@ bail:
 
     static bool VulkanIsSupported()
     {
+#if defined(DM_PLATFORM_VENDOR)
+        // If we are on a private platform, and this driver is registered, then it's already supported.
+        // We do this skip to avoid calling NativeInit(), or creating an extra api to support creating a vendor specific device twice with
+        // memory etc.
+        // It might make more sense if this function was queried with some actual parameters, but as it is now
+        // it is merely a question of "is Vulkan supported at all on this platform" /MAWE
+        return true;
+#else
+
     #if ANDROID
         if (!LoadVulkanLibrary())
         {
@@ -1135,6 +1144,7 @@ bail:
             return 0x0;
         }
     #endif
+
 
         // GLFW 3.4 doesn't support static linking with vulkan,
         // instead we need to pass in the function that loads symbol for any
@@ -1164,6 +1174,7 @@ bail:
         }
 
         return res == VK_SUCCESS;
+#endif
     }
 
     static HContext VulkanNewContext(const ContextParams& params)
@@ -1253,10 +1264,8 @@ bail:
         {
             if (res == VK_ERROR_OUT_OF_DATE_KHR)
             {
-                uint32_t width, height;
-                VulkanGetNativeWindowSize(context, &width, &height);
-                context->m_WindowWidth  = width;
-                context->m_WindowHeight = height;
+                context->m_WindowWidth  = dmPlatform::GetWindowWidth(context->m_Window);
+                context->m_WindowHeight = dmPlatform::GetWindowHeight(context->m_Window);
                 SwapChainChanged(context, &context->m_WindowWidth, &context->m_WindowHeight, 0, 0);
                 res = context->m_SwapChain->Advance(vk_device, current_frame_resource.m_ImageAvailable);
                 CHECK_VK_ERROR(res);
@@ -1370,7 +1379,9 @@ bail:
         context->m_CurrentFrameInFlight = (context->m_CurrentFrameInFlight + 1) % context->m_NumFramesInFlight;
         context->m_FrameBegun           = 0;
 
-        NativeSwapBuffers(context);
+#if defined(ANDROID) || defined(DM_PLATFORM_IOS) || defined(DM_PLATFORM_VENDOR)
+        dmPlatform::SwapBuffers(context->m_Window);
+#endif
     }
 
     static void VulkanClear(HContext _context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil)
@@ -1607,6 +1618,25 @@ bail:
         return cached_pipeline;
     }
 
+    static void SetDeviceBuffer(VulkanContext* context, DeviceBuffer* buffer, uint32_t size, const void* data)
+    {
+        if (size == 0)
+        {
+            return;
+        }
+
+        // Coherent memory writes does not seem to be properly synced on MoltenVK,
+        // so for now we always mark the old buffer for destruction when updating the data.
+    #ifndef __MACH__
+        if (size != buffer->m_MemorySize)
+    #endif
+        {
+            DestroyResourceDeferred(g_VulkanContext->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], buffer);
+        }
+
+        DeviceBufferUploadHelper(g_VulkanContext, data, size, 0, buffer);
+    }
+
     static HVertexBuffer VulkanNewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         VkBufferUsageFlags usage_flags = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
@@ -1642,20 +1672,7 @@ bail:
     static void VulkanSetVertexBufferData(HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         DM_PROFILE(__FUNCTION__);
-
-        if (size == 0)
-        {
-            return;
-        }
-
-        DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
-
-        if (size != buffer_ptr->m_MemorySize)
-        {
-            DestroyResourceDeferred(g_VulkanContext->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], buffer_ptr);
-        }
-
-        DeviceBufferUploadHelper(g_VulkanContext, data, size, 0, buffer_ptr);
+        SetDeviceBuffer(g_VulkanContext, (DeviceBuffer*) buffer, size, data);
     }
 
     static void VulkanSetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
@@ -1712,22 +1729,7 @@ bail:
     static void VulkanSetIndexBufferData(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         DM_PROFILE(__FUNCTION__);
-
-        if (size == 0)
-        {
-            return;
-        }
-
-        assert(buffer);
-
-        DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
-
-        if (size != buffer_ptr->m_MemorySize)
-        {
-            DestroyResourceDeferred(g_VulkanContext->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], buffer_ptr);
-        }
-
-        DeviceBufferUploadHelper(g_VulkanContext, data, size, 0, buffer_ptr);
+        SetDeviceBuffer(g_VulkanContext, (DeviceBuffer*) buffer, size, data);
     }
 
     static void VulkanSetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
@@ -2043,7 +2045,7 @@ bail:
                         UpdateImageDescriptor(context,
                             context->m_TextureUnits[pgm_res.m_TextureUnit],
                             pgm_res.m_Res,
-                            vk_write_image_descriptors[image_to_write_index++], 
+                            vk_write_image_descriptors[image_to_write_index++],
                             vk_write_desc_info);
                         break;
                     case ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER:
@@ -4187,6 +4189,26 @@ bail:
         }
     }
 
+    static dmPlatform::HWindow VulkanGetWindow(HContext context)
+    {
+        return ((VulkanContext*) context)->m_Window;
+    }
+
+    static uint32_t VulkanGetWidth(HContext context)
+    {
+        return ((VulkanContext*) context)->m_Width;
+    }
+
+    static uint32_t VulkanGetHeight(HContext context)
+    {
+        return ((VulkanContext*) context)->m_Height;
+    }
+
+    static uint32_t VulkanGetDisplayDpi(HContext context)
+    {
+        return 0;
+    }
+
     static void VulkanRunApplicationLoop(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running)
     {
         while (0 != is_running(user_data))
@@ -4861,7 +4883,7 @@ bail:
     {
         assert(prog);
         Program* program = (Program*) prog;
-        uint32_t search_index = 0;  
+        uint32_t search_index = 0;
 
         for (int set = 0; set < program->m_MaxSet; ++set)
         {

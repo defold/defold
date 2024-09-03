@@ -35,7 +35,7 @@
    "html5" "http" "image" "io" "json" "label" "liveupdate" "math" "model" "msg"
    "os" "package" "particlefx" "physics" "profiler" "render" "resource"
    "socket" "sound" "sprite" "string" "sys" "table" "tilemap" "timer" "vmath"
-   "window" "zlib"])
+   "window" "zlib" "types"])
 
 (defn- sdoc-path [doc]
   (format "doc/%s_doc.sdoc" doc))
