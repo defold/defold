@@ -653,25 +653,14 @@
 (def ^:private renderable-data->world-normal-v4 (partial renderable-data->world-direction-v4 :normal-data))
 (def ^:private renderable-data->world-tangent-v3 (partial renderable-data->world-direction-v3 :tangent-data))
 
-(defn- matrix4+attribute->bytes [^Matrix4d matrix attribute]
+(defn- matrix4+attribute->flat-array [^Matrix4d matrix attribute]
   (let [vector-component-count (vector-type->component-count (:vector-type attribute))
         matrix-flat-array (math/vecmath->clj (doto (Matrix4d. matrix) (.transpose)))
-        matrix-4x4-array (partition 4 matrix-flat-array)
-        matrix-row-column-count (vtx/vertex-attribute->row-column-count attribute)
-        ;; Grab the flat list of float values from either the first n values of the array,
-        ;; or an n-by-n sub-matrix that should match the outgoing vector type
-        flat-vector-values (if (nil? matrix-row-column-count)
-                             (take vector-component-count matrix-flat-array)
-                             (vec (flatten
-                                    (map #(take matrix-row-column-count %)
-                                         (take matrix-row-column-count matrix-4x4-array)))))
-        num-floats (if (nil? matrix-row-column-count)
-                     vector-component-count
-                     (* matrix-row-column-count matrix-row-column-count))
-        byte-array (byte-array (* 4 num-floats))
-        byte-buffer (vtx/wrap-buf byte-array)]
-    (vtx/buf-push! byte-buffer :float false flat-vector-values)
-    byte-array))
+        matrix-row-column-count (vtx/vertex-attribute->row-column-count attribute)]
+    (vec (flatten (if matrix-row-column-count
+                    (map #(take matrix-row-column-count %)
+                         (take matrix-row-column-count (partition 4 matrix-flat-array)))
+                    (take vector-component-count matrix-flat-array))))))
 
 (defn put-attributes! [^VertexBuffer vbuf renderable-datas]
   (let [vertex-description (.vertex-description vbuf)
@@ -823,17 +812,17 @@
                     (put-renderables! attribute-byte-offset
                                       (fn [renderable-data]
                                         (let [vertex-count (count (:position-data renderable-data))
-                                              matrix-bytes (matrix4+attribute->bytes (:world-transform renderable-data) attribute)]
-                                          (repeat vertex-count matrix-bytes)))
-                                      put-attribute-bytes!)
+                                              matrix-values (matrix4+attribute->flat-array (:world-transform renderable-data) attribute)]
+                                          (repeat vertex-count matrix-values)))
+                                      put-attribute-doubles!)
 
                     :semantic-type-normal-matrix
                     (put-renderables! attribute-byte-offset
                                       (fn [renderable-data]
                                         (let [vertex-count (count (:position-data renderable-data))
-                                              matrix-bytes (matrix4+attribute->bytes (:normal-transform renderable-data) attribute)]
-                                          (repeat vertex-count matrix-bytes)))
-                                      put-attribute-bytes!))
+                                              matrix-values (matrix4+attribute->flat-array (:normal-transform renderable-data) attribute)]
+                                          (repeat vertex-count matrix-values)))
+                                      put-attribute-doubles!))
 
                   ;; Mesh data doesn't exist. Use the attribute data from the
                   ;; material or overrides.

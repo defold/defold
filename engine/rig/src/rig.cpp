@@ -939,6 +939,10 @@ namespace dmRig
 
     static inline void WriteMatrix(uint8_t* write_ptr, const Matrix4* matrix, uint32_t element_count, uint32_t data_size)
     {
+        // Nothing to write - should we write something here?
+        if (!matrix)
+            return;
+
         float buffer[16] = {};
 
         // If the matrix is 4x4, we can use the matrix values directly
@@ -1028,11 +1032,17 @@ namespace dmRig
                 } break;
                 case dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL:
                 {
-                    memcpy(write_ptr, &params.m_Normals[params.m_Index*3], dmMath::Min(3 * sizeof(float), data_size));
+                    if (params.m_Normals)
+                        memcpy(write_ptr, &params.m_Normals[params.m_Index*3], dmMath::Min(3 * sizeof(float), data_size));
+                    else
+                        memcpy(write_ptr, info.m_ValuePtr, data_size);
                 } break;
                 case dmGraphics::VertexAttribute::SEMANTIC_TYPE_TANGENT:
                 {
-                    memcpy(write_ptr, &params.m_Tangents[params.m_Index*4], dmMath::Min(4 * sizeof(float), data_size));
+                    if (params.m_Tangents)
+                        memcpy(write_ptr, &params.m_Tangents[params.m_Index*4], dmMath::Min(4 * sizeof(float), data_size));
+                    else
+                        memcpy(write_ptr, info.m_ValuePtr, data_size);
                 } break;
                 case dmGraphics::VertexAttribute::SEMANTIC_TYPE_WORLD_MATRIX:
                 {

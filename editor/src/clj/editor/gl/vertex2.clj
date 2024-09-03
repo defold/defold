@@ -360,8 +360,10 @@
     (vertex-enable-attribs gl expanded-attribute-locs)))
 
 (defn- unbind-vertex-buffer-with-shader! [^GL2 gl request-id ^VertexBuffer vertex-buffer shader]
-  (let [[_ attrib-locs] (request-vbo gl request-id vertex-buffer shader)]
-    (vertex-disable-attribs gl attrib-locs))
+  (let [[_ attrib-locs] (request-vbo gl request-id vertex-buffer shader)
+        attributes (:attributes (.vertex-description vertex-buffer))
+        [_ expanded-attribute-locs] (expand-vertex-attributes+locs attributes attrib-locs)]
+    (vertex-disable-attribs gl expanded-attribute-locs))
   (gl/gl-bind-buffer gl GL/GL_ARRAY_BUFFER 0))
 
 (defn- bind-index-buffer! [^GL2 gl request-id ^IntBuffer index-buffer]
