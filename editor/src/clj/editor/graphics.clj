@@ -737,12 +737,10 @@
                      (some? (:tangent-data renderable-data)))
 
                 :semantic-type-world-matrix
-                (and (zero? channel)
-                     (some? (:has-semantic-type-world-matrix renderable-data)))
+                (some? (:has-semantic-type-world-matrix renderable-data))
 
                 :semantic-type-normal-matrix
-                (and (zero? channel)
-                     (some? (:has-semantic-type-normal-matrix renderable-data)))
+                (some? (:has-semantic-type-normal-matrix renderable-data))
 
                 false))))]
 

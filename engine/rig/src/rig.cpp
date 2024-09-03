@@ -937,6 +937,7 @@ namespace dmRig
         return out_buffer;
     }
 
+    // Note: This will write a float matrix, but do we want to do data conversion here?
     static inline void WriteMatrix(uint8_t* write_ptr, const Matrix4* matrix, uint32_t element_count, uint32_t data_size)
     {
         // Nothing to write - should we write something here?

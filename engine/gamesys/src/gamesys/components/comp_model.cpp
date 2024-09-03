@@ -953,12 +953,11 @@ namespace dmGameSystem
         dmRender::HMaterial render_context_material, uint32_t material_index,
         ModelComponent* component, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end, dmGraphics::HVertexDeclaration inst_decl)
     {
-        MeshRenderItem* render_item             = (MeshRenderItem*) buf[*begin].m_UserData;
-        uint32_t instance_count                 = end - begin;
-        uint32_t instance_stride                = dmGraphics::GetVertexDeclarationStride(inst_decl);
-        uint32_t required_instance_memory_count = instance_count * instance_stride;
-        MeshAttributeRenderData* attribute_rd   = 0;
-        dmRender::HMaterial render_material     = GetRenderMaterial(render_context_material, component, component->m_Resource, material_index);
+        MeshRenderItem* render_item           = (MeshRenderItem*) buf[*begin].m_UserData;
+        uint32_t instance_count               = end - begin;
+        uint32_t instance_stride              = dmGraphics::GetVertexDeclarationStride(inst_decl);
+        MeshAttributeRenderData* attribute_rd = 0;
+        dmRender::HMaterial render_material   = GetRenderMaterial(render_context_material, component, component->m_Resource, material_index);
 
         bool render_context_material_custom_attributes = false;
         if (render_context_material)
@@ -966,9 +965,15 @@ namespace dmGameSystem
             render_context_material_custom_attributes = HasCustomVertexAttributes(render_context_material);
         }
 
-        if (world->m_InstanceBufferDataLocalSpace.Remaining() < required_instance_memory_count)
+        uint32_t required_instance_buffer_memory = instance_count * instance_stride;
+        if (!render_context_material_custom_attributes && render_item->m_AttributeRenderDataIndex == ATTRIBUTE_RENDER_DATA_INDEX_UNUSED)
         {
-            world->m_InstanceBufferDataLocalSpace.OffsetCapacity(required_instance_memory_count - world->m_InstanceBufferDataLocalSpace.Remaining());
+            required_instance_buffer_memory = instance_count * sizeof(ModelInstanceData);
+        }
+
+        if (world->m_InstanceBufferDataLocalSpace.Remaining() < required_instance_buffer_memory)
+        {
+            world->m_InstanceBufferDataLocalSpace.OffsetCapacity(required_instance_buffer_memory - world->m_InstanceBufferDataLocalSpace.Remaining());
         }
 
         uint8_t* instance_write_ptr = world->m_InstanceBufferDataLocalSpace.End();
