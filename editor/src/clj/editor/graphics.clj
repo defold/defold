@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.graphics
-  (:require [dynamo.graph :as g]
+  (:require [editor.buffers :as buffers]
+            [dynamo.graph :as g]
             [editor.geom :as geom]
             [editor.gl.shader :as shader]
             [editor.gl.vertex2 :as vtx]
@@ -205,6 +206,16 @@
     :vector-type-mat2 4
     :vector-type-mat3 9
     :vector-type-mat4 16))
+
+(defn- shader-uniform-type->vector-type [shader-uniform-type]
+  (case shader-uniform-type
+    :float :vector-type-scalar
+    :float-vec2 :vector-type-vec2
+    :float-vec3 :vector-type-vec3
+    :float-vec4 :vector-type-vec4
+    :float-mat2 :vector-type-mat2
+    :float-mat3 :vector-type-mat3
+    :float-mat4 :vector-type-mat4))
 
 (defn resize-doubles [double-values semantic-type new-vector-type]
   {:pre [(vector? double-values)
@@ -446,9 +457,18 @@
             :step-function :vertex-step-function-instance
             :vector-type :vector-type-mat4}])))
 
+
+(defn- compatible-vector-type [vector-type-value vector-type-container]
+  (let [vector-type-value-comp-count (vector-type->component-count vector-type-value)
+        vector-type-container-comp-count (vector-type->component-count vector-type-container)]
+    (if (<= vector-type-value-comp-count vector-type-container-comp-count)
+      vector-type-value
+      vector-type-container)))
+
 (defn shader-bound-attributes [^GL2 gl shader material-attribute-infos manufactured-attribute-keys default-coordinate-space]
   {:pre [(coordinate-space? default-coordinate-space)]}
-  (let [shader-bound-attribute? (comp boolean (shader/attribute-infos shader gl) :name)
+  (let [shader-attribute-infos (shader/attribute-infos shader gl)
+        shader-bound-attribute? (comp boolean shader-attribute-infos :name)
         declared-material-attribute-key? (into #{} (map :name-key) material-attribute-infos)
 
         manufactured-attribute-infos
@@ -459,11 +479,18 @@
                  (cond-> attribute-info
                          (= :default (:coordinate-space attribute-info))
                          (assoc :coordinate-space default-coordinate-space))))
-          manufactured-attribute-keys)]
+          manufactured-attribute-keys)
 
-    (filterv shader-bound-attribute?
-             (concat manufactured-attribute-infos
-                     material-attribute-infos))))
+        ensure-correct-vector-type-fn (fn [attribute-info]
+                                        (let [shader-attribute-info (get shader-attribute-infos (:name attribute-info))
+                                              shader-attribute-vector-type (shader-uniform-type->vector-type (:type shader-attribute-info))
+                                              compatible-vector-type (compatible-vector-type (:vector-type attribute-info) shader-attribute-vector-type)]
+                                          (assoc attribute-info :vector-type compatible-vector-type)))
+
+        filtered-attribute-infos (filterv shader-bound-attribute?
+                                          (concat manufactured-attribute-infos
+                                                  material-attribute-infos))]
+    (mapv ensure-correct-vector-type-fn filtered-attribute-infos)))
 
 (defn vertex-attribute-overrides->save-values [vertex-attribute-overrides material-attribute-infos]
   (let [declared-material-attribute-key? (into #{} (map :name-key) material-attribute-infos)
@@ -859,8 +886,14 @@
                   (put-renderables! attribute-byte-offset
                                     (fn [renderable-data]
                                       (let [vertex-count (count (:position-data renderable-data))
-                                            attribute-bytes (get (:vertex-attribute-bytes renderable-data) name-key)]
-                                        (repeat vertex-count attribute-bytes)))
+                                            attribute-bytes (get (:vertex-attribute-bytes renderable-data) name-key)
+                                            attribute-byte-count-max (* element-count (buffers/type-size buffer-data-type))]
+                                        ;; Clamp the buffer if the container format is smaller than specified in the material
+                                        (if (> (count attribute-bytes) attribute-byte-count-max)
+                                          (let [attribute-bytes-clamped (byte-array attribute-byte-count-max)]
+                                            (System/arraycopy attribute-bytes 0 attribute-bytes-clamped 0 attribute-byte-count-max)
+                                            (repeat vertex-count attribute-bytes-clamped))
+                                          (repeat vertex-count attribute-bytes))))
                                     put-attribute-bytes!))
                 (-> reduce-info
                     (update semantic-type inc)
