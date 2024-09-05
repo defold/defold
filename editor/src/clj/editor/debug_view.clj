@@ -612,8 +612,10 @@
   (run [debug-view] (mobdebug/exit! (current-session debug-view))))
 
 (defn- can-change-resolution? [debug-view prefs evaluation-context]
-  (and (targets/controllable-target? (targets/selected-target prefs))
-       (not (suspended? debug-view evaluation-context))))
+  (let [target (targets/selected-target prefs)]
+   (and (or (targets/controllable-target? target)
+            (targets/all-launched-targets? target))
+        (not (suspended? debug-view evaluation-context)))))
 
 (def should-rotate-device?
   (atom false))
@@ -622,7 +624,11 @@
   (enabled? [debug-view prefs evaluation-context]
             (can-change-resolution? debug-view prefs evaluation-context))
   (run [project app-view prefs build-errors-view selection user-data]
-       (engine/change-resolution! (targets/selected-target prefs) (:width user-data) (:height user-data) @should-rotate-device?)))
+       (let [target (targets/selected-target prefs)]
+        (if (targets/all-launched-targets? target)
+          (doseq [launched-target (targets/all-launched-targets)]
+            (engine/change-resolution! launched-target (:width user-data) (:height user-data) @should-rotate-device?))
+          (engine/change-resolution! target (:width user-data) (:height user-data) @should-rotate-device?)))))
 
 (handler/defhandler :set-custom-resolution :global
   (enabled? [debug-view prefs evaluation-context]
