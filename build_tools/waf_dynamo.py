@@ -1538,6 +1538,9 @@ def detect(conf):
     if platform in ('x86_64-linux', 'x86_64-win32', 'x86_64-macos', 'arm64-macos'):
         conf.env['IS_TARGET_DESKTOP'] = 'true'
 
+    if host_platform in ('x86_64-linux', 'x86_64-win32', 'x86_64-macos', 'arm64-macos'):
+        conf.env['IS_HOST_DESKTOP'] = 'true'
+
     if platform in ('js-web', 'wasm-web') and not conf.env['NODEJS']:
         conf.find_program('node', var='NODEJS', mandatory = False)
 
@@ -1720,6 +1723,15 @@ def detect(conf):
     remove_flag(conf.env['shlib_CFLAGS'], '-current_version', 1)
     remove_flag(conf.env['shlib_CXXFLAGS'], '-compatibility_version', 1)
     remove_flag(conf.env['shlib_CXXFLAGS'], '-current_version', 1)
+
+    # Needed for api generation
+    if conf.env.IS_HOST_DESKTOP:
+        if not 'CLANG' in conf.env:
+            conf.find_program('clang',   var='CLANG', mandatory = True)
+            os.environ['CLANG'] = conf.env.CLANG[0]
+        if not 'CLANGPP' in conf.env:
+            conf.find_program('clang++', var='CLANGPP', mandatory = True)
+            os.environ['CLANGPP'] = conf.env.CLANGPP[0]
 
     # NOTE: We override after check_tool. Otherwise waf gets confused and CXX_NAME etc are missing..
     if platform in ('js-web', 'wasm-web'):
