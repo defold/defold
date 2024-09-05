@@ -209,13 +209,15 @@ def parse_inner_cpp(main_prefix, dep_prefixes, namespace, inp, outp):
 
 
 def clang(csrc_path, includes=[]):
-    cmd = ['clang', '-Xclang', '-ast-dump=json', '-c']
+    clang = os.environ.get('CLANG', 'clang')
+    cmd = [clang, '-Xclang', '-ast-dump=json', '-c']
     cmd.extend([ '-I%s' % include for include in includes])
     cmd.append(csrc_path)
     return run.command(cmd)
 
 def clang_cpp(csrc_path, includes=[]):
-    cmd = ['clang++', '-Xclang', '-ast-dump=json', '-c']
+    clangpp = os.environ.get('CLANGPP', 'clang++')
+    cmd = [clangpp, '-Xclang', '-ast-dump=json', '-c']
     cmd.extend([ '-I%s' % include for include in includes])
     cmd.append(csrc_path)
     return run.command(cmd)
