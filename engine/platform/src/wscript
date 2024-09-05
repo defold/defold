@@ -31,8 +31,6 @@ def build(bld):
                 glfw_source += ['platform_window_glfw3_osx.cpp']
             elif bld.env.PLATFORM in ('x86_64-win32', 'win32'):
                 glfw_source += ['platform_window_glfw3_win32.cpp']
-            elif bld.env.PLATFORM in ['wasm-web', 'js-web']:
-                glfw_source = ['platform_window_null.cpp']
         else:
             if bld.env.PLATFORM in ('armv7-android', 'arm64-android'):
                 glfw_source += ['platform_window_glfw_android.cpp']
@@ -40,8 +38,6 @@ def build(bld):
                 glfw_source += ['platform_window_glfw_ios.cpp']
             elif bld.env.PLATFORM == 'x86_64-linux':
                 glfw_source += ['platform_window_glfw_linux.cpp']
-            elif bld.env.PLATFORM in ['wasm-web', 'js-web']:
-                glfw_source = ['platform_window_null.cpp']
 
         lib = bld.stlib(features = 'cxx c ddf',
                         includes = '.',
