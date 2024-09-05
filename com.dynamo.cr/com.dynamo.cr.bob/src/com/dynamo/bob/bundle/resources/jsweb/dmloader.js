@@ -257,7 +257,7 @@ var EngineLoader = {
             function(error) { throw error; },
             function(wasm) {
                 if (wasm.byteLength != EngineLoader.wasm_size) {
-                    throw "Invalid wasm size. Expected: " + EngineLoader.wasm_size + ", actual: " + wasm.byteLength;
+                   console.warn("Unexpected wasm size:: " + wasm.byteLength + ", expected: " + EngineLoader.wasm_size);
                 }
                 var wasmInstantiate = WebAssembly.instantiate(new Uint8Array(wasm), imports).then(function(output) {
                     successCallback(output.instance);
