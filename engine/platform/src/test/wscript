@@ -11,7 +11,10 @@ def build(bld):
                 target = 'test_platform')
 
     if platform_supports_feature(bld.env.PLATFORM, "opengl", None):
-        use_libs = ["TESTMAIN", "APP", "DDF", "DLIB", "DMGLFW", "PROFILE", "OPENGL", "platform"]
+        use_libs = ["TESTMAIN", "APP", "DDF", "DLIB", "PROFILE_NULL", "OPENGL", "platform"]
+
+        if bld.env.PLATFORM not in ['js-web', 'wasm-web']:
+            use_libs.append("DMGLFW")
 
         if waflib.Options.options.with_vulkan:
             use_libs.append('VULKAN')
