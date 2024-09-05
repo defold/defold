@@ -632,6 +632,15 @@
   (state [app-view user-data prefs workspace]
          (= user-data (prefs/get-prefs prefs (prefs/make-project-specific-key "simulated-resolution" workspace) nil))))
 
+(handler/defhandler :reset-custom-resolution :global
+  (enabled? [] true)
+  (run [project prefs workspace]
+       (prefs/set-prefs prefs (prefs/make-project-specific-key "simulated-resolution" workspace) nil)
+       (let [project-settings (project/settings project)
+             width (get project-settings ["display" "width"])
+             height (get project-settings ["display" "height"])]
+         (change-resolution! prefs width height workspace))))
+
 (handler/defhandler :set-custom-resolution :global
   (enabled? [] true)
   (run [project app-view prefs build-errors-view selection user-data workspace]
@@ -683,7 +692,10 @@
                 :command :engine-resource-profile-show}
                {:label :separator}
                {:label "Simulate Resolution"
-                :children [{:label "Custom Resolution..."
+                :children [{:label "Reset Simulated Resolution"
+                            :command :reset-custom-resolution}
+                           {:label :separator}
+                           {:label "Custom Resolution..."
                             :command :set-custom-resolution
                             :check true}
                            {:label "Apple"
