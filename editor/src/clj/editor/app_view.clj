@@ -630,32 +630,6 @@
     (build-errors-view/update-build-errors build-errors-view error-value)
     (show-build-errors! main-scene tool-tab-pane)))
 
-(def ^:private remote-log-pump-thread (atom nil))
-(def ^:private console-stream (atom nil))
-
-(defn- reset-remote-log-pump-thread! [^Thread new]
-  (when-let [old ^Thread @remote-log-pump-thread]
-    (.interrupt old))
-  (reset! remote-log-pump-thread new))
-
-(defn- start-log-pump! [log-stream sink-fn]
-  (doto (Thread. (fn []
-                   (try
-                     (let [this (Thread/currentThread)]
-                       (with-open [buffered-reader ^BufferedReader (io/reader log-stream :encoding "UTF-8")]
-                         (loop []
-                           (when-not (.isInterrupted this)
-                             (when-let [line (.readLine buffered-reader)] ; line of text or nil if eof reached
-                               (sink-fn line)
-                               (recur))))))
-                     (catch IOException _
-                       ;; Losing the log connection is ok and even expected
-                       nil)
-                     (catch InterruptedException _
-                       ;; Losing the log connection is ok and even expected
-                       nil))))
-    (.start)))
-
 (defn- local-url [target web-server]
   (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload/url-prefix))
 
@@ -801,15 +775,6 @@
       (report-build-launch-progress! "Launch failed")
       (throw e))))
 
-(defn- reset-console-stream! [stream]
-  (reset! console-stream stream)
-  (console/clear-console!))
-
-(defn- make-remote-log-sink [log-stream]
-  (fn [line]
-    (when (= @console-stream log-stream)
-      (console/append-console-line! line))))
-
 (defn- make-launched-log-sink [launched-target on-service-url-found]
   (let [initial-output (atom "")]
     (fn [line]
@@ -817,7 +782,7 @@
         (swap! initial-output str line "\n")
         (when-let [target-info (engine/parse-launched-target-info @initial-output)]
           (targets/update-launched-target! launched-target target-info on-service-url-found)))
-      (when (= @console-stream (:log-stream launched-target))
+      (when (console/current-stream? (:log-stream launched-target))
         (console/append-console-line! line)))))
 
 (defn- reboot-engine! [target web-server debug?]
@@ -855,9 +820,9 @@
                                  (targets/when-url (:id launched-target)
                                                    #(on-launched-hook! project (:process launched-target) %))
                                  (let [log-stream (:log-stream launched-target)]
-                                   (reset-console-stream! log-stream)
-                                   (reset-remote-log-pump-thread! nil)
-                                   (start-log-pump! log-stream (make-launched-log-sink launched-target (partial on-service-url-found prefs workspace)))))
+                                   (console/reset-console-stream! log-stream)
+                                   (console/reset-remote-log-pump-thread! nil)
+                                   (console/start-log-pump! log-stream (make-launched-log-sink launched-target (partial on-service-url-found prefs workspace)))))
                                last-launched-target))]
     (try
       (cond
@@ -871,8 +836,8 @@
 
         (target-cannot-swap-engine? selected-target)
         (let [log-stream (engine/get-log-service-stream selected-target)]
-          (reset-console-stream! log-stream)
-          (reset-remote-log-pump-thread! (start-log-pump! log-stream (make-remote-log-sink log-stream)))
+          (when log-stream
+            (console/set-log-service-stream log-stream))
           (reboot-engine! selected-target web-server debug?))
 
         :else
@@ -882,8 +847,8 @@
             (do
               ;; We're running "the same" engine and can reuse the
               ;; running process by rebooting
-              (reset-console-stream! (:log-stream selected-target))
-              (reset-remote-log-pump-thread! nil)
+              (console/reset-console-stream! (:log-stream selected-target))
+              (console/reset-remote-log-pump-thread! nil)
               ;; Launched target log pump already
               ;; running to keep engine process
               ;; from halting because stdout/err is
@@ -1340,14 +1305,10 @@ If you do not specifically require different script states, consider changing th
     (workspace/clear-build-cache! workspace)
     (build-handler project workspace prefs web-server build-errors-view main-stage tool-tab-pane)))
 
-(defn- pipe-log-stream-to-console! [input-stream]
-  (reset-console-stream! input-stream)
-  (reset-remote-log-pump-thread! (start-log-pump! input-stream (make-remote-log-sink input-stream))))
-
 (defn- start-new-log-pipe!
   ^PipedOutputStream []
   (let [in (PipedInputStream.)]
-    (pipe-log-stream-to-console! in)
+    (console/pipe-log-stream-to-console! in)
     (PipedOutputStream. in)))
 
 (handler/defhandler :build-html5 :global

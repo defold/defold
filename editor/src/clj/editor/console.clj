@@ -43,6 +43,7 @@
             [util.coll :as coll]
             [util.http-util :as http-util])
   (:import [editor.code.data Cursor CursorRange LayoutInfo Rect]
+           [java.io BufferedReader IOException]
            [java.util.regex MatchResult]
            [javafx.beans.property SimpleStringProperty]
            [javafx.scene Node Parent Scene]
@@ -92,6 +93,51 @@
   "Clear the console. Callable from a background thread."
   []
   (swap! pending-atom assoc :clear true :entries [] :index 0))
+
+(def ^:private remote-log-pump-thread (atom nil))
+(def ^:private console-stream (atom nil))
+
+(defn current-stream? [stream] (= @console-stream stream))
+
+(defn reset-remote-log-pump-thread! [^Thread new]
+  (when-let [old ^Thread @remote-log-pump-thread]
+    (.interrupt old))
+  (reset! remote-log-pump-thread new))
+
+(defn reset-console-stream! [stream]
+  (reset! console-stream stream)
+  (clear-console!))
+
+(defn start-log-pump! [log-stream sink-fn]
+  (doto (Thread. (fn []
+                   (try
+                     (let [this (Thread/currentThread)]
+                       (with-open [buffered-reader ^BufferedReader (io/reader log-stream :encoding "UTF-8")]
+                         (loop []
+                           (when-not (.isInterrupted this)
+                             (when-let [line (.readLine buffered-reader)] ; line of text or nil if eof reached
+                               (sink-fn line)
+                               (recur))))))
+                     (catch IOException _
+                       ;; Losing the log connection is ok and even expected
+                       nil)
+                     (catch InterruptedException _
+                       ;; Losing the log connection is ok and even expected
+                       nil))))
+    (.start)))
+
+(defn make-remote-log-sink [log-stream]
+  (fn [line]
+    (when (= @console-stream log-stream)
+      (append-console-line! line))))
+
+(defn set-log-service-stream [log-stream]
+  (reset-console-stream! log-stream)
+  (reset-remote-log-pump-thread! (start-log-pump! log-stream (make-remote-log-sink log-stream))))
+
+(defn pipe-log-stream-to-console! [input-stream]
+  (reset-console-stream! input-stream)
+  (reset-remote-log-pump-thread! (start-log-pump! input-stream (make-remote-log-sink input-stream))))
 
 (defn- consume-entries-in-state [state ^long n]
   (let [{:keys [^long index entries]} state]

@@ -16,12 +16,15 @@
   (:require [clojure.string :as str]
             [clojure.xml :as xml]
             [clojure.java.io :as io]
+            [editor.console :as console]
+            [editor.engine :as engine]
             [editor.process :as process]
             [editor.dialogs :as dialogs]
             [editor.handler :as handler]
             [editor.prefs :as prefs]
-            [editor.ui :as ui]
-            [editor.util :as util])
+            [editor.notifications :as notifications]
+            [editor.workspace :as workspace]
+            [editor.ui :as ui])
   (:import [clojure.lang ExceptionInfo]
            [com.dynamo.upnp DeviceInfo SSDP SSDP$Logger]
            [java.io ByteArrayInputStream ByteArrayOutputStream IOException]
@@ -321,9 +324,22 @@
 (defn all-launched-targets? [target]
   (= :all-launched-targets (:id target)))
 
+(defn- show-error-message [exception workspace]
+  (ui/run-later
+    (let [msg (str (.getMessage exception) "\n\n"
+                   "The target you have chosen isn't available")]
+      (notifications/show!
+        (workspace/notifications workspace)
+        {:type :error
+         :id ::target-connection-error
+         :text msg}))))
+
 (defn select-target! [prefs target]
   (reset! selected-target-atom target)
   (prefs/set-prefs prefs "selected-target-id" (:id target))
+  (let [log-stream (engine/get-log-service-stream target)]
+    (when log-stream
+      (console/set-log-service-stream log-stream)))
   target)
 
 (defn- url-string [url-string]
@@ -360,9 +376,12 @@
 (def ^:private separator {:label :separator})
 
 (handler/defhandler :target :global
-  (run [user-data prefs]
+  (run [user-data prefs workspace]
     (when user-data
-      (select-target! prefs (if (= user-data :new-local-engine) nil user-data))))
+      (try
+        (select-target! prefs (if (= user-data :new-local-engine) nil user-data))
+        (catch Exception e
+          (show-error-message e workspace)))))
   (state [user-data prefs]
          (let [selected-target (selected-target prefs)]
            (or (= user-data selected-target)
