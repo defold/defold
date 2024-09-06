@@ -282,7 +282,7 @@
 
                      simulated-resolution
                      (into [(format "--config=display.width=%d" (:width simulated-resolution))
-                            (format "--config=display.height=%d"(:height simulated-resolution))]))
+                            (format "--config=display.height=%d" (:height simulated-resolution))]))
         env {"DM_SERVICE_PORT" "dynamic"
              "DM_QUIT_ON_ESC" (if (prefs/get-prefs prefs "general-quit-on-esc" false)
                                 "1" "0")

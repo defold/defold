@@ -736,6 +736,16 @@
                                                     :check true
                                                     :user-data {:width 414
                                                                 :height 896}}
+                                                   {:label "iPhone 12 Pro Max/13 Pro Max/14 Plus (428x926)"
+                                                    :command :set-resolution
+                                                    :check true
+                                                    :user-data {:width 428
+                                                                :height 926}}
+                                                   {:label "iPhone 14 Pro Max/15 Plus/15 Pro Max (430x932)"
+                                                    :command :set-resolution
+                                                    :check true
+                                                    :user-data {:width 430
+                                                                :height 932}}
                                                    {:label :separator}
                                                    {:label "Native Resolutions"
                                                     :command :disabled-menu-label}
@@ -759,12 +769,12 @@
                                                     :check true
                                                     :user-data {:width 1242
                                                                 :height 2208}}
-                                                   {:label "iPhone X/XS (1125x2436)"
+                                                   {:label "iPhone X/XS/11 Pro (1125x2436)"
                                                     :command :set-resolution
                                                     :check true
                                                     :user-data {:width 1125
                                                                 :height 2436}}
-                                                   {:label "iPhone XS Max (1242x2688)"
+                                                   {:label "iPhone XS Max/11 Pro Max (1242x2688)"
                                                     :command :set-resolution
                                                     :check true
                                                     :user-data {:width 1242
@@ -773,7 +783,17 @@
                                                     :command :set-resolution
                                                     :check true
                                                     :user-data {:width 828
-                                                                :height 1792}}]}
+                                                                :height 1792}}
+                                                   {:label "iPhone 12 Pro Max/13 Pro Max/14 Plus (1284x2778)"
+                                                    :command :set-resolution
+                                                    :check true
+                                                    :user-data {:width 1284
+                                                                :height 2778}}
+                                                   {:label "iPhone 14 Pro Max/15 Plus/15 Pro Max (1290x2796)"
+                                                    :command :set-resolution
+                                                    :check true
+                                                    :user-data {:width 1290
+                                                                :height 2796}}]}
                                        {:label "iPad"
                                         :children [{:label "Viewport Resolutions"
                                                     :command :disabled-menu-label}
@@ -866,6 +886,24 @@
                                         :check true
                                         :user-data {:width 1440
                                                     :height 2960}}]}
+                           {:label "Handheld"
+                            :children [{:label "Native Resolutions"
+                                        :command :disabled-menu-label}
+                                       {:label "1080p (1920x1080)"
+                                        :command :set-resolution
+                                        :check true
+                                        :user-data {:width 1920
+                                                    :height 1080}}
+                                       {:label "720p (1280x720)"
+                                        :command :set-resolution
+                                        :check true
+                                        :user-data {:width 1280
+                                                    :height 720}}
+                                       {:label "Steam Deck (1280x800)"
+                                        :command :set-resolution
+                                        :check true
+                                        :user-data {:width 1280
+                                                    :height 800}}]}
                            {:label "Rotated Device"
                             :command :set-rotate-device
                             :check true}]}]}])
