@@ -624,6 +624,12 @@
           (engine/change-resolution! launched-target width height should-rotate-device?))
         (engine/change-resolution! target width height should-rotate-device?)))))
 
+(defn- project-settings-screen-data [project]
+  (let [project-settings (project/settings project)
+        width (get project-settings ["display" "width"])
+        height (get project-settings ["display" "height"])]
+    {:width width :height height}))
+
 (handler/defhandler :set-resolution :global
   (enabled? [] true)
   (run [prefs user-data workspace]
@@ -633,18 +639,16 @@
          (= user-data (prefs/get-prefs prefs (prefs/make-project-specific-key "simulated-resolution" workspace) nil))))
 
 (handler/defhandler :reset-custom-resolution :global
-  (enabled? [] true)
+  (enabled? [prefs workspace] (prefs/get-prefs prefs (prefs/make-project-specific-key "simulated-resolution" workspace) nil))
   (run [project prefs workspace]
        (prefs/set-prefs prefs (prefs/make-project-specific-key "simulated-resolution" workspace) nil)
-       (let [project-settings (project/settings project)
-             width (get project-settings ["display" "width"])
-             height (get project-settings ["display" "height"])]
-         (change-resolution! prefs width height workspace))))
+       (let [project-settings-data (project-settings-screen-data project)]
+         (change-resolution! prefs (:width project-settings-data) (:height project-settings-data) workspace))))
 
 (handler/defhandler :set-custom-resolution :global
   (enabled? [] true)
   (run [project app-view prefs build-errors-view selection user-data workspace]
-       (let [data (prefs/get-prefs prefs (prefs/make-project-specific-key "simulated-resolution" workspace) nil)]
+       (let [data (or (prefs/get-prefs prefs (prefs/make-project-specific-key "simulated-resolution" workspace) nil) (project-settings-screen-data project))]
          (when-let [{:keys [width height]} (dialogs/make-resolution-dialog data)]
            (prefs/set-prefs prefs (prefs/make-project-specific-key "simulated-resolution" workspace) {:width width :height height :custom true})
            (change-resolution! prefs width height workspace))))

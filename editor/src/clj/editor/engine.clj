@@ -256,11 +256,19 @@
       (copy-dmengine-dependencies! engine-dir extender-platform)
       engine-file)))
 
-(defn launch! [^File engine project-directory prefs debug? instance-index]
+(defn simulated-resolution [prefs workspace]
+  (let [data (prefs/get-prefs prefs (prefs/make-project-specific-key "simulated-resolution" workspace) nil)]
+    (when data
+      (if (prefs/get-prefs prefs (prefs/make-project-specific-key "should-rotate-device" workspace) false)
+        {:width (:height data) :height (:width data)}
+        {:width (:width data) :height (:height data)}))))
+
+(defn launch! [^File engine project-directory prefs workspace debug? instance-index]
   (let [defold-log-dir (some-> (System/getProperty "defold.log.dir")
                                (File.)
                                (.getAbsolutePath))
         command (.getAbsolutePath engine)
+        simulated-resolution (simulated-resolution prefs workspace)
         args (cond-> []
                      defold-log-dir
                      (into ["--config=project.write_log=1"
@@ -270,7 +278,11 @@
                      (into ["--config=bootstrap.debug_init_script=/_defold/debugger/start.luac"])
 
                      (> instance-index 0)
-                     (into [(format "--config=project.instance_index=%d" instance-index)]))
+                     (into [(format "--config=project.instance_index=%d" instance-index)])
+
+                     simulated-resolution
+                     (into [(format "--config=display.width=%d" (:width simulated-resolution))
+                            (format "--config=display.height=%d"(:height simulated-resolution))]))
         env {"DM_SERVICE_PORT" "dynamic"
              "DM_QUIT_ON_ESC" (if (prefs/get-prefs prefs "general-quit-on-esc" false)
                                 "1" "0")

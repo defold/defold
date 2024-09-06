@@ -784,7 +784,7 @@
           launched-targets (for [instance-index instance-index-range]
                              (let [last-instance? (or (= count 1) (= instance-index count))
                                    instance-debug? (and debug? last-instance?)
-                                   launched-target (->> (engine/launch! engine project-directory prefs instance-debug? instance-index)
+                                   launched-target (->> (engine/launch! engine project-directory prefs workspace instance-debug? instance-index)
                                                         (decorate-target engine-descriptor)
                                                         (targets/add-launched-target! instance-index))]
                                (when (not last-instance?)
