@@ -89,7 +89,7 @@
   (let [data (prefs/get-prefs prefs (prefs/make-project-specific-key "simulated-resolution" workspace) nil)]
     (when data
       (change-resolution! target (:width data) (:height data)
-                          (prefs/get-prefs prefs (prefs/make-project-specific-key "should-rotate-device" workspace) false)))))
+                          (prefs/get-prefs prefs (prefs/make-project-specific-key "simulate-rotated-device" workspace) false)))))
 
 (defn reboot! [target local-url debug?]
   (let [uri (URI. (format "%s/post/@system/reboot" (:url target)))
