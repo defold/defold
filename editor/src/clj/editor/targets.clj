@@ -120,11 +120,10 @@
     (reset! launched-targets
             (map (fn [launched-target]
                    (if (= (:id launched-target) (:id target))
-                     (do
-                       (let [result-target (merge launched-target target-info)]
-                         (when (and (:url target-info) (not (:url launched-target)))
-                           (on-service-url-found result-target))
-                       result-target))
+                     (let [result-target (merge launched-target target-info)]
+                       (when (and (:url target-info) (not (:url launched-target)))
+                         (on-service-url-found result-target))
+                       result-target)
                      launched-target))
                  old))
     (when (not= old @launched-targets)
