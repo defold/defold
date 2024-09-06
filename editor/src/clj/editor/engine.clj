@@ -84,6 +84,13 @@
       (finally
         (.disconnect conn)))))
 
+
+(defn apply-simulated-resolution! [prefs workspace target]
+  (let [data (prefs/get-prefs prefs (prefs/make-project-specific-key "simulated-resolution" workspace) nil)]
+    (when data
+      (change-resolution! target (:width data) (:height data)
+                          (prefs/get-prefs prefs (prefs/make-project-specific-key "simulate-rotated-device" workspace) false)))))
+
 (defn reboot! [target local-url debug?]
   (let [uri (URI. (format "%s/post/@system/reboot" (:url target)))
         conn ^HttpURLConnection (get-connection uri)
@@ -256,7 +263,7 @@
       (copy-dmengine-dependencies! engine-dir extender-platform)
       engine-file)))
 
-(defn launch! [^File engine project-directory prefs debug? instance-index]
+(defn launch! [^File engine project-directory prefs workspace debug? instance-index]
   (let [defold-log-dir (some-> (System/getProperty "defold.log.dir")
                                (File.)
                                (.getAbsolutePath))

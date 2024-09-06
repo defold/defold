@@ -115,12 +115,15 @@
       (callback url)
       (add-watch launched-targets [::url id callback] (url-watcher id callback)))))
 
-(defn update-launched-target! [target target-info]
+(defn update-launched-target! [target target-info on-service-url-found]
   (let [old @launched-targets]
     (reset! launched-targets
             (map (fn [launched-target]
                    (if (= (:id launched-target) (:id target))
-                     (merge launched-target target-info)
+                     (let [result-target (merge launched-target target-info)]
+                       (when (and (:url target-info) (not (:url launched-target)))
+                         (on-service-url-found result-target))
+                       result-target)
                      launched-target))
                  old))
     (when (not= old @launched-targets)
