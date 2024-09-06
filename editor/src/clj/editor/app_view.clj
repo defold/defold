@@ -810,13 +810,13 @@
     (when (= @console-stream log-stream)
       (console/append-console-line! line))))
 
-(defn- make-launched-log-sink [launched-target]
+(defn- make-launched-log-sink [launched-target on-service-url-found]
   (let [initial-output (atom "")]
     (fn [line]
       (when (< (count @initial-output) 5000)
         (swap! initial-output str line "\n")
         (when-let [target-info (engine/parse-launched-target-info @initial-output)]
-          (targets/update-launched-target! launched-target target-info)))
+          (targets/update-launched-target! launched-target target-info on-service-url-found)))
       (when (= @console-stream (:log-stream launched-target))
         (console/append-console-line! line)))))
 
@@ -842,6 +842,9 @@
        (targets/controllable-target? target)
        (targets/remote-target? target)))
 
+(defn- on-service-url-found [prefs workspace target]
+  (engine/apply-simulated-resolution! prefs workspace target))
+
 (defn- launch-built-project! [project engine-descriptor project-directory prefs web-server debug? workspace]
   (let [selected-target (targets/selected-target prefs)
         launch-new-engine! (fn []
@@ -854,7 +857,7 @@
                                  (let [log-stream (:log-stream launched-target)]
                                    (reset-console-stream! log-stream)
                                    (reset-remote-log-pump-thread! nil)
-                                   (start-log-pump! log-stream (make-launched-log-sink launched-target))))
+                                   (start-log-pump! log-stream (make-launched-log-sink launched-target (partial on-service-url-found prefs workspace)))))
                                last-launched-target))]
     (try
       (cond
