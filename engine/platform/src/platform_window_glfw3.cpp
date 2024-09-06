@@ -482,9 +482,20 @@ namespace dmPlatform
         return false;
     }
 
-    const char* GetJoystickDeviceName(HWindow window, uint32_t gamepad_index)
+    uint32_t GetJoystickDeviceNames(HWindow window, uint32_t gamepad_index, const char** names, uint32_t names_capacity)
     {
-        return glfwGetJoystickName((int) gamepad_index);
+        // For backwards compatability with GLFW2.7, we have to return the new and the old name
+        // so the input layer can pick the appropriate mapping.
+    #ifdef _WIN32
+        assert(names_capacity >= 2);
+        names[0] = glfwGetJoystickName((int) gamepad_index);
+        names[1] = "XBox 360 Controller";
+        return 2;
+    #else
+        assert(names_capacity >= 1);
+        names[0] = glfwGetJoystickName((int) gamepad_index);
+        return 1;
+    #endif
     }
 
     uint32_t GetJoystickAxes(HWindow window, uint32_t joystick_index, float* values, uint32_t values_capacity)

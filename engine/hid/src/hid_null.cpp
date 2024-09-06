@@ -69,9 +69,10 @@ namespace dmHID
         context->m_Gamepads[0].m_AxisCount = MAX_GAMEPAD_AXIS_COUNT;
     }
 
-    void GetGamepadDeviceName(HContext context, HGamepad gamepad, char* buffer, uint32_t buffer_length)
+    uint32_t GetGamepadDeviceNames(HContext context, HGamepad gamepad, char names[MAX_GAMEPAD_NAME_COUNT][MAX_GAMEPAD_NAME_LENGTH])
     {
-        dmStrlCpy(buffer, "null_device", buffer_length);
+        dmStrlCpy(names[0], "null_device", MAX_GAMEPAD_NAME_LENGTH);
+        return 1;
     }
 
     // platform implementations

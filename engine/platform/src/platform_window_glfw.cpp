@@ -562,11 +562,13 @@ namespace dmPlatform
         return false;
     }
 
-    const char* GetJoystickDeviceName(HWindow window, uint32_t joystick_index)
+    uint32_t GetJoystickDeviceNames(HWindow window, uint32_t joystick_index, const char** names, uint32_t names_capacity)
     {
+        assert(names_capacity >= 1);
         char* device_name;
         glfwGetJoystickDeviceId(joystick_index, &device_name);
-        return (const char*) device_name;
+        names[0] = name;
+        return 1;
     }
 
     uint32_t GetJoystickAxes(HWindow window, uint32_t joystick_index, float* values, uint32_t values_capacity)
