@@ -1926,6 +1926,13 @@ def detect(conf):
             conf.env['LIB_JNI'] = ['jni']
             conf.env['LIB_JNI_NOASAN'] = ['jni_noasan']
 
+            # if the jdk doesn't have the jni.h
+            jni_path = os.path.join(conf.env['INCLUDES_JDK'][0], 'jni.h')
+            if not os.path.exists(jni_path):
+                Logs.error("JAVA_HOME=%s" % os.environ['JAVA_HOME'])
+                Logs.error("Failed to find jni.h at %s" % jni_path)
+                sys.exit(1)
+
     conf.load('waf_csharp')
 
     if Options.options.generate_compile_commands:
