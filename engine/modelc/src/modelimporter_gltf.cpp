@@ -382,13 +382,19 @@ static void UpdateWorldTransforms(Node* node)
     }
 }
 
+template <typename T>
+static void InitSize(dmArray<T>& arr, uint32_t cap, uint32_t size)
+{
+    arr.SetCapacity(cap);
+    arr.SetSize(size);
+    memset(arr.Begin(), 0, sizeof(T)*cap);
+}
+
 static void LoadNodes(Scene* scene, cgltf_data* gltf_data)
 {
     // We allocate one extra node, in case we need it for later
     // In the case we generate a root bone, we want a valid node for it.
-    scene->m_Nodes.SetCapacity(gltf_data->nodes_count+1);
-    scene->m_Nodes.SetSize(gltf_data->nodes_count);
-    memset(scene->m_Nodes.Begin(), 0, sizeof(Node)*scene->m_Nodes.Capacity());
+    InitSize(scene->m_Nodes, gltf_data->nodes_count+1, gltf_data->nodes_count);
 
     for (size_t i = 0; i < gltf_data->nodes_count; ++i)
     {
@@ -438,15 +444,13 @@ static void LoadNodes(Scene* scene, cgltf_data* gltf_data)
 
         node->m_Parent = gltf_node->parent ? TranslateNode(gltf_node->parent, gltf_data, scene) : 0;
 
-        node->m_Children.SetCapacity(gltf_node->children_count);
-        node->m_Children.SetSize(gltf_node->children_count);
+        InitSize(node->m_Children, gltf_node->children_count, gltf_node->children_count);
         for (uint32_t c = 0; c < gltf_node->children_count; ++c)
             node->m_Children[c] = TranslateNode(gltf_node->children[c], gltf_data, scene);
     }
 
     // Find root nodes
-    scene->m_RootNodes.SetCapacity(0);
-    scene->m_RootNodes.SetSize(0);
+    InitSize(scene->m_RootNodes, 0, 0);
     for (uint32_t i = 0; i < scene->m_Nodes.Size(); ++i)
     {
         Node* node = &scene->m_Nodes[i];
@@ -462,9 +466,7 @@ static void LoadNodes(Scene* scene, cgltf_data* gltf_data)
 
 static void LoadMaterials(Scene* scene, cgltf_data* gltf_data)
 {
-    scene->m_Materials.SetCapacity(gltf_data->materials_count);
-    scene->m_Materials.SetSize(gltf_data->materials_count);
-    memset(scene->m_Materials.Begin(), 0, sizeof(Material)*scene->m_Materials.Capacity());
+    InitSize(scene->m_Materials, gltf_data->materials_count, gltf_data->materials_count);
 
     for (uint32_t i = 0; i < gltf_data->materials_count; ++i)
     {
@@ -619,9 +621,7 @@ static void AddDynamicMaterial(Scene* scene, Material* material)
 
 static void LoadPrimitives(Scene* scene, Model* model, cgltf_data* gltf_data, cgltf_mesh* gltf_mesh)
 {
-    model->m_Meshes.SetCapacity(gltf_mesh->primitives_count);
-    model->m_Meshes.SetSize(gltf_mesh->primitives_count);
-    memset(model->m_Meshes.Begin(), 0, sizeof(Mesh)*model->m_Meshes.Capacity());
+    InitSize(model->m_Meshes, gltf_mesh->primitives_count, gltf_mesh->primitives_count);
 
     for (size_t i = 0; i < gltf_mesh->primitives_count; ++i)
     {
@@ -638,7 +638,6 @@ static void LoadPrimitives(Scene* scene, Model* model, cgltf_data* gltf_data, cg
 
         //printf("primitive_type: %s\n", getPrimitiveTypeStr(prim->type));
 
-        //mesh->m_Indices = ReadAccessorUint32(prim->indices, 1);
         ReadAccessorUint32ToArray(prim->indices, 1, mesh->m_Indices);
 
         for (uint32_t a = 0; a < prim->attributes_count; ++a)
@@ -742,18 +741,16 @@ static void LoadPrimitives(Scene* scene, Model* model, cgltf_data* gltf_data, cg
         if (mesh->m_TexCoords0.Empty())
         {
             mesh->m_TexCoords0NumComponents = 2;
-            mesh->m_TexCoords0.SetCapacity(mesh->m_VertexCount * mesh->m_TexCoords0NumComponents);
-            mesh->m_TexCoords0.SetSize(mesh->m_TexCoords0.Capacity());
-            memset(mesh->m_TexCoords0.Begin(), 0, mesh->m_TexCoords0.Capacity()*sizeof(mesh->m_TexCoords0[0]));
+
+            uint32_t size = mesh->m_VertexCount * mesh->m_TexCoords0NumComponents;
+            InitSize(mesh->m_TexCoords0, size, size);
         }
     }
 }
 
 static void LoadMeshes(Scene* scene, cgltf_data* gltf_data)
 {
-    scene->m_Models.SetCapacity(gltf_data->meshes_count);
-    scene->m_Models.SetSize(scene->m_Models.Capacity());
-    memset(scene->m_Models.Begin(), 0, sizeof(Model)*scene->m_Models.Capacity());
+    InitSize(scene->m_Models, gltf_data->meshes_count, gltf_data->meshes_count);
 
     for (uint32_t i = 0; i < gltf_data->meshes_count; ++i)
     {
@@ -920,8 +917,7 @@ static void SortSkinBones(Skin* skin)
     std::sort(infos, infos + bones_count, BoneInfoSortPred());
 
     // build the remap array
-    skin->m_BoneRemap.SetCapacity(bones_count);
-    skin->m_BoneRemap.SetSize(bones_count);
+    InitSize(skin->m_BoneRemap, bones_count, bones_count);
 
     bool indices_differ = false;
     for (uint32_t i = 0; i < bones_count; ++i)
@@ -943,12 +939,8 @@ static void SortSkinBones(Skin* skin)
     {
         dmArray<uint32_t> bone_order;
         dmArray<Bone>     sorted_bones;
-
-        bone_order.SetCapacity(bones_count);
-        bone_order.SetSize(bones_count);
-
-        sorted_bones.SetCapacity(bones_count);
-        sorted_bones.SetSize(bones_count);
+        InitSize(bone_order, bones_count, bones_count);
+        InitSize(sorted_bones, bones_count, bones_count);
 
         for (uint32_t i = 0; i < bones_count; ++i)
         {
@@ -979,9 +971,7 @@ static void LoadSkins(Scene* scene, cgltf_data* gltf_data)
     if (gltf_data->skins_count == 0)
         return;
 
-    scene->m_Skins.SetCapacity(gltf_data->skins_count);
-    scene->m_Skins.SetSize(scene->m_Skins.Capacity());
-    memset(scene->m_Skins.Begin(), 0, sizeof(Skin)*scene->m_Skins.Capacity());
+    InitSize(scene->m_Skins, gltf_data->skins_count, gltf_data->skins_count);
 
     for (uint32_t i = 0; i < gltf_data->skins_count; ++i)
     {
@@ -991,10 +981,7 @@ static void LoadSkins(Scene* scene, cgltf_data* gltf_data)
         skin->m_Name = CreateObjectName(gltf_skin, "skin", i);
         skin->m_Index = i;
 
-
-        skin->m_Bones.SetCapacity(gltf_skin->joints_count+1);
-        skin->m_Bones.SetSize(gltf_skin->joints_count);
-        memset(skin->m_Bones.Begin(), 0, sizeof(Bone)*skin->m_Bones.Capacity());
+        InitSize(skin->m_Bones, gltf_skin->joints_count+1, gltf_skin->joints_count);
 
         cgltf_accessor* accessor = gltf_skin->inverse_bind_matrices;
         for (uint32_t j = 0; j < gltf_skin->joints_count; ++j)
@@ -1248,17 +1235,14 @@ static void LoadChannel(NodeAnimation* node_animation, cgltf_animation_channel* 
     if (channel->target_path == cgltf_animation_path_type_translation)
     {
         node_animation->m_TranslationKeys.Set(key_frames, key_count, key_count, false);
-        //node_animation->m_TranslationKeysCount = key_count;
     }
     else if(channel->target_path == cgltf_animation_path_type_rotation)
     {
         node_animation->m_RotationKeys.Set(key_frames, key_count, key_count, false);
-        //node_animation->m_RotationKeysCount = key_count;
     }
     else if(channel->target_path == cgltf_animation_path_type_scale)
     {
         node_animation->m_ScaleKeys.Set(key_frames, key_count, key_count, false);
-        //node_animation->m_ScaleKeysCount = key_count;
     } else
     {
         // Unsupported type
@@ -1296,8 +1280,7 @@ static void LoadAnimations(Scene* scene, cgltf_data* gltf_data)
     if (gltf_data->animations_count == 0)
         return;
 
-    scene->m_Animations.SetCapacity(gltf_data->animations_count);
-    scene->m_Animations.SetSize(gltf_data->animations_count);
+    InitSize(scene->m_Animations, gltf_data->animations_count, gltf_data->animations_count);
 
     // first, count number of animated nodes we have
     for (uint32_t a = 0; a < gltf_data->animations_count; ++a)
@@ -1311,9 +1294,8 @@ static void LoadAnimations(Scene* scene, cgltf_data* gltf_data)
         // into a list of tracks that holds all 3 types: [a: {rot, pos, scale}, b: {rot, pos, scale}...]
         dmHashTable64<uint32_t> node_name_to_index;
         uint32_t node_animations_count = CountAnimatedNodes(gltf_animation, node_name_to_index);
-        animation->m_NodeAnimations.SetCapacity(node_animations_count);
-        animation->m_NodeAnimations.SetSize(node_animations_count);
-        memset(animation->m_NodeAnimations.Begin(), 0, sizeof(NodeAnimation) * animation->m_NodeAnimations.Capacity());
+
+        InitSize(animation->m_NodeAnimations, node_animations_count, node_animations_count);
 
         for (size_t i = 0; i < gltf_animation->channels_count; ++i)
         {
@@ -1502,8 +1484,7 @@ Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_siz
     scene->m_ValidateFn = ValidateGltf;
     scene->m_DestroyFn = DestroyGltf;
 
-    scene->m_Buffers.SetCapacity(data->buffers_count);
-    scene->m_Buffers.SetSize(data->buffers_count);
+    InitSize(scene->m_Buffers, data->buffers_count, data->buffers_count);
 
     for (cgltf_size i = 0; i < data->buffers_count; ++i)
     {
