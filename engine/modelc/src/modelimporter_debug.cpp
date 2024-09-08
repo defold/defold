@@ -80,6 +80,21 @@ static void OutputMatrix(const dmTransform::Transform& transform)
     printf("    "); OutputVector4(mat.getRow(3));
 }
 
+// TODO: move this to a private header
+static dmTransform::Transform& ToTransform(const dmModelImporter::Transform& in, dmTransform::Transform& out)
+{
+    out = dmTransform::Transform(dmVMath::Vector3(in.m_Translation.x, in.m_Translation.y, in.m_Translation.z),
+                                 dmVMath::Quat(in.m_Rotation.x, in.m_Rotation.y, in.m_Rotation.z, in.m_Rotation.w),
+                                 dmVMath::Vector3(in.m_Scale.x, in.m_Scale.y, in.m_Scale.z));
+    return out;
+}
+
+static void OutputMatrix(const dmModelImporter::Transform& transform)
+{
+    dmTransform::Transform out;
+    OutputMatrix(ToTransform(transform, out));
+}
+
 static void OutputBone(int i, Bone* bone, int indent)
 {
     OutputIndent(indent);
@@ -93,8 +108,8 @@ static void OutputSkin(Skin* skin, int indent)
     OutputIndent(indent);
     printf("Skin name: %s\n", skin->m_Name);
 
-    printf("  Bones: count: %u\n", skin->m_BonesCount);
-    for (uint32_t i = 0; i < skin->m_BonesCount; ++i)
+    printf("  Bones: count: %u\n", skin->m_Bones.Size());
+    for (uint32_t i = 0; i < skin->m_Bones.Size(); ++i)
     {
         OutputBone(i, &skin->m_Bones[i], indent+1);
     }
@@ -119,7 +134,7 @@ static void OutputNodeTree(Node* node, int indent)
         printf("\n");
 
 
-    for (uint32_t i = 0; i < node->m_ChildrenCount; ++i)
+    for (uint32_t i = 0; i < node->m_Children.Size(); ++i)
     {
         OutputNodeTree(node->m_Children[i], indent+1);
     }
@@ -138,7 +153,8 @@ static void OutputMesh(Mesh* mesh, int indent)
     const char* material_name = (mesh->m_Material && mesh->m_Material->m_Name) ? mesh->m_Material->m_Name : "null";
 
     printf("mesh  %s  vertices: %u  indices: %u  mat: %s  weights: %s  colors: %s aabb: (%f, %f, %f) (%f, %f, %f)\n",
-            mesh->m_Name?mesh->m_Name:"null", mesh->m_VertexCount, mesh->m_IndexCount, material_name, mesh->m_Weights?"yes":"no", mesh->m_Color?"yes":"no",
+            mesh->m_Name?mesh->m_Name:"null", mesh->m_VertexCount, mesh->m_Indices.Size(),
+            material_name, mesh->m_Weights.Empty()?"no":"yes", mesh->m_Color.Empty()?"no":"yes",
             mesh->m_Aabb.m_Min[0], mesh->m_Aabb.m_Min[1], mesh->m_Aabb.m_Min[2],
             mesh->m_Aabb.m_Max[0], mesh->m_Aabb.m_Max[1], mesh->m_Aabb.m_Max[2]);
 
@@ -164,13 +180,13 @@ static void OutputMesh(Mesh* mesh, int indent)
 static void OutputModel(Model* model, int indent)
 {
     OutputIndent(indent);
-    printf("%s   meshes count: %u", model->m_Name, model->m_MeshesCount);
+    printf("%s   meshes count: %u", model->m_Name, model->m_Meshes.Size());
         if (model->m_ParentBone)
         {
             printf("  bone: %s", model->m_ParentBone->m_Name);
         }
     printf("\n");
-    for (uint32_t i = 0; i < model->m_MeshesCount; ++i)
+    for (uint32_t i = 0; i < model->m_Meshes.Size(); ++i)
     {
         Mesh* mesh = &model->m_Meshes[i];
         OutputMesh(mesh, indent+1);
@@ -184,8 +200,8 @@ static void OutputNodeAnimation(NodeAnimation* node_animation, int indent)
 
     indent++;
     OutputIndent(indent);
-    printf("# translation keys: %u\n", node_animation->m_TranslationKeysCount);
-    for (uint32_t i = 0; i < node_animation->m_TranslationKeysCount; ++i)
+    printf("# translation keys: %u\n", node_animation->m_TranslationKeys.Size());
+    for (uint32_t i = 0; i < node_animation->m_TranslationKeys.Size(); ++i)
     {
         OutputIndent(indent+1);
         KeyFrame* key = &node_animation->m_TranslationKeys[i];
@@ -193,8 +209,8 @@ static void OutputNodeAnimation(NodeAnimation* node_animation, int indent)
     }
 
     OutputIndent(indent);
-    printf("# rotation keys: %u\n", node_animation->m_RotationKeysCount);
-    for (uint32_t i = 0; i < node_animation->m_RotationKeysCount; ++i)
+    printf("# rotation keys: %u\n", node_animation->m_RotationKeys.Size());
+    for (uint32_t i = 0; i < node_animation->m_RotationKeys.Size(); ++i)
     {
         OutputIndent(indent+1);
         KeyFrame* key = &node_animation->m_RotationKeys[i];
@@ -202,8 +218,8 @@ static void OutputNodeAnimation(NodeAnimation* node_animation, int indent)
     }
 
     OutputIndent(indent);
-    printf("# scale keys: %u\n", node_animation->m_ScaleKeysCount);
-    for (uint32_t i = 0; i < node_animation->m_ScaleKeysCount; ++i)
+    printf("# scale keys: %u\n", node_animation->m_ScaleKeys.Size());
+    for (uint32_t i = 0; i < node_animation->m_ScaleKeys.Size(); ++i)
     {
         OutputIndent(indent+1);
         KeyFrame* key = &node_animation->m_ScaleKeys[i];
@@ -216,7 +232,7 @@ static void OutputAnimation(Animation* animation, int indent)
     OutputIndent(indent);
     printf("%s duration: %f\n", animation->m_Name, animation->m_Duration);
 
-    for (uint32_t i = 0; i < animation->m_NodeAnimationsCount; ++i)
+    for (uint32_t i = 0; i < animation->m_NodeAnimations.Size(); ++i)
     {
         NodeAnimation* node_animation = &animation->m_NodeAnimations[i];
         OutputNodeAnimation(node_animation, indent+1);
@@ -235,7 +251,7 @@ void DebugScene(Scene* scene)
 
     printf("------------------------------\n");
     printf("Buffers\n");
-    for (uint32_t i = 0; i < scene->m_BuffersCount; ++i)
+    for (uint32_t i = 0; i < scene->m_Buffers.Size(); ++i)
     {
         OutputIndent(1);
         printf("Buffer '%.48s' sz: %u  %p\n", scene->m_Buffers[i].m_Uri, scene->m_Buffers[i].m_BufferSize, scene->m_Buffers[i].m_Buffer);
@@ -243,49 +259,49 @@ void DebugScene(Scene* scene)
 
     printf("------------------------------\n");
 
-    for (uint32_t i = 0; i < scene->m_MaterialsCount; ++i)
+    for (uint32_t i = 0; i < scene->m_Materials.Size(); ++i)
     {
         OutputMaterial(&scene->m_Materials[i], 0);
     }
 
-    for (uint32_t i = 0; i < scene->m_DynamicMaterialsCount; ++i)
+    for (uint32_t i = 0; i < scene->m_DynamicMaterials.Size(); ++i)
     {
         OutputMaterial(scene->m_DynamicMaterials[i], 0);
     }
 
     printf("------------------------------\n");
-    for (uint32_t i = 0; i < scene->m_NodesCount; ++i)
+    for (uint32_t i = 0; i < scene->m_Nodes.Size(); ++i)
     {
         OutputNode(&scene->m_Nodes[i]);
     }
     printf("------------------------------\n");
 
-    printf("Subscenes: count: %u\n", scene->m_RootNodesCount);
-    for (uint32_t i = 0; i < scene->m_RootNodesCount; ++i)
+    printf("Subscenes: count: %u\n", scene->m_RootNodes.Size());
+    for (uint32_t i = 0; i < scene->m_RootNodes.Size(); ++i)
     {
         printf("------------------------------\n");
         OutputNodeTree(scene->m_RootNodes[i], 1);
         printf("------------------------------\n");
     }
 
-    printf("Skins: count: %u\n", scene->m_SkinsCount);
-    for (uint32_t i = 0; i < scene->m_SkinsCount; ++i)
+    printf("Skins: count: %u\n", scene->m_Skins.Size());
+    for (uint32_t i = 0; i < scene->m_Skins.Size(); ++i)
     {
         printf("------------------------------\n");
         OutputSkin(&scene->m_Skins[i], 1);
         printf("------------------------------\n");
     }
 
-    printf("Models: count: %u\n", scene->m_ModelsCount);
-    for (uint32_t i = 0; i < scene->m_ModelsCount; ++i)
+    printf("Models: count: %u\n", scene->m_Models.Size());
+    for (uint32_t i = 0; i < scene->m_Models.Size(); ++i)
     {
         printf("------------------------------\n");
         OutputModel(&scene->m_Models[i], 1);
         printf("------------------------------\n");
     }
 
-    printf("Animations: count: %u\n", scene->m_AnimationsCount);
-    for (uint32_t i = 0; i < scene->m_AnimationsCount; ++i)
+    printf("Animations: count: %u\n", scene->m_Animations.Size());
+    for (uint32_t i = 0; i < scene->m_Animations.Size(); ++i)
     {
         printf("------------------------------\n");
         OutputAnimation(&scene->m_Animations[i], 1);
@@ -304,15 +320,15 @@ static void DebugStructNode(Node* node, int indent)
     OutputIndent(indent); printf("  m_Model: %p\n", node->m_Model);
     OutputIndent(indent); printf("  m_Skin: %p\n", node->m_Skin);
     OutputIndent(indent); printf("  m_Parent: %p\n", node->m_Parent);
-    OutputIndent(indent); printf("  m_Children: %p\n", node->m_Children);
-    OutputIndent(indent); printf("  m_ChildrenCount: %u\n", node->m_ChildrenCount);
+    OutputIndent(indent); printf("  m_Children: %p\n", node->m_Children.Begin());
+    OutputIndent(indent); printf("  m_ChildrenCount: %u\n", node->m_Children.Size());
 }
 
 static void DebugStructNodeTree(Node* node, int indent)
 {
     DebugStructNode(node, indent);
 
-    for (uint32_t i = 0; i < node->m_ChildrenCount; ++i)
+    for (uint32_t i = 0; i < node->m_Children.Size(); ++i)
     {
         DebugStructNode(node->m_Children[i], indent+1);
     }
@@ -326,21 +342,21 @@ static void DebugStructMesh(Mesh* mesh, int indent)
     OutputIndent(indent); printf("  m_Name: %p (%s)\n", mesh->m_Name, mesh->m_Name);
     OutputIndent(indent); printf("  m_Material: %p (%s)\n", mesh->m_Material->m_Name, mesh->m_Material->m_Name);
 
-    OutputIndent(indent); printf("  m_Positions: %p\n", mesh->m_Positions);
-    OutputIndent(indent); printf("  m_Normals: %p\n", mesh->m_Normals);
-    OutputIndent(indent); printf("  m_Tangents: %p\n", mesh->m_Tangents);
-    OutputIndent(indent); printf("  m_Color: %p\n", mesh->m_Color);
-    OutputIndent(indent); printf("  m_Weights: %p\n", mesh->m_Weights);
-    OutputIndent(indent); printf("  m_Bones: %p\n", mesh->m_Bones);
+    OutputIndent(indent); printf("  m_Positions: %p\n", mesh->m_Positions.Begin());
+    OutputIndent(indent); printf("  m_Normals: %p\n", mesh->m_Normals.Begin());
+    OutputIndent(indent); printf("  m_Tangents: %p\n", mesh->m_Tangents.Begin());
+    OutputIndent(indent); printf("  m_Color: %p\n", mesh->m_Color.Begin());
+    OutputIndent(indent); printf("  m_Weights: %p\n", mesh->m_Weights.Begin());
+    OutputIndent(indent); printf("  m_Bones: %p\n", mesh->m_Bones.Begin());
 
-    OutputIndent(indent); printf("  m_TexCoord0: %p\n", mesh->m_TexCoord0);
+    OutputIndent(indent); printf("  m_TexCoord0: %p\n", mesh->m_TexCoord0.Begin());
     OutputIndent(indent); printf("  m_TexCoord0NumComponents: %u\n", mesh->m_TexCoord0NumComponents);
-    OutputIndent(indent); printf("  m_TexCoord1: %p\n", mesh->m_TexCoord1);
+    OutputIndent(indent); printf("  m_TexCoord1: %p\n", mesh->m_TexCoord1.Begin());
     OutputIndent(indent); printf("  m_TexCoord1NumComponents: %u\n", mesh->m_TexCoord1NumComponents);
 
-    OutputIndent(indent); printf("  m_Indices: %p\n", mesh->m_Indices);
     OutputIndent(indent); printf("  m_VertexCount: %u\n", mesh->m_VertexCount);
-    OutputIndent(indent); printf("  m_IndexCount: %u\n", mesh->m_IndexCount);
+    OutputIndent(indent); printf("  m_Indices: %p\n", mesh->m_Indices.Begin());
+    OutputIndent(indent); printf("  m_Indices.size: %u\n", mesh->m_Indices.Size());
 }
 
 static void DebugStructModel(Model* model, int indent)
@@ -348,10 +364,10 @@ static void DebugStructModel(Model* model, int indent)
     OutputIndent(indent); printf("Model: %p\n", model);
     assert(model->m_Name);
     OutputIndent(indent); printf("  m_Name: %p (%s)\n", model->m_Name, model->m_Name);
-    OutputIndent(indent); printf("  m_Meshes: %p\n", model->m_Meshes);
-    OutputIndent(indent); printf("  m_MeshesCount: %u\n", model->m_MeshesCount);
+    OutputIndent(indent); printf("  m_Meshes: %p\n", model->m_Meshes.Begin());
+    OutputIndent(indent); printf("  m_Meshes.size¸: %u\n", model->m_Meshes.Size());
 
-    for (uint32_t i = 0; i < model->m_MeshesCount; ++i) {
+    for (uint32_t i = 0; i < model->m_Meshes.Size(); ++i) {
         DebugStructMesh(&model->m_Meshes[i], indent+1);
         OutputIndent(indent+1); printf("-------------------------------\n");
     }
@@ -374,31 +390,31 @@ void DebugStructScene(Scene* scene)
     printf("Scene: %p\n", scene);
     printf("  m_OpaqueSceneData: %p\n", scene->m_OpaqueSceneData);
     printf("  m_DestroyFn: %p\n", scene->m_DestroyFn);
-    printf("  m_Nodes: %p\n", scene->m_Nodes);
-    printf("  m_NodesCount: %u\n", scene->m_NodesCount);
-    printf("  m_Models: %p\n", scene->m_Models);
-    printf("  m_ModelsCount: %u\n", scene->m_ModelsCount);
-    printf("  m_Skins: %p\n", scene->m_Skins);
-    printf("  m_SkinsCount: %u\n", scene->m_SkinsCount);
-    printf("  m_RootNodes: %p\n", scene->m_RootNodes);
-    printf("  m_RootNodesCount: %u\n", scene->m_RootNodesCount);
-    printf("  m_Animations: %p\n", scene->m_Animations);
-    printf("  m_AnimationsCount: %u\n", scene->m_AnimationsCount);
+    printf("  m_Nodes: %p\n", scene->m_Nodes.Begin());
+    printf("  m_NodesCount: %u\n", scene->m_Nodes.Size());
+    printf("  m_Models: %p\n", scene->m_Models.Begin());
+    printf("  m_ModelsCount: %u\n", scene->m_Models.Size());
+    printf("  m_Skins: %p\n", scene->m_Skins.Begin());
+    printf("  m_SkinsCount: %u\n", scene->m_Skins.Size());
+    printf("  m_RootNodes: %p\n", scene->m_RootNodes.Begin());
+    printf("  m_RootNodesCount: %u\n", scene->m_RootNodes.Size());
+    printf("  m_Animations: %p\n", scene->m_Animations.Begin());
+    printf("  m_AnimationsCount: %u\n", scene->m_Animations.Size());
 
     printf("-------------------------------\n");
-    for (uint32_t i = 0; i < scene->m_NodesCount; ++i) {
+    for (uint32_t i = 0; i < scene->m_Nodes.Size(); ++i) {
         DebugStructNode(&scene->m_Nodes[i], 1);
         printf("-------------------------------\n");
     }
-    for (uint32_t i = 0; i < scene->m_ModelsCount; ++i) {
+    for (uint32_t i = 0; i < scene->m_Models.Size(); ++i) {
         DebugStructModel(&scene->m_Models[i], 1);
         printf("-------------------------------\n");
     }
-    for (uint32_t i = 0; i < scene->m_SkinsCount; ++i) {
+    for (uint32_t i = 0; i < scene->m_Skins.Size(); ++i) {
         DebugStructSkin(&scene->m_Skins[i], 1);
         printf("-------------------------------\n");
     }
-    for (uint32_t i = 0; i < scene->m_RootNodesCount; ++i) {
+    for (uint32_t i = 0; i < scene->m_RootNodes.Size(); ++i) {
         DebugStructNodeTree(scene->m_RootNodes[i], 1);
         printf("-------------------------------\n");
     }
