@@ -567,7 +567,7 @@ namespace dmPlatform
         assert(names_capacity >= 1);
         char* device_name;
         glfwGetJoystickDeviceId(joystick_index, &device_name);
-        names[0] = name;
+        names[0] = device_name;
         return 1;
     }
 
