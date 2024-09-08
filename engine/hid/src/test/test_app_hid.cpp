@@ -432,9 +432,9 @@ static bool GamepadConnectivityCallback(uint32_t gamepad_index, bool connected, 
 
     if (connected)
     {
-        char name_buffer[128];
-        dmHID::GetGamepadDeviceName(g_EngineCtx.m_HidContext, pad, name_buffer, sizeof(name_buffer));
-        printf("Gamepad %d connected: %s\n", gamepad_index, name_buffer);
+        char device_names[dmHID::MAX_GAMEPAD_NAME_COUNT][dmHID::MAX_GAMEPAD_NAME_LENGTH];
+        dmHID::GetGamepadDeviceNames(g_EngineCtx.m_HidContext, pad, device_names);
+        printf("Gamepad %d connected: %s\n", gamepad_index, device_names[0]);
     }
     else
     {
