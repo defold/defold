@@ -156,8 +156,8 @@ namespace dmModelImporter
     struct Buffer // GLTF format
     {
         const char*     m_Uri;
-        void*           m_Buffer;
-        uint32_t        m_BufferSize;
+        uint8_t*        m_Buffer;
+        uint32_t        m_BufferCount;
     };
 
     struct Scene

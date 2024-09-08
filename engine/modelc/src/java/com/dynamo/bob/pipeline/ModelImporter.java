@@ -102,8 +102,7 @@ public class Modelimporter {
     };
     public static class Buffer {
         public String uri;
-        public long buffer;
-        public int bufferSize = 0;
+        public byte[] buffer;
     };
     public static class Scene {
         public long opaqueSceneData;

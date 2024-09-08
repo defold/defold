@@ -119,6 +119,12 @@ static void DestroyMaterial(Material* material)
     free((void*)material->m_Name);
 }
 
+static void DestroyBuffer(Buffer* buffer)
+{
+    free((void*)buffer->m_Uri);
+    //buffer->m_Buffer Memory owned by the gltf data
+}
+
 bool Validate(Scene* scene)
 {
     if (scene->m_ValidateFn)
@@ -175,6 +181,8 @@ void DestroyScene(Scene* scene)
         DestroyMaterial(scene->m_DynamicMaterials[i]);
     scene->m_DynamicMaterials.SetCapacity(0);
 
+    for (uint32_t i = 0; i < scene->m_Buffers.Size(); ++i)
+        DestroyBuffer(&scene->m_Buffers[i]);
     scene->m_Buffers.SetCapacity(0);
 
     delete scene;

@@ -134,8 +134,7 @@ void InitializeJNITypes(JNIEnv* env, TypeInfos* infos) {
     {
         SETUP_CLASS(BufferJNI, "Buffer");
         GET_FLD_TYPESTR(uri, "Ljava/lang/String;");
-        GET_FLD_TYPESTR(buffer, "J");
-        GET_FLD_TYPESTR(bufferSize, "I");
+        GET_FLD_TYPESTR(buffer, "[B");
     }
     {
         SETUP_CLASS(SceneJNI, "Scene");
@@ -328,8 +327,7 @@ jobject C2J_CreateBuffer(JNIEnv* env, TypeInfos* types, const Buffer* src) {
     if (src == 0) return 0;
     jobject obj = env->AllocObject(types->m_BufferJNI.cls);
     dmJNI::SetString(env, obj, types->m_BufferJNI.uri, src->m_Uri);
-    dmJNI::SetLong(env, obj, types->m_BufferJNI.buffer, (uintptr_t)src->m_Buffer);
-    dmJNI::SetUInt(env, obj, types->m_BufferJNI.bufferSize, src->m_BufferSize);
+    dmJNI::SetObjectDeref(env, obj, types->m_BufferJNI.buffer, dmJNI::C2J_CreateUByteArray(env, src->m_Buffer, src->m_BufferCount));
     return obj;
 }
 
@@ -537,9 +535,6 @@ jobjectArray C2J_CreateSkinPtrArray(JNIEnv* env, TypeInfos* types, const Skin* c
 }
 jobjectArray C2J_CreateNodeArray(JNIEnv* env, TypeInfos* types, const Node* src, uint32_t src_count) {
     if (src == 0 || src_count == 0) return 0;
-
-    printf("%s: %u\n", __FUNCTION__, src_count);
-
     jobjectArray arr = env->NewObjectArray(src_count, types->m_NodeJNI.cls, 0);
     for (uint32_t i = 0; i < src_count; ++i) {
         jobject obj = C2J_CreateNode(env, types, &src[i]);
@@ -1074,8 +1069,13 @@ bool J2C_CreateAnimation(JNIEnv* env, TypeInfos* types, jobject obj, Animation* 
 bool J2C_CreateBuffer(JNIEnv* env, TypeInfos* types, jobject obj, Buffer* out) {
     if (out == 0) return false;
     out->m_Uri = dmJNI::GetString(env, obj, types->m_BufferJNI.uri);
-    out->m_Buffer = (void*)(uintptr_t)dmJNI::GetLong(env, obj, types->m_BufferJNI.buffer);
-    out->m_BufferSize = dmJNI::GetUInt(env, obj, types->m_BufferJNI.bufferSize);
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_BufferJNI.buffer);
+        if (field_object) {
+            out->m_Buffer = dmJNI::J2C_CreateUByteArray(env, (jbyteArray)field_object, &out->m_BufferCount);
+            env->DeleteLocalRef(field_object);
+        }
+    }
     return true;
 }
 

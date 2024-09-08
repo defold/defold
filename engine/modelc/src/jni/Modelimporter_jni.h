@@ -116,7 +116,6 @@ struct BufferJNI {
     jclass cls;
     jfieldID uri;
     jfieldID buffer;
-    jfieldID bufferSize;
 };
 struct SceneJNI {
     jclass cls;

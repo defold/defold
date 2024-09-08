@@ -1507,8 +1507,8 @@ Scene* LoadGltfFromBuffer(Options* importeroptions, void* mem, uint32_t file_siz
     for (cgltf_size i = 0; i < data->buffers_count; ++i)
     {
         scene->m_Buffers[i].m_Uri = CreateObjectName(data->buffers, "buffer", i);
-        scene->m_Buffers[i].m_Buffer = data->buffers[i].data;
-        scene->m_Buffers[i].m_BufferSize = data->buffers[i].size;
+        scene->m_Buffers[i].m_Buffer = (uint8_t*)data->buffers[i].data;
+        scene->m_Buffers[i].m_BufferCount = data->buffers[i].size;
     }
 
     if (!NeedsResolve(scene))
@@ -1529,19 +1529,20 @@ void ResolveBuffer(Scene* scene, const char* uri, void* bufferdata, uint32_t buf
     cgltf_options* options = &_options;
     memset(options, 0, sizeof(cgltf_options));
 
+    void* (*memory_alloc)(void*, cgltf_size) = options->memory.alloc_func ? options->memory.alloc_func : &cgltf_default_alloc;
+
     for (cgltf_size i = 0; i < scene->m_Buffers.Size(); ++i)
     {
         Buffer* scenebuffer = &scene->m_Buffers[i];
         if (strcmp(scenebuffer->m_Uri, uri) == 0)
         {
-            void* (*memory_alloc)(void*, cgltf_size) = options->memory.alloc_func ? options->memory.alloc_func : &cgltf_default_alloc;
             cgltf_buffer* buffer = &data->buffers[i];
 
             buffer->data = memory_alloc(options->memory.user_data, buffer->size);
             buffer->data_free_method = cgltf_data_free_method_memory_free;
 
             memcpy(buffer->data, bufferdata, bufferdata_size);
-            scenebuffer->m_Buffer = buffer->data;
+            scenebuffer->m_Buffer = (uint8_t*)buffer->data;
             return;
         }
     }

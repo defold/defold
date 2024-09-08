@@ -158,7 +158,6 @@ static jobject CreateMesh(JNIEnv* env, dmModelImporter::jni::TypeInfos* types, c
     // But it might be good if they actually share the references
     // so we immediately set another material to the object
 
-    printf("Mesh material: %p  index: %u\n", mesh->m_Material, mesh->m_Material->m_Index);
     if (mesh->m_Material)
         dmJNI::SetObject(env, obj, types->m_MeshJNI.material, materials[mesh->m_Material->m_Index]);
 

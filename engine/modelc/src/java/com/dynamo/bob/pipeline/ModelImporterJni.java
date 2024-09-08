@@ -89,7 +89,44 @@ public class ModelImporterJni {
         return ModelImporterJni.LoadFromBufferInternal(path, bytes, data_resolver);
     }
 
-    // ////////////////////////////////////////////////////////////////////////////////
+
+    //////////////////////////////////////////////////////////////////////////////////
+    // AABB
+
+    public static Modelimporter.Aabb newAabb()
+    {
+        Modelimporter.Aabb aabb = new Modelimporter.Aabb();
+        aabb.min = new Modelimporter.Vector3();
+        aabb.max = new Modelimporter.Vector3();
+        aabb.min.x = aabb.min.y = aabb.min.z = 1000000.0f;
+        aabb.max.x = aabb.max.y = aabb.max.z = -1000000.0f;
+        return aabb;
+    }
+
+    public static Modelimporter.Aabb expandAabb(Modelimporter.Aabb aabb, float x, float y, float z)
+    {
+        aabb.min.x = Math.min(aabb.min.x, x);
+        aabb.min.y = Math.min(aabb.min.y, y);
+        aabb.min.z = Math.min(aabb.min.z, z);
+
+        aabb.max.x = Math.max(aabb.max.x, x);
+        aabb.max.y = Math.max(aabb.max.y, y);
+        aabb.max.z = Math.max(aabb.max.z, z);
+        return aabb;
+    }
+
+    public static Modelimporter.Vector3 aabbCalcCenter(Modelimporter.Aabb aabb, Modelimporter.Vector3 center) {
+        center.x = (aabb.min.x + aabb.max.x)*0.5f;
+        center.y = (aabb.min.y + aabb.max.y)*0.5f;
+        center.z = (aabb.min.z + aabb.max.z)*0.5f;
+        return center;
+    }
+
+    public static boolean aabbIsIsValid(Modelimporter.Aabb aabb) {
+        return aabb.min.x <= aabb.max.x && (aabb.min.y <= aabb.max.y) && (aabb.min.z <= aabb.max.z);
+    }
+
+    //////////////////////////////////////////////////////////////////////////////////
 
     private static void Usage() {
         System.out.printf("Usage: Modelimporter.class <model_file>\n");
