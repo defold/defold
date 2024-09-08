@@ -39,7 +39,7 @@ import com.dynamo.rig.proto.Rig.Skeleton;
 
 @BuilderParams(name="Meshset", inExts={".dae",".gltf",".glb"}, outExt=".meshsetc")
 public class MeshsetBuilder extends Builder  {
-    public static class ResourceDataResolver implements ModelImporter.DataResolver
+    public static class ResourceDataResolver implements ModelImporterJni.DataResolver
     {
         Project project;
 
@@ -136,9 +136,9 @@ public class MeshsetBuilder extends Builder  {
             return;
         }
 
-        ModelImporter.Options options = new ModelImporter.Options();
+        Modelimporter.Options options = new Modelimporter.Options();
         ResourceDataResolver dataResolver = new ResourceDataResolver(this.project);
-        ModelImporter.Scene scene = ModelUtil.loadScene(task.input(0).getContent(), task.input(0).getPath(), options, dataResolver);
+        Modelimporter.Scene scene = ModelUtil.loadScene(task.input(0).getContent(), task.input(0).getPath(), options, dataResolver);
         if (scene == null) {
             throw new CompileExceptionError(task.input(0), -1, "Error loading model");
         }

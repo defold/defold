@@ -1923,9 +1923,6 @@ def detect(conf):
             conf.env['LIBPATH_JDK'] = os.path.join(os.environ['JAVA_HOME'], 'lib')
             conf.env['DEFINES_JDK'] = ['DM_HAS_JDK']
 
-            conf.env['LIB_JNI'] = ['jni']
-            conf.env['LIB_JNI_NOASAN'] = ['jni_noasan']
-
             # if the jdk doesn't have the jni.h
             jni_path = os.path.join(conf.env['INCLUDES_JDK'][0], 'jni.h')
             if not os.path.exists(jni_path):
