@@ -154,9 +154,9 @@ static void OutputMesh(Mesh* mesh, int indent)
 
     printf("mesh  %s  vertices: %u  indices: %u  mat: %s  weights: %s  colors: %s aabb: (%f, %f, %f) (%f, %f, %f)\n",
             mesh->m_Name?mesh->m_Name:"null", mesh->m_VertexCount, mesh->m_Indices.Size(),
-            material_name, mesh->m_Weights.Empty()?"no":"yes", mesh->m_Color.Empty()?"no":"yes",
-            mesh->m_Aabb.m_Min[0], mesh->m_Aabb.m_Min[1], mesh->m_Aabb.m_Min[2],
-            mesh->m_Aabb.m_Max[0], mesh->m_Aabb.m_Max[1], mesh->m_Aabb.m_Max[2]);
+            material_name, mesh->m_Weights.Empty()?"no":"yes", mesh->m_Colors.Empty()?"no":"yes",
+            mesh->m_Aabb.m_Min.x, mesh->m_Aabb.m_Min.y, mesh->m_Aabb.m_Min.z,
+            mesh->m_Aabb.m_Max.x, mesh->m_Aabb.m_Max.y, mesh->m_Aabb.m_Max.z);
 
     // if (mesh->m_Weights)
     // {
@@ -345,14 +345,14 @@ static void DebugStructMesh(Mesh* mesh, int indent)
     OutputIndent(indent); printf("  m_Positions: %p\n", mesh->m_Positions.Begin());
     OutputIndent(indent); printf("  m_Normals: %p\n", mesh->m_Normals.Begin());
     OutputIndent(indent); printf("  m_Tangents: %p\n", mesh->m_Tangents.Begin());
-    OutputIndent(indent); printf("  m_Color: %p\n", mesh->m_Color.Begin());
+    OutputIndent(indent); printf("  m_Colors: %p\n", mesh->m_Colors.Begin());
     OutputIndent(indent); printf("  m_Weights: %p\n", mesh->m_Weights.Begin());
     OutputIndent(indent); printf("  m_Bones: %p\n", mesh->m_Bones.Begin());
 
-    OutputIndent(indent); printf("  m_TexCoord0: %p\n", mesh->m_TexCoord0.Begin());
-    OutputIndent(indent); printf("  m_TexCoord0NumComponents: %u\n", mesh->m_TexCoord0NumComponents);
-    OutputIndent(indent); printf("  m_TexCoord1: %p\n", mesh->m_TexCoord1.Begin());
-    OutputIndent(indent); printf("  m_TexCoord1NumComponents: %u\n", mesh->m_TexCoord1NumComponents);
+    OutputIndent(indent); printf("  m_TexCoords0: %p\n", mesh->m_TexCoords0.Begin());
+    OutputIndent(indent); printf("  m_TexCoords0NumComponents: %u\n", mesh->m_TexCoords0NumComponents);
+    OutputIndent(indent); printf("  m_TexCoords1: %p\n", mesh->m_TexCoords1.Begin());
+    OutputIndent(indent); printf("  m_TexCoords1NumComponents: %u\n", mesh->m_TexCoords1NumComponents);
 
     OutputIndent(indent); printf("  m_VertexCount: %u\n", mesh->m_VertexCount);
     OutputIndent(indent); printf("  m_Indices: %p\n", mesh->m_Indices.Begin());

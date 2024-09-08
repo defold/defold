@@ -48,8 +48,8 @@ void InitializeJNITypes(JNIEnv* env, TypeInfos* infos) {
     }
     {
         SETUP_CLASS(AabbJNI, "Aabb");
-        GET_FLD_TYPESTR(min, "[F");
-        GET_FLD_TYPESTR(max, "[F");
+        GET_FLD(min, "Vector3");
+        GET_FLD(max, "Vector3");
     }
     {
         SETUP_CLASS(MaterialJNI, "Material");
@@ -64,13 +64,13 @@ void InitializeJNITypes(JNIEnv* env, TypeInfos* infos) {
         GET_FLD_TYPESTR(positions, "[F");
         GET_FLD_TYPESTR(normals, "[F");
         GET_FLD_TYPESTR(tangents, "[F");
-        GET_FLD_TYPESTR(color, "[F");
+        GET_FLD_TYPESTR(colors, "[F");
         GET_FLD_TYPESTR(weights, "[F");
         GET_FLD_TYPESTR(bones, "[I");
-        GET_FLD_TYPESTR(texCoord0NumComponents, "I");
-        GET_FLD_TYPESTR(texCoord0, "[F");
-        GET_FLD_TYPESTR(texCoord1NumComponents, "I");
-        GET_FLD_TYPESTR(texCoord1, "[F");
+        GET_FLD_TYPESTR(texCoords0NumComponents, "I");
+        GET_FLD_TYPESTR(texCoords0, "[F");
+        GET_FLD_TYPESTR(texCoords1NumComponents, "I");
+        GET_FLD_TYPESTR(texCoords1, "[F");
         GET_FLD(aabb, "Aabb");
         GET_FLD_TYPESTR(indices, "[I");
         GET_FLD_TYPESTR(vertexCount, "I");
@@ -212,8 +212,8 @@ jobject C2J_CreateTransform(JNIEnv* env, TypeInfos* types, const Transform* src)
 jobject C2J_CreateAabb(JNIEnv* env, TypeInfos* types, const Aabb* src) {
     if (src == 0) return 0;
     jobject obj = env->AllocObject(types->m_AabbJNI.cls);
-    dmJNI::SetObjectDeref(env, obj, types->m_AabbJNI.min, dmJNI::C2J_CreateFloatArray(env, src->m_Min, 3));
-    dmJNI::SetObjectDeref(env, obj, types->m_AabbJNI.max, dmJNI::C2J_CreateFloatArray(env, src->m_Max, 3));
+    dmJNI::SetObjectDeref(env, obj, types->m_AabbJNI.min, C2J_CreateVector3(env, types, &src->m_Min));
+    dmJNI::SetObjectDeref(env, obj, types->m_AabbJNI.max, C2J_CreateVector3(env, types, &src->m_Max));
     return obj;
 }
 
@@ -234,13 +234,13 @@ jobject C2J_CreateMesh(JNIEnv* env, TypeInfos* types, const Mesh* src) {
     dmJNI::SetObjectDeref(env, obj, types->m_MeshJNI.positions, dmJNI::C2J_CreateFloatArray(env, src->m_Positions.Begin(), src->m_Positions.Size()));
     dmJNI::SetObjectDeref(env, obj, types->m_MeshJNI.normals, dmJNI::C2J_CreateFloatArray(env, src->m_Normals.Begin(), src->m_Normals.Size()));
     dmJNI::SetObjectDeref(env, obj, types->m_MeshJNI.tangents, dmJNI::C2J_CreateFloatArray(env, src->m_Tangents.Begin(), src->m_Tangents.Size()));
-    dmJNI::SetObjectDeref(env, obj, types->m_MeshJNI.color, dmJNI::C2J_CreateFloatArray(env, src->m_Color.Begin(), src->m_Color.Size()));
+    dmJNI::SetObjectDeref(env, obj, types->m_MeshJNI.colors, dmJNI::C2J_CreateFloatArray(env, src->m_Colors.Begin(), src->m_Colors.Size()));
     dmJNI::SetObjectDeref(env, obj, types->m_MeshJNI.weights, dmJNI::C2J_CreateFloatArray(env, src->m_Weights.Begin(), src->m_Weights.Size()));
     dmJNI::SetObjectDeref(env, obj, types->m_MeshJNI.bones, dmJNI::C2J_CreateUIntArray(env, src->m_Bones.Begin(), src->m_Bones.Size()));
-    dmJNI::SetUInt(env, obj, types->m_MeshJNI.texCoord0NumComponents, src->m_TexCoord0NumComponents);
-    dmJNI::SetObjectDeref(env, obj, types->m_MeshJNI.texCoord0, dmJNI::C2J_CreateFloatArray(env, src->m_TexCoord0.Begin(), src->m_TexCoord0.Size()));
-    dmJNI::SetUInt(env, obj, types->m_MeshJNI.texCoord1NumComponents, src->m_TexCoord1NumComponents);
-    dmJNI::SetObjectDeref(env, obj, types->m_MeshJNI.texCoord1, dmJNI::C2J_CreateFloatArray(env, src->m_TexCoord1.Begin(), src->m_TexCoord1.Size()));
+    dmJNI::SetUInt(env, obj, types->m_MeshJNI.texCoords0NumComponents, src->m_TexCoords0NumComponents);
+    dmJNI::SetObjectDeref(env, obj, types->m_MeshJNI.texCoords0, dmJNI::C2J_CreateFloatArray(env, src->m_TexCoords0.Begin(), src->m_TexCoords0.Size()));
+    dmJNI::SetUInt(env, obj, types->m_MeshJNI.texCoords1NumComponents, src->m_TexCoords1NumComponents);
+    dmJNI::SetObjectDeref(env, obj, types->m_MeshJNI.texCoords1, dmJNI::C2J_CreateFloatArray(env, src->m_TexCoords1.Begin(), src->m_TexCoords1.Size()));
     dmJNI::SetObjectDeref(env, obj, types->m_MeshJNI.aabb, C2J_CreateAabb(env, types, &src->m_Aabb));
     dmJNI::SetObjectDeref(env, obj, types->m_MeshJNI.indices, dmJNI::C2J_CreateUIntArray(env, src->m_Indices.Begin(), src->m_Indices.Size()));
     dmJNI::SetUInt(env, obj, types->m_MeshJNI.vertexCount, src->m_VertexCount);
@@ -537,6 +537,9 @@ jobjectArray C2J_CreateSkinPtrArray(JNIEnv* env, TypeInfos* types, const Skin* c
 }
 jobjectArray C2J_CreateNodeArray(JNIEnv* env, TypeInfos* types, const Node* src, uint32_t src_count) {
     if (src == 0 || src_count == 0) return 0;
+
+    printf("%s: %u\n", __FUNCTION__, src_count);
+
     jobjectArray arr = env->NewObjectArray(src_count, types->m_NodeJNI.cls, 0);
     for (uint32_t i = 0; i < src_count; ++i) {
         jobject obj = C2J_CreateNode(env, types, &src[i]);
@@ -726,14 +729,14 @@ bool J2C_CreateAabb(JNIEnv* env, TypeInfos* types, jobject obj, Aabb* out) {
     {
         jobject field_object = env->GetObjectField(obj, types->m_AabbJNI.min);
         if (field_object) {
-            dmJNI::J2C_CopyFloatArray(env, (jfloatArray)field_object, out->m_Min, 3);
+            J2C_CreateVector3(env, types, field_object, &out->m_Min);
             env->DeleteLocalRef(field_object);
         }
     }
     {
         jobject field_object = env->GetObjectField(obj, types->m_AabbJNI.max);
         if (field_object) {
-            dmJNI::J2C_CopyFloatArray(env, (jfloatArray)field_object, out->m_Max, 3);
+            J2C_CreateVector3(env, types, field_object, &out->m_Max);
             env->DeleteLocalRef(field_object);
         }
     }
@@ -787,11 +790,11 @@ bool J2C_CreateMesh(JNIEnv* env, TypeInfos* types, jobject obj, Mesh* out) {
         }
     }
     {
-        jobject field_object = env->GetObjectField(obj, types->m_MeshJNI.color);
+        jobject field_object = env->GetObjectField(obj, types->m_MeshJNI.colors);
         if (field_object) {
             uint32_t tmp_count;
             float* tmp = dmJNI::J2C_CreateFloatArray(env, (jfloatArray)field_object, &tmp_count);
-            out->m_Color.Set(tmp, tmp_count, tmp_count, false);
+            out->m_Colors.Set(tmp, tmp_count, tmp_count, false);
             env->DeleteLocalRef(field_object);
         }
     }
@@ -813,23 +816,23 @@ bool J2C_CreateMesh(JNIEnv* env, TypeInfos* types, jobject obj, Mesh* out) {
             env->DeleteLocalRef(field_object);
         }
     }
-    out->m_TexCoord0NumComponents = dmJNI::GetUInt(env, obj, types->m_MeshJNI.texCoord0NumComponents);
+    out->m_TexCoords0NumComponents = dmJNI::GetUInt(env, obj, types->m_MeshJNI.texCoords0NumComponents);
     {
-        jobject field_object = env->GetObjectField(obj, types->m_MeshJNI.texCoord0);
+        jobject field_object = env->GetObjectField(obj, types->m_MeshJNI.texCoords0);
         if (field_object) {
             uint32_t tmp_count;
             float* tmp = dmJNI::J2C_CreateFloatArray(env, (jfloatArray)field_object, &tmp_count);
-            out->m_TexCoord0.Set(tmp, tmp_count, tmp_count, false);
+            out->m_TexCoords0.Set(tmp, tmp_count, tmp_count, false);
             env->DeleteLocalRef(field_object);
         }
     }
-    out->m_TexCoord1NumComponents = dmJNI::GetUInt(env, obj, types->m_MeshJNI.texCoord1NumComponents);
+    out->m_TexCoords1NumComponents = dmJNI::GetUInt(env, obj, types->m_MeshJNI.texCoords1NumComponents);
     {
-        jobject field_object = env->GetObjectField(obj, types->m_MeshJNI.texCoord1);
+        jobject field_object = env->GetObjectField(obj, types->m_MeshJNI.texCoords1);
         if (field_object) {
             uint32_t tmp_count;
             float* tmp = dmJNI::J2C_CreateFloatArray(env, (jfloatArray)field_object, &tmp_count);
-            out->m_TexCoord1.Set(tmp, tmp_count, tmp_count, false);
+            out->m_TexCoords1.Set(tmp, tmp_count, tmp_count, false);
             env->DeleteLocalRef(field_object);
         }
     }

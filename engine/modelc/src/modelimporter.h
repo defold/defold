@@ -26,7 +26,7 @@ namespace dmModelImporter
 {
     // Start of JNI struct api
 
-    static const uint32_t INVALID_INDEX = 0xFFFFFFFF;
+    static const int32_t INVALID_INDEX = 2147483647; // INT_MAX
 
     struct Vector3
     {
@@ -47,8 +47,8 @@ namespace dmModelImporter
 
     struct Aabb
     {
-        float m_Min[3];
-        float m_Max[3];
+        Vector3 m_Min;
+        Vector3 m_Max;
     };
 
     struct Material
@@ -66,13 +66,13 @@ namespace dmModelImporter
         dmArray<float>      m_Positions;    // 3 floats per vertex
         dmArray<float>      m_Normals;      // 3 floats per vertex
         dmArray<float>      m_Tangents;     // 4 floats per vertex
-        dmArray<float>      m_Color;        // 4 floats per vertex
+        dmArray<float>      m_Colors;       // 4 floats per vertex
         dmArray<float>      m_Weights;      // 4 weights per vertex
         dmArray<uint32_t>   m_Bones;        // 4 bones per vertex
-        uint32_t            m_TexCoord0NumComponents; // e.g 2 or 3
-        dmArray<float>      m_TexCoord0;              // m_TexCoord0NumComponents floats per vertex
-        uint32_t            m_TexCoord1NumComponents; // e.g 2 or 3
-        dmArray<float>      m_TexCoord1;              // m_TexCoord1NumComponents floats per vertex
+        uint32_t            m_TexCoords0NumComponents; // e.g 2 or 3
+        dmArray<float>      m_TexCoords0;              // m_TexCoord0NumComponents floats per vertex
+        uint32_t            m_TexCoords1NumComponents; // e.g 2 or 3
+        dmArray<float>      m_TexCoords1;              // m_TexCoord1NumComponents floats per vertex
 
         Aabb                m_Aabb; // The min/max of the positions data
 

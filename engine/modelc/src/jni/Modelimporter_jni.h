@@ -45,13 +45,13 @@ struct MeshJNI {
     jfieldID positions;
     jfieldID normals;
     jfieldID tangents;
-    jfieldID color;
+    jfieldID colors;
     jfieldID weights;
     jfieldID bones;
-    jfieldID texCoord0NumComponents;
-    jfieldID texCoord0;
-    jfieldID texCoord1NumComponents;
-    jfieldID texCoord1;
+    jfieldID texCoords0NumComponents;
+    jfieldID texCoords0;
+    jfieldID texCoords1NumComponents;
+    jfieldID texCoords1;
     jfieldID aabb;
     jfieldID indices;
     jfieldID vertexCount;

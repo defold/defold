@@ -62,11 +62,11 @@ static void DestroyMesh(Mesh* mesh)
     mesh->m_Positions.SetCapacity(0);
     mesh->m_Normals.SetCapacity(0);
     mesh->m_Tangents.SetCapacity(0);
-    mesh->m_Color.SetCapacity(0);
+    mesh->m_Colors.SetCapacity(0);
     mesh->m_Weights.SetCapacity(0);
     mesh->m_Bones.SetCapacity(0);
-    mesh->m_TexCoord0.SetCapacity(0);
-    mesh->m_TexCoord1.SetCapacity(0);
+    mesh->m_TexCoords0.SetCapacity(0);
+    mesh->m_TexCoords1.SetCapacity(0);
     free((void*)mesh->m_Name);
 }
 

@@ -152,8 +152,8 @@ TEST(ModelGLTF, VertexColor3Float)
     dmModelImporter::Mesh* mesh = &scene->m_Models[0].m_Meshes[0];
     uint32_t vcount = mesh->m_VertexCount;
     ASSERT_EQ(4112, vcount);
-    ASSERT_EQ(1.0, mesh->m_Color[vcount*4-1]); // vN.a == 1.0f
-    ASSERT_EQ(1.0, mesh->m_Color[3]); // v0.a == 1.0f
+    ASSERT_EQ(1.0, mesh->m_Colors[vcount*4-1]); // vN.a == 1.0f
+    ASSERT_EQ(1.0, mesh->m_Colors[3]); // v0.a == 1.0f
     dmModelImporter::DestroyScene(scene);
     free(mem);
 }

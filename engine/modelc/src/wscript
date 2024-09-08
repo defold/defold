@@ -58,7 +58,7 @@ def build(bld):
         srcdir='java',
         outdir='java')
 
-    bld.env["JAVACFLAGS"] = '-g -source 1.7 -target 1.7'.split()
+    bld.env["JAVACFLAGS"] = '-g'.split()
 
     bld(features='jar seq',
         basedir='java',
@@ -66,5 +66,5 @@ def build(bld):
 
     bld.install_files('${PREFIX}/share/java', 'modelimporter.jar')
 
-    if not options.skip_build_tests:
+    if not Options.options.skip_build_tests:
         bld.recurse('test')

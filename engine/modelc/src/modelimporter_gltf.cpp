@@ -595,15 +595,17 @@ static void LoadMaterials(Scene* scene, cgltf_data* gltf_data)
 
 static void CalcAABB(uint32_t count, float* positions, Aabb* aabb)
 {
-    aabb->m_Min[0] = aabb->m_Min[1] = aabb->m_Min[2] = FLT_MAX;
-    aabb->m_Max[0] = aabb->m_Max[1] = aabb->m_Max[2] = -FLT_MAX;
+    aabb->m_Min.x = aabb->m_Min.y = aabb->m_Min.z = FLT_MAX;
+    aabb->m_Max.x = aabb->m_Max.y = aabb->m_Max.z = -FLT_MAX;
     for (uint32_t j = 0; j < count; j += 3, positions += 3)
     {
-        for (int i = 0; i < 3; ++i)
-        {
-            aabb->m_Min[i] = dmMath::Min(aabb->m_Min[i], positions[i]);
-            aabb->m_Max[i] = dmMath::Max(aabb->m_Max[i], positions[i]);
-        }
+        aabb->m_Min.x = dmMath::Min(aabb->m_Min.x, positions[0]);
+        aabb->m_Min.y = dmMath::Min(aabb->m_Min.y, positions[1]);
+        aabb->m_Min.z = dmMath::Min(aabb->m_Min.z, positions[2]);
+
+        aabb->m_Max.x = dmMath::Max(aabb->m_Max.x, positions[0]);
+        aabb->m_Max.y = dmMath::Max(aabb->m_Max.y, positions[1]);
+        aabb->m_Max.z = dmMath::Max(aabb->m_Max.z, positions[2]);
     }
 }
 
@@ -680,8 +682,8 @@ static void LoadPrimitives(Scene* scene, Model* model, cgltf_data* gltf_data, cg
                 {
                     mesh->m_Positions.Set(fdata, data_count, data_count, false);
                     if (accessor->has_min && accessor->has_max) {
-                        memcpy(mesh->m_Aabb.m_Min, accessor->min, sizeof(float)*3);
-                        memcpy(mesh->m_Aabb.m_Max, accessor->max, sizeof(float)*3);
+                        memcpy(&mesh->m_Aabb.m_Min.x, accessor->min, sizeof(float)*3);
+                        memcpy(&mesh->m_Aabb.m_Max.x, accessor->max, sizeof(float)*3);
                     }
                     else
                     {
@@ -710,18 +712,18 @@ static void LoadPrimitives(Scene* scene, Model* model, cgltf_data* gltf_data, cg
 
                     if (attribute->index == 0)
                     {
-                        mesh->m_TexCoord0.Set(fdata, data_count, data_count, false);
-                        mesh->m_TexCoord0NumComponents = num_components;
+                        mesh->m_TexCoords0.Set(fdata, data_count, data_count, false);
+                        mesh->m_TexCoords0NumComponents = num_components;
                     }
                     else if (attribute->index == 1)
                     {
-                        mesh->m_TexCoord1.Set(fdata, data_count, data_count, false);
-                        mesh->m_TexCoord1NumComponents = num_components;
+                        mesh->m_TexCoords1.Set(fdata, data_count, data_count, false);
+                        mesh->m_TexCoords1NumComponents = num_components;
                     }
                 }
 
                 else if (attribute->type == cgltf_attribute_type_color)
-                    mesh->m_Color.Set(fdata, data_count, data_count, false);
+                    mesh->m_Colors.Set(fdata, data_count, data_count, false);
 
                 else if (attribute->type == cgltf_attribute_type_joints)
                     mesh->m_Bones.Set(udata, data_count, data_count, false);
@@ -736,12 +738,12 @@ static void LoadPrimitives(Scene* scene, Model* model, cgltf_data* gltf_data, cg
             mesh->m_Material->m_IsSkinned = 1;
         }
 
-        if (mesh->m_TexCoord0.Empty())
+        if (mesh->m_TexCoords0.Empty())
         {
-            mesh->m_TexCoord0NumComponents = 2;
-            mesh->m_TexCoord0.SetCapacity(mesh->m_VertexCount * mesh->m_TexCoord0NumComponents);
-            mesh->m_TexCoord0.SetSize(mesh->m_TexCoord0.Capacity());
-            memset(mesh->m_TexCoord0.Begin(), 0, mesh->m_TexCoord0.Capacity()*sizeof(mesh->m_TexCoord0[0]));
+            mesh->m_TexCoords0NumComponents = 2;
+            mesh->m_TexCoords0.SetCapacity(mesh->m_VertexCount * mesh->m_TexCoords0NumComponents);
+            mesh->m_TexCoords0.SetSize(mesh->m_TexCoords0.Capacity());
+            memset(mesh->m_TexCoords0.Begin(), 0, mesh->m_TexCoords0.Capacity()*sizeof(mesh->m_TexCoords0[0]));
         }
     }
 }
