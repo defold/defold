@@ -555,8 +555,6 @@ public class ModelUtil {
 
         float[] positions = mesh.positions;
         float[] normals = mesh.normals;
-        float[] texCoords0 = mesh.texCoords0;
-        float[] texCoords1 = mesh.texCoords1;
 
         meshBuilder.setAabbMin(toDDFVector3(mesh.aabb.min));
         meshBuilder.setAabbMax(toDDFVector3(mesh.aabb.max));
@@ -591,7 +589,7 @@ public class ModelUtil {
         }
         if (mesh.texCoords1 != null) {
             meshBuilder.addAllTexcoord1(toList(mesh.texCoords1));
-            meshBuilder.setNumTexcoord0Components(mesh.texCoords1NumComponents);
+            meshBuilder.setNumTexcoord1Components(mesh.texCoords1NumComponents);
         }
 
         if (mesh.vertexCount >= 65536) {
@@ -818,7 +816,6 @@ public class ModelUtil {
         return new ModelImporterJni.FileDataResolver(cwd);
     }
 
-
 // $ java -cp ~/work/defold/tmp/dynamo_home/share/java/bob-light.jar com.dynamo.bob.pipeline.ModelUtil model_asset.dae
     public static void main(String[] args) throws IOException {
         if (args.length < 1) {
@@ -865,6 +862,14 @@ public class ModelUtil {
         if (scene == null){
             System.out.printf("Failed to load '%s'\n", file);
             return;
+        }
+
+        System.out.printf("--------------------------------------------\n");
+        System.out.printf("Scene Models:\n");
+
+        for (Model model : scene.models) {
+            System.out.printf("  Scene Model: %s  index: %d  parentBone: %s\n", model.name, model.index, model.parentBone != null ? model.parentBone.name : "");
+            ModelImporterJni.DebugPrintModel(model, 3);
         }
 
         System.out.printf("--------------------------------------------\n");

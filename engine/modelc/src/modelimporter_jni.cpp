@@ -22,6 +22,7 @@
 #include <dlib/array.h>
 #include <dlib/log.h>
 #include <dlib/dstrings.h>
+#include <dlib/hashtable.h>
 
 namespace dmModelImporter
 {
@@ -147,6 +148,25 @@ static void FixupNodeReferences(JNIEnv* env, dmModelImporter::jni::TypeInfos* ty
     }
 }
 
+static void FixupModelBones(JNIEnv* env, dmModelImporter::jni::TypeInfos* types, const dmModelImporter::Scene* scene,
+                            const dmArray<jobject>& models, dmHashTable64<jobject>& cache)
+{
+    uint32_t count = scene->m_Models.Size();
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        const Model* model = &scene->m_Models[i];
+        if (!model->m_ParentBone)
+            continue;
+
+        jobject model_obj = models[model->m_Index]; // TODO: SHould be able to use the object cache here as well.
+        jobject* bone_obj_p = cache.Get((uintptr_t)model->m_ParentBone);
+        if (bone_obj_p)
+            dmJNI::SetObject(env, model_obj, types->m_ModelJNI.parentBone, *bone_obj_p);
+        else
+            dmLogError("Failed to find the bone parent pointer");
+    }
+}
+
 // **************************************************
 // Meshes
 
@@ -181,11 +201,9 @@ static jobject CreateModel(JNIEnv* env, dmModelImporter::jni::TypeInfos* types, 
     jobject obj = env->AllocObject(types->m_ModelJNI.cls);
     dmJNI::SetInt(env, obj, types->m_ModelJNI.index, model->m_Index);
     dmJNI::SetString(env, obj, types->m_ModelJNI.name, model->m_Name);
-    // dmJNI::SetString(env, obj, types->m_ModelJNI.boneParentName, model->m_ParentBone ? model->m_ParentBone->m_Name: "");
-
-    jobjectArray arr = CreateMeshesArray(env, types, materials, model->m_Meshes.Size(), model->m_Meshes.Begin());
-    env->SetObjectField(obj, types->m_ModelJNI.meshes, arr);
-    env->DeleteLocalRef(arr);
+    // Bones aren't created yet. See FixupModelBones
+    //dmJNI::SetObject(env, obj, types->m_ModelJNI.boneParent, model->m_ParentBone ? bones[model->m_ParentBone->m_Index] : 0);
+    dmJNI::SetObjectDeref(env, obj, types->m_ModelJNI.meshes, CreateMeshesArray(env, types, materials, model->m_Meshes.Size(), model->m_Meshes.Begin()));
     return obj;
 }
 
@@ -278,7 +296,10 @@ static jobject CreateBone(JNIEnv* env, dmModelImporter::jni::TypeInfos* types, c
     return obj;
 }
 
-static jobjectArray CreateBonesArray(JNIEnv* env, dmModelImporter::jni::TypeInfos* types, uint32_t count, const dmModelImporter::Bone* bones, const dmArray<jobject>& nodes)
+static jobjectArray CreateBonesArray(JNIEnv* env, dmModelImporter::jni::TypeInfos* types,
+                                    uint32_t count, const dmModelImporter::Bone* bones,
+                                    const dmArray<jobject>& nodes,
+                                    dmHashTable64<jobject>& cache)
 {
     dmArray<jobject> tmp;
     tmp.SetCapacity(count);
@@ -290,6 +311,13 @@ static jobjectArray CreateBonesArray(JNIEnv* env, dmModelImporter::jni::TypeInfo
         const Bone* bone = &bones[i];
         tmp[bone->m_Index] = CreateBone(env, types, bone, nodes);
         env->SetObjectArrayElement(arr, i, tmp[bone->m_Index]);
+
+        if (cache.Full())
+        {
+            uint32_t cap = cache.Capacity() + 1024;
+            cache.SetCapacity((cap*2)/3, cap);
+        }
+        cache.Put((uintptr_t)bone, tmp[bone->m_Index]);
     }
 
     for (uint32_t i = 0; i < count; ++i)
@@ -304,7 +332,9 @@ static jobjectArray CreateBonesArray(JNIEnv* env, dmModelImporter::jni::TypeInfo
     return arr;
 }
 
-static void CreateBones(JNIEnv* env, dmModelImporter::jni::TypeInfos* types, const dmModelImporter::Scene* scene, const dmArray<jobject>& skins, const dmArray<jobject>& nodes)
+static void CreateBones(JNIEnv* env, dmModelImporter::jni::TypeInfos* types, const dmModelImporter::Scene* scene,
+                        const dmArray<jobject>& skins, const dmArray<jobject>& nodes,
+                        dmHashTable64<jobject>& cache)
 {
     uint32_t count = scene->m_Skins.Size();
     for (uint32_t i = 0; i < count; ++i)
@@ -312,9 +342,7 @@ static void CreateBones(JNIEnv* env, dmModelImporter::jni::TypeInfos* types, con
         const Skin* skin = &scene->m_Skins[i];
         jobject skin_obj = skins[skin->m_Index];
 
-        jobjectArray arr = CreateBonesArray(env, types, skin->m_Bones.Size(), skin->m_Bones.Begin(), nodes);
-        dmJNI::SetObject(env, skin_obj, types->m_SkinJNI.bones, arr);
-        env->DeleteLocalRef(arr);
+        dmJNI::SetObjectDeref(env, skin_obj, types->m_SkinJNI.bones, CreateBonesArray(env, types, skin->m_Bones.Size(), skin->m_Bones.Begin(), nodes, cache));
     }
 }
 
@@ -371,6 +399,7 @@ static jobject CreateJavaScene(JNIEnv* env, const dmModelImporter::Scene* scene)
     dmArray<jobject> nodes;
     dmArray<jobject> materials;
     dmArray<jobject> roots;
+    dmHashTable64<jobject> object_cache;
 
     dmJNI::SetObjectDeref(env, obj, types->m_SceneJNI.materials, CreateMaterialsArray(env, types,
                                                                         scene->m_Materials.Size(), scene->m_Materials.Begin(),
@@ -381,10 +410,11 @@ static jobject CreateJavaScene(JNIEnv* env, const dmModelImporter::Scene* scene)
     CreateNodes(env, types, scene, nodes);
     CreateSkins(env, types, scene, skins);
     CreateModels(env, types, scene, materials, models);
-    CreateBones(env, types, scene, skins, nodes);
+    CreateBones(env, types, scene, skins, nodes, object_cache);
 
     // Set the skin+model to the nodes
     FixupNodeReferences(env, types, scene, skins, models, nodes);
+    FixupModelBones(env, types, scene, models, object_cache);
 
     //env->EnsureLocalCapacity(8192); // TODO: Set this in the "C2J_Create*Array" functions
 

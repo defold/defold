@@ -280,6 +280,7 @@ static void ReadAccessorUint32ToArray(cgltf_accessor* accessor, uint32_t desired
         desired_num_components = num_components;
 
     out.SetCapacity(accessor->count * desired_num_components);
+    out.SetSize(out.Capacity());
     ReadAccessorUint32ToMem(accessor, desired_num_components, out.Begin());
 }
 

@@ -172,7 +172,7 @@ public class ModelImporterJni {
         if (arr == null || arr.length == 0)
             return;
         PrintIndent(indent);
-        System.out.printf("%s:\t", name);
+        System.out.printf("%s: %d tuple\t", name, elements);
         for (int i = 0; i < count; ++i) {
             System.out.printf("(");
             for (int e = 0; e < elements; ++e) {
@@ -207,14 +207,14 @@ public class ModelImporterJni {
         System.out.printf("\n");
     }
 
-    private static void DebugPrintMaterial(Modelimporter.Material material, int indent) {
+    public static void DebugPrintMaterial(Modelimporter.Material material, int indent) {
         PrintIndent(indent);
         System.out.printf("Material: %s\n", material.name);
         // PrintIndent(indent+1);
         // System.out.printf("Num Vertices: %d\n", mesh.vertexCount);
     }
 
-    private static void DebugPrintMesh(Modelimporter.Mesh mesh, int indent) {
+    public static void DebugPrintMesh(Modelimporter.Mesh mesh, int indent) {
         PrintIndent(indent);
         System.out.printf("Mesh: %s\n", mesh.name);
         PrintIndent(indent+1);
@@ -243,7 +243,7 @@ public class ModelImporterJni {
         DebugPrintIntArray(indent+1, "indices", mesh.indices, max_count, 3);
     }
 
-    private static void DebugPrintModel(Modelimporter.Model model, int indent) {
+    public static void DebugPrintModel(Modelimporter.Model model, int indent) {
         PrintIndent(indent);
         System.out.printf("Model: %s", model.name);
             if (model.parentBone != null && !model.parentBone.name.isEmpty())
@@ -255,7 +255,7 @@ public class ModelImporterJni {
         }
     }
 
-    private static void DebugPrintKeyFrames(String name, Modelimporter.KeyFrame[] keys, int indent)
+    public static void DebugPrintKeyFrames(String name, Modelimporter.KeyFrame[] keys, int indent)
     {
         PrintIndent(indent);
         System.out.printf("node: %s\t", name);
@@ -266,7 +266,7 @@ public class ModelImporterJni {
         System.out.printf("\n");
     }
 
-    private static void DebugPrintNodeAnimation(Modelimporter.NodeAnimation nodeAnimation, int indent) {
+    public static void DebugPrintNodeAnimation(Modelimporter.NodeAnimation nodeAnimation, int indent) {
         PrintIndent(indent);
         System.out.printf("node: %s num keys: t: %d  r: %d  s: %d  time: %f / %f\n", nodeAnimation.node.name,
             nodeAnimation.translationKeys.length,
@@ -280,7 +280,7 @@ public class ModelImporterJni {
         DebugPrintKeyFrames("scale", nodeAnimation.scaleKeys, indent+1);
     }
 
-    private static void DebugPrintAnimation(Modelimporter.Animation animation, int indent) {
+    public static void DebugPrintAnimation(Modelimporter.Animation animation, int indent) {
         PrintIndent(indent);
         System.out.printf("animation: %s  duration: %f\n", animation.name, animation.duration);
 
@@ -289,13 +289,13 @@ public class ModelImporterJni {
         }
     }
 
-    private static void DebugPrintBone(Modelimporter.Bone bone, int indent) {
+    public static void DebugPrintBone(Modelimporter.Bone bone, int indent) {
         PrintIndent(indent);
         System.out.printf("Bone: %s  node: %s\n", bone.name, bone.node==null?"null":bone.node.name);
         DebugPrintTransform(bone.invBindPose, indent+1);
     }
 
-    private static void DebugPrintSkin(Modelimporter.Skin skin, int indent) {
+    public static void DebugPrintSkin(Modelimporter.Skin skin, int indent) {
         PrintIndent(indent);
         System.out.printf("skin: %s\n", skin.name);
 
