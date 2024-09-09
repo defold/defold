@@ -148,13 +148,6 @@ namespace dmHID
         }
     #endif
 
-        switch(new_device.m_RemapStrategy)
-        {
-        case GAMEPAD_REMAP_STRATEGY_NONE:          dmLogInfo("Remap strategy: NONE"); break;
-        case GAMEPAD_REMAP_STRATEGY_LEGACY_DINPUT: dmLogInfo("Remap strategy: DINPUT"); break;
-        case GAMEPAD_REMAP_STRATEGY_LEGACY_XINPUT: dmLogInfo("Remap strategy: XINPUT"); break;
-        }
-
         if (driver->m_Devices.Full())
         {
             driver->m_Devices.OffsetCapacity(1);
@@ -215,7 +208,7 @@ namespace dmHID
 
         if (glfw_gamepad->m_RemapStrategy == GAMEPAD_REMAP_STRATEGY_LEGACY_XINPUT)
         {
-            // In GLFW 2.7, the button count is hardcoded to 16
+            // In GLFW 2.7, the button count is hardcoded to 16 for XInput devices.
             gamepad->m_ButtonCount = 16;
 
             // For XInput devices, the button order has changed so we have to do an explicit remapping here.
@@ -264,12 +257,12 @@ namespace dmHID
             //   button block (which is after all the dpads) so that's why it seems
             //   like the indices aren't the same as from the XInput header.
 
-            buttons_remapped_start[0] = buttons[7];
-            buttons_remapped_start[1] = buttons[6];
-            buttons_remapped_start[2] = buttons[8];
-            buttons_remapped_start[3] = buttons[9];
-            buttons_remapped_start[4] = buttons[4];
-            buttons_remapped_start[5] = buttons[5];
+            buttons_remapped_start[0]  = buttons[7];
+            buttons_remapped_start[1]  = buttons[6];
+            buttons_remapped_start[2]  = buttons[8];
+            buttons_remapped_start[3]  = buttons[9];
+            buttons_remapped_start[4]  = buttons[4];
+            buttons_remapped_start[5]  = buttons[5];
             // NO button data for index (6,7)
             buttons_remapped_start[8]  = buttons[0];
             buttons_remapped_start[9]  = buttons[1];

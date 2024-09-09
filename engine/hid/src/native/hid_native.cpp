@@ -128,7 +128,8 @@ namespace dmHID
                 if (!context->m_GamepadConnectivityCallback(gamepad_index, connection_status, context->m_GamepadConnectivityUserdata))
                 {
                     char device_names[dmHID::MAX_GAMEPAD_NAME_COUNT][dmHID::MAX_GAMEPAD_NAME_LENGTH];
-                    GetGamepadDeviceNames(context, gamepad, device_names);
+                    uint32_t device_names_count = GetGamepadDeviceNames(context, gamepad, device_names);
+                    assert(device_names_count != 0);
                     dmLogWarning("The connection for '%s' was ignored by the callback function!", device_names[0]);
                     return;
                 }
