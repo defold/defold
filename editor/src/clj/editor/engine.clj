@@ -84,7 +84,6 @@
       (finally
         (.disconnect conn)))))
 
-
 (defn apply-simulated-resolution! [prefs workspace target]
   (let [data (prefs/get-prefs prefs (prefs/make-project-specific-key "simulated-resolution" workspace) nil)]
     (when data
@@ -130,27 +129,28 @@
         (.disconnect conn)))))
 
 (defn get-log-service-stream [target]
-  (let [port (Integer/parseInt (:log-port target))
-        socket-addr (InetSocketAddress. ^String (:address target) port)
-        socket (doto (Socket.) (.setSoTimeout timeout))]
-    (try
-      (.connect socket socket-addr timeout)
-      ;; closing is will also close the socket
-      ;; https://docs.oracle.com/javase/7/docs/api/java/net/Socket.html#getInputStream()
-      (let [is (.getInputStream socket)
-            status (-> ^BufferedReader (io/reader is) (.readLine))]
-        ;; The '0 OK' string is part of the log service protocol
-        (if (= "0 OK" status)
-          (do
-            ;; Setting to 0 means wait indefinitely for new data
-            (.setSoTimeout socket 0)
-            is)
-          (do
-            (.close socket)
-            nil)))
-      (catch Exception e
-        (.close socket)
-        (throw e)))))
+  (when (and (:log-port target) (:address target))
+    (let [port (Integer/parseInt (:log-port target))
+          socket-addr (InetSocketAddress. ^String (:address target) port)
+          socket (doto (Socket.) (.setSoTimeout timeout))]
+      (try
+        (.connect socket socket-addr timeout)
+        ;; closing is will also close the socket
+        ;; https://docs.oracle.com/javase/7/docs/api/java/net/Socket.html#getInputStream()
+        (let [is (.getInputStream socket)
+              status (-> ^BufferedReader (io/reader is) (.readLine))]
+          ;; The '0 OK' string is part of the log service protocol
+          (if (= "0 OK" status)
+            (do
+              ;; Setting to 0 means wait indefinitely for new data
+              (.setSoTimeout socket 0)
+              is)
+            (do
+              (.close socket)
+              nil)))
+        (catch Exception e
+          (.close socket)
+          (throw e))))))
 
 (def ^:private loopback-address "127.0.0.1")
 
