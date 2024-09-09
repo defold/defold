@@ -184,7 +184,7 @@ retry:
 
     Driver driver;
     memset(&driver, 0, sizeof(Driver));
-    driver.m_Device = device_names[0];
+    driver.m_Device = device_name;
     driver.m_Platform = DM_PLATFORM;
     driver.m_DeadZone = 0.2f;
 
