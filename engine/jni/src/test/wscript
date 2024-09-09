@@ -66,9 +66,12 @@ def build(bld):
 
     bld.env["JAVACFLAGS"] = '-g'.split()
 
-    bld(features='jar seq test',
-        basedir ='java',
-        destfile ='test_jni.jar',
-        name = 'test_jni',
-        classpath=classpath,
-        mainclass='com.dynamo.bob.pipeline.JniTest')
+    if bld.env.PLATFORM == bld.env.BUILD_PLATFORM:
+        # Until we've fixed setting the correct lib path for it to run on wrong host
+
+        bld(features='jar seq test',
+            basedir ='java',
+            destfile ='test_jni.jar',
+            name = 'test_jni',
+            classpath=classpath,
+            mainclass='com.dynamo.bob.pipeline.JniTest')
