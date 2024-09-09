@@ -263,10 +263,10 @@
                           :text "Set Resolution"
                           :on-action {:event-type :confirm}}]}}))
 
-(defn make-resolution-dialog []
+(defn make-resolution-dialog [data]
   (fxui/show-dialog-and-await-result!
-    :initial-state {:width-text "320"
-                    :height-text "420"}
+    :initial-state {:width-text (str (or (:width data) "320"))
+                    :height-text (str (or (:height data) "420"))}
     :event-handler (fn [state {:keys [fx/event event-type]}]
                      (case event-type
                        :set-width (assoc state :width-text event)
