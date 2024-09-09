@@ -156,6 +156,7 @@ def install(args):
             "libtool",
             "libxi-dev",
             "libx11-xcb-dev",
+            "libx11-server-utils",
             "libopenal-dev",
             "libgl1-mesa-dev",
             "libglw1-mesa-dev",
