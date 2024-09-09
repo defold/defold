@@ -27,8 +27,8 @@
 
 namespace dmPlatform
 {
-    struct Window;
-    typedef Window* HWindow;
+    struct dmWindow;
+    typedef dmWindow* HWindow;
 };
 
 namespace dmHID

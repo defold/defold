@@ -150,8 +150,8 @@ namespace dmPlatform
             return 0;
         }
 
-        Window* wnd = new Window;
-        memset(wnd, 0, sizeof(Window));
+        dmWindow* wnd = new dmWindow;
+        memset(wnd, 0, sizeof(dmWindow));
 
         glfwSetErrorCallback(OnError);
 
@@ -172,7 +172,7 @@ namespace dmPlatform
         return 0;
     }
 
-    static PlatformResult OpenWindowOpenGL(Window* wnd, const WindowParams& params)
+    static PlatformResult OpenWindowOpenGL(dmWindow* wnd, const WindowParams& params)
     {
         glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
         glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
@@ -207,7 +207,7 @@ namespace dmPlatform
         return PLATFORM_RESULT_OK;
     }
 
-    static PlatformResult OpenWindowVulkan(Window* wnd, const WindowParams& params)
+    static PlatformResult OpenWindowVulkan(dmWindow* wnd, const WindowParams& params)
     {
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
         glfwWindowHint(GLFW_SAMPLES, params.m_Samples);

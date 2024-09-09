@@ -137,8 +137,8 @@ namespace dmPlatform
     {
         if (g_Window == 0)
         {
-            Window* wnd = new Window;
-            memset(wnd, 0, sizeof(Window));
+            dmWindow* wnd = new dmWindow;
+            memset(wnd, 0, sizeof(dmWindow));
 
             if (glfwInit() == GL_FALSE)
             {
