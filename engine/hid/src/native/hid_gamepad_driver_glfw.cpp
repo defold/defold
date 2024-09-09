@@ -75,7 +75,7 @@ namespace dmHID
         dmArray<GLFWGamepadDevice> m_Devices;
     };
 
-    static uint32_t GetGamepadDeviceNamesInternal(HContext context, int glfw_id, char names[MAX_GAMEPAD_NAME_COUNT][MAX_GAMEPAD_NAME_LENGTH]);
+    static void GetGamepadDeviceNameInternal(HContext context, int glfw_id, char name[MAX_GAMEPAD_NAME_LENGTH]);
 
     static GLFWGamepadDriver* g_GLFWGamepadDriver = 0;
 
@@ -130,21 +130,16 @@ namespace dmHID
     #ifdef _WIN32
         // For windows, we need to be able to remap button layouts according to
         // how it was created (xinput or dinput) in order to comply with old button mappings.
-
         new_device.m_RemapStrategy = GAMEPAD_REMAP_STRATEGY_LEGACY_DINPUT;
 
-        char gamepad_names[MAX_GAMEPAD_NAME_COUNT][MAX_GAMEPAD_NAME_LENGTH];
-        uint32_t num_names = GetGamepadDeviceNamesInternal(driver->m_HidContext, gamepad_id, gamepad_names);
+        char gamepad_name[MAX_GAMEPAD_NAME_LENGTH];
+        GetGamepadDeviceNameInternal(driver->m_HidContext, gamepad_id, gamepad_name);
 
-        for (int i = 0; i < num_names; ++i)
+        if (strcmp(gamepad_name, "Wireless Xbox Controller") == 0 ||
+            strcmp(gamepad_name, "Xbox Controller") == 0 ||
+            strstr(gamepad_name, "XInput"))
         {
-            if (strcmp(gamepad_names[i], "Wireless Xbox Controller") == 0 ||
-                strcmp(gamepad_names[i], "Xbox Controller") == 0 ||
-                strstr(gamepad_names[i], "XInput"))
-            {
-                new_device.m_RemapStrategy = GAMEPAD_REMAP_STRATEGY_LEGACY_XINPUT;
-                break;
-            }
+            new_device.m_RemapStrategy = GAMEPAD_REMAP_STRATEGY_LEGACY_XINPUT;
         }
     #endif
 
@@ -188,7 +183,9 @@ namespace dmHID
         }
     }
 
-    static inline uint8_t* RemapGamepadWin32(GLFWGamepadDevice* glfw_gamepad, uint8_t* buttons, uint8_t* buttons_remapped)
+
+#ifdef _WIN32
+    static uint8_t* RemapGamepadWin32(GLFWGamepadDevice* glfw_gamepad, uint8_t* buttons, uint8_t* buttons_remapped)
     {
         Gamepad* gamepad = glfw_gamepad->m_Gamepad;
         if (gamepad->m_HatCount == 0 ||
@@ -287,6 +284,7 @@ namespace dmHID
 
         return buttons_remapped;
     }
+#endif
 
     static void GLFWGamepadDriverUpdate(HContext context, GamepadDriver* driver, Gamepad* gamepad)
     {
@@ -339,21 +337,16 @@ namespace dmHID
         }
     }
 
-    static uint32_t GetGamepadDeviceNamesInternal(HContext context, int glfw_id, char names[MAX_GAMEPAD_NAME_COUNT][MAX_GAMEPAD_NAME_LENGTH])
+    static void GetGamepadDeviceNameInternal(HContext context, int glfw_id, char name[MAX_GAMEPAD_NAME_LENGTH])
     {
-        const char* names_ptrs[MAX_GAMEPAD_NAME_COUNT];
-        uint32_t name_count = dmPlatform::GetJoystickDeviceNames(context->m_Window, glfw_id, names_ptrs, MAX_GAMEPAD_NAME_COUNT);
-        for (int i = 0; i < name_count; ++i)
-        {
-            dmStrlCpy(names[i], names_ptrs[i], MAX_GAMEPAD_NAME_LENGTH);
-        }
-        return name_count;
+        const char* device_name = dmPlatform::GetJoystickDeviceName(context->m_Window, glfw_id);
+        dmStrlCpy(name, device_name, MAX_GAMEPAD_NAME_LENGTH);
     }
 
-    static uint32_t GLFWGamepadDriverGetGamepadDeviceNames(HContext context, GamepadDriver* driver, HGamepad gamepad, char names[MAX_GAMEPAD_NAME_COUNT][MAX_GAMEPAD_NAME_LENGTH])
+    static void GLFWGamepadDriverGetGamepadDeviceName(HContext context, GamepadDriver* driver, HGamepad gamepad, char name[MAX_GAMEPAD_NAME_LENGTH])
     {
         uint32_t gamepad_index = GLFWUnpackGamepad((GLFWGamepadDriver*) driver, gamepad, 0);
-        return GetGamepadDeviceNamesInternal(context, gamepad_index, names);
+        GetGamepadDeviceNameInternal(context, gamepad_index, name);
     }
 
     static bool GLFWGamepadDriverInitialize(HContext context, GamepadDriver* driver)
@@ -379,11 +372,11 @@ namespace dmHID
     {
         GLFWGamepadDriver* driver = new GLFWGamepadDriver();
 
-        driver->m_Initialize            = GLFWGamepadDriverInitialize;
-        driver->m_Destroy               = GLFWGamepadDriverDestroy;
-        driver->m_Update                = GLFWGamepadDriverUpdate;
-        driver->m_DetectDevices         = GLFWGamepadDriverDetectDevices;
-        driver->m_GetGamepadDeviceNames = GLFWGamepadDriverGetGamepadDeviceNames;
+        driver->m_Initialize           = GLFWGamepadDriverInitialize;
+        driver->m_Destroy              = GLFWGamepadDriverDestroy;
+        driver->m_Update               = GLFWGamepadDriverUpdate;
+        driver->m_DetectDevices        = GLFWGamepadDriverDetectDevices;
+        driver->m_GetGamepadDeviceName = GLFWGamepadDriverGetGamepadDeviceName;
 
         assert(g_GLFWGamepadDriver == 0);
         g_GLFWGamepadDriver               = driver;

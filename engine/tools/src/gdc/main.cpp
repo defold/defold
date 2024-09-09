@@ -154,9 +154,9 @@ retry:
     {
         for (uint32_t i = 0; i < gamepad_count; ++i)
         {
-            char device_names[dmHID::MAX_GAMEPAD_NAME_COUNT][dmHID::MAX_GAMEPAD_NAME_LENGTH];
-            dmHID::GetGamepadDeviceNames(g_HidContext, gamepads[i], device_names);
-            printf("%d: %s\n", i+1, device_names[0]);
+            char device_name[dmHID::MAX_GAMEPAD_NAME_LENGTH];
+            dmHID::GetGamepadDeviceName(g_HidContext, gamepads[i], device_name);
+            printf("%d: %s\n", i+1, device_name);
         }
         printf("\n* Which gamepad do you want to calibrate? [1-%d] ", gamepad_count);
         uint32_t index = 0;
@@ -177,10 +177,10 @@ retry:
         gamepad = gamepads[0];
     }
 
-    char device_names[dmHID::MAX_GAMEPAD_NAME_COUNT][dmHID::MAX_GAMEPAD_NAME_LENGTH];
-    dmHID::GetGamepadDeviceNames(g_HidContext, gamepad, device_names);
+    char device_name[dmHID::MAX_GAMEPAD_NAME_LENGTH];
+    dmHID::GetGamepadDeviceName(g_HidContext, gamepad, device_name);
 
-    printf("\n%s will be added to %s\n\n", device_names[0], filename);
+    printf("\n%s will be added to %s\n\n", device_name, filename);
 
     Driver driver;
     memset(&driver, 0, sizeof(Driver));

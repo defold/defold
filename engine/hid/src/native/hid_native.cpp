@@ -127,10 +127,9 @@ namespace dmHID
             {
                 if (!context->m_GamepadConnectivityCallback(gamepad_index, connection_status, context->m_GamepadConnectivityUserdata))
                 {
-                    char device_names[dmHID::MAX_GAMEPAD_NAME_COUNT][dmHID::MAX_GAMEPAD_NAME_LENGTH];
-                    uint32_t device_names_count = GetGamepadDeviceNames(context, gamepad, device_names);
-                    assert(device_names_count != 0);
-                    dmLogWarning("The connection for '%s' was ignored by the callback function!", device_names[0]);
+                    char device_name[dmHID::MAX_GAMEPAD_NAME_LENGTH];
+                    GetGamepadDeviceName(context, gamepad, device_name);
+                    dmLogWarning("The connection for '%s' was ignored by the callback function!", device_name);
                     return;
                 }
             } else {
@@ -328,17 +327,19 @@ namespace dmHID
         }
     }
 
-    uint32_t GetGamepadDeviceNames(HContext context, HGamepad gamepad, char names[MAX_GAMEPAD_NAME_COUNT][MAX_GAMEPAD_NAME_LENGTH])
+    void GetGamepadDeviceName(HContext context, HGamepad gamepad, char name[MAX_GAMEPAD_NAME_LENGTH])
     {
         NativeContextUserData* user_data = (NativeContextUserData*) context->m_NativeContextUserData;
+
+        name[0] = 0;
         if (gamepad->m_Driver == DRIVER_HANDLE_FREE)
         {
-            return 0;
+            return;
         }
 
         assert(gamepad->m_Driver < user_data->m_GamepadDrivers.Size());
         GamepadDriver* driver = user_data->m_GamepadDrivers[gamepad->m_Driver];
-        return driver->m_GetGamepadDeviceNames(context, driver, gamepad, names);
+        driver->m_GetGamepadDeviceName(context, driver, gamepad, name);
     }
 
     void ResetKeyboard(HContext context)

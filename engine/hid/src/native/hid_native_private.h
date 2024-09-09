@@ -24,15 +24,15 @@ namespace dmHID
     typedef void (*GamepadDriverDestroyCb)(HContext context, GamepadDriver* driver);
     typedef void (*GamepadDriverUpdateCb)(HContext context, GamepadDriver* driver, Gamepad* gamepad);
     typedef void (*GamepadDriverDetectDevicesCb)(HContext context, GamepadDriver* driver);
-    typedef uint32_t (*GamepadDriverGetGamepadDeviceNamesCb)(HContext context, GamepadDriver*, Gamepad* gamepad, char names[MAX_GAMEPAD_NAME_COUNT][MAX_GAMEPAD_NAME_LENGTH]);
+    typedef void (*GamepadDriverGetGamepadDeviceNameCb)(HContext context, GamepadDriver*, Gamepad* gamepad, char name[MAX_GAMEPAD_NAME_LENGTH]);
 
     struct GamepadDriver
     {
-        GamepadDriverInitializeCb            m_Initialize;
-        GamepadDriverDestroyCb               m_Destroy;
-        GamepadDriverUpdateCb                m_Update;
-        GamepadDriverDetectDevicesCb         m_DetectDevices;
-        GamepadDriverGetGamepadDeviceNamesCb m_GetGamepadDeviceNames;
+        GamepadDriverInitializeCb           m_Initialize;
+        GamepadDriverDestroyCb              m_Destroy;
+        GamepadDriverUpdateCb               m_Update;
+        GamepadDriverDetectDevicesCb        m_DetectDevices;
+        GamepadDriverGetGamepadDeviceNameCb m_GetGamepadDeviceName;
     };
 
     Gamepad*       CreateGamepad(HContext context, GamepadDriver* driver);

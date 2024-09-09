@@ -144,36 +144,40 @@ namespace dmInput
 
     static GamepadConfig* GetGamepadConfig(HBinding binding, dmHID::HGamepad gamepad, char device_name_out[dmHID::MAX_GAMEPAD_NAME_LENGTH])
     {
-        char device_names[dmHID::MAX_GAMEPAD_NAME_COUNT][dmHID::MAX_GAMEPAD_NAME_LENGTH];
-        uint32_t num_names = dmHID::GetGamepadDeviceNames(binding->m_Context->m_HidContext, gamepad, device_names);
-        if (num_names == 0)
+        char device_name[dmHID::MAX_GAMEPAD_NAME_LENGTH];
+        dmHID::GetGamepadDeviceName(binding->m_Context->m_HidContext, gamepad, device_name);
+
+        /*
+         * NOTE: We used to log a warning here but the warning is removed for the following reasons:
+         *  - The input-binding file covers several platforms and certain platforms
+         *    doesn't have support for e.g. pads. But more importantly, sometimes you might have
+         *    a device connected but sometimes not. It should be up to the user and we shouldn't
+         *    spam out warnings in such cases. In other words. It's impossible to tell whether the
+         *    warning is appropriate or not.
+         *  - We should also have support dynamic pad-connections. Whether a pad is connected
+         *    or not should be up to the game-ui.
+         */
+        if (device_name[0] == 0)
             return 0x0;
 
         GamepadConfig* best_config = 0x0;
         int best_config_name_index = -1;
 
+        uint32_t num_names = 1;
+        char* device_names[] = { device_name, 0 };
+
+    #ifdef _WIN32
+        // for backwards compatability with GLFW 2.7
+        device_names[num_names++] = "XBox 360 Controller";
+    #endif
+
         for (int i = 0; i < num_names; ++i)
         {
-            if (strlen(device_names[i]) == 0)
-            {
-                /*
-                 * NOTE: We used to log a warning here but the warning is removed for the following reasons:
-                 *  - The input-binding file covers several platforms and certain platforms
-                 *    doesn't have support for e.g. pads. But more importantly, sometimes you might have
-                 *    a device connected but sometimes not. It should be up to the user and we shouldn't
-                 *    spam out warnings in such cases. In other words. It's impossible to tell whether the
-                 *    warning is appropriate or not.
-                 *  - We should also have support dynamic pad-connections. Whether a pad is connected
-                 *    or not should be up to the game-ui.
-                 */
-                continue;
-            }
-
             GamepadConfig* config = GetGamepadConfigFromDeviceName(binding, dmHashString32(device_names[i]));
             if (!config)
                 continue;
 
-            best_config = config;
+            best_config            = config;
             best_config_name_index = i;
 
             // if we have found a config with a valid gamepad id, we don't look further.
@@ -184,7 +188,9 @@ namespace dmInput
         }
 
         if (best_config)
+        {
             dmStrlCpy(device_name_out, device_names[best_config_name_index], dmHID::MAX_GAMEPAD_NAME_LENGTH);
+        }
         return best_config;
     }
 
@@ -211,22 +217,9 @@ namespace dmInput
         }
         else
         {
-            // names + separators
-            char combined_names[dmHID::MAX_GAMEPAD_NAME_COUNT * dmHID::MAX_GAMEPAD_NAME_LENGTH + dmHID::MAX_GAMEPAD_NAME_COUNT];
-            char device_names[dmHID::MAX_GAMEPAD_NAME_COUNT][dmHID::MAX_GAMEPAD_NAME_LENGTH];
-            uint32_t num_names = dmHID::GetGamepadDeviceNames(binding->m_Context->m_HidContext, gamepad, device_names);
-
-            // Combine the names in case there's variants.
-            for (int i = 0; i < num_names; ++i)
-            {
-                dmStrlCat(combined_names, device_names[i], sizeof(combined_names));
-                if (i != (num_names-1))
-                {
-                    dmStrlCat(combined_names, ",", sizeof(combined_names));
-                }
-            }
-
-            dmLogWarning("No gamepad map found for gamepad %d (%s). Ignored.", gamepad_index, num_names > 0 ? combined_names : "unknown gamepad");
+            char device_name[dmHID::MAX_GAMEPAD_NAME_LENGTH];
+            dmHID::GetGamepadDeviceName(binding->m_Context->m_HidContext, gamepad, device_name);
+            dmLogWarning("No gamepad map found for gamepad %d (%s). Ignored.", gamepad_index, device_name[0] ? device_name : "unknown gamepad");
         }
         return 0x0;
     }

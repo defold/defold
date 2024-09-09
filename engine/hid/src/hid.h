@@ -174,9 +174,8 @@ namespace dmHID
      * @param gamepad gamepad handle
      * @param buffer a pointer to memory where the name should be stored
      * @param buffer_length the size of the buffer parameter
-     * @return number of gamepad names
      */
-    uint32_t GetGamepadDeviceNames(HContext context, HGamepad gamepad, char names[MAX_GAMEPAD_NAME_COUNT][MAX_GAMEPAD_NAME_LENGTH]);
+    void GetGamepadDeviceName(HContext context, HGamepad gamepad, char device_name[MAX_GAMEPAD_NAME_LENGTH]);
 
     /**
      * Check if a keyboard is connected.
