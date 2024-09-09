@@ -848,25 +848,6 @@ static uint32_t FindBoneIndex(cgltf_skin* gltf_skin, cgltf_node* joint)
     return INVALID_INDEX;
 }
 
-// Once the bones have been reassigned their new logical, depth-first index
-// We can sort it on index
-// TODO: THis should be redundant?
-struct BoneIndexSortPred
-{
-    Bone* m_Bones;
-    BoneIndexSortPred(Bone* bones)
-    : m_Bones(bones)
-    {}
-    bool operator()(uint32_t ia, uint32_t ib) const
-    {
-        Bone* a = &m_Bones[ia];
-        Bone* b = &m_Bones[ib];
-        int indexa = a->m_Index == INVALID_INDEX ? -1 : a->m_Index;
-        int indexb = b->m_Index == INVALID_INDEX ? -1 : b->m_Index;
-        return indexa < indexb;
-    }
-};
-
 struct BoneSortInfo
 {
     uint32_t m_Index;     // The index in the hierarchy (depth first!)
@@ -950,13 +931,9 @@ static void SortSkinBones(Skin* skin)
             bone.m_ParentIndex = bone.m_ParentIndex != INVALID_INDEX ? skin->m_BoneRemap[bone.m_ParentIndex] : INVALID_INDEX;
         }
 
-        // sort the indices
-        // TODO: This feels highly unnecessary now
-        std::sort(bone_order.Begin(), bone_order.End(), BoneIndexSortPred(skin->m_Bones.Begin()));
-
         for (uint32_t i = 0; i < bones_count; ++i)
         {
-            uint32_t new_index = bone_order[i];
+            uint32_t new_index = skin->m_BoneRemap[i];
             CopyBone(&sorted_bones[new_index], &skin->m_Bones[i]);
         }
 
