@@ -1187,8 +1187,6 @@ def make_package_dir(outdir, packagename):
 
 def generate(header_path, namespace, package_name, includes, java_outdir, jni_outdir):
 
-    print("gen_java.generate:", header_path)
-
     module_name = os.path.basename(header_path)
     module_name = os.path.splitext(module_name)[0].capitalize()
 
@@ -1206,8 +1204,6 @@ def generate(header_path, namespace, package_name, includes, java_outdir, jni_ou
 
     print(f'  {source_path} => {module_name}')
     reset_globals()
-
-    print("    gen_ir.gen", source_path)
     ir = gen_ir.gen(source_path, includes, module_name, namespace, [])
 
     os.unlink(source_path)
@@ -1216,7 +1212,6 @@ def generate(header_path, namespace, package_name, includes, java_outdir, jni_ou
     output_jni_cpp_path = f"{jni_outdir}/{ir['module']}_jni.cpp"
     output_jni_h_path = f"{jni_outdir}/{ir['module']}_jni.h"
 
-    print("    gen_java_source", source_path)
     gen_java_source(ir, module_name, package_name)
 
     with open(output_java_path, 'w', newline='\n') as f_outp:
