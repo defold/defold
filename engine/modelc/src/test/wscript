@@ -2,7 +2,7 @@
 
 def build(bld):
     bld.program(features = 'cxx test',
-                    includes = '. .. ../jni',
+                    includes = '. ..',
                     use = 'DLIB PROFILE model',
                     target = 'test_model',
                     source = 'test_model.cpp')

@@ -39,12 +39,16 @@ def build(bld):
         return
 
     modelc_sources = bld.path.ant_glob("**/*.cpp")
+    modelc_sources_no_jni = []
+    for x in modelc_sources:
+        if not 'jni' in x.name:
+            modelc_sources_no_jni.append(x)
 
     # really only used for the unit tests
     model = bld.stlib(features = 'c cxx',
                       includes = ['.', './model', './jni'],
                       uselib = 'JDK',
-                      source = modelc_sources,
+                      source = modelc_sources_no_jni,
                       target = 'model')
 
     # Used by bob.jar + editor
