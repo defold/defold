@@ -13,8 +13,6 @@ def configure(conf):
     if not conf.env.IS_TARGET_DESKTOP:
         print("Skipping build of modelc for non host platform")
         return
-    conf.load('waf_dynamo')
-    conf.load('java')
 
     dynamo_home = conf.env.DYNAMO_HOME
     includes = [os.getcwd(),
@@ -38,24 +36,24 @@ def build(bld):
         print("Skipping build of modelc for non host platform")
         return
 
-    modelc_sources = bld.path.ant_glob("**/*.cpp")
+    modelc_sources = bld.path.ant_glob("*.cpp")
     modelc_sources_no_jni = []
+
     for x in modelc_sources:
         if not 'jni' in x.name:
             modelc_sources_no_jni.append(x)
 
     # really only used for the unit tests
     model = bld.stlib(features = 'c cxx',
-                      includes = ['.', './model', './jni'],
-                      uselib = 'JDK',
+                      includes = ['.', './model'],
                       source = modelc_sources_no_jni,
                       target = 'model')
 
     # Used by bob.jar + editor
     model_shared = bld(features = 'c cxx cshlib skip_asan extract_symbols',
-                       includes = model.includes,
+                       includes = ['.', './model', './jni'],
                        uselib = 'DLIB_NOASAN APP PROFILE_NULL_NOASAN JDK JNI',
-                       source = modelc_sources,
+                       source = modelc_sources + bld.path.ant_glob("jni/*.cpp"),
                        target = 'modelc_shared')
 
     classpath = []
