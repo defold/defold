@@ -831,7 +831,14 @@ var Module = {
         Module._isEngineLoaded = true;
         Module.setupCanvas(appCanvasId);
 
-        Module.arguments = CUSTOM_PARAMETERS["engine_arguments"];
+        Module.arguments = [];
+        for(let arg of CUSTOM_PARAMETERS["engine_arguments"])
+            Module.arguments.push(arg);
+        if(window.location.search) {
+            const params = new URLSearchParams(window.location.search);
+            for (const [key, value] of params)
+                Module.arguments.push(`--${key}=${value}`);
+        }
 
         var fullScreenContainer = CUSTOM_PARAMETERS["full_screen_container"];
         if (typeof fullScreenContainer === "string") {
