@@ -506,6 +506,9 @@ def default_flags(self):
 
         flags += ['-O3']
         linkflags += ['-O3']
+
+        self.env.append_value('DEFINES', ['DM_NO_THREAD_SUPPORT', 'JC_TEST_NO_DEATH_TEST'])
+
         for f in ['CFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-Wall', '-fPIC', '-fno-exceptions', '-fno-rtti',
                                         '-DGL_ES_VERSION_2_0', '-DGOOGLE_PROTOBUF_NO_RTTI', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DDM_NO_SYSTEM_FUNCTION'])

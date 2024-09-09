@@ -131,10 +131,15 @@ def build(bld):
     create_test(bld, 'test_array')
     create_test(bld, 'test_indexpool')
     create_test(bld, 'test_dlib', extra_libs = ['THREAD'])
-    create_test(bld, 'test_socket', extra_libs = ['THREAD'])
+
+    if bld.env.PLATFORM not in ('js-web', 'wasm-web'):
+        create_test(bld, 'test_socket', extra_libs = ['THREAD'])
+
     create_test(bld, 'test_time')
-    create_test(bld, 'test_thread', extra_libs = ['THREAD'])
-    create_test(bld, 'test_mutex', extra_libs =['THREAD'])
+
+    if bld.env.PLATFORM not in ('js-web', 'wasm-web'):
+        create_test(bld, 'test_thread', extra_libs = ['THREAD'])
+        create_test(bld, 'test_mutex', extra_libs =['THREAD'])
 
     create_test(bld, 'test_profile', extra_libs = ['THREAD'])
     create_test(bld, 'test_profile',    extra_libs = ['THREAD'],
