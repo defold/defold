@@ -14,8 +14,9 @@ def options(opt):
     opt.load('waf_dynamo')
 
 def configure(conf):
-    conf.load('waf_dynamo')
-    conf.load('java')
+    if not conf.env.IS_TARGET_DESKTOP:
+        print("Skipping build of jni library for non host platform")
+        return
 
     conf.env['STLIB_DLIB_NOASAN'] = ['dlib_noasan']
 
@@ -39,7 +40,9 @@ def configure(conf):
         conf.env['LINKFLAGS_DEBUG'] = ['dbghelp.lib'] #['user32.lib', 'shell32.lib', 'openal32.lib', 'dbghelp.lib']
 
 def build(bld):
-    bld.load('java')
+    if not bld.env.IS_TARGET_DESKTOP:
+        print("Skipping build of jni library for non host platform")
+        return
 
     bld.program(features = 'c cxx test',
                includes = ['.', '..', './jni'],

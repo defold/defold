@@ -185,7 +185,10 @@ def get_type(decl):
     return decl['type']['qualType']
 
 def printtable(t):
-    print(json.dumps(t, sort_keys=True, indent=2))
+    s = json.dumps(t, sort_keys=True, indent=2)
+    if len(s) > 1024:
+        s = s[-1024:]
+    print(s)
 
 def parse_inner_cpp(main_prefix, dep_prefixes, namespace, inp, outp):
     if not 'decls' in outp:

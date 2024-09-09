@@ -10,6 +10,9 @@ def options(opt):
     opt.load('waf_dynamo')
 
 def configure(conf):
+    if not conf.env.IS_TARGET_DESKTOP:
+        print("Skipping build of modelc for non host platform")
+        return
     conf.load('waf_dynamo')
     conf.load('java')
 
