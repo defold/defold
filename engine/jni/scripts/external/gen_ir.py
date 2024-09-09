@@ -186,8 +186,7 @@ def get_type(decl):
 
 def printtable(t):
     s = json.dumps(t, sort_keys=True, indent=2)
-    if len(s) > 1024:
-        s = s[-1024:]
+    s = s[-1024:]
     print(s)
 
 def parse_inner_cpp(main_prefix, dep_prefixes, namespace, inp, outp):
@@ -226,7 +225,9 @@ def clang_cpp(csrc_path, includes=[]):
     return run.command(cmd)
 
 def gen(source_path, includes, module, main_prefix, dep_prefixes):
+    print("gen_ir.gen", source_path)
     ast = clang_cpp(source_path, includes)
+    print("  json.loads")
     inp = json.loads(ast)
     # with open(f'{module}.src.json', 'w') as f:
     #     f.write(json.dumps(inp, indent=2));
