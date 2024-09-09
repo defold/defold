@@ -154,8 +154,8 @@ retry:
     {
         for (uint32_t i = 0; i < gamepad_count; ++i)
         {
-            char device_name[128];
-            dmHID::GetGamepadDeviceName(g_HidContext, gamepads[i], device_name, sizeof(device_name));
+            char device_name[dmHID::MAX_GAMEPAD_NAME_LENGTH];
+            dmHID::GetGamepadDeviceName(g_HidContext, gamepads[i], device_name);
             printf("%d: %s\n", i+1, device_name);
         }
         printf("\n* Which gamepad do you want to calibrate? [1-%d] ", gamepad_count);
@@ -177,8 +177,8 @@ retry:
         gamepad = gamepads[0];
     }
 
-    char device_name[128];
-    dmHID::GetGamepadDeviceName(g_HidContext, gamepad, device_name, sizeof(device_name));
+    char device_name[dmHID::MAX_GAMEPAD_NAME_LENGTH];
+    dmHID::GetGamepadDeviceName(g_HidContext, gamepad, device_name);
 
     printf("\n%s will be added to %s\n\n", device_name, filename);
 
