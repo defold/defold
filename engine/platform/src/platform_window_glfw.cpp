@@ -562,7 +562,7 @@ namespace dmPlatform
         return false;
     }
 
-    void GetJoystickDeviceName(HWindow window, uint32_t joystick_index)
+    const char* GetJoystickDeviceName(HWindow window, uint32_t joystick_index)
     {
         char* device_name;
         glfwGetJoystickDeviceId(joystick_index, &device_name);
