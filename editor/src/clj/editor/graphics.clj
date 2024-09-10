@@ -13,8 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.graphics
-  (:require [editor.buffers :as buffers]
-            [dynamo.graph :as g]
+  (:require [dynamo.graph :as g]
+            [editor.buffers :as buffers]
             [editor.geom :as geom]
             [editor.gl.shader :as shader]
             [editor.gl.vertex2 :as vtx]
@@ -30,7 +30,7 @@
             [util.fn :as fn]
             [util.murmur :as murmur]
             [util.num :as num])
-  (:import [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$VertexAttribute Graphics$VertexAttribute$SemanticType]
+  (:import [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$VertexAttribute Graphics$VertexAttribute$SemanticType Graphics$VertexAttribute$VectorType]
            [com.google.protobuf ByteString]
            [com.jogamp.opengl GL2]
            [editor.gl.vertex2 VertexBuffer]
@@ -41,7 +41,11 @@
 
 (namespaces/import-vars [editor.gl.vertex2 attribute-name->key])
 
-(def ^:private default-attribute-data-type (protobuf/default Graphics$VertexAttribute :data-type))
+(def default-attribute-data-type (protobuf/default Graphics$VertexAttribute :data-type))
+
+(def default-attribute-semantic-type (protobuf/default Graphics$VertexAttribute :semantic-type))
+
+(def default-attribute-vector-type (protobuf/default Graphics$VertexAttribute :vector-type))
 
 (def ^:private attribute-data-type-infos
   [{:data-type :type-byte
@@ -75,6 +79,8 @@
 
 (def semantic-type? (protobuf/valid-enum-values Graphics$VertexAttribute$SemanticType))
 
+(def vector-type? (protobuf/valid-enum-values Graphics$VertexAttribute$VectorType))
+
 (def ^:private attribute-data-type->attribute-value-keyword
   (fn/make-case-fn (map (juxt :data-type :value-keyword)
                         attribute-data-type-infos)))
@@ -89,14 +95,21 @@
   (fn/make-case-fn (map (juxt :data-type :byte-size)
                         attribute-data-type-infos)))
 
-(defn attribute->doubles [{:keys [data-type] :as attribute}]
-  {:pre [(attribute-data-type? data-type)]}
-  (into (vector-of :double)
-        (map unchecked-double)
-        (if (or (:normalize attribute)
-                (= :type-float data-type))
-          (:v (:double-values attribute))
-          (:v (:long-values attribute)))))
+(declare default-attribute-doubles)
+
+(defn attribute->doubles [attribute]
+  (let [data-type (:data-type attribute default-attribute-data-type)
+        source-values (if (or (:normalize attribute)
+                              (= :type-float data-type))
+                        (:v (:double-values attribute))
+                        (:v (:long-values attribute)))]
+    (if (coll/empty? source-values)
+      (default-attribute-doubles
+        (:semantic-type attribute default-attribute-semantic-type)
+        (:vector-type attribute default-attribute-vector-type))
+      (into (vector-of :double)
+            (map unchecked-double)
+            source-values))))
 
 (defn attribute->any-doubles [attribute]
   (into (vector-of :double)
@@ -219,8 +232,8 @@
 
 (defn resize-doubles [double-values semantic-type new-vector-type]
   {:pre [(vector? double-values)
-         (or (nil? semantic-type) (keyword? semantic-type))
-         (keyword? new-vector-type)]}
+         (semantic-type? semantic-type)
+         (vector-type? new-vector-type)]}
   (let [old-element-count (count double-values)
         new-element-count (vector-type->component-count new-vector-type)]
     (cond
@@ -249,10 +262,10 @@
 
 (defn- default-attribute-doubles-raw [semantic-type vector-type]
   {:pre [(semantic-type? semantic-type)
-         (keyword? vector-type)]}
+         (vector-type? vector-type)]}
   (resize-doubles (vector-of :double) semantic-type vector-type))
 
-(def default-attribute-doubles (memoize default-attribute-doubles-raw))
+(def default-attribute-doubles (fn/memoize default-attribute-doubles-raw))
 
 (defn attribute-data-type->buffer-data-type [attribute-data-type]
   (case attribute-data-type
@@ -366,6 +379,21 @@
       is-valid-vector-type vector-type
       is-valid-element-count (vtx/element-count+semantic-type->vector-type element-count semantic-type))))
 
+(defn- editable-semantic-type? [semantic-type]
+  (case semantic-type
+    :semantic-type-none true
+    :semantic-type-position false
+    :semantic-type-texcoord false
+    :semantic-type-page-index false
+    :semantic-type-color true
+    :semantic-type-normal false
+    :semantic-type-tangent false
+    :semantic-type-world-matrix false
+    :semantic-type-normal-matrix false))
+
+(defn editable-attribute-info? [attribute-info]
+  (editable-semantic-type? (:semantic-type attribute-info default-attribute-semantic-type)))
+
 ;; TODO(save-value-cleanup): We only really need to sanitize the attributes if a resource type has :read-defaults true.
 (defn sanitize-attribute-value-v [attribute-value]
   (protobuf/sanitize-repeated attribute-value :v))
@@ -383,11 +411,14 @@
     ;; OneOf variant. Strip out the empty ones.
     ;; Once we update the protobuf loader, we shouldn't need to do this here.
     ;; We still want to remove the default empty :name-hash string, though.
-    (-> (if (and (some? attribute-vector-type) (not (= attribute-vector-type :vector-type-vec4)))
-          (assoc attribute :vector-type attribute-vector-type)
-          attribute)
-        (dissoc :name-hash :element-count :double-values :long-values :binary-values)
-        (assoc attribute-value-keyword {:v attribute-values}))))
+    (cond-> (dissoc attribute :name-hash :element-count :double-values :long-values :binary-values)
+
+            (and (some? attribute-vector-type)
+                 (not= attribute-vector-type default-attribute-vector-type))
+            (assoc :vector-type attribute-vector-type)
+
+            (editable-attribute-info? attribute)
+            (assoc attribute-value-keyword {:v attribute-values}))))
 
 (defn sanitize-attribute-override [attribute]
   ;; Graphics$VertexAttribute in map format.
@@ -536,12 +567,6 @@
                       (assoc attribute-info :bytes attribute-bytes))))))
         material-attribute-infos))
 
-(defn- editable-attribute-info? [attribute-info]
-  (case (:semantic-type attribute-info)
-    (:semantic-type-position :semantic-type-texcoord :semantic-type-page-index :semantic-type-normal :semantic-type-world-matrix :semantic-type-normal-matrix) false
-    nil false
-    true))
-
 (defn contains-semantic-type? [attributes semantic-type]
   (true? (some #(= semantic-type (:semantic-type %)) attributes)))
 
@@ -601,7 +626,7 @@
 
 (defn- attribute-value [attribute-values property-type semantic-type vector-type]
   {:pre [(semantic-type? semantic-type)
-         (keyword? vector-type)]}
+         (vector-type? vector-type)]}
   (if (= g/Num property-type)
     (first attribute-values) ; The widget expects a number, not a vector.
     (resize-doubles attribute-values semantic-type vector-type)))

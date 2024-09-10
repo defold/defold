@@ -385,6 +385,7 @@
         combined-name+indices (-> #{}
                                   (into (map key) texture-binding-index)
                                   (into (map key) material-sampler-index))
+
         texture-binding-properties
         (->> combined-name+indices
              sort
@@ -432,7 +433,11 @@
                        :edit-type {:type resource/Resource
                                    :ext extension
                                    :set-fn (fn/partial set-texture-binding-id sampler-name)}}])))))
-        attribute-properties (graphics/attribute-properties-by-property-key _node-id material-attribute-infos vertex-attribute-overrides)]
+
+        attribute-properties
+        (when-not (g/error-value? material-attribute-infos)
+          (graphics/attribute-properties-by-property-key _node-id material-attribute-infos vertex-attribute-overrides))]
+
     (-> _declared-properties
         (update :properties (fn [props]
                               (-> props
