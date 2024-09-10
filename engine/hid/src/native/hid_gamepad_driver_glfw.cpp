@@ -185,11 +185,25 @@ namespace dmHID
 
 
 #ifdef _WIN32
-    static uint8_t* RemapGamepadWin32(GLFWGamepadDevice* glfw_gamepad, uint8_t* buttons, uint8_t* buttons_remapped)
+
+    static void RemapGamepadAxisWin32(GLFWGamepadDevice* glfw_gamepad, float* axis)
     {
+        if (glfw_gamepad->m_RemapStrategy != GAMEPAD_REMAP_STRATEGY_LEGACY_XINPUT)
+        {
+            return;
+        }
         Gamepad* gamepad = glfw_gamepad->m_Gamepad;
-        if (gamepad->m_HatCount == 0 ||
-            glfw_gamepad->m_RemapStrategy != GAMEPAD_REMAP_STRATEGY_LEGACY_XINPUT &&
+
+        // The new XInput mapping has positive Y axis downwards and negative upwards, so we need to reverse those.
+        // XInput devices will always have 6 axis values (left X, left Y, right X, right Y, left Trigger, right Trigger),
+        // so it's safe to not bounds check here:
+        axis[1] *= -1.0f;
+        axis[3] *= -1.0f;
+    }
+
+    static uint8_t* RemapGamepadButtonsWin32(GLFWGamepadDevice* glfw_gamepad, uint8_t* buttons, uint8_t* buttons_remapped)
+    {
+        if (glfw_gamepad->m_RemapStrategy != GAMEPAD_REMAP_STRATEGY_LEGACY_XINPUT &&
             glfw_gamepad->m_RemapStrategy != GAMEPAD_REMAP_STRATEGY_LEGACY_DINPUT)
         {
             return buttons;
@@ -199,6 +213,7 @@ namespace dmHID
         // but old Defold expects the hats to be placed first. So to avoid forcing people to
         // do a new remapping for their gamepads, we just copy and adjust the hats from the new
         // glfw format to the old one.
+        Gamepad* gamepad                = glfw_gamepad->m_Gamepad;
         int32_t hats_button_count       = gamepad->m_HatCount * 4;
         int32_t hats_start              = gamepad->m_ButtonCount - hats_button_count;
         uint8_t* buttons_remapped_start = buttons_remapped + hats_button_count;
@@ -304,7 +319,8 @@ namespace dmHID
 
     #ifdef _WIN32
         uint8_t buttons_remapped[MAX_GAMEPAD_BUTTON_COUNT] = {};
-        buttons_ptr = RemapGamepadWin32(glfw_device, buttons, buttons_remapped);
+        buttons_ptr = RemapGamepadButtonsWin32(glfw_device, buttons, buttons_remapped);
+        RemapGamepadAxisWin32(glfw_device, packet.m_Axis);
     #endif
 
         for (uint32_t j = 0; j < gamepad->m_ButtonCount; ++j)
