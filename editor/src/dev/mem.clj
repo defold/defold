@@ -91,17 +91,37 @@
     :else
     (throw (IllegalArgumentException. "debug must be a boolean or a positive integer depth."))))
 
-(defn- validate-option-keys! [options]
-  (some->> [:debug
-            :ignore-known-singletons
-            :ignore-non-strong-references
-            :ignore-outer-class-reference
-            :ignored-classes]
+(defn- validate-option-keys! [options allowed-keys]
+  (some->> allowed-keys
            (reduce #(dissoc %1 %2) options)
            (not-empty)
            (hash-map :unknown-options)
            (ex-info "Unknown entries in options map.")
            (throw)))
+
+(def ^:private make-memory-meter-option-keys
+  #{:debug
+    :ignore-known-singletons
+    :ignore-non-strong-references
+    :ignore-outer-class-reference
+    :ignored-classes})
+
+(defn- make-memory-meter-impl
+  ^MemoryMeter [{:keys [debug
+                        ignore-known-singletons
+                        ignore-non-strong-references
+                        ignore-outer-class-reference
+                        ignored-classes]
+                 :or {debug false
+                      ignore-known-singletons true
+                      ignore-non-strong-references true
+                      ignore-outer-class-reference false}}]
+  (let [strategy (make-strategy MemoryMeter/BEST)
+        ignored-class-filter (as-ignored-class-filter ignored-classes)
+        class-filter (make-class-filter ignore-known-singletons ignored-class-filter)
+        field-filter (make-field-filter ignore-known-singletons ignore-outer-class-reference ignore-non-strong-references ignored-class-filter)
+        listener-factory (make-listener-factory debug)]
+    (MemoryMeter. strategy class-filter field-filter listener-factory)))
 
 (defn make-memory-meter
   "Create a new MemoryMeter instance.
@@ -128,23 +148,9 @@
     Seq of Class values to exclude from the measurement. The class hierarchy is
     not considered, so you need to explicitly list the concrete classes to
     exclude."
-  ^MemoryMeter [{:keys [debug
-                        ignore-known-singletons
-                        ignore-non-strong-references
-                        ignore-outer-class-reference
-                        ignored-classes]
-                 :as options
-                 :or {debug false
-                      ignore-known-singletons true
-                      ignore-non-strong-references true
-                      ignore-outer-class-reference false}}]
-  (validate-option-keys! options)
-  (let [strategy (make-strategy MemoryMeter/BEST)
-        ignored-class-filter (as-ignored-class-filter ignored-classes)
-        class-filter (make-class-filter ignore-known-singletons ignored-class-filter)
-        field-filter (make-field-filter ignore-known-singletons ignore-outer-class-reference ignore-non-strong-references ignored-class-filter)
-        listener-factory (make-listener-factory debug)]
-    (MemoryMeter. strategy class-filter field-filter listener-factory)))
+  ^MemoryMeter [options]
+  (validate-option-keys! options make-memory-meter-option-keys)
+  (make-memory-meter-impl options))
 
 (defn size-text
   "Return a human-readable string expressing the supplied byte-size using a
@@ -160,6 +166,12 @@
           (String/format Locale/ROOT "%.1f %cB" (to-array [size (.charAt units unit-index)]))
           (recur (/ size 1000.0)
                  (dec unit-index)))))))
+
+(def ^:private measure-option-keys
+  (into make-memory-meter-option-keys
+        #{:meter
+          :shallow
+          :bytes}))
 
 (defn measure
   "Measure the memory usage of the supplied object. By default, the size is
@@ -197,16 +209,10 @@
     :ignored-classes
     Seq of Class values to exclude from the measurement."
   ([object] (measure object nil))
-  ([object {:keys [shallow meter] :as options}]
-   (let [^MemoryMeter memory-meter
-         (if-not meter
-           (make-memory-meter options) ; Calls validate-option-keys!
-           (do
-             (validate-option-keys! options)
-             meter))
-
-         byte-size
-         (if shallow
-           (.measure memory-meter object)
-           (.measureDeep memory-meter object))]
-     (cond-> byte-size bytes size-text))))
+  ([object {:keys [bytes meter shallow] :as options}]
+   (validate-option-keys! options measure-option-keys)
+   (let [^MemoryMeter memory-meter (or meter (make-memory-meter-impl options))
+         byte-size (if shallow
+                     (.measure memory-meter object)
+                     (.measureDeep memory-meter object))]
+     (cond-> byte-size (not bytes) size-text))))

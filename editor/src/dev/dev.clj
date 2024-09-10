@@ -283,8 +283,6 @@
                    (pair label value))))
           labels)))
 
-(def node-type-key (comp :k g/node-type*))
-
 (defn- class-name->symbol [^String class-name]
   (-> class-name
       (string/replace "[]" "-array") ; For arrays, e.g. "byte[]" -> "byte-array"
@@ -426,7 +424,7 @@
   the specified node id and label. The result is a map of target node keys to
   affected labels, recursively. The node-key-fn takes a basis and a node-id,
   and should return the key to use for the node in the resulting map. If not
-  supplied, the node keys will be a pair of the node-type-key and the node-id."
+  supplied, the node keys will be a pair of the node-type-kw and the node-id."
   ([node-id label]
    (successor-tree (g/now) node-id label))
   ([basis node-id label]
@@ -435,7 +433,7 @@
        (sorted-map)
        (sorted-map)
        (fn key-fn [[successor-node-id]]
-         (pair (node-type-key basis successor-node-id)
+         (pair (g/node-type-kw basis successor-node-id)
                successor-node-id))
        (fn value-fn [[successor-node-id successor-label]]
          (pair successor-label
@@ -446,12 +444,12 @@
 (defn- successor-types-impl [successors-fn basis node-id-and-label-pairs]
   (let [direct-connected-successors-fn (make-direct-connected-successors-fn basis)]
     (into (sorted-map)
-          (map (fn [[node-type-key successor-labels]]
-                 (pair node-type-key
+          (map (fn [[node-type-kw successor-labels]]
+                 (pair node-type-kw
                        (into (sorted-map)
                              (frequencies successor-labels)))))
           (util/group-into {} []
-                           (comp (partial node-type-key basis) first)
+                           (comp (partial g/node-type-kw basis) first)
                            second
                            (successors-fn direct-connected-successors-fn basis node-id-and-label-pairs)))))
 
@@ -493,31 +491,39 @@
   ([basis node-id label]
    (direct-successor-types* basis [(pair node-id label)])))
 
+(defn ordered-descending [coll]
+  (->> coll
+       (sort (fn [[^long amount-a entry-a] [^long amount-b entry-b]]
+               (cond (< amount-a amount-b) 1
+                     (< amount-b amount-a) -1
+                     (and (instance? Comparable entry-a)
+                          (instance? Comparable entry-b)) (compare entry-a entry-b)
+                     :else 0)))
+       (vec)))
+
 (defn ordered-occurrences
   "Returns a sorted list of [occurrence-count entry]. The list is sorted by
   occurrence count in descending order."
   [coll]
-  (sort (fn [[^long occurrence-count-a entry-a] [^long occurrence-count-b entry-b]]
-          (cond (< occurrence-count-a occurrence-count-b) 1
-                (< occurrence-count-b occurrence-count-a) -1
-                (and (instance? Comparable entry-a)
-                     (instance? Comparable entry-b)) (compare entry-a entry-b)
-                :else 0))
-        (map (fn [[entry occurrence-count]]
-               (pair occurrence-count entry))
-             (frequencies coll))))
+  (->> coll
+       (frequencies)
+       (map (fn [[entry occurrence-count]]
+              (pair occurrence-count entry)))
+       (ordered-descending)))
 
 (defn cached-output-report
   "Returns a sorted list of what node outputs are in the system cache in the
-  format [entry-occurrence-count [node-type-key output-label]]. The list is
+  format [entry-occurrence-count [node-type-kw output-label]]. The list is
   sorted by entry occurrence count in descending order."
   []
   (let [system @g/*the-system*
         basis (is/basis system)]
     (ordered-occurrences
-      (map (fn [[[node-id output-label]]]
-             (let [node-type-key (node-type-key basis node-id)]
-               (pair node-type-key output-label)))
+      (map (fn [[endpoint]]
+             (let [node-id (g/endpoint-node-id endpoint)
+                   output-label (g/endpoint-label endpoint)
+                   node-type-kw (g/node-type-kw basis node-id)]
+               (pair node-type-kw output-label)))
            (is/system-cache system)))))
 
 (defn cached-output-name-report
@@ -526,8 +532,22 @@
   occurrence count in descending order."
   []
   (ordered-occurrences
-    (map (comp second key)
+    (map (comp g/endpoint-label key)
          (is/system-cache @g/*the-system*))))
+
+(defn node-type-report
+  "Returns a sorted list of what node types are in the system graph in the
+  format [node-count node-type-kw]. The list is sorted by node count in
+  descending order."
+  []
+  (let [system @g/*the-system*
+        graphs (is/graphs system)]
+    (ordered-occurrences
+      (eduction
+        (mapcat (fn [[_graph-id graph]]
+                  (vals (:nodes graph))))
+        (map (comp :k g/node-type))
+        graphs))))
 
 (defn- ns->namespace-name
   ^String [ns]
@@ -721,11 +741,11 @@
                     (->> kind-pairs
                          (map (case kind
                                 :external (fn [[source target]]
-                                            (str (name (node-type-key basis (gt/endpoint-node-id source)))
+                                            (str (name (g/node-type-kw basis (gt/endpoint-node-id source)))
                                                  " -> "
-                                                 (name (node-type-key basis (gt/endpoint-node-id target)))))
+                                                 (name (g/node-type-kw basis (gt/endpoint-node-id target)))))
                                 (:override :internal) (fn [[source]]
-                                                        (name (node-type-key basis (gt/endpoint-node-id source))))))
+                                                        (name (g/node-type-kw basis (gt/endpoint-node-id source))))))
                          frequencies
                          (sort-by (comp - val))
                          (run! (fn [[label group-count]]
@@ -735,9 +755,9 @@
                                                   group-count))))))))))))
 
 (defn- successor-pair-class [basis source-endpoint target-endoint]
-  [(node-type-key basis (gt/endpoint-node-id source-endpoint))
+  [(g/node-type-kw basis (gt/endpoint-node-id source-endpoint))
    (gt/endpoint-label source-endpoint)
-   (node-type-key basis (gt/endpoint-node-id target-endoint))
+   (g/node-type-kw basis (gt/endpoint-node-id target-endoint))
    (gt/endpoint-label target-endoint)])
 
 (defn successor-pair-stats-by-external-connection-influence
