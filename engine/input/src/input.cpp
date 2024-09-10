@@ -219,7 +219,11 @@ namespace dmInput
         {
             char device_name[dmHID::MAX_GAMEPAD_NAME_LENGTH];
             dmHID::GetGamepadDeviceName(binding->m_Context->m_HidContext, gamepad, device_name);
-            dmLogWarning("No gamepad map found for gamepad %d (%s). Ignored.", gamepad_index, device_name[0] ? device_name : "unknown gamepad");
+
+            if (device_name[0])
+            {
+                dmLogWarning("No gamepad map found for gamepad %d (%s). Ignored.", gamepad_index, device_name);
+            }
         }
         return 0x0;
     }
