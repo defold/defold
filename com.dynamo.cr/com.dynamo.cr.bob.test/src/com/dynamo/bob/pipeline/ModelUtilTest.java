@@ -208,7 +208,7 @@ public class ModelUtilTest {
    Modelimporter.Scene loadScene(String path) {
         try {
             File cwd = new File(".");
-            return ModelUtil.loadScene(getClass().getResourceAsStream(path), path, new Modelimporter.Options(), new ModelimporterJni.FileDataResolver(cwd));
+            return ModelUtil.loadScene(getClass().getResourceAsStream(path), path, new Modelimporter.Options(), new ModelImporterJni.FileDataResolver(cwd));
         } catch (IOException e) {
             e.printStackTrace();
             return null;
