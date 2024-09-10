@@ -75,7 +75,7 @@ public class ModelUtil {
 
         for (Modelimporter.Buffer buffer : scene.buffers)
         {
-            if (buffer.buffer == null)
+            if (buffer.buffer == null || buffer.buffer.length == 0)
                 throw new IOException(String.format("Failed to load buffer '%s' for file '%s", buffer.uri, path));
         }
         return loadInternal(scene, options);
