@@ -1272,23 +1272,25 @@ Result GetExtensionFromType(HFactory factory, HResourceType type, const char** e
     return RESULT_UNKNOWN_RESOURCE_TYPE;
 }
 
+
+Result GetDescriptorByHash(HFactory factory, dmhash_t path_hash, HResourceDescriptor* descriptor)
+{
+    ResourceDescriptor* tmp_descriptor = factory->m_Resources->Get(path_hash);
+    if (tmp_descriptor)
+    {
+        *descriptor = tmp_descriptor;
+        return RESULT_OK;
+    }
+    return RESULT_NOT_LOADED;
+}
+
 Result GetDescriptor(HFactory factory, const char* name, HResourceDescriptor* descriptor)
 {
     char canonical_path[RESOURCE_PATH_MAX];
     GetCanonicalPath(name, canonical_path);
 
     uint64_t canonical_path_hash = dmHashBuffer64(canonical_path, strlen(canonical_path));
-
-    ResourceDescriptor* tmp_descriptor = factory->m_Resources->Get(canonical_path_hash);
-    if (tmp_descriptor)
-    {
-        *descriptor = tmp_descriptor;
-        return RESULT_OK;
-    }
-    else
-    {
-        return RESULT_NOT_LOADED;
-    }
+    return GetDescriptorByHash(factory, canonical_path_hash, descriptor);
 }
 
 Result GetDescriptorWithExt(HFactory factory, uint64_t hashed_name, const uint64_t* exts, uint32_t ext_count, HResourceDescriptor* descriptor)
@@ -1572,7 +1574,20 @@ ResourceResult ResourceGetRaw(HResourceFactory factory, const char* name, void**
     return (ResourceResult)dmResource::GetRaw(factory, name, resource, resource_size);
 }
 
-void ResourceRelease(HResourceFactory factory, void* resource);
+ResourceResult ResourceGetDescriptor(HResourceFactory factory, const char* path, HResourceDescriptor* rd)
+{
+    return (ResourceResult)dmResource::GetDescriptor(factory, path, rd);
+}
+
+ResourceResult ResourceGetDescriptorByHash(HResourceFactory factory, dmhash_t path_hash, HResourceDescriptor* rd)
+{
+    return (ResourceResult)dmResource::GetDescriptorByHash(factory, path_hash, rd);
+}
+
+void ResourceRelease(HResourceFactory factory, void* resource)
+{
+    dmResource::Release(factory, resource);
+}
 
 bool ResourcePreloadHint(HResourcePreloadHintInfo info, const char* name)
 {

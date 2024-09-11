@@ -211,6 +211,26 @@ ResourceResult ResourceGetByHash(HResourceFactory factory, dmhash_t name, void**
 ResourceResult ResourceGetRaw(HResourceFactory factory, const char* name, void** resource, uint32_t* resource_size);
 
 /*#
+ * Get resource descriptor from resource (name)
+ * @name GetDescriptor
+ * @param factory [type: HResourceFactory] Factory handle
+ * @param path [type: dmhash_t] Resource path
+ * @param descriptor [type: HResourceDescriptor*] Returned resource descriptor
+ * @return result [type: ResourceResult]  RESULT_OK on success
+ */
+ResourceResult ResourceGetDescriptor(HResourceFactory factory, const char* path, HResourceDescriptor* descriptor);
+
+/*#
+ * Get resource descriptor from resource (name)
+ * @name GetDescriptorByHash
+ * @param factory [type: HResourceFactory] Factory handle
+ * @param path_hash [type: dmhash_t] Resource path hash
+ * @param descriptor [type: HResourceDescriptor*] Returned resource descriptor
+ * @return result [type: ResourceResult]  RESULT_OK on success
+ */
+ResourceResult ResourceGetDescriptorByHash(HResourceFactory factory, dmhash_t path_hash, HResourceDescriptor* descriptor);
+
+/*#
  * Release resource
  * @note Decreases ref count by 1. If it reaches 0, the resource destroy function is called.
  * @name ResourceRelease
