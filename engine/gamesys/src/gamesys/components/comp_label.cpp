@@ -148,7 +148,7 @@ namespace dmGameSystem
 
     static inline dmRender::HFontMap GetFontMap(const LabelComponent* component, const LabelResource* resource) {
         FontResource* font = GetFontResource(component, resource);
-        return dmGameSystem::ResFontMapGetHandle(font);
+        return dmGameSystem::ResFontGetHandle(font);
     }
 
     void ReHash(LabelComponent* component)

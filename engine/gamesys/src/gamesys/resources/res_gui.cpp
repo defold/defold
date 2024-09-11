@@ -94,7 +94,7 @@ namespace dmGameSystem
                 return r;
             resource->m_Fonts.Push(font);
 
-            dmRender::HFontMap font_map = ResFontMapGetHandle(font);
+            dmRender::HFontMap font_map = ResFontGetHandle(font);
             resource->m_FontMaps.Push(font_map);
 
             dmhash_t path_hash = 0;

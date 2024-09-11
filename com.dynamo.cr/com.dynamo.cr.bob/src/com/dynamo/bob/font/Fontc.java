@@ -1117,14 +1117,23 @@ public class Fontc {
             FileOutputStream fontMapOutputStream = new FileOutputStream(outfile);
 
             FontMap.Builder fontMapBuilder = FontMap.newBuilder();
+            fontMapBuilder.setFont(BuilderUtil.replaceExt(fontDesc.getFont(), ".ttf", ".ttfc"));
             fontMapBuilder.setMaterial(BuilderUtil.replaceExt(fontDesc.getMaterial(), ".material", ".materialc"));
             fontMapBuilder.setGlyphBank(glyphBankProjectStr);
+
+            fontMapBuilder.setSize(fontDesc.getSize());
+            fontMapBuilder.setAntialias(fontDesc.getAntialias());
             fontMapBuilder.setShadowX(fontDesc.getShadowX());
             fontMapBuilder.setShadowY(fontDesc.getShadowY());
+            fontMapBuilder.setShadowBlur(fontDesc.getShadowBlur());
+            fontMapBuilder.setShadowAlpha(fontDesc.getShadowAlpha());
             fontMapBuilder.setAlpha(fontDesc.getAlpha());
             fontMapBuilder.setOutlineAlpha(fontDesc.getOutlineAlpha());
-            fontMapBuilder.setShadowAlpha(fontDesc.getShadowAlpha());
+            fontMapBuilder.setOutlineWidth(fontDesc.getOutlineWidth());
             fontMapBuilder.setLayerMask(GetFontMapLayerMask(fontDesc));
+
+            fontMapBuilder.setOutputFormat(fontDesc.getOutputFormat());
+            fontMapBuilder.setRenderMode(fontDesc.getRenderMode());
 
             fontMapBuilder.build().writeTo(fontMapOutputStream);
 

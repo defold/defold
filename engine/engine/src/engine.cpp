@@ -1788,7 +1788,7 @@ bail:
             }
 
 #if !defined(DM_RELEASE)
-            dmProfiler::RenderProfiler(profile, engine->m_GraphicsContext, engine->m_RenderContext, ResFontMapGetHandle(engine->m_SystemFont));
+            dmProfiler::RenderProfiler(profile, engine->m_GraphicsContext, engine->m_RenderContext, ResFontGetHandle(engine->m_SystemFont));
 #endif
             // Call post render functions for extensions, if available.
             // We do it here at the end of the frame (before swap buffers/flip)
@@ -2104,7 +2104,7 @@ bail:
             dmLogFatal("Could not load system font map '%s'.", system_font_map);
             return false;
         }
-        dmRender::SetSystemFontMap(engine->m_RenderContext, ResFontMapGetHandle(engine->m_SystemFont));
+        dmRender::SetSystemFontMap(engine->m_RenderContext, ResFontGetHandle(engine->m_SystemFont));
 #endif
         // The system font is currently the only resource we need from the connection app
         // After this point, the rest of the resources should be loaded the ordinary way

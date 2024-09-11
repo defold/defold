@@ -29,16 +29,16 @@
 
 namespace dmRender
 {
-    typedef dmRenderDDF::GlyphBank::Glyph FontGlyph;
-    typedef FontGlyph* (*FGetGlyph)(uint32_t utf8, void* user_ctx);
-    typedef void*  (*FGetGlyphData)(uint32_t utf8, void* user_ctx, uint32_t* out_size);
-
     // The first byte of the texture data, is the compression
     enum FontGlyphCompression
     {
         FONT_GLYPH_COMPRESSION_NONE = 0,
         FONT_GLYPH_COMPRESSION_DEFLATE = 1,
     };
+
+    typedef dmRenderDDF::GlyphBank::Glyph FontGlyph;
+    typedef FontGlyph* (*FGetGlyph)(uint32_t utf8, void* user_ctx);
+    typedef void*  (*FGetGlyphData)(uint32_t utf8, void* user_ctx, uint32_t* out_size, uint32_t* out_compression, uint32_t* out_width, uint32_t* out_height);
 
     /**
      * Font map parameters supplied to NewFontMap

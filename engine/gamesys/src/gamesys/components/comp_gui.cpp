@@ -2746,7 +2746,7 @@ namespace dmGameSystem
             dmGameObject::PropertyResult res = SetResourceProperty(factory, params.m_Value, FONT_EXT_HASH, (void**)&font);
             if (res == dmGameObject::PROPERTY_RESULT_OK)
             {
-                dmRender::HFontMap font_map = dmGameSystem::ResFontMapGetHandle(font);
+                dmRender::HFontMap font_map = dmGameSystem::ResFontGetHandle(font);
                 dmGui::Result r = dmGui::AddFont(gui_component->m_Scene, params.m_Options.m_Key, (void*)font_map, params.m_Value.m_Hash);
                 if (r != dmGui::RESULT_OK)
                 {
