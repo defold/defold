@@ -326,7 +326,7 @@
 
 (defn- show-error-message [exception workspace]
   (ui/run-later
-    (let [msg (str (.getMessage exception) "\n\n"
+    (let [msg (str (ex-message exception) "\n\n"
                    "The target you have chosen isn't available")]
       (notifications/show!
         (workspace/notifications workspace)
