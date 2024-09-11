@@ -385,7 +385,7 @@
         (let [modified-button-gui-content
               (-> button-gui-resource
                   (slurp)
-                  (str/replace "max_nodes: 512" "max_nodes: 500"))]
+                  (str/replace "max_nodes: 123" "max_nodes: 100"))]
           (test-support/spit-until-new-mtime button-gui-resource modified-button-gui-content)
           (workspace/resource-sync! workspace))
 
