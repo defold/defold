@@ -254,6 +254,7 @@ message ShaderDesc
         LANGUAGE_PSSL       = 6; // Playstation
         LANGUAGE_GLSL_SM430 = 7; // OpenGL 4.3+ compatible
         LANGUAGE_GLSL_SM330 = 8; // OpenGL 3.3 (used for macos)
+        LANGUAGE_WGSL       = 9; // WebGPU
     }
 
     enum ShaderType
@@ -291,8 +292,9 @@ message ShaderDesc
         SHADER_TYPE_UIMAGE2D          = 21;
         SHADER_TYPE_IMAGE2D           = 22;
         SHADER_TYPE_SAMPLER           = 23;
-
         SHADER_TYPE_STORAGE_BUFFER    = 24;
+        SHADER_TYPE_TEXTURE2D_ARRAY   = 25;
+        SHADER_TYPE_TEXTURE_CUBE      = 26;
     }
 
     message ResourceType

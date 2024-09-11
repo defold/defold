@@ -4115,7 +4115,7 @@ bail:
         uint32_t w = context->m_WindowWidth;
         uint32_t h = context->m_WindowHeight;
         assert (buffer_size >= w * h * 4);
-            
+
         HRenderTarget currentt_rt_h = context->m_CurrentRenderTarget;
         bool in_render_pass = IsRenderTargetbound(context, currentt_rt_h);
 

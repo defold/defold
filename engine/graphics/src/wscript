@@ -65,6 +65,13 @@ def build(bld):
                         defines         = opengl_defines,
                         target          = 'graphics')
 
+    if waflib.Options.options.with_webgpu and platform_supports_feature(bld.env.PLATFORM, 'webgpu', {}):
+        obj = bld.stlib(features        = 'cxx',
+                        includes        = ['.', 'webgpu'] + proto_cpp_includes,
+                        use             = 'DDF DLIB',
+                        source          = bld.path.ant_glob(['*.cpp', 'webgpu/*.cpp']) + proto_cpp_source,
+                        target          = 'graphics_webgpu')
+
     bld.add_group()
 
     if platform_supports_feature(bld.env.PLATFORM, 'vulkan', {}):

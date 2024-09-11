@@ -64,6 +64,10 @@
    "$DYNAMO_HOME/ext/bin/x86_64-linux/glslang"                  "x86_64-linux/glslang"
    "$DYNAMO_HOME/ext/bin/x86_64-win32/glslang.exe"              "x86_64-win32/glslang.exe"
 
+   "$DYNAMO_HOME/ext/bin/x86_64-linux/tint"            "x86_64-linux/tint"
+   "$DYNAMO_HOME/ext/bin/x86_64-macos/tint"            "x86_64-macos/tint"
+   "$DYNAMO_HOME/ext/bin/arm64-linux/tint"            "arm64-macos/tint"
+
    "$DYNAMO_HOME/ext/bin/x86_64-macos/spirv-cross"            "x86_64-macos/spirv-cross"
    "$DYNAMO_HOME/ext/bin/arm64-macos/spirv-cross"             "arm64-macos/spirv-cross"
    "$DYNAMO_HOME/ext/bin/x86_64-linux/spirv-cross"            "x86_64-linux/spirv-cross"
