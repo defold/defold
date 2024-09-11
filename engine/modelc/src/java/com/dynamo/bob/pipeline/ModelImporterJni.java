@@ -11,7 +11,8 @@ import java.io.IOException;
 import java.lang.reflect.Method;
 import java.lang.reflect.InvocationTargetException;
 
-public class ModelImporter {
+
+public class ModelImporterJni {
 
     static final String ROOT_BONE_NAME = "root";
     static final String LIBRARY_NAME = "modelc_shared";
@@ -29,7 +30,7 @@ public class ModelImporter {
         if (clsbob == null) {
             try {
                 // ClassLoader.getSystemClassLoader() doesn't work with junit
-                ClassLoader clsloader = ModelImporter.class.getClassLoader();
+                ClassLoader clsloader = ModelImporterJni.class.getClassLoader();
                 clsbob = clsloader.loadClass("com.dynamo.bob.Bob");
             } catch (Exception e) {
                 System.out.printf("Didn't find Bob class in default test class loader: %s\n", e);
@@ -67,8 +68,8 @@ public class ModelImporter {
     }
 
     // The suffix of the path dictates which loader it will use
-    public static native Scene LoadFromBufferInternal(String path, byte[] buffer, Object data_resolver);
-    public static native int AddressOf(Object o);
+    public static native Modelimporter.Scene LoadFromBufferInternal(String path, byte[] buffer, Object data_resolver);
+    //public static native int AddressOf(Object o);
     public static native void TestException(String message);
 
     public static class ModelException extends Exception {
@@ -79,203 +80,56 @@ public class ModelImporter {
 
     ////////////////////////////////////////////////////////////////////////////////
 
-    static public class Options {
-        public int dummy;
-
-        public Options() {
-            this.dummy = 0;
-        }
-    }
-
-    public static class Vec4 { // simd Vector3/Vector4/Quat
-        public float x, y, z, w;
-
-        public Vec4() {}
-        public Vec4(Vec4 other)
-        {
-            this.x = other.x;
-            this.y = other.y;
-            this.z = other.z;
-            this.w = other.w;
-        }
-        public Vec4(float x, float y, float z, float w) {
-            this.x = x;
-            this.y = y;
-            this.z = z;
-            this.w = w;
-        }
-    }
-
-    public static class Transform {
-        public Vec4 translation;
-        public Vec4 rotation;
-        public Vec4 scale;
-
-        public Transform() {
-            this.setIdentity();
-        }
-
-        public Transform setIdentity() {
-            this.translation = new Vec4(0,0,0,1); // i.e. a Point3(x,y,z,1)
-            this.rotation = new Vec4(0,0,0,1);
-            this.scale = new Vec4(1,1,1,1);
-            return this;
-        }
-    }
-
-    public static class Aabb {
-        public Vec4 min;
-        public Vec4 max;
-
-        public Aabb() {
-            this.min = new Vec4(1000000.0f,1000000.0f,1000000.0f,1.0f);
-            this.max = new Vec4(-1000000.0f,-1000000.0f,-1000000.0f,1.0f);
-        }
-
-        public Aabb(Aabb other) {
-            this.min = new Vec4(other.min);
-            this.max = new Vec4(other.max);
-        }
-
-        public void expand(float x, float y, float z) {
-            if (x < min.x) min.x = x;
-            if (y < min.y) min.y = y;
-            if (z < min.z) min.z = z;
-            if (x > max.x) max.x = x;
-            if (y > max.y) max.y = y;
-            if (z > max.z) max.z = z;
-        }
-
-        public Vec4 center() {
-            return new Vec4((min.x + max.x)*0.5f, (min.y + max.y)*0.5f, (min.z + max.z)*0.5f, 1.0f);
-        }
-
-        public boolean isValid() {
-            return min.x <= max.x && (min.y <= max.y) && (min.z <= max.z);
-        }
-    }
-    public static class Material {
-        public String           name;
-        public int              index;
-
-        public Material() {
-            name = "";
-            index = 0;
-        }
-    }
-
-    public static class Mesh {
-        public String      name;
-        public Material    material;
-
-        public Aabb        aabb;
-
-        public float[]     positions; // float3
-        public float[]     normals; // float3
-        public float[]     tangents; // float4
-        public float[]     colors; // float4
-        public float[]     weights; // float4
-        public int[]       bones; // uint4
-
-        public int         texCoords0NumComponents; // 2 or 3
-        public float[]     texCoords0; // float2 or float3
-        public int         texCoords1NumComponents; // 2 or 3
-        public float[]     texCoords1; // float2 or float3
-
-        public int[]       indices;
-
-        public int         vertexCount;
-        public int         indexCount;
-
-        public float[] getTexCoords(int index) {
-            assert(index < 2);
-            if (index == 1) {
-                return this.texCoords1;
-            }
-            return this.texCoords0;
-        }
-    }
-
-    public static class Model {
-        public String   name;
-        public Mesh[]   meshes;
-        public int      index;
-        public String   boneParentName; // If set, this is a child of a bone
-    }
-
-    public static class Bone {
-        public Transform invBindPose;
-        public String    name;
-        public int       index;      // index into list of bones
-        public Node      node;
-        public Bone      parent;
-    }
-
-    public static class Skin {
-        public String    name;
-        public Bone[]    bones;
-        public int       index;
-    }
-
-    public static class Node {
-        public Transform    local;
-        public Transform    world;
-        public String       name;
-        public int          index;
-        public Node         parent;
-        public Node[]       children;
-        public Model        model;
-        public Skin         skin;
-    }
-
-    public static class KeyFrame {
-        public float value[] = new float[4];
-        public float time;
-    }
-
-    public static class NodeAnimation {
-        public Node         node;
-        public KeyFrame[]   translationKeys;
-        public KeyFrame[]   rotationKeys;
-        public KeyFrame[]   scaleKeys;
-        public float        startTime;
-        public float        endTime;
-    }
-
-    public static class Animation {
-        public String           name;
-        public NodeAnimation[]  nodeAnimations;
-        public float            duration;
-    }
-
-    public static class Buffer {
-        public String           uri;
-        public byte[]           buffer;
-    }
-    public static class Scene {
-
-        public Node[]         nodes;
-        public Model[]        models;
-        public Skin[]         skins;
-        public Node[]         rootNodes;
-        public Animation[]    animations;
-        public Material[]     materials;
-        public Buffer[]       buffers;
-    }
-
     public interface DataResolver {
         public byte[] getData(String path, String uri);
     }
 
-    public static Scene LoadFromBuffer(Options options, String path, byte[] bytes, DataResolver data_resolver)
+    public static Modelimporter.Scene LoadFromBuffer(Modelimporter.Options options, String path, byte[] bytes, DataResolver data_resolver)
     {
-        return ModelImporter.LoadFromBufferInternal(path, bytes, data_resolver);
+        return ModelImporterJni.LoadFromBufferInternal(path, bytes, data_resolver);
     }
 
-    // ////////////////////////////////////////////////////////////////////////////////
+
+    //////////////////////////////////////////////////////////////////////////////////
+    // AABB
+
+    public static Modelimporter.Aabb newAabb()
+    {
+        Modelimporter.Aabb aabb = new Modelimporter.Aabb();
+        aabb.min = new Modelimporter.Vector3();
+        aabb.max = new Modelimporter.Vector3();
+        aabb.min.x = aabb.min.y = aabb.min.z = 1000000.0f;
+        aabb.max.x = aabb.max.y = aabb.max.z = -1000000.0f;
+        return aabb;
+    }
+
+    public static Modelimporter.Aabb expandAabb(Modelimporter.Aabb aabb, float x, float y, float z)
+    {
+        aabb.min.x = Math.min(aabb.min.x, x);
+        aabb.min.y = Math.min(aabb.min.y, y);
+        aabb.min.z = Math.min(aabb.min.z, z);
+
+        aabb.max.x = Math.max(aabb.max.x, x);
+        aabb.max.y = Math.max(aabb.max.y, y);
+        aabb.max.z = Math.max(aabb.max.z, z);
+        return aabb;
+    }
+
+    public static Modelimporter.Vector3 aabbCalcCenter(Modelimporter.Aabb aabb, Modelimporter.Vector3 center) {
+        center.x = (aabb.min.x + aabb.max.x)*0.5f;
+        center.y = (aabb.min.y + aabb.max.y)*0.5f;
+        center.z = (aabb.min.z + aabb.max.z)*0.5f;
+        return center;
+    }
+
+    public static boolean aabbIsIsValid(Modelimporter.Aabb aabb) {
+        return aabb.min.x <= aabb.max.x && (aabb.min.y <= aabb.max.y) && (aabb.min.z <= aabb.max.z);
+    }
+
+    //////////////////////////////////////////////////////////////////////////////////
 
     private static void Usage() {
-        System.out.printf("Usage: ModelImporter.class <model_file>\n");
+        System.out.printf("Usage: Modelimporter.class <model_file>\n");
         System.out.printf("\n");
     }
 
@@ -285,7 +139,7 @@ public class ModelImporter {
         }
     }
 
-    public static void DebugPrintTransform(Transform transform, int indent) {
+    public static void DebugPrintTransform(Modelimporter.Transform transform, int indent) {
         PrintIndent(indent);
         System.out.printf("t: %f, %f, %f\n", transform.translation.x, transform.translation.y, transform.translation.z);
         PrintIndent(indent);
@@ -294,7 +148,7 @@ public class ModelImporter {
         System.out.printf("s: %f, %f, %f\n", transform.scale.x, transform.scale.y, transform.scale.z);
     }
 
-    private static void DebugPrintNode(Node node, int indent) {
+    private static void DebugPrintNode(Modelimporter.Node node, int indent) {
         PrintIndent(indent);
         System.out.printf("Node: %s  idx: %d   mesh: %s\n", node.name, node.index, node.model==null?"null":node.model.name);
 
@@ -305,20 +159,20 @@ public class ModelImporter {
         DebugPrintTransform(node.world, indent+1);
     }
 
-    private static void DebugPrintTree(Node node, int indent) {
+    private static void DebugPrintTree(Modelimporter.Node node, int indent) {
         DebugPrintNode(node, indent);
 
-        for (Node child : node.children) {
+        for (Modelimporter.Node child : node.children) {
             DebugPrintTree(child, indent+1);
         }
     }
 
     private static void DebugPrintFloatArray(int indent, String name, float[] arr, int count, int elements)
     {
-        if (arr == null)
+        if (arr == null || arr.length == 0)
             return;
         PrintIndent(indent);
-        System.out.printf("%s:\t", name);
+        System.out.printf("%s: %d tuple\t", name, elements);
         for (int i = 0; i < count; ++i) {
             System.out.printf("(");
             for (int e = 0; e < elements; ++e) {
@@ -335,7 +189,7 @@ public class ModelImporter {
 
     private static void DebugPrintIntArray(int indent, String name, int[] arr, int count, int elements)
     {
-        if (arr == null)
+        if (arr == null || arr.length == 0)
             return;
         PrintIndent(indent);
         System.out.printf("%s:\t", name);
@@ -353,14 +207,14 @@ public class ModelImporter {
         System.out.printf("\n");
     }
 
-    private static void DebugPrintMaterial(Material material, int indent) {
+    public static void DebugPrintMaterial(Modelimporter.Material material, int indent) {
         PrintIndent(indent);
         System.out.printf("Material: %s\n", material.name);
         // PrintIndent(indent+1);
         // System.out.printf("Num Vertices: %d\n", mesh.vertexCount);
     }
 
-    private static void DebugPrintMesh(Mesh mesh, int indent) {
+    public static void DebugPrintMesh(Modelimporter.Mesh mesh, int indent) {
         PrintIndent(indent);
         System.out.printf("Mesh: %s\n", mesh.name);
         PrintIndent(indent+1);
@@ -381,38 +235,38 @@ public class ModelImporter {
         DebugPrintFloatArray(indent+1, "weights", mesh.weights, max_count, 4);
         DebugPrintIntArray(indent+1, "bones", mesh.bones, max_count, 4);
 
-        DebugPrintFloatArray(indent+1, "texCoords0", mesh.getTexCoords(0), max_count, mesh.texCoords0NumComponents);
-        DebugPrintFloatArray(indent+1, "texCoords1", mesh.getTexCoords(1), max_count, mesh.texCoords1NumComponents);
+        DebugPrintFloatArray(indent+1, "texCoords0", mesh.texCoords0, max_count, mesh.texCoords0NumComponents);
+        DebugPrintFloatArray(indent+1, "texCoords1", mesh.texCoords1, max_count, mesh.texCoords1NumComponents);
 
-        if (max_count > mesh.indexCount/3)
-            max_count = mesh.indexCount/3;
+        if (max_count > mesh.indices.length/3)
+            max_count = mesh.indices.length/3;
         DebugPrintIntArray(indent+1, "indices", mesh.indices, max_count, 3);
     }
 
-    private static void DebugPrintModel(Model model, int indent) {
+    public static void DebugPrintModel(Modelimporter.Model model, int indent) {
         PrintIndent(indent);
         System.out.printf("Model: %s", model.name);
-            if (!model.boneParentName.isEmpty())
-                System.out.printf("  bone: %s", model.boneParentName);
+            if (model.parentBone != null && !model.parentBone.name.isEmpty())
+                System.out.printf("  bone: %s", model.parentBone.name);
         System.out.printf("\n");
 
-        for (Mesh mesh : model.meshes) {
+        for (Modelimporter.Mesh mesh : model.meshes) {
             DebugPrintMesh(mesh, indent+1);
         }
     }
 
-    private static void DebugPrintKeyFrames(String name, KeyFrame[] keys, int indent)
+    public static void DebugPrintKeyFrames(String name, Modelimporter.KeyFrame[] keys, int indent)
     {
         PrintIndent(indent);
         System.out.printf("node: %s\t", name);
-        for (KeyFrame key : keys)
+        for (Modelimporter.KeyFrame key : keys)
         {
             System.out.printf("(t=%f: %f, %f, %f, %f), ", key.time, key.value[0],key.value[1],key.value[2],key.value[3]);
         }
         System.out.printf("\n");
     }
 
-    private static void DebugPrintNodeAnimation(NodeAnimation nodeAnimation, int indent) {
+    public static void DebugPrintNodeAnimation(Modelimporter.NodeAnimation nodeAnimation, int indent) {
         PrintIndent(indent);
         System.out.printf("node: %s num keys: t: %d  r: %d  s: %d  time: %f / %f\n", nodeAnimation.node.name,
             nodeAnimation.translationKeys.length,
@@ -426,26 +280,26 @@ public class ModelImporter {
         DebugPrintKeyFrames("scale", nodeAnimation.scaleKeys, indent+1);
     }
 
-    private static void DebugPrintAnimation(Animation animation, int indent) {
+    public static void DebugPrintAnimation(Modelimporter.Animation animation, int indent) {
         PrintIndent(indent);
         System.out.printf("animation: %s  duration: %f\n", animation.name, animation.duration);
 
-        for (NodeAnimation nodeAnim : animation.nodeAnimations) {
+        for (Modelimporter.NodeAnimation nodeAnim : animation.nodeAnimations) {
             DebugPrintNodeAnimation(nodeAnim, indent+1);
         }
     }
 
-    private static void DebugPrintBone(Bone bone, int indent) {
+    public static void DebugPrintBone(Modelimporter.Bone bone, int indent) {
         PrintIndent(indent);
         System.out.printf("Bone: %s  node: %s\n", bone.name, bone.node==null?"null":bone.node.name);
         DebugPrintTransform(bone.invBindPose, indent+1);
     }
 
-    private static void DebugPrintSkin(Skin skin, int indent) {
+    public static void DebugPrintSkin(Modelimporter.Skin skin, int indent) {
         PrintIndent(indent);
         System.out.printf("skin: %s\n", skin.name);
 
-        for (Bone bone : skin.bones) {
+        for (Modelimporter.Bone bone : skin.bones) {
             DebugPrintBone(bone, indent+1);
         }
     }
@@ -504,7 +358,7 @@ public class ModelImporter {
         {
             if (args[i].equalsIgnoreCase("--test-exception"))
             {
-                ModelImporter.TestException("Testing exception: " + args[i+1]);
+                ModelImporterJni.TestException("Testing exception: " + args[i+1]);
                 return; // exit code 0
             }
         }
@@ -513,7 +367,7 @@ public class ModelImporter {
         long timeStart = System.currentTimeMillis();
 
         FileDataResolver buffer_resolver = new FileDataResolver();
-        Scene scene = LoadFromBuffer(new Options(), path, ReadFile(path), buffer_resolver);
+        Modelimporter.Scene scene = LoadFromBuffer(new Modelimporter.Options(), path, ReadFile(path), buffer_resolver);
 
         long timeEnd = System.currentTimeMillis();
 
@@ -525,14 +379,19 @@ public class ModelImporter {
 
         System.out.printf("--------------------------------\n");
 
-        for (Buffer buffer : scene.buffers) {
+        if (scene.buffers == null)
+        {
+            System.out.printf("Buffers are null\n");
+        }
+
+        for (Modelimporter.Buffer buffer : scene.buffers) {
             System.out.printf("Buffer: uri: %s  data: %s\n", buffer.uri, buffer.buffer);
         }
 
         System.out.printf("--------------------------------\n");
 
         System.out.printf("Num Materials: %d\n", scene.materials.length);
-        for (Material material : scene.materials)
+        for (Modelimporter.Material material : scene.materials)
         {
             DebugPrintMaterial(material, 0);
         }
@@ -540,14 +399,14 @@ public class ModelImporter {
         System.out.printf("--------------------------------\n");
 
         System.out.printf("Num Nodes: %d\n", scene.nodes.length);
-        for (Node node : scene.nodes)
+        for (Modelimporter.Node node : scene.nodes)
         {
             DebugPrintNode(node, 0);
         }
 
         System.out.printf("--------------------------------\n");
 
-        for (Node root : scene.rootNodes) {
+        for (Modelimporter.Node root : scene.rootNodes) {
             System.out.printf("Root Node: %s\n", root.name);
             DebugPrintTree(root, 0);
         }
@@ -555,7 +414,7 @@ public class ModelImporter {
         System.out.printf("--------------------------------\n");
 
         System.out.printf("Num Skins: %d\n", scene.skins.length);
-        for (Skin skin : scene.skins)
+        for (Modelimporter.Skin skin : scene.skins)
         {
             DebugPrintSkin(skin, 0);
         }
@@ -563,14 +422,14 @@ public class ModelImporter {
         System.out.printf("--------------------------------\n");
 
         System.out.printf("Num Models: %d\n", scene.models.length);
-        for (Model model : scene.models) {
+        for (Modelimporter.Model model : scene.models) {
             DebugPrintModel(model, 0);
         }
 
         System.out.printf("--------------------------------\n");
 
         System.out.printf("Num Animations: %d\n", scene.animations.length);
-        for (Animation animation : scene.animations) {
+        for (Modelimporter.Animation animation : scene.animations) {
             DebugPrintAnimation(animation, 0);
         }
 
