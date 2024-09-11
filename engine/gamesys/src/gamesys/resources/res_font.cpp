@@ -103,7 +103,6 @@ namespace dmGameSystem
             return &(*dynglyphp)->m_Glyph;
 
         dmRender::FontGlyph** glyphp = resource->m_Glyphs.Get(codepoint);
-        //printf("Glyph: %u %p\n", codepoint, glyphp ? *glyphp : 0);
         return glyphp ? *glyphp : 0;
     }
 
@@ -122,8 +121,6 @@ namespace dmGameSystem
     {
         FontResource* resource = (FontResource*)user_ctx;
 
-        printf("GetGlyphData:\n");
-
         DynamicGlyph** dynglyphp = resource->m_DynamicGlyphs.Get(codepoint);
         if (dynglyphp)
         {
@@ -133,7 +130,6 @@ namespace dmGameSystem
             *out_width = dynglyph->m_DataImageWidth;
             *out_height = dynglyph->m_DataImageHeight;
             *out_compression = dynglyph->m_Data[0];
-            printf("GetGlyphData: data: %p  %u\n", dynglyph->m_Data, dynglyph->m_DataSize);
             return dynglyph->m_Data+1;
         }
 
@@ -150,11 +146,6 @@ namespace dmGameSystem
         *out_width = glyph->m_Width + resource->m_CacheCellPadding*2;
         *out_height = glyph->m_Ascent + glyph->m_Descent + resource->m_CacheCellPadding*2;
         *out_compression = glyph_data[0];
-
-        // tex_params.m_Width = g->m_Width + font_map->m_CacheCellPadding*2;
-        // tex_params.m_Height = g->m_Ascent + g->m_Descent + font_map->m_CacheCellPadding*2;
-
-        //printf("Glyph data: %u %p  dt: %p\n", codepoint, glyph, glyph_data);
         return glyph_data + 1;
     }
 
