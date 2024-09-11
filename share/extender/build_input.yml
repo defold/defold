@@ -395,12 +395,12 @@ platforms:
   web:
     # It's here to whitelist this as a platform, currently used for general settings
     env:
-        EM_CACHE:               "{{env.EMSCRIPTEN_CACHE_3_1_55}}"
-        EM_CONFIG:              "{{env.EMSCRIPTEN_CONFIG_3_1_55}}"
-        EMSDK_PYTHON:           "{{env.EMSCRIPTEN_PYTHON_3_1_55}}"
-        PATH:                   "{{env.EMSCRIPTEN_PATH_3_1_55}}:{{env.PATH}}"
-        EMSCRIPTEN_HOME:        "{{env.EMSCRIPTEN_HOME_3_1_55}}"
-        EMSCRIPTEN_BIN:         "{{env.EMSCRIPTEN_BIN_3_1_55}}"
+        EM_CACHE:               "{{env.EMSCRIPTEN_CACHE_3_1_65}}"
+        EM_CONFIG:              "{{env.EMSCRIPTEN_CONFIG_3_1_65}}"
+        EMSDK_PYTHON:           "{{env.EMSCRIPTEN_PYTHON_3_1_65}}"
+        PATH:                   "{{env.EMSCRIPTEN_PATH_3_1_65}}:{{env.PATH}}"
+        EMSCRIPTEN_HOME:        "{{env.EMSCRIPTEN_HOME_3_1_65}}"
+        EMSCRIPTEN_BIN:         "{{env.EMSCRIPTEN_BIN_3_1_65}}"
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
     context:
         engineJsLibs:   ["sys", "script", "sound"]
@@ -428,13 +428,13 @@ platforms:
     manifestMergeCmd: 'java -jar {{env.MANIFEST_MERGE_TOOL}} --platform {{platform}} --main {{mainManifest}} {{#libraries}} --lib {{.}} {{/libraries}} --out {{target}}'
 
   js-web:
-    context:        
+    context:
         libPaths:   ["{{dynamo_home}}/lib/js-web", "{{dynamo_home}}/ext/lib/js-web"]
         emscriptenLinkFlags: ["WASM=0", "LEGACY_VM_SUPPORT=1"]
 
     zipContentPattern: 'dmengine.js'
     linkCmd:        '{{env.EMSCRIPTEN_BIN}}/em++ {{#src}}{{{.}}} {{/src}} -o {{tgt}} -O3 {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#emscriptenLinkFlags}}-s {{{.}}} {{/emscriptenLinkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} -Wl,--start-group {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} -Wl,--end-group {{#ext.jsLibs}}--js-library {{{.}}} {{/ext.jsLibs}} {{#engineJsLibs}}--js-library {{dynamo_home}}/lib/js-web/js/library_{{{.}}}.js {{/engineJsLibs}} {{#externalJsLibs}}--js-library {{dynamo_home}}/ext/lib/js-web/js/library_{{{.}}}.js {{/externalJsLibs}}'
-    
+
 
   wasm-web:
     context:
