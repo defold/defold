@@ -12,25 +12,76 @@
 ;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
 ;; specific language governing permissions and limitations under the License.
 
-(ns util.debug-util)
+(ns util.debug-util
+  (:require [service.log :as log])
+  (:import [java.util Locale]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
+(def ^:private ^:const nanos-per-ms 1000000.0)
+(def ^:private ^:const nanos-per-second 1000000000.0)
+(def ^:private ^:const nanos-per-minute (* nanos-per-second 60.0))
+(def ^:private ^:const nanos-per-hour (* nanos-per-minute 60.0))
+(def ^:private ^:const nanos-per-day (* nanos-per-hour 24.0))
+
+(defn- time-string
+  ^String [num ^String unit]
+  (String/format Locale/ROOT "%.2f %s" (to-array [num unit])))
+
 (defn counter->ms
   "Converts a nanosecond counter value into a double in milliseconds."
   ^double [^long counter]
-  (/ (double counter) 1000000.0))
+  (/ (double counter) nanos-per-ms))
 
 (defn counter->seconds
   "Converts a nanosecond counter value into a double in seconds."
   ^double [^long counter]
-  (/ (double counter) 1000000000.0))
+  (/ (double counter) nanos-per-second))
 
 (defn counter->minutes
   "Converts a nanosecond counter value into a double in minutes."
   ^double [^long counter]
-  (/ (double counter) 6.0E10))
+  (/ (double counter) nanos-per-minute))
+
+(defn counter->hours
+  "Converts a nanosecond counter value into a double in hours."
+  ^double [^long counter]
+  (/ (double counter) nanos-per-hour))
+
+(defn counter->days
+  "Converts a nanosecond counter value into a double in days."
+  ^double [^long counter]
+  (/ (double counter) nanos-per-day))
+
+(defn counter->string
+  "Converts a nanosecond counter value into a human-readable duration string."
+  ^String [^long counter]
+  (let [ms (counter->ms counter)]
+    (if (> 1000.0 ms)
+      (time-string ms "ms")
+      (let [seconds (counter->seconds counter)]
+        (if (> 60.0 seconds)
+          (time-string seconds "s")
+          (let [minutes (counter->minutes counter)]
+            (if (> 60.0 minutes)
+              (time-string minutes "min")
+              (let [hours (counter->hours counter)]
+                (if (> 24.0 hours)
+                  (time-string hours "h")
+                  (let [days (counter->days counter)]
+                    (time-string days "d")))))))))))
+
+(defn release-build?
+  "Returns true if we're running a release build of the editor."
+  []
+  (and (nil? (System/getProperty "defold.dev"))
+       (some? (System/getProperty "defold.version"))))
+
+(defn running-tests?
+  "Returns true if we're running with the defold.tests system property set."
+  []
+  (Boolean/getBoolean "defold.tests"))
 
 (defn metrics-enabled?
   "Returns true if we're running with the defold.metrics system property set."
@@ -64,8 +115,37 @@
      `(let [start# (System/nanoTime)
             ret# ~expr
             end# (System/nanoTime)]
-        (println (str ~label " completed in " (counter->ms (- end# start#)) " ms"))
+        (println (str ~label " completed in " (counter->string (- end# start#))))
         ret#))))
+
+(defmacro log-time
+  "Evaluates expr. Then logs the supplied label along with the time it took.
+  Returns the value of expr."
+  ([expr]
+   (log-time "Expression" expr))
+  ([label expr]
+   ;; Disabled during tests to minimize log spam.
+   (if (running-tests?)
+     expr
+     `(let [start# (System/nanoTime)
+            ret# ~expr
+            end# (System/nanoTime)]
+        (log/info :message (str ~label " completed in " (counter->string (- end# start#))))
+        ret#))))
+
+(defmacro log-statistics!
+  "Gathers and logs statistics relevant to editor development."
+  [label]
+  (when-not (or (release-build?)
+                (running-tests?))
+    `(do
+       (System/gc)
+       (System/runFinalization)
+       (let [runtime# (Runtime/getRuntime)
+             allocated-megabytes# (quot (- (.totalMemory runtime#)
+                                           (.freeMemory runtime#))
+                                        (* 1024 1024))]
+         (log/info :message ~label :allocated-megabytes allocated-megabytes#)))))
 
 (defmacro make-metrics-collector
   "Returns a metrics-collector for use with the measuring macro if we're running

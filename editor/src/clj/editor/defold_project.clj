@@ -1240,12 +1240,15 @@
       (workspace/set-project-dependencies! workspace-id (library/current-library-state (workspace/project-path workspace-id) dependencies)))
 
     (render-progress! (swap! progress progress/advance 4 "Syncing resources..."))
-    (workspace/resource-sync! workspace-id [] (progress/nest-render-progress render-progress! @progress))
+    (du/log-time "Initial resource sync"
+      (workspace/resource-sync! workspace-id [] (progress/nest-render-progress render-progress! @progress)))
     (render-progress! (swap! progress progress/advance 1 "Loading project..."))
     (let [project (make-project graph workspace-id extensions)
-          populated-project (load-project project (g/node-value project :resources) (progress/nest-render-progress render-progress! @progress 8))]
+          populated-project (du/log-time "Project loading"
+                              (load-project project (g/node-value project :resources) (progress/nest-render-progress render-progress! @progress 8)))]
       ;; Prime the auto completion cache
       (g/node-value (script-intelligence project) :lua-completions)
+      (du/log-statistics! "Project loaded")
       populated-project)))
 
 (defn resource-setter [evaluation-context self old-value new-value & connections]

@@ -79,6 +79,7 @@
           <entry key="org.httpkit.server/with-channel" value="-1" />
           <entry key="support.test-support/with-clean-system" value="-1" />
           <entry key="util.coll/assoc-in-ex" value="-1" />
+          <entry key="util.debug-util/log-time" value="-1" />
           <entry key="util.debug-util/measuring" value="-1" />
           <entry key="util.debug-util/metrics-time" value="-1" />
           <entry key="util.profiler/profile" value="-1" />
