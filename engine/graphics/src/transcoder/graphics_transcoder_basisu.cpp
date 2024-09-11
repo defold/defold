@@ -304,7 +304,7 @@ namespace dmGraphics
         basist::transcoder_texture_format transcoder_format;
         if (!TextureFormatToBasisFormat(format, transcoder_format))
         {
-            dmLogError("Failed to convert texture format %d to basis format %d for file '%s'", format, transcoder_format, path);
+            dmLogError("Failed to convert texture format %d to basis format %d for file '%s'", format, (int)transcoder_format, path);
             return false;
         }
 
@@ -314,7 +314,7 @@ namespace dmGraphics
         ImageTranscodeState* image_transcoders = new ImageTranscodeState[image_count];
 
     #if defined(TEX_TRANSCODE_DEBUG)
-        dmLogInfo("Transcoding: %s from %d to %d (%s -> %s)", path, format, transcoder_format, ToString(format), ToString(transcoder_format));
+        dmLogInfo("Transcoding: %s from %d to %d (%s -> %s)", path, format, (int)transcoder_format, ToString(format), ToString(transcoder_format));
     #endif
 
         for (int i = 0; i < image_count; ++i)

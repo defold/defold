@@ -25,7 +25,7 @@ def options(opt):
 
 def configure(conf):
     if not platform_supports_feature(conf.env.PLATFORM, "opengl", None):
-        print("GLFW isn't supported on this platform", bld.env.PLATFORM)
+        print("GLFW isn't supported on this platform", conf.env.PLATFORM)
         return
 
     conf.load('waf_dynamo')

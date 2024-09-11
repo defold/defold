@@ -479,7 +479,7 @@ def main(argv):
                 return
 
         if platform and not is_platform_private(platform):
-            if platform not in ['x86_64-win32']:
+            if platform not in ['x86_64-win32', 'x86_64-linux']:
                 print("The repo {} is private. We've disabled building the platform {}. Skipping".format(repo, platform))
                 return
 

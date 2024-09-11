@@ -521,26 +521,17 @@ namespace dmGraphics
     bool         LoadVulkanLibrary();
     void         LoadVulkanFunctions(VkInstance vk_instance);
 
-    void         NativeSwapBuffers(HContext context);
     bool         NativeInit(const struct ContextParams& params);
     void         NativeExit();
     void         NativeBeginFrame(HContext context);
     bool         NativeInitializeContext(HContext context);
 
-    void                       VulkanCloseWindow(HContext context);
-    void                       VulkanDestroyResources(HContext context);
-    uint32_t                   VulkanGetDisplayDpi(HContext context);
-    uint32_t                   VulkanGetWidth(HContext context);
-    uint32_t                   VulkanGetHeight(HContext context);
-    uint32_t                   VulkanGetWindowWidth(HContext context);
-    uint32_t                   VulkanGetWindowHeight(HContext context);
-    float                      VulkanGetDisplayScaleFactor(HContext context);
-    void                       VulkanSetWindowSize(HContext context, uint32_t width, uint32_t height);
-    void                       VulkanResizeWindow(HContext context, uint32_t width, uint32_t height);
-    void                       VulkanSetWindowSize(HContext context, uint32_t width, uint32_t height);
-    void                       VulkanGetNativeWindowSize(HContext context, uint32_t* width, uint32_t* height);
-    void                       VulkanIconifyWindow(HContext context);
-    uint32_t                   VulkanGetWindowStateParam(HContext context, dmPlatform::WindowState state);
-    dmPlatform::HWindow        VulkanGetWindow(HContext context);
+    void         VulkanCloseWindow(HContext context);
+    void         VulkanDestroyResources(HContext context);
+    float        VulkanGetDisplayScaleFactor(HContext context);
+    void         VulkanSetWindowSize(HContext context, uint32_t width, uint32_t height);
+    void         VulkanResizeWindow(HContext context, uint32_t width, uint32_t height);
+    void         VulkanSetWindowSize(HContext context, uint32_t width, uint32_t height);
+    void         VulkanGetNativeWindowSize(HContext context, uint32_t* width, uint32_t* height);
 }
 #endif // __GRAPHICS_DEVICE_VULKAN__

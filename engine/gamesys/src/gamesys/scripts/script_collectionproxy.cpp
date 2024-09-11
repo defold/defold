@@ -124,7 +124,6 @@ namespace dmGameSystem
 
 
         const char* path = 0;
-        dmhash_t path_hash = 0;
         if (!lua_isnil(L, 2))
         {
             path = luaL_checkstring(L, 2);

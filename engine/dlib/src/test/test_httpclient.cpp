@@ -951,13 +951,19 @@ TEST_P(dmHttpClientTestExternal, PostExternal)
     m_Content = "";
     m_StatusCode = -1;
 
-    r = dmHttpClient::Post(m_Client, m_URI.m_Path);
     printf("POST'ing to %s://%s%s\n", m_URI.m_Scheme, m_URI.m_Location, m_URI.m_Path);
+    r = dmHttpClient::Post(m_Client, m_URI.m_Path);
+
+    printf("STATUS: %d\n", m_StatusCode);
+    if (503 == m_StatusCode)
+    {
+        // It's an external page, which may be down from time to time
+        return;
+    }
 
     ASSERT_EQ(dmHttpClient::RESULT_OK, r);
     ASSERT_EQ(200, m_StatusCode);
 
-    printf("STATUS: %d\n", m_StatusCode);
     printf("CONTENT:\n%s\n", m_Content.c_str());
 }
 
