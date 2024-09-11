@@ -28,6 +28,13 @@ namespace dmModelImporter
 
     static const int32_t INVALID_INDEX = 2147483647; // INT_MAX
 
+    enum AlphaMode
+    {
+        ALPHA_MODE_OPAQUE,
+        ALPHA_MODE_MASK,
+        ALPHA_MODE_BLEND,
+        ALPHA_MODE_MAX_ENUM
+    };
     struct Vector3
     {
         float x, y, z;
@@ -51,11 +58,159 @@ namespace dmModelImporter
         Vector3 m_Max;
     };
 
+    struct Buffer;
+
+    // Embedded image
+    struct Image // gltf
+    {
+        const char* m_Name;
+        const char* m_Uri;
+        const char* m_MimeType;
+        Buffer*     m_Buffer;
+    };
+
+    // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#reference-sampler
+    struct Sampler
+    {
+        const char* m_Name;
+        int32_t     m_MagFilter; // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#_sampler_magfilter
+        int32_t     m_MinFilter;
+        int32_t     m_WrapS;
+        int32_t     m_WrapT;
+    };
+
+    struct Texture
+    {
+        const char* m_Name;
+        Image*      m_Image;
+        Sampler*    m_Sampler;
+        Image*      m_BasisuImage;
+    };
+
+    struct TextureTransform
+    {
+        float   m_Offset[2];
+        float   m_Rotation;
+        float   m_scale[2];
+        int     m_Texcoord;
+        bool    m_HasTexcoord;
+    };
+
+    struct TextureView
+    {
+        Texture*         m_Texture;
+        int              m_Texcoord;
+        float            m_Scale; /* equivalent to strength for occlusion_texture */
+        bool             m_HasTransform;
+        TextureTransform m_Transform;
+    };
+
+    struct PbrMetallicRoughness
+    {
+        TextureView*    m_BaseColorTexture;
+        TextureView*    m_MetallicRoughnessTexture;
+        float           m_BaseColorFactor[4];
+        float           m_MetallicFactor;
+        float           m_RoughnessFactor;
+    };
+
+    struct PbrSpecularGlossiness
+    {
+        TextureView*    m_DiffuseTexture;
+        TextureView*    m_SpecularGlossinessTexture;
+        float           m_DiffuseFactor[4];
+        float           m_SpecularFactor[3];
+        float           m_GlossinessFactor;
+    };
+
+    struct Clearcoat
+    {
+        TextureView*    m_ClearcoatTexture;
+        TextureView*    m_ClearcoatRoughnessTexture;
+        TextureView*    m_ClearcoatNormalTexture;
+        float           m_ClearcoatFactor;
+        float           m_ClearcoatRoughnessFactor;
+    };
+
+    struct Transmission
+    {
+        TextureView*    m_TransmissionTexture;
+        float           m_TransmissionFactor;
+    };
+
+    struct Ior
+    {
+        float           m_Ior;
+    };
+
+    struct Specular
+    {
+        TextureView*    m_SpecularTexture;
+        TextureView*    m_SpecularColorTexture;
+        float           m_SpecularColorFactor[3];
+        float           m_SpecularFactor;
+    };
+
+    struct Volume
+    {
+        TextureView*    m_ThicknessTexture;
+        float           m_ThicknessFactor;
+        float           m_AttenuationColor[3];
+        float           m_AttenuationDistance;
+    };
+
+    struct Sheen
+    {
+        TextureView*    m_SheenColorTexture;
+        TextureView*    m_SheenRoughnessTexture;
+        float           m_SheenColorFactor[3];
+        float           m_SheenRoughnessFactor;
+    };
+
+    struct EmissiveStrength
+    {
+        float EmissiveStrength;
+    };
+
+    struct Iridescence
+    {
+        float         m_IridescenceFactor;
+        TextureView*  m_IridescenceTexture;
+        float         m_IridescenceIor;
+        float         m_IridescenceThicknessMin;
+        float         m_IridescenceThicknessMax;
+        TextureView*  m_IridescenceThicknessTexture;
+    };
+
     struct Material
     {
         const char* m_Name;
+
+        // Defold
         uint32_t    m_Index;        // The index into the scene.materials array
         uint8_t     m_IsSkinned;    // If a skinned mesh is using this
+
+        // Gltf variables
+        PbrMetallicRoughness*   m_PbrMetallicRoughness;
+        PbrSpecularGlossiness*  m_PbrSpecularGlossiness;
+        Clearcoat*              m_Clearcoat;
+        Ior*                    m_Ior;
+        Specular*               m_Specular;
+        Sheen*                  m_Sheen;
+        Transmission*           m_Transmission;
+        Volume*                 m_Volume;
+        EmissiveStrength*       m_EmissiveStrength;
+        Iridescence*            m_Iridescence;
+
+        TextureView*            m_NormalTexture;
+        TextureView*            m_OcclusionTexture;
+        TextureView*            m_EmissiveTexture;
+
+        float                   m_EmissiveFactor[3];
+        float                   m_AlphaCutoff;
+        AlphaMode               m_AlphaMode;
+        bool                    m_DoubleSided;
+        bool                    m_Unlit;
     };
 
     struct Mesh
@@ -174,6 +329,7 @@ namespace dmModelImporter
         dmArray<Node*>      m_RootNodes;
         dmArray<Animation>  m_Animations;
         dmArray<Material>   m_Materials;
+        dmArray<Sampler>    m_Samplers;
         dmArray<Buffer>     m_Buffers;
 
         // When we need to dynamically create materials

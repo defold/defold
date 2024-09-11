@@ -52,10 +52,133 @@ void InitializeJNITypes(JNIEnv* env, TypeInfos* infos) {
         GET_FLD(max, "Vector3");
     }
     {
+        SETUP_CLASS(ImageJNI, "Image");
+        GET_FLD_TYPESTR(name, "Ljava/lang/String;");
+        GET_FLD_TYPESTR(uri, "Ljava/lang/String;");
+        GET_FLD_TYPESTR(mimeType, "Ljava/lang/String;");
+        GET_FLD(buffer, "Buffer");
+    }
+    {
+        SETUP_CLASS(SamplerJNI, "Sampler");
+        GET_FLD_TYPESTR(name, "Ljava/lang/String;");
+        GET_FLD_TYPESTR(magFilter, "I");
+        GET_FLD_TYPESTR(minFilter, "I");
+        GET_FLD_TYPESTR(wrapS, "I");
+        GET_FLD_TYPESTR(wrapT, "I");
+    }
+    {
+        SETUP_CLASS(TextureJNI, "Texture");
+        GET_FLD_TYPESTR(name, "Ljava/lang/String;");
+        GET_FLD(image, "Image");
+        GET_FLD(sampler, "Sampler");
+        GET_FLD(basisuImage, "Image");
+    }
+    {
+        SETUP_CLASS(TextureTransformJNI, "TextureTransform");
+        GET_FLD_TYPESTR(offset, "[F");
+        GET_FLD_TYPESTR(rotation, "F");
+        GET_FLD_TYPESTR(scale, "[F");
+        GET_FLD_TYPESTR(texcoord, "I");
+        GET_FLD_TYPESTR(hasTexcoord, "Z");
+    }
+    {
+        SETUP_CLASS(TextureViewJNI, "TextureView");
+        GET_FLD(texture, "Texture");
+        GET_FLD_TYPESTR(texcoord, "I");
+        GET_FLD_TYPESTR(scale, "F");
+        GET_FLD_TYPESTR(hasTransform, "Z");
+        GET_FLD(transform, "TextureTransform");
+    }
+    {
+        SETUP_CLASS(PbrMetallicRoughnessJNI, "PbrMetallicRoughness");
+        GET_FLD(baseColorTexture, "TextureView");
+        GET_FLD(metallicRoughnessTexture, "TextureView");
+        GET_FLD_TYPESTR(baseColorFactor, "[F");
+        GET_FLD_TYPESTR(metallicFactor, "F");
+        GET_FLD_TYPESTR(roughnessFactor, "F");
+    }
+    {
+        SETUP_CLASS(PbrSpecularGlossinessJNI, "PbrSpecularGlossiness");
+        GET_FLD(diffuseTexture, "TextureView");
+        GET_FLD(specularGlossinessTexture, "TextureView");
+        GET_FLD_TYPESTR(diffuseFactor, "[F");
+        GET_FLD_TYPESTR(specularFactor, "[F");
+        GET_FLD_TYPESTR(glossinessFactor, "F");
+    }
+    {
+        SETUP_CLASS(ClearcoatJNI, "Clearcoat");
+        GET_FLD(clearcoatTexture, "TextureView");
+        GET_FLD(clearcoatRoughnessTexture, "TextureView");
+        GET_FLD(clearcoatNormalTexture, "TextureView");
+        GET_FLD_TYPESTR(clearcoatFactor, "F");
+        GET_FLD_TYPESTR(clearcoatRoughnessFactor, "F");
+    }
+    {
+        SETUP_CLASS(TransmissionJNI, "Transmission");
+        GET_FLD(transmissionTexture, "TextureView");
+        GET_FLD_TYPESTR(transmissionFactor, "F");
+    }
+    {
+        SETUP_CLASS(IorJNI, "Ior");
+        GET_FLD_TYPESTR(ior, "F");
+    }
+    {
+        SETUP_CLASS(SpecularJNI, "Specular");
+        GET_FLD(specularTexture, "TextureView");
+        GET_FLD(specularColorTexture, "TextureView");
+        GET_FLD_TYPESTR(specularColorFactor, "[F");
+        GET_FLD_TYPESTR(specularFactor, "F");
+    }
+    {
+        SETUP_CLASS(VolumeJNI, "Volume");
+        GET_FLD(thicknessTexture, "TextureView");
+        GET_FLD_TYPESTR(thicknessFactor, "F");
+        GET_FLD_TYPESTR(attenuationColor, "[F");
+        GET_FLD_TYPESTR(attenuationDistance, "F");
+    }
+    {
+        SETUP_CLASS(SheenJNI, "Sheen");
+        GET_FLD(sheenColorTexture, "TextureView");
+        GET_FLD(sheenRoughnessTexture, "TextureView");
+        GET_FLD_TYPESTR(sheenColorFactor, "[F");
+        GET_FLD_TYPESTR(sheenRoughnessFactor, "F");
+    }
+    {
+        SETUP_CLASS(EmissiveStrengthJNI, "EmissiveStrength");
+        GET_FLD_TYPESTR(emissiveStrength, "F");
+    }
+    {
+        SETUP_CLASS(IridescenceJNI, "Iridescence");
+        GET_FLD_TYPESTR(iridescenceFactor, "F");
+        GET_FLD(iridescenceTexture, "TextureView");
+        GET_FLD_TYPESTR(iridescenceIor, "F");
+        GET_FLD_TYPESTR(iridescenceThicknessMin, "F");
+        GET_FLD_TYPESTR(iridescenceThicknessMax, "F");
+        GET_FLD(iridescenceThicknessTexture, "TextureView");
+    }
+    {
         SETUP_CLASS(MaterialJNI, "Material");
         GET_FLD_TYPESTR(name, "Ljava/lang/String;");
         GET_FLD_TYPESTR(index, "I");
         GET_FLD_TYPESTR(isSkinned, "B");
+        GET_FLD(pbrMetallicRoughness, "PbrMetallicRoughness");
+        GET_FLD(pbrSpecularGlossiness, "PbrSpecularGlossiness");
+        GET_FLD(clearcoat, "Clearcoat");
+        GET_FLD(ior, "Ior");
+        GET_FLD(specular, "Specular");
+        GET_FLD(sheen, "Sheen");
+        GET_FLD(transmission, "Transmission");
+        GET_FLD(volume, "Volume");
+        GET_FLD(emissiveStrength, "EmissiveStrength");
+        GET_FLD(iridescence, "Iridescence");
+        GET_FLD(normalTexture, "TextureView");
+        GET_FLD(occlusionTexture, "TextureView");
+        GET_FLD(emissiveTexture, "TextureView");
+        GET_FLD_TYPESTR(emissiveFactor, "[F");
+        GET_FLD_TYPESTR(alphaCutoff, "F");
+        GET_FLD(alphaMode, "AlphaMode");
+        GET_FLD_TYPESTR(doubleSided, "Z");
+        GET_FLD_TYPESTR(unlit, "Z");
     }
     {
         SETUP_CLASS(MeshJNI, "Mesh");
@@ -145,6 +268,7 @@ void InitializeJNITypes(JNIEnv* env, TypeInfos* infos) {
         GET_FLD_ARRAY(rootNodes, "Node");
         GET_FLD_ARRAY(animations, "Animation");
         GET_FLD_ARRAY(materials, "Material");
+        GET_FLD_ARRAY(samplers, "Sampler");
         GET_FLD_ARRAY(buffers, "Buffer");
         GET_FLD_ARRAY(dynamicMaterials, "Material");
     }
@@ -162,6 +286,21 @@ void FinalizeJNITypes(JNIEnv* env, TypeInfos* infos) {
     env->DeleteLocalRef(infos->m_QuatJNI.cls);
     env->DeleteLocalRef(infos->m_TransformJNI.cls);
     env->DeleteLocalRef(infos->m_AabbJNI.cls);
+    env->DeleteLocalRef(infos->m_ImageJNI.cls);
+    env->DeleteLocalRef(infos->m_SamplerJNI.cls);
+    env->DeleteLocalRef(infos->m_TextureJNI.cls);
+    env->DeleteLocalRef(infos->m_TextureTransformJNI.cls);
+    env->DeleteLocalRef(infos->m_TextureViewJNI.cls);
+    env->DeleteLocalRef(infos->m_PbrMetallicRoughnessJNI.cls);
+    env->DeleteLocalRef(infos->m_PbrSpecularGlossinessJNI.cls);
+    env->DeleteLocalRef(infos->m_ClearcoatJNI.cls);
+    env->DeleteLocalRef(infos->m_TransmissionJNI.cls);
+    env->DeleteLocalRef(infos->m_IorJNI.cls);
+    env->DeleteLocalRef(infos->m_SpecularJNI.cls);
+    env->DeleteLocalRef(infos->m_VolumeJNI.cls);
+    env->DeleteLocalRef(infos->m_SheenJNI.cls);
+    env->DeleteLocalRef(infos->m_EmissiveStrengthJNI.cls);
+    env->DeleteLocalRef(infos->m_IridescenceJNI.cls);
     env->DeleteLocalRef(infos->m_MaterialJNI.cls);
     env->DeleteLocalRef(infos->m_MeshJNI.cls);
     env->DeleteLocalRef(infos->m_ModelJNI.cls);
@@ -216,12 +355,180 @@ jobject C2J_CreateAabb(JNIEnv* env, TypeInfos* types, const Aabb* src) {
     return obj;
 }
 
+jobject C2J_CreateImage(JNIEnv* env, TypeInfos* types, const Image* src) {
+    if (src == 0) return 0;
+    jobject obj = env->AllocObject(types->m_ImageJNI.cls);
+    dmJNI::SetString(env, obj, types->m_ImageJNI.name, src->m_Name);
+    dmJNI::SetString(env, obj, types->m_ImageJNI.uri, src->m_Uri);
+    dmJNI::SetString(env, obj, types->m_ImageJNI.mimeType, src->m_MimeType);
+    dmJNI::SetObjectDeref(env, obj, types->m_ImageJNI.buffer, C2J_CreateBuffer(env, types, src->m_Buffer));
+    return obj;
+}
+
+jobject C2J_CreateSampler(JNIEnv* env, TypeInfos* types, const Sampler* src) {
+    if (src == 0) return 0;
+    jobject obj = env->AllocObject(types->m_SamplerJNI.cls);
+    dmJNI::SetString(env, obj, types->m_SamplerJNI.name, src->m_Name);
+    dmJNI::SetInt(env, obj, types->m_SamplerJNI.magFilter, src->m_MagFilter);
+    dmJNI::SetInt(env, obj, types->m_SamplerJNI.minFilter, src->m_MinFilter);
+    dmJNI::SetInt(env, obj, types->m_SamplerJNI.wrapS, src->m_WrapS);
+    dmJNI::SetInt(env, obj, types->m_SamplerJNI.wrapT, src->m_WrapT);
+    return obj;
+}
+
+jobject C2J_CreateTexture(JNIEnv* env, TypeInfos* types, const Texture* src) {
+    if (src == 0) return 0;
+    jobject obj = env->AllocObject(types->m_TextureJNI.cls);
+    dmJNI::SetString(env, obj, types->m_TextureJNI.name, src->m_Name);
+    dmJNI::SetObjectDeref(env, obj, types->m_TextureJNI.image, C2J_CreateImage(env, types, src->m_Image));
+    dmJNI::SetObjectDeref(env, obj, types->m_TextureJNI.sampler, C2J_CreateSampler(env, types, src->m_Sampler));
+    dmJNI::SetObjectDeref(env, obj, types->m_TextureJNI.basisuImage, C2J_CreateImage(env, types, src->m_BasisuImage));
+    return obj;
+}
+
+jobject C2J_CreateTextureTransform(JNIEnv* env, TypeInfos* types, const TextureTransform* src) {
+    if (src == 0) return 0;
+    jobject obj = env->AllocObject(types->m_TextureTransformJNI.cls);
+    dmJNI::SetObjectDeref(env, obj, types->m_TextureTransformJNI.offset, dmJNI::C2J_CreateFloatArray(env, src->m_Offset, 2));
+    dmJNI::SetFloat(env, obj, types->m_TextureTransformJNI.rotation, src->m_Rotation);
+    dmJNI::SetObjectDeref(env, obj, types->m_TextureTransformJNI.scale, dmJNI::C2J_CreateFloatArray(env, src->m_scale, 2));
+    dmJNI::SetInt(env, obj, types->m_TextureTransformJNI.texcoord, src->m_Texcoord);
+    dmJNI::SetBoolean(env, obj, types->m_TextureTransformJNI.hasTexcoord, src->m_HasTexcoord);
+    return obj;
+}
+
+jobject C2J_CreateTextureView(JNIEnv* env, TypeInfos* types, const TextureView* src) {
+    if (src == 0) return 0;
+    jobject obj = env->AllocObject(types->m_TextureViewJNI.cls);
+    dmJNI::SetObjectDeref(env, obj, types->m_TextureViewJNI.texture, C2J_CreateTexture(env, types, src->m_Texture));
+    dmJNI::SetInt(env, obj, types->m_TextureViewJNI.texcoord, src->m_Texcoord);
+    dmJNI::SetFloat(env, obj, types->m_TextureViewJNI.scale, src->m_Scale);
+    dmJNI::SetBoolean(env, obj, types->m_TextureViewJNI.hasTransform, src->m_HasTransform);
+    dmJNI::SetObjectDeref(env, obj, types->m_TextureViewJNI.transform, C2J_CreateTextureTransform(env, types, &src->m_Transform));
+    return obj;
+}
+
+jobject C2J_CreatePbrMetallicRoughness(JNIEnv* env, TypeInfos* types, const PbrMetallicRoughness* src) {
+    if (src == 0) return 0;
+    jobject obj = env->AllocObject(types->m_PbrMetallicRoughnessJNI.cls);
+    dmJNI::SetObjectDeref(env, obj, types->m_PbrMetallicRoughnessJNI.baseColorTexture, C2J_CreateTextureView(env, types, src->m_BaseColorTexture));
+    dmJNI::SetObjectDeref(env, obj, types->m_PbrMetallicRoughnessJNI.metallicRoughnessTexture, C2J_CreateTextureView(env, types, src->m_MetallicRoughnessTexture));
+    dmJNI::SetObjectDeref(env, obj, types->m_PbrMetallicRoughnessJNI.baseColorFactor, dmJNI::C2J_CreateFloatArray(env, src->m_BaseColorFactor, 4));
+    dmJNI::SetFloat(env, obj, types->m_PbrMetallicRoughnessJNI.metallicFactor, src->m_MetallicFactor);
+    dmJNI::SetFloat(env, obj, types->m_PbrMetallicRoughnessJNI.roughnessFactor, src->m_RoughnessFactor);
+    return obj;
+}
+
+jobject C2J_CreatePbrSpecularGlossiness(JNIEnv* env, TypeInfos* types, const PbrSpecularGlossiness* src) {
+    if (src == 0) return 0;
+    jobject obj = env->AllocObject(types->m_PbrSpecularGlossinessJNI.cls);
+    dmJNI::SetObjectDeref(env, obj, types->m_PbrSpecularGlossinessJNI.diffuseTexture, C2J_CreateTextureView(env, types, src->m_DiffuseTexture));
+    dmJNI::SetObjectDeref(env, obj, types->m_PbrSpecularGlossinessJNI.specularGlossinessTexture, C2J_CreateTextureView(env, types, src->m_SpecularGlossinessTexture));
+    dmJNI::SetObjectDeref(env, obj, types->m_PbrSpecularGlossinessJNI.diffuseFactor, dmJNI::C2J_CreateFloatArray(env, src->m_DiffuseFactor, 4));
+    dmJNI::SetObjectDeref(env, obj, types->m_PbrSpecularGlossinessJNI.specularFactor, dmJNI::C2J_CreateFloatArray(env, src->m_SpecularFactor, 3));
+    dmJNI::SetFloat(env, obj, types->m_PbrSpecularGlossinessJNI.glossinessFactor, src->m_GlossinessFactor);
+    return obj;
+}
+
+jobject C2J_CreateClearcoat(JNIEnv* env, TypeInfos* types, const Clearcoat* src) {
+    if (src == 0) return 0;
+    jobject obj = env->AllocObject(types->m_ClearcoatJNI.cls);
+    dmJNI::SetObjectDeref(env, obj, types->m_ClearcoatJNI.clearcoatTexture, C2J_CreateTextureView(env, types, src->m_ClearcoatTexture));
+    dmJNI::SetObjectDeref(env, obj, types->m_ClearcoatJNI.clearcoatRoughnessTexture, C2J_CreateTextureView(env, types, src->m_ClearcoatRoughnessTexture));
+    dmJNI::SetObjectDeref(env, obj, types->m_ClearcoatJNI.clearcoatNormalTexture, C2J_CreateTextureView(env, types, src->m_ClearcoatNormalTexture));
+    dmJNI::SetFloat(env, obj, types->m_ClearcoatJNI.clearcoatFactor, src->m_ClearcoatFactor);
+    dmJNI::SetFloat(env, obj, types->m_ClearcoatJNI.clearcoatRoughnessFactor, src->m_ClearcoatRoughnessFactor);
+    return obj;
+}
+
+jobject C2J_CreateTransmission(JNIEnv* env, TypeInfos* types, const Transmission* src) {
+    if (src == 0) return 0;
+    jobject obj = env->AllocObject(types->m_TransmissionJNI.cls);
+    dmJNI::SetObjectDeref(env, obj, types->m_TransmissionJNI.transmissionTexture, C2J_CreateTextureView(env, types, src->m_TransmissionTexture));
+    dmJNI::SetFloat(env, obj, types->m_TransmissionJNI.transmissionFactor, src->m_TransmissionFactor);
+    return obj;
+}
+
+jobject C2J_CreateIor(JNIEnv* env, TypeInfos* types, const Ior* src) {
+    if (src == 0) return 0;
+    jobject obj = env->AllocObject(types->m_IorJNI.cls);
+    dmJNI::SetFloat(env, obj, types->m_IorJNI.ior, src->m_Ior);
+    return obj;
+}
+
+jobject C2J_CreateSpecular(JNIEnv* env, TypeInfos* types, const Specular* src) {
+    if (src == 0) return 0;
+    jobject obj = env->AllocObject(types->m_SpecularJNI.cls);
+    dmJNI::SetObjectDeref(env, obj, types->m_SpecularJNI.specularTexture, C2J_CreateTextureView(env, types, src->m_SpecularTexture));
+    dmJNI::SetObjectDeref(env, obj, types->m_SpecularJNI.specularColorTexture, C2J_CreateTextureView(env, types, src->m_SpecularColorTexture));
+    dmJNI::SetObjectDeref(env, obj, types->m_SpecularJNI.specularColorFactor, dmJNI::C2J_CreateFloatArray(env, src->m_SpecularColorFactor, 3));
+    dmJNI::SetFloat(env, obj, types->m_SpecularJNI.specularFactor, src->m_SpecularFactor);
+    return obj;
+}
+
+jobject C2J_CreateVolume(JNIEnv* env, TypeInfos* types, const Volume* src) {
+    if (src == 0) return 0;
+    jobject obj = env->AllocObject(types->m_VolumeJNI.cls);
+    dmJNI::SetObjectDeref(env, obj, types->m_VolumeJNI.thicknessTexture, C2J_CreateTextureView(env, types, src->m_ThicknessTexture));
+    dmJNI::SetFloat(env, obj, types->m_VolumeJNI.thicknessFactor, src->m_ThicknessFactor);
+    dmJNI::SetObjectDeref(env, obj, types->m_VolumeJNI.attenuationColor, dmJNI::C2J_CreateFloatArray(env, src->m_AttenuationColor, 3));
+    dmJNI::SetFloat(env, obj, types->m_VolumeJNI.attenuationDistance, src->m_AttenuationDistance);
+    return obj;
+}
+
+jobject C2J_CreateSheen(JNIEnv* env, TypeInfos* types, const Sheen* src) {
+    if (src == 0) return 0;
+    jobject obj = env->AllocObject(types->m_SheenJNI.cls);
+    dmJNI::SetObjectDeref(env, obj, types->m_SheenJNI.sheenColorTexture, C2J_CreateTextureView(env, types, src->m_SheenColorTexture));
+    dmJNI::SetObjectDeref(env, obj, types->m_SheenJNI.sheenRoughnessTexture, C2J_CreateTextureView(env, types, src->m_SheenRoughnessTexture));
+    dmJNI::SetObjectDeref(env, obj, types->m_SheenJNI.sheenColorFactor, dmJNI::C2J_CreateFloatArray(env, src->m_SheenColorFactor, 3));
+    dmJNI::SetFloat(env, obj, types->m_SheenJNI.sheenRoughnessFactor, src->m_SheenRoughnessFactor);
+    return obj;
+}
+
+jobject C2J_CreateEmissiveStrength(JNIEnv* env, TypeInfos* types, const EmissiveStrength* src) {
+    if (src == 0) return 0;
+    jobject obj = env->AllocObject(types->m_EmissiveStrengthJNI.cls);
+    dmJNI::SetFloat(env, obj, types->m_EmissiveStrengthJNI.emissiveStrength, src->EmissiveStrength);
+    return obj;
+}
+
+jobject C2J_CreateIridescence(JNIEnv* env, TypeInfos* types, const Iridescence* src) {
+    if (src == 0) return 0;
+    jobject obj = env->AllocObject(types->m_IridescenceJNI.cls);
+    dmJNI::SetFloat(env, obj, types->m_IridescenceJNI.iridescenceFactor, src->m_IridescenceFactor);
+    dmJNI::SetObjectDeref(env, obj, types->m_IridescenceJNI.iridescenceTexture, C2J_CreateTextureView(env, types, src->m_IridescenceTexture));
+    dmJNI::SetFloat(env, obj, types->m_IridescenceJNI.iridescenceIor, src->m_IridescenceIor);
+    dmJNI::SetFloat(env, obj, types->m_IridescenceJNI.iridescenceThicknessMin, src->m_IridescenceThicknessMin);
+    dmJNI::SetFloat(env, obj, types->m_IridescenceJNI.iridescenceThicknessMax, src->m_IridescenceThicknessMax);
+    dmJNI::SetObjectDeref(env, obj, types->m_IridescenceJNI.iridescenceThicknessTexture, C2J_CreateTextureView(env, types, src->m_IridescenceThicknessTexture));
+    return obj;
+}
+
 jobject C2J_CreateMaterial(JNIEnv* env, TypeInfos* types, const Material* src) {
     if (src == 0) return 0;
     jobject obj = env->AllocObject(types->m_MaterialJNI.cls);
     dmJNI::SetString(env, obj, types->m_MaterialJNI.name, src->m_Name);
     dmJNI::SetUInt(env, obj, types->m_MaterialJNI.index, src->m_Index);
     dmJNI::SetUByte(env, obj, types->m_MaterialJNI.isSkinned, src->m_IsSkinned);
+    dmJNI::SetObjectDeref(env, obj, types->m_MaterialJNI.pbrMetallicRoughness, C2J_CreatePbrMetallicRoughness(env, types, src->m_PbrMetallicRoughness));
+    dmJNI::SetObjectDeref(env, obj, types->m_MaterialJNI.pbrSpecularGlossiness, C2J_CreatePbrSpecularGlossiness(env, types, src->m_PbrSpecularGlossiness));
+    dmJNI::SetObjectDeref(env, obj, types->m_MaterialJNI.clearcoat, C2J_CreateClearcoat(env, types, src->m_Clearcoat));
+    dmJNI::SetObjectDeref(env, obj, types->m_MaterialJNI.ior, C2J_CreateIor(env, types, src->m_Ior));
+    dmJNI::SetObjectDeref(env, obj, types->m_MaterialJNI.specular, C2J_CreateSpecular(env, types, src->m_Specular));
+    dmJNI::SetObjectDeref(env, obj, types->m_MaterialJNI.sheen, C2J_CreateSheen(env, types, src->m_Sheen));
+    dmJNI::SetObjectDeref(env, obj, types->m_MaterialJNI.transmission, C2J_CreateTransmission(env, types, src->m_Transmission));
+    dmJNI::SetObjectDeref(env, obj, types->m_MaterialJNI.volume, C2J_CreateVolume(env, types, src->m_Volume));
+    dmJNI::SetObjectDeref(env, obj, types->m_MaterialJNI.emissiveStrength, C2J_CreateEmissiveStrength(env, types, src->m_EmissiveStrength));
+    dmJNI::SetObjectDeref(env, obj, types->m_MaterialJNI.iridescence, C2J_CreateIridescence(env, types, src->m_Iridescence));
+    dmJNI::SetObjectDeref(env, obj, types->m_MaterialJNI.normalTexture, C2J_CreateTextureView(env, types, src->m_NormalTexture));
+    dmJNI::SetObjectDeref(env, obj, types->m_MaterialJNI.occlusionTexture, C2J_CreateTextureView(env, types, src->m_OcclusionTexture));
+    dmJNI::SetObjectDeref(env, obj, types->m_MaterialJNI.emissiveTexture, C2J_CreateTextureView(env, types, src->m_EmissiveTexture));
+    dmJNI::SetObjectDeref(env, obj, types->m_MaterialJNI.emissiveFactor, dmJNI::C2J_CreateFloatArray(env, src->m_EmissiveFactor, 3));
+    dmJNI::SetFloat(env, obj, types->m_MaterialJNI.alphaCutoff, src->m_AlphaCutoff);
+    dmJNI::SetEnum(env, obj, types->m_MaterialJNI.alphaMode, src->m_AlphaMode);
+    dmJNI::SetBoolean(env, obj, types->m_MaterialJNI.doubleSided, src->m_DoubleSided);
+    dmJNI::SetBoolean(env, obj, types->m_MaterialJNI.unlit, src->m_Unlit);
     return obj;
 }
 
@@ -341,6 +648,7 @@ jobject C2J_CreateScene(JNIEnv* env, TypeInfos* types, const Scene* src) {
     dmJNI::SetObjectDeref(env, obj, types->m_SceneJNI.rootNodes, C2J_CreateNodePtrArray(env, types, src->m_RootNodes.Begin(), src->m_RootNodes.Size()));
     dmJNI::SetObjectDeref(env, obj, types->m_SceneJNI.animations, C2J_CreateAnimationArray(env, types, src->m_Animations.Begin(), src->m_Animations.Size()));
     dmJNI::SetObjectDeref(env, obj, types->m_SceneJNI.materials, C2J_CreateMaterialArray(env, types, src->m_Materials.Begin(), src->m_Materials.Size()));
+    dmJNI::SetObjectDeref(env, obj, types->m_SceneJNI.samplers, C2J_CreateSamplerArray(env, types, src->m_Samplers.Begin(), src->m_Samplers.Size()));
     dmJNI::SetObjectDeref(env, obj, types->m_SceneJNI.buffers, C2J_CreateBufferArray(env, types, src->m_Buffers.Begin(), src->m_Buffers.Size()));
     dmJNI::SetObjectDeref(env, obj, types->m_SceneJNI.dynamicMaterials, C2J_CreateMaterialPtrArray(env, types, src->m_DynamicMaterials.Begin(), src->m_DynamicMaterials.Size()));
     return obj;
@@ -428,6 +736,306 @@ jobjectArray C2J_CreateAabbPtrArray(JNIEnv* env, TypeInfos* types, const Aabb* c
     jobjectArray arr = env->NewObjectArray(src_count, types->m_AabbJNI.cls, 0);
     for (uint32_t i = 0; i < src_count; ++i) {
         jobject obj = C2J_CreateAabb(env, types, src[i]);
+        env->SetObjectArrayElement(arr, i, obj);
+        env->DeleteLocalRef(obj);
+    }
+    return arr;
+}
+jobjectArray C2J_CreateImageArray(JNIEnv* env, TypeInfos* types, const Image* src, uint32_t src_count) {
+    if (src == 0 || src_count == 0) return 0;
+    jobjectArray arr = env->NewObjectArray(src_count, types->m_ImageJNI.cls, 0);
+    for (uint32_t i = 0; i < src_count; ++i) {
+        jobject obj = C2J_CreateImage(env, types, &src[i]);
+        env->SetObjectArrayElement(arr, i, obj);
+        env->DeleteLocalRef(obj);
+    }
+    return arr;
+}
+jobjectArray C2J_CreateImagePtrArray(JNIEnv* env, TypeInfos* types, const Image* const* src, uint32_t src_count) {
+    if (src == 0 || src_count == 0) return 0;
+    jobjectArray arr = env->NewObjectArray(src_count, types->m_ImageJNI.cls, 0);
+    for (uint32_t i = 0; i < src_count; ++i) {
+        jobject obj = C2J_CreateImage(env, types, src[i]);
+        env->SetObjectArrayElement(arr, i, obj);
+        env->DeleteLocalRef(obj);
+    }
+    return arr;
+}
+jobjectArray C2J_CreateSamplerArray(JNIEnv* env, TypeInfos* types, const Sampler* src, uint32_t src_count) {
+    if (src == 0 || src_count == 0) return 0;
+    jobjectArray arr = env->NewObjectArray(src_count, types->m_SamplerJNI.cls, 0);
+    for (uint32_t i = 0; i < src_count; ++i) {
+        jobject obj = C2J_CreateSampler(env, types, &src[i]);
+        env->SetObjectArrayElement(arr, i, obj);
+        env->DeleteLocalRef(obj);
+    }
+    return arr;
+}
+jobjectArray C2J_CreateSamplerPtrArray(JNIEnv* env, TypeInfos* types, const Sampler* const* src, uint32_t src_count) {
+    if (src == 0 || src_count == 0) return 0;
+    jobjectArray arr = env->NewObjectArray(src_count, types->m_SamplerJNI.cls, 0);
+    for (uint32_t i = 0; i < src_count; ++i) {
+        jobject obj = C2J_CreateSampler(env, types, src[i]);
+        env->SetObjectArrayElement(arr, i, obj);
+        env->DeleteLocalRef(obj);
+    }
+    return arr;
+}
+jobjectArray C2J_CreateTextureArray(JNIEnv* env, TypeInfos* types, const Texture* src, uint32_t src_count) {
+    if (src == 0 || src_count == 0) return 0;
+    jobjectArray arr = env->NewObjectArray(src_count, types->m_TextureJNI.cls, 0);
+    for (uint32_t i = 0; i < src_count; ++i) {
+        jobject obj = C2J_CreateTexture(env, types, &src[i]);
+        env->SetObjectArrayElement(arr, i, obj);
+        env->DeleteLocalRef(obj);
+    }
+    return arr;
+}
+jobjectArray C2J_CreateTexturePtrArray(JNIEnv* env, TypeInfos* types, const Texture* const* src, uint32_t src_count) {
+    if (src == 0 || src_count == 0) return 0;
+    jobjectArray arr = env->NewObjectArray(src_count, types->m_TextureJNI.cls, 0);
+    for (uint32_t i = 0; i < src_count; ++i) {
+        jobject obj = C2J_CreateTexture(env, types, src[i]);
+        env->SetObjectArrayElement(arr, i, obj);
+        env->DeleteLocalRef(obj);
+    }
+    return arr;
+}
+jobjectArray C2J_CreateTextureTransformArray(JNIEnv* env, TypeInfos* types, const TextureTransform* src, uint32_t src_count) {
+    if (src == 0 || src_count == 0) return 0;
+    jobjectArray arr = env->NewObjectArray(src_count, types->m_TextureTransformJNI.cls, 0);
+    for (uint32_t i = 0; i < src_count; ++i) {
+        jobject obj = C2J_CreateTextureTransform(env, types, &src[i]);
+        env->SetObjectArrayElement(arr, i, obj);
+        env->DeleteLocalRef(obj);
+    }
+    return arr;
+}
+jobjectArray C2J_CreateTextureTransformPtrArray(JNIEnv* env, TypeInfos* types, const TextureTransform* const* src, uint32_t src_count) {
+    if (src == 0 || src_count == 0) return 0;
+    jobjectArray arr = env->NewObjectArray(src_count, types->m_TextureTransformJNI.cls, 0);
+    for (uint32_t i = 0; i < src_count; ++i) {
+        jobject obj = C2J_CreateTextureTransform(env, types, src[i]);
+        env->SetObjectArrayElement(arr, i, obj);
+        env->DeleteLocalRef(obj);
+    }
+    return arr;
+}
+jobjectArray C2J_CreateTextureViewArray(JNIEnv* env, TypeInfos* types, const TextureView* src, uint32_t src_count) {
+    if (src == 0 || src_count == 0) return 0;
+    jobjectArray arr = env->NewObjectArray(src_count, types->m_TextureViewJNI.cls, 0);
+    for (uint32_t i = 0; i < src_count; ++i) {
+        jobject obj = C2J_CreateTextureView(env, types, &src[i]);
+        env->SetObjectArrayElement(arr, i, obj);
+        env->DeleteLocalRef(obj);
+    }
+    return arr;
+}
+jobjectArray C2J_CreateTextureViewPtrArray(JNIEnv* env, TypeInfos* types, const TextureView* const* src, uint32_t src_count) {
+    if (src == 0 || src_count == 0) return 0;
+    jobjectArray arr = env->NewObjectArray(src_count, types->m_TextureViewJNI.cls, 0);
+    for (uint32_t i = 0; i < src_count; ++i) {
+        jobject obj = C2J_CreateTextureView(env, types, src[i]);
+        env->SetObjectArrayElement(arr, i, obj);
+        env->DeleteLocalRef(obj);
+    }
+    return arr;
+}
+jobjectArray C2J_CreatePbrMetallicRoughnessArray(JNIEnv* env, TypeInfos* types, const PbrMetallicRoughness* src, uint32_t src_count) {
+    if (src == 0 || src_count == 0) return 0;
+    jobjectArray arr = env->NewObjectArray(src_count, types->m_PbrMetallicRoughnessJNI.cls, 0);
+    for (uint32_t i = 0; i < src_count; ++i) {
+        jobject obj = C2J_CreatePbrMetallicRoughness(env, types, &src[i]);
+        env->SetObjectArrayElement(arr, i, obj);
+        env->DeleteLocalRef(obj);
+    }
+    return arr;
+}
+jobjectArray C2J_CreatePbrMetallicRoughnessPtrArray(JNIEnv* env, TypeInfos* types, const PbrMetallicRoughness* const* src, uint32_t src_count) {
+    if (src == 0 || src_count == 0) return 0;
+    jobjectArray arr = env->NewObjectArray(src_count, types->m_PbrMetallicRoughnessJNI.cls, 0);
+    for (uint32_t i = 0; i < src_count; ++i) {
+        jobject obj = C2J_CreatePbrMetallicRoughness(env, types, src[i]);
+        env->SetObjectArrayElement(arr, i, obj);
+        env->DeleteLocalRef(obj);
+    }
+    return arr;
+}
+jobjectArray C2J_CreatePbrSpecularGlossinessArray(JNIEnv* env, TypeInfos* types, const PbrSpecularGlossiness* src, uint32_t src_count) {
+    if (src == 0 || src_count == 0) return 0;
+    jobjectArray arr = env->NewObjectArray(src_count, types->m_PbrSpecularGlossinessJNI.cls, 0);
+    for (uint32_t i = 0; i < src_count; ++i) {
+        jobject obj = C2J_CreatePbrSpecularGlossiness(env, types, &src[i]);
+        env->SetObjectArrayElement(arr, i, obj);
+        env->DeleteLocalRef(obj);
+    }
+    return arr;
+}
+jobjectArray C2J_CreatePbrSpecularGlossinessPtrArray(JNIEnv* env, TypeInfos* types, const PbrSpecularGlossiness* const* src, uint32_t src_count) {
+    if (src == 0 || src_count == 0) return 0;
+    jobjectArray arr = env->NewObjectArray(src_count, types->m_PbrSpecularGlossinessJNI.cls, 0);
+    for (uint32_t i = 0; i < src_count; ++i) {
+        jobject obj = C2J_CreatePbrSpecularGlossiness(env, types, src[i]);
+        env->SetObjectArrayElement(arr, i, obj);
+        env->DeleteLocalRef(obj);
+    }
+    return arr;
+}
+jobjectArray C2J_CreateClearcoatArray(JNIEnv* env, TypeInfos* types, const Clearcoat* src, uint32_t src_count) {
+    if (src == 0 || src_count == 0) return 0;
+    jobjectArray arr = env->NewObjectArray(src_count, types->m_ClearcoatJNI.cls, 0);
+    for (uint32_t i = 0; i < src_count; ++i) {
+        jobject obj = C2J_CreateClearcoat(env, types, &src[i]);
+        env->SetObjectArrayElement(arr, i, obj);
+        env->DeleteLocalRef(obj);
+    }
+    return arr;
+}
+jobjectArray C2J_CreateClearcoatPtrArray(JNIEnv* env, TypeInfos* types, const Clearcoat* const* src, uint32_t src_count) {
+    if (src == 0 || src_count == 0) return 0;
+    jobjectArray arr = env->NewObjectArray(src_count, types->m_ClearcoatJNI.cls, 0);
+    for (uint32_t i = 0; i < src_count; ++i) {
+        jobject obj = C2J_CreateClearcoat(env, types, src[i]);
+        env->SetObjectArrayElement(arr, i, obj);
+        env->DeleteLocalRef(obj);
+    }
+    return arr;
+}
+jobjectArray C2J_CreateTransmissionArray(JNIEnv* env, TypeInfos* types, const Transmission* src, uint32_t src_count) {
+    if (src == 0 || src_count == 0) return 0;
+    jobjectArray arr = env->NewObjectArray(src_count, types->m_TransmissionJNI.cls, 0);
+    for (uint32_t i = 0; i < src_count; ++i) {
+        jobject obj = C2J_CreateTransmission(env, types, &src[i]);
+        env->SetObjectArrayElement(arr, i, obj);
+        env->DeleteLocalRef(obj);
+    }
+    return arr;
+}
+jobjectArray C2J_CreateTransmissionPtrArray(JNIEnv* env, TypeInfos* types, const Transmission* const* src, uint32_t src_count) {
+    if (src == 0 || src_count == 0) return 0;
+    jobjectArray arr = env->NewObjectArray(src_count, types->m_TransmissionJNI.cls, 0);
+    for (uint32_t i = 0; i < src_count; ++i) {
+        jobject obj = C2J_CreateTransmission(env, types, src[i]);
+        env->SetObjectArrayElement(arr, i, obj);
+        env->DeleteLocalRef(obj);
+    }
+    return arr;
+}
+jobjectArray C2J_CreateIorArray(JNIEnv* env, TypeInfos* types, const Ior* src, uint32_t src_count) {
+    if (src == 0 || src_count == 0) return 0;
+    jobjectArray arr = env->NewObjectArray(src_count, types->m_IorJNI.cls, 0);
+    for (uint32_t i = 0; i < src_count; ++i) {
+        jobject obj = C2J_CreateIor(env, types, &src[i]);
+        env->SetObjectArrayElement(arr, i, obj);
+        env->DeleteLocalRef(obj);
+    }
+    return arr;
+}
+jobjectArray C2J_CreateIorPtrArray(JNIEnv* env, TypeInfos* types, const Ior* const* src, uint32_t src_count) {
+    if (src == 0 || src_count == 0) return 0;
+    jobjectArray arr = env->NewObjectArray(src_count, types->m_IorJNI.cls, 0);
+    for (uint32_t i = 0; i < src_count; ++i) {
+        jobject obj = C2J_CreateIor(env, types, src[i]);
+        env->SetObjectArrayElement(arr, i, obj);
+        env->DeleteLocalRef(obj);
+    }
+    return arr;
+}
+jobjectArray C2J_CreateSpecularArray(JNIEnv* env, TypeInfos* types, const Specular* src, uint32_t src_count) {
+    if (src == 0 || src_count == 0) return 0;
+    jobjectArray arr = env->NewObjectArray(src_count, types->m_SpecularJNI.cls, 0);
+    for (uint32_t i = 0; i < src_count; ++i) {
+        jobject obj = C2J_CreateSpecular(env, types, &src[i]);
+        env->SetObjectArrayElement(arr, i, obj);
+        env->DeleteLocalRef(obj);
+    }
+    return arr;
+}
+jobjectArray C2J_CreateSpecularPtrArray(JNIEnv* env, TypeInfos* types, const Specular* const* src, uint32_t src_count) {
+    if (src == 0 || src_count == 0) return 0;
+    jobjectArray arr = env->NewObjectArray(src_count, types->m_SpecularJNI.cls, 0);
+    for (uint32_t i = 0; i < src_count; ++i) {
+        jobject obj = C2J_CreateSpecular(env, types, src[i]);
+        env->SetObjectArrayElement(arr, i, obj);
+        env->DeleteLocalRef(obj);
+    }
+    return arr;
+}
+jobjectArray C2J_CreateVolumeArray(JNIEnv* env, TypeInfos* types, const Volume* src, uint32_t src_count) {
+    if (src == 0 || src_count == 0) return 0;
+    jobjectArray arr = env->NewObjectArray(src_count, types->m_VolumeJNI.cls, 0);
+    for (uint32_t i = 0; i < src_count; ++i) {
+        jobject obj = C2J_CreateVolume(env, types, &src[i]);
+        env->SetObjectArrayElement(arr, i, obj);
+        env->DeleteLocalRef(obj);
+    }
+    return arr;
+}
+jobjectArray C2J_CreateVolumePtrArray(JNIEnv* env, TypeInfos* types, const Volume* const* src, uint32_t src_count) {
+    if (src == 0 || src_count == 0) return 0;
+    jobjectArray arr = env->NewObjectArray(src_count, types->m_VolumeJNI.cls, 0);
+    for (uint32_t i = 0; i < src_count; ++i) {
+        jobject obj = C2J_CreateVolume(env, types, src[i]);
+        env->SetObjectArrayElement(arr, i, obj);
+        env->DeleteLocalRef(obj);
+    }
+    return arr;
+}
+jobjectArray C2J_CreateSheenArray(JNIEnv* env, TypeInfos* types, const Sheen* src, uint32_t src_count) {
+    if (src == 0 || src_count == 0) return 0;
+    jobjectArray arr = env->NewObjectArray(src_count, types->m_SheenJNI.cls, 0);
+    for (uint32_t i = 0; i < src_count; ++i) {
+        jobject obj = C2J_CreateSheen(env, types, &src[i]);
+        env->SetObjectArrayElement(arr, i, obj);
+        env->DeleteLocalRef(obj);
+    }
+    return arr;
+}
+jobjectArray C2J_CreateSheenPtrArray(JNIEnv* env, TypeInfos* types, const Sheen* const* src, uint32_t src_count) {
+    if (src == 0 || src_count == 0) return 0;
+    jobjectArray arr = env->NewObjectArray(src_count, types->m_SheenJNI.cls, 0);
+    for (uint32_t i = 0; i < src_count; ++i) {
+        jobject obj = C2J_CreateSheen(env, types, src[i]);
+        env->SetObjectArrayElement(arr, i, obj);
+        env->DeleteLocalRef(obj);
+    }
+    return arr;
+}
+jobjectArray C2J_CreateEmissiveStrengthArray(JNIEnv* env, TypeInfos* types, const EmissiveStrength* src, uint32_t src_count) {
+    if (src == 0 || src_count == 0) return 0;
+    jobjectArray arr = env->NewObjectArray(src_count, types->m_EmissiveStrengthJNI.cls, 0);
+    for (uint32_t i = 0; i < src_count; ++i) {
+        jobject obj = C2J_CreateEmissiveStrength(env, types, &src[i]);
+        env->SetObjectArrayElement(arr, i, obj);
+        env->DeleteLocalRef(obj);
+    }
+    return arr;
+}
+jobjectArray C2J_CreateEmissiveStrengthPtrArray(JNIEnv* env, TypeInfos* types, const EmissiveStrength* const* src, uint32_t src_count) {
+    if (src == 0 || src_count == 0) return 0;
+    jobjectArray arr = env->NewObjectArray(src_count, types->m_EmissiveStrengthJNI.cls, 0);
+    for (uint32_t i = 0; i < src_count; ++i) {
+        jobject obj = C2J_CreateEmissiveStrength(env, types, src[i]);
+        env->SetObjectArrayElement(arr, i, obj);
+        env->DeleteLocalRef(obj);
+    }
+    return arr;
+}
+jobjectArray C2J_CreateIridescenceArray(JNIEnv* env, TypeInfos* types, const Iridescence* src, uint32_t src_count) {
+    if (src == 0 || src_count == 0) return 0;
+    jobjectArray arr = env->NewObjectArray(src_count, types->m_IridescenceJNI.cls, 0);
+    for (uint32_t i = 0; i < src_count; ++i) {
+        jobject obj = C2J_CreateIridescence(env, types, &src[i]);
+        env->SetObjectArrayElement(arr, i, obj);
+        env->DeleteLocalRef(obj);
+    }
+    return arr;
+}
+jobjectArray C2J_CreateIridescencePtrArray(JNIEnv* env, TypeInfos* types, const Iridescence* const* src, uint32_t src_count) {
+    if (src == 0 || src_count == 0) return 0;
+    jobjectArray arr = env->NewObjectArray(src_count, types->m_IridescenceJNI.cls, 0);
+    for (uint32_t i = 0; i < src_count; ++i) {
+        jobject obj = C2J_CreateIridescence(env, types, src[i]);
         env->SetObjectArrayElement(arr, i, obj);
         env->DeleteLocalRef(obj);
     }
@@ -738,11 +1346,455 @@ bool J2C_CreateAabb(JNIEnv* env, TypeInfos* types, jobject obj, Aabb* out) {
     return true;
 }
 
+bool J2C_CreateImage(JNIEnv* env, TypeInfos* types, jobject obj, Image* out) {
+    if (out == 0) return false;
+    out->m_Name = dmJNI::GetString(env, obj, types->m_ImageJNI.name);
+    out->m_Uri = dmJNI::GetString(env, obj, types->m_ImageJNI.uri);
+    out->m_MimeType = dmJNI::GetString(env, obj, types->m_ImageJNI.mimeType);
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_ImageJNI.buffer);
+        if (field_object) {
+            out->m_Buffer = new Buffer();
+            J2C_CreateBuffer(env, types, field_object, out->m_Buffer);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    return true;
+}
+
+bool J2C_CreateSampler(JNIEnv* env, TypeInfos* types, jobject obj, Sampler* out) {
+    if (out == 0) return false;
+    out->m_Name = dmJNI::GetString(env, obj, types->m_SamplerJNI.name);
+    out->m_MagFilter = dmJNI::GetInt(env, obj, types->m_SamplerJNI.magFilter);
+    out->m_MinFilter = dmJNI::GetInt(env, obj, types->m_SamplerJNI.minFilter);
+    out->m_WrapS = dmJNI::GetInt(env, obj, types->m_SamplerJNI.wrapS);
+    out->m_WrapT = dmJNI::GetInt(env, obj, types->m_SamplerJNI.wrapT);
+    return true;
+}
+
+bool J2C_CreateTexture(JNIEnv* env, TypeInfos* types, jobject obj, Texture* out) {
+    if (out == 0) return false;
+    out->m_Name = dmJNI::GetString(env, obj, types->m_TextureJNI.name);
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_TextureJNI.image);
+        if (field_object) {
+            out->m_Image = new Image();
+            J2C_CreateImage(env, types, field_object, out->m_Image);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_TextureJNI.sampler);
+        if (field_object) {
+            out->m_Sampler = new Sampler();
+            J2C_CreateSampler(env, types, field_object, out->m_Sampler);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_TextureJNI.basisuImage);
+        if (field_object) {
+            out->m_BasisuImage = new Image();
+            J2C_CreateImage(env, types, field_object, out->m_BasisuImage);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    return true;
+}
+
+bool J2C_CreateTextureTransform(JNIEnv* env, TypeInfos* types, jobject obj, TextureTransform* out) {
+    if (out == 0) return false;
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_TextureTransformJNI.offset);
+        if (field_object) {
+            dmJNI::J2C_CopyFloatArray(env, (jfloatArray)field_object, out->m_Offset, 2);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    out->m_Rotation = dmJNI::GetFloat(env, obj, types->m_TextureTransformJNI.rotation);
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_TextureTransformJNI.scale);
+        if (field_object) {
+            dmJNI::J2C_CopyFloatArray(env, (jfloatArray)field_object, out->m_scale, 2);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    out->m_Texcoord = dmJNI::GetInt(env, obj, types->m_TextureTransformJNI.texcoord);
+    out->m_HasTexcoord = dmJNI::GetBoolean(env, obj, types->m_TextureTransformJNI.hasTexcoord);
+    return true;
+}
+
+bool J2C_CreateTextureView(JNIEnv* env, TypeInfos* types, jobject obj, TextureView* out) {
+    if (out == 0) return false;
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_TextureViewJNI.texture);
+        if (field_object) {
+            out->m_Texture = new Texture();
+            J2C_CreateTexture(env, types, field_object, out->m_Texture);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    out->m_Texcoord = dmJNI::GetInt(env, obj, types->m_TextureViewJNI.texcoord);
+    out->m_Scale = dmJNI::GetFloat(env, obj, types->m_TextureViewJNI.scale);
+    out->m_HasTransform = dmJNI::GetBoolean(env, obj, types->m_TextureViewJNI.hasTransform);
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_TextureViewJNI.transform);
+        if (field_object) {
+            J2C_CreateTextureTransform(env, types, field_object, &out->m_Transform);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    return true;
+}
+
+bool J2C_CreatePbrMetallicRoughness(JNIEnv* env, TypeInfos* types, jobject obj, PbrMetallicRoughness* out) {
+    if (out == 0) return false;
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_PbrMetallicRoughnessJNI.baseColorTexture);
+        if (field_object) {
+            out->m_BaseColorTexture = new TextureView();
+            J2C_CreateTextureView(env, types, field_object, out->m_BaseColorTexture);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_PbrMetallicRoughnessJNI.metallicRoughnessTexture);
+        if (field_object) {
+            out->m_MetallicRoughnessTexture = new TextureView();
+            J2C_CreateTextureView(env, types, field_object, out->m_MetallicRoughnessTexture);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_PbrMetallicRoughnessJNI.baseColorFactor);
+        if (field_object) {
+            dmJNI::J2C_CopyFloatArray(env, (jfloatArray)field_object, out->m_BaseColorFactor, 4);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    out->m_MetallicFactor = dmJNI::GetFloat(env, obj, types->m_PbrMetallicRoughnessJNI.metallicFactor);
+    out->m_RoughnessFactor = dmJNI::GetFloat(env, obj, types->m_PbrMetallicRoughnessJNI.roughnessFactor);
+    return true;
+}
+
+bool J2C_CreatePbrSpecularGlossiness(JNIEnv* env, TypeInfos* types, jobject obj, PbrSpecularGlossiness* out) {
+    if (out == 0) return false;
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_PbrSpecularGlossinessJNI.diffuseTexture);
+        if (field_object) {
+            out->m_DiffuseTexture = new TextureView();
+            J2C_CreateTextureView(env, types, field_object, out->m_DiffuseTexture);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_PbrSpecularGlossinessJNI.specularGlossinessTexture);
+        if (field_object) {
+            out->m_SpecularGlossinessTexture = new TextureView();
+            J2C_CreateTextureView(env, types, field_object, out->m_SpecularGlossinessTexture);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_PbrSpecularGlossinessJNI.diffuseFactor);
+        if (field_object) {
+            dmJNI::J2C_CopyFloatArray(env, (jfloatArray)field_object, out->m_DiffuseFactor, 4);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_PbrSpecularGlossinessJNI.specularFactor);
+        if (field_object) {
+            dmJNI::J2C_CopyFloatArray(env, (jfloatArray)field_object, out->m_SpecularFactor, 3);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    out->m_GlossinessFactor = dmJNI::GetFloat(env, obj, types->m_PbrSpecularGlossinessJNI.glossinessFactor);
+    return true;
+}
+
+bool J2C_CreateClearcoat(JNIEnv* env, TypeInfos* types, jobject obj, Clearcoat* out) {
+    if (out == 0) return false;
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_ClearcoatJNI.clearcoatTexture);
+        if (field_object) {
+            out->m_ClearcoatTexture = new TextureView();
+            J2C_CreateTextureView(env, types, field_object, out->m_ClearcoatTexture);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_ClearcoatJNI.clearcoatRoughnessTexture);
+        if (field_object) {
+            out->m_ClearcoatRoughnessTexture = new TextureView();
+            J2C_CreateTextureView(env, types, field_object, out->m_ClearcoatRoughnessTexture);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_ClearcoatJNI.clearcoatNormalTexture);
+        if (field_object) {
+            out->m_ClearcoatNormalTexture = new TextureView();
+            J2C_CreateTextureView(env, types, field_object, out->m_ClearcoatNormalTexture);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    out->m_ClearcoatFactor = dmJNI::GetFloat(env, obj, types->m_ClearcoatJNI.clearcoatFactor);
+    out->m_ClearcoatRoughnessFactor = dmJNI::GetFloat(env, obj, types->m_ClearcoatJNI.clearcoatRoughnessFactor);
+    return true;
+}
+
+bool J2C_CreateTransmission(JNIEnv* env, TypeInfos* types, jobject obj, Transmission* out) {
+    if (out == 0) return false;
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_TransmissionJNI.transmissionTexture);
+        if (field_object) {
+            out->m_TransmissionTexture = new TextureView();
+            J2C_CreateTextureView(env, types, field_object, out->m_TransmissionTexture);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    out->m_TransmissionFactor = dmJNI::GetFloat(env, obj, types->m_TransmissionJNI.transmissionFactor);
+    return true;
+}
+
+bool J2C_CreateIor(JNIEnv* env, TypeInfos* types, jobject obj, Ior* out) {
+    if (out == 0) return false;
+    out->m_Ior = dmJNI::GetFloat(env, obj, types->m_IorJNI.ior);
+    return true;
+}
+
+bool J2C_CreateSpecular(JNIEnv* env, TypeInfos* types, jobject obj, Specular* out) {
+    if (out == 0) return false;
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_SpecularJNI.specularTexture);
+        if (field_object) {
+            out->m_SpecularTexture = new TextureView();
+            J2C_CreateTextureView(env, types, field_object, out->m_SpecularTexture);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_SpecularJNI.specularColorTexture);
+        if (field_object) {
+            out->m_SpecularColorTexture = new TextureView();
+            J2C_CreateTextureView(env, types, field_object, out->m_SpecularColorTexture);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_SpecularJNI.specularColorFactor);
+        if (field_object) {
+            dmJNI::J2C_CopyFloatArray(env, (jfloatArray)field_object, out->m_SpecularColorFactor, 3);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    out->m_SpecularFactor = dmJNI::GetFloat(env, obj, types->m_SpecularJNI.specularFactor);
+    return true;
+}
+
+bool J2C_CreateVolume(JNIEnv* env, TypeInfos* types, jobject obj, Volume* out) {
+    if (out == 0) return false;
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_VolumeJNI.thicknessTexture);
+        if (field_object) {
+            out->m_ThicknessTexture = new TextureView();
+            J2C_CreateTextureView(env, types, field_object, out->m_ThicknessTexture);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    out->m_ThicknessFactor = dmJNI::GetFloat(env, obj, types->m_VolumeJNI.thicknessFactor);
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_VolumeJNI.attenuationColor);
+        if (field_object) {
+            dmJNI::J2C_CopyFloatArray(env, (jfloatArray)field_object, out->m_AttenuationColor, 3);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    out->m_AttenuationDistance = dmJNI::GetFloat(env, obj, types->m_VolumeJNI.attenuationDistance);
+    return true;
+}
+
+bool J2C_CreateSheen(JNIEnv* env, TypeInfos* types, jobject obj, Sheen* out) {
+    if (out == 0) return false;
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_SheenJNI.sheenColorTexture);
+        if (field_object) {
+            out->m_SheenColorTexture = new TextureView();
+            J2C_CreateTextureView(env, types, field_object, out->m_SheenColorTexture);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_SheenJNI.sheenRoughnessTexture);
+        if (field_object) {
+            out->m_SheenRoughnessTexture = new TextureView();
+            J2C_CreateTextureView(env, types, field_object, out->m_SheenRoughnessTexture);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_SheenJNI.sheenColorFactor);
+        if (field_object) {
+            dmJNI::J2C_CopyFloatArray(env, (jfloatArray)field_object, out->m_SheenColorFactor, 3);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    out->m_SheenRoughnessFactor = dmJNI::GetFloat(env, obj, types->m_SheenJNI.sheenRoughnessFactor);
+    return true;
+}
+
+bool J2C_CreateEmissiveStrength(JNIEnv* env, TypeInfos* types, jobject obj, EmissiveStrength* out) {
+    if (out == 0) return false;
+    out->EmissiveStrength = dmJNI::GetFloat(env, obj, types->m_EmissiveStrengthJNI.emissiveStrength);
+    return true;
+}
+
+bool J2C_CreateIridescence(JNIEnv* env, TypeInfos* types, jobject obj, Iridescence* out) {
+    if (out == 0) return false;
+    out->m_IridescenceFactor = dmJNI::GetFloat(env, obj, types->m_IridescenceJNI.iridescenceFactor);
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_IridescenceJNI.iridescenceTexture);
+        if (field_object) {
+            out->m_IridescenceTexture = new TextureView();
+            J2C_CreateTextureView(env, types, field_object, out->m_IridescenceTexture);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    out->m_IridescenceIor = dmJNI::GetFloat(env, obj, types->m_IridescenceJNI.iridescenceIor);
+    out->m_IridescenceThicknessMin = dmJNI::GetFloat(env, obj, types->m_IridescenceJNI.iridescenceThicknessMin);
+    out->m_IridescenceThicknessMax = dmJNI::GetFloat(env, obj, types->m_IridescenceJNI.iridescenceThicknessMax);
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_IridescenceJNI.iridescenceThicknessTexture);
+        if (field_object) {
+            out->m_IridescenceThicknessTexture = new TextureView();
+            J2C_CreateTextureView(env, types, field_object, out->m_IridescenceThicknessTexture);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    return true;
+}
+
 bool J2C_CreateMaterial(JNIEnv* env, TypeInfos* types, jobject obj, Material* out) {
     if (out == 0) return false;
     out->m_Name = dmJNI::GetString(env, obj, types->m_MaterialJNI.name);
     out->m_Index = dmJNI::GetUInt(env, obj, types->m_MaterialJNI.index);
     out->m_IsSkinned = dmJNI::GetUByte(env, obj, types->m_MaterialJNI.isSkinned);
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_MaterialJNI.pbrMetallicRoughness);
+        if (field_object) {
+            out->m_PbrMetallicRoughness = new PbrMetallicRoughness();
+            J2C_CreatePbrMetallicRoughness(env, types, field_object, out->m_PbrMetallicRoughness);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_MaterialJNI.pbrSpecularGlossiness);
+        if (field_object) {
+            out->m_PbrSpecularGlossiness = new PbrSpecularGlossiness();
+            J2C_CreatePbrSpecularGlossiness(env, types, field_object, out->m_PbrSpecularGlossiness);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_MaterialJNI.clearcoat);
+        if (field_object) {
+            out->m_Clearcoat = new Clearcoat();
+            J2C_CreateClearcoat(env, types, field_object, out->m_Clearcoat);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_MaterialJNI.ior);
+        if (field_object) {
+            out->m_Ior = new Ior();
+            J2C_CreateIor(env, types, field_object, out->m_Ior);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_MaterialJNI.specular);
+        if (field_object) {
+            out->m_Specular = new Specular();
+            J2C_CreateSpecular(env, types, field_object, out->m_Specular);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_MaterialJNI.sheen);
+        if (field_object) {
+            out->m_Sheen = new Sheen();
+            J2C_CreateSheen(env, types, field_object, out->m_Sheen);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_MaterialJNI.transmission);
+        if (field_object) {
+            out->m_Transmission = new Transmission();
+            J2C_CreateTransmission(env, types, field_object, out->m_Transmission);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_MaterialJNI.volume);
+        if (field_object) {
+            out->m_Volume = new Volume();
+            J2C_CreateVolume(env, types, field_object, out->m_Volume);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_MaterialJNI.emissiveStrength);
+        if (field_object) {
+            out->m_EmissiveStrength = new EmissiveStrength();
+            J2C_CreateEmissiveStrength(env, types, field_object, out->m_EmissiveStrength);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_MaterialJNI.iridescence);
+        if (field_object) {
+            out->m_Iridescence = new Iridescence();
+            J2C_CreateIridescence(env, types, field_object, out->m_Iridescence);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_MaterialJNI.normalTexture);
+        if (field_object) {
+            out->m_NormalTexture = new TextureView();
+            J2C_CreateTextureView(env, types, field_object, out->m_NormalTexture);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_MaterialJNI.occlusionTexture);
+        if (field_object) {
+            out->m_OcclusionTexture = new TextureView();
+            J2C_CreateTextureView(env, types, field_object, out->m_OcclusionTexture);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_MaterialJNI.emissiveTexture);
+        if (field_object) {
+            out->m_EmissiveTexture = new TextureView();
+            J2C_CreateTextureView(env, types, field_object, out->m_EmissiveTexture);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_MaterialJNI.emissiveFactor);
+        if (field_object) {
+            dmJNI::J2C_CopyFloatArray(env, (jfloatArray)field_object, out->m_EmissiveFactor, 3);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    out->m_AlphaCutoff = dmJNI::GetFloat(env, obj, types->m_MaterialJNI.alphaCutoff);
+    out->m_AlphaMode = (AlphaMode)dmJNI::GetEnum(env, obj, types->m_MaterialJNI.alphaMode);
+    out->m_DoubleSided = dmJNI::GetBoolean(env, obj, types->m_MaterialJNI.doubleSided);
+    out->m_Unlit = dmJNI::GetBoolean(env, obj, types->m_MaterialJNI.unlit);
     return true;
 }
 
@@ -1137,6 +2189,15 @@ bool J2C_CreateScene(JNIEnv* env, TypeInfos* types, jobject obj, Scene* out) {
         }
     }
     {
+        jobject field_object = env->GetObjectField(obj, types->m_SceneJNI.samplers);
+        if (field_object) {
+            uint32_t tmp_count;
+            Sampler* tmp = J2C_CreateSamplerArray(env, types, (jobjectArray)field_object, &tmp_count);
+            out->m_Samplers.Set(tmp, tmp_count, tmp_count, false);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    {
         jobject field_object = env->GetObjectField(obj, types->m_SceneJNI.buffers);
         if (field_object) {
             uint32_t tmp_count;
@@ -1324,6 +2385,621 @@ Aabb** J2C_CreateAabbPtrArray(JNIEnv* env, TypeInfos* types, jobjectArray arr, u
     jsize len = env->GetArrayLength(arr);
     Aabb** out = new Aabb*[len];
     J2C_CreateAabbPtrArrayInPlace(env, types, arr, out, len);
+    *out_count = (uint32_t)len;
+    return out;
+}
+void J2C_CreateImageArrayInPlace(JNIEnv* env, TypeInfos* types, jobjectArray arr, Image* dst, uint32_t dst_count) {
+    jsize len = env->GetArrayLength(arr);
+    if (len != dst_count) {
+        printf("Number of elements mismatch. Expected %u, but got %u\n", dst_count, len);
+    }
+    if (len > dst_count)
+        len = dst_count;
+    for (uint32_t i = 0; i < len; ++i) {
+        jobject obj = env->GetObjectArrayElement(arr, i);
+        J2C_CreateImage(env, types, obj, &dst[i]);
+        env->DeleteLocalRef(obj);
+    }
+}
+Image* J2C_CreateImageArray(JNIEnv* env, TypeInfos* types, jobjectArray arr, uint32_t* out_count) {
+    jsize len = env->GetArrayLength(arr);
+    Image* out = new Image[len];
+    J2C_CreateImageArrayInPlace(env, types, arr, out, len);
+    *out_count = (uint32_t)len;
+    return out;
+}
+void J2C_CreateImagePtrArrayInPlace(JNIEnv* env, TypeInfos* types, jobjectArray arr, Image** dst, uint32_t dst_count) {
+    jsize len = env->GetArrayLength(arr);
+    if (len != dst_count) {
+        printf("Number of elements mismatch. Expected %u, but got %u\n", dst_count, len);
+    }
+    if (len > dst_count)
+        len = dst_count;
+    for (uint32_t i = 0; i < len; ++i) {
+        jobject obj = env->GetObjectArrayElement(arr, i);
+        dst[i] = new Image();
+        J2C_CreateImage(env, types, obj, dst[i]);
+        env->DeleteLocalRef(obj);
+    }
+}
+Image** J2C_CreateImagePtrArray(JNIEnv* env, TypeInfos* types, jobjectArray arr, uint32_t* out_count) {
+    jsize len = env->GetArrayLength(arr);
+    Image** out = new Image*[len];
+    J2C_CreateImagePtrArrayInPlace(env, types, arr, out, len);
+    *out_count = (uint32_t)len;
+    return out;
+}
+void J2C_CreateSamplerArrayInPlace(JNIEnv* env, TypeInfos* types, jobjectArray arr, Sampler* dst, uint32_t dst_count) {
+    jsize len = env->GetArrayLength(arr);
+    if (len != dst_count) {
+        printf("Number of elements mismatch. Expected %u, but got %u\n", dst_count, len);
+    }
+    if (len > dst_count)
+        len = dst_count;
+    for (uint32_t i = 0; i < len; ++i) {
+        jobject obj = env->GetObjectArrayElement(arr, i);
+        J2C_CreateSampler(env, types, obj, &dst[i]);
+        env->DeleteLocalRef(obj);
+    }
+}
+Sampler* J2C_CreateSamplerArray(JNIEnv* env, TypeInfos* types, jobjectArray arr, uint32_t* out_count) {
+    jsize len = env->GetArrayLength(arr);
+    Sampler* out = new Sampler[len];
+    J2C_CreateSamplerArrayInPlace(env, types, arr, out, len);
+    *out_count = (uint32_t)len;
+    return out;
+}
+void J2C_CreateSamplerPtrArrayInPlace(JNIEnv* env, TypeInfos* types, jobjectArray arr, Sampler** dst, uint32_t dst_count) {
+    jsize len = env->GetArrayLength(arr);
+    if (len != dst_count) {
+        printf("Number of elements mismatch. Expected %u, but got %u\n", dst_count, len);
+    }
+    if (len > dst_count)
+        len = dst_count;
+    for (uint32_t i = 0; i < len; ++i) {
+        jobject obj = env->GetObjectArrayElement(arr, i);
+        dst[i] = new Sampler();
+        J2C_CreateSampler(env, types, obj, dst[i]);
+        env->DeleteLocalRef(obj);
+    }
+}
+Sampler** J2C_CreateSamplerPtrArray(JNIEnv* env, TypeInfos* types, jobjectArray arr, uint32_t* out_count) {
+    jsize len = env->GetArrayLength(arr);
+    Sampler** out = new Sampler*[len];
+    J2C_CreateSamplerPtrArrayInPlace(env, types, arr, out, len);
+    *out_count = (uint32_t)len;
+    return out;
+}
+void J2C_CreateTextureArrayInPlace(JNIEnv* env, TypeInfos* types, jobjectArray arr, Texture* dst, uint32_t dst_count) {
+    jsize len = env->GetArrayLength(arr);
+    if (len != dst_count) {
+        printf("Number of elements mismatch. Expected %u, but got %u\n", dst_count, len);
+    }
+    if (len > dst_count)
+        len = dst_count;
+    for (uint32_t i = 0; i < len; ++i) {
+        jobject obj = env->GetObjectArrayElement(arr, i);
+        J2C_CreateTexture(env, types, obj, &dst[i]);
+        env->DeleteLocalRef(obj);
+    }
+}
+Texture* J2C_CreateTextureArray(JNIEnv* env, TypeInfos* types, jobjectArray arr, uint32_t* out_count) {
+    jsize len = env->GetArrayLength(arr);
+    Texture* out = new Texture[len];
+    J2C_CreateTextureArrayInPlace(env, types, arr, out, len);
+    *out_count = (uint32_t)len;
+    return out;
+}
+void J2C_CreateTexturePtrArrayInPlace(JNIEnv* env, TypeInfos* types, jobjectArray arr, Texture** dst, uint32_t dst_count) {
+    jsize len = env->GetArrayLength(arr);
+    if (len != dst_count) {
+        printf("Number of elements mismatch. Expected %u, but got %u\n", dst_count, len);
+    }
+    if (len > dst_count)
+        len = dst_count;
+    for (uint32_t i = 0; i < len; ++i) {
+        jobject obj = env->GetObjectArrayElement(arr, i);
+        dst[i] = new Texture();
+        J2C_CreateTexture(env, types, obj, dst[i]);
+        env->DeleteLocalRef(obj);
+    }
+}
+Texture** J2C_CreateTexturePtrArray(JNIEnv* env, TypeInfos* types, jobjectArray arr, uint32_t* out_count) {
+    jsize len = env->GetArrayLength(arr);
+    Texture** out = new Texture*[len];
+    J2C_CreateTexturePtrArrayInPlace(env, types, arr, out, len);
+    *out_count = (uint32_t)len;
+    return out;
+}
+void J2C_CreateTextureTransformArrayInPlace(JNIEnv* env, TypeInfos* types, jobjectArray arr, TextureTransform* dst, uint32_t dst_count) {
+    jsize len = env->GetArrayLength(arr);
+    if (len != dst_count) {
+        printf("Number of elements mismatch. Expected %u, but got %u\n", dst_count, len);
+    }
+    if (len > dst_count)
+        len = dst_count;
+    for (uint32_t i = 0; i < len; ++i) {
+        jobject obj = env->GetObjectArrayElement(arr, i);
+        J2C_CreateTextureTransform(env, types, obj, &dst[i]);
+        env->DeleteLocalRef(obj);
+    }
+}
+TextureTransform* J2C_CreateTextureTransformArray(JNIEnv* env, TypeInfos* types, jobjectArray arr, uint32_t* out_count) {
+    jsize len = env->GetArrayLength(arr);
+    TextureTransform* out = new TextureTransform[len];
+    J2C_CreateTextureTransformArrayInPlace(env, types, arr, out, len);
+    *out_count = (uint32_t)len;
+    return out;
+}
+void J2C_CreateTextureTransformPtrArrayInPlace(JNIEnv* env, TypeInfos* types, jobjectArray arr, TextureTransform** dst, uint32_t dst_count) {
+    jsize len = env->GetArrayLength(arr);
+    if (len != dst_count) {
+        printf("Number of elements mismatch. Expected %u, but got %u\n", dst_count, len);
+    }
+    if (len > dst_count)
+        len = dst_count;
+    for (uint32_t i = 0; i < len; ++i) {
+        jobject obj = env->GetObjectArrayElement(arr, i);
+        dst[i] = new TextureTransform();
+        J2C_CreateTextureTransform(env, types, obj, dst[i]);
+        env->DeleteLocalRef(obj);
+    }
+}
+TextureTransform** J2C_CreateTextureTransformPtrArray(JNIEnv* env, TypeInfos* types, jobjectArray arr, uint32_t* out_count) {
+    jsize len = env->GetArrayLength(arr);
+    TextureTransform** out = new TextureTransform*[len];
+    J2C_CreateTextureTransformPtrArrayInPlace(env, types, arr, out, len);
+    *out_count = (uint32_t)len;
+    return out;
+}
+void J2C_CreateTextureViewArrayInPlace(JNIEnv* env, TypeInfos* types, jobjectArray arr, TextureView* dst, uint32_t dst_count) {
+    jsize len = env->GetArrayLength(arr);
+    if (len != dst_count) {
+        printf("Number of elements mismatch. Expected %u, but got %u\n", dst_count, len);
+    }
+    if (len > dst_count)
+        len = dst_count;
+    for (uint32_t i = 0; i < len; ++i) {
+        jobject obj = env->GetObjectArrayElement(arr, i);
+        J2C_CreateTextureView(env, types, obj, &dst[i]);
+        env->DeleteLocalRef(obj);
+    }
+}
+TextureView* J2C_CreateTextureViewArray(JNIEnv* env, TypeInfos* types, jobjectArray arr, uint32_t* out_count) {
+    jsize len = env->GetArrayLength(arr);
+    TextureView* out = new TextureView[len];
+    J2C_CreateTextureViewArrayInPlace(env, types, arr, out, len);
+    *out_count = (uint32_t)len;
+    return out;
+}
+void J2C_CreateTextureViewPtrArrayInPlace(JNIEnv* env, TypeInfos* types, jobjectArray arr, TextureView** dst, uint32_t dst_count) {
+    jsize len = env->GetArrayLength(arr);
+    if (len != dst_count) {
+        printf("Number of elements mismatch. Expected %u, but got %u\n", dst_count, len);
+    }
+    if (len > dst_count)
+        len = dst_count;
+    for (uint32_t i = 0; i < len; ++i) {
+        jobject obj = env->GetObjectArrayElement(arr, i);
+        dst[i] = new TextureView();
+        J2C_CreateTextureView(env, types, obj, dst[i]);
+        env->DeleteLocalRef(obj);
+    }
+}
+TextureView** J2C_CreateTextureViewPtrArray(JNIEnv* env, TypeInfos* types, jobjectArray arr, uint32_t* out_count) {
+    jsize len = env->GetArrayLength(arr);
+    TextureView** out = new TextureView*[len];
+    J2C_CreateTextureViewPtrArrayInPlace(env, types, arr, out, len);
+    *out_count = (uint32_t)len;
+    return out;
+}
+void J2C_CreatePbrMetallicRoughnessArrayInPlace(JNIEnv* env, TypeInfos* types, jobjectArray arr, PbrMetallicRoughness* dst, uint32_t dst_count) {
+    jsize len = env->GetArrayLength(arr);
+    if (len != dst_count) {
+        printf("Number of elements mismatch. Expected %u, but got %u\n", dst_count, len);
+    }
+    if (len > dst_count)
+        len = dst_count;
+    for (uint32_t i = 0; i < len; ++i) {
+        jobject obj = env->GetObjectArrayElement(arr, i);
+        J2C_CreatePbrMetallicRoughness(env, types, obj, &dst[i]);
+        env->DeleteLocalRef(obj);
+    }
+}
+PbrMetallicRoughness* J2C_CreatePbrMetallicRoughnessArray(JNIEnv* env, TypeInfos* types, jobjectArray arr, uint32_t* out_count) {
+    jsize len = env->GetArrayLength(arr);
+    PbrMetallicRoughness* out = new PbrMetallicRoughness[len];
+    J2C_CreatePbrMetallicRoughnessArrayInPlace(env, types, arr, out, len);
+    *out_count = (uint32_t)len;
+    return out;
+}
+void J2C_CreatePbrMetallicRoughnessPtrArrayInPlace(JNIEnv* env, TypeInfos* types, jobjectArray arr, PbrMetallicRoughness** dst, uint32_t dst_count) {
+    jsize len = env->GetArrayLength(arr);
+    if (len != dst_count) {
+        printf("Number of elements mismatch. Expected %u, but got %u\n", dst_count, len);
+    }
+    if (len > dst_count)
+        len = dst_count;
+    for (uint32_t i = 0; i < len; ++i) {
+        jobject obj = env->GetObjectArrayElement(arr, i);
+        dst[i] = new PbrMetallicRoughness();
+        J2C_CreatePbrMetallicRoughness(env, types, obj, dst[i]);
+        env->DeleteLocalRef(obj);
+    }
+}
+PbrMetallicRoughness** J2C_CreatePbrMetallicRoughnessPtrArray(JNIEnv* env, TypeInfos* types, jobjectArray arr, uint32_t* out_count) {
+    jsize len = env->GetArrayLength(arr);
+    PbrMetallicRoughness** out = new PbrMetallicRoughness*[len];
+    J2C_CreatePbrMetallicRoughnessPtrArrayInPlace(env, types, arr, out, len);
+    *out_count = (uint32_t)len;
+    return out;
+}
+void J2C_CreatePbrSpecularGlossinessArrayInPlace(JNIEnv* env, TypeInfos* types, jobjectArray arr, PbrSpecularGlossiness* dst, uint32_t dst_count) {
+    jsize len = env->GetArrayLength(arr);
+    if (len != dst_count) {
+        printf("Number of elements mismatch. Expected %u, but got %u\n", dst_count, len);
+    }
+    if (len > dst_count)
+        len = dst_count;
+    for (uint32_t i = 0; i < len; ++i) {
+        jobject obj = env->GetObjectArrayElement(arr, i);
+        J2C_CreatePbrSpecularGlossiness(env, types, obj, &dst[i]);
+        env->DeleteLocalRef(obj);
+    }
+}
+PbrSpecularGlossiness* J2C_CreatePbrSpecularGlossinessArray(JNIEnv* env, TypeInfos* types, jobjectArray arr, uint32_t* out_count) {
+    jsize len = env->GetArrayLength(arr);
+    PbrSpecularGlossiness* out = new PbrSpecularGlossiness[len];
+    J2C_CreatePbrSpecularGlossinessArrayInPlace(env, types, arr, out, len);
+    *out_count = (uint32_t)len;
+    return out;
+}
+void J2C_CreatePbrSpecularGlossinessPtrArrayInPlace(JNIEnv* env, TypeInfos* types, jobjectArray arr, PbrSpecularGlossiness** dst, uint32_t dst_count) {
+    jsize len = env->GetArrayLength(arr);
+    if (len != dst_count) {
+        printf("Number of elements mismatch. Expected %u, but got %u\n", dst_count, len);
+    }
+    if (len > dst_count)
+        len = dst_count;
+    for (uint32_t i = 0; i < len; ++i) {
+        jobject obj = env->GetObjectArrayElement(arr, i);
+        dst[i] = new PbrSpecularGlossiness();
+        J2C_CreatePbrSpecularGlossiness(env, types, obj, dst[i]);
+        env->DeleteLocalRef(obj);
+    }
+}
+PbrSpecularGlossiness** J2C_CreatePbrSpecularGlossinessPtrArray(JNIEnv* env, TypeInfos* types, jobjectArray arr, uint32_t* out_count) {
+    jsize len = env->GetArrayLength(arr);
+    PbrSpecularGlossiness** out = new PbrSpecularGlossiness*[len];
+    J2C_CreatePbrSpecularGlossinessPtrArrayInPlace(env, types, arr, out, len);
+    *out_count = (uint32_t)len;
+    return out;
+}
+void J2C_CreateClearcoatArrayInPlace(JNIEnv* env, TypeInfos* types, jobjectArray arr, Clearcoat* dst, uint32_t dst_count) {
+    jsize len = env->GetArrayLength(arr);
+    if (len != dst_count) {
+        printf("Number of elements mismatch. Expected %u, but got %u\n", dst_count, len);
+    }
+    if (len > dst_count)
+        len = dst_count;
+    for (uint32_t i = 0; i < len; ++i) {
+        jobject obj = env->GetObjectArrayElement(arr, i);
+        J2C_CreateClearcoat(env, types, obj, &dst[i]);
+        env->DeleteLocalRef(obj);
+    }
+}
+Clearcoat* J2C_CreateClearcoatArray(JNIEnv* env, TypeInfos* types, jobjectArray arr, uint32_t* out_count) {
+    jsize len = env->GetArrayLength(arr);
+    Clearcoat* out = new Clearcoat[len];
+    J2C_CreateClearcoatArrayInPlace(env, types, arr, out, len);
+    *out_count = (uint32_t)len;
+    return out;
+}
+void J2C_CreateClearcoatPtrArrayInPlace(JNIEnv* env, TypeInfos* types, jobjectArray arr, Clearcoat** dst, uint32_t dst_count) {
+    jsize len = env->GetArrayLength(arr);
+    if (len != dst_count) {
+        printf("Number of elements mismatch. Expected %u, but got %u\n", dst_count, len);
+    }
+    if (len > dst_count)
+        len = dst_count;
+    for (uint32_t i = 0; i < len; ++i) {
+        jobject obj = env->GetObjectArrayElement(arr, i);
+        dst[i] = new Clearcoat();
+        J2C_CreateClearcoat(env, types, obj, dst[i]);
+        env->DeleteLocalRef(obj);
+    }
+}
+Clearcoat** J2C_CreateClearcoatPtrArray(JNIEnv* env, TypeInfos* types, jobjectArray arr, uint32_t* out_count) {
+    jsize len = env->GetArrayLength(arr);
+    Clearcoat** out = new Clearcoat*[len];
+    J2C_CreateClearcoatPtrArrayInPlace(env, types, arr, out, len);
+    *out_count = (uint32_t)len;
+    return out;
+}
+void J2C_CreateTransmissionArrayInPlace(JNIEnv* env, TypeInfos* types, jobjectArray arr, Transmission* dst, uint32_t dst_count) {
+    jsize len = env->GetArrayLength(arr);
+    if (len != dst_count) {
+        printf("Number of elements mismatch. Expected %u, but got %u\n", dst_count, len);
+    }
+    if (len > dst_count)
+        len = dst_count;
+    for (uint32_t i = 0; i < len; ++i) {
+        jobject obj = env->GetObjectArrayElement(arr, i);
+        J2C_CreateTransmission(env, types, obj, &dst[i]);
+        env->DeleteLocalRef(obj);
+    }
+}
+Transmission* J2C_CreateTransmissionArray(JNIEnv* env, TypeInfos* types, jobjectArray arr, uint32_t* out_count) {
+    jsize len = env->GetArrayLength(arr);
+    Transmission* out = new Transmission[len];
+    J2C_CreateTransmissionArrayInPlace(env, types, arr, out, len);
+    *out_count = (uint32_t)len;
+    return out;
+}
+void J2C_CreateTransmissionPtrArrayInPlace(JNIEnv* env, TypeInfos* types, jobjectArray arr, Transmission** dst, uint32_t dst_count) {
+    jsize len = env->GetArrayLength(arr);
+    if (len != dst_count) {
+        printf("Number of elements mismatch. Expected %u, but got %u\n", dst_count, len);
+    }
+    if (len > dst_count)
+        len = dst_count;
+    for (uint32_t i = 0; i < len; ++i) {
+        jobject obj = env->GetObjectArrayElement(arr, i);
+        dst[i] = new Transmission();
+        J2C_CreateTransmission(env, types, obj, dst[i]);
+        env->DeleteLocalRef(obj);
+    }
+}
+Transmission** J2C_CreateTransmissionPtrArray(JNIEnv* env, TypeInfos* types, jobjectArray arr, uint32_t* out_count) {
+    jsize len = env->GetArrayLength(arr);
+    Transmission** out = new Transmission*[len];
+    J2C_CreateTransmissionPtrArrayInPlace(env, types, arr, out, len);
+    *out_count = (uint32_t)len;
+    return out;
+}
+void J2C_CreateIorArrayInPlace(JNIEnv* env, TypeInfos* types, jobjectArray arr, Ior* dst, uint32_t dst_count) {
+    jsize len = env->GetArrayLength(arr);
+    if (len != dst_count) {
+        printf("Number of elements mismatch. Expected %u, but got %u\n", dst_count, len);
+    }
+    if (len > dst_count)
+        len = dst_count;
+    for (uint32_t i = 0; i < len; ++i) {
+        jobject obj = env->GetObjectArrayElement(arr, i);
+        J2C_CreateIor(env, types, obj, &dst[i]);
+        env->DeleteLocalRef(obj);
+    }
+}
+Ior* J2C_CreateIorArray(JNIEnv* env, TypeInfos* types, jobjectArray arr, uint32_t* out_count) {
+    jsize len = env->GetArrayLength(arr);
+    Ior* out = new Ior[len];
+    J2C_CreateIorArrayInPlace(env, types, arr, out, len);
+    *out_count = (uint32_t)len;
+    return out;
+}
+void J2C_CreateIorPtrArrayInPlace(JNIEnv* env, TypeInfos* types, jobjectArray arr, Ior** dst, uint32_t dst_count) {
+    jsize len = env->GetArrayLength(arr);
+    if (len != dst_count) {
+        printf("Number of elements mismatch. Expected %u, but got %u\n", dst_count, len);
+    }
+    if (len > dst_count)
+        len = dst_count;
+    for (uint32_t i = 0; i < len; ++i) {
+        jobject obj = env->GetObjectArrayElement(arr, i);
+        dst[i] = new Ior();
+        J2C_CreateIor(env, types, obj, dst[i]);
+        env->DeleteLocalRef(obj);
+    }
+}
+Ior** J2C_CreateIorPtrArray(JNIEnv* env, TypeInfos* types, jobjectArray arr, uint32_t* out_count) {
+    jsize len = env->GetArrayLength(arr);
+    Ior** out = new Ior*[len];
+    J2C_CreateIorPtrArrayInPlace(env, types, arr, out, len);
+    *out_count = (uint32_t)len;
+    return out;
+}
+void J2C_CreateSpecularArrayInPlace(JNIEnv* env, TypeInfos* types, jobjectArray arr, Specular* dst, uint32_t dst_count) {
+    jsize len = env->GetArrayLength(arr);
+    if (len != dst_count) {
+        printf("Number of elements mismatch. Expected %u, but got %u\n", dst_count, len);
+    }
+    if (len > dst_count)
+        len = dst_count;
+    for (uint32_t i = 0; i < len; ++i) {
+        jobject obj = env->GetObjectArrayElement(arr, i);
+        J2C_CreateSpecular(env, types, obj, &dst[i]);
+        env->DeleteLocalRef(obj);
+    }
+}
+Specular* J2C_CreateSpecularArray(JNIEnv* env, TypeInfos* types, jobjectArray arr, uint32_t* out_count) {
+    jsize len = env->GetArrayLength(arr);
+    Specular* out = new Specular[len];
+    J2C_CreateSpecularArrayInPlace(env, types, arr, out, len);
+    *out_count = (uint32_t)len;
+    return out;
+}
+void J2C_CreateSpecularPtrArrayInPlace(JNIEnv* env, TypeInfos* types, jobjectArray arr, Specular** dst, uint32_t dst_count) {
+    jsize len = env->GetArrayLength(arr);
+    if (len != dst_count) {
+        printf("Number of elements mismatch. Expected %u, but got %u\n", dst_count, len);
+    }
+    if (len > dst_count)
+        len = dst_count;
+    for (uint32_t i = 0; i < len; ++i) {
+        jobject obj = env->GetObjectArrayElement(arr, i);
+        dst[i] = new Specular();
+        J2C_CreateSpecular(env, types, obj, dst[i]);
+        env->DeleteLocalRef(obj);
+    }
+}
+Specular** J2C_CreateSpecularPtrArray(JNIEnv* env, TypeInfos* types, jobjectArray arr, uint32_t* out_count) {
+    jsize len = env->GetArrayLength(arr);
+    Specular** out = new Specular*[len];
+    J2C_CreateSpecularPtrArrayInPlace(env, types, arr, out, len);
+    *out_count = (uint32_t)len;
+    return out;
+}
+void J2C_CreateVolumeArrayInPlace(JNIEnv* env, TypeInfos* types, jobjectArray arr, Volume* dst, uint32_t dst_count) {
+    jsize len = env->GetArrayLength(arr);
+    if (len != dst_count) {
+        printf("Number of elements mismatch. Expected %u, but got %u\n", dst_count, len);
+    }
+    if (len > dst_count)
+        len = dst_count;
+    for (uint32_t i = 0; i < len; ++i) {
+        jobject obj = env->GetObjectArrayElement(arr, i);
+        J2C_CreateVolume(env, types, obj, &dst[i]);
+        env->DeleteLocalRef(obj);
+    }
+}
+Volume* J2C_CreateVolumeArray(JNIEnv* env, TypeInfos* types, jobjectArray arr, uint32_t* out_count) {
+    jsize len = env->GetArrayLength(arr);
+    Volume* out = new Volume[len];
+    J2C_CreateVolumeArrayInPlace(env, types, arr, out, len);
+    *out_count = (uint32_t)len;
+    return out;
+}
+void J2C_CreateVolumePtrArrayInPlace(JNIEnv* env, TypeInfos* types, jobjectArray arr, Volume** dst, uint32_t dst_count) {
+    jsize len = env->GetArrayLength(arr);
+    if (len != dst_count) {
+        printf("Number of elements mismatch. Expected %u, but got %u\n", dst_count, len);
+    }
+    if (len > dst_count)
+        len = dst_count;
+    for (uint32_t i = 0; i < len; ++i) {
+        jobject obj = env->GetObjectArrayElement(arr, i);
+        dst[i] = new Volume();
+        J2C_CreateVolume(env, types, obj, dst[i]);
+        env->DeleteLocalRef(obj);
+    }
+}
+Volume** J2C_CreateVolumePtrArray(JNIEnv* env, TypeInfos* types, jobjectArray arr, uint32_t* out_count) {
+    jsize len = env->GetArrayLength(arr);
+    Volume** out = new Volume*[len];
+    J2C_CreateVolumePtrArrayInPlace(env, types, arr, out, len);
+    *out_count = (uint32_t)len;
+    return out;
+}
+void J2C_CreateSheenArrayInPlace(JNIEnv* env, TypeInfos* types, jobjectArray arr, Sheen* dst, uint32_t dst_count) {
+    jsize len = env->GetArrayLength(arr);
+    if (len != dst_count) {
+        printf("Number of elements mismatch. Expected %u, but got %u\n", dst_count, len);
+    }
+    if (len > dst_count)
+        len = dst_count;
+    for (uint32_t i = 0; i < len; ++i) {
+        jobject obj = env->GetObjectArrayElement(arr, i);
+        J2C_CreateSheen(env, types, obj, &dst[i]);
+        env->DeleteLocalRef(obj);
+    }
+}
+Sheen* J2C_CreateSheenArray(JNIEnv* env, TypeInfos* types, jobjectArray arr, uint32_t* out_count) {
+    jsize len = env->GetArrayLength(arr);
+    Sheen* out = new Sheen[len];
+    J2C_CreateSheenArrayInPlace(env, types, arr, out, len);
+    *out_count = (uint32_t)len;
+    return out;
+}
+void J2C_CreateSheenPtrArrayInPlace(JNIEnv* env, TypeInfos* types, jobjectArray arr, Sheen** dst, uint32_t dst_count) {
+    jsize len = env->GetArrayLength(arr);
+    if (len != dst_count) {
+        printf("Number of elements mismatch. Expected %u, but got %u\n", dst_count, len);
+    }
+    if (len > dst_count)
+        len = dst_count;
+    for (uint32_t i = 0; i < len; ++i) {
+        jobject obj = env->GetObjectArrayElement(arr, i);
+        dst[i] = new Sheen();
+        J2C_CreateSheen(env, types, obj, dst[i]);
+        env->DeleteLocalRef(obj);
+    }
+}
+Sheen** J2C_CreateSheenPtrArray(JNIEnv* env, TypeInfos* types, jobjectArray arr, uint32_t* out_count) {
+    jsize len = env->GetArrayLength(arr);
+    Sheen** out = new Sheen*[len];
+    J2C_CreateSheenPtrArrayInPlace(env, types, arr, out, len);
+    *out_count = (uint32_t)len;
+    return out;
+}
+void J2C_CreateEmissiveStrengthArrayInPlace(JNIEnv* env, TypeInfos* types, jobjectArray arr, EmissiveStrength* dst, uint32_t dst_count) {
+    jsize len = env->GetArrayLength(arr);
+    if (len != dst_count) {
+        printf("Number of elements mismatch. Expected %u, but got %u\n", dst_count, len);
+    }
+    if (len > dst_count)
+        len = dst_count;
+    for (uint32_t i = 0; i < len; ++i) {
+        jobject obj = env->GetObjectArrayElement(arr, i);
+        J2C_CreateEmissiveStrength(env, types, obj, &dst[i]);
+        env->DeleteLocalRef(obj);
+    }
+}
+EmissiveStrength* J2C_CreateEmissiveStrengthArray(JNIEnv* env, TypeInfos* types, jobjectArray arr, uint32_t* out_count) {
+    jsize len = env->GetArrayLength(arr);
+    EmissiveStrength* out = new EmissiveStrength[len];
+    J2C_CreateEmissiveStrengthArrayInPlace(env, types, arr, out, len);
+    *out_count = (uint32_t)len;
+    return out;
+}
+void J2C_CreateEmissiveStrengthPtrArrayInPlace(JNIEnv* env, TypeInfos* types, jobjectArray arr, EmissiveStrength** dst, uint32_t dst_count) {
+    jsize len = env->GetArrayLength(arr);
+    if (len != dst_count) {
+        printf("Number of elements mismatch. Expected %u, but got %u\n", dst_count, len);
+    }
+    if (len > dst_count)
+        len = dst_count;
+    for (uint32_t i = 0; i < len; ++i) {
+        jobject obj = env->GetObjectArrayElement(arr, i);
+        dst[i] = new EmissiveStrength();
+        J2C_CreateEmissiveStrength(env, types, obj, dst[i]);
+        env->DeleteLocalRef(obj);
+    }
+}
+EmissiveStrength** J2C_CreateEmissiveStrengthPtrArray(JNIEnv* env, TypeInfos* types, jobjectArray arr, uint32_t* out_count) {
+    jsize len = env->GetArrayLength(arr);
+    EmissiveStrength** out = new EmissiveStrength*[len];
+    J2C_CreateEmissiveStrengthPtrArrayInPlace(env, types, arr, out, len);
+    *out_count = (uint32_t)len;
+    return out;
+}
+void J2C_CreateIridescenceArrayInPlace(JNIEnv* env, TypeInfos* types, jobjectArray arr, Iridescence* dst, uint32_t dst_count) {
+    jsize len = env->GetArrayLength(arr);
+    if (len != dst_count) {
+        printf("Number of elements mismatch. Expected %u, but got %u\n", dst_count, len);
+    }
+    if (len > dst_count)
+        len = dst_count;
+    for (uint32_t i = 0; i < len; ++i) {
+        jobject obj = env->GetObjectArrayElement(arr, i);
+        J2C_CreateIridescence(env, types, obj, &dst[i]);
+        env->DeleteLocalRef(obj);
+    }
+}
+Iridescence* J2C_CreateIridescenceArray(JNIEnv* env, TypeInfos* types, jobjectArray arr, uint32_t* out_count) {
+    jsize len = env->GetArrayLength(arr);
+    Iridescence* out = new Iridescence[len];
+    J2C_CreateIridescenceArrayInPlace(env, types, arr, out, len);
+    *out_count = (uint32_t)len;
+    return out;
+}
+void J2C_CreateIridescencePtrArrayInPlace(JNIEnv* env, TypeInfos* types, jobjectArray arr, Iridescence** dst, uint32_t dst_count) {
+    jsize len = env->GetArrayLength(arr);
+    if (len != dst_count) {
+        printf("Number of elements mismatch. Expected %u, but got %u\n", dst_count, len);
+    }
+    if (len > dst_count)
+        len = dst_count;
+    for (uint32_t i = 0; i < len; ++i) {
+        jobject obj = env->GetObjectArrayElement(arr, i);
+        dst[i] = new Iridescence();
+        J2C_CreateIridescence(env, types, obj, dst[i]);
+        env->DeleteLocalRef(obj);
+    }
+}
+Iridescence** J2C_CreateIridescencePtrArray(JNIEnv* env, TypeInfos* types, jobjectArray arr, uint32_t* out_count) {
+    jsize len = env->GetArrayLength(arr);
+    Iridescence** out = new Iridescence*[len];
+    J2C_CreateIridescencePtrArrayInPlace(env, types, arr, out, len);
     *out_count = (uint32_t)len;
     return out;
 }

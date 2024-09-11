@@ -140,6 +140,23 @@ static void OutputNodeTree(Node* node, int indent)
     }
 }
 
+static void OutputSampler(Sampler* sampler, int indent)
+{
+    OutputIndent(indent);
+    printf("Sampler: %s : \n", sampler->m_Name);
+    OutputIndent(indent);
+    printf("  mag_filter: %d\n", sampler->m_MagFilter);
+    OutputIndent(indent);
+    printf("  min_filter: %d\n", sampler->m_MinFilter);
+    OutputIndent(indent);
+    printf("  wrap_s:     %d\n", sampler->m_WrapS);
+    OutputIndent(indent);
+    printf("  wrap_t:     %d\n", sampler->m_WrapT);
+    OutputIndent(indent);
+    printf("\n");
+}
+
+
 static void OutputMaterial(Material* material, int indent)
 {
     OutputIndent(indent);
@@ -258,6 +275,15 @@ void DebugScene(Scene* scene)
     }
 
     printf("------------------------------\n");
+    printf("Samplers\n");
+
+    for (uint32_t i = 0; i < scene->m_Samplers.Size(); ++i)
+    {
+        OutputSampler(&scene->m_Samplers[i], 0);
+    }
+
+    printf("------------------------------\n");
+    printf("Materials\n");
 
     for (uint32_t i = 0; i < scene->m_Materials.Size(); ++i)
     {

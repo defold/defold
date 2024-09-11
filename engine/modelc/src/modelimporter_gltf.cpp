@@ -464,6 +464,24 @@ static void LoadNodes(Scene* scene, cgltf_data* gltf_data)
     }
 }
 
+static void LoadSamplers(Scene* scene, cgltf_data* gltf_data)
+{
+    InitSize(scene->m_Samplers, gltf_data->samplers_count, gltf_data->samplers_count);
+
+    for (uint32_t i = 0; i < gltf_data->samplers_count; ++i)
+    {
+        cgltf_sampler* gltf_sampler = &gltf_data->samplers[i];
+        Sampler* sampler = &scene->m_Samplers[i];
+        memset(sampler, 0, sizeof(*sampler));
+        sampler->m_Name = CreateObjectName(gltf_sampler, "sampler", i);
+
+        sampler->m_MagFilter = gltf_sampler->mag_filter;
+        sampler->m_MinFilter = gltf_sampler->min_filter;
+        sampler->m_WrapS = gltf_sampler->wrap_s;
+        sampler->m_WrapT = gltf_sampler->wrap_t;
+    }
+}
+
 static void LoadMaterials(Scene* scene, cgltf_data* gltf_data)
 {
     InitSize(scene->m_Materials, gltf_data->materials_count, gltf_data->materials_count);
@@ -1390,6 +1408,7 @@ static void LoadScene(Scene* scene, cgltf_data* data)
 {
     LoadSkins(scene, data);
     LoadNodes(scene, data);
+    LoadSamplers(scene, data);
     LoadMaterials(scene, data);
     LoadMeshes(scene, data);
     LinkNodesWithBones(scene, data);
