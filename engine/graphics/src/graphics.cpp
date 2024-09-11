@@ -399,15 +399,6 @@ namespace dmGraphics
         {
             return 4 * 4 * 4;
         }
-        else if (type == TYPE_SAMPLER_2D ||
-                 type == TYPE_SAMPLER_CUBE ||
-                 type == TYPE_SAMPLER_2D_ARRAY ||
-                 type == TYPE_IMAGE_2D)
-        {
-            return 0;
-        }
-
-        assert(0 && "Invalid/unsupported type");
         return 0;
     }
 
