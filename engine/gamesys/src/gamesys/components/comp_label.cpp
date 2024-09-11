@@ -44,7 +44,7 @@
 #include <gamesys/gamesys_ddf.h>
 #include <dmsdk/gamesys/render_constants.h>
 #include <dmsdk/gamesys/resources/res_material.h>
-#include <dmsdk/gamesys/resources/res_font_map.h>
+#include <dmsdk/gamesys/resources/res_font.h>
 
 DM_PROPERTY_EXTERN(rmtp_Components);
 DM_PROPERTY_U32(rmtp_Label, 0, FrameReset, "# components", &rmtp_Components);

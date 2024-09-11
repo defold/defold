@@ -18,7 +18,7 @@
 #include <dlib/log.h>
 #include <gamesys/label_ddf.h>
 #include <dmsdk/gamesys/resources/res_material.h>
-#include <dmsdk/gamesys/resources/res_font_map.h>
+#include <dmsdk/gamesys/resources/res_font.h>
 
 namespace dmGameSystem
 {

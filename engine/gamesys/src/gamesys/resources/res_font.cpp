@@ -12,7 +12,7 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "res_font_map.h"
+#include "res_font.h"
 #include "res_glyph_bank.h"
 
 #include <string.h>
@@ -245,7 +245,7 @@ namespace dmGameSystem
     }
 
 
-    dmResource::Result ResFontMapPreload(const dmResource::ResourcePreloadParams* params)
+    dmResource::Result ResFontPreload(const dmResource::ResourcePreloadParams* params)
     {
         dmRenderDDF::FontMap* ddf;
         dmDDF::Result e = dmDDF::LoadMessage<dmRenderDDF::FontMap>(params->m_Buffer, params->m_BufferSize, &ddf);
@@ -260,7 +260,7 @@ namespace dmGameSystem
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResFontMapCreate(const dmResource::ResourceCreateParams* params)
+    dmResource::Result ResFontCreate(const dmResource::ResourceCreateParams* params)
     {
         FontResource* font_map = new FontResource;
         font_map->m_Resource = params->m_Resource;
@@ -280,14 +280,14 @@ namespace dmGameSystem
         return r;
     }
 
-    dmResource::Result ResFontMapDestroy(const dmResource::ResourceDestroyParams* params)
+    dmResource::Result ResFontDestroy(const dmResource::ResourceDestroyParams* params)
     {
         FontResource* font_map = (FontResource*)dmResource::GetResource(params->m_Resource);
         DeleteFontResource(params->m_Factory, font_map);
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResFontMapRecreate(const dmResource::ResourceRecreateParams* params)
+    dmResource::Result ResFontRecreate(const dmResource::ResourceRecreateParams* params)
     {
         FontResource* font_map = (FontResource*)dmResource::GetResource(params->m_Resource);
 

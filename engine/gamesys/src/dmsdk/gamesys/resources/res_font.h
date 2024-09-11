@@ -12,11 +12,11 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DMSDK_GAMESYS_RES_FONT_MAP_H
-#define DMSDK_GAMESYS_RES_FONT_MAP_H
+#ifndef DMSDK_GAMESYS_RES_FONT_H
+#define DMSDK_GAMESYS_RES_FONT_H
 
 #include <dmsdk/resource/resource.h>
-#include <dmsdk/gamesys/resources/res_font_map.h>
+#include <dmsdk/gamesys/resources/res_font.h>
 #include <render/font_ddf.h>
 #include <dmsdk/render/render.h>
 
@@ -90,4 +90,4 @@ namespace dmGameSystem
     void   ResFontDebugPrint(FontResource* font);
 }
 
-#endif // DMSDK_GAMESYS_RES_FONT_MAP_H
+#endif // DMSDK_GAMESYS_RES_FONT_H

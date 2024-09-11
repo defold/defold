@@ -32,7 +32,7 @@
 #include <gameobject/component.h>
 #include <gameobject/gameobject_ddf.h> // dmGameObjectDDF enable/disable
 #include <gamesys/atlas_ddf.h>
-#include <dmsdk/gamesys/resources/res_font_map.h>
+#include <dmsdk/gamesys/resources/res_font.h>
 
 #include "comp_gui.h"
 #include "comp_gui_private.h"

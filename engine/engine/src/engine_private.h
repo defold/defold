@@ -42,7 +42,7 @@
 #include "engine_service.h"
 #include "engine.h"
 #include <engine/engine_ddf.h>
-#include <dmsdk/gamesys/resources/res_font_map.h>
+#include <dmsdk/gamesys/resources/res_font.h>
 
 namespace dmEngine
 {

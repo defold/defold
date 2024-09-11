@@ -26,7 +26,7 @@
 #include "res_textureset.h"
 
 #include <dmsdk/resource/resource.h>
-#include <dmsdk/gamesys/resources/res_font_map.h>
+#include <dmsdk/gamesys/resources/res_font.h>
 
 namespace dmGameSystem
 {

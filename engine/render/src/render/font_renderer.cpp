@@ -157,7 +157,7 @@ namespace dmRender
             dmGraphics::DeleteTexture(m_Texture);
         }
 
-        void*                   m_UserData; // The font map resources (see res_font_map.cpp)
+        void*                   m_UserData; // The font map resources (see res_font.cpp)
         dmGraphics::HTexture    m_Texture;
         HMaterial               m_Material;
         dmhash_t                m_NameHash;

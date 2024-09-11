@@ -22,7 +22,7 @@
 
 #include "../../gamesys.h"
 
-#include "../../resources/res_font_map.h"
+#include "../../resources/res_font.h"
 #include "../../resources/res_fragment_program.h"
 #include "../../resources/res_vertex_program.h"
 #include "../../resources/res_material.h"
