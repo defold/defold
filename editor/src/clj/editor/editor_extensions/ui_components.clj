@@ -38,15 +38,16 @@
             [editor.dialogs :as dialogs]
             [editor.editor-extensions.coerce :as coerce]
             [editor.editor-extensions.runtime :as rt]
+            [editor.editor-extensions.ui-docs :as ui-docs]
             [editor.error-reporting :as error-reporting]
             [editor.field-expression :as field-expression]
             [editor.fs :as fs]
             [editor.future :as future]
             [editor.fxui :as fxui]
             [editor.icons :as icons]
-            [editor.lua-completion :as lua-completion]
+            [editor.resource :as resource]
+            [editor.resource-dialog :as resource-dialog]
             [editor.ui :as ui]
-            [editor.util :as util]
             [internal.util :as iutil]
             [util.coll :as coll :refer [pair]])
   (:import [com.defold.control DefoldStringConverter]
@@ -76,82 +77,6 @@
 
 ;; Components are created with a table of props. The editor defines prop maps
 ;; both for runtime behavior (coercion) and autocomplete generation.
-
-(s/def :editor.editor-extensions.components.prop/name simple-keyword?)
-(s/def ::coerce ifn?)
-(s/def ::required boolean?)
-(s/def ::types (s/coll-of string? :min-count 1 :distinct true))
-(s/def ::doc string?)
-(s/def ::prop
-  (s/keys :req-un [:editor.editor-extensions.components.prop/name ::coerce ::required ::types ::doc]))
-
-(defn- ^{:arglists '([name & {:keys [coerce required types doc]}])} make-prop
-  "Construct a prop definition map
-
-  Args:
-    name    keyword name of a prop, should be snake_cased
-
-  Kv-args:
-    :coerce      required, coercer function
-    :required    optional, boolean, whether the prop is required to be present
-    :types       required if it can't be inferred from coercer, coll of string
-                 type names (union) for documentation
-    :doc         required, html documentation string"
-  [name & {:as m}]
-  {:post [(s/assert ::prop %)]}
-  (let [m (-> m
-              (assoc :name name)
-              (update :required boolean))]
-    (if (contains? m :types)
-      m
-      (if-let [inferred-types (condp = (:coerce m)
-                                coerce/boolean ["boolean"]
-                                coerce/string ["string"]
-                                coerce/untouched ["any"]
-                                coerce/function ["function"]
-                                nil)]
-        (assoc m :types inferred-types)
-        m))))
-
-(s/def :editor.editor-extensions.components.component/name string?)
-(s/def ::props (s/coll-of ::prop))
-(s/def ::fn ifn?)
-(s/def ::description string?)
-(s/def ::component
-  (s/keys :req-un [:editor.editor-extensions.components.component/name ::props ::fn ::description]))
-
-(defn- ^{:arglists '([name & {:keys [props description fn]}])} make-component
-  "Construct a component definition map
-
-  Args:
-    name    string name of the component, should be snake_cased
-
-  Kv-args:
-    :props          required, a list of props of the component
-    :fn             required, fn that converts a prop map to a cljfx component
-    :description    required, markdown documentation string"
-  [name & {:as m}]
-  {:post [(s/assert ::component %)]}
-  (assoc m :name name))
-
-(defn- props-doc-html [props]
-  (lua-completion/args-doc-html
-    (map #(update % :name name) props)))
-
-(defn- component->completion [{:keys [props] :as component}]
-  (let [{req true opt false} (group-by :required props)]
-    (lua-completion/make
-      (assoc component
-        :type :function
-        :parameters [{:name "props"
-                      :types ["table"]
-                      :doc (str (when req
-                                  (str "Required props:\n"
-                                       (props-doc-html req)
-                                       "\n\n"))
-                                "Optional props:\n"
-                                (props-doc-html opt))}]
-        :returnvalues [{:name "value" :types ["component"]}]))))
 
 (s/def ::create ifn?)
 (s/def ::advance ifn?)
@@ -195,55 +120,9 @@
   {:post [(s/assert ::hook %)]}
   (assoc m :name name))
 
-;; region enums
-
-;; Enums are defined separately so that the editor can define a runtime constant
-;; and documentation for each enum constant.
-
-(def enums
-  {:alignment [:top-left :top :top-right :left :center :right :bottom-left :bottom :bottom-right]
-   :padding [:small :medium :large]
-   :spacing [:small :medium :large]
-   :text_alignment [:left :center :right :justify]
-   :text_variant [:default :hint :warning :error]
-   :icon_name [:open-resource :plus :minus :clear]
-   :orientation [:vertical :horizontal]
-   :input_variant [:default :warning :error]})
-
-(def ^:private get-enum-coercer
-  (let [m (coll/pair-map-by key #(apply coerce/enum (val %)) enums)]
-    (fn get-enum-coercer [kw]
-      {:post [(some? %)]}
-      (m kw))))
-
-(defn- enum-doc-options [enum]
-  {:post [(contains? enums enum)]}
-  (map #(format "<code>\"%s\"</code>" (name %)) (enums enum)))
-
-(defn doc-with-ul-options [doc options]
-  (str doc
-       "; either:\n<ul>"
-       (string/join (map #(format "<li>%s</li>" %) options))
-       "</ul>"))
-
-(defn- enum-prop [name & {:keys [enum doc] :as props}]
-  (let [enum (or enum name)]
-    (apply make-prop name (mapcat identity (cond-> (assoc props :coerce (get-enum-coercer enum)
-                                                                :types ["string"])
-                                                   doc
-                                                   (update :doc doc-with-ul-options (enum-doc-options enum)))))))
-
-(defn- ->screaming-snake-case [kw]
-  (string/replace (util/upper-case* (name kw)) "-" "_"))
-
-(defn enum-const-name [enum-id enum-value]
-  (str (->screaming-snake-case enum-id) "_" (->screaming-snake-case enum-value)))
-
-;; endregion
-
 ;; Component and prop definitions
 
-(defn- component->lua-fn [{:keys [name props fn]}]
+(defn- make-component-lua-fn [name props fn]
   (let [string-representation (str "editor.ui." name "(...)")
         {req true opt false} (iutil/group-into {} {} :required (coll/pair-fn :name :coerce) props)
         props-coercer (coerce/hash-map :req req :opt opt)]
@@ -253,29 +132,6 @@
             (vary-meta assoc :type :component :props props)
             (rt/wrap-userdata string-representation))))))
 
-(def ^:private read-only-common-props
-  (let [grid-cell-span-coercer (coerce/wrap-with-pred coerce/integer pos? "is not positive")]
-    [(make-prop :expand
-                :coerce coerce/boolean
-                :doc "determines if the component should expand to fill available space in a <code>horizontal</code> or <code>vertical</code> layout container")
-     (make-prop :row_span
-                :coerce grid-cell-span-coercer
-                :types ["integer"]
-                :doc "how many rows the component spans inside a grid container, must be positive. This prop is only useful for components inside a <code>grid</code> container.")
-     (make-prop :column_span
-                :coerce grid-cell-span-coercer
-                :types ["integer"]
-                :doc "how many columns the component spans inside a grid container, must be positive. This prop is only useful for components inside a <code>grid</code> container.")]))
-
-(def ^:private common-props
-  (into [(enum-prop :alignment :doc "alignment of the component content within its assigned bounds, defaults to <code>\"top-left\"</code>")]
-        read-only-common-props))
-
-(def ^:private component-coercer (coerce/wrap-with-pred coerce/userdata #(= :component (:type (meta %))) "is not a UI component"))
-(def ^:private absent-coercer (coerce/wrap-with-pred coerce/to-boolean false? "is present (not nil or false)"))
-(def ^:private child-coercer (coerce/one-of component-coercer absent-coercer))
-(def ^:private children-coercer (coerce/vector-of child-coercer))
-
 ;; region layout components
 
 ;; General approach to layout can be described as follows:
@@ -284,43 +140,14 @@
 ;; - leaf components take as much space as available to them
 ;; - layout components have different approach to giving space to their children:
 ;;   - `horizontal` gives as much space as possible on a vertical axis, but not
-;;     on a horizontal axis. Child components may use `expand` prop to expand on
+;;     on a horizontal axis. Child components may use `grow` prop to grow on
 ;;     the horizontal axis.
 ;;   - Same applies to `vertical`, but with the axes switched
-;;   - `grid` does not expand its children, unless `expand` row or column
+;;   - `grid` does not expand its children, unless `grow` row or column
 ;;     setting is used.
 
-(def ^:private multi-child-layout-container-props
-  (let [non-negative-number (coerce/wrap-with-pred coerce/number (complement neg?) "is negative")
-        spacing (coerce/one-of (get-enum-coercer :spacing) non-negative-number)
-        padding (coerce/one-of (get-enum-coercer :padding) non-negative-number)]
-    (into [(make-prop :padding
-                      :coerce padding
-                      :types ["string" "number"]
-                      :doc (doc-with-ul-options
-                             "empty space from the edges of the container to its children"
-                             (concat
-                               (enum-doc-options :padding)
-                               ["non-negative number, pixels"])))
-           (make-prop :spacing
-                      :coerce spacing
-                      :types ["string" "number"]
-                      :doc (doc-with-ul-options
-                             "empty space between child components"
-                             (concat
-                               (enum-doc-options :spacing)
-                               ["non-negative number, pixels"])))]
-          common-props)))
-
-(def ^:private list-props
-  (into [(make-prop :children
-                    :coerce children-coercer
-                    :types ["component[]"]
-                    :doc "array of child components")]
-        multi-child-layout-container-props))
-
 (def ^:private ^{:arglists '([props padding])} apply-spacing
-  (let [spacing->style-class (coll/pair-map-by identity #(str "ext-spacing-" (name %)) (:spacing enums))]
+  (let [spacing->style-class (coll/pair-map-by identity #(str "ext-spacing-" (name %)) (:spacing ui-docs/enums))]
     (fn apply-spacing [props spacing]
       {:pre [(some? spacing)]}
       (if-let [style-class (spacing->style-class spacing)]
@@ -330,7 +157,7 @@
           (throw (AssertionError. (str "Invalid spacing: " spacing))))))))
 
 (def ^:private ^{:arglists '([props padding])} apply-padding
-  (let [padding->style-class (coll/pair-map-by identity #(str "ext-padding-" (name %)) (:padding enums))]
+  (let [padding->style-class (coll/pair-map-by identity #(str "ext-padding-" (name %)) (:padding ui-docs/enums))]
     (fn apply-padding [props padding]
       {:pre [(some? padding)]}
       (if-let [style-class (padding->style-class padding)]
@@ -381,49 +208,30 @@
                  (throw (AssertionError. "Can't remove skin!"))))
              fx.lifecycle/scalar)}))
 
-(defn- scroll-view [{:keys [child]}]
-  ;; We need to set ScrollPane skin, so it creates ScrollBars, so we can expand
+(defn- scroll-view [{:keys [content]}]
+  ;; We need to set ScrollPane skin, so it creates ScrollBars, so we can grow
   ;; the content to fill the ScrollPane
   {:fx/type ext-with-expanded-scroll-pane-content-props
-   :props {:content child}
+   :props {:content content}
    :desc {:fx/type ext-with-scroll-pane-skin-props
           :props {:skin true}
           :desc {:fx/type fx.scroll-pane/lifecycle
                  :style-class "ext-scroll-pane"
                  :fit-to-width true}}})
 
-(def ^:private grid-props
-  (let [grid-constraints-coercer (coerce/vector-of
-                                   (coerce/one-of
-                                     (coerce/hash-map :opt {:expand coerce/boolean})
-                                     absent-coercer))
-        constraint-doc #(format "array of %s option tables, separate configuration for each %s:<dl><dt><code>expand <small>boolean</small></code></dt><dd>determines if the %s should expand to fill available space</dd></dl>"
-                                % % %)]
-    (into [(make-prop :children
-                      :coerce (coerce/vector-of (coerce/one-of children-coercer absent-coercer))
-                      :types ["component[][]"]
-                      :doc "array of arrays of child components")
-           (make-prop :rows
-                      :coerce grid-constraints-coercer
-                      :types ["table[]"]
-                      :doc (constraint-doc "row"))
-           (make-prop :columns
-                      :coerce grid-constraints-coercer
-                      :types ["table[]"]
-                      :doc (constraint-doc "column"))]
-          multi-child-layout-container-props)))
 
-(defn- apply-constraints [props lifecycle expand-key constraints]
+
+(defn- apply-constraints [props lifecycle grow-key constraints]
   (assoc props :column-constraints (mapv (fn [maybe-column]
                                            (let [ret {:fx/type lifecycle}]
                                              (if maybe-column
-                                               (let [{:keys [expand]} maybe-column]
-                                                 (cond-> ret expand (assoc expand-key :always)))
+                                               (let [{:keys [grow]} maybe-column]
+                                                 (cond-> ret grow (assoc grow-key :always)))
                                                ret)))
                                          constraints)))
 
 (def ^:private ^{:arglists '([props padding])} apply-grid-spacing
-  (let [spacing->style-class (coll/pair-map-by identity #(str "ext-grid-spacing-" (name %)) (:spacing enums))]
+  (let [spacing->style-class (coll/pair-map-by identity #(str "ext-grid-spacing-" (name %)) (:spacing ui-docs/enums))]
     (fn apply-grid-spacing [props spacing]
       {:pre [(some? spacing)]}
       (if-let [style-class (spacing->style-class spacing)]
@@ -432,31 +240,33 @@
           (assoc props :hgap spacing :vgap spacing)
           (throw (AssertionError. (str "Invalid spacing: " spacing))))))))
 
-(defn- grid-view [{:keys [children rows columns alignment padding spacing]}]
-  (cond-> {:fx/type fx.grid-pane/lifecycle}
-          children (assoc :children
-                          (into []
-                                (comp
-                                  (map-indexed
-                                    (fn [row row-children]
-                                      (eduction
-                                        (keep-indexed
-                                          (fn [column child]
-                                            (when child
-                                              (let [{:keys [row_span column_span]
-                                                     :or {row_span 1 column_span 1}} (:props (meta child))]
-                                                (assoc child :grid-pane/row row
-                                                             :grid-pane/column column
-                                                             :grid-pane/row-span row_span
-                                                             :grid-pane/column-span column_span)))))
-                                        row-children)))
-                                  cat)
-                                children))
-          rows (apply-constraints fx.row-constraints/lifecycle :vgrow rows)
-          columns (apply-constraints fx.column-constraints/lifecycle :hgrow columns)
-          spacing (apply-grid-spacing spacing)
-          padding (apply-padding padding)
-          alignment (apply-alignment alignment)))
+(defn- grid-view [{:keys [children rows columns alignment padding spacing]
+                   :or {spacing :medium}}]
+  (-> {:fx/type fx.grid-pane/lifecycle}
+      (apply-grid-spacing spacing)
+      (cond->
+        children (assoc :children
+                        (into []
+                              (comp
+                                (map-indexed
+                                  (fn [row row-children]
+                                    (eduction
+                                      (keep-indexed
+                                        (fn [column child]
+                                          (when child
+                                            (let [{:keys [row_span column_span]
+                                                   :or {row_span 1 column_span 1}} (:props (meta child))]
+                                              (assoc child :grid-pane/row row
+                                                           :grid-pane/column column
+                                                           :grid-pane/row-span row_span
+                                                           :grid-pane/column-span column_span)))))
+                                      row-children)))
+                                cat)
+                              children))
+        rows (apply-constraints fx.row-constraints/lifecycle :vgrow rows)
+        columns (apply-constraints fx.column-constraints/lifecycle :hgrow columns)
+        padding (apply-padding padding)
+        alignment (apply-alignment alignment))))
 
 (defn- separator-view [{:keys [alignment orientation]
                         :or {alignment :center
@@ -469,85 +279,43 @@
                  :pseudo-classes #{orientation}}]}
     alignment))
 
-(def ^:private required-child-prop
-  (make-prop :child
-             :coerce component-coercer
-             :required true
-             :types ["component"]
-             :doc "child component"))
-
-(defn- make-list-view-fn [fx-type expand-key]
-  (fn list-view [{:keys [children padding spacing alignment]}]
-    (cond-> {:fx/type fx-type
-             :children (into []
-                             (keep-indexed
-                               (fn [i desc]
-                                 (when desc
-                                   (-> desc
-                                       (assoc :fx/key i)
-                                       (cond-> (:expand (:props (meta desc)))
-                                               (assoc expand-key :always))))))
-                             children)}
-            spacing (apply-spacing spacing)
-            padding (apply-padding padding)
-            alignment (apply-alignment alignment))))
+(defn- make-list-view-fn [fx-type grow-key]
+  (fn list-view [{:keys [children padding spacing alignment]
+                  :or {spacing :medium}}]
+    (-> {:fx/type fx-type
+         :children (into []
+                         (keep-indexed
+                           (fn [i desc]
+                             (when desc
+                               (-> desc
+                                   (assoc :fx/key i)
+                                   (cond-> (:grow (:props (meta desc)))
+                                           (assoc grow-key :always))))))
+                         children)}
+        (apply-spacing spacing)
+        (cond-> padding (apply-padding padding)
+                alignment (apply-alignment alignment)))))
 
 (def ^:private horizontal-view (make-list-view-fn fx.h-box/lifecycle :h-box/hgrow))
 
 (def ^:private vertical-view (make-list-view-fn fx.v-box/lifecycle :v-box/vgrow))
-
-(def ^:private layout-components
-  [(make-component
-     "horizontal"
-     :description "Layout container that places its children in a horizontal row one after another"
-     :props list-props
-     :fn horizontal-view)
-   (make-component
-     "vertical"
-     :description "Layout container that places its children in a vertical column one after another"
-     :props list-props
-     :fn vertical-view)
-   (make-component
-     "grid"
-     :description "Layout container that places its children in a 2D grid"
-     :props grid-props
-     :fn grid-view)
-   (make-component
-     "separator"
-     :description "Thin line for visual content separation, by default horizontal and aligned to center"
-     :props (into [(enum-prop :orientation :doc "separator line orientation, vertical or horizontal")]
-                  common-props)
-     :fn separator-view)
-   (make-component
-     "scroll"
-     :description "Layout container that optionally shows scroll bars if child contents overflow the assigned bounds"
-     :props (into [required-child-prop] read-only-common-props)
-     :fn scroll-view)])
 
 ;; endregion
 
 ;; region data presentation components
 
 (def ^:private ^{:arglists '([props text-variant])} apply-text-variant
-  (let [m (coll/pair-map-by identity #(str "ext-text-variant-" (name %)) (:text_variant enums))]
+  (let [m (coll/pair-map-by identity #(str "ext-text-variant-" (name %)) (:text_variant ui-docs/enums))]
     (fn apply-text-variant [props text-variant]
       {:pre [(some? text-variant)]}
       (if-let [style-class (m text-variant)]
         (fxui/add-style-classes props style-class)
         (throw (AssertionError. (str "Invalid text variant: " text-variant)))))))
 
-(def ^:private label-without-variant-specific-props
-  [(make-prop :text :coerce coerce/string :doc "the text")
-   (enum-prop :text_alignment :doc "text alignment within paragraph bounds")])
-
-(def ^:private label-specific-props
-  (conj label-without-variant-specific-props
-        (enum-prop :variant :enum :text_variant :doc "semantic view variant")))
-
 (defn- label-view [{:keys [alignment text text_alignment variant]
                     :or {alignment :top-left}}]
   (-> {:fx/type fx.label/lifecycle
-       :style-class ["label"]
+       :style-class ["label" "ext-label"]
        :min-width :use-pref-size
        :min-height :use-pref-size
        :max-width Double/MAX_VALUE
@@ -569,9 +337,6 @@
       (cond-> text (assoc :text text)
               text_alignment (assoc :text-alignment text_alignment)
               variant (apply-text-variant variant))))
-
-(def ^:private icon-specific-props
-  [(enum-prop :name :enum :icon_name :required true :doc "predefined icon name")])
 
 (defn- wrap-in-alignment-container
   "Wrapper for components that don't specify alignment
@@ -605,36 +370,9 @@
                    :fit-height fit-size}]}
       alignment)))
 
-(def ^:private data-presentation-components
-  (let [text-specific-props (conj label-specific-props
-                                  (make-prop :word_wrap
-                                             :coerce coerce/boolean
-                                             :doc "determines if the lines of text are word-wrapped when they don't fit in the assigned bounds, defaults to true"))]
-    [(make-component
-       "label"
-       :description "Non-resizeable text label"
-       :props (into label-specific-props common-props)
-       :fn label-view)
-     (make-component
-       "text"
-       :description "Resizeable text label"
-       :props (into text-specific-props common-props)
-       :fn text-view)
-     (make-component
-       "icon"
-       :description "An icon of a fixed size"
-       :props (into icon-specific-props common-props)
-       :fn icon-view)]))
-
 ;; endregion
 
 ;; region input components
-
-(def ^:private common-input-props
-  (into [(make-prop :disabled
-                    :coerce coerce/boolean
-                    :doc "determines if the input component can be interacted with")]
-        common-props))
 
 (defn- report-error-to-script [rt label ex]
   (.println (rt/stderr rt)
@@ -666,46 +404,46 @@
 
 ;; region button
 
-(def ^:private button-specific-props
-  [(make-prop :on_pressed
-              :coerce coerce/function
-              :doc "button press callback")])
-
 (defn- event-source->owner-window [^Event e]
   (.getWindow (.getScene ^Node (.getSource e))))
 
-(defn- button-view [{:keys [rt on_pressed disabled alignment style-class child]
-                     :or {disabled false}}]
-  {:pre [(string? style-class)]}
-  (-> {:fx/type fx.button/lifecycle
-       :disable disabled
-       :focus-traversable false
-       :style-class ["ext-button" style-class]
-       :graphic child}
-      (cond-> on_pressed
-              (assoc :on-action (make-event-handler-0 event-source->owner-window rt "on_pressed" on_pressed)))
-      (wrap-in-alignment-container alignment)))
-
-(defn- icon-button-view [props]
-  (button-view (assoc props :style-class "ext-button-icon" :child (icon-view (dissoc props :alignment)))))
-
-(defn- text-button-view [props]
-  (button-view (assoc props :style-class "ext-button-text" :child (label-view (dissoc props :alignment)))))
-
-(defn- default-button-view [props]
-  (button-view (assoc props :style-class "ext-button-default")))
+(defn- button-view [{:keys [rt
+                            ;; text
+                            text
+                            text_alignment
+                            ;; icon
+                            icon_name
+                            ;; rest
+                            on_pressed
+                            enabled
+                            alignment]
+                     :or {enabled true}}]
+  (let [has-text (and (some? text) (not (string/blank? text)))
+        has-icon (some? icon_name)
+        style-class (cond
+                      (and has-text has-icon) ["ext-button" "ext-button-text-and-icon"]
+                      has-text ["ext-button" "ext-button-text"]
+                      has-icon ["ext-button" "ext-button-icon"]
+                      :else ["ext-button"])]
+    (-> {:fx/type fx.button/lifecycle
+         :disable (not enabled)
+         :alignment :center
+         :min-width :use-pref-size
+         :min-height :use-pref-size
+         :focus-traversable false
+         :style-class style-class}
+        (cond->
+          has-text (assoc :text text)
+          text_alignment (assoc :text-alignment text_alignment)
+          has-icon (assoc :graphic (icon-view {:name icon_name}))
+          (and (not has-text) (not has-icon)) (assoc :graphic {:fx/type fx.region/lifecycle
+                                                               :style-class "ext-icon-container"})
+          on_pressed (assoc :on-action (make-event-handler-0 event-source->owner-window rt "on_pressed" on_pressed)))
+        (wrap-in-alignment-container alignment))))
 
 ;; endregion
 
-(def ^:private input-with-variant-props
-  (into [(enum-prop :variant :enum :input_variant :doc "input variant")]
-        common-input-props))
-
 ;; region check_box
-
-(def ^:private check-box-specific-props
-  [(make-prop :value :coerce coerce/boolean :doc "checked value")
-   (make-prop :on_value_changed :coerce coerce/function :doc "change callback, will receive the new value")])
 
 (def ^:private property-change-listener-with-source-owner-window-lifecycle
   (fx.lifecycle/wrap-coerce
@@ -722,36 +460,30 @@
                             (fx.mutator/property-change-listener #(.selectedProperty ^CheckBox %))
                             property-change-listener-with-source-owner-window-lifecycle)}))
 
-(defn- check-box-view [{:keys [rt alignment variant disabled value on_value_changed child]
-                        :or {disabled false
+(defn- check-box-view [{:keys [rt text text_alignment alignment variant enabled value on_value_changed #_child]
+                        :or {enabled true
                              value false
                              variant :default}}]
   (wrap-in-alignment-container
     {:fx/type ext-with-extra-check-box-props
      :desc (cond-> {:fx/type fx.check-box/lifecycle
                     :style-class ["check-box" "ext-check-box"]
-                    :alignment :top-left
+                    :alignment :center-left
+                    :min-width :use-pref-size
+                    :min-height :use-pref-size
+                    :max-width Double/MAX_VALUE
+                    :max-height Double/MAX_VALUE
                     :pseudo-classes #{variant}
-                    :disable disabled
+                    :disable (not enabled)
                     :selected value}
-                   child (assoc :graphic {:fx/type fx.v-box/lifecycle
-                                          :style-class "ext-check-box-child"
-                                          :children [child]}))
+                   text (assoc :text text)
+                   text_alignment (assoc :text-alignment text_alignment))
      :props (cond-> {} on_value_changed (assoc :on-selected-changed (make-event-handler-1 :window :value rt "on_value_changed" on_value_changed)))}
     alignment))
-
-(defn- text-check-box-view [props]
-  (check-box-view (assoc props :child (label-view (dissoc props :alignment :variant)))))
 
 ;; endregion
 
 ;; region select_box
-
-(def ^:private select-box-specific-props
-  [(make-prop :value :coerce coerce/untouched :doc "selected value")
-   (make-prop :on_value_changed :coerce coerce/function :doc "change callback, will receive the selected value")
-   (make-prop :options :coerce (coerce/vector-of coerce/untouched) :doc "array of selectable options" :types ["any[]"])
-   (make-prop :to_string :coerce coerce/function :doc "function that converts an item to string, defaults to <code>tostring</code>")])
 
 (defn- stringify-lua-value
   ([rt maybe-lua-value]
@@ -781,9 +513,9 @@
                          (fx.mutator/property-change-listener #(.valueProperty ^ComboBox %))
                          property-change-listener-with-source-owner-window-lifecycle)}))
 
-(defn- select-box-view [{:keys [rt alignment variant disabled value options on_value_changed to_string]
+(defn- select-box-view [{:keys [rt alignment variant enabled value options on_value_changed to_string]
                          :or {options []
-                              disabled false
+                              enabled true
                               variant :default}}]
   (wrap-in-alignment-container
     {:fx/type ext-with-extra-combo-box-props
@@ -796,7 +528,7 @@
                    :pseudo-classes #{variant}
                    :on-key-pressed on-select-box-key-pressed
                    :items options
-                   :disable disabled}}
+                   :disable (not enabled)}}
      :props (cond-> {} on_value_changed (assoc :on-value-changed (make-event-handler-1 :window :value rt "on_value_changed" on_value_changed)))}
     alignment
     true))
@@ -805,24 +537,20 @@
 
 ;; region text field
 
-(def ^:private text-field-specific-props
-  [(make-prop :text :coerce coerce/string :doc "text")
-   (make-prop :on_text_changed :coerce coerce/function :doc "text change callback, will receive the new text")])
-
 (def ^:private ext-with-extra-text-field-props
   (fx/make-ext-with-props
     {:on-text-changed (fx.prop/make
                         (fx.mutator/property-change-listener #(.textProperty ^TextField %))
                         property-change-listener-with-source-owner-window-lifecycle)}))
 
-(defn- text-field-view [{:keys [rt text on_text_changed variant disabled alignment]
-                         :or {text "" variant :default disabled false}}]
+(defn- text-field-view [{:keys [rt text on_text_changed variant enabled alignment]
+                         :or {text "" variant :default enabled true}}]
   (wrap-in-alignment-container
     {:fx/type ext-with-extra-text-field-props
      :desc {:fx/type fx.text-field/lifecycle
             :style-class ["text-field" "ext-text-field"]
             :pseudo-classes #{variant}
-            :disable disabled
+            :disable (not enabled)
             :text text}
      :props (cond-> {} on_text_changed (assoc :on-text-changed (make-event-handler-1 :window :value rt "on_text_changed" on_text_changed)))}
     alignment true))
@@ -830,17 +558,6 @@
 ;; endregion
 
 ;; region value field
-
-(def ^:private value-field-specific-props
-  [(make-prop :value :coerce coerce/untouched :doc "value")
-   (make-prop :on_value_changed :coerce coerce/function :doc "value change callback, will receive the new value")])
-
-(def ^:private convertible-value-field-specific-props
-  (into [(make-prop :to_value :coerce coerce/function :required true
-                    :doc "covert string to value, should return converted value or <code>nil</code> if not convertible")
-         (make-prop :to_string :coerce coerce/function :required true
-                    :doc "covert value to string, should always return string")]
-        value-field-specific-props))
 
 (def ^:private value-field-value-coercer
   ;; if field value is null, coerce it to JVM null (for special handling in
@@ -862,28 +579,32 @@
 (defn- on-value-field-key-pressed [rt maybe-lua-value text on_value_changed to_value edit swap-state ^KeyEvent e]
   (condp = (.getCode e)
     KeyCode/ENTER
-    (when (meaningful-value-field-edit? edit maybe-lua-value text)
-      (let [maybe-new-lua-value (rt/->clj rt value-field-value-coercer (rt/invoke-immediate-1 rt to_value (rt/->lua edit)))]
-        ;; nil result from `to_value` means couldn't convert => keep editing
-        (if (nil? maybe-new-lua-value)
-          (let [^TextField text-field (.getSource e)
-                anim (SequentialTransition. text-field)]
-            (doto (.getChildren anim)
-              (.add (doto (TranslateTransition. (Duration. 30.0)) (.setByX 4.0)))
-              (.add (doto (TranslateTransition. (Duration. 30.0)) (.setByX -8.0)))
-              (.add (doto (TranslateTransition. (Duration. 30.0)) (.setByX 7.0)))
-              (.add (doto (TranslateTransition. (Duration. 30.0)) (.setByX -4.0)))
-              (.add (doto (TranslateTransition. (Duration. 30.0)) (.setByX 1.0))))
-            (.play anim)
-            (.consume e))
-          ;; new value!
-          (do (swap-state #(-> % (assoc :value maybe-new-lua-value) (dissoc :edit)))
-              (when (notify-value-field-change (event-source->owner-window e) rt on_value_changed maybe-lua-value maybe-new-lua-value)
-                (.consume e))))))
+    (do
+      (when (meaningful-value-field-edit? edit maybe-lua-value text)
+        (let [maybe-new-lua-value (try
+                                    (rt/->clj rt value-field-value-coercer (rt/invoke-immediate-1 rt to_value (rt/->lua edit)))
+                                    (catch LuaError _))]
+          ;; nil result or error from `to_value` means couldn't convert => keep editing
+          (if (nil? maybe-new-lua-value)
+            (let [^TextField text-field (.getSource e)
+                  anim (SequentialTransition. text-field)]
+              (doto (.getChildren anim)
+                (.add (doto (TranslateTransition. (Duration. 30.0)) (.setByX 4.0)))
+                (.add (doto (TranslateTransition. (Duration. 30.0)) (.setByX -8.0)))
+                (.add (doto (TranslateTransition. (Duration. 30.0)) (.setByX 7.0)))
+                (.add (doto (TranslateTransition. (Duration. 30.0)) (.setByX -4.0)))
+                (.add (doto (TranslateTransition. (Duration. 30.0)) (.setByX 1.0))))
+              (.play anim)
+              (.consume e))
+            ;; new value!
+            (do (swap-state #(-> % (assoc :value maybe-new-lua-value) (dissoc :edit)))
+                (notify-value-field-change (event-source->owner-window e) rt on_value_changed maybe-lua-value maybe-new-lua-value)))))
+      (.consume e))
 
     KeyCode/ESCAPE
-    (when edit
-      (swap-state dissoc :edit)
+    (do
+      (when edit
+        (swap-state dissoc :edit))
       (.consume e))
 
     nil))
@@ -891,9 +612,13 @@
 (defn- on-value-field-focus-changed [rt maybe-lua-value text on_value_changed to_value edit swap-state {focused :value owner-window :window}]
   (when (and (not focused)
              (meaningful-value-field-edit? edit maybe-lua-value text))
-    (let [maybe-new-lua-value (rt/->clj rt value-field-value-coercer (rt/invoke-immediate-1 rt to_value (rt/->lua edit)))]
+    (let [maybe-new-lua-value (try
+                                (rt/->clj rt value-field-value-coercer (rt/invoke-immediate-1 rt to_value (rt/->lua edit)))
+                                (catch LuaError _))]
+      ;; nil result or error from `to_value` means couldn't convert => discard edit
       (if (nil? maybe-new-lua-value)
         (swap-state dissoc :edit)
+        ;; new value!
         (do (swap-state #(-> % (assoc :value maybe-new-lua-value) (dissoc :edit)))
             (notify-value-field-change owner-window rt on_value_changed maybe-lua-value maybe-new-lua-value))))))
 
@@ -919,10 +644,10 @@
            to_value
            #_to_string                                      ;; the key is here, but unused, see value-field-view-impl-1
            variant
-           disabled
+           enabled
            alignment]
     :or {variant :default
-         disabled false}}]
+         enabled true}}]
   (let [{:keys [edit]} state]
     (wrap-in-alignment-container
       {:fx/type ext-with-extra-value-field-props
@@ -930,7 +655,7 @@
                :on-focused-changed #(on-value-field-focus-changed rt value text on_value_changed to_value edit swap-state %)}
        :desc {:fx/type fx.text-field/lifecycle
               :style-class ["text-field" "ext-text-field"]
-              :disable disabled
+              :disable (not enabled)
               :pseudo-classes #{variant}
               :on-text-changed #(swap-state assoc :edit %)
               :on-key-pressed #(on-value-field-key-pressed rt value text on_value_changed to_value edit swap-state %)}}
@@ -1002,71 +727,14 @@
 
 ;; endregion
 
-(def ^:private input-components
-  [(make-component
-     "icon_button"
-     :props (into [] cat [icon-specific-props button-specific-props common-input-props])
-     :description "Button with an icon"
-     :fn icon-button-view)
-   (make-component
-     "text_button"
-     :props (into [] cat [label-without-variant-specific-props button-specific-props common-input-props])
-     :description "Button with a label"
-     :fn text-button-view)
-   (make-component
-     "button"
-     :props (into [] cat [button-specific-props [required-child-prop] common-input-props])
-     :description "Generic button with a required child component"
-     :fn default-button-view)
-   (make-component
-     "text_check_box"
-     :props (into [] cat [label-without-variant-specific-props check-box-specific-props input-with-variant-props])
-     :description "Check box with a label"
-     :fn text-check-box-view)
-   (make-component
-     "check_box"
-     :props (into [] cat [check-box-specific-props [(assoc required-child-prop :required false)] input-with-variant-props])
-     :description "Generic check box with an optional child component"
-     :fn check-box-view)
-   (make-component
-     "select_box"
-     :props (into select-box-specific-props input-with-variant-props)
-     :description "Dropdown select box with an array of options"
-     :fn select-box-view)
-   (make-component
-     "text_field"
-     :props (into text-field-specific-props input-with-variant-props)
-     :description "Single-line text field, reports changes on typing"
-     :fn text-field-view)
-   (make-component
-     "value_field"
-     :props (into convertible-value-field-specific-props input-with-variant-props)
-     :description "Input component based on a text field, reports changes on commit (<code>Enter</code> or focus loss). See also: <code>string_field</code>, <code>number_field</code> and <code>integer_field</code>"
-     :fn value-field-view)
-   (make-component
-     "string_field"
-     :props (into value-field-specific-props input-with-variant-props)
-     :description "String input component based on a text field, reports changes on commit (<code>Enter</code> or focus loss)"
-     :fn string-field-view)
-   (make-component
-     "integer_field"
-     :props (into value-field-specific-props input-with-variant-props)
-     :description "Integer input component based on a text field, reports changes on commit (<code>Enter</code> or focus loss)"
-     :fn integer-field-view)
-   (make-component
-     "number_field"
-     :props (into value-field-specific-props input-with-variant-props)
-     :description "Number input component based on a text field, reports changes on commit (<code>Enter</code> or focus loss)"
-     :fn number-field-view)])
-
 ;; endregion
 
 ;; region dialog components
 
-(defn- dialog-button-view [{:keys [disabled text result cancel default]
-                            :or {disabled false cancel false default false}}]
+(defn- dialog-button-view [{:keys [enabled text result cancel default]
+                            :or {enabled true cancel false default false}}]
   (let [button {:fx/type fxui/button
-                :disable disabled
+                :disable (not enabled)
                 :variant (if default :primary :secondary)
                 :cancel-button cancel
                 :default-button default
@@ -1099,48 +767,6 @@
              :footer footer}
             content
             (assoc :content content))))
-
-(def ^:private dialog-components
-  [(make-component
-     "dialog_button"
-     :props [(make-prop :text
-                        :coerce coerce/string
-                        :required true
-                        :doc "button text")
-             (make-prop :result
-                        :coerce coerce/untouched
-                        :doc "value returned by <code>editor.ui.show_dialog(...)</code> if this button is pressed")
-             (make-prop :default
-                        :coerce coerce/boolean
-                        :doc "if set, pressing <code>Enter</code> in the dialog will trigger this button")
-             (make-prop :cancel
-                        :coerce coerce/boolean
-                        :doc "if set, pressing <code>Escape</code> in the dialog will trigger this button")
-             (make-prop :disabled
-                        :coerce coerce/boolean
-                        :doc "determines if the button is disabled or not")]
-     :description "Dialog button shown in the footer of a dialog"
-     :fn dialog-button-view)
-   (make-component
-     "dialog"
-     :props [(make-prop :title
-                        :coerce coerce/string
-                        :required true
-                        :doc "OS dialog window title")
-             (make-prop :header
-                        :coerce child-coercer
-                        :types ["component"]
-                        :doc "top part of the dialog")
-             (make-prop :content
-                        :coerce child-coercer
-                        :types ["component"]
-                        :doc "content of the dialog")
-             (make-prop :buttons
-                        :coerce children-coercer
-                        :types ["component[]"]
-                        :doc "array of <code>editor.ui.dialog_button(...)</code> components, footer of the dialog. Defaults to a single Close button")]
-     :description "Dialog component, a special component that can't be used as a child of other components"
-     :fn dialog-view)])
 
 ;; endregion
 
@@ -1196,23 +822,11 @@
    :props {:showing (fxui/dialog-showing? props)}
    :desc desc})
 
-(def ^:private show-dialog-completion
-  (lua-completion/make
-    {:name "show_dialog"
-     :type :function
-     :description "Show a dialog and await for result"
-     :parameters [{:name "dialog"
-                   :types ["component"]
-                   :doc "A component that resolves to <code>editor.ui.dialog(...)</code>"}]
-     :returnvalues [{:name "value"
-                     :types ["any"]
-                     :doc "dialog result"}]}))
-
 (def ^:private lua-show-dialog-fn
   (rt/suspendable-lua-fn show-dialog [{:keys [rt]} lua-dialog-component]
     (let [desc {:fx/type show-dialog-wrapper-view
                 :desc {:fx/type evaluation-context-lifecycle
-                       :desc (rt/->clj rt component-coercer lua-dialog-component)}}
+                       :desc (rt/->clj rt ui-docs/component-coercer lua-dialog-component)}}
           f (future/make)]
       (fx/run-later
         (future/complete!
@@ -1227,58 +841,11 @@
 
 ;; region show_external_file_dialog
 
-(def ^:private external-file-dialog-title-doc
-  "OS window title")
-
-(def ^:private external-file-dialog-filters-doc-types
-  ["string[]"])
-
-(def ^:private external-file-dialog-filters-doc
-  (str "File filters, an array of filter tables, where each filter has following keys:"
-       (lua-completion/args-doc-html
-         [{:name "description"
-           :types ["string"]
-           :doc "string explaining the filter, e.g. <code>\"Text files (*.txt)\"</code>"}
-          {:name "extensions"
-           :types external-file-dialog-filters-doc-types
-           :doc "array of file extension patterns, e.g. <code>\"*.txt\"</code>, <code>\"*.*\"</code> or <code>\"game.project\"</code>"}])))
-
-(def ^:private external-file-dialog-filters-coercer
-  (coerce/vector-of
-    (coerce/hash-map
-      :req {:description coerce/string
-            :extensions (coerce/vector-of
-                          coerce/string
-                          :min-count 1
-                          :distinct true)})
-    :min-count 1))
-
 (def ^:private show-external-file-dialog-opts-coercer
   (coerce/hash-map
     :opt {:title coerce/string
           :path coerce/string
-          :filters external-file-dialog-filters-coercer}))
-
-(def ^:private show-external-file-dialog-completion
-  (lua-completion/make
-    {:name "show_external_file_dialog"
-     :type :function
-     :description "Show OS file selection dialog and await for result"
-     :parameters [{:name "[opts]"
-                   :types ["table"]
-                   :doc (lua-completion/args-doc-html
-                          [{:name "path"
-                            :types ["string"]
-                            :doc "initial file or directory path used by the dialog; resolved against project root if relative"}
-                           {:name "title"
-                            :types ["string"]
-                            :doc external-file-dialog-title-doc}
-                           {:name "filters"
-                            :types ["table[]"]
-                            :doc external-file-dialog-filters-doc}])}]
-     :returnvalues [{:name "value"
-                     :types ["string" "nil"]
-                     :doc "Either absolute file path or nil if user canceled file selection"}]}))
+          :filters ui-docs/external-file-dialog-filters-coercer}))
 
 (defn- make-show-external-file-dialog-lua-fn [^Path project-path]
   (rt/suspendable-lua-fn select-external-file
@@ -1330,24 +897,6 @@
     :opt {:title coerce/string
           :path coerce/string}))
 
-(def ^:private show-external-directory-dialog-completion
-  (lua-completion/make
-    {:name "show_external_directory_dialog"
-     :type :function
-     :description "Show OS directory selection dialog and await for result"
-     :parameters [{:name "[opts]"
-                   :types ["table"]
-                   :doc (lua-completion/args-doc-html
-                          [{:name "path"
-                            :types ["string"]
-                            :doc "initial file or directory path used by the dialog; resolved against project root if relative"}
-                           {:name "title"
-                            :types ["string"]
-                            :doc external-file-dialog-title-doc}])}]
-     :returnvalues [{:name "value"
-                     :types ["string" "nil"]
-                     :doc "Either absolute directory path or nil if user canceled directory selection"}]}))
-
 (defn- make-show-external-directory-dialog-lua-fn [^Path project-path]
   (rt/suspendable-lua-fn show-external-directory-dialog
     ([ctx]
@@ -1374,21 +923,39 @@
 
 ;; endregion
 
-;; region external_file_field
+;; region show_resource_dialog
 
-;; The implementation is in prelude.lua!
+;; ext, title, selection
 
-(def ^:private external-file-field-props
-  (into [(make-prop :value :coerce coerce/string :doc "file or directory path; resolved against project root if relative")
-         (make-prop :on_value_changed :coerce coerce/function :doc "value change callback, will receive the new file path")
-         (make-prop :title :coerce coerce/string :doc external-file-dialog-title-doc)
-         (make-prop :filters :coerce external-file-dialog-filters-coercer :doc external-file-dialog-filters-doc :types external-file-dialog-filters-doc-types)]
-        input-with-variant-props))
+(def ^:private show-resource-dialog-opts-coercer
+  (coerce/hash-map :opt {:extensions (coerce/vector-of coerce/string :min-count 1)
+                         :selection (coerce/enum :single :multiple)
+                         :title coerce/string}))
 
-(def ^:private external-file-field-completion
-  (component->completion
-    {:name "external_file_field"
-     :props external-file-field-props}))
+(defn- make-show-resource-dialog-lua-fn [workspace project]
+  (rt/suspendable-lua-fn show-resource-dialog
+    ([ctx] (show-resource-dialog ctx nil))
+    ([{:keys [rt]} maybe-lua-opts]
+     (let [opts (when maybe-lua-opts
+                  (rt/->clj rt show-resource-dialog-opts-coercer maybe-lua-opts))
+           {:keys [selection extensions title]
+            :or {selection :single
+                 title "Select Resource"}} opts
+           f (future/make)
+           owner (current-owner-window)]
+       (fx/run-later
+         (try
+           (future/complete!
+             f
+             (when-let [results (resource-dialog/make workspace project {:selection selection
+                                                                         :ext extensions
+                                                                         :title title
+                                                                         :owner owner})]
+               (case selection
+                 :single (some-> (first results) resource/proj-path)
+                 :multiple (coll/not-empty (mapv resource/proj-path results)))))
+           (catch Throwable e (future/fail! f e))))
+       f))))
 
 ;; endregion
 
@@ -1479,7 +1046,7 @@
         (try
           (let [new-state (with-nestable-evaluation-context
                             (let [lua-desc (invoke-with-hooks component-atom rt lua-fn lua-props)
-                                  desc (rt/->clj rt component-coercer lua-desc)
+                                  desc (rt/->clj rt ui-docs/component-coercer lua-desc)
                                   new-child (advance-component-child child desc opts)]
                               (swap! component-atom complete-hook-triggered-advance desc new-child render-counter)))]
             (when (and (not= :delete (:mode new-state))
@@ -1511,7 +1078,7 @@
                                        :meta component-atom-meta)
                              (add-watch this component-atom-watcher))
             lua-desc (invoke-with-hooks component-atom rt lua-fn lua-props)
-            desc (rt/->clj rt component-coercer lua-desc)]
+            desc (rt/->clj rt ui-docs/component-coercer lua-desc)]
         (doto component-atom
           (swap! assoc
                  :mode :advance
@@ -1525,7 +1092,7 @@
             (try
               (let [desc (if (rt/tables-shallow-eq? rt (:lua-props component-state) lua-props)
                            (:desc component-state)
-                           (rt/->clj rt component-coercer (invoke-with-hooks component-atom rt lua-fn lua-props)))
+                           (rt/->clj rt ui-docs/component-coercer (invoke-with-hooks component-atom rt lua-fn lua-props)))
                     new-child (advance-component-child (:child component-state) desc opts)]
                 (swap! component-atom complete-component-advance lua-props desc new-child opts (:render-counter component-state)))
               (catch LuaError e (report-error-to-script rt (rt/->clj rt coerce/to-string lua-fn) e))
@@ -1538,27 +1105,11 @@
       (swap! component-atom assoc :mode :delete)
       (fx.lifecycle/delete fx.lifecycle/dynamic (:child @component-atom) opts))))
 
-(def ^:private read-only-props-coercer
-  (coerce/hash-map :opt (coll/pair-map-by :name :coerce read-only-common-props)))
-
-(def ^:private function-component-completion
-  (lua-completion/make
-    {:name "component"
-     :type :function
-     :description (str "Convert a function to a UI component.\n\nThe wrapped function may call any hooks functions (`editor.ui.use_*`), but on any function invocation, the hooks calls must be the same, and in the same order. This means that hooks should not be used inside loops and conditions or after a conditional return statement.\n\nThe following props are supported automatically:"
-                       (props-doc-html read-only-common-props))
-     :parameters [{:name "fn"
-                   :types ["function"]
-                   :doc "Component function, will receive a single table of props when called"}]
-     :returnvalues [{:name "value"
-                     :types ["component"]
-                     :doc "the component"}]}))
-
 (def ^:private function-component-lua-fn
   (rt/lua-fn function-component [{:keys [rt]} lua-fn]
     (DefoldVarArgFn.
       (fn create-function-component [lua-props]
-        (let [read-only-props (rt/->clj rt read-only-props-coercer lua-props)]
+        (let [read-only-props (rt/->clj rt ui-docs/read-only-props-coercer lua-props)]
           (-> {:fx/type lua-component-lifecycle
                :rt rt
                :lua-fn lua-fn
@@ -1596,41 +1147,6 @@
              (rt/eq? rt (as i) (bs i)) (recur (inc i))
              :else false)))))
 
-(def ^:private use-state-completion
-  (lua-completion/make
-    {:name "use_state"
-     :type :function
-     :description "A hook that adds local state to the component. See `editor.ui.component` for hooks caveats and rules. If any of the arguments to `use_state` change during a component refresh (checked with `==`), the current state will be reset to the initial one."
-     :parameters [{:name "init"
-                   :types ["any" "function"]
-                   :doc "Local state initializer, either initial data structure or function that produces the data structure"}
-                  {:name "[...]"
-                   :types ["...any"]
-                   :doc "used when <code>init</code> is a function, the args are passed to the initializer function"}]
-     :returnvalues [{:name "state"
-                     :types ["any"]
-                     :doc "current local state, starts with initial state, then may be changed using the returned <code>set_state</code> function"}
-                    {:name "set_state"
-                     :types ["function"]
-                     :doc "function that changes the local state and causes the component to refresh. The function may be used in 2 ways:
-                        <ul>
-                          <li>to set the state to some other data structure: pass the data structure as a value</li>
-                          <li>to replace the state using updater function: pass a function to <code>set_state</code> — it will be invoked with the current state, as well as with the rest of the arguments passed to <code>set_state</code> after the updater function. The state will be set to the value returned from the updater function</lia>
-                        </ul>"}]
-     :examples "<pre><code>local function increment(n)
-  return n + 1
-end
-
-local counter_button = editor.ui.component(function(props)
-  local count, set_count = editor.ui.use_state(props.count)
-  return editor.ui.text_button {
-    text = tostring(count),
-    on_pressed = function()
-      set_count(increment)
-    end
-  }
-end)</code></pre>"}))
-
 (def ^:private use-state-hook
   (let [lua-nil (rt/->lua nil)]
     (letfn [(lua-args->type+dependencies [rt lua-args]
@@ -1667,7 +1183,7 @@ end)</code></pre>"}))
                                               (apply rt/invoke-immediate-1 rt lua-fn
                                                      (conj (into [old-lua-value] lua-args) evaluation-context))))))))))]
       (make-hook
-        (:name use-state-completion)
+        (:name ui-docs/use-state-doc)
         :create (fn create-use-hook-state [component-atom {:keys [rt current-hook-index]} evaluation-context & lua-args]
                   (let [type+dependencies (lua-args->type+dependencies rt lua-args)]
                     {:dependencies type+dependencies
@@ -1685,42 +1201,10 @@ end)</code></pre>"}))
 ;; endregion
 
 ;; region use_memo
-(def ^:private use-memo-completion
-  (lua-completion/make
-    {:name "use_memo"
-     :type :function
-     :description "A hook that caches the result of a computation between re-renders. See `editor.ui.component` for hooks caveats and rules. If any of the arguments to `use_memo` change during a component refresh (checked with `==`), the value will be recomputed."
-     :parameters [{:name "compute"
-                   :types ["function"]
-                   :doc "function that will be used to compute the cached value"}
-                  {:name "[...]"
-                   :types ["...any"]
-                   :doc "args to the computation function"}]
-     :returnvalues [{:name "values"
-                     :types ["...any"]
-                     :doc "all returned values of the compute function"}]
-     :examples "<pre><code>local function increment(n)
-    return n + 1
-end
-
-local function make_listener(set_count)
-    return function()
-        set_count(increment)
-    end
-end
-
-local counter_button = editor.ui.component(function(props)
-    local count, set_count = editor.ui.use_state(props.count)
-    local on_pressed = editor.ui.use_memo(make_listener, set_count)
-    return editor.ui.text_button {
-        text = tostring(count),
-        on_pressed = on_pressed
-    }
-end)</code></pre>"}))
 
 (def ^:private use-memo-hook
   (make-hook
-    (:name use-memo-completion)
+    (:name ui-docs/use-memo-doc)
     :create (fn create-use-memo-state [_ {:keys [rt]} evaluation-context & lua-args]
               (let [deps (vec lua-args)]
                 {:dependencies deps
@@ -1768,40 +1252,45 @@ end)</code></pre>"}))
 
 ;; endregion
 
-(def components
-  (into [] cat [layout-components
-                data-presentation-components
-                input-components
-                dialog-components]))
-
-(defn completions
-  "Returns reducible with all ui-related completions"
-  []
-  (eduction
-    cat
-    [(eduction (map component->completion) components)
-     [show-dialog-completion
-      function-component-completion
-      show-external-file-dialog-completion
-      show-external-directory-dialog-completion
-      external-file-field-completion
-      use-state-completion
-      use-memo-completion]]))
-
-(defn env [project-path]
+(defn env [workspace project project-path]
   (into {}
         cat
         [(eduction
-           (mapcat
+           (map
              (fn [[k vs]]
-               (eduction
-                 (map (coll/pair-fn #(enum-const-name k %) coerce/enum-lua-value-cache))
-                 vs)))
-           enums)
-         (eduction (map (coll/pair-fn :name component->lua-fn)) components)
-         [[(:name show-dialog-completion) lua-show-dialog-fn]
-          [(:name function-component-completion) function-component-lua-fn]
-          [(:name show-external-file-dialog-completion) (make-show-external-file-dialog-lua-fn project-path)]
-          [(:name show-external-directory-dialog-completion) (make-show-external-directory-dialog-lua-fn project-path)]
-          [(:name use-state-completion) (make-hook-lua-fn use-state-hook)]
-          [(:name use-memo-completion) (make-hook-lua-fn use-memo-hook)]]]))
+               [(ui-docs/->screaming-snake-case k)
+                (into {}
+                      (map (coll/pair-fn ui-docs/->screaming-snake-case coerce/enum-lua-value-cache))
+                      vs)]))
+           ui-docs/enums)
+         (eduction
+           (map (fn [[{:keys [name props]} view-fn]]
+                  (pair name (make-component-lua-fn name props view-fn))))
+           [[ui-docs/horizontal-component horizontal-view]
+            [ui-docs/vertical-component vertical-view]
+            [ui-docs/grid-component grid-view]
+            [ui-docs/separator-component separator-view]
+            [ui-docs/scroll-component scroll-view]
+            [ui-docs/label-component label-view]
+            [ui-docs/text-component text-view]
+            [ui-docs/icon-component icon-view]
+            [ui-docs/button-component button-view]
+            [ui-docs/check-box-component check-box-view]
+            [ui-docs/select-box-component select-box-view]
+            [ui-docs/text-field-component text-field-view]
+            [ui-docs/value-field-component value-field-view]
+            [ui-docs/string-field-component string-field-view]
+            [ui-docs/integer-field-component integer-field-view]
+            [ui-docs/number-field-component number-field-view]
+            [ui-docs/dialog-button-component dialog-button-view]
+            [ui-docs/dialog-component dialog-view]])
+         (eduction
+           (map (fn [[script-doc lua-fn]]
+                  [(:name script-doc) lua-fn]))
+           [[ui-docs/show-dialog-doc lua-show-dialog-fn]
+            [ui-docs/function-component-doc function-component-lua-fn]
+            [ui-docs/show-external-file-dialog-doc (make-show-external-file-dialog-lua-fn project-path)]
+            [ui-docs/show-external-directory-dialog-doc (make-show-external-directory-dialog-lua-fn project-path)]
+            [ui-docs/show-resource-dialog-doc (make-show-resource-dialog-lua-fn workspace project)]
+            [ui-docs/use-state-doc (make-hook-lua-fn use-state-hook)]
+            [ui-docs/use-memo-doc (make-hook-lua-fn use-memo-hook)]])]))

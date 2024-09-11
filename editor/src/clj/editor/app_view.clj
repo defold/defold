@@ -2688,7 +2688,7 @@ If you do not specifically require different script states, consider changing th
           platform (:platform-key last-bundle-options)]
       (bundle! main-stage tool-tab-pane changes-view build-errors-view project prefs platform last-bundle-options))))
 
-(defn reload-extensions! [app-view project kind workspace changes-view]
+(defn reload-extensions! [app-view project kind workspace changes-view prefs]
   (extensions/reload!
     project kind
     :reload-resources! (fn reload-resources! []
@@ -2718,9 +2718,17 @@ If you do not specifically require different script states, consider changing th
                                      (do (ui/user-data! (g/node-value app-view :scene) ::ui/refresh-requested? true)
                                          (future/complete! f nil))
                                      (future/fail! f (Exception. "Save failed")))))
-               f))))
+               f))
+    :open-resource! (fn open-resource! [resource]
+                      (let [f (future/make)]
+                        (ui/run-later
+                          (try
+                            (open-resource app-view prefs workspace project resource)
+                            (catch Throwable e (error-reporting/report-exception! e)))
+                          (future/complete! f nil))
+                        f))))
 
-(defn- fetch-libraries [app-view workspace project changes-view]
+(defn- fetch-libraries [app-view workspace project changes-view prefs]
   (let [library-uris (project/project-dependencies project)
         hosts (into #{} (map url/strip-path) library-uris)]
     (if-let [first-unreachable-host (first-where (complement url/reachable?) hosts)]
@@ -2743,28 +2751,28 @@ If you do not specifically require different script states, consider changing th
                   (disk/async-reload! render-install-progress! workspace [] changes-view
                                       (fn [success]
                                         (when success
-                                          (reload-extensions! app-view project :library workspace changes-view)))))))))))))
+                                          (reload-extensions! app-view project :library workspace changes-view prefs)))))))))))))
 
 (handler/defhandler :add-dependency :global
   (enabled? [] (disk-availability/available?))
-  (run [selection app-view workspace project changes-view user-data]
+  (run [selection app-view workspace project changes-view user-data prefs]
        (let [game-project (project/get-resource-node project "/game.project")
              dependencies (game-project/get-setting game-project ["project" "dependencies"])
              dependency-uri (.toURI (URL. (:dep-url user-data)))]
          (when (not-any? (partial = dependency-uri) dependencies)
            (game-project/set-setting! game-project ["project" "dependencies"]
                                       (conj (vec dependencies) dependency-uri))
-           (fetch-libraries app-view workspace project changes-view)))))
+           (fetch-libraries app-view workspace project changes-view prefs)))))
 
 (handler/defhandler :fetch-libraries :global
   (enabled? [] (disk-availability/available?))
-  (run [app-view workspace project changes-view]
-       (fetch-libraries app-view workspace project changes-view)))
+  (run [app-view workspace project changes-view prefs]
+       (fetch-libraries app-view workspace project changes-view prefs)))
 
 (handler/defhandler :reload-extensions :global
   (enabled? [] (disk-availability/available?))
-  (run [app-view project workspace changes-view]
-       (reload-extensions! app-view project :all workspace changes-view)))
+  (run [app-view project workspace changes-view prefs]
+       (reload-extensions! app-view project :all workspace changes-view prefs)))
 
 (defn- ensure-exists-and-open-for-editing! [proj-path app-view changes-view prefs project]
   (let [workspace (project/workspace project)

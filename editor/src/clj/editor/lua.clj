@@ -19,7 +19,7 @@
             [clojure.spec.alpha :as s]
             [clojure.string :as string]
             [editor.code-completion :as code-completion]
-            [editor.editor-extensions.ui-components :as ui-components]
+            [editor.editor-extensions.ui-docs :as ui-docs]
             [editor.lua-completion :as lua-completion]
             [editor.protobuf :as protobuf]
             [editor.system :as system]
@@ -231,65 +231,73 @@
               script-intelligence-completions
               (make-ast-completions local-completion-info required-completion-infos)))
 
-(def editor-completions
+(defn editor-script-docs
+  "Returns reducible with script doc maps covering the editor API"
+  []
   (let [node-param {:name "node"
                     :types ["string" "userdata"]
                     :doc "Either resource path (e.g. <code>\"/main/game.script\"</code>), or internal node id passed to the script by the editor"}
         property-param {:name "property"
                         :types ["string"]
                         :doc "Either <code>\"path\"</code>, <code>\"text\"</code>, or a property from the Outline view (hover the label to see its editor script name)"}]
-    (make-completion-map
-      (-> [[[] (lua-completion/make
-                 {:name "editor"
-                  :type :module
-                  :description "The editor module, only available when the Lua code is run as [editor script](https://defold.com/manuals/editor-scripts/)."})]
-           [["editor"] (lua-completion/make
-                         {:name "get"
-                          :type :function
-                          :parameters [node-param property-param]
-                          :returnvalues [{:name "value"
-                                          :types ["any"]}]
-                          :description "Get a value of a node inside the editor. Some properties might be read-only, and some might be unavailable in different contexts, so you should use `editor.can_get()` before reading them and `editor.can_set()` before making the editor set them."})]
-           [["editor"] (lua-completion/make
-                         {:name "can_get"
-                          :type :function
-                          :parameters [node-param property-param]
-                          :returnvalues [{:name "value"
-                                          :types ["boolean"]}]
-                          :description "Check if you can get this property so `editor.get()` won't throw an error"})]
-           [["editor"] (lua-completion/make
-                         {:name "can_set"
-                          :type :function
-                          :parameters [node-param property-param]
-                          :returnvalues [{:name "value"
-                                          :types ["boolean"]}]
-                          :description "Check if `\"set\"` action with this property won't throw an error"})]
-           [["editor"] (lua-completion/make
-                         {:name "create_directory"
-                          :type :function
-                          :parameters [{:name "resource_path"
-                                        :types ["string"]
-                                        :doc "Resource path (starting with <code>/</code>) of a directory to create"}]
-                          :description "Create a directory if it does not exist, and all non-existent parent directories. Throws an error if the directory can't be created."
-                          :examples "```\neditor.create_directory(\"/assets/gen\")\n```"})]
-           [["editor"] (lua-completion/make
-                         {:name "delete_directory"
-                          :type :function
-                          :parameters [{:name "resource_path"
-                                        :types ["string"]
-                                        :doc "Resource path (starting with <code>/</code>) of a directory to delete"}]
-                          :description "Delete a directory if it exists, and all existent child directories and files. Throws an error if the directory can't be deleted."
-                          :examples "```\neditor.delete_directory(\"/assets/gen\")\n```"})]
-           [["editor"] (lua-completion/make
-                         {:name "external_file_attributes"
-                          :type :function
-                          :description "Query information about file system path"
-                          :parameters [{:name "path"
-                                        :types ["string"]
-                                        :doc "External file path, resolved against project root if relative"}]
-                          :returnvalues [{:name "attributes"
-                                          :types ["table"]
-                                          :doc "A table with following keys:<dl>
+    (eduction
+      cat
+      [[{:name "editor"
+         :type :module
+         :description "The editor module, only available when the Lua code is run as [editor script](https://defold.com/manuals/editor-scripts/)."}
+        {:name "editor.get"
+         :type :function
+         :parameters [node-param property-param]
+         :returnvalues [{:name "value"
+                         :types ["any"]
+                         :doc "property value"}]
+         :description "Get a value of a node property inside the editor.\n\nSome properties might be read-only, and some might be unavailable in different contexts, so you should use `editor.can_get()` before reading them and `editor.can_set()` before making the editor set them."}
+        {:name "editor.can_get"
+         :type :function
+         :parameters [node-param property-param]
+         :returnvalues [{:name "value"
+                         :types ["boolean"]
+                         :doc ""}]
+         :description "Check if you can get this property so `editor.get()` won't throw an error"}
+        {:name "editor.can_set"
+         :type :function
+         :parameters [node-param property-param]
+         :returnvalues [{:name "value"
+                         :types ["boolean"]
+                         :doc ""}]
+         :description "Check if `\"set\"` action with this property won't throw an error"}
+        {:name "editor.resource_exists"
+         :type :function
+         :description "Check if a given resource path exists in the project"
+         :parameters [{:name "resource_path"
+                       :types ["string"]
+                       :doc "Resource path (starting with <code>/</code>) of a directory to look up"}]
+         :returnvalues [{:name "value"
+                         :types ["boolean"]
+                         :doc ""}]}
+        {:name "editor.create_directory"
+         :type :function
+         :parameters [{:name "resource_path"
+                       :types ["string"]
+                       :doc "Resource path (starting with <code>/</code>) of a directory to create"}]
+         :description "Create a directory if it does not exist, and all non-existent parent directories.\n\nThrows an error if the directory can't be created."
+         :examples "```\neditor.create_directory(\"/assets/gen\")\n```"}
+        {:name "editor.delete_directory"
+         :type :function
+         :parameters [{:name "resource_path"
+                       :types ["string"]
+                       :doc "Resource path (starting with <code>/</code>) of a directory to delete"}]
+         :description "Delete a directory if it exists, and all existent child directories and files.\n\nThrows an error if the directory can't be deleted."
+         :examples "```\neditor.delete_directory(\"/assets/gen\")\n```"}
+        {:name "editor.external_file_attributes"
+         :type :function
+         :description "Query information about file system path"
+         :parameters [{:name "path"
+                       :types ["string"]
+                       :doc "External file path, resolved against project root if relative"}]
+         :returnvalues [{:name "attributes"
+                         :types ["table"]
+                         :doc "A table with following keys:<dl>
                                                  <dt><code>path <small>string</small></code></dt>
                                                  <dd>resolved file path</dd>
                                                  <dt><code>exists <small>boolean</small></code></dt>
@@ -298,19 +306,18 @@
                                                  <dd>whether the path corresponds to a file</dd>
                                                  <dt><code>is_directory <small>boolean</small></code></dt>
                                                  <dd>whether the path corresponds to a directory</dd>
-                                               </dl>"}]})]
-           [["editor"] (lua-completion/make
-                         {:name "execute"
-                          :type :function
-                          :parameters [{:name "command"
-                                        :types ["string"]
-                                        :doc "Shell command name to execute"}
-                                       {:name "[...]"
-                                        :types ["string"]
-                                        :doc "Optional shell command arguments"}
-                                       {:name "[options]"
-                                        :types ["table"]
-                                        :doc "Optional options table. Supported entries:
+                                               </dl>"}]}
+        {:name "editor.execute"
+         :type :function
+         :parameters [{:name "command"
+                       :types ["string"]
+                       :doc "Shell command name to execute"}
+                      {:name "[...]"
+                       :types ["string"]
+                       :doc "Optional shell command arguments"}
+                      {:name "[options]"
+                       :types ["table"]
+                       :doc "Optional options table. Supported entries:
                                            <ul>
                                              <li>
                                                <span class=\"type\">boolean</span> <code>reload_resources</code>: make the editor reload the resources from disk after the command is executed, default <code>true</code>
@@ -344,70 +351,80 @@
                                                </ul>
                                              </li>
                                            </ul>"}]
-                          :returnvalues [{:name "result"
-                                          :types ["nil" "string"]
-                                          :doc "If <code>out</code> option is set to <code>\"capture\"</code>, returns the output as string with trimmed trailing newlines. Otherwise, returns <code>nil</code>."}]
-                          :description "Execute a shell command. Any shell command arguments should be provided as separate argument strings to this function. If the exit code of the process is not zero, this function throws error. By default, the function returns `nil`, but it can be configured to capture the output of the shell command as string and return it — set `out` option to `\"capture\"` to do it.<br>By default, after this shell command is executed, the editor will reload resources from disk."
-                          :examples "Make a directory with spaces in it:\n```\neditor.execute(\"mkdir\", \"new dir\")\n```\nRead the git status:\n```\nlocal status = editor.execute(\"git\", \"status\", \"--porcelain\", {\n  reload_resources = false,\n  out = \"capture\"\n})\n```"})]
-           [["editor"] (lua-completion/make
-                         {:name "platform"
-                          :type :variable
-                          :description "A `string`, either:\n- `\"x86_64-win32\"`\n- `\"x86_64-macos\"`\n- `\"arm64-macos\"`\n- `\"x86_64-linux\"`"})]
-           [["editor"] (lua-completion/make
-                         {:name "save"
-                          :type :function
-                          :parameters []
-                          :description "Persist any unsaved changes to disk"})]
-           [["editor"] (lua-completion/make
-                         {:name "transact"
-                          :type :function
-                          :parameters [{:name "txs"
-                                        :types ["transaction_step[]"]
-                                        :doc "An array of transaction steps created using <code>editor.tx.*</code> functions"}]
-                          :description "Change the editor state in a single, undoable transaction"})]
-           [["editor"] (lua-completion/make
-                         {:name "tx"
-                          :type :module
-                          :description "The editor module that defines function for creating transaction steps for `editor.transact()` function."})]
-           [["editor" "tx"] (lua-completion/make
-                              {:name "set"
-                               :type :function
-                               :parameters [node-param
-                                            property-param
-                                            {:name "value"
-                                             :types ["any"]
-                                             :doc "A new value for the property"}]
-                               :returnvalues [{:name "result"
-                                               :types ["transaction_step"]
-                                               :doc "A transaction step"}]
-                               :description "Create a transaction step that, when transacted using `editor.transact()`, will set the node's property to a supplied value"})]
-           [["editor"] (lua-completion/make
-                         {:name "version"
-                          :type :variable
-                          :description (format "A string, version name of Defold, e.g. `\"%s\"`" (system/defold-version))})]
-           [["editor"] (lua-completion/make
-                         {:name "engine_sha1"
-                          :type :variable
-                          :description "A string, SHA1 of Defold engine"})]
-           [["editor"] (lua-completion/make
-                         {:name "editor_sha1"
-                          :type :variable
-                          :description "A string, SHA1 of Defold editor"})]]
-          (into
-            cat
-            [(eduction
-               (mapcat
-                 (fn [[k vs]]
-                   (eduction
-                     (map (fn [v]
-                            [["editor" "ui"]
-                             (lua-completion/make
-                               {:name (ui-components/enum-const-name k v)
-                                :type :constant
-                                :description (format "`\"%s\"`" (name v))})]))
-                     vs)))
-               ui-components/enums)
-             (eduction
-               (map (fn [completion-map]
-                      [["editor" "ui"] completion-map]))
-               (ui-components/completions))])))))
+         :returnvalues [{:name "result"
+                         :types ["nil" "string"]
+                         :doc "If <code>out</code> option is set to <code>\"capture\"</code>, returns the output as string with trimmed trailing newlines. Otherwise, returns <code>nil</code>."}]
+         :description "Execute a shell command.\n\nAny shell command arguments should be provided as separate argument strings to this function. If the exit code of the process is not zero, this function throws error. By default, the function returns `nil`, but it can be configured to capture the output of the shell command as string and return it — set `out` option to `\"capture\"` to do it.<br>By default, after this shell command is executed, the editor will reload resources from disk."
+         :examples "Make a directory with spaces in it:\n```\neditor.execute(\"mkdir\", \"new dir\")\n```\nRead the git status:\n```\nlocal status = editor.execute(\"git\", \"status\", \"--porcelain\", {\n  reload_resources = false,\n  out = \"capture\"\n})\n```"}
+        {:name "editor.platform"
+         :type :variable
+         :description "Editor platform id.\n\nA `string`, either:\n- `\"x86_64-win32\"`\n- `\"x86_64-macos\"`\n- `\"arm64-macos\"`\n- `\"x86_64-linux\"`"}
+        {:name "editor.save"
+         :type :function
+         :parameters []
+         :description "Persist any unsaved changes to disk"}
+        {:name "editor.transact"
+         :type :function
+         :parameters [{:name "txs"
+                       :types ["transaction_step[]"]
+                       :doc "An array of transaction steps created using <code>editor.tx.*</code> functions"}]
+         :description "Change the editor state in a single, undoable transaction"}
+        {:name "editor.tx"
+         :type :module
+         :description "The editor module that defines function for creating transaction steps for `editor.transact()` function."}
+        {:name "editor.tx.set"
+         :type :function
+         :parameters [node-param
+                      property-param
+                      {:name "value"
+                       :types ["any"]
+                       :doc "A new value for the property"}]
+         :returnvalues [{:name "result"
+                         :types ["transaction_step"]
+                         :doc "A transaction step"}]
+         :description "Create a set transaction step.\n\nWhen the step is transacted using `editor.transact()`, it will set the node's property to a supplied value"}
+        {:name "editor.version"
+         :type :variable
+         :description (format "A string, version name of Defold.\n\ne.g. `\"%s\"`" (system/defold-version))}
+        {:name "editor.engine_sha1"
+         :type :variable
+         :description "A string, SHA1 of Defold engine"}
+        {:name "editor.editor_sha1"
+         :type :variable
+         :description "A string, SHA1 of Defold editor"}
+        {:name "editor.ui"
+         :type :module
+         :description "Module with functions for creating UI elements in the editor"}
+        {:name "editor.ui.open_resource"
+         :type :function
+         :description "Open a resource, either in the editor or in a third-party app"
+         :parameters [{:name "resource_path"
+                       :types ["string"]
+                       :doc "Resource path (starting with <code>/</code>) of a resource to open"}]}]
+       (eduction
+         (mapcat
+           (fn [[enum-id enum-values]]
+             (let [id (ui-docs/->screaming-snake-case enum-id)]
+               (eduction
+                 cat
+                 [[{:name (str "editor.ui." id)
+                    :type :module
+                    :description (str "Constants for "
+                                      (string/replace (name enum-id) \_ \space)
+                                      " enums")}]
+                  (eduction
+                    (map (fn [enum-value]
+                           {:name (str "editor.ui." id "." (ui-docs/->screaming-snake-case enum-value))
+                            :type :constant
+                            :description (format "`\"%s\"`" (name enum-value))}))
+                    enum-values)]))))
+         ui-docs/enums)
+       (ui-docs/script-docs)])))
+
+(def editor-completions
+  (make-completion-map
+    (eduction
+      (map (fn [doc]
+             (let [name-parts (string/split (:name doc) #"\.")]
+               [(pop name-parts) (lua-completion/make (assoc doc :name (peek name-parts)))])))
+      (editor-script-docs))))

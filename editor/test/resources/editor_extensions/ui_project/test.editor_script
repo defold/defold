@@ -6,66 +6,58 @@ function M.get_commands()
             label = "Test UI",
             locations = {"Edit"},
             run = function()
-                editor.ui.dialog({
+                local dialog = editor.ui.dialog({
                     title = "Dialog title",
                     header = editor.ui.label({
                         text = "Header on the Right",
-                        variant = editor.ui.TEXT_VARIANT_HINT,
-                        alignment = editor.ui.ALIGNMENT_RIGHT
+                        variant = editor.ui.TEXT_VARIANT.HINT,
+                        alignment = editor.ui.ALIGNMENT.RIGHT
                     }),
                     content = editor.ui.scroll({
-                        child = editor.ui.grid({
-                            padding = editor.ui.PADDING_LARGE,
-                            spacing = editor.ui.SPACING_MEDIUM,
-                            columns = {{}, {expand = true}},
+                        content = editor.ui.grid({
+                            padding = editor.ui.PADDING.LARGE,
+                            columns = {{}, {grow = true}},
                             children = {
                                 {
                                     editor.ui.label({
                                         text = "Text buttons", 
-                                        alignment = editor.ui.ALIGNMENT_RIGHT
+                                        alignment = editor.ui.ALIGNMENT.RIGHT
                                     }),
                                     editor.ui.horizontal({
-                                        spacing = editor.ui.SPACING_MEDIUM,
                                         children = {
-                                            editor.ui.text_button({ text = "A button" }),
-                                            editor.ui.text_button({ text = "Disabled button", disabled = true})
+                                            editor.ui.button({ text = "A button" }),
+                                            editor.ui.button({ text = "Disabled button", enabled = false})
                                         }
                                     })
                                 },
                                 {
                                     editor.ui.label({
                                         text = "Icon buttons", 
-                                        alignment = editor.ui.ALIGNMENT_RIGHT
+                                        alignment = editor.ui.ALIGNMENT.RIGHT
                                     }),
                                     editor.ui.horizontal({
-                                        spacing = editor.ui.SPACING_MEDIUM,
                                         children = {
-                                            editor.ui.icon_button({ name = editor.ui.ICON_NAME_CLEAR, disabled = true }),
-                                            editor.ui.icon_button({ name = editor.ui.ICON_NAME_MINUS }),
-                                            editor.ui.icon_button({ name = editor.ui.ICON_NAME_OPEN_RESOURCE }),
-                                            editor.ui.icon_button({ name = editor.ui.ICON_NAME_PLUS }),
+                                            editor.ui.button({ icon_name = editor.ui.ICON_NAME.CLEAR, enabled = false }),
+                                            editor.ui.button({ icon_name = editor.ui.ICON_NAME.MINUS }),
+                                            editor.ui.button({ icon_name = editor.ui.ICON_NAME.OPEN_RESOURCE }),
+                                            editor.ui.button({ icon_name = editor.ui.ICON_NAME.PLUS }),
                                         }
                                     })
                                 },
                                 {
                                     editor.ui.label({
                                         text = "Button", 
-                                        alignment = editor.ui.ALIGNMENT_RIGHT
+                                        alignment = editor.ui.ALIGNMENT.RIGHT
                                     }),
                                     editor.ui.button({
-                                        child = editor.ui.horizontal({
-                                            spacing = editor.ui.SPACING_SMALL,
-                                            children = {
-                                                editor.ui.label({ text = "Open thing"}),
-                                                editor.ui.icon({name = editor.ui.ICON_NAME_OPEN_RESOURCE})
-                                            }
-                                        })
+                                        text = "Open resource",
+                                        icon_name = editor.ui.ICON_NAME.OPEN_RESOURCE
                                     })
                                 },
                                 {
                                     editor.ui.label({
                                         text = "Select box", 
-                                        alignment = editor.ui.ALIGNMENT_RIGHT
+                                        alignment = editor.ui.ALIGNMENT.RIGHT
                                     }),
                                     editor.ui.select_box({
                                         value = 1,
@@ -75,18 +67,18 @@ function M.get_commands()
                                 {
                                     editor.ui.label({
                                         text = "Text field", 
-                                        alignment = editor.ui.ALIGNMENT_RIGHT
+                                        alignment = editor.ui.ALIGNMENT.RIGHT
                                     }),
                                     editor.ui.text_field({ 
                                         text = "Warning text field",
                                         on_text_changed = print,
-                                        variant = editor.ui.INPUT_VARIANT_WARNING
+                                        variant = editor.ui.INPUT_VARIANT.WARNING
                                     })
                                 },
                                 {
                                     editor.ui.label({
                                         text = "Value field", 
-                                        alignment = editor.ui.ALIGNMENT_RIGHT
+                                        alignment = editor.ui.ALIGNMENT.RIGHT
                                     }),
                                     editor.ui.value_field({
                                         value = 12.5,
@@ -98,29 +90,29 @@ function M.get_commands()
                                 {
                                     editor.ui.label({
                                         text = "String field", 
-                                        alignment = editor.ui.ALIGNMENT_RIGHT
+                                        alignment = editor.ui.ALIGNMENT.RIGHT
                                     }),
                                     editor.ui.string_field({
                                         value = "Error string",
                                         on_value_changed = print,
-                                        variant = editor.ui.INPUT_VARIANT_ERROR
+                                        variant = editor.ui.INPUT_VARIANT.ERROR
                                     })
                                 },
                                 {
                                     editor.ui.label({
                                         text = "Integer field", 
-                                        alignment = editor.ui.ALIGNMENT_RIGHT
+                                        alignment = editor.ui.ALIGNMENT.RIGHT
                                     }),
                                     editor.ui.integer_field({
                                         value = 666,
                                         on_value_changed = print,
-                                        variant = editor.ui.INPUT_VARIANT_WARNING
+                                        variant = editor.ui.INPUT_VARIANT.WARNING
                                     })
                                 },
                                 {
                                     editor.ui.label({
                                         text = "Number field", 
-                                        alignment = editor.ui.ALIGNMENT_RIGHT
+                                        alignment = editor.ui.ALIGNMENT.RIGHT
                                     }),
                                     editor.ui.number_field({
                                         value = 666,
@@ -130,7 +122,7 @@ function M.get_commands()
                                 {
                                     editor.ui.label({
                                         text = "External file field", 
-                                        alignment = editor.ui.ALIGNMENT_RIGHT
+                                        alignment = editor.ui.ALIGNMENT.RIGHT
                                     }),
                                     editor.ui.external_file_field({
                                         value = "game.project",
@@ -144,6 +136,19 @@ function M.get_commands()
                                     })
                                 },
                                 {
+                                    editor.ui.label({
+                                        text = "Resource field",
+                                        alignment = editor.ui.ALIGNMENT.RIGHT
+                                    }),
+                                    editor.ui.resource_field({
+                                        value = "/game.project",
+                                        on_value_changed = print,
+                                        title = "Select Editor Script Resource",
+                                        extensions = {"editor_script"},
+                                        enabled = true
+                                    })
+                                },
+                                {
                                     editor.ui.separator({
                                         orientation = editor.ui.ORIENTATION_HORIZONTAL,
                                         column_span = 2
@@ -151,53 +156,31 @@ function M.get_commands()
                                 },
                                 {
                                     editor.ui.label({
-                                        text = "Text check boxes",
-                                        alignment = editor.ui.ALIGNMENT_TOP_RIGHT
+                                        text = "Check boxes",
+                                        alignment = editor.ui.ALIGNMENT.TOP_RIGHT
                                     }),
                                     editor.ui.vertical({
-                                        spacing = editor.ui.SPACING_MEDIUM,
                                         children = {
-                                            editor.ui.text_check_box({
+                                            editor.ui.check_box({
                                                 text = "A check box",
                                                 value = true
                                             }),
-                                            editor.ui.text_check_box({
+                                            editor.ui.check_box({
                                                 text = "Disabled check box",
-                                                disabled = true
+                                                enabled = false
                                             }),
-                                            editor.ui.text_check_box({
+                                            editor.ui.check_box({
                                                 text = "Warning check box",
-                                                variant = editor.ui.INPUT_VARIANT_WARNING
+                                                variant = editor.ui.INPUT_VARIANT.WARNING
                                             }),
-                                            editor.ui.text_check_box({
+                                            editor.ui.check_box({
                                                 text = "Disabled error check box",
-                                                disabled = true,
-                                                variant = editor.ui.INPUT_VARIANT_ERROR
+                                                enabled = false,
+                                                variant = editor.ui.INPUT_VARIANT.ERROR
                                             }),
-                                        }
-                                    })
-                                },
-                                {
-                                    editor.ui.label({
-                                        text = "Check boxes",
-                                        alignment = editor.ui.ALIGNMENT_TOP_RIGHT
-                                    }),
-                                    editor.ui.vertical({
-                                        spacing = editor.ui.SPACING_MEDIUM,
-                                        children = {
                                             editor.ui.check_box({
                                                 value = true
-                                            }),
-                                            editor.ui.check_box({
-                                                value = true,
-                                                child = editor.ui.horizontal({
-                                                    spacing = editor.ui.SPACING_SMALL,
-                                                    children = {
-                                                        editor.ui.label({ text = "Check box with label and icon"}),
-                                                        editor.ui.icon({ name = editor.ui.ICON_NAME_CLEAR })
-                                                    }
-                                                })
-                                            }),
+                                            })
                                         }
                                     })
                                 }
@@ -207,7 +190,7 @@ function M.get_commands()
                     buttons = {
                         editor.ui.dialog_button({
                             text = "Disabled",
-                            disabled = true
+                            enabled = false
                         }),
                         editor.ui.dialog_button({
                             text = "Cancel",
@@ -221,6 +204,8 @@ function M.get_commands()
                         })
                     }
                 })
+
+                -- editor.ui.show_dialog(dialog)
             end
         }
     }

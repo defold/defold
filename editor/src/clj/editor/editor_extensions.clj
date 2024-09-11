@@ -36,6 +36,7 @@
             [editor.lsp :as lsp]
             [editor.lsp.async :as lsp.async]
             [editor.process :as process]
+            [editor.resource :as resource]
             [editor.system :as system]
             [editor.util :as util]
             [editor.workspace :as workspace])
@@ -132,6 +133,11 @@
           property (rt/->clj rt coerce/string lua-property)
           node-id (graph/node-id-or-path->node-id node-id-or-path project evaluation-context)]
       (some? (graph/ext-lua-value-setter node-id property rt project evaluation-context)))))
+
+(defn- make-resource-exists-fn [project]
+  (rt/lua-fn ext-resource-exists [{:keys [rt evaluation-context]} lua-resource-path]
+    (let [proj-path (rt/->clj rt graph/resource-path-coercer lua-resource-path)]
+      (some? (project/get-resource-node project proj-path evaluation-context)))))
 
 (defn- make-ext-create-directory-fn [project reload-resources!]
   (rt/suspendable-lua-fn ext-create-directory [{:keys [rt evaluation-context]} lua-proj-path]
@@ -312,6 +318,13 @@
   (rt/suspendable-lua-fn ext-save [_]
     (future/then (save!) rt/and-refresh-context)))
 
+(defn- make-open-resource-fn [workspace open-resource!]
+  (rt/suspendable-lua-fn open-resource [{:keys [rt evaluation-context]} lua-resource-path]
+    (let [resource-path (rt/->clj rt graph/resource-path-coercer lua-resource-path)
+          resource (workspace/find-resource workspace resource-path evaluation-context)]
+      (when (and resource (resource/exists? resource) (resource/openable? resource))
+        (open-resource! resource)))))
+
 ;; endregion
 
 ;; region language servers
@@ -483,14 +496,18 @@
                             msg     a string to output, might be multiline
     :save!                0-arg function that asynchronously saves any unsaved
                           changes, returns CompletableFuture (that might
-                          complete exceptionally if reload fails)"
-  [project kind & {:keys [reload-resources! display-output! save!] :as opts}]
+                          complete exceptionally if reload fails)
+    :open-resource!       1-arg function that asynchronously opens the supplied
+                          resource in an editor tab, returns CompletableFuture
+                          (that might complete exceptionally if resource could
+                          not be opened)"
+  [project kind & {:keys [reload-resources! display-output! save! open-resource!] :as opts}]
+  {:pre [reload-resources! display-output! save! open-resource!]}
   (g/with-auto-evaluation-context evaluation-context
     (let [extensions (g/node-value project :editor-extensions evaluation-context)
           old-state (ext-state project evaluation-context)
-          project-path (-> project
-                           (project/workspace evaluation-context)
-                           (workspace/project-path evaluation-context)
+          workspace (project/workspace project evaluation-context)
+          project-path (-> (workspace/project-path workspace evaluation-context)
                            .toPath
                            .normalize)
           rt (rt/make
@@ -503,6 +520,7 @@
                :env {"editor" {"get" (make-ext-get-fn project)
                                "can_get" (make-ext-can-get-fn project)
                                "can_set" (make-ext-can-set-fn project)
+                               "resource_exists" (make-resource-exists-fn project)
                                "create_directory" (make-ext-create-directory-fn project reload-resources!)
                                "delete_directory" (make-ext-delete-directory-fn project reload-resources!)
                                "external_file_attributes" (make-ext-external-file-attributes-fn project-path)
@@ -511,7 +529,9 @@
                                "save" (make-ext-save-fn save!)
                                "transact" ext-transact
                                "tx" {"set" (make-ext-tx-set-fn project)}
-                               "ui" (ui-components/env project-path)
+                               "ui" (assoc
+                                      (ui-components/env workspace project project-path)
+                                      "open_resource" (make-open-resource-fn workspace open-resource!))
                                "version" (system/defold-version)
                                "engine_sha1" (system/defold-engine-sha1)
                                "editor_sha1" (system/defold-editor-sha1)}

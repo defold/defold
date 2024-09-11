@@ -1,7 +1,7 @@
 $ext-spacing-small: 4px;
 $ext-spacing-medium: 8px;
 $ext-spacing-large: 16px;
-$ext-line-height: 1.42em; // approximation, discovered through experimentation
+$ext-line-height: 26px;
 
 .ext {
     &-spacing {
@@ -50,32 +50,43 @@ $ext-line-height: 1.42em; // approximation, discovered through experimentation
         -fx-max-width: $ext-line-height;
         -fx-max-height: $ext-line-height;
     }
+    &-label {
+        -fx-padding: 4px 0px; // padding to make a single line label fit into 26px line-height
+    }
     &-button {
         -fx-background-color: -df-component-dark;
         -fx-background-radius: 2px;
         -fx-border-radius: 2px;
-        &:hover { -fx-background-color: -df-component-lighter; }
-        &:armed { -fx-background-color: -df-component-light; }
+        -fx-font-size: 110%;
+        -fx-font-family: "Source Sans Pro";
+        -fx-text-fill: -df-text;
+        -fx-graphic-text-gap: 0;
+        -fx-min-height: $ext-line-height;
+        -fx-max-height: $ext-line-height;
+        &:hover {
+            -fx-background-color: -df-component-lighter;
+            -fx-text-fill: -df-text-selected;
+        }
+        &:armed {
+            -fx-background-color: -df-component-light;
+            -fx-text-fill: -df-text-selected;
+        }
         &:disabled { -fx-opacity: 0.4; }
-        &-icon {
-            -fx-padding: 4px 4px;
-        }
-        &-text {
-            -fx-padding: 4px 8px;
-            &:hover > .label { -fx-text-fill: -df-text-selected; }
-            &:armed > .label { -fx-text-fill: -df-text-selected; }
-            &:disabled > .label { -fx-opacity: 1.0; }
-        }
-        &-default {
-            -fx-padding: 4px 8px;
-        }
+        &-icon {} // no padding: icon is line-height x line-height already
+        &-text { -fx-padding: 0 8px; } // only horizontal padding
+        &-text-and-icon { -fx-padding: 0 8px 0 1px; } // smaller padding on the left because icon uses some space
     }
     &-check-box {
         & > .box {
             -fx-border-radius: 2px;
             -fx-background-radius: 2px;
         }
-        &-child { -fx-padding: 0 0 0 $ext-spacing-small; }
+        -fx-font-size: 110%;
+        -fx-font-family: "Source Sans Pro";
+        -fx-text-fill: -df-text;
+        -fx-label-padding: 0 0 0 $ext-spacing-small;
+        -fx-min-height: $ext-line-height;
+        -fx-max-height: $ext-line-height;
         &:warning {
             & > .box { -fx-border-color: -df-error-severity-warning-dim; }
             &:focused > .box { -fx-border-color: -df-error-severity-warning-dim -df-error-severity-warning-dim -df-error-severity-warning -df-error-severity-warning-dim; }
@@ -86,7 +97,8 @@ $ext-line-height: 1.42em; // approximation, discovered through experimentation
         }
     }
     &-text-field {
-        -fx-max-height: 26px;
+        -fx-min-height: $ext-line-height;
+        -fx-max-height: $ext-line-height;
         -fx-min-width: 40px;
         -fx-pref-width: 160px;
         -fx-max-width: Infinity;

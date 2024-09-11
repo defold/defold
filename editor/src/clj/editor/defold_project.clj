@@ -40,6 +40,7 @@
             [editor.ui :as ui]
             [editor.util :as util]
             [editor.workspace :as workspace]
+            [internal.java :as java]
             [internal.util :as iutil]
             [schema.core :as s]
             [service.log :as log]
@@ -906,8 +907,8 @@
           code-preprocessors (workspace/code-preprocessors workspace evaluation-context)
           code-transpilers (code-transpilers project)]
       (workspace/unpack-editor-plugins! workspace touched-resources)
-      (code.preprocessors/reload-lua-preprocessors! code-preprocessors workspace/class-loader)
-      (code.transpilers/reload-lua-transpilers! code-transpilers workspace workspace/class-loader)
+      (code.preprocessors/reload-lua-preprocessors! code-preprocessors java/class-loader)
+      (code.transpilers/reload-lua-transpilers! code-transpilers workspace java/class-loader)
       (workspace/load-clojure-editor-plugins! workspace touched-resources))))
 
 (defn- handle-resource-changes [project changes render-progress!]

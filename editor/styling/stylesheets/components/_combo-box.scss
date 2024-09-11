@@ -3,6 +3,8 @@
     -fx-border-radius: 0px;
     -fx-background-insets: 0;
     -fx-background-color: transparent;
+    -fx-min-height: 26px;
+    -fx-max-height: 26px;
     -fx-max-width: Infinity;
     & > .list-cell {
         -fx-text-fill: -df-text;

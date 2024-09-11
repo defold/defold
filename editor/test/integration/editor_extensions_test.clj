@@ -24,6 +24,7 @@
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.process :as process]
+            [editor.resource :as resource]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
@@ -260,13 +261,17 @@
       (save-project! project)
       (future/completed nil))))
 
+(defn- open-resource-noop! [_]
+  (future/completed nil))
+
 (deftest editor-scripts-commands-test
   (test-util/with-loaded-project "test/resources/editor_extensions/commands_project"
     (let [sprite-outline (:node-id (test-util/outline (test-util/resource-node project "/main/main.collection") [0 0]))]
       (extensions/reload! project :all
                           :reload-resources! (make-reload-resources-fn workspace)
                           :display-output! println
-                          :save! (make-save-fn project))
+                          :save! (make-save-fn project)
+                          :open-resource! open-resource-noop!)
       (let [handler+context (handler/active
                               (:command (first (handler/realize-menu :editor.outline-view/context-menu-end)))
                               (handler/eval-contexts
@@ -291,7 +296,8 @@
           _ (extensions/reload! project :all
                                 :reload-resources! (make-reload-resources-fn workspace)
                                 :display-output! #(swap! output conj [%1 %2])
-                                :save! (make-save-fn project))
+                                :save! (make-save-fn project)
+                                :open-resource! open-resource-noop!)
           handler+context (handler/active
                             (:command (first (handler/realize-menu :editor.asset-browser/context-menu-end)))
                             (handler/eval-contexts
@@ -314,7 +320,8 @@
           _ (extensions/reload! project :all
                                 :reload-resources! (make-reload-resources-fn workspace)
                                 :display-output! #(swap! output conj [%1 %2])
-                                :save! (make-save-fn project))
+                                :save! (make-save-fn project)
+                                :open-resource! open-resource-noop!)
           handler+context (handler/active
                             (:command (last (handler/realize-menu :editor.app-view/edit-end)))
                             (handler/eval-contexts
@@ -339,7 +346,8 @@
           _ (extensions/reload! project :all
                                 :reload-resources! (make-reload-resources-fn workspace)
                                 :display-output! #(swap! output conj [%1 %2])
-                                :save! (make-save-fn project))
+                                :save! (make-save-fn project)
+                                :open-resource! open-resource-noop!)
           node (:node-id (test-util/outline (test-util/resource-node project "/main/main.collection") [0 0]))
           handler+context (handler/active
                             (:command (first (handler/realize-menu :editor.outline-view/context-menu-end)))
@@ -383,7 +391,8 @@
           _ (extensions/reload! project :all
                                 :reload-resources! (make-reload-resources-fn workspace)
                                 :display-output! #(swap! output conj [%1 %2])
-                                :save! (make-save-fn project))
+                                :save! (make-save-fn project)
+                                :open-resource! open-resource-noop!)
           handler+context (handler/active
                             (:command (first (handler/realize-menu :editor.asset-browser/context-menu-end)))
                             (handler/eval-contexts
@@ -394,6 +403,52 @@
       ;; see test.editor_script: it uses editor.transact() to set a file text, then reads
       ;; the file text from file system, then saves, then reads it again.
       (is (= [[:out "file read: before save = 'Initial text', after save = 'New text'"]]
+             @output)))))
+
+(deftest resource-exists-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/resource_exists_project"
+    (let [output (atom [])
+          _ (extensions/reload! project :all
+                                :reload-resources! (make-reload-resources-fn workspace)
+                                :display-output! #(swap! output conj [%1 %2])
+                                :save! (make-save-fn project)
+                                :open-resource! open-resource-noop!)
+          handler+context (handler/active
+                            (:command (last (handler/realize-menu :editor.app-view/edit-end)))
+                            (handler/eval-contexts
+                              [(handler/->context :global {} (->StaticSelection []))]
+                              false)
+                            {})]
+      @(handler/run handler+context)
+      ;; see test.editor script: it uses editor.resource_exists with different resource
+      ;; paths and prints results
+      (is (= [[:out "test '/game.project': exists"]
+              [:out "test '/does_not_exist.txt': does not exist"]
+              [:out "test 'not_a_resource_path.go': error"]]
+             @output)))))
+
+(deftest open-resource-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/open_resource_project"
+    (let [output (atom [])
+          _ (extensions/reload! project :all
+                                :reload-resources! (make-reload-resources-fn workspace)
+                                :display-output! #(swap! output conj [%1 %2])
+                                :save! (make-save-fn project)
+                                :open-resource! (fn [resource]
+                                                  (swap! output conj [:open-resource (resource/proj-path resource)])))
+          handler+context (handler/active
+                            (:command (last (handler/realize-menu :editor.app-view/edit-end)))
+                            (handler/eval-contexts
+                              [(handler/->context :global {} (->StaticSelection []))]
+                              false)
+                            {})]
+      @(handler/run handler+context)
+      ;; see test.editor script: it uses editor.open_resource with different resource
+      ;; paths and prints results
+      (is (= [[:open-resource "/game.project"]
+              [:out "Open '/game.project': ok"]
+              [:out "Open '/does_not_exist.txt': ok"]
+              [:out "Open 'not_a_resource_path.go': error"]]
              @output)))))
 
 (deftest coercer-test
@@ -544,7 +599,8 @@
           _ (extensions/reload! project :all
                                 :reload-resources! (make-reload-resources-fn workspace)
                                 :display-output! #(swap! output conj [%1 %2])
-                                :save! (make-save-fn project))
+                                :save! (make-save-fn project)
+                                :open-resource! open-resource-noop!)
           handler+context (handler/active
                             (:command (last (handler/realize-menu :editor.app-view/edit-end)))
                             (handler/eval-contexts
@@ -565,7 +621,8 @@
           _ (extensions/reload! project :all
                                 :reload-resources! (make-reload-resources-fn workspace)
                                 :display-output! #(swap! output conj [%1 %2])
-                                :save! (make-save-fn project))
+                                :save! (make-save-fn project)
+                                :open-resource! open-resource-noop!)
           handler+context (handler/active
                             (:command (last (handler/realize-menu :editor.app-view/edit-end)))
                             (handler/eval-contexts

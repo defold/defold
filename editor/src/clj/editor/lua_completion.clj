@@ -84,24 +84,24 @@
   "Make a lua-specific code completion
 
   Args:
-    el    documentation map with following keys:
-            :name            string, required, element name
-            :type            keyword
-            :parameters      for :function type, optional vector of parameter
-                             maps with following keys:
-                               :name     string, required
-                               :doc      optional html string
-                               :types    coll of strings, i.e. union
-            :returnvalues    for :function type, same as :parameters
-            :description     string, optional, markdown
-            :examples        string, optional, markdown
+    doc    documentation map with following keys:
+             :name            string, required, element name
+             :type            keyword
+             :parameters      for :function type, optional vector of parameter
+                              maps with following keys:
+                                :name     string, required
+                                :doc      optional html string
+                                :types    coll of strings, i.e. union
+             :returnvalues    for :function type, same as :parameters
+             :description     string, optional, markdown
+             :examples        string, optional, markdown
 
   Optional kv-args:
     :base-url    URI for resolving relative links in the docs and examples
     :url         string, may be relative to :base-url if it was provided"
-  [el & {:keys [base-url url]}]
-  (code-completion/make (:name el)
-                        :type (:type el)
-                        :display-string (make-display-string el)
-                        :insert (make-snippet el)
-                        :doc (make-markdown-doc el base-url url)))
+  [doc & {:keys [base-url url]}]
+  (code-completion/make (:name doc)
+                        :type (:type doc)
+                        :display-string (make-display-string doc)
+                        :insert (make-snippet doc)
+                        :doc (make-markdown-doc doc base-url url)))

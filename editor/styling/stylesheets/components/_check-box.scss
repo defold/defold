@@ -1,7 +1,10 @@
 .check-box {
-  &:hover > .box {
-    -fx-background-color: -df-background-light;
-    -fx-border-color: -df-component-light;
+  &:hover {
+    -fx-text-fill: -df-text-selected;
+    & > .box {
+      -fx-background-color: -df-background-light;
+      -fx-border-color: -df-component-light;
+    }
   }
   &:selected {
     & > .box > .mark {
@@ -14,6 +17,7 @@
     }
   }
   &:focused {
+      -fx-text-fill: -df-text-selected;
       & > .box {
           -fx-background-color: -df-background;
           -fx-border-color: -df-component-light -df-component-light -df-defold-orange -df-component-light;
