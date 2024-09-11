@@ -23,6 +23,8 @@
             [editor.handler :as handler]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
+            [support.test-support :as test-support]
+            [util.coll :refer [pair]]
             [util.fn :as fn])
   (:import [javax.vecmath Matrix4d Vector3d]))
 
@@ -347,6 +349,51 @@
       (doseq [[p v] {:texture "main/particle_blob" :size [200.0 150.0 0.0]}]
         (is (not= (g/node-value box p) (g/node-value or-box p)))
         (is (= (g/node-value or-box p) v))))))
+
+(deftest gui-template-overrides-remain-after-external-template-change
+  (test-util/with-scratch-project "test/resources/gui_project"
+    (letfn [(select-labels [node-id labels]
+              (g/with-auto-evaluation-context evaluation-context
+                (into {}
+                      (map (fn [label]
+                             (pair label
+                                   (g/node-value node-id label evaluation-context))))
+                      labels)))
+
+            (select-gui-node-labels [gui-resource gui-node-name labels]
+              (-> (project/get-resource-node project gui-resource)
+                  (gui-node gui-node-name)
+                  (select-labels labels)))]
+
+      (let [button-gui-resource (workspace/find-resource workspace "/main/button.gui")
+            panel-gui-resource (workspace/find-resource workspace "/main/panel.gui")
+            window-gui-resource (workspace/find-resource workspace "/main/window.gui")
+            panel-box-props-before (select-gui-node-labels panel-gui-resource "button/box" [:color :layer :texture])
+            window-box-props-before (select-gui-node-labels window-gui-resource "panel/button/box" [:color :layer :texture])]
+
+        (testing "Overrides should exist before external change."
+          (is (= {:color [0.0 1.0 0.0 1.0]
+                  :layer "panel_layer"
+                  :texture "panel_texture/button_checkered"}
+                 panel-box-props-before))
+          (is (= {:color [0.0 0.0 1.0 1.0]
+                  :layer "window_layer"
+                  :texture "window_texture/button_cloudy"}
+                 window-box-props-before)))
+
+        ;; Simulate external changes to 'button.gui'.
+        (let [modified-button-gui-content
+              (-> button-gui-resource
+                  (slurp)
+                  (str/replace "max_nodes: 512" "max_nodes: 500"))]
+          (test-support/spit-until-new-mtime button-gui-resource modified-button-gui-content)
+          (workspace/resource-sync! workspace))
+
+        (testing "Overrides should remain after external change."
+          (let [panel-box-props-after (select-gui-node-labels panel-gui-resource "button/box" [:color :layer :texture])
+                window-box-props-after (select-gui-node-labels window-gui-resource "panel/button/box" [:color :layer :texture])]
+            (is (= panel-box-props-before panel-box-props-after))
+            (is (= window-box-props-before window-box-props-after))))))))
 
 (defn- strip-scene [scene]
   (-> scene
