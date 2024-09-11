@@ -61,7 +61,6 @@ public class FontBuilder extends Builder  {
         String genResourcePath = task.input(2).getPath().substring(buildDirLen);
 
         FontMap.Builder fontMapBuilder = FontMap.newBuilder();
-        fontMapBuilder.setFont(BuilderUtil.replaceExt(fontDesc.getFont(), ".ttf", ".ttfc"));
         fontMapBuilder.setMaterial(BuilderUtil.replaceExt(fontDesc.getMaterial(), ".material", ".materialc"));
 
         fontMapBuilder.setGlyphBank(genResourcePath);

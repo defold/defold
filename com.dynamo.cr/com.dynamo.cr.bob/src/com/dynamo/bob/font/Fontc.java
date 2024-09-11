@@ -1117,7 +1117,6 @@ public class Fontc {
             FileOutputStream fontMapOutputStream = new FileOutputStream(outfile);
 
             FontMap.Builder fontMapBuilder = FontMap.newBuilder();
-            fontMapBuilder.setFont(BuilderUtil.replaceExt(fontDesc.getFont(), ".ttf", ".ttfc"));
             fontMapBuilder.setMaterial(BuilderUtil.replaceExt(fontDesc.getMaterial(), ".material", ".materialc"));
             fontMapBuilder.setGlyphBank(glyphBankProjectStr);
 
