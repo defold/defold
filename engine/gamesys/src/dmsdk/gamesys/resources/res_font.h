@@ -41,7 +41,7 @@ namespace dmGameSystem
         FONT_GLYPH_COMPRESSION_DEFLATE = 1,
     };
 
-    dmRender::HFontMap ResFontGetHandle(FontResource* font);
+    dmRender::HFont ResFontGetHandle(FontResource* font);
 
     /*#
      * @name ResFontGetInfo

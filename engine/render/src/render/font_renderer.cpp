@@ -331,9 +331,6 @@ namespace dmRender
 
         font_map->m_GlyphCache.SetCapacity(font_map->m_CacheCellCount, (font_map->m_CacheCellCount*3)/2);
 
-printf("MAWE cellinfo: %s\n", dmHashReverseSafe64(font_map->m_NameHash));
-printf("  w/h: %u %d\n", font_map->m_CacheCellWidth, font_map->m_CacheCellHeight);
-
         // create new texture to be used as a cache
         dmGraphics::TextureCreationParams tex_create_params;
         dmGraphics::TextureParams tex_params;

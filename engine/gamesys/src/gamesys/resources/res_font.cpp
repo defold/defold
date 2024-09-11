@@ -39,7 +39,7 @@ namespace dmGameSystem
     struct FontResource
     {
         dmRenderDDF::FontMap*   m_DDF;
-        dmRender::HFontMap      m_FontMap;
+        dmRender::HFont         m_FontMap;
         HResourceDescriptor     m_Resource; // For updating the resource size dynamically
         MaterialResource*       m_MaterialResource;
         GlyphBankResource*      m_GlyphBankResource;
@@ -299,7 +299,7 @@ namespace dmGameSystem
         return dmResource::RESULT_OK;
     }
 
-    dmRender::HFontMap ResFontGetHandle(FontResource* resource)
+    dmRender::HFont ResFontGetHandle(FontResource* resource)
     {
         return resource->m_FontMap;
     }
