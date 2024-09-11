@@ -51,7 +51,7 @@ static dmRender::FontGlyph* GetGlyph(uint32_t utf8, void* user_ctx)
     return &glyphs[utf8];
 }
 
-static void* GetGlyphData(uint32_t utf8, void* user_ctx, uint32_t* out_size)
+static void* GetGlyphData(uint32_t codepoint, void* user_ctx, uint32_t* out_size, uint32_t* out_compression, uint32_t* out_width, uint32_t* out_height)
 {
     return 0;
 }
