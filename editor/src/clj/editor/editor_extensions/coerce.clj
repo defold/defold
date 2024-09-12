@@ -168,11 +168,6 @@
       x
       (failure x "is not a function"))))
 
-(def to-nothing
-  "Coercer that always returns nil, for use with e.g. one-of"
-  (fn coerce-to-nothing [_ _]
-    nil))
-
 (defn wrap-with-pred
   "Wrap a coercer with an additional predicate that checks the coerced value"
   [coercer pred error-message]

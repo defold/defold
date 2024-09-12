@@ -8,6 +8,9 @@
 
 ;; region make-prop
 
+;; Components are created with a table of props. The editor defines prop maps
+;; both for runtime behavior (coercion) and autocomplete/doc generation.
+
 (s/def :editor.editor-extensions.components.prop/name simple-keyword?)
 (s/def ::coerce ifn?)
 (s/def ::required boolean?)

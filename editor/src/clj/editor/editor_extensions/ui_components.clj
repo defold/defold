@@ -75,9 +75,6 @@
 ;; - Components doc: https://docs.google.com/document/d/1e6kmVLspQEoe17Ys1nmbbf54cqUn2fNPZowIe7JBwl4/edit
 ;; - Reactive UI doc: https://docs.google.com/document/d/1cgqFPLUc3YQih2tsEA067Pz9Q0nWlKoVflqLEVX8CPY/edit
 
-;; Components are created with a table of props. The editor defines prop maps
-;; both for runtime behavior (coercion) and autocomplete generation.
-
 (s/def ::create ifn?)
 (s/def ::advance ifn?)
 (s/def ::return ifn?)
@@ -119,8 +116,6 @@
   [name & {:as m}]
   {:post [(s/assert ::hook %)]}
   (assoc m :name name))
-
-;; Component and prop definitions
 
 (defn- make-component-lua-fn [name props fn]
   (let [string-representation (str "editor.ui." name "(...)")
@@ -1135,9 +1130,6 @@
                     (update :render-counter inc))))]
     (-> new-state :hooks (get hook-index) :state)))
 
-(def ^:private function-or-nothing-coercer
-  (coerce/one-of coerce/function coerce/to-nothing))
-
 (defn- vectors-with-eq-lua-values? [rt as bs]
   (let [n (count as)]
     (and (= n (count bs))
@@ -1150,9 +1142,8 @@
 (def ^:private use-state-hook
   (let [lua-nil (rt/->lua nil)]
     (letfn [(lua-args->type+dependencies [rt lua-args]
-              (let [first-lua-arg (or (first lua-args) lua-nil)
-                    is-first-arg-lua-fn (some? (rt/->clj rt function-or-nothing-coercer first-lua-arg))]
-                (if is-first-arg-lua-fn
+              (let [first-lua-arg (or (first lua-args) lua-nil)]
+                (if (rt/coerces-to? rt coerce/function first-lua-arg)
                   (pair :function (vec lua-args))
                   (pair :value first-lua-arg))))
             (type+dependencies->lua-value [rt type+dependencies evaluation-context]
