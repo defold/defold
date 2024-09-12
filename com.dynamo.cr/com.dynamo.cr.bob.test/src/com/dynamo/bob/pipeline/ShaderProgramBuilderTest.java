@@ -192,7 +192,8 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
     private static void debugPrintShaderReflection(String label, ShaderDesc.ShaderReflection r) {
         // Remove for debugging:
-        if (false) {
+        boolean debugPrintReflectionEnabled = false;
+        if (!debugPrintReflectionEnabled) {
             return;
         }
 
@@ -356,17 +357,22 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             ShaderDesc.ShaderReflection r = shaderDesc.getReflection();
             debugPrintShaderReflection("Reflection Test 2", r);
 
-            assertEquals(8, r.getTexturesCount());
-            validateResourceBindingWithKnownType(r.getTextures(0), "sampler_2d",       ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D);
-            validateResourceBindingWithKnownType(r.getTextures(1), "sampler_2d_array", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY);
-            validateResourceBindingWithKnownType(r.getTextures(2), "sampler_cube",     ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_CUBE);
+            // 8 texture units + 3 samplers
+            assertEquals(11, r.getTexturesCount());
+            validateResourceBindingWithKnownType(r.getTextures(0), "sampler_2d",                 ShaderDesc.ShaderDataType.SHADER_TYPE_TEXTURE2D);
+            validateResourceBindingWithKnownType(r.getTextures(1), "sampler_2d_separated",       ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER);
+            validateResourceBindingWithKnownType(r.getTextures(2), "sampler_2d_array",           ShaderDesc.ShaderDataType.SHADER_TYPE_TEXTURE2D_ARRAY);
+            validateResourceBindingWithKnownType(r.getTextures(3), "sampler_2d_array_separated", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER);
+            validateResourceBindingWithKnownType(r.getTextures(4), "sampler_cube",               ShaderDesc.ShaderDataType.SHADER_TYPE_TEXTURE_CUBE);
+            validateResourceBindingWithKnownType(r.getTextures(5), "sampler_cube_separated",     ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER);
+
             //TODO:
             //validateResourceBindingWithKnownType(shader.getTextures(2), "sampler_buffer",   ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_);
-            validateResourceBindingWithKnownType(r.getTextures(3), "texture_2d",       ShaderDesc.ShaderDataType.SHADER_TYPE_TEXTURE2D);
-            validateResourceBindingWithKnownType(r.getTextures(4), "utexture_2d",      ShaderDesc.ShaderDataType.SHADER_TYPE_UTEXTURE2D);
-            validateResourceBindingWithKnownType(r.getTextures(5), "uimage_2d",        ShaderDesc.ShaderDataType.SHADER_TYPE_UIMAGE2D);
-            validateResourceBindingWithKnownType(r.getTextures(6), "image_2d",         ShaderDesc.ShaderDataType.SHADER_TYPE_IMAGE2D);
-            validateResourceBindingWithKnownType(r.getTextures(7), "sampler_name",     ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER);
+            validateResourceBindingWithKnownType(r.getTextures(6), "texture_2d",       ShaderDesc.ShaderDataType.SHADER_TYPE_TEXTURE2D);
+            validateResourceBindingWithKnownType(r.getTextures(7), "utexture_2d",      ShaderDesc.ShaderDataType.SHADER_TYPE_UTEXTURE2D);
+            validateResourceBindingWithKnownType(r.getTextures(8), "uimage_2d",        ShaderDesc.ShaderDataType.SHADER_TYPE_UIMAGE2D);
+            validateResourceBindingWithKnownType(r.getTextures(9), "image_2d",         ShaderDesc.ShaderDataType.SHADER_TYPE_IMAGE2D);
+            validateResourceBindingWithKnownType(r.getTextures(10), "sampler_name",     ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER);
         }
     }
 
@@ -706,7 +712,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             {
                 vec4 tint;
             };
-            
+
             out vec4 color;
             void main()
             {
