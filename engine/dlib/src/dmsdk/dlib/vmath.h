@@ -140,7 +140,7 @@ namespace dmVMath
 
     /*# calculate length of a quaternion
      * @name Length
-     * @param v [type: Quat] the quaternion
+     * @param v [type: quaternion] the quaternion
      * @return length [type: float] the length
      */
     inline float Length(Quat v)                 { return Vectormath::Aos::length(v); }
@@ -161,7 +161,7 @@ namespace dmVMath
 
     /*# calculate squared length of a quaternion
      * @name Length
-     * @param v [type: Quat] the vector
+     * @param v [type: quaternion] the vector
      * @return length [type: float] the squared length
      */
     inline float LengthSqr(Quat v)              { return Vectormath::Aos::norm(v); } // quat doesn't have a lengthSqr(), but this is what's called before the sqrtf in length()
@@ -182,8 +182,8 @@ namespace dmVMath
 
     /*# normalize a quaternion to length 1
      * @name Normalize
-     * @param v [type: Quat] the quaternion
-     * @return n [type: Quat] the normalized quaternion
+     * @param v [type: quaternion] the quaternion
+     * @return n [type: quaternion] the normalized quaternion
      */
     inline Quat     Normalize(Quat v)           { return Vectormath::Aos::normalize(v); }
 
@@ -248,9 +248,9 @@ namespace dmVMath
      * Interpolates along the shortest path between two quaternions
      * @name Slerp
      * @param t [type: float] the unit time
-     * @param a [type: Quat] the start vector (t == 0)
-     * @param b [type: Quat] the end vector (t == 1)
-     * @return v [type: Quat] the result vector
+     * @param a [type: quaternion] the start vector (t == 0)
+     * @param b [type: quaternion] the end vector (t == 1)
+     * @return v [type: quaternion] the result vector
      * @note Does not clamp t to between 0 and 1
      */
     inline Quat     Slerp(float t, Quat a, Quat b)          { return Vectormath::Aos::slerp(t, a, b); }
@@ -310,14 +310,14 @@ namespace dmVMath
     /*# conjugate of quaternion
      * Returns the conjugate of the quaternion: `conj = -q`
      * @name MulPerElem
-     * @param q [type: Quat] the quaternions
-     * @return r [type: Quat] the result
+     * @param q [type: quaternion] the quaternions
+     * @return r [type: quaternion] the result
      */
     inline Quat     Conjugate(Quat v)                       { return Vectormath::Aos::conj(v); }
 
     /*# rotate vector using quaternion
      * @name Rotate
-     * @param q [type: Quat] the rotation
+     * @param q [type: quaternion] the rotation
      * @param v [type: Vector3] the vector
      * @return r [type: Vector3] the rotated vector
      */
