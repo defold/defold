@@ -3976,7 +3976,7 @@ namespace dmGui
      *
      * @name gui.get_rotation
      * @param node [type:node] node to get the rotation from
-     * @return rotation [type:quat] node rotation
+     * @return rotation [type:quaternion] node rotation
      */
 
     /*# sets the node rotation
@@ -3985,7 +3985,7 @@ namespace dmGui
      *
      * @name gui.set_rotation
      * @param node [type:node] node to set the rotation for
-     * @param rotation [type:quat|vector4] new rotation
+     * @param rotation [type:quaternion|vector4] new rotation
      */
 
     /*# gets the node rotation

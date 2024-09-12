@@ -556,7 +556,7 @@ namespace dmScript
      *
      * @name timer.delay
      * @param delay [type:number] time interval in seconds
-     * @param repeat [type:boolean] true = repeat timer until cancel, false = one-shot timer
+     * @param repeating [type:boolean] true = repeat timer until cancel, false = one-shot timer
      * @param callback [type:function(self, handle, time_elapsed)] timer callback function
      *
      * `self`
