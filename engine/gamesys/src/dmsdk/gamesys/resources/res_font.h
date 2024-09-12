@@ -41,6 +41,11 @@ namespace dmGameSystem
         FONT_GLYPH_COMPRESSION_DEFLATE = 1,
     };
 
+    /*#
+     * @name ResFontGetHandle
+     * @param font [type: FontResource*] The font resource to modify
+     * @return result [type: dmRender::HFont] Handle to a font if successful. 0 otherwise.
+     */
     dmRender::HFont ResFontGetHandle(FontResource* font);
 
     /*#
@@ -52,14 +57,25 @@ namespace dmGameSystem
     dmResource::Result ResFontGetInfo(FontResource* font, FontMapDesc* desc);
 
     /*#
-     * @name ResFontGetCacheCellInfo
+     * Resets the glyph cache and sets the cell size.
+     * @name ResFontSetCacheCellSize
+     * @param font [type: FontResource*] The font resource to modify
+     * @param cell_width [type: uint32_t] The width of a glyph cache cell
+     * @param cell_height [type: uint32_t] The height of a glyph cache cell
+     * @param max_ascent [type: uint32_t] The height of a glyph cache cell
+     * @return result [type: dmResource::Result] RESULT_OK if successful
+     */
+    dmResource::Result ResFontSetCacheCellSize(FontResource* font, uint32_t cell_width, uint32_t cell_height, uint32_t max_ascent);
+
+    /*#
+     * @name ResFontGetCacheCellSize
      * @param font [type: FontResource*] The font resource to modify
      * @param width [type: uint32_t*] The cache cell width
      * @param height [type: uint32_t*] The cache cell height
      * @param max_ascent [type: uint32_t*] The distance from the top of the cell to the baseline.
      * @return result [type: dmResource::Result] RESULT_OK if successful
      */
-    dmResource::Result ResFontGetCacheCellInfo(FontResource* font, uint32_t* width, uint32_t* height, uint32_t* max_ascent);
+    dmResource::Result ResFontGetCacheCellSize(FontResource* font, uint32_t* width, uint32_t* height, uint32_t* max_ascent);
 
     /*#
      * @name ResFontHasGlyph

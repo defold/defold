@@ -116,6 +116,9 @@ namespace dmRender
      */
     HFontMap NewFontMap(dmGraphics::HContext graphics_context, FontMapParams& params);
 
+    void SetFontMapCacheSize(HFontMap font_map, uint32_t cell_width, uint32_t cell_height, uint32_t max_ascent);
+    void GetFontMapCacheSize(HFontMap font_map, uint32_t* cell_width, uint32_t* cell_height, uint32_t* max_ascent);
+
     /**
      * Delete a font map
      * @param font_map Font map handle

@@ -180,7 +180,7 @@ namespace dmRender
         uint8_t*                m_CellTempData; // a temporary unpack buffer for the compressed glyphs
 
         dmHashTable32<CacheGlyph*>  m_GlyphCache;   // Quick check what glyphs are in the cache
-        CacheGlyph*                 m_Cache;        // THe data (i.e. the pool)
+        CacheGlyph*                 m_Cache;        // The data (i.e. the pool)
         uint16_t*                   m_CacheIndices; // Indices into the cache array
         uint32_t                    m_CacheCursor;
 
@@ -235,13 +235,57 @@ namespace dmRender
         return filter;
     }
 
-    void SetFontMap(HFontMap font_map, dmGraphics::HContext graphics_context, FontMapParams& params)
+    static void SetupCache(HFontMap font_map, uint32_t texture_width, uint32_t texture_height,
+                                             uint32_t cell_width, uint32_t cell_height, uint32_t max_ascent)
     {
-        // release previous glyph data bank
-        if (font_map->m_Cache) {
+        if (font_map->m_Cache)
+        {
             free(font_map->m_Cache);
             free(font_map->m_CellTempData);
+            free(font_map->m_CacheIndices);
+            font_map->m_GlyphCache.Clear();
         }
+
+        font_map->m_CacheCellWidth = cell_width;
+        font_map->m_CacheCellHeight = cell_height;
+        font_map->m_CacheCellMaxAscent = max_ascent;
+
+        font_map->m_CacheColumns = texture_width / cell_width;
+        font_map->m_CacheRows = texture_height / cell_height;
+        font_map->m_CacheCellCount = font_map->m_CacheColumns * font_map->m_CacheRows;
+
+        font_map->m_CellTempData = (uint8_t*)malloc(font_map->m_CacheCellWidth*font_map->m_CacheCellHeight*4);
+
+        font_map->m_CacheIndices = (uint16_t*)malloc(sizeof(uint16_t) * font_map->m_CacheCellCount);
+        memset(font_map->m_CacheIndices, 0, sizeof(uint16_t) * font_map->m_CacheCellCount);
+
+        font_map->m_Cache = (CacheGlyph*)malloc(sizeof(CacheGlyph) * font_map->m_CacheCellCount);
+        memset(font_map->m_Cache, 0, sizeof(CacheGlyph*) * font_map->m_CacheCellCount);
+        for (uint32_t i = 0; i < font_map->m_CacheCellCount; ++i)
+        {
+            font_map->m_CacheIndices[i] = i;
+
+            CacheGlyph* glyph = &font_map->m_Cache[i];
+            glyph->m_Glyph = 0;
+            glyph->m_Frame = 0;
+
+            // We calculate these only once
+            uint32_t col = i % font_map->m_CacheColumns;
+            uint32_t row = i / font_map->m_CacheColumns;
+            glyph->m_X = col * font_map->m_CacheCellWidth;
+            glyph->m_Y = row * font_map->m_CacheCellHeight;
+        }
+
+        uint32_t old_cap = font_map->m_GlyphCache.Capacity();
+        int new_cap = font_map->m_CacheCellCount;
+        if (new_cap > old_cap)
+        {
+            font_map->m_GlyphCache.SetCapacity((new_cap*3)/2, new_cap);
+        }
+    }
+
+    void SetFontMap(HFontMap font_map, dmGraphics::HContext graphics_context, FontMapParams& params)
+    {
 
         assert(params.m_GetGlyph);
         assert(params.m_GetGlyphData);
@@ -266,19 +310,11 @@ namespace dmRender
 
         font_map->m_CacheWidth = params.m_CacheWidth;
         font_map->m_CacheHeight = params.m_CacheHeight;
-        //font_map->m_GlyphData = params.m_GlyphData;
-
-        font_map->m_CacheCellWidth = params.m_CacheCellWidth;
-        font_map->m_CacheCellHeight = params.m_CacheCellHeight;
-        font_map->m_CacheCellMaxAscent = params.m_CacheCellMaxAscent;
         font_map->m_CacheCellPadding = params.m_CacheCellPadding;
-
-        font_map->m_CacheColumns = params.m_CacheWidth / params.m_CacheCellWidth;
-        font_map->m_CacheRows = params.m_CacheHeight / params.m_CacheCellHeight;
-        font_map->m_CacheCellCount = font_map->m_CacheColumns * font_map->m_CacheRows;
         font_map->m_CacheChannels = params.m_GlyphChannels;
 
-        font_map->m_CellTempData = (uint8_t*)malloc(font_map->m_CacheCellWidth*font_map->m_CacheCellHeight*4);
+        SetupCache(font_map, font_map->m_CacheWidth, font_map->m_CacheWidth,
+                                params.m_CacheCellWidth, params.m_CacheCellHeight, font_map->m_MaxAscent);
 
         switch (params.m_GlyphChannels)
         {
@@ -309,27 +345,6 @@ namespace dmRender
             font_map->m_MagFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
         }
 
-        font_map->m_CacheIndices = (uint16_t*)malloc(sizeof(uint16_t) * font_map->m_CacheCellCount);
-        memset(font_map->m_CacheIndices, 0, sizeof(uint16_t) * font_map->m_CacheCellCount);
-
-        font_map->m_Cache = (CacheGlyph*)malloc(sizeof(CacheGlyph) * font_map->m_CacheCellCount);
-        memset(font_map->m_Cache, 0, sizeof(CacheGlyph*) * font_map->m_CacheCellCount);
-        for (uint32_t i = 0; i < font_map->m_CacheCellCount; ++i)
-        {
-            font_map->m_CacheIndices[i] = i;
-
-            CacheGlyph* glyph = &font_map->m_Cache[i];
-            glyph->m_Glyph = 0;
-            glyph->m_Frame = 0;
-
-            // We calculate these only once
-            uint32_t col = i % font_map->m_CacheColumns;
-            uint32_t row = i / font_map->m_CacheColumns;
-            glyph->m_X = col * font_map->m_CacheCellWidth;
-            glyph->m_Y = row * font_map->m_CacheCellHeight;
-        }
-
-        font_map->m_GlyphCache.SetCapacity(font_map->m_CacheCellCount, (font_map->m_CacheCellCount*3)/2);
 
         // create new texture to be used as a cache
         dmGraphics::TextureCreationParams tex_create_params;
@@ -363,6 +378,20 @@ namespace dmRender
         FontMap* font_map = new FontMap();
         SetFontMap(font_map, graphics_context, params);
         return font_map;
+    }
+
+    void SetFontMapCacheSize(HFontMap font_map, uint32_t cell_width, uint32_t cell_height, uint32_t max_ascent)
+    {
+        // TODO: DO we need to clear the texture?
+        SetupCache(font_map, font_map->m_CacheWidth, font_map->m_CacheWidth,
+                            cell_width, cell_height, max_ascent);
+    }
+
+    void GetFontMapCacheSize(HFontMap font_map, uint32_t* cell_width, uint32_t* cell_height, uint32_t* max_ascent)
+    {
+        *cell_width = font_map->m_CacheCellWidth;
+        *cell_height = font_map->m_CacheCellHeight;
+        *max_ascent = font_map->m_CacheCellMaxAscent;
     }
 
     void DeleteFontMap(HFontMap font_map)
@@ -681,7 +710,7 @@ namespace dmRender
     //     {
     //         uint16_t index = font_map->m_CacheIndices[i];
     //         CacheGlyph* g = &font_map->m_Cache[index];
-    //         printf("%d: '%c'  t: %u  x/y: %u, %u\n", i, g->m_Glyph->m_Character, g->m_Frame, g->m_X, g->m_Y);
+    //         printf("%d: '%c'  t: %u  x/y: %u, %u  is_in_cache: %d\n", i, g->m_Glyph->m_Character, g->m_Frame, g->m_X, g->m_Y, IsInCache(font_map, g->m_Glyph->m_Character));
     //     }
     // }
 
