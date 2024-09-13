@@ -17,6 +17,7 @@ package com.dynamo.bob.pipeline;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.assertFalse;
 import java.util.List;
 
 import org.junit.Before;
@@ -366,13 +367,24 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             validateResourceBindingWithKnownType(r.getTextures(4), "sampler_cube",               ShaderDesc.ShaderDataType.SHADER_TYPE_TEXTURE_CUBE);
             validateResourceBindingWithKnownType(r.getTextures(5), "sampler_cube_separated",     ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER);
 
+            // Test that the constructed samplers have a valid connection to it's texture unit
+            assertTrue(r.getTextures(1).hasSamplerTextureIndex());
+            assertEquals(0, r.getTextures(1).getSamplerTextureIndex());
+            assertTrue(r.getTextures(3).hasSamplerTextureIndex());
+            assertEquals(2, r.getTextures(3).getSamplerTextureIndex());
+            assertTrue(r.getTextures(5).hasSamplerTextureIndex());
+            assertEquals(4, r.getTextures(5).getSamplerTextureIndex());
+
             //TODO:
             //validateResourceBindingWithKnownType(shader.getTextures(2), "sampler_buffer",   ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_);
             validateResourceBindingWithKnownType(r.getTextures(6), "texture_2d",       ShaderDesc.ShaderDataType.SHADER_TYPE_TEXTURE2D);
             validateResourceBindingWithKnownType(r.getTextures(7), "utexture_2d",      ShaderDesc.ShaderDataType.SHADER_TYPE_UTEXTURE2D);
             validateResourceBindingWithKnownType(r.getTextures(8), "uimage_2d",        ShaderDesc.ShaderDataType.SHADER_TYPE_UIMAGE2D);
             validateResourceBindingWithKnownType(r.getTextures(9), "image_2d",         ShaderDesc.ShaderDataType.SHADER_TYPE_IMAGE2D);
-            validateResourceBindingWithKnownType(r.getTextures(10), "sampler_name",     ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER);
+            validateResourceBindingWithKnownType(r.getTextures(10), "sampler_name",    ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER);
+
+            // The non-constructed sampler shouldn't have any reference to a texture
+            assertFalse(r.getTextures(10).hasSamplerTextureIndex());
         }
     }
 

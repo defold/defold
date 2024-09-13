@@ -117,13 +117,19 @@ namespace dmGraphics
             BINDING_FAMILY_TEXTURE        = 3,
         };
 
+        union BindingInfo
+        {
+            uint16_t m_BlockSize;
+            uint16_t m_SamplerTextureIndex;
+        };
+
         char*                       m_Name;
         dmhash_t                    m_NameHash;
         ShaderResourceType          m_Type;
         BindingFamily               m_BindingFamily;
         uint16_t                    m_Set;
         uint16_t                    m_Binding;
-        uint16_t                    m_BlockSize;
+        BindingInfo                 m_BindingInfo;
     };
 
     struct ShaderMeta
@@ -156,6 +162,7 @@ namespace dmGraphics
         uint32_t m_UniformBufferCount;
         uint32_t m_StorageBufferCount;
         uint32_t m_TextureCount;
+        uint32_t m_SamplerCount;
         uint32_t m_TotalUniformCount;
         uint32_t m_UniformDataSize;
         uint32_t m_UniformDataSizeAligned;

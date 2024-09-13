@@ -966,9 +966,13 @@ namespace dmGraphics
             res.m_NameHash             = bindings[i].m_NameHash;
             res.m_Binding              = bindings[i].m_Binding;
             res.m_Set                  = bindings[i].m_Set;
-            res.m_BlockSize            = bindings[i].m_BlockSize;
             res.m_Type.m_UseTypeIndex  = bindings[i].m_Type.m_UseTypeIndex;
             res.m_BindingFamily        = family;
+
+            if (res.m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_SAMPLER)
+                res.m_BindingInfo.m_SamplerTextureIndex = bindings[i].m_Bindinginfo.m_SamplerTextureIndex;
+            else
+                res.m_BindingInfo.m_BlockSize = bindings[i].m_Bindinginfo.m_BlockSize;
 
             if (res.m_Type.m_UseTypeIndex)
                 res.m_Type.m_TypeIndex = bindings[i].m_Type.m_Type.m_TypeIndex;
