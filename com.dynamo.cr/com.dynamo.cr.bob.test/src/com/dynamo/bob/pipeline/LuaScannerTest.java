@@ -507,4 +507,32 @@ public class LuaScannerTest {
         expected = "  ";
         assertEquals(expected, scanner.getParsedLua());
     }
+
+    @Test
+    public void testGoPropertyHash() throws Exception {
+        String luaCode = "go.property(\"semi1\", hash(\"value\"))";
+        LuaScanner scanner = new LuaScanner();
+        scanner.parse(luaCode);
+        String expected = " ";
+        assertEquals(expected, scanner.getParsedLua());
+
+        scanner = new LuaScanner();
+        scanner.setDebug();
+        scanner.parse(luaCode);
+        expected = " hash(\"value\")";
+        assertEquals(expected, scanner.getParsedLua());
+
+        luaCode = "go.property(\"semi1\", hash \"value\")";
+        scanner = new LuaScanner();
+        scanner.parse(luaCode);
+        expected = "  ";
+        assertEquals(expected, scanner.getParsedLua());
+
+        luaCode = "go.property(\"semi1\", hash \"value\")";
+        scanner = new LuaScanner();
+        scanner.setDebug();
+        scanner.parse(luaCode);
+        expected = " hash \"value\"";
+        assertEquals(expected, scanner.getParsedLua());
+    }
 }

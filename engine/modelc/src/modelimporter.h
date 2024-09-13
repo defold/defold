@@ -35,6 +35,7 @@ namespace dmModelImporter
         ALPHA_MODE_BLEND,
         ALPHA_MODE_MAX_ENUM
     };
+
     struct Vector3
     {
         float x, y, z;
