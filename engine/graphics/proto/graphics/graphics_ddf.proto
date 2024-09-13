@@ -333,7 +333,18 @@ message ShaderDesc
         required ResourceType   type          = 3;
         optional uint32         set           = 4;
         optional uint32         binding       = 5;
-        optional uint32         block_size    = 6;
+
+        oneof BindingInfo
+        {
+            // Uniform buffer block size
+            uint32 block_size = 6;
+            // Sampler object index
+            // Since we split combined samplers into
+            // a texture + sampler object we need to
+            // keep track of which of the textures
+            // the sampler originally is pointing to.
+            uint32 sampler_texture_index = 7;
+        }
     }
 
     message ShaderReflection
