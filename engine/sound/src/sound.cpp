@@ -132,15 +132,17 @@ namespace dmSound
      */
     struct MixContext
     {
-        MixContext(uint32_t current_buffer, uint32_t total_buffers)
-        {
-            m_CurrentBuffer = current_buffer;
-            m_TotalBuffers = total_buffers;
-        }
+        MixContext(uint32_t current_buffer, uint32_t total_buffers, uint32_t frame_count)
+        : m_CurrentBuffer(current_buffer),
+          m_TotalBuffers(total_buffers),
+          m_FrameCount(frame_count) {}
+
         // Current buffer index
         uint32_t m_CurrentBuffer;
         // How many buffers to mix
         uint32_t m_TotalBuffers;
+        // How many frames to get from the buffer
+        uint32_t m_FrameCount;
     };
 
     Ramp GetRamp(const MixContext* mix_context, const Value* value, uint32_t total_samples)
@@ -213,7 +215,8 @@ namespace dmSound
         int32_atomic_t          m_Status; // type Result
 
         uint32_t                m_MixRate;
-        uint32_t                m_FrameCount;
+        uint32_t                m_DeviceFrameCount;
+        uint32_t                m_FrameCount; // Updated for each available buffer
         uint32_t                m_PlayCounter;
 
         int16_t*                m_OutBuffers[SOUND_OUTBUFFER_COUNT];
@@ -296,7 +299,7 @@ namespace dmSound
         SoundGroup* group = &sound->m_Groups[index];
         group->m_NameHash = group_hash;
         group->m_Gain.Reset(1.0f);
-        size_t mix_buffer_size = sound->m_FrameCount * sizeof(float) * SOUND_MAX_MIX_CHANNELS;
+        size_t mix_buffer_size = sound->m_DeviceFrameCount * sizeof(float) * SOUND_MAX_MIX_CHANNELS;
         group->m_MixBuffer = (float*) malloc(mix_buffer_size);
         memset(group->m_MixBuffer, 0, mix_buffer_size);
         sound->m_GroupMap.Put(group_hash, index);
@@ -316,7 +319,7 @@ namespace dmSound
         device_params.m_BufferCount = SOUND_OUTBUFFER_COUNT;
         device_params.m_FrameCount = params->m_FrameCount;
         DeviceType* device_type;
-        DeviceInfo device_info;
+        DeviceInfo device_info = {0};
         r = OpenDevice(params->m_OutputDevice, &device_params, &device_type, &device);
         if (r != RESULT_OK) {
             dmLogError("Failed to Open device '%s'", params->m_OutputDevice);
@@ -355,6 +358,8 @@ namespace dmSound
             max_instances = (uint32_t) dmConfigFile::GetInt(config, "sound.max_sound_instances", (int32_t) max_instances);
         }
 
+        sound->m_MixRate = device_info.m_MixRate;
+        sound->m_DeviceFrameCount = device_info.m_FrameCount ? device_info.m_FrameCount : params->m_FrameCount;
         sound->m_Instances.SetCapacity(max_instances);
         sound->m_Instances.SetSize(max_instances);
         sound->m_InstancesPool.SetCapacity(max_instances);
@@ -366,7 +371,7 @@ namespace dmSound
             instance->m_SoundDataIndex = 0xffff;
             // NOTE: +1 for "over-fetch" when up-sampling
             // NOTE: and x SOUND_MAX_SPEED for potential pitch range
-            instance->m_Frames = malloc((params->m_FrameCount * SOUND_MAX_SPEED + 1) * sizeof(int16_t) * SOUND_MAX_MIX_CHANNELS);
+            instance->m_Frames = malloc((sound->m_DeviceFrameCount * SOUND_MAX_SPEED + 1) * sizeof(int16_t) * SOUND_MAX_MIX_CHANNELS);
             instance->m_FrameCount = 0;
             instance->m_Speed = 1.0f;
         }
@@ -379,10 +384,8 @@ namespace dmSound
             sound->m_SoundData[i].m_Index = 0xffff;
         }
 
-        sound->m_MixRate = device_info.m_MixRate;
-        sound->m_FrameCount = params->m_FrameCount;
         for (int i = 0; i < SOUND_OUTBUFFER_COUNT; ++i) {
-            sound->m_OutBuffers[i] = (int16_t*) malloc(params->m_FrameCount * sizeof(int16_t) * SOUND_MAX_MIX_CHANNELS);
+            sound->m_OutBuffers[i] = (int16_t*) malloc(sound->m_DeviceFrameCount * sizeof(int16_t) * SOUND_MAX_MIX_CHANNELS);
         }
         sound->m_NextOutBuffer = 0;
 
@@ -453,6 +456,10 @@ namespace dmSound
 
             if (sound->m_Device)
             {
+                if (sound->m_IsDeviceStarted)
+                {
+                    sound->m_DeviceType->m_DeviceStop(sound->m_Device);
+                }
                 sound->m_DeviceType->m_Close(sound->m_Device);
             }
 
@@ -897,17 +904,17 @@ namespace dmSound
             float gain = gain_ramp.GetValue(i);
             float pan = pan_ramp.GetValue(i);
             float mix = frac * range_recip; // determines the bias between two consecutive samples in the sound instance. It ranges from 0-1. A mix of 0, makes only the first sample count while a mix of 0.5 will count equally both samples.
-            T s1 = frames[index];
-            T s2 = frames[index + 1];
-            s1 = (s1 - offset) * scale;
-            s2 = (s2 - offset) * scale;
+            float s1 = frames[index];
+            float s2 = frames[index + 1];
+            s1 = (s1 - offset) * scale * gain;
+            s2 = (s2 - offset) * scale * gain;
 
             float left_scale, right_scale;
             GetPanScale(pan, &left_scale, &right_scale);
 
             float s = (1.0f - mix) * s1 + mix * s2; // resulting destination sample value is a mix of two source samples since a kind of fractional indexing is used
-            mix_buffer[2 * i] += s * gain * left_scale;
-            mix_buffer[2 * i + 1] += s * gain * right_scale;
+            mix_buffer[2 * i] += s * left_scale;
+            mix_buffer[2 * i + 1] += s * right_scale;
 
             prev_index = index; // keep old index for assertion
             frac += delta;
@@ -1070,7 +1077,7 @@ namespace dmSound
         const uint32_t rate = info->m_Rate;
         assert(rate <= mix_rate);
 
-        void (*mixer)(const MixContext* mix_context, SoundInstance* instance, uint32_t rate, uint32_t mix_rate, float* mix_buffer, uint32_t mix_buffer_count) = 0;
+        MixerFunction mixer_fn = 0;
 
         bool identity_mixer = rate == mix_rate && instance->m_Speed == 1.0f;
 
@@ -1080,7 +1087,7 @@ namespace dmSound
                 const Mixer& m = g_IdentityMixers[i];
                 if (m.m_BitsPerSample == info->m_BitsPerSample &&
                     m.m_Channels == info->m_Channels) {
-                    mixer = m.m_Mixer;
+                    mixer_fn = m.m_Mixer;
                     break;
                 }
             }
@@ -1090,12 +1097,12 @@ namespace dmSound
                 const Mixer& m = g_Mixers[i];
                 if (m.m_BitsPerSample == info->m_BitsPerSample &&
                     m.m_Channels == info->m_Channels) {
-                    mixer = m.m_Mixer;
+                    mixer_fn = m.m_Mixer;
                     break;
                 }
             }
         }
-        mixer(mix_context, instance, rate, mix_rate, mix_buffer, mix_buffer_count);
+        mixer_fn(mix_context, instance, rate, mix_rate, mix_buffer, mix_buffer_count);
     }
 
     static void Mix(const MixContext* mix_context, SoundInstance* instance, const dmSoundCodec::Info* info)
@@ -1105,8 +1112,8 @@ namespace dmSound
         SoundSystem* sound = g_SoundSystem;
         uint64_t delta = (uint32_t) ((((uint64_t) info->m_Rate) << RESAMPLE_FRACTION_BITS) / sound->m_MixRate);
         uint32_t mix_count = ((uint64_t) (instance->m_FrameCount) << RESAMPLE_FRACTION_BITS) / (delta * instance->m_Speed);
-        mix_count = dmMath::Min(mix_count, sound->m_FrameCount);
-        assert(mix_count <= sound->m_FrameCount);
+        mix_count = dmMath::Min(mix_count, mix_context->m_FrameCount);
+        assert(mix_count <= sound->m_DeviceFrameCount);
 
         int* index = sound->m_GroupMap.Get(instance->m_Group);
         if (index) {
@@ -1153,6 +1160,8 @@ namespace dmSound
 
         dmSoundCodec::Info info;
         dmSoundCodec::GetInfo(sound->m_CodecContext, instance->m_Decoder, &info);
+
+        // TODO: Move this check to the NewSoundInstance
         bool correct_bit_depth = info.m_BitsPerSample == 16 || info.m_BitsPerSample == 8;
         bool correct_num_channels = info.m_Channels == 1 || info.m_Channels == 2;
         if (!correct_bit_depth || !correct_num_channels) {
@@ -1170,13 +1179,14 @@ namespace dmSound
         bool is_muted = dmSound::IsMuted(instance);
 
         dmSoundCodec::Result r = dmSoundCodec::RESULT_OK;
-        uint32_t mixed_instance_FrameCount = ceilf(sound->m_FrameCount * dmMath::Max(1.0f, instance->m_Speed));
+        uint32_t mixed_instance_FrameCount = ceilf(mix_context->m_FrameCount * dmMath::Max(1.0f, instance->m_Speed));
 
         if (instance->m_FrameCount < mixed_instance_FrameCount && instance->m_Playing) {
 
             const uint32_t stride = info.m_Channels * (info.m_BitsPerSample / 8);
             uint32_t n = mixed_instance_FrameCount - instance->m_FrameCount; // if the result contains a fractional part and we don't ceil(), we'll end up with a smaller number. Later, when deciding the mix_count in Mix(), a smaller value (integer) will be produced. This will result in leaving a small gap in the mix buffer resulting in sound crackling when the chunk changes.
 
+            // TODO: Move to helper fn DecoderConsumeData(sound, decoder, frames, count, ismuted, &decoded)
             if (!is_muted)
             {
                 r = dmSoundCodec::Decode(sound->m_CodecContext,
@@ -1203,6 +1213,7 @@ namespace dmSound
                     }
 
                     uint32_t n = mixed_instance_FrameCount - instance->m_FrameCount;
+                    // TODO: Move to helper fn DecoderConsumeData(sound, decoder, frames, count, ismuted, &decoded)
                     if (!is_muted)
                     {
                         r = dmSoundCodec::Decode(sound->m_CodecContext,
@@ -1254,11 +1265,11 @@ namespace dmSound
         DM_PROFILE(__FUNCTION__);
         SoundSystem* sound = g_SoundSystem;
 
+        uint32_t frame_count = mix_context->m_FrameCount; // sound->m_FrameCount
         for (uint32_t i = 0; i < MAX_GROUPS; i++) {
             SoundGroup* g = &sound->m_Groups[i];
 
             if (g->m_MixBuffer) {
-                uint32_t frame_count = sound->m_FrameCount;
                 float sum_sq_left = 0;
                 float sum_sq_right = 0;
                 float max_sq_left = 0;
@@ -1282,7 +1293,7 @@ namespace dmSound
                 g->m_PeakMemorySq[2 * g->m_NextMemorySlot + 1] = max_sq_right;
                 g->m_NextMemorySlot = (g->m_NextMemorySlot + 1) % GROUP_MEMORY_BUFFER_COUNT;
 
-                memset(g->m_MixBuffer, 0, sound->m_FrameCount * sizeof(float) * 2);
+                memset(g->m_MixBuffer, 0, frame_count * sizeof(float) * 2);
             }
         }
 
@@ -1305,7 +1316,7 @@ namespace dmSound
         DM_PROFILE(__FUNCTION__);
 
         SoundSystem* sound = g_SoundSystem;
-        uint32_t n = sound->m_FrameCount;
+        uint32_t n = mix_context->m_FrameCount;
         int16_t* out = sound->m_OutBuffers[sound->m_NextOutBuffer];
         int* master_index = sound->m_GroupMap.Get(MASTER_GROUP_HASH);
         SoundGroup* master = &sound->m_Groups[*master_index];
@@ -1465,7 +1476,14 @@ namespace dmSound
         uint32_t current_buffer = 0;
         uint32_t total_buffers = free_slots;
         while (free_slots > 0) {
-            MixContext mix_context(current_buffer, total_buffers);
+
+            // Get the number of frames available
+            sound->m_FrameCount = sound->m_DeviceFrameCount;
+            uint32_t frame_count = sound->m_FrameCount;
+            if (sound->m_DeviceType->m_GetAvailableFrames)
+                frame_count = sound->m_DeviceType->m_GetAvailableFrames(sound->m_Device);
+
+            MixContext mix_context(current_buffer, total_buffers, frame_count);
             MixInstances(&mix_context);
 
             Master(&mix_context);
@@ -1473,7 +1491,7 @@ namespace dmSound
             // DEF-2540: Make sure to keep feeding the sound device if audio is being generated,
             // if you don't you'll get more slots free, thus updating sound (redundantly) every call,
             // resulting in a huge performance hit. Also, you'll fast forward the sounds.
-            sound->m_DeviceType->m_Queue(sound->m_Device, (const int16_t*) sound->m_OutBuffers[sound->m_NextOutBuffer], sound->m_FrameCount);
+            sound->m_DeviceType->m_Queue(sound->m_Device, (const int16_t*) sound->m_OutBuffers[sound->m_NextOutBuffer], frame_count);
 
             sound->m_NextOutBuffer = (sound->m_NextOutBuffer + 1) % SOUND_OUTBUFFER_COUNT;
             current_buffer++;
