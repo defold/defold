@@ -299,13 +299,21 @@
 
 ;; region data presentation components
 
-(def ^:private ^{:arglists '([props text-variant])} apply-text-variant
-  (let [m (coll/pair-map-by identity #(str "ext-text-variant-" (name %)) (:text_variant ui-docs/enums))]
+(def ^:private ^{:arglists '([props text-variant])} apply-typography-variant
+  (let [m (coll/pair-map-by identity #(str "ext-typography-variant-" (name %)) (:typography_variant ui-docs/enums))]
     (fn apply-text-variant [props text-variant]
       {:pre [(some? text-variant)]}
       (if-let [style-class (m text-variant)]
         (fxui/add-style-classes props style-class)
-        (throw (AssertionError. (str "Invalid text variant: " text-variant)))))))
+        (throw (AssertionError. (str "Invalid typography variant: " text-variant)))))))
+
+(def ^:private ^{:arglists '([props label-variant])} apply-label-variant
+  (let [m (coll/pair-map-by identity #(str "ext-label-variant-" (name %)) (:label_variant ui-docs/enums))]
+    (fn apply-text-variant [props text-variant]
+      {:pre [(some? text-variant)]}
+      (if-let [style-class (m text-variant)]
+        (fxui/add-style-classes props style-class)
+        (throw (AssertionError. (str "Invalid label variant: " text-variant)))))))
 
 (defn- label-view [{:keys [alignment text text_alignment variant]
                     :or {alignment :top-left}}]
@@ -318,11 +326,11 @@
       (apply-alignment alignment)
       (cond-> text (assoc :text text)
               text_alignment (assoc :text-alignment text_alignment)
-              variant (apply-text-variant variant))))
+              variant (apply-label-variant variant))))
 
-(defn- text-view [{:keys [alignment text text_alignment variant word_wrap]
-                   :or {alignment :top-left
-                        word_wrap true}}]
+(defn- paragraph-view [{:keys [alignment text text_alignment variant word_wrap]
+                        :or {alignment :top-left
+                             word_wrap true}}]
   (-> {:fx/type fx.label/lifecycle
        :style-class ["label"]
        :max-width Double/MAX_VALUE
@@ -331,7 +339,30 @@
       (apply-alignment alignment)
       (cond-> text (assoc :text text)
               text_alignment (assoc :text-alignment text_alignment)
-              variant (apply-text-variant variant))))
+              variant (apply-typography-variant variant))))
+
+(defn- heading-level-class [level]
+  (case (int level)
+    1 "ext-heading-1"
+    2 "ext-heading-2"
+    3 "ext-heading-3"
+    4 "ext-heading-4"
+    5 "ext-heading-5"
+    6 "ext-heading-6"))
+
+(defn- heading-view [{:keys [alignment text text_alignment variant word_wrap level]
+                      :or {alignment :top-left
+                           word_wrap true
+                           level 3}}]
+  (-> {:fx/type fx.label/lifecycle
+       :style-class ["label" (heading-level-class level)]
+       :max-width Double/MAX_VALUE
+       :max-height Double/MAX_VALUE
+       :wrap-text word_wrap}
+      (apply-alignment alignment)
+      (cond-> text (assoc :text text)
+              text_alignment (assoc :text-alignment text_alignment)
+              variant (apply-typography-variant variant))))
 
 (defn- wrap-in-alignment-container
   "Wrapper for components that don't specify alignment
@@ -597,9 +628,8 @@
       (.consume e))
 
     KeyCode/ESCAPE
-    (do
-      (when edit
-        (swap-state dissoc :edit))
+    (when edit
+      (swap-state dissoc :edit)
       (.consume e))
 
     nil))
@@ -1263,7 +1293,8 @@
             [ui-docs/separator-component separator-view]
             [ui-docs/scroll-component scroll-view]
             [ui-docs/label-component label-view]
-            [ui-docs/text-component text-view]
+            [ui-docs/paragraph-component paragraph-view]
+            [ui-docs/heading-component heading-view]
             [ui-docs/icon-component icon-view]
             [ui-docs/button-component button-view]
             [ui-docs/check-box-component check-box-view]

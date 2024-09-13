@@ -8,9 +8,9 @@ function M.get_commands()
             run = function()
                 local dialog = editor.ui.dialog({
                     title = "Dialog title",
-                    header = editor.ui.label({
+                    header = editor.ui.heading({
                         text = "Header on the Right",
-                        variant = editor.ui.TEXT_VARIANT.HINT,
+                        variant = editor.ui.TYPOGRAPHY_VARIANT.HINT,
                         alignment = editor.ui.ALIGNMENT.RIGHT
                     }),
                     content = editor.ui.scroll({

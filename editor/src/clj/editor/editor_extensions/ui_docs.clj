@@ -59,10 +59,11 @@
    :padding [:small :medium :large]
    :spacing [:small :medium :large]
    :text_alignment [:left :center :right :justify]
-   :text_variant [:default :hint :warning :error]
    :icon_name [:open-resource :plus :minus :clear]
    :orientation [:vertical :horizontal]
-   :input_variant [:default :warning :error]})
+   :input_variant [:default :warning :error]
+   :label_variant [:default :overridden]
+   :typography_variant [:default :hint :warning :error]})
 
 (def ^:private get-enum-coercer
   (let [m (coll/pair-map-by key #(apply coerce/enum (val %)) enums)]
@@ -189,7 +190,7 @@
 
 (def ^:private label-specific-props
   (conj label-without-variant-specific-props
-        (enum-prop :variant :enum :text_variant :doc "semantic view variant")))
+        (enum-prop :variant :enum :label_variant :doc "semantic label variant")))
 
 (def ^:private icon-specific-props
   [(enum-prop :name :enum :icon_name :required true :doc "predefined icon name")])
@@ -197,11 +198,21 @@
 (def ^:private label-props
   (into label-specific-props common-props))
 
-(def ^:private text-props
-  (-> label-specific-props
-      (conj (make-prop :word_wrap
-                       :coerce coerce/boolean
-                       :doc "determines if the lines of text are word-wrapped when they don't fit in the assigned bounds, defaults to true"))
+(def ^:private typography-specific-props
+  (conj label-without-variant-specific-props
+        (enum-prop :variant :enum :typography_variant :doc "semantic typography variant")
+        (make-prop :word_wrap
+                   :coerce coerce/boolean
+                   :doc "determines if the lines of text are word-wrapped when they don't fit in the assigned bounds, defaults to true")))
+
+(def ^:private paragraph-props
+  (-> typography-specific-props
+      (into common-props)))
+
+(def ^:private heading-props
+  (-> typography-specific-props
+      (conj (make-prop :level :coerce (coerce/enum 1 2 3 4 5 6) :types ["integer"]
+                       :doc "Heading level, an integer from 1 to 6, defaults to 3 (intended value for headings in dialog headers)"))
       (into common-props)))
 
 (def ^:private icon-props
@@ -399,11 +410,17 @@
     :description "Non-resizeable text label"
     :props label-props))
 
-(def text-component
+(def paragraph-component
   (component
-    "text"
-    :description "Resizeable text label"
-    :props text-props))
+    "paragraph"
+    :description "Typography component representing a paragraph of text"
+    :props paragraph-props))
+
+(def heading-component
+  (component
+    "heading"
+    :description "Typography component representing a heading"
+    :props heading-props))
 
 (def icon-component
   (component
@@ -675,7 +692,8 @@ end)</code></pre>"})
           separator-component
           scroll-component
           label-component
-          text-component
+          paragraph-component
+          heading-component
           icon-component
           button-component
           check-box-component

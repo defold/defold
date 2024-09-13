@@ -19,11 +19,23 @@ $ext-line-height: 26px;
         &-medium      { -fx-padding: 24px; }
         &-large       { -fx-padding: 40px; }
     }
-    &-text-variant {
+    &-heading {
+        &-1 { -fx-font-size: 26px; -fx-font-family: "Source Sans Pro Light"; }
+        &-2 { -fx-font-size: 24px; -fx-font-family: "Source Sans Pro Light"; }
+        &-3 { -fx-font-size: 22px; -fx-font-family: "Source Sans Pro Light"; }
+        &-4 { -fx-font-size: 20px; }
+        &-5 { -fx-font-size: 18px; }
+        &-6 { -fx-font-size: 16px; }
+    }
+    &-typography-variant {
         &-default {}
         &-hint    { -fx-text-fill: -df-text-dark; }
         &-warning { -fx-text-fill: -df-error-severity-warning; }
         &-error   { -fx-text-fill: -df-error-severity-fatal; }
+    }
+    &-label-variant {
+        &-default {}
+        &-overridden { -fx-text-fill: -df-defold-blue-lighter; }
     }
     &-scroll-pane {
         > .scroll-bar .thumb {
