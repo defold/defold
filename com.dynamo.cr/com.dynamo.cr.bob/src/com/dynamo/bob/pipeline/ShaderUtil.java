@@ -404,6 +404,8 @@ public class ShaderUtil {
                 return result;
             }
 
+            input = Common.stripComments(input);
+
             ArrayList<String> output = new ArrayList<>(input.length());
             ArrayList<String[]> lineReplacements = new ArrayList<>();
             String[] inputLines = input.split("\\r?\\n");
