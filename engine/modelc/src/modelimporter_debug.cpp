@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "modelimporter.h"
+#include <dmsdk/dlib/array.h>
 #include <dmsdk/dlib/dstrings.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -165,42 +166,82 @@ static void OutputTextureTransform(TextureTransform* p, int indent)
     printf("scale: %f, %f\n", p->m_Scale[0], p->m_Scale[1]);
 }
 
-static void OutputTextureView(TextureView* p, int indent)
+static void OutputTextureView(const char* name, TextureView* p, int indent)
 {
     OutputIndent(indent);
+    printf("%s:\n", name);
+    OutputIndent(indent+1);
     printf("texture: %s\n", p->m_Texture->m_Name);
-    OutputIndent(indent);
+    OutputIndent(indent+1);
     printf("tex_coord: %d\n", p->m_Texcoord);
-    OutputIndent(indent);
+    OutputIndent(indent+1);
     printf("scale: %f\n", p->m_Scale);
     if (p->m_HasTransform)
     {
-        OutputIndent(indent);
+        OutputIndent(indent+1);
         printf("transform:\n");
         OutputTextureTransform(&p->m_Transform, indent+1);
     }
 }
 
+template <int N>
+static void OutputArray(const char* name, float (&p)[N], int indent)
+{
+    OutputIndent(indent);
+    printf("%s: ", name);
+    for (int i = 0; i < N; ++i)
+    {
+        printf("%f", p[i]);
+        if (i < (N-1))
+            printf(", ");
+    }
+    printf("\n");
+}
+
+static void OutputValue(const char* name, float value, int indent)
+{
+    OutputIndent(indent);
+    printf("%s: %f\n", name, value);
+}
 
 static void OutputPbrMetallicRoughness(PbrMetallicRoughness* p, int indent)
 {
     OutputIndent(indent);
-    printf("pbd_metallic_roughness\n");
-    OutputIndent(indent+1);
-    printf("base_color_factor: %f, %f, %f, %f\n", p->m_BaseColorFactor[0], p->m_BaseColorFactor[1], p->m_BaseColorFactor[2], p->m_BaseColorFactor[3]);
-    OutputIndent(indent+1);
-    printf("metallic_factor: %f\n", p->m_MetallicFactor);
-    OutputIndent(indent+1);
-    printf("roughness_factor: %f\n", p->m_RoughnessFactor);
+    printf("pbr_metallic_roughness\n");
+    OutputArray("base_color_factor", p->m_BaseColorFactor, indent+1);
+    OutputValue("roughness_factor", p->m_RoughnessFactor, indent+1);
 
-    OutputIndent(indent);
-    printf("base_color_texture:\n");
-        OutputTextureView(&p->m_BaseColorTexture, indent+1);
-
-    OutputIndent(indent);
-    printf("metallic_roughness_texture:\n");
-        OutputTextureView(&p->m_MetallicRoughnessTexture, indent+1);
+    OutputTextureView("base_color_texture:", &p->m_BaseColorTexture, indent+1);
+    OutputTextureView("metallic_roughness_texture", &p->m_MetallicRoughnessTexture, indent+1);
 }
+
+static void OutputPbrSpecularGlossiness(PbrSpecularGlossiness* p, int indent)
+{
+    OutputIndent(indent);
+    printf("pbr_specular_glossiness\n");
+
+    OutputArray("diffuse_factor", p->m_DiffuseFactor, indent+1);
+    OutputArray("specular_factor", p->m_SpecularFactor, indent+1);
+
+    OutputValue("specular_glossiness", p->m_GlossinessFactor, indent+1);
+
+    OutputTextureView("diffuse_texture", &p->m_DiffuseTexture, indent+1);
+    OutputTextureView("specular_glossiness_texture", &p->m_SpecularGlossinessTexture, indent+1);
+}
+
+static void OutputClearcoat(Clearcoat* p, int indent)
+{
+    OutputIndent(indent);
+    printf("clearcoat\n");
+
+    OutputValue("clearcoat_factor", p->m_ClearcoatFactor, indent+1);
+    OutputValue("clearcoat_roughness_factor", p->m_ClearcoatRoughnessFactor, indent+1);
+
+    OutputTextureView("clearcoat_texture", &p->m_ClearcoatTexture, indent+1);
+    OutputTextureView("clearcoat_roughness_texture", &p->m_ClearcoatRoughnessTexture, indent+1);
+    OutputTextureView("clearcoat_normal_texture", &p->m_ClearcoatNormalTexture, indent+1);
+}
+
 
 
 static void OutputMaterial(Material* material, int indent)
@@ -209,6 +250,8 @@ static void OutputMaterial(Material* material, int indent)
     printf("material  %s\n", material->m_Name);
 
     if (material->m_PbrMetallicRoughness) OutputPbrMetallicRoughness(material->m_PbrMetallicRoughness, indent+1);
+    if (material->m_PbrSpecularGlossiness) OutputPbrSpecularGlossiness(material->m_PbrSpecularGlossiness, indent+1);
+    if (material->m_Clearcoat) OutputClearcoat(material->m_Clearcoat, indent+1);
 }
 
 static void OutputMesh(Mesh* mesh, int indent)
