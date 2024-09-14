@@ -168,10 +168,15 @@ static void OutputTextureTransform(TextureTransform* p, int indent)
 
 static void OutputTextureView(const char* name, TextureView* p, int indent)
 {
+    if (!p)
+        return;
     OutputIndent(indent);
     printf("%s:\n", name);
-    OutputIndent(indent+1);
-    printf("texture: %s\n", p->m_Texture->m_Name);
+    if (p->m_Texture)
+    {
+        OutputIndent(indent+1);
+        printf("texture: %s\n", p->m_Texture->m_Name);
+    }
     OutputIndent(indent+1);
     printf("tex_coord: %d\n", p->m_Texcoord);
     OutputIndent(indent+1);
@@ -211,7 +216,7 @@ static void OutputPbrMetallicRoughness(PbrMetallicRoughness* p, int indent)
     OutputArray("base_color_factor", p->m_BaseColorFactor, indent+1);
     OutputValue("roughness_factor", p->m_RoughnessFactor, indent+1);
 
-    OutputTextureView("base_color_texture:", &p->m_BaseColorTexture, indent+1);
+    OutputTextureView("base_color_texture", &p->m_BaseColorTexture, indent+1);
     OutputTextureView("metallic_roughness_texture", &p->m_MetallicRoughnessTexture, indent+1);
 }
 
@@ -242,16 +247,86 @@ static void OutputClearcoat(Clearcoat* p, int indent)
     OutputTextureView("clearcoat_normal_texture", &p->m_ClearcoatNormalTexture, indent+1);
 }
 
+static void OutputTransmission(Transmission* p, int indent)
+{
+    OutputIndent(indent);
+    printf("transmission\n");
+    OutputValue("transmission_factor", p->m_TransmissionFactor, indent+1);
+    OutputTextureView("transmission_texture", &p->m_TransmissionTexture, indent+1);
+}
 
+static void OutputIor(Ior* p, int indent)
+{
+    OutputIndent(indent);
+    printf("transmission\n");
+    OutputValue("ior", p->m_Ior, indent+1);
+}
+
+static void OutputSpecular(Specular* p, int indent)
+{
+    OutputIndent(indent);
+    printf("specular\n");
+    OutputArray("specular_color_factor", p->m_SpecularColorFactor, indent+1);
+    OutputValue("specular_factor", p->m_SpecularFactor, indent+1);
+    OutputTextureView("specular_texture", &p->m_SpecularTexture, indent+1);
+    OutputTextureView("specular_color_texture", &p->m_SpecularColorTexture, indent+1);
+}
+
+static void OutputVolume(Volume* p, int indent)
+{
+    OutputIndent(indent);
+    printf("volume\n");
+    OutputArray("attenuation_color", p->m_AttenuationColor, indent+1);
+    OutputValue("attenuation_distance", p->m_AttenuationDistance, indent+1);
+    OutputValue("thickness_factor", p->m_ThicknessFactor, indent+1);
+    OutputTextureView("thickness_texture", &p->m_ThicknessTexture, indent+1);
+}
+
+static void OutputSheen(Sheen* p, int indent)
+{
+    OutputIndent(indent);
+    printf("sheen\n");
+    OutputArray("sheen_color_factor", p->m_SheenColorFactor, indent+1);
+    OutputValue("sheen_roughness_factor", p->m_SheenRoughnessFactor, indent+1);
+    OutputTextureView("sheen_color_texture", &p->m_SheenColorTexture, indent+1);
+    OutputTextureView("sheen_roughness_texture", &p->m_SheenRoughnessTexture, indent+1);
+}
+
+static void OutputEmissiveStrength(EmissiveStrength* p, int indent)
+{
+    OutputIndent(indent);
+    printf("emissive_strength\n");
+    OutputValue("emissive_strength", p->m_EmissiveStrength, indent+1);
+}
+
+static void OutputIridescence(Iridescence* p, int indent)
+{
+    OutputIndent(indent);
+    printf("iridescence\n");
+    OutputValue("iridescence_factor", p->m_IridescenceFactor, indent+1);
+    OutputTextureView("iridescence_texture", &p->m_IridescenceTexture, indent+1);
+
+    OutputValue("iridescence_ior", p->m_IridescenceIor, indent+1);
+    OutputValue("iridescence_thickness_min", p->m_IridescenceThicknessMin, indent+1);
+    OutputValue("iridescence_thickness_max", p->m_IridescenceThicknessMax, indent+1);
+    OutputTextureView("iridescence_thickness_texture", &p->m_IridescenceThicknessTexture, indent+1);
+}
 
 static void OutputMaterial(Material* material, int indent)
 {
     OutputIndent(indent);
     printf("material  %s\n", material->m_Name);
 
-    if (material->m_PbrMetallicRoughness) OutputPbrMetallicRoughness(material->m_PbrMetallicRoughness, indent+1);
-    if (material->m_PbrSpecularGlossiness) OutputPbrSpecularGlossiness(material->m_PbrSpecularGlossiness, indent+1);
-    if (material->m_Clearcoat) OutputClearcoat(material->m_Clearcoat, indent+1);
+    if (material->m_PbrMetallicRoughness)   OutputPbrMetallicRoughness(material->m_PbrMetallicRoughness, indent+1);
+    if (material->m_PbrSpecularGlossiness)  OutputPbrSpecularGlossiness(material->m_PbrSpecularGlossiness, indent+1);
+    if (material->m_Clearcoat)              OutputClearcoat(material->m_Clearcoat, indent+1);
+    if (material->m_Transmission)           OutputTransmission(material->m_Transmission, indent+1);
+    if (material->m_Ior)                    OutputIor(material->m_Ior, indent+1);
+    if (material->m_Specular)               OutputSpecular(material->m_Specular, indent+1);
+    if (material->m_Volume)                 OutputVolume(material->m_Volume, indent+1);
+    if (material->m_Sheen)                  OutputSheen(material->m_Sheen, indent+1);
+    if (material->m_EmissiveStrength)       OutputEmissiveStrength(material->m_EmissiveStrength, indent+1);
+    if (material->m_Iridescence)            OutputIridescence(material->m_Iridescence, indent+1);
 }
 
 static void OutputMesh(Mesh* mesh, int indent)
