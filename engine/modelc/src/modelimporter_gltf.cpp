@@ -222,6 +222,14 @@ static DefoldType* GetFromCache(dmHashTable64<void*>* cache, CgltfType* key)
     return *pobj;
 }
 
+template<typename T>
+static T* AllocStruct(T** ppout)
+{
+    *ppout = new T;
+    memset(*ppout, 0, sizeof(T));
+    return *ppout;
+}
+
 // ******************************************************************************************
 
 
@@ -598,6 +606,8 @@ static void LoadTextureView(cgltf_texture_view* in, TextureView* out, dmHashTabl
     out->m_Texture = GetFromCache<Texture>(cache, in->texture);
 }
 
+// Materials
+
 static PbrMetallicRoughness* LoadPbrMetallicRoughness(cgltf_pbr_metallic_roughness* in, PbrMetallicRoughness* out, dmHashTable64<void*>* cache)
 {
     LoadTextureView(&in->base_color_texture, &out->m_BaseColorTexture, cache);
@@ -610,12 +620,43 @@ static PbrMetallicRoughness* LoadPbrMetallicRoughness(cgltf_pbr_metallic_roughne
     return out;
 }
 
-template<typename T>
-static T* AllocStruct(T** ppout)
+static PbrSpecularGlossiness* LoadPbrSpecularGlossiness(cgltf_pbr_specular_glossiness* in, PbrSpecularGlossiness* out, dmHashTable64<void*>* cache)
 {
-    *ppout = new T;
-    memset(*ppout, 0, sizeof(T));
-    return *ppout;
+    LoadTextureView(&in->diffuse_texture, &out->m_DiffuseTexture, cache);
+    LoadTextureView(&in->specular_glossiness_texture, &out->m_SpecularGlossinessTexture, cache);
+
+    for (int i = 0; i < 4; ++i)
+        out->m_DiffuseFactor[i] = in->diffuse_factor[i];
+    for (int i = 0; i < 3; ++i)
+        out->m_SpecularFactor[i] = in->specular_factor[i];
+
+    out->m_GlossinessFactor = in->glossiness_factor;
+    return out;
+}
+
+static Clearcoat* LoadClearcoat(cgltf_clearcoat* in, Clearcoat* out, dmHashTable64<void*>* cache)
+{
+    LoadTextureView(&in->clearcoat_texture, &out->m_ClearcoatTexture, cache);
+    LoadTextureView(&in->clearcoat_roughness_texture, &out->m_ClearcoatRoughnessTexture, cache);
+    LoadTextureView(&in->clearcoat_normal_texture, &out->m_ClearcoatNormalTexture, cache);
+
+    out->m_ClearcoatFactor = in->clearcoat_factor;
+    out->m_ClearcoatRoughnessFactor = in->clearcoat_roughness_factor;
+    return out;
+}
+
+static Transmission* LoadTransmission(cgltf_transmission* in, Transmission* out, dmHashTable64<void*>* cache)
+{
+    LoadTextureView(&in->transmission_texture, &out->m_TransmissionTexture, cache);
+
+    out->m_TransmissionFactor = in->transmission_factor;
+    return out;
+}
+
+static Ior* LoadIor(cgltf_ior* in, Ior* out, dmHashTable64<void*>* cache)
+{
+    out->m_Ior = in->ior;
+    return out;
 }
 
 static void LoadMaterials(Scene* scene, cgltf_data* gltf_data, dmHashTable64<void*>* cache)
@@ -634,6 +675,26 @@ static void LoadMaterials(Scene* scene, cgltf_data* gltf_data, dmHashTable64<voi
         if (gltf_material->has_pbr_metallic_roughness)
         {
             LoadPbrMetallicRoughness(&gltf_material->pbr_metallic_roughness, AllocStruct(&material->m_PbrMetallicRoughness), cache);
+        }
+
+        if (gltf_material->has_pbr_specular_glossiness)
+        {
+            LoadPbrSpecularGlossiness(&gltf_material->pbr_specular_glossiness, AllocStruct(&material->m_PbrSpecularGlossiness), cache);
+        }
+
+        if (gltf_material->has_clearcoat)
+        {
+            LoadClearcoat(&gltf_material->clearcoat, AllocStruct(&material->m_Clearcoat), cache);
+        }
+
+        if (gltf_material->has_transmission)
+        {
+            LoadTransmission(&gltf_material->transmission, AllocStruct(&material->m_Transmission), cache);
+        }
+
+        if (gltf_material->has_ior)
+        {
+            LoadIor(&gltf_material->ior, AllocStruct(&material->m_Ior), cache);
         }
 
         // todo: load properties
