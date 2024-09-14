@@ -93,7 +93,7 @@ namespace dmModelImporter
     {
         float   m_Offset[2];
         float   m_Rotation;
-        float   m_scale[2];
+        float   m_Scale[2];
         int     m_Texcoord;
         bool    m_HasTexcoord;
     };
@@ -102,15 +102,15 @@ namespace dmModelImporter
     {
         Texture*         m_Texture;
         int              m_Texcoord;
-        float            m_Scale; /* equivalent to strength for occlusion_texture */
+        float            m_Scale; // equivalent to strength for occlusion_texture
         bool             m_HasTransform;
         TextureTransform m_Transform;
     };
 
     struct PbrMetallicRoughness
     {
-        TextureView*    m_BaseColorTexture;
-        TextureView*    m_MetallicRoughnessTexture;
+        TextureView     m_BaseColorTexture;
+        TextureView     m_MetallicRoughnessTexture;
         float           m_BaseColorFactor[4];
         float           m_MetallicFactor;
         float           m_RoughnessFactor;
@@ -118,8 +118,8 @@ namespace dmModelImporter
 
     struct PbrSpecularGlossiness
     {
-        TextureView*    m_DiffuseTexture;
-        TextureView*    m_SpecularGlossinessTexture;
+        TextureView     m_DiffuseTexture;
+        TextureView     m_SpecularGlossinessTexture;
         float           m_DiffuseFactor[4];
         float           m_SpecularFactor[3];
         float           m_GlossinessFactor;
@@ -127,16 +127,16 @@ namespace dmModelImporter
 
     struct Clearcoat
     {
-        TextureView*    m_ClearcoatTexture;
-        TextureView*    m_ClearcoatRoughnessTexture;
-        TextureView*    m_ClearcoatNormalTexture;
+        TextureView     m_ClearcoatTexture;
+        TextureView     m_ClearcoatRoughnessTexture;
+        TextureView     m_ClearcoatNormalTexture;
         float           m_ClearcoatFactor;
         float           m_ClearcoatRoughnessFactor;
     };
 
     struct Transmission
     {
-        TextureView*    m_TransmissionTexture;
+        TextureView     m_TransmissionTexture;
         float           m_TransmissionFactor;
     };
 
@@ -147,15 +147,15 @@ namespace dmModelImporter
 
     struct Specular
     {
-        TextureView*    m_SpecularTexture;
-        TextureView*    m_SpecularColorTexture;
+        TextureView     m_SpecularTexture;
+        TextureView     m_SpecularColorTexture;
         float           m_SpecularColorFactor[3];
         float           m_SpecularFactor;
     };
 
     struct Volume
     {
-        TextureView*    m_ThicknessTexture;
+        TextureView     m_ThicknessTexture;
         float           m_ThicknessFactor;
         float           m_AttenuationColor[3];
         float           m_AttenuationDistance;
@@ -163,8 +163,8 @@ namespace dmModelImporter
 
     struct Sheen
     {
-        TextureView*    m_SheenColorTexture;
-        TextureView*    m_SheenRoughnessTexture;
+        TextureView     m_SheenColorTexture;
+        TextureView     m_SheenRoughnessTexture;
         float           m_SheenColorFactor[3];
         float           m_SheenRoughnessFactor;
     };
@@ -177,11 +177,11 @@ namespace dmModelImporter
     struct Iridescence
     {
         float         m_IridescenceFactor;
-        TextureView*  m_IridescenceTexture;
+        TextureView   m_IridescenceTexture;
         float         m_IridescenceIor;
         float         m_IridescenceThicknessMin;
         float         m_IridescenceThicknessMax;
-        TextureView*  m_IridescenceThicknessTexture;
+        TextureView   m_IridescenceThicknessTexture;
     };
 
     struct Material

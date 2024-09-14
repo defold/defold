@@ -562,7 +562,63 @@ static void LoadTextures(Scene* scene, cgltf_data* gltf_data, dmHashTable64<void
     }
 }
 
-static void LoadMaterials(Scene* scene, cgltf_data* gltf_data)
+static void IdentityTransform(TextureTransform* out)
+{
+    out->m_Offset[0] = 0.0f;
+    out->m_Offset[1] = 0.0f;
+    out->m_Scale[0] = 1.0f;
+    out->m_Scale[1] = 1.0f;
+    out->m_Rotation = 0.0f;
+    out->m_Texcoord = -1;
+}
+
+static void LoadTransform(cgltf_texture_transform* in, TextureTransform* out)
+{
+    // KHR_texture_transform
+    // https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_texture_transform/README.md
+    out->m_Offset[0] = in->offset[0];
+    out->m_Offset[1] = in->offset[1];
+    out->m_Scale[0] = in->scale[0];
+    out->m_Scale[1] = in->scale[1];
+    out->m_Rotation = in->rotation;
+    out->m_Texcoord = in->has_texcoord ? in->texcoord : -1;
+}
+
+static void LoadTextureView(cgltf_texture_view* in, TextureView* out, dmHashTable64<void*>* cache)
+{
+    out->m_Texcoord = in->texcoord;
+    out->m_Scale = in->scale;
+
+    out->m_HasTransform = in->has_transform != 0;
+    if (in->has_transform)
+        LoadTransform(&in->transform, &out->m_Transform);
+    else
+        IdentityTransform(&out->m_Transform);
+
+    out->m_Texture = GetFromCache<Texture>(cache, in->texture);
+}
+
+static PbrMetallicRoughness* LoadPbrMetallicRoughness(cgltf_pbr_metallic_roughness* in, PbrMetallicRoughness* out, dmHashTable64<void*>* cache)
+{
+    LoadTextureView(&in->base_color_texture, &out->m_BaseColorTexture, cache);
+    LoadTextureView(&in->metallic_roughness_texture, &out->m_MetallicRoughnessTexture, cache);
+
+    for (int i = 0; i < 4; ++i)
+        out->m_BaseColorFactor[i] = in->base_color_factor[i];
+    out->m_MetallicFactor = in->metallic_factor;
+    out->m_RoughnessFactor = in->roughness_factor;
+    return out;
+}
+
+template<typename T>
+static T* AllocStruct(T** ppout)
+{
+    *ppout = new T;
+    memset(*ppout, 0, sizeof(T));
+    return *ppout;
+}
+
+static void LoadMaterials(Scene* scene, cgltf_data* gltf_data, dmHashTable64<void*>* cache)
 {
     InitSize(scene->m_Materials, gltf_data->materials_count, gltf_data->materials_count);
 
@@ -570,8 +626,15 @@ static void LoadMaterials(Scene* scene, cgltf_data* gltf_data)
     {
         cgltf_material* gltf_material = &gltf_data->materials[i];
         Material* material = &scene->m_Materials[i];
+        memset(material, 0, sizeof(*material));
+
         material->m_Name = CreateObjectName(gltf_material, "material", i);
         material->m_Index = i;
+
+        if (gltf_material->has_pbr_metallic_roughness)
+        {
+            LoadPbrMetallicRoughness(&gltf_material->pbr_metallic_roughness, AllocStruct(&material->m_PbrMetallicRoughness), cache);
+        }
 
         // todo: load properties
         // todo: what is "material mappings"?
@@ -1492,7 +1555,7 @@ static void LoadScene(Scene* scene, cgltf_data* data)
     LoadSamplers(scene, data, &cache);
     LoadImages(scene, data, &cache);
     LoadTextures(scene, data, &cache);
-    LoadMaterials(scene, data);
+    LoadMaterials(scene, data, &cache);
     LoadMeshes(scene, data);
     LinkNodesWithBones(scene, data);
     LinkMeshesWithNodes(scene, data);

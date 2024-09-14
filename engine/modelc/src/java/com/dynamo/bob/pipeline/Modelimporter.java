@@ -242,6 +242,8 @@ public class Modelimporter {
         public Animation[] animations;
         public Material[] materials;
         public Sampler[] samplers;
+        public Image[] images;
+        public Texture[] textures;
         public Buffer[] buffers;
         public Material[] dynamicMaterials;
     };

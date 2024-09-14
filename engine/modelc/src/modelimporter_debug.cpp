@@ -155,11 +155,60 @@ static void OutputSampler(Sampler* sampler, int indent)
     printf("\n");
 }
 
+static void OutputTextureTransform(TextureTransform* p, int indent)
+{
+    OutputIndent(indent);
+    printf("offset: %f, %f\n", p->m_Offset[0], p->m_Offset[1]);
+    OutputIndent(indent);
+    printf("roation: %f\n", p->m_Rotation);
+    OutputIndent(indent);
+    printf("scale: %f, %f\n", p->m_Scale[0], p->m_Scale[1]);
+}
+
+static void OutputTextureView(TextureView* p, int indent)
+{
+    OutputIndent(indent);
+    printf("texture: %s\n", p->m_Texture->m_Name);
+    OutputIndent(indent);
+    printf("tex_coord: %d\n", p->m_Texcoord);
+    OutputIndent(indent);
+    printf("scale: %f\n", p->m_Scale);
+    if (p->m_HasTransform)
+    {
+        OutputIndent(indent);
+        printf("transform:\n");
+        OutputTextureTransform(&p->m_Transform, indent+1);
+    }
+}
+
+
+static void OutputPbrMetallicRoughness(PbrMetallicRoughness* p, int indent)
+{
+    OutputIndent(indent);
+    printf("pbd_metallic_roughness\n");
+    OutputIndent(indent+1);
+    printf("base_color_factor: %f, %f, %f, %f\n", p->m_BaseColorFactor[0], p->m_BaseColorFactor[1], p->m_BaseColorFactor[2], p->m_BaseColorFactor[3]);
+    OutputIndent(indent+1);
+    printf("metallic_factor: %f\n", p->m_MetallicFactor);
+    OutputIndent(indent+1);
+    printf("roughness_factor: %f\n", p->m_RoughnessFactor);
+
+    OutputIndent(indent);
+    printf("base_color_texture:\n");
+        OutputTextureView(&p->m_BaseColorTexture, indent+1);
+
+    OutputIndent(indent);
+    printf("metallic_roughness_texture:\n");
+        OutputTextureView(&p->m_MetallicRoughnessTexture, indent+1);
+}
+
 
 static void OutputMaterial(Material* material, int indent)
 {
     OutputIndent(indent);
     printf("material  %s\n", material->m_Name);
+
+    if (material->m_PbrMetallicRoughness) OutputPbrMetallicRoughness(material->m_PbrMetallicRoughness, indent+1);
 }
 
 static void OutputMesh(Mesh* mesh, int indent)

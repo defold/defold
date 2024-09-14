@@ -253,6 +253,8 @@ struct SceneJNI {
     jfieldID animations;
     jfieldID materials;
     jfieldID samplers;
+    jfieldID images;
+    jfieldID textures;
     jfieldID buffers;
     jfieldID dynamicMaterials;
 };
