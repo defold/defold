@@ -465,7 +465,7 @@ platforms:
         flags:          ["-target", "x86_64-pc-win32-msvc", "-m64", "-O2", "-g", "-gcodeview", "-O2", "-Wall", "-Werror=format", "-fvisibility=hidden", "-nostdinc++"]
         linkFlags:      ["-target", "x86_64-pc-win32-msvc", "-m64", "-O2", "-g", "-O2", "-fuse-ld=lld", "-Wl,/entry:mainCRTStartup", "-Wl,/safeseh:no"]
         cxxLinkShFlags: ["-target", "x86_64-pc-win32-msvc", "-m64", "-O2", "-g", "-O2", "-fuse-ld=lld", "-Wl,/safeseh:no"]
-        libs:           ["OpenGL32", "delayimp", "User32", "shell32", "Xinput9_1_0", "dinput8", "dxguid", "OpenAL32", "WS2_32", "iphlpapi", "DbgHelp", "AdvAPI32", "Psapi", "Gdi32"]
+        libs:           ["OpenGL32", "delayimp", "User32", "shell32", "Xinput9_1_0", "dinput8", "dxguid", "WS2_32", "iphlpapi", "DbgHelp", "AdvAPI32", "Psapi", "Gdi32"]
         symbols:        []
 
     exePrefix:      ''
@@ -503,7 +503,7 @@ platforms:
         flags:          ["-target", "i386-pc-win32-msvc", "-m32", "-O2", "-g", "-gcodeview", "-Wall", "-Werror=format", "-fvisibility=hidden", "-nostdinc++"]
         linkFlags:      ["-target", "i386-pc-win32-msvc", "-m32", "-O2", "-g", "-fuse-ld=lld", "-Wl,/entry:mainCRTStartup", "-Wl,/safeseh:no"]
         cxxLinkShFlags: ["-target", "i386-pc-win32-msvc", "-m32", "-O2", "-g", "-fuse-ld=lld", "-Wl,/safeseh:no"]
-        libs:           ["OpenGL32", "delayimp", "User32", "shell32", "Xinput9_1_0", "dinput8", "dxguid", "OpenAL32", "WS2_32", "iphlpapi", "DbgHelp", "AdvAPI32", "Psapi", "Gdi32"]
+        libs:           ["OpenGL32", "delayimp", "User32", "shell32", "Xinput9_1_0", "dinput8", "dxguid", "WS2_32", "iphlpapi", "DbgHelp", "AdvAPI32", "Psapi", "Gdi32"]
         symbols:        []
 
     exePrefix:      ''

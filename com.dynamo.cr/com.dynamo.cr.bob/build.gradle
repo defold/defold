@@ -232,22 +232,6 @@ task compileBobLight(dependsOn: [getGitRevision, compileSrc, createLuaJitShareZi
 }
 
 task compile(dependsOn: ['compileBobLight']) {
-    doLast {
-        copy {
-            from fileTree("${project.dynamoHome}/ext/lib") {
-                include 'win32/OpenAL32.dll'
-                include 'win32/wrap_oal.dll'
-            }
-            into "${project.bobDir}/lib/x86-win32"
-        }
-        copy {
-            from fileTree("${project.dynamoHome}/ext/lib") {
-                include 'x86_64-win32/OpenAL32.dll'
-                include 'x86_64-win32/wrap_oal.dll'
-            }
-            into "${project.bobDir}/lib/x86_64-win32"
-        }
-    }
 }
 
 task createExternalLibsLightJar(type: Jar, dependsOn: compileSrc) {
@@ -367,8 +351,6 @@ task createBobJar(type: Jar, dependsOn: [createExternalLibsBuiltinsJar, createLu
         include 'lib/**/*texc_shared*',
                 'lib/**/*modelc_shared*',
                 'lib/**/*libc++*',
-                'lib/*win32/OpenAL32.dll',
-                'lib/*win32/wrap_oal.dll',
                 'libexec/**/*',
                 'lib/report_template.html',
                 'lib/time_report_template.html',

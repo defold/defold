@@ -1838,8 +1838,6 @@ def detect(conf):
         conf.env['FRAMEWORK_OPENAL'] = ['OpenAL', 'AudioToolbox']
     elif platform in ('armv7-android', 'arm64-android'):
         conf.env['LIB_OPENAL'] = ['OpenSLES']
-    elif platform in ('win32', 'x86_64-win32'):
-        conf.env['LIB_OPENAL'] = ['OpenAL32']
     elif platform in ('x86_64-linux',):
         conf.env['LIB_OPENAL'] = ['openal']
 
