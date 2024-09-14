@@ -17,30 +17,98 @@
             [util.fn :as fn])
   (:import [clojure.lang ArityException]))
 
-(defn- max-arity-general-test-fn
+(defn- arity-void-test-fn
+  ([]))
+
+(defn- arity-general-test-fn
   ([_arg1 _arg2])
   ([_arg1 _arg2 _arg3]))
 
-(defn- max-arity-variadic-test-fn
+(defn- arity-variadic-test-fn
   ([_arg])
   ([_arg & _args]))
 
-(defmacro ^:private max-arity-general-test-macro
+(defmacro ^:private arity-void-test-macro
+  ([]))
+
+(defmacro ^:private arity-general-test-macro
   ([_arg1 _arg2])
   ([_arg1 _arg2 _arg3]))
 
-(defmacro ^:private max-arity-variadic-test-macro
+(defmacro ^:private arity-variadic-test-macro
   ([_arg])
   ([_arg & _args]))
 
 (deftest max-arity-test
-  (is (= 3 (fn/max-arity max-arity-general-test-fn)))
-  (is (= -1 (fn/max-arity max-arity-variadic-test-fn)))
-  (is (= 3 (fn/max-arity #'max-arity-general-test-macro)))
-  (is (= -1 (fn/max-arity #'max-arity-variadic-test-macro)))
+  (is (= 0 (fn/max-arity arity-void-test-fn)))
+  (is (= 3 (fn/max-arity arity-general-test-fn)))
+  (is (= -1 (fn/max-arity arity-variadic-test-fn)))
+  (is (= 0 (fn/max-arity #'arity-void-test-macro)))
+  (is (= 3 (fn/max-arity #'arity-general-test-macro)))
+  (is (= -1 (fn/max-arity #'arity-variadic-test-macro)))
   (is (= 0 (fn/max-arity (fn []))))
   (is (= 1 (fn/max-arity (fn ([]) ([_arg])))))
   (is (= -1 (fn/max-arity (fn [_arg & _args])))))
+
+(deftest has-explicit-arity?-test
+  (is (false? (fn/has-explicit-arity? arity-void-test-fn -1)))
+  (is (true? (fn/has-explicit-arity? arity-void-test-fn 0)))
+  (is (false? (fn/has-explicit-arity? arity-void-test-fn 1)))
+
+  (is (false? (fn/has-explicit-arity? arity-general-test-fn -1)))
+  (is (false? (fn/has-explicit-arity? arity-general-test-fn 0)))
+  (is (false? (fn/has-explicit-arity? arity-general-test-fn 1)))
+  (is (true? (fn/has-explicit-arity? arity-general-test-fn 2)))
+  (is (true? (fn/has-explicit-arity? arity-general-test-fn 3)))
+  (is (false? (fn/has-explicit-arity? arity-general-test-fn 4)))
+
+  (is (true? (fn/has-explicit-arity? arity-variadic-test-fn -1)))
+  (is (false? (fn/has-explicit-arity? arity-variadic-test-fn 0)))
+  (is (true? (fn/has-explicit-arity? arity-variadic-test-fn 1)))
+  (is (false? (fn/has-explicit-arity? arity-variadic-test-fn 2)))
+
+  (is (false? (fn/has-explicit-arity? #'arity-void-test-macro -1)))
+  (is (true? (fn/has-explicit-arity? #'arity-void-test-macro 0)))
+  (is (false? (fn/has-explicit-arity? #'arity-void-test-macro 1)))
+
+  (is (false? (fn/has-explicit-arity? #'arity-general-test-macro -1)))
+  (is (false? (fn/has-explicit-arity? #'arity-general-test-macro 0)))
+  (is (false? (fn/has-explicit-arity? #'arity-general-test-macro 1)))
+  (is (true? (fn/has-explicit-arity? #'arity-general-test-macro 2)))
+  (is (true? (fn/has-explicit-arity? #'arity-general-test-macro 3)))
+  (is (false? (fn/has-explicit-arity? #'arity-general-test-macro 4)))
+
+  (is (true? (fn/has-explicit-arity? #'arity-variadic-test-macro -1)))
+  (is (false? (fn/has-explicit-arity? #'arity-variadic-test-macro 0)))
+  (is (true? (fn/has-explicit-arity? #'arity-variadic-test-macro 1)))
+  (is (false? (fn/has-explicit-arity? #'arity-variadic-test-macro 2)))
+
+  (letfn [(arity-void-test-anonymous-fn
+            ([]))
+
+          (arity-general-test-anonymous-fn
+            ([_arg1 _arg2])
+            ([_arg1 _arg2 _arg3]))
+
+          (arity-variadic-test-anonymous-fn
+            ([_arg])
+            ([_arg & _args]))]
+
+    (is (false? (fn/has-explicit-arity? arity-void-test-anonymous-fn -1)))
+    (is (true? (fn/has-explicit-arity? arity-void-test-anonymous-fn 0)))
+    (is (false? (fn/has-explicit-arity? arity-void-test-anonymous-fn 1)))
+
+    (is (false? (fn/has-explicit-arity? arity-general-test-anonymous-fn -1)))
+    (is (false? (fn/has-explicit-arity? arity-general-test-anonymous-fn 0)))
+    (is (false? (fn/has-explicit-arity? arity-general-test-anonymous-fn 1)))
+    (is (true? (fn/has-explicit-arity? arity-general-test-anonymous-fn 2)))
+    (is (true? (fn/has-explicit-arity? arity-general-test-anonymous-fn 3)))
+    (is (false? (fn/has-explicit-arity? arity-general-test-anonymous-fn 4)))
+
+    (is (true? (fn/has-explicit-arity? arity-variadic-test-anonymous-fn -1)))
+    (is (false? (fn/has-explicit-arity? arity-variadic-test-anonymous-fn 0)))
+    (is (true? (fn/has-explicit-arity? arity-variadic-test-anonymous-fn 1)))
+    (is (false? (fn/has-explicit-arity? arity-variadic-test-anonymous-fn 2)))))
 
 (deftest memoize-test
   (testing "Returns unique instances"

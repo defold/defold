@@ -67,6 +67,18 @@
                           cached-result)))]
     (with-memoize-info memoized-fn cache arity)))
 
+(defn- ifn-class-arities-raw
+  [^Class ifn-class]
+  (into #{}
+        (keep (fn [^Method method]
+                (case (.getName method)
+                  "invoke" (.getParameterCount method)
+                  "getRequiredArity" -1 ; The function is variadic.
+                  nil)))
+        (java/get-declared-methods ifn-class)))
+
+(def ^:private ifn-class-arities (memoize-one ifn-class-arities-raw))
+
 (defn- ifn-class-max-arity-raw
   ^long [^Class ifn-class]
   (reduce (fn [^long max-arity ^Method method]
@@ -92,6 +104,22 @@
              (-> ifn-or-var meta :macro))
       (- max-arity 2) ; Subtract implicit arguments from macro.
       max-arity)))
+
+(defn has-explicit-arity?
+  "Returns true if the supplied function has a non-variadic implementation that
+  takes exactly the specified number of arguments, or false if it does not. You
+  can supply -1 for the arity to check if the function is variadic."
+  [ifn-or-var ^long arity]
+  (let [ifn (if (var? ifn-or-var)
+              (var-get ifn-or-var)
+              ifn-or-var)
+        arities (ifn-class-arities (class ifn))
+        adjusted-arity (if (and (not (neg? arity))
+                                (var? ifn-or-var)
+                                (-> ifn-or-var meta :macro))
+                         (+ arity 2) ; Adjust for implicit arguments to macro.
+                         arity)]
+    (contains? arities adjusted-arity)))
 
 (defn memoize
   "Like core.memoize, but uses an optimized cache based on the number of
