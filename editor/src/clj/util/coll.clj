@@ -78,6 +78,11 @@
         (pair (key-fn# ~'value)
               (value-fn# ~'value))))))
 
+(defn flip
+  "Given a pair, returns a new pair with the elements flipped."
+  [[a b]]
+  (MapEntry. b a))
+
 (defn flipped-pair
   "Constructs a two-element collection that implements IPersistentVector from
   the reversed arguments."

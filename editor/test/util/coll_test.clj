@@ -100,6 +100,13 @@
       (is (= [1 "item"] (make-pair "item")))
       (is (= [1 :a] (make-transformed-pair "item"))))))
 
+(deftest flip-test
+  (doseq [original [[1 2] (coll/pair 1 2)]]
+    (is (instance? IPersistentVector (coll/flip original)))
+    (is (counted? (coll/flip original)))
+    (is (= 2 (count (coll/flip original))))
+    (is (= [2 1] (coll/flip original)))))
+
 (deftest flipped-pair-test
   (is (instance? IPersistentVector (coll/flipped-pair 1 2)))
   (is (counted? (coll/flipped-pair 1 2)))
