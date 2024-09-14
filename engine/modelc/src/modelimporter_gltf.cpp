@@ -25,6 +25,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <algorithm> // std::sort
+#include <dmsdk/dlib/static_assert.h>
 #include <dmsdk/dlib/math.h>
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/dlib/hash.h>
@@ -606,15 +607,22 @@ static void LoadTextureView(cgltf_texture_view* in, TextureView* out, dmHashTabl
     out->m_Texture = GetFromCache<Texture>(cache, in->texture);
 }
 
-// Materials
+// Material properties
+
+// a helper to avoid typos and under/overruns
+template<typename T, int N>
+static void CopyArray(T (&dst)[N], T (&src)[N])
+{
+    memcpy(dst, src, sizeof(dst));
+}
 
 static PbrMetallicRoughness* LoadPbrMetallicRoughness(cgltf_pbr_metallic_roughness* in, PbrMetallicRoughness* out, dmHashTable64<void*>* cache)
 {
     LoadTextureView(&in->base_color_texture, &out->m_BaseColorTexture, cache);
     LoadTextureView(&in->metallic_roughness_texture, &out->m_MetallicRoughnessTexture, cache);
 
-    for (int i = 0; i < 4; ++i)
-        out->m_BaseColorFactor[i] = in->base_color_factor[i];
+    CopyArray(out->m_BaseColorFactor, in->base_color_factor);
+
     out->m_MetallicFactor = in->metallic_factor;
     out->m_RoughnessFactor = in->roughness_factor;
     return out;
@@ -625,10 +633,8 @@ static PbrSpecularGlossiness* LoadPbrSpecularGlossiness(cgltf_pbr_specular_gloss
     LoadTextureView(&in->diffuse_texture, &out->m_DiffuseTexture, cache);
     LoadTextureView(&in->specular_glossiness_texture, &out->m_SpecularGlossinessTexture, cache);
 
-    for (int i = 0; i < 4; ++i)
-        out->m_DiffuseFactor[i] = in->diffuse_factor[i];
-    for (int i = 0; i < 3; ++i)
-        out->m_SpecularFactor[i] = in->specular_factor[i];
+    CopyArray(out->m_DiffuseFactor, in->diffuse_factor);
+    CopyArray(out->m_SpecularFactor, in->specular_factor);
 
     out->m_GlossinessFactor = in->glossiness_factor;
     return out;
@@ -659,6 +665,40 @@ static Ior* LoadIor(cgltf_ior* in, Ior* out, dmHashTable64<void*>* cache)
     return out;
 }
 
+static Specular* LoadSpecular(cgltf_specular* in, Specular* out, dmHashTable64<void*>* cache)
+{
+    LoadTextureView(&in->specular_texture, &out->m_SpecularTexture, cache);
+    LoadTextureView(&in->specular_color_texture, &out->m_SpecularColorTexture, cache);
+
+    CopyArray(out->m_SpecularColorFactor, in->specular_color_factor);
+
+    out->m_SpecularFactor = in->specular_factor;
+    return out;
+}
+
+static Volume* LoadVolume(cgltf_volume* in, Volume* out, dmHashTable64<void*>* cache)
+{
+    LoadTextureView(&in->thickness_texture, &out->m_ThicknessTexture, cache);
+
+    CopyArray(out->m_AttenuationColor, in->attenuation_color);
+
+    out->m_ThicknessFactor = in->thickness_factor;
+    out->m_AttenuationDistance = in->attenuation_distance;
+    return out;
+}
+
+static Sheen* LoadSheen(cgltf_sheen* in, Sheen* out, dmHashTable64<void*>* cache)
+{
+    LoadTextureView(&in->sheen_color_texture, &out->m_SheenColorTexture, cache);
+    LoadTextureView(&in->sheen_roughness_texture, &out->m_SheenRoughnessTexture, cache);
+
+    CopyArray(out->m_SheenColorFactor, in->sheen_color_factor);
+
+    out->m_SheenRoughnessFactor = in->sheen_roughness_factor;
+    return out;
+}
+
+
 static void LoadMaterials(Scene* scene, cgltf_data* gltf_data, dmHashTable64<void*>* cache)
 {
     InitSize(scene->m_Materials, gltf_data->materials_count, gltf_data->materials_count);
@@ -672,30 +712,53 @@ static void LoadMaterials(Scene* scene, cgltf_data* gltf_data, dmHashTable64<voi
         material->m_Name = CreateObjectName(gltf_material, "material", i);
         material->m_Index = i;
 
-        if (gltf_material->has_pbr_metallic_roughness)
-        {
-            LoadPbrMetallicRoughness(&gltf_material->pbr_metallic_roughness, AllocStruct(&material->m_PbrMetallicRoughness), cache);
+        // a helper to avoid typos
+#define LOADPROP(DNAME, GNAME) \
+        if (gltf_material->has_ ## GNAME) \
+        { \
+            Load ## DNAME (&gltf_material-> GNAME, AllocStruct(&material->m_ ## DNAME), cache); \
         }
 
-        if (gltf_material->has_pbr_specular_glossiness)
-        {
-            LoadPbrSpecularGlossiness(&gltf_material->pbr_specular_glossiness, AllocStruct(&material->m_PbrSpecularGlossiness), cache);
-        }
+        LOADPROP(PbrMetallicRoughness, pbr_metallic_roughness);
+        LOADPROP(PbrSpecularGlossiness, pbr_specular_glossiness);
+        LOADPROP(Clearcoat, clearcoat);
+        LOADPROP(Transmission, transmission);
+        LOADPROP(Ior, ior);
+        LOADPROP(Specular, specular);
+        LOADPROP(Volume, volume);
+        LOADPROP(Sheen, sheen);
 
-        if (gltf_material->has_clearcoat)
-        {
-            LoadClearcoat(&gltf_material->clearcoat, AllocStruct(&material->m_Clearcoat), cache);
-        }
+#undef LOADPROP
 
-        if (gltf_material->has_transmission)
-        {
-            LoadTransmission(&gltf_material->transmission, AllocStruct(&material->m_Transmission), cache);
-        }
+        // if (gltf_material->has_pbr_metallic_roughness)
+        // {
+        //     LoadPbrMetallicRoughness(&gltf_material->pbr_metallic_roughness, AllocStruct(&material->m_PbrMetallicRoughness), cache);
+        // }
 
-        if (gltf_material->has_ior)
-        {
-            LoadIor(&gltf_material->ior, AllocStruct(&material->m_Ior), cache);
-        }
+        // if (gltf_material->has_pbr_specular_glossiness)
+        // {
+        //     LoadPbrSpecularGlossiness(&gltf_material->pbr_specular_glossiness, AllocStruct(&material->m_PbrSpecularGlossiness), cache);
+        // }
+
+        // if (gltf_material->has_clearcoat)
+        // {
+        //     LoadClearcoat(&gltf_material->clearcoat, AllocStruct(&material->m_Clearcoat), cache);
+        // }
+
+        // if (gltf_material->has_transmission)
+        // {
+        //     LoadTransmission(&gltf_material->transmission, AllocStruct(&material->m_Transmission), cache);
+        // }
+
+        // if (gltf_material->has_ior)
+        // {
+        //     LoadIor(&gltf_material->ior, AllocStruct(&material->m_Ior), cache);
+        // }
+
+        // if (gltf_material->has_specular)
+        // {
+        //     LoadSpecular(&gltf_material->specular, AllocStruct(&material->m_Specular), cache);
+        // }
 
         // todo: load properties
         // todo: what is "material mappings"?
