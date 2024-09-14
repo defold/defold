@@ -171,7 +171,7 @@ namespace dmModelImporter
 
     struct EmissiveStrength
     {
-        float EmissiveStrength;
+        float m_EmissiveStrength;
     };
 
     struct Iridescence

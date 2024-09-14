@@ -491,7 +491,7 @@ jobject C2J_CreateSheen(JNIEnv* env, TypeInfos* types, const Sheen* src) {
 jobject C2J_CreateEmissiveStrength(JNIEnv* env, TypeInfos* types, const EmissiveStrength* src) {
     if (src == 0) return 0;
     jobject obj = env->AllocObject(types->m_EmissiveStrengthJNI.cls);
-    dmJNI::SetFloat(env, obj, types->m_EmissiveStrengthJNI.emissiveStrength, src->EmissiveStrength);
+    dmJNI::SetFloat(env, obj, types->m_EmissiveStrengthJNI.emissiveStrength, src->m_EmissiveStrength);
     return obj;
 }
 
@@ -1637,7 +1637,7 @@ bool J2C_CreateSheen(JNIEnv* env, TypeInfos* types, jobject obj, Sheen* out) {
 
 bool J2C_CreateEmissiveStrength(JNIEnv* env, TypeInfos* types, jobject obj, EmissiveStrength* out) {
     if (out == 0) return false;
-    out->EmissiveStrength = dmJNI::GetFloat(env, obj, types->m_EmissiveStrengthJNI.emissiveStrength);
+    out->m_EmissiveStrength = dmJNI::GetFloat(env, obj, types->m_EmissiveStrengthJNI.emissiveStrength);
     return true;
 }
 

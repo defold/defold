@@ -698,6 +698,23 @@ static Sheen* LoadSheen(cgltf_sheen* in, Sheen* out, dmHashTable64<void*>* cache
     return out;
 }
 
+static EmissiveStrength* LoadEmissiveStrength(cgltf_emissive_strength* in, EmissiveStrength* out, dmHashTable64<void*>* cache)
+{
+    out->m_EmissiveStrength = in->emissive_strength;
+    return out;
+}
+
+static Iridescence* LoadIridescence(cgltf_iridescence* in, Iridescence* out, dmHashTable64<void*>* cache)
+{
+    LoadTextureView(&in->iridescence_texture, &out->m_IridescenceTexture, cache);
+    LoadTextureView(&in->iridescence_thickness_texture, &out->m_IridescenceThicknessTexture, cache);
+
+    out->m_IridescenceFactor = in->iridescence_factor;
+    out->m_IridescenceIor = in->iridescence_ior;
+    out->m_IridescenceThicknessMin = in->iridescence_thickness_min;
+    out->m_IridescenceThicknessMax = in->iridescence_thickness_max;
+    return out;
+}
 
 static void LoadMaterials(Scene* scene, cgltf_data* gltf_data, dmHashTable64<void*>* cache)
 {
@@ -727,6 +744,8 @@ static void LoadMaterials(Scene* scene, cgltf_data* gltf_data, dmHashTable64<voi
         LOADPROP(Specular, specular);
         LOADPROP(Volume, volume);
         LOADPROP(Sheen, sheen);
+        LOADPROP(EmissiveStrength, emissive_strength);
+        LOADPROP(Iridescence, iridescence);
 
 #undef LOADPROP
 
