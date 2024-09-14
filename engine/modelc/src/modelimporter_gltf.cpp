@@ -198,6 +198,32 @@ static const char* GetResultStr(cgltf_result result)
 //  }
 // }
 
+// ******************************************************************************************
+
+// Object cache
+
+template<typename DefoldType, typename CgltfType>
+static void AddToCache(dmHashTable64<void*>* cache, CgltfType* key, DefoldType* obj)
+{
+    if (cache->Full())
+    {
+        uint32_t cap = cache->Capacity() + 256;
+        cache->SetCapacity((cap*3/2), cap);
+    }
+    cache->Put((uintptr_t)key, (void*)obj);
+}
+
+template<typename DefoldType, typename CgltfType>
+static DefoldType* GetFromCache(dmHashTable64<void*>* cache, CgltfType* key)
+{
+    DefoldType** pobj = (DefoldType**)cache->Get((uintptr_t)key);
+    if (!pobj)
+        return 0;
+    return *pobj;
+}
+
+// ******************************************************************************************
+
 
 static float* ReadAccessorFloat(cgltf_accessor* accessor, uint32_t desired_num_components, float default_value, uint32_t* out_count)
 {
@@ -464,7 +490,7 @@ static void LoadNodes(Scene* scene, cgltf_data* gltf_data)
     }
 }
 
-static void LoadSamplers(Scene* scene, cgltf_data* gltf_data)
+static void LoadSamplers(Scene* scene, cgltf_data* gltf_data, dmHashTable64<void*>* cache)
 {
     InitSize(scene->m_Samplers, gltf_data->samplers_count, gltf_data->samplers_count);
 
@@ -479,6 +505,60 @@ static void LoadSamplers(Scene* scene, cgltf_data* gltf_data)
         sampler->m_MinFilter = gltf_sampler->min_filter;
         sampler->m_WrapS = gltf_sampler->wrap_s;
         sampler->m_WrapT = gltf_sampler->wrap_t;
+
+        AddToCache(cache, gltf_sampler, sampler);
+    }
+}
+
+static void LoadImages(Scene* scene, cgltf_data* gltf_data, dmHashTable64<void*>* cache)
+{
+    InitSize(scene->m_Images, gltf_data->images_count, gltf_data->images_count);
+
+    printf("Images: %d\n", (uint32_t)gltf_data->images_count);
+    for (uint32_t i = 0; i < gltf_data->images_count; ++i)
+    {
+        cgltf_image* gltf_image = &gltf_data->images[i];
+
+        Image* image = &scene->m_Images[i];
+        memset(image, 0, sizeof(*image));
+        image->m_Name = CreateObjectName(gltf_image, "image", i);
+        image->m_Uri = gltf_image->uri ? strdup(gltf_image->uri): 0;
+        image->m_MimeType = gltf_image->mime_type ? strdup(gltf_image->mime_type): 0;
+
+        printf("  Image: %s\n", image->m_Name);
+        printf("  Uri: %s\n", image->m_Uri?image->m_Uri:"<null>");
+        printf("  mime_type: %s\n", image->m_MimeType?image->m_MimeType:"<null>");
+
+        AddToCache(cache, gltf_image, image);
+    }
+}
+
+static void LoadTextures(Scene* scene, cgltf_data* gltf_data, dmHashTable64<void*>* cache)
+{
+    InitSize(scene->m_Textures, gltf_data->textures_count, gltf_data->textures_count);
+
+    printf("Textures: %d\n", (uint32_t)gltf_data->textures_count);
+    for (uint32_t i = 0; i < gltf_data->textures_count; ++i)
+    {
+        cgltf_texture* gltf_texture = &gltf_data->textures[i];
+
+        Texture* texture = &scene->m_Textures[i];
+        memset(texture, 0, sizeof(*texture));
+        texture->m_Name = CreateObjectName(gltf_texture, "texture", i);
+        texture->m_Sampler = GetFromCache<Sampler>(cache, gltf_texture->sampler);
+        texture->m_Image = GetFromCache<Image>(cache, gltf_texture->image);
+        texture->m_BasisuImage = GetFromCache<Image>(cache, gltf_texture->basisu_image);
+
+        if (texture->m_Image)
+        {
+            printf("  Texture: %s: image: %s\n", texture->m_Name, texture->m_Image->m_Uri?texture->m_Image->m_Uri:"<buffer>");
+        }
+        else
+        {
+            printf("  Texture: %s\n", gltf_texture->name);
+        }
+
+        AddToCache(cache, gltf_texture, texture);
     }
 }
 
@@ -1406,9 +1486,12 @@ bool HasUnresolvedBuffers(Scene* scene)
 
 static void LoadScene(Scene* scene, cgltf_data* data)
 {
+    dmHashTable64<void*> cache;
     LoadSkins(scene, data);
     LoadNodes(scene, data);
-    LoadSamplers(scene, data);
+    LoadSamplers(scene, data, &cache);
+    LoadImages(scene, data, &cache);
+    LoadTextures(scene, data, &cache);
     LoadMaterials(scene, data);
     LoadMeshes(scene, data);
     LinkNodesWithBones(scene, data);

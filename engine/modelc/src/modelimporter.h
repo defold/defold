@@ -65,8 +65,8 @@ namespace dmModelImporter
     struct Image // gltf
     {
         const char* m_Name;
-        const char* m_Uri;
-        const char* m_MimeType;
+        const char* m_Uri;      // not set if buffer is set
+        const char* m_MimeType; // valid when buffer is set
         Buffer*     m_Buffer;
     };
 
@@ -74,10 +74,11 @@ namespace dmModelImporter
     struct Sampler
     {
         const char* m_Name;
-        int32_t     m_MagFilter; // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#_sampler_magfilter
-        int32_t     m_MinFilter;
-        int32_t     m_WrapS;
-        int32_t     m_WrapT;
+        // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#_sampler_magfilter
+        int32_t     m_MagFilter; // Optional. 0 == not set. No default
+        int32_t     m_MinFilter; // Optional. 0 == not set. No default
+        int32_t     m_WrapS;     // Optional. Default == 10497 (REPEAT)
+        int32_t     m_WrapT;     // Optional. Default == 10497 (REPEAT)
     };
 
     struct Texture
@@ -331,6 +332,8 @@ namespace dmModelImporter
         dmArray<Animation>  m_Animations;
         dmArray<Material>   m_Materials;
         dmArray<Sampler>    m_Samplers;
+        dmArray<Image>      m_Images;
+        dmArray<Texture>    m_Textures;
         dmArray<Buffer>     m_Buffers;
 
         // When we need to dynamically create materials
