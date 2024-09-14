@@ -303,6 +303,69 @@
           (is (identical? (meta coll) (meta odds)))
           (is (identical? (meta coll) (meta evens))))))))
 
+(deftest aggregate-into-test
+  (testing "Aggregates items into the specified associative."
+    (is (= {\a 5
+            \b 7
+            \c 0}
+           (coll/aggregate-into {\c 0}
+                                (juxt first count)
+                                +
+                                ["apple" "book" "box"]))))
+
+  (testing "Excludes nil pair-fn results."
+    (is (= {\a 5
+            \b 3}
+           (coll/aggregate-into {}
+                                (fn pair-fn [item]
+                                  (when (not= "book" item)
+                                    [(first item)
+                                     (count item)]))
+                                +
+                                ["apple" "book" "box"]))))
+
+  (testing "Uses supplied init values as the starting point."
+    (is (= {\a #{:init :a1 :a2}
+            \b #{:init :b1}
+            \c #{:c1}}
+           (coll/aggregate-into {\c #{:c1}}
+                                (juxt first keyword)
+                                conj
+                                #{:init}
+                                ["a1" "b1" "a2"]))))
+
+  (testing "Uses values produced by supplied init function as the starting point."
+    (is (= {\a [:a1 :a2]
+            \b [:b1]}
+           (into {}
+                 (map (fn [[key value]]
+                        [key (persistent! value)]))
+                 (coll/aggregate-into {}
+                                      (juxt first keyword)
+                                      conj!
+                                      #(transient [])
+                                      ["a1" "b1" "a2"])))))
+
+  (testing "Does nothing and returns target coll when there are no items."
+    (doseq [empty-items [nil '() [] #{} {} (sorted-set) (sorted-map) (vector-of :long)]]
+      (doseq [target-coll [(array-map) (hash-map) (sorted-map)]]
+        (let [result (coll/aggregate-into target-coll
+                                          (fn pair-fn [_] (assert false))
+                                          (fn accumulate-fn [_ _] (assert false))
+                                          (fn init-fn [] (assert false))
+                                          empty-items)]
+          (is (identical? target-coll result))))))
+
+  (testing "Preserves metadata."
+    (doseq [target-coll [(array-map) (hash-map) (sorted-map)]]
+      (let [original-meta {:meta-key "meta-value"}
+            original-map (with-meta target-coll original-meta)
+            altered-map (coll/aggregate-into original-map
+                                             (juxt first keyword)
+                                             conj
+                                             ["a1" "b1" "a2"])]
+        (is (identical? original-meta (meta altered-map)))))))
+
 (deftest mapcat-test
   (testing "Over collection."
     (is (= [[:< :a]

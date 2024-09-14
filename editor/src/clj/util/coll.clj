@@ -245,6 +245,42 @@
               (pair empty-coll empty-coll)
               coll))))
 
+(defn aggregate-into
+  "Aggregate a sequence of items into an associative collection. The pair-fn
+  will be called on each item to produce a key-value pair. If it returns nil,
+  we skip the item, otherwise we will look up the key in coll and run the
+  accumulate-fn on the existing value and the value from the key-value pair
+  returned by the pair-fn. The result will be assoc:ed into coll. Optionally, an
+  init value can be specified to use as the first argument to the accumulate-fn
+  when there is no existing value for the key in coll. If init is a function,
+  it will be called with no arguments to produce a new init value when needed."
+  ([coll pair-fn accumulate-fn items]
+   (aggregate-into coll pair-fn accumulate-fn (accumulate-fn) items))
+  ([coll pair-fn accumulate-fn init items]
+   (if (empty? items)
+     coll
+     (let [use-transient (supports-transient? coll)
+           use-fn-init (fn? init)
+           assoc-fn (if use-transient assoc! assoc)
+           lookup-fn (if use-fn-init
+                       (fn lookup-fn [accumulated-by-key key]
+                         (let [accumulated (get accumulated-by-key key ::not-found)]
+                           (case accumulated
+                             ::not-found (init)
+                             accumulated)))
+                       (fn lookup-fn [accumulated-by-key key]
+                         (get accumulated-by-key key init)))]
+       (cond-> (reduce (fn [accumulated-by-key item]
+                         (if-some [[key value] (pair-fn item)]
+                           (let [accumulated (lookup-fn accumulated-by-key key)
+                                 accumulated (accumulate-fn accumulated value)]
+                             (assoc-fn accumulated-by-key key accumulated))
+                           accumulated-by-key))
+                       (cond-> coll use-transient transient)
+                       items)
+               use-transient (-> (persistent!)
+                                 (with-meta (meta coll))))))))
+
 (defn mapcat-indexed
   "Returns the result of applying concat to the result of applying map-indexed
   to f and coll. Thus function f should return a collection. Returns a
