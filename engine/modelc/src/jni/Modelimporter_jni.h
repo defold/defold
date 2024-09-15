@@ -60,7 +60,6 @@ struct TextureTransformJNI {
     jfieldID rotation;
     jfieldID scale;
     jfieldID texcoord;
-    jfieldID hasTexcoord;
 };
 struct TextureViewJNI {
     jclass cls;

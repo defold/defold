@@ -74,7 +74,6 @@ public class Modelimporter {
         public float rotation = 0.0f;
         public float[] scale;
         public int texcoord = 0;
-        public boolean hasTexcoord = false;
     };
     public static class TextureView {
         public Texture texture;

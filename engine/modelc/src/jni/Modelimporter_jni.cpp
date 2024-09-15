@@ -79,7 +79,6 @@ void InitializeJNITypes(JNIEnv* env, TypeInfos* infos) {
         GET_FLD_TYPESTR(rotation, "F");
         GET_FLD_TYPESTR(scale, "[F");
         GET_FLD_TYPESTR(texcoord, "I");
-        GET_FLD_TYPESTR(hasTexcoord, "Z");
     }
     {
         SETUP_CLASS(TextureViewJNI, "TextureView");
@@ -395,7 +394,6 @@ jobject C2J_CreateTextureTransform(JNIEnv* env, TypeInfos* types, const TextureT
     dmJNI::SetFloat(env, obj, types->m_TextureTransformJNI.rotation, src->m_Rotation);
     dmJNI::SetObjectDeref(env, obj, types->m_TextureTransformJNI.scale, dmJNI::C2J_CreateFloatArray(env, src->m_Scale, 2));
     dmJNI::SetInt(env, obj, types->m_TextureTransformJNI.texcoord, src->m_Texcoord);
-    dmJNI::SetBoolean(env, obj, types->m_TextureTransformJNI.hasTexcoord, src->m_HasTexcoord);
     return obj;
 }
 
@@ -1424,7 +1422,6 @@ bool J2C_CreateTextureTransform(JNIEnv* env, TypeInfos* types, jobject obj, Text
         }
     }
     out->m_Texcoord = dmJNI::GetInt(env, obj, types->m_TextureTransformJNI.texcoord);
-    out->m_HasTexcoord = dmJNI::GetBoolean(env, obj, types->m_TextureTransformJNI.hasTexcoord);
     return true;
 }
 

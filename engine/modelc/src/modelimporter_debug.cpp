@@ -204,6 +204,8 @@ static void OutputTextureTransform(TextureTransform* p, int indent)
     OutputArray("offset", p->m_Offset,      indent);
     OutputValue("rotation", p->m_Rotation,  indent);
     OutputArray("scale", p->m_Scale,        indent);
+    if (p->m_Texcoord >= 0)
+        OutputValue("texcoord", p->m_Texcoord, indent);
 }
 
 static void OutputTextureView(const char* name, TextureView* p, int indent)
@@ -217,10 +219,10 @@ static void OutputTextureView(const char* name, TextureView* p, int indent)
         OutputIndent(indent+1);
         printf("texture: %s\n", p->m_Texture->m_Name);
     }
-    OutputIndent(indent+1);
-    printf("tex_coord: %d\n", p->m_Texcoord);
-    OutputIndent(indent+1);
-    printf("scale: %f\n", p->m_Scale);
+
+    OutputValue("tex_coord", p->m_Texcoord, indent);
+    OutputValue("scale", p->m_Scale, indent);
+
     if (p->m_HasTransform)
     {
         OutputIndent(indent+1);

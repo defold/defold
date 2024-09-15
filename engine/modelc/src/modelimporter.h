@@ -74,6 +74,7 @@ namespace dmModelImporter
     struct Sampler
     {
         const char* m_Name;
+
         // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#_sampler_magfilter
         int32_t     m_MagFilter; // Optional. 0 == not set. No default
         int32_t     m_MinFilter; // Optional. 0 == not set. No default
@@ -95,7 +96,6 @@ namespace dmModelImporter
         float   m_Rotation;
         float   m_Scale[2];
         int     m_Texcoord;
-        bool    m_HasTexcoord;
     };
 
     struct TextureView
