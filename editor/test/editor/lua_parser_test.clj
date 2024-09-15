@@ -84,6 +84,11 @@
           result (select-keys (lua-info code) [:vars :requires])]
       (is (= {:vars #{}
               :requires [[nil "mymath"]]} result))))
+  (testing "require function call with tail function call"
+    (let [code "require(\"deep_thought\").get_question(\"42\")"
+          result (select-keys (lua-info code) [:vars :requires])]
+      (is (= {:vars #{}
+              :requires [[nil "deep_thought"]]} result))))
   (testing "require call as part of complex expression"
     (let [code (string/join "\n" ["state_rules[hash(\"main\")] = hash_rules("
                                   "    require \"main/state_rules\""

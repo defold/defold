@@ -197,6 +197,7 @@
    (matching-functioncall nil function-name node))
   ([module-name function-name node]
    (when-some [[parsed-module-name parsed-function-name parsed-arg-exps] (parse-functioncall node)]
+     (println "node: " node "\nreturns: " parsed-module-name parsed-function-name parsed-arg-exps "\nexpected:\n\n")
      (when (and (= module-name parsed-module-name)
                 (= function-name parsed-function-name))
        parsed-arg-exps))))
