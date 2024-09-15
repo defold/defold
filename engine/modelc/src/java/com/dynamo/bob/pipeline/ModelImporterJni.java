@@ -507,6 +507,36 @@ public class ModelImporterJni {
 
         System.out.printf("--------------------------------\n");
 
+        System.out.printf("Num images: %d\n", scene.images.length);
+        for (Modelimporter.Image image : scene.images)
+        {
+            PrintIndent(1);
+            System.out.printf("-----------------\n");
+            DebugPrintObject(image, 0);
+        }
+
+        System.out.printf("--------------------------------\n");
+
+        System.out.printf("Num Samplers: %d\n", scene.samplers.length);
+        for (Modelimporter.Sampler sampler : scene.samplers)
+        {
+            PrintIndent(1);
+            System.out.printf("-----------------\n");
+            DebugPrintObject(sampler, 0);
+        }
+
+        System.out.printf("--------------------------------\n");
+
+        System.out.printf("Num Textures: %d\n", scene.textures.length);
+        for (Modelimporter.Texture texture : scene.textures)
+        {
+            PrintIndent(1);
+            System.out.printf("-----------------\n");
+            DebugPrintObject(texture, 0);
+        }
+
+        System.out.printf("--------------------------------\n");
+
         System.out.printf("Num Materials: %d\n", scene.materials.length);
         for (Modelimporter.Material material : scene.materials)
         {
