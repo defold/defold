@@ -68,12 +68,14 @@ namespace dmModelImporter
         const char* m_Uri;      // not set if buffer is set
         const char* m_MimeType; // valid when buffer is set
         Buffer*     m_Buffer;
+        uint32_t    m_Index;    // The index into the scene.images array
     };
 
     // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#reference-sampler
     struct Sampler
     {
         const char* m_Name;
+        uint32_t    m_Index;        // The index into the scene.samplers array
 
         // https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#_sampler_magfilter
         int32_t     m_MagFilter; // Optional. 0 == not set. No default
@@ -88,6 +90,7 @@ namespace dmModelImporter
         Image*      m_Image;
         Sampler*    m_Sampler;
         Image*      m_BasisuImage;
+        uint32_t    m_Index;        // The index into the scene.textures array
     };
 
     struct TextureTransform

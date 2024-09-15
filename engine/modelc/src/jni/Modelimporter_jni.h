@@ -38,10 +38,12 @@ struct ImageJNI {
     jfieldID uri;
     jfieldID mimeType;
     jfieldID buffer;
+    jfieldID index;
 };
 struct SamplerJNI {
     jclass cls;
     jfieldID name;
+    jfieldID index;
     jfieldID magFilter;
     jfieldID minFilter;
     jfieldID wrapS;
@@ -53,6 +55,7 @@ struct TextureJNI {
     jfieldID image;
     jfieldID sampler;
     jfieldID basisuImage;
+    jfieldID index;
 };
 struct TextureTransformJNI {
     jclass cls;

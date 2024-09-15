@@ -57,10 +57,12 @@ void InitializeJNITypes(JNIEnv* env, TypeInfos* infos) {
         GET_FLD_TYPESTR(uri, "Ljava/lang/String;");
         GET_FLD_TYPESTR(mimeType, "Ljava/lang/String;");
         GET_FLD(buffer, "Buffer");
+        GET_FLD_TYPESTR(index, "I");
     }
     {
         SETUP_CLASS(SamplerJNI, "Sampler");
         GET_FLD_TYPESTR(name, "Ljava/lang/String;");
+        GET_FLD_TYPESTR(index, "I");
         GET_FLD_TYPESTR(magFilter, "I");
         GET_FLD_TYPESTR(minFilter, "I");
         GET_FLD_TYPESTR(wrapS, "I");
@@ -72,6 +74,7 @@ void InitializeJNITypes(JNIEnv* env, TypeInfos* infos) {
         GET_FLD(image, "Image");
         GET_FLD(sampler, "Sampler");
         GET_FLD(basisuImage, "Image");
+        GET_FLD_TYPESTR(index, "I");
     }
     {
         SETUP_CLASS(TextureTransformJNI, "TextureTransform");
@@ -363,6 +366,7 @@ jobject C2J_CreateImage(JNIEnv* env, TypeInfos* types, const Image* src) {
     dmJNI::SetString(env, obj, types->m_ImageJNI.uri, src->m_Uri);
     dmJNI::SetString(env, obj, types->m_ImageJNI.mimeType, src->m_MimeType);
     dmJNI::SetObjectDeref(env, obj, types->m_ImageJNI.buffer, C2J_CreateBuffer(env, types, src->m_Buffer));
+    dmJNI::SetUInt(env, obj, types->m_ImageJNI.index, src->m_Index);
     return obj;
 }
 
@@ -370,6 +374,7 @@ jobject C2J_CreateSampler(JNIEnv* env, TypeInfos* types, const Sampler* src) {
     if (src == 0) return 0;
     jobject obj = env->AllocObject(types->m_SamplerJNI.cls);
     dmJNI::SetString(env, obj, types->m_SamplerJNI.name, src->m_Name);
+    dmJNI::SetUInt(env, obj, types->m_SamplerJNI.index, src->m_Index);
     dmJNI::SetInt(env, obj, types->m_SamplerJNI.magFilter, src->m_MagFilter);
     dmJNI::SetInt(env, obj, types->m_SamplerJNI.minFilter, src->m_MinFilter);
     dmJNI::SetInt(env, obj, types->m_SamplerJNI.wrapS, src->m_WrapS);
@@ -384,6 +389,7 @@ jobject C2J_CreateTexture(JNIEnv* env, TypeInfos* types, const Texture* src) {
     dmJNI::SetObjectDeref(env, obj, types->m_TextureJNI.image, C2J_CreateImage(env, types, src->m_Image));
     dmJNI::SetObjectDeref(env, obj, types->m_TextureJNI.sampler, C2J_CreateSampler(env, types, src->m_Sampler));
     dmJNI::SetObjectDeref(env, obj, types->m_TextureJNI.basisuImage, C2J_CreateImage(env, types, src->m_BasisuImage));
+    dmJNI::SetUInt(env, obj, types->m_TextureJNI.index, src->m_Index);
     return obj;
 }
 
@@ -1361,12 +1367,14 @@ bool J2C_CreateImage(JNIEnv* env, TypeInfos* types, jobject obj, Image* out) {
             env->DeleteLocalRef(field_object);
         }
     }
+    out->m_Index = dmJNI::GetUInt(env, obj, types->m_ImageJNI.index);
     return true;
 }
 
 bool J2C_CreateSampler(JNIEnv* env, TypeInfos* types, jobject obj, Sampler* out) {
     if (out == 0) return false;
     out->m_Name = dmJNI::GetString(env, obj, types->m_SamplerJNI.name);
+    out->m_Index = dmJNI::GetUInt(env, obj, types->m_SamplerJNI.index);
     out->m_MagFilter = dmJNI::GetInt(env, obj, types->m_SamplerJNI.magFilter);
     out->m_MinFilter = dmJNI::GetInt(env, obj, types->m_SamplerJNI.minFilter);
     out->m_WrapS = dmJNI::GetInt(env, obj, types->m_SamplerJNI.wrapS);
@@ -1401,6 +1409,7 @@ bool J2C_CreateTexture(JNIEnv* env, TypeInfos* types, jobject obj, Texture* out)
             env->DeleteLocalRef(field_object);
         }
     }
+    out->m_Index = dmJNI::GetUInt(env, obj, types->m_TextureJNI.index);
     return true;
 }
 

@@ -509,6 +509,7 @@ static void LoadSamplers(Scene* scene, cgltf_data* gltf_data, dmHashTable64<void
         Sampler* sampler = &scene->m_Samplers[i];
         memset(sampler, 0, sizeof(*sampler));
         sampler->m_Name = CreateObjectName(gltf_sampler, "sampler", i);
+        sampler->m_Index = i;
 
         sampler->m_MagFilter = gltf_sampler->mag_filter;
         sampler->m_MinFilter = gltf_sampler->min_filter;
@@ -529,6 +530,7 @@ static void LoadImages(Scene* scene, cgltf_data* gltf_data, dmHashTable64<void*>
 
         Image* image = &scene->m_Images[i];
         memset(image, 0, sizeof(*image));
+        image->m_Index = i;
         image->m_Name = CreateObjectName(gltf_image, "image", i);
         image->m_Uri = gltf_image->uri ? strdup(gltf_image->uri): 0;
         image->m_MimeType = gltf_image->mime_type ? strdup(gltf_image->mime_type): 0;
@@ -547,6 +549,7 @@ static void LoadTextures(Scene* scene, cgltf_data* gltf_data, dmHashTable64<void
 
         Texture* texture = &scene->m_Textures[i];
         memset(texture, 0, sizeof(*texture));
+        texture->m_Index = i;
         texture->m_Name = CreateObjectName(gltf_texture, "texture", i);
         texture->m_Sampler = GetFromCache<Sampler>(cache, gltf_texture->sampler);
         texture->m_Image = GetFromCache<Image>(cache, gltf_texture->image);

@@ -176,6 +176,13 @@ void OutputValue(const char* name, bool value, int indent)
 }
 
 template<>
+void OutputValue(const char* name, const char* value, int indent)
+{
+    OutputIndent(indent);
+    printf("%s: %s\n", name, value);
+}
+
+template<>
 void OutputValue(const char* name, AlphaMode value, int indent)
 {
     const char* modes[] = {
@@ -191,7 +198,7 @@ void OutputValue(const char* name, AlphaMode value, int indent)
 static void OutputSampler(Sampler* sampler, int indent)
 {
     OutputIndent(indent);
-    printf("Sampler: %s : \n", sampler->m_Name);
+    printf("Sampler %d: %s \n", sampler->m_Index, sampler->m_Name);
 
     OutputValue("mag_filter", sampler->m_MagFilter, indent+1);
     OutputValue("min_filter", sampler->m_MinFilter, indent+1);
@@ -230,6 +237,20 @@ static void OutputTextureView(const char* name, TextureView* p, int indent)
         OutputTextureTransform(&p->m_Transform, indent+1);
     }
 }
+
+static void OutputTexture(Texture* texture, int indent)
+{
+    OutputIndent(indent);
+    printf("Texture %d: %s \n", texture->m_Index, texture->m_Name);
+
+    if (texture->m_Image)
+        OutputValue("image", texture->m_Image->m_Name, indent+1);
+    if (texture->m_Sampler)
+        OutputValue("sampler", texture->m_Sampler->m_Name, indent+1);
+    if (texture->m_BasisuImage)
+        OutputValue("basisu_image", texture->m_BasisuImage->m_Name, indent+1);
+}
+
 
 static void OutputPbrMetallicRoughness(PbrMetallicRoughness* p, int indent)
 {
@@ -478,6 +499,14 @@ void DebugScene(Scene* scene)
     for (uint32_t i = 0; i < scene->m_Samplers.Size(); ++i)
     {
         OutputSampler(&scene->m_Samplers[i], 0);
+    }
+
+    printf("------------------------------\n");
+    printf("Textures\n");
+
+    for (uint32_t i = 0; i < scene->m_Samplers.Size(); ++i)
+    {
+        OutputTexture(&scene->m_Textures[i], 0);
     }
 
     printf("------------------------------\n");

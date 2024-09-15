@@ -55,9 +55,11 @@ public class Modelimporter {
         public String uri;
         public String mimeType;
         public Buffer buffer;
+        public int index = 0;
     };
     public static class Sampler {
         public String name;
+        public int index = 0;
         public int magFilter = 0;
         public int minFilter = 0;
         public int wrapS = 0;
@@ -68,6 +70,7 @@ public class Modelimporter {
         public Image image;
         public Sampler sampler;
         public Image basisuImage;
+        public int index = 0;
     };
     public static class TextureTransform {
         public float[] offset;
