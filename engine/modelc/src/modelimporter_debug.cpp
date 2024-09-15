@@ -140,30 +140,70 @@ static void OutputNodeTree(Node* node, int indent)
     }
 }
 
+template <int N>
+static void OutputArray(const char* name, float (&p)[N], int indent)
+{
+    OutputIndent(indent);
+    printf("%s: ", name);
+    for (int i = 0; i < N; ++i)
+    {
+        printf("%.3f", p[i]);
+        if (i < (N-1))
+            printf(", ");
+    }
+    printf("\n");
+}
+
+template<typename T>
+static void OutputValue(const char* name, T value, int indent)
+{
+    OutputIndent(indent);
+    printf("%s: %.3f\n", name, (float)value);
+}
+
+template<>
+void OutputValue(const char* name, int value, int indent)
+{
+    OutputIndent(indent);
+    printf("%s: %d\n", name, value);
+}
+
+template<>
+void OutputValue(const char* name, bool value, int indent)
+{
+    OutputIndent(indent);
+    printf("%s: %s\n", name, value?"true":"false");
+}
+
+template<>
+void OutputValue(const char* name, AlphaMode value, int indent)
+{
+    const char* modes[] = {
+        "OPAQUE",
+        "MASK",
+        "BLEND",
+        "MAX_ENUM"
+    };
+    OutputIndent(indent);
+    printf("%s: %s (%d)\n", name, modes[value], value);
+}
+
 static void OutputSampler(Sampler* sampler, int indent)
 {
     OutputIndent(indent);
     printf("Sampler: %s : \n", sampler->m_Name);
-    OutputIndent(indent);
-    printf("  mag_filter: %d\n", sampler->m_MagFilter);
-    OutputIndent(indent);
-    printf("  min_filter: %d\n", sampler->m_MinFilter);
-    OutputIndent(indent);
-    printf("  wrap_s:     %d\n", sampler->m_WrapS);
-    OutputIndent(indent);
-    printf("  wrap_t:     %d\n", sampler->m_WrapT);
-    OutputIndent(indent);
-    printf("\n");
+
+    OutputValue("mag_filter", sampler->m_MagFilter, indent+1);
+    OutputValue("min_filter", sampler->m_MinFilter, indent+1);
+    OutputValue("wrap_s", sampler->m_WrapS,     indent+1);
+    OutputValue("wrap_t", sampler->m_WrapT,     indent+1);
 }
 
 static void OutputTextureTransform(TextureTransform* p, int indent)
 {
-    OutputIndent(indent);
-    printf("offset: %f, %f\n", p->m_Offset[0], p->m_Offset[1]);
-    OutputIndent(indent);
-    printf("roation: %f\n", p->m_Rotation);
-    OutputIndent(indent);
-    printf("scale: %f, %f\n", p->m_Scale[0], p->m_Scale[1]);
+    OutputArray("offset", p->m_Offset,      indent);
+    OutputValue("rotation", p->m_Rotation,  indent);
+    OutputArray("scale", p->m_Scale,        indent);
 }
 
 static void OutputTextureView(const char* name, TextureView* p, int indent)
@@ -187,26 +227,6 @@ static void OutputTextureView(const char* name, TextureView* p, int indent)
         printf("transform:\n");
         OutputTextureTransform(&p->m_Transform, indent+1);
     }
-}
-
-template <int N>
-static void OutputArray(const char* name, float (&p)[N], int indent)
-{
-    OutputIndent(indent);
-    printf("%s: ", name);
-    for (int i = 0; i < N; ++i)
-    {
-        printf("%f", p[i]);
-        if (i < (N-1))
-            printf(", ");
-    }
-    printf("\n");
-}
-
-static void OutputValue(const char* name, float value, int indent)
-{
-    OutputIndent(indent);
-    printf("%s: %f\n", name, value);
 }
 
 static void OutputPbrMetallicRoughness(PbrMetallicRoughness* p, int indent)
@@ -327,6 +347,16 @@ static void OutputMaterial(Material* material, int indent)
     if (material->m_Sheen)                  OutputSheen(material->m_Sheen, indent+1);
     if (material->m_EmissiveStrength)       OutputEmissiveStrength(material->m_EmissiveStrength, indent+1);
     if (material->m_Iridescence)            OutputIridescence(material->m_Iridescence, indent+1);
+
+    OutputTextureView("normal_texture", &material->m_NormalTexture, indent+1);
+    OutputTextureView("occlusion_texture", &material->m_OcclusionTexture, indent+1);
+    OutputTextureView("emissive_texture", &material->m_EmissiveTexture, indent+1);
+
+    OutputArray("emissive_factor", material->m_EmissiveFactor, indent+1);
+    OutputValue("alpha_cutoff", material->m_AlphaCutoff, indent+1);
+    OutputValue("alpha_mode", material->m_AlphaMode, indent+1);
+    OutputValue("double_sided", material->m_DoubleSided, indent+1);
+    OutputValue("unlit", material->m_Unlit, indent+1);
 }
 
 static void OutputMesh(Mesh* mesh, int indent)

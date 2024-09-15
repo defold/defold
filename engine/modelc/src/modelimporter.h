@@ -28,7 +28,7 @@ namespace dmModelImporter
 
     static const int32_t INVALID_INDEX = 2147483647; // INT_MAX
 
-    enum AlphaMode
+    enum AlphaMode // same values as in cgltf.h
     {
         ALPHA_MODE_OPAQUE,
         ALPHA_MODE_MASK,
@@ -204,9 +204,9 @@ namespace dmModelImporter
         EmissiveStrength*       m_EmissiveStrength;
         Iridescence*            m_Iridescence;
 
-        TextureView*            m_NormalTexture;
-        TextureView*            m_OcclusionTexture;
-        TextureView*            m_EmissiveTexture;
+        TextureView             m_NormalTexture;
+        TextureView             m_OcclusionTexture;
+        TextureView             m_EmissiveTexture;
 
         float                   m_EmissiveFactor[3];
         float                   m_AlphaCutoff;

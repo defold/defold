@@ -523,9 +523,9 @@ jobject C2J_CreateMaterial(JNIEnv* env, TypeInfos* types, const Material* src) {
     dmJNI::SetObjectDeref(env, obj, types->m_MaterialJNI.volume, C2J_CreateVolume(env, types, src->m_Volume));
     dmJNI::SetObjectDeref(env, obj, types->m_MaterialJNI.emissiveStrength, C2J_CreateEmissiveStrength(env, types, src->m_EmissiveStrength));
     dmJNI::SetObjectDeref(env, obj, types->m_MaterialJNI.iridescence, C2J_CreateIridescence(env, types, src->m_Iridescence));
-    dmJNI::SetObjectDeref(env, obj, types->m_MaterialJNI.normalTexture, C2J_CreateTextureView(env, types, src->m_NormalTexture));
-    dmJNI::SetObjectDeref(env, obj, types->m_MaterialJNI.occlusionTexture, C2J_CreateTextureView(env, types, src->m_OcclusionTexture));
-    dmJNI::SetObjectDeref(env, obj, types->m_MaterialJNI.emissiveTexture, C2J_CreateTextureView(env, types, src->m_EmissiveTexture));
+    dmJNI::SetObjectDeref(env, obj, types->m_MaterialJNI.normalTexture, C2J_CreateTextureView(env, types, &src->m_NormalTexture));
+    dmJNI::SetObjectDeref(env, obj, types->m_MaterialJNI.occlusionTexture, C2J_CreateTextureView(env, types, &src->m_OcclusionTexture));
+    dmJNI::SetObjectDeref(env, obj, types->m_MaterialJNI.emissiveTexture, C2J_CreateTextureView(env, types, &src->m_EmissiveTexture));
     dmJNI::SetObjectDeref(env, obj, types->m_MaterialJNI.emissiveFactor, dmJNI::C2J_CreateFloatArray(env, src->m_EmissiveFactor, 3));
     dmJNI::SetFloat(env, obj, types->m_MaterialJNI.alphaCutoff, src->m_AlphaCutoff);
     dmJNI::SetEnum(env, obj, types->m_MaterialJNI.alphaMode, src->m_AlphaMode);
@@ -1752,24 +1752,21 @@ bool J2C_CreateMaterial(JNIEnv* env, TypeInfos* types, jobject obj, Material* ou
     {
         jobject field_object = env->GetObjectField(obj, types->m_MaterialJNI.normalTexture);
         if (field_object) {
-            out->m_NormalTexture = new TextureView();
-            J2C_CreateTextureView(env, types, field_object, out->m_NormalTexture);
+            J2C_CreateTextureView(env, types, field_object, &out->m_NormalTexture);
             env->DeleteLocalRef(field_object);
         }
     }
     {
         jobject field_object = env->GetObjectField(obj, types->m_MaterialJNI.occlusionTexture);
         if (field_object) {
-            out->m_OcclusionTexture = new TextureView();
-            J2C_CreateTextureView(env, types, field_object, out->m_OcclusionTexture);
+            J2C_CreateTextureView(env, types, field_object, &out->m_OcclusionTexture);
             env->DeleteLocalRef(field_object);
         }
     }
     {
         jobject field_object = env->GetObjectField(obj, types->m_MaterialJNI.emissiveTexture);
         if (field_object) {
-            out->m_EmissiveTexture = new TextureView();
-            J2C_CreateTextureView(env, types, field_object, out->m_EmissiveTexture);
+            J2C_CreateTextureView(env, types, field_object, &out->m_EmissiveTexture);
             env->DeleteLocalRef(field_object);
         }
     }
