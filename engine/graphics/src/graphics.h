@@ -322,11 +322,11 @@ namespace dmGraphics
         dmhash_t                       m_NameHash;
         VertexAttribute::SemanticType  m_SemanticType;
         VertexAttribute::DataType      m_DataType;
+        VertexAttribute::VectorType    m_VectorType;
         dmGraphics::VertexStepFunction m_StepFunction;
         CoordinateSpace                m_CoordinateSpace;
         const uint8_t*                 m_ValuePtr;
         uint32_t                       m_ValueByteSize;
-        uint32_t                       m_ElementCount;
         bool                           m_Normalize;
     };
 
@@ -581,7 +581,37 @@ namespace dmGraphics
     void             GetAttribute(HProgram prog, uint32_t index, dmhash_t* name_hash, Type* type, uint32_t* element_count, uint32_t* num_values, int32_t* location);
     void             GetAttributeValues(const VertexAttribute& attribute, const uint8_t** data_ptr, uint32_t* data_size);
     Type             GetGraphicsType(VertexAttribute::DataType data_type);
-    uint8_t*         WriteAttribute(const VertexAttributeInfos* attribute_infos, uint8_t* write_ptr, uint32_t vertex_index, const dmVMath::Matrix4* world_transform, const dmVMath::Matrix4* normal_transform, const dmVMath::Point3& p, const dmVMath::Point3& p_local, const dmVMath::Vector4* color, float** uvs, uint32_t* page_indices, uint32_t num_textures);
+
+    struct WriteAttributeParams
+    {
+        const VertexAttributeInfos*    m_VertexAttributeInfos;
+        const dmVMath::Matrix4*        m_WorldMatrix;
+        const dmVMath::Matrix4*        m_NormalMatrix;
+        const float*                   m_PositionsLocalSpace;
+        const float*                   m_PositionsWorldSpace;
+        const float*                   m_Normals;
+        const float*                   m_Tangents;
+        const float*                   m_Colors;
+        const float**                  m_PageIndices;
+        const float**                  m_UVChannels;
+        uint32_t                       m_PageIndicesCount;
+        uint32_t                       m_UVChannelsCount;
+        uint32_t                       m_Index;
+
+        // Data source vector types corresponding to each data source passed in.
+        // The destination vector type is stored in the vertexattribute infos.
+        VertexAttribute::VectorType    m_PositionsVectorType;
+        VertexAttribute::VectorType    m_NormalsVectorType;
+        VertexAttribute::VectorType    m_TangentsVectorType;
+        VertexAttribute::VectorType    m_ColorsVectorType;
+        VertexAttribute::VectorType    m_PageIndicesVectorType;
+        VertexAttribute::VectorType    m_UVChannelsVectorType;
+
+        VertexStepFunction m_StepFunction;
+    };
+
+    uint8_t* WriteVertexAttributeFromFloat(uint8_t* value_write_ptr, float value, dmGraphics::VertexAttribute::DataType data_type);
+    uint8_t* WriteAttribute(uint8_t* write_ptr, const WriteAttributeParams& params);
 
     uint32_t         GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size);
     uint32_t         GetUniformCount(HProgram prog);
@@ -726,6 +756,37 @@ namespace dmGraphics
     static inline uint32_t GetLayerCount(TextureType type)
     {
         return type == TEXTURE_TYPE_CUBE_MAP ? 6 : 1;
+    }
+
+    static inline uint32_t VectorTypeToElementCount(VertexAttribute::VectorType vector_type)
+    {
+        switch(vector_type)
+        {
+            case VertexAttribute::VECTOR_TYPE_SCALAR: return 1;
+            case VertexAttribute::VECTOR_TYPE_VEC2:   return 2;
+            case VertexAttribute::VECTOR_TYPE_VEC3:   return 3;
+            case VertexAttribute::VECTOR_TYPE_VEC4:   return 4;
+            case VertexAttribute::VECTOR_TYPE_MAT2:   return 4;
+            case VertexAttribute::VECTOR_TYPE_MAT3:   return 9;
+            case VertexAttribute::VECTOR_TYPE_MAT4:   return 16;
+        }
+        return 0;
+    }
+
+    static inline uint32_t DataTypeToByteWidth(VertexAttribute::DataType data_type)
+    {
+        switch(data_type)
+        {
+            case dmGraphics::VertexAttribute::TYPE_BYTE:           return 1;
+            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE:  return 1;
+            case dmGraphics::VertexAttribute::TYPE_SHORT:          return 2;
+            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_SHORT: return 2;
+            case dmGraphics::VertexAttribute::TYPE_INT:            return 4;
+            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_INT:   return 4;
+            case dmGraphics::VertexAttribute::TYPE_FLOAT:          return 4;
+            default: break;
+        }
+        return 0;
     }
 
     /**

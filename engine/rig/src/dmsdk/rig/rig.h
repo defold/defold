@@ -31,6 +31,8 @@
 namespace dmGraphics
 {
     struct VertexAttributeInfos;
+    struct VertexAttributeInfo;
+    struct WriteAttributeParams;
 }
 
 namespace dmRig
@@ -173,24 +175,18 @@ namespace dmRig
     Result CancelAnimation(HRigInstance instance);
     dmhash_t GetAnimation(HRigInstance instance);
 
-    struct WriteVertexAttributeParams
-    {
-        const dmGraphics::VertexAttributeInfos* m_AttributeInfos;
-        dmGraphics::VertexStepFunction          m_StepFunction;
-        uint32_t                                m_Index;
-        const float*                            m_Positions;
-        const float*                            m_Normals;
-        const float*                            m_Tangents;
-        const float*                            m_UV0;
-        const float*                            m_UV1;
-        const float*                            m_Colors;
-        const dmVMath::Matrix4*                 m_WorldTransform;
-        const dmVMath::Matrix4*                 m_NormalTransform;
-    };
+#ifndef DM_RIG_SHARED
+    void SetMeshWriteAttributeParams(dmGraphics::WriteAttributeParams* params,
+        const dmGraphics::VertexAttributeInfos* attribute_infos,
+        dmGraphics::VertexStepFunction step_function,
+        const dmVMath::Matrix4* world_matrix, const dmVMath::Matrix4* normal_matrix,
+        const float* positions_world_space, const float* positions_local_space,
+        const float* normals, const float* tangents, const float* colors,
+        const float** uv_channels, uint32_t uv_channels_count);
+#endif
 
     // Returns the new position in the array
     uint8_t*        GenerateVertexDataFromAttributes(dmRig::HRigContext context, dmRig::HRigInstance instance, dmRigDDF::Mesh* mesh, const dmVMath::Matrix4& world_matrix, const dmVMath::Matrix4& normal_matrix, const dmGraphics::VertexAttributeInfos* attribute_infos, uint32_t vertex_stride, uint8_t* vertex_data_out);
-    uint8_t*        WriteSingleVertexDataByAttributes(uint8_t* write_ptr, const WriteVertexAttributeParams& params);
     RigModelVertex* GenerateVertexData(HRigContext context, dmRig::HRigInstance instance, dmRigDDF::Mesh* mesh, const dmVMath::Matrix4& world_matrix, RigModelVertex* vertex_data_out);
     uint32_t        GetVertexCount(HRigInstance instance);
 
