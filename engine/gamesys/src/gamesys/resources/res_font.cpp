@@ -49,7 +49,8 @@ namespace dmGameSystem
         dmHashTable32<DynamicGlyph*>                  m_DynamicGlyphs;
 
         FontResource()
-            : m_FontMap(0)
+            : m_DDF(0)
+            , m_FontMap(0)
             , m_Resource(0)
             , m_MaterialResource(0)
             , m_GlyphBankResource(0)
@@ -59,8 +60,10 @@ namespace dmGameSystem
 
     static void ReleaseResources(dmResource::HFactory factory, FontResource* resource)
     {
-        dmResource::Release(factory, (void*) resource->m_MaterialResource);
-        dmResource::Release(factory, (void*) resource->m_GlyphBankResource);
+        if (resource->m_MaterialResource)
+            dmResource::Release(factory, (void*) resource->m_MaterialResource);
+        if (resource->m_GlyphBankResource)
+            dmResource::Release(factory, (void*) resource->m_GlyphBankResource);
 
         if (resource->m_DDF)
             dmDDF::FreeMessage(resource->m_DDF);
@@ -222,6 +225,7 @@ namespace dmGameSystem
         font_map->m_CacheCellPadding  = params.m_CacheCellPadding;
 
         uint32_t capacity = glyph_bank->m_Glyphs.m_Count;
+        font_map->m_Glyphs.Clear();
         font_map->m_Glyphs.SetCapacity(dmMath::Max(1U, (capacity*2)/3), capacity);
         for (uint32_t i = 0; i < glyph_bank->m_Glyphs.m_Count; ++i)
         {
