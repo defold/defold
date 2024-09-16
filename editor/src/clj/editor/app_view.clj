@@ -1908,9 +1908,11 @@ If you do not specifically require different script states, consider changing th
 
 (defn- merge-keymaps [prefs]
   (let [custom-keymap (or (open-custom-keymap (prefs/get-prefs prefs "custom-keymap-path" "")) [])
-        default-keymap keymap/default-host-key-bindings
-        merged-keymap (concat custom-keymap default-keymap)]
-      merged-keymap))
+        default-keymap keymap/default-host-key-bindings]
+    (into []
+      (mapcat val)
+      (conj (group-by first default-keymap)
+            (group-by first custom-keymap)))))
 
 (defn make-app-view [view-graph project ^Stage stage ^MenuBar menu-bar ^SplitPane editor-tabs-split ^TabPane tool-tab-pane prefs]
   (let [app-scene (.getScene stage)]
