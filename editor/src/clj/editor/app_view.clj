@@ -1892,7 +1892,7 @@ If you do not specifically require different script states, consider changing th
 (defn open-custom-keymap
   [path]
   (try (and (not= path "")
-            (some-> (str (System/getProperty "user.home") "/" path)
+            (some-> path
                     slurp
                     edn/read-string))
        (catch Exception e
