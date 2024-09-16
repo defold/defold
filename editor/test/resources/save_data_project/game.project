@@ -180,6 +180,7 @@ max_tile_count = 1024
 [engine]
 run_while_iconified = 1
 fixed_update_frequency = 30
+max_time_step = 0.1
 
 [facebook]
 appid = com.defold.save-data-project

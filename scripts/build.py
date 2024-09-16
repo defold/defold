@@ -47,8 +47,12 @@ try:
     import build_vendor
     sys.modules['build_private'] = build_vendor
     print("Imported %s from %s" % ('build_private', build_vendor.__file__))
-except ModuleNotFoundError:
-    pass
+except ModuleNotFoundError as e:
+    if "No module named 'build_vendor'" in str(e):
+        print("Couldn't find build_vendor.py. Skipping.")
+        pass
+    else:
+        raise e
 except Exception as e:
     print("Failed to import build_vendor.py:")
     raise e
@@ -98,8 +102,8 @@ PACKAGES_ALL="protobuf-3.20.1 waf-2.0.3 junit-4.6 jsign-4.2 protobuf-java-3.20.1
 PACKAGES_HOST="vpx-1.7.0 luajit-2.1.0-04dca79 tremolo-b0cb4d1".split()
 PACKAGES_IOS_X86_64="protobuf-3.20.1 luajit-2.1.0-04dca79 tremolo-b0cb4d1 bullet-2.77 glfw-2.7.1".split()
 PACKAGES_IOS_64="protobuf-3.20.1 luajit-2.1.0-04dca79 tremolo-b0cb4d1 bullet-2.77 moltenvk-1.3.261.1 glfw-2.7.1".split()
-PACKAGES_MACOS_X86_64="protobuf-3.20.1 luajit-2.1.0-04dca79 vpx-1.7.0 tremolo-b0cb4d1 bullet-2.77 spirv-cross-37fee00a spirv-tools-4fab7435 glslang-42d9adf5 moltenvk-1.3.261.1 lipo-9ffdea2 sassc-5472db213ec223a67482df2226622be372921847 glfw-3.4".split()
-PACKAGES_MACOS_ARM64="protobuf-3.20.1 luajit-2.1.0-04dca79 vpx-1.7.0 tremolo-b0cb4d1 bullet-2.77 spirv-cross-edd66a2f spirv-tools-c91d9ec1 glslang-42d9adf5 moltenvk-1.3.261.1 lipo-9ffdea2 glfw-3.4".split() # sassc-5472db213ec223a67482df2226622be372921847
+PACKAGES_MACOS_X86_64="protobuf-3.20.1 luajit-2.1.0-04dca79 vpx-1.7.0 tremolo-b0cb4d1 bullet-2.77 spirv-cross-dae7a689 spirv-tools-b21dda0e glslang-42d9adf5 moltenvk-1.3.261.1 lipo-9ffdea2 sassc-5472db213ec223a67482df2226622be372921847 glfw-3.4".split()
+PACKAGES_MACOS_ARM64="protobuf-3.20.1 luajit-2.1.0-04dca79 vpx-1.7.0 tremolo-b0cb4d1 bullet-2.77 spirv-cross-dae7a689 spirv-tools-b21dda0e glslang-42d9adf5 moltenvk-1.3.261.1 lipo-9ffdea2 glfw-3.4".split()
 PACKAGES_WIN32="protobuf-3.20.1 luajit-2.1.0-04dca79 openal-1.1 glut-3.7.6 bullet-2.77 vulkan-1.3.261.1 glfw-3.4".split()
 PACKAGES_WIN32_64="protobuf-3.20.1 luajit-2.1.0-04dca79 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 glslang-42d9adf5 spirv-cross-edd66a2f spirv-tools-d24a39a7 vulkan-1.3.261.1 lipo-9ffdea2 glfw-3.4".split()
 PACKAGES_LINUX_64="protobuf-3.20.1 luajit-2.1.0-04dca79 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 glslang-ba5c010c spirv-cross-edd66a2f spirv-tools-d24a39a7 vulkan-1.1.108 lipo-9ffdea2 glfw-2.7.1".split()
@@ -1436,11 +1440,16 @@ class Configuration(object):
             platforms = build_private.get_target_platforms()
         else:
             platforms = get_target_platforms()
-            # Since we usually want to use the scripts in this package on a linux machine, we'll unpack
-            # it last, in order to preserve unix line endings in the files
-            if 'x86_64-linux' in platforms:
-                platforms.remove('x86_64-linux')
-                platforms.append('x86_64-linux')
+
+        # For the linux build tools (protoc, dlib_shared etc)
+        if 'x86_64-linux' not in platforms:
+            platforms.append('x86_64-linux')
+
+        # Since we usually want to use the scripts in this package on a linux machine, we'll unpack
+        # it last, in order to preserve unix line endings in the files
+        if 'x86_64-linux' in platforms:
+            platforms.remove('x86_64-linux')
+            platforms.append('x86_64-linux')
 
         for platform in platforms:
             prefix = os.path.join(base_prefix, 'engine', platform, 'defoldsdk.zip')

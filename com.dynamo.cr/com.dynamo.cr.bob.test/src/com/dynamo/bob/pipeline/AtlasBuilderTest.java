@@ -21,10 +21,14 @@ import static org.junit.Assert.assertTrue;
 import static org.hamcrest.CoreMatchers.is;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.HashSet;
 
+import com.dynamo.bob.archive.ArchiveEntry;
+import com.dynamo.bob.archive.ManifestBuilder;
+import com.dynamo.liveupdate.proto.Manifest;
 import org.junit.Test;
 
 import com.dynamo.graphics.proto.Graphics.TextureImage;
@@ -45,7 +49,7 @@ public class AtlasBuilderTest extends AbstractProtoBuilderTest {
         src.append("  image: \"/test.png\"");
         src.append("}");
         List<Message> outputs = build("/test.atlas", src.toString());
-        TextureSet textureSet = (TextureSet)outputs.get(0);
+        TextureSet textureSet = getMessage(outputs, TextureSet.class);
         TextureImage textureImage = (TextureImage)outputs.get(1);
         assertNotNull(textureSet);
         assertNotNull(textureImage);
@@ -306,4 +310,45 @@ public class AtlasBuilderTest extends AbstractProtoBuilderTest {
         assertEquals(imageNameHashes, textureSet.getImageNameHashesList());
     }
 
+    @Test
+    public void testHexDigestForAtlas() throws Exception {
+        List<String> names = new ArrayList<>();
+        for (int i = 1; i <= 10; i++) {
+            StringBuilder line = new StringBuilder();
+            int min = 1;
+            int max = 16;
+            String name = "/" + i + ".png";
+            addImage(name, (int)(Math.random() * (max - min + 1) + min), (int)(Math.random() * (max - min + 1) + min));
+            line.append("images {\n  image: \"");
+            line.append(name);
+            line.append("\"\n}\n");
+            names.add(line.toString());
+        }
+
+        Collections.shuffle(names);
+        StringBuilder src = new StringBuilder();
+        for (String l: names) {
+            src.append(l);
+        }
+        List<Message> outputs1 = build("testHex.atlas", src.toString());
+        TextureSet textureSet1 = getMessage(outputs1, TextureSet.class);
+
+        byte[] hash1 = ManifestBuilder.CryptographicOperations.hash(textureSet1.toByteArray(), Manifest.HashAlgorithm.HASH_SHA1);
+        String hexDigest1 = ManifestBuilder.CryptographicOperations.hexdigest(hash1);
+
+        clean();
+
+        Collections.shuffle(names);
+        StringBuilder src1 = new StringBuilder();
+        for (String l: names) {
+            src1.append(l);
+        }
+        List<Message> outputs2 = build("testHex.atlas", src1.toString());
+        TextureSet textureSet2 = getMessage(outputs2, TextureSet.class);
+
+        byte[] hash2 = ManifestBuilder.CryptographicOperations.hash(textureSet2.toByteArray(), Manifest.HashAlgorithm.HASH_SHA1);
+        String hexDigest2 = ManifestBuilder.CryptographicOperations.hexdigest(hash2);
+
+        assertEquals(hexDigest1, hexDigest2);
+    }
 }

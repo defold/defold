@@ -900,62 +900,56 @@ namespace dmGameSystem
 
     struct DispatchContext
     {
-        PhysicsContext* m_PhysicsContext;
-        bool m_Success;
-        dmGameObject::HCollection m_Collection;
-        CollisionWorld* m_World;
+        PhysicsContext*         m_PhysicsContext;
+        dmGameObject::HRegister m_Register;
+        uint32_t                m_ComponentTypeIndex;
+        bool                    m_Success;
     };
 
-    void DispatchCallback(dmMessage::Message *message, void* user_ptr)
+    void DispatchCallback(dmMessage::Message* message, void* user_ptr)
     {
         DispatchContext* context = (DispatchContext*)user_ptr;
-        if (message->m_Descriptor != 0)
+
+        if (message->m_Descriptor == 0)
+            return;
+
+        dmDDF::Descriptor* descriptor = (dmDDF::Descriptor*)message->m_Descriptor;
+        if (descriptor == dmPhysicsDDF::RequestRayCast::m_DDFDescriptor)
         {
-            dmDDF::Descriptor* descriptor = (dmDDF::Descriptor*)message->m_Descriptor;
-            if (descriptor == dmPhysicsDDF::RequestRayCast::m_DDFDescriptor)
+            dmPhysicsDDF::RequestRayCast* ddf = (dmPhysicsDDF::RequestRayCast*)message->m_Data;
+
+            dmhash_t coll_name_hash = dmMessage::GetSocketNameHash(message->m_Sender.m_Socket);
+
+            // Target collection which can be different than we are updating for.
+            dmGameObject::HCollection collection = dmGameObject::GetCollectionByHash(context->m_Register, coll_name_hash);
+            if (!collection) // if the collection has been removed
+                return;
+
+            // NOTE! The collision world for the target collection is looked up using this worlds component index
+            //       which is assumed to be the same as in the target collection.
+            uint32_t component_type_index = context->m_ComponentTypeIndex;
+            CollisionWorld* world = (CollisionWorld*) dmGameObject::GetWorld(collection, component_type_index);
+
+            // Give that the assumption above holds, this assert will hold too.
+            assert(world->m_ComponentTypeIndex == component_type_index);
+
+            dmMessage::URL* receiver = (dmMessage::URL*)malloc(sizeof(dmMessage::URL));
+            memcpy(receiver, &message->m_Sender, sizeof(*receiver));
+
+            dmPhysics::RayCastRequest request;
+            request.m_From = ddf->m_From;
+            request.m_To = ddf->m_To;
+            request.m_Mask = ddf->m_Mask;
+            request.m_UserId = (ddf->m_RequestId & 0xff);
+            request.m_UserData = (void*)receiver;
+            request.m_IgnoredUserData = 0;
+            if (world->m_3D)
             {
-                dmPhysicsDDF::RequestRayCast* ddf = (dmPhysicsDDF::RequestRayCast*)message->m_Data;
-                dmGameObject::HInstance sender_instance = (dmGameObject::HInstance)message->m_UserData1;
-                uint16_t component_index;
-                dmGameObject::Result go_result = dmGameObject::GetComponentIndex(sender_instance, message->m_Sender.m_Fragment, &component_index);
-                if (go_result != dmGameObject::RESULT_OK)
-                {
-                    dmLogError("Component index could not be retrieved when handling '%s': %d.", dmPhysicsDDF::RequestRayCast::m_DDFDescriptor->m_Name, go_result);
-                    context->m_Success = false;
-                }
-                else
-                {
-                    // Target collection which can be different than we are updating for.
-                    dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
-
-                    // NOTE! The collision world for the target collection is looked up using this worlds component index
-                    //       which is assumed to be the same as in the target collection.
-                    CollisionWorld* world = (CollisionWorld*) dmGameObject::GetWorld(collection, context->m_World->m_ComponentTypeIndex);
-
-                    // Give that the assumption above holds, this assert will hold too.
-                    assert(world->m_ComponentTypeIndex == context->m_World->m_ComponentTypeIndex);
-
-                    dmMessage::URL* receiver = (dmMessage::URL*)malloc(sizeof(dmMessage::URL));
-                    dmMessage::ResetURL(receiver);
-                    receiver->m_Socket = dmGameObject::GetMessageSocket(collection);
-                    receiver->m_Path = dmGameObject::GetIdentifier(sender_instance);
-
-                    dmPhysics::RayCastRequest request;
-                    request.m_From = ddf->m_From;
-                    request.m_To = ddf->m_To;
-                    request.m_IgnoredUserData = sender_instance;
-                    request.m_Mask = ddf->m_Mask;
-                    request.m_UserId = component_index << 16 | (ddf->m_RequestId & 0xff);
-                    request.m_UserData = (void*)receiver;
-                    if (world->m_3D)
-                    {
-                        dmPhysics::RequestRayCast3D(world->m_World3D, request);
-                    }
-                    else
-                    {
-                        dmPhysics::RequestRayCast2D(world->m_World2D, request);
-                    }
-                }
+                dmPhysics::RequestRayCast3D(world->m_World3D, request);
+            }
+            else
+            {
+                dmPhysics::RequestRayCast2D(world->m_World2D, request);
             }
         }
     }
@@ -994,8 +988,9 @@ namespace dmGameSystem
         DispatchContext dispatch_context;
         dispatch_context.m_PhysicsContext = physics_context;
         dispatch_context.m_Success = true;
-        dispatch_context.m_World = world;
-        dispatch_context.m_Collection = collection;
+        dispatch_context.m_ComponentTypeIndex = world->m_ComponentTypeIndex;
+        dispatch_context.m_Register = dmGameObject::GetRegister(collection);
+
         dmMessage::HSocket physics_socket;
         if (physics_context->m_3D)
         {
@@ -1006,6 +1001,7 @@ namespace dmGameSystem
             physics_socket = dmPhysics::GetSocket2D(physics_context->m_Context2D);
 
         }
+
         dmMessage::Dispatch(physics_socket, DispatchCallback, (void*)&dispatch_context);
         return dispatch_context.m_Success;
     }
@@ -2067,7 +2063,7 @@ namespace dmGameSystem
             *maskbit = dmPhysics::GetMaskBit2D(component->m_Object2D, groupbit);
         }
         return true;
-	}
+    }
 
     // returns false if no such collision group has been registered
     bool SetCollisionMaskBit(void* _world, void* _component, dmhash_t group_hash, bool boolvalue)

@@ -167,6 +167,7 @@ namespace dmGraphics
         CONTEXT_FEATURE_TEXTURE_ARRAY          = 1,
         CONTEXT_FEATURE_COMPUTE_SHADER         = 2,
         CONTEXT_FEATURE_STORAGE_BUFFER         = 3,
+        CONTEXT_FEATURE_VSYNC                  = 4,
     };
 
     // Translation table to translate RenderTargetAttachment to BufferType
@@ -268,6 +269,7 @@ namespace dmGraphics
         uint32_t              m_Width;
         uint32_t              m_Height;
         uint32_t              m_GraphicsMemorySize;             // The max allowed Gfx memory (default 0)
+        uint32_t              m_SwapInterval;                   // Initial VSync setting (default 1)
         uint8_t               m_VerifyGraphicsCalls : 1;
         uint8_t               m_PrintDeviceInfo : 1;
         uint8_t               m_RenderDocSupport : 1;           // Vulkan only

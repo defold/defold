@@ -403,7 +403,7 @@ static void LogFrameBufferError(GLenum status)
     DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterOpenGL, &g_opengl_adapter, OpenGLIsSupported, OpenGLRegisterFunctionTable, OpenGLGetContext, g_null_adapter_priority);
 
     static void PostDeleteTextures(OpenGLContext*, bool);
-    static bool OpenGLInitialize(HContext context);
+    static bool OpenGLInitialize(HContext context, const ContextParams& params);
 
     extern GLenum TEXTURE_UNIT_NAMES[32];
 
@@ -635,7 +635,7 @@ static void LogFrameBufferError(GLenum status)
         {
             g_Context = new OpenGLContext(params);
 
-            if (OpenGLInitialize(g_Context))
+            if (OpenGLInitialize(g_Context, params))
             {
                 return (HContext) g_Context;
             }
@@ -866,7 +866,7 @@ static void LogFrameBufferError(GLenum status)
     #undef PRINT_FEATURE_IF_SUPPORTED
     }
 
-    static bool OpenGLInitialize(HContext _context)
+    static bool OpenGLInitialize(HContext _context, const ContextParams& params)
     {
         assert(_context);
         OpenGLContext* context = (OpenGLContext*) _context;
@@ -1397,6 +1397,8 @@ static void LogFrameBufferError(GLenum status)
         }
 #endif
 
+        SetSwapInterval(_context, params.m_SwapInterval);
+
         return true;
     }
 
@@ -1524,11 +1526,12 @@ static void LogFrameBufferError(GLenum status)
 #endif
     }
 
-    static void OpenGLFlip(HContext context)
+    static void OpenGLFlip(HContext _context)
     {
         DM_PROFILE(__FUNCTION__);
-        PostDeleteTextures((OpenGLContext*) context, false);
-        dmPlatform::SwapBuffers(((OpenGLContext*) context)->m_Window);
+        OpenGLContext* context = (OpenGLContext*) _context;
+        PostDeleteTextures(context, false);
+        dmPlatform::SwapBuffers(context->m_Window);
         CHECK_GL_ERROR;
     }
 

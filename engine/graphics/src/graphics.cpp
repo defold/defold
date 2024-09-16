@@ -256,15 +256,11 @@ namespace dmGraphics
     #undef SHADERDESC_ENUM_TO_STR_CASE
 
     ContextParams::ContextParams()
-    : m_JobThread(0)
-    , m_DefaultTextureMinFilter(TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST)
-    , m_DefaultTextureMagFilter(TEXTURE_FILTER_LINEAR)
-    , m_GraphicsMemorySize(0)
-    , m_VerifyGraphicsCalls(false)
-    , m_RenderDocSupport(0)
-    , m_UseValidationLayers(0)
     {
-
+        memset(this, 0x0, sizeof(*this));
+        m_DefaultTextureMinFilter = TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
+        m_DefaultTextureMagFilter = TEXTURE_FILTER_LINEAR;
+        m_SwapInterval            = 1;
     }
 
     AttachmentToBufferType::AttachmentToBufferType()
@@ -1615,6 +1611,11 @@ namespace dmGraphics
     }
     bool IsContextFeatureSupported(HContext context, ContextFeature feature)
     {
+        if (CONTEXT_FEATURE_VSYNC == feature)
+        {
+            AdapterFamily family = GetInstalledAdapterFamily();
+            return !(family == ADAPTER_FAMILY_NULL || family == ADAPTER_FAMILY_NONE);
+        }
         return g_functions.m_IsContextFeatureSupported(context, feature);
     }
     PipelineState GetPipelineState(HContext context)

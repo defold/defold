@@ -18,14 +18,13 @@ import java.io.IOException;
 import java.security.MessageDigest;
 
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.pipeline.BuilderUtil;
 
 /**
  * Abstract builder class. Extend this class to create a builder
  * @author Christian Murray
- *
- * @param <T> currently not used. The idea is to pass data directly. TODO: Remove?
  */
-public abstract class Builder<T> {
+public abstract class Builder {
 
     protected BuilderParams params;
     protected Project project;
@@ -46,13 +45,56 @@ public abstract class Builder<T> {
      * @param input input resource
      * @return new task with single input/output
      */
-    protected Task<T> defaultTask(IResource input) {
-        Task<T> task = Task.<T>newBuilder(this)
+    protected Task defaultTask(IResource input) {
+        Task.TaskBuilder taskBuilder = Task.newBuilder(this)
                 .setName(params.name())
                 .addInput(input)
-                .addOutput(input.changeExt(params.outExt()))
-                .build();
-        return task;
+                .addOutput(input.changeExt(params.outExt()));
+        return taskBuilder.build();
+    }
+
+    /**
+     * Create a task whose outputs will be added to the current task's inputs.
+     * @param input input resource
+     * @param builderClass class to build resource with
+     * @param builder current task builder
+     * @return new subtask with single input/output
+     */
+    protected Task createSubTask(IResource input, Class<? extends Builder> builderClass, Task.TaskBuilder builder) throws CompileExceptionError {
+        Task subTask = project.createTask(input, builderClass);
+        builder.addInputsFromOutputs(subTask);
+        return subTask;
+    }
+
+    /**
+     * Create a task whose outputs will be added to the current task's inputs.
+     * @param input input resource
+     * @param builder current task builder
+     * @return new subtask with single input/output
+     */
+    protected Task createSubTask(IResource input, Task.TaskBuilder builder) throws CompileExceptionError {
+        Task subTask = project.createTask(input);
+        if (subTask == null) {
+            throw new CompileExceptionError(input,
+                    0,
+                    String.format("Failed to create build task for '%s'", input.getPath()));
+        }
+        builder.addInputsFromOutputs(subTask);
+        return subTask;
+    }
+
+    /**
+     * Create a task whose outputs will be added to the current task's inputs.
+     * @param inputPath input path to resource
+     * @param field where specified path to the resource
+     * @param builder current task builder
+     * @return new subtask with single input/output
+     */
+    protected Task createSubTask(String inputPath, String field, Task.TaskBuilder builder) throws CompileExceptionError {
+        IResource res = BuilderUtil.checkResource(project, builder.firstInput(), field, inputPath);
+        Task subTask = project.createTask(res);
+        builder.addInputsFromOutputs(subTask);
+        return subTask;
     }
 
     /**
@@ -62,7 +104,7 @@ public abstract class Builder<T> {
      * @throws IOException
      * @throws CompileExceptionError
      */
-    public abstract Task<T> create(IResource input) throws IOException, CompileExceptionError;
+    public abstract Task create(IResource input) throws IOException, CompileExceptionError;
 
     /**
      * Build task, ie compile
@@ -70,7 +112,7 @@ public abstract class Builder<T> {
      * @throws CompileExceptionError
      * @throws IOException
      */
-    public abstract void build(Task<T> task) throws CompileExceptionError, IOException;
+    public abstract void build(Task task) throws CompileExceptionError, IOException;
 
     /**
      * Add custom signature, eg command-line, etc

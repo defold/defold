@@ -79,7 +79,7 @@ def build(bld):
 
     if 'arm64-nx64' in bld.env.PLATFORM:
         source_files = remove_files(source_files, ['condition_variable.cpp',
-                                                    'mutex.cpp',
+                                                    'mutex_posix.cpp',
                                                     'sys_posix.cpp',
                                                     'socket_posix.cpp',
                                                     'time.cpp'])
@@ -302,7 +302,7 @@ def build(bld):
 
     # for desktop only
     if bld.env.IS_TARGET_DESKTOP:
-        basis_encoder = bld.stlib(features = 'c cxx skip_asan',
+        basis_encoder = bld.stlib(features = 'c cxx',
                                     includes = ['basis'],
                                     source = bld.path.ant_glob("basis/encoder/**/*.c") +
                                              bld.path.ant_glob("basis/encoder/**/*.cpp") +
@@ -312,6 +312,12 @@ def build(bld):
 
         if new_opt_level:
             basis_encoder.env.append_unique('CXXFLAGS', ['-Os'])
+
+        basis_encoder_noasan = bld.stlib(features = basis_encoder.features + ['skip_asan'],
+                                         includes = basis_encoder.includes,
+                                         defines  = basis_encoder.defines,
+                                         target   = 'basis_encoder_noasan')
+        basis_encoder_noasan.source = [x for x in basis_encoder.source]
 
     # For the runtime
     basis_transcoder = bld.stlib(features = 'cxx remove_flags',

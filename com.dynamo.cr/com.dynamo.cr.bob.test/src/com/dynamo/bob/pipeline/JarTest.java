@@ -23,10 +23,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.URISyntaxException;
-import java.util.Arrays;
-import java.util.HashSet;
 import java.util.List;
-import java.util.Set;
 
 import org.junit.Test;
 
@@ -44,7 +41,7 @@ public class JarTest {
 
     private int bob(String command) throws IOException, InterruptedException, CompileExceptionError, URISyntaxException {
         String jarPath = "../com.dynamo.cr.bob/dist/bob.jar";
-        Process p = Runtime.getRuntime().exec(new String[] { "java", "-jar", jarPath, "-v", "-r", "test", "-i", ".", command });
+        Process p = Runtime.getRuntime().exec(new String[] { "java", "-jar", jarPath, "-v", "-r", "test/proj", "-i", ".", command });
         BufferedReader in = new BufferedReader(new InputStreamReader(p.getInputStream()));
         BufferedReader ein = new BufferedReader(new InputStreamReader(p.getErrorStream()));
         String line;
@@ -59,7 +56,7 @@ public class JarTest {
 
     private int bob(String[] commands, String outputMatch) throws IOException, InterruptedException, CompileExceptionError, URISyntaxException {
         String jarPath = "../com.dynamo.cr.bob/dist/bob.jar";
-        String[] bobArgs = new String[] { "java", "-jar", jarPath, "-v", "-r", "test", "-i", "."};
+        String[] bobArgs = new String[] { "java", "-jar", jarPath, "-v", "-r", "test/proj", "-i", "."};
         String[] allArgs = new String[bobArgs.length + commands.length];
         System.arraycopy(bobArgs, 0, allArgs, 0, bobArgs.length);
         System.arraycopy(commands, 0, allArgs, bobArgs.length, commands.length);
@@ -81,16 +78,16 @@ public class JarTest {
 
     @Test
     public void testBuild() throws Exception {
-        String[] outputs = new String[] {"atlas.texturec", "atlas.a.texturesetc", "simple_box_2bones_generated_0.animationsetc"};
+        String[] outputs = new String[] {"input/default.gamepadsc", "input/game.input_bindingc", "main/default.display_profilesc"};
         int result = bob("distclean");
         assertEquals(0, result);
         for (String output : outputs) {
-            assertFalse(new File("test/build/default/" + output).exists());
+            assertFalse(new File("test/proj/build/default/" + output).exists());
         }
         result = bob("build");
         assertEquals(0, result);
         for (String output : outputs) {
-            assertTrue(new File("test/build/default/" + output).exists());
+            assertTrue(new File("test/proj/build/default/" + output).exists());
         }
     }
 
@@ -108,7 +105,7 @@ public class JarTest {
     @Test
     public void testNonJarBuild() throws Exception {
         IFileSystem fs = new DefaultFileSystem();
-        String cwd = new File("test").getAbsolutePath();
+        String cwd = new File("test/proj").getAbsolutePath();
         Project p = new Project(fs, cwd, "build/default");
         p.setPublisher(new NullPublisher(new PublisherSettings()));
 
@@ -116,9 +113,6 @@ public class JarTest {
         p.scan(scanner, "com.dynamo.bob");
         p.scan(scanner, "com.dynamo.bob.pipeline");
 
-        Set<String> skipDirs = new HashSet<String>(Arrays.asList(".git", "build/default"));
-
-        p.findSources("", skipDirs);
         List<TaskResult> result = p.build(new ConsoleProgress(), "distclean", "build");
         assertFalse(result.isEmpty());
         boolean res = true;

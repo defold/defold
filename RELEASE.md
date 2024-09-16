@@ -116,8 +116,11 @@ and add the "BETA" tag to the headline
 1. Update the dev branch for the console platforms
 
         $ cd defold-platform
+        $ git checkout master
+        $ git pull
         $ git checkout dev
         $ git pull
+        $ git merge master
         $ git fetch upstream
         $ git merge upstream/dev
         $ git push

@@ -304,7 +304,8 @@ namespace dmGameObject
 
     // Used by res_collection.cpp
     HInstance NewInstance(Collection* collection, Prototype* proto, const char* prototype_name);
-    HInstance GetInstanceFromIdentifier(Collection* collection, dmhash_t identifier);
+    HInstance GetInstanceFromIdentifier(Collection* collection, dmhash_t identifier); // TODO: Mostly duplicate: replace with HCollection version
+
     void ReleaseInstanceIndex(uint32_t index, HCollection collection);
     Result SetIdentifier(Collection* collection, HInstance instance, const char* identifier);
     void ReleaseIdentifier(Collection* collection, HInstance instance);

@@ -244,7 +244,8 @@ namespace dmEngine
     , m_WasIconified(true)
     , m_QuitOnEsc(false)
     , m_ConnectionAppMode(false)
-    , m_RunWhileIconified(0)
+    , m_RunWhileIconified(false)
+    , m_UseSwVSync(false)
     , m_Width(960)
     , m_Height(640)
     , m_InvPhysicalWidth(1.0f/960)
@@ -534,6 +535,11 @@ namespace dmEngine
     {
         swap_interval = dmMath::Max(0, swap_interval);
         dmGraphics::SetSwapInterval(engine->m_GraphicsContext, swap_interval);
+
+        if (!dmGraphics::IsContextFeatureSupported(engine->m_GraphicsContext, dmGraphics::CONTEXT_FEATURE_VSYNC))
+        {
+            engine->m_UseSwVSync = swap_interval != 0;
+        }
     }
 
     static void SetUpdateFrequency(HEngine engine, uint32_t frequency)
@@ -907,6 +913,13 @@ namespace dmEngine
             return false;
         }
 
+        bool setting_vsync     = dmConfigFile::GetInt(engine->m_Config, "display.vsync", true); // Deprecated
+        uint32_t swap_interval = dmConfigFile::GetInt(engine->m_Config, "display.swap_interval", 1);
+        if (!setting_vsync)
+        {
+            swap_interval = 0;
+        }
+
         dmJobThread::JobThreadCreationParams job_thread_create_param;
         job_thread_create_param.m_ThreadNames[0] = "DefoldJobThread1";
         job_thread_create_param.m_ThreadCount    = 1;
@@ -924,6 +937,7 @@ namespace dmEngine
         graphics_context_params.m_Height                  = engine->m_Height;
         graphics_context_params.m_PrintDeviceInfo         = dmConfigFile::GetInt(engine->m_Config, "display.display_device_info", 0);
         graphics_context_params.m_JobThread               = engine->m_JobThreadContext;
+        graphics_context_params.m_SwapInterval            = swap_interval;
 
         engine->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
         if (engine->m_GraphicsContext == 0x0)
@@ -931,6 +945,8 @@ namespace dmEngine
             dmLogFatal("Unable to create the graphics context.");
             return false;
         }
+
+        SetSwapInterval(engine, swap_interval);
 
         uint32_t physical_dpi = dmGraphics::GetDisplayDpi(engine->m_GraphicsContext);
         uint32_t physical_width = dmGraphics::GetWindowWidth(engine->m_GraphicsContext);
@@ -943,21 +959,11 @@ namespace dmEngine
 #endif
 
         engine->m_FixedUpdateFrequency = dmConfigFile::GetInt(engine->m_Config, "engine.fixed_update_frequency", 60);
+        engine->m_MaxTimeStep = dmConfigFile::GetFloat(engine->m_Config, "engine.max_time_step", 0.5);
 
         dmGameSystem::OnWindowCreated(physical_width, physical_height);
 
-        engine->m_UpdateFrequency = dmConfigFile::GetInt(engine->m_Config, "display.update_frequency", 0);
-
-        SetUpdateFrequency(engine, engine->m_UpdateFrequency);
-
-        bool setting_vsync = dmConfigFile::GetInt(engine->m_Config, "display.vsync", true); // Deprecated
-
-        uint32_t opengl_swap_interval = dmConfigFile::GetInt(engine->m_Config, "display.swap_interval", 1);
-        if (!setting_vsync)
-        {
-            opengl_swap_interval = 0;
-        }
-        SetSwapInterval(engine, opengl_swap_interval);
+        SetUpdateFrequency(engine, dmConfigFile::GetInt(engine->m_Config, "display.update_frequency", 0));
 
         const uint32_t max_resources = dmConfigFile::GetInt(engine->m_Config, dmResource::MAX_RESOURCES_KEY, 1024);
         dmResource::NewFactoryParams params;
@@ -1565,6 +1571,8 @@ bail:
 
     static void StepFrame(HEngine engine, float dt)
     {
+        uint64_t frame_start = dmTime::GetTime();
+
         dmProfiler::SetUpdateFrequency((uint32_t)(1.0f / dt));
 
         if (dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, dmPlatform::WINDOW_STATE_ICONIFIED))
@@ -1799,6 +1807,27 @@ bail:
                 dmExtension::PostRender(&ext_params);
             }
 
+            if (engine->m_UseSwVSync && engine->m_UpdateFrequency > 0)
+            {
+                DM_PROFILE("SoftwareVsync");
+                uint64_t current = dmTime::GetTime();
+
+                float target_time = dt; // already pre calculated by CalcTimeStep
+                uint64_t elapsed = current - frame_start;
+                uint64_t remainder = uint64_t(target_time*1000000) - elapsed;
+
+                while (remainder > 500) // dont bother with less than 0.5ms
+                {
+                    uint64_t t1 = dmTime::GetTime();
+                    dmTime::Sleep(100); // sleep in chunks of 0.1ms
+                    uint64_t t2 = dmTime::GetTime();
+                    uint64_t slept = t2 - t1;
+                    if (slept >= remainder)
+                        break;
+                    remainder -= slept;
+                }
+            }
+
             dmGraphics::Flip(engine->m_GraphicsContext);
 
             RecordData* record_data = &engine->m_RecordData;
@@ -1836,8 +1865,8 @@ bail:
         float frame_dt = (float)(frame_time / 1000000.0);
 
         // Never allow for large hitches
-        if (frame_dt > 0.5f) {
-            frame_dt = 0.5f;
+        if (frame_dt > engine->m_MaxTimeStep) {
+            frame_dt = engine->m_MaxTimeStep;
         }
 
         // Variable frame rate

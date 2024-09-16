@@ -191,6 +191,7 @@ static void* EngineCreate(int argc, char** argv)
 
 static const char* KeyToStr(dmHID::Key key)
 {
+#if !defined(DM_PLATFORM_VENDOR)
     switch(key)
     {
         case dmHID::KEY_SPACE:return "KEY_SPACE";
@@ -318,7 +319,9 @@ static const char* KeyToStr(dmHID::Key key)
         case dmHID::KEY_RSUPER:return "KEY_RSUPER";
         case dmHID::KEY_MENU:return "KEY_MENU";
         case dmHID::KEY_BACK:return "KEY_BACK";
+        default: break;
     }
+#endif // DM_PLATFORM_VENDOR
 
     return "<UNKNOWN-KEY>";
 }
@@ -429,9 +432,9 @@ static bool GamepadConnectivityCallback(uint32_t gamepad_index, bool connected, 
 
     if (connected)
     {
-        char name_buffer[128];
-        dmHID::GetGamepadDeviceName(g_EngineCtx.m_HidContext, pad, name_buffer, sizeof(name_buffer));
-        printf("Gamepad %d connected: %s\n", gamepad_index, name_buffer);
+        char device_name[dmHID::MAX_GAMEPAD_NAME_LENGTH];
+        dmHID::GetGamepadDeviceName(g_EngineCtx.m_HidContext, pad, device_name);
+        printf("Gamepad %d connected: %s\n", gamepad_index, device_name);
     }
     else
     {

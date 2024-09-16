@@ -1,0 +1,235 @@
+-- Copyright 2020-2024 The Defold Foundation
+-- Copyright 2014-2020 King
+-- Copyright 2009-2014 Ragnar Svensson, Christian Murray
+-- Licensed under the Defold License version 1.0 (the "License"); you may not use
+-- this file except in compliance with the License.
+-- 
+-- You may obtain a copy of the License, together with FAQs at
+-- https://www.defold.com/license
+-- 
+-- Unless required by applicable law or agreed to in writing, software distributed
+-- under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+-- CONDITIONS OF ANY KIND, either express or implied. See the License for the
+-- specific language governing permissions and limitations under the License.
+
+--
+-- message constants
+--
+local MSG_CLEAR_COLOR =         hash("clear_color")
+local MSG_WINDOW_RESIZED =      hash("window_resized")
+local MSG_SET_VIEW_PROJ =       hash("set_view_projection")
+local MSG_SET_CAMERA_PROJ =     hash("use_camera_projection")
+local MSG_USE_STRETCH_PROJ =    hash("use_stretch_projection")
+local MSG_USE_FIXED_PROJ =      hash("use_fixed_projection")
+local MSG_USE_FIXED_FIT_PROJ =  hash("use_fixed_fit_projection")
+
+local DEFAULT_NEAR = -1
+local DEFAULT_FAR =   1
+local DEFAULT_ZOOM =  1
+
+--
+-- projection that centers content with maintained aspect ratio and optional zoom
+--
+local function get_fixed_projection(camera, state)
+    camera.zoom = camera.zoom or DEFAULT_ZOOM
+    local projected_width = state.window_width / camera.zoom
+    local projected_height = state.window_height / camera.zoom
+    local left = -(projected_width - state.width) / 2
+    local bottom = -(projected_height - state.height) / 2
+    local right = left + projected_width
+    local top = bottom + projected_height
+    return vmath.matrix4_orthographic(left, right, bottom, top, camera.near, camera.far)
+end
+--
+-- projection that centers and fits content with maintained aspect ratio
+--
+local function get_fixed_fit_projection(camera, state)
+    camera.zoom = math.min(state.window_width / state.width, state.window_height / state.height)
+    return get_fixed_projection(camera, state)
+end
+--
+-- projection that stretches content
+--
+local function get_stretch_projection(camera, state)
+    return vmath.matrix4_orthographic(0, state.width, 0, state.height, camera.near, camera.far)
+end
+--
+-- projection for gui
+--
+local function get_gui_projection(camera, state)
+    return vmath.matrix4_orthographic(0, state.window_width, 0, state.window_height, camera.near, camera.far)
+end
+
+local function update_clear_color(state, color)
+    if color then
+        state.clear_buffers[render.BUFFER_COLOR_BIT] = color
+    end
+end
+
+local function update_camera(camera, state)
+    camera.proj = camera.projection_fn(camera, state)
+    camera.frustum.frustum = camera.proj * camera.view
+end
+
+local function update_state(state)
+    state.window_width = render.get_window_width()
+    state.window_height = render.get_window_height()
+    state.valid = state.window_width > 0 and state.window_height > 0
+    if not state.valid then
+        return false
+    end
+    -- Make sure state updated only once when resize window
+    if state.window_width == state.prev_window_width and state.window_height == state.prev_window_height then
+        return true
+    end
+    state.prev_window_width = state.window_width
+    state.prev_window_height = state.window_height
+    state.width = render.get_width()
+    state.height = render.get_height()
+    for _, camera in pairs(state.cameras) do
+        update_camera(camera, state)
+    end
+    return true
+end
+
+local function init_camera(camera, projection_fn, near, far, zoom)
+    camera.view = vmath.matrix4()
+    camera.near = near == nil and DEFAULT_NEAR or near
+    camera.far = far == nil and DEFAULT_FAR or far
+    camera.zoom = zoom == nil and DEFAULT_ZOOM or zoom
+    camera.projection_fn = projection_fn
+end
+
+local function create_predicates(...)
+    local arg = {...}
+    local predicates = {}
+    for _, predicate_name in pairs(arg) do
+        predicates[predicate_name] = render.predicate({predicate_name})
+    end
+    return predicates
+end
+
+local function create_camera(state, name, is_main_camera)
+    local camera = {}
+    camera.frustum = {}
+    state.cameras[name] = camera
+    if is_main_camera then
+        state.main_camera = camera
+    end
+    return camera
+end
+
+local function create_state()
+    local state = {}
+    local color = vmath.vector4(0, 0, 0, 0)
+    color.x = sys.get_config_number("render.clear_color_red", 0)
+    color.y = sys.get_config_number("render.clear_color_green", 0)
+    color.z = sys.get_config_number("render.clear_color_blue", 0)
+    color.w = sys.get_config_number("render.clear_color_alpha", 0)
+    state.clear_buffers = {
+        [render.BUFFER_COLOR_BIT] = color,
+        [render.BUFFER_DEPTH_BIT] = 1,
+        [render.BUFFER_STENCIL_BIT] = 0
+    }
+    state.cameras = {}
+    return state
+end
+
+function init(self)
+    self.predicates = create_predicates("tile", "gui", "particle", "model", "debug_text")
+
+    -- default is stretch projection. copy from builtins and change for different projection
+    -- or send a message to the render script to change projection:
+    -- msg.post("@render:", "use_stretch_projection", { near = -1, far = 1 })
+    -- msg.post("@render:", "use_fixed_projection", { near = -1, far = 1, zoom = 2 })
+    -- msg.post("@render:", "use_fixed_fit_projection", { near = -1, far = 1 })
+
+    local state = create_state()
+    self.state = state
+    local camera_world = create_camera(state, "camera_world", true)
+    init_camera(camera_world, get_stretch_projection)
+    local camera_gui = create_camera(state, "camera_gui")
+    init_camera(camera_gui, get_gui_projection)
+    update_state(state)
+end
+
+function update(self)
+    local state = self.state
+    if not state.valid then
+        if not update_state(state) then
+            return
+        end
+    end
+
+    local predicates = self.predicates
+    -- clear screen buffers
+    --
+    -- turn on depth_mask before `render.clear()` to clear it as well
+    render.set_depth_mask(true)
+    render.set_stencil_mask(0xff)
+    render.clear(state.clear_buffers)
+
+    -- setup camera view and projection
+    --
+    local camera_world = state.cameras.camera_world
+    render.set_viewport(0, 0, state.window_width, state.window_height)
+    render.set_view(camera_world.view)
+    render.set_projection(camera_world.proj)
+
+    -- set states used for all the world predicates
+    render.set_blend_func(render.BLEND_SRC_ALPHA, render.BLEND_ONE_MINUS_SRC_ALPHA)
+    render.enable_state(render.STATE_DEPTH_TEST)
+
+    -- render `model` predicate for default 3D material
+    --
+    render.enable_state(render.STATE_CULL_FACE)
+    render.draw(predicates.model, camera_world.frustum)
+    render.set_depth_mask(false)
+    render.disable_state(render.STATE_CULL_FACE)
+
+    -- render the other components: sprites, tilemaps, particles etc
+    --
+    render.enable_state(render.STATE_BLEND)
+    render.draw(predicates.tile, camera_world.frustum)
+    render.draw(predicates.particle, camera_world.frustum)
+    render.disable_state(render.STATE_DEPTH_TEST)
+
+    render.draw_debug3d()
+
+    -- render GUI
+    --
+    local camera_gui = state.cameras.camera_gui
+    render.set_view(camera_gui.view)
+    render.set_projection(camera_gui.proj)
+
+    render.enable_state(render.STATE_STENCIL_TEST)
+    render.draw(predicates.gui, camera_gui.frustum)
+    render.draw(predicates.debug_text, camera_gui.frustum)
+    render.disable_state(render.STATE_STENCIL_TEST)
+    render.disable_state(render.STATE_BLEND)
+end
+
+function on_message(self, message_id, message)
+    local state = self.state
+    local camera = state.main_camera
+    if message_id == MSG_CLEAR_COLOR then
+        update_clear_color(state, message.color)
+    elseif message_id == MSG_WINDOW_RESIZED then
+        update_state(state)
+    elseif message_id == MSG_SET_VIEW_PROJ then
+        camera.view = message.view
+        self.camera_projection = message.projection or vmath.matrix4()
+        update_camera(camera, state)
+    elseif message_id == MSG_SET_CAMERA_PROJ then
+        camera.projection_fn = function() return self.camera_projection end
+    elseif message_id == MSG_USE_STRETCH_PROJ then
+        init_camera(camera, get_stretch_projection, message.near, message.far)
+        update_camera(camera, state)
+    elseif message_id == MSG_USE_FIXED_PROJ then
+        init_camera(camera, get_fixed_projection, message.near, message.far, message.zoom)
+        update_camera(camera, state)
+    elseif message_id == MSG_USE_FIXED_FIT_PROJ then
+        init_camera(camera, get_fixed_fit_projection, message.near, message.far)
+        update_camera(camera, state)
+    end
+end

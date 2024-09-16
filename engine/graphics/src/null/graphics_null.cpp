@@ -81,7 +81,7 @@ namespace dmGraphics
         dmMutex::HMutex m_Mutex;
     };
 
-    static bool NullInitialize(HContext context);
+    static bool NullInitialize(HContext context, const ContextParams& params);
     static void PostDeleteTextures(NullContext* context, bool force_delete);
 
     static void NullFinalize()
@@ -129,7 +129,8 @@ namespace dmGraphics
         {
             g_NullContext = new NullContext(params);
 
-            if (NullInitialize(g_NullContext)){
+            if (NullInitialize(g_NullContext, params))
+            {
                 return g_NullContext;
             }
 
@@ -166,7 +167,7 @@ namespace dmGraphics
         }
     }
 
-    static bool NullInitialize(HContext _context)
+    static bool NullInitialize(HContext _context, const ContextParams& params)
     {
         assert(_context);
 
@@ -198,6 +199,9 @@ namespace dmGraphics
         {
             dmLogInfo("Device: null");
         }
+
+        SetSwapInterval(context, params.m_SwapInterval);
+
         return true;
     }
 

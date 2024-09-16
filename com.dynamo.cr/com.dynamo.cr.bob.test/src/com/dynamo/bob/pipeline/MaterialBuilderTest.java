@@ -21,7 +21,6 @@ import org.junit.Before;
 import org.junit.Test;
 
 import com.dynamo.render.proto.Material.MaterialDesc;
-import com.google.protobuf.Message;
 
 public class MaterialBuilderTest extends AbstractProtoBuilderTest {
 

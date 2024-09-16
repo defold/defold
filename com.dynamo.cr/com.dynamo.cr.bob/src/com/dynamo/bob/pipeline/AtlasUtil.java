@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.io.FileInputStream;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
@@ -135,6 +136,19 @@ public class AtlasUtil {
         }
     }
 
+    private static void sortImages(List<AtlasImage> images) {
+        images.sort(new Comparator<AtlasImage>() {
+            @Override
+            public int compare(AtlasImage img1, AtlasImage img2) {
+                int nameComparison = img1.getImage().compareTo(img2.getImage());
+                if (nameComparison == 0) {
+                    return Integer.compare(img1.getSpriteTrimMode().getNumber(), img2.getSpriteTrimMode().getNumber());
+                }
+                return nameComparison;
+            }
+        });
+    }
+
     public static List<AtlasImage> collectImages(IResource atlasResource, Atlas atlas, PathTransformer transformer) throws CompileExceptionError {
         Map<AtlasImageSortKey, AtlasImage> uniqueImages = new HashMap<>();
         HashSet<String> uniqueNames = new HashSet<>();
@@ -168,6 +182,7 @@ public class AtlasUtil {
                 }
             }
         }
+        sortImages(images);
         return images;
     }
 
@@ -273,7 +288,9 @@ public class AtlasUtil {
 
             animDescs.add(new MappedAnimDesc(anim.getId(), framePaths, frameIds, anim.getPlayback(), anim.getFps(), anim.getFlipHorizontal() != 0, anim.getFlipVertical() != 0));
         }
-        for (AtlasImage image : atlas.getImagesList()) {
+        List<AtlasImage> images = new ArrayList<>(atlas.getImagesList());
+        sortImages(images);
+        for (AtlasImage image : images) {
             String id = transformer.transform(image.getImage());
             animDescs.add(new MappedAnimDesc(id, Collections.singletonList(image.getImage()), Collections.singletonList(id)));
         }
@@ -298,10 +315,8 @@ public class AtlasUtil {
         };
     }
 
-    public static TextureSetResult generateTextureSet(final Project project, IResource atlasResource) throws IOException, CompileExceptionError {
+    public static TextureSetResult generateTextureSet(final Project project, IResource atlasResource, Atlas.Builder builder) throws IOException, CompileExceptionError {
         TimeProfiler.start("generateTextureSet");
-        Atlas.Builder builder = Atlas.newBuilder();
-        ProtoUtil.merge(atlasResource, builder);
         Atlas atlas = builder.build();
 
         try {
