@@ -304,8 +304,6 @@ namespace dmGameSystem
         return resource->m_FontMap;
     }
 
-    // TODO: Update the resource size!
-
     dmResource::Result ResFontGetInfo(FontResource* font, FontMapDesc* desc)
     {
         memcpy(desc, font->m_DDF, sizeof(FontMapDesc));

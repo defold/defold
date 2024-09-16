@@ -25,6 +25,16 @@ namespace dmGameSystem
     struct FontResource;
     typedef dmRenderDDF::FontMap FontMapDesc;
 
+    /*#
+     * @struct
+     * @name FontGlyph
+     * @member m_Width [type: uint32_t] The glyph image width
+     * @member m_Height [type: uint32_t] The glyph image height
+     * @member m_Advance [type: float] The advance step of the glyph (in pixels)
+     * @member m_LeftBearing [type: float] The left bearing of the glyph (in pixels)
+     * @member m_Ascent [type: float] The ascent of the glyph. (in pixels)
+     * @member m_Descent [type: float] The descent of the glyph. Positive! (in pixels)
+     */
     struct FontGlyph
     {
         uint32_t  m_Width;      // Bitmap width
@@ -35,6 +45,13 @@ namespace dmGameSystem
         float     m_Descent;    // pixels below the base line
     };
 
+    /*#
+     * Describes what compression is used for the glyph image
+     * @enum
+     * @name FontGlyphCompression
+     * @member FONT_GLYPH_COMPRESSION_NONE      No compression
+     * @member FONT_GLYPH_COMPRESSION_DEFLATE   Data is compressed using the deflate() algorithm
+     */
     enum FontGlyphCompression
     {
         FONT_GLYPH_COMPRESSION_NONE = 0,
