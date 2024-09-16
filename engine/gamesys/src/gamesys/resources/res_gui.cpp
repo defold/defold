@@ -98,7 +98,7 @@ namespace dmGameSystem
             resource->m_FontMaps.Push(font_map);
 
             dmhash_t path_hash = 0;
-            dmResource::GetPath(factory, font_map, &path_hash);
+            dmResource::GetPath(factory, font, &path_hash);
             resource->m_FontMapPaths.Push(path_hash);
         }
 
