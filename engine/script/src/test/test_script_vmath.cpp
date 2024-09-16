@@ -206,6 +206,8 @@ TEST_F(ScriptVmathTest, TestQuatFail)
     ASSERT_FALSE(RunString(L, "local q = vmath.lerp(1, vmath.quat(0, 0, 0, 1), vmath.vector3(0, 0, 0))"));
     // Slerp
     ASSERT_FALSE(RunString(L, "local q = vmath.slerp(1, vmath.quat(0, 0, 0, 1), vmath.vector3(0, 0, 0))"));
+    // From matrix4
+    ASSERT_FALSE(RunString(L, "local q = vmath.quat_matrix4()"));
 }
 
 TEST_F(ScriptVmathTest, TestTransform)
@@ -292,6 +294,10 @@ TEST_F(ScriptVmathTest, TestMatrix4Fail)
     ASSERT_FALSE(RunString(L, "local m = vmath.matrix4() * true"));
     // translation
     ASSERT_FALSE(RunString(L, "local m = vmath.matrix4_translation()"));
+    // scale
+    ASSERT_FALSE(RunString(L, "local m = vmath.matrix4_scale()"));
+    // compose
+    ASSERT_FALSE(RunString(L, "local m = vmath.matrix4_compose()"));
 }
 
 

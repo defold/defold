@@ -2299,6 +2299,166 @@ namespace dmScript
         return 1;
     }
 
+    /*# creates a new quaternion from matrix4
+     *
+     * Creates a new quaternion with the components set
+     * according to the supplied parameter values.
+     *
+     * @name vmath.quat_matrix4
+     * @param matrix [type:matrix4] source matrix4
+     * @return q [type:quaternion] new quaternion
+     */
+    static int Quat_Matrix4(lua_State* L)
+    {
+        Matrix4* matrix = CheckMatrix4(L, 1);
+        PushQuat(L, dmVMath::Quat(matrix->getUpper3x3()));
+        return 1;
+    }
+
+    /*# creates a new matrix4 from translation, rotation and scale
+     *
+     * Creates a new matrix constructed from separate
+     * translation vector, roation quaternion and scale vector
+     *
+     * @name vmath.matrix4_compose
+     * @param translation [type:vector3|vecto4] translation
+     * @param rotation [type:quaternion] rotation
+     * @param scale [type:vector3] scale
+     * @return matrix [type:matrix4] new matrix4
+     * @examples
+     *
+     * ```lua
+     * local translation = vmath.vector3(103, -95, 14)
+     * local quat = vmath.quat(1, 2, 3, 4)
+     * local scale = vmath.vector3(1, 0.5, 0.5)
+     * local result = vmath.matrix4_compose(translation, quat, scale)
+     * print(result) --> vmath.matrix4(-25, -10, 11, 103, 28, -9.5, 2, -95, -10, 10, -4.5, 14, 0, 0, 0, 1)
+     * ```
+     */
+    static int Matrix4_Compose(lua_State* L)
+    {
+        Matrix4 translation_matrix = Matrix4::identity();
+        const ScriptUserType translation_type = GetType(L, 1);
+
+        if (translation_type == SCRIPT_TYPE_VECTOR3)
+        {
+            Vector3* translation = CheckVector3(L, 1);
+            translation_matrix.setTranslation(*translation);
+        }
+        else if (translation_type == SCRIPT_TYPE_VECTOR4)
+        {
+            Vector4* translation = CheckVector4(L, 1);
+            translation_matrix.setTranslation(translation->getXYZ());
+        }
+        else
+        {
+            return luaL_error(L, "%s.%s accepts (%s|%s) as first argument.", SCRIPT_LIB_NAME, "matrix4_compose",
+                SCRIPT_TYPE_NAME_VECTOR3, SCRIPT_TYPE_NAME_VECTOR4);
+        }
+        Matrix4 rotation_matrix = Matrix4::rotation(*CheckQuat(L, 2));
+        Matrix4 scale_matrix = Matrix4::scale(*CheckVector3(L, 3));
+        Matrix4 result = translation_matrix * rotation_matrix * scale_matrix;
+
+        PushMatrix4(L, result);
+        return 1;
+    }
+
+    /*# creates a new matrix4 from scale vector
+     *
+     * Creates a new matrix constructed from scale vector
+     *
+     * @name vmath.matrix4_scale
+     * @param scale [type:vector3] scale
+     * @return matrix [type:matrix4] new matrix4
+     * @examples
+     *
+     * ```lua
+     * local scale = vmath.vector3(1, 0.5, 0.5)
+     * local result = vmath.matrix4_scale(scale)
+     * print(result) --> vmath.matrix4(1, 0, 0, 0, 0, 0.5, 0, 0, 0, 0, 0.5, 0, 0, 0, 0, 1)
+     * ```
+     */
+    static int Matrix4_Scale(lua_State* L)
+    {
+        Vector3* scale = CheckVector3(L, 1);
+        Matrix4 result = Matrix4::scale(*scale);
+        PushMatrix4(L, result);
+        return 1;
+    }
+
+    /*# clamp input value in range [min, max] and return clamped value
+     *
+     * Clamp input value to be in range of [min, max]. In case if input value has vector|vector3|vector4 type
+     * return new vector|vector3|vector4 with clamped value at every vector element.
+     *
+     * @name vmath.clamp
+     * @param value [type:number|vector3, vector4|vector] Input value or vector of values
+     * @param min [type:number] Min value border
+     * @param max [type:number] Max value border
+     * @return clamped_value [type:number|vector3|vector4|vector] Clamped value or vector
+     * @example
+     * 
+     * ```lua
+     * local value1 = 56
+	 * print(vmath.clamp(value1, 89, 134)) -> 89
+	 * local v1 = vmath.vector({ -45, 34, 13, 10, 55 })
+	 * print(vmath.clamp(v1, 0, 15)) -> vmath.vector (size: 5)
+	 * local v2 = vmath.vector3(190, 190, -10)
+	 * print(vmath.clamp(v2, -50, 150)) -> vmath.vector3(150, 150, -10)
+	 * local v3 = vmath.vector4(30, -30, 45, 1)
+	 * print(vmath.clamp(v3, 0, 20)) -> vmath.vector4(20, 0, 20, 1)
+     * ```
+     */
+    static int Vector_Clamp(lua_State* L)
+    {
+        float min = (float) luaL_checknumber(L, 2);
+        float max = (float) luaL_checknumber(L, 3);
+        if (lua_type(L, 1) == LUA_TNUMBER)
+        {
+            float value = (float) luaL_checknumber(L, 1);
+            lua_pushnumber(L, dmMath::Clamp(value, min, max));
+        }
+        else
+        {
+            const ScriptUserType argument_type = GetType(L, 1);
+            if (argument_type == SCRIPT_TYPE_VECTOR3)
+            {
+                Vector3* value = CheckVector3(L, 1);
+                PushVector3(L, Vector3(
+                    dmMath::Clamp(value->getX(), min, max),
+                    dmMath::Clamp(value->getY(), min, max),
+                    dmMath::Clamp(value->getZ(), min, max)
+                ));
+            }
+            else if (argument_type == SCRIPT_TYPE_VECTOR4)
+            {
+                Vector4* value = CheckVector4(L, 1);
+                PushVector4(L, Vector4(
+                    dmMath::Clamp(value->getX(), min, max),
+                    dmMath::Clamp(value->getY(), min, max),
+                    dmMath::Clamp(value->getZ(), min, max),
+                    dmMath::Clamp(value->getW(), min, max)
+                ));
+            }
+            else if  (argument_type == SCRIPT_TYPE_VECTOR)
+            {
+                FloatVector* value = CheckVector(L, 1);
+                FloatVector* result = new FloatVector(value->size);
+                for (size_t idx = 0; idx < result->size; ++idx)
+                {
+                    result->values[idx] = dmMath::Clamp(result->values[idx], min, max);
+                }
+                PushVector(L, result);
+            }
+            else
+            {
+                return luaL_error(L, "%s.%s accepts (%s|%s|%s|%s) as argument.", SCRIPT_LIB_NAME, "clamp",
+                                "number", SCRIPT_TYPE_NAME_VECTOR3, SCRIPT_TYPE_NAME_VECTOR4, SCRIPT_TYPE_NAME_VECTOR);
+            }
+        }
+        return 1;
+    }
+
     static const luaL_reg methods[] =
     {
         {SCRIPT_TYPE_NAME_VECTOR, Vector_new},
@@ -2335,6 +2495,10 @@ namespace dmScript
         {"inv", Inverse},
         {"ortho_inv", OrthoInverse},
         {"mul_per_elem", MulPerElem},
+        {"quat_matrix4", Quat_Matrix4},
+        {"matrix4_compose", Matrix4_Compose},
+        {"matrix4_scale", Matrix4_Scale},
+        {"clamp", Vector_Clamp},
         {0, 0}
     };
 
