@@ -22,14 +22,37 @@
 
 namespace dmGameSystem
 {
+    /*#
+     * Handle to font resource
+     * @struct
+     * @name FontResource
+     */
     struct FontResource;
-    typedef dmRenderDDF::FontMap FontMapDesc;
 
     /*#
+     * Used to retrieve the information of a font.
+     * @typedef
+     * @name FontInfo
+     * @member m_Size [type: uint32_t]
+     * @member m_Antialias [type: uint32_t]
+     * @member m_ShadowX [type: float]
+     * @member m_ShadowY [type: float]
+     * @member m_ShadowBlur [type: uint32_t]
+     * @member m_ShadowAlpha [type: float]
+     * @member m_Alpha [type: float]
+     * @member m_OutlineAlpha [type: float]
+     * @member m_OutlineWidth [type: float]
+     */
+    typedef dmRenderDDF::FontMap FontInfo;
+
+    /*#
+     * Represents a glyph.
+     * If there's an associated image, it is of size width * height * channels.
      * @struct
      * @name FontGlyph
-     * @member m_Width [type: uint32_t] The glyph image width
-     * @member m_Height [type: uint32_t] The glyph image height
+     * @member m_Width [type: int16_t] The glyph image width
+     * @member m_Height [type: int16_t] The glyph image height
+     * @member m_Channels [type: int16_t] The glyph image height
      * @member m_Advance [type: float] The advance step of the glyph (in pixels)
      * @member m_LeftBearing [type: float] The left bearing of the glyph (in pixels)
      * @member m_Ascent [type: float] The ascent of the glyph. (in pixels)
@@ -37,12 +60,13 @@ namespace dmGameSystem
      */
     struct FontGlyph
     {
-        uint32_t  m_Width;      // Bitmap width
-        uint32_t  m_Height;     // Bitmap height
-        float     m_Advance;
-        float     m_LeftBearing;
-        float     m_Ascent;     // pixels above the base line
-        float     m_Descent;    // pixels below the base line
+        int16_t m_Width;
+        int16_t m_Height;
+        int16_t m_Channels;
+        float   m_Advance;
+        float   m_LeftBearing;
+        float   m_Ascent;
+        float   m_Descent;
     };
 
     /*#
@@ -68,10 +92,10 @@ namespace dmGameSystem
     /*#
      * @name ResFontGetInfo
      * @param font [type: FontResource*] The font resource to modify
-     * @param desc [type: FontMapDesc*] The output info
+     * @param info [type: FontInfo*] The output info
      * @return result [type: dmResource::Result] RESULT_OK if successful
      */
-    dmResource::Result ResFontGetInfo(FontResource* font, FontMapDesc* desc);
+    dmResource::Result ResFontGetInfo(FontResource* font, FontInfo* info);
 
     /*#
      * Resets the glyph cache and sets the cell size.
@@ -107,7 +131,7 @@ namespace dmGameSystem
      * @param font [type: FontResource*] The font resource to modify
      * @param codepoint [type: uint32_t] The glyph codepoint
      * @param glyph [type: FontGlyph*] The glyph meta data
-     * @param imagedata [type: void*] The bitmap or sdf data
+     * @param imagedata [type: void*] The bitmap or sdf data. May be null for e.g. white space characters.
      * @return result [type: dmResource::Result] RESULT_OK if successful
      */
     dmResource::Result ResFontAddGlyph(FontResource* font, uint32_t codepoint, FontGlyph* glyph, void* imagedata, uint32_t imagedatasize);

@@ -308,9 +308,9 @@ namespace dmGameSystem
         return resource->m_FontMap;
     }
 
-    dmResource::Result ResFontGetInfo(FontResource* font, FontMapDesc* desc)
+    dmResource::Result ResFontGetInfo(FontResource* font, FontInfo* desc)
     {
-        memcpy(desc, font->m_DDF, sizeof(FontMapDesc));
+        memcpy(desc, font->m_DDF, sizeof(FontInfo));
         return dmResource::RESULT_OK;
     }
 
