@@ -131,7 +131,7 @@ namespace dmGameSystem
      * @param font [type: FontResource*] The font resource to modify
      * @param codepoint [type: uint32_t] The glyph codepoint
      * @param glyph [type: FontGlyph*] The glyph meta data
-     * @param imagedata [type: void*] The bitmap or sdf data. May be null for e.g. white space characters.
+     * @param imagedata [type: void*] The bitmap or sdf data. May be null for e.g. white space characters. The font will now own this data.
      * @return result [type: dmResource::Result] RESULT_OK if successful
      */
     dmResource::Result ResFontAddGlyph(FontResource* font, uint32_t codepoint, FontGlyph* glyph, void* imagedata, uint32_t imagedatasize);

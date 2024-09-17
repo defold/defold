@@ -37,8 +37,8 @@ namespace dmRender
     };
 
     typedef dmRenderDDF::GlyphBank::Glyph FontGlyph;
-    typedef FontGlyph* (*FGetGlyph)(uint32_t utf8, void* user_ctx);
-    typedef void*  (*FGetGlyphData)(uint32_t utf8, void* user_ctx, uint32_t* out_size, uint32_t* out_compression, uint32_t* out_width, uint32_t* out_height);
+    typedef FontGlyph* (*FGetGlyph)(uint32_t codepoint, void* user_ctx);
+    typedef void*  (*FGetGlyphData)(uint32_t codepoint, void* user_ctx, uint32_t* out_size, uint32_t* out_compression, uint32_t* out_width, uint32_t* out_height);
 
     /**
      * Font map parameters supplied to NewFontMap

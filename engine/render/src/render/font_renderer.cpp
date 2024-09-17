@@ -635,7 +635,8 @@ namespace dmRender
         text_context->m_TextEntries.Push(te);
     }
 
-    static dmRender::FontGlyph* GetGlyph(HFontMap font_map, uint32_t c)
+    // also used for test
+    dmRender::FontGlyph* GetGlyph(HFontMap font_map, uint32_t c)
     {
         dmRender::FontGlyph* glyph = font_map->m_GetGlyph(c, font_map->m_UserData);
         if (!glyph)
@@ -1370,5 +1371,10 @@ namespace dmRender
     bool VerifyFontMapMagFilter(dmRender::HFontMap font_map, dmGraphics::TextureFilter filter)
     {
         return font_map->m_MagFilter == filter;
+    }
+
+    const uint8_t* GetGlyphData(dmRender::HFontMap font_map, uint32_t codepoint, uint32_t* out_size, uint32_t* out_compression, uint32_t* out_width, uint32_t* out_height)
+    {
+        return (uint8_t*)font_map->m_GetGlyphData(codepoint, font_map->m_UserData, out_size, out_compression, out_width, out_height);
     }
 }
