@@ -12,7 +12,7 @@ def build(bld):
               protoc_includes = '../proto',
               target          = 'rig',
               use             = 'DDF DLIB SOCKET',
-              source          = 'rig.cpp ../proto/rig/rig_ddf.proto')
+              source          = 'rig.cpp ../proto/rig/gltf_ddf.proto ../proto/rig/rig_ddf.proto')
 
     bld.add_group()
 

@@ -4,6 +4,9 @@ package dmRigDDF;
 import "ddf/ddf_extensions.proto";
 import "ddf/ddf_math.proto";
 
+// The file is quite large
+import "rig/gltf_ddf.proto";
+
 option java_package = "com.dynamo.rig.proto";
 option java_outer_classname = "Rig";
 
@@ -144,7 +147,7 @@ message MeshSet
     optional uint32 max_bone_count = 4;
 }
 
-// Public api
+// Public api (dmSDK)
 message RigScene
 {
     optional string skeleton = 1 [(resource)=true];
