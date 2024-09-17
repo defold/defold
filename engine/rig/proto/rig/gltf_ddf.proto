@@ -149,27 +149,28 @@ message Iridescence
     optional TextureView iridescenceThicknessTexture = 6;
 };
 
+// https://registry.khronos.org/glTF/specs/2.0/glTF-2.0.html#reference-material
 message Material
 {
-    optional string name                       = 1;
-//     public int index = 0;
-//     public byte isSkinned = 0;
-//     public PbrMetallicRoughness pbrMetallicRoughness;
-//     public PbrSpecularGlossiness pbrSpecularGlossiness;
-//     public Clearcoat clearcoat;
-//     public Ior ior;
-//     public Specular specular;
-//     public Sheen sheen;
-//     public Transmission transmission;
-//     public Volume volume;
-//     public EmissiveStrength emissiveStrength;
-//     public Iridescence iridescence;
-//     public TextureView normalTexture;
-//     public TextureView occlusionTexture;
-//     public TextureView emissiveTexture;
-//     public float[] emissiveFactor;
-//     public float alphaCutoff = 0.0f;
-//     public AlphaMode alphaMode = AlphaMode.ALPHA_MODE_OPAQUE;
-//     public boolean doubleSided = false;
-//     public boolean unlit = false;
-};
+    optional string name                                    = 1;
+    optional uint32 index                                   = 2; // index into the scene materials
+    optional bool isSkinned                                 = 3; // set if the material is skinned
+    optional PbrMetallicRoughness pbrMetallicRoughness      = 4;
+    optional PbrSpecularGlossiness pbrSpecularGlossiness    = 5;
+    optional Clearcoat clearcoatRoughnessFactor             = 6;
+    optional Ior ior                                        = 7;
+    optional Specular specular                              = 8;
+    optional Sheen sheen                                    = 9;
+    optional Transmission transmission                      = 10;
+    optional Volume volume                                  = 11;
+    optional EmissiveStrength emissiveStrength              = 12;
+    optional Iridescence iridescence                        = 13;
+    optional TextureView normalTexture                      = 14;
+    optional TextureView occlusionTexture                   = 15;
+    optional TextureView emissiveTexture                    = 16;
+    optional dmMath.Vector3 emissiveFactor                  = 17;
+    optional float alphaCutoff                              = 18 [default = 0.5];
+    optional AlphaMode alphaMode                            = 19 [default = OPAQUE];
+    optional bool doubleSided                               = 20 [default = false];
+    optional bool unlit                                     = 21 [default = false];
+}
