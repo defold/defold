@@ -474,7 +474,7 @@ namespace dmPlatform
     {
         switch(state)
         {
-            case DEVICE_STATE_CURSOR_LOCK:      return glfwGetInputMode(window->m_Window, GLFW_CURSOR);
+            case DEVICE_STATE_CURSOR_LOCK:      return glfwGetInputMode(window->m_Window, GLFW_CURSOR) != GLFW_CURSOR_NORMAL;
             case DEVICE_STATE_JOYSTICK_PRESENT: return glfwJoystickPresent(op1);
             default:break;
         }
