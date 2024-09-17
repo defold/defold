@@ -479,8 +479,12 @@ namespace dmGraphics
                semantic_type == VertexAttribute::SEMANTIC_TYPE_COLOR;
     }
 
-    static inline void UnpackWriteAttribute(const WriteAttributeParams& params, const VertexAttributeInfo& info, uint32_t* uv_channel, uint32_t* page_index_channel, const float** data, VertexAttribute::VectorType* vector_type, uint32_t* element_count, bool* is_matrix)
+    static inline void UnpackWriteAttribute(uint32_t vertex_index, const WriteAttributeParams& params, const VertexAttributeInfo& info, uint32_t* uv_channel, uint32_t* page_index_channel, const float** data, VertexAttribute::VectorType* vector_type, uint32_t* element_count, bool* is_matrix)
     {
+        // Some streams share the value across the entire mesh (page indices for example).
+        // An alternative would be to replicate the data across all vertices in the mesh,
+        // which would be cleaner but a bit of a waste. Perhaps it should be configurable by the write params?
+        bool is_global_data = false;
         const float* base_data_ptr = 0;
         VertexAttribute::VectorType vector_type_out = VertexAttribute::VECTOR_TYPE_SCALAR;
         switch(info.m_SemanticType)
@@ -509,7 +513,14 @@ namespace dmGraphics
             } break;
             case VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX:
             {
-                assert(0);
+                uint32_t pi_channel_to_use = *page_index_channel;
+                if (params.m_PageIndices && pi_channel_to_use < params.m_PageIndicesCount)
+                {
+                    base_data_ptr = &params.m_PageIndices[pi_channel_to_use];
+                }
+                vector_type_out     = params.m_PageIndicesVectorType;
+                *page_index_channel = pi_channel_to_use + 1;
+                is_global_data      = true;
             } break;
             case VertexAttribute::SEMANTIC_TYPE_COLOR:
             {
@@ -542,10 +553,21 @@ namespace dmGraphics
             } break;
         }
 
-        *element_count = VectorTypeToElementCount(vector_type_out);
-        *is_matrix     = VectorTypeIsMatrix(vector_type_out);
-        *vector_type   = vector_type_out;
-        *data          = base_data_ptr ? (base_data_ptr + params.m_Index * *element_count) : 0;
+        uint32_t element_count_out = VectorTypeToElementCount(vector_type_out);
+        *element_count             = element_count_out;
+        *is_matrix                 = VectorTypeIsMatrix(vector_type_out);
+        *vector_type               = vector_type_out;
+
+        if (base_data_ptr)
+        {
+            // If it's "global data", the source data pointer doesn't contain data
+            // for every vertex, but just a single data value for the entire mesh.
+            *data = base_data_ptr + (is_global_data ? 0 : vertex_index * element_count_out);
+        }
+        else
+        {
+            *data = 0;
+        }
     }
 
     static inline void WriteFloatVectorOrScalar(uint8_t* write_ptr, const float* src_ptr, uint32_t src_element_count, uint32_t dst_element_count, VertexAttribute::DataType dst_data_type)
@@ -568,11 +590,11 @@ namespace dmGraphics
         // Fill out the rest of the vector with zeroes if necessary
         if (num_zeroes_to_write > 0)
         {
-            memset(write_ptr + num_floats_to_write, 0, num_zeroes_to_write * DataTypeToByteWidth(dst_data_type));
+            memset(write_ptr + num_floats_to_write * sizeof(float), 0, num_zeroes_to_write * sizeof(float));
         }
     }
 
-    uint8_t* WriteAttribute(uint8_t* write_ptr, const WriteAttributeParams& params)
+    uint8_t* WriteAttribute(uint8_t* write_ptr, uint32_t vertex_index, const WriteAttributeParams& params)
     {
         float conversion_buffer[16] = {};
         uint32_t num_texcoords    = 0;
@@ -596,7 +618,7 @@ namespace dmGraphics
             uint32_t src_element_count;
             const float* src_data_ptr;
             bool src_is_matrix;
-            UnpackWriteAttribute(params, info, &num_texcoords, &num_page_indices, &src_data_ptr, &src_vector_type, &src_element_count, &src_is_matrix);
+            UnpackWriteAttribute(vertex_index, params, info, &num_texcoords, &num_page_indices, &src_data_ptr, &src_vector_type, &src_element_count, &src_is_matrix);
 
             /*
             Converting from a scalar or vector to a smaller scalar or vector will truncate values from the end of the source value.

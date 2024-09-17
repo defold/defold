@@ -317,6 +317,18 @@ namespace dmGraphics
         uint64_t m_PolygonOffsetFillEnabled : 1;
     };
 
+    /*
+    public long    nameHash;
+    public int     semanticType;
+    public int     dataType;
+    public int     stepFunction;
+    public int     coordinateSpace;
+    public Pointer valuePtr;
+    public int     valueByteSize;
+    public int     elementCount;
+    public boolean normalize;
+    */
+
     struct VertexAttributeInfo
     {
         dmhash_t                       m_NameHash;
@@ -592,11 +604,10 @@ namespace dmGraphics
         const float*                   m_Normals;
         const float*                   m_Tangents;
         const float*                   m_Colors;
-        const float**                  m_PageIndices;
         const float**                  m_UVChannels;
+        const float*                   m_PageIndices;
         uint32_t                       m_PageIndicesCount;
         uint32_t                       m_UVChannelsCount;
-        uint32_t                       m_Index;
 
         // Data source vector types corresponding to each data source passed in.
         // The destination vector type is stored in the vertexattribute infos.
@@ -611,7 +622,7 @@ namespace dmGraphics
     };
 
     uint8_t* WriteVertexAttributeFromFloat(uint8_t* value_write_ptr, float value, dmGraphics::VertexAttribute::DataType data_type);
-    uint8_t* WriteAttribute(uint8_t* write_ptr, const WriteAttributeParams& params);
+    uint8_t* WriteAttribute(uint8_t* write_ptr, uint32_t vertex_index, const WriteAttributeParams& params);
 
     uint32_t         GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size);
     uint32_t         GetUniformCount(HProgram prog);
@@ -732,17 +743,61 @@ namespace dmGraphics
                buffer_type == BUFFER_TYPE_COLOR3_BIT;
     }
 
-    static inline bool HasLocalPositionAttribute(const VertexAttributeInfos& attribute_infos)
+    struct VertexAttributeInfoMetadata
     {
+        uint32_t m_HasAttributeWorldPosition : 1;
+        uint32_t m_HasAttributeLocalPosition : 1;
+        uint32_t m_HasAttributeNormal        : 1;
+        uint32_t m_HasAttributeTangent       : 1;
+        uint32_t m_HasAttributeColor         : 1;
+        uint32_t m_HasAttributeTexCoord      : 1;
+        uint32_t m_HasAttributePageIndex     : 1;
+        uint32_t m_HasAttributeWorldMatrix   : 1;
+        uint32_t m_HasAttributeNormalMatrix  : 1;
+        uint32_t m_HasAttributeNone          : 1;
+    };
+
+    static inline VertexAttributeInfoMetadata GetVertexAttributeInfosMetaData(const VertexAttributeInfos& attribute_infos)
+    {
+        VertexAttributeInfoMetadata metadata = {};
         for (int i = 0; i < attribute_infos.m_NumInfos; ++i)
         {
-            if (attribute_infos.m_Infos[i].m_SemanticType == VertexAttribute::SEMANTIC_TYPE_POSITION &&
-                attribute_infos.m_Infos[i].m_CoordinateSpace == COORDINATE_SPACE_LOCAL)
+            const VertexAttributeInfo& info = attribute_infos.m_Infos[i];
+            switch(info.m_SemanticType)
             {
-                return true;
+            case VertexAttribute::SEMANTIC_TYPE_POSITION:
+                metadata.m_HasAttributeWorldPosition |= info.m_CoordinateSpace == COORDINATE_SPACE_WORLD;
+                metadata.m_HasAttributeLocalPosition |= info.m_CoordinateSpace == COORDINATE_SPACE_LOCAL;
+                break;
+            case VertexAttribute::SEMANTIC_TYPE_TEXCOORD:
+                metadata.m_HasAttributeTexCoord = true;
+                break;
+            case VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX:
+                metadata.m_HasAttributePageIndex = true;
+                break;
+            case VertexAttribute::SEMANTIC_TYPE_NORMAL:
+                metadata.m_HasAttributeNormal = true;
+                break;
+            case VertexAttribute::SEMANTIC_TYPE_TANGENT:
+                metadata.m_HasAttributeTangent = true;
+                break;
+            case VertexAttribute::SEMANTIC_TYPE_COLOR:
+                metadata.m_HasAttributeColor = true;
+                break;
+            case VertexAttribute::SEMANTIC_TYPE_WORLD_MATRIX:
+                metadata.m_HasAttributeWorldMatrix = true;
+                break;
+            case VertexAttribute::SEMANTIC_TYPE_NORMAL_MATRIX:
+                metadata.m_HasAttributeNormalMatrix = true;
+                break;
+            case VertexAttribute::SEMANTIC_TYPE_NONE:
+                metadata.m_HasAttributeNone = true;
+                break;
+            default:
+                break;
             }
         }
-        return false;
+        return metadata;
     }
 
     static inline bool IsTypeTextureType(Type type)

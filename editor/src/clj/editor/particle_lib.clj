@@ -19,7 +19,7 @@
             [editor.protobuf :as protobuf]
             [util.murmur :as murmur])
   (:import [com.defold.libs ParticleLibrary ParticleLibrary$AnimPlayback ParticleLibrary$AnimationData ParticleLibrary$FetchAnimationCallback ParticleLibrary$FetchAnimationResult ParticleLibrary$InstanceStats ParticleLibrary$VertexAttributeInfo ParticleLibrary$VertexAttributeInfos ParticleLibrary$Quat ParticleLibrary$RenderInstanceCallback ParticleLibrary$Stats ParticleLibrary$Vector3 ParticleLibrary$Vector4]
-           [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$VertexAttribute$DataType Graphics$VertexAttribute$SemanticType Graphics$VertexStepFunction]
+           [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$VertexAttribute Graphics$VertexAttribute$DataType Graphics$VertexAttribute$SemanticType Graphics$VertexAttribute$VectorType Graphics$VertexStepFunction]
            [com.dynamo.particle.proto Particle$ParticleFX]
            [com.jogamp.common.nio Buffers]
            [com.sun.jna Pointer]
@@ -191,6 +191,16 @@
     :vertex-step-function-vertex Graphics$VertexStepFunction/VERTEX_STEP_FUNCTION_VERTEX_VALUE
     :vertex-step-function-instance Graphics$VertexStepFunction/VERTEX_STEP_FUNCTION_INSTANCE_VALUE))
 
+(defn- vector-type->int [vertex-vector-type]
+  (case vertex-vector-type
+    :vector-type-scalar Graphics$VertexAttribute$VectorType/VECTOR_TYPE_SCALAR_VALUE
+    :vector-type-vec2 Graphics$VertexAttribute$VectorType/VECTOR_TYPE_VEC2_VALUE
+    :vector-type-vec3 Graphics$VertexAttribute$VectorType/VECTOR_TYPE_VEC3_VALUE
+    :vector-type-vec4 Graphics$VertexAttribute$VectorType/VECTOR_TYPE_VEC4_VALUE
+    :vector-type-mat2 Graphics$VertexAttribute$VectorType/VECTOR_TYPE_MAT2_VALUE
+    :vector-type-mat3 Graphics$VertexAttribute$VectorType/VECTOR_TYPE_MAT3_VALUE
+    :vector-type-mat4 Graphics$VertexAttribute$VectorType/VECTOR_TYPE_MAT4_VALUE))
+
 (defn- attribute-info->particle-attribute-info [^Pointer context attribute-info vertex-attribute-bytes]
   (let [attribute-name-hash (murmur/hash64 (:name attribute-info))
         attribute-semantic-type (semantic-type->int (:semantic-type attribute-info))
@@ -206,11 +216,11 @@
     (set! (. particle-attribute-info nameHash) attribute-name-hash)
     (set! (. particle-attribute-info semanticType) attribute-semantic-type)
     (set! (. particle-attribute-info dataType) attribute-data-type)
+    (set! (. particle-attribute-info vectorType) (vector-type->int (:vector-type attribute-info)))
     (set! (. particle-attribute-info stepFunction) (vertex-step-function->int (:step-function attribute-info)))
     (set! (. particle-attribute-info coordinateSpace) attribute-coordinate-space)
     (set! (. particle-attribute-info valuePtr) context-attribute-scratch-ptr)
     (set! (. particle-attribute-info valueByteSize) attribute-byte-size)
-    (set! (. particle-attribute-info elementCount) (graphics/vector-type->component-count (:vector-type attribute-info)))
     (set! (. particle-attribute-info normalize) (boolean (:normalize attribute-info)))
     particle-attribute-info))
 
