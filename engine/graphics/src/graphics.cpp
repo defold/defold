@@ -479,7 +479,7 @@ namespace dmGraphics
                semantic_type == VertexAttribute::SEMANTIC_TYPE_COLOR;
     }
 
-    static inline void UnpackWriteAttribute(uint32_t vertex_index, const WriteAttributeParams& params, const VertexAttributeInfo& info, uint32_t* uv_channel, uint32_t* page_index_channel, const float** data, VertexAttribute::VectorType* vector_type, uint32_t* element_count, bool* is_matrix)
+    static void UnpackWriteAttribute(uint32_t vertex_index, const WriteAttributeParams& params, const VertexAttributeInfo& info, uint32_t* uv_channel, uint32_t* page_index_channel, const float** data, VertexAttribute::VectorType* vector_type, uint32_t* element_count, bool* is_matrix)
     {
         // Some streams share the value across the entire mesh (page indices for example).
         // An alternative would be to replicate the data across all vertices in the mesh,
@@ -570,7 +570,101 @@ namespace dmGraphics
         }
     }
 
-    static inline void WriteFloatVectorOrScalar(uint8_t* write_ptr, const float* src_ptr, uint32_t src_element_count, uint32_t dst_element_count, VertexAttribute::DataType dst_data_type)
+    static inline uint32_t GetMatrixRowColCount(VertexAttribute::VectorType vector_type)
+    {
+        switch(vector_type)
+        {
+            case VertexAttribute::VECTOR_TYPE_MAT2: return 2;
+            case VertexAttribute::VECTOR_TYPE_MAT3: return 3;
+            case VertexAttribute::VECTOR_TYPE_MAT4: return 4;
+            default: break;
+        }
+        return 0;
+    }
+
+    // Supports writing a matrix to a matrix, regardless of size of src and dst.
+    static void WriteMatrixToMatrix(uint8_t* write_ptr, const float* src_ptr,
+        VertexAttribute::VectorType src_vector_type, uint32_t src_element_count,
+        VertexAttribute::VectorType dst_vector_type, uint32_t dst_element_count,
+        VertexAttribute::DataType dst_data_type)
+    {
+        // No matrix conversion needed
+        if (src_element_count == dst_element_count)
+        {
+            if (dst_data_type == VertexAttribute::TYPE_FLOAT)
+            {
+                memcpy(write_ptr, src_ptr, src_element_count * sizeof(float));
+            }
+            else
+            {
+                for (int i = 0; i < src_element_count; ++i)
+                {
+                    write_ptr = WriteVertexAttributeFromFloat(write_ptr, src_ptr[i], dst_data_type);
+                }
+            }
+        }
+        // Converting from a matrix to a smaller matrix will use the top-left portion of the source matrix.
+        else if (src_element_count > dst_element_count)
+        {
+            uint32_t dst_row_col_count = GetMatrixRowColCount(dst_vector_type);
+            uint32_t src_row_col_count = GetMatrixRowColCount(src_vector_type);
+
+            for (int row = 0; row < dst_row_col_count; ++row)
+            {
+                if (dst_data_type == VertexAttribute::TYPE_FLOAT)
+                {
+                    memcpy(write_ptr + row * dst_row_col_count, src_ptr + row * src_row_col_count, dst_row_col_count * sizeof(float));
+                }
+                else
+                {
+                    for (int col = 0; col < dst_row_col_count; ++col)
+                    {
+                        write_ptr = WriteVertexAttributeFromFloat(write_ptr, src_ptr[row * src_row_col_count + col], dst_data_type);
+                    }
+                }
+            }
+        }
+        // Converting from a matrix to a larger matrix will write into the top-left portion of the destination matrix, and fill the remaining space with the identity matrix.
+        else
+        {
+            uint32_t dst_row_col_count = GetMatrixRowColCount(dst_vector_type);
+            uint32_t src_row_col_count = GetMatrixRowColCount(src_vector_type);
+
+            float* write_ptr_float = (float*) write_ptr;
+            for (int row = 0; row < dst_row_col_count; ++row)
+            {
+                for (int col = 0; col < dst_row_col_count; ++col)
+                {
+                    float value;
+
+                    // Use source matrix values in the top-left portion
+                    if (row < src_row_col_count && col < src_row_col_count)
+                    {
+                        value = src_ptr[row * src_row_col_count + col];
+                    }
+                    // Fill the rest with the identity matrix
+                    else
+                    {
+                        value = (row == col) ? 1.0f : 0.0f;
+                    }
+
+                    if (dst_data_type == VertexAttribute::TYPE_FLOAT)
+                    {
+                        write_ptr_float[row * dst_row_col_count + col] = value;
+                    }
+                    else
+                    {
+                        write_ptr = WriteVertexAttributeFromFloat(write_ptr, value, dst_data_type);
+                    }
+                }
+            }
+        }
+    }
+
+    // Supports writing a vector to a scalar, matrix, or vector.
+    // Regardless of destination type, if we have fewer elements in the source vector than in the destination vector,
+    // the rest of the vector is filled with zeroes.
+    static void WriteVector(uint8_t* write_ptr, const float* src_ptr, uint32_t src_element_count, uint32_t dst_element_count, VertexAttribute::DataType dst_data_type)
     {
         uint32_t num_floats_to_write = dmMath::Min(src_element_count, dst_element_count);
         uint32_t num_zeroes_to_write = dst_element_count - num_floats_to_write;
@@ -594,9 +688,48 @@ namespace dmGraphics
         }
     }
 
+    // Supports writing a single scalar as a scalar, matrix, or vector.
+    // If the destination is a matrix, the value is written on the diagonal.
+    // If the destination is a scalar or a vector, the value is written to each component of the destination.
+    static void WriteScalar(uint8_t* write_ptr, float value, bool dst_is_matrix, VertexAttribute::VectorType dst_vector_type, uint32_t dst_element_count, VertexAttribute::DataType dst_data_type)
+    {
+        float* write_ptr_float = (float*) write_ptr;
+        if (dst_is_matrix)
+        {
+            float value_matrix[] = {
+                value, 0.0f, 0.0f, 0.0f,
+                0.0f, value, 0.0f, 0.0f,
+                0.0f, 0.0f, value, 0.0f,
+                0.0f, 0.0f, 0.0f, value
+            };
+            WriteMatrixToMatrix(write_ptr, value_matrix, VertexAttribute::VECTOR_TYPE_MAT4, 16, dst_vector_type, dst_element_count, dst_data_type);
+        }
+        else
+        {
+            for (int i = 0; i < dst_element_count; ++i)
+            {
+                if (dst_data_type == VertexAttribute::TYPE_FLOAT)
+                {
+                    write_ptr_float[i] = value;
+                }
+                else
+                {
+                    write_ptr = WriteVertexAttributeFromFloat(write_ptr, value, dst_data_type);
+                }
+            }
+        }
+    }
+
+    // Conversion rules:
+    // -----------------
+    // Converting from a scalar or vector to a smaller scalar or vector will truncate values from the end of the source value.
+    // Converting from a scalar or vector to a larger vector will zero-fill at the end, unless the semantic-type is position, color or tangent, in which case the W component will be one.
+    // Converting from a scalar or vector to a larger matrix will zero-fill at the end.
+    // Converting from a matrix to a smaller matrix will use the top-left portion of the source matrix.
+    // Converting from a matrix to a larger matrix will write into the top-left portion of the destination matrix, and fill the remaining space with the identity matrix.
+    // Converting from a matrix to a vector will truncate values from the end of the source matrix.
     uint8_t* WriteAttribute(uint8_t* write_ptr, uint32_t vertex_index, const WriteAttributeParams& params)
     {
-        float conversion_buffer[16] = {};
         uint32_t num_texcoords    = 0;
         uint32_t num_page_indices = 0;
 
@@ -620,15 +753,6 @@ namespace dmGraphics
             bool src_is_matrix;
             UnpackWriteAttribute(vertex_index, params, info, &num_texcoords, &num_page_indices, &src_data_ptr, &src_vector_type, &src_element_count, &src_is_matrix);
 
-            /*
-            Converting from a scalar or vector to a smaller scalar or vector will truncate values from the end of the source value.
-            Converting from a scalar or vector to a larger vector will zero-fill at the end, unless the semantic-type is position, color or tangent, in which case the W component will be one.
-            Converting from a scalar or vector to a larger matrix will zero-fill at the end.
-            Converting from a matrix to a smaller matrix will use the top-left portion of the source matrix.
-            Converting from a matrix to a larger matrix will write into the top-left portion of the destination matrix, and fill the remaining space with the identity matrix.
-            Converting from a matrix to a vector will truncate values from the end of the source matrix.
-            */
-
             // If no source data found for this attribute, we use the default binary value as-is
             if (src_data_ptr == 0)
             {
@@ -637,22 +761,26 @@ namespace dmGraphics
             }
             else if (src_is_matrix && dst_is_matrix)
             {
-                // WriteMatrixToMatrix();
+                WriteMatrixToMatrix(write_ptr, src_data_ptr, src_vector_type, src_element_count, dst_vector_type, dst_element_count, dst_data_type);
             }
             else
             {
-                if (src_element_count < dst_element_count && dst_element_count == 4 && SemanticTypeRequiresOneAsW(info.m_SemanticType))
+                if (src_vector_type == VertexAttribute::VECTOR_TYPE_SCALAR)
+                {
+                    WriteScalar(write_ptr, src_data_ptr[0], dst_is_matrix, dst_vector_type, dst_element_count, dst_data_type);
+                }
+                else if (src_element_count < dst_element_count && dst_element_count == 4 && SemanticTypeRequiresOneAsW(info.m_SemanticType))
                 {
                     float v4_one_as_w[4] = {
                         src_element_count > 0 ? src_data_ptr[0] : 0.0f,
                         src_element_count > 1 ? src_data_ptr[1] : 0.0f,
                         src_element_count > 2 ? src_data_ptr[2] : 0.0f,
                         1.0};
-                    WriteFloatVectorOrScalar(write_ptr, v4_one_as_w, 4, dst_element_count, dst_data_type);
+                    WriteVector(write_ptr, v4_one_as_w, 4, dst_element_count, dst_data_type);
                 }
                 else
                 {
-                    WriteFloatVectorOrScalar(write_ptr, src_data_ptr, src_element_count, dst_element_count, dst_data_type);
+                    WriteVector(write_ptr, src_data_ptr, src_element_count, dst_element_count, dst_data_type);
                 }
             }
 
@@ -661,72 +789,6 @@ namespace dmGraphics
 
         return write_ptr;
     }
-
-    /*
-    uint8_t* WriteAttribute(const VertexAttributeInfos* attribute_infos, uint8_t* write_ptr, uint32_t vertex_index, const dmVMath::Matrix4* world_transform, const dmVMath::Matrix4* normal_transform, const dmVMath::Point3& p, const dmVMath::Point3& p_local, const dmVMath::Vector4* color, float** uvs, uint32_t* page_indices, uint32_t num_textures)
-    {
-        uint32_t num_texcoords = 0;
-        uint32_t num_page_indices = 0;
-
-        for (int i = 0; i < attribute_infos->m_NumInfos; ++i)
-        {
-            const VertexAttributeInfo& info = attribute_infos->m_Infos[i];
-
-            switch(info.m_SemanticType)
-            {
-                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION:
-                {
-                    if (info.m_CoordinateSpace == dmGraphics::COORDINATE_SPACE_WORLD && world_transform)
-                    {
-                        dmVMath::Vector4 wp = *world_transform * p;
-                        memcpy(write_ptr, &wp, info.m_ValueByteSize);
-                    }
-                    else
-                    {
-                        memcpy(write_ptr, &p_local, info.m_ValueByteSize);
-                    }
-                } break;
-                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD:
-                {
-                    uint32_t unit = num_texcoords++;
-                    if (unit >= num_textures || !uvs[unit])
-                        unit = 0;
-                    memcpy(write_ptr, uvs[unit] + vertex_index * 2, info.m_ValueByteSize);
-                } break;
-                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR:
-                {
-                    if (color)
-                        memcpy(write_ptr, color, info.m_ValueByteSize);
-                    else
-                        memcpy(write_ptr, info.m_ValuePtr, info.m_ValueByteSize);
-                } break;
-                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX:
-                {
-                    uint32_t unit = num_page_indices++;
-                    float page_index = (float) page_indices[unit];
-                    memcpy(write_ptr, &page_index, info.m_ValueByteSize);
-                } break;
-                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_WORLD_MATRIX:
-                {
-                    memcpy(write_ptr, world_transform, info.m_ValueByteSize);
-                } break;
-                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL_MATRIX:
-                {
-                    memcpy(write_ptr, normal_transform, info.m_ValueByteSize);
-                } break;
-                default:
-                {
-                    assert(info.m_ValuePtr);
-                    memcpy(write_ptr, info.m_ValuePtr, info.m_ValueByteSize);
-                } break;
-            }
-
-            write_ptr += info.m_ValueByteSize;
-        }
-
-        return write_ptr;
-    }
-    */
 
     dmGraphics::Type GetGraphicsType(dmGraphics::VertexAttribute::DataType data_type)
     {
