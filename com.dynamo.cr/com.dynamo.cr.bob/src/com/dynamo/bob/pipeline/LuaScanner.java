@@ -97,6 +97,12 @@ public class LuaScanner extends LuaParserBaseListener {
     private List<String> modules = new ArrayList<String>();
     private List<Property> properties = new ArrayList<Property>();
 
+    private boolean isDebug;
+
+    public void setDebug() {
+        isDebug = true;
+    }
+
     public static class Property {
         public enum Status {
             OK,
@@ -352,7 +358,9 @@ public class LuaScanner extends LuaParserBaseListener {
             }
         }
         else if (fnDesc.is("property", "go")) {
+            ParserRuleContext paramsContext;
             LuaParser.ArgsContext argsCtx = ctx.nameAndArgs().args();
+            paramsContext = argsCtx;
             String firstArg = getFirstStringArg(argsCtx);
             List<Token> tokens = getTokens(ctx, Token.DEFAULT_CHANNEL);
             Property property = new Property(tokens.get(0).getLine() - 1);
@@ -360,7 +368,8 @@ public class LuaScanner extends LuaParserBaseListener {
             if (firstArg == null) {
                 property.status = Status.INVALID_ARGS;
             } else {
-                if (parsePropertyValue(argsCtx, property)) {
+                paramsContext = parsePropertyValue(argsCtx, property);
+                if (paramsContext != null) {
                     property.status = Status.OK;
                 } else {
                     property.status = Status.INVALID_VALUE;
@@ -369,7 +378,17 @@ public class LuaScanner extends LuaParserBaseListener {
             properties.add(property);
 
             // strip property from code
-            removeTokens(tokens, true);
+            if (isDebug) {
+              // keep tokens for hash() in debug build
+              // see https://github.com/defold/defold/issues/7422
+                if (property.type == PropertyType.PROPERTY_TYPE_HASH) {
+                    tokens.removeAll(getTokens(paramsContext));
+                }
+                removeTokens(tokens, true);
+            }
+            else {
+                removeTokens(tokens, true);
+            }
         }
     }
 
@@ -400,8 +419,8 @@ public class LuaScanner extends LuaParserBaseListener {
         }
     }
 
-    private boolean parsePropertyValue(LuaParser.ArgsContext argsCtx, Property property) {
-        boolean result = false;
+    private ParserRuleContext parsePropertyValue(LuaParser.ArgsContext argsCtx, Property property) {
+        ParserRuleContext resultContext = null;
         List<LuaParser.ExpContext> expCtxList = ((LuaParser.ExplistContext)argsCtx.getRuleContext(ParserRuleContext.class, 0)).exp();
         // go.property(name, vaule) should have a value and only one value
         if (expCtxList.size() == 2) {
@@ -419,41 +438,41 @@ public class LuaScanner extends LuaParserBaseListener {
             if (type == LuaParser.INT || type == LuaParser.HEX || type == LuaParser.FLOAT || type == LuaParser.HEX_FLOAT) {
                 property.type = PropertyType.PROPERTY_TYPE_NUMBER;
                 property.value = Double.parseDouble(expCtx.getText());
-                result = true;
+                resultContext = expCtx;
             } else if (type == LuaParser.FALSE || type == LuaParser.TRUE) {
                 property.type = PropertyType.PROPERTY_TYPE_BOOLEAN;
                 property.value = Boolean.parseBoolean(initialToken.getText());
-                result = true;
+                resultContext = expCtx;
             } else if (type == LuaParser.NAME) {
                 LuaParser.VariableContext varCtx = expCtx.variable();
                 // function expected
                 if (!(varCtx instanceof LuaParser.FunctioncallContext)) {
-                    return false;
+                    return expCtx;
                 }
                 LuaParser.FunctioncallContext ctx = (LuaParser.FunctioncallContext)varCtx;
                 FunctionDescriptor fnDesc = new FunctionDescriptor(ctx.variable());
                 if (fnDesc.functionName == null) {
-                    return result;
+                    return null;
                 }
                 if (fnDesc.isObject("vmath")){
                      if (fnDesc.isName("vector3")) {
                         Vector3d v = new Vector3d();
                         double[] resultArgs = new double[3];
-                        result = getNumArgs(ctx.nameAndArgs().args(), resultArgs);
+                        resultContext = getNumArgs(ctx.nameAndArgs().args(), resultArgs) ? ctx : null;
                         v.set(resultArgs);
                         property.value = v;
                         property.type = PropertyType.PROPERTY_TYPE_VECTOR3;
                     } else if (fnDesc.isName("vector4")) {
                         Vector4d v = new Vector4d();
                         double[] resultArgs = new double[4];
-                        result = getNumArgs(ctx.nameAndArgs().args(), resultArgs);
+                        resultContext = getNumArgs(ctx.nameAndArgs().args(), resultArgs) ? ctx : null;
                         v.set(resultArgs);
                         property.value = v;
                         property.type = PropertyType.PROPERTY_TYPE_VECTOR4;
                     } else if (fnDesc.isName("quat")) {
                         Quat4d q = new Quat4d();
                         double[] resultArgs = new double[4];
-                        result = getNumArgs(ctx.nameAndArgs().args(), resultArgs);
+                        resultContext = getNumArgs(ctx.nameAndArgs().args(), resultArgs) ? ctx : null;
                         q.set(resultArgs);
                         property.value = q;
                         property.type = PropertyType.PROPERTY_TYPE_QUAT;
@@ -464,23 +483,23 @@ public class LuaScanner extends LuaParserBaseListener {
                     if (fnDesc.isObject("resource")) {
                         property.type = PropertyType.PROPERTY_TYPE_HASH;
                         property.isResource = true;
-                        result = true;
+                        resultContext = ctx;
                     }
                     else if (fnDesc.is("hash", null) || fnDesc.is("hash", "_G")) {
                         property.type = PropertyType.PROPERTY_TYPE_HASH;
                         // hash(arg) requires an argument
                         if (firstStrArg != null) {
-                            result = true;
+                            resultContext = ctx;
                         }
                     }
                     else if (fnDesc.is("url", "msg")) {
                         property.type = PropertyType.PROPERTY_TYPE_URL;
-                        result = true;
+                        resultContext = ctx;
                     }
                     property.value = firstStrArg == null ? "" : firstStrArg;
                 }
             }
         }
-        return result;
+        return resultContext;
     }
 }

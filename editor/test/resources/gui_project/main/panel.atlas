@@ -1,0 +1,4 @@
+images {
+  image: "/images/button_checkered.png"
+}
+extrude_borders: 2
