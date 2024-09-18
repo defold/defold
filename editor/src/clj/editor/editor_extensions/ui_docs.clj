@@ -1,23 +1,57 @@
+;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2014-2020 King
+;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
+;; Licensed under the Defold License version 1.0 (the "License"); you may not use
+;; this file except in compliance with the License.
+;;
+;; You may obtain a copy of the License, together with FAQs at
+;; https://www.defold.com/license
+;;
+;; Unless required by applicable law or agreed to in writing, software distributed
+;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
+;; specific language governing permissions and limitations under the License.
+
 (ns editor.editor-extensions.ui-docs
   (:require [clojure.spec.alpha :as s]
             [clojure.string :as string]
             [editor.editor-extensions.coerce :as coerce]
             [editor.lua-completion :as lua-completion]
             [editor.util :as util]
-            [util.coll :as coll]))
+            [util.coll :as coll]
+            [util.fn :as fn]))
 
 ;; region make-prop
 
 ;; Components are created with a table of props. The editor defines prop maps
 ;; both for runtime behavior (coercion) and autocomplete/doc generation.
 
-(s/def :editor.editor-extensions.components.prop/name simple-keyword?)
+(s/def :editor.editor-extensions.ui-docs.prop/name simple-keyword?)
 (s/def ::coerce ifn?)
 (s/def ::required boolean?)
 (s/def ::types (s/coll-of string? :min-count 1 :distinct true))
 (s/def ::doc string?)
 (s/def ::prop
-  (s/keys :req-un [:editor.editor-extensions.components.prop/name ::coerce ::required ::types ::doc]))
+  (s/keys :req-un [:editor.editor-extensions.ui-docs.prop/name ::coerce ::required ::types ::doc]))
+
+(defn- group-doc-types [types]
+  (if (= 1 (count types))
+    (types 0)
+    (str "("
+         (string/join " | " types)
+         ")")))
+
+(defn- infer-doc-types-from-coercer-schema [schema]
+  (case (:type schema)
+    :boolean ["boolean"]
+    :string ["string"]
+    :function ["function"]
+    :integer ["integer"]
+    :table ["table"]
+    :any ["any"]
+    :array (when-let [item-types (infer-doc-types-from-coercer-schema (:item schema))]
+             [(str (group-doc-types item-types) "[]")])
+    nil))
 
 (defn- ^{:arglists '([name & {:keys [coerce required types doc]}])} make-prop
   "Construct a prop definition map
@@ -38,12 +72,7 @@
               (update :required boolean))]
     (if (contains? m :types)
       m
-      (if-let [inferred-types (condp = (:coerce m)
-                                coerce/boolean ["boolean"]
-                                coerce/string ["string"]
-                                coerce/untouched ["any"]
-                                coerce/function ["function"]
-                                nil)]
+      (if-let [inferred-types (infer-doc-types-from-coercer-schema (coerce/schema (:coerce m)))]
         (assoc m :types inferred-types)
         m))))
 
@@ -58,24 +87,20 @@
   {:alignment [:top-left :top :top-right :left :center :right :bottom-left :bottom :bottom-right]
    :padding [:small :medium :large]
    :spacing [:small :medium :large]
-   :text_alignment [:left :center :right :justify]
-   :icon_name [:open-resource :plus :minus :clear]
+   :text-alignment [:left :center :right :justify]
+   :icon-name [:open-resource :plus :minus :clear]
    :orientation [:vertical :horizontal]
-   :input_variant [:default :warning :error]
-   :label_variant [:default :overridden]
-   :typography_variant [:default :hint :warning :error]})
+   :color [:text :hint :override :warning :error]
+   :heading-style [:h1 :h2 :h3 :h4 :h5 :h6 :dialog :form]})
 
-(def ^:private get-enum-coercer
-  (let [m (coll/pair-map-by key #(apply coerce/enum (val %)) enums)]
-    (fn get-enum-coercer [kw]
-      {:post [(some? %)]}
-      (m kw))))
+(def ^:private ^{:arglists '([enum-id])} get-enum-coercer
+  (fn/make-case-fn (coll/pair-map-by key #(apply coerce/enum (val %)) enums)))
 
-(defn ->screaming-snake-case [kw]
-  (string/replace (util/upper-case* (name kw)) "-" "_"))
+(def ^{:arglists '([keyword])} ->screaming-snake-case
+  (fn/memoize #(string/replace (util/upper-case* (name %)) "-" "_")))
 
 (defn- enum-doc-options [enum]
-  {:post [(contains? enums enum)]}
+  {:pre [(contains? enums enum)]}
   (let [enum-module (->screaming-snake-case enum)]
     (map #(format "<code>editor.ui.%s.%s</code>" enum-module (->screaming-snake-case %)) (enums enum))))
 
@@ -86,11 +111,10 @@
        "</ul>"))
 
 (defn- enum-prop [name & {:keys [enum doc] :as props}]
-  (let [enum (or enum name)]
-    (apply make-prop name (mapcat identity (cond-> (assoc props :coerce (get-enum-coercer enum)
-                                                                :types ["string"])
-                                                   doc
-                                                   (update :doc doc-with-ul-options (enum-doc-options enum)))))))
+  (apply make-prop name (mapcat identity (cond-> (assoc props :coerce (get-enum-coercer enum)
+                                                              :types ["string"])
+                                                 doc
+                                                 (update :doc doc-with-ul-options (enum-doc-options enum))))))
 
 ;; endregion
 
@@ -103,18 +127,16 @@
                 :doc "determines if the component should grow to fill available space in a <code>horizontal</code> or <code>vertical</code> layout container")
      (make-prop :row_span
                 :coerce grid-cell-span-coercer
-                :types ["integer"]
                 :doc "how many rows the component spans inside a grid container, must be positive. This prop is only useful for components inside a <code>grid</code> container.")
      (make-prop :column_span
                 :coerce grid-cell-span-coercer
-                :types ["integer"]
                 :doc "how many columns the component spans inside a grid container, must be positive. This prop is only useful for components inside a <code>grid</code> container.")]))
 
 (def read-only-props-coercer
   (coerce/hash-map :opt (coll/pair-map-by :name :coerce read-only-common-props)))
 
 (def ^:private common-props
-  (into [(enum-prop :alignment :doc "alignment of the component content within its assigned bounds, defaults to <code>\"top-left\"</code>")]
+  (into [(enum-prop :alignment :enum :alignment :doc "alignment of the component content within its assigned bounds, defaults to <code>editor.ui.ALIGNMENT.TOP_LEFT</code>")]
         read-only-common-props))
 
 (def ^:private multi-child-layout-container-props
@@ -173,7 +195,7 @@
           multi-child-layout-container-props)))
 
 (def ^:private separator-props
-  (into [(enum-prop :orientation :doc "separator line orientation, vertical or horizontal")]
+  (into [(enum-prop :orientation :enum :orientation :doc "separator line orientation, <code>editor.ui.ORIENTATION.VERTICAL</code> or <code>editor.ui.ORIENTATION.HORIZONTAL</code>")]
         common-props))
 
 (def ^:private scroll-props
@@ -184,23 +206,27 @@
                     :doc "content component")]
         read-only-common-props))
 
-(def ^:private label-without-variant-specific-props
+(def ^:private label-without-color-specific-props
   [(make-prop :text :coerce coerce/string :doc "the text")
-   (enum-prop :text_alignment :doc "text alignment within paragraph bounds")])
+   (enum-prop :text_alignment :enum :text-alignment :doc "text alignment within paragraph bounds")])
 
 (def ^:private label-specific-props
-  (conj label-without-variant-specific-props
-        (enum-prop :variant :enum :label_variant :doc "semantic label variant")))
+  (conj label-without-color-specific-props
+        (enum-prop :color :enum :color :doc "semantic color, defaults to <code>editor.ui.COLOR.TEXT</code>")))
 
 (def ^:private icon-specific-props
-  [(enum-prop :name :enum :icon_name :required true :doc "predefined icon name")])
+  [(enum-prop :name :enum :icon-name :required true :doc "predefined icon name")])
+
+(def ^:private tooltip-prop
+  (make-prop :tooltip :coerce coerce/string :doc "tooltip message, shown on hover"))
 
 (def ^:private label-props
-  (into label-specific-props common-props))
+  (-> label-specific-props
+      (conj tooltip-prop)
+      (into common-props)))
 
 (def ^:private typography-specific-props
-  (conj label-without-variant-specific-props
-        (enum-prop :variant :enum :typography_variant :doc "semantic typography variant")
+  (conj label-specific-props
         (make-prop :word_wrap
                    :coerce coerce/boolean
                    :doc "determines if the lines of text are word-wrapped when they don't fit in the assigned bounds, defaults to true")))
@@ -211,8 +237,7 @@
 
 (def ^:private heading-props
   (-> typography-specific-props
-      (conj (make-prop :level :coerce (coerce/enum 1 2 3 4 5 6) :types ["integer"]
-                       :doc "Heading level, an integer from 1 to 6, defaults to 3 (intended value for headings in dialog headers)"))
+      (conj (enum-prop :style :enum :heading-style :doc "heading style, defaults to <code>editor.ui.HEADING_STYLE.DIALOG</code>"))
       (into common-props)))
 
 (def ^:private icon-props
@@ -227,40 +252,54 @@
 (def ^:private button-specific-props
   [(make-prop :on_pressed
               :coerce coerce/function
-              :doc "button press callback")])
+              :doc "button press callback, will be invoked without arguments when the user presses the button")])
 
 (def ^:private button-props
   (into [] cat [button-specific-props
-                label-without-variant-specific-props
-                [(enum-prop :icon_name :doc "predefined icon name")]
+                label-without-color-specific-props
+                [(enum-prop :icon_name :enum :icon-name :doc "predefined icon name")]
                 common-input-props]))
 
-(def ^:private input-with-variant-props
-  (into [(enum-prop :variant :enum :input_variant :doc "input variant")]
+(def ^:private input-with-issue-props
+  (into [(make-prop :issue
+                    :coerce (coerce/one-of
+                              (coerce/hash-map :req {:severity (coerce/enum :error :warning)
+                                                     :message coerce/string})
+                              absent-coercer)
+                    :types ["table"]
+                    :doc (str "issue related to the input; table with the following keys (all required):"
+                              (lua-completion/args-doc-html
+                                [{:name "severity"
+                                  :types ["string"]
+                                  :doc "either <code>\"error\"</code> or <code>\"warning\"</code>"}
+                                 {:name "message"
+                                  :types ["string"]
+                                  :doc "issue message, will be shown in a tooltip"}])))
+         tooltip-prop]
         common-input-props))
 
 (def ^:private check-box-specific-props
-  [(make-prop :value :coerce coerce/boolean :doc "checked value")
+  [(make-prop :value :coerce coerce/boolean :doc "determines if the checkbox should appear checked")
    (make-prop :on_value_changed :coerce coerce/function :doc "change callback, will receive the new value")])
 
 (def ^:private check-box-props
-  (into [] cat [check-box-specific-props label-without-variant-specific-props input-with-variant-props]))
+  (into [] cat [check-box-specific-props label-without-color-specific-props input-with-issue-props]))
 
 (def ^:private select-box-specific-props
   [(make-prop :value :coerce coerce/untouched :doc "selected value")
    (make-prop :on_value_changed :coerce coerce/function :doc "change callback, will receive the selected value")
-   (make-prop :options :coerce (coerce/vector-of coerce/untouched) :doc "array of selectable options" :types ["any[]"])
-   (make-prop :to_string :coerce coerce/function :doc "function that converts an item to string, defaults to <code>tostring</code>")])
+   (make-prop :options :coerce (coerce/vector-of coerce/untouched) :doc "array of selectable options")
+   (make-prop :to_string :coerce coerce/function :doc "function that converts an item to a string, defaults to <code>tostring</code>")])
 
 (def ^:private select-box-props
-  (into select-box-specific-props input-with-variant-props))
+  (into select-box-specific-props input-with-issue-props))
 
 (def ^:private text-field-specific-props
   [(make-prop :text :coerce coerce/string :doc "text")
    (make-prop :on_text_changed :coerce coerce/function :doc "text change callback, will receive the new text")])
 
 (def ^:private text-field-props
-  (into text-field-specific-props input-with-variant-props))
+  (into text-field-specific-props input-with-issue-props))
 
 (def ^:private value-field-specific-props
   [(make-prop :value :coerce coerce/untouched :doc "value")
@@ -274,10 +313,10 @@
         value-field-specific-props))
 
 (def ^:private generic-value-field-props
-  (into convertible-value-field-specific-props input-with-variant-props))
+  (into convertible-value-field-specific-props input-with-issue-props))
 
 (def ^:private custom-value-field-props
-  (into value-field-specific-props input-with-variant-props))
+  (into value-field-specific-props input-with-issue-props))
 
 (def ^:private dialog-button-props
   [(make-prop :text
@@ -305,7 +344,7 @@
    (make-prop :header
               :coerce child-coercer
               :types ["component"]
-              :doc "top part of the dialog")
+              :doc "top part of the dialog, defaults to <code>editor.ui.heading({text = props.title})</code>")
    (make-prop :content
               :coerce child-coercer
               :types ["component"]
@@ -342,9 +381,8 @@
   (into [(make-prop :value :coerce coerce/string :doc "file or directory path; resolved against project root if relative")
          (make-prop :on_value_changed :coerce coerce/function :doc "value change callback, will receive the absolute path of a selected file/folder or nil if the field was cleared; even though the selector dialog allows selecting only files, it's possible to receive directories and non-existent file system entries using text field input")
          (make-prop :title :coerce coerce/string :doc external-file-dialog-title-doc)
-         (make-prop :filters :coerce external-file-dialog-filters-coercer :doc external-file-dialog-filters-doc :types ["table[]"])]
-        input-with-variant-props))
-
+         (make-prop :filters :coerce external-file-dialog-filters-coercer :doc external-file-dialog-filters-doc)]
+        input-with-issue-props))
 ;; endregion
 
 ;; region component definitions
@@ -353,11 +391,11 @@
   (lua-completion/args-doc-html
     (map #(update % :name name) props)))
 
-(s/def :editor.editor-extensions.components.component/name string?)
+(s/def :editor.editor-extensions.ui-docs.component/name string?)
 (s/def ::props (s/coll-of ::prop))
 (s/def ::description string?)
 (s/def ::component
-  (s/keys :req-un [:editor.editor-extensions.components.component/name ::props ::description]))
+  (s/keys :req-un [:editor.editor-extensions.ui-docs.component/name ::props ::description]))
 
 (defn ^{:arglists '([name & {:keys [props description]}])} component
   "Construct a component definition map
@@ -407,25 +445,25 @@
 (def label-component
   (component
     "label"
-    :description "Non-resizeable text label"
+    :description "Label intended for use with input components"
     :props label-props))
 
 (def paragraph-component
   (component
     "paragraph"
-    :description "Typography component representing a paragraph of text"
+    :description "A paragraph of text"
     :props paragraph-props))
 
 (def heading-component
   (component
     "heading"
-    :description "Typography component representing a heading"
+    :description "A text heading"
     :props heading-props))
 
 (def icon-component
   (component
     "icon"
-    :description "An icon of a fixed size"
+    :description "An icon from a predefined set"
     :props icon-props))
 
 (def button-component
@@ -486,20 +524,20 @@
   (component
     "dialog"
     :props dialog-props
-    :description "Dialog component, a special component that can't be used as a child of other components"))
+    :description "Dialog component, a top-level window component that can't be used as a child of other components"))
 
 ;; endregion
 
 ;; region docs
 
 (defn- component->script-doc [{:keys [name props description]}]
-  (let [{req true opt false} (group-by :required props)]
+  (let [[req opt] (coll/separate-by :required props)]
     {:name name
      :type :function
      :description description
      :parameters [{:name "props"
                    :types ["table"]
-                   :doc (str (when req
+                   :doc (str (when-not (coll/empty? req)
                                (str "Required props:\n"
                                     (props-doc-html req)
                                     "\n\n"))
@@ -512,13 +550,13 @@
 (def show-dialog-doc
   {:name "show_dialog"
    :type :function
-   :description "Show a dialog and await for result"
+   :description "Show a modal dialog and await a result"
    :parameters [{:name "dialog"
                  :types ["component"]
                  :doc "a component that resolves to <code>editor.ui.dialog(...)</code>"}]
    :returnvalues [{:name "value"
                    :types ["any"]
-                   :doc "dialog result"}]})
+                   :doc "dialog result, the value used as a <code>result</code> prop in a <code>editor.ui.dialog_button({...})</code> selected by the user, or <code>nil</code> if the dialog was closed and there was no <code>cancel = true</code> dialog button with <code>result</code> prop set"}]})
 
 (def function-component-doc
   {:name "component"
@@ -535,7 +573,7 @@
 (def show-external-file-dialog-doc
   {:name "show_external_file_dialog"
    :type :function
-   :description "Show OS file selection dialog and await for result"
+   :description "Show a modal OS file selection dialog and await a result"
    :parameters [{:name "[opts]"
                  :types ["table"]
                  :doc (lua-completion/args-doc-html
@@ -555,7 +593,7 @@
 (def show-external-directory-dialog-doc
   {:name "show_external_directory_dialog"
    :type :function
-   :description "Show OS directory selection dialog and await for result"
+   :description "Show a modal OS directory selection dialog and await a result"
    :parameters [{:name "[opts]"
                  :types ["table"]
                  :doc (lua-completion/args-doc-html
@@ -578,7 +616,7 @@
 (def show-resource-dialog-doc
   {:name "show_resource_dialog"
    :type :function
-   :description "Show editor's resource selection dialog and await for result"
+   :description "Show a modal resource selection dialog and await a result"
    :parameters [{:name "[opts]"
                  :types ["table"]
                  :doc (lua-completion/args-doc-html
@@ -674,8 +712,8 @@ end)</code></pre>"})
      :props (into [(make-prop :value :coerce coerce/string :doc "resource path (must start with <code>/</code>)")
                    (make-prop :on_value_changed :coerce coerce/function :doc "value change callback, will receive either resource path of a selected resource or nil when the field is cleared; even though the resource selector dialog allows filtering on resource extensions, it's possible to receive resources with other extensions and non-existent resources using text field input")
                    (make-prop :title :coerce coerce/string :doc resource-dialog-title-doc-string)
-                   (make-prop :extensions :coerce (coerce/vector-of coerce/string :min-count 1) :types ["string[]"] :doc resource-dialog-extensions-doc-string)]
-                  input-with-variant-props)}))
+                   (make-prop :extensions :coerce (coerce/vector-of coerce/string :min-count 1) :doc resource-dialog-extensions-doc-string)]
+                  input-with-issue-props)}))
 
 (defn script-docs
   "Returns reducible with all ui-related script doc maps"
@@ -698,8 +736,10 @@ end)</code></pre>"})
           button-component
           check-box-component
           select-box-component
-          text-field-component
-          value-field-component
+          ;; We don't need these components for the initial release, but we
+          ;; might want to add them later on:
+          #_text-field-component
+          #_value-field-component
           string-field-component
           integer-field-component
           number-field-component

@@ -10,8 +10,9 @@ function M.get_commands()
                     title = "Dialog title",
                     header = editor.ui.heading({
                         text = "Header on the Right",
-                        variant = editor.ui.TYPOGRAPHY_VARIANT.HINT,
-                        alignment = editor.ui.ALIGNMENT.RIGHT
+                        color = editor.ui.COLOR.HINT,
+                        alignment = editor.ui.ALIGNMENT.RIGHT,
+                        style = editor.ui.HEADING_STYLE.DIALOG
                     }),
                     content = editor.ui.scroll({
                         content = editor.ui.grid({
@@ -33,7 +34,8 @@ function M.get_commands()
                                 {
                                     editor.ui.label({
                                         text = "Icon buttons", 
-                                        alignment = editor.ui.ALIGNMENT.RIGHT
+                                        alignment = editor.ui.ALIGNMENT.RIGHT,
+                                        color = editor.ui.COLOR.HINT
                                     }),
                                     editor.ui.horizontal({
                                         children = {
@@ -47,7 +49,8 @@ function M.get_commands()
                                 {
                                     editor.ui.label({
                                         text = "Button", 
-                                        alignment = editor.ui.ALIGNMENT.RIGHT
+                                        alignment = editor.ui.ALIGNMENT.RIGHT,
+                                        color = editor.ui.COLOR.OVERRIDE
                                     }),
                                     editor.ui.button({
                                         text = "Open resource",
@@ -57,7 +60,8 @@ function M.get_commands()
                                 {
                                     editor.ui.label({
                                         text = "Select box", 
-                                        alignment = editor.ui.ALIGNMENT.RIGHT
+                                        alignment = editor.ui.ALIGNMENT.RIGHT,
+                                        color = editor.ui.COLOR.WARNING
                                     }),
                                     editor.ui.select_box({
                                         value = 1,
@@ -66,36 +70,14 @@ function M.get_commands()
                                 },
                                 {
                                     editor.ui.label({
-                                        text = "Text field", 
-                                        alignment = editor.ui.ALIGNMENT.RIGHT
-                                    }),
-                                    editor.ui.text_field({ 
-                                        text = "Warning text field",
-                                        on_text_changed = print,
-                                        variant = editor.ui.INPUT_VARIANT.WARNING
-                                    })
-                                },
-                                {
-                                    editor.ui.label({
-                                        text = "Value field", 
-                                        alignment = editor.ui.ALIGNMENT.RIGHT
-                                    }),
-                                    editor.ui.value_field({
-                                        value = 12.5,
-                                        on_value_changed = print,
-                                        to_value = tonumber,
-                                        to_string = tostring
-                                    })
-                                },
-                                {
-                                    editor.ui.label({
                                         text = "String field", 
-                                        alignment = editor.ui.ALIGNMENT.RIGHT
+                                        alignment = editor.ui.ALIGNMENT.RIGHT,
+                                        color = editor.ui.COLOR.ERROR
                                     }),
                                     editor.ui.string_field({
                                         value = "Error string",
                                         on_value_changed = print,
-                                        variant = editor.ui.INPUT_VARIANT.ERROR
+                                        issue = {severity = "error", message = "error message"}
                                     })
                                 },
                                 {
@@ -106,7 +88,7 @@ function M.get_commands()
                                     editor.ui.integer_field({
                                         value = 666,
                                         on_value_changed = print,
-                                        variant = editor.ui.INPUT_VARIANT.WARNING
+                                        issue = {severity = "warning", message = "warning message"}
                                     })
                                 },
                                 {
@@ -171,12 +153,12 @@ function M.get_commands()
                                             }),
                                             editor.ui.check_box({
                                                 text = "Warning check box",
-                                                variant = editor.ui.INPUT_VARIANT.WARNING
+                                                issue = {severity = "warning", message = "warning message"}
                                             }),
                                             editor.ui.check_box({
                                                 text = "Disabled error check box",
                                                 enabled = false,
-                                                variant = editor.ui.INPUT_VARIANT.ERROR
+                                                issue = {severity = "error", message = "error message"}
                                             }),
                                             editor.ui.check_box({
                                                 value = true

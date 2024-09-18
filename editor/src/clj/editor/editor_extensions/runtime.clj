@@ -257,14 +257,14 @@
                       that returns either nil if the resource is not found or
                       InputStream to read the contents of found resource,
                       defaults to (constantly nil); execution context is a map
-                      with following keys:
+                      with the following keys:
                         :evaluation-context    the evaluation context for the
                                                current execution
                         :rt                    the runtime used for execution
                         :mode                  :suspendable or :immediate
     :resolve-file     2-arg function from an execution context and file path
                       string to a resolved file string; execution context is a
-                      map with following keys:
+                      map with the following keys:
                         :evaluation-context    the evaluation context for the
                                                current execution
                         :rt                    the runtime used for execution
@@ -416,7 +416,7 @@
   Args:
     runtime                the editor Lua runtime
     lua-fn                 LuaFunction to invoke
-    lua-args*                  0 or more LuaValue arguments
+    lua-args*              0 or more LuaValue arguments
     evaluation-context?    optional evaluation context for the execution"
   {:arglists '([runtime lua-fn lua-args* evaluation-context?])}
   [runtime lua-fn & rest-args]
@@ -435,7 +435,7 @@
   Args:
     runtime                the editor Lua runtime
     lua-fn                 LuaFunction to invoke
-    lua-args*                  0 or more LuaValue arguments
+    lua-args*              0 or more LuaValue arguments
     evaluation-context?    optional evaluation context for the execution"
   {:arglists '([runtime lua-fn lua-args* evaluation-context?])}
   [^EditorExtensionsRuntime runtime lua-fn & rest-args]

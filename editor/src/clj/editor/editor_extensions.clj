@@ -47,7 +47,7 @@
 (set! *warn-on-reflection* true)
 
 (defn- ext-state
-  "Returns an extension state, a map with following keys:
+  "Returns an extension state, a map with the following keys:
     :reload-resources!     0-arg function used to reload resources
     :display-output!       2-arg function used to display extension-related
                            output to the user, where args are:
@@ -134,11 +134,6 @@
           node-id (graph/node-id-or-path->node-id node-id-or-path project evaluation-context)]
       (some? (graph/ext-lua-value-setter node-id property rt project evaluation-context)))))
 
-(defn- make-resource-exists-fn [project]
-  (rt/lua-fn ext-resource-exists [{:keys [rt evaluation-context]} lua-resource-path]
-    (let [proj-path (rt/->clj rt graph/resource-path-coercer lua-resource-path)]
-      (some? (project/get-resource-node project proj-path evaluation-context)))))
-
 (defn- make-ext-create-directory-fn [project reload-resources!]
   (rt/suspendable-lua-fn ext-create-directory [{:keys [rt evaluation-context]} lua-proj-path]
     (let [^String proj-path (rt/->clj rt graph/resource-path-coercer lua-proj-path)]
@@ -203,7 +198,7 @@
       (future/io
         (if (fs/path-exists? path)
           (let [attrs (fs/path-attributes path)]
-            {:path (str path)
+            {:path (str (.toRealPath path fs/empty-link-option-array))
              :exists true
              :is_file (.isRegularFile attrs)
              :is_directory (.isDirectory attrs)})
@@ -211,6 +206,20 @@
            :exists false
            :is_file false
            :is_directory false})))))
+
+(defn- make-ext-resource-attributes-fn [project]
+  (rt/lua-fn ext-resource-attributes [{:keys [rt evaluation-context]} lua-resource-path]
+    (let [proj-path (rt/->clj rt graph/resource-path-coercer lua-resource-path)]
+      (if-let [resource (-> project
+                            (project/workspace evaluation-context)
+                            (workspace/find-resource proj-path evaluation-context))]
+        (let [source-type (resource/source-type resource)]
+          {:exists true
+           :is_file (= :file source-type)
+           :is_directory (= :folder source-type)})
+        {:exists false
+         :is_file false
+         :is_directory false}))))
 
 (def ^:private empty-lua-string
   (rt/->lua ""))
@@ -498,18 +507,17 @@
                           changes, returns CompletableFuture (that might
                           complete exceptionally if reload fails)
     :open-resource!       1-arg function that asynchronously opens the supplied
-                          resource in an editor tab, returns CompletableFuture
-                          (that might complete exceptionally if resource could
-                          not be opened)"
+                          resource either in an editor tab or in another app that
+                          has OS-defined file association, returns
+                          CompletableFuture (that might complete exceptionally
+                          if resource could not be opened)"
   [project kind & {:keys [reload-resources! display-output! save! open-resource!] :as opts}]
   {:pre [reload-resources! display-output! save! open-resource!]}
   (g/with-auto-evaluation-context evaluation-context
     (let [extensions (g/node-value project :editor-extensions evaluation-context)
           old-state (ext-state project evaluation-context)
           workspace (project/workspace project evaluation-context)
-          project-path (-> (workspace/project-path workspace evaluation-context)
-                           .toPath
-                           .normalize)
+          project-path (.toPath (workspace/project-path workspace evaluation-context))
           rt (rt/make
                :find-resource (partial find-resource project)
                :resolve-file (partial resolve-file project-path)
@@ -520,9 +528,9 @@
                :env {"editor" {"get" (make-ext-get-fn project)
                                "can_get" (make-ext-can-get-fn project)
                                "can_set" (make-ext-can-set-fn project)
-                               "resource_exists" (make-resource-exists-fn project)
                                "create_directory" (make-ext-create-directory-fn project reload-resources!)
                                "delete_directory" (make-ext-delete-directory-fn project reload-resources!)
+                               "resource_attributes" (make-ext-resource-attributes-fn project)
                                "external_file_attributes" (make-ext-external-file-attributes-fn project-path)
                                "execute" (make-ext-execute-fn project-path display-output! reload-resources!)
                                "platform" (.getPair (Platform/getHostPlatform))

@@ -1,10 +1,10 @@
 local M = {}
 
 local function test_resource(resource_path)
-    local success, exists = pcall(editor.resource_exists, resource_path)
+    local success, attrs = pcall(editor.resource_attributes, resource_path)
     local message
     if success then
-        message = exists and "exists" or "does not exist"
+        message = attrs.exists and ("exists (" .. (attrs.is_file and "file" or "directory") .. ")" ) or "does not exist"
     else
         message = "error"
     end
@@ -16,6 +16,7 @@ function M.get_commands()
         label = "Test",
         locations = {"Edit"},
         run = function()
+            test_resource("/")
             test_resource("/game.project")
             test_resource("/does_not_exist.txt")
             test_resource("not_a_resource_path.go")

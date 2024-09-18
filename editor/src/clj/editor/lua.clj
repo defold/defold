@@ -266,15 +266,25 @@
                          :types ["boolean"]
                          :doc ""}]
          :description "Check if `\"set\"` action with this property won't throw an error"}
-        {:name "editor.resource_exists"
+        {:name "editor.resource_attributes"
          :type :function
-         :description "Check if a given resource path exists in the project"
+         :description "Query information about a project resource"
          :parameters [{:name "resource_path"
                        :types ["string"]
-                       :doc "Resource path (starting with <code>/</code>) of a directory to look up"}]
+                       :doc "Resource path (starting with <code>/</code>) of a resource to look up"}]
          :returnvalues [{:name "value"
-                         :types ["boolean"]
-                         :doc ""}]}
+                         :types ["table"]
+                         :doc (str "A table with the following keys:"
+                                   (lua-completion/args-doc-html
+                                     [{:name "exists"
+                                       :types ["boolean"]
+                                       :doc "whether a resource identified by the path exists in the project"}
+                                      {:name "is_file"
+                                       :types ["boolean"]
+                                       :doc "whether the resource represents a file with some content"}
+                                      {:name "is_directory"
+                                       :types ["boolean"]
+                                       :doc "whether the resource represents a directory"}]))}]}
         {:name "editor.create_directory"
          :type :function
          :parameters [{:name "resource_path"
@@ -297,7 +307,7 @@
                        :doc "External file path, resolved against project root if relative"}]
          :returnvalues [{:name "attributes"
                          :types ["table"]
-                         :doc "A table with following keys:<dl>
+                         :doc "A table with the following keys:<dl>
                                                  <dt><code>path <small>string</small></code></dt>
                                                  <dd>resolved file path</dd>
                                                  <dt><code>exists <small>boolean</small></code></dt>

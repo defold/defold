@@ -28,6 +28,7 @@
             [cljfx.fx.scroll-pane :as fx.scroll-pane]
             [cljfx.fx.stage :as fx.stage]
             [cljfx.fx.text-field :as fx.text-field]
+            [cljfx.fx.tooltip :as fx.tooltip]
             [cljfx.fx.v-box :as fx.v-box]
             [cljfx.lifecycle :as fx.lifecycle]
             [cljfx.mutator :as fx.mutator]
@@ -49,7 +50,8 @@
             [editor.resource-dialog :as resource-dialog]
             [editor.ui :as ui]
             [internal.util :as iutil]
-            [util.coll :as coll :refer [pair]])
+            [util.coll :as coll :refer [pair]]
+            [util.fn :as fn])
   (:import [com.defold.control DefoldStringConverter]
            [com.defold.editor.luart DefoldVarArgFn]
            [java.nio.file Path]
@@ -79,7 +81,7 @@
 (s/def ::advance ifn?)
 (s/def ::return ifn?)
 (s/def ::hook
-  (s/keys :req-un [:editor.editor-extensions.components.component/name ::create ::advance ::return]))
+  (s/keys :req-un [:editor.editor-extensions.ui-docs.component/name ::create ::advance ::return]))
 
 (defn- ^{:arglists '([name & {:keys [create advance return]}])} make-hook
   "Construct a hook definition map
@@ -242,21 +244,19 @@
       (cond->
         children (assoc :children
                         (into []
-                              (comp
-                                (map-indexed
-                                  (fn [row row-children]
-                                    (eduction
-                                      (keep-indexed
-                                        (fn [column child]
-                                          (when child
-                                            (let [{:keys [row_span column_span]
-                                                   :or {row_span 1 column_span 1}} (:props (meta child))]
-                                              (assoc child :grid-pane/row row
-                                                           :grid-pane/column column
-                                                           :grid-pane/row-span row_span
-                                                           :grid-pane/column-span column_span)))))
-                                      row-children)))
-                                cat)
+                              (coll/mapcat-indexed
+                                (fn [row row-children]
+                                  (eduction
+                                    (keep-indexed
+                                      (fn [column child]
+                                        (when child
+                                          (let [{:keys [row_span column_span]
+                                                 :or {row_span 1 column_span 1}} (:props (meta child))]
+                                            (assoc child :grid-pane/row row
+                                                         :grid-pane/column column
+                                                         :grid-pane/row-span row_span
+                                                         :grid-pane/column-span column_span)))))
+                                    row-children)))
                               children))
         rows (apply-constraints fx.row-constraints/lifecycle :vgrow rows)
         columns (apply-constraints fx.column-constraints/lifecycle :hgrow columns)
@@ -299,24 +299,22 @@
 
 ;; region data presentation components
 
-(def ^:private ^{:arglists '([props text-variant])} apply-typography-variant
-  (let [m (coll/pair-map-by identity #(str "ext-typography-variant-" (name %)) (:typography_variant ui-docs/enums))]
-    (fn apply-text-variant [props text-variant]
-      {:pre [(some? text-variant)]}
-      (if-let [style-class (m text-variant)]
-        (fxui/add-style-classes props style-class)
-        (throw (AssertionError. (str "Invalid typography variant: " text-variant)))))))
+(def ^:private ^{:arglists '([props color])} apply-label-color
+  (let [color->style-class (fn/make-case-fn (coll/pair-map-by identity #(str "ext-label-color-" (name %)) (:color ui-docs/enums)))]
+    (fn apply-label-color [props color]
+      (fxui/add-style-classes props (color->style-class color)))))
 
-(def ^:private ^{:arglists '([props label-variant])} apply-label-variant
-  (let [m (coll/pair-map-by identity #(str "ext-label-variant-" (name %)) (:label_variant ui-docs/enums))]
-    (fn apply-text-variant [props text-variant]
-      {:pre [(some? text-variant)]}
-      (if-let [style-class (m text-variant)]
-        (fxui/add-style-classes props style-class)
-        (throw (AssertionError. (str "Invalid label variant: " text-variant)))))))
+(defn- apply-tooltip [props text]
+  {:pre [(some? text)]}
+  (assoc props :tooltip {:fx/type fx.tooltip/lifecycle
+                         :text text
+                         :hide-delay :zero
+                         :show-delay :zero
+                         :show-duration [30 :s]}))
 
-(defn- label-view [{:keys [alignment text text_alignment variant]
-                    :or {alignment :top-left}}]
+(defn- label-view [{:keys [alignment text text_alignment color tooltip]
+                    :or {alignment :top-left
+                         color :text}}]
   (-> {:fx/type fx.label/lifecycle
        :style-class ["label" "ext-label"]
        :min-width :use-pref-size
@@ -324,45 +322,42 @@
        :max-width Double/MAX_VALUE
        :max-height Double/MAX_VALUE}
       (apply-alignment alignment)
+      (apply-label-color color)
       (cond-> text (assoc :text text)
-              text_alignment (assoc :text-alignment text_alignment)
-              variant (apply-label-variant variant))))
+              tooltip (apply-tooltip tooltip)
+              text_alignment (assoc :text-alignment text_alignment))))
 
-(defn- paragraph-view [{:keys [alignment text text_alignment variant word_wrap]
+(defn- paragraph-view [{:keys [alignment text text_alignment color word_wrap]
                         :or {alignment :top-left
-                             word_wrap true}}]
+                             word_wrap true
+                             color :text}}]
   (-> {:fx/type fx.label/lifecycle
        :style-class ["label"]
        :max-width Double/MAX_VALUE
        :max-height Double/MAX_VALUE
        :wrap-text word_wrap}
       (apply-alignment alignment)
+      (apply-label-color color)
       (cond-> text (assoc :text text)
-              text_alignment (assoc :text-alignment text_alignment)
-              variant (apply-typography-variant variant))))
+              text_alignment (assoc :text-alignment text_alignment))))
 
-(defn- heading-level-class [level]
-  (case (int level)
-    1 "ext-heading-1"
-    2 "ext-heading-2"
-    3 "ext-heading-3"
-    4 "ext-heading-4"
-    5 "ext-heading-5"
-    6 "ext-heading-6"))
+(def ^:private heading-style->label-style-class
+  (fn/make-case-fn (coll/pair-map-by identity #(str "ext-heading-style-" (name %)) (:heading-style ui-docs/enums))))
 
-(defn- heading-view [{:keys [alignment text text_alignment variant word_wrap level]
+(defn- heading-view [{:keys [alignment text text_alignment color word_wrap style]
                       :or {alignment :top-left
                            word_wrap true
-                           level 3}}]
+                           style :dialog
+                           color :text}}]
   (-> {:fx/type fx.label/lifecycle
-       :style-class ["label" (heading-level-class level)]
+       :style-class ["label" (heading-style->label-style-class style)]
        :max-width Double/MAX_VALUE
        :max-height Double/MAX_VALUE
        :wrap-text word_wrap}
       (apply-alignment alignment)
+      (apply-label-color color)
       (cond-> text (assoc :text text)
-              text_alignment (assoc :text-alignment text_alignment)
-              variant (apply-typography-variant variant))))
+              text_alignment (assoc :text-alignment text_alignment))))
 
 (defn- wrap-in-alignment-container
   "Wrapper for components that don't specify alignment
@@ -444,7 +439,7 @@
                             enabled
                             alignment]
                      :or {enabled true}}]
-  (let [has-text (and (some? text) (not (string/blank? text)))
+  (let [has-text (not (string/blank? text))
         has-icon (some? icon_name)
         style-class (cond
                       (and has-text has-icon) ["ext-button" "ext-button-text-and-icon"]
@@ -486,24 +481,31 @@
                             (fx.mutator/property-change-listener #(.selectedProperty ^CheckBox %))
                             property-change-listener-with-source-owner-window-lifecycle)}))
 
-(defn- check-box-view [{:keys [rt text text_alignment alignment variant enabled value on_value_changed #_child]
+(defn- apply-tooltip-and-issue [props tooltip issue]
+  (let [message (:message issue)]
+    (cond-> props (or message tooltip) (apply-tooltip (if (and message tooltip)
+                                                        (str message "\n\n" tooltip)
+                                                        (or message tooltip))))))
+
+(defn- check-box-view [{:keys [rt text text_alignment alignment issue tooltip enabled value on_value_changed]
                         :or {enabled true
-                             value false
-                             variant :default}}]
+                             value false}}]
   (wrap-in-alignment-container
     {:fx/type ext-with-extra-check-box-props
-     :desc (cond-> {:fx/type fx.check-box/lifecycle
-                    :style-class ["check-box" "ext-check-box"]
-                    :alignment :center-left
-                    :min-width :use-pref-size
-                    :min-height :use-pref-size
-                    :max-width Double/MAX_VALUE
-                    :max-height Double/MAX_VALUE
-                    :pseudo-classes #{variant}
-                    :disable (not enabled)
-                    :selected value}
-                   text (assoc :text text)
-                   text_alignment (assoc :text-alignment text_alignment))
+     :desc (-> {:fx/type fx.check-box/lifecycle
+                :style-class ["check-box" "ext-check-box"]
+                :alignment :center-left
+                :min-width :use-pref-size
+                :min-height :use-pref-size
+                :max-width Double/MAX_VALUE
+                :max-height Double/MAX_VALUE
+                :pseudo-classes (or (some-> issue :severity hash-set) #{})
+                :disable (not enabled)
+                :selected value}
+               (apply-tooltip-and-issue tooltip issue)
+               (cond->
+                 text (assoc :text text)
+                 text_alignment (assoc :text-alignment text_alignment)))
      :props (cond-> {} on_value_changed (assoc :on-selected-changed (make-event-handler-1 :window :value rt "on_value_changed" on_value_changed)))}
     alignment))
 
@@ -539,22 +541,23 @@
                          (fx.mutator/property-change-listener #(.valueProperty ^ComboBox %))
                          property-change-listener-with-source-owner-window-lifecycle)}))
 
-(defn- select-box-view [{:keys [rt alignment variant enabled value options on_value_changed to_string]
+(defn- select-box-view [{:keys [rt alignment tooltip issue enabled value options on_value_changed to_string]
                          :or {options []
-                              enabled true
-                              variant :default}}]
+                              enabled true}}]
   (wrap-in-alignment-container
     {:fx/type ext-with-extra-combo-box-props
      :desc {:fx/type fxui/ext-memo
             :fn create-select-box-string-converter
             :args [rt to_string]
             :key :converter
-            :desc {:fx/type fx.combo-box/lifecycle
-                   :value value
-                   :pseudo-classes #{variant}
-                   :on-key-pressed on-select-box-key-pressed
-                   :items options
-                   :disable (not enabled)}}
+            :desc (apply-tooltip-and-issue
+                    {:fx/type fx.combo-box/lifecycle
+                     :value value
+                     :pseudo-classes (or (some-> issue :severity hash-set) #{})
+                     :on-key-pressed on-select-box-key-pressed
+                     :items options
+                     :disable (not enabled)}
+                    tooltip issue)}
      :props (cond-> {} on_value_changed (assoc :on-value-changed (make-event-handler-1 :window :value rt "on_value_changed" on_value_changed)))}
     alignment
     true))
@@ -569,15 +572,17 @@
                         (fx.mutator/property-change-listener #(.textProperty ^TextField %))
                         property-change-listener-with-source-owner-window-lifecycle)}))
 
-(defn- text-field-view [{:keys [rt text on_text_changed variant enabled alignment]
-                         :or {text "" variant :default enabled true}}]
+(defn- text-field-view [{:keys [rt text on_text_changed tooltip issue enabled alignment]
+                         :or {text "" enabled true}}]
   (wrap-in-alignment-container
     {:fx/type ext-with-extra-text-field-props
-     :desc {:fx/type fx.text-field/lifecycle
-            :style-class ["text-field" "ext-text-field"]
-            :pseudo-classes #{variant}
-            :disable (not enabled)
-            :text text}
+     :desc (apply-tooltip-and-issue
+             {:fx/type fx.text-field/lifecycle
+              :style-class ["text-field" "ext-text-field"]
+              :pseudo-classes (or (some-> issue :severity hash-set) #{})
+              :disable (not enabled)
+              :text text}
+             tooltip issue)
      :props (cond-> {} on_text_changed (assoc :on-text-changed (make-event-handler-1 :window :value rt "on_text_changed" on_text_changed)))}
     alignment true))
 
@@ -668,22 +673,25 @@
            on_value_changed
            to_value
            #_to_string                                      ;; the key is here, but unused, see value-field-view-impl-1
-           variant
+           tooltip
+           issue
            enabled
            alignment]
-    :or {variant :default
-         enabled true}}]
+    :or {enabled true}}]
   (let [{:keys [edit]} state]
     (wrap-in-alignment-container
       {:fx/type ext-with-extra-value-field-props
        :props {:text (or edit text)
                :on-focused-changed #(on-value-field-focus-changed rt value text on_value_changed to_value edit swap-state %)}
-       :desc {:fx/type fx.text-field/lifecycle
-              :style-class ["text-field" "ext-text-field"]
-              :disable (not enabled)
-              :pseudo-classes #{variant}
-              :on-text-changed #(swap-state assoc :edit %)
-              :on-key-pressed #(on-value-field-key-pressed rt value text on_value_changed to_value edit swap-state %)}}
+       :desc (apply-tooltip-and-issue
+               {:fx/type fx.text-field/lifecycle
+                :style-class ["text-field" "ext-text-field"]
+                :disable (not enabled)
+                :pseudo-classes (or (some-> issue :severity hash-set) #{})
+                :on-text-changed #(swap-state assoc :edit %)
+                :on-key-pressed #(on-value-field-key-pressed rt value text on_value_changed to_value edit swap-state %)}
+               tooltip
+               issue)}
       alignment
       true)))
 
@@ -715,7 +723,7 @@
 
 (def ^:private lua-to-string-fn
   (DefoldVarArgFn.
-    (fn to-string [^LuaValue arg]
+    (fn to-lua-string [^LuaValue arg]
       ;; translated from package-private org.luaj.vm2.lib.BaseLib$tostring
       (let [h (.metatag arg LuaValue/TOSTRING)]
         (if-not (.isnil h)
@@ -988,8 +996,8 @@
 
 ;; This dynamic makes the hooks work. It's bound when component lua function is
 ;; invoked, and hooks use the component atom for setting up their behavior.
-;; Component atom contains a map with following keys:
-;;   :hooks                 a vector of maps with following keys:
+;; Component atom contains a map with the following keys:
+;;   :hooks                 a vector of maps with the following keys:
 ;;                            :hook    the hook map, created with make-hook
 ;;                            :state   the hook state
 ;;   :current-hook-index    integer identifying the current hook in :hooks. when
@@ -1049,7 +1057,7 @@
     ;; both old and new instances are going to be the same. In practice, this is not
     ;; an issue, since function components typically return the same root instance,
     ;; and the function is only needed for local state that affects behavior.
-    (when-not (= old-instance new-instance)
+    (when-not (identical? old-instance new-instance)
       (throw (LuaError. "component function returned a different UI component instance, which is not allowed")))
     new-child))
 
@@ -1127,8 +1135,8 @@
               (fx.lifecycle/create this this-desc opts)))))
     (delete [this component-atom opts]
       (remove-watch component-atom this)
-      (swap! component-atom assoc :mode :delete)
-      (fx.lifecycle/delete fx.lifecycle/dynamic (:child @component-atom) opts))))
+      (let [{:keys [child]} (swap! component-atom assoc :mode :delete)]
+        (fx.lifecycle/delete fx.lifecycle/dynamic child opts)))))
 
 (def ^:private function-component-lua-fn
   (rt/lua-fn function-component [{:keys [rt]} lua-fn]
@@ -1139,7 +1147,7 @@
                :rt rt
                :lua-fn lua-fn
                :lua-props lua-props}
-              (vary-meta assoc :type :component :props read-only-props)
+              (with-meta {:type :component :props read-only-props})
               (rt/wrap-userdata "editor.ui.component(...)")))))))
 
 ;; endregion
@@ -1269,6 +1277,12 @@
                         (throw (LuaError. (format "Cannot use '%s' hook after component is deleted" (:name hook)))))]
         ((:return hook) (-> new-state :hooks (get current-hook-index) :state))))))
 
+(def ^:private use-state-hook-lua-fn
+  (make-hook-lua-fn use-state-hook))
+
+(def ^:private use-memo-hook-lua-fn
+  (make-hook-lua-fn use-memo-hook))
+
 ;; endregion
 
 ;; endregion
@@ -1299,8 +1313,10 @@
             [ui-docs/button-component button-view]
             [ui-docs/check-box-component check-box-view]
             [ui-docs/select-box-component select-box-view]
-            [ui-docs/text-field-component text-field-view]
-            [ui-docs/value-field-component value-field-view]
+            ;; We don't need these components for the initial release, but we
+            ;; might want to add them later on:
+            #_[ui-docs/text-field-component text-field-view]
+            #_[ui-docs/value-field-component value-field-view]
             [ui-docs/string-field-component string-field-view]
             [ui-docs/integer-field-component integer-field-view]
             [ui-docs/number-field-component number-field-view]
@@ -1314,5 +1330,5 @@
             [ui-docs/show-external-file-dialog-doc (make-show-external-file-dialog-lua-fn project-path)]
             [ui-docs/show-external-directory-dialog-doc (make-show-external-directory-dialog-lua-fn project-path)]
             [ui-docs/show-resource-dialog-doc (make-show-resource-dialog-lua-fn workspace project)]
-            [ui-docs/use-state-doc (make-hook-lua-fn use-state-hook)]
-            [ui-docs/use-memo-doc (make-hook-lua-fn use-memo-hook)]])]))
+            [ui-docs/use-state-doc use-state-hook-lua-fn]
+            [ui-docs/use-memo-doc use-memo-hook-lua-fn]])]))

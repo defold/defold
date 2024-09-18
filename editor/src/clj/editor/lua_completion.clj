@@ -20,7 +20,7 @@
 (defn args-doc-html
   "Convert lua args data structure to html string
 
-   Args is a collection of maps with following keys:
+   Args is a collection of maps with the following keys:
      :name     string, required
      :doc      optional html string
      :types    coll of strings, i.e. union"
@@ -84,11 +84,11 @@
   "Make a lua-specific code completion
 
   Args:
-    doc    documentation map with following keys:
+    doc    documentation map with the following keys:
              :name            string, required, element name
              :type            keyword
              :parameters      for :function type, optional vector of parameter
-                              maps with following keys:
+                              maps with the following keys:
                                 :name     string, required
                                 :doc      optional html string
                                 :types    coll of strings, i.e. union

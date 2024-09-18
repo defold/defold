@@ -348,7 +348,7 @@
 
   Required args:
     project     defold project node id
-    launcher    the server launcher, e.g. a map with following keys:
+    launcher    the server launcher, e.g. a map with the following keys:
                   :command    a shell command to launch the language process,
                               vector of strings, required
     in          input channel that server will take items from to execute,

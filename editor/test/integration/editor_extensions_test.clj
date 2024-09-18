@@ -405,8 +405,8 @@
       (is (= [[:out "file read: before save = 'Initial text', after save = 'New text'"]]
              @output)))))
 
-(deftest resource-exists-test
-  (test-util/with-loaded-project "test/resources/editor_extensions/resource_exists_project"
+(deftest resource-attributes-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/resource_attributes_project"
     (let [output (atom [])
           _ (extensions/reload! project :all
                                 :reload-resources! (make-reload-resources-fn workspace)
@@ -420,9 +420,10 @@
                               false)
                             {})]
       @(handler/run handler+context)
-      ;; see test.editor script: it uses editor.resource_exists with different resource
+      ;; see test.editor script: it uses editor.resource_attributes with different resource
       ;; paths and prints results
-      (is (= [[:out "test '/game.project': exists"]
+      (is (= [[:out "test '/': exists (directory)"]
+              [:out "test '/game.project': exists (file)"]
               [:out "test '/does_not_exist.txt': does not exist"]
               [:out "test 'not_a_resource_path.go': error"]]
              @output)))))

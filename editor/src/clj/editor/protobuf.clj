@@ -373,11 +373,11 @@ Macros currently mean no foreseeable performance gain, however."
                  (cond
                    (resource-field? field-info)
                    (case (:field-rule field-info)
-                     :repeated [ [[key]]]
-                     :required [ [key]]
+                     :repeated [[[key]]]
+                     :required [[key]]
                      :optional (if-some [field-default (declared-default class key)]
-                                 [ [{key field-default}]]
-                                 [ [key]]))
+                                 [[{key field-default}]]
+                                 [[key]]))
 
                    (message-field? field-info)
                    (let [sub-paths (resource-field-path-specs (:type field-info))]

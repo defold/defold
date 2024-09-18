@@ -364,7 +364,7 @@
 
 (defn show-dialog-and-await-result!
   "Creates a dialog, shows it and block current thread until dialog has a result
-  (which is checked by presence of a ::result key in state map)
+  (which is checked by the presence of a ::result key in the state map)
 
   Kv-args:
     :event-handler    required, 2-argument event handler, receives current state
@@ -380,8 +380,8 @@
                       :showing property should be set to true
     :initial-state    optional, defaults to {}, map containing initial state of
                       a dialog, should not contain ::result key to be shown
-    :error-handler    optional, 1-arg Throwable handler, reports to sentry by
-                      default"
+    :error-handler    optional, 1-arg Throwable handler, by default it shows an
+                      error dialog and reports the exception to sentry"
   [& {:keys [initial-state event-handler description error-handler]
       :or {initial-state {}
            error-handler error-reporting/report-exception!}}]

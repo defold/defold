@@ -29,7 +29,8 @@ editor.ui.external_file_field = editor.ui.component(function(props)
                 grow = true,
                 value = value,
                 on_value_changed = on_value_changed,
-                variant = props.variant,
+                issue = props.issue,
+                tooltip = props.tooltip,
                 enabled = props.enabled
             },
             editor.ui.button {
@@ -82,12 +83,13 @@ editor.ui.resource_field = editor.ui.component(function(props)
                 grow = true,
                 value = value,
                 on_value_changed = on_value_changed,
-                variant = props.variant,
+                issue = props.issue,
+                tooltip = props.tooltip,
                 enabled = enabled
             }),
             editor.ui.button({
                 icon_name = editor.ui.ICON_NAME.OPEN_RESOURCE,
-                enabled = enabled and value ~= nil and editor.resource_exists(value),
+                enabled = enabled and value ~= nil and editor.resource_attributes(value).is_file,
                 on_pressed = open_resource_callback
             }),
             editor.ui.button({

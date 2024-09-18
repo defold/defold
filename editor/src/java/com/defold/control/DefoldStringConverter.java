@@ -18,7 +18,7 @@ public class DefoldStringConverter extends StringConverter<Object> {
 
     @Override
     public String toString(Object o) {
-        return String.valueOf(toString.invoke(o));
+        return (String) toString.invoke(o);
     }
 
     @Override
