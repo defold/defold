@@ -215,8 +215,8 @@
   ([function-name node]
    (matching-functioncall nil function-name node))
   ([module-name function-name node]
-   (when (= :functioncall (first node))
-     (when-some [var-node (deep-search-node node :var)]
+   (when-some [var-or-exp-node (matching-type :varOrExp (second node))]
+     (when-some [var-node (deep-search-node var-or-exp-node :var)]
        (if module-name
          ;; If module-name is specified, ensure the :var matches the module-name
          (when (= module-name (second var-node))
@@ -226,7 +226,6 @@
          ;; If module-name is not specified, compare the :var directly with function-name
          (match-and-extract-args function-name node
                                  #(= function-name (second var-node))))))))
-
 
 (defn- matching-args [parse-fns arg-exps]
   (when (= (count parse-fns) (count arg-exps))

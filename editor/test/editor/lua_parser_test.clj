@@ -76,6 +76,11 @@
     (let [code "x,y = require(\"myx\"), require(\"myy\")"
           result (select-keys (lua-info code) [:vars :requires])]
       (is (= {:vars #{"x" "y"}
+              :requires [["x" "myx"] ["y" "myy"]]} result))))
+  (testing "global with multiple global require assignments"
+    (let [code "x,y = _G.require(\"myx\"), _G.require(\"myy\")"
+          result (select-keys (lua-info code) [:vars :requires])]
+      (is (= {:vars #{"x" "y"}
               :requires [["x" "myx"] ["y" "myy"]]} result)))))
 
 (deftest test-require
@@ -89,6 +94,21 @@
           result (select-keys (lua-info code) [:vars :requires])]
       (is (= {:vars #{}
               :requires [[nil "deep_thought"]]} result))))
+  (testing "global require function call with tail function call"
+    (let [code "_G.require(\"deep_thought\").get_question(\"42\")"
+          result (select-keys (lua-info code) [:vars :requires])]
+      (is (= {:vars #{}
+              :requires [[nil "deep_thought"]]} result))))
+  (testing "require function call with tail function call with local assignment"
+    (let [code "local result = require(\"deep_thought\").get_question(\"42\")"
+          result (select-keys (lua-info code) [:local-vars :requires])]
+      (is (= {:local-vars #{"result"}
+              :requires [["result" "deep_thought"]]} result))))
+  (testing "global require function call with tail function call with local assignment"
+    (let [code "local result = _G.require(\"deep_thought\").get_question(\"42\")"
+          result (select-keys (lua-info code) [:local-vars :requires])]
+      (is (= {:local-vars #{"result"}
+              :requires [["result" "deep_thought"]]} result))))
   (testing "require call as part of complex expression"
     (let [code (string/join "\n" ["state_rules[hash(\"main\")] = hash_rules("
                                   "    require \"main/state_rules\""
