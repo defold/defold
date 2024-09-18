@@ -729,7 +729,7 @@ namespace dmGameSystem
 
             for (int i = 0; i < vertex_count; ++i)
             {
-                vertex_write_ptr = dmGraphics::WriteAttribute(vertex_write_ptr, i, params);
+                vertex_write_ptr = dmGraphics::WriteAttributes(vertex_write_ptr, i, params);
             }
 
             rd->m_VertexBuffer = dmGraphics::NewVertexBuffer(graphics_context, vertex_data_size, attribute_data, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
@@ -1078,7 +1078,7 @@ namespace dmGameSystem
 
             #undef UNPACK_ATTRIBUTE_PTR
 
-                instance_write_ptr = dmGraphics::WriteAttribute(instance_write_ptr, 0, params);
+                instance_write_ptr = dmGraphics::WriteAttributes(instance_write_ptr, 0, params);
             }
             else
             {

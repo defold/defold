@@ -343,22 +343,6 @@ namespace dmGameSystem
         }
     }
 
-    static inline float VertexAttributeDataTypeToFloat(const dmGraphics::VertexAttribute::DataType data_type, const uint8_t* value_ptr)
-    {
-        switch (data_type)
-        {
-            case dmGraphics::VertexAttribute::TYPE_BYTE:           return (float) ((int8_t*) value_ptr)[0];
-            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE:  return (float) value_ptr[0];
-            case dmGraphics::VertexAttribute::TYPE_SHORT:          return (float) ((int16_t*) value_ptr)[0];
-            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_SHORT: return (float) ((uint16_t*) value_ptr)[0];
-            case dmGraphics::VertexAttribute::TYPE_INT:            return (float) ((int32_t*) value_ptr)[0];
-            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_INT:   return (float) ((uint32_t*) value_ptr)[0];
-            case dmGraphics::VertexAttribute::TYPE_FLOAT:          return (float) ((float*) value_ptr)[0];
-            default:break;
-        }
-        return 0;
-    }
-
     static void VertexAttributeToFloats(const dmGraphics::VertexAttribute* attribute, const uint8_t* value_ptr, float* out)
     {
         dmGraphics::Type graphics_type = dmGraphics::GetGraphicsType(attribute->m_DataType);

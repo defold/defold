@@ -317,18 +317,6 @@ namespace dmGraphics
         uint64_t m_PolygonOffsetFillEnabled : 1;
     };
 
-    /*
-    public long    nameHash;
-    public int     semanticType;
-    public int     dataType;
-    public int     stepFunction;
-    public int     coordinateSpace;
-    public Pointer valuePtr;
-    public int     valueByteSize;
-    public int     elementCount;
-    public boolean normalize;
-    */
-
     struct VertexAttributeInfo
     {
         dmhash_t                       m_NameHash;
@@ -338,7 +326,7 @@ namespace dmGraphics
         dmGraphics::VertexStepFunction m_StepFunction;
         CoordinateSpace                m_CoordinateSpace;
         const uint8_t*                 m_ValuePtr;
-        uint32_t                       m_ValueByteSize;
+        VertexAttribute::VectorType    m_ValueVectorType;
         bool                           m_Normalize;
     };
 
@@ -621,8 +609,9 @@ namespace dmGraphics
         VertexStepFunction m_StepFunction;
     };
 
+    float    VertexAttributeDataTypeToFloat(const dmGraphics::VertexAttribute::DataType data_type, const uint8_t* value_ptr);
     uint8_t* WriteVertexAttributeFromFloat(uint8_t* value_write_ptr, float value, dmGraphics::VertexAttribute::DataType data_type);
-    uint8_t* WriteAttribute(uint8_t* write_ptr, uint32_t vertex_index, const WriteAttributeParams& params);
+    uint8_t* WriteAttributes(uint8_t* write_ptr, uint32_t vertex_index, const WriteAttributeParams& params);
 
     uint32_t         GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size);
     uint32_t         GetUniformCount(HProgram prog);
