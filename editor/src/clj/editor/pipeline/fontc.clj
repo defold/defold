@@ -23,7 +23,7 @@
            [java.awt BasicStroke Canvas Color Composite CompositeContext Font FontMetrics Graphics2D RenderingHints Shape Transparency]
            [java.awt.color ColorSpace]
            [java.awt.font FontRenderContext GlyphVector]
-           [java.awt.geom AffineTransform FlatteningPathIterator PathIterator]
+           [java.awt.geom AffineTransform FlatteningPathIterator PathIterator Rectangle2D]
            [java.awt.image BufferedImage ComponentColorModel ConvolveOp DataBuffer DataBufferByte Kernel Raster WritableRaster]
            [java.io FileNotFoundException IOException InputStream]
            [java.nio.file Paths]
@@ -371,6 +371,18 @@
   ;; attributes though.
   (.getFontMetrics metrics-canvas font))
 
+(defn- font-glyph-bounds ^Rectangle2D [^FontMetrics metrics]
+  ;; Fontc.java does .getFontMetrics on a Graphics2D created from a
+  ;; BufferedImage and initialized with various RenderingHints depending
+  ;; on whether the font is antialiased. Can't see any difference from
+  ;; doing it like this instead.
+  ;; This bug: https://bugs.openjdk.java.net/browse/JDK-8172139 seems to
+  ;; indicate the font metrics could depend on the rendering
+  ;; attributes though.
+  (let [image (BufferedImage. 1 1 BufferedImage/TYPE_3BYTE_BGR)
+        g (.createGraphics image)]
+    (.getMaxCharBounds metrics ^Graphics g)))
+
 (defn- create-ttf-font ^Font [font-desc font-resource]
   (with-open [font-stream (io/input-stream font-resource)]
     (-> (Font/createFont Font/TRUETYPE_FONT font-stream)
@@ -636,6 +648,7 @@
         antialias (protobuf/int->boolean (:antialias font-desc))
         semi-glyphs (ttf-semi-glyphs font-desc font antialias)
         font-metrics (font-metrics font)
+        ^Rectangle2D max-glyph-rect (font-glyph-bounds font-metrics)
         ^double outline-width (:outline-width font-desc)
         ^double shadow-blur (:shadow-blur font-desc)
         ^double face-alpha (:alpha font-desc)
@@ -687,13 +700,23 @@
 
     {:glyphs (make-ddf-glyphs semi-glyphs glyph-extents padding)
      :material (str (:material font-desc) "c")
+     :size (:size font-desc)
+     :antialias (:antialias font-desc)
      :shadow-x (:shadow-x font-desc)
      :shadow-y (:shadow-y font-desc)
+     :shadow-width (:shadow-width font-desc)
+     :shadow-alpha (:shadow-alpha font-desc)
+     :outline-width (:outline-width font-desc)
+     :outline-alpha (:outline-alpha font-desc)
      :max-ascent (.getMaxAscent font-metrics)
      :max-descent (.getMaxDescent font-metrics)
+     :max-advance (.getMaxAdvance font-metrics)
+     :max-width (.getWidth max-glyph-rect)
+     :max-height (.getHeight max-glyph-rect)
      :image-format (:output-format font-desc)
      :layer-mask layer-mask
      :render-mode (:render-mode font-desc)
+     :output-format (:output-format font-desc)
      :sdf-spread sdf-spread
      :sdf-shadow-spread sdf-shadow-spread
      :sdf-outline sdf-outline
@@ -707,8 +730,6 @@
      :glyph-channels channel-count
      :glyph-data (ByteString/copyFrom glyph-data-bank)
      :alpha (:alpha font-desc)
-     :outline-alpha (:outline-alpha font-desc)
-     :shadow-alpha (:shadow-alpha font-desc)
      :is-monospaced is-monospaced
      :padding padding}))
 
