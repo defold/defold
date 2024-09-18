@@ -644,13 +644,6 @@ static void RunAllAttributeTest(float* values, uint32_t num_values, dmGraphics::
 
     VectorTypeContainer<float> actual;
 
-    // Debug:
-    float* ptr = (float*) &actual;
-    for (int i = 0; i < sizeof(actual) / sizeof(float); ++i)
-    {
-        ptr[i] = -1.0;
-    }
-
     dmGraphics::WriteAttributes((uint8_t*) &actual, 0, params);
     AssertVectorTypeContainerFloat(expected, actual);
 }

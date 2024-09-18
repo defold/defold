@@ -450,7 +450,8 @@ namespace dmGameSystem
             // between all meshes in a regular draw call.
             if (attr.m_StepFunction == dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE)
                 continue;
-            dmHashUpdateBuffer32(state, attr.m_ValuePtr, attr.m_ValueByteSize);
+            uint32_t value_byte_size = dmGraphics::VectorTypeToElementCount(attr.m_VectorType) * dmGraphics::DataTypeToByteWidth(attr.m_DataType);
+            dmHashUpdateBuffer32(state, attr.m_ValuePtr, value_byte_size);
         }
     }
 
@@ -691,10 +692,11 @@ namespace dmGameSystem
                 // We should only include the custom vertex attributes here
                 if (!IsDefaultStream(attr_model.m_NameHash, attr_material.m_SemanticType, attr_material.m_StepFunction))
                 {
+                    uint32_t value_byte_size = dmGraphics::VectorTypeToElementCount(attr_model.m_VectorType) * dmGraphics::DataTypeToByteWidth(attr_model.m_DataType);
                     uint32_t attribute_index = non_default_attribute.m_NumInfos++;
                     non_default_attribute.m_Infos[attribute_index]              = attr_model;
                     non_default_attribute.m_Infos[attribute_index].m_VectorType = attr_material.m_VectorType;
-                    non_default_attribute.m_VertexStride                       += attr_model.m_ValueByteSize;
+                    non_default_attribute.m_VertexStride                       += value_byte_size;
                 }
             }
 

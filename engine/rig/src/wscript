@@ -31,9 +31,8 @@ def build(bld):
         bld.shlib(features        = 'cxx ddf skip_asan',
                   includes        = ['.', '..', '../proto'],
                   target          = 'rig_shared',
-                  defines         = ['DM_RIG_SHARED'],
                   protoc_includes = '../proto',
-                  use             = 'DDF_NOASAN DLIB_NOASAN PROFILE_NULL_NOASAN SOCKET',
+                  use             = 'DDF_NOASAN DLIB_NOASAN PROFILE_NULL_NOASAN SOCKET PLATFORM_NULL GRAPHICS_NOASAN',
                   source          = 'rig.cpp ../proto/rig/rig_ddf.proto')
 
     bld.install_files('${PREFIX}/include/rig', 'rig.h')

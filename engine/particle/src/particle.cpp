@@ -1316,12 +1316,13 @@ namespace dmParticle
                 world_matrix = dmTransform::ToMatrix4(particle_transform);
             }
 
-            vertex_buffer = dmGraphics::WriteAttributes(vertex_buffer, 0, write_params);
-            vertex_buffer = dmGraphics::WriteAttributes(vertex_buffer, 1, write_params);
-            vertex_buffer = dmGraphics::WriteAttributes(vertex_buffer, 2, write_params);
-            vertex_buffer = dmGraphics::WriteAttributes(vertex_buffer, 3, write_params);
-            vertex_buffer = dmGraphics::WriteAttributes(vertex_buffer, 4, write_params);
-            vertex_buffer = dmGraphics::WriteAttributes(vertex_buffer, 5, write_params);
+            uint8_t* write_ptr = vertex_buffer + vertex_index * attribute_infos.m_VertexStride;
+            write_ptr = dmGraphics::WriteAttributes(write_ptr, 0, write_params);
+            write_ptr = dmGraphics::WriteAttributes(write_ptr, 1, write_params);
+            write_ptr = dmGraphics::WriteAttributes(write_ptr, 2, write_params);
+            write_ptr = dmGraphics::WriteAttributes(write_ptr, 3, write_params);
+            write_ptr = dmGraphics::WriteAttributes(write_ptr, 4, write_params);
+            write_ptr = dmGraphics::WriteAttributes(write_ptr, 5, write_params);
             vertex_index += 6;
         }
 
