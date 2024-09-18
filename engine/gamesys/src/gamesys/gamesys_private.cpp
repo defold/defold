@@ -335,6 +335,7 @@ namespace dmGameSystem
             info.m_VectorType       = material_attributes[i].m_VectorType;
             info.m_Normalize        = material_attributes[i].m_Normalize;
             info.m_StepFunction     = material_attributes[i].m_StepFunction;
+            info.m_ValueVectorType  = material_attributes[i].m_VectorType;
 
             dmRender::GetMaterialProgramAttributeValues(material, i, &info.m_ValuePtr, &value_byte_size);
         }
