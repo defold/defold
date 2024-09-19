@@ -765,7 +765,7 @@
 (g/defnk produce-properties [_node-id _declared-properties material-attribute-infos vertex-attribute-overrides]
   (let [attribute-properties
         (when-not (g/error-value? material-attribute-infos)
-          (graphics/attribute-properties-by-property-key _node-id material-attribute-infos vertex-attribute-overrides))]
+          (graphics/attribute-property-entries _node-id material-attribute-infos vertex-attribute-overrides))]
     (-> _declared-properties
         (update :properties into attribute-properties)
         (update :display-order into (map first) attribute-properties))))

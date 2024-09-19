@@ -66,7 +66,7 @@
       (-> editable-attribute
           (dissoc :values)
           (protobuf/assign attribute-value-keyword
-                           (when (and (graphics/editable-attribute-info? editable-attribute)
+                           (when (and (not (graphics/engine-provided-attribute? editable-attribute))
                                       (coll/not-empty stored-values))
                              {:v stored-values}))))))
 
@@ -292,6 +292,8 @@
         old-normalize (:normalize old-attribute)
         new-vector-type (:vector-type new-attribute)
         new-normalize (:normalize new-attribute)]
+    (assert (graphics/vector-type? old-vector-type))
+    (assert (graphics/vector-type? new-vector-type))
     (cond
       ;; If an attribute changes from a non-normalized value to a normalized one
       ;; or vice versa, attempt to remap the value range. Note that we cannot do
@@ -326,7 +328,7 @@
       ;; project to be saved with the updated vector type.
       (not= old-vector-type new-vector-type)
       (let [semantic-type (:semantic-type new-attribute)]
-        (update new-attribute :values #(graphics/resize-doubles % semantic-type new-vector-type)))
+        (update new-attribute :values #(graphics/convert-double-values % semantic-type old-vector-type new-vector-type)))
 
       ;; If something else changed, do not attempt value coercion.
       :else

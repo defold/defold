@@ -6,8 +6,6 @@ vertex_space: VERTEX_SPACE_LOCAL
 vertex_constants {
   name: "viewproj"
   type: CONSTANT_TYPE_VIEWPROJ
-  value {
-  }
 }
 samplers {
   name: "texture0"
@@ -30,11 +28,6 @@ attributes {
   name: "position"
   semantic_type: SEMANTIC_TYPE_POSITION
   coordinate_space: COORDINATE_SPACE_WORLD
-  double_values {
-    v: 0.0
-    v: 0.0
-    v: 0.0
-  }
   vector_type: VECTOR_TYPE_VEC3
 }
 attributes {
@@ -230,41 +223,12 @@ attributes {
 attributes {
   name: "instance_world"
   semantic_type: SEMANTIC_TYPE_WORLD_MATRIX
-  double_values {
-    v: 1.0
-    v: 0.0
-    v: 0.0
-    v: 0.0
-    v: 0.0
-    v: 1.0
-    v: 0.0
-    v: 0.0
-    v: 0.0
-    v: 0.0
-    v: 1.0
-    v: 0.0
-    v: 0.0
-    v: 0.0
-    v: 0.0
-    v: 1.0
-  }
   step_function: VERTEX_STEP_FUNCTION_INSTANCE
   vector_type: VECTOR_TYPE_MAT4
 }
 attributes {
   name: "instance_normal"
   semantic_type: SEMANTIC_TYPE_NORMAL_MATRIX
-  double_values {
-    v: 1.0
-    v: 0.0
-    v: 0.0
-    v: 0.0
-    v: 0.0
-    v: 1.0
-    v: 0.0
-    v: 0.0
-    v: 0.0
-  }
   step_function: VERTEX_STEP_FUNCTION_INSTANCE
   vector_type: VECTOR_TYPE_MAT3
 }

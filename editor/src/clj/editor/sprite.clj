@@ -436,7 +436,7 @@
 
         attribute-properties
         (when-not (g/error-value? material-attribute-infos)
-          (graphics/attribute-properties-by-property-key _node-id material-attribute-infos vertex-attribute-overrides))]
+          (graphics/attribute-property-entries _node-id material-attribute-infos vertex-attribute-overrides))]
 
     (-> _declared-properties
         (update :properties (fn [props]

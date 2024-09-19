@@ -205,7 +205,7 @@
 
    'dmGraphics.VertexAttribute
    {:default
-    {"element_count" :deprecated}
+    {"element_count" :deprecated} ; Migration tested in integration.save-data-test/silent-migrations-test.
 
     [["particlefx" "emitters" "[*]" "attributes"]
      ["sprite" "attributes"]
@@ -493,7 +493,7 @@
 
    'dmRenderDDF.RenderPrototypeDesc
    {:default
-    {"materials" :deprecated}}
+    {"materials" :deprecated}} ; Migration tested in integration.save-data-test/silent-migrations-test.
 
    'dmRenderDDF.RenderTargetDesc.DepthStencilAttachment
    {:default
@@ -678,14 +678,18 @@
       (let [legacy-element-count-material (project/get-resource-node project "/silently_migrated/legacy_vertex_attribute_element_count.material")
             legacy-attributes (g/node-value legacy-element-count-material :attributes)
             vector-types-by-attribute-name (into (sorted-map)
-                                                 (map (juxt :name :vector-type))
+                                                 (map (fn [attribute]
+                                                        (pair (:name attribute)
+                                                              (select-keys attribute [:vector-type :values]))))
                                                  legacy-attributes)]
-        (is (= {"legacy_count_1" :vector-type-scalar
-                "legacy_count_2" :vector-type-vec2
-                "legacy_count_3" :vector-type-vec3
-                "legacy_count_4" :vector-type-vec4
-                "legacy_count_9" :vector-type-mat3
-                "legacy_count_16" :vector-type-mat4}
+        (is (= {"legacy_count_1" {:vector-type :vector-type-scalar
+                                  :values [1.1]}
+                "legacy_count_2" {:vector-type :vector-type-vec2
+                                  :values [1.1 1.2]}
+                "legacy_count_3" {:vector-type :vector-type-vec3
+                                  :values [1.1 1.2 1.3]}
+                "legacy_count_4" {:vector-type :vector-type-vec4
+                                  :values [1.1 1.2 1.3 1.4]}}
                vector-types-by-attribute-name))))
 
     (testing "render"

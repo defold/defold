@@ -135,7 +135,8 @@
     (nil? coll)
     true
 
-    (counted? coll)
+    (or (counted? coll)
+        (.isArray (class coll)))
     (zero? (count coll))
 
     (instance? CharSequence coll)

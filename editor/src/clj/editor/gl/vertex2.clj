@@ -19,7 +19,8 @@
             [editor.gl.protocols :refer [GlBind]]
             [editor.gl.shader :as shader]
             [editor.protobuf :as protobuf]
-            [editor.scene-cache :as scene-cache])
+            [editor.scene-cache :as scene-cache]
+            [util.coll :as coll])
   (:import [clojure.lang Counted]
            [com.jogamp.common.nio Buffers]
            [com.jogamp.opengl GL GL2]
@@ -219,33 +220,25 @@
                  :uint   `(.putInt    (.intValue   (Long/valueOf (bit-and ~arg 0xffffffff))))))))
        ~'vbuf)))
 
-(def ^:private type-component-counts
-  {:vec1 1
-   :vec2 2
-   :vec3 3
-   :vec4 4})
-
-(defn element-count+semantic-type->vector-type [^long element-count semantic-type]
-  (case element-count
-    1 :vector-type-scalar
-    2 :vector-type-vec2
-    3 :vector-type-vec3
-    4 (case semantic-type
-        (:semantic-type-world-matrix :semantic-type-normal-matrix) :vector-type-mat2
-        :vector-type-vec4)
-    9 :vector-type-mat3
-    16 :vector-type-mat4))
-
 (defn- parse-attribute-definition
   [form]
   (let [[type nm & [normalize]] form
         [prefix suffix]  (str/split (name type) #"\.")
         prefix           (keyword prefix)
         suffix           (keyword (or suffix "float"))
-        num-components   (type-component-counts prefix)
+        num-components   (case prefix
+                           :vec1 1
+                           :vec2 2
+                           :vec3 3
+                           :vec4 4)
         attribute-name   (name nm)
         attribute-key    (attribute-name->key attribute-name)
-        semantic-type    (attribute-key->semantic-type attribute-key)] ; TODO: Typically determined by vertex-space setting of material.
+        semantic-type    (attribute-key->semantic-type attribute-key)
+        vector-type      (case num-components
+                           1 :vector-type-scalar
+                           2 :vector-type-vec2
+                           3 :vector-type-vec3
+                           4 :vector-type-vec4)]
     (assert num-components (str type " is not a valid type name. It must start with vec1, vec2, vec3, or vec4."))
     (assert (get gl-types suffix) (str type " is not a valid type name. It must end with byte, short, int, float, or double. (Defaults to float if no suffix.)"))
     {:name attribute-name
@@ -254,7 +247,7 @@
      :components num-components
      :normalize (true? normalize)
      :coordinate-space :coordinate-space-world
-     :vector-type (element-count+semantic-type->vector-type num-components semantic-type)
+     :vector-type vector-type
      :semantic-type semantic-type}))
 
 (defmacro defvertex
@@ -320,13 +313,14 @@
   (scene-cache/request-object! ::vbo2 request-id gl {:vertex-buffer vertex-buffer :version (version vertex-buffer) :shader shader}))
 
 (defn vertex-attribute->row-column-count [vertex-attribute]
-  (let [vector-type (:vector-type vertex-attribute)
-        component-count (:components vertex-attribute)]
-    (cond (= vector-type :vector-type-mat2) 2
-          (= vector-type :vector-type-mat3) 3
-          (= vector-type :vector-type-mat4) 4
-          (= component-count 9) 3
-          (= component-count 16) 4)))
+  (case (:vector-type vertex-attribute)
+    :vector-type-mat2 2
+    :vector-type-mat3 3
+    :vector-type-mat4 4
+    (case (long (:components vertex-attribute -1))
+      9 3
+      16 4
+      nil)))
 
 ;; Takes a list of vertex attribute and a matching list of its attribute locations
 ;; and expands these if the attribute vector type is a matrix.
@@ -334,22 +328,26 @@
 ;; to bind each column of the vector type individually.
 (defn- expand-vertex-attributes+locs [vertex-attributes vertex-attribute-locs]
   {:pre [(= (count vertex-attributes) (count vertex-attribute-locs))]}
-  (let [vertex-attributes+locs (map vector vertex-attributes vertex-attribute-locs)
-        expanded-vertex-attributes (mapcat (fn [[attribute _]]
-                                             (let [row-column-count (vertex-attribute->row-column-count attribute)]
-                                               (if row-column-count
-                                                 (repeat row-column-count (assoc attribute :components row-column-count))
-                                                 [attribute])))
-                                           vertex-attributes+locs)
-        expanded-vertex-locs (mapcat (fn [[attribute loc]]
-                                        (let [row-column-count (vertex-attribute->row-column-count attribute)]
-                                          (if row-column-count
-                                            (map-indexed (fn [^long idx ^long loc-base]
-                                                           (+ idx loc-base))
-                                                         (repeat row-column-count loc))
-                                            [loc])))
-                                      vertex-attributes+locs)]
-    [expanded-vertex-attributes, expanded-vertex-locs]))
+  (let [expanded-vertex-attributes
+        (coll/mapcat
+          (fn [attribute]
+            (if-let [row-column-count (vertex-attribute->row-column-count attribute)]
+              (repeat row-column-count (assoc attribute :components row-column-count))
+              [attribute]))
+          vertex-attributes)
+
+        expanded-vertex-locs
+        (coll/mapcat
+          (fn [attribute loc]
+            (if-let [row-column-count (vertex-attribute->row-column-count attribute)]
+              (map-indexed (fn [^long idx ^long loc-base]
+                             (+ idx loc-base))
+                           (repeat row-column-count loc))
+              [loc]))
+          vertex-attributes
+          vertex-attribute-locs)]
+
+    [expanded-vertex-attributes expanded-vertex-locs]))
 
 (defn- bind-vertex-buffer-with-shader! [^GL2 gl request-id ^VertexBuffer vertex-buffer shader]
   (let [[vbo attribute-locations] (request-vbo gl request-id vertex-buffer shader)

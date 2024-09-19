@@ -27,6 +27,18 @@ import java.util.List;
 
 public class GraphicsUtil {
 
+    public static boolean isEngineProvidedAttributeSemanticType(VertexAttribute.SemanticType semanticType) {
+        switch (semanticType) {
+            case SEMANTIC_TYPE_POSITION, SEMANTIC_TYPE_WORLD_MATRIX, SEMANTIC_TYPE_NORMAL_MATRIX -> {
+                // The engine will always provide a value for these.
+                return true;
+            }
+            default -> {
+                return false;
+            }
+        }
+    }
+
     private static void validateAttribute(VertexAttribute attr, VertexAttribute.DataType dataType, boolean normalize) throws CompileExceptionError {
         if (normalize || dataType == VertexAttribute.DataType.TYPE_FLOAT) {
             if (!attr.hasDoubleValues()) {
@@ -228,12 +240,19 @@ public class GraphicsUtil {
 
     public static VertexAttribute buildVertexAttribute(VertexAttribute sourceAttr, VertexAttribute targetAttr) throws CompileExceptionError {
         VertexAttribute.DataType dataType = targetAttr.getDataType();
+        VertexAttribute.SemanticType semanticType = targetAttr.getSemanticType();
         boolean normalize = targetAttr.getNormalize();
-        validateAttribute(sourceAttr, dataType, normalize);
+        boolean isEngineProvidedAttribute = isEngineProvidedAttributeSemanticType(semanticType);
+
+        if (!isEngineProvidedAttribute) {
+            validateAttribute(sourceAttr, dataType, normalize);
+        }
+
+        ByteString binaryValues = isEngineProvidedAttribute ? ByteString.EMPTY : makeBinaryValues(sourceAttr, dataType, normalize);
         VertexAttribute.Builder attributeBuilder = VertexAttribute.newBuilder(sourceAttr);
-        attributeBuilder.setNameHash(MurmurHash.hash64(sourceAttr.getName()));
-        attributeBuilder.setBinaryValues(makeBinaryValues(sourceAttr, dataType, normalize));
         migrateAttribute(attributeBuilder);
+        attributeBuilder.setNameHash(MurmurHash.hash64(sourceAttr.getName()));
+        attributeBuilder.setBinaryValues(binaryValues);
         return attributeBuilder.build();
     }
 
