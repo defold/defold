@@ -156,6 +156,53 @@
 
 (def ^:private positive-glyph-extent-pairs-xf (comp (map pair) (filter (comp positive-wh? :glyph-wh second))))
 
+(def ^:private ^Canvas metrics-canvas (Canvas.))
+
+(defn- font-metrics ^FontMetrics [^Font font]
+  ;; Fontc.java does .getFontMetrics on a Graphics2D created from a
+  ;; BufferedImage and initialized with various RenderingHints depending
+  ;; on whether the font is antialiased. Can't see any difference from
+  ;; doing it like this instead.
+  ;; This bug: https://bugs.openjdk.java.net/browse/JDK-8172139 seems to
+  ;; indicate the font metrics could depend on the rendering
+  ;; attributes though.
+  (.getFontMetrics metrics-canvas font))
+
+(defn- font-glyph-bounds ^Rectangle2D [^FontMetrics metrics]
+  ;; Fontc.java does .getFontMetrics on a Graphics2D created from a
+  ;; BufferedImage and initialized with various RenderingHints depending
+  ;; on whether the font is antialiased. Can't see any difference from
+  ;; doing it like this instead.
+  ;; This bug: https://bugs.openjdk.java.net/browse/JDK-8172139 seems to
+  ;; indicate the font metrics could depend on the rendering
+  ;; attributes though.
+  (let [image (BufferedImage. 1 1 BufferedImage/TYPE_3BYTE_BGR)
+        g (.createGraphics image)]
+    (.getMaxCharBounds metrics ^Graphics g)))
+
+(defn- get-font-map-props [font-desc]
+  {:material (str (:material font-desc) "c")
+   :size (:size font-desc)
+   :antialias (:antialias font-desc)
+   :shadow-x (:shadow-x font-desc)
+   :shadow-y (:shadow-y font-desc)
+   :shadow-blur (:shadow-blur font-desc)
+   :shadow-alpha (:shadow-alpha font-desc)
+   :outline-alpha (:outline-alpha font-desc)
+   :outline-width (:outline-width font-desc)
+   :render-mode (:render-mode font-desc)
+   :output-format (:output-format font-desc)
+   :alpha (:alpha font-desc)})
+
+(defn- get-font-metrics [font]
+  (let [font-metrics (font-metrics font)
+        ^Rectangle2D max-glyph-rect (font-glyph-bounds font-metrics)]
+    {:max-ascent (.getMaxAscent font-metrics)
+     :max-descent (.getMaxDescent font-metrics)
+     :max-advance (.getMaxAdvance font-metrics)
+     :max-width (.getWidth max-glyph-rect)
+     :max-height (.getHeight max-glyph-rect)}))
+
 (defn- compile-fnt-bitmap [font-desc font-resource resolver]
   (let [^BMFont bm-font (with-open [font-stream (io/input-stream font-resource)]
                           (doto (BMFont.)
@@ -219,29 +266,31 @@
                       glyph-extents)))
 
     (let [max-ascent (+ (float (reduce max 0 (map :ascent semi-glyphs))) padding)]
-      {:glyphs (make-ddf-glyphs semi-glyphs glyph-extents padding)
-       :material (str (:material font-desc) "c")
-       :max-ascent max-ascent
-       :max-descent (+ (float (reduce max 0 (map :descent semi-glyphs))) padding)
-       :image-format (:output-format font-desc)
-       :layer-mask 0x1 ; Face layer only - we don't generate shadow or outline.
-       :cache-width (:width cache-wh)
-       :cache-height (:height cache-wh)
-       :glyph-padding glyph-cell-padding
-       :cache-cell-width (:width cache-cell-wh)
-       :cache-cell-height (:height cache-cell-wh)
-       :cache-cell-max-ascent max-ascent
-       :glyph-channels channel-count
-       :glyph-data (ByteString/copyFrom glyph-data-bank)
-       :is-monospaced is-monospaced
-       :padding padding})))
+      (merge
+        (get-font-map-props font-desc)
+        {:glyphs (make-ddf-glyphs semi-glyphs glyph-extents padding)
+         :size (.size bm-font)
+         :max-ascent max-ascent
+         :max-descent (+ (float (reduce max 0 (map :descent semi-glyphs))) padding)
+         :image-format (:output-format font-desc)
+         :layer-mask 0x1                                    ; Face layer only - we don't generate shadow or outline.
+         :cache-width (:width cache-wh)
+         :cache-height (:height cache-wh)
+         :glyph-padding glyph-cell-padding
+         :cache-cell-width (:width cache-cell-wh)
+         :cache-cell-height (:height cache-cell-wh)
+         :cache-cell-max-ascent max-ascent
+         :glyph-channels channel-count
+         :glyph-data (ByteString/copyFrom glyph-data-bank)
+         :is-monospaced is-monospaced
+         :padding padding}))))
 
-(defn- do-blend-rasters [^Raster src ^Raster dst-in ^WritableRaster dst-out]
-  (let [width (min (.getWidth src) (.getWidth dst-in) (.getWidth dst-out))
-        height (min (.getHeight src) (.getHeight dst-in) (.getHeight dst-out))
-        int0 (int 0)
-        int1 (int 1)]
-    (doseq [^int i (range width)
+  (defn- do-blend-rasters [^Raster src ^Raster dst-in ^WritableRaster dst-out]
+    (let [width (min (.getWidth src) (.getWidth dst-in) (.getWidth dst-out))
+          height (min (.getHeight src) (.getHeight dst-in) (.getHeight dst-out))
+          int0 (int 0)
+          int1 (int 1)]
+      (doseq [^int i (range width)
             ^int j (range height)]
       (let [sr (.getSampleFloat src i j 0)
             sg (.getSampleFloat src i j 1)]
@@ -359,30 +408,6 @@
     antialiased-font-render-context
     plain-font-render-context))
 
-(def ^:private ^Canvas metrics-canvas (Canvas.))
-
-(defn- font-metrics ^FontMetrics [^Font font]
-  ;; Fontc.java does .getFontMetrics on a Graphics2D created from a
-  ;; BufferedImage and initialized with various RenderingHints depending
-  ;; on whether the font is antialiased. Can't see any difference from
-  ;; doing it like this instead.
-  ;; This bug: https://bugs.openjdk.java.net/browse/JDK-8172139 seems to
-  ;; indicate the font metrics could depend on the rendering
-  ;; attributes though.
-  (.getFontMetrics metrics-canvas font))
-
-(defn- font-glyph-bounds ^Rectangle2D [^FontMetrics metrics]
-  ;; Fontc.java does .getFontMetrics on a Graphics2D created from a
-  ;; BufferedImage and initialized with various RenderingHints depending
-  ;; on whether the font is antialiased. Can't see any difference from
-  ;; doing it like this instead.
-  ;; This bug: https://bugs.openjdk.java.net/browse/JDK-8172139 seems to
-  ;; indicate the font metrics could depend on the rendering
-  ;; attributes though.
-  (let [image (BufferedImage. 1 1 BufferedImage/TYPE_3BYTE_BGR)
-        g (.createGraphics image)]
-    (.getMaxCharBounds metrics ^Graphics g)))
-
 (defn- create-ttf-font ^Font [font-desc font-resource]
   (with-open [font-stream (io/input-stream font-resource)]
     (-> (Font/createFont Font/TRUETYPE_FONT font-stream)
@@ -446,7 +471,6 @@
   (let [font (create-ttf-font font-desc font-resource)
         antialias (protobuf/int->boolean (:antialias font-desc))
         semi-glyphs (ttf-semi-glyphs font-desc font antialias)
-        font-metrics (font-metrics font)
         padding (+ (min (int 4) ^int (:shadow-blur font-desc))
                    (int (:outline-width font-desc)))
         glyph-cell-padding 1
@@ -508,27 +532,22 @@
             (sequence positive-glyph-extent-pairs-xf
                       semi-glyphs
                       glyph-extents)))
-    {:glyphs (make-ddf-glyphs semi-glyphs glyph-extents padding)
-     :material (str (:material font-desc) "c")
-     :shadow-x (:shadow-x font-desc)
-     :shadow-y (:shadow-y font-desc)
-     :max-ascent (.getMaxAscent font-metrics)
-     :max-descent (.getMaxDescent font-metrics)
-     :image-format (:output-format font-desc)
-     :layer-mask layer-mask
-     :cache-width (:width cache-wh)
-     :cache-height (:height cache-wh)
-     :glyph-padding glyph-cell-padding
-     :cache-cell-width (:width cache-cell-wh)
-     :cache-cell-height (:height cache-cell-wh)
-     :cache-cell-max-ascent (+ cache-cell-max-ascent padding)
-     :glyph-channels channel-count
-     :glyph-data (ByteString/copyFrom glyph-data-bank)
-     :alpha (:alpha font-desc)
-     :outline-alpha (:outline-alpha font-desc)
-     :shadow-alpha (:shadow-alpha font-desc)
-     :is-monospaced is-monospaced
-     :padding padding}))
+    (merge
+      (get-font-map-props font-desc)
+      (get-font-metrics font)
+      {:glyphs (make-ddf-glyphs semi-glyphs glyph-extents padding)
+       :image-format (:output-format font-desc)
+       :layer-mask layer-mask
+       :cache-width (:width cache-wh)
+       :cache-height (:height cache-wh)
+       :glyph-padding glyph-cell-padding
+       :cache-cell-width (:width cache-cell-wh)
+       :cache-cell-height (:height cache-cell-wh)
+       :cache-cell-max-ascent (+ cache-cell-max-ascent padding)
+       :glyph-channels channel-count
+       :glyph-data (ByteString/copyFrom glyph-data-bank)
+       :is-monospaced is-monospaced
+       :padding padding})))
 
 (defn- calculate-ttf-distance-field-edge-limit [^double width ^double spread ^double edge]
   (let [sdf-limit-value (- (/ width spread))]
@@ -647,8 +666,6 @@
   (let [font (create-ttf-font font-desc font-resource)
         antialias (protobuf/int->boolean (:antialias font-desc))
         semi-glyphs (ttf-semi-glyphs font-desc font antialias)
-        font-metrics (font-metrics font)
-        ^Rectangle2D max-glyph-rect (font-glyph-bounds font-metrics)
         ^double outline-width (:outline-width font-desc)
         ^double shadow-blur (:shadow-blur font-desc)
         ^double face-alpha (:alpha font-desc)
@@ -698,40 +715,26 @@
                       semi-glyphs
                       glyph-extents)))
 
-    {:glyphs (make-ddf-glyphs semi-glyphs glyph-extents padding)
-     :material (str (:material font-desc) "c")
-     :size (:size font-desc)
-     :antialias (:antialias font-desc)
-     :shadow-x (:shadow-x font-desc)
-     :shadow-y (:shadow-y font-desc)
-     :shadow-width (:shadow-width font-desc)
-     :shadow-alpha (:shadow-alpha font-desc)
-     :outline-width (:outline-width font-desc)
-     :outline-alpha (:outline-alpha font-desc)
-     :max-ascent (.getMaxAscent font-metrics)
-     :max-descent (.getMaxDescent font-metrics)
-     :max-advance (.getMaxAdvance font-metrics)
-     :max-width (.getWidth max-glyph-rect)
-     :max-height (.getHeight max-glyph-rect)
-     :image-format (:output-format font-desc)
-     :layer-mask layer-mask
-     :render-mode (:render-mode font-desc)
-     :output-format (:output-format font-desc)
-     :sdf-spread sdf-spread
-     :sdf-shadow-spread sdf-shadow-spread
-     :sdf-outline sdf-outline
-     :sdf-shadow sdf-shadow
-     :cache-width (:width cache-wh)
-     :cache-height (:height cache-wh)
-     :glyph-padding glyph-cell-padding
-     :cache-cell-width (:width cache-cell-wh)
-     :cache-cell-height (:height cache-cell-wh)
-     :cache-cell-max-ascent (+ cache-cell-max-ascent padding)
-     :glyph-channels channel-count
-     :glyph-data (ByteString/copyFrom glyph-data-bank)
-     :alpha (:alpha font-desc)
-     :is-monospaced is-monospaced
-     :padding padding}))
+    (merge
+      (get-font-map-props font-desc)
+      (get-font-metrics font)
+      {:glyphs (make-ddf-glyphs semi-glyphs glyph-extents padding)
+       :image-format (:output-format font-desc)
+       :layer-mask layer-mask
+       :sdf-spread sdf-spread
+       :sdf-shadow-spread sdf-shadow-spread
+       :sdf-outline sdf-outline
+       :sdf-shadow sdf-shadow
+       :cache-width (:width cache-wh)
+       :cache-height (:height cache-wh)
+       :glyph-padding glyph-cell-padding
+       :cache-cell-width (:width cache-cell-wh)
+       :cache-cell-height (:height cache-cell-wh)
+       :cache-cell-max-ascent (+ cache-cell-max-ascent padding)
+       :glyph-channels channel-count
+       :glyph-data (ByteString/copyFrom glyph-data-bank)
+       :is-monospaced is-monospaced
+       :padding padding})))
 
 (defn compile-font [font-desc font-resource resolver]
   (let [font-ext (resource/type-ext font-resource)]
