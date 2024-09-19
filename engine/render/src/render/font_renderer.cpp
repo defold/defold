@@ -314,7 +314,7 @@ namespace dmRender
         font_map->m_CacheChannels = params.m_GlyphChannels;
 
         SetupCache(font_map, font_map->m_CacheWidth, font_map->m_CacheWidth,
-                                params.m_CacheCellWidth, params.m_CacheCellHeight, font_map->m_MaxAscent);
+                                params.m_CacheCellWidth, params.m_CacheCellHeight, params.m_CacheCellMaxAscent);
 
         switch (params.m_GlyphChannels)
         {
