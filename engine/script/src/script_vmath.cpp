@@ -145,7 +145,7 @@ namespace dmScript
         }
         if ((*userdata = (void*)dmScript::ToVector3(L, index)))
         {
-            Vector3* v = (Vector3*)userdata;
+            Vector3* v = (Vector3*)*userdata;
             if (!CheckVector3Components(v))
             {
                 luaL_error(L, "argument #%d contains one or more values which are not numbers: vmath.vector3(%f, %f, %f)", index, v->getX(), v->getY(), v->getZ());
@@ -155,7 +155,7 @@ namespace dmScript
         }
         else if ((*userdata = (void*)dmScript::ToVector4(L, index)))
         {
-            Vector4* v = (Vector4*)userdata;
+            Vector4* v = (Vector4*)*userdata;
             if (!CheckVector4Components(v))
             {
                 luaL_error(L, "argument #%d contains one or more values which are not numbers: vmath.vector4(%f, %f, %f, %f)", index, v->getX(), v->getY(), v->getZ(), v->getW());
@@ -169,7 +169,7 @@ namespace dmScript
         }
         else if ((*userdata = (void*)dmScript::ToQuat(L, index)))
         {
-            Quat* q = (Quat*)userdata;
+            Quat* q = (Quat*)*userdata;
             if (!CheckQuatComponents(q))
             {
                 luaL_error(L, "argument #%d contains one or more values which are not numbers: vmath.quat(%f, %f, %f, %f)", index, q->getX(), q->getY(), q->getZ(), q->getW());
@@ -179,7 +179,7 @@ namespace dmScript
         }
         else if ((*userdata = (void*)dmScript::ToMatrix4(L, index)))
         {
-            Matrix4* m = (Matrix4*)userdata;
+            Matrix4* m = (Matrix4*)*userdata;
             if (!CheckMatrix4Components(m))
             {
                 luaL_error(L, "argument #%d contains one or more values which are not numbers: vmath.matrix4(%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f)", index,
