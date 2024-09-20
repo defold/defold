@@ -111,9 +111,94 @@ namespace dmScript
         return SCRIPT_TYPE_UNKNOWN;
     }
 
+    static inline bool CheckVector3Components(Vector3* v)
+    {
+        return !isnan(v->getX()) && !isnan(v->getY()) && !isnan(v->getZ());
+    }
+
+    static inline bool CheckVector4Components(Vector4* v)
+    {
+        return !isnan(v->getX()) && !isnan(v->getY()) && !isnan(v->getZ()) && !isnan(v->getW());
+    }
+
+    static inline bool CheckQuatComponents(Quat* q)
+    {
+        return !isnan(q->getX()) && !isnan(q->getY()) && !isnan(q->getZ()) && !isnan(q->getW());
+    }
+
+    static inline bool CheckMatrix4Components(Matrix4* m)
+    {
+        return
+            !isnan(m->getElem(0, 0)) && !isnan(m->getElem(1, 0)) && !isnan(m->getElem(2, 0)) && !isnan(m->getElem(3, 0)) &&
+            !isnan(m->getElem(0, 1)) && !isnan(m->getElem(1, 1)) && !isnan(m->getElem(2, 1)) && !isnan(m->getElem(3, 1)) &&
+            !isnan(m->getElem(0, 2)) && !isnan(m->getElem(1, 2)) && !isnan(m->getElem(2, 2)) && !isnan(m->getElem(3, 2)) &&
+            !isnan(m->getElem(0, 3)) && !isnan(m->getElem(1, 3)) && !isnan(m->getElem(2, 3)) && !isnan(m->getElem(3, 3));
+    }
+
+    static ScriptUserType CheckUserData(lua_State* L, int index, void** userdata)
+    {
+        int type = lua_type(L, index);
+        if (type != LUA_TUSERDATA)
+        {
+            dmLogError("Argument %d is not userdata.", index);
+            return SCRIPT_TYPE_UNKNOWN;
+        }
+        if ((*userdata = (void*)dmScript::ToVector3(L, index)))
+        {
+            Vector3* v = (Vector3*)userdata;
+            if (!CheckVector3Components(v))
+            {
+                luaL_error(L, "argument #%d contains one or more values which are not numbers: vmath.vector3(%f, %f, %f)", index, v->getX(), v->getY(), v->getZ());
+            }
+            return SCRIPT_TYPE_VECTOR3;
+        }
+        else if ((*userdata = (void*)dmScript::ToVector4(L, index)))
+        {
+            Vector4* v = (Vector4*)userdata;
+            if (!CheckVector4Components(v))
+            {
+                luaL_error(L, "argument #%d contains one or more values which are not numbers: vmath.vector4(%f, %f, %f, %f)", index, v->getX(), v->getY(), v->getZ(), v->getW());
+            }
+            return SCRIPT_TYPE_VECTOR4;
+        }
+        else if ((*userdata = (void*)dmScript::ToVector(L, index)))
+        {
+            return SCRIPT_TYPE_VECTOR;
+        }
+        else if ((*userdata = (void*)dmScript::ToQuat(L, index)))
+        {
+            Quat* q = (Quat*)userdata;
+            if (!CheckQuatComponents(q))
+            {
+                luaL_error(L, "argument #%d contains one or more values which are not numbers: vmath.quat(%f, %f, %f, %f)", index, q->getX(), q->getY(), q->getZ(), q->getW());
+            }
+            return SCRIPT_TYPE_QUAT;
+        }
+        else if ((*userdata = (void*)dmScript::ToMatrix4(L, index)))
+        {
+            Matrix4* m = (Matrix4*)userdata;
+            if (!CheckMatrix4Components(m))
+            {
+                luaL_error(L, "argument #%d contains one or more values which are not numbers: vmath.matrix4(%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f)", index,
+                    m->getElem(0, 0), m->getElem(1, 0), m->getElem(2, 0), m->getElem(3, 0),
+                    m->getElem(0, 1), m->getElem(1, 1), m->getElem(2, 1), m->getElem(3, 1),
+                    m->getElem(0, 2), m->getElem(1, 2), m->getElem(2, 2), m->getElem(3, 2),
+                    m->getElem(0, 3), m->getElem(1, 3), m->getElem(2, 3), m->getElem(3, 3));
+            }
+            return SCRIPT_TYPE_MATRIX4;
+        }
+        dmLogError("Userdata type can not be determined for argument %d.", index);
+        return SCRIPT_TYPE_UNKNOWN;
+    }
+
     bool IsVector(lua_State *L, int index)
     {
         return dmScript::GetUserType(L, index) == TYPE_HASHES[SCRIPT_TYPE_VECTOR];
+    }
+
+    FloatVector* ToVector(lua_State* L, int index)
+    {
+        return (FloatVector*)ToUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_VECTOR]);
     }
 
     static const luaL_reg Vector_methods[] =
@@ -1511,7 +1596,7 @@ namespace dmScript
     /*# creates a matrix from a quaternion
      * The resulting matrix describes the same rotation as the quaternion, but does not have any translation (also like the quaternion).
      *
-     * @name vmath.matrix4_from_quat
+     * @name vmath.matrix4_quat
      * @param q [type:quaternion] quaternion to create matrix from
      * @return m [type:matrix4] matrix represented by quaternion
      * @examples
@@ -1519,11 +1604,11 @@ namespace dmScript
      * ```lua
      * local vec = vmath.vector4(1, 1, 0, 0)
      * local quat = vmath.quat_rotation_z(3.141592653)
-     * local mat = vmath.matrix4_from_quat(quat)
+     * local mat = vmath.matrix4_quat(quat)
      * print(mat * vec) --> vmath.matrix4_frustum(-1, 1, -1, 1, 1, 1000)
      * ```
      */
-    static int Matrix4_FromQuat(lua_State* L)
+    static int Matrix4_Quat(lua_State* L)
     {
         PushMatrix4(L, Matrix4::rotation(*CheckQuat(L, 1)));
         return 1;
@@ -1634,16 +1719,17 @@ namespace dmScript
      */
     static int Matrix4_Translation(lua_State* L)
     {
-        const ScriptUserType v_type = GetType(L, 1);
+        void* argument = 0;
+        const ScriptUserType v_type = CheckUserData(L, 1, &argument);
 
         if (v_type == SCRIPT_TYPE_VECTOR3)
         {
-            const Vector3* t1 = CheckVector3(L, 1);
+            const Vector3* t1 = (const Vector3*)argument;
             PushMatrix4(L, Matrix4::translation(*t1));
         }
         else if (v_type == SCRIPT_TYPE_VECTOR4)
         {
-            const Vector4* t1 = CheckVector4(L, 1);
+            const Vector4* t1 = (const Vector4*)argument;
             PushMatrix4(L, Matrix4::translation(t1->getXYZ()));
         }
         else
@@ -1738,23 +1824,25 @@ namespace dmScript
      */
     static int Dot(lua_State* L)
     {
-        const ScriptUserType type1 = GetType(L, 1);
-        const ScriptUserType type2 = GetType(L, 2);
+        void* argument1 = 0;
+        void* argument2 = 0;
+        const ScriptUserType type1 = CheckUserData(L, 1, &argument1);
+        const ScriptUserType type2 = CheckUserData(L, 2, &argument2);
 
         if (type1 != type2)
         {
             return luaL_error(L, "%s.%s Arguments needs to be of same type!", SCRIPT_LIB_NAME, "dot");
         }
-        if (type1 == SCRIPT_TYPE_VECTOR3 && type2 == SCRIPT_TYPE_VECTOR3)
+        if (type1 == SCRIPT_TYPE_VECTOR3)
         {
-            Vector3* v1 = CheckVector3(L, 1);
-            Vector3* v2 = CheckVector3(L, 2);
+            Vector3* v1 = (Vector3*)argument1;
+            Vector3* v2 = (Vector3*)argument2;
             lua_pushnumber(L, dmVMath::Dot(*v1, *v2));
         }
-        else if (type1 == SCRIPT_TYPE_VECTOR4 && type2 == SCRIPT_TYPE_VECTOR4)
+        else if (type1 == SCRIPT_TYPE_VECTOR4)
         {
-            Vector4* v1 = CheckVector4(L, 1);
-            Vector4* v2 = CheckVector4(L, 2);
+            Vector4* v1 = (Vector4*)argument1;
+            Vector4* v2 = (Vector4*)argument2;
             lua_pushnumber(L, dmVMath::Dot(*v1, *v2));
         }
         else
@@ -1782,20 +1870,21 @@ namespace dmScript
      */
     static int LengthSqr(lua_State* L)
     {
-        const ScriptUserType type = GetType(L, 1);
+        void* argument = 0;
+        const ScriptUserType type = CheckUserData(L, 1, &argument);
         if (type == SCRIPT_TYPE_VECTOR3)
         {
-            Vector3* v = CheckVector3(L, 1);
+            Vector3* v = (Vector3*)argument;
             lua_pushnumber(L, dmVMath::LengthSqr(*v));
         }
         else if (type == SCRIPT_TYPE_VECTOR4)
         {
-            Vector4* v = CheckVector4(L, 1);
+            Vector4* v = (Vector4*)argument;
             lua_pushnumber(L, dmVMath::LengthSqr(*v));
         }
         else if (type == SCRIPT_TYPE_QUAT)
         {
-            Quat* value = CheckQuat(L, 1);
+            Quat* value = (Quat*)argument;
             lua_pushnumber(L, dmVMath::LengthSqr(*value));
         }
         else
@@ -1830,20 +1919,21 @@ namespace dmScript
      */
     static int Length(lua_State* L)
     {
-        const ScriptUserType type = GetType(L, 1);
+        void* argument = 0;
+        const ScriptUserType type = CheckUserData(L, 1, &argument);
         if (type == SCRIPT_TYPE_VECTOR3)
         {
-            Vector3* v = CheckVector3(L, 1);
+            Vector3* v = (Vector3*)argument;
             lua_pushnumber(L, dmVMath::Length(*v));
         }
         else if (type == SCRIPT_TYPE_VECTOR4)
         {
-            Vector4* v = CheckVector4(L, 1);
+            Vector4* v = (Vector4*)argument;
             lua_pushnumber(L, dmVMath::Length(*v));
         }
         else if (type == SCRIPT_TYPE_QUAT)
         {
-            Quat* value = CheckQuat(L, 1);
+            Quat* value = (Quat*)argument;
             lua_pushnumber(L, dmVMath::Length(*value));
         }
         else
@@ -1875,20 +1965,21 @@ namespace dmScript
      */
     static int Normalize(lua_State* L)
     {
-        const ScriptUserType type = GetType(L, 1);
+        void* argument = 0;
+        const ScriptUserType type = CheckUserData(L, 1, &argument);
         if (type == SCRIPT_TYPE_VECTOR3)
         {
-            Vector3* v = CheckVector3(L, 1);
+            Vector3* v = (Vector3*)argument;
             PushVector3(L, dmVMath::Normalize(*v));
         }
         else if (type == SCRIPT_TYPE_VECTOR4)
         {
-            Vector4* v = CheckVector4(L, 1);
+            Vector4* v = (Vector4*)argument;
             PushVector4(L, dmVMath::Normalize(*v));
         }
         else if (type == SCRIPT_TYPE_QUAT)
         {
-            Quat* value = CheckQuat(L, 1);
+            Quat* value = (Quat*)argument;
             PushQuat(L, dmVMath::Normalize(*value));
         }
         else
@@ -2029,39 +2120,42 @@ namespace dmScript
 
     static int Lerp(lua_State* L)
     {
-        const ScriptUserType type1 = GetType(L, 2);
-        const ScriptUserType type2 = GetType(L, 3);
         float t = (float) luaL_checknumber(L, 1);
-        if (type1 == type2 && type1 != SCRIPT_TYPE_UNKNOWN)
-        {
-            if (type1 == SCRIPT_TYPE_VECTOR3 && type2 == SCRIPT_TYPE_VECTOR3)
-            {
-                Vector3* v1 = CheckVector3(L, 2);
-                Vector3* v2 = CheckVector3(L, 3);
-                PushVector3(L, dmVMath::Lerp(t, *v1, *v2));
-                return 1;
-            }
-            else if (type1 == SCRIPT_TYPE_VECTOR4 && type2 == SCRIPT_TYPE_VECTOR4)
-            {
-                Vector4* v1 = CheckVector4(L, 2);
-                Vector4* v2 = CheckVector4(L, 3);
-                PushVector4(L, dmVMath::Lerp(t, *v1, *v2));
-                return 1;
-            }
-            else if (type1 == SCRIPT_TYPE_QUAT && type2 == SCRIPT_TYPE_QUAT)
-            {
-                Quat* q1 = CheckQuat(L, 2);
-                Quat* q2 = CheckQuat(L, 3);
-                PushQuat(L, dmVMath::Lerp(t, *q1, *q2));
-                return 1;
-            }
-        }
-        else if (lua_isnumber(L, 2) && lua_isnumber(L, 3))
+        if (lua_isnumber(L, 2) && lua_isnumber(L, 3))
         {
             lua_Number n1 = (float) luaL_checknumber(L, 2);
             lua_Number n2 = (float) luaL_checknumber(L, 3);
             lua_pushnumber(L, n1 + t * (n2 - n1));
             return 1;
+        }
+
+        void* argument1 = 0;
+        void* argument2 = 0;
+        const ScriptUserType type1 = CheckUserData(L, 2, &argument1);
+        const ScriptUserType type2 = CheckUserData(L, 3, &argument2);
+        if (type1 == type2 && type1 != SCRIPT_TYPE_UNKNOWN)
+        {
+            if (type1 == SCRIPT_TYPE_VECTOR3)
+            {
+                Vector3* v1 = (Vector3*)argument1;
+                Vector3* v2 = (Vector3*)argument2;
+                PushVector3(L, dmVMath::Lerp(t, *v1, *v2));
+                return 1;
+            }
+            else if (type1 == SCRIPT_TYPE_VECTOR4)
+            {
+                Vector4* v1 = (Vector4*)argument1;
+                Vector4* v2 = (Vector4*)argument2;
+                PushVector4(L, dmVMath::Lerp(t, *v1, *v2));
+                return 1;
+            }
+            else if (type1 == SCRIPT_TYPE_QUAT)
+            {
+                Quat* q1 = (Quat*)argument1;
+                Quat* q2 = (Quat*)argument2;
+                PushQuat(L, dmVMath::Lerp(t, *q1, *q2));
+                return 1;
+            }
         }
         return luaL_error(L, "%s.%s takes one number and a pair of either %s.%ss, %s.%ss, %s.%ss or numbers as arguments.", SCRIPT_LIB_NAME, "lerp", SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_VECTOR3, SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_VECTOR4, SCRIPT_LIB_NAME, SCRIPT_TYPE_NAME_QUAT);
     }
@@ -2140,30 +2234,32 @@ namespace dmScript
      */
     static int Slerp(lua_State* L)
     {
-        const ScriptUserType type1 = GetType(L, 2);
-        const ScriptUserType type2 = GetType(L, 3);
+        void* argument1 = 0;
+        void* argument2 = 0;
+        const ScriptUserType type1 = CheckUserData(L, 2, &argument1);
+        const ScriptUserType type2 = CheckUserData(L, 3, &argument2);
 
         if (type1 == type2)
         {
             float t = (float) luaL_checknumber(L, 1);
-            if (type1 == SCRIPT_TYPE_QUAT && type2 == SCRIPT_TYPE_QUAT)
+            if (type1 == SCRIPT_TYPE_QUAT)
             {
-                Quat* q1 = (Quat*)lua_touserdata(L, 2);
-                Quat* q2 = (Quat*)lua_touserdata(L, 3);
+                Quat* q1 = (Quat*)argument1;
+                Quat* q2 = (Quat*)argument2;
                 PushQuat(L, dmVMath::Slerp(t, *q1, *q2));
                 return 1;
             }
-            else if (type1 == SCRIPT_TYPE_VECTOR4 && type2 == SCRIPT_TYPE_VECTOR4)
+            else if (type1 == SCRIPT_TYPE_VECTOR4)
             {
-                Vector4* v1 = CheckVector4(L, 2);
-                Vector4* v2 = CheckVector4(L, 3);
+                Vector4* v1 = (Vector4*)argument1;
+                Vector4* v2 = (Vector4*)argument2;
                 PushVector4(L, dmVMath::Slerp(t, *v1, *v2));
                 return 1;
             }
-            else if (type1 == SCRIPT_TYPE_VECTOR3 && type2 == SCRIPT_TYPE_VECTOR3)
+            else if (type1 == SCRIPT_TYPE_VECTOR3)
             {
-                Vector3* v1 = CheckVector3(L, 2);
-                Vector3* v2 = CheckVector3(L, 3);
+                Vector3* v1 = (Vector3*)argument1;
+                Vector3* v2 = (Vector3*)argument2;
                 PushVector3(L, dmVMath::Slerp(t, *v1, *v2));
                 return 1;
             }
@@ -2273,23 +2369,25 @@ namespace dmScript
      */
     static int MulPerElem(lua_State* L)
     {
-        const ScriptUserType type1 = GetType(L, 1);
-        const ScriptUserType type2 = GetType(L, 2);
+        void* argument1 = 0;
+        void* argument2 = 0;
+        const ScriptUserType type1 = CheckUserData(L, 1, &argument1);
+        const ScriptUserType type2 = CheckUserData(L, 2, &argument2);
 
         if (type1 != type2)
         {
             return luaL_error(L, "%s.%s Arguments needs to be of same type!", SCRIPT_LIB_NAME, "mul_per_elem");
         }
-        if (type1 == SCRIPT_TYPE_VECTOR3 && type2 == SCRIPT_TYPE_VECTOR3)
+        if (type1 == SCRIPT_TYPE_VECTOR3)
         {
-            Vector3* v1 = CheckVector3(L, 1);
-            Vector3* v2 = CheckVector3(L, 2);
+            Vector3* v1 = (Vector3*)argument1;
+            Vector3* v2 = (Vector3*)argument2;
             PushVector3(L, dmVMath::MulPerElem(*v1, *v2));
         }
-        else if (type1 == SCRIPT_TYPE_VECTOR4 && type2 == SCRIPT_TYPE_VECTOR4)
+        else if (type1 == SCRIPT_TYPE_VECTOR4)
         {
-            Vector4* v1 = CheckVector4(L, 1);
-            Vector4* v2 = CheckVector4(L, 2);
+            Vector4* v1 = (Vector4*)argument1;
+            Vector4* v2 = (Vector4*)argument2;
             PushVector4(L, dmVMath::MulPerElem(*v1, *v2));
         }
         else
@@ -2338,16 +2436,17 @@ namespace dmScript
     static int Matrix4_Compose(lua_State* L)
     {
         Matrix4 translation_matrix = Matrix4::identity();
-        const ScriptUserType translation_type = GetType(L, 1);
+        void* argument = 0;
+        const ScriptUserType translation_type = CheckUserData(L, 1, &argument);
 
         if (translation_type == SCRIPT_TYPE_VECTOR3)
         {
-            Vector3* translation = CheckVector3(L, 1);
+            Vector3* translation = (Vector3*)argument;
             translation_matrix.setTranslation(*translation);
         }
         else if (translation_type == SCRIPT_TYPE_VECTOR4)
         {
-            Vector4* translation = CheckVector4(L, 1);
+            Vector4* translation = (Vector4*)argument;
             translation_matrix.setTranslation(translation->getXYZ());
         }
         else
@@ -2417,44 +2516,44 @@ namespace dmScript
         {
             float value = (float) luaL_checknumber(L, 1);
             lua_pushnumber(L, dmMath::Clamp(value, min, max));
+            return 1;
+        }
+
+        void* argument = 0;
+        const ScriptUserType argument_type = CheckUserData(L, 1, &argument);
+        if (argument_type == SCRIPT_TYPE_VECTOR3)
+        {
+            Vector3* value = (Vector3*)argument;
+            PushVector3(L, Vector3(
+                dmMath::Clamp(value->getX(), min, max),
+                dmMath::Clamp(value->getY(), min, max),
+                dmMath::Clamp(value->getZ(), min, max)
+            ));
+        }
+        else if (argument_type == SCRIPT_TYPE_VECTOR4)
+        {
+            Vector4* value = (Vector4*)argument;
+            PushVector4(L, Vector4(
+                dmMath::Clamp(value->getX(), min, max),
+                dmMath::Clamp(value->getY(), min, max),
+                dmMath::Clamp(value->getZ(), min, max),
+                dmMath::Clamp(value->getW(), min, max)
+            ));
+        }
+        else if  (argument_type == SCRIPT_TYPE_VECTOR)
+        {
+            FloatVector* value = (FloatVector*)argument;
+            FloatVector* result = new FloatVector(value->size);
+            for (size_t idx = 0; idx < result->size; ++idx)
+            {
+                result->values[idx] = dmMath::Clamp(result->values[idx], min, max);
+            }
+            PushVector(L, result);
         }
         else
         {
-            const ScriptUserType argument_type = GetType(L, 1);
-            if (argument_type == SCRIPT_TYPE_VECTOR3)
-            {
-                Vector3* value = CheckVector3(L, 1);
-                PushVector3(L, Vector3(
-                    dmMath::Clamp(value->getX(), min, max),
-                    dmMath::Clamp(value->getY(), min, max),
-                    dmMath::Clamp(value->getZ(), min, max)
-                ));
-            }
-            else if (argument_type == SCRIPT_TYPE_VECTOR4)
-            {
-                Vector4* value = CheckVector4(L, 1);
-                PushVector4(L, Vector4(
-                    dmMath::Clamp(value->getX(), min, max),
-                    dmMath::Clamp(value->getY(), min, max),
-                    dmMath::Clamp(value->getZ(), min, max),
-                    dmMath::Clamp(value->getW(), min, max)
-                ));
-            }
-            else if  (argument_type == SCRIPT_TYPE_VECTOR)
-            {
-                FloatVector* value = CheckVector(L, 1);
-                FloatVector* result = new FloatVector(value->size);
-                for (size_t idx = 0; idx < result->size; ++idx)
-                {
-                    result->values[idx] = dmMath::Clamp(result->values[idx], min, max);
-                }
-                PushVector(L, result);
-            }
-            else
-            {
-                return luaL_error(L, "%s.%s accepts (%s|%s|%s|%s) as argument.", SCRIPT_LIB_NAME, "clamp",
-                                "number", SCRIPT_TYPE_NAME_VECTOR3, SCRIPT_TYPE_NAME_VECTOR4, SCRIPT_TYPE_NAME_VECTOR);
-            }
+            return luaL_error(L, "%s.%s accepts (%s|%s|%s|%s) as argument.", SCRIPT_LIB_NAME, "clamp",
+                            "number", SCRIPT_TYPE_NAME_VECTOR3, SCRIPT_TYPE_NAME_VECTOR4, SCRIPT_TYPE_NAME_VECTOR);
         }
         return 1;
     }
@@ -2476,7 +2575,8 @@ namespace dmScript
         {"matrix4_look_at", Matrix4_LookAt},
         {"matrix4_orthographic", Matrix4_Orthographic},
         {"matrix4_perspective", Matrix4_Perspective},
-        {"matrix4_from_quat", Matrix4_FromQuat},
+        {"matrix4_from_quat", Matrix4_Quat}, // deprecated
+        {"matrix4_quat", Matrix4_Quat},
         {"matrix4_axis_angle", Matrix4_AxisAngle},
         {"matrix4_rotation_x", Matrix4_RotationX},
         {"matrix4_rotation_y", Matrix4_RotationY},
@@ -2555,7 +2655,7 @@ namespace dmScript
     Vector3* CheckVector3(lua_State* L, int index)
     {
         Vector3* v = (Vector3*)CheckUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_VECTOR3], 0);
-        if (isnan(v->getX()) || isnan(v->getY()) || isnan(v->getZ()))
+        if (!CheckVector3Components(v))
         {
             luaL_error(L, "argument #%d contains one or more values which are not numbers: vmath.vector3(%f, %f, %f)", index, v->getX(), v->getY(), v->getZ());
         }
@@ -2573,7 +2673,7 @@ namespace dmScript
     Vector4* CheckVector4(lua_State* L, int index)
     {
         Vector4* v = (Vector4*)CheckUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_VECTOR4], 0);
-        if (isnan(v->getX()) || isnan(v->getY()) || isnan(v->getZ()) || isnan(v->getW()))
+        if (!CheckVector4Components(v))
         {
             luaL_error(L, "argument #%d contains one or more values which are not numbers: vmath.vector4(%f, %f, %f, %f)", index, v->getX(), v->getY(), v->getZ(), v->getW());
         }
@@ -2591,7 +2691,7 @@ namespace dmScript
     Quat* CheckQuat(lua_State* L, int index)
     {
         Quat* q = (Quat*)CheckUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_QUAT], 0);
-        if (isnan(q->getX()) || isnan(q->getY()) || isnan(q->getZ()) || isnan(q->getW()))
+        if (!CheckQuatComponents(q))
         {
             luaL_error(L, "argument #%d contains one or more values which are not numbers: vmath.quat(%f, %f, %f, %f)", index, q->getX(), q->getY(), q->getZ(), q->getW());
         }
@@ -2609,12 +2709,7 @@ namespace dmScript
     Matrix4* CheckMatrix4(lua_State* L, int index)
     {
         Matrix4* m = (Matrix4*)CheckUserType(L, index, TYPE_HASHES[SCRIPT_TYPE_MATRIX4], 0);
-        if (
-            isnan(m->getElem(0, 0)) || isnan(m->getElem(1, 0)) || isnan(m->getElem(2, 0)) || isnan(m->getElem(3, 0)) ||
-            isnan(m->getElem(0, 1)) || isnan(m->getElem(1, 1)) || isnan(m->getElem(2, 1)) || isnan(m->getElem(3, 1)) ||
-            isnan(m->getElem(0, 2)) || isnan(m->getElem(1, 2)) || isnan(m->getElem(2, 2)) || isnan(m->getElem(3, 2)) ||
-            isnan(m->getElem(0, 3)) || isnan(m->getElem(1, 3)) || isnan(m->getElem(2, 3)) || isnan(m->getElem(3, 3))
-        )
+        if (!CheckMatrix4Components(m))
         {
             luaL_error(L, "argument #%d contains one or more values which are not numbers: vmath.matrix4(%f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f, %f)", index,
                 m->getElem(0, 0), m->getElem(1, 0), m->getElem(2, 0), m->getElem(3, 0),
