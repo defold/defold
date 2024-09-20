@@ -829,9 +829,9 @@
       :vector-type-vec2 types/Vec2
       :vector-type-vec3 types/Vec3
       :vector-type-vec4 types/Vec4
-      :vector-type-mat2 types/Vec4
-      :vector-type-mat3 types/Vec4
-      :vector-type-mat4 types/Vec4)))
+      :vector-type-mat2 types/Mat2
+      :vector-type-mat3 types/Mat3
+      :vector-type-mat4 types/Mat4)))
 
 (defn- attribute-update-property [current-property-value attribute-info new-value]
   (let [name-key (:name-key attribute-info)
