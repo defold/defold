@@ -149,6 +149,7 @@ namespace dmScript
             if (!CheckVector3Components(v))
             {
                 luaL_error(L, "argument #%d contains one or more values which are not numbers: vmath.vector3(%f, %f, %f)", index, v->getX(), v->getY(), v->getZ());
+                return SCRIPT_TYPE_UNKNOWN;
             }
             return SCRIPT_TYPE_VECTOR3;
         }
@@ -158,6 +159,7 @@ namespace dmScript
             if (!CheckVector4Components(v))
             {
                 luaL_error(L, "argument #%d contains one or more values which are not numbers: vmath.vector4(%f, %f, %f, %f)", index, v->getX(), v->getY(), v->getZ(), v->getW());
+                return SCRIPT_TYPE_UNKNOWN;
             }
             return SCRIPT_TYPE_VECTOR4;
         }
@@ -171,6 +173,7 @@ namespace dmScript
             if (!CheckQuatComponents(q))
             {
                 luaL_error(L, "argument #%d contains one or more values which are not numbers: vmath.quat(%f, %f, %f, %f)", index, q->getX(), q->getY(), q->getZ(), q->getW());
+                return SCRIPT_TYPE_UNKNOWN;
             }
             return SCRIPT_TYPE_QUAT;
         }
@@ -184,6 +187,7 @@ namespace dmScript
                     m->getElem(0, 1), m->getElem(1, 1), m->getElem(2, 1), m->getElem(3, 1),
                     m->getElem(0, 2), m->getElem(1, 2), m->getElem(2, 2), m->getElem(3, 2),
                     m->getElem(0, 3), m->getElem(1, 3), m->getElem(2, 3), m->getElem(3, 3));
+                return SCRIPT_TYPE_UNKNOWN;
             }
             return SCRIPT_TYPE_MATRIX4;
         }
@@ -2488,12 +2492,13 @@ namespace dmScript
     /*# clamp input value in range [min, max] and return clamped value
      *
      * Clamp input value to be in range of [min, max]. In case if input value has vector|vector3|vector4 type
-     * return new vector|vector3|vector4 with clamped value at every vector element.
+     * return new vector|vector3|vector4 with clamped value at every vector's element.
+     * Min/max arguments can be vector|vector3|vector4. In that case clamp excuted per every vector's element
      *
      * @name vmath.clamp
-     * @param value [type:number|vector3, vector4|vector] Input value or vector of values
-     * @param min [type:number] Min value border
-     * @param max [type:number] Max value border
+     * @param value [type:number|vector3|vector4|vector] Input value or vector of values
+     * @param min [type:number|vector3|vector4|vector] Min value(s) border
+     * @param max [type:number|vector3|vector4|vector] Max value(s) border
      * @return clamped_value [type:number|vector3|vector4|vector] Clamped value or vector
      * @example
      * 
@@ -2506,46 +2511,120 @@ namespace dmScript
 	 * print(vmath.clamp(v2, -50, 150)) -> vmath.vector3(150, 150, -10)
 	 * local v3 = vmath.vector4(30, -30, 45, 1)
 	 * print(vmath.clamp(v3, 0, 20)) -> vmath.vector4(20, 0, 20, 1)
+     * 
+     * local min_v = vmath.vector4(0, -10, -10, 1)
+     * print(vmath.clamp(v3, min_v, 20)) -> vmath.vector4(20, -10, 20, 1)
      * ```
      */
     static int Vector_Clamp(lua_State* L)
     {
-        float min = (float) luaL_checknumber(L, 2);
-        float max = (float) luaL_checknumber(L, 3);
         if (lua_type(L, 1) == LUA_TNUMBER)
         {
             float value = (float) luaL_checknumber(L, 1);
+            float min = (float) luaL_checknumber(L, 2);
+            float max = (float) luaL_checknumber(L, 3);
             lua_pushnumber(L, dmMath::Clamp(value, min, max));
             return 1;
         }
 
         void* argument = 0;
         const ScriptUserType argument_type = CheckUserData(L, 1, &argument);
+        int argument2_type = lua_type(L, 2);
+        int argument3_type = lua_type(L, 3);
         if (argument_type == SCRIPT_TYPE_VECTOR3)
         {
             Vector3* value = (Vector3*)argument;
+            Vector3 min_v, max_v;
+            if (argument2_type == LUA_TNUMBER)
+            {
+                float min = (float) luaL_checknumber(L, 2);
+                min_v = Vector3(min, min, min);
+            }
+            else
+            {
+                min_v = *CheckVector3(L, 2);
+            }
+            if (argument3_type == LUA_TNUMBER)
+            {
+                float max = (float) luaL_checknumber(L, 3);
+                max_v = Vector3(max, max, max);
+            }
+            else
+            {
+                max_v = *CheckVector3(L, 3);
+            }
+
             PushVector3(L, Vector3(
-                dmMath::Clamp(value->getX(), min, max),
-                dmMath::Clamp(value->getY(), min, max),
-                dmMath::Clamp(value->getZ(), min, max)
+                dmMath::Clamp(value->getX(), min_v.getX(), max_v.getX()),
+                dmMath::Clamp(value->getY(), min_v.getY(), max_v.getY()),
+                dmMath::Clamp(value->getZ(), min_v.getZ(), max_v.getZ())
             ));
         }
         else if (argument_type == SCRIPT_TYPE_VECTOR4)
         {
             Vector4* value = (Vector4*)argument;
+            Vector4 min_v, max_v;
+            if (argument2_type == LUA_TNUMBER)
+            {
+                float min = (float) luaL_checknumber(L, 2);
+                min_v = Vector4(min, min, min, min);
+            }
+            else
+            {
+                min_v = *CheckVector4(L, 2);
+            }
+            if (argument3_type == LUA_TNUMBER)
+            {
+                float max = (float) luaL_checknumber(L, 3);
+                max_v = Vector4(max, max, max, max);
+            }
+            else
+            {
+                max_v = *CheckVector4(L, 3);
+            }
             PushVector4(L, Vector4(
-                dmMath::Clamp(value->getX(), min, max),
-                dmMath::Clamp(value->getY(), min, max),
-                dmMath::Clamp(value->getZ(), min, max),
-                dmMath::Clamp(value->getW(), min, max)
+                dmMath::Clamp(value->getX(), min_v.getX(), max_v.getX()),
+                dmMath::Clamp(value->getY(), min_v.getY(), max_v.getY()),
+                dmMath::Clamp(value->getZ(), min_v.getZ(), max_v.getZ()),
+                dmMath::Clamp(value->getW(), min_v.getW(), max_v.getW())
             ));
         }
         else if  (argument_type == SCRIPT_TYPE_VECTOR)
         {
             FloatVector* value = (FloatVector*)argument;
             FloatVector* result = new FloatVector(value->size);
+
+            float min_float, max_float;
+            FloatVector *min_v, *max_v;
+            if (argument2_type == LUA_TNUMBER)
+            {
+                min_float = (float) luaL_checknumber(L, 2);
+            }
+            else
+            {
+                min_v = CheckVector(L, 2);
+                if (min_v->size != value->size)
+                {
+                    return luaL_error(L, "argument #2 vector size must be equal to argument #1 vector size");
+                }
+            }
+            if (argument3_type == LUA_TNUMBER)
+            {
+                max_float = (float) luaL_checknumber(L, 3);
+            }
+            else
+            {
+                max_v = CheckVector(L, 3);
+                if (max_v->size != value->size)
+                {
+                    return luaL_error(L, "argument #3 vector size must be equal to argument #1 vector size");
+                }
+            }
+
             for (size_t idx = 0; idx < result->size; ++idx)
             {
+                float min = argument2_type == LUA_TNUMBER ? min_float : min_v->values[idx];
+                float max = argument3_type == LUA_TNUMBER ? max_float : max_v->values[idx];
                 result->values[idx] = dmMath::Clamp(result->values[idx], min, max);
             }
             PushVector(L, result);
