@@ -797,7 +797,7 @@ namespace dmRender
         if (cache_glyph->m_Glyph) // It already existed in the cache
         {
             // Clear the old data from the cache
-            font_map->m_GlyphCache.Erase(g->m_Character);
+            font_map->m_GlyphCache.Erase(cache_glyph->m_Glyph->m_Character);
         }
         cache_glyph->m_Glyph = g;
 
