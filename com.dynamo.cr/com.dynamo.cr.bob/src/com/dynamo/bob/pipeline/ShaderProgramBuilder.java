@@ -130,38 +130,6 @@ public abstract class ShaderProgramBuilder extends Builder {
         return shaderDescBuildResult;
     }
 
-    // Generate a texture array variant builder, but only if necessary
-    static private ShaderBuildResult getGLSLVariantTextureArrayBuilder(String source, ES2ToES3Converter.ShaderType shaderType, ShaderDesc.Language shaderLanguage, boolean isDebug, int maxPageCount) throws IOException, CompileExceptionError {
-        Common.GLSLCompileResult variantCompileResult = buildGLSLVariantTextureArray(source, shaderType, shaderLanguage, isDebug, maxPageCount);
-
-        // make a builder if the array transformation has picked up any array samplers
-        if (variantCompileResult.arraySamplers.length > 0) {
-            ShaderBuildResult buildResult = ShaderCompilerHelpers.makeShaderBuilderFromGLSLSource(variantCompileResult.source, shaderLanguage);
-            assert(buildResult != null);
-            buildResult.shaderBuilder.setVariantTextureArray(true);
-            return buildResult;
-        }
-
-        return null;
-    }
-
-    // Called from editor for producing a ShaderDesc with a list of finalized shaders,
-    // fully transformed from source to context shaders based on a list of languages
-    static public ShaderDescBuildResult makeShaderDescWithVariants(String resourceOutputPath, String shaderSource, ES2ToES3Converter.ShaderType shaderType,
-            ShaderDesc.Language[] shaderLanguages, int maxPageCount) throws IOException, CompileExceptionError {
-
-        ArrayList<ShaderBuildResult> shaderBuildResults = ShaderCompilers.getBaseShaderBuildResults(resourceOutputPath, shaderSource, shaderType, shaderLanguages, "", false, true);
-
-        for (ShaderDesc.Language shaderLanguage : shaderLanguages) {
-            if (VariantTextureArrayFallback.isRequired(shaderLanguage)) {
-                shaderBuildResults.add(getGLSLVariantTextureArrayBuilder(shaderSource, shaderType, shaderLanguage, true, maxPageCount));
-            }
-        }
-
-        return buildResultsToShaderDescBuildResults(shaderBuildResults, shaderType);
-    }
-
-    // Called from bob
     public ShaderDescBuildResult makeShaderDesc(String resourceOutputPath, ShaderPreprocessor shaderPreprocessor, ShaderDesc.ShaderType shaderType, String platform, boolean outputSpirv, boolean outputHlsl, boolean outputWGSL) throws IOException, CompileExceptionError {
         Platform platformKey = Platform.get(platform);
         if(platformKey == null) {

@@ -35,6 +35,7 @@ namespace dmGraphics
 {
     static GraphicsAdapterFunctionTable VulkanRegisterFunctionTable();
     static bool                         VulkanIsSupported();
+    static HContext                     VulkanGetContext();
     static const int8_t    g_vulkan_adapter_priority = 1;
     static GraphicsAdapter g_vulkan_adapter(ADAPTER_FAMILY_VULKAN);
 

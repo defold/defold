@@ -31,6 +31,8 @@
 
 #include <platform/platform_window.h>
 
+#include <platform/platform_window_win32.h>
+
 #include <graphics/glfw/glfw_native.h>
 
 #include "../graphics_private.h"
@@ -39,17 +41,20 @@
 
 #include "graphics_dx12_private.h"
 
+DM_PROPERTY_EXTERN(rmtp_DrawCalls);
+DM_PROPERTY_EXTERN(rmtp_DispatchCalls);
 
 namespace dmGraphics
 {
     static GraphicsAdapterFunctionTable DX12RegisterFunctionTable();
     static bool                         DX12IsSupported();
+    static HContext                     DX12GetContext();
     static bool                         DX12Initialize(HContext _context);
     static const int8_t    g_dx12_adapter_priority = 0;
     static GraphicsAdapter g_dx12_adapter(ADAPTER_FAMILY_DIRECTX);
     static DX12Context*    g_DX12Context = 0x0;
 
-    DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterDX12, &g_dx12_adapter, DX12IsSupported, DX12RegisterFunctionTable, g_dx12_adapter_priority);
+    DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterDX12, &g_dx12_adapter, DX12IsSupported, DX12RegisterFunctionTable, DX12GetContext, g_dx12_adapter_priority);
 
     static int16_t CreateTextureSampler(DX12Context* context, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, uint8_t maxLod, float max_anisotropy);
     static void    FlushResourcesToDestroy(DX12FrameResource& current_frame_resource);
@@ -99,6 +104,11 @@ namespace dmGraphics
             DeleteContext(g_DX12Context);
         }
         return 0x0;
+    }
+
+    static HContext DX12GetContext()
+    {
+        return g_DX12Context;
     }
 
     static IDXGIAdapter1* CreateDeviceAdapter(IDXGIFactory4* dxgiFactory)
@@ -359,7 +369,7 @@ namespace dmGraphics
         swap_chain_desc.BufferDesc           = back_buffer_desc;
         swap_chain_desc.BufferUsage          = DXGI_USAGE_RENDER_TARGET_OUTPUT;
         swap_chain_desc.SwapEffect           = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-        swap_chain_desc.OutputWindow         = glfwGetWindowsHWND();
+        swap_chain_desc.OutputWindow         = GetWindowsHWND(context->m_Window);
         swap_chain_desc.SampleDesc           = sample_desc;
         swap_chain_desc.Windowed             = true;
 
@@ -1428,7 +1438,7 @@ namespace dmGraphics
                     } break;
                     case ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER:
                     {
-                        const uint32_t uniform_size_nonalign = pgm_res.m_Res->m_BlockSize;
+                        const uint32_t uniform_size_nonalign = pgm_res.m_Res->m_BindingInfo.m_BlockSize;
                         void* gpu_mapped_memory = frame_resources.m_ScratchBuffer.AllocateConstantBuffer(context, pgm_res.m_Res->m_Binding, uniform_size_nonalign);
                         memcpy(gpu_mapped_memory, &program->m_UniformData[pgm_res.m_DataOffset], uniform_size_nonalign);
                     } break;
@@ -1481,6 +1491,9 @@ namespace dmGraphics
 
     static void DX12DrawElements(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
     {
+        DM_PROFILE(__FUNCTION__);
+        DM_PROPERTY_ADD_U32(rmtp_DrawCalls, 1);
+
         DX12Context* context = (DX12Context*) _context;
         DrawSetup(context, prim_type);
 
@@ -1497,13 +1510,22 @@ namespace dmGraphics
 
     static void DX12Draw(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count)
     {
+        DM_PROFILE(__FUNCTION__);
+        DM_PROPERTY_ADD_U32(rmtp_DrawCalls, 1);
+
         DX12Context* context = (DX12Context*) _context;
         DrawSetup(context, prim_type);
 
         context->m_CommandList->DrawInstanced(count, 1, first, 0);
     }
 
-    static HComputeProgram DX12NewComputeProgram(HContext context, ShaderDesc::Shader* ddf)
+    static void DX12DispatchCompute(HContext _context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z)
+    {
+        DM_PROFILE(__FUNCTION__);
+        DM_PROPERTY_ADD_U32(rmtp_DispatchCalls, 1);
+    }
+
+    static HComputeProgram DX12NewComputeProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
         return 0;
     }
@@ -1522,7 +1544,7 @@ namespace dmGraphics
         return true;
     }
 
-    static bool DX12ReloadComputeProgram(HComputeProgram prog, ShaderDesc::Shader* ddf)
+    static bool DX12ReloadComputeProgram(HComputeProgram prog, ShaderDesc* ddf)
     {
         return true;
     }
@@ -1604,8 +1626,8 @@ namespace dmGraphics
                         program_resource_binding.m_DynamicOffsetIndex = info.m_UniformBufferCount;
 
                         info.m_UniformBufferCount++;
-                        info.m_UniformDataSize        += res.m_BlockSize;
-                        info.m_UniformDataSizeAligned += DM_ALIGN(res.m_BlockSize, ubo_alignment);
+                        info.m_UniformDataSize        += res.m_BindingInfo.m_BlockSize;
+                        info.m_UniformDataSizeAligned += DM_ALIGN(res.m_BindingInfo.m_BlockSize, ubo_alignment);
                         info.m_TotalUniformCount      += type_info.m_Members.Size();
                     }
                     break;
@@ -1758,38 +1780,50 @@ namespace dmGraphics
         return S_OK;
     }
 
-    static HVertexProgram DX12NewVertexProgram(HContext _context, ShaderDesc::Shader* ddf)
+    static HVertexProgram DX12NewVertexProgram(HContext _context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
+        ShaderDesc::Shader* ddf_shader = GetShaderProgram(_context, ddf);
+        if (ddf_shader == 0x0)
+        {
+            return 0x0;
+        }
+
         DX12Context* context = (DX12Context*) _context;
         DX12ShaderModule* shader = new DX12ShaderModule;
         memset(shader, 0, sizeof(*shader));
 
-        HRESULT hr = CreateShaderModule(context, "vs_5_0", ddf->m_Source.m_Data, ddf->m_Source.m_Count, shader);
+        HRESULT hr = CreateShaderModule(context, "vs_5_0", ddf_shader->m_Source.m_Data, ddf_shader->m_Source.m_Count, shader);
         CHECK_HR_ERROR(hr);
 
-        CreateShaderMeta(ddf, &shader->m_ShaderMeta);
+        CreateShaderMeta(&ddf->m_Reflection, &shader->m_ShaderMeta);
         return (HVertexProgram) shader;
     }
 
-    static HFragmentProgram DX12NewFragmentProgram(HContext _context, ShaderDesc::Shader* ddf)
+    static HFragmentProgram DX12NewFragmentProgram(HContext _context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
+        ShaderDesc::Shader* ddf_shader = GetShaderProgram(_context, ddf);
+        if (ddf_shader == 0x0)
+        {
+            return 0x0;
+        }
+
         DX12Context* context = (DX12Context*) _context;
         DX12ShaderModule* shader = new DX12ShaderModule;
         memset(shader, 0, sizeof(*shader));
 
-        HRESULT hr = CreateShaderModule(context, "ps_5_0", ddf->m_Source.m_Data, ddf->m_Source.m_Count, shader);
+        HRESULT hr = CreateShaderModule(context, "ps_5_0", ddf_shader->m_Source.m_Data, ddf_shader->m_Source.m_Count, shader);
         CHECK_HR_ERROR(hr);
 
-        CreateShaderMeta(ddf, &shader->m_ShaderMeta);
+        CreateShaderMeta(&ddf->m_Reflection, &shader->m_ShaderMeta);
         return (HVertexProgram) shader;
     }
 
-    static bool DX12ReloadVertexProgram(HVertexProgram prog, ShaderDesc::Shader* ddf)
+    static bool DX12ReloadVertexProgram(HVertexProgram prog, ShaderDesc* ddf)
     {
         return 0;
     }
 
-    static bool DX12ReloadFragmentProgram(HFragmentProgram prog, ShaderDesc::Shader* ddf)
+    static bool DX12ReloadFragmentProgram(HFragmentProgram prog, ShaderDesc* ddf)
     {
         return 0;
     }
@@ -1802,12 +1836,12 @@ namespace dmGraphics
     {
     }
 
-    static ShaderDesc::Language DX12GetProgramLanguage(HProgram program)
+    static bool DX12IsShaderLanguageSupported(HContext context, ShaderDesc::Language language, ShaderDesc::ShaderType shader_type)
     {
-        return ShaderDesc::LANGUAGE_HLSL;
+        return language == ShaderDesc::LANGUAGE_HLSL;
     }
 
-    static ShaderDesc::Language DX12GetShaderProgramLanguage(HContext context, ShaderDesc::ShaderClass shader_class)
+    static ShaderDesc::Language DX12GetProgramLanguage(HProgram program)
     {
         return ShaderDesc::LANGUAGE_HLSL;
     }
@@ -2554,6 +2588,12 @@ namespace dmGraphics
     static TextureType DX12GetTextureType(HTexture texture)
     {
         return GetAssetFromContainer<DX12Texture>(g_DX12Context->m_AssetHandleContainer, texture)->m_Type;
+    }
+
+    static uint32_t DX12GetTextureUsageHintFlags(HTexture texture)
+    {
+        return 0;
+        // return GetAssetFromContainer<DX12Texture>(g_DX12Context->m_AssetHandleContainer, texture)->m_UsageHintFlags;
     }
 
     static uint32_t DX12GetNumSupportedExtensions(HContext context)

@@ -84,6 +84,17 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
         return FileUtils.readFileToString(file_out_wgsl);
     }
 
+    static private String compileSPIRVToHLSL(byte[] shaderSource, String resourceOutput)  throws IOException, CompileExceptionError {
+        File file_in_spv = File.createTempFile(FilenameUtils.getName(resourceOutput), ".spv");
+        FileUtil.deleteOnExit(file_in_spv);
+        FileUtils.writeByteArrayToFile(file_in_spv, shaderSource);
+
+        File file_out_hlsl = File.createTempFile(FilenameUtils.getName(resourceOutput), ".hlsl");
+        FileUtil.deleteOnExit(file_out_hlsl);
+        generateHLSL(file_in_spv.getAbsolutePath(), file_out_hlsl.getAbsolutePath());
+        return FileUtils.readFileToString(file_out_hlsl);
+    }
+
     static private SPIRVCompileResult compileGLSLToSPIRV(String shaderSource, ShaderDesc.ShaderType shaderType, String resourceOutput, String targetProfile, boolean isDebug, boolean soft_fail)  throws IOException, CompileExceptionError {
         SPIRVCompileResult res = new SPIRVCompileResult();
 
@@ -248,6 +259,9 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
             return module.spirvResult.source;
         } else if(shaderLanguage == ShaderDesc.Language.LANGUAGE_WGSL) {
             String result = compileSPIRVToWGSL(module.spirvResult.source, this.pipelineName);
+            return result.getBytes();
+        } else if(shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL) {
+            String result = compileSPIRVToHLSL(module.spirvResult.source, this.pipelineName);
             return result.getBytes();
         } else if (canBeCrossCompiled(shaderLanguage)) {
             String result = ShaderUtil.Common.compileGLSL(module.source, shaderType, shaderLanguage, false, false);

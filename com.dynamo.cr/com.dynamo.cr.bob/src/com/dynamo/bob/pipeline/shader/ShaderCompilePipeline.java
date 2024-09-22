@@ -108,6 +108,16 @@ public class ShaderCompilePipeline {
         checkResult(result);
     }
 
+    protected static void generateHLSL(String pathFileInSpv, String pathFileOutHLSL) throws IOException, CompileExceptionError {
+        Result result = Exec.execResult(
+            Bob.getExe(Platform.getHostPlatform(), "spirv-cross"),
+            pathFileInSpv,
+            "--output", pathFileOutHLSL,
+            "--hlsl",
+            "--shader-model", "50");
+        checkResult(result);
+    }
+
     private void generateSPIRv(ShaderDesc.ShaderType shaderType, String pathFileInGLSL, String pathFileOutSpv) throws IOException, CompileExceptionError {
         Result result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "glslang"),
             "-w",
@@ -144,6 +154,10 @@ public class ShaderCompilePipeline {
     private void generateCrossCompiledShader(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, String pathFileInSpv, String pathFileOut, int versionOut) throws IOException, CompileExceptionError{
         if(shaderLanguage == ShaderDesc.Language.LANGUAGE_WGSL) {
             generateWGSL(pathFileInSpv, pathFileOut);
+            return;
+        }
+        else if (shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL) {
+            generateHLSL(pathFileInSpv, pathFileOut);
             return;
         }
 

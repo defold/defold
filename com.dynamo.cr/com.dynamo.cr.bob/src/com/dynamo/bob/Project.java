@@ -1349,7 +1349,7 @@ public class Project {
                         List<String> symbols = (List<String>) yamlPlatformContext.getOrDefault("symbols", new ArrayList<String>());
 
                         for (String symbol : symbols) {
-                            if (symbol.equals(requiredSymbol)) {
+                            if (symbol.equals(symbolName)) {
                                 symbolFound = true;
                                 break;
                             }
