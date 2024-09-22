@@ -110,6 +110,10 @@ public class ModelUtil {
         return MathUtil.vecmathToDDFOne(v[0], v[1], v[2], v[3]);
     }
 
+    private static Vector3One toDDFVector3One(float[] v) {
+        return MathUtil.vecmathToDDFOne(v[0], v[1], v[2]);
+    }
+
     private static Transform toDDFTransform(Modelimporter.Transform transform) {
         Vector3d translation = new Vector3d(transform.translation.x, transform.translation.y, transform.translation.z);
         Vector3d scale = new Vector3d(transform.scale.x, transform.scale.y, transform.scale.z);
@@ -420,6 +424,131 @@ public class ModelUtil {
         return builder.build();
     }
 
+    private static Rig.PbrSpecularGlossiness loadPbrSpecularGlossiness(Modelimporter.PbrSpecularGlossiness src) {
+        Rig.PbrSpecularGlossiness.Builder builder = Rig.PbrSpecularGlossiness.newBuilder();
+
+       if (src.diffuseTexture != null)
+            builder.setDiffuseTexture(loadTextureView(src.diffuseTexture));
+
+       if (src.specularGlossinessTexture != null)
+            builder.setSpecularGlossinessTexture(loadTextureView(src.specularGlossinessTexture));
+
+        if (src.diffuseFactor != null)
+            builder.setDiffuseFactor(toDDFVector4One(src.diffuseFactor));
+
+        if (src.specularFactor != null)
+            builder.setSpecularFactor(toDDFVector3One(src.specularFactor));
+
+        builder.setGlossinessFactor(src.glossinessFactor);
+
+        return builder.build();
+    }
+
+    private static Rig.Clearcoat loadClearcoat(Modelimporter.Clearcoat src) {
+        Rig.Clearcoat.Builder builder = Rig.Clearcoat.newBuilder();
+
+       if (src.clearcoatTexture != null)
+            builder.setClearcoatTexture(loadTextureView(src.clearcoatTexture));
+
+       if (src.clearcoatRoughnessTexture != null)
+            builder.setClearcoatRoughnessTexture(loadTextureView(src.clearcoatRoughnessTexture));
+
+       if (src.clearcoatNormalTexture != null)
+            builder.setClearcoatNormalTexture(loadTextureView(src.clearcoatNormalTexture));
+
+        builder.setClearcoatFactor(src.clearcoatFactor);
+        builder.setClearcoatRoughnessFactor(src.clearcoatRoughnessFactor);
+
+        return builder.build();
+    }
+
+    private static Rig.Transmission loadTransmission(Modelimporter.Transmission src) {
+        Rig.Transmission.Builder builder = Rig.Transmission.newBuilder();
+        if (src.transmissionTexture != null)
+            builder.setTransmissionTexture(loadTextureView(src.transmissionTexture));
+
+        builder.setTransmissionFactor(src.transmissionFactor);
+        return builder.build();
+    }
+
+    private static Rig.Ior loadIor(Modelimporter.Ior src) {
+        Rig.Ior.Builder builder = Rig.Ior.newBuilder();
+        builder.setIor(src.ior);
+        return builder.build();
+    }
+
+    private static Rig.Specular loadSpecular(Modelimporter.Specular src) {
+        Rig.Specular.Builder builder = Rig.Specular.newBuilder();
+
+       if (src.specularTexture != null)
+            builder.setSpecularTexture(loadTextureView(src.specularTexture));
+
+       if (src.specularColorTexture != null)
+            builder.setSpecularColorTexture(loadTextureView(src.specularColorTexture));
+
+        if (src.specularColorFactor != null)
+            builder.setSpecularColorFactor(toDDFVector3One(src.specularColorFactor));
+
+        builder.setSpecularFactor(src.specularFactor);
+
+        return builder.build();
+    }
+
+    private static Rig.Volume loadVolume(Modelimporter.Volume src) {
+        Rig.Volume.Builder builder = Rig.Volume.newBuilder();
+
+       if (src.thicknessTexture != null)
+            builder.setThicknessTexture(loadTextureView(src.thicknessTexture));
+
+        if (src.attenuationColor != null)
+            builder.setAttenuationColor(toDDFVector3One(src.attenuationColor));
+
+        builder.setThicknessFactor(src.thicknessFactor);
+        builder.setAttenuationDistance(src.attenuationDistance);
+
+        return builder.build();
+    }
+
+    private static Rig.Sheen loadSheen(Modelimporter.Sheen src) {
+        Rig.Sheen.Builder builder = Rig.Sheen.newBuilder();
+
+       if (src.sheenColorTexture != null)
+            builder.setSheenColorTexture(loadTextureView(src.sheenColorTexture));
+
+       if (src.sheenRoughnessTexture != null)
+            builder.setSheenRoughnessTexture(loadTextureView(src.sheenRoughnessTexture));
+
+        if (src.sheenColorFactor != null)
+            builder.setSheenColorFactor(toDDFVector3(src.sheenColorFactor));
+
+        builder.setSheenRoughnessFactor(src.sheenRoughnessFactor);
+
+        return builder.build();
+    }
+
+    private static Rig.EmissiveStrength loadEmissiveStrength(Modelimporter.EmissiveStrength src) {
+        Rig.EmissiveStrength.Builder builder = Rig.EmissiveStrength.newBuilder();
+        builder.setEmissiveStrength(src.emissiveStrength);
+        return builder.build();
+    }
+
+    private static Rig.Iridescence loadIridescence(Modelimporter.Iridescence src) {
+        Rig.Iridescence.Builder builder = Rig.Iridescence.newBuilder();
+
+       if (src.iridescenceTexture != null)
+            builder.setIridescenceTexture(loadTextureView(src.iridescenceTexture));
+
+       if (src.iridescenceThicknessTexture != null)
+            builder.setIridescenceThicknessTexture(loadTextureView(src.iridescenceThicknessTexture));
+
+        builder.setIridescenceFactor(src.iridescenceFactor);
+        builder.setIridescenceIor(src.iridescenceIor);
+        builder.setIridescenceThicknessMin(src.iridescenceThicknessMin);
+        builder.setIridescenceThicknessMax(src.iridescenceThicknessMax);
+
+        return builder.build();
+    }
+
     public static ArrayList<Rig.Material> loadMaterials(Scene scene) {
         ArrayList<Rig.Material> materials = new ArrayList<>();
         for (Modelimporter.Material material : scene.materials) {
@@ -435,29 +564,33 @@ public class ModelUtil {
 
             if (material.pbrMetallicRoughness != null)
                 materialBuilder.setPbrMetallicRoughness(loadPbrMetallicRoughness(material.pbrMetallicRoughness));
-            // public PbrMetallicRoughness pbrMetallicRoughness;
-            // public PbrSpecularGlossiness pbrSpecularGlossiness;
-            // public Clearcoat clearcoat;
-            // public Ior ior;
-            // public Specular specular;
-            // public Sheen sheen;
-            // public Transmission transmission;
-            // public Volume volume;
-            // public EmissiveStrength emissiveStrength;
-            // public Iridescence iridescence;
-            // public TextureView normalTexture;
-            // public TextureView occlusionTexture;
-            // public TextureView emissiveTexture;
-            materialBuilder.setEmissiveFactor(toDDFVector3(material.emissiveFactor));
+            if (material.pbrSpecularGlossiness != null)
+                materialBuilder.setPbrSpecularGlossiness(loadPbrSpecularGlossiness(material.pbrSpecularGlossiness));
+            if (material.clearcoat != null)
+                materialBuilder.setClearcoat(loadClearcoat(material.clearcoat));
+            if (material.transmission != null)
+                materialBuilder.setTransmission(loadTransmission(material.transmission));
+            if (material.ior != null)
+                materialBuilder.setIor(loadIor(material.ior));
+            if (material.specular != null)
+                materialBuilder.setSpecular(loadSpecular(material.specular));
+            if (material.volume != null)
+                materialBuilder.setVolume(loadVolume(material.volume));
+            if (material.sheen != null)
+                materialBuilder.setSheen(loadSheen(material.sheen));
+            if (material.emissiveStrength != null)
+                materialBuilder.setEmissiveStrength(loadEmissiveStrength(material.emissiveStrength));
+            if (material.iridescence != null)
+                materialBuilder.setIridescence(loadIridescence(material.iridescence));
 
-            // String s = TextFormat.printer().printToString(materialBuilder.build());
-            // System.out.printf("**********************************\n");
-            // System.out.printf("**********************************\n");
-            // System.out.printf("**********************************\n");
-            // System.out.printf("Material: %s\n", s);
-            // System.out.printf("**********************************\n");
-            // System.out.printf("**********************************\n");
-            // System.out.printf("**********************************\n");
+           if (material.normalTexture != null)
+                materialBuilder.setNormalTexture(loadTextureView(material.normalTexture));
+           if (material.occlusionTexture != null)
+                materialBuilder.setOcclusionTexture(loadTextureView(material.occlusionTexture));
+           if (material.emissiveTexture != null)
+                materialBuilder.setEmissiveTexture(loadTextureView(material.emissiveTexture));
+
+            materialBuilder.setEmissiveFactor(toDDFVector3(material.emissiveFactor));
 
             materials.add(materialBuilder.build());
         }
