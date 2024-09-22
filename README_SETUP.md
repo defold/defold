@@ -153,26 +153,12 @@ The `git-bash` setup can also install a setup for the Windows Terminal app.
 
 This terminal has the tool `winget` to install some packages.
 
+#### Git Bash
 
-#### MSYS/MinGW
+This installs both Git as well as a Terminal addon to allow you to use a *nix like bash terminal,
+making it much easier to build Defold through.
 
-This is an alternative to Terminal/git-bash setup.
-
-This will get you a shell that behaves like Linux and is much easier to build Defold through. [Download](https://sourceforge.net/projects/mingw/files/Installer/mingw-get-setup.exe/download) and run the installer and check these packages (binary):
-
-* MingW Base System: `mingw32-base-bin`, 'mingw32-gcc-g++-bin'
-* MSYS Base System: `msys-base-bin`, `msys-patch-bin`
-* MinGW Developer Toolkit: `mingw-developer-toolkit-bin`
-
-Select the menu option `Installation -> Apply Changes`.
-
-You also need to install `wget`. From the mingw terminal run:
-
-```sh
-> mingw-get install msys-wget-bin msys-zip msys-unzip
-```
-
-**NOTE:** You can start the visual installer again by simply running `mingw-get`
+Download: [Git For Windows](https://gitforwindows.org)
 
 #### Git
 
