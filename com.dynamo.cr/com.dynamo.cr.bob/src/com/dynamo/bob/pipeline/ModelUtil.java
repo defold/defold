@@ -864,6 +864,46 @@ public class ModelUtil {
             return;
         }
 
+        System.out.printf("--------------------------------\n");
+
+        System.out.printf("Num images: %d\n", scene.images.length);
+        for (Modelimporter.Image image : scene.images)
+        {
+            ModelImporterJni.PrintIndent(1);
+            System.out.printf("-----------------\n");
+            ModelImporterJni.DebugPrintObject(image, 0);
+        }
+
+        System.out.printf("--------------------------------\n");
+
+        System.out.printf("Num Samplers: %d\n", scene.samplers.length);
+        for (Modelimporter.Sampler sampler : scene.samplers)
+        {
+            ModelImporterJni.PrintIndent(1);
+            System.out.printf("-----------------\n");
+            ModelImporterJni.DebugPrintObject(sampler, 0);
+        }
+
+        System.out.printf("--------------------------------\n");
+
+        System.out.printf("Num Textures: %d\n", scene.textures.length);
+        for (Modelimporter.Texture texture : scene.textures)
+        {
+            ModelImporterJni.PrintIndent(1);
+            System.out.printf("-----------------\n");
+            ModelImporterJni.DebugPrintObject(texture, 0);
+        }
+
+        System.out.printf("--------------------------------\n");
+
+        System.out.printf("Num Materials: %d\n", scene.materials.length);
+        for (Modelimporter.Material material : scene.materials)
+        {
+            ModelImporterJni.PrintIndent(1);
+            System.out.printf("-----------------\n");
+            ModelImporterJni.DebugPrintObject(material, 0);
+        }
+
         System.out.printf("--------------------------------------------\n");
         System.out.printf("Scene Models:\n");
 
@@ -879,7 +919,6 @@ public class ModelUtil {
             System.out.printf("  Scene Node: %s  index: %d  parent: %s\n", node.name, node.index, node.parent != null ? node.parent.name : "");
             ModelImporterJni.DebugPrintTransform(node.local, 3);
         }
-
 
         if (scene.skins.length > 0)
         {

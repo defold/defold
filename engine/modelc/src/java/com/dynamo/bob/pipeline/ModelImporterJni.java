@@ -136,7 +136,7 @@ public class ModelImporterJni {
         System.out.printf("\n");
     }
 
-    private static void PrintIndent(int indent) {
+    public static void PrintIndent(int indent) {
         for (int i = 0; i < indent; ++i) {
             System.out.printf("  ");
         }
@@ -151,7 +151,7 @@ public class ModelImporterJni {
         System.out.printf("s: %f, %f, %f\n", transform.scale.x, transform.scale.y, transform.scale.z);
     }
 
-    private static void DebugPrintNode(Modelimporter.Node node, int indent) {
+    public static void DebugPrintNode(Modelimporter.Node node, int indent) {
         PrintIndent(indent);
         System.out.printf("Node: %s  idx: %d   mesh: %s\n", node.name, node.index, node.model==null?"null":node.model.name);
 
@@ -162,7 +162,7 @@ public class ModelImporterJni {
         DebugPrintTransform(node.world, indent+1);
     }
 
-    private static void DebugPrintTree(Modelimporter.Node node, int indent) {
+    public static void DebugPrintTree(Modelimporter.Node node, int indent) {
         DebugPrintNode(node, indent);
 
         for (Modelimporter.Node child : node.children) {
@@ -170,7 +170,7 @@ public class ModelImporterJni {
         }
     }
 
-    private static void DebugPrintFloatArray(int indent, String name, float[] arr, int count, int elements)
+    public static void DebugPrintFloatArray(int indent, String name, float[] arr, int count, int elements)
     {
         if (arr == null || arr.length == 0)
             return;
