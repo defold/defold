@@ -53,6 +53,7 @@ namespace dmPlatform
         uint32_t                      m_Samples               : 8;
         uint32_t                      m_WindowOpened          : 1;
         uint32_t                      m_SwapIntervalSupported : 1;
+        uint32_t                      m_SwapBufferSupported   : 1;
         uint32_t                      m_HighDPI               : 1;
     };
 
@@ -228,6 +229,7 @@ namespace dmPlatform
         }
 
         wnd->m_SwapIntervalSupported = 1;
+        wnd->m_SwapBufferSupported = 1;
 
         return PLATFORM_RESULT_OK;
     }
@@ -243,6 +245,12 @@ namespace dmPlatform
         {
             return PLATFORM_RESULT_WINDOW_OPEN_ERROR;
         }
+
+    #if defined(ANDROID) || defined(DM_PLATFORM_IOS)
+        wnd->m_SwapBufferSupported = 1;
+    #endif
+        if(params.m_GraphicsApi == PLATFORM_GRAPHICS_API_WEBGPU)
+            wnd->m_SwapBufferSupported = 1;
 
         return PLATFORM_RESULT_OK;
     }
@@ -261,6 +269,7 @@ namespace dmPlatform
             case PLATFORM_GRAPHICS_API_OPENGL:
                 res = OpenWindowOpenGL(window, params);
                 break;
+            case PLATFORM_GRAPHICS_API_WEBGPU:
             case PLATFORM_GRAPHICS_API_VULKAN:
             case PLATFORM_GRAPHICS_API_DIRECTX:
                 res = OpenWindowNoAPI(window, params);
@@ -594,6 +603,10 @@ namespace dmPlatform
         return 0;
     }
 
+    void ShowWindow(HWindow window)
+    {
+    }
+
     void PollEvents(HWindow window)
     {
         // NOTE: GLFW_AUTO_POLL_EVENTS might be enabled but an application shouldn't have rely on
@@ -604,7 +617,10 @@ namespace dmPlatform
 
     void SwapBuffers(HWindow window)
     {
-        glfwSwapBuffers();
+        if (window->m_SwapBufferSupported)
+        {
+            glfwSwapBuffers();
+        }
     }
 
     void SetKeyboardCharCallback(HWindow window, WindowAddKeyboardCharCallback cb, void* user_data)

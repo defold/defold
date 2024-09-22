@@ -23,8 +23,7 @@
 #include <dlib/log.h>
 #include <dlib/time.h>
 
-#include "../graphics.h"
-#include "../graphics_private.h"
+#include "test_app_graphics.h"
 
 #include <dmsdk/graphics/graphics_vulkan.h>
 
@@ -227,13 +226,12 @@ struct CopyToBufferTest : ITest
 
 struct ReadPixelsTest : ITest
 {
-    uint8_t* m_Buffer;
+    uint8_t m_Buffer[512 * 512 * 4];
     bool m_DidRead;
 
     void Initialize(EngineCtx* engine) override
     {
         m_DidRead = false;
-        m_Buffer = new uint8_t[512 * 512 * 4];
         memset(m_Buffer, 0, sizeof(m_Buffer));
     }
 
@@ -258,11 +256,10 @@ struct ReadPixelsTest : ITest
 
 struct SubPassTest : ITest
 {
-    dmGraphics::HRenderTarget               m_Rendertarget;
-    dmGraphics::HProgram                    m_ShaderProgram;
-    dmGraphics::HVertexDeclaration          m_VertexDeclaration;
-    dmGraphics::HVertexBuffer               m_VertexBuffer;
-    dmGraphics::ShaderDesc::ResourceBinding m_VertexAttributes[1];
+    dmGraphics::HRenderTarget      m_Rendertarget;
+    dmGraphics::HProgram           m_ShaderProgram;
+    dmGraphics::HVertexDeclaration m_VertexDeclaration;
+    dmGraphics::HVertexBuffer      m_VertexBuffer;
 
     void Initialize(EngineCtx* engine) override
     {
@@ -280,36 +277,20 @@ struct SubPassTest : ITest
         dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(engine->m_GraphicsContext);
         dmGraphics::AddVertexStream(stream_declaration, "pos", 2, dmGraphics::TYPE_FLOAT, false);
 
-        dmGraphics::ShaderDesc::ResourceBinding& vx_attribute_position = m_VertexAttributes[0];
-        vx_attribute_position.m_Name                     = "pos";
-        vx_attribute_position.m_Type.m_Type.m_ShaderType = dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC2;
-        vx_attribute_position.m_Binding                  = 0;
+        dmGraphics::ShaderDesc vs_desc = {};
+        dmGraphics::ShaderDesc fs_desc = {};
 
-        dmGraphics::ShaderDesc::Shader vs_shader = {};
-        vs_shader.m_Language       = dmGraphics::ShaderDesc::LANGUAGE_SPIRV;
-        vs_shader.m_Source.m_Data  = (uint8_t*) graphics_assets::spirv_vertex_program;
-        vs_shader.m_Source.m_Count = sizeof(graphics_assets::spirv_vertex_program);
-        vs_shader.m_Inputs.m_Data  = m_VertexAttributes;
-        vs_shader.m_Inputs.m_Count = sizeof(m_VertexAttributes) / sizeof(dmGraphics::ShaderDesc::ResourceBinding);
+        AddShader(&vs_desc, dmGraphics::ShaderDesc::LANGUAGE_SPIRV, (uint8_t*) graphics_assets::spirv_vertex_program, sizeof(graphics_assets::spirv_vertex_program));
+        AddShaderResource(&vs_desc, "pos", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC2, 0, 0, BINDING_TYPE_INPUT);
 
-        dmGraphics::ShaderDesc::Shader fs_shader = {};
-        fs_shader.m_Language       = dmGraphics::ShaderDesc::LANGUAGE_SPIRV;
-        fs_shader.m_Source.m_Data  = (uint8_t*) graphics_assets::spirv_fragment_program;
-        fs_shader.m_Source.m_Count = sizeof(graphics_assets::spirv_fragment_program);
+        AddShader(&fs_desc, dmGraphics::ShaderDesc::LANGUAGE_SPIRV, (uint8_t*) graphics_assets::spirv_fragment_program, sizeof(graphics_assets::spirv_fragment_program));
+        AddShaderResource(&fs_desc, "inputColor", dmGraphics::ShaderDesc::SHADER_TYPE_RENDER_PASS_INPUT, 0, 0, BINDING_TYPE_TEXTURE);
 
-        dmGraphics::ShaderDesc::ResourceBinding fs_input_color = {};
+        dmGraphics::HVertexProgram vs_program   = dmGraphics::NewVertexProgram(engine->m_GraphicsContext, &vs_desc, 0, 0);
+        dmGraphics::HFragmentProgram fs_program = dmGraphics::NewFragmentProgram(engine->m_GraphicsContext, &fs_desc, 0, 0);
 
-        fs_input_color.m_Name                     = "inputColor";
-        fs_input_color.m_NameHash                 = dmHashString64(fs_input_color.m_Name);
-        fs_input_color.m_Type.m_Type.m_ShaderType = dmGraphics::ShaderDesc::SHADER_TYPE_RENDER_PASS_INPUT;
-        fs_input_color.m_Set                      = 0;
-        fs_input_color.m_Binding                  = 0;
-
-        fs_shader.m_Textures.m_Data  = &fs_input_color;
-        fs_shader.m_Textures.m_Count = 1;
-
-        dmGraphics::HVertexProgram vs_program   = dmGraphics::NewVertexProgram(engine->m_GraphicsContext, &vs_shader);
-        dmGraphics::HFragmentProgram fs_program = dmGraphics::NewFragmentProgram(engine->m_GraphicsContext, &fs_shader);
+        DeleteShaderDesc(&vs_desc);
+        DeleteShaderDesc(&fs_desc);
 
         m_ShaderProgram     = dmGraphics::NewProgram(engine->m_GraphicsContext, vs_program, fs_program);
         m_VertexDeclaration = dmGraphics::NewVertexDeclaration(engine->m_GraphicsContext, stream_declaration);
@@ -330,7 +311,7 @@ struct SubPassTest : ITest
             p.m_ColorBufferParams[i].m_Height = 512;
         }
 
-        p.m_ColorBufferCreationParams[0].m_UsageHintBits = dmGraphics::TEXTURE_USAGE_HINT_INPUT | dmGraphics::TEXTURE_USAGE_HINT_MEMORYLESS;
+        p.m_ColorBufferCreationParams[0].m_UsageHintBits = dmGraphics::TEXTURE_USAGE_FLAG_INPUT | dmGraphics::TEXTURE_USAGE_FLAG_MEMORYLESS;
 
         m_Rendertarget = dmGraphics::NewRenderTarget(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT | dmGraphics::BUFFER_TYPE_COLOR1_BIT, p);
 
@@ -400,33 +381,49 @@ struct SubPassTest : ITest
 
 struct ComputeTest : ITest
 {
-    dmGraphics::HProgram m_Program;
+    dmGraphics::HProgram         m_Program;
+    dmGraphics::HUniformLocation m_UniformLoc;
+
+    struct buf
+    {
+        float color[4];
+    };
 
     void Initialize(EngineCtx* engine) override
     {
-        dmGraphics::ShaderDesc::Shader compute_shader = {};
+        dmGraphics::ShaderDesc compute_desc = {};
 
         if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_OPENGL)
         {
-            compute_shader.m_Language       = dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430;
-            compute_shader.m_Source.m_Data  = (uint8_t*) graphics_assets::glsl_compute_program;
-            compute_shader.m_Source.m_Count = sizeof(graphics_assets::glsl_compute_program);
+            AddShader(&compute_desc, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430, (uint8_t*) graphics_assets::glsl_compute_program, sizeof(graphics_assets::glsl_compute_program));
         }
         else
         {
-            compute_shader.m_Language       = dmGraphics::ShaderDesc::LANGUAGE_SPIRV;
-            compute_shader.m_Source.m_Data  = (uint8_t*) graphics_assets::spirv_compute_program;
-            compute_shader.m_Source.m_Count = sizeof(graphics_assets::spirv_compute_program);
+            AddShader(&compute_desc, dmGraphics::ShaderDesc::LANGUAGE_SPIRV, (uint8_t*) graphics_assets::spirv_compute_program, sizeof(graphics_assets::spirv_compute_program));
         }
 
-        dmGraphics::HComputeProgram compute_program = dmGraphics::NewComputeProgram(engine->m_GraphicsContext, &compute_shader);
+        dmGraphics::ShaderDesc::ResourceTypeInfo* type_info = AddShaderType(&compute_desc, "buf");
+        AddShaderTypeMember(&compute_desc, type_info, "color", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC4);
+        AddShaderResource(&compute_desc, "buf", 0, 0, 0, BINDING_TYPE_UNIFORM_BUFFER);
+
+        dmGraphics::HComputeProgram compute_program = dmGraphics::NewComputeProgram(engine->m_GraphicsContext, &compute_desc, 0, 0);
+
+        DeleteShaderDesc(&compute_desc);
 
         m_Program = dmGraphics::NewProgram(engine->m_GraphicsContext, compute_program);
+
+        m_UniformLoc = dmGraphics::GetUniformLocation(m_Program, "buf");
     }
 
     void Execute(EngineCtx* engine) override
     {
+        dmVMath::Vector4 color(1.0f, 0.0f, 0.0f, 1.0f);
 
+        dmGraphics::EnableProgram(engine->m_GraphicsContext, m_Program);
+        dmGraphics::SetConstantV4(engine->m_GraphicsContext, &color, 1, m_UniformLoc);
+
+        dmGraphics::DispatchCompute(engine->m_GraphicsContext, 1, 1, 1);
+        dmGraphics::DisableProgram(engine->m_GraphicsContext);
     }
 };
 
@@ -439,11 +436,10 @@ static bool OnWindowClose(void* user_data)
 
 struct StorageBufferTest : ITest
 {
-    dmGraphics::HProgram                    m_Program;
-    dmGraphics::HStorageBuffer              m_StorageBuffer;
-    dmGraphics::HVertexDeclaration          m_VertexDeclaration;
-    dmGraphics::ShaderDesc::ResourceBinding m_VertexAttributes[1];
-    dmGraphics::HVertexBuffer               m_VertexBuffer;
+    dmGraphics::HProgram           m_Program;
+    dmGraphics::HStorageBuffer     m_StorageBuffer;
+    dmGraphics::HVertexDeclaration m_VertexDeclaration;
+    dmGraphics::HVertexBuffer      m_VertexBuffer;
 
     void Initialize(EngineCtx* engine) override
     {
@@ -458,52 +454,29 @@ struct StorageBufferTest : ITest
 
         m_VertexBuffer = dmGraphics::NewVertexBuffer(engine->m_GraphicsContext, sizeof(vertex_data_no_index), (void*) vertex_data_no_index, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
 
-        dmGraphics::ShaderDesc::ResourceBinding& vx_attribute_position = m_VertexAttributes[0];
-        vx_attribute_position.m_Name                     = "pos";
-        vx_attribute_position.m_NameHash                 = dmHashString64(vx_attribute_position.m_Name);
-        vx_attribute_position.m_Type.m_Type.m_ShaderType = dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC2;
-        vx_attribute_position.m_Binding                  = 0;
-
-        dmGraphics::ShaderDesc::Shader vs_shader = {};
-        dmGraphics::ShaderDesc::Shader fs_shader = {};
+        dmGraphics::ShaderDesc vs_desc = {};
+        dmGraphics::ShaderDesc fs_desc = {};
 
         if (dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_OPENGL)
         {
             assert(false && "TODO: storage buffers are only supported on vulkan currently");
-
-            vs_shader.m_Language       = dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430;
-            vs_shader.m_Source.m_Data  = (uint8_t*) graphics_assets::glsl_vertex_program;
-            vs_shader.m_Source.m_Count = sizeof(graphics_assets::glsl_vertex_program);
-
-            fs_shader.m_Language       = dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430;
-            fs_shader.m_Source.m_Data  = (uint8_t*) graphics_assets::glsl_fragment_program_ssbo;
-            fs_shader.m_Source.m_Count = sizeof(graphics_assets::glsl_fragment_program_ssbo);
+            AddShader(&vs_desc, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430, (uint8_t*) graphics_assets::glsl_vertex_program, sizeof(graphics_assets::glsl_vertex_program));
+            AddShader(&fs_desc, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430, (uint8_t*) graphics_assets::glsl_fragment_program_ssbo, sizeof(graphics_assets::glsl_fragment_program_ssbo));
         }
         else
         {
-            vs_shader.m_Language       = dmGraphics::ShaderDesc::LANGUAGE_SPIRV;
-            vs_shader.m_Source.m_Data  = (uint8_t*) graphics_assets::spirv_vertex_program;
-            vs_shader.m_Source.m_Count = sizeof(graphics_assets::spirv_vertex_program);
-
-            fs_shader.m_Language       = dmGraphics::ShaderDesc::LANGUAGE_SPIRV;
-            fs_shader.m_Source.m_Data  = (uint8_t*) graphics_assets::spirv_fragment_program_ssbo;
-            fs_shader.m_Source.m_Count = sizeof(graphics_assets::spirv_fragment_program_ssbo);
+            AddShader(&vs_desc, dmGraphics::ShaderDesc::LANGUAGE_SPIRV, (uint8_t*) graphics_assets::spirv_vertex_program, sizeof(graphics_assets::spirv_vertex_program));
+            AddShader(&fs_desc, dmGraphics::ShaderDesc::LANGUAGE_SPIRV, (uint8_t*) graphics_assets::spirv_fragment_program_ssbo, sizeof(graphics_assets::spirv_fragment_program_ssbo));
         }
 
-        dmGraphics::ShaderDesc::ResourceBinding fs_binding = {};
-        fs_binding.m_Name                     = "Test";
-        fs_binding.m_NameHash                 = dmHashString64(fs_binding.m_Name);
-        fs_binding.m_Type.m_Type.m_ShaderType = dmGraphics::ShaderDesc::SHADER_TYPE_STORAGE_BUFFER;
-        fs_binding.m_Set                      = 1;
+        AddShaderResource(&vs_desc, "pos", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC2, 0, 0, BINDING_TYPE_INPUT);
+        AddShaderResource(&fs_desc, "Test", dmGraphics::ShaderDesc::SHADER_TYPE_STORAGE_BUFFER, 0, 1, BINDING_TYPE_STORAGE_BUFFER);
 
-        fs_shader.m_StorageBuffers.m_Count = 1;
-        fs_shader.m_StorageBuffers.m_Data  = &fs_binding;
+        dmGraphics::HVertexProgram vs_program   = dmGraphics::NewVertexProgram(engine->m_GraphicsContext, &vs_desc, 0, 0);
+        dmGraphics::HFragmentProgram fs_program = dmGraphics::NewFragmentProgram(engine->m_GraphicsContext, &fs_desc, 0, 0);
 
-        vs_shader.m_Inputs.m_Data  = m_VertexAttributes;
-        vs_shader.m_Inputs.m_Count = sizeof(m_VertexAttributes) / sizeof(dmGraphics::ShaderDesc::ResourceBinding);
-
-        dmGraphics::HVertexProgram vs_program   = dmGraphics::NewVertexProgram(engine->m_GraphicsContext, &vs_shader);
-        dmGraphics::HFragmentProgram fs_program = dmGraphics::NewFragmentProgram(engine->m_GraphicsContext, &fs_shader);
+        DeleteShaderDesc(&vs_desc);
+        DeleteShaderDesc(&fs_desc);
 
         m_Program = dmGraphics::NewProgram(engine->m_GraphicsContext, vs_program, fs_program);
 
@@ -569,6 +542,7 @@ static void* EngineCreate(int argc, char** argv)
     }
 
     dmPlatform::OpenWindow(engine->m_Window, window_params);
+    dmPlatform::ShowWindow(engine->m_Window);
 
     dmGraphics::ContextParams graphics_context_params = {};
     graphics_context_params.m_DefaultTextureMinFilter = dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST;
@@ -581,6 +555,7 @@ static void* EngineCreate(int argc, char** argv)
 
     engine->m_GraphicsContext = dmGraphics::NewContext(graphics_context_params);
 
+    //engine->m_Test = new ComputeTest();
     //engine->m_Test = new ComputeTest();
     //engine->m_Test = new StorageBufferTest();
     //engine->m_Test = new ReadPixelsTest();

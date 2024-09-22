@@ -50,6 +50,7 @@ namespace dmGraphics
         int32_t*          m_LastBoundUnit; // testing
         volatile uint16_t m_DataState; // data state per mip-map (mipX = bitX). 0=ok, 1=pending
         uint8_t           m_MipMapCount;
+        uint8_t           m_UsageHintFlags;
     };
 
     struct VertexStreamBuffer
@@ -121,7 +122,6 @@ namespace dmGraphics
         PipelineState                      m_PipelineState;
         TextureFilter                      m_DefaultTextureMinFilter;
         TextureFilter                      m_DefaultTextureMagFilter;
-        ShaderDesc::Language               m_ShaderClassLanguage[2];
 
         uint32_t                           m_Width;
         uint32_t                           m_Height;

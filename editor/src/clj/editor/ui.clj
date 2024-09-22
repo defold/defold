@@ -22,8 +22,8 @@
             [editor.error-reporting :as error-reporting]
             [editor.handler :as handler]
             [editor.icons :as icons]
-            [editor.progress :as progress]
             [editor.math :as math]
+            [editor.progress :as progress]
             [editor.util :as eutil]
             [internal.util :as util]
             [service.log :as log]
@@ -41,6 +41,7 @@
            [javafx.animation AnimationTimer KeyFrame KeyValue Timeline]
            [javafx.application Platform]
            [javafx.beans InvalidationListener]
+           [javafx.beans.property ReadOnlyProperty]
            [javafx.beans.value ChangeListener ObservableValue]
            [javafx.collections FXCollections ListChangeListener ObservableList]
            [javafx.css Styleable]
@@ -48,13 +49,12 @@
            [javafx.fxml FXMLLoader]
            [javafx.geometry Orientation Point2D]
            [javafx.scene Group Node Parent Scene]
-           [javafx.scene.control ButtonBase Cell CheckBox CheckMenuItem ChoiceBox ColorPicker ComboBox ComboBoxBase ContextMenu Control Label Labeled ListView Menu MenuBar MenuItem MultipleSelectionModel ProgressBar SelectionMode SelectionModel Separator SeparatorMenuItem Tab TableView TabPane TextField TextInputControl Toggle ToggleButton Tooltip TreeItem TreeTableView TreeView]
+           [javafx.scene.control ButtonBase Cell CheckBox CheckMenuItem ChoiceBox ColorPicker ComboBox ComboBoxBase ContextMenu Control Label Labeled ListView Menu MenuBar MenuItem MultipleSelectionModel ProgressBar SelectionMode SelectionModel Separator SeparatorMenuItem Tab TabPane TableView TextArea TextField TextInputControl Toggle ToggleButton Tooltip TreeItem TreeTableView TreeView]
            [javafx.scene.image Image ImageView]
            [javafx.scene.input Clipboard ContextMenuEvent DragEvent KeyCode KeyCombination KeyEvent MouseButton MouseEvent]
            [javafx.scene.layout AnchorPane HBox Pane]
            [javafx.scene.shape SVGPath]
-           [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter]
-           [javafx.stage Stage Modality PopupWindow StageStyle Window]
+           [javafx.stage Modality PopupWindow Stage StageStyle Window]
            [javafx.util Callback Duration StringConverter]))
 
 (set! *warn-on-reflection* true)
@@ -80,18 +80,44 @@
 (defn node? [value]
   (instance? Node value))
 
+(defn- set-application-focus-state [old-state focused window t]
+  ;; How we expect the focus to be changed over time (this works on e.g. macOS):
+  ;; [user opens dialog...]
+  ;; 1. main window: focus loss
+  ;; 2. dialog window: focus gain
+  ;; [...user interacts with dialog, then closes it...]
+  ;; 3. dialog window: focus loss
+  ;; 4. main window: focus gain
+  ;; How the focus actually works on Linux:
+  ;; [user opens dialog...]
+  ;; 1. dialog window: focus gain
+  ;; 2. main window: focus loss
+  ;; [...user interacts with dialog, then closes it...]
+  ;; 3. main window: focus gain
+  ;; When the dialog is open for longer than `application-unfocused-threshold-ms`,
+  ;; this Linux behavior causes resource sync to trigger after closing the dialog,
+  ;; which may lead to subtle bugs if the normal use of the dialog also triggers
+  ;; the resource sync. To fix the issue on Linux, we skip focus changes that
+  ;; report focus loss while another window is currently focused
+  (if (and (:focused old-state)
+           (not focused)
+           (not= (:window old-state) window))
+    old-state
+    {:focused focused :window window :t t}))
+
 (def focus-change-listener
   (reify ChangeListener
-    (changed [_ _ _ focused?]
-      (reset! focus-state {:focused? focused?
-                           :t (System/currentTimeMillis)}))))
+    (changed [_ observable-value _ focused]
+      (let [window (.getBean ^ReadOnlyProperty observable-value)
+            t (System/currentTimeMillis)]
+        (swap! focus-state set-application-focus-state focused window t)))))
 
 (defn add-application-focused-callback! [key application-focused! & args]
   (add-watch focus-state key
              (fn [_key _ref old new]
                (when (and old
-                          (not (:focused? old))
-                          (:focused? new))
+                          (not (:focused old))
+                          (:focused new))
                  (let [unfocused-ms (- (:t new) (:t old))]
                    (when (< application-unfocused-threshold-ms unfocused-ms)
                      (apply application-focused! args))))))
@@ -107,6 +133,9 @@
 
 (defprotocol HasAction
   (on-action! [this fn]))
+
+(defprotocol Cancellable
+  (on-cancel! [this cancel-fn]))
 
 (defprotocol HasValue
   (value [this])
@@ -574,12 +603,16 @@
                                     (when (user-data node ::auto-commit)
                                       (commit-fn nil)))))
   (on-edit! node (fn [_old _new]
-                   (if (user-data node ::suppress-auto-commit)
-                     (user-data! node ::suppress-auto-commit false)
-                     (user-data! node ::auto-commit true)))))
+                   (user-data! node ::auto-commit true))))
 
-(defn suppress-auto-commit! [^Node node]
-  (user-data! node ::suppress-auto-commit true))
+(defn- clear-auto-commit! [^Node node]
+  ;; Clear the auto-commit flag. You should call this whenever data has been
+  ;; synced with the graph while the field still has focus. This ensures the
+  ;; unedited value will not be committed to the graph unnecessarily after the
+  ;; user moves focus to another control. Further edits will re-apply the
+  ;; auto-commit flag, but if they leave without editing, we won't commit.
+  (when (user-data node ::auto-commit)
+    (user-data! node ::auto-commit false)))
 
 (defn increase-on-edit-event-suppress-count! [editable]
   (when-some [suppress-count (user-data editable ::on-edit-event-suppress-count)]
@@ -750,14 +783,43 @@
   (value [this] (.getValue this))
   (value! [this val] (with-on-edit-event-suppressed! this (.setValue this val))))
 
+(declare bind-key!)
+
 (extend-type TextField
   HasAction
-  (on-action! [node fn]
+  (on-action! [node update-fn]
     (.setOnAction node (event-handler e
-                         ;; Clear the auto-commit flag. Further edits will re-apply it.
-                         (when (user-data node ::auto-commit)
-                           (user-data! node ::auto-commit false))
-                         (fn e)))))
+                         (clear-auto-commit! node)
+                         (let [length (.getLength (.getSelection node))]
+                           (update-fn e)
+                           (if (zero? length)
+                             (.selectAll node)
+                             (.deselect node))))))
+  Cancellable
+  (on-cancel! [node cancel-fn]
+    (bind-key! node "Esc" (fn []
+                            (cancel-fn node)
+                            (clear-auto-commit! node)
+                            (when-let [parent (.getParent node)]
+                              (.requestFocus parent))))))
+
+(extend-type TextArea
+  HasAction
+  (on-action! [node update-fn]
+    (bind-key! node "Shortcut+Enter" (fn []
+                                       (clear-auto-commit! node)
+                                       (let [length (.getLength (.getSelection node))]
+                                         (update-fn node)
+                                         (if (zero? length)
+                                           (.selectAll node)
+                                           (.deselect node))))))
+  Cancellable
+  (on-cancel! [node cancel-fn]
+    (bind-key! node "Esc" (fn []
+                            (cancel-fn node)
+                            (clear-auto-commit! node)
+                            (when-let [parent (.getParent node)]
+                              (.requestFocus parent))))))
 
 (extend-type Labeled
   Text

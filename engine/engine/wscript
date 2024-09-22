@@ -74,16 +74,17 @@ def configure(conf):
     glfw_lib = 'dmglfw'
     platform_lib = 'platform'
 
+    if waf_dynamo.platform_glfw_version(conf.env.PLATFORM) == 3:
+        glfw_lib = "glfw3"
+
+        if waflib.Options.options.with_vulkan:
+            platform_lib = "platform_vulkan"
+
     if operating_sys == 'macos':
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'OpenAL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo', '-framework', 'QuartzCore'])
 
-        glfw_lib = "glfw3"
-
         # For Vulkan/MoltenVK
         if waflib.Options.options.with_vulkan:
-
-            platform_lib = "platform_vulkan"
-
             # JG: for now, we only support validation layers on macos for x86_64 archs. I'll fix this later when/if needed.
             if architecture == 'x86_64':
                 conf.env.append_value('LINKFLAGS', ['-framework', 'Metal', '-framework', 'Foundation', '-framework', 'IOSurface'])
@@ -121,7 +122,7 @@ def configure(conf):
     conf.env['STLIB_EXTENSION'] = 'extension'
     conf.env['STLIB_RESOURCE'] = 'resource'
     conf.env['STLIB_RENDER'] = 'render'
-    conf.env['STLIB_GAMESYS'] = 'gamesys script_box2d'.split()
+    conf.env['STLIB_GAMESYS'] = 'gamesys gamesys_model gamesys_rig script_box2d'.split()
     conf.env['STLIB_GAMEOBJECT'] = 'gameobject'
     conf.env['STLIB_SCRIPT'] = 'script'
     conf.env['STLIB_DMGLFW'] = glfw_lib

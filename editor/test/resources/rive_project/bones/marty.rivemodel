@@ -1,0 +1,4 @@
+scene: "/bones/marty.rivescene"
+default_animation: "Animation1"
+material: "/defold-rive/assets/rivemodel.material"
+artboard: "New Artboard"

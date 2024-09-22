@@ -27,6 +27,7 @@
             [editor.collection-non-editable :as collection-non-editable]
             [editor.collection-proxy :as collection-proxy]
             [editor.collision-object :as collision-object]
+            [editor.compute :as compute]
             [editor.cubemap :as cubemap]
             [editor.display-profiles :as display-profiles]
             [editor.editor-script :as editor-script]
@@ -45,6 +46,7 @@
             [editor.mesh :as mesh]
             [editor.model :as model]
             [editor.particlefx :as particlefx]
+            [editor.placeholder-resource :as placeholder-resource]
             [editor.protobuf-types :as protobuf-types]
             [editor.render-pb :as render-pb]
             [editor.render-target :as render-target]
@@ -69,6 +71,7 @@
       (collection-non-editable/register-resource-types workspace)
       (collection-proxy/register-resource-types workspace)
       (collision-object/register-resource-types workspace)
+      (compute/register-resource-types workspace)
       (cubemap/register-resource-types workspace)
       (display-profiles/register-resource-types workspace)
       (editor-script/register-resource-types workspace)
@@ -87,6 +90,7 @@
       (mesh/register-resource-types workspace)
       (model/register-resource-types workspace)
       (particlefx/register-resource-types workspace)
+      (placeholder-resource/register-resource-types workspace)
       (protobuf-types/register-resource-types workspace)
       (render-pb/register-resource-types workspace)
       (render-target/register-resource-types workspace)

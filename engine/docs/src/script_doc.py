@@ -309,6 +309,8 @@ def _parse_comment(text):
             # only care for @namespace in @document comments.
             element.namespace = value
             namespace_found = True
+        elif tag == 'language':
+            element.language = value
 
     if document_comment and not namespace_found:
         logging.warning('Missing tag @namespace in "%s"' % str)
@@ -479,7 +481,7 @@ def parse_document(doc_str):
         element = _parse_comment(comment_str)
         if type(element) is script_doc_ddf_pb2.Element:
             element_list.append(element)
-        if type(element) is script_doc_ddf_pb2.Info:
+        elif type(element) is script_doc_ddf_pb2.Info:
             doc_info = element
 
     if doc_info:
@@ -499,7 +501,7 @@ def add_group_to_doc_dict(doc_dict):
         refdocgroups = [
             {
                 "group": "SYSTEM",
-                "namespaces": ["crash", "gui", "go", "profiler", "render", "resource", "sys", "window", "engine", "physics", "b2d", "b2d.body"]
+                "namespaces": ["crash", "gui", "go", "graphics", "profiler", "render", "resource", "sys", "window", "engine", "physics", "b2d", "b2d.body", "types"]
             },
             {
                 "group": "COMPONENTS",
@@ -634,9 +636,8 @@ if __name__ == '__main__':
 
     doc_str = ''
     for name in args[:-1]:
-        f = open(name, 'r')
-        doc_str += f.read()
-        f.close()
+        with open(name, 'r') as f:
+            doc_str += f.read()
 
     doc = parse_document(doc_str)
     if doc:

@@ -177,7 +177,7 @@ public class Fontc {
             + desc.getAntialias()
             + desc.getOutlineWidth()
             + desc.getShadowBlur()
-            + desc.getExtraCharacters()
+            + desc.getCharacters()
             + desc.getOutputFormat()
             + desc.getAllChars()
             + desc.getCacheWidth()

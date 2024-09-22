@@ -1,0 +1,66 @@
+{
+	"basepath": "src",
+	
+	"includes": [
+		"src"
+	],
+
+	"files": [
+		{"file": "src/dmsdk/dlib/configfile.h", "languages": {
+			"cpp": {
+				"namespace": "dmConfigFile",
+				"ignore": [
+					"ConfigFile",
+					"ConfigFileRegisterExtension",
+					"FConfigFileCreate",
+					"FConfigFileDestroy",
+					"FConfigFileGetString",
+					"FConfigFileGetInt",
+					"FConfigFileGetFloat"
+				],
+				"rename": {
+					"HConfigFile": "HConfig",
+					"ConfigFileGetString": "GetString",
+					"ConfigFileGetInt": "GetInt",
+					"ConfigFileGetFloat": "GetFloat"
+				}
+			},
+			"csharp": {
+				"namespace": "Dlib",
+				"class": "ConfigFile",
+				"dllimport": "dlib",
+				"ignore": [
+					"ConfigFileRegisterExtension",
+					"FConfigFileCreate",
+					"FConfigFileDestroy",
+					"FConfigFileGetString",
+					"FConfigFileGetInt",
+					"FConfigFileGetFloat"
+				],
+				"rename": {
+					"HConfigFile": "Config*",
+					"ConfigFileGetString": "GetString",
+					"ConfigFileGetInt": "GetInt",
+					"ConfigFileGetFloat": "GetFloat",
+					"ConfigFile": "Config"
+				}
+			}
+		}},
+
+		{"file": "src/dmsdk/dlib/hash.h", "languages": {
+			"csharp": {
+				"namespace": "Dlib",
+				"class": "Hash",
+				"dllimport": "dlib",
+				"ignore": [
+					"dmHashReverse32",
+					"dmHashReverse64"
+				],
+				"rename": {
+					"dmHash": "Hash",
+					"":""
+				}
+			}
+		}}
+	]
+}

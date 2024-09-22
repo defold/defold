@@ -74,9 +74,12 @@ def build(bld):
             return False
         return [x for x in sources if not matches(x.abspath(), patterns)]
 
+    # build image sources as separate libraries to make it excludable
+    remove_files(source_files, ['image.cpp', 'image_null.cpp'])
+
     if 'arm64-nx64' in bld.env.PLATFORM:
         source_files = remove_files(source_files, ['condition_variable.cpp',
-                                                    'mutex.cpp',
+                                                    'mutex_posix.cpp',
                                                     'sys_posix.cpp',
                                                     'socket_posix.cpp',
                                                     'time.cpp'])
@@ -171,6 +174,31 @@ def build(bld):
                         target    = 'zip_noasan')
     libzip_noasan.source = [x for x in libzip.source]
     libzip_noasan.env.append_unique('CFLAGS', FLAG_ST % 's')
+
+    image = bld.stlib(features  = 'c cxx',
+                    includes    = '.',
+                    source      = 'dlib/image.cpp',
+                    target      = 'image',
+                    defines     = ['VALGRIND'] + extra_defines)
+
+    image_noasan = bld(features   = image.features + ['skip_asan'],
+                        includes  = image.includes,
+                        defines   = image.defines,
+                        target    = 'image_noasan')
+    image_noasan.source = image.source
+    image_noasan.env.append_unique('CFLAGS', FLAG_ST % 's')
+
+    image_null = bld.stlib(features = 'c cxx',
+                        includes    = '.',
+                        source      = 'dlib/image_null.cpp',
+                        target      = 'image_null',
+                        defines     = ['VALGRIND'] + extra_defines)
+
+    image_null_noasan = bld.stlib(features          = image_null.features + ['skip_asan'],
+                                       includes     = image_null.includes,
+                                       defines      = image_null.defines,
+                                       target       = 'image_null_noasan')
+    image_null_noasan.source = image_null.source
 
     # ******************************************************************
 
@@ -274,7 +302,7 @@ def build(bld):
 
     # for desktop only
     if bld.env.IS_TARGET_DESKTOP:
-        basis_encoder = bld.stlib(features = 'c cxx skip_asan',
+        basis_encoder = bld.stlib(features = 'c cxx',
                                     includes = ['basis'],
                                     source = bld.path.ant_glob("basis/encoder/**/*.c") +
                                              bld.path.ant_glob("basis/encoder/**/*.cpp") +
@@ -284,6 +312,12 @@ def build(bld):
 
         if new_opt_level:
             basis_encoder.env.append_unique('CXXFLAGS', ['-Os'])
+
+        basis_encoder_noasan = bld.stlib(features = basis_encoder.features + ['skip_asan'],
+                                         includes = basis_encoder.includes,
+                                         defines  = basis_encoder.defines,
+                                         target   = 'basis_encoder_noasan')
+        basis_encoder_noasan.source = [x for x in basis_encoder.source]
 
     # For the runtime
     basis_transcoder = bld.stlib(features = 'cxx remove_flags',
@@ -320,13 +354,18 @@ def build(bld):
         srcdir='java_test',
         outdir='java_test')
 
+    # ************************************************************************
     if not Options.options.skip_build_tests:
+        bld.stlib(features= 'cs_stlib',
+                  project = 'cs/dlib_cs.csproj')
+
         bld.recurse('test')
 
     # Install step
 
     # the dmsdk_add_files needs to be after a build group for some reason
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
+    dmsdk_add_files(bld, '${PREFIX}/sdk/cs/dmsdk', 'cs/dmsdk')
 
     bld.install_files('${PREFIX}/include/dlib', 'dlib/align.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/array.h')

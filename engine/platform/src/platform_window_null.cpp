@@ -80,10 +80,13 @@ namespace dmPlatform
 
     uint32_t GetWindowStateParam(HWindow window, WindowState state)
     {
-        if (state == WINDOW_STATE_OPENED)
+        switch(state)
         {
-            return window->m_WindowOpened;
+            case WINDOW_STATE_OPENED: return window->m_WindowOpened;
+            case WINDOW_STATE_FSAA_SAMPLES: return window->m_CreateParams.m_Samples;
+            default:break;
         }
+
         return 0;
     }
 
@@ -102,6 +105,9 @@ namespace dmPlatform
             window->m_CreateParams.m_ResizeCallback(window->m_CreateParams.m_ResizeCallbackUserData, width, height);
         }
     }
+
+    void ShowWindow(HWindow window)
+    {}
 
     void SetSwapInterval(HWindow window, uint32_t swap_interval)
     {}

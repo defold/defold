@@ -7,3 +7,4 @@ def build(bld):
 
     # the dmsdk_add_files needs to be after a build group for some reason
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
+    dmsdk_add_files(bld, '${PREFIX}/sdk/cs/dmsdk', 'cs/dmsdk')

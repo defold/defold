@@ -28,6 +28,8 @@
 
 #include "../../../proto/gameobject/gameobject_ddf.h"
 
+#include <dmsdk/resource/resource.h>
+
 void DispatchCallback(dmMessage::Message *message, void* user_ptr);
 
 class MessageTest : public jc_test_base_class
@@ -41,7 +43,8 @@ protected:
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
         m_Factory = dmResource::NewFactory(&params, "build/src/gameobject/test/message");
-        m_ScriptContext = dmScript::NewContext(0, 0, true);
+        dmScript::ContextParams script_context_params = {};
+        m_ScriptContext = dmScript::NewContext(script_context_params);
         dmScript::Initialize(m_ScriptContext);
         m_Register = dmGameObject::NewRegister();
         dmGameObject::Initialize(m_Register, m_ScriptContext);
@@ -68,7 +71,7 @@ protected:
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
         // MessageTargetComponent
-        dmResource::ResourceType resource_type;
+        HResourceType resource_type;
         e = dmResource::GetTypeFromExtension(m_Factory, "mt", &resource_type);
         ASSERT_EQ(dmResource::RESULT_OK, e);
         dmGameObject::ComponentType mt_type;
@@ -100,8 +103,8 @@ protected:
         dmGameObject::DeleteRegister(m_Register);
     }
 
-    static dmResource::Result ResMessageTargetCreate(const dmResource::ResourceCreateParams& params);
-    static dmResource::Result ResMessageTargetDestroy(const dmResource::ResourceDestroyParams& params);
+    static dmResource::Result ResMessageTargetCreate(const dmResource::ResourceCreateParams* params);
+    static dmResource::Result ResMessageTargetDestroy(const dmResource::ResourceDestroyParams* params);
     static dmGameObject::CreateResult CompMessageTargetNewWorld(const dmGameObject::ComponentNewWorldParams& params);
     static dmGameObject::CreateResult CompMessageTargetDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params);
     static dmGameObject::CreateResult CompMessageTargetCreate(const dmGameObject::ComponentCreateParams& params);
@@ -127,13 +130,13 @@ const static dmhash_t POST_NAMED_ID = dmHashString64("post_named");
 const static dmhash_t POST_DDF_ID = TestGameObjectDDF::TestMessage::m_DDFDescriptor->m_NameHash;
 const static dmhash_t POST_NAMED_TO_INST_ID = dmHashString64("post_named_to_instance");
 
-dmResource::Result MessageTest::ResMessageTargetCreate(const dmResource::ResourceCreateParams& params)
+dmResource::Result MessageTest::ResMessageTargetCreate(const dmResource::ResourceCreateParams* params)
 {
     TestGameObjectDDF::MessageTarget* obj;
-    dmDDF::Result e = dmDDF::LoadMessage<TestGameObjectDDF::MessageTarget>(params.m_Buffer, params.m_BufferSize, &obj);
+    dmDDF::Result e = dmDDF::LoadMessage<TestGameObjectDDF::MessageTarget>(params->m_Buffer, params->m_BufferSize, &obj);
     if (e == dmDDF::RESULT_OK)
     {
-        params.m_Resource->m_Resource = (void*) obj;
+        ResourceDescriptorSetResource(params->m_Resource, obj);
         return dmResource::RESULT_OK;
     }
     else
@@ -142,9 +145,9 @@ dmResource::Result MessageTest::ResMessageTargetCreate(const dmResource::Resourc
     }
 }
 
-dmResource::Result MessageTest::ResMessageTargetDestroy(const dmResource::ResourceDestroyParams& params)
+dmResource::Result MessageTest::ResMessageTargetDestroy(const dmResource::ResourceDestroyParams* params)
 {
-    dmDDF::FreeMessage((void*) params.m_Resource->m_Resource);
+    dmDDF::FreeMessage((void*) ResourceDescriptorGetResource(params->m_Resource));
     return dmResource::RESULT_OK;
 }
 

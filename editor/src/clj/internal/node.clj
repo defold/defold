@@ -22,7 +22,8 @@
             [internal.graph.error-values :as ie]
             [plumbing.core :as pc]
             [schema.core :as s]
-            [util.coll :refer [pair]])
+            [util.coll :refer [pair]]
+            [util.fn :as fn])
   (:import [internal.graph.error_values ErrorValue]
            [schema.core Maybe ConditionalSchema]
            [java.lang.ref WeakReference]))
@@ -35,13 +36,20 @@
   (if-let [tracer (:tracer evaluation-context)]
     (do
       (tracer :begin node-id label-type label)
-      (let [[result e] (try [(deferred-expr) nil] (catch Exception e [nil e]))]
-        (if e
-          (do (tracer :fail node-id label-type label)
-              (throw e))
-          (do (tracer :end node-id label-type label)
-              result))))
+      (let [result (try
+                     (deferred-expr)
+                     (catch Throwable error
+                       (tracer :fail node-id label-type label)
+                       (throw error)))]
+        (tracer :end node-id label-type label)
+        result))
     (deferred-expr)))
+
+(defn trace-expr-result [node-id label evaluation-context label-type expr-result]
+  (when-let [tracer (:tracer evaluation-context)]
+    (tracer :begin node-id label-type label)
+    (tracer :end node-id label-type label))
+  expr-result)
 
 (defn- with-tracer-calls-form [node-id-sym label-sym evaluation-context-sym label-type expr]
   `(trace-expr ~node-id-sym ~label-sym ~evaluation-context-sym ~label-type
@@ -79,12 +87,9 @@
 (def ^:private unjammable?         (partial has-flag? :unjammable))
 (def ^:private explicit?           (partial has-flag? :explicit))
 
-(defn- filterm [pred m]
-  (into {} (filter pred) m))
-
 (defprotocol NodeType)
 
-(defn- node-type? [x] (satisfies? NodeType x))
+(defn- node-type-deref? [x] (satisfies? NodeType x))
 
 (defrecord NodeTypeRef [k]
   Ref
@@ -94,12 +99,25 @@
   (deref [this]
     (node-type-resolve k)))
 
-(defn isa-node-type? [t]
+(defn node-type? [t]
   (instance? NodeTypeRef t))
+
+(defn inherits? [^NodeTypeRef node-type ^NodeTypeRef node-supertype]
+  (isa? (:key @node-type) (:key @node-supertype)))
 
 (defrecord NodeTypeImpl [name supertypes output input property input-dependencies property-display-order cascade-deletes behavior property-behavior declared-property]
   NodeType
   Type)
+
+(defn- cached-outputs-impl-raw [node-type-deref]
+  {:pre [(node-type-deref? node-type-deref)]}
+  (into #{}
+        (keep (fn [[output-label output-info]]
+                (when (cached? output-info)
+                  output-label)))
+        (:output node-type-deref)))
+
+(def ^:private cached-outputs-impl (fn/memoize cached-outputs-impl-raw))
 
 ;;; accessors for node type information
 (defn type-name                [nt]        (some-> nt deref :name))
@@ -114,7 +132,7 @@
 (defn property-behavior        [nt label]  (some-> nt deref (get-in [:property-behavior label])))
 (defn declared-property-labels [nt]        (some-> nt deref :declared-property))
 
-(defn cached-outputs           [nt]        (some-> nt deref :output (->> (filterm #(cached? (val %))) util/key-set)))
+(defn cached-outputs           [nt]        (some-> nt deref cached-outputs-impl))
 (defn substitute-for           [nt label]  (some-> nt deref (get-in [:input label :options :substitute])))
 (defn input-type               [nt label]  (some-> nt deref (get-in [:input label :value-type])))
 (defn input-cardinality        [nt label]  (if (has-flag? :array (get-in (deref nt) [:input label])) :many :one))
@@ -186,7 +204,7 @@
 
 (defn register-node-type
   [k node-type]
-  (assert (node-type? node-type))
+  (assert (node-type-deref? node-type))
   (->NodeTypeRef (register-type node-type-registry-ref k node-type)))
 
 ;;; ----------------------------------------
@@ -311,9 +329,11 @@
     nil))
 
 (defn- prop-info-default [prop-info]
-  (some-> prop-info :default :fn util/var-get-recursive (util/apply-if-fn {})))
+  ;; TODO(save-value-cleanup): Figure out why we have so much wrapping from (default ...) declarations.
+  (some-> prop-info :default :fn util/var-get-recursive (util/apply-if-fn {}) util/var-get-recursive))
 
 (defn- defaults-raw [node-type-deref]
+  (assert (satisfies? NodeType node-type-deref))
   (let [declared-property-labels (:declared-property node-type-deref)]
     (into {}
           (keep (fn [[prop-kw prop-info]]
@@ -322,7 +342,7 @@
                           (prop-info-default prop-info)))))
           (:property node-type-deref))))
 
-(def ^:private defaults
+(def defaults
   "Return a map of default values for the node type."
   (comp (memoize defaults-raw) deref))
 
@@ -338,7 +358,7 @@
           (str "You have given values for properties "
                (args-without-properties node-type-ref args)
                ", but those don't exist on nodes of type "
-               (:name node-type-ref)))
+               (:k node-type-ref)))
   (merge (->NodeImpl node-type-ref)
          (defaults node-type-ref)
          args))
@@ -446,14 +466,11 @@
   gathering inputs to call a production function, invoke the function,
   return the result, meanwhile collecting stats on cache hits and
   misses (for later cache update) in the evaluation-context."
-  [node-id label evaluation-context]
+  [node label evaluation-context]
   (validate-evaluation-context evaluation-context)
-  (when (some? node-id)
-    (let [basis (:basis evaluation-context)
-          node (gt/node-by-id-at basis node-id)]
-      (gt/produce-value node label (apply-dry-run-cache evaluation-context)))))
+  (gt/produce-value node label (apply-dry-run-cache evaluation-context)))
 
-(defn node-property-value* [node label evaluation-context]
+(defn node-property-value [node label evaluation-context]
   (validate-evaluation-context evaluation-context)
   (let [node-type (gt/node-type node)]
     (when-let [behavior (property-behavior node-type label)]
@@ -494,7 +511,7 @@
 ;;; ----------------------------------------
 ;; Type checking
 
-(def ^:private nothing-schema (s/pred (constantly false)))
+(def ^:private nothing-schema (s/pred fn/constantly-false))
 
 (defn- prop-type->schema [prop-type]
   (cond
@@ -1411,7 +1428,7 @@
 (defn- update-in-production [in-production endpoint]
   (if (contains? in-production endpoint)
     (throw (ex-info "Cycle detected on node"
-                    {:cause :cycle-detected
+                    {:ex-type :cycle-detected
                      :endpoint endpoint
                      :in-production in-production}))
     (conj in-production endpoint)))
@@ -1430,19 +1447,18 @@
   (if (nil? v) ::cached-nil v))
 
 (defn check-caches! [node-id label evaluation-context]
-  (let [local @(:local evaluation-context)
-        global (:cache evaluation-context)
-        cache-key (gt/endpoint node-id label)]
-    (cond
-      (contains? local cache-key)
-      (trace-expr node-id label evaluation-context :cache (fn [] (nil->cached-nil (get local cache-key))))
-
-      (contains? global cache-key)
-      (trace-expr node-id label evaluation-context :cache
-                   (fn []
-                     (when-some [cached-result (get global cache-key)]
-                       (swap! (:hits evaluation-context) conj cache-key)
-                       (nil->cached-nil cached-result)))))))
+  (let [cache-key (gt/endpoint node-id label)
+        local-cache @(:local evaluation-context)
+        local-cache-value (get local-cache cache-key ::not-found)]
+    (if (identical? ::not-found local-cache-value)
+      (let [global-cache (:cache evaluation-context)
+            global-cache-value (get global-cache cache-key ::not-found)]
+        (if (identical? ::not-found global-cache-value)
+          ::not-found
+          (do
+            (swap! (:hits evaluation-context) conj cache-key)
+            (trace-expr-result node-id label evaluation-context :cache global-cache-value))))
+      (trace-expr-result node-id label evaluation-context :cache local-cache-value))))
 
 (defn check-local-temp-cache [node-id label evaluation-context]
   (let [local-temp (some-> (:local-temp evaluation-context) deref)
@@ -1452,12 +1468,12 @@
 (defn- check-caches-form [description label node-id-sym label-sym evaluation-context-sym forms]
   (let [result-sym 'result]
     (if (get-in description [:output label :flags :cached])
-      `(if-some [~result-sym (check-caches! ~node-id-sym ~label-sym ~evaluation-context-sym)]
-         (cached-nil->nil ~result-sym)
-         ~forms)
+      `(let [~result-sym (check-caches! ~node-id-sym ~label-sym ~evaluation-context-sym)]
+         (if (identical? ::not-found ~result-sym)
+           ~forms
+           ~result-sym))
       `(if-some [~result-sym (check-local-temp-cache ~node-id-sym ~label-sym ~evaluation-context-sym)]
-         ~(with-tracer-calls-form node-id-sym label-sym evaluation-context-sym :cache
-            `(cached-nil->nil ~result-sym))
+         (trace-expr-result ~node-id-sym ~label-sym ~evaluation-context-sym :cache (cached-nil->nil ~result-sym))
          ~forms))))
 
 (defn- gather-arguments-form [description label node-sym node-id-sym evaluation-context-sym arguments-sym schema-sym forms]

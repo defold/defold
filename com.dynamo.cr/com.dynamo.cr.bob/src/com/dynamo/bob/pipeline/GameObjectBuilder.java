@@ -24,14 +24,17 @@ import java.util.Map;
 import java.util.HashMap;
 import java.util.HashSet;
 
+import com.dynamo.bob.ProtoBuilder;
+import com.dynamo.bob.util.BobNLS;
 import org.apache.commons.io.FilenameUtils;
 
-import com.dynamo.proto.DdfMath.Vector4;
+import com.dynamo.proto.DdfMath.Vector3One;
+import com.dynamo.proto.DdfMath.Vector4One;
 
-import com.dynamo.bob.Builder;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Task;
+import com.dynamo.bob.ProtoParams;
 import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.MurmurHash;
@@ -45,11 +48,11 @@ import com.dynamo.gameobject.proto.GameObject.PrototypeDesc;
 import com.dynamo.properties.proto.PropertiesProto.PropertyDeclarations;
 import com.dynamo.gamesys.proto.Sound.SoundDesc;
 import com.dynamo.gamesys.proto.Label.LabelDesc;
-import com.dynamo.proto.DdfMath.Vector3;
 import com.google.protobuf.TextFormat;
 
+@ProtoParams(srcClass = PrototypeDesc.class, messageClass = PrototypeDesc.class)
 @BuilderParams(name = "GameObject", inExts = ".go", outExt = ".goc")
-public class GameObjectBuilder extends Builder<Void> {
+public class GameObjectBuilder extends ProtoBuilder<PrototypeDesc.Builder> {
     private Boolean ifObjectHasDynamicFactory = false;
 
     private boolean isComponentOfType(EmbeddedComponentDesc d, String type) {
@@ -60,12 +63,10 @@ public class GameObjectBuilder extends Builder<Void> {
     }
 
     private PrototypeDesc.Builder loadPrototype(IResource input) throws IOException, CompileExceptionError {
-        PrototypeDesc.Builder b = PrototypeDesc.newBuilder();
-        ProtoUtil.merge(input, b);
+        PrototypeDesc.Builder b = getSrcBuilder(input);
 
         List<ComponentDesc> lst = b.getComponentsList();
         List<ComponentDesc> newList = new ArrayList<GameObject.ComponentDesc>();
-
 
         for (ComponentDesc componentDesc : lst) {
             // Convert .wav and .ogg resource component to an embedded sound
@@ -91,32 +92,32 @@ public class GameObjectBuilder extends Builder<Void> {
     }
 
     @Override
-    public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-        PrototypeDesc.Builder b = loadPrototype(input);
-        TaskBuilder<Void> taskBuilder = Task.<Void>newBuilder(this)
+    public Task create(IResource input) throws IOException, CompileExceptionError {
+        TaskBuilder taskBuilder = Task.newBuilder(this)
                 .setName(params.name())
                 .addInput(input)
                 .addOutput(input.changeExt(params.outExt()))
                 .addOutput(input.changeExt(ComponentsCounter.EXT_GO));
 
-        for (ComponentDesc cd : b.getComponentsList()) {
+        PrototypeDesc.Builder builder = loadPrototype(input);
+
+        for (ComponentDesc cd : builder.getComponentsList()) {
             Boolean isStatic = ComponentsCounter.ifStaticFactoryAddProtoAsInput(cd, taskBuilder, input, project);
             if (isStatic != null) {
                 ifObjectHasDynamicFactory |= !isStatic;
             }
-            Collection<String> resources = PropertiesUtil.getPropertyDescResources(project, cd.getPropertiesList());
-            for(String r : resources) {
-                IResource resource = BuilderUtil.checkResource(project, input, "resource", r);
-                taskBuilder.addInput(resource);
-                PropertiesUtil.createResourcePropertyTasks(project, resource, input);
+            Map<String, String> resources = PropertiesUtil.getPropertyDescResources(project, cd.getPropertiesList());
+            for (Map.Entry<String, String> entry : resources.entrySet()) {
+                createSubTask(entry.getValue(), entry.getKey(), taskBuilder);
             }
         }
 
-        PrototypeDesc proto = b.build();
+        createSubTasks(builder, taskBuilder);
+        PrototypeDesc proto = builder.build();
 
         // Gather the unique resources first
         Map<Long, IResource> uniqueResources = new HashMap<>();
-        List<Task<?>> embedTasks = new ArrayList<>();
+        List<Task> embedTasks = new ArrayList<>();
 
         for (EmbeddedComponentDesc ec : proto.getEmbeddedComponentsList()) {
             byte[] data = ec.getData().getBytes();
@@ -140,8 +141,7 @@ public class GameObjectBuilder extends Builder<Void> {
 
         for (long hash : uniqueResources.keySet()) {
             IResource genResource = uniqueResources.get(hash);
-            taskBuilder.addOutput(genResource);
-            Task<?> embedTask = project.createTask(genResource);
+            Task embedTask = createSubTask(genResource, taskBuilder);
             if (embedTask == null) {
                 throw new CompileExceptionError(input,
                                                 0,
@@ -150,8 +150,8 @@ public class GameObjectBuilder extends Builder<Void> {
             embedTasks.add(embedTask);
         }
 
-        Task<Void> task = taskBuilder.build();
-        for (Task<?> et : embedTasks) {
+        Task task = taskBuilder.build();
+        for (Task et : embedTasks) {
             et.setProductOf(task);
         }
 
@@ -159,16 +159,13 @@ public class GameObjectBuilder extends Builder<Void> {
     }
 
     @Override
-    public void build(Task<Void> task) throws CompileExceptionError,
-            IOException {
-        IResource input = task.input(0);
-        PrototypeDesc.Builder protoBuilder = loadPrototype(input);
+    public void build(Task task) throws CompileExceptionError, IOException {
+        IResource input = task.firstInput();
+        PrototypeDesc.Builder protoBuilder = getSrcBuilder(input);
         for (ComponentDesc c : protoBuilder.getComponentsList()) {
             String component = c.getComponent();
             BuilderUtil.checkResource(this.project, input, "component", component);
         }
-
-        final Vector3 defaultScale = Vector3.newBuilder().setX(1.0f).setY(1.0f).setZ(1.0f).build();
 
         // convert embedded components to generated components in the build folder
         for (EmbeddedComponentDesc ec : protoBuilder.getEmbeddedComponentsList()) {
@@ -225,8 +222,6 @@ public class GameObjectBuilder extends Builder<Void> {
     private PrototypeDesc.Builder transformGo(IResource resource,
             PrototypeDesc.Builder protoBuilder, ComponentsCounter.Storage compStorage) throws CompileExceptionError {
 
-        final Vector3 defaultScale = Vector3.newBuilder().setX(1.0f).setY(1.0f).setZ(1.0f).build();
-
         protoBuilder.clearPropertyResources();
         Collection<String> propertyResources = new HashSet<String>();
         List<ComponentDesc> newList = new ArrayList<ComponentDesc>();
@@ -237,6 +232,11 @@ public class GameObjectBuilder extends Builder<Void> {
             compStorage.add(ext);
             String inExt = "." + ext;
             String outExt = project.replaceExt(inExt);
+            if (ext.equals("gui_script") || ext.equals("render_script"))
+            {
+                throw new CompileExceptionError(resource, 0, BobNLS.bind(Messages.BuilderUtil_WRONG_RESOURCE_TYPE,
+                        new String[] { c, ext, "script" } ));
+            }
             c = BuilderUtil.replaceExt(c, inExt, outExt);
 
             PropertyDeclarations.Builder properties = PropertyDeclarations.newBuilder();
@@ -262,21 +262,14 @@ public class GameObjectBuilder extends Builder<Void> {
                     LabelDesc.Builder lb = LabelDesc.newBuilder();
                     TextFormat.merge(reader, lb);
                     if (lb.hasScale()) {
-                        Vector4 labelScaleV4 = lb.getScale();
-                        Vector3 labelScaleV3 = Vector3.newBuilder().setX(labelScaleV4.getX()).setY(labelScaleV4.getY()).setZ(labelScaleV4.getZ()).build();
+                        Vector4One labelScaleV4 = lb.getScale();
+                        Vector3One labelScaleV3 = Vector3One.newBuilder().setX(labelScaleV4.getX()).setY(labelScaleV4.getY()).setZ(labelScaleV4.getZ()).build();
                         compBuilder.setScale(labelScaleV3);
                     }
                 }
                 catch(IOException e) {
                     throw new CompileExceptionError(e);
                 }
-            }
-
-            // #3981
-            // if the component doesn't have a scale we set a default of v3(1.0)
-            // if we do not set a scale it will have a scale of v3(0.0) at runtime
-            if (!compBuilder.hasScale()) {
-                compBuilder.setScale(defaultScale);
             }
 
             compBuilder.setComponent(c);

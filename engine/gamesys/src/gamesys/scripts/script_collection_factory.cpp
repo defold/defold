@@ -314,10 +314,6 @@ namespace dmGameSystem
             rotation = dmGameObject::GetWorldRotation(sender_instance);
         }
 
-        const uint32_t buffer_size = 4096;
-        uint8_t DM_ALIGNED(16) buffer[buffer_size];
-        uint32_t buffer_pos = 0;
-
         dmGameObject::InstancePropertyBuffers prop_bufs;
         prop_bufs.SetCapacity(8, 32);
 
@@ -332,8 +328,6 @@ namespace dmGameSystem
                 while (lua_next(L, -2))
                 {
                     dmhash_t instance_id = dmScript::CheckHash(L, -2);
-                    uint32_t left = buffer_size - buffer_pos;
-
                     dmGameObject::HPropertyContainer properties = dmGameObject::PropertyContainerCreateFromLua(L, -1);
 
                     prop_bufs.Put(instance_id, properties);
@@ -392,6 +386,13 @@ namespace dmGameSystem
         {
             // empty table
             lua_newtable(L);
+        }
+
+        // Free the property containers
+        dmGameObject::InstancePropertyBuffers::Iterator iter(prop_bufs);
+        while (iter.Next())
+        {
+            dmGameObject::PropertyContainerDestroy(iter.GetValue());
         }
 
         assert(top + 1 == lua_gettop(L));

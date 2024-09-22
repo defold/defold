@@ -248,6 +248,22 @@ namespace dmGameSystem
         return 0;
     }
 
+    static int Body_GetAngularDamping(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        b2Body* body = CheckBody(L, 1);
+        lua_pushnumber(L, body->GetAngularDamping());
+        return 1;
+    }
+
+    static int Body_SetAngularDamping(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+        b2Body* body = CheckBody(L, 1);
+        body->SetAngularDamping(luaL_checknumber(L, 2));
+        return 0;
+    }
+
     static int Body_GetGravityScale(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
@@ -523,6 +539,9 @@ namespace dmGameSystem
         {"get_linear_damping", Body_GetLinearDamping},
         {"set_linear_damping", Body_SetLinearDamping},
 
+        {"get_angular_damping", Body_GetAngularDamping},
+        {"set_angular_damping", Body_SetAngularDamping},
+
         {"is_bullet", Body_IsBullet},
         {"set_bullet", Body_SetBullet},
 
@@ -663,7 +682,7 @@ namespace dmGameSystem
  * Manipulating a body's transform may cause non-physical behavior.
  * @name b2d.body.set_transform
  * @param body [type: b2Body] body
- * @param position [type: vmath.vector3] the world position of the body's local origin.
+ * @param position [type: vector3] the world position of the body's local origin.
  * @param angle [type: number] the world position of the body's local origin.
  */
 
@@ -676,7 +695,7 @@ namespace dmGameSystem
 /*# Get the world body origin position.
  * @name b2d.body.get_position
  * @param body [type: b2Body] body
- * @return position [type: vmath.vector3] the world position of the body's origin.
+ * @return position [type: vector3] the world position of the body's origin.
  */
 
 /*# Get the angle in radians.
@@ -688,29 +707,29 @@ namespace dmGameSystem
 /*# Get the world position of the center of mass.
  * @name b2d.body.get_world_center
  * @param body [type: b2Body] body
- * @return center [type: vmath.vector3] Get the world position of the center of mass.
+ * @return center [type: vector3] Get the world position of the center of mass.
  */
 
 /*# Get the local position of the center of mass.
  * @name b2d.body.get_local_center
  * @param body [type: b2Body] body
- * @return center [type: vmath.vector3] Get the local position of the center of mass.
+ * @return center [type: vector3] Get the local position of the center of mass.
  */
 
 /*# Set the linear velocity of the center of mass.
  * @name b2d.body.set_linear_velocity
  * @param body [type: b2Body] body
- * @param velocity [type: vmath.vector3] the new linear velocity of the center of mass.
+ * @param velocity [type: vector3] the new linear velocity of the center of mass.
  */
 
 /*# Get the linear velocity of the center of mass.
  * @name b2d.body.get_linear_velocity
  * @param body [type: b2Body] body
- * @return velocity [type: vmath.vector3] the linear velocity of the center of mass.
+ * @return velocity [type: vector3] the linear velocity of the center of mass.
  */
 
 /*# Set the angular velocity.
- * @name b2d.body.get_angular_velocity
+ * @name b2d.body.set_angular_velocity
  * @param body [type: b2Body] body
  * @param omega [type: number] the new angular velocity in radians/second.
  */
@@ -727,14 +746,14 @@ namespace dmGameSystem
  * affect the angular velocity. This wakes up the body.
  * @name b2d.body.apply_force
  * @param body [type: b2Body] body
- * @param force [type: vmath.vector3] the world force vector, usually in Newtons (N).
- * @param point [type: vmath.vector3] the world position of the point of application.
+ * @param force [type: vector3] the world force vector, usually in Newtons (N).
+ * @param point [type: vector3] the world position of the point of application.
  */
 
 /*# Apply a force to the center of mass. This wakes up the body.
  * @name b2d.body.apply_force_to_center
  * @param body [type: b2Body] body
- * @param force [type: vmath.vector3] the world force vector, usually in Newtons (N).
+ * @param force [type: vector3] the world force vector, usually in Newtons (N).
  */
 
 /*#
@@ -752,8 +771,8 @@ namespace dmGameSystem
  * is not at the center of mass. This wakes up the body.
  * @name b2d.body.apply_linear_impulse
  * @param body [type: b2Body] body
- * @param impulse [type: vmath.vector3] the world impulse vector, usually in N-seconds or kg-m/s.
- * @param point [type: vmath.vector3] the world position of the point of application.
+ * @param impulse [type: vector3] the world impulse vector, usually in N-seconds or kg-m/s.
+ * @param point [type: vector3] the world position of the point of application.
  */
 
 /*# Apply an angular impulse.
@@ -801,43 +820,43 @@ namespace dmGameSystem
 /*# Get the world coordinates of a point given the local coordinates.
  * @name b2d.body.get_world_point
  * @param body [type: b2Body] body
- * @param local_vector [type: vmath.vector3] localPoint a point on the body measured relative the the body's origin.
- * @return vector [type: vmath.vector3] the same point expressed in world coordinates.
+ * @param local_vector [type: vector3] localPoint a point on the body measured relative the the body's origin.
+ * @return vector [type: vector3] the same point expressed in world coordinates.
  */
 
 /*# Get the world coordinates of a vector given the local coordinates.
  * @name b2d.body.get_world_vector
  * @param body [type: b2Body] body
- * @param local_vector [type: vmath.vector3] a vector fixed in the body.
- * @return vector [type: vmath.vector3] the same vector expressed in world coordinates.
+ * @param local_vector [type: vector3] a vector fixed in the body.
+ * @return vector [type: vector3] the same vector expressed in world coordinates.
  */
 
 /*# Gets a local point relative to the body's origin given a world point.
  * @name b2d.body.get_local_point
  * @param body [type: b2Body] body
- * @param world_point [type: vmath.vector3] a point in world coordinates.
- * @return vector [type: vmath.vector3] the corresponding local point relative to the body's origin.
+ * @param world_point [type: vector3] a point in world coordinates.
+ * @return vector [type: vector3] the corresponding local point relative to the body's origin.
  */
 
 /*# Gets a local vector given a world vector.
  * @name b2d.body.get_local_vector
  * @param body [type: b2Body] body
- * @param world_vector [type: vmath.vector3] a vector in world coordinates.
- * @return vector [type: vmath.vector3] the corresponding local vector.
+ * @param world_vector [type: vector3] a vector in world coordinates.
+ * @return vector [type: vector3] the corresponding local vector.
  */
 
 /*# Get the world linear velocity of a world point attached to this body.
  * @name b2d.body.get_linear_velocity_from_world_point
  * @param body [type: b2Body] body
- * @param world_point [type: vmath.vector3] a point in world coordinates.
- * @return velocity [type: vmath.vector3] the world velocity of a point.
+ * @param world_point [type: vector3] a point in world coordinates.
+ * @return velocity [type: vector3] the world velocity of a point.
  */
 
 /*# Get the world velocity of a local point.
  * @name b2d.body.get_linear_velocity_from_local_point
  * @param body [type: b2Body] body
- * @param local_point [type: vmath.vector3] a point in local coordinates.
- * @return velocity [type: vmath.vector3] the world velocity of a point.
+ * @param local_point [type: vector3] a point in local coordinates.
+ * @return velocity [type: vector3] the world velocity of a point.
  */
 
 /*# Set the linear damping of the body.
@@ -1015,7 +1034,7 @@ namespace dmGameSystem
  * @name b2d.body.get_force
  * @note Defold Specific
  * @param body [type: b2Body] body
- * @return force [type: vmath.vector3]
+ * @return force [type: vector3]
  */
 
 

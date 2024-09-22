@@ -95,7 +95,10 @@
                                     (g/map->error {:_node-id (build-target :node-id)
                                                    :_label :build-targets
                                                    :severity :fatal
-                                                   :message (str "Dependency cycle detected: " (string/join " -> " cycle))}))
+                                                   :message (format "Dependency cycle detected: %s."
+                                                                    (string/join " -> "
+                                                                                 (map #(str \' % \')
+                                                                                      cycle)))}))
                                   (let [deps (build-target :deps)
                                         dynamic-deps (build-target :dynamic-deps)
                                         resolved-deps
@@ -169,7 +172,10 @@
         progress-tracer (project/make-progress-tracer :build-targets step-count progress-message-fn (progress/nest-render-progress render-progress! (progress/make "" 10) 5))
         evaluation-context-with-progress-trace (assoc evaluation-context :tracer progress-tracer)
         _ (doseq [node-id (rseq @steps)]
-            (g/node-value node-id :build-targets evaluation-context-with-progress-trace))
+            (try
+              (g/node-value node-id :build-targets evaluation-context-with-progress-trace)
+              (catch Throwable error
+                (throw (pipeline/decorate-build-exception error :compile node-id nil evaluation-context)))))
         #_#_#_#_
         prewarm-partitions (partition-all (max (quot step-count (+ (available-processors) 2)) 1000) (rseq @steps))
         _ (batched-pmap (fn [node-id] (g/node-value node-id :build-targets evaluation-context-with-progress-trace)) prewarm-partitions)
@@ -178,4 +184,4 @@
     (if (g/error? build-targets)
       {:error build-targets}
       (let [build-dir (workspace/build-path (project/workspace project evaluation-context))]
-        (pipeline/build! build-targets build-dir old-artifact-map (progress/nest-render-progress render-progress! (progress/make "" 10 5) 5))))))
+        (pipeline/build! build-targets build-dir old-artifact-map evaluation-context (progress/nest-render-progress render-progress! (progress/make "" 10 5) 5))))))

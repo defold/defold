@@ -28,13 +28,14 @@ class AnimTest : public jc_test_base_class
 protected:
     virtual void SetUp()
     {
-        m_UpdateContext.m_DT = 1.0f / 60.0f;
+        m_UpdateContext.m_DT = 1.0f / 60.0f ;
 
         dmResource::NewFactoryParams params;
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
         m_Factory = dmResource::NewFactory(&params, "build/src/gameobject/test/anim");
-        m_ScriptContext = dmScript::NewContext(0, 0, true);
+        dmScript::ContextParams script_context_params = {};
+        m_ScriptContext = dmScript::NewContext(script_context_params);
         dmScript::Initialize(m_ScriptContext);
         m_Register = dmGameObject::NewRegister();
         dmGameObject::Initialize(m_Register, m_ScriptContext);
@@ -64,6 +65,7 @@ protected:
         dmGameObject::PostUpdate(m_Register);
         dmScript::Finalize(m_ScriptContext);
         dmScript::DeleteContext(m_ScriptContext);
+        dmResource::DeregisterTypes(m_Factory, &m_Contexts);
         dmResource::DeleteFactory(m_Factory);
         dmGameObject::DeleteRegister(m_Register);
     }

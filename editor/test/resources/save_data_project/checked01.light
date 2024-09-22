@@ -2,9 +2,9 @@ id: "checked_light"
 type: POINT
 intensity: 1.0
 color {
-    x: 1.0
-    y: 1.0
-    z: 1.0
+  x: 1.0
+  y: 1.0
+  z: 1.0
 }
 range: 1.0
 decay: 1.0

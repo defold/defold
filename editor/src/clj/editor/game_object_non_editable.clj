@@ -44,24 +44,15 @@
    [:resource-property-build-targets :other-resource-property-build-targets]
    [:scene :referenced-component-scenes]])
 
-(defn- add-embedded-component-resource-node [host-node-id embedded-component-resource-data ext->embedded-component-resource-type project]
+(defn- add-embedded-component-resource-node [host-node-id embedded-component-resource-data project]
   (let [embedded-resource-ext (:type embedded-component-resource-data)
-        embedded-resource-type (ext->embedded-component-resource-type embedded-resource-ext)
-        embedded-resource-write-fn (:write-fn embedded-resource-type)
         embedded-resource-pb-map (:data embedded-component-resource-data)
-        embedded-resource-pb-string (embedded-resource-write-fn embedded-resource-pb-map)
-        embedded-resource (project/make-embedded-resource project :non-editable embedded-resource-ext embedded-resource-pb-string)
+        embedded-resource (project/make-embedded-resource project :non-editable embedded-resource-ext embedded-resource-pb-map)
         embedded-resource-node-type (project/resource-node-type embedded-resource)
         graph (g/node-id->graph-id host-node-id)]
     (g/make-nodes graph [embedded-resource-node-id [embedded-resource-node-type :resource embedded-resource]]
-      (project/load-node project embedded-resource-node-id embedded-resource-node-type embedded-resource)
-      (project/connect-if-output embedded-resource-node-type embedded-resource-node-id host-node-id embedded-component-connections))))
-
-(g/defnk produce-embedded-component-build-targets [embedded-component-build-targets]
-  (into []
-        (map (comp #(assoc % :resource (bt/make-content-hash-build-resource %))
-                   util/only-or-throw))
-        embedded-component-build-targets))
+      (project/load-embedded-resource-node project embedded-resource-node-id embedded-resource embedded-resource-pb-map)
+      (gu/connect-existing-outputs embedded-resource-node-type embedded-resource-node-id host-node-id embedded-component-connections))))
 
 (g/defnk produce-embedded-component-resource-data->scene-index [embedded-component-resource-data->index resource]
   (let [workspace (resource/workspace resource)
@@ -110,12 +101,10 @@
 
 (defn data->index-setter [evaluation-context self new-value old-sources-input-label add-resource-node-fn]
   (let [basis (:basis evaluation-context)
-        project (project/get-project basis self)
-        workspace (project/workspace project)
-        ext->resource-type (workspace/get-resource-type-map workspace :non-editable)]
+        project (project/get-project basis self)]
     (into (delete-connected-nodes-tx-data basis self old-sources-input-label)
           (mapcat (fn [[data]]
-                    (add-resource-node-fn self data ext->resource-type project)))
+                    (add-resource-node-fn self data project)))
           (sort-by val new-value))))
 
 (defn referenced-resources-setter [evaluation-context self new-value old-sources-input-label resource-connections]
@@ -129,12 +118,12 @@
 (g/defnode ComponentHostResourceNode
   (inherits resource-node/NonEditableResourceNode)
 
-  (property embedded-component-resource-data->index g/Any
+  (property embedded-component-resource-data->index g/Any ; No protobuf counterpart.
             (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self _old-value new-value]
                    (data->index-setter evaluation-context self new-value :embedded-component-build-targets add-embedded-component-resource-node))))
 
-  (property referenced-components resource/ResourceVec
+  (property referenced-components resource/ResourceVec ; No protobuf counterpart.
             (dynamic visible (g/constantly false))
             (value (gu/passthrough referenced-component-resources))
             (set (fn [evaluation-context self _old-value new-value]
@@ -148,7 +137,7 @@
   (input own-resource-property-build-targets g/Any :array)
   (input other-resource-property-build-targets g/Any :array)
 
-  (output embedded-component-build-targets g/Any :cached produce-embedded-component-build-targets)
+  (output embedded-component-build-targets g/Any :cached (g/fnk [embedded-component-build-targets] (mapv util/only-or-throw embedded-component-build-targets)))
   (output embedded-component-resource-data->scene-index g/Any :cached produce-embedded-component-resource-data->scene-index)
   (output embedded-component-scenes g/Any :cached (gu/passthrough embedded-component-scenes))
   (output referenced-component-build-targets g/Any :cached (g/fnk [referenced-component-build-targets] (mapv util/only-or-throw referenced-component-build-targets)))
@@ -166,7 +155,7 @@
 (defn- any-component-desc->transform-matrix
   ^Matrix4d [any-component-desc]
   ;; GameObject$ComponentDesc or GameObject$EmbeddedInstanceDesc in map format.
-  (pose/to-mat4 (any-component-desc->pose any-component-desc)))
+  (pose/matrix (any-component-desc->pose any-component-desc)))
 
 (defn prototype-desc->referenced-component-proj-paths [prototype-desc]
   (eduction
@@ -179,7 +168,7 @@
     (map (partial workspace/resolve-workspace-resource workspace))
     (prototype-desc->referenced-component-proj-paths prototype-desc)))
 
-(defn embedded-component-desc->embedded-component-resource-data [embedded-component-desc]
+(defn- embedded-component-desc->embedded-component-resource-data [embedded-component-desc]
   {:pre [(map? embedded-component-desc) ; GameObject$EmbeddedComponentDesc in map format.
          (string? (:type embedded-component-desc)) ; File extension.
          (map? (:data embedded-component-desc))]}
@@ -225,9 +214,7 @@
         pose (any-component-desc->pose component-desc)
         proj-path->source-resource (comp :resource :resource proj-path->build-target)
         go-props-with-source-resources (mapv #(properties/property-desc->go-prop % proj-path->source-resource) (:properties component-desc))
-        component-desc (-> component-desc
-                           (assoc :properties go-props-with-source-resources)
-                           (game-object-common/add-default-scale-to-component-desc))]
+        component-desc (assoc component-desc :properties go-props-with-source-resources)]
     (game-object-common/referenced-component-instance-data build-resource component-desc pose proj-path->build-target)))
 
 (defn- embedded-component-desc->component-instance-data [embedded-component-desc embedded-component-desc->build-resource]
@@ -322,10 +309,9 @@
 
             component-build-targets
             (into referenced-component-build-targets
-                  embedded-component-build-targets)
+                  embedded-component-build-targets)]
 
-            build-resource (workspace/make-build-resource resource)]
-        [(game-object-common/game-object-build-target build-resource _node-id component-instance-datas component-build-targets)])))
+        [(game-object-common/game-object-build-target resource _node-id component-instance-datas component-build-targets)])))
 
 (g/defnk produce-ddf-component-properties [prototype-desc]
   (prototype-desc->component-property-descs prototype-desc))
@@ -346,7 +332,7 @@
 (g/defnode NonEditableGameObjectNode
   (inherits ComponentHostResourceNode)
 
-  (property prototype-desc g/Any
+  (property prototype-desc g/Any ; No protobuf counterpart.
             (dynamic visible (g/constantly false))
             (set (fn [evaluation-context self _old-value new-value]
                    ;; We use default evaluation-context in queries to ensure the
@@ -369,6 +355,7 @@
   (output proj-path->build-target g/Any :cached produce-proj-path->build-target)
 
   ;; GameObject interface.
+  (output save-value g/Any (gu/passthrough prototype-desc))
   (output build-targets g/Any :cached produce-build-targets)
   (output ddf-component-properties g/Any :cached produce-ddf-component-properties)
   (output node-outline outline/OutlineData produce-node-outline)
@@ -376,7 +363,11 @@
 
 (defn- sanitize-non-editable-game-object [workspace prototype-desc]
   (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace :non-editable)]
-    (game-object-common/sanitize-prototype-desc prototype-desc ext->embedded-component-resource-type :embed-data-as-maps)))
+    (game-object-common/sanitize-prototype-desc prototype-desc ext->embedded-component-resource-type)))
+
+(defn- string-encode-non-editable-game-object [workspace prototype-desc]
+  (let [ext->embedded-component-resource-type (workspace/get-resource-type-map workspace :non-editable)]
+    (collection-string-data/string-encode-prototype-desc ext->embedded-component-resource-type prototype-desc)))
 
 (defn- load-non-editable-game-object [_project self resource prototype-desc]
   ;; Validate the prototype-desc.
@@ -396,6 +387,7 @@
     :ddf-type GameObject$PrototypeDesc
     :dependencies-fn (game-object-common/make-game-object-dependencies-fn #(workspace/get-resource-type-map workspace :non-editable))
     :sanitize-fn (partial sanitize-non-editable-game-object workspace)
+    :string-encode-fn (partial string-encode-non-editable-game-object workspace)
     :load-fn load-non-editable-game-object
     :icon game-object-common/game-object-icon
     :icon-class :design

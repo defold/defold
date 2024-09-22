@@ -15,10 +15,23 @@
 #ifndef DM_PLATFORM_WINDOW_ANDROID_H
 #define DM_PLATFORM_WINDOW_ANDROID_H
 
+#include "platform_window.h"
+
+#include <EGL/egl.h>
+#include <GLES/gl.h>
+#include <android/native_window.h>
+#include <android_native_app_glue.h>
+
 namespace dmPlatform
 {
-    int32_t AndroidVerifySurface(HWindow window);
-    void    AndroidBeginFrame(HWindow window);
+    int32_t      AndroidVerifySurface(HWindow window);
+    void         AndroidBeginFrame(HWindow window);
+
+    EGLContext   GetAndroidEGLContext();
+    EGLSurface   GetAndroidEGLSurface();
+    JavaVM*      GetAndroidJavaVM();
+    jobject      GetAndroidActivity();
+    android_app* GetAndroidApp();
 }
 
 #endif // DM_PLATFORM_WINDOW_ANDROID_H

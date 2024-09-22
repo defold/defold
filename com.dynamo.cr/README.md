@@ -16,42 +16,41 @@ Caching of libraries is based on the Git SHA1, to the actual commit
 * The SHA1 is stored in the zip file comment
 * The SHA1 is used as ETag and If-None-Match/"304 Not modified" for cache validation
 * Note that the SHA1, in general, is not identical to the requested version as the requested version can be
-  symbolic, e..g HEAD, 1.0, etc. Moreover, for tags, the underlying SHA1 to the actual commit in question is used
+  symbolic, e.g. HEAD, 1.0, etc. Moreover, for tags, the underlying SHA1 to the actual commit in question is used
   and not the SHA1 for the tag-object.
 
 Setup IDEA
 ---------
+First of all, follow the engine setup instructions and build the engine at least once, as well as Bob.
 
 1. Download and install IntelliJ IDEA Community Edition from here: https://www.jetbrains.com/idea/download .
 
 2. Start the IDE and on the initial welcome screen choose _Open_ project. Navigate to Bob's source directory `com.dynamo.cr`.
 
-3. In case there is a popup that detected maven/eclipse configuration and asks about it, just choose _maven_. It should make no difference.
+3. In case there is a popup that detected maven/eclipse configuration and asks about it, just choose _maven_. It should make no difference. Open `com.dynamo.cr.bob/build.gradle` and run `installBob` task. Open `com.dynamo.cr.common/build.gradle` and run `generateProtos` task.
 
 4. Open `File -> Project Structure` and in `Project Settings -> Project` add JDK 17
 
-5. In `Project Settings -> Modules -> Sources` select `com.dynamo.cr.bob/generated`, `com.dynamo.cr.bob/src` and `com.dynamo.cr.common/src` folders and click `Mark as: Sources`  ![Mark as: Sources](https://github.com/defold/defold/assets/2209596/0566d962-bd80-49a5-b246-c10703c0310b)
+5. Make sure Compiler output specified ![Compiler output](https://github.com/defold/defold/assets/2209596/eca932b4-dbaf-4643-b95f-e9e5bbdcac91)
 
-6. Select `com.dynamo.cr.bob.test/src` and `com.dynamo.cr.common.test/src` folders and click `Mark as: Tests` ![Mark as: Tests](https://github.com/defold/defold/assets/2209596/0e8a29fc-dc5b-41d0-b6a5-ea0f19e4d489)
+6. In `Project Settings -> Modules -> Sources` select `com.dynamo.cr.bob/generated`, `com.dynamo.cr.bob/src`, `com.dynamo.cr.common/generated` and `com.dynamo.cr.common/src` folders and click `Mark as: Sources`  ![Mark as: Sources](https://github.com/defold/defold/assets/2209596/fbc660ce-25a8-4612-a5a0-47d3615d4d98)
 
-7. Change language level to `8 - Lambdas, type annotations etc.` ![Change language level](https://github.com/defold/defold/assets/2209596/40d089fd-8317-4b06-8db3-488b9dedafbc)
+7. Select `com.dynamo.cr.bob.test/src` and `com.dynamo.cr.common.test/src` folders and click `Mark as: Tests` ![Mark as: Tests](https://github.com/defold/defold/assets/2209596/88d4bde5-5d37-4f6b-8781-ffcc57519f2e)
 
-8. In  `Project Settings -> Modules -> Dependencies` click `+` then  `1 JARs or Directories...` and choose `com.dynamo.cr/com.dynamo.cr.common/ext` and repeat for `com.dynamo.cr/com.dynamo.cr.bob/lib` and `com.dynamo.cr/com.dynamo.cr.bob.test/lib` ![Dependencies](https://github.com/defold/defold/assets/2209596/71638224-2adf-4cd1-8e79-ad5224bcd39b)
+8. Add `com.dynamo.cr.bob` as Resource Folder and `com.dynamo.cr.bob.test/test` ![resources](https://github.com/defold/defold/assets/2209596/49cec23b-f15c-411b-bdfc-495f78f44936)
 
-9. Right click to `build.xml` and choose very last option `Add as Ant Build File` for each of the following:
-	   `com.dynamo.cr/com.dynamo.cr.bob/build.xml`
-	   `com.dynamo.cr/com.dynamo.cr.bob.test/build.xml`
-	   `com.dynamo.cr/com.dynamo.cr.common/build.xml`
-	   ![build.xml](https://github.com/defold/defold/assets/2209596/7bada507-64b3-4d42-b177-21ec90b9271a)
+9. Select `com.dynamo.cr.bob.test/build` folder and click `Mark as: Excluded` ![Excluded](https://github.com/defold/defold/assets/2209596/a3c9bf3a-0989-46c1-a47d-448205d0b4fc)
 
-10. In `Ant` window click to `Properties`, choose `Properties` and add Name:`env.DYNAMO_HOME` Value:`../../tmp/dynamo_home`, switch to `Execution` make sure right JDK picked ![Properties](https://github.com/defold/defold/assets/2209596/ba83cc75-95a2-4597-901b-e742f85f121d) ![Properties2](https://github.com/defold/defold/assets/2209596/590f5b1d-17ed-4893-897d-df54b1731798)
+10. Change language level to `17 - Sealed types, always-strict floating-point semantics` ![Change language level](https://github.com/defold/defold/assets/2209596/39e61b02-3867-4ca8-9d74-a960561aadfe)
 
-11. Repeat it for the rest of `build.xml` but for `com.dynamo.cr/com.dynamo.cr.bob.test/build.xml` also add Name:`DM_BOB_BUNDLERTEST_ONLY_HOST` and Value:`1` ![DM_BOB_BUNDLERTEST_ONLY_HOST](https://github.com/defold/defold/assets/2209596/8bf04931-4eca-40a4-abaa-2a23a8709c92)
+11. In  `Project Settings -> Modules -> Dependencies` click `+` then  `1 JARs or Directories...` and choose `com.dynamo.cr/com.dynamo.cr.common/ext` and repeat for `com.dynamo.cr/com.dynamo.cr.bob/lib`, `com.dynamo.cr/com.dynamo.cr.common/ext/aws`  and `com.dynamo.cr/com.dynamo.cr.bob.test/lib` ![Dependencies](https://github.com/defold/defold/assets/2209596/dd86e706-b91f-475b-b43d-aaac596ffa1f)
 
-12. Now you can Run Ant jobs from IDEA, just pick needed `build.xml` and Run it in Ant window ![Build](https://github.com/defold/defold/assets/2209596/b336c230-b148-4568-ab05-a5dfdb13c62b)
-
-13. Logs with the progress of building can be found in `View -> Tool Windows -> Messages` ![Logs](https://github.com/defold/defold/assets/2209596/4b805b05-a070-4787-b70b-6f6f9da7f215)
-
+Testing
+---------
+To be able to run single tests, change default template for JUnit tests:
+1. Open `Edit Configurations`
+2. Click `Edit Configuration Template` ![Edit configuration template](https://github.com/defold/defold/assets/2209596/1d052a0c-3e25-4dec-86f6-3d2ba42207e1)
+3. Pick JUnit and specify working derictory as `$MODULE_WORKING_DIR$/com.dynamo.cr.bob.test` ![working derictory](https://github.com/defold/defold/assets/2209596/6fb73a5f-dadb-41b0-8343-c7443d177f03)
 
 Debugging
 ---------

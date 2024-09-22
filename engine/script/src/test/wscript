@@ -15,14 +15,14 @@ def build(bld):
         bld.env['JS_LIB_PATHS'] = lib_dirs
 
 
-    bld.stlib(features = 'c cxx',
+    bld.stlib(features = 'c cxx test test_install',
               includes = '..',
               use = 'DLIB LUA script',
               target = 'test_script',
               source = 'test_script.cpp test_script_private.cpp')
 
     web_libs = ['library_sys.js', 'library_script.js']
-    libs = 'TESTMAIN SOCKET APP THREAD EXTENSION RESOURCE DDF DLIB PROFILE_NULL LUA script test_script'
+    libs = 'TESTMAIN SOCKET APP THREAD EXTENSION RESOURCE GRAPHICS_NULL PLATFORM_NULL DDF DLIB PROFILE_NULL LUA script test_script'
     exported_symbols = ['ResourceProviderFile']
 
     test_script_ddf = bld.program(features = flist,
@@ -160,6 +160,24 @@ def build(bld):
                                        proto_gen_py = True,
                                        target = 'test_script_bitop',
                                        source = 'test_script_bitop.cpp test_bitop.lua'.split())
+
+    test_script_types = bld.program(features = flist,
+                                       includes = '..',
+                                       use = libs,
+                                       web_libs = web_libs,
+                                       exported_symbols = exported_symbols + ['ScriptTypesExt'],
+                                       proto_gen_py = True,
+                                       target = 'test_script_types',
+                                       source = 'test_script_types.cpp test_types.lua'.split())
+
+    test_script_types_null = bld.program(features = flist,
+                                       includes = '..',
+                                       use = libs,
+                                       web_libs = web_libs,
+                                       exported_symbols = exported_symbols,
+                                       proto_gen_py = True,
+                                       target = 'test_script_types_null',
+                                       source = 'test_script_types_null.cpp test_types.lua'.split())
 
     bld.install_files('${PREFIX}/include/script', 'test_script.h')
 

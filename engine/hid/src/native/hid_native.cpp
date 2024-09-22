@@ -16,7 +16,6 @@
 #include <string.h>
 
 #include <dlib/log.h>
-#include <dlib/utf8.h>
 #include <dlib/dstrings.h>
 #include <dlib/math.h>
 
@@ -114,10 +113,6 @@ namespace dmHID
         }
 
         InstallGamepadDriver(context, CreateGamepadDriverGLFW(context), "GLFW");
-
-    #ifdef DM_HID_DINPUT
-        InstallGamepadDriver(context, CreateGamepadDriverDInput(context), "Direct Input");
-    #endif
     }
 
     // Called from gamepad drivers
@@ -131,9 +126,9 @@ namespace dmHID
             {
                 if (!context->m_GamepadConnectivityCallback(gamepad_index, connection_status, context->m_GamepadConnectivityUserdata))
                 {
-                    char buffer[128];
-                    GetGamepadDeviceName(context, gamepad, buffer, (uint32_t)sizeof(buffer));
-                    dmLogWarning("The connection for '%s' was ignored by the callback function!", buffer);
+                    char device_name[dmHID::MAX_GAMEPAD_NAME_LENGTH];
+                    GetGamepadDeviceName(context, gamepad, device_name);
+                    dmLogWarning("The connection for '%s' was ignored by the callback function!", device_name);
                     return;
                 }
             } else {
@@ -269,6 +264,7 @@ namespace dmHID
                 {
                     wheel *= -1;
                 }
+
                 packet.m_Wheel = wheel;
 
                 dmPlatform::GetMousePosition(context->m_Window, &packet.m_PositionX, &packet.m_PositionY);
@@ -330,21 +326,19 @@ namespace dmHID
         }
     }
 
-    void GetGamepadDeviceName(HContext context, HGamepad gamepad, char* buffer, uint32_t buffer_length)
+    void GetGamepadDeviceName(HContext context, HGamepad gamepad, char name[MAX_GAMEPAD_NAME_LENGTH])
     {
-        assert(buffer_length != 0);
-        assert(buffer != 0);
-
         NativeContextUserData* user_data = (NativeContextUserData*) context->m_NativeContextUserData;
+
+        name[0] = 0;
         if (gamepad->m_Driver == DRIVER_HANDLE_FREE)
         {
-            buffer[0] = 0;
             return;
         }
 
         assert(gamepad->m_Driver < user_data->m_GamepadDrivers.Size());
         GamepadDriver* driver = user_data->m_GamepadDrivers[gamepad->m_Driver];
-        driver->m_GetGamepadDeviceName(context, driver, gamepad, buffer, buffer_length);
+        driver->m_GetGamepadDeviceName(context, driver, gamepad, name);
     }
 
     void ResetKeyboard(HContext context)

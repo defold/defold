@@ -30,6 +30,7 @@
 #include "script_buffer.h"
 
 #include "../gamesys.h"
+#include "../gamesys_private.h"
 #include "../resources/res_buffer.h"
 #include "../resources/res_texture.h"
 #include "../resources/res_textureset.h"
@@ -37,6 +38,7 @@
 
 #include <dmsdk/script/script.h>
 #include <dmsdk/gamesys/script.h>
+#include <dmsdk/resource/resource.h>
 
 namespace dmGameSystem
 {
@@ -221,6 +223,31 @@ namespace dmGameSystem
  * ```
  */
 
+/*# reference to render target resource
+ *
+ * Constructor-like function with two purposes:
+ *
+ * - Load the specified resource as part of loading the script
+ * - Return a hash to the run-time version of the resource
+ *
+ * [icon:attention] This function can only be called within [ref:go.property] function calls.
+ *
+ * @name resource.render_target
+ * @param [path] [type:string] optional resource path string to the resource
+ * @return path [type:hash] a path hash to the binary version of the resource
+ * @examples
+ *
+ * Set a render target color attachment as a model texture:
+ *
+ * ```lua
+ * go.property("my_render_target", resource.render_target("/rt.render_target"))
+ * function init(self)
+ *   local rt_info = resource.get_render_target_info(self.my_render_target)
+ *   go.set("#model", "texture0", rt_info.attachments[1].texture)
+ * end
+ * ```
+ */
+
 struct SetTextureAsyncRequest
 {
     dmhash_t                   m_PathHash;
@@ -231,23 +258,6 @@ struct SetTextureAsyncRequest
     int32_t                    m_BufferRef;
     HOpaqueHandle              m_Handle;
     bool                       m_UseUploadBuffer;
-};
-
-struct CreateTextureResourceParams
-{
-    const char*                               m_Path;
-    dmhash_t                                  m_PathHash;
-    dmGameObject::HCollection                 m_Collection;
-    dmGraphics::TextureType                   m_Type;
-    dmGraphics::TextureFormat                 m_Format;
-    dmGraphics::TextureImage::Type            m_TextureType;
-    dmGraphics::TextureImage::TextureFormat   m_TextureFormat;
-    dmGraphics::TextureImage::CompressionType m_CompressionType;
-    dmBuffer::HBuffer                         m_Buffer;
-    uint32_t                                  m_Width;
-    uint32_t                                  m_Height;
-    uint32_t                                  m_MaxMipMaps;
-    uint32_t                                  m_TextureBpp;
 };
 
 struct ResourceModule
@@ -273,32 +283,26 @@ static int ReportPathError(lua_State* L, dmResource::Result result, dmhash_t pat
 
 static void* CheckResource(lua_State* L, dmResource::HFactory factory, dmhash_t path_hash, const char* resource_ext)
 {
-    dmResource::SResourceDescriptor* rd = dmResource::FindByHash(factory, path_hash);
+    HResourceDescriptor rd = dmResource::FindByHash(factory, path_hash);
     if (!rd) {
         luaL_error(L, "Could not get %s type resource: %s", resource_ext, dmHashReverseSafe64(path_hash));
         return 0;
     }
 
-    dmResource::ResourceType resource_type;
-    dmResource::Result r = dmResource::GetType(factory, rd->m_Resource, &resource_type);
+    HResourceType expected_resource_type;
+    dmResource::Result r = dmResource::GetTypeFromExtension(factory, resource_ext, &expected_resource_type);
     if( r != dmResource::RESULT_OK )
     {
         ReportPathError(L, r, path_hash);
     }
 
-    dmResource::ResourceType expected_resource_type;
-    r = dmResource::GetTypeFromExtension(factory, resource_ext, &expected_resource_type);
-    if( r != dmResource::RESULT_OK )
-    {
-        ReportPathError(L, r, path_hash);
-    }
-
+    HResourceType resource_type = dmResource::GetType(rd);
     if (resource_type != expected_resource_type) {
         luaL_error(L, "Resource %s is not of type %s.", dmHashReverseSafe64(path_hash), resource_ext);
         return 0;
     }
 
-    return rd->m_Resource;
+    return dmResource::GetResource(rd);
 }
 
 static dmhash_t GetCanonicalPathHash(const char* path)
@@ -538,137 +542,6 @@ static float CheckTableNumber(lua_State* L, int index, const char* name, float d
     return CheckTableValue<float>(L, index, name, default_value);
 }
 
-static dmGraphics::TextureImage::TextureFormat GraphicsTextureFormatToImageFormat(int textureformat)
-{
-    #define GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(x) case dmGraphics::x: return dmGraphics::TextureImage::x
-    switch(textureformat)
-    {
-        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_LUMINANCE);
-        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RGB);
-        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RGBA);
-        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RGB_PVRTC_2BPPV1);
-        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RGB_PVRTC_4BPPV1);
-        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1);
-        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1);
-        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RGB_ETC1);
-        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RGBA_ETC2);
-        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RGBA_ASTC_4x4);
-        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RGB_BC1);
-        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RGBA_BC3);
-        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_R_BC4);
-        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RG_BC5);
-        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RGBA_BC7);
-        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RGB16F);
-        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RGB32F);
-        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RGBA16F);
-        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RGBA32F);
-        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_R16F);
-        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RG16F);
-        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_R32F);
-        GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RG32F);
-    };
-    #undef GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE
-    return (dmGraphics::TextureImage::TextureFormat) -1;
-}
-
-static dmGraphics::TextureImage::Type GraphicsTextureTypeToImageType(dmGraphics::TextureType texturetype)
-{
-    switch(texturetype)
-    {
-        case dmGraphics::TEXTURE_TYPE_2D:       return dmGraphics::TextureImage::TYPE_2D;
-        case dmGraphics::TEXTURE_TYPE_2D_ARRAY: return dmGraphics::TextureImage::TYPE_2D_ARRAY;
-        case dmGraphics::TEXTURE_TYPE_CUBE_MAP: return dmGraphics::TextureImage::TYPE_CUBEMAP;
-        default: assert(0);
-    }
-    dmLogError("Unsupported texture type (%d)", texturetype);
-    return (dmGraphics::TextureImage::Type) -1;
-}
-
-static inline uint32_t GetLayerCount(dmGraphics::TextureType type)
-{
-    return type == dmGraphics::TEXTURE_TYPE_CUBE_MAP ? 6 : 1;
-}
-
-static void MakeTextureImage(CreateTextureResourceParams params, dmGraphics::TextureImage* texture_image)
-{
-    uint32_t* mip_map_sizes              = new uint32_t[params.m_MaxMipMaps];
-    uint32_t* mip_map_offsets            = new uint32_t[params.m_MaxMipMaps];
-    uint32_t* mip_map_offsets_compressed = new uint32_t[1];
-    uint8_t layer_count                  = GetLayerCount(params.m_Type);
-
-    uint32_t data_size = 0;
-    uint16_t mm_width  = params.m_Width;
-    uint16_t mm_height = params.m_Height;
-    for (uint32_t i = 0; i < params.m_MaxMipMaps; ++i)
-    {
-        mip_map_sizes[i]    = dmMath::Max(mm_width, mm_height);
-        mip_map_offsets[i]  = (data_size / 8);
-        data_size          += mm_width * mm_height * params.m_TextureBpp * layer_count;
-        mm_width           /= 2;
-        mm_height          /= 2;
-    }
-    assert(data_size > 0);
-
-    data_size                *= layer_count;
-    uint32_t image_data_size  = data_size / 8; // bits -> bytes for compression formats
-    uint8_t* image_data       = 0;
-
-    if (params.m_Buffer)
-    {
-        uint8_t* data     = 0;
-        uint32_t datasize = 0;
-        dmBuffer::GetBytes(params.m_Buffer, (void**)&data, &datasize);
-        image_data      = data;
-        image_data_size = datasize;
-    }
-    else
-    {
-        image_data = new uint8_t[image_data_size];
-        memset(image_data, 0, image_data_size);
-    }
-
-    // Note: Right now we only support creating compressed 2D textures with 1 mipmap,
-    //       so we only need a pointer here for the data offset.
-    mip_map_offsets_compressed[0] = image_data_size;
-
-    dmGraphics::TextureImage::Image* image = new dmGraphics::TextureImage::Image();
-    texture_image->m_Alternatives.m_Data   = image;
-    texture_image->m_Alternatives.m_Count  = 1;
-    texture_image->m_Type                  = params.m_TextureType;
-    texture_image->m_Count                 = layer_count;
-
-    image->m_Width                = params.m_Width;
-    image->m_Height               = params.m_Height;
-    image->m_OriginalWidth        = params.m_Width;
-    image->m_OriginalHeight       = params.m_Height;
-    image->m_Format               = params.m_TextureFormat;
-    image->m_CompressionType      = params.m_CompressionType;
-    image->m_CompressionFlags     = 0;
-    image->m_Data.m_Data          = image_data;
-    image->m_Data.m_Count         = image_data_size;
-
-    image->m_MipMapOffset.m_Data  = mip_map_offsets;
-    image->m_MipMapOffset.m_Count = params.m_MaxMipMaps;
-    image->m_MipMapSize.m_Data    = mip_map_sizes;
-    image->m_MipMapSize.m_Count   = params.m_MaxMipMaps;
-    image->m_MipMapSizeCompressed.m_Data  = mip_map_offsets_compressed;
-    image->m_MipMapSizeCompressed.m_Count = 1;
-}
-
-static void DestroyTextureImage(dmGraphics::TextureImage& texture_image, bool destroy_image_data)
-{
-    for (int i = 0; i < texture_image.m_Alternatives.m_Count; ++i)
-    {
-        dmGraphics::TextureImage::Image& image = texture_image.m_Alternatives.m_Data[i];
-        delete[] image.m_MipMapOffset.m_Data;
-        delete[] image.m_MipMapSize.m_Data;
-        delete[] image.m_MipMapSizeCompressed.m_Data;
-        if (destroy_image_data)
-            delete[] image.m_Data.m_Data;
-    }
-    delete[] texture_image.m_Alternatives.m_Data;
-}
-
 static void CheckTextureResource(lua_State* L, int i, const char* field_name, dmhash_t* texture_path_out, dmGraphics::HTexture* texture_out)
 {
     lua_getfield(L, i, field_name);
@@ -692,6 +565,7 @@ static int CheckCreateTextureResourceParams(lua_State* L, CreateTextureResourceP
     int width                        = CheckTableInteger(L, 2, "width");
     int height                       = CheckTableInteger(L, 2, "height");
     uint32_t max_mipmaps             = (uint32_t) CheckTableInteger(L, 2, "max_mipmaps", 0);
+    uint32_t usage_flags             = (uint32_t) CheckTableInteger(L, 2, "flags", dmGraphics::TEXTURE_USAGE_FLAG_SAMPLE);
 
     if (width < 1 || height < 1)
     {
@@ -699,7 +573,7 @@ static int CheckCreateTextureResourceParams(lua_State* L, CreateTextureResourceP
     }
 
     // TODO: Texture arrays
-    if (!(type == dmGraphics::TEXTURE_TYPE_2D || type == dmGraphics::TEXTURE_TYPE_CUBE_MAP))
+    if (!(type == dmGraphics::TEXTURE_TYPE_2D || type == dmGraphics::TEXTURE_TYPE_CUBE_MAP || type == dmGraphics::TEXTURE_TYPE_IMAGE_2D))
     {
         return luaL_error(L, "Unable to create texture, unsupported texture type '%s'.", dmGraphics::GetTextureTypeLiteral(type));
     }
@@ -762,6 +636,8 @@ static int CheckCreateTextureResourceParams(lua_State* L, CreateTextureResourceP
     params->m_CompressionType = compression_type;
     params->m_Buffer          = buffer;
     params->m_Collection      = dmGameObject::GetCollection(sender_instance);
+    params->m_UsageFlags      = usage_flags;
+    params->m_Data            = 0;
     return 0;
 }
 
@@ -829,8 +705,9 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
  * `type`
  * : [type:number] The texture type. Supported values:
  *
- * - `resource.TEXTURE_TYPE_2D`
- * - `resource.TEXTURE_TYPE_CUBE_MAP`
+ * - `graphics.TEXTURE_TYPE_2D`
+ * - `graphics.TEXTURE_TYPE_CUBE_MAP`
+ * - `graphics.TEXTURE_TYPE_IMAGE_2D`
  *
  * `width`
  * : [type:number] The width of the texture (in pixels). Must be larger than 0.
@@ -841,47 +718,55 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
  * `format`
  * : [type:number] The texture format, note that some of these formats might not be supported by the running device. Supported values:
  *
- * - `resource.TEXTURE_FORMAT_LUMINANCE`
- * - `resource.TEXTURE_FORMAT_RGB`
- * - `resource.TEXTURE_FORMAT_RGBA`
+ * - `graphics.TEXTURE_FORMAT_LUMINANCE`
+ * - `graphics.TEXTURE_FORMAT_RGB`
+ * - `graphics.TEXTURE_FORMAT_RGBA`
  *
  * These constants might not be available on the device:
  *
- * - `resource.TEXTURE_FORMAT_RGB_PVRTC_2BPPV1`
- * - `resource.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1`
- * - `resource.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1`
- * - `resource.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1`
- * - `resource.TEXTURE_FORMAT_RGB_ETC1`
- * - `resource.TEXTURE_FORMAT_RGBA_ETC2`
- * - `resource.TEXTURE_FORMAT_RGBA_ASTC_4x4`
- * - `resource.TEXTURE_FORMAT_RGB_BC1`
- * - `resource.TEXTURE_FORMAT_RGBA_BC3`
- * - `resource.TEXTURE_FORMAT_R_BC4`
- * - `resource.TEXTURE_FORMAT_RG_BC5`
- * - `resource.TEXTURE_FORMAT_RGBA_BC7`
- * - `resource.TEXTURE_FORMAT_RGB16F`
- * - `resource.TEXTURE_FORMAT_RGB32F`
- * - `resource.TEXTURE_FORMAT_RGBA16F`
- * - `resource.TEXTURE_FORMAT_RGBA32F`
- * - `resource.TEXTURE_FORMAT_R16F`
- * - `resource.TEXTURE_FORMAT_RG16F`
- * - `resource.TEXTURE_FORMAT_R32F`
- * - `resource.TEXTURE_FORMAT_RG32F`
+ * - `graphics.TEXTURE_FORMAT_RGB_PVRTC_2BPPV1`
+ * - `graphics.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1`
+ * - `graphics.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1`
+ * - `graphics.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1`
+ * - `graphics.TEXTURE_FORMAT_RGB_ETC1`
+ * - `graphics.TEXTURE_FORMAT_RGBA_ETC2`
+ * - `graphics.TEXTURE_FORMAT_RGBA_ASTC_4x4`
+ * - `graphics.TEXTURE_FORMAT_RGB_BC1`
+ * - `graphics.TEXTURE_FORMAT_RGBA_BC3`
+ * - `graphics.TEXTURE_FORMAT_R_BC4`
+ * - `graphics.TEXTURE_FORMAT_RG_BC5`
+ * - `graphics.TEXTURE_FORMAT_RGBA_BC7`
+ * - `graphics.TEXTURE_FORMAT_RGB16F`
+ * - `graphics.TEXTURE_FORMAT_RGB32F`
+ * - `graphics.TEXTURE_FORMAT_RGBA16F`
+ * - `graphics.TEXTURE_FORMAT_RGBA32F`
+ * - `graphics.TEXTURE_FORMAT_R16F`
+ * - `graphics.TEXTURE_FORMAT_RG16F`
+ * - `graphics.TEXTURE_FORMAT_R32F`
+ * - `graphics.TEXTURE_FORMAT_RG32F`
  *
  * You can test if the device supports these values by checking if a specific enum is nil or not:
  *
  * ```lua
- * if resource.TEXTURE_FORMAT_RGBA16F ~= nil then
+ * if graphics.TEXTURE_FORMAT_RGBA16F ~= nil then
  *     -- it is safe to use this format
  * end
  * ```
+ *
+ * `flags`
+ * : [type:number] Texture creation flags that can be used to dictate how the texture is created. The default value is [ref:graphics.TEXTURE_USAGE_FLAG_SAMPLE], which means that the texture can be sampled from a shader.
+ * These flags may or may not be supported on the running device and/or the underlying graphics API and is simply used internally as a 'hint' when creating the texture. There is no guarantee that any of these will have any effect. Supported values:
+ *
+ * - `graphics.TEXTURE_USAGE_FLAG_SAMPLE` - The texture can be sampled from a shader (default)
+ * - `graphics.TEXTURE_USAGE_FLAG_MEMORYLESS` - The texture can be used as a memoryless texture, i.e only transient memory for the texture is used during rendering
+ * - `graphics.TEXTURE_USAGE_FLAG_STORAGE` - The texture can be used as a storage texture, which is required for a shader to write to the texture
  *
  * `max_mipmaps`
  * : [type:number] optional max number of mipmaps. Defaults to zero, i.e no mipmap support
  *
  * `compression_type`
  * : [type:number] optional specify the compression type for the data in the buffer object that holds the texture data. Will only be used when a compressed buffer has been passed into the function.
- * Creating an empty texture with no buffer data is not supported as a core feature. Defaults to resource.COMPRESSION_TYPE_DEFAULT, i.e no compression. Supported values:
+ * Creating an empty texture with no buffer data is not supported as a core feature. Defaults to graphics.COMPRESSION_TYPE_DEFAULT, i.e no compression. Supported values:
  *
  * - `COMPRESSION_TYPE_DEFAULT`
  * - `COMPRESSION_TYPE_BASIS_UASTC`
@@ -898,8 +783,8 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
  *     local tparams = {
  *        width          = 128,
  *        height         = 128,
- *        type           = resource.TEXTURE_TYPE_2D,
- *        format         = resource.TEXTURE_FORMAT_RGBA,
+ *        type           = graphics.TEXTURE_TYPE_2D,
+ *        format         = graphics.TEXTURE_FORMAT_RGBA,
  *    }
  *    local my_texture_id = resource.create_texture("/my_custom_texture.texturec", tparams)
  *    go.set("#model", "texture0", my_texture_id)
@@ -930,8 +815,8 @@ static void HandleRequestCompleted(dmGraphics::HTexture texture, void* user_data
  *     local tparams = {
  *        width          = 128,
  *        height         = 128,
- *        type           = resource.TEXTURE_TYPE_2D,
- *        format         = resource.TEXTURE_FORMAT_RGBA32F,
+ *        type           = graphics.TEXTURE_TYPE_2D,
+ *        format         = graphics.TEXTURE_FORMAT_RGBA32F,
  *    }
  *
  *    -- Note that we pass the buffer as the last argument here!
@@ -949,25 +834,13 @@ static int CreateTexture(lua_State* L)
     CreateTextureResourceParams create_params = {};
     CheckCreateTextureResourceParams(L, &create_params);
 
-    dmGraphics::TextureImage texture_image = {};
-    MakeTextureImage(create_params, &texture_image);
-
-    dmArray<uint8_t> ddf_buffer;
-    dmDDF::Result ddf_result = dmDDF::SaveMessageToArray(&texture_image, dmGraphics::TextureImage::m_DDFDescriptor, ddf_buffer);
-    assert(ddf_result == dmDDF::RESULT_OK);
-
-    void* resource = 0x0;
-    dmResource::Result res = dmResource::CreateResource(g_ResourceModule.m_Factory, create_params.m_Path, ddf_buffer.Begin(), ddf_buffer.Size(), &resource);
-
-    DestroyTextureImage(texture_image, create_params.m_Buffer == 0);
-
+    void* resource_out = 0;
+    dmResource::Result res = CreateTextureResource(g_ResourceModule.m_Factory, create_params, &resource_out);
     if (res != dmResource::RESULT_OK)
     {
         assert(top == lua_gettop(L));
         return ReportPathError(L, res, create_params.m_PathHash);
     }
-
-    dmGameObject::AddDynamicResourceHash(create_params.m_Collection, create_params.m_PathHash);
 
     dmScript::PushHash(L, create_params.m_PathHash);
     assert((top+1) == lua_gettop(L));
@@ -994,8 +867,8 @@ static int CreateTexture(lua_State* L)
  * `type`
  * : [type:number] The texture type. Supported values:
  *
- * - `resource.TEXTURE_TYPE_2D`
- * - `resource.TEXTURE_TYPE_CUBE_MAP`
+ * - `graphics.TEXTURE_TYPE_2D`
+ * - `graphics.TEXTURE_TYPE_CUBE_MAP`
  *
  * `width`
  * : [type:number] The width of the texture (in pixels). Must be larger than 0.
@@ -1006,37 +879,44 @@ static int CreateTexture(lua_State* L)
  * `format`
  * : [type:number] The texture format, note that some of these formats might not be supported by the running device. Supported values:
  *
- * - `resource.TEXTURE_FORMAT_LUMINANCE`
- * - `resource.TEXTURE_FORMAT_RGB`
- * - `resource.TEXTURE_FORMAT_RGBA`
+ * - `graphics.TEXTURE_FORMAT_LUMINANCE`
+ * - `graphics.TEXTURE_FORMAT_RGB`
+ * - `graphics.TEXTURE_FORMAT_RGBA`
  *
  * These constants might not be available on the device:
  *
- * - `resource.TEXTURE_FORMAT_RGB_PVRTC_2BPPV1`
- * - `resource.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1`
- * - `resource.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1`
- * - `resource.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1`
- * - `resource.TEXTURE_FORMAT_RGB_ETC1`
- * - `resource.TEXTURE_FORMAT_RGBA_ETC2`
- * - `resource.TEXTURE_FORMAT_RGBA_ASTC_4x4`
- * - `resource.TEXTURE_FORMAT_RGB_BC1`
- * - `resource.TEXTURE_FORMAT_RGBA_BC3`
- * - `resource.TEXTURE_FORMAT_R_BC4`
- * - `resource.TEXTURE_FORMAT_RG_BC5`
- * - `resource.TEXTURE_FORMAT_RGBA_BC7`
- * - `resource.TEXTURE_FORMAT_RGB16F`
- * - `resource.TEXTURE_FORMAT_RGB32F`
- * - `resource.TEXTURE_FORMAT_RGBA16F`
- * - `resource.TEXTURE_FORMAT_RGBA32F`
- * - `resource.TEXTURE_FORMAT_R16F`
- * - `resource.TEXTURE_FORMAT_RG16F`
- * - `resource.TEXTURE_FORMAT_R32F`
- * - `resource.TEXTURE_FORMAT_RG32F`
+ * - `graphics.TEXTURE_FORMAT_RGB_PVRTC_2BPPV1`
+ * - `graphics.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1`
+ * - `graphics.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1`
+ * - `graphics.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1`
+ * - `graphics.TEXTURE_FORMAT_RGB_ETC1`
+ * - `graphics.TEXTURE_FORMAT_RGBA_ETC2`
+ * - `graphics.TEXTURE_FORMAT_RGBA_ASTC_4x4`
+ * - `graphics.TEXTURE_FORMAT_RGB_BC1`
+ * - `graphics.TEXTURE_FORMAT_RGBA_BC3`
+ * - `graphics.TEXTURE_FORMAT_R_BC4`
+ * - `graphics.TEXTURE_FORMAT_RG_BC5`
+ * - `graphics.TEXTURE_FORMAT_RGBA_BC7`
+ * - `graphics.TEXTURE_FORMAT_RGB16F`
+ * - `graphics.TEXTURE_FORMAT_RGB32F`
+ * - `graphics.TEXTURE_FORMAT_RGBA16F`
+ * - `graphics.TEXTURE_FORMAT_RGBA32F`
+ * - `graphics.TEXTURE_FORMAT_R16F`
+ * - `graphics.TEXTURE_FORMAT_RG16F`
+ * - `graphics.TEXTURE_FORMAT_R32F`
+ * - `graphics.TEXTURE_FORMAT_RG32F`
+ *
+ * `flags`
+ * : [type:number] Texture creation flags that can be used to dictate how the texture is created. Supported values:
+ *
+ * - `graphics.TEXTURE_USAGE_FLAG_SAMPLE` - The texture can be sampled from a shader (default)
+ * - `graphics.TEXTURE_USAGE_FLAG_MEMORYLESS` - The texture can be used as a memoryless texture, i.e only transient memory for the texture is used during rendering
+ * - `graphics.TEXTURE_USAGE_FLAG_STORAGE` - The texture can be used as a storage texture, which is required for a shader to write to the texture
  *
  * You can test if the device supports these values by checking if a specific enum is nil or not:
  *
  * ```lua
- * if resource.TEXTURE_FORMAT_RGBA16F ~= nil then
+ * if graphics.TEXTURE_FORMAT_RGBA16F ~= nil then
  *     -- it is safe to use this format
  * end
  * ```
@@ -1046,7 +926,7 @@ static int CreateTexture(lua_State* L)
  *
  * `compression_type`
  * : [type:number] optional specify the compression type for the data in the buffer object that holds the texture data. Will only be used when a compressed buffer has been passed into the function.
- * Creating an empty texture with no buffer data is not supported as a core feature. Defaults to resource.COMPRESSION_TYPE_DEFAULT, i.e no compression. Supported values:
+ * Creating an empty texture with no buffer data is not supported as a core feature. Defaults to graphics.COMPRESSION_TYPE_DEFAULT, i.e no compression. Supported values:
  *
  * - `COMPRESSION_TYPE_DEFAULT`
  * - `COMPRESSION_TYPE_BASIS_UASTC`
@@ -1072,8 +952,8 @@ static int CreateTexture(lua_State* L)
  *     local tparams = {
  *         width          = 128,
  *         height         = 128,
- *         type           = resource.TEXTURE_TYPE_2D,
- *         format         = resource.TEXTURE_FORMAT_RGBA,
+ *         type           = graphics.TEXTURE_TYPE_2D,
+ *         format         = graphics.TEXTURE_FORMAT_RGBA,
  *     }
  *
  *     -- Create a new buffer with 4 components
@@ -1107,8 +987,8 @@ static int CreateTexture(lua_State* L)
  *     local tparams = {
  *         width          = 128,
  *         height         = 128,
- *         type           = resource.TEXTURE_TYPE_2D,
- *         format         = resource.TEXTURE_FORMAT_RGBA,
+ *         type           = graphics.TEXTURE_TYPE_2D,
+ *         format         = graphics.TEXTURE_FORMAT_RGBA,
  *     }
  *
  *     -- Create a new buffer with 4 components
@@ -1241,22 +1121,14 @@ static int CreateTextureAsync(lua_State* L)
 static int ReleaseResource(lua_State* L)
 {
     DM_LUA_STACK_CHECK(L, 0);
-    dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
-
-    dmResource::SResourceDescriptor* rd = dmResource::FindByHash(g_ResourceModule.m_Factory, path_hash);
-    if (!rd)
-    {
-        return DM_LUA_ERROR("Could not get resource: %s", dmHashReverseSafe64(path_hash));
-    }
-
+    dmhash_t path_hash                      = dmScript::CheckHashOrString(L, 1);
     dmGameObject::HInstance sender_instance = dmScript::CheckGOInstance(L);
     dmGameObject::HCollection collection    = dmGameObject::GetCollection(sender_instance);
 
-    // This will remove the entry in the collections list of dynamically allocated resource (if it exists),
-    // but we do the actual release here since we allow releasing arbitrary resources now
-    dmGameObject::RemoveDynamicResourceHash(collection, path_hash);
-    dmResource::Release(g_ResourceModule.m_Factory, rd->m_Resource);
-
+    if (ReleaseDynamicResource(g_ResourceModule.m_Factory, collection, path_hash) != dmResource::RESULT_OK)
+    {
+        return DM_LUA_ERROR("Could not release resource: %s", dmHashReverseSafe64(path_hash));
+    }
     return 0;
 }
 
@@ -1271,8 +1143,8 @@ static int ReleaseResource(lua_State* L)
  * `type`
  * : [type:number] The texture type. Supported values:
  *
- * - `resource.TEXTURE_TYPE_2D`
- * - `resource.TEXTURE_TYPE_CUBE_MAP`
+ * - `graphics.TEXTURE_TYPE_2D`
+ * - `graphics.TEXTURE_TYPE_CUBE_MAP`
  *
  * `width`
  * : [type:number] The width of the texture (in pixels)
@@ -1283,36 +1155,36 @@ static int ReleaseResource(lua_State* L)
  * `format`
  * : [type:number] The texture format, note that some of these formats are platform specific. Supported values:
  *
- * - `resource.TEXTURE_FORMAT_LUMINANCE`
- * - `resource.TEXTURE_FORMAT_RGB`
- * - `resource.TEXTURE_FORMAT_RGBA`
+ * - `graphics.TEXTURE_FORMAT_LUMINANCE`
+ * - `graphics.TEXTURE_FORMAT_RGB`
+ * - `graphics.TEXTURE_FORMAT_RGBA`
  *
  * These constants might not be available on the device:
- * - `resource.TEXTURE_FORMAT_RGB_PVRTC_2BPPV1`
- * - `resource.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1`
- * - `resource.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1`
- * - `resource.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1`
- * - `resource.TEXTURE_FORMAT_RGB_ETC1`
- * - `resource.TEXTURE_FORMAT_RGBA_ETC2`
- * - `resource.TEXTURE_FORMAT_RGBA_ASTC_4x4`
- * - `resource.TEXTURE_FORMAT_RGB_BC1`
- * - `resource.TEXTURE_FORMAT_RGBA_BC3`
- * - `resource.TEXTURE_FORMAT_R_BC4`
- * - `resource.TEXTURE_FORMAT_RG_BC5`
- * - `resource.TEXTURE_FORMAT_RGBA_BC7`
- * - `resource.TEXTURE_FORMAT_RGB16F`
- * - `resource.TEXTURE_FORMAT_RGB32F`
- * - `resource.TEXTURE_FORMAT_RGBA16F`
- * - `resource.TEXTURE_FORMAT_RGBA32F`
- * - `resource.TEXTURE_FORMAT_R16F`
- * - `resource.TEXTURE_FORMAT_RG16F`
- * - `resource.TEXTURE_FORMAT_R32F`
- * - `resource.TEXTURE_FORMAT_RG32F`
+ * - `graphics.TEXTURE_FORMAT_RGB_PVRTC_2BPPV1`
+ * - `graphics.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1`
+ * - `graphics.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1`
+ * - `graphics.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1`
+ * - `graphics.TEXTURE_FORMAT_RGB_ETC1`
+ * - `graphics.TEXTURE_FORMAT_RGBA_ETC2`
+ * - `graphics.TEXTURE_FORMAT_RGBA_ASTC_4x4`
+ * - `graphics.TEXTURE_FORMAT_RGB_BC1`
+ * - `graphics.TEXTURE_FORMAT_RGBA_BC3`
+ * - `graphics.TEXTURE_FORMAT_R_BC4`
+ * - `graphics.TEXTURE_FORMAT_RG_BC5`
+ * - `graphics.TEXTURE_FORMAT_RGBA_BC7`
+ * - `graphics.TEXTURE_FORMAT_RGB16F`
+ * - `graphics.TEXTURE_FORMAT_RGB32F`
+ * - `graphics.TEXTURE_FORMAT_RGBA16F`
+ * - `graphics.TEXTURE_FORMAT_RGBA32F`
+ * - `graphics.TEXTURE_FORMAT_R16F`
+ * - `graphics.TEXTURE_FORMAT_RG16F`
+ * - `graphics.TEXTURE_FORMAT_R32F`
+ * - `graphics.TEXTURE_FORMAT_RG32F`
  *
  * You can test if the device supports these values by checking if a specific enum is nil or not:
  *
  * ```lua
- * if resource.TEXTURE_FORMAT_RGBA16F ~= nil then
+ * if graphics.TEXTURE_FORMAT_RGBA16F ~= nil then
  *     -- it is safe to use this format
  * end
  * ```
@@ -1327,7 +1199,7 @@ static int ReleaseResource(lua_State* L)
  * : [type:number] optional mipmap to upload the data to
  *
  * `compression_type`
- * : [type:number] optional specify the compression type for the data in the buffer object that holds the texture data. Defaults to resource.COMPRESSION_TYPE_DEFAULT, i.e no compression. Supported values:
+ * : [type:number] optional specify the compression type for the data in the buffer object that holds the texture data. Defaults to graphics.COMPRESSION_TYPE_DEFAULT, i.e no compression. Supported values:
  *
  * - `COMPRESSION_TYPE_DEFAULT`
  * - `COMPRESSION_TYPE_BASIS_UASTC`
@@ -1356,7 +1228,7 @@ static int ReleaseResource(lua_State* L)
  *   end
  *
  *   local resource_path = go.get("#model", "texture0")
- *   local args = { width=self.width, height=self.height, type=resource.TEXTURE_TYPE_2D, format=resource.TEXTURE_FORMAT_RGB, num_mip_maps=1 }
+ *   local args = { width=self.width, height=self.height, type=graphics.TEXTURE_TYPE_2D, format=graphics.TEXTURE_FORMAT_RGB, num_mip_maps=1 }
  *   resource.set_texture( resource_path, args, self.buffer )
  * end
  * ```
@@ -1383,7 +1255,7 @@ static int ReleaseResource(lua_State* L)
  *   end
  *
  *   local resource_path = go.get("#model", "texture0")
- *   local args = { width=self.width, height=self.height, x=self.x, y=self.y, type=resource.TEXTURE_TYPE_2D, format=resource.TEXTURE_FORMAT_RGB, num_mip_maps=1 }
+ *   local args = { width=self.width, height=self.height, x=self.x, y=self.y, type=graphics.TEXTURE_TYPE_2D, format=graphics.TEXTURE_FORMAT_RGB, num_mip_maps=1 }
  *   resource.set_texture(resource_path, args, self.buffer )
  * end
  * ```
@@ -1399,8 +1271,8 @@ static int ReleaseResource(lua_State* L)
  *     local args = {
  *          width  = 128,
  *          height = 128,
- *          type   = resource.TEXTURE_TYPE_2D,
- *          format = resource.TEXTURE_FORMAT_RGB
+ *          type   = graphics.TEXTURE_TYPE_2D,
+ *          format = graphics.TEXTURE_FORMAT_RGB
  *      }
  *     -- Note that the extra resource.get_buffer call is a requirement here
  *     -- since the "self.my_buffer" is just pointing to a buffer resource path
@@ -1411,8 +1283,6 @@ static int ReleaseResource(lua_State* L)
  */
 static int SetTexture(lua_State* L)
 {
-    // Note: We only support uploading a single mipmap for a single slice at a time
-    const uint32_t NUM_MIP_MAPS = 1;
     const int32_t DEFAULT_INT_NOT_SET = -1;
 
     int top = lua_gettop(L);
@@ -1434,7 +1304,7 @@ static int SetTexture(lua_State* L)
     }
 
     // TODO: Texture arrays
-    if (!(type == dmGraphics::TEXTURE_TYPE_2D || type == dmGraphics::TEXTURE_TYPE_CUBE_MAP))
+    if (!(type == dmGraphics::TEXTURE_TYPE_2D || type == dmGraphics::TEXTURE_TYPE_CUBE_MAP || type == dmGraphics::TEXTURE_TYPE_IMAGE_2D))
     {
         return luaL_error(L, "Unable to set texture, unsupported texture type '%s'.", dmGraphics::GetTextureTypeLiteral(type));
     }
@@ -1452,46 +1322,21 @@ static int SetTexture(lua_State* L)
     uint32_t datasize = 0;
     dmBuffer::GetBytes(buffer_handle, (void**)&data, &datasize);
 
-    dmGraphics::TextureImage::Image image  = {};
-    dmGraphics::TextureImage texture_image = {};
-    texture_image.m_Alternatives.m_Data    = &image;
-    texture_image.m_Alternatives.m_Count   = 1;
-    texture_image.m_Type                   = GraphicsTextureTypeToImageType(type);
-    texture_image.m_Count                  = 1;
+    SetTextureResourceParams params = {};
+    params.m_PathHash               = path_hash;
+    params.m_TextureType            = type;
+    params.m_TextureFormat          = format;
+    params.m_CompressionType        = compression_type;
+    params.m_Data                   = data;
+    params.m_DataSize               = datasize;
+    params.m_Width                  = width;
+    params.m_Height                 = height;
+    params.m_X                      = x;
+    params.m_Y                      = y;
+    params.m_MipMap                 = mipmap;
+    params.m_SubUpdate              = sub_update;
 
-    image.m_Width                = width;
-    image.m_Height               = height;
-    image.m_OriginalWidth        = width;
-    image.m_OriginalHeight       = height;
-    image.m_Format               = GraphicsTextureFormatToImageFormat(format);
-    image.m_CompressionType      = compression_type;
-    image.m_CompressionFlags     = 0;
-    image.m_Data.m_Data          = data;
-    image.m_Data.m_Count         = datasize;
-
-    // Note: When uploading cubemap faces on OpenGL, we expect that the "data size" is **per** slice
-    //       and not the entire data size of the buffer. For vulkan we don't look at this value but instead
-    //       calculate a slice size. Maybe we should do one or the other..
-    uint32_t mip_map_offsets             = 0;
-    uint32_t mip_map_sizes               = datasize / GetLayerCount(type);
-    image.m_MipMapOffset.m_Data          = &mip_map_offsets;
-    image.m_MipMapOffset.m_Count         = NUM_MIP_MAPS;
-    image.m_MipMapSize.m_Data            = &mip_map_sizes;
-    image.m_MipMapSize.m_Count           = NUM_MIP_MAPS;
-    image.m_MipMapSizeCompressed.m_Data  = &mip_map_sizes;
-    image.m_MipMapSizeCompressed.m_Count = NUM_MIP_MAPS;
-
-    ResTextureReCreateParams recreate_params;
-    recreate_params.m_TextureImage = &texture_image;
-
-    ResTextureUploadParams& upload_params = recreate_params.m_UploadParams;
-    upload_params.m_X                     = x;
-    upload_params.m_Y                     = y;
-    upload_params.m_MipMap                = mipmap;
-    upload_params.m_SubUpdate             = sub_update;
-    upload_params.m_UploadSpecificMipmap  = 1;
-
-    dmResource::Result r = dmResource::SetResource(g_ResourceModule.m_Factory, path_hash, (void*) &recreate_params);
+    dmResource::Result r = SetTextureResource(g_ResourceModule.m_Factory, params);
 
     if( r != dmResource::RESULT_OK )
     {
@@ -1526,12 +1371,16 @@ static int SetTexture(lua_State* L)
  * `mipmaps`
  * : [type:integer] number of mipmaps of the texture
  *
+ * `flags`
+ * : [type:integer] usage hints of the texture.
+ *
  * `type`
  * : [type:number] The texture type. Supported values:
  *
- * - `resource.TEXTURE_TYPE_2D`
- * - `resource.TEXTURE_TYPE_CUBE_MAP`
- * - `resource.TEXTURE_TYPE_2D_ARRAY`
+ * - `graphics.TEXTURE_TYPE_2D`
+ * - `graphics.TEXTURE_TYPE_IMAGE_2D`
+ * - `graphics.TEXTURE_TYPE_CUBE_MAP`
+ * - `graphics.TEXTURE_TYPE_2D_ARRAY`
  *
  * @examples
  * Create a new texture and get the metadata from it
@@ -1542,8 +1391,8 @@ static int SetTexture(lua_State* L)
  *     local tparams = {
  *         width          = 128,
  *         height         = 128,
- *         type           = resource.TEXTURE_TYPE_2D,
- *         format         = resource.TEXTURE_FORMAT_RGBA,
+ *         type           = graphics.TEXTURE_TYPE_2D,
+ *         format         = graphics.TEXTURE_FORMAT_RGBA,
  *     }
  *
  *     local my_texture_path = resource.create_texture("/my_texture.texturec", tparams)
@@ -1556,7 +1405,8 @@ static int SetTexture(lua_State* L)
  *     --      height = 128,
  *     --      depth = 1
  *     --      mipmaps = 1,
- *     --      type = resource.TEXTURE_TYPE_2D
+ *     --      type = graphics.TEXTURE_TYPE_2D,
+ *     --      flags = graphics.TEXTURE_USAGE_FLAG_SAMPLE
  *     -- }
  * end
  * ```
@@ -1581,6 +1431,7 @@ static void PushTextureInfo(lua_State* L, dmGraphics::HTexture texture_handle)
     uint32_t texture_depth               = dmGraphics::GetTextureDepth(texture_handle);
     uint32_t texture_mipmaps             = dmGraphics::GetTextureMipmapCount(texture_handle);
     dmGraphics::TextureType texture_type = dmGraphics::GetTextureType(texture_handle);
+    uint32_t texture_flags               = dmGraphics::GetTextureUsageHintFlags(texture_handle);
 
     lua_pushnumber(L, texture_handle);
     lua_setfield(L, -2, "handle");
@@ -1599,6 +1450,9 @@ static void PushTextureInfo(lua_State* L, dmGraphics::HTexture texture_handle)
 
     lua_pushinteger(L, texture_type);
     lua_setfield(L, -2, "type");
+
+    lua_pushinteger(L, texture_flags);
+    lua_setfield(L, -2, "flags");
 }
 
 static int GetTextureInfo(lua_State* L)
@@ -1670,9 +1524,9 @@ static int GetTextureInfo(lua_State* L)
  * `type`
  * : [type:number] The texture type. Supported values:
  *
- * - `resource.TEXTURE_TYPE_2D`
- * - `resource.TEXTURE_TYPE_CUBE_MAP`
- * - `resource.TEXTURE_TYPE_2D_ARRAY`
+ * - `graphics.TEXTURE_TYPE_2D`
+ * - `graphics.TEXTURE_TYPE_CUBE_MAP`
+ * - `graphics.TEXTURE_TYPE_2D_ARRAY`
  *
  * `buffer_type`
  * : [type:number] The attachment buffer type. Supported values:
@@ -1683,6 +1537,9 @@ static int GetTextureInfo(lua_State* L)
  * - `resource.BUFFER_TYPE_COLOR3`
  * - `resource.BUFFER_TYPE_DEPTH`
  * - `resource.BUFFER_TYPE_STENCIL`
+ *
+ * * `texture`
+ * : [type:hash] The hashed path to the attachment texture resource. This field is only available if the render target passed in is a resource. 
  *
  * @examples
  * Get the metadata from a render target resource
@@ -1696,11 +1553,25 @@ static int GetTextureInfo(lua_State* L)
  *     local info_attachment_1 = resource.get_texture_info(info.attachments[1].handle)
  * end
  * ```
+ *
+ * @examples
+ * Get a texture attachment from a render target and set it on a model component
+ *
+ * ```lua
+ * function init(self)
+ *     local info = resource.get_render_target_info("/my_render_target.render_targetc")
+ *     local attachment = info.attachments[1].texture
+ *     -- you can also get texture info from the 'texture' field, since it's a resource hash
+ *     local texture_info = resource.get_texture_info(attachment)
+ *     go.set("#model", "texture0", attachment)
+ * end
+ * ```
  */
 static int GetRenderTargetInfo(lua_State* L)
 {
     int top = lua_gettop(L);
     dmGraphics::HRenderTarget rt_handle = 0;
+    RenderTargetResource* rt_res = 0;
 
     if (lua_isnumber(L, 1))
     {
@@ -1712,9 +1583,9 @@ static int GetRenderTargetInfo(lua_State* L)
     }
     else
     {
-        dmhash_t path_hash           = dmScript::CheckHashOrString(L, 1);
-        RenderTargetResource* rt_res = (RenderTargetResource*) CheckResource(L, g_ResourceModule.m_Factory, path_hash, "render_targetc");
-        rt_handle                    = rt_res->m_RenderTarget;
+        dmhash_t path_hash = dmScript::CheckHashOrString(L, 1);
+        rt_res             = (RenderTargetResource*) CheckResource(L, g_ResourceModule.m_Factory, path_hash, "render_targetc");
+        rt_handle          = rt_res->m_RenderTarget;
 
         if (!dmGraphics::IsAssetHandleValid(g_ResourceModule.m_GraphicsContext, rt_handle))
         {
@@ -1745,9 +1616,10 @@ static int GetRenderTargetInfo(lua_State* L)
     lua_newtable(L);
 
     uint32_t attachment_count = 0;
-    for (int i = 0; i < dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS + 2; ++i)
+    for (int i = 0; i < DM_ARRAY_SIZE(color_buffer_flags); ++i)
     {
-        dmGraphics::HTexture t = dmGraphics::GetRenderTargetTexture(rt_handle, color_buffer_flags[i]);
+        dmGraphics::BufferType buffer_type = color_buffer_flags[i];
+        dmGraphics::HTexture t = dmGraphics::GetRenderTargetTexture(rt_handle, buffer_type);
         if (t)
         {
             lua_pushinteger(L, (lua_Integer) (attachment_count+1));
@@ -1755,8 +1627,23 @@ static int GetRenderTargetInfo(lua_State* L)
 
             PushTextureInfo(L, t);
 
-            lua_pushinteger(L, color_buffer_flags[i]);
+            lua_pushinteger(L, buffer_type);
             lua_setfield(L, -2, "buffer_type");
+
+            if (rt_res)
+            {
+                if (dmGraphics::IsColorBufferType(buffer_type))
+                {
+                    dmScript::PushHash(L, rt_res->m_ColorAttachmentPaths[i]);
+                    lua_setfield(L, -2, "texture");
+                }
+                else if (buffer_type == dmGraphics::BUFFER_TYPE_DEPTH_BIT)
+                {
+                    dmScript::PushHash(L, rt_res->m_DepthAttachmentPath);
+                    lua_setfield(L, -2, "texture");
+                }
+                // Separate stencil attachment textures are not supported (yet)
+            }
 
             lua_rawset(L, -3);
 
@@ -2278,8 +2165,8 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
  *     local tparams = {
  *         width          = 128,
  *         height         = 128,
- *         type           = resource.TEXTURE_TYPE_2D,
- *         format         = resource.TEXTURE_FORMAT_RGBA,
+ *         type           = graphics.TEXTURE_TYPE_2D,
+ *         format         = graphics.TEXTURE_FORMAT_RGBA,
  *     }
  *     local my_texture_id = resource.create_texture("/my_texture.texturec", tparams)
  *
@@ -3217,197 +3104,36 @@ static int GetTextMetrics(lua_State* L)
 
 static const luaL_reg Module_methods[] =
 {
-    {"set", Set},
-    {"load", Load},
-    {"create_atlas", CreateAtlas},
-    {"create_buffer", CreateBuffer},
-    {"create_texture", CreateTexture},
-    {"create_texture_async", CreateTextureAsync},
-    {"release", ReleaseResource},
-    {"set_atlas", SetAtlas},
-    {"get_atlas", GetAtlas},
-    {"set_texture", SetTexture},
-    {"get_texture_info", GetTextureInfo},
-    {"get_render_target_info", GetRenderTargetInfo},
-    {"set_sound", SetSound},
-    {"get_buffer", GetBuffer},
-    {"set_buffer", SetBuffer},
-    {"get_text_metrics", GetTextMetrics},
+    {"set",                     Set},
+    {"load",                    Load},
+    {"create_atlas",            CreateAtlas},
+    {"create_buffer",           CreateBuffer},
+    {"create_texture",          CreateTexture},
+    {"create_texture_async",    CreateTextureAsync},
+    {"release",                 ReleaseResource},
+    {"set_atlas",               SetAtlas},
+    {"get_atlas",               GetAtlas},
+    {"set_texture",             SetTexture},
+    {"get_texture_info",        GetTextureInfo},
+    {"get_render_target_info",  GetRenderTargetInfo},
+    {"set_sound",               SetSound},
+    {"get_buffer",              GetBuffer},
+    {"set_buffer",              SetBuffer},
+    {"get_text_metrics",        GetTextMetrics},
     {0, 0}
 };
-
-/*# 2D texture type
- *
- * @name resource.TEXTURE_TYPE_2D
- * @variable
- */
-
-/*# Cube map texture type
- *
- * @name resource.TEXTURE_TYPE_CUBE_MAP
- * @variable
- */
-
-/*# 2D Array texture type
- *
- * @name resource.TEXTURE_TYPE_2D_ARRAY
- * @variable
- */
-
-/*# luminance type texture format
- *
- * @name resource.TEXTURE_FORMAT_LUMINANCE
- * @variable
- */
-
-/*# RGB type texture format
- *
- * @name resource.TEXTURE_FORMAT_RGB
- * @variable
- */
-
-/*# RGBA type texture format
- *
- * @name resource.TEXTURE_FORMAT_RGBA
- * @variable
- */
-
-/*# RGB_PVRTC_2BPPV1 type texture format
- *
- * @name resource.TEXTURE_FORMAT_RGB_PVRTC_2BPPV1
- * @variable
- */
-
-/*# RGB_PVRTC_4BPPV1 type texture format
- *
- * @name resource.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1
- * @variable
- */
-
-/*# RGBA_PVRTC_2BPPV1 type texture format
- *
- * @name resource.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1
- * @variable
- */
-
-/*# RGBA_PVRTC_4BPPV1 type texture format
- *
- * @name resource.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1
- * @variable
- */
-
-/*# RGB_ETC1 type texture format
- *
- * @name resource.TEXTURE_FORMAT_RGB_ETC1
- * @variable
- */
-
-/*# RGBA_ETC2 type texture format
- *
- * @name resource.TEXTURE_FORMAT_RGBA_ETC2
- * @variable
- */
-
-/*# RGBA_ASTC_4x4 type texture format
- *
- * @name resource.TEXTURE_FORMAT_RGBA_ASTC_4x4
- * @variable
- */
-
-/*# RGB_BC1 type texture format
- *
- * @name resource.TEXTURE_FORMAT_RGB_BC1
- * @variable
- */
-
-/*# RGBA_BC3 type texture format
- *
- * @name resource.TEXTURE_FORMAT_RGBA_BC3
- * @variable
- */
-
-/*# R_BC4 type texture format
- *
- * @name resource.TEXTURE_FORMAT_R_BC4
- * @variable
- */
-
-/*# RG_BC5 type texture format
- *
- * @name resource.TEXTURE_FORMAT_RG_BC5
- * @variable
- */
-
-/*# RGBA_BC7 type texture format
- *
- * @name resource.TEXTURE_FORMAT_RGBA_BC7
- * @variable
- */
-
-/*# RGB16F type texture format
- *
- * @name resource.TEXTURE_FORMAT_RGB16F
- * @variable
- */
-
-/*# RGB32F type texture format
- *
- * @name resource.TEXTURE_FORMAT_RGB32F
- * @variable
- */
-
-/*# RGBA16F type texture format
- *
- * @name resource.TEXTURE_FORMAT_RGBA16F
- * @variable
- */
-
-/*# RGBA32F type texture format
- *
- * @name resource.TEXTURE_FORMAT_RGBA32F
- * @variable
- */
-
-/*# R16F type texture format
- *
- * @name resource.TEXTURE_FORMAT_R16F
- * @variable
- */
-
-/*# RG16F type texture format
- *
- * @name resource.TEXTURE_FORMAT_RG16F
- * @variable
- */
-
-/*# R32F type texture format
- *
- * @name resource.TEXTURE_FORMAT_R32F
- * @variable
- */
-
-/*# RG32F type texture format
- *
- * @name resource.TEXTURE_FORMAT_RG32F
- * @variable
- */
-
-/*# COMPRESSION_TYPE_DEFAULT compression type
- *
- * @name resource.COMPRESSION_TYPE_DEFAULT
- * @variable
- */
-
-/*# BASIS_UASTC compression type
- *
- * @name resource.COMPRESSION_TYPE_BASIS_UASTC
- * @variable
- */
 
 static void LuaInit(lua_State* L, dmGraphics::HContext graphics_context)
 {
     int top = lua_gettop(L);
     luaL_register(L, "resource", Module_methods);
+
+    ////////////////////////////////////////////////////////////////////
+    // DEPRECATED!
+    // -----------
+    // The graphics enums are now exposed in script_graphics.cpp instead
+    // DO NOT add any more graphics enums in this file
+    ////////////////////////////////////////////////////////////////////
 
 #define SETGRAPHICS_ENUM(name) \
     lua_pushnumber(L, (lua_Number) dmGraphics:: name); \
@@ -3416,6 +3142,7 @@ static void LuaInit(lua_State* L, dmGraphics::HContext graphics_context)
     SETGRAPHICS_ENUM(TEXTURE_TYPE_2D);
     SETGRAPHICS_ENUM(TEXTURE_TYPE_CUBE_MAP);
     SETGRAPHICS_ENUM(TEXTURE_TYPE_2D_ARRAY);
+    SETGRAPHICS_ENUM(TEXTURE_TYPE_IMAGE_2D);
 
     SETGRAPHICS_ENUM(BUFFER_TYPE_COLOR0_BIT);
     SETGRAPHICS_ENUM(BUFFER_TYPE_COLOR1_BIT);
@@ -3423,6 +3150,10 @@ static void LuaInit(lua_State* L, dmGraphics::HContext graphics_context)
     SETGRAPHICS_ENUM(BUFFER_TYPE_COLOR3_BIT);
     SETGRAPHICS_ENUM(BUFFER_TYPE_DEPTH_BIT);
     SETGRAPHICS_ENUM(BUFFER_TYPE_STENCIL_BIT);
+
+    SETGRAPHICS_ENUM(TEXTURE_USAGE_FLAG_SAMPLE);
+    SETGRAPHICS_ENUM(TEXTURE_USAGE_FLAG_MEMORYLESS);
+    SETGRAPHICS_ENUM(TEXTURE_USAGE_FLAG_STORAGE);
 #undef SETGRAPHICS_ENUM
 
 #define SETTEXTUREFORMAT_IF_SUPPORTED(name) \
@@ -3432,10 +3163,6 @@ static void LuaInit(lua_State* L, dmGraphics::HContext graphics_context)
         lua_setfield(L, -2, #name); \
     }
 
-    // JG: Perhaps these should be in a 'graphics' namespace shared with the render script,
-    //     feels a bit strange to have different modules that expose the same enums but with different names.
-    //     In the render scripts we call them "FORMAT_RGB16F" but here it's "TEXTURE_FORMAT_RGB16F", and we only expose
-    //     a couple of select formats in render scripts. Would be nice to have a single point of exposure for these things
     SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_LUMINANCE);
     SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGB);
     SETTEXTUREFORMAT_IF_SUPPORTED(TEXTURE_FORMAT_RGBA);

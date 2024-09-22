@@ -496,9 +496,11 @@ namespace dmHID
                 dmPlatform::PLATFORM_KEY_BACK,
             };
 
-            int key_index = key_index - HID_SPECIAL_START;
+            key_index = key_index - HID_SPECIAL_START;
             if (key_index >= DM_ARRAY_SIZE(translation_table_special))
+            {
                 return -1;
+            }
             return translation_table_special[key_index];
         }
         return key_index;

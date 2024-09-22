@@ -59,7 +59,8 @@ local function deactivate_proxy(self, index)
     msg.post(proxy, "unload")
 end
 
-function on_message(self, message_id, message)
+ --TODO: Rearrange this mess: Make sure each state is only started after the previous is unloaded!
+function on_message(self, message_id, message, sender)
     if message_id == hash("proxy_loaded") then
         msg.post(self.loading_proxy, "init")
         msg.post(self.loading_proxy, "enable")

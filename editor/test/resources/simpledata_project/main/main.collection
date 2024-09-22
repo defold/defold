@@ -1,0 +1,14 @@
+name: "main"
+scale_along_z: 0
+embedded_instances {
+  id: "go"
+  data: "components {\n"
+  "  id: \"fields_assigned\"\n"
+  "  component: \"/main/fields_assigned.simpledata\"\n"
+  "}\n"
+  "components {\n"
+  "  id: \"fields_unassigned\"\n"
+  "  component: \"/main/fields_unassigned.simpledata\"\n"
+  "}\n"
+  ""
+}

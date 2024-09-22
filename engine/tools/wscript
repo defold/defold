@@ -38,8 +38,10 @@ def configure(conf):
 
     glfw_library = 'dmglfw'
 
-    if platform in ('x86_64-macos','arm64-macos'):
+    if waf_dynamo.platform_glfw_version(conf.env.PLATFORM) == 3:
         glfw_library = 'glfw3'
+
+    if platform in ('x86_64-macos','arm64-macos'):
         conf.env.append_value('LINKFLAGS', ['-framework', 'Cocoa', '-framework', 'OpenGL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'Carbon', '-framework', 'CoreVideo', '-framework', 'QuartzCore'])
     elif platform == 'x86_64-ios':
         pass
@@ -58,6 +60,7 @@ def configure(conf):
     conf.env['STLIB_INPUT'] = 'input'
     conf.env['STLIB_DMGLFW'] = glfw_library
     conf.env['STLIB_GRAPHICS'] = 'graphics'
+    conf.env['STLIB_GRAPHICS_WEBGPU'] = ['graphics_webgpu']
     conf.env['STLIB_GRAPHICS_VULKAN'] = ['graphics_vulkan']
     conf.env['STLIB_GRAPHICS_PS4'] = ['graphics_ps4']
     conf.env['STLIB_PLATFORM_NULL'] = ['platform_null']

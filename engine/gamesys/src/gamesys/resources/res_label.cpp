@@ -53,69 +53,69 @@ namespace dmGameSystem
             dmResource::Release(factory, resource->m_FontMap);
     }
 
-    dmResource::Result ResLabelPreload(const dmResource::ResourcePreloadParams& params)
+    dmResource::Result ResLabelPreload(const dmResource::ResourcePreloadParams* params)
     {
         dmGameSystemDDF::LabelDesc* ddf;
-        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &ddf);
+        dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &ddf);
         if ( e != dmDDF::RESULT_OK )
         {
             return dmResource::RESULT_FORMAT_ERROR;
         }
 
-        dmResource::PreloadHint(params.m_HintInfo, ddf->m_Material);
-        dmResource::PreloadHint(params.m_HintInfo, ddf->m_Font);
+        dmResource::PreloadHint(params->m_HintInfo, ddf->m_Material);
+        dmResource::PreloadHint(params->m_HintInfo, ddf->m_Font);
 
-        *params.m_PreloadData = ddf;
+        *params->m_PreloadData = ddf;
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResLabelCreate(const dmResource::ResourceCreateParams& params)
+    dmResource::Result ResLabelCreate(const dmResource::ResourceCreateParams* params)
     {
         LabelResource* resource = new LabelResource();
         memset(resource, 0, sizeof(LabelResource));
-        resource->m_DDF = (dmGameSystemDDF::LabelDesc*) params.m_PreloadData;
+        resource->m_DDF = (dmGameSystemDDF::LabelDesc*) params->m_PreloadData;
 
-        dmResource::Result r = AcquireResources(params.m_Factory, resource, params.m_Filename);
+        dmResource::Result r = AcquireResources(params->m_Factory, resource, params->m_Filename);
         if (r == dmResource::RESULT_OK)
         {
-            params.m_Resource->m_Resource = (void*) resource;
+            dmResource::SetResource(params->m_Resource, resource);
         }
         else
         {
-            ReleaseResources(params.m_Factory, resource);
+            ReleaseResources(params->m_Factory, resource);
             delete resource;
         }
         return r;
     }
 
-    dmResource::Result ResLabelDestroy(const dmResource::ResourceDestroyParams& params)
+    dmResource::Result ResLabelDestroy(const dmResource::ResourceDestroyParams* params)
     {
-        LabelResource* resource = (LabelResource*) params.m_Resource->m_Resource;
-        ReleaseResources(params.m_Factory, resource);
+        LabelResource* resource = (LabelResource*) dmResource::GetResource(params->m_Resource);
+        ReleaseResources(params->m_Factory, resource);
         delete resource;
         return dmResource::RESULT_OK;
     }
 
-    dmResource::Result ResLabelRecreate(const dmResource::ResourceRecreateParams& params)
+    dmResource::Result ResLabelRecreate(const dmResource::ResourceRecreateParams* params)
     {
         LabelResource tmp_resource;
         memset(&tmp_resource, 0, sizeof(LabelResource));
-        dmDDF::Result e = dmDDF::LoadMessage(params.m_Buffer, params.m_BufferSize, &tmp_resource.m_DDF);
+        dmDDF::Result e = dmDDF::LoadMessage(params->m_Buffer, params->m_BufferSize, &tmp_resource.m_DDF);
         if ( e != dmDDF::RESULT_OK )
         {
             return dmResource::RESULT_FORMAT_ERROR;
         }
 
-        dmResource::Result r = AcquireResources(params.m_Factory, &tmp_resource, params.m_Filename);
+        dmResource::Result r = AcquireResources(params->m_Factory, &tmp_resource, params->m_Filename);
         if (r == dmResource::RESULT_OK)
         {
-            LabelResource* resource = (LabelResource*)params.m_Resource->m_Resource;
-            ReleaseResources(params.m_Factory, resource);
+            LabelResource* resource = (LabelResource*)dmResource::GetResource(params->m_Resource);
+            ReleaseResources(params->m_Factory, resource);
             *resource = tmp_resource;
         }
         else
         {
-            ReleaseResources(params.m_Factory, &tmp_resource);
+            ReleaseResources(params->m_Factory, &tmp_resource);
         }
         return r;
     }

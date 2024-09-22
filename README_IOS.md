@@ -9,7 +9,7 @@
 * In Preferences -> Accounts
     ** Add a new account, use your Apple ID
     ** You should now see the account and that its team membership
-* You also need to set up a Provisioning Profile. This is done in Xcode->Preferences->Accounts. Double-click and a window should appear with IDs in the top half and Provisioning Profiles in the bottom half. Select the profile you want (e.g. "iOS Team Provision Profile: *"). Use the downloaded profile when deploying to an iOS device.
+* You also need to set up a Provisioning Profile. This is done in Xcode->Preferences->Accounts. Double-click and a window should appear with IDs in the top half and Provisioning Profiles in the bottom half. Select the profile you want (e.g. "`iOS Team Provision Profile: *`"). Use the downloaded profile when deploying to an iOS device.
 
 After installation of XCode (and each update!) you need to create a symbolic link to iOS sdk:
 
@@ -21,10 +21,9 @@ After installation of XCode (and each update!) you need to create a symbolic lin
 
 ### Setup XCode project
 
-* Make sure that you build with **--disable-ccache**. Otherwise lldb can't set breakpoints (all pending). The
-  reason is currently unknown. The --disable-ccache option is available in waf and in build.py.
+* Make sure that you build with **--disable-ccache**. Otherwise lldb can't set breakpoints (all pending). The reason is currently unknown. The --disable-ccache option is available in waf and in build.py.
 * Create a new empty iOS project (Other/Empty)
-* Create a new scheme with Project -> New Scheme...
+* Create a new scheme with Product -> Scheme -> New Scheme...
 * Select executable (dmengine.app)
 * Make sure that debugger is lldb. Otherwise debuginfo is not found for static libraries when compiled with clang for unknown reason
 

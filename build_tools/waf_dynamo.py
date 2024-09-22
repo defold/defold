@@ -71,12 +71,14 @@ def is_platform_private(platform):
 def platform_supports_feature(platform, feature, data):
     if is_platform_private(platform):
         return waf_dynamo_vendor.supports_feature(platform, feature, data)
-    if feature == 'vulkan':
+    if feature == 'vulkan' or feature == 'compute':
         return platform not in ['js-web', 'wasm-web', 'x86_64-ios']
-    if feature == 'compute':
-        return platform in ['x86_64-linux', 'x86_64-macos', 'arm64-macos', 'win32', 'x86_64-win32']
     if feature == 'dx12':
         return platform in ['x86_64-win32']
+    if feature == 'opengl_compute':
+        return platform not in ['js-web', 'wasm-web', 'x86_64-ios', 'arm64-ios', 'arm64-macos', 'x86_64-macos']
+    if feature == 'webgpu':
+        return platform in ['js-web', 'wasm-web']
     return waf_dynamo_vendor.supports_feature(platform, feature, data)
 
 def platform_setup_tools(ctx, build_util):
@@ -89,7 +91,7 @@ def transform_runnable_path(platform, path):
     return waf_dynamo_vendor.transform_runnable_path(platform, path)
 
 def platform_glfw_version(platform):
-    if platform in ['x86_64-macos', 'arm64-macos']:
+    if platform in ['x86_64-macos', 'arm64-macos', 'x86_64-win32', 'win32']:
         return 3
     return 2
 
@@ -389,17 +391,18 @@ def default_flags(self):
         swift_dir = "%s/usr/lib/swift-%s/macosx" % (sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), sdk.SWIFT_VERSION)
 
         for f in ['CFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-Werror=format', '-fno-exceptions','-fPIC', '-fvisibility=hidden'])
+            self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-Werror=format', '-fPIC', '-fvisibility=hidden'])
             self.env.append_value(f, ['-DDM_PLATFORM_MACOS'])
 
-            if f == 'CXXFLAGS':
-                self.env.append_value(f, ['-fno-rtti'])
-
-            self.env.append_value(f, ['-stdlib=libc++', '-DGL_DO_NOT_WARN_IF_MULTI_GL_VERSION_HEADERS_INCLUDED', '-DGL_SILENCE_DEPRECATION'])
+            self.env.append_value(f, ['-DGL_DO_NOT_WARN_IF_MULTI_GL_VERSION_HEADERS_INCLUDED', '-DGL_SILENCE_DEPRECATION'])
             self.env.append_value(f, '-mmacosx-version-min=%s' % sdk.VERSION_MACOSX_MIN)
 
-            self.env.append_value(f, ['-isysroot', sys_root, '-nostdinc++', '-isystem', '%s/usr/include/c++/v1' % sys_root])
+            self.env.append_value(f, ['-isysroot', sys_root])
             self.env.append_value(f, ['-target', '%s-apple-darwin19' % build_util.get_target_architecture()])
+
+            if f == 'CXXFLAGS':
+                self.env.append_value(f, ['-fno-rtti', '-stdlib=libc++', '-fno-exceptions', '-nostdinc++'])
+                self.env.append_value(f, ['-isystem', '%s/usr/include/c++/v1' % sys_root])
 
         self.env.append_value('LINKFLAGS', ['-stdlib=libc++', '-isysroot', sys_root, '-mmacosx-version-min=%s' % sdk.VERSION_MACOSX_MIN, '-framework', 'Carbon','-flto'])
         self.env.append_value('LINKFLAGS', ['-target', '%s-apple-darwin19' % build_util.get_target_architecture()])
@@ -427,10 +430,13 @@ def default_flags(self):
             swift_dir = "%s/usr/lib/swift-%s/iphonesimulator" % (sdk.get_toolchain_root(self.sdkinfo, self.env['PLATFORM']), sdk.SWIFT_VERSION)
 
         for f in ['CFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, extra_ccflags + ['-g', '-stdlib=libc++', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-fno-exceptions', '-fno-rtti', '-fvisibility=hidden',
+            self.env.append_value(f, extra_ccflags + ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-fvisibility=hidden',
                                             '-arch', build_util.get_target_architecture(), '-miphoneos-version-min=%s' % sdk.VERSION_IPHONEOS_MIN])
+            self.env.append_value(f, ['-isysroot', sys_root])
 
-            self.env.append_value(f, ['-isysroot', sys_root, '-nostdinc++', '-isystem', '%s/usr/include/c++/v1' % sys_root])
+            if f == 'CXXFLAGS':
+                self.env.append_value(f, ['-fno-exceptions', '-fno-rtti', '-stdlib=libc++', '-nostdinc++'])
+                self.env.append_value(f, ['-isystem', '%s/usr/include/c++/v1' % sys_root])
 
             self.env.append_value(f, ['-DDM_PLATFORM_IOS'])
             if 'x86_64' == build_util.get_target_architecture():
@@ -487,6 +493,11 @@ def default_flags(self):
             'MIN_FIREFOX_VERSION=34',
             'MIN_SAFARI_VERSION=90000',
             'MIN_CHROME_VERSION=32']
+
+        if Options.options.with_webgpu and platform_supports_feature(build_util.get_target_platform(), 'webgpu', {}):
+            emflags_link += ['USE_WEBGPU', 'GL_WORKAROUND_SAFARI_GETCONTEXT_BUG=0']
+            # This is needed so long as we have to use sleep to make initialization blocking
+            emflags_link += ['ASYNCIFY', 'ASYNCIFY_ADVISE', 'ASYNCIFY_IGNORE_INDIRECT', 'ASYNCIFY_ADD=["main", "dmEngineCreate(int, char**)"]' ]
 
         if 'wasm' == build_util.get_target_architecture():
             emflags_link += ['WASM=1', 'ALLOW_MEMORY_GROWTH=1']
@@ -1439,11 +1450,21 @@ def js_web_link_flags(self):
         pre_js = os.path.join(self.env['DYNAMO_HOME'], 'share', "js-web-pre.js")
         self.env.append_value('LINKFLAGS', ['--pre-js', pre_js])
 
+
+@task_gen
+@after('apply_obj_vars')
+@feature('test')
+def test_no_install(self):
+    if 'test_install' in self.features:
+        return # the user wanted it installed
+    self.install_path = None # the tests shouldn't normally be installed
+
 @task_gen
 @before('process_source')
 @feature('test')
 def test_flags(self):
-    self.install_path = None # the tests shouldn't be installed
+    # When building tests for the web, we disable emission of emscripten js.mem init files,
+    # as the assumption when these are loaded is that the cwd will contain these items.
     if 'web' in self.env['PLATFORM']:
         for f in ['CFLAGS', 'CXXFLAGS', 'LINKFLAGS']:
             if '-gsource-map' in self.env[f]:
@@ -1525,6 +1546,9 @@ def detect(conf):
 
     if platform in ('x86_64-linux', 'x86_64-win32', 'x86_64-macos', 'arm64-macos'):
         conf.env['IS_TARGET_DESKTOP'] = 'true'
+
+    if host_platform in ('x86_64-linux', 'x86_64-win32', 'x86_64-macos', 'arm64-macos'):
+        conf.env['IS_HOST_DESKTOP'] = 'true'
 
     if platform in ('js-web', 'wasm-web') and not conf.env['NODEJS']:
         conf.find_program('node', var='NODEJS', mandatory = False)
@@ -1709,6 +1733,15 @@ def detect(conf):
     remove_flag(conf.env['shlib_CXXFLAGS'], '-compatibility_version', 1)
     remove_flag(conf.env['shlib_CXXFLAGS'], '-current_version', 1)
 
+    # Needed for api generation
+    if conf.env.IS_HOST_DESKTOP:
+        if not 'CLANG' in conf.env:
+            conf.find_program('clang',   var='CLANG', mandatory = True)
+            os.environ['CLANG'] = conf.env.CLANG[0]
+        if not 'CLANGPP' in conf.env:
+            conf.find_program('clang++', var='CLANGPP', mandatory = True)
+            os.environ['CLANGPP'] = conf.env.CLANGPP[0]
+
     # NOTE: We override after check_tool. Otherwise waf gets confused and CXX_NAME etc are missing..
     if platform in ('js-web', 'wasm-web'):
         bin = os.environ.get('EMSCRIPTEN')
@@ -1812,7 +1845,7 @@ def detect(conf):
     elif platform in ('x86_64-linux',):
         conf.env['LIB_OPENAL'] = ['openal']
 
-    conf.env['STLIB_DLIB'] = ['dlib', 'mbedtls', 'zip']
+    conf.env['STLIB_DLIB'] = ['dlib', 'image', 'mbedtls', 'zip']
     conf.env['STLIB_DDF'] = 'ddf'
     conf.env['STLIB_CRASH'] = 'crashext'
     conf.env['STLIB_CRASH_NULL'] = 'crashext_null'
@@ -1838,6 +1871,7 @@ def detect(conf):
     conf.env['STLIB_GRAPHICS']          = ['graphics', 'graphics_transcoder_basisu', 'basis_transcoder']
     conf.env['STLIB_GRAPHICS_VULKAN']   = ['graphics_vulkan', 'graphics_transcoder_basisu', 'basis_transcoder']
     conf.env['STLIB_GRAPHICS_DX12']     = ['graphics_dx12', 'graphics_transcoder_basisu', 'basis_transcoder']
+    conf.env['STLIB_GRAPHICS_WEBGPU']   = ['graphics_webgpu', 'graphics_transcoder_basisu', 'basis_transcoder']
     conf.env['STLIB_GRAPHICS_NULL']     = ['graphics_null', 'graphics_transcoder_null']
 
     conf.env['STLIB_PLATFORM']        = ['platform']
@@ -1853,6 +1887,7 @@ def detect(conf):
         conf.env['STLIB_VULKAN'] = Options.options.with_vulkan_validation and 'vulkan' or 'MoltenVK'
         conf.env['FRAMEWORK_VULKAN'] = ['Metal', 'IOSurface', 'QuartzCore']
         conf.env['FRAMEWORK_DMGLFW'] = ['QuartzCore']
+
     elif platform in ('arm64-ios','x86_64-ios'):
         conf.env['STLIB_VULKAN'] = 'MoltenVK'
         conf.env['FRAMEWORK_VULKAN'] = ['Metal', 'IOSurface']
@@ -1900,8 +1935,17 @@ def detect(conf):
             conf.env['LIBPATH_JDK'] = os.path.join(os.environ['JAVA_HOME'], 'lib')
             conf.env['DEFINES_JDK'] = ['DM_HAS_JDK']
 
-            conf.env['LIB_JNI'] = ['jni']
-            conf.env['LIB_JNI_NOASAN'] = ['jni_noasan']
+            # if the jdk doesn't have the jni.h
+            jni_path = os.path.join(conf.env['INCLUDES_JDK'][0], 'jni.h')
+            if not os.path.exists(jni_path):
+                Logs.error("JAVA_HOME=%s" % os.environ['JAVA_HOME'])
+                Logs.error("Failed to find jni.h at %s" % jni_path)
+                sys.exit(1)
+
+    conf.load('waf_csharp')
+
+    if Options.options.generate_compile_commands:
+        conf.load('clang_compilation_database')
 
 
 def configure(conf):
@@ -1923,6 +1967,7 @@ def options(opt):
     opt.add_option('--skip-codesign', action="store_true", default=False, dest='skip_codesign', help='skip code signing')
     opt.add_option('--skip-apidocs', action='store_true', default=False, dest='skip_apidocs', help='skip extraction and generation of API docs.')
     opt.add_option('--disable-ccache', action="store_true", default=False, dest='disable_ccache', help='force disable of ccache')
+    opt.add_option('--generate-compile-commands', action="store_true", default=False, dest='generate_compile_commands', help='generate (appending mode) compile_commands.json')
     opt.add_option('--use-vanilla-lua', action="store_true", default=False, dest='use_vanilla_lua', help='use luajit')
     opt.add_option('--disable-feature', action='append', default=[], dest='disable_features', help='disable feature, --disable-feature=foo')
     opt.add_option('--opt-level', default="2", dest='opt_level', help='optimization level')
@@ -1937,3 +1982,4 @@ def options(opt):
     opt.add_option('--with-vulkan', action='store_true', default=False, dest='with_vulkan', help='Enables Vulkan as graphics backend')
     opt.add_option('--with-vulkan-validation', action='store_true', default=False, dest='with_vulkan_validation', help='Enables Vulkan validation layers (on osx and ios)')
     opt.add_option('--with-dx12', action='store_true', default=False, dest='with_dx12', help='Enables DX12 as a graphics backend')
+    opt.add_option('--with-webgpu', action='store_true', default=False, dest='with_webgpu', help='Enables WebGPU as graphics backend')

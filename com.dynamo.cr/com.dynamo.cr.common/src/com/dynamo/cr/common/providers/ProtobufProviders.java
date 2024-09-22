@@ -56,7 +56,7 @@ public class ProtobufProviders {
                 throws IOException, WebApplicationException {
             try {
                 Method newBuilder = type.getMethod("newBuilder");
-                GeneratedMessage.Builder<?> builder = (GeneratedMessage.Builder<?>) newBuilder.invoke(type);
+                GeneratedMessage.Builder builder = (GeneratedMessage.Builder) newBuilder.invoke(type);
                 return builder.mergeFrom(entityStream).build();
             } catch (Exception e) {
                 throw new WebApplicationException(e);

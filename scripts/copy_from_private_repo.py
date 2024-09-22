@@ -39,6 +39,8 @@ FILE_PATTERNS.append('meta.edn') # TODO: create meta.edn plugins for extensions
 FILE_PATTERNS.append('meta.properties') # TODO: create meta.edn plugins for extensions
 FILE_PATTERNS.append('build.xml') # TODO: make a strategy here
 
+FILE_PATTERNS.append('platform.sdks.json')
+
 #FILE_PATTERNS.append('com.dynamo.cr.bob') # TODO: until we've fixed the above bob cases
 
 LOCAL_PATTERNS=[]

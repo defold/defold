@@ -15,6 +15,7 @@
 (ns editor.pipeline-test
   (:require [clojure.java.io :as io]
             [clojure.test :refer :all]
+            [dynamo.graph :as g]
             [editor.build :as build]
             [editor.build-target :as bt]
             [editor.defold-project :as project]
@@ -92,10 +93,13 @@
     (String. "UTF-8")))
 
 (defn- pipeline-build! [project build-targets]
-  (let [workspace (project/workspace project)
-        old-artifact-map (workspace/artifact-map workspace)
-        flat-build-targets (build/resolve-dependencies build-targets project)
-        build-results (pipeline/build! flat-build-targets (workspace/build-path workspace) old-artifact-map progress/null-render-progress!)]
+  (let [[workspace build-results]
+        (g/with-auto-evaluation-context evaluation-context
+          (let [workspace (project/workspace project evaluation-context)
+                old-artifact-map (workspace/artifact-map workspace)
+                flat-build-targets (build/resolve-dependencies build-targets project evaluation-context)
+                build-results (pipeline/build! flat-build-targets (workspace/build-path workspace) old-artifact-map evaluation-context progress/null-render-progress!)]
+            [workspace build-results]))]
     (when-not (contains? build-results :error)
       (workspace/artifact-map! workspace (:artifact-map build-results))
       (workspace/etags! workspace (:etags build-results)))
@@ -174,20 +178,24 @@
   (with-clean-system
     (let [tile-set-target (make-asserting-build-target workspace "1" nil {})
           material-target (make-asserting-build-target workspace "2" nil {})
-          sprite-target   (pipeline/make-protobuf-build-target
-                            (workspace/file-resource workspace "/dir/test.sprite")
-                            [tile-set-target material-target]
-                            Sprite$SpriteDesc
-                            {:tile-set          (-> tile-set-target :resource :resource)
-                             :default-animation "gurka"
-                             :material          (-> material-target :resource :resource)}
-                            [:tile-set :material])]
+          sprite-resource (workspace/file-resource workspace "/dir/test.sprite")
+          sprite-node-id 12345
+          sprite-target (pipeline/make-protobuf-build-target
+                          sprite-node-id
+                          sprite-resource
+                          Sprite$SpriteDesc
+                          {:tile-set (-> tile-set-target :resource :resource)
+                           :default-animation "gurka"
+                           :material (-> material-target :resource :resource resource/proj-path)}
+                          [tile-set-target material-target])]
       (testing "produces correct build-target"
+        (is (= sprite-node-id (:node-id sprite-target)))
+        (is (= sprite-resource (-> sprite-target :resource :resource)))
         (is (= (set (:deps sprite-target)) #{tile-set-target material-target})))
       (testing "produces correct build content"
         (let [build-results (pipeline-build! project [sprite-target])
               sprite-result (first (filter #(= (:resource %) (:resource sprite-target)) (:artifacts build-results)))
-              pb-data (protobuf/bytes->map Sprite$SpriteDesc (content-bytes sprite-result))]
+              pb-data (protobuf/bytes->map-with-defaults Sprite$SpriteDesc (content-bytes sprite-result))]
           ;; assert resource paths have been resolved to build paths
           (is (= {:tile-set (-> tile-set-target :resource resource/proj-path)
                   :default-animation "gurka"

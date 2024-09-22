@@ -50,8 +50,8 @@ function terminate_trap() {
 [ ! -z "${DYNAMO_HOME:-}" ] || terminate "DYNAMO_HOME is not set"
 DEFOLD_HOME="$(cd "${DYNAMO_HOME}/../.."; pwd)"
 
-ANDROID_NDK_VERSION="25b"
-ANDROID_BUILD_TOOLS_VERSION="33.0.1"
+eval $(python $DEFOLD_HOME/build_tools/set_sdk_vars.py ANDROID_NDK_VERSION ANDROID_BUILD_TOOLS_VERSION)
+
 PLATFORM="darwin-x86_64"
 ANDROID_NDK_ROOT="${DYNAMO_HOME}/ext/SDKs/android-ndk-r${ANDROID_NDK_VERSION}"
 ANDROID_SDK_ROOT="${DYNAMO_HOME}/ext/SDKs/android-sdk"

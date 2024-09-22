@@ -84,16 +84,24 @@ enum DepthStencilFormat
     DEPTH_STENCIL_FORMAT_S8U      = 5;
 }
 
+// Engine only, values corresponds to TextureUsageHint in graphics.h
+enum TextureUsageFlag
+{
+    TEXTURE_USAGE_FLAG_SAMPLE     = 1;
+    TEXTURE_USAGE_FLAG_MEMORYLESS = 2;
+    TEXTURE_USAGE_FLAG_STORAGE    = 4;
+    TEXTURE_USAGE_FLAG_INPUT      = 8;
+    TEXTURE_USAGE_FLAG_COLOR      = 16;
+}
+
 message TextureImage
 {
     enum Type
     {
-        // Corresponds to GL_TEXTURE_2D
         TYPE_2D       = 1;
-        // Corresponds to GL_TEXTURE_CUBE_MAP
         TYPE_CUBEMAP  = 2;
-        // Corresponds to GL_TEXTURE_2D_ARRAY
         TYPE_2D_ARRAY = 3;
+        TYPE_2D_IMAGE = 4;
     }
 
     enum CompressionType
@@ -171,6 +179,7 @@ message TextureImage
     // When count > 1 count mipmaps are laid out contiguously in memory and
     // the mip_map_offset should reflect that, e.g. times 6 for cubemaps
     required uint32 count       = 3;
+    optional uint32 usage_flags = 4 [default = 1];
 }
 
 // We encapsulate the texture format in its own message due
@@ -237,20 +246,23 @@ message ShaderDesc
 {
     enum Language
     {
-        LANGUAGE_GLSL_SM120 = 1; // OpenGLES 2 compatible
-        LANGUAGE_GLSL_SM140 = 2; // OpenGLES 3 compatible
-        LANGUAGE_GLES_SM100 = 3; // OpenGLES 2 / WebGL 1
-        LANGUAGE_GLES_SM300 = 4; // OpenGLES 3 / WebGL 2
-        LANGUAGE_SPIRV      = 5; // Vulkan / MoltenVK
-        LANGUAGE_PSSL       = 6; // Playstation
-        LANGUAGE_GLSL_SM430 = 7; // OpenGL 4.3+ compatible
-        LANGUAGE_HLSL       = 8; // Windows / XBox compatible
+        LANGUAGE_GLSL_SM120 = 1;  // OpenGL 2 compatible
+        LANGUAGE_GLSL_SM140 = 2;  // OpenGL 3 compatible
+        LANGUAGE_GLES_SM100 = 3;  // OpenGLES 2 / WebGL 1
+        LANGUAGE_GLES_SM300 = 4;  // OpenGLES 3 / WebGL 2
+        LANGUAGE_SPIRV      = 5;  // Vulkan / MoltenVK
+        LANGUAGE_PSSL       = 6;  // Playstation
+        LANGUAGE_GLSL_SM430 = 7;  // OpenGL 4.3+ compatible
+        LANGUAGE_GLSL_SM330 = 8;  // OpenGL 3.3 (used for macos)
+        LANGUAGE_WGSL       = 9;  // WebGPU
+        LANGUAGE_HLSL       = 10; // Windows / XBox compatible
     }
 
-    enum ShaderClass
+    enum ShaderType
     {
-        SHADER_CLASS_GRAPHICS = 0;
-        SHADER_CLASS_COMPUTE  = 1;
+        SHADER_TYPE_VERTEX   = 0;
+        SHADER_TYPE_FRAGMENT = 1;
+        SHADER_TYPE_COMPUTE  = 2;
     }
 
     enum ShaderDataType
@@ -281,8 +293,9 @@ message ShaderDesc
         SHADER_TYPE_UIMAGE2D          = 21;
         SHADER_TYPE_IMAGE2D           = 22;
         SHADER_TYPE_SAMPLER           = 23;
-
         SHADER_TYPE_STORAGE_BUFFER    = 24;
+        SHADER_TYPE_TEXTURE2D_ARRAY   = 25;
+        SHADER_TYPE_TEXTURE_CUBE      = 26;
     }
 
     message ResourceType
@@ -321,23 +334,39 @@ message ShaderDesc
         required ResourceType   type          = 3;
         optional uint32         set           = 4;
         optional uint32         binding       = 5;
-        optional uint32         block_size    = 6;
+
+        oneof BindingInfo
+        {
+            // Uniform buffer block size
+            uint32 block_size = 6;
+            // Sampler object index
+            // Since we split combined samplers into
+            // a texture + sampler object we need to
+            // keep track of which of the textures
+            // the sampler originally is pointing to.
+            uint32 sampler_texture_index = 7;
+        }
+    }
+
+    message ShaderReflection
+    {
+        repeated ResourceBinding  uniform_buffers = 1;
+        repeated ResourceBinding  storage_buffers = 2;
+        repeated ResourceBinding  textures        = 3;
+        repeated ResourceBinding  inputs          = 4;
+        repeated ResourceBinding  outputs         = 5;
+        repeated ResourceTypeInfo types           = 6;
     }
 
     message Shader
     {
-        required Language           language              = 1;
-        optional bytes              source                = 2;
-        optional string             name                  = 3;
-        repeated ResourceBinding    uniform_buffers       = 4;
-        repeated ResourceBinding    storage_buffers       = 5;
-        repeated ResourceBinding    textures              = 6;
-        repeated ResourceBinding    inputs                = 7;
-        repeated ResourceBinding    outputs               = 8;
-        repeated ResourceTypeInfo   types                 = 9;
-        optional bool               variant_texture_array = 10 [default = false];
+        required Language language              = 1;
+        optional bytes    source                = 2;
+        optional string   name                  = 3;
+        optional bool     variant_texture_array = 4 [default = false];
     }
 
-    repeated Shader shaders           = 1;
-    optional ShaderClass shader_class = 2;
+    repeated Shader shaders              = 1;
+    required ShaderReflection reflection = 2;
+    required ShaderType shader_type      = 3;
 }

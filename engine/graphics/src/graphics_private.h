@@ -24,7 +24,7 @@ namespace dmGraphics
 {
     const static uint8_t DM_RENDERTARGET_BACKBUFFER_ID = 0;
     const static uint8_t MAX_VERTEX_BUFFERS            = 2;
-    const static uint8_t MAX_BINDINGS_PER_SET_COUNT    = 16;
+    const static uint8_t MAX_BINDINGS_PER_SET_COUNT    = 32;
     const static uint8_t MAX_SET_COUNT                 = 4;
     const static uint8_t MAX_STORAGE_BUFFERS           = 4;
     const static uint8_t DM_MAX_TEXTURE_UNITS          = 32;
@@ -127,13 +127,19 @@ namespace dmGraphics
             BINDING_FAMILY_TEXTURE        = 3,
         };
 
+        union BindingInfo
+        {
+            uint16_t m_BlockSize;
+            uint16_t m_SamplerTextureIndex;
+        };
+
         char*                       m_Name;
         dmhash_t                    m_NameHash;
         ShaderResourceType          m_Type;
         BindingFamily               m_BindingFamily;
         uint16_t                    m_Set;
         uint16_t                    m_Binding;
-        uint16_t                    m_BlockSize;
+        BindingInfo                 m_BindingInfo;
     };
 
     struct ShaderMeta
@@ -166,6 +172,7 @@ namespace dmGraphics
         uint32_t m_UniformBufferCount;
         uint32_t m_StorageBufferCount;
         uint32_t m_TextureCount;
+        uint32_t m_SamplerCount;
         uint32_t m_TotalUniformCount;
         uint32_t m_UniformDataSize;
         uint32_t m_UniformDataSizeAligned;
@@ -189,6 +196,7 @@ namespace dmGraphics
         uint8_t m_StageFlags;
     };
 
+    HContext             GetInstalledContext();
     uint32_t             GetTextureFormatBitsPerPixel(TextureFormat format); // Gets the bits per pixel from uncompressed formats
     uint32_t             GetGraphicsTypeDataSize(Type type);
     void                 InstallAdapterVendor();
@@ -203,8 +211,9 @@ namespace dmGraphics
     ShaderDesc::Language GetShaderProgramLanguage(HContext context);
     uint32_t             GetShaderTypeSize(ShaderDesc::ShaderDataType type);
     Type                 ShaderDataTypeToGraphicsType(ShaderDesc::ShaderDataType shader_type);
+    ShaderDesc::Shader*  GetShaderProgram(HContext context, ShaderDesc* shader_desc);
 
-    void                 CreateShaderMeta(ShaderDesc::Shader* ddf, ShaderMeta* meta);
+    void                 CreateShaderMeta(ShaderDesc::ShaderReflection* ddf, ShaderMeta* meta);
     void                 DestroyShaderMeta(ShaderMeta& meta);
     bool                 GetUniformIndices(const dmArray<ShaderResourceBinding>& uniforms, dmhash_t name_hash, uint64_t* index_out, uint64_t* index_member_out);
 
@@ -246,7 +255,7 @@ namespace dmGraphics
     uint64_t GetDrawCount();
     void     GetTextureFilters(HContext context, uint32_t unit, TextureFilter& min_filter, TextureFilter& mag_filter);
     void     EnableVertexDeclaration(HContext _context, HVertexDeclaration vertex_declaration, uint32_t binding_index);
-    void     SetOverrideShaderLanguage(HContext context, ShaderDesc::ShaderClass shader_class, ShaderDesc::Language language);
+    void     SetOverrideShaderLanguage(HContext context, ShaderDesc::ShaderType shader_class, ShaderDesc::Language language);
 }
 
 #endif // #ifndef DM_GRAPHICS_PRIVATE_H

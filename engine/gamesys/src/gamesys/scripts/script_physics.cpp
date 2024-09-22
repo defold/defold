@@ -280,7 +280,7 @@ namespace dmGameSystem
      * @param from [type:vector3] the world position of the start of the ray
      * @param to [type:vector3] the world position of the end of the ray
      * @param groups [type:table] a lua table containing the hashed groups for which to test collisions against
-     * @param [request_id] [type:number] a number between [0,-255]. It will be sent back in the response for identification, 0 by default
+     * @param [request_id] [type:number] a number in range [0,255]. It will be sent back in the response for identification, 0 by default
      * @examples
      *
      * How to perform a ray cast asynchronously:
@@ -358,7 +358,7 @@ namespace dmGameSystem
         dmMessage::URL receiver;
         dmMessage::ResetURL(&receiver);
         receiver.m_Socket = context->m_Socket;
-        dmMessage::Post(&sender, &receiver, dmPhysicsDDF::RequestRayCast::m_DDFDescriptor->m_NameHash, (uintptr_t)sender_instance, (uintptr_t)dmPhysicsDDF::RequestRayCast::m_DDFDescriptor, &request, sizeof(dmPhysicsDDF::RequestRayCast), 0);
+        dmMessage::Post(&sender, &receiver, dmPhysicsDDF::RequestRayCast::m_DDFDescriptor->m_NameHash, 0, (uintptr_t)dmPhysicsDDF::RequestRayCast::m_DDFDescriptor, &request, sizeof(dmPhysicsDDF::RequestRayCast), 0);
         return 0;
     }
 
@@ -1812,7 +1812,7 @@ namespace dmGameSystem
         {
             result = false;
         }
-        dmResource::ResourceType co_resource_type;
+        HResourceType co_resource_type;
         if (result)
         {
             dmResource::Result fact_result = dmResource::GetTypeFromExtension(context.m_Factory, COLLISION_OBJECT_EXT, &co_resource_type);

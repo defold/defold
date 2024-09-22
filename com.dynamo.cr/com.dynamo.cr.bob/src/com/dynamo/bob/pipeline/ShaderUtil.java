@@ -14,18 +14,14 @@
 
 package com.dynamo.bob.pipeline;
 
+import java.io.ByteArrayOutputStream;
+import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Iterator;
+import java.util.Locale;
 import java.util.Scanner;
-import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.io.IOException;
-
-import org.codehaus.jackson.JsonNode;
-import org.codehaus.jackson.node.ArrayNode;
-import org.codehaus.jackson.map.ObjectMapper;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
@@ -39,8 +35,9 @@ import com.dynamo.bob.pipeline.antlr.glsl.GLSLLexer;
 
 public class ShaderUtil {
     public static class Common {
+        // Used in editor
         public static final int     MAX_ARRAY_SAMPLERS                   = 8;
-        public static final String  glSampler2DArrayRegex                = "(.+)sampler2DArray\\s+(\\w+);";
+
         public static final Pattern regexUniformKeywordPattern           = Pattern.compile("((?<keyword>uniform)\\s+|(?<layout>layout\\s*\\(.*\\n*.*\\)\\s*)\\s+|(?<precision>lowp|mediump|highp)\\s+)*(?<type>\\S+)\\s+(?<identifier>\\S+)\\s*(?<any>.*)\\s*;");
         public static final Pattern regexUniformBlockBeginKeywordPattern = Pattern.compile("((?<keyword>uniform)\\s+|(?<layout>layout\\s*\\(.*\\n*.*\\)\\s*)\\s+)*(?<type>\\S+)(?<any>.*)");
         public static String        includeDirectiveReplaceBaseStr       = "[^\\S\r\n]?\\s*\\#include\\s+(?:<%s>|\"%s\")";
@@ -59,6 +56,12 @@ public class ShaderUtil {
         {
             public String   source;
             public String[] arraySamplers = new String[0];
+
+            public GLSLCompileResult() {}
+
+            public GLSLCompileResult(String source) {
+                this.source = source;
+            }
         }
 
         public static GLSLShaderInfo getShaderInfo(String source)
@@ -99,17 +102,105 @@ public class ShaderUtil {
             return rewriter.getText();
         }
 
-        public static boolean isShaderTypeTexture(ShaderDesc.ShaderDataType data_type)
-        {
-            return data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_CUBE    ||
-                   data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D       ||
-                   data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY ||
-                   data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D       ||
-                   data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_TEXTURE2D       ||
-                   data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_UTEXTURE2D      ||
-                   data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER         ||
-                   data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_UIMAGE2D        ||
-                   data_type == ShaderDesc.ShaderDataType.SHADER_TYPE_IMAGE2D;
+        public static String compileGLSL(String shaderSource, ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, boolean isDebug, boolean useLatestFeatures) throws CompileExceptionError {
+
+            ByteArrayOutputStream os = new ByteArrayOutputStream();
+            PrintWriter writer = new PrintWriter(os);
+
+            // Write directives from shader.
+            String line;
+            String firstNonDirectiveLine = null;
+            int directiveLineCount = 0;
+
+            Pattern directiveLinePattern = Pattern.compile("^\\s*(#|//).*");
+            Scanner scanner = new Scanner(shaderSource);
+
+            while (scanner.hasNextLine()) {
+                line = scanner.nextLine();
+                if (line.isEmpty() || directiveLinePattern.matcher(line).find()) {
+                    writer.println(line);
+                    ++directiveLineCount;
+                } else {
+                    firstNonDirectiveLine = line;
+                    break;
+                }
+            }
+
+            if (directiveLineCount != 0) {
+                writer.println();
+            }
+
+            int version;
+            boolean gles3Standard;
+            boolean gles;
+
+            if (shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM430) {
+                version       = 430;
+                gles          = false;
+                gles3Standard = true;
+            } else {
+                gles = shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100 ||
+                        shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM300;
+
+                gles3Standard = shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM140 ||
+                        shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM300 ||
+                        shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM330;
+
+                if (shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM300) {
+                    version = 300;
+                } else if (shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM330) {
+                    version = 330;
+                } else {
+                    version = 140;
+                }
+
+                // Write our directives.
+                if (shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100) {
+                    // Normally, the ES2ToES3Converter would do this
+                    writer.println("precision mediump float;");
+                }
+
+                if (!gles) {
+                    writer.println("#ifndef GL_ES");
+                    writer.println("#define lowp");
+                    writer.println("#define mediump");
+                    writer.println("#define highp");
+                    writer.println("#endif");
+                    writer.println();
+                }
+            }
+
+            // We want "correct" line numbers from the GLSL compiler.
+            //
+            // Some Android devices don't like setting #line to something below 1,
+            // see JIRA issue: DEF-1786.
+            // We still want to have correct line reporting on most devices so
+            // only output the "#line N" directive in debug builds.
+            if (isDebug) {
+                writer.printf(Locale.ROOT, "#line %d", directiveLineCount);
+                writer.println();
+            }
+
+            // Write the first non-directive line from above.
+            if (firstNonDirectiveLine != null) {
+                writer.println(firstNonDirectiveLine);
+            }
+
+            // Write the remaining lines from the shader.
+            while (scanner.hasNextLine()) {
+                line = scanner.nextLine();
+                writer.println(line);
+            }
+            scanner.close();
+            writer.flush();
+
+            String source = os.toString().replace("\r", "");
+
+            if (gles3Standard) {
+                ES2ToES3Converter.Result es3Result = ES2ToES3Converter.transform(source, shaderType, gles ? "es" : "", version, useLatestFeatures);
+                source = es3Result.output;
+            }
+            return source;
         }
 
         private static class ShaderDataTypeConversionEntry {
@@ -140,6 +231,8 @@ public class ShaderUtil {
                 new ShaderDataTypeConversionEntry("uvec3",          ShaderDesc.ShaderDataType.SHADER_TYPE_UVEC3),
                 new ShaderDataTypeConversionEntry("uvec4",          ShaderDesc.ShaderDataType.SHADER_TYPE_UVEC4),
                 new ShaderDataTypeConversionEntry("texture2D",      ShaderDesc.ShaderDataType.SHADER_TYPE_TEXTURE2D),
+                new ShaderDataTypeConversionEntry("texture2DArray", ShaderDesc.ShaderDataType.SHADER_TYPE_TEXTURE2D_ARRAY),
+                new ShaderDataTypeConversionEntry("textureCube",    ShaderDesc.ShaderDataType.SHADER_TYPE_TEXTURE_CUBE),
                 new ShaderDataTypeConversionEntry("utexture2D",     ShaderDesc.ShaderDataType.SHADER_TYPE_UTEXTURE2D),
                 new ShaderDataTypeConversionEntry("uimage2D",       ShaderDesc.ShaderDataType.SHADER_TYPE_UIMAGE2D),
                 new ShaderDataTypeConversionEntry("image2D",        ShaderDesc.ShaderDataType.SHADER_TYPE_IMAGE2D),
@@ -153,15 +246,6 @@ public class ShaderUtil {
                 }
             }
             return ShaderDesc.ShaderDataType.SHADER_TYPE_UNKNOWN;
-        }
-
-        public static String shaderTypeToString(ShaderDesc.ShaderDataType dataType) {
-            for (ShaderDataTypeConversionEntry e : shaderDataTypeConversionLut) {
-                if (e.asDataType == dataType) {
-                    return e.asStr;
-                }
-            }
-            return null;
         }
     }
 
@@ -184,7 +268,8 @@ public class ShaderUtil {
         }
 
         public static boolean isRequired(ShaderDesc.Language shaderLanguage) {
-            return shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM120 || shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100;
+            return shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM120 ||
+                   shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100;
         }
 
         public static String samplerNameToSliceSamplerName(String samplerName, int slice) {
@@ -219,7 +304,6 @@ public class ShaderUtil {
                     shaderBody.add("");
                     generateTextureArrayFn(shaderBody, uniformName, maxPageCount);
                     arraySamplers.add(uniformName);
-
                 } else {
                     shaderBody.add(line);
                 }
@@ -231,200 +315,17 @@ public class ShaderUtil {
 
             String shaderBodyStr = String.join("\n", shaderBody);
             shaderBodyStr        = shaderBodyStr.replaceAll(arrayReplaceTextureRegex, "texture2DArray_$1(");
+
+            for (String samplerName : arraySamplers) {
+                String texture2DReplaceTextureRegex = String.format("texture2D(\\W?)+\\((\\W?)+%s(\\W?)+,", samplerName);
+                String texture2DReplaceTextureReplacement = String.format("texture2DArray_%s(", samplerName);
+                shaderBodyStr = shaderBodyStr.replaceAll(texture2DReplaceTextureRegex,  texture2DReplaceTextureReplacement);
+            }
+
             result.source        = shaderBodyStr + "\n";
             result.arraySamplers = arraySamplers.toArray(new String[0]);
 
             return result;
-        }
-    }
-
-    public static class SPIRVReflector {
-        private static JsonNode root;
-
-        public SPIRVReflector(String json) throws IOException {
-            this.root = (new ObjectMapper()).readTree(json);
-        }
-
-        public static class ResourceMember {
-            public String name;
-            public String type;
-            public int    elementCount;
-            public int    offset;
-        }
-
-        public static class Resource {
-            public String name;
-            public String type;
-            public int    binding;
-            public int    set;
-            public int    blockSize;
-        }
-
-        public static class ResourceType {
-            public String                    key;
-            public String                    name;
-            public ArrayList<ResourceMember> members = new ArrayList<ResourceMember>();
-        }
-
-        public static ArrayList<ResourceType> getTypes() {
-            ArrayList<ResourceType> resourceTypes = new ArrayList<ResourceType>();
-            JsonNode typesNode = root.get("types");
-            if (typesNode == null) {
-                return resourceTypes;
-            }
-
-            for (Iterator<Map.Entry<String, JsonNode>> jsonFields = typesNode.getFields(); jsonFields.hasNext();) {
-                Map.Entry<String, JsonNode> jsonField = jsonFields.next();
-                String key = jsonField.getKey();
-                JsonNode value = jsonField.getValue();
-
-                ResourceType type = new ResourceType();
-                type.key = key;
-                type.name = value.get("name").asText();
-
-                JsonNode membersNode = value.get("members");
-                Iterator<JsonNode> membersNodeIt = membersNode.getElements();
-
-                while(membersNodeIt.hasNext()) {
-                    JsonNode memberNode = membersNodeIt.next();
-                    ResourceMember res  = new ResourceMember();
-                    res.name            = memberNode.get("name").asText();
-                    res.type            = memberNode.get("type").asText();
-
-                    JsonNode offsetNode = memberNode.get("offset");
-                    if (offsetNode != null) {
-                        res.offset = offsetNode.asInt();
-                    }
-
-                    JsonNode arrayNode = memberNode.get("array");
-                    if (arrayNode != null && arrayNode.isArray())
-                    {
-                        ArrayNode array = (ArrayNode) arrayNode;
-                        res.elementCount = arrayNode.get(0).asInt();
-                    }
-
-                    type.members.add(res);
-                }
-
-                resourceTypes.add(type);
-            }
-
-            return resourceTypes;
-        }
-
-        public static ArrayList<Resource> getUBOs() {
-            ArrayList<Resource> ubos = new ArrayList<Resource>();
-            JsonNode ubosNode = root.get("ubos");
-
-            if (ubosNode == null) {
-                return ubos;
-            }
-
-            Iterator<JsonNode> uniformBlockNodeIt = ubosNode.getElements();
-            while (uniformBlockNodeIt.hasNext()) {
-                JsonNode uboNode = uniformBlockNodeIt.next();
-
-                Resource ubo  = new Resource();
-                ubo.name      = uboNode.get("name").asText();
-                ubo.set       = uboNode.get("set").asInt();
-                ubo.binding   = uboNode.get("binding").asInt();
-                ubo.type      = uboNode.get("type").asText();
-                ubo.blockSize = uboNode.get("block_size").asInt();
-                ubos.add(ubo);
-            }
-
-            return ubos;
-        }
-
-        public static ArrayList<Resource> getSsbos() {
-            ArrayList<Resource> ssbos = new ArrayList<Resource>();
-
-            JsonNode ssboNode  = root.get("ssbos");
-
-            if (ssboNode == null) {
-                return ssbos;
-            }
-
-            Iterator<JsonNode> ssboBlockIt = ssboNode.getElements();
-            while (ssboBlockIt.hasNext()) {
-                JsonNode ssboBlockNode = ssboBlockIt.next();
-
-                Resource ssbo  = new Resource();
-                ssbo.name      = ssboBlockNode.get("name").asText();
-                ssbo.set       = ssboBlockNode.get("set").asInt();
-                ssbo.binding   = ssboBlockNode.get("binding").asInt();
-                ssbo.type      = ssboBlockNode.get("type").asText();
-                ssbo.blockSize = ssboBlockNode.get("block_size").asInt();
-                ssbos.add(ssbo);
-            }
-
-            return ssbos;
-        }
-
-        private static void addTexturesFromNode(JsonNode node, ArrayList<Resource> textures) {
-            if (node != null) {
-                for (Iterator<JsonNode> iter = node.getElements(); iter.hasNext();) {
-                    JsonNode textureNode = iter.next();
-                    Resource res     = new Resource();
-                    res.name         = textureNode.get("name").asText();
-                    res.type         = textureNode.get("type").asText();
-                    res.binding      = textureNode.get("binding").asInt();
-                    res.set          = textureNode.get("set").asInt();
-                    res.blockSize    = 0;
-                    textures.add(res);
-                }
-            }
-        }
-
-        public static ArrayList<Resource> getTextures() {
-            ArrayList<Resource> textures = new ArrayList<Resource>();
-            addTexturesFromNode(root.get("textures"),          textures);
-            addTexturesFromNode(root.get("separate_images"),   textures);
-            addTexturesFromNode(root.get("images"),            textures);
-            addTexturesFromNode(root.get("separate_samplers"), textures);
-            return textures;
-        }
-
-        public static ArrayList<Resource> getInputs() {
-            ArrayList<Resource> inputs = new ArrayList<Resource>();
-
-            JsonNode inputsNode = root.get("inputs");
-
-            if (inputsNode == null) {
-                return inputs;
-            }
-
-            for (Iterator<JsonNode> iter = inputsNode.getElements(); iter.hasNext();) {
-                JsonNode inputNode = iter.next();
-                Resource res = new Resource();
-                res.name     = inputNode.get("name").asText();
-                res.type     = inputNode.get("type").asText();
-                res.binding  = inputNode.get("location").asInt();
-                inputs.add(res);
-            }
-
-            return inputs;
-        }
-
-        public static ArrayList<Resource> getOutputs() {
-            ArrayList<Resource> outputs = new ArrayList<Resource>();
-
-            JsonNode outputsNode = root.get("outputs");
-
-            if (outputsNode == null) {
-                return outputs;
-            }
-
-            for (Iterator<JsonNode> iter = outputsNode.getElements(); iter.hasNext();) {
-                JsonNode outputNode = iter.next();
-                Resource res = new Resource();
-                res.name     = outputNode.get("name").asText();
-                res.type     = outputNode.get("type").asText();
-                res.binding  = outputNode.get("location").asInt();
-                outputs.add(res);
-            }
-
-            return outputs;
         }
     }
 
@@ -465,15 +366,10 @@ public class ShaderUtil {
             public String output = "";
         }
 
-        public static enum ShaderType {
-            VERTEX_SHADER,
-            FRAGMENT_SHADER,
-            COMPUTE_SHADER,
-        };
-
-        private static final String[] opaqueUniformTypesPrefix    = { "sampler", "image", "atomic_uint" };
+        private static final String[] opaqueUniformTypesPrefix    = { "sampler", "image", "atomic_uint", "texture2D", "utexture2D", "uimage2D" };
         private static final Pattern regexPrecisionKeywordPattern = Pattern.compile("(?<keyword>precision)\\s+(?<precision>lowp|mediump|highp)\\s+(?<type>float|int)\\s*;");
         private static final Pattern regexFragDataArrayPattern    = Pattern.compile("gl_FragData\\[(?<index>\\d+)\\]");
+        private static final Pattern regexCombinedSamplerPattern  = Pattern.compile("^sampler(?<type>Cube|2DArray|2D|3D)$");
 
         private static final String[][] vsKeywordReps = {{"varying", "out"}, {"attribute", "in"}, {"texture2D", "texture"}, {"texture2DArray", "texture"}, {"textureCube", "texture"}};
         private static final String[][] fsKeywordReps = {{"varying", "in"}, {"texture2D", "texture"}, {"texture2DArray", "texture"}, {"textureCube", "texture"}};
@@ -483,14 +379,80 @@ public class ShaderUtil {
         private static final String glUBRep                     = dmEngineGeneratedRep + "UB_";
         private static final String glUBRepVs                   = glUBRep + "VS_";
         private static final String glUBRepFs                   = glUBRep + "FS_";
+        private static final String glVertexIDKeyword           = "gl_VertexID";
         private static final String glFragColorKeyword          = "gl_FragColor";
         private static final String glFragDataKeyword           = "gl_FragData";
+        private static final String glVertexIDRep               = "gl_VertexIndex";
         private static final String glFragColorRep              = dmEngineGeneratedRep + glFragColorKeyword;
         private static final String glFragColorAttrRep          = "\n%sout vec4 " + glFragColorRep + "%s;\n";
         private static final String glFragColorAttrLayoutPrefix = "layout(location = %d) ";
         private static final String floatPrecisionAttrRep       = "precision mediump float;\n";
 
-        public static Result transform(String input, ShaderType shaderType, String targetProfile, int targetVersion, boolean useLatestFeatures) throws CompileExceptionError {
+        private static boolean isOpaqueType(String type) {
+            for( String opaqueTypePrefix : opaqueUniformTypesPrefix) {
+                if(type.startsWith(opaqueTypePrefix)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        public static Result transformTextureUniforms(String input) throws CompileExceptionError {
+            Result result = new Result();
+
+            if(input.isEmpty()) {
+                return result;
+            }
+
+            input = Common.stripComments(input);
+
+            ArrayList<String> output = new ArrayList<>(input.length());
+            ArrayList<String[]> lineReplacements = new ArrayList<>();
+            String[] inputLines = input.split("\\r?\\n");
+
+            for(String line : inputLines) {
+
+                if(line.contains("uniform"))
+                {
+                    Matcher uniformMatcher = Common.regexUniformKeywordPattern.matcher(line);
+
+                    if (uniformMatcher.find()) {
+                        String keyword = uniformMatcher.group("keyword");
+
+                        if(keyword != null) {
+                            String layout     = uniformMatcher.group("layout");
+                            String type       = uniformMatcher.group("type");
+                            String identifier = uniformMatcher.group("identifier");
+
+                            if (isOpaqueType(type)) {
+                                Matcher combinedSamplerMatcher = regexCombinedSamplerPattern.matcher(type);
+                                if(combinedSamplerMatcher.find()) { // Use the separated sampler/texture
+                                    String lines = "";
+                                    String samplerType = combinedSamplerMatcher.group("type");
+                                    lines += line.replaceAll("\\b" + type + "\\b", "texture" + samplerType) + System.lineSeparator();
+                                    lines += line.replaceAll("\\b" + type + "\\b", "sampler").replaceAll("\\b" + identifier + "\\b", identifier + "_separated") + System.lineSeparator();
+                                    line = lines;
+                                    String[] texture_replacement = {String.format("texture(\\W?)+\\((\\W?)+%s(\\W?)+,", identifier), String.format("texture(%s(%s, %s_separated),", type, identifier, identifier)};
+                                    lineReplacements.add(texture_replacement);
+                                    String[] textureLod_replacement = {String.format("textureLod(\\W?)+\\((\\W?)+%s(\\W?)+,", identifier), String.format("textureLod(%s(%s, %s_separated),", type, identifier, identifier)};
+                                    lineReplacements.add(textureLod_replacement);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                for(String[] replace : lineReplacements) {
+                    line = line.replaceAll(replace[0], replace[1]);
+                }
+                output.add(line + System.lineSeparator());
+            }
+
+            result.output = String.join("", output);
+            return result;
+        }
+
+        public static Result transform(String input, ShaderDesc.ShaderType shaderType, String targetProfile, int targetVersion, boolean useLatestFeatures) throws CompileExceptionError {
             Result result = new Result();
 
             if(input.isEmpty()) {
@@ -502,7 +464,7 @@ public class ShaderUtil {
 
             // Shader sets are explicitly separated between fragment and vertex shaders as 1 and 0,
             // for compute shaders we always use 0. This makes sure that we stay true to that.
-            int layoutSet = shaderType == ShaderType.FRAGMENT_SHADER ? 1 : 0;
+            int layoutSet = shaderType == ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT ? 1 : 0;
 
             // Index to output used for post patching tasks
             int floatPrecisionIndex = -1;
@@ -526,7 +488,7 @@ public class ShaderUtil {
             result.shaderProfile = targetProfile;
 
             // Patch qualifiers (reserved keywords so word boundary replacement is safe)
-            String[][] keywordReps = (shaderType == ShaderType.VERTEX_SHADER) ? vsKeywordReps : fsKeywordReps;
+            String[][] keywordReps = (shaderType == ShaderDesc.ShaderType.SHADER_TYPE_VERTEX) ? vsKeywordReps : fsKeywordReps;
             for ( String[] keywordRep : keywordReps) {
                 input = input.replaceAll("\\b" + keywordRep[0] + "\\b", keywordRep[1]);
             }
@@ -540,6 +502,7 @@ public class ShaderUtil {
             }
 
             // Replace fragment output variables
+            boolean output_glVertexID = input.contains(glVertexIDKeyword);
             boolean output_glFragColor = input.contains(glFragColorKeyword);
             boolean output_glFragData = input.contains(glFragDataKeyword);
 
@@ -551,6 +514,11 @@ public class ShaderUtil {
             if (output_glFragData)
             {
                 input = input.replaceAll("\\b" + glFragDataKeyword + "\\[(\\d+)\\]", glFragColorRep + "_$1");
+            }
+
+            if (useLatestFeatures && output_glVertexID)
+            {
+                input = input.replaceAll("\\b" + glVertexIDKeyword + "\\b", glVertexIDRep);
             }
 
             String[] inputLines = input.split("\\r?\\n");
@@ -570,10 +538,12 @@ public class ShaderUtil {
                 break;
             }
 
+            ArrayList<String[]> lineReplacements = new ArrayList<String[]>();
+
             // Preallocate array of resulting slices. This makes patching in specific positions less complex
             ArrayList<String> output = new ArrayList<String>(input.length());
 
-            String ubBase = shaderType == ES2ToES3Converter.ShaderType.VERTEX_SHADER ? glUBRepVs : glUBRepFs;
+            String ubBase = shaderType == ShaderDesc.ShaderType.SHADER_TYPE_VERTEX ? glUBRepVs : glUBRepFs;
 
             // Multi-instance patching
             int ubIndex = 0;
@@ -592,20 +562,25 @@ public class ShaderUtil {
                             String identifier = uniformMatcher.group("identifier");
                             String any        = uniformMatcher.group("any");
 
-                            boolean isOpaque = false;
-                            for( String opaqueTypePrefix : opaqueUniformTypesPrefix) {
-                                if(type.startsWith(opaqueTypePrefix)) {
-                                    isOpaque = true;
-                                    break;
-                                }
-                            }
-
                             if (layout == null) {
                                 layout = "layout(set=" + layoutSet + ")";
                             }
 
-                            if (isOpaque) {
-                                line = layout + " " + line;
+                            if (isOpaqueType(type)) {
+                                Matcher combinedSamplerMatcher = regexCombinedSamplerPattern.matcher(type);
+                                if(combinedSamplerMatcher.find()) { // Use the separated sampler/texture
+                                    String lines = "";
+                                    String samplerType = combinedSamplerMatcher.group("type");
+                                    lines += layout + " " + line.replaceAll("\\b" + type + "\\b", "texture" + samplerType) + System.lineSeparator();
+                                    lines += layout + " " + line.replaceAll("\\b" + type + "\\b", "sampler").replaceAll("\\b" + identifier + "\\b", identifier + "_separated") + System.lineSeparator();
+                                    line = lines;
+                                    String[] texture_replacement = {String.format("texture(\\W?)+\\((\\W?)+%s(\\W?)+,", identifier), String.format("texture(%s(%s, %s_separated),", type, identifier, identifier)};
+                                    lineReplacements.add(texture_replacement);
+                                    String[] textureLod_replacement = {String.format("textureLod(\\W?)+\\((\\W?)+%s(\\W?)+,", identifier), String.format("textureLod(%s(%s, %s_separated),", type, identifier, identifier)};
+                                    lineReplacements.add(textureLod_replacement);
+                                } else {
+                                    line = layout + " " + line;
+                                }
                             } else {
                                 line = "\n" + layout + " " + keyword + " " + ubBase + ubIndex++ + " { " +
                                 (precision == null ? "" : (precision + " ")) + type + " " + identifier + " " + (any == null ? "" : (any + " ")) + "; };";
@@ -640,11 +615,14 @@ public class ShaderUtil {
                         }
                     }
                 }
+                for( String[] replace : lineReplacements) {
+                    line = line.replaceAll(replace[0], replace[1]);
+                }
                 output.add(line + System.lineSeparator());
             }
 
             // Post patching
-            if (shaderType == ShaderType.FRAGMENT_SHADER) {
+            if (shaderType == ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT) {
                 // if we have patched glFragColor
                 if(output_glFragColor || output_glFragData) {
                     // insert precision if not found, as it is mandatory for out attributes
@@ -669,5 +647,4 @@ public class ShaderUtil {
             return result;
         }
     }
-
 }

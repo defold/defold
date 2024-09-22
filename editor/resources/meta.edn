@@ -78,6 +78,10 @@
    :help "enables some components to use a fixed frame rate. 0 means it's disabled. (Hz)",
    :default 60,
    :path ["engine" "fixed_update_frequency"]}
+  {:type :number,
+   :help "If the time step is too large, it will be capped to this max value (seconds)",
+   :default 0.5,
+   :path ["engine" "max_time_step"]}
   {:type :integer,
    :help
    "the width in pixels of the application window, 960 by default",
@@ -669,7 +673,7 @@
    :path ["android" "minimum_sdk_version"]}
   {:type :integer,
    :help "the API Level that the application targets (android:targetSdkVersion)",
-   :default 33,
+   :default 34,
    :path ["android" "target_sdk_version"]}
   {:type :string,
    :help "package identifier",

@@ -54,7 +54,7 @@ public class ResourceCacheKey {
 	 * @param resource The resource to calculate cache key for
 	 * @return The cache key as a hex string
 	 */
-	public static String calculate(Task<?> task, Map<String, String> projectOptions, IResource resource) throws RuntimeException, IOException {
+	public static String calculate(Task task, Map<String, String> projectOptions, IResource resource) throws RuntimeException, IOException {
 		MessageDigest digest = task.calculateSignatureDigest();
 
 		digest.update(resource.getPath().getBytes());

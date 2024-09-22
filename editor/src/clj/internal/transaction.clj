@@ -15,11 +15,11 @@
 (ns internal.transaction
   "Internal functions that implement the transactional behavior."
   (:require [clojure.set :as set]
-            [internal.util :as util]
             [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.node :as in]
             [internal.system :as is]
+            [internal.util :as util]
             [schema.core :as s]
             [util.coll :refer [pair]]
             [util.debug-util :as du])
@@ -123,6 +123,15 @@
   [{:type :callback
     :fn f
     :args args}])
+
+(defn callback-ec
+  "Same as callback, but injects the in-transaction evaluation-context as the
+  first argument to the callback-fn."
+  [f args]
+  [{:type :callback
+    :fn f
+    :args args
+    :inject-evaluation-context true}])
 
 (defn connect
   "*transaction step* - Creates a transaction step connecting a source node and label  and a target node and label. It returns a value suitable for consumption by [[perform]]."
@@ -615,8 +624,8 @@
     (if-let [node (gt/node-by-id-at basis node-id)] ; nil if node was deleted in this transaction
       (let [;; Fetch the node value by either evaluating (value ...) for the property or looking in the node map
             ;; The context is intentionally bare, i.e. only :basis, for this reason
-            evaluation-context (in/custom-evaluation-context {:basis basis})
-            old-value (in/node-property-value* node property evaluation-context)
+            evaluation-context (in/custom-evaluation-context {:basis basis :tx-data-context (:tx-data-context ctx)})
+            old-value (in/node-property-value node property evaluation-context)
             new-value (if inject-evaluation-context
                         (apply fn evaluation-context old-value args)
                         (apply fn old-value args))
@@ -652,8 +661,13 @@
   [{:keys [node-id property]}]
   [node-id property])
 
-(defmethod perform :callback [ctx {:keys [fn args]}]
-  (apply fn args)
+(defmethod perform :callback [ctx {:keys [fn args inject-evaluation-context]}]
+  (if inject-evaluation-context
+    (let [basis (:basis ctx)
+          tx-data-context (:tx-data-context ctx)
+          evaluation-context (in/custom-evaluation-context {:basis basis :tx-data-context tx-data-context})]
+      (apply fn evaluation-context args))
+    (apply fn args))
   ctx)
 
 (defmethod metrics-key :callback
@@ -843,10 +857,11 @@
 
 (defn- finalize-update
   "Makes the transacted graph the new value of the world-state graph."
-  [{:keys [nodes-modified graphs-modified] :as ctx}]
+  [{:keys [nodes-modified graphs-modified tx-data-context] :as ctx}]
   (-> (select-keys ctx tx-report-keys)
       (assoc :status (if (empty? (:completed ctx)) :empty :ok)
-             :graphs-modified (into graphs-modified (map gt/node-id->graph-id nodes-modified)))))
+             :graphs-modified (into graphs-modified (map gt/node-id->graph-id nodes-modified))
+             :tx-data-context-map (deref tx-data-context))))
 
 (defn new-transaction-context
   [basis node-id-generators override-id-generator tx-data-context-map metrics-collector]

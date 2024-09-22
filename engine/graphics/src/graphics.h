@@ -64,8 +64,6 @@ namespace dmGraphics
     //       to the users via lua: http://lua-users.org/wiki/NumbersTutorial
     typedef uint64_t HAssetHandle;
 
-    typedef uintptr_t HComputeProgram;
-
     const static uint64_t MAX_ASSET_HANDLE_VALUE  = 0x20000000000000-1; // 2^53 - 1
     static const uint8_t  MAX_BUFFER_TYPE_COUNT   = 2 + MAX_BUFFER_COLOR_ATTACHMENTS;
     const static uint8_t  MAX_VERTEX_STREAM_COUNT = 8;
@@ -85,8 +83,9 @@ namespace dmGraphics
         ADAPTER_FAMILY_NULL    = 1,
         ADAPTER_FAMILY_OPENGL  = 2,
         ADAPTER_FAMILY_VULKAN  = 3,
-        ADAPTER_FAMILY_DIRECTX = 4,
-        ADAPTER_FAMILY_VENDOR  = 5,
+        ADAPTER_FAMILY_VENDOR  = 4,
+        ADAPTER_FAMILY_WEBGPU  = 5,
+        ADAPTER_FAMILY_DIRECTX = 6,
     };
 
     enum AssetType
@@ -123,10 +122,14 @@ namespace dmGraphics
     // Texture type
     enum TextureType
     {
-        TEXTURE_TYPE_2D       = 0,
-        TEXTURE_TYPE_2D_ARRAY = 1,
-        TEXTURE_TYPE_CUBE_MAP = 2,
-        TEXTURE_TYPE_IMAGE_2D = 3,
+        TEXTURE_TYPE_2D               = 0,
+        TEXTURE_TYPE_2D_ARRAY         = 1,
+        TEXTURE_TYPE_CUBE_MAP         = 2,
+        TEXTURE_TYPE_IMAGE_2D         = 3,
+        TEXTURE_TYPE_SAMPLER          = 4,
+        TEXTURE_TYPE_TEXTURE_2D       = 5,
+        TEXTURE_TYPE_TEXTURE_2D_ARRAY = 6,
+        TEXTURE_TYPE_TEXTURE_CUBE     = 7
     };
 
     // Texture filter
@@ -170,6 +173,7 @@ namespace dmGraphics
         CONTEXT_FEATURE_TEXTURE_ARRAY          = 1,
         CONTEXT_FEATURE_COMPUTE_SHADER         = 2,
         CONTEXT_FEATURE_STORAGE_BUFFER         = 3,
+        CONTEXT_FEATURE_VSYNC                  = 4,
     };
 
     // Translation table to translate RenderTargetAttachment to BufferType
@@ -177,16 +181,6 @@ namespace dmGraphics
     {
         BufferType m_AttachmentToBufferType[MAX_ATTACHMENT_COUNT];
         AttachmentToBufferType();
-    };
-
-    enum TextureUsageHint
-    {
-        TEXTURE_USAGE_HINT_NONE       = 0,
-        TEXTURE_USAGE_HINT_SAMPLE     = 1,
-        TEXTURE_USAGE_HINT_MEMORYLESS = 2,
-        TEXTURE_USAGE_HINT_INPUT      = 4,
-        TEXTURE_USAGE_HINT_COLOR      = 8,
-        TEXTURE_USAGE_HINT_STORAGE    = 16,
     };
 
     struct TextureCreationParams
@@ -199,7 +193,7 @@ namespace dmGraphics
         , m_OriginalWidth(0)
         , m_OriginalHeight(0)
         , m_MipMapCount(1)
-        , m_UsageHintBits(TEXTURE_USAGE_HINT_SAMPLE)
+        , m_UsageHintBits(TEXTURE_USAGE_FLAG_SAMPLE)
         {}
 
         TextureType m_Type;
@@ -281,6 +275,7 @@ namespace dmGraphics
         uint32_t              m_Width;
         uint32_t              m_Height;
         uint32_t              m_GraphicsMemorySize;             // The max allowed Gfx memory (default 0)
+        uint32_t              m_SwapInterval;                   // Initial VSync setting (default 1)
         uint8_t               m_VerifyGraphicsCalls : 1;
         uint8_t               m_PrintDeviceInfo : 1;
         uint8_t               m_RenderDocSupport : 1;           // Vulkan only
@@ -537,26 +532,26 @@ namespace dmGraphics
 
     void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer);
     void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count);
+    void DispatchCompute(HContext context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z);
 
     // Shaders
-    HVertexProgram       NewVertexProgram(HContext context, ShaderDesc::Shader* ddf);
-    HFragmentProgram     NewFragmentProgram(HContext context, ShaderDesc::Shader* ddf);
-    HComputeProgram      NewComputeProgram(HContext context, ShaderDesc::Shader* ddf);
+    HVertexProgram       NewVertexProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size);
+    HFragmentProgram     NewFragmentProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size);
+    HComputeProgram      NewComputeProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size);
 
     HProgram             NewProgram(HContext context, HComputeProgram compute_program);
     HProgram             NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program);
     void                 DeleteProgram(HContext context, HProgram program);
 
-    bool                 ReloadVertexProgram(HVertexProgram prog, ShaderDesc::Shader* ddf);
-    bool                 ReloadFragmentProgram(HFragmentProgram prog, ShaderDesc::Shader* ddf);
-    bool                 ReloadComputeProgram(HComputeProgram prog, ShaderDesc::Shader* ddf);
+    bool                 ReloadVertexProgram(HVertexProgram prog, ShaderDesc* ddf);
+    bool                 ReloadFragmentProgram(HFragmentProgram prog, ShaderDesc* ddf);
+    bool                 ReloadComputeProgram(HComputeProgram prog, ShaderDesc* ddf);
     void                 DeleteVertexProgram(HVertexProgram prog);
     void                 DeleteFragmentProgram(HFragmentProgram prog);
     void                 DeleteComputeProgram(HComputeProgram prog);
 
-    ShaderDesc::Language GetShaderProgramLanguage(HContext context, ShaderDesc::ShaderClass shader_class);
+    bool                 IsShaderLanguageSupported(HContext _context, ShaderDesc::Language language, ShaderDesc::ShaderType shader_type);
     ShaderDesc::Language GetProgramLanguage(HProgram program);
-    ShaderDesc::Shader*  GetShaderProgram(HContext context, ShaderDesc* shader_desc);
 
     void                 EnableProgram(HContext context, HProgram program);
     void                 DisableProgram(HContext context);
@@ -602,6 +597,7 @@ namespace dmGraphics
     void          GetRenderTargetSize(HRenderTarget render_target, BufferType buffer_type, uint32_t& width, uint32_t& height);
     void          SetRenderTargetSize(HRenderTarget render_target, uint32_t width, uint32_t height);
     uint32_t      GetBufferTypeIndex(BufferType buffer_type);
+    BufferType    GetBufferTypeFromIndex(uint32_t index);
     const char*   GetBufferTypeLiteral(BufferType buffer_type);
     PipelineState GetPipelineState(HContext context);
     bool          IsContextFeatureSupported(HContext context, ContextFeature feature);
@@ -646,6 +642,7 @@ namespace dmGraphics
     uint8_t     GetTextureMipmapCount(HTexture texture);
     TextureType GetTextureType(HTexture texture);
     uint8_t     GetNumTextureHandles(HTexture texture);
+    uint32_t    GetTextureUsageHintFlags(HTexture texture);
 
     const char* GetTextureTypeLiteral(TextureType texture_type);
     const char* GetTextureFormatLiteral(TextureFormat format);
@@ -698,6 +695,22 @@ namespace dmGraphics
             }
         }
         return false;
+    }
+
+    static inline bool IsTypeTextureType(Type type)
+    {
+        return type == TYPE_SAMPLER_2D ||
+               type == TYPE_SAMPLER_CUBE ||
+               type == TYPE_SAMPLER_2D_ARRAY ||
+               type == TYPE_TEXTURE_2D ||
+               type == TYPE_TEXTURE_2D_ARRAY ||
+               type == TYPE_TEXTURE_CUBE ||
+               type == TYPE_IMAGE_2D;
+    }
+
+    static inline uint32_t GetLayerCount(TextureType type)
+    {
+        return type == TEXTURE_TYPE_CUBE_MAP ? 6 : 1;
     }
 
     /**

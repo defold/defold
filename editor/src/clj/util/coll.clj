@@ -13,14 +13,30 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns util.coll
-  (:refer-clojure :exclude [bounded-count empty? some])
-  (:import [clojure.lang IEditableCollection MapEntry]
+  (:refer-clojure :exclude [bounded-count empty? mapcat not-empty some])
+  (:import [clojure.lang Cons IEditableCollection MapEntry]
            [java.util ArrayList]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
 (def empty-sorted-map (sorted-map))
+
+(defn list-or-cons?
+  "Returns true if the specified value is either a IPersistentList or a
+  clojure.lang.Cons. Useful in macros, where list expressions can be either
+  lists or Cons, often interchangeably."
+  [value]
+  ;; Note that implementing `cons?` as a separate function would be inadvisable,
+  ;; since `(cons val nil)` does not return a Cons, but a IPersistentList.
+  (or (list? value)
+      (instance? Cons value)))
+
+(defn mapcat
+  "Like core.mapcat, but faster in the non-transducer case."
+  ([f] (comp (map f) cat))
+  ([f coll] (sequence (mapcat f) coll))
+  ([f coll & colls] (apply sequence (mapcat f) coll colls)))
 
 (defn ascending-order
   "Comparator that orders items in ascending order."
@@ -103,18 +119,41 @@
       :else
       coll)))
 
+(defn empty-with-meta
+  "Like core.empty, but ensures the metadata is preserved for all collections."
+  [coll]
+  (let [original-meta (meta coll)
+        empty-coll (empty coll)]
+    (if (and original-meta (nil? (meta empty-coll)))
+      (with-meta empty-coll original-meta)
+      empty-coll)))
+
 (defn empty?
-  "Like core.empty?, but avoids generating garbage for counted collections."
+  "Like core.empty?, but avoids generating garbage when possible."
   [coll]
   (cond
-    (counted? coll)
-    (zero? (count coll))
-
     (nil? coll)
     true
 
+    (counted? coll)
+    (zero? (count coll))
+
+    (instance? CharSequence coll)
+    (.isEmpty ^CharSequence coll)
+
     :else
     (not (seq coll))))
+
+(defn not-empty
+  "Like core.not-empty, but avoids generating garbage when possible."
+  [coll]
+  (if (empty? coll)
+    nil
+    coll))
+
+(def into-set (fnil into #{}))
+
+(def into-vector (fnil into []))
 
 (defn pair-map-by
   "Returns a hash-map where the keys are the result of applying the supplied
@@ -124,10 +163,12 @@
   ([key-fn]
    {:pre [(ifn? key-fn)]}
    (map (pair-fn key-fn)))
-  ([key-fn coll]
-   (into {}
-         (map (pair-fn key-fn))
-         coll))
+  ([key-fn value-fn-or-coll]
+   (if (fn? value-fn-or-coll)
+     (map (pair-fn key-fn value-fn-or-coll))
+     (into {}
+           (map (pair-fn key-fn))
+           value-fn-or-coll)))
   ([key-fn value-fn coll]
    (into {}
          (map (pair-fn key-fn value-fn))
@@ -204,12 +245,117 @@
               (pair empty-coll empty-coll)
               coll))))
 
-(defn sorted-assoc-in
-  "Like core.assoc-in, but sorted maps will be created for any levels that do not exist."
-  [coll [key & remaining-keys] value]
-  (if remaining-keys
-    (assoc coll key (sorted-assoc-in (get coll key empty-sorted-map) remaining-keys value))
-    (assoc coll key value)))
+(defn mapcat-indexed
+  "Returns the result of applying concat to the result of applying map-indexed
+  to f and coll. Thus function f should return a collection. Returns a
+  transducer when no collection is provided."
+  ([f] (comp (map-indexed f) cat))
+  ([f coll] (sequence (mapcat-indexed f) coll)))
+
+(defn search
+  "Traverses the supplied collection hierarchy recursively, applying the
+  specified match-fn to every non-collection value. Records are considered
+  values, not collections. Returns a sequence of all non-nil results returned by
+  the match-fn."
+  [coll match-fn]
+  (cond
+    (record? coll)
+    (when-some [match (match-fn coll)]
+      [match])
+
+    (map? coll)
+    (eduction
+      (mapcat
+        (fn [entry]
+          (search (val entry) match-fn)))
+      coll)
+
+    (coll? coll)
+    (eduction
+      (mapcat
+        (fn [value]
+          (search value match-fn)))
+      coll)
+
+    :else
+    (when-some [match (match-fn coll)]
+      [match])))
+
+(defn search-with-path
+  "Traverses the supplied collection hierarchy recursively, applying the
+  specified match-fn to every non-collection value. Records are considered
+  values, not collections. Returns a sequence of pairs of every non-nil result
+  returned by the match-fn and the path to the match from the root of the
+  collection. Path tokens will be conjoined onto the supplied init-path at each
+  level and the resulting path will be part of the matching result pair."
+  [coll init-path match-fn]
+  (cond
+    (record? coll)
+    (when-some [match (match-fn coll)]
+      [(pair match init-path)])
+
+    (map? coll)
+    (eduction
+      (mapcat
+        (fn [[key value]]
+          (search-with-path value (conj init-path key) match-fn)))
+      coll)
+
+    (coll? coll)
+    (eduction
+      (mapcat-indexed
+        (fn [index value]
+          (search-with-path value (conj init-path index) match-fn)))
+      coll)
+
+    :else
+    (when-some [match (match-fn coll)]
+      [(pair match init-path)])))
+
+(defn sorted-assoc-in-empty-fn
+  "An empty-fn for use with assoc-in-ex. Returns vectors for integer keys and
+  sorted maps for non-integer keys."
+  [_ _ nested-key-path]
+  (if (integer? (first nested-key-path))
+    []
+    (sorted-map)))
+
+(defn default-assoc-in-empty-fn
+  "An empty-fn for use with assoc-in-ex. Returns vectors for integer keys and
+  hash maps for non-integer keys."
+  [_ _ nested-key-path]
+  (if (integer? (first nested-key-path))
+    []
+    {}))
+
+(defn assoc-in-ex
+  "Like core.assoc-in, but the supplied empty-fn will be called whenever an
+  intermediate collection along the key-path does not yet exist. The empty-fn is
+  expected to return an empty collection that we will associate entries into.
+  Supplying (constantly {}) as the empty-fn will mimic the behavior of the
+  core.assoc-in function. The arguments supplied to the empty-fn are the parent
+  collection, the key in the parent collection where we expected to find a
+  nested collection, and the remaining key-path that will address into the
+  missing nested collection. If coll is nil, the empty-fn will be called with
+  nil, nil key-path. If no empty-fn is supplied, the default empty-fn that
+  produces vectors for integer keys and hash-maps for other keys will be used."
+  ([coll key-path value]
+   (assoc-in-ex coll key-path value default-assoc-in-empty-fn))
+  ([coll key-path value empty-fn]
+   {:pre [(ifn? empty-fn)]}
+   (let [key (key-path 0)
+         nested-key-path (subvec key-path 1)
+         coll (if (some? coll)
+                coll
+                (empty-fn nil nil key-path))]
+     (assoc coll
+       key
+       (if (zero? (count nested-key-path))
+         value
+         (assoc-in-ex (if-some [nested-coll (get coll key)]
+                        nested-coll
+                        (empty-fn coll key nested-key-path))
+           nested-key-path value empty-fn))))))
 
 (def xform-nested-map->path-map
   "Transducer that takes a nested map and returns a flat map of vector paths to
@@ -237,13 +383,13 @@
   same values."
   [path-map]
   {:pre [(map? path-map)]}
-  (reduce (if (sorted? path-map)
-            (fn [nested-map [path value]]
-              (sorted-assoc-in nested-map path value))
-            (fn [nested-map [path value]]
-              (assoc-in nested-map path value)))
-          (empty path-map)
-          path-map))
+  (let [empty-fn (if (sorted? path-map)
+                   sorted-assoc-in-empty-fn
+                   default-assoc-in-empty-fn)]
+    (reduce (fn [nested-map [path value]]
+              (assoc-in-ex nested-map path value empty-fn))
+            (empty path-map)
+            path-map)))
 
 (defn- preserving-reduced [rf]
   #(let [result (rf %1 %2)]

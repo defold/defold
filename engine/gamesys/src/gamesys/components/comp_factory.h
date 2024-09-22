@@ -20,14 +20,15 @@
 
 namespace dmGameSystem
 {
-    dmGameObject::CreateResult CompFactoryNewWorld(const dmGameObject::ComponentNewWorldParams& params);
-    dmGameObject::CreateResult CompFactoryDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params);
-    dmGameObject::CreateResult CompFactoryCreate(const dmGameObject::ComponentCreateParams& params);
-    dmGameObject::CreateResult CompFactoryDestroy(const dmGameObject::ComponentDestroyParams& params);
-    dmGameObject::CreateResult CompFactoryAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params);
-    dmGameObject::UpdateResult CompFactoryUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result);
-    dmGameObject::UpdateResult CompFactoryOnMessage(const dmGameObject::ComponentOnMessageParams& params);
-    dmGameObject::PropertyResult CompFactoryGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value);
+    dmGameObject::CreateResult      CompFactoryNewWorld(const dmGameObject::ComponentNewWorldParams& params);
+    dmGameObject::CreateResult      CompFactoryDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params);
+    dmGameObject::CreateResult      CompFactoryCreate(const dmGameObject::ComponentCreateParams& params);
+    dmGameObject::CreateResult      CompFactoryDestroy(const dmGameObject::ComponentDestroyParams& params);
+    dmGameObject::CreateResult      CompFactoryAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params);
+    dmGameObject::UpdateResult      CompFactoryUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult& update_result);
+    dmGameObject::UpdateResult      CompFactoryOnMessage(const dmGameObject::ComponentOnMessageParams& params);
+    dmGameObject::PropertyResult    CompFactoryGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value);
+    void*                           CompFactoryGetComponent(const dmGameObject::ComponentGetParams& params);
 
     dmResource::HFactory CompFactoryGetResourceFactory(HFactoryWorld world);
     dmGameObject::HPrototype CompFactoryGetPrototype(HFactoryWorld world, HFactoryComponent component);

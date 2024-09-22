@@ -16,17 +16,17 @@
 #define DM_GAMESYS_RES_TILEGRID_H
 
 #include <dmsdk/gamesys/resources/res_tilegrid.h>
-#include <resource/resource.h>
+#include <dmsdk/resource/resource.hpp>
 
 namespace dmGameSystem
 {
-    dmResource::Result ResTileGridPreload(const dmResource::ResourcePreloadParams& params);
+    dmResource::Result ResTileGridPreload(const dmResource::ResourcePreloadParams* params);
 
-    dmResource::Result ResTileGridCreate(const dmResource::ResourceCreateParams& params);
+    dmResource::Result ResTileGridCreate(const dmResource::ResourceCreateParams* params);
 
-    dmResource::Result ResTileGridDestroy(const dmResource::ResourceDestroyParams& params);
+    dmResource::Result ResTileGridDestroy(const dmResource::ResourceDestroyParams* params);
 
-    dmResource::Result ResTileGridRecreate(const dmResource::ResourceRecreateParams& params);
+    dmResource::Result ResTileGridRecreate(const dmResource::ResourceRecreateParams* params);
 }
 
 #endif // DM_GAMESYS_RES_TILEGRID_H

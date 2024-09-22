@@ -140,6 +140,26 @@ namespace dmGui
         return 0;
     }
 
+    const char* GetResultLiteral(Result result)
+    {
+    #define GUI_RESULT_TO_STR_CASE(x) case x: return #x;
+        switch(result)
+        {
+            GUI_RESULT_TO_STR_CASE(RESULT_OK);
+            GUI_RESULT_TO_STR_CASE(RESULT_SYNTAX_ERROR);
+            GUI_RESULT_TO_STR_CASE(RESULT_SCRIPT_ERROR);
+            GUI_RESULT_TO_STR_CASE(RESULT_OUT_OF_RESOURCES);
+            GUI_RESULT_TO_STR_CASE(RESULT_RESOURCE_NOT_FOUND);
+            GUI_RESULT_TO_STR_CASE(RESULT_TEXTURE_ALREADY_EXISTS);
+            GUI_RESULT_TO_STR_CASE(RESULT_INVAL_ERROR);
+            GUI_RESULT_TO_STR_CASE(RESULT_INF_RECURSION);
+            GUI_RESULT_TO_STR_CASE(RESULT_DATA_ERROR);
+            GUI_RESULT_TO_STR_CASE(RESULT_WRONG_TYPE);
+        }
+        return "<unknown dmGui::Result>";
+    #undef GUI_RESULT_TO_STR_CASE
+    }
+
     TextMetrics::TextMetrics()
     {
         memset(this, 0, sizeof(TextMetrics));
@@ -285,16 +305,17 @@ namespace dmGui
     {
         memset(params, 0, sizeof(*params));
         // The default max value for a scene is 512 (same as in gui_ddf.proto). Absolute max value is 2^INDEX_RANGE.
-        params->m_MaxNodes       = 512;
-        params->m_MaxAnimations  = 128;
-        params->m_MaxTextures    = 32;
-        params->m_MaxMaterials   = 8;
-        params->m_MaxFonts       = 4;
-        params->m_MaxParticlefxs = 128;
+        params->m_MaxNodes           = 512;
+        params->m_MaxAnimations      = 128;
+        params->m_MaxTextures        = 32;
+        params->m_MaxDynamicTextures = 32;
+        params->m_MaxMaterials       = 8;
+        params->m_MaxFonts           = 4;
+        params->m_MaxParticlefxs     = 128;
         // 256 is a hard cap for max layers, we use 8 bits in the render key (see LAYER_RANGE above)
-        params->m_MaxLayers       = 256;
-        params->m_AdjustReference = dmGui::ADJUST_REFERENCE_LEGACY;
-        params->m_ScriptWorld     = 0x0;
+        params->m_MaxLayers          = 256;
+        params->m_AdjustReference    = dmGui::ADJUST_REFERENCE_LEGACY;
+        params->m_ScriptWorld        = 0x0;
     }
 
     static void ResetScene(HScene scene) {
@@ -339,7 +360,7 @@ namespace dmGui
         scene->m_NodePool.SetCapacity(params->m_MaxNodes);
         scene->m_Animations.SetCapacity(params->m_MaxAnimations);
         scene->m_Textures.SetCapacity(params->m_MaxTextures*2, params->m_MaxTextures);
-        scene->m_DynamicTextures.SetCapacity(params->m_MaxTextures*2, params->m_MaxTextures);
+        scene->m_DynamicTextures.SetCapacity(params->m_MaxDynamicTextures*2, params->m_MaxDynamicTextures);
         scene->m_MaterialResources.SetCapacity(params->m_MaxMaterials*2, params->m_MaxMaterials);
         scene->m_Fonts.SetCapacity(params->m_MaxFonts*2, params->m_MaxFonts);
         scene->m_Particlefxs.SetCapacity(params->m_MaxParticlefxs*2, params->m_MaxParticlefxs);
@@ -363,7 +384,15 @@ namespace dmGui
         scene->m_CreateCustomNodeCallbackContext = params->m_CreateCustomNodeCallbackContext;
         scene->m_GetResourceCallback = params->m_GetResourceCallback;
         scene->m_GetResourceCallbackContext = params->m_GetResourceCallbackContext;
+        scene->m_GetMaterialPropertyCallback = params->m_GetMaterialPropertyCallback;
+        scene->m_GetMaterialPropertyCallbackContext = params->m_GetMaterialPropertyCallbackContext;
+        scene->m_SetMaterialPropertyCallback = params->m_SetMaterialPropertyCallback;
+        scene->m_SetMaterialPropertyCallbackContext = params->m_SetMaterialPropertyCallbackContext;
+        scene->m_DestroyRenderConstantsCallback = params->m_DestroyRenderConstantsCallback;
         scene->m_OnWindowResizeCallback = params->m_OnWindowResizeCallback;
+        scene->m_NewTextureResourceCallback = params->m_NewTextureResourceCallback;
+        scene->m_DeleteTextureResourceCallback = params->m_DeleteTextureResourceCallback;
+        scene->m_SetTextureResourceCallback = params->m_SetTextureResourceCallback;
         scene->m_ScriptWorld = params->m_ScriptWorld;
 
         scene->m_Layers.Put(DEFAULT_LAYER, scene->m_NextLayerIndex++);
@@ -438,12 +467,13 @@ namespace dmGui
         return scene->m_UserData;
     }
 
-    Result AddTexture(HScene scene, dmhash_t texture_name_hash, HTextureSource texture_source, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height)
+    static Result AddTexture(HScene scene, dmHashTable64<TextureInfo>& info_array, dmhash_t texture_name_hash, HTextureSource texture_source, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height, dmImage::Type image_type)
     {
-        if (scene->m_Textures.Full())
+        if (info_array.Full())
             return RESULT_OUT_OF_RESOURCES;
 
-        scene->m_Textures.Put(texture_name_hash, TextureInfo(texture_source, texture_type, original_width, original_height));
+        info_array.Put(texture_name_hash, TextureInfo(texture_source, texture_type, original_width, original_height, image_type));
+
         uint32_t n = scene->m_Nodes.Size();
         InternalNode* nodes = scene->m_Nodes.Begin();
         for (uint32_t i = 0; i < n; ++i)
@@ -457,9 +487,13 @@ namespace dmGui
         return RESULT_OK;
     }
 
-    void RemoveTexture(HScene scene, dmhash_t texture_name_hash)
+    Result AddTexture(HScene scene, dmhash_t texture_name_hash, HTextureSource texture_source, NodeTextureType texture_type, uint32_t original_width, uint32_t original_height)
     {
-        scene->m_Textures.Erase(texture_name_hash);
+        return AddTexture(scene, scene->m_Textures, texture_name_hash, texture_source, texture_type, original_width, original_height, (dmImage::Type) -1);
+    }
+
+    static void UnassignTexture(HScene scene, dmhash_t texture_name_hash)
+    {
         uint32_t n = scene->m_Nodes.Size();
         InternalNode* nodes = scene->m_Nodes.Begin();
         for (uint32_t i = 0; i < n; ++i)
@@ -476,6 +510,12 @@ namespace dmGui
                 node.m_TextureType = NODE_TEXTURE_TYPE_NONE;
             }
         }
+    }
+
+    void RemoveTexture(HScene scene, dmhash_t texture_name_hash)
+    {
+        scene->m_Textures.Erase(texture_name_hash);
+        UnassignTexture(scene, texture_name_hash);
     }
 
     void ClearTextures(HScene scene)
@@ -530,130 +570,91 @@ namespace dmGui
         return true;
     }
 
-    static Result MakeDynamicTextureData(DynamicTexture* dynamic_texture, uint32_t width, uint32_t height, dmImage::Type type, bool flip, const void* buffer, uint32_t buffer_size)
+    static void* MakeDynamicTextureData(uint32_t width, uint32_t height, dmImage::Type type, bool flip, const void* buffer, uint32_t buffer_size)
     {
-        assert(dynamic_texture->m_Buffer == 0x0);
-        dynamic_texture->m_Buffer = malloc(buffer_size);
+        void* data = malloc(buffer_size);
 
         if (flip)
         {
-            if (!CopyImageBufferFlipped(width, height, (uint8_t*)buffer, buffer_size, type, (uint8_t*)dynamic_texture->m_Buffer))
+            if (!CopyImageBufferFlipped(width, height, (uint8_t*)buffer, buffer_size, type, (uint8_t*) data))
             {
-                free(dynamic_texture->m_Buffer);
-                dynamic_texture->m_Buffer = 0;
-                return RESULT_DATA_ERROR;
+                free(data);
+                return 0;
             }
         }
         else
         {
-            memcpy(dynamic_texture->m_Buffer, buffer, buffer_size);
+            memcpy(data, buffer, buffer_size);
         }
-
-        dynamic_texture->m_Width  = width;
-        dynamic_texture->m_Height = height;
-        dynamic_texture->m_Type   = type;
-        return RESULT_OK;
+        return data;
     }
 
-    Result NewDynamicTexture(HScene scene, const dmhash_t texture_hash, uint32_t width, uint32_t height, dmImage::Type type, bool flip, const void* buffer, uint32_t buffer_size)
+    Result NewDynamicTexture(HScene scene, const dmhash_t path, uint32_t width, uint32_t height, dmImage::Type type, bool flip, const void* buffer, uint32_t buffer_size)
     {
         uint32_t expected_buffer_size = width * height * dmImage::BytesPerPixel(type);
-        if (buffer_size != expected_buffer_size) {
+        if (buffer_size != expected_buffer_size)
+        {
             dmLogError("Invalid image buffer size. Expected %d, got %d", expected_buffer_size, buffer_size);
             return RESULT_INVAL_ERROR;
         }
 
-        if (DynamicTexture* t = scene->m_DynamicTextures.Get(texture_hash))
+        void* data = MakeDynamicTextureData(width, height, type, flip, buffer, buffer_size);
+        if (!data)
         {
-            if (t->m_Deleted)
-            {
-                t->m_Deleted = 0;
-                return MakeDynamicTextureData(t, width, height, type, flip, buffer, buffer_size);
-            }
-            else
-            {
-                return RESULT_TEXTURE_ALREADY_EXISTS;
-            }
+            return RESULT_DATA_ERROR;
         }
 
-        if (scene->m_DynamicTextures.Full()) {
-            return RESULT_OUT_OF_RESOURCES;
-        }
+        HTextureSource res = scene->m_NewTextureResourceCallback(scene, path, width, height, type, data);
+        free(data);
 
-        DynamicTexture t(0);
+        uint32_t buffer_size_mb = expected_buffer_size / 1024.0 / 1024.0;
+        DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, buffer_size_mb);
 
-        Result res = MakeDynamicTextureData(&t, width, height, type, flip, buffer, buffer_size);
-        if (res != RESULT_OK)
-        {
-            return res;
-        }
-
-        scene->m_DynamicTextures.Put(texture_hash, t);
-
-        return RESULT_OK;
+        return AddTexture(scene, scene->m_DynamicTextures, path, res, NODE_TEXTURE_TYPE_TEXTURE, width, height, type);
     }
 
     Result DeleteDynamicTexture(HScene scene, const dmhash_t texture_hash)
     {
-        DynamicTexture* t = scene->m_DynamicTextures.Get(texture_hash);
-
-        if (!t) {
+        TextureInfo* t = scene->m_DynamicTextures.Get(texture_hash);
+        if (!t)
+        {
             return RESULT_RESOURCE_NOT_FOUND;
         }
-        t->m_Deleted = 1U;
 
-        if (t->m_Buffer) {
-            free(t->m_Buffer);
-            t->m_Buffer = 0;
-        }
+        uint32_t buffer_size_mb = t->m_OriginalWidth * t->m_OriginalHeight * dmImage::BytesPerPixel(t->m_ImageType);
+        DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, - buffer_size_mb);
+
+        scene->m_DeleteTextureResourceCallback(scene, texture_hash, t->m_TextureSource);
+        scene->m_DynamicTextures.Erase(texture_hash);
+        UnassignTexture(scene, texture_hash);
 
         return RESULT_OK;
     }
 
     Result SetDynamicTextureData(HScene scene, const dmhash_t texture_hash, uint32_t width, uint32_t height, dmImage::Type type, bool flip, const void* buffer, uint32_t buffer_size)
     {
-        DynamicTexture*t = scene->m_DynamicTextures.Get(texture_hash);
-
-        if (!t) {
-            return RESULT_RESOURCE_NOT_FOUND;
-        }
-
-        if (t->m_Deleted) {
-            dmLogError("Can't set texture data for deleted texture");
+        TextureInfo* t = scene->m_DynamicTextures.Get(texture_hash);
+        if (!t)
+        {
             return RESULT_INVAL_ERROR;
         }
 
-        if (t->m_Buffer) {
-            free(t->m_Buffer);
-            t->m_Buffer = 0;
-        }
-
-        DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, - (buffer_size / 1024.0 / 1024.0));
-        return MakeDynamicTextureData(t, width, height, type, flip, buffer, buffer_size);
-    }
-
-    Result GetDynamicTextureData(HScene scene, const dmhash_t texture_hash, uint32_t* out_width, uint32_t* out_height, dmImage::Type* out_type, const void** out_buffer)
-    {
-        DynamicTexture*t = scene->m_DynamicTextures.Get(texture_hash);
-
-        if (!t) {
-            return RESULT_RESOURCE_NOT_FOUND;
-        }
-
-        if (t->m_Deleted) {
-            dmLogError("Can't get texture data for deleted texture");
-            return RESULT_INVAL_ERROR;
-        }
-
-        if (!t->m_Buffer) {
-            dmLogError("No texture data available for dynamic texture");
+        void* data = MakeDynamicTextureData(width, height, type, flip, buffer, buffer_size);
+        if (!data)
+        {
             return RESULT_DATA_ERROR;
         }
 
-        *out_width = t->m_Width;
-        *out_height = t->m_Height;
-        *out_type = t->m_Type;
-        *out_buffer = t->m_Buffer;
+        scene->m_SetTextureResourceCallback(scene, texture_hash, width, height, type, data);
+        free(data);
+
+        t->m_OriginalWidth  = width;
+        t->m_OriginalHeight = height;
+        t->m_ImageType      = type;
+
+        uint32_t buffer_size_orig_mb = t->m_OriginalWidth * t->m_OriginalHeight * dmImage::BytesPerPixel(t->m_ImageType);
+        uint32_t buffer_size_mb      = buffer_size / 1024.0 / 1024.0 - buffer_size_orig_mb;
+        DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, - buffer_size_mb);
 
         return RESULT_OK;
     }
@@ -1046,120 +1047,30 @@ namespace dmGui
         }
     }
 
-    struct UpdateDynamicTexturesParams
+    static void DeleteDynamicTextures(HScene scene)
     {
-        UpdateDynamicTexturesParams()
-        {
-            memset(this, 0, sizeof(*this));
-        }
-        HScene m_Scene;
-        void*  m_Context;
-        const RenderSceneParams* m_Params;
-        int    m_NewCount;
-    };
-
-    static void UpdateDynamicTextures(UpdateDynamicTexturesParams* params, const dmhash_t* key, DynamicTexture* texture)
-    {
-        dmGui::Scene* const scene = params->m_Scene;
-        void* const context = params->m_Context;
-
-        if (texture->m_Deleted) {
-            // handle might be null if the texture is created/destroyed in the same frame
-            if (texture->m_Handle) {
-                float buffer_size = texture->m_Width * texture->m_Height * dmImage::BytesPerPixel(texture->m_Type) / 1024.0 / 1024.0;
-                DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, - buffer_size);
-                params->m_Params->m_DeleteTexture(scene, texture->m_Handle, NODE_TEXTURE_TYPE_DYNAMIC, context);
-            }
-            if (scene->m_DeletedDynamicTextures.Full()) {
-                scene->m_DeletedDynamicTextures.OffsetCapacity(16);
-            }
-            scene->m_DeletedDynamicTextures.Push(*key);
-        } else {
-            if (!texture->m_Handle && texture->m_Buffer) {
-                float buffer_size = texture->m_Width * texture->m_Height * dmImage::BytesPerPixel(texture->m_Type) / 1024.0 / 1024.0;
-                DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, buffer_size);
-                texture->m_Handle = params->m_Params->m_NewTexture(scene, texture->m_Width, texture->m_Height, texture->m_Type, texture->m_Buffer, context);
-                params->m_NewCount++;
-                free(texture->m_Buffer);
-                texture->m_Buffer = 0;
-            } else if (texture->m_Handle && texture->m_Buffer) {
-                float buffer_size = texture->m_Width * texture->m_Height * dmImage::BytesPerPixel(texture->m_Type) / 1024.0 / 1024.0;
-                DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, buffer_size);
-                params->m_Params->m_SetTextureData(scene, texture->m_Handle, texture->m_Width, texture->m_Height, texture->m_Type, texture->m_Buffer, context);
-                free(texture->m_Buffer);
-                texture->m_Buffer = 0;
-            }
-        }
-    }
-
-    static void UpdateDynamicTextures(HScene scene, const RenderSceneParams& params, void* context)
-    {
-        UpdateDynamicTexturesParams p;
-        p.m_Scene = scene;
-        p.m_Context = context;
-        p.m_Params = &params;
-        scene->m_DeletedDynamicTextures.SetSize(0);
-        scene->m_DynamicTextures.Iterate(UpdateDynamicTextures, &p);
-
-        if (p.m_NewCount > 0) {
-            uint32_t n = scene->m_Nodes.Size();
-            InternalNode* nodes = scene->m_Nodes.Begin();
-            for (uint32_t j = 0; j < n; ++j) {
-                Node& node = nodes[j].m_Node;
-                if (DynamicTexture* texture = scene->m_DynamicTextures.Get(node.m_TextureHash)) {
-                    node.m_Texture = texture->m_Handle;
-                    node.m_TextureType = NODE_TEXTURE_TYPE_DYNAMIC;
-                }
-            }
-        }
-    }
-
-    static void DeleteDynamicTextures(HScene scene, DeleteTexture delete_texture)
-    {
-        dmHashTable64<DynamicTexture>::Iterator dynamic_textures_iter = scene->m_DynamicTextures.GetIterator();
+        dmHashTable64<TextureInfo>::Iterator dynamic_textures_iter = scene->m_DynamicTextures.GetIterator();
         while(dynamic_textures_iter.Next())
         {
-            const DynamicTexture texture = dynamic_textures_iter.GetValue();
-            if (texture.m_Buffer) {
-                free(texture.m_Buffer);
-            }
-            if (texture.m_Handle) {
-                float buffer_size = texture.m_Width * texture.m_Height * dmImage::BytesPerPixel(texture.m_Type) / 1024.0 / 1024.0;
-                DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, - buffer_size);
-                delete_texture(scene, texture.m_Handle, NODE_TEXTURE_TYPE_DYNAMIC, scene->m_Context);
-            }
+            const dmhash_t key = dynamic_textures_iter.GetKey();
+            const TextureInfo texture = dynamic_textures_iter.GetValue();
+            float buffer_size = texture.m_OriginalWidth * texture.m_OriginalHeight * dmImage::BytesPerPixel(texture.m_ImageType) / 1024.0 / 1024.0;
+            DM_PROPERTY_ADD_F32(rmtp_GuiDynamicTexturesSizeMb, - buffer_size);
+            scene->m_DeleteTextureResourceCallback(scene, key, texture.m_TextureSource);
         }
         scene->m_DynamicTextures.Clear();
     }
 
-    static void DeferredDeleteDynamicTextures(HScene scene, const RenderSceneParams& params, void* context)
-    {
-        for (uint32_t i = 0; i < scene->m_DeletedDynamicTextures.Size(); ++i) {
-            dmhash_t texture_hash = scene->m_DeletedDynamicTextures[i];
-            scene->m_DynamicTextures.Erase(texture_hash);
-
-            uint32_t n = scene->m_Nodes.Size();
-            InternalNode* nodes = scene->m_Nodes.Begin();
-            for (uint32_t j = 0; j < n; ++j) {
-                Node& node = nodes[j].m_Node;
-                if (node.m_TextureHash == texture_hash) {
-                    node.m_Texture = 0;
-                    node.m_TextureType = NODE_TEXTURE_TYPE_NONE;
-                    // Do not break here. Texture may be used multiple times.
-                }
-            }
-        }
-    }
-
     void IterateDynamicTextures(dmhash_t gui_res_id, HScene scene, FDynamicTextturesIterator callback, void* user_ctx)
     {
-        dmHashTable64<DynamicTexture>::Iterator dynamic_textures_iter = scene->m_DynamicTextures.GetIterator();
+        dmHashTable64<TextureInfo>::Iterator dynamic_textures_iter = scene->m_DynamicTextures.GetIterator();
         while(dynamic_textures_iter.Next())
         {
-            const DynamicTexture texture = dynamic_textures_iter.GetValue();
-            uint32_t size = texture.m_Width * texture.m_Height * dmImage::BytesPerPixel(texture.m_Type);
+            const TextureInfo texture = dynamic_textures_iter.GetValue();
+            uint32_t size = texture.m_OriginalWidth * texture.m_OriginalHeight * dmImage::BytesPerPixel(texture.m_ImageType);
             bool result = callback(gui_res_id, dynamic_textures_iter.GetKey(), size, user_ctx);
-            if (!result) {
+            if (!result)
+            {
                 break;
             }
         }
@@ -1452,9 +1363,6 @@ namespace dmGui
     void RenderScene(HScene scene, const RenderSceneParams& params, void* context)
     {
         Context* c = scene->m_Context;
-
-        UpdateDynamicTextures(scene, params, context);
-        DeferredDeleteDynamicTextures(scene, params, context);
 
         c->m_RenderNodes.SetSize(0);
         c->m_RenderTransforms.SetSize(0);
@@ -2128,7 +2036,7 @@ namespace dmGui
         return RunScript(scene, SCRIPT_FUNCTION_INIT, LUA_NOREF, 0x0);
     }
 
-    Result FinalScene(HScene scene, DeleteTexture delete_texture)
+    Result FinalScene(HScene scene)
     {
         Result result = RunScript(scene, SCRIPT_FUNCTION_FINAL, LUA_NOREF, 0x0);
 
@@ -2157,7 +2065,7 @@ namespace dmGui
         }
         scene->m_AliveParticlefxs.SetSize(0);
 
-        DeleteDynamicTextures(scene, delete_texture);
+        DeleteDynamicTextures(scene);
         ClearLayouts(scene);
         return result;
     }
@@ -2615,6 +2523,11 @@ namespace dmGui
             scene->m_DestroyCustomNodeCallback(scene->m_CreateCustomNodeCallbackContext, scene, node, n->m_Node.m_CustomType, n->m_Node.m_CustomData);
         }
 
+        if (n->m_Node.m_RenderConstants)
+        {
+            scene->m_DestroyRenderConstantsCallback(n->m_Node.m_RenderConstants);
+        }
+
         // Stop (or destroy) any living particle instances started on this node
         uint32_t count = scene->m_AliveParticlefxs.Size();
         uint32_t i = 0;
@@ -2957,6 +2870,47 @@ namespace dmGui
         n->m_Node.m_DirtyLocal = 1;
     }
 
+    bool GetMaterialProperty(HScene scene, HNode node, dmhash_t property_hash, dmGameObject::PropertyDesc& property_desc, const dmGameObject::PropertyOptions* material_prop_options)
+    {
+        if (!scene->m_GetMaterialPropertyCallback)
+        {
+            return false;
+        }
+        return scene->m_GetMaterialPropertyCallback(scene->m_GetMaterialPropertyCallbackContext, scene, node, property_hash, property_desc, material_prop_options);
+    }
+
+    bool SetMaterialProperty(HScene scene, HNode node, dmhash_t property_hash, const dmGameObject::PropertyVar& property_var, const dmGameObject::PropertyOptions* material_prop_options)
+    {
+        if (!scene->m_SetMaterialPropertyCallback)
+        {
+            return false;
+        }
+        return scene->m_SetMaterialPropertyCallback(scene->m_SetMaterialPropertyCallbackContext, scene, node, property_hash, property_var, material_prop_options);
+    }
+
+    const void* GetNodeRenderConstants(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return n->m_Node.m_RenderConstants;
+    }
+
+    void SetNodeRenderConstants(HScene scene, HNode node, void* render_constants)
+    {
+        InternalNode* n = GetNode(scene, node);
+        n->m_Node.m_RenderConstants = render_constants;
+    }
+
+    void SetNodeRenderConstantsHash(HScene scene, HNode node, uint32_t render_constants_hash)
+    {
+        InternalNode* n = GetNode(scene, node);
+        n->m_Node.m_RenderConstantsHash = render_constants_hash;
+    }
+    uint32_t GetNodeRenderConstantsHash(HScene scene, HNode node)
+    {
+        InternalNode* n = GetNode(scene, node);
+        return n->m_Node.m_RenderConstantsHash;
+    }
+
     void SetNodeResetPoint(HScene scene, HNode node)
     {
         InternalNode* n = GetNode(scene, node);
@@ -3074,12 +3028,22 @@ namespace dmGui
         return SetNodeMaterial(scene, node, dmHashString64(material_id));
     }
 
+    static inline TextureInfo* GetTextureInfo(HScene scene, dmhash_t texture_id)
+    {
+        TextureInfo* texture_info = scene->m_Textures.Get(texture_id);
+        return texture_info ? texture_info : scene->m_DynamicTextures.Get(texture_id);
+    }
+
     Result SetNodeTexture(HScene scene, HNode node, dmhash_t texture_id)
     {
         InternalNode* n = GetNode(scene, node);
         if (n->m_Node.m_TextureType == NODE_TEXTURE_TYPE_TEXTURE_SET)
+        {
             CancelNodeFlipbookAnim(scene, node);
-        if (TextureInfo* texture_info = scene->m_Textures.Get(texture_id)) {
+        }
+
+        if (TextureInfo* texture_info = GetTextureInfo(scene, texture_id))
+        {
             n->m_Node.m_TextureHash = texture_id;
             n->m_Node.m_Texture = texture_info->m_TextureSource;
             n->m_Node.m_TextureType = texture_info->m_TextureSourceType;
@@ -3090,18 +3054,6 @@ namespace dmGui
             {
                 n->m_Node.m_Properties[PROPERTY_SIZE][0] = texture_info->m_OriginalWidth;
                 n->m_Node.m_Properties[PROPERTY_SIZE][1] = texture_info->m_OriginalHeight;
-            }
-            return RESULT_OK;
-        } else if (DynamicTexture* texture = scene->m_DynamicTextures.Get(texture_id)) {
-            n->m_Node.m_TextureHash = texture_id;
-            n->m_Node.m_Texture = texture->m_Handle;
-            n->m_Node.m_TextureType = NODE_TEXTURE_TYPE_DYNAMIC;
-            if((n->m_Node.m_SizeMode != SIZE_MODE_MANUAL) &&
-                (n->m_Node.m_NodeType != NODE_TYPE_CUSTOM) &&
-                (n->m_Node.m_NodeType != NODE_TYPE_PARTICLEFX))
-            {
-                n->m_Node.m_Properties[PROPERTY_SIZE][0] = texture->m_Width;
-                n->m_Node.m_Properties[PROPERTY_SIZE][1] = texture->m_Height;
             }
             return RESULT_OK;
         }
@@ -3592,11 +3544,6 @@ namespace dmGui
                     n->m_Node.m_Properties[PROPERTY_SIZE][0] = texture_info->m_OriginalWidth;
                     n->m_Node.m_Properties[PROPERTY_SIZE][1] = texture_info->m_OriginalHeight;
                 }
-            }
-            else if (DynamicTexture* texture = scene->m_DynamicTextures.Get(n->m_Node.m_TextureHash))
-            {
-                n->m_Node.m_Properties[PROPERTY_SIZE][0] = texture->m_Width;
-                n->m_Node.m_Properties[PROPERTY_SIZE][1] = texture->m_Height;
             }
         }
     }

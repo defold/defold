@@ -29,7 +29,6 @@
 #include "../graphics_native.h"
 #include "../graphics_adapter.h"
 #include "graphics_null_private.h"
-#include "glsl_uniform_parser.h"
 
 uint64_t g_DrawCount = 0;
 uint64_t g_Flipped = 0;
@@ -55,11 +54,13 @@ namespace dmGraphics
 
     static GraphicsAdapterFunctionTable NullRegisterFunctionTable();
     static bool                         NullIsSupported();
+    static HContext                     NullGetContext();
+
     static const int8_t    g_null_adapter_priority = 3;
     static GraphicsAdapter g_null_adapter(ADAPTER_FAMILY_NULL);
     static NullContext*    g_NullContext = 0x0;
 
-    DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterNull, &g_null_adapter, NullIsSupported, NullRegisterFunctionTable, g_null_adapter_priority);
+    DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterNull, &g_null_adapter, NullIsSupported, NullRegisterFunctionTable, NullGetContext, g_null_adapter_priority);
 
     struct AssetContainerLock
     {
@@ -81,7 +82,7 @@ namespace dmGraphics
         dmMutex::HMutex m_Mutex;
     };
 
-    static bool NullInitialize(HContext context);
+    static bool NullInitialize(HContext context, const ContextParams& params);
     static void PostDeleteTextures(NullContext* context, bool force_delete);
 
     static void NullFinalize()
@@ -121,9 +122,6 @@ namespace dmGraphics
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_16BPP;
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_16BPP;
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_ETC1;
-
-        m_ShaderClassLanguage[(int) ShaderDesc::SHADER_CLASS_GRAPHICS] = ShaderDesc::LANGUAGE_GLSL_SM140;
-        m_ShaderClassLanguage[(int) ShaderDesc::SHADER_CLASS_COMPUTE]  = ShaderDesc::LANGUAGE_GLSL_SM430;
     }
 
     static HContext NullNewContext(const ContextParams& params)
@@ -132,7 +130,8 @@ namespace dmGraphics
         {
             g_NullContext = new NullContext(params);
 
-            if (NullInitialize(g_NullContext)){
+            if (NullInitialize(g_NullContext, params))
+            {
                 return g_NullContext;
             }
 
@@ -144,6 +143,11 @@ namespace dmGraphics
     static bool NullIsSupported()
     {
         return true;
+    }
+
+    static HContext NullGetContext()
+    {
+        return g_NullContext;
     }
 
     static void NullDeleteContext(HContext _context)
@@ -164,7 +168,7 @@ namespace dmGraphics
         }
     }
 
-    static bool NullInitialize(HContext _context)
+    static bool NullInitialize(HContext _context, const ContextParams& params)
     {
         assert(_context);
 
@@ -196,6 +200,9 @@ namespace dmGraphics
         {
             dmLogInfo("Device: null");
         }
+
+        SetSwapInterval(context, params.m_SwapInterval);
+
         return true;
     }
 
@@ -656,6 +663,11 @@ namespace dmGraphics
         g_DrawCount++;
     }
 
+    static void NullDispatchCompute(HContext _context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z)
+    {
+        // Not supported
+    }
+
     // For tests
     void ResetDrawCount()
     {
@@ -666,8 +678,6 @@ namespace dmGraphics
     {
         return g_DrawCount;
     }
-
-    static void ProgramShaderResourceCallback(dmGraphics::GLSLUniformParserBindingType binding_type, const char* name, uint32_t name_length, dmGraphics::Type type, uint32_t size, uintptr_t userdata);
 
     struct ShaderBinding
     {
@@ -684,6 +694,7 @@ namespace dmGraphics
         char*                  m_Data;
         ShaderDesc::Language   m_Language;
         dmArray<ShaderBinding> m_Uniforms;
+        dmArray<ShaderBinding> m_Attributes;
     };
 
     static void PushBinding(dmArray<ShaderBinding>* binding_array, const char* name, uint32_t name_length, dmGraphics::Type type, uint32_t size)
@@ -715,14 +726,12 @@ namespace dmGraphics
             m_FP      = fp;
             if (m_VP != 0x0)
             {
-                GLSLAttributeParse(m_VP->m_Language, m_VP->m_Data, ProgramShaderResourceCallback, (uintptr_t)this);
-                GLSLUniformParse(m_VP->m_Language, m_VP->m_Data, ProgramShaderResourceCallback, (uintptr_t)this);
                 TransferUniforms(m_VP);
+                TransferAttributes(m_VP);
                 m_Language = m_VP->m_Language;
             }
             if (m_FP != 0x0)
             {
-                GLSLUniformParse(m_FP->m_Language, m_FP->m_Data, ProgramShaderResourceCallback, (uintptr_t)this);
                 TransferUniforms(m_FP);
                 m_Language = m_FP->m_Language;
             }
@@ -737,7 +746,6 @@ namespace dmGraphics
 
             if (m_Compute != 0x0)
             {
-                GLSLUniformParse(m_Compute->m_Language, m_Compute->m_Data, ProgramShaderResourceCallback, (uintptr_t) this);
                 TransferUniforms(m_Compute);
                 m_Language = compute->m_Language;
             }
@@ -748,6 +756,14 @@ namespace dmGraphics
             for (int i = 0; i < p->m_Uniforms.Size(); ++i)
             {
                 PushBinding(&m_Uniforms, p->m_Uniforms[i].m_Name, strlen(p->m_Uniforms[i].m_Name), p->m_Uniforms[i].m_Type, p->m_Uniforms[i].m_Size);
+            }
+        }
+
+        void TransferAttributes(ShaderProgram* p)
+        {
+            for (int i = 0; i < p->m_Attributes.Size(); ++i)
+            {
+                PushBinding(&m_Attributes, p->m_Attributes[i].m_Name, strlen(p->m_Attributes[i].m_Name), p->m_Attributes[i].m_Type, p->m_Attributes[i].m_Size);
             }
         }
 
@@ -769,55 +785,67 @@ namespace dmGraphics
         dmArray<ShaderBinding> m_Attributes;
     };
 
-    static void ProgramShaderResourceCallback(dmGraphics::GLSLUniformParserBindingType binding_type, const char* name, uint32_t name_length, dmGraphics::Type type, uint32_t size, uintptr_t userdata)
-    {
-        Program* program = (Program*) userdata;
-
-        dmArray<ShaderBinding>* binding_array = binding_type == GLSLUniformParserBindingType::UNIFORM ?
-            &program->m_Uniforms : &program->m_Attributes;
-
-        PushBinding(binding_array, name, name_length, type, size);
-    }
-
-    static ShaderProgram* NewShaderProgramFromDDF(ShaderDesc::Shader* ddf)
+    static ShaderProgram* NewShaderProgramFromDDF(HContext context, ShaderDesc* ddf)
     {
         assert(ddf);
-        ShaderProgram* p = new ShaderProgram();
-        p->m_Data = new char[ddf->m_Source.m_Count+1];
-        memcpy(p->m_Data, ddf->m_Source.m_Data, ddf->m_Source.m_Count);
-        p->m_Data[ddf->m_Source.m_Count] = '\0';
-        p->m_Language = ddf->m_Language;
 
-        for (int i = 0; i < ddf->m_UniformBuffers.m_Count; ++i)
+        ShaderDesc::Shader* shader = GetShaderProgram(context, ddf);
+        if (shader == 0x0)
         {
-            ShaderDesc::ResourceBinding& res = ddf->m_UniformBuffers[i];
+            return 0x0;
+        }
 
-            ShaderDesc::ResourceTypeInfo& type = ddf->m_Types[res.m_Type.m_Type.m_TypeIndex];
+        ShaderProgram* p = new ShaderProgram();
+        p->m_Data = new char[shader->m_Source.m_Count+1];
+        memcpy(p->m_Data, shader->m_Source.m_Data, shader->m_Source.m_Count);
+        p->m_Data[shader->m_Source.m_Count] = '\0';
+        p->m_Language = shader->m_Language;
 
-            for (int j = 0; j < type.m_Members.m_Count; ++j)
+        ShaderDesc::ShaderReflection* reflection = &ddf->m_Reflection;
+
+        for (int i = 0; i < reflection->m_Inputs.m_Count; ++i)
+        {
+            ShaderDesc::ResourceBinding& res = reflection->m_Inputs[i];
+            PushBinding(&p->m_Attributes, res.m_Name, strlen(res.m_Name), ShaderDataTypeToGraphicsType(res.m_Type.m_Type.m_ShaderType), 1);
+        }
+
+        for (int i = 0; i < reflection->m_UniformBuffers.m_Count; ++i)
+        {
+            ShaderDesc::ResourceBinding& res = reflection->m_UniformBuffers[i];
+
+            if (res.m_Type.m_UseTypeIndex)
             {
-                PushBinding(&p->m_Uniforms, type.m_Members[j].m_Name, strlen(type.m_Members[j].m_Name), ShaderDataTypeToGraphicsType(type.m_Members[j].m_Type.m_Type.m_ShaderType), 1);
+                ShaderDesc::ResourceTypeInfo& type = reflection->m_Types[res.m_Type.m_Type.m_TypeIndex];
+                for (int j = 0; j < type.m_Members.m_Count; ++j)
+                {
+                    uint32_t element_count = dmMath::Max(type.m_Members[j].m_ElementCount, 1u);
+                    PushBinding(&p->m_Uniforms, type.m_Members[j].m_Name, strlen(type.m_Members[j].m_Name), ShaderDataTypeToGraphicsType(type.m_Members[j].m_Type.m_Type.m_ShaderType), element_count);
+                }
+            }
+            else
+            {
+                PushBinding(&p->m_Uniforms, res.m_Name, strlen(res.m_Name), ShaderDataTypeToGraphicsType(res.m_Type.m_Type.m_ShaderType), 1);
             }
         }
 
-        for (int i = 0; i < ddf->m_StorageBuffers.m_Count; ++i)
+        for (int i = 0; i < reflection->m_StorageBuffers.m_Count; ++i)
         {
-            ShaderDesc::ResourceBinding& res = ddf->m_StorageBuffers[i];
+            ShaderDesc::ResourceBinding& res = reflection->m_StorageBuffers[i];
             PushBinding(&p->m_Uniforms, res.m_Name, strlen(res.m_Name), ShaderDataTypeToGraphicsType(res.m_Type.m_Type.m_ShaderType), 1);
         }
 
-        for (int i = 0; i < ddf->m_Textures.m_Count; ++i)
+        for (int i = 0; i < reflection->m_Textures.m_Count; ++i)
         {
-            ShaderDesc::ResourceBinding& res = ddf->m_Textures[i];
+            ShaderDesc::ResourceBinding& res = reflection->m_Textures[i];
             PushBinding(&p->m_Uniforms, res.m_Name, strlen(res.m_Name), ShaderDataTypeToGraphicsType(res.m_Type.m_Type.m_ShaderType), 1);
         }
 
         return p;
     }
 
-    static HComputeProgram NullNewComputeProgram(HContext context, ShaderDesc::Shader* ddf)
+    static HComputeProgram NullNewComputeProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
-        return (HComputeProgram) NewShaderProgramFromDDF(ddf);
+        return (HComputeProgram) NewShaderProgramFromDDF(context, ddf);
     }
 
     static HProgram NullNewProgramFromCompute(HContext context, HComputeProgram compute_program)
@@ -854,35 +882,50 @@ namespace dmGraphics
         delete (Program*) program;
     }
 
-    static HVertexProgram NullNewVertexProgram(HContext context, ShaderDesc::Shader* ddf)
+    static HVertexProgram NullNewVertexProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
-        return (HVertexProgram) NewShaderProgramFromDDF(ddf);
+        return (HVertexProgram) NewShaderProgramFromDDF(context, ddf);
     }
 
-    static HFragmentProgram NullNewFragmentProgram(HContext context, ShaderDesc::Shader* ddf)
+    static HFragmentProgram NullNewFragmentProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
-        return (HFragmentProgram) NewShaderProgramFromDDF(ddf);
+        return (HFragmentProgram) NewShaderProgramFromDDF(context, ddf);
     }
 
-    static bool NullReloadVertexProgram(HVertexProgram prog, ShaderDesc::Shader* ddf)
+    static bool NullReloadVertexProgram(HVertexProgram prog, ShaderDesc* ddf)
     {
         assert(prog);
         assert(ddf);
-        ShaderProgram* p = (ShaderProgram*)prog;
+
+        ShaderDesc::Shader* shader = GetShaderProgram((HContext) g_NullContext, ddf);
+        if (shader == 0x0)
+        {
+            return false;
+        }
+
+
+        ShaderProgram* p = (ShaderProgram*) prog;
         delete [] (char*)p->m_Data;
-        p->m_Data = new char[ddf->m_Source.m_Count];
-        memcpy((char*)p->m_Data, ddf->m_Source.m_Data, ddf->m_Source.m_Count);
+        p->m_Data = new char[shader->m_Source.m_Count];
+        memcpy((char*)p->m_Data, shader->m_Source.m_Data, shader->m_Source.m_Count);
         return !g_ForceVertexReloadFail;
     }
 
-    static bool NullReloadFragmentProgram(HFragmentProgram prog, ShaderDesc::Shader* ddf)
+    static bool NullReloadFragmentProgram(HFragmentProgram prog, ShaderDesc* ddf)
     {
         assert(prog);
         assert(ddf);
+
+        ShaderDesc::Shader* shader = GetShaderProgram((HContext) g_NullContext, ddf);
+        if (shader == 0x0)
+        {
+            return false;
+        }
+
         ShaderProgram* p = (ShaderProgram*)prog;
         delete [] (char*)p->m_Data;
-        p->m_Data = new char[ddf->m_Source.m_Count];
-        memcpy((char*)p->m_Data, ddf->m_Source.m_Data, ddf->m_Source.m_Count);
+        p->m_Data = new char[shader->m_Source.m_Count];
+        memcpy((char*)p->m_Data, shader->m_Source.m_Data, shader->m_Source.m_Count);
         return !g_ForceFragmentReloadFail;
     }
 
@@ -906,27 +949,34 @@ namespace dmGraphics
         delete p;
     }
 
-    void SetOverrideShaderLanguage(HContext context, ShaderDesc::ShaderClass shader_class, ShaderDesc::Language language)
-    {
-        ((NullContext*) context)->m_ShaderClassLanguage[(int) shader_class] = language;
-    }
-
     static ShaderDesc::Language NullGetProgramLanguage(HProgram program)
     {
         return ((ShaderProgram*) program)->m_Language;
     }
 
-    static ShaderDesc::Language NullGetShaderProgramLanguage(HContext context, ShaderDesc::ShaderClass shader_class)
+    static bool NullIsShaderLanguageSupported(HContext context, ShaderDesc::Language language, ShaderDesc::ShaderType shader_type)
     {
-#if defined(DM_PLATFORM_VENDOR)
+    #if defined(DM_PLATFORM_VENDOR)
         #if defined(DM_GRAPHICS_NULL_SHADER_LANGUAGE)
-            return ShaderDesc:: DM_GRAPHICS_NULL_SHADER_LANGUAGE ;
+            return language == ShaderDesc:: DM_GRAPHICS_NULL_SHADER_LANGUAGE ;
         #else
             #error "You must define the platform default shader language using DM_GRAPHICS_NULL_SHADER_LANGUAGE"
         #endif
-#else
-        return ((NullContext*) context)->m_ShaderClassLanguage[(int) shader_class];
-#endif
+    #else
+        switch(shader_type)
+        {
+            case ShaderDesc::SHADER_TYPE_VERTEX:
+                return language == ShaderDesc::LANGUAGE_GLSL_SM140 ||
+                       language == ShaderDesc::LANGUAGE_GLSL_SM330;
+            case ShaderDesc::SHADER_TYPE_FRAGMENT:
+                return language == ShaderDesc::LANGUAGE_GLSL_SM140 ||
+                       language == ShaderDesc::LANGUAGE_GLSL_SM330;
+            case ShaderDesc::SHADER_TYPE_COMPUTE:
+                return language == ShaderDesc::LANGUAGE_GLSL_SM430 ||
+                       language == ShaderDesc::LANGUAGE_SPIRV;
+        }
+    #endif
+        return false;
     }
 
     static void NullEnableProgram(HContext context, HProgram program)
@@ -956,7 +1006,7 @@ namespace dmGraphics
         return true;
     }
 
-    static bool NullReloadComputeProgram(HComputeProgram prog, ShaderDesc::Shader* ddf)
+    static bool NullReloadComputeProgram(HComputeProgram prog, ShaderDesc* ddf)
     {
         (void)prog;
         return true;
@@ -1357,15 +1407,16 @@ namespace dmGraphics
             texture_type    = TEXTURE_TYPE_2D;
         }
 
-        tex->m_Type          = texture_type;
-        tex->m_Width         = params.m_Width;
-        tex->m_Height        = params.m_Height;
-        tex->m_Depth         = params.m_Depth;
-        tex->m_MipMapCount   = 0;
-        tex->m_Data          = 0;
-        tex->m_DataState     = 0;
-        tex->m_NumTextureIds = num_texture_ids;
-        tex->m_LastBoundUnit = new int32_t[num_texture_ids];
+        tex->m_Type           = texture_type;
+        tex->m_Width          = params.m_Width;
+        tex->m_Height         = params.m_Height;
+        tex->m_Depth          = params.m_Depth;
+        tex->m_MipMapCount    = 0;
+        tex->m_Data           = 0;
+        tex->m_DataState      = 0;
+        tex->m_NumTextureIds  = num_texture_ids;
+        tex->m_LastBoundUnit  = new int32_t[num_texture_ids];
+        tex->m_UsageHintFlags = params.m_UsageHintBits;
 
         for (int i = 0; i < num_texture_ids; ++i)
         {
@@ -1843,6 +1894,11 @@ namespace dmGraphics
     static uint8_t NullGetNumTextureHandles(HTexture texture)
     {
         return GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture)->m_NumTextureIds;
+    }
+
+    static uint32_t NullGetTextureUsageHintFlags(HTexture texture)
+    {
+        return GetAssetFromContainer<Texture>(g_NullContext->m_AssetHandleContainer, texture)->m_UsageHintFlags;
     }
 
     static bool NullIsContextFeatureSupported(HContext _context, ContextFeature feature)

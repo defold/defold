@@ -35,6 +35,7 @@ import com.dynamo.graphics.proto.Graphics;
 import com.dynamo.lua.proto.Lua.LuaModule;
 import com.dynamo.render.proto.Font;
 import com.dynamo.render.proto.Material;
+import com.dynamo.render.proto.Compute;
 import com.dynamo.render.proto.Render.RenderPrototypeDesc;
 import com.dynamo.rig.proto.Rig;
 import com.google.protobuf.InvalidProtocolBufferException;
@@ -63,6 +64,12 @@ public class ParseUtil {
                 return LuaModule.parseFrom(content);
             }
         });
+        parseMap.put("render_scriptc", new IParser() {
+            @Override
+            public Message parse(byte[] content) throws InvalidProtocolBufferException {
+                return LuaModule.parseFrom(content);
+            }
+        });
         parseMap.put("goc", new IParser() {
             @Override
             public Message parse(byte[] content) throws InvalidProtocolBufferException {
@@ -79,6 +86,12 @@ public class ParseUtil {
             @Override
             public Message parse(byte[] content) throws InvalidProtocolBufferException {
                 return SoundDesc.parseFrom(content);
+            }
+        });
+        parseMap.put("oggc", new IParser() {
+            @Override
+            public Message parse(byte[] content) throws InvalidProtocolBufferException {
+                return null;
             }
         });
         parseMap.put("texturec", new IParser() {
@@ -217,6 +230,12 @@ public class ParseUtil {
             @Override
             public Message parse(byte[] content) throws InvalidProtocolBufferException {
                 return Material.MaterialDesc.parseFrom(content);
+            }
+        });
+        parseMap.put("computec", new IParser() {
+            @Override
+            public Message parse(byte[] content) throws InvalidProtocolBufferException {
+                return Compute.ComputeDesc.parseFrom(content);
             }
         });
         parseMap.put("renderc", new IParser() {

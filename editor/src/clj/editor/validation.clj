@@ -46,6 +46,14 @@
   (when (> (id-counts id) 1)
     (format "'%s' is in use by another instance" id)))
 
+(defn prop-contains-prohibited-characters? [id name]
+  (cond
+    (re-find #"[#:]" id)
+    (format "%s should not contain special URL symbols such as '#' or ':'" name)
+
+    (or (= (first id) \space) (= (last id) \space))
+    (format "%s should not start or end with a space symbol" name)))
+
 (defn prop-negative? [v name]
   (when (< v 0)
     (format "'%s' cannot be negative" name)))
@@ -73,6 +81,13 @@
   (or (prop-resource-missing? v name)
       (when-not (= (resource/type-ext v) ext)
         (format "%s '%s' is not of type %s" name (resource/resource->proj-path v) (format-ext ext)))))
+
+(defn prop-resource-not-component? [v name]
+  (let [resource-type (some-> v resource/resource-type)
+        tags (:tags resource-type)]
+    (when-not (or (contains? tags :component)
+                  (contains? tags :embeddable))
+      (format "Only components allowed for '%s'. '%s' is not a component." name (:ext resource-type)))))
 
 (defn prop-member-of? [v val-set message]
   (when (and val-set (not (val-set v)))

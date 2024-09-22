@@ -23,6 +23,7 @@
 #include "../gameobject.h"
 #include "../gameobject_private.h"
 
+#include <dmsdk/resource/resource.h>
 #include "gameobject/gameobject_ddf.h"
 
 using namespace dmVMath;
@@ -38,7 +39,9 @@ protected:
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_EMPTY;
         m_Factory = dmResource::NewFactory(&params, "build/src/gameobject/test/collection");
-        m_ScriptContext = dmScript::NewContext(0, 0, true);
+
+        dmScript::ContextParams script_context_params = {};
+        m_ScriptContext = dmScript::NewContext(script_context_params);
         dmScript::Initialize(m_ScriptContext);
         m_Register = dmGameObject::NewRegister();
         dmGameObject::Initialize(m_Register, m_ScriptContext);
@@ -63,7 +66,7 @@ protected:
         e = dmResource::RegisterType(m_Factory, "a", this, 0, ACreate, 0, ADestroy, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
-        dmResource::ResourceType resource_type;
+        HResourceType resource_type;
         dmGameObject::Result result;
 
         // A has component_user_data
@@ -129,13 +132,13 @@ public:
     dmHashTable64<void*> m_Contexts;
 };
 
-static dmResource::Result NullResourceCreate(const dmResource::ResourceCreateParams& params)
+static dmResource::Result NullResourceCreate(const dmResource::ResourceCreateParams* params)
 {
-    params.m_Resource->m_Resource = (void*)1; // asserted for != 0 in dmResource
+    ResourceDescriptorSetResource(params->m_Resource, (void*)1); // asserted for != 0 in dmResource
     return dmResource::RESULT_OK;
 }
 
-static dmResource::Result NullResourceDestroy(const dmResource::ResourceDestroyParams& params)
+static dmResource::Result NullResourceDestroy(const dmResource::ResourceDestroyParams* params)
 {
     return dmResource::RESULT_OK;
 }

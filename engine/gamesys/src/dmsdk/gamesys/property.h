@@ -20,7 +20,7 @@
 
 namespace dmResource
 {
-    typedef struct SResourceFactory* HFactory;
+    typedef struct ResourceFactory* HFactory;
 }
 
 namespace dmGameSystem

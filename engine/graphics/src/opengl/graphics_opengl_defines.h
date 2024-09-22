@@ -91,6 +91,48 @@
 #define DMGRAPHICS_SAMPLER_2D_ARRAY                         (0x8DC1)
 #endif
 
+// Texture images
+#ifdef GL_IMAGE_2D
+    #define DMGRAPHICS_IMAGE_2D                         (GL_IMAGE_2D)
+#else
+    #define DMGRAPHICS_IMAGE_2D                         (0x904D)
+#endif
+
+// Barrier bits
+#ifdef GL_SHADER_IMAGE_ACCESS_BARRIER_BIT
+    #define DMGRAPHICS_BARRIER_BIT_SHADER_IMAGE_ACCESS       (GL_SHADER_IMAGE_ACCESS_BARRIER_BIT)
+#else
+    #define DMGRAPHICS_BARRIER_BIT_SHADER_IMAGE_ACCESS       (0x00000020)
+#endif
+
+// GL_READ_WRITE
+#ifdef GL_READ_WRITE
+    #define DMGRAPHICS_READ_WRITE               (GL_READ_WRITE)
+#else
+    #define DMGRAPHICS_READ_WRITE               (0x88BA)
+#endif
+
+// GL_READ_ONLY
+#ifdef GL_READ_ONLY
+    #define DMGRAPHICS_READ_ONLY                (GL_READ_ONLY)
+#else
+    #define DMGRAPHICS_READ_ONLY                (0x88B8)
+#endif
+
+// GL_MAJOR_VERSION
+#ifdef GL_MAJOR_VERSION
+    #define DMGRAPHICS_MAJOR_VERSION           (GL_MAJOR_VERSION)
+#else
+    #define DMGRAPHICS_MAJOR_VERSION           (0x821B)
+#endif
+
+// GL_MINOR_VERSION
+#ifdef GL_MINOR_VERSION
+    #define DMGRAPHICS_MINOR_VERSION           (GL_MINOR_VERSION)
+#else
+    #define DMGRAPHICS_MINOR_VERSION           (0x821C)
+#endif
+
 #ifdef GL_DEPTH_STENCIL_OES
 #define DMGRAPHICS_FORMAT_DEPTH_STENCIL (GL_DEPTH_STENCIL_OES)
 #else
@@ -423,6 +465,38 @@
 #define DMGRAPHICS_TYPE_COMPUTE_SHADER                      (GL_COMPUTE_SHADER)
 #else
 #define DMGRAPHICS_TYPE_COMPUTE_SHADER                      (0x91B9)
+#endif
+
+#ifndef GL_UNIFORM_BUFFER
+#define GL_UNIFORM_BUFFER                                0x8A11
+#endif
+
+#ifndef GL_INVALID_INDEX
+#define GL_INVALID_INDEX                                 0xFFFFFFFFu
+#endif
+
+#ifndef GL_UNIFORM_BLOCK_BINDING
+#define GL_UNIFORM_BLOCK_BINDING                         0x8A3F
+#endif
+
+#ifndef GL_UNIFORM_OFFSET
+#define GL_UNIFORM_OFFSET                                0x8A3B
+#endif
+
+#ifndef GL_UNIFORM_BLOCK_ACTIVE_UNIFORM_INDICES
+#define GL_UNIFORM_BLOCK_ACTIVE_UNIFORM_INDICES          0x8A43
+#endif
+
+#ifndef GL_UNIFORM_BLOCK_ACTIVE_UNIFORMS
+#define GL_UNIFORM_BLOCK_ACTIVE_UNIFORMS                 0x8A42
+#endif
+
+#ifndef GL_UNIFORM_BLOCK_DATA_SIZE
+#define GL_UNIFORM_BLOCK_DATA_SIZE                       0x8A40
+#endif
+
+#ifndef GL_UNIFORM_BLOCK_INDEX
+#define GL_UNIFORM_BLOCK_INDEX                           0x8A3A
 #endif
 
 #endif // DMGRAPHICS_OPENGL_DEFINES_H

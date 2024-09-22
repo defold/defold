@@ -17,6 +17,8 @@
 
 #include <glfw/glfw3.h>
 
+#include "platform_window.h"
+
 namespace dmPlatform
 {
     struct Window
@@ -49,6 +51,9 @@ namespace dmPlatform
         uint32_t                      m_SwapIntervalSupported : 1;
         uint32_t                      m_WindowOpened          : 1;
     };
+
+    void FocusWindowNative(HWindow window);
+    void CenterWindowNative(Window* wnd, GLFWmonitor* monitor);
 }
 
 #endif // DM_PLATFORM_WINDOW_GLFW3_PRIVATE_H

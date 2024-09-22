@@ -197,6 +197,65 @@
                (test-util/mouse-drag! view 64 64 100 64)
                (is (not= 0.0 (.x (pos go-node))))))))
 
+(deftest transform-tools-preserve-types
+  (testing "Transform tools and manipulator interactions"
+    (test-util/with-loaded-project
+      (let [project-graph (g/node-id->graph-id project)
+            path "/logic/atlas_sprite.collection"
+            [resource-node view] (test-util/open-scene-view! project app-view path 128 128)
+            go-node (ffirst (g/sources-of resource-node :child-scenes))
+            original-meta {:version "original"}]
+        (app-view/select! app-view [go-node])
+        (is (test-util/selected? app-view go-node))
+
+        (testing "Move tool"
+          (test-util/set-active-tool! app-view :move)
+          (doseq [original-position
+                  (mapv #(with-meta % original-meta)
+                        [[(float 0.0) (float 0.0) (float 0.0)]
+                         [(double 0.0) (double 0.0) (double 0.0)]
+                         (vector-of :float 0.0 0.0 0.0)
+                         (vector-of :double 0.0 0.0 0.0)])]
+            (with-open [_ (test-util/make-graph-reverter project-graph)]
+              (g/set-property! go-node :position original-position)
+              (test-util/mouse-drag! view 64 64 68 64)
+              (let [modified-position (g/node-value go-node :position)]
+                (is (not= original-position modified-position))
+                (is (= (count original-position) (count modified-position)))
+                (test-util/ensure-number-type-preserving! original-position modified-position)))))
+
+        (testing "Rotate tool"
+          (test-util/set-active-tool! app-view :rotate)
+          (doseq [original-rotation
+                  (mapv #(with-meta % original-meta)
+                        [[(float 0.0) (float 0.0) (float 0.0) (float 1.0)]
+                         [(double 0.0) (double 0.0) (double 0.0) (double 1.0)]
+                         (vector-of :float 0.0 0.0 0.0 1.0)
+                         (vector-of :double 0.0 0.0 0.0 1.0)])]
+            (with-open [_ (test-util/make-graph-reverter project-graph)]
+              (g/set-property! go-node :rotation original-rotation)
+              (test-util/mouse-drag! view 64 80 64 84)
+              (let [modified-rotation (g/node-value go-node :rotation)]
+                (is (not= original-rotation modified-rotation))
+                (is (= (count original-rotation) (count modified-rotation)))
+                (test-util/ensure-number-type-preserving! original-rotation modified-rotation)))))
+
+        (testing "Scale tool"
+          (test-util/set-active-tool! app-view :scale)
+          (doseq [original-scale
+                  (mapv #(with-meta % original-meta)
+                        [[(float 1.0) (float 1.0) (float 1.0)]
+                         [(double 1.0) (double 1.0) (double 1.0)]
+                         (vector-of :float 1.0 1.0 1.0)
+                         (vector-of :double 1.0 1.0 1.0)])]
+            (with-open [_ (test-util/make-graph-reverter project-graph)]
+              (g/set-property! go-node :scale original-scale)
+              (test-util/mouse-drag! view 64 64 68 64)
+              (let [modified-scale (g/node-value go-node :scale)]
+                (is (not= original-scale modified-scale))
+                (is (= (count original-scale) (count modified-scale)))
+                (test-util/ensure-number-type-preserving! original-scale modified-scale)))))))))
+
 (deftest select-component-part-in-collection
   (testing "Transform tools and manipulator interactions"
            (test-util/with-loaded-project

@@ -84,15 +84,26 @@
       (finally
         (.disconnect conn)))))
 
-(defn reboot! [target local-url debug?]
-  (let [uri  (URI. (format "%s/post/@system/reboot" (:url target)))
-        conn ^HttpURLConnection (get-connection uri)
-        args (cond-> [(str "--config=resource.uri=" local-url)]
-               debug?
-               (conj (str "--config=bootstrap.debug_init_script=/_defold/debugger/start.luac"))
+(defn apply-simulated-resolution! [prefs workspace target]
+  (let [data (prefs/get-prefs prefs (prefs/make-project-specific-key "simulated-resolution" workspace) nil)]
+    (when data
+      (change-resolution! target (:width data) (:height data)
+                          (prefs/get-prefs prefs (prefs/make-project-specific-key "simulate-rotated-device" workspace) false)))))
 
-               true
-               (conj (str local-url "/game.projectc")))]
+(defn reboot! [target local-url debug?]
+  (let [uri (URI. (format "%s/post/@system/reboot" (:url target)))
+        conn ^HttpURLConnection (get-connection uri)
+        instance-index (:instance-index target)
+        instance-index? (some? instance-index)
+        args (cond-> [(str "--config=resource.uri=" local-url)]
+                     debug?
+                     (conj (str "--config=bootstrap.debug_init_script=/_defold/debugger/start.luac"))
+
+                     true
+                     (conj (str local-url "/game.projectc"))
+
+                     (and instance-index? (> instance-index 0))
+                     (conj (format "--config=project.instance_index=%d" instance-index)))]
     (try
       (with-open [os (.getOutputStream conn)]
         (.write os ^bytes (protobuf/map->bytes
@@ -118,27 +129,28 @@
         (.disconnect conn)))))
 
 (defn get-log-service-stream [target]
-  (let [port (Integer/parseInt (:log-port target))
-        socket-addr (InetSocketAddress. ^String (:address target) port)
-        socket (doto (Socket.) (.setSoTimeout timeout))]
-    (try
-      (.connect socket socket-addr timeout)
-      ;; closing is will also close the socket
-      ;; https://docs.oracle.com/javase/7/docs/api/java/net/Socket.html#getInputStream()
-      (let [is (.getInputStream socket)
-            status (-> ^BufferedReader (io/reader is) (.readLine))]
-        ;; The '0 OK' string is part of the log service protocol
-        (if (= "0 OK" status)
-          (do
-            ;; Setting to 0 means wait indefinitely for new data
-            (.setSoTimeout socket 0)
-            is)
-          (do
-            (.close socket)
-            nil)))
-      (catch Exception e
-        (.close socket)
-        (throw e)))))
+  (when (and (:log-port target) (:address target))
+    (let [port (Integer/parseInt (:log-port target))
+          socket-addr (InetSocketAddress. ^String (:address target) port)
+          socket (doto (Socket.) (.setSoTimeout timeout))]
+      (try
+        (.connect socket socket-addr timeout)
+        ;; closing is will also close the socket
+        ;; https://docs.oracle.com/javase/7/docs/api/java/net/Socket.html#getInputStream()
+        (let [is (.getInputStream socket)
+              status (-> ^BufferedReader (io/reader is) (.readLine))]
+          ;; The '0 OK' string is part of the log service protocol
+          (if (= "0 OK" status)
+            (do
+              ;; Setting to 0 means wait indefinitely for new data
+              (.setSoTimeout socket 0)
+              is)
+            (do
+              (.close socket)
+              nil)))
+        (catch Exception e
+          (.close socket)
+          (throw e))))))
 
 (def ^:private loopback-address "127.0.0.1")
 
@@ -200,7 +212,7 @@
     (let [dmengine-entry (.getEntry zip-file entry-name)
           stream (.getInputStream zip-file dmengine-entry)]
       (io/copy stream engine-file)
-      (fs/set-executable! engine-file)
+      (fs/set-executable! engine-file true)
       engine-file)))
 
 (defn- zip-entries! [^ZipFile zipfile]
@@ -247,22 +259,25 @@
       (fs/delete-directory! engine-dir {:missing :ignore})
       (fs/create-directories! engine-dir)
       (unpack-build-zip! engine-archive engine-dir)
-      (fs/set-executable! engine-file)
+      (fs/set-executable! engine-file true)
       (copy-dmengine-dependencies! engine-dir extender-platform)
       engine-file)))
 
-(defn launch! [^File engine project-directory prefs debug?]
+(defn launch! [^File engine project-directory prefs workspace debug? instance-index]
   (let [defold-log-dir (some-> (System/getProperty "defold.log.dir")
                                (File.)
                                (.getAbsolutePath))
         command (.getAbsolutePath engine)
         args (cond-> []
-               defold-log-dir
-               (into ["--config=project.write_log=1"
-                      (format "--config=project.log_dir=%s" defold-log-dir)])
+                     defold-log-dir
+                     (into ["--config=project.write_log=1"
+                            (format "--config=project.log_dir=%s" defold-log-dir)])
 
-               debug?
-               (into ["--config=bootstrap.debug_init_script=/_defold/debugger/start.luac"]))
+                     debug?
+                     (into ["--config=bootstrap.debug_init_script=/_defold/debugger/start.luac"])
+
+                     (> instance-index 0)
+                     (into [(format "--config=project.instance_index=%d" instance-index)]))
         env {"DM_SERVICE_PORT" "dynamic"
              "DM_QUIT_ON_ESC" (if (prefs/get-prefs prefs "general-quit-on-esc" false)
                                 "1" "0")
@@ -274,7 +289,7 @@
               :err :stdout
               :env env}]
     ;; Closing "is" seems to cause any dmengine output to stdout/err
-    ;; to generate SIGPIPE and close/crash. Also we need to read
+    ;; to generate SIGPIPE and close/crash. Also, we need to read
     ;; the output of dmengine because there is a risk of the stream
     ;; buffer filling up, stopping the process.
     ;; https://www.securecoding.cert.org/confluence/display/java/FIO07-J.+Do+not+let+external+processes+block+on+IO+buffers

@@ -74,7 +74,6 @@ namespace dmRender
     * registered in the render context.
     *
     * @name camera.get_cameras
-    * @param camera [type:url|handle|nil] camera id
     * @return cameras [type:table] a table with all camera URLs
     *
     * @examples
@@ -114,7 +113,7 @@ namespace dmRender
     *
     * @name camera.get_projection
     * @param camera [type:url|handle|nil] camera id
-    * @return projection [type:vmath.matrix4] the projection matrix.
+    * @return projection [type:matrix4] the projection matrix.
     */
     static int RenderScriptCamera_GetProjection(lua_State* L)
     {
@@ -128,7 +127,7 @@ namespace dmRender
     *
     * @name camera.get_view
     * @param camera [type:url|handle|nil] camera id
-    * @return view [type:vmath.matrix4] the view matrix.
+    * @return view [type:matrix4] the view matrix.
     */
     static int RenderScriptCamera_GetView(lua_State* L)
     {

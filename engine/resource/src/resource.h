@@ -12,15 +12,20 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef RESOURCE_H
-#define RESOURCE_H
+#ifndef DM_RESOURCE_H
+#define DM_RESOURCE_H
 
 #include <stdint.h>
-#include <dmsdk/resource/resource.h>
 #include <dlib/array.h>
 #include <dlib/hash.h>
 #include <dlib/hashtable.h>
 #include <dlib/mutex.h>
+
+struct ResourceDescriptor;
+
+#include <dmsdk/resource/resource.h>
+
+typedef struct ResourcePreloader* HResourcePreloader;
 
 namespace dmResourceArchive
 {
@@ -72,8 +77,8 @@ namespace dmResource
      */
     #define RESOURCE_FACTORY_FLAGS_LIVE_UPDATE_MOUNTS_ON_START    (1 << 3)
 
-    typedef uintptr_t ResourceType;
     typedef dmArray<char> LoadBufferType;
+    typedef HResourcePreloader HPreloader;
 
     Result RegisterTypes(HFactory factory, dmHashTable64<void*>* contexts);
     Result DeregisterTypes(HFactory factory, dmHashTable64<void*>* contexts);
@@ -164,9 +169,9 @@ namespace dmResource
      * Find a resource by a canonical path hash.
      * @param factory Factory handle
      * @param path_hash Resource path hash
-     * @return SResourceDescriptor* pointer to the resource descriptor
+     * @return ResourceDescriptor* pointer to the resource descriptor
      */
-    SResourceDescriptor* FindByHash(HFactory factory, uint64_t canonical_path_hash);
+    ResourceDescriptor* FindByHash(HFactory factory, uint64_t canonical_path_hash);
 
     /**
      * Creates and inserts a resource into the factory
@@ -185,17 +190,6 @@ namespace dmResource
      * @return Pointer to extension string if success (same as buffer), 0 otherwise
      */
     const char* GetExtFromPath(const char* path);
-
-    /**
-     * Get raw resource data. Unregistered resources can be loaded with this function.
-     * The returned resource data must be deallocated with free()
-     * @param factory Factory handle
-     * @param name Resource name
-     * @param resource Resource data
-     * @param resource_size Resource size
-     * @return RESULT_OK on success
-     */
-    Result GetRaw(HFactory factory, const char* name, void** resource, uint32_t* resource_size);
 
     /**
      * Updates a preexisting resource with new data
@@ -223,7 +217,7 @@ namespace dmResource
      * @param out_descriptor The resource descriptor as an output argument. It will not be written to if null, otherwise it will always be written to.
      * @see Get
      */
-    Result ReloadResource(HFactory factory, const char* name, SResourceDescriptor** out_descriptor);
+    Result ReloadResource(HFactory factory, const char* name, ResourceDescriptor** out_descriptor);
 
     /**
      * Get type for resource
@@ -232,7 +226,7 @@ namespace dmResource
      * @param type Returned type
      * @return RESULT_OK on success
      */
-    Result GetType(HFactory factory, void* resource, ResourceType* type);
+    Result GetType(HFactory factory, void* resource, HResourceType* type);
 
     /**
      * Get type from extension
@@ -241,7 +235,16 @@ namespace dmResource
      * @param type Returned type
      * @return RESULT_OK on success
      */
-    Result GetTypeFromExtension(HFactory factory, const char* extension, ResourceType* type);
+    Result GetTypeFromExtension(HFactory factory, const char* extension, HResourceType* type);
+
+    /**
+     * Get type from extension hash
+     * @param factory Factory handle
+     * @param extension File extension
+     * @param type Returned type
+     * @return RESULT_OK on success
+     */
+    Result GetTypeFromExtensionHash(HFactory factory, dmhash_t extension_hash, HResourceType* type);
 
     /**
      * Get extension from type
@@ -250,7 +253,7 @@ namespace dmResource
      * @param extension Returned extension
      * @return RESULT_OK on success
      */
-    Result GetExtensionFromType(HFactory factory, ResourceType type, const char** extension);
+    Result GetExtensionFromType(HFactory factory, HResourceType type, const char** extension);
 
     /**
      * Get resource descriptor from resource (name)
@@ -259,7 +262,7 @@ namespace dmResource
      * @param descriptor Returned resource descriptor
      * @return RESULT_OK on success
      */
-    Result GetDescriptor(HFactory factory, const char* name, SResourceDescriptor* descriptor);
+    Result GetDescriptor(HFactory factory, const char* name, HResourceDescriptor* descriptor);
 
     /**
      * Get resource descriptor from resource (hash) with supplied extensions
@@ -270,7 +273,7 @@ namespace dmResource
      * @param descriptor pointer to write result to in case of RESULT_OK
      * @return RESULT_OK on success
      */
-    Result GetDescriptorWithExt(HFactory factory, uint64_t hashed_name, const uint64_t* exts, uint32_t ext_count, SResourceDescriptor* descriptor);
+    Result GetDescriptorWithExt(HFactory factory, uint64_t hashed_name, const uint64_t* exts, uint32_t ext_count, HResourceDescriptor* descriptor);
 
     /**
      * Increase resource reference count
@@ -278,6 +281,13 @@ namespace dmResource
      * @param resource Resource
      */
     void IncRef(HFactory factory, void* resource);
+
+    /**
+     * Increase resource reference count
+     * @param factory Factory handle
+     * @param resource Resource descriptor
+     */
+    void IncRef(HFactory factory, HResourceDescriptor rd);
 
     /**
      * Get the resource version. The resource version is a sequential serial number
@@ -340,9 +350,10 @@ namespace dmResource
 
     struct SGetDependenciesParams
     {
-        dmhash_t m_UrlHash; // The requested url
-        bool m_OnlyMissing; // Only report assets that aren't available in the mounts
-        bool m_Recursive;   // Traverse down for each resource that has dependencies
+        dmhash_t m_UrlHash;         // The requested url
+        bool m_OnlyMissing;         // Only report assets that aren't available in the mounts
+        bool m_Recursive;           // Traverse down for each resource that has dependencies
+        bool m_IncludeRequestedUrl; // If requested url should be included into result
     };
 
     struct SGetDependenciesResult
@@ -359,7 +370,7 @@ namespace dmResource
      * @note Only reports dependencies from mounts that have a .dmanifest available
      * @param factory [type: dmResource::HFactory] Factory handle
      * @param url_hash [type: dmhash_t] url hash
-     * @return result [type: dmResource::Result] The mounts context
+     * @return result [type: dmResource::Result] resource result
     */
     typedef void (*FGetDependency)(void* context, const SGetDependenciesResult* result);
     dmResource::Result GetDependencies(const dmResource::HFactory factory, const SGetDependenciesParams* params, FGetDependency callback, void* callback_context);
@@ -412,4 +423,4 @@ namespace dmResource
     Result LoadResourceFromBuffer(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size, LoadBufferType* buffer);
 }
 
-#endif // RESOURCE_H
+#endif // DM_RESOURCE_H

@@ -44,7 +44,8 @@ namespace dmPlatform
         PLATFORM_GRAPHICS_API_OPENGL  = 1,
         PLATFORM_GRAPHICS_API_VULKAN  = 2,
         PLATFORM_GRAPHICS_API_VENDOR  = 3,
-        PLATFORM_GRAPHICS_API_DIRECTX = 4,
+        PLATFORM_GRAPHICS_API_WEBGPU  = 4,
+        PLATFORM_GRAPHICS_API_DIRECTX = 5,
     };
 
     enum DeviceState
@@ -58,6 +59,7 @@ namespace dmPlatform
         DEVICE_STATE_KEYBOARD_PASSWORD   = 7,
         DEVICE_STATE_KEYBOARD_RESET      = 8,
         DEVICE_STATE_JOYSTICK_PRESENT    = 9,
+        DEVICE_STATE_MAX // Used to create arrays of correct size (private repo)
     };
 
     enum GamepadEvent
@@ -171,6 +173,7 @@ namespace dmPlatform
     void           GetMousePosition(HWindow window, int32_t* x, int32_t* y);
     uint32_t       GetTouchData(HWindow window, TouchData* touch_data, uint32_t touch_data_count);
     bool           GetAcceleration(HWindow window, float* x, float* y, float* z);
+
     const char*    GetJoystickDeviceName(HWindow window, uint32_t joystick_index);
     uint32_t       GetJoystickAxes(HWindow window, uint32_t joystick_index, float* values, uint32_t values_capacity);
     uint32_t       GetJoystickHats(HWindow window, uint32_t joystick_index, uint8_t* values, uint32_t values_capacity);
@@ -188,12 +191,10 @@ namespace dmPlatform
     void           SetKeyboardDeviceChangedCallback(HWindow window, WindowDeviceChangedCallback cb, void* user_data);
     void           SetGamepadEventCallback(HWindow window, WindowGamepadEventCallback cb, void* user_data);
 
+    void           ShowWindow(HWindow window);
     void           IconifyWindow(HWindow window);
     void           PollEvents(HWindow window);
     void           SwapBuffers(HWindow window);
-
-    void*          AcquireAuxContext(HWindow window);
-    void           UnacquireAuxContext(HWindow window, void* aux_context);
 
     void*          AcquireAuxContext(HWindow window);
     void           UnacquireAuxContext(HWindow window, void* aux_context);

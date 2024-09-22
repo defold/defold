@@ -24,24 +24,22 @@
 (defn content-hash-components [build-target]
   (let [build-resource (:resource build-target)
         source-resource (:resource build-resource)]
-    [(system/defold-engine-sha1)
-
-     ;; The source resource is included since external resources may rely on it
-     ;; (for example, image reads). However, we don't want to include memory
-     ;; resources since they typically represent embedded resources that can be
-     ;; edited, and their :data may be out of sync with the edited state that
-     ;; will be passed as :user-data anyway.
-     (when-not (resource/memory-resource? source-resource)
-       source-resource)
-
-     (:build-fn build-target)
-     (:user-data build-target)]))
+    ;; The source resource is included since external resources may rely on it
+    ;; (for example, image reads). However, we don't want to include memory
+    ;; resources since they typically represent embedded resources that can be
+    ;; edited, and their :data may be out of sync with the edited state that
+    ;; will be passed as :user-data anyway.
+    {:engine-sha1 (system/defold-engine-sha1)
+     :source-resource (when-not (resource/memory-resource? source-resource)
+                        source-resource)
+     :build-fn (:build-fn build-target)
+     :user-data (:user-data build-target)}))
 
 (defn content-hash
-  ^String [build-target]
+  ^String [build-target opts]
   (let [content-hash-components (content-hash-components build-target)]
     (try
-      (digestable/sha1-hash content-hash-components)
+      (digestable/sha1-hash content-hash-components opts)
       (catch Throwable error
         (throw (ex-info (str "Failed to digest content for resource: " (resource/proj-path (:resource build-target)))
                         {:build-target build-target
@@ -50,16 +48,14 @@
 
 (def content-hash? digestable/sha1-hash?)
 
-(defn with-content-hash [build-target]
-  (assoc build-target :content-hash (content-hash build-target)))
-
-(defn make-content-hash-build-resource [memory-resource-build-target]
-  (let [build-resource (:resource memory-resource-build-target)
-        source-resource (:resource build-resource)
-        content-hash (:content-hash memory-resource-build-target)]
-    (assert (resource/memory-resource? source-resource))
-    (assert (string? content-hash))
-    (workspace/make-build-resource (assoc source-resource :data content-hash))))
+(defn with-content-hash
+  ([build-target]
+   (with-content-hash build-target nil))
+  ([build-target opts]
+   (let [content-hash (content-hash build-target opts)]
+     (cond-> (assoc build-target :content-hash content-hash)
+             (resource/memory-resource? (:resource (:resource build-target)))
+             (assoc-in [:resource :resource :data] content-hash)))))
 
 (defn make-proj-path->build-target [build-targets]
   ;; Create a map that can be used to locate the build target that was produced

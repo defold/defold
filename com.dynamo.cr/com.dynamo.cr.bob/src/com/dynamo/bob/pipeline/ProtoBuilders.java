@@ -62,7 +62,6 @@ import com.dynamo.input.proto.Input.InputBinding;
 import com.dynamo.particle.proto.Particle.Emitter;
 import com.dynamo.particle.proto.Particle.Modifier;
 import com.dynamo.particle.proto.Particle.ParticleFX;
-import com.dynamo.render.proto.ComputeProgram.ComputeProgramDesc;
 import com.dynamo.render.proto.Material.MaterialDesc;
 import com.dynamo.render.proto.Render.RenderPrototypeDesc;
 import com.dynamo.render.proto.Render.DisplayProfiles;
@@ -71,7 +70,7 @@ import com.dynamo.render.proto.RenderTarget.RenderTargetDesc;
 public class ProtoBuilders {
 
     private static String[][] textureSrcExts = {{".png", ".texturec"}, {".jpg", ".texturec"}, {".tga", ".texturec"}, {".cubemap", ".texturec"}, {".render_target", ".render_targetc"}};
-    private static String[][] renderResourceExts = {{".render_target", ".render_targetc"}, {".material", ".materialc"}};
+    private static String[][] renderResourceExts = {{".render_target", ".render_targetc"}, {".material", ".materialc"}, {".compute", ".computec"}};
 
     public static String getTextureSetExt(String str) throws Exception {
         Map<String, String> types = TextureUtil.getAtlasFileTypes();
@@ -161,7 +160,7 @@ public class ProtoBuilders {
     @BuilderParams(name="CollectionProxy", inExts=".collectionproxy", outExt=".collectionproxyc")
     public static class CollectionProxyBuilder extends ProtoBuilder<CollectionProxyDesc.Builder> {
         @Override
-        protected CollectionProxyDesc.Builder transform(Task<Void> task, IResource resource, CollectionProxyDesc.Builder messageBuilder) throws CompileExceptionError {
+        protected CollectionProxyDesc.Builder transform(Task task, IResource resource, CollectionProxyDesc.Builder messageBuilder) throws CompileExceptionError {
             BuilderUtil.checkResource(this.project, resource, "collection", messageBuilder.getCollection());
             return messageBuilder.setCollection(BuilderUtil.replaceExt(messageBuilder.getCollection(), ".collection", ".collectionc"));
         }
@@ -187,7 +186,7 @@ public class ProtoBuilders {
         }
 
         @Override
-        protected CollisionObjectDesc.Builder transform(Task<Void> task, IResource resource, CollisionObjectDesc.Builder messageBuilder) throws IOException, CompileExceptionError {
+        protected CollisionObjectDesc.Builder transform(Task task, IResource resource, CollisionObjectDesc.Builder messageBuilder) throws IOException, CompileExceptionError {
             if (messageBuilder.getEmbeddedCollisionShape().getShapesCount() == 0) {
                 BuilderUtil.checkResource(this.project, resource, "collision shape", messageBuilder.getCollisionShape());
             }
@@ -248,7 +247,7 @@ public class ProtoBuilders {
     @BuilderParams(name="Factory", inExts=".factory", outExt=".factoryc")
     public static class FactoryBuilder extends ProtoBuilder<FactoryDesc.Builder> {
         @Override
-        protected FactoryDesc.Builder transform(Task<Void> task, IResource resource, FactoryDesc.Builder messageBuilder) throws IOException,
+        protected FactoryDesc.Builder transform(Task task, IResource resource, FactoryDesc.Builder messageBuilder) throws IOException,
                 CompileExceptionError {
             BuilderUtil.checkResource(this.project, resource, "prototype", messageBuilder.getPrototype());
             return messageBuilder.setPrototype(BuilderUtil.replaceExt(messageBuilder.getPrototype(), ".go", ".goc"));
@@ -259,7 +258,7 @@ public class ProtoBuilders {
     @BuilderParams(name="CollectionFactory", inExts=".collectionfactory", outExt=".collectionfactoryc")
     public static class CollectionFactoryBuilder extends ProtoBuilder<CollectionFactoryDesc.Builder> {
         @Override
-        protected CollectionFactoryDesc.Builder transform(Task<Void> task, IResource resource, CollectionFactoryDesc.Builder messageBuilder) throws IOException,
+        protected CollectionFactoryDesc.Builder transform(Task task, IResource resource, CollectionFactoryDesc.Builder messageBuilder) throws IOException,
                 CompileExceptionError {
             BuilderUtil.checkResource(this.project, resource, "prototype", messageBuilder.getPrototype());
             return messageBuilder.setPrototype(BuilderUtil.replaceExt(messageBuilder.getPrototype(), ".collection", ".collectionc"));
@@ -287,8 +286,16 @@ public class ProtoBuilders {
         }
 
         @Override
-        protected RenderPrototypeDesc.Builder transform(Task<Void> task, IResource resource, RenderPrototypeDesc.Builder messageBuilder)
+        protected RenderPrototypeDesc.Builder transform(Task task, IResource resource, RenderPrototypeDesc.Builder messageBuilder)
                 throws IOException, CompileExceptionError {
+
+            String scriptPath = messageBuilder.getScript();
+            String suffix = BuilderUtil.getSuffix(scriptPath);
+            if (!suffix.isEmpty() && !suffix.equals("render_script"))
+            {
+                throw new CompileExceptionError(resource, 0, BobNLS.bind(Messages.BuilderUtil_WRONG_RESOURCE_TYPE,
+                        new String[] { scriptPath, suffix, "render_script" } ));
+            }
 
             BuilderUtil.checkResource(this.project, resource, "script", messageBuilder.getScript());
             messageBuilder.setScript(BuilderUtil.replaceExt(messageBuilder.getScript(), ".render_script", ".render_scriptc"));
@@ -329,64 +336,8 @@ public class ProtoBuilders {
     @BuilderParams(name="SpriteDesc", inExts=".sprite", outExt=".spritec")
     public static class SpriteDescBuilder extends ProtoBuilder<SpriteDesc.Builder>
     {
-        List<String> getImageResources(SpriteDesc.Builder builder) {
-            List<String> textures = new ArrayList<>();
-
-            for (SpriteTexture texture : builder.getTexturesList()) {
-                String t = texture.getTexture();
-                if (!t.isEmpty())
-                {
-                    textures.add(t);
-                }
-            }
-
-            // Deprecated
-            if (textures.isEmpty()) {
-                String t = builder.getTileSet();
-                if (!t.isEmpty()) {
-                    textures.add(t);
-                }
-            }
-            return textures;
-        }
-
         @Override
-        public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-
-            Task.TaskBuilder<Void> task = Task.<Void>newBuilder(this)
-                .setName(params.name())
-                .addInput(input)
-                .addOutput(input.changeExt(params.outExt()));
-
-            SpriteDesc.Builder spriteBuilder = SpriteDesc.newBuilder();
-            ProtoUtil.merge(input, spriteBuilder);
-
-            // Material input is optional in the protobuf description
-            String material = spriteBuilder.getMaterial();
-            if (!material.isEmpty())
-            {
-                IResource materialOutput = project.getResource(material).changeExt(".materialc");
-                task.addInput(materialOutput);
-            }
-
-            List<String> images = getImageResources(spriteBuilder);
-            for (String atlas : images) {
-                String extension = null;
-                try {
-                    extension = getTextureSetExt(atlas);
-                } catch (Exception e) {
-                    throw new CompileExceptionError(input, -1, e.getMessage(), e);
-                }
-
-                IResource atlasOutput = project.getResource(atlas).changeExt(extension);
-                task.addInput(atlasOutput);
-            }
-
-            return task.build();
-        }
-
-        @Override
-        protected SpriteDesc.Builder transform(Task<Void> task, IResource resource, SpriteDesc.Builder messageBuilder)
+        protected SpriteDesc.Builder transform(Task task, IResource resource, SpriteDesc.Builder messageBuilder)
                 throws IOException, CompileExceptionError {
 
             if (messageBuilder.hasTileSet()) {
@@ -445,23 +396,11 @@ public class ProtoBuilders {
         }
     }
 
-    @ProtoParams(srcClass = ComputeProgramDesc.class, messageClass = ComputeProgramDesc.class)
-    @BuilderParams(name="ComputeProgram", inExts=".compute_program", outExt=".compute_programc")
-    public static class ComputeProgramBuilder extends ProtoBuilder<ComputeProgramDesc.Builder> {
-        @Override
-        protected ComputeProgramDesc.Builder transform(Task<Void> task, IResource resource, ComputeProgramDesc.Builder messageBuilder)
-                throws IOException, CompileExceptionError {
-            BuilderUtil.checkResource(this.project, resource, "compute program", messageBuilder.getProgram());
-            messageBuilder.setProgram(BuilderUtil.replaceExt(messageBuilder.getProgram(), ".cp", ".cpc"));
-            return messageBuilder;
-        }
-    }
-
     @ProtoParams(srcClass = LabelDesc.class, messageClass = LabelDesc.class)
     @BuilderParams(name="LabelDesc", inExts=".label", outExt=".labelc")
     public static class LabelDescBuilder extends ProtoBuilder<LabelDesc.Builder> {
         @Override
-        protected LabelDesc.Builder transform(Task<Void> task, IResource resource, LabelDesc.Builder messageBuilder)
+        protected LabelDesc.Builder transform(Task task, IResource resource, LabelDesc.Builder messageBuilder)
                 throws IOException, CompileExceptionError {
             BuilderUtil.checkResource(this.project, resource, "material", messageBuilder.getMaterial());
             BuilderUtil.checkResource(this.project, resource, "font", messageBuilder.getFont());
@@ -475,7 +414,7 @@ public class ProtoBuilders {
     @BuilderParams(name="TileGrid", inExts={".tilegrid", ".tilemap"}, outExt=".tilemapc")
     public static class TileGridBuilder extends ProtoBuilder<TileGrid.Builder> {
         @Override
-        protected TileGrid.Builder transform(Task<Void> task, IResource resource, TileGrid.Builder messageBuilder) throws IOException,
+        protected TileGrid.Builder transform(Task task, IResource resource, TileGrid.Builder messageBuilder) throws IOException,
                 CompileExceptionError {
             BuilderUtil.checkResource(this.project, resource, "tile source", messageBuilder.getTileSet());
             messageBuilder.setTileSet(BuilderUtil.replaceExt(messageBuilder.getTileSet(), "tileset", "t.texturesetc"));
@@ -490,38 +429,7 @@ public class ProtoBuilders {
     @BuilderParams(name="ParticleFX", inExts=".particlefx", outExt=".particlefxc")
     public static class ParticleFXBuilder extends ProtoBuilder<ParticleFX.Builder> {
         @Override
-        public Task<Void> create(IResource input) throws IOException, CompileExceptionError {
-
-            Task.TaskBuilder<Void> task = Task.<Void>newBuilder(this)
-                .setName(params.name())
-                .addInput(input)
-                .addOutput(input.changeExt(params.outExt()));
-
-            ParticleFX.Builder particleFxBuilder = ParticleFX.newBuilder();
-            ProtoUtil.merge(input, particleFxBuilder);
-
-            for (int i = 0; i < particleFxBuilder.getEmittersCount(); ++i) {
-                Emitter emitter            = particleFxBuilder.getEmitters(i);
-                String tileSource          = emitter.getTileSource();
-                String extension = null;
-                try {
-                    extension = getTextureSetExt(tileSource);
-                } catch (Exception e) {
-                    throw new CompileExceptionError(input, -1, e.getMessage(), e);
-                }
-
-                IResource tileSourceOutput = project.getResource(tileSource).changeExt(extension);
-                IResource materialOutput   = project.getResource(emitter.getMaterial()).changeExt(".materialc");
-
-                task.addInput(tileSourceOutput);
-                task.addInput(materialOutput);
-            }
-
-            return task.build();
-        }
-
-        @Override
-        protected ParticleFX.Builder transform(Task<Void> task, IResource resource, ParticleFX.Builder messageBuilder)
+        protected ParticleFX.Builder transform(Task task, IResource resource, ParticleFX.Builder messageBuilder)
                 throws IOException, CompileExceptionError {
             int emitterCount = messageBuilder.getEmittersCount();
             // Move modifiers to all emitters, clear the list at the end
@@ -579,7 +487,7 @@ public class ProtoBuilders {
     @BuilderParams(name="SoundDesc", inExts=".sound", outExt=".soundc")
     public static class SoundDescBuilder extends ProtoBuilder<SoundDesc.Builder> {
         @Override
-        protected SoundDesc.Builder transform(Task<Void> task, IResource resource, SoundDesc.Builder messageBuilder)
+        protected SoundDesc.Builder transform(Task task, IResource resource, SoundDesc.Builder messageBuilder)
                 throws IOException, CompileExceptionError {
             BuilderUtil.checkResource(this.project, resource, "sound", messageBuilder.getSound());
             messageBuilder.setSound(BuilderUtil.replaceExt(messageBuilder.getSound(), "wav", "wavc"));

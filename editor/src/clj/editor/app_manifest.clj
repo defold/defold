@@ -325,6 +325,11 @@
       (exclude-libs-toggles all-platforms ["liveupdate"])
       (libs-toggles all-platforms ["liveupdate_null"]))))
 
+(def types-setting
+  (make-check-box-setting
+    (concat
+      (generic-contains-toggles all-platforms :excludeSymbols ["ScriptTypesExt"]))))
+
 (def basis-transcoder-setting
   (make-check-box-setting
     (concat
@@ -343,10 +348,24 @@
     :3d   (concat (libs-toggles all-platforms ["physics_3d"])   (exclude-libs-toggles all-platforms ["physics" "Box2D" "script_box2d"]) (generic-contains-toggles all-platforms :excludeSymbols ["ScriptBox2DExt"]))
     :both))
 
+(def image-setting
+  (make-check-box-setting
+    (concat
+      (exclude-libs-toggles all-platforms ["image"])
+      (libs-toggles all-platforms ["image_null"])
+      (generic-contains-toggles all-platforms :excludeSymbols ["ScriptImageExt"]))))
+
+(def rig-setting
+  (make-choice-setting
+    :none (concat (libs-toggles all-platforms ["gamesys_rig_null" "gamesys_model_null" "rig_null"]) (exclude-libs-toggles all-platforms ["gamesys_model" "gamesys_rig" "rig"]) (generic-contains-toggles all-platforms :excludeSymbols ["ScriptModelExt"]))
+    :rig   (concat (libs-toggles all-platforms ["gamesys_model_null"])   (exclude-libs-toggles all-platforms ["gamesys_model"]) (generic-contains-toggles all-platforms :excludeSymbols ["ScriptModelExt"]))
+    :model))
+
+
 (def vulkan-toggles
   (concat
-    (exclude-libs-toggles [:x86_64-osx :arm64-osx] ["platform"])
-    (libs-toggles [:x86_64-osx :arm64-osx] ["platform_vulkan"])
+    (exclude-libs-toggles [:x86_64-osx :arm64-osx :x86-win32 :x86_64-win32] ["platform"])
+    (libs-toggles [:x86_64-osx :arm64-osx :x86-win32 :x86_64-win32] ["platform_vulkan"])
     (libs-toggles [:x86_64-osx :arm64-osx :arm64-ios] ["graphics_vulkan" "MoltenVK"])
     (libs-toggles android ["graphics_vulkan"])
     (libs-toggles windows ["graphics_vulkan" "vulkan"])
@@ -433,6 +452,14 @@
                                                         [:none "None"]]}))
             (value (setting-property-getter physics-setting))
             (set (setting-property-setter physics-setting)))
+  (property Rig+Model g/Any
+            (dynamic tooltip (g/constantly "Rig, Model or none"))
+            (dynamic edit-type (g/constantly {:type :choicebox
+                                              :options [[:model "Rig & Model"]
+                                                        [:rig "Rig only"]
+                                                        [:none "None"]]}))
+            (value (setting-property-getter rig-setting))
+            (set (setting-property-setter rig-setting)))
   (property exclude-record g/Any
             (dynamic tooltip (g/constantly "Remove the video recording capabilities (desktop platforms)"))
             (dynamic edit-type (g/constantly {:type g/Bool}))
@@ -455,6 +482,14 @@
             (dynamic edit-type (g/constantly {:type g/Bool}))
             (value (setting-property-getter liveupdate-setting))
             (set (setting-property-setter liveupdate-setting)))
+  (property exclude-image g/Any
+            (dynamic edit-type (g/constantly {:type g/Bool}))
+            (value (setting-property-getter image-setting))
+            (set (setting-property-setter image-setting)))
+  (property exclude-types g/Any
+            (dynamic edit-type (g/constantly {:type g/Bool}))
+            (value (setting-property-getter types-setting))
+            (set (setting-property-setter types-setting)))
   (property exclude-basis-transcoder g/Any
             (dynamic edit-type (g/constantly {:type g/Bool}))
             (value (setting-property-getter basis-transcoder-setting))
@@ -481,4 +516,6 @@
     :label "App Manifest"
     :icon "icons/32/Icons_05-Project-info.png"
     :node-type AppManifestNode
-    :view-types [:code :default]))
+    :view-types [:code :default]
+    :view-opts {:code {:use-custom-editor false}}
+    :lazy-loaded true))

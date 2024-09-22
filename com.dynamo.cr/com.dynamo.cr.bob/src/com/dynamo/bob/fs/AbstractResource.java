@@ -27,6 +27,7 @@ public abstract class AbstractResource<F extends IFileSystem> implements IResour
     protected F fileSystem;
     protected String path;
     private boolean cacheable = true;
+    private byte[] sha1DigestCache;
 
     public AbstractResource(F fileSystem, String path) {
         this.fileSystem = fileSystem;
@@ -47,7 +48,15 @@ public abstract class AbstractResource<F extends IFileSystem> implements IResour
     }
 
     @Override
-    public byte[] sha1() throws IOException {
+    public void setContent(byte[] content) throws IOException  {
+        sha1DigestCache = null;
+    }
+
+    @Override
+    public byte[] sha1(boolean allowCached) throws IOException {
+        if (allowCached && sha1DigestCache != null) {
+            return sha1DigestCache;
+        }
         byte[] content = getContent();
         if (content == null) {
             throw new IllegalArgumentException(String.format("Resource '%s' is not created", path));
@@ -59,7 +68,13 @@ public abstract class AbstractResource<F extends IFileSystem> implements IResour
             throw new RuntimeException(e);
         }
         sha1.update(content);
-        return sha1.digest();
+        sha1DigestCache = sha1.digest();
+        return sha1DigestCache;
+    }
+
+    @Override
+    public byte[] sha1() throws IOException {
+        return sha1(false);
     }
 
     @Override

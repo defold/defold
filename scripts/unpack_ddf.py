@@ -23,6 +23,13 @@
 
 import os, sys
 
+try:
+    from google.protobuf import text_format
+except:
+    dynamo_home = os.environ.get('DYNAMO_HOME')
+    sys.path.append(os.path.join(dynamo_home, "lib", "python"))
+    sys.path.append(os.path.join(dynamo_home, "ext", "lib", "python"))
+
 from google.protobuf import text_format
 import google.protobuf.message
 
@@ -38,6 +45,7 @@ import rig.rig_ddf_pb2
 import render.material_ddf_pb2
 import render.font_ddf_pb2
 import render.render_ddf_pb2
+import render.compute_ddf_pb2
 import particle.particle_ddf_pb2
 import gamesys.sprite_ddf_pb2
 import gamesys.physics_ddf_pb2
@@ -64,6 +72,7 @@ BUILDERS['.spritec']        = gamesys.sprite_ddf_pb2.SpriteDesc
 BUILDERS['.renderc']        = render.render_ddf_pb2.RenderPrototypeDesc
 BUILDERS['.convexshapec']   = gamesys.physics_ddf_pb2.ConvexShape
 BUILDERS['.collisionobjectc'] = gamesys.physics_ddf_pb2.CollisionObjectDesc
+BUILDERS['.computec']         = render.compute_ddf_pb2.ComputeDesc
 
 proto_type_to_string_map = {}
 proto_type_to_string_map[google.protobuf.descriptor.FieldDescriptor.TYPE_BOOL]    = 'TYPE_BOOL'
@@ -200,13 +209,19 @@ def print_shader_file(shader_file):
         pass
     print("shaders:")
     for field, data in shader_file.ListFields():
-        for shader in data:
-            print_shader(shader)
+        try:
+            iter(data)
+        except TypeError:
+            print("Unknown:", data)
+        else:
+            for shader in data:
+                print_shader(shader)
 
 
 PRINTERS = {}
 PRINTERS['.vpc']        = print_shader_file
 PRINTERS['.fpc']        = print_shader_file
+PRINTERS['.cpc']        = print_shader_file
 
 
 if __name__ == "__main__":

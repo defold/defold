@@ -35,6 +35,8 @@ namespace dmHID
 {
     /// Constant that defines invalid context handles
     const HContext INVALID_CONTEXT = 0;
+    const uint8_t MAX_GAMEPAD_NAME_LENGTH = 128;
+    const uint8_t MAX_GAMEPAD_NAME_COUNT  = 2;
 
     enum KeyboardType
     {
@@ -173,7 +175,7 @@ namespace dmHID
      * @param buffer a pointer to memory where the name should be stored
      * @param buffer_length the size of the buffer parameter
      */
-    void GetGamepadDeviceName(HContext context, HGamepad gamepad, char* buffer, uint32_t buffer_length);
+    void GetGamepadDeviceName(HContext context, HGamepad gamepad, char device_name[MAX_GAMEPAD_NAME_LENGTH]);
 
     /**
      * Check if a keyboard is connected.

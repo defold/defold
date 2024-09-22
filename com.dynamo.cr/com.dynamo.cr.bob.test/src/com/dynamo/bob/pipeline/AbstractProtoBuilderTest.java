@@ -20,6 +20,7 @@ import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -28,6 +29,7 @@ import java.security.CodeSource;
 
 import javax.imageio.ImageIO;
 
+import com.dynamo.bob.fs.*;
 import org.apache.commons.io.FilenameUtils;
 
 import org.junit.After;
@@ -38,9 +40,6 @@ import com.dynamo.bob.NullProgress;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.TaskResult;
-import com.dynamo.bob.fs.IResource;
-import com.dynamo.bob.fs.ZipMountPoint;
-import com.dynamo.bob.fs.FileSystemWalker;
 import com.dynamo.bob.test.util.MockFileSystem;
 import com.google.protobuf.Message;
 
@@ -48,7 +47,7 @@ import com.google.protobuf.Message;
 public abstract class AbstractProtoBuilderTest {
     private MockFileSystem fileSystem;
     private Project project;
-    private ZipMountPoint mp;
+    private IMountPoint mp;
     private ClassLoaderScanner scanner = null;
 
     @After
@@ -69,12 +68,22 @@ public abstract class AbstractProtoBuilderTest {
 
         try {
             CodeSource src = getClass().getProtectionDomain().getCodeSource();
-            String jarPath = new File(src.getLocation().toURI()).getAbsolutePath();
-            this.mp = new ZipMountPoint(null, jarPath, false);
-            this.mp.mount();
+            File sourceFile = new File(src.getLocation().toURI());
+            String path = sourceFile.getAbsolutePath();
+            if (sourceFile.isDirectory()) {
+                DefaultFileSystem fs = new DefaultFileSystem();
+                fs.setRootDirectory(path);
+                this.mp = new FileSystemMountPoint(this.fileSystem, fs);
+                this.mp.mount();
+                this.fileSystem.addMountPoint(this.mp);
+            }
+            else {
+                this.mp = new ZipMountPoint(null, path, false);
+                this.mp.mount();
+            }
         } catch (Exception e) {
             // let the tests fail later on
-            System.err.printf("Failed mount the .jar file");
+            System.err.printf("Failed mount: %s", e);
         }
     }
 
@@ -156,7 +165,7 @@ public abstract class AbstractProtoBuilderTest {
             if (!result.isOk()) {
                 throw new CompileExceptionError(project.getResource(file), result.getLineNumber(), result.getMessage());
             }
-            Task<?> task = result.getTask();
+            Task task = result.getTask();
             for (IResource output : task.getOutputs()) {
                 Message msg = ParseUtil.parse(output);
                 if (msg != null) {
@@ -165,6 +174,26 @@ public abstract class AbstractProtoBuilderTest {
             }
         }
         return messages;
+    }
+
+    protected void clean() throws Exception {
+        Collection<String> result = new ArrayList<>();
+        fileSystem.walk("build", new FileSystemWalker() {
+            public void handleFile(String path, Collection<String> results) {
+                fileSystem.addFile(path, null);
+            }
+        }, result);
+        project.build(new NullProgress(), "clean");
+    }
+
+    protected <T extends Message> T getMessage(List<Message> messages, Class<T> type) {
+        for (int i = messages.size() - 1; i >= 0; i--) {
+            Message message = messages.get(i);
+            if (type.isInstance(message)) {
+                return type.cast(message);
+            }
+        }
+        return null;
     }
 
     protected byte[] getFile(String file) throws IOException {
@@ -182,9 +211,9 @@ public abstract class AbstractProtoBuilderTest {
     class Walker extends FileSystemWalker {
 
         private String basePath;
-        private ZipMountPoint mp;
+        private IMountPoint mp;
 
-        public Walker(ZipMountPoint mp, String basePath) {
+        public Walker(IMountPoint mp, String basePath) {
             this.mp = mp;
             this.basePath = basePath;
             if (basePath.startsWith("/")) {
@@ -227,5 +256,4 @@ public abstract class AbstractProtoBuilderTest {
         baos.flush();
         addFile(path, baos.toByteArray());
     }
-
 }

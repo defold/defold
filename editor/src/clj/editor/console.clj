@@ -37,11 +37,13 @@
             [editor.handler :as handler]
             [editor.prefs :as prefs]
             [editor.resource :as resource]
+            [editor.types :as types]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [util.coll :as coll]
             [util.http-util :as http-util])
   (:import [editor.code.data Cursor CursorRange LayoutInfo Rect]
+           [java.io BufferedReader IOException]
            [java.util.regex MatchResult]
            [javafx.beans.property SimpleStringProperty]
            [javafx.scene Node Parent Scene]
@@ -91,6 +93,51 @@
   "Clear the console. Callable from a background thread."
   []
   (swap! pending-atom assoc :clear true :entries [] :index 0))
+
+(def ^:private remote-log-pump-thread (atom nil))
+(def ^:private console-stream (atom nil))
+
+(defn current-stream? [stream] (= @console-stream stream))
+
+(defn reset-remote-log-pump-thread! [^Thread new]
+  (when-let [old ^Thread @remote-log-pump-thread]
+    (.interrupt old))
+  (reset! remote-log-pump-thread new))
+
+(defn reset-console-stream! [stream]
+  (reset! console-stream stream)
+  (clear-console!))
+
+(defn start-log-pump! [log-stream sink-fn]
+  (doto (Thread. (fn []
+                   (try
+                     (let [this (Thread/currentThread)]
+                       (with-open [buffered-reader ^BufferedReader (io/reader log-stream :encoding "UTF-8")]
+                         (loop []
+                           (when-not (.isInterrupted this)
+                             (when-let [line (.readLine buffered-reader)] ; line of text or nil if eof reached
+                               (sink-fn line)
+                               (recur))))))
+                     (catch IOException _
+                       ;; Losing the log connection is ok and even expected
+                       nil)
+                     (catch InterruptedException _
+                       ;; Losing the log connection is ok and even expected
+                       nil))))
+    (.start)))
+
+(defn make-remote-log-sink [log-stream]
+  (fn [line]
+    (when (= @console-stream log-stream)
+      (append-console-line! line))))
+
+(defn set-log-service-stream [log-stream]
+  (reset-console-stream! log-stream)
+  (reset-remote-log-pump-thread! (start-log-pump! log-stream (make-remote-log-sink log-stream))))
+
+(defn pipe-log-stream-to-console! [input-stream]
+  (reset-console-stream! input-stream)
+  (reset-remote-log-pump-thread! (start-log-pump! input-stream (make-remote-log-sink input-stream))))
 
 (defn- consume-entries-in-state [state ^long n]
   (let [{:keys [^long index entries]} state]
@@ -336,87 +383,7 @@
 ;; Read-only code view action handlers
 ;; -----------------------------------------------------------------------------
 
-(handler/defhandler :select-up :console-view
-  (run [view-node] (view/move! view-node :selection :up)))
-
-(handler/defhandler :select-down :console-view
-  (run [view-node] (view/move! view-node :selection :down)))
-
-(handler/defhandler :select-left :console-view
-  (run [view-node] (view/move! view-node :selection :left)))
-
-(handler/defhandler :select-right :console-view
-  (run [view-node] (view/move! view-node :selection :right)))
-
-(handler/defhandler :prev-word :console-view
-  (run [view-node] (view/move! view-node :navigation :prev-word)))
-
-(handler/defhandler :select-prev-word :console-view
-  (run [view-node] (view/move! view-node :selection :prev-word)))
-
-(handler/defhandler :next-word :console-view
-  (run [view-node] (view/move! view-node :navigation :next-word)))
-
-(handler/defhandler :select-next-word :console-view
-  (run [view-node] (view/move! view-node :selection :next-word)))
-
-(handler/defhandler :beginning-of-line :console-view
-  (run [view-node] (view/move! view-node :navigation :line-start)))
-
-(handler/defhandler :select-beginning-of-line :console-view
-  (run [view-node] (view/move! view-node :selection :line-start)))
-
-(handler/defhandler :beginning-of-line-text :console-view
-  (run [view-node] (view/move! view-node :navigation :home)))
-
-(handler/defhandler :select-beginning-of-line-text :console-view
-  (run [view-node] (view/move! view-node :selection :home)))
-
-(handler/defhandler :end-of-line :console-view
-  (run [view-node] (view/move! view-node :navigation :end)))
-
-(handler/defhandler :select-end-of-line :console-view
-  (run [view-node] (view/move! view-node :selection :end)))
-
-(handler/defhandler :page-up :console-view
-  (run [view-node] (view/page-up! view-node :navigation)))
-
-(handler/defhandler :select-page-up :console-view
-  (run [view-node] (view/page-up! view-node :selection)))
-
-(handler/defhandler :page-down :console-view
-  (run [view-node] (view/page-down! view-node :navigation)))
-
-(handler/defhandler :select-page-down :console-view
-  (run [view-node] (view/page-down! view-node :selection)))
-
-(handler/defhandler :beginning-of-file :console-view
-  (run [view-node] (view/move! view-node :navigation :file-start)))
-
-(handler/defhandler :select-beginning-of-file :console-view
-  (run [view-node] (view/move! view-node :selection :file-start)))
-
-(handler/defhandler :end-of-file :console-view
-  (run [view-node] (view/move! view-node :navigation :file-end)))
-
-(handler/defhandler :select-end-of-file :console-view
-  (run [view-node] (view/move! view-node :selection :file-end)))
-
-(handler/defhandler :copy :console-view
-  (enabled? [view-node evaluation-context] (view/has-selection? view-node evaluation-context))
-  (run [view-node clipboard] (view/copy! view-node clipboard)))
-
-(handler/defhandler :select-all :console-view
-  (run [view-node] (view/select-all! view-node)))
-
-(handler/defhandler :select-next-occurrence :console-view
-  (run [view-node] (view/select-next-occurrence! view-node)))
-
-(handler/defhandler :select-next-occurrence :console-tool-bar
-  (run [view-node] (view/select-next-occurrence! view-node)))
-
-(handler/defhandler :split-selection-into-lines :console-view
-  (run [view-node] (view/split-selection-into-lines! view-node)))
+(view/register-fundamental-read-only-handlers! *ns* :console-view :console-tool-bar)
 
 ;; -----------------------------------------------------------------------------
 ;; Console view action handlers
@@ -444,9 +411,9 @@
   (property indent-type r/IndentType (default :two-spaces))
   (property cursor-ranges r/CursorRanges (default [data/document-start-cursor-range]) (dynamic visible (g/constantly false)))
   (property invalidated-rows r/InvalidatedRows (default []) (dynamic visible (g/constantly false)))
-  (property modified-lines r/Lines (default [""]) (dynamic visible (g/constantly false)))
+  (property modified-lines types/Lines (default [""]) (dynamic visible (g/constantly false)))
   (property regions r/Regions (default []) (dynamic visible (g/constantly false)))
-  (output lines r/Lines (gu/passthrough modified-lines))
+  (output lines types/Lines (gu/passthrough modified-lines))
   (output request-response g/Any :cached produce-request-response))
 
 (defn- gutter-metrics []
@@ -683,7 +650,7 @@
                                         clear (assoc :cursor-ranges [data/document-start-cursor-range])
                                         clear (assoc :invalidated-row 0)
                                         clear (data/frame-cursor prev-layout)))))))
-  (view/repaint-view! view-node elapsed-time {:cursor-visible false}))
+  (view/repaint-view! view-node elapsed-time {:cursor-visible false :editable false}))
 
 (def ^:private console-grammar
   {:name "Console"
@@ -775,7 +742,7 @@
     ;; Configure canvas.
     (doto canvas
       (.setFocusTraversable true)
-      (.addEventFilter KeyEvent/KEY_PRESSED (ui/event-handler event (view/handle-key-pressed! view-node event)))
+      (.addEventFilter KeyEvent/KEY_PRESSED (ui/event-handler event (view/handle-key-pressed! view-node event false)))
       (.addEventHandler MouseEvent/MOUSE_MOVED (ui/event-handler event (view/handle-mouse-moved! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_PRESSED (ui/event-handler event (view/handle-mouse-pressed! view-node event)))
       (.addEventHandler MouseEvent/MOUSE_DRAGGED (ui/event-handler event (view/handle-mouse-moved! view-node event)))

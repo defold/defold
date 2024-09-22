@@ -95,6 +95,38 @@ You also need `easy_install` to install additional packages.
 </p></details>
 
 
+
+### Required Software - DotNet 9
+
+(optional)
+
+*NOTE* The DotNet 9 preview currently only supports macOS platform
+
+In order to build and test the csharp languange bindings locally, you need to install DotNet.
+
+<details><summary>Install...</summary><p>
+
+There are a few ways to install the DotNet sdk:
+
+* Install via https://dotnet.microsoft.com/en-us/download/dotnet/9.0
+* Install via your package manager
+  * macOS: `brew install dotnet-sdk@preview`
+  * Windows: `choco install dotnet --pre`
+
+* Install via [dotnet-install.sh](https://learn.microsoft.com/en-us/dotnet/core/tools/dotnet-install-script):
+
+Bash:
+```sh
+> ./dotnet-install.sh --channel 9.0 --quality preview
+```
+
+PowerShell (Windows):
+```sh
+> ./dotnet-install.ps1 -Channel 9.0 -Quality preview
+```
+</p></details>
+
+
 ### Required Software
 
 <details><summary>macOS...</summary><p>
@@ -121,26 +153,12 @@ The `git-bash` setup can also install a setup for the Windows Terminal app.
 
 This terminal has the tool `winget` to install some packages.
 
+#### Git Bash
 
-#### MSYS/MinGW
+This installs both Git as well as a Terminal addon to allow you to use a *nix like bash terminal,
+making it much easier to build Defold through.
 
-This is an alternative to Terminal/git-bash setup.
-
-This will get you a shell that behaves like Linux and is much easier to build Defold through. [Download](https://sourceforge.net/projects/mingw/files/Installer/mingw-get-setup.exe/download) and run the installer and check these packages (binary):
-
-* MingW Base System: `mingw32-base-bin`, 'mingw32-gcc-g++-bin'
-* MSYS Base System: `msys-base-bin`, `msys-patch-bin`
-* MinGW Developer Toolkit: `mingw-developer-toolkit-bin`
-
-Select the menu option `Installation -> Apply Changes`.
-
-You also need to install `wget`. From the mingw terminal run:
-
-```sh
-> mingw-get install msys-wget-bin msys-zip msys-unzip
-```
-
-**NOTE:** You can start the visual installer again by simply running `mingw-get`
+Download: [Git For Windows](https://gitforwindows.org)
 
 #### Git
 

@@ -22,7 +22,6 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.util.HashSet;
 
 import org.apache.commons.configuration2.ex.ConfigurationException;
 import org.apache.commons.io.FileUtils;
@@ -82,19 +81,23 @@ public class MacOSBundlerTest {
     }
 
     void build() throws IOException, CompileExceptionError, MultipleCompileException {
-        Project project = new Project(new DefaultFileSystem(), contentRoot, "build");
-        project.setPublisher(new NullPublisher(new PublisherSettings()));
+        try {
+            Project project = new Project(new DefaultFileSystem(), contentRoot, "build");
+            project.setPublisher(new NullPublisher(new PublisherSettings()));
 
-        ClassLoaderScanner scanner = new ClassLoaderScanner();
-        project.scan(scanner, "com.dynamo.bob");
-        project.scan(scanner, "com.dynamo.bob.pipeline");
+            ClassLoaderScanner scanner = new ClassLoaderScanner();
+            project.scan(scanner, "com.dynamo.bob");
+            project.scan(scanner, "com.dynamo.bob.pipeline");
 
-        project.setOption("platform", Platform.X86_64MacOS.getPair());
-        project.setOption("architectures", Platform.X86_64MacOS.getPair());
-        project.setOption("archive", "true");
-        project.setOption("bundle-output", outputDir);
-        project.findSources(contentRoot, new HashSet<String>());
-        project.build(new NullProgress(), "clean", "build", "bundle");
+            project.setOption("platform", Platform.X86_64MacOS.getPair());
+            project.setOption("architectures", Platform.X86_64MacOS.getPair());
+            project.setOption("archive", "true");
+            project.setOption("bundle-output", outputDir);
+            project.build(new NullProgress(), "clean", "build", "bundle");
+        } catch (Exception e) {
+            System.err.printf("Failed to build: %s\n", e.getMessage());
+            throw e;
+        }
     }
 
     @Test

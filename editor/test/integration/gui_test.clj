@@ -13,8 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns integration.gui-test
-  (:require [clojure.test :refer :all]
-            [clojure.string :as str]
+  (:require [clojure.string :as str]
+            [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.defold-project :as project]
@@ -22,8 +22,11 @@
             [editor.gui :as gui]
             [editor.handler :as handler]
             [editor.workspace :as workspace]
-            [integration.test-util :as test-util])
-  (:import [javax.vecmath Point3d Matrix4d Vector3d]))
+            [integration.test-util :as test-util]
+            [support.test-support :as test-support]
+            [util.coll :refer [pair]]
+            [util.fn :as fn])
+  (:import [javax.vecmath Matrix4d Vector3d]))
 
 (defn- prop [node-id label]
   (test-util/prop node-id label))
@@ -33,7 +36,7 @@
 
 (defn- gui-node [scene id]
   (let [id->node (->> (get-in (g/node-value scene :node-outline) [:children 0])
-                   (tree-seq (constantly true) :children)
+                   (tree-seq fn/constantly-true :children)
                    (map :node-id)
                    (map (fn [node-id] [(g/node-value node-id :id) node-id]))
                    (into {}))]
@@ -110,6 +113,7 @@
           size [150.0 50.0 0.0]
           sizes {:ball [64.0 32.0 0.0]
                  :left-hud [200.0 640.0 0.0]}]
+      (is (= :size-mode-manual (g/node-value box :size-mode)))
       (is (= size (g/node-value box :size)))
       (g/set-property! box :texture "atlas_texture/left_hud")
       (is (= size (g/node-value box :size)))
@@ -346,6 +350,51 @@
         (is (not= (g/node-value box p) (g/node-value or-box p)))
         (is (= (g/node-value or-box p) v))))))
 
+(deftest gui-template-overrides-remain-after-external-template-change
+  (test-util/with-scratch-project "test/resources/gui_project"
+    (letfn [(select-labels [node-id labels]
+              (g/with-auto-evaluation-context evaluation-context
+                (into {}
+                      (map (fn [label]
+                             (pair label
+                                   (g/node-value node-id label evaluation-context))))
+                      labels)))
+
+            (select-gui-node-labels [gui-resource gui-node-name labels]
+              (-> (project/get-resource-node project gui-resource)
+                  (gui-node gui-node-name)
+                  (select-labels labels)))]
+
+      (let [button-gui-resource (workspace/find-resource workspace "/main/button.gui")
+            panel-gui-resource (workspace/find-resource workspace "/main/panel.gui")
+            window-gui-resource (workspace/find-resource workspace "/main/window.gui")
+            panel-box-props-before (select-gui-node-labels panel-gui-resource "button/box" [:color :layer :texture])
+            window-box-props-before (select-gui-node-labels window-gui-resource "panel/button/box" [:color :layer :texture])]
+
+        (testing "Overrides should exist before external change."
+          (is (= {:color [0.0 1.0 0.0 1.0]
+                  :layer "panel_layer"
+                  :texture "panel_texture/button_checkered"}
+                 panel-box-props-before))
+          (is (= {:color [0.0 0.0 1.0 1.0]
+                  :layer "window_layer"
+                  :texture "window_texture/button_cloudy"}
+                 window-box-props-before)))
+
+        ;; Simulate external changes to 'button.gui'.
+        (let [modified-button-gui-content
+              (-> button-gui-resource
+                  (slurp)
+                  (str/replace "max_nodes: 123" "max_nodes: 100"))]
+          (test-support/spit-until-new-mtime button-gui-resource modified-button-gui-content)
+          (workspace/resource-sync! workspace))
+
+        (testing "Overrides should remain after external change."
+          (let [panel-box-props-after (select-gui-node-labels panel-gui-resource "button/box" [:color :layer :texture])
+                window-box-props-after (select-gui-node-labels window-gui-resource "panel/button/box" [:color :layer :texture])]
+            (is (= panel-box-props-before panel-box-props-after))
+            (is (= window-box-props-before window-box-props-after))))))))
+
 (defn- strip-scene [scene]
   (-> scene
     (select-keys [:node-id :children :renderable])
@@ -360,7 +409,7 @@
                        ;; we're not interested in the outline subscenes for gui nodes
                        (remove (fn [scene] (contains? (get-in scene [:renderable :tags]) :outline)))
                        (map (fn [s] [(:node-id s) s])))
-                     (tree-seq (constantly true) :children (strip-scene scene)))]
+                     (tree-seq fn/constantly-true :children (strip-scene scene)))]
     (scenes node-id)))
 
 (deftest gui-template-alpha
@@ -455,7 +504,7 @@
     (g/node-value :text)))
 
 (defn- trans-x [root-id target-id]
-  (let [s (tree-seq (constantly true) :children (g/node-value root-id :scene))]
+  (let [s (tree-seq fn/constantly-true :children (g/node-value root-id :scene))]
     (when-let [^Matrix4d m (some #(and (= (:node-id %) target-id) (:transform %)) s)]
       (let [t (Vector3d.)]
         (.get m t)
@@ -469,10 +518,10 @@
                (set-visible-layout! node-id "Landscape")
                (is (= "Testing Text" (gui-text node-id "scene/text"))))
       (testing "scene generation"
-        (is (= {:device-models [] :width 1280 :height 720}
+        (is (= {:width 1280 :height 720}
                (g/node-value node-id :scene-dims)))
         (set-visible-layout! node-id "Portrait")
-        (is (= {:device-models [] :width 720 :height 1280}
+        (is (= {:width 720 :height 1280}
                (g/node-value node-id :scene-dims)))))))
 
 (deftest gui-legacy-alpha

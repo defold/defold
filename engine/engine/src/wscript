@@ -62,7 +62,7 @@ def build(bld):
                              'ResourceProviderFile', 'ResourceProviderArchive', 'ResourceProviderArchiveMutable', 'ResourceProviderZip']
     component_type_symbols = ['ComponentTypeAnim', 'ComponentTypeScript', 'ComponentTypeGui', 'ComponentTypeMesh']
 
-    exported_symbols = ['DefaultSoundDevice', 'AudioDecoderWav', 'CrashExt', 'ProfilerExt', 'LiveUpdateExt', 'ScriptBox2DExt']
+    exported_symbols = ['DefaultSoundDevice', 'AudioDecoderWav', 'CrashExt', 'ProfilerExt', 'LiveUpdateExt', 'ScriptBox2DExt', 'ScriptImageExt', 'ScriptModelExt', 'ScriptTypesExt']
 
     # Add stb_vorbis and/or tremolo depending on platform
     if bld.env['PLATFORM'] in ('arm64-nx64', 'win32', 'x86_64-win32', 'js-web', 'wasm-web'):
@@ -80,9 +80,15 @@ def build(bld):
         graphics_lib += ' GRAPHICS_VULKAN VULKAN'
         graphics_lib_symbols.append('GraphicsAdapterVulkan')
 
+<<<<<<< HEAD
     if waflib.Options.options.with_dx12:
         graphics_lib += ' GRAPHICS_DX12'
         graphics_lib_symbols.append('GraphicsAdapterDX12')
+=======
+    if waflib.Options.options.with_webgpu and platform_supports_feature(bld.env.PLATFORM, 'webgpu', {}):
+        graphics_lib += ' GRAPHICS_WEBGPU'
+        graphics_lib_symbols.append('GraphicsAdapterWebGPU')
+>>>>>>> dev
 
     if bld.env['PLATFORM'] in ('arm64-nx64',):
         graphics_lib = 'GRAPHICS_VULKAN DMGLFW VULKAN'
@@ -136,9 +142,13 @@ def build(bld):
     if bld.env['PLATFORM'] in ('x86_64-ps4', 'x86_64-ps5'):
         additional_libs.append('APP')
 
+    platform_lib = ['PLATFORM']
+    if not platform_supports_feature(bld.env.PLATFORM, "opengl", None):
+        platform_lib = ['PLATFORM_NULL']
+
     obj = bld(
         features = 'c cxx cprogram apk web extract_symbols',
-        use = 'engine_rs PROFILEREXT GAMEOBJECT DDF LIVEUPDATE RESOURCE GAMESYS PHYSICS RECORD RENDER SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB GUI CRASH X PLATFORM engine engine_service'.split() + graphics_lib + sound_lib + profile_lib + additional_libs,
+        use = 'engine_rs PROFILEREXT GAMEOBJECT DDF LIVEUPDATE RESOURCE GAMESYS PHYSICS RECORD RENDER SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB GUI CRASH X engine engine_service'.split() + graphics_lib + sound_lib + profile_lib + platform_lib + additional_libs,
         web_libs = web_libs,
         exported_symbols = exported_symbols + resource_type_symbols + ['ResourceProviderHttp'] + component_type_symbols,
         includes = '../build ../proto . ..',
@@ -166,7 +176,7 @@ def build(bld):
 
     obj = bld(
         features = 'c cxx cprogram apk web extract_symbols',
-        use = 'PROFILE_NULL PROFILEREXT_NULL GAMEOBJECT DDF LIVEUPDATE RESOURCE GAMESYS PHYSICS RECORD RENDER SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB GUI CRASH X PLATFORM engine_release engine_service_null'.split() + graphics_lib + sound_lib + additional_libs,
+        use = 'PROFILE_NULL PROFILEREXT_NULL GAMEOBJECT DDF LIVEUPDATE RESOURCE GAMESYS PHYSICS RECORD RENDER SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB GUI CRASH X engine_release engine_service_null'.split() + graphics_lib + sound_lib + platform_lib + additional_libs,
         web_libs = web_libs,
         exported_symbols = exported_symbols + resource_type_symbols + component_type_symbols,
         includes = '../build ../proto . ..',
@@ -199,7 +209,7 @@ def build(bld):
     obj = bld(
         features = 'c cxx cprogram apk web extract_symbols',
         use = 'RECORD_NULL GAMEOBJECT DDF LIVEUPDATE GAMESYS RESOURCE PHYSICS RENDER SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE PLATFORM_NULL RIG GUI CRASH DLIB SOUND_NULL engine engine_service'.split() + graphics_lib.split() + profile_lib + additional_libs,
-        exported_symbols = ['ProfilerExt', 'LiveUpdateExt', 'GraphicsAdapterNull'] + resource_type_symbols + component_type_symbols,
+        exported_symbols = ['ProfilerExt', 'LiveUpdateExt', 'ScriptTypesExt', 'GraphicsAdapterNull'] + resource_type_symbols + component_type_symbols,
         web_libs = web_libs,
         includes = '../build ../proto . ..',
         proto_gen_py = True,

@@ -21,13 +21,13 @@
 #include <dlib/dstrings.h>
 #include <dlib/time.h>
 #include <dlib/log.h>
-#include <resource/resource.h>
 #include "../gameobject.h"
 #include "../gameobject_private.h"
 #include "../script.h"
 #include "gameobject/test/spawn_delete/test_gameobject_spawn_delete_ddf.h"
 #include "../proto/gameobject/gameobject_ddf.h"
 #include "../proto/gameobject/lua_ddf.h"
+#include <dmsdk/resource/resource.h>
 
 using namespace dmVMath;
 
@@ -69,7 +69,9 @@ protected:
         params.m_MaxResources = 16;
         params.m_Flags = RESOURCE_FACTORY_FLAGS_RELOAD_SUPPORT;
         m_Factory = dmResource::NewFactory(&params, "build/src/gameobject/test/spawn_delete");
-        m_ScriptContext = dmScript::NewContext(0, m_Factory, true);
+        dmScript::ContextParams script_context_params = {};
+        script_context_params.m_Factory = m_Factory;
+        m_ScriptContext = dmScript::NewContext(script_context_params);
         dmScript::Initialize(m_ScriptContext);
         m_Register = dmGameObject::NewRegister();
         dmGameObject::Initialize(m_Register, m_ScriptContext);
@@ -102,7 +104,7 @@ protected:
         e = dmResource::RegisterType(m_Factory, "a", this, 0, ACreate, 0, ADestroy, 0);
         ASSERT_EQ(dmResource::RESULT_OK, e);
 
-        dmResource::ResourceType resource_type;
+        HResourceType resource_type;
         dmGameObject::Result go_result;
 
         // A has component_user_data
@@ -197,13 +199,13 @@ public:
 };
 
 template <typename T>
-dmResource::Result GenericDDFCreate(const dmResource::ResourceCreateParams& params)
+dmResource::Result GenericDDFCreate(const dmResource::ResourceCreateParams* params)
 {
     T* obj;
-    dmDDF::Result e = dmDDF::LoadMessage<T>(params.m_Buffer, params.m_BufferSize, &obj);
+    dmDDF::Result e = dmDDF::LoadMessage<T>(params->m_Buffer, params->m_BufferSize, &obj);
     if (e == dmDDF::RESULT_OK)
     {
-        params.m_Resource->m_Resource = (void*) obj;
+        ResourceDescriptorSetResource(params->m_Resource, obj);
         return dmResource::RESULT_OK;
     }
     else
@@ -213,9 +215,9 @@ dmResource::Result GenericDDFCreate(const dmResource::ResourceCreateParams& para
 }
 
 template <typename T>
-dmResource::Result GenericDDFDestory(const dmResource::ResourceDestroyParams& params)
+dmResource::Result GenericDDFDestory(const dmResource::ResourceDestroyParams* params)
 {
-    dmDDF::FreeMessage((void*) params.m_Resource->m_Resource);
+    dmDDF::FreeMessage((void*)ResourceDescriptorGetResource(params->m_Resource));
     return dmResource::RESULT_OK;
 }
 

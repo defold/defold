@@ -101,7 +101,8 @@ public class BundlerTest {
         String envSkipTest = System.getenv("DM_BOB_BUNDLERTEST_ONLY_HOST");
         String skipTest =  envSkipTest != null ? envSkipTest : System.getProperty("DM_BOB_BUNDLERTEST_ONLY_HOST");
         // By default property is `${DM_BOB_BUNDLERTEST_ONLY_HOST}`
-        if (skipTest != null && !skipTest.equals("0") && !skipTest.equals("${DM_BOB_BUNDLERTEST_ONLY_HOST}")) {
+        if (skipTest != null && !skipTest.isEmpty() && !skipTest.equals("0") && !skipTest.equals("${DM_BOB_BUNDLERTEST_ONLY_HOST}")) {
+            System.out.println("Bundle test only for host");
             data.add(new Platform[]{Platform.getHostPlatform()});
         }
         else {
@@ -360,9 +361,6 @@ public class BundlerTest {
 
         setProjectProperties(project);
 
-        Set<String> skipDirs = new HashSet<String>(Arrays.asList(".git", project.getBuildDirectory(), ".internal"));
-
-        project.findSources(contentRoot, skipDirs);
         List<TaskResult> result = project.build(new NullProgress(), "clean", "build", "bundle");
         for (TaskResult taskResult : result) {
             assertTrue(taskResult.toString(), taskResult.isOk());
@@ -465,33 +463,6 @@ public class BundlerTest {
         project.setOption("architectures", platform.getPair());
         project.setOption("archive", "true");
         project.setOption("bundle-output", outputDir);
-    }
-
-    @Test
-    public void testUnusedCollections() throws IOException, ConfigurationException, CompileExceptionError, MultipleCompileException {
-        int builtins_count = createDefaultFiles(contentRootUnused);
-        createFile(contentRootUnused, "main.collection", "name: \"default\"\nscale_along_z: 0\n");
-        createFile(contentRootUnused, "unused.collection", "name: \"unused\"\nscale_along_z: 0\n");
-
-        Project project = new Project(new DefaultFileSystem(), contentRootUnused, "build");
-        project.setPublisher(new NullPublisher(new PublisherSettings()));
-
-        ClassLoaderScanner scanner = new ClassLoaderScanner();
-        project.scan(scanner, "com.dynamo.bob");
-        project.scan(scanner, "com.dynamo.bob.pipeline");
-
-        setProjectProperties(project);
-        project.setOption("keep-unused", "true");
-
-        project.findSources(contentRootUnused, new HashSet<String>());
-        List<TaskResult> result = project.build(new NullProgress(), "clean", "build");
-        for (TaskResult taskResult : result) {
-            assertTrue(taskResult.toString(), taskResult.isOk());
-        }
-
-        Set<byte[]> entries = readDarcEntries(contentRootUnused);
-
-        assertEquals(builtins_count + 2, entries.size());
     }
 
     @Test

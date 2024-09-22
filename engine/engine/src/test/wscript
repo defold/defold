@@ -64,7 +64,7 @@ def build(bld):
                              'ResourceTypeAnim', 'ResourceTypeAnimationSet', 'ResourceTypeGui', 'ResourceTypeGuiScript',
                              'ResourceProviderFile', 'ResourceProviderArchive', 'ResourceProviderArchiveMutable']
     component_type_symbols = ['ComponentTypeAnim', 'ComponentTypeScript', 'ComponentTypeGui', 'ComponentTypeMesh']
-    exported_symbols = ['ProfilerExt', 'GraphicsAdapterNull']
+    exported_symbols = ['ProfilerExt', 'GraphicsAdapterNull', 'ScriptModelExt']
 
     bld.add_group()
     obj = bld(
@@ -91,10 +91,24 @@ def build(bld):
         bob_flags.append("--use-vanilla-lua")
     bob_flags = ' '.join(bob_flags)
 
-    # Build engine test content using bob
-    # We always run distclean. Hook into waf clean/distclean in some way?
-    bob_command = 'java -jar ./build/content/bob-engine.jar -root ./src/test -k clean build %s' % bob_flags
+    # Clean folder
+    bld(rule = run_bob,
+        run_args = 'java -jar ./build/content/bob-engine.jar -root ./src/test clean',
+        source = 'wscript',
+        always = True)
 
+    # Build custom collections first to prevent overrides in default game.projectc
+    settings = ['cross_script_messaging.ini', 'render_script.ini', 'camera_acquire_input_focus.ini']
+    for setting_file in settings:
+        bld.add_group()
+        bld(rule = run_bob,
+            run_args = 'java -jar ./build/content/bob-engine.jar -root ./src/test build %s --settings ./src/test/%s' % (bob_flags, setting_file),
+            source = 'wscript',
+            always = True)
+
+    # Build main setup
+    bob_command = 'java -jar ./build/content/bob-engine.jar -root ./src/test build %s' % bob_flags
+    bld.add_group()
     bld(rule = run_bob,
         run_args = bob_command,
         source = 'wscript',

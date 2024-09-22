@@ -17,7 +17,7 @@
 
 #include <stdint.h>
 
-#include <dlib/configfile.h>
+#include <dmsdk/dlib/configfile.h>
 #include <dlib/hashtable.h>
 #include <dlib/message.h>
 
@@ -157,6 +157,7 @@ namespace dmEngine
         bool                                        m_QuitOnEsc;
         bool                                        m_ConnectionAppMode;        //!< If the app was started on a device, listening for connections
         bool                                        m_RunWhileIconified;
+        bool                                        m_UseSwVSync;
         uint64_t                                    m_PreviousFrameTime;        // Used to calculate dt
         float                                       m_AccumFrameTime;           // Used to trigger frame updates when using m_UpdateFrequency != 0
         uint32_t                                    m_UpdateFrequency;
@@ -166,6 +167,7 @@ namespace dmEngine
         uint32_t                                    m_ClearColor;
         float                                       m_InvPhysicalWidth;
         float                                       m_InvPhysicalHeight;
+        float                                       m_MaxTimeStep;
 
         RecordData                                  m_RecordData;
     };
@@ -177,7 +179,7 @@ namespace dmEngine
     void Step(HEngine engine);
 
     void ReloadResources(HEngine engine, const char* extension);
-    bool LoadBootstrapContent(HEngine engine, dmConfigFile::HConfig config);
+    bool LoadBootstrapContent(HEngine engine, HConfigFile config);
     void UnloadBootstrapContent(HEngine engine);
 
 

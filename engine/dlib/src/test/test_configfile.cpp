@@ -14,6 +14,7 @@
 
 #include <stdio.h>
 #include <stdint.h>
+#include <dlib/dstrings.h>
 #include <dlib/log.h>
 #include <dlib/dstrings.h>
 #include <dlib/configfile.h>
@@ -216,6 +217,34 @@ TEST_P(Test01, Test01)
     ASSERT_EQ(42, dmConfigFile::GetInt(config, "ext.int", 0));
     ASSERT_EQ(1.0f, dmConfigFile::GetFloat(config, "ext.float", 0));
     ASSERT_EQ(0, dmConfigFile::GetInt(config, "ext.virtual", 0));
+}
+
+TEST_P(Test01, TestApiC)
+{
+    ASSERT_STREQ("123", ConfigFileGetString(config, "main.foo", 0));
+    ASSERT_EQ(123, ConfigFileGetInt(config, "main.foo", 0));
+
+    ASSERT_STREQ("#value", ConfigFileGetString(config, "comments.pound", 0));
+    ASSERT_STREQ(";value", ConfigFileGetString(config, "comments.semi", 0));
+
+    ASSERT_STREQ("456", ConfigFileGetString(config, "sub.bar", 0));
+    ASSERT_EQ(456, ConfigFileGetInt(config, "sub.bar", 0));
+    ASSERT_STREQ("foo_bar", ConfigFileGetString(config, "sub.value", 0));
+    ASSERT_STREQ("", ConfigFileGetString(config, "sub.bad_int1", 0));
+    ASSERT_EQ(-1, ConfigFileGetInt(config, "sub.bad_int1", -1));
+    ASSERT_EQ(-1, ConfigFileGetInt(config, "sub.bad_int2", -1));
+
+    ASSERT_STREQ("missing_value", ConfigFileGetString(config, "missing_key", "missing_value"));
+    ASSERT_EQ(1122, ConfigFileGetInt(config, "missing_int_key", 1122));
+
+    // The extension plugin hooks are disabled
+    ASSERT_STREQ("hello", ConfigFileGetString(config, "ext.string", 0));
+    ASSERT_STREQ("42", ConfigFileGetString(config, "ext.int", 0));
+    ASSERT_STREQ("1.0", ConfigFileGetString(config, "ext.float", 0));
+
+    ASSERT_EQ(42, ConfigFileGetInt(config, "ext.int", 0));
+    ASSERT_EQ(1.0f, ConfigFileGetFloat(config, "ext.float", 0));
+    ASSERT_EQ(0, ConfigFileGetInt(config, "ext.virtual", 0));
 }
 
 const TestParam params_test01[] = {

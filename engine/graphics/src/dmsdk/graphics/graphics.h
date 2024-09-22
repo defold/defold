@@ -65,6 +65,13 @@ namespace dmGraphics
     typedef uintptr_t HFragmentProgram;
 
     /*#
+     * Compute program handle
+     * @typedef
+     * @name HComputeProgram
+     */
+    typedef uintptr_t HComputeProgram;
+
+    /*#
      * Program handle
      * @typedef
      * @name HProgram
@@ -435,6 +442,10 @@ namespace dmGraphics
         TYPE_FLOAT_MAT2       = 14,
         TYPE_FLOAT_MAT3       = 15,
         TYPE_IMAGE_2D         = 16,
+        TYPE_TEXTURE_2D       = 17,
+        TYPE_SAMPLER          = 18,
+        TYPE_TEXTURE_2D_ARRAY = 19,
+        TYPE_TEXTURE_CUBE     = 20
     };
 
     /*#

@@ -18,7 +18,6 @@
 #include <string.h>
 
 #include <dlib/log.h>
-#include <dlib/utf8.h>
 #include <dlib/dstrings.h>
 #include <dlib/math.h>
 #include <dlib/static_assert.h>
@@ -52,10 +51,18 @@ namespace dmHID
         dmPlatform::PLATFORM_JOYSTICK_16
     };
 
+    enum GamepadRemapStrategy
+    {
+        GAMEPAD_REMAP_STRATEGY_NONE          = 0,
+        GAMEPAD_REMAP_STRATEGY_LEGACY_XINPUT = 1,
+        GAMEPAD_REMAP_STRATEGY_LEGACY_DINPUT = 2,
+    };
+
     struct GLFWGamepadDevice
     {
-        int      m_Id;
-        Gamepad* m_Gamepad;
+        int                  m_Id;
+        Gamepad*             m_Gamepad;
+        GamepadRemapStrategy m_RemapStrategy;
     };
 
 
@@ -66,6 +73,8 @@ namespace dmHID
         HContext                   m_HidContext;
         dmArray<GLFWGamepadDevice> m_Devices;
     };
+
+    static void GetGamepadDeviceNameInternal(HContext context, int glfw_id, char name[MAX_GAMEPAD_NAME_LENGTH]);
 
     static GLFWGamepadDriver* g_GLFWGamepadDriver = 0;
 
@@ -82,12 +91,15 @@ namespace dmHID
         return 0;
     }
 
-    static int GLFWGetGamepadId(GLFWGamepadDriver* driver, Gamepad* gamepad)
+    // Returns the glfw gamepad ID
+    static int GLFWUnpackGamepad(GLFWGamepadDriver* driver, Gamepad* gamepad, GLFWGamepadDevice** glfw_gamepad_device_out)
     {
         for (int i = 0; i < driver->m_Devices.Size(); ++i)
         {
             if (driver->m_Devices[i].m_Gamepad == gamepad)
             {
+                if (glfw_gamepad_device_out)
+                    *glfw_gamepad_device_out = &driver->m_Devices[i];
                 return driver->m_Devices[i].m_Id;
             }
         }
@@ -112,6 +124,23 @@ namespace dmHID
         GLFWGamepadDevice new_device = {};
         new_device.m_Id              = gamepad_id;
         new_device.m_Gamepad         = gp;
+        new_device.m_RemapStrategy   = GAMEPAD_REMAP_STRATEGY_NONE;
+
+    #ifdef _WIN32
+        // For windows, we need to be able to remap button layouts according to
+        // how it was created (xinput or dinput) in order to comply with old button mappings.
+        new_device.m_RemapStrategy = GAMEPAD_REMAP_STRATEGY_LEGACY_DINPUT;
+
+        char gamepad_name[MAX_GAMEPAD_NAME_LENGTH];
+        GetGamepadDeviceNameInternal(driver->m_HidContext, gamepad_id, gamepad_name);
+
+        if (strcmp(gamepad_name, "Wireless Xbox Controller") == 0 ||
+            strcmp(gamepad_name, "Xbox Controller") == 0 ||
+            strstr(gamepad_name, "XInput"))
+        {
+            new_device.m_RemapStrategy = GAMEPAD_REMAP_STRATEGY_LEGACY_XINPUT;
+        }
+    #endif
 
         if (driver->m_Devices.Full())
         {
@@ -148,24 +177,154 @@ namespace dmHID
             {
                 return;
             }
+
             SetGamepadConnectionStatus(g_GLFWGamepadDriver->m_HidContext, gp, event == dmPlatform::GAMEPAD_EVENT_CONNECTED ? 1 : 0);
         }
     }
 
+
+#ifdef _WIN32
+
+    static void RemapGamepadAxisWin32(GLFWGamepadDevice* glfw_gamepad, float* axis)
+    {
+        if (glfw_gamepad->m_RemapStrategy != GAMEPAD_REMAP_STRATEGY_LEGACY_XINPUT)
+        {
+            return;
+        }
+        Gamepad* gamepad = glfw_gamepad->m_Gamepad;
+
+        // The new XInput mapping has positive Y axis downwards and negative upwards, so we need to reverse those.
+        // XInput devices will always have 6 axis values (left X, left Y, right X, right Y, left Trigger, right Trigger),
+        // so it's safe to not bounds check here:
+        axis[1] *= -1.0f;
+        axis[3] *= -1.0f;
+    }
+
+    static uint8_t* RemapGamepadButtonsWin32(GLFWGamepadDevice* glfw_gamepad, uint8_t* buttons, uint8_t* buttons_remapped)
+    {
+        if (glfw_gamepad->m_RemapStrategy != GAMEPAD_REMAP_STRATEGY_LEGACY_XINPUT &&
+            glfw_gamepad->m_RemapStrategy != GAMEPAD_REMAP_STRATEGY_LEGACY_DINPUT)
+        {
+            return buttons;
+        }
+
+        // For win32, hats are placed at the END of the button array on later glfw version,
+        // but old Defold expects the hats to be placed first. So to avoid forcing people to
+        // do a new remapping for their gamepads, we just copy and adjust the hats from the new
+        // glfw format to the old one.
+        Gamepad* gamepad                = glfw_gamepad->m_Gamepad;
+        int32_t hats_button_count       = gamepad->m_HatCount * 4;
+        int32_t hats_start              = gamepad->m_ButtonCount - hats_button_count;
+        uint8_t* buttons_remapped_start = buttons_remapped + hats_button_count;
+
+        if (glfw_gamepad->m_RemapStrategy == GAMEPAD_REMAP_STRATEGY_LEGACY_XINPUT)
+        {
+            // In GLFW 2.7, the button count is hardcoded to 16 for XInput devices.
+            gamepad->m_ButtonCount = 16;
+
+            // For XInput devices, the button order has changed so we have to do an explicit remapping here.
+            //
+            // Q: How does this remapping work?
+            // A: In the old glfw code, the button at index i is calculated as:
+            //      for i=0; i < max_buttons do
+            //          buttons[ button ] = (unsigned char) (ji.dwButtons & (1UL << button) ? GLFW_PRESS : GLFW_RELEASE);
+            //
+            //    The values of the ji.dwButtons mask is specified in xinput.h that we have in the glfw repo:
+            //      #define XINPUT_GAMEPAD_DPAD_UP          0x0001 (button index: 0)
+            //      #define XINPUT_GAMEPAD_DPAD_DOWN        0x0002 (button index: 1)
+            //      #define XINPUT_GAMEPAD_DPAD_LEFT        0x0004 (button index: 2)
+            //      #define XINPUT_GAMEPAD_DPAD_RIGHT       0x0008 (button index: 3)
+            //      #define XINPUT_GAMEPAD_START            0x0010 (button index: 4)
+            //      #define XINPUT_GAMEPAD_BACK             0x0020 (button index: 5)
+            //      #define XINPUT_GAMEPAD_LEFT_THUMB       0x0040 (button index: 6)
+            //      #define XINPUT_GAMEPAD_RIGHT_THUMB      0x0080 (button index: 7)
+            //      #define XINPUT_GAMEPAD_LEFT_SHOULDER    0x0100 (button index: 8)
+            //      #define XINPUT_GAMEPAD_RIGHT_SHOULDER   0x0200 (button index: 9)
+            //              (note! no index 10/11, 0x400 and 0x800 are missing!)
+            //      #define XINPUT_GAMEPAD_A                0x1000 (button index: 12)
+            //      #define XINPUT_GAMEPAD_B                0x2000 (button index: 13)
+            //      #define XINPUT_GAMEPAD_X                0x4000 (button index: 14)
+            //      #define XINPUT_GAMEPAD_Y                0x8000 (button index: 15)
+            //
+            //   In GLFW 3.4, the xinput button order has changed to:
+            //      XINPUT_GAMEPAD_A,              (button index: 0)
+            //      XINPUT_GAMEPAD_B,              (button index: 1)
+            //      XINPUT_GAMEPAD_X,              (button index: 2)
+            //      XINPUT_GAMEPAD_Y,              (button index: 3)
+            //      XINPUT_GAMEPAD_LEFT_SHOULDER,  (button index: 4)
+            //      XINPUT_GAMEPAD_RIGHT_SHOULDER, (button index: 5)
+            //      XINPUT_GAMEPAD_BACK,           (button index: 6)
+            //      XINPUT_GAMEPAD_START,          (button index: 7)
+            //      XINPUT_GAMEPAD_LEFT_THUMB,     (button index: 8)
+            //      XINPUT_GAMEPAD_RIGHT_THUMB     (button index: 9)
+            //
+            //   What we want to do now is to put the values from the new mapping into
+            //   the same order as the old array would look like.
+            //   For example, in the new order we find the "start" button at index 7,
+            //   but in the old mapping it would have index 0.
+            //
+            //   Since we do the dpad mapping later, we skip the dpads here.
+            //   The "buttons_remapped_start" pointer is pointer to the start of the
+            //   button block (which is after all the dpads) so that's why it seems
+            //   like the indices aren't the same as from the XInput header.
+
+            buttons_remapped_start[0]  = buttons[7];
+            buttons_remapped_start[1]  = buttons[6];
+            buttons_remapped_start[2]  = buttons[8];
+            buttons_remapped_start[3]  = buttons[9];
+            buttons_remapped_start[4]  = buttons[4];
+            buttons_remapped_start[5]  = buttons[5];
+            // NO button data for index (6,7)
+            buttons_remapped_start[8]  = buttons[0];
+            buttons_remapped_start[9]  = buttons[1];
+            buttons_remapped_start[10] = buttons[2];
+            buttons_remapped_start[11] = buttons[3];
+        }
+        else if (glfw_gamepad->m_RemapStrategy == GAMEPAD_REMAP_STRATEGY_LEGACY_DINPUT)
+        {
+            // For direct input devices, we can take all buttons as is without explicit button remapping (except dpads)
+            memcpy(buttons_remapped_start, buttons, hats_start);
+        }
+
+        // For both remap variants we put all the hat buttons in the front of the array
+        for (int i = 0; i < gamepad->m_HatCount; ++i)
+        {
+            uint32_t hat_base = i * gamepad->m_HatCount;
+            buttons_remapped[hat_base + 0] = buttons[hats_start + hat_base];
+            buttons_remapped[hat_base + 1] = buttons[hats_start + hat_base + 2];
+            buttons_remapped[hat_base + 2] = buttons[hats_start + hat_base + 3];
+            buttons_remapped[hat_base + 3] = buttons[hats_start + hat_base + 1];
+        }
+
+        return buttons_remapped;
+    }
+#endif
+
     static void GLFWGamepadDriverUpdate(HContext context, GamepadDriver* driver, Gamepad* gamepad)
     {
-        int id                = GLFWGetGamepadId((GLFWGamepadDriver*) driver, gamepad);
+        GLFWGamepadDevice* glfw_device;
+        int id = GLFWUnpackGamepad((GLFWGamepadDriver*) driver, gamepad, &glfw_device);
+        assert(id != -1);
+
         int glfw_joystick     = GLFW_JOYSTICKS[id];
         GamepadPacket& packet = gamepad->m_Packet;
 
-        unsigned char buttons[MAX_GAMEPAD_BUTTON_COUNT];
+        uint8_t buttons[MAX_GAMEPAD_BUTTON_COUNT] = {};
+        uint8_t* buttons_ptr = buttons;
+
         gamepad->m_AxisCount   = dmPlatform::GetJoystickAxes(context->m_Window, glfw_joystick, packet.m_Axis, MAX_GAMEPAD_AXIS_COUNT);
         gamepad->m_HatCount    = dmPlatform::GetJoystickHats(context->m_Window, glfw_joystick, packet.m_Hat, MAX_GAMEPAD_HAT_COUNT);
         gamepad->m_ButtonCount = dmPlatform::GetJoystickButtons(context->m_Window, glfw_joystick, buttons, MAX_GAMEPAD_BUTTON_COUNT);
 
+    #ifdef _WIN32
+        uint8_t buttons_remapped[MAX_GAMEPAD_BUTTON_COUNT] = {};
+        buttons_ptr = RemapGamepadButtonsWin32(glfw_device, buttons, buttons_remapped);
+        RemapGamepadAxisWin32(glfw_device, packet.m_Axis);
+    #endif
+
         for (uint32_t j = 0; j < gamepad->m_ButtonCount; ++j)
         {
-            if (buttons[j])
+            if (buttons_ptr[j])
             {
                 packet.m_Buttons[j / 32] |= 1 << (j % 32);
             }
@@ -193,12 +352,16 @@ namespace dmHID
         }
     }
 
-    static void GLFWGamepadDriverGetGamepadDeviceName(HContext context, GamepadDriver* driver, HGamepad gamepad, char* buffer, uint32_t buffer_length)
+    static void GetGamepadDeviceNameInternal(HContext context, int glfw_id, char name[MAX_GAMEPAD_NAME_LENGTH])
     {
-        uint32_t gamepad_index = GLFWGetGamepadId((GLFWGamepadDriver*) driver, gamepad);
-        const char* device_name = dmPlatform::GetJoystickDeviceName(context->m_Window, gamepad_index);
+        const char* device_name = dmPlatform::GetJoystickDeviceName(context->m_Window, glfw_id);
+        dmStrlCpy(name, device_name, MAX_GAMEPAD_NAME_LENGTH);
+    }
 
-        dmStrlCpy(buffer, device_name, buffer_length);
+    static void GLFWGamepadDriverGetGamepadDeviceName(HContext context, GamepadDriver* driver, HGamepad gamepad, char name[MAX_GAMEPAD_NAME_LENGTH])
+    {
+        uint32_t gamepad_index = GLFWUnpackGamepad((GLFWGamepadDriver*) driver, gamepad, 0);
+        GetGamepadDeviceNameInternal(context, gamepad_index, name);
     }
 
     static bool GLFWGamepadDriverInitialize(HContext context, GamepadDriver* driver)

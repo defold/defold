@@ -44,7 +44,6 @@ namespace dmGraphics
             dmLogInfo("vkEnumerateInstanceExtensionProperties (%d) failed: %d", __LINE__, result);
             return;
         }
-
     }
 
     static bool IsSupported(const dmArray<VkExtensionProperties>& extensions, const char* name)
@@ -221,6 +220,7 @@ namespace dmGraphics
                 enabled_layer_count = validationLayerCount;
 
                 AddIfSupported(extensions, VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME, vk_required_extensions);
+
             #ifdef __MACH__
                 AddIfSupported(extensions, VK_KHR_get_physical_device_properties2_str, vk_required_extensions);
             #else

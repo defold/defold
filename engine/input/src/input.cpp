@@ -142,44 +142,90 @@ namespace dmInput
         return config;
     }
 
+    static GamepadConfig* GetGamepadConfig(HBinding binding, dmHID::HGamepad gamepad, char device_name_out[dmHID::MAX_GAMEPAD_NAME_LENGTH])
+    {
+        char device_name[dmHID::MAX_GAMEPAD_NAME_LENGTH];
+        dmHID::GetGamepadDeviceName(binding->m_Context->m_HidContext, gamepad, device_name);
+
+        /*
+         * NOTE: We used to log a warning here but the warning is removed for the following reasons:
+         *  - The input-binding file covers several platforms and certain platforms
+         *    doesn't have support for e.g. pads. But more importantly, sometimes you might have
+         *    a device connected but sometimes not. It should be up to the user and we shouldn't
+         *    spam out warnings in such cases. In other words. It's impossible to tell whether the
+         *    warning is appropriate or not.
+         *  - We should also have support dynamic pad-connections. Whether a pad is connected
+         *    or not should be up to the game-ui.
+         */
+        if (device_name[0] == 0)
+            return 0x0;
+
+        GamepadConfig* best_config = 0x0;
+        int best_config_name_index = -1;
+
+        uint32_t num_names = 1;
+        char* device_names[] = { device_name, 0 };
+
+    #ifdef _WIN32
+        // for backwards compatability with GLFW 2.7
+        device_names[num_names++] = "XBox 360 Controller";
+    #endif
+
+        for (int i = 0; i < num_names; ++i)
+        {
+            GamepadConfig* config = GetGamepadConfigFromDeviceName(binding, dmHashString32(device_names[i]));
+            if (!config)
+                continue;
+
+            best_config            = config;
+            best_config_name_index = i;
+
+            // if we have found a config with a valid gamepad id, we don't look further.
+            if (best_config->m_DeviceId != UNKNOWN_GAMEPAD_CONFIG_ID)
+            {
+                break;
+            }
+        }
+
+        if (best_config)
+        {
+            dmStrlCpy(device_name_out, device_names[best_config_name_index], dmHID::MAX_GAMEPAD_NAME_LENGTH);
+        }
+        return best_config;
+    }
+
     static GamepadBinding* NewGamepadBinding(HBinding binding, uint32_t gamepad_index)
     {
         dmHID::HGamepad gamepad = dmHID::GetGamepad(binding->m_Context->m_HidContext, gamepad_index);
-        char device_name[128];
-        dmHID::GetGamepadDeviceName(binding->m_Context->m_HidContext, gamepad, device_name, sizeof(device_name));
-        if (strlen(device_name) == 0)
+
+        char device_name_out[dmHID::MAX_GAMEPAD_NAME_LENGTH];
+        GamepadConfig* selected_config = GetGamepadConfig(binding, gamepad, device_name_out);
+
+        if (selected_config)
         {
-            /*
-             * NOTE: We used to log a warning here but the warning is removed for the following reasons:
-             *  - The input-binding file covers several platforms and certain platforms
-             *    doesn't have support for e.g. pads. But more importantly, sometimes you might have
-             *    a device connected but sometimes not. It should be up to the user and we shouldn't
-             *    spam out warnings in such cases. In other words. It's impossible to tell whether the
-             *    warning is appropriate or not.
-             *  - We should also have support dynamic pad-connections. Whether a pad is connected
-             *    or not should be up to the game-ui.
-             */
-            return 0x0;
-        } else {
-            GamepadConfig* config = GetGamepadConfigFromDeviceName(binding, dmHashString32(device_name));
-            if (config == 0x0)
-            {
-                dmLogWarning("No gamepad map found for gamepad %d (%s). Ignored.", gamepad_index, device_name);
-                return 0x0;
-            }
             GamepadBinding* gamepad_binding = new GamepadBinding();
             memset(gamepad_binding, 0, sizeof(*gamepad_binding));
             gamepad_binding->m_Gamepad = gamepad;
-            if (config->m_DeviceId == UNKNOWN_GAMEPAD_CONFIG_ID)
+
+            if (selected_config->m_DeviceId == UNKNOWN_GAMEPAD_CONFIG_ID)
             {
-                dmLogWarning("No gamepad map found for gamepad %d (%s). The raw gamepad map will be used.", gamepad_index, device_name);
+                dmLogWarning("No gamepad map found for gamepad %d (%s). The raw gamepad map will be used.", gamepad_index, device_name_out);
                 gamepad_binding->m_Unknown = 1;
             }
-
             ResetGamepadBindings(binding, gamepad_binding, gamepad_index);
-
             return gamepad_binding;
         }
+        else
+        {
+            char device_name[dmHID::MAX_GAMEPAD_NAME_LENGTH];
+            dmHID::GetGamepadDeviceName(binding->m_Context->m_HidContext, gamepad, device_name);
+
+            if (device_name[0])
+            {
+                dmLogWarning("No gamepad map found for gamepad %d (%s). Ignored.", gamepad_index, device_name);
+            }
+        }
+        return 0x0;
     }
 
     static void SetupGamepadBindings(HBinding binding)
@@ -653,6 +699,10 @@ namespace dmInput
         }
         if (binding->m_MouseBinding != 0x0)
         {
+            bool is_wheel_offsets = false; // glfw 2.x
+            #if defined(DM_INPUT_USE_GLFW3)
+                is_wheel_offsets = true; // glfw 3, the wheel scroll is offsets
+            #endif
             MouseBinding* mouse_binding = binding->m_MouseBinding;
             dmHID::MousePacket* packet = &mouse_binding->m_Packet;
             dmHID::MousePacket* prev_packet = &mouse_binding->m_PreviousPacket;
@@ -671,10 +721,30 @@ namespace dmInput
                     switch (trigger.m_Input)
                     {
                     case dmInputDDF::MOUSE_WHEEL_UP:
-                        v = (float) (packet->m_Wheel - prev_packet->m_Wheel);
+                        if (is_wheel_offsets)
+                        {
+                            if (packet->m_Wheel > 0)
+                            {
+                                v = (float) (packet->m_Wheel - prev_packet->m_Wheel);
+                            }
+                        }
+                        else
+                        {
+                            v = (float) (packet->m_Wheel - prev_packet->m_Wheel);
+                        }
                         break;
                     case dmInputDDF::MOUSE_WHEEL_DOWN:
-                        v = (float) -(packet->m_Wheel - prev_packet->m_Wheel);
+                        if (is_wheel_offsets)
+                        {
+                            if (packet->m_Wheel < 0)
+                            {
+                                v = (float) -(packet->m_Wheel - prev_packet->m_Wheel);
+                            }
+                        }
+                        else
+                        {
+                            v = (float) -(packet->m_Wheel - prev_packet->m_Wheel);
+                        }
                         break;
                     default:
                         v = dmHID::GetMouseButton(packet, MOUSE_BUTTON_MAP[trigger.m_Input]) ? 1.0f : 0.0f;
@@ -710,9 +780,10 @@ namespace dmInput
                 {
                     if (connected)
                     {
-                        char device_name[128];
-                        dmHID::GetGamepadDeviceName(binding->m_Context->m_HidContext, gamepad, device_name, sizeof(device_name));
-                        gamepad_binding->m_DeviceId = dmHashString32(device_name);
+                        char device_name_out[dmHID::MAX_GAMEPAD_NAME_LENGTH];
+                        GetGamepadConfig(binding, gamepad, device_name_out);
+
+                        gamepad_binding->m_DeviceId = dmHashString32(device_name_out);
                         gamepad_binding->m_Connected = 1;
                         gamepad_binding->m_NoMapWarning = 0;
                     }
@@ -783,10 +854,10 @@ namespace dmInput
 
                                     if (action->m_GamepadConnected)
                                     {
-                                        char device_name[128];
-                                        dmHID::GetGamepadDeviceName(binding->m_Context->m_HidContext, gamepad, device_name, sizeof(device_name));
-                                        action->m_TextCount = dmStrlCpy(action->m_Text, device_name, sizeof(action->m_Text));
+                                        char device_name_out[dmHID::MAX_GAMEPAD_NAME_LENGTH];
+                                        GetGamepadConfig(binding, gamepad, device_name_out);
 
+                                        action->m_TextCount = dmStrlCpy(action->m_Text, device_name_out, sizeof(action->m_Text));
                                         action->m_UserID = 0;
                                         dmHID::GetGamepadUserId(binding->m_Context->m_HidContext, gamepad_binding->m_Gamepad, &action->m_UserID);
                                     }

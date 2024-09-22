@@ -1,0 +1,23 @@
+script: ""
+nodes {
+  position {
+    x: 200.0
+  }
+  size {
+    x: 1.0
+    y: 1.0
+  }
+  type: TYPE_CUSTOM
+  id: "spineboy"
+  inherit_alpha: true
+  size_mode: SIZE_MODE_AUTO
+  spine_scene: "spineboy"
+  spine_default_animation: "idle"
+  custom_type: 405028931
+}
+material: "/builtins/materials/gui.material"
+adjust_reference: ADJUST_REFERENCE_PARENT
+resources {
+  name: "spineboy"
+  path: "/assets/spineboy/spineboy.spinescene"
+}

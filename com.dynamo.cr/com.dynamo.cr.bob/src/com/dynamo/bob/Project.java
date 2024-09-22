@@ -39,11 +39,11 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.Enumeration;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -107,6 +107,7 @@ import com.dynamo.graphics.proto.Graphics.TextureProfiles;
 
 import com.dynamo.bob.cache.ResourceCache;
 import com.dynamo.bob.cache.ResourceCacheKey;
+import org.jagatoo.util.timing.Time;
 
 /**
  * Project abstraction. Contains input files, builder, tasks, etc
@@ -131,12 +132,12 @@ public class Project {
     private ExecutorService executor = Executors.newCachedThreadPool();
     private ResourceCache resourceCache = new ResourceCache();
     private IFileSystem fileSystem;
-    private Map<String, Class<? extends Builder<?>>> extToBuilder = new HashMap<String, Class<? extends Builder<?>>>();
+    private Map<String, Class<? extends Builder>> extToBuilder = new HashMap<String, Class<? extends Builder>>();
     private Map<String, String> inextToOutext = new HashMap<>();
-    private List<Class<? extends Builder<?>>> ignoreTaskAutoCreation = new ArrayList<Class<? extends Builder<?>>>();
     private List<String> inputs = new ArrayList<String>();
     private HashMap<String, EnumSet<OutputFlags>> outputs = new HashMap<String, EnumSet<OutputFlags>>();
-    private HashMap<String, Task<?>> tasks;
+    private HashMap<String, Task> tasks;
+    private Set<String> circularDependencyChecker = new LinkedHashSet<>();
     private State state;
     private String rootDirectory = ".";
     private String buildDirectory = "build";
@@ -295,8 +296,10 @@ public class Project {
      * @param pkg package name to be scanned
      */
     public void scan(IClassScanner scanner, String pkg) {
+        TimeProfiler.startF("scan %s", pkg);
         Set<String> classNames = scanner.scan(pkg);
         doScan(scanner, classNames);
+        TimeProfiler.stop();
     }
 
     private static String getManifestInfo(String attribute) {
@@ -328,8 +331,8 @@ public class Project {
 
     @SuppressWarnings("unchecked")
     private void doScan(IClassScanner scanner, Set<String> classNames) {
+        TimeProfiler.start("doScan");
         boolean is_bob_light = getManifestInfo("is-bob-light") != null;
-
         for (String className : classNames) {
             // Ignore TexcLibrary to avoid it being loaded and initialized
             // We're also skipping some of the bundler classes, since we're only building content,
@@ -344,11 +347,8 @@ public class Project {
                     BuilderParams builderParams = klass.getAnnotation(BuilderParams.class);
                     if (builderParams != null) {
                         for (String inExt : builderParams.inExts()) {
-                            extToBuilder.put(inExt, (Class<? extends Builder<?>>) klass);
+                            extToBuilder.put(inExt, (Class<? extends Builder>) klass);
                             inextToOutext.put(inExt, builderParams.outExt());
-                            if (builderParams.ignoreTaskAutoCreation()) {
-                                ignoreTaskAutoCreation.add((Class<? extends Builder<?>>) klass);
-                            }
                         }
 
                         ProtoParams protoParams = klass.getAnnotation(ProtoParams.class);
@@ -390,6 +390,7 @@ public class Project {
                 }
             }
         }
+        TimeProfiler.stop();
     }
 
     static String[][] extensionMapping = new String[][] {
@@ -414,6 +415,21 @@ public class Project {
         {".tilemap", ".tilemapc"},
     };
 
+    private String generateCircularDependencyErrorMessage(String dependency) {
+        StringBuilder errorMessage = new StringBuilder("\nCircular dependency detected:\n");
+
+        for (String element : circularDependencyChecker) {
+            if (element.equals(dependency)) {
+                errorMessage.append("-> ").append(element).append(" (Circular Point)\n");
+            } else {
+                errorMessage.append(element).append("\n");
+            }
+        }
+        errorMessage.append("-> ").append(dependency).append(" (Circular Point)");
+
+        return errorMessage.toString();
+    }
+
     public String replaceExt(String inExt) {
         for (int i = 0; i < extensionMapping.length; i++) {
             if (extensionMapping[i][0].equals(inExt))
@@ -427,9 +443,9 @@ public class Project {
         return inExt;
     }
 
-    private Class<? extends Builder<?>> getBuilderFromExtension(String input) {
+    private Class<? extends Builder> getBuilderFromExtension(String input) {
         String ext = "." + FilenameUtils.getExtension(input);
-        Class<? extends Builder<?>> builderClass = extToBuilder.get(ext);
+        Class<? extends Builder> builderClass = extToBuilder.get(ext);
         return builderClass;
     }
 
@@ -438,20 +454,8 @@ public class Project {
      * @param input input resource
      * @return class
      */
-    public Class<? extends Builder<?>> getBuilderFromExtension(IResource input) {
+    public Class<? extends Builder> getBuilderFromExtension(IResource input) {
         return getBuilderFromExtension(input.getPath());
-    }
-
-    /**
-     * Create task from resource path with explicit builder.
-     * @param inputPath input resource path
-     * @param builderClass class to build resource with
-     * @return task
-     * @throws CompileExceptionError
-     */
-    public Task<?> createTask(String inputPath, Class<? extends Builder<?>> builderClass) throws CompileExceptionError {
-        IResource inputResource = fileSystem.get(inputPath);
-        return createTask(inputResource, builderClass);
     }
 
     /**
@@ -461,8 +465,8 @@ public class Project {
      * @return task
      * @throws CompileExceptionError
      */
-    public Task<?> createTask(IResource inputResource) throws CompileExceptionError {
-        Class<? extends Builder<?>> builderClass = getBuilderFromExtension(inputResource);
+    public Task createTask(IResource inputResource) throws CompileExceptionError {
+        Class<? extends Builder> builderClass = getBuilderFromExtension(inputResource);
         if (builderClass == null) {
             logWarning("No builder for '%s' found", inputResource);
             return null;
@@ -479,16 +483,20 @@ public class Project {
      * @return task
      * @throws CompileExceptionError
      */
-    public Task<?> createTask(IResource inputResource, Class<? extends Builder<?>> builderClass) throws CompileExceptionError {
+    public Task createTask(IResource inputResource, Class<? extends Builder> builderClass) throws CompileExceptionError {
         // It's possible to build the same resource using different builders
         String key = inputResource.getPath()+" "+builderClass;
-        Task<?> task = tasks.get(key);
+        if (!circularDependencyChecker.add(key)) {
+            throw new CompileExceptionError(generateCircularDependencyErrorMessage(key), null);
+        }
+        Task task = tasks.get(key);
         if (task != null) {
+            circularDependencyChecker.remove(key);
             return task;
         }
         TimeProfiler.start();
         TimeProfiler.addData("type", "createTask");
-        Builder<?> builder;
+        Builder builder;
         try {
             builder = builderClass.newInstance();
             builder.setProject(this);
@@ -498,6 +506,7 @@ public class Project {
                 TimeProfiler.addData("name", task.getName());
                 tasks.put(key, task);
             }
+            circularDependencyChecker.remove(key);
             return task;
         } catch (CompileExceptionError e) {
             // Just pass CompileExceptionError on unmodified
@@ -509,79 +518,15 @@ public class Project {
         }
     }
 
-    private List<String> sortInputs() {
-        ArrayList<String> sortedInputs = new ArrayList<String>(inputs);
-        Collections.sort(sortedInputs, new Comparator<String>() {
-
-            @Override
-            public int compare(String i1, String i2) {
-                Class<? extends Builder<?>> b1 = getBuilderFromExtension(i1);
-                Class<? extends Builder<?>> b2 = getBuilderFromExtension(i2);
-
-                BuilderParams p1 = b1.getAnnotation(BuilderParams.class);
-                BuilderParams p2 = b2.getAnnotation(BuilderParams.class);
-
-                return p1.createOrder() - p2.createOrder();
-            }
-        });
-        return sortedInputs;
-    }
-
-    /*
-        The same logic implemented in the Editor.
-        If you change something here, make sure you change it in resource.clj
-        (defignore-pred).
-    */
-    private void loadIgnoredFilesAndFolders() throws CompileExceptionError {
-        String excludeFoldersStr = this.option("exclude-build-folder", "");
-        List<String> excludeFolders = BundleHelper.createArrayFromString(excludeFoldersStr);
-        excluedFilesAndFoldersEntries.addAll(excludeFolders);
-        List<String> defIgnoreEntries = new ArrayList<String>();
-        final File defIgnoreFile = new File(getRootDirectory(), ".defignore");
-        if (defIgnoreFile.isFile()) {
-            try {
-                defIgnoreEntries = FileUtils.readLines(defIgnoreFile, "UTF-8")
-                        .stream()
-                        .filter(s -> !s.isEmpty())
-                        .collect(Collectors.toList());
-            }
-            catch(IOException e) {
-                throw new CompileExceptionError("Unable to read .defignore", e);
-            }
-        }
-        excluedFilesAndFoldersEntries.addAll(defIgnoreEntries);
-        // remove initial "/" from excluded folder names
-        for(int i = 0; i < excluedFilesAndFoldersEntries.size(); i++) {
-            String entry = excluedFilesAndFoldersEntries.get(i);
-            if (entry.startsWith("/")) {
-                excluedFilesAndFoldersEntries.set(i, entry.substring(1));
-            }
-        }
-    }
-
     private void createTasks() throws CompileExceptionError {
-        tasks = new HashMap<String, Task<?>>();
-        List<String> sortedInputs = sortInputs(); // from findSources
-
-        // To currently know the output resources, we need to parse the main.collectionc
-        // We would need to alter that to get a correct behavior (e.g. using GameProjectBuilder.findResources(this, rootNode))
-
-        // create tasks for inputs that are not excluded
-        for (String input : sortedInputs) {
-            boolean skipped = false;
-            // Ignore for resources.
-            // Check comment for loadIgnoredFilesAndFolders()
-            for (String excludeEntry : excluedFilesAndFoldersEntries) {
-                if (input.startsWith(excludeEntry)) {
-                    skipped = true;
-                    break;
-                }
-            }
-            if (!skipped) {
-                Class<? extends Builder<?>> builderClass = getBuilderFromExtension(input);
-                if (!ignoreTaskAutoCreation.contains(builderClass)) {
-                    Task<?> task = createTask(input, builderClass);
-                }
+        circularDependencyChecker = new LinkedHashSet<>();
+        tasks = new HashMap<String, Task>();
+        if(this.inputs == null || this.inputs.isEmpty()) {
+            createTask(getGameProjectResource());
+        }
+        else {
+            for (String input : this.inputs) {
+                createTask(getResource(input));
             }
         }
     }
@@ -599,7 +544,7 @@ public class Project {
             IResource publisherSettings = this.fileSystem.get(settingsPath);
             if (!publisherSettings.exists()) {
                 if (shouldPublish) {
-                    IResource gameProject = this.fileSystem.get("/game.project");
+                    IResource gameProject = getGameProjectResource();
                     throw new CompileExceptionError(gameProject, 0, "There is no liveupdate.settings file specified in game.project or the file is missing from disk.");
                 } else {
                     this.publisher = new NullPublisher(new PublisherSettings());
@@ -715,7 +660,10 @@ public class Project {
     public List<IResource> getPropertyFilesAsResources() {
         List<IResource> resources = new ArrayList<>();
         for (String propertyFile : propertyFiles) {
-            resources.add(fileSystem.get(propertyFile));
+            Path rootDir = Paths.get(getRootDirectory()).normalize().toAbsolutePath();
+            Path settingsFile = Paths.get(propertyFile).normalize().toAbsolutePath();
+            Path relativePath = rootDir.relativize(settingsFile);
+            resources.add(fileSystem.get(relativePath.toString()));
         }
         return resources;
     }
@@ -734,7 +682,11 @@ public class Project {
                 reportFiles.add(new File(this.option("build-report-html", "report.html")));
                 TimeProfiler.init(reportFiles, true);
             }
+
+            TimeProfiler.start("loadProjectFile");
             loadProjectFile();
+            TimeProfiler.stop();
+
             String title = projectProperties.getStringValue("project", "title");
             if (title != null && title.isEmpty()) {
                 throw new Exception("`project.title` in `game.project` must be non-empty.");
@@ -839,7 +791,7 @@ public class Project {
      */
     private void validateBuildResourceMapping() throws CompileExceptionError {
         Map<String, List<IResource>> build_map = new HashMap<String, List<IResource>>();
-        for (Task<?> t : this.getTasks()) {
+        for (Task t : this.getTasks()) {
             List<IResource> inputs = t.getInputs();
             List<IResource> outputs = t.getOutputs();
             for (IResource output : outputs) {
@@ -1378,7 +1330,7 @@ public class Project {
         return executor.submit(callable);
     }
 
-    private boolean getShaderTypeRequired(String requiredSymbol) throws IOException, CompileExceptionError {
+    private boolean hasSymbol(String symbolName) throws IOException, CompileExceptionError {
         IResource appManifestResource = this.getResource("native_extension", "app_manifest", false);
         if (appManifestResource != null && appManifestResource.exists()) {
             Map<String, Object> yamlAppManifest = ExtenderUtil.readYaml(appManifestResource);
@@ -1418,14 +1370,24 @@ public class Project {
         if (this.hasOption("debug-output-spirv")) {
             this.setOption("output-spirv", this.option("debug-output-spirv", "false"));
         } else {
-            this.setOption("output-spirv", getShaderTypeRequired("GraphicsAdapterVulkan") ? "true" : "false");
+            this.setOption("output-spirv", hasSymbol("GraphicsAdapterVulkan") ? "true" : "false");
         }
 
         if (this.hasOption("debug-output-hlsl")) {
             this.setOption("output-hlsl", this.option("debug-output-hlsl", "false"));
         } else {
-            this.setOption("output-hlsl", getShaderTypeRequired("GraphicsAdapterDX12") ? "true" : "false");
+            this.setOption("output-hlsl", hasSymbol("GraphicsAdapterDX12") ? "true" : "false");
         }
+
+        // Build wgsl either if:
+        //   1. If the user has specified explicitly to build or not to build with wgsl
+        //   2. The project has an app manifest with webgpu enabled
+        String outputWGSL;
+        if (this.hasOption("debug-output-wgsl"))
+            outputWGSL = this.option("debug-output-wgsl", "false");
+        else
+            outputWGSL = hasSymbol("GraphicsAdapterWebGPU") ? "true" : "false";
+        this.setOption("output-wgsl", outputWGSL);
     }
 
     private void transpileLua(IProgress monitor) throws CompileExceptionError, IOException {
@@ -1553,7 +1515,6 @@ public class Project {
         TimeProfiler.start("Create tasks");
         BundleHelper.throwIfCanceled(monitor);
         configurePreBuildProjectOptions();
-        pruneSources();
         createTasks();
         validateBuildResourceMapping();
         TimeProfiler.addData("TasksCount", tasks.size());
@@ -1645,10 +1606,12 @@ public class Project {
         monitor.beginTask("Working...", 100);
 
         {
+            TimeProfiler.start("scanJavaClasses");
             IProgress mrep = monitor.subProgress(1);
             mrep.beginTask("Reading classes...", 1);
             scanJavaClasses();
             mrep.done();
+            TimeProfiler.stop();
         }
 
         List<IPlugin> plugins = new ArrayList<>();
@@ -1664,21 +1627,28 @@ public class Project {
             TimeProfiler.start(command);
             switch (command) {
                 case "build": {
+                    TimeProfiler.start("PrepExtensions");
                     ExtenderUtil.checkProjectForDuplicates(this); // Throws if there are duplicate files in the project (i.e. library and local files conflict)
-                    loadIgnoredFilesAndFolders(); // load once before building to be able to use it in a few places
                     final String[] platforms = getPlatformStrings();
                     Future<Void> remoteBuildFuture = null;
                     // Get or build engine binary
+                    TimeProfiler.start("hasNativeExtensions");
                     boolean shouldBuildRemoteEngine = ExtenderUtil.hasNativeExtensions(this);
+                    TimeProfiler.stop();
                     boolean shouldBuildProject = shouldBuildEngine() && BundleHelper.isArchiveIncluded(this);
+                    TimeProfiler.stop();
 
                     if (shouldBuildProject) {
                         // do this before buildRemoteEngine to prevent concurrent modification exception, since
                         // lua transpilation adds new mounts with compiled Lua that buildRemoteEngine iterates over
                         // when sending to extender
+                        TimeProfiler.start("transpileLua");
                         transpileLua(monitor);
+                        TimeProfiler.stop();
                     }
 
+                    TimeProfiler.start("PrepEngine");
+                    TimeProfiler.addData("shouldBuildRemoteEngine", shouldBuildRemoteEngine);
                     if (shouldBuildRemoteEngine) {
                         remoteBuildFuture = buildRemoteEngine(monitor, executor);
                     }
@@ -1691,6 +1661,7 @@ public class Project {
                             progress.done();
                         }
                     }
+                    TimeProfiler.stop();
 
                     if (shouldBuildProject) {
                         result = createAndRunTasks(monitor);
@@ -1765,10 +1736,10 @@ public class Project {
 
         List<TaskResult> result = new ArrayList<>();
 
-        List<Task<?>> buildTasks = new ArrayList<>(this.getTasks());
+        List<Task> buildTasks = new ArrayList<>(this.getTasks());
         // set of *all* possible output files
         Set<IResource> allOutputs = new HashSet<>();
-        for (Task<?> task : this.getTasks()) {
+        for (Task task : this.getTasks()) {
             allOutputs.addAll(task.getOutputs());
         }
         tasks.clear();
@@ -1789,7 +1760,7 @@ public class Project {
         boolean taskFailed = false;
 run:
         while (completedTasks.size() < buildTasks.size()) {
-            for (Task<?> task : buildTasks) {
+            for (Task task : buildTasks) {
                 BundleHelper.throwIfCanceled(monitor);
 
                 // deps are the task input files generated by another task not yet completed,
@@ -1948,7 +1919,7 @@ run:
             // set of *all* possible output files
             // TODO: do we really need this?
             // It seems like we never create new tasks during building process
-            for (Task<?> task : this.getTasks()) {
+            for (Task task : this.getTasks()) {
                 allOutputs.addAll(task.getOutputs());
             }
             buildTasks.addAll(this.getTasks());
@@ -2186,90 +2157,6 @@ run:
         return options;
     }
 
-    class Walker extends FileSystemWalker {
-
-        private Set<String> skipDirs;
-
-        public Walker(Set<String> skipDirs) {
-            this.skipDirs = skipDirs;
-        }
-
-        @Override
-        public void handleFile(String path, Collection<String> results) {
-            path = FilenameUtils.normalize(path, true);
-            boolean include = true;
-            if (skipDirs != null) {
-                for (String sd : skipDirs) {
-                    if (FilenameUtils.wildcardMatch(path, sd + "/*")) {
-                        include = false;
-                    }
-                }
-            }
-            // ignore all .files, for instance the .project file that is generated by many Eclipse based editors
-            if (FilenameUtils.getBaseName(path).isEmpty()) {
-                include = false;
-            }
-            if (include) {
-                // We'll add all files, and prune them later, when we know what file formats we support (after th eplugins are built)
-                results.add(path);
-            }
-        }
-
-        @Override
-        public boolean handleDirectory(String path, Collection<String> results) {
-            path = FilenameUtils.normalize(path, true);
-            if (skipDirs != null) {
-                for (String sd : skipDirs) {
-                    if (FilenameUtils.equalsNormalized(sd, path)) {
-                        return false;
-                    }
-                    if (FilenameUtils.wildcardMatch(path, sd + "/*")) {
-                        return false;
-                    }
-                }
-            }
-            return super.handleDirectory(path, results);
-        }
-    }
-
-    /**
-     * Find source files under the root directory
-     * @param path path to begin in. Absolute or relative to root-directory
-     * @param skipDirs
-     * @throws IOException
-     */
-    public void findSources(String path, Set<String> skipDirs) throws IOException {
-        if (new File(path).isAbsolute()) {
-            path = normalizeNoEndSeparator(path, true);
-            if (path.startsWith(rootDirectory)) {
-                path = path.substring(rootDirectory.length());
-            } else {
-                throw new FileNotFoundException(String.format("the source '%s' must be located under the root '%s'", path, rootDirectory));
-            }
-        }
-        String absolutePath = normalizeNoEndSeparator(FilenameUtils.concat(rootDirectory, path), true);
-        if (!new File(absolutePath).exists()) {
-            throw new FileNotFoundException(String.format("the path '%s' can not be found under the root '%s'", path, rootDirectory));
-        }
-        Walker walker = new Walker(skipDirs);
-        List<String> results = new ArrayList<String>(1024);
-        fileSystem.walk(path, walker, results);
-        inputs = results;
-    }
-
-    private void pruneSources() {
-        List<String> results = new ArrayList<>();
-        for (String path : inputs) {
-            String ext = "." + FilenameUtils.getExtension(path);
-            Class<? extends Builder<?>> builderClass = extToBuilder.get(ext);
-            if (builderClass != null)
-            {
-                results.add(path);
-            }
-        }
-        inputs = results;
-    }
-
     public IResource getResource(String path) {
         return fileSystem.get(FilenameUtils.normalize(path, true));
     }
@@ -2375,7 +2262,7 @@ run:
         }, result);
     }
 
-    public List<Task<?>> getTasks() {
+    public List<Task> getTasks() {
         return Collections.unmodifiableList(new ArrayList(this.tasks.values()));
     }
 

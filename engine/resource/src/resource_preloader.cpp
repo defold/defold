@@ -32,164 +32,166 @@
 #include "resource_util.h"
 #include "async/load_queue.h"
 
-namespace dmResource
+// The preloader works as follow; a tree is constructed with each resource to be loaded as a node in the tree.
+// The tree is stored in m_Requests and indices are used to point around in the tree.
+//
+// 0) /rootcollection
+//    1) /go1
+//      3) /script1
+//      4) /script2 PENDING
+//    2) /go2
+//      5) /tilemap
+//        6) /textureset
+//        7) /material
+//
+// Nodes store the LoadResult as RESULT_PENDING, which is invalid as any actual result.
+// These are the 'real' states a node can be in.
+//
+// => New (RESULT_PENDING, m_LoadRequest=0, m_Buffer)
+// => Waiting for load through load queue, (RESULT_PENDING, m_LoadRequest=<handle>)
+//    (Once the load completes, the resource preload will have run and populated the node with children)
+// => Preloaded, waiting on children (RESULT_PENDING, m_Buffer=<data>, m_PreloadData=<data>, m_FirstChild != -1)
+// => Created successfully, (RESULT_OK, m_Resource=<resource>, m_FirstChild == -1)
+// => Created with error, (neither RESULT_PENDING nor RESULT_OK)
+//
+// Nodes are scheduled for load in depth first order. Once they are loaded they might add new child items to the
+// tree. Child items to a node will then be loaded and created before the parent node is created.
+//
+// Once a node with children finds none of them are in PENDING state any longer, resource create will happen,
+// child nodes (which are done) are then erased and the tree is traversed upwards to see if the parent can be
+// completed in the same manner. (PreloaderTryPruneParent)
+//
+// New items added in PreloadHint are added to a guarded dmArray and the preloader pops this array after it
+// has detected a completion of an item in the preloader queue. This keeps the syncronized state small and
+// reduces the contention on the syncronized lock.
+//
+// A path cache is also used to allow the path strings to be internalized without adding the full path length
+// to each request item. The path cache is also syncronized with the same spinlock as the new preloader hints array.
+// The path cache is not touched by the UpdatePreloader code, we keep the internalized pointers in the item.
+
+// If max number of preload items is reached or the path cache is full new items added to the preloader will
+// be thrown away and can potentially cause synced loading of those resources.
+
+
+
+typedef int16_t TRequestIndex;
+
+// The preloader will function even down to a value of 1 here (the root object)
+// and sets the limit of how large a dependencies tree can be stored. Since nodes
+// are always present with all their children inserted (unless there was not room)
+// the required size is something the sum of all children on each level down along
+// the largest branch.
+
+typedef dmHashTable<dmhash_t, uint32_t> TPathHashTable;
+typedef dmHashTable<dmhash_t, bool> TPathInProgressTable;
+
+
+static const uint32_t MAX_PRELOADER_REQUESTS         = 1024;
+static const uint32_t PATH_IN_PROGRESS_TABLE_SIZE    = MAX_PRELOADER_REQUESTS / 3;
+static const uint32_t PATH_IN_PROGRESS_CAPACITY      = MAX_PRELOADER_REQUESTS;
+static const uint32_t PATH_IN_PROGRESS_HASHDATA_SIZE = (PATH_IN_PROGRESS_TABLE_SIZE * sizeof(uint32_t)) + (PATH_IN_PROGRESS_CAPACITY * sizeof(TPathInProgressTable::Entry));
+static const uint32_t PATH_AVERAGE_LENGTH            = 40;
+static const uint32_t MAX_PRELOADER_PATHS            = 1536;
+static const uint32_t PATH_BUFFER_TABLE_SIZE         = 509;
+static const uint32_t PATH_BUFFER_TABLE_CAPACITY     = MAX_PRELOADER_PATHS;
+static const uint32_t PATH_BUFFER_HASHDATA_SIZE      = (PATH_BUFFER_TABLE_SIZE * sizeof(uint32_t)) + (PATH_BUFFER_TABLE_CAPACITY * sizeof(TPathHashTable::Entry));
+
+struct PathDescriptor
 {
-    // The preloader works as follow; a tree is constructed with each resource to be loaded as a node in the tree.
-    // The tree is stored in m_Requests and indices are used to point around in the tree.
-    //
-    // 0) /rootcollection
-    //    1) /go1
-    //      3) /script1
-    //      4) /script2 PENDING
-    //    2) /go2
-    //      5) /tilemap
-    //        6) /textureset
-    //        7) /material
-    //
-    // Nodes store the LoadResult as RESULT_PENDING, which is invalid as any actual result.
-    // These are the 'real' states a node can be in.
-    //
-    // => New (RESULT_PENDING, m_LoadRequest=0, m_Buffer)
-    // => Waiting for load through load queue, (RESULT_PENDING, m_LoadRequest=<handle>)
-    //    (Once the load completes, the resource preload will have run and populated the node with children)
-    // => Preloaded, waiting on children (RESULT_PENDING, m_Buffer=<data>, m_PreloadData=<data>, m_FirstChild != -1)
-    // => Created successfully, (RESULT_OK, m_Resource=<resource>, m_FirstChild == -1)
-    // => Created with error, (neither RESULT_PENDING nor RESULT_OK)
-    //
-    // Nodes are scheduled for load in depth first order. Once they are loaded they might add new child items to the
-    // tree. Child items to a node will then be loaded and created before the parent node is created.
-    //
-    // Once a node with children finds none of them are in PENDING state any longer, resource create will happen,
-    // child nodes (which are done) are then erased and the tree is traversed upwards to see if the parent can be
-    // completed in the same manner. (PreloaderTryPruneParent)
-    //
-    // New items added in PreloadHint are added to a guarded dmArray and the preloader pops this array after it
-    // has detected a completion of an item in the preloader queue. This keeps the syncronized state small and
-    // reduces the contention on the syncronized lock.
-    //
-    // A path cache is also used to allow the path strings to be internalized without adding the full path length
-    // to each request item. The path cache is also syncronized with the same spinlock as the new preloader hints array.
-    // The path cache is not touched by the UpdatePreloader code, we keep the internalized pointers in the item.
+    const char* m_InternalizedName;
+    const char* m_InternalizedCanonicalPath;
+    HResourceType m_ResourceType;
+    dmhash_t m_NameHash;
+    dmhash_t m_CanonicalPathHash;
+};
 
-    // If max number of preload items is reached or the path cache is full new items added to the preloader will
-    // be thrown away and can potentially cause synced loading of those resources.
+// Internal data structure for passing parameters to postcreate function callbacks
+struct ResourcePostCreateParamsInternal
+{
+    ResourcePostCreateParams m_Params;
+    ResourceDescriptor m_ResourceDesc;
+    bool m_Destroy;
+};
 
-    struct PathDescriptor
+struct PendingHint
+{
+    PathDescriptor m_PathDescriptor;
+    TRequestIndex m_Parent;
+};
+
+struct PreloadRequest
+{
+    PathDescriptor m_PathDescriptor;
+
+    TRequestIndex m_Parent;
+    TRequestIndex m_FirstChild;
+    TRequestIndex m_NextSibling;
+    uint16_t m_PendingChildCount;
+
+    // Set once resources have started loading, they have a load request
+    dmLoadQueue::HRequest m_LoadRequest;
+
+    // Set for items that are pending and waiting for children to complete
+    void* m_Buffer;
+    uint32_t m_BufferSize;
+
+    // Set once preload function has run
+    void* m_PreloadData;
+
+    // Set once load has completed
+    dmResource::Result m_LoadResult;
+    void* m_Resource;
+};
+
+struct ResourcePreloader
+{
+    ResourcePreloader()
+        : m_InProgress(&m_PathInProgressData, PATH_IN_PROGRESS_TABLE_SIZE, PATH_IN_PROGRESS_CAPACITY)
     {
-        const char* m_InternalizedName;
-        const char* m_InternalizedCanonicalPath;
-        SResourceType* m_ResourceType;
-        dmhash_t m_NameHash;
-        dmhash_t m_CanonicalPathHash;
-    };
-
-    typedef int16_t TRequestIndex;
-
-    struct PreloadRequest
+    }
+    struct SyncedData
     {
-        PathDescriptor m_PathDescriptor;
-
-        TRequestIndex m_Parent;
-        TRequestIndex m_FirstChild;
-        TRequestIndex m_NextSibling;
-        uint16_t m_PendingChildCount;
-
-        // Set once resources have started loading, they have a load request
-        dmLoadQueue::HRequest m_LoadRequest;
-
-        // Set for items that are pending and waiting for children to complete
-        void* m_Buffer;
-        uint32_t m_BufferSize;
-
-        // Set once preload function has run
-        void* m_PreloadData;
-
-        // Set once load has completed
-        Result m_LoadResult;
-        void* m_Resource;
-    };
-
-    // Internal data structure for passing parameters to postcreate function callbacks
-    struct ResourcePostCreateParamsInternal
-    {
-        ResourcePostCreateParams m_Params;
-        SResourceDescriptor m_ResourceDesc;
-        bool m_Destroy;
-    };
-
-
-    // The preloader will function even down to a value of 1 here (the root object)
-    // and sets the limit of how large a dependencies tree can be stored. Since nodes
-    // are always present with all their children inserted (unless there was not room)
-    // the required size is something the sum of all children on each level down along
-    // the largest branch.
-
-    typedef dmHashTable<dmhash_t, uint32_t> TPathHashTable;
-    typedef dmHashTable<dmhash_t, bool> TPathInProgressTable;
-
-    static const uint32_t MAX_PRELOADER_REQUESTS         = 1024;
-    static const uint32_t PATH_IN_PROGRESS_TABLE_SIZE    = MAX_PRELOADER_REQUESTS / 3;
-    static const uint32_t PATH_IN_PROGRESS_CAPACITY      = MAX_PRELOADER_REQUESTS;
-    static const uint32_t PATH_IN_PROGRESS_HASHDATA_SIZE = (PATH_IN_PROGRESS_TABLE_SIZE * sizeof(uint32_t)) + (PATH_IN_PROGRESS_CAPACITY * sizeof(TPathInProgressTable::Entry));
-    static const uint32_t PATH_AVERAGE_LENGTH            = 40;
-    static const uint32_t MAX_PRELOADER_PATHS            = 1536;
-    static const uint32_t PATH_BUFFER_TABLE_SIZE         = 509;
-    static const uint32_t PATH_BUFFER_TABLE_CAPACITY     = MAX_PRELOADER_PATHS;
-    static const uint32_t PATH_BUFFER_HASHDATA_SIZE      = (PATH_BUFFER_TABLE_SIZE * sizeof(uint32_t)) + (PATH_BUFFER_TABLE_CAPACITY * sizeof(TPathHashTable::Entry));
-
-    struct PendingHint
-    {
-        PathDescriptor m_PathDescriptor;
-        TRequestIndex m_Parent;
-    };
-
-    struct ResourcePreloader
-    {
-        ResourcePreloader()
-            : m_InProgress(&m_PathInProgressData, PATH_IN_PROGRESS_TABLE_SIZE, PATH_IN_PROGRESS_CAPACITY)
+        SyncedData()
+            : m_PathLookup(m_LookupData, PATH_BUFFER_TABLE_SIZE, PATH_BUFFER_TABLE_CAPACITY)
+            , m_PathDataUsed(0)
         {
         }
-        struct SyncedData
-        {
-            SyncedData()
-                : m_PathLookup(m_LookupData, PATH_BUFFER_TABLE_SIZE, PATH_BUFFER_TABLE_CAPACITY)
-                , m_PathDataUsed(0)
-            {
-            }
-            dmArray<PendingHint> m_NewHints;
-            TPathHashTable m_PathLookup;
-            uint8_t m_LookupData[PATH_BUFFER_HASHDATA_SIZE];
-            char m_PathData[MAX_PRELOADER_PATHS * PATH_AVERAGE_LENGTH];
-            uint32_t m_PathDataUsed;
-        } m_SyncedData;
+        dmArray<PendingHint> m_NewHints;
+        TPathHashTable m_PathLookup;
+        uint8_t m_LookupData[PATH_BUFFER_HASHDATA_SIZE];
+        char m_PathData[MAX_PRELOADER_PATHS * PATH_AVERAGE_LENGTH];
+        uint32_t m_PathDataUsed;
+    } m_SyncedData;
 
-        dmSpinlock::Spinlock m_SyncedDataSpinlock;
+    dmSpinlock::Spinlock m_SyncedDataSpinlock;
 
-        PreloadRequest m_Request[MAX_PRELOADER_REQUESTS];
+    PreloadRequest m_Request[MAX_PRELOADER_REQUESTS];
 
-        // list of free nodes
-        TRequestIndex m_Freelist[MAX_PRELOADER_REQUESTS];
-        uint32_t m_FreelistSize;
-        dmLoadQueue::HQueue m_LoadQueue;
-        HFactory m_Factory;
-        TPathInProgressTable m_InProgress;
-        uint8_t m_PathInProgressData[PATH_IN_PROGRESS_HASHDATA_SIZE];
+    // list of free nodes
+    TRequestIndex m_Freelist[MAX_PRELOADER_REQUESTS];
+    uint32_t m_FreelistSize;
+    dmLoadQueue::HQueue m_LoadQueue;
+    dmResource::HFactory m_Factory;
+    TPathInProgressTable m_InProgress;
+    uint8_t m_PathInProgressData[PATH_IN_PROGRESS_HASHDATA_SIZE];
 
-        // used instead of dynamic allocs as far as it lasts.
-        dmBlockAllocator::HContext m_BlockAllocator;
+    // used instead of dynamic allocs as far as it lasts.
+    dmBlockAllocator::HContext m_BlockAllocator;
 
-        // post create state
-        bool m_LoadQueueFull;
-        bool m_CreateComplete;
-        uint32_t m_PostCreateCallbackIndex;
-        dmArray<ResourcePostCreateParamsInternal> m_PostCreateCallbacks;
+    // post create state
+    bool m_LoadQueueFull;
+    bool m_CreateComplete;
+    uint32_t m_PostCreateCallbackIndex;
+    dmArray<ResourcePostCreateParamsInternal> m_PostCreateCallbacks;
 
-        // How many of the initial resources where requested - they should not be release until preloader destruction
-        TRequestIndex m_PersistResourceCount;
+    // How many of the initial resources where requested - they should not be release until preloader destruction
+    TRequestIndex m_PersistResourceCount;
 
-        dmArray<void*> m_PersistedResources;
-    };
+    dmArray<void*> m_PersistedResources;
+};
 
+namespace dmResource
+{
     const char* InternalizePath(ResourcePreloader::SyncedData* preloader_synced_data, dmhash_t path_hash, const char* path, uint32_t path_len)
     {
         uint32_t* path_lookup = preloader_synced_data->m_PathLookup.Get(path_hash);
@@ -212,7 +214,7 @@ namespace dmResource
         return result;
     }
 
-    static SResourceType* GetResourceType(HPreloader preloader, const char* path)
+    static HResourceType GetResourceType(HPreloader preloader, const char* path)
     {
         const char* ext = strrchr(path, '.');
         if (!ext)
@@ -222,7 +224,7 @@ namespace dmResource
         }
         else
         {
-            SResourceType* resource_type = FindResourceType(preloader->m_Factory, ext + 1);
+            HResourceType resource_type = FindResourceType(preloader->m_Factory, ext + 1);
             if (resource_type)
             {
                 assert(resource_type->m_CreateFunction);
@@ -518,18 +520,19 @@ namespace dmResource
 
         assert(req->m_PathDescriptor.m_ResourceType);
 
-        SResourceDescriptor tmp_resource;
+        ResourceDescriptor tmp_resource;
         memset(&tmp_resource, 0, sizeof(tmp_resource));
 
-        SResourceType* resource_type = req->m_PathDescriptor.m_ResourceType;
+        ResourceType* resource_type = req->m_PathDescriptor.m_ResourceType;
 
         // We must call CreateFunction if Preload function has been called, so always do this even when an error has occured
         tmp_resource.m_NameHash       = req->m_PathDescriptor.m_CanonicalPathHash;
         tmp_resource.m_ReferenceCount = 1;
-        tmp_resource.m_ResourceType   = (void*)resource_type;
+        tmp_resource.m_ResourceType   = resource_type;
 
         ResourceCreateParams params;
         params.m_Factory     = preloader->m_Factory;
+        params.m_Type        = resource_type;
         params.m_Context     = resource_type->m_Context;
         params.m_PreloadData = req->m_PreloadData;
         params.m_Resource    = &tmp_resource;
@@ -541,7 +544,7 @@ namespace dmResource
             tmp_resource.m_ResourceSizeOnDisc = req->m_BufferSize;
             params.m_Buffer                   = req->m_Buffer;
             params.m_BufferSize               = req->m_BufferSize;
-            req->m_LoadResult                 = resource_type->m_CreateFunction(params);
+            req->m_LoadResult                 = (Result)resource_type->m_CreateFunction(&params);
 
             dmBlockAllocator::Free(preloader->m_BlockAllocator, req->m_Buffer, req->m_BufferSize);
 
@@ -552,7 +555,7 @@ namespace dmResource
             tmp_resource.m_ResourceSizeOnDisc = buffer_size;
             params.m_Buffer                   = buffer;
             params.m_BufferSize               = buffer_size;
-            req->m_LoadResult                 = resource_type->m_CreateFunction(params);
+            req->m_LoadResult                 = (Result)resource_type->m_CreateFunction(&params);
         }
 
         if (req->m_LoadResult == RESULT_OK)
@@ -567,10 +570,11 @@ namespace dmResource
                 ResourcePostCreateParamsInternal& ip = preloader->m_PostCreateCallbacks.Back();
                 ip.m_Destroy                         = false;
                 ip.m_Params.m_Factory                = preloader->m_Factory;
+                ip.m_Params.m_Type                   = resource_type;
                 ip.m_Params.m_Context                = resource_type->m_Context;
                 ip.m_Params.m_PreloadData            = req->m_PreloadData;
                 ip.m_Params.m_Resource               = 0;
-                memcpy(&ip.m_ResourceDesc, &tmp_resource, sizeof(SResourceDescriptor));
+                memcpy(&ip.m_ResourceDesc, &tmp_resource, sizeof(ResourceDescriptor));
             }
         }
 
@@ -596,7 +600,7 @@ namespace dmResource
         bool destroy = false;
 
         // If someone else has loaded the resource already, use that one and mark our loaded resource for destruction
-        SResourceDescriptor* rd = FindByHash(preloader->m_Factory, req->m_PathDescriptor.m_CanonicalPathHash);
+        ResourceDescriptor* rd = FindByHash(preloader->m_Factory, req->m_PathDescriptor.m_CanonicalPathHash);
         if (rd)
         {
             // Use already loaded resource
@@ -657,9 +661,10 @@ namespace dmResource
             {
                 ResourceDestroyParams params;
                 params.m_Factory  = preloader->m_Factory;
+                params.m_Type     = resource_type;
                 params.m_Context  = resource_type->m_Context;
                 params.m_Resource = &tmp_resource;
-                resource_type->m_DestroyFunction(params);
+                resource_type->m_DestroyFunction(&params);
             }
         }
     }
@@ -828,7 +833,7 @@ namespace dmResource
         }
 
         // It might have been loaded by unhinted resource Gets or loaded by a different preloader, just grab & bump refcount
-        SResourceDescriptor* rd = FindByHash(preloader->m_Factory, req->m_PathDescriptor.m_CanonicalPathHash);
+        ResourceDescriptor* rd = FindByHash(preloader->m_Factory, req->m_PathDescriptor.m_CanonicalPathHash);
         if (rd)
         {
             rd->m_ReferenceCount++;
@@ -880,8 +885,8 @@ namespace dmResource
         ResourcePostCreateParamsInternal& ip = preloader->m_PostCreateCallbacks[preloader->m_PostCreateCallbackIndex];
         ResourcePostCreateParams& params     = ip.m_Params;
         params.m_Resource                    = &ip.m_ResourceDesc;
-        SResourceType* resource_type         = (SResourceType*)params.m_Resource->m_ResourceType;
-        Result ret                           = resource_type->m_PostCreateFunction(params);
+        ResourceType* resource_type          = params.m_Resource->m_ResourceType;
+        Result ret                           = (Result)resource_type->m_PostCreateFunction(&params);
 
         if (ret == RESULT_PENDING)
         {
@@ -894,13 +899,14 @@ namespace dmResource
         {
             ResourceDestroyParams params;
             params.m_Factory  = preloader->m_Factory;
+            params.m_Type     = resource_type;
             params.m_Context  = resource_type->m_Context;
             params.m_Resource = &ip.m_ResourceDesc;
-            resource_type->m_DestroyFunction(params);
+            resource_type->m_DestroyFunction(&params);
             ip.m_Destroy = false;
         }
         else {
-            SResourceDescriptor* rd = FindByHash(preloader->m_Factory, params.m_Resource->m_NameHash);
+            ResourceDescriptor* rd = FindByHash(preloader->m_Factory, params.m_Resource->m_NameHash);
             if (rd)
             {
                 if (params.m_Resource->m_ResourceSize != 0)
@@ -1048,7 +1054,7 @@ namespace dmResource
         delete preloader;
     }
 
-    bool PreloadHint(HPreloadHintInfo info, const char* name)
+    bool PreloadHint(HResourcePreloadHintInfo info, const char* name)
     {
         if (!info || !name)
             return false;

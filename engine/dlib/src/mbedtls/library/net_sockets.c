@@ -22,7 +22,9 @@
 /* Enable definition of getaddrinfo() even when compiling with -std=c99. Must
  * be set before config.h, which pulls in glibc's features.h indirectly.
  * Harmless on other platforms. */
+#if !defined(DM_MBEDTLS_NO_SIGNAL_H) // the _POSIX_C_SOURCE messed with the sys/select.h
 #define _POSIX_C_SOURCE 200112L
+#endif
 
 #if !defined(MBEDTLS_CONFIG_FILE)
 #include "mbedtls/config.h"
