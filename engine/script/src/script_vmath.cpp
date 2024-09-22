@@ -2481,12 +2481,63 @@ namespace dmScript
      * print(result) --> vmath.matrix4(1, 0, 0, 0, 0, 0.5, 0, 0, 0, 0, 0.5, 0, 0, 0, 0, 1)
      * ```
      */
+
+    /*# creates a new matrix4 from uniform scale
+     *
+     * creates a new matrix4 from uniform scale
+     *
+     * @name vmath.matrix4_scale
+     * @param scale [type:number] scale
+     * @return matrix [type:matrix4] new matrix4
+     * @examples
+     *
+     * ```lua
+     * local result = vmath.matrix4_scale(0.5)
+     * print(result) --> vmath.matrix4(0.5, 0, 0, 0, 0, 0.5, 0, 0, 0, 0, 0.5, 0, 0, 0, 0, 1)
+     * ```
+     */
+
+    /*# creates a new matrix4 from three scale components
+     *
+     * Creates a new matrix4 from three scale components
+     *
+     * @name vmath.matrix4_scale
+     * @param scale_x [type:number] scale along X axis
+     * @param scale_y [type:number] sclae along Y axis
+     * @param scale_z [type:number] scale along Z asis
+     * @return matrix [type:matrix4] new matrix4
+     * @examples
+     *
+     * ```lua
+     * local result = vmath.matrix4_scale(1, 0.5, 0.5)
+     * print(result) --> vmath.matrix4(1, 0, 0, 0, 0, 0.5, 0, 0, 0, 0, 0.5, 0, 0, 0, 0, 1)
+     * ```
+     */
     static int Matrix4_Scale(lua_State* L)
     {
-        Vector3* scale = CheckVector3(L, 1);
-        Matrix4 result = Matrix4::scale(*scale);
-        PushMatrix4(L, result);
-        return 1;
+        if (lua_isnumber(L, 1))
+        {
+            float x, y, z;
+            x = (float) luaL_checknumber(L, 1);
+            if (lua_isnumber(L, 2) && lua_isnumber(L, 3))
+            {
+                y = (float) luaL_checknumber(L, 2);
+                z = (float) luaL_checknumber(L, 3);
+            }
+            else
+            {
+                y = x; z = x;
+            }
+            PushMatrix4(L, Matrix4::scale(Vector3(x, y, z)));
+        }
+        else
+        {
+            Vector3* scale = CheckVector3(L, 1);
+            Matrix4 result = Matrix4::scale(*scale);
+            PushMatrix4(L, result);
+            return 1;
+        }
+        return luaL_error(L, "First argument should be number or vector3");
     }
 
     /*# clamp input value in range [min, max] and return clamped value
