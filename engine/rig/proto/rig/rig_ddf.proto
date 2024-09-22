@@ -158,7 +158,7 @@ message Material
     optional bool isSkinned                                 = 3; // set if the material is skinned
     optional PbrMetallicRoughness pbrMetallicRoughness      = 4;
     optional PbrSpecularGlossiness pbrSpecularGlossiness    = 5;
-    optional Clearcoat clearcoatRoughnessFactor             = 6;
+    optional Clearcoat clearcoat                            = 6;
     optional Ior ior                                        = 7;
     optional Specular specular                              = 8;
     optional Sheen sheen                                    = 9;
@@ -302,12 +302,12 @@ message Model // E.g. the Node in the Scene
 
 message MeshSet
 {
-    repeated Model          models = 1; // There may be more than one object in a scene
-    repeated string         materials = 2;
+    repeated Model          models         = 1; // There may be more than one object in a scene
+    repeated Material       materials      = 2;
 
     // List of bone names that represent the order of the bone influences.
     // Not used for Spine rigs since they don't have support for external skeletons.
-    repeated uint64         bone_list = 3;
+    repeated uint64         bone_list      = 3;
     // Max number of bones used in any of the meshes (in the bone_indices list)
     optional uint32         max_bone_count = 4;
 }
@@ -319,5 +319,4 @@ message RigScene
     optional string     animation_set   = 2 [(resource)=true];
     required string     mesh_set        = 3 [(resource)=true];
     optional string     texture_set     = 4 [(resource)=true];
-    repeated Material   materials       = 5;
 }

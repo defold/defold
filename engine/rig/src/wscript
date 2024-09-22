@@ -6,7 +6,7 @@ def configure(conf):
     pass
 
 def build(bld):
-    proto_files = ['../proto/rig/gltf_ddf.proto', '../proto/rig/rig_ddf.proto']
+    proto_files = ['../proto/rig/rig_ddf.proto']
 
     bld.stlib(features        = 'cxx ddf',
               includes        = ['.', '..', '../proto'],
