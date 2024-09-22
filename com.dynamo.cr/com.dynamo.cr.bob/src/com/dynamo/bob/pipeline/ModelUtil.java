@@ -33,11 +33,13 @@ import java.util.List;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.ArrayUtils;
+import com.google.protobuf.TextFormat;
 
 import javax.vecmath.Quat4d;
 import javax.vecmath.Tuple3d;
 import javax.vecmath.Tuple4d;
 import javax.vecmath.Vector3d;
+import javax.vecmath.Vector4d;
 
 import com.dynamo.bob.util.MathUtil;
 
@@ -45,6 +47,9 @@ import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.RigUtil;
 import com.dynamo.bob.util.RigUtil.AnimationKey;
 import com.dynamo.proto.DdfMath.Vector3;
+import com.dynamo.proto.DdfMath.Vector3One;
+import com.dynamo.proto.DdfMath.Vector4;
+import com.dynamo.proto.DdfMath.Vector4One;
 import com.dynamo.proto.DdfMath.Transform;
 
 import com.dynamo.bob.pipeline.Modelimporter.Bone;
@@ -91,6 +96,18 @@ public class ModelUtil {
 
     private static Vector3 toDDFVector3(Modelimporter.Vector3 v) {
         return MathUtil.vecmathToDDF(new Vector3d(v.x, v.y, v.z));
+    }
+
+    private static Vector3 toDDFVector3(float[] v) {
+        return MathUtil.vecmathToDDF(v[0], v[1], v[2]);
+    }
+
+    private static Vector4 toDDFVector4(float[] v) {
+        return MathUtil.vecmathToDDF(v[0], v[1], v[2], v[3]);
+    }
+
+    private static Vector4One toDDFVector4One(float[] v) {
+        return MathUtil.vecmathToDDFOne(v[0], v[1], v[2], v[3]);
     }
 
     private static Transform toDDFTransform(Modelimporter.Transform transform) {
@@ -328,6 +345,123 @@ public class ModelUtil {
                 break;
             }
         }
+    }
+
+    // Materials
+
+    private static Rig.Sampler loadSampler(Modelimporter.Sampler src) {
+        Rig.Sampler.Builder builder = Rig.Sampler.newBuilder();
+
+        builder.setName(src.name);
+        builder.setIndex(src.index);
+        builder.setMinFilter(src.minFilter);
+        builder.setMagFilter(src.magFilter);
+        builder.setWrapS(src.wrapS);
+        builder.setWrapT(src.wrapT);
+
+        return builder.build();
+    }
+
+    private static Rig.Texture loadTexture(Modelimporter.Texture src) {
+        Rig.Texture.Builder builder = Rig.Texture.newBuilder();
+
+        builder.setName(src.name);
+        builder.setIndex(src.index);
+        if (src.image != null && src.image.uri != null)
+            builder.setPath(src.image.uri);
+        if (src.sampler != null)
+            builder.setSampler(loadSampler(src.sampler));
+
+        return builder.build();
+    }
+
+    private static Rig.TextureTransform loadTextureTransform(Modelimporter.TextureTransform src) {
+        Rig.TextureTransform.Builder builder = Rig.TextureTransform.newBuilder();
+
+        builder.setOffsetX(src.offset[0]);
+        builder.setOffsetY(src.offset[1]);
+        builder.setScaleX(src.scale[0]);
+        builder.setScaleY(src.scale[1]);
+        builder.setRotation(src.rotation);
+        builder.setTexcoord(src.texcoord);
+
+        return builder.build();
+    }
+
+    private static Rig.TextureView loadTextureView(Modelimporter.TextureView src) {
+        Rig.TextureView.Builder builder = Rig.TextureView.newBuilder();
+
+        if (src.texture != null)
+            builder.setTexture(loadTexture(src.texture));
+
+        if (src.transform != null)
+            builder.setTransform(loadTextureTransform(src.transform));
+
+        builder.setTexcoord(src.texcoord);
+        builder.setScale(src.scale);
+        return builder.build();
+    }
+
+    private static Rig.PbrMetallicRoughness loadPbrMetallicRoughness(Modelimporter.PbrMetallicRoughness src) {
+        Rig.PbrMetallicRoughness.Builder builder = Rig.PbrMetallicRoughness.newBuilder();
+
+       if (src.baseColorTexture != null)
+            builder.setBaseColorTexture(loadTextureView(src.baseColorTexture));
+
+       if (src.metallicRoughnessTexture != null)
+            builder.setMetallicRoughnessTexture(loadTextureView(src.metallicRoughnessTexture));
+
+        if (src.baseColorFactor != null)
+            builder.setBaseColorFactor(toDDFVector4One(src.baseColorFactor));
+
+        builder.setMetallicFactor(src.metallicFactor);
+        builder.setRoughnessFactor(src.roughnessFactor);
+
+        return builder.build();
+    }
+
+    public static ArrayList<Rig.Material> loadMaterials(Scene scene) {
+        ArrayList<Rig.Material> materials = new ArrayList<>();
+        for (Modelimporter.Material material : scene.materials) {
+            Rig.Material.Builder materialBuilder = Rig.Material.newBuilder();
+
+            materialBuilder.setName(material.name);
+            materialBuilder.setIndex(material.index);
+            materialBuilder.setIsSkinned(material.isSkinned!=0);
+            materialBuilder.setAlphaCutoff(material.alphaCutoff);
+            materialBuilder.setAlphaMode(Rig.AlphaMode.valueOf(material.alphaMode.getValue()));
+            materialBuilder.setDoubleSided(material.doubleSided);
+            materialBuilder.setUnlit(material.unlit);
+
+            if (material.pbrMetallicRoughness != null)
+                materialBuilder.setPbrMetallicRoughness(loadPbrMetallicRoughness(material.pbrMetallicRoughness));
+            // public PbrMetallicRoughness pbrMetallicRoughness;
+            // public PbrSpecularGlossiness pbrSpecularGlossiness;
+            // public Clearcoat clearcoat;
+            // public Ior ior;
+            // public Specular specular;
+            // public Sheen sheen;
+            // public Transmission transmission;
+            // public Volume volume;
+            // public EmissiveStrength emissiveStrength;
+            // public Iridescence iridescence;
+            // public TextureView normalTexture;
+            // public TextureView occlusionTexture;
+            // public TextureView emissiveTexture;
+            materialBuilder.setEmissiveFactor(toDDFVector3(material.emissiveFactor));
+
+            // String s = TextFormat.printer().printToString(materialBuilder.build());
+            // System.out.printf("**********************************\n");
+            // System.out.printf("**********************************\n");
+            // System.out.printf("**********************************\n");
+            // System.out.printf("Material: %s\n", s);
+            // System.out.printf("**********************************\n");
+            // System.out.printf("**********************************\n");
+            // System.out.printf("**********************************\n");
+
+            materials.add(materialBuilder.build());
+        }
+        return materials;
     }
 
     // For editor
@@ -704,7 +838,7 @@ public class ModelUtil {
     public static void loadModels(Scene scene, Rig.MeshSet.Builder meshSetBuilder) {
         ArrayList<Modelimporter.Bone> skeleton = loadSkeleton(scene);
 
-        meshSetBuilder.addAllMaterials(loadMaterialNames(scene));
+        meshSetBuilder.addAllMaterials(loadMaterials(scene));
 
         ArrayList<Rig.Model> models = new ArrayList<>();
         for (Node root : scene.rootNodes) {
