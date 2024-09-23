@@ -1727,7 +1727,7 @@ static int PlaySound(const char* path, dmSound::SoundDataType type)
     r = dmSound::Play(instance);
     CHECK_ERROR(r);
 
-    printf("Playing sound %s\n", path, dmSound::IsPlaying(instance));
+    printf("Playing sound %s: %d\n", path, (int)dmSound::IsPlaying(instance));
 
     do {
         r = dmSound::Update();
