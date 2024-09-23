@@ -445,7 +445,10 @@ namespace dmGraphics
         TYPE_TEXTURE_2D       = 17,
         TYPE_SAMPLER          = 18,
         TYPE_TEXTURE_2D_ARRAY = 19,
-        TYPE_TEXTURE_CUBE     = 20
+        TYPE_TEXTURE_CUBE     = 20,
+        TYPE_SAMPLER_3D       = 21,
+        TYPE_TEXTURE_3D       = 22,
+        TYPE_IMAGE_3D         = 23,
     };
 
     /*#

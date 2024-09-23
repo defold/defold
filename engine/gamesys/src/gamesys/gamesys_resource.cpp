@@ -31,6 +31,8 @@ namespace dmGameSystem
         uint32_t data_size = 0;
         uint16_t mm_width  = params.m_Width;
         uint16_t mm_height = params.m_Height;
+        uint16_t mm_depth  = params.m_Depth; // Mipmaps?
+
         for (uint32_t i = 0; i < params.m_MaxMipMaps; ++i)
         {
             mip_map_sizes[i]    = dmMath::Max(mm_width, mm_height);
@@ -41,7 +43,7 @@ namespace dmGameSystem
         }
         assert(data_size > 0);
 
-        data_size                *= layer_count;
+        data_size                *= layer_count * mm_depth;
         uint32_t image_data_size  = data_size / 8; // bits -> bytes for compression formats
         uint8_t* image_data       = 0;
 
@@ -63,7 +65,7 @@ namespace dmGameSystem
             memset(image_data, 0, image_data_size);
         }
 
-        // Note: Right now we only support creating compressed 2D textures with 1 mipmap,
+        // Note: Right now we only support creating compressed textures with 1 mipmap,
         //       so we only need a pointer here for the data offset.
         mip_map_offsets_compressed[0] = image_data_size;
 
@@ -76,8 +78,10 @@ namespace dmGameSystem
 
         image->m_Width                = params.m_Width;
         image->m_Height               = params.m_Height;
+        image->m_Depth                = params.m_Depth;
         image->m_OriginalWidth        = params.m_Width;
         image->m_OriginalHeight       = params.m_Height;
+        image->m_OriginalDepth        = params.m_Depth;
         image->m_Format               = params.m_TextureFormat;
         image->m_CompressionType      = params.m_CompressionType;
         image->m_CompressionFlags     = 0;
@@ -145,8 +149,10 @@ namespace dmGameSystem
         {
             case dmGraphics::TEXTURE_TYPE_2D:       return dmGraphics::TextureImage::TYPE_2D;
             case dmGraphics::TEXTURE_TYPE_2D_ARRAY: return dmGraphics::TextureImage::TYPE_2D_ARRAY;
+            case dmGraphics::TEXTURE_TYPE_3D:       return dmGraphics::TextureImage::TYPE_3D;
             case dmGraphics::TEXTURE_TYPE_CUBE_MAP: return dmGraphics::TextureImage::TYPE_CUBEMAP;
             case dmGraphics::TEXTURE_TYPE_IMAGE_2D: return dmGraphics::TextureImage::TYPE_2D_IMAGE;
+            case dmGraphics::TEXTURE_TYPE_IMAGE_3D: return dmGraphics::TextureImage::TYPE_3D_IMAGE;
             default: assert(0);
         }
         dmLogError("Unsupported texture type (%d)", texturetype);
@@ -190,15 +196,17 @@ namespace dmGameSystem
         texture_image.m_Type                   = GraphicsTextureTypeToImageType(params.m_TextureType);
         texture_image.m_Count                  = 1;
 
-        image.m_Width                = params.m_Width;
-        image.m_Height               = params.m_Height;
-        image.m_OriginalWidth        = params.m_Width;
-        image.m_OriginalHeight       = params.m_Height;
-        image.m_Format               = GraphicsTextureFormatToImageFormat(params.m_TextureFormat);
-        image.m_CompressionType      = params.m_CompressionType;
-        image.m_CompressionFlags     = 0;
-        image.m_Data.m_Data          = (uint8_t*) params.m_Data;
-        image.m_Data.m_Count         = params.m_DataSize;
+        image.m_Width            = params.m_Width;
+        image.m_Height           = params.m_Height;
+        image.m_Depth            = params.m_Depth;
+        image.m_OriginalWidth    = params.m_Width;
+        image.m_OriginalHeight   = params.m_Height;
+        image.m_OriginalDepth    = params.m_Depth;
+        image.m_Format           = GraphicsTextureFormatToImageFormat(params.m_TextureFormat);
+        image.m_CompressionType  = params.m_CompressionType;
+        image.m_CompressionFlags = 0;
+        image.m_Data.m_Data      = (uint8_t*) params.m_Data;
+        image.m_Data.m_Count     = params.m_DataSize;
 
         // Note: When uploading cubemap faces on OpenGL, we expect that the "data size" is **per** slice
         //       and not the entire data size of the buffer. For vulkan we don't look at this value but instead

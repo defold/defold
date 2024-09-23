@@ -57,12 +57,13 @@ namespace dmGameSystem
             params.m_ColorBufferCreationParams[i].m_OriginalHeight = att.m_Height;
             params.m_ColorBufferCreationParams[i].m_MipMapCount    = 1;
 
-            params.m_ColorBufferParams[i].m_Data     = 0;
-            params.m_ColorBufferParams[i].m_DataSize = 0;
-            params.m_ColorBufferParams[i].m_Format   = format;
-            params.m_ColorBufferParams[i].m_Width    = att.m_Width;
-            params.m_ColorBufferParams[i].m_Height   = att.m_Height;
-            params.m_ColorBufferParams[i].m_Depth    = 1;
+            params.m_ColorBufferParams[i].m_Data       = 0;
+            params.m_ColorBufferParams[i].m_DataSize   = 0;
+            params.m_ColorBufferParams[i].m_Format     = format;
+            params.m_ColorBufferParams[i].m_Width      = att.m_Width;
+            params.m_ColorBufferParams[i].m_Height     = att.m_Height;
+            params.m_ColorBufferParams[i].m_Depth      = 1;
+            params.m_ColorBufferParams[i].m_LayerCount = 1;
 
             params.m_ColorBufferLoadOps[i]  = dmGraphics::ATTACHMENT_OP_DONT_CARE;
             params.m_ColorBufferStoreOps[i] = dmGraphics::ATTACHMENT_OP_STORE;
@@ -85,12 +86,13 @@ namespace dmGameSystem
                 params.m_DepthBufferCreationParams.m_OriginalHeight = ddf->m_DepthStencilAttachment.m_Height;
                 params.m_DepthBufferCreationParams.m_MipMapCount    = 1;
 
-                params.m_DepthBufferParams.m_Data     = 0;
-                params.m_DepthBufferParams.m_DataSize = 0;
-                params.m_DepthBufferParams.m_Format   = dmGraphics::TEXTURE_FORMAT_DEPTH;
-                params.m_DepthBufferParams.m_Width    = ddf->m_DepthStencilAttachment.m_Width;
-                params.m_DepthBufferParams.m_Height   = ddf->m_DepthStencilAttachment.m_Height;
-                params.m_DepthBufferParams.m_Depth    = 1;
+                params.m_DepthBufferParams.m_Data       = 0;
+                params.m_DepthBufferParams.m_DataSize   = 0;
+                params.m_DepthBufferParams.m_Format     = dmGraphics::TEXTURE_FORMAT_DEPTH;
+                params.m_DepthBufferParams.m_Width      = ddf->m_DepthStencilAttachment.m_Width;
+                params.m_DepthBufferParams.m_Height     = ddf->m_DepthStencilAttachment.m_Height;
+                params.m_DepthBufferParams.m_Depth      = 1;
+                params.m_DepthBufferParams.m_LayerCount = 1;
 
                 params.m_DepthTexture = ddf->m_DepthStencilAttachment.m_TextureStorage;
             }
@@ -106,13 +108,14 @@ namespace dmGameSystem
                 params.m_StencilBufferCreationParams.m_OriginalHeight = ddf->m_DepthStencilAttachment.m_Height;
                 params.m_StencilBufferCreationParams.m_MipMapCount    = 1;
 
-                params.m_StencilBufferParams.m_Data     = 0;
-                params.m_StencilBufferParams.m_DataSize = 0;
-                params.m_StencilBufferParams.m_Format   = dmGraphics::TEXTURE_FORMAT_STENCIL;
-                params.m_StencilBufferParams.m_Width    = ddf->m_DepthStencilAttachment.m_Width;
-                params.m_StencilBufferParams.m_Height   = ddf->m_DepthStencilAttachment.m_Height;
-                params.m_StencilBufferParams.m_Depth    = 1;
-                params.m_StencilTexture                 = false; // Currently not supported
+                params.m_StencilBufferParams.m_Data       = 0;
+                params.m_StencilBufferParams.m_DataSize   = 0;
+                params.m_StencilBufferParams.m_Format     = dmGraphics::TEXTURE_FORMAT_STENCIL;
+                params.m_StencilBufferParams.m_Width      = ddf->m_DepthStencilAttachment.m_Width;
+                params.m_StencilBufferParams.m_Height     = ddf->m_DepthStencilAttachment.m_Height;
+                params.m_StencilBufferParams.m_Depth      = 1;
+                params.m_StencilBufferParams.m_LayerCount = 1;
+                params.m_StencilTexture                   = false; // Currently not supported
             }
         }
     }

@@ -241,8 +241,8 @@ namespace dmGraphics
 
         if (swapChain->HasMultiSampling())
         {
-            VkResult res = CreateTexture2D(vk_physical_device, vk_device,
-                vk_extent.width, vk_extent.height, 1, 1,
+            VkResult res = CreateTexture(vk_physical_device, vk_device,
+                vk_extent.width, vk_extent.height, 1, 1, 1,
                 swapChain->m_SampleCountFlag,
                 swapChain->m_SurfaceFormat.format,
                 VK_IMAGE_TILING_OPTIMAL,

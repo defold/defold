@@ -147,6 +147,7 @@ namespace dmGameSystem
         const void*                               m_Data;
         uint32_t                                  m_Width;
         uint32_t                                  m_Height;
+        uint32_t                                  m_Depth;
         uint32_t                                  m_MaxMipMaps;
         uint32_t                                  m_TextureBpp;
         uint32_t                                  m_UsageFlags;
@@ -162,6 +163,7 @@ namespace dmGameSystem
         size_t                                    m_DataSize;
         uint32_t                                  m_Width;
         uint32_t                                  m_Height;
+        uint32_t                                  m_Depth;
         uint32_t                                  m_X;
         uint32_t                                  m_Y;
         uint32_t                                  m_MipMap;

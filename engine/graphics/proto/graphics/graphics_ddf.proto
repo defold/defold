@@ -102,6 +102,8 @@ message TextureImage
         TYPE_CUBEMAP  = 2;
         TYPE_2D_ARRAY = 3;
         TYPE_2D_IMAGE = 4;
+        TYPE_3D       = 5;
+        TYPE_3D_IMAGE = 6;
     }
 
     enum CompressionType
@@ -163,15 +165,17 @@ message TextureImage
     {
         required uint32 width                     = 1;
         required uint32 height                    = 2;
-        required uint32 original_width            = 3;
-        required uint32 original_height           = 4;
-        required TextureFormat format             = 5;
-        repeated uint32 mip_map_offset            = 6;
-        repeated uint32 mip_map_size              = 7;    // always uncompressed (native) size
-        required bytes data                       = 8;
-        optional CompressionType compression_type = 9 [default = COMPRESSION_TYPE_DEFAULT];
-        optional uint64 compression_flags         = 10;
-        repeated uint32 mip_map_size_compressed   = 11;
+        optional uint32 depth                     = 3 [default = 1];
+        required uint32 original_width            = 4;
+        required uint32 original_height           = 5;
+        optional uint32 original_depth            = 6 [default = 1];
+        required TextureFormat format             = 7;
+        repeated uint32 mip_map_offset            = 8;
+        repeated uint32 mip_map_size              = 9;    // always uncompressed (native) size
+        required bytes data                       = 10;
+        optional CompressionType compression_type = 11 [default = COMPRESSION_TYPE_DEFAULT];
+        optional uint64 compression_flags         = 12;
+        repeated uint32 mip_map_size_compressed   = 13;
     }
 
     repeated Image alternatives = 1;
