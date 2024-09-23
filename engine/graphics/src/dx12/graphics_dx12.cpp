@@ -284,7 +284,13 @@ namespace dmGraphics
         return (void*) base_ptr;
     }
 
-    void DX12ScratchBuffer::AllocateTexture2D(DX12Context* context, DX12Texture* texture, uint32_t texture_index, const DX12TextureSampler& sampler, uint32_t sampler_index)
+    void DX12ScratchBuffer::AllocateSampler(DX12Context* context, const DX12TextureSampler& sampler, uint32_t sampler_index)
+    {
+        CD3DX12_GPU_DESCRIPTOR_HANDLE handle_sampler(context->m_SamplerPool.m_DescriptorHeap->GetGPUDescriptorHandleForHeapStart(), sampler.m_DescriptorOffset);
+        context->m_CommandList->SetGraphicsRootDescriptorTable(sampler_index, handle_sampler);
+    }
+
+    void DX12ScratchBuffer::AllocateTexture2D(DX12Context* context, DX12Texture* texture, uint32_t texture_index)
     {
         D3D12_SHADER_RESOURCE_VIEW_DESC view_desc = {};
         view_desc.Format                          = texture->m_ResourceDesc.Format;
@@ -303,11 +309,9 @@ namespace dmGraphics
         context->m_Device->CreateShaderResourceView(texture->m_Resource, &view_desc, view_desc_handle);
         m_MemoryPools[0].m_DescriptorCursor++;
 
-        CD3DX12_GPU_DESCRIPTOR_HANDLE handle_sampler(context->m_SamplerPool.m_DescriptorHeap->GetGPUDescriptorHandleForHeapStart(), sampler.m_DescriptorOffset);
         CD3DX12_GPU_DESCRIPTOR_HANDLE handle_texture(m_MemoryPools[0].m_DescriptorHeap->GetGPUDescriptorHandleForHeapStart(), desc_offset);
 
         context->m_CommandList->SetGraphicsRootDescriptorTable(texture_index, handle_texture);
-        context->m_CommandList->SetGraphicsRootDescriptorTable(sampler_index, handle_sampler);
     }
 
     void DX12ScratchBuffer::Reset(DX12Context* context)
@@ -1427,10 +1431,23 @@ namespace dmGraphics
                 {
                     case ShaderResourceBinding::BINDING_FAMILY_TEXTURE:
                     {
-                        DX12Texture* texture              = GetAssetFromContainer<DX12Texture>(context->m_AssetHandleContainer, context->m_CurrentTextures[pgm_res.m_TextureUnit]);
-                        const DX12TextureSampler& sampler = context->m_TextureSamplers[texture->m_TextureSamplerIndex];
-                        uint32_t ix = texture_unit_start + pgm_res.m_TextureUnit * 2;
-                        frame_resources.m_ScratchBuffer.AllocateTexture2D(context, texture, ix, sampler, ix + 1);
+                        uint32_t ix          = texture_unit_start + pgm_res.m_Res->m_Binding;
+                        DX12Texture* texture = GetAssetFromContainer<DX12Texture>(context->m_AssetHandleContainer, context->m_CurrentTextures[pgm_res.m_TextureUnit]);
+
+                        if (pgm_res.m_Res->m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_SAMPLER)
+                        {
+                            const DX12TextureSampler& sampler = context->m_TextureSamplers[texture->m_TextureSamplerIndex];
+                            frame_resources.m_ScratchBuffer.AllocateSampler(context, sampler, ix);
+                        }
+                        else
+                        {
+                            frame_resources.m_ScratchBuffer.AllocateTexture2D(context, texture, ix);
+                        }
+
+                        // DX12Texture* texture              = GetAssetFromContainer<DX12Texture>(context->m_AssetHandleContainer, context->m_CurrentTextures[pgm_res.m_TextureUnit]);
+                        // const DX12TextureSampler& sampler = context->m_TextureSamplers[texture->m_TextureSamplerIndex];
+                        // uint32_t ix = texture_unit_start + pgm_res.m_TextureUnit * 2;
+                        // frame_resources.m_ScratchBuffer.AllocateTexture2D(context, texture, ix, sampler, ix + 1);
                     } break;
                     case ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER:
                     {
@@ -1604,8 +1621,15 @@ namespace dmGraphics
                 switch(res.m_BindingFamily)
                 {
                     case ShaderResourceBinding::BINDING_FAMILY_TEXTURE:
-                        program_resource_binding.m_TextureUnit = info.m_TextureCount;
-                        info.m_TextureCount++;
+                        if (res.m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_SAMPLER)
+                        {
+                            info.m_SamplerCount++;
+                        }
+                        else
+                        {
+                            program_resource_binding.m_TextureUnit = info.m_TextureCount;
+                            info.m_TextureCount++;
+                        }
                         info.m_TotalUniformCount++;
                         break;
                     case ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER:
@@ -1645,6 +1669,27 @@ namespace dmGraphics
         }
     }
 
+    static void ResolveSamplerTextureUnits(DX12ShaderProgram* program, const dmArray<ShaderResourceBinding>& texture_resources)
+    {
+        for (int i = 0; i < texture_resources.Size(); ++i)
+        {
+            const ShaderResourceBinding& shader_res = texture_resources[i];
+            assert(shader_res.m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_TEXTURE);
+
+            ProgramResourceBinding& shader_pgm_res = program->m_ResourceBindings[shader_res.m_Set][shader_res.m_Binding];
+
+            if (shader_res.m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_SAMPLER)
+            {
+                const ShaderResourceBinding& texture_shader_res = texture_resources[shader_pgm_res.m_Res->m_BindingInfo.m_SamplerTextureIndex];
+                const ProgramResourceBinding& texture_pgm_res   = program->m_ResourceBindings[texture_shader_res.m_Set][texture_shader_res.m_Binding];
+                shader_pgm_res.m_TextureUnit                    = texture_pgm_res.m_TextureUnit;
+            #if 0 // Debug
+                dmLogInfo("Resolving sampler at %d, %d to texture unit %d", shader_res.m_Set, shader_res.m_Binding, shader_pgm_res.m_TextureUnit);
+            #endif
+            }
+        }
+    }
+
     static void FillProgramResourceBindings(
         DX12ShaderProgram*           program,
         DX12ShaderModule*            module,
@@ -1659,6 +1704,8 @@ namespace dmGraphics
             FillProgramResourceBindings(program, module->m_ShaderMeta.m_UniformBuffers, module->m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, stage_flag, info);
             FillProgramResourceBindings(program, module->m_ShaderMeta.m_StorageBuffers, module->m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, stage_flag, info);
             FillProgramResourceBindings(program, module->m_ShaderMeta.m_Textures, module->m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, stage_flag, info);
+
+            ResolveSamplerTextureUnits(program, module->m_ShaderMeta.m_Textures);
         }
     }
 
@@ -1680,9 +1727,9 @@ namespace dmGraphics
         program->m_UniformDataSizeAligned = binding_info.m_UniformDataSizeAligned;
         program->m_UniformBufferCount     = binding_info.m_UniformBufferCount;
         program->m_StorageBufferCount     = binding_info.m_StorageBufferCount;
-        program->m_TextureSamplerCount    = binding_info.m_TextureCount;
+        program->m_TextureSamplerCount    = binding_info.m_TextureCount + binding_info.m_SamplerCount;
         program->m_TotalUniformCount      = binding_info.m_TotalUniformCount;
-        program->m_TotalResourcesCount    = binding_info.m_UniformBufferCount + binding_info.m_TextureCount + binding_info.m_StorageBufferCount; // num actual descriptors
+        program->m_TotalResourcesCount    = binding_info.m_UniformBufferCount + binding_info.m_TextureCount + binding_info.m_SamplerCount + binding_info.m_StorageBufferCount; // num actual descriptors
         program->m_MaxSet                 = binding_info.m_MaxSet;
         program->m_MaxBinding             = binding_info.m_MaxBinding;
     }
@@ -1694,12 +1741,10 @@ namespace dmGraphics
         program->m_FragmentModule  = (DX12ShaderModule*) fragment_program;
         program->m_ComputeModule   = 0;
 
-        dmLogInfo("New program");
-
         CreateProgramResourceBindings(program, program->m_VertexModule, program->m_FragmentModule, 0);
 
         dmArray<CD3DX12_ROOT_PARAMETER > root_parameter_descs;
-        root_parameter_descs.SetCapacity(program->m_UniformBufferCount + program->m_TextureSamplerCount * 2);
+        root_parameter_descs.SetCapacity(program->m_UniformBufferCount + program->m_TextureSamplerCount);
         root_parameter_descs.SetSize(root_parameter_descs.Capacity());
 
         uint32_t texture_unit_start = program->m_UniformBufferCount;
@@ -1718,15 +1763,18 @@ namespace dmGraphics
                 {
                     case ShaderResourceBinding::BINDING_FAMILY_TEXTURE:
                     {
-                        uint32_t ix = texture_unit_start + pgm_res.m_TextureUnit * 2;
+                        uint32_t ix = texture_unit_start + pgm_res.m_Res->m_Binding;
 
-                        CD3DX12_DESCRIPTOR_RANGE texture_range(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, 0);
-                        CD3DX12_DESCRIPTOR_RANGE sampler_range(D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER, 1, 0);
-
-                        root_parameter_descs[ix + 0].InitAsDescriptorTable(1, &texture_range, GetShaderVisibilityFromStage(pgm_res.m_StageFlags));
-                        root_parameter_descs[ix + 1].InitAsDescriptorTable(1, &sampler_range, GetShaderVisibilityFromStage(pgm_res.m_StageFlags));
-
-                        texture_ix++;
+                        if (pgm_res.m_Res->m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_SAMPLER)
+                        {
+                            CD3DX12_DESCRIPTOR_RANGE sampler_range(D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER, 1, pgm_res.m_Res->m_Binding);
+                            root_parameter_descs[ix].InitAsDescriptorTable(1, &sampler_range, GetShaderVisibilityFromStage(pgm_res.m_StageFlags));
+                        }
+                        else
+                        {
+                            CD3DX12_DESCRIPTOR_RANGE texture_range(D3D12_DESCRIPTOR_RANGE_TYPE_SRV, 1, pgm_res.m_Res->m_Binding);
+                            root_parameter_descs[ix].InitAsDescriptorTable(1, &texture_range, GetShaderVisibilityFromStage(pgm_res.m_StageFlags));
+                        }
                     } break;
                     case ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER:
                     {

@@ -271,7 +271,6 @@ namespace dmPlatform
                 break;
             case PLATFORM_GRAPHICS_API_WEBGPU:
             case PLATFORM_GRAPHICS_API_VULKAN:
-            case PLATFORM_GRAPHICS_API_DIRECTX:
                 res = OpenWindowNoAPI(window, params);
                 break;
             default: assert(0);

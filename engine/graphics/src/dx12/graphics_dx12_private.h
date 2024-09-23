@@ -159,7 +159,8 @@ namespace dmGraphics
 
         void  Initialize(DX12Context* context, uint32_t frame_index);
         void* AllocateConstantBuffer(DX12Context* context, uint32_t buffer_index, uint32_t non_aligned_byte_size);
-        void  AllocateTexture2D(DX12Context* context, DX12Texture* texture, uint32_t texture_index, const DX12TextureSampler& sampler, uint32_t sampler_index);
+        void  AllocateSampler(DX12Context* context, const DX12TextureSampler& sampler, uint32_t sampler_index);
+        void  AllocateTexture2D(DX12Context* context, DX12Texture* texture, uint32_t texture_index);
         void  Reset(DX12Context* context);
         void  Bind(DX12Context* context);
     };
