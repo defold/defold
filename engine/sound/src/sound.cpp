@@ -1265,7 +1265,7 @@ namespace dmSound
         DM_PROFILE(__FUNCTION__);
         SoundSystem* sound = g_SoundSystem;
 
-        uint32_t frame_count = mix_context->m_FrameCount; // sound->m_FrameCount
+        uint32_t frame_count = mix_context->m_FrameCount;
         for (uint32_t i = 0; i < MAX_GROUPS; i++) {
             SoundGroup* g = &sound->m_Groups[i];
 

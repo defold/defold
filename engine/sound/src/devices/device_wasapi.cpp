@@ -196,12 +196,13 @@ namespace dmDeviceWasapi
             return dmSound::RESULT_INIT_ERROR;
         }
 
-        printf("  wFormatTag:       %x  IEEE_FLOAT/PCM/EXTENSIBLE: %x / %x / %x\n", device->m_Format, WAVE_FORMAT_IEEE_FLOAT, WAVE_FORMAT_PCM, WAVE_FORMAT_EXTENSIBLE);
-        printf("  nChannels:        %d\n", device->m_MixFormat->nChannels);
-        printf("  nSamplesPerSec:   %d\n", device->m_MixFormat->nSamplesPerSec);
-        printf("  nAvgBytesPerSec:  %d\n", device->m_MixFormat->nAvgBytesPerSec);
-        printf("  nBlockAlign:      %d\n", device->m_MixFormat->nBlockAlign);
-        printf("  wBitsPerSample:   %d\n", device->m_MixFormat->wBitsPerSample);
+        dmLogInfo("Wasapi device selected:");
+        dmLogInfo("  wFormatTag:       %x  IEEE_FLOAT/PCM/EXTENSIBLE: %x / %x / %x\n", device->m_Format, WAVE_FORMAT_IEEE_FLOAT, WAVE_FORMAT_PCM, WAVE_FORMAT_EXTENSIBLE);
+        dmLogInfo("  nChannels:        %d\n", device->m_MixFormat->nChannels);
+        dmLogInfo("  nSamplesPerSec:   %d\n", device->m_MixFormat->nSamplesPerSec);
+        dmLogInfo("  nAvgBytesPerSec:  %d\n", device->m_MixFormat->nAvgBytesPerSec);
+        dmLogInfo("  nBlockAlign:      %d\n", device->m_MixFormat->nBlockAlign);
+        dmLogInfo("  wBitsPerSample:   %d\n", device->m_MixFormat->wBitsPerSample);
 
         // Get the render client
         hr = device->m_AudioClient->GetService(__uuidof(IAudioRenderClient), (void**)&device->m_AudioRenderClient);
@@ -239,19 +240,6 @@ namespace dmDeviceWasapi
             return dmSound::RESULT_INIT_ERROR;
         }
 
-        // uint32_t buffer_size = 0;
-        // uint32_t buffer_pos = 0;
-        // uint8_t* out;
-        // device->m_AudioClient->GetBufferSize(&buffer_size);
-        // device->m_AudioClient->GetCurrentPadding(&buffer_pos);
-        // printf("start: buffer_size: %u  buffer_pos: %u\n", buffer_size, buffer_pos);
-        // device->m_AudioRenderClient->GetBuffer(buffer_size, &out);
-        // device->m_AudioRenderClient->ReleaseBuffer(buffer_size, AUDCLNT_BUFFERFLAGS_SILENT);
-
-        // device->m_AudioClient->GetBufferSize(&buffer_size);
-        // device->m_AudioClient->GetCurrentPadding(&buffer_pos);
-        // printf("start: buffer_size: %u  buffer_pos: %u\n", buffer_size, buffer_pos);
-
         *outdevice = device;
         return dmSound::RESULT_OK;
     }
@@ -274,26 +262,6 @@ namespace dmDeviceWasapi
             return 0;
         }
         return 1;
-
-        // uint32_t buffer_size = 0;
-        // uint32_t buffer_pos = 0;
-
-        // HRESULT hr = device->m_AudioClient->GetBufferSize(&buffer_size);
-        // if (FAILED(hr))
-        // {
-        //     return 0;
-        // }
-
-        // hr = device->m_AudioClient->GetCurrentPadding(&buffer_pos);
-        // if (FAILED(hr))
-        // {
-        //     return 0;
-        // }
-
- // TODO: Make sure it's larger than we produce each frame
-        //return (buffer_size - buffer_pos) >= device->m_FrameCount ? 1 : 0;
-        //return buffer_pos ? 1 : 0;
-        //return 1;
     }
 
     static uint32_t DeviceWasapiGetAvailableFrames(dmSound::HDevice _device)
@@ -316,8 +284,6 @@ namespace dmDeviceWasapi
         }
         return buffer_size - buffer_pos;
     }
-
-
 
     // We get this call after we've returned a non zero value from the
     static dmSound::Result DeviceWasapiQueue(dmSound::HDevice _device, const int16_t* samples, uint32_t sample_count)
@@ -342,9 +308,6 @@ namespace dmDeviceWasapi
 
         uint32_t frames_available = buffer_size - buffer_pos;
 
-        // static uint64_t last_time = dmTime::GetTime();
-        // uint64_t time = dmTime::GetTime();
-
         if (sample_count < frames_available)
             frames_available = sample_count;
 
@@ -355,9 +318,6 @@ namespace dmDeviceWasapi
             return dmSound::RESULT_OUT_OF_BUFFERS;
         }
 
-        // if (buffer_pos == 0)
-        //     printf("buffer size: %u  pos: %u  avail: %u  incoming: %u out: %p\n", buffer_size, buffer_pos, frames_available, sample_count, out);
-
         for (int i = 0; i < frames_available; ++i)
         {
             if (device->m_Format == WAVE_FORMAT_IEEE_FLOAT)
@@ -367,9 +327,6 @@ namespace dmDeviceWasapi
                 fout[i*2+1] = samples[i*2+1]/32768.0f;
             }
         }
-
-        // dmLogWarning("Update: dt: %llu  max_size: %u  avail: %u", (time - last_time), buffer_size, frames_available);
-        // last_time = time;
 
         device->m_AudioRenderClient->ReleaseBuffer(frames_available, 0);
 
@@ -405,13 +362,8 @@ namespace dmDeviceWasapi
 
             uint32_t buffer_size = 0;
             uint32_t buffer_pos = 0;
-
-            hr = device->m_AudioClient->GetBufferSize(&buffer_size);
-
-            hr = device->m_AudioClient->GetCurrentPadding(&buffer_pos);
-
-            // printf("start: buffer_size: %u  buffer_pos: %u\n", buffer_size, buffer_pos);
-
+            device->m_AudioClient->GetBufferSize(&buffer_size);
+            device->m_AudioClient->GetCurrentPadding(&buffer_pos);
         }
     }
 

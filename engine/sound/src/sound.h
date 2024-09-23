@@ -213,7 +213,7 @@ namespace dmSound
         /**
          * The available number of frames in the free buffer
          * @param device
-         * @return
+         * @return number of frames available for write
          */
         uint32_t (*m_GetAvailableFrames)(HDevice device);
 
