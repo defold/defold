@@ -71,6 +71,10 @@ namespace dmRender
             {
                 samplers_count++;
             }
+            else if (type == dmGraphics::TYPE_SAMPLER)
+            {
+                // ignore samplers for now
+            }
             else
             {
                 dmLogWarning("Type for uniform %s is not supported (%d)", buffer, type);

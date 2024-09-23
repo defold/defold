@@ -701,7 +701,6 @@ namespace dmGraphics
         return type == TYPE_SAMPLER_2D ||
                type == TYPE_SAMPLER_CUBE ||
                type == TYPE_SAMPLER_2D_ARRAY ||
-               type == TYPE_SAMPLER ||
                type == TYPE_TEXTURE_2D ||
                type == TYPE_TEXTURE_2D_ARRAY ||
                type == TYPE_TEXTURE_CUBE ||

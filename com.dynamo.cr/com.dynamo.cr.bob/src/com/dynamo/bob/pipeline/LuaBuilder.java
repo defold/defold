@@ -108,6 +108,10 @@ public abstract class LuaBuilder extends Builder {
             }
 
             scanner = new LuaScanner();
+            if (variant == Bob.VARIANT_DEBUG)
+            {
+                scanner.setDebug();
+            }
             scanner.parse(script);
             luaScanners.put(path, scanner);
         }

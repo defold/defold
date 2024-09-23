@@ -1575,12 +1575,12 @@ static void WebGPUUpdateBindGroups(WebGPUContext* context)
                 const uint32_t ubo_alignment  = context->m_DeviceLimits.limits.minUniformBufferOffsetAlignment;
                 if (!context->m_CurrentUniforms.m_Allocs.size() ||
                    context->m_CurrentUniforms.m_Allocs[context->m_CurrentUniforms.m_Alloc]->m_Size <
-                   context->m_CurrentUniforms.m_Allocs[context->m_CurrentUniforms.m_Alloc]->m_Used + pgm_res.m_Res->m_BlockSize)
+                   context->m_CurrentUniforms.m_Allocs[context->m_CurrentUniforms.m_Alloc]->m_Used + pgm_res.m_Res->m_BindingInfo.m_BlockSize)
                 {
                     if (context->m_CurrentUniforms.m_Allocs.size() > context->m_CurrentUniforms.m_Alloc + 1)
                     {
                         ++context->m_CurrentUniforms.m_Alloc;
-                        assert(context->m_CurrentUniforms.m_Allocs[context->m_CurrentUniforms.m_Alloc]->m_Size >= pgm_res.m_Res->m_BlockSize);
+                        assert(context->m_CurrentUniforms.m_Allocs[context->m_CurrentUniforms.m_Alloc]->m_Size >= pgm_res.m_Res->m_BindingInfo.m_BlockSize);
                     }
                     else
                     {
@@ -1588,7 +1588,7 @@ static void WebGPUUpdateBindGroups(WebGPUContext* context)
                         {
                             WGPUBufferDescriptor desc = {};
                             desc.usage = WGPUBufferUsage_Uniform | WGPUBufferUsage_CopyDst;
-                            desc.size = std::max(uint16_t(16 * 1024), pgm_res.m_Res->m_BlockSize);
+                            desc.size = std::max(uint16_t(16 * 1024), pgm_res.m_Res->m_BindingInfo.m_BlockSize);
                             alloc->m_Buffer = wgpuDeviceCreateBuffer(context->m_Device, &desc);
                             alloc->m_Size = desc.size;
                         }
@@ -1598,10 +1598,10 @@ static void WebGPUUpdateBindGroups(WebGPUContext* context)
                 }
                 entries[desc.entryCount].buffer = context->m_CurrentUniforms.m_Allocs[context->m_CurrentUniforms.m_Alloc]->m_Buffer;
                 entries[desc.entryCount].offset = context->m_CurrentUniforms.m_Allocs[context->m_CurrentUniforms.m_Alloc]->m_Used;
-                entries[desc.entryCount].size = pgm_res.m_Res->m_BlockSize;
+                entries[desc.entryCount].size = pgm_res.m_Res->m_BindingInfo.m_BlockSize;
                 wgpuQueueWriteBuffer(context->m_Queue, entries[desc.entryCount].buffer, entries[desc.entryCount].offset,
                                      context->m_CurrentProgram->m_UniformData + pgm_res.m_DataOffset, entries[desc.entryCount].size);
-                context->m_CurrentUniforms.m_Allocs[context->m_CurrentUniforms.m_Alloc]->m_Used += DM_ALIGN(pgm_res.m_Res->m_BlockSize, ubo_alignment);
+                context->m_CurrentUniforms.m_Allocs[context->m_CurrentUniforms.m_Alloc]->m_Used += DM_ALIGN(pgm_res.m_Res->m_BindingInfo.m_BlockSize, ubo_alignment);
                 break; }
             case ShaderResourceBinding::BINDING_FAMILY_GENERIC:
                 assert(false);
@@ -1858,8 +1858,8 @@ static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* 
                 program_resource_binding.m_DynamicOffsetIndex = info.m_UniformBufferCount;
 
                 info.m_UniformBufferCount++;
-                info.m_UniformDataSize        += res.m_BlockSize;
-                info.m_UniformDataSizeAligned += DM_ALIGN(res.m_BlockSize, ubo_alignment);
+                info.m_UniformDataSize        += res.m_BindingInfo.m_BlockSize;
+                info.m_UniformDataSizeAligned += DM_ALIGN(res.m_BindingInfo.m_BlockSize, ubo_alignment);
                 info.m_TotalUniformCount      += stage_type_infos[res.m_Type.m_TypeIndex].m_Members.Size();
                 break; }
             case ShaderResourceBinding::BINDING_FAMILY_GENERIC:

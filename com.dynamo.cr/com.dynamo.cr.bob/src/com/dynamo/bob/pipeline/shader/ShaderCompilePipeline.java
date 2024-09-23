@@ -188,7 +188,11 @@ public class ShaderCompilePipeline {
 
             File fileInGLSL = File.createTempFile(baseName, ".glsl");
             FileUtil.deleteOnExit(fileInGLSL);
-            String glsl = ShaderUtil.Common.compileGLSL(module.source, module.type, ShaderDesc.Language.LANGUAGE_GLSL_SM430, false, true);
+
+            // We need to expand all combined samplers into texture + sampler due to requirement of WebGPU
+            // Currently, we can't do this for WebGPU only since we need a shared reflection for all shaders
+            // in a shaderdesc.
+            String glsl = ShaderUtil.ES2ToES3Converter.transformTextureUniforms(module.source).output;
             FileUtils.writeByteArrayToFile(fileInGLSL, glsl.getBytes());
 
             File fileOutSpv = File.createTempFile(baseName, ".spv");

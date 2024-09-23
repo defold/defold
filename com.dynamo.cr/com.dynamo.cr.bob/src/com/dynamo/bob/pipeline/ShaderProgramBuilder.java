@@ -214,8 +214,27 @@ public abstract class ShaderProgramBuilder extends Builder {
         resourceBindingBuilder.setNameHash(MurmurHash.hash64(res.name));
         resourceBindingBuilder.setSet(res.set);
         resourceBindingBuilder.setBinding(res.binding);
-        resourceBindingBuilder.setBlockSize(res.blockSize);
+        if (res.blockSize != null)
+            resourceBindingBuilder.setBlockSize(res.blockSize);
+        else if (res.textureIndex != null)
+            resourceBindingBuilder.setSamplerTextureIndex(res.textureIndex);
         return resourceBindingBuilder;
+    }
+
+    static private void ResolveSamplerIndices(ArrayList<SPIRVReflector.Resource> textures) {
+        for (int i=0; i < textures.size(); i++) {
+            SPIRVReflector.Resource texture = textures.get(i);
+            // Look for a matching sampler resource
+            if (ShaderUtil.Common.stringTypeToShaderType(texture.type) != ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER) {
+                // TODO: the extension should be a constant
+                String constructedSamplerName = texture.name + "_separated";
+                for (SPIRVReflector.Resource other : textures) {
+                    if (other.name.equals(constructedSamplerName)) {
+                        other.textureIndex = i;
+                    }
+                }
+            }
+        }
     }
 
     static private ShaderDesc.ShaderReflection.Builder makeShaderReflectionBuilder(SPIRVReflector reflector) {
@@ -227,6 +246,8 @@ public abstract class ShaderProgramBuilder extends Builder {
         ArrayList<SPIRVReflector.Resource> ssbos     = reflector.getSsbos();
         ArrayList<SPIRVReflector.Resource> textures  = reflector.getTextures();
         ArrayList<SPIRVReflector.ResourceType> types = reflector.getTypes();
+
+        ResolveSamplerIndices(textures);
 
         for (SPIRVReflector.Resource input : inputs) {
             ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(types, input);

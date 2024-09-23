@@ -52,7 +52,7 @@ def build(bld):
     # Used by bob.jar + editor
     model_shared = bld(features = 'c cxx cshlib skip_asan extract_symbols',
                        includes = ['.', './model', './jni'],
-                       uselib = 'DLIB_NOASAN APP PROFILE_NULL_NOASAN JDK JNI',
+                       uselib = 'DLIB_NOASAN APP PROFILE_NULL_NOASAN JNI_NOASAN JDK',
                        source = modelc_sources + bld.path.ant_glob("jni/*.cpp"),
                        target = 'modelc_shared')
 
