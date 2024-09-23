@@ -19,6 +19,7 @@
 #include <dlib/hash.h>
 #include <ddf/ddf.h>
 #include <graphics/graphics.h>
+#include <graphics/graphics_util.h>
 #include "particle/particle_ddf.h"
 
 /*extern "C"

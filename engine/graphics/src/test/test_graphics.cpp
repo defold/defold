@@ -31,10 +31,17 @@
 #define WIDTH 8u
 #define HEIGHT 4u
 
+#define ASSERT_VECF(exp, act, num_values) \
+    for (int i = 0; i < num_values; ++i) \
+        ASSERT_NEAR(exp[i], act[i], EPSILON);
+
+#define ASSERT_VEC(exp, act, num_values) \
+    for (int i = 0; i < num_values; ++i) \
+        ASSERT_EQ(exp[i], act[i]);
+
 const float EPSILON = 0.000001f;
 
 using namespace dmVMath;
-
 
 template<bool ASYNCHRONOUS>
 class dmGraphicsTestT : public jc_test_base_class
@@ -612,10 +619,6 @@ static inline void AddAttribute(dmGraphics::VertexAttributeInfos& infos,
     infos.m_NumInfos++;
 }
 
-#define ASSERT_VECF(exp, act, num_values) \
-    for (int i = 0; i < num_values; ++i) \
-        ASSERT_NEAR(exp[i], act[i], EPSILON);
-
 static void AssertVectorTypeContainerFloat(const VectorTypeContainer<float>& expected, const VectorTypeContainer<float>& actual)
 {
     ASSERT_NEAR(expected.m_Scalar, actual.m_Scalar, EPSILON);
@@ -646,6 +649,105 @@ static void RunAllAttributeTest(float* values, uint32_t num_values, dmGraphics::
 
     dmGraphics::WriteAttributes((uint8_t*) &actual, 0, params);
     AssertVectorTypeContainerFloat(expected, actual);
+}
+
+TEST_F(dmGraphicsTest, VertexAttributeDataTypeConversion)
+{
+    dmGraphics::VertexAttributeInfos attribute_infos;
+    AddAttribute(attribute_infos, 0, 0, dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION, dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4);
+
+    dmGraphics::WriteAttributeParams params = {};
+    params.m_VertexAttributeInfos = &attribute_infos;
+
+    // Unsigned byte
+    {
+        attribute_infos.m_Infos[0].m_DataType = dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE;
+        attribute_infos.m_VertexStride = sizeof(uint8_t) * 4;
+        float position_values[] = {128.0, 255.0};
+        uint8_t expected[4]     = {128,   255, 0, 1};
+        uint8_t actual[4]       = {};
+
+        params.m_PositionsLocalSpace = position_values;
+        params.m_PositionsVectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2;
+
+        dmGraphics::WriteAttributes((uint8_t*) actual, 0, params);
+        ASSERT_VEC(expected, actual, 4);
+    }
+
+    // Signed byte
+    {
+        attribute_infos.m_Infos[0].m_DataType = dmGraphics::VertexAttribute::TYPE_BYTE;
+        attribute_infos.m_VertexStride        = sizeof(int8_t) * 4;
+        float position_values[]               = {-32.0, -16.0};
+        int8_t expected[4]                    = {-32,   -16, 0, 1};
+        int8_t actual[4]                      = {};
+
+        params.m_PositionsLocalSpace = position_values;
+        params.m_PositionsVectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2;
+
+        dmGraphics::WriteAttributes((uint8_t*) actual, 0, params);
+        ASSERT_VEC(expected, actual, 4);
+    }
+
+    // Unsigned short
+    {
+        attribute_infos.m_Infos[0].m_DataType = dmGraphics::VertexAttribute::TYPE_UNSIGNED_SHORT;
+        attribute_infos.m_VertexStride        = sizeof(uint16_t) * 4;
+        float position_values[]               = {32768.0, 65535.0};
+        uint16_t expected[4]                  = {32768,   65535, 0, 1};
+        uint16_t actual[4]                    = {};
+
+        params.m_PositionsLocalSpace = position_values;
+        params.m_PositionsVectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2;
+
+        dmGraphics::WriteAttributes((uint8_t*) actual, 0, params);
+        ASSERT_VEC(expected, actual, 4);
+    }
+
+    // Signed short
+    {
+        attribute_infos.m_Infos[0].m_DataType = dmGraphics::VertexAttribute::TYPE_SHORT;
+        attribute_infos.m_VertexStride        = sizeof(int16_t) * 4;
+        float position_values[]               = {-16384.0, -32768.0};
+        int16_t expected[4]                   = {-16384,   -32768, 0, 1};
+        int16_t actual[4]                     = {};
+
+        params.m_PositionsLocalSpace = position_values;
+        params.m_PositionsVectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2;
+
+        dmGraphics::WriteAttributes((uint8_t*) actual, 0, params);
+        ASSERT_VEC(expected, actual, 4);
+    }
+
+    // Unsigned int
+    {
+        attribute_infos.m_Infos[0].m_DataType = dmGraphics::VertexAttribute::TYPE_UNSIGNED_INT;
+        attribute_infos.m_VertexStride        = sizeof(uint32_t) * 4;
+        float position_values[]               = {128000.0, 4294967295.0};
+        uint32_t expected[4]                  = {128000,   4294967295, 0, 1};
+        uint32_t actual[4]                    = {};
+
+        params.m_PositionsLocalSpace = position_values;
+        params.m_PositionsVectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2;
+
+        dmGraphics::WriteAttributes((uint8_t*) actual, 0, params);
+        ASSERT_VEC(expected, actual, 4);
+    }
+
+    // Signed int
+    {
+        attribute_infos.m_Infos[0].m_DataType = dmGraphics::VertexAttribute::TYPE_INT;
+        attribute_infos.m_VertexStride        = sizeof(int32_t) * 4;
+        float position_values[]               = {-128000.0, -2147483648.0};
+        int32_t expected[4]                   = {-128000,   -2147483648, 0, 1};
+        int32_t actual[4]                     = {};
+
+        params.m_PositionsLocalSpace = position_values;
+        params.m_PositionsVectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2;
+
+        dmGraphics::WriteAttributes((uint8_t*) actual, 0, params);
+        ASSERT_VEC(expected, actual, 4);
+    }
 }
 
 TEST_F(dmGraphicsTest, VertexAttributeConversionRulesSemanticTypeNone)

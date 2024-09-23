@@ -19,6 +19,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/hashtable.h>
 #include <dlib/log.h>
+#include <graphics/graphics_util.h>
 #include <dmsdk/dlib/math.h> // min
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/graphics/graphics.h>
@@ -227,52 +228,6 @@ namespace dmRender
         m->m_MaterialAttributeValues.SetCapacity(num_attribute_byte_size);
         m->m_MaterialAttributeValues.SetSize(num_attribute_byte_size);
         memset(m->m_MaterialAttributeValues.Begin(), 0, num_attribute_byte_size);
-
-        // Assign default values based on semantic type:
-        //   * position and tangent gets 0,0,0,1 if a vec4 is used
-        //   * color gets 1,1,1,1
-        //   * world and normal matrix gets a 1 in all diagonals
-        for (int i = 0; i < num_program_attributes; ++i)
-        {
-            dmGraphics::VertexAttribute& vertex_attribute = m->m_VertexAttributes[i];
-            MaterialAttribute& material_attribute = m->m_MaterialAttributes[i];
-            uint32_t vector_element_count = dmGraphics::VectorTypeToElementCount(vertex_attribute.m_VectorType);
-
-            float* value_ptr = (float*) &m->m_MaterialAttributeValues[material_attribute.m_ValueIndex];
-            if (vertex_attribute.m_SemanticType == dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR)
-            {
-                float default_color[] = { 1.0f, 1.0f, 1.0f, 1.0f };
-                memcpy(value_ptr, default_color, dmMath::Min(vector_element_count, (uint32_t) 4) * sizeof(float));
-            }
-            else if (vector_element_count >= 4 &&
-                (vertex_attribute.m_SemanticType == dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION ||
-                vertex_attribute.m_SemanticType == dmGraphics::VertexAttribute::SEMANTIC_TYPE_TANGENT))
-            {
-                value_ptr[3] = 1.0f;
-            }
-            else if (vertex_attribute.m_SemanticType == dmGraphics::VertexAttribute::SEMANTIC_TYPE_WORLD_MATRIX ||
-                     vertex_attribute.m_SemanticType == dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL_MATRIX)
-            {
-                if (vertex_attribute.m_VectorType == dmGraphics::VertexAttribute::VECTOR_TYPE_MAT2)
-                {
-                    value_ptr[0] = 1.0f;
-                    value_ptr[3] = 1.0f;
-                }
-                else if (vertex_attribute.m_VectorType == dmGraphics::VertexAttribute::VECTOR_TYPE_MAT3)
-                {
-                    value_ptr[0] = 1.0f;
-                    value_ptr[4] = 1.0f;
-                    value_ptr[8] = 1.0f;
-                }
-                else if (vertex_attribute.m_VectorType == dmGraphics::VertexAttribute::VECTOR_TYPE_MAT4)
-                {
-                    value_ptr[0] = 1.0f;
-                    value_ptr[5] = 1.0f;
-                    value_ptr[10] = 1.0f;
-                    value_ptr[15] = 1.0f;
-                }
-            }
-        }
     }
 
     void CreateConstants(dmGraphics::HContext graphics_context, HMaterial material)

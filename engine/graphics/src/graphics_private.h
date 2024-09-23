@@ -19,6 +19,7 @@
 #include <dlib/mutex.h>
 #include <dlib/index_pool.h>
 #include "graphics.h"
+#include "graphics_util.h"
 
 namespace dmGraphics
 {

@@ -115,17 +115,16 @@ def build(bld):
                     source       = 'transcoder/graphics_transcoder_basisu.cpp',
                     target       = 'graphics_transcoder_basisu')
 
-    bld.install_files('${PREFIX}/include/graphics/', 'graphics.h')
-    bld.install_files('${PREFIX}/include/graphics/', 'graphics_util.h')
-    bld.install_files('${PREFIX}/include/graphics/', 'graphics_native.h')
+    bld.install_files('${PREFIX}/include/graphics/',             'graphics.h')
+    bld.install_files('${PREFIX}/include/graphics/',             'graphics_util.h')
+    bld.install_files('${PREFIX}/include/graphics/',             'graphics_native.h')
     bld.install_files('${PREFIX}/include/graphics/opengl/win32', 'opengl/win32/glext.h')
-    bld.install_files('${PREFIX}/include/graphics/opengl', 'opengl/graphics_opengl_defines.h')
-    bld.install_files('${PREFIX}/share/proto/graphics', '../proto/graphics/graphics_ddf.proto')
+    bld.install_files('${PREFIX}/include/graphics/opengl',       'opengl/graphics_opengl_defines.h')
+    bld.install_files('${PREFIX}/share/proto/graphics',           '../proto/graphics/graphics_ddf.proto')
+    bld.install_files('${PREFIX}/bin',                            'texc.py')
+    bld.install_files('${PREFIX}/lib/python',                     'waf_graphics.py')
 
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
-
-    bld.install_files('${PREFIX}/bin', 'texc.py')
-    bld.install_files('${PREFIX}/lib/python', 'waf_graphics.py')
 
     if not waflib.Options.options.skip_build_tests:
         bld.add_group() # make sure they've built before building the tests

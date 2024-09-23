@@ -206,7 +206,7 @@
         attribute-semantic-type (semantic-type->int (:semantic-type attribute-info))
         attribute-coordinate-space (coordinate-space->int (:coordinate-space attribute-info))
         attribute-data-type (data-type->int (:data-type attribute-info))
-        attribute-byte-size (graphics/attribute-values+data-type->byte-size (:values attribute-info) (:data-type attribute-info))
+        attribute-vector-type (vector-type->int (:vector-type attribute-info))
         attribute-bytes (attribute-name-key->byte-buffer (:name-key attribute-info) vertex-attribute-bytes)
         attribute-bytes-count (if (nil? attribute-bytes)
                                 0
@@ -216,11 +216,11 @@
     (set! (. particle-attribute-info nameHash) attribute-name-hash)
     (set! (. particle-attribute-info semanticType) attribute-semantic-type)
     (set! (. particle-attribute-info dataType) attribute-data-type)
-    (set! (. particle-attribute-info vectorType) (vector-type->int (:vector-type attribute-info)))
+    (set! (. particle-attribute-info vectorType) attribute-vector-type)
     (set! (. particle-attribute-info stepFunction) (vertex-step-function->int (:step-function attribute-info)))
     (set! (. particle-attribute-info coordinateSpace) attribute-coordinate-space)
     (set! (. particle-attribute-info valuePtr) context-attribute-scratch-ptr)
-    (set! (. particle-attribute-info valueByteSize) attribute-byte-size)
+    (set! (. particle-attribute-info valueVectorType) attribute-vector-type)
     (set! (. particle-attribute-info normalize) (boolean (:normalize attribute-info)))
     particle-attribute-info))
 

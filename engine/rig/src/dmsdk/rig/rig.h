@@ -175,7 +175,6 @@ namespace dmRig
     Result CancelAnimation(HRigInstance instance);
     dmhash_t GetAnimation(HRigInstance instance);
 
-#ifndef DM_RIG_SHARED
     void SetMeshWriteAttributeParams(dmGraphics::WriteAttributeParams* params,
         const dmGraphics::VertexAttributeInfos* attribute_infos,
         dmGraphics::VertexStepFunction step_function,
@@ -183,7 +182,6 @@ namespace dmRig
         const float* positions_world_space, const float* positions_local_space,
         const float* normals, const float* tangents, const float* colors,
         const float** uv_channels, uint32_t uv_channels_count);
-#endif
 
     // Returns the new position in the array
     uint8_t*        GenerateVertexDataFromAttributes(dmRig::HRigContext context, dmRig::HRigInstance instance, dmRigDDF::Mesh* mesh, const dmVMath::Matrix4& world_matrix, const dmVMath::Matrix4& normal_matrix, const dmGraphics::VertexAttributeInfos* attribute_infos, uint32_t vertex_stride, uint8_t* vertex_data_out);
