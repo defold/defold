@@ -19,7 +19,6 @@
 #include <dlib/dstrings.h>
 #include <dlib/hashtable.h>
 #include <dlib/log.h>
-#include <graphics/graphics_util.h>
 #include <dmsdk/dlib/math.h> // min
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/graphics/graphics.h>

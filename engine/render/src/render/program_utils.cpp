@@ -18,8 +18,6 @@
 #include "render.h"
 #include "render_private.h"
 
-#include <graphics/graphics_util.h>
-
 namespace dmRender
 {
     static inline dmGraphics::TextureType TypeToTextureType(dmGraphics::Type type)

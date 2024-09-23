@@ -24,7 +24,6 @@
 #include <script/script.h>
 #include <script/lua_source_ddf.h>
 #include <graphics/graphics.h>
-#include <graphics/graphics_util.h>
 #include "render/material_ddf.h"
 
 namespace dmRender

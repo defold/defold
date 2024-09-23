@@ -26,8 +26,6 @@
 #include <script/script.h>
 #include <script/lua_source_ddf.h>
 
-#include <graphics/graphics_util.h>
-
 #include "font_renderer.h"
 #include "render/render_ddf.h"
 
