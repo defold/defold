@@ -93,45 +93,50 @@ namespace dmGraphics
                buffer_type == BUFFER_TYPE_COLOR3_BIT;
     }
 
+    static inline void VertexAttributeInfoMetadataMember(VertexAttributeInfoMetadata& metadata, VertexAttribute::SemanticType semantic_type, CoordinateSpace coordinate_space)
+    {
+        switch(semantic_type)
+        {
+        case VertexAttribute::SEMANTIC_TYPE_POSITION:
+            metadata.m_HasAttributeWorldPosition |= coordinate_space == COORDINATE_SPACE_WORLD;
+            metadata.m_HasAttributeLocalPosition |= coordinate_space == COORDINATE_SPACE_LOCAL;
+            break;
+        case VertexAttribute::SEMANTIC_TYPE_TEXCOORD:
+            metadata.m_HasAttributeTexCoord = true;
+            break;
+        case VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX:
+            metadata.m_HasAttributePageIndex = true;
+            break;
+        case VertexAttribute::SEMANTIC_TYPE_NORMAL:
+            metadata.m_HasAttributeNormal = true;
+            break;
+        case VertexAttribute::SEMANTIC_TYPE_TANGENT:
+            metadata.m_HasAttributeTangent = true;
+            break;
+        case VertexAttribute::SEMANTIC_TYPE_COLOR:
+            metadata.m_HasAttributeColor = true;
+            break;
+        case VertexAttribute::SEMANTIC_TYPE_WORLD_MATRIX:
+            metadata.m_HasAttributeWorldMatrix = true;
+            break;
+        case VertexAttribute::SEMANTIC_TYPE_NORMAL_MATRIX:
+            metadata.m_HasAttributeNormalMatrix = true;
+            break;
+        case VertexAttribute::SEMANTIC_TYPE_NONE:
+            metadata.m_HasAttributeNone = true;
+            break;
+        default:
+            break;
+        }
+    }
+
     static inline VertexAttributeInfoMetadata GetVertexAttributeInfosMetaData(const VertexAttributeInfos& attribute_infos)
     {
         VertexAttributeInfoMetadata metadata = {};
         for (int i = 0; i < attribute_infos.m_NumInfos; ++i)
         {
             const VertexAttributeInfo& info = attribute_infos.m_Infos[i];
-            switch(info.m_SemanticType)
-            {
-            case VertexAttribute::SEMANTIC_TYPE_POSITION:
-                metadata.m_HasAttributeWorldPosition |= info.m_CoordinateSpace == COORDINATE_SPACE_WORLD;
-                metadata.m_HasAttributeLocalPosition |= info.m_CoordinateSpace == COORDINATE_SPACE_LOCAL;
-                break;
-            case VertexAttribute::SEMANTIC_TYPE_TEXCOORD:
-                metadata.m_HasAttributeTexCoord = true;
-                break;
-            case VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX:
-                metadata.m_HasAttributePageIndex = true;
-                break;
-            case VertexAttribute::SEMANTIC_TYPE_NORMAL:
-                metadata.m_HasAttributeNormal = true;
-                break;
-            case VertexAttribute::SEMANTIC_TYPE_TANGENT:
-                metadata.m_HasAttributeTangent = true;
-                break;
-            case VertexAttribute::SEMANTIC_TYPE_COLOR:
-                metadata.m_HasAttributeColor = true;
-                break;
-            case VertexAttribute::SEMANTIC_TYPE_WORLD_MATRIX:
-                metadata.m_HasAttributeWorldMatrix = true;
-                break;
-            case VertexAttribute::SEMANTIC_TYPE_NORMAL_MATRIX:
-                metadata.m_HasAttributeNormalMatrix = true;
-                break;
-            case VertexAttribute::SEMANTIC_TYPE_NONE:
-                metadata.m_HasAttributeNone = true;
-                break;
-            default:
-                break;
-            }
+            VertexAttributeInfoMetadataMember(metadata, info.m_SemanticType, info.m_CoordinateSpace);
         }
         return metadata;
     }

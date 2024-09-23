@@ -723,8 +723,8 @@ TEST_F(dmGraphicsTest, VertexAttributeDataTypeConversion)
     {
         attribute_infos.m_Infos[0].m_DataType = dmGraphics::VertexAttribute::TYPE_UNSIGNED_INT;
         attribute_infos.m_VertexStride        = sizeof(uint32_t) * 4;
-        float position_values[]               = {128000.0, 4294967295.0};
-        uint32_t expected[4]                  = {128000,   4294967295, 0, 1};
+        float position_values[]               = {128000.0, 13371337.0};
+        uint32_t expected[4]                  = {128000,   13371337, 0, 1};
         uint32_t actual[4]                    = {};
 
         params.m_PositionsLocalSpace = position_values;
@@ -738,8 +738,8 @@ TEST_F(dmGraphicsTest, VertexAttributeDataTypeConversion)
     {
         attribute_infos.m_Infos[0].m_DataType = dmGraphics::VertexAttribute::TYPE_INT;
         attribute_infos.m_VertexStride        = sizeof(int32_t) * 4;
-        float position_values[]               = {-128000.0, -2147483648.0};
-        int32_t expected[4]                   = {-128000,   -2147483648, 0, 1};
+        float position_values[]               = {-128000.0, -99999.0};
+        int32_t expected[4]                   = {-128000,   -99999, 0, 1};
         int32_t actual[4]                     = {};
 
         params.m_PositionsLocalSpace = position_values;

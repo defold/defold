@@ -143,10 +143,14 @@ namespace dmRender
             sd_instance = dmGraphics::NewVertexStreamDeclaration(graphics_context, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE);
         }
 
+        m->m_VertexAttributeInfoMetadata = {};
+
         // 2. Construct all vertex declarations
         for (int i = 0; i < num_material_attributes; ++i)
         {
             const dmGraphics::VertexAttribute& graphics_attribute = m->m_VertexAttributes[i];
+
+            dmGraphics::VertexAttributeInfoMetadataMember(m->m_VertexAttributeInfoMetadata, graphics_attribute.m_SemanticType, graphics_attribute.m_CoordinateSpace);
 
             #define ADD_VERTEX_STREAM(sd, graphics_attribute) \
                 dmGraphics::AddVertexStream(sd, \
@@ -343,6 +347,11 @@ namespace dmRender
     dmGraphics::HFragmentProgram GetMaterialFragmentProgram(HMaterial material)
     {
         return material->m_FragmentProgram;
+    }
+
+    void GetMaterialProgramAttributeMetadata(HMaterial material, dmGraphics::VertexAttributeInfoMetadata* metadata)
+    {
+        *metadata = material->m_VertexAttributeInfoMetadata;
     }
 
     static int32_t FindMaterialAttributeIndex(HMaterial material, dmhash_t name_hash)

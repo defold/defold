@@ -719,8 +719,12 @@ namespace dmGameSystem
             uint32_t uv_channels_count = (uv_channels[0] ? 1 : 0) + (uv_channels[1] ? 1 : 0);
 
             dmGraphics::WriteAttributeParams params = {};
-            dmRig::SetMeshWriteAttributeParams(&params, &non_default_attribute, dmGraphics::VERTEX_STEP_FUNCTION_VERTEX, &render_item->m_World, &normal_matrix,
-                0, // TODO: World space attributes
+            dmRig::SetMeshWriteAttributeParams(&params,
+                &non_default_attribute,
+                dmGraphics::VERTEX_STEP_FUNCTION_VERTEX,
+                &render_item->m_World,
+                &normal_matrix,
+                0, // World space positions are not supported by local space materials
                 UNPACK_ATTRIBUTE_PTR(m_Positions),
                 UNPACK_ATTRIBUTE_PTR(m_Normals),
                 UNPACK_ATTRIBUTE_PTR(m_Tangents),
@@ -1071,7 +1075,7 @@ namespace dmGameSystem
                     dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE,
                     &instance_render_item->m_World,
                     &normal_matrix,
-                    0, // TODO: World space positions
+                    0, // World space positions are not supported by local space materials
                     UNPACK_ATTRIBUTE_PTR(m_Positions),
                     UNPACK_ATTRIBUTE_PTR(m_Normals),
                     UNPACK_ATTRIBUTE_PTR(m_Tangents),
@@ -1134,6 +1138,7 @@ namespace dmGameSystem
             ro.m_VertexCount           = buffers->m_IndexCount;
             ro.m_IndexBuffer           = buffers->m_IndexBuffer;              // May be 0
             ro.m_IndexType             = buffers->m_IndexBufferElementType;
+            ro.m_WorldTransform        = render_item->m_World;
             ro.m_VertexDeclarations[0] = world->m_VertexDeclaration;
             ro.m_VertexBuffers[0]      = buffers->m_VertexBuffer;
 
@@ -1167,8 +1172,6 @@ namespace dmGameSystem
                     ro.m_VertexBuffers[1]      = attribute_rd->m_VertexBuffer;
                 }
             }
-
-            ro.m_WorldTransform = render_item->m_World;
 
             FillTextures(&ro, component, material_index);
 
@@ -1395,6 +1398,22 @@ namespace dmGameSystem
         dmRender::AddToRender(render_context, &ro);
     }
 
+    static inline dmRenderDDF::MaterialDesc::VertexSpace GetRenderMaterialVertexSpace(dmRender::HMaterial material)
+    {
+        dmRenderDDF::MaterialDesc::VertexSpace material_vertex_space = dmRender::GetMaterialVertexSpace(material);
+
+        // If a "local" material space material has a world position attribute, we use world space when
+        // producing the attributes instead of trying to shoehorn this into the current local space vertex generation code.
+        // This is a bit of a shortcut because this case it not very likely to be used.
+        dmGraphics::VertexAttributeInfoMetadata material_vertex_attribute_meta;
+        dmRender::GetMaterialProgramAttributeMetadata(material, &material_vertex_attribute_meta);
+        if (material_vertex_space == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL && material_vertex_attribute_meta.m_HasAttributeWorldPosition)
+        {
+            return dmRenderDDF::MaterialDesc::VERTEX_SPACE_WORLD;
+        }
+        return material_vertex_space;
+    }
+
     static void RenderBatch(ModelWorld* world, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
         DM_PROFILE("ModelRenderBatch");
@@ -1405,7 +1424,7 @@ namespace dmGameSystem
         dmRender::HMaterial render_context_material = dmRender::GetContextMaterial(render_context);
         dmRender::HMaterial material = GetRenderMaterial(render_context_material, component, component->m_Resource, 0);
 
-        switch(dmRender::GetMaterialVertexSpace(material))
+        switch(GetRenderMaterialVertexSpace(material))
         {
             case dmRenderDDF::MaterialDesc::VERTEX_SPACE_WORLD:
                 RenderBatchWorldVS(world, render_context, render_context_material, buf, begin, end);
