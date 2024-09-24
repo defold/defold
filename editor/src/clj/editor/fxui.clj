@@ -179,6 +179,43 @@
             {})
    :desc scroll-pane-desc})
 
+(def child-instance-meta
+  {`fx.component/instance #(-> % :child fx.component/instance)})
+
+(def ext-memo
+  "Extension lifecycle similar to react's useMemo hook
+
+  The result of invoking :fn with :args will be memoized in the cljfx tree and
+  supplied as a value at :key to the child :desc
+
+  Expected props (all required):
+    :fn      function that will be invoked to produce a memoized value
+    :args    a vector of args to the function
+    :key     a key that will be used to assoc memoized value into a child desc
+    :desc    description of the underlying component"
+  (reify fx.lifecycle/Lifecycle
+    (create [_ {:keys [fn args key desc]} opts]
+      (let [value (apply fn args)]
+        (with-meta {:fn fn
+                    :args args
+                    :value value
+                    :child (fx.lifecycle/create fx.lifecycle/dynamic (assoc desc key value) opts)}
+                   child-instance-meta)))
+    (advance [_ component {:keys [fn args key desc]} opts]
+      (if (and (= (:fn component) fn)
+               (= (:args component) args))
+        (update component :child #(fx.lifecycle/advance
+                                    fx.lifecycle/dynamic
+                                    %
+                                    (assoc desc key (:value component))
+                                    opts))
+        (let [value (apply fn args)]
+          (-> component
+              (assoc :fn fn :args args :value value)
+              (update :child #(fx.lifecycle/advance fx.lifecycle/dynamic % (assoc desc key value) opts))))))
+    (delete [_ component opts]
+      (fx.lifecycle/delete fx.lifecycle/dynamic (:child component) opts))))
+
 (defn make-event-filter-prop
   "Creates a prop-config that will add event filter for specified `event-type`
 
@@ -277,7 +314,7 @@
       (with-meta
         {:desc desc
          :child (fx.lifecycle/create lifecycle desc opts)}
-        {`fx.component/instance #(-> % :child fx.component/instance)}))
+        child-instance-meta))
     (advance [_ component desc opts]
       (if (= desc (:desc component))
         component
@@ -310,6 +347,7 @@
     (future
       (error-reporting/catch-all!
         (let [result @result-promise]
+          (fx/unmount-renderer state-atom renderer)
           (fx/on-fx-thread
             (Platform/exitNestedEventLoop event-loop-key result)))))
     (add-watch state-atom event-loop-key
@@ -326,25 +364,30 @@
 
 (defn show-dialog-and-await-result!
   "Creates a dialog, shows it and block current thread until dialog has a result
-  (which is checked by presence of a `:result` key in state map)
+  (which is checked by the presence of a ::result key in the state map)
 
-  Options:
-  - `:initial-state` (optional, default `{}`) - map containing initial state of
-    a dialog, should not contain `::result` key to be shown
-  - `:event-handler` (required) - 2-argument event handler, receives current
-    state as first argument and event map as second, returns new state. Once
-    state of a dialog has `::result` key in it, dialog interaction is considered
-    complete and dialog will close
-  - `:description` (required) - fx description used for this dialog, gets merged
-    into current state map, meaning that state map contents, including
-    eventually a `::result` key, will also be present in description props. You
-    can use `editor.fxui/dialog-showing?` and pass it resulting props to check
-    if dialog stage's `:showing` property should be set to true"
-  [& {:keys [initial-state event-handler description]
-      :or {initial-state {}}}]
+  Kv-args:
+    :event-handler    required, 2-argument event handler, receives current state
+                      as a first argument and event map as second, returns new
+                      state. Once state of a dialog has ::result key in it, the
+                      dialog interaction is considered complete and dialog will
+                      close
+    :description      required, fx description used for this dialog, gets merged
+                      into current state map, meaning that state map contents,
+                      including eventually a ::result key, will also be present
+                      in description props. Use `editor.fxui/dialog-showing?`
+                      and pass it resulting props to check if dialog stage's
+                      :showing property should be set to true
+    :initial-state    optional, defaults to {}, map containing initial state of
+                      a dialog, should not contain ::result key to be shown
+    :error-handler    optional, 1-arg Throwable handler, by default it shows an
+                      error dialog and reports the exception to sentry"
+  [& {:keys [initial-state event-handler description error-handler]
+      :or {initial-state {}
+           error-handler error-reporting/report-exception!}}]
   (let [state-atom (atom initial-state)
         renderer (fx/create-renderer
-                   :error-handler error-reporting/report-exception!
+                   :error-handler error-handler
                    :opts {:fx.opt/map-event-handler #(swap! state-atom event-handler %)}
                    :middleware (fx/wrap-map-desc merge description))]
     (mount-renderer-and-await-result! state-atom renderer)))

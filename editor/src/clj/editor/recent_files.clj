@@ -72,7 +72,7 @@
                              :children [{:fx/type fx.region/lifecycle
                                          :h-box/hgrow :always}
                                         {:fx/type fx.label/lifecycle
-                                         :style {:-fx-text-fill :-df-text-darker}
+                                         :style {:-fx-text-fill :-df-text-dark}
                                          :text (str (:label view-type) " view")}]}})
        :selection :multiple
        :filter-fn #(fuzzy-choices/filter-options (comp resource/proj-path first) (comp resource/proj-path first) %1 %2)})))

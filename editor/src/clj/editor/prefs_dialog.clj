@@ -18,13 +18,12 @@
             [editor.prefs :as prefs]
             [editor.system :as system]
             [editor.ui :as ui])
-  (:import [com.defold.control LongField]
+  (:import [com.defold.control DefoldStringConverter LongField]
            [javafx.geometry VPos]
            [javafx.scene Parent Scene]
-           [javafx.scene.control ColorPicker CheckBox ChoiceBox Label TextArea TextField Tab TabPane]
-           [javafx.scene.layout ColumnConstraints GridPane Priority]
+           [javafx.scene.control CheckBox ChoiceBox ColorPicker Label Tab TabPane TextArea TextField]
            [javafx.scene.input KeyCode KeyEvent]
-           [javafx.util StringConverter]))
+           [javafx.scene.layout ColumnConstraints GridPane Priority]))
 
 (set! *warn-on-reflection* true)
 
@@ -58,12 +57,7 @@
         options (:options desc)
         options-map (apply hash-map (flatten options))
         inv-options-map (clojure.set/map-invert options-map)]
-    (.setConverter control
-      (proxy [StringConverter] []
-        (toString [value]
-          (get options-map value))
-        (fromString [s]
-          (inv-options-map s))))
+    (.setConverter control (DefoldStringConverter. options-map inv-options-map))
     (.addAll (.getItems control) ^java.util.Collection (map first options))
     (.select (.getSelectionModel control) (prefs/get-prefs prefs (:key desc) (:default desc)))
 

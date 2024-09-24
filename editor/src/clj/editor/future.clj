@@ -14,7 +14,7 @@
 
 (ns editor.future
   (:refer-clojure :exclude [future])
-  (:import [java.util.concurrent CompletableFuture CompletionException]
+  (:import [java.util.concurrent CompletableFuture CompletionException Executors ThreadFactory]
            [java.util.function Function Supplier]))
 
 (set! *warn-on-reflection* true)
@@ -29,13 +29,35 @@
   ^CompletableFuture [x]
   (CompletableFuture/completedFuture x))
 
-(defmacro supply-async [& body]
+(defmacro compute
+  "Asynchronously perform a CPU-intensive operation (see also: io)"
+  [& body]
   `(let [bindings# (get-thread-bindings)]
      (CompletableFuture/supplyAsync
        (reify Supplier
          (get [~'_]
            (with-bindings bindings#
              ~@body))))))
+
+(def io-executor
+  (let [counter (atom 0)]
+    (Executors/newCachedThreadPool
+      (reify ThreadFactory
+        (newThread [_ r]
+          (doto (Thread. r)
+            (.setDaemon true)
+            (.setName (str "editor.future/io-executor#" (swap! counter inc)))))))))
+
+(defmacro io
+  "Asynchronously perform an IO-intensive operation (see also: compute)"
+  [& body]
+  `(let [bindings# (get-thread-bindings)]
+     (CompletableFuture/supplyAsync
+       (reify Supplier
+         (get [~'_]
+           (with-bindings bindings#
+             ~@body)))
+       io-executor)))
 
 (defn wrap [x]
   (if (instance? CompletableFuture x)

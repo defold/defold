@@ -54,7 +54,7 @@
 
 (set! *warn-on-reflection* true)
 
-(defn- dialog-stage
+(defn dialog-stage
   "Dialog `:stage` that manages scene graph itself and provides layout common
   for many dialogs.
 
@@ -111,7 +111,7 @@
      :text header}
     header))
 
-(defn- dialog-buttons [props]
+(defn dialog-buttons [props]
   (-> props
       (assoc :fx/type fx.h-box/lifecycle)
       (fxui/provide-defaults :alignment :center-right)
@@ -546,11 +546,12 @@
                               (.put properties "isDefaultAnchor" true)))))))
 
 (defn- select-list-dialog
-  [{:keys [filter-term filtered-items title ok-label prompt cell-fn selection]
+  [{:keys [filter-term filtered-items title ok-label prompt cell-fn selection owner]
     :as props}]
   {:fx/type dialog-stage
    :title title
    :showing (fxui/dialog-showing? props)
+   :owner owner
    :on-close-request {:event-type :cancel}
    :size :large
    :header {:fx/type fxui/text-field
@@ -661,7 +662,8 @@
                       return a filtered coll of items
       :filter-on      if no custom :filter-fn is supplied, use this fn of item
                       to string for default filtering, defaults to str
-      :prompt         filter text field's prompt text"
+      :prompt         filter text field's prompt text
+      :owner          the owner window, defaults to main stage"
   ([items]
    (make-select-list-dialog items {}))
   ([items options]
@@ -684,6 +686,7 @@
                                 :ok-label (:ok-label options "OK")
                                 :prompt (:prompt options "Type to filter")
                                 :cell-fn cell-fn
+                                :owner (or (:owner options) (ui/main-stage))
                                 :selection (:selection options :single)})]
      (when result
        (let [{:keys [filter-term selected-items]} result]

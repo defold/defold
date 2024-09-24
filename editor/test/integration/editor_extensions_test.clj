@@ -24,6 +24,7 @@
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.process :as process]
+            [editor.resource :as resource]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
@@ -36,14 +37,14 @@
   (test-support/with-clean-system
     (let [rt (rt/make)
           p (rt/read "return 1")]
-      (is (= 1 (rt/->clj rt (rt/invoke-immediate rt (rt/bind rt p))))))))
+      (is (= 1 (rt/->clj rt (rt/invoke-immediate-1 rt (rt/bind rt p))))))))
 
 (deftest thread-safe-access-test
   (test-support/with-clean-system
     (let [rt (rt/make)
-          _ (rt/invoke-immediate rt (rt/bind rt (rt/read "global = -1")))
+          _ (rt/invoke-immediate-1 rt (rt/bind rt (rt/read "global = -1")))
           inc-and-get (rt/read "return function () global = global + 1; return global end")
-          lua-inc-and-get (rt/invoke-immediate rt (rt/bind rt inc-and-get))
+          lua-inc-and-get (rt/invoke-immediate-1 rt (rt/bind rt inc-and-get))
           ec (g/make-evaluation-context)
           threads 10
           per-thread-calls 1000
@@ -51,7 +52,7 @@
       (dotimes [i iterations]
         (let [results (->> (fn []
                              (future
-                               (->> #(rt/invoke-immediate rt lua-inc-and-get ec)
+                               (->> #(rt/invoke-immediate-1 rt lua-inc-and-get ec)
                                     (repeatedly per-thread-calls)
                                     (vec))))
                            (repeatedly threads)
@@ -70,11 +71,11 @@
     (let [completable-future (future/make)
           rt (rt/make :env {"suspend_with_promise" (rt/suspendable-lua-fn [_] completable-future)
                             "no_suspend" (rt/lua-fn [_] (rt/->lua "immediate-result"))})
-          calls-suspending (rt/invoke-immediate rt (rt/bind rt (rt/read "return function() return suspend_with_promise() end ")))
-          calls-immediate (rt/invoke-immediate rt (rt/bind rt (rt/read "return function() return no_suspend() end")))
-          suspended-future (rt/invoke-suspending rt calls-suspending)]
+          calls-suspending (rt/invoke-immediate-1 rt (rt/bind rt (rt/read "return function() return suspend_with_promise() end ")))
+          calls-immediate (rt/invoke-immediate-1 rt (rt/bind rt (rt/read "return function() return no_suspend() end")))
+          suspended-future (rt/invoke-suspending-1 rt calls-suspending)]
       (is (false? (future/done? completable-future)))
-      (is (= "immediate-result" (rt/->clj rt (rt/invoke-immediate rt calls-immediate))))
+      (is (= "immediate-result" (rt/->clj rt (rt/invoke-immediate-1 rt calls-immediate))))
       (future/complete! completable-future "suspended-result")
       (when (is (true? (future/done? completable-future)))
         (is (= "suspended-result" (rt/->clj rt @suspended-future)))))))
@@ -92,20 +93,20 @@
 
                                  return fib")
                        (rt/bind rt)
-                       (rt/invoke-immediate rt))]
+                       (rt/invoke-immediate-1 rt))]
       ;; 30th fibonacci takes awhile to complete, but still done immediately
-      (is (future/done? (rt/invoke-suspending rt lua-fib (rt/->lua 30)))))))
+      (is (future/done? (rt/invoke-suspending-1 rt lua-fib (rt/->lua 30)))))))
 
 (deftest suspending-calls-in-immediate-mode-are-disallowed
   (test-support/with-clean-system
     (let [rt (rt/make :env {"suspending" (rt/suspendable-lua-fn [_] (future/make))})
           calls-suspending (->> (rt/read "return function () suspending() end")
                                 (rt/bind rt)
-                                (rt/invoke-immediate rt))]
+                                (rt/invoke-immediate-1 rt))]
       (is (thrown-with-msg?
             LuaError
             #"Cannot use long-running editor function in immediate context"
-            (rt/invoke-immediate rt calls-suspending))))))
+            (rt/invoke-immediate-1 rt calls-suspending))))))
 
 (deftest user-coroutines-are-separated-from-system-coroutines
   (test-support/with-clean-system
@@ -131,7 +132,7 @@
                                    }
                                  end")
                        (rt/bind rt)
-                       (rt/invoke-immediate rt))]
+                       (rt/invoke-immediate-1 rt))]
       (is (= [;; first yield: incremented input
               [true 6]
               ;; second yield: incremented again
@@ -140,7 +141,7 @@
               [true "done"]
               ;; user coroutine done, nothing to return
               [false "cannot resume dead coroutine"]]
-             (rt/->clj rt @(rt/invoke-suspending rt coromix (rt/->lua 5))))))))
+             (rt/->clj rt @(rt/invoke-suspending-1 rt coromix (rt/->lua 5))))))))
 
 (deftest user-coroutines-work-normally-in-immediate-mode
   (test-support/with-clean-system
@@ -165,7 +166,7 @@
                                   }
                                 end")
                       (rt/bind rt)
-                      (rt/invoke-immediate rt))]
+                      (rt/invoke-immediate-1 rt))]
       (is (= [;; first yield: 1
               [true 1]
               ;; second yield: 2
@@ -174,7 +175,7 @@
               [true "done"]
               ;; user coroutine done, nothing to return
               [false "cannot resume dead coroutine"]]
-             (rt/->clj rt (rt/invoke-immediate rt lua-fn)))))))
+             (rt/->clj rt (rt/invoke-immediate-1 rt lua-fn)))))))
 
 (g/defnode TestNode
   (property value g/Any)
@@ -200,14 +201,14 @@
                                   return {v1, change_result, v2}
                                 end")
                       (rt/bind rt)
-                      (rt/invoke-immediate rt))]
+                      (rt/invoke-immediate-1 rt))]
       (is (= [;; initial value
               1
               ;; success notification about change
               true
               ;; updated value
               2]
-             (rt/->clj rt @(rt/invoke-suspending rt lua-fn)))))))
+             (rt/->clj rt @(rt/invoke-suspending-1 rt lua-fn)))))))
 
 
 (deftest suspending-lua-failure-test
@@ -225,10 +226,10 @@
                                   }
                                 end")
                       (rt/bind rt)
-                      (rt/invoke-immediate rt))]
+                      (rt/invoke-immediate-1 rt))]
       (is (= [[false "failed immediately"]
               [false "failed async"]]
-             (rt/->clj rt @(rt/invoke-suspending rt lua-fn)))))))
+             (rt/->clj rt @(rt/invoke-suspending-1 rt lua-fn)))))))
 
 (deftest immediate-failures-test
   (test-support/with-clean-system
@@ -239,7 +240,7 @@
            (->> (rt/read "local success1, result1 = pcall(immediate_error)
                           return {success1, result1}")
                 (rt/bind rt)
-                (rt/invoke-immediate rt)
+                (rt/invoke-immediate-1 rt)
                 (rt/->clj rt)))))))
 
 (deftype StaticSelection [selection]
@@ -260,13 +261,17 @@
       (save-project! project)
       (future/completed nil))))
 
+(defn- open-resource-noop! [_]
+  (future/completed nil))
+
 (deftest editor-scripts-commands-test
   (test-util/with-loaded-project "test/resources/editor_extensions/commands_project"
     (let [sprite-outline (:node-id (test-util/outline (test-util/resource-node project "/main/main.collection") [0 0]))]
       (extensions/reload! project :all
                           :reload-resources! (make-reload-resources-fn workspace)
                           :display-output! println
-                          :save! (make-save-fn project))
+                          :save! (make-save-fn project)
+                          :open-resource! open-resource-noop!)
       (let [handler+context (handler/active
                               (:command (first (handler/realize-menu :editor.outline-view/context-menu-end)))
                               (handler/eval-contexts
@@ -291,7 +296,8 @@
           _ (extensions/reload! project :all
                                 :reload-resources! (make-reload-resources-fn workspace)
                                 :display-output! #(swap! output conj [%1 %2])
-                                :save! (make-save-fn project))
+                                :save! (make-save-fn project)
+                                :open-resource! open-resource-noop!)
           handler+context (handler/active
                             (:command (first (handler/realize-menu :editor.asset-browser/context-menu-end)))
                             (handler/eval-contexts
@@ -314,7 +320,8 @@
           _ (extensions/reload! project :all
                                 :reload-resources! (make-reload-resources-fn workspace)
                                 :display-output! #(swap! output conj [%1 %2])
-                                :save! (make-save-fn project))
+                                :save! (make-save-fn project)
+                                :open-resource! open-resource-noop!)
           handler+context (handler/active
                             (:command (last (handler/realize-menu :editor.app-view/edit-end)))
                             (handler/eval-contexts
@@ -339,7 +346,8 @@
           _ (extensions/reload! project :all
                                 :reload-resources! (make-reload-resources-fn workspace)
                                 :display-output! #(swap! output conj [%1 %2])
-                                :save! (make-save-fn project))
+                                :save! (make-save-fn project)
+                                :open-resource! open-resource-noop!)
           node (:node-id (test-util/outline (test-util/resource-node project "/main/main.collection") [0 0]))
           handler+context (handler/active
                             (:command (first (handler/realize-menu :editor.outline-view/context-menu-end)))
@@ -383,7 +391,8 @@
           _ (extensions/reload! project :all
                                 :reload-resources! (make-reload-resources-fn workspace)
                                 :display-output! #(swap! output conj [%1 %2])
-                                :save! (make-save-fn project))
+                                :save! (make-save-fn project)
+                                :open-resource! open-resource-noop!)
           handler+context (handler/active
                             (:command (first (handler/realize-menu :editor.asset-browser/context-menu-end)))
                             (handler/eval-contexts
@@ -394,6 +403,53 @@
       ;; see test.editor_script: it uses editor.transact() to set a file text, then reads
       ;; the file text from file system, then saves, then reads it again.
       (is (= [[:out "file read: before save = 'Initial text', after save = 'New text'"]]
+             @output)))))
+
+(deftest resource-attributes-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/resource_attributes_project"
+    (let [output (atom [])
+          _ (extensions/reload! project :all
+                                :reload-resources! (make-reload-resources-fn workspace)
+                                :display-output! #(swap! output conj [%1 %2])
+                                :save! (make-save-fn project)
+                                :open-resource! open-resource-noop!)
+          handler+context (handler/active
+                            (:command (last (handler/realize-menu :editor.app-view/edit-end)))
+                            (handler/eval-contexts
+                              [(handler/->context :global {} (->StaticSelection []))]
+                              false)
+                            {})]
+      @(handler/run handler+context)
+      ;; see test.editor script: it uses editor.resource_attributes with different resource
+      ;; paths and prints results
+      (is (= [[:out "test '/': exists = true, file = false, directory = true)"]
+              [:out "test '/game.project': exists = true, file = true, directory = false)"]
+              [:out "test '/does_not_exist.txt': exists = false, file = false, directory = false)"]
+              [:out "test 'not_a_resource_path.go': error"]]
+             @output)))))
+
+(deftest open-resource-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/open_resource_project"
+    (let [output (atom [])
+          _ (extensions/reload! project :all
+                                :reload-resources! (make-reload-resources-fn workspace)
+                                :display-output! #(swap! output conj [%1 %2])
+                                :save! (make-save-fn project)
+                                :open-resource! (fn [resource]
+                                                  (swap! output conj [:open-resource (resource/proj-path resource)])))
+          handler+context (handler/active
+                            (:command (last (handler/realize-menu :editor.app-view/edit-end)))
+                            (handler/eval-contexts
+                              [(handler/->context :global {} (->StaticSelection []))]
+                              false)
+                            {})]
+      @(handler/run handler+context)
+      ;; see test.editor script: it uses editor.open_resource with different resource
+      ;; paths and prints results
+      (is (= [[:open-resource "/game.project"]
+              [:out "Open '/game.project': ok"]
+              [:out "Open '/does_not_exist.txt': ok"]
+              [:out "Open 'not_a_resource_path.go': error"]]
              @output)))))
 
 (deftest coercer-test
@@ -537,3 +593,45 @@
         (is (thrown? LuaError (coerce by-key {"kind" "rect"})))
         (is (thrown? LuaError (coerce by-key "not a table")))
         (is (thrown? LuaError (coerce by-key 42)))))))
+
+(deftest external-file-attributes-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/external_file_attributes_project"
+    (let [output (atom [])
+          _ (extensions/reload! project :all
+                                :reload-resources! (make-reload-resources-fn workspace)
+                                :display-output! #(swap! output conj [%1 %2])
+                                :save! (make-save-fn project)
+                                :open-resource! open-resource-noop!)
+          handler+context (handler/active
+                            (:command (last (handler/realize-menu :editor.app-view/edit-end)))
+                            (handler/eval-contexts
+                              [(handler/->context :global {} (->StaticSelection []))]
+                              false)
+                            {})]
+      @(handler/run handler+context)
+      ;; see test.editor_script: it uses editor.external_file_attributes() to
+      ;; get fs information about 3 paths, and then prints it
+      (is (= [[:out "path = '.', exists = true, file = false, directory = true"]
+              [:out "path = 'game.project', exists = true, file = true, directory = false"]
+              [:out "path = 'does_not_exist.txt', exists = false, file = false, directory = false"]]
+             @output)))))
+
+(deftest ui-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/ui_project"
+    (let [output (atom [])
+          _ (extensions/reload! project :all
+                                :reload-resources! (make-reload-resources-fn workspace)
+                                :display-output! #(swap! output conj [%1 %2])
+                                :save! (make-save-fn project)
+                                :open-resource! open-resource-noop!)
+          handler+context (handler/active
+                            (:command (last (handler/realize-menu :editor.app-view/edit-end)))
+                            (handler/eval-contexts
+                              [(handler/->context :global {} (->StaticSelection []))]
+                              false)
+                            {})]
+      @(handler/run handler+context)
+      ;; see test.editor_script: it creates a lot of ui components that should
+      ;; form a valid UI tree. In case of any errors the output will get error
+      ;; entries.
+      (is (= [] @output)))))

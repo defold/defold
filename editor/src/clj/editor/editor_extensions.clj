@@ -14,6 +14,7 @@
 
 (ns editor.editor-extensions
   (:require [cljfx.api :as fx]
+            [clojure.java.io :as io]
             [clojure.set :as set]
             [clojure.stacktrace :as stacktrace]
             [clojure.string :as string]
@@ -27,6 +28,7 @@
             [editor.editor-extensions.error-handling :as error-handling]
             [editor.editor-extensions.graph :as graph]
             [editor.editor-extensions.runtime :as rt]
+            [editor.editor-extensions.ui-components :as ui-components]
             [editor.fs :as fs]
             [editor.future :as future]
             [editor.graph-util :as gu]
@@ -34,6 +36,7 @@
             [editor.lsp :as lsp]
             [editor.lsp.async :as lsp.async]
             [editor.process :as process]
+            [editor.resource :as resource]
             [editor.system :as system]
             [editor.util :as util]
             [editor.workspace :as workspace])
@@ -44,7 +47,7 @@
 (set! *warn-on-reflection* true)
 
 (defn- ext-state
-  "Returns an extension state, a map with following keys:
+  "Returns an extension state, a map with the following keys:
     :reload-resources!     0-arg function used to reload resources
     :display-output!       2-arg function used to display extension-related
                            output to the user, where args are:
@@ -85,7 +88,7 @@
                                    :display-output! display-output!
                                    :label (str label " in " path)
                                    :catch nil
-                                   (rt/invoke-immediate rt lua-fn lua-opts evaluation-context))]
+                                   (rt/invoke-immediate-1 rt lua-fn lua-opts evaluation-context))]
                 (when-not (rt/coerces-to? rt coerce/null lua-ret)
                   [path lua-ret]))))
       (get all fn-keyword))))
@@ -188,6 +191,36 @@
           (catch Exception e
             (throw (LuaError. (str (.getMessage e))))))))))
 
+(defn- make-ext-external-file-attributes-fn [^Path project-path]
+  (rt/suspendable-lua-fn ext-external-file-attributes [{:keys [rt]} lua-path]
+    (let [^String path-str (rt/->clj rt coerce/string lua-path)
+          path (.normalize (.resolve project-path path-str))]
+      (future/io
+        (if (fs/path-exists? path)
+          (let [attrs (fs/path-attributes path)]
+            {:path (str (.toRealPath path fs/empty-link-option-array))
+             :exists true
+             :is_file (.isRegularFile attrs)
+             :is_directory (.isDirectory attrs)})
+          {:path (str path)
+           :exists false
+           :is_file false
+           :is_directory false})))))
+
+(defn- make-ext-resource-attributes-fn [project]
+  (rt/lua-fn ext-resource-attributes [{:keys [rt evaluation-context]} lua-resource-path]
+    (let [proj-path (rt/->clj rt graph/resource-path-coercer lua-resource-path)]
+      (if-let [resource (-> project
+                            (project/workspace evaluation-context)
+                            (workspace/find-resource proj-path evaluation-context))]
+        (let [source-type (resource/source-type resource)]
+          {:exists true
+           :is_file (= :file source-type)
+           :is_directory (= :folder source-type)})
+        {:exists false
+         :is_file false
+         :is_directory false}))))
+
 (def ^:private empty-lua-string
   (rt/->lua ""))
 
@@ -216,7 +249,7 @@
                              :err err}
                             cmd+args)
           maybe-output-future (when (= :capture out)
-                                (future/supply-async
+                                (future/io
                                   (or (process/capture! (process/out p))
                                       empty-lua-string)))]
       (when (= :pipe out)
@@ -293,6 +326,13 @@
 (defn- make-ext-save-fn [save!]
   (rt/suspendable-lua-fn ext-save [_]
     (future/then (save!) rt/and-refresh-context)))
+
+(defn- make-open-resource-fn [workspace open-resource!]
+  (rt/suspendable-lua-fn open-resource [{:keys [rt evaluation-context]} lua-resource-path]
+    (let [resource-path (rt/->clj rt graph/resource-path-coercer lua-resource-path)
+          resource (workspace/find-resource workspace resource-path evaluation-context)]
+      (when (and resource (resource/exists? resource) (resource/openable? resource))
+        (open-resource! resource)))))
 
 ;; endregion
 
@@ -411,7 +451,7 @@
                                    :display-output! display-output!
                                    :label (str "Loading " proto-path)
                                    :catch nil
-                                   (rt/->clj rt module-coercer (rt/invoke-immediate rt (rt/bind rt x) evaluation-context)))]
+                                   (rt/->clj rt module-coercer (rt/invoke-immediate-1 rt (rt/bind rt x) evaluation-context)))]
                    (-> acc
                        (update :all add-all-entry proto-path module)
                        (cond-> (= hooks-file-path proto-path)
@@ -442,6 +482,8 @@
 (defn- resolve-file [^Path project-path _ ^String file-name]
   (str (ensure-file-path-in-project-directory project-path file-name)))
 
+(def ^:private prelude-prototype (rt/read (io/resource "prelude.lua") "prelude.lua"))
+
 ;; endregion
 
 ;; region public API
@@ -463,45 +505,55 @@
                             msg     a string to output, might be multiline
     :save!                0-arg function that asynchronously saves any unsaved
                           changes, returns CompletableFuture (that might
-                          complete exceptionally if reload fails)"
-  [project kind & {:keys [reload-resources! display-output! save!] :as opts}]
+                          complete exceptionally if reload fails)
+    :open-resource!       1-arg function that asynchronously opens the supplied
+                          resource either in an editor tab or in another app that
+                          has OS-defined file association, returns
+                          CompletableFuture (that might complete exceptionally
+                          if resource could not be opened)"
+  [project kind & {:keys [reload-resources! display-output! save! open-resource!] :as opts}]
+  {:pre [reload-resources! display-output! save! open-resource!]}
   (g/with-auto-evaluation-context evaluation-context
     (let [extensions (g/node-value project :editor-extensions evaluation-context)
           old-state (ext-state project evaluation-context)
-          project-path (-> project
-                           (project/workspace evaluation-context)
-                           (workspace/project-path evaluation-context)
-                           .toPath
-                           .normalize)
+          workspace (project/workspace project evaluation-context)
+          project-path (.toPath (workspace/project-path workspace evaluation-context))
+          rt (rt/make
+               :find-resource (partial find-resource project)
+               :resolve-file (partial resolve-file project-path)
+               :close-written (rt/suspendable-lua-fn [_]
+                                (future/then (reload-resources!) rt/and-refresh-context))
+               :out (line-writer #(display-output! :out %))
+               :err (line-writer #(display-output! :err %))
+               :env {"editor" {"get" (make-ext-get-fn project)
+                               "can_get" (make-ext-can-get-fn project)
+                               "can_set" (make-ext-can-set-fn project)
+                               "create_directory" (make-ext-create-directory-fn project reload-resources!)
+                               "delete_directory" (make-ext-delete-directory-fn project reload-resources!)
+                               "resource_attributes" (make-ext-resource-attributes-fn project)
+                               "external_file_attributes" (make-ext-external-file-attributes-fn project-path)
+                               "execute" (make-ext-execute-fn project-path display-output! reload-resources!)
+                               "platform" (.getPair (Platform/getHostPlatform))
+                               "save" (make-ext-save-fn save!)
+                               "transact" ext-transact
+                               "tx" {"set" (make-ext-tx-set-fn project)}
+                               "ui" (assoc
+                                      (ui-components/env workspace project project-path)
+                                      "open_resource" (make-open-resource-fn workspace open-resource!))
+                               "version" (system/defold-version)
+                               "engine_sha1" (system/defold-engine-sha1)
+                               "editor_sha1" (system/defold-editor-sha1)}
+                     "io" {"tmpfile" nil}
+                     "os" {"execute" nil
+                           "exit" nil
+                           "remove" (make-ext-remove-file-fn project-path reload-resources!)
+                           "rename" nil
+                           "setlocale" nil
+                           "tmpname" nil}})
+          _ (rt/invoke-immediate rt (rt/bind rt prelude-prototype) evaluation-context)
           new-state (re-create-ext-state
                       (assoc opts
-                        :rt (rt/make
-                              :find-resource (partial find-resource project)
-                              :resolve-file (partial resolve-file project-path)
-                              :close-written (rt/suspendable-lua-fn [_]
-                                               (future/then (reload-resources!) rt/and-refresh-context))
-                              :out (line-writer #(display-output! :out %))
-                              :err (line-writer #(display-output! :err %))
-                              :env {"editor" {"get" (make-ext-get-fn project)
-                                              "can_get" (make-ext-can-get-fn project)
-                                              "can_set" (make-ext-can-set-fn project)
-                                              "create_directory" (make-ext-create-directory-fn project reload-resources!)
-                                              "delete_directory" (make-ext-delete-directory-fn project reload-resources!)
-                                              "execute" (make-ext-execute-fn project-path display-output! reload-resources!)
-                                              "platform" (.getPair (Platform/getHostPlatform))
-                                              "save" (make-ext-save-fn save!)
-                                              "transact" ext-transact
-                                              "tx" {"set" (make-ext-tx-set-fn project)}
-                                              "version" (system/defold-version)
-                                              "engine_sha1" (system/defold-engine-sha1)
-                                              "editor_sha1" (system/defold-editor-sha1)}
-                                    "io" {"tmpfile" nil}
-                                    "os" {"execute" nil
-                                          "exit" nil
-                                          "remove" (make-ext-remove-file-fn project-path reload-resources!)
-                                          "rename" nil
-                                          "setlocale" nil
-                                          "tmpname" nil}})
+                        :rt rt
                         :library-prototypes (if (or (= :all kind) (= :library kind))
                                               (g/node-value extensions :library-prototypes evaluation-context)
                                               (:library-prototypes old-state []))
@@ -552,7 +604,7 @@
   (g/with-auto-evaluation-context evaluation-context
     (let [{:keys [rt display-output! hooks] :as state} (ext-state project evaluation-context)]
       (if-let [lua-fn (get hooks hook-keyword)]
-        (-> (rt/invoke-suspending rt lua-fn (rt/->lua opts))
+        (-> (rt/invoke-suspending-1 rt lua-fn (rt/->lua opts))
             (future/then
               (fn [lua-result]
                 (when-not (rt/coerces-to? rt coerce/null lua-result)
