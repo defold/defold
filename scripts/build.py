@@ -991,39 +991,23 @@ class Configuration(object):
         # Put the output json in the defold root since its where EasyClangComplete would look for it
         output_path = os.path.join(self.defold_root, 'compile_commands.json')
 
-        need_trailing_comma = False
+        result_config = []
+        # We loop over engine/<subdirs> and look for engine/<subdir>/build/compile_commands.json
+        engine_path = os.path.join(self.defold_root, 'engine')
+        for engine_subpath in os.listdir(engine_path):
+            potential_json_path = os.path.join(engine_path, engine_subpath, "build", "compile_commands.json")
+
+            if os.path.exists(potential_json_path):
+                self._log("Adding %s" % potential_json_path)
+
+                with open(potential_json_path, 'r') as input_file:
+                    sub_config = json.load(input_file)
+                    for elem in sub_config:
+                        result_config.append(elem)
+                    input_file.close()
         with open(output_path, 'w') as output_file:
-            # Open array json token
-            output_file.write("[\n")
-
-            # We loop over engine/<subdirs> and look for engine/<subdir>/build/compile_commands.json
-            engine_path = os.path.join(self.defold_root, 'engine')
-            for engine_subpath in os.listdir(engine_path):
-                potential_json_path = os.path.join(engine_path, engine_subpath, "build", "compile_commands.json")
-
-                if os.path.exists(potential_json_path):
-                    self._log("Adding %s" % potential_json_path)
-
-                    with open(potential_json_path, 'r') as input_file:
-                        # Take content but skip first and last lines (they would only include square brackets)
-                        input_lines = input_file.readlines()[1:-1]
-
-                        # Prettify output a bit by skipping last newline, this makes any appended comma
-                        # to appear on the same line
-                        if input_lines[-1][-1] == '\n':
-                            input_lines[-1] = input_lines[-1][:-1]
-
-                        # Append comma when adding more than one
-                        if need_trailing_comma:
-                            output_file.write(",\n")
-
-                        # Copy over contents to output file
-                        output_file.write(''.join(input_lines))
-
-                        need_trailing_comma = True
-
-            # Close array
-            output_file.write("\n]\n")
+            json.dump(result_config, output_file)
+            output_file.close()
 
     def build_builtins(self):
         with open(join(self.dynamo_home, 'share', 'builtins.zip'), 'wb') as f:
