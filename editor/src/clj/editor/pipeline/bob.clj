@@ -394,6 +394,7 @@
         defold-sdk-sha1 (or (system/defold-engine-sha1) "")
         compress-archive? (get proj-settings ["project" "compress_archive"])]
     (cond-> {"platform" "js-web"
+             "architectures" "wasm-web"
              "variant" "debug"
              "archive" "true"
              "bundle-output" (str output-path)

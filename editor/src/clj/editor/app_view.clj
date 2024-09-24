@@ -1906,14 +1906,21 @@ If you do not specifically require different script states, consider changing th
          (log/error :exception e)
          nil)))
 
+(defn- merge-keymaps [prefs]
+  (let [custom-keymap (or (open-custom-keymap (prefs/get-prefs prefs "custom-keymap-path" "")) [])
+        default-keymap keymap/default-host-key-bindings]
+    (into []
+      (mapcat val)
+      (conj (group-by first default-keymap)
+            (group-by first custom-keymap)))))
+
 (defn make-app-view [view-graph project ^Stage stage ^MenuBar menu-bar ^SplitPane editor-tabs-split ^TabPane tool-tab-pane prefs]
   (let [app-scene (.getScene stage)]
     (ui/disable-menu-alt-key-mnemonic! menu-bar)
     (.setUseSystemMenuBar menu-bar true)
     (.setTitle stage (make-title))
     (let [editor-tab-pane (TabPane.)
-          keymap (or (open-custom-keymap (prefs/get-prefs prefs "custom-keymap-path" ""))
-                     keymap/default-host-key-bindings)
+          keymap (merge-keymaps prefs)
           app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView
                                                                      :stage stage
                                                                      :scene app-scene
