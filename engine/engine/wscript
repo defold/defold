@@ -11,6 +11,7 @@ import waf_ddf, waf_graphics, waf_dynamo, waf_gamesys, waf_physics, waf_render, 
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
 import waflib.Options
 import TestContext
+import run
 
 test_context = None
 
@@ -203,3 +204,11 @@ def build(bld):
 def shutdown(self):
     # unit tests disabled on win32 for now
     waf_dynamo.run_tests(test_context, valgrind = True)
+
+    for root, dirs, files in os.walk('.'):
+        for f in files:
+            if 'hs_err_pid' in f:
+                path = os.path.join(root, f)
+                print("MAWE DUMPING TEXT NOW!", path, os.getcwd())
+                output = run.command(['cat', path])
+                print("ERROR LOG:", output)
