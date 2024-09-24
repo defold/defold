@@ -368,6 +368,11 @@ TEST_F(ScriptVmathTest, TestToValueFn)
     ASSERT_EQ(top, lua_gettop(L));
 }
 
+TEST_F(ScriptVmathTest, TestVMathClamp)
+{
+    ASSERT_TRUE(RunFile(L, "test_script_vmath.luac"));
+}
+
 extern "C" void dmExportedSymbols();
 
 int main(int argc, char **argv)
