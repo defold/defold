@@ -26,13 +26,13 @@
             [editor.prefs :as prefs]
             [editor.system :as system]
             [editor.ui :as ui])
-  (:import [java.io File]
+  (:import [com.defold.control DefoldStringConverter]
+           [java.io File]
            [javafx.scene Scene]
            [javafx.scene.control Button CheckBox ChoiceBox Label Separator TextField]
            [javafx.scene.input KeyCode]
            [javafx.scene.layout ColumnConstraints GridPane HBox Priority VBox]
-           [javafx.stage DirectoryChooser Window]
-           [javafx.util StringConverter]))
+           [javafx.stage DirectoryChooser Window]))
 
 (set! *warn-on-reflection* true)
 
@@ -230,11 +230,7 @@
         labels-by-value (set/map-invert values-by-label)]
     (doto (ChoiceBox. (ui/observable-list (map second label-value-pairs)))
       (ui/on-action! refresh!)
-      (.setConverter (proxy [StringConverter] []
-                       (toString [value]
-                         (labels-by-value value))
-                       (fromString [label]
-                         (values-by-label label)))))))
+      (.setConverter (DefoldStringConverter. labels-by-value values-by-label)))))
 
 (defn- make-generic-controls [refresh! variant-choices compression-choices]
   (assert (fn? refresh!))
@@ -391,8 +387,8 @@
         keystore-pass-file-field (make-file-field "keystore-pass-text-field" "Choose Keystore password" [["Keystore password" "*.txt"]])
         key-pass-file-field (make-file-field "key-pass-text-field" "Choose Key password" [["Key password" "*.txt"]])
         architecture-controls (doto (VBox.)
-                                    (ui/children! [(make-labeled-check-box "32-bit (armv7)" "architecture-32bit-check-box" true refresh!)
-                                                   (make-labeled-check-box "64-bit (arm64)" "architecture-64bit-check-box" true refresh!)]))]
+                                (ui/children! [(make-labeled-check-box "32-bit (armv7)" "architecture-32bit-check-box" true refresh!)
+                                               (make-labeled-check-box "64-bit (arm64)" "architecture-64bit-check-box" true refresh!)]))]
     (doto (VBox.)
       (ui/add-style! "settings")
       (ui/add-style! "android")
@@ -401,7 +397,7 @@
                      (labeled! "Key Password" key-pass-file-field)
                      (labeled! "Architectures" architecture-controls)
                      (labeled! "Bundle Format" (doto (make-choice-box refresh! [["APK" "apk"] ["AAB" "aab"] ["APK+AAB", "apk,aab"]])
-                                                (.setId "bundle-format-choice-box")))]))))
+                                                 (.setId "bundle-format-choice-box")))]))))
 
 (defn- android-post-bundle-controls [refresh!]
   (doto (VBox.)
@@ -673,11 +669,9 @@
                                            (.setId "code-signing-identity-choice-box")
                                            (.setFocusTraversable false)
                                            (.setMaxWidth Double/MAX_VALUE) ; Required to fill available space.
-                                           (.setConverter (proxy [StringConverter] []
-                                                            (toString [value]
-                                                              (if (some? value) value no-identity-label))
-                                                            (fromString [label]
-                                                              (if (= no-identity-label label) nil label)))))
+                                           (.setConverter (DefoldStringConverter.
+                                                            #(if (some? %) % no-identity-label)
+                                                            #(if (= no-identity-label %) nil %))))
         architecture-controls (doto (VBox.)
                                 (ui/children! [(make-labeled-check-box "64-bit (arm64)" "architecture-64bit-check-box" true refresh!)
                                                (make-labeled-check-box "Simulator (x86_64)" "architecture-simulator-check-box" false refresh!)]))]
@@ -908,7 +902,7 @@
     (let [refresh! (make-presenter-refresher this)]
       (into [(make-generic-headers "Bundle HTML5 Application")
              (make-html5-controls refresh! owner-window)]
-             (make-generic-controls refresh! variant-choices compression-choices))))
+            (make-generic-controls refresh! variant-choices compression-choices))))
   (load-prefs! [_this prefs]
     (load-generic-prefs! prefs view)
     (load-html5-prefs! prefs view))
@@ -922,7 +916,7 @@
   (set-options! [_this options]
     (let [issues (get-html5-issues options)]
       (set-generic-options! view options workspace)
-      (set-html5-options! view options issues )
+      (set-html5-options! view options issues)
       (set-generic-headers! view issues [:architecture]))))
 
 ;; -----------------------------------------------------------------------------

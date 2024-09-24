@@ -298,6 +298,8 @@ def check_reflections(java_cmd_env):
             print(failure)
         exit(1)
 
+def write_docs(docs_dir):
+    run.command(['./scripts/lein', 'with-profile', '+docs', 'run', '-m', 'editor.docs', docs_dir], stdout = True)
 
 def build(options):
     build_jdk = download_build_jdk()
@@ -321,6 +323,8 @@ def build(options):
         print('Skipping tests')
     else:
         run.command(['env', java_cmd_env, 'bash', './scripts/lein', 'test'])
+        # test that docs can be successfully produced
+        write_docs('target/docs')
 
     run.command(['env', java_cmd_env, 'bash', './scripts/lein', 'prerelease'])
 
@@ -618,6 +622,7 @@ Commands:
   build                 Build editor
   bundle                Create editor bundle (zip) from built files
   sign                  Sign editor bundle (zip)
+  docs                  Produce docs (editor_doc.json, editor_doc.sdoc)
   installer             Create editor installer from bundle (zip)'''
 
     parser = optparse.OptionParser(usage)
@@ -691,6 +696,11 @@ Commands:
                       default = "target/editor",
                       help = 'Path to directory containing editor bundles')
 
+    parser.add_option('--docs-dir',
+                      default = 'target/docs',
+                      dest = 'docs_dir',
+                      help = 'Path to directory for docs output')
+
     options, commands = parser.parse_args()
 
     if (("bundle" in commands) or ("installer" in commands) or ("sign" in commands)) and not options.target_platform:
@@ -722,6 +732,8 @@ Commands:
     print('Resolved engine_artifacts=%s to sha1=%s' % (options.engine_artifacts, options.engine_sha1))
 
     for command in commands:
+        if command == "docs":
+            write_docs(options.docs_dir)
         if command == "build":
             build(options)
         elif command == "sign":

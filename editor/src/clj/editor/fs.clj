@@ -666,3 +666,13 @@
                                      ignored-dirnames)
                            (or include-hidden
                                (not (Files/isHidden dir-path))))))))))
+
+(defn path-exists? [path]
+  (Files/exists path empty-link-option-array))
+
+(defn path-is-directory? [path]
+  (Files/isDirectory path empty-link-option-array))
+
+(defn path-attributes
+  ^BasicFileAttributes [path]
+  (Files/readAttributes ^Path path BasicFileAttributes ^"[Ljava.nio.file.LinkOption;" empty-link-option-array))

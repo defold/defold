@@ -29,7 +29,7 @@
                      [org.clojure/tools.macro                     "0.1.5"]
                      [org.clojure/tools.namespace                 "1.2.0"]
                      [org.clojure/data.int-map                    "0.2.4"]
-                     [org.clojure/data.json                       "0.2.6"]
+                     [org.clojure/data.json                       "2.5.0"]
                      [com.cognitect/transit-clj                   "0.8.285"]
                      [prismatic/schema                            "1.1.9"]
                      [prismatic/plumbing                          "0.5.2"]
@@ -79,7 +79,7 @@
 
                      [com.github.ben-manes.caffeine/caffeine "3.1.2"]
 
-                     [cljfx "1.7.22"
+                     [cljfx "1.9.3"
                       :exclusions [org.clojure/clojure
                                    org.openjfx/javafx-base
                                    org.openjfx/javafx-graphics
@@ -179,6 +179,7 @@
                       :preflight {:dependencies [[jonase/kibit "0.1.6" :exclusions [org.clojure/clojure]]
                                                  [cljfmt-mg "0.6.4" :exclusions [org.clojure/clojure]]]}
                       :sidecar {:source-paths ["sidecar"]}
+                      :docs {:source-paths ["src/docs"]}
                       :uberjar {:prep-tasks  ^:replace []
                                 :aot          :all
                                 :auto-clean   false

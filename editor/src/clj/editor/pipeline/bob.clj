@@ -27,6 +27,7 @@
             [editor.system :as system]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
+            [internal.java :as java]
             [service.log :as log]
             [util.coll :refer [pair]]
             [util.fn :as fn]
@@ -235,7 +236,7 @@
           {:error {:causes (engine-build-errors/unsupported-platform-error-causes project evaluation-context)}}
           (let [ws (project/workspace project evaluation-context)
                 proj-path (str (workspace/project-path ws evaluation-context))
-                bob-project (Project. workspace/class-loader (DefaultFileSystem.) proj-path "build/default")]
+                bob-project (Project. java/class-loader (DefaultFileSystem.) proj-path "build/default")]
             (doseq [[key val] bob-args]
               (.setOption bob-project key val))
             (when-not (string/blank? build-server-headers)
@@ -243,7 +244,7 @@
                 (.addBuildServerHeader bob-project header)))
             (.setOption bob-project "liveupdate" (.option bob-project "liveupdate" "no"))
             (doseq [pkg ["com.dynamo.bob" "com.dynamo.bob.pipeline"]]
-              (ClassLoaderScanner/scanClassLoader workspace/class-loader pkg))
+              (ClassLoaderScanner/scanClassLoader java/class-loader pkg))
             (let [deps (workspace/dependencies ws)]
               (when (seq deps)
                 (.setLibUrls bob-project (map #(.toURL ^URI %) deps))
