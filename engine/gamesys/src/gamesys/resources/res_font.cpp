@@ -27,13 +27,19 @@
 
 namespace dmGameSystem
 {
+    struct ImageDataHeader
+    {
+        uint8_t m_Compression; // FontGlyphCompression
+    };
+
     struct DynamicGlyph
     {
-        dmRender::FontGlyph m_Glyph; // for faster access of the text renderer
-        uint8_t*            m_Data;
-        uint32_t            m_DataSize;
-        uint32_t            m_DataImageWidth;
-        uint32_t            m_DataImageHeight;
+        dmRender::FontGlyph     m_Glyph; // for faster access of the text renderer
+        uint8_t*                m_Data;
+        uint16_t                m_DataSize;
+        uint16_t                m_DataImageWidth;
+        uint16_t                m_DataImageHeight;
+        uint8_t                 m_Compression; //FontGlyphCompression
     };
 
     struct FontResource
@@ -127,13 +133,14 @@ namespace dmGameSystem
         DynamicGlyph** dynglyphp = resource->m_DynamicGlyphs.Get(codepoint);
         if (dynglyphp)
         {
+            DM_STATIC_ASSERT(sizeof(ImageDataHeader) == 1, Invalid_struct_size);
 
             DynamicGlyph* dynglyph = *dynglyphp;
-            *out_size = dynglyph->m_DataSize;
             *out_width = dynglyph->m_DataImageWidth;
             *out_height = dynglyph->m_DataImageHeight;
-            *out_compression = dynglyph->m_Data[0];
-            return dynglyph->m_Data+1;
+            *out_compression = (uint32_t)dynglyph->m_Compression;
+            *out_size = dynglyph->m_DataSize - sizeof(ImageDataHeader);
+            return dynglyph->m_Data + sizeof(ImageDataHeader); // we return only the image data here
         }
 
         dmRender::FontGlyph** glyphp = resource->m_Glyphs.Get(codepoint);
@@ -354,6 +361,8 @@ namespace dmGameSystem
         // g.m_GlyphDataOffset;
         // g.m_GlyphDataSize;
 
+        ImageDataHeader* header = (ImageDataHeader*)imagedata;
+        glyph->m_Compression = header ? header->m_Compression : FONT_GLYPH_COMPRESSION_NONE;
         glyph->m_Data = (uint8_t*)imagedata;
         glyph->m_DataSize = imagedatasize;
         glyph->m_DataImageWidth = inglyph->m_Width;
