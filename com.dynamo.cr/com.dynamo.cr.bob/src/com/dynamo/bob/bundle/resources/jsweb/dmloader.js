@@ -804,7 +804,8 @@ var Module = {
     hasWebGPUSupport: function() {
         var webgpu_support = false;
         try {
-            var webgpu = Module.canvas.getContext("webgpu");
+            var canvas = document.createElement("canvas");
+            var webgpu = canvas.getContext("webgpu");
             if (webgpu && webgpu instanceof WebGPURenderingContext) {
                 webgpu_support = true;
             }
@@ -819,7 +820,10 @@ var Module = {
     hasWebGLSupport: function() {
         var webgl_support = false;
         try {
-            var gl = Module.canvas.getContext("webgl") || Module.canvas.getContext("experimental-webgl");
+            // create canvas to simply check is rendering context supported
+            // real render context created by glfw
+            var canvas = document.createElement("canvas");
+            var gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
             if (gl && gl instanceof WebGLRenderingContext) {
                 webgl_support = true;
             }
