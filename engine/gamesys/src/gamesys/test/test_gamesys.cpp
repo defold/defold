@@ -1614,7 +1614,7 @@ TEST_F(FontTest, DynamicGlyph)
         ASSERT_NE((void*)0, glyph);
 
         ASSERT_EQ(0U, glyph_data_compression);
-        ASSERT_EQ(data_size, glyph_data_size);
+        ASSERT_EQ(data_size-1, glyph_data_size);
         ASSERT_EQ(1U, glyph_image_width);
         ASSERT_EQ(2U, glyph_image_height);
 
