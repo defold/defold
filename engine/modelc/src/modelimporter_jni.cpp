@@ -635,7 +635,7 @@ static jobject LoadFromBufferInternal(JNIEnv* env, jclass cls, jstring _path, jb
 JNIEXPORT jobject JNICALL Java_ModelImporterJni_LoadFromBufferInternal(JNIEnv* env, jclass cls, jstring _path, jbyteArray array, jobject data_resolver)
 {
     dmLogDebug("Java_ModelImporterJni_LoadFromBufferInternal: env = %p\n", env);
-    DM_SCOPED_SIGNAL_CONTEXT(env, return 0;);
+    //DM_SCOPED_SIGNAL_CONTEXT(env, return 0;);
 
     jobject jscene;
     DM_JNI_GUARD_SCOPE_BEGIN();
@@ -661,7 +661,7 @@ JNIEXPORT void JNICALL Java_ModelImporterJni_TestException(JNIEnv* env, jclass c
 JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved)
 {
     dmLogDebug("JNI_OnLoad ->\n");
-    dmJNI::EnableDefaultSignalHandlers(vm);
+    //dmJNI::EnableDefaultSignalHandlers(vm);
 
     JNIEnv* env;
     if (vm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_8) != JNI_OK) {
