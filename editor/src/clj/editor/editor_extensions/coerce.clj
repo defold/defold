@@ -163,7 +163,7 @@
         (failure x "is not a tuple")))))
 
 (def untouched
-  "Pass-through coercer that does not perform any deserialized"
+  "Pass-through coercer that does not perform any deserialization"
   ^{:schema {:type :any}}
   (fn coerce-untouched [_ x]
     x))

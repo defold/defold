@@ -85,13 +85,14 @@
 
 (def enums
   {:alignment [:top-left :top :top-right :left :center :right :bottom-left :bottom :bottom-right]
-   :padding [:small :medium :large]
-   :spacing [:small :medium :large]
+   :padding [:none :small :medium :large]
+   :spacing [:none :small :medium :large]
    :text-alignment [:left :center :right :justify]
-   :icon-name [:open-resource :plus :minus :clear]
+   :icon [:open-resource :plus :minus :clear]
    :orientation [:vertical :horizontal]
    :color [:text :hint :override :warning :error]
-   :heading-style [:h1 :h2 :h3 :h4 :h5 :h6 :dialog :form]})
+   :heading-style [:h1 :h2 :h3 :h4 :h5 :h6 :dialog :form]
+   :issue-severity [:warning :error]})
 
 (def ^:private ^{:arglists '([enum-id])} get-enum-coercer
   (fn/make-case-fn (coll/pair-map-by key #(apply coerce/enum (val %)) enums)))
@@ -215,7 +216,7 @@
         (enum-prop :color :enum :color :doc "semantic color, defaults to <code>editor.ui.COLOR.TEXT</code>")))
 
 (def ^:private icon-specific-props
-  [(enum-prop :name :enum :icon-name :required true :doc "predefined icon name")])
+  [(enum-prop :icon :enum :icon :required true :doc "predefined icon name")])
 
 (def ^:private tooltip-prop
   (make-prop :tooltip :coerce coerce/string :doc "tooltip message, shown on hover"))
@@ -237,7 +238,7 @@
 
 (def ^:private heading-props
   (-> typography-specific-props
-      (conj (enum-prop :style :enum :heading-style :doc "heading style, defaults to <code>editor.ui.HEADING_STYLE.DIALOG</code>"))
+      (conj (enum-prop :style :enum :heading-style :doc "heading style, defaults to <code>editor.ui.HEADING_STYLE.H3</code>"))
       (into common-props)))
 
 (def ^:private icon-props
@@ -257,7 +258,7 @@
 (def ^:private button-props
   (into [] cat [button-specific-props
                 label-without-color-specific-props
-                [(enum-prop :icon_name :enum :icon-name :doc "predefined icon name")]
+                [(enum-prop :icon :enum :icon :doc "predefined icon name")]
                 common-input-props]))
 
 (def ^:private input-with-issue-props
@@ -271,7 +272,7 @@
                               (lua-completion/args-doc-html
                                 [{:name "severity"
                                   :types ["string"]
-                                  :doc "either <code>\"error\"</code> or <code>\"warning\"</code>"}
+                                  :doc "either <code>editor.ui.ISSUE_SEVERITY.WARNING</code> or <code>editor.ui.ISSUE_SEVERITY.ERROR</code>"}
                                  {:name "message"
                                   :types ["string"]
                                   :doc "issue message, will be shown in a tooltip"}])))

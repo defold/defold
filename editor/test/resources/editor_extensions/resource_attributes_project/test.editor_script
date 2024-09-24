@@ -4,7 +4,7 @@ local function test_resource(resource_path)
     local success, attrs = pcall(editor.resource_attributes, resource_path)
     local message
     if success then
-        message = attrs.exists and ("exists (" .. (attrs.is_file and "file" or "directory") .. ")" ) or "does not exist"
+        message = "exists = " .. tostring(attrs.exists) .. ", file = " .. tostring(attrs.is_file) .. ", directory = " .. tostring(attrs.is_directory) .. ")"
     else
         message = "error"
     end

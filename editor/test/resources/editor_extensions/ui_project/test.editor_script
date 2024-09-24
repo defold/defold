@@ -39,10 +39,10 @@ function M.get_commands()
                                     }),
                                     editor.ui.horizontal({
                                         children = {
-                                            editor.ui.button({ icon_name = editor.ui.ICON_NAME.CLEAR, enabled = false }),
-                                            editor.ui.button({ icon_name = editor.ui.ICON_NAME.MINUS }),
-                                            editor.ui.button({ icon_name = editor.ui.ICON_NAME.OPEN_RESOURCE }),
-                                            editor.ui.button({ icon_name = editor.ui.ICON_NAME.PLUS }),
+                                            editor.ui.button({ icon = editor.ui.ICON.CLEAR, enabled = false }),
+                                            editor.ui.button({ icon = editor.ui.ICON.MINUS }),
+                                            editor.ui.button({ icon = editor.ui.ICON.OPEN_RESOURCE }),
+                                            editor.ui.button({ icon = editor.ui.ICON.PLUS }),
                                         }
                                     })
                                 },
@@ -54,7 +54,7 @@ function M.get_commands()
                                     }),
                                     editor.ui.button({
                                         text = "Open resource",
-                                        icon_name = editor.ui.ICON_NAME.OPEN_RESOURCE
+                                        icon = editor.ui.ICON.OPEN_RESOURCE
                                     })
                                 },
                                 {
@@ -77,7 +77,7 @@ function M.get_commands()
                                     editor.ui.string_field({
                                         value = "Error string",
                                         on_value_changed = print,
-                                        issue = {severity = "error", message = "error message"}
+                                        issue = {severity = editor.ui.ISSUE_SEVERITY.ERROR, message = "error message"}
                                     })
                                 },
                                 {
@@ -88,7 +88,7 @@ function M.get_commands()
                                     editor.ui.integer_field({
                                         value = 666,
                                         on_value_changed = print,
-                                        issue = {severity = "warning", message = "warning message"}
+                                        issue = {severity = editor.ui.ISSUE_SEVERITY.WARNING, message = "warning message"}
                                     })
                                 },
                                 {
@@ -153,12 +153,12 @@ function M.get_commands()
                                             }),
                                             editor.ui.check_box({
                                                 text = "Warning check box",
-                                                issue = {severity = "warning", message = "warning message"}
+                                                issue = {severity = editor.ui.ISSUE_SEVERITY.WARNING, message = "warning message"}
                                             }),
                                             editor.ui.check_box({
                                                 text = "Disabled error check box",
                                                 enabled = false,
-                                                issue = {severity = "error", message = "error message"}
+                                                issue = {severity = editor.ui.ISSUE_SEVERITY.ERROR, message = "error message"}
                                             }),
                                             editor.ui.check_box({
                                                 value = true

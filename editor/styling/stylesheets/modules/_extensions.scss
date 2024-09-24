@@ -5,16 +5,19 @@ $ext-line-height: 26px;
 
 .ext {
     &-spacing {
+        &-none        { -fx-spacing: 0; }
         &-small       { -fx-spacing: $ext-spacing-small; }
         &-medium      { -fx-spacing: $ext-spacing-medium; }
         &-large       { -fx-spacing: $ext-spacing-large; }
     }
     &-grid-spacing {
+        &-none        { -fx-hgap: 0; -fx-vgap: 0; }
         &-small       { -fx-hgap: $ext-spacing-small; -fx-vgap: $ext-spacing-small; }
         &-medium      { -fx-hgap: $ext-spacing-medium; -fx-vgap: $ext-spacing-medium; }
         &-large       { -fx-hgap: $ext-spacing-large; -fx-vgap: $ext-spacing-large; }
     }
     &-padding {
+        &-none        { -fx-padding: 0; }
         &-small       { -fx-padding: 16px; }
         &-medium      { -fx-padding: 24px; }
         &-large       { -fx-padding: 40px; }

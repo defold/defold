@@ -88,7 +88,7 @@ editor.ui.resource_field = editor.ui.component(function(props)
                 enabled = enabled
             }),
             editor.ui.button({
-                icon_name = editor.ui.ICON_NAME.OPEN_RESOURCE,
+                icon = editor.ui.ICON.OPEN_RESOURCE,
                 enabled = enabled and value ~= nil and editor.resource_attributes(value).is_file,
                 on_pressed = open_resource_callback
             }),

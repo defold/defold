@@ -422,9 +422,9 @@
       @(handler/run handler+context)
       ;; see test.editor script: it uses editor.resource_attributes with different resource
       ;; paths and prints results
-      (is (= [[:out "test '/': exists (directory)"]
-              [:out "test '/game.project': exists (file)"]
-              [:out "test '/does_not_exist.txt': does not exist"]
+      (is (= [[:out "test '/': exists = true, file = false, directory = true)"]
+              [:out "test '/game.project': exists = true, file = true, directory = false)"]
+              [:out "test '/does_not_exist.txt': exists = false, file = false, directory = false)"]
               [:out "test 'not_a_resource_path.go': error"]]
              @output)))))
 

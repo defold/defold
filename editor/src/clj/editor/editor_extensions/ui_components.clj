@@ -347,7 +347,7 @@
 (defn- heading-view [{:keys [alignment text text_alignment color word_wrap style]
                       :or {alignment :top-left
                            word_wrap true
-                           style :dialog
+                           style :h3
                            color :text}}]
   (-> {:fx/type fx.label/lifecycle
        :style-class ["label" (heading-style->label-style-class style)]
@@ -372,8 +372,8 @@
            maybe-alignment
            (apply-alignment maybe-alignment))))
 
-(defn- icon-view [{:keys [name alignment]}]
-  (let [fit-size (case name
+(defn- icon-view [{:keys [icon alignment]}]
+  (let [fit-size (case icon
                    :open-resource 22.0
                    16.0)]
     (wrap-in-alignment-container
@@ -382,7 +382,7 @@
        :alignment :center
        :children [{:fx/type fx.image-view/lifecycle
                    :image (icons/get-image
-                            (case name
+                            (case icon
                               :open-resource "icons/32/Icons_S_14_linkarrow.png"
                               :plus "icons/32/Icons_M_07_plus.png"
                               :minus "icons/32/Icons_M_11_minus.png"
@@ -433,14 +433,14 @@
                             text
                             text_alignment
                             ;; icon
-                            icon_name
+                            icon
                             ;; rest
                             on_pressed
                             enabled
                             alignment]
                      :or {enabled true}}]
   (let [has-text (not (string/blank? text))
-        has-icon (some? icon_name)
+        has-icon (some? icon)
         style-class (cond
                       (and has-text has-icon) ["ext-button" "ext-button-text-and-icon"]
                       has-text ["ext-button" "ext-button-text"]
@@ -456,7 +456,7 @@
         (cond->
           has-text (assoc :text text)
           text_alignment (assoc :text-alignment text_alignment)
-          has-icon (assoc :graphic (icon-view {:name icon_name}))
+          has-icon (assoc :graphic (icon-view {:icon icon}))
           (and (not has-text) (not has-icon)) (assoc :graphic {:fx/type fx.region/lifecycle
                                                                :style-class "ext-icon-container"})
           on_pressed (assoc :on-action (make-event-handler-0 event-source->owner-window rt "on_pressed" on_pressed)))
