@@ -9,10 +9,10 @@ option java_outer_classname = "Rig";
 
 
 enum AlphaMode {
-    OPAQUE  = 0;
-    MASK    = 1;
-    BLEND   = 2;
-    MAX_ENUM= 3;
+    ALPHA_MODE_OPAQUE  = 0;
+    ALPHA_MODE_MASK    = 1;
+    ALPHA_MODE_BLEND   = 2;
+    ALPHA_MODE_MAX_ENUM= 3;
 }
 
 // We're not really using the Image concept at runtime
@@ -171,7 +171,7 @@ message Material
     optional TextureView emissiveTexture                    = 16;
     optional dmMath.Vector3 emissiveFactor                  = 17;
     optional float alphaCutoff                              = 18 [default = 0.5];
-    optional AlphaMode alphaMode                            = 19 [default = OPAQUE];
+    optional AlphaMode alphaMode                            = 19 [default = ALPHA_MODE_OPAQUE];
     optional bool doubleSided                               = 20 [default = false];
     optional bool unlit                                     = 21 [default = false];
 }
