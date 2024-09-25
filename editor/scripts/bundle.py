@@ -280,6 +280,13 @@ def extract_build_jdk(build_jdk):
     else:
         return 'build/jdk/jdk-%s' % java_version
 
+def create_lein_env(jdk_path=None):
+    env = os.environ.copy()
+    env["LEIN_HOME"] = "target/lein"
+    if jdk_path:
+        env["JAVA_CMD"] = '%s/bin/java' % jdk_path
+    return env
+
 def check_reflections(lein_env):
     reflection_prefix = 'Reflection warning, ' # final space important
     included_reflections = ['editor/', 'util/'] # [] = include all
@@ -306,7 +313,7 @@ def write_docs(docs_dir, lein_env):
 def build(options):
     build_jdk = download_build_jdk()
     extracted_build_jdk = extract_build_jdk(build_jdk)
-    lein_env = {"LEIN_HOME": "target/lein", "JAVA_CMD": '%s/bin/java' % extracted_build_jdk }
+    lein_env = create_lein_env(jdk_path=extracted_build_jdk)
 
     print('Building editor')
 
@@ -404,7 +411,7 @@ def remove_platform_files_from_archive(platform, jar):
 def create_bundle(options):
     build_jdk = download_build_jdk()
     extracted_build_jdk = extract_build_jdk(build_jdk)
-    lein_env = {"LEIN_HOME": "target/lein", "JAVA_CMD": "%s/bin/java" % extracted_build_jdk}
+    lein_env = create_lein_env(jdk_path=extracted_build_jdk)
 
     mkdirs('target/editor')
     for platform in options.target_platform:
@@ -735,7 +742,7 @@ Commands:
 
     for command in commands:
         if command == "docs":
-            write_docs(options.docs_dir, {"LEIN_HOME": "target/lein"})
+            write_docs(options.docs_dir, create_lein_env())
         if command == "build":
             build(options)
         elif command == "sign":
