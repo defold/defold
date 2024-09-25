@@ -101,31 +101,39 @@ namespace dmHttpService
         h.Push('\n');
     }
 
-    void HttpContent(dmHttpClient::HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length)
+    void HttpContent(dmHttpClient::HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length, const char* method)
     {
         Worker* worker = (Worker*) user_data;
         worker->m_Status = status_code;
         dmArray<char>& r = worker->m_Response;
+        bool method_is_head = method && strcmp(method, "HEAD") == 0;
 
-        if (!content_data && !content_data_size)
+        if (!method_is_head && !content_data && !content_data_size)
         {
             r.SetSize(0);
             return;
         }
 
-        if (r.Capacity() < content_length)
+        uint32_t bytes_received = 0;
+
+        // A HEAD request should not carry any payload.
+        if (!method_is_head)
         {
-            r.SetCapacity(content_length);
+            if (r.Capacity() < content_length)
+            {
+                r.SetCapacity(content_length);
+            }
+
+            r.PushArray((char*) content_data, content_data_size);
+            bytes_received = r.Size();
         }
 
-        r.PushArray((char*) content_data, content_data_size);
-
-        if (worker->m_ReportProgress && content_data_size > 0)
+        if (worker->m_ReportProgress && (method_is_head || content_data_size > 0))
         {
             assert(worker->m_Service->m_ReportProgressCallback);
 
             dmHttpDDF::HttpRequestProgress progress = {};
-            progress.m_BytesReceived                = r.Size();
+            progress.m_BytesReceived                = bytes_received;
             progress.m_BytesTotal                   = content_length;
             worker->m_Service->m_ReportProgressCallback(&progress, &worker->m_CurrentRequesterURL, worker->m_ResponseUserData2);
         }
