@@ -2,7 +2,7 @@
   (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
             [clojure.string :as string]
-            [editor.lua :as lua]
+            [editor.editor-extensions.docs :as ext-docs]
             [editor.protobuf :as protobuf]
             [editor.util :as util])
   (:import [com.dynamo.scriptdoc.proto ScriptDoc$Document]))
@@ -16,7 +16,7 @@
       :discard)))
 
 (defn- produce-docs []
-  (let [groups (group-by script-doc-group (lua/editor-script-docs))
+  (let [groups (group-by script-doc-group (ext-docs/editor-script-docs))
         {[module] :module functions :function variables :variable} groups]
     (protobuf/bytes->map-with-defaults
       ScriptDoc$Document

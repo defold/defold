@@ -1515,11 +1515,11 @@
   (let [changes (::changes (meta new-lines))]
     (when (and changes (= (hash new-lines) (:current-version (peek changes))))
       (let [old-version (hash old-lines)
-            last-version-index (loop [i (dec (count changes))]
-                                 (cond
-                                   (neg? i) i
-                                   (= old-version (:previous-version (changes i))) i
-                                   :else (recur (dec i))))]
+            last-version-index (long (loop [i (dec (count changes))]
+                                       (cond
+                                         (neg? i) i
+                                         (= old-version (:previous-version (changes i))) i
+                                         :else (recur (dec i)))))]
         (when-not (neg? last-version-index)
           (let [ret (into
                       []
