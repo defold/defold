@@ -29,6 +29,27 @@ namespace dmModelImporter
 
 // ******************************************************************************************************************
 
+template<typename DefoldType>
+static void AddToCache(dmHashTable64<jobject>& cache, DefoldType* key, jobject obj)
+{
+    if (cache.Full())
+    {
+        uint32_t cap = cache.Capacity() + 256;
+        cache.SetCapacity((cap*3/2), cap);
+    }
+    cache.Put((uintptr_t)key, obj);
+}
+
+template<typename DefoldType>
+static jobject GetFromCache(dmHashTable64<jobject>& cache, DefoldType* key)
+{
+    jobject* pobj = cache.Get((uintptr_t)key);
+    if (!pobj)
+        return 0;
+    return *pobj;
+}
+
+
 // TODO: Move to jni_util.h
 static jobjectArray CreateObjectArray(JNIEnv* env, jclass cls, const dmArray<jobject>& values)
 {
@@ -42,15 +63,77 @@ static jobjectArray CreateObjectArray(JNIEnv* env, jclass cls, const dmArray<job
 }
 
 // **************************************************
-// Material
+//
 
-static jobject CreateMaterial(JNIEnv* env, dmModelImporter::jni::TypeInfos* types, const dmModelImporter::Material* material)
+static jobjectArray CreateImagesArray(JNIEnv* env, dmModelImporter::jni::TypeInfos* types,
+                                    uint32_t count, const dmModelImporter::Image* images,
+                                    dmHashTable64<jobject>& cache)
 {
-    jobject obj = env->AllocObject(types->m_MaterialJNI.cls);
-    dmJNI::SetInt(env, obj, types->m_MaterialJNI.index, material->m_Index);
-    dmJNI::SetString(env, obj, types->m_MaterialJNI.name, material->m_Name);
-    return obj;
+    jobjectArray arr = env->NewObjectArray(count, types->m_ImageJNI.cls, 0);
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        const Image* image = &images[i];
+
+        jobject obj = env->AllocObject(types->m_ImageJNI.cls);
+        dmJNI::SetString(env, obj, types->m_ImageJNI.name, image->m_Name);
+        dmJNI::SetString(env, obj, types->m_ImageJNI.uri, image->m_Uri);
+        dmJNI::SetString(env, obj, types->m_ImageJNI.mimeType, image->m_MimeType);
+        dmJNI::SetUInt(env, obj, types->m_ImageJNI.index, image->m_Index);
+
+        dmJNI::SetObject(env, obj, types->m_ImageJNI.buffer, GetFromCache(cache, image->m_Buffer));
+
+        env->SetObjectArrayElement(arr, i, obj);
+
+        AddToCache(cache, image, obj);
+    }
+    return arr;
+
 }
+
+static jobjectArray CreateSamplersArray(JNIEnv* env, dmModelImporter::jni::TypeInfos* types,
+                                    uint32_t count, const dmModelImporter::Sampler* samplers,
+                                    dmHashTable64<jobject>& cache)
+{
+    jobjectArray arr = env->NewObjectArray(count, types->m_SamplerJNI.cls, 0);
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        const Sampler* sampler = &samplers[i];
+
+        jobject obj = C2J_CreateSampler(env, types, sampler);
+        env->SetObjectArrayElement(arr, i, obj);
+
+        AddToCache(cache, sampler, obj);
+    }
+    return arr;
+
+}
+
+static jobjectArray CreateTexturesArray(JNIEnv* env, dmModelImporter::jni::TypeInfos* types,
+                                    uint32_t count, const dmModelImporter::Texture* textures,
+                                    dmHashTable64<jobject>& cache)
+{
+    jobjectArray arr = env->NewObjectArray(count, types->m_TextureJNI.cls, 0);
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        const Texture* texture = &textures[i];
+
+        jobject obj = env->AllocObject(types->m_TextureJNI.cls);
+        dmJNI::SetString(env, obj, types->m_TextureJNI.name, texture->m_Name);
+        dmJNI::SetUInt(env, obj, types->m_TextureJNI.index, texture->m_Index);
+
+        dmJNI::SetObject(env, obj, types->m_TextureJNI.image, GetFromCache(cache, texture->m_Image));
+        dmJNI::SetObject(env, obj, types->m_TextureJNI.sampler, GetFromCache(cache, texture->m_Sampler));
+        dmJNI::SetObject(env, obj, types->m_TextureJNI.basisuImage, GetFromCache(cache, texture->m_BasisuImage));
+        env->SetObjectArrayElement(arr, i, obj);
+
+        AddToCache(cache, texture, obj);
+    }
+    return arr;
+
+}
+
+// **************************************************
+// Material
 
 static jobjectArray CreateMaterialsArray(JNIEnv* env, dmModelImporter::jni::TypeInfos* types,
                         uint32_t count, const dmModelImporter::Material* materials,
@@ -65,14 +148,14 @@ static jobjectArray CreateMaterialsArray(JNIEnv* env, dmModelImporter::jni::Type
     for (uint32_t i = 0; i < count; ++i)
     {
         const dmModelImporter::Material* material = &materials[i];
-        jobject obj = CreateMaterial(env, types, material);
+        jobject obj = C2J_CreateMaterial(env, types, material);
         nodes[material->m_Index] = obj;
         env->SetObjectArrayElement(arr, material->m_Index, obj);
     }
     for (uint32_t i = 0; i < dynamic_count; ++i)
     {
         const dmModelImporter::Material* material = dynamic_materials[i];
-        jobject obj = CreateMaterial(env, types, material);
+        jobject obj = C2J_CreateMaterial(env, types, material);
         nodes[material->m_Index] = obj;
         env->SetObjectArrayElement(arr, material->m_Index, obj);
     }
@@ -379,11 +462,18 @@ static void DeleteLocalRefs(JNIEnv* env, dmArray<jobject>& objects)
 }
 
 // In our case we want to return array of length 0
-static jobjectArray CreateBufferArray(JNIEnv* env, dmModelImporter::jni::TypeInfos* types, const Buffer* src, uint32_t src_count)
+static jobjectArray CreateBufferArray(JNIEnv* env, dmModelImporter::jni::TypeInfos* types, const Buffer* src, uint32_t src_count, dmHashTable64<jobject>& cache)
 {
-    if (src == 0 || src_count == 0)
-        return env->NewObjectArray(src_count, types->m_BufferJNI.cls, 0);
-    return C2J_CreateBufferArray(env, types, src, src_count);
+    uint32_t count = src ? src_count : 0;
+    jobjectArray arr = env->NewObjectArray(count, types->m_BufferJNI.cls, 0);
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        jobject obj = C2J_CreateBuffer(env, types, &src[i]);
+        env->SetObjectArrayElement(arr, i, obj);
+
+        AddToCache(cache, &src[i], obj);
+    }
+    return arr;
 }
 
 static jobject CreateJavaScene(JNIEnv* env, const dmModelImporter::Scene* scene)
@@ -401,12 +491,19 @@ static jobject CreateJavaScene(JNIEnv* env, const dmModelImporter::Scene* scene)
     dmArray<jobject> roots;
     dmHashTable64<jobject> object_cache;
 
+    dmJNI::SetObjectDeref(env, obj, types->m_SceneJNI.buffers, CreateBufferArray(env, types, scene->m_Buffers.Begin(), scene->m_Buffers.Size(), object_cache));
+
+    dmJNI::SetObjectDeref(env, obj, types->m_SceneJNI.images, CreateImagesArray(env, types, scene->m_Images.Size(), scene->m_Images.Begin(), object_cache));
+    dmJNI::SetObjectDeref(env, obj, types->m_SceneJNI.samplers, CreateSamplersArray(env, types, scene->m_Samplers.Size(), scene->m_Samplers.Begin(), object_cache));
+    dmJNI::SetObjectDeref(env, obj, types->m_SceneJNI.textures, CreateTexturesArray(env, types, scene->m_Textures.Size(), scene->m_Textures.Begin(), object_cache));
+
     dmJNI::SetObjectDeref(env, obj, types->m_SceneJNI.materials, CreateMaterialsArray(env, types,
                                                                         scene->m_Materials.Size(), scene->m_Materials.Begin(),
                                                                         scene->m_DynamicMaterials.Size(), scene->m_DynamicMaterials.Begin(),
                                                                         materials));
 
-    // Creates all nodes, bur doesn't set setting skins/models
+
+    // Creates all nodes, but doesn't set setting skins/models
     CreateNodes(env, types, scene, nodes);
     CreateSkins(env, types, scene, skins);
     CreateModels(env, types, scene, materials, models);
@@ -433,7 +530,6 @@ static jobject CreateJavaScene(JNIEnv* env, const dmModelImporter::Scene* scene)
     dmJNI::SetObjectDeref(env, obj, types->m_SceneJNI.skins, CreateObjectArray(env, types->m_SkinJNI.cls, skins));
     dmJNI::SetObjectDeref(env, obj, types->m_SceneJNI.models, CreateObjectArray(env, types->m_ModelJNI.cls, models));
     dmJNI::SetObjectDeref(env, obj, types->m_SceneJNI.animations, CreateAnimationsArray(env, types, scene->m_Animations.Begin(), scene->m_Animations.Size(), nodes));
-    dmJNI::SetObjectDeref(env, obj, types->m_SceneJNI.buffers, CreateBufferArray(env, types, scene->m_Buffers.Begin(), scene->m_Buffers.Size()));
 
     DeleteLocalRefs(env, nodes);
     DeleteLocalRefs(env, skins);
