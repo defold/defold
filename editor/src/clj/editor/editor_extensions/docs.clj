@@ -15,9 +15,7 @@
 (ns editor.editor-extensions.docs
   (:require [clojure.string :as string]
             [editor.editor-extensions.ui-docs :as ui-docs]
-            [editor.lua-completion :as lua-completion]
-            [editor.system :as system]))
-
+            [editor.lua-completion :as lua-completion]))
 
 (defn editor-script-docs
   "Returns reducible with script doc maps covering the editor API"
@@ -183,7 +181,7 @@
          :description "Create a set transaction step.\n\nWhen the step is transacted using `editor.transact()`, it will set the node's property to a supplied value"}
         {:name "editor.version"
          :type :variable
-         :description (format "A string, version name of Defold.\n\ne.g. `\"%s\"`" (system/defold-version))}
+         :description "A string, version name of Defold"}
         {:name "editor.engine_sha1"
          :type :variable
          :description "A string, SHA1 of Defold engine"}
