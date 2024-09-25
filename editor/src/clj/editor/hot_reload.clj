@@ -42,14 +42,16 @@
             is-cached (when remote-etag (= etag remote-etag))
             file (io/file full-path)
             content-length (if is-cached
+                             ;; The engine does not support a cached response
+                             ;; that contains a content-length other than zero.
                              0
-                             (.length file)) ; Returns zero if not found.
+                             ;; Returns zero if not found.
+                             (.length file))
             content (when (and (= method "GET") (not is-cached))
                       (try
                         (Files/readAllBytes (Paths/get (.toURI file)))
                         (catch FileNotFoundException _
                           :not-found)))]
-        (println "is-cached?" method is-cached path etag remote-etag)
         (if (= content :not-found)
           http-util/not-found-response
           (let [response-headers
