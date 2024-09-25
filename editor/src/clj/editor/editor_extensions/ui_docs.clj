@@ -626,10 +626,10 @@
                           :doc resource-dialog-extensions-doc-string}
                          {:name "selection"
                           :types ["string"]
-                          :doc resource-dialog-title-doc-string}
+                          :doc "either <code>\"single\"</code> or <code>\"multiple\"</code>, defaults to <code>\"single\"</code>"}
                          {:name "title"
                           :types ["string"]
-                          :doc "dialog title, defaults to <code>\"Select Resource\"</code>"}])}]
+                          :doc resource-dialog-title-doc-string}])}]
    :returnvalues [{:name "value"
                    :types ["string" "string[]" "nil"]
                    :doc "if user made no selection, returns <code>nil</code>. Otherwise, if selection mode is <code>\"single\"</code>, returns selected resource path; otherwise returns a non-empty array of selected resource paths."}]})
