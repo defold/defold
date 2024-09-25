@@ -204,6 +204,55 @@
                                samplers))]
         (shader/make-shader _node-id (:shader-source augmented-vertex-shader-info) (:shader-source augmented-fragment-shader-info) uniforms array-sampler-name->slice-sampler-names))))
 
+(defn- vector-type->form-field-type [vector-type]
+  (case vector-type
+    :vector-type-scalar :vec4
+    :vector-type-vec2 :vec4
+    :vector-type-vec3 :vec4
+    :vector-type-vec4 :vec4
+    :vector-type-mat2 :mat4
+    :vector-type-mat3 :mat4
+    :vector-type-mat4 :mat4))
+
+(def ^:private vertex-attribute-fields
+  [{:path [:semantic-type]
+    :label "Semantic Type"
+    :type :choicebox
+    :options (protobuf-forms/make-enum-options Graphics$VertexAttribute$SemanticType)
+    :default graphics/default-attribute-semantic-type}
+   {:path [:step-function]
+    :label "Step Function"
+    :type :choicebox
+    :options (protobuf-forms/make-enum-options Graphics$VertexStepFunction)
+    :default graphics/default-attribute-step-function}
+   {:path [:coordinate-space]
+    :label "Coordinate Space"
+    :type :choicebox
+    :options (protobuf-forms/make-enum-options Graphics$CoordinateSpace)
+    :default :coordinate-space-local}
+   {:path [:data-type]
+    :label "Data Type"
+    :type :choicebox
+    :options (protobuf-forms/make-enum-options Graphics$VertexAttribute$DataType)
+    :default graphics/default-attribute-data-type}
+   {:path [:vector-type]
+    :label "Vector Type"
+    :type :choicebox
+    :options (protobuf-forms/make-enum-options Graphics$VertexAttribute$VectorType)
+    :default graphics/default-attribute-vector-type}
+   {:path [:values]
+    :label "Value"
+    :type (vector-type->form-field-type graphics/default-attribute-vector-type)
+    :default (graphics/default-attribute-doubles graphics/default-attribute-semantic-type graphics/default-attribute-vector-type)}
+   {:path [:normalize]
+    :label "Normalize"
+    :type :boolean
+    :default false}])
+
+(def ^:private ^long value-vertex-attribute-field-index
+  (util/first-index-where #(= [:values] (:path %))
+                          vertex-attribute-fields))
+
 (def ^:private form-data
   {:navigation false
    :sections
@@ -221,53 +270,25 @@
        :type :resource :filter "fp"}
       {:path [:attributes]
        :label "Vertex Attributes"
-       :type :table
-       :columns (let [semantic-type-values (protobuf/enum-values Graphics$VertexAttribute$SemanticType)
-                      data-type-values (protobuf/enum-values Graphics$VertexAttribute$DataType)
-                      coordinate-space-values (protobuf/enum-values Graphics$CoordinateSpace)
-                      vector-type-values (protobuf/enum-values Graphics$VertexAttribute$VectorType)
-                      vertex-step-function (protobuf/enum-values Graphics$VertexStepFunction)
-                      default-data-type graphics/default-attribute-data-type
-                      default-semantic-type graphics/default-attribute-semantic-type
-                      default-vector-type graphics/default-attribute-vector-type
-                      default-values (graphics/default-attribute-doubles default-semantic-type default-vector-type)
-                      default-step-function :vertex-step-function-vertex]
-                  [{:path [:name]
-                    :label "Name"
-                    :type :string}
-                   {:path [:semantic-type]
-                    :label "Semantic Type"
-                    :type :choicebox
-                    :options (protobuf-forms/make-options semantic-type-values)
-                    :default default-semantic-type}
-                   {:path [:data-type]
-                    :label "Data Type"
-                    :type :choicebox
-                    :options (protobuf-forms/make-options data-type-values)
-                    :default default-data-type}
-                   {:path [:vector-type]
-                    :label "Vector Type"
-                    :type :choicebox
-                    :options (protobuf-forms/make-options vector-type-values)
-                    :default default-vector-type}
-                   {:path [:normalize]
-                    :label "Normalize"
-                    :type :boolean
-                    :default false}
-                   {:path [:coordinate-space]
-                    :label "Coordinate Space"
-                    :type :choicebox
-                    :options (protobuf-forms/make-options coordinate-space-values)
-                    :default :coordinate-space-local}
-                   {:path [:step-function]
-                    :label "Step Function"
-                    :type :choicebox
-                    :options (protobuf-forms/make-options vertex-step-function)
-                    :default default-step-function}
-                   {:path [:values]
-                    :label "Value"
-                    :type :vec4
-                    :default default-values}])}
+       :type :2panel
+       :panel-key {:path [:name]
+                   :type :string
+                   :default "new_attribute"}
+       :panel-form-fn
+       (fn panel-form-fn [{:keys [semantic-type vector-type]
+                           :or {semantic-type graphics/default-attribute-semantic-type
+                                vector-type graphics/default-attribute-vector-type}
+                           :as _selected-attribute}]
+         {:sections
+          [{:fields
+            (assoc vertex-attribute-fields
+              value-vertex-attribute-field-index
+              (let [type (vector-type->form-field-type vector-type)
+                    default (graphics/default-attribute-doubles semantic-type vector-type)]
+                {:path [:values]
+                 :label "Value"
+                 :type type
+                 :default default}))}]})}
       (render-program-utils/gen-form-data-constants "Vertex Constants" :vertex-constants)
       (render-program-utils/gen-form-data-constants "Fragment Constants" :fragment-constants)
       (render-program-utils/gen-form-data-samplers "Samplers" :samplers)
@@ -278,7 +299,7 @@
       {:path [:vertex-space]
        :label "Vertex Space"
        :type :choicebox
-       :options (protobuf-forms/make-options (protobuf/enum-values Material$MaterialDesc$VertexSpace))
+       :options (protobuf-forms/make-enum-options Material$MaterialDesc$VertexSpace)
        :default (ffirst (protobuf/enum-values Material$MaterialDesc$VertexSpace))}
       {:path [:max-page-count]
        :label "Max Atlas Pages"

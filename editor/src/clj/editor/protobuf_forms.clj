@@ -16,7 +16,8 @@
   (:require [clojure.string :as str]
             [dynamo.graph :as g]
             [editor.protobuf :as protobuf]
-            [editor.util :as util])
+            [editor.util :as util]
+            [util.fn :as fn])
   (:import [com.dynamo.graphics.proto Graphics$PlatformProfile$OS Graphics$TextureFormatAlternative$CompressionLevel Graphics$TextureImage$CompressionType Graphics$TextureImage$TextureFormat Graphics$TextureProfiles]
            [com.dynamo.input.proto Input$Gamepad Input$GamepadMaps Input$GamepadType Input$InputBinding Input$Key Input$Mouse Input$Text Input$Touch]))
 
@@ -48,7 +49,12 @@
 
 (defn make-options [enum-values]
   (let [prefix-size (longest-prefix-size enum-values)]
-    (map (juxt first #(display-name-or-default % prefix-size)) enum-values)))
+    (mapv (juxt first #(display-name-or-default % prefix-size)) enum-values)))
+
+(defn- make-enum-options-raw [^Class pb-enum-class]
+  (make-options (protobuf/enum-values pb-enum-class)))
+
+(def make-enum-options (fn/memoize make-enum-options-raw))
 
 (defn- default-form-ops [node-id]
   {:form-ops {:user-data {:node-id node-id}

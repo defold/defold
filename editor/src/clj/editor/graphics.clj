@@ -18,7 +18,6 @@
             [editor.geom :as geom]
             [editor.gl.shader :as shader]
             [editor.gl.vertex2 :as vtx]
-            [editor.math :as math]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.types :as types]
@@ -79,6 +78,8 @@
 (def default-attribute-semantic-type (protobuf/default Graphics$VertexAttribute :semantic-type))
 
 (def default-attribute-vector-type (protobuf/default Graphics$VertexAttribute :vector-type))
+
+(def default-attribute-step-function (protobuf/default Graphics$VertexAttribute :step-function))
 
 (def ^:private attribute-data-type-infos
   [{:data-type :type-byte
