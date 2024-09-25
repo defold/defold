@@ -491,8 +491,9 @@
   ([basis node-id label]
    (direct-successor-types* basis [(pair node-id label)])))
 
-(defn ordered-descending [coll]
-  (->> coll
+(defn- flipped-descending-pairs [key-num-pairs]
+  (->> key-num-pairs
+       (map coll/flip)
        (sort (fn [[^long amount-a entry-a] [^long amount-b entry-b]]
                (cond (< amount-a amount-b) 1
                      (< amount-b amount-a) -1
@@ -505,11 +506,15 @@
   "Returns a sorted list of [occurrence-count entry]. The list is sorted by
   occurrence count in descending order."
   [coll]
-  (->> coll
-       (frequencies)
-       (map (fn [[entry occurrence-count]]
-              (pair occurrence-count entry)))
-       (ordered-descending)))
+  (flipped-descending-pairs (frequencies coll)))
+
+(defn make-report [pair-fn coll]
+  "Produce a list of [sum category] pairs from a sequence of items. The
+  resulting list will be in in descending order. The pair-fn is called for each
+  item in the sequence, and is expected to return a [category value] pair.
+  Returning nil from the pair-fn will exclude the item from the sum.
+  Otherwise, the values will be summed for each category to create the list."
+  (flipped-descending-pairs (coll/aggregate-into {} pair-fn + coll)))
 
 (defn cached-output-report
   "Returns a sorted list of what node outputs are in the system cache in the

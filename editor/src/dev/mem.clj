@@ -13,7 +13,11 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns mem
-  (:import [java.util List Locale]
+  (:require [dynamo.graph :as g]
+            [util.coll :as coll :refer [pair]])
+  (:import [clojure.lang Keyword Symbol]
+           [internal.node NodeTypeRef]
+           [java.util List Locale]
            [org.github.jamm FieldAndClassFilter FieldFilter Filters MemoryMeter MemoryMeterListener$Factory MemoryMeterStrategy]
            [org.github.jamm.listeners NoopMemoryMeterListener TreePrinter$Factory]
            [org.github.jamm.strategies MemoryMeterStrategies]))
@@ -216,3 +220,35 @@
                      (.measure memory-meter object)
                      (.measureDeep memory-meter object))]
      (cond-> byte-size (not bytes) size-text))))
+
+(defn size-report
+  "Given a sequence of objects and an object categorization function, returns a
+  sorted list of total memory allocated for each category in descending order.
+  The memory is reported as a human-readable string."
+  ([category-fn objects]
+   (size-report category-fn nil objects))
+  ([category-fn ignored-classes objects]
+   (let [memory-meter (make-memory-meter
+                        {:ignored-classes (into [Keyword
+                                                 Symbol]
+                                                ignored-classes)})
+         measure-opts {:bytes true
+                       :meter memory-meter}
+         pair-fn (juxt category-fn #(measure % measure-opts))]
+     (->> objects
+          (coll/aggregate-into {} pair-fn +)
+          (map coll/flip)
+          (sort-by first coll/descending-order)
+          (mapv (fn [[byte-size category]]
+                  (pair (size-text byte-size)
+                        category)))))))
+
+(defn node-size-report
+  "Returns a sorted list of what node types are referencing the most memory in
+  the system graph in the format [byte-size node-type-kw]. The list is sorted by
+  total bytes allocated in descending order."
+  []
+  (->> (:graphs @g/*the-system*)
+       (vals)
+       (coll/mapcat #(vals (:nodes %)))
+       (size-report #(:k (g/node-type %)) [NodeTypeRef])))
