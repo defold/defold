@@ -116,7 +116,7 @@
                         close
 
   Returns a message sink: a chan to put messages to send to the language server,
-  a message is a map with following keys:
+  a message is a map with the following keys:
     :method         server's JSON-RPC method name, a string, required
     :params         server's JSON-RPC method parameter map, optional
     :response-ch    a channel that might eventually receive a response and

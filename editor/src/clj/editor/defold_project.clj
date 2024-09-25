@@ -30,6 +30,7 @@
             [editor.handler :as handler]
             [editor.library :as library]
             [editor.lsp :as lsp]
+            [editor.os :as os]
             [editor.placeholder-resource :as placeholder-resource]
             [editor.progress :as progress]
             [editor.resource :as resource]
@@ -38,8 +39,8 @@
             [editor.resource-update :as resource-update]
             [editor.settings-core :as settings-core]
             [editor.ui :as ui]
-            [editor.util :as util]
             [editor.workspace :as workspace]
+            [internal.java :as java]
             [internal.util :as iutil]
             [schema.core :as s]
             [service.log :as log]
@@ -642,7 +643,7 @@
 
 (def ^:private bundle-targets
   (into []
-        (concat (when (util/is-mac-os?) [[:ios "iOS Application..."]]) ; macOS is required to sign iOS ipa.
+        (concat (when (os/is-mac-os?) [[:ios "iOS Application..."]]) ; macOS is required to sign iOS ipa.
                 [[:android "Android Application..."]
                  [:macos   "macOS Application..."]
                  [:windows "Windows Application..."]
@@ -906,8 +907,8 @@
           code-preprocessors (workspace/code-preprocessors workspace evaluation-context)
           code-transpilers (code-transpilers project)]
       (workspace/unpack-editor-plugins! workspace touched-resources)
-      (code.preprocessors/reload-lua-preprocessors! code-preprocessors workspace/class-loader)
-      (code.transpilers/reload-lua-transpilers! code-transpilers workspace workspace/class-loader)
+      (code.preprocessors/reload-lua-preprocessors! code-preprocessors java/class-loader)
+      (code.transpilers/reload-lua-transpilers! code-transpilers workspace java/class-loader)
       (workspace/load-clojure-editor-plugins! workspace touched-resources))))
 
 (defn- handle-resource-changes [project changes render-progress!]

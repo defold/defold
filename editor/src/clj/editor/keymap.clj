@@ -13,8 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.keymap
-  (:require [editor.ui :as ui]
-            [editor.util :as util]
+  (:require [editor.os :as os]
+            [editor.ui :as ui]
             [util.fn :as fn])
   (:import [javafx.scene Scene]
            [javafx.scene.input KeyCharacterCombination KeyCodeCombination KeyCombination KeyCombination$ModifierValue KeyEvent]))
@@ -385,7 +385,7 @@
            ["Z" :rotate-brush-90-degrees]]})
 
 (def default-host-key-bindings
-  (platform->default-key-bindings (util/os)))
+  (platform->default-key-bindings (os/os)))
 
 (def ^:private default-allowed-duplicate-shortcuts
   #{"Alt+Down"
@@ -518,7 +518,7 @@
 
 (defn typable?
   ([key-combo-data]
-   (typable? key-combo-data (util/os)))
+   (typable? key-combo-data (os/os)))
   ([{:keys [alt-down? control-down? meta-down?]} os]
    (let [mac? (= os :macos)]
      (-> typable-truth-table
@@ -595,7 +595,7 @@
                          allowed-duplicate-shortcuts
                          allowed-typable-shortcuts]
                   :or   {valid-command? fn/constantly-true
-                         platform (util/os)
+                         platform (os/os)
                          throw-on-error? false
                          allowed-duplicate-shortcuts default-allowed-duplicate-shortcuts
                          allowed-typable-shortcuts default-allowed-typable-shortcuts}}]

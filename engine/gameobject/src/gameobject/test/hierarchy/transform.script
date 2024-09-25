@@ -17,7 +17,7 @@ local EPSILON = 0.001
 function make_transform(p,r,s)
 	local trans = vmath.matrix4()
 	local scale = vmath.matrix4()
-	local rot   = vmath.matrix4_from_quat(r)
+	local rot   = vmath.matrix4_quat(r)
 
 	scale.m00 = s.x
 	scale.m11 = s.y

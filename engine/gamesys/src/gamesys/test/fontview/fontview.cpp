@@ -22,7 +22,7 @@
 
 #include "../../gamesys.h"
 
-#include "../../resources/res_font_map.h"
+#include "../../resources/res_font.h"
 #include "../../resources/res_fragment_program.h"
 #include "../../resources/res_vertex_program.h"
 #include "../../resources/res_material.h"
@@ -173,7 +173,7 @@ namespace dmFontView
                 return false;\
             }\
 
-            REGISTER_RESOURCE_TYPE("fontc", 0, dmGameSystem::ResFontMapCreate, 0, dmGameSystem::ResFontMapDestroy, dmGameSystem::ResFontMapRecreate);
+            REGISTER_RESOURCE_TYPE("fontc", 0, dmGameSystem::ResFontCreate, 0, dmGameSystem::ResFontDestroy, dmGameSystem::ResFontRecreate);
             REGISTER_RESOURCE_TYPE("vpc", dmGameSystem::ResVertexProgramPreload, dmGameSystem::ResVertexProgramCreate, 0, dmGameSystem::ResVertexProgramDestroy, dmGameSystem::ResVertexProgramRecreate);
             REGISTER_RESOURCE_TYPE("fpc", dmGameSystem::ResFragmentProgramPreload, dmGameSystem::ResFragmentProgramCreate, 0, dmGameSystem::ResFragmentProgramDestroy, dmGameSystem::ResFragmentProgramRecreate);
             REGISTER_RESOURCE_TYPE("materialc", 0, dmGameSystem::ResMaterialCreate, 0, dmGameSystem::ResMaterialDestroy, 0);

@@ -1,0 +1,20 @@
+local M = {}
+
+local function test_open_resource(resource_path) 
+    local success = pcall(editor.ui.open_resource, resource_path)
+    print("Open '" .. resource_path .. "': " .. (success and "ok" or "error"))
+end
+
+function M.get_commands()
+    return {{
+        label = "Test",
+        locations = {"Edit"},
+        run = function()
+            test_open_resource("/game.project")
+            test_open_resource("/does_not_exist.txt")
+            test_open_resource("not_a_resource_path.go")
+        end
+    }}
+end
+
+return M

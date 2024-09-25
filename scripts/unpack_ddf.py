@@ -162,6 +162,10 @@ def print_object(printer, msg):
     for descriptor in msg.DESCRIPTOR.fields:
         value = getattr(msg, descriptor.name)
 
+        if not descriptor.label == descriptor.LABEL_REPEATED:
+            if not msg.HasField(descriptor.name):
+                continue
+
         cls = TYPE_CONVERTERS.get(descriptor.full_name, None)
         if cls is not None:
             newvalue = cls()
