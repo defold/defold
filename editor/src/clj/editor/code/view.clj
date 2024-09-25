@@ -42,6 +42,7 @@
             [editor.lsp :as lsp]
             [editor.markdown :as markdown]
             [editor.notifications :as notifications]
+            [editor.os :as os]
             [editor.prefs :as prefs]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
@@ -50,7 +51,6 @@
             [editor.ui.bindings :as b]
             [editor.ui.fuzzy-choices :as fuzzy-choices]
             [editor.ui.fuzzy-choices-popup :as popup]
-            [editor.util :as eutil]
             [editor.view :as view]
             [editor.workspace :as workspace]
             [internal.util :as util]
@@ -3308,7 +3308,7 @@
       (insert-text! view-node ({"≃" "~="} x x)))))
 
 (defn- setup-input-method-requests! [^Canvas canvas view-node]
-  (when (eutil/is-linux?)
+  (when (os/is-linux?)
     (doto canvas
       (.setInputMethodRequests
         (reify InputMethodRequests

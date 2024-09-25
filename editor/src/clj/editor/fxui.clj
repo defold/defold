@@ -31,18 +31,18 @@
             [cljfx.mutator :as fx.mutator]
             [cljfx.prop :as fx.prop]
             [editor.error-reporting :as error-reporting]
-            [editor.ui :as ui]
-            [editor.util :as eutil])
+            [editor.os :as os]
+            [editor.ui :as ui])
   (:import [clojure.lang MultiFn]
            [com.defold.control ListCell]
            [java.util Collection]
            [javafx.application Platform]
+           [javafx.beans.property ReadOnlyProperty]
+           [javafx.beans.value ChangeListener]
            [javafx.collections ObservableList]
            [javafx.event Event]
            [javafx.scene Node]
-           [javafx.beans.property ReadOnlyProperty]
-           [javafx.beans.value ChangeListener]
-           [javafx.scene.control TextInputControl ListView ScrollPane]
+           [javafx.scene.control ListView ScrollPane TextInputControl]
            [javafx.stage Popup Window]
            [javafx.util Callback]))
 
@@ -398,7 +398,7 @@
   (assoc props
     :fx/type fx.stage/lifecycle
     :on-focused-changed ui/focus-change-listener
-    :icons (if (eutil/is-mac-os?) [] [ui/application-icon-image])))
+    :icons (if (os/is-mac-os?) [] [ui/application-icon-image])))
 
 (defn dialog-stage
   "Generic dialog `:stage` that mirrors behavior of `editor.ui/make-dialog-stage`"
