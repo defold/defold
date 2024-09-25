@@ -35,9 +35,9 @@
             [editor.fxui :as fxui]
             [editor.github :as github]
             [editor.handler :as handler]
+            [editor.os :as os]
             [editor.progress :as progress]
             [editor.ui :as ui]
-            [editor.util :as util]
             [service.log :as log])
   (:import [clojure.lang Named]
            [java.io File]
@@ -48,7 +48,7 @@
            [javafx.event Event]
            [javafx.scene Node]
            [javafx.scene.control ListView TextField]
-           [javafx.scene.input KeyCode KeyEvent MouseEvent MouseButton]
+           [javafx.scene.input KeyCode KeyEvent MouseButton MouseEvent]
            [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter Stage Window]
            [org.apache.commons.io FilenameUtils]))
 
@@ -455,7 +455,7 @@
                     :variant :header
                     :text "This is a very common issue. See if any of these instructions help:"}]
                   (cond->
-                    (util/is-linux?)
+                    (os/is-linux?)
                     (conj {:fx/type fx.hyperlink/lifecycle
                            :text "OpenGL on linux"
                            :on-action (fn [_] (ui/open-url "https://defold.com/faq/faq/#linux-questions"))}))

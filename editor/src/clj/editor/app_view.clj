@@ -55,6 +55,7 @@
             [editor.live-update-settings :as live-update-settings]
             [editor.lsp :as lsp]
             [editor.lua :as lua]
+            [editor.os :as os]
             [editor.pipeline :as pipeline]
             [editor.pipeline.bob :as bob]
             [editor.prefs :as prefs]
@@ -76,7 +77,6 @@
             [editor.types :as types]
             [editor.ui :as ui]
             [editor.url :as url]
-            [editor.util :as util]
             [editor.view :as view]
             [editor.workspace :as workspace]
             [internal.graph.types :as gt]
@@ -86,14 +86,13 @@
             [util.http-server :as http-server]
             [util.profiler :as profiler]
             [util.thread-util :as thread-util])
-  (:import [clojure.lang ExceptionInfo]
-           [com.defold.editor Editor]
+  (:import [com.defold.editor Editor]
            [com.defold.editor UIUtil]
            [com.dynamo.bob Platform]
            [com.dynamo.bob.bundle BundleHelper]
            [com.sun.javafx PlatformUtil]
            [com.sun.javafx.scene NodeHelper]
-           [java.io BufferedReader File IOException OutputStream PipedInputStream PipedOutputStream PrintWriter]
+           [java.io File OutputStream PipedInputStream PipedOutputStream PrintWriter]
            [java.net URL]
            [java.nio.charset StandardCharsets]
            [java.util Collection List]
@@ -2783,7 +2782,7 @@ If you do not specifically require different script states, consider changing th
 
 (def ^:private xdg-desktop-menu-path
   (delay
-    (when (util/is-linux?)
+    (when (os/is-linux?)
       (try
         (process/exec! "which" "xdg-desktop-menu")
         (catch Throwable _)))))

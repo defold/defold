@@ -35,10 +35,10 @@
             [editor.handler :as handler]
             [editor.lsp :as lsp]
             [editor.lsp.async :as lsp.async]
+            [editor.os :as os]
             [editor.process :as process]
             [editor.resource :as resource]
             [editor.system :as system]
-            [editor.util :as util]
             [editor.workspace :as workspace])
   (:import [com.dynamo.bob Platform]
            [java.nio.file FileAlreadyExistsException Files NotDirectoryException Path]
@@ -342,7 +342,7 @@
   (let [lua-lsp-root (str (system/defold-unpack-path) "/" (.getPair (Platform/getHostPlatform)) "/bin/lsp/lua")]
     #{{:languages #{"lua"}
        :watched-files [{:pattern "**/.luacheckrc"}]
-       :launcher {:command [(str lua-lsp-root "/bin/lua-language-server" (when (util/is-win32?) ".exe"))
+       :launcher {:command [(str lua-lsp-root "/bin/lua-language-server" (when (os/is-win32?) ".exe"))
                             (str "--configpath=" lua-lsp-root "/config.json")]}}}))
 
 (def language-servers-coercer

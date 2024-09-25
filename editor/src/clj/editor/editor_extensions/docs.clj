@@ -18,7 +18,6 @@
             [editor.lua-completion :as lua-completion]
             [editor.system :as system]))
 
-
 (defn editor-script-docs
   "Returns reducible with script doc maps covering the editor API"
   []
