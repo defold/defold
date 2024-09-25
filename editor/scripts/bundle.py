@@ -631,7 +631,7 @@ Commands:
   build                 Build editor
   bundle                Create editor bundle (zip) from built files
   sign                  Sign editor bundle (zip)
-  docs                  Produce docs (editor_doc.json, editor_doc.sdoc)
+  docs                  Produce docs (editor.apidoc)
   installer             Create editor installer from bundle (zip)'''
 
     parser = optparse.OptionParser(usage)
