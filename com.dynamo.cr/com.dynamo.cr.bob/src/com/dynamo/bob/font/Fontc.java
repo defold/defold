@@ -32,6 +32,7 @@ import java.awt.font.GlyphVector;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.FlatteningPathIterator;
 import java.awt.geom.PathIterator;
+import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
 import java.awt.image.ColorModel;
 import java.awt.image.ConvolveOp;
@@ -315,17 +316,21 @@ public class Fontc {
             }
         }
 
-        BufferedImage image = new BufferedImage(1024, 1024, BufferedImage.TYPE_3BYTE_BGR);
+        BufferedImage image = new BufferedImage(256, 256, BufferedImage.TYPE_3BYTE_BGR);
         Graphics2D g        = image.createGraphics();
         g.setBackground(Color.BLACK);
         g.clearRect(0, 0, image.getWidth(), image.getHeight());
         setHighQuality(g);
 
         FontMetrics fontMetrics = g.getFontMetrics(font);
-        int maxAscent           = fontMetrics.getMaxAscent();
-        int maxDescent          = fontMetrics.getMaxDescent();
-        glyphBankBuilder.setMaxAscent(maxAscent)
-                      .setMaxDescent(maxDescent);
+
+        Rectangle2D rect = fontMetrics.getMaxCharBounds(g);
+
+        glyphBankBuilder.setMaxAscent(fontMetrics.getMaxAscent())
+                        .setMaxDescent(fontMetrics.getMaxDescent())
+                        .setMaxAdvance(fontMetrics.getMaxAdvance())
+                        .setMaxWidth((float)rect.getWidth())
+                        .setMaxHeight((float)rect.getHeight());
     }
 
 
@@ -566,6 +571,11 @@ public class Fontc {
             cell_max_ascent  = Math.max(cell_max_ascent, ascent);
             cell_max_descent = Math.max(cell_max_descent, descent);
         }
+
+        // Make sure it fits future glyphs (provided at runtime)
+        cell_max_ascent  = (int)Math.ceil(Math.max(cell_max_ascent, glyphBankBuilder.getMaxAscent()));
+        cell_max_descent = (int)Math.ceil(Math.max(cell_max_descent, glyphBankBuilder.getMaxDescent()));
+        cell_width = (int)Math.ceil(Math.max(cell_width, glyphBankBuilder.getMaxWidth()));
 
         cell_height       = cell_max_ascent + cell_max_descent + padding * 2 + cell_padding * 2;
         cell_max_ascent  += padding;
@@ -1119,12 +1129,20 @@ public class Fontc {
             FontMap.Builder fontMapBuilder = FontMap.newBuilder();
             fontMapBuilder.setMaterial(BuilderUtil.replaceExt(fontDesc.getMaterial(), ".material", ".materialc"));
             fontMapBuilder.setGlyphBank(glyphBankProjectStr);
+
+            fontMapBuilder.setSize(fontDesc.getSize());
+            fontMapBuilder.setAntialias(fontDesc.getAntialias());
             fontMapBuilder.setShadowX(fontDesc.getShadowX());
             fontMapBuilder.setShadowY(fontDesc.getShadowY());
+            fontMapBuilder.setShadowBlur(fontDesc.getShadowBlur());
+            fontMapBuilder.setShadowAlpha(fontDesc.getShadowAlpha());
             fontMapBuilder.setAlpha(fontDesc.getAlpha());
             fontMapBuilder.setOutlineAlpha(fontDesc.getOutlineAlpha());
-            fontMapBuilder.setShadowAlpha(fontDesc.getShadowAlpha());
+            fontMapBuilder.setOutlineWidth(fontDesc.getOutlineWidth());
             fontMapBuilder.setLayerMask(GetFontMapLayerMask(fontDesc));
+
+            fontMapBuilder.setOutputFormat(fontDesc.getOutputFormat());
+            fontMapBuilder.setRenderMode(fontDesc.getRenderMode());
 
             fontMapBuilder.build().writeTo(fontMapOutputStream);
 

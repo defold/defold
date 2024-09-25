@@ -55,9 +55,13 @@ namespace dmRender
     /*#
      * Font map handle
      * @typedef
-     * @name HFontMap
+     * @name HFont
      */
+    typedef struct FontMap* HFont;
+
+    // Old typedef, used internally. We want to migrate towards HFont
     typedef struct FontMap* HFontMap;
+
 
     /*#
      * Shader constant handle
