@@ -85,7 +85,7 @@ public:
         self->m_Headers[key] = value;
     }
 
-    static void HttpContent(dmHttpClient::HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length)
+    static void HttpContent(dmHttpClient::HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length, const char* method)
     {
         dmHttpClientTest* self = (dmHttpClientTest*) user_data;
         self->m_StatusCode = status_code;
@@ -473,7 +473,7 @@ struct HttpStressHelper
         dmHttpClient::Delete(m_Client);
     }
 
-    static void HttpContent(dmHttpClient::HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length)
+    static void HttpContent(dmHttpClient::HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length, const char* method)
     {
         HttpStressHelper* self = (HttpStressHelper*) user_data;
         self->m_StatusCode = status_code;
