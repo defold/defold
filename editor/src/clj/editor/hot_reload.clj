@@ -19,6 +19,7 @@
             [util.http-util :as http-util])
   (:import [java.io FileNotFoundException]
            [java.net URI]
+           [java.nio.file Path Paths Files]
            [org.apache.commons.io FilenameUtils IOUtils]))
 
 (set! *warn-on-reflection* true)
@@ -40,13 +41,15 @@
             remote-etag (first (get headers "If-None-Match"))
             is-cached (when remote-etag (= etag remote-etag))
             file (io/file full-path)
-            content-length (.length file) ; Returns zero if not found.
-            content (when (not is-cached)
+            content-length (if is-cached
+                             0
+                             (.length file)) ; Returns zero if not found.
+            content (when (and (= method "GET") (not is-cached))
                       (try
-                        (with-open [is (io/input-stream file)]
-                          (IOUtils/toByteArray is))
+                        (Files/readAllBytes (Paths/get (.toURI file)))
                         (catch FileNotFoundException _
                           :not-found)))]
+        (println "is-cached?" method is-cached path etag remote-etag)
         (if (= content :not-found)
           http-util/not-found-response
           (let [response-headers

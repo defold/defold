@@ -112,6 +112,20 @@ static void DeleteHttpArchiveInternal(dmResourceProvider::HArchiveInternal _arch
     delete archive;
 }
 
+static dmHttpCache::Result CreateHTTPCache(HttpProviderContext* archive)
+{
+    dmHttpCache::NewParams cache_params = {};
+    char path[1024];
+    dmSys::Result sys_result = dmSys::GetApplicationSupportPath("defold", path, sizeof(path));
+    if (sys_result == dmSys::RESULT_OK)
+    {
+        dmStrlCat(path, "/http-cache-provider", sizeof(path));
+        cache_params.m_Path = path;
+        return dmHttpCache::Open(&cache_params, &archive->m_HttpCache);
+    }
+    return dmHttpCache::RESULT_INVAL;
+}
+
 static dmResourceProvider::Result Mount(const dmURI::Parts* uri, dmResourceProvider::HArchive base_archive, dmResourceProvider::HArchiveInternal* out_archive)
 {
     if (!MatchesUri(uri))
@@ -120,6 +134,12 @@ static dmResourceProvider::Result Mount(const dmURI::Parts* uri, dmResourceProvi
     HttpProviderContext* archive = new HttpProviderContext;
     memset(archive, 0, sizeof(HttpProviderContext));
     memcpy(&archive->m_BaseUri, uri, sizeof(dmURI::Parts));
+
+    dmHttpCache::Result cache_res = CreateHTTPCache(archive);
+    if (cache_res != dmHttpCache::RESULT_OK)
+    {
+        dmLogWarning("Unable to open cache for HTTP Provider (result=%d)", cache_res);
+    }
 
     dmHttpClient::NewParams http_params;
     http_params.m_HttpHeader = &HttpHeader;
@@ -171,7 +191,10 @@ static dmResourceProvider::Result GetRequestFromUri(HttpProviderContext* archive
     // if (factory->m_HttpCache)
     //     dmHttpCache::SetConsistencyPolicy(factory->m_HttpCache, dmHttpCache::CONSISTENCY_POLICY_TRUSTED);
 
-    if (http_result != dmHttpClient::RESULT_OK)
+    bool http_result_ok = http_result == dmHttpClient::RESULT_OK ||
+                          http_result == dmHttpClient::RESULT_NOT_200_OK && archive->m_HttpStatus == 304;
+
+    if (!http_result_ok)
     {
         if (archive->m_HttpStatus == 404)
         {

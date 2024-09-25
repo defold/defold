@@ -907,6 +907,8 @@ bail:
 
         sock_res = SendRequest(client, &response, path, method);
 
+        bool use_cache = !client->m_IgnoreCache && client->m_HttpCache && strcmp(method, "HEAD") != 0;
+
         if (sock_res != dmSocket::RESULT_OK)
         {
             return RESULT_SOCKET_ERROR;
@@ -942,7 +944,10 @@ bail:
             // Use cached version
             if (response.m_ContentLength == 0 || response.m_ContentLength == -1)
             {
-                r = HandleCached(client, path, &response);
+                if (use_cache)
+                {
+                    r = HandleCached(client, path, &response);
+                }
                 response.m_TotalReceived = 0;
             }
             else
@@ -956,7 +961,7 @@ bail:
         else
         {
             // Non-cached response
-            if (!client->m_IgnoreCache && client->m_HttpCache && response.m_Status == 200 /* OK */)
+            if (use_cache && response.m_Status == 200 /* OK */)
             {
                 dmHttpCache::Begin(client->m_HttpCache, client->m_URI, response.m_ETag, response.m_MaxAge, &response.m_CacheCreator);
             }

@@ -113,10 +113,11 @@ namespace dmHttpService
             return;
         }
 
-        uint32_t left = r.Capacity() - r.Size();
-        if (left < content_data_size) {
-            r.OffsetCapacity((int32_t) dmMath::Max(content_data_size - left, 128U * 1024U));
+        if (r.Capacity() < content_length)
+        {
+            r.SetCapacity(content_length);
         }
+
         r.PushArray((char*) content_data, content_data_size);
 
         if (worker->m_ReportProgress && content_data_size > 0)
