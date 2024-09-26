@@ -45,6 +45,12 @@ def build(bld):
                     use             = 'DDF DLIB',
                     target          = 'graphics_null')
 
+    obj = bld.stlib(features        = obj.features + ['skip_asan'],
+                    includes        = obj.includes,
+                    source          = obj.source,
+                    use             = obj.use,
+                    target          = 'graphics_null_noasan')
+
     obj.source = [x for x in obj.source if not x.name.endswith('graphics_glfw_wrappers.cpp')]
 
     if platform_supports_feature(bld.env.PLATFORM, 'opengl', {}):
