@@ -35,7 +35,8 @@
       (let [entryname (.getName entry)
             filename (.getName (io/file entryname))
             dest (io/file target-dir filename)]
-        (when (str/ends-with? filename ".sdoc")
+        (when (and (str/ends-with? filename ".sdoc")
+                   (not= filename "editor_doc.sdoc"))
           (io/copy (.getInputStream zip entry) dest))))))
 
 (defn- ref-doc-zip

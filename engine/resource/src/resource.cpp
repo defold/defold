@@ -1272,23 +1272,25 @@ Result GetExtensionFromType(HFactory factory, HResourceType type, const char** e
     return RESULT_UNKNOWN_RESOURCE_TYPE;
 }
 
+
+Result GetDescriptorByHash(HFactory factory, dmhash_t path_hash, HResourceDescriptor* descriptor)
+{
+    ResourceDescriptor* tmp_descriptor = factory->m_Resources->Get(path_hash);
+    if (tmp_descriptor)
+    {
+        *descriptor = tmp_descriptor;
+        return RESULT_OK;
+    }
+    return RESULT_NOT_LOADED;
+}
+
 Result GetDescriptor(HFactory factory, const char* name, HResourceDescriptor* descriptor)
 {
     char canonical_path[RESOURCE_PATH_MAX];
     GetCanonicalPath(name, canonical_path);
 
     uint64_t canonical_path_hash = dmHashBuffer64(canonical_path, strlen(canonical_path));
-
-    ResourceDescriptor* tmp_descriptor = factory->m_Resources->Get(canonical_path_hash);
-    if (tmp_descriptor)
-    {
-        *descriptor = tmp_descriptor;
-        return RESULT_OK;
-    }
-    else
-    {
-        return RESULT_NOT_LOADED;
-    }
+    return GetDescriptorByHash(factory, canonical_path_hash, descriptor);
 }
 
 Result GetDescriptorWithExt(HFactory factory, uint64_t hashed_name, const uint64_t* exts, uint32_t ext_count, HResourceDescriptor* descriptor)
@@ -1540,3 +1542,69 @@ const char* ResultToString(Result r)
 }
 
 } // namespace dmResource
+
+// The C interface
+void ResourceRegisterReloadedCallback(HResourceFactory factory, FResourceReloadedCallback callback, void* user_data)
+{
+    dmResource::RegisterResourceReloadedCallback(factory, callback, user_data);
+}
+
+void ResourceUnregisterReloadedCallback(HResourceFactory factory, FResourceReloadedCallback callback, void* user_data)
+{
+    dmResource::UnregisterResourceReloadedCallback(factory, callback, user_data);
+}
+
+void ResourceRegisterDecryptionFunction(FResourceDecryption decrypt_resource)
+{
+   dmResource::RegisterResourceDecryptionFunction((dmResource::FDecryptResource)decrypt_resource);
+}
+
+ResourceResult ResourceGet(HResourceFactory factory, const char* name, void** resource)
+{
+    return (ResourceResult)dmResource::Get(factory, name, resource);
+}
+
+ResourceResult ResourceGetByHash(HResourceFactory factory, dmhash_t name, void** resource)
+{
+    return (ResourceResult)dmResource::Get(factory, name, resource);
+}
+
+ResourceResult ResourceGetRaw(HResourceFactory factory, const char* name, void** resource, uint32_t* resource_size)
+{
+    return (ResourceResult)dmResource::GetRaw(factory, name, resource, resource_size);
+}
+
+ResourceResult ResourceGetDescriptor(HResourceFactory factory, const char* path, HResourceDescriptor* rd)
+{
+    return (ResourceResult)dmResource::GetDescriptor(factory, path, rd);
+}
+
+ResourceResult ResourceGetDescriptorByHash(HResourceFactory factory, dmhash_t path_hash, HResourceDescriptor* rd)
+{
+    return (ResourceResult)dmResource::GetDescriptorByHash(factory, path_hash, rd);
+}
+
+void ResourceRelease(HResourceFactory factory, void* resource)
+{
+    dmResource::Release(factory, resource);
+}
+
+bool ResourcePreloadHint(HResourcePreloadHintInfo info, const char* name)
+{
+    return dmResource::PreloadHint(info, name);
+}
+
+ResourceResult ResourceGetPath(HResourceFactory factory, const void* resource, dmhash_t* hash)
+{
+    return (ResourceResult)dmResource::GetPath(factory, resource, hash);
+}
+
+ResourceResult ResourceAddFile(HResourceFactory factory, const char* path, uint32_t size, const void* resource)
+{
+    return (ResourceResult)dmResource::AddFile(factory, path, size, resource);
+}
+
+ResourceResult ResourceRemoveFile(HResourceFactory factory, const char* path)
+{
+    return (ResourceResult)dmResource::RemoveFile(factory, path);
+}

@@ -256,15 +256,6 @@ namespace dmResource
     Result GetExtensionFromType(HFactory factory, HResourceType type, const char** extension);
 
     /**
-     * Get resource descriptor from resource (name)
-     * @param factory Factory handle
-     * @param name Resource name
-     * @param descriptor Returned resource descriptor
-     * @return RESULT_OK on success
-     */
-    Result GetDescriptor(HFactory factory, const char* name, HResourceDescriptor* descriptor);
-
-    /**
      * Get resource descriptor from resource (hash) with supplied extensions
      * @param factory Factory handle
      * @param hashed_name Resource name hash

@@ -280,7 +280,7 @@ namespace dmGameSystem
      * @param from [type:vector3] the world position of the start of the ray
      * @param to [type:vector3] the world position of the end of the ray
      * @param groups [type:table] a lua table containing the hashed groups for which to test collisions against
-     * @param [request_id] [type:number] a number between [0,-255]. It will be sent back in the response for identification, 0 by default
+     * @param [request_id] [type:number] a number in range [0,255]. It will be sent back in the response for identification, 0 by default
      * @examples
      *
      * How to perform a ray cast asynchronously:

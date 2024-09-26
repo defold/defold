@@ -55,6 +55,7 @@
             [editor.live-update-settings :as live-update-settings]
             [editor.lsp :as lsp]
             [editor.lua :as lua]
+            [editor.os :as os]
             [editor.pipeline :as pipeline]
             [editor.pipeline.bob :as bob]
             [editor.prefs :as prefs]
@@ -76,7 +77,6 @@
             [editor.types :as types]
             [editor.ui :as ui]
             [editor.url :as url]
-            [editor.util :as util]
             [editor.view :as view]
             [editor.workspace :as workspace]
             [internal.graph.types :as gt]
@@ -86,14 +86,13 @@
             [util.http-server :as http-server]
             [util.profiler :as profiler]
             [util.thread-util :as thread-util])
-  (:import [clojure.lang ExceptionInfo]
-           [com.defold.editor Editor]
+  (:import [com.defold.editor Editor]
            [com.defold.editor UIUtil]
            [com.dynamo.bob Platform]
            [com.dynamo.bob.bundle BundleHelper]
            [com.sun.javafx PlatformUtil]
            [com.sun.javafx.scene NodeHelper]
-           [java.io BufferedReader File IOException OutputStream PipedInputStream PipedOutputStream PrintWriter]
+           [java.io File OutputStream PipedInputStream PipedOutputStream PrintWriter]
            [java.net URL]
            [java.nio.charset StandardCharsets]
            [java.util Collection List]
@@ -630,32 +629,6 @@
     (build-errors-view/update-build-errors build-errors-view error-value)
     (show-build-errors! main-scene tool-tab-pane)))
 
-(def ^:private remote-log-pump-thread (atom nil))
-(def ^:private console-stream (atom nil))
-
-(defn- reset-remote-log-pump-thread! [^Thread new]
-  (when-let [old ^Thread @remote-log-pump-thread]
-    (.interrupt old))
-  (reset! remote-log-pump-thread new))
-
-(defn- start-log-pump! [log-stream sink-fn]
-  (doto (Thread. (fn []
-                   (try
-                     (let [this (Thread/currentThread)]
-                       (with-open [buffered-reader ^BufferedReader (io/reader log-stream :encoding "UTF-8")]
-                         (loop []
-                           (when-not (.isInterrupted this)
-                             (when-let [line (.readLine buffered-reader)] ; line of text or nil if eof reached
-                               (sink-fn line)
-                               (recur))))))
-                     (catch IOException _
-                       ;; Losing the log connection is ok and even expected
-                       nil)
-                     (catch InterruptedException _
-                       ;; Losing the log connection is ok and even expected
-                       nil))))
-    (.start)))
-
 (defn- local-url [target web-server]
   (format "http://%s:%s%s" (:local-address target) (http-server/port web-server) hot-reload/url-prefix))
 
@@ -784,7 +757,7 @@
           launched-targets (for [instance-index instance-index-range]
                              (let [last-instance? (or (= count 1) (= instance-index count))
                                    instance-debug? (and debug? last-instance?)
-                                   launched-target (->> (engine/launch! engine project-directory prefs instance-debug? instance-index)
+                                   launched-target (->> (engine/launch! engine project-directory prefs workspace instance-debug? instance-index)
                                                         (decorate-target engine-descriptor)
                                                         (targets/add-launched-target! instance-index))]
                                (when (not last-instance?)
@@ -801,23 +774,14 @@
       (report-build-launch-progress! "Launch failed")
       (throw e))))
 
-(defn- reset-console-stream! [stream]
-  (reset! console-stream stream)
-  (console/clear-console!))
-
-(defn- make-remote-log-sink [log-stream]
-  (fn [line]
-    (when (= @console-stream log-stream)
-      (console/append-console-line! line))))
-
-(defn- make-launched-log-sink [launched-target]
+(defn- make-launched-log-sink [launched-target on-service-url-found]
   (let [initial-output (atom "")]
     (fn [line]
       (when (< (count @initial-output) 5000)
         (swap! initial-output str line "\n")
         (when-let [target-info (engine/parse-launched-target-info @initial-output)]
-          (targets/update-launched-target! launched-target target-info)))
-      (when (= @console-stream (:log-stream launched-target))
+          (targets/update-launched-target! launched-target target-info on-service-url-found)))
+      (when (console/current-stream? (:log-stream launched-target))
         (console/append-console-line! line)))))
 
 (defn- reboot-engine! [target web-server debug?]
@@ -842,6 +806,9 @@
        (targets/controllable-target? target)
        (targets/remote-target? target)))
 
+(defn- on-service-url-found [prefs workspace target]
+  (engine/apply-simulated-resolution! prefs workspace target))
+
 (defn- launch-built-project! [project engine-descriptor project-directory prefs web-server debug? workspace]
   (let [selected-target (targets/selected-target prefs)
         launch-new-engine! (fn []
@@ -852,9 +819,9 @@
                                  (targets/when-url (:id launched-target)
                                                    #(on-launched-hook! project (:process launched-target) %))
                                  (let [log-stream (:log-stream launched-target)]
-                                   (reset-console-stream! log-stream)
-                                   (reset-remote-log-pump-thread! nil)
-                                   (start-log-pump! log-stream (make-launched-log-sink launched-target))))
+                                   (console/reset-console-stream! log-stream)
+                                   (console/reset-remote-log-pump-thread! nil)
+                                   (console/start-log-pump! log-stream (make-launched-log-sink launched-target (partial on-service-url-found prefs workspace)))))
                                last-launched-target))]
     (try
       (cond
@@ -868,8 +835,8 @@
 
         (target-cannot-swap-engine? selected-target)
         (let [log-stream (engine/get-log-service-stream selected-target)]
-          (reset-console-stream! log-stream)
-          (reset-remote-log-pump-thread! (start-log-pump! log-stream (make-remote-log-sink log-stream)))
+          (when log-stream
+            (console/set-log-service-stream log-stream))
           (reboot-engine! selected-target web-server debug?))
 
         :else
@@ -879,8 +846,8 @@
             (do
               ;; We're running "the same" engine and can reuse the
               ;; running process by rebooting
-              (reset-console-stream! (:log-stream selected-target))
-              (reset-remote-log-pump-thread! nil)
+              (console/reset-console-stream! (:log-stream selected-target))
+              (console/reset-remote-log-pump-thread! nil)
               ;; Launched target log pump already
               ;; running to keep engine process
               ;; from halting because stdout/err is
@@ -1337,14 +1304,10 @@ If you do not specifically require different script states, consider changing th
     (workspace/clear-build-cache! workspace)
     (build-handler project workspace prefs web-server build-errors-view main-stage tool-tab-pane)))
 
-(defn- pipe-log-stream-to-console! [input-stream]
-  (reset-console-stream! input-stream)
-  (reset-remote-log-pump-thread! (start-log-pump! input-stream (make-remote-log-sink input-stream))))
-
 (defn- start-new-log-pipe!
   ^PipedOutputStream []
   (let [in (PipedInputStream.)]
-    (pipe-log-stream-to-console! in)
+    (console/pipe-log-stream-to-console! in)
     (PipedOutputStream. in)))
 
 (handler/defhandler :build-html5 :global
@@ -1942,14 +1905,21 @@ If you do not specifically require different script states, consider changing th
          (log/error :exception e)
          nil)))
 
+(defn- merge-keymaps [prefs]
+  (let [custom-keymap (or (open-custom-keymap (prefs/get-prefs prefs "custom-keymap-path" "")) [])
+        default-keymap keymap/default-host-key-bindings]
+    (into []
+      (mapcat val)
+      (conj (group-by first default-keymap)
+            (group-by first custom-keymap)))))
+
 (defn make-app-view [view-graph project ^Stage stage ^MenuBar menu-bar ^SplitPane editor-tabs-split ^TabPane tool-tab-pane prefs]
   (let [app-scene (.getScene stage)]
     (ui/disable-menu-alt-key-mnemonic! menu-bar)
     (.setUseSystemMenuBar menu-bar true)
     (.setTitle stage (make-title))
     (let [editor-tab-pane (TabPane.)
-          keymap (or (open-custom-keymap (prefs/get-prefs prefs "custom-keymap-path" ""))
-                     keymap/default-host-key-bindings)
+          keymap (merge-keymaps prefs)
           app-view (first (g/tx-nodes-added (g/transact (g/make-node view-graph AppView
                                                                      :stage stage
                                                                      :scene app-scene
@@ -2688,7 +2658,7 @@ If you do not specifically require different script states, consider changing th
           platform (:platform-key last-bundle-options)]
       (bundle! main-stage tool-tab-pane changes-view build-errors-view project prefs platform last-bundle-options))))
 
-(defn reload-extensions! [app-view project kind workspace changes-view]
+(defn reload-extensions! [app-view project kind workspace changes-view prefs]
   (extensions/reload!
     project kind
     :reload-resources! (fn reload-resources! []
@@ -2718,9 +2688,17 @@ If you do not specifically require different script states, consider changing th
                                      (do (ui/user-data! (g/node-value app-view :scene) ::ui/refresh-requested? true)
                                          (future/complete! f nil))
                                      (future/fail! f (Exception. "Save failed")))))
-               f))))
+               f))
+    :open-resource! (fn open-resource! [resource]
+                      (let [f (future/make)]
+                        (ui/run-later
+                          (try
+                            (open-resource app-view prefs workspace project resource)
+                            (catch Throwable e (error-reporting/report-exception! e)))
+                          (future/complete! f nil))
+                        f))))
 
-(defn- fetch-libraries [app-view workspace project changes-view]
+(defn- fetch-libraries [app-view workspace project changes-view prefs]
   (let [library-uris (project/project-dependencies project)
         hosts (into #{} (map url/strip-path) library-uris)]
     (if-let [first-unreachable-host (first-where (complement url/reachable?) hosts)]
@@ -2743,28 +2721,28 @@ If you do not specifically require different script states, consider changing th
                   (disk/async-reload! render-install-progress! workspace [] changes-view
                                       (fn [success]
                                         (when success
-                                          (reload-extensions! app-view project :library workspace changes-view)))))))))))))
+                                          (reload-extensions! app-view project :library workspace changes-view prefs)))))))))))))
 
 (handler/defhandler :add-dependency :global
   (enabled? [] (disk-availability/available?))
-  (run [selection app-view workspace project changes-view user-data]
+  (run [selection app-view workspace project changes-view user-data prefs]
        (let [game-project (project/get-resource-node project "/game.project")
              dependencies (game-project/get-setting game-project ["project" "dependencies"])
              dependency-uri (.toURI (URL. (:dep-url user-data)))]
          (when (not-any? (partial = dependency-uri) dependencies)
            (game-project/set-setting! game-project ["project" "dependencies"]
                                       (conj (vec dependencies) dependency-uri))
-           (fetch-libraries app-view workspace project changes-view)))))
+           (fetch-libraries app-view workspace project changes-view prefs)))))
 
 (handler/defhandler :fetch-libraries :global
   (enabled? [] (disk-availability/available?))
-  (run [app-view workspace project changes-view]
-       (fetch-libraries app-view workspace project changes-view)))
+  (run [app-view workspace project changes-view prefs]
+       (fetch-libraries app-view workspace project changes-view prefs)))
 
 (handler/defhandler :reload-extensions :global
   (enabled? [] (disk-availability/available?))
-  (run [app-view project workspace changes-view]
-       (reload-extensions! app-view project :all workspace changes-view)))
+  (run [app-view project workspace changes-view prefs]
+       (reload-extensions! app-view project :all workspace changes-view prefs)))
 
 (defn- ensure-exists-and-open-for-editing! [proj-path app-view changes-view prefs project]
   (let [workspace (project/workspace project)
@@ -2804,7 +2782,7 @@ If you do not specifically require different script states, consider changing th
 
 (def ^:private xdg-desktop-menu-path
   (delay
-    (when (util/is-linux?)
+    (when (os/is-linux?)
       (try
         (process/exec! "which" "xdg-desktop-menu")
         (catch Throwable _)))))

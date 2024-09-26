@@ -24,7 +24,7 @@ namespace dmHID
     typedef void (*GamepadDriverDestroyCb)(HContext context, GamepadDriver* driver);
     typedef void (*GamepadDriverUpdateCb)(HContext context, GamepadDriver* driver, Gamepad* gamepad);
     typedef void (*GamepadDriverDetectDevicesCb)(HContext context, GamepadDriver* driver);
-    typedef void (*GamepadDriverGetGamepadDeviceNameCb)(HContext context, GamepadDriver*, Gamepad* gamepad, char* buffer, uint32_t buffer_length);
+    typedef void (*GamepadDriverGetGamepadDeviceNameCb)(HContext context, GamepadDriver*, Gamepad* gamepad, char name[MAX_GAMEPAD_NAME_LENGTH]);
 
     struct GamepadDriver
     {
@@ -37,7 +37,6 @@ namespace dmHID
 
     Gamepad*       CreateGamepad(HContext context, GamepadDriver* driver);
     void           ReleaseGamepad(HContext context, Gamepad* gamepad);
-    GamepadDriver* CreateGamepadDriverDInput(HContext context);
     GamepadDriver* CreateGamepadDriverGLFW(HContext context);
     void           SetGamepadConnectionStatus(HContext context, Gamepad* gamepad, bool connection_status);
 }

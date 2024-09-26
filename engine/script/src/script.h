@@ -283,6 +283,15 @@ namespace dmScript
      */
     bool IsVector(lua_State *L, int index);
 
+    /*# get the value at index as a dmVMath::FloatVector*
+     * Get the value at index as a dmVMath::FloatVector*
+     * @name dmScript::ToVector
+     * @param L [type:lua_State*] Lua state
+     * @param index [type:int] Index of the value
+     * @return v [type:dmVMath::FloatVector*] The pointer to the value, or 0 if not correct type
+     */
+    dmVMath::FloatVector* ToVector(lua_State *L, int index);
+
     /**
      * Push a FloatVector value onto the supplied lua state, will increase the stack by 1.
      * @param L Lua state

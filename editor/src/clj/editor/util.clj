@@ -14,8 +14,7 @@
 
 (ns editor.util
   (:require [clojure.string :as string])
-  (:import [com.dynamo.bob Platform]
-           [java.util Locale Comparator]))
+  (:import [java.util Locale Comparator]))
 
 (set! *warn-on-reflection* true)
 
@@ -138,22 +137,6 @@
    (reify Comparator
      (compare [_ a b]
        (.compare c (f a) (f b))))))
-
-(defn os-raw
-  "Returns :win32, :macos or :linux"
-  []
-  (keyword (.. Platform getHostPlatform getOs)))
-
-(def os (memoize os-raw))
-
-(defn is-mac-os? []
-  (= (os) :macos))
-
-(defn is-linux? []
-  (= (os) :linux))
-
-(defn is-win32? []
-  (= (os) :win32))
 
 (defn positions [pred coll]
   (keep-indexed (fn [idx x]

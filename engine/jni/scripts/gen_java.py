@@ -96,14 +96,14 @@ c_type_to_jni_capname = {
     'bool':     'Boolean',
     'char':     'Char',
     'int8_t':   'Byte',
-    'uint8_t':  'Byte',
+    'uint8_t':  'UByte',
     'int16_t':  'Short',
-    'uint16_t': 'Short',
+    'uint16_t': 'UShort',
     'int':      'Int',
     'int32_t':  'Int',
-    'uint32_t': 'Int',
+    'uint32_t': 'UInt', # same as Int, but we do a cast internally
     'int64_t':  'Long',
-    'uint64_t': 'Long',
+    'uint64_t': 'ULong',
     'float':    'Float',
     'double':   'Double',
 }

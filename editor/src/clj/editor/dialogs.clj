@@ -35,9 +35,9 @@
             [editor.fxui :as fxui]
             [editor.github :as github]
             [editor.handler :as handler]
+            [editor.os :as os]
             [editor.progress :as progress]
             [editor.ui :as ui]
-            [editor.util :as util]
             [service.log :as log])
   (:import [clojure.lang Named]
            [java.io File]
@@ -48,13 +48,13 @@
            [javafx.event Event]
            [javafx.scene Node]
            [javafx.scene.control ListView TextField]
-           [javafx.scene.input KeyCode KeyEvent MouseEvent MouseButton]
+           [javafx.scene.input KeyCode KeyEvent MouseButton MouseEvent]
            [javafx.stage DirectoryChooser FileChooser FileChooser$ExtensionFilter Stage Window]
            [org.apache.commons.io FilenameUtils]))
 
 (set! *warn-on-reflection* true)
 
-(defn- dialog-stage
+(defn dialog-stage
   "Dialog `:stage` that manages scene graph itself and provides layout common
   for many dialogs.
 
@@ -111,7 +111,7 @@
      :text header}
     header))
 
-(defn- dialog-buttons [props]
+(defn dialog-buttons [props]
   (-> props
       (assoc :fx/type fx.h-box/lifecycle)
       (fxui/provide-defaults :alignment :center-right)
@@ -263,10 +263,10 @@
                           :text "Set Resolution"
                           :on-action {:event-type :confirm}}]}}))
 
-(defn make-resolution-dialog []
+(defn make-resolution-dialog [data]
   (fxui/show-dialog-and-await-result!
-    :initial-state {:width-text "320"
-                    :height-text "420"}
+    :initial-state {:width-text (str (or (:width data) "320"))
+                    :height-text (str (or (:height data) "420"))}
     :event-handler (fn [state {:keys [fx/event event-type]}]
                      (case event-type
                        :set-width (assoc state :width-text event)
@@ -455,7 +455,7 @@
                     :variant :header
                     :text "This is a very common issue. See if any of these instructions help:"}]
                   (cond->
-                    (util/is-linux?)
+                    (os/is-linux?)
                     (conj {:fx/type fx.hyperlink/lifecycle
                            :text "OpenGL on linux"
                            :on-action (fn [_] (ui/open-url "https://defold.com/faq/faq/#linux-questions"))}))
@@ -546,11 +546,12 @@
                               (.put properties "isDefaultAnchor" true)))))))
 
 (defn- select-list-dialog
-  [{:keys [filter-term filtered-items title ok-label prompt cell-fn selection]
+  [{:keys [filter-term filtered-items title ok-label prompt cell-fn selection owner]
     :as props}]
   {:fx/type dialog-stage
    :title title
    :showing (fxui/dialog-showing? props)
+   :owner owner
    :on-close-request {:event-type :cancel}
    :size :large
    :header {:fx/type fxui/text-field
@@ -661,7 +662,8 @@
                       return a filtered coll of items
       :filter-on      if no custom :filter-fn is supplied, use this fn of item
                       to string for default filtering, defaults to str
-      :prompt         filter text field's prompt text"
+      :prompt         filter text field's prompt text
+      :owner          the owner window, defaults to main stage"
   ([items]
    (make-select-list-dialog items {}))
   ([items options]
@@ -684,6 +686,7 @@
                                 :ok-label (:ok-label options "OK")
                                 :prompt (:prompt options "Type to filter")
                                 :cell-fn cell-fn
+                                :owner (or (:owner options) (ui/main-stage))
                                 :selection (:selection options :single)})]
      (when result
        (let [{:keys [filter-term selected-items]} result]

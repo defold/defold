@@ -4,9 +4,9 @@
     -fx-font-size: 13.5px;
     & > Text {-fx-fill: -df-text;}
     & > .md {
-      &-h1 { -fx-font-size: 30px; }
-      &-h2 { -fx-font-size: 26px; }
-      &-h3 { -fx-font-size: 22px; }
+      &-h1 { -fx-font-size: 26px; -fx-font-family: "Source Sans Pro Light"; }
+      &-h2 { -fx-font-size: 24px; -fx-font-family: "Source Sans Pro Light"; }
+      &-h3 { -fx-font-size: 22px; -fx-font-family: "Source Sans Pro Light"; }
       &-h4 { -fx-font-size: 20px; }
       &-h5 { -fx-font-size: 18px; }
       &-h6 { -fx-font-size: 16px; }

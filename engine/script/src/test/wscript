@@ -58,7 +58,7 @@ def build(bld):
                                      exported_symbols = exported_symbols,
                                      proto_gen_py = True,
                                      target = 'test_script_vmath',
-                                     source = 'test_script_vmath.cpp test_number.lua test_vector.lua test_vector3.lua test_vector4.lua test_quat.lua test_matrix4.lua'.split())
+                                     source = 'test_script_vmath.cpp test_number.lua test_vector.lua test_vector3.lua test_vector4.lua test_quat.lua test_matrix4.lua test_script_vmath.lua'.split())
 
     script_table_features = flist + ' embed';
     test_script_table = bld.program(features = script_table_features,

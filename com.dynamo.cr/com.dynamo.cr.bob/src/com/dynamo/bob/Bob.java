@@ -544,6 +544,7 @@ public class Bob {
         // debug options
         addOption(options, null, "debug-ne-upload", false, "Outputs the files sent to build server as upload.zip", false);
         addOption(options, null, "debug-output-spirv", true, "Force build SPIR-V shaders", false);
+        addOption(options, null, "debug-output-wgsl", true, "Force build WGSL shaders", false);
 
         return options;
     }

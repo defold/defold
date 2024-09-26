@@ -18,9 +18,9 @@
   (:require [clojure.string :as string]
             [editor.editor-extensions.vm :as vm]
             [editor.util :as util]
-            [util.coll :as coll])
-  (:import [clojure.lang ITransientCollection]
-           [org.luaj.vm2 LuaDouble LuaError LuaInteger LuaString LuaValue Varargs]))
+            [util.coll :as coll]
+            [util.fn :as fn])
+  (:import [org.luaj.vm2 LuaDouble LuaError LuaInteger LuaString LuaValue]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -50,32 +50,79 @@
       (throw (LuaError. (failure-message vm ret)))
       ret)))
 
+(def enum-lua-value-cache
+  "A memoized function that converts a Clojure value to Lua value"
+  (fn/memoize vm/->lua))
+
+(defn schema
+  "Given a coercer, returns a schema, i.e. the expected data shape description
+
+  The returned map has a :type key that defines the rest of the map. The list of
+  possible types:
+    :nil         the expected Lua value is nil
+    :any         there are no expectations about the Lua value
+    :boolean     a boolean
+    :string      a string
+    :number      a number
+    :integer     an integer
+    :function    a function
+    :table       a table
+    :userdata    an userdata
+    :array       homogeneous array; extra keys:
+                   :item    schema of the expected item type
+    :tuple       heterogeneous array of a fixed size; extra keys:
+                   :items    a vector of schemas that describe expected Lua
+                             values
+    :one-of      union type, extra keys:
+                   :schemas    alternative schemas vector, guaranteed to have at
+                               least 2 schemas
+    :enum        the expected Lua value is defined by a fixed set of values;
+                 extra keys:
+                   :values    a vector of allowed values (JVM data structures,
+                              e.g. keywords, strings, number constants)"
+  [coercer]
+  {:post [(some? %)]}
+  (:schema (meta coercer)))
+
 (defn enum
   "Coercer that deserializes a LuaValue into one of the provided constants
 
   Works with keywords too."
   [& values]
-  (let [m (coll/pair-map-by vm/->lua values)]
+  (let [m (coll/pair-map-by enum-lua-value-cache values)
+        ks (mapv enum-lua-value-cache values)]
+    ^{:schema {:type :enum :values (vec values)}}
     (fn coerce-enum [vm x]
       (let [v (m x ::not-found)]
         (if (identical? ::not-found v)
-          (failure x (str "is not " (->> m
-                                         keys
+          (failure x (str "is not " (->> ks
                                          (mapv #(vm/lua-value->string vm %))
-                                         (sort)
                                          (util/join-words ", " " or "))))
           v)))))
 
 (def string
-  "Coercer the deserializes a Lua string into a string"
+  "Coercer that deserializes a Lua string into a string"
+  ^{:schema {:type :string}}
   (fn coerce-string
     [_ x]
     (if (instance? LuaString x)
       (str x)
       (failure x "is not a string"))))
 
+(def to-string
+  "Coercer that deserializes any Lua value to string"
+  ^{:schema {:type :any}}
+  (fn coerce-to-string [_ x]
+    ;; This coercer is equivalent to a simple toString call because default
+    ;; toString implementation in LuaJ is thread-safe. It's useful to have such
+    ;; a coercer still: any code that does Lua->Clojure transformation can use
+    ;; this namespace without concern if some functions are thread-safe and some
+    ;; are not
+    (str x)))
+
 (def integer
   "Coercer that deserializes a Lua integer into long"
+  ^{:schema {:type :integer}}
   (fn coerce-integer [_ ^LuaValue x]
     (if (.isinttype x)
       (.tolong x)
@@ -83,6 +130,7 @@
 
 (def number
   "Coercer that deserializes Lua number either to long or to double"
+  ^{:schema {:type :number}}
   (fn coerce-number [_ ^LuaValue x]
     (condp instance? x
       LuaInteger (.tolong x)
@@ -96,6 +144,8 @@
   [& coercers]
   {:pre [(not (empty? coercers))]}
   (let [coercers (vec coercers)]
+    ^{:schema {:type :tuple
+               :items (mapv schema coercers)}}
     (fn coerce-tuple [vm ^LuaValue x]
       (if (.istable x)
         (let [acc (vm/with-lock vm
@@ -113,12 +163,14 @@
         (failure x "is not a tuple")))))
 
 (def untouched
-  "Pass-through coercer that does not perform any deserialized"
+  "Pass-through coercer that does not perform any deserialization"
+  ^{:schema {:type :any}}
   (fn coerce-untouched [_ x]
     x))
 
 (def null
   "Coercer that deserializes Lua nil into nil"
+  ^{:schema {:type :nil}}
   (fn coerce-null [_ ^LuaValue x]
     (if (.isnil x)
       nil
@@ -126,6 +178,7 @@
 
 (def boolean
   "Boolean coercer, requires the value to be a Lua boolean"
+  ^{:schema {:type :boolean}}
   (fn coerce-boolean [_ ^LuaValue x]
     (if (.isboolean x)
       (.toboolean x)
@@ -133,16 +186,19 @@
 
 (def to-boolean
   "Boolean coercer, converts any LuaValue to boolean"
+  ^{:schema {:type :any}}
   (fn coerce-to-boolean [_ ^LuaValue x]
     (.toboolean x)))
 
 (def any
   "Generic transformation of Lua to Clojure"
+  ^{:schema {:type :any}}
   (fn coerce-any [vm x]
     (vm/->clj x vm)))
 
 (def userdata
   "Coercer that converts Lua userdata to the wrapped userdata object"
+  ^{:schema {:type :userdata}}
   (fn coerce-userdata [_ ^LuaValue x]
     (if (.isuserdata x)
       (.touserdata x)
@@ -150,6 +206,7 @@
 
 (def function
   "Coercer that checks that the Lua value is a function"
+  ^{:schema {:type :function}}
   (fn coerce-function [_ ^LuaValue x]
     (if (.isfunction x)
       x
@@ -158,6 +215,7 @@
 (defn wrap-with-pred
   "Wrap a coercer with an additional predicate that checks the coerced value"
   [coercer pred error-message]
+  ^{:schema (schema coercer)}
   (fn coerce-pred [vm x]
     (let [ret (coercer vm x)]
       (cond
@@ -172,7 +230,8 @@
     :min-count    minimum number of items in the collection
     :distinct     if true, ensures that the result does not have repeated items"
   [item-coercer & {:keys [min-count distinct]}]
-  (let [f (fn coerce-coll-of [vm ^LuaValue x]
+  (let [f ^{:schema {:type :array :item (schema item-coercer)}}
+          (fn coerce-coll-of [vm ^LuaValue x]
             (if (.istable x)
               (let [acc (vm/with-lock vm
                           (let [len (.rawlen x)]
@@ -210,7 +269,8 @@
         opts (mapv (fn [[k v]]
                      [(vm/->lua k) k v])
                    opt)]
-    (fn coerce-record [vm ^LuaValue x]
+    ^{:schema {:type :table}}
+    (fn coerce-hash-map [vm ^LuaValue x]
       (if (.istable x)
         (let [acc (transient {})
               acc (vm/with-lock vm
@@ -248,7 +308,14 @@
   "Tries several coercers in the provided order, returns first success result"
   [& coercers]
   {:pre [(not (empty? coercers))]}
-  (let [v (vec coercers)]
+  (let [v (vec coercers)
+        schemas (into []
+                      (comp
+                        (map schema)
+                        (mapcat #(if (identical? :one-of (:type %)) (:schemas %) [%]))
+                        (distinct))
+                      coercers)]
+    ^{:schema (if (= 1 (count schemas)) (schemas 0) {:type :one-of :schemas schemas})}
     (fn coerce-one-of [vm x]
       (let [ret (reduce
                   (fn [_ coercer]
@@ -285,6 +352,7 @@
   [k val->coerce]
   (let [lua-key (vm/->lua k)
         coerce-val (apply enum (keys val->coerce))]
+    ^{:schema {:type :table}}
     (fn coerce-by-key [vm ^LuaValue x]
       (if (.istable x)
         (let [^LuaValue lua-val (vm/with-lock vm (.rawget x ^LuaValue lua-key))]

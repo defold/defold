@@ -13,12 +13,12 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.ios-deploy
-  (:require [editor.util :as util]
-            [editor.process :as process]
-            [clojure.data.json :as json]
+  (:require [clojure.data.json :as json]
             [clojure.java.io :as io]
             [editor.fs :as fs]
-            [editor.prefs :as prefs])
+            [editor.os :as os]
+            [editor.prefs :as prefs]
+            [editor.process :as process])
   (:import [clojure.lang IReduceInit]))
 
 (defn get-ios-deploy-path
@@ -30,7 +30,7 @@
     (or (fs/existing-path prefs-path)
         (throw (ex-info (format "ios-deploy path defined in preferences does not exist: '%s'" prefs-path)
                         {:path prefs-path})))
-    (if (= :macos (util/os))
+    (if (= :macos (os/os))
       (or
         (try (fs/existing-path (process/exec! "which" "ios-deploy")) (catch Exception _))
         (fs/existing-path "/opt/homebrew/bin/ios-deploy")

@@ -3983,6 +3983,7 @@ static void LogFrameBufferError(GLenum status)
         return GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture)->m_MipMapCount;
     }
 
+#ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
     static bool GetTextureUniform(OpenGLContext* context, uint32_t unit, int32_t* index, Type* type)
     {
         uint32_t num_uniforms = context->m_CurrentProgram->m_Uniforms.Size();
@@ -3999,6 +4000,7 @@ static void LogFrameBufferError(GLenum status)
         }
         return false;
     }
+#endif
 
     static bool BindImage2D(OpenGLContext* context, OpenGLTexture* tex, uint32_t unit, uint32_t id_index, bool do_unbind = false)
     {

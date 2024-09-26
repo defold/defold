@@ -22,10 +22,11 @@
 #include "../../../../resource/src/resource_private.h"
 #include "../../../../gui/src/gui_private.h"
 
-#include "gamesys/resources/res_material.h"
-#include "gamesys/resources/res_textureset.h"
-#include "gamesys/resources/res_render_target.h"
 #include "gamesys/resources/res_compute.h"
+#include "gamesys/resources/res_font.h"
+#include "gamesys/resources/res_material.h"
+#include "gamesys/resources/res_render_target.h"
+#include "gamesys/resources/res_textureset.h"
 
 #include <stdio.h>
 
@@ -1518,23 +1519,115 @@ TEST_F(FontTest, GlyphBankTest)
 {
     const char path_font_1[] = "/font/glyph_bank_test_1.fontc";
     const char path_font_2[] = "/font/glyph_bank_test_2.fontc";
-    dmRender::HFontMap font_map_1;
-    dmRender::HFontMap font_map_2;
 
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path_font_1, (void**) &font_map_1));
+    dmGameSystem::FontResource* font_1;
+    dmGameSystem::FontResource* font_2;
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path_font_1, (void**) &font_1));
+    ASSERT_NE((void*)0, font_1);
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path_font_2, (void**) &font_2));
+    ASSERT_NE((void*)0, font_2);
+
+    dmRender::HFont font_map_1 = dmGameSystem::ResFontGetHandle(font_1);
     ASSERT_NE((void*)0, font_map_1);
-    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path_font_2, (void**) &font_map_2));
-    ASSERT_NE((void*)0, font_map_1);
+    dmRender::HFont font_map_2 = dmGameSystem::ResFontGetHandle(font_2);
+    ASSERT_NE((void*)0, font_map_2);
 
-    const void* glyph_data_1 = dmRender::GetGlyphData(font_map_1);
-    const void* glyph_data_2 = dmRender::GetGlyphData(font_map_2);
+    dmRender::FontGlyph* glyph_1 = dmRender::GetGlyph(font_map_1, 'A');
+    dmRender::FontGlyph* glyph_2 = dmRender::GetGlyph(font_map_2, 'A');
 
-    ASSERT_NE((void*)0, glyph_data_1);
-    ASSERT_NE((void*)0, glyph_data_2);
-    ASSERT_NE(glyph_data_1, glyph_data_2);
+    uint32_t glyph1_data_compression; // E.g. FONT_map_GLYPH_COMPRESSION_NONE;
+    uint32_t glyph1_data_size = 0;
+    uint32_t glyph1_image_width = 0;
+    uint32_t glyph1_image_height = 0;
+    const uint8_t* glyph1_data = dmRender::GetGlyphData(font_map_1, 'A', &glyph1_data_size, &glyph1_data_compression, &glyph1_image_width, &glyph1_image_height);
 
-    dmResource::Release(m_Factory, font_map_1);
-    dmResource::Release(m_Factory, font_map_2);
+    uint32_t glyph2_data_compression; // E.g. FONT_map_GLYPH_COMPRESSION_NONE;
+    uint32_t glyph2_data_size = 0;
+    uint32_t glyph2_image_width = 0;
+    uint32_t glyph2_image_height = 0;
+    const uint8_t* glyph2_data = dmRender::GetGlyphData(font_map_2, 'A', &glyph2_data_size, &glyph2_data_compression, &glyph2_image_width, &glyph2_image_height);
+
+    ASSERT_NE((void*)0, glyph_1);
+    ASSERT_NE((void*)0, glyph_2);
+    ASSERT_NE(glyph_1, glyph_2);
+    ASSERT_NE(glyph1_data, glyph2_data);
+
+    dmResource::Release(m_Factory, font_1);
+    dmResource::Release(m_Factory, font_2);
+}
+
+TEST_F(FontTest, DynamicGlyph)
+{
+    const char path_font[] = "/font/glyph_bank_test_1.fontc";
+    dmGameSystem::FontResource* font;
+
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, path_font, (void**) &font));
+    ASSERT_NE((void*)0, font);
+
+    dmRender::HFont font_map = dmGameSystem::ResFontGetHandle(font);
+
+    uint32_t codepoint = 'A';
+
+    {
+        dmRender::FontGlyph* glyph = dmRender::GetGlyph(font_map, codepoint);
+        ASSERT_NE((void*)0, glyph);
+
+        ASSERT_EQ(codepoint, glyph->m_Character);
+        ASSERT_EQ(14U, glyph->m_Width);
+        ASSERT_EQ(13U, glyph->m_Ascent);
+        ASSERT_EQ(2U, glyph->m_Descent);
+        ASSERT_EQ(0.0f, glyph->m_LeftBearing);
+        ASSERT_EQ(8.0f, glyph->m_Advance);
+    }
+
+    // Add a new glyph
+    const char* data = "Test Image Data";
+    uint32_t data_size = strlen(data) + 2;
+    {
+        uint8_t* mem = (uint8_t*)malloc(strlen(data) + 2);
+        memcpy(mem+1, data, data_size-1);
+        mem[0] = 0; // No compression
+
+        dmGameSystem::FontGlyph new_glyph;
+        new_glyph.m_Width = 1;
+        new_glyph.m_Height = 2;
+        new_glyph.m_Channels = 3;
+        new_glyph.m_Advance = 4;
+        new_glyph.m_LeftBearing = 5;
+        new_glyph.m_Ascent = 6;
+        new_glyph.m_Descent = 7;
+
+        dmResource::Result r = dmGameSystem::ResFontAddGlyph(font, codepoint, &new_glyph, mem, data_size);
+        ASSERT_EQ(dmResource::RESULT_OK, r);
+    }
+
+    {
+        uint32_t glyph_data_compression; // E.g. FONT_MAP_GLYPH_COMPRESSION_NONE;
+        uint32_t glyph_data_size = 0;
+        uint32_t glyph_image_width = 0;
+        uint32_t glyph_image_height = 0;
+        const uint8_t* glyph_data = dmRender::GetGlyphData(font_map, codepoint, &glyph_data_size, &glyph_data_compression, &glyph_image_width, &glyph_image_height);
+        ASSERT_NE((void*)0, glyph_data);
+
+        dmRender::FontGlyph* glyph = dmRender::GetGlyph(font_map, codepoint);
+        ASSERT_NE((void*)0, glyph);
+
+        ASSERT_EQ(0U, glyph_data_compression);
+        ASSERT_EQ(data_size-1, glyph_data_size);
+        ASSERT_EQ(1U, glyph_image_width);
+        ASSERT_EQ(2U, glyph_image_height);
+
+        ASSERT_EQ(codepoint, glyph->m_Character);
+        ASSERT_EQ(1U, glyph->m_Width);
+        ASSERT_EQ(4.0f, glyph->m_Advance);
+        ASSERT_EQ(5.0f, glyph->m_LeftBearing);
+        ASSERT_EQ(6U, glyph->m_Ascent);
+        ASSERT_EQ(7U, glyph->m_Descent);
+        ASSERT_STREQ(data, (const char*)glyph_data);
+    }
+
+    dmResource::Release(m_Factory, font);
 }
 
 TEST_F(WindowTest, MouseLock)
@@ -5360,7 +5453,7 @@ TEST_F(ShaderTest, ComputeResource)
     ASSERT_NE((dmGraphics::HComputeProgram) 0, graphics_compute_shader);
 
     dmGraphics::HProgram graphics_compute_program  = dmRender::GetComputeProgram(compute_program);
-    ASSERT_EQ(7, dmGraphics::GetUniformCount(graphics_compute_program));
+    ASSERT_EQ(9, dmGraphics::GetUniformCount(graphics_compute_program));
 
     dmRender::HConstant ca, cb, cc, cd;
     ASSERT_TRUE(dmRender::GetComputeProgramConstant(compute_program, dmHashString64("buffer_a"), ca));
@@ -5412,26 +5505,26 @@ TEST_F(ShaderTest, ComputeResource)
 
     // Note: texture_a is a storage texture, so we only have two actual samplers here:
     ASSERT_EQ(2, compute_program_res->m_NumTextures);
-
+    
     dmRender::Sampler* sampler_tex_b = dmRender::GetComputeProgramSampler(compute_program, 0);
     dmRender::Sampler* sampler_tex_c = dmRender::GetComputeProgramSampler(compute_program, 1);
 
     ASSERT_NE((dmRender::Sampler*) 0, sampler_tex_b);
-    ASSERT_EQ(dmHashString64("texture_b"),        sampler_tex_b->m_NameHash);
-    ASSERT_EQ(dmGraphics::TEXTURE_TYPE_2D,        sampler_tex_b->m_Type);
-    ASSERT_EQ(dmGraphics::TEXTURE_FILTER_NEAREST, sampler_tex_b->m_MinFilter);
-    ASSERT_EQ(dmGraphics::TEXTURE_FILTER_NEAREST, sampler_tex_b->m_MagFilter);
-    ASSERT_EQ(dmGraphics::TEXTURE_WRAP_REPEAT,    sampler_tex_b->m_UWrap);
-    ASSERT_EQ(dmGraphics::TEXTURE_WRAP_REPEAT,    sampler_tex_b->m_VWrap);
+    ASSERT_EQ(dmHashString64("texture_b"),            sampler_tex_b->m_NameHash);
+    ASSERT_EQ(dmGraphics::TEXTURE_TYPE_TEXTURE_2D,    sampler_tex_b->m_Type);
+    ASSERT_EQ(dmGraphics::TEXTURE_FILTER_NEAREST,     sampler_tex_b->m_MinFilter);
+    ASSERT_EQ(dmGraphics::TEXTURE_FILTER_NEAREST,     sampler_tex_b->m_MagFilter);
+    ASSERT_EQ(dmGraphics::TEXTURE_WRAP_REPEAT,        sampler_tex_b->m_UWrap);
+    ASSERT_EQ(dmGraphics::TEXTURE_WRAP_REPEAT,        sampler_tex_b->m_VWrap);
     ASSERT_NEAR(0.0f, sampler_tex_b->m_MaxAnisotropy, EPSILON);
 
     ASSERT_NE((dmRender::Sampler*) 0, sampler_tex_c);
-    ASSERT_EQ(dmHashString64("texture_c"),            sampler_tex_c->m_NameHash);
-    ASSERT_EQ(dmGraphics::TEXTURE_TYPE_2D,            sampler_tex_c->m_Type);
-    ASSERT_EQ(dmGraphics::TEXTURE_FILTER_LINEAR,      sampler_tex_c->m_MinFilter);
-    ASSERT_EQ(dmGraphics::TEXTURE_FILTER_LINEAR,      sampler_tex_c->m_MagFilter);
-    ASSERT_EQ(dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, sampler_tex_c->m_UWrap);
-    ASSERT_EQ(dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, sampler_tex_c->m_VWrap);
+    ASSERT_EQ(dmHashString64("texture_c"),             sampler_tex_c->m_NameHash);
+    ASSERT_EQ(dmGraphics::TEXTURE_TYPE_TEXTURE_2D,     sampler_tex_c->m_Type);
+    ASSERT_EQ(dmGraphics::TEXTURE_FILTER_LINEAR,       sampler_tex_c->m_MinFilter);
+    ASSERT_EQ(dmGraphics::TEXTURE_FILTER_LINEAR,       sampler_tex_c->m_MagFilter);
+    ASSERT_EQ(dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE,  sampler_tex_c->m_UWrap);
+    ASSERT_EQ(dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE,  sampler_tex_c->m_VWrap);
     ASSERT_NEAR(14.0f, sampler_tex_c->m_MaxAnisotropy, EPSILON);
 
     dmResource::Release(m_Factory, (void*) compute_program_res);

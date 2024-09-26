@@ -324,6 +324,7 @@
 (defn- make-curve-toggler
   ^ToggleButton [property-fn]
   (let [^ToggleButton toggle-button (doto (ToggleButton. nil (jfx/get-image-view "icons/32/Icons_X_03_Bezier.png" 12.0))
+                                      (.setFocusTraversable false)
                                       (ui/add-styles! ["embedded-properties-button"]))]
     (doto toggle-button
       (ui/on-action! (fn [_]
@@ -443,9 +444,11 @@
   (let [box           (GridPane.)
         browse-button (doto (Button. "\u2026") ; "..." (HORIZONTAL ELLIPSIS)
                         (.setPrefWidth 26)
+                        (.setFocusTraversable false)
                         (ui/add-style! "button-small"))
         open-button   (doto (Button. "" (jfx/get-image-view "icons/32/Icons_S_14_linkarrow.png" 16))
                         (.setMaxWidth 26)
+                        (.setFocusTraversable false)
                         (ui/add-style! "button-small"))
         text          (TextField.)
         dialog-opts (merge
@@ -666,6 +669,7 @@
         [^Node control update-ctrl-fn] (create-property-control! (:edit-type property) context
                                                                  (fn [] (property-fn key)))
         reset-btn (doto (Button. nil (jfx/get-image-view "icons/32/Icons_S_02_Reset.png"))
+                    (.setFocusTraversable false)
                     (ui/add-styles! ["clear-button" "button-small"])
                     (ui/on-action! (fn [_]
                                      (properties/clear-override! (property-fn key))
