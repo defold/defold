@@ -2163,11 +2163,14 @@ namespace dmGameSystem
         }
 
         dmRender::HMaterial material = GetComponentMaterial(component);
-        if (SetMaterialConstant(material, params.m_PropertyId, params.m_Value, params.m_Options.m_Index, CompSpriteSetConstantCallback, component) == dmGameObject::PROPERTY_RESULT_OK)
+        dmGameObject::PropertyResult res = SetMaterialConstant(material, params.m_PropertyId, params.m_Value, params.m_Options.m_Index, CompSpriteSetConstantCallback, component);
+
+        // Only check attributes if the constant property was not found
+        if (res == dmGameObject::PROPERTY_RESULT_NOT_FOUND)
         {
-            return dmGameObject::PROPERTY_RESULT_OK;
+            return SetMaterialAttribute(sprite_world->m_DynamicVertexAttributePool, &component->m_DynamicVertexAttributeIndex, material, set_property, params.m_Value, CompSpriteGetMaterialAttributeCallback, component);
         }
-        return SetMaterialAttribute(sprite_world->m_DynamicVertexAttributePool, &component->m_DynamicVertexAttributeIndex, material, set_property, params.m_Value, CompSpriteGetMaterialAttributeCallback, component);
+        return res;
     }
 
     static bool CompSpriteIterPropertiesGetNext(dmGameObject::SceneNodePropertyIterator* pit)

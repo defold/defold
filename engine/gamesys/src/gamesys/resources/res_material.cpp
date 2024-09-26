@@ -160,26 +160,57 @@ namespace dmGameSystem
         uint32_t fragment_count = ddf->m_FragmentConstants.m_Count;
         uint32_t vertex_count = ddf->m_VertexConstants.m_Count;
 
+        // TODO: We should merge the vertex and fragment constants in the source formats.
+
         // save pre-set fragment constants
         for (uint32_t i = 0; i < fragment_count; i++)
         {
             const char* name = fragment_constant[i].m_Name;
+            // TODO: Hash the name in the pipeline
             dmhash_t name_hash = dmHashString64(name);
-            dmRender::SetMaterialProgramConstantType(material, name_hash, fragment_constant[i].m_Type);
-            dmRender::SetMaterialProgramConstant(material, name_hash,
-                (dmVMath::Vector4*) fragment_constant[i].m_Value.m_Data, fragment_constant[i].m_Value.m_Count);
+
+            dmRender::HConstant constant;
+            if (dmRender::GetMaterialProgramConstant(material, name_hash, constant))
+            {
+                dmRender::SetMaterialProgramConstantType(material, name_hash, fragment_constant[i].m_Type);
+                dmRender::SetMaterialProgramConstant(material, name_hash,
+                    (dmVMath::Vector4*) fragment_constant[i].m_Value.m_Data, fragment_constant[i].m_Value.m_Count);
+            }
+            else
+            {
+                dmLogWarning("Material %s has specified a fragment constant named '%s', but it does not exist or isn't used in any of the shaders.", path, name);
+            }
         }
         // do the same for vertex constants
         for (uint32_t i = 0; i < vertex_count; i++)
         {
             const char* name = vertex_constant[i].m_Name;
+            // TODO: Hash the name in the pipeline
             dmhash_t name_hash = dmHashString64(name);
-            dmRender::SetMaterialProgramConstantType(material, name_hash, vertex_constant[i].m_Type);
-            dmRender::SetMaterialProgramConstant(material, name_hash,
-                (dmVMath::Vector4*) vertex_constant[i].m_Value.m_Data, vertex_constant[i].m_Value.m_Count);
+
+            dmRender::HConstant constant;
+            if (dmRender::GetMaterialProgramConstant(material, name_hash, constant))
+            {
+                dmRender::SetMaterialProgramConstantType(material, name_hash, vertex_constant[i].m_Type);
+                dmRender::SetMaterialProgramConstant(material, name_hash,
+                    (dmVMath::Vector4*) vertex_constant[i].m_Value.m_Data, vertex_constant[i].m_Value.m_Count);
+            }
+            else
+            {
+                dmLogWarning("Material %s has specified a vertex constant named '%s', but it does not exist or isn't used in any of the shaders.", path, name);
+            }
         }
 
-        // Set vertex attributes
+        // check for unused attributes and let the user know if they are
+        for (int i = 0; i < ddf->m_Attributes.m_Count; ++i)
+        {
+            if (dmRender::GetMaterialAttributeIndex(material, ddf->m_Attributes[i].m_NameHash) == dmRender::INVALID_MATERIAL_ATTRIBUTE_INDEX)
+            {
+                dmLogWarning("Material %s has specified a vertex attribute named '%s', but it does not exist or isn't used in any of the shaders.", path, ddf->m_Attributes[i].m_Name);
+            }
+        }
+
+        // Set all vertex attributes
         dmRender::SetMaterialProgramAttributes(material, ddf->m_Attributes.m_Data, ddf->m_Attributes.m_Count);
 
         dmRenderDDF::MaterialDesc::Sampler* sampler = ddf->m_Samplers.m_Data;
@@ -194,6 +225,7 @@ namespace dmGameSystem
             dmGraphics::TextureFilter magfilter = dmRender::FilterMagFromDDF(sampler[i].m_FilterMag);
             float anisotropy                    = sampler[i].m_MaxAnisotropy;
 
+            uint32_t sampler_unit_before = sampler_unit;
             if (dmRender::SetMaterialSampler(material, base_name_hash, sampler_unit, uwrap, vwrap, minfilter, magfilter, anisotropy))
             {
                 sampler_unit++;
@@ -205,6 +237,11 @@ namespace dmGameSystem
                 {
                     sampler_unit++;
                 }
+            }
+
+            if (sampler_unit_before == sampler_unit)
+            {
+                dmLogWarning("Material %s has specified a sampler named '%s', but it does not exist or isn't used in any of the shaders.", path, sampler[i].m_Name);
             }
         }
 
