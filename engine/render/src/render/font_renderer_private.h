@@ -165,7 +165,9 @@ namespace dmRender
     // Used in unit tests
     bool VerifyFontMapMinFilter(dmRender::HFontMap font_map, dmGraphics::TextureFilter filter);
     bool VerifyFontMapMagFilter(dmRender::HFontMap font_map, dmGraphics::TextureFilter filter);
-    const void* GetGlyphData(dmRender::HFontMap font_map);
+
+    dmRender::FontGlyph* GetGlyph(dmRender::HFontMap font_map, uint32_t codepoint);
+    const uint8_t*       GetGlyphData(dmRender::HFontMap font_map, uint32_t codepoint, uint32_t* out_size, uint32_t* out_compression, uint32_t* out_width, uint32_t* out_height);
 }
 
 #endif // #ifndef DM_FONT_RENDERER_PRIVATE

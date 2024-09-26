@@ -28,6 +28,8 @@ import com.dynamo.proto.DdfMath.Point3;
 import com.dynamo.proto.DdfMath.Quat;
 import com.dynamo.proto.DdfMath.Vector3;
 import com.dynamo.proto.DdfMath.Vector3One;
+import com.dynamo.proto.DdfMath.Vector4;
+import com.dynamo.proto.DdfMath.Vector4One;
 import com.dynamo.proto.DdfMath.Matrix4;
 import com.dynamo.proto.DdfMath.Transform;
 
@@ -63,9 +65,39 @@ public class MathUtil {
         return b.setX((float)p.getX()).setY((float)p.getY()).setZ((float)p.getZ()).build();
     }
 
+    public static Vector3 vecmathToDDF(float x, float y, float z) {
+        Vector3.Builder b = Vector3.newBuilder();
+        return b.setX(x).setY(y).setZ(z).build();
+    }
+
     public static Vector3One vecmathToDDFOne(Vector3d p) {
         Vector3One.Builder b = Vector3One.newBuilder();
         return b.setX((float)p.getX()).setY((float)p.getY()).setZ((float)p.getZ()).build();
+    }
+
+    public static Vector3One vecmathToDDFOne(float x, float y, float z) {
+        Vector3One.Builder b = Vector3One.newBuilder();
+        return b.setX(x).setY(y).setZ(z).build();
+    }
+
+    public static Vector4 vecmathToDDF(Vector4d p) {
+        Vector4.Builder b = Vector4.newBuilder();
+        return b.setX((float)p.getX()).setY((float)p.getY()).setZ((float)p.getZ()).setW((float)p.getW()).build();
+    }
+
+    public static Vector4One vecmathToDDFOne(Vector4d p) {
+        Vector4One.Builder b = Vector4One.newBuilder();
+        return b.setX((float)p.getX()).setY((float)p.getY()).setZ((float)p.getZ()).setW((float)p.getW()).build();
+    }
+
+    public static Vector4One vecmathToDDFOne(float x, float y, float z, float w) {
+        Vector4One.Builder b = Vector4One.newBuilder();
+        return b.setX(x).setY(y).setZ(z).setW(w).build();
+    }
+
+    public static Vector4 vecmathToDDF(float x, float y, float z, float w) {
+        Vector4.Builder b = Vector4.newBuilder();
+        return b.setX(x).setY(y).setZ(z).setW(w).build();
     }
 
     public static Transform vecmathToDDF(Vector3d t, Quat4d r, Vector3d s) {

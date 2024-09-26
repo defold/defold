@@ -53,9 +53,10 @@ namespace dmRender
     typedef struct BufferedRenderBuffer*    HBufferedRenderBuffer;
     typedef HOpaqueHandle                   HRenderCamera;
 
-    static const uint8_t RENDERLIST_INVALID_DISPATCH    = 0xff;
-    static const HRenderType INVALID_RENDER_TYPE_HANDLE = ~0ULL;
-    static const uint32_t INVALID_SAMPLER_UNIT          = 0xffffffff;
+    static const uint8_t RENDERLIST_INVALID_DISPATCH       = 0xff;
+    static const HRenderType INVALID_RENDER_TYPE_HANDLE    = ~0ULL;
+    static const uint32_t INVALID_SAMPLER_UNIT             = 0xffffffff;
+    static const uint8_t  INVALID_MATERIAL_ATTRIBUTE_INDEX = 0xff;
 
     /**
      * Display profiles handle
@@ -153,6 +154,15 @@ namespace dmRender
         float            m_OrthographicZoom;
         uint8_t          m_AutoAspectRatio        : 1;
         uint8_t          m_OrthographicProjection : 1;
+    };
+
+    struct MaterialProgramAttributeInfo
+    {
+        dmhash_t                           m_AttributeNameHash;
+        const dmGraphics::VertexAttribute* m_Attribute;
+        const uint8_t*                     m_ValuePtr;
+        dmhash_t                           m_ElementIds[4];
+        uint32_t                           m_ElementIndex;
     };
 
     HRenderContext NewRenderContext(dmGraphics::HContext graphics_context, const RenderContextParams& params);
@@ -259,15 +269,6 @@ namespace dmRender
     void                            SetMaterialProgramConstantType(HMaterial material, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type);
     bool                            GetMaterialProgramConstant(HMaterial, dmhash_t name_hash, HConstant& out_value);
 
-    struct MaterialProgramAttributeInfo
-    {
-        dmhash_t                           m_AttributeNameHash;
-        const dmGraphics::VertexAttribute* m_Attribute;
-        const uint8_t*                     m_ValuePtr;
-        dmhash_t                           m_ElementIds[4];
-        uint32_t                           m_ElementIndex;
-    };
-
     dmGraphics::HVertexDeclaration  GetVertexDeclaration(HMaterial material);
     dmGraphics::HVertexDeclaration  GetVertexDeclaration(HMaterial material, dmGraphics::VertexStepFunction step_function);
     bool                            GetMaterialProgramAttributeInfo(HMaterial material, dmhash_t name_hash, MaterialProgramAttributeInfo& info);
@@ -275,6 +276,7 @@ namespace dmRender
     void                            GetMaterialProgramAttributeValues(HMaterial material, uint32_t index, const uint8_t** value_ptr, uint32_t* num_values);
     void                            SetMaterialProgramAttributes(HMaterial material, const dmGraphics::VertexAttribute* attributes, uint32_t attributes_count);
     void                            GetMaterialProgramAttributeMetadata(HMaterial material, dmGraphics::VertexAttributeInfoMetadata* metadata);
+    uint8_t                         GetMaterialAttributeIndex(HMaterial material, dmhash_t name_hash);
 
     // Compute
     HComputeProgram                 NewComputeProgram(HRenderContext render_context, dmGraphics::HComputeProgram shader);
@@ -289,6 +291,7 @@ namespace dmRender
     void                            SetComputeProgramConstantType(HComputeProgram compute_program, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type);
     bool                            SetComputeProgramSampler(HComputeProgram compute_program, dmhash_t name_hash, uint32_t unit, dmGraphics::TextureWrap u_wrap, dmGraphics::TextureWrap v_wrap, dmGraphics::TextureFilter min_filter, dmGraphics::TextureFilter mag_filter, float max_anisotropy);
     uint32_t                        GetComputeProgramSamplerUnit(HComputeProgram compute_program, dmhash_t name_hash);
+    bool                            GetComputeProgramConstant(HComputeProgram compute_program, dmhash_t name_hash, HConstant& out_value);
 
     /** Retrieve info about a hash related to a program constant
      * The function checks if the hash matches a constant or any element of it.

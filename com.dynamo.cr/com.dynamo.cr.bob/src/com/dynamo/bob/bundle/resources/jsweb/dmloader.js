@@ -257,7 +257,7 @@ var EngineLoader = {
             function(error) { throw error; },
             function(wasm) {
                 if (wasm.byteLength != EngineLoader.wasm_size) {
-                    throw "Invalid wasm size. Expected: " + EngineLoader.wasm_size + ", actual: " + wasm.byteLength;
+                   console.warn("Unexpected wasm size:: " + wasm.byteLength + ", expected: " + EngineLoader.wasm_size);
                 }
                 var wasmInstantiate = WebAssembly.instantiate(new Uint8Array(wasm), imports).then(function(output) {
                     successCallback(output.instance);
@@ -801,6 +801,22 @@ var Module = {
         return { stack:stack, message:message };
     },
 
+    hasWebGPUSupport: function() {
+        var webgpu_support = false;
+        try {
+            var canvas = document.createElement("canvas");
+            var webgpu = canvas.getContext("webgpu");
+            if (webgpu && webgpu instanceof WebGPURenderingContext) {
+                webgpu_support = true;
+            }
+        } catch (error) {
+            console.log("An error occurred while detecting WebGPU support: " + error);
+            webgpu_support = false;
+        }
+
+        return webgpu_support;
+    },
+
     hasWebGLSupport: function() {
         var webgl_support = false;
         try {
@@ -831,7 +847,14 @@ var Module = {
         Module._isEngineLoaded = true;
         Module.setupCanvas(appCanvasId);
 
-        Module.arguments = CUSTOM_PARAMETERS["engine_arguments"];
+        Module.arguments = [];
+        for(let arg of CUSTOM_PARAMETERS["engine_arguments"])
+            Module.arguments.push(arg);
+        if(window.location.search) {
+            const params = new URLSearchParams(window.location.search);
+            for (const [key, value] of params)
+                Module.arguments.push(`--${key}=${value}`);
+        }
 
         var fullScreenContainer = CUSTOM_PARAMETERS["full_screen_container"];
         if (typeof fullScreenContainer === "string") {
@@ -839,7 +862,7 @@ var Module = {
         }
         Module.fullScreenContainer = fullScreenContainer || Module.canvas;
 
-        if (Module.hasWebGLSupport()) {
+        if (Module.hasWebGLSupport() || Module.hasWebGPUSupport()) {
             Module.canvas.focus();
 
             // Add context menu hide-handler if requested
@@ -1001,7 +1024,7 @@ var Module = {
         }
     },
 
-    _callMain: function() {
+    _callMain: function(argc, argv) {
         ProgressView.removeProgress();
         if (Module.callMain === undefined) {
             Module.noInitialRun = false;

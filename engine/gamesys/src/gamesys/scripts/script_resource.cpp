@@ -32,6 +32,7 @@
 #include "../gamesys.h"
 #include "../gamesys_private.h"
 #include "../resources/res_buffer.h"
+#include "../resources/res_font.h"
 #include "../resources/res_texture.h"
 #include "../resources/res_textureset.h"
 #include "../resources/res_render_target.h"
@@ -3080,7 +3081,7 @@ static int GetTextMetrics(lua_State* L)
     size_t len = 0;
     const char* text = luaL_checklstring(L, 2, &len);
 
-    dmRender::HFontMap font_map = (dmRender::HFontMap)CheckResource(L, g_ResourceModule.m_Factory, path_hash, "fontc");;
+    dmGameSystem::FontResource* font = (dmGameSystem::FontResource*)CheckResource(L, g_ResourceModule.m_Factory, path_hash, "fontc");;
 
     bool line_break = false;
     float leading = 1.0f;
@@ -3097,7 +3098,7 @@ static int GetTextMetrics(lua_State* L)
     }
 
     dmRender::TextMetrics metrics;
-    dmRender::GetTextMetrics(font_map, text, width, line_break, leading, tracking, &metrics);
+    dmRender::GetTextMetrics(dmGameSystem::ResFontGetHandle(font), text, width, line_break, leading, tracking, &metrics);
     PushTextMetricsTable(L, &metrics);
     return 1;
 }

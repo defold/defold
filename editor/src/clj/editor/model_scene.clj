@@ -201,7 +201,7 @@
                                    :vertex-space-local :coordinate-space-local
                                    :vertex-space-world :coordinate-space-world)
         vertex-description (or override-vertex-description
-                               (let [manufactured-attribute-keys [:position :texcoord0 :normal :tangent :mtx-world :mtx-normal]
+                               (let [manufactured-attribute-keys [:position :texcoord0 :normal :tangent :color :mtx-world :mtx-normal]
                                      shader-bound-attributes (graphics/shader-bound-attributes gl shader material-attribute-infos manufactured-attribute-keys default-coordinate-space)]
                                  (graphics/make-vertex-description shader-bound-attributes)))
         vertex-attributes (:attributes vertex-description)

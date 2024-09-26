@@ -83,7 +83,7 @@ public class AnimationSetBuilder extends Builder  {
         animFiles.add(path);
     }
 
-    private void buildAnimations(Task task, boolean isAnimationSet, ModelImporter.DataResolver dataResolver, AnimationSetDesc.Builder animSetDescBuilder, AnimationSet.Builder animationSetBuilder,
+    private void buildAnimations(Task task, boolean isAnimationSet, ModelImporterJni.DataResolver dataResolver, AnimationSetDesc.Builder animSetDescBuilder, AnimationSet.Builder animationSetBuilder,
                                             String parentId, ArrayList<String> animFiles) throws CompileExceptionError, IOException {
         ArrayList<String> idList = new ArrayList<>(animSetDescBuilder.getAnimationsCount());
 
@@ -166,10 +166,10 @@ public class AnimationSetBuilder extends Builder  {
     }
 
     static void loadModelAnimations(boolean isAnimationSet, AnimationSet.Builder animationSetBuilder,
-                                    InputStream is, ModelImporter.DataResolver dataResolver, String animId, String parentId,
+                                    InputStream is, ModelImporterJni.DataResolver dataResolver, String animId, String parentId,
                                     String path, ArrayList<String> animationIds) throws IOException {
 
-        ModelImporter.Scene scene = ModelUtil.loadScene(is, path, new ModelImporter.Options(), dataResolver);
+        Modelimporter.Scene scene = ModelUtil.loadScene(is, path, new Modelimporter.Options(), dataResolver);
 
         ArrayList<String> localAnimationIds = new ArrayList<String>();
         AnimationSet.Builder animBuilder = AnimationSet.newBuilder();
@@ -184,7 +184,7 @@ public class AnimationSetBuilder extends Builder  {
         ModelUtil.unloadScene(scene);
     }
 
-    public static class ResourceDataResolver implements ModelImporter.DataResolver
+    public static class ResourceDataResolver implements ModelImporterJni.DataResolver
     {
         Project project;
 
@@ -210,7 +210,7 @@ public class AnimationSetBuilder extends Builder  {
     };
 
     // For the editor
-    static public void buildAnimations(boolean isAnimationSet, List<String> paths, List<InputStream> streams, ModelImporter.DataResolver dataResolver, List<String> parentIds,
+    static public void buildAnimations(boolean isAnimationSet, List<String> paths, List<InputStream> streams, ModelImporterJni.DataResolver dataResolver, List<String> parentIds,
                              AnimationSet.Builder animationSetBuilder, ArrayList<String> animationIds) throws IOException, CompileExceptionError {
 
 

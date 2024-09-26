@@ -18,14 +18,14 @@
             [clojure.spec.alpha :as s]
             [clojure.string :as string]
             [dynamo.graph :as g]
+            [editor.code-completion :as code-completion]
             [editor.code.data :as data]
             [editor.lsp.async :as lsp.async]
-            [editor.code-completion :as code-completion]
             [editor.lsp.base :as lsp.base]
             [editor.lsp.jsonrpc :as lsp.jsonrpc]
             [editor.lua :as lua]
+            [editor.os :as os]
             [editor.resource :as resource]
-            [editor.util :as util]
             [editor.workspace :as workspace]
             [service.log :as log])
   (:import [editor.code.data Cursor CursorRange]
@@ -110,7 +110,7 @@
   (->RawRequest notification result-converter))
 
 (defn- make-uri-string [abs-path]
-  (let [path (if (util/is-win32?)
+  (let [path (if (os/is-win32?)
                (str "/" (string/replace abs-path "\\" "/"))
                abs-path)]
     (str (URI. "file" "" path nil))))
@@ -348,7 +348,7 @@
 
   Required args:
     project     defold project node id
-    launcher    the server launcher, e.g. a map with following keys:
+    launcher    the server launcher, e.g. a map with the following keys:
                   :command    a shell command to launch the language process,
                               vector of strings, required
     in          input channel that server will take items from to execute,

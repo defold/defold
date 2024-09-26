@@ -280,13 +280,20 @@ def extract_build_jdk(build_jdk):
     else:
         return 'build/jdk/jdk-%s' % java_version
 
-def check_reflections(java_cmd_env):
+def create_lein_env(jdk_path=None):
+    env = os.environ.copy()
+    env["LEIN_HOME"] = "target/lein"
+    if jdk_path:
+        env["JAVA_CMD"] = '%s/bin/java' % jdk_path
+    return env
+
+def check_reflections(lein_env):
     reflection_prefix = 'Reflection warning, ' # final space important
     included_reflections = ['editor/', 'util/'] # [] = include all
     ignored_reflections = []
 
     # lein check puts reflection warnings on stderr, redirect to stdout to capture all output
-    output = run.command(['env', java_cmd_env, 'bash', './scripts/lein', 'with-profile', '+headless', 'check-and-exit'])
+    output = run.command(['./scripts/lein', 'with-profile', '+headless', 'check-and-exit'], env = lein_env)
     lines = output.splitlines()
     reflection_lines = (line for line in lines if re.match(reflection_prefix, line))
     reflections = (re.match('(' + reflection_prefix + ')(.*)', line).group(2) for line in reflection_lines)
@@ -298,31 +305,37 @@ def check_reflections(java_cmd_env):
             print(failure)
         exit(1)
 
+def write_docs(docs_dir, lein_env):
+    run.command(['./scripts/lein', 'with-profile', '+docs', 'run', '-m', 'editor.docs', docs_dir],
+                stdout = True,
+                env = lein_env)
 
 def build(options):
     build_jdk = download_build_jdk()
     extracted_build_jdk = extract_build_jdk(build_jdk)
-    java_cmd_env = 'JAVA_CMD=%s/bin/java' % extracted_build_jdk
+    lein_env = create_lein_env(jdk_path=extracted_build_jdk)
 
     print('Building editor')
 
-    init_command = ['env', java_cmd_env, 'bash', './scripts/lein', 'with-profile', '+release', 'init']
+    init_command = ['./scripts/lein', 'with-profile', '+release', 'init']
     if options.engine_sha1:
         init_command += [options.engine_sha1]
 
-    run.command(init_command)
+    run.command(init_command, env = lein_env)
 
-    build_ns_batches_command = ['env', java_cmd_env, 'bash', './scripts/lein', 'with-profile', '+release', 'build-ns-batches']
-    run.command(build_ns_batches_command)
+    build_ns_batches_command = ['./scripts/lein', 'with-profile', '+release', 'build-ns-batches']
+    run.command(build_ns_batches_command, env = lein_env)
 
-    check_reflections(java_cmd_env)
+    check_reflections(lein_env)
 
     if options.skip_tests:
         print('Skipping tests')
     else:
-        run.command(['env', java_cmd_env, 'bash', './scripts/lein', 'test'])
+        run.command(['./scripts/lein', 'test'], env = lein_env)
+        # test that docs can be successfully produced
+        write_docs('target/docs', lein_env)
 
-    run.command(['env', java_cmd_env, 'bash', './scripts/lein', 'prerelease'])
+    run.command(['./scripts/lein', 'prerelease'], env = lein_env)
 
 
 def get_exe_suffix(platform):
@@ -398,12 +411,12 @@ def remove_platform_files_from_archive(platform, jar):
 def create_bundle(options):
     build_jdk = download_build_jdk()
     extracted_build_jdk = extract_build_jdk(build_jdk)
-    java_cmd_env = 'JAVA_CMD=%s/bin/java' % extracted_build_jdk
+    lein_env = create_lein_env(jdk_path=extracted_build_jdk)
 
     mkdirs('target/editor')
     for platform in options.target_platform:
         print("Creating uberjar for platform %s" % platform)
-        run.command(['env', java_cmd_env, 'bash', './scripts/lein', 'with-profile', 'release,%s' % platform, 'uberjar'])
+        run.command(['./scripts/lein', 'with-profile', 'release,%s' % platform, 'uberjar'], env = lein_env)
         jar_file = 'target/editor-%s-standalone.jar' % platform
         print("Creating bundle for platform %s" % platform)
         rmtree('tmp')
@@ -618,6 +631,7 @@ Commands:
   build                 Build editor
   bundle                Create editor bundle (zip) from built files
   sign                  Sign editor bundle (zip)
+  docs                  Produce docs (editor.apidoc)
   installer             Create editor installer from bundle (zip)'''
 
     parser = optparse.OptionParser(usage)
@@ -691,6 +705,11 @@ Commands:
                       default = "target/editor",
                       help = 'Path to directory containing editor bundles')
 
+    parser.add_option('--docs-dir',
+                      default = 'target/docs',
+                      dest = 'docs_dir',
+                      help = 'Path to directory for docs output')
+
     options, commands = parser.parse_args()
 
     if (("bundle" in commands) or ("installer" in commands) or ("sign" in commands)) and not options.target_platform:
@@ -722,6 +741,8 @@ Commands:
     print('Resolved engine_artifacts=%s to sha1=%s' % (options.engine_artifacts, options.engine_sha1))
 
     for command in commands:
+        if command == "docs":
+            write_docs(options.docs_dir, create_lein_env())
         if command == "build":
             build(options)
         elif command == "sign":

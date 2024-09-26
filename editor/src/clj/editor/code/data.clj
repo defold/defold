@@ -1489,7 +1489,9 @@
         previous-version (hash lines)
         change {:previous-version previous-version
                 :current-version (hash new-lines)
-                :ascending-cursor-ranges-and-replacements ascending-cursor-ranges-and-replacements}]
+                :ascending-cursor-ranges-and-replacements (mapv (fn [[cursor-range replacement]]
+                                                                  [(adjust-cursor-range lines cursor-range) replacement])
+                                                                ascending-cursor-ranges-and-replacements)}]
     (with-meta
       new-lines
       (update (meta lines)
@@ -1513,23 +1515,28 @@
   (let [changes (::changes (meta new-lines))]
     (when (and changes (= (hash new-lines) (:current-version (peek changes))))
       (let [old-version (hash old-lines)
-            ret (into
-                  []
-                  (comp
-                    (drop-while #(not= old-version (:previous-version %)))
-                    (map :ascending-cursor-ranges-and-replacements)
-                    (mapcat
-                      (fn [ascending-cursor-ranges-and-replacements]
-                        (eduction
-                          (map (fn [[cursor-range replacement]]
-                                 [(->CursorRange
-                                    (cursor-range-start cursor-range)
-                                    (cursor-range-end cursor-range))
-                                  replacement]))
-                          (reverse ascending-cursor-ranges-and-replacements)))))
-                  changes)]
-        (when (pos? (count ret))
-          ret)))))
+            last-version-index (long (loop [i (dec (count changes))]
+                                       (cond
+                                         (neg? i) i
+                                         (= old-version (:previous-version (changes i))) i
+                                         :else (recur (dec i)))))]
+        (when-not (neg? last-version-index)
+          (let [ret (into
+                      []
+                      (comp
+                        (map :ascending-cursor-ranges-and-replacements)
+                        (mapcat
+                          (fn [ascending-cursor-ranges-and-replacements]
+                            (eduction
+                              (map (fn [[cursor-range replacement]]
+                                     [(->CursorRange
+                                        (cursor-range-start cursor-range)
+                                        (cursor-range-end cursor-range))
+                                      replacement]))
+                              (reverse ascending-cursor-ranges-and-replacements)))))
+                      (subvec changes last-version-index))]
+            (when (pos? (count ret))
+              ret)))))))
 
 (defn- offset-cursor-on-row
   ^Cursor [^Cursor cursor ^long col-affected-row ^long row-offset ^long col-offset]

@@ -825,6 +825,12 @@
   (input template-build-targets g/Any :array)
   (output template-build-targets g/Any (gu/passthrough template-build-targets)))
 
+(defmethod g/node-key ::GuiNode [node-id evaluation-context]
+  ;; By implementing this multi-method, overridden property values will be
+  ;; restored on OverrideNode GuiNodes when a template gui scene is reloaded
+  ;; from disk during resource-sync. The id must be unique within the gui scene.
+  (g/node-value node-id :id evaluation-context))
+
 ;; SDK api
 (defmethod update-gui-resource-reference [::GuiNode :layer]
   [_ evaluation-context node-id old-name new-name]

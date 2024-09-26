@@ -20,6 +20,7 @@ import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
+import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -175,6 +176,16 @@ public abstract class AbstractProtoBuilderTest {
         return messages;
     }
 
+    protected void clean() throws Exception {
+        Collection<String> result = new ArrayList<>();
+        fileSystem.walk("build", new FileSystemWalker() {
+            public void handleFile(String path, Collection<String> results) {
+                fileSystem.addFile(path, null);
+            }
+        }, result);
+        project.build(new NullProgress(), "clean");
+    }
+
     protected <T extends Message> T getMessage(List<Message> messages, Class<T> type) {
         for (int i = messages.size() - 1; i >= 0; i--) {
             Message message = messages.get(i);
@@ -245,5 +256,4 @@ public abstract class AbstractProtoBuilderTest {
         baos.flush();
         addFile(path, baos.toByteArray());
     }
-
 }

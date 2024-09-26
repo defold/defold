@@ -73,6 +73,17 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
         return null;
     }
 
+    static private String compileSPIRVToWGSL(byte[] shaderSource, String resourceOutput)  throws IOException, CompileExceptionError {
+        File file_in_spv = File.createTempFile(FilenameUtils.getName(resourceOutput), ".spv");
+        FileUtil.deleteOnExit(file_in_spv);
+        FileUtils.writeByteArrayToFile(file_in_spv, shaderSource);
+
+        File file_out_wgsl = File.createTempFile(FilenameUtils.getName(resourceOutput), ".wgsl");
+        FileUtil.deleteOnExit(file_out_wgsl);
+        generateWGSL(file_in_spv.getAbsolutePath(), file_out_wgsl.getAbsolutePath());
+        return FileUtils.readFileToString(file_out_wgsl);
+    }
+
     static private SPIRVCompileResult compileGLSLToSPIRV(String shaderSource, ShaderDesc.ShaderType shaderType, String resourceOutput, String targetProfile, boolean isDebug, boolean soft_fail)  throws IOException, CompileExceptionError {
         SPIRVCompileResult res = new SPIRVCompileResult();
 
@@ -95,6 +106,7 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
             result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "glslang"),
                     "-w",
                     "-V",
+                    "--entry-point", "main",
                     "--auto-map-bindings",
                     "--auto-map-locations",
                     "-Os",
@@ -137,6 +149,7 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
             result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "glslang"),
                     "-w",
                     "-V",
+                    "--entry-point", "main",
                     "--auto-map-bindings",
                     "--auto-map-locations",
                     "--resource-set-binding", "frag", "1",
@@ -223,7 +236,7 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
     }
 
     @Override
-    public byte[] crossCompile(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage) throws CompileExceptionError {
+    public byte[] crossCompile(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage) throws CompileExceptionError, IOException {
         ShaderModuleLegacy module = getShaderModule(shaderType);
         if (module == null) {
             throw new CompileExceptionError("No module found for " + shaderType);
@@ -233,8 +246,11 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
 
         if (shaderLanguage == ShaderDesc.Language.LANGUAGE_SPIRV) {
             return module.spirvResult.source;
+        } else if(shaderLanguage == ShaderDesc.Language.LANGUAGE_WGSL) {
+            String result = compileSPIRVToWGSL(module.spirvResult.source, this.pipelineName);
+            return result.getBytes();
         } else if (canBeCrossCompiled(shaderLanguage)) {
-            String result = ShaderUtil.Common.compileGLSL(module.source, shaderType, shaderLanguage, false);
+            String result = ShaderUtil.Common.compileGLSL(module.source, shaderType, shaderLanguage, false, false);
             return result.getBytes();
         }
 

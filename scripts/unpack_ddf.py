@@ -162,6 +162,10 @@ def print_object(printer, msg):
     for descriptor in msg.DESCRIPTOR.fields:
         value = getattr(msg, descriptor.name)
 
+        if not descriptor.label == descriptor.LABEL_REPEATED:
+            if not msg.HasField(descriptor.name):
+                continue
+
         cls = TYPE_CONVERTERS.get(descriptor.full_name, None)
         if cls is not None:
             newvalue = cls()
@@ -209,13 +213,19 @@ def print_shader_file(shader_file):
         pass
     print("shaders:")
     for field, data in shader_file.ListFields():
-        for shader in data:
-            print_shader(shader)
+        try:
+            iter(data)
+        except TypeError:
+            print("Unknown:", data)
+        else:
+            for shader in data:
+                print_shader(shader)
 
 
 PRINTERS = {}
 PRINTERS['.vpc']        = print_shader_file
 PRINTERS['.fpc']        = print_shader_file
+PRINTERS['.cpc']        = print_shader_file
 
 
 if __name__ == "__main__":

@@ -23,6 +23,8 @@
 #include <dlib/hashtable.h>
 #include <dlib/utf8.h>
 
+#include <graphics/graphics_util.h>
+
 #include "display_profiles.h"
 #include "display_profiles_private.h"
 

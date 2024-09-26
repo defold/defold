@@ -96,22 +96,25 @@
   []
   (LuaVM. (Globals.) (ReentrantLock.)))
 
-(defn- invoke
-  ^Varargs [vm ^LuaFunction lua-fn args]
-  (with-lock vm (.invoke lua-fn (LuaValue/varargsOf (into-array LuaValue args)))))
+(defn invoke
+  "Call a lua function while holding a lock on the VM
+
+  Returns all returned values as a Varargs object"
+  ^Varargs [vm ^LuaFunction lua-fn & lua-args]
+  (with-lock vm (.invoke lua-fn (LuaValue/varargsOf (into-array LuaValue lua-args)))))
 
 (defn invoke-1
   "Call a lua function while holding a lock on the VM
 
   Return a LuaValue, the first value returned by the function"
   ^LuaValue [vm lua-fn & lua-args]
-  (.arg1 (invoke vm lua-fn lua-args)))
+  (.arg1 ^Varargs (apply invoke vm lua-fn lua-args)))
 
 (defn invoke-all
   "Call a lua function while holding a lock on the VM
   Return a vector of all returned LuaValues"
   [vm ^LuaFunction lua-fn & lua-args]
-  (let [varargs (invoke vm lua-fn lua-args)
+  (let [^Varargs varargs (apply invoke vm lua-fn lua-args)
         n (.narg varargs)]
     (loop [acc (transient [])
            i 0]
@@ -132,6 +135,9 @@
 
 (defprotocol ->Lua
   (->lua [x]))
+
+(defprotocol ->Varargs
+  (->varargs [x]))
 
 (defprotocol ->Clj
   (->clj [lua-value vm]))
@@ -160,6 +166,12 @@
             (cond-> acc (and (some? k) (some? v)) (doto (.hashset (->lua k) (->lua v)))))
           (LuaTable. 0 (count x))
           x)))
+
+(extend-protocol ->Varargs
+  ;; all lua values are singleton varargs
+  nil (->varargs [_] LuaValue/NIL)
+  Object (->varargs [x] (->lua x))
+  Varargs (->varargs [x] x))
 
 (defn- lua-table->clj-map-or-vector [^LuaTable table vm]
   (loop [prev-k LuaValue/NIL

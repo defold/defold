@@ -474,7 +474,7 @@ namespace dmPlatform
     {
         switch(state)
         {
-            case DEVICE_STATE_CURSOR_LOCK:      return glfwGetInputMode(window->m_Window, GLFW_CURSOR);
+            case DEVICE_STATE_CURSOR_LOCK:      return glfwGetInputMode(window->m_Window, GLFW_CURSOR) != GLFW_CURSOR_NORMAL;
             case DEVICE_STATE_JOYSTICK_PRESENT: return glfwJoystickPresent(op1);
             default:break;
         }
@@ -540,7 +540,15 @@ namespace dmPlatform
     {
         if (state == DEVICE_STATE_CURSOR)
         {
-            glfwSetInputMode(window->m_Window, GLFW_CURSOR, op1 ? GLFW_CURSOR_NORMAL : GLFW_CURSOR_HIDDEN);
+            if (op1)
+            {
+                glfwSetInputMode(window->m_Window, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+            }
+            else
+            {
+                glfwSetInputMode(window->m_Window, GLFW_CURSOR, GLFW_CURSOR_HIDDEN);
+                glfwSetInputMode(window->m_Window, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
+            }
         }
     }
 

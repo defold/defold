@@ -34,7 +34,7 @@ namespace dmGraphics
     #define UNIFORM_LOCATION_GET_FS(loc)        ((loc & (UNIFORM_LOCATION_MAX << 32)) >> 32)
     #define UNIFORM_LOCATION_GET_FS_MEMBER(loc) ((loc & (UNIFORM_LOCATION_MAX << 48)) >> 48)
 
-    const static uint8_t MAX_BINDINGS_PER_SET_COUNT = 16;
+    const static uint8_t MAX_BINDINGS_PER_SET_COUNT = 32;
     const static uint8_t MAX_SET_COUNT              = 4;
     const static uint8_t MAX_STORAGE_BUFFERS        = 4;
     const static uint8_t MAX_VERTEX_BUFFERS         = 3;
@@ -98,13 +98,19 @@ namespace dmGraphics
             BINDING_FAMILY_TEXTURE        = 3,
         };
 
+        union BindingInfo
+        {
+            uint16_t m_BlockSize;
+            uint16_t m_SamplerTextureIndex;
+        };
+
         char*                       m_Name;
         dmhash_t                    m_NameHash;
         ShaderResourceType          m_Type;
         BindingFamily               m_BindingFamily;
         uint16_t                    m_Set;
         uint16_t                    m_Binding;
-        uint16_t                    m_BlockSize;
+        BindingInfo                 m_BindingInfo;
     };
 
     struct ShaderMeta
@@ -137,6 +143,7 @@ namespace dmGraphics
         uint32_t m_UniformBufferCount;
         uint32_t m_StorageBufferCount;
         uint32_t m_TextureCount;
+        uint32_t m_SamplerCount;
         uint32_t m_TotalUniformCount;
         uint32_t m_UniformDataSize;
         uint32_t m_UniformDataSizeAligned;

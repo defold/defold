@@ -167,9 +167,9 @@ task createLuaJitShareZip(type: Zip, dependsOn: [compileSrc, compileGenerated]) 
 task compileBobLight(dependsOn: [getGitRevision, compileSrc, createLuaJitShareZip]) {
     doLast {
         def platformFiles = [
-                'x86_64-macos': ['glslang', 'spirv-cross', 'spirv-opt', 'luajit-32', 'luajit-64', 'lipo'],
-                'arm64-macos': ['glslang', 'spirv-cross', 'spirv-opt', 'luac-32', 'luajit-64', 'lipo'],
-                'x86_64-linux': ['glslang', 'spirv-cross', 'spirv-opt', 'luajit-32', 'luajit-64', 'lipo'],
+                'x86_64-macos': ['glslang', 'spirv-cross', 'spirv-opt', 'luajit-32', 'luajit-64', 'lipo', 'tint'],
+                'arm64-macos': ['glslang', 'spirv-cross', 'spirv-opt', 'luac-32', 'luajit-64', 'lipo', 'tint'],
+                'x86_64-linux': ['glslang', 'spirv-cross', 'spirv-opt', 'luajit-32', 'luajit-64', 'lipo', 'tint'],
                 'x86_64-win32': ['glslang.exe', 'spirv-cross.exe', 'spirv-opt.exe', 'luajit-64.exe', 'lipo.exe'],
                 'x86-win32': ['glslang.exe', 'spirv-cross.exe', 'spirv-opt.exe', 'luajit-32.exe']
         ]
@@ -298,6 +298,7 @@ task createBobLightJar(type: Jar, dependsOn: [createExternalLibsLightJar, create
     }
     from fileTree(project.bobDir) {
         include 'libexec/**/glslang*',
+                'libexec/**/tint*',
                 'libexec/**/spirv-cross*',
                 'libexec/**/spirv-opt*',
                 'libexec/**/luajit*'

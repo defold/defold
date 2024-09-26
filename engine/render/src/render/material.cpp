@@ -353,7 +353,7 @@ namespace dmRender
         *metadata = material->m_VertexAttributeInfoMetadata;
     }
 
-    static int32_t FindMaterialAttributeIndex(HMaterial material, dmhash_t name_hash)
+    uint8_t GetMaterialAttributeIndex(HMaterial material, dmhash_t name_hash)
     {
         dmArray<dmGraphics::VertexAttribute>& attributes = material->m_VertexAttributes;
         for (int i = 0; i < attributes.Size(); ++i)
@@ -363,7 +363,7 @@ namespace dmRender
                 return i;
             }
         }
-        return -1;
+        return INVALID_MATERIAL_ATTRIBUTE_INDEX;
     }
 
     void SetMaterialProgramConstantType(HMaterial material, dmhash_t name_hash, dmRenderDDF::MaterialDesc::ConstantType type)
@@ -483,8 +483,8 @@ namespace dmRender
         for (int i = 0; i < attributes_count; ++i)
         {
             const dmGraphics::VertexAttribute& graphics_attribute_in = attributes[i];
-            int32_t index = FindMaterialAttributeIndex(material, graphics_attribute_in.m_NameHash);
-            if (index < 0)
+            uint8_t index = GetMaterialAttributeIndex(material, graphics_attribute_in.m_NameHash);
+            if (index == INVALID_MATERIAL_ATTRIBUTE_INDEX)
             {
                 continue;
             }
@@ -528,8 +528,8 @@ namespace dmRender
         for (int i = 0; i < attributes_count; ++i)
         {
             const dmGraphics::VertexAttribute& graphics_attribute_in = attributes[i];
-            int32_t index = FindMaterialAttributeIndex(material, graphics_attribute_in.m_NameHash);
-            if (index < 0)
+            uint8_t index = GetMaterialAttributeIndex(material, graphics_attribute_in.m_NameHash);
+            if (index == INVALID_MATERIAL_ATTRIBUTE_INDEX)
             {
                 continue;
             }
