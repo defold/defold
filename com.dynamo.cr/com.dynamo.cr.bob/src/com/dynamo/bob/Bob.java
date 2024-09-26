@@ -672,16 +672,28 @@ public class Bob {
         String rootDirectory = getOptionsValue(cmd, 'r', cwd);
         String sourceDirectory = getOptionsValue(cmd, 'i', ".");
 
-
-        if (cmd.hasOption("build-report") || cmd.hasOption("build-report-html")) {
-            List<File> reportFiles = new ArrayList<>();
-            String jsonReportPath = cmd.getOptionValue("build-report");
-            if (jsonReportPath != null) {
-                reportFiles.add(new File(jsonReportPath));
+        String build_report_json = null;
+        String build_report_html = null;
+        if (cmd.hasOption("build-report")) {
+            System.out.println("--build-report option is deprecated. Use --build-report-json instead.");
+            String path = cmd.getOptionValue("build-report", "report.json");
+            if (path.endsWith(".json")) {
+                build_report_json = path;
             }
-            String htmlReportPath = cmd.getOptionValue("build-report-html");
-            if (htmlReportPath != null) {
-                reportFiles.add(new File(htmlReportPath));
+            else if (path.endsWith(".html")) {
+                build_report_html = path;
+            }
+        }
+        build_report_json = build_report_json != null ? build_report_json : cmd.getOptionValue("build-report-json");
+        build_report_html = build_report_html != null ? build_report_html : cmd.getOptionValue("build-report-html");
+
+        if (build_report_json != null || build_report_html != null) {
+            List<File> reportFiles = new ArrayList<>();
+            if (build_report_json != null) {
+                reportFiles.add(new File(build_report_json));
+            }
+            if (build_report_html != null) {
+                reportFiles.add(new File(build_report_html));
             }
             TimeProfiler.init(reportFiles, false);
         }
@@ -772,8 +784,12 @@ public class Bob {
         }
 
         if (cmd.hasOption("build-report")) {
-            System.out.println("--build-report option is deprecated. Use --build-report-json instead.");
-            project.setOption("build-report-json", "true");
+            if (build_report_json != null) {
+                project.setOption("build-report-json", build_report_json);
+            }
+            else if (build_report_html != null) {
+                project.setOption("build-report-html", build_report_html);
+            }
         }
 
         if (cmd.hasOption("max-cpu-threads")) {
