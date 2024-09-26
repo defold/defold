@@ -2195,13 +2195,25 @@ run:
     }
 
     public IResource createGeneratedResource(long hash, String suffix) {
+        return createGeneratedResource(null, hash, suffix);
+    }
+
+    public IResource createGeneratedResource(String prefix, long hash, String suffix) {
         Map<Long, IResource> submap = hashToResource.get(suffix);
         if (submap == null) {
             submap = new HashMap<>();
             hashToResource.put(suffix, submap);
         }
 
-        IResource genResource = fileSystem.get(String.format("_generated_%x.%s", hash, suffix)).output();
+        if (prefix == null) {
+            prefix = "";
+        }
+
+        if (!prefix.isEmpty()) {
+            prefix = "_" + prefix;
+        }
+
+        IResource genResource = fileSystem.get(String.format("_generated%s_%x.%s", prefix, hash, suffix)).output();
         submap.put(hash, genResource);
         return genResource;
     }
