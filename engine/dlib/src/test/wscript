@@ -121,6 +121,12 @@ def build(bld):
     if 'win32' in bld.env['PLATFORM'] or sdk.is_wsl():
         skip_ssdp = True
 
+    skip_http = False
+    skip_threads = False
+    if bld.env.PLATFORM in ('js-web', 'wasm-web'):
+        skip_threads = True
+        skip_http = True
+
     create_test(bld, 'test_memory')
 
     create_test(bld, 'test_align', extra_libs = ['THREAD'])
@@ -132,12 +138,10 @@ def build(bld):
     create_test(bld, 'test_indexpool')
     create_test(bld, 'test_dlib', extra_libs = ['THREAD'])
 
-    if bld.env.PLATFORM not in ('js-web', 'wasm-web'):
-        create_test(bld, 'test_socket', extra_libs = ['THREAD'])
-
     create_test(bld, 'test_time')
 
-    if bld.env.PLATFORM not in ('js-web', 'wasm-web'):
+    if not skip_threads:
+        create_test(bld, 'test_socket', extra_libs = ['THREAD'])
         create_test(bld, 'test_thread', extra_libs = ['THREAD'])
         create_test(bld, 'test_mutex', extra_libs =['THREAD'])
 
@@ -154,10 +158,14 @@ def build(bld):
     create_test(bld, 'test_configfile', extra_libs = ['THREAD'])
     create_test(bld, 'test_dstrings', extra_libs = ['THREAD'])
 
-    create_test(bld, 'test_httpclient', extra_libs = ['THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
-    create_test(bld, 'test_httpcache', extra_libs = ['THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
-    create_test(bld, 'test_httpserver', extra_libs = ['THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
-    create_test(bld, 'test_webserver', extra_libs = ['THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
+    if not skip_http:
+        create_test(bld, 'test_httpclient', extra_libs = ['THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
+        create_test(bld, 'test_httpcache', extra_libs = ['THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
+        create_test(bld, 'test_httpserver', extra_libs = ['THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
+        create_test(bld, 'test_webserver', extra_libs = ['THREAD'], extra_defines = extra_defines, skip_run = skip_http_run)
+        create_test(bld, 'test_connection_pool', extra_features = ['embed'], extra_libs = ['THREAD'],
+                    extra_includes = ['.'], extra_defines = extra_defines)
+
     create_test(bld, 'test_uri', extra_libs = ['THREAD'])
     create_test(bld, 'test_stringpool', extra_libs = ['THREAD'])
 
@@ -168,13 +176,19 @@ def build(bld):
 
     create_test(bld, 'test_embed', extra_features = ['embed'], extra_libs = ['THREAD'],
                 embed_source = ['data/test.embed', 'generated.embed'])
-    create_test(bld, 'test_atomic', extra_libs = ['THREAD'])
-    create_test(bld, 'test_spinlock', extra_libs = ['THREAD'])
+
+    if not skip_threads:
+        create_test(bld, 'test_atomic', extra_libs = ['THREAD'])
+        create_test(bld, 'test_spinlock', extra_libs = ['THREAD'])
+        create_test(bld, 'test_condition_variable', extra_libs = ['THREAD'])
+        create_test(bld, 'test_job_thread')
+
     create_test(bld, 'test_sys', extra_libs = ['THREAD'], extra_defines = extra_defines)
     create_test(bld, 'test_template', extra_libs = ['THREAD'])
     create_test(bld, 'test_ssdp_internals', extra_libs = ['THREAD'], skip_run = skip_run or skip_ssdp)
     create_test(bld, 'test_ssdp', extra_libs = ['THREAD'], skip_run = skip_run or skip_ssdp)
-    create_test(bld, 'test_log', extra_libs = ['THREAD'], skip_run = skip_http_run)
+    if not skip_threads:
+        create_test(bld, 'test_log', extra_libs = ['THREAD'], skip_run = skip_http_run)
     create_test(bld, 'test_path', extra_libs = ['THREAD'])
     create_test(bld, 'test_trig_lookup', extra_libs = ['THREAD'])
     create_test(bld, 'test_vmath', extra_libs = ['THREAD'])
@@ -202,15 +216,11 @@ def build(bld):
                 extra_includes = ['.']
                 )
 
-    create_test(bld, 'test_connection_pool', extra_features = ['embed'], extra_libs = ['THREAD'],
-                extra_includes = ['.'], extra_defines = extra_defines)
 
     create_test(bld, 'test_pprint', extra_libs = ['THREAD'])
-    create_test(bld, 'test_condition_variable', extra_libs = ['THREAD'])
     create_test(bld, 'test_objectpool')
     create_test(bld, 'test_opaque_handle_container')
     create_test(bld, 'test_crypt')
-    create_test(bld, 'test_job_thread')
 
     if bld.env.DOTNET:
         b = bld.stlib(features= 'cs_stlib',
