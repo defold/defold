@@ -1818,7 +1818,7 @@ run:
                 }
 
                 TimeProfiler.start(task.getName());
-                TimeProfiler.addData("output", task.getOutputsString());
+                TimeProfiler.addData("output", StringUtil.truncate(task.getOutputsString(), 1000));
                 TimeProfiler.addData("type", "buildTask");
 
                 completedTasks.add(task);
