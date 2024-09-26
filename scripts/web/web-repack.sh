@@ -48,6 +48,12 @@ function terminate_trap() {
 SOURCE="${1:-}" && [ ! -z "${SOURCE}" ] || terminate_usage
 SOURCE="$(cd "$(dirname "${SOURCE}")"; pwd)/$(basename "${SOURCE}")"
 
+if [ "$#" -gt 1 ]; then
+    VARIANT="${2}"
+else
+    VARIANT="debug"
+fi
+
 [ -d "${SOURCE}" ] || terminate "Source does not exist: ${SOURCE}"
 
 # ----------------------------------------------------------------------------
@@ -59,23 +65,28 @@ PROJECTNAME=$(cd "${SOURCE}" && ls *_*.js | head -1 | sed 's,_.*.js$,,')
 echo $PROJECTNAME
 
 TARGET="${SOURCE}.repack"
-
-echo "$TARGET"
+echo "$TARGET [${VARIANT}]"
 
 if [ -d "$TARGET" ]; then
     rm -rf "$TARGET"
 fi
 
+SUFFIX=""
+[ "$VARIANT" != "debug" ] && SUFFIX="_${VARIANT}"
+
 cp -r "${SOURCE}/" "${TARGET}/"
 
 if [ -d "${DYNAMO_HOME}/bin/js-web" ]; then
-    cp -v "${DYNAMO_HOME}/bin/js-web/dmengine.js" "${TARGET}/${PROJECTNAME}_asmjs.js"
+    cp -v "${DYNAMO_HOME}/bin/js-web/dmengine${SUFFIX}.js" "${TARGET}/${PROJECTNAME}_asmjs.js"
+    if [ -e "${DYNAMO_HOME}/bin/js-web/dmengine${SUFFIX}.wasm.map" ]; then
+        cp -v "${DYNAMO_HOME}/bin/js-web/dmengine${SUFFIX}.js.symbols" "${TARGET}/${PROJECTNAME}_asmjs.symbols"
+    fi
 fi
 if [ -d "${DYNAMO_HOME}/bin/wasm-web" ]; then
-    cp -v "${DYNAMO_HOME}/bin/wasm-web/dmengine.js" "${TARGET}/${PROJECTNAME}_wasm.js"
-    cp -v "${DYNAMO_HOME}/bin/wasm-web/dmengine.wasm" "${TARGET}/${PROJECTNAME}.wasm"
-    if [ -e "${DYNAMO_HOME}/bin/wasm-web/dmengine.wasm.map" ]; then
-        cp -v "${DYNAMO_HOME}/bin/wasm-web/dmengine.wasm.map" "${TARGET}/dmengine.wasm.map"
+    cp -v "${DYNAMO_HOME}/bin/wasm-web/dmengine${SUFFIX}.js" "${TARGET}/${PROJECTNAME}_wasm.js"
+    cp -v "${DYNAMO_HOME}/bin/wasm-web/dmengine${SUFFIX}.wasm" "${TARGET}/${PROJECTNAME}.wasm"
+    if [ -e "${DYNAMO_HOME}/bin/wasm-web/dmengine${SUFFIX}.wasm.map" ]; then
+        cp -v "${DYNAMO_HOME}/bin/wasm-web/dmengine${SUFFIX}.wasm.map" "${TARGET}/${PROJECTNAME}.wasm.map"
     fi
 fi
 
