@@ -514,6 +514,7 @@ def default_flags(self):
         flags += ['-O3']
         linkflags += ['-O3']
 
+        self.env['DM_HOSTFS']           = '/node_vfs'
         self.env.append_value('DEFINES', ['DM_NO_THREAD_SUPPORT', 'JC_TEST_NO_DEATH_TEST'])
 
         for f in ['CFLAGS', 'CXXFLAGS']:
@@ -1449,8 +1450,7 @@ def js_web_link_flags(self):
     platform = self.env['PLATFORM']
     if 'web' in platform and 'test' in self.features:
         pre_js = os.path.join(self.env['DYNAMO_HOME'], 'share', "js-web-pre.js")
-        self.env.append_value('LINKFLAGS', ['--pre-js', pre_js])
-
+        self.env.append_value('LINKFLAGS', ['--pre-js', pre_js, '-lnodefs.js'])
 
 @task_gen
 @after('apply_obj_vars')
