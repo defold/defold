@@ -45,6 +45,7 @@ def build(bld):
                     use             = 'DDF DLIB',
                     target          = 'graphics_null')
 
+    bld.add_group()
     obj = bld.stlib(features        = obj.features + ['skip_asan'],
                     includes        = obj.includes,
                     source          = obj.source,
