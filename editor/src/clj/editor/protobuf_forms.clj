@@ -18,7 +18,7 @@
             [editor.protobuf :as protobuf]
             [editor.util :as util]
             [util.fn :as fn])
-  (:import [com.dynamo.graphics.proto Graphics$PlatformProfile$OS Graphics$TextureFormatAlternative$CompressionLevel Graphics$TextureImage$CompressionType Graphics$TextureImage$TextureFormat Graphics$TextureProfiles]
+  (:import [com.dynamo.graphics.proto Graphics$PlatformProfile Graphics$PlatformProfile$OS Graphics$TextureFormatAlternative$CompressionLevel Graphics$TextureImage$CompressionType Graphics$TextureImage$TextureFormat Graphics$TextureProfiles]
            [com.dynamo.input.proto Input$Gamepad Input$GamepadMaps Input$GamepadType Input$InputBinding Input$Key Input$Mouse Input$Text Input$Touch]))
 
 (set! *warn-on-reflection* true)
@@ -302,12 +302,12 @@
                                           {:path [:max-texture-size]
                                            :type :integer
                                            :label "Max texture size"
-                                           :default 0
+                                           :default (protobuf/default Graphics$PlatformProfile :max-texture-size)
                                            :optional true}
                                           {:path [:premultiply-alpha]
                                            :type :boolean
                                            :label "Premultiply alpha"
-                                           :default true
+                                           :default (protobuf/default Graphics$PlatformProfile :premultiply-alpha)
                                            :optional true}]}]}}]}]}}]}]}))
 
 (defn produce-form-data
