@@ -45,6 +45,8 @@ def build(bld):
                     use             = 'DDF DLIB',
                     target          = 'graphics_null')
 
+    obj.source = [x for x in obj.source if not x.name.endswith('graphics_glfw_wrappers.cpp')]
+
     bld.add_group()
     obj = bld.stlib(features        = obj.features + ['skip_asan'],
                     includes        = obj.includes,
