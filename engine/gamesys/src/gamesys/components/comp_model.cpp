@@ -450,7 +450,8 @@ namespace dmGameSystem
             // between all meshes in a regular draw call.
             if (attr.m_StepFunction == dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE)
                 continue;
-            dmHashUpdateBuffer32(state, attr.m_ValuePtr, attr.m_ValueByteSize);
+            uint32_t value_byte_size = dmGraphics::VectorTypeToElementCount(attr.m_VectorType) * dmGraphics::DataTypeToByteWidth(attr.m_DataType);
+            dmHashUpdateBuffer32(state, attr.m_ValuePtr, value_byte_size);
         }
     }
 
@@ -630,7 +631,7 @@ namespace dmGameSystem
                 assert(attr.m_NameHash == attr_material.m_NameHash);
                 dmGraphics::AddVertexStream(stream_declaration,
                     attr.m_NameHash,
-                    attr_material.m_ElementCount, // Need the material attribute here to get the _actual_ element count
+                    dmGraphics::VectorTypeToElementCount(attr_material.m_VectorType), // Need the material attribute here to get the _actual_ element count
                     dmGraphics::GetGraphicsType(attr.m_DataType),
                     attr.m_Normalize);
 
@@ -643,20 +644,6 @@ namespace dmGameSystem
             *vx_decl_out = dmGraphics::NewVertexDeclaration(graphics_context, stream_declaration);
         }
         dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
-    }
-
-    static inline void FillWriteVertexAttributeParams(const dmRigDDF::Mesh* mesh, dmGraphics::VertexStepFunction step_function, dmGraphics::VertexAttributeInfos* attribute_infos, const dmVMath::Matrix4* world_matrix, const dmVMath::Matrix4* normal_matrix, dmRig::WriteVertexAttributeParams* params)
-    {
-        params->m_AttributeInfos  = attribute_infos;
-        params->m_StepFunction    = step_function;
-        params->m_Positions       = mesh->m_Positions.m_Count ? mesh->m_Positions.m_Data : 0;
-        params->m_Normals         = mesh->m_Normals.m_Count ? mesh->m_Normals.m_Data : 0;
-        params->m_Tangents        = mesh->m_Tangents.m_Count ? mesh->m_Tangents.m_Data : 0;
-        params->m_UV0             = mesh->m_Texcoord0.m_Count ? mesh->m_Texcoord0.m_Data : 0;
-        params->m_UV1             = mesh->m_Texcoord1.m_Count ? mesh->m_Texcoord1.m_Data : 0;
-        params->m_Colors          = mesh->m_Colors.m_Count ? mesh->m_Colors.m_Data : 0;
-        params->m_WorldTransform  = world_matrix;
-        params->m_NormalTransform = normal_matrix;
     }
 
     static void SetupMeshAttributeRenderData(dmRender::HRenderContext render_context, dmRender::HMaterial material, const MeshRenderItem* render_item, dmGraphics::VertexAttribute* model_attributes, uint32_t model_attribute_count, MeshAttributeRenderData* rd)
@@ -705,10 +692,11 @@ namespace dmGameSystem
                 // We should only include the custom vertex attributes here
                 if (!IsDefaultStream(attr_model.m_NameHash, attr_material.m_SemanticType, attr_material.m_StepFunction))
                 {
+                    uint32_t value_byte_size = dmGraphics::VectorTypeToElementCount(attr_model.m_VectorType) * dmGraphics::DataTypeToByteWidth(attr_model.m_DataType);
                     uint32_t attribute_index = non_default_attribute.m_NumInfos++;
-                    non_default_attribute.m_Infos[attribute_index]                 = attr_model;
-                    non_default_attribute.m_Infos[attribute_index].m_ElementCount  = attr_material.m_ElementCount;
-                    non_default_attribute.m_VertexStride                          += attr_model.m_ValueByteSize;
+                    non_default_attribute.m_Infos[attribute_index]              = attr_model;
+                    non_default_attribute.m_Infos[attribute_index].m_VectorType = attr_material.m_VectorType;
+                    non_default_attribute.m_VertexStride                       += value_byte_size;
                 }
             }
 
@@ -719,13 +707,35 @@ namespace dmGameSystem
             uint8_t* vertex_write_ptr = (uint8_t*) attribute_data;
 
             dmVMath::Matrix4 normal_matrix = dmRender::GetNormalMatrix(render_context, render_item->m_World);
-            dmRig::WriteVertexAttributeParams params = {};
-            FillWriteVertexAttributeParams(render_item->m_Mesh, dmGraphics::VERTEX_STEP_FUNCTION_VERTEX, &non_default_attribute, &render_item->m_World, &normal_matrix, &params);
+
+        #define UNPACK_ATTRIBUTE_PTR(name) \
+            (render_item->m_Mesh->name.m_Count ? render_item->m_Mesh->name.m_Data : 0)
+
+            const float* uv_channels[] = {
+                UNPACK_ATTRIBUTE_PTR(m_Texcoord0),
+                UNPACK_ATTRIBUTE_PTR(m_Texcoord1),
+            };
+
+            uint32_t uv_channels_count = (uv_channels[0] ? 1 : 0) + (uv_channels[1] ? 1 : 0);
+
+            dmGraphics::WriteAttributeParams params = {};
+            dmRig::SetMeshWriteAttributeParams(&params,
+                &non_default_attribute,
+                dmGraphics::VERTEX_STEP_FUNCTION_VERTEX,
+                &render_item->m_World,
+                &normal_matrix,
+                0, // World space positions are not supported by local space materials
+                UNPACK_ATTRIBUTE_PTR(m_Positions),
+                UNPACK_ATTRIBUTE_PTR(m_Normals),
+                UNPACK_ATTRIBUTE_PTR(m_Tangents),
+                UNPACK_ATTRIBUTE_PTR(m_Colors),
+                uv_channels, uv_channels_count);
+
+        #undef UNPACK_ATTRIBUTE_PTR
 
             for (int i = 0; i < vertex_count; ++i)
             {
-                params.m_Index = i;
-                vertex_write_ptr = dmRig::WriteSingleVertexDataByAttributes(vertex_write_ptr, params);
+                vertex_write_ptr = dmGraphics::WriteAttributes(vertex_write_ptr, i, params);
             }
 
             rd->m_VertexBuffer = dmGraphics::NewVertexBuffer(graphics_context, vertex_data_size, attribute_data, dmGraphics::BUFFER_USAGE_DYNAMIC_DRAW);
@@ -1048,16 +1058,33 @@ namespace dmGameSystem
                             &attribute_infos);
 
                 dmVMath::Matrix4 normal_matrix = dmRender::GetNormalMatrix(render_context, instance_render_item->m_World);
-                dmRig::WriteVertexAttributeParams params = {};
-                FillWriteVertexAttributeParams(instance_render_item->m_Mesh,
-                    dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE,
+
+            #define UNPACK_ATTRIBUTE_PTR(name) \
+                (instance_render_item->m_Mesh->name.m_Count ? instance_render_item->m_Mesh->name.m_Data : 0)
+
+                const float* uv_channels[] = {
+                    UNPACK_ATTRIBUTE_PTR(m_Texcoord0),
+                    UNPACK_ATTRIBUTE_PTR(m_Texcoord1),
+                };
+
+                uint32_t uv_channels_count = (uv_channels[0] ? 1 : 0) + (uv_channels[1] ? 1 : 0);
+
+                dmGraphics::WriteAttributeParams params = {};
+                dmRig::SetMeshWriteAttributeParams(&params,
                     &attribute_infos,
+                    dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE,
                     &instance_render_item->m_World,
                     &normal_matrix,
-                    &params);
+                    0, // World space positions are not supported by local space materials
+                    UNPACK_ATTRIBUTE_PTR(m_Positions),
+                    UNPACK_ATTRIBUTE_PTR(m_Normals),
+                    UNPACK_ATTRIBUTE_PTR(m_Tangents),
+                    UNPACK_ATTRIBUTE_PTR(m_Colors),
+                    uv_channels, uv_channels_count);
 
-                dmRig::WriteSingleVertexDataByAttributes(instance_write_ptr, params);
-                instance_write_ptr += instance_stride;
+            #undef UNPACK_ATTRIBUTE_PTR
+
+                instance_write_ptr = dmGraphics::WriteAttributes(instance_write_ptr, 0, params);
             }
             else
             {
@@ -1111,6 +1138,7 @@ namespace dmGameSystem
             ro.m_VertexCount           = buffers->m_IndexCount;
             ro.m_IndexBuffer           = buffers->m_IndexBuffer;              // May be 0
             ro.m_IndexType             = buffers->m_IndexBufferElementType;
+            ro.m_WorldTransform        = render_item->m_World;
             ro.m_VertexDeclarations[0] = world->m_VertexDeclaration;
             ro.m_VertexBuffers[0]      = buffers->m_VertexBuffer;
 
@@ -1144,8 +1172,6 @@ namespace dmGameSystem
                     ro.m_VertexBuffers[1]      = attribute_rd->m_VertexBuffer;
                 }
             }
-
-            ro.m_WorldTransform = render_item->m_World;
 
             FillTextures(&ro, component, material_index);
 
@@ -1372,6 +1398,22 @@ namespace dmGameSystem
         dmRender::AddToRender(render_context, &ro);
     }
 
+    static inline dmRenderDDF::MaterialDesc::VertexSpace GetRenderMaterialVertexSpace(dmRender::HMaterial material)
+    {
+        dmRenderDDF::MaterialDesc::VertexSpace material_vertex_space = dmRender::GetMaterialVertexSpace(material);
+
+        // If a "local" material space material has a world position attribute, we use world space when
+        // producing the attributes instead of trying to shoehorn this into the current local space vertex generation code.
+        // This is a bit of a shortcut because this case it not very likely to be used.
+        dmGraphics::VertexAttributeInfoMetadata material_vertex_attribute_meta;
+        dmRender::GetMaterialProgramAttributeMetadata(material, &material_vertex_attribute_meta);
+        if (material_vertex_space == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL && material_vertex_attribute_meta.m_HasAttributeWorldPosition)
+        {
+            return dmRenderDDF::MaterialDesc::VERTEX_SPACE_WORLD;
+        }
+        return material_vertex_space;
+    }
+
     static void RenderBatch(ModelWorld* world, dmRender::HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
     {
         DM_PROFILE("ModelRenderBatch");
@@ -1382,7 +1424,7 @@ namespace dmGameSystem
         dmRender::HMaterial render_context_material = dmRender::GetContextMaterial(render_context);
         dmRender::HMaterial material = GetRenderMaterial(render_context_material, component, component->m_Resource, 0);
 
-        switch(dmRender::GetMaterialVertexSpace(material))
+        switch(GetRenderMaterialVertexSpace(material))
         {
             case dmRenderDDF::MaterialDesc::VERTEX_SPACE_WORLD:
                 RenderBatchWorldVS(world, render_context, render_context_material, buf, begin, end);

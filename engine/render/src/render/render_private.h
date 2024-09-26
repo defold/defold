@@ -89,6 +89,7 @@ namespace dmRender
         dmGraphics::HVertexDeclaration          m_VertexDeclarationShared;
         dmGraphics::HVertexDeclaration          m_VertexDeclarationPerVertex;
         dmGraphics::HVertexDeclaration          m_VertexDeclarationPerInstance;
+        dmGraphics::VertexAttributeInfoMetadata m_VertexAttributeInfoMetadata;
         dmHashTable64<dmGraphics::HUniformLocation> m_NameHashToLocation;
         dmArray<dmGraphics::VertexAttribute>    m_VertexAttributes;
         dmArray<MaterialAttribute>              m_MaterialAttributes;

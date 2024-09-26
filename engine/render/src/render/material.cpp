@@ -100,22 +100,6 @@ namespace dmRender
         return (dmGraphics::VertexAttribute::VectorType) -1;
     }
 
-    static inline uint32_t GetAttributeElementCount(dmGraphics::VertexAttribute::VectorType from_type)
-    {
-        switch(from_type)
-        {
-            case dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR: return 1;
-            case dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2: return 2;
-            case dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3: return 3;
-            case dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4: return 4;
-            case dmGraphics::VertexAttribute::VECTOR_TYPE_MAT2: return 4;
-            case dmGraphics::VertexAttribute::VECTOR_TYPE_MAT3: return 9;
-            case dmGraphics::VertexAttribute::VECTOR_TYPE_MAT4: return 16;
-            default:assert(0 && "VectorType not supported");
-        }
-        return -1;
-    }
-
     static void CreateVertexDeclarations(dmGraphics::HContext graphics_context, Material* m)
     {
         if (m->m_VertexDeclarationShared != 0)
@@ -158,10 +142,14 @@ namespace dmRender
             sd_instance = dmGraphics::NewVertexStreamDeclaration(graphics_context, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE);
         }
 
+        m->m_VertexAttributeInfoMetadata = {};
+
         // 2. Construct all vertex declarations
         for (int i = 0; i < num_material_attributes; ++i)
         {
             const dmGraphics::VertexAttribute& graphics_attribute = m->m_VertexAttributes[i];
+
+            dmGraphics::VertexAttributeInfoMetadataMember(m->m_VertexAttributeInfoMetadata, graphics_attribute.m_SemanticType, graphics_attribute.m_CoordinateSpace);
 
             #define ADD_VERTEX_STREAM(sd, graphics_attribute) \
                 dmGraphics::AddVertexStream(sd, \
@@ -217,7 +205,7 @@ namespace dmRender
             dmGraphics::VertexAttribute& vertex_attribute = m->m_VertexAttributes[i];
             vertex_attribute.m_NameHash        = name_hash;
             vertex_attribute.m_SemanticType    = GetAttributeSemanticType(name_hash);
-            vertex_attribute.m_DataType        = GetAttributeDataType(type); // Convert from mat/vec to float if necessary
+            vertex_attribute.m_DataType        = dmGraphics::VertexAttribute::TYPE_FLOAT;
             vertex_attribute.m_ElementCount    = element_count;
             vertex_attribute.m_Normalize       = false;
             vertex_attribute.m_CoordinateSpace = dmGraphics::COORDINATE_SPACE_WORLD;
@@ -360,6 +348,11 @@ namespace dmRender
         return material->m_FragmentProgram;
     }
 
+    void GetMaterialProgramAttributeMetadata(HMaterial material, dmGraphics::VertexAttributeInfoMetadata* metadata)
+    {
+        *metadata = material->m_VertexAttributeInfoMetadata;
+    }
+
     static int32_t FindMaterialAttributeIndex(HMaterial material, dmhash_t name_hash)
     {
         dmArray<dmGraphics::VertexAttribute>& attributes = material->m_VertexAttributes;
@@ -499,7 +492,7 @@ namespace dmRender
             dmGraphics::VertexAttribute& graphics_attribute = material->m_VertexAttributes[index];
             graphics_attribute.m_DataType                   = graphics_attribute_in.m_DataType;
             graphics_attribute.m_Normalize                  = graphics_attribute_in.m_Normalize;
-            graphics_attribute.m_ElementCount               = GetAttributeElementCount(graphics_attribute_in.m_VectorType);
+            graphics_attribute.m_ElementCount               = VectorTypeToElementCount(graphics_attribute_in.m_VectorType);
             graphics_attribute.m_VectorType                 = graphics_attribute_in.m_VectorType;
             graphics_attribute.m_SemanticType               = graphics_attribute_in.m_SemanticType;
             graphics_attribute.m_CoordinateSpace            = graphics_attribute_in.m_CoordinateSpace;
@@ -548,7 +541,7 @@ namespace dmRender
             dmGraphics::GetAttributeValues(graphics_attribute_in, &bytes, &byte_size);
 
             dmGraphics::Type graphics_type = dmGraphics::GetGraphicsType(graphics_attribute_in.m_DataType);
-            uint32_t attribute_byte_size   = dmGraphics::GetTypeSize(graphics_type) * GetAttributeElementCount(graphics_attribute_in.m_VectorType) * material_attribute.m_ValueCount;
+            uint32_t attribute_byte_size   = dmGraphics::GetTypeSize(graphics_type) * VectorTypeToElementCount(graphics_attribute_in.m_VectorType) * material_attribute.m_ValueCount;
             attribute_byte_size            = dmMath::Min(attribute_byte_size, byte_size);
             memcpy(&material->m_MaterialAttributeValues[material_attribute.m_ValueIndex], bytes, attribute_byte_size);
 

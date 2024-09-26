@@ -43,7 +43,8 @@ namespace dmRig
         dmArray<dmVMath::Matrix4>       m_ScratchPoseMatrixBuffer;
         // Temporary scratch buffers used when transforming the vertex buffer,
         // used to creating primitives from indices.
-        dmArray<dmVMath::Vector3>       m_ScratchPositionBuffer;
+        dmArray<dmVMath::Vector3>       m_ScratchPositionBufferWorld;
+        dmArray<dmVMath::Vector3>       m_ScratchPositionBufferLocal;
         dmArray<dmVMath::Vector3>       m_ScratchNormalBuffer;
         dmArray<dmVMath::Vector4>       m_ScratchTangentBuffer;
     };
@@ -875,7 +876,7 @@ namespace dmRig
         }
     }
 
-    static float* GeneratePositionData(const dmRigDDF::Mesh* mesh, const Matrix4& model_matrix, const dmArray<Matrix4>& pose_matrices, float* out_buffer)
+    static void GeneratePositionData(const dmRigDDF::Mesh* mesh, const Matrix4& model_matrix, const dmArray<Matrix4>& pose_matrices, float* out_buffer_world, float* out_buffer_local)
     {
         const float* positions = mesh->m_Positions.m_Data;
         const uint32_t vertex_count = mesh->m_Positions.m_Count / 3;
@@ -889,12 +890,22 @@ namespace dmRig
                 in_p[0] = *positions++;
                 in_p[1] = *positions++;
                 in_p[2] = *positions++;
-                v = model_matrix * in_p;
-                *out_buffer++ = v[0];
-                *out_buffer++ = v[1];
-                *out_buffer++ = v[2];
+
+                if (out_buffer_world)
+                {
+                    v = model_matrix * in_p;
+                    *out_buffer_world++ = v[0];
+                    *out_buffer_world++ = v[1];
+                    *out_buffer_world++ = v[2];
+                }
+                if (out_buffer_local)
+                {
+                    *out_buffer_local++ = in_p[0];
+                    *out_buffer_local++ = in_p[1];
+                    *out_buffer_local++ = in_p[2];
+                }
             }
-            return out_buffer;
+            return;
         }
 
         const uint32_t* indices = mesh->m_BoneIndices.m_Data;
@@ -929,142 +940,52 @@ namespace dmRig
                 }
             }
 
-            v = model_matrix * Point3(out_p.getX(), out_p.getY(), out_p.getZ());
-            *out_buffer++ = v[0];
-            *out_buffer++ = v[1];
-            *out_buffer++ = v[2];
+            if (out_buffer_world)
+            {
+                v = model_matrix * Point3(out_p.getX(), out_p.getY(), out_p.getZ());
+                *out_buffer_world++ = v[0];
+                *out_buffer_world++ = v[1];
+                *out_buffer_world++ = v[2];
+            }
+            if (out_buffer_local)
+            {
+                *out_buffer_local++ = out_p.getX();
+                *out_buffer_local++ = out_p.getY();
+                *out_buffer_local++ = out_p.getZ();
+            }
         }
-        return out_buffer;
+        return;
     }
 
-    // Note: This will write a float matrix, but do we want to do data conversion here?
-    static inline void WriteMatrix(uint8_t* write_ptr, const Matrix4* matrix, uint32_t element_count, uint32_t data_size)
+    void SetMeshWriteAttributeParams(dmGraphics::WriteAttributeParams* params,
+        const dmGraphics::VertexAttributeInfos* attribute_infos,
+        dmGraphics::VertexStepFunction step_function,
+        const dmVMath::Matrix4* world_matrix, const dmVMath::Matrix4* normal_matrix,
+        const float* positions_world_space, const float* positions_local_space,
+        const float* normals, const float* tangents, const float* colors,
+        const float** uv_channels, uint32_t uv_channels_count)
     {
-        // Nothing to write - should we write something here?
-        if (!matrix)
-            return;
+        memset(params, 0, sizeof(dmGraphics::WriteAttributeParams));
+        params->m_VertexAttributeInfos = attribute_infos;
+        params->m_StepFunction         = step_function;
+        params->m_WorldMatrix          = world_matrix;
+        params->m_NormalMatrix         = normal_matrix;
+        params->m_PositionsWorldSpace  = positions_world_space;
+        params->m_PositionsLocalSpace  = positions_local_space;
+        params->m_Normals              = normals;
+        params->m_Tangents             = tangents;
+        params->m_Colors               = colors;
+        params->m_UVChannels           = uv_channels;
+        params->m_UVChannelsCount      = uv_channels_count;
 
-        float buffer[16] = {};
-
-        // If the matrix is 4x4, we can use the matrix values directly
-        if (element_count == 16)
-        {
-            memcpy(write_ptr, matrix, dmMath::Min((uint32_t) (element_count * sizeof(float)), data_size));
-        }
-        else
-        {
-            // Convert to a 2x2 matrix
-            if (element_count == 4)
-            {
-                buffer[0] = matrix->getElem(0, 0);
-                buffer[1] = matrix->getElem(0, 1);
-                buffer[2] = matrix->getElem(1, 0);
-                buffer[3] = matrix->getElem(1, 1);
-            }
-            // Convert to a 3x3 matrix
-            else if (element_count == 9)
-            {
-                buffer[0] = matrix->getElem(0, 0);
-                buffer[1] = matrix->getElem(0, 1);
-                buffer[2] = matrix->getElem(0, 2);
-
-                buffer[3] = matrix->getElem(1, 0);
-                buffer[4] = matrix->getElem(1, 1);
-                buffer[5] = matrix->getElem(1, 2);
-
-                buffer[6] = matrix->getElem(2, 0);
-                buffer[7] = matrix->getElem(2, 1);
-                buffer[8] = matrix->getElem(2, 2);
-            }
-            // Copy first column if it's scalar, vec2, vec3 or vec4
-            else
-            {
-                for (uint32_t i = 0; i < element_count; ++i)
-                {
-                    buffer[i] = matrix->getElem(0, i);
-                }
-            }
-
-            memcpy(write_ptr, buffer, dmMath::Min((uint32_t) (element_count * sizeof(float)), data_size));
-        }
+        params->m_PositionsVectorType  = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3;
+        params->m_NormalsVectorType    = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3;
+        params->m_TangentsVectorType   = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4;
+        params->m_UVChannelsVectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2;
+        params->m_ColorsVectorType     = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4;
     }
 
-    uint8_t* WriteSingleVertexDataByAttributes(uint8_t* write_ptr, const WriteVertexAttributeParams& params)
-    {
-        uint32_t num_texcoords = 0;
-        for (int a = 0; a < params.m_AttributeInfos->m_NumInfos; ++a)
-        {
-            const dmGraphics::VertexAttributeInfo& info = params.m_AttributeInfos->m_Infos[a];
-            const size_t data_size                      = info.m_ValueByteSize;
-
-            assert(data_size != 0);
-
-            if (info.m_StepFunction != params.m_StepFunction)
-            {
-                continue;
-            }
-
-            switch(info.m_SemanticType)
-            {
-                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION:
-                {
-                    memcpy(write_ptr, &params.m_Positions[params.m_Index*3], dmMath::Min(3 * sizeof(float), data_size));
-                } break;
-                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD:
-                {
-                    uint32_t src_copy_size = dmMath::Min(2 * sizeof(float), data_size);
-                    const float* uv = num_texcoords == 0 ? params.m_UV0 :
-                                      num_texcoords == 1 ? params.m_UV1 :
-                                      0;
-                    if (uv)
-                        memcpy(write_ptr, &uv[params.m_Index*2], src_copy_size);
-                    else
-                        memcpy(write_ptr, info.m_ValuePtr, data_size);
-
-                    num_texcoords++;
-                } break;
-                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR:
-                {
-                    uint32_t src_copy_size = dmMath::Min(4 * sizeof(float), data_size);
-                    if (params.m_Colors)
-                        memcpy(write_ptr, &params.m_Colors[params.m_Index*4], src_copy_size);
-                    else
-                        memcpy(write_ptr, info.m_ValuePtr, data_size);
-                } break;
-                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL:
-                {
-                    if (params.m_Normals)
-                        memcpy(write_ptr, &params.m_Normals[params.m_Index*3], dmMath::Min(3 * sizeof(float), data_size));
-                    else
-                        memcpy(write_ptr, info.m_ValuePtr, data_size);
-                } break;
-                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_TANGENT:
-                {
-                    if (params.m_Tangents)
-                        memcpy(write_ptr, &params.m_Tangents[params.m_Index*4], dmMath::Min(4 * sizeof(float), data_size));
-                    else
-                        memcpy(write_ptr, info.m_ValuePtr, data_size);
-                } break;
-                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_WORLD_MATRIX:
-                {
-                    WriteMatrix(write_ptr, params.m_WorldTransform, info.m_ElementCount, data_size);
-                } break;
-                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL_MATRIX:
-                {
-                    WriteMatrix(write_ptr, params.m_NormalTransform, info.m_ElementCount, data_size);
-                } break;
-                default:
-                {
-                    memcpy(write_ptr, info.m_ValuePtr, data_size);
-                } break;
-            }
-
-            write_ptr += data_size;
-        }
-        return write_ptr;
-    }
-
-    static uint8_t* WriteVertexDataByAttributes(const dmRigDDF::Mesh* mesh, const float* positions, const float* normals, const float* tangents, const dmGraphics::VertexAttributeInfos* attribute_infos, uint32_t vertex_stride, const dmVMath::Matrix4& world_matrix, const dmVMath::Matrix4& normal_matrix, uint8_t* out_write_ptr)
+    static uint8_t* WriteVertexDataByAttributes(const dmRigDDF::Mesh* mesh, const float* positions_world, const float* positions_local, const float* normals, const float* tangents, const dmGraphics::VertexAttributeInfos* attribute_infos, uint32_t vertex_stride, const dmVMath::Matrix4& world_matrix, const dmVMath::Matrix4& normal_matrix, uint8_t* out_write_ptr)
     {
         const float* uv0 = mesh->m_Texcoord0.m_Count ? mesh->m_Texcoord0.m_Data : 0;
         const float* uv1 = mesh->m_Texcoord1.m_Count ? mesh->m_Texcoord1.m_Data : 0;
@@ -1086,23 +1007,16 @@ namespace dmRig
             num_indices = mesh->m_Indices.m_Count / 2;
         }
 
-        WriteVertexAttributeParams params = {};
-        params.m_AttributeInfos  = attribute_infos;
-        params.m_Positions       = positions;
-        params.m_Normals         = normals;
-        params.m_Tangents        = tangents;
-        params.m_UV0             = uv0;
-        params.m_UV1             = uv1;
-        params.m_Colors          = colors;
-        params.m_WorldTransform  = &world_matrix;
-        params.m_NormalTransform = &normal_matrix;
+        const float* uv_channels[] = { uv0, uv1 };
+        uint32_t uv_channels_count = (uv0 ? 1 : 0) + (uv1 ? 1 : 0);
+
+        dmGraphics::WriteAttributeParams params = {};
+        SetMeshWriteAttributeParams(&params, attribute_infos, dmGraphics::VERTEX_STEP_FUNCTION_VERTEX, &world_matrix, &normal_matrix, positions_world, positions_local, normals, tangents, colors, uv_channels, uv_channels_count);
 
         for (uint32_t i = 0; i < num_indices; ++i)
         {
-            uint32_t idx = indices32?indices32[i]:indices16[i];
-            params.m_Index = idx;
-            // TODO: Use the shared dmGraphics function instead of this
-            out_write_ptr = WriteSingleVertexDataByAttributes(out_write_ptr, params);
+            uint32_t idx   = indices32?indices32[i]:indices16[i];
+            out_write_ptr  = dmGraphics::WriteAttributes(out_write_ptr, idx, params);
         }
 
         return out_write_ptr;
@@ -1203,30 +1117,37 @@ namespace dmRig
             return vertex_data_out;
         }
 
-        dmArray<Matrix4>& pose_matrices = context->m_ScratchPoseMatrixBuffer;
-        dmArray<Vector3>& positions     = context->m_ScratchPositionBuffer;
-        dmArray<Vector3>& normals       = context->m_ScratchNormalBuffer;
-        dmArray<Vector4>& tangents      = context->m_ScratchTangentBuffer;
+        dmArray<Matrix4>& pose_matrices   = context->m_ScratchPoseMatrixBuffer;
+        dmArray<Vector3>& positions_world = context->m_ScratchPositionBufferWorld;
+        dmArray<Vector3>& positions_local = context->m_ScratchPositionBufferLocal;
+        dmArray<Vector3>& normals         = context->m_ScratchNormalBuffer;
+        dmArray<Vector4>& tangents        = context->m_ScratchTangentBuffer;
 
         uint32_t bone_count   = GetBoneCount(instance);
         uint32_t vertex_count = mesh->m_Positions.m_Count / 3;
 
-        bool stream_position = false;
+        bool stream_position_world = false;
+        bool stream_position_local = false;
         bool stream_normal = false;
 
         for (int i = 0; i < attribute_infos->m_NumInfos; ++i)
         {
-            stream_position |= attribute_infos->m_Infos[i].m_SemanticType == dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION;
-            stream_normal   |= attribute_infos->m_Infos[i].m_SemanticType == dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL;
+            if (attribute_infos->m_Infos[i].m_SemanticType == dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION)
+            {
+                stream_position_world |= attribute_infos->m_Infos[i].m_CoordinateSpace == dmGraphics::COORDINATE_SPACE_WORLD;
+                stream_position_local |= attribute_infos->m_Infos[i].m_CoordinateSpace == dmGraphics::COORDINATE_SPACE_LOCAL;
+            }
+            stream_normal |= attribute_infos->m_Infos[i].m_SemanticType == dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL;
         }
 
         pose_matrices.SetSize(0);
 
-        float* positions_buffer = 0;
-        float* normals_buffer   = 0;
-        float* tangents_buffer  = 0;
+        float* positions_buffer_world = 0;
+        float* positions_buffer_local = 0;
+        float* normals_buffer         = 0;
+        float* tangents_buffer        = 0;
 
-        if (stream_position)
+        if (stream_position_world || stream_position_local)
         {
             if (bone_count)
             {
@@ -1250,10 +1171,18 @@ namespace dmRig
                 }
             }
 
-            EnsureSize(positions, vertex_count);
-            positions_buffer = (float*) positions.Begin();
+            if (stream_position_world)
+            {
+                EnsureSize(positions_world, vertex_count);
+                positions_buffer_world = (float*) positions_world.Begin();
+            }
+            if (stream_position_local)
+            {
+                EnsureSize(positions_local, vertex_count);
+                positions_buffer_local = (float*) positions_local.Begin();
+            }
 
-            dmRig::GeneratePositionData(mesh, world_matrix, pose_matrices, positions_buffer);
+            dmRig::GeneratePositionData(mesh, world_matrix, pose_matrices, positions_buffer_world, positions_buffer_local);
         }
         if (stream_normal && mesh->m_Normals.m_Count)
         {
@@ -1267,7 +1196,7 @@ namespace dmRig
             dmRig::GenerateNormalData(mesh, normal_matrix, pose_matrices, normals_buffer, tangents_buffer);
         }
 
-        return WriteVertexDataByAttributes(mesh, positions_buffer, normals_buffer, tangents_buffer, attribute_infos, vertex_stride, world_matrix, normal_matrix, vertex_data_out);
+        return WriteVertexDataByAttributes(mesh, positions_buffer_world, positions_buffer_local, normals_buffer, tangents_buffer, attribute_infos, vertex_stride, world_matrix, normal_matrix, vertex_data_out);
     }
 
     RigModelVertex* GenerateVertexData(dmRig::HRigContext context, dmRig::HRigInstance instance, dmRigDDF::Mesh* mesh, const Matrix4& world_matrix, RigModelVertex* vertex_data_out)
@@ -1280,10 +1209,10 @@ namespace dmRig
             return vertex_data_out;
         }
 
-        dmArray<Matrix4>& pose_matrices      = context->m_ScratchPoseMatrixBuffer;
-        dmArray<Vector3>& positions          = context->m_ScratchPositionBuffer;
-        dmArray<Vector3>& normals            = context->m_ScratchNormalBuffer;
-        dmArray<Vector4>& tangents           = context->m_ScratchTangentBuffer;
+        dmArray<Matrix4>& pose_matrices   = context->m_ScratchPoseMatrixBuffer;
+        dmArray<Vector3>& positions_world = context->m_ScratchPositionBufferWorld;
+        dmArray<Vector3>& normals         = context->m_ScratchNormalBuffer;
+        dmArray<Vector4>& tangents        = context->m_ScratchTangentBuffer;
 
         // If the rig has bones, update the pose to be local-to-model
         uint32_t bone_count = GetBoneCount(instance);
@@ -1317,21 +1246,23 @@ namespace dmRig
         uint32_t vertex_count = mesh->m_Positions.m_Count / 3;
 
         // Bump scratch buffers capacity to handle current vertex count
-        EnsureSize(positions, vertex_count);
+        EnsureSize(positions_world, vertex_count);
         EnsureSize(normals, vertex_count);
         EnsureSize(tangents, vertex_count);
 
-        float* positions_buffer = (float*)positions.Begin();
+        float* positions_world_buffer = (float*)positions_world.Begin();
         float* normals_buffer = (float*)normals.Begin();
         float* tangents_buffer = (float*)tangents.Begin();
 
         // Transform the mesh data into world space
-        dmRig::GeneratePositionData(mesh, world_matrix, pose_matrices, positions_buffer);
-        if (mesh->m_Normals.m_Count) {
+        dmRig::GeneratePositionData(mesh, world_matrix, pose_matrices, positions_world_buffer, 0);
+
+        if (mesh->m_Normals.m_Count)
+        {
             dmRig::GenerateNormalData(mesh, normal_matrix, pose_matrices, normals_buffer, tangents_buffer);
         }
 
-        return WriteVertexData(mesh, positions_buffer, normals_buffer, tangents_buffer, vertex_data_out);
+        return WriteVertexData(mesh, positions_world_buffer, normals_buffer, tangents_buffer, vertex_data_out);
     }
 
     static uint32_t FindIKIndex(HRigInstance instance, dmhash_t ik_constraint_id)

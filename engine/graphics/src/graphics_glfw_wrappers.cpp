@@ -21,7 +21,7 @@
 #elif defined(__MACH__)
     #include <platform/platform_window_osx.h>
 #elif defined(_MSC_VER)
-    #include <platform/platform_window_win32.h>
+    // #include <platform/platform_window_win32.h>
 #elif defined(__linux__) && !defined(ANDROID)
     #include <platform/platform_window_linux.h>
 #endif
@@ -51,8 +51,8 @@ namespace dmGraphics
 #endif
 
 #if defined(_MSC_VER)
-    HWND GetNativeWindowsHWND()             { return dmPlatform::GetWindowsHWND(GetWindow(GetInstalledContext())); }
-    HGLRC GetNativeWindowsHGLRC()           { return dmPlatform::GetWindowsHGLRC(GetWindow(GetInstalledContext())); }
+    HWND GetNativeWindowsHWND()             { return 0; } // return dmPlatform::GetWindowsHWND(GetWindow(GetInstalledContext())); }
+    HGLRC GetNativeWindowsHGLRC()           { return 0; } // return dmPlatform::GetWindowsHGLRC(GetWindow(GetInstalledContext())); }
 #else
     HWND GetNativeWindowsHWND()             { return 0; }
     HGLRC GetNativeWindowsHGLRC()           { return 0; }
