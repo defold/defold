@@ -467,6 +467,12 @@ namespace dmInput
             }
         }
 
+        if (count == 0)
+        {
+            dmLogInfo("No gamepads supporting this platform");
+            return;
+        }
+
         context->m_GamepadMaps.SetCapacity(dmMath::Max(1, (count + 1) / 3), count + 1);
 
         // Add a gamepad config that will be used when an unidentified gamepad
@@ -482,10 +488,6 @@ namespace dmInput
         }
         context->m_GamepadMaps.Put(UNKNOWN_GAMEPAD_CONFIG_ID, unknownGamepadConfig);
 
-        if (count == 0)
-        {
-            return;
-        }
 
         for (uint32_t i = 0; i < ddf->m_Driver.m_Count; ++i)
         {
