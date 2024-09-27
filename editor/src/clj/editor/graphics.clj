@@ -653,7 +653,9 @@
 
 (defn sanitize-attribute-override [attribute]
   ;; Graphics$VertexAttribute in map format.
-  (-> attribute
+  (-> (if (disambiguating-vector-type? (:vector-type attribute default-attribute-vector-type))
+        attribute
+        (dissoc attribute :vector-type))
       (dissoc :binary-values :coordinate-space :data-type :element-count :name-hash :normalize :semantic-type)
       (sanitize-attribute-value-field :double-values)
       (sanitize-attribute-value-field :long-values)))
