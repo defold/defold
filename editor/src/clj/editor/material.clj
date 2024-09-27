@@ -275,20 +275,27 @@
                    :type :string
                    :default "new_attribute"}
        :panel-form-fn
-       (fn panel-form-fn [{:keys [semantic-type vector-type]
-                           :or {semantic-type graphics/default-attribute-semantic-type
-                                vector-type graphics/default-attribute-vector-type}
-                           :as _selected-attribute}]
+       (fn panel-form-fn [selected-attribute]
          {:sections
           [{:fields
-            (assoc vertex-attribute-fields
-              value-vertex-attribute-field-index
-              (let [type (vector-type->form-field-type vector-type)
-                    default (graphics/default-attribute-doubles semantic-type vector-type)]
-                {:path [:values]
-                 :label "Value"
-                 :type type
-                 :default default}))}]})}
+            (cond
+              (nil? selected-attribute)
+              vertex-attribute-fields
+
+              (graphics/engine-provided-attribute? selected-attribute)
+              (coll/remove-index vertex-attribute-fields value-vertex-attribute-field-index)
+
+              :else
+              (assoc vertex-attribute-fields
+                value-vertex-attribute-field-index
+                (let [semantic-type (:semantic-type selected-attribute graphics/default-attribute-semantic-type)
+                      vector-type (:vector-type selected-attribute graphics/default-attribute-vector-type)
+                      type (vector-type->form-field-type vector-type)
+                      default (graphics/default-attribute-doubles semantic-type vector-type)]
+                  {:path [:values]
+                   :label "Value"
+                   :type type
+                   :default default})))}]})}
       (render-program-utils/gen-form-data-constants "Vertex Constants" :vertex-constants)
       (render-program-utils/gen-form-data-constants "Fragment Constants" :fragment-constants)
       (render-program-utils/gen-form-data-samplers "Samplers" :samplers)

@@ -125,7 +125,7 @@
     :vector-type-mat2 true
     false))
 
-(def engine-provided-semantic-types
+(def ^:private engine-provided-semantic-types
   (into #{}
         (keep (fn [^Graphics$VertexAttribute$SemanticType pb-semantic-type]
                 (when (GraphicsUtil/isEngineProvidedAttributeSemanticType pb-semantic-type)

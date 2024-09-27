@@ -247,6 +247,26 @@
       (is (map? result))
       (is (= {'one :one 'two :two} result)))))
 
+(deftest remove-index-test
+  (testing "Returns a vector without the item at the specified index."
+    (is (= [:b :c] (coll/remove-index [:a :b :c] 0)))
+    (is (= [:a :c] (coll/remove-index [:a :b :c] 1)))
+    (is (= [:a :b] (coll/remove-index [:a :b :c] 2))))
+
+  (testing "Throws when index out of bounds."
+    (is (thrown? IndexOutOfBoundsException (coll/remove-index [:a :b :c] -1)))
+    (is (thrown? IndexOutOfBoundsException (coll/remove-index [:a :b :c] 3))))
+
+  (testing "Preserves metadata."
+    (let [original-meta {:meta-key "meta-value"}]
+      (doseq [checked-coll [[:a :b :c]
+                            (subvec [:a :b :c] 1)
+                            (vector-of :long 10 20 30)
+                            (vector-of :double 10.0 20.0 30.0)]]
+        (let [original-coll (with-meta checked-coll original-meta)
+              altered-coll (coll/remove-index original-coll 1)]
+          (is (identical? original-meta (meta altered-coll))))))))
+
 (deftest separate-by-test
   (testing "Separates by predicate"
     (let [[odds evens] (coll/separate-by odd? [0 1 2 3 4])]
