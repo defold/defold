@@ -856,6 +856,12 @@ static void instanceRequestAdapterCallback(WGPURequestAdapterStatus status, WGPU
         wgpuAdapterGetLimits(context->m_Adapter, &context->m_AdapterLimits);
 
         WGPUDeviceDescriptor descriptor = {};
+        WGPUFeatureName features[16];
+        descriptor.requiredFeatures = features;
+        if (wgpuAdapterHasFeature(context->m_Adapter, WGPUFeatureName_TextureCompressionBC))
+            features[descriptor.requiredFeatureCount++] = WGPUFeatureName_TextureCompressionBC;
+        if (wgpuAdapterHasFeature(context->m_Adapter, WGPUFeatureName_TextureCompressionASTC))
+            features[descriptor.requiredFeatureCount++] = WGPUFeatureName_TextureCompressionASTC;
         wgpuAdapterRequestDevice(context->m_Adapter, &descriptor, requestDeviceCallback, userdata);
         context->m_InitComplete = true;
     }
