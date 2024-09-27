@@ -214,8 +214,7 @@
      "data_type" :unused
      "normalize" :unused
      "semantic_type" :unused
-     "step_function" :unused
-     "vector_type" :unused}}
+     "step_function" :unused}}
 
    ['dmGraphics.VertexAttribute "[TYPE_FLOAT]"]
    {:default

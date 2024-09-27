@@ -378,6 +378,51 @@ emitters {
     }
   }
   attributes {
+    name: "instance_custom_mat2"
+    double_values {
+      v: 1.2
+      v: 0.0
+      v: 0.0
+      v: 1.2
+    }
+    vector_type: VECTOR_TYPE_MAT2
+  }
+  attributes {
+    name: "instance_custom_mat3"
+    double_values {
+      v: 1.2
+      v: 0.0
+      v: 0.0
+      v: 0.0
+      v: 1.2
+      v: 0.0
+      v: 0.0
+      v: 0.0
+      v: 1.2
+    }
+  }
+  attributes {
+    name: "instance_custom_mat4"
+    double_values {
+      v: 1.2
+      v: 0.0
+      v: 0.0
+      v: 0.0
+      v: 0.0
+      v: 1.2
+      v: 0.0
+      v: 0.0
+      v: 0.0
+      v: 0.0
+      v: 1.2
+      v: 0.0
+      v: 0.0
+      v: 0.0
+      v: 0.0
+      v: 1.2
+    }
+  }
+  attributes {
     name: "int"
     long_values {
       v: 2
@@ -841,6 +886,51 @@ emitters {
       v: 0.0
       v: 0.0
       v: 0.0
+    }
+  }
+  attributes {
+    name: "instance_custom_mat2"
+    double_values {
+      v: 1.2
+      v: 0.0
+      v: 0.0
+      v: 1.2
+    }
+    vector_type: VECTOR_TYPE_MAT2
+  }
+  attributes {
+    name: "instance_custom_mat3"
+    double_values {
+      v: 1.2
+      v: 0.0
+      v: 0.0
+      v: 0.0
+      v: 1.2
+      v: 0.0
+      v: 0.0
+      v: 0.0
+      v: 1.2
+    }
+  }
+  attributes {
+    name: "instance_custom_mat4"
+    double_values {
+      v: 1.2
+      v: 0.0
+      v: 0.0
+      v: 0.0
+      v: 0.0
+      v: 1.2
+      v: 0.0
+      v: 0.0
+      v: 0.0
+      v: 0.0
+      v: 1.2
+      v: 0.0
+      v: 0.0
+      v: 0.0
+      v: 0.0
+      v: 1.2
     }
   }
   attributes {
@@ -1310,6 +1400,51 @@ emitters {
     }
   }
   attributes {
+    name: "instance_custom_mat2"
+    double_values {
+      v: 1.2
+      v: 0.0
+      v: 0.0
+      v: 1.2
+    }
+    vector_type: VECTOR_TYPE_MAT2
+  }
+  attributes {
+    name: "instance_custom_mat3"
+    double_values {
+      v: 1.2
+      v: 0.0
+      v: 0.0
+      v: 0.0
+      v: 1.2
+      v: 0.0
+      v: 0.0
+      v: 0.0
+      v: 1.2
+    }
+  }
+  attributes {
+    name: "instance_custom_mat4"
+    double_values {
+      v: 1.2
+      v: 0.0
+      v: 0.0
+      v: 0.0
+      v: 0.0
+      v: 1.2
+      v: 0.0
+      v: 0.0
+      v: 0.0
+      v: 0.0
+      v: 1.2
+      v: 0.0
+      v: 0.0
+      v: 0.0
+      v: 0.0
+      v: 1.2
+    }
+  }
+  attributes {
     name: "int"
     long_values {
       v: 2
@@ -1776,6 +1911,51 @@ emitters {
     }
   }
   attributes {
+    name: "instance_custom_mat2"
+    double_values {
+      v: 1.2
+      v: 0.0
+      v: 0.0
+      v: 1.2
+    }
+    vector_type: VECTOR_TYPE_MAT2
+  }
+  attributes {
+    name: "instance_custom_mat3"
+    double_values {
+      v: 1.2
+      v: 0.0
+      v: 0.0
+      v: 0.0
+      v: 1.2
+      v: 0.0
+      v: 0.0
+      v: 0.0
+      v: 1.2
+    }
+  }
+  attributes {
+    name: "instance_custom_mat4"
+    double_values {
+      v: 1.2
+      v: 0.0
+      v: 0.0
+      v: 0.0
+      v: 0.0
+      v: 1.2
+      v: 0.0
+      v: 0.0
+      v: 0.0
+      v: 0.0
+      v: 1.2
+      v: 0.0
+      v: 0.0
+      v: 0.0
+      v: 0.0
+      v: 1.2
+    }
+  }
+  attributes {
     name: "int"
     long_values {
       v: 2
@@ -2239,6 +2419,51 @@ emitters {
       v: 0.0
       v: 0.0
       v: 0.0
+    }
+  }
+  attributes {
+    name: "instance_custom_mat2"
+    double_values {
+      v: 1.2
+      v: 0.0
+      v: 0.0
+      v: 1.2
+    }
+    vector_type: VECTOR_TYPE_MAT2
+  }
+  attributes {
+    name: "instance_custom_mat3"
+    double_values {
+      v: 1.2
+      v: 0.0
+      v: 0.0
+      v: 0.0
+      v: 1.2
+      v: 0.0
+      v: 0.0
+      v: 0.0
+      v: 1.2
+    }
+  }
+  attributes {
+    name: "instance_custom_mat4"
+    double_values {
+      v: 1.2
+      v: 0.0
+      v: 0.0
+      v: 0.0
+      v: 0.0
+      v: 1.2
+      v: 0.0
+      v: 0.0
+      v: 0.0
+      v: 0.0
+      v: 1.2
+      v: 0.0
+      v: 0.0
+      v: 0.0
+      v: 0.0
+      v: 1.2
     }
   }
   attributes {
