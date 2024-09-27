@@ -1449,12 +1449,14 @@ static void WebGPUDisableVertexBuffer(HContext _context, HVertexBuffer _buffer)
     }
 }
 
-static void WebGPUEnableVertexDeclaration(HContext _context, HVertexDeclaration _declaration, uint32_t binding_index, HProgram _program)
+static void WebGPUEnableVertexDeclaration(HContext _context, HVertexDeclaration _declaration, uint32_t binding_index, uint32_t base_offset, HProgram _program)
 {
     TRACE_CALL;
     WebGPUContext* context = (WebGPUContext*) _context;
     WebGPUProgram* program = (WebGPUProgram*) _program;
     VertexDeclaration* declaration = (VertexDeclaration*) _declaration;
+
+    // TODO: Instancing!
 
     context->m_VertexDeclaration[binding_index]                = {};
     context->m_VertexDeclaration[binding_index].m_Stride       = declaration->m_Stride;
@@ -1694,11 +1696,12 @@ static void WebGPUSetupRenderPipeline(WebGPUContext* context, WebGPUBuffer *inde
     }
 }
 
-static void WebGPUDrawElements(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
+static void WebGPUDrawElements(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer, uint32_t instance_count)
 {
     TRACE_CALL;
     assert(_context);
     assert(index_buffer);
+    // TODO: Instancing!
     WebGPUContext* context = (WebGPUContext*) _context;
     context->m_CurrentPipelineState.m_PrimtiveType = prim_type;
     WebGPUSetupRenderPipeline(context, (WebGPUBuffer*)index_buffer, type);
@@ -1706,10 +1709,11 @@ static void WebGPUDrawElements(HContext _context, PrimitiveType prim_type, uint3
                                      first / (type == TYPE_UNSIGNED_SHORT ? 2 : 4), 0, 0);
 }
 
-static void WebGPUDraw(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count)
+static void WebGPUDraw(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count)
 {
     TRACE_CALL;
     assert(_context);
+    // TODO: Instancing!
     WebGPUContext* context = (WebGPUContext*) _context;
     context->m_CurrentPipelineState.m_PrimtiveType = prim_type;
     WebGPUSetupRenderPipeline(context, NULL, TYPE_BYTE);

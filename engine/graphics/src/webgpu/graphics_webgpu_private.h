@@ -29,8 +29,7 @@
 
 namespace dmGraphics
 {
-    const static uint32_t MAX_TEXTURE_COUNT  = 32;
-    const static uint8_t MAX_VERTEX_BUFFERS = 2;
+    const static uint32_t MAX_TEXTURE_COUNT = 32;
 
     struct WebGPUBuffer
     {
