@@ -28,6 +28,10 @@
 
 #include <platform/platform_window_vulkan.h>
 
+#ifdef __MACH__
+#include <vulkan/vulkan_metal.h>
+#endif
+
 DM_PROPERTY_EXTERN(rmtp_DrawCalls);
 DM_PROPERTY_EXTERN(rmtp_DispatchCalls);
 
@@ -1054,6 +1058,12 @@ namespace dmGraphics
         {
             device_extensions.OffsetCapacity(1);
             device_extensions.Push(VK_IMG_FORMAT_PVRTC_EXTENSION_NAME);
+        }
+
+        if (VulkanIsExtensionSupported((HContext) context, VK_EXT_METAL_OBJECTS_EXTENSION_NAME))
+        {
+            device_extensions.OffsetCapacity(1);
+            device_extensions.Push(VK_EXT_METAL_OBJECTS_EXTENSION_NAME);
         }
 
         #ifdef DM_VULKAN_VALIDATION

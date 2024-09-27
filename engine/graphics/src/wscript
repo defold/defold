@@ -95,6 +95,10 @@ def build(bld):
 
         if bld.env.PLATFORM in ('x86_64-macos','arm64-macos', 'x86_64-win32', 'win32'):
             obj.source.append('vulkan/desktop/graphics_vulkan_surface.cpp')
+
+            if bld.env.PLATFORM in ('x86_64-macos', 'arm64-macos'):
+                obj.source.append('vulkan/osx/graphics_vulkan_osx.mm')
+
         elif bld.env.PLATFORM in ('arm64-ios',):
             obj.source.append('vulkan/ios/graphics_vulkan_ios_surface.mm')
         elif bld.env.PLATFORM in ['armv7-android', 'arm64-android']:
