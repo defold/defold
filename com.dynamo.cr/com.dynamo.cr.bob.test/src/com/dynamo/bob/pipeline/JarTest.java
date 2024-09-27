@@ -41,7 +41,7 @@ public class JarTest {
 
     private int bob(String command) throws IOException, InterruptedException, CompileExceptionError, URISyntaxException {
         String jarPath = "../com.dynamo.cr.bob/dist/bob.jar";
-        Process p = Runtime.getRuntime().exec(new String[] { "java", "-jar", jarPath, "-v", "-r", "test/proj", "-i", ".", command });
+        Process p = Runtime.getRuntime().exec(new String[] { "java", "-jar", jarPath, "-v", "-r", "test/proj", command });
         BufferedReader in = new BufferedReader(new InputStreamReader(p.getInputStream()));
         BufferedReader ein = new BufferedReader(new InputStreamReader(p.getErrorStream()));
         String line;
@@ -56,7 +56,7 @@ public class JarTest {
 
     private int bob(String[] commands, String outputMatch) throws IOException, InterruptedException, CompileExceptionError, URISyntaxException {
         String jarPath = "../com.dynamo.cr.bob/dist/bob.jar";
-        String[] bobArgs = new String[] { "java", "-jar", jarPath, "-v", "-r", "test/proj", "-i", "."};
+        String[] bobArgs = new String[] { "java", "-jar", jarPath, "-v", "-r", "test/proj"};
         String[] allArgs = new String[bobArgs.length + commands.length];
         System.arraycopy(bobArgs, 0, allArgs, 0, bobArgs.length);
         System.arraycopy(commands, 0, allArgs, bobArgs.length, commands.length);
