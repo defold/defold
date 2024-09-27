@@ -26,8 +26,9 @@ import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.FileSystemException;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
-import java.util.Arrays;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -57,7 +58,7 @@ import com.dynamo.bob.cache.ResourceCacheKey;
 import com.dynamo.bob.util.FileUtil;
 
 public class Bob {
-    private static Logger logger = Logger.getLogger(Bob.class.getName());
+    private static final Logger logger = Logger.getLogger(Bob.class.getName());
 
     public static final String VARIANT_DEBUG = "debug";
     public static final String VARIANT_RELEASE = "release";
@@ -67,6 +68,24 @@ public class Bob {
 
     private static File rootFolder = null;
     private static boolean luaInitialized = false;
+
+    public static class OptionValidationException extends Exception {
+        public final int exitCode;
+
+        public OptionValidationException(int exitCode) {
+            this.exitCode = exitCode;
+        }
+    }
+
+    public static class InvocationResult {
+        public final boolean success;
+        public final List<TaskResult> taskResults;
+
+        public InvocationResult(boolean success, List<TaskResult> taskResults) {
+            this.success = success;
+            this.taskResults = taskResults;
+        }
+    }
 
     public Bob() {
     }
@@ -467,7 +486,7 @@ public class Bob {
         }
     }
 
-    private static Options getCommandLineOptions() {
+    public static Options getCommandLineOptions() {
         Options options = new Options();
         addOption(options, "r", "root", true, "Build root directory. Default is current directory", true);
         addOption(options, "o", "output", true, "Output directory. Default is \"build/default\"", false);
@@ -549,34 +568,34 @@ public class Bob {
         return options;
     }
 
-    private static CommandLine parse(String[] args) {
+    private static CommandLine parse(String[] args) throws OptionValidationException {
         Options options = getCommandLineOptions();
 
         CommandLineParser parser = new PosixParser();
-        CommandLine cmd = null;
+        CommandLine cmd;
         try {
             cmd = parser.parse(options, args);
         } catch (ParseException e) {
             System.err.println(e.getMessage());
-            System.exit(5);
+            throw new OptionValidationException(5);
         }
         if (cmd.hasOption("h")) {
-            HelpFormatter helpFormatter = new HelpFormatter( );
+            HelpFormatter helpFormatter = new HelpFormatter();
             helpFormatter.printHelp("bob [options] [commands]", options);
-            System.exit(0);
+            return null;
         }
         if (cmd.hasOption("ce") || cmd.hasOption("pk")) {
             System.out.println("Android signing using certificate and private key is no longer supported. You must use keystore signing.");
             HelpFormatter helpFormatter = new HelpFormatter( );
             helpFormatter.printHelp("bob [options] [commands]", options);
-            System.exit(1);
+            throw new OptionValidationException(1);
         }
 
         return cmd;
     }
 
-    private static Project createProject(String rootDirectory, String buildDirectory, String email, String auth) {
-        Project project = new Project(new DefaultFileSystem(), rootDirectory, buildDirectory);
+    private static Project createProject(ClassLoader classLoader, String rootDirectory, String buildDirectory, String email, String auth) {
+        Project project = new Project(classLoader, new DefaultFileSystem(), rootDirectory, buildDirectory);
         project.setOption("email", email);
         project.setOption("auth", auth);
 
@@ -597,7 +616,7 @@ public class Bob {
         return String.format("%s: %s:%d: '%s'\n", strSeverity, resourceString, line, message);
     }
 
-    private static void setupProject(Project project, boolean resolveLibraries, String sourceDirectory) throws IOException, LibraryException, CompileExceptionError {
+    private static void setupProject(Project project, boolean resolveLibraries, IProgress progress, IResourceScanner resourceScanner) throws IOException, LibraryException, CompileExceptionError {
         BobProjectProperties projectProperties = project.getProjectProperties();
         String[] dependencies = projectProperties.getStringArrayValue("project", "dependencies");
         List<URL> libUrls = new ArrayList<>();
@@ -608,26 +627,26 @@ public class Bob {
         project.setLibUrls(libUrls);
         if (resolveLibraries) {
             TimeProfiler.start("Resolve libs");
-            project.resolveLibUrls(new ConsoleProgress());
+            project.resolveLibUrls(progress);
             TimeProfiler.stop();
         }
-        project.mount(new ClassLoaderResourceScanner());
+        project.mount(resourceScanner);
     }
 
-    private static void validateChoices(String optionName, String value, List<String> validChoices) {
+    private static void validateChoices(String optionName, String value, List<String> validChoices) throws OptionValidationException {
         if (!validChoices.contains(value)) {
             System.out.printf("%s option must be one of: ", optionName);
             for (String choice : validChoices) {
                 System.out.printf("%s, ", choice);
             }
             System.out.printf("\n");
-            System.exit(1);
+            throw new OptionValidationException(1);
         }
     }
 
-    private static void validateChoicesList(Project project, String optionName, String[] validChoices) {
+    private static void validateChoicesList(Project project, String optionName, String[] validChoices) throws OptionValidationException {
         String str = project.option(optionName, "");
-        List<String> values = Arrays.asList(str.split(","));
+        String[] values = str.split(",");
         for (String value : values) {
             validateChoices(optionName, value, Arrays.asList(validChoices));
         }
@@ -645,14 +664,14 @@ public class Bob {
         errors.append("\n");
         for (MultipleCompileException.Info info : e.issues)
         {
-            errors.append(logExceptionToString(info.getSeverity(), info.getResource(), info.getLineNumber(), info.getMessage()) + "\n");
+            errors.append(logExceptionToString(info.getSeverity(), info.getResource(), info.getLineNumber(), info.getMessage())).append("\n");
         }
 
         String msg = String.format("For the full log, see %s (or add -v)\n", e.getLogPath());
         errors.append(msg);
 
         if (verbose) {
-            errors.append("\nFull log: \n" + e.getRawLog() + "\n");
+            errors.append("\nFull log: \n").append(e.getRawLog()).append("\n");
         }
         return errors;
     }
@@ -661,13 +680,20 @@ public class Bob {
        return expected.isInstance(exc) || (exc != null && isCause(expected, exc.getCause()));
     }
 
-    private static void mainInternal(String[] args) throws IOException, CompileExceptionError, URISyntaxException, LibraryException {
+    /**
+     * Common entry point for both editor and bob
+     * @param classLoader may be null
+     */
+    public static InvocationResult invoke(IResourceScanner resourceScanner, ClassLoader classLoader, IProgress progress, boolean fromEditor, String[] args) throws IOException, CompileExceptionError, LibraryException, OptionValidationException {
         System.setProperty("java.awt.headless", "true");
         System.setProperty("file.encoding", "UTF-8");
 
         String cwd = new File(".").getAbsolutePath();
 
         CommandLine cmd = parse(args);
+        if (cmd == null) { // nothing to do: requested to print help
+            return new InvocationResult(true, Collections.emptyList());
+        }
         String buildDirectory = getOptionsValue(cmd, 'o', "build/default");
         String rootDirectory = getOptionsValue(cmd, 'r', cwd);
         String sourceDirectory = getOptionsValue(cmd, 'i', ".");
@@ -695,26 +721,23 @@ public class Bob {
             if (build_report_html != null) {
                 reportFiles.add(new File(build_report_html));
             }
-            TimeProfiler.init(reportFiles, false);
+            TimeProfiler.init(reportFiles, fromEditor);
         }
 
         TimeProfiler.start("ParseCommandLine");
         if (cmd.hasOption("version")) {
             System.out.println(String.format("bob.jar version: %s  sha1: %s  built: %s", EngineVersion.version, EngineVersion.sha1, EngineVersion.timestamp));
-            System.exit(0);
-            return;
+            return new InvocationResult(true, Collections.emptyList());
         }
 
         if (cmd.hasOption("debug") && cmd.hasOption("variant")) {
             System.out.println("-d (--debug) option is deprecated and can't be set together with option --variant");
-            System.exit(1);
-            return;
+            throw new OptionValidationException(1);
         }
 
         if (cmd.hasOption("debug") && cmd.hasOption("strip-executable")) {
             System.out.println("-d (--debug) option is deprecated and can't be set together with option --strip-executable");
-            System.exit(1);
-            return;
+            throw new OptionValidationException(1);
         }
 
         if (cmd.hasOption("exclude-build-folder")) {
@@ -742,7 +765,7 @@ public class Bob {
 
         String email = getOptionsValue(cmd, 'e', null);
         String auth = getOptionsValue(cmd, 'u', null);
-        Project project = createProject(rootDirectory, buildDirectory, email, auth);
+        Project project = createProject(classLoader, rootDirectory, buildDirectory, email, auth);
 
         if (cmd.hasOption("settings")) {
             for (String filepath : cmd.getOptionValues("settings")) {
@@ -770,7 +793,7 @@ public class Bob {
 
         TimeProfiler.start("setupProject");
         // resolves libraries and finds all sources
-        setupProject(project, shouldResolveLibs, sourceDirectory);
+        setupProject(project, shouldResolveLibs, progress, resourceScanner);
         TimeProfiler.stop();
 
         TimeProfiler.start("setOptions");
@@ -799,8 +822,7 @@ public class Bob {
             catch (NumberFormatException ex) {
                 System.out.println("`--max-cpu-threads` expects integer value.");
                 ex.printStackTrace();
-                System.exit(1);
-                return;
+                throw new OptionValidationException(1);
             }
         }
 
@@ -826,19 +848,16 @@ public class Bob {
 
         if (architectures.length == 0) {
             System.out.println(String.format("ERROR! --architectures cannot be empty. Available architectures: %s", String.join(", ", availableArchitectures)));
-            System.exit(1);
-            return;
+            throw new OptionValidationException(1);
         }
 
         // Remove duplicates and make sure they are all supported for
         // selected platform.
         Set<String> uniqueArchitectures = new HashSet<String>();
-        for (int i = 0; i < architectures.length; i++) {
-            String architecture = architectures[i];
+        for (String architecture : architectures) {
             if (!availableArchitectures.contains(architecture)) {
                 System.out.println(String.format("ERROR! %s is not a supported architecture for %s platform. Available architectures: %s", architecture, platform.getPair(), String.join(", ", availableArchitectures)));
-                System.exit(1);
-                return;
+                throw new OptionValidationException(1);
             }
             uniqueArchitectures.add(architecture);
         }
@@ -861,8 +880,7 @@ public class Bob {
         String variant = project.option("variant", VARIANT_RELEASE);
         if (! (variant.equals(VARIANT_DEBUG) || variant.equals(VARIANT_RELEASE) || variant.equals(VARIANT_HEADLESS)) ) {
             System.out.println(String.format("--variant option must be one of %s, %s, or %s", VARIANT_DEBUG, VARIANT_RELEASE, VARIANT_HEADLESS));
-            System.exit(1);
-            return;
+            throw new OptionValidationException(1);
         }
 
         if (cmd.hasOption("texture-profiles")) {
@@ -877,19 +895,17 @@ public class Bob {
 
         if (cmd.hasOption("archive-resource-padding")) {
             String resourcePaddingStr = cmd.getOptionValue("archive-resource-padding");
-            int resourcePadding = 0;
+            int resourcePadding;
             try {
                 resourcePadding = Integer.parseInt(resourcePaddingStr);
             } catch (Exception e) {
                 System.out.printf("Could not parse --archive-resource-padding='%s' into a valid integer\n", resourcePaddingStr);
-                System.exit(1);
-                return;
+                throw new OptionValidationException(1);
             }
 
             if (!isPowerOfTwo(resourcePadding)) {
                 System.out.printf("Argument --archive-resource-padding='%s' isn't a power of two\n", resourcePaddingStr);
-                System.exit(1);
-                return;
+                throw new OptionValidationException(1);
             }
 
             project.setOption("archive-resource-padding", resourcePaddingStr);
@@ -906,7 +922,7 @@ public class Bob {
 
         List<TaskResult> result = new ArrayList<>();
         try {
-            result = project.build(new ConsoleProgress(), commands);
+            result = project.build(progress, commands);
         } catch(MultipleCompileException e) {
             errors = parseMultipleException(e, verbose);
             ret = false;
@@ -949,10 +965,10 @@ public class Bob {
         }
         if (!ret) {
             System.out.println("\nThe build failed for the following reasons:");
-            System.out.println(errors.toString());
+            System.out.println(errors);
         }
         project.dispose();
-        System.exit(ret ? 0 : 1);
+        return new InvocationResult(ret, result);
     }
 
     private static void logErrorAndExit(Exception e) {
@@ -966,9 +982,10 @@ public class Bob {
 
     public static void main(String[] args) throws IOException, CompileExceptionError, URISyntaxException, LibraryException {
         try {
-            mainInternal(args);
-        } catch (LibraryException|CompileExceptionError e) {
-            logErrorAndExit(e);
+            boolean success = invoke(new ClassLoaderResourceScanner(), null, new ConsoleProgress(), false, args).success;
+            System.exit(success ? 0 : 1);
+        } catch (OptionValidationException e) {
+            System.exit(e.exitCode);
         } catch (Exception e) {
             logErrorAndExit(e);
         }
