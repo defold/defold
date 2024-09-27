@@ -490,7 +490,7 @@ public class Bob {
         Options options = new Options();
         addOption(options, "r", "root", true, "Build root directory. Default is current directory", true);
         addOption(options, "o", "output", true, "Output directory. Default is \"build/default\"", false);
-        addOption(options, "i", "input", true, "Source directory. Default is current directory", true);
+        addOption(options, "i", "input", true, "DEPRECATED! Use --root instead", true);
         addOption(options, "v", "verbose", false, "Verbose output", false);
         addOption(options, "h", "help", false, "This help message", false);
         addOption(options, "a", "archive", false, "Build archive", false);
@@ -743,6 +743,11 @@ public class Bob {
         if (cmd.hasOption("exclude-build-folder")) {
             // Deprecated in 1.5.1. Just a message for now.
             System.out.println("--exclude-build-folder option is deprecated. Use '.defignore' file instead");
+        }
+
+        if (cmd.hasOption("input")) {
+            System.out.println("-i (--input) option is deprecated. Use --root instead.");
+            throw new OptionValidationException(1);
         }
 
         String[] commands = cmd.getArgs();
