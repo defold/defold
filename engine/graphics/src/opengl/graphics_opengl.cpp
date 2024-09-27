@@ -1650,12 +1650,6 @@ static void LogFrameBufferError(GLenum status)
         return (((OpenGLContext*) context)->m_IndexBufferFormatSupport & (1 << format)) != 0;
     }
 
-    // NOTE: This function doesn't seem to be used anywhere?
-    static uint32_t OpenGLGetMaxElementsIndices(HContext context)
-    {
-        return 0;
-    }
-
     static HVertexDeclaration OpenGLNewVertexDeclarationStride(HContext context, HVertexStreamDeclaration stream_declaration, uint32_t stride)
     {
         HVertexDeclaration vd = NewVertexDeclaration(context, stream_declaration);

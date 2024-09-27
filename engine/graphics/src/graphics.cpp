@@ -1291,10 +1291,6 @@ namespace dmGraphics
     {
         return g_functions.m_IsIndexBufferFormatSupported(context, format);
     }
-    uint32_t GetMaxElementsIndices(HContext context)
-    {
-        return g_functions.m_GetMaxElementsIndices(context);
-    }
     HVertexDeclaration NewVertexDeclaration(HContext context, HVertexStreamDeclaration stream_declaration)
     {
         return g_functions.m_NewVertexDeclaration(context, stream_declaration);

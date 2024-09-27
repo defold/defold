@@ -487,11 +487,6 @@ namespace dmGraphics
         return true;
     }
 
-    static uint32_t NullGetMaxElementsIndices(HContext context)
-    {
-        return 65536;
-    }
-
     static HVertexDeclaration NullNewVertexDeclarationStride(HContext context, HVertexStreamDeclaration stream_declaration, uint32_t stride)
     {
         return NewVertexDeclaration(context, stream_declaration);

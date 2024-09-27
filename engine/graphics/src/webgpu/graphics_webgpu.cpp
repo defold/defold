@@ -536,7 +536,7 @@ static WGPURenderPipeline WebGPUGetOrCreateRenderPipeline(WebGPUContext* context
     dmHashUpdateBuffer64(&pipeline_hash_state, &context->m_CurrentProgram->m_Hash, sizeof(context->m_CurrentProgram->m_Hash));
     dmHashUpdateBuffer64(&pipeline_hash_state, &context->m_CurrentPipelineState, sizeof(context->m_CurrentPipelineState));
     dmHashUpdateBuffer64(&pipeline_hash_state, &context->m_CurrentRenderPass.m_Target, sizeof(context->m_CurrentRenderPass.m_Target));
-    for (int i = 0, d = 0; i < MAX_VERTEX_BUFFERS; ++i)
+    for (uint8_t i = 0, d = 0; i < MAX_VERTEX_BUFFERS; ++i)
     {
         if (context->m_CurrentVertexBuffers[i])
         {
@@ -716,10 +716,10 @@ static void WebGPUCreateSwapchain(WebGPUContext* context, uint32_t width, uint32
     {
         context->m_MainRenderTarget                = new WebGPURenderTarget();
         context->m_MainRenderTarget->m_Multisample = dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_SAMPLE_COUNT);
-        if (!context->m_MainRenderTarget->m_Multisample)
-            context->m_MainRenderTarget->m_Multisample = 1;
-        else if (context->m_MainRenderTarget->m_Multisample != 1)
-            context->m_MainRenderTarget->m_Multisample = 4; // only 1 and 4 are supported
+        // only 1 and 4 are supported
+        // inforamtion takend from https://webgpufundamentals.org/webgpu/lessons/webgpu-multisampling.html
+        // but need verify
+        context->m_MainRenderTarget->m_Multisample = context->m_MainRenderTarget->m_Multisample <= 1 ? 1 : 4; 
         context->m_MainRenderTarget->m_ColorBufferCount       = 1;
         context->m_MainRenderTarget->m_ColorBufferStoreOps[0] = ATTACHMENT_OP_STORE;
         context->m_MainRenderTarget->m_ColorBufferLoadOps[0]  = ATTACHMENT_OP_LOAD;
@@ -1424,13 +1424,6 @@ static bool WebGPUIsIndexBufferFormatSupported(HContext context, IndexBufferForm
 {
     TRACE_CALL;
     return true;
-}
-
-static uint32_t WebGPUGetMaxElementsIndices(HContext context)
-{
-    TRACE_CALL;
-    assert(false);
-    return -1;
 }
 
 static VertexDeclaration* CreateAndFillVertexDeclaration(HashState64* hash, HVertexStreamDeclaration stream_declaration)

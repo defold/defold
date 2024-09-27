@@ -1689,12 +1689,6 @@ bail:
         return ((VulkanContext*) context)->m_PhysicalDevice.m_Properties.limits.maxDrawIndexedIndexValue;
     }
 
-    // NOTE: This function doesn't seem to be used anywhere?
-    static uint32_t VulkanGetMaxElementsIndices(HContext context)
-    {
-        return -1;
-    }
-
     static HIndexBuffer VulkanNewIndexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         VkBufferUsageFlags usage_flags = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;

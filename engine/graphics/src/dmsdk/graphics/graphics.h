@@ -668,14 +668,6 @@ namespace dmGraphics
      */
     bool IsIndexBufferFormatSupported(HContext context, IndexBufferFormat format);
 
-    /*#
-     * Get the max number of indices allowed by the system in an index buffer
-     * @name GetMaxElementsIndices
-     * @param context [type: dmGraphics::HContext] the context
-     * @return count [type: uint32_t] the count
-     */
-    uint32_t GetMaxElementsIndices(HContext context);
-
     /*# check if an extension is supported
      * @name IsExtensionSupported
      * @param context [type:dmGraphics::HContext] the context
