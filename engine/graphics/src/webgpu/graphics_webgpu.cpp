@@ -832,7 +832,7 @@ static void instanceRequestAdapterCallback(WGPURequestAdapterStatus status, WGPU
     }
 }
 
-static bool initializeWebGPUContext(WebGPUContext* context, const ContextParams& params)
+static bool InitializeWebGPUContext(WebGPUContext* context, const ContextParams& params)
 {
     TRACE_CALL;
     context->m_Window = params.m_Window;
@@ -968,7 +968,7 @@ static HContext WebGPUNewContext(const ContextParams& params)
     if (!g_WebGPUContext)
     {
         g_WebGPUContext = (WebGPUContext*)malloc(sizeof(WebGPUContext));
-        if (initializeWebGPUContext(g_WebGPUContext, params))
+        if (InitializeWebGPUContext(g_WebGPUContext, params))
             return g_WebGPUContext;
         DeleteContext(g_WebGPUContext);
     }

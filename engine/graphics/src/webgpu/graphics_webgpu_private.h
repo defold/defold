@@ -126,7 +126,6 @@ namespace dmGraphics
         uint16_t m_MipMapCount : 5;
         uint8_t m_UsageHintFlags;
         uint8_t m_Destroyed : 1;
-        uint8_t : 8; // aligned by 32 bit
     };
 
     struct WebGPURenderTarget
@@ -149,7 +148,6 @@ namespace dmGraphics
         uint32_t m_Height;
         uint8_t m_Multisample;
         uint32_t m_ColorBufferCount : 7;
-        uint32_t : 17;
     };
 
     struct WebGPUComputePass
@@ -177,7 +175,6 @@ namespace dmGraphics
         TextureWrap m_AddressModeV;
         float m_MaxAnisotropy;
         uint8_t m_MaxLod;
-        uint32_t : 24;
     };
 
     struct WebGPUContext
@@ -236,8 +233,6 @@ namespace dmGraphics
         uint32_t m_ContextFeatures : 3;
         uint32_t m_ViewportChanged : 1;
         uint32_t m_InitComplete : 1;
-
-        uint32_t : 26;
 
         // StorageBufferBinding             m_CurrentStorageBuffers[MAX_STORAGE_BUFFERS];
     };
