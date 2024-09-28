@@ -8,17 +8,16 @@ Make sure you have followed the [setup guide](/README_SETUP.md) before attemptin
 
 ## IMPORTANT PREREQUISITE - PLATFORM SDKs!
 
+Our build setup can find the installation of the platform SDK's for the common platforms.
+
+See the setup for the [Platform SDK](./README_SETUP.md#platform-sdk)
+
+<details><summary>Locally installed platform sdks</summary><p>
+
 ### Using local installation
 
-Our build setup can find the installation the platform SDK's for these platforms
-
-* Windows - Visual Studio + clang++
-* macOS/iOS - XCode
-* Android - Android Studio
-* Linux - clang++
-* Consoles - The vendor specific sdks
-
-In the future, we want to support HTML5 as well, for easier setup for all platforms.
+Our build setup can find the installation of the platform SDK's for the common platforms.
+See [Platform SDK](./README_SETUP.md#platform-sdk)
 
 If you have these tools installed, you can skip the `./scripts/build.py install_sdk` step altogether.
 
@@ -34,6 +33,8 @@ __In order to simplify this process we provide scripts to download and package t
 
 The path to the SDKs can either be passed to `build.py` using the `--package-path` option or by setting the `DM_PACKAGES_URL` environment variable.
 
+</p></details>
+
 ## Standard workflow
 
 The standard workflow when building the engine is the following:
@@ -44,6 +45,43 @@ The standard workflow when building the engine is the following:
 
 When working on a new feature or fixing a bug you start by first building the engine once as described above. You then proceed to develop your feature or fix the bug and rebuild and test changes until satisfied. When you do a rebuild you can speed things up by only building the parts that have changed.
 
+## Build examples
+
+To give an quick overview of the steps required.
+(The following paragraphs will explain in more detail what each step does.)
+
+The `--platform=` is implied in these examples, as it defaults to the host platform (x86_64-win32, x86_64-linux, x86_64-macos or arm64-macos)
+
+Once per session:
+```
+$ ./scripts/build.py shell          # creates the shell. No need for "--platform"
+```
+
+Once per platform to be built
+```
+$ ./scripts/build.py install_ext    # extracts packages
+$ ./scripts/build.py check_sdk      # checks that it finds the platform SDK
+```
+
+Build full engine, docs, bob light, tests + running the tests
+
+    $ ./scripts/build.py build_engine
+
+Build full engine, but without: docs, bob light, tests, skipping the tests (for a significant speedup)
+
+    $ ./scripts/build.py build_engine --skip-docs --skip-bob-light --skip-tests -- --skip-build-tests
+
+Rebuild a single library, and then relink the dmengine executable. No tests are run. The fastest option while iterating on a feature.
+
+    $ ./scripts/submodule x86_64-win32 gamesys
+
+
+You can also specify the platform explicitly:
+```
+$ ./scripts/build.py install_ext --platform=arm64-android
+$ ./scripts/build.py check_sdk --platform=arm64-android
+$ ./scripts/build.py build_engine --platform=arm64-android
+```
 
 ### Platforms
 
@@ -77,11 +115,20 @@ This will start a new shell with all of the required environment variables set (
 
 Next thing you need to do is to install external packages:
 
+Install for the current host platform (e.g x86_64-win32)
 ```sh
-$ ./scripts/build.py install_ext --platform=...
+$ ./scripts/build.py install_ext
 ```
 
-It is important that you provide the `--platform` option to let the `install_ext` command know which platform you intend to build for (the target platform). When the `install_ext` command has finished you will find the external packages and downloaded SDKs in `./tmp/dynamo_home/ext`.
+Or for another target platform
+```sh
+$ ./scripts/build.py install_ext --platform=arm64-android
+```
+
+It is important that you provide the `--platform` if you target a platform other than the host platform.
+With host platform, we mean any of the `x86_64-win32`, `x86_64-macos`, `arm64-macos` or `x86_64-linux`.
+
+When the `install_ext` command has finished you will find the external packages and any downloaded SDKs in `${DYNAMO_HOME}/ext`.
 
 **IMPORTANT!**
 You need to rerun the `install_ext` command for each target platform, as different packages and SDKs are installed.
@@ -101,6 +148,12 @@ This step also installs some Python dependencies:
 ### Step 3 - Installing SDKs
 
 NOTE: As mentioned above, you may skip this step if your host OS and target OS is in the supported list of platforms that can use the local (host) installations of sdks.
+(Most likely, it is)
+See [Platform SDK](./README_SETUP.md#platform-sdk)
+
+<details><summary>Install sdk</summary><p>
+
+See [./README_SETUP.md]()
 
 The `install_sdk`command will install SDKs (build tools etc) such as the Android SDK when building for Android or the Emscripten SDK for HTML5.
 
@@ -117,6 +170,9 @@ You could also set the package path in an environment variable `DM_PACKAGES_URL`
 ```sh
 $ DM_PACKAGES_URL=https://my.url ./scripts/build.py install_sdk --platform=...
 ```
+
+</p></details>
+
 
 ### STEP 4 - Build the engine
 
