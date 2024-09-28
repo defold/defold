@@ -449,7 +449,6 @@ def _get_local_emsdk_config():
     emsdk = _get_local_emsdk()
     return os.path.join(emsdk, '.emscripten')
 
-
 # https://emscripten.org/docs/tools_reference/emcc.html?highlight=em_config
 def _get_local_emsdk_node():
     node = os.environ.get('EMSDK_NODE', None)
