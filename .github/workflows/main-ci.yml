@@ -92,6 +92,7 @@ jobs:
       { name: 'Verify emsdk',
         run: 'emcc -v && export | grep EM'
       },
+      { name: Install LLVM and Clang, uses: KyleMayes/install-llvm-action@v2, with: {version: "17.0"}},
       { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
