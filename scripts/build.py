@@ -557,20 +557,26 @@ class Configuration(object):
         return path
 
     def check_sdk(self):
+        # TODO: Make sure this check works for all platforms
+        if target_platform in ('js-web', 'wasm-web'): # some platforms are not yet supported using this sdk_info mechanic
+            return
+
         sdkfolder = join(self.ext, 'SDKs')
 
         self.sdk_info = sdk.get_sdk_info(sdkfolder, target_platform, self.verbose)
 
-        if target_platform in ('js-web', 'wasm-web'): # smoe platforms are not yet supported using this sdk_info mechanic
-            return
+        # TODO: Make sure this check works for all platforms
+        if not self.sdk_info:
+            if not self.verbose:
+                # Do it again, with verbose on, so that we can get more info straight away:
+                sdk.get_sdk_info(sdkfolder, target_platform, True)
 
-        # We currently only support a subset of platforms using this mechanic
-        if platform in ('x86_64-macos', 'arm64-macos','x86_64-ios','arm64-ios'):
-            # TODO: Make sure this check works for all platforms
-            if not self.sdk_info:
-                print("Couldn't find any sdks for platform", target_platform)
-                print("We recommend you follow the setup guide found here: %s" % "https://github.com/defold/defold/blob/dev/README_BUILD.md#important-prerequisite---platform-sdks")
-                sys.exit(1)
+            url = "https://github.com/defold/defold/blob/dev/README_BUILD.md#important-prerequisite---platform-sdks"
+            self._log(f"Failed to get sdk info for platform {target_platform}.")
+            self._log(f" * Is the local sdk setup correctly?")
+            self._log(f" * Or have you called `install_sdk`?")
+            self._log(f"We recommend you follow the setup guide found here: {url}")
+            sys.exit(1)
 
         if self.verbose:
             print("SDK info:")
