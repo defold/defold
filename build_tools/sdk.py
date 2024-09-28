@@ -409,11 +409,6 @@ def _setup_info_from_windowsinfo(windowsinfo, platform):
 ## **********************************************************************************************
 # Emscripten
 
-
-# EMSCRIPTEN_VERSION_STR = "3.1.65"
-# EMSCRIPTEN_SDK = "sdk-{0}-64bit".format(EMSCRIPTEN_VERSION_STR)
-# PACKAGES_EMSCRIPTEN_SDK="emsdk-{0}".format(EMSCRIPTEN_VERSION_STR)
-
 def get_defold_emsdk():
     emsdk = os.path.join(SDK_ROOT, 'emsdk-' + EMSCRIPTEN_VERSION_STR)
     if emsdk is None:
