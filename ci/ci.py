@@ -201,7 +201,7 @@ def build_engine(platform, channel, with_valgrind = False, with_asan = False, wi
     else:
         install_sdk = 'install_sdk'
 
-    args = ('python scripts/build.py distclean %s install_ext' % install_sdk).split()
+    args = ('python scripts/build.py distclean %s install_ext check_sdk' % install_sdk).split()
 
     opts = []
     waf_opts = []
