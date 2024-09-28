@@ -1673,12 +1673,6 @@ class Configuration(object):
         self._log(msg)
         sys.exit(1)
 
-    def verify_env(self):
-        for env_var in ['DYNAMO_HOME', 'PYTHONPATH', 'JAVA_HOME']:
-            if not env_var in os.environ:
-                msg = f"{env_var} was not found in environment.\nDid you use './scripts/build.py shell'?"
-                self.fatal(msg)
-
 # ------------------------------------------------------------
 # BEGIN: RELEASE
 #
@@ -2543,9 +2537,17 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       gcloud_keyfile = options.gcloud_keyfile,
                       verbose = options.verbose)
 
-    verify_shell = 'shell' not in args
-    if verify_shell:
-        c.verify_env()
+    needs_dynamo_home = True
+    for cmd in args:
+        if cmd in ['shell', 'save_env']:
+            needs_dynamo_home = False
+            break
+    if needs_dynamo_home:
+        for env_var in ['DYNAMO_HOME', 'PYTHONPATH', 'JAVA_HOME']:
+            if not env_var in os.environ:
+                c._log("CMD: " + ' '.join(sys.argv))
+                msg = f"{env_var} was not found in environment.\nDid you use './scripts/build.py shell'?"
+                c.fatal(msg)
 
     for cmd in args:
         f = getattr(c, cmd, None)
