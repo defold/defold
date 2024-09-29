@@ -24,6 +24,11 @@ def options(opt):
     opt.load('waf_dynamo')
 
 def configure(conf):
+    if os.environ['DYNAMO_HOME'] != conf.env.PREFIX:
+        if 'PREFIX' not in os.environ:
+            conf.env.PREFIX = os.environ['DYNAMO_HOME']
+            print("Setting PREFIX=$DYNAMO_HOME")
+
     if not platform_supports_feature(conf.env.PLATFORM, "opengl", None):
         print("GLFW isn't supported on this platform", conf.env.PLATFORM)
         return
