@@ -1480,14 +1480,14 @@ public class Project {
 
     private List<TaskResult> createAndRunTasks(IProgress monitor) throws IOException, CompileExceptionError {
         // Do early test if report files are writable before we start building
-        boolean generateReport = this.hasOption("build-report") || this.hasOption("build-report-html");
+        boolean generateReport = this.hasOption("build-report-json") || this.hasOption("build-report-html");
         FileWriter resourceReportJSONWriter = null;
         FileWriter resourceReportHTMLWriter = null;
         FileWriter excludedResourceReportJSONWriter = null;
         FileWriter excludedResourceReportHTMLWriter = null;
 
-        if (this.hasOption("build-report")) {
-            String resourceReportJSONPath = this.option("build-report", "report.json");
+        if (this.hasOption("build-report-json")) {
+            String resourceReportJSONPath = this.option("build-report-json", "report.json");
 
             File resourceReportJSONFile = new File(resourceReportJSONPath);
             File resourceReportJSONFolder = resourceReportJSONFile.getParentFile();
@@ -1544,7 +1544,7 @@ public class Project {
             String excludedResourceReportJSON = rg.generateExcludedResourceReportJSON();
 
             // Save JSON report
-            if (this.hasOption("build-report")) {
+            if (this.hasOption("build-report-json")) {
                 resourceReportJSONWriter.write(resourceReportJSON);
                 resourceReportJSONWriter.close();
                 excludedResourceReportJSONWriter.write(excludedResourceReportJSON);
@@ -1818,7 +1818,7 @@ run:
                 }
 
                 TimeProfiler.start(task.getName());
-                TimeProfiler.addData("output", task.getOutputsString());
+                TimeProfiler.addData("output", StringUtil.truncate(task.getOutputsString(), 1000));
                 TimeProfiler.addData("type", "buildTask");
 
                 completedTasks.add(task);
@@ -2195,13 +2195,25 @@ run:
     }
 
     public IResource createGeneratedResource(long hash, String suffix) {
+        return createGeneratedResource(null, hash, suffix);
+    }
+
+    public IResource createGeneratedResource(String prefix, long hash, String suffix) {
         Map<Long, IResource> submap = hashToResource.get(suffix);
         if (submap == null) {
             submap = new HashMap<>();
             hashToResource.put(suffix, submap);
         }
 
-        IResource genResource = fileSystem.get(String.format("_generated_%x.%s", hash, suffix)).output();
+        if (prefix == null) {
+            prefix = "";
+        }
+
+        if (!prefix.isEmpty()) {
+            prefix = "_" + prefix;
+        }
+
+        IResource genResource = fileSystem.get(String.format("_generated%s_%x.%s", prefix, hash, suffix)).output();
         submap.put(hash, genResource);
         return genResource;
     }

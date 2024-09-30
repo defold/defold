@@ -1531,7 +1531,9 @@ def remove_flag(arr, flag, nargs):
         remove_flag_at_index(arr, index, nargs+1)
 
 def detect(conf):
-    conf.find_program('valgrind', var='VALGRIND', mandatory = False)
+    if Options.options.with_valgrind:
+        conf.find_program('valgrind', var='VALGRIND', mandatory = False)
+
     conf.find_program('ccache', var='CCACHE', mandatory = False)
 
     if Options.options.with_iwyu:
@@ -1553,9 +1555,6 @@ def detect(conf):
     if host_platform in ('x86_64-linux', 'x86_64-win32', 'x86_64-macos', 'arm64-macos'):
         conf.env['IS_HOST_DESKTOP'] = 'true'
 
-    if platform in ('js-web', 'wasm-web') and not conf.env['NODEJS']:
-        conf.find_program('node', var='NODEJS', mandatory = False)
-
     try:
         build_util = create_build_utility(conf.env)
     except BuildUtilityException as ex:
@@ -1564,6 +1563,7 @@ def detect(conf):
     dynamo_home = build_util.get_dynamo_home()
     conf.env['DYNAMO_HOME'] = dynamo_home
 
+    # these may be the same if we're building the host tools
     sdkinfo = sdk.get_sdk_info(SDK_ROOT, build_util.get_target_platform())
     sdkinfo_host = sdk.get_sdk_info(SDK_ROOT, host_platform)
 
@@ -1747,18 +1747,33 @@ def detect(conf):
 
     # NOTE: We override after check_tool. Otherwise waf gets confused and CXX_NAME etc are missing..
     if platform in ('js-web', 'wasm-web'):
-        bin = os.environ.get('EMSCRIPTEN')
-        if None == bin:
-            conf.fatal('EMSCRIPTEN environment variable does not exist')
-        conf.env['EMSCRIPTEN'] = bin
-        conf.env['CC'] = '%s/emcc' % (bin)
-        conf.env['CXX'] = '%s/em++' % (bin)
-        conf.env['LINK_CC'] = '%s/emcc' % (bin)
-        conf.env['LINK_CXX'] = '%s/em++' % (bin)
-        conf.env['CPP'] = '%s/em++' % (bin)
-        conf.env['AR'] = '%s/emar' % (bin)
-        conf.env['RANLIB'] = '%s/emranlib' % (bin)
-        conf.env['LD'] = '%s/emcc' % (bin)
+        emsdk = sdkinfo['emsdk']['path']
+
+        if emsdk is None:
+            conf.fatal('EMSDK environment variable not found.')
+
+        if not conf.env['NODEJS']:
+            emsdk_node = sdkinfo['emsdk']['node']
+            path_list = None
+            if emsdk_node is not None and os.path.exists(emsdk_node):
+                path_list = [os.path.dirname(emsdk_node)]
+            conf.find_program('node', var='NODEJS', mandatory = False, path_list = path_list)
+
+        bin_dir = os.path.join(emsdk, 'upstream', 'emscripten')
+
+        conf.env['EMSCRIPTEN'] = bin_dir
+        conf.env['EMSDK'] = emsdk # let's use the actual install dir if we wish to use other tools
+        conf.env['EM_CACHE'] = sdkinfo['emsdk']['cache']
+        conf.env['EM_CONFIG'] = sdkinfo['emsdk']['config']
+
+        conf.env['CC'] = f'{bin_dir}/emcc'
+        conf.env['CXX'] = f'{bin_dir}/em++'
+        conf.env['LINK_CC'] = f'{bin_dir}/emcc'
+        conf.env['LINK_CXX'] = f'{bin_dir}/em++'
+        conf.env['CPP'] = f'{bin_dir}/em++'
+        conf.env['AR'] = f'{bin_dir}/emar'
+        conf.env['RANLIB'] = f'{bin_dir}/emranlib'
+        conf.env['LD'] = f'{bin_dir}/emcc'
         conf.env['cprogram_PATTERN']='%s.js'
         conf.env['cxxprogram_PATTERN']='%s.js'
 
