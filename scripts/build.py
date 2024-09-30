@@ -555,6 +555,10 @@ class Configuration(object):
         return path
 
     def check_sdk(self):
+        # TODO: Make sure this check works for all platforms
+        if target_platform in ('js-web', 'wasm-web'): # some platforms are not yet supported using this sdk_info mechanic
+            return
+
         sdkfolder = join(self.ext, 'SDKs')
 
         self.sdk_info = sdk.get_sdk_info(sdkfolder, target_platform, self.verbose)
