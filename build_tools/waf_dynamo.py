@@ -910,7 +910,7 @@ def _strip_executable(bld, platform, target_arch, path):
     strip = "strip"
     if 'android' in platform:
         HOME = os.environ['USERPROFILE' if sys.platform == 'win32' else 'HOME']
-        ANDROID_HOST = 'linux' if sys.platform == 'linux' else 'darwin'
+        ANDROID_HOST = 'windows' if sys.platform == 'win32' else ('linux' if sys.platform == 'linux' else 'darwin')
         strip = "%s/toolchains/llvm/prebuilt/%s-x86_64/bin/llvm-strip" % (sdkinfo['ndk'], ANDROID_HOST)
 
     return bld.exec_command("%s %s" % (strip, path))
@@ -1664,11 +1664,20 @@ def detect(conf):
         if not os.path.exists(bintools):
             conf.fatal("Path does not exist: %s" % bintools)
 
-        conf.env['CC']       = '%s/%s' % (bintools, clang_name)
-        conf.env['CXX']      = '%s/%s++' % (bintools, clang_name)
-        conf.env['LINK_CXX'] = '%s/%s++' % (bintools, clang_name)
-        conf.env['CPP']      = '%s/%s -E' % (bintools, clang_name)
-        conf.env['AR']       = '%s/%s-ar' % (bintools, tool_name)
+        # ccache fails on windows disable
+        if 'win32' in host_platform:
+            conf.env['CC'] = '%s/%s.cmd' % (bintools, clang_name)
+            conf.env['CXX'] = '%s/%s++.cmd' % (bintools, clang_name)
+            conf.env['AR'] = '%s/llvm-ar.exe' % bintools
+            conf.env['LINK_CXX'] = '%s/%s++.cmd' % (bintools, clang_name)
+            conf.env['CPP'] = '%s/%s.cmd -E' % (bintools, clang_name)
+        else:
+            conf.env['CC'] = '%s/%s' % (bintools, clang_name)
+            conf.env['CXX'] = '%s/%s++' % (bintools, clang_name)
+            conf.env['AR'] = '%s/llvm-ar' % bintools
+            conf.env['LINK_CXX'] = '%s/%s++' % (bintools, clang_name)
+            conf.env['CPP'] = '%s/%s -E' % (bintools, clang_name)
+
         conf.env['RANLIB']   = '%s/%s-ranlib' % (bintools, tool_name)
         conf.env['LD']       = '%s/lld' % (bintools)
 
