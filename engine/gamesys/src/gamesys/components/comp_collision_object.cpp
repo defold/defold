@@ -690,7 +690,6 @@ namespace dmGameSystem
                 a.m_Id                  = instance_a_id;
                 a.m_Position            = contact_point.m_PositionA;
                 a.m_InstancePosition    = dmGameObject::GetWorldPosition(instance_a);
-                a.m_OtherPosition       = dmGameObject::GetWorldPosition(instance_b);
                 a.m_Mass                = mass_a;
                 a.m_RelativeVelocity    = -contact_point.m_RelativeVelocity;
                 a.m_Normal              = -contact_point.m_Normal;
@@ -699,8 +698,7 @@ namespace dmGameSystem
                 b.m_Group               = group_hash_b;
                 b.m_Id                  = instance_b_id;
                 b.m_Position            = contact_point.m_PositionB;
-                b.m_InstancePosition    = dmGameObject::GetWorldPosition(instance_b);
-                b.m_OtherPosition       = dmGameObject::GetWorldPosition(instance_a);
+                a.m_InstancePosition    = dmGameObject::GetWorldPosition(instance_b);
                 b.m_Mass                = mass_b;
                 b.m_RelativeVelocity    = contact_point.m_RelativeVelocity;
                 b.m_Normal              = contact_point.m_Normal;
