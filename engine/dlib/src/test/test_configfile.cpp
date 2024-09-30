@@ -436,10 +436,6 @@ static void Usage()
 
 int main(int argc, char **argv)
 {
-    char buffer[1024];
-    getcwd(buffer, sizeof(buffer));
-    dmLogInfo("CWD: '%s'", buffer);
-
     if(argc > 1)
     {
         char path[512];
