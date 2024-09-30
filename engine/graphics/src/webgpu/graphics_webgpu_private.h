@@ -51,8 +51,8 @@ namespace dmGraphics
         struct Alloc
         {
             WGPUBuffer m_Buffer = NULL;
-            size_t m_Used       = 0;
-            size_t m_Size       = 0;
+            size_t m_Used = 0;
+            size_t m_Size = 0;
         };
         dmArray<Alloc*> m_Allocs;
         size_t m_Alloc = 0;
@@ -101,13 +101,13 @@ namespace dmGraphics
         WebGPUTexture()
         {
             memset(this, 0, sizeof(*this));
-            m_Type           = TEXTURE_TYPE_2D;
+            m_Type = TEXTURE_TYPE_2D;
             m_GraphicsFormat = TEXTURE_FORMAT_RGBA;
-            m_Format         = WGPUTextureFormat_Undefined;
-            m_UsageFlags     = WGPUTextureUsage_None;
-            m_Texture        = NULL;
-            m_TextureView    = NULL;
-            m_Sampler        = NULL;
+            m_Format = WGPUTextureFormat_Undefined;
+            m_UsageFlags = WGPUTextureUsage_None;
+            m_Texture = NULL;
+            m_TextureView = NULL;
+            m_Sampler = NULL;
         }
 
         WGPUTexture m_Texture;
