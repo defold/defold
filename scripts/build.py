@@ -662,11 +662,6 @@ class Configuration(object):
             f.write('int main() { return 0; }')
         run.env_command(self._form_env(), [f'{bin_dir}/emcc', c_file, '-o', '%s' % exe_file])
 
-    def install_ems(self):
-        print("DEPRECATED: Use `install_sdk --platform=wasm-web` instead!")
-        self.target_platform = 'wasm-web'
-        self.install_sdk(self)
-
     def _git_sha1(self, ref = None):
         return self.build_utility.git_sha1(ref)
 
