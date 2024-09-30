@@ -285,6 +285,8 @@ def create_lein_env(jdk_path=None):
     env["LEIN_HOME"] = "target/lein"
     if jdk_path:
         env["JAVA_CMD"] = '%s/bin/java' % jdk_path
+    else:
+        env["JAVA_CMD"] = '%s/bin/java' % env["JAVA_HOME"]
     return env
 
 def check_reflections(lein_env):
@@ -293,7 +295,7 @@ def check_reflections(lein_env):
     ignored_reflections = []
 
     # lein check puts reflection warnings on stderr, redirect to stdout to capture all output
-    output = run.command(['./scripts/lein', 'with-profile', '+headless', 'check-and-exit'], env = lein_env)
+    output = run.command(['bash', './scripts/lein', 'with-profile', '+headless', 'check-and-exit'], env = lein_env, shell = True)
     lines = output.splitlines()
     reflection_lines = (line for line in lines if re.match(reflection_prefix, line))
     reflections = (re.match('(' + reflection_prefix + ')(.*)', line).group(2) for line in reflection_lines)
@@ -306,8 +308,9 @@ def check_reflections(lein_env):
         exit(1)
 
 def write_docs(docs_dir, lein_env):
-    run.command(['./scripts/lein', 'with-profile', '+docs', 'run', '-m', 'editor.docs', docs_dir],
+    run.command(['bash', './scripts/lein', 'with-profile', '+docs', 'run', '-m', 'editor.docs', docs_dir],
                 stdout = True,
+                shell = True,
                 env = lein_env)
 
 def build(options):
@@ -317,25 +320,25 @@ def build(options):
 
     print('Building editor')
 
-    init_command = ['./scripts/lein', 'with-profile', '+release', 'init']
+    init_command = ['bash', './scripts/lein', 'with-profile', '+release', 'init']
     if options.engine_sha1:
         init_command += [options.engine_sha1]
 
     run.command(init_command, env = lein_env)
 
-    build_ns_batches_command = ['./scripts/lein', 'with-profile', '+release', 'build-ns-batches']
-    run.command(build_ns_batches_command, env = lein_env)
+    build_ns_batches_command = ['bash', './scripts/lein', 'with-profile', '+release', 'build-ns-batches']
+    run.command(build_ns_batches_command, env = lein_env, shell = True)
 
     check_reflections(lein_env)
 
     if options.skip_tests:
         print('Skipping tests')
     else:
-        run.command(['./scripts/lein', 'test'], env = lein_env)
+        run.command(['bash', './scripts/lein', 'test'], env = lein_env, shell = True)
         # test that docs can be successfully produced
         write_docs('target/docs', lein_env)
 
-    run.command(['./scripts/lein', 'prerelease'], env = lein_env)
+    run.command(['bash', './scripts/lein', 'prerelease'], env = lein_env, shell = True)
 
 
 def get_exe_suffix(platform):
@@ -416,7 +419,7 @@ def create_bundle(options):
     mkdirs('target/editor')
     for platform in options.target_platform:
         print("Creating uberjar for platform %s" % platform)
-        run.command(['./scripts/lein', 'with-profile', 'release,%s' % platform, 'uberjar'], env = lein_env)
+        run.command(['bash', './scripts/lein', 'with-profile', 'release,%s' % platform, 'uberjar'], env = lein_env, shell = True)
         jar_file = 'target/editor-%s-standalone.jar' % platform
         print("Creating bundle for platform %s" % platform)
         rmtree('tmp')
