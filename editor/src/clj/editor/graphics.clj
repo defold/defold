@@ -759,46 +759,48 @@
   (let [declared-material-attribute-key? (into #{} (map :name-key) material-attribute-infos)
 
         material-attribute-save-values
-        (keep
-          (fn [material-attribute-info]
-            (let [attribute-key (:name-key material-attribute-info)
-                  override-info (vertex-attribute-overrides attribute-key)]
-              (when-some [override-values (coll/not-empty (:values override-info))]
-                ;; Ensure our saved values have the expected element-count.
-                ;; If the material has been edited, this might have changed,
-                ;; but edits made using specialized widgets like the one we use
-                ;; to edit color properties may also alter the vector-type from
-                ;; what the material dictates.
-                (let [{:keys [data-type name normalize semantic-type]} material-attribute-info
-                      material-attribute-vector-type (:vector-type material-attribute-info)
-                      override-attribute-vector-type (:vector-type override-info)
-                      _ (assert (vector-type? override-attribute-vector-type))
-                      converted-values (convert-double-values override-values semantic-type override-attribute-vector-type material-attribute-vector-type)
-                      [attribute-value-keyword stored-values] (doubles->storage converted-values data-type normalize)
-                      explicit-vector-type (when (disambiguating-vector-type? material-attribute-vector-type)
-                                             material-attribute-vector-type)]
-                  (protobuf/make-map-without-defaults Graphics$VertexAttribute
-                    :name name
-                    :vector-type explicit-vector-type
-                    attribute-value-keyword {:v stored-values})))))
+        (eduction
+          (keep
+            (fn [material-attribute-info]
+              (let [attribute-key (:name-key material-attribute-info)
+                    override-info (vertex-attribute-overrides attribute-key)]
+                (when-some [override-values (coll/not-empty (:values override-info))]
+                  ;; Ensure our saved values have the expected element-count.
+                  ;; If the material has been edited, this might have changed,
+                  ;; but edits made using specialized widgets like the one we
+                  ;; use to edit color properties may also alter the vector-type
+                  ;; from what the material dictates.
+                  (let [{:keys [data-type name normalize semantic-type]} material-attribute-info
+                        material-attribute-vector-type (:vector-type material-attribute-info)
+                        override-attribute-vector-type (:vector-type override-info)
+                        _ (assert (vector-type? override-attribute-vector-type))
+                        converted-values (convert-double-values override-values semantic-type override-attribute-vector-type material-attribute-vector-type)
+                        [attribute-value-keyword stored-values] (doubles->storage converted-values data-type normalize)
+                        explicit-vector-type (when (disambiguating-vector-type? material-attribute-vector-type)
+                                               material-attribute-vector-type)]
+                    (protobuf/make-map-without-defaults Graphics$VertexAttribute
+                      :name name
+                      :vector-type explicit-vector-type
+                      attribute-value-keyword {:v stored-values}))))))
           material-attribute-infos)
 
         orphaned-attribute-save-values
-        (keep
-          (fn [[attribute-key override-info]]
-            (when-some [override-values (coll/not-empty (:values override-info))]
-              (when-not (declared-material-attribute-key? attribute-key)
-                (let [attribute-name (:name override-info)
-                      attribute-value-keyword (:value-keyword override-info)
-                      override-attribute-vector-type (:vector-type override-info)
-                      _ (assert (vector-type? override-attribute-vector-type))
-                      explicit-vector-type (when (disambiguating-vector-type? override-attribute-vector-type)
-                                             override-attribute-vector-type)]
-                  (protobuf/make-map-without-defaults Graphics$VertexAttribute
-                    :name attribute-name
-                    :vector-type explicit-vector-type
-                    attribute-value-keyword (when (coll/not-empty override-values)
-                                              {:v override-values}))))))
+        (eduction
+          (keep
+            (fn [[attribute-key override-info]]
+              (when-some [override-values (coll/not-empty (:values override-info))]
+                (when-not (declared-material-attribute-key? attribute-key)
+                  (let [attribute-name (:name override-info)
+                        attribute-value-keyword (:value-keyword override-info)
+                        override-attribute-vector-type (:vector-type override-info)
+                        _ (assert (vector-type? override-attribute-vector-type))
+                        explicit-vector-type (when (disambiguating-vector-type? override-attribute-vector-type)
+                                               override-attribute-vector-type)]
+                    (protobuf/make-map-without-defaults Graphics$VertexAttribute
+                      :name attribute-name
+                      :vector-type explicit-vector-type
+                      attribute-value-keyword (when (coll/not-empty override-values)
+                                                {:v override-values})))))))
           vertex-attribute-overrides)]
 
     ;; Merge attributes from both collections and sort by name to ensure we get
