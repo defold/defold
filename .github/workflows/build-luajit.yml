@@ -8,7 +8,7 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
     - name: Checkout repo
-      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+      uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938
 
     - name: Build
       run: |
@@ -30,7 +30,7 @@ jobs:
     runs-on: macOS-14
     steps:
     - name: Checkout repo
-      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+      uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938
 
     - name: Build
       run: |
@@ -52,7 +52,7 @@ jobs:
     runs-on: macOS-14
     steps:
     - name: Checkout repo
-      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+      uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938
 
     - name: Build
       run: |
@@ -74,7 +74,7 @@ jobs:
     runs-on: windows-latest
     steps:
     - name: Checkout repo
-      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+      uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938
 
     - name: Setup MSVS
       uses: TheMrMilchmann/setup-msvc-dev@v3
@@ -106,7 +106,7 @@ jobs:
     runs-on: ubuntu-20.04
     steps:
     - name: Checkout repo
-      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+      uses: actions/checkout@d632683dd7b4114ad314bca15554477dd762a938
 
     - name: Setup NDK
       uses: nttld/setup-ndk@v1
