@@ -4,6 +4,18 @@
 
 ## Required Software
 
+### Platform SDK
+
+To make contributions easier, we detect local installations of the common platform SDK's:
+
+* macOS + iOS: [XCode](https://apps.apple.com/us/app/xcode/id497799835)
+* Linux: [Clang++](https://apt.llvm.org/)
+* Windows: [Visual Studio COmmunity 2022](https://visualstudio.microsoft.com/vs/older-downloads/)
+  * (Note that we also require Clang!)
+* Android: [Android Studio](https://developer.android.com/studio)
+
+For consoles, we refer to each vendor's installation notes.
+
 ### Package managers
 
 <details><summary>Windows...</summary><p>
@@ -126,16 +138,14 @@ PowerShell (Windows):
 ```
 </p></details>
 
-
 ### Required Software
 
 <details><summary>macOS...</summary><p>
 
-You need the `dos2unix` command line tool to convert line endings of certain source files when building files in `share/ext`. You can install `dos2unix` using [Brew](https://brew.sh/):
+#### XCode
 
-```sh
-> brew install dos2unix
-```
+we use [XCode](https://apps.apple.com/us/app/xcode/id497799835) for building and debugging macOS + iOS targets.
+
 </p></details>
 
 <details><summary>Windows...</summary><p>
@@ -247,17 +257,18 @@ It is recommended but not required that you install the following software:
 
 <details><summary>macOS...</summary><p>
 
-* **wget** + **curl** - for downloading packages
+* **wget** + **curl** - for downloading packages (used for downloading packages in different scripts)
 * **7z** - for extracting packages (archives and binaries)
-* **ccache** - for faster compilations of source code
+* **ccache** - for faster compilations of source code (optional)
 * **cmake** for easier building of external projects
 * **patch** for easier patching on windows (when building external projects)
 * **ripgrep** for faster search
+* **dos2unix** tool to convert line endings of certain source files (e.g. when building files in `share/ext`)
 
 Quick and easy install:
 
 ```sh
-> brew install wget curl p7zip ccache ripgrep
+> brew install wget curl p7zip ccache ripgrep dos2unix
 ```
 
 Configure `ccache` by running ([source](https://ccache.samba.org/manual.html))
@@ -269,9 +280,9 @@ Configure `ccache` by running ([source](https://ccache.samba.org/manual.html))
 
 <details><summary>Windows...</summary><p>
 
-* **wget** + **curl** - for downloading packages
+* **wget** + **curl** - for downloading packages (used for downloading packages in different scripts)
 * **7z** - for extracting packages (archives and binaries)
-* **ccache** - for faster compilations of source code
+* **ccache** - for faster compilations of source code (optional)
 * **cmake** for easier building of external projects
 * **patch** for easier patching on windows (when building external projects)
 
@@ -296,9 +307,9 @@ Open a Command (cmd.exe) as administrator and run:
 
 <details><summary>Linux...</summary><p>
 
-* **wget** + **curl** - for downloading packages
+* **wget** + **curl** - for downloading packages (used for downloading packages in different scripts)
 * **7z** - for extracting packages (archives and binaries)
-* **ccache** - for faster compilations of source code
+* **ccache** - for faster compilations of source code (optional)
 * **cmake** for easier building of external projects
 * **patch** for easier patching on windows (when building external projects)
 * **snapd** for installing snap packages
