@@ -347,12 +347,13 @@ message EnableGridShapeLayer
 message ContactPoint
 {
     required dmMath.Point3  position                 = 1; // World position of contact point
-    required dmMath.Point3  instance_position        = 2; // World position of instance point
-    required dmMath.Vector3 normal                   = 3;
-    required dmMath.Vector3 relative_velocity        = 4;
-    required float          mass                     = 5;
-    required uint64         id                       = 6;
-    required uint64         group                    = 7;
+    required dmMath.Point3  instance_position        = 2; // World position of instance a
+    required dmMath.Point3  other_position           = 3; // World position of instance b
+    required dmMath.Vector3 normal                   = 4;
+    required dmMath.Vector3 relative_velocity        = 5;
+    required float          mass                     = 6;
+    required uint64         id                       = 7;
+    required uint64         group                    = 8;
 }
 
 /*# reports a contact point between two collision objects in cases where a listener is specified.
