@@ -115,13 +115,13 @@ namespace dmHttpService
         }
 
         uint32_t bytes_received = 0;
-
-        // A HEAD request should not carry any payload.
         if (!method_is_head)
         {
-            if (r.Capacity() < content_length)
+            uint32_t resize_to = (uint32_t) dmMath::Max((int32_t) content_data_size, content_length);
+
+            if (r.Capacity() < resize_to)
             {
-                r.SetCapacity(content_length);
+                r.SetCapacity(resize_to);
             }
 
             r.PushArray((char*) content_data, content_data_size);
