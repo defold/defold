@@ -16,8 +16,6 @@ vertex_constants {
 vertex_constants {
   name: "viewproj"
   type: CONSTANT_TYPE_VIEWPROJ
-  value {
-  }
 }
 fragment_constants {
   name: "screensize"
@@ -32,8 +30,6 @@ fragment_constants {
 fragment_constants {
   name: "proj"
   type: CONSTANT_TYPE_PROJECTION
-  value {
-  }
 }
 samplers {
   name: "texture0"
@@ -56,11 +52,6 @@ attributes {
   name: "position"
   semantic_type: SEMANTIC_TYPE_POSITION
   coordinate_space: COORDINATE_SPACE_WORLD
-  double_values {
-    v: 0.0
-    v: 0.0
-    v: 0.0
-  }
   vector_type: VECTOR_TYPE_VEC3
 }
 attributes {
@@ -68,8 +59,8 @@ attributes {
   semantic_type: SEMANTIC_TYPE_TEXCOORD
   normalize: true
   double_values {
-    v: 0.0
-    v: 0.0
+    v: 0.1
+    v: 0.2
   }
   vector_type: VECTOR_TYPE_VEC2
 }
@@ -78,7 +69,7 @@ attributes {
   semantic_type: SEMANTIC_TYPE_PAGE_INDEX
   data_type: TYPE_UNSIGNED_INT
   long_values {
-    v: 0
+    v: 1
   }
   vector_type: VECTOR_TYPE_SCALAR
 }
@@ -89,9 +80,9 @@ attributes {
   data_type: TYPE_BYTE
   coordinate_space: COORDINATE_SPACE_WORLD
   double_values {
-    v: 1.0
-    v: 1.0
-    v: 1.0
+    v: 0.1
+    v: 0.2
+    v: 0.3
   }
   vector_type: VECTOR_TYPE_VEC3
 }
@@ -102,9 +93,9 @@ attributes {
   data_type: TYPE_UNSIGNED_BYTE
   coordinate_space: COORDINATE_SPACE_WORLD
   double_values {
-    v: 1.0
-    v: 1.0
-    v: 1.0
+    v: 0.1
+    v: 0.2
+    v: 0.3
   }
   vector_type: VECTOR_TYPE_VEC3
 }
@@ -115,9 +106,9 @@ attributes {
   data_type: TYPE_SHORT
   coordinate_space: COORDINATE_SPACE_WORLD
   double_values {
-    v: 1.0
-    v: 1.0
-    v: 1.0
+    v: 0.1
+    v: 0.2
+    v: 0.3
   }
   vector_type: VECTOR_TYPE_VEC3
 }
@@ -128,9 +119,9 @@ attributes {
   data_type: TYPE_UNSIGNED_SHORT
   coordinate_space: COORDINATE_SPACE_WORLD
   double_values {
-    v: 1.0
-    v: 1.0
-    v: 1.0
+    v: 0.1
+    v: 0.2
+    v: 0.3
   }
   vector_type: VECTOR_TYPE_VEC3
 }
@@ -141,9 +132,9 @@ attributes {
   data_type: TYPE_INT
   coordinate_space: COORDINATE_SPACE_WORLD
   double_values {
-    v: 1.0
-    v: 1.0
-    v: 1.0
+    v: 0.1
+    v: 0.2
+    v: 0.3
   }
   vector_type: VECTOR_TYPE_VEC3
 }
@@ -154,9 +145,9 @@ attributes {
   data_type: TYPE_UNSIGNED_INT
   coordinate_space: COORDINATE_SPACE_WORLD
   double_values {
-    v: 1.0
-    v: 1.0
-    v: 1.0
+    v: 0.1
+    v: 0.2
+    v: 0.3
   }
   vector_type: VECTOR_TYPE_VEC3
 }
@@ -166,9 +157,9 @@ attributes {
   normalize: true
   coordinate_space: COORDINATE_SPACE_WORLD
   double_values {
-    v: 1.0
-    v: 1.0
-    v: 1.0
+    v: 0.1
+    v: 0.2
+    v: 0.3
   }
   vector_type: VECTOR_TYPE_VEC3
 }
@@ -230,58 +221,79 @@ attributes {
   name: "float"
   coordinate_space: COORDINATE_SPACE_WORLD
   double_values {
-    v: 1.0
+    v: 1.1
   }
   vector_type: VECTOR_TYPE_SCALAR
 }
 attributes {
   name: "instance_world"
   semantic_type: SEMANTIC_TYPE_WORLD_MATRIX
-  double_values {
-    v: 1.0
-    v: 0.0
-    v: 0.0
-    v: 0.0
-    v: 0.0
-    v: 1.0
-    v: 0.0
-    v: 0.0
-    v: 0.0
-    v: 0.0
-    v: 1.0
-    v: 0.0
-    v: 0.0
-    v: 0.0
-    v: 0.0
-    v: 1.0
-  }
   step_function: VERTEX_STEP_FUNCTION_INSTANCE
   vector_type: VECTOR_TYPE_MAT4
 }
 attributes {
   name: "instance_normal"
   semantic_type: SEMANTIC_TYPE_NORMAL_MATRIX
+  step_function: VERTEX_STEP_FUNCTION_INSTANCE
+  vector_type: VECTOR_TYPE_MAT3
+}
+attributes {
+  name: "instance_custom_mat2"
   double_values {
-    v: 1.0
+    v: 1.1
+    v: 0.0
+    v: 0.0
+    v: 1.1
+  }
+  step_function: VERTEX_STEP_FUNCTION_INSTANCE
+  vector_type: VECTOR_TYPE_MAT2
+}
+attributes {
+  name: "instance_custom_mat3"
+  double_values {
+    v: 1.1
     v: 0.0
     v: 0.0
     v: 0.0
-    v: 0.0
-    v: 1.0
-    v: 0.0
+    v: 1.1
     v: 0.0
     v: 0.0
+    v: 0.0
+    v: 1.1
   }
   step_function: VERTEX_STEP_FUNCTION_INSTANCE
   vector_type: VECTOR_TYPE_MAT3
 }
 attributes {
+  name: "instance_custom_mat4"
+  double_values {
+    v: 1.1
+    v: 0.0
+    v: 0.0
+    v: 0.0
+    v: 0.0
+    v: 1.1
+    v: 0.0
+    v: 0.0
+    v: 0.0
+    v: 0.0
+    v: 1.1
+    v: 0.0
+    v: 0.0
+    v: 0.0
+    v: 0.0
+    v: 1.1
+  }
+  step_function: VERTEX_STEP_FUNCTION_INSTANCE
+  vector_type: VECTOR_TYPE_MAT4
+}
+attributes {
   name: "instance_custom"
   double_values {
-    v: 1.0
-    v: 0.0
-    v: 0.0
-    v: 0.0
+    v: 1.1
+    v: 1.2
+    v: 1.3
+    v: 1.4
   }
   step_function: VERTEX_STEP_FUNCTION_INSTANCE
 }
@@ -290,9 +302,9 @@ attributes {
   data_type: TYPE_BYTE
   long_values {
     v: 1
-    v: 0
-    v: 0
-    v: 0
+    v: 2
+    v: 3
+    v: 4
   }
   step_function: VERTEX_STEP_FUNCTION_INSTANCE
 }
@@ -301,9 +313,9 @@ attributes {
   data_type: TYPE_INT
   long_values {
     v: 1
-    v: 0
-    v: 0
-    v: 0
+    v: 2
+    v: 3
+    v: 4
   }
   step_function: VERTEX_STEP_FUNCTION_INSTANCE
 }
@@ -311,10 +323,10 @@ attributes {
   name: "instance_custom_short"
   data_type: TYPE_SHORT
   long_values {
-    v: 0
-    v: 0
-    v: 0
-    v: 0
+    v: 1
+    v: 2
+    v: 3
+    v: 4
   }
   step_function: VERTEX_STEP_FUNCTION_INSTANCE
 }
@@ -322,10 +334,10 @@ attributes {
   name: "instance_custom_ubyte"
   data_type: TYPE_UNSIGNED_BYTE
   long_values {
-    v: 0
-    v: 0
-    v: 0
-    v: 0
+    v: 1
+    v: 2
+    v: 3
+    v: 4
   }
   step_function: VERTEX_STEP_FUNCTION_INSTANCE
 }
@@ -333,10 +345,10 @@ attributes {
   name: "instance_custom_uint"
   data_type: TYPE_UNSIGNED_INT
   long_values {
-    v: 0
-    v: 0
-    v: 0
-    v: 0
+    v: 1
+    v: 2
+    v: 3
+    v: 4
   }
   step_function: VERTEX_STEP_FUNCTION_INSTANCE
 }
@@ -344,10 +356,10 @@ attributes {
   name: "instance_custom_ushort"
   data_type: TYPE_UNSIGNED_SHORT
   long_values {
-    v: 0
-    v: 0
-    v: 0
-    v: 0
+    v: 1
+    v: 2
+    v: 3
+    v: 4
   }
   step_function: VERTEX_STEP_FUNCTION_INSTANCE
 }

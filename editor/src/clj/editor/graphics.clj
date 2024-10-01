@@ -13,12 +13,11 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.graphics
-  (:require [editor.buffers :as buffers]
-            [dynamo.graph :as g]
+  (:require [dynamo.graph :as g]
+            [editor.buffers :as buffers]
             [editor.geom :as geom]
             [editor.gl.shader :as shader]
             [editor.gl.vertex2 :as vtx]
-            [editor.math :as math]
             [editor.properties :as properties]
             [editor.protobuf :as protobuf]
             [editor.types :as types]
@@ -30,7 +29,8 @@
             [util.fn :as fn]
             [util.murmur :as murmur]
             [util.num :as num])
-  (:import [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$VertexAttribute Graphics$VertexAttribute$SemanticType]
+  (:import [com.dynamo.bob.pipeline GraphicsUtil]
+           [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$VertexAttribute Graphics$VertexAttribute$SemanticType Graphics$VertexAttribute$VectorType]
            [com.google.protobuf ByteString]
            [com.jogamp.opengl GL2]
            [editor.gl.vertex2 VertexBuffer]
@@ -38,10 +38,48 @@
            [javax.vecmath Matrix4d]))
 
 (set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
 (namespaces/import-vars [editor.gl.vertex2 attribute-name->key])
 
-(def ^:private default-attribute-data-type (protobuf/default Graphics$VertexAttribute :data-type))
+(def ^:private scalar-zero (vector-of :double 0.0))
+(def ^:private scalar-one (vector-of :double 1.0))
+
+(def ^:private vec2-zero (vector-of :double 0.0 0.0))
+(def ^:private vec2-one (vector-of :double 1.0 1.0))
+
+(def ^:private vec3-zero (vector-of :double 0.0 0.0 0.0))
+(def ^:private vec3-one (vector-of :double 1.0 1.0 1.0))
+
+(def ^:private vec4-zero (vector-of :double 0.0 0.0 0.0 0.0))
+(def ^:private vec4-one (vector-of :double 1.0 1.0 1.0 1.0))
+(def ^:private vec4-xyz-zero-w-one (vector-of :double 0.0 0.0 0.0 1.0))
+
+(def ^:private mat2-identity
+  (vector-of :double
+    1.0 0.0
+    0.0 1.0))
+
+(def ^:private mat3-identity
+  (vector-of :double
+    1.0 0.0 0.0
+    0.0 1.0 0.0
+    0.0 0.0 1.0))
+
+(def ^:private mat4-identity
+  (vector-of :double
+    1.0 0.0 0.0 0.0
+    0.0 1.0 0.0 0.0
+    0.0 0.0 1.0 0.0
+    0.0 0.0 0.0 1.0))
+
+(def default-attribute-data-type (protobuf/default Graphics$VertexAttribute :data-type))
+
+(def default-attribute-semantic-type (protobuf/default Graphics$VertexAttribute :semantic-type))
+
+(def default-attribute-vector-type (protobuf/default Graphics$VertexAttribute :vector-type))
+
+(def default-attribute-step-function (protobuf/default Graphics$VertexAttribute :step-function))
 
 (def ^:private attribute-data-type-infos
   [{:data-type :type-byte
@@ -75,6 +113,30 @@
 
 (def semantic-type? (protobuf/valid-enum-values Graphics$VertexAttribute$SemanticType))
 
+(def vector-type? (protobuf/valid-enum-values Graphics$VertexAttribute$VectorType))
+
+(defn- disambiguating-vector-type? [vector-type]
+  ;; Can this vector-type disambiguate between two vector-types guessed sorely
+  ;; from the number of values? Currently only relevant to the case when we have
+  ;; exactly four values. In that case, we could have a :vector-type-vec4 or a
+  ;; :vector-type-mat2. If we have the more uncommon :vector-type-mat2, we
+  ;; explicitly write it to the file for override attribute values.
+  (case vector-type
+    :vector-type-mat2 true
+    false))
+
+(def ^:private engine-provided-semantic-types
+  (into #{}
+        (keep (fn [^Graphics$VertexAttribute$SemanticType pb-semantic-type]
+                (when (GraphicsUtil/isEngineProvidedAttributeSemanticType pb-semantic-type)
+                  (protobuf/pb-enum->val pb-semantic-type))))
+        (protobuf/protocol-message-enums Graphics$VertexAttribute$SemanticType)))
+
+(defn engine-provided-attribute? [attribute]
+  {:pre [(map? attribute)] ; Graphics$VertexAttribute in map format.
+   :post [(boolean? %)]}
+  (contains? engine-provided-semantic-types (:semantic-type attribute default-attribute-semantic-type)))
+
 (def ^:private attribute-data-type->attribute-value-keyword
   (fn/make-case-fn (map (juxt :data-type :value-keyword)
                         attribute-data-type-infos)))
@@ -89,14 +151,21 @@
   (fn/make-case-fn (map (juxt :data-type :byte-size)
                         attribute-data-type-infos)))
 
-(defn attribute->doubles [{:keys [data-type] :as attribute}]
-  {:pre [(attribute-data-type? data-type)]}
-  (into (vector-of :double)
-        (map unchecked-double)
-        (if (or (:normalize attribute)
-                (= :type-float data-type))
-          (:v (:double-values attribute))
-          (:v (:long-values attribute)))))
+(declare default-attribute-doubles)
+
+(defn attribute->doubles [attribute]
+  (let [data-type (:data-type attribute default-attribute-data-type)
+        source-values (if (or (:normalize attribute)
+                              (= :type-float data-type))
+                        (:v (:double-values attribute))
+                        (:v (:long-values attribute)))]
+    (if (coll/empty? source-values)
+      (default-attribute-doubles
+        (:semantic-type attribute default-attribute-semantic-type)
+        (:vector-type attribute default-attribute-vector-type))
+      (into (vector-of :double)
+            (map unchecked-double)
+            source-values))))
 
 (defn attribute->any-doubles [attribute]
   (into (vector-of :double)
@@ -126,13 +195,55 @@
         stored-values (doubles->stored-values double-values attribute-value-keyword)]
     (pair attribute-value-keyword stored-values)))
 
+(defn- guess-old-vector-type [^long element-count new-vector-type]
+  ;; With most element counts we can know for certain, but if we have exactly
+  ;; four elements, we could have either a vec4 or a mat2.
+  (case element-count
+    1 :vector-type-scalar
+    2 :vector-type-vec2
+    3 :vector-type-vec3
+    4 (case new-vector-type
+        ;; If we know we're targeting a scalar or vector type, we assume we have
+        ;; a vector type. It makes no difference, really.
+        :vector-type-scalar :vector-type-vec4
+        :vector-type-vec2 :vector-type-vec4
+        :vector-type-vec3 :vector-type-vec4
+        :vector-type-vec4 :vector-type-vec4
+
+        ;; Similarly, if we're targeting a matrix type, assume we have a matrix
+        ;; as well. It makes a difference if we're targeting a mat3 or a mat4,
+        ;; since our four values will be written to the top-left of the matrix.
+        :vector-type-mat2 :vector-type-mat2
+        :vector-type-mat3 :vector-type-mat2
+        :vector-type-mat4 :vector-type-mat2
+
+        ;; If we don't even know what we're targeting, assume we have a vector.
+        ;; In the case where we had a :vector-type-mat2 override, it would
+        ;; specify the :vector-type because the disambiguating-vector-type?
+        ;; function returns true for :vector-type-mat2, so we wouldn't even be
+        ;; in this function to begin with.
+        nil :vector-type-mat4)
+    9 :vector-type-mat3
+    16 :vector-type-mat4))
+
 (defn override-attributes->vertex-attribute-overrides [attributes]
   (into {}
         (map (fn [vertex-attribute]
-               [(attribute-name->key (:name vertex-attribute))
-                {:name (:name vertex-attribute)
-                 :values (attribute->any-doubles vertex-attribute)
-                 :value-keyword (attribute->value-keyword vertex-attribute)}]))
+               (let [attribute-name (:name vertex-attribute)
+                     attribute-key (attribute-name->key attribute-name)
+                     values (attribute->any-doubles vertex-attribute)
+                     value-keyword (attribute->value-keyword vertex-attribute)
+
+                     ;; Only written if it can't be guessed from the element
+                     ;; count. I.e. either :vector-type-mat2 or nil. See the
+                     ;; disambiguating-vector-type? function for details.
+                     vector-type (or (:vector-type vertex-attribute)
+                                     (guess-old-vector-type (count values) nil))]
+                 (pair attribute-key
+                       {:name attribute-name
+                        :values values
+                        :value-keyword value-keyword
+                        :vector-type vector-type}))))
         attributes))
 
 (defn doubles-outside-attribute-range-error-message [double-values attribute]
@@ -160,44 +271,8 @@
 (defn validate-doubles [double-values attribute node-id prop-kw]
   (validation/prop-error :fatal node-id prop-kw doubles-outside-attribute-range-error-message double-values attribute))
 
-;; For positions, we want to have a 1.0 in the W coordinate so that they can be
-;; transformed correctly by a 4D matrix. For colors, we default to opaque white.
-(def ^:private default-attribute-element-values (vector-of :double 0.0 0.0 0.0 0.0))
-(def ^:private default-attribute-element-values-mat4 (vector-of :double
-                                                                0.0 0.0 0.0 0.0
-                                                                0.0 0.0 0.0 0.0
-                                                                0.0 0.0 0.0 0.0
-                                                                0.0 0.0 0.0 0.0))
-;; Transform values (i.e identity world, normal matrices)
-(def ^:private default-attribute-transform-values-mat4 (vector-of :double
-                                                                  1.0 0.0 0.0 0.0
-                                                                  0.0 1.0 0.0 0.0
-                                                                  0.0 0.0 1.0 0.0
-                                                                  0.0 0.0 0.0 1.0))
-
-;; Position semantic values
-(def ^:private default-position-element-values (vector-of :double 0.0 0.0 0.0 1.0))
-(def ^:private default-position-element-values-mat4 (vector-of :double
-                                                               0.0 0.0 0.0 1.0
-                                                               0.0 0.0 0.0 1.0
-                                                               0.0 0.0 0.0 1.0
-                                                               0.0 0.0 0.0 1.0))
-;; Color semantic values
-(def ^:private default-color-element-values (vector-of :double 1.0 1.0 1.0 1.0))
-(def ^:private default-color-element-values-mat4 (vector-of :double
-                                                            1.0 1.0 1.0 1.0
-                                                            1.0 1.0 1.0 1.0
-                                                            1.0 1.0 1.0 1.0
-                                                            1.0 1.0 1.0 1.0))
-
-(defn- vector-type-is-matrix? [attribute-vector-type]
-  (case attribute-vector-type
-    :vector-type-mat2 true
-    :vector-type-mat3 true
-    :vector-type-mat4 true
-    false))
-
-(defn vector-type->component-count [attribute-vector-type]
+(defn vector-type->component-count
+  ^long [attribute-vector-type]
   (case attribute-vector-type
     :vector-type-scalar 1
     :vector-type-vec2 2
@@ -217,42 +292,208 @@
     :float-mat3 :vector-type-mat3
     :float-mat4 :vector-type-mat4))
 
-(defn resize-doubles [double-values semantic-type new-vector-type]
-  {:pre [(vector? double-values)
-         (or (nil? semantic-type) (keyword? semantic-type))
-         (keyword? new-vector-type)]}
-  (let [old-element-count (count double-values)
-        new-element-count (vector-type->component-count new-vector-type)]
-    (cond
-      (< new-element-count old-element-count)
-      (subvec double-values 0 new-element-count)
+(defn default-attribute-doubles [semantic-type vector-type]
+  (case vector-type
+    :vector-type-scalar (case semantic-type
+                          :semantic-type-color scalar-one
+                          scalar-zero)
+    :vector-type-vec2 (case semantic-type
+                        :semantic-type-color vec2-one
+                        vec2-zero)
+    :vector-type-vec3 (case semantic-type
+                        :semantic-type-color vec3-one
+                        vec3-zero)
+    :vector-type-vec4 (case semantic-type
+                        :semantic-type-position vec4-xyz-zero-w-one
+                        :semantic-type-color vec4-one
+                        :semantic-type-tangent vec4-xyz-zero-w-one
+                        vec4-zero)
+    :vector-type-mat2 mat2-identity
+    :vector-type-mat3 mat3-identity
+    :vector-type-mat4 mat4-identity))
 
-      (> new-element-count old-element-count)
-      (let [default-element-values
-            (if (vector-type-is-matrix? new-vector-type)
-              (case semantic-type
-                :semantic-type-position default-position-element-values-mat4
-                :semantic-type-color default-color-element-values-mat4
-                :semantic-type-world-matrix default-attribute-transform-values-mat4
-                :semantic-type-normal-matrix default-attribute-transform-values-mat4
-                default-attribute-element-values-mat4)
+(defn- semantic-type->w [semantic-type]
+  (nth (default-attribute-doubles semantic-type :vector-type-vec4) 3))
 
-              (case semantic-type
-                :semantic-type-position default-position-element-values
-                :semantic-type-color default-color-element-values
-                default-attribute-element-values))]
-        (into double-values
-              (subvec default-element-values old-element-count new-element-count)))
-
-      :else
-      double-values)))
-
-(defn- default-attribute-doubles-raw [semantic-type vector-type]
+(defn convert-double-values [double-values semantic-type old-vector-type new-vector-type]
   {:pre [(semantic-type? semantic-type)
-         (keyword? vector-type)]}
-  (resize-doubles (vector-of :double) semantic-type vector-type))
+         (or (nil? old-vector-type) (vector-type? old-vector-type))
+         (vector-type? new-vector-type)]}
+  (if (coll/empty? double-values)
+    (default-attribute-doubles semantic-type new-vector-type)
+    (case (or old-vector-type
+              (guess-old-vector-type (count double-values) new-vector-type))
 
-(def default-attribute-doubles (memoize default-attribute-doubles-raw))
+      :vector-type-scalar
+      (case new-vector-type
+        :vector-type-scalar double-values
+        :vector-type-vec2 (let [[a] double-values]
+                            (vector-of :double a a))
+        :vector-type-vec3 (let [[a] double-values]
+                            (vector-of :double a a a))
+        :vector-type-vec4 (let [[a] double-values]
+                            (vector-of :double a a a a))
+        :vector-type-mat2 (let [[a] double-values]
+                            (vector-of :double
+                              a 0
+                              0 a))
+        :vector-type-mat3 (let [[a] double-values]
+                            (vector-of :double
+                              a 0 0
+                              0 a 0
+                              0 0 a))
+        :vector-type-mat4 (let [[a] double-values]
+                            (vector-of :double
+                              a 0 0 0
+                              0 a 0 0
+                              0 0 a 0
+                              0 0 0 a)))
+
+      :vector-type-vec2
+      (case new-vector-type
+        :vector-type-scalar (let [[a b] double-values]
+                              (vector-of :double a))
+        :vector-type-vec2 double-values
+        :vector-type-vec3 (let [[a b] double-values]
+                            (vector-of :double a b 0))
+        :vector-type-vec4 (let [[a b] double-values
+                                w (semantic-type->w semantic-type)]
+                            (vector-of :double a b 0 w))
+        :vector-type-mat2 (let [[a b] double-values]
+                            (vector-of :double
+                              a b
+                              0 0))
+        :vector-type-mat3 (let [[a b] double-values]
+                            (vector-of :double
+                              a b 0
+                              0 0 0
+                              0 0 0))
+        :vector-type-mat4 (let [[a b] double-values]
+                            (vector-of :double
+                              a b 0 0
+                              0 0 0 0
+                              0 0 0 0
+                              0 0 0 0)))
+
+      :vector-type-vec3
+      (case new-vector-type
+        :vector-type-scalar (let [[a b c] double-values]
+                              (vector-of :double a))
+        :vector-type-vec2 (let [[a b c] double-values]
+                            (vector-of :double a b))
+        :vector-type-vec3 double-values
+        :vector-type-vec4 (let [[a b c] double-values
+                                w (semantic-type->w semantic-type)]
+                            (vector-of :double a b c w))
+        :vector-type-mat2 (let [[a b c] double-values]
+                            (vector-of :double
+                              a b
+                              c 0))
+        :vector-type-mat3 (let [[a b c] double-values]
+                            (vector-of :double
+                              a b c
+                              0 0 0
+                              0 0 0))
+        :vector-type-mat4 (let [[a b c] double-values]
+                            (vector-of :double
+                              a b c 0
+                              0 0 0 0
+                              0 0 0 0
+                              0 0 0 0)))
+
+      :vector-type-vec4
+      (case new-vector-type
+        :vector-type-scalar (let [[a b c d] double-values]
+                              (vector-of :double a))
+        :vector-type-vec2 (let [[a b c d] double-values]
+                            (vector-of :double a b))
+        :vector-type-vec3 (let [[a b c d] double-values]
+                            (vector-of :double a b c))
+        :vector-type-vec4 double-values
+        :vector-type-mat2 double-values
+        :vector-type-mat3 (let [[a b c d] double-values]
+                            (vector-of :double
+                              a b c
+                              d 0 0
+                              0 0 0))
+        :vector-type-mat4 (let [[a b c d] double-values]
+                            (vector-of :double
+                              a b c d
+                              0 0 0 0
+                              0 0 0 0
+                              0 0 0 0)))
+
+      :vector-type-mat2
+      (case new-vector-type
+        :vector-type-scalar (subvec double-values 0 1)
+        :vector-type-vec2 (subvec double-values 0 2)
+        :vector-type-vec3 (subvec double-values 0 3)
+        :vector-type-vec4 double-values
+        :vector-type-mat2 double-values
+        :vector-type-mat3 (let [[a b
+                                 c d]
+                                double-values]
+                            (vector-of :double
+                              a b 0
+                              c d 0
+                              0 0 1))
+        :vector-type-mat4 (let [[a b
+                                 c d]
+                                double-values]
+                            (vector-of :double
+                              a b 0 0
+                              c d 0 0
+                              0 0 1 0
+                              0 0 0 1)))
+
+      :vector-type-mat3
+      (case new-vector-type
+        :vector-type-scalar (subvec double-values 0 1)
+        :vector-type-vec2 (subvec double-values 0 2)
+        :vector-type-vec3 (subvec double-values 0 3)
+        :vector-type-vec4 (subvec double-values 0 4)
+        :vector-type-mat2 (let [[a b c
+                                 d e f
+                                 g h i]
+                                double-values]
+                            (vector-of :double
+                              a b
+                              d e))
+        :vector-type-mat3 double-values
+        :vector-type-mat4 (let [[a b c
+                                 d e f
+                                 g h i]
+                                double-values]
+                            (vector-of :double
+                              a b c 0
+                              d e f 0
+                              g h i 0
+                              0 0 0 1)))
+
+      :vector-type-mat4
+      (case new-vector-type
+        :vector-type-scalar (subvec double-values 0 1)
+        :vector-type-vec2 (subvec double-values 0 2)
+        :vector-type-vec3 (subvec double-values 0 3)
+        :vector-type-vec4 (subvec double-values 0 4)
+        :vector-type-mat2 (let [[a b c d
+                                 e f g h
+                                 i j k l
+                                 m n o p]
+                                double-values]
+                            (vector-of :double
+                              a b
+                              e f))
+        :vector-type-mat3 (let [[a b c d
+                                 e f g h
+                                 i j k l
+                                 m n o p]
+                                double-values]
+                            (vector-of :double
+                              a b c
+                              e f g
+                              i j k))
+        :vector-type-mat4 double-values))))
 
 (defn attribute-data-type->buffer-data-type [attribute-data-type]
   (case attribute-data-type
@@ -265,7 +506,7 @@
     :type-float :float))
 
 (defn attribute-values+data-type->byte-size [attribute-values attribute-data-type]
-  (* (count attribute-values) (attribute-data-type->byte-size attribute-data-type)))
+  (* (count attribute-values) (int (attribute-data-type->byte-size attribute-data-type))))
 
 (defn- make-attribute-bytes
   ^bytes [attribute-data-type normalize attribute-values]
@@ -316,7 +557,7 @@
   {:pre [(map? attribute-info)
          (coordinate-space? coordinate-space)
          (attribute-data-type? data-type)
-         (keyword? vector-type)
+         (vector-type? vector-type)
          (string? name)
          (keyword? name-key)
          (or (nil? normalize) (boolean? normalize))
@@ -356,15 +597,33 @@
          #(:coordinate-space % :coordinate-space-local)
          :semantic-type)))
 
-;; This function can return nil if element-count and vector-type is nil,
-;; which happens for default values. This is only used for sanitation,
-;; so we shouldn't return the default value here.
-(defn- attribute-info->vector-type [{:keys [element-count semantic-type vector-type] :as attribute-info}]
-  (let [is-valid-vector-type (some? vector-type)
-        is-valid-element-count (pos-int? element-count)]
-    (cond
-      is-valid-vector-type vector-type
-      is-valid-element-count (vtx/element-count+semantic-type->vector-type element-count semantic-type))))
+(defn- attribute-info->vector-type [{:keys [element-count vector-type] :as _attribute-info}]
+  ;; This function can return nil if element-count and vector-type is nil,
+  ;; which happens for default values. This is only used for sanitation,
+  ;; so we shouldn't return the default value here. In legacy file formats, only
+  ;; scalar, vec2, vec3, vec4 attributes were supported.
+  (or vector-type
+      (when (pos-int? element-count)
+        (case (long element-count)
+          1 :vector-type-scalar
+          2 :vector-type-vec2
+          3 :vector-type-vec3
+          4 :vector-type-vec4))))
+
+(defn- overridable-semantic-type? [semantic-type]
+  (case semantic-type
+    :semantic-type-none true
+    :semantic-type-position false
+    :semantic-type-texcoord false
+    :semantic-type-page-index false
+    :semantic-type-color true
+    :semantic-type-normal false
+    :semantic-type-tangent false
+    :semantic-type-world-matrix false
+    :semantic-type-normal-matrix false))
+
+(defn overridable-attribute-info? [attribute-info]
+  (overridable-semantic-type? (:semantic-type attribute-info default-attribute-semantic-type)))
 
 ;; TODO(save-value-cleanup): We only really need to sanitize the attributes if a resource type has :read-defaults true.
 (defn sanitize-attribute-value-v [attribute-value]
@@ -383,16 +642,21 @@
     ;; OneOf variant. Strip out the empty ones.
     ;; Once we update the protobuf loader, we shouldn't need to do this here.
     ;; We still want to remove the default empty :name-hash string, though.
-    (-> (if (and (some? attribute-vector-type) (not (= attribute-vector-type :vector-type-vec4)))
-          (assoc attribute :vector-type attribute-vector-type)
-          attribute)
-        (dissoc :name-hash :element-count :double-values :long-values :binary-values)
-        (assoc attribute-value-keyword {:v attribute-values}))))
+    (cond-> (dissoc attribute :name-hash :element-count :double-values :long-values :binary-values)
+
+            (and (some? attribute-vector-type)
+                 (not= attribute-vector-type default-attribute-vector-type))
+            (assoc :vector-type attribute-vector-type)
+
+            (not (engine-provided-attribute? attribute))
+            (assoc attribute-value-keyword {:v attribute-values}))))
 
 (defn sanitize-attribute-override [attribute]
   ;; Graphics$VertexAttribute in map format.
-  (-> attribute
-      (dissoc :binary-values :coordinate-space :data-type :element-count :name-hash :normalize :semantic-type :vector-type)
+  (-> (if (disambiguating-vector-type? (:vector-type attribute default-attribute-vector-type))
+        attribute
+        (dissoc attribute :vector-type))
+      (dissoc :binary-values :coordinate-space :data-type :element-count :name-hash :normalize :semantic-type)
       (sanitize-attribute-value-field :double-values)
       (sanitize-attribute-value-field :long-values)))
 
@@ -457,7 +721,6 @@
             :step-function :vertex-step-function-instance
             :vector-type :vector-type-mat4}])))
 
-
 (defn- compatible-vector-type [vector-type-value vector-type-container]
   (let [vector-type-value-comp-count (vector-type->component-count vector-type-value)
         vector-type-container-comp-count (vector-type->component-count vector-type-container)]
@@ -494,34 +757,58 @@
 
 (defn vertex-attribute-overrides->save-values [vertex-attribute-overrides material-attribute-infos]
   (let [declared-material-attribute-key? (into #{} (map :name-key) material-attribute-infos)
+
         material-attribute-save-values
-        (into []
-              (keep (fn [{:keys [data-type name name-key normalize semantic-type vector-type]}]
-                      (when-some [override-values (some-> vertex-attribute-overrides (get name-key) :values coll/not-empty)]
-                        ;; Ensure our saved values have the expected element-count.
-                        ;; If the material has been edited, this might have changed,
-                        ;; but specialized widgets like the one we use to edit color
-                        ;; properties may also produce a different element count from
-                        ;; what the material dictates.
-                        (let [resized-values (resize-doubles override-values semantic-type vector-type)
-                              [attribute-value-keyword stored-values] (doubles->storage resized-values data-type normalize)]
-                          (protobuf/make-map-without-defaults Graphics$VertexAttribute
-                            :name name
-                            attribute-value-keyword {:v stored-values})))))
-              material-attribute-infos)
+        (eduction
+          (keep
+            (fn [material-attribute-info]
+              (let [attribute-key (:name-key material-attribute-info)
+                    override-info (vertex-attribute-overrides attribute-key)]
+                (when-some [override-values (coll/not-empty (:values override-info))]
+                  ;; Ensure our saved values have the expected element-count.
+                  ;; If the material has been edited, this might have changed,
+                  ;; but edits made using specialized widgets like the one we
+                  ;; use to edit color properties may also alter the vector-type
+                  ;; from what the material dictates.
+                  (let [{:keys [data-type name normalize semantic-type]} material-attribute-info
+                        material-attribute-vector-type (:vector-type material-attribute-info)
+                        override-attribute-vector-type (:vector-type override-info)
+                        _ (assert (vector-type? override-attribute-vector-type))
+                        converted-values (convert-double-values override-values semantic-type override-attribute-vector-type material-attribute-vector-type)
+                        [attribute-value-keyword stored-values] (doubles->storage converted-values data-type normalize)
+                        explicit-vector-type (when (disambiguating-vector-type? material-attribute-vector-type)
+                                               material-attribute-vector-type)]
+                    (protobuf/make-map-without-defaults Graphics$VertexAttribute
+                      :name name
+                      :vector-type explicit-vector-type
+                      attribute-value-keyword {:v stored-values}))))))
+          material-attribute-infos)
+
         orphaned-attribute-save-values
-        (into []
-              (keep (fn [[name-key attribute-info]]
-                      (when-not (contains? declared-material-attribute-key? name-key)
-                        (let [attribute-name (:name attribute-info)
-                              attribute-value-keyword (:value-keyword attribute-info)
-                              attribute-values (:values attribute-info)]
-                          (protobuf/make-map-without-defaults Graphics$VertexAttribute
-                            :name attribute-name
-                            attribute-value-keyword (when (coll/not-empty attribute-values)
-                                                      {:v attribute-values})))))
-                    vertex-attribute-overrides))]
-    (concat material-attribute-save-values orphaned-attribute-save-values)))
+        (eduction
+          (keep
+            (fn [[attribute-key override-info]]
+              (when-some [override-values (coll/not-empty (:values override-info))]
+                (when-not (declared-material-attribute-key? attribute-key)
+                  (let [attribute-name (:name override-info)
+                        attribute-value-keyword (:value-keyword override-info)
+                        override-attribute-vector-type (:vector-type override-info)
+                        _ (assert (vector-type? override-attribute-vector-type))
+                        explicit-vector-type (when (disambiguating-vector-type? override-attribute-vector-type)
+                                               override-attribute-vector-type)]
+                    (protobuf/make-map-without-defaults Graphics$VertexAttribute
+                      :name attribute-name
+                      :vector-type explicit-vector-type
+                      attribute-value-keyword (when (coll/not-empty override-values)
+                                                {:v override-values})))))))
+          vertex-attribute-overrides)]
+
+    ;; Merge attributes from both collections and sort by name to ensure we get
+    ;; a consistent attribute order in the files.
+    (->> [material-attribute-save-values
+          orphaned-attribute-save-values]
+         (into [] cat)
+         (sort-by :name))))
 
 (defn vertex-attribute-overrides->build-target [vertex-attribute-overrides vertex-attribute-bytes material-attribute-infos]
   (into []
@@ -536,12 +823,6 @@
                       (assoc attribute-info :bytes attribute-bytes))))))
         material-attribute-infos))
 
-(defn- editable-attribute-info? [attribute-info]
-  (case (:semantic-type attribute-info)
-    (:semantic-type-position :semantic-type-texcoord :semantic-type-page-index :semantic-type-normal :semantic-type-world-matrix :semantic-type-normal-matrix) false
-    nil false
-    true))
-
 (defn contains-semantic-type? [attributes semantic-type]
   (true? (some #(= semantic-type (:semantic-type %)) attributes)))
 
@@ -553,24 +834,20 @@
       :vector-type-vec2 types/Vec2
       :vector-type-vec3 types/Vec3
       :vector-type-vec4 types/Vec4
-      :vector-type-mat2 types/Vec4
-      :vector-type-mat3 types/Vec4
-      :vector-type-mat4 types/Vec4)))
+      :vector-type-mat2 types/Mat2
+      :vector-type-mat3 types/Mat3
+      :vector-type-mat4 types/Mat4)))
 
-(defn- attribute-expected-vector-type [{:keys [semantic-type vector-type] :as _attribute}]
-  {:pre [(keyword? vector-type)]}
-  (case semantic-type
-    :semantic-type-color :vector-type-vec4
-    vector-type))
-
-(defn- attribute-update-property [current-property-value attribute new-value]
-  (let [name-key (:name-key attribute)
+(defn- attribute-update-property [current-property-value attribute-info new-value]
+  (let [name-key (:name-key attribute-info)
         override-info (name-key current-property-value)
-        attribute-value-keyword (attribute-value-keyword (:data-type attribute) (:normalize attribute))
+        attribute-value-keyword (attribute-value-keyword (:data-type attribute-info) (:normalize attribute-info))
         override-value-keyword (or attribute-value-keyword (:value-keyword override-info))
-        override-name (or (:name attribute) (:name override-info))]
+        override-name (or (:name attribute-info) (:name override-info))
+        vector-type (:vector-type attribute-info)]
     (assoc current-property-value name-key {:values new-value
                                             :value-keyword override-value-keyword
+                                            :vector-type vector-type
                                             :name override-name})))
 
 (defn- attribute-clear-property [current-property-value {:keys [name-key] :as _attribute}]
@@ -582,16 +859,16 @@
 
 (def attribute-key->property-key (memoize attribute-key->property-key-raw))
 
-(defn- attribute-edit-type [{:keys [semantic-type vector-type] :as attribute} property-type]
+(defn- attribute-override-property-edit-type [{:keys [semantic-type vector-type] :as attribute-info} property-type]
   {:pre [(keyword? vector-type)
          (semantic-type? semantic-type)]}
-  (let [attribute-update-fn (fn [_evaluation-context self _old-value new-value]
+  (let [attribute-update-fn (fn attribute-update-fn [_evaluation-context self _old-value new-value]
                               (let [values (if (= g/Num property-type)
                                              (vector-of :double new-value)
                                              new-value)]
-                                (g/update-property self :vertex-attribute-overrides attribute-update-property attribute values)))
-        attribute-clear-fn (fn [self _property-label]
-                             (g/update-property self :vertex-attribute-overrides attribute-clear-property attribute))]
+                                (g/update-property self :vertex-attribute-overrides attribute-update-property attribute-info values)))
+        attribute-clear-fn (fn attribute-clear-fn [self _property-label]
+                             (g/update-property self :vertex-attribute-overrides attribute-clear-property attribute-info))]
     (cond-> {:type property-type
              :set-fn attribute-update-fn
              :clear-fn attribute-clear-fn}
@@ -599,58 +876,67 @@
             (= semantic-type :semantic-type-color)
             (assoc :ignore-alpha? (not= :vector-type-vec4 vector-type)))))
 
-(defn- attribute-value [attribute-values property-type semantic-type vector-type]
-  {:pre [(semantic-type? semantic-type)
-         (keyword? vector-type)]}
+(defn- attribute-property-value [attribute-values property-type semantic-type source-vector-type target-vector-type]
   (if (= g/Num property-type)
     (first attribute-values) ; The widget expects a number, not a vector.
-    (resize-doubles attribute-values semantic-type vector-type)))
+    (convert-double-values attribute-values semantic-type source-vector-type target-vector-type)))
 
-(defn attribute-properties-by-property-key [_node-id material-attribute-infos vertex-attribute-overrides]
-  (let [name-keys (into #{} (map :name-key) material-attribute-infos)]
+(defn attribute-property-entries [_node-id material-attribute-infos vertex-attribute-overrides]
+  (let [declared-material-attribute-key? (into #{} (map :name-key) material-attribute-infos)]
     (concat
-      (keep (fn [attribute-info]
-              (when (editable-attribute-info? attribute-info)
-                (let [attribute-key (:name-key attribute-info)
-                      semantic-type (:semantic-type attribute-info)
-                      material-values (:values attribute-info)
-                      override-values (:values (vertex-attribute-overrides attribute-key))
+      ;; Original and overridden vertex attributes with a match in the material.
+      (keep (fn [material-attribute-info]
+              (when (overridable-attribute-info? material-attribute-info)
+                (let [attribute-key (:name-key material-attribute-info)
+                      semantic-type (:semantic-type material-attribute-info)
+                      override-attribute-info (vertex-attribute-overrides attribute-key)
+                      override-values (:values override-attribute-info)
+                      material-values (:values material-attribute-info)
                       attribute-values (or override-values material-values)
-                      property-type (attribute-property-type attribute-info)
-                      expected-vector-type (attribute-expected-vector-type attribute-info)
-                      edit-type (attribute-edit-type attribute-info property-type)
+                      attribute-values-vector-type (:vector-type (or override-attribute-info material-attribute-info))
+                      _ (assert (vector-type? attribute-values-vector-type))
+                      property-type (attribute-property-type material-attribute-info)
+                      property-vector-type (case semantic-type
+                                             :semantic-type-color :vector-type-vec4
+                                             (:vector-type material-attribute-info))
+                      edit-type (attribute-override-property-edit-type material-attribute-info property-type)
                       property-key (attribute-key->property-key attribute-key)
                       label (properties/keyword->name attribute-key)
-                      value (attribute-value attribute-values property-type semantic-type expected-vector-type)
+                      value (attribute-property-value attribute-values property-type semantic-type attribute-values-vector-type property-vector-type)
                       error (when (some? override-values)
-                              (validate-doubles override-values attribute-info _node-id property-key))
-                      prop {:node-id _node-id
-                            :type property-type
-                            :edit-type edit-type
-                            :label label
-                            :value value
-                            :error error}]
-                  ;; Insert the original material values as original-value if there is a vertex override.
-                  (if (some? override-values)
-                    [property-key (assoc prop :original-value material-values)]
-                    [property-key prop]))))
+                              (validate-doubles override-values material-attribute-info _node-id property-key))
+                      prop (cond-> {:node-id _node-id
+                                    :type property-type
+                                    :edit-type edit-type
+                                    :label label
+                                    :value value
+                                    :error error}
+
+                                   ;; Insert the original material values as original-value if there is a vertex override.
+                                   (some? override-values)
+                                   (assoc :original-value material-values))]
+                  (pair property-key prop))))
             material-attribute-infos)
+
+      ;; Rogue vertex attributes without a match in the material.
       (for [[name-key vertex-override-info] vertex-attribute-overrides
-            :when (not (name-keys name-key))
-            :let [values (:values vertex-override-info)
-                  vector-type (if (number? values)
-                                :vector-type-scalar
-                                (vtx/element-count+semantic-type->vector-type (count values) :semantic-type-none))
-                  assumed-attribute-info {:vector-type vector-type
+            :when (not (declared-material-attribute-key? name-key))
+            :let [name (:name vertex-override-info)
+                  values (:values vertex-override-info)
+                  semantic-type :semantic-type-none
+                  vector-type (:vector-type vertex-override-info)
+                  _ (assert (vector-type? vector-type))
+                  assumed-attribute-info {:name name
                                           :name-key name-key
-                                          :semantic-type :semantic-type-none}
+                                          :semantic-type semantic-type
+                                          :vector-type vector-type}
                   property-type (attribute-property-type assumed-attribute-info)]]
         [(attribute-key->property-key name-key)
          {:node-id _node-id
-          :value (attribute-value values property-type :semantic-type-none vector-type)
-          :label (properties/keyword->name name-key)
+          :value (attribute-property-value values property-type semantic-type vector-type vector-type)
+          :label name
           :type property-type
-          :edit-type (attribute-edit-type assumed-attribute-info property-type)
+          :edit-type (attribute-override-property-edit-type assumed-attribute-info property-type)
           :original-value []}]))))
 
 (defn attribute-bytes-by-attribute-key [_node-id material-attribute-infos vertex-attribute-overrides]
@@ -661,16 +947,18 @@
                      (let [override-info (get vertex-attribute-overrides name-key)
                            override-values (:values override-info)
                            [bytes error] (if (nil? override-values)
-                                           [(:bytes attribute-info) (:error attribute-info)]
+                                           (pair (:bytes attribute-info) (:error attribute-info))
                                            (let [{:keys [semantic-type vector-type]} attribute-info
-                                                 resized-values (resize-doubles override-values semantic-type vector-type)
-                                                 [bytes error-message :as bytes+error-message] (attribute->bytes+error-message attribute-info resized-values)]
+                                                 override-vector-type (:vector-type override-info)
+                                                 _ (assert (vector-type? override-vector-type))
+                                                 converted-values (convert-double-values override-values semantic-type override-vector-type vector-type)
+                                                 [bytes error-message :as bytes+error-message] (attribute->bytes+error-message attribute-info converted-values)]
                                              (if (nil? error-message)
                                                bytes+error-message
                                                (let [property-key (attribute-key->property-key name-key)
                                                      error (g/->error _node-id property-key :fatal override-values error-message)]
-                                                 [bytes error]))))]
-                       [name-key (or error bytes)])))
+                                                 (pair bytes error)))))]
+                       (pair name-key (or error bytes)))))
               material-attribute-infos)]
     (g/precluding-errors (vals vertex-attribute-bytes)
       vertex-attribute-bytes)))
@@ -683,47 +971,29 @@
                (assoc :vertex-elements (count vertex)))
            exception))
 
-(defn- renderable-data->world-position-v3 [renderable-data]
+(defn- renderable-data->world-positions-v3 [renderable-data]
   (let [local-positions (:position-data renderable-data)
         world-transform (:world-transform renderable-data)]
     (geom/transf-p world-transform local-positions)))
 
-(defn- renderable-data->world-position-v4 [renderable-data]
-  (let [local-positions (:position-data renderable-data)
-        world-transform (:world-transform renderable-data)]
-    (geom/transf-p4 world-transform local-positions)))
-
-(defn- renderable-data->world-direction-v3 [renderable-data->local-directions renderable-data]
-  (let [local-directions (renderable-data->local-directions renderable-data)
+(defn- renderable-data->world-normals-v3 [renderable-data]
+  (let [local-directions (:normal-data renderable-data)
         normal-transform (:normal-transform renderable-data)]
     (geom/transf-n normal-transform local-directions)))
 
-(defn- renderable-data->world-direction-v4 [renderable-data->local-directions renderable-data]
-  (let [local-directions (renderable-data->local-directions renderable-data)
-        normal-transform (:normal-transform renderable-data)]
-    (geom/transf-n4 normal-transform local-directions)))
-
-(defn- renderable-data->world-tangent-v4 [renderable-data]
+(defn- renderable-data->world-tangents-v4 [renderable-data]
   (let [tangents (:tangent-data renderable-data)
         normal-transform (:normal-transform renderable-data)]
     (geom/transf-tangents normal-transform tangents)))
 
-(def ^:private renderable-data->world-normal-v3 (partial renderable-data->world-direction-v3 :normal-data))
-(def ^:private renderable-data->world-normal-v4 (partial renderable-data->world-direction-v4 :normal-data))
-(def ^:private renderable-data->world-tangent-v3 (partial renderable-data->world-direction-v3 :tangent-data))
-
-(defn- matrix4+attribute->flat-array [^Matrix4d matrix attribute]
-  (let [vector-component-count (vector-type->component-count (:vector-type attribute))
-        matrix-flat-array (math/vecmath->clj (doto (Matrix4d. matrix) (.transpose)))
-        matrix-row-column-count (vtx/vertex-attribute->row-column-count attribute)]
-    (vec (flatten (if matrix-row-column-count
-                    (map #(take matrix-row-column-count %)
-                         (take matrix-row-column-count (partition 4 matrix-flat-array)))
-                    (take vector-component-count matrix-flat-array))))))
+(defn- mat4-double-values [^Matrix4d matrix vector-type]
+  (-> matrix
+      (geom/as-array)
+      (convert-double-values :semantic-type-none :vector-type-mat4 vector-type))) ; Semantic type does not matter for this.
 
 (defn put-attributes! [^VertexBuffer vbuf renderable-datas]
   (let [vertex-description (.vertex-description vbuf)
-        vertex-byte-stride (:size vertex-description)
+        ^long vertex-byte-stride (:size vertex-description)
         ^ByteBuffer buf (.buf vbuf)
 
         put-bytes!
@@ -739,7 +1009,7 @@
         (fn put-doubles!
           [vertex-byte-offset semantic-type buffer-data-type vector-type normalize vertices]
           (reduce (fn [^long vertex-byte-offset attribute-doubles]
-                    (let [attribute-doubles (resize-doubles attribute-doubles semantic-type vector-type)]
+                    (let [attribute-doubles (convert-double-values attribute-doubles semantic-type nil vector-type)]
                       (vtx/buf-put! buf vertex-byte-offset buffer-data-type normalize attribute-doubles))
                     (+ vertex-byte-offset vertex-byte-stride))
                   (long vertex-byte-offset)
@@ -747,7 +1017,7 @@
 
         put-renderables!
         (fn put-renderables!
-          ^long [^long attribute-byte-offset renderable-data->vertices put-vertices!]
+          ^long [^long attribute-byte-offset put-vertices! renderable-data->vertices]
           (reduce (fn [^long vertex-byte-offset renderable-data]
                     (let [vertices (renderable-data->vertices renderable-data)]
                       (put-vertices! vertex-byte-offset vertices)))
@@ -758,7 +1028,7 @@
         (let [renderable-data (first renderable-datas)
               texcoord-datas (:texcoord-datas renderable-data)]
           (if (nil? renderable-data)
-            (constantly false)
+            fn/constantly-false
             (fn mesh-data-exists? [semantic-type ^long channel]
               (case semantic-type
                 :semantic-type-position
@@ -796,7 +1066,7 @@
                     vector-type (:vector-type attribute)
                     normalize (:normalize attribute)
                     name-key (:name-key attribute)
-                    ^long attribute-byte-offset (:attribute-byte-offset reduce-info)
+                    attribute-byte-offset (long (:attribute-byte-offset reduce-info))
                     channel (get reduce-info semantic-type)
 
                     put-attribute-bytes!
@@ -824,67 +1094,52 @@
                     :semantic-type-position
                     (case (:coordinate-space attribute)
                       :coordinate-space-world
-                      (let [renderable-data->world-position
-                            (case element-count
-                              3 renderable-data->world-position-v3
-                              4 renderable-data->world-position-v4)]
-                        (put-renderables! attribute-byte-offset renderable-data->world-position put-attribute-doubles!))
-                      (put-renderables! attribute-byte-offset :position-data put-attribute-doubles!))
+                      (put-renderables! attribute-byte-offset put-attribute-doubles! renderable-data->world-positions-v3)
+                      (put-renderables! attribute-byte-offset put-attribute-doubles! :position-data))
 
                     :semantic-type-texcoord
-                    (put-renderables! attribute-byte-offset #(get-in % [:texcoord-datas channel :uv-data]) put-attribute-doubles!)
+                    (put-renderables! attribute-byte-offset put-attribute-doubles! #(get-in % [:texcoord-datas channel :uv-data]))
 
                     :semantic-type-page-index
-                    (put-renderables! attribute-byte-offset
-                                      (fn [renderable-data]
+                    (put-renderables! attribute-byte-offset put-attribute-doubles!
+                                      (fn renderable-data->page-indices [renderable-data]
                                         (let [vertex-count (count (:position-data renderable-data))
                                               page-index (get-in renderable-data [:texcoord-datas channel :page-index])]
-                                          (repeat vertex-count [(double page-index)])))
-                                      put-attribute-doubles!)
+                                          (repeat vertex-count [(double page-index)]))))
 
                     :semantic-type-color
-                    (put-renderables! attribute-byte-offset :color-data put-attribute-doubles!)
+                    (put-renderables! attribute-byte-offset put-attribute-doubles! :color-data)
 
                     :semantic-type-normal
                     (case (:coordinate-space attribute)
                       :coordinate-space-world
-                      (let [renderable-data->world-normal
-                            (case element-count
-                              3 renderable-data->world-normal-v3
-                              4 renderable-data->world-normal-v4)]
-                        (put-renderables! attribute-byte-offset renderable-data->world-normal put-attribute-doubles!))
-                      (put-renderables! attribute-byte-offset :normal-data put-attribute-doubles!))
+                      (put-renderables! attribute-byte-offset put-attribute-doubles! renderable-data->world-normals-v3)
+                      (put-renderables! attribute-byte-offset put-attribute-doubles! :normal-data))
 
                     :semantic-type-tangent
                     (case (:coordinate-space attribute)
                       :coordinate-space-world
-                      (let [renderable-data->world-tangent
-                            (case element-count
-                              3 renderable-data->world-tangent-v3
-                              4 renderable-data->world-tangent-v4)]
-                        (put-renderables! attribute-byte-offset renderable-data->world-tangent put-attribute-doubles!))
-                      (put-renderables! attribute-byte-offset :tangent-data put-attribute-doubles!))
+                      (put-renderables! attribute-byte-offset put-attribute-doubles! renderable-data->world-tangents-v4)
+                      (put-renderables! attribute-byte-offset put-attribute-doubles! :tangent-data))
 
                     :semantic-type-world-matrix
-                    (put-renderables! attribute-byte-offset
-                                      (fn [renderable-data]
+                    (put-renderables! attribute-byte-offset put-attribute-doubles!
+                                      (fn renderable-data->world-matrices [renderable-data]
                                         (let [vertex-count (count (:position-data renderable-data))
-                                              matrix-values (matrix4+attribute->flat-array (:world-transform renderable-data) attribute)]
-                                          (repeat vertex-count matrix-values)))
-                                      put-attribute-doubles!)
+                                              matrix-values (mat4-double-values (:world-transform renderable-data) vector-type)]
+                                          (repeat vertex-count matrix-values))))
 
                     :semantic-type-normal-matrix
-                    (put-renderables! attribute-byte-offset
-                                      (fn [renderable-data]
+                    (put-renderables! attribute-byte-offset put-attribute-doubles!
+                                      (fn renderable-data->normal-matrices [renderable-data]
                                         (let [vertex-count (count (:position-data renderable-data))
-                                              matrix-values (matrix4+attribute->flat-array (:normal-transform renderable-data) attribute)]
-                                          (repeat vertex-count matrix-values)))
-                                      put-attribute-doubles!))
+                                              matrix-values (mat4-double-values (:normal-transform renderable-data) vector-type)]
+                                          (repeat vertex-count matrix-values)))))
 
                   ;; Mesh data doesn't exist. Use the attribute data from the
                   ;; material or overrides.
-                  (put-renderables! attribute-byte-offset
-                                    (fn [renderable-data]
+                  (put-renderables! attribute-byte-offset put-attribute-bytes!
+                                    (fn renderable-data->attribute-bytes [renderable-data]
                                       (let [vertex-count (count (:position-data renderable-data))
                                             attribute-bytes (get (:vertex-attribute-bytes renderable-data) name-key)
                                             attribute-byte-count-max (* element-count (buffers/type-size buffer-data-type))]
@@ -893,8 +1148,7 @@
                                           (let [attribute-bytes-clamped (byte-array attribute-byte-count-max)]
                                             (System/arraycopy attribute-bytes 0 attribute-bytes-clamped 0 attribute-byte-count-max)
                                             (repeat vertex-count attribute-bytes-clamped))
-                                          (repeat vertex-count attribute-bytes))))
-                                    put-attribute-bytes!))
+                                          (repeat vertex-count attribute-bytes))))))
                 (-> reduce-info
                     (update semantic-type inc)
                     (assoc :attribute-byte-offset (+ attribute-byte-offset

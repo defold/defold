@@ -783,8 +783,10 @@
   (let [[node-id# property# value#] binding]
     `(let [old-value# (prop ~node-id# ~property#)]
        (prop! ~node-id# ~property# ~value#)
-       ~@forms
-       (prop! ~node-id# ~property# old-value#))))
+       (try
+         ~@forms
+         (finally
+           (prop! ~node-id# ~property# old-value#))))))
 
 (defn make-call-logger
   "Returns a function that keeps track of its invocations. Every

@@ -4869,24 +4869,29 @@ TEST_F(MaterialTest, CustomVertexAttributes)
     //      attribute vec4 position;
     //      attribute vec3 normal;
     //      attribute vec2 texcoord0;
+    //      attribute vec4 color; 
 
     dmRender::GetMaterialProgramAttributes(material, &attributes, &attribute_count);
-    ASSERT_EQ(3, attribute_count);
+    ASSERT_EQ(4, attribute_count);
     ASSERT_EQ(dmHashString64("position"),  attributes[0].m_NameHash);
     ASSERT_EQ(dmHashString64("normal"),    attributes[1].m_NameHash);
     ASSERT_EQ(dmHashString64("texcoord0"), attributes[2].m_NameHash);
+    ASSERT_EQ(dmHashString64("color"),     attributes[3].m_NameHash);
 
     ASSERT_EQ(2, attributes[0].m_ElementCount); // Position has been overridden!
     ASSERT_EQ(3, attributes[1].m_ElementCount);
     ASSERT_EQ(2, attributes[2].m_ElementCount);
+    ASSERT_EQ(3, attributes[3].m_ElementCount);
 
     ASSERT_EQ(dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION, attributes[0].m_SemanticType);
     ASSERT_EQ(dmGraphics::VertexAttribute::SEMANTIC_TYPE_NONE,     attributes[1].m_SemanticType); // No normal semantic type (yet)
     ASSERT_EQ(dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD, attributes[2].m_SemanticType);
+    ASSERT_EQ(dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR,    attributes[3].m_SemanticType);
 
     ASSERT_EQ(dmGraphics::VertexAttribute::TYPE_FLOAT, attributes[0].m_DataType);
     ASSERT_EQ(dmGraphics::VertexAttribute::TYPE_BYTE,  attributes[1].m_DataType);
     ASSERT_EQ(dmGraphics::VertexAttribute::TYPE_SHORT, attributes[2].m_DataType);
+    ASSERT_EQ(dmGraphics::VertexAttribute::TYPE_FLOAT, attributes[3].m_DataType);
 
     const uint8_t* value_ptr;
     uint32_t num_values;
@@ -4897,8 +4902,8 @@ TEST_F(MaterialTest, CustomVertexAttributes)
         ASSERT_NE((void*) 0x0, value_ptr);
         ASSERT_EQ(2 * sizeof(float), num_values);
 
-        // Note: The attribute specifies more values in the attribute, but in the engine we clamp the values to the element count
-        float position_expected[] = { 1.0f, 2.0f };
+        // Note: The attribute has been declared as a vec2.
+        float position_expected[] = { 0.0f, 0.0f };
         for (int i = 0; i < 2; ++i)
         {
             float* f_ptr = (float*) value_ptr;
@@ -4930,6 +4935,21 @@ TEST_F(MaterialTest, CustomVertexAttributes)
         {
             int16_t* short_values = (int16_t*) value_ptr;
             ASSERT_EQ(texcoord0_expected[i], short_values[i]);
+        }
+    }
+
+    // Test color values
+    {
+        dmRender::GetMaterialProgramAttributeValues(material, 3, &value_ptr, &num_values);
+        ASSERT_NE((void*) 0x0, value_ptr);
+        ASSERT_EQ(3 * sizeof(float), num_values);
+
+        // Note: The attribute specifies more values in the attribute, but in the engine we clamp the values to the element count
+        float color_expected[] = { 1.0f, 2.0f, 3.0f };
+        for (int i = 0; i < 3; ++i)
+        {
+            float* f_ptr = (float*) value_ptr;
+            ASSERT_NEAR(color_expected[i], f_ptr[i], EPSILON);
         }
     }
 
@@ -5027,6 +5047,7 @@ TEST_F(MaterialTest, DynamicVertexAttributes)
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, GetMaterialAttribute(dynamic_attribute_pool, index, material, dmHashString64("position"), desc, Test_GetMaterialAttributeCallback, &ctx));
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, GetMaterialAttribute(dynamic_attribute_pool, index, material, dmHashString64("normal"), desc, Test_GetMaterialAttributeCallback, &ctx));
         ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, GetMaterialAttribute(dynamic_attribute_pool, index, material, dmHashString64("texcoord0"), desc, Test_GetMaterialAttributeCallback, &ctx));
+        ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, GetMaterialAttribute(dynamic_attribute_pool, index, material, dmHashString64("color"), desc, Test_GetMaterialAttributeCallback, &ctx));
 
         // No slots has been taken
         ASSERT_EQ(0, dynamic_attribute_pool.Size());
@@ -5119,8 +5140,8 @@ TEST_F(MaterialTest, DynamicVertexAttributes)
         ASSERT_EQ(1,           dynamic_attribute_pool.Get(0).m_NumInfos);
         ASSERT_NE((void*) 0x0, dynamic_attribute_pool.Get(0).m_Infos);
 
-        // Should be 1.0f, 666.0f, 0.0f
-        ASSERT_NEAR(1.0f,           desc.m_Variant.m_V4[0], EPSILON);
+        // Should be 0.0f, 666.0f, 0.0f
+        ASSERT_NEAR(0.0f,           desc.m_Variant.m_V4[0], EPSILON);
         ASSERT_NEAR(var_y.m_Number, desc.m_Variant.m_V4[1], EPSILON);
         ASSERT_NEAR(0.0f,           desc.m_Variant.m_V4[2], EPSILON);
 
@@ -5156,7 +5177,7 @@ TEST_F(MaterialTest, DynamicVertexAttributes)
             ASSERT_EQ(dmGameObject::PROPERTY_RESULT_OK, GetMaterialAttribute(dynamic_attribute_pool, new_index, material, attr_name_hash, desc, Test_GetMaterialAttributeCallback, (void*) &ctx));
 
             ASSERT_NEAR(var.m_Number, desc.m_Variant.m_V4[0], EPSILON);
-            ASSERT_NEAR(2.0f,         desc.m_Variant.m_V4[1], EPSILON);
+            ASSERT_NEAR(0.0f,         desc.m_Variant.m_V4[1], EPSILON);
 
             allocated_indices.Push(new_index);
         }

@@ -525,9 +525,10 @@
     (let [q (math/euler->quat euler)
           tmp-v (Vector3d.)]
       (let [res (mapv (fn [[^double x ^double y ^double z]]
-                    (.set tmp-v x y z)
-                    (let [v (math/rotate q tmp-v)]
-                      [(.x v) (.y v) (.z v)])) ps)]
+                        (.set tmp-v x y z)
+                        (let [v (math/rotate q tmp-v)]
+                          (vector-of :double (.x v) (.y v) (.z v))))
+                      ps)]
         res))))
 
 (defn transf-p
@@ -536,7 +537,8 @@
     (let [res (mapv (fn [[^double x ^double y ^double z]]
                       (.set p x y z)
                       (.transform m4d p)
-                      [(.x p) (.y p) (.z p)]) ps)]
+                      (vector-of :double (.x p) (.y p) (.z p)))
+                    ps)]
       res)))
 
 (defn transf-p4
@@ -545,7 +547,7 @@
     (let [res (mapv (fn [[^double x ^double y ^double z]]
                       (.set p x y z)
                       (.transform m4d p)
-                      [(.x p) (.y p) (.z p) 1.0])
+                      (vector-of :double (.x p) (.y p) (.z p) 1.0))
                     ps)]
       res)))
 
@@ -556,7 +558,7 @@
             (.set n x y z)
             (.transform m4d n)
             (.normalize n) ; Need to normalize since the matrix may be scaled.
-            [(.x n) (.y n) (.z n)])
+            (vector-of :double (.x n) (.y n) (.z n)))
           normals)))
 
 (defn transf-n4
@@ -566,17 +568,17 @@
             (.set n x y z)
             (.transform m4d n)
             (.normalize n) ; Need to normalize since the matrix may be scaled.
-            [(.x n) (.y n) (.z n) 0.0])
+            (vector-of :double (.x n) (.y n) (.z n) 0.0))
           normals)))
 
 (defn transf-tangents
   [^Matrix4d m4d tangents]
   (let [n (Vector3d.)]
-    (mapv (fn [[^double x ^double y ^double z ^double w]]
+    (mapv (fn [[^double x ^double y ^double z w]]
             (.set n x y z)
             (.transform m4d n)
             (.normalize n) ; Need to normalize since the matrix may be scaled.
-            [(.x n) (.y n) (.z n) w])
+            (vector-of :double (.x n) (.y n) (.z n) (or w 1.0)))
           tangents)))
 
 (defn chain [n f ps]

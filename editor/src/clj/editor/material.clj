@@ -53,12 +53,10 @@
   ;; This is fine, since doubles can accurately represent values in the entire
   ;; signed and unsigned 32-bit integer range from -2147483648 to 4294967295.
   (let [attribute (merge editable-attribute-optional-field-defaults attribute)
-        values (graphics/attribute->doubles attribute)
-        vector-type (or (:vector-type attribute) :vector-type-vec4)]
+        values (graphics/attribute->doubles attribute)]
     (-> attribute
         (dissoc :double-values :long-values) ; Only one of these will be present, but we want neither.
-        (assoc :values values)
-        (assoc :vector-type vector-type))))
+        (assoc :values values))))
 
 (defn- editable-attribute->attribute [{:keys [data-type normalize values] :as editable-attribute}]
   {:pre [(map? editable-attribute)
@@ -68,7 +66,8 @@
       (-> editable-attribute
           (dissoc :values)
           (protobuf/assign attribute-value-keyword
-                           (when-not (coll/empty? stored-values)
+                           (when (and (not (graphics/engine-provided-attribute? editable-attribute))
+                                      (coll/not-empty stored-values))
                              {:v stored-values}))))))
 
 (defn- save-value-attributes [editable-attributes]
@@ -82,8 +81,8 @@
     :name name
     :vertex-program (resource/resource->proj-path vertex-program)
     :fragment-program (resource/resource->proj-path fragment-program)
-    :vertex-constants (render-program-utils/hack-upgrade-constants vertex-constants)
-    :fragment-constants (render-program-utils/hack-upgrade-constants fragment-constants)
+    :vertex-constants (render-program-utils/editable-constants->constants vertex-constants)
+    :fragment-constants (render-program-utils/editable-constants->constants fragment-constants)
     :samplers (render-program-utils/editable-samplers->samplers samplers)
     :tags tags
     :vertex-space vertex-space
@@ -205,6 +204,55 @@
                                samplers))]
         (shader/make-shader _node-id (:shader-source augmented-vertex-shader-info) (:shader-source augmented-fragment-shader-info) uniforms array-sampler-name->slice-sampler-names))))
 
+(defn- vector-type->form-field-type [vector-type]
+  (case vector-type
+    :vector-type-scalar :vec4
+    :vector-type-vec2 :vec4
+    :vector-type-vec3 :vec4
+    :vector-type-vec4 :vec4
+    :vector-type-mat2 :mat4
+    :vector-type-mat3 :mat4
+    :vector-type-mat4 :mat4))
+
+(def ^:private vertex-attribute-fields
+  [{:path [:semantic-type]
+    :label "Semantic Type"
+    :type :choicebox
+    :options (protobuf-forms/make-enum-options Graphics$VertexAttribute$SemanticType)
+    :default graphics/default-attribute-semantic-type}
+   {:path [:step-function]
+    :label "Step Function"
+    :type :choicebox
+    :options (protobuf-forms/make-enum-options Graphics$VertexStepFunction)
+    :default graphics/default-attribute-step-function}
+   {:path [:coordinate-space]
+    :label "Coordinate Space"
+    :type :choicebox
+    :options (protobuf-forms/make-enum-options Graphics$CoordinateSpace)
+    :default :coordinate-space-local}
+   {:path [:data-type]
+    :label "Data Type"
+    :type :choicebox
+    :options (protobuf-forms/make-enum-options Graphics$VertexAttribute$DataType)
+    :default graphics/default-attribute-data-type}
+   {:path [:vector-type]
+    :label "Vector Type"
+    :type :choicebox
+    :options (protobuf-forms/make-enum-options Graphics$VertexAttribute$VectorType)
+    :default graphics/default-attribute-vector-type}
+   {:path [:values]
+    :label "Value"
+    :type (vector-type->form-field-type graphics/default-attribute-vector-type)
+    :default (graphics/default-attribute-doubles graphics/default-attribute-semantic-type graphics/default-attribute-vector-type)}
+   {:path [:normalize]
+    :label "Normalize"
+    :type :boolean
+    :default false}])
+
+(def ^:private ^long value-vertex-attribute-field-index
+  (util/first-index-where #(= [:values] (:path %))
+                          vertex-attribute-fields))
+
 (def ^:private form-data
   {:navigation false
    :sections
@@ -222,52 +270,32 @@
        :type :resource :filter "fp"}
       {:path [:attributes]
        :label "Vertex Attributes"
-       :type :table
-       :columns (let [semantic-type-values (protobuf/enum-values Graphics$VertexAttribute$SemanticType)
-                      data-type-values (protobuf/enum-values Graphics$VertexAttribute$DataType)
-                      coordinate-space-values (protobuf/enum-values Graphics$CoordinateSpace)
-                      vector-type-values (protobuf/enum-values Graphics$VertexAttribute$VectorType)
-                      vertex-step-function (protobuf/enum-values Graphics$VertexStepFunction)
-                      default-semantic-type :semantic-type-none
-                      default-vector-type :vector-type-vec4
-                      default-values (graphics/resize-doubles (vector-of :double) default-semantic-type default-vector-type)
-                      default-step-function :vertex-step-function-vertex]
-                  [{:path [:name]
-                    :label "Name"
-                    :type :string}
-                   {:path [:semantic-type]
-                    :label "Semantic Type"
-                    :type :choicebox
-                    :options (protobuf-forms/make-options semantic-type-values)
-                    :default default-semantic-type}
-                   {:path [:data-type]
-                    :label "Data Type"
-                    :type :choicebox
-                    :options (protobuf-forms/make-options data-type-values)
-                    :default :type-float}
-                   {:path [:vector-type]
-                    :label "Vector Type"
-                    :type :choicebox
-                    :options (protobuf-forms/make-options vector-type-values)
-                    :default default-vector-type}
-                   {:path [:normalize]
-                    :label "Normalize"
-                    :type :boolean
-                    :default false}
-                   {:path [:coordinate-space]
-                    :label "Coordinate Space"
-                    :type :choicebox
-                    :options (protobuf-forms/make-options coordinate-space-values)
-                    :default :coordinate-space-local}
-                   {:path [:step-function]
-                    :label "Step Function"
-                    :type :choicebox
-                    :options (protobuf-forms/make-options vertex-step-function)
-                    :default default-step-function}
-                   {:path [:values]
-                    :label "Value"
-                    :type :vec4
-                    :default default-values}])}
+       :type :2panel
+       :panel-key {:path [:name]
+                   :type :string
+                   :default "new_attribute"}
+       :panel-form-fn
+       (fn panel-form-fn [selected-attribute]
+         {:sections
+          [{:fields
+            (cond
+              (nil? selected-attribute)
+              vertex-attribute-fields
+
+              (graphics/engine-provided-attribute? selected-attribute)
+              (coll/remove-index vertex-attribute-fields value-vertex-attribute-field-index)
+
+              :else
+              (assoc vertex-attribute-fields
+                value-vertex-attribute-field-index
+                (let [semantic-type (:semantic-type selected-attribute graphics/default-attribute-semantic-type)
+                      vector-type (:vector-type selected-attribute graphics/default-attribute-vector-type)
+                      type (vector-type->form-field-type vector-type)
+                      default (graphics/default-attribute-doubles semantic-type vector-type)]
+                  {:path [:values]
+                   :label "Value"
+                   :type type
+                   :default default})))}]})}
       (render-program-utils/gen-form-data-constants "Vertex Constants" :vertex-constants)
       (render-program-utils/gen-form-data-constants "Fragment Constants" :fragment-constants)
       (render-program-utils/gen-form-data-samplers "Samplers" :samplers)
@@ -278,7 +306,7 @@
       {:path [:vertex-space]
        :label "Vertex Space"
        :type :choicebox
-       :options (protobuf-forms/make-options (protobuf/enum-values Material$MaterialDesc$VertexSpace))
+       :options (protobuf-forms/make-enum-options Material$MaterialDesc$VertexSpace)
        :default (ffirst (protobuf/enum-values Material$MaterialDesc$VertexSpace))}
       {:path [:max-page-count]
        :label "Max Atlas Pages"
@@ -292,6 +320,8 @@
         old-normalize (:normalize old-attribute)
         new-vector-type (:vector-type new-attribute)
         new-normalize (:normalize new-attribute)]
+    (assert (graphics/vector-type? old-vector-type))
+    (assert (graphics/vector-type? new-vector-type))
     (cond
       ;; If an attribute changes from a non-normalized value to a normalized one
       ;; or vice versa, attempt to remap the value range. Note that we cannot do
@@ -326,7 +356,7 @@
       ;; project to be saved with the updated vector type.
       (not= old-vector-type new-vector-type)
       (let [semantic-type (:semantic-type new-attribute)]
-        (update new-attribute :values #(graphics/resize-doubles % semantic-type new-vector-type)))
+        (update new-attribute :values #(graphics/convert-double-values % semantic-type old-vector-type new-vector-type)))
 
       ;; If something else changed, do not attempt value coercion.
       :else
@@ -509,8 +539,8 @@
     (gu/set-properties-from-pb-map self Material$MaterialDesc material-desc
       vertex-program (resolve-resource :vertex-program)
       fragment-program (resolve-resource :fragment-program)
-      vertex-constants (render-program-utils/hack-downgrade-constants :vertex-constants)
-      fragment-constants (render-program-utils/hack-downgrade-constants :fragment-constants)
+      vertex-constants (render-program-utils/constants->editable-constants :vertex-constants)
+      fragment-constants (render-program-utils/constants->editable-constants :fragment-constants)
       attributes (attributes->editable-attributes :attributes)
       name :name
       samplers (render-program-utils/samplers->editable-samplers :samplers)
@@ -534,6 +564,8 @@
     (-> material-desc
         (dissoc :textures)
         (protobuf/assign-repeated :samplers samplers)
+        (protobuf/sanitize-repeated :vertex-constants render-program-utils/sanitize-constant)
+        (protobuf/sanitize-repeated :fragment-constants render-program-utils/sanitize-constant)
         (protobuf/sanitize-repeated :attributes graphics/sanitize-attribute-definition))))
 
 (defn register-resource-types [workspace]
