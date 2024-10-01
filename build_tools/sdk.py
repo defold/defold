@@ -61,7 +61,6 @@ PACKAGES_LINUX_TOOLCHAIN="clang+llvm-%s-x86_64-linux-gnu-ubuntu-16.04" % VERSION
 
 ANDROID_NDK_VERSION='25b'
 ANDROID_TARGET_API_LEVEL = 34
-ANDROID_PACKAGE = "android-%s" % ANDROID_TARGET_API_LEVEL
 ANDROID_BUILD_TOOLS_VERSION = '34.0.0'
 ANDROID_NDK_API_VERSION='19' # Android 4.4
 ANDROID_64_NDK_API_VERSION='21' # Android 5.0
@@ -191,6 +190,33 @@ def get_local_darwin_sdk_version(platform):
 ## **********************************************************************************************
 ## Android
 
+def get_android_sdk_path(root):
+    path = os.path.join(root, "android-sdk")
+    if not os.path.exists(path):
+        raise SDKException(f"Path {path} not found")
+    return path
+
+def get_android_ndk_path(root):
+    path = os.path.join(root, "android-ndk-r%s" % ANDROID_NDK_VERSION)
+    if not os.path.exists(path):
+        raise SDKException(f"Path {path} not found")
+    return path
+
+def get_android_build_tools_path(root):
+    sdkfolder = get_android_sdk_path(root)
+    path = os.path.join(sdkfolder, "build-tools", ANDROID_BUILD_TOOLS_VERSION)
+    if not os.path.exists(path):
+        raise SDKException(f"Path {path} not found")
+    return path
+
+def get_android_jar_path(root):
+    sdkfolder = get_android_sdk_path(root)
+    path = os.path.join(sdkfolder, 'platforms', 'android-%s' % ANDROID_TARGET_API_LEVEL, 'android.jar')
+    if not os.path.exists(path):
+        raise SDKException(f"Path {path} not found")
+    return path
+
+
 def get_android_local_sdk_path(verbose=False):
     path = os.environ.get('ANDROID_HOME', None)
     if path is None:
@@ -230,6 +256,15 @@ def get_android_local_build_tools_path(platform):
 
 def get_android_local_sdk_version(platform):
     return os.path.basename(get_android_local_build_tools_path(platform))
+
+def get_android_local_jar_path(verbose=False):
+    sdkfolder = get_android_local_sdk_path()
+    path = os.path.join(sdkfolder, 'platforms', 'android-%s' % ANDROID_TARGET_API_LEVEL, 'android.jar')
+    if not os.path.exists(path):
+        raise SDKException(f"Path {path} not found")
+    return path
+
+
 
 ## **********************************************************************************************
 
@@ -477,8 +512,8 @@ def check_defold_sdk(sdkfolder, platform, verbose=False):
         folders.append(os.path.join(sdkfolder, 'Win32','MicrosoftVisualStudio14.0','VC'))
 
     elif platform in ('armv7-android', 'arm64-android'):
-        folders.append(os.path.join(sdkfolder, "android-ndk-r%s" % ANDROID_NDK_VERSION))
-        folders.append(os.path.join(sdkfolder, "android-sdk"))
+        folders.append(get_android_sdk_path(sdkfolder))
+        folders.append(get_android_ndk_path(sdkfolder))
 
     elif platform in ('x86_64-linux',):
         folders.append(os.path.join(sdkfolder, "linux"))
@@ -553,9 +588,10 @@ def _get_defold_sdk_info(sdkfolder, platform):
 
     elif platform in ('armv7-android', 'arm64-android'):
         info['version'] = ANDROID_BUILD_TOOLS_VERSION
-        info['sdk'] = os.path.join(sdkfolder, "android-sdk")
-        info['ndk'] = os.path.join(sdkfolder, "android-ndk-r%s" % ANDROID_NDK_VERSION)
-        info['build_tools'] = os.path.join(info['sdk'], "build-tools" , ANDROID_BUILD_TOOLS_VERSION)
+        info['sdk'] = get_android_sdk_path(sdkfolder)
+        info['ndk'] = get_android_ndk_path(sdkfolder)
+        info['build_tools'] = get_android_build_tools_path(sdkfolder)
+        info['jar'] = get_android_jar_path(sdkfolder)
         if platform == 'arm64-android':
             info['api'] = ANDROID_64_NDK_API_VERSION
         else:
@@ -599,6 +635,7 @@ def _get_local_sdk_info(platform, verbose=False):
         info['version'] = get_android_local_sdk_version(platform)
         info['sdk'] = get_android_local_sdk_path(verbose)
         info['ndk'] = get_android_local_ndk_path(platform, verbose)
+        info['jar'] = get_android_local_jar_path(platform, verbose)
         info['build_tools'] = get_android_local_build_tools_path(platform)
         if platform == 'arm64-android':
             info['api'] = ANDROID_64_NDK_API_VERSION

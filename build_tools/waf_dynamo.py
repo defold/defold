@@ -1037,8 +1037,10 @@ def android_package(task):
     except BuildUtilityException as ex:
         task.fatal(ex.msg)
 
+    sdk_info = sdk.get_sdk_info(SDK_ROOT, build_util.get_target_platform())
+    android_jar = sdk_info['jar'] # android.jar from the sdk
+
     dynamo_home = task.env['DYNAMO_HOME']
-    android_jar = '%s/ext/share/java/android.jar' % (dynamo_home)
 
     dex_dir = os.path.dirname(task.classes_dex.abspath())
     root = os.path.normpath(dex_dir)
@@ -1678,6 +1680,8 @@ def detect(conf):
 
         if not os.path.exists(bintools):
             conf.fatal("Path does not exist: %s" % bintools)
+
+        conf.env['ANDROID_JAR'] = sdkinfo['jar']
 
         conf.env['CC']       = f'{bintools}{sep}{clang_name}{cmd_suffix}'
         conf.env['CXX']      = f'{bintools}{sep}{clang_name}++{cmd_suffix}'

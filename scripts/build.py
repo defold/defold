@@ -108,9 +108,7 @@ PACKAGES_WIN32="protobuf-3.20.1 luajit-2.1.0-04dca79 openal-1.1 glut-3.7.6 bulle
 PACKAGES_WIN32_64="protobuf-3.20.1 luajit-2.1.0-04dca79 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 glslang-42d9adf5 spirv-cross-edd66a2f spirv-tools-d24a39a7 vulkan-1.3.261.1 lipo-9ffdea2 glfw-3.4".split()
 PACKAGES_LINUX_64="protobuf-3.20.1 luajit-2.1.0-04dca79 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 glslang-ba5c010c spirv-cross-edd66a2f spirv-tools-d24a39a7 vulkan-1.1.108 lipo-9ffdea2 glfw-2.7.1 tint-22b958".split()
 PACKAGES_ANDROID="protobuf-3.20.1 android-support-multidex androidx-multidex luajit-2.1.0-04dca79 tremolo-b0cb4d1 bullet-2.77 glfw-2.7.1".split()
-PACKAGES_ANDROID.append(sdk.ANDROID_PACKAGE)
 PACKAGES_ANDROID_64="protobuf-3.20.1 android-support-multidex androidx-multidex luajit-2.1.0-04dca79 tremolo-b0cb4d1 bullet-2.77 glfw-2.7.1".split()
-PACKAGES_ANDROID_64.append(sdk.ANDROID_PACKAGE)
 PACKAGES_EMSCRIPTEN="protobuf-3.20.1 bullet-2.77 glfw-2.7.1".split()
 PACKAGES_NODE_MODULES="xhr2-0.1.0".split()
 
@@ -1009,6 +1007,31 @@ class Configuration(object):
         run.shell_command("%s %s" % (strip, path))
         return True
 
+    def _ext_android_jar_path(self):
+        return os.path.join(self.dynamo_home, 'ext', 'share', 'java', 'android.jar')
+
+    def _copy_android_jar(self):
+        assert('android' in self.target_platform)
+        sdkfolder = join(self.ext, 'SDKs')
+        sdk_info = sdk.get_sdk_info(sdkfolder, self.target_platform, self.verbose)
+        android_jar = sdk_info['jar']
+        ext_android_jar = self._ext_android_jar_path()
+        self._log(f"Copying {android_jar} to {ext_android_jar}")
+        shutil.copy2(android_jar, ext_android_jar)
+
+    def _strip_android_jar(self):
+        assert('android' in self.target_platform)
+
+        if sys.platform == 'win32':
+            # the 'convert' command in the system32 folder is not the same thing!
+            print("Stripping the android.jar on win32 is not yet supported")
+            return
+
+        ext_android_jar = self._ext_android_jar_path()
+
+        script = os.path.join(self.defold_root, 'scripts', 'mobile', 'android_jar_reduce_size.sh')
+        run.shell_command([script, ext_android_jar])
+
     def archive_engine(self):
         sha1 = self._git_sha1()
         full_archive_path = join(sha1, 'engine', self.target_platform).replace('\\', '/')
@@ -1071,10 +1094,14 @@ class Configuration(object):
             self.upload_to_archive(join(dynamo_home, 'share', 'java', 'texturecompiler.jar'), '%s/texturecompiler.jar' % (java_archive_path))
 
         if 'android' in self.target_platform:
+            self._copy_android_jar() # copy from the SDK
+            self._strip_android_jar()
+
             files = [
                 ('share/java', 'classes.dex'),
                 ('ext/share/java', 'android.jar'),
             ]
+
             for f in files:
                 src = join(dynamo_home, f[0], f[1])
                 self.upload_to_archive(src, '%s/%s' % (full_archive_path, f[1]))
@@ -1296,7 +1323,8 @@ class Configuration(object):
         linux_files = dict([['ext/lib/%s/lib%s.so' % (plf[0], lib), 'lib/%s/lib%s.so' % (plf[1], lib)] for lib in [] for plf in [['x86_64-linux', 'x86_64-linux']]])
         js_files = {}
         android_files = {'share/java/classes.dex': 'lib/classes.dex',
-                         'ext/share/java/android.jar': 'lib/android.jar'}
+                         'ext/share/java/android.jar': 'lib/android.jar'} # this should be the stripped one
+
         switch_files = {}
         # This dict is being built up and will eventually be used for copying in the end
         # - "type" - what the files are needed for, for error reporting
