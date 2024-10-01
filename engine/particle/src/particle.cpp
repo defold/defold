@@ -1032,50 +1032,32 @@ namespace dmParticle
         particle->m_SourceAngularVelocity = emitter_properties[EMITTER_KEY_PARTICLE_ANGULAR_VELOCITY];
     }
 
-    // TODO: Use the shared dmGraphics function instead of this (needs to solve dynamic library linking for the particle library)
-    static uint8_t* WriteParticleVertex(const dmGraphics::VertexAttributeInfos& attribute_infos, uint8_t* write_ptr, const Vector3& p, const Vector3& p_local, const Vector4& color, float* uv, float page_index)
+    static inline void DefaultWriteVertexAttributeParams(
+        dmGraphics::WriteAttributeParams* params,
+        const dmGraphics::VertexAttributeInfos* attribute_infos,
+        const dmVMath::Matrix4* world_matrix,
+        const Vector3* positions_world_space,
+        const Vector3* positions_local_space,
+        const Vector4* colors,
+        const float** uv_channels,
+        const float* pi_channels)
     {
-        for (int i = 0; i < attribute_infos.m_NumInfos; ++i)
-        {
-            const dmGraphics::VertexAttributeInfo& info = attribute_infos.m_Infos[i];
+        memset(params, 0, sizeof(dmGraphics::WriteAttributeParams));
+        params->m_VertexAttributeInfos = attribute_infos;
+        params->m_StepFunction         = dmGraphics::VERTEX_STEP_FUNCTION_VERTEX;
+        params->m_WorldMatrix          = world_matrix;
+        params->m_PositionsWorldSpace  = (const float*) positions_world_space;
+        params->m_PositionsLocalSpace  = (const float*) positions_local_space;
+        params->m_Colors               = (const float*) colors;
+        params->m_UVChannels           = uv_channels;
+        params->m_UVChannelsCount      = 1;
+        params->m_PageIndices          = pi_channels;
+        params->m_PageIndicesCount     = 1;
 
-            switch(info.m_SemanticType)
-            {
-                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION:
-                {
-                    if (info.m_CoordinateSpace == dmGraphics::COORDINATE_SPACE_WORLD)
-                    {
-                        memcpy(write_ptr, &p, info.m_ValueByteSize);
-                    }
-                    else if (info.m_CoordinateSpace == dmGraphics::COORDINATE_SPACE_LOCAL)
-                    {
-                        memcpy(write_ptr, &p_local, info.m_ValueByteSize);
-                    }
-                    else assert(0);
-                } break;
-                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD:
-                {
-                    memcpy(write_ptr, uv, info.m_ValueByteSize);
-                } break;
-                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR:
-                {
-                    memcpy(write_ptr, &color, info.m_ValueByteSize);
-                } break;
-                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX:
-                {
-                    memcpy(write_ptr, &page_index, info.m_ValueByteSize);
-                } break;
-                default:
-                {
-                    assert(info.m_ValuePtr);
-                    memcpy(write_ptr, info.m_ValuePtr, info.m_ValueByteSize);
-                } break;
-            }
-
-            write_ptr += info.m_ValueByteSize;
-        }
-
-        return write_ptr;
+        params->m_PositionsVectorType   = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4; // the Vector3 class has four components
+        params->m_UVChannelsVectorType  = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2;
+        params->m_PageIndicesVectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR;
+        params->m_ColorsVectorType      = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4;
     }
 
     static float unit_tex_coords[] = {
@@ -1121,7 +1103,8 @@ namespace dmParticle
         bool anim_bwd = playback == ANIM_PLAYBACK_ONCE_BACKWARD || playback == ANIM_PLAYBACK_LOOP_BACKWARD;
         bool anim_ping_pong = playback == ANIM_PLAYBACK_ONCE_PINGPONG || playback == ANIM_PLAYBACK_LOOP_PINGPONG;
         bool use_pivot = length(pivot_vector) > 0.0f;
-        bool use_local_position = dmGraphics::HasLocalPositionAttribute(attribute_infos);
+
+        dmGraphics::VertexAttributeInfoMetadata material_attribute_info_meta = dmGraphics::GetVertexAttributeInfosMetaData(attribute_infos);
 
         if (anim_ping_pong) {
             tile_count = dmMath::Max(1u, tile_count * 2 - 2);
@@ -1142,6 +1125,9 @@ namespace dmParticle
         dmTransform::TransformS1 emission_transform;
         dmTransform::Transform particle_transform;
         emission_transform.SetIdentity();
+
+        dmVMath::Matrix4 normal_matrix;
+
         if (ddf->m_Space == EMISSION_SPACE_EMITTER)
         {
             emission_transform = instance->m_WorldTransform;
@@ -1191,6 +1177,17 @@ namespace dmParticle
                 ddf->m_Pivot.getY() * tile_height_factor,
                 ddf->m_Pivot.getZ()));
         }
+
+        Vector3 position_world_flat[6];
+        Vector3 position_local_flat[6];
+        Vector4 color_flat[6];
+        float tex_coord_flat[6 * 2];
+        dmVMath::Matrix4 world_matrix;
+        float page_index;
+        dmGraphics::WriteAttributeParams write_params;
+
+        const float* uv_channels[1] = { tex_coord_flat };
+        DefaultWriteVertexAttributeParams(&write_params, &attribute_infos, &world_matrix, position_world_flat, position_local_flat, color_flat, (const float**) uv_channels, &page_index);
 
         for (j = 0; j < particle_count && vertex_index + 6 <= max_vertex_count; j++)
         {
@@ -1251,56 +1248,81 @@ namespace dmParticle
 
             Vector3 x_local = Vector3(width_factor, 0.0f, 0.0f);
             Vector3 y_local = Vector3(0.0f, height_factor, 0.0f);
+            Vector3 x       = dmTransform::Apply(particle_transform, x_local);
+            Vector3 y       = dmTransform::Apply(particle_transform, y_local);
 
-            Vector3 x = dmTransform::Apply(particle_transform, x_local);
-            Vector3 y = dmTransform::Apply(particle_transform, y_local);
-
-            Vector3 p0 = -x - y + particle_transform.GetTranslation();
-            Vector3 p1 = -x + y + particle_transform.GetTranslation();
-            Vector3 p2 = x - y + particle_transform.GetTranslation();
-            Vector3 p3 = x + y + particle_transform.GetTranslation();
-
-            Vector3 p0_local;
-            Vector3 p1_local;
-            Vector3 p2_local;
-            Vector3 p3_local;
-
-            if (use_local_position)
+            if (material_attribute_info_meta.m_HasAttributeWorldPosition)
             {
-                p0_local = -x - y;
-                p1_local = -x + y;
-                p2_local = x - y;
-                p3_local = x + y;
+                position_world_flat[0] = -x - y + particle_transform.GetTranslation();
+                position_world_flat[1] = -x + y + particle_transform.GetTranslation();
+                position_world_flat[2] = x + y + particle_transform.GetTranslation();
+                position_world_flat[3] = position_world_flat[2];
+                position_world_flat[4] = x - y + particle_transform.GetTranslation();
+                position_world_flat[5] = position_world_flat[0];
             }
 
-            uint32_t flip_flag = 0;
-            if (hFlip)
+            if (material_attribute_info_meta.m_HasAttributeLocalPosition)
             {
-                flip_flag = 1;
+                position_local_flat[0] = -x - y;
+                position_local_flat[1] = -x + y;
+                position_local_flat[2] = x + y;
+                position_local_flat[3] = position_local_flat[2];
+                position_local_flat[4] = x - y;
+                position_local_flat[5] = position_local_flat[0];
             }
-            if (vFlip)
+
+            if (material_attribute_info_meta.m_HasAttributeColor)
             {
-                flip_flag |= 2;
+                Vector4 c = particle->GetColor();
+                c = Vector4(mulPerElem(c.getXYZ(), color.getXYZ()), c.getW() * color.getW());
+                color_flat[0] = c;
+                color_flat[1] = c;
+                color_flat[2] = c;
+                color_flat[3] = c;
+                color_flat[4] = c;
+                color_flat[5] = c;
             }
-            const int* tex_lookup = &tex_coord_order[flip_flag * 6];
 
-            Vector4 c = particle->GetColor();
-            c = Vector4(mulPerElem(c.getXYZ(), color.getXYZ()), c.getW() * color.getW());
-
-            float page_index = 0.0f;
-            if (frame_indices != 0x0)
+            if (material_attribute_info_meta.m_HasAttributeTexCoord)
             {
-                uint32_t page_indices_index = frame_indices[tile];
-                page_index                  = (float) page_indices[page_indices_index];
+                uint32_t flip_flag = 0;
+                if (hFlip)
+                {
+                    flip_flag = 1;
+                }
+                if (vFlip)
+                {
+                    flip_flag |= 2;
+                }
+                const int* tex_lookup = &tex_coord_order[flip_flag * 6];
+                for (int i = 0; i < 6; ++i)
+                {
+                    tex_coord_flat[i * 2]     = tex_coord[tex_lookup[i] * 2];
+                    tex_coord_flat[i * 2 + 1] = tex_coord[tex_lookup[i] * 2 + 1];
+                }
+            }
+
+            if (material_attribute_info_meta.m_HasAttributePageIndex)
+            {
+                if (frame_indices != 0x0)
+                {
+                    uint32_t page_indices_index = frame_indices[tile];
+                    page_index                  = (float) page_indices[page_indices_index];
+                }
+            }
+
+            if (material_attribute_info_meta.m_HasAttributeWorldMatrix)
+            {
+                world_matrix = dmTransform::ToMatrix4(particle_transform);
             }
 
             uint8_t* write_ptr = vertex_buffer + vertex_index * attribute_infos.m_VertexStride;
-            write_ptr          = WriteParticleVertex(attribute_infos, write_ptr, p0, p0_local, c, tex_coord + tex_lookup[0] * 2, page_index);
-            write_ptr          = WriteParticleVertex(attribute_infos, write_ptr, p1, p1_local, c, tex_coord + tex_lookup[1] * 2, page_index);
-            write_ptr          = WriteParticleVertex(attribute_infos, write_ptr, p3, p3_local, c, tex_coord + tex_lookup[2] * 2, page_index);
-            write_ptr          = WriteParticleVertex(attribute_infos, write_ptr, p3, p3_local, c, tex_coord + tex_lookup[3] * 2, page_index);
-            write_ptr          = WriteParticleVertex(attribute_infos, write_ptr, p2, p2_local, c, tex_coord + tex_lookup[4] * 2, page_index);
-            write_ptr          = WriteParticleVertex(attribute_infos, write_ptr, p0, p0_local, c, tex_coord + tex_lookup[5] * 2, page_index);
+            write_ptr = dmGraphics::WriteAttributes(write_ptr, 0, write_params);
+            write_ptr = dmGraphics::WriteAttributes(write_ptr, 1, write_params);
+            write_ptr = dmGraphics::WriteAttributes(write_ptr, 2, write_params);
+            write_ptr = dmGraphics::WriteAttributes(write_ptr, 3, write_params);
+            write_ptr = dmGraphics::WriteAttributes(write_ptr, 4, write_params);
+            write_ptr = dmGraphics::WriteAttributes(write_ptr, 5, write_params);
             vertex_index += 6;
         }
 
