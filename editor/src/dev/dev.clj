@@ -47,12 +47,14 @@
             [jfx :as jfx]
             [lambdaisland.deep-diff2 :as deep-diff]
             [lambdaisland.deep-diff2.minimize-impl :as deep-diff.minimize-impl]
+            [lambdaisland.deep-diff2.printer-impl :as deep-diff.printer-impl]
             [lambdaisland.deep-diff2.puget.color :as puget.color]
             [lambdaisland.deep-diff2.puget.printer :as puget.printer]
             [util.coll :as coll :refer [pair]]
             [util.diff :as diff]
             [util.fn :as fn])
   (:import [com.defold.util WeakInterner]
+           [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$Image]
            [com.google.protobuf Descriptors$FieldDescriptor Descriptors$FieldDescriptor$JavaType]
            [editor.code.data Cursor CursorRange]
            [editor.gl.pass RenderPass]
@@ -1011,10 +1013,11 @@
                document])
 
             (object-data-pprint-handler [printer-opts object->value printer object]
-              (cls-tag-doc
-                (cond-> pretty-printer printer-opts (merge printer-opts))
-                (class object)
-                (fmt-doc printer (object->value object))))]
+              (let [printer (cond-> printer printer-opts (merge printer-opts))]
+                (cls-tag-doc
+                  printer
+                  (class object)
+                  (fmt-doc printer (object->value object)))))]
 
       (let [editor-pprint-handlers
             {(namespaced-class-symbol AABB)
@@ -1135,15 +1138,47 @@
                vecmath-tuple-pprint-handler
 
                (namespaced-class-symbol Vector4d)
-               vecmath-tuple-pprint-handler})]
+               vecmath-tuple-pprint-handler})
+
+            protobuf-pprint-handlers
+            {(namespaced-class-symbol Graphics$TextureImage)
+             (partial object-data-pprint-handler {:sort-keys false}
+                      (fn [^Graphics$TextureImage texture-image]
+                        (let [alternatives (.getAlternativesList texture-image)
+                              alternatives-count (count alternatives)
+                              ^Graphics$TextureImage$Image image (first alternatives)]
+                          (cond-> {:type (protobuf/pb-enum->val (.getType texture-image))}
+
+                                  image
+                                  (assoc :format (protobuf/pb-enum->val (.getFormat image))
+                                         :width (.getWidth image)
+                                         :height (.getHeight image))
+
+                                  (> alternatives-count 1)
+                                  (assoc :alternatives alternatives-count)
+
+                                  :always
+                                  (assoc :bytes (transduce (map (fn [^Graphics$TextureImage$Image image]
+                                                                  (.size (.getData image))))
+                                                           +
+                                                           alternatives))))))}]
 
         (deep-diff/printer
-          {:extra-handlers
+          {:color-scheme
+           {::deep-diff.printer-impl/deletion [:red]
+            ::deep-diff.printer-impl/insertion [:green]
+            ::deep-diff.printer-impl/other [:yellow]
+            :boolean [:bold :cyan]
+            :nil [:bold :cyan]
+            :tag [:magenta]}
+
+           :extra-handlers
            (merge editor-pprint-handlers
                   graph-pprint-handlers
                   java-pprint-handlers
                   resource-pprint-handlers
-                  vecmath-pprint-handlers)})))))
+                  vecmath-pprint-handlers
+                  protobuf-pprint-handlers)})))))
 
 (defonce last-pprint-value-atom (atom nil))
 
