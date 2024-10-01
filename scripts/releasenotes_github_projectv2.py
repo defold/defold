@@ -262,9 +262,9 @@ def generate(version, hide_details = False):
         entry["body"] = re.sub("## PR checklist.*", "", entry["body"], flags=re.DOTALL).strip()
         entry["body"] = re.sub("### Technical changes.*", "", entry["body"], flags=re.DOTALL).strip()
         entry["body"] = re.sub("### Technical changes.*", "", entry["body"], flags=re.DOTALL).strip()
-        entry["body"] = re.sub("# Technical changes:.*", "", entry["body"], flags=re.DOTALL).strip()
-        entry["body"] = re.sub("Technical changes:.*", "", entry["body"], flags=re.DOTALL).strip()
-        entry["body"] = re.sub("Technical notes:.*", "", entry["body"], flags=re.DOTALL).strip()
+        entry["body"] = re.sub("# Technical changes.*", "", entry["body"], flags=re.DOTALL).strip()
+        entry["body"] = re.sub("Technical changes.*", "", entry["body"], flags=re.DOTALL).strip()
+        entry["body"] = re.sub("Technical notes.*", "", entry["body"], flags=re.DOTALL).strip()
         entry["body"] = re.sub("## Technical details.*", "", entry["body"], flags=re.DOTALL).strip()
 
         # Remove closing keywords
@@ -276,7 +276,7 @@ def generate(version, hide_details = False):
         entry["body"] = re.sub("Fix https.*", "", entry["body"], flags=re.IGNORECASE).strip()
 
         # Remove "user facing changes" header
-        entry["body"] = re.sub("User-facing changes:", "", entry["body"], flags=re.IGNORECASE).strip()
+        entry["body"] = re.sub("User-facing changes.", "", entry["body"], flags=re.IGNORECASE).strip()
         entry["body"] = re.sub("### User-facing changes", "", entry["body"], flags=re.IGNORECASE).strip()
 
         duplicate = False
