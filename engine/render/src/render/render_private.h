@@ -86,7 +86,10 @@ namespace dmRender
         dmGraphics::HProgram                    m_Program;
         dmGraphics::HVertexProgram              m_VertexProgram;
         dmGraphics::HFragmentProgram            m_FragmentProgram;
-        dmGraphics::HVertexDeclaration          m_VertexDeclaration;
+        dmGraphics::HVertexDeclaration          m_VertexDeclarationShared;
+        dmGraphics::HVertexDeclaration          m_VertexDeclarationPerVertex;
+        dmGraphics::HVertexDeclaration          m_VertexDeclarationPerInstance;
+        dmGraphics::VertexAttributeInfoMetadata m_VertexAttributeInfoMetadata;
         dmHashTable64<dmGraphics::HUniformLocation> m_NameHashToLocation;
         dmArray<dmGraphics::VertexAttribute>    m_VertexAttributes;
         dmArray<MaterialAttribute>              m_MaterialAttributes;
@@ -97,6 +100,7 @@ namespace dmRender
         uint64_t                                m_UserData1;  // used for hot reloading. stores shader name
         uint64_t                                m_UserData2;  // --||–-
         dmRenderDDF::MaterialDesc::VertexSpace  m_VertexSpace;
+        uint8_t                                 m_InstancingSupported : 1;
     };
 
     struct ComputeProgram

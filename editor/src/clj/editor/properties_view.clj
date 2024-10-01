@@ -252,6 +252,78 @@
         labels))
     [box update-ui-fn]))
 
+(def ^:private matrix-field-label-texts
+  ;; These correspond to the semantic meaning of the linear values in the array
+  ;; of doubles. We might choose to present the fields in a different order in
+  ;; the property editor.
+  ["X" "X" "X" "X"
+   "Y" "Y" "Y" "Y"
+   "Z" "Z" "Z" "Z"
+   "T" "T" "T" "W"])
+
+(defn- create-matrix-field-grid [^long row-column-count property-fn]
+  (let [labels
+        (for [^long row (range row-column-count)
+              ^long column (range row-column-count)]
+          (let [label-text (matrix-field-label-texts (+ column (* row 4)))
+                presentation-row column
+                presentation-column (* row 2)]
+            (doto (Label. label-text)
+              (.setMinWidth Region/USE_PREF_SIZE)
+              (GridPane/setConstraints presentation-column presentation-row)
+              (GridPane/setHgrow Priority/NEVER)
+              (cond-> (zero? presentation-column)
+                      (ui/add-style! "leftmost")))))
+
+        text-fields
+        (vec
+          (for [^long row (range row-column-count)
+                ^long column (range row-column-count)]
+            (let [presentation-row column
+                  presentation-column (inc (* row 2))]
+              (doto (TextField.)
+                (GridPane/setConstraints presentation-column presentation-row)
+                (GridPane/setHgrow Priority/ALWAYS)))))
+
+        grid-pane
+        (doto (GridPane.)
+          (.setHgap grid-hgap)
+          (ui/add-style! "property-component-matrix")
+          (ui/children! (interleave labels text-fields)))
+
+        get-fns
+        (mapv (fn [^long value-index]
+                #(nth % value-index))
+              (range (* row-column-count row-column-count)))
+
+        update-ui-fn
+        (partial update-multi-text-fn text-fields field-expression/format-number get-fns)
+
+        cancel-fn
+        (fn cancel-fn [_]
+          (let [property (property-fn)
+                current-vals (properties/values property)]
+            (update-ui-fn current-vals
+                          (properties/validation-message property)
+                          (properties/read-only? property))))]
+
+    (doseq [^long row (range row-column-count)
+            ^long column (range row-column-count)
+            :let [value-index (+ column (* row row-column-count))
+                  text-field (text-fields value-index)]]
+      (letfn [(update-fn [_]
+                (let [property (property-fn)
+                      old-vals (properties/values property)
+                      old-num (get (get old-vals 0) value-index)
+                      num (parse-num (ui/text text-field) old-num)]
+                  (if (and num (not= num old-num))
+                    (let [new-vals (mapv #(assoc % value-index num) old-vals)]
+                      (properties/set-values! property new-vals))
+                    (cancel-fn nil))))]
+        (customize! text-field update-fn cancel-fn)))
+
+    (pair grid-pane update-ui-fn)))
+
 (defmethod create-property-control! types/Vec2 [edit-type _ property-fn]
   (let [{:keys [labels]
          :or {labels ["X" "Y"]}} edit-type]
@@ -266,6 +338,15 @@
   (let [{:keys [labels]
          :or {labels ["X" "Y" "Z" "W"]}} edit-type]
     (create-multi-text-field! labels property-fn)))
+
+(defmethod create-property-control! types/Mat2 [_edit-type _ property-fn]
+  (create-matrix-field-grid 2 property-fn))
+
+(defmethod create-property-control! types/Mat3 [_edit-type _ property-fn]
+  (create-matrix-field-grid 3 property-fn))
+
+(defmethod create-property-control! types/Mat4 [_edit-type _ property-fn]
+  (create-matrix-field-grid 4 property-fn))
 
 (defn- create-multi-keyed-text-field! [fields property-fn]
   (let [text-fields (mapv (fn [_] (TextField.)) fields)

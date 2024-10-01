@@ -53,7 +53,7 @@
 (g/defnk produce-save-value [compute-program constants samplers]
   (protobuf/make-map-without-defaults Compute$ComputeDesc
     :compute-program (resource/resource->proj-path compute-program)
-    :constants (render-program-utils/hack-upgrade-constants constants)
+    :constants (render-program-utils/editable-constants->constants constants)
     :samplers (render-program-utils/editable-samplers->samplers samplers)))
 
 (defn- build-compute [resource build-resource->fused-build-resource user-data]
@@ -112,12 +112,16 @@
   (output build-targets g/Any :cached produce-build-targets)
   (output samplers [g/KeywordMap] (gu/passthrough samplers)))
 
+(defn- sanitize-compute [compute-desc]
+  {:pre [(map? compute-desc)]} ; Compute$ComputeDesc in map format.
+  (protobuf/sanitize-repeated compute-desc :constants render-program-utils/sanitize-constant))
+
 (defn load-compute [_project self resource compute-desc]
   {:pre [(map? compute-desc)]} ; Compute$ComputeDesc in map format.
   (let [resolve-resource #(workspace/resolve-resource resource %)]
     (gu/set-properties-from-pb-map self Compute$ComputeDesc compute-desc
       compute-program (resolve-resource :compute-program)
-      constants (render-program-utils/hack-downgrade-constants :constants)
+      constants (render-program-utils/constants->editable-constants :constants)
       samplers (render-program-utils/samplers->editable-samplers :samplers))))
 
 (defn register-resource-types [workspace]
@@ -127,6 +131,7 @@
     :node-type ComputeNode
     :ddf-type Compute$ComputeDesc
     :load-fn load-compute
+    :sanitize-fn sanitize-compute
     :icon "icons/32/Icons_31-Material.png"
     :icon-class :property
     :view-types [:cljfx-form-view :text]))
