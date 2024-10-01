@@ -46,13 +46,13 @@ cd defold
 ./scripts/build.py build_engine --platform=... --skip-tests -- --skip-build-tests
 
 # Build builtins
-scripts/build.py build_builtins
+./scripts/build.py build_builtins
 
 # Build reference documentation
-scripts/build.py build_docs
+./scripts/build.py build_docs
 
 # Build Bob
-scripts/build.py build_bob --skip-tests
+./scripts/build.py build_bob --skip-tests
 
 # Change directory to the editor directory
 cd editor
