@@ -724,6 +724,9 @@ static dmExtension::Result FinalizeProfiler(dmExtension::Params* params)
 
 static dmExtension::Result AppInitializeProfiler(dmExtension::AppParams* params)
 {
+    // Note that the callback might come from a different thread!
+    g_ProfilerMutex = dmMutex::New();
+
     g_ProfilerPort = dmConfigFile::GetInt(params->m_ConfigFile, "profiler.port", 0);
 
     g_ProfilerCurrentFrame = new dmProfileRender::ProfilerFrame;
@@ -739,11 +742,10 @@ static dmExtension::Result AppInitializeProfiler(dmExtension::AppParams* params)
     {
         delete g_ProfilerCurrentFrame;
         g_ProfilerCurrentFrame = 0;
+        dmMutex::Delete(g_ProfilerMutex);
+        g_ProfilerMutex = 0;
         return dmExtension::RESULT_OK;
     }
-
-    // Note that the callback might come from a different thread!
-    g_ProfilerMutex = dmMutex::New();
 
     g_ProfilerThreadSortOrder.SetCapacity(7, 8);
     g_ProfilerThreadSortOrder.Put(dmHashString64("Main"), 0);
