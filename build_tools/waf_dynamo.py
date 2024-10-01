@@ -909,8 +909,18 @@ def _strip_executable(bld, platform, target_arch, path):
     sdkinfo = sdk.get_sdk_info(SDK_ROOT, bld.env.PLATFORM)
     strip = "strip"
     if 'android' in platform:
-        HOME = os.environ['USERPROFILE' if sys.platform == 'win32' else 'HOME']
-        ANDROID_HOST = 'linux' if sys.platform == 'linux' else 'darwin'
+        host_names = {
+            'win32': 'windows',
+            'darwin': 'darwin',
+            'linux': 'linux',
+        }
+        home_names = {
+            'win32': 'USERPROFILE',
+            'darwin': 'HOME',
+            'linux': 'HOME',
+        }
+        HOME = os.environ[home_names.get(sys.platform)]
+        ANDROID_HOST = host_names.get(sys.platform)
         strip = "%s/toolchains/llvm/prebuilt/%s-x86_64/bin/llvm-strip" % (sdkinfo['ndk'], ANDROID_HOST)
 
     return bld.exec_command("%s %s" % (strip, path))
@@ -1648,10 +1658,14 @@ def detect(conf):
     elif 'android' == build_util.get_target_os() and build_util.get_target_architecture() in ('armv7', 'arm64'):
         # TODO: No windows support yet (unknown path to compiler when wrote this)
         bp_arch, bp_os = host_platform.split('-')
+        exe_suffix = ''
+        cmd_suffix = ''
         if bp_os == 'macos':
             bp_os = 'darwin'
         elif bp_os == 'win32':
             bp_os = 'windows'
+            cmd_suffix = '.cmd'
+            exe_suffix = '.exe'
         target_arch = build_util.get_target_architecture()
         api_version = sdkinfo['api']
         clang_name  = getAndroidCompilerName(target_arch, api_version)
@@ -1659,18 +1673,23 @@ def detect(conf):
         if bp_arch == 'arm64':
             bp_arch = 'x86_64';
         bintools    = '%s/toolchains/llvm/prebuilt/%s-%s/bin' % (sdkinfo['ndk'], bp_os, bp_arch)
-        tool_name = "llvm"
+        bintools    = os.path.normpath(bintools)
+        sep         = os.path.sep
 
         if not os.path.exists(bintools):
             conf.fatal("Path does not exist: %s" % bintools)
 
-        conf.env['CC']       = '%s/%s' % (bintools, clang_name)
-        conf.env['CXX']      = '%s/%s++' % (bintools, clang_name)
-        conf.env['LINK_CXX'] = '%s/%s++' % (bintools, clang_name)
-        conf.env['CPP']      = '%s/%s -E' % (bintools, clang_name)
-        conf.env['AR']       = '%s/%s-ar' % (bintools, tool_name)
-        conf.env['RANLIB']   = '%s/%s-ranlib' % (bintools, tool_name)
-        conf.env['LD']       = '%s/lld' % (bintools)
+        conf.env['CC']       = f'{bintools}{sep}{clang_name}{cmd_suffix}'
+        conf.env['CXX']      = f'{bintools}{sep}{clang_name}++{cmd_suffix}'
+        conf.env['LINK_CXX'] = f'{bintools}{sep}{clang_name}++{cmd_suffix}'
+        conf.env['CPP']      = f'{bintools}{sep}{clang_name}{cmd_suffix} -E'
+
+        conf.env['AR']       = f'{bintools}{sep}llvm-ar{exe_suffix}'
+        conf.env['RANLIB']   = f'{bintools}{sep}llvm-ranlib{exe_suffix}'
+        conf.env['LD']       = f'{bintools}{sep}lld{exe_suffix}'
+
+        # Make sure the the compiler_c/compiler_cxx uses the correct path
+        conf.environ['PATH'] = os.path.normpath(bintools) + os.pathsep + conf.environ['PATH']
 
         conf.find_program('d8', var='D8', mandatory = True, path_list=[sdkinfo['build_tools']])
 

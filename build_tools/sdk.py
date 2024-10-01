@@ -199,6 +199,9 @@ def get_android_local_sdk_path(verbose=False):
         # on macOS, it doesn't set an environment variable
         if sys.platform == 'darwin':
             path = os.path.expanduser('~/Library/android/sdk')
+        elif sys.platform == 'win32':
+            path = os.path.expandvars('${LOCALAPPDATA}/Android/Sdk')
+        path = os.path.normpath(path)
 
     if path and os.path.exists(path):
         log_verbose(verbose, f"  Detected sdk path {path}")
