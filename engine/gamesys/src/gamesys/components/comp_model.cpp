@@ -1401,6 +1401,13 @@ namespace dmGameSystem
     static inline dmRenderDDF::MaterialDesc::VertexSpace GetRenderMaterialVertexSpace(dmRender::HMaterial material)
     {
         dmRenderDDF::MaterialDesc::VertexSpace material_vertex_space = dmRender::GetMaterialVertexSpace(material);
+        dmGraphics::HVertexDeclaration instance_vx_decl = GetVertexDeclaration(material, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE);
+
+        // If the material has "instanced" vertex attributes, we have to use whatever vertex space is set on the model.
+        if (instance_vx_decl)
+        {
+            return material_vertex_space;
+        }
 
         // If a "local" material space material has a world position attribute, we use world space when
         // producing the attributes instead of trying to shoehorn this into the current local space vertex generation code.
