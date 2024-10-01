@@ -329,7 +329,7 @@
                                                         (set (keys sampler-name-index))
                                                         (set (keys texture-binding-name-index)))
                               should-be-deleted (not (mesh-material-names name))
-                              material-attribute-properties (graphics/attribute-properties-by-property-key _node-id material-attribute-infos vertex-attribute-overrides)
+                              material-attribute-properties (graphics/attribute-property-entries _node-id material-attribute-infos vertex-attribute-overrides)
                               material-binding-node-id _node-id
                               material-property [material-prop-key
                                                  (cond-> {:node-id material-binding-node-id
