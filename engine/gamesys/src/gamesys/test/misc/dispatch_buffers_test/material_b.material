@@ -1,6 +1,6 @@
 name: "dispatch_material_custom_attributes"
 vertex_program: "/misc/dispatch_buffers_test/vs_format_b.vp"
-fragment_program: "/misc/dispatch_buffers_test/fs_shared.fp"
+fragment_program: "/fragment_program/valid.fp"
 
 attributes {
   name: "my_custom_attribute"
