@@ -4,10 +4,22 @@
 
 ### Android SDK/NDK
 
+#### For contributors
+
+The Android Studio installation will be automatically picked up from the default installation
+
+* macOS - `~/Library/android/sdk`
+* Windows - `%LOCALAPPDATA%/Android/Sdk`
+
+or by specifying the `ANDROID_HOME` environment variable.
+
+#### For the maintainers
+
+_This is mainly for the Defold team and their CI_
+
 When building the engine, the build system tries to find the sdk in this order:
 
-* `$DYNAMO_HOME/ext/SDKs/android-sdk` -  This is mainly for the Defold team and their CI
-* `$ANDROID_HOME` - Set this path to point to your android studio sdk installation (e.g. `ANDROID_HOME=~/Library/Android/sdk` is the default installation on macOS)
+* `$DYNAMO_HOME/ext/SDKs/android-sdk`
 
 #### Android Studio
 
