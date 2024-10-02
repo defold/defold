@@ -31,6 +31,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -616,7 +617,7 @@ public class Bob {
         return String.format("%s: %s:%d: '%s'\n", strSeverity, resourceString, line, message);
     }
 
-    private static void setupProject(Project project, boolean resolveLibraries, IProgress progress, IResourceScanner resourceScanner) throws IOException, LibraryException, CompileExceptionError {
+    private static void setupProject(Project project, boolean resolveLibraries, IProgress progress) throws IOException, LibraryException, CompileExceptionError {
         BobProjectProperties projectProperties = project.getProjectProperties();
         String[] dependencies = projectProperties.getStringArrayValue("project", "dependencies");
         List<URL> libUrls = new ArrayList<>();
@@ -630,7 +631,7 @@ public class Bob {
             project.resolveLibUrls(progress);
             TimeProfiler.stop();
         }
-        project.mount(resourceScanner);
+        project.mount(new ClassLoaderResourceScanner());
     }
 
     private static void validateChoices(String optionName, String value, List<String> validChoices) throws OptionValidationException {
@@ -684,7 +685,7 @@ public class Bob {
      * Common entry point for both editor and bob
      * @param classLoader may be null
      */
-    public static InvocationResult invoke(IResourceScanner resourceScanner, ClassLoader classLoader, IProgress progress, boolean fromEditor, String[] args) throws IOException, CompileExceptionError, LibraryException, OptionValidationException {
+    public static InvocationResult invoke(ClassLoader classLoader, IProgress progress, boolean fromEditor, Map<String, String> internalOptions, String[] args) throws IOException, CompileExceptionError, LibraryException, OptionValidationException {
         System.setProperty("java.awt.headless", "true");
         System.setProperty("file.encoding", "UTF-8");
 
@@ -696,7 +697,6 @@ public class Bob {
         }
         String buildDirectory = getOptionsValue(cmd, 'o', "build/default");
         String rootDirectory = getOptionsValue(cmd, 'r', cwd);
-        String sourceDirectory = getOptionsValue(cmd, 'i', ".");
 
         String build_report_json = null;
         String build_report_html = null;
@@ -798,7 +798,7 @@ public class Bob {
 
         TimeProfiler.start("setupProject");
         // resolves libraries and finds all sources
-        setupProject(project, shouldResolveLibs, progress, resourceScanner);
+        setupProject(project, shouldResolveLibs, progress);
         TimeProfiler.stop();
 
         TimeProfiler.start("setOptions");
@@ -840,6 +840,9 @@ public class Bob {
                     project.setOption(o.getLongOpt(), "true");
                 }
             }
+        }
+        if (internalOptions != null) {
+            internalOptions.forEach(project::setOption);
         }
 
         // Get and set architectures list.
@@ -987,7 +990,7 @@ public class Bob {
 
     public static void main(String[] args) throws IOException, CompileExceptionError, URISyntaxException, LibraryException {
         try {
-            boolean success = invoke(new ClassLoaderResourceScanner(), null, new ConsoleProgress(), false, args).success;
+            boolean success = invoke(null, new ConsoleProgress(), false, null, args).success;
             System.exit(success ? 0 : 1);
         } catch (OptionValidationException e) {
             System.exit(e.exitCode);

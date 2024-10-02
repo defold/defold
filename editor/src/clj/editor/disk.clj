@@ -300,13 +300,13 @@
     (do (render-error! (engine-build-errors/exception->error-value exception project evaluation-context))
         true)))
 
-(defn async-bob-build! [render-reload-progress! render-save-progress! render-build-progress! log-output-stream task-cancelled? render-build-error! bob-commands bob-args build-server-headers project changes-view callback!]
+(defn async-bob-build! [render-reload-progress! render-save-progress! render-build-progress! log-output-stream task-cancelled? render-build-error! bob-commands bob-options project changes-view callback!]
   (disk-availability/push-busy!)
   (future
     (try
-      (let [hook-opts {:output-directory (get bob-args "bundle-output")
-                       :platform (get bob-args "platform")
-                       :variant (get bob-args "variant")}]
+      (let [hook-opts {:output-directory (get bob-options "bundle-output")
+                       :platform (get bob-options "platform")
+                       :variant (get bob-options "variant")}]
         (render-reload-progress! (progress/make-indeterminate "Executing bundle hook..."))
         (if-let [extension-error @(extensions/execute-hook! project
                                                             :on_bundle_started
@@ -352,7 +352,11 @@
                     (let [evaluation-context (g/make-evaluation-context)]
                       (future
                         (try
-                          (let [result (bob/bob-build! project evaluation-context bob-commands bob-args build-server-headers render-build-progress! log-output-stream task-cancelled?)]
+                          (let [result (bob/invoke! project bob-options bob-commands
+                                                    :task-cancelled? task-cancelled?
+                                                    :render-progress! render-build-progress!
+                                                    :evaluation-context evaluation-context
+                                                    :log-output-stream log-output-stream)]
                             @(extensions/execute-hook!
                                project
                                :on_bundle_finished
