@@ -312,24 +312,6 @@ namespace dmGraphics
         }
     }
 
-    /*
-    static inline void UnpackWriteAttribute(const WriteAttributeStreamDesc& desc,
-        const float** data_ptr_out,
-        uint8_t* channel_index_in_out,
-        VertexAttribute::VectorType* vector_type_out,
-        bool* is_global_data_out,
-        )
-    {
-        if (desc.m_Data && *channel_index_in_out < desc.m_StreamCount)
-        {
-            *data_ptr_out = desc.m_Data[*channel_index_in_out];
-            *channel_index_in_out += 1;
-        }
-        *vector_type_out    = desc.m_VectorType;
-        *is_global_data_out = desc.m_IsGlobalData;
-    }
-    */
-
     static void UnpackWriteAttributeBySemanticType(
         UnpackAttributeDataState& unpack_state,
         uint32_t vertex_index,
@@ -404,9 +386,12 @@ namespace dmGraphics
                 return;
         }
 
-        if (stream_desc->m_Data && channel_index < stream_desc->m_StreamCount && stream_desc->m_Data[channel_index])
+        // If the stream doesn't have enough channels, we just use the first one
+        channel_index = channel_index < stream_desc->m_StreamCount ? channel_index : 0;
+
+        if (stream_desc->m_Data && stream_desc->m_Data[channel_index])
         {
-            // Set element count and matrix flag for the output vector type
+            // We have semantic type and engine-provided data
             uint32_t element_count_out = VectorTypeToElementCount(stream_desc->m_VectorType);
             data->m_ElementCount       = element_count_out;
             data->m_IsMatrix           = VectorTypeIsMatrix(stream_desc->m_VectorType);
@@ -416,6 +401,9 @@ namespace dmGraphics
         }
         else
         {
+            // The attribute is configured to use a semantic type != none, but there is no engine provided data.
+            // In this case, we take the value from the vertex attribute. This can be zero/invalid, but it will
+            // be handled outside of the function.
             data->m_ValuePtr     = info.m_ValuePtr;
             data->m_VectorType   = info.m_ValueVectorType;
             data->m_DataType     = info.m_DataType;
