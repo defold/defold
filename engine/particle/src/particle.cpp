@@ -1032,34 +1032,6 @@ namespace dmParticle
         particle->m_SourceAngularVelocity = emitter_properties[EMITTER_KEY_PARTICLE_ANGULAR_VELOCITY];
     }
 
-    static inline void DefaultWriteVertexAttributeParams(
-        dmGraphics::WriteAttributeParams* params,
-        const dmGraphics::VertexAttributeInfos* attribute_infos,
-        const dmVMath::Matrix4* world_matrix,
-        const Vector3* positions_world_space,
-        const Vector3* positions_local_space,
-        const Vector4* colors,
-        const float** uv_channels,
-        const float* pi_channels)
-    {
-        memset(params, 0, sizeof(dmGraphics::WriteAttributeParams));
-        params->m_VertexAttributeInfos = attribute_infos;
-        params->m_StepFunction         = dmGraphics::VERTEX_STEP_FUNCTION_VERTEX;
-        params->m_WorldMatrix          = world_matrix;
-        params->m_PositionsWorldSpace  = (const float*) positions_world_space;
-        params->m_PositionsLocalSpace  = (const float*) positions_local_space;
-        params->m_Colors               = (const float*) colors;
-        params->m_UVChannels           = uv_channels;
-        params->m_UVChannelsCount      = 1;
-        params->m_PageIndices          = pi_channels;
-        params->m_PageIndicesCount     = 1;
-
-        params->m_PositionsVectorType   = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4; // the Vector3 class has four components
-        params->m_UVChannelsVectorType  = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2;
-        params->m_PageIndicesVectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR;
-        params->m_ColorsVectorType      = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4;
-    }
-
     static float unit_tex_coords[] = {
         0.0f, 1.0f,
         0.0f, 0.0f,
@@ -1184,10 +1156,23 @@ namespace dmParticle
         float tex_coord_flat[6 * 2];
         dmVMath::Matrix4 world_matrix;
         float page_index;
-        dmGraphics::WriteAttributeParams write_params;
+        dmGraphics::WriteAttributeParams write_params = {};
 
-        const float* uv_channels[1] = { tex_coord_flat };
-        DefaultWriteVertexAttributeParams(&write_params, &attribute_infos, &world_matrix, position_world_flat, position_local_flat, color_flat, (const float**) uv_channels, &page_index);
+        const float* world_matrix_channel[] = { (float*) &world_matrix };
+        const float* page_index_channel[] = { &page_index };
+        const float* position_world_channel[] = { (float*) position_world_flat };
+        const float* position_local_channel[] = { (float*) position_local_flat };
+        const float* color_channel[] = { (float*) &color };
+        const float* tex_coord_channel[] = { tex_coord_flat };
+
+        write_params.m_VertexAttributeInfos = &attribute_infos;
+        write_params.m_StepFunction         = dmGraphics::VERTEX_STEP_FUNCTION_VERTEX;
+        dmGraphics::SetWriteAttributeStreamDesc(&write_params.m_WorldMatrix, world_matrix_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_MAT4, 1, true);
+        dmGraphics::SetWriteAttributeStreamDesc(&write_params.m_PositionsWorldSpace, position_world_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, 1, false);
+        dmGraphics::SetWriteAttributeStreamDesc(&write_params.m_PositionsLocalSpace, position_local_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, 1, false);
+        dmGraphics::SetWriteAttributeStreamDesc(&write_params.m_Colors, color_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, 1, false);
+        dmGraphics::SetWriteAttributeStreamDesc(&write_params.m_TexCoords, tex_coord_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2, 1, false);
+        dmGraphics::SetWriteAttributeStreamDesc(&write_params.m_PageIndices, page_index_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR, 1, true);
 
         for (j = 0; j < particle_count && vertex_index + 6 <= max_vertex_count; j++)
         {

@@ -363,31 +363,34 @@ namespace dmGraphics
         uint32_t m_HasAttributeNone          : 1;
     };
 
-    struct WriteAttributeParams
+    struct WriteAttributeStreamDesc
     {
-        const VertexAttributeInfos*    m_VertexAttributeInfos;
-        const dmVMath::Matrix4*        m_WorldMatrix;
-        const dmVMath::Matrix4*        m_NormalMatrix;
-        const float*                   m_PositionsLocalSpace;
-        const float*                   m_PositionsWorldSpace;
-        const float*                   m_Normals;
-        const float*                   m_Tangents;
-        const float*                   m_Colors;
-        const float**                  m_UVChannels;
-        const float*                   m_PageIndices;
-        uint32_t                       m_PageIndicesCount;
-        uint32_t                       m_UVChannelsCount;
-
+        const float** m_Data;
         // Data source vector types corresponding to each data source passed in.
         // The destination vector type is stored in the vertexattribute infos.
-        VertexAttribute::VectorType    m_PositionsVectorType;
-        VertexAttribute::VectorType    m_NormalsVectorType;
-        VertexAttribute::VectorType    m_TangentsVectorType;
-        VertexAttribute::VectorType    m_ColorsVectorType;
-        VertexAttribute::VectorType    m_PageIndicesVectorType;
-        VertexAttribute::VectorType    m_UVChannelsVectorType;
+        VertexAttribute::VectorType m_VectorType;
+        // Number of data "streams" for this attribute
+        uint8_t m_StreamCount  : 7;
+        // Some streams share the value across the entire mesh (page indices for example).
+        // An alternative would be to replicate the data across all vertices in the mesh,
+        // which would be cleaner but a bit of a waste. Perhaps it should be configurable by the write params?
+        // Assume the data is not global by default
+        uint8_t m_IsGlobalData : 1;
+    };
 
-        VertexStepFunction m_StepFunction;
+    struct WriteAttributeParams
+    {
+        const VertexAttributeInfos* m_VertexAttributeInfos;
+        WriteAttributeStreamDesc    m_WorldMatrix;
+        WriteAttributeStreamDesc    m_NormalMatrix;
+        WriteAttributeStreamDesc    m_PositionsLocalSpace;
+        WriteAttributeStreamDesc    m_PositionsWorldSpace;
+        WriteAttributeStreamDesc    m_Normals;
+        WriteAttributeStreamDesc    m_Tangents;
+        WriteAttributeStreamDesc    m_Colors;
+        WriteAttributeStreamDesc    m_TexCoords;
+        WriteAttributeStreamDesc    m_PageIndices;
+        VertexStepFunction          m_StepFunction;
     };
 
     struct VertexDeclaration
@@ -750,6 +753,14 @@ namespace dmGraphics
                buffer_type == BUFFER_TYPE_COLOR1_BIT ||
                buffer_type == BUFFER_TYPE_COLOR2_BIT ||
                buffer_type == BUFFER_TYPE_COLOR3_BIT;
+    }
+
+    static inline void SetWriteAttributeStreamDesc(WriteAttributeStreamDesc* stream, const float** data, VertexAttribute::VectorType vector_type, uint8_t stream_count, bool is_global_data)
+    {
+        stream->m_Data = data;
+        stream->m_VectorType = vector_type;
+        stream->m_StreamCount = stream_count;
+        stream->m_IsGlobalData = is_global_data;
     }
 
     static inline void VertexAttributeInfoMetadataMember(VertexAttributeInfoMetadata& metadata, VertexAttribute::SemanticType semantic_type, CoordinateSpace coordinate_space)
