@@ -1231,12 +1231,39 @@ namespace dmGameSystem
     }
     #endif
 
+    static inline bool CanUseDefaultVertexDeclaration(dmRender::HMaterial material)
+    {
+        const dmGraphics::VertexAttribute* attributes = 0;
+        uint32_t attribute_count = 0;
+        dmRender::GetMaterialProgramAttributes(material, &attributes, &attribute_count);
+        for (int i = 0; i < attribute_count; ++i)
+        {
+            const dmGraphics::VertexAttribute& attr = attributes[i];
+            if (attr.m_DataType != dmGraphics::VertexAttribute::TYPE_FLOAT)
+            {
+                return false;
+            }
+            if (!IsDefaultStream(attr.m_NameHash, attr.m_SemanticType, dmGraphics::VERTEX_STEP_FUNCTION_VERTEX))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
     static void PrepareWorldSpaceBatchBuffers(ModelWorld* world, uint32_t batch_index, dmRender::HMaterial material,
-        dmGraphics::HVertexDeclaration vx_decl, uint32_t* vertex_stride_out,
+        dmGraphics::HVertexDeclaration* vx_decl_in_out, uint32_t* vertex_stride_out,
         dmGraphics::VertexAttributeInfos* material_infos_vertex, uint32_t vertex_count, uint8_t** vb_begin)
     {
         *vb_begin = 0;
         memset(material_infos_vertex, 0, sizeof(dmGraphics::VertexAttributeInfos));
+
+        dmGraphics::HVertexDeclaration vx_decl = *vx_decl_in_out;
+
+        if (CanUseDefaultVertexDeclaration(material))
+        {
+            vx_decl = world->m_VertexDeclaration;
+        }
 
         // Prepare vertex buffer
         uint32_t vertex_stride = dmGraphics::GetVertexDeclarationStride(vx_decl);
@@ -1268,6 +1295,7 @@ namespace dmGameSystem
             material_infos_vertex->m_Infos[i].m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_VERTEX;
         }
 
+        *vx_decl_in_out    = vx_decl;
         *vertex_stride_out = vertex_stride;
     }
 
@@ -1332,7 +1360,7 @@ namespace dmGameSystem
         uint8_t* vb_begin;
 
         PrepareWorldSpaceBatchBuffers(world, batch_index, material,
-            vx_decl, &vertex_stride, &material_infos_vertex,
+            &vx_decl, &vertex_stride, &material_infos_vertex,
             required_vertex_count, &vb_begin);
 
         uint8_t* vb_end = vb_begin;
