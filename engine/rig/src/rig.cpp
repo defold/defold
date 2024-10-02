@@ -960,29 +960,29 @@ namespace dmRig
     void SetMeshWriteAttributeParams(dmGraphics::WriteAttributeParams* params,
         const dmGraphics::VertexAttributeInfos* attribute_infos,
         dmGraphics::VertexStepFunction step_function,
-        const dmVMath::Matrix4* world_matrix, const dmVMath::Matrix4* normal_matrix,
-        const float* positions_world_space, const float* positions_local_space,
-        const float* normals, const float* tangents, const float* colors,
-        const float** uv_channels, uint32_t uv_channels_count)
+        const float** world_matrix,
+        const float** normal_matrix,
+        const float** positions_world_space,
+        const float** positions_local_space,
+        const float** normals,
+        const float** tangents,
+        const float** colors,
+        const float** uv_channels,
+        uint32_t uv_channels_count)
     {
         memset(params, 0, sizeof(dmGraphics::WriteAttributeParams));
         params->m_VertexAttributeInfos = attribute_infos;
         params->m_StepFunction         = step_function;
-        params->m_WorldMatrix          = world_matrix;
-        params->m_NormalMatrix         = normal_matrix;
-        params->m_PositionsWorldSpace  = positions_world_space;
-        params->m_PositionsLocalSpace  = positions_local_space;
-        params->m_Normals              = normals;
-        params->m_Tangents             = tangents;
-        params->m_Colors               = colors;
-        params->m_UVChannels           = uv_channels;
-        params->m_UVChannelsCount      = uv_channels_count;
 
-        params->m_PositionsVectorType  = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3;
-        params->m_NormalsVectorType    = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3;
-        params->m_TangentsVectorType   = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4;
-        params->m_UVChannelsVectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2;
-        params->m_ColorsVectorType     = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4;
+        dmGraphics::SetWriteAttributeStreamDesc(&params->m_WorldMatrix, world_matrix, dmGraphics::VertexAttribute::VECTOR_TYPE_MAT4, 1, true);
+        dmGraphics::SetWriteAttributeStreamDesc(&params->m_NormalMatrix, normal_matrix, dmGraphics::VertexAttribute::VECTOR_TYPE_MAT4, 1, true);
+
+        dmGraphics::SetWriteAttributeStreamDesc(&params->m_PositionsWorldSpace, positions_world_space, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3, 1, false);
+        dmGraphics::SetWriteAttributeStreamDesc(&params->m_PositionsLocalSpace, positions_local_space, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3, 1, false);
+        dmGraphics::SetWriteAttributeStreamDesc(&params->m_Normals, normals, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3, 1, false);
+        dmGraphics::SetWriteAttributeStreamDesc(&params->m_Tangents, tangents, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, 1, false);
+        dmGraphics::SetWriteAttributeStreamDesc(&params->m_Colors, colors, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, 1, false);
+        dmGraphics::SetWriteAttributeStreamDesc(&params->m_TexCoords, uv_channels, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2, uv_channels_count, false);
     }
 
     static uint8_t* WriteVertexDataByAttributes(const dmRigDDF::Mesh* mesh, const float* positions_world, const float* positions_local, const float* normals, const float* tangents, const dmGraphics::VertexAttributeInfos* attribute_infos, uint32_t vertex_stride, const dmVMath::Matrix4& world_matrix, const dmVMath::Matrix4& normal_matrix, uint8_t* out_write_ptr)
@@ -1010,8 +1010,27 @@ namespace dmRig
         const float* uv_channels[] = { uv0, uv1 };
         uint32_t uv_channels_count = (uv0 ? 1 : 0) + (uv1 ? 1 : 0);
 
+        const float* world_matrix_channels[] = { (float*) &world_matrix };
+        const float* normal_matrix_channels[] = { (float*) &normal_matrix };
+        const float* position_world_channels[] = { positions_world };
+        const float* position_local_channels[] = { positions_local };
+        const float* normals_channels[] = { normals };
+        const float* tangents_channels[] = { tangents };
+        const float* colors_channels[] = { colors };
+
         dmGraphics::WriteAttributeParams params = {};
-        SetMeshWriteAttributeParams(&params, attribute_infos, dmGraphics::VERTEX_STEP_FUNCTION_VERTEX, &world_matrix, &normal_matrix, positions_world, positions_local, normals, tangents, colors, uv_channels, uv_channels_count);
+        SetMeshWriteAttributeParams(&params,
+            attribute_infos,
+            dmGraphics::VERTEX_STEP_FUNCTION_VERTEX,
+            world_matrix_channels,
+            normal_matrix_channels,
+            position_world_channels,
+            position_local_channels,
+            normals_channels,
+            tangents_channels,
+            colors_channels,
+            uv_channels,
+            uv_channels_count);
 
         for (uint32_t i = 0; i < num_indices; ++i)
         {
@@ -1126,19 +1145,7 @@ namespace dmRig
         uint32_t bone_count   = GetBoneCount(instance);
         uint32_t vertex_count = mesh->m_Positions.m_Count / 3;
 
-        bool stream_position_world = false;
-        bool stream_position_local = false;
-        bool stream_normal = false;
-
-        for (int i = 0; i < attribute_infos->m_NumInfos; ++i)
-        {
-            if (attribute_infos->m_Infos[i].m_SemanticType == dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION)
-            {
-                stream_position_world |= attribute_infos->m_Infos[i].m_CoordinateSpace == dmGraphics::COORDINATE_SPACE_WORLD;
-                stream_position_local |= attribute_infos->m_Infos[i].m_CoordinateSpace == dmGraphics::COORDINATE_SPACE_LOCAL;
-            }
-            stream_normal |= attribute_infos->m_Infos[i].m_SemanticType == dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL;
-        }
+        dmGraphics::VertexAttributeInfoMetadata meta_datas = dmGraphics::GetVertexAttributeInfosMetaData(*attribute_infos);
 
         pose_matrices.SetSize(0);
 
@@ -1147,7 +1154,7 @@ namespace dmRig
         float* normals_buffer         = 0;
         float* tangents_buffer        = 0;
 
-        if (stream_position_world || stream_position_local)
+        if (meta_datas.m_HasAttributeWorldPosition || meta_datas.m_HasAttributeLocalPosition)
         {
             if (bone_count)
             {
@@ -1171,12 +1178,12 @@ namespace dmRig
                 }
             }
 
-            if (stream_position_world)
+            if (meta_datas.m_HasAttributeWorldPosition)
             {
                 EnsureSize(positions_world, vertex_count);
                 positions_buffer_world = (float*) positions_world.Begin();
             }
-            if (stream_position_local)
+            if (meta_datas.m_HasAttributeLocalPosition)
             {
                 EnsureSize(positions_local, vertex_count);
                 positions_buffer_local = (float*) positions_local.Begin();
@@ -1184,7 +1191,7 @@ namespace dmRig
 
             dmRig::GeneratePositionData(mesh, world_matrix, pose_matrices, positions_buffer_world, positions_buffer_local);
         }
-        if (stream_normal && mesh->m_Normals.m_Count)
+        if (meta_datas.m_HasAttributeNormal && mesh->m_Normals.m_Count)
         {
             EnsureSize(normals, vertex_count);
             EnsureSize(tangents, vertex_count);
