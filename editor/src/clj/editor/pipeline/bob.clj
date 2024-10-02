@@ -236,8 +236,7 @@
           {:error {:causes (engine-build-errors/unsupported-platform-error-causes project evaluation-context)}}
           (let [ws (project/workspace project evaluation-context)
                 proj-path (str (workspace/project-path ws evaluation-context))
-                output-path (or (get bob-args "output") "build/default")
-                bob-project (Project. java/class-loader (DefaultFileSystem.) proj-path output-path)]
+                bob-project (Project. java/class-loader (DefaultFileSystem.) proj-path "build/default")]
             (doseq [[key val] bob-args]
               (.setOption bob-project key val))
             (when-not (string/blank? build-server-headers)
@@ -382,13 +381,12 @@
 ;; Build HTML5
 ;; -----------------------------------------------------------------------------
 
-(defn- build-html5-output-path
-  ([project]
+(defn- build-html5-output-path [project]
   (let [ws (project/workspace project)
-        build-path (workspace/build-html5-path ws)]
-    (io/file build-path "__htmlLaunchDir"))))
+        build-path (workspace/build-path ws)]
+    (io/file build-path "__htmlLaunchDir")))
 
-(def build-html5-bob-commands ["build" "bundle"])
+(def build-html5-bob-commands ["distclean" "build" "bundle"])
 
 (defn build-html5-bob-args [project prefs]
   (let [output-path (build-html5-output-path project)
@@ -400,7 +398,6 @@
              "architectures" "wasm-web"
              "variant" "debug"
              "archive" "true"
-             "output" (subs workspace/build-html5-dir 1)
              "bundle-output" (str output-path)
              "build-server" build-server-url
              "defoldsdk" defold-sdk-sha1
