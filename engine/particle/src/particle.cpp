@@ -1152,8 +1152,9 @@ namespace dmParticle
 
         Vector3 position_world_flat[6];
         Vector3 position_local_flat[6];
-        Vector4 color_flat[6];
         float tex_coord_flat[6 * 2];
+
+        Vector4 color_to_write;
         dmVMath::Matrix4 world_matrix;
         float page_index;
         dmGraphics::WriteAttributeParams write_params = {};
@@ -1162,17 +1163,21 @@ namespace dmParticle
         const float* page_index_channel[] = { &page_index };
         const float* position_world_channel[] = { (float*) position_world_flat };
         const float* position_local_channel[] = { (float*) position_local_flat };
-        const float* color_channel[] = { (float*) &color };
+        const float* color_channel[] = { (float*) &color_to_write };
         const float* tex_coord_channel[] = { tex_coord_flat };
 
         write_params.m_VertexAttributeInfos = &attribute_infos;
         write_params.m_StepFunction         = dmGraphics::VERTEX_STEP_FUNCTION_VERTEX;
+
+        // Global write streams
         dmGraphics::SetWriteAttributeStreamDesc(&write_params.m_WorldMatrix, world_matrix_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_MAT4, 1, true);
+        dmGraphics::SetWriteAttributeStreamDesc(&write_params.m_PageIndices, page_index_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR, 1, true);
+        dmGraphics::SetWriteAttributeStreamDesc(&write_params.m_Colors, color_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, 1, true);
+
+        // Per-vertex write streams
         dmGraphics::SetWriteAttributeStreamDesc(&write_params.m_PositionsWorldSpace, position_world_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, 1, false);
         dmGraphics::SetWriteAttributeStreamDesc(&write_params.m_PositionsLocalSpace, position_local_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, 1, false);
-        dmGraphics::SetWriteAttributeStreamDesc(&write_params.m_Colors, color_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, 1, false);
         dmGraphics::SetWriteAttributeStreamDesc(&write_params.m_TexCoords, tex_coord_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2, 1, false);
-        dmGraphics::SetWriteAttributeStreamDesc(&write_params.m_PageIndices, page_index_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR, 1, true);
 
         for (j = 0; j < particle_count && vertex_index + 6 <= max_vertex_count; j++)
         {
@@ -1258,14 +1263,8 @@ namespace dmParticle
 
             if (material_attribute_info_meta.m_HasAttributeColor)
             {
-                Vector4 c = particle->GetColor();
-                c = Vector4(mulPerElem(c.getXYZ(), color.getXYZ()), c.getW() * color.getW());
-                color_flat[0] = c;
-                color_flat[1] = c;
-                color_flat[2] = c;
-                color_flat[3] = c;
-                color_flat[4] = c;
-                color_flat[5] = c;
+                Vector4 c      = particle->GetColor();
+                color_to_write = Vector4(mulPerElem(c.getXYZ(), color.getXYZ()), c.getW() * color.getW());
             }
 
             if (material_attribute_info_meta.m_HasAttributeTexCoord)
