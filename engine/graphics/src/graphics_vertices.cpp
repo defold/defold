@@ -28,6 +28,19 @@ namespace dmGraphics
         0.0, 0.0, 0.0, 1.0
     };
 
+    struct UnpackAttributeDataState
+    {
+        uint8_t m_ChannelIndexWorldMatrix;
+        uint8_t m_ChannelIndexNormalMatrix;
+        uint8_t m_ChannelIndexPositionsLocalSpace;
+        uint8_t m_ChannelIndexPositionsWorldSpace;
+        uint8_t m_ChannelIndexNormals;
+        uint8_t m_ChannelIndexTangents;
+        uint8_t m_ChannelIndexColors;
+        uint8_t m_ChannelIndexTexCoords;
+        uint8_t m_ChannelIndexPageIndices;
+    };
+
     struct UnpackAttributeData
     {
         VertexAttribute::VectorType m_VectorType;
@@ -299,72 +312,83 @@ namespace dmGraphics
         }
     }
 
-    static void UnpackWriteAttributeBySemanticType(uint32_t vertex_index,
+    /*
+    static inline void UnpackWriteAttribute(const WriteAttributeStreamDesc& desc,
+        const float** data_ptr_out,
+        uint8_t* channel_index_in_out,
+        VertexAttribute::VectorType* vector_type_out,
+        bool* is_global_data_out,
+        )
+    {
+        if (desc.m_Data && *channel_index_in_out < desc.m_StreamCount)
+        {
+            *data_ptr_out = desc.m_Data[*channel_index_in_out];
+            *channel_index_in_out += 1;
+        }
+        *vector_type_out    = desc.m_VectorType;
+        *is_global_data_out = desc.m_IsGlobalData;
+    }
+    */
+
+    static void UnpackWriteAttributeBySemanticType(
+        UnpackAttributeDataState& unpack_state,
+        uint32_t vertex_index,
         const WriteAttributeParams& params,
         const VertexAttributeInfo& info,
-        uint32_t* uv_channel,
-        uint32_t* page_index_channel,
         UnpackAttributeData* data)
     {
-        // Some streams share the value across the entire mesh (page indices for example).
-        // An alternative would be to replicate the data across all vertices in the mesh,
-        // which would be cleaner but a bit of a waste. Perhaps it should be configurable by the write params?
-        // Assume the data is not global by default
-        bool is_global_data = false;
-        const float* float_data_ptr = 0x0;
-        VertexAttribute::VectorType vector_type_out = VertexAttribute::VECTOR_TYPE_SCALAR;
+        const WriteAttributeStreamDesc* stream_desc = 0;
+        uint8_t channel_index = 0;
 
         // Handle different semantic types
         switch(info.m_SemanticType)
         {
             case VertexAttribute::SEMANTIC_TYPE_POSITION:
-                float_data_ptr = (info.m_CoordinateSpace == dmGraphics::COORDINATE_SPACE_WORLD) ?
-                                 params.m_PositionsWorldSpace : params.m_PositionsLocalSpace;
-                vector_type_out = params.m_PositionsVectorType;
+                if (info.m_CoordinateSpace == dmGraphics::COORDINATE_SPACE_WORLD)
+                {
+                    stream_desc = &params.m_PositionsWorldSpace;
+                    channel_index = unpack_state.m_ChannelIndexPositionsWorldSpace++;
+                }
+                else
+                {
+                    stream_desc = &params.m_PositionsLocalSpace;
+                    channel_index = unpack_state.m_ChannelIndexPositionsLocalSpace++;
+                }
                 break;
 
             case VertexAttribute::SEMANTIC_TYPE_TEXCOORD:
-                if (params.m_UVChannels && *uv_channel < params.m_UVChannelsCount)
-                {
-                    float_data_ptr = params.m_UVChannels[*uv_channel];
-                }
-                vector_type_out = params.m_UVChannelsVectorType;
-                *uv_channel += 1;
+                stream_desc = &params.m_TexCoords;
+                channel_index = unpack_state.m_ChannelIndexTexCoords++;
                 break;
 
             case VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX:
-                if (params.m_PageIndices && *page_index_channel < params.m_PageIndicesCount)
-                {
-                    float_data_ptr = &params.m_PageIndices[*page_index_channel];
-                }
-                vector_type_out = params.m_PageIndicesVectorType;
-                *page_index_channel += 1;
-                is_global_data = true;
+                stream_desc = &params.m_PageIndices;
+                channel_index = unpack_state.m_ChannelIndexPageIndices++;
                 break;
 
             case VertexAttribute::SEMANTIC_TYPE_COLOR:
-                float_data_ptr = params.m_Colors;
-                vector_type_out = params.m_ColorsVectorType;
+                stream_desc = &params.m_Colors;
+                channel_index = unpack_state.m_ChannelIndexColors++;
                 break;
 
             case VertexAttribute::SEMANTIC_TYPE_NORMAL:
-                float_data_ptr = params.m_Normals;
-                vector_type_out = params.m_NormalsVectorType;
+                stream_desc = &params.m_Normals;
+                channel_index = unpack_state.m_ChannelIndexNormals++;
                 break;
 
             case VertexAttribute::SEMANTIC_TYPE_TANGENT:
-                float_data_ptr = params.m_Tangents;
-                vector_type_out = params.m_TangentsVectorType;
+                stream_desc = &params.m_Tangents;
+                channel_index = unpack_state.m_ChannelIndexTangents++;
                 break;
 
             case VertexAttribute::SEMANTIC_TYPE_WORLD_MATRIX:
-                float_data_ptr = (const float*)params.m_WorldMatrix;
-                vector_type_out = dmGraphics::VertexAttribute::VECTOR_TYPE_MAT4;
+                stream_desc = &params.m_WorldMatrix;
+                channel_index = unpack_state.m_ChannelIndexWorldMatrix++;
                 break;
 
             case VertexAttribute::SEMANTIC_TYPE_NORMAL_MATRIX:
-                float_data_ptr = (const float*)params.m_NormalMatrix;
-                vector_type_out = dmGraphics::VertexAttribute::VECTOR_TYPE_MAT4;
+                stream_desc = &params.m_NormalMatrix;
+                channel_index = unpack_state.m_ChannelIndexNormalMatrix++;
                 break;
 
             case VertexAttribute::SEMANTIC_TYPE_NONE:
@@ -380,21 +404,23 @@ namespace dmGraphics
                 return;
         }
 
-        // Set element count and matrix flag for the output vector type
-        uint32_t element_count_out = VectorTypeToElementCount(vector_type_out);
-        data->m_ElementCount       = element_count_out;
-        data->m_IsMatrix           = VectorTypeIsMatrix(vector_type_out);
-        data->m_VectorType         = vector_type_out;
-        data->m_DataType           = VertexAttribute::TYPE_FLOAT;
-
-        // Calculate the correct data pointer
-        if (float_data_ptr)
+        if (stream_desc->m_Data && channel_index < stream_desc->m_StreamCount && stream_desc->m_Data[channel_index])
         {
-            data->m_ValuePtr = (const uint8_t*)(float_data_ptr + (is_global_data ? 0 : vertex_index * element_count_out));
+            // Set element count and matrix flag for the output vector type
+            uint32_t element_count_out = VectorTypeToElementCount(stream_desc->m_VectorType);
+            data->m_ElementCount       = element_count_out;
+            data->m_IsMatrix           = VectorTypeIsMatrix(stream_desc->m_VectorType);
+            data->m_VectorType         = stream_desc->m_VectorType;
+            data->m_DataType           = VertexAttribute::TYPE_FLOAT;
+            data->m_ValuePtr           = (const uint8_t*)(stream_desc->m_Data[channel_index] + (stream_desc->m_IsGlobalData ? 0 : vertex_index * element_count_out));
         }
         else
         {
-            data->m_ValuePtr = 0x0;
+            data->m_ValuePtr     = info.m_ValuePtr;
+            data->m_VectorType   = info.m_ValueVectorType;
+            data->m_DataType     = info.m_DataType;
+            data->m_IsMatrix     = VectorTypeIsMatrix(info.m_ValueVectorType);
+            data->m_ElementCount = VectorTypeToElementCount(info.m_ValueVectorType);
         }
     }
 
@@ -438,11 +464,9 @@ namespace dmGraphics
     // Converting from a matrix to a vector will truncate values from the end of the source matrix.
     uint8_t* WriteAttributes(uint8_t* write_ptr, uint32_t vertex_index, const WriteAttributeParams& params)
     {
-        uint32_t num_texcoords    = 0;
-        uint32_t num_page_indices = 0;
-
         UnpackAttributeData dst_data = {};
         UnpackAttributeData src_data = {};
+        UnpackAttributeDataState unpack_state = {};
 
         for (int i = 0; i < params.m_VertexAttributeInfos->m_NumInfos; ++i)
         {
@@ -460,7 +484,7 @@ namespace dmGraphics
             const uint32_t dst_element_byte_width = DataTypeToByteWidth(dst_data.m_DataType);
             const size_t attribute_stride         = dst_data.m_ElementCount * dst_element_byte_width;
 
-            UnpackWriteAttributeBySemanticType(vertex_index, params, info, &num_texcoords, &num_page_indices, &src_data);
+            UnpackWriteAttributeBySemanticType(unpack_state, vertex_index, params, info, &src_data);
 
             // If there is no data available at all, we pick one of the default float arrays
             if (src_data.m_ValuePtr == 0)
@@ -478,7 +502,7 @@ namespace dmGraphics
             }
             else
             {
-                if (src_data.m_ElementCount < dst_data.m_ElementCount && dst_data.m_ElementCount == 4 && SemanticTypeRequiresOneAsW(info.m_SemanticType))
+                if (src_data.m_ElementCount < dst_data.m_ElementCount && dst_data.m_ElementCount >= 4 && SemanticTypeRequiresOneAsW(info.m_SemanticType))
                 {
                     uint8_t v4_one_as_w_backing[sizeof(float)*4] = {};
                     memcpy(v4_one_as_w_backing, src_data.m_ValuePtr, src_data.m_ElementCount * DataTypeToByteWidth(src_data.m_DataType));

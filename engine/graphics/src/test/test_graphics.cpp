@@ -667,9 +667,8 @@ TEST_F(dmGraphicsTest, VertexAttributeDataTypeConversion)
         uint8_t expected[4]     = {128,   255, 0, 1};
         uint8_t actual[4]       = {};
 
-        params.m_PositionsLocalSpace = position_values;
-        params.m_PositionsVectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2;
-
+        const float* position_values_channel[] = { position_values };
+        dmGraphics::SetWriteAttributeStreamDesc(&params.m_PositionsLocalSpace, position_values_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2, 1, false);
         dmGraphics::WriteAttributes((uint8_t*) actual, 0, params);
         ASSERT_VEC(expected, actual, 4);
     }
@@ -682,8 +681,8 @@ TEST_F(dmGraphicsTest, VertexAttributeDataTypeConversion)
         int8_t expected[4]                    = {-32,   -16, 0, 1};
         int8_t actual[4]                      = {};
 
-        params.m_PositionsLocalSpace = position_values;
-        params.m_PositionsVectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2;
+        const float* position_values_channel[] = { position_values };
+        dmGraphics::SetWriteAttributeStreamDesc(&params.m_PositionsLocalSpace, position_values_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2, 1, false);
 
         dmGraphics::WriteAttributes((uint8_t*) actual, 0, params);
         ASSERT_VEC(expected, actual, 4);
@@ -697,8 +696,8 @@ TEST_F(dmGraphicsTest, VertexAttributeDataTypeConversion)
         uint16_t expected[4]                  = {32768,   65535, 0, 1};
         uint16_t actual[4]                    = {};
 
-        params.m_PositionsLocalSpace = position_values;
-        params.m_PositionsVectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2;
+        const float* position_values_channel[] = { position_values };
+        dmGraphics::SetWriteAttributeStreamDesc(&params.m_PositionsLocalSpace, position_values_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2, 1, false);
 
         dmGraphics::WriteAttributes((uint8_t*) actual, 0, params);
         ASSERT_VEC(expected, actual, 4);
@@ -712,8 +711,8 @@ TEST_F(dmGraphicsTest, VertexAttributeDataTypeConversion)
         int16_t expected[4]                   = {-16384,   -32768, 0, 1};
         int16_t actual[4]                     = {};
 
-        params.m_PositionsLocalSpace = position_values;
-        params.m_PositionsVectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2;
+        const float* position_values_channel[] = { position_values };
+        dmGraphics::SetWriteAttributeStreamDesc(&params.m_PositionsLocalSpace, position_values_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2, 1, false);
 
         dmGraphics::WriteAttributes((uint8_t*) actual, 0, params);
         ASSERT_VEC(expected, actual, 4);
@@ -727,8 +726,8 @@ TEST_F(dmGraphicsTest, VertexAttributeDataTypeConversion)
         uint32_t expected[4]                  = {128000,   13371337, 0, 1};
         uint32_t actual[4]                    = {};
 
-        params.m_PositionsLocalSpace = position_values;
-        params.m_PositionsVectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2;
+        const float* position_values_channel[] = { position_values };
+        dmGraphics::SetWriteAttributeStreamDesc(&params.m_PositionsLocalSpace, position_values_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2, 1, false);
 
         dmGraphics::WriteAttributes((uint8_t*) actual, 0, params);
         ASSERT_VEC(expected, actual, 4);
@@ -742,8 +741,8 @@ TEST_F(dmGraphicsTest, VertexAttributeDataTypeConversion)
         int32_t expected[4]                   = {-128000,   -99999, 0, 1};
         int32_t actual[4]                     = {};
 
-        params.m_PositionsLocalSpace = position_values;
-        params.m_PositionsVectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2;
+        const float* position_values_channel[] = { position_values };
+        dmGraphics::SetWriteAttributeStreamDesc(&params.m_PositionsLocalSpace, position_values_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2, 1, false);
 
         dmGraphics::WriteAttributes((uint8_t*) actual, 0, params);
         ASSERT_VEC(expected, actual, 4);
@@ -1033,8 +1032,8 @@ TEST_F(dmGraphicsTest, VertexAttributeConversionRulesSemanticTypeOneAsW)
             float expected[4]       = {1.1, 1.2, 0.0, 1.0};
             float actual[4]         = {};
 
-            params.m_PositionsLocalSpace  = position_values;
-            params.m_PositionsVectorType  = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2;
+            const float* position_values_channel[] = { position_values };
+            dmGraphics::SetWriteAttributeStreamDesc(&params.m_PositionsLocalSpace, position_values_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2, 1, false);
 
             dmGraphics::WriteAttributes((uint8_t*) actual, 0, params);
             ASSERT_VECF(expected, actual, 4);
@@ -1046,8 +1045,8 @@ TEST_F(dmGraphicsTest, VertexAttributeConversionRulesSemanticTypeOneAsW)
             float expected[4]       = {1.1, 1.2, 1.3, 1.0};
             float actual[4]         = {};
 
-            params.m_PositionsLocalSpace  = position_values;
-            params.m_PositionsVectorType  = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3;
+            const float* position_values_channel[] = { position_values };
+            dmGraphics::SetWriteAttributeStreamDesc(&params.m_PositionsLocalSpace, position_values_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3, 1, false);
 
             dmGraphics::WriteAttributes((uint8_t*) actual, 0, params);
             ASSERT_VECF(expected, actual, 4);
@@ -1093,9 +1092,8 @@ TEST_F(dmGraphicsTest, VertexAttributeConversionRulesSemanticTypeOneAsW)
             float expected[4]    = {1.1, 1.2, 0.0, 1.0};
             float actual[4]      = {};
 
-            params.m_Colors           = color_values;
-            params.m_ColorsVectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2;
-
+            const float* color_values_channel[] = { color_values };
+            dmGraphics::SetWriteAttributeStreamDesc(&params.m_Colors, color_values_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2, 1, false);
             dmGraphics::WriteAttributes((uint8_t*) actual, 0, params);
             ASSERT_VECF(expected, actual, 4);
         }
@@ -1106,9 +1104,8 @@ TEST_F(dmGraphicsTest, VertexAttributeConversionRulesSemanticTypeOneAsW)
             float expected[4]    = {1.1, 1.2, 1.3, 1.0};
             float actual[4]      = {};
 
-            params.m_Colors           = color_values;
-            params.m_ColorsVectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3;
-
+            const float* color_values_channel[] = { color_values };
+            dmGraphics::SetWriteAttributeStreamDesc(&params.m_Colors, color_values_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3, 1, false);
             dmGraphics::WriteAttributes((uint8_t*) actual, 0, params);
             ASSERT_VECF(expected, actual, 4);
         }
@@ -1138,9 +1135,8 @@ TEST_F(dmGraphicsTest, VertexAttributeConversionRulesSemanticTypeOneAsW)
             float expected[4]       = {1.1, 1.2, 0.0, 1.0};
             float actual[4]         = {};
 
-            params.m_Tangents           = tangent_values;
-            params.m_TangentsVectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2;
-
+            const float* tangent_values_channel[] = { tangent_values };
+            dmGraphics::SetWriteAttributeStreamDesc(&params.m_Tangents, tangent_values_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2, 1, false);
             dmGraphics::WriteAttributes((uint8_t*) actual, 0, params);
             ASSERT_VECF(expected, actual, 4);
         }
@@ -1151,9 +1147,8 @@ TEST_F(dmGraphicsTest, VertexAttributeConversionRulesSemanticTypeOneAsW)
             float expected[4]       = {1.1, 1.2, 1.3, 1.0};
             float actual[4]         = {};
 
-            params.m_Tangents           = tangent_values;
-            params.m_TangentsVectorType = dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3;
-
+            const float* tangent_values_channel[] = { tangent_values };
+            dmGraphics::SetWriteAttributeStreamDesc(&params.m_Tangents, tangent_values_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3, 1, false);
             dmGraphics::WriteAttributes((uint8_t*) actual, 0, params);
             ASSERT_VECF(expected, actual, 4);
         }

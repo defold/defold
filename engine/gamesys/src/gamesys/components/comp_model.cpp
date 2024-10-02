@@ -711,10 +711,13 @@ namespace dmGameSystem
         #define UNPACK_ATTRIBUTE_PTR(name) \
             (render_item->m_Mesh->name.m_Count ? render_item->m_Mesh->name.m_Data : 0)
 
-            const float* uv_channels[] = {
-                UNPACK_ATTRIBUTE_PTR(m_Texcoord0),
-                UNPACK_ATTRIBUTE_PTR(m_Texcoord1),
-            };
+            const float* world_matrix_channels[]  = { (float*) &render_item->m_World };
+            const float* normal_matrix_channels[] = { (float*) &normal_matrix };
+            const float* uv_channels[]            = { UNPACK_ATTRIBUTE_PTR(m_Texcoord0), UNPACK_ATTRIBUTE_PTR(m_Texcoord1), };
+            const float* color_channels[]         = { UNPACK_ATTRIBUTE_PTR(m_Colors) };
+            const float* position_channels[]      = { UNPACK_ATTRIBUTE_PTR(m_Positions) };
+            const float* normal_channels[]        = { UNPACK_ATTRIBUTE_PTR(m_Normals) };
+            const float* tangent_channels[]       = { UNPACK_ATTRIBUTE_PTR(m_Tangents) };
 
             uint32_t uv_channels_count = (uv_channels[0] ? 1 : 0) + (uv_channels[1] ? 1 : 0);
 
@@ -722,14 +725,15 @@ namespace dmGameSystem
             dmRig::SetMeshWriteAttributeParams(&params,
                 &non_default_attribute,
                 dmGraphics::VERTEX_STEP_FUNCTION_VERTEX,
-                &render_item->m_World,
-                &normal_matrix,
+                world_matrix_channels,
+                normal_matrix_channels,
                 0, // World space positions are not supported by local space materials
-                UNPACK_ATTRIBUTE_PTR(m_Positions),
-                UNPACK_ATTRIBUTE_PTR(m_Normals),
-                UNPACK_ATTRIBUTE_PTR(m_Tangents),
-                UNPACK_ATTRIBUTE_PTR(m_Colors),
-                uv_channels, uv_channels_count);
+                position_channels,
+                normal_channels,
+                tangent_channels,
+                color_channels,
+                uv_channels,
+                uv_channels_count);
 
         #undef UNPACK_ATTRIBUTE_PTR
 
@@ -1062,10 +1066,13 @@ namespace dmGameSystem
             #define UNPACK_ATTRIBUTE_PTR(name) \
                 (instance_render_item->m_Mesh->name.m_Count ? instance_render_item->m_Mesh->name.m_Data : 0)
 
-                const float* uv_channels[] = {
-                    UNPACK_ATTRIBUTE_PTR(m_Texcoord0),
-                    UNPACK_ATTRIBUTE_PTR(m_Texcoord1),
-                };
+                const float* world_matrix_channels[]  = { (float*) &instance_render_item->m_World };
+                const float* normal_matrix_channels[] = { (float*) &normal_matrix };
+                const float* uv_channels[]            = { UNPACK_ATTRIBUTE_PTR(m_Texcoord0), UNPACK_ATTRIBUTE_PTR(m_Texcoord1), };
+                const float* color_channels[]         = { UNPACK_ATTRIBUTE_PTR(m_Colors) };
+                const float* position_channels[]      = { UNPACK_ATTRIBUTE_PTR(m_Positions) };
+                const float* normal_channels[]        = { UNPACK_ATTRIBUTE_PTR(m_Normals) };
+                const float* tangent_channels[]       = { UNPACK_ATTRIBUTE_PTR(m_Tangents) };
 
                 uint32_t uv_channels_count = (uv_channels[0] ? 1 : 0) + (uv_channels[1] ? 1 : 0);
 
@@ -1073,13 +1080,13 @@ namespace dmGameSystem
                 dmRig::SetMeshWriteAttributeParams(&params,
                     &attribute_infos,
                     dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE,
-                    &instance_render_item->m_World,
-                    &normal_matrix,
+                    world_matrix_channels,
+                    normal_matrix_channels,
                     0, // World space positions are not supported by local space materials
-                    UNPACK_ATTRIBUTE_PTR(m_Positions),
-                    UNPACK_ATTRIBUTE_PTR(m_Normals),
-                    UNPACK_ATTRIBUTE_PTR(m_Tangents),
-                    UNPACK_ATTRIBUTE_PTR(m_Colors),
+                    position_channels,
+                    normal_channels,
+                    tangent_channels,
+                    color_channels,
                     uv_channels, uv_channels_count);
 
             #undef UNPACK_ATTRIBUTE_PTR
@@ -1225,17 +1232,11 @@ namespace dmGameSystem
     #endif
 
     static void PrepareWorldSpaceBatchBuffers(ModelWorld* world, uint32_t batch_index, dmRender::HMaterial material,
-        dmGraphics::HVertexDeclaration* vx_decl_in_out, uint32_t* vertex_stride_out,
+        dmGraphics::HVertexDeclaration vx_decl, uint32_t* vertex_stride_out,
         dmGraphics::VertexAttributeInfos* material_infos_vertex, uint32_t vertex_count, uint8_t** vb_begin)
     {
         *vb_begin = 0;
         memset(material_infos_vertex, 0, sizeof(dmGraphics::VertexAttributeInfos));
-        dmGraphics::HVertexDeclaration vx_decl = *vx_decl_in_out;
-
-        if (!HasCustomVertexAttributes(material))
-        {
-            vx_decl = world->m_VertexDeclaration;
-        }
 
         // Prepare vertex buffer
         uint32_t vertex_stride = dmGraphics::GetVertexDeclarationStride(vx_decl);
@@ -1267,7 +1268,6 @@ namespace dmGameSystem
             material_infos_vertex->m_Infos[i].m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_VERTEX;
         }
 
-        *vx_decl_in_out    = vx_decl;
         *vertex_stride_out = vertex_stride;
     }
 
@@ -1332,7 +1332,7 @@ namespace dmGameSystem
         uint8_t* vb_begin;
 
         PrepareWorldSpaceBatchBuffers(world, batch_index, material,
-            &vx_decl, &vertex_stride, &material_infos_vertex,
+            vx_decl, &vertex_stride, &material_infos_vertex,
             required_vertex_count, &vb_begin);
 
         uint8_t* vb_end = vb_begin;
