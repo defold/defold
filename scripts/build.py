@@ -1292,7 +1292,8 @@ class Configuration(object):
         linux_files = dict([['ext/lib/%s/lib%s.so' % (plf[0], lib), 'lib/%s/lib%s.so' % (plf[1], lib)] for lib in [] for plf in [['x86_64-linux', 'x86_64-linux']]])
         js_files = {}
         android_files = {'share/java/classes.dex': 'lib/classes.dex',
-                         'ext/share/java/android.jar': 'lib/android.jar'}
+                         'ext/share/java/android.jar': 'lib/android.jar'} # this should be the stripped one
+
         switch_files = {}
         # This dict is being built up and will eventually be used for copying in the end
         # - "type" - what the files are needed for, for error reporting
