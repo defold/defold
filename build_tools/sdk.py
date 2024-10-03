@@ -134,7 +134,7 @@ def _get_latest_version_from_folders(path, replace_patterns=[]):
             s = s.replace(pattern, replace)
         return s
 
-    dirs.sort(key=lambda x: tuple(int(token) for token in _replace_pattern(x, replace_patterns).split('.')))
+    dirs.sort(key=lambda x: tuple(int(token) for token in _replace_pattern(x, replace_patterns).split('.')), reverse=True)
     return dirs[0]
 
 class SDKException(Exception):
@@ -260,7 +260,9 @@ def get_android_local_sdk_version(platform):
 
 def get_android_local_jar_path(verbose=False):
     sdkfolder = get_android_local_sdk_path()
-    path = os.path.join(sdkfolder, 'platforms', 'android-%s' % ANDROID_TARGET_API_LEVEL, 'android.jar')
+    platforms_folder = os.path.join(sdkfolder, 'platforms')
+    android_version = _get_latest_version_from_folders(platforms_folder, [('android-', '')])
+    path = os.path.join(sdkfolder, 'platforms', android_version, 'android.jar')
     if not os.path.exists(path):
         raise SDKException(f"Path {path} not found")
     return path
@@ -636,7 +638,7 @@ def _get_local_sdk_info(platform, verbose=False):
         info['version'] = get_android_local_sdk_version(platform)
         info['sdk'] = get_android_local_sdk_path(verbose)
         info['ndk'] = get_android_local_ndk_path(platform, verbose)
-        info['jar'] = get_android_local_jar_path(platform, verbose)
+        info['jar'] = get_android_local_jar_path(verbose)
         info['build_tools'] = get_android_local_build_tools_path(platform)
         if platform == 'arm64-android':
             info['api'] = ANDROID_64_NDK_API_VERSION
