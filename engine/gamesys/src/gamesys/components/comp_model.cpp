@@ -974,8 +974,6 @@ namespace dmGameSystem
         MeshAttributeRenderData* attribute_rd = 0;
         dmRender::HMaterial render_material   = GetRenderMaterial(render_context_material, component, component->m_Resource, material_index);
 
-        dmLogInfo("Rendering %d instances", instance_count);
-
         bool render_context_material_custom_attributes = false;
         if (render_context_material)
         {
@@ -1714,11 +1712,9 @@ namespace dmGameSystem
                 }
                 vertex_count_total += vertex_count;
 
-                const Vector4 trans = render_item.m_World.getCol(3);
-
                 dmRender::HMaterial mesh_material = GetComponentMaterial(&component, component.m_Resource, render_item.m_MaterialIndex);
 
-
+                const Vector4 trans = render_item.m_World.getCol(3);
                 write_ptr->m_WorldPosition = Point3(trans.getX(), trans.getY(), trans.getZ());
                 write_ptr->m_UserData = (uintptr_t) &render_item;
                 // TODO: Currently assuming only one material for all meshes
@@ -1730,7 +1726,7 @@ namespace dmGameSystem
                 // For instancing we need to group instanced without looking at the Z value.
                 if (dmRender::GetVertexDeclaration(mesh_material, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE))
                 {
-                    // JG: The name makes no sense here, but it's a currently unused enum.
+                    // JG-TODO: This name makes no sense, but it's a currently unused enum :shrug:
                     write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_BEFORE_WORLD;
                     // This is used when major order != RENDER_ORDER_WORLD
                     write_ptr->m_Order = 0;
