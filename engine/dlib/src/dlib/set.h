@@ -338,7 +338,7 @@ bool dmSet<T>::Add(const T& value)
     assert(!Full());
 
     uint32_t count = end - p;
-    memmove(p+1, p, count * sizeof(uint32_t));
+    memmove(p+1, p, count * sizeof(T));
     (*p) = value;
     m_Size++;
     return true;
@@ -350,15 +350,15 @@ bool dmSet<T>::Remove(const T& value)
     if (m_Size == 0)
         return false;
 
-    uint32_t* end = m_Values + m_Size;
-    uint32_t* p = LowerBound(m_Values, end, value);
+    T* end = m_Values + m_Size;
+    T* p = LowerBound(m_Values, end, value);
     if (p >= end)
         return false;
     if ((*p) != value)
         return false;
 
     uint32_t count = end - p;
-    memmove(p, p+1, (count-1) * sizeof(uint32_t));
+    memmove(p, p+1, (count-1) * sizeof(T));
     m_Size--;
     return true;
 }
