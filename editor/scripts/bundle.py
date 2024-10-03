@@ -283,7 +283,7 @@ def extract_build_jdk(build_jdk):
 def invoke_lein(args, jdk_path=None):
     # this weird dance with env and bash instead of supplying env kwarg to run.command is needed for the build script to work on windows
     jdk_path = jdk_path or os.environ['JAVA_HOME']
-    return run.command(['env', 'JAVA_CMD=%s/bin/java' % jdk_path, 'LEIN_HOME=target/lein', 'bash', './scripts/lein'] + args)
+    return run.command(['env', 'JAVA_CMD=%s/bin/java' % jdk_path, 'LEIN_HOME=build/lein', 'bash', './scripts/lein'] + args)
 
 def check_reflections(jdk_path):
     reflection_prefix = 'Reflection warning, ' # final space important
