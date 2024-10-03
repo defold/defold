@@ -1712,16 +1712,30 @@ namespace dmGameSystem
                 }
                 vertex_count_total += vertex_count;
 
+                dmRender::HMaterial mesh_material = GetComponentMaterial(&component, component.m_Resource, render_item.m_MaterialIndex);
+
                 const Vector4 trans = render_item.m_World.getCol(3);
                 write_ptr->m_WorldPosition = Point3(trans.getX(), trans.getY(), trans.getZ());
-
                 write_ptr->m_UserData = (uintptr_t) &render_item;
                 // TODO: Currently assuming only one material for all meshes
                 write_ptr->m_BatchKey   = render_item.m_InstanceRenderHash;
-                write_ptr->m_TagListKey = dmRender::GetMaterialTagListKey(GetComponentMaterial(&component, component.m_Resource, render_item.m_MaterialIndex));
+                write_ptr->m_TagListKey = dmRender::GetMaterialTagListKey(mesh_material);
                 write_ptr->m_Dispatch   = dispatch;
                 write_ptr->m_MinorOrder = minor_order;
-                write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_WORLD;
+
+                // For instancing we need to group instanced without looking at the Z value.
+                if (dmRender::GetVertexDeclaration(mesh_material, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE))
+                {
+                    // JG-TODO: This name makes no sense, but it's a currently unused enum :shrug:
+                    write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_BEFORE_WORLD;
+                    // This is used when major order != RENDER_ORDER_WORLD
+                    write_ptr->m_Order = 0;
+                }
+                else
+                {
+                    write_ptr->m_MajorOrder = dmRender::RENDER_ORDER_WORLD;
+                }
+
                 ++write_ptr;
             }
         }
