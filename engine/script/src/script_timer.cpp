@@ -697,29 +697,6 @@ namespace dmScript
             return 1;
         }
 
-        // uint16_t index = GetIndexFromHandle(timer_world, timer_handle);
-        // if (!timer_world->m_Instances.Contains(index))
-        // {
-        //     lua_pushboolean(L, 0);
-        //     return 1;
-        // }
-        // uint16_t lookup_index = GetLookupIndex(timer_handle);
-        // if (lookup_index >= timer_world->m_IndexLookup.Size())
-        // {
-        //     lua_pushboolean(L, 0);
-        //     return 1;
-        // }
-
-        // uint16_t timer_index = timer_world->m_IndexLookup[lookup_index];
-        // if (timer_index >= timer_world->m_Timers.Size())
-        // {
-        //     lua_pushboolean(L, 0);
-        //     return 1;
-        // }
-
-        //Timer& timer = timer_world->m_Timers[timer_index];
-        //Timer& timer = timer_world->m_Timers.Get(index);
-
         LuaCallbackInfo* callback = (LuaCallbackInfo*)timer->m_UserData;
         if (!IsCallbackValid(callback))
         {
@@ -778,36 +755,6 @@ namespace dmScript
             lua_pushnil(L);
             return 1;
         }
-
-        // dmScript::HTimerWorld timer_world = GetTimerWorld(L);
-        // if (timer_world == 0x0)
-        // {
-        //     dmLogError("Unable to get remaining time, the lua context does not have a timer world");
-        //     lua_pushnil(L);
-        //     return 1;
-        // }
-
-        // uint16_t lookup_index = GetLookupIndex(timer_handle);
-        // if (lookup_index >= timer_world->m_IndexLookup.Size())
-        // {
-        //     lua_pushnil(L);
-        //     return 1;
-        // }
-
-        // uint16_t timer_index = timer_world->m_IndexLookup[lookup_index];
-        // if (timer_index >= timer_world->m_Timers.Size())
-        // {
-        //     lua_pushnil(L);
-        //     return 1;
-        // }
-
-        // Timer& timer = timer_world->m_Timers[timer_index];
-
-        // if (timer->m_Handle != timer_handle)
-        // {
-        //     lua_pushnil(L); // stale handle
-        //     return 1;
-        // }
 
         lua_newtable(L);
         lua_pushnumber(L,timer->m_Remaining);
