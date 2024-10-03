@@ -31,7 +31,6 @@
             [editor.outline-view :as outline-view]
             [editor.pipeline.bob :as bob]
             [editor.prefs :as prefs]
-            [editor.progress :as progress]
             [editor.properties-view :as properties-view]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
@@ -54,6 +53,7 @@
             [util.diff :as diff]
             [util.fn :as fn])
   (:import [com.defold.util WeakInterner]
+           [com.dynamo.bob Platform]
            [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$Image]
            [com.google.protobuf Descriptors$FieldDescriptor Descriptors$FieldDescriptor$JavaType]
            [editor.code.data Cursor CursorRange]
@@ -64,7 +64,6 @@
            [editor.workspace BuildResource]
            [internal.graph.types Arc Endpoint]
            [java.beans BeanInfo Introspector MethodDescriptor PropertyDescriptor]
-           [java.io ByteArrayOutputStream]
            [java.lang.reflect Modifier]
            [java.nio ByteBuffer]
            [javafx.stage Window]
@@ -1245,12 +1244,8 @@
 (defn bob-build-output-infos [project proj-path]
   (test-util/save-project! project)
   (let [bob-commands ["build"]
-        bob-args {"" ""}
-        build-server-headers ""
-        log-output-stream (ByteArrayOutputStream.)
-        task-cancelled? (constantly false)
-        result (g/with-auto-evaluation-context evaluation-context
-                 (bob/bob-build! project evaluation-context bob-commands bob-args build-server-headers progress/null-render-progress! log-output-stream task-cancelled?))]
+        bob-args {"platform" (.getPair (Platform/getHostPlatform))}
+        result (bob/invoke! project bob-args bob-commands)]
     (when-let [exception (:exception result)]
       (throw exception))
     (if-let [error (:error result)]
