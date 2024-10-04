@@ -446,7 +446,8 @@
       ;; Disabled during tests to minimize log spam.
       (when (and (pos? (count migrated-proj-paths))
                  (not (Boolean/getBoolean "defold.tests")))
-        (log/info :message "Some files were migrated and will be saved in an updated format." :migrated-proj-paths migrated-proj-paths)))))
+        (log/info :message "Some files were migrated and will be saved in an updated format." :migrated-proj-paths migrated-proj-paths)))
+    node-load-infos))
 
 (defn- make-nodes! [project resources]
   (let [project-graph (graph project)

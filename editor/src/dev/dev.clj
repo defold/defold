@@ -13,7 +13,11 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns dev
-  (:require [clojure.pprint :as pprint]
+  (:require [cljfx.api :as fx]
+            [cljfx.fx.h-box :as fx.h-box]
+            [cljfx.fx.progress-bar :as fx.progress-bar]
+            [cljfx.fx.v-box :as fx.v-box]
+            [clojure.pprint :as pprint]
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.asset-browser :as asset-browser]
@@ -25,6 +29,8 @@
             [editor.console :as console]
             [editor.curve-view :as curve-view]
             [editor.defold-project :as project]
+            [editor.dialogs :as dialogs]
+            [editor.fxui :as fxui]
             [editor.game-object :as game-object]
             [editor.gl.vertex2 :as vtx]
             [editor.math :as math]
@@ -37,6 +43,7 @@
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
             [editor.scene-cache :as scene-cache]
+            [editor.ui :as ui]
             [editor.util :as eutil]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
@@ -50,8 +57,10 @@
             [lambdaisland.deep-diff2.printer-impl :as deep-diff.printer-impl]
             [lambdaisland.deep-diff2.puget.color :as puget.color]
             [lambdaisland.deep-diff2.puget.printer :as puget.printer]
+            [service.log :as log]
             [util.coll :as coll :refer [pair]]
             [util.diff :as diff]
+            [util.eduction :as e]
             [util.fn :as fn])
   (:import [com.defold.util WeakInterner]
            [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$Image]
@@ -538,8 +547,8 @@
   occurrence count in descending order."
   []
   (ordered-occurrences
-    (map (comp g/endpoint-label key)
-         (is/system-cache @g/*the-system*))))
+    (e/map (comp g/endpoint-label key)
+           (is/system-cache @g/*the-system*))))
 
 (defn node-type-report
   "Returns a sorted list of what node types are in the system graph in the
@@ -1365,3 +1374,159 @@
                           (not-empty)
                           (pair pb-class))))
          (resource-pb-classes workspace))))
+
+(defn- progress-dialog-ui [{:keys [header-text progress] :as props}]
+  {:pre [(string? header-text)
+         (map? progress)
+         (string? (:message progress))]}
+  {:fx/type dialogs/dialog-stage
+   :on-close-request {:event-type :cancel}
+   :showing (fxui/dialog-showing? props)
+   :header {:fx/type fx.h-box/lifecycle
+            :style-class "spacing-default"
+            :alignment :center-left
+            :children [{:fx/type fxui/label
+                        :variant :header
+                        :text header-text}]}
+   :content {:fx/type fx.v-box/lifecycle
+             :style-class ["dialog-content-padding" "spacing-smaller"]
+             :children [{:fx/type fxui/label
+                         :wrap-text false
+                         :text (:message progress)}
+                        {:fx/type fx.progress-bar/lifecycle
+                         :max-width Double/MAX_VALUE
+                         :progress (or (progress/fraction progress)
+                                       -1.0)}]} ; Indeterminate.
+   :footer {:fx/type dialogs/dialog-buttons
+            :children [{:fx/type fxui/button
+                        :text "Cancel"
+                        :cancel-button true
+                        :on-action {:event-type :cancel}}]}})
+
+(defn run-with-progress
+  ([^String header-text worker-fn]
+   (run-with-progress header-text nil worker-fn))
+  ([^String header-text cancel-result worker-fn]
+   (ui/run-now
+     (let [state-atom (atom {:progress (progress/make "Waiting" 0 0)})
+           middleware (fx/wrap-map-desc assoc :fx/type progress-dialog-ui :header-text header-text)
+           opts {:fx.opt/map-event-handler
+                 (fn [event]
+                   (case (:event-type event)
+                     :cancel (swap! state-atom assoc ::fxui/result cancel-result)))}
+           renderer (fx/create-renderer :middleware middleware :opts opts)
+           render-progress! #(swap! state-atom assoc :progress %)]
+       (future
+         (try
+           (swap! state-atom assoc ::fxui/result (worker-fn render-progress!))
+           (catch Throwable e
+             (log/error :exception e)
+             (swap! state-atom assoc ::fxui/result e))))
+       (let [result (fxui/mount-renderer-and-await-result! state-atom renderer)]
+         (if (instance? Throwable result)
+           (throw result)
+           result))))))
+
+(defn node-load-infos-by-proj-path [node-load-infos]
+  (coll/pair-map-by
+    #(resource/proj-path (:resource %))
+    node-load-infos))
+
+(defn ext-resource-predicate [& type-exts]
+  (let [type-ext-set (set type-exts)]
+    (fn resource-matches-type-exts? [resource]
+      (contains? type-ext-set (resource/type-ext resource)))))
+
+(defn proj-path-resource-predicate [proj-path]
+  (fn resource-matches-proj-path? [resource]
+    (= proj-path (resource/proj-path resource))))
+
+(defn referencing-proj-path-sets-by-proj-path
+  ([node-load-infos-by-proj-path]
+   (referencing-proj-path-sets-by-proj-path node-load-infos-by-proj-path resource/stateful?))
+  ([node-load-infos-by-proj-path scan-resource?]
+   (util/group-into
+     (sorted-map) (sorted-set) key val
+     (eduction
+       (mapcat
+         (fn [[referencing-proj-path referencing-node-load-info]]
+           (when (scan-resource? (:resource referencing-node-load-info))
+             (e/map #(pair % referencing-proj-path)
+                    (:dependency-proj-paths referencing-node-load-info)))))
+       (distinct)
+       node-load-infos-by-proj-path))))
+
+(defn dependency-proj-path-sets-by-proj-path
+  ([node-load-infos-by-proj-path recursive]
+   (dependency-proj-path-sets-by-proj-path node-load-infos-by-proj-path recursive fn/constantly-true))
+  ([node-load-infos-by-proj-path recursive include-dependency-resource?]
+   {:pre [(map? node-load-infos-by-proj-path)
+          (ifn? include-dependency-resource?)]}
+   (g/with-auto-evaluation-context evaluation-context
+     (let [workspace
+           (some (fn [[_proj-path node-load-info]]
+                   (some-> (:resource node-load-info)
+                           (resource/workspace)))
+                 node-load-infos-by-proj-path)
+
+           include-dependency-proj-path?
+           (fn include-dependency-proj-path? [dependency-proj-path]
+             (include-dependency-resource?
+               (if-some [dependency-node-info (node-load-infos-by-proj-path dependency-proj-path)]
+                 (:resource dependency-node-info)
+                 (workspace/file-resource workspace dependency-proj-path evaluation-context))))] ; Referencing a missing resource.
+
+       (if recursive
+         (let [referencing-proj-path-sets-by-proj-path (referencing-proj-path-sets-by-proj-path node-load-infos-by-proj-path)]
+           (letfn [(recursive-referencing-entries [dependency-proj-path]
+                     (e/mapcat
+                       (fn [referencing-proj-path]
+                         (cons (pair referencing-proj-path dependency-proj-path)
+                               (recursive-referencing-entries referencing-proj-path)))
+                       (referencing-proj-path-sets-by-proj-path dependency-proj-path)))]
+             (util/group-into
+               (sorted-map) (sorted-set) key val
+               (e/mapcat
+                 (fn [[dependency-proj-path]]
+                   (when (include-dependency-proj-path? dependency-proj-path)
+                     (recursive-referencing-entries dependency-proj-path)))
+                 referencing-proj-path-sets-by-proj-path))))
+         (into (sorted-map)
+               (keep
+                 (fn [[proj-path node-load-info]]
+                   (some->> (:dependency-proj-paths node-load-info)
+                            (into (sorted-set)
+                                  (filter include-dependency-proj-path?))
+                            (coll/not-empty)
+                            (pair proj-path))))
+               node-load-infos-by-proj-path))))))
+
+(defn dependency-proj-path-tree
+  ([dependency-proj-path-sets-by-proj-path]
+   (dependency-proj-path-tree dependency-proj-path-sets-by-proj-path (keys dependency-proj-path-sets-by-proj-path)))
+  ([dependency-proj-path-sets-by-proj-path proj-paths]
+   (->> proj-paths
+        (into (empty dependency-proj-path-sets-by-proj-path)
+              (map (fn [proj-path]
+                     (pair proj-path
+                           (dependency-proj-path-tree
+                             dependency-proj-path-sets-by-proj-path
+                             (dependency-proj-path-sets-by-proj-path proj-path))))))
+        (coll/not-empty))))
+
+(defn tree-depth
+  ^long [tree]
+  (transduce
+    (map (fn [entry]
+           (inc (tree-depth (val entry)))))
+    max
+    0
+    tree))
+
+(defn dependency-proj-path-report
+  [dependency-proj-path-sets-by-proj-path]
+  (->> dependency-proj-path-sets-by-proj-path
+       (dependency-proj-path-tree)
+       (sort-by #(tree-depth (val %))
+                coll/descending-order)
+       (take 30)))
