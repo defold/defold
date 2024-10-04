@@ -20,6 +20,7 @@
             [editor.defold-project-search :as project-search]
             [editor.resource :as resource]
             [integration.test-util :as test-util]
+            [util.fn :as fn]
             [util.thread-util :as thread-util])
   (:import [java.util.concurrent LinkedBlockingQueue TimeUnit]))
 
@@ -110,7 +111,7 @@
         consumed))
 
 (deftest mock-consumer-test
-  (let [report-error! (test-util/make-call-logger)
+  (let [report-error! (fn/make-call-logger)
         consumer (make-consumer report-error!)
         queue (LinkedBlockingQueue. 4)
         poll-fn #(.poll queue timeout-ms TimeUnit/MILLISECONDS)]
@@ -134,10 +135,10 @@
     (is (true? (consumer-stopped? consumer)))))
 
 (defn- try-make-search-data-future [project]
-  (let [report-error! (test-util/make-call-logger)
+  (let [report-error! (fn/make-call-logger)
         search-data-future (project-search/make-search-data-future report-error! project)]
     (deref search-data-future)
-    (when (is (= [] (test-util/call-logger-calls report-error!)))
+    (when (is (= [] (fn/call-logger-calls report-error!)))
       search-data-future)))
 
 (deftest file-searcher-test
@@ -162,7 +163,7 @@
                        (deref search-data-future)))))
 
         (testing "Matches expected results"
-          (let [report-error! (test-util/make-call-logger)
+          (let [report-error! (fn/make-call-logger)
                 consumer (make-consumer report-error!)
                 start-consumer! (partial consumer-start! consumer)
                 stop-consumer! consumer-stop!
@@ -190,10 +191,10 @@
             (is (= [["/foo.bar" ["Buckle my shoe;"]]] (perform-search! "buckle" nil)))
             (abort-search!)
             (is (true? (test-util/block-until true? timeout-ms consumer-stopped? consumer)))
-            (is (= [] (test-util/call-logger-calls report-error!)))))
+            (is (= [] (fn/call-logger-calls report-error!)))))
 
         (testing "Search can be aborted"
-          (let [report-error! (test-util/make-call-logger)
+          (let [report-error! (fn/make-call-logger)
                 consumer (make-consumer report-error!)
                 start-consumer! (partial consumer-start! consumer)
                 stop-consumer! consumer-stop!
@@ -202,10 +203,10 @@
             (is (true? (consumer-started? consumer)))
             (abort-search!)
             (is (true? (test-util/block-until true? timeout-ms consumer-stopped? consumer)))
-            (is (= [] (test-util/call-logger-calls report-error!)))))
+            (is (= [] (fn/call-logger-calls report-error!)))))
 
         (testing "Matches among specified file extensions"
-          (let [report-error! (test-util/make-call-logger)
+          (let [report-error! (fn/make-call-logger)
                 consumer (make-consumer report-error!)
                 start-consumer! (partial consumer-start! consumer)
                 stop-consumer! consumer-stop!
@@ -231,10 +232,10 @@
               1 "script")
             (abort-search!)
             (is (true? (test-util/block-until true? timeout-ms consumer-stopped? consumer)))
-            (is (= [] (test-util/call-logger-calls report-error!)))))
+            (is (= [] (fn/call-logger-calls report-error!)))))
 
         (testing "Include or exclude matches inside libraries"
-          (let [report-error! (test-util/make-call-logger)
+          (let [report-error! (fn/make-call-logger)
                 consumer (make-consumer report-error!)
                 start-consumer! (partial consumer-start! consumer)
                 stop-consumer! consumer-stop!
@@ -249,4 +250,4 @@
                    (perform-search! "socket" "lua" true)))
             (abort-search!)
             (is (true? (test-util/block-until true? timeout-ms consumer-stopped? consumer)))
-            (is (= [] (test-util/call-logger-calls report-error!)))))))))
+            (is (= [] (fn/call-logger-calls report-error!)))))))))
