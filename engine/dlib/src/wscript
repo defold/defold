@@ -405,6 +405,7 @@ def build(bld):
     bld.install_files('${PREFIX}/include/dlib', 'dlib/pprint.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/profile/profile.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/safe_windows.h')
+    bld.install_files('${PREFIX}/include/dlib', 'dlib/set.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/shared_library.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/socket.h')
     bld.install_files('${PREFIX}/include/dlib', 'dlib/sslsocket.h')
