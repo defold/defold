@@ -386,10 +386,7 @@ namespace dmGraphics
                 return;
         }
 
-        // If the stream doesn't have enough channels, we just use the first one
-        channel_index = channel_index < stream_desc->m_StreamCount ? channel_index : 0;
-
-        if (stream_desc->m_Data && stream_desc->m_Data[channel_index])
+        if (stream_desc->m_Data && channel_index < stream_desc->m_StreamCount && stream_desc->m_Data[channel_index])
         {
             // We have semantic type and engine-provided data
             uint32_t element_count_out = VectorTypeToElementCount(stream_desc->m_VectorType);
