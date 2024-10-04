@@ -23,6 +23,7 @@
             [editor.future :as future]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
+            [editor.pipeline.bob :as bob]
             [editor.process :as process]
             [editor.resource :as resource]
             [editor.ui :as ui]
@@ -264,6 +265,13 @@
 (defn- open-resource-noop! [_]
   (future/completed nil))
 
+(defn- make-invoke-bob-fn [project]
+  (fn invoke-bob! [options commands _]
+    (future/io
+      (let [ret (bob/invoke! project options commands)]
+        (when (or (:error ret) (:exception ret))
+          (throw (LuaError. "Bob invocation failed")))))))
+
 (deftest editor-scripts-commands-test
   (test-util/with-loaded-project "test/resources/editor_extensions/commands_project"
     (let [sprite-outline (:node-id (test-util/outline (test-util/resource-node project "/main/main.collection") [0 0]))]
@@ -271,7 +279,8 @@
                           :reload-resources! (make-reload-resources-fn workspace)
                           :display-output! println
                           :save! (make-save-fn project)
-                          :open-resource! open-resource-noop!)
+                          :open-resource! open-resource-noop!
+                          :invoke-bob! (make-invoke-bob-fn project))
       (let [handler+context (handler/active
                               (:command (first (handler/realize-menu :editor.outline-view/context-menu-end)))
                               (handler/eval-contexts
@@ -297,7 +306,8 @@
                                 :reload-resources! (make-reload-resources-fn workspace)
                                 :display-output! #(swap! output conj [%1 %2])
                                 :save! (make-save-fn project)
-                                :open-resource! open-resource-noop!)
+                                :open-resource! open-resource-noop!
+                                :invoke-bob! (make-invoke-bob-fn project))
           handler+context (handler/active
                             (:command (first (handler/realize-menu :editor.asset-browser/context-menu-end)))
                             (handler/eval-contexts
@@ -321,7 +331,8 @@
                                 :reload-resources! (make-reload-resources-fn workspace)
                                 :display-output! #(swap! output conj [%1 %2])
                                 :save! (make-save-fn project)
-                                :open-resource! open-resource-noop!)
+                                :open-resource! open-resource-noop!
+                                :invoke-bob! (make-invoke-bob-fn project))
           handler+context (handler/active
                             (:command (last (handler/realize-menu :editor.app-view/edit-end)))
                             (handler/eval-contexts
@@ -347,7 +358,8 @@
                                 :reload-resources! (make-reload-resources-fn workspace)
                                 :display-output! #(swap! output conj [%1 %2])
                                 :save! (make-save-fn project)
-                                :open-resource! open-resource-noop!)
+                                :open-resource! open-resource-noop!
+                                :invoke-bob! (make-invoke-bob-fn project))
           node (:node-id (test-util/outline (test-util/resource-node project "/main/main.collection") [0 0]))
           handler+context (handler/active
                             (:command (first (handler/realize-menu :editor.outline-view/context-menu-end)))
@@ -392,7 +404,8 @@
                                 :reload-resources! (make-reload-resources-fn workspace)
                                 :display-output! #(swap! output conj [%1 %2])
                                 :save! (make-save-fn project)
-                                :open-resource! open-resource-noop!)
+                                :open-resource! open-resource-noop!
+                                :invoke-bob! (make-invoke-bob-fn project))
           handler+context (handler/active
                             (:command (first (handler/realize-menu :editor.asset-browser/context-menu-end)))
                             (handler/eval-contexts
@@ -412,7 +425,8 @@
                                 :reload-resources! (make-reload-resources-fn workspace)
                                 :display-output! #(swap! output conj [%1 %2])
                                 :save! (make-save-fn project)
-                                :open-resource! open-resource-noop!)
+                                :open-resource! open-resource-noop!
+                                :invoke-bob! (make-invoke-bob-fn project))
           handler+context (handler/active
                             (:command (last (handler/realize-menu :editor.app-view/edit-end)))
                             (handler/eval-contexts
@@ -436,7 +450,8 @@
                                 :display-output! #(swap! output conj [%1 %2])
                                 :save! (make-save-fn project)
                                 :open-resource! (fn [resource]
-                                                  (swap! output conj [:open-resource (resource/proj-path resource)])))
+                                                  (swap! output conj [:open-resource (resource/proj-path resource)]))
+                                :invoke-bob! (make-invoke-bob-fn project))
           handler+context (handler/active
                             (:command (last (handler/realize-menu :editor.app-view/edit-end)))
                             (handler/eval-contexts
@@ -601,7 +616,8 @@
                                 :reload-resources! (make-reload-resources-fn workspace)
                                 :display-output! #(swap! output conj [%1 %2])
                                 :save! (make-save-fn project)
-                                :open-resource! open-resource-noop!)
+                                :open-resource! open-resource-noop!
+                                :invoke-bob! (make-invoke-bob-fn project))
           handler+context (handler/active
                             (:command (last (handler/realize-menu :editor.app-view/edit-end)))
                             (handler/eval-contexts
@@ -623,7 +639,8 @@
                                 :reload-resources! (make-reload-resources-fn workspace)
                                 :display-output! #(swap! output conj [%1 %2])
                                 :save! (make-save-fn project)
-                                :open-resource! open-resource-noop!)
+                                :open-resource! open-resource-noop!
+                                :invoke-bob! (make-invoke-bob-fn project))
           handler+context (handler/active
                             (:command (last (handler/realize-menu :editor.app-view/edit-end)))
                             (handler/eval-contexts

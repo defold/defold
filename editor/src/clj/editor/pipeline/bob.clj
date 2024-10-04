@@ -29,15 +29,14 @@
             [internal.util :as util]
             [service.log :as log]
             [util.coll :as coll]
-            [util.coll]
             [util.fn :as fn]
             [util.http-util :as http-util])
-  (:import [com.dynamo.bob Bob IProgress TaskResult]
+  (:import [com.dynamo.bob Bob Bob$CommandLineOption Bob$CommandLineOption$ArgCount Bob$CommandLineOption$ArgType IProgress TaskResult]
            [com.dynamo.bob.logging LogHelper]
            [java.io File OutputStream PrintStream PrintWriter]
            [java.net URL]
            [java.nio.charset StandardCharsets]
-           [org.apache.commons.cli Option]
+           [java.nio.file Path]
            [org.apache.commons.io FilenameUtils]
            [org.apache.commons.io.output WriterOutputStream]))
 
@@ -135,15 +134,11 @@
     (str "\"" arg-value "\"")
     arg-value))
 
-(def ^:private long-option->has-arg
-  (into {}
-        (map (fn [^Option option]
-               [(.getLongOpt option)
-                (not= -1 (.getArgs option))]))
-        (.getOptions (Bob/getCommandLineOptions))))
+(def ^:private long-option->option-config
+  (coll/pair-map-by #(.-longOpt ^Bob$CommandLineOption %) (Bob/getCommandLineOptions)))
 
 (defn- long-option? [x]
-  (contains? long-option->has-arg x))
+  (contains? long-option->option-config x))
 
 (defn- parse-options
   "Given bob options map, parses to a tuple of cli args and internal options
@@ -151,32 +146,45 @@
   Returns a tuple of 2 elements:
   - cli options: array of strings
   - internal options: either a map of Project options (string->string) or nil"
-  [options-map]
-  (let [{:keys [undefined cli internal]}
-        (util/group-into {} []
-                         (fn option-group [e]
-                           (let [k (key e)]
-                             (cond
-                               (keyword? k) :internal
-                               (long-option? k) :cli
-                               :else :undefined)))
-                         identity
-                         options-map)]
-    (when undefined
-      (throw (IllegalArgumentException. (format "Undefined bob option%s: %s"
-                                                (if (< 1 (count undefined)) "s" "")
-                                                (string/join ", " (map key undefined))))))
-    [(into []
-           (mapcat (fn [[k v]]
-                     (let [k-str (str "--" k)]
-                       (if (long-option->has-arg k)
-                         (if (vector? v)
-                           (eduction (mapcat (fn [v] [k-str (str v)])) v)
-                           [k-str (str v)])
-                         (if v [k-str] [])))))
-           cli)
-     (when internal
-       (coll/pair-map-by (comp name key) (comp str val) internal))]))
+  [^Path project-root options-map]
+  (letfn [(validate-type [^Bob$CommandLineOption config ^Class expected-class value]
+            (when-not (instance? expected-class value)
+              (throw (IllegalArgumentException. (str (.-longOpt config) " option is expected to be " (.getSimpleName expected-class) ", was " (some-> (class value) .getSimpleName)))))
+            value)
+          (stringify-value [^Bob$CommandLineOption config value]
+            (condp = (.-argType config)
+              Bob$CommandLineOption$ArgType/UNSPECIFIED (str value)
+              Bob$CommandLineOption$ArgType/ABS_OR_CWD_REL_PATH (str (.normalize (.resolve project-root (str (validate-type config String value)))))))]
+    (let [{:keys [undefined cli internal]}
+          (util/group-into {} []
+                           (fn option-group [e]
+                             (let [k (key e)]
+                               (cond
+                                 (keyword? k) :internal
+                                 (long-option? k) :cli
+                                 :else :undefined)))
+                           identity
+                           options-map)]
+      (when undefined
+        (throw (IllegalArgumentException. (format "Undefined bob option%s: %s"
+                                                  (if (< 1 (count undefined)) "s" "")
+                                                  (string/join ", " (map key undefined))))))
+      [(into []
+             (mapcat (fn [[k v]]
+                       (let [k-str (str "--" k)
+                             ^Bob$CommandLineOption config (long-option->option-config k)]
+                         (condp = (.-argCount config)
+                           Bob$CommandLineOption$ArgCount/ZERO
+                           (if (validate-type config Boolean v) [k-str] [])
+                           Bob$CommandLineOption$ArgCount/ONE
+                           [k-str (stringify-value config v)]
+                           Bob$CommandLineOption$ArgCount/MANY
+                           (if (vector? v)
+                             (eduction (mapcat (fn [i] [k-str (stringify-value config i)])) v)
+                             [k-str (stringify-value config v)])))))
+             cli)
+       (when internal
+         (coll/pair-map-by (comp name key) (comp str val) internal))])))
 
 (defn invoke!
   "Invoke bob, with the same API as Bob's command line
@@ -236,10 +244,10 @@
         (let [workspace (project/workspace project evaluation-context)
               options (cond-> options
                               (not (contains? options "root"))
-                              (assoc "root" (str (workspace/project-path workspace evaluation-context)))
+                              (assoc "root" ".")
                               (not (contains? options "verbose"))
                               (assoc "verbose" true))
-              [cli-options internal-options] (parse-options options)
+              [cli-options internal-options] (parse-options (.toPath (workspace/project-path workspace evaluation-context)) options)
               cli-args (-> [] (into cli-options) (into commands))]
           (log/info :bob-command (string/join " " (into ["java" "-jar" "bob.jar"] (map quote-arg-if-needed) cli-args)))
           (System/setOut build-out)
@@ -287,7 +295,7 @@
              "variant" variant
 
              ;; From AbstractBundleHandler
-             (if bundle-contentless? "exclude-archive" "archive") "true"
+             (if bundle-contentless? "exclude-archive" "archive") true
              "bundle-output" bundle-output-path
              "texture-compression" (case texture-compression
                                      "enabled" "true"
@@ -305,10 +313,10 @@
              "email" ""
              "auth" ""}
 
-            strip-executable? (assoc "strip-executable" "true")
+            strip-executable? (assoc "strip-executable" true)
 
             ;; From BundleGenericHandler
-            generate-debug-symbols? (assoc "with-symbols" "")
+            generate-debug-symbols? (assoc "with-symbols" true)
             generate-build-report? (assoc "build-report-html" build-report-path)
             publish-live-update-content? (assoc "liveupdate" "yes"))))
 
@@ -404,7 +412,7 @@
     {"platform" "js-web"
      "architectures" "wasm-web"
      "variant" "debug"
-     "archive" "true"
+     "archive" true
      "output" (subs workspace/build-html5-dir 1)
      "bundle-output" (str output-path)
      "build-server" build-server-url

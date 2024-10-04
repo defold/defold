@@ -20,7 +20,7 @@
             [editor.util :as util]
             [util.coll :as coll]
             [util.fn :as fn])
-  (:import [org.luaj.vm2 LuaDouble LuaError LuaInteger LuaString LuaValue]))
+  (:import [org.luaj.vm2 LuaDouble LuaError LuaInteger LuaString LuaValue Varargs]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -223,6 +223,16 @@
         (not (pred ret)) (failure x error-message)
         :else ret))))
 
+(defn wrap-transform
+  "Wrap a coercer with a transformation step that changes the coerced value"
+  [coercer f & args]
+  ^{:schema (schema coercer)}
+  (fn coerce-transform [vm x]
+    (let [ret (coercer vm x)]
+      (if (failure? ret)
+        ret
+        (apply f ret args)))))
+
 (defn vector-of
   "Collection coercer, converts LuaTable to a vector
 
@@ -303,6 +313,29 @@
                 acc
                 (persistent! acc)))))
         (failure x "is not a table")))))
+
+(defn map-of
+  "Coerces Lua table to a homogeneous Clojure map"
+  [key-coercer val-coercer]
+  ^{:schema {:type :table}}
+  (fn coerce-map-of [vm ^LuaValue x]
+    (if (.istable x)
+      (let [acc (transient {})
+            acc (reduce
+                  (fn acc-kv [acc ^Varargs varargs]
+                    (let [k (key-coercer vm (.arg1 varargs))]
+                      (if (failure? k)
+                        (reduced k)
+                        (let [v (val-coercer vm (.arg varargs 2))]
+                          (if (failure? v)
+                            (reduced v)
+                            (assoc! acc k v))))))
+                  acc
+                  (vm/lua-table-reducer vm x))]
+        (if (failure? acc)
+          acc
+          (persistent! acc)))
+      (failure x "is not a table"))))
 
 (defn one-of
   "Tries several coercers in the provided order, returns first success result"
