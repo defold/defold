@@ -374,8 +374,7 @@ namespace dmProfileRender
         params.m_FaceColor   = TITLE_FACE_COLOR;
         params.m_ShadowColor = TITLE_SHADOW_COLOR;
 
-        ProfilerThread empty_thread;
-        ProfilerThread* thread = frame ? GetSelectedThread(render_profile, frame) : &empty_thread;
+        ProfilerThread* thread = GetSelectedThread(render_profile, frame);
 
         uint64_t ticks_per_second   = render_profile->m_TicksPerSecond;
         uint64_t max_frame_time     = render_profile->m_MaxFrameTime;
