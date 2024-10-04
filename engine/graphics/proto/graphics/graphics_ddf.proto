@@ -19,8 +19,12 @@ message Cubemap
 
 enum CoordinateSpace
 {
-    COORDINATE_SPACE_WORLD = 1;
-    COORDINATE_SPACE_LOCAL = 2;
+    // Used when building the default "manufactured" attributes.
+    // This setting mean that we use the vertex coordinate system setting
+    // from the material (in case of models).
+    COORDINATE_SPACE_DEFAULT = 0;
+    COORDINATE_SPACE_WORLD   = 1;
+    COORDINATE_SPACE_LOCAL   = 2;
 }
 
 enum VertexStepFunction

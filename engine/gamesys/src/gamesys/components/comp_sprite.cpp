@@ -1427,7 +1427,8 @@ namespace dmGameSystem
         dmGraphics::HVertexDeclaration vx_decl = dmRender::GetVertexDeclaration(material);
 
         dmGraphics::VertexAttributeInfos material_attribute_info;
-        FillMaterialAttributeInfos(material, vx_decl, &material_attribute_info);
+        // Same default coordinate space as the editor
+        FillMaterialAttributeInfos(material, vx_decl, &material_attribute_info, dmGraphics::COORDINATE_SPACE_WORLD);
 
         // Fill in vertex buffer
         uint8_t* vb_begin = sprite_world->m_VertexBufferWritePtr;

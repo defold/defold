@@ -316,7 +316,7 @@ namespace dmGameSystem
 
     // Prepares the list of material attributes by getting all the vertex attributes and values for each attribute
     // as specified in the material
-    void FillMaterialAttributeInfos(dmRender::HMaterial material, dmGraphics::HVertexDeclaration vx_decl, dmGraphics::VertexAttributeInfos* infos)
+    void FillMaterialAttributeInfos(dmRender::HMaterial material, dmGraphics::HVertexDeclaration vx_decl, dmGraphics::VertexAttributeInfos* infos, dmGraphics::CoordinateSpace default_coordinate_space)
     {
         const dmGraphics::VertexAttribute* material_attributes;
         uint32_t material_attributes_count;
@@ -336,6 +336,11 @@ namespace dmGameSystem
             info.m_Normalize        = material_attributes[i].m_Normalize;
             info.m_StepFunction     = material_attributes[i].m_StepFunction;
             info.m_ValueVectorType  = material_attributes[i].m_VectorType;
+
+            if (info.m_CoordinateSpace == dmGraphics::COORDINATE_SPACE_DEFAULT)
+            {
+                info.m_CoordinateSpace = default_coordinate_space;
+            }
 
             dmRender::GetMaterialProgramAttributeValues(material, i, &info.m_ValuePtr, &value_byte_size);
         }

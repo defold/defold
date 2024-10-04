@@ -1025,7 +1025,7 @@ TEST_F(dmGraphicsTest, VertexAttributeEngineProvidedData)
         float expected[3][4] = {
             {  1.1,  1.2,  1.3,  1.4 },
             { -1.1, -1.2, -1.3, -1.4 },
-            {  0.0,  0.0,  0.0,  1.0 }, // <- note, the attribute has no data source, so it will be constructed with a 1.0 as W!
+            {  0.0,  0.0,  0.0,  1.0 }, // <- the attribute has no data source, so it will be constructed with a 1.0 as W!
         };
         float actual[3][4] = {};
 
@@ -1036,13 +1036,13 @@ TEST_F(dmGraphicsTest, VertexAttributeEngineProvidedData)
         ASSERT_VECF(expected[2], actual[2], 4);
     }
 
-    // Provide a position data channel from the engine
+    // Provide a single position data channel from the engine
     {
         float position_values[] = {2.1, 2.2, 2.3};
         float expected[3][4] = {
-            {2.1, 2.2, 2.3, 1.0},
-            {2.1, 2.2, 2.3, 1.0},
-            {2.1, 2.2, 2.3, 1.0},
+            {  2.1,  2.2,  2.3,  1.0 },
+            { -1.1, -1.2, -1.3, -1.4 },
+            {  0.0,  0.0,  0.0,  1.0 }, // <- the attribute has no data source, so it will be constructed with a 1.0 as W!
         };
         float actual[3][4] = {};
 
@@ -1065,7 +1065,7 @@ TEST_F(dmGraphicsTest, VertexAttributeEngineProvidedData)
         float expected[3][4] = {
             {2.1, 2.2, 2.3, 1.0},
             {3.1, 3.2, 3.3, 1.0}, // <- this has changed
-            {2.1, 2.2, 2.3, 1.0},
+            {0.0, 0.0, 0.0, 1.0 }, // <- the attribute has no data source, so it will be constructed with a 1.0 as W!
         };
         float actual[3][4] = {};
 
