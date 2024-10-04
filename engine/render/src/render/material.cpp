@@ -29,54 +29,6 @@ namespace dmRender
 {
     using namespace dmVMath;
 
-    static dmGraphics::VertexAttribute::SemanticType GetAttributeSemanticType(dmhash_t from_hash)
-    {
-        if      (from_hash == VERTEX_STREAM_POSITION)      return dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION;
-        else if (from_hash == VERTEX_STREAM_TEXCOORD0)     return dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD;
-        else if (from_hash == VERTEX_STREAM_TEXCOORD1)     return dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD;
-        else if (from_hash == VERTEX_STREAM_COLOR)         return dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR;
-        else if (from_hash == VERTEX_STREAM_PAGE_INDEX)    return dmGraphics::VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX;
-        else if (from_hash == VERTEX_STREAM_NORMAL)        return dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL;
-        else if (from_hash == VERTEX_STREAM_TANGENT)       return dmGraphics::VertexAttribute::SEMANTIC_TYPE_TANGENT;
-        else if (from_hash == VERTEX_STREAM_WORLD_MATRIX)  return dmGraphics::VertexAttribute::SEMANTIC_TYPE_WORLD_MATRIX;
-        else if (from_hash == VERTEX_STREAM_NORMAL_MATRIX) return dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL_MATRIX;
-        return dmGraphics::VertexAttribute::SEMANTIC_TYPE_NONE;
-    }
-
-    // This is just a default setting, you can still specify a world matrix as a non-instanced attribute
-    static inline dmGraphics::VertexStepFunction GetAttributeVertexStepFunction(dmGraphics::VertexAttribute::SemanticType semantic_type)
-    {
-        if (semantic_type == dmGraphics::VertexAttribute::SEMANTIC_TYPE_WORLD_MATRIX ||
-            semantic_type == dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL_MATRIX)
-        {
-            return dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE;
-        }
-        return dmGraphics::VERTEX_STEP_FUNCTION_VERTEX;
-    }
-
-    static inline dmGraphics::VertexAttribute::DataType GetAttributeDataType(dmGraphics::Type from_type)
-    {
-        switch(from_type)
-        {
-            case dmGraphics::TYPE_FLOAT:
-            case dmGraphics::TYPE_FLOAT_VEC2:
-            case dmGraphics::TYPE_FLOAT_VEC3:
-            case dmGraphics::TYPE_FLOAT_VEC4:
-            case dmGraphics::TYPE_FLOAT_MAT2:
-            case dmGraphics::TYPE_FLOAT_MAT3:
-            case dmGraphics::TYPE_FLOAT_MAT4:     return dmGraphics::VertexAttribute::TYPE_FLOAT;
-            case dmGraphics::TYPE_BYTE:           return dmGraphics::VertexAttribute::TYPE_BYTE;
-            case dmGraphics::TYPE_UNSIGNED_BYTE:  return dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE;
-            case dmGraphics::TYPE_SHORT:          return dmGraphics::VertexAttribute::TYPE_SHORT;
-            case dmGraphics::TYPE_UNSIGNED_SHORT: return dmGraphics::VertexAttribute::TYPE_UNSIGNED_SHORT;
-            case dmGraphics::TYPE_INT:            return dmGraphics::VertexAttribute::TYPE_INT;
-            case dmGraphics::TYPE_UNSIGNED_INT:   return dmGraphics::VertexAttribute::TYPE_UNSIGNED_INT;
-            default: assert(0 && "Type not supported");
-        }
-
-        return (dmGraphics::VertexAttribute::DataType) -1;
-    }
-
     static inline dmGraphics::VertexAttribute::VectorType GetAttributeVectorType(dmGraphics::Type from_type)
     {
         switch(from_type)
@@ -98,6 +50,65 @@ namespace dmRender
         }
 
         return (dmGraphics::VertexAttribute::VectorType) -1;
+    }
+
+    static void SetVertexAttributeDefaultSettings(dmGraphics::VertexAttribute* attribute, dmhash_t name_hash, dmGraphics::Type graphics_type, uint32_t element_count, bool instancing_supported)
+    {
+        attribute->m_NameHash        = name_hash;
+        attribute->m_DataType        = dmGraphics::VertexAttribute::TYPE_FLOAT;
+        attribute->m_VectorType      = GetAttributeVectorType(graphics_type);
+        attribute->m_ElementCount    = element_count;
+        attribute->m_Normalize       = false;
+        attribute->m_StepFunction    = dmGraphics::VERTEX_STEP_FUNCTION_VERTEX;
+        attribute->m_CoordinateSpace = dmGraphics::COORDINATE_SPACE_WORLD;
+        attribute->m_SemanticType    = dmGraphics::VertexAttribute::SEMANTIC_TYPE_NONE;
+
+        if (name_hash == VERTEX_STREAM_POSITION)
+        {
+            attribute->m_SemanticType    = dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION;
+            attribute->m_CoordinateSpace = dmGraphics::COORDINATE_SPACE_DEFAULT;
+        }
+        else if (name_hash == VERTEX_STREAM_TEXCOORD0 || name_hash == VERTEX_STREAM_TEXCOORD1)
+        {
+            attribute->m_SemanticType    = dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD;
+            attribute->m_CoordinateSpace = dmGraphics::COORDINATE_SPACE_LOCAL;
+        }
+        else if (name_hash == VERTEX_STREAM_COLOR)
+        {
+            attribute->m_SemanticType    = dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR;
+            attribute->m_CoordinateSpace = dmGraphics::COORDINATE_SPACE_LOCAL;
+        }
+        else if (name_hash == VERTEX_STREAM_PAGE_INDEX)
+        {
+            attribute->m_SemanticType    = dmGraphics::VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX;
+            attribute->m_CoordinateSpace = dmGraphics::COORDINATE_SPACE_LOCAL;
+        }
+        else if (name_hash == VERTEX_STREAM_NORMAL)
+        {
+            attribute->m_SemanticType    = dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL;
+            attribute->m_CoordinateSpace = dmGraphics::COORDINATE_SPACE_DEFAULT;
+        }
+        else if (name_hash == VERTEX_STREAM_TANGENT)
+        {
+            attribute->m_SemanticType    = dmGraphics::VertexAttribute::SEMANTIC_TYPE_TANGENT;
+            attribute->m_CoordinateSpace = dmGraphics::COORDINATE_SPACE_DEFAULT;
+        }
+        else if (name_hash == VERTEX_STREAM_WORLD_MATRIX)
+        {
+            attribute->m_SemanticType = dmGraphics::VertexAttribute::SEMANTIC_TYPE_WORLD_MATRIX;
+            if (instancing_supported)
+            {
+                attribute->m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE;
+            }
+        }
+        else if (name_hash == VERTEX_STREAM_NORMAL_MATRIX)
+        {
+            attribute->m_SemanticType = dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL_MATRIX;
+            if (instancing_supported)
+            {
+                attribute->m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE;
+            }
+        }
     }
 
     static void CreateVertexDeclarations(dmGraphics::HContext graphics_context, Material* m)
@@ -203,14 +214,7 @@ namespace dmRender
             dmGraphics::GetAttribute(m->m_Program, i, &name_hash, &type, &element_count, &num_values, &location);
 
             dmGraphics::VertexAttribute& vertex_attribute = m->m_VertexAttributes[i];
-            vertex_attribute.m_NameHash        = name_hash;
-            vertex_attribute.m_SemanticType    = GetAttributeSemanticType(name_hash);
-            vertex_attribute.m_DataType        = dmGraphics::VertexAttribute::TYPE_FLOAT;
-            vertex_attribute.m_ElementCount    = element_count;
-            vertex_attribute.m_Normalize       = false;
-            vertex_attribute.m_CoordinateSpace = dmGraphics::COORDINATE_SPACE_WORLD;
-            vertex_attribute.m_VectorType      = GetAttributeVectorType(type);
-            vertex_attribute.m_StepFunction    = instancing_supported ? GetAttributeVertexStepFunction(vertex_attribute.m_SemanticType) : dmGraphics::VERTEX_STEP_FUNCTION_VERTEX;
+            SetVertexAttributeDefaultSettings(&vertex_attribute, name_hash, type, element_count, instancing_supported);
 
             MaterialAttribute& material_attribute = m->m_MaterialAttributes[i];
             material_attribute.m_Location         = location;

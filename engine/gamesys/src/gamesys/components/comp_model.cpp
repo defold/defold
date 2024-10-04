@@ -313,6 +313,11 @@ namespace dmGameSystem
         }
     }
 
+    static inline dmGraphics::CoordinateSpace GetRenderMaterialCoordinateSpace(dmRender::HMaterial material)
+    {
+        return dmRender::GetMaterialVertexSpace(material) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL ? dmGraphics::COORDINATE_SPACE_LOCAL : dmGraphics::COORDINATE_SPACE_WORLD;
+    }
+
     static inline bool IsDefaultStream(dmhash_t name_hash, dmGraphics::VertexAttribute::SemanticType semantic_type, dmGraphics::VertexStepFunction step_function)
     {
         if (step_function == dmGraphics::VERTEX_STEP_FUNCTION_VERTEX)
@@ -434,7 +439,7 @@ namespace dmGameSystem
         }
 
         dmGraphics::VertexAttributeInfos material_infos;
-        FillMaterialAttributeInfos(material, instance_vx_decl, &material_infos);
+        FillMaterialAttributeInfos(material, instance_vx_decl, &material_infos, GetRenderMaterialCoordinateSpace(material));
 
         dmGraphics::VertexAttributeInfos attribute_infos;
         FillAttributeInfos(0, INVALID_DYNAMIC_ATTRIBUTE_INDEX, // Dynamic vertex attributes are not supported yet
@@ -656,7 +661,7 @@ namespace dmGameSystem
         dmGraphics::HVertexDeclaration vx_decl_inst = dmRender::GetVertexDeclaration(material, dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE);
 
         dmGraphics::VertexAttributeInfos material_infos;
-        FillMaterialAttributeInfos(material, vx_decl_vert, &material_infos);
+        FillMaterialAttributeInfos(material, vx_decl_vert, &material_infos, GetRenderMaterialCoordinateSpace(material));
 
         dmGraphics::VertexAttributeInfos attribute_infos;
         FillAttributeInfos(0, INVALID_DYNAMIC_ATTRIBUTE_INDEX, // Dynamic vertex attributes are not supported yet
@@ -1054,7 +1059,7 @@ namespace dmGameSystem
                     ro.m_VertexDeclarations[VX_DECL_INSTANCE_BUFFER] = attribute_rd->m_InstanceVertexDeclaration;
                 }
 
-                FillMaterialAttributeInfos(render_material, attribute_rd->m_InstanceVertexDeclaration, &material_infos);
+                FillMaterialAttributeInfos(render_material, attribute_rd->m_InstanceVertexDeclaration, &material_infos, GetRenderMaterialCoordinateSpace(render_material));
                 FillAttributeInfos(0, INVALID_DYNAMIC_ATTRIBUTE_INDEX, // Dynamic vertex attributes are not supported yet
                             instance_component->m_Resource->m_Materials[material_index].m_Attributes,
                             instance_component->m_Resource->m_Materials[material_index].m_AttributeCount,
@@ -1287,7 +1292,7 @@ namespace dmGameSystem
 
         *vb_begin = vertex_buffer.End() + vb_buffer_padding;
 
-        FillMaterialAttributeInfos(material, vx_decl, material_infos_vertex);
+        FillMaterialAttributeInfos(material, vx_decl, material_infos_vertex, GetRenderMaterialCoordinateSpace(material));
 
         // We need to force the step function to vertex here since we don't support instancing.
         for (int i = 0; i < material_infos_vertex->m_NumInfos; ++i)
