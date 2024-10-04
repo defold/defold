@@ -112,6 +112,11 @@ namespace dmProfileRender
     {
     }
 
+    ProfilerFrame::ProfilerFrame()
+    : m_Time(0)
+    {
+    }
+
     // The RenderProfile contains the current "live" frame and
     // stats used to sort/purge sample items
     struct RenderProfile
@@ -350,10 +355,13 @@ namespace dmProfileRender
         const Area header_area  = GetHeaderArea(display_mode, profiler_area);
         const Area details_area = GetDetailsArea(display_mode, profiler_area, header_area);
 
+        ProfilerFrame empty_frame;
         ProfilerFrame* frame = render_profile->m_ActiveFrame ? render_profile->m_ActiveFrame : render_profile->m_CurrentFrame;
+        frame = frame ? frame : &empty_frame;
+
         std::sort(frame->m_Threads.Begin(), frame->m_Threads.End(), ThreadSortTimePred());
 
-        const uint32_t properties_count  = frame->m_Properties.Size();
+        const uint32_t properties_count  = frame ? frame->m_Properties.Size() : 0;
         const uint32_t extra_lines = 3; // a few extra lines for "Properties" word and offset in top
 
         const Area properties_area    = GetPropertiesArea(display_mode, profiler_area, properties_count + extra_lines);
@@ -366,7 +374,8 @@ namespace dmProfileRender
         params.m_FaceColor   = TITLE_FACE_COLOR;
         params.m_ShadowColor = TITLE_SHADOW_COLOR;
 
-        ProfilerThread* thread = GetSelectedThread(render_profile, frame);
+        ProfilerThread empty_thread;
+        ProfilerThread* thread = frame ? GetSelectedThread(render_profile, frame) : &empty_thread;
 
         uint64_t ticks_per_second   = render_profile->m_TicksPerSecond;
         uint64_t max_frame_time     = render_profile->m_MaxFrameTime;
