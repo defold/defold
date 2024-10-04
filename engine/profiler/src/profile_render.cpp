@@ -361,7 +361,7 @@ namespace dmProfileRender
 
         std::sort(frame->m_Threads.Begin(), frame->m_Threads.End(), ThreadSortTimePred());
 
-        const uint32_t properties_count  = frame ? frame->m_Properties.Size() : 0;
+        const uint32_t properties_count  = frame->m_Properties.Size();
         const uint32_t extra_lines = 3; // a few extra lines for "Properties" word and offset in top
 
         const Area properties_area    = GetPropertiesArea(display_mode, profiler_area, properties_count + extra_lines);
