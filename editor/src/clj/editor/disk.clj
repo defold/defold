@@ -304,19 +304,24 @@
   (disk-availability/push-busy!)
   (future
     (try
-      (let [hook-opts {:output-directory (get bob-options "bundle-output")
+      (let [invoke-bundle-hooks (boolean (some #(= "bundle" %) bob-commands))
+            hook-opts {:output-directory (or (get bob-options "bundle-output")
+                                             (get bob-options "output")
+                                             "build/default")
                        :platform (get bob-options "platform")
-                       :variant (get bob-options "variant")}]
+                       :variant (get bob-options "variant" "release")}]
         (render-reload-progress! (progress/make-indeterminate "Executing bundle hook..."))
-        (if-let [extension-error @(extensions/execute-hook! project
-                                                            :on_bundle_started
-                                                            hook-opts
-                                                            :exception-policy :as-error)]
+        (if-let [extension-error (when invoke-bundle-hooks
+                                   @(extensions/execute-hook! project
+                                                              :on_bundle_started
+                                                              hook-opts
+                                                              :exception-policy :as-error))]
           (try
-            @(extensions/execute-hook! project
-                                       :on_bundle_finished
-                                       (assoc hook-opts :success false)
-                                       :exception-policy :ignore)
+            (when invoke-bundle-hooks
+              @(extensions/execute-hook! project
+                                         :on_bundle_finished
+                                         (assoc hook-opts :success false)
+                                         :exception-policy :ignore))
             (ui/run-later
               (try
                 (handle-bob-error! render-build-error! project (g/make-evaluation-context) {:error extension-error})
@@ -357,13 +362,14 @@
                                                     :render-progress! render-build-progress!
                                                     :evaluation-context evaluation-context
                                                     :log-output-stream log-output-stream)]
-                            @(extensions/execute-hook!
-                               project
-                               :on_bundle_finished
-                               (assoc hook-opts
-                                 :success (not (or (:error result)
-                                                   (:exception result))))
-                               :exception-policy :ignore)
+                            (when invoke-bundle-hooks
+                              @(extensions/execute-hook!
+                                 project
+                                 :on_bundle_finished
+                                 (assoc hook-opts
+                                   :success (not (or (:error result)
+                                                     (:exception result))))
+                                 :exception-policy :ignore))
                             (render-build-progress! progress/done)
                             (ui/run-later
                               (try
