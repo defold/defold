@@ -233,10 +233,10 @@
                                                  Symbol]
                                                 ignored-classes)})
          measure-opts {:bytes true
-                       :meter memory-meter}
-         pair-fn (juxt category-fn #(measure % measure-opts))]
+                       :meter memory-meter}]
      (->> objects
-          (coll/aggregate-into {} pair-fn +)
+          (keep (juxt category-fn #(measure % measure-opts)))
+          (coll/aggregate-into {} +)
           (map coll/flip)
           (sort-by first coll/descending-order)
           (mapv (fn [[byte-size category]]

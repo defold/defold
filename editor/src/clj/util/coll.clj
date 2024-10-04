@@ -251,18 +251,19 @@
               coll))))
 
 (defn aggregate-into
-  "Aggregate a sequence of items into an associative collection. The pair-fn
-  will be called on each item to produce a key-value pair. If it returns nil,
-  we skip the item, otherwise we will look up the key in coll and run the
-  accumulate-fn on the existing value and the value from the key-value pair
-  returned by the pair-fn. The result will be assoc:ed into coll. Optionally, an
-  init value can be specified to use as the first argument to the accumulate-fn
-  when there is no existing value for the key in coll. If init is a function,
-  it will be called with no arguments to produce a new init value when needed."
-  ([coll pair-fn accumulate-fn items]
-   (aggregate-into coll pair-fn accumulate-fn (accumulate-fn) items))
-  ([coll pair-fn accumulate-fn init items]
-   (if (empty? items)
+  "Aggregate a sequence of key-value pairs into an associative collection. For
+  each key-value pair, we will look up the key in coll and run the accumulate-fn
+  on the existing value and the value from the key-value pair. The result will
+  be assoc:ed into coll. Optionally, an init value can be specified to use as
+  the first argument to the accumulate-fn when there is no existing value for
+  the key in coll. If no init value is supplied, the initial value will be
+  obtained by calling the accumulate-fn with no arguments at the start. If init
+  is a function, it will be called for each unseen key to produce an init
+  value for it."
+  ([coll accumulate-fn pairs]
+   (aggregate-into coll accumulate-fn (accumulate-fn) pairs))
+  ([coll accumulate-fn init pairs]
+   (if (empty? pairs)
      coll
      (let [use-transient (supports-transient? coll)
            use-fn-init (fn? init)
@@ -271,18 +272,16 @@
                        (fn lookup-fn [accumulated-by-key key]
                          (let [accumulated (get accumulated-by-key key ::not-found)]
                            (case accumulated
-                             ::not-found (init)
+                             ::not-found (init key)
                              accumulated)))
                        (fn lookup-fn [accumulated-by-key key]
                          (get accumulated-by-key key init)))]
-       (cond-> (reduce (fn [accumulated-by-key item]
-                         (if-some [[key value] (pair-fn item)]
-                           (let [accumulated (lookup-fn accumulated-by-key key)
-                                 accumulated (accumulate-fn accumulated value)]
-                             (assoc-fn accumulated-by-key key accumulated))
-                           accumulated-by-key))
+       (cond-> (reduce (fn [accumulated-by-key [key value]]
+                         (let [accumulated (lookup-fn accumulated-by-key key)
+                               accumulated (accumulate-fn accumulated value)]
+                           (assoc-fn accumulated-by-key key accumulated)))
                        (cond-> coll use-transient transient)
-                       items)
+                       pairs)
                use-transient (-> (persistent!)
                                  (with-meta (meta coll))))))))
 

@@ -514,7 +514,8 @@
   item in the sequence, and is expected to return a [category value] pair.
   Returning nil from the pair-fn will exclude the item from the sum.
   Otherwise, the values will be summed for each category to create the list."
-  (flipped-descending-pairs (coll/aggregate-into {} pair-fn + coll)))
+  (flipped-descending-pairs
+    (coll/aggregate-into {} + (e/keep pair-fn coll))))
 
 (defn cached-output-report
   "Returns a sorted list of what node outputs are in the system cache in the
