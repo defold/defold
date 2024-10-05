@@ -37,6 +37,7 @@
             [editor.html-view :as html-view]
             [editor.icons :as icons]
             [editor.notifications-view :as notifications-view]
+            [editor.os :as os]
             [editor.outline-view :as outline-view]
             [editor.pipeline.bob :as bob]
             [editor.properties-view :as properties-view]
@@ -51,7 +52,6 @@
             [editor.targets :as targets]
             [editor.ui :as ui]
             [editor.ui.updater :as ui.updater]
-            [editor.util :as util]
             [editor.web-profiler :as web-profiler]
             [editor.workspace :as workspace]
             [service.log :as log]
@@ -209,14 +209,14 @@
                                                             console/url-prefix (console/make-request-handler console-view)})
                                    http-server/start!)]
       (ui/add-application-focused-callback! :main-stage app-view/handle-application-focused! app-view changes-view workspace prefs)
-      (app-view/reload-extensions! app-view project :all workspace changes-view prefs)
+      (app-view/reload-extensions! app-view project :all workspace changes-view build-errors-view prefs)
 
       (when updater
         (let [update-link (.lookup root "#update-link")]
           (init-pending-update-indicator! stage update-link project changes-view updater)))
 
       ;; The menu-bar-space element should only be present if the menu-bar element is not.
-      (let [collapse-menu-bar? (and (util/is-mac-os?)
+      (let [collapse-menu-bar? (and (os/is-mac-os?)
                                     (.isUseSystemMenuBar menu-bar))]
         (.setVisible menu-bar-space collapse-menu-bar?)
         (.setManaged menu-bar-space collapse-menu-bar?))

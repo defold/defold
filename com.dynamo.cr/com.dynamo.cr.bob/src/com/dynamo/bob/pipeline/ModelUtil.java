@@ -33,11 +33,13 @@ import java.util.List;
 
 import org.apache.commons.io.IOUtils;
 import org.apache.commons.lang3.ArrayUtils;
+import com.google.protobuf.TextFormat;
 
 import javax.vecmath.Quat4d;
 import javax.vecmath.Tuple3d;
 import javax.vecmath.Tuple4d;
 import javax.vecmath.Vector3d;
+import javax.vecmath.Vector4d;
 
 import com.dynamo.bob.util.MathUtil;
 
@@ -45,6 +47,9 @@ import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.RigUtil;
 import com.dynamo.bob.util.RigUtil.AnimationKey;
 import com.dynamo.proto.DdfMath.Vector3;
+import com.dynamo.proto.DdfMath.Vector3One;
+import com.dynamo.proto.DdfMath.Vector4;
+import com.dynamo.proto.DdfMath.Vector4One;
 import com.dynamo.proto.DdfMath.Transform;
 
 import com.dynamo.bob.pipeline.Modelimporter.Bone;
@@ -91,6 +96,22 @@ public class ModelUtil {
 
     private static Vector3 toDDFVector3(Modelimporter.Vector3 v) {
         return MathUtil.vecmathToDDF(new Vector3d(v.x, v.y, v.z));
+    }
+
+    private static Vector3 toDDFVector3(float[] v) {
+        return MathUtil.vecmathToDDF(v[0], v[1], v[2]);
+    }
+
+    private static Vector4 toDDFVector4(float[] v) {
+        return MathUtil.vecmathToDDF(v[0], v[1], v[2], v[3]);
+    }
+
+    private static Vector4One toDDFVector4One(float[] v) {
+        return MathUtil.vecmathToDDFOne(v[0], v[1], v[2], v[3]);
+    }
+
+    private static Vector3One toDDFVector3One(float[] v) {
+        return MathUtil.vecmathToDDFOne(v[0], v[1], v[2]);
     }
 
     private static Transform toDDFTransform(Modelimporter.Transform transform) {
@@ -328,6 +349,252 @@ public class ModelUtil {
                 break;
             }
         }
+    }
+
+    // Materials
+
+    private static Rig.Sampler loadSampler(Modelimporter.Sampler src) {
+        Rig.Sampler.Builder builder = Rig.Sampler.newBuilder();
+
+        builder.setName(src.name);
+        builder.setIndex(src.index);
+        builder.setMinFilter(src.minFilter);
+        builder.setMagFilter(src.magFilter);
+        builder.setWrapS(src.wrapS);
+        builder.setWrapT(src.wrapT);
+
+        return builder.build();
+    }
+
+    private static Rig.Texture loadTexture(Modelimporter.Texture src) {
+        Rig.Texture.Builder builder = Rig.Texture.newBuilder();
+
+        builder.setName(src.name);
+        builder.setIndex(src.index);
+        if (src.image != null && src.image.uri != null)
+            builder.setPath(src.image.uri);
+        if (src.sampler != null)
+            builder.setSampler(loadSampler(src.sampler));
+
+        return builder.build();
+    }
+
+    private static Rig.TextureTransform loadTextureTransform(Modelimporter.TextureTransform src) {
+        Rig.TextureTransform.Builder builder = Rig.TextureTransform.newBuilder();
+
+        builder.setOffsetX(src.offset[0]);
+        builder.setOffsetY(src.offset[1]);
+        builder.setScaleX(src.scale[0]);
+        builder.setScaleY(src.scale[1]);
+        builder.setRotation(src.rotation);
+        builder.setTexcoord(src.texcoord);
+
+        return builder.build();
+    }
+
+    private static Rig.TextureView loadTextureView(Modelimporter.TextureView src) {
+        Rig.TextureView.Builder builder = Rig.TextureView.newBuilder();
+
+        if (src.texture != null)
+            builder.setTexture(loadTexture(src.texture));
+
+        if (src.transform != null)
+            builder.setTransform(loadTextureTransform(src.transform));
+
+        builder.setTexcoord(src.texcoord);
+        builder.setScale(src.scale);
+        return builder.build();
+    }
+
+    private static Rig.PbrMetallicRoughness loadPbrMetallicRoughness(Modelimporter.PbrMetallicRoughness src) {
+        Rig.PbrMetallicRoughness.Builder builder = Rig.PbrMetallicRoughness.newBuilder();
+
+       if (src.baseColorTexture != null)
+            builder.setBaseColorTexture(loadTextureView(src.baseColorTexture));
+
+       if (src.metallicRoughnessTexture != null)
+            builder.setMetallicRoughnessTexture(loadTextureView(src.metallicRoughnessTexture));
+
+        if (src.baseColorFactor != null)
+            builder.setBaseColorFactor(toDDFVector4One(src.baseColorFactor));
+
+        builder.setMetallicFactor(src.metallicFactor);
+        builder.setRoughnessFactor(src.roughnessFactor);
+
+        return builder.build();
+    }
+
+    private static Rig.PbrSpecularGlossiness loadPbrSpecularGlossiness(Modelimporter.PbrSpecularGlossiness src) {
+        Rig.PbrSpecularGlossiness.Builder builder = Rig.PbrSpecularGlossiness.newBuilder();
+
+       if (src.diffuseTexture != null)
+            builder.setDiffuseTexture(loadTextureView(src.diffuseTexture));
+
+       if (src.specularGlossinessTexture != null)
+            builder.setSpecularGlossinessTexture(loadTextureView(src.specularGlossinessTexture));
+
+        if (src.diffuseFactor != null)
+            builder.setDiffuseFactor(toDDFVector4One(src.diffuseFactor));
+
+        if (src.specularFactor != null)
+            builder.setSpecularFactor(toDDFVector3One(src.specularFactor));
+
+        builder.setGlossinessFactor(src.glossinessFactor);
+
+        return builder.build();
+    }
+
+    private static Rig.Clearcoat loadClearcoat(Modelimporter.Clearcoat src) {
+        Rig.Clearcoat.Builder builder = Rig.Clearcoat.newBuilder();
+
+       if (src.clearcoatTexture != null)
+            builder.setClearcoatTexture(loadTextureView(src.clearcoatTexture));
+
+       if (src.clearcoatRoughnessTexture != null)
+            builder.setClearcoatRoughnessTexture(loadTextureView(src.clearcoatRoughnessTexture));
+
+       if (src.clearcoatNormalTexture != null)
+            builder.setClearcoatNormalTexture(loadTextureView(src.clearcoatNormalTexture));
+
+        builder.setClearcoatFactor(src.clearcoatFactor);
+        builder.setClearcoatRoughnessFactor(src.clearcoatRoughnessFactor);
+
+        return builder.build();
+    }
+
+    private static Rig.Transmission loadTransmission(Modelimporter.Transmission src) {
+        Rig.Transmission.Builder builder = Rig.Transmission.newBuilder();
+        if (src.transmissionTexture != null)
+            builder.setTransmissionTexture(loadTextureView(src.transmissionTexture));
+
+        builder.setTransmissionFactor(src.transmissionFactor);
+        return builder.build();
+    }
+
+    private static Rig.Ior loadIor(Modelimporter.Ior src) {
+        Rig.Ior.Builder builder = Rig.Ior.newBuilder();
+        builder.setIor(src.ior);
+        return builder.build();
+    }
+
+    private static Rig.Specular loadSpecular(Modelimporter.Specular src) {
+        Rig.Specular.Builder builder = Rig.Specular.newBuilder();
+
+       if (src.specularTexture != null)
+            builder.setSpecularTexture(loadTextureView(src.specularTexture));
+
+       if (src.specularColorTexture != null)
+            builder.setSpecularColorTexture(loadTextureView(src.specularColorTexture));
+
+        if (src.specularColorFactor != null)
+            builder.setSpecularColorFactor(toDDFVector3One(src.specularColorFactor));
+
+        builder.setSpecularFactor(src.specularFactor);
+
+        return builder.build();
+    }
+
+    private static Rig.Volume loadVolume(Modelimporter.Volume src) {
+        Rig.Volume.Builder builder = Rig.Volume.newBuilder();
+
+       if (src.thicknessTexture != null)
+            builder.setThicknessTexture(loadTextureView(src.thicknessTexture));
+
+        if (src.attenuationColor != null)
+            builder.setAttenuationColor(toDDFVector3One(src.attenuationColor));
+
+        builder.setThicknessFactor(src.thicknessFactor);
+        builder.setAttenuationDistance(src.attenuationDistance);
+
+        return builder.build();
+    }
+
+    private static Rig.Sheen loadSheen(Modelimporter.Sheen src) {
+        Rig.Sheen.Builder builder = Rig.Sheen.newBuilder();
+
+       if (src.sheenColorTexture != null)
+            builder.setSheenColorTexture(loadTextureView(src.sheenColorTexture));
+
+       if (src.sheenRoughnessTexture != null)
+            builder.setSheenRoughnessTexture(loadTextureView(src.sheenRoughnessTexture));
+
+        if (src.sheenColorFactor != null)
+            builder.setSheenColorFactor(toDDFVector3(src.sheenColorFactor));
+
+        builder.setSheenRoughnessFactor(src.sheenRoughnessFactor);
+
+        return builder.build();
+    }
+
+    private static Rig.EmissiveStrength loadEmissiveStrength(Modelimporter.EmissiveStrength src) {
+        Rig.EmissiveStrength.Builder builder = Rig.EmissiveStrength.newBuilder();
+        builder.setEmissiveStrength(src.emissiveStrength);
+        return builder.build();
+    }
+
+    private static Rig.Iridescence loadIridescence(Modelimporter.Iridescence src) {
+        Rig.Iridescence.Builder builder = Rig.Iridescence.newBuilder();
+
+       if (src.iridescenceTexture != null)
+            builder.setIridescenceTexture(loadTextureView(src.iridescenceTexture));
+
+       if (src.iridescenceThicknessTexture != null)
+            builder.setIridescenceThicknessTexture(loadTextureView(src.iridescenceThicknessTexture));
+
+        builder.setIridescenceFactor(src.iridescenceFactor);
+        builder.setIridescenceIor(src.iridescenceIor);
+        builder.setIridescenceThicknessMin(src.iridescenceThicknessMin);
+        builder.setIridescenceThicknessMax(src.iridescenceThicknessMax);
+
+        return builder.build();
+    }
+
+    public static ArrayList<Rig.Material> loadMaterials(Scene scene) {
+        ArrayList<Rig.Material> materials = new ArrayList<>();
+        for (Modelimporter.Material material : scene.materials) {
+            Rig.Material.Builder materialBuilder = Rig.Material.newBuilder();
+
+            materialBuilder.setName(material.name);
+            materialBuilder.setIndex(material.index);
+            materialBuilder.setIsSkinned(material.isSkinned!=0);
+            materialBuilder.setAlphaCutoff(material.alphaCutoff);
+            materialBuilder.setAlphaMode(Rig.AlphaMode.valueOf(material.alphaMode.getValue()));
+            materialBuilder.setDoubleSided(material.doubleSided);
+            materialBuilder.setUnlit(material.unlit);
+
+            if (material.pbrMetallicRoughness != null)
+                materialBuilder.setPbrMetallicRoughness(loadPbrMetallicRoughness(material.pbrMetallicRoughness));
+            if (material.pbrSpecularGlossiness != null)
+                materialBuilder.setPbrSpecularGlossiness(loadPbrSpecularGlossiness(material.pbrSpecularGlossiness));
+            if (material.clearcoat != null)
+                materialBuilder.setClearcoat(loadClearcoat(material.clearcoat));
+            if (material.transmission != null)
+                materialBuilder.setTransmission(loadTransmission(material.transmission));
+            if (material.ior != null)
+                materialBuilder.setIor(loadIor(material.ior));
+            if (material.specular != null)
+                materialBuilder.setSpecular(loadSpecular(material.specular));
+            if (material.volume != null)
+                materialBuilder.setVolume(loadVolume(material.volume));
+            if (material.sheen != null)
+                materialBuilder.setSheen(loadSheen(material.sheen));
+            if (material.emissiveStrength != null)
+                materialBuilder.setEmissiveStrength(loadEmissiveStrength(material.emissiveStrength));
+            if (material.iridescence != null)
+                materialBuilder.setIridescence(loadIridescence(material.iridescence));
+
+           if (material.normalTexture != null)
+                materialBuilder.setNormalTexture(loadTextureView(material.normalTexture));
+           if (material.occlusionTexture != null)
+                materialBuilder.setOcclusionTexture(loadTextureView(material.occlusionTexture));
+           if (material.emissiveTexture != null)
+                materialBuilder.setEmissiveTexture(loadTextureView(material.emissiveTexture));
+
+            materialBuilder.setEmissiveFactor(toDDFVector3(material.emissiveFactor));
+
+            materials.add(materialBuilder.build());
+        }
+        return materials;
     }
 
     // For editor
@@ -704,7 +971,7 @@ public class ModelUtil {
     public static void loadModels(Scene scene, Rig.MeshSet.Builder meshSetBuilder) {
         ArrayList<Modelimporter.Bone> skeleton = loadSkeleton(scene);
 
-        meshSetBuilder.addAllMaterials(loadMaterialNames(scene));
+        meshSetBuilder.addAllMaterials(loadMaterials(scene));
 
         ArrayList<Rig.Model> models = new ArrayList<>();
         for (Node root : scene.rootNodes) {
@@ -864,6 +1131,46 @@ public class ModelUtil {
             return;
         }
 
+        System.out.printf("--------------------------------\n");
+
+        System.out.printf("Num images: %d\n", scene.images.length);
+        for (Modelimporter.Image image : scene.images)
+        {
+            ModelImporterJni.PrintIndent(1);
+            System.out.printf("-----------------\n");
+            ModelImporterJni.DebugPrintObject(image, 0);
+        }
+
+        System.out.printf("--------------------------------\n");
+
+        System.out.printf("Num Samplers: %d\n", scene.samplers.length);
+        for (Modelimporter.Sampler sampler : scene.samplers)
+        {
+            ModelImporterJni.PrintIndent(1);
+            System.out.printf("-----------------\n");
+            ModelImporterJni.DebugPrintObject(sampler, 0);
+        }
+
+        System.out.printf("--------------------------------\n");
+
+        System.out.printf("Num Textures: %d\n", scene.textures.length);
+        for (Modelimporter.Texture texture : scene.textures)
+        {
+            ModelImporterJni.PrintIndent(1);
+            System.out.printf("-----------------\n");
+            ModelImporterJni.DebugPrintObject(texture, 0);
+        }
+
+        System.out.printf("--------------------------------\n");
+
+        System.out.printf("Num Materials: %d\n", scene.materials.length);
+        for (Modelimporter.Material material : scene.materials)
+        {
+            ModelImporterJni.PrintIndent(1);
+            System.out.printf("-----------------\n");
+            ModelImporterJni.DebugPrintObject(material, 0);
+        }
+
         System.out.printf("--------------------------------------------\n");
         System.out.printf("Scene Models:\n");
 
@@ -879,7 +1186,6 @@ public class ModelUtil {
             System.out.printf("  Scene Node: %s  index: %d  parent: %s\n", node.name, node.index, node.parent != null ? node.parent.name : "");
             ModelImporterJni.DebugPrintTransform(node.local, 3);
         }
-
 
         if (scene.skins.length > 0)
         {

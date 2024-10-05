@@ -55,6 +55,7 @@
             [editor.live-update-settings :as live-update-settings]
             [editor.lsp :as lsp]
             [editor.lua :as lua]
+            [editor.os :as os]
             [editor.pipeline :as pipeline]
             [editor.pipeline.bob :as bob]
             [editor.prefs :as prefs]
@@ -76,7 +77,6 @@
             [editor.types :as types]
             [editor.ui :as ui]
             [editor.url :as url]
-            [editor.util :as util]
             [editor.view :as view]
             [editor.workspace :as workspace]
             [internal.graph.types :as gt]
@@ -86,14 +86,13 @@
             [util.http-server :as http-server]
             [util.profiler :as profiler]
             [util.thread-util :as thread-util])
-  (:import [clojure.lang ExceptionInfo]
-           [com.defold.editor Editor]
+  (:import [com.defold.editor Editor]
            [com.defold.editor UIUtil]
            [com.dynamo.bob Platform]
            [com.dynamo.bob.bundle BundleHelper]
            [com.sun.javafx PlatformUtil]
            [com.sun.javafx.scene NodeHelper]
-           [java.io BufferedReader File IOException OutputStream PipedInputStream PipedOutputStream PrintWriter]
+           [java.io File OutputStream PipedInputStream PipedOutputStream PrintWriter]
            [java.net URL]
            [java.nio.charset StandardCharsets]
            [java.util Collection List]
@@ -110,7 +109,8 @@
            [javafx.scene.paint Color]
            [javafx.scene.shape Ellipse SVGPath]
            [javafx.scene.text Font]
-           [javafx.stage Screen Stage WindowEvent]))
+           [javafx.stage Screen Stage WindowEvent]
+           [org.luaj.vm2 LuaError]))
 
 (set! *warn-on-reflection* true)
 
@@ -1319,12 +1319,11 @@ If you do not specifically require different script states, consider changing th
           render-save-progress! (make-render-task-progress :save-all)
           render-build-progress! (make-render-task-progress :build)
           task-cancelled? (make-task-cancelled-query :build)
-          build-server-headers (native-extensions/get-build-server-headers prefs)
-          bob-args (bob/build-html5-bob-args project prefs)
+          bob-args (bob/build-html5-bob-options project prefs)
           out (start-new-log-pipe!)]
       (build-errors-view/clear-build-errors build-errors-view)
       (disk/async-bob-build! render-reload-progress! render-save-progress! render-build-progress! out task-cancelled?
-                             render-build-error! bob/build-html5-bob-commands bob-args build-server-headers project changes-view
+                             render-build-error! bob/build-html5-bob-commands bob-args project changes-view
                              (fn [successful?]
                                (when successful?
                                  (ui/open-url (format "http://localhost:%d%s/index.html" (http-server/port web-server) bob/html5-url-prefix)))
@@ -2608,14 +2607,13 @@ If you do not specifically require different script states, consider changing th
         render-save-progress! (make-render-task-progress :save-all)
         render-build-progress! (make-render-task-progress :build)
         task-cancelled? (make-task-cancelled-query :build)
-        build-server-headers (native-extensions/get-build-server-headers prefs)
-        bob-args (bob/bundle-bob-args prefs project platform bundle-options)
+        bob-args (bob/bundle-bob-options prefs project platform bundle-options)
         out (start-new-log-pipe!)]
     (when-not (.exists output-directory)
       (fs/create-directories! output-directory))
     (build-errors-view/clear-build-errors build-errors-view)
     (disk/async-bob-build! render-reload-progress! render-save-progress! render-build-progress! out task-cancelled?
-                           render-build-error! bob/bundle-bob-commands bob-args build-server-headers project changes-view
+                           render-build-error! bob/bundle-bob-commands bob-args project changes-view
                            (fn [successful?]
                              (if successful?
                                (if (some-> output-directory .isDirectory)
@@ -2659,7 +2657,7 @@ If you do not specifically require different script states, consider changing th
           platform (:platform-key last-bundle-options)]
       (bundle! main-stage tool-tab-pane changes-view build-errors-view project prefs platform last-bundle-options))))
 
-(defn reload-extensions! [app-view project kind workspace changes-view prefs]
+(defn reload-extensions! [app-view project kind workspace changes-view build-errors-view prefs]
   (extensions/reload!
     project kind
     :reload-resources! (fn reload-resources! []
@@ -2697,9 +2695,41 @@ If you do not specifically require different script states, consider changing th
                             (open-resource app-view prefs workspace project resource)
                             (catch Throwable e (error-reporting/report-exception! e)))
                           (future/complete! f nil))
-                        f))))
+                        f))
+    :invoke-bob! (fn invoke-bob! [options commands evaluation-context]
+                   (let [options (cond-> options
+                                         (not (contains? options "build-server"))
+                                         (assoc "build-server" (native-extensions/get-build-server-url prefs project evaluation-context))
+                                         (not (contains? options "build-server-header"))
+                                         (assoc "build-server-header" (native-extensions/get-build-server-headers prefs)))
+                         main-scene (g/node-value app-view :scene evaluation-context)
+                         tool-tab-pane (g/node-value app-view :tool-tab-pane evaluation-context)
+                         render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
+                         render-reload-progress! (make-render-task-progress :resource-sync)
+                         render-save-progress! (make-render-task-progress :save-all)
+                         render-build-progress! (make-render-task-progress :build)
+                         task-cancelled? (make-task-cancelled-query :build)
+                         out (start-new-log-pipe!)
+                         f (future/make)]
+                     (build-errors-view/clear-build-errors build-errors-view)
+                     (disk/async-bob-build! render-reload-progress!
+                                            render-save-progress!
+                                            render-build-progress!
+                                            out
+                                            task-cancelled?
+                                            render-build-error!
+                                            commands
+                                            options
+                                            project
+                                            changes-view
+                                            (fn [successful]
+                                              (if successful
+                                                (future/complete! f nil)
+                                                (future/fail! f (LuaError. "Bob invocation failed")))
+                                              (.close out)))
+                     f))))
 
-(defn- fetch-libraries [app-view workspace project changes-view prefs]
+(defn- fetch-libraries [app-view workspace project changes-view build-errors-view prefs]
   (let [library-uris (project/project-dependencies project)
         hosts (into #{} (map url/strip-path) library-uris)]
     (if-let [first-unreachable-host (first-where (complement url/reachable?) hosts)]
@@ -2722,28 +2752,28 @@ If you do not specifically require different script states, consider changing th
                   (disk/async-reload! render-install-progress! workspace [] changes-view
                                       (fn [success]
                                         (when success
-                                          (reload-extensions! app-view project :library workspace changes-view prefs)))))))))))))
+                                          (reload-extensions! app-view project :library workspace changes-view build-errors-view prefs)))))))))))))
 
 (handler/defhandler :add-dependency :global
   (enabled? [] (disk-availability/available?))
-  (run [selection app-view workspace project changes-view user-data prefs]
+  (run [selection app-view workspace project changes-view user-data build-errors-view prefs]
        (let [game-project (project/get-resource-node project "/game.project")
              dependencies (game-project/get-setting game-project ["project" "dependencies"])
              dependency-uri (.toURI (URL. (:dep-url user-data)))]
          (when (not-any? (partial = dependency-uri) dependencies)
            (game-project/set-setting! game-project ["project" "dependencies"]
                                       (conj (vec dependencies) dependency-uri))
-           (fetch-libraries app-view workspace project changes-view prefs)))))
+           (fetch-libraries app-view workspace project changes-view build-errors-view prefs)))))
 
 (handler/defhandler :fetch-libraries :global
   (enabled? [] (disk-availability/available?))
-  (run [app-view workspace project changes-view prefs]
-       (fetch-libraries app-view workspace project changes-view prefs)))
+  (run [app-view workspace project changes-view build-errors-view prefs]
+       (fetch-libraries app-view workspace project changes-view build-errors-view prefs)))
 
 (handler/defhandler :reload-extensions :global
   (enabled? [] (disk-availability/available?))
-  (run [app-view project workspace changes-view prefs]
-       (reload-extensions! app-view project :all workspace changes-view prefs)))
+  (run [app-view project workspace changes-view build-errors-view prefs]
+       (reload-extensions! app-view project :all workspace changes-view build-errors-view prefs)))
 
 (defn- ensure-exists-and-open-for-editing! [proj-path app-view changes-view prefs project]
   (let [workspace (project/workspace project)
@@ -2783,7 +2813,7 @@ If you do not specifically require different script states, consider changing th
 
 (def ^:private xdg-desktop-menu-path
   (delay
-    (when (util/is-linux?)
+    (when (os/is-linux?)
       (try
         (process/exec! "which" "xdg-desktop-menu")
         (catch Throwable _)))))

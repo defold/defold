@@ -8,7 +8,7 @@ Build steps:
 
 Example:
 
-    $ PREFIX=$DYNAMO_HOME waf configure --platform=x86_64-win32
+    $ waf configure --platform=x86_64-win32
     $ waf install
 
 It will install to `<defold>\packages\bullet-2.77-x86_64-win32.tar.gz`

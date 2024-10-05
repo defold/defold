@@ -25,6 +25,7 @@
 #include <math.h>
 #include <stdio.h>
 #include <algorithm> // std::sort
+#include <dmsdk/dlib/static_assert.h>
 #include <dmsdk/dlib/math.h>
 #include <dmsdk/dlib/vmath.h>
 #include <dmsdk/dlib/hash.h>
@@ -197,6 +198,40 @@ static const char* GetResultStr(cgltf_result result)
 //  default: return "unknown";
 //  }
 // }
+
+// ******************************************************************************************
+
+// Object cache
+
+template<typename DefoldType, typename CgltfType>
+static void AddToCache(dmHashTable64<void*>* cache, CgltfType* key, DefoldType* obj)
+{
+    if (cache->Full())
+    {
+        uint32_t cap = cache->Capacity() + 256;
+        cache->SetCapacity((cap*3/2), cap);
+    }
+    cache->Put((uintptr_t)key, (void*)obj);
+}
+
+template<typename DefoldType, typename CgltfType>
+static DefoldType* GetFromCache(dmHashTable64<void*>* cache, CgltfType* key)
+{
+    DefoldType** pobj = (DefoldType**)cache->Get((uintptr_t)key);
+    if (!pobj)
+        return 0;
+    return *pobj;
+}
+
+template<typename T>
+static T* AllocStruct(T** ppout)
+{
+    *ppout = new T;
+    memset(*ppout, 0, sizeof(T));
+    return *ppout;
+}
+
+// ******************************************************************************************
 
 
 static float* ReadAccessorFloat(cgltf_accessor* accessor, uint32_t desired_num_components, float default_value, uint32_t* out_count)
@@ -464,7 +499,212 @@ static void LoadNodes(Scene* scene, cgltf_data* gltf_data)
     }
 }
 
-static void LoadMaterials(Scene* scene, cgltf_data* gltf_data)
+static void LoadSamplers(Scene* scene, cgltf_data* gltf_data, dmHashTable64<void*>* cache)
+{
+    InitSize(scene->m_Samplers, gltf_data->samplers_count, gltf_data->samplers_count);
+
+    for (uint32_t i = 0; i < gltf_data->samplers_count; ++i)
+    {
+        cgltf_sampler* gltf_sampler = &gltf_data->samplers[i];
+        Sampler* sampler = &scene->m_Samplers[i];
+        memset(sampler, 0, sizeof(*sampler));
+        sampler->m_Name = CreateObjectName(gltf_sampler, "sampler", i);
+        sampler->m_Index = i;
+
+        sampler->m_MagFilter = gltf_sampler->mag_filter;
+        sampler->m_MinFilter = gltf_sampler->min_filter;
+        sampler->m_WrapS = gltf_sampler->wrap_s;
+        sampler->m_WrapT = gltf_sampler->wrap_t;
+
+        AddToCache(cache, gltf_sampler, sampler);
+    }
+}
+
+static void LoadImages(Scene* scene, cgltf_data* gltf_data, dmHashTable64<void*>* cache)
+{
+    InitSize(scene->m_Images, gltf_data->images_count, gltf_data->images_count);
+
+    for (uint32_t i = 0; i < gltf_data->images_count; ++i)
+    {
+        cgltf_image* gltf_image = &gltf_data->images[i];
+
+        Image* image = &scene->m_Images[i];
+        memset(image, 0, sizeof(*image));
+        image->m_Index = i;
+        image->m_Name = CreateObjectName(gltf_image, "image", i);
+        image->m_Uri = gltf_image->uri ? strdup(gltf_image->uri): 0;
+        image->m_MimeType = gltf_image->mime_type ? strdup(gltf_image->mime_type): 0;
+
+        AddToCache(cache, gltf_image, image);
+    }
+}
+
+static void LoadTextures(Scene* scene, cgltf_data* gltf_data, dmHashTable64<void*>* cache)
+{
+    InitSize(scene->m_Textures, gltf_data->textures_count, gltf_data->textures_count);
+
+    for (uint32_t i = 0; i < gltf_data->textures_count; ++i)
+    {
+        cgltf_texture* gltf_texture = &gltf_data->textures[i];
+
+        Texture* texture = &scene->m_Textures[i];
+        memset(texture, 0, sizeof(*texture));
+        texture->m_Index = i;
+        texture->m_Name = CreateObjectName(gltf_texture, "texture", i);
+        texture->m_Sampler = GetFromCache<Sampler>(cache, gltf_texture->sampler);
+        texture->m_Image = GetFromCache<Image>(cache, gltf_texture->image);
+        texture->m_BasisuImage = GetFromCache<Image>(cache, gltf_texture->basisu_image);
+
+        AddToCache(cache, gltf_texture, texture);
+    }
+}
+
+static void IdentityTransform(TextureTransform* out)
+{
+    out->m_Offset[0] = 0.0f;
+    out->m_Offset[1] = 0.0f;
+    out->m_Scale[0] = 1.0f;
+    out->m_Scale[1] = 1.0f;
+    out->m_Rotation = 0.0f;
+    out->m_Texcoord = -1;
+}
+
+static void LoadTransform(cgltf_texture_transform* in, TextureTransform* out)
+{
+    // KHR_texture_transform
+    // https://github.com/KhronosGroup/glTF/blob/main/extensions/2.0/Khronos/KHR_texture_transform/README.md
+    out->m_Offset[0] = in->offset[0];
+    out->m_Offset[1] = in->offset[1];
+    out->m_Scale[0] = in->scale[0];
+    out->m_Scale[1] = in->scale[1];
+    out->m_Rotation = in->rotation;
+    out->m_Texcoord = in->has_texcoord ? in->texcoord : -1;
+}
+
+static void LoadTextureView(cgltf_texture_view* in, TextureView* out, dmHashTable64<void*>* cache)
+{
+    out->m_Texcoord = in->texcoord;
+    out->m_Scale = in->scale;
+
+    out->m_HasTransform = in->has_transform != 0;
+    if (in->has_transform)
+        LoadTransform(&in->transform, &out->m_Transform);
+    else
+        IdentityTransform(&out->m_Transform);
+
+    out->m_Texture = GetFromCache<Texture>(cache, in->texture);
+}
+
+// Material properties
+
+// a helper to avoid typos and under/overruns
+template<typename T, int N>
+static void CopyArray(T (&src)[N], T (&dst)[N])
+{
+    memcpy(dst, src, sizeof(dst));
+}
+
+static PbrMetallicRoughness* LoadPbrMetallicRoughness(cgltf_pbr_metallic_roughness* in, PbrMetallicRoughness* out, dmHashTable64<void*>* cache)
+{
+    LoadTextureView(&in->base_color_texture, &out->m_BaseColorTexture, cache);
+    LoadTextureView(&in->metallic_roughness_texture, &out->m_MetallicRoughnessTexture, cache);
+
+    CopyArray(in->base_color_factor, out->m_BaseColorFactor);
+
+    out->m_MetallicFactor = in->metallic_factor;
+    out->m_RoughnessFactor = in->roughness_factor;
+    return out;
+}
+
+static PbrSpecularGlossiness* LoadPbrSpecularGlossiness(cgltf_pbr_specular_glossiness* in, PbrSpecularGlossiness* out, dmHashTable64<void*>* cache)
+{
+    LoadTextureView(&in->diffuse_texture, &out->m_DiffuseTexture, cache);
+    LoadTextureView(&in->specular_glossiness_texture, &out->m_SpecularGlossinessTexture, cache);
+
+    CopyArray(in->diffuse_factor, out->m_DiffuseFactor);
+    CopyArray(in->specular_factor, out->m_SpecularFactor);
+
+    out->m_GlossinessFactor = in->glossiness_factor;
+    return out;
+}
+
+static Clearcoat* LoadClearcoat(cgltf_clearcoat* in, Clearcoat* out, dmHashTable64<void*>* cache)
+{
+    LoadTextureView(&in->clearcoat_texture, &out->m_ClearcoatTexture, cache);
+    LoadTextureView(&in->clearcoat_roughness_texture, &out->m_ClearcoatRoughnessTexture, cache);
+    LoadTextureView(&in->clearcoat_normal_texture, &out->m_ClearcoatNormalTexture, cache);
+
+    out->m_ClearcoatFactor = in->clearcoat_factor;
+    out->m_ClearcoatRoughnessFactor = in->clearcoat_roughness_factor;
+    return out;
+}
+
+static Transmission* LoadTransmission(cgltf_transmission* in, Transmission* out, dmHashTable64<void*>* cache)
+{
+    LoadTextureView(&in->transmission_texture, &out->m_TransmissionTexture, cache);
+
+    out->m_TransmissionFactor = in->transmission_factor;
+    return out;
+}
+
+static Ior* LoadIor(cgltf_ior* in, Ior* out, dmHashTable64<void*>* cache)
+{
+    out->m_Ior = in->ior;
+    return out;
+}
+
+static Specular* LoadSpecular(cgltf_specular* in, Specular* out, dmHashTable64<void*>* cache)
+{
+    LoadTextureView(&in->specular_texture, &out->m_SpecularTexture, cache);
+    LoadTextureView(&in->specular_color_texture, &out->m_SpecularColorTexture, cache);
+
+    CopyArray(in->specular_color_factor, out->m_SpecularColorFactor);
+
+    out->m_SpecularFactor = in->specular_factor;
+    return out;
+}
+
+static Volume* LoadVolume(cgltf_volume* in, Volume* out, dmHashTable64<void*>* cache)
+{
+    LoadTextureView(&in->thickness_texture, &out->m_ThicknessTexture, cache);
+
+    CopyArray(in->attenuation_color, out->m_AttenuationColor);
+
+    out->m_ThicknessFactor = in->thickness_factor;
+    out->m_AttenuationDistance = in->attenuation_distance;
+    return out;
+}
+
+static Sheen* LoadSheen(cgltf_sheen* in, Sheen* out, dmHashTable64<void*>* cache)
+{
+    LoadTextureView(&in->sheen_color_texture, &out->m_SheenColorTexture, cache);
+    LoadTextureView(&in->sheen_roughness_texture, &out->m_SheenRoughnessTexture, cache);
+
+    CopyArray(in->sheen_color_factor, out->m_SheenColorFactor);
+
+    out->m_SheenRoughnessFactor = in->sheen_roughness_factor;
+    return out;
+}
+
+static EmissiveStrength* LoadEmissiveStrength(cgltf_emissive_strength* in, EmissiveStrength* out, dmHashTable64<void*>* cache)
+{
+    out->m_EmissiveStrength = in->emissive_strength;
+    return out;
+}
+
+static Iridescence* LoadIridescence(cgltf_iridescence* in, Iridescence* out, dmHashTable64<void*>* cache)
+{
+    LoadTextureView(&in->iridescence_texture, &out->m_IridescenceTexture, cache);
+    LoadTextureView(&in->iridescence_thickness_texture, &out->m_IridescenceThicknessTexture, cache);
+
+    out->m_IridescenceFactor = in->iridescence_factor;
+    out->m_IridescenceIor = in->iridescence_ior;
+    out->m_IridescenceThicknessMin = in->iridescence_thickness_min;
+    out->m_IridescenceThicknessMax = in->iridescence_thickness_max;
+    return out;
+}
+
+static void LoadMaterials(Scene* scene, cgltf_data* gltf_data, dmHashTable64<void*>* cache)
 {
     InitSize(scene->m_Materials, gltf_data->materials_count, gltf_data->materials_count);
 
@@ -472,127 +712,41 @@ static void LoadMaterials(Scene* scene, cgltf_data* gltf_data)
     {
         cgltf_material* gltf_material = &gltf_data->materials[i];
         Material* material = &scene->m_Materials[i];
+        memset(material, 0, sizeof(*material));
+
         material->m_Name = CreateObjectName(gltf_material, "material", i);
         material->m_Index = i;
 
-        // todo: load properties
-        // todo: what is "material mappings"?
-        // todo: and how is the material variant used?
+        // a helper to avoid typos
+#define LOADPROP(DNAME, GNAME) \
+        if (gltf_material->has_ ## GNAME) \
+        { \
+            Load ## DNAME (&gltf_material-> GNAME, AllocStruct(&material->m_ ## DNAME), cache); \
+        }
 
-// typedef struct cgltf_pbr_metallic_roughness
-// {
-//     cgltf_texture_view base_color_texture;
-//     cgltf_texture_view metallic_roughness_texture;
+        LOADPROP(PbrMetallicRoughness, pbr_metallic_roughness);
+        LOADPROP(PbrSpecularGlossiness, pbr_specular_glossiness);
+        LOADPROP(Clearcoat, clearcoat);
+        LOADPROP(Transmission, transmission);
+        LOADPROP(Ior, ior);
+        LOADPROP(Specular, specular);
+        LOADPROP(Volume, volume);
+        LOADPROP(Sheen, sheen);
+        LOADPROP(EmissiveStrength, emissive_strength);
+        LOADPROP(Iridescence, iridescence);
 
-//     cgltf_float base_color_factor[4];
-//     cgltf_float metallic_factor;
-//     cgltf_float roughness_factor;
-// } cgltf_pbr_metallic_roughness;
+#undef LOADPROP
 
-// typedef struct cgltf_pbr_specular_glossiness
-// {
-//     cgltf_texture_view diffuse_texture;
-//     cgltf_texture_view specular_glossiness_texture;
+        LoadTextureView(&gltf_material->normal_texture, &material->m_NormalTexture, cache);
+        LoadTextureView(&gltf_material->occlusion_texture, &material->m_OcclusionTexture, cache);
+        LoadTextureView(&gltf_material->emissive_texture, &material->m_EmissiveTexture, cache);
 
-//     cgltf_float diffuse_factor[4];
-//     cgltf_float specular_factor[3];
-//     cgltf_float glossiness_factor;
-// } cgltf_pbr_specular_glossiness;
+        CopyArray(gltf_material->emissive_factor, material->m_EmissiveFactor);
 
-// typedef struct cgltf_clearcoat
-// {
-//     cgltf_texture_view clearcoat_texture;
-//     cgltf_texture_view clearcoat_roughness_texture;
-//     cgltf_texture_view clearcoat_normal_texture;
-
-//     cgltf_float clearcoat_factor;
-//     cgltf_float clearcoat_roughness_factor;
-// } cgltf_clearcoat;
-
-// typedef struct cgltf_transmission
-// {
-//     cgltf_texture_view transmission_texture;
-//     cgltf_float transmission_factor;
-// } cgltf_transmission;
-
-// typedef struct cgltf_ior
-// {
-//     cgltf_float ior;
-// } cgltf_ior;
-
-//         cgltf_bool double_sided;
-//         cgltf_bool unlit;
-
-
-//         // cgltf_bool has_pbr_metallic_roughness;
-//         // cgltf_bool has_pbr_specular_glossiness;
-//         // cgltf_bool has_clearcoat;
-//         // cgltf_bool has_transmission;
-//         // cgltf_bool has_volume;
-//         // cgltf_bool has_ior;
-//         // cgltf_bool has_specular;
-//         // cgltf_bool has_sheen;
-//         // cgltf_bool has_emissive_strength;
-
-//         // cgltf_pbr_metallic_roughness pbr_metallic_roughness;
-//         // cgltf_pbr_specular_glossiness pbr_specular_glossiness;
-//         // cgltf_clearcoat clearcoat;
-//         // cgltf_ior ior;
-//         // cgltf_specular specular;
-//         // cgltf_sheen sheen;
-//         // cgltf_transmission transmission;
-//         // cgltf_volume volume;
-//         // cgltf_emissive_strength emissive_strength;
-//         // cgltf_texture_view normal_texture;
-//         // cgltf_texture_view occlusion_texture;
-//         // cgltf_texture_view emissive_texture;
-//         // cgltf_float emissive_factor[3];
-//         // cgltf_alpha_mode alpha_mode;
-//         // cgltf_float alpha_cutoff;
-//         // cgltf_bool double_sided;
-//         // cgltf_bool unlit;
-
-//         // todo: extensions
-
-//         // cgltf_size extensions_count;
-//         // cgltf_extension* extensions;
-
-// typedef struct cgltf_material
-// {
-//     char* name;
-//     cgltf_bool has_pbr_metallic_roughness;
-//     cgltf_bool has_pbr_specular_glossiness;
-//     cgltf_bool has_clearcoat;
-//     cgltf_bool has_transmission;
-//     cgltf_bool has_volume;
-//     cgltf_bool has_ior;
-//     cgltf_bool has_specular;
-//     cgltf_bool has_sheen;
-//     cgltf_bool has_emissive_strength;
-//     cgltf_bool has_iridescence;
-//     cgltf_pbr_metallic_roughness pbr_metallic_roughness;
-//     cgltf_pbr_specular_glossiness pbr_specular_glossiness;
-//     cgltf_clearcoat clearcoat;
-//     cgltf_ior ior;
-//     cgltf_specular specular;
-//     cgltf_sheen sheen;
-//     cgltf_transmission transmission;
-//     cgltf_volume volume;
-//     cgltf_emissive_strength emissive_strength;
-//     cgltf_iridescence iridescence;
-//     cgltf_texture_view normal_texture;
-//     cgltf_texture_view occlusion_texture;
-//     cgltf_texture_view emissive_texture;
-//     cgltf_float emissive_factor[3];
-//     cgltf_alpha_mode alpha_mode;
-//     cgltf_float alpha_cutoff;
-//     cgltf_bool double_sided;
-//     cgltf_bool unlit;
-//     cgltf_extras extras;
-//     cgltf_size extensions_count;
-//     cgltf_extension* extensions;
-// } cgltf_material;
-
+        material->m_AlphaCutoff = gltf_material->alpha_cutoff;
+        material->m_AlphaMode = (AlphaMode)gltf_material->alpha_mode;
+        material->m_DoubleSided = gltf_material->double_sided != 0;
+        material->m_Unlit = gltf_material->unlit != 0;
     }
 }
 
@@ -1388,9 +1542,13 @@ bool HasUnresolvedBuffers(Scene* scene)
 
 static void LoadScene(Scene* scene, cgltf_data* data)
 {
+    dmHashTable64<void*> cache;
     LoadSkins(scene, data);
     LoadNodes(scene, data);
-    LoadMaterials(scene, data);
+    LoadSamplers(scene, data, &cache);
+    LoadImages(scene, data, &cache);
+    LoadTextures(scene, data, &cache);
+    LoadMaterials(scene, data, &cache);
     LoadMeshes(scene, data);
     LinkNodesWithBones(scene, data);
     LinkMeshesWithNodes(scene, data);

@@ -195,19 +195,18 @@ def build_engine(platform, channel, with_valgrind = False, with_asan = False, wi
                 with_vanilla_lua = False, skip_tests = False, skip_build_tests = False, skip_codesign = True,
                 skip_docs = False, skip_builtins = False, archive = False):
 
-    install_sdk = ''
-    if not platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios'):
+    # for some platforms, we use the locally installed platform sdk
+    if platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios', 'js-web', 'wasm-web'):
+        install_sdk = ''
+    else:
         install_sdk = 'install_sdk'
 
-    args = ('python scripts/build.py distclean %s install_ext' % install_sdk).split()
+    args = ('python scripts/build.py distclean %s install_ext check_sdk' % install_sdk).split()
 
     opts = []
     waf_opts = []
 
     opts.append('--platform=%s' % platform)
-
-    if platform == 'js-web' or platform == 'wasm-web':
-        args.append('install_ems')
 
     args.append('build_engine')
 

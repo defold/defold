@@ -17,6 +17,7 @@ package com.dynamo.bob.pipeline;
 import static org.junit.Assert.assertEquals;
 import java.util.List;
 
+import com.dynamo.graphics.proto.Graphics;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -27,6 +28,72 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
     @Before
     public void setup() {
         addTestFiles();
+    }
+
+    private void addAttribute(StringBuilder src, String name, int elementCount, Graphics.VertexAttribute.SemanticType semanticType) {
+        String nameEscaped = "\"" + name + "\"";
+        src.append("attributes {");
+        src.append("    name: ").append(nameEscaped);
+        src.append("    element_count: ").append(elementCount);
+        if (semanticType != Graphics.VertexAttribute.SemanticType.SEMANTIC_TYPE_NONE) {
+            src.append("    semantic_type: " + semanticType);
+        }
+        src.append("    double_values {");
+        for (int i=0; i < elementCount; i++) {
+            src.append("        v: 1.0");
+        }
+        src.append("    }");
+        src.append("}");
+    }
+
+    private void addAttribute(StringBuilder src, int elementCount) {
+        addAttribute(src, "ele_count_" + elementCount, elementCount, Graphics.VertexAttribute.SemanticType.SEMANTIC_TYPE_NONE);
+    }
+
+    private void assertAttribute(Graphics.VertexAttribute attribute, String name, Graphics.VertexAttribute.VectorType vectorType) {
+        assertEquals(name, attribute.getName());
+        assertEquals(vectorType, attribute.getVectorType());
+    }
+
+    @Test
+    public void testMigrateVertexAttributes() throws Exception {
+        addFile("/test_migrate_vx_attributes.material", "");
+        addFile("/test_migrate_vx_attributes.vp", "");
+        addFile("/test_migrate_vx_attributes.fp", "");
+
+        StringBuilder srcShader = new StringBuilder();
+        srcShader.append("void main() {}\n");
+
+        build("/test_migrate_vx_attributes.vp", srcShader.toString());
+        build("/test_migrate_vx_attributes.fp", srcShader.toString());
+
+        StringBuilder src = new StringBuilder();
+        src.append("name: \"test_material\"\n");
+        src.append("vertex_program: \"/test_migrate_vx_attributes.vp\"\n");
+        src.append("fragment_program: \"/test_migrate_vx_attributes.fp\"\n");
+
+        addAttribute(src, 1);
+        addAttribute(src, 2);
+        addAttribute(src, 3);
+        addAttribute(src, 4);
+        addAttribute(src, 9);
+        addAttribute(src, 16);
+
+        addAttribute(src, "ele_count_4_normal", 4, Graphics.VertexAttribute.SemanticType.SEMANTIC_TYPE_NORMAL_MATRIX);
+        addAttribute(src, "ele_count_4_world", 4, Graphics.VertexAttribute.SemanticType.SEMANTIC_TYPE_WORLD_MATRIX);
+
+        MaterialDesc material = (MaterialDesc) build("/test_migrate_vx_attributes.material", src.toString()).get(0);
+        assertEquals(8, material.getAttributesCount());
+
+        assertAttribute(material.getAttributes(0), "ele_count_1", Graphics.VertexAttribute.VectorType.VECTOR_TYPE_SCALAR);
+        assertAttribute(material.getAttributes(1), "ele_count_2", Graphics.VertexAttribute.VectorType.VECTOR_TYPE_VEC2);
+        assertAttribute(material.getAttributes(2), "ele_count_3", Graphics.VertexAttribute.VectorType.VECTOR_TYPE_VEC3);
+        assertAttribute(material.getAttributes(3), "ele_count_4", Graphics.VertexAttribute.VectorType.VECTOR_TYPE_VEC4);
+        assertAttribute(material.getAttributes(4), "ele_count_9", Graphics.VertexAttribute.VectorType.VECTOR_TYPE_MAT3);
+        assertAttribute(material.getAttributes(5), "ele_count_16", Graphics.VertexAttribute.VectorType.VECTOR_TYPE_MAT4);
+
+        assertAttribute(material.getAttributes(6), "ele_count_4_normal", Graphics.VertexAttribute.VectorType.VECTOR_TYPE_MAT2);
+        assertAttribute(material.getAttributes(7), "ele_count_4_world", Graphics.VertexAttribute.VectorType.VECTOR_TYPE_MAT2);
     }
 
     @Test

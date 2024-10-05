@@ -234,7 +234,7 @@ namespace dmEngine
     , m_GuiScriptContext(0x0)
     , m_Factory(0x0)
     , m_SystemSocket(0x0)
-    , m_SystemFontMap(0x0)
+    , m_SystemFont(0x0)
     , m_HidContext(0x0)
     , m_InputContext(0x0)
     , m_GameInputBinding(0x0)
@@ -1789,7 +1789,7 @@ bail:
             }
 
 #if !defined(DM_RELEASE)
-            dmProfiler::RenderProfiler(profile, engine->m_GraphicsContext, engine->m_RenderContext, engine->m_SystemFontMap);
+            dmProfiler::RenderProfiler(profile, engine->m_GraphicsContext, engine->m_RenderContext, ResFontGetHandle(engine->m_SystemFont));
 #endif
             // Call post render functions for extensions, if available.
             // We do it here at the end of the frame (before swap buffers/flip)
@@ -2099,13 +2099,13 @@ bail:
         dmResource::Result fact_error;
 #if !defined(DM_RELEASE)
         const char* system_font_map = "/builtins/fonts/debug/always_on_top.fontc";
-        fact_error = dmResource::Get(engine->m_Factory, system_font_map, (void**) &engine->m_SystemFontMap);
+        fact_error = dmResource::Get(engine->m_Factory, system_font_map, (void**) &engine->m_SystemFont);
         if (fact_error != dmResource::RESULT_OK)
         {
             dmLogFatal("Could not load system font map '%s'.", system_font_map);
             return false;
         }
-        dmRender::SetSystemFontMap(engine->m_RenderContext, engine->m_SystemFontMap);
+        dmRender::SetSystemFontMap(engine->m_RenderContext, ResFontGetHandle(engine->m_SystemFont));
 #endif
         // The system font is currently the only resource we need from the connection app
         // After this point, the rest of the resources should be loaded the ordinary way
@@ -2151,8 +2151,8 @@ bail:
     {
         if (engine->m_RenderScriptPrototype)
             dmResource::Release(engine->m_Factory, engine->m_RenderScriptPrototype);
-        if (engine->m_SystemFontMap)
-            dmResource::Release(engine->m_Factory, engine->m_SystemFontMap);
+        if (engine->m_SystemFont)
+            dmResource::Release(engine->m_Factory, engine->m_SystemFont);
         if (engine->m_GameInputBinding)
             dmResource::Release(engine->m_Factory, engine->m_GameInputBinding);
         if (engine->m_DisplayProfiles)
