@@ -1759,6 +1759,10 @@ public class Project {
         // tasks, the dependent tasks will be tried forever. It should be solved
         // by marking all dependent tasks as failed instead of this flag.
         boolean taskFailed = false;
+        // this flag needed to know if at least one file were built or was taken from cache
+        // it's needed to know if GameProjectBuilder.build() (a builder for `game.project`)
+        // needs to be run
+        boolean buildContainsChanges = false;
 run:
         while (completedTasks.size() < buildTasks.size()) {
             for (Task task : buildTasks) {
@@ -1800,8 +1804,10 @@ run:
                     }
                 }
                 TimeProfiler.stop();
-
-                boolean shouldRun = (!allOutputExists || !allSigsEquals) && !completedTasks.contains(task);
+                // game.project is always last task
+                boolean isLastTask = completedTasks.size() + 1 == buildTasks.size();
+                boolean shouldRun = !completedTasks.contains(task);
+                shouldRun = shouldRun && (!allOutputExists || !allSigsEquals || (isLastTask && buildContainsChanges));
 
                 if (!shouldRun) {
                     if (allOutputExists && allSigsEquals)
@@ -1873,6 +1879,7 @@ run:
                         }
                     }
                     monitor.worked(1);
+                    buildContainsChanges = true;
 
                     for (IResource r : outputResources) {
                         if (!r.exists()) {
