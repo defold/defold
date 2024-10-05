@@ -1759,9 +1759,9 @@ public class Project {
         // tasks, the dependent tasks will be tried forever. It should be solved
         // by marking all dependent tasks as failed instead of this flag.
         boolean taskFailed = false;
-        // this flag needed to know if at least one file were built or was taken from cache
-        // it's needed to know if GameProjectBuilder.build() (a builder for `game.project`)
-        // needs to be run
+        // This flag is needed to determine if at least one file was built or taken from the cache.
+        // It is used to know whether GameProjectBuilder.build() (the builder for `game.project`)
+        // needs to be executed.
         boolean buildContainsChanges = false;
 run:
         while (completedTasks.size() < buildTasks.size()) {
