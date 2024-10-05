@@ -979,6 +979,7 @@ namespace dmGameSystem
                 // we need to cater for that as well.
                 if (has_custom_attributes)
                 {
+                    uint32_t material_index = render_item->m_MaterialIndex;
                     dmGraphics::VertexAttributeInfos attribute_infos;
                     FillAttributeInfos(0, INVALID_DYNAMIC_ATTRIBUTE_INDEX, // Not supported yet
                         c->m_Resource->m_Model->m_Materials[material_index].m_Attributes.m_Data,
