@@ -1808,7 +1808,11 @@ run:
                 // game.project is always the last task
                 boolean isLastTask = completedTasks.size() + 1 == buildTasks.size();
                 boolean shouldRun = !completedTasks.contains(task);
-                shouldRun = shouldRun && (!allOutputExists || !allSigsEquals || (isLastTask && buildContainsChanges));
+                // GameProjectBuilder creates archives, and it is always the last task.
+                // If for some reason it's not, something went wrong, and the build pipeline is broken.
+                // But some tests may run build for some particular files without building game.project at all.
+                shouldRun = shouldRun && (!allOutputExists || !allSigsEquals ||
+                            (isLastTask && buildContainsChanges && (task.getBuilder() instanceof GameProjectBuilder)));
 
                 if (!shouldRun) {
                     if (allOutputExists && allSigsEquals)
@@ -1822,11 +1826,6 @@ run:
 
                     monitor.worked(1);
                     continue;
-                }
-                if (isLastTask && !(task.getBuilder() instanceof GameProjectBuilder)) {
-                    // GameProjectBuilder creates archives, and it is always the last task.
-                    // If for some reason it's not, something went wrong, and the build pipeline is broken.
-                    throw new CompileExceptionError("The last task must be GameProjectBuilder task!");
                 }
 
                 TimeProfiler.start(task.getName());
