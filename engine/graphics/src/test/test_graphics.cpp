@@ -1344,6 +1344,8 @@ TEST_F(dmGraphicsTest, TestTexture)
     dmGraphics::DeleteTexture(texture);
 }
 
+#if defined(DM_HAS_THREADS)
+
 static void TestTextureAsyncCallback(dmGraphics::HTexture texture, void* user_data)
 {
     assert(dmGraphics::GetOpaqueHandle(texture) != INVALID_OPAQUE_HANDLE);
@@ -1544,6 +1546,7 @@ TEST_F(dmGraphicsTest, TestTextureAsyncDelete)
 
     m_NullContext->m_UseAsyncTextureLoad = tmp_async_load;
 }
+#endif // DM_HAS_THREADS
 
 TEST_F(dmGraphicsSynchronousTest, TestSetTextureBounds)
 {

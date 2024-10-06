@@ -145,6 +145,12 @@ class ArchiveProviderZip : public jc_test_params_class<ZipParams>
 protected:
     virtual void SetUp()
     {
+#if defined(__EMSCRIPTEN__)
+        // Trigger the vsf init for emscripten (hidden in MakeHostPath)
+        char path[1024];
+        dmTestUtil::MakeHostPath(path, sizeof(path), "src");
+#endif
+
         const ZipParams& params = GetParam();
 
         m_Loader = dmResourceProvider::FindLoaderByName(dmHashString64("zip"));
@@ -252,9 +258,16 @@ TEST_P(ArchiveProviderZip, ReadFile)
     }
 }
 
+#define FSPREFIX ""
+#if defined(__EMSCRIPTEN__)
+    #undef FSPREFIX
+    #define FSPREFIX DM_HOSTFS
+#endif
+
+
 ZipParams params_zip_archives[] = {
-    {"zip:build/src/test/luresources.zip", true},
-    {"zip:build/src/test/luresources_compressed.zip", false},
+    {"zip:" FSPREFIX "build/src/test/luresources.zip", true},
+    {"zip:" FSPREFIX "build/src/test/luresources_compressed.zip", false},
 };
 
 INSTANTIATE_TEST_CASE_P(ArchiveProviderZipTest, ArchiveProviderZip, jc_test_values_in(params_zip_archives));
