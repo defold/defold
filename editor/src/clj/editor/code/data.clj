@@ -591,8 +591,7 @@
         line-count (count lines)
         scroll-x (limit-scroll (- canvas-rect-width ^double document-width) scroll-x)
         scroll-y (limit-scroll (- ^double canvas-height (* line-height line-count)) scroll-y)
-        ;; An extra line is needed for the horizontal scroll bar.
-        dropped-line-count (+ 1 (long (/ scroll-y (- line-height))))
+        dropped-line-count (long (/ scroll-y (- line-height)))
         scroll-y-remainder (double (mod scroll-y (- line-height)))
         drawn-line-count (long (Math/ceil (/ ^double (- ^double canvas-height scroll-y-remainder) line-height)))
         line-numbers-rect (->Rect ^double gutter-margin 0.0 (- ^double gutter-width (* 2.0 ^double gutter-margin)) canvas-height)
