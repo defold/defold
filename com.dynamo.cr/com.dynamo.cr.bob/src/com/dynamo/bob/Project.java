@@ -70,6 +70,7 @@ import com.dynamo.bob.fs.FileSystemWalker;
 import com.dynamo.bob.fs.IFileSystem;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ZipMountPoint;
+import com.dynamo.bob.pipeline.GameProjectBuilder;
 import com.dynamo.bob.plugin.PluginScanner;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -1725,7 +1726,7 @@ public class Project {
 
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
-    private List<TaskResult> runTasks(IProgress monitor) throws IOException {
+    private List<TaskResult> runTasks(IProgress monitor) throws IOException, CompileExceptionError {
         // set of all completed tasks. The set includes both task run
         // in this session and task already completed (output already exists with correct signatures, see below)
         // the set also contains failed tasks
@@ -1804,7 +1805,7 @@ run:
                     }
                 }
                 TimeProfiler.stop();
-                // game.project is always last task
+                // game.project is always the last task
                 boolean isLastTask = completedTasks.size() + 1 == buildTasks.size();
                 boolean shouldRun = !completedTasks.contains(task);
                 shouldRun = shouldRun && (!allOutputExists || !allSigsEquals || (isLastTask && buildContainsChanges));
@@ -1821,6 +1822,11 @@ run:
 
                     monitor.worked(1);
                     continue;
+                }
+                if (isLastTask && !(task.getBuilder() instanceof GameProjectBuilder)) {
+                    // GameProjectBuilder creates archives, and it is always the last task.
+                    // If for some reason it's not, something went wrong, and the build pipeline is broken.
+                    throw new CompileExceptionError("The last task must be GameProjectBuilder task!");
                 }
 
                 TimeProfiler.start(task.getName());
