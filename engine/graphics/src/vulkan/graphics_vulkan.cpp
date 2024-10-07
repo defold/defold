@@ -4233,14 +4233,6 @@ bail:
         return 0;
     }
 
-    static void VulkanRunApplicationLoop(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running)
-    {
-        while (0 != is_running(user_data))
-        {
-            step_method(user_data);
-        }
-    }
-
     void DestroyPipelineCacheCb(VulkanContext* context, const uint64_t* key, Pipeline* value)
     {
         DestroyPipeline(g_VulkanContext->m_LogicalDevice.m_Device, value);

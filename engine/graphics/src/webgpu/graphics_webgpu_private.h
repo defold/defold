@@ -232,7 +232,6 @@ namespace dmGraphics
         uint32_t            m_PrintDeviceInfo : 1;
         uint32_t            m_ContextFeatures : 3;
         uint32_t            m_ViewportChanged : 1;
-        uint32_t            m_InitComplete : 1;
 
         // StorageBufferBinding             m_CurrentStorageBuffers[MAX_STORAGE_BUFFERS];
     };

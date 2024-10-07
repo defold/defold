@@ -1588,10 +1588,6 @@ namespace dmGraphics
     {
         g_functions.m_ReadPixels(context, buffer, buffer_size);
     }
-    void RunApplicationLoop(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running)
-    {
-        g_functions.m_RunApplicationLoop(user_data, step_method, is_running);
-    }
     HandleResult GetTextureHandle(HTexture texture, void** out_handle)
     {
         return g_functions.m_GetTextureHandle(texture, out_handle);

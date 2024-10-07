@@ -223,14 +223,6 @@ namespace dmGraphics
         }
     }
 
-    static void NullRunApplicationLoop(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running)
-    {
-        while (0 != is_running(user_data))
-        {
-            step_method(user_data);
-        }
-    }
-
     static dmPlatform::HWindow NullGetWindow(HContext _context)
     {
         NullContext* context = (NullContext*) _context;

@@ -32,6 +32,14 @@
 
 #if defined(__EMSCRIPTEN__)
 #include <emscripten/html5.h>
+#include <emscripten/html5_webgpu.h>
+EM_JS(int, WebGPUGetAdapter, (), {
+  return JsValStore.add(Modules.webGPUAdapter);
+});
+
+EM_JS(int, WebGPUGetDevice, (), {
+  return JsValStore.add(Modules.webGPUDevice);
+});
 #endif
 
 #if 0
@@ -39,6 +47,7 @@
 #else
 #define TRACE_CALL
 #endif
+
 
 using namespace dmGraphics;
 using namespace dmVMath;
@@ -93,6 +102,9 @@ static GraphicsAdapter g_webgpu_adapter(ADAPTER_FAMILY_WEBGPU);
 static const int8_t g_webgpu_adapter_priority = 0;
 static WebGPUContext* g_WebGPUContext         = NULL;
 
+static const float SAMPLER_LOAD_MIN_CLAMP = 0.f;
+static const float SAMPLER_LOAD_MAX_CLAMP = 32.f;
+
 DM_REGISTER_GRAPHICS_ADAPTER(GraphicsAdapterWebGPU, &g_webgpu_adapter, WebGPUIsSupported, WebGPURegisterFunctionTable, WebGPUGetContext, g_webgpu_adapter_priority);
 
 static WGPUSampler WebGPUGetOrCreateSampler(WebGPUContext* context, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, float max_anisotropy)
@@ -110,8 +122,8 @@ static WGPUSampler WebGPUGetOrCreateSampler(WebGPUContext* context, TextureFilte
         return *cached_sampler;
 
     WGPUSamplerDescriptor desc = {};
-    desc.lodMinClamp           = 0;
-    desc.lodMaxClamp           = 32;
+    desc.lodMinClamp           = SAMPLER_LOAD_MIN_CLAMP;
+    desc.lodMaxClamp           = SAMPLER_LOAD_MAX_CLAMP;
 
     desc.maxAnisotropy = uint16_t(max_anisotropy);
     desc.addressModeU  = g_webgpu_address_mode[uwrap];
@@ -625,7 +637,7 @@ static WGPURenderPipeline WebGPUGetOrCreateRenderPipeline(WebGPUContext* context
     {
         WebGPUTexture* texture              = GetAssetFromContainer<WebGPUTexture>(context->m_AssetHandleContainer, context->m_CurrentRenderPass.m_Target->m_TextureDepthStencil);
         depthstencil_desc.format            = texture->m_Format;
-        depthstencil_desc.depthWriteEnabled = context->m_CurrentPipelineState.m_WriteDepth;
+        depthstencil_desc.depthWriteEnabled = (WGPUBool)context->m_CurrentPipelineState.m_WriteDepth; // uint64_t -> uint32_t
         depthstencil_desc.depthCompare      = context->m_CurrentPipelineState.m_DepthTestEnabled ? g_webgpu_compare_funcs[context->m_CurrentPipelineState.m_DepthTestFunc] : WGPUCompareFunction_Always;
         if (context->m_CurrentPipelineState.m_StencilEnabled)
         {
@@ -785,53 +797,6 @@ static void WebGPUCreateSwapchain(WebGPUContext* context, uint32_t width, uint32
     }
 }
 
-static void requestDeviceCallback(WGPURequestDeviceStatus status, WGPUDevice device, const char* message, void* userdata)
-{
-    TRACE_CALL;
-    WebGPUContext* context = (WebGPUContext*)userdata;
-    if (device)
-    {
-        context->m_Device = device;
-        wgpuDeviceGetLimits(context->m_Device, &context->m_DeviceLimits);
-        context->m_Queue = wgpuDeviceGetQueue(context->m_Device);
-        {
-            WGPUSurfaceDescriptor surface_desc = {};
-#if defined(__EMSCRIPTEN__)
-            WGPUSurfaceDescriptorFromCanvasHTMLSelector selector = { { surface_desc.nextInChain, WGPUSType_SurfaceDescriptorFromCanvasHTMLSelector }, "#canvas" };
-            surface_desc.nextInChain                             = (WGPUChainedStruct*)&selector;
-#endif
-            context->m_Surface = wgpuInstanceCreateSurface(context->m_Instance, &surface_desc);
-        }
-        context->m_Format = wgpuSurfaceGetPreferredFormat(context->m_Surface, context->m_Adapter);
-        WebGPUCreateSwapchain(context, context->m_OriginalWidth, context->m_OriginalHeight);
-    }
-    else
-    {
-        dmLogError("WebGPU: Unable to create device %s", message);
-        context->m_InitComplete = true;
-    }
-}
-
-static void instanceRequestAdapterCallback(WGPURequestAdapterStatus status, WGPUAdapter adapter, const char* message, void* userdata)
-{
-    TRACE_CALL;
-    WebGPUContext* context = (WebGPUContext*)userdata;
-    if (adapter)
-    {
-        context->m_Adapter = adapter;
-        wgpuAdapterGetLimits(context->m_Adapter, &context->m_AdapterLimits);
-
-        WGPUDeviceDescriptor descriptor = {};
-        wgpuAdapterRequestDevice(context->m_Adapter, &descriptor, requestDeviceCallback, userdata);
-        context->m_InitComplete = true;
-    }
-    else
-    {
-        dmLogError("WebGPU: Unable to create adapter %s", message);
-        context->m_InitComplete = true;
-    }
-}
-
 static bool InitializeWebGPUContext(WebGPUContext* context, const ContextParams& params)
 {
     TRACE_CALL;
@@ -848,17 +813,43 @@ static bool InitializeWebGPUContext(WebGPUContext* context, const ContextParams&
     context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_TEXTURE_ARRAY;
     context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_COMPUTE_SHADER;
 
+    context->m_Instance = wgpuCreateInstance(nullptr);
+    //////////
+    context->m_Adapter = (WGPUAdapter)WebGPUGetAdapter();
+    wgpuAdapterReference(context->m_Adapter);
+    wgpuAdapterGetLimits(context->m_Adapter, &context->m_AdapterLimits);
+
+    context->m_Device = (WGPUDevice)WebGPUGetDevice();
+    wgpuDeviceReference(context->m_Device);
+    wgpuDeviceGetLimits(context->m_Device, &context->m_DeviceLimits);
+    context->m_Queue = wgpuDeviceGetQueue(context->m_Device);
     if (context->m_PrintDeviceInfo)
     {
-        dmLogInfo("Device: webgpu");
+        WGPUAdapterInfo adapterInfo = {};
+        wgpuAdapterGetInfo(context->m_Adapter, &adapterInfo);
+
+        dmLogInfo("Vendor: %s", adapterInfo.vendor);
+        dmLogInfo("Arch: %s", adapterInfo.architecture);
+        dmLogInfo("Device: %s", adapterInfo.device);
+        dmLogInfo("Description: %s", adapterInfo.description);
+        dmLogInfo("VendorID: 0x%08x", adapterInfo.vendorID);
+        dmLogInfo("DeviceID: 0x%08x", adapterInfo.deviceID)
+        dmLogInfo("Backend type: 0x%08x", adapterInfo.backendType);
+        dmLogInfo("Adapter type: 0x%08x", adapterInfo.adapterType);
+        wgpuAdapterInfoFreeMembers(adapterInfo);
     }
 
-    context->m_Instance = wgpuCreateInstance(nullptr);
-    wgpuInstanceRequestAdapter(context->m_Instance, NULL, instanceRequestAdapterCallback, context);
+    {
+        WGPUSurfaceDescriptor surface_desc = {};
 #if defined(__EMSCRIPTEN__)
-    while (!context->m_InitComplete)
-        emscripten_sleep(100);
+        WGPUSurfaceDescriptorFromCanvasHTMLSelector selector = { { surface_desc.nextInChain, WGPUSType_SurfaceDescriptorFromCanvasHTMLSelector }, "#canvas" };
+        surface_desc.nextInChain                             = (WGPUChainedStruct*)&selector;
 #endif
+        context->m_Surface = wgpuInstanceCreateSurface(context->m_Instance, &surface_desc);
+    }
+    context->m_Format = wgpuSurfaceGetPreferredFormat(context->m_Surface, context->m_Adapter);
+    WebGPUCreateSwapchain(context, context->m_OriginalWidth, context->m_OriginalHeight);
+    //////////
     context->m_SamplerCache.SetCapacity(32, 64);
     context->m_BindGroupCache.SetCapacity(32, 64);
     context->m_RenderPipelineCache.SetCapacity(32, 64);
@@ -969,7 +960,7 @@ static HContext WebGPUNewContext(const ContextParams& params)
     {
         g_WebGPUContext = (WebGPUContext*)malloc(sizeof(WebGPUContext));
         if (InitializeWebGPUContext(g_WebGPUContext, params))
-            return g_WebGPUContext;
+            return (HContext)g_WebGPUContext;
         DeleteContext(g_WebGPUContext);
     }
     return NULL;
@@ -1001,15 +992,6 @@ static void WebGPUDeleteContext(HContext _context)
         DestroyWebGPUContext(context);
         free(context);
         g_WebGPUContext = NULL;
-    }
-}
-
-static void WebGPURunApplicationLoop(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running)
-{
-    TRACE_CALL;
-    while (0 != is_running(user_data))
-    {
-        step_method(user_data);
     }
 }
 
@@ -1546,7 +1528,7 @@ static void WebGPUDisableVertexDeclaration(HContext _context, HVertexDeclaration
     TRACE_CALL;
     assert(_context);
     WebGPUContext* context = (WebGPUContext*)_context;
-    for (int i = 0; i < MAX_VERTEX_BUFFERS; ++i)
+    for (uin8_t i = 0; i < MAX_VERTEX_BUFFERS; ++i)
     {
         if (context->m_CurrentVertexDeclaration[i] == ((VertexDeclaration*)declaration))
             context->m_CurrentVertexDeclaration[i] = 0;

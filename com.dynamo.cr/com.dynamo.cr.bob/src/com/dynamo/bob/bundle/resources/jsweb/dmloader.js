@@ -1051,6 +1051,13 @@ var Module = {
     },
 };
 
+// preinitialized WegGPU stuff
+// to avoid ASYNCIFY in native code
+(async () => {
+    Modules.webGPUAdapter = await navigator.gpu.requestAdapter();
+    Modules.webGPUDevice = await adapter.requestDevice();
+})();
+
 // common engine setup
 Module['persistentStorage'] = (typeof window !== 'undefined') && !!(window.indexedDB || window.mozIndexedDB || window.webkitIndexedDB || window.msIndexedDB);
 

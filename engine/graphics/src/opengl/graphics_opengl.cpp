@@ -1425,22 +1425,6 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
-    static void OpenGLRunApplicationLoop(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running)
-    {
-        #ifdef __EMSCRIPTEN__
-        while (0 != is_running(user_data))
-        {
-            // N.B. Beyond the first test, the above statement is essentially formal since set_main_loop will throw an exception.
-            emscripten_set_main_loop_arg(step_method, user_data, 0, 1);
-        }
-        #else
-        while (0 != is_running(user_data))
-        {
-            step_method(user_data);
-        }
-        #endif
-    }
-
     static PipelineState OpenGLGetPipelineState(HContext context)
     {
         return ((OpenGLContext*) context)->m_PipelineState;
