@@ -33,13 +33,16 @@
 #if defined(__EMSCRIPTEN__)
 #include <emscripten/html5.h>
 #include <emscripten/html5_webgpu.h>
-EM_JS(int, WebGPUGetAdapter, (), {
-  return JsValStore.add(Modules.webGPUAdapter);
+
+EM_JS(WGPUAdapter, WebGPUGetAdapterId, (), {
+  return WebGPU.mgrAdapter.create(Module.webGPUAdapter);
 });
 
-EM_JS(int, WebGPUGetDevice, (), {
-  return JsValStore.add(Modules.webGPUDevice);
+EM_JS(WGPUDevice, WebGPUGetDeviceId, (), {
+  var deviceWrapper = { queueId: WebGPU.mgrQueue.create(Module.webGPUDevice["queue"]) };
+  return WebGPU.mgrDevice.create(Module.webGPUDevice, deviceWrapper);
 });
+
 #endif
 
 #if 0
@@ -814,12 +817,11 @@ static bool InitializeWebGPUContext(WebGPUContext* context, const ContextParams&
     context->m_ContextFeatures |= 1 << CONTEXT_FEATURE_COMPUTE_SHADER;
 
     context->m_Instance = wgpuCreateInstance(nullptr);
-    //////////
-    context->m_Adapter = (WGPUAdapter)WebGPUGetAdapter();
+    context->m_Adapter = WebGPUGetAdapterId();
     wgpuAdapterReference(context->m_Adapter);
     wgpuAdapterGetLimits(context->m_Adapter, &context->m_AdapterLimits);
 
-    context->m_Device = (WGPUDevice)WebGPUGetDevice();
+    context->m_Device = WebGPUGetDeviceId();
     wgpuDeviceReference(context->m_Device);
     wgpuDeviceGetLimits(context->m_Device, &context->m_DeviceLimits);
     context->m_Queue = wgpuDeviceGetQueue(context->m_Device);
@@ -836,6 +838,7 @@ static bool InitializeWebGPUContext(WebGPUContext* context, const ContextParams&
         dmLogInfo("DeviceID: 0x%08x", adapterInfo.deviceID)
         dmLogInfo("Backend type: 0x%08x", adapterInfo.backendType);
         dmLogInfo("Adapter type: 0x%08x", adapterInfo.adapterType);
+
         wgpuAdapterInfoFreeMembers(adapterInfo);
     }
 
@@ -849,7 +852,7 @@ static bool InitializeWebGPUContext(WebGPUContext* context, const ContextParams&
     }
     context->m_Format = wgpuSurfaceGetPreferredFormat(context->m_Surface, context->m_Adapter);
     WebGPUCreateSwapchain(context, context->m_OriginalWidth, context->m_OriginalHeight);
-    //////////
+
     context->m_SamplerCache.SetCapacity(32, 64);
     context->m_BindGroupCache.SetCapacity(32, 64);
     context->m_RenderPipelineCache.SetCapacity(32, 64);
@@ -1528,7 +1531,7 @@ static void WebGPUDisableVertexDeclaration(HContext _context, HVertexDeclaration
     TRACE_CALL;
     assert(_context);
     WebGPUContext* context = (WebGPUContext*)_context;
-    for (uin8_t i = 0; i < MAX_VERTEX_BUFFERS; ++i)
+    for (uint8_t i = 0; i < MAX_VERTEX_BUFFERS; ++i)
     {
         if (context->m_CurrentVertexDeclaration[i] == ((VertexDeclaration*)declaration))
             context->m_CurrentVertexDeclaration[i] = 0;

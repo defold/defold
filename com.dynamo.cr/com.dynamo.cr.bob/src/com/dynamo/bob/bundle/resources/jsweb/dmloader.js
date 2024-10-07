@@ -806,7 +806,7 @@ var Module = {
         try {
             var canvas = document.createElement("canvas");
             var webgpu = canvas.getContext("webgpu");
-            if (webgpu && webgpu instanceof WebGPURenderingContext) {
+            if (webgpu && webgpu instanceof GPUCanvasContext) {
                 webgpu_support = true;
             }
         } catch (error) {
@@ -1054,8 +1054,8 @@ var Module = {
 // preinitialized WegGPU stuff
 // to avoid ASYNCIFY in native code
 (async () => {
-    Modules.webGPUAdapter = await navigator.gpu.requestAdapter();
-    Modules.webGPUDevice = await adapter.requestDevice();
+    Module.webGPUAdapter = await navigator.gpu.requestAdapter();
+    Module.webGPUDevice = await Module.webGPUAdapter.requestDevice();
 })();
 
 // common engine setup
