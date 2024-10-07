@@ -442,6 +442,10 @@ namespace dmGraphics
 
     static uint32_t NullGetVertexBufferSize(HVertexBuffer buffer)
     {
+        if (!buffer)
+        {
+            return 0;
+        }
         VertexBuffer* buffer_ptr = (VertexBuffer*) buffer;
         return buffer_ptr->m_Size;
     }
@@ -491,6 +495,10 @@ namespace dmGraphics
 
     static uint32_t NullGetIndexBufferSize(HIndexBuffer buffer)
     {
+        if (!buffer)
+        {
+            return 0;
+        }
         IndexBuffer* buffer_ptr = (IndexBuffer*) buffer;
         return buffer_ptr->m_Size;
     }

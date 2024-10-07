@@ -1365,6 +1365,10 @@ static void WebGPUSetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, 
 
 static uint32_t WebGPUGetVertexBufferSize(HVertexBuffer buffer)
 {
+    if (!buffer)
+    {
+        return 0;
+    }
     WebGPUBuffer* buffer_ptr = (WebGPUBuffer*) buffer;
     return buffer_ptr->m_Size;
 }
@@ -1424,6 +1428,16 @@ static void WebGPUSetIndexBufferSubData(HIndexBuffer _buffer, uint32_t offset, u
     WebGPUBuffer* buffer = (WebGPUBuffer*)_buffer;
     assert(buffer->m_Used >= offset + size);
     WebGPUWriteBuffer(g_WebGPUContext, buffer, offset, data, size);
+}
+
+static uint32_t WebGPUGetIndexBufferSize(HIndexBuffer buffer)
+{
+    if (!buffer)
+    {
+        return 0;
+    }
+    WebGPUBuffer* buffer_ptr = (WebGPUBuffer*) buffer;
+    return buffer_ptr->m_Size;
 }
 
 static bool WebGPUIsIndexBufferFormatSupported(HContext context, IndexBufferFormat format)

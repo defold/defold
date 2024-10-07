@@ -1686,6 +1686,10 @@ bail:
 
     static uint32_t VulkanGetVertexBufferSize(HVertexBuffer buffer)
     {
+        if (!buffer)
+        {
+            return 0;
+        }
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
         return buffer_ptr->m_MemorySize;
     }
@@ -1749,6 +1753,10 @@ bail:
 
     static uint32_t VulkanGetIndexBufferSize(HIndexBuffer buffer)
     {
+        if (!buffer)
+        {
+            return 0;
+        }
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
         return buffer_ptr->m_MemorySize;
     }
