@@ -70,7 +70,6 @@ import com.dynamo.bob.fs.FileSystemWalker;
 import com.dynamo.bob.fs.IFileSystem;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.fs.ZipMountPoint;
-import com.dynamo.bob.pipeline.GameProjectBuilder;
 import com.dynamo.bob.plugin.PluginScanner;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -108,7 +107,6 @@ import com.dynamo.graphics.proto.Graphics.TextureProfiles;
 
 import com.dynamo.bob.cache.ResourceCache;
 import com.dynamo.bob.cache.ResourceCacheKey;
-import org.jagatoo.util.timing.Time;
 
 /**
  * Project abstraction. Contains input files, builder, tasks, etc
@@ -1812,7 +1810,7 @@ run:
                 // If for some reason it's not, something went wrong, and the build pipeline is broken.
                 // But some tests may run build for some particular files without building game.project at all.
                 shouldRun = shouldRun && (!allOutputExists || !allSigsEquals ||
-                            (isLastTask && buildContainsChanges && (task.getBuilder() instanceof GameProjectBuilder)));
+                            (isLastTask && buildContainsChanges && (task.getBuilder().isGameProjectBuilder())));
 
                 if (!shouldRun) {
                     if (allOutputExists && allSigsEquals)
