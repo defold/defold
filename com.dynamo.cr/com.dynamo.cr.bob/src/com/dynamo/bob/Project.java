@@ -107,7 +107,6 @@ import com.dynamo.graphics.proto.Graphics.TextureProfiles;
 
 import com.dynamo.bob.cache.ResourceCache;
 import com.dynamo.bob.cache.ResourceCacheKey;
-import org.jagatoo.util.timing.Time;
 
 /**
  * Project abstraction. Contains input files, builder, tasks, etc
@@ -1725,7 +1724,7 @@ public class Project {
 
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
-    private List<TaskResult> runTasks(IProgress monitor) throws IOException {
+    private List<TaskResult> runTasks(IProgress monitor) throws IOException, CompileExceptionError {
         // set of all completed tasks. The set includes both task run
         // in this session and task already completed (output already exists with correct signatures, see below)
         // the set also contains failed tasks
@@ -1759,6 +1758,10 @@ public class Project {
         // tasks, the dependent tasks will be tried forever. It should be solved
         // by marking all dependent tasks as failed instead of this flag.
         boolean taskFailed = false;
+        // This flag is needed to determine if at least one file was built or taken from the cache.
+        // It is used to know whether GameProjectBuilder.build() (the builder for `game.project`)
+        // needs to be executed.
+        boolean buildContainsChanges = false;
 run:
         while (completedTasks.size() < buildTasks.size()) {
             for (Task task : buildTasks) {
@@ -1800,8 +1803,14 @@ run:
                     }
                 }
                 TimeProfiler.stop();
-
-                boolean shouldRun = (!allOutputExists || !allSigsEquals) && !completedTasks.contains(task);
+                // game.project is always the last task
+                boolean isLastTask = completedTasks.size() + 1 == buildTasks.size();
+                boolean shouldRun = !completedTasks.contains(task);
+                // GameProjectBuilder creates archives, and it is always the last task.
+                // If for some reason it's not, something went wrong, and the build pipeline is broken.
+                // But some tests may run build for some particular files without building game.project at all.
+                shouldRun = shouldRun && (!allOutputExists || !allSigsEquals ||
+                            (isLastTask && buildContainsChanges && (task.getBuilder().isGameProjectBuilder())));
 
                 if (!shouldRun) {
                     if (allOutputExists && allSigsEquals)
@@ -1873,6 +1882,7 @@ run:
                         }
                     }
                     monitor.worked(1);
+                    buildContainsChanges = true;
 
                     for (IResource r : outputResources) {
                         if (!r.exists()) {

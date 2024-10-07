@@ -130,4 +130,7 @@ public abstract class Builder {
         this.project = project;
     }
 
+    public boolean isGameProjectBuilder() {
+        return false;
+    }
 }
