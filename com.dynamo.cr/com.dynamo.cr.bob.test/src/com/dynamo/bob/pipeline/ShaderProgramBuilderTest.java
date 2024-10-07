@@ -320,35 +320,38 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             assertEquals("Test", binding_type.getName());
         }
 
-        {
-            String fs_src =
-                "#version 430\n" +
-                "uniform sampler2D sampler_2d;\n" +
-                "uniform sampler2DArray sampler_2d_array;\n" +
-                "uniform samplerCube sampler_cube;\n" +
-                // TODO:
-                //"uniform samplerBuffer sampler_buffer;\n" +
-                "uniform texture2D texture_2d;\n" +
-                "uniform utexture2D utexture_2d;\n" +
-                "uniform layout(rgba8ui) uimage2D uimage_2d;\n" +
-                "uniform layout(rgba32f) image2D image_2d;\n" +
-                "uniform sampler sampler_name;\n" +
-                "out vec4 color_out;\n" +
-                "void main()\n" +
-                "{\n" +
-                "   color_out  = vec4(0.0);\n" +
-                "   color_out += texture(sampler_2d, vec2(0.0));\n" +
-                "   color_out += texture(sampler_2d_array, vec3(0.0));\n" +
-                "   color_out += texture(sampler_cube, vec3(0.0));\n" +
-                // TODO:
-                //"   color_out += texelFetch(sampler_buffer, 0);\n" +
-                "   color_out += texture(sampler2D(texture_2d, sampler_name), vec2(0.0));\n" +
-                "   color_out += texture(usampler2D(utexture_2d, sampler_name), vec2(0));\n" +
-                "   color_out += imageLoad(uimage_2d, ivec2(0));\n" +
-                "   color_out += imageLoad(image_2d, ivec2(0));\n" +
-                "}\n";
+        // Shared shader for split/non-split sampler tests:
+        String fs_sampler_type_src =
+            "#version 430\n" +
+                    "uniform sampler2D sampler_2d;\n" +
+                    "uniform sampler2DArray sampler_2d_array;\n" +
+                    "uniform samplerCube sampler_cube;\n" +
+                    // TODO:
+                    //"uniform samplerBuffer sampler_buffer;\n" +
+                    "uniform texture2D texture_2d;\n" +
+                    "uniform utexture2D utexture_2d;\n" +
+                    "uniform layout(rgba8ui) uimage2D uimage_2d;\n" +
+                    "uniform layout(rgba32f) image2D image_2d;\n" +
+                    "uniform sampler sampler_name;\n" +
+                    "out vec4 color_out;\n" +
+                    "void main()\n" +
+                    "{\n" +
+                    "   color_out  = vec4(0.0);\n" +
+                    "   color_out += texture(sampler_2d, vec2(0.0));\n" +
+                    "   color_out += texture(sampler_2d_array, vec3(0.0));\n" +
+                    "   color_out += texture(sampler_cube, vec3(0.0));\n" +
+                    // TODO:
+                    //"   color_out += texelFetch(sampler_buffer, 0);\n" +
+                    "   color_out += texture(sampler2D(texture_2d, sampler_name), vec2(0.0));\n" +
+                    "   color_out += texture(usampler2D(utexture_2d, sampler_name), vec2(0));\n" +
+                    "   color_out += imageLoad(uimage_2d, ivec2(0));\n" +
+                    "   color_out += imageLoad(image_2d, ivec2(0));\n" +
+                    "}\n";
 
-            List<Message> outputs = build("/reflection_2.fp", fs_src);
+
+        // Test non-split samplers
+        {
+            List<Message> outputs = build("/reflection_2.fp", fs_sampler_type_src);
             ShaderDesc shaderDesc = (ShaderDesc) outputs.get(0);
 
             assertTrue(shaderDesc.getShadersCount() > 0);
@@ -357,6 +360,39 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
             ShaderDesc.ShaderReflection r = shaderDesc.getReflection();
             debugPrintShaderReflection("Reflection Test 2", r);
+
+            // 8 texture units (no split samplers)
+            assertEquals(8, r.getTexturesCount());
+            validateResourceBindingWithKnownType(r.getTextures(0), "sampler_2d",       ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D);
+            validateResourceBindingWithKnownType(r.getTextures(1), "sampler_2d_array", ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY);
+            validateResourceBindingWithKnownType(r.getTextures(2), "sampler_cube",     ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_CUBE);
+
+            //TODO:
+            //validateResourceBindingWithKnownType(shader.getTextures(2), "sampler_buffer",   ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_);
+            validateResourceBindingWithKnownType(r.getTextures(3), "texture_2d",       ShaderDesc.ShaderDataType.SHADER_TYPE_TEXTURE2D);
+            validateResourceBindingWithKnownType(r.getTextures(4), "utexture_2d",      ShaderDesc.ShaderDataType.SHADER_TYPE_UTEXTURE2D);
+            validateResourceBindingWithKnownType(r.getTextures(5), "uimage_2d",        ShaderDesc.ShaderDataType.SHADER_TYPE_UIMAGE2D);
+            validateResourceBindingWithKnownType(r.getTextures(6), "image_2d",         ShaderDesc.ShaderDataType.SHADER_TYPE_IMAGE2D);
+            validateResourceBindingWithKnownType(r.getTextures(7), "sampler_name",     ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER);
+
+            // The non-constructed sampler shouldn't have any reference to a texture
+            assertFalse(r.getTextures(7).hasSamplerTextureIndex());
+        }
+
+        // TODO: Windows / DX12 support
+        Platform hostPlatform = Platform.getHostPlatform();
+        if (hostPlatform == Platform.X86_64MacOS || hostPlatform == Platform.Arm64MacOS || hostPlatform == Platform.X86_64Linux)
+        {
+            GetProject().getProjectProperties().putBooleanValue("shader", "output_wgsl", true);
+
+            List<Message> outputs = build("/reflection_3.fp", fs_sampler_type_src);
+            ShaderDesc shaderDesc = (ShaderDesc) outputs.get(0);
+
+            assertTrue(shaderDesc.getShadersCount() > 0);
+            assertNotNull(getShaderByLanguage(shaderDesc, ShaderDesc.Language.LANGUAGE_SPIRV));
+
+            ShaderDesc.ShaderReflection r = shaderDesc.getReflection();
+            debugPrintShaderReflection("Reflection Test 3 - Split texture/samplers", r);
 
             // 8 texture units + 3 samplers
             assertEquals(11, r.getTexturesCount());
@@ -385,6 +421,8 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
             // The non-constructed sampler shouldn't have any reference to a texture
             assertFalse(r.getTextures(10).hasSamplerTextureIndex());
+
+            GetProject().getProjectProperties().putBooleanValue("shader", "output_wgsl", false);
         }
     }
 
@@ -508,7 +546,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         String source;
         String expected;
 
-        source = ShaderUtil.Common.compileGLSL("", ShaderDesc.ShaderType.SHADER_TYPE_VERTEX, ShaderDesc.Language.LANGUAGE_GLSL_SM140, true, false);
+        source = ShaderUtil.Common.compileGLSL("", ShaderDesc.ShaderType.SHADER_TYPE_VERTEX, ShaderDesc.Language.LANGUAGE_GLSL_SM140, true, false, false);
         expected =  "#version 140\n" +
                     "#ifndef GL_ES\n" +
                     "#define lowp\n" +
@@ -521,7 +559,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
         source = "#extension GL_OES_standard_derivatives : enable\n" +
                  "varying highp vec2 var_texcoord0;";
-        source = ShaderUtil.Common.compileGLSL(source, ShaderDesc.ShaderType.SHADER_TYPE_VERTEX, ShaderDesc.Language.LANGUAGE_GLSL_SM140, true, false);
+        source = ShaderUtil.Common.compileGLSL(source, ShaderDesc.ShaderType.SHADER_TYPE_VERTEX, ShaderDesc.Language.LANGUAGE_GLSL_SM140, true, false, false);
         expected =  "#version 140\n" +
                     "#extension GL_OES_standard_derivatives : enable\n" +
                     "\n" +
@@ -539,7 +577,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
                  "void main() {\n" +
                  "    gl_FragColor = vec4(1.0);\n" +
                  "}";
-        source = ShaderUtil.Common.compileGLSL(source, ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT, ShaderDesc.Language.LANGUAGE_GLES_SM100, true, false);
+        source = ShaderUtil.Common.compileGLSL(source, ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT, ShaderDesc.Language.LANGUAGE_GLES_SM100, true, false, false);
         expected =  "#extension GL_OES_standard_derivatives : enable\n" +
                     "\n" +
                     "precision mediump float;\n" +
@@ -553,7 +591,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
                  "void main() {\n" +
                  "    gl_FragColor = vec4(1.0);\n" +
                  "}";
-        source = ShaderUtil.Common.compileGLSL(source, ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT, ShaderDesc.Language.LANGUAGE_GLES_SM300, true, false);
+        source = ShaderUtil.Common.compileGLSL(source, ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT, ShaderDesc.Language.LANGUAGE_GLES_SM300, true, false, false);
         expected =  "#version 300 es\n" +
                     "#extension GL_OES_standard_derivatives : enable\n" +
                     "\n" +
@@ -583,7 +621,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             "   gl_FragColor = my_uniform + my_varying;\n" +
             "}\n";
 
-        ShaderUtil.ES2ToES3Converter.Result res = ShaderUtil.ES2ToES3Converter.transform(source, ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT, "", 140, true);
+        ShaderUtil.ES2ToES3Converter.Result res = ShaderUtil.ES2ToES3Converter.transform(source, ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT, "", 140, true, false);
 
         expected =
             "#version 140\n" +
@@ -604,6 +642,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
     static ShaderDesc.Shader getShaderByLanguage(ShaderDesc shaderDesc, ShaderDesc.Language language) {
         for (ShaderDesc.Shader shader : shaderDesc.getShadersList()) {
+            System.out.println("Shader " + shader.getLanguage());
             if (shader.getLanguage() == language) {
                 return shader;
             }
