@@ -84,7 +84,7 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
         return FileUtils.readFileToString(file_out_wgsl);
     }
 
-    static private SPIRVCompileResult compileGLSLToSPIRV(String shaderSource, ShaderDesc.ShaderType shaderType, String resourceOutput, String targetProfile, boolean isDebug, boolean soft_fail)  throws IOException, CompileExceptionError {
+    static private SPIRVCompileResult compileGLSLToSPIRV(String shaderSource, ShaderDesc.ShaderType shaderType, String resourceOutput, String targetProfile, boolean softFail, boolean splitTextureSamplers)  throws IOException, CompileExceptionError {
         SPIRVCompileResult res = new SPIRVCompileResult();
 
         Exec.Result result;
@@ -94,7 +94,7 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
 
             int version = 430;
 
-            ShaderUtil.ES2ToES3Converter.Result es3Result = ShaderUtil.ES2ToES3Converter.transform(shaderSource, shaderType, targetProfile, version, true);
+            ShaderUtil.ES2ToES3Converter.Result es3Result = ShaderUtil.ES2ToES3Converter.transform(shaderSource, shaderType, targetProfile, version, true, splitTextureSamplers);
 
             File file_in_compute = File.createTempFile(FilenameUtils.getName(resourceOutput), ".cp");
             FileUtil.deleteOnExit(file_in_compute);
@@ -124,7 +124,7 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
             // If the shader already has a version, we expect it to be already written in valid GLSL for that version
             if (shaderInfo == null) {
                 // Convert to ES3 (or GL 140+)
-                ShaderUtil.ES2ToES3Converter.Result es3Result = ShaderUtil.ES2ToES3Converter.transform(shaderSource, shaderType, targetProfile, version, true);
+                ShaderUtil.ES2ToES3Converter.Result es3Result = ShaderUtil.ES2ToES3Converter.transform(shaderSource, shaderType, targetProfile, version, true, splitTextureSamplers);
 
                 // Update version for SPIR-V (GLES >= 310, Core >= 140)
                 es3Result.shaderVersion = es3Result.shaderVersion.isEmpty() ? "0" : es3Result.shaderVersion;
@@ -160,7 +160,7 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
         }
 
         String resultString = getResultString(result);
-        if (soft_fail && resultString != null) {
+        if (softFail && resultString != null) {
             res.compile_warnings.add("\nCompatability issue: " + resultString);
             return res;
         } else {
@@ -177,7 +177,7 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
                 "-o", file_out_spv_opt.getAbsolutePath());
 
         resultString = getResultString(result);
-        if (soft_fail && resultString != null) {
+        if (softFail && resultString != null) {
             res.compile_warnings.add("\nOptimization pass failed: " + resultString);
             return res;
         } else {
@@ -194,7 +194,7 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
                 "--reflect");
 
         resultString = getResultString(result);
-        if (soft_fail && resultString != null) {
+        if (softFail && resultString != null) {
             res.compile_warnings.add("\nUnable to get reflection data: " + resultString);
             return res;
         } else {
@@ -227,7 +227,7 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
     protected void prepare() throws IOException, CompileExceptionError {
         // Generate spirv for each shader module so we can utilize the reflection from it
         for (ShaderModule module : this.shaderModules) {
-            SPIRVCompileResult result = compileGLSLToSPIRV(module.source, module.type, this.pipelineName, "", false, false);
+            SPIRVCompileResult result = compileGLSLToSPIRV(module.source, module.type, this.pipelineName, "", false, this.options.splitTextureSamplers);
 
             ShaderModuleLegacy moduleLegacy = (ShaderModuleLegacy) module;
             moduleLegacy.spirvResult = result;
@@ -250,7 +250,7 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
             String result = compileSPIRVToWGSL(module.spirvResult.source, this.pipelineName);
             return result.getBytes();
         } else if (canBeCrossCompiled(shaderLanguage)) {
-            String result = ShaderUtil.Common.compileGLSL(module.source, shaderType, shaderLanguage, false, false);
+            String result = ShaderUtil.Common.compileGLSL(module.source, shaderType, shaderLanguage, false, false, this.options.splitTextureSamplers);
             return result.getBytes();
         }
 
