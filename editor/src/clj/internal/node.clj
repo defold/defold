@@ -194,12 +194,14 @@
 
 (defprotocol ValueType
   (dispatch-value [this])
-  (schema [this] "Returns a schema.core/Schema that can conform values of this type"))
+  (schema [this] "Returns a schema.core/Schema that can conform values of this type")
+  (form [this] "Returns a Clojure form for producing the schema"))
 
 (defrecord SchemaType [dispatch-value schema]
   ValueType
   (dispatch-value [_] dispatch-value)
   (schema [_] schema)
+  (form [_] schema)
 
   Type)
 
@@ -207,13 +209,15 @@
   ValueType
   (dispatch-value [_] dispatch-value)
   (schema [_] class)
+  (form [_] class)
 
   Type)
 
-(defrecord ProtocolType [dispatch-value schema]
+(defrecord ProtocolType [dispatch-value schema form]
   ValueType
   (dispatch-value [_] dispatch-value)
   (schema [_] schema)
+  (form [_] form)
 
   Type)
 
@@ -241,7 +245,7 @@
 
 (defn- make-protocol-value-type
   [dispatch-value name]
-  (->ProtocolType dispatch-value (eval (list `s/protocol name))))
+  (->ProtocolType dispatch-value (eval (list `s/protocol name)) (list `s/protocol name)))
 
 (defn make-value-type
   [name key body]
@@ -259,6 +263,7 @@
   (type-resolve (value-type-registry) k))
 
 (defn value-type-schema [value-type-ref] (when (ref? value-type-ref) (some-> value-type-ref deref schema)))
+(defn value-type-form [value-type-ref] (when (ref? value-type-ref) (some-> value-type-ref deref form)))
 (defn value-type-dispatch-value [value-type-ref] (when (ref? value-type-ref) (some-> value-type-ref deref dispatch-value)))
 
 ;;; ----------------------------------------
@@ -775,7 +780,7 @@
   (let [multivalued? (vector? original-form)
         form (if multivalued? (first original-form) original-form)
         autotype-form (cond
-                        (util/protocol-symbol? form) `(->ProtocolType ~form (s/protocol ~form))
+                        (util/protocol-symbol? form) `(->ProtocolType ~form (s/protocol ~form) (quote (s/protocol ~form)))
                         (util/class-symbol? form) `(->ClassType ~form ~form))
         typeref (cond
                   (ref? form) form
@@ -1493,7 +1498,7 @@
 
 (defn- deduce-output-type-form
   [description label]
-  (let [schema (some-> (get-in description [:output label :value-type]) value-type-schema)
+  (let [schema (some-> (get-in description [:output label :value-type]) value-type-form)
         schema (if (get-in description [:output label :flags :collection])
                  (vector schema)
                  schema)]
