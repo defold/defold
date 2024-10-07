@@ -32,6 +32,10 @@ import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 import org.apache.commons.io.FileUtils;
 
 public class ShaderCompilePipeline {
+    public static class Options {
+        public boolean splitTextureSamplers;
+    }
+
     protected static class ShaderModule {
         public String                source;
         public ShaderDesc.ShaderType type;
@@ -47,6 +51,7 @@ public class ShaderCompilePipeline {
     protected File spirvFileOut                     = null;
     protected SPIRVReflector spirvReflector         = null;
     protected ArrayList<ShaderModule> shaderModules = new ArrayList<>();
+    protected Options options                       = null;
 
     public ShaderCompilePipeline(String pipelineName) {
         this.pipelineName = pipelineName;
@@ -214,10 +219,11 @@ public class ShaderCompilePipeline {
             File fileInGLSL = File.createTempFile(baseName, ".glsl");
             FileUtil.deleteOnExit(fileInGLSL);
 
-            // We need to expand all combined samplers into texture + sampler due to requirement of WebGPU
-            // Currently, we can't do this for WebGPU only since we need a shared reflection for all shaders
-            // in a shaderdesc.
-            String glsl = ShaderUtil.ES2ToES3Converter.transformTextureUniforms(module.source).output;
+            String glsl = module.source;
+            if (this.options.splitTextureSamplers) {
+                // We need to expand all combined samplers into texture + sampler due for certain targets (webgpu + dx12)
+                glsl = ShaderUtil.ES2ToES3Converter.transformTextureUniforms(module.source).output;
+            }
             FileUtils.writeByteArrayToFile(fileInGLSL, glsl.getBytes());
 
             File fileOutSpv = File.createTempFile(baseName, ".spv");
@@ -264,7 +270,7 @@ public class ShaderCompilePipeline {
             byte[] bytes = FileUtils.readFileToByteArray(fileCrossCompiled);
 
             // JG: spirv-cross renames samplers for GLSL based shaders, so we have to run a second pass to force renaming them back.
-            //     There doesn't seem to be a simplers way to do this in spirv-cross from what I can understand.
+            //     There doesn't seem to be a simpler way to do this in spirv-cross from what I can understand.
             if (shaderLanguageIsGLSL(shaderLanguage)) {
                 bytes = remapTextureSamplers(this.spirvReflector.getTextures(), new String(bytes));
             }
@@ -279,7 +285,8 @@ public class ShaderCompilePipeline {
         return this.spirvReflector;
     }
 
-    public static ShaderCompilePipeline createShaderPipeline(ShaderCompilePipeline pipeline, String source, ShaderDesc.ShaderType type) throws IOException, CompileExceptionError {
+    public static ShaderCompilePipeline createShaderPipeline(ShaderCompilePipeline pipeline, String source, ShaderDesc.ShaderType type, Options options) throws IOException, CompileExceptionError {
+        pipeline.options = options;
         pipeline.reset();
         pipeline.addShaderModule(source, type);
         pipeline.prepare();
