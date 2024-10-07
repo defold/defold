@@ -97,7 +97,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         return 0;
     }
 
-    private static boolean hasPlatformSupportsSpirv() {
+    private static boolean isHostPlatformDesktop() {
         switch(Platform.getHostPlatform())
         {
             case Arm64MacOS:
@@ -117,7 +117,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         assertNotNull(shader.getShaders(0).getSource());
         assertEquals(getPlatformGLSLLanguage(), shader.getShaders(0).getLanguage());
 
-        if (expectSpirv && hasPlatformSupportsSpirv()) {
+        if (expectSpirv && isHostPlatformDesktop()) {
             assertEquals(2, shader.getShadersCount());
             assertNotNull(shader.getShaders(1).getSource());
             assertEquals(ShaderDesc.Language.LANGUAGE_SPIRV, shader.getShaders(1).getLanguage());
@@ -131,7 +131,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         assertNotNull(shader.getShaders(0).getSource());
         assertEquals(getPlatformGLSLLanguage(), shader.getShaders(0).getLanguage());
 
-        if (expectSpirv && hasPlatformSupportsSpirv()) {
+        if (expectSpirv && isHostPlatformDesktop()) {
             assertEquals(2, shader.getShadersCount());
             assertNotNull(shader.getShaders(1).getSource());
             assertEquals(ShaderDesc.Language.LANGUAGE_SPIRV, shader.getShaders(1).getLanguage());
@@ -141,7 +141,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
         // Test GLES vp
         if (expectSpirv) {
-            if (hasPlatformSupportsSpirv()) {
+            if (isHostPlatformDesktop()) {
                 // If we have requested Spir-V, we have to test a ready-made ES3 version
                 // Since we will not process the input shader if the #version preprocessor exists
                 outputs = build("/test_shader.vp", vpEs3);
@@ -158,7 +158,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
         // Test GLES fp
         if (expectSpirv) {
-            if (hasPlatformSupportsSpirv()) {
+            if (isHostPlatformDesktop()) {
                 outputs = build("/test_shader.fp", fpEs3);
                 shader = (ShaderDesc)outputs.get(0);
                 assertEquals(2, shader.getShadersCount());
@@ -379,9 +379,9 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             assertFalse(r.getTextures(7).hasSamplerTextureIndex());
         }
 
-        // TODO: Windows / DX12 support
-        Platform hostPlatform = Platform.getHostPlatform();
-        if (hostPlatform == Platform.X86_64MacOS || hostPlatform == Platform.Arm64MacOS || hostPlatform == Platform.X86_64Linux)
+        // Note that we rely on using "output_wgsl" here to make sure the samplers are split,
+        // but since we only build shaders for the host platform no actual WGSL shaders will be built!
+        if (isHostPlatformDesktop())
         {
             GetProject().getProjectProperties().putBooleanValue("shader", "output_wgsl", true);
 
