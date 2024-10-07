@@ -276,6 +276,36 @@ static WGPUTextureFormat WebGPUFormatFromTextureFormat(TextureFormat format)
     };
 }
 
+static size_t WebGPUCompressedBlockWidth(TextureFormat format)
+{
+    assert(format <= TEXTURE_FORMAT_COUNT);
+    switch (format)
+    {
+    case TEXTURE_FORMAT_RGB_ETC1:           return 4;
+    case TEXTURE_FORMAT_RGBA_ETC2:          return 4;
+    case TEXTURE_FORMAT_RGBA_ASTC_4x4:      return 4;
+    case TEXTURE_FORMAT_RGB_BC1:            return 4;
+    case TEXTURE_FORMAT_RGBA_BC3:           return 4;
+    case TEXTURE_FORMAT_RGBA_BC7:           return 4;
+    default:                                return 0;
+    };
+}
+
+static size_t WebGPUCompressedBlockByteSize(TextureFormat format)
+{
+    assert(format <= TEXTURE_FORMAT_COUNT);
+    switch (format)
+    {
+    case TEXTURE_FORMAT_RGB_ETC1:           return 8;
+    case TEXTURE_FORMAT_RGBA_ETC2:          return 8;
+    case TEXTURE_FORMAT_RGBA_ASTC_4x4:      return 16;
+    case TEXTURE_FORMAT_RGB_BC1:            return 8;
+    case TEXTURE_FORMAT_RGBA_BC3:           return 16;
+    case TEXTURE_FORMAT_RGBA_BC7:           return 16;
+    default:                                return 0;
+    };
+}
+
 static void WebGPURealizeTexture(WebGPUTexture* texture, WGPUTextureFormat format, uint8_t depth, uint32_t sampleCount, WGPUTextureUsage usage)
 {
     if (texture->m_Depth > depth)
@@ -383,8 +413,12 @@ static void WebGPUSetTextureInternal(WebGPUTexture* texture, const TextureParams
             const uint8_t bpp     = ceil(GetTextureFormatBitsPerPixel(params.m_Format) / 8.0f);
             const size_t dataSize = bpp * params.m_Width * params.m_Height * depth;
 
-            dest.texture              = texture->m_Texture;
-            layout.bytesPerRow        = extent.width * bpp;
+            dest.texture = texture->m_Texture;
+            layout.bytesPerRow = extent.width;
+            if(IsTextureFormatCompressed(params.m_Format))
+                layout.bytesPerRow = (layout.bytesPerRow / WebGPUCompressedBlockWidth(params.m_Format)) * WebGPUCompressedBlockByteSize(params.m_Format);
+            else
+                layout.bytesPerRow *= bpp;
             extent.depthOrArrayLayers = depth;
             wgpuQueueWriteTexture(g_WebGPUContext->m_Queue, &dest, params.m_Data, dataSize, &layout, &extent);
         }
