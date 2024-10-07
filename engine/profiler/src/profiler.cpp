@@ -105,6 +105,11 @@ void RenderProfiler(dmProfile::HProfile profile, dmGraphics::HContext graphics_c
 
         dmProfileRender::UpdateRenderProfile(gRenderProfile, g_ProfilerCurrentFrame);
 
+        // Enable alpha blending
+        dmGraphics::PipelineState ps_before = dmGraphics::GetPipelineState(graphics_context);
+        dmGraphics::EnableState(graphics_context, dmGraphics::STATE_BLEND);
+        dmGraphics::SetBlendFunc(graphics_context, dmGraphics::BLEND_FACTOR_ONE, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
+
         dmRender::RenderListBegin(render_context);
         dmProfileRender::Draw(gRenderProfile, render_context, system_font_map);
         dmRender::RenderListEnd(render_context);
@@ -112,6 +117,13 @@ void RenderProfiler(dmProfile::HProfile profile, dmGraphics::HContext graphics_c
         dmRender::SetProjectionMatrix(render_context, dmVMath::Matrix4::orthographic(0.0f, dmGraphics::GetWindowWidth(graphics_context), 0.0f, dmGraphics::GetWindowHeight(graphics_context), 1.0f, -1.0f));
         dmRender::DrawRenderList(render_context, 0, 0, 0);
         dmRender::ClearRenderObjects(render_context);
+
+        // Restore blend state
+        if (!ps_before.m_BlendEnabled)
+        {
+            dmGraphics::DisableState(graphics_context, dmGraphics::STATE_BLEND);
+        }
+        dmGraphics::SetBlendFunc(graphics_context, (dmGraphics::BlendFactor) ps_before.m_BlendSrcFactor, (dmGraphics::BlendFactor) ps_before.m_BlendDstFactor);
     }
 
     if (g_ProfilerCurrentFrame)
