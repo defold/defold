@@ -1363,6 +1363,12 @@ static void WebGPUSetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, 
     WebGPUWriteBuffer(g_WebGPUContext, gpu_buffer, offset, data, size);
 }
 
+static uint32_t WebGPUGetVertexBufferSize(HVertexBuffer buffer)
+{
+    WebGPUBuffer* buffer_ptr = (WebGPUBuffer*) buffer;
+    return buffer_ptr->m_Size;
+}
+
 static uint32_t WebGPUGetMaxElementsVertices(HContext context)
 {
     TRACE_CALL;

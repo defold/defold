@@ -1218,6 +1218,10 @@ namespace dmGraphics
     {
         g_functions.m_SetVertexBufferSubData(buffer, offset, size, data);
     }
+    uint32_t GetVertexBufferSize(HVertexBuffer buffer)
+    {
+        return g_functions.m_GetVertexBufferSize(buffer);
+    }
     uint32_t GetMaxElementsVertices(HContext context)
     {
         return g_functions.m_GetMaxElementsVertices(context);
@@ -1237,6 +1241,10 @@ namespace dmGraphics
     void SetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
         g_functions.m_SetIndexBufferSubData(buffer, offset, size, data);
+    }
+    uint32_t GetIndexBufferSize(HIndexBuffer buffer)
+    {
+        return g_functions.m_GetIndexBufferSize(buffer);
     }
     bool IsIndexBufferFormatSupported(HContext context, IndexBufferFormat format)
     {
