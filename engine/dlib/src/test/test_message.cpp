@@ -280,6 +280,7 @@ TEST(dmMessage, PostDuringDispatch)
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(receiver.m_Socket));
 }
 
+#if !defined(DM_NO_THREAD_SUPPORT)
 #define T_ASSERT_EQ(_A, _B) \
     if ( (_A) != (_B) ) { \
         printf("%s:%d: ASSERT: %s != %s: %d != %d", __FILE__, __LINE__, #_A, #_B, (_A), (_B)); \
@@ -364,6 +365,7 @@ TEST(dmMessage, ThreadTest2)
 
     ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::DeleteSocket(receiver.m_Socket));
 }
+#endif // DM_NO_THREAD_SUPPORT
 
 void HandleIntegrityMessage(dmMessage::Message *message_object, void *user_ptr)
 {

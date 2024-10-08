@@ -279,21 +279,19 @@ def extract_build_jdk(build_jdk):
         return 'build/jdk/jdk-%s/Contents/Home' % java_version
     else:
         return 'build/jdk/jdk-%s' % java_version
+    
+def invoke_lein(args, jdk_path=None):
+    # this weird dance with env and bash instead of supplying env kwarg to run.command is needed for the build script to work on windows
+    jdk_path = jdk_path or os.environ['JAVA_HOME']
+    return run.command(['env', 'JAVA_CMD=%s/bin/java' % jdk_path, 'LEIN_HOME=build/lein', 'bash', './scripts/lein'] + args)
 
-def create_lein_env(jdk_path=None):
-    env = os.environ.copy()
-    env["LEIN_HOME"] = "target/lein"
-    if jdk_path:
-        env["JAVA_CMD"] = '%s/bin/java' % jdk_path
-    return env
-
-def check_reflections(lein_env):
+def check_reflections(jdk_path):
     reflection_prefix = 'Reflection warning, ' # final space important
     included_reflections = ['editor/', 'util/'] # [] = include all
     ignored_reflections = []
 
     # lein check puts reflection warnings on stderr, redirect to stdout to capture all output
-    output = run.command(['./scripts/lein', 'with-profile', '+headless', 'check-and-exit'], env = lein_env)
+    output = invoke_lein(['with-profile', '+headless', 'check-and-exit'], jdk_path=jdk_path)
     lines = output.splitlines()
     reflection_lines = (line for line in lines if re.match(reflection_prefix, line))
     reflections = (re.match('(' + reflection_prefix + ')(.*)', line).group(2) for line in reflection_lines)
@@ -305,37 +303,34 @@ def check_reflections(lein_env):
             print(failure)
         exit(1)
 
-def write_docs(docs_dir, lein_env):
-    run.command(['./scripts/lein', 'with-profile', '+docs', 'run', '-m', 'editor.docs', docs_dir],
-                stdout = True,
-                env = lein_env)
+def write_docs(docs_dir, jdk_path=None):
+    invoke_lein(['with-profile', '+docs', 'run', '-m', 'editor.docs', docs_dir], jdk_path)
 
 def build(options):
     build_jdk = download_build_jdk()
     extracted_build_jdk = extract_build_jdk(build_jdk)
-    lein_env = create_lein_env(jdk_path=extracted_build_jdk)
 
     print('Building editor')
 
-    init_command = ['./scripts/lein', 'with-profile', '+release', 'init']
+    init_command = ['with-profile', '+release', 'init']
     if options.engine_sha1:
         init_command += [options.engine_sha1]
 
-    run.command(init_command, env = lein_env)
+    invoke_lein(init_command, jdk_path=extracted_build_jdk)
 
-    build_ns_batches_command = ['./scripts/lein', 'with-profile', '+release', 'build-ns-batches']
-    run.command(build_ns_batches_command, env = lein_env)
+    build_ns_batches_command = ['with-profile', '+release', 'build-ns-batches']
+    invoke_lein(build_ns_batches_command, jdk_path=extracted_build_jdk)
 
-    check_reflections(lein_env)
+    check_reflections(extracted_build_jdk)
 
     if options.skip_tests:
         print('Skipping tests')
     else:
-        run.command(['./scripts/lein', 'test'], env = lein_env)
+        invoke_lein(['test'], jdk_path=extracted_build_jdk)
         # test that docs can be successfully produced
-        write_docs('target/docs', lein_env)
+        write_docs('target/docs', jdk_path=extracted_build_jdk)
 
-    run.command(['./scripts/lein', 'prerelease'], env = lein_env)
+    invoke_lein(['prerelease'], jdk_path=extracted_build_jdk)
 
 
 def get_exe_suffix(platform):
@@ -411,12 +406,11 @@ def remove_platform_files_from_archive(platform, jar):
 def create_bundle(options):
     build_jdk = download_build_jdk()
     extracted_build_jdk = extract_build_jdk(build_jdk)
-    lein_env = create_lein_env(jdk_path=extracted_build_jdk)
 
     mkdirs('target/editor')
     for platform in options.target_platform:
         print("Creating uberjar for platform %s" % platform)
-        run.command(['./scripts/lein', 'with-profile', 'release,%s' % platform, 'uberjar'], env = lein_env)
+        invoke_lein(['with-profile', 'release,%s' % platform, 'uberjar'], jdk_path=extracted_build_jdk)
         jar_file = 'target/editor-%s-standalone.jar' % platform
         print("Creating bundle for platform %s" % platform)
         rmtree('tmp')
@@ -742,7 +736,7 @@ Commands:
 
     for command in commands:
         if command == "docs":
-            write_docs(options.docs_dir, create_lein_env())
+            write_docs(options.docs_dir)
         if command == "build":
             build(options)
         elif command == "sign":

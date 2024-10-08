@@ -98,6 +98,17 @@
         (swap! last-progress progress)
         (render-progress! progress)))))
 
+(defn until-done [render-progress!]
+  (let [state-atom (atom :before) ;; :before => :done => :after
+        track-progress (fn [state new-progress]
+                         (case state
+                           :before (if (= new-progress done) :done :before)
+                           :done :after
+                           :after :after))]
+    (fn until-done-progress [progress]
+      (when-not (= :after (swap! state-atom track-progress progress))
+        (render-progress! progress)))))
+
 (defn nest-render-progress
   "This creates a render-progress! function to be passed to a sub task.
 

@@ -127,9 +127,7 @@ PACKAGES_ANDROID_SDK="android-sdk"
 PACKAGES_CCTOOLS_PORT="cctools-port-darwin19-6c438753d2252274678d3e0839270045698c159b-linux"
 
 NODE_MODULE_LIB_DIR = os.path.join("ext", "lib", "node_modules")
-EMSCRIPTEN_VERSION_STR = "3.1.65"
-EMSCRIPTEN_SDK = "sdk-{0}-64bit".format(EMSCRIPTEN_VERSION_STR)
-PACKAGES_EMSCRIPTEN_SDK="emsdk-{0}".format(EMSCRIPTEN_VERSION_STR)
+
 SHELL = os.environ.get('SHELL', 'bash')
 # Don't use WSL from the msys/cygwin terminal
 if os.environ.get('TERM','') in ('cygwin',):
@@ -561,16 +559,18 @@ class Configuration(object):
 
         self.sdk_info = sdk.get_sdk_info(sdkfolder, target_platform, self.verbose)
 
-        if target_platform in ('js-web', 'wasm-web'): # smoe platforms are not yet supported using this sdk_info mechanic
-            return
+        # TODO: Make sure this check works for all platforms
+        if not self.sdk_info:
+            if not self.verbose:
+                # Do it again, with verbose on, so that we can get more info straight away:
+                sdk.get_sdk_info(sdkfolder, target_platform, True)
 
-        # We currently only support a subset of platforms using this mechanic
-        if platform in ('x86_64-macos', 'arm64-macos','x86_64-ios','arm64-ios'):
-            # TODO: Make sure this check works for all platforms
-            if not self.sdk_info:
-                print("Couldn't find any sdks for platform", target_platform)
-                print("We recommend you follow the setup guide found here: %s" % "https://github.com/defold/defold/blob/dev/README_BUILD.md#important-prerequisite---platform-sdks")
-                sys.exit(1)
+            url = "https://github.com/defold/defold/blob/dev/README_BUILD.md#important-prerequisite---platform-sdks"
+            self._log(f"Failed to get sdk info for platform {target_platform}.")
+            self._log(f" * Is the local sdk setup correctly?")
+            self._log(f" * Or have you called `install_sdk`?")
+            self._log(f"We recommend you follow the setup guide found here: {url}")
+            sys.exit(1)
 
         if self.verbose:
             print("SDK info:")
@@ -610,6 +610,18 @@ class Configuration(object):
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_WIN32_SDK_10), join(win32_sdk_folder, 'WindowsKits', '10') )
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_WIN32_TOOLCHAIN), join(win32_sdk_folder, 'MicrosoftVisualStudio14.0'), strip_components=0 )
 
+        if target_platform in ('js-web', 'wasm-web'):
+            emsdk_folder = sdk.get_defold_emsdk()
+            download_sdk(self,'%s/%s-%s.tar.gz' % (self.package_path, sdk.PACKAGES_EMSCRIPTEN_SDK, self.host), emsdk_folder)
+
+            if not os.path.isfile(sdk.get_defold_emsdk_config()):
+                print("Activating emsdk")
+
+                os.environ['EMSCRIPTEN'] = emsdk_folder
+                os.environ['EM_CONFIG'] = sdk.get_defold_emsdk_config()
+                os.environ['EM_CACHE'] = sdk.get_defold_emsdk_cache()
+                self._activate_ems(emsdk_folder, join(emsdk_folder, 'upstream', 'emscripten'), sdk.EMSCRIPTEN_VERSION_STR)
+
             # On OSX, the file system is already case insensitive, so no need to duplicate the files as we do on the extender server
 
         if target_platform in ('armv7-android', 'arm64-android'):
@@ -635,35 +647,8 @@ class Configuration(object):
 
         build_private.install_sdk(self, target_platform)
 
-    def get_ems_dir(self):
-        return join(self.ext, 'SDKs', 'emsdk-' + EMSCRIPTEN_VERSION_STR)
-
-    def _form_ems_path(self):
-        return join(self.get_ems_dir(), 'upstream', 'emscripten')
-
-    def install_ems(self):
-        # TODO: should eventually be moved to install_sdk
-        emsDir = self.get_ems_dir()
-
-        os.environ['EMSCRIPTEN'] = self._form_ems_path()
-        os.environ['EM_CONFIG'] = join(self.get_ems_dir(), '.emscripten')
-        os.environ['EM_CACHE'] = join(self.get_ems_dir(), 'emscripten_cache')
-
-        if os.path.isdir(emsDir):
-            print("Emscripten is already installed:", emsDir)
-        else:
-            self._check_package_path()
-            path = join(self.package_path, '%s-%s.tar.gz' % (PACKAGES_EMSCRIPTEN_SDK, self.host))
-            path = self.get_local_or_remote_file(path)
-            self._extract(path, join(self.ext, 'SDKs'))
-
-        config = os.environ['EM_CONFIG']
-        if not os.path.isfile(config):
-            self.activate_ems()
-
-    def activate_ems(self):
-        version = EMSCRIPTEN_VERSION_STR
-        run.env_command(self._form_env(), [join(self.get_ems_dir(), 'emsdk'), 'activate', version, '--embedded'])
+    def _activate_ems(self, emsdk, bin_dir, version):
+        run.env_command(self._form_env(), [join(emsdk, 'emsdk'), 'activate', version, '--embedded'])
 
         # prewarm the cache
         # Although this method might be more "correct", it also takes 10 minutes more than we'd like on CI
@@ -675,20 +660,7 @@ class Configuration(object):
         exe_file = tempfile.mktemp(suffix='.js')
         with open(c_file, 'w') as f:
             f.write('int main() { return 0; }')
-        run.env_command(self._form_env(), ['%s/emcc' % self._form_ems_path(), c_file, '-o', '%s' % exe_file])
-
-    def check_ems(self):
-        config = join(self.get_ems_dir(), '.emscripten')
-        err = False
-        if not os.path.isfile(config):
-            print('No .emscripten file.')
-            err = True
-        emsDir = self.get_ems_dir()
-        if not os.path.isdir(emsDir):
-            print('Emscripten tools not installed.')
-            err = True
-        if err:
-            print('Consider running install_ems')
+        run.env_command(self._form_env(), [f'{bin_dir}/emcc', c_file, '-o', '%s' % exe_file])
 
     def _git_sha1(self, ref = None):
         return self.build_utility.git_sha1(ref)
@@ -1121,8 +1093,8 @@ class Configuration(object):
         supported_tests = {}
         # E.g. on win64, we can test multiple platforms
         supported_tests['x86_64-win32'] = ['win32', 'x86_64-win32', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5']
-        supported_tests['arm64-macos'] = ['x86_64-macos', 'arm64-macos']
-        supported_tests['x86_64-macos'] = ['x86_64-macos']
+        supported_tests['arm64-macos'] = ['x86_64-macos', 'arm64-macos', 'wasm-web', 'js-web']
+        supported_tests['x86_64-macos'] = ['x86_64-macos', 'wasm-web', 'js-web']
 
         return self.target_platform in supported_tests.get(self.host, []) or self.host == self.target_platform
 
@@ -1320,7 +1292,8 @@ class Configuration(object):
         linux_files = dict([['ext/lib/%s/lib%s.so' % (plf[0], lib), 'lib/%s/lib%s.so' % (plf[1], lib)] for lib in [] for plf in [['x86_64-linux', 'x86_64-linux']]])
         js_files = {}
         android_files = {'share/java/classes.dex': 'lib/classes.dex',
-                         'ext/share/java/android.jar': 'lib/android.jar'}
+                         'ext/share/java/android.jar': 'lib/android.jar'} # this should be the stripped one
+
         switch_files = {}
         # This dict is being built up and will eventually be used for copying in the end
         # - "type" - what the files are needed for, for error reporting
@@ -1653,11 +1626,6 @@ class Configuration(object):
 
     def shell(self):
         print ('Setting up shell with DYNAMO_HOME, PATH, JAVA_HOME, and LD_LIBRARY_PATH/DYLD_LIBRARY_PATH (where applicable) set')
-        if "win32" in self.host:
-            preexec_fn = None
-        else:
-            preexec_fn = self.check_ems
-
         self.find_and_set_java_home()
 
         args = [SHELL, '-l']
@@ -1668,6 +1636,10 @@ class Configuration(object):
         if process.returncode != 0:
             self._log(str(output, encoding='utf-8'))
             sys.exit(process.returncode)
+
+    def fatal(self, msg):
+        self._log(msg)
+        sys.exit(1)
 
 # ------------------------------------------------------------
 # BEGIN: RELEASE
@@ -2306,9 +2278,6 @@ class Configuration(object):
         if self.no_colors:
             env['NOCOLOR'] = '1'
 
-        env['EMSCRIPTEN'] = self._form_ems_path()
-        env['EM_CACHE'] = join(self.get_ems_dir(), 'emscripten_cache')
-        env['EM_CONFIG'] = join(self.get_ems_dir(), '.emscripten')
 
         xhr2_path = os.path.join(self.dynamo_home, NODE_MODULE_LIB_DIR, 'xhr2', 'package', 'lib')
         if 'NODE_PATH' in env:
@@ -2325,10 +2294,8 @@ if __name__ == '__main__':
 Commands:
 distclean        - Removes the DYNAMO_HOME folder
 install_ext      - Install external packages
-install_ems      - Install emscripten sdk
 install_sdk      - Install sdk
 sync_archive     - Sync engine artifacts from S3
-activate_ems     - Used when changing to a branch that uses a different version of emscripten SDK (resets ~/.emscripten)
 build_engine     - Build engine
 archive_engine   - Archive engine (including builtins) to path specified with --archive-path
 build_editor2    - Build editor
@@ -2532,6 +2499,18 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       gcloud_certfile = options.gcloud_certfile,
                       gcloud_keyfile = options.gcloud_keyfile,
                       verbose = options.verbose)
+
+    needs_dynamo_home = True
+    for cmd in args:
+        if cmd in ['shell', 'save_env']:
+            needs_dynamo_home = False
+            break
+    if needs_dynamo_home:
+        for env_var in ['DYNAMO_HOME', 'PYTHONPATH', 'JAVA_HOME']:
+            if not env_var in os.environ:
+                c._log("CMD: " + ' '.join(sys.argv))
+                msg = f"{env_var} was not found in environment.\nDid you use './scripts/build.py shell'?"
+                c.fatal(msg)
 
     for cmd in args:
         f = getattr(c, cmd, None)

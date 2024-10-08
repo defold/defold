@@ -162,7 +162,7 @@ public abstract class ShaderProgramBuilder extends Builder {
         return shaderDescBuildResult.shaderDesc;
     }
 
-    static public ShaderCompilePipeline getShaderPipelineFromShaderSource(ShaderDesc.ShaderType type, String resourcePath, String shaderSource) throws IOException, CompileExceptionError {
+    static public ShaderCompilePipeline newShaderPipelineFromShaderSource(ShaderDesc.ShaderType type, String resourcePath, String shaderSource, ShaderCompilePipeline.Options options) throws IOException, CompileExceptionError {
         ShaderCompilePipeline pipeline;
         Common.GLSLShaderInfo shaderInfo = Common.getShaderInfo(shaderSource);
 
@@ -172,7 +172,7 @@ public abstract class ShaderProgramBuilder extends Builder {
             pipeline = new ShaderCompilePipeline(resourcePath);
         }
 
-        return ShaderCompilePipeline.createShaderPipeline(pipeline, shaderSource, type);
+        return ShaderCompilePipeline.createShaderPipeline(pipeline, shaderSource, type, options);
     }
 
     static private int getTypeIndex(ArrayList<SPIRVReflector.ResourceType> types, String typeName) {
