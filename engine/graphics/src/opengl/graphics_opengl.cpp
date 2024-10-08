@@ -1593,30 +1593,37 @@ static void LogFrameBufferError(GLenum status)
 
     static HVertexBuffer OpenGLNewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
-        uint32_t buffer = 0;
-        glGenBuffersARB(1, &buffer);
+        OpenGLBuffer* vertex_buffer = new OpenGLBuffer();
+        vertex_buffer->m_MemorySize = size;
+        glGenBuffersARB(1, &vertex_buffer->m_Id);
         CHECK_GL_ERROR;
-        SetVertexBufferData(buffer, size, data, buffer_usage);
-        return buffer;
+        SetVertexBufferData((HVertexBuffer) vertex_buffer, size, data, buffer_usage);
+        return (HVertexBuffer) vertex_buffer;
     }
 
     static void OpenGLDeleteVertexBuffer(HVertexBuffer buffer)
     {
         if (!buffer)
+        {
             return;
-        GLuint b = (GLuint) buffer;
-        glDeleteBuffersARB(1, &b);
+        }
+        OpenGLBuffer* vertex_buffer = (OpenGLBuffer*) buffer;
+        glDeleteBuffersARB(1, &vertex_buffer->m_Id);
         CHECK_GL_ERROR;
+        delete vertex_buffer;
     }
 
     static void OpenGLSetVertexBufferData(HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         DM_PROFILE(__FUNCTION__);
         // NOTE: Android doesn't seem to like zero-sized vertex buffers
-        if (size == 0) {
+        if (size == 0)
+        {
             return;
         }
-        glBindBufferARB(GL_ARRAY_BUFFER_ARB, buffer);
+        OpenGLBuffer* vertex_buffer = (OpenGLBuffer*) buffer;
+        vertex_buffer->m_MemorySize = size;
+        glBindBufferARB(GL_ARRAY_BUFFER_ARB, vertex_buffer->m_Id);
         CHECK_GL_ERROR
         glBufferDataARB(GL_ARRAY_BUFFER_ARB, size, data, GetOpenGLBufferUsage(buffer_usage));
         CHECK_GL_ERROR
@@ -1627,12 +1634,27 @@ static void LogFrameBufferError(GLenum status)
     static void OpenGLSetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
         DM_PROFILE(__FUNCTION__);
-        glBindBufferARB(GL_ARRAY_BUFFER_ARB, buffer);
+        if (!buffer)
+        {
+            return;
+        }
+        OpenGLBuffer* vertex_buffer = (OpenGLBuffer*) buffer;
+        glBindBufferARB(GL_ARRAY_BUFFER_ARB, vertex_buffer->m_Id);
         CHECK_GL_ERROR;
         glBufferSubDataARB(GL_ARRAY_BUFFER_ARB, offset, size, data);
         CHECK_GL_ERROR;
         glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
         CHECK_GL_ERROR;
+    }
+
+    static uint32_t OpenGLGetVertexBufferSize(HVertexBuffer buffer)
+    {
+        if (!buffer)
+        {
+            return 0;
+        }
+        OpenGLBuffer* vertex_buffer = (OpenGLBuffer*) buffer;
+        return vertex_buffer->m_MemorySize;
     }
 
     static uint32_t OpenGLGetMaxElementsVertices(HContext context)
@@ -1644,10 +1666,15 @@ static void LogFrameBufferError(GLenum status)
     {
         DM_PROFILE(__FUNCTION__);
         // NOTE: WebGl doesn't seem to like zero-sized vertex buffers (very poor performance)
-        if (size == 0) {
+        if (size == 0 || !buffer)
+        {
             return;
         }
-        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, buffer);
+
+        OpenGLBuffer* index_buffer = (OpenGLBuffer*) buffer;
+        index_buffer->m_MemorySize = size;
+
+        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, index_buffer->m_Id);
         CHECK_GL_ERROR
         glBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, size, data, GetOpenGLBufferUsage(buffer_usage));
         CHECK_GL_ERROR
@@ -1657,31 +1684,51 @@ static void LogFrameBufferError(GLenum status)
 
     static HIndexBuffer OpenGLNewIndexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
-        uint32_t buffer = 0;
-        glGenBuffersARB(1, &buffer);
+        OpenGLBuffer* index_buffer = new OpenGLBuffer; 
+        glGenBuffersARB(1, &index_buffer->m_Id);
         CHECK_GL_ERROR
-        OpenGLSetIndexBufferData(buffer, size, data, buffer_usage);
-        return buffer;
+        OpenGLSetIndexBufferData((HIndexBuffer) index_buffer, size, data, buffer_usage);
+        index_buffer->m_MemorySize = size;
+        return (HIndexBuffer) index_buffer;
     }
 
     static void OpenGLDeleteIndexBuffer(HIndexBuffer buffer)
     {
         if (!buffer)
+        {
             return;
-        GLuint b = (GLuint) buffer;
-        glDeleteBuffersARB(1, &b);
+        }
+
+        OpenGLBuffer* index_buffer = (OpenGLBuffer*) buffer;
+        glDeleteBuffersARB(1, &index_buffer->m_Id);
         CHECK_GL_ERROR;
+        delete index_buffer;
     }
 
     static void OpenGLSetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
+        if (!buffer)
+        {
+            return;
+        }
         DM_PROFILE(__FUNCTION__);
-        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, buffer);
+        OpenGLBuffer* index_buffer = (OpenGLBuffer*) buffer;
+        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, index_buffer->m_Id);
         CHECK_GL_ERROR;
         glBufferSubDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, offset, size, data);
         CHECK_GL_ERROR;
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
         CHECK_GL_ERROR;
+    }
+
+    static uint32_t OpenGLGetIndexBufferSize(HIndexBuffer buffer)
+    {
+        if (!buffer)
+        {
+            return 0;
+        }
+        OpenGLBuffer* index_buffer = (OpenGLBuffer*) buffer;
+        return index_buffer->m_MemorySize;
     }
 
     static bool OpenGLIsIndexBufferFormatSupported(HContext context, IndexBufferFormat format)
@@ -1758,9 +1805,10 @@ static void LogFrameBufferError(GLenum status)
         vertex_declaration->m_ModificationVersion = ((OpenGLContext*) context)->m_ModificationVersion;
     }
 
-    static void OpenGLEnableVertexBuffer(HContext context, HVertexBuffer vertex_buffer, uint32_t binding_index)
+    static void OpenGLEnableVertexBuffer(HContext context, HVertexBuffer buffer, uint32_t binding_index)
     {
-        glBindBufferARB(GL_ARRAY_BUFFER, vertex_buffer);
+        OpenGLBuffer* vertex_buffer = (OpenGLBuffer*) buffer;
+        glBindBufferARB(GL_ARRAY_BUFFER, vertex_buffer->m_Id);
         CHECK_GL_ERROR;
     }
 
@@ -1895,16 +1943,18 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
-    static void OpenGLDrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer, uint32_t instance_count)
+    static void OpenGLDrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer buffer, uint32_t instance_count)
     {
         DM_PROFILE(__FUNCTION__);
         DM_PROPERTY_ADD_U32(rmtp_DrawCalls, 1);
         assert(context);
-        assert(index_buffer);
+        assert(buffer);
 
         DrawSetup((OpenGLContext*) context);
 
-        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER, index_buffer);
+        OpenGLBuffer* index_buffer = (OpenGLBuffer*) buffer;
+
+        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER, index_buffer->m_Id);
         CHECK_GL_ERROR;
 
         OpenGLContext* context_ptr = (OpenGLContext*) context;

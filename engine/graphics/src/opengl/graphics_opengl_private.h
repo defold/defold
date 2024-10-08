@@ -31,6 +31,12 @@ namespace dmGraphics
         ATTACHMENT_TYPE_TEXTURE = 2,
     };
 
+    enum DeviceBufferType
+    {
+        DEVICE_BUFFER_TYPE_INDEX   = 0,
+        DEVICE_BUFFER_TYPE_VERTEX  = 1,
+    };
+
     struct OpenGLTexture
     {
         TextureParams     m_Params;
@@ -75,6 +81,13 @@ namespace dmGraphics
         GLuint               m_Id;
         ShaderMeta           m_ShaderMeta;
         ShaderDesc::Language m_Language;
+    };
+
+    struct OpenGLBuffer
+    {
+        GLuint           m_Id;
+        DeviceBufferType m_Type;
+        uint32_t         m_MemorySize;
     };
 
     struct OpenGLVertexAttribute

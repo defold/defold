@@ -1684,6 +1684,16 @@ bail:
         DeviceBufferUploadHelper(g_VulkanContext, data, size, offset, buffer_ptr);
     }
 
+    static uint32_t VulkanGetVertexBufferSize(HVertexBuffer buffer)
+    {
+        if (!buffer)
+        {
+            return 0;
+        }
+        DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
+        return buffer_ptr->m_MemorySize;
+    }
+
     static uint32_t VulkanGetMaxElementsVertices(HContext context)
     {
         return ((VulkanContext*) context)->m_PhysicalDevice.m_Properties.limits.maxDrawIndexedIndexValue;
@@ -1739,6 +1749,16 @@ bail:
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
         assert(offset + size < buffer_ptr->m_MemorySize);
         DeviceBufferUploadHelper(g_VulkanContext, data, size, 0, buffer_ptr);
+    }
+
+    static uint32_t VulkanGetIndexBufferSize(HIndexBuffer buffer)
+    {
+        if (!buffer)
+        {
+            return 0;
+        }
+        DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
+        return buffer_ptr->m_MemorySize;
     }
 
     static bool VulkanIsIndexBufferFormatSupported(HContext context, IndexBufferFormat format)
