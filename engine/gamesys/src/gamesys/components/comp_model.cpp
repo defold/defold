@@ -1618,6 +1618,8 @@ namespace dmGameSystem
 
         world->m_MaxBatchIndex = 0;
         world->m_CurrentFrameTick++;
+        // Skip over frame 0xFFFF so we can use it as a special flag for recently enabled render items
+        world->m_CurrentFrameTick = world->m_CurrentFrameTick == 0xFFFF ? 0 : world->m_CurrentFrameTick;
 
         update_result.m_TransformsUpdated = rig_res == dmRig::RESULT_UPDATED_POSE;
         return dmGameObject::UPDATE_RESULT_OK;
@@ -2096,6 +2098,7 @@ namespace dmGameSystem
             if (item.m_Model->m_Id == mesh_id)
             {
                 item.m_Enabled = enabled?1:0;
+                item.m_Buffers->m_LastUsedFrame = 0xFFFF;
                 found = true;
             }
         }
