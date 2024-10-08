@@ -136,7 +136,7 @@ namespace dmGameSystem
         // For profiling data:
         uint32_t                         m_StatisticsVertexCount;
         uint32_t                         m_StatisticsVertexDataSize;
-        uint16_t                         m_CurrentFrameTick;
+        uint8_t                          m_CurrentFrameTick;
     };
 
     static const uint32_t VERTEX_BUFFER_MAX_BATCHES = 16;     // Max dmRender::RenderListEntry.m_MinorOrder (4 bits)
@@ -1618,8 +1618,8 @@ namespace dmGameSystem
 
         world->m_MaxBatchIndex = 0;
         world->m_CurrentFrameTick++;
-        // Skip over frame 0xFFFF so we can use it as a special flag for recently enabled render items
-        world->m_CurrentFrameTick = world->m_CurrentFrameTick == 0xFFFF ? 0 : world->m_CurrentFrameTick;
+        // Skip over frame 0xFF so we can use it as a special flag for recently enabled render items
+        world->m_CurrentFrameTick = world->m_CurrentFrameTick == 0xFF ? 0 : world->m_CurrentFrameTick;
 
         update_result.m_TransformsUpdated = rig_res == dmRig::RESULT_UPDATED_POSE;
         return dmGameObject::UPDATE_RESULT_OK;
@@ -2098,7 +2098,7 @@ namespace dmGameSystem
             if (item.m_Model->m_Id == mesh_id)
             {
                 item.m_Enabled = enabled?1:0;
-                item.m_Buffers->m_LastUsedFrame = 0xFFFF;
+                item.m_Buffers->m_LastUsedFrame = 0xFF;
                 found = true;
             }
         }

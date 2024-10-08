@@ -1634,6 +1634,10 @@ static void LogFrameBufferError(GLenum status)
     static void OpenGLSetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
         DM_PROFILE(__FUNCTION__);
+        if (!buffer)
+        {
+            return;
+        }
         OpenGLBuffer* vertex_buffer = (OpenGLBuffer*) buffer;
         glBindBufferARB(GL_ARRAY_BUFFER_ARB, vertex_buffer->m_Id);
         CHECK_GL_ERROR;
@@ -1662,7 +1666,7 @@ static void LogFrameBufferError(GLenum status)
     {
         DM_PROFILE(__FUNCTION__);
         // NOTE: WebGl doesn't seem to like zero-sized vertex buffers (very poor performance)
-        if (size == 0)
+        if (size == 0 || !buffer)
         {
             return;
         }
@@ -1703,6 +1707,10 @@ static void LogFrameBufferError(GLenum status)
 
     static void OpenGLSetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
+        if (!buffer)
+        {
+            return;
+        }
         DM_PROFILE(__FUNCTION__);
         OpenGLBuffer* index_buffer = (OpenGLBuffer*) buffer;
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, index_buffer->m_Id);
