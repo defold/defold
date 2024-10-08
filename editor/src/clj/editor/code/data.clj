@@ -591,8 +591,8 @@
         line-count (count lines)
         canvas-rect (->Rect ^double gutter-width 0.0 canvas-rect-width canvas-height)
         scroll-x (limit-scroll (- canvas-rect-width ^double document-width) scroll-x)
-        scroll-tab-x-rect (scroll-tab-x-rect canvas-rect document-width scroll-x)
-        scroll-tab-x-height (if scroll-tab-x-rect (.h scroll-tab-x-rect) 0)
+        ^Rect scroll-tab-x-rect (scroll-tab-x-rect canvas-rect document-width scroll-x)
+        scroll-tab-x-height (double (if scroll-tab-x-rect (.h scroll-tab-x-rect) 0.0))
         scroll-y (limit-scroll (- ^double canvas-height (* line-height line-count) scroll-tab-x-height) scroll-y)
         dropped-line-count (long (/ scroll-y (- line-height)))
         scroll-y-remainder (double (mod scroll-y (- line-height)))
@@ -1059,8 +1059,8 @@
   (let [^double line-height (line-height (.glyph layout))
         document-height (* line-count line-height)
         canvas-height (.h ^Rect (.canvas layout))
-        scroll-tab-x (.scroll-tab-x layout)
-        scroll-tab-x-h (if scroll-tab-x (.h scroll-tab-x) 0)]
+        ^Rect scroll-tab-x (.scroll-tab-x layout)
+        scroll-tab-x-h (double (if scroll-tab-x (.h scroll-tab-x) 0.0))]
     (- canvas-height document-height scroll-tab-x-h)))
 
 (defn limit-scroll-x
