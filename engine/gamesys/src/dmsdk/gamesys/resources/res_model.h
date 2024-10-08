@@ -48,6 +48,7 @@ namespace dmGameSystem
         uint32_t                    m_VertexCount;
         uint32_t                    m_IndexCount;
         dmGraphics::Type            m_IndexBufferElementType;
+        uint16_t                    m_LastUsedFrame; // Used for statistics
     };
 
     struct MeshInfo
