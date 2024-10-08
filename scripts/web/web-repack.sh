@@ -85,6 +85,9 @@ fi
 if [ -d "${DYNAMO_HOME}/bin/wasm-web" ]; then
     cp -v "${DYNAMO_HOME}/bin/wasm-web/dmengine${SUFFIX}.js" "${TARGET}/${PROJECTNAME}_wasm.js"
     cp -v "${DYNAMO_HOME}/bin/wasm-web/dmengine${SUFFIX}.wasm" "${TARGET}/${PROJECTNAME}.wasm"
+    if [ -e "${DYNAMO_HOME}/bin/wasm-web/dmengine${SUFFIX}.wasm.debug.wasm" ]; then
+        cp -v "${DYNAMO_HOME}/bin/wasm-web/dmengine${SUFFIX}.wasm.debug.wasm" "${TARGET}/${PROJECTNAME}.wasm.debug.wasm"
+    fi
     if [ -e "${DYNAMO_HOME}/bin/wasm-web/dmengine${SUFFIX}.wasm.map" ]; then
         cp -v "${DYNAMO_HOME}/bin/wasm-web/dmengine${SUFFIX}.wasm.map" "${TARGET}/${PROJECTNAME}.wasm.map"
     fi

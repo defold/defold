@@ -494,8 +494,10 @@ def default_flags(self):
 
         if Options.options.with_webgpu and platform_supports_feature(build_util.get_target_platform(), 'webgpu', {}):
             emflags_link += ['USE_WEBGPU', 'GL_WORKAROUND_SAFARI_GETCONTEXT_BUG=0']
-            # This is needed so long as we have to use sleep to make initialization blocking
-            emflags_link += ['ASYNCIFY', 'ASYNCIFY_ADVISE', 'ASYNCIFY_IGNORE_INDIRECT', 'ASYNCIFY_ADD=["main", "dmEngineCreate(int, char**)"]' ]
+            # This is needed so long as we have to use sleep to make initialization
+            emflags_link += ['ASYNCIFY']
+            if int(opt_level) >= 3:
+                emflags_link += ['ASYNCIFY_ADVISE', 'ASYNCIFY_IGNORE_INDIRECT', 'ASYNCIFY_ADD=["main", "dmEngineCreate(int, char**)"]' ]
 
         if 'wasm' == build_util.get_target_architecture():
             emflags_link += ['WASM=1', 'ALLOW_MEMORY_GROWTH=1']
@@ -508,11 +510,10 @@ def default_flags(self):
         flags = []
         linkflags = []
         if int(opt_level) < 2:
-            flags = ['-gsource-map']
-            linkflags = ['-gsource-map']
-
-        flags += ['-O3']
-        linkflags += ['-O3']
+            flags = ['-gseparate-dwarf', '-gsource-map']
+            linkflags = ['-gseparate-dwarf', '-gsource-map']
+        flags += ['-O%s' % opt_level]
+        linkflags += ['-O%s' % opt_level]
 
         self.env['DM_HOSTFS']           = '/node_vfs/'
         self.env.append_value('DEFINES', ['DM_NO_THREAD_SUPPORT', 'JC_TEST_NO_DEATH_TEST'])
@@ -521,7 +522,7 @@ def default_flags(self):
 
         for f in ['CFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, ['-Wall', '-fPIC', '-fno-exceptions', '-fno-rtti',
-                                        '-DGL_ES_VERSION_2_0', '-DGOOGLE_PROTOBUF_NO_RTTI', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DDM_NO_SYSTEM_FUNCTION'])
+                                      '-DGL_ES_VERSION_2_0', '-DGOOGLE_PROTOBUF_NO_RTTI', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DDM_NO_SYSTEM_FUNCTION'])
             self.env.append_value(f, emflags_compile)
             self.env.append_value(f, flags)
 
