@@ -5855,7 +5855,7 @@ driver
 
 driver
 {
-    device: "Wireless Gamepad"
+    device: "Wireless Gamepad" # Nintendo Switch Pro Controller
     platform: "windows"
     dead_zone: 0.200
     map { input: GAMEPAD_LSTICK_LEFT type: GAMEPAD_TYPE_AXIS index: 0 mod { mod: GAMEPAD_MODIFIER_NEGATE } mod { mod: GAMEPAD_MODIFIER_CLAMP } }
