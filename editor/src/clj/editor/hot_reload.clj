@@ -17,9 +17,9 @@
             [clojure.string :as string]
             [editor.workspace :as workspace]
             [util.http-util :as http-util])
-  (:import [java.io FileNotFoundException]
+  (:import [java.io IOException]
            [java.net URI]
-           [java.nio.file Path Paths Files]
+           [java.nio.file Paths Files]
            [org.apache.commons.io FilenameUtils IOUtils]))
 
 (set! *warn-on-reflection* true)
@@ -50,7 +50,7 @@
             content (when (and (= method "GET") (not is-cached))
                       (try
                         (Files/readAllBytes (Paths/get (.toURI file)))
-                        (catch FileNotFoundException _
+                        (catch IOException _
                           :not-found)))]
         (if (= content :not-found)
           http-util/not-found-response
