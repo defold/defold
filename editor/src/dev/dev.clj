@@ -121,6 +121,36 @@
 
 (def sel (comp first selection))
 
+(defn node-outline [node-id & outline-labels]
+  {:pre [(not (g/error? node-outline))
+         (every? string? outline-labels)]}
+  (reduce (fn [node-outline outline-label]
+            (or (some (fn [child-outline]
+                        (when (= outline-label (:label child-outline))
+                          child-outline))
+                      (:children node-outline))
+                (throw (ex-info (format "node-outline for %s '%s' has no child-outline '%s'."
+                                        (symbol (g/node-type-kw node-id))
+                                        (:label node-outline)
+                                        outline-label)
+                                {:start-node-type-kw (g/node-type-kw node-id)
+                                 :outline-labels (vec outline-labels)
+                                 :failed-outline-label outline-label
+                                 :failed-outline-label-candidates (into (sorted-set)
+                                                                        (map :label)
+                                                                        (:children node-outline))
+                                 :failed-node-outline node-outline}))))
+          (g/node-value node-id :node-outline)
+          outline-labels))
+
+(defn outline-node-id [node-id & outline-labels]
+  (:node-id (apply node-outline node-id outline-labels)))
+
+(defn outline-labels [node-id & outline-labels]
+  (into (sorted-set)
+        (map :label)
+        (:children (apply node-outline node-id outline-labels))))
+
 (defn- throw-invalid-component-resource-node-id-exception [basis node-id]
   (throw (ex-info "The specified node cannot be resolved to a component ResourceNode."
                   {:node-id node-id

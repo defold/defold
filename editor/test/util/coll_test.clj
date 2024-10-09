@@ -22,6 +22,10 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
+(defrecord Nothing [])
+(defrecord JustA [a])
+(defrecord PairAB [a b])
+
 (deftest list-or-cons?-test
   (is (true? (coll/list-or-cons? '())))
   (is (true? (coll/list-or-cons? `())))
@@ -194,6 +198,7 @@
   (is (true? (coll/empty? (sorted-set))))
   (is (true? (coll/empty? (range 0))))
   (is (true? (coll/empty? (repeatedly 0 rand))))
+  (is (true? (coll/empty? (Nothing.))))
   (is (false? (coll/empty? "a")))
   (is (false? (coll/empty? [1])))
   (is (false? (coll/empty? (vector-of :long 1))))
@@ -203,7 +208,8 @@
   (is (false? (coll/empty? (sorted-map :a 1))))
   (is (false? (coll/empty? (sorted-set 1))))
   (is (false? (coll/empty? (range 1))))
-  (is (false? (coll/empty? (repeatedly 1 rand)))))
+  (is (false? (coll/empty? (repeatedly 1 rand))))
+  (is (false? (coll/empty? (JustA. 1)))))
 
 (deftest not-empty-test
   (is (nil? (coll/not-empty nil)))
@@ -217,6 +223,7 @@
   (is (nil? (coll/not-empty (sorted-set))))
   (is (nil? (coll/not-empty (range 0))))
   (is (nil? (coll/not-empty (repeatedly 0 rand))))
+  (is (nil? (coll/not-empty (Nothing.))))
   (letfn [(returns-input? [input]
             (identical? input (coll/not-empty input)))]
     (is (returns-input? "a"))
@@ -228,7 +235,8 @@
     (is (returns-input? (sorted-map :a 1)))
     (is (returns-input? (sorted-set 1)))
     (is (returns-input? (range 1)))
-    (is (returns-input? (repeatedly 1 rand)))))
+    (is (returns-input? (repeatedly 1 rand)))
+    (is (returns-input? (JustA. 1)))))
 
 (deftest pair-map-by-test
   (testing "Works as a transducer with key-fn"
@@ -254,6 +262,158 @@
     (let [result (coll/pair-map-by symbol keyword ["one" "two"])]
       (is (map? result))
       (is (= {'one :one 'two :two} result)))))
+
+(deftest deep-merge-test
+  (testing "Replaces entries."
+    (is (= {:a 11
+            :m {:a 11
+                :m {:a 11}}}
+           (coll/deep-merge {:a 1
+                             :m {:a 1
+                                 :m {:a 1}}}
+                            {:a 11
+                             :m {:a 11
+                                 :m {:a 11}}}))))
+
+  (testing "Adds entries."
+    (is (= {:a 1
+            :b 2
+            :m {:a 1
+                :b 2
+                :m {:a 1
+                    :b 2}}}
+           (coll/deep-merge {:a 1
+                             :m {:a 1
+                                 :m {:a 1}}}
+                            {:b 2
+                             :m {:b 2
+                                 :m {:b 2}}}))))
+
+  (testing "Multiple maps."
+    (is (= {:a 1
+            :b 2
+            :c 3
+            :m {:a 1
+                :b 2
+                :c 3
+                :m {:a 1
+                    :b 2
+                    :c 3}}}
+           (coll/deep-merge {:a 1
+                             :m {:a 1
+                                 :m {:a 1}}}
+                            {:b 2
+                             :m {:b 2
+                                 :m {:b 2}}}
+                            {:c 3
+                             :m {:c 3
+                                 :m {:c 3}}}))))
+
+  (testing "Nil values."
+    (is (= {:a nil
+            :b nil
+            :c nil
+            :m {:a nil
+                :b nil
+                :c nil
+                :m {:a nil
+                    :b nil
+                    :c nil}}}
+           (coll/deep-merge {:a 1
+                             :b nil
+                             :m {:a 1
+                                 :b nil
+                                 :m {:a 1
+                                     :b nil}}}
+                            {:a nil
+                             :m {:a nil
+                                 :m {:a nil}}}
+                            {:c nil
+                             :m {:c nil
+                                 :m {:c nil}}}))))
+
+  (testing "Vector values."
+    (is (= {:a [1]
+            :b [2]
+            :c [3]
+            :m {:a [1]
+                :b [2]
+                :c [3]
+                :m {:a [1]
+                    :b [2]
+                    :c [3]}}}
+           (coll/deep-merge {:a [nil nil]
+                             :b [2]
+                             :m {:a [nil nil]
+                                 :b [2]
+                                 :m {:a [nil nil]
+                                     :b [2]}}}
+                            {:a [1]
+                             :m {:a [1]
+                                 :m {:a [1]}}}
+                            {:c [3]
+                             :m {:c [3]
+                                 :m {:c [3]}}}))))
+
+  (testing "Maps in RHS position merge into records in LHS position."
+    (is (= (PairAB. 1 22)
+           (coll/deep-merge (PairAB. 1 2)
+                            {:b 22})))
+    (is (instance? PairAB
+                   (coll/deep-merge (PairAB. 1 2)
+                                    {:b 22})))
+    (is (= {:a (PairAB. 1 22)}
+           (coll/deep-merge {:a (PairAB. 1 2)}
+                            {:a {:b 22}})))
+    (is (instance? PairAB
+                   (:a (coll/deep-merge {:a (PairAB. 1 2)}
+                                        {:a {:b 22}})))))
+
+  (testing "Records in RHS position merge into maps in LHS position."
+    (is (= {:a 11 :b 22 :c 3}
+           (coll/deep-merge {:a 1 :b 2 :c 3}
+                            (PairAB. 11 22))))
+    (is (= {:m {:a 11 :b 22 :c 3}}
+           (coll/deep-merge {:m {:a 1 :b 2 :c 3}}
+                            {:m (PairAB. 11 22)}))))
+
+  (testing "Records in RHS position replace records in LHS position."
+    (is (= (JustA. 11)
+           (coll/deep-merge (PairAB. 1 2)
+                            (JustA. 11))))
+    (is (= {:m (JustA. 11)}
+           (coll/deep-merge {:m (PairAB. 1 2)}
+                            {:m (JustA. 11)}))))
+
+  (testing "Returns nil when called with no maps."
+    (is (nil? (coll/deep-merge)))
+
+  (testing "Returns original when there is nothing to merge."
+    (let [original-map {:a 1
+                        :m {:a 1
+                            :m {:a 1}}}]
+      (is (identical? original-map (coll/deep-merge original-map)))
+      (is (identical? original-map (coll/deep-merge original-map nil)))
+      (is (= original-map (coll/deep-merge original-map nil)))
+      (is (identical? original-map (coll/deep-merge original-map {})))
+      (is (identical? original-map (coll/deep-merge nil original-map)))
+      (is (identical? original-map (coll/deep-merge {} original-map)))
+      (is (= original-map (coll/deep-merge {} original-map))))))
+
+  (testing "Preserves metadata."
+    (let [original-meta {:meta-key "meta-value"}]
+      (doseq [map-fn [array-map hash-map sorted-map]]
+        (let [original-map (with-meta (map-fn :a 1
+                                              :m (with-meta (map-fn :a 11)
+                                                            original-meta))
+                                      original-meta)
+              merged-map (coll/deep-merge original-map
+                                          {:a 2 :m {:a 22}})]
+          (is (= {:a 2
+                  :m {:a 22}}
+                 merged-map))
+          (is (identical? original-meta (meta merged-map)))
+          (is (identical? original-meta (meta (:m merged-map)))))))))
 
 (deftest separate-by-test
   (testing "Separates by predicate"

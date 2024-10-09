@@ -179,6 +179,24 @@
          (map (pair-fn key-fn value-fn))
          coll)))
 
+(defn deep-merge
+  "Deep-merge the supplied maps. Values from later maps will overwrite values in
+  the previous maps. Records can be merged with maps, but are otherwise treated
+  as values. Any non-map collections are treated as values. Types and metadata
+  are preserved."
+  ([] nil)
+  ([a] a)
+  ([a b]
+   (cond
+     (and (record? b) (record? a)) b
+     (or (not (map? a)) (empty? a)) b
+     (and (map? b) (not (empty? b))) (merge-with deep-merge a b)
+     :else a))
+  ([a b & maps]
+   (reduce deep-merge
+           (deep-merge a b)
+           maps)))
+
 (defn partition-all-primitives
   "Returns a lazy sequence of primitive vectors. Like core.partition-all, but
   creates a new vector of a single primitive-type for each partition. The
