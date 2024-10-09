@@ -291,6 +291,36 @@ static WGPUTextureFormat WebGPUFormatFromTextureFormat(TextureFormat format)
     };
 }
 
+static size_t WebGPUCompressedBlockWidth(TextureFormat format)
+{
+    assert(format <= TEXTURE_FORMAT_COUNT);
+    switch (format)
+    {
+    case TEXTURE_FORMAT_RGB_ETC1:           return 4;
+    case TEXTURE_FORMAT_RGBA_ETC2:          return 4;
+    case TEXTURE_FORMAT_RGBA_ASTC_4x4:      return 4;
+    case TEXTURE_FORMAT_RGB_BC1:            return 4;
+    case TEXTURE_FORMAT_RGBA_BC3:           return 4;
+    case TEXTURE_FORMAT_RGBA_BC7:           return 4;
+    default:                                return 0;
+    };
+}
+
+static size_t WebGPUCompressedBlockByteSize(TextureFormat format)
+{
+    assert(format <= TEXTURE_FORMAT_COUNT);
+    switch (format)
+    {
+    case TEXTURE_FORMAT_RGB_ETC1:           return 8;
+    case TEXTURE_FORMAT_RGBA_ETC2:          return 8;
+    case TEXTURE_FORMAT_RGBA_ASTC_4x4:      return 16;
+    case TEXTURE_FORMAT_RGB_BC1:            return 8;
+    case TEXTURE_FORMAT_RGBA_BC3:           return 16;
+    case TEXTURE_FORMAT_RGBA_BC7:           return 16;
+    default:                                return 0;
+    };
+}
+
 static void WebGPURealizeTexture(WebGPUTexture* texture, WGPUTextureFormat format, uint8_t depth, uint32_t sampleCount, WGPUTextureUsage usage)
 {
     if (texture->m_Depth > depth)
@@ -398,8 +428,12 @@ static void WebGPUSetTextureInternal(WebGPUTexture* texture, const TextureParams
             const uint8_t bpp     = ceil(GetTextureFormatBitsPerPixel(params.m_Format) / 8.0f);
             const size_t dataSize = bpp * params.m_Width * params.m_Height * depth;
 
-            dest.texture              = texture->m_Texture;
-            layout.bytesPerRow        = extent.width * bpp;
+            dest.texture = texture->m_Texture;
+            layout.bytesPerRow = extent.width;
+            if(IsTextureFormatCompressed(params.m_Format))
+                layout.bytesPerRow = (layout.bytesPerRow / WebGPUCompressedBlockWidth(params.m_Format)) * WebGPUCompressedBlockByteSize(params.m_Format);
+            else
+                layout.bytesPerRow *= bpp;
             extent.depthOrArrayLayers = depth;
             wgpuQueueWriteTexture(g_WebGPUContext->m_Queue, &dest, params.m_Data, dataSize, &layout, &extent);
         }
@@ -800,6 +834,12 @@ static void WebGPUCreateSwapchain(WebGPUContext* context, uint32_t width, uint32
     }
 }
 
+        WGPUFeatureName features[16];
+        descriptor.requiredFeatures = features;
+        if (wgpuAdapterHasFeature(context->m_Adapter, WGPUFeatureName_TextureCompressionBC))
+            features[descriptor.requiredFeatureCount++] = WGPUFeatureName_TextureCompressionBC;
+        if (wgpuAdapterHasFeature(context->m_Adapter, WGPUFeatureName_TextureCompressionASTC))
+            features[descriptor.requiredFeatureCount++] = WGPUFeatureName_TextureCompressionASTC;
 static bool InitializeWebGPUContext(WebGPUContext* context, const ContextParams& params)
 {
     TRACE_CALL;
@@ -998,6 +1038,14 @@ static void WebGPUDeleteContext(HContext _context)
     }
 }
 
+#ifdef __EMSCRIPTEN__
+    while (0 != is_running(user_data))
+    {
+        // N.B. Beyond the first test, the above statement is essentially formal since set_main_loop will throw an exception.
+        emscripten_set_main_loop_arg(step_method, user_data, 0, 1);
+    }
+#else
+#endif
 static dmPlatform::HWindow WebGPUGetWindow(HContext _context)
 {
     TRACE_CALL;
@@ -1348,6 +1396,16 @@ static void WebGPUSetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, 
     WebGPUWriteBuffer(g_WebGPUContext, gpu_buffer, offset, data, size);
 }
 
+static uint32_t WebGPUGetVertexBufferSize(HVertexBuffer buffer)
+{
+    if (!buffer)
+    {
+        return 0;
+    }
+    WebGPUBuffer* buffer_ptr = (WebGPUBuffer*) buffer;
+    return buffer_ptr->m_Size;
+}
+
 static uint32_t WebGPUGetMaxElementsVertices(HContext context)
 {
     TRACE_CALL;
@@ -1403,6 +1461,16 @@ static void WebGPUSetIndexBufferSubData(HIndexBuffer _buffer, uint32_t offset, u
     WebGPUBuffer* buffer = (WebGPUBuffer*)_buffer;
     assert(buffer->m_Used >= offset + size);
     WebGPUWriteBuffer(g_WebGPUContext, buffer, offset, data, size);
+}
+
+static uint32_t WebGPUGetIndexBufferSize(HIndexBuffer buffer)
+{
+    if (!buffer)
+    {
+        return 0;
+    }
+    WebGPUBuffer* buffer_ptr = (WebGPUBuffer*) buffer;
+    return buffer_ptr->m_Size;
 }
 
 static bool WebGPUIsIndexBufferFormatSupported(HContext context, IndexBufferFormat format)
@@ -1485,12 +1553,14 @@ static void WebGPUDisableVertexBuffer(HContext _context, HVertexBuffer _buffer)
     }
 }
 
-static void WebGPUEnableVertexDeclaration(HContext _context, HVertexDeclaration _declaration, uint32_t binding_index, HProgram _program)
+static void WebGPUEnableVertexDeclaration(HContext _context, HVertexDeclaration _declaration, uint32_t binding_index, uint32_t base_offset, HProgram _program)
 {
     TRACE_CALL;
     WebGPUContext* context         = (WebGPUContext*)_context;
     WebGPUProgram* program         = (WebGPUProgram*)_program;
     VertexDeclaration* declaration = (VertexDeclaration*)_declaration;
+
+    // TODO: Instancing!
 
     context->m_VertexDeclaration[binding_index]                = {};
     context->m_VertexDeclaration[binding_index].m_Stride       = declaration->m_Stride;
@@ -1736,21 +1806,23 @@ static void WebGPUSetupRenderPipeline(WebGPUContext* context, WebGPUBuffer* inde
     }
 }
 
-static void WebGPUDrawElements(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
+static void WebGPUDrawElements(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer, uint32_t instance_count)
 {
     TRACE_CALL;
     assert(_context);
     assert(index_buffer);
+    // TODO: Instancing!
     WebGPUContext* context                         = (WebGPUContext*)_context;
     context->m_CurrentPipelineState.m_PrimtiveType = prim_type;
     WebGPUSetupRenderPipeline(context, (WebGPUBuffer*)index_buffer, type);
     wgpuRenderPassEncoderDrawIndexed(context->m_CurrentRenderPass.m_Encoder, count, 1, first / (type == TYPE_UNSIGNED_SHORT ? 2 : 4), 0, 0);
 }
 
-static void WebGPUDraw(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count)
+static void WebGPUDraw(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count)
 {
     TRACE_CALL;
     assert(_context);
+    // TODO: Instancing!
     WebGPUContext* context                         = (WebGPUContext*)_context;
     context->m_CurrentPipelineState.m_PrimtiveType = prim_type;
     WebGPUSetupRenderPipeline(context, NULL, TYPE_BYTE);

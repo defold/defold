@@ -52,6 +52,7 @@ ordinary paths."
 (set! *warn-on-reflection* true)
 
 (def build-dir "/build/default/")
+(def build-html5-dir "/build/default_html5/")
 (def plugins-dir "/build/plugins/")
 
 ;; SDK api
@@ -86,6 +87,10 @@ ordinary paths."
    (io/file (project-path workspace) (skip-first-char build-dir)))
   (^File [workspace build-resource-path]
    (io/file (build-path workspace) (skip-first-char build-resource-path))))
+
+(defn build-html5-path
+  (^File [workspace]
+   (io/file (project-path workspace) (skip-first-char build-html5-dir))))
 
 (defn plugin-path
   (^File [workspace]

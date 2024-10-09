@@ -25,6 +25,11 @@
 #include <dlib/log.h>
 #include <dlib/testutil.h>
 
+#define SUPPORT_RMTREE
+#if defined(__EMSCRIPTEN__)
+    #undef SUPPORT_RMTREE
+#endif
+
 template <> char* jc_test_print_value(char* buffer, size_t buffer_len, dmSys::Result r) {
     return buffer + dmSnPrintf(buffer, buffer_len, "%s", dmSys::ResultToString(r));
 }
@@ -70,6 +75,8 @@ TEST(dmSys, IsDir)
     ASSERT_EQ(dmSys::RESULT_UNKNOWN, r); // TODO: This api isn't very nice /MAWE
 }
 
+#if defined(SUPPORT_RMTREE)
+
 TEST(dmSys, Mkdir)
 {
     char path[128];
@@ -101,6 +108,7 @@ TEST(dmSys, Mkdir)
     r = dmSys::Rmdir(dmTestUtil::MakeHostPath(path, sizeof(path), "testdir/dir"));
     ASSERT_EQ(dmSys::RESULT_OK, r);
 }
+#endif
 
 TEST(dmSys, Unlink)
 {

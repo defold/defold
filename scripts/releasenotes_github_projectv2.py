@@ -196,11 +196,14 @@ def get_issue_type_from_labels(labels):
     return TYPE_FIX
 
 def get_closing_pr(issue):
+    closing_pr = None
+    # an issue may reference multiple merged items on the
+    # timeline - pick the last one! (ie newest)
     for t in issue["timelineItems"]["nodes"]:
         if t and "source" in t and t["source"]:
             if t["source"].get("merged") == True:
-                return t["source"]
-    return issue
+                closing_pr = t["source"]
+    return closing_pr
 
 def issue_to_markdown(issue, hide_details = True, title_only = False):
     if title_only:
@@ -228,23 +231,29 @@ def generate(version, hide_details = False):
         content = m.get("content")
         if not content:
             continue
+
+        # if content.get("number") != 1234: continue
+
         is_issue = m.get("type") == "ISSUE"
         is_pr = m.get("type") == "PULL_REQUEST"
         if is_issue and content.get("closed") == False:
             continue
         if is_pr and content.get("merged") == False:
             continue
-
         issue_labels = get_labels(content)
         if "skip release notes" in issue_labels:
             continue
 
         if is_issue:
-            content = get_closing_pr(content)
-            # merge labels skipping duplicates
-            for label in get_labels(content):
-                if not label in issue_labels:
-                    issue_labels.append(label)
+            closing_pr = get_closing_pr(content)
+            if closing_pr:
+                # print("Issue #%d '%s' was closed by #%d '%s'" % (content.get("number"), content.get("title"), closing_pr.get("number"), closing_pr.get("title")))
+                content = closing_pr
+                # merge labels skipping duplicates
+                for label in get_labels(content):
+                    if not label in issue_labels:
+                        issue_labels.append(label)
+
 
         issue_type = get_issue_type_from_labels(issue_labels)
 
@@ -262,9 +271,9 @@ def generate(version, hide_details = False):
         entry["body"] = re.sub("## PR checklist.*", "", entry["body"], flags=re.DOTALL).strip()
         entry["body"] = re.sub("### Technical changes.*", "", entry["body"], flags=re.DOTALL).strip()
         entry["body"] = re.sub("### Technical changes.*", "", entry["body"], flags=re.DOTALL).strip()
-        entry["body"] = re.sub("# Technical changes:.*", "", entry["body"], flags=re.DOTALL).strip()
-        entry["body"] = re.sub("Technical changes:.*", "", entry["body"], flags=re.DOTALL).strip()
-        entry["body"] = re.sub("Technical notes:.*", "", entry["body"], flags=re.DOTALL).strip()
+        entry["body"] = re.sub("# Technical changes.*", "", entry["body"], flags=re.DOTALL).strip()
+        entry["body"] = re.sub("Technical changes.*", "", entry["body"], flags=re.DOTALL).strip()
+        entry["body"] = re.sub("Technical notes.*", "", entry["body"], flags=re.DOTALL).strip()
         entry["body"] = re.sub("## Technical details.*", "", entry["body"], flags=re.DOTALL).strip()
 
         # Remove closing keywords
@@ -276,7 +285,7 @@ def generate(version, hide_details = False):
         entry["body"] = re.sub("Fix https.*", "", entry["body"], flags=re.IGNORECASE).strip()
 
         # Remove "user facing changes" header
-        entry["body"] = re.sub("User-facing changes:", "", entry["body"], flags=re.IGNORECASE).strip()
+        entry["body"] = re.sub("User-facing changes.", "", entry["body"], flags=re.IGNORECASE).strip()
         entry["body"] = re.sub("### User-facing changes", "", entry["body"], flags=re.IGNORECASE).strip()
 
         duplicate = False

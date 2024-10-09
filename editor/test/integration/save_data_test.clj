@@ -204,14 +204,17 @@
     {"tile_set" :deprecated}} ; Replaced with 'textures'; Migration tested in integration.save-data-test/silent-migrations-test.
 
    'dmGraphics.VertexAttribute
-   {[["particlefx" "emitters" "[*]" "attributes"]
+   {:default
+    {"element_count" :deprecated} ; Migration tested in integration.save-data-test/silent-migrations-test.
+
+    [["particlefx" "emitters" "[*]" "attributes"]
      ["sprite" "attributes"]
      ["model" "materials" "attributes"]]
     {"coordinate_space" :unused
      "data_type" :unused
-     "element_count" :unused
      "normalize" :unused
-     "semantic_type" :unused}}
+     "semantic_type" :unused
+     "step_function" :unused}}
 
    ['dmGraphics.VertexAttribute "[TYPE_FLOAT]"]
    {:default
@@ -489,7 +492,7 @@
 
    'dmRenderDDF.RenderPrototypeDesc
    {:default
-    {"materials" :deprecated}}
+    {"materials" :deprecated}} ; Migration tested in integration.save-data-test/silent-migrations-test.
 
    'dmRenderDDF.RenderTargetDesc.DepthStencilAttachment
    {:default
@@ -670,7 +673,23 @@
                  :name "normal"
                  :wrap-u :wrap-mode-clamp-to-edge
                  :wrap-v :wrap-mode-clamp-to-edge}]
-               (g/node-value legacy-textures-material :samplers)))))
+               (g/node-value legacy-textures-material :samplers))))
+      (let [legacy-element-count-material (project/get-resource-node project "/silently_migrated/legacy_vertex_attribute_element_count.material")
+            legacy-attributes (g/node-value legacy-element-count-material :attributes)
+            vector-types-by-attribute-name (into (sorted-map)
+                                                 (map (fn [attribute]
+                                                        (pair (:name attribute)
+                                                              (select-keys attribute [:vector-type :values]))))
+                                                 legacy-attributes)]
+        (is (= {"legacy_count_1" {:vector-type :vector-type-scalar
+                                  :values [1.1]}
+                "legacy_count_2" {:vector-type :vector-type-vec2
+                                  :values [1.1 1.2]}
+                "legacy_count_3" {:vector-type :vector-type-vec3
+                                  :values [1.1 1.2 1.3]}
+                "legacy_count_4" {:vector-type :vector-type-vec4
+                                  :values [1.1 1.2 1.3 1.4]}}
+               vector-types-by-attribute-name))))
 
     (testing "render"
       (let [legacy-render-prototype (project/get-resource-node project "/silently_migrated/legacy_render_prototype.render")]

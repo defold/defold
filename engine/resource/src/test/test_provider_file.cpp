@@ -71,7 +71,14 @@ protected:
         ASSERT_NE((ArchiveLoader*)0, m_Loader);
 
         dmURI::Parts uri;
+#if defined(__EMSCRIPTEN__)
+        // Trigger the vsf init for emscripten (hidden in MakeHostPath)
+        char path[1024];
+        dmTestUtil::MakeHostPath(path, sizeof(path), "src");
+        dmURI::Parse(DM_HOSTFS, &uri);
+#else
         dmURI::Parse(".", &uri);
+#endif
 
         dmResourceProvider::Result result = dmResourceProvider::CreateMount(m_Loader, &uri, 0, &m_Archive);
         ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
@@ -110,9 +117,6 @@ TEST_F(FileProviderArchive, GetSize)
 
 TEST_F(FileProviderArchive, ReadFile)
 {
-    char path[1024];
-    dmTestUtil::MakeHostPath(path, sizeof(path), "somedata");
-
     dmResourceProvider::Result result;
     uint8_t short_buffer[4];
     uint8_t long_buffer[64];

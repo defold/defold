@@ -31,6 +31,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -56,6 +57,9 @@ import com.dynamo.bob.util.TimeProfiler;
 import com.dynamo.bob.util.HttpUtil;
 import com.dynamo.bob.cache.ResourceCacheKey;
 import com.dynamo.bob.util.FileUtil;
+
+import static com.dynamo.bob.Bob.CommandLineOption.ArgCount.*;
+import static com.dynamo.bob.Bob.CommandLineOption.ArgType.ABS_OR_CWD_REL_PATH;
 
 public class Bob {
     private static final Logger logger = Logger.getLogger(Bob.class.getName());
@@ -479,97 +483,127 @@ public class Bob {
         addToPath("java.library.path", dir);
     }
 
-    private static void addOption(Options options, String shortOpt, String longOpt, boolean hasArg, String description, boolean usedByResourceCacheKey) {
-        options.addOption(shortOpt, longOpt, hasArg, description);
+    public static final class CommandLineOption {
+        public final String shortOpt;
+        public final String longOpt;
+        public final ArgCount argCount;
+        public final ArgType argType;
+        public final String description;
+
+        public CommandLineOption(String shortOpt, String longOpt, ArgCount argCount, ArgType argType, String description) {
+            this.shortOpt = shortOpt;
+            this.longOpt = longOpt;
+            this.argCount = argCount;
+            this.argType = argType;
+            this.description = description;
+        }
+
+        public enum ArgCount {ZERO, ONE, MANY}
+
+        public enum ArgType {UNSPECIFIED, ABS_OR_CWD_REL_PATH}
+    }
+
+    private static CommandLineOption opt(String shortOpt, String longOpt, CommandLineOption.ArgCount argCount, CommandLineOption.ArgType argType, String description,
+                                         boolean usedByResourceCacheKey) {
         if (usedByResourceCacheKey) {
             ResourceCacheKey.includeOption(longOpt);
         }
+        if (argCount == MANY) {
+            description = description + ". More than one occurrence is allowed";
+        }
+        return new CommandLineOption(shortOpt, longOpt, argCount, argType, description);
+    };
+
+    private static CommandLineOption opt(String shortOpt, String longOpt, CommandLineOption.ArgCount argCount, String description, boolean usedByResourceCacheKey) {
+        return opt(shortOpt, longOpt, argCount, CommandLineOption.ArgType.UNSPECIFIED, description, usedByResourceCacheKey);
     }
 
-    public static Options getCommandLineOptions() {
-        Options options = new Options();
-        addOption(options, "r", "root", true, "Build root directory. Default is current directory", true);
-        addOption(options, "o", "output", true, "Output directory. Default is \"build/default\"", false);
-        addOption(options, "i", "input", true, "DEPRECATED! Use --root instead", true);
-        addOption(options, "v", "verbose", false, "Verbose output", false);
-        addOption(options, "h", "help", false, "This help message", false);
-        addOption(options, "a", "archive", false, "Build archive", false);
-        addOption(options, "ea", "exclude-archive", false, "Exclude resource archives from application bundle. Use this to create an empty Defold application for use as a build target", false);
-        addOption(options, "e", "email", true, "User email", false);
-        addOption(options, "u", "auth", true, "User auth token", false);
+    public static List<CommandLineOption> getCommandLineOptions() {
+        return List.of(
+                opt("r", "root", ONE, ABS_OR_CWD_REL_PATH, "Build root directory. Default is current directory", true),
+                opt("o", "output", ONE, "Output directory. Default is \"build/default\"", false),
+                opt("i", "input", ONE, "DEPRECATED! Use --root instead", true),
+                opt("v", "verbose", ZERO, "Verbose output", false),
+                opt("h", "help", ZERO, "This help message", false),
+                opt("a", "archive", ZERO, "Build archive", false),
+                opt("ea", "exclude-archive", ZERO, "Exclude resource archives from application bundle. Use this to create an empty Defold application for use as a build target", false),
+                opt("e", "email", ONE, "User email", false),
+                opt("u", "auth", ONE, "User auth token", false),
 
-        addOption(options, "p", "platform", true, "Platform (when building and bundling)", true);
-        addOption(options, "bo", "bundle-output", true, "Bundle output directory", false);
-        addOption(options, "bf", "bundle-format", true, "Which formats to create the application bundle in. Comma separated list. (Android: 'apk' and 'aab')", false);
+                opt("p", "platform", ONE, "Platform (when building and bundling)", true),
+                opt("bo", "bundle-output", ONE, ABS_OR_CWD_REL_PATH,"Bundle output directory", false),
+                opt("bf", "bundle-format", ONE, "Which formats to create the application bundle in. Comma separated list. (Android: 'apk' and 'aab')", false),
 
-        addOption(options, "mp", "mobileprovisioning", true, "mobileprovisioning profile (iOS)", false);
-        addOption(options, null, "identity", true, "Sign identity (iOS)", false);
+                opt("mp", "mobileprovisioning", ONE, ABS_OR_CWD_REL_PATH, "mobileprovisioning profile (iOS)", false),
+                opt(null, "identity", ONE, "Sign identity (iOS)", false),
 
-        addOption(options, "ce", "certificate", true, "DEPRECATED! Use --keystore instead", false);
-        addOption(options, "pk", "private-key", true, "DEPRECATED! Use --keystore instead", false);
+                opt("ce", "certificate", ONE, "DEPRECATED! Use --keystore instead", false),
+                opt("pk", "private-key", ONE, "DEPRECATED! Use --keystore instead", false),
 
-        addOption(options, "ks", "keystore", true, "Deployment keystore used to sign APKs (Android)", false);
-        addOption(options, "ksp", "keystore-pass", true, "Password of the deployment keystore (Android)", false);
-        addOption(options, "ksa", "keystore-alias", true, "The alias of the signing key+cert you want to use (Android)", false);
-        addOption(options, "kp", "key-pass", true, "Password of the deployment key if different from the keystore password (Android)", false);
+                opt("ks", "keystore", ONE, "Deployment keystore used to sign APKs (Android)", false),
+                opt("ksp", "keystore-pass", ONE, "Password of the deployment keystore (Android)", false),
+                opt("ksa", "keystore-alias", ONE, "The alias of the signing key+cert you want to use (Android)", false),
+                opt("kp", "key-pass", ONE, "Password of the deployment key if different from the keystore password (Android)", false),
 
-        addOption(options, "d", "debug", false, "DEPRECATED! Use --variant=debug instead", false);
-        addOption(options, null, "variant", true, "Specify debug, release or headless version of dmengine (when bundling)", false);
-        addOption(options, null, "strip-executable", false, "Strip the dmengine of debug symbols (when bundling iOS or Android)", false);
-        addOption(options, null, "with-symbols", false, "Generate the symbol file (if applicable)", false);
+                opt("d", "debug", ZERO, "DEPRECATED! Use --variant=debug instead", false),
+                opt(null, "variant", ONE, "Specify debug, release or headless version of dmengine (when bundling)", false),
+                opt(null, "strip-executable", ZERO, "Strip the dmengine of debug symbols (when bundling iOS or Android)", false),
+                opt(null, "with-symbols", ZERO, "Generate the symbol file (if applicable)", false),
 
-        addOption(options, "tp", "texture-profiles", true, "DEPRECATED! Use --texture-compression instead", true);
-        addOption(options, "tc", "texture-compression", true, "Use texture compression as specified in texture profiles", true);
+                opt("tp", "texture-profiles", ONE, "DEPRECATED! Use --texture-compression instead", true),
+                opt("tc", "texture-compression", ONE, "Use texture compression as specified in texture profiles", true),
 
-        addOption(options, null, "exclude-build-folder", true, "DEPRECATED! Use '.defignore' file instead", true);
+                opt(null, "exclude-build-folder", ONE, "DEPRECATED! Use '.defignore' file instead", true),
 
-        addOption(options, "br", "build-report", true, "DEPRECATED! Use --build-report-json instead", false);
-        addOption(options, "brjson", "build-report-json", true, "Filepath where to save a build report as JSON", false);
-        addOption(options, "brhtml", "build-report-html", true, "Filepath where to save a build report as HTML", false);
+                opt("br", "build-report", ONE, ABS_OR_CWD_REL_PATH, "DEPRECATED! Use --build-report-json instead", false),
+                opt("brjson", "build-report-json", ONE, ABS_OR_CWD_REL_PATH, "Filepath where to save a build report as JSON", false),
+                opt("brhtml", "build-report-html", ONE, ABS_OR_CWD_REL_PATH, "Filepath where to save a build report as HTML", false),
 
-        addOption(options, null, "build-server", true, "The build server (when using native extensions)", true);
-        addOption(options, null, "build-server-header", true, "Additional build server header to set", true);
-        addOption(options, null, "use-async-build-server", false, "DEPRECATED! Asynchronous build is now the default.", true);
-        addOption(options, null, "defoldsdk", true, "What version of the defold sdk (sha1) to use", true);
-        addOption(options, null, "binary-output", true, "Location where built engine binary will be placed. Default is \"<build-output>/<platform>/\"", true);
+                opt(null, "build-server", ONE, "The build server (when using native extensions)", true),
+                opt(null, "build-server-header", MANY, "Additional build server header to set", true),
+                opt(null, "use-async-build-server", ZERO, "DEPRECATED! Asynchronous build is now the default", true),
+                opt(null, "defoldsdk", ONE, "What version of the defold sdk (sha1) to use", true),
+                opt(null, "binary-output", ONE, ABS_OR_CWD_REL_PATH, "Location where built engine binary will be placed. Default is \"<build-output>/<platform>/\"", true),
 
-        addOption(options, null, "use-vanilla-lua", false, "DEPRECATED! Use --use-uncompressed-lua-source instead.", true);
-        addOption(options, null, "use-uncompressed-lua-source", false, "Use uncompressed and unencrypted Lua source code instead of byte code", true);
-        addOption(options, null, "use-lua-bytecode-delta", false, "Use byte code delta compression when building for multiple architectures", true);
-        addOption(options, null, "archive-resource-padding", true, "The alignment of the resources in the game archive. Default is 4", true);
+                opt(null, "use-vanilla-lua", ZERO, "DEPRECATED! Use --use-uncompressed-lua-source instead", true),
+                opt(null, "use-uncompressed-lua-source", ZERO, "Use uncompressed and unencrypted Lua source code instead of byte code", true),
+                opt(null, "use-lua-bytecode-delta", ZERO, "Use byte code delta compression when building for multiple architectures", true),
+                opt(null, "archive-resource-padding", ONE, "The alignment of the resources in the game archive. Default is 4", true),
 
-        addOption(options, "l", "liveupdate", true, "Yes if liveupdate content should be published", true);
+                opt("l", "liveupdate", ONE, "Yes if liveupdate content should be published", true),
 
-        addOption(options, "ar", "architectures", true, "Comma separated list of architectures to include for the platform", true);
+                opt("ar", "architectures", ONE, "Comma separated list of architectures to include for the platform", true),
 
-        addOption(options, null, "settings", true, "Path to a game project settings file. More than one occurrance is allowed. The settings files are applied left to right.", false);
+                opt(null, "settings", MANY, ABS_OR_CWD_REL_PATH, "Path to a game project settings file. The settings files are applied left to right", false),
 
-        addOption(options, null, "version", false, "Prints the version number to the output", false);
+                opt(null, "version", ZERO, "Prints the version number to the output", false),
 
-        addOption(options, null, "build-artifacts", true, "If left out, will default to build the engine. Choices: 'engine', 'plugins', 'library'. Comma separated list.", false);
-        addOption(options, null, "ne-build-dir", true, "Specify a folder with includes or source, to build a specific library. More than one occurrance is allowed. ", false);
-        addOption(options, null, "ne-output-name", true, "Specify a library target name", false);
+                opt(null, "build-artifacts", ONE, "If left out, will default to build the engine. Choices: 'engine', 'plugins', 'library'. Comma separated list", false),
+                opt(null, "ne-build-dir", MANY, ABS_OR_CWD_REL_PATH, "Specify a folder with includes or source, to build a specific library", false),
+                opt(null, "ne-output-name", ONE, "Specify a library target name", false),
 
-        addOption(options, null, "resource-cache-local", true, "Path to local resource cache.", false);
-        addOption(options, null, "resource-cache-remote", true, "URL to remote resource cache.", false);
-        addOption(options, null, "resource-cache-remote-user", true, "Username to authenticate access to the remote resource cache.", false);
-        addOption(options, null, "resource-cache-remote-pass", true, "Password/token to authenticate access to the remote resource cache.", false);
+                opt(null, "resource-cache-local", ONE, ABS_OR_CWD_REL_PATH, "Path to local resource cache", false),
+                opt(null, "resource-cache-remote", ONE, "URL to remote resource cache", false),
+                opt(null, "resource-cache-remote-user", ONE, "Username to authenticate access to the remote resource cache", false),
+                opt(null, "resource-cache-remote-pass", ONE, "Password/token to authenticate access to the remote resource cache", false),
 
-        addOption(options, null, "manifest-private-key", true, "Private key to use when signing manifest and archive.", false);
-        addOption(options, null, "manifest-public-key", true, "Public key to use when signing manifest and archive.", false);
+                opt(null, "manifest-private-key", ONE, "Private key to use when signing manifest and archive", false),
+                opt(null, "manifest-public-key", ONE, "Public key to use when signing manifest and archive", false),
 
-        addOption(options, null, "max-cpu-threads", true, "Max count of threads that bob.jar can use", false);
+                opt(null, "max-cpu-threads", ONE, "Max count of threads that bob.jar can use", false),
 
-        // debug options
-        addOption(options, null, "debug-ne-upload", false, "Outputs the files sent to build server as upload.zip", false);
-        addOption(options, null, "debug-output-spirv", true, "Force build SPIR-V shaders", false);
-        addOption(options, null, "debug-output-wgsl", true, "Force build WGSL shaders", false);
+                // debug options
+                opt(null, "debug-ne-upload", ZERO, "Outputs the files sent to build server as upload.zip", false),
+                opt(null, "debug-output-spirv", ONE, "Force build SPIR-V shaders", false),
+                opt(null, "debug-output-wgsl", ONE, "Force build WGSL shaders", false)
+        );
 
-        return options;
+
     }
 
     private static CommandLine parse(String[] args) throws OptionValidationException {
-        Options options = getCommandLineOptions();
+        Options options = new Options();
+        getCommandLineOptions().forEach(opt -> options.addOption(opt.shortOpt, opt.longOpt, opt.argCount != ZERO, opt.description));
 
         CommandLineParser parser = new PosixParser();
         CommandLine cmd;
@@ -616,7 +650,7 @@ public class Bob {
         return String.format("%s: %s:%d: '%s'\n", strSeverity, resourceString, line, message);
     }
 
-    private static void setupProject(Project project, boolean resolveLibraries, IProgress progress, IResourceScanner resourceScanner) throws IOException, LibraryException, CompileExceptionError {
+    private static void setupProject(Project project, boolean resolveLibraries, IProgress progress) throws IOException, LibraryException, CompileExceptionError {
         BobProjectProperties projectProperties = project.getProjectProperties();
         String[] dependencies = projectProperties.getStringArrayValue("project", "dependencies");
         List<URL> libUrls = new ArrayList<>();
@@ -630,7 +664,7 @@ public class Bob {
             project.resolveLibUrls(progress);
             TimeProfiler.stop();
         }
-        project.mount(resourceScanner);
+        project.mount(new ClassLoaderResourceScanner());
     }
 
     private static void validateChoices(String optionName, String value, List<String> validChoices) throws OptionValidationException {
@@ -684,7 +718,7 @@ public class Bob {
      * Common entry point for both editor and bob
      * @param classLoader may be null
      */
-    public static InvocationResult invoke(IResourceScanner resourceScanner, ClassLoader classLoader, IProgress progress, boolean fromEditor, String[] args) throws IOException, CompileExceptionError, LibraryException, OptionValidationException {
+    public static InvocationResult invoke(ClassLoader classLoader, IProgress progress, boolean fromEditor, Map<String, String> internalOptions, String[] args) throws IOException, CompileExceptionError, LibraryException, OptionValidationException {
         System.setProperty("java.awt.headless", "true");
         System.setProperty("file.encoding", "UTF-8");
 
@@ -696,7 +730,6 @@ public class Bob {
         }
         String buildDirectory = getOptionsValue(cmd, 'o', "build/default");
         String rootDirectory = getOptionsValue(cmd, 'r', cwd);
-        String sourceDirectory = getOptionsValue(cmd, 'i', ".");
 
         String build_report_json = null;
         String build_report_html = null;
@@ -798,7 +831,7 @@ public class Bob {
 
         TimeProfiler.start("setupProject");
         // resolves libraries and finds all sources
-        setupProject(project, shouldResolveLibs, progress, resourceScanner);
+        setupProject(project, shouldResolveLibs, progress);
         TimeProfiler.stop();
 
         TimeProfiler.start("setOptions");
@@ -840,6 +873,9 @@ public class Bob {
                     project.setOption(o.getLongOpt(), "true");
                 }
             }
+        }
+        if (internalOptions != null) {
+            internalOptions.forEach(project::setOption);
         }
 
         // Get and set architectures list.
@@ -987,7 +1023,7 @@ public class Bob {
 
     public static void main(String[] args) throws IOException, CompileExceptionError, URISyntaxException, LibraryException {
         try {
-            boolean success = invoke(new ClassLoaderResourceScanner(), null, new ConsoleProgress(), false, args).success;
+            boolean success = invoke(null, new ConsoleProgress(), false, null, args).success;
             System.exit(success ? 0 : 1);
         } catch (OptionValidationException e) {
             System.exit(e.exitCode);

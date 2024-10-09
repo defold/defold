@@ -76,6 +76,11 @@
 #elif defined (ANDROID)
     #define GL_GLEXT_PROTOTYPES
     #include <GLES2/gl2ext.h>
+
+    #define glDrawArraysInstanced PFN_glDrawArraysInstanced
+    #define glDrawElementsInstanced PFN_glDrawElementsInstanced
+    #define glVertexAttribDivisor PFN_glVertexAttribDivisor
+
 #elif defined (__MACH__)
     // NOP
 #elif defined (_WIN32)
@@ -193,6 +198,9 @@
         PFNGLDRAWBUFFERSPROC glDrawBuffers = NULL;
         PFNGLGETFRAGDATALOCATIONPROC glGetFragDataLocation = NULL;
         PFNGLBINDFRAGDATALOCATIONPROC glBindFragDataLocation = NULL;
+        PFNGLDRAWARRAYSINSTANCEDPROC glDrawArraysInstanced = NULL;
+        PFNGLDRAWELEMENTSINSTANCEDPROC glDrawElementsInstanced = NULL;
+        PFNGLVERTEXATTRIBDIVISORPROC glVertexAttribDivisor = NULL;
     #endif
 #elif defined(__EMSCRIPTEN__)
     #include <GL/glext.h>
@@ -430,6 +438,15 @@ static void LogFrameBufferError(GLenum status)
 
     typedef void (* DM_PFNGLCOMPRESSEDTEXSUBIMAGE3DPROC) (GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLsizei imageSize, const void *data);
     DM_PFNGLCOMPRESSEDTEXSUBIMAGE3DPROC PFN_glCompressedTexSubImage3D = NULL;
+
+    typedef void (* DM_PFNGLDRAWARRAYSINSTANCEDPROC) (GLenum mode, GLint first, GLsizei count, GLsizei primcount);
+    DM_PFNGLDRAWARRAYSINSTANCEDPROC PFN_glDrawArraysInstanced = NULL;
+
+    typedef void (* DM_PFNGLDRAWELEMENTSINSTANCEDPROC) (GLenum mode, GLsizei count, GLenum type, const GLvoid *indices, GLsizei primcount);
+    DM_PFNGLDRAWELEMENTSINSTANCEDPROC PFN_glDrawElementsInstanced = NULL;
+
+    typedef void (* DM_PFNGLVERTEXATTRIBDIVISORPROC) (GLuint index, GLuint divisor);
+    DM_PFNGLVERTEXATTRIBDIVISORPROC PFN_glVertexAttribDivisor = NULL;
 
     typedef void (* DM_PFNGLMEMORYBARRIERPROC) (GLbitfield barriers);
     DM_PFNGLMEMORYBARRIERPROC glMemoryBarrier = NULL;
@@ -725,6 +742,7 @@ static void LogFrameBufferError(GLenum status)
             case CONTEXT_FEATURE_TEXTURE_ARRAY:          return context->m_TextureArraySupport;
             case CONTEXT_FEATURE_COMPUTE_SHADER:         return context->m_ComputeSupport;
             case CONTEXT_FEATURE_STORAGE_BUFFER:         return context->m_StorageBufferSupport;
+            case CONTEXT_FEATURE_INSTANCING:             return context->m_InstancingSupport;
         }
         return false;
     }
@@ -741,22 +759,31 @@ static void LogFrameBufferError(GLenum status)
             4) Optionally check as core function (if not GLES and core_name is set)
         */
         uintptr_t func = 0x0;
-        static const char* ext_name_prefix_str[] = {"GL_ARB_", "GL_EXT_", "GL_OES_"};
-        static const char* proc_name_postfix_str[] = {"ARB", "EXT", "OES"};
-        char proc_str[256];
-        for(uint32_t i = 0; i < sizeof(ext_name_prefix_str)/sizeof(*ext_name_prefix_str); ++i)
+
+        if (extension_name)
         {
-            // Check for extension name string AND process function pointer. Either may be disabled (by vendor) so both must be valid!
-            size_t l = dmStrlCpy(proc_str, ext_name_prefix_str[i], 8);
-            dmStrlCpy(proc_str + l, extension_name, 256-l);
-            if(!OpenGLIsExtensionSupported(context, proc_str))
-                continue;
-            l = dmStrlCpy(proc_str, name, 255);
-            dmStrlCpy(proc_str + l, proc_name_postfix_str[i], 256-l);
-            func = dmPlatform::GetProcAddress(window, proc_str);
-            if(func != 0x0)
+            static const char* ext_name_prefix_str[] = {"GL_ARB_", "GL_EXT_", "GL_OES_"};
+            static const char* proc_name_postfix_str[] = {"ARB", "EXT", "OES"};
+            char proc_str[256];
+            for(uint32_t i = 0; i < sizeof(ext_name_prefix_str)/sizeof(*ext_name_prefix_str); ++i)
             {
-                break;
+                // Check for extension name string AND process function pointer. Either may be disabled (by vendor) so both must be valid!
+                size_t l = dmStrlCpy(proc_str, ext_name_prefix_str[i], 8);
+                dmStrlCpy(proc_str + l, extension_name, 256-l);
+
+                if(!OpenGLIsExtensionSupported(context, proc_str))
+                {
+                    continue;
+                }
+
+                l = dmStrlCpy(proc_str, name, 255);
+                dmStrlCpy(proc_str + l, proc_name_postfix_str[i], 256-l);
+                func = dmPlatform::GetProcAddress(window, proc_str);
+
+                if(func != 0x0)
+                {
+                    break;
+                }
             }
         }
     #if !defined(__EMSCRIPTEN__)
@@ -966,6 +993,9 @@ static void LogFrameBufferError(GLenum status)
         GET_PROC_ADDRESS(glDrawBuffers, "glDrawBuffers", PFNGLDRAWBUFFERSPROC);
         GET_PROC_ADDRESS(glGetFragDataLocation, "glGetFragDataLocation", PFNGLGETFRAGDATALOCATIONPROC);
         GET_PROC_ADDRESS(glBindFragDataLocation, "glBindFragDataLocation", PFNGLBINDFRAGDATALOCATIONPROC);
+        GET_PROC_ADDRESS(glDrawArraysInstanced, "glDrawArraysInstanced", PFNGLDRAWARRAYSINSTANCEDPROC);
+        GET_PROC_ADDRESS(glDrawElementsInstanced, "glDrawElementsInstanced", PFNGLDRAWELEMENTSINSTANCEDPROC);
+        GET_PROC_ADDRESS(glVertexAttribDivisor, "glVertexAttribDivisor", PFNGLVERTEXATTRIBDIVISORPROC);
     #endif
 
     #undef GET_PROC_ADDRESS
@@ -1099,22 +1129,23 @@ static void LogFrameBufferError(GLenum status)
         DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glInvalidateFramebuffer,   "glDiscardFramebuffer", "discard_framebuffer", "glInvalidateFramebuffer", DM_PFNGLINVALIDATEFRAMEBUFFERPROC, context);
         DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glDrawBuffers,             "glDrawBuffers",        "draw_buffers",        "glDrawBuffers",           DM_PFNGLDRAWBUFFERSPROC, context);
     #ifdef ANDROID
-        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glTexSubImage3D,           "glTexSubImage3D",           "texture_array", "glTexSubImage3D",           DM_PFNGLTEXSUBIMAGE3DPROC, context);
-        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glTexImage3D,              "glTexImage3D",              "texture_array", "glTexImage3D",              DM_PFNGLTEXIMAGE3DPROC, context);
-        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glCompressedTexSubImage3D, "glCompressedTexSubImage3D", "texture_array", "glCompressedTexSubImage3D", DM_PFNGLCOMPRESSEDTEXSUBIMAGE3DPROC, context);
-        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glCompressedTexImage3D,    "glCompressedTexImage3D",    "texture_array", "glCompressedTexImage3D",    DM_PFNGLCOMPRESSEDTEXIMAGE3DPROC, context);
-
-        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glMemoryBarrier,    "glMemoryBarrier",    "shader_image_load_store", "glMemoryBarrier",    DM_PFNGLMEMORYBARRIERPROC,    context);
-        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glBindImageTexture, "glBindImageTexture", "shader_image_load_store", "glBindImageTexture", DM_PFNGLBINDIMAGETEXTUREPROC, context);
-        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glDispatchCompute,  "glDispatchCompute",  "compute_shader",          "glDispatchCompute",  DM_PFNGLDISPATCHCOMPUTEPROC,  context);
-
-        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glBindBufferBase,           "glBindBufferBase",           "", "glBindBufferBase",           DM_PFNGLBINDBUFFERBASEPROC,   context);
-        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glGetUniformBlockIndex,     "glGetUniformBlockIndex",     "", "glGetUniformBlockIndex",     DM_PFNGLGETUNIFORMBLOCKINDEXPROC,  context);
-        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glGetActiveUniformBlockiv,  "glGetActiveUniformBlockiv",  "", "glGetActiveUniformBlockiv",  DM_PFNGLGETACTIVEUNIFORMBLOCKIVPROC,  context);
-        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glGetActiveUniformsiv,      "glGetActiveUniformsiv",      "", "glGetActiveUniformsiv",      DM_PFNGLGETACTIVEUNIFORMSIVPROC,  context);
-        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glUniformBlockBinding,      "glUniformBlockBinding",      "", "glUniformBlockBinding",      DM_PFNGLUNIFORMBLOCKBINDINGPROC,  context);
-
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glTexSubImage3D,           "glTexSubImage3D",           "texture_array",           "glTexSubImage3D",           DM_PFNGLTEXSUBIMAGE3DPROC,           context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glTexImage3D,              "glTexImage3D",              "texture_array",           "glTexImage3D",              DM_PFNGLTEXIMAGE3DPROC,              context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glCompressedTexSubImage3D, "glCompressedTexSubImage3D", "texture_array",           "glCompressedTexSubImage3D", DM_PFNGLCOMPRESSEDTEXSUBIMAGE3DPROC, context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glCompressedTexImage3D,    "glCompressedTexImage3D",    "texture_array",           "glCompressedTexImage3D",    DM_PFNGLCOMPRESSEDTEXIMAGE3DPROC,    context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glDrawArraysInstanced,     "glDrawArraysInstanced",     NULL,                      "glDrawArraysInstanced",     DM_PFNGLDRAWARRAYSINSTANCEDPROC,     context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glDrawElementsInstanced,   "glDrawElementsInstanced",   NULL,                      "glDrawElementsInstanced",   DM_PFNGLDRAWELEMENTSINSTANCEDPROC,   context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glVertexAttribDivisor,     "glVertexAttribDivisor",     NULL,                      "glVertexAttribDivisor",     DM_PFNGLVERTEXATTRIBDIVISORPROC,     context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glMemoryBarrier,               "glMemoryBarrier",           "shader_image_load_store", "glMemoryBarrier",           DM_PFNGLMEMORYBARRIERPROC,           context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glBindImageTexture,            "glBindImageTexture",        "shader_image_load_store", "glBindImageTexture",        DM_PFNGLBINDIMAGETEXTUREPROC,        context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glDispatchCompute,             "glDispatchCompute",         "compute_shader",          "glDispatchCompute",         DM_PFNGLDISPATCHCOMPUTEPROC,         context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glBindBufferBase,              "glBindBufferBase",           "",                       "glBindBufferBase",          DM_PFNGLBINDBUFFERBASEPROC,          context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glGetUniformBlockIndex,        "glGetUniformBlockIndex",     "",                       "glGetUniformBlockIndex",    DM_PFNGLGETUNIFORMBLOCKINDEXPROC,    context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glGetActiveUniformBlockiv,     "glGetActiveUniformBlockiv",  "",                       "glGetActiveUniformBlockiv", DM_PFNGLGETACTIVEUNIFORMBLOCKIVPROC, context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glGetActiveUniformsiv,         "glGetActiveUniformsiv",      "",                       "glGetActiveUniformsiv",     DM_PFNGLGETACTIVEUNIFORMSIVPROC,     context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glUniformBlockBinding,         "glUniformBlockBinding",      "",                       "glUniformBlockBinding",     DM_PFNGLUNIFORMBLOCKBINDINGPROC,     context);
     #endif
+
     #undef DMGRAPHICS_GET_PROC_ADDRESS_EXT
 
         if (OpenGLIsExtensionSupported(context, "GL_IMG_texture_compression_pvrtc") ||
@@ -1186,6 +1217,14 @@ static void LogFrameBufferError(GLenum status)
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RG16F;
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_R32F;
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RG32F;
+
+            context->m_InstancingSupport = 1;
+
+        #ifdef ANDROID
+            context->m_InstancingSupport &= PFN_glDrawArraysInstanced   != 0;
+            context->m_InstancingSupport &= PFN_glDrawElementsInstanced != 0;
+            context->m_InstancingSupport &= PFN_glVertexAttribDivisor   != 0;
+        #endif
         }
         else
         {
@@ -1255,9 +1294,9 @@ static void LogFrameBufferError(GLenum status)
         context->m_DepthBufferBits = 16;
 #else
 
-#if defined(__MACH__)
+    #if defined(__MACH__)
         context->m_PackedDepthStencilSupport = 1;
-#endif
+    #endif
 
         if ((OpenGLIsExtensionSupported(context, "GL_OES_packed_depth_stencil")) || (OpenGLIsExtensionSupported(context, "GL_EXT_packed_depth_stencil")))
         {
@@ -1538,30 +1577,37 @@ static void LogFrameBufferError(GLenum status)
 
     static HVertexBuffer OpenGLNewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
-        uint32_t buffer = 0;
-        glGenBuffersARB(1, &buffer);
+        OpenGLBuffer* vertex_buffer = new OpenGLBuffer();
+        vertex_buffer->m_MemorySize = size;
+        glGenBuffersARB(1, &vertex_buffer->m_Id);
         CHECK_GL_ERROR;
-        SetVertexBufferData(buffer, size, data, buffer_usage);
-        return buffer;
+        SetVertexBufferData((HVertexBuffer) vertex_buffer, size, data, buffer_usage);
+        return (HVertexBuffer) vertex_buffer;
     }
 
     static void OpenGLDeleteVertexBuffer(HVertexBuffer buffer)
     {
         if (!buffer)
+        {
             return;
-        GLuint b = (GLuint) buffer;
-        glDeleteBuffersARB(1, &b);
+        }
+        OpenGLBuffer* vertex_buffer = (OpenGLBuffer*) buffer;
+        glDeleteBuffersARB(1, &vertex_buffer->m_Id);
         CHECK_GL_ERROR;
+        delete vertex_buffer;
     }
 
     static void OpenGLSetVertexBufferData(HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         DM_PROFILE(__FUNCTION__);
         // NOTE: Android doesn't seem to like zero-sized vertex buffers
-        if (size == 0) {
+        if (size == 0)
+        {
             return;
         }
-        glBindBufferARB(GL_ARRAY_BUFFER_ARB, buffer);
+        OpenGLBuffer* vertex_buffer = (OpenGLBuffer*) buffer;
+        vertex_buffer->m_MemorySize = size;
+        glBindBufferARB(GL_ARRAY_BUFFER_ARB, vertex_buffer->m_Id);
         CHECK_GL_ERROR
         glBufferDataARB(GL_ARRAY_BUFFER_ARB, size, data, GetOpenGLBufferUsage(buffer_usage));
         CHECK_GL_ERROR
@@ -1572,12 +1618,27 @@ static void LogFrameBufferError(GLenum status)
     static void OpenGLSetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
         DM_PROFILE(__FUNCTION__);
-        glBindBufferARB(GL_ARRAY_BUFFER_ARB, buffer);
+        if (!buffer)
+        {
+            return;
+        }
+        OpenGLBuffer* vertex_buffer = (OpenGLBuffer*) buffer;
+        glBindBufferARB(GL_ARRAY_BUFFER_ARB, vertex_buffer->m_Id);
         CHECK_GL_ERROR;
         glBufferSubDataARB(GL_ARRAY_BUFFER_ARB, offset, size, data);
         CHECK_GL_ERROR;
         glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
         CHECK_GL_ERROR;
+    }
+
+    static uint32_t OpenGLGetVertexBufferSize(HVertexBuffer buffer)
+    {
+        if (!buffer)
+        {
+            return 0;
+        }
+        OpenGLBuffer* vertex_buffer = (OpenGLBuffer*) buffer;
+        return vertex_buffer->m_MemorySize;
     }
 
     static uint32_t OpenGLGetMaxElementsVertices(HContext context)
@@ -1589,10 +1650,15 @@ static void LogFrameBufferError(GLenum status)
     {
         DM_PROFILE(__FUNCTION__);
         // NOTE: WebGl doesn't seem to like zero-sized vertex buffers (very poor performance)
-        if (size == 0) {
+        if (size == 0 || !buffer)
+        {
             return;
         }
-        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, buffer);
+
+        OpenGLBuffer* index_buffer = (OpenGLBuffer*) buffer;
+        index_buffer->m_MemorySize = size;
+
+        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, index_buffer->m_Id);
         CHECK_GL_ERROR
         glBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, size, data, GetOpenGLBufferUsage(buffer_usage));
         CHECK_GL_ERROR
@@ -1602,31 +1668,51 @@ static void LogFrameBufferError(GLenum status)
 
     static HIndexBuffer OpenGLNewIndexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
-        uint32_t buffer = 0;
-        glGenBuffersARB(1, &buffer);
+        OpenGLBuffer* index_buffer = new OpenGLBuffer; 
+        glGenBuffersARB(1, &index_buffer->m_Id);
         CHECK_GL_ERROR
-        OpenGLSetIndexBufferData(buffer, size, data, buffer_usage);
-        return buffer;
+        OpenGLSetIndexBufferData((HIndexBuffer) index_buffer, size, data, buffer_usage);
+        index_buffer->m_MemorySize = size;
+        return (HIndexBuffer) index_buffer;
     }
 
     static void OpenGLDeleteIndexBuffer(HIndexBuffer buffer)
     {
         if (!buffer)
+        {
             return;
-        GLuint b = (GLuint) buffer;
-        glDeleteBuffersARB(1, &b);
+        }
+
+        OpenGLBuffer* index_buffer = (OpenGLBuffer*) buffer;
+        glDeleteBuffersARB(1, &index_buffer->m_Id);
         CHECK_GL_ERROR;
+        delete index_buffer;
     }
 
     static void OpenGLSetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
+        if (!buffer)
+        {
+            return;
+        }
         DM_PROFILE(__FUNCTION__);
-        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, buffer);
+        OpenGLBuffer* index_buffer = (OpenGLBuffer*) buffer;
+        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, index_buffer->m_Id);
         CHECK_GL_ERROR;
         glBufferSubDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, offset, size, data);
         CHECK_GL_ERROR;
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
         CHECK_GL_ERROR;
+    }
+
+    static uint32_t OpenGLGetIndexBufferSize(HIndexBuffer buffer)
+    {
+        if (!buffer)
+        {
+            return 0;
+        }
+        OpenGLBuffer* index_buffer = (OpenGLBuffer*) buffer;
+        return index_buffer->m_MemorySize;
     }
 
     static bool OpenGLIsIndexBufferFormatSupported(HContext context, IndexBufferFormat format)
@@ -1659,7 +1745,7 @@ static void LogFrameBufferError(GLenum status)
             vd->m_Stride += stream_declaration->m_Streams[i].m_Size * GetTypeSize(stream_declaration->m_Streams[i].m_Type);
         }
         vd->m_StreamCount = stream_declaration->m_StreamCount;
-
+        vd->m_StepFunction = stream_declaration->m_StepFunction;
         return vd;
     }
 
@@ -1697,9 +1783,10 @@ static void LogFrameBufferError(GLenum status)
         vertex_declaration->m_ModificationVersion = ((OpenGLContext*) context)->m_ModificationVersion;
     }
 
-    static void OpenGLEnableVertexBuffer(HContext context, HVertexBuffer vertex_buffer, uint32_t binding_index)
+    static void OpenGLEnableVertexBuffer(HContext context, HVertexBuffer buffer, uint32_t binding_index)
     {
-        glBindBufferARB(GL_ARRAY_BUFFER, vertex_buffer);
+        OpenGLBuffer* vertex_buffer = (OpenGLBuffer*) buffer;
+        glBindBufferARB(GL_ARRAY_BUFFER, vertex_buffer->m_Id);
         CHECK_GL_ERROR;
     }
 
@@ -1708,7 +1795,41 @@ static void LogFrameBufferError(GLenum status)
         // NOP
     }
 
-    static void OpenGLEnableVertexDeclaration(HContext _context, HVertexDeclaration vertex_declaration, uint32_t binding_index, HProgram program)
+    static inline uint32_t GetSubVectorBindCount(uint32_t size)
+    {
+        // Not sure if this supports mat2?
+        if (size == 9)       return 3;
+        else if (size == 16) return 4;
+        return 1;
+    }
+
+    static inline void SetVertexAttribute(OpenGLContext* context, int32_t loc, uint32_t component_count, GLenum opengl_type, bool normalize, uint32_t stride, uint32_t offset, VertexStepFunction step_function)
+    {
+    #if 0
+        dmLogInfo("Attribute: %d, %d, %d, %d, %d, %d", loc, component_count, opengl_type, normalize, stride, offset);
+    #endif
+
+        // TODO: We should cache these bindings and skip applying them if they haven't changed
+        glEnableVertexAttribArray(loc);
+        CHECK_GL_ERROR;
+
+        glVertexAttribPointer(
+            loc,
+            component_count,
+            opengl_type,
+            normalize,
+            stride,
+            (GLvoid*) (size_t) offset); // The starting point of the VBO, for the vertices
+        CHECK_GL_ERROR;
+
+        if (context->m_InstancingSupport)
+        {
+            glVertexAttribDivisor(loc, step_function);
+            CHECK_GL_ERROR;
+        }
+    }
+
+    static void OpenGLEnableVertexDeclaration(HContext _context, HVertexDeclaration vertex_declaration, uint32_t binding_index, uint32_t base_offset, HProgram program)
     {
         assert(_context);
         assert(vertex_declaration);
@@ -1720,27 +1841,29 @@ static void LogFrameBufferError(GLenum status)
             BindVertexDeclarationProgram(context, vertex_declaration, program);
         }
 
-        #define BUFFER_OFFSET(i) ((char*)0x0 + (i))
-
         for (uint32_t i=0; i<vertex_declaration->m_StreamCount; i++)
         {
             if (vertex_declaration->m_Streams[i].m_Location != -1)
             {
-                glEnableVertexAttribArray(vertex_declaration->m_Streams[i].m_Location);
-                CHECK_GL_ERROR;
-                glVertexAttribPointer(
-                        vertex_declaration->m_Streams[i].m_Location,
-                        vertex_declaration->m_Streams[i].m_Size,
-                        GetOpenGLType(vertex_declaration->m_Streams[i].m_Type),
-                        vertex_declaration->m_Streams[i].m_Normalize,
-                        vertex_declaration->m_Stride,
-                BUFFER_OFFSET(vertex_declaration->m_Streams[i].m_Offset) );   //The starting point of the VBO, for the vertices
+                uint32_t sub_vector_bind_count = GetSubVectorBindCount(vertex_declaration->m_Streams[i].m_Size);
+                uint32_t base_location = vertex_declaration->m_Streams[i].m_Location;
+                uint32_t stream_offset = base_offset + vertex_declaration->m_Streams[i].m_Offset;
+                uint32_t sub_vector_component_count = sub_vector_bind_count > 1 ? sub_vector_bind_count : vertex_declaration->m_Streams[i].m_Size;
 
-                CHECK_GL_ERROR;
+                for (int j = 0; j < sub_vector_bind_count; ++j)
+                {
+                    SetVertexAttribute(
+                        context,
+                        base_location + j,
+                        sub_vector_component_count,
+                        GetOpenGLType(vertex_declaration->m_Streams[i].m_Type),
+                                      vertex_declaration->m_Streams[i].m_Normalize,
+                                      vertex_declaration->m_Stride,
+                                      stream_offset + j * GetTypeSize(vertex_declaration->m_Streams[i].m_Type) * sub_vector_component_count,
+                                      vertex_declaration->m_StepFunction);
+                }
             }
         }
-
-        #undef BUFFER_OFFSET
     }
 
     static void OpenGLDisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration)
@@ -1752,8 +1875,14 @@ static void LogFrameBufferError(GLenum status)
         {
             if (vertex_declaration->m_Streams[i].m_Location != -1)
             {
-                glDisableVertexAttribArray(vertex_declaration->m_Streams[i].m_Location);
-                CHECK_GL_ERROR;
+                uint32_t sub_vector_count = GetSubVectorBindCount(vertex_declaration->m_Streams[i].m_Size);
+                int32_t base_location = vertex_declaration->m_Streams[i].m_Location;
+
+                for (int j = 0; j < sub_vector_count; ++j)
+                {
+                    glDisableVertexAttribArray(base_location + j);
+                    CHECK_GL_ERROR;
+                }
             }
         }
 
@@ -1792,31 +1921,52 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
-    static void OpenGLDrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
+    static void OpenGLDrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer buffer, uint32_t instance_count)
     {
         DM_PROFILE(__FUNCTION__);
         DM_PROPERTY_ADD_U32(rmtp_DrawCalls, 1);
         assert(context);
-        assert(index_buffer);
+        assert(buffer);
 
         DrawSetup((OpenGLContext*) context);
 
-        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER, index_buffer);
+        OpenGLBuffer* index_buffer = (OpenGLBuffer*) buffer;
+
+        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER, index_buffer->m_Id);
         CHECK_GL_ERROR;
 
-        glDrawElements(GetOpenGLPrimitiveType(prim_type), count, GetOpenGLType(type), (GLvoid*)(uintptr_t) first);
-        CHECK_GL_ERROR
+        OpenGLContext* context_ptr = (OpenGLContext*) context;
+        if (context_ptr->m_InstancingSupport)
+        {
+            glDrawElementsInstanced(GetOpenGLPrimitiveType(prim_type), count, GetOpenGLType(type), (GLvoid*)(uintptr_t) first, dmMath::Max((uint32_t) 1, instance_count));
+            CHECK_GL_ERROR;
+        }
+        else
+        {
+            glDrawElements(GetOpenGLPrimitiveType(prim_type), count, GetOpenGLType(type), (GLvoid*)(uintptr_t) first);
+            CHECK_GL_ERROR
+        }
     }
 
-    static void OpenGLDraw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count)
+    static void OpenGLDraw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count)
     {
         DM_PROFILE(__FUNCTION__);
         DM_PROPERTY_ADD_U32(rmtp_DrawCalls, 1);
         assert(context);
 
         DrawSetup((OpenGLContext*) context);
-        glDrawArrays(GetOpenGLPrimitiveType(prim_type), first, count);
-        CHECK_GL_ERROR
+
+        OpenGLContext* context_ptr = (OpenGLContext*) context;
+        if (context_ptr->m_InstancingSupport)
+        {
+            glDrawArraysInstanced(GetOpenGLPrimitiveType(prim_type), first, count, dmMath::Max((uint32_t) 1, instance_count));
+            CHECK_GL_ERROR;
+        }
+        else
+        {
+            glDrawArrays(GetOpenGLPrimitiveType(prim_type), first, count);
+            CHECK_GL_ERROR
+        }
     }
 
     static void OpenGLDispatchCompute(HContext _context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z)
