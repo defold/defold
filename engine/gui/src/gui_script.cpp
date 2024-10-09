@@ -563,7 +563,7 @@ namespace dmGui
      * - `gui.TYPE_PARTICLEFX`
      * - `gui.TYPE_CUSTOM`
      * 
-     * @return subtype [type:hash|nil] name of custom type
+     * @return subtype [type:integer|nil] id of the custom type
      */
     static int LuaGetType(lua_State* L)
     {
