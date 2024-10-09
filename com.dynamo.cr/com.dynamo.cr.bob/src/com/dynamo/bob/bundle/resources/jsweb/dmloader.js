@@ -366,7 +366,7 @@ var EngineLoader = {
             window.addEventListener('resize', callback, false);
             window.addEventListener('orientationchange', callback, false);
             window.addEventListener('focus', callback, false);
-        }        
+        }
     }
 }
 
@@ -806,7 +806,7 @@ var Module = {
         try {
             var canvas = document.createElement("canvas");
             var webgpu = canvas.getContext("webgpu");
-            if (webgpu && webgpu instanceof WebGPURenderingContext) {
+            if (webgpu && webgpu instanceof GPUCanvasContext) {
                 webgpu_support = true;
             }
         } catch (error) {
