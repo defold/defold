@@ -49,7 +49,7 @@
                              (.length file))
             content (when (and (= method "GET") (not is-cached))
                       (try
-                        (Files/readAllBytes (Paths/get (.toURI file)))
+                        (Files/readAllBytes (.toPath file))
                         (catch IOException _
                           :not-found)))]
         (if (= content :not-found)
