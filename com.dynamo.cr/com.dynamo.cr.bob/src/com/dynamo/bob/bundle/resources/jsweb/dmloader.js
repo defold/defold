@@ -801,40 +801,6 @@ var Module = {
         return { stack:stack, message:message };
     },
 
-    hasWebGPUSupport: function() {
-        var webgpu_support = false;
-        try {
-            var canvas = document.createElement("canvas");
-            var webgpu = canvas.getContext("webgpu");
-            if (webgpu && webgpu instanceof GPUCanvasContext) {
-                webgpu_support = true;
-            }
-        } catch (error) {
-            console.log("An error occurred while detecting WebGPU support: " + error);
-            webgpu_support = false;
-        }
-
-        return webgpu_support;
-    },
-
-    hasWebGLSupport: function() {
-        var webgl_support = false;
-        try {
-            // create canvas to simply check is rendering context supported
-            // real render context created by glfw
-            var canvas = document.createElement("canvas");
-            var gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
-            if (gl && gl instanceof WebGLRenderingContext) {
-                webgl_support = true;
-            }
-        } catch (error) {
-            console.log("An error occurred while detecting WebGL support: " + error);
-            webgl_support = false;
-        }
-
-        return webgl_support;
-    },
-
     setupCanvas: function(appCanvasId) {
         appCanvasId = (typeof appCanvasId === 'undefined') ? 'canvas' : appCanvasId;
         Module.canvas = document.getElementById(appCanvasId);
@@ -857,7 +823,7 @@ var Module = {
         }
         Module.fullScreenContainer = fullScreenContainer || Module.canvas;
 
-        if (Module.hasWebGPUSupport() || Module.hasWebGLSupport()) {
+        if (Module.isWebGPUSupported || Modules.isWebGLSupported) {
             Module.canvas.focus();
 
             // Add context menu hide-handler if requested
@@ -1051,12 +1017,54 @@ var Module = {
     },
 };
 
-// preinitialized WegGPU stuff
-// to avoid ASYNCIFY in native code
-(async () => {
-    Module.webGPUAdapter = await navigator.gpu.requestAdapter();
-    Module.webGPUDevice = await Module.webGPUAdapter.requestDevice();
+Module.isWebGLSupported = (() => {
+    try {
+        var canvas = document.createElement("canvas");
+        var webgpu = canvas.getContext("webgpu");
+        if (webgpu && webgpu instanceof GPUCanvasContext) {
+            return true;
+        }
+    } catch (error) {
+        console.log("An error occurred while detecting WebGPU support: " + error);
+        return false;
+    }
+
+    return false;
 })();
+
+Module.isWebGPUSupported = (() => {
+    try {
+        var canvas = document.createElement("canvas");
+        var webgpu = canvas.getContext("webgpu");
+        if (webgpu && webgpu instanceof GPUCanvasContext) {
+            return true;
+        }
+    } catch (error) {
+        console.log("An error occurred while detecting WebGPU support: " + error);
+        return false;
+    }
+
+    return false;
+})();
+
+if (Module.isWebGPUSupported) {
+    // preinitialized WegGPU stuff
+    // to avoid ASYNCIFY in native code
+    (async () => {
+        Module.webGPUAdapter = await navigator.gpu.requestAdapter();
+        const adapterFeatures = Module.webGPUAdapter.features;
+        const requiredFeatures = [];
+        if (adapterFeatures.has("texture-compression-astc")) {
+            requiredFeatures.push("texture-compression-astc");
+        }
+        if (adapterFeatures.has("texture-compression-bc")) {
+            requiredFeatures.push("texture-compression-bc");
+        }
+        Module.webGPUDevice = await Module.webGPUAdapter.requestDevice({
+            requiredFeatures: requiredFeatures
+        });
+    })();
+}
 
 // common engine setup
 Module['persistentStorage'] = (typeof window !== 'undefined') && !!(window.indexedDB || window.mozIndexedDB || window.webkitIndexedDB || window.msIndexedDB);

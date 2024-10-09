@@ -43,6 +43,10 @@ EM_JS(WGPUDevice, WebGPUGetDeviceId, (), {
   return WebGPU.mgrDevice.create(Module.webGPUDevice, deviceWrapper);
 });
 
+EM_JS(bool, isWebGPUSupported, (), {
+    return Module.isWebGPUSupported;
+});
+
 #endif
 
 #if 0
@@ -834,12 +838,6 @@ static void WebGPUCreateSwapchain(WebGPUContext* context, uint32_t width, uint32
     }
 }
 
-        WGPUFeatureName features[16];
-        descriptor.requiredFeatures = features;
-        if (wgpuAdapterHasFeature(context->m_Adapter, WGPUFeatureName_TextureCompressionBC))
-            features[descriptor.requiredFeatureCount++] = WGPUFeatureName_TextureCompressionBC;
-        if (wgpuAdapterHasFeature(context->m_Adapter, WGPUFeatureName_TextureCompressionASTC))
-            features[descriptor.requiredFeatureCount++] = WGPUFeatureName_TextureCompressionASTC;
 static bool InitializeWebGPUContext(WebGPUContext* context, const ContextParams& params)
 {
     TRACE_CALL;
@@ -1012,7 +1010,7 @@ static HContext WebGPUNewContext(const ContextParams& params)
 static bool WebGPUIsSupported()
 {
     TRACE_CALL;
-    return true;
+    return isWebGPUSupported();
 }
 
 static HContext WebGPUGetContext()
@@ -1038,14 +1036,6 @@ static void WebGPUDeleteContext(HContext _context)
     }
 }
 
-#ifdef __EMSCRIPTEN__
-    while (0 != is_running(user_data))
-    {
-        // N.B. Beyond the first test, the above statement is essentially formal since set_main_loop will throw an exception.
-        emscripten_set_main_loop_arg(step_method, user_data, 0, 1);
-    }
-#else
-#endif
 static dmPlatform::HWindow WebGPUGetWindow(HContext _context)
 {
     TRACE_CALL;
