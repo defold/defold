@@ -108,5 +108,7 @@ def create_package(self):
     shutil.copy2(source, target)
     print("Installed to", target)
 
+    shutil.rmtree(self.cwd)
+
 def package(self):
     pass

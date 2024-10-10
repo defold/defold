@@ -276,6 +276,36 @@ static WGPUTextureFormat WebGPUFormatFromTextureFormat(TextureFormat format)
     };
 }
 
+static size_t WebGPUCompressedBlockWidth(TextureFormat format)
+{
+    assert(format <= TEXTURE_FORMAT_COUNT);
+    switch (format)
+    {
+    case TEXTURE_FORMAT_RGB_ETC1:           return 4;
+    case TEXTURE_FORMAT_RGBA_ETC2:          return 4;
+    case TEXTURE_FORMAT_RGBA_ASTC_4x4:      return 4;
+    case TEXTURE_FORMAT_RGB_BC1:            return 4;
+    case TEXTURE_FORMAT_RGBA_BC3:           return 4;
+    case TEXTURE_FORMAT_RGBA_BC7:           return 4;
+    default:                                return 0;
+    };
+}
+
+static size_t WebGPUCompressedBlockByteSize(TextureFormat format)
+{
+    assert(format <= TEXTURE_FORMAT_COUNT);
+    switch (format)
+    {
+    case TEXTURE_FORMAT_RGB_ETC1:           return 8;
+    case TEXTURE_FORMAT_RGBA_ETC2:          return 8;
+    case TEXTURE_FORMAT_RGBA_ASTC_4x4:      return 16;
+    case TEXTURE_FORMAT_RGB_BC1:            return 8;
+    case TEXTURE_FORMAT_RGBA_BC3:           return 16;
+    case TEXTURE_FORMAT_RGBA_BC7:           return 16;
+    default:                                return 0;
+    };
+}
+
 static void WebGPURealizeTexture(WebGPUTexture* texture, WGPUTextureFormat format, uint8_t depth, uint32_t sampleCount, WGPUTextureUsage usage)
 {
     if (texture->m_Depth > depth)
@@ -383,8 +413,12 @@ static void WebGPUSetTextureInternal(WebGPUTexture* texture, const TextureParams
             const uint8_t bpp     = ceil(GetTextureFormatBitsPerPixel(params.m_Format) / 8.0f);
             const size_t dataSize = bpp * params.m_Width * params.m_Height * depth;
 
-            dest.texture              = texture->m_Texture;
-            layout.bytesPerRow        = extent.width * bpp;
+            dest.texture = texture->m_Texture;
+            layout.bytesPerRow = extent.width;
+            if(IsTextureFormatCompressed(params.m_Format))
+                layout.bytesPerRow = (layout.bytesPerRow / WebGPUCompressedBlockWidth(params.m_Format)) * WebGPUCompressedBlockByteSize(params.m_Format);
+            else
+                layout.bytesPerRow *= bpp;
             extent.depthOrArrayLayers = depth;
             wgpuQueueWriteTexture(g_WebGPUContext->m_Queue, &dest, params.m_Data, dataSize, &layout, &extent);
         }
@@ -822,6 +856,12 @@ static void instanceRequestAdapterCallback(WGPURequestAdapterStatus status, WGPU
         wgpuAdapterGetLimits(context->m_Adapter, &context->m_AdapterLimits);
 
         WGPUDeviceDescriptor descriptor = {};
+        WGPUFeatureName features[16];
+        descriptor.requiredFeatures = features;
+        if (wgpuAdapterHasFeature(context->m_Adapter, WGPUFeatureName_TextureCompressionBC))
+            features[descriptor.requiredFeatureCount++] = WGPUFeatureName_TextureCompressionBC;
+        if (wgpuAdapterHasFeature(context->m_Adapter, WGPUFeatureName_TextureCompressionASTC))
+            features[descriptor.requiredFeatureCount++] = WGPUFeatureName_TextureCompressionASTC;
         wgpuAdapterRequestDevice(context->m_Adapter, &descriptor, requestDeviceCallback, userdata);
         context->m_InitComplete = true;
     }
@@ -1007,10 +1047,18 @@ static void WebGPUDeleteContext(HContext _context)
 static void WebGPURunApplicationLoop(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running)
 {
     TRACE_CALL;
+#ifdef __EMSCRIPTEN__
+    while (0 != is_running(user_data))
+    {
+        // N.B. Beyond the first test, the above statement is essentially formal since set_main_loop will throw an exception.
+        emscripten_set_main_loop_arg(step_method, user_data, 0, 1);
+    }
+#else
     while (0 != is_running(user_data))
     {
         step_method(user_data);
     }
+#endif
 }
 
 static dmPlatform::HWindow WebGPUGetWindow(HContext _context)
@@ -1363,6 +1411,16 @@ static void WebGPUSetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, 
     WebGPUWriteBuffer(g_WebGPUContext, gpu_buffer, offset, data, size);
 }
 
+static uint32_t WebGPUGetVertexBufferSize(HVertexBuffer buffer)
+{
+    if (!buffer)
+    {
+        return 0;
+    }
+    WebGPUBuffer* buffer_ptr = (WebGPUBuffer*) buffer;
+    return buffer_ptr->m_Size;
+}
+
 static uint32_t WebGPUGetMaxElementsVertices(HContext context)
 {
     TRACE_CALL;
@@ -1418,6 +1476,16 @@ static void WebGPUSetIndexBufferSubData(HIndexBuffer _buffer, uint32_t offset, u
     WebGPUBuffer* buffer = (WebGPUBuffer*)_buffer;
     assert(buffer->m_Used >= offset + size);
     WebGPUWriteBuffer(g_WebGPUContext, buffer, offset, data, size);
+}
+
+static uint32_t WebGPUGetIndexBufferSize(HIndexBuffer buffer)
+{
+    if (!buffer)
+    {
+        return 0;
+    }
+    WebGPUBuffer* buffer_ptr = (WebGPUBuffer*) buffer;
+    return buffer_ptr->m_Size;
 }
 
 static bool WebGPUIsIndexBufferFormatSupported(HContext context, IndexBufferFormat format)

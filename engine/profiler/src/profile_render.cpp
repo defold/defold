@@ -112,6 +112,11 @@ namespace dmProfileRender
     {
     }
 
+    ProfilerFrame::ProfilerFrame()
+    : m_Time(0)
+    {
+    }
+
     // The RenderProfile contains the current "live" frame and
     // stats used to sort/purge sample items
     struct RenderProfile
@@ -350,7 +355,10 @@ namespace dmProfileRender
         const Area header_area  = GetHeaderArea(display_mode, profiler_area);
         const Area details_area = GetDetailsArea(display_mode, profiler_area, header_area);
 
+        ProfilerFrame empty_frame;
         ProfilerFrame* frame = render_profile->m_ActiveFrame ? render_profile->m_ActiveFrame : render_profile->m_CurrentFrame;
+        frame = frame ? frame : &empty_frame;
+
         std::sort(frame->m_Threads.Begin(), frame->m_Threads.End(), ThreadSortTimePred());
 
         const uint32_t properties_count  = frame->m_Properties.Size();

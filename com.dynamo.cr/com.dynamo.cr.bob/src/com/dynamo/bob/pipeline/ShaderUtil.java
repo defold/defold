@@ -102,7 +102,7 @@ public class ShaderUtil {
             return rewriter.getText();
         }
 
-        public static String compileGLSL(String shaderSource, ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, boolean isDebug, boolean useLatestFeatures) throws CompileExceptionError {
+        public static String compileGLSL(String shaderSource, ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, boolean isDebug, boolean useLatestFeatures, boolean splitTextureSamplers) throws CompileExceptionError {
 
             ByteArrayOutputStream os = new ByteArrayOutputStream();
             PrintWriter writer = new PrintWriter(os);
@@ -197,7 +197,7 @@ public class ShaderUtil {
             String source = os.toString().replace("\r", "");
 
             if (gles3Standard) {
-                ES2ToES3Converter.Result es3Result = ES2ToES3Converter.transform(source, shaderType, gles ? "es" : "", version, useLatestFeatures);
+                ES2ToES3Converter.Result es3Result = ES2ToES3Converter.transform(source, shaderType, gles ? "es" : "", version, useLatestFeatures, splitTextureSamplers);
                 source = es3Result.output;
             }
             return source;
@@ -452,7 +452,9 @@ public class ShaderUtil {
             return result;
         }
 
-        public static Result transform(String input, ShaderDesc.ShaderType shaderType, String targetProfile, int targetVersion, boolean useLatestFeatures) throws CompileExceptionError {
+
+
+        public static Result transform(String input, ShaderDesc.ShaderType shaderType, String targetProfile, int targetVersion, boolean useLatestFeatures, boolean splitTextureSamplers) throws CompileExceptionError {
             Result result = new Result();
 
             if(input.isEmpty()) {
@@ -567,18 +569,25 @@ public class ShaderUtil {
                             }
 
                             if (isOpaqueType(type)) {
-                                Matcher combinedSamplerMatcher = regexCombinedSamplerPattern.matcher(type);
-                                if(combinedSamplerMatcher.find()) { // Use the separated sampler/texture
-                                    String lines = "";
-                                    String samplerType = combinedSamplerMatcher.group("type");
-                                    lines += layout + " " + line.replaceAll("\\b" + type + "\\b", "texture" + samplerType) + System.lineSeparator();
-                                    lines += layout + " " + line.replaceAll("\\b" + type + "\\b", "sampler").replaceAll("\\b" + identifier + "\\b", identifier + "_separated") + System.lineSeparator();
-                                    line = lines;
-                                    String[] texture_replacement = {String.format("texture(\\W?)+\\((\\W?)+%s(\\W?)+,", identifier), String.format("texture(%s(%s, %s_separated),", type, identifier, identifier)};
-                                    lineReplacements.add(texture_replacement);
-                                    String[] textureLod_replacement = {String.format("textureLod(\\W?)+\\((\\W?)+%s(\\W?)+,", identifier), String.format("textureLod(%s(%s, %s_separated),", type, identifier, identifier)};
-                                    lineReplacements.add(textureLod_replacement);
-                                } else {
+                                boolean didSplitTextures = false;
+
+                                if (splitTextureSamplers) {
+                                    Matcher combinedSamplerMatcher = regexCombinedSamplerPattern.matcher(type);
+                                    if(combinedSamplerMatcher.find()) { // Use the separated sampler/texture
+                                        String lines = "";
+                                        String samplerType = combinedSamplerMatcher.group("type");
+                                        lines += layout + " " + line.replaceAll("\\b" + type + "\\b", "texture" + samplerType) + System.lineSeparator();
+                                        lines += layout + " " + line.replaceAll("\\b" + type + "\\b", "sampler").replaceAll("\\b" + identifier + "\\b", identifier + "_separated") + System.lineSeparator();
+                                        line = lines;
+                                        String[] texture_replacement = {String.format("texture(\\W?)+\\((\\W?)+%s(\\W?)+,", identifier), String.format("texture(%s(%s, %s_separated),", type, identifier, identifier)};
+                                        lineReplacements.add(texture_replacement);
+                                        String[] textureLod_replacement = {String.format("textureLod(\\W?)+\\((\\W?)+%s(\\W?)+,", identifier), String.format("textureLod(%s(%s, %s_separated),", type, identifier, identifier)};
+                                        lineReplacements.add(textureLod_replacement);
+                                        didSplitTextures = true;
+                                    }
+                                }
+
+                                if (!didSplitTextures) {
                                     line = layout + " " + line;
                                 }
                             } else {

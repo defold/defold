@@ -98,19 +98,6 @@ namespace dmScript
 
     uint32_t TYPE_HASHES[SCRIPT_TYPE_UNKNOWN];
 
-    static ScriptUserType GetType(lua_State* L, int index)
-    {
-        uint32_t type_hash = dmScript::GetUserType(L, index);
-        for (uint32_t i = 0; i < SCRIPT_TYPE_UNKNOWN; ++i)
-        {
-            if (TYPE_HASHES[i] == type_hash)
-            {
-                return (ScriptUserType)i;
-            }
-        }
-        return SCRIPT_TYPE_UNKNOWN;
-    }
-
     static inline bool CheckVector3Components(Vector3* v)
     {
         return !isnan(v->getX()) && !isnan(v->getY()) && !isnan(v->getZ());
