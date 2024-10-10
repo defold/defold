@@ -823,7 +823,7 @@ var Module = {
         }
         Module.fullScreenContainer = fullScreenContainer || Module.canvas;
 
-        if (Module.isWebGPUSupported || Modules.isWebGLSupported) {
+        if (Module.isWebGPUSupported || Module.isWebGLSupported) {
             Module.canvas.focus();
 
             // Add context menu hide-handler if requested
@@ -1019,13 +1019,15 @@ var Module = {
 
 Module.isWebGLSupported = (() => {
     try {
+        // create canvas to simply check is rendering context supported
+        // real render context created by glfw
         var canvas = document.createElement("canvas");
-        var webgpu = canvas.getContext("webgpu");
-        if (webgpu && webgpu instanceof GPUCanvasContext) {
+        var gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
+        if (gl && gl instanceof WebGLRenderingContext) {
             return true;
         }
     } catch (error) {
-        console.log("An error occurred while detecting WebGPU support: " + error);
+        console.log("An error occurred while detecting WebGL support: " + error);
         return false;
     }
 
