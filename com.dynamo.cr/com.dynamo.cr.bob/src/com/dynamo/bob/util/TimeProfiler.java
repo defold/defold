@@ -166,7 +166,7 @@ public class TimeProfiler {
     }
 
     public static void createReport(Boolean fromEditor) {
-        // avoid douиle creation of the report by checking `fromEditor` flag
+        // avoid double creation of the report by checking `fromEditor` flag
         if (rootScope == null || TimeProfiler.fromEditor != fromEditor) {
             return;
         }
