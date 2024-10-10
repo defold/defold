@@ -209,9 +209,10 @@ namespace dmGraphics
         dmArray<VkExtensionProperties> extensions;
         GetExtensions(extensions);
 
-        // Static to keep life time while adding it to an array and passing it along
-        static const char* VK_KHR_get_physical_device_properties2_str = "VK_KHR_get_physical_device_properties2";
-        static const char* VK_KHR_portability_enumeration_str = "VK_KHR_portability_enumeration";
+    #ifdef __MACH__
+        static const char* VK_EXT_metal_objects_str = "VK_EXT_metal_objects";
+        AddIfSupported(extensions, VK_EXT_metal_objects_str, vk_required_extensions);
+    #endif
 
         if (validationLayerCount > 0)
         {
@@ -222,8 +223,10 @@ namespace dmGraphics
                 AddIfSupported(extensions, VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME, vk_required_extensions);
 
             #ifdef __MACH__
+                static const char* VK_KHR_get_physical_device_properties2_str = "VK_KHR_get_physical_device_properties2";
                 AddIfSupported(extensions, VK_KHR_get_physical_device_properties2_str, vk_required_extensions);
             #else
+                static const char* VK_KHR_portability_enumeration_str = "VK_KHR_portability_enumeration";
                 AddIfSupported(extensions, VK_KHR_portability_enumeration_str, vk_required_extensions);
             #endif
 
