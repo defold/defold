@@ -72,7 +72,7 @@ public abstract class LuaBuilder extends Builder {
     private static List<ILuaPreprocessor> luaPreprocessors = null;
     private static List<ILuaObfuscator> luaObfuscators = null;
 
-    private Map<String, LuaScanner> luaScanners = new HashMap();
+    private LuaScanner luaScanner;
 
     /**
      * Get a LuaScanner instance for a resource
@@ -84,8 +84,7 @@ public abstract class LuaBuilder extends Builder {
     private LuaScanner getLuaScanner(IResource resource) throws IOException, CompileExceptionError {
         final String path = resource.getAbsPath();
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
-        LuaScanner scanner = luaScanners.get(path);
-        if (scanner == null) {
+        if (luaScanner == null) {
             final byte[] scriptBytes = resource.getContent();
             String script = new String(scriptBytes, "UTF-8");
 
@@ -107,15 +106,14 @@ public abstract class LuaBuilder extends Builder {
                 }
             }
 
-            scanner = new LuaScanner();
+            luaScanner = new LuaScanner();
             if (variant == Bob.VARIANT_DEBUG)
             {
-                scanner.setDebug();
+                luaScanner.setDebug();
             }
-            scanner.parse(script);
-            luaScanners.put(path, scanner);
+            luaScanner.parse(script);
         }
-        return scanner;
+        return luaScanner;
     }
 
     @Override
@@ -622,5 +620,11 @@ public abstract class LuaBuilder extends Builder {
             }
         }
         return builder.build();
+    }
+
+    @Override
+    public void clearState() {
+        super.clearState();
+        luaScanner = null;
     }
 }

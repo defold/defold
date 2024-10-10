@@ -1881,6 +1881,7 @@ run:
                             state.putSignature(r.getAbsPath(), taskSignature);
                         }
                     }
+                    builder.clearState();
                     monitor.worked(1);
                     buildContainsChanges = true;
 
