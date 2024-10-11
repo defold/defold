@@ -353,7 +353,7 @@ public class Project {
                         ProtoParams protoParams = klass.getAnnotation(ProtoParams.class);
                         if (protoParams != null) {
                             ProtoBuilder.addMessageClass(builderParams.outExt(), protoParams.messageClass());
-
+                            ProtoBuilder.addProtoDigest(protoParams.messageClass());
                             for (String ext : builderParams.inExts()) {
                                 Class<?> inputClass = protoParams.srcClass();
                                 if (inputClass != null) {
