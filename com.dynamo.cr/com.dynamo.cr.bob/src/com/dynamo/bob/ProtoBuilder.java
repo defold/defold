@@ -156,4 +156,10 @@ public abstract class ProtoBuilder<B extends GeneratedMessageV3.Builder<B>> exte
         task.output(0).setContent(out.toByteArray());
     }
 
+    @Override
+    public void clearState() {
+        super.clearState();
+        protoParams = null;
+        srcBuilders = null;
+    }
 }

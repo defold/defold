@@ -133,4 +133,7 @@ public abstract class Builder {
     public boolean isGameProjectBuilder() {
         return false;
     }
+
+    public void clearState() {
+    }
 }
