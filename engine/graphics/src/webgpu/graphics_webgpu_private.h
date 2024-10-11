@@ -158,11 +158,11 @@ namespace dmGraphics
     struct WebGPURenderPass
     {
         WGPUBindGroup         m_BindGroups[MAX_SET_COUNT];
-        WebGPUBuffer*         m_VertexBuffers[MAX_VERTEX_BUFFERS];
+        WGPUBuffer            m_VertexBuffers[MAX_VERTEX_BUFFERS];
         WebGPURenderTarget*   m_Target;
         WGPURenderPassEncoder m_Encoder;
         WGPURenderPipeline    m_Pipeline;
-        WebGPUBuffer*         m_IndexBuffer;
+        WGPUBuffer            m_IndexBuffer;
     };
 
     struct WebGPUTextureSampler

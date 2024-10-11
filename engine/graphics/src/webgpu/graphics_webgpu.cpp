@@ -1801,20 +1801,20 @@ static void WebGPUSetupRenderPipeline(WebGPUContext* context, WebGPUBuffer* inde
     }
 
     // Set the indexbuffer
-    if (indexBuffer && indexBuffer != context->m_CurrentRenderPass.m_IndexBuffer)
+    if (indexBuffer && indexBuffer->m_Buffer != context->m_CurrentRenderPass.m_IndexBuffer)
     {
         assert(indexBufferType == TYPE_UNSIGNED_SHORT || indexBufferType == TYPE_UNSIGNED_INT);
-        wgpuRenderPassEncoderSetIndexBuffer(context->m_CurrentRenderPass.m_Encoder, indexBuffer->m_Buffer, indexBufferType == TYPE_UNSIGNED_INT ? WGPUIndexFormat_Uint32 : WGPUIndexFormat_Uint16, 0, indexBuffer->m_Used);
-        context->m_CurrentRenderPass.m_IndexBuffer = indexBuffer;
+        wgpuRenderPassEncoderSetIndexBuffer(context->m_CurrentRenderPass.m_Encoder, indexBuffer->m_Buffer, indexBufferType == TYPE_UNSIGNED_INT ? WGPUIndexFormat_Uint32 : WGPUIndexFormat_Uint16, 0, WGPU_WHOLE_SIZE);
+        context->m_CurrentRenderPass.m_IndexBuffer = indexBuffer->m_Buffer;
     }
 
     // Set the vertexbuffer(s)
     for (int slot = 0; slot < MAX_VERTEX_BUFFERS; ++slot)
     {
-        if (context->m_CurrentVertexBuffers[slot] && context->m_CurrentVertexBuffers[slot] != context->m_CurrentRenderPass.m_VertexBuffers[slot])
+        if (context->m_CurrentVertexBuffers[slot] && context->m_CurrentVertexBuffers[slot]->m_Buffer != context->m_CurrentRenderPass.m_VertexBuffers[slot])
         {
             wgpuRenderPassEncoderSetVertexBuffer(context->m_CurrentRenderPass.m_Encoder, slot, context->m_CurrentVertexBuffers[slot]->m_Buffer, 0, context->m_CurrentVertexBuffers[slot]->m_Used);
-            context->m_CurrentRenderPass.m_VertexBuffers[slot] = context->m_CurrentVertexBuffers[slot];
+            context->m_CurrentRenderPass.m_VertexBuffers[slot] = context->m_CurrentVertexBuffers[slot]->m_Buffer;
         }
     }
 
