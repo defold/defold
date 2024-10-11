@@ -1790,9 +1790,6 @@ run:
 
                 // compare all task signature. current task signature between previous
                 // signature from state on disk
-                TimeProfiler.start("compare signatures");
-                TimeProfiler.addData("color", "#FFC0CB");
-                TimeProfiler.addData("main input", String.valueOf(task.input(0)));
                 byte[] taskSignature = task.calculateSignature();
                 boolean allSigsEquals = true;
                 for (IResource r : outputResources) {
@@ -1802,7 +1799,7 @@ run:
                         break;
                     }
                 }
-                TimeProfiler.stop();
+
                 // game.project is always the last task
                 boolean isLastTask = completedTasks.size() + 1 == buildTasks.size();
                 boolean shouldRun = !completedTasks.contains(task);
