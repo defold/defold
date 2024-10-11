@@ -1008,6 +1008,7 @@ static HContext WebGPUNewContext(const ContextParams& params)
     if (!g_WebGPUContext)
     {
         g_WebGPUContext = (WebGPUContext*)malloc(sizeof(WebGPUContext));
+        memset(g_WebGPUContext, 0, sizeof(*g_WebGPUContext));
         if (InitializeWebGPUContext(g_WebGPUContext, params))
             return g_WebGPUContext;
         DeleteContext(g_WebGPUContext);
