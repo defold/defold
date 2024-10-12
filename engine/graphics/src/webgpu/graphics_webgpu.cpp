@@ -1123,6 +1123,14 @@ static void WebGPUGetDefaultTextureFilters(HContext _context, TextureFilter& out
     out_mag_filter         = context->m_DefaultTextureMagFilter;
 }
 
+static void WebGPUCreateCommandEncoder(WebGPUContext* context)
+{
+    if(!context->m_CommandEncoder)
+    {
+        context->m_CommandEncoder = wgpuDeviceCreateCommandEncoder(context->m_Device, NULL);
+    }
+}
+
 static void WebGPUEndRenderPass(WebGPUContext* context);
 
 static void WebGPUEndComputePass(WebGPUContext* context)
@@ -1136,12 +1144,30 @@ static void WebGPUEndComputePass(WebGPUContext* context)
     }
 }
 
+static void WebGPUSubmitCommandEncoder(WebGPUContext* context)
+{
+    TRACE_CALL;
+    if (context->m_CommandEncoder)
+    {
+        WebGPUEndComputePass(context);
+        WebGPUEndRenderPass(context);
+
+        const WGPUCommandBuffer buffer = wgpuCommandEncoderFinish(context->m_CommandEncoder, NULL);
+        wgpuQueueSubmit(context->m_Queue, 1, &buffer);
+        wgpuCommandBufferRelease(buffer);
+        wgpuCommandEncoderRelease(context->m_CommandEncoder);
+        context->m_CommandEncoder = NULL;
+        context->m_LastSubmittedRenderPass = context->m_RenderPasses;
+    }
+}
+
 static void WebGPUBeginComputePass(WebGPUContext* context)
 {
     TRACE_CALL;
     if (!context->m_CurrentComputePass.m_Encoder)
     {
         WebGPUEndRenderPass(context);
+        WebGPUCreateCommandEncoder(context);
         WGPUComputePassDescriptor desc          = {};
         context->m_CurrentComputePass.m_Encoder = wgpuCommandEncoderBeginComputePass(context->m_CommandEncoder, &desc);
     }
@@ -1166,6 +1192,8 @@ static void WebGPUBeginRenderPass(WebGPUContext* context, const float* clearColo
     if (context->m_CurrentRenderPass.m_Target != context->m_CurrentRenderTarget)
     {
         WebGPUEndRenderPass(context);
+        WebGPUCreateCommandEncoder(context);
+        ++context->m_RenderPasses;
         context->m_CurrentRenderPass.m_Target = context->m_CurrentRenderTarget;
         {
             WGPURenderPassDescriptor desc = {};
@@ -1289,7 +1317,6 @@ static void WebGPUBeginFrame(HContext _context)
         texture->m_Texture     = wgpuSwapChainGetCurrentTexture(context->m_SwapChain);
         texture->m_TextureView = wgpuSwapChainGetCurrentTextureView(context->m_SwapChain);
     }
-    context->m_CommandEncoder      = wgpuDeviceCreateCommandEncoder(context->m_Device, NULL);
     context->m_CurrentRenderTarget = context->m_MainRenderTarget;
 }
 
@@ -1297,17 +1324,8 @@ static void WebGPUFlip(HContext _context)
 {
     TRACE_CALL;
     WebGPUContext* context = (WebGPUContext*)_context;
-    WebGPUEndComputePass(context);
-    WebGPUEndRenderPass(context);
+    WebGPUSubmitCommandEncoder(context);
     context->m_CurrentRenderTarget = NULL;
-    if (context->m_CommandEncoder)
-    {
-        const WGPUCommandBuffer buffer = wgpuCommandEncoderFinish(context->m_CommandEncoder, NULL);
-        wgpuQueueSubmit(context->m_Queue, 1, &buffer);
-        wgpuCommandBufferRelease(buffer);
-        wgpuCommandEncoderRelease(context->m_CommandEncoder);
-        context->m_CommandEncoder = NULL;
-    }
     {
 #if !defined(__EMSCRIPTEN__)
         wgpuSwapChainPresent(context->m_SwapChain);
@@ -1345,13 +1363,18 @@ static void WebGPUWriteBuffer(WebGPUContext* context, WebGPUBuffer* buffer, size
 {
     TRACE_CALL;
     assert(size);
-    if (!buffer->m_Buffer)
+    if (!buffer->m_Buffer) // create it
     {
         WGPUBufferDescriptor desc = {};
         desc.usage                = buffer->m_Usage;
         desc.size                 = size;
         buffer->m_Buffer          = wgpuDeviceCreateBuffer(context->m_Device, &desc);
         buffer->m_Used = buffer->m_Size = desc.size;
+    }
+    else if (buffer->m_LastRenderPass && buffer->m_LastRenderPass > context->m_LastSubmittedRenderPass) // flush pipeline
+    {
+        //dmLogWarning("Deoptimization: Forcing pipeline flush due to buffer write");
+        WebGPUSubmitCommandEncoder(context);
     }
     wgpuQueueWriteBuffer(context->m_Queue, buffer->m_Buffer, offset, data, size);
 }
@@ -1395,6 +1418,7 @@ static void WebGPUSetVertexBufferData(HVertexBuffer buffer, uint32_t size, const
         wgpuBufferRelease(gpu_buffer->m_Buffer);
         gpu_buffer->m_Buffer = NULL;
         gpu_buffer->m_Used = gpu_buffer->m_Size = 0;
+        gpu_buffer->m_LastRenderPass = 0;
     }
     else
     {
@@ -1462,6 +1486,7 @@ static void WebGPUSetIndexBufferData(HIndexBuffer _buffer, uint32_t size, const 
         wgpuBufferRelease(buffer->m_Buffer);
         buffer->m_Buffer = NULL;
         buffer->m_Used = buffer->m_Size = 0;
+        buffer->m_LastRenderPass = 0;
     }
     else
     {
@@ -1806,6 +1831,7 @@ static void WebGPUSetupRenderPipeline(WebGPUContext* context, WebGPUBuffer* inde
         assert(indexBufferType == TYPE_UNSIGNED_SHORT || indexBufferType == TYPE_UNSIGNED_INT);
         wgpuRenderPassEncoderSetIndexBuffer(context->m_CurrentRenderPass.m_Encoder, indexBuffer->m_Buffer, indexBufferType == TYPE_UNSIGNED_INT ? WGPUIndexFormat_Uint32 : WGPUIndexFormat_Uint16, 0, WGPU_WHOLE_SIZE);
         context->m_CurrentRenderPass.m_IndexBuffer = indexBuffer->m_Buffer;
+        indexBuffer->m_LastRenderPass = context->m_RenderPasses;
     }
 
     // Set the vertexbuffer(s)
@@ -1815,6 +1841,7 @@ static void WebGPUSetupRenderPipeline(WebGPUContext* context, WebGPUBuffer* inde
         {
             wgpuRenderPassEncoderSetVertexBuffer(context->m_CurrentRenderPass.m_Encoder, slot, context->m_CurrentVertexBuffers[slot]->m_Buffer, 0, context->m_CurrentVertexBuffers[slot]->m_Used);
             context->m_CurrentRenderPass.m_VertexBuffers[slot] = context->m_CurrentVertexBuffers[slot]->m_Buffer;
+            context->m_CurrentVertexBuffers[slot]->m_LastRenderPass = context->m_RenderPasses;
         }
     }
 

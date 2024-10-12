@@ -43,6 +43,7 @@ namespace dmGraphics
 
         size_t                     m_Size = 0;
         size_t                     m_Used = 0;
+        size_t                     m_LastRenderPass = 0;
     };
 
     struct WebGPUUniformBuffer
@@ -214,6 +215,8 @@ namespace dmGraphics
         WGPUTextureFormat                  m_Format;
         WGPUSwapChain                      m_SwapChain;
         WGPUCommandEncoder                 m_CommandEncoder;
+        uint32_t                           m_RenderPasses;
+        uint32_t                           m_LastSubmittedRenderPass;
 
         // Current state
         PipelineState       m_CurrentPipelineState;
