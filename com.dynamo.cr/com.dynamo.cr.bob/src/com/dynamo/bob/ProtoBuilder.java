@@ -17,6 +17,8 @@ package com.dynamo.bob;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.lang.reflect.Method;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -36,12 +38,47 @@ public abstract class ProtoBuilder<B extends GeneratedMessageV3.Builder<B>> exte
     private HashMap<IResource, B> srcBuilders = new HashMap<>();
 
     private static Map<String, Class<? extends GeneratedMessageV3>> extToMessageClass = new HashMap<String, Class<? extends GeneratedMessageV3>>();
+    private static Map<Class<? extends GeneratedMessageV3>,  byte[]> classToProtoDigest = new HashMap<Class<? extends GeneratedMessageV3>,  byte[]>();
 
     public ProtoBuilder() {
         protoParams = getClass().getAnnotation(ProtoParams.class);
 
         BuilderParams builderParams = getClass().getAnnotation(BuilderParams.class);
         extToMessageClass.put(builderParams.outExt(), protoParams.messageClass());
+    }
+
+    public static void addProtoDigest(Class<? extends GeneratedMessageV3> klass) throws NoSuchAlgorithmException {
+        if (classToProtoDigest.get(klass) == null) {
+            MessageDigest digest = MessageDigest.getInstance("SHA1");
+            digest.update(klass.getName().getBytes());
+            try {
+                // Calculate the digest for the proto format based on the proto descriptor
+                Descriptors.Descriptor descriptor = (Descriptors.Descriptor) klass.getMethod("getDescriptor").invoke(null);
+                digest.update(descriptor.getFullName().getBytes());
+                addFieldsToDigest(descriptor, digest);
+            } catch (ReflectiveOperationException e) {
+                throw new RuntimeException("Failed to retrieve descriptor from protobuf class", e);
+            }
+            classToProtoDigest.put(klass, digest.digest());
+        }
+    }
+
+    private static void addFieldsToDigest(Descriptors.Descriptor descriptor, MessageDigest digest) {
+        for (Descriptors.FieldDescriptor field : descriptor.getFields()) {
+            digest.update(field.getName().getBytes());
+            digest.update(field.getType().toString().getBytes());
+            digest.update(Integer.toString(field.getNumber()).getBytes());
+            if (field.hasDefaultValue()) {
+                digest.update(field.getDefaultValue().toString().getBytes());
+            }
+
+            // If the field is a sub-message, recursively process its descriptor
+            if (field.getType() == Descriptors.FieldDescriptor.Type.MESSAGE) {
+                Descriptors.Descriptor subDescriptor = field.getMessageType();
+                digest.update(subDescriptor.getFullName().getBytes());
+                addFieldsToDigest(subDescriptor, digest);
+            }
+        }
     }
 
     static public void addMessageClass(String ext, Class<? extends GeneratedMessageV3> klass) {
@@ -159,7 +196,13 @@ public abstract class ProtoBuilder<B extends GeneratedMessageV3.Builder<B>> exte
     @Override
     public void clearState() {
         super.clearState();
-        protoParams = null;
         srcBuilders = null;
+    }
+
+    // Update digest with the signature of the output proto format
+    @Override
+    public void signature(MessageDigest digest) {
+        super.signature(digest);
+        digest.update(classToProtoDigest.get(protoParams.messageClass()));
     }
 }
