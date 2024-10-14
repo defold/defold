@@ -758,12 +758,22 @@
    page     :- types/Int32
    geometry :- s/Any])
 
+(defn rotate-vertices-90-cw [vertices]
+  (mapcat (fn [[x y]]
+            [y (- x)])
+          (partition 2 vertices)))
+
 (g/defnk produce-image-path->rect
   [layout-size layout-rects texture-set]
   (let [[w h] layout-size
         geometries (:geometries texture-set)]
     (into {} (map (fn [{:keys [path x y width height index page]}]
-                    [path (->AtlasRect path x (- h height y) width height page (get geometries index))]))
+                    (let [geometry (get geometries index)
+                          rotated-vertices (if (:rotated geometry)
+                                             (rotate-vertices-90-cw (:vertices geometry))
+                                             (:vertices geometry))]
+                      [path (->AtlasRect path x (- h height y) width height page
+                                         (assoc geometry :vertices rotated-vertices))])))
           layout-rects)))
 
 (defn- atlas-outline-sort-by-fn [v]
