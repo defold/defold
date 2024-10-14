@@ -49,6 +49,7 @@
             [editor.resource :as resource]
             [editor.resource-dialog :as resource-dialog]
             [editor.settings :as settings]
+            [editor.system :as system]
             [editor.ui :as ui]
             [editor.url :as url]
             [editor.view :as view]
@@ -231,10 +232,15 @@
 
 ;; region string input
 
+(defn- text-formatter [props]
+  {:fx/type fx/ext-recreate-on-key-changed
+   :key (:value-converter props)
+   :desc (assoc props :fx/type fx.text-formatter/lifecycle)})
+
 (defmethod form-input-view :string [{:keys [value on-value-changed]}]
   {:fx/type text-field
    :max-width normal-max-width
-   :text-formatter {:fx/type fx.text-formatter/lifecycle
+   :text-formatter {:fx/type text-formatter
                     :value-converter :default
                     :value value
                     :on-value-changed on-value-changed}})
@@ -265,7 +271,7 @@
     {:fx/type text-field
      :alignment :center-right
      :max-width (or custom-max-width small-max-width)
-     :text-formatter {:fx/type fx.text-formatter/lifecycle
+     :text-formatter {:fx/type text-formatter
                       :value-converter value-converter
                       :value value
                       :on-value-changed on-value-changed}}))
@@ -283,7 +289,7 @@
     {:fx/type text-field
      :alignment :center-right
      :max-width (or custom-max-width small-max-width)
-     :text-formatter {:fx/type fx.text-formatter/lifecycle
+     :text-formatter {:fx/type text-formatter
                       :value-converter value-converter
                       :value value
                       :on-value-changed on-value-changed}}))
@@ -302,7 +308,7 @@
 (defmethod form-input-view :url [{:keys [value on-value-changed]}]
   {:fx/type text-field
    :max-width normal-max-width
-   :text-formatter {:fx/type fx.text-formatter/lifecycle
+   :text-formatter {:fx/type text-formatter
                     :value-converter uri-string-converter
                     :value value
                     :on-value-changed {:event-type :skip-malformed-urls
@@ -676,7 +682,7 @@
    :max-width normal-max-width
    :children [{:fx/type text-field
                :h-box/hgrow :always
-               :text-formatter {:fx/type fx.text-formatter/lifecycle
+               :text-formatter {:fx/type text-formatter
                                 :value-converter resource-string-converter
                                 :value value
                                 :on-value-changed on-value-changed}}
@@ -720,7 +726,7 @@
    :max-width normal-max-width
    :children [{:fx/type text-field
                :h-box/hgrow :always
-               :text-formatter {:fx/type fx.text-formatter/lifecycle
+               :text-formatter {:fx/type text-formatter
                                 :value-converter :default
                                 :value value
                                 :on-value-changed on-value-changed}}
@@ -748,7 +754,7 @@
    :max-width normal-max-width
    :children [{:fx/type text-field
                :h-box/hgrow :always
-               :text-formatter {:fx/type fx.text-formatter/lifecycle
+               :text-formatter {:fx/type text-formatter
                                 :value-converter :default
                                 :value value
                                 :on-value-changed on-value-changed}}
@@ -1526,52 +1532,57 @@
     (f event)
     (g/node-value view-id :form-view)))
 
+
+
 (defn- create-renderer [view-id parent workspace project]
   (let [resource-string-converter (make-resource-string-converter workspace)]
     (fx/create-renderer
       :error-handler error-reporting/report-exception!
-      :opts {:fx.opt/map-event-handler
-             (-> handle-event
-                 (fx/wrap-co-effects
-                   {:ui-state #(g/node-value view-id :ui-state)
-                    :form-data #(g/node-value view-id :form-data)
-                    :workspace (constantly workspace)
-                    :project (constantly project)
-                    :parent (constantly parent)})
-                 (fx/wrap-effects
-                   {:dispatch fx/dispatch-effect
-                    :set (fn [[path value] _]
-                           (let [ops (:form-ops (g/node-value view-id :form-data))]
-                             (form/set-value! ops path value)))
-                    :clear (fn [path _]
+      :opts (cond->
+              {:fx.opt/map-event-handler
+               (-> handle-event
+                   (fx/wrap-co-effects
+                     {:ui-state #(g/node-value view-id :ui-state)
+                      :form-data #(g/node-value view-id :form-data)
+                      :workspace (constantly workspace)
+                      :project (constantly project)
+                      :parent (constantly parent)})
+                   (fx/wrap-effects
+                     {:dispatch fx/dispatch-effect
+                      :set (fn [[path value] _]
                              (let [ops (:form-ops (g/node-value view-id :form-data))]
-                               (when (form/can-clear? ops)
-                                 (form/clear-value! ops path))))
-                    :set-ui-state (fn [ui-state _]
-                                    (g/set-property! view-id :ui-state ui-state))
-                    :cancel-edit (fn [x _]
-                                   (cond
-                                     (instance? Cell x)
-                                     (fx/run-later (.cancelEdit ^Cell x))
+                               (form/set-value! ops path value)))
+                      :clear (fn [path _]
+                               (let [ops (:form-ops (g/node-value view-id :form-data))]
+                                 (when (form/can-clear? ops)
+                                   (form/clear-value! ops path))))
+                      :set-ui-state (fn [ui-state _]
+                                      (g/set-property! view-id :ui-state ui-state))
+                      :cancel-edit (fn [x _]
+                                     (cond
+                                       (instance? Cell x)
+                                       (fx/run-later (.cancelEdit ^Cell x))
 
-                                     (instance? ListView x)
-                                     (.edit ^ListView x -1)))
-                    :open-resource (fn [[node value] _]
-                                     (ui/run-command node :open {:resources [value]}))
-                    :show-dialog (fn [dialog-type _]
-                                   (case dialog-type
-                                     :directory-not-in-project
-                                     (dialogs/make-info-dialog
-                                       {:title "Invalid Directory"
-                                        :icon :icon/triangle-error
-                                        :header "The directory must reside within the project."})
+                                       (instance? ListView x)
+                                       (.edit ^ListView x -1)))
+                      :open-resource (fn [[node value] _]
+                                       (ui/run-command node :open {:resources [value]}))
+                      :show-dialog (fn [dialog-type _]
+                                     (case dialog-type
+                                       :directory-not-in-project
+                                       (dialogs/make-info-dialog
+                                         {:title "Invalid Directory"
+                                          :icon :icon/triangle-error
+                                          :header "The directory must reside within the project."})
 
-                                     :file-not-in-project
-                                     (dialogs/make-info-dialog
-                                       {:title "Invalid File"
-                                        :icon :icon/triangle-error
-                                        :header "The file must reside within the project."})))})
-                 (wrap-force-refresh view-id))}
+                                       :file-not-in-project
+                                       (dialogs/make-info-dialog
+                                         {:title "Invalid File"
+                                          :icon :icon/triangle-error
+                                          :header "The file must reside within the project."})))})
+                   (wrap-force-refresh view-id))}
+              (system/defold-dev?)
+              (assoc :fx.opt/type->lifecycle (requiring-resolve 'cljfx.dev/type->lifecycle)))
 
       :middleware (comp
                     fxui/wrap-dedupe-desc

@@ -263,6 +263,7 @@
                                                     [com.clojure-goes-fast/clj-async-profiler "0.5.1"]
                                                     [criterium "0.4.3"]
                                                     [lambdaisland/deep-diff2 "2.10.211"]
+                                                    [io.github.cljfx/dev "1.0.39"]
                                                     [org.clojure/test.check "0.9.0"]
                                                     [org.clojure/tools.trace "0.7.9"]
                                                     [org.mockito/mockito-core "1.10.19"]
