@@ -24,6 +24,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.pipeline.antlr.glsl.GLSLParser;
+import com.dynamo.bob.pipeline.antlr.glsl.GLSLParserBaseListener;
+import com.dynamo.bob.pipeline.antlr.glsl.GLSLParserListener;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
 import org.antlr.v4.runtime.Token;
@@ -32,6 +35,8 @@ import org.antlr.v4.runtime.CharStreams;
 import org.antlr.v4.runtime.CommonTokenStream;
 import org.antlr.v4.runtime.TokenStreamRewriter;
 import com.dynamo.bob.pipeline.antlr.glsl.GLSLLexer;
+import org.antlr.v4.runtime.tree.ParseTree;
+import org.antlr.v4.runtime.tree.ParseTreeWalker;
 
 public class ShaderUtil {
     public static class Common {
@@ -76,6 +81,37 @@ public class ShaderUtil {
                 info.profile         = shaderProfile == null ? "" : shaderProfile;
             }
             return info;
+        }
+
+        public static class GLSLListenerImpl extends GLSLParserBaseListener {
+            @Override
+            public void enterDeclaration(GLSLParser.DeclarationContext ctx) {
+                // Check if this is an 'in' declaration
+                if (ctx.getText().startsWith("in")) {
+                    // Print or collect the tokens following the 'in' keyword
+                    //String type = ctx.getChild(1).getText();  // Get the type (e.g., vec4)
+                    //String varName = ctx.getChild(2).getText();  // Get the variable name
+                    //System.out.println("Input found: " + type + " " + varName);
+                    System.out.println("Input found: ");
+                }
+            }
+        }
+
+        public static void listVaryings(String source)
+        {
+            CharStream stream = CharStreams.fromString(source);
+            GLSLLexer lexer = new GLSLLexer(stream);
+            CommonTokenStream tokens = new CommonTokenStream(lexer);
+
+            tokens.fill();
+
+            GLSLParser parser = new GLSLParser(tokens);
+
+            //ParseTree tree = parser.
+
+            ParseTreeWalker walker = new ParseTreeWalker();
+            GLSLListenerImpl listener = new GLSLListenerImpl();  // Custom listener implementation
+            walker.walk(listener, parser.translation_unit());
         }
 
         public static String stripComments(String source)

@@ -232,6 +232,23 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
     }
 
     @Test
+    public void testShaderVaryingRemapping() throws Exception {
+        String fs_src =
+            """
+            in vec4 var_color_one;
+            in vec4 var_color_two;
+            out vec4 color_out;
+            
+            void main()
+            {
+                color_out = var_color;
+            }
+            """;
+
+        ShaderUtil.Common.listVaryings(fs_src);
+    }
+
+    @Test
     public void testShaderReflection() throws Exception {
         GetProject().getProjectProperties().putBooleanValue("shader", "output_spirv", true);
 
