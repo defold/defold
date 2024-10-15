@@ -233,6 +233,7 @@ platforms:
         symbols:    ["AudioDecoderTremolo"]
         osMinVersion:   "{{env.IOS_VERSION_MIN}}"
         swiftFlags: ["-target", "arm64-apple-ios{{env.IOS_VERSION_MIN}}"]
+        zig-target: 'aarch64-ios'
 
     exePrefix: ''
     exeExt: ''
@@ -271,6 +272,7 @@ platforms:
         symbols:    ["AudioDecoderTremolo"]
         osMinVersion:   "{{env.IOS_VERSION_MIN}}"
         swiftFlags: ["-target", "x86_64-apple-ios{{env.IOS_VERSION_MIN}}-simulator"]
+        zig-target: 'x86_64-ios-simulator'
 
     exePrefix: ''
     exeExt: ''
@@ -317,6 +319,7 @@ platforms:
         libs:       []
         dynamicLibs: ["EGL","GLESv1_CM","GLESv2","OpenSLES","m","log","c"]
         symbols:    ["AudioDecoderTremolo"]
+        zig-target: 'arm-linux-androideabi'
 
     exePrefix: 'lib'
     exeExt: '.so'
@@ -366,6 +369,7 @@ platforms:
         libs:       []
         dynamicLibs: ["EGL","GLESv1_CM","GLESv2","OpenSLES","m","log","c"]
         symbols:    ["AudioDecoderTremolo"]
+        zig-target: 'aarch64-linux-android'
 
     exePrefix: 'lib'
     exeExt: '.so'
@@ -472,6 +476,7 @@ platforms:
         cxxLinkShFlags: ["-target", "x86_64-pc-win32-msvc", "-m64", "-O2", "-g", "-O2", "-fuse-ld=lld", "-Wl,/safeseh:no"]
         libs:           ["OpenGL32", "delayimp", "User32", "shell32", "Xinput9_1_0", "dinput8", "dxguid", "OpenAL32", "WS2_32", "iphlpapi", "DbgHelp", "AdvAPI32", "Psapi", "Gdi32"]
         symbols:        []
+        zig-target:     'x86_64-windows-gnu'
 
     exePrefix:      ''
     exeExt:         '.exe'
@@ -510,6 +515,7 @@ platforms:
         cxxLinkShFlags: ["-target", "i386-pc-win32-msvc", "-m32", "-O2", "-g", "-fuse-ld=lld", "-Wl,/safeseh:no"]
         libs:           ["OpenGL32", "delayimp", "User32", "shell32", "Xinput9_1_0", "dinput8", "dxguid", "OpenAL32", "WS2_32", "iphlpapi", "DbgHelp", "AdvAPI32", "Psapi", "Gdi32"]
         symbols:        []
+        zig-target:     'x86-windows-gnu'
 
     exePrefix:      ''
     exeExt:         '.exe'
@@ -542,6 +548,7 @@ platforms:
         libs:           []
         # this happens to contain some dynamic engine libs too (openal)
         dynamicLibs: ["openal","Xext","X11","Xi","GL","GLU","pthread","m","dl"]
+        zig-target:     'x86_64-linux-gnu'
 
     exePrefix:      ''
     exeExt:         ''
