@@ -2158,6 +2158,22 @@ run:
         return options;
     }
 
+    /**
+     * Get the project build state
+     * @return The project build state
+     */
+    public State getState() {
+        return state;
+    }
+
+    /**
+     * Get the resource cache for this project
+     * @return The project resource cache
+     */
+    public ResourceCache getResourceCache() {
+        return resourceCache;
+    }
+
     public IResource getResource(String path) {
         return fileSystem.get(FilenameUtils.normalize(path, true));
     }
