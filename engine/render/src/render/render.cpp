@@ -136,6 +136,7 @@ namespace dmRender
 
         dmGraphics::AdapterFamily installed_adapter_family = dmGraphics::GetInstalledAdapterFamily();
         if (installed_adapter_family == dmGraphics::ADAPTER_FAMILY_VULKAN ||
+            installed_adapter_family == dmGraphics::ADAPTER_FAMILY_WEBGPU ||
             installed_adapter_family == dmGraphics::ADAPTER_FAMILY_VENDOR)
         {
             context->m_MultiBufferingRequired = 1;
