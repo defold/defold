@@ -546,9 +546,7 @@ public class BundlerTest {
                 expectedFiles.add("unnamed.exe");
                 expectedFiles.add("game.public.der");
                 expectedFiles.add("game.dmanifest");
-                expectedFiles.add("OpenAL32.dll");
                 expectedFiles.add("game.arci");
-                expectedFiles.add("wrap_oal.dll");
                 expectedFiles.add("game.arcd");
                 expectedFiles.add("game.projectc");
                 break;

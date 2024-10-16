@@ -110,7 +110,7 @@ def configure(conf):
         if waflib.Options.options.with_vulkan:
             conf.env.append_value('LIB_X', ['vulkan', 'X11-xcb'])
     elif operating_sys == "win":
-        conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'openal32.lib', 'dbghelp.lib', 'dinput8.lib', 'dxguid.lib'])
+        conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'dbghelp.lib', 'dinput8.lib', 'dxguid.lib'])
         # For Vulkan
         if waflib.Options.options.with_vulkan:
             conf.env.append_value('LINKFLAGS', ['vulkan-1.lib'])
@@ -131,7 +131,6 @@ def configure(conf):
     conf.env['STLIB_RIG'] = 'rig'
     conf.env['STLIB_SOUND'] = sound_lib
     conf.env['STLIB_SOUND_NULL'] = 'sound_null'
-    conf.env['STLIB_OPENAL_SOFT'] = 'openal_soft'
     conf.env['LIB_OPENSLES'] = 'OpenSLES'
     conf.env['STLIB_HID'] = 'hid'
     conf.env['STLIB_HID_NULL'] = 'hid_null'

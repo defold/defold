@@ -124,6 +124,7 @@ namespace dmSoundCodec
         bool data_found = false;
 
         if (buffer_size < sizeof(RiffHeader)) {
+            dmLogWarning("Size too small for riff header: %u", buffer_size);
             return RESULT_INVALID_FORMAT;
         }
 
@@ -190,9 +191,13 @@ namespace dmSoundCodec
                 *stream = streamOut;
                 return RESULT_OK;
             } else {
+                dmLogWarning("Format (%d) or data (%d)  not found", fmt_found, data_found);
                 return RESULT_INVALID_FORMAT;
             }
         } else {
+            const char* chunk = (const char*)&header->m_ChunkID;
+            dmLogWarning("Unknown header: chunk: %08x %c%c%c%c  format: %08x", header->m_ChunkID,
+                        (char)chunk[0], (char)chunk[1], (char)chunk[2], (char)chunk[3], header->m_Format);
             return RESULT_INVALID_FORMAT;
         }
     }
