@@ -94,6 +94,9 @@ public class ShaderUtil {
                 public Integer component;
                 public Integer index;
                 public Integer xfbOffset;
+
+                public Token tokenStart;
+                public Token tokenStop;
             }
 
             ArrayList<Member> members = new ArrayList<>();
@@ -101,19 +104,23 @@ public class ShaderUtil {
             public Integer location;
         };
 
+        public static class ShaderParseResult {
+            public ArrayList<ShaderDeclaration> declarations = new ArrayList<>();
+            public CommonTokenStream tokens;
+        }
+
         public static class GLSLListenerImpl extends GLSLParserBaseListener {
 
             private boolean invalidScope = false;
             private ShaderDeclaration declarationScope = null;
             private ShaderDeclaration.Member declarationMemberScope = null;
 
-            public ArrayList<ShaderDeclaration> inputs = new ArrayList<>();
+            public ArrayList<ShaderDeclaration> declarations = new ArrayList<>();
 
             @Override
             public void enterType_specifier(GLSLParser.Type_specifierContext ctx) {
                 super.enterType_specifier(ctx);
                 if (declarationScope != null) {
-                    System.out.println(" type: " + ctx.getText());
                     declarationMemberScope.type = ctx.getText();
                 }
             }
@@ -122,7 +129,6 @@ public class ShaderUtil {
             public void enterTypeless_declaration(GLSLParser.Typeless_declarationContext ctx) {
                 super.enterTypeless_declaration(ctx);
                 if (declarationScope != null) {
-                    System.out.println(" name: " + ctx.getText());
                     declarationMemberScope.name = ctx.getText();
                 }
             }
@@ -137,7 +143,6 @@ public class ShaderUtil {
             public void enterLayout_qualifier_id(GLSLParser.Layout_qualifier_idContext ctx) {
                 super.enterLayout_qualifier_id(ctx);
                 if (declarationScope != null) {
-                    System.out.println(" layout_qualifier_id: " + ctx.getText());
                     String text = ctx.getText();
 
                     if (text.startsWith("location")) {
@@ -170,7 +175,7 @@ public class ShaderUtil {
                 }
 
                 boolean found = false;
-                for (ShaderDeclaration decl : this.inputs) {
+                for (ShaderDeclaration decl : this.declarations) {
                     if (this.declarationScope.location != null && decl.location != null &&
                             this.declarationScope.location.intValue() == decl.location.intValue()) {
                         decl.members.add(this.declarationMemberScope);
@@ -180,14 +185,14 @@ public class ShaderUtil {
                 }
 
                 if (!found) {
-                    this.inputs.add(this.declarationScope);
+                    this.declarations.add(this.declarationScope);
                 }
                 this.declarationScope = null;
                 this.declarationMemberScope = null;
             }
 
             @Override
-            public void enterType_qualifier(GLSLParser.Type_qualifierContext ctx) {
+            public void enterSingle_type_qualifier(GLSLParser.Single_type_qualifierContext ctx) {
                 if (this.declarationMemberScope != null) {
                     this.declarationMemberScope.qualifier = ctx.getText();
                 }
@@ -208,15 +213,15 @@ public class ShaderUtil {
                 if (this.invalidScope) {
                     return;
                 }
-
-                System.out.println("Enter Declaration: " + ctx.getText());
                 this.declarationScope = new ShaderDeclaration();
                 this.declarationMemberScope = new ShaderDeclaration.Member();
                 this.declarationScope.members.add(this.declarationMemberScope);
+                this.declarationMemberScope.tokenStart = ctx.start;
+                this.declarationMemberScope.tokenStop = ctx.stop;
             }
         }
 
-        public static ArrayList<ShaderDeclaration> getInputs(String source) {
+        public static ShaderParseResult getShaderDeclarations(String source) {
             CharStream stream = CharStreams.fromString(source);
             GLSLLexer lexer = new GLSLLexer(stream);
             CommonTokenStream tokens = new CommonTokenStream(lexer);
@@ -226,7 +231,68 @@ public class ShaderUtil {
             GLSLListenerImpl listener = new GLSLListenerImpl();
             walker.walk(listener, parser.translation_unit());
 
-            return listener.inputs;
+            ShaderParseResult result = new ShaderParseResult();
+            result.declarations = listener.declarations;
+            result.tokens = tokens;
+
+            return result;
+        }
+
+        private static String shaderDeclarationMemberToText(ShaderDeclaration.Member member, Integer location) {
+            String name = null, layout = null, qualifier = null, type = null;
+            ArrayList<String> declParts = new ArrayList<>();
+            ArrayList<String> layoutParts = new ArrayList<>();
+
+            if (location != null) {
+                layoutParts.add("location=" + location);
+            }
+
+            if (member.name != null)
+                name = member.name;
+            if (member.qualifier != null)
+                qualifier = member.qualifier;
+            if (member.type != null)
+                type = member.type;
+
+            if (layoutParts.size() > 0) {
+                layout = "layout(" + String.join(",", layoutParts) + ")";
+            }
+
+            if (layout != null)
+                declParts.add(layout);
+            if (qualifier != null)
+                declParts.add(qualifier);
+            if (type != null)
+                declParts.add(type);
+            if (name != null)
+                declParts.add(name);
+
+            return String.join(" ", declParts) + ";"; // Note the trailing ; to close the declaration
+        }
+
+        // private ShaderDeclaration
+
+        public static String remapDeclarationLocation(String source, String name, int location) {
+            // Try to remap declarations from the input source to match the declarations in the 'declarations' list
+            ShaderParseResult result = getShaderDeclarations(source);
+
+            TokenStreamRewriter rewriter = new TokenStreamRewriter(result.tokens);
+
+            // TODO: Rename shader declaration to something more apt.
+            //       A "ShaderDeclaration" can actually hold multiple declarations now.
+            for (ShaderDeclaration decl : result.declarations) {
+                boolean remapDeclaration = false;
+
+                for (ShaderDeclaration.Member member : decl.members) {
+                    // TODO: This will force the entire declaration to use
+                    if (member.name.equals(name)) {
+                        decl.location = location;
+                        rewriter.replace(member.tokenStart, member.tokenStop, shaderDeclarationMemberToText(member, decl.location));
+                    }
+                }
+            }
+
+            return rewriter.getText();
         }
 
         public static String stripComments(String source)

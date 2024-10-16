@@ -235,6 +235,34 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
     }
 
     @Test
+    public void testRemapOutputsFromInputs() {
+        String fs_src =
+            """
+            in vec4 in_no_layout;
+            layout(component=0) in vec4 in_no_location;
+            layout(location=2) in vec4 in_location;
+            // These should not be remapped:
+            //in vec4 in_no_layout;
+            //layout(component=0) in vec4 in_no_location;
+            //layout(location=2) in vec4 in_location;
+            /* neither these
+            in vec4 in_no_layout;
+            layout(component=0) in vec4 in_no_location;
+            layout(location=2) in vec4 in_location;
+            */
+            """;
+
+        String remappedFsSource = ShaderUtil.Common.remapDeclarationLocation(fs_src, "in_no_layout", 1);
+        remappedFsSource = ShaderUtil.Common.remapDeclarationLocation(remappedFsSource, "in_no_location", 2);
+        remappedFsSource = ShaderUtil.Common.remapDeclarationLocation(remappedFsSource, "in_location", 3);
+
+        ShaderUtil.Common.ShaderParseResult result = ShaderUtil.Common.getShaderDeclarations(remappedFsSource);
+        assertEquals(3, result.declarations.size());
+        assertEquals("in_no_layout", result.declarations.get(0).members.get(0).name);
+        assertEquals(1, result.declarations.get(0).location.intValue());
+    }
+
+    @Test
     public void testGetInputs() {
         String fs_src =
             """
@@ -269,7 +297,8 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             }
             """;
 
-        ArrayList<ShaderUtil.Common.ShaderDeclaration> inputs = ShaderUtil.Common.getInputs(fs_src);
+        ShaderUtil.Common.ShaderParseResult result = ShaderUtil.Common.getShaderDeclarations(fs_src);
+        ArrayList<ShaderUtil.Common.ShaderDeclaration> inputs = result.declarations;
         assertEquals(3, inputs.size());
 
         assertEquals(inputs.get(0).members.size(), 1);
