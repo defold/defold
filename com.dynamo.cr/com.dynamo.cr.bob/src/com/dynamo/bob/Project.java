@@ -1726,24 +1726,6 @@ public class Project {
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
     private List<TaskResult> runTasks(IProgress monitor) throws IOException, CompileExceptionError {
-        // set of all completed tasks. The set includes both task run
-        // in this session and task already completed (output already exists with correct signatures, see below)
-        // the set also contains failed tasks
-        Set<Task> completedTasks = new HashSet<>();
-
-        // the set of all output files generated
-        // in this or previous session
-        Set<IResource> completedOutputs = new HashSet<>();
-
-        List<TaskResult> result = new ArrayList<>();
-
-        List<Task> buildTasks = new ArrayList<>(this.getTasks());
-        // set of *all* possible output files
-        Set<IResource> allOutputs = new HashSet<>();
-        for (Task task : this.getTasks()) {
-            allOutputs.addAll(task.getOutputs());
-        }
-        tasks.clear();
 
         TextureGenerator.maxThreads = getMaxCpuThreads();
 

@@ -169,7 +169,7 @@ public class TaskBuilder {
         TimeProfiler.stop();
 
         boolean isCompleted = completedTasks.contains(task);
-        boolean shouldRun = !isCompleted && (!allOutputExists || !allSigsEquals ||
+        boolean shouldRun = !isCompleted && (!allOutputsExist || !allSigsEquals ||
                             (buildContainsChanges && task.getBuilder().isGameProjectBuilder()));
 
         if (!shouldRun) {
