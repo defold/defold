@@ -73,6 +73,12 @@ public class TaskBuilder {
     private State state;
     private ResourceCache resourceCache;
 
+    // This flag is needed to determine if at least one file was built or taken from the cache.
+    // It is used to know whether GameProjectBuilder.build() (the builder for `game.project`)
+    // needs to be executed.
+    private boolean buildContainsChanges;
+
+    // for executing the individual tasks
     private ExecutorService  executorService;
 
     public TaskBuilder(List<Task> tasks, Project project) {
@@ -163,7 +169,8 @@ public class TaskBuilder {
         TimeProfiler.stop();
 
         boolean isCompleted = completedTasks.contains(task);
-        boolean shouldRun = (!allOutputsExist || !allSigsEquals) && !isCompleted;
+        boolean shouldRun = !isCompleted && (!allOutputExists || !allSigsEquals ||
+                            (buildContainsChanges && task.getBuilder().isGameProjectBuilder()));
 
         if (!shouldRun) {
             if (allOutputsExist && allSigsEquals)
@@ -232,6 +239,7 @@ public class TaskBuilder {
                 }
             }
             monitor.worked(1);
+            buildContainsChanges = true;
 
             for (IResource r : outputResources) {
                 if (!r.exists()) {
@@ -302,7 +310,6 @@ public class TaskBuilder {
         List<Callable<TaskResult>> tasksToSubmit = new ArrayList<>();
         Map<String, Integer> taskNameCounter = new HashMap<>();
         while (!tasks.isEmpty() && !abort) {
-        // while ((completedTasks.size() < tasks.size()) && !abort) {
             int completedCount = completedTasks.size();
             int remainingCount = tasks.size();
 
