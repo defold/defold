@@ -313,7 +313,7 @@ namespace dmRender
         font_map->m_CacheCellPadding = params.m_CacheCellPadding;
         font_map->m_CacheChannels = params.m_GlyphChannels;
 
-        SetupCache(font_map, font_map->m_CacheWidth, font_map->m_CacheWidth,
+        SetupCache(font_map, font_map->m_CacheWidth, font_map->m_CacheHeight,
                                 params.m_CacheCellWidth, params.m_CacheCellHeight, params.m_CacheCellMaxAscent);
 
         switch (params.m_GlyphChannels)
@@ -781,16 +781,16 @@ namespace dmRender
         dmGraphics::SetTexture(font_map->m_Texture, tex_params);
     }
 
-    static void AddGlyphToCache(HFontMap font_map, uint32_t frame, uint32_t c, dmRender::FontGlyph* g, int32_t g_offset_y)
+    static void AddGlyphToCache(HFontMap font_map, uint32_t frame, dmRender::FontGlyph* g, int32_t g_offset_y)
     {
         // Locate a cache cell candidate
-        CacheGlyph* cache_glyph = AcquireFreeGlyphFromCache(font_map, c, frame);
+        CacheGlyph* cache_glyph = AcquireFreeGlyphFromCache(font_map, g->m_Character, frame);
 
         if (cache_glyph->m_Glyph && cache_glyph->m_Frame == frame)
         {
             // It means we've filled the entire cache with upload requests
             // We might then just as well skip the next uploads until the next frame
-            dmLogWarning("Entire font glyph cache (%u x %u) is filled in a single frame %u (%c). Consider increasing the cache for %s", font_map->m_CacheWidth, font_map->m_CacheHeight, frame, c, dmHashReverseSafe64(font_map->m_NameHash));
+            dmLogWarning("Entire font glyph cache (%u x %u) is filled in a single frame %u ('%c' %u). Consider increasing the cache for %s", font_map->m_CacheWidth, font_map->m_CacheHeight, frame, g->m_Character < 255 ? g->m_Character : ' ', g->m_Character, dmHashReverseSafe64(font_map->m_NameHash));
             return;
         }
 
@@ -810,7 +810,6 @@ namespace dmRender
         //DebugCache(font_map);
 
         UpdateGlyphTexture(font_map, g, cache_glyph->m_X, cache_glyph->m_Y, g_offset_y);
-
     }
 
     static int CreateFontVertexDataInternal(TextContext& text_context, HFontMap font_map, const char* text, const TextEntry& te, float recip_w, float recip_h, GlyphVertex* vertices, uint32_t num_vertices)
@@ -898,6 +897,9 @@ namespace dmRender
                         continue;
                     }
 
+                    // If we get here, then it may be that c != glyph->m_Character
+                    c = g->m_Character;
+
                     if ((vertexindex + vertices_per_quad) * layer_count > num_vertices)
                     {
                         inner_break = true;
@@ -911,7 +913,7 @@ namespace dmRender
                         // Prepare the cache here aswell since we only count glyphs we definitely will render.
                         if (!IsInCache(font_map, c))
                         {
-                            AddGlyphToCache(font_map, text_context.m_Frame, c, g, px_cell_offset_y);
+                            AddGlyphToCache(font_map, text_context.m_Frame, g, px_cell_offset_y);
                         }
 
                         CacheGlyph* cache_glyph = GetFromCache(font_map, c);
@@ -948,6 +950,9 @@ namespace dmRender
                     continue;
                 }
 
+                // If we get here, then it may be that c != glyph->m_Character
+                c = glyph->m_Character;
+
                 // Look ahead and see if we can produce vertices for the next glyph or not
                 if ((vertexindex + vertices_per_quad) * layer_count > num_vertices)
                 {
@@ -967,7 +972,7 @@ namespace dmRender
 
                     if (!IsInCache(font_map, c))
                     {
-                        AddGlyphToCache(font_map, text_context.m_Frame, c, glyph, px_cell_offset_y);
+                        AddGlyphToCache(font_map, text_context.m_Frame, glyph, px_cell_offset_y);
                     }
 
                     CacheGlyph* cache_glyph = GetFromCache(font_map, c);
