@@ -17,6 +17,7 @@ package com.dynamo.bob.util;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
+import java.awt.Image;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -34,8 +35,6 @@ import com.dynamo.bob.pipeline.TextureGenerator;
 import com.dynamo.bob.pipeline.TextureGeneratorException;
 import com.dynamo.graphics.proto.Graphics.PathSettings;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
-import com.dynamo.graphics.proto.Graphics.TextureImage.Image;
-import com.dynamo.graphics.proto.Graphics.TextureImage.Type;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
 import com.dynamo.graphics.proto.Graphics.TextureProfiles;
 
@@ -215,7 +214,7 @@ public class TextureUtil {
         return null;
     }
 
-    public static TextureImage createCombinedTextureImage(TextureImage[] textures, Type type) throws TextureGeneratorException {
+    public static TextureImage createCombinedTextureImage(TextureImage[] textures, TextureImage.Type type) throws TextureGeneratorException {
         int numTextures = textures.length;
         if (numTextures == 0) {
             return null;
@@ -229,7 +228,7 @@ public class TextureUtil {
         TextureImage.Builder combinedImageBuilder = TextureImage.newBuilder(textures[0]);
 
         for (int i = 0; i < combinedImageBuilder.getAlternativesCount(); i++) {
-            Image.Builder alternativeImageBuilder = TextureImage.Image.newBuilder(textures[0].getAlternatives(i));
+            TextureImage.Image.Builder alternativeImageBuilder = TextureImage.Image.newBuilder(textures[0].getAlternatives(i));
 
             alternativeImageBuilder.clearMipMapSizeCompressed();
 
@@ -267,13 +266,50 @@ public class TextureUtil {
         return combinedImageBuilder.build();
     }
 
+    public static BufferedImage Resize(BufferedImage img, int newW, int newH, int type) {
+        Image tmp = img.getScaledInstance(newW, newH, Image.SCALE_SMOOTH);
+        BufferedImage dimg = new BufferedImage(newW, newH, type);
+
+        Graphics2D g2d = dimg.createGraphics();
+        g2d.drawImage(tmp, 0, 0, null);
+        g2d.dispose();
+
+        return dimg;
+    }
+
     // Public api
     public static TextureImage createMultiPageTexture(List<BufferedImage> images, TextureImage.Type textureType, TextureProfile texProfile, boolean compress) throws TextureGeneratorException {
         TextureImage textureImages[] = new TextureImage[images.size()];
+
+        // Since external tools may provide pages of verying sizes, we need to make sure
+        // our output is of the correct dimensions (as we're using a texture array)
+        int maxWidth = 0;
+        int maxHeight = 0;
+        int firstType = -1;
+
+        for (int i = 0; i < images.size(); i++)
+        {
+            BufferedImage image = images.get(i);
+            maxWidth = Math.max(maxWidth, image.getWidth());
+            maxHeight = Math.max(maxHeight, image.getHeight());
+
+            if (firstType < 0)
+                firstType = image.getType();
+        }
+
         for (int i = 0; i < images.size(); i++)
         {
             try {
-                textureImages[i] = TextureGenerator.generate(images.get(i), texProfile, compress);
+                BufferedImage image = images.get(i);
+                // Make sure they're the same dimension and type!
+                if (image.getWidth() != maxWidth ||
+                    image.getHeight() != maxHeight ||
+                    image.getType() != firstType)
+                {
+                    image = Resize(image, maxWidth, maxHeight, firstType);
+                }
+
+                textureImages[i] = TextureGenerator.generate(image, texProfile, compress);
             } catch (IOException e) {
                 throw new TextureGeneratorException(e.getMessage());
             }
