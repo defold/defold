@@ -106,7 +106,8 @@ namespace dmGameSystem
         uint16_t                    m_AddedToUpdate : 1;
         uint16_t                    m_ReHash : 1;
         uint16_t                    m_UseSlice9 : 1;
-        uint16_t                    : 6;
+        uint16_t                    m_BlendMode : 3;
+        uint16_t                    : 3;
     };
 
     const uint32_t MAX_TEXTURE_COUNT = dmRender::RenderObject::MAX_TEXTURE_COUNT;
@@ -161,6 +162,7 @@ namespace dmGameSystem
     static const dmhash_t SPRITE_PROP_PLAYBACK_RATE = dmHashString64("playback_rate");
     static const dmhash_t SPRITE_PROP_ANIMATION     = dmHashString64("animation");
     static const dmhash_t SPRITE_PROP_FRAME_COUNT   = dmHashString64("frame_count");
+    static const dmhash_t SPRITE_PROP_BLEND_MODE    = dmHashString64("blend_mode");
 
     // The 9 slice function produces 16 vertices (4 rows 4 columns)
     // and since there's 2 triangles per quad and 9 quads in total,
@@ -176,6 +178,8 @@ namespace dmGameSystem
     static void SetCursor(SpriteComponent* component, float cursor);
     static float GetPlaybackRate(SpriteComponent* component);
     static void SetPlaybackRate(SpriteComponent* component, float playback_rate);
+    static dmGameSystemDDF::SpriteDesc::BlendMode GetBlendMode(const SpriteComponent* component);
+    static void SetBlendMode(SpriteComponent* component, dmGameSystemDDF::SpriteDesc::BlendMode blend_mode);
 
     static void ReAllocateBuffers(SpriteWorld* sprite_world, dmRender::HRenderContext render_context) {
         if (sprite_world->m_VertexBuffer)
@@ -562,10 +566,10 @@ namespace dmGameSystem
         HashState32 state;
         bool reverse = false;
         SpriteResource* resource = component->m_Resource;
-        dmGameSystemDDF::SpriteDesc* ddf = resource->m_DDF;
+        dmGameSystemDDF::SpriteDesc::BlendMode blend_mode = GetBlendMode(component);
 
         dmHashInit32(&state, reverse);
-        dmHashUpdateBuffer32(&state, &ddf->m_BlendMode, sizeof(ddf->m_BlendMode));
+        dmHashUpdateBuffer32(&state, &blend_mode, sizeof(blend_mode));
         HComponentRenderConstants constants = GetRenderConstants(component);
         if (constants)
         {
@@ -611,6 +615,7 @@ namespace dmGameSystem
         component->m_Slice9 = component->m_Resource->m_DDF->m_Slice9;
         component->m_UseSlice9 = sum(component->m_Slice9) != 0 &&
                 component->m_Resource->m_DDF->m_SizeMode == dmGameSystemDDF::SpriteDesc::SIZE_MODE_MANUAL;
+        component->m_BlendMode = component->m_Resource->m_DDF->m_BlendMode;
 
         component->m_DynamicVertexAttributeIndex = INVALID_DYNAMIC_ATTRIBUTE_INDEX;
         component->m_Size = Vector3(0.0f, 0.0f, 0.0f);
@@ -1480,7 +1485,7 @@ namespace dmGameSystem
             dmGameSystem::EnableRenderObjectConstants(&ro, constants);
         }
 
-        dmGameSystemDDF::SpriteDesc::BlendMode blend_mode = resource->m_DDF->m_BlendMode;
+        dmGameSystemDDF::SpriteDesc::BlendMode blend_mode = GetBlendMode(first);
         switch (blend_mode)
         {
             case dmGameSystemDDF::SpriteDesc::BLEND_MODE_ALPHA:
@@ -2002,14 +2007,24 @@ namespace dmGameSystem
         return cursor;
     }
 
+    static float GetPlaybackRate(SpriteComponent* component)
+    {
+        return component->m_PlaybackRate;
+    }
+
     static void SetPlaybackRate(SpriteComponent* component, float playback_rate)
     {
         component->m_PlaybackRate = playback_rate;
     }
-
-    static float GetPlaybackRate(SpriteComponent* component)
+    
+    static dmGameSystemDDF::SpriteDesc::BlendMode GetBlendMode(const SpriteComponent* component)
     {
-        return component->m_PlaybackRate;
+        return (dmGameSystemDDF::SpriteDesc::BlendMode) component->m_BlendMode;
+    }
+
+    static void SetBlendMode(SpriteComponent* component, dmGameSystemDDF::SpriteDesc::BlendMode blend_mode)
+    {
+        component->m_BlendMode = (uint16_t) blend_mode;
     }
 
     static inline float GetAnimationFrameCount(SpriteComponent* component)
@@ -2169,6 +2184,12 @@ namespace dmGameSystem
             out_value.m_Variant = dmGameObject::PropertyVar(GetAnimationFrameCount(component));
             return dmGameObject::PROPERTY_RESULT_OK;
         }
+        else if (get_property == SPRITE_PROP_BLEND_MODE)
+        {
+            // Cast to `double` for now, missing integer support for `PropertyVar()`
+            out_value.m_Variant = dmGameObject::PropertyVar((double) GetBlendMode(component));
+            return dmGameObject::PROPERTY_RESULT_OK;
+        }
 
         dmRender::HMaterial material = GetComponentMaterial(component);
         if (GetMaterialConstant(material, get_property, params.m_Options.m_Index, out_value, false, CompSpriteGetConstantCallback, component) == dmGameObject::PROPERTY_RESULT_OK)
@@ -2260,6 +2281,18 @@ namespace dmGameSystem
                 }
             }
             return res;
+        }
+        else if (set_property == SPRITE_PROP_BLEND_MODE)
+        {
+            dmGameSystemDDF::SpriteDesc::BlendMode blend_mode = (dmGameSystemDDF::SpriteDesc::BlendMode) params.m_Value.m_Number;
+
+            if (blend_mode != dmGameObject::PROPERTY_TYPE_NUMBER)
+                return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
+            // Should also check if blend_mode is a valid enum value
+
+            SetBlendMode(component, blend_mode);
+
+            return dmGameObject::PROPERTY_RESULT_OK;
         }
         else if ((set_property == SPRITE_PROP_FRAME_COUNT) || (set_property == SPRITE_PROP_ANIMATION))
         {

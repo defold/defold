@@ -162,6 +162,24 @@ namespace dmGameSystem
      * ```
      */
 
+    /*# [type:number] sprite blend mode
+     * 
+     * The blend mode used when rendering the sprite. The type of the property is number.
+     * 
+     * @name blend_mode
+     * @property
+     * 
+     * @examples
+     * 
+     * How to set the blend mode on component "sprite"
+     * 
+     * ```lua
+     * function init(self)
+     *   go.set("#sprite", "blend_mode", go.BLEND_ADD)
+     * end
+     * ```
+     */
+
     /*# [type:number] sprite cursor
     *
     * The normalized animation cursor. The type of the property is number.
