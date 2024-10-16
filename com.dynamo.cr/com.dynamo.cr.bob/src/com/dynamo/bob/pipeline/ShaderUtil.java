@@ -16,17 +16,14 @@ package com.dynamo.bob.pipeline;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintWriter;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Locale;
-import java.util.Scanner;
+import java.lang.reflect.Array;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.pipeline.antlr.glsl.GLSLParser;
 import com.dynamo.bob.pipeline.antlr.glsl.GLSLParserBaseListener;
-import com.dynamo.bob.pipeline.antlr.glsl.GLSLParserListener;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
 import org.antlr.v4.runtime.Token;
@@ -37,6 +34,8 @@ import org.antlr.v4.runtime.TokenStreamRewriter;
 import com.dynamo.bob.pipeline.antlr.glsl.GLSLLexer;
 import org.antlr.v4.runtime.tree.ParseTree;
 import org.antlr.v4.runtime.tree.ParseTreeWalker;
+import org.antlr.v4.runtime.tree.pattern.ParseTreeMatch;
+import org.antlr.v4.runtime.tree.pattern.ParseTreePattern;
 
 public class ShaderUtil {
     public static class Common {
@@ -83,35 +82,151 @@ public class ShaderUtil {
             return info;
         }
 
+        public static class ShaderDeclaration {
+            public static class Member {
+                public String name;
+                public String type;
+                public String qualifier; // in/out - optional
+
+                // We typically don't do anything with these (yet),
+                // but it's good to have all the information.
+                public String memoryLayout; // std140 etc
+                public Integer component;
+                public Integer index;
+                public Integer xfbOffset;
+            }
+
+            ArrayList<Member> members = new ArrayList<>();
+
+            public Integer location;
+        };
+
         public static class GLSLListenerImpl extends GLSLParserBaseListener {
+
+            private boolean invalidScope = false;
+            private ShaderDeclaration declarationScope = null;
+            private ShaderDeclaration.Member declarationMemberScope = null;
+
+            public ArrayList<ShaderDeclaration> inputs = new ArrayList<>();
+
+            @Override
+            public void enterType_specifier(GLSLParser.Type_specifierContext ctx) {
+                super.enterType_specifier(ctx);
+                if (declarationScope != null) {
+                    System.out.println(" type: " + ctx.getText());
+                    declarationMemberScope.type = ctx.getText();
+                }
+            }
+
+            @Override
+            public void enterTypeless_declaration(GLSLParser.Typeless_declarationContext ctx) {
+                super.enterTypeless_declaration(ctx);
+                if (declarationScope != null) {
+                    System.out.println(" name: " + ctx.getText());
+                    declarationMemberScope.name = ctx.getText();
+                }
+            }
+
+            private int getIntegerAfterEqualSign(String text) {
+                String[] parts = text.split("=");
+                String numberString = parts[1];
+                return Integer.parseInt(numberString);
+            }
+
+            @Override
+            public void enterLayout_qualifier_id(GLSLParser.Layout_qualifier_idContext ctx) {
+                super.enterLayout_qualifier_id(ctx);
+                if (declarationScope != null) {
+                    System.out.println(" layout_qualifier_id: " + ctx.getText());
+                    String text = ctx.getText();
+
+                    if (text.startsWith("location")) {
+                        declarationScope.location = getIntegerAfterEqualSign(text);
+                    } else if (text.startsWith("component")) {
+                        declarationMemberScope.component = getIntegerAfterEqualSign(text);
+                    } else if (text.startsWith("index")) {
+                        declarationMemberScope.index = getIntegerAfterEqualSign(text);
+                    } else if (text.startsWith("xfb_offset")) {
+                        declarationMemberScope.xfbOffset = getIntegerAfterEqualSign(text);
+                    } else {
+                        String[] supportedMemoryQualifiers = {
+                                "std140", "std430", "packed", "shared", "row_major",
+                                "column_major", "restrict", "coherent", "volatile",
+                                "readonly", "writeonly"
+                        };
+                        for (String s : supportedMemoryQualifiers) {
+                            if (text.equals(s)) {
+                                declarationMemberScope.memoryLayout = s;
+                            }
+                        }
+                    }
+                }
+            }
+
+            @Override
+            public void exitDeclaration(GLSLParser.DeclarationContext ctx) {
+                if (this.invalidScope) {
+                    return;
+                }
+
+                boolean found = false;
+                for (ShaderDeclaration decl : this.inputs) {
+                    if (this.declarationScope.location != null && decl.location != null &&
+                            this.declarationScope.location.intValue() == decl.location.intValue()) {
+                        decl.members.add(this.declarationMemberScope);
+                        found = true;
+                        break;
+                    }
+                }
+
+                if (!found) {
+                    this.inputs.add(this.declarationScope);
+                }
+                this.declarationScope = null;
+                this.declarationMemberScope = null;
+            }
+
+            @Override
+            public void enterType_qualifier(GLSLParser.Type_qualifierContext ctx) {
+                if (this.declarationMemberScope != null) {
+                    this.declarationMemberScope.qualifier = ctx.getText();
+                }
+            }
+
+            @Override
+            public void enterFunction_definition(GLSLParser.Function_definitionContext ctx) {
+                this.invalidScope = true;
+            }
+
+            @Override
+            public void exitFunction_definition(GLSLParser.Function_definitionContext ctx) {
+                this.invalidScope = false;
+            }
+
             @Override
             public void enterDeclaration(GLSLParser.DeclarationContext ctx) {
-                // Check if this is an 'in' declaration
-                if (ctx.getText().startsWith("in")) {
-                    // Print or collect the tokens following the 'in' keyword
-                    //String type = ctx.getChild(1).getText();  // Get the type (e.g., vec4)
-                    //String varName = ctx.getChild(2).getText();  // Get the variable name
-                    //System.out.println("Input found: " + type + " " + varName);
-                    System.out.println("Input found: ");
+                if (this.invalidScope) {
+                    return;
                 }
+
+                System.out.println("Enter Declaration: " + ctx.getText());
+                this.declarationScope = new ShaderDeclaration();
+                this.declarationMemberScope = new ShaderDeclaration.Member();
+                this.declarationScope.members.add(this.declarationMemberScope);
             }
         }
 
-        public static void listVaryings(String source)
-        {
+        public static ArrayList<ShaderDeclaration> getInputs(String source) {
             CharStream stream = CharStreams.fromString(source);
             GLSLLexer lexer = new GLSLLexer(stream);
             CommonTokenStream tokens = new CommonTokenStream(lexer);
-
-            tokens.fill();
-
             GLSLParser parser = new GLSLParser(tokens);
 
-            //ParseTree tree = parser.
-
             ParseTreeWalker walker = new ParseTreeWalker();
-            GLSLListenerImpl listener = new GLSLListenerImpl();  // Custom listener implementation
+            GLSLListenerImpl listener = new GLSLListenerImpl();
             walker.walk(listener, parser.translation_unit());
+
+            return listener.inputs;
         }
 
         public static String stripComments(String source)

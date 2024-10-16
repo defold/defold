@@ -18,6 +18,9 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
+
+import java.util.ArrayList;
 import java.util.List;
 
 import org.junit.Before;
@@ -232,20 +235,59 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
     }
 
     @Test
-    public void testShaderVaryingRemapping() throws Exception {
+    public void testGetInputs() {
         String fs_src =
             """
-            in vec4 var_color_one;
-            in vec4 var_color_two;
-            out vec4 color_out;
+            in vec4 in_one_vec4;
+            
+            layout(location = 2) in vec2 in_two_with_layout;
+            
+            layout(location = 3, component = 0) in vec2 in_three_component_0;
+            layout(location = 3, component = 2) in float in_three_component_1;
+                
+            // Comments should not be parsed
+            // in vec4 in_comment;
+            
+            // Block comments should not be parsed
+            /*
+            in vec4 in_one_block_comment;
+            */
+                
+            // 'in' qualifiers in functions should not be parsed
+            float test(in float value)
+            {
+                return value + 0.1;
+            }
             
             void main()
             {
+                // Scoped variable declarations should not be parsed
+                vec4 scoped_variable;
+            
                 color_out = var_color;
+                color_out.a = test(var_color.a);
             }
             """;
 
-        ShaderUtil.Common.listVaryings(fs_src);
+        ArrayList<ShaderUtil.Common.ShaderDeclaration> inputs = ShaderUtil.Common.getInputs(fs_src);
+        assertEquals(3, inputs.size());
+
+        assertEquals(inputs.get(0).members.size(), 1);
+        assertEquals(inputs.get(0).members.get(0).name, "in_one_vec4");
+        assertEquals(inputs.get(0).members.get(0).type, "vec4");
+        assertNull(inputs.get(0).location);
+
+        assertEquals(inputs.get(1).members.size(), 1);
+        assertEquals(inputs.get(1).members.get(0).name, "in_two_with_layout");
+        assertEquals(inputs.get(1).members.get(0).type, "vec2");
+        assertEquals(inputs.get(1).location.intValue(), 2);
+
+        assertEquals(inputs.get(2).members.size(), 2);
+        assertEquals(inputs.get(2).members.get(0).name, "in_three_component_0");
+        assertEquals(inputs.get(2).members.get(0).type, "vec2");
+        assertEquals(inputs.get(2).members.get(1).name, "in_three_component_1");
+        assertEquals(inputs.get(2).members.get(1).type, "float");
+        assertEquals(inputs.get(2).location.intValue(), 3);
     }
 
     @Test
