@@ -66,11 +66,13 @@ namespace dmGraphics
     typedef void (*DeleteVertexBufferFn)(HVertexBuffer buffer);
     typedef void (*SetVertexBufferDataFn)(HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage);
     typedef void (*SetVertexBufferSubDataFn)(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data);
+    typedef uint32_t (*GetVertexBufferSizeFn)(HVertexBuffer buffer);
     typedef uint32_t (*GetMaxElementsVerticesFn)(HContext context);
     typedef HIndexBuffer (*NewIndexBufferFn)(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage);
     typedef void (*DeleteIndexBufferFn)(HIndexBuffer buffer);
     typedef void (*SetIndexBufferDataFn)(HIndexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage);
     typedef void (*SetIndexBufferSubDataFn)(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data);
+    typedef uint32_t (*GetIndexBufferSizeFn)(HIndexBuffer buffer);
     typedef bool (*IsIndexBufferFormatSupportedFn)(HContext context, IndexBufferFormat format);
     typedef uint32_t (*GetMaxElementsIndicesFn)(HContext context);
     typedef HVertexDeclaration (*NewVertexDeclarationFn)(HContext context, HVertexStreamDeclaration stream_declaration);
@@ -180,11 +182,13 @@ namespace dmGraphics
         DeleteVertexBufferFn m_DeleteVertexBuffer;
         SetVertexBufferDataFn m_SetVertexBufferData;
         SetVertexBufferSubDataFn m_SetVertexBufferSubData;
+        GetVertexBufferSizeFn m_GetVertexBufferSize;
         GetMaxElementsVerticesFn m_GetMaxElementsVertices;
         NewIndexBufferFn m_NewIndexBuffer;
         DeleteIndexBufferFn m_DeleteIndexBuffer;
         SetIndexBufferDataFn m_SetIndexBufferData;
         SetIndexBufferSubDataFn m_SetIndexBufferSubData;
+        GetIndexBufferSizeFn m_GetIndexBufferSize;
         IsIndexBufferFormatSupportedFn m_IsIndexBufferFormatSupported;
         GetMaxElementsIndicesFn m_GetMaxElementsIndices;
         NewVertexDeclarationFn m_NewVertexDeclaration;
@@ -298,11 +302,13 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteVertexBuffer); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetVertexBufferData); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetVertexBufferSubData); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetVertexBufferSize); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetMaxElementsVertices); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewIndexBuffer); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteIndexBuffer); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetIndexBufferData); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetIndexBufferSubData); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetIndexBufferSize); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IsIndexBufferFormatSupported); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewVertexDeclaration); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewVertexDeclarationStride); \

@@ -194,7 +194,7 @@ def build(bld):
         srcPath = os.path.join('build', 'src')
         builds = ['','_release', '_headless']
         for build in builds:
-            for suffix in ('.js.mem', '.js.symbols', '.js.map', '.wasm', '.wasm.map', '.dSYM.zip'):
+            for suffix in ('.js.mem', '.js.symbols', '.js.map', '.wasm', '.wasm.map', '.wasm.debug.wasm', '.dSYM.zip'):
                 filePath = os.path.join(srcPath, 'dmengine' + build + suffix)
                 if (os.path.exists(filePath)):
                     bld.install_files('${PREFIX}/bin/%s' % bld.env.PLATFORM, filePath)

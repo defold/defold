@@ -290,6 +290,9 @@ namespace dmGameSystem
         info.m_CoordinateSpace = dmGraphics::COORDINATE_SPACE_WORLD;
         info.m_ValuePtr        = 0;
         info.m_ValueVectorType = vector_type;
+        info.m_DataType        = dmGraphics::VertexAttribute::TYPE_FLOAT;
+        info.m_StepFunction    = dmGraphics::VERTEX_STEP_FUNCTION_VERTEX;
+        info.m_Normalize       = false;
     }
 
     static dmGameObject::CreateResult CompGuiNewWorld(const dmGameObject::ComponentNewWorldParams& params)

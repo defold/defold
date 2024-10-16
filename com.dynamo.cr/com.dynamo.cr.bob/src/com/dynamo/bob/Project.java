@@ -107,7 +107,6 @@ import com.dynamo.graphics.proto.Graphics.TextureProfiles;
 
 import com.dynamo.bob.cache.ResourceCache;
 import com.dynamo.bob.cache.ResourceCacheKey;
-import org.jagatoo.util.timing.Time;
 
 /**
  * Project abstraction. Contains input files, builder, tasks, etc
@@ -354,7 +353,7 @@ public class Project {
                         ProtoParams protoParams = klass.getAnnotation(ProtoParams.class);
                         if (protoParams != null) {
                             ProtoBuilder.addMessageClass(builderParams.outExt(), protoParams.messageClass());
-
+                            ProtoBuilder.addProtoDigest(protoParams.messageClass());
                             for (String ext : builderParams.inExts()) {
                                 Class<?> inputClass = protoParams.srcClass();
                                 if (inputClass != null) {
@@ -1727,6 +1726,24 @@ public class Project {
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
     private List<TaskResult> runTasks(IProgress monitor) throws IOException, CompileExceptionError {
+        // set of all completed tasks. The set includes both task run
+        // in this session and task already completed (output already exists with correct signatures, see below)
+        // the set also contains failed tasks
+        Set<Task> completedTasks = new HashSet<>();
+
+        // the set of all output files generated
+        // in this or previous session
+        Set<IResource> completedOutputs = new HashSet<>();
+
+        List<TaskResult> result = new ArrayList<>();
+
+        List<Task> buildTasks = new ArrayList<>(this.getTasks());
+        // set of *all* possible output files
+        Set<IResource> allOutputs = new HashSet<>();
+        for (Task task : this.getTasks()) {
+            allOutputs.addAll(task.getOutputs());
+        }
+        tasks.clear();
 
         TextureGenerator.maxThreads = getMaxCpuThreads();
 
@@ -1746,7 +1763,6 @@ public class Project {
         for (IResource res : allOutputs) {
             outputs.put(res.getAbsPath(), EnumSet.noneOf(OutputFlags.class));
         }
-
 
         return result;
     }
