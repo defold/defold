@@ -1074,9 +1074,15 @@ namespace dmGameSystem
 
     static inline bool CanUseQuads(const TexturesData* data)
     {
-        return !data->m_UsesGeometries || data->m_Geometries[0]->m_TrimMode == dmGameSystemDDF::SPRITE_TRIM_MODE_OFF;
+        return !data->m_UsesGeometries ||
+                data->m_Geometries[0]->m_TrimMode == dmGameSystemDDF::SPRITE_TRIM_MODE_OFF;
     }
 
+    // Since each texture set may have different trimming, the geometry for each image may not map 1:1.
+    // We therefore use the geometry of the first texture set as vertices.
+    // Then, for each texture set, we map local vertex ([-0.5,0.5]) into a final UV for each image
+    // It of course has some caveats:
+    //   * The geometry may not map 1:1, and for polygon packed atlases, it may result in texture bleeding
     static void ResolvePositionAndUVDataFromGeometry(TexturesData* data,
         dmArray<Vector4>& scratch_pos,
         dmArray<float>* scratch_uvs,
@@ -1328,7 +1334,7 @@ namespace dmGameSystem
                     // A) We know that no image is using sprite trimming
                     //    Thus we can use the corresponding quad for each image
                     // B) The first image is a quad, and any remapping
-                    //    for any subsequent geometry would yield a wuad anyways.
+                    //    for any subsequent geometry would yield a quad anyways.
                     ResolveUVDataFromQuads(&textures, sprite_world->m_ScratchUVs, scratch_uv_ptrs, scratch_pi_ptrs, component->m_FlipHorizontal, component->m_FlipVertical);
 
                     Vector4 positions_world[] = {

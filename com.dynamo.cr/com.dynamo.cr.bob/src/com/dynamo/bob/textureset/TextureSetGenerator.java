@@ -279,7 +279,16 @@ public class TextureSetGenerator {
         builder.setCenterX(center.x);
         builder.setCenterY(center.y);
 
-        builder.setTrimMode(SpriteTrimmingMode.SPRITE_TRIM_POLYGONS);
+        TextureSetLayout.Pointi pivot = rect.getPivot();
+        {
+            // Convert from texel coords to unit coords [-0.5, 0.5]
+            // (it may actually extend outside of its original image space)
+            float x = (pivot.x / (float)originalImageWidth) - 0.5f;
+            float y = (pivot.y / (float)originalImageHeight) - 0.5f;
+
+            builder.setPivotX(x);
+            builder.setPivotY(y);
+        }
 
         builder.addAllIndices(rect.getIndices());
 
@@ -292,6 +301,17 @@ public class TextureSetGenerator {
             builder.addVertices(localX);
             builder.addVertices(localY);
             index += 2;
+        }
+
+        builder.setTrimMode(SpriteTrimmingMode.SPRITE_TRIM_POLYGONS);
+
+        TextureSetLayout.Rectanglei trimmed = rect.getTrimmedRect();
+        if (trimmed != null)
+        {
+            builder.setTrimmedX(trimmed.getX());
+            builder.setTrimmedY(trimmed.getY());
+            builder.setTrimmedWidth(trimmed.getWidth());
+            builder.setTrimmedHeight(trimmed.getHeight());
         }
 
         return builder;
