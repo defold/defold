@@ -14,6 +14,8 @@
 
 package com.defold.editor;
 
+import java.io.IOException;
+
 /**
  * Using separate Main class is needed to avoid error "JavaFX runtime components
  * are missing, and are required to run this application."
@@ -26,7 +28,7 @@ package com.defold.editor;
  * discussion on github</a>
  */
 public class Main {
-    public static void main(String[] args) {
+    public static void main(String[] args) throws IOException {
         Start.main(args);
     }
 }

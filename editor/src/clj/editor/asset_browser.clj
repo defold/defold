@@ -659,7 +659,7 @@
   tree-view)
 
 (defn track-active-tab? [prefs]
-  (prefs/get-prefs prefs "asset-browser-track-active-tab?" false))
+  (prefs/get prefs [:general :track-active-tab-in-asset-browser]))
 
 (g/defnk produce-tree-view
   [^TreeView raw-tree-view ^TreeItem root active-resource prefs]

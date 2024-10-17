@@ -13,27 +13,23 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.targets
-  (:require [clojure.string :as str]
+  (:require [clojure.java.io :as io]
+            [clojure.string :as str]
             [clojure.xml :as xml]
-            [clojure.java.io :as io]
             [editor.console :as console]
-            [editor.engine :as engine]
-            [editor.process :as process]
             [editor.dialogs :as dialogs]
+            [editor.engine :as engine]
             [editor.handler :as handler]
-            [editor.prefs :as prefs]
             [editor.notifications :as notifications]
-            [editor.workspace :as workspace]
-            [editor.ui :as ui])
+            [editor.prefs :as prefs]
+            [editor.process :as process]
+            [editor.ui :as ui]
+            [editor.workspace :as workspace])
   (:import [clojure.lang ExceptionInfo]
            [com.dynamo.upnp DeviceInfo SSDP SSDP$Logger]
            [java.io ByteArrayInputStream ByteArrayOutputStream IOException]
            [java.net InetAddress MalformedURLException NetworkInterface SocketTimeoutException URL URLConnection]
-           [java.util UUID]
-           [javafx.scene Parent Scene]
-           [javafx.scene.control TextArea]
-           [javafx.scene.input KeyCode KeyEvent]
-           [javafx.stage Modality]))
+           [java.util UUID]))
 
 (set! *warn-on-reflection* true)
 
@@ -315,7 +311,7 @@
          (fn [selected-target]
            (if (not= ::undefined selected-target)
              selected-target
-             (let [target-id (prefs/get-prefs prefs "selected-target-id" nil)]
+             (let [target-id (prefs/get prefs [:run :selected-target-id])]
                (find-by-id (all-targets) target-id))))))
 
 (defn controllable-target? [target]
@@ -336,7 +332,7 @@
 
 (defn select-target! [prefs target]
   (reset! selected-target-atom target)
-  (prefs/set-prefs prefs "selected-target-id" (:id target))
+  (prefs/set! prefs [:run :selected-target-id] (:id target))
   (let [log-stream (engine/get-log-service-stream target)]
     (when log-stream
       (console/set-log-service-stream log-stream)))
@@ -418,9 +414,9 @@
 (handler/defhandler :target-ip :global
   (run [prefs]
        (ui/run-later
-         (loop [manual-ip+port (dialogs/make-target-ip-dialog (prefs/get-prefs prefs "manual-target-ip+port" "") nil)]
+         (loop [manual-ip+port (dialogs/make-target-ip-dialog (prefs/get prefs [:run :manual-target-ip+port]) nil)]
            (when (some? manual-ip+port)
-             (prefs/set-prefs prefs "manual-target-ip+port" manual-ip+port)
+             (prefs/set! prefs [:run :manual-target-ip+port] manual-ip+port)
              (let [[manual-ip port] (str/split manual-ip+port #":")
                    device (try
                             (locate-device manual-ip port)

@@ -26,12 +26,12 @@
             [editor.engine :as engine]
             [editor.handler :as handler]
             [editor.lua :as lua]
-            [editor.protobuf :as protobuf]
+            [editor.notifications :as notifications]
             [editor.prefs :as prefs]
+            [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.targets :as targets]
             [editor.ui :as ui]
-            [editor.notifications :as notifications]
             [editor.workspace :as workspace]
             [service.log :as log])
   (:import [com.dynamo.lua.proto Lua$LuaModule]
@@ -612,12 +612,12 @@
             (current-session debug-view evaluation-context))
   (run [debug-view] (mobdebug/exit! (current-session debug-view))))
 
-(defn- simulate-rotated-device? [prefs workspace]
-  (prefs/get-prefs prefs (prefs/make-project-specific-key "simulate-rotated-device" workspace) false))
+(defn- simulate-rotated-device? [prefs]
+  (prefs/get prefs [:run :simulate-rotated-device]))
 
-(defn- change-resolution! [prefs width height workspace]
+(defn- change-resolution! [prefs width height]
   (let [target (targets/selected-target prefs)
-        simulate-rotated-device? (simulate-rotated-device? prefs workspace)]
+        simulate-rotated-device? (simulate-rotated-device? prefs)]
     (when target
       (if (targets/all-launched-targets? target)
         (doseq [launched-target (targets/all-launched-targets)]
@@ -632,40 +632,41 @@
 
 (handler/defhandler :set-resolution :global
   (enabled? [] true)
-  (run [prefs user-data workspace]
-       (prefs/set-prefs prefs (prefs/make-project-specific-key "simulated-resolution" workspace) user-data)
-       (change-resolution! prefs (:width user-data) (:height user-data) workspace))
-  (state [app-view user-data prefs workspace]
-         (= user-data (prefs/get-prefs prefs (prefs/make-project-specific-key "simulated-resolution" workspace) nil))))
+  (run [prefs user-data]
+       (prefs/set! prefs [:run :simulated-resolution] user-data)
+       (change-resolution! prefs (:width user-data) (:height user-data)))
+  (state [user-data prefs]
+         (= user-data (prefs/get prefs [:run :simulated-resolution]))))
 
 (handler/defhandler :reset-custom-resolution :global
-  (enabled? [prefs workspace] (prefs/get-prefs prefs (prefs/make-project-specific-key "simulated-resolution" workspace) nil))
-  (run [project prefs workspace]
-       (prefs/set-prefs prefs (prefs/make-project-specific-key "simulated-resolution" workspace) nil)
-       (prefs/set-prefs prefs (prefs/make-project-specific-key "simulate-rotated-device" workspace) nil)
+  (enabled? [prefs] (prefs/get prefs [:run :simulated-resolution]))
+  (run [project prefs]
+       (prefs/set! prefs [:run :simulated-resolution] nil)
+       (prefs/set! prefs [:run :simulate-rotated-device] nil)
        (let [project-settings-data (project-settings-screen-data project)]
-         (change-resolution! prefs (:width project-settings-data) (:height project-settings-data) workspace))))
+         (change-resolution! prefs (:width project-settings-data) (:height project-settings-data)))))
 
 (handler/defhandler :set-custom-resolution :global
   (enabled? [] true)
-  (run [project app-view prefs build-errors-view selection user-data workspace]
-       (let [data (or (prefs/get-prefs prefs (prefs/make-project-specific-key "simulated-resolution" workspace) nil) (project-settings-screen-data project))]
+  (run [project prefs user-data]
+       (let [data (or (prefs/get prefs [:run :simulated-resolution])
+                      (project-settings-screen-data project))]
          (when-let [{:keys [width height]} (dialogs/make-resolution-dialog data)]
-           (prefs/set-prefs prefs (prefs/make-project-specific-key "simulated-resolution" workspace) {:width width :height height :custom true})
-           (change-resolution! prefs width height workspace))))
-  (state [app-view user-data prefs workspace]
-         (let [data (prefs/get-prefs prefs (prefs/make-project-specific-key "simulated-resolution" workspace) nil)]
+           (prefs/set! prefs [:run :simulated-resolution] {:width width :height height :custom true})
+           (change-resolution! prefs width height))))
+  (state [user-data prefs]
+         (let [data (prefs/get prefs [:run :simulated-resolution])]
            (when data
              (:custom data)))))
 
 (handler/defhandler :set-rotate-device :global
   (enabled? [] true)
   (run [project app-view prefs build-errors-view selection user-data workspace]
-       (prefs/set-prefs prefs (prefs/make-project-specific-key "simulate-rotated-device" workspace) (not (simulate-rotated-device? prefs workspace)))
-       (let [data (prefs/get-prefs prefs (prefs/make-project-specific-key "simulated-resolution" workspace) nil)]
+       (prefs/set! prefs [:run :simulate-rotated-device] (not (simulate-rotated-device? prefs)))
+       (let [data (prefs/get prefs [:run :simulated-resolution])]
          (when data
-           (change-resolution! prefs (:width data) (:height data) workspace))))
-  (state [app-view user-data prefs workspace] (simulate-rotated-device? prefs workspace)))
+           (change-resolution! prefs (:width data) (:height data)))))
+  (state [app-view user-data prefs workspace] (simulate-rotated-device? prefs)))
 
 (handler/defhandler :disabled-menu-label :global
   (enabled? [] false))

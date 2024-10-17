@@ -31,8 +31,9 @@
 
 (defn- create-generic [^Class class prefs grid desc]
   (let [control (.newInstance class)
-        commit (fn [] (prefs/set-prefs prefs (:key desc) (ui/value control)))]
-    (ui/value! control (prefs/get-prefs prefs (:key desc) (:default desc)))
+        commit (fn [] (prefs/set! prefs (:key desc) (ui/value control)))
+        value (prefs/get prefs (:key desc))]
+    (ui/value! control ((:replace desc {}) value value))
     (ui/on-focus! control (fn [focus] (when-not focus (commit))))
     (when-not (:multi-line desc)
       (ui/on-action! control (fn [e] (commit))))
@@ -59,10 +60,10 @@
         inv-options-map (clojure.set/map-invert options-map)]
     (.setConverter control (DefoldStringConverter. options-map inv-options-map))
     (.addAll (.getItems control) ^java.util.Collection (map first options))
-    (.select (.getSelectionModel control) (prefs/get-prefs prefs (:key desc) (:default desc)))
+    (.select (.getSelectionModel control) (prefs/get prefs (:key desc)))
 
     (ui/observe (.valueProperty control) (fn [observable old-val new-val]
-                                           (prefs/set-prefs prefs (:key desc) new-val)))
+                                           (prefs/set! prefs (:key desc) new-val)))
     control))
 
 (defn- create-prefs-row! [prefs ^GridPane grid row desc]
@@ -96,28 +97,28 @@
 (defn- pref-pages
   []
   (cond-> [{:name  "General"
-            :prefs [{:label "Load External Changes on App Focus" :type :boolean :key "external-changes-load-on-app-focus" :default true}
-                    {:label "Open Bundle Target Folder" :type :boolean :key "open-bundle-target-folder" :default true}
-                    {:label "Enable Texture Compression" :type :boolean :key "general-enable-texture-compression" :default false}
-                    {:label "Escape Quits Game" :type :boolean :key "general-quit-on-esc" :default false}
-                    {:label "Track Active Tab in Asset Browser" :type :boolean :key "asset-browser-track-active-tab?" :default false}
-                    {:label "Lint Code on Build" :type :boolean :key "general-lint-on-build" :default true}
-                    {:label "Path to Custom Keymap" :type :string :key "custom-keymap-path" :default ""}]}
+            :prefs [{:label "Load External Changes on App Focus" :type :boolean :key [:general :load-external-changes-on-app-focus]}
+                    {:label "Open Bundle Target Folder" :type :boolean :key [:general :open-bundle-target-folder]}
+                    {:label "Enable Texture Compression" :type :boolean :key [:general :enable-texture-compression]}
+                    {:label "Escape Quits Game" :type :boolean :key [:general :quit-on-escape]}
+                    {:label "Track Active Tab in Asset Browser" :type :boolean :key [:general :track-active-tab-in-asset-browser]}
+                    {:label "Lint Code on Build" :type :boolean :key [:general :lint-code-on-build]}
+                    {:label "Path to Custom Keymap" :type :string :key [:general :custom-keymap-path]}]}
            {:name  "Code"
-            :prefs [{:label "Custom Editor" :type :string :key "code-custom-editor" :default ""}
-                    {:label "Open File" :type :string :key "code-open-file" :default "{file}"}
-                    {:label "Open File at Line" :type :string :key "code-open-file-at-line" :default "{file}:{line}"}
-                    {:label "Code Editor Font (Requires Restart)" :type :string :key "code-editor-font-name" :default "Dejavu Sans Mono"}]}
+            :prefs [{:label "Custom Editor" :type :string :key [:code :custom-editor]}
+                    {:label "Open File" :type :string :key [:code :open-file]}
+                    {:label "Open File at Line" :type :string :key [:code :open-file-at-line]}
+                    {:label "Code Editor Font (Requires Restart)" :type :string :key [:code :font :name]}]}
            {:name  "Extensions"
-            :prefs [{:label "Build Server" :type :string :key "extensions-server" :default native-extensions/defold-build-server-url}
-                    {:label "Build Server Headers" :type :string :key "extensions-server-headers" :default native-extensions/defold-build-server-headers :multi-line true}]}
-           {:name  "Tools"
-            :prefs [{:label "ADB path" :type :string :key "adb-path" :default "" :tooltip "Path to ADB command that might be used to install and launch the Android app when it's bundled"}
-                    {:label "ios-deploy path" :type :string :key "ios-deploy-path" :default "" :tooltip "Path to ios-deploy command that might be used to install and launch iOS app when it's bundled"}]}]
+            :prefs [{:label "Build Server" :type :string :key [:extensions :build-server] :replace {"" native-extensions/defold-build-server-url}}
+                    {:label "Build Server Headers" :type :string :key [:extensions :build-server-headers] :multi-line true}]}
+           {:name "Tools"
+            :prefs [{:label "ADB path" :type :string :key [:tools :adb-path] :tooltip "Path to ADB command that might be used to install and launch the Android app when it's bundled"}
+                    {:label "ios-deploy path" :type :string :key [:tools :ios-deploy-path] :tooltip "Path to ios-deploy command that might be used to install and launch iOS app when it's bundled"}]}]
 
     (system/defold-dev?)
     (conj {:name "Dev"
-           :prefs [{:label "Custom Engine" :type :string :key engine/custom-engine-pref-key :default ""}]})))
+           :prefs [{:label "Custom Engine" :type :string :key engine/custom-engine-pref-key}]})))
 
 (defn open-prefs [preferences]
   (let [root ^Parent (ui/load-fxml "prefs.fxml")

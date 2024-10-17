@@ -23,8 +23,8 @@
 (set! *unchecked-math* :warn-on-boxed)
 
 (defonce constantly-false (constantly false))
-
 (defonce constantly-true (constantly true))
+(defonce constantly-nil (constantly nil))
 
 (definline ^:private with-memoize-info [memoized-fn cache arity]
   `(with-meta ~memoized-fn
