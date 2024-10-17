@@ -2607,21 +2607,21 @@
     find-term-property
     ""))
 
-(defn- init-property-and-bind-preference! [^Property property prefs preference default]
-  (.setValue property (prefs/get-prefs prefs preference default))
-  (ui/observe property (fn [_ _ new] (prefs/set-prefs prefs preference new))))
+(defn- init-property-and-bind-preference! [^Property property prefs preference]
+  (.setValue property (prefs/get prefs preference))
+  (ui/observe property (fn [_ _ new] (prefs/set! prefs preference new))))
 
 (defn initialize! [prefs]
-  (init-property-and-bind-preference! find-term-property prefs "code-editor-find-term" "")
-  (init-property-and-bind-preference! find-replacement-property prefs "code-editor-find-replacement" "")
-  (init-property-and-bind-preference! find-whole-word-property prefs "code-editor-find-whole-word" false)
-  (init-property-and-bind-preference! find-case-sensitive-property prefs "code-editor-find-case-sensitive" false)
-  (init-property-and-bind-preference! find-wrap-property prefs "code-editor-find-wrap" true)
-  (init-property-and-bind-preference! font-size-property prefs "code-editor-font-size" default-font-size)
-  (init-property-and-bind-preference! font-name-property prefs "code-editor-font-name" "")
-  (init-property-and-bind-preference! visible-indentation-guides-property prefs "code-editor-visible-indentation-guides" true)
-  (init-property-and-bind-preference! visible-minimap-property prefs "code-editor-visible-minimap" true)
-  (init-property-and-bind-preference! visible-whitespace-property prefs "code-editor-visible-whitespace" true)
+  (init-property-and-bind-preference! find-term-property prefs [:code :find :term])
+  (init-property-and-bind-preference! find-replacement-property prefs [:code :find :replacement])
+  (init-property-and-bind-preference! find-whole-word-property prefs [:code :find :whole-word])
+  (init-property-and-bind-preference! find-case-sensitive-property prefs [:code :find :case-sensitive])
+  (init-property-and-bind-preference! find-wrap-property prefs [:code :find :wrap])
+  (init-property-and-bind-preference! font-size-property prefs [:code :font :size])
+  (init-property-and-bind-preference! font-name-property prefs [:code :font :name])
+  (init-property-and-bind-preference! visible-indentation-guides-property prefs [:code :visibility :indentation-guides])
+  (init-property-and-bind-preference! visible-minimap-property prefs [:code :visibility :minimap])
+  (init-property-and-bind-preference! visible-whitespace-property prefs [:code :visibility :whitespace])
   (when (clojure.string/blank? (.getValue font-name-property))
     (.setValue font-name-property "Dejavu Sans Mono")))
 

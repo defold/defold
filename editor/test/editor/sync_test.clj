@@ -19,7 +19,6 @@
             [editor.fs :as fs]
             [editor.git-test :as gt]
             [editor.git :as git]
-            [editor.prefs :as prefs]
             [editor.progress :as progress]
             [editor.resource :as resource]
             [editor.sync :as sync]
@@ -29,7 +28,7 @@
   (:import [java.io File]))
 
 (defn- make-prefs []
-  (prefs/make-prefs "unit-test"))
+  (test-util/make-test-prefs))
 
 (deftest find-git-state-test
   (let [base-status {:added #{}

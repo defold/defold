@@ -1211,6 +1211,7 @@
                   "two.txt"
                   "/.internal"
                   "three.txt"
+                  "/.prefs.edn"
                   "/build"]
                  gitignore-lines-after))))))
 
@@ -1240,6 +1241,7 @@
     (with-git [git (new-git)]
       (let [gitignore-file (git/file git ".gitignore")
             gitignore-lines-before [".internal"
+                                    "/.prefs.edn"
                                     "build"]]
         (is (= git/required-gitignore-entries (map fs/with-leading-slash gitignore-lines-before)))
         (spit gitignore-file (string/join "\n" gitignore-lines-before))

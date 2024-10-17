@@ -21,7 +21,6 @@
             [editor.build :as build]
             [editor.defold-project :as project]
             [editor.git :as git]
-            [editor.prefs :as prefs]
             [editor.progress :as progress]
             [editor.resource :as resource]
             [editor.resource-node :as resource-node]
@@ -207,7 +206,7 @@
                                      :debug false
                                      :build-engine false
                                      :old-artifact-map artifact-map
-                                     :prefs (prefs/make-prefs "unit-test")
+                                     :prefs (test-util/make-test-prefs)
                                      :result-fn (fn [build-results]
                                                   (when (is (nil? (:error build-results)))
 
