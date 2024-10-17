@@ -44,6 +44,7 @@
    :page (.getPage rect)
    :width (.getWidth rect)
    :height (.getHeight rect)
+   :pivot (.getPivot rect)
    :rotated (.getRotated rect)})
 
 (defn- Metrics->map
@@ -125,6 +126,8 @@
       (.setHeight height)
       (.setCenterX 0)
       (.setCenterY 0)
+      (.setPivotX (* width 0.5))
+      (.setPivotY (* height 0.5))
       (.setRotated false)
       (.setTrimMode Tile$SpriteTrimmingMode/SPRITE_TRIM_MODE_OFF)
       (.build)))
