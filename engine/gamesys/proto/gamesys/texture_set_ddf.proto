@@ -46,20 +46,14 @@ message SpriteGeometry
     // From the atlas image
     required SpriteTrimmingMode trim_mode = 8 [default = SPRITE_TRIM_MODE_OFF];
 
-    // The trimmed rectangle (if mode == SPRITE_TRIM_MODE_RECTANGLE)
-    optional uint32 trimmed_x       = 9;
-    optional uint32 trimmed_y       = 10;
-    optional uint32 trimmed_width   = 11;
-    optional uint32 trimmed_height  = 12;
-
     // A list of 2-tuples, each making up a point in a hull: [p0.x, p0.y, p1.x, p1.y, ... pN.x, pN.y] where N is (convex_hull_size-1)
     // Coords are in local UV space [-0.5, 0.5], origin is at the sprite center
     // The vertices are not rotated
-    repeated float  vertices= 13;
+    repeated float  vertices= 9;
     // A list of 2-tuples, corresponding directly to the vertices (deprecated)
-    repeated float  uvs     = 14;
+    repeated float  uvs     = 10;
     // list of 3-tuples, each defining a triangle in the vertex/uv list
-    repeated uint32 indices = 15;
+    repeated uint32 indices = 11;
 }
 
 message TextureSet

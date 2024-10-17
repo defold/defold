@@ -305,15 +305,6 @@ public class TextureSetGenerator {
 
         builder.setTrimMode(SpriteTrimmingMode.SPRITE_TRIM_POLYGONS);
 
-        TextureSetLayout.Rectanglei trimmed = rect.getTrimmedRect();
-        if (trimmed != null)
-        {
-            builder.setTrimmedX(trimmed.getX());
-            builder.setTrimmedY(trimmed.getY());
-            builder.setTrimmedWidth(trimmed.getWidth());
-            builder.setTrimmedHeight(trimmed.getHeight());
-        }
-
         return builder;
     }
 

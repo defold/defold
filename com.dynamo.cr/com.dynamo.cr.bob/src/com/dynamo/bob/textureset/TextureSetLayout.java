@@ -115,12 +115,7 @@ public class TextureSetLayout {
         // The final placement in the texture.
         // May lay outside of the texture image.
         private Rectanglei rect;
-        // The final placement in the texture.
-        // Does not lay outside of the texture image.
-        // May be null.
-        private Rectanglei trimmedRect;
         private boolean rotated; // True if rotated 90 deg (CW)
-        private boolean trimmed; // True if it's a trimmed rectangle
 
         // Texel coordinates within the original image.
         // Origin is top left corner of original image.
@@ -179,12 +174,6 @@ public class TextureSetLayout {
         public void setRotated(boolean rotated) {
             this.rotated = rotated;
         }
-        public boolean getTrimmed() {
-            return trimmed;
-        }
-        public void setTrimmed(boolean trimmed) {
-            this.trimmed = trimmed;
-        }
         public int getX() {
             return rect.x;
         }
@@ -220,12 +209,6 @@ public class TextureSetLayout {
         }
         public void setPivot(Pointi pivot) {
             this.pivot = pivot;
-        }
-        public Rectanglei getTrimmedRect() {
-            return trimmedRect;
-        }
-        public void setTrimmedRect(Rectanglei rect) {
-            trimmedRect = rect;
         }
         public List<Pointi> getVertices() {
             return vertices;
@@ -508,10 +491,6 @@ public class TextureSetLayout {
                                             // * May overlap other images
                                             // * May be extending beyond the texture.
                                             // * May be rotated
-        public Rectangle    trimmedRect;    // Set when a rectangle packing is used
-                                            // * Always within the texture.
-                                            // * Overlaps only this image.
-                                            // * May be rotated
         public boolean      rotated;        // True if it has been rotated 90 deg ccw
 
         // Texel coordinates within the original image.
@@ -541,12 +520,6 @@ public class TextureSetLayout {
         public void setRect(Rectangle rect) {
             this.rect = rect;
         }
-        public Rectangle getTrimmedRect() {
-            return trimmedRect;
-        }
-        public void setTrimmedRect(Rectangle rect) {
-            this.trimmedRect = rect;
-        }
         public boolean getRotated() {
             return rotated;
         }
@@ -574,8 +547,6 @@ public class TextureSetLayout {
             //System.out.printf("    originalSize: %f, %f\n", originalSize.width, originalSize.height);
             System.out.printf("    pivot: %f, %f\n", pivot.x, pivot.y);
             System.out.printf("    rect: %f, %f, %f, %f\n", rect.x, rect.y, rect.width, rect.height);
-            if (trimmedRect != null)
-                System.out.printf("    trimmedRect: %f, %f, %f, %f\n", trimmedRect.x, trimmedRect.y, trimmedRect.width, trimmedRect.height);
             System.out.printf("    vertices:  {\n");
             for (Point p : vertices)
             {
@@ -615,10 +586,6 @@ public class TextureSetLayout {
                 rect.setPage(page.index);
                 rect.setRotated(image.rotated);
                 rect.setPivot(new Pointi(image.pivot));
-
-                rect.setTrimmed(image.trimmedRect != null);
-                if (rect.getTrimmed())
-                    rect.setTrimmedRect(new Rectanglei(image.trimmedRect));
 
                 for (Point vertex : image.vertices) {
                     rect.addVertex(new Pointi((int)vertex.x, (int)vertex.y));
