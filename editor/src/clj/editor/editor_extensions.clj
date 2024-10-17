@@ -140,8 +140,7 @@
       (let [root-path (-> project
                           (project/workspace evaluation-context)
                           (workspace/project-path evaluation-context)
-                          (fs/as-path)
-                          (fs/to-real-path))
+                          fs/real-path)
             dir-path (-> (str root-path proj-path)
                          (fs/as-path)
                          (.normalize))]
@@ -161,8 +160,7 @@
           root-path (-> project
                         (project/workspace evaluation-context)
                         (workspace/project-path evaluation-context)
-                        (fs/as-path)
-                        (fs/to-real-path))
+                        fs/real-path)
           dir-path (-> (str root-path proj-path)
                        (fs/as-path)
                        (.normalize))

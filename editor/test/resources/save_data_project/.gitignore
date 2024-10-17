@@ -1,4 +1,5 @@
 /.internal
+/.prefs.edn
 /build
 /log.txt
 .externalToolBuilders

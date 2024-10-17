@@ -1,4 +1,5 @@
 /.internal
+/.prefs.edn
 /build
 .externalToolBuilders
 .DS_Store

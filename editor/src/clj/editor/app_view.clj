@@ -518,9 +518,9 @@
     :graphic-fn make-visibility-settings-graphic
     :command :show-visibility-settings}])
 
-(def ^:const prefs-window-dimensions "window-dimensions")
-(def ^:const prefs-split-positions "split-positions")
-(def ^:const prefs-hidden-panes "hidden-panes")
+(def ^:const prefs-window-dimensions [:window :dimensions])
+(def ^:const prefs-split-positions [:window :split-positions])
+(def ^:const prefs-hidden-panes [:window :hidden-panes])
 
 (handler/defhandler :quit :global
   (enabled? [] true)
@@ -535,10 +535,10 @@
                  :height      (.getHeight stage)
                  :maximized   (.isMaximized stage)
                  :full-screen (.isFullScreen stage)}]
-    (prefs/set-prefs prefs prefs-window-dimensions dims)))
+    (prefs/set! prefs prefs-window-dimensions dims)))
 
 (defn restore-window-dimensions [^Stage stage prefs]
-  (when-let [dims (prefs/get-prefs prefs prefs-window-dimensions nil)]
+  (when-let [dims (prefs/get prefs prefs-window-dimensions)]
     (let [{:keys [x y width height maximized full-screen]} dims
           maximized (and maximized (not system/mac?))] ; Maximized is not really a thing on macOS, and if set, cannot become false.
       (when (and (number? x) (number? y) (number? width) (number? height))
@@ -575,7 +575,7 @@
         split-ids))
 
 (defn- stored-split-positions [prefs]
-  (if-some [split-positions (prefs/get-prefs prefs prefs-split-positions nil)]
+  (if-some [split-positions (prefs/get prefs prefs-split-positions)]
     (if (vector? split-positions) ; Legacy preference format
       (zipmap (map keyword legacy-split-ids)
               split-positions)
@@ -587,7 +587,7 @@
                               (map (fn [[id ^SplitPane sp]]
                                      [id (.getDividerPositions sp)]))
                               (existing-split-panes scene))]
-    (prefs/set-prefs prefs prefs-split-positions split-positions)))
+    (prefs/set! prefs prefs-split-positions split-positions)))
 
 (defn restore-split-positions! [^Scene scene prefs]
   (let [split-positions (stored-split-positions prefs)
@@ -598,13 +598,13 @@
         (.layout split-pane)))))
 
 (defn stored-hidden-panes [prefs]
-  (prefs/get-prefs prefs prefs-hidden-panes #{}))
+  (prefs/get prefs prefs-hidden-panes))
 
 (defn store-hidden-panes! [^Scene scene prefs]
   (let [hidden-panes (into #{}
                            (remove (partial pane-visible? scene))
                            (keys split-info-by-pane-kw))]
-    (prefs/set-prefs prefs prefs-hidden-panes hidden-panes)))
+    (prefs/set! prefs prefs-hidden-panes hidden-panes)))
 
 (defn restore-hidden-panes! [^Scene scene prefs]
   (let [hidden-panes (stored-hidden-panes prefs)]
@@ -724,7 +724,7 @@
   @build-in-progress-atom)
 
 (defn- async-reload-on-app-focus? [prefs]
-  (prefs/get-prefs prefs "external-changes-load-on-app-focus" true))
+  (prefs/get prefs [:general :load-external-changes-on-app-focus]))
 
 (defn- can-async-reload? []
   (and (disk-availability/available?)
@@ -749,17 +749,17 @@
 (defn- decorate-target [engine-descriptor target]
   (assoc target :engine-id (:id engine-descriptor)))
 
-(defn- launch-engine! [engine-descriptor project-directory prefs debug? workspace]
+(defn- launch-engine! [engine-descriptor project-directory prefs debug?]
   (try
     (report-build-launch-progress! "Launching engine...")
     (let [engine (engine/install-engine! project-directory engine-descriptor)
-          count (prefs/get-prefs prefs (prefs/make-project-specific-key "instance-count" workspace) 1)
+          count (prefs/get prefs [:run :instance-count])
           pause-ms 100
           instance-index-range (if (= count 1) (range (inc 0)) (range 1 (inc count)))
           launched-targets (for [instance-index instance-index-range]
                              (let [last-instance? (or (= count 1) (= instance-index count))
                                    instance-debug? (and debug? last-instance?)
-                                   launched-target (->> (engine/launch! engine project-directory prefs workspace instance-debug? instance-index)
+                                   launched-target (->> (engine/launch! engine project-directory prefs instance-debug? instance-index)
                                                         (decorate-target engine-descriptor)
                                                         (targets/add-launched-target! instance-index))]
                                (when (not last-instance?)
@@ -808,14 +808,14 @@
        (targets/controllable-target? target)
        (targets/remote-target? target)))
 
-(defn- on-service-url-found [prefs workspace target]
-  (engine/apply-simulated-resolution! prefs workspace target))
+(defn- on-service-url-found [prefs target]
+  (engine/apply-simulated-resolution! prefs target))
 
-(defn- launch-built-project! [project engine-descriptor project-directory prefs web-server debug? workspace]
+(defn- launch-built-project! [project engine-descriptor project-directory prefs web-server debug?]
   (let [selected-target (targets/selected-target prefs)
         launch-new-engine! (fn []
                              (targets/kill-launched-targets!)
-                             (let [launched-targets (launch-engine! engine-descriptor project-directory prefs debug? workspace)
+                             (let [launched-targets (launch-engine! engine-descriptor project-directory prefs debug?)
                                    last-launched-target (last launched-targets)]
                                (doseq [launched-target launched-targets]
                                  (targets/when-url (:id launched-target)
@@ -823,7 +823,7 @@
                                  (let [log-stream (:log-stream launched-target)]
                                    (console/reset-console-stream! log-stream)
                                    (console/reset-remote-log-pump-thread! nil)
-                                   (console/start-log-pump! log-stream (make-launched-log-sink launched-target (partial on-service-url-found prefs workspace)))))
+                                   (console/start-log-pump! log-stream (make-launched-log-sink launched-target (partial on-service-url-found prefs)))))
                                last-launched-target))]
     (try
       (cond
@@ -978,7 +978,7 @@
   {:pre [(ifn? result-fn)
          (or (not build-engine) (some? prefs))]}
   (let [lint (if (nil? lint)
-               (prefs/get-prefs prefs "general-lint-on-build" true)
+               (prefs/get prefs [:general :lint-code-on-build])
                lint)
         ;; After any pre-build hooks have completed successfully, we will start
         ;; the engine build on a separate background thread so the build servers
@@ -1220,7 +1220,7 @@
                                (when (handle-build-results! workspace render-build-error! build-results)
                                  (when (or engine skip-engine)
                                    (show-console! main-scene tool-tab-pane)
-                                   (launch-built-project! project engine project-directory prefs web-server false workspace)))))))
+                                   (launch-built-project! project engine project-directory prefs web-server false)))))))
 
 (handler/defhandler :build :global
   (enabled? [] (not (build-in-progress?)))
@@ -1230,12 +1230,12 @@
 
 (handler/defhandler :set-instance-count :global
   (enabled? [] true)
-  (run [prefs user-data workspace]
+  (run [prefs user-data]
        (let [count (:instance-count user-data)]
-         (prefs/set-prefs prefs (prefs/make-project-specific-key "instance-count" workspace) count)))
-  (state [prefs user-data workspace]
+         (prefs/set! prefs [:run :instance-count] count)))
+  (state [prefs user-data]
          (= (:instance-count user-data)
-            (prefs/get-prefs prefs (prefs/make-project-specific-key "instance-count" workspace) 1))))
+            (prefs/get prefs [:run :instance-count]))))
 
 (defn- debugging-supported?
   [project]
@@ -1264,7 +1264,7 @@ If you do not specifically require different script states, consider changing th
                   :result-fn (fn [{:keys [engine] :as build-results}]
                                (when (handle-build-results! workspace render-build-error! build-results)
                                  (when (or engine skip-engine)
-                                   (when-let [target (launch-built-project! project engine project-directory prefs web-server true workspace)]
+                                   (when-let [target (launch-built-project! project engine project-directory prefs web-server true)]
                                      (when (nil? (debug-view/current-session debug-view))
                                        (debug-view/start-debugger! debug-view project (:address target "localhost") (:instance-index target 0))))))))))
 
@@ -1907,7 +1907,7 @@ If you do not specifically require different script states, consider changing th
          nil)))
 
 (defn- merge-keymaps [prefs]
-  (let [custom-keymap (or (open-custom-keymap (prefs/get-prefs prefs "custom-keymap-path" "")) [])
+  (let [custom-keymap (or (open-custom-keymap (prefs/get prefs [:general :custom-keymap-path])) [])
         default-keymap keymap/default-host-key-bindings]
     (into []
       (mapcat val)
@@ -1977,7 +1977,7 @@ If you do not specifically require different script states, consider changing th
                            :tab tab})
         view       (make-view-fn view-graph parent resource-node opts)]
     (assert (g/node-instance? view/WorkbenchView view))
-    (recent-files/add! prefs workspace resource view-type)
+    (recent-files/add! prefs resource view-type)
     (g/transact
       (concat
         (view/connect-resource-node view resource-node)
@@ -1990,10 +1990,10 @@ If you do not specifically require different script states, consider changing th
     (ui/register-tab-toolbar tab "#toolbar" :toolbar)
     (.setOnSelectionChanged tab (ui/event-handler event
                                   (when (.isSelected tab)
-                                    (recent-files/add! prefs workspace resource view-type))))
+                                    (recent-files/add! prefs resource view-type))))
     (let [close-handler (.getOnClosed tab)]
       (.setOnClosed tab (ui/event-handler event
-                          (recent-files/add! prefs workspace resource view-type)
+                          (recent-files/add! prefs resource view-type)
                           ;; The menu refresh can occur after the view graph is
                           ;; deleted but before the tab controls lose input
                           ;; focus, causing handlers to evaluate against deleted
@@ -2015,7 +2015,7 @@ If you do not specifically require different script states, consider changing th
 (defn- custom-code-editor-executable-path-preference
   ^String [prefs]
   (some-> prefs
-          (prefs/get-prefs "code-custom-editor" nil)
+          (prefs/get [:code :custom-editor])
           (string/trim)
           (not-empty)))
 
@@ -2048,7 +2048,9 @@ If you do not specifically require different script states, consider changing th
                                    specific-view-type-selected))
                       (custom-code-editor-executable-path-preference prefs))))]
          (let [cursor-range (:cursor-range opts)
-               arg-tmpl (string/trim (if cursor-range (prefs/get-prefs prefs "code-open-file-at-line" "{file}:{line}") (prefs/get-prefs prefs "code-open-file" "{file}")))
+               arg-tmpl (string/trim (if cursor-range
+                                       (prefs/get prefs [:code :open-file-at-line])
+                                       (prefs/get prefs [:code :open-file])))
                arg-sub (cond-> {:file (resource/externally-available-absolute-path resource)}
                                cursor-range (assoc :line (CursorRange->line-number cursor-range)))
                args (->> (string/split arg-tmpl #" ")
@@ -2507,10 +2509,10 @@ If you do not specifically require different script states, consider changing th
                              (dispose-preview-fn preview))
                            (g/delete-graph! view-graph)))))})))
 
-(def ^:private open-assets-term-prefs-key "open-assets-term")
+(def ^:private open-assets-term-prefs-key [:open-assets :term])
 
 (defn- query-and-open! [workspace project app-view prefs term]
-  (let [prev-filter-term (prefs/get-prefs prefs open-assets-term-prefs-key nil)
+  (let [prev-filter-term (prefs/get prefs open-assets-term-prefs-key)
         filter-term-atom (atom prev-filter-term)
         selected-resources (resource-dialog/make workspace project
                                                  (cond-> {:title "Open Assets"
@@ -2523,7 +2525,7 @@ If you do not specifically require different script states, consider changing th
                                                          (assoc :filter term)))
         filter-term @filter-term-atom]
     (when (not= prev-filter-term filter-term)
-      (prefs/set-prefs prefs open-assets-term-prefs-key filter-term))
+      (prefs/set! prefs open-assets-term-prefs-key filter-term))
     (doseq [resource selected-resources]
       (open-resource app-view prefs workspace project resource))))
 
@@ -2619,7 +2621,7 @@ If you do not specifically require different script states, consider changing th
                              (if successful?
                                (if (some-> output-directory .isDirectory)
                                  (do
-                                   (when (prefs/get-prefs prefs "open-bundle-target-folder" true)
+                                   (when (prefs/get prefs [:general :open-bundle-target-folder])
                                      (ui/open-file output-directory))
                                    (cond
                                      (and (= :android platform)
