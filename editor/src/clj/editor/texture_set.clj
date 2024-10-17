@@ -72,12 +72,14 @@
 
 (defn- double-vector->2d-points
   ([double-vector reverse]
-   (double-vector->2d-points double-vector reverse 1.0 1.0))
-  ([double-vector reverse ^double scale-x ^double scale-y]
+   (double-vector->2d-points double-vector reverse 0.0 0.0 1.0 1.0))
+  ([double-vector reverse offset-x offset-y scale-x scale-y]
    (mapv (fn [^long index]
            (let [^double x (double-vector index)
-                 ^double y (double-vector (inc index))]
-             (vector-of :double (* x scale-x) (* y scale-y))))
+                 ^double y (double-vector (inc index))
+                 ^double ox offset-x
+                 ^double oy offset-y]
+             (vector-of :double (* (- x ox) scale-x) (* (- y oy) scale-y))))
          (if reverse
            (range (- (count double-vector) 2) -2 -2)
            (range 0 (count double-vector) 2)))))
@@ -86,7 +88,9 @@
   [page-index quad-tex-coords frame-geometry scale-factors reverse]
   (let [^double scale-x (scale-factors 0)
         ^double scale-y (scale-factors 1)
-        vertex-coords (double-vector->2d-points (:vertices frame-geometry) reverse scale-x scale-y)
+        ^double pivot-x (or (:pivot-x frame-geometry) 0.0)
+        ^double pivot-y (or (:pivot-y frame-geometry) 0.0)
+        vertex-coords (double-vector->2d-points  (:vertices frame-geometry) reverse pivot-x pivot-y scale-x scale-y)
         vertex-tex-coords (double-vector->2d-points (:uvs frame-geometry) reverse)]
     {:page-index page-index
      :tex-coords quad-tex-coords
