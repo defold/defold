@@ -440,6 +440,16 @@ namespace dmGraphics
             memcpy(&(vb->m_Buffer)[offset], data, size);
     }
 
+    static uint32_t NullGetVertexBufferSize(HVertexBuffer buffer)
+    {
+        if (!buffer)
+        {
+            return 0;
+        }
+        VertexBuffer* buffer_ptr = (VertexBuffer*) buffer;
+        return buffer_ptr->m_Size;
+    }
+
     static uint32_t NullGetMaxElementsVertices(HContext context)
     {
         return 65536;
@@ -481,6 +491,16 @@ namespace dmGraphics
         IndexBuffer* ib = (IndexBuffer*)buffer;
         if (offset + size <= ib->m_Size && data != 0x0)
             memcpy(&(ib->m_Buffer)[offset], data, size);
+    }
+
+    static uint32_t NullGetIndexBufferSize(HIndexBuffer buffer)
+    {
+        if (!buffer)
+        {
+            return 0;
+        }
+        IndexBuffer* buffer_ptr = (IndexBuffer*) buffer;
+        return buffer_ptr->m_Size;
     }
 
     static bool NullIsIndexBufferFormatSupported(HContext context, IndexBufferFormat format)
