@@ -1122,6 +1122,14 @@ namespace dmGameSystem
             float center_x = geometry->m_CenterX;
             float center_y = geometry->m_CenterY;
 
+            float pivot_x = 0;
+            float pivot_y = 0;
+            if (i == 0) // We only need to do this for the vertex positions
+            {
+                pivot_x = geometry->m_PivotX;
+                pivot_y = geometry->m_PivotY;
+            }
+
             const float* vertices = reverse ? orig_vertices + num_vertices*2 - 2 : orig_vertices;
 
             for (uint32_t j = 0; j < num_vertices; ++j, vertices += step)
@@ -1153,7 +1161,9 @@ namespace dmGameSystem
                 // We grab the geometry as positions from the first texture
                 if (i == 0)
                 {
-                    scratch_pos[j] = Vector4(px * scale_x, py * scale_y, 0.0f, 1.0f);
+                    float vx = px - pivot_x;
+                    float vy = py - pivot_y;
+                    scratch_pos[j] = Vector4(vx * scale_x, vy * scale_y, 0.0f, 1.0f);
                 }
             }
         }
