@@ -490,8 +490,6 @@ public class TextureSetGenerator {
     // Public api
     // Convert from image space coordinates to
     public static TextureSetResult createTextureSet(List<TextureSetLayout.Layout> layouts, AnimIterator iterator) {
-        int layoutWidth = layouts.get(0).getWidth();
-        int layoutHeight = layouts.get(0).getHeight();
         List<Rect> allRects = new ArrayList<>();
 
         for (Layout l : layouts) {
@@ -501,11 +499,20 @@ public class TextureSetGenerator {
 
         allRects.sort(Comparator.comparing(o -> o.getIndex()));
 
-        Pair<TextureSet.Builder, List<UVTransform>> vertexData = buildData(layoutWidth, layoutHeight, allRects, iterator);
+        // Assuming that the first texture is the largest
+        int largestPageWidth = layouts.get(0).getWidth();
+        int largestPageHeight = layouts.get(0).getHeight();
+
+        Pair<TextureSet.Builder, List<UVTransform>> vertexData = buildData(largestPageWidth, largestPageHeight, allRects, iterator);
         TextureSet.Builder builder = vertexData.left;
         for (Rect rect : allRects) {
+            // Since the actual textures may be of different size (in the editor), we'll use the correct page size
+            Layout layout = layouts.get(rect.getPage());
+            int pageWidth = layout.getWidth();
+            int pageHeight = layout.getHeight();
+
             SpriteGeometry.Builder geometryBuilder = createSpriteGeometryFromRect(rect);
-            createPolygonUVs(geometryBuilder, rect, layoutWidth, layoutHeight);
+            createPolygonUVs(geometryBuilder, rect, pageWidth, pageHeight);
             builder.addGeometries(geometryBuilder);
         }
         builder.setUseGeometries(1);
