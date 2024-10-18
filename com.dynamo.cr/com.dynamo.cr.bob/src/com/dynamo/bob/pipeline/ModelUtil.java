@@ -121,6 +121,14 @@ public class ModelUtil {
         return MathUtil.vecmathToDDF(translation, rotation, scale);
     }
 
+    private static Transform toDDFMulTransforms(Modelimporter.Transform transformA, Modelimporter.Transform transformB) {
+        Vector3d translation = new Vector3d(transformA.translation.x + transformB.translation.x, transformA.translation.y + transformB.translation.y, transformA.translation.z + transformB.translation.z);
+        Vector3d scale = new Vector3d(transformA.scale.x * transformB.scale.x, transformA.scale.y * transformB.scale.y, transformA.scale.z * transformB.scale.z);
+        Quat4d rotation = new Quat4d(transformA.rotation.x, transformA.rotation.y, transformA.rotation.z, transformA.rotation.w);
+        rotation.mul(new Quat4d(transformB.rotation.x, transformB.rotation.y, transformB.rotation.z, transformB.rotation.w));
+        return MathUtil.vecmathToDDF(translation, rotation, scale);
+    }
+
     // private static Point3d toPoint3d(Modelimporter.Vector3 v) {
     //     return new Point3d(v.x, v.y, v.z);
     // }
@@ -885,7 +893,8 @@ public class ModelUtil {
         }
 
         modelBuilder.setId(MurmurHash.hash64(node.name)); // the node name is the human readable name (e.g Sword)
-        modelBuilder.setLocal(toDDFTransform(node.local));
+        // need to flatten all meshes of the model
+        modelBuilder.setLocal(node.parent != null ? toDDFMulTransforms(node.parent.world, node.local) : toDDFTransform(node.local));
         modelBuilder.setBoneId(MurmurHash.hash64(model.parentBone != null ? model.parentBone.name : ""));
 
         return modelBuilder.build();
@@ -975,12 +984,8 @@ public class ModelUtil {
 
         ArrayList<Rig.Model> models = new ArrayList<>();
         for (Node root : scene.rootNodes) {
-            ArrayList<Node> modelNodes = new ArrayList<>();
-            findModelNodes(root, modelNodes);
-
-            for (Node modelNode : modelNodes) {
-                loadModelInstances(modelNode, skeleton, models);
-            }
+            // The function `loadModelInstances` will iterate all children of each root node.
+            loadModelInstances(root, skeleton, models);
         }
         meshSetBuilder.addAllModels(models);
         meshSetBuilder.setMaxBoneCount(skeleton.size());
