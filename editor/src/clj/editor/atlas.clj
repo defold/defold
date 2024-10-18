@@ -759,9 +759,11 @@
    geometry :- s/Any])
 
 (defn rotate-vertices-90-cw [vertices]
-  (mapcat (fn [[x y]]
-            [y (- x)])
-          (partition 2 vertices)))
+  (into []
+        (comp (partition-all 2)
+              (mapcat (fn [[x y]]
+                        [y (- x)])))
+        vertices))
 
 (g/defnk produce-image-path->rect
   [layout-size layout-rects texture-set]
