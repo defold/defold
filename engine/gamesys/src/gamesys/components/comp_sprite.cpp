@@ -1347,19 +1347,34 @@ namespace dmGameSystem
                     //    for any subsequent geometry would yield a quad anyways.
                     ResolveUVDataFromQuads(&textures, sprite_world->m_ScratchUVs, scratch_uv_ptrs, scratch_pi_ptrs, component->m_FlipHorizontal, component->m_FlipVertical);
 
+                    // We always use the first geometry for the vertices
+                    float pivot_x = 0;
+                    float pivot_y = 0;
+                    const dmGameSystemDDF::SpriteGeometry* geometry = textures.m_Geometries[0];
+                    if (geometry)
+                    {
+                        pivot_x = geometry->m_PivotX;
+                        pivot_y = geometry->m_PivotY;
+                    }
+
+                    float x0 = -0.5f - pivot_x;
+                    float x1 =  0.5f - pivot_y;
+                    float y0 = -0.5f - pivot_x;
+                    float y1 =  0.5f - pivot_y;
+
                     Vector4 positions_world[] = {
-                        world_matrix * Point3(-0.5f, -0.5f, 0.0f),
-                        world_matrix * Point3(-0.5f,  0.5f, 0.0f),
-                        world_matrix * Point3( 0.5f,  0.5f, 0.0f),
-                        world_matrix * Point3( 0.5f, -0.5f, 0.0f)};
+                        world_matrix * Point3(x0, y0, 0.0f),
+                        world_matrix * Point3(x0, y1, 0.0f),
+                        world_matrix * Point3(x1, y1, 0.0f),
+                        world_matrix * Point3(x1, y0, 0.0f)};
 
                     Vector4 positions_local[4];
                     if (has_local_position_attribute)
                     {
-                        positions_local[0] = Vector4(-0.5f * sp_width, -0.5f * sp_height, 0.0f, 1.0f);
-                        positions_local[1] = Vector4(-0.5f * sp_width,  0.5f * sp_height, 0.0f, 1.0f);
-                        positions_local[2] = Vector4( 0.5f * sp_width,  0.5f * sp_height, 0.0f, 1.0f);
-                        positions_local[3] = Vector4( 0.5f * sp_width, -0.5f * sp_height, 0.0f, 1.0f);
+                        positions_local[0] = Vector4(x0 * sp_width, y0 * sp_height, 0.0f, 1.0f);
+                        positions_local[1] = Vector4(x0 * sp_width, y1 * sp_height, 0.0f, 1.0f);
+                        positions_local[2] = Vector4(x1 * sp_width, y1 * sp_height, 0.0f, 1.0f);
+                        positions_local[3] = Vector4(x1 * sp_width, y0 * sp_height, 0.0f, 1.0f);
                     }
 
                     const float* world_matrix_channel[]    = { (float*) &world_matrix };
