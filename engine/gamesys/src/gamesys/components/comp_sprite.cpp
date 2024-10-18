@@ -1371,8 +1371,8 @@ namespace dmGameSystem
                     }
 
                     float x0 = -0.5f - pivot_x;
-                    float x1 =  0.5f - pivot_y;
-                    float y0 = -0.5f - pivot_x;
+                    float x1 =  0.5f - pivot_x;
+                    float y0 = -0.5f - pivot_y;
                     float y1 =  0.5f - pivot_y;
 
                     Vector4 positions_world[] = {
