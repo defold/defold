@@ -279,7 +279,7 @@
                      (> instance-index 0)
                      (into [(format "--config=project.instance_index=%d" instance-index)]))
         env {"DM_SERVICE_PORT" "dynamic"
-             "DM_QUIT_ON_ESC" (if (prefs/get prefs [:general :quit-on-escape])
+             "DM_QUIT_ON_ESC" (if (prefs/get prefs [:run :quit-on-escape])
                                 "1" "0")
              ;; Windows only. Sets the correct symbol search path, since we're also setting the cwd (https://docs.microsoft.com/en-us/windows/win32/debug/symbol-paths)
              "_NT_ALT_SYMBOL_PATH" (.getAbsolutePath (.getParentFile engine))

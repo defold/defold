@@ -97,14 +97,14 @@
 (defn- pref-pages
   []
   (cond-> [{:name  "General"
-            :prefs [{:label "Load External Changes on App Focus" :type :boolean :key [:general :load-external-changes-on-app-focus]}
-                    {:label "Open Bundle Target Folder" :type :boolean :key [:general :open-bundle-target-folder]}
-                    {:label "Enable Texture Compression" :type :boolean :key [:general :enable-texture-compression]}
-                    {:label "Escape Quits Game" :type :boolean :key [:general :quit-on-escape]}
-                    {:label "Track Active Tab in Asset Browser" :type :boolean :key [:general :track-active-tab-in-asset-browser]}
-                    {:label "Lint Code on Build" :type :boolean :key [:general :lint-code-on-build]}
-                    {:label "Path to Custom Keymap" :type :string :key [:general :custom-keymap-path]}]}
-           {:name  "Code"
+            :prefs [{:label "Load External Changes on App Focus" :type :boolean :key [:workflow :load-external-changes-on-app-focus]}
+                    {:label "Open Bundle Target Folder" :type :boolean :key [:bundle :open-output-directory]}
+                    {:label "Enable Texture Compression" :type :boolean :key [:build :texture-compression]}
+                    {:label "Escape Quits Game" :type :boolean :key [:run :quit-on-escape]}
+                    {:label "Track Active Tab in Asset Browser" :type :boolean :key [:asset-browser :track-active-tab]}
+                    {:label "Lint Code on Build" :type :boolean :key [:build :lint-code]}
+                    {:label "Path to Custom Keymap" :type :string :key [:input :keymap-path]}]}
+           {:name "Code"
             :prefs [{:label "Custom Editor" :type :string :key [:code :custom-editor]}
                     {:label "Open File" :type :string :key [:code :open-file]}
                     {:label "Open File at Line" :type :string :key [:code :open-file-at-line]}

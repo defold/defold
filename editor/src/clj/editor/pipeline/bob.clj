@@ -286,7 +286,7 @@
               (.isDirectory output-directory)))
   (assert (string? (not-empty platform)))
   (let [build-server-url (native-extensions/get-build-server-url prefs project)
-        editor-texture-compression (if (prefs/get prefs [:general :enable-texture-compression]) "true" "false")
+        editor-texture-compression (if (prefs/get prefs [:build :texture-compression]) "true" "false")
         build-report-path (.getAbsolutePath (io/file output-directory "report.html"))
         bundle-output-path (.getAbsolutePath output-directory)
         defold-sdk-sha1 (or (system/defold-engine-sha1) "")

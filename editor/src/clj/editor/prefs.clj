@@ -50,11 +50,11 @@
             [clojure.spec.alpha :as s]
             [cognitect.transit :as transit]
             [editor.fs :as fs]
+            [editor.os :as os]
             [util.coll :as coll]
             [util.eduction :as e]
             [util.fn :as fn])
-  (:import [com.defold.editor Editor]
-           [java.io ByteArrayInputStream PushbackReader]
+  (:import [java.io ByteArrayInputStream PushbackReader]
            [java.nio.charset StandardCharsets]
            [java.nio.file Path]
            [java.util.concurrent Executors ScheduledExecutorService ThreadFactory TimeUnit]
@@ -69,17 +69,12 @@
 (def ^:private default-schema
   {:type :object
    :properties
-   {:general {:type :object
-              :properties
-              {:load-external-changes-on-app-focus {:type :boolean
-                                                    :default true
-                                                    :label "Load External Changes on App Focus"}
-               :open-bundle-target-folder {:type :boolean :default true}
-               :enable-texture-compression {:type :boolean}
-               :track-active-tab-in-asset-browser {:type :boolean :label "Track Active Tab in Asset Browser"}
-               :quit-on-escape {:type :boolean :label "Escape Quits Game"}
-               :lint-code-on-build {:type :boolean :default true :label "Lint Code on Build"}
-               :custom-keymap-path {:type :string :label "Path to Custom Keymap"}}}
+   {:asset-browser {:type :object
+                    :properties
+                    {:track-active-tab {:type :boolean :label "Track Active Tab in Asset Browser"}}}
+    :input {:type :object
+            :properties
+            {:keymap-path {:type :string :label "Path to Custom Keymap"}}}
     :code {:type :object
            :properties
            {:custom-editor {:type :string}
@@ -121,6 +116,10 @@
     :open-assets {:type :object
                   :properties
                   {:term {:type :string}}}
+    :build {:type :object
+            :properties
+            {:lint-code {:type :boolean :default true :label "Lint Code on Build"}
+             :texture-compression {:type :boolean}}}
     :bundle {:type :object
              :properties
              {:variant {:type :enum :values ["debug" "release" "headless"]}
@@ -130,6 +129,7 @@
               :liveupdate {:type :boolean}
               :contentless {:type :boolean}
               :output-directory {:type :string :scope :project}
+              :open-output-directory {:type :boolean :default true}
               :android {:type :object
                         :properties
                         {:keystore {:type :string}
@@ -174,10 +174,15 @@
              :properties
              {:dimensions {:type :any}
               :split-positions {:type :any}
-              :hidden-panes {:type :set :item {:type :keyword}}
-              :recent-files {:type :array
-                             :item {:type :tuple :items [{:type :string} {:type :keyword}]}
-                             :scope :project}}}
+              :hidden-panes {:type :set :item {:type :keyword}}}}
+    :workflow {:type :object
+               :properties
+               {:load-external-changes-on-app-focus {:type :boolean
+                                                     :default true
+                                                     :label "Load External Changes on App Focus"}
+                :recent-files {:type :array
+                               :item {:type :tuple :items [{:type :string} {:type :keyword}]}
+                               :scope :project}}}
     :console {:type :object
               :properties
               {:filters {:type :array
@@ -187,6 +192,7 @@
           {:instance-count {:type :integer :default 1 :scope :project}
            :selected-target-id {:type :any}
            :manual-target-ip+port {:type :string}
+           :quit-on-escape {:type :boolean :label "Escape Quits Game"}
            :simulate-rotated-device {:type :boolean :scope :project}
            :simulated-resolution {:type :any :scope :project}}}
     :scene {:type :object
@@ -517,7 +523,13 @@
 
   Any attempt to get project-scoped values will return defaults"
   ([]
-   (user (fs/path (Editor/getSupportPath) "prefs.edn")))
+   (user (fs/path
+           (case (os/os)
+             :macos (fs/evaluate-path "~/Library/Preferences")
+             :linux (some fs/evaluate-path ["$XDG_CONFIG_HOME" "~/.config"])
+             :win32 (some fs/evaluate-path ["$APPDATA" "~/AppData/Roaming"]))
+           "Defold"
+           "prefs.edn")))
   ([prefs-path]
    (make :scopes {:user prefs-path}
          :schemas [:default])))
@@ -583,13 +595,13 @@
     user-prefs
     {"adb-path" [:tools :adb-path]
      "ios-deploy-path" [:tools :ios-deploy-path]
-     "external-changes-load-on-app-focus" [:general :load-external-changes-on-app-focus]
-     "open-bundle-target-folder" [:general :open-bundle-target-folder]
-     "general-enable-texture-compression" [:general :enable-texture-compression]
-     "asset-browser-track-active-tab?" [:general :track-active-tab-in-asset-browser]
-     "general-quit-on-esc" [:general :quit-on-escape]
-     "general-lint-on-build" [:general :lint-code-on-build]
-     "custom-keymap-path" [:general :custom-keymap-path]
+     "external-changes-load-on-app-focus" [:workflow :load-external-changes-on-app-focus]
+     "open-bundle-target-folder" [:bundle :open-output-directory]
+     "general-enable-texture-compression" [:build :texture-compression]
+     "asset-browser-track-active-tab?" [:asset-browser :track-active-tab]
+     "general-quit-on-esc" [:run :quit-on-escape]
+     "general-lint-on-build" [:build :lint-code]
+     "custom-keymap-path" [:input :keymap-path]
      "code-custom-editor" [:code :custom-editor]
      "code-open-file" [:code :open-file]
      "code-open-file-at-line" [:code :open-file-at-line]
@@ -655,12 +667,11 @@
   [project-prefs]
   (let [suffix (str "-" (hash (str (.getParent ^Path (:project (:scopes project-prefs))))))]
     (->> {"bundle-output-directory" [:bundle :output-directory]
-          "recent-files-by-workspace-root" [:window :recent-files]
+          "recent-files-by-workspace-root" [:workflow :recent-files]
           "instance-count" [:run :instance-count]
           "simulate-rotated-device" [:run :simulate-rotated-device]
           "simulated-resolution" [:run :simulated-resolution]}
          (e/map #(coll/pair (str (key %) suffix) (val %)))
          (migrate! project-prefs))))
-
 
 ;; end region

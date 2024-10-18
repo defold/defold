@@ -39,7 +39,7 @@
   {:pre [(resource/openable? resource)
          (some? (:id view-type))]}
   (let [item [(resource/proj-path resource) (:id view-type)]
-        k [:window :recent-files]]
+        k [:workflow :recent-files]]
     (prefs/set! prefs k (conj-history-item (prefs/get prefs k) item))))
 
 (defn- project-path+view-type-id->resource+view-type [workspace evaluation-context [project-path view-type-id]]
@@ -49,7 +49,7 @@
         [res view-type]))))
 
 (defn- ordered-resource+view-types [prefs workspace evaluation-context]
-  (-> (prefs/get prefs [:window :recent-files])
+  (-> (prefs/get prefs [:workflow :recent-files])
       rseq
       (->> (keep #(project-path+view-type-id->resource+view-type workspace evaluation-context %)))))
 

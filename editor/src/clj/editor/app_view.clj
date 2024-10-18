@@ -724,7 +724,7 @@
   @build-in-progress-atom)
 
 (defn- async-reload-on-app-focus? [prefs]
-  (prefs/get prefs [:general :load-external-changes-on-app-focus]))
+  (prefs/get prefs [:workflow :load-external-changes-on-app-focus]))
 
 (defn- can-async-reload? []
   (and (disk-availability/available?)
@@ -978,7 +978,7 @@
   {:pre [(ifn? result-fn)
          (or (not build-engine) (some? prefs))]}
   (let [lint (if (nil? lint)
-               (prefs/get prefs [:general :lint-code-on-build])
+               (prefs/get prefs [:build :lint-code])
                lint)
         ;; After any pre-build hooks have completed successfully, we will start
         ;; the engine build on a separate background thread so the build servers
@@ -1907,7 +1907,7 @@ If you do not specifically require different script states, consider changing th
          nil)))
 
 (defn- merge-keymaps [prefs]
-  (let [custom-keymap (or (open-custom-keymap (prefs/get prefs [:general :custom-keymap-path])) [])
+  (let [custom-keymap (or (open-custom-keymap (prefs/get prefs [:input :keymap-path])) [])
         default-keymap keymap/default-host-key-bindings]
     (into []
       (mapcat val)
@@ -2621,7 +2621,7 @@ If you do not specifically require different script states, consider changing th
                              (if successful?
                                (if (some-> output-directory .isDirectory)
                                  (do
-                                   (when (prefs/get prefs [:general :open-bundle-target-folder])
+                                   (when (prefs/get prefs [:bundle :open-output-directory])
                                      (ui/open-file output-directory))
                                    (cond
                                      (and (= :android platform)
