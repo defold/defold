@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.app-view
-  (:require [cljfx.fx.hyperlink :as fx.hyperlink]
+  (:require [cljfx.api :as fx]
+            [cljfx.fx.hyperlink :as fx.hyperlink]
             [cljfx.fx.image-view :as fx.image-view]
             [cljfx.fx.text :as fx.text]
             [cljfx.fx.text-flow :as fx.text-flow]
@@ -2697,36 +2698,37 @@ If you do not specifically require different script states, consider changing th
                           (future/complete! f nil))
                         f))
     :invoke-bob! (fn invoke-bob! [options commands evaluation-context]
-                   (let [options (cond-> options
-                                         (not (contains? options "build-server"))
-                                         (assoc "build-server" (native-extensions/get-build-server-url prefs project evaluation-context))
-                                         (not (contains? options "build-server-header"))
-                                         (assoc "build-server-header" (native-extensions/get-build-server-headers prefs)))
-                         main-scene (g/node-value app-view :scene evaluation-context)
-                         tool-tab-pane (g/node-value app-view :tool-tab-pane evaluation-context)
-                         render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
-                         render-reload-progress! (make-render-task-progress :resource-sync)
-                         render-save-progress! (make-render-task-progress :save-all)
-                         render-build-progress! (make-render-task-progress :build)
-                         task-cancelled? (make-task-cancelled-query :build)
-                         out (start-new-log-pipe!)
-                         f (future/make)]
-                     (build-errors-view/clear-build-errors build-errors-view)
-                     (disk/async-bob-build! render-reload-progress!
-                                            render-save-progress!
-                                            render-build-progress!
-                                            out
-                                            task-cancelled?
-                                            render-build-error!
-                                            commands
-                                            options
-                                            project
-                                            changes-view
-                                            (fn [successful]
-                                              (if successful
-                                                (future/complete! f nil)
-                                                (future/fail! f (LuaError. "Bob invocation failed")))
-                                              (.close out)))
+                   (let [f (future/make)]
+                     (fx/on-fx-thread
+                       (let [options (cond-> options
+                                             (not (contains? options "build-server"))
+                                             (assoc "build-server" (native-extensions/get-build-server-url prefs project evaluation-context))
+                                             (not (contains? options "build-server-header"))
+                                             (assoc "build-server-header" (native-extensions/get-build-server-headers prefs)))
+                             main-scene (g/node-value app-view :scene evaluation-context)
+                             tool-tab-pane (g/node-value app-view :tool-tab-pane evaluation-context)
+                             render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
+                             render-reload-progress! (make-render-task-progress :resource-sync)
+                             render-save-progress! (make-render-task-progress :save-all)
+                             render-build-progress! (make-render-task-progress :build)
+                             task-cancelled? (make-task-cancelled-query :build)
+                             out (start-new-log-pipe!)]
+                         (build-errors-view/clear-build-errors build-errors-view)
+                         (disk/async-bob-build! render-reload-progress!
+                                                render-save-progress!
+                                                render-build-progress!
+                                                out
+                                                task-cancelled?
+                                                render-build-error!
+                                                commands
+                                                options
+                                                project
+                                                changes-view
+                                                (fn [successful]
+                                                  (if successful
+                                                    (future/complete! f nil)
+                                                    (future/fail! f (LuaError. "Bob invocation failed")))
+                                                  (.close out)))))
                      f))))
 
 (defn- fetch-libraries [app-view workspace project changes-view build-errors-view prefs]
