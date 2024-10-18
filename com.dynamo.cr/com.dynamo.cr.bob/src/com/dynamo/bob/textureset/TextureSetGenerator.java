@@ -201,7 +201,7 @@ public class TextureSetGenerator {
 
     // Pass in the original image (no padding or extrude borders)
     // Used by the editor
-    public static SpriteGeometry buildConvexHull(BufferedImage image, SpriteTrimmingMode trimMode) {
+    public static SpriteGeometry buildConvexHull(BufferedImage image, float pivotX, float pivotY, SpriteTrimmingMode trimMode) {
         SpriteGeometry.Builder geometryBuilder = TextureSetProto.SpriteGeometry.newBuilder();
 
         int width = image.getWidth();
@@ -215,6 +215,10 @@ public class TextureSetGenerator {
         geometryBuilder.setCenterX(0.0f);
         geometryBuilder.setCenterY(0.0f);
         geometryBuilder.setRotated(false);
+
+        // The runtime uses (0, 0) as the center of the image
+        geometryBuilder.setPivotX(pivotX);
+        geometryBuilder.setPivotY(pivotY);
 
         ConvexHull2D.PointF[] points = null;
 
@@ -573,7 +577,7 @@ public class TextureSetGenerator {
         for (int i = 0; i < images.size(); ++i) {
             BufferedImage image = images.get(i);
             useGeometries |= imageTrimModes.get(i) != SpriteTrimmingMode.SPRITE_TRIM_MODE_OFF ? 1 : 0;
-            imageHulls.add(buildConvexHull(image, imageTrimModes.get(i)));
+            imageHulls.add(buildConvexHull(image, 0.0f, 0.0f, imageTrimModes.get(i)));
         }
 
         // The layout step will expand the rect, and possibly rotate them
