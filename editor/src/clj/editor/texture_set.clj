@@ -178,6 +178,16 @@
 (defn- corner-points->line-data [[xynw xyne xysw xyse]]
   [xynw xyne xyne xyse xyse xysw xysw xynw])
 
+(defn- offset-vertices [^double offset-x ^double offset-y vertices]
+  ; Vertices is an array with arrays: [[x0 y0 u0 v0 ...] [x1 y1 u1 v1 ...] ...]
+  (mapv (fn [vtx]
+          (let [^double px (first vtx)
+                ^double py (second vtx)
+                x (- px offset-x)
+                y (- py offset-y)]
+            (assoc vtx 0 x 1 y)))
+        vertices))
+
 (defn- frame-vertex-data [animation-frame size pivot]
   (let [use-geometries (:use-geometries animation-frame)
         corner-points (corner-points size pivot)
@@ -196,20 +206,6 @@
                       (vector-of :double x y 0.0 1.0)))
                   indices))
           (corner-points->position-data corner-points))
-
-        ; Pivot point comes from the SpriteGeometry, where (0,0) is center of the image and +Y is up.
-        [^double image-pivot-x ^double image-pivot-y] (:pivot animation-frame)
-        image-pivot-x (* (:width animation-frame) image-pivot-x)
-        image-pivot-y (* (:height animation-frame) image-pivot-y)
-
-        position-data
-        (mapv (fn [vtx]
-                (let [^double px (first vtx)
-                      ^double py (second vtx)
-                      x (- px image-pivot-x)
-                      y (- py image-pivot-y)]
-                  (assoc vtx 0 x 1 y)))
-              position-data)
 
         uv-data
         (if use-geometries
@@ -240,17 +236,26 @@
      :line-data line-data}))
 
 (defn vertex-data [animation-frame size-mode size slice9 pivot]
-  (-> (cond
-        (nil? animation-frame)
-        (quad-vertex-data size pivot)
+  (let [out (-> (cond
+                  (nil? animation-frame)
+                  (quad-vertex-data size pivot)
 
-        (and (= :size-mode-manual size-mode)
-             (slice9/sliced? slice9))
-        (slice9/vertex-data animation-frame size slice9 pivot)
+                  (and (= :size-mode-manual size-mode)
+                       (slice9/sliced? slice9))
+                  (slice9/vertex-data animation-frame size slice9 pivot)
 
-        :else
-        (frame-vertex-data animation-frame size pivot))
-      (assoc :page-index (:page-index animation-frame 0))))
+                  :else
+                  (frame-vertex-data animation-frame size pivot))
+                (assoc :page-index (:page-index animation-frame 0)))
+
+        ; Pivot point comes from the SpriteGeometry, where (0,0) is center of the image and +Y is up.
+        [^double image-pivot-x ^double image-pivot-y] (:pivot animation-frame)
+        image-pivot-x (* (:width animation-frame) image-pivot-x)
+        image-pivot-y (* (:height animation-frame) image-pivot-y)
+
+        position-data (:position-data out)
+        offset-positions (offset-vertices image-pivot-x image-pivot-y position-data)]
+    (assoc out :position-data offset-positions)))
 
 
 ;; animation
