@@ -201,7 +201,7 @@ public class TextureSetGenerator {
 
     // Pass in the original image (no padding or extrude borders)
     // Used by the editor
-    public static SpriteGeometry buildConvexHull(BufferedImage image, SpriteTrimmingMode trimMode) {
+    public static SpriteGeometry buildConvexHull(BufferedImage image, float pivotX, float pivotY, SpriteTrimmingMode trimMode) {
         SpriteGeometry.Builder geometryBuilder = TextureSetProto.SpriteGeometry.newBuilder();
 
         int width = image.getWidth();
@@ -215,6 +215,10 @@ public class TextureSetGenerator {
         geometryBuilder.setCenterX(0.0f);
         geometryBuilder.setCenterY(0.0f);
         geometryBuilder.setRotated(false);
+
+        // The runtime uses (0, 0) as the center of the image
+        geometryBuilder.setPivotX(pivotX);
+        geometryBuilder.setPivotY(pivotY);
 
         ConvexHull2D.PointF[] points = null;
 
@@ -279,7 +283,16 @@ public class TextureSetGenerator {
         builder.setCenterX(center.x);
         builder.setCenterY(center.y);
 
-        builder.setTrimMode(SpriteTrimmingMode.SPRITE_TRIM_POLYGONS);
+        TextureSetLayout.Pointi pivot = rect.getPivot();
+        {
+            // Convert from texel coords to unit coords [-0.5, 0.5]
+            // (it may actually extend outside of its original image space)
+            float x = (pivot.x / (float)originalImageWidth) - 0.5f;
+            float y = (pivot.y / (float)originalImageHeight) - 0.5f;
+
+            builder.setPivotX(x);
+            builder.setPivotY(y);
+        }
 
         builder.addAllIndices(rect.getIndices());
 
@@ -293,6 +306,8 @@ public class TextureSetGenerator {
             builder.addVertices(localY);
             index += 2;
         }
+
+        builder.setTrimMode(SpriteTrimmingMode.SPRITE_TRIM_POLYGONS);
 
         return builder;
     }
@@ -479,8 +494,6 @@ public class TextureSetGenerator {
     // Public api
     // Convert from image space coordinates to
     public static TextureSetResult createTextureSet(List<TextureSetLayout.Layout> layouts, AnimIterator iterator) {
-        int layoutWidth = layouts.get(0).getWidth();
-        int layoutHeight = layouts.get(0).getHeight();
         List<Rect> allRects = new ArrayList<>();
 
         for (Layout l : layouts) {
@@ -490,11 +503,20 @@ public class TextureSetGenerator {
 
         allRects.sort(Comparator.comparing(o -> o.getIndex()));
 
-        Pair<TextureSet.Builder, List<UVTransform>> vertexData = buildData(layoutWidth, layoutHeight, allRects, iterator);
+        // Assuming that the first texture is the largest
+        int largestPageWidth = layouts.get(0).getWidth();
+        int largestPageHeight = layouts.get(0).getHeight();
+
+        Pair<TextureSet.Builder, List<UVTransform>> vertexData = buildData(largestPageWidth, largestPageHeight, allRects, iterator);
         TextureSet.Builder builder = vertexData.left;
         for (Rect rect : allRects) {
+            // Since the actual textures may be of different size (in the editor), we'll use the correct page size
+            Layout layout = layouts.get(rect.getPage());
+            int pageWidth = layout.getWidth();
+            int pageHeight = layout.getHeight();
+
             SpriteGeometry.Builder geometryBuilder = createSpriteGeometryFromRect(rect);
-            createPolygonUVs(geometryBuilder, rect, layoutWidth, layoutHeight);
+            createPolygonUVs(geometryBuilder, rect, pageWidth, pageHeight);
             builder.addGeometries(geometryBuilder);
         }
         builder.setUseGeometries(1);
@@ -555,7 +577,7 @@ public class TextureSetGenerator {
         for (int i = 0; i < images.size(); ++i) {
             BufferedImage image = images.get(i);
             useGeometries |= imageTrimModes.get(i) != SpriteTrimmingMode.SPRITE_TRIM_MODE_OFF ? 1 : 0;
-            imageHulls.add(buildConvexHull(image, imageTrimModes.get(i)));
+            imageHulls.add(buildConvexHull(image, 0.0f, 0.0f, imageTrimModes.get(i)));
         }
 
         // The layout step will expand the rect, and possibly rotate them
