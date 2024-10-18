@@ -867,6 +867,16 @@ namespace dmGameSystem
             (const float**) scratch_pi_ptrs,
             uv_channels_count);
 
+        // We always use the first geometry for the vertices
+        float pivot_x = 0;
+        float pivot_y = 0;
+        const dmGameSystemDDF::SpriteGeometry* geometry = textures->m_NumTextures > 0 ? textures->m_Geometries[0] : 0;
+        if (geometry)
+        {
+            pivot_x = geometry->m_PivotX;
+            pivot_y = geometry->m_PivotY;
+        }
+
         uint32_t sp_width = sprite_size.getX();
         uint32_t sp_height = sprite_size.getY();
         uint32_t vertex_index = 0;
@@ -874,7 +884,10 @@ namespace dmGameSystem
         {
             for (int x=0; x<4; x++)
             {
-                Point3 p = Point3(xs[x] - 0.5, ys[y] - 0.5, 0);
+                // convert from [0,1] to [-0.5, 0.5]
+                float px = xs[x] - 0.5f;
+                float py = ys[y] - 0.5f;
+                Point3 p = Point3(px - pivot_x, py - pivot_y, 0);
 
                 if (has_local_position_attribute)
                 {
@@ -1350,7 +1363,7 @@ namespace dmGameSystem
                     // We always use the first geometry for the vertices
                     float pivot_x = 0;
                     float pivot_y = 0;
-                    const dmGameSystemDDF::SpriteGeometry* geometry = textures.m_Geometries[0];
+                    const dmGameSystemDDF::SpriteGeometry* geometry = textures.m_NumTextures > 0 ? textures.m_Geometries[0] : 0;
                     if (geometry)
                     {
                         pivot_x = geometry->m_PivotX;
