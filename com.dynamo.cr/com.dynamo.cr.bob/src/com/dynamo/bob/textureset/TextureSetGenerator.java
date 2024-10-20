@@ -31,6 +31,7 @@ import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
 import com.dynamo.gamesys.proto.TextureSetProto.TextureSetAnimation;
 import com.dynamo.gamesys.proto.Tile.Playback;
 import com.dynamo.gamesys.proto.Tile.SpriteTrimmingMode;
+import com.dynamo.gamesys.proto.AtlasProto.AtlasImage;
 import com.google.protobuf.ByteString;
 
 import javax.vecmath.Point2d;
@@ -564,7 +565,7 @@ public class TextureSetGenerator {
      * @param margin internal atlas margin
      * @return {@link AtlasMap}
      */
-    public static TextureSetResult generate(List<BufferedImage> images, List<SpriteTrimmingMode> imageTrimModes, List<String> paths, AnimIterator iterator,
+    public static TextureSetResult generate(List<BufferedImage> images, List<AtlasImage> atlasImages, List<String> paths, AnimIterator iterator,
             int margin, int innerPadding, int extrudeBorders, boolean rotate, boolean useTileGrid, Grid gridSize,
             float maxPageSizeW, float maxPageSizeH) {
 
@@ -576,8 +577,17 @@ public class TextureSetGenerator {
         int useGeometries = 0;
         for (int i = 0; i < images.size(); ++i) {
             BufferedImage image = images.get(i);
-            useGeometries |= imageTrimModes.get(i) != SpriteTrimmingMode.SPRITE_TRIM_MODE_OFF ? 1 : 0;
-            imageHulls.add(buildConvexHull(image, 0.0f, 0.0f, imageTrimModes.get(i)));
+            AtlasImage atlasImage = atlasImages.get(i);
+            SpriteTrimmingMode trimMode = atlasImage.getSpriteTrimMode();
+            useGeometries |= trimMode != SpriteTrimmingMode.SPRITE_TRIM_MODE_OFF ? 1 : 0;
+
+            // Image has pivot (0.5, 0.5) as center of image, and +Y as down (i.e. image space)
+            // Whereas SpriteGeometry has (0, 0) as center and +Y as up
+            float pivotX = atlasImage.getPivotX() - 0.5f;
+            float pivotY = atlasImage.getPivotY() - 0.5f;
+            pivotY = -pivotY;
+
+            imageHulls.add(buildConvexHull(image, pivotX, pivotY, trimMode));
         }
 
         // The layout step will expand the rect, and possibly rotate them
