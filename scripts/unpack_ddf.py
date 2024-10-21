@@ -33,6 +33,7 @@ except:
 from google.protobuf import text_format
 import google.protobuf.message
 
+import lz4.block
 import binascii
 
 import gameobject.gameobject_ddf_pb2
@@ -53,32 +54,32 @@ import gamesys.physics_ddf_pb2
 import gamesys.gui_ddf_pb2
 
 BUILDERS = {}
-BUILDERS['.gamepadsc']      = input.input_ddf_pb2.GamepadMaps
-BUILDERS['.input_bindingc'] = input.input_ddf_pb2.InputBinding
-BUILDERS['.texturesetc']    = gamesys.texture_set_ddf_pb2.TextureSet
-BUILDERS['.modelc']         = gamesys.model_ddf_pb2.Model
-BUILDERS['.meshsetc']       = rig.rig_ddf_pb2.MeshSet
-BUILDERS['.animationsetc']  = rig.rig_ddf_pb2.AnimationSet
-BUILDERS['.rigscenec']      = rig.rig_ddf_pb2.RigScene
-BUILDERS['.skeletonc']      = rig.rig_ddf_pb2.Skeleton
-BUILDERS['.dmanifest']      = resource.liveupdate_ddf_pb2.ManifestFile
-BUILDERS['.texturec']       = graphics.graphics_ddf_pb2.TextureImage
-BUILDERS['.guic']           = gamesys.gui_ddf_pb2.SceneDesc
-BUILDERS['.vpc']            = graphics.graphics_ddf_pb2.ShaderDesc
-BUILDERS['.fpc']            = graphics.graphics_ddf_pb2.ShaderDesc
-BUILDERS['.cpc']            = graphics.graphics_ddf_pb2.ShaderDesc
-BUILDERS['.goc']            = gameobject.gameobject_ddf_pb2.PrototypeDesc
-BUILDERS['.collectionc']    = gameobject.gameobject_ddf_pb2.CollectionDesc
-BUILDERS['.luac']           = gameobject.lua_ddf_pb2.LuaModule
-BUILDERS['.materialc']      = render.material_ddf_pb2.MaterialDesc
-BUILDERS['.fontc']          = render.font_ddf_pb2.FontMap
-BUILDERS['.glyph_bankc']    = render.font_ddf_pb2.GlyphBank
-BUILDERS['.particlefxc']    = particle.particle_ddf_pb2.ParticleFX
-BUILDERS['.spritec']        = gamesys.sprite_ddf_pb2.SpriteDesc
-BUILDERS['.renderc']        = render.render_ddf_pb2.RenderPrototypeDesc
-BUILDERS['.convexshapec']   = gamesys.physics_ddf_pb2.ConvexShape
-BUILDERS['.collisionobjectc'] = gamesys.physics_ddf_pb2.CollisionObjectDesc
-BUILDERS['.computec']         = render.compute_ddf_pb2.ComputeDesc
+BUILDERS['gamepadsc']      = input.input_ddf_pb2.GamepadMaps
+BUILDERS['input_bindingc'] = input.input_ddf_pb2.InputBinding
+BUILDERS['texturesetc']    = gamesys.texture_set_ddf_pb2.TextureSet
+BUILDERS['modelc']         = gamesys.model_ddf_pb2.Model
+BUILDERS['meshsetc']       = rig.rig_ddf_pb2.MeshSet
+BUILDERS['animationsetc']  = rig.rig_ddf_pb2.AnimationSet
+BUILDERS['rigscenec']      = rig.rig_ddf_pb2.RigScene
+BUILDERS['skeletonc']      = rig.rig_ddf_pb2.Skeleton
+BUILDERS['dmanifest']      = resource.liveupdate_ddf_pb2.ManifestFile
+BUILDERS['texturec']       = graphics.graphics_ddf_pb2.TextureImage
+BUILDERS['guic']           = gamesys.gui_ddf_pb2.SceneDesc
+BUILDERS['vpc']            = graphics.graphics_ddf_pb2.ShaderDesc
+BUILDERS['fpc']            = graphics.graphics_ddf_pb2.ShaderDesc
+BUILDERS['cpc']            = graphics.graphics_ddf_pb2.ShaderDesc
+BUILDERS['goc']            = gameobject.gameobject_ddf_pb2.PrototypeDesc
+BUILDERS['collectionc']    = gameobject.gameobject_ddf_pb2.CollectionDesc
+BUILDERS['luac']           = gameobject.lua_ddf_pb2.LuaModule
+BUILDERS['materialc']      = render.material_ddf_pb2.MaterialDesc
+BUILDERS['fontc']          = render.font_ddf_pb2.FontMap
+BUILDERS['glyph_bankc']    = render.font_ddf_pb2.GlyphBank
+BUILDERS['particlefxc']    = particle.particle_ddf_pb2.ParticleFX
+BUILDERS['spritec']        = gamesys.sprite_ddf_pb2.SpriteDesc
+BUILDERS['renderc']        = render.render_ddf_pb2.RenderPrototypeDesc
+BUILDERS['convexshapec']   = gamesys.physics_ddf_pb2.ConvexShape
+BUILDERS['collisionobjectc'] = gamesys.physics_ddf_pb2.CollisionObjectDesc
+BUILDERS['computec']         = render.compute_ddf_pb2.ComputeDesc
 
 proto_type_to_string_map = {}
 proto_type_to_string_map[google.protobuf.descriptor.FieldDescriptor.TYPE_BOOL]    = 'TYPE_BOOL'
@@ -265,18 +266,27 @@ def print_shader_file(shader_file):
 
 
 PRINTERS = {}
-PRINTERS['.luac']       = print_lua_file
-PRINTERS['.vpc']        = print_shader_file
-PRINTERS['.fpc']        = print_shader_file
-PRINTERS['.cpc']        = print_shader_file
+PRINTERS['luac']       = print_lua_file
+PRINTERS['vpc']        = print_shader_file
+PRINTERS['fpc']        = print_shader_file
+PRINTERS['cpc']        = print_shader_file
 
 if __name__ == "__main__":
     path = sys.argv[1]
 
     with open(path, 'rb') as f:
         content = f.read()
-        _, ext = os.path.splitext(path)
-        builder = BUILDERS.get(ext, None)
+        ext = path.split(".")
+        if ext[-1] == "lz4":
+            decompressed_size = len(content) * 2
+            while True:
+                try:
+                    content = lz4.block.decompress(content, uncompressed_size=decompressed_size, return_bytearray=True)
+                    break
+                except lz4.block.LZ4BlockError:
+                    decompressed_size *= 2
+            ext.pop()
+        builder = BUILDERS.get(ext[-1], None)
         if builder is None:
             print("No builder registered for filetype %s" %ext)
             try:
@@ -288,5 +298,5 @@ if __name__ == "__main__":
             obj = builder()
             obj.ParseFromString(content)
 
-            printer = PRINTERS.get(ext, print_message)
+            printer = PRINTERS.get(ext[-1], print_message)
             printer(obj)
