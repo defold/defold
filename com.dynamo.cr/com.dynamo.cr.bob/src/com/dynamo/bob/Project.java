@@ -1727,7 +1727,7 @@ public class Project {
     @SuppressWarnings({ "rawtypes", "unchecked" })
     private List<TaskResult> runTasks(IProgress monitor) throws IOException, CompileExceptionError {
 
-        TextureGenerator.maxThreads = getMaxCpuThreads();
+        TextureGenerator.maxThreads = 1;
 
         List<Task> tasksToBuild = new ArrayList<Task>(getTasks());
         TaskBuilder taskBuilder = new TaskBuilder(tasksToBuild, this);
