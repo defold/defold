@@ -519,6 +519,13 @@
     (swap! global-state assoc-in [:registry id] schema)
     nil))
 
+(defn unregister-schema!
+  "Unregister a previously registered schema"
+  [id]
+  {:pre [(not= id :default)]}
+  (swap! global-state update :registry dissoc id)
+  nil)
+
 (defn global
   "Return a Defold-specific user-level prefs
 
