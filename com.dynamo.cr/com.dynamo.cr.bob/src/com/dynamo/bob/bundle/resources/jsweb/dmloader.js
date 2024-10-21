@@ -366,7 +366,7 @@ var EngineLoader = {
             window.addEventListener('resize', callback, false);
             window.addEventListener('orientationchange', callback, false);
             window.addEventListener('focus', callback, false);
-        }        
+        }
     }
 }
 
