@@ -245,7 +245,7 @@
     ["             "]
 
     ["go.property('name', hash())"]
-    ["                           "]
+    ["                    hash() "]
 
     ["go.property('name', resource.texture('/image.png'))"]
     ["                                                   "]

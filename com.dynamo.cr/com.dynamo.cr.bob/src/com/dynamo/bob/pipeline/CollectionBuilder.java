@@ -461,4 +461,9 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         return messageBuilder;
     }
 
+    @Override
+    public void clearState() {
+        super.clearState();
+        compCounterInputsCount = null;
+    }
 }

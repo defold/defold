@@ -152,6 +152,17 @@
                          :doc "If <code>out</code> option is set to <code>\"capture\"</code>, returns the output as string with trimmed trailing newlines. Otherwise, returns <code>nil</code>."}]
          :description "Execute a shell command.\n\nAny shell command arguments should be provided as separate argument strings to this function. If the exit code of the process is not zero, this function throws error. By default, the function returns `nil`, but it can be configured to capture the output of the shell command as string and return it — set `out` option to `\"capture\"` to do it.<br>By default, after this shell command is executed, the editor will reload resources from disk."
          :examples "Make a directory with spaces in it:\n```\neditor.execute(\"mkdir\", \"new dir\")\n```\nRead the git status:\n```\nlocal status = editor.execute(\"git\", \"status\", \"--porcelain\", {\n  reload_resources = false,\n  out = \"capture\"\n})\n```"}
+        {:name "editor.bob"
+         :type :function
+         :parameters [{:name "[options]"
+                       :types ["table"]
+                       :doc "table of command line options for bob, without the leading dashes (<code>--</code>). You can use snake_case instead of kebab-case for option keys. Only long option names are supported (i.e. <code>output</code>, not <code>o</code>). Supported value types are strings, integers and booleans. If an option takes no arguments, use a boolean (i.e. <code>true</code>). If an option may be repeated, you can use an array of values."}
+                      {:name "[...commands]"
+                       :types ["string"]
+                       :doc "bob commands, e.g. <code>\"resolve\"</code> or <code>\"build\"</code>"}]
+         :returnvalues []
+         :description "Run bob the builder program\n\nFor the full documentation of the available commands and options, see [the bob manual](https://defold.com/manuals/bob/)."
+         :examples "Print help in the console:\n```\neditor.bob({help = true})\n```\n\nBundle the game for the host platform:\n```\nlocal opts = {\n    archive = true,\n    platform = editor.platform\n}\neditor.bob(opts, \"distclean\", \"resolve\", \"build\", \"bundle\")\n```\nUsing snake_cased and repeated options:\n```\nlocal opts = {\n    archive = true,\n    platform = editor.platform,\n    build_server = \"https://build.my-company.com\",\n    settings = {\"test.ini\", \"headless.ini\"}\n}\neditor.bob(opts, \"distclean\", \"resolve\", \"build\")\n```\n"}
         {:name "editor.platform"
          :type :variable
          :description "Editor platform id.\n\nA `string`, either:\n- `\"x86_64-win32\"`\n- `\"x86_64-macos\"`\n- `\"arm64-macos\"`\n- `\"x86_64-linux\"`"}

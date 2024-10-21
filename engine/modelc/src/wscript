@@ -1,11 +1,34 @@
 #! /usr/bin/env python
 
-import os
+import os, sys
 from waf_dynamo import dmsdk_add_files
-from waflib.Options import options
+from waflib import Options
+
+import gen_java
+
+def options(opt):
+    opt.load('waf_dynamo')
 
 def configure(conf):
-    pass
+    if not conf.env.IS_TARGET_DESKTOP:
+        print("Skipping build of modelc for non host platform")
+        return
+
+    dynamo_home = conf.env.DYNAMO_HOME
+    includes = [os.getcwd(),
+                os.path.join(dynamo_home, 'sdk', 'include')]
+
+    def make_path(path):
+        cwd = os.getcwd()
+        script_dir = conf.path.abspath()
+        return os.path.relpath(os.path.normpath(os.path.join(script_dir, path)), cwd)
+
+    gen_java.generate(header_path   = make_path('./modelimporter.h'),
+                     namespace      = 'dmModelImporter',
+                     package_name   = 'com.dynamo.bob.pipeline',
+                     includes       = includes,
+                     java_outdir    = make_path('./java'),
+                     jni_outdir     = make_path('./jni'))
 
 def build(bld):
     # We only need this library in the editor and bob
@@ -14,26 +37,23 @@ def build(bld):
         return
 
     modelc_sources = bld.path.ant_glob("*.cpp")
+    modelc_sources_no_jni = []
 
-    java_includes = [os.path.join(os.environ['JAVA_HOME'], 'include')]
-    if 'linux' in bld.env['PLATFORM']:
-        java_includes.append(os.path.join(os.environ['JAVA_HOME'], 'include', 'linux'))
-    if 'win32' in bld.env['PLATFORM']:
-        java_includes.append(os.path.join(os.environ['JAVA_HOME'], 'include', 'win32'))
-    if 'macos' in bld.env['PLATFORM']:
-        java_includes.append(os.path.join(os.environ['JAVA_HOME'], 'include', 'darwin'))
+    for x in modelc_sources:
+        if not 'jni' in x.name:
+            modelc_sources_no_jni.append(x)
 
     # really only used for the unit tests
     model = bld.stlib(features = 'c cxx',
-                      includes = ['.', './model'] + java_includes,
-                      source = modelc_sources,
+                      includes = ['.', './model'],
+                      source = modelc_sources_no_jni,
                       target = 'model')
 
     # Used by bob.jar + editor
     model_shared = bld(features = 'c cxx cshlib skip_asan extract_symbols',
-                       includes = model.includes,
-                       uselib = 'DLIB_NOASAN APP PROFILE_NULL_NOASAN JDK',
-                       source = modelc_sources,
+                       includes = ['.', './model', './jni'],
+                       uselib = 'DLIB_NOASAN APP PROFILE_NULL_NOASAN JNI_NOASAN JDK',
+                       source = modelc_sources + bld.path.ant_glob("jni/*.cpp"),
                        target = 'modelc_shared')
 
     classpath = []
@@ -43,7 +63,7 @@ def build(bld):
         srcdir='java',
         outdir='java')
 
-    bld.env["JAVACFLAGS"] = '-g -source 1.7 -target 1.7'.split()
+    bld.env["JAVACFLAGS"] = '-g'.split()
 
     bld(features='jar seq',
         basedir='java',
@@ -51,5 +71,5 @@ def build(bld):
 
     bld.install_files('${PREFIX}/share/java', 'modelimporter.jar')
 
-    if not options.skip_build_tests:
+    if not Options.options.skip_build_tests:
         bld.recurse('test')

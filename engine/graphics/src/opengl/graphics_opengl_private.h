@@ -31,6 +31,12 @@ namespace dmGraphics
         ATTACHMENT_TYPE_TEXTURE = 2,
     };
 
+    enum DeviceBufferType
+    {
+        DEVICE_BUFFER_TYPE_INDEX   = 0,
+        DEVICE_BUFFER_TYPE_VERTEX  = 1,
+    };
+
     struct OpenGLTexture
     {
         TextureParams     m_Params;
@@ -75,6 +81,13 @@ namespace dmGraphics
         GLuint               m_Id;
         ShaderMeta           m_ShaderMeta;
         ShaderDesc::Language m_Language;
+    };
+
+    struct OpenGLBuffer
+    {
+        GLuint           m_Id;
+        DeviceBufferType m_Type;
+        uint32_t         m_MemorySize;
     };
 
     struct OpenGLVertexAttribute
@@ -149,19 +162,21 @@ namespace dmGraphics
         uint32_t                m_DepthBufferBits;
         uint32_t                m_FrameBufferInvalidateBits;
         float                   m_MaxAnisotropy;
+        uint32_t                m_FrameBufferInvalidateAttachments : 1;
+        uint32_t                m_VerifyGraphicsCalls              : 1;
+        uint32_t                m_PrintDeviceInfo                  : 1;
+        uint32_t                m_IsGles3Version                   : 1; // 0 == gles 2, 1 == gles 3
+        uint32_t                m_IsShaderLanguageGles             : 1; // 0 == glsl, 1 == gles
+
+        uint32_t                m_PackedDepthStencilSupport        : 1;
         uint32_t                m_AsyncProcessingSupport           : 1;
         uint32_t                m_AnisotropySupport                : 1;
         uint32_t                m_TextureArraySupport              : 1;
         uint32_t                m_MultiTargetRenderingSupport      : 1;
         uint32_t                m_ComputeSupport                   : 1;
         uint32_t                m_StorageBufferSupport             : 1;
-        uint32_t                m_FrameBufferInvalidateAttachments : 1;
-        uint32_t                m_PackedDepthStencilSupport        : 1;
-        uint32_t                m_VerifyGraphicsCalls              : 1;
         uint32_t                m_RenderDocSupport                 : 1;
-        uint32_t                m_PrintDeviceInfo                  : 1;
-        uint32_t                m_IsGles3Version                   : 1; // 0 == gles 2, 1 == gles 3
-        uint32_t                m_IsShaderLanguageGles             : 1; // 0 == glsl, 1 == gles
+        uint32_t                m_InstancingSupport                : 1;
     };
 }
 #endif // __GRAPHICS_DEVICE_OPENGL__

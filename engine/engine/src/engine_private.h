@@ -42,6 +42,7 @@
 #include "engine_service.h"
 #include "engine.h"
 #include <engine/engine_ddf.h>
+#include <dmsdk/gamesys/resources/res_font.h>
 
 namespace dmEngine
 {
@@ -143,7 +144,7 @@ namespace dmEngine
         dmGameSystem::SoundContext                  m_SoundContext;
         dmGameObject::ModuleContext                 m_ModuleContext;
 
-        dmRender::HFontMap                          m_SystemFontMap;
+        dmGameSystem::FontResource*                 m_SystemFont;
         dmHID::HContext                             m_HidContext;
         dmInput::HContext                           m_InputContext;
         dmInput::HBinding                           m_GameInputBinding;

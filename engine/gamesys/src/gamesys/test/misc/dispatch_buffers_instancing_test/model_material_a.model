@@ -1,0 +1,5 @@
+mesh: "/misc/dispatch_buffers_instancing_test/quad_2x2.dae"
+skeleton: ""
+animations: "/misc/dispatch_buffers_instancing_test/quad_2x2.dae"
+default_animation: ""
+material: "/misc/dispatch_buffers_instancing_test/material_a.material"

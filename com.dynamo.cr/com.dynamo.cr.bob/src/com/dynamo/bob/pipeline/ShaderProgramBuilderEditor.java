@@ -18,8 +18,9 @@ public class ShaderProgramBuilderEditor {
 
         // Make sure we have the correct output language
         ShaderCompilePipeline pipeline;
+        ShaderCompilePipeline.Options options = new ShaderCompilePipeline.Options();
         try {
-            pipeline = ShaderProgramBuilder.getShaderPipelineFromShaderSource(shaderType, "variant-texture-array", source);
+            pipeline = ShaderProgramBuilder.newShaderPipelineFromShaderSource(shaderType, "variant-texture-array", source, options);
         } catch (Exception e) {
             // We don't have a graceful way to handle shader errors in the editor except for building/bundling
             return new ShaderUtil.Common.GLSLCompileResult(source);
@@ -37,7 +38,7 @@ public class ShaderProgramBuilderEditor {
     static private boolean isCompatibleLanguage(Graphics.ShaderDesc.ShaderType shaderType, Graphics.ShaderDesc.Language shaderLanguage) {
         if (shaderType == Graphics.ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE) {
             return switch (shaderLanguage) {
-                case LANGUAGE_SPIRV, LANGUAGE_GLSL_SM430, LANGUAGE_PSSL -> true;
+                case LANGUAGE_SPIRV, LANGUAGE_GLSL_SM430, LANGUAGE_PSSL, LANGUAGE_WGSL -> true;
                 default -> false;
             };
         } else {
@@ -51,8 +52,9 @@ public class ShaderProgramBuilderEditor {
                                                                                         Graphics.ShaderDesc.Language[] shaderLanguages, int maxPageCount) throws IOException, CompileExceptionError {
 
         ShaderCompilePipeline pipeline;
+        ShaderCompilePipeline.Options options = new ShaderCompilePipeline.Options();
         try {
-            pipeline = ShaderProgramBuilder.getShaderPipelineFromShaderSource(shaderType, resourceOutputPath, shaderSource);
+            pipeline = ShaderProgramBuilder.newShaderPipelineFromShaderSource(shaderType, resourceOutputPath, shaderSource, options);
         } catch (Exception e) {
             ShaderProgramBuilder.ShaderDescBuildResult res = new ShaderProgramBuilder.ShaderDescBuildResult();
             res.buildWarnings = new String[] { e.getMessage()};
