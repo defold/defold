@@ -204,6 +204,8 @@
    contents :- (s/maybe BufferedImage)
    width    :- Int32
    height   :- Int32
+   pivot-x  :- s/Num
+   pivot-y  :- s/Num
    sprite-trim-mode :- sprite-trim-modes]
   ImageHolder
   (contents [this] contents))

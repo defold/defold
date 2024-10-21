@@ -64,11 +64,12 @@
 ;; anim data
 
 (defn- ->anim-frame
-  [page-index quad-tex-coords tex-dim]
+  [page-index quad-tex-coords tex-dim frame-geometry]
   {:page-index page-index
    :tex-coords quad-tex-coords
    :width (:width tex-dim)
-   :height (:height tex-dim)})
+   :height (:height tex-dim)
+   :pivot [(or (:pivot-x frame-geometry) 0.0) (or (:pivot-y frame-geometry) 0.0)]})
 
 (defn- double-vector->2d-points
   ([double-vector reverse]
@@ -86,11 +87,14 @@
   [page-index quad-tex-coords frame-geometry scale-factors reverse]
   (let [^double scale-x (scale-factors 0)
         ^double scale-y (scale-factors 1)
+        ^double pivot-x (or (:pivot-x frame-geometry) 0.0)
+        ^double pivot-y (or (:pivot-y frame-geometry) 0.0)
         vertex-coords (double-vector->2d-points (:vertices frame-geometry) reverse scale-x scale-y)
         vertex-tex-coords (double-vector->2d-points (:uvs frame-geometry) reverse)]
     {:page-index page-index
      :tex-coords quad-tex-coords
      :vertex-coords vertex-coords
+     :pivot [pivot-x pivot-y]
      :vertex-tex-coords vertex-tex-coords
      :indices (:indices frame-geometry)
      :use-geometries true
@@ -116,7 +120,7 @@
                                   (not= :sprite-trim-mode-off
                                         (:trim-mode frame-geometry)))
                            (->anim-frame-from-geometry page-index quad-tex-coords frame-geometry scale-factors reverse)
-                           (->anim-frame page-index quad-tex-coords (->tex-dim frame-index tex-dims)))))
+                           (->anim-frame page-index quad-tex-coords (->tex-dim frame-index tex-dims) frame-geometry))))
                      (range start end))]
     {:width (transduce (map :width) max 0 frames)
      :height (transduce (map :height) max 0 frames)
@@ -174,6 +178,16 @@
 (defn- corner-points->line-data [[xynw xyne xysw xyse]]
   [xynw xyne xyne xyse xyse xysw xysw xynw])
 
+(defn- offset-vertices [^double offset-x ^double offset-y vertices]
+  ; Vertices is an array with arrays: [[x0 y0 u0 v0 ...] [x1 y1 u1 v1 ...] ...]
+  (mapv (fn [vtx]
+          (let [^double px (first vtx)
+                ^double py (second vtx)
+                x (- px offset-x)
+                y (- py offset-y)]
+            (assoc vtx 0 x 1 y)))
+        vertices))
+
 (defn- frame-vertex-data [animation-frame size pivot]
   (let [use-geometries (:use-geometries animation-frame)
         corner-points (corner-points size pivot)
@@ -222,17 +236,26 @@
      :line-data line-data}))
 
 (defn vertex-data [animation-frame size-mode size slice9 pivot]
-  (-> (cond
-        (nil? animation-frame)
-        (quad-vertex-data size pivot)
+  (let [out (-> (cond
+                  (nil? animation-frame)
+                  (quad-vertex-data size pivot)
 
-        (and (= :size-mode-manual size-mode)
-             (slice9/sliced? slice9))
-        (slice9/vertex-data animation-frame size slice9 pivot)
+                  (and (= :size-mode-manual size-mode)
+                       (slice9/sliced? slice9))
+                  (slice9/vertex-data animation-frame size slice9 pivot)
 
-        :else
-        (frame-vertex-data animation-frame size pivot))
-      (assoc :page-index (:page-index animation-frame 0))))
+                  :else
+                  (frame-vertex-data animation-frame size pivot))
+                (assoc :page-index (:page-index animation-frame 0)))
+
+        ; Pivot point comes from the SpriteGeometry, where (0,0) is center of the image and +Y is up.
+        [^double image-pivot-x ^double image-pivot-y] (or (:pivot animation-frame) [0.0 0.0])
+        image-pivot-x (* (or (:width animation-frame) 0.0) image-pivot-x)
+        image-pivot-y (* (or (:height animation-frame) 0.0) image-pivot-y)
+
+        position-data (:position-data out)
+        offset-positions (offset-vertices image-pivot-x image-pivot-y position-data)]
+    (assoc out :position-data offset-positions)))
 
 
 ;; animation

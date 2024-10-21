@@ -1763,6 +1763,14 @@ static void CheckAtlasArguments(lua_State* L, uint32_t* num_geometries_out, uint
             VALIDATE_GEOMETRY_STREAM("indices",  3);
             #undef VALIDATE_GEOMETRY_STREAM
 
+            // these _should_ be required, but were added late after the api was introduced.
+            CheckFieldValue<int>(L, -1, "width", 0);
+            CheckFieldValue<int>(L, -1, "height",  0);
+
+            // Non-required fields
+            CheckFieldValue<float>(L,  -1, "pivot_x", 0);
+            CheckFieldValue<float>(L,  -1, "pivot_y", 0);
+
             lua_pop(L, 1);
 
             num_geometries++;
@@ -1906,20 +1914,33 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
             lua_pop(L, 1);
             texture_set_ddf->m_ImageNameHashes[i] = id_hash;
 
-            lua_pop(L, 1);
+            float geo_width = (float)CheckFieldValue<int>(L, -1, "width", 0);
+            float geo_height = (float)CheckFieldValue<int>(L, -1, "height",  0);
 
-            // Calculate extents so that we can transform to -0.5 .. 0.5 based
-            // on the middle of the sprite
-            float geo_width = 0.0f;
-            float geo_height = 0.0f;
-            for (int j = 0; j < geometry.m_Vertices.m_Count; j += 2)
+            geometry.m_PivotX = CheckFieldValue<float>(L, -1, "pivot_x", geo_width * 0.5);
+            geometry.m_PivotY = CheckFieldValue<float>(L, -1, "pivot_y", geo_height * 0.5);
+
+            lua_pop(L, 1);
+            // End of lua table interaction
+
+            // Legacy, we should have required the user to specify width/height from the start
+            if (geo_width == 0 || geo_height == 0)
             {
-                geo_width  = dmMath::Max(geo_width, geometry.m_Vertices.m_Data[j]);
-                geo_height = dmMath::Max(geo_height, geometry.m_Vertices.m_Data[j+1]);
+                // Calculate extents so that we can transform to -0.5 .. 0.5 based
+                // on the middle of the sprite
+                for (int j = 0; j < geometry.m_Vertices.m_Count; j += 2)
+                {
+                    geo_width  = dmMath::Max(geo_width, geometry.m_Vertices.m_Data[j]);
+                    geo_height = dmMath::Max(geo_height, geometry.m_Vertices.m_Data[j+1]);
+                }
             }
 
             geometry.m_Width  = geo_width;
             geometry.m_Height = geo_height;
+
+            // transform the point from image space to SpriteGeometry unit space
+            geometry.m_PivotX =        geometry.m_PivotX / geo_width - 0.5f;
+            geometry.m_PivotY = 1.0f - geometry.m_PivotY / geo_height - 0.5f;
 
             // Transform from texel to local space for position and uvs
             // Position and texcoords are flipped on y/t axis so that coordinates are
@@ -2144,11 +2165,23 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
  * * `id`
  * : [type:string] The name of the geometry. Used when matching animations between multiple atlases
  *
+ * * `width`
+ * : [type:number] The width of the image the sprite geometry represents
+ *
+ * * `height`
+ * : [type:number] The height of the image the sprite geometry represents
+ *
+ * * `pivot_x`
+ * : [type:number] The pivot x value of the image in image coords. Default is width / 2.
+ *
+ * * `pivot_y`
+ * : [type:number] The pivot y value of the image in image coords.  Default is height / 2.
+ *
  * * `vertices`
- * : [type:table] a list of the vertices in texture space of the geometry in the form {px0, py0, px1, py1, ..., pxn, pyn}
+ * : [type:table] a list of the vertices in image space of the geometry in the form {px0, py0, px1, py1, ..., pxn, pyn}
  *
  * * `uvs`
- * : [type:table] a list of the uv coordinates in texture space of the geometry in the form of {u0, v0, u1, v1, ..., un, vn}
+ * : [type:table] a list of the uv coordinates in image space of the geometry in the form of {u0, v0, u1, v1, ..., un, vn}.
  *
  * * `indices`
  * : [type:table] a list of the indices of the geometry in the form {i0, i1, i2, ..., in}. Each tripe in the list represents a triangle.
@@ -2190,6 +2223,10 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
  *         geometries = {
  *             {
  *                 id = 'idle0',
+ *                 width = 128,
+ *                 height = 128,
+ *                 pivot_x = 64,
+ *                 pivot_y = 64,
  *                 vertices  = {
  *                     0,   0,
  *                     0,   128,

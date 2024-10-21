@@ -31,6 +31,7 @@ import com.dynamo.gamesys.proto.Tile;
 import com.dynamo.gamesys.proto.Tile.Animation;
 import com.dynamo.gamesys.proto.Tile.SpriteTrimmingMode;
 import com.dynamo.gamesys.proto.Tile.TileSet;
+import com.dynamo.gamesys.proto.AtlasProto.AtlasImage;
 
 public class TileSetGenerator {
 
@@ -119,12 +120,19 @@ public class TileSetGenerator {
         SpriteTrimmingMode mode = tileSet.getSpriteTrimMode();
 
         List<BufferedImage> images = split(image, tileSet, metrics);
-        List<SpriteTrimmingMode> imageTrimModes = new ArrayList<>();
+        List<AtlasImage> atlasImages = new ArrayList<>();
         List<String> names = new ArrayList<String>();
         int tileIndex = 0;
         for (BufferedImage tmp : images) {
-            imageTrimModes.add(mode);
-            names.add(String.format("tile%d", tileIndex++));
+            String name =  String.format("tile%d", tileIndex++);
+
+            atlasImages.add(AtlasImage.newBuilder()
+                            .setPivotX(0.5f)
+                            .setPivotY(0.5f)
+                            .setImage(name)
+                            .setSpriteTrimMode(mode)
+                            .build());
+            names.add(name);
         }
 
         AnimIterator iterator = createAnimIterator(tileSet, images.size());
@@ -132,7 +140,7 @@ public class TileSetGenerator {
         // Since all the images already are positioned optimally in a grid,
         // we tell TextureSetGenerator to NOT do its own packing and use this grid directly.
         Grid grid_size = new Grid(metrics.tilesPerRow, metrics.tilesPerColumn);
-        TextureSetResult result = TextureSetGenerator.generate(images, imageTrimModes, names, iterator, 0,
+        TextureSetResult result = TextureSetGenerator.generate(images, atlasImages, names, iterator, 0,
                 tileSet.getInnerPadding(),
                 tileSet.getExtrudeBorders(), false, true, grid_size, 0, 0);
 
