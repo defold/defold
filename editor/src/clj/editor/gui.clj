@@ -3,7 +3,7 @@
 ;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
 ;; Licensed under the Defold License version 1.0 (the "License"); you may not use
 ;; this file except in compliance with the License.
-;; 
+;;
 ;; You may obtain a copy of the License, together with FAQs at
 ;; https://www.defold.com/license
 ;; 
@@ -64,6 +64,14 @@
            [internal.graph.types Arc]
            [java.awt.image BufferedImage]
            [javax.vecmath Quat4d]))
+
+;; TODO(gui-layout-override-refactor):
+;; * Fix layout override loading. Should assign to layout->prop->override property on nodes.
+;; * Fix layout->prop->value to include correct base values from active-layouts.
+;; * Fix scene-view manipulators so they assign into the current-layout.
+;; * Ensure layout overrides can be cleared using the property editor.
+;; * Optimize save-value data path. Should maybe pull from layout->prop->value output?
+;; * Fix resource renames so they update all layouts.
 
 (set! *warn-on-reflection* true)
 
@@ -601,6 +609,7 @@
 ;; used by (property x (set (partial ...)), thus evaluation-context in signature
 ;; SDK api
 (defn update-gui-resource-references [gui-resource-type evaluation-context gui-resource-node-id old-name new-name]
+  ;; TODO(gui-layout-override-refactor): Make this work with layouts.
   (assert (keyword? gui-resource-type))
   (assert (or (nil? old-name) (string? old-name)))
   (assert (string? new-name))
@@ -683,10 +692,121 @@
         :type type ; Explicitly include the type (pb-field is optional, so :type-box would be stripped otherwise).
         :child-index child-index))) ; Used to order sibling nodes in the SceneDesc.
 
+(defmacro layout-property-getter [prop-sym]
+  {:pre [(symbol? prop-sym)]}
+  (let [prop-kw (keyword prop-sym)]
+    `(g/fnk [~'layout->prop->value ~prop-sym]
+       (get ~'layout->prop->value ~prop-kw ~prop-sym))))
+
+(defn layout-property-set-fn [_evaluation-context node-id _old-value _new-value]
+  (g/invalidate-output node-id :layout->prop->value))
+
+(defmacro layout-property-setter [prop-sym]
+  {:pre [(symbol? prop-sym)]}
+  layout-property-set-fn)
+
+(defn- layout-property-edit-type-set-impl [evaluation-context node-id prop-kw old-value new-value changes-fn]
+  (let [current-layout (g/node-value node-id :current-layout evaluation-context)
+        changes (if (nil? changes-fn)
+                  {prop-kw new-value}
+                  (changes-fn evaluation-context node-id prop-kw old-value new-value))]
+    (if (str/blank? current-layout)
+      (into []
+            (mapcat (fn [[prop-kw value]]
+                      (if (nil? value)
+                        (g/clear-property node-id prop-kw)
+                        (g/set-property node-id prop-kw value))))
+            changes)
+      (g/update-property
+        node-id :layout->prop->override
+        update current-layout
+        (fn [prop->override]
+          (reduce (fn [prop->override [prop-kw value]]
+                    (if (nil? value)
+                      (dissoc prop->override prop-kw)
+                      (assoc prop->override prop-kw value)))
+                  prop->override
+                  changes))))))
+
+(defn- basic-layout-property-edit-type-clear-fn [node-id prop-kw]
+  (let [current-layout (g/node-value node-id :current-layout)]
+    (if (str/blank? current-layout)
+      (g/clear-property node-id prop-kw)
+      (g/update-property node-id :layout->prop->override eutil/dissoc-in [current-layout prop-kw]))))
+
+(defn- layout-property-edit-type-clear-impl [node-id prop-kw changes-fn]
+  (let [[current-layout cleared-prop-kws]
+        (g/with-auto-evaluation-context evaluation-context
+          (pair (g/node-value node-id :current-layout evaluation-context)
+                (keys (changes-fn evaluation-context node-id prop-kw nil nil))))]
+    (when (coll/not-empty cleared-prop-kws)
+      (if (str/blank? current-layout)
+        (coll/mapcat #(g/clear-property node-id %) cleared-prop-kws)
+        (g/update-property
+          node-id :layout->prop->override
+          update current-layout
+          (fn [prop->override]
+            (coll/not-empty
+              (apply dissoc prop->override cleared-prop-kws))))))))
+
+(defmacro wrap-layout-property-edit-type
+  ([prop-sym edit-type-form]
+   {:pre [(symbol? prop-sym)]}
+   (let [edit-type-set-fn-form
+         (let [prop-kw (keyword prop-sym)
+               edit-type-set-fn-sym (symbol (str (name prop-sym) "-edit-type-set-fn"))]
+           `(fn ~edit-type-set-fn-sym [~'evaluation-context ~'node-id ~'old-value ~'new-value]
+              (layout-property-edit-type-set-impl ~'evaluation-context ~'node-id ~prop-kw ~'old-value ~'new-value nil)))]
+     `(assoc ~edit-type-form
+        :set-fn ~edit-type-set-fn-form
+        :clear-fn basic-layout-property-edit-type-clear-fn)))
+  ([prop-sym edit-type-form changes-fn-form]
+   {:pre [(symbol? prop-sym)]}
+   (let [edit-type-set-fn-form
+         (let [prop-kw (keyword prop-sym)
+               edit-type-set-fn-sym (symbol (str (name prop-sym) "-edit-type-set-fn"))]
+           `(fn ~edit-type-set-fn-sym [~'evaluation-context ~'node-id ~'old-value ~'new-value]
+              (layout-property-edit-type-set-impl ~'evaluation-context ~'node-id ~prop-kw ~'old-value ~'new-value ~changes-fn-form)))
+
+         edit-type-clear-fn-form
+         (let [edit-type-clear-fn-sym (symbol (str (name prop-sym) "-edit-type-clear-fn"))]
+           `(fn ~edit-type-clear-fn-sym [~'node-id ~'prop-kw]
+              (layout-property-edit-type-clear-impl ~'node-id ~'prop-kw ~changes-fn-form)))]
+     `(assoc ~edit-type-form
+        :set-fn ~edit-type-set-fn-form
+        :clear-fn ~edit-type-clear-fn-form))))
+
+(defmacro layout-property-edit-type
+  ([prop-sym edit-type-form]
+   `(g/constantly
+      (wrap-layout-property-edit-type ~prop-sym ~edit-type-form nil)))
+  ([prop-sym edit-type-form changes-fn-form]
+   `(g/constantly
+      (wrap-layout-property-edit-type ~prop-sym ~edit-type-form ~changes-fn-form))))
+
 (g/defnode GuiNode
   (inherits core/Scope)
   (inherits scene/SceneNode)
   (inherits outline/OutlineNode)
+
+  ;; Storage for layout overrides.
+  (property layout->prop->override g/Any)
+
+  ;; SceneNode property overrides with layout support
+  (property position types/Vec3 (default scene/default-position)
+            (dynamic edit-type (layout-property-edit-type position {:type types/Vec3}))
+            (value (layout-property-getter position))
+            (set (layout-property-setter position)))
+  (property rotation types/Vec4 (default scene/default-rotation)
+            (dynamic edit-type (layout-property-edit-type rotation properties/quat-rotation-edit-type))
+            (value (layout-property-getter rotation))
+            (set (layout-property-setter rotation)))
+  (property scale types/Vec3 (default scene/default-scale)
+            (dynamic edit-type (layout-property-edit-type scale {:type types/Vec3}
+                                 (fn [evaluation-context self prop-kw old-value new-value]
+                                   {:scale (some-> new-value scene/non-zeroify-scale)})))
+            (value (layout-property-getter scale))
+            (set (layout-property-setter scale)))
 
   (property child-index g/Int (dynamic visible (g/constantly false)) (default 0)) ; No protobuf counterpart.
   (property type g/Keyword (dynamic visible (g/constantly false))) ; Always assigned in load-fn.
@@ -708,20 +828,31 @@
             (dynamic visible override-node?))
   (property color types/Color (default (protobuf/default Gui$NodeDesc :color))
             (dynamic visible (g/fnk [type] (not= type :type-template)))
-            (dynamic edit-type (g/constantly {:type types/Color
-                                              :ignore-alpha? true})))
+            (dynamic edit-type (layout-property-edit-type color {:type types/Color
+                                                                 :ignore-alpha? true}))
+            (value (layout-property-getter color))
+            (set (layout-property-setter color)))
   (property alpha g/Num (default (protobuf/default Gui$NodeDesc :alpha))
-            (dynamic edit-type (g/constantly {:type :slider
-                                              :min 0.0
-                                              :max 1.0
-                                              :precision 0.01})))
-  (property inherit-alpha g/Bool (default (protobuf/default Gui$NodeDesc :inherit-alpha)))
-  (property enabled g/Bool (default (protobuf/default Gui$NodeDesc :enabled)))
-
+            (dynamic edit-type (layout-property-edit-type alpha {:type :slider
+                                                                 :min 0.0
+                                                                 :max 1.0
+                                                                 :precision 0.01}))
+            (value (layout-property-getter alpha))
+            (set (layout-property-setter alpha)))
+  (property inherit-alpha g/Bool (default (protobuf/default Gui$NodeDesc :inherit-alpha))
+            (dynamic edit-type (layout-property-edit-type inherit-alpha {:type g/Bool}))
+            (value (layout-property-getter inherit-alpha))
+            (set (layout-property-setter inherit-alpha)))
+  (property enabled g/Bool (default (protobuf/default Gui$NodeDesc :enabled))
+            (dynamic edit-type (layout-property-edit-type enabled {:type g/Bool}))
+            (value (layout-property-getter enabled))
+            (set (layout-property-setter enabled)))
   (property layer g/Str (default (protobuf/default Gui$NodeDesc :layer))
             (dynamic edit-type (g/fnk [layer-names layer->index]
-                                 (optional-gui-resource-choicebox layer-names (partial sort-by layer->index))))
-            (dynamic error (g/fnk [_node-id layer layer-names] (validate-layer true _node-id layer-names layer))))
+                                 (wrap-layout-property-edit-type layer (optional-gui-resource-choicebox layer-names (partial sort-by layer->index)))))
+            (dynamic error (g/fnk [_node-id layer layer-names] (validate-layer true _node-id layer-names layer)))
+            (value (layout-property-getter layer))
+            (set (layout-property-setter layer)))
   (output layer-index g/Any :cached
           (g/fnk [layer layer->index] (layer->index layer)))
 
@@ -789,66 +920,6 @@
                      :outline-overridden? (not (empty? _overridden-properties))}
                     (resource/openable-resource? node-outline-link) (assoc :link node-outline-link :outline-reference? true))))
 
-  (output _properties g/Properties :cached
-          (g/fnk [_declared-properties current-layout id layout-infos]
-            ;; TODO(gui-layout-override-refactor): Figure out the priority of when to replace the property value, and when to show the Reset button.
-            (if (str/blank? current-layout)
-              _declared-properties
-              (let [{:keys [layout->node->prop->override-value merged-layout->node->prop->override-value]} layout-infos
-
-                    prop->override-value
-                    (-> layout->node->prop->override-value
-                        (get current-layout)
-                        (get id))
-
-                    merged-prop->override-value
-                    (-> merged-layout->node->prop->override-value
-                        (get current-layout)
-                        (get id))
-
-                    layout-clear-fn
-                    (fn layout-clear-fn [node-id prop-kw]
-                      (let [layout-node (g/with-auto-evaluation-context evaluation-context
-                                          (node->current-layout-node node-id evaluation-context))]
-                        (g/update-property
-                          layout-node :node->prop->override-value
-                          eutil/dissoc-in [id prop-kw])))]
-
-                (update _declared-properties :properties
-                        (fn [properties]
-                          (into {}
-                                (fn [[prop-kw property]]
-                                  (let [layout-override-value
-                                        (merged-prop->override-value prop-kw ::not-found)
-
-                                        layout-set-fn
-                                        (fn layout-set-fn [evaluation-context node-id _old-value new-value]
-                                          (let [layout-node (node->current-layout-node node-id evaluation-context)]
-                                            (g/update-property
-                                              layout-node :node->prop->override-value
-                                              assoc-in [id prop-kw] new-value)))
-
-                                        layout-edit-type
-                                        (if-some [edit-type (:edit-type property)]
-                                          (assoc edit-type
-                                            :set-fn layout-set-fn
-                                            :clear-fn layout-clear-fn)
-                                          {:type (:type property)
-                                           :set-fn layout-set-fn
-                                           :clear-fn layout-clear-fn})
-
-                                        layout-property
-                                        (cond-> (assoc property :edit-type layout-edit-type)
-
-                                                (not= ::not-found layout-override-value)
-                                                (assoc :value layout-override-value)
-
-                                                (contains? prop->override-value prop-kw)
-                                                (assoc :original-value (:value property)))] ; TODO(gui-layout-override-refactor): Do we need the inherited value from the aux layout here?
-
-                                    (pair prop-kw layout-property)))
-                                properties)))))))
-
   (output transform-properties g/Any scene/produce-scalable-transform-properties)
   (output gui-base-node-msg g/Any produce-gui-base-node-msg)
   (output node-msg g/Any :abstract)
@@ -896,6 +967,19 @@
   (output layout-infos g/Any (gu/passthrough layout-infos))
   (input current-layout g/Str)
   (output current-layout g/Str (gu/passthrough current-layout))
+  (output layout->prop->value g/Any :cached
+          (g/fnk [_this layout->prop->override]
+            ;; All layout-property-setters explicitly invalidate this output, so
+            ;; it is safe to extract properties from _this here.
+            (if (nil? (gt/original _this))
+              layout->prop->override ; Fast path, but just an optimization.
+              (let [basis (g/now)]
+                (->> _this
+                     (iterate #(some->> % (gt/original) (g/node-by-id-at basis)))
+                     (take-while some?)
+                     (into (list) ; Reverse the order so it goes from the override root to our node.
+                           (map #(gt/get-property % basis :layout->prop->override)))
+                     (apply coll/deep-merge))))))
   (input child-build-errors g/Any :array)
   (output build-errors-gui-node g/Any (g/fnk [_node-id id id-counts layer layer-names]
                                         (g/package-errors _node-id
@@ -954,25 +1038,37 @@
 (g/defnode VisualNode
   (inherits GuiNode)
 
-  (property visible g/Bool (default (protobuf/default Gui$NodeDesc :visible)))
-
+  (property visible g/Bool (default (protobuf/default Gui$NodeDesc :visible))
+            (dynamic edit-type (layout-property-edit-type visible {:type g/Bool}))
+            (value (layout-property-getter visible))
+            (set (layout-property-setter visible)))
   (property blend-mode g/Keyword (default (protobuf/default Gui$NodeDesc :blend-mode))
-            (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$BlendMode))))
+            (dynamic edit-type (layout-property-edit-type blend-mode (properties/->pb-choicebox Gui$NodeDesc$BlendMode)))
+            (value (layout-property-getter blend-mode))
+            (set (layout-property-setter blend-mode)))
   (property adjust-mode g/Keyword (default (protobuf/default Gui$NodeDesc :adjust-mode))
             (dynamic error (g/fnk [_node-id adjust-mode type]
                                   (when (= type :type-particlefx)
                                     (validate-particlefx-adjust-mode _node-id adjust-mode))))
-            (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$AdjustMode))))
+            (dynamic edit-type (layout-property-edit-type adjust-mode (properties/->pb-choicebox Gui$NodeDesc$AdjustMode)))
+            (value (layout-property-getter adjust-mode))
+            (set (layout-property-setter adjust-mode)))
   (property pivot g/Keyword (default (protobuf/default Gui$NodeDesc :pivot))
-            (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$Pivot))))
+            (dynamic edit-type (layout-property-edit-type pivot (properties/->pb-choicebox Gui$NodeDesc$Pivot)))
+            (value (layout-property-getter pivot))
+            (set (layout-property-setter pivot)))
   (property x-anchor g/Keyword (default (protobuf/default Gui$NodeDesc :xanchor))
-            (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$XAnchor))))
+            (dynamic edit-type (layout-property-edit-type x-anchor (properties/->pb-choicebox Gui$NodeDesc$XAnchor)))
+            (value (layout-property-getter x-anchor))
+            (set (layout-property-setter x-anchor)))
   (property y-anchor g/Keyword (default (protobuf/default Gui$NodeDesc :yanchor))
-            (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$YAnchor))))
-
-  (property material g/Str
-            (default "")
-            (dynamic edit-type (g/fnk [material-infos] (optional-gui-resource-choicebox (keys material-infos))))
+            (dynamic edit-type (layout-property-edit-type y-anchor (properties/->pb-choicebox Gui$NodeDesc$YAnchor)))
+            (value (layout-property-getter y-anchor))
+            (set (layout-property-setter y-anchor)))
+  (property material g/Str (default (protobuf/default Gui$NodeDesc :material))
+            (dynamic edit-type (g/fnk [material-infos] (wrap-layout-property-edit-type material (optional-gui-resource-choicebox (keys material-infos)))))
+            (value (layout-property-getter material))
+            (set (layout-property-setter material))
             (dynamic error (g/fnk [_node-id material-infos material]
                              (validate-material-resource _node-id material-infos material))))
 
@@ -1120,7 +1216,10 @@
   (property manual-size types/Vec3 (default (protobuf/vector4->vector3 (protobuf/default Gui$NodeDesc :size)))
             (dynamic label (g/constantly "Size"))
             (dynamic visible (g/fnk [size-mode texture]
-                               (= :manual-size (visible-size-property-label size-mode texture)))))
+                               (= :manual-size (visible-size-property-label size-mode texture))))
+            (dynamic edit-type (layout-property-edit-type manual-size {:type types/Vec3}))
+            (value (layout-property-getter manual-size))
+            (set (layout-property-setter manual-size)))
   (property texture-size types/Vec3 ; Just for presentation.
             (value (g/fnk [anim-data]
                      (if (some? anim-data)
@@ -1131,58 +1230,76 @@
             (dynamic visible (g/fnk [size-mode texture]
                                (= :texture-size (visible-size-property-label size-mode texture)))))
   (property size-mode g/Keyword (default (protobuf/default Gui$NodeDesc :size-mode))
-            (set (fn [{:keys [basis] :as evaluation-context} self old-value new-value]
-                   (when-some [texture (coll/not-empty (g/node-value self :texture evaluation-context))]
-                     (cond
-                       ;; Clear existing :manual-size override when switching
-                       ;; from :size-mode-manual to :size-mode-auto with a
-                       ;; texture assigned.
-                       (and (= :manual-size (visible-size-property-label old-value texture))
-                            (g/property-overridden? basis self :manual-size)
-                            (let [effective-new-value
-                                  (or new-value
-                                      (let [original-node-id (g/override-original basis self)]
-                                        (g/node-value original-node-id :size-mode evaluation-context)))]
-                              (= :texture-size (visible-size-property-label effective-new-value texture))))
-                       (g/clear-property self :manual-size)
+            (dynamic edit-type (layout-property-edit-type size-mode (properties/->pb-choicebox Gui$NodeDesc$SizeMode)
+                                 (fn [{:keys [basis] :as evaluation-context} self prop-kw old-value new-value]
+                                   (merge
+                                     {:size-mode new-value}
+                                     (when-some [texture (coll/not-empty (g/node-value self :texture evaluation-context))]
+                                       (cond
+                                         ;; Clear existing :manual-size override when switching
+                                         ;; from :size-mode-manual to :size-mode-auto with a
+                                         ;; texture assigned.
+                                         (and (= :manual-size (visible-size-property-label old-value texture))
+                                              (g/property-overridden? basis self :manual-size)
+                                              (let [effective-new-value
+                                                    (or new-value
+                                                        (let [original-node-id (g/override-original basis self)]
+                                                          (g/node-value original-node-id :size-mode evaluation-context)))]
+                                                (= :texture-size (visible-size-property-label effective-new-value texture))))
+                                         {:manual-size nil}
 
-                       ;; Use the size of the assigned texture as :manual-size
-                       ;; when the user switches from :size-mode-auto to
-                       ;; :size-mode-manual.
-                       (and (= :size-mode-auto old-value)
-                            (= :size-mode-manual new-value)
-                            (properties/user-edit? self :size-mode evaluation-context))
-                       (when-some [texture-infos (not-empty (g/node-value self :texture-infos evaluation-context))]
-                         (when-some [anim-data (:anim-data (texture-infos texture))]
-                           (let [texture-size [(float (:width anim-data)) (float (:height anim-data)) protobuf/float-zero]]
-                             (g/set-property self :manual-size texture-size))))))))
-            (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$SizeMode))))
+                                         ;; Use the size of the assigned texture as :manual-size
+                                         ;; when the user switches from :size-mode-auto to
+                                         ;; :size-mode-manual.
+                                         (and (= :size-mode-auto old-value)
+                                              (= :size-mode-manual new-value))
+                                         (when-some [texture-infos (not-empty (g/node-value self :texture-infos evaluation-context))]
+                                           (when-some [anim-data (:anim-data (texture-infos texture))]
+                                             (let [texture-size [(float (:width anim-data)) (float (:height anim-data)) protobuf/float-zero]]
+                                               {:manual-size texture-size})))))))))
+            (value (layout-property-getter size-mode))
+            (set (layout-property-setter size-mode)))
   (property material g/Str (default (protobuf/default Gui$NodeDesc :material))
-            (dynamic edit-type (g/fnk [material-infos] (optional-gui-resource-choicebox (keys material-infos))))
+            (dynamic edit-type (g/fnk [material-infos] (wrap-layout-property-edit-type material (optional-gui-resource-choicebox (keys material-infos)))))
             (dynamic error (g/fnk [_node-id material material-infos material-shader texture texture-infos]
                              (or (validate-material-resource _node-id material-infos material)
-                                 (validate-material-capabilities _node-id material-infos material material-shader texture-infos texture)))))
+                                 (validate-material-capabilities _node-id material-infos material material-shader texture-infos texture))))
+            (value (layout-property-setter material))
+            (set (layout-property-setter material)))
   (property texture g/Str (default (protobuf/default Gui$NodeDesc :texture))
-            (set (fn [{:keys [basis] :as evaluation-context} self old-value new-value]
-                   ;; Clear any existing :manual-size override when assigning a
-                   ;; texture will hide the :manual-size property.
-                   (let [size-mode (g/node-value self :size-mode evaluation-context)]
-                     (when (and (= :manual-size (visible-size-property-label size-mode old-value))
-                                (g/property-overridden? basis self :manual-size)
-                                (let [effective-new-value
-                                      (or new-value
-                                          (let [original-node-id (g/override-original basis self)]
-                                            (g/node-value original-node-id :texture evaluation-context)))]
-                                  (= :texture-size (visible-size-property-label size-mode effective-new-value))))
-                       (g/clear-property self :manual-size)))))
-            (dynamic edit-type (g/fnk [texture-infos] (optional-gui-resource-choicebox (keys texture-infos))))
+            (value (layout-property-getter texture))
+            (set (layout-property-setter texture))
+            (dynamic edit-type (g/fnk [texture-infos]
+                                 (wrap-layout-property-edit-type texture (optional-gui-resource-choicebox (keys texture-infos))
+                                   (fn [{:keys [basis] :as evaluation-context} self prop-kw old-value new-value]
+                                     ;; Clear any existing :manual-size override when
+                                     ;; assigning a texture will hide the :manual-size
+                                     ;; property.
+                                     (let [size-mode (g/node-value self :size-mode evaluation-context)]
+                                       (cond-> {:texture new-value}
+                                               (and (= :manual-size (visible-size-property-label size-mode old-value))
+                                                    (g/property-overridden? basis self :manual-size)
+                                                    (let [effective-new-value
+                                                          (or new-value
+                                                              (let [original-node-id (g/override-original basis self)]
+                                                                (g/node-value original-node-id :texture evaluation-context)))]
+                                                      (= :texture-size (visible-size-property-label size-mode effective-new-value))))
+                                               (assoc :manual-size nil)))))))
             (dynamic error (g/fnk [_node-id texture-infos texture]
                              (validate-texture-resource _node-id texture-infos texture))))
 
   (property clipping-mode g/Keyword (default (protobuf/default Gui$NodeDesc :clipping-mode))
-            (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$ClippingMode))))
-  (property clipping-visible g/Bool (default (protobuf/default Gui$NodeDesc :clipping-visible)))
-  (property clipping-inverted g/Bool (default (protobuf/default Gui$NodeDesc :clipping-inverted)))
+            (dynamic edit-type (layout-property-edit-type clipping-mode (properties/->pb-choicebox Gui$NodeDesc$ClippingMode)))
+            (value (layout-property-getter clipping-mode))
+            (set (layout-property-setter clipping-mode)))
+  (property clipping-visible g/Bool (default (protobuf/default Gui$NodeDesc :clipping-visible))
+            (dynamic edit-type (layout-property-edit-type clipping-visible {:type g/Bool}))
+            (value (layout-property-getter clipping-visible))
+            (set (layout-property-setter clipping-visible)))
+  (property clipping-inverted g/Bool (default (protobuf/default Gui$NodeDesc :clipping-inverted))
+            (dynamic edit-type (layout-property-edit-type clipping-inverted {:type g/Bool}))
+            (value (layout-property-getter clipping-inverted))
+            (set (layout-property-setter clipping-inverted)))
 
   (output shape-base-node-msg g/Any produce-shape-base-node-msg)
   (output aabb g/Any :cached (g/fnk [pivot size] (calc-aabb pivot size)))
@@ -1235,7 +1352,9 @@
 
   (property slice9 types/Vec4 (default (protobuf/default Gui$NodeDesc :slice9))
             (dynamic read-only? (g/fnk [size-mode] (not= :size-mode-manual size-mode)))
-            (dynamic edit-type (g/constantly {:type types/Vec4 :labels ["L" "T" "R" "B"]})))
+            (dynamic edit-type (layout-property-edit-type slice9 {:type types/Vec4 :labels ["L" "T" "R" "B"]}))
+            (value (layout-property-getter slice9))
+            (set (layout-property-setter slice9)))
 
   (display-order (into base-display-order
                        [:manual-size :texture-size :size-mode :enabled :visible :texture :material :slice9 :color :alpha :inherit-alpha :layer :blend-mode :pivot :x-anchor :y-anchor
@@ -1277,12 +1396,22 @@
   (inherits ShapeNode)
 
   (property outer-bounds g/Keyword (default (protobuf/default Gui$NodeDesc :outer-bounds))
-            (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$NodeDesc$PieBounds))))
-  (property inner-radius g/Num (default (protobuf/default Gui$NodeDesc :inner-radius)))
+            (dynamic edit-type (layout-property-edit-type outer-bounds (properties/->pb-choicebox Gui$NodeDesc$PieBounds)))
+            (value (layout-property-getter outer-bounds))
+            (set (layout-property-setter outer-bounds)))
+  (property inner-radius g/Num (default (protobuf/default Gui$NodeDesc :inner-radius))
+            (dynamic edit-type (layout-property-edit-type inner-radius {:type g/Num}))
+            (value (layout-property-getter inner-radius))
+            (set (layout-property-setter inner-radius)))
   (property perimeter-vertices g/Int (default (protobuf/default Gui$NodeDesc :perimeter-vertices))
-            (dynamic error (g/fnk [_node-id perimeter-vertices] (validate-perimeter-vertices _node-id perimeter-vertices))))
-
-  (property pie-fill-angle g/Num (default (protobuf/default Gui$NodeDesc :pie-fill-angle)))
+            (dynamic error (g/fnk [_node-id perimeter-vertices] (validate-perimeter-vertices _node-id perimeter-vertices)))
+            (dynamic edit-type (layout-property-edit-type perimeter-vertices {:type g/Int}))
+            (value (layout-property-getter perimeter-vertices))
+            (set (layout-property-setter perimeter-vertices)))
+  (property pie-fill-angle g/Num (default (protobuf/default Gui$NodeDesc :pie-fill-angle))
+            (dynamic edit-type (layout-property-edit-type pie-fill-angle {:type g/Num}))
+            (value (layout-property-getter pie-fill-angle))
+            (set (layout-property-setter pie-fill-angle)))
 
   (display-order (into base-display-order
                        [:manual-size :texture-size :size-mode :enabled :visible :texture :material :inner-radius :outer-bounds :perimeter-vertices :pie-fill-angle
@@ -1376,32 +1505,55 @@
 
   ; Text
   (property manual-size types/Vec3 (default (protobuf/vector4->vector3 (protobuf/default Gui$NodeDesc :size)))
-            (dynamic label (g/constantly "Size")))
+            (dynamic label (g/constantly "Size"))
+            (dynamic edit-type (layout-property-edit-type manual-size {:type types/Vec3}))
+            (value (layout-property-getter manual-size))
+            (set (layout-property-setter manual-size)))
   (property text g/Str (default (protobuf/default Gui$NodeDesc :text))
-            (dynamic edit-type (g/constantly {:type :multi-line-text})))
-  (property line-break g/Bool (default (protobuf/default Gui$NodeDesc :line-break)))
+            (dynamic edit-type (layout-property-edit-type text {:type :multi-line-text}))
+            (value (layout-property-getter text))
+            (set (layout-property-setter text)))
+  (property line-break g/Bool (default (protobuf/default Gui$NodeDesc :line-break))
+            (dynamic edit-type (layout-property-edit-type line-break {:type g/Bool}))
+            (value (layout-property-getter line-break))
+            (set (layout-property-setter line-break)))
   (property font g/Str (default (protobuf/default Gui$NodeDesc :font))
-    (dynamic edit-type (g/fnk [font-names] (required-gui-resource-choicebox font-names)))
-    (dynamic error (g/fnk [_node-id font-names font]
-                     (validate-font _node-id font-names font))))
-  (property text-leading g/Num (default (protobuf/default Gui$NodeDesc :text-leading)))
-  (property text-tracking g/Num (default (protobuf/default Gui$NodeDesc :text-tracking)))
+            (dynamic edit-type (g/fnk [font-names] (wrap-layout-property-edit-type font (required-gui-resource-choicebox font-names))))
+            (dynamic error (g/fnk [_node-id font-names font] (validate-font _node-id font-names font)))
+            (value (layout-property-getter font))
+            (set (layout-property-setter font)))
+  (property text-leading g/Num (default (protobuf/default Gui$NodeDesc :text-leading))
+            (dynamic edit-type (layout-property-edit-type text-leading {:type g/Num}))
+            (value (layout-property-getter text-leading))
+            (set (layout-property-setter text-leading)))
+  (property text-tracking g/Num (default (protobuf/default Gui$NodeDesc :text-tracking))
+            (dynamic edit-type (layout-property-edit-type text-tracking {:type g/Num}))
+            (value (layout-property-getter text-tracking))
+            (set (layout-property-setter text-tracking)))
   (property outline types/Color (default (protobuf/default Gui$NodeDesc :outline))
-            (dynamic edit-type (g/constantly {:type types/Color
-                                              :ignore-alpha? true})))
+            (dynamic edit-type (layout-property-edit-type outline {:type types/Color
+                                                                   :ignore-alpha? true}))
+            (value (layout-property-getter outline))
+            (set (layout-property-setter outline)))
   (property outline-alpha g/Num (default (protobuf/default Gui$NodeDesc :outline-alpha))
-    (dynamic edit-type (g/constantly {:type :slider
-                                      :min 0.0
-                                      :max 1.0
-                                      :precision 0.01})))
+            (dynamic edit-type (layout-property-edit-type outline-alpha {:type :slider
+                                                                         :min 0.0
+                                                                         :max 1.0
+                                                                         :precision 0.01}))
+            (value (layout-property-getter outline-alpha))
+            (set (layout-property-setter outline-alpha)))
   (property shadow types/Color (default (protobuf/default Gui$NodeDesc :shadow))
-            (dynamic edit-type (g/constantly {:type types/Color
-                                              :ignore-alpha? true})))
+            (dynamic edit-type (layout-property-edit-type shadow {:type types/Color
+                                                                  :ignore-alpha? true}))
+            (value (layout-property-getter shadow))
+            (set (layout-property-setter shadow)))
   (property shadow-alpha g/Num (default (protobuf/default Gui$NodeDesc :shadow-alpha))
-    (dynamic edit-type (g/constantly {:type :slider
-                                      :min 0.0
-                                      :max 1.0
-                                      :precision 0.01})))
+            (dynamic edit-type (layout-property-edit-type shadow-alpha {:type :slider
+                                                                        :min 0.0
+                                                                        :max 1.0
+                                                                        :precision 0.01}))
+            (value (layout-property-getter shadow-alpha))
+            (set (layout-property-setter shadow-alpha)))
 
   (display-order (into base-display-order [:manual-size :enabled :visible :text :line-break :font :material :color :alpha :inherit-alpha :text-leading :text-tracking :outline :outline-alpha :shadow :shadow-alpha :layer]))
 
@@ -1655,18 +1807,26 @@
                :particlefx particlefx
                :size-mode :size-mode-auto))))
 
+
 (g/defnode ParticleFXNode
   (inherits VisualNode)
 
   (property particlefx g/Str (default (protobuf/default Gui$NodeDesc :particlefx))
-    (dynamic edit-type (g/fnk [particlefx-resource-names] (required-gui-resource-choicebox particlefx-resource-names)))
-    (dynamic error (g/fnk [_node-id particlefx particlefx-resource-names]
-                     (validate-particlefx-resource _node-id particlefx-resource-names particlefx))))
-
+            (dynamic edit-type (g/fnk [particlefx-resource-names] (wrap-layout-property-edit-type particlefx (required-gui-resource-choicebox particlefx-resource-names))))
+            (dynamic error (g/fnk [_node-id particlefx particlefx-resource-names]
+                             (validate-particlefx-resource _node-id particlefx-resource-names particlefx)))
+            (value (layout-property-getter particlefx))
+            (set (layout-property-setter particlefx)))
   (property blend-mode g/Keyword (default (protobuf/default Gui$NodeDesc :blend-mode))
-    (dynamic visible (g/constantly false)))
+            (dynamic visible (g/constantly false))
+            (dynamic edit-type (layout-property-edit-type blend-mode (properties/->pb-choicebox Gui$NodeDesc$BlendMode)))
+            (value (layout-property-getter blend-mode))
+            (set (layout-property-setter blend-mode)))
   (property pivot g/Keyword (default (protobuf/default Gui$NodeDesc :pivot))
-    (dynamic visible (g/constantly false)))
+            (dynamic visible (g/constantly false))
+            (dynamic edit-type (layout-property-edit-type pivot (properties/->pb-choicebox Gui$NodeDesc$Pivot)))
+            (value (layout-property-getter pivot))
+            (set (layout-property-setter pivot)))
 
   (display-order (into base-display-order
                        [:enabled :visible :particlefx :material :color :alpha :inherit-alpha :layer :blend-mode :pivot :x-anchor :y-anchor
@@ -3417,6 +3577,7 @@
 
 (defn- move-child-node!
   [node-id offset]
+  ;; TODO(gui-layout-override-refactor): Make sure layout node order cannot be independently rearranged.
   (let [parent (core/scope node-id)
         node-index (g/node-value node-id :child-index)
         child-indices (g/node-value parent :child-indices)

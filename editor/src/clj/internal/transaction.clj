@@ -174,6 +174,12 @@
   [{:type :invalidate
     :node-id node-id}])
 
+(defn invalidate-output
+  [node-id output-label]
+  [{:type :invalidate-output
+    :node-id node-id
+    :output-label output-label}])
+
 ;; ---------------------------------------------------------------------------
 ;; Executing transactions
 ;; ---------------------------------------------------------------------------
@@ -815,6 +821,14 @@
 (defmethod metrics-key :invalidate
   [{:keys [node-id]}]
   node-id)
+
+(defmethod perform :invalidate-output
+  [ctx {:keys [node-id output-label] :as _tx-data}]
+  (mark-output-activated ctx node-id output-label))
+
+(defmethod metrics-key :invalidate-output
+  [{:keys [node-id output-label]}]
+  (pair node-id output-label))
 
 (defn- apply-tx
   [ctx actions]

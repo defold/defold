@@ -404,6 +404,11 @@
         display-order))
 
 (defn- flatten-properties [properties]
+  ;; TODO:
+  ;; The (dynamic link) and (dynamic override) decorations supported here appear
+  ;; unused outside of tests. Remove this processing? It seems to only be used
+  ;; by the property editor, and we seem to override the `_properties` output
+  ;; instead to achieve the same result.
   (let [pairs (seq (:properties properties))
         flat-pairs (filter #(not-any? links (keys (second %))) pairs)
         link-pairs (filter #(contains? (second %) :link) pairs)

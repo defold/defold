@@ -1594,7 +1594,7 @@
     :else
     num))
 
-(defn- non-zeroify-scale [scale]
+(defn non-zeroify-scale [scale]
   (into (coll/empty-with-meta scale)
         (map non-zeroify-component)
         scale))

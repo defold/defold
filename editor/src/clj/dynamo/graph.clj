@@ -740,6 +740,18 @@
   (assert node-id)
   (it/invalidate node-id))
 
+(defn invalidate-output
+  "Creates a transaction step to invalidate the specified output of the node.
+  It will take effect when the transaction is applied in a transact call.
+
+   Example:
+
+   `(transact (invalidate-output node-id :output-label))`"
+  [node-id output-label]
+  {:pre [(node-id? node-id)
+         (keyword? output-label)]}
+  (it/invalidate-output node-id output-label))
+
 (defn mark-defective
   "Creates the transaction step to mark a node as _defective_.
   This means that all the outputs of the node will be replace by the defective value.
