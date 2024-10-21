@@ -86,6 +86,7 @@
                    {:name {:type :string :default "Dejavu Sans Mono"}
                     :size {:type :number :default 12.0}}}
             :find {:type :object
+                   :scope :project
                    :properties
                    {:term {:type :string}
                     :replacement {:type :string}
@@ -110,18 +111,22 @@
                  {:build-server {:type :string}
                   :build-server-headers {:type :string}}}
     :search-in-files {:type :object
+                      :scope :project
                       :properties
                       {:term {:type :string}
                        :exts {:type :string}
                        :include-libraries {:type :boolean :default true}}}
     :open-assets {:type :object
+                  :scope :project
                   :properties
                   {:term {:type :string}}}
     :build {:type :object
+            :scope :project
             :properties
             {:lint-code {:type :boolean :default true :label "Lint Code on Build"}
              :texture-compression {:type :boolean}}}
     :bundle {:type :object
+             :scope :project
              :properties
              {:variant {:type :enum :values ["debug" "release" "headless"]}
               :texture-compression {:type :enum :values ["enabled" "disabled" "editor"]}
@@ -129,7 +134,7 @@
               :build-report {:type :boolean}
               :liveupdate {:type :boolean}
               :contentless {:type :boolean}
-              :output-directory {:type :string :scope :project}
+              :output-directory {:type :string}
               :open-output-directory {:type :boolean :default true}
               :android {:type :object
                         :properties
@@ -204,7 +209,7 @@
           {:custom-engine {:type :any}}}
     :git {:type :object
           :properties
-          {:credentials {:type :any}}}
+          {:credentials {:type :any :scope :project}}}
     :welcome {:type :object
               :properties
               {:last-opened-project-directory {:type :any}
@@ -620,56 +625,19 @@
      "ios-deploy-path" [:tools :ios-deploy-path]
      "external-changes-load-on-app-focus" [:workflow :load-external-changes-on-app-focus]
      "open-bundle-target-folder" [:bundle :open-output-directory]
-     "general-enable-texture-compression" [:build :texture-compression]
      "asset-browser-track-active-tab?" [:asset-browser :track-active-tab]
      "general-quit-on-esc" [:run :quit-on-escape]
-     "general-lint-on-build" [:build :lint-code]
      "custom-keymap-path" [:input :keymap-path]
      "code-custom-editor" [:code :custom-editor]
      "code-open-file" [:code :open-file]
      "code-open-file-at-line" [:code :open-file-at-line]
      "code-editor-font-name" [:code :font :name]
      "code-editor-font-size" [:code :font :size]
-     "code-editor-find-term" [:code :find :term]
-     "code-editor-find-replacement" [:code :find :replacement]
-     "code-editor-find-whole-word" [:code :find :whole-word]
-     "code-editor-find-case-sensitive" [:code :find :case-sensitive]
-     "code-editor-find-wrap" [:code :find :wrap]
      "code-editor-visible-indentation-guides" [:code :visibility :indentation-guides]
      "code-editor-visible-minimap" [:code :visibility :minimap]
      "code-editor-visible-whitespace" [:code :visibility :whitespace]
      "extensions-server" [:extensions :build-server]
      "extensions-server-headers" [:extensions :build-server-headers]
-     "search-in-files-term" [:search-in-files :term]
-     "search-in-files-exts" [:search-in-files :exts]
-     "search-in-files-include-libraries" [:search-in-files :include-libraries]
-     "open-assets-term" [:open-assets :term]
-     "bundle-variant" [:bundle :variant]
-     "bundle-texture-compression" [:bundle :texture-compression]
-     "bundle-generate-debug-symbols?" [:bundle :debug-symbols]
-     "bundle-generate-build-report?" [:bundle :build-report]
-     "bundle-publish-live-update-content?" [:bundle :liveupdate]
-     "bundle-contentless?" [:bundle :contentless]
-     "bundle-android-keystore" [:bundle :android :keystore]
-     "bundle-android-keystore-pass" [:bundle :android :keystore-pass]
-     "bundle-android-key-pass" [:bundle :android :key-pass]
-     "bundle-android-architecture-32bit?" [:bundle :android :architecture :armv7-android]
-     "bundle-android-architecture-64bit?" [:bundle :android :architecture :arm64-android]
-     "bundle-android-bundle-format" [:bundle :android :format]
-     "bundle-android-install-app?" [:bundle :android :install]
-     "bundle-android-launch-app?" [:bundle :android :launch]
-     "bundle-macos-architecture-x86_64?" [:bundle :macos :architecture :x86_64-macos]
-     "bundle-macos-architecture-arm64?" [:bundle :macos :architecture :arm64-macos]
-     "bundle-ios-sign-app?" [:bundle :ios :sign]
-     "bundle-ios-code-signing-identity" [:bundle :ios :code-signing-identity]
-     "bundle-ios-provisioning-profile" [:bundle :ios :provisioning-profile]
-     "bundle-ios-architecture-64bit?" [:bundle :ios :architecture :arm64-ios]
-     "bundle-ios-architecture-simulator?" [:bundle :ios :architecture :x86_64-ios]
-     "bundle-ios-install-app?" [:bundle :ios :install]
-     "bundle-ios-launch-app?" [:bundle :ios :launch]
-     "bundle-html5-architecture-js-web?" [:bundle :html5 :architecture :js-web]
-     "bundle-html5-architecture-wasm-web?" [:bundle :html5 :architecture :wasm-web]
-     "bundle-windows-platform" [:bundle :windows :platform]
      "window-dimensions" [:window :dimensions]
      "split-positions" [:window :split-positions]
      "hidden-panes" [:window :hidden-panes]
@@ -678,7 +646,6 @@
      "manual-target-ip+port" [:run :manual-target-ip+port]
      "scene-move-whole-pixels?" [:scene :move-whole-pixels]
      "dev-custom-engine" [:dev :custom-engine]
-     "project-git-credentials" [:git :credentials]
      "open-project-directory" [:welcome :last-opened-project-directory]
      "recent-project-entries" [:welcome :recent-projects]}))
 
@@ -689,12 +656,52 @@
   you should perform migration before modifying the prefs"
   [project-prefs]
   (let [suffix (str "-" (hash (str (.getParent ^Path (:project (:scopes project-prefs))))))]
-    (->> {"bundle-output-directory" [:bundle :output-directory]
-          "recent-files-by-workspace-root" [:workflow :recent-files]
-          "instance-count" [:run :instance-count]
-          "simulate-rotated-device" [:run :simulate-rotated-device]
-          "simulated-resolution" [:run :simulated-resolution]}
-         (e/map #(coll/pair (str (key %) suffix) (val %)))
-         (migrate! project-prefs))))
+    (migrate! project-prefs (e/concat
+                              ;; move from global to project scope
+                              {"search-in-files-term" [:search-in-files :term]
+                               "search-in-files-exts" [:search-in-files :exts]
+                               "search-in-files-include-libraries" [:search-in-files :include-libraries]
+                               "open-assets-term" [:open-assets :term]
+                               "code-editor-find-term" [:code :find :term]
+                               "code-editor-find-replacement" [:code :find :replacement]
+                               "code-editor-find-whole-word" [:code :find :whole-word]
+                               "code-editor-find-case-sensitive" [:code :find :case-sensitive]
+                               "code-editor-find-wrap" [:code :find :wrap]
+                               "general-enable-texture-compression" [:build :texture-compression]
+                               "general-lint-on-build" [:build :lint-code]
+                               "bundle-variant" [:bundle :variant]
+                               "bundle-texture-compression" [:bundle :texture-compression]
+                               "bundle-generate-debug-symbols?" [:bundle :debug-symbols]
+                               "bundle-generate-build-report?" [:bundle :build-report]
+                               "bundle-publish-live-update-content?" [:bundle :liveupdate]
+                               "bundle-contentless?" [:bundle :contentless]
+                               "bundle-android-keystore" [:bundle :android :keystore]
+                               "bundle-android-keystore-pass" [:bundle :android :keystore-pass]
+                               "bundle-android-key-pass" [:bundle :android :key-pass]
+                               "bundle-android-architecture-32bit?" [:bundle :android :architecture :armv7-android]
+                               "bundle-android-architecture-64bit?" [:bundle :android :architecture :arm64-android]
+                               "bundle-android-bundle-format" [:bundle :android :format]
+                               "bundle-android-install-app?" [:bundle :android :install]
+                               "bundle-android-launch-app?" [:bundle :android :launch]
+                               "bundle-macos-architecture-x86_64?" [:bundle :macos :architecture :x86_64-macos]
+                               "bundle-macos-architecture-arm64?" [:bundle :macos :architecture :arm64-macos]
+                               "bundle-ios-sign-app?" [:bundle :ios :sign]
+                               "bundle-ios-code-signing-identity" [:bundle :ios :code-signing-identity]
+                               "bundle-ios-provisioning-profile" [:bundle :ios :provisioning-profile]
+                               "bundle-ios-architecture-64bit?" [:bundle :ios :architecture :arm64-ios]
+                               "bundle-ios-architecture-simulator?" [:bundle :ios :architecture :x86_64-ios]
+                               "bundle-ios-install-app?" [:bundle :ios :install]
+                               "bundle-ios-launch-app?" [:bundle :ios :launch]
+                               "bundle-html5-architecture-js-web?" [:bundle :html5 :architecture :js-web]
+                               "bundle-html5-architecture-wasm-web?" [:bundle :html5 :architecture :wasm-web]
+                               "bundle-windows-platform" [:bundle :windows :platform]
+                               "project-git-credentials" [:git :credentials]}
+                              ;; these prefs already used project scope
+                              (e/map #(coll/pair (str (key %) suffix) (val %))
+                                     {"bundle-output-directory" [:bundle :output-directory]
+                                      "recent-files-by-workspace-root" [:workflow :recent-files]
+                                      "instance-count" [:run :instance-count]
+                                      "simulate-rotated-device" [:run :simulate-rotated-device]
+                                      "simulated-resolution" [:run :simulated-resolution]})))))
 
 ;; end region
