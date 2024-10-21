@@ -337,21 +337,36 @@
     (identical? ::not-found m) (assoc-in {} p v)
     :else (assoc-in m p v)))
 
+(defn- incorporate-updated-storage [{:keys [events storage] :as current-state} updated-storage]
+  (let [merged-storage (conj storage updated-storage)]
+    (assoc current-state
+      :storage (if events
+                 ;; new events might have appeared while we were busy with file IO.
+                 ;; in this case, we reapply the events to the merged storage since
+                 ;; these events might change configs that were reloaded
+                 (reduce-kv
+                   (fn [acc file-path path->val]
+                     (update acc file-path #(reduce-kv safe-assoc-in % path->val)))
+                   merged-storage
+                   events)
+                 merged-storage))))
+
+(defonce io-lock (Object.))
+
 (defn- sync-state! [global-state]
-  (let [{:keys [events storage] :as old-state} @global-state]
-    (when events
-      (let [updated-storage (reduce-kv
-                              (fn [acc file-path path->val]
-                                (let [config (reduce-kv safe-assoc-in (read-config! file-path) path->val)]
-                                  (write-config! file-path config)
-                                  (assoc acc file-path config)))
-                              storage
-                              events)
-            new-state (-> old-state
-                          (dissoc :events)
-                          (assoc :storage updated-storage))]
-        (when-not (compare-and-set! global-state old-state new-state)
-          (recur global-state))))))
+  (when (:events @global-state)
+    (when-let [updated-storage
+               (locking io-lock
+                 (let [{:keys [events storage]} (first (swap-vals! global-state dissoc :events))]
+                   (when events
+                     (reduce-kv
+                       (fn [acc file-path path->val]
+                         (let [config (reduce-kv safe-assoc-in (read-config! file-path) path->val)]
+                           (write-config! file-path config)
+                           (assoc acc file-path config)))
+                       storage
+                       events))))]
+      (swap! global-state incorporate-updated-storage updated-storage))))
 
 (def ^:private ^ScheduledExecutorService sync-executor
   (Executors/newSingleThreadScheduledExecutor
