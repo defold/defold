@@ -63,7 +63,7 @@ public class TaskResult {
     }
 
     /**
-     * Get corresponding tas
+     * Get corresponding task
      * @return {@link Task}
      */
     public Task getTask() {
@@ -85,10 +85,18 @@ public class TaskResult {
 
     /**
      * Get exception. If not null a unexpected error has occurred.
-     * @return exception. null of no exception is set.
+     * @return exception or null if no exception is set.
      */
     public Throwable getException() {
         return exception;
+    }
+
+    /**
+     * Check if the result contains an exception
+     * @return true if an exception happened
+     */
+    public boolean hasException() {
+        return exception != null;
     }
 
     /**
