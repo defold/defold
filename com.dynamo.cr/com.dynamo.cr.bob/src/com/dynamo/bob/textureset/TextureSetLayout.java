@@ -582,10 +582,18 @@ public class TextureSetLayout {
 
             for (SourceImage image : page.images) {
                 // image.rect is the actual rect within the texture, but we want the "original" size/placement
-                Rect rect = new Rect(image.name, imageCount++, (int)image.rect.x, (int)image.rect.y, (int)image.rect.width, (int)image.rect.height);
+                int width = (int)image.rect.width;
+                int height = (int)image.rect.height;
+                Rect rect = new Rect(image.name, imageCount++, (int)image.rect.x, (int)image.rect.y, width, height);
                 rect.setPage(page.index);
                 rect.setRotated(image.rotated);
-                rect.setPivot(new Pointi(image.pivot));
+
+                Pointi p;
+                if (image.pivot != null)
+                    p = new Pointi(image.pivot);
+                else
+                    p = new Pointi(width/2, height/2);
+                rect.setPivot(p);
 
                 for (Point vertex : image.vertices) {
                     rect.addVertex(new Pointi((int)vertex.x, (int)vertex.y));
