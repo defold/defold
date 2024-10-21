@@ -589,18 +589,19 @@
         minimap-width (if visible-minimap? (min (Math/ceil (/ excluding-gutter-width 9.0)) 150.0) 0.0)
         canvas-rect-width (- excluding-gutter-width minimap-width)
         line-count (count lines)
+        canvas-rect (->Rect ^double gutter-width 0.0 canvas-rect-width canvas-height)
         scroll-x (limit-scroll (- canvas-rect-width ^double document-width) scroll-x)
-        scroll-y (limit-scroll (- ^double canvas-height (* line-height line-count)) scroll-y)
+        ^Rect scroll-tab-x-rect (scroll-tab-x-rect canvas-rect document-width scroll-x)
+        scroll-tab-x-height (double (if scroll-tab-x-rect (.h scroll-tab-x-rect) 0.0))
+        scroll-y (limit-scroll (- ^double canvas-height (* line-height line-count) scroll-tab-x-height) scroll-y)
         dropped-line-count (long (/ scroll-y (- line-height)))
         scroll-y-remainder (double (mod scroll-y (- line-height)))
         drawn-line-count (long (Math/ceil (/ ^double (- ^double canvas-height scroll-y-remainder) line-height)))
         line-numbers-rect (->Rect ^double gutter-margin 0.0 (- ^double gutter-width (* 2.0 ^double gutter-margin)) canvas-height)
         minimap-left (- ^double canvas-width minimap-width)
         minimap-rect (->Rect minimap-left 0.0 minimap-width canvas-height)
-        canvas-rect (->Rect ^double gutter-width 0.0 canvas-rect-width canvas-height)
         tab-stops (tab-stops glyph-metrics tab-spaces)
-        scroll-tab-x-rect (scroll-tab-x-rect canvas-rect document-width scroll-x)
-        scroll-tab-y-rect (scroll-tab-y-rect minimap-rect line-height line-count dropped-line-count scroll-y-remainder)]
+        scroll-tab-y-rect (scroll-tab-y-rect minimap-rect line-height line-count dropped-line-count (+ scroll-y-remainder scroll-tab-x-height))]
     (->LayoutInfo line-numbers-rect
                   canvas-rect
                   minimap-rect
@@ -1057,8 +1058,10 @@
   ^double [^LayoutInfo layout ^long line-count]
   (let [^double line-height (line-height (.glyph layout))
         document-height (* line-count line-height)
-        canvas-height (.h ^Rect (.canvas layout))]
-    (- canvas-height document-height)))
+        canvas-height (.h ^Rect (.canvas layout))
+        ^Rect scroll-tab-x (.scroll-tab-x layout)
+        scroll-tab-x-h (double (if scroll-tab-x (.h scroll-tab-x) 0.0))]
+    (- canvas-height document-height scroll-tab-x-h)))
 
 (defn limit-scroll-x
   ^double [^LayoutInfo layout ^double scroll-x]
