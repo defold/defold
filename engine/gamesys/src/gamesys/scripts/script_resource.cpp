@@ -1763,6 +1763,14 @@ static void CheckAtlasArguments(lua_State* L, uint32_t* num_geometries_out, uint
             VALIDATE_GEOMETRY_STREAM("indices",  3);
             #undef VALIDATE_GEOMETRY_STREAM
 
+            // these _should_ be required, but were added late after the api was introduced.
+            CheckFieldValue<int>(L, -1, "width", 0);
+            CheckFieldValue<int>(L, -1, "height",  0);
+
+            // Non-required fields
+            CheckFieldValue<float>(L,  -1, "pivot_x", 0);
+            CheckFieldValue<float>(L,  -1, "pivot_y", 0);
+
             lua_pop(L, 1);
 
             num_geometries++;
