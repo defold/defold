@@ -15,25 +15,8 @@
 (ns editor.input
   (:require [dynamo.graph :as g]
             [schema.core :as s])
-  (:import [com.defold.editor Start UIUtil]
-           [com.jogamp.opengl.util.awt TextRenderer]
-           [editor.types Camera AABB Region]
-           [java.awt Font]
-           [java.awt.image BufferedImage]
-           [javafx.application Platform]
-           [javafx.collections FXCollections ObservableList]
-           [javafx.embed.swing SwingFXUtils]
-           [javafx.event ActionEvent EventHandler EventType]
-           [javafx.fxml FXMLLoader]
-           [javafx.scene Scene Node Parent]
-           [javafx.scene.control Button TitledPane TextArea TreeItem Menu MenuItem MenuBar Tab ProgressBar]
-           [javafx.scene.image Image ImageView WritableImage PixelWriter]
-           [javafx.scene.input InputEvent MouseEvent MouseButton ScrollEvent]
-           [javafx.scene.layout AnchorPane StackPane HBox Priority]
-           [javafx.stage Stage FileChooser]
-           [java.io File]
-           [java.lang Runnable System]
-           [javax.vecmath Point3d Matrix4d Vector4d Matrix3d Vector3d]))
+  (:import [javafx.event EventType]
+           [javafx.scene.input InputEvent MouseEvent KeyEvent MouseButton ScrollEvent]))
 
 (set! *warn-on-reflection* true)
 
@@ -46,7 +29,9 @@
                  MouseEvent/MOUSE_RELEASED :mouse-released
                  MouseEvent/MOUSE_CLICKED :mouse-clicked
                  MouseEvent/MOUSE_MOVED :mouse-moved
-                 MouseEvent/MOUSE_DRAGGED :mouse-moved})
+                 MouseEvent/MOUSE_DRAGGED :mouse-moved
+                 KeyEvent/KEY_PRESSED :key-pressed
+                 KeyEvent/KEY_RELEASED :key-released})
 
 (defn translate-action [^EventType jfx-action]
   (get action-map jfx-action :undefined))
@@ -74,6 +59,20 @@
                        :shift (.isShiftDown scroll-event)
                        :meta (.isMetaDown scroll-event)
                        :control (.isControlDown scroll-event)))
+      :key-pressed (let [key-pressed-event ^KeyEvent jfx-event]
+                     (assoc action
+                       :code (.getCode key-pressed-event)
+                       :alt (.isAltDown key-pressed-event)
+                       :shift (.isShiftDown key-pressed-event)
+                       :meta (.isMetaDown key-pressed-event)
+                       :control (.isControlDown key-pressed-event)))
+      :key-released (let [key-released-event ^KeyEvent jfx-event]
+                     (assoc action
+                       :code (.getCode key-released-event)
+                       :alt (.isAltDown key-released-event)
+                       :shift (.isShiftDown key-released-event)
+                       :meta (.isMetaDown key-released-event)
+                       :control (.isControlDown key-released-event)))
       (let [mouse-event ^MouseEvent jfx-event]
         (assoc action
                :button (translate-button (.getButton mouse-event))
