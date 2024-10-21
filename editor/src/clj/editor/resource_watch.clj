@@ -111,7 +111,7 @@
 
 (def make-builtins-snapshot (fn/memoize make-builtins-snapshot-raw))
 
-(def reserved-proj-paths #{"/builtins" "/build" "/.internal" "/.git"})
+(def reserved-proj-paths #{"/builtins" "/build" "/.internal" "/.git" "/.editor_settings"})
 
 (defn reserved-proj-path? [^File root path]
   (or (reserved-proj-paths path)
