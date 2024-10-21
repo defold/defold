@@ -2708,6 +2708,9 @@
             (dynamic edit-type (g/constantly (properties/->pb-choicebox Gui$SceneDesc$AdjustReference))))
   (property visible-layout g/Str (default "") ; No protobuf counterpart.
             (dynamic visible (g/constantly false)))
+  (property current-nodes g/Int
+            (value (g/fnk [node-ids] (count node-ids)))
+            (dynamic read-only? (g/constantly true)))
   (property max-nodes g/Int (default (protobuf/default Gui$SceneDesc :max-nodes))
             (dynamic error (g/fnk [_node-id max-nodes ^:try node-ids]
                              (when-not (g/error-value? node-ids)
