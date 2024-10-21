@@ -37,7 +37,7 @@
 
   Additionally, each schema map supports these optional keys:
     :default        explicit default value to use instead of a type default
-    :scope          either :user or :project
+    :scope          either :global or :project
     :label          short description of the schema, a string
     :description    longer description of the schema, a string
 
@@ -47,6 +47,7 @@
     https://json-schema.org/understanding-json-schema/reference"
   (:refer-clojure :exclude [get set])
   (:require [clojure.edn :as edn]
+            [clojure.java.io :as io]
             [clojure.spec.alpha :as s]
             [cognitect.transit :as transit]
             [editor.fs :as fs]
@@ -266,7 +267,7 @@
 (s/def ::label string?)
 (s/def ::description string?)
 (s/def ::default any?)
-(s/def ::scope #{:user :project})
+(s/def ::scope #{:global :project})
 (s/def ::type #{:any :boolean :string :keyword :integer :number :array :set :object :enum :tuple})
 (s/def ::schema
   (s/and
@@ -294,7 +295,7 @@
 
 (defn- read-config! [path]
   (if (fs/path-exists? path)
-    (with-open [rdr (PushbackReader. (fs/path-reader path))]
+    (with-open [rdr (PushbackReader. (io/reader path))]
       (try
         (edn/read {:default fn/constantly-nil} rdr)
         (catch Throwable _ ::not-found)))
@@ -305,7 +306,7 @@
 
 (defn- write-config! [path config]
   (fs/create-path-parent-directories! path)
-  (with-open [w (fs/path-writer path)]
+  (with-open [w (io/writer path)]
     (letfn [(write-contents-indented! [prefix suffix xs indent]
               (let [child-indent (+ indent 2)
                     ^String child-indent-str (apply str (repeat child-indent \space))]
@@ -372,7 +373,7 @@
   scope. All nested object schemas are considered branches, and all non-object
   schemas are leaves."
   ([schema]
-   (resolve-schema schema :user))
+   (resolve-schema schema :global))
   ([schema default-scope]
    (let [scope (:scope schema default-scope)
          schema (assoc schema :scope scope)]
@@ -452,7 +453,7 @@
   Will load the preferences into memory during construction
 
   kv-args:
-    :scopes     a map from scope (:user or :project) to a fs path; optional if
+    :scopes     a map from scope (:global or :project) to a fs path; optional if
                 parent preferences are specified
     :schemas    a vector of schema ids, e.g. :default or id registered with
                 `register-schema!` function; optional if parent preferences are
@@ -518,20 +519,20 @@
     (swap! global-state assoc-in [:registry id] schema)
     nil))
 
-(defn user
+(defn global
   "Return a Defold-specific user-level prefs
 
   Any attempt to get project-scoped values will return defaults"
   ([]
-   (user (fs/path
-           (case (os/os)
-             :macos (fs/evaluate-path "~/Library/Preferences")
-             :linux (some fs/evaluate-path ["$XDG_CONFIG_HOME" "~/.config"])
-             :win32 (some fs/evaluate-path ["$APPDATA" "~/AppData/Roaming"]))
-           "Defold"
-           "prefs.edn")))
+   (global (fs/path
+             (case (os/os)
+               :macos (fs/evaluate-path "~/Library/Preferences")
+               :linux (some fs/evaluate-path ["$XDG_CONFIG_HOME" "~/.config"])
+               :win32 (some fs/evaluate-path ["$APPDATA" "~/AppData/Roaming"]))
+             "Defold"
+             "prefs.editor_settings")))
   ([prefs-path]
-   (make :scopes {:user prefs-path}
+   (make :scopes {:global prefs-path}
          :schemas [:default])))
 
 (defn project
@@ -540,11 +541,11 @@
   Use `register-project-schema!` to define project-specific schema (will use
   real path of the project root as a schema id)"
   ([project-path]
-   (project project-path (user)))
+   (project project-path (global)))
   ([project-path parent-prefs]
    (let [real-path (fs/real-path project-path)]
      (make :parent parent-prefs
-           :scopes {:project (fs/path real-path ".prefs.edn")}
+           :scopes {:project (fs/path real-path ".editor_settings")}
            :schemas [real-path]))))
 
 (defn register-project-schema!
@@ -585,14 +586,14 @@
          ;; since `set!` is a special form, we need to use a fully-qualified reference
          (editor.prefs/set! prefs []))))
 
-(defn migrate-user-prefs!
-  "Migrate user prefs from the old prefs storage
+(defn migrate-global-prefs!
+  "Migrate global prefs from the old prefs storage
 
-  Only performs migration if user prefs file didn't exist before. This means you
-  should perform migration before modifying the prefs"
-  [user-prefs]
+  Only performs migration if global prefs file didn't exist before. This means
+  you should perform migration before modifying the prefs"
+  [global-prefs]
   (migrate!
-    user-prefs
+    global-prefs
     {"adb-path" [:tools :adb-path]
      "ios-deploy-path" [:tools :ios-deploy-path]
      "external-changes-load-on-app-focus" [:workflow :load-external-changes-on-app-focus]
@@ -662,8 +663,8 @@
 (defn migrate-project-prefs!
   "Migrate project prefs from the old prefs storage
 
-  Only performs migration if user prefs file didn't exist before. This means you
-  should perform migration before modifying the prefs"
+  Only performs migration if project prefs file didn't exist before. This means
+  you should perform migration before modifying the prefs"
   [project-prefs]
   (let [suffix (str "-" (hash (str (.getParent ^Path (:project (:scopes project-prefs))))))]
     (->> {"bundle-output-directory" [:bundle :output-directory]

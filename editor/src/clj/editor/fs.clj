@@ -719,11 +719,3 @@
 (defn create-path-parent-directories! [^Path path]
   (when-let [p (.getParent path)]
     (create-path-directories! p)))
-
-(defn path-reader
-  ^BufferedReader [^Path path]
-  (Files/newBufferedReader path))
-
-(defn path-writer
-  ^BufferedWriter [^Path path]
-  (Files/newBufferedWriter path overwrite-open-options))

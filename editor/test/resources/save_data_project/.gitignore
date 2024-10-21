@@ -1,5 +1,5 @@
 /.internal
-/.prefs.edn
+/.editor_settings
 /build
 /log.txt
 .externalToolBuilders

@@ -181,11 +181,11 @@
         (spit (io/file entry file-name) (.toString (UUID/randomUUID)))))))
 
 (defn make-build-stage-test-prefs []
-  (prefs/user "test/resources/test_prefs.edn"))
+  (prefs/global "test/resources/test.editor_settings"))
 
-(defonce ^:private shared-test-prefs-file (fs/create-temp-file! "unit-test" "prefs.edn"))
+(defonce ^:private shared-test-prefs-file (fs/create-temp-file! "unit-test" "prefs.editor_settings"))
 (defn make-test-prefs []
-  (prefs/make :scopes {:user shared-test-prefs-file :project shared-test-prefs-file}
+  (prefs/make :scopes {:global shared-test-prefs-file :project shared-test-prefs-file}
               :schemas [:default]))
 
 (declare resolve-prop)

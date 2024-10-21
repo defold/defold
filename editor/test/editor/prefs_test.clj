@@ -1,3 +1,17 @@
+;; Copyright 2020-2024 The Defold Foundation
+;; Copyright 2014-2020 King
+;; Copyright 2009-2014 Ragnar Svensson, Christian Murray
+;; Licensed under the Defold License version 1.0 (the "License"); you may not use
+;; this file except in compliance with the License.
+;;
+;; You may obtain a copy of the License, together with FAQs at
+;; https://www.defold.com/license
+;;
+;; Unless required by applicable law or agreed to in writing, software distributed
+;; under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+;; CONDITIONS OF ANY KIND, either express or implied. See the License for the
+;; specific language governing permissions and limitations under the License.
+
 (ns editor.prefs-test
   (:require [clojure.edn :as edn]
             [clojure.test :refer :all]
@@ -19,7 +33,7 @@
                                      :enum {:type :enum :values [:foo :bar]}
                                      :tuple {:type :tuple :items [{:type :string} {:type :keyword :default :code-view}]}}}}})
 (deftest prefs-types-test
-  (let [p (prefs/make :scopes {:user (fs/create-temp-file! "user" "test-prefs.edn")}
+  (let [p (prefs/make :scopes {:global (fs/create-temp-file! "global" "test.editor_settings")}
                       :schemas [::types])]
     ;; ensure defaults are properly typed
     (is (= {:types {:any nil
@@ -81,15 +95,15 @@
 
 (prefs/register-schema! ::unregistered-key {:type :object :properties {:name {:type :string}}})
 (deftest get-unregistered-key-test
-  (let [p (prefs/make :scopes {:user (fs/create-temp-file! "user" "test-prefs.edn")}
+  (let [p (prefs/make :scopes {:global (fs/create-temp-file! "global" "test.editor_settings")}
                       :schemas [::unregistered-key])]
     (is (= {:name ""} (prefs/get p [])))
     (is (nil? (prefs/get p [:undefined])))))
 
 (prefs/register-schema! ::utf8 {:type :string})
 (deftest utf8-handling-test
-  (let [file (fs/create-temp-file! "user" "test-prefs.edn")
-        p (prefs/make :scopes {:user file}
+  (let [file (fs/create-temp-file! "global" "test.editor_settings")
+        p (prefs/make :scopes {:global file}
                       :schemas [::utf8])]
     (is (= "" (prefs/get p [])))
     (prefs/set! p [] "τεστ")
@@ -99,42 +113,42 @@
 
 (prefs/register-schema! ::invalid-edn {:type :object :properties {:name {:type :string}}})
 (deftest invalid-edn-test
-  (let [file (fs/create-temp-file! "user" "test-prefs.edn")
+  (let [file (fs/create-temp-file! "global" "test.editor_settings")
         _ (spit file "{")
-        p (prefs/make :scopes {:user file}
+        p (prefs/make :scopes {:global file}
                       :schemas [::invalid-edn])]
     (is (= "" (prefs/get p [:name])))))
 
 (prefs/register-schema!
   ::scopes
   {:type :object
-   :properties {:user-property {:type :boolean :scope :user}
+   :properties {:global-property {:type :boolean :scope :global}
                 :project-property {:type :boolean :scope :project}}})
 (deftest scopes-test
   (testing "write to scope files"
-    (let [user-file (fs/create-temp-file! "user" "test-prefs.edn")
-          project-file (fs/create-temp-file! "project" "test-prefs.edn")
-          p (prefs/make :scopes {:user user-file :project project-file}
+    (let [global-file (fs/create-temp-file! "global" "test.editor_settings")
+          project-file (fs/create-temp-file! "project" "test.editor_settings")
+          p (prefs/make :scopes {:global global-file :project project-file}
                         :schemas [::scopes])]
-      (is (= {:user-property false
+      (is (= {:global-property false
               :project-property false}
              (prefs/get p [])))
-      (prefs/set! p [] {:user-property true
+      (prefs/set! p [] {:global-property true
                         :project-property true})
-      (is (= {:user-property true
+      (is (= {:global-property true
               :project-property true}
              (prefs/get p [])))
       (prefs/sync!)
-      (is (= {:user-property true} (edn/read-string (slurp user-file))))
+      (is (= {:global-property true} (edn/read-string (slurp global-file))))
       (is (= {:project-property true} (edn/read-string (slurp project-file))))))
   (testing "read from scope files"
-    (let [user-file (doto (fs/create-temp-file! "user" "test-prefs.edn")
-                      (spit "{:user-property true}"))
-          project-file (doto (fs/create-temp-file! "project" "test-prefs.edn")
+    (let [global-file (doto (fs/create-temp-file! "global" "test.editor_settings")
+                        (spit "{:global-property true}"))
+          project-file (doto (fs/create-temp-file! "project" "test.editor_settings")
                          (spit "{:project-property true}"))
-          p (prefs/make :scopes {:user user-file :project project-file}
+          p (prefs/make :scopes {:global global-file :project project-file}
                         :schemas [::scopes])]
-      (is (= {:user-property true
+      (is (= {:global-property true
               :project-property true}
              (prefs/get p []))))))
 
@@ -153,9 +167,9 @@
                                                 :properties {:install {:type :boolean :scope :project}
                                                              :adb-path {:type :string}}}}}}})
 (deftest scope-composition-test
-  (let [user-file (fs/create-temp-file! "user" "test-prefs.edn")
-        project-file (fs/create-temp-file! "project" "test-prefs.edn")
-        p (prefs/make :scopes {:user user-file
+  (let [global-file (fs/create-temp-file! "global" "test.editor_settings")
+        project-file (fs/create-temp-file! "project" "test.editor_settings")
+        p (prefs/make :scopes {:global global-file
                                :project project-file}
                       :schemas [::composition-ios ::composition-android])]
     (testing "get prefs defined by multiple schemas returns a merged map"
@@ -178,13 +192,13 @@
     (testing "multi-schema prefs write to the expected scope files"
       (is (= {:bundle {:android {:adb-path "/opt/homebrew/bin/adb"}
                        :ios {:ios-deploy-path "/opt/homebrew/bin/ios-deploy"}}}
-             (edn/read-string (slurp user-file))))
+             (edn/read-string (slurp global-file))))
       (is (= {:bundle {:android {:install true}
                        :ios {:install true}}}
              (edn/read-string (slurp project-file))))))
   (testing "same file for both scopes"
-    (let [file (fs/create-temp-file! "both" "test-prefs.edn")
-          p (prefs/make :scopes {:user file
+    (let [file (fs/create-temp-file! "both" "test.editor_settings")
+          p (prefs/make :scopes {:global file
                                  :project file}
                         :schemas [::composition-ios ::composition-android])]
       (is (= {:bundle {:ios {:install false
@@ -217,10 +231,10 @@
   {:type :object
    :properties {:timeout {:type :number :description "timeout in milliseconds"}}})
 (deftest conflicting-schemas-test
-  (let [user-file (fs/create-temp-file! "user" "test-prefs.edn")
-        p-str (prefs/make :scopes {:user user-file}
+  (let [global-file (fs/create-temp-file! "global" "test.editor_settings")
+        p-str (prefs/make :scopes {:global global-file}
                           :schemas [::composition-conflict-str ::composition-conflict-num])
-        p-num (prefs/make :scopes {:user user-file}
+        p-num (prefs/make :scopes {:global global-file}
                           :schemas [::composition-conflict-num ::composition-conflict-str])]
     (testing "former schema takes precedence over latter schemas"
       (is (= {:timeout ""} (prefs/get p-str [])))

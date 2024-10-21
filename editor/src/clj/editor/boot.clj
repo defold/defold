@@ -122,8 +122,8 @@
   (let [args (Arrays/asList args)
         opts (cli/parse-opts args cli-options)
         prefs (if-let [prefs-path (get-in opts [:options :preferences])]
-                (prefs/user prefs-path)
-                (doto (prefs/user) prefs/migrate-user-prefs!))
+                (prefs/global prefs-path)
+                (doto (prefs/global) prefs/migrate-global-prefs!))
         updater (updater/start!)
         analytics-url (get connection-properties :analytics-url)
         analytics-send-interval 300]

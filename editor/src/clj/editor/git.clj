@@ -43,8 +43,8 @@
 (set! *warn-on-reflection* true)
 
 ;; When opening a project, we ensure the .gitignore file contains every entry on this list.
-(defonce required-gitignore-entries ["/.internal"
-                                     "/.prefs.edn"
+(defonce required-gitignore-entries ["/.editor_settings"
+                                     "/.internal"
                                      "/build"])
 
 (defonce default-gitignore-entries (vec (concat required-gitignore-entries

@@ -2026,7 +2026,7 @@ class Configuration(object):
         vmargs = filter(lambda x: not str.startswith(x, '-Ddefold.update.url='), vmargs)
         main = self._get_config(config, 'launcher', 'main', overrides)
         game_project = '../../editor/test/resources/geometry_wars/game.project'
-        args = [java, '-cp', jar] + vmargs + [main, '--preferences=../../editor/test/resources/smoke_test_prefs.edn', game_project]
+        args = [java, '-cp', jar] + vmargs + [main, '--preferences=../../editor/test/resources/smoke_test.editor_settings', game_project]
         robot_jar = '%s/ext/share/java/defold-robot.jar' % self.dynamo_home
         robot_args = [java, '-jar', robot_jar, '-s', '../../share/smoke-test.edn', '-o', 'result']
         origdir = os.getcwd()
