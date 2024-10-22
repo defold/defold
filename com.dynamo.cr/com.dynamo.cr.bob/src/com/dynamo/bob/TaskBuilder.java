@@ -230,28 +230,25 @@ public class TaskBuilder {
             else {
                 taskResult.setResult(Result.SKIPPED);
             }
-            TimeProfiler.stop();
 
         } catch (CompileExceptionError e) {
-            TimeProfiler.stop();
             taskResult.setResult(Result.FAILED);
             taskResult.setLineNumber(e.getLineNumber());
             taskResult.setMessage(e.getMessage());
             e.printStackTrace(new java.io.PrintStream(System.out));
         } catch (OutOfMemoryError e) {
-            TimeProfiler.stop();
             taskResult.setResult(Result.RETRY);
             taskResult.setMessage(e.getMessage());
             taskResult.setException(e);
             e.printStackTrace(new java.io.PrintStream(System.out));
         } catch (Throwable e) {
-            TimeProfiler.stop();
             taskResult.setResult(Result.FAILED);
             taskResult.setLineNumber(0);
             taskResult.setMessage(e.getMessage());
             taskResult.setException(e);
             e.printStackTrace(new java.io.PrintStream(System.out));
         }
+        TimeProfiler.stop();
         return taskResult;
     }
 
