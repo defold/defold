@@ -56,6 +56,17 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
     }
 
     @Test
+    public void testCombinedShader() throws Exception {
+
+        StringBuilder src = new StringBuilder();
+        src.append("name: \"test_combined\"\n");
+        src.append("vertex_program: \"/test_combined.vp\"\n");
+        src.append("fragment_program: \"/test_combined.fp\"\n");
+
+        MaterialDesc material = (MaterialDesc) build("/test_migrate_vx_attributes.material", src.toString()).get(0);
+    }
+
+    @Test
     public void testMigrateVertexAttributes() throws Exception {
         addFile("/test_migrate_vx_attributes.material", "");
         addFile("/test_migrate_vx_attributes.vp", "");

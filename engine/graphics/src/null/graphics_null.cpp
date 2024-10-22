@@ -899,27 +899,9 @@ namespace dmGraphics
         return p;
     }
 
-    static HComputeProgram NullNewComputeProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
+    static HProgram NullNewProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
-        return (HComputeProgram) NewShaderProgramFromDDF(context, ddf);
-    }
-
-    static HProgram NullNewProgramFromCompute(HContext context, HComputeProgram compute_program)
-    {
-        return (HProgram) new Program((ShaderProgram*) compute_program);
-    }
-
-    static void NullDeleteComputeProgram(HComputeProgram prog)
-    {
-        ShaderProgram* p = (ShaderProgram*) prog;
-        delete [] (char*)p->m_Data;
-        for(uint32_t i = 0; i < p->m_Uniforms.Size(); ++i)
-            delete[] p->m_Uniforms[i].m_Name;
-        delete p;
-    }
-
-    static HProgram NullNewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
-    {
+        /*
         ShaderProgram* vertex   = 0x0;
         ShaderProgram* fragment = 0x0;
         if (vertex_program != INVALID_VERTEX_PROGRAM_HANDLE)
@@ -931,6 +913,8 @@ namespace dmGraphics
             fragment = (ShaderProgram*) fragment_program;
         }
         return (HProgram) new Program(vertex, fragment);
+        */
+        return 0;
     }
 
     static void NullDeleteProgram(HContext context, HProgram program)
@@ -938,6 +922,7 @@ namespace dmGraphics
         delete (Program*) program;
     }
 
+    /*
     static HVertexProgram NullNewVertexProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
         return (HVertexProgram) NewShaderProgramFromDDF(context, ddf);
@@ -1004,6 +989,7 @@ namespace dmGraphics
             delete[] p->m_Uniforms[i].m_Name;
         delete p;
     }
+    */
 
     static ShaderDesc::Language NullGetProgramLanguage(HProgram program)
     {
@@ -1047,24 +1033,10 @@ namespace dmGraphics
         ((NullContext*) context)->m_Program = 0x0;
     }
 
-    static bool NullReloadProgramGraphics(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program)
+    static bool NullReloadProgram(HContext context, HProgram program, ShaderDesc* ddf)
     {
         (void) context;
         (void) program;
-
-        return true;
-    }
-
-    static bool NullReloadProgramCompute(HContext context, HProgram program, HComputeProgram compute_program)
-    {
-        (void) context;
-        (void) program;
-        return true;
-    }
-
-    static bool NullReloadComputeProgram(HComputeProgram prog, ShaderDesc* ddf)
-    {
-        (void)prog;
         return true;
     }
 

@@ -36,14 +36,17 @@ public class ShaderCompilePipeline {
         public boolean splitTextureSamplers;
     }
 
-    protected static class ShaderModule {
-        public String                source;
+    public static class ShaderModuleDesc {
+        public String source;
         public ShaderDesc.ShaderType type;
-        public File                  spirvFile;
+    }
 
-        public ShaderModule(String source, ShaderDesc.ShaderType type) {
-            this.source = source;
-            this.type = type;
+    protected static class ShaderModule {
+        ShaderModuleDesc desc;
+        public File spirvFile;
+
+        public ShaderModule(ShaderModuleDesc desc) {
+            this.desc = desc;
         }
     }
 
@@ -203,8 +206,8 @@ public class ShaderCompilePipeline {
         checkResult(result);
     }
 
-    protected void addShaderModule(String source, ShaderDesc.ShaderType type) {
-        shaderModules.add(new ShaderModule(source, type));
+    protected void addShaderModule(ShaderModuleDesc desc) {
+        shaderModules.add(new ShaderModule(desc));
     }
 
     protected void prepare() throws IOException, CompileExceptionError {
@@ -214,21 +217,21 @@ public class ShaderCompilePipeline {
 
         // 1. Generate SPIR-V for each module that can be linked afterwards
         for (ShaderModule module : this.shaderModules) {
-            String baseName = this.pipelineName + "." + shaderTypeToSpirvStage(module.type);
+            String baseName = this.pipelineName + "." + shaderTypeToSpirvStage(module.desc.type);
 
             File fileInGLSL = File.createTempFile(baseName, ".glsl");
             FileUtil.deleteOnExit(fileInGLSL);
 
-            String glsl = module.source;
+            String glsl = module.desc.source;
             if (this.options.splitTextureSamplers) {
                 // We need to expand all combined samplers into texture + sampler due for certain targets (webgpu + dx12)
-                glsl = ShaderUtil.ES2ToES3Converter.transformTextureUniforms(module.source).output;
+                glsl = ShaderUtil.ES2ToES3Converter.transformTextureUniforms(module.desc.source).output;
             }
             FileUtils.writeByteArrayToFile(fileInGLSL, glsl.getBytes());
 
             File fileOutSpv = File.createTempFile(baseName, ".spv");
             FileUtil.deleteOnExit(fileOutSpv);
-            generateSPIRv(module.type, fileInGLSL.getAbsolutePath(), fileOutSpv.getAbsolutePath());
+            generateSPIRv(module.desc.type, fileInGLSL.getAbsolutePath(), fileOutSpv.getAbsolutePath());
             module.spirvFile = fileOutSpv;
         }
 
@@ -255,6 +258,9 @@ public class ShaderCompilePipeline {
     // PUBLIC API
     //////////////////////////
     public byte[] crossCompile(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage) throws IOException, CompileExceptionError {
+
+        System.out.println("Cross-compiling " + shaderType + ", " + shaderLanguage);
+
         if (shaderLanguage == ShaderDesc.Language.LANGUAGE_SPIRV) {
             return FileUtils.readFileToByteArray(this.spirvFileOut);
         } else if (canBeCrossCompiled(shaderLanguage)) {
@@ -285,10 +291,12 @@ public class ShaderCompilePipeline {
         return this.spirvReflector;
     }
 
-    public static ShaderCompilePipeline createShaderPipeline(ShaderCompilePipeline pipeline, String source, ShaderDesc.ShaderType type, Options options) throws IOException, CompileExceptionError {
+    public static ShaderCompilePipeline createShaderPipeline(ShaderCompilePipeline pipeline, ArrayList<ShaderModuleDesc> descs, Options options) throws IOException, CompileExceptionError {
         pipeline.options = options;
         pipeline.reset();
-        pipeline.addShaderModule(source, type);
+        for (ShaderModuleDesc desc : descs) {
+            pipeline.addShaderModule(desc);
+        }
         pipeline.prepare();
         return pipeline;
     }

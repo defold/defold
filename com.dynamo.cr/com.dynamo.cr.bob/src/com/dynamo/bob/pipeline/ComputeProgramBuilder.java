@@ -24,6 +24,7 @@ import com.dynamo.bob.fs.DefaultFileSystem;
 
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
+/*
 @BuilderParams(name = "ComputeProgram", inExts = ".cp", outExt = ".cpc")
 public class ComputeProgramBuilder extends ShaderProgramBuilder {
     private static final ShaderDesc.ShaderType SHADER_TYPE = ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE;
@@ -47,3 +48,4 @@ public class ComputeProgramBuilder extends ShaderProgramBuilder {
         builder.BuildShader(args, SHADER_TYPE);
     }
 }
+*/

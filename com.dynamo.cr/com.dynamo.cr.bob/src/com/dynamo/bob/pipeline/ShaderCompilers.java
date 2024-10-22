@@ -31,14 +31,14 @@ public class ShaderCompilers {
             this.platform = platform;
         }
 
-        private ArrayList<ShaderDesc.Language> getPlatformShaderLanguages(ShaderDesc.ShaderType shaderType, boolean outputSpirvRequested, boolean outputWGSLRequested) {
+        private ArrayList<ShaderDesc.Language> getPlatformShaderLanguages(boolean isComputeType, boolean outputSpirvRequested, boolean outputWGSLRequested) {
             ArrayList<ShaderDesc.Language> shaderLanguages = new ArrayList<>();
             boolean spirvSupported = true;
 
             switch(platform) {
                 case Arm64MacOS:
                 case X86_64MacOS: {
-                    if (shaderType != ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE) {
+                    if (!isComputeType) {
                         shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM330);
                     }
                 } break;
@@ -46,7 +46,7 @@ public class ShaderCompilers {
                 case X86_64Win32:
                 case X86Linux:
                 case X86_64Linux: {
-                    if (shaderType == ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE) {
+                    if (isComputeType) {
                         shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM430);
                     } else {
                         shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM140);
@@ -54,20 +54,20 @@ public class ShaderCompilers {
                 } break;
                 case Arm64Ios:
                 case X86_64Ios: {
-                    if (shaderType != ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE) {
+                    if (!isComputeType) {
                         shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
                     }
                 } break;
                 case Armv7Android:
                 case Arm64Android: {
-                    if (shaderType != ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE) {
+                    if (!isComputeType) {
                         shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
                         shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);
                     }
                 } break;
                 case JsWeb:
                 case WasmWeb: {
-                    if (shaderType != ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE) {
+                    if (!isComputeType) {
                         shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
                         shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);
                     }
@@ -87,21 +87,45 @@ public class ShaderCompilers {
             return shaderLanguages;
         }
 
-        public ShaderProgramBuilder.ShaderCompileResult compile(String shaderSource, ShaderDesc.ShaderType shaderType, String resourceOutputPath, boolean outputSpirv, boolean outputWGSL) throws IOException, CompileExceptionError {
+        private static void validateModules(ArrayList<ShaderCompilePipeline.ShaderModuleDesc> descs) throws CompileExceptionError{
+            if (descs.isEmpty())
+                throw new CompileExceptionError("No shader modules");
+
+            int vsCount=0, fsCount=0, computeCount=0;
+            for (ShaderCompilePipeline.ShaderModuleDesc desc : descs) {
+                switch(desc.type) {
+                    case SHADER_TYPE_COMPUTE -> computeCount++;
+                    case SHADER_TYPE_VERTEX -> vsCount++;
+                    case SHADER_TYPE_FRAGMENT -> fsCount++;
+                }
+            }
+
+            if (computeCount > 0 && (vsCount > 0 || fsCount > 0))
+                throw new CompileExceptionError("Can't match compute with graphics modules");
+        }
+
+        public ShaderProgramBuilder.ShaderCompileResult compile(ArrayList<ShaderCompilePipeline.ShaderModuleDesc> shaderModules, String resourceOutputPath, boolean outputSpirv, boolean outputWGSL) throws IOException, CompileExceptionError {
 
             ShaderCompilePipeline.Options opts = new ShaderCompilePipeline.Options();
             opts.splitTextureSamplers = outputWGSL;
 
-            ShaderCompilePipeline pipeline = ShaderProgramBuilder.newShaderPipelineFromShaderSource(shaderType, resourceOutputPath, shaderSource, opts);
+            ShaderCompilePipeline pipeline = ShaderProgramBuilder.newShaderPipeline(resourceOutputPath, shaderModules, opts);
             ArrayList<ShaderProgramBuilder.ShaderBuildResult> shaderBuildResults = new ArrayList<>();
-            ArrayList<ShaderDesc.Language> shaderLanguages = getPlatformShaderLanguages(shaderType, outputSpirv, outputWGSL);
 
+            validateModules(shaderModules);
+
+            boolean isComputeType = shaderModules.get(0).type == ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE;
+            ArrayList<ShaderDesc.Language> shaderLanguages = getPlatformShaderLanguages(isComputeType, outputSpirv, outputWGSL);
             assert shaderLanguages != null;
-            for (ShaderDesc.Language shaderLanguage : shaderLanguages) {
-                ShaderDesc.Shader.Builder builder = ShaderProgramBuilder.makeShaderBuilder(shaderLanguage, pipeline.crossCompile(shaderType, shaderLanguage));
-                shaderBuildResults.add(new ShaderProgramBuilder.ShaderBuildResult(builder));
-            }
 
+            for (ShaderDesc.Language shaderLanguage : shaderLanguages) {
+                ArrayList<ShaderDesc.ShaderModule> moduleBuilders = new ArrayList<>();
+                for (ShaderCompilePipeline.ShaderModuleDesc shaderModule : shaderModules) {
+                    byte[] crossCompileResult = pipeline.crossCompile(shaderModule.type, shaderLanguage);
+                    moduleBuilders.add(ShaderProgramBuilder.makeShaderModuleBuilder(shaderModule.type, crossCompileResult).build());
+                }
+                shaderBuildResults.add(new ShaderProgramBuilder.ShaderBuildResult(ShaderProgramBuilder.makeShaderBuilder(shaderLanguage, moduleBuilders)));
+            }
             ShaderProgramBuilder.ShaderCompileResult compileResult = new ShaderProgramBuilder.ShaderCompileResult();
             compileResult.shaderBuildResults = shaderBuildResults;
             compileResult.reflector = pipeline.getReflectionData();

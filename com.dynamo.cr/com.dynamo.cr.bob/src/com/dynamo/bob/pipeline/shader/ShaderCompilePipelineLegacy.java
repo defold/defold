@@ -41,8 +41,8 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
     protected class ShaderModuleLegacy extends ShaderCompilePipeline.ShaderModule {
         public SPIRVCompileResult spirvResult;
 
-        public ShaderModuleLegacy(String source, ShaderDesc.ShaderType type) {
-            super(source, type);
+        public ShaderModuleLegacy(ShaderModuleDesc desc) {
+            super(desc);
         }
     }
 
@@ -211,7 +211,7 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
 
     private ShaderModuleLegacy getShaderModule(ShaderDesc.ShaderType shaderType) {
         for (ShaderModule m : this.shaderModules) {
-            if (m.type == shaderType && m instanceof ShaderModuleLegacy) {
+            if (m.desc.type == shaderType && m instanceof ShaderModuleLegacy) {
                 return (ShaderModuleLegacy) m;
             }
         }
@@ -219,15 +219,15 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
     }
 
     @Override
-    protected void addShaderModule(String source, ShaderDesc.ShaderType type) {
-        shaderModules.add(new ShaderModuleLegacy(source, type));
+    protected void addShaderModule(ShaderModuleDesc desc) {
+        shaderModules.add(new ShaderModuleLegacy(desc));
     }
 
     @Override
     protected void prepare() throws IOException, CompileExceptionError {
         // Generate spirv for each shader module so we can utilize the reflection from it
         for (ShaderModule module : this.shaderModules) {
-            SPIRVCompileResult result = compileGLSLToSPIRV(module.source, module.type, this.pipelineName, "", false, this.options.splitTextureSamplers);
+            SPIRVCompileResult result = compileGLSLToSPIRV(module.desc.source, module.desc.type, this.pipelineName, "", false, this.options.splitTextureSamplers);
 
             ShaderModuleLegacy moduleLegacy = (ShaderModuleLegacy) module;
             moduleLegacy.spirvResult = result;
@@ -237,6 +237,9 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
 
     @Override
     public byte[] crossCompile(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage) throws CompileExceptionError, IOException {
+
+        System.out.println("Cross-compiling " + shaderType + ", " + shaderLanguage);
+
         ShaderModuleLegacy module = getShaderModule(shaderType);
         if (module == null) {
             throw new CompileExceptionError("No module found for " + shaderType);
@@ -250,7 +253,7 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
             String result = compileSPIRVToWGSL(module.spirvResult.source, this.pipelineName);
             return result.getBytes();
         } else if (canBeCrossCompiled(shaderLanguage)) {
-            String result = ShaderUtil.Common.compileGLSL(module.source, shaderType, shaderLanguage, false, false, this.options.splitTextureSamplers);
+            String result = ShaderUtil.Common.compileGLSL(module.desc.source, shaderType, shaderLanguage, false, false, this.options.splitTextureSamplers);
             return result.getBytes();
         }
 

@@ -8,13 +8,15 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Objects;
 
-import static com.dynamo.bob.pipeline.ShaderProgramBuilder.buildResultsToShaderDescBuildResults;
+// import static com.dynamo.bob.pipeline.ShaderProgramBuilder.buildResultsToShaderDescBuildResults;
 
 public class ShaderProgramBuilderEditor {
     static public ShaderUtil.Common.GLSLCompileResult buildGLSLVariantTextureArray(String source, Graphics.ShaderDesc.ShaderType shaderType, Graphics.ShaderDesc.Language shaderLanguage, boolean isDebug, int maxPageCount) throws IOException, CompileExceptionError {
         if (!ShaderUtil.VariantTextureArrayFallback.isRequired(shaderLanguage)) {
             return new ShaderUtil.Common.GLSLCompileResult(source);
         }
+
+        /*
 
         // Make sure we have the correct output language
         ShaderCompilePipeline pipeline;
@@ -33,6 +35,8 @@ public class ShaderProgramBuilderEditor {
 
         // If the variant transformation didn't do anything, we pass the original source but without array samplers
         return Objects.requireNonNullElseGet(variantCompileResult, () -> new ShaderUtil.Common.GLSLCompileResult(compiledSource));
+         */
+        return null;
     }
 
     static private boolean isCompatibleLanguage(Graphics.ShaderDesc.ShaderType shaderType, Graphics.ShaderDesc.Language shaderLanguage) {
@@ -51,6 +55,8 @@ public class ShaderProgramBuilderEditor {
     static public ShaderProgramBuilder.ShaderDescBuildResult makeShaderDescWithVariants(String resourceOutputPath, String shaderSource, Graphics.ShaderDesc.ShaderType shaderType,
                                                                                         Graphics.ShaderDesc.Language[] shaderLanguages, int maxPageCount) throws IOException, CompileExceptionError {
 
+        return null;
+        /*
         ShaderCompilePipeline pipeline;
         ShaderCompilePipeline.Options options = new ShaderCompilePipeline.Options();
         try {
@@ -96,5 +102,6 @@ public class ShaderProgramBuilderEditor {
         compileResult.shaderBuildResults = shaderBuildResults;
 
         return buildResultsToShaderDescBuildResults(compileResult, shaderType);
+        */
     }
 }

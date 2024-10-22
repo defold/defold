@@ -14,6 +14,8 @@
 
 package com.dynamo.bob.pipeline;
 
+import com.dynamo.bob.util.ComponentsCounter;
+import com.dynamo.render.proto.Font;
 import org.apache.commons.io.FilenameUtils;
 
 import java.io.IOException;
@@ -66,7 +68,8 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
     private ShaderDesc getShaderDesc(IResource resource, ShaderProgramBuilder builder, ShaderDesc.ShaderType shaderType) throws IOException, CompileExceptionError {
         builder.setProject(this.project);
         Task task = builder.create(resource);
-        return builder.getCompiledShaderDesc(task, shaderType);
+        return null;
+        // return builder.getCompiledShaderDesc(task, shaderType);
     }
 
     private void validateSpirvShaders(ShaderProgramBuildContext vertexBuildContext, ShaderProgramBuildContext fragmentBuildContext) throws CompileExceptionError {
@@ -101,6 +104,7 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
             return;
         }
 
+        /*
         int maxPageCount = materialBuilder.getMaxPageCount();
         String shaderSource = new String(shader.getSource().toByteArray());
 
@@ -133,6 +137,7 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
         ctx.projectPath           = BuilderUtil.replaceExt(ctx.projectPath, "." + inExt, String.format(TextureArrayFilenameVariantFormat, maxPageCount, inExt));
         ctx.arraySamplers         = variantCompileResult.arraySamplers;
         ctx.hasTextureArrayVariant = true;
+        */
     }
 
     private ShaderProgramBuildContext makeShaderProgramBuildContext(MaterialDesc.Builder materialBuilder, String shaderResourcePath) throws CompileExceptionError, IOException {
@@ -141,14 +146,12 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
         String shaderFileOutExt  = shaderFileInExt + "c";
 
         ShaderDesc.ShaderType shaderType;
-        ShaderProgramBuilder shaderBuilder;
+        ShaderProgramBuilder shaderBuilder = new ShaderProgramBuilder();
 
         if (shaderFileInExt.equals("vp")) {
-            shaderType    = ShaderDesc.ShaderType.SHADER_TYPE_VERTEX;
-            shaderBuilder = new VertexProgramBuilder();
+            shaderType = ShaderDesc.ShaderType.SHADER_TYPE_VERTEX;
         } else {
-            shaderType    = ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT;
-            shaderBuilder = new FragmentProgramBuilder();
+            shaderType = ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT;
         }
 
         ShaderDesc shaderDesc = getShaderDesc(shaderResource, shaderBuilder, shaderType);
@@ -171,7 +174,7 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
         }
 
         // Generate indirection table for all material samplers based on the result of the shader build context
-        Set mergedArraySamplers = new HashSet();
+        Set<String> mergedArraySamplers = new HashSet<>();
         mergedArraySamplers.addAll(Arrays.asList(vertexBuildContext.arraySamplers));
         mergedArraySamplers.addAll(Arrays.asList(fragmentBuildContext.arraySamplers));
 
@@ -231,23 +234,88 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
         }
     }
 
+    private IResource getShaderProgram(MaterialDesc.Builder fromBuilder) {
+        long shaderProgramHash = MurmurHash.hash64(fromBuilder.getVertexProgram() + fromBuilder.getFragmentProgram());
+        String path = String.format("shader_%d%s", shaderProgramHash, ShaderProgramBuilderBundle.EXT);
+        return this.project.getResource(path);
+    }
+
+    @Override
+    public Task create(IResource input) throws IOException, CompileExceptionError {
+        MaterialDesc.Builder materialBuilder = getSrcBuilder(input);
+
+        // The material should depend on the finally built shader resource file
+        // that is a combination of one or more shader modules
+        IResource shaderResource = getShaderProgram(materialBuilder);
+        IResource shaderResourceOut = shaderResource.changeExt(ShaderProgramBuilderBundle.EXT_OUT);
+
+        ShaderProgramBuilderBundle.ModuleBundle modules = ShaderProgramBuilderBundle.createBundle();
+        modules.add(materialBuilder.getVertexProgram());
+        modules.add(materialBuilder.getFragmentProgram());
+        shaderResourceOut.setContent(modules.toByteArray());
+
+        Task.TaskBuilder materialTaskBuilder = Task.newBuilder(this)
+                .setName(params.name())
+                .addInput(input)
+                .addOutput(input.changeExt(params.outExt()));
+
+        createSubTask(shaderResourceOut, materialTaskBuilder);
+
+        /*
+        // To build the shader resource, we need to create an intermediate builder for it
+        ShaderProgramBuilderBundle bundleBuilder = new ShaderProgramBuilderBundle();
+        Task.TaskBuilder bundleTaskBuilder = Task.newBuilder(bundleBuilder)
+                .setName(bundleBuilder.getParams().name())
+                .addInput(project.getResource(materialBuilder.getVertexProgram()))
+                .addInput(project.getResource(materialBuilder.getFragmentProgram()))
+                .addOutput(shaderResource.changeExt());
+        */
+
+        // Task bundleTask = bundleTaskBuilder.build();
+
+        /*
+        Task.TaskBuilder taskBuilder = Task.newBuilder(this)
+                .setName(params.name())
+                .addInput(input)
+                .addInput(bundleTask.output(0)) // First output is the compiled shader bundle
+                .addOutput(input.changeExt(params.outExt()));
+        */
+
+        /*
+        String shaderProgramPath = getShaderProgramPath(materialBuilder);
+        IResource shaderProgramResource = this.project.getResource(shaderProgramPath);
+
+        System.out.println("Material.Create:");
+        System.out.println(materialBuilder.getVertexProgram());
+        System.out.println(materialBuilder.getFragmentProgram());
+        System.out.println(shaderProgramPath);
+        Task shaderProgramTask = createSubTask(shaderProgramResource, taskBuilder);
+        */
+
+        // Task shaderProgramTask = createSubTask(shaderProgramResource, taskBuilder);
+        // taskBuilder.addInput(shaderProgramResource);
+
+        return materialTaskBuilder.build();
+    }
+
     @Override
     public void build(Task task) throws CompileExceptionError, IOException {
         IResource res = task.firstInput();
         MaterialDesc.Builder materialBuilder = getSrcBuilder(res);
 
-        ShaderProgramBuildContext vertexBuildContext   = makeShaderProgramBuildContext(materialBuilder, materialBuilder.getVertexProgram());
-        ShaderProgramBuildContext fragmentBuildContext = makeShaderProgramBuildContext(materialBuilder, materialBuilder.getFragmentProgram());
+        /*
+        String shaderProgramPath = getShaderProgramPath(materialBuilder);
+        BuilderUtil.checkResource(this.project, res, "shader program", shaderProgramPath);
+        materialBuilder.setProgram(shaderProgramPath);
+        */
 
-        validateSpirvShaders(vertexBuildContext, fragmentBuildContext);
+        /*
+        ShaderProgramBuilderBundle.ModuleBundle modules = ShaderProgramBuilderBundle.createBundle();
+        modules.add(materialBuilder.getVertexProgram());
+        modules.add(materialBuilder.getFragmentProgram());
+        */
 
-        applyShaderProgramBuildContexts(materialBuilder, vertexBuildContext, fragmentBuildContext);
-
-        BuilderUtil.checkResource(this.project, res, "vertex program", vertexBuildContext.buildPath);
-        materialBuilder.setVertexProgram(BuilderUtil.replaceExt(vertexBuildContext.projectPath, ".vp", ".vpc"));
-
-        BuilderUtil.checkResource(this.project, res, "fragment program", fragmentBuildContext.buildPath);
-        materialBuilder.setFragmentProgram(BuilderUtil.replaceExt(fragmentBuildContext.projectPath, ".fp", ".fpc"));
+        System.out.print("MaterialBuilder.build");
 
         migrateTexturesToSamplers(materialBuilder);
         buildVertexAttributes(materialBuilder);
@@ -255,6 +323,35 @@ public class MaterialBuilder extends ProtoBuilder<MaterialDesc.Builder> {
 
         MaterialDesc materialDesc = materialBuilder.build();
         task.output(0).setContent(materialDesc.toByteArray());
+
+        /*
+        ShaderProgramBuildContext vertexBuildContext   = makeShaderProgramBuildContext(materialBuilder, materialBuilder.getVertexProgram());
+        ShaderProgramBuildContext fragmentBuildContext = makeShaderProgramBuildContext(materialBuilder, materialBuilder.getFragmentProgram());
+        validateSpirvShaders(vertexBuildContext, fragmentBuildContext);
+        */
+
+        //applyShaderProgramBuildContexts(materialBuilder, vertexBuildContext, fragmentBuildContext);
+
+        //BuilderUtil.checkResource(this.project, res, "vertex program", vertexBuildContext.buildPath);
+        //BuilderUtil.checkResource(this.project, res, "fragment program", fragmentBuildContext.buildPath);
+        //materialBuilder.setVertexProgram(BuilderUtil.replaceExt(vertexBuildContext.projectPath, ".vp", ".vpc"));
+        //materialBuilder.setFragmentProgram(BuilderUtil.replaceExt(fragmentBuildContext.projectPath, ".fp", ".fpc"));
+
+        // IResource variantResource = ctx.resource.changeExt(String.format(TextureArrayFilenameVariantFormat, maxPageCount, outExt));
+
+        //IResource fsShader = this.project.getResource(materialBuilder.getFragmentProgram());
+        //IResource vsShader = this.project.getResource(materialBuilder.getVertexProgram());
+
+        /*
+        long shaderProgramHash = MurmurHash.hash64(materialBuilder.getVertexProgram() + materialBuilder.getFragmentProgram());
+
+        migrateTexturesToSamplers(materialBuilder);
+        buildVertexAttributes(materialBuilder);
+        buildSamplers(materialBuilder);
+
+        MaterialDesc materialDesc = materialBuilder.build();
+        task.output(0).setContent(materialDesc.toByteArray());
+        */
     }
 
     // Running standalone:

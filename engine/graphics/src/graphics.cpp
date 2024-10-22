@@ -307,6 +307,7 @@ namespace dmGraphics
         for(uint32_t i = 0; i < shader_desc->m_Shaders.m_Count; ++i)
         {
             ShaderDesc::Shader* shader = &shader_desc->m_Shaders.m_Data[i];
+            /*
             if(IsShaderLanguageSupported(context, shader->m_Language, shader_desc->m_ShaderType))
             {
                 if (shader->m_VariantTextureArray)
@@ -322,6 +323,7 @@ namespace dmGraphics
                     selected_shader = shader;
                 }
             }
+            */
         }
 
         if (selected_shader == 0)
@@ -1290,41 +1292,13 @@ namespace dmGraphics
     {
         g_functions.m_DispatchCompute(context, group_count_x, group_count_y, group_count_z);
     }
-    HVertexProgram NewVertexProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
+    HProgram NewProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
-        assert(ddf->m_ShaderType == dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX);
-        return g_functions.m_NewVertexProgram(context, ddf, error_buffer, error_buffer_size);
-    }
-    HFragmentProgram NewFragmentProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
-    {
-        assert(ddf->m_ShaderType == dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT);
-        return g_functions.m_NewFragmentProgram(context, ddf, error_buffer, error_buffer_size);
-    }
-    HProgram NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
-    {
-        return g_functions.m_NewProgram(context, vertex_program, fragment_program);
+        return g_functions.m_NewProgram(context, ddf, error_buffer, error_buffer_size);
     }
     void DeleteProgram(HContext context, HProgram program)
     {
         g_functions.m_DeleteProgram(context, program);
-    }
-    bool ReloadVertexProgram(HVertexProgram prog, ShaderDesc* ddf)
-    {
-        assert(ddf->m_ShaderType == dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX);
-        return g_functions.m_ReloadVertexProgram(prog, ddf);
-    }
-    bool ReloadFragmentProgram(HFragmentProgram prog, ShaderDesc* ddf)
-    {
-        assert(ddf->m_ShaderType == dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT);
-        return g_functions.m_ReloadFragmentProgram(prog, ddf);
-    }
-    void DeleteVertexProgram(HVertexProgram prog)
-    {
-        g_functions.m_DeleteVertexProgram(prog);
-    }
-    void DeleteFragmentProgram(HFragmentProgram prog)
-    {
-        g_functions.m_DeleteFragmentProgram(prog);
     }
     ShaderDesc::Language GetProgramLanguage(HProgram program)
     {
@@ -1342,18 +1316,9 @@ namespace dmGraphics
     {
         g_functions.m_DisableProgram(context);
     }
-    bool ReloadProgram(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program)
+    bool ReloadProgram(HContext context, HProgram program, ShaderDesc* ddf)
     {
-        return g_functions.m_ReloadProgramGraphics(context, program, vert_program, frag_program);
-    }
-    bool ReloadProgram(HContext context, HProgram program, HComputeProgram compute_program)
-    {
-        return g_functions.m_ReloadProgramCompute(context, program, compute_program);
-    }
-    bool ReloadComputeProgram(HComputeProgram prog, ShaderDesc* ddf)
-    {
-        assert(ddf->m_ShaderType == dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE);
-        return g_functions.m_ReloadComputeProgram(prog, ddf);
+        return g_functions.m_ReloadProgram(context, program, ddf);
     }
     uint32_t GetAttributeCount(HProgram prog)
     {
@@ -1596,19 +1561,6 @@ namespace dmGraphics
     {
         assert(asset_handle <= MAX_ASSET_HANDLE_VALUE);
         return g_functions.m_IsAssetHandleValid(context, asset_handle);
-    }
-    HComputeProgram NewComputeProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
-    {
-        assert(ddf->m_ShaderType == dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE);
-        return g_functions.m_NewComputeProgram(context, ddf, error_buffer, error_buffer_size);
-    }
-    HProgram NewProgram(HContext context, HComputeProgram compute_program)
-    {
-        return g_functions.m_NewProgramFromCompute(context, compute_program);
-    }
-    void DeleteComputeProgram(HComputeProgram prog)
-    {
-        return g_functions.m_DeleteComputeProgram(prog);
     }
 
 #if defined(DM_PLATFORM_IOS)
