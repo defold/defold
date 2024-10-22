@@ -20,6 +20,11 @@
 (defn- eduction? [value]
   (instance? Eduction value))
 
+(deftest concat-test
+  (is (= (concat [1 2 3] [:a :b :c])
+         (e/concat [1 2 3] [:a :b :c])))
+  (is (eduction? (e/concat [1 2 3] [:a :b :c]))))
+
 (deftest dedupe-test
   (is (= (dedupe [1 2 1 1 2])
          (e/dedupe [1 2 1 1 2])))
