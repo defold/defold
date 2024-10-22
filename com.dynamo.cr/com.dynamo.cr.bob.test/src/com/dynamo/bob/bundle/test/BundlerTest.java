@@ -224,15 +224,11 @@ public class BundlerTest {
                 List<String> names = Arrays.asList(
                     exeName,
                     "Info.plist",
-                    "Icon.png",
-                    "Icon@2x.png",
-                    "Icon-60@2x.png",
-                    "Icon-60@3x.png",
-                    "Icon-72.png",
-                    "Icon-72@2x.png",
-                    "Icon-76.png",
-                    "Icon-76@2x.png",
-                    "Icon-167.png"
+                    "AppIcon60x60@2x.png",
+                    "AppIcon60x60@3x.png",
+                    "AppIcon76x76@2x~ipad.png",
+                    "AppIcon83.5x83.5@2x~ipad.png",
+                    "AppIcon76x76~ipad.png"
                 );
                 for (String name : names) {
                     File file = new File(outputDirFile, name);
@@ -613,15 +609,11 @@ public class BundlerTest {
                 expectedFiles.add("Payload/unnamed.app/game.dmanifest");
                 expectedFiles.add("Payload/unnamed.app/game.projectc");
                 expectedFiles.add("Payload/unnamed.app/game.public.der");
-                expectedFiles.add("Payload/unnamed.app/Icon-167.png");
-                expectedFiles.add("Payload/unnamed.app/Icon-60@2x.png");
-                expectedFiles.add("Payload/unnamed.app/Icon-60@3x.png");
-                expectedFiles.add("Payload/unnamed.app/Icon-72.png");
-                expectedFiles.add("Payload/unnamed.app/Icon-72@2x.png");
-                expectedFiles.add("Payload/unnamed.app/Icon-76.png");
-                expectedFiles.add("Payload/unnamed.app/Icon-76@2x.png");
-                expectedFiles.add("Payload/unnamed.app/Icon.png");
-                expectedFiles.add("Payload/unnamed.app/Icon@2x.png");
+                expectedFiles.add("Payload/unnamed.app/AppIcon60x60@2x.png");
+                expectedFiles.add("Payload/unnamed.app/AppIcon60x60@3x.png");
+                expectedFiles.add("Payload/unnamed.app/AppIcon76x76@2x~ipad.png");
+                expectedFiles.add("Payload/unnamed.app/AppIcon83.5x83.5@2x~ipad.png");
+                expectedFiles.add("Payload/unnamed.app/AppIcon76x76~ipad.png");
                 break;
             case X86_64MacOS:
             case Arm64MacOS:
