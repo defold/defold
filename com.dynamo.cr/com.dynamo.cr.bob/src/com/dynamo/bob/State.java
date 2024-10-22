@@ -57,10 +57,20 @@ public class State implements Serializable {
 
     /**
      * Remove signature
-     * @param path path to set sha1 for
+     * @param path path to remove sha1 for
      */
     public void removeSignature(String path) {
         signatures.remove(path);
+    }
+
+    /**
+     * Remove signatures
+     * @param resources List of resources to remove sha1 checksums for
+     */
+    public void removeSignatures(List<IResource> resources) {
+        for (IResource r : resources) {
+            signatures.remove(r.getAbsPath());
+        }
     }
 
     /**

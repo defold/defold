@@ -15,6 +15,7 @@
 package com.dynamo.bob;
 
 import com.dynamo.bob.TaskResult;
+import com.dynamo.bob.TaskResult.Result;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.util.TimeProfiler;
@@ -88,6 +89,10 @@ public class TaskBuilder {
         this.state = project.getState();
         this.resourceCache = project.getResourceCache();
 
+        for (Task task : this.tasks) {
+            allOutputs.addAll(task.getOutputs());
+        }
+
         int nThreads = project.getMaxCpuThreads();
         logger.info("Creating a fixed thread pool executor with %d threads", nThreads);
         this.executorService = Executors.newFixedThreadPool(nThreads);
@@ -147,138 +152,105 @@ public class TaskBuilder {
     private TaskResult buildTask(Task task, IProgress monitor) throws IOException {
         BundleHelper.throwIfCanceled(monitor);
 
-        logger.info("Build task " + task.getName() + " " + task.getInputsString() + " -> " + task.getOutputsString());
-
-        // if (hasUnresolvedDependencies(task)) {
-        //     // postpone task. dependent input not yet generated
-        //     // logger.warning("NOT ALL DEPS " + task.getInputsString() + " -> " + task.getOutputsString());
-        //     return null;
-        // }
-
         final List<IResource> outputResources = task.getOutputs();
-
-        boolean allOutputsExist = checkIfResourcesExist(outputResources);
+        // check if all outputs already exist
+        final boolean allOutputsExist = checkIfResourcesExist(outputResources);
 
         // compare all task signature. current task signature between previous
         // signature from state on disk
         final byte[] taskSignature = task.calculateSignature();
-        boolean allSigsEquals = compareAllSignatures(taskSignature, outputResources);
-
-        boolean isCompleted = completedTasks.contains(task);
-        boolean shouldRun = !isCompleted && (!allOutputsExist || !allSigsEquals ||
-                            (buildContainsChanges && task.getBuilder().isGameProjectBuilder()));
-
-        if (!shouldRun) {
-            if (allOutputsExist && allSigsEquals)
-            {
-                // Task is successfully completed now or in a previous build.
-                // Only if the conditions in the if-statements are true add the task to the completed set and the
-                // output files to the completed output set
-                synchronized (completedTasks) {
-                    completedTasks.add(task);
-                }
-                synchronized (completedOutputs) {
-                    completedOutputs.addAll(outputResources);
-                }
-            }
-
-            monitor.worked(1);
-            return null;
-        }
+        final boolean allSigsEquals = compareAllSignatures(taskSignature, outputResources);
 
         TimeProfiler.start(task.getName());
         TimeProfiler.addData("output", StringUtil.truncate(task.getOutputsString(), 1000));
         TimeProfiler.addData("type", "buildTask");
 
         TaskResult taskResult = new TaskResult(task);
-        taskResult.setOk(true);
-        Builder builder = task.getBuilder();
-        Map<IResource, String> outputResourceToCacheKey = new HashMap<IResource, String>();
+        taskResult.setResult(Result.SUCCESS);
         try {
-            if (task.isCacheable() && resourceCache.isCacheEnabled()) {
-                // check if all output resources exist in the resource cache
-                boolean allResourcesCached = true;
-                for (IResource r : outputResources) {
-                    final String key = ResourceCacheKey.calculate(task, options, r);
-                    outputResourceToCacheKey.put(r, key);
-                    if (!r.isCacheable()) {
-                        allResourcesCached = false;
-                    }
-                    else if (!resourceCache.contains(key)) {
-                        allResourcesCached = false;
-                    }
-                }
-
-                // all resources exist in the cache
-                // copy them to the output
-                if (allResourcesCached) {
-                    TimeProfiler.addData("takenFromCache", true);
+            Builder builder = task.getBuilder();
+            Map<IResource, String> outputResourceToCacheKey = new HashMap<IResource, String>();
+            
+            // build the task if outputs are missing
+            // or signatures are not matching
+            // or if the build contains changes and this task is building game.project
+            if (!allSigsEquals || !allOutputsExist || (buildContainsChanges && builder.isGameProjectBuilder())) {
+                if (task.isCacheable() && resourceCache.isCacheEnabled()) {
+                    // check if all output resources exist in the resource cache
+                    boolean allResourcesCached = true;
                     for (IResource r : outputResources) {
-                        r.setContent(resourceCache.get(outputResourceToCacheKey.get(r)));
+                        final String key = ResourceCacheKey.calculate(task, options, r);
+                        outputResourceToCacheKey.put(r, key);
+                        if (!r.isCacheable()) {
+                            allResourcesCached = false;
+                        }
+                        else if (!resourceCache.contains(key)) {
+                            allResourcesCached = false;
+                        }
+                    }
+
+                    // all resources exist in the cache
+                    // copy them to the output
+                    if (allResourcesCached) {
+                        TimeProfiler.addData("takenFromCache", true);
+                        for (IResource r : outputResources) {
+                            r.setContent(resourceCache.get(outputResourceToCacheKey.get(r)));
+                        }
+                    }
+                    // build task and cache output
+                    else {
+                        builder.build(task);
+                        for (IResource r : outputResources) {
+                            state.putSignature(r.getAbsPath(), taskSignature);
+                            if (r.isCacheable()) {
+                                resourceCache.put(outputResourceToCacheKey.get(r), r.getContent());
+                            }
+                        }
                     }
                 }
-                // build task and cache output
                 else {
                     builder.build(task);
                     for (IResource r : outputResources) {
                         state.putSignature(r.getAbsPath(), taskSignature);
-                        if (r.isCacheable()) {
-                            resourceCache.put(outputResourceToCacheKey.get(r), r.getContent());
-                        }
+                    }
+                }
+                monitor.worked(1);
+                buildContainsChanges = true;
+
+                // verify that all output resources were created
+                for (IResource r : outputResources) {
+                    if (!r.exists()) {
+                        taskResult.setResult(Result.FAILED);
+                        taskResult.setLineNumber(0);
+                        taskResult.setMessage(String.format("Output '%s' not found", r.getAbsPath()));
+                        break;
                     }
                 }
             }
             else {
-                builder.build(task);
-                for (IResource r : outputResources) {
-                    state.putSignature(r.getAbsPath(), taskSignature);
-                }
-            }
-            monitor.worked(1);
-            buildContainsChanges = true;
-
-            for (IResource r : outputResources) {
-                if (!r.exists()) {
-                    taskResult.setOk(false);
-                    taskResult.setLineNumber(0);
-                    taskResult.setMessage(String.format("Output '%s' not found", r.getAbsPath()));
-                    break;
-                }
-            }
-            synchronized (completedTasks) {
-                completedTasks.add(task);
-            }
-            synchronized (completedOutputs) {
-                completedOutputs.addAll(outputResources);
+                taskResult.setResult(Result.SKIPPED);
             }
             TimeProfiler.stop();
 
         } catch (CompileExceptionError e) {
-            logger.severe("COMPILE EXCEPTION " + e);
             TimeProfiler.stop();
-            taskResult.setOk(false);
+            taskResult.setResult(Result.FAILED);
             taskResult.setLineNumber(e.getLineNumber());
             taskResult.setMessage(e.getMessage());
-            // to fix the issue it's easier to see the actual callstack
             e.printStackTrace(new java.io.PrintStream(System.out));
         } catch (OutOfMemoryError e) {
-            logger.severe("OOM " + e);
-            return null;
-        } catch (Throwable e) {
-            logger.severe("THROWABLE " + e);
             TimeProfiler.stop();
-            taskResult.setOk(false);
+            taskResult.setResult(Result.RETRY);
+            taskResult.setMessage(e.getMessage());
+            taskResult.setException(e);
+            e.printStackTrace(new java.io.PrintStream(System.out));
+        } catch (Throwable e) {
+            TimeProfiler.stop();
+            taskResult.setResult(Result.FAILED);
             taskResult.setLineNumber(0);
             taskResult.setMessage(e.getMessage());
             taskResult.setException(e);
-            // to fix the issue it's easier to see the actual callstack
             e.printStackTrace(new java.io.PrintStream(System.out));
-        }
-        if (!taskResult.isOk()) {
-            // Clear sigs for all outputs when a task fails
-            for (IResource r : outputResources) {
-                state.putSignature(r.getAbsPath(), new byte[0]);
-            }
         }
         return taskResult;
     }
@@ -295,11 +267,7 @@ public class TaskBuilder {
         logger.info("Build tasks");
         long tstart = System.currentTimeMillis();
 
-        // Build list of all task outputs
-        for (Task task : tasks) {
-            allOutputs.addAll(task.getOutputs());
-        }
-
+        buildContainsChanges = false;
         int previousCompletedCount = 0;
         int previousRemainingCount = 0;
         boolean abort = false;
@@ -310,35 +278,20 @@ public class TaskBuilder {
             int remainingCount = tasks.size();
 
             // if (previousCompletedCount == completedCount && previousRemainingCount == remainingCount) {
-            //     logger.info("STALLED!");
-            //     for (Task task : tasks) {
-            //         logger.info("TASK: " + task.getInputsString() + " -> " + task.getOutputsString());
-            //         logger.info(" - Completed " + completedTasks.contains(task));
-            //         if (hasUnresolvedDependencies(task)) {
-            //             logger.info(" - Unresolved tasks:");
-            //             Set<IResource> unresolved = getUnresolvedDependencies(task);
-            //             for (IResource r : unresolved) {
-            //                 logger.info("   - " + r);
-            //             }
-            //         }
-            //         else {
-            //             logger.info(" - All sigs are equal: " + compareAllSignatures(task.calculateSignature(), task.getOutputs()));
-            //         }
-            //     }
+            //     logger.severe("Build has stalled!");
             //     System.exit(0);
             // }
             previousCompletedCount = completedCount;
             previousRemainingCount = remainingCount;
-            logger.info("---");
-            logger.info("---");
-            logger.info("---");
-            logger.info("---");
-            logger.info("---");
-            logger.info("Building tasks - completed: %d remaining: %d", completedTasks.size(), tasks.size());
+            // logger.info("Building tasks - completed: %d remaining: %d", completedTasks.size(), tasks.size());
             tasksToSubmit.clear();
             taskNameCounter.clear();
             Set<String> taskNames = new HashSet<>();
             for (Task task : tasks) {
+                // make sure that game.project is built last and as the only remaining task
+                // refer to issue #9553
+                if (task.getBuilder().isGameProjectBuilder() && remainingCount > 1) continue;
+
                 String taskName = task.getName();
                 if (taskName.equals("VertexProgram") || taskName.equals("FragmentProgram") || taskName.equals("Material")) {
                     taskName = "Shader";
@@ -358,18 +311,28 @@ public class TaskBuilder {
                 List<Future<TaskResult>> futures = this.executorService.invokeAll(tasksToSubmit);
                 for (Future<TaskResult> future : futures) {
                     TaskResult result = future.get();
-                    if (result == null) {
+                    // should the task be retried again?
+                    // this can happen if running out of memory while building
+                    if (result.getResult() == Result.RETRY) {
                         continue;
                     }
-                    results.add(result);
+
                     Task task = result.getTask();
-                    boolean success = tasks.remove(task);
-                    if (!success) {
-                        logger.severe("Unable to find task to remove");
-                        System.exit(0);
+                    results.add(result);
+                    if (result.isOk()) {
+                        completedTasks.add(task);
+                        completedOutputs.addAll(task.getOutputs());
+                        boolean success = tasks.remove(task);
+                        if (!success) {
+                            // this shouldn't really happen, but we might as well
+                            // check for it anyway
+                            logger.severe("Unable to find task to remove");
+                            abort = true;
+                            break;
+                        }
                     }
-                    // if an exception was caught we abort the entire build
-                    if (result.hasException() || !result.isOk()) {
+                    else {
+                        state.removeSignatures(task.getOutputs());
                         logger.info("Task failed: " + task.getName() + " " + task.getInputsString());
                         abort = true;
                         break;
@@ -380,7 +343,6 @@ public class TaskBuilder {
                 logger.severe("Exception");
                 e.printStackTrace(new java.io.PrintStream(System.out));
                 abort = true;
-                break;
             }
         }
 

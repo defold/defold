@@ -1727,23 +1727,22 @@ public class Project {
     @SuppressWarnings({ "rawtypes", "unchecked" })
     private List<TaskResult> runTasks(IProgress monitor) throws IOException, CompileExceptionError {
 
+        // TextureGenerator.maxThreads = getMaxCpuThreads();
         TextureGenerator.maxThreads = 1;
 
-        List<Task> tasksToBuild = new ArrayList<Task>(getTasks());
-        TaskBuilder taskBuilder = new TaskBuilder(tasksToBuild, this);
-        tasks.clear();
-        List<TaskResult> result = taskBuilder.build(monitor);
+        TaskBuilder taskBuilder = new TaskBuilder(getTasks(), this);
 
-        // make sure no new tasks were created while building the tasks
-        if (!tasks.isEmpty()) {
-            throw new CompileExceptionError("New tasks were created while tasks were building");
+        // create mapping between output and flags
+        outputs.clear();
+        for (IResource res : taskBuilder.getAllOutputs()) {
+            outputs.put(res.getAbsPath(), EnumSet.noneOf(OutputFlags.class));
         }
 
-        // Keep track of the paths for all outputs
-        final Set<IResource> allOutputs = taskBuilder.getAllOutputs();
-        outputs = new HashMap<>(allOutputs.size());
-        for (IResource res : allOutputs) {
-            outputs.put(res.getAbsPath(), EnumSet.noneOf(OutputFlags.class));
+        // build all tasks and make sure no new tasks were created while building
+        tasks.clear();
+        List<TaskResult> result = taskBuilder.build(monitor);
+        if (!tasks.isEmpty()) {
+            throw new CompileExceptionError("New tasks were created while tasks were building");
         }
 
         return result;
