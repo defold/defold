@@ -41,7 +41,7 @@ namespace dmGraphics
     {
         TextureParams     m_Params;
         TextureType       m_Type;
-        GLuint*           m_TextureIds;
+        uint32_t*         m_TextureIds;
         uint32_t          m_ResourceSize; // For Mip level 0. We approximate each mip level is 1/4th. Or MipSize0 * 1.33
         int32_atomic_t    m_DataState; // data state per mip-map (mipX = bitX). 0=ok, 1=pending
         uint16_t          m_NumTextureIds;
@@ -60,7 +60,7 @@ namespace dmGraphics
         union
         {
             HTexture m_Texture;
-            GLuint   m_Buffer;
+            uint32_t m_Buffer;
         };
         AttachmentType m_Type;
         bool           m_Attached;
@@ -72,20 +72,20 @@ namespace dmGraphics
         OpenGLRenderTargetAttachment m_DepthAttachment;
         OpenGLRenderTargetAttachment m_StencilAttachment;
         OpenGLRenderTargetAttachment m_DepthStencilAttachment;
-        GLuint                       m_Id;
+        uint32_t                     m_Id;
         uint32_t                     m_BufferTypeFlags;
     };
 
     struct OpenGLShader
     {
-        GLuint               m_Id;
+        uint32_t             m_Id;
         ShaderMeta           m_ShaderMeta;
         ShaderDesc::Language m_Language;
     };
 
     struct OpenGLBuffer
     {
-        GLuint           m_Id;
+        uint32_t         m_Id;
         DeviceBufferType m_Type;
         uint32_t         m_MemorySize;
     };
@@ -103,7 +103,7 @@ namespace dmGraphics
         dmArray<GLint> m_Indices;
         dmArray<GLint> m_Offsets;
         uint8_t*       m_BlockMemory;
-        GLuint         m_Id;
+        uint32_t       m_Id;
         GLint          m_Binding;
         GLint          m_BlockSize;
         GLint          m_ActiveUniforms;
@@ -123,7 +123,7 @@ namespace dmGraphics
 
     struct OpenGLProgram
     {
-        GLuint                         m_Id;
+        uint32_t                       m_Id;
         ShaderDesc::Language           m_Language;
         dmArray<OpenGLVertexAttribute> m_Attributes;
         dmArray<OpenGLUniformBuffer>   m_UniformBuffers;
@@ -146,6 +146,14 @@ namespace dmGraphics
         OpenGLProgram*          m_CurrentProgram;
 
         dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
+        /*
+        * Store all allocated OpenGL handles in one array.
+        * All other abstractions should use index of handles inside that array instead of direct use of GL handle.
+        * It helps to avoid changing relationship between resource/component and graphical handle.
+        * But it enables to recreate all underlying handles without changes of external connection.
+        */
+        dmArray<GLuint>         m_AllGLHandles;
+        dmArray<uint32_t>       m_FreeIndexes; /// contains indexes that can be reused in m_AllGLHandles
 
         PipelineState           m_PipelineState;
         uint32_t                m_Width;

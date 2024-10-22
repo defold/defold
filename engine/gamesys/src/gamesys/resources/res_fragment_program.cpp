@@ -18,7 +18,7 @@
 
 namespace dmGameSystem
 {
-    static dmResource::Result AcquireResources(dmGraphics::HContext context, dmResource::HFactory factory, const char* filename, dmGraphics::ShaderDesc* ddf, dmGraphics::HVertexProgram* program)
+    static dmResource::Result AcquireResources(dmGraphics::HContext context, dmResource::HFactory factory, const char* filename, dmGraphics::ShaderDesc* ddf, dmGraphics::HFragmentProgram* program)
     {
         char error_buffer[1024] = {};
         dmGraphics::HFragmentProgram prog = dmGraphics::NewFragmentProgram(context, ddf, error_buffer, sizeof(error_buffer));
@@ -47,7 +47,7 @@ namespace dmGameSystem
     dmResource::Result ResFragmentProgramCreate(const dmResource::ResourceCreateParams* params)
     {
         dmGraphics::ShaderDesc* ddf = (dmGraphics::ShaderDesc*)params->m_PreloadData;
-        dmGraphics::HVertexProgram resource = 0x0;
+        dmGraphics::HFragmentProgram resource = 0x0;
         dmResource::Result r = AcquireResources((dmGraphics::HContext) params->m_Context, params->m_Factory, params->m_Filename, ddf, &resource);
         if (r == dmResource::RESULT_OK)
         {
@@ -59,14 +59,14 @@ namespace dmGameSystem
 
     dmResource::Result ResFragmentProgramDestroy(const dmResource::ResourceDestroyParams* params)
     {
-        dmGraphics::HVertexProgram resource = (dmGraphics::HVertexProgram)dmResource::GetResource(params->m_Resource);
+        dmGraphics::HFragmentProgram resource = (dmGraphics::HFragmentProgram)dmResource::GetResource(params->m_Resource);
         dmGraphics::DeleteFragmentProgram(resource);
         return dmResource::RESULT_OK;
     }
 
     dmResource::Result ResFragmentProgramRecreate(const dmResource::ResourceRecreateParams* params)
     {
-        dmGraphics::HVertexProgram resource = (dmGraphics::HVertexProgram)dmResource::GetResource(params->m_Resource);
+        dmGraphics::HFragmentProgram resource = (dmGraphics::HFragmentProgram)dmResource::GetResource(params->m_Resource);
         if (resource == 0)
         {
             return dmResource::RESULT_FORMAT_ERROR;
