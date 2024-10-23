@@ -172,17 +172,13 @@ Result DeregisterTypes(HFactory factory, dmHashTable64<void*>* contexts)
             ctx.m_Contexts = contexts;
 
             HResourceType type = dmResource::FindResourceType(factory, desc->m_Name);
-            void* context = ResourceTypeContextGetContextByHash(&ctx, dmHashString64(desc->m_Name));
-            if (context)
+            Result result = (Result)desc->m_DeregisterFn(&ctx, type);
+            if (result != RESULT_OK)
             {
-                Result result = (Result)desc->m_DeregisterFn(&ctx, type);
-                if (result != RESULT_OK)
-                {
-                    dmLogError("Failed to deregister type '%s': %s", desc->m_Name, ResultToString(result));
-                    return result;
-                }
-                dmLogDebug("Deregistered type '%s'", desc->m_Name);
+                dmLogError("Failed to deregister type '%s': %s", desc->m_Name, ResultToString(result));
+                return result;
             }
+            dmLogDebug("Deregistered type '%s'", desc->m_Name);
         }
 
         desc = desc->m_Next;

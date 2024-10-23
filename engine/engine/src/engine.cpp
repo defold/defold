@@ -298,7 +298,7 @@ namespace dmEngine
         dmHttpClient::ShutdownConnectionPool();
 
         // Reregister the types before the rest of the contexts are deleted
-        if (engine->m_Factory) {
+        if (engine->m_Factory && engine->m_ResourceTypeContexts.Size() > 0) {
             dmResource::DeregisterTypes(engine->m_Factory, &engine->m_ResourceTypeContexts);
         }
 
