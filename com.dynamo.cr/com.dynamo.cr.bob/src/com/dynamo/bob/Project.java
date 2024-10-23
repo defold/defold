@@ -643,8 +643,8 @@ public class Project {
         buildServerHeaders.add(header);
     }
 
-    public void addPropertyFile(String filepath) {
-        propertyFiles.add(filepath);
+    public void addPropertyFile(String propertyFile) {
+        propertyFiles.add(propertyFile);
     }
 
     public void addEngineBuildDir(String dirpath) {
@@ -659,10 +659,13 @@ public class Project {
     public List<IResource> getPropertyFilesAsResources() {
         List<IResource> resources = new ArrayList<>();
         for (String propertyFile : propertyFiles) {
-            Path rootDir = Paths.get(getRootDirectory()).normalize().toAbsolutePath();
-            Path settingsFile = Paths.get(propertyFile).normalize().toAbsolutePath();
-            Path relativePath = rootDir.relativize(settingsFile);
-            resources.add(fileSystem.get(relativePath.toString()));
+            Path path = Paths.get(propertyFile);
+            if (!path.isAbsolute()) {
+                Path rootDir = Paths.get(getRootDirectory()).normalize().toAbsolutePath();
+                Path settingsFile = path.normalize().toAbsolutePath();
+                path = rootDir.relativize(settingsFile);
+            }
+            resources.add(fileSystem.get(path.getFileName().toString()));
         }
         return resources;
     }
@@ -719,7 +722,22 @@ public class Project {
      */
     public void mount(IResourceScanner resourceScanner) throws IOException, CompileExceptionError {
         this.fileSystem.clearMountPoints();
+        Set<String> mounts = new HashSet<>();
         this.fileSystem.addMountPoint(new ClassLoaderMountPoint(this.fileSystem, "builtins/**", resourceScanner));
+        for (String propertyFile : propertyFiles) {
+            Path path = Paths.get(propertyFile);
+            if (path.isAbsolute()) {
+                String normalizedRoot = path.getParent().normalize().toString();
+                // do not add the same mount twice if multiple settings are passed on commandline in same directory
+                if (!mounts.contains(normalizedRoot)) {
+                    DefaultFileSystem fs = new DefaultFileSystem();
+                    fs.setRootDirectory(normalizedRoot);
+                    this.fileSystem.addMountPoint(new FileSystemMountPoint(this.fileSystem, fs));
+                    mounts.add(normalizedRoot);
+                }
+            }
+        }
+
         Map<String, File> libFiles = LibraryUtil.collectLibraryFiles(getLibPath(), this.libUrls);
         if (libFiles == null) {
             throw new CompileExceptionError("Missing libraries folder. You need to run the 'resolve' command first!");
