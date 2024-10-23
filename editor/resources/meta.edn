@@ -142,28 +142,28 @@
   {:type :number,
    :help "Render clear color - red channel",
    :label "Clear Color Red"
-   :default 0.0,
+   :default 0,
    :minimum 0.0,
    :maximum 1.0,
    :path ["render" "clear_color_red"]}
   {:type :number,
    :help "Render clear color - green channel",
    :label "Clear Color Green"
-   :default 0.0,
+   :default 0,
    :minimum 0.0,
    :maximum 1.0,
    :path ["render" "clear_color_green"]}
   {:type :number,
    :help "Render clear color - blue channel",
    :label "Clear Color Blue"
-   :default 0.0,
+   :default 0,
    :minimum 0.0,
    :maximum 1.0,
    :path ["render" "clear_color_blue"]}
   {:type :number,
    :help "Render clear color - alpha channel",
    :label "Clear Color Alpha"
-   :default 0.0,
+   :default 0,
    :minimum 0.0,
    :maximum 1.0,
    :path ["render" "clear_color_alpha"]}
