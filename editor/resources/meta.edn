@@ -143,21 +143,29 @@
    :help "Render clear color - red channel",
    :label "Clear Color Red"
    :default 0,
+   :minimum 0.0,
+   :maximum 1.0,
    :path ["render" "clear_color_red"]}
   {:type :number,
    :help "Render clear color - green channel",
    :label "Clear Color Green"
    :default 0,
+   :minimum 0.0,
+   :maximum 1.0,
    :path ["render" "clear_color_green"]}
   {:type :number,
    :help "Render clear color - blue channel",
    :label "Clear Color Blue"
    :default 0,
+   :minimum 0.0,
+   :maximum 1.0,
    :path ["render" "clear_color_blue"]}
   {:type :number,
    :help "Render clear color - alpha channel",
    :label "Clear Color Alpha"
    :default 0,
+   :minimum 0.0,
+   :maximum 1.0,
    :path ["render" "clear_color_alpha"]}
   {:type :integer,
    :help "max number of collision objects, 128 by default",
@@ -370,6 +378,8 @@
   {:type :integer,
    :help "max number of instances per collection, 1024 by default",
    :default 1024,
+   :minimum 1,
+   :maximum 32765,
    :path ["collection" "max_instances"]}
   {:type :integer,
    :help "max number of game objects in the input stack, 16 by default",
@@ -670,10 +680,12 @@
   {:type :integer,
    :help "minimum API Level required for the application to run (android:minSdkVersion)",
    :default 19,
+   :minimum 19,
    :path ["android" "minimum_sdk_version"]}
   {:type :integer,
    :help "the API Level that the application targets (android:targetSdkVersion)",
    :default 34,
+   :minimum 19,
    :path ["android" "target_sdk_version"]}
   {:type :string,
    :help "package identifier",
@@ -788,6 +800,8 @@
   {:type :integer,
    :help "The size, in megabytes, of the application's heap",
    :default 256,
+   :minimum 32,
+   :maximum 4096,
    :path ["html5" "heap_size"]}
   {:type :resource,
    :filter "html",
