@@ -124,11 +124,14 @@
                              (section-title category-name (get-in meta-info [:categories category-name])))}))
 
 (defn get-setting-build-error [setting-value meta-setting label]
-  (if (and (some? setting-value)
-           (some? (:range meta-setting)))
-    (let [error (validation/prop-outside-range? (:range meta-setting) setting-value (string/join "." (:path meta-setting)))]
-      (if (some? error)
-        (g/->error nil label :fatal nil error)))))
+  (if (and (some? setting-value))
+    (let [max-error (when (some? (:maximum meta-setting))
+                      (validation/prop-maximum-check? (:maximum meta-setting) setting-value (string/join "." (:path meta-setting))))
+          min-error (when (some? (:minimum meta-setting))
+                      (validation/prop-minimum-check? (:minimum meta-setting) setting-value (string/join "." (:path meta-setting))))]
+      (cond
+        (some? max-error) (g/->error nil label :fatal nil max-error)
+        (some? min-error) (g/->error nil label :fatal nil min-error)))))
 
 (defn get-setting-error [setting-value meta-setting label]
   (cond
@@ -152,7 +155,7 @@
           (keep (fn [[setting-path setting-value]]
                   (let [meta-setting (settings-core/get-meta-setting meta-settings setting-path)]
                     (when-some [error (get-setting-build-error setting-value meta-setting :build-targets)]
-                      [error]))))
+                      error))))
           setting-values)))
 
 (g/defnk produce-form-data [_node-id meta-info raw-settings resource-setting-nodes resource-settings]

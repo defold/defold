@@ -142,17 +142,8 @@
    ["input" "gamepads"] [[:build-targets :dep-build-targets]]
    ["input" "game_binding"] [[:build-targets :dep-build-targets]]})
 
-(defn update-build-errors [build-errors _node-id]
-  (mapv (fn [error-group]
-          (mapv (fn [error]
-                  (if (and (vector? error) (map? (first error)))
-                    [(assoc (first error) :_node-id _node-id)]
-                    error))
-                error-group))
-        build-errors))
-
 (g/defnk produce-build-targets [_node-id build-errors resource settings-map meta-info custom-build-targets resource-settings dep-build-targets]
-  (g/precluding-errors (update-build-errors build-errors _node-id)
+  (g/precluding-errors (some-> (g/flatten-errors build-errors) (assoc :_node-id _node-id))
      (let [clean-meta-info (settings-core/remove-to-from-string meta-info)
            dep-build-targets (vec (into (flatten dep-build-targets) custom-build-targets))
            deps-by-source (into {} (map
