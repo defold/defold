@@ -194,16 +194,16 @@ static void CreateNodes(JNIEnv* env, dmModelImporter::jni::TypeInfos* types, con
 
         if (node->m_Parent != 0)
         {
-            dmJNI::SetObject(env, nodes[i], types->m_NodeJNI.parent, nodes[node->m_Parent->m_Index]);
+            dmJNI::SetObject(env, nodes[node->m_Index], types->m_NodeJNI.parent, nodes[node->m_Parent->m_Index]);
         }
 
         jobjectArray childrenArray = env->NewObjectArray(node->m_Children.Size(), types->m_NodeJNI.cls, 0);
-        for (uint32_t i = 0; i < node->m_Children.Size(); ++i)
+        for (uint32_t c = 0; c < node->m_Children.Size(); ++c)
         {
-            dmModelImporter::Node* child = node->m_Children[i];
-            env->SetObjectArrayElement(childrenArray, i, nodes[child->m_Index]);
+            dmModelImporter::Node* child = node->m_Children[c];
+            env->SetObjectArrayElement(childrenArray, c, nodes[child->m_Index]);
         }
-        env->SetObjectField(nodes[i], types->m_NodeJNI.children, childrenArray);
+        env->SetObjectField(nodes[node->m_Index], types->m_NodeJNI.children, childrenArray);
         env->DeleteLocalRef(childrenArray);
     }
 }
