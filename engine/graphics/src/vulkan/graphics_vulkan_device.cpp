@@ -61,10 +61,12 @@ namespace dmGraphics
         {
             switch(size)
             {
-                case 1: return VK_FORMAT_R32_SFLOAT;
-                case 2: return VK_FORMAT_R32G32_SFLOAT;
-                case 3: return VK_FORMAT_R32G32B32_SFLOAT;
-                case 4: return VK_FORMAT_R32G32B32A32_SFLOAT;
+                case 1:  return VK_FORMAT_R32_SFLOAT;
+                case 2:  return VK_FORMAT_R32G32_SFLOAT;
+                case 3:  return VK_FORMAT_R32G32B32_SFLOAT;
+                case 4:  return VK_FORMAT_R32G32B32A32_SFLOAT;
+                case 9:  return VK_FORMAT_R32G32B32_SFLOAT;
+                case 16: return VK_FORMAT_R32G32B32A32_SFLOAT;
                 default:break;
             }
         }
@@ -76,6 +78,8 @@ namespace dmGraphics
                 case 2: return VK_FORMAT_R32G32_SINT;
                 case 3: return VK_FORMAT_R32G32B32_SINT;
                 case 4: return VK_FORMAT_R32G32B32A32_SINT;
+                case 9: return VK_FORMAT_R32G32B32_SINT;
+                case 16: return VK_FORMAT_R32G32B32A32_SINT;
                 default:break;
             }
         }
@@ -87,6 +91,8 @@ namespace dmGraphics
                 case 2: return VK_FORMAT_R32G32_UINT;
                 case 3: return VK_FORMAT_R32G32B32_UINT;
                 case 4: return VK_FORMAT_R32G32B32A32_UINT;
+                case 9: return VK_FORMAT_R32G32B32_UINT;
+                case 16: return VK_FORMAT_R32G32B32A32_UINT;
                 default:break;
             }
         }
@@ -98,6 +104,8 @@ namespace dmGraphics
                 case 2: return normalized ? VK_FORMAT_R8G8_SNORM : VK_FORMAT_R8G8_SINT;
                 case 3: return normalized ? VK_FORMAT_R8G8B8_SNORM : VK_FORMAT_R8G8B8_SINT;
                 case 4: return normalized ? VK_FORMAT_R8G8B8A8_SNORM : VK_FORMAT_R8G8B8A8_SINT;
+                case 9: return normalized ? VK_FORMAT_R8G8B8_SNORM : VK_FORMAT_R8G8B8_SINT;
+                case 16: return normalized ? VK_FORMAT_R8G8B8A8_SNORM : VK_FORMAT_R8G8B8A8_SINT;
                 default:break;
             }
         }
@@ -109,6 +117,8 @@ namespace dmGraphics
                 case 2: return normalized ? VK_FORMAT_R8G8_UNORM : VK_FORMAT_R8G8_UINT;
                 case 3: return normalized ? VK_FORMAT_R8G8B8_UNORM : VK_FORMAT_R8G8B8_UINT;
                 case 4: return normalized ? VK_FORMAT_R8G8B8A8_UNORM : VK_FORMAT_R8G8B8A8_UINT;
+                case 9: return normalized ? VK_FORMAT_R8G8B8_UNORM : VK_FORMAT_R8G8B8_UINT;
+                case 16: return normalized ? VK_FORMAT_R8G8B8A8_UNORM : VK_FORMAT_R8G8B8A8_UINT;
                 default:break;
             }
         }
@@ -120,6 +130,8 @@ namespace dmGraphics
                 case 2: return normalized ? VK_FORMAT_R16G16_SNORM : VK_FORMAT_R16G16_SINT;
                 case 3: return normalized ? VK_FORMAT_R16G16B16_SNORM : VK_FORMAT_R16G16B16_SINT;
                 case 4: return normalized ? VK_FORMAT_R16G16B16A16_SNORM : VK_FORMAT_R16G16B16A16_SINT;
+                case 9: return normalized ? VK_FORMAT_R16G16B16_SNORM : VK_FORMAT_R16G16B16_SINT;
+                case 16: return normalized ? VK_FORMAT_R16G16B16A16_SNORM : VK_FORMAT_R16G16B16A16_SINT;
                 default:break;
             }
         }
@@ -131,10 +143,12 @@ namespace dmGraphics
                 case 2: return normalized ? VK_FORMAT_R16G16_UNORM : VK_FORMAT_R16G16_UINT;
                 case 3: return normalized ? VK_FORMAT_R16G16B16_UNORM : VK_FORMAT_R16G16B16_UINT;
                 case 4: return normalized ? VK_FORMAT_R16G16B16A16_UNORM : VK_FORMAT_R16G16B16A16_UINT;
+                case 9: return normalized ? VK_FORMAT_R16G16B16_UNORM : VK_FORMAT_R16G16B16_UINT;
+                case 16: return normalized ? VK_FORMAT_R16G16B16A16_UNORM : VK_FORMAT_R16G16B16A16_UINT;
                 default:break;
             }
         }
-        else if (type == TYPE_FLOAT_MAT4)
+        else if (type == TYPE_FLOAT_MAT4 || type == TYPE_FLOAT_MAT3 || type == TYPE_FLOAT_MAT2)
         {
             return VK_FORMAT_R32_SFLOAT;
         }
@@ -145,28 +159,6 @@ namespace dmGraphics
 
         assert(0 && "Unable to deduce type from dmGraphics::Type");
         return VK_FORMAT_UNDEFINED;
-    }
-
-    static uint16_t FillVertexInputAttributeDesc(HVertexDeclaration vertexDeclaration, VkVertexInputAttributeDescription* vk_vertex_input_descs, uint32_t binding)
-    {
-        uint16_t num_attributes = 0;
-        for (uint16_t i = 0; i < vertexDeclaration->m_StreamCount; ++i)
-        {
-            if (vertexDeclaration->m_Streams[i].m_Location == -1)
-            {
-                continue;
-            }
-
-            VertexDeclaration::Stream& stream              = vertexDeclaration->m_Streams[i];
-            vk_vertex_input_descs[num_attributes].binding  = binding;
-            vk_vertex_input_descs[num_attributes].location = stream.m_Location;
-            vk_vertex_input_descs[num_attributes].format   = GetVertexAttributeFormat(stream.m_Type, stream.m_Size, stream.m_Normalize);
-            vk_vertex_input_descs[num_attributes].offset   = stream.m_Offset;
-
-            num_attributes++;
-        }
-
-        return num_attributes;
     }
 
     static VkResult AllocateDescriptorPool(DescriptorAllocator* allocator, VkDevice vk_device)
@@ -632,6 +624,7 @@ namespace dmGraphics
             {VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER, max_descriptors},
             {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,          max_descriptors},
             {VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,         max_descriptors},
+            {VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,          max_descriptors},
         };
 
         VkDescriptorPoolCreateInfo vk_pool_create_info;
@@ -1100,6 +1093,55 @@ bail:
         }
     }
 
+    static uint16_t FillVertexInputAttributeDesc(HVertexDeclaration vertexDeclaration, VkVertexInputAttributeDescription* vk_vertex_input_descs, uint32_t binding)
+    {
+        uint16_t num_attributes = 0;
+        for (uint16_t i = 0; i < vertexDeclaration->m_StreamCount; ++i)
+        {
+            if (vertexDeclaration->m_Streams[i].m_Location == -1)
+            {
+                continue;
+            }
+
+            VertexDeclaration::Stream& stream = vertexDeclaration->m_Streams[i];
+            VkFormat fmt = GetVertexAttributeFormat(stream.m_Type, stream.m_Size, stream.m_Normalize);
+
+            #define PUT_ATTRIBUTE(ix, loc, ofs, fmt) \
+                vk_vertex_input_descs[ix].binding = binding; \
+                vk_vertex_input_descs[ix].location = loc; \
+                vk_vertex_input_descs[ix].offset = ofs; \
+                vk_vertex_input_descs[ix].format = fmt;
+
+            uint32_t stream_data_size = GetGraphicsTypeDataSize(stream.m_Type);
+
+            // TODO: This doesn't support 2x2 matrices - we can't distinguish between a vec4 and a 2x2 matrix here currently
+            switch(stream.m_Size)
+            {
+            case 9: // 3x3 matrix
+                PUT_ATTRIBUTE(num_attributes + 0, (stream.m_Location + 0), (stream.m_Offset + 0 * stream_data_size * 3), fmt);
+                PUT_ATTRIBUTE(num_attributes + 1, (stream.m_Location + 1), (stream.m_Offset + 1 * stream_data_size * 3), fmt);
+                PUT_ATTRIBUTE(num_attributes + 2, (stream.m_Location + 2), (stream.m_Offset + 2 * stream_data_size * 3), fmt);
+                num_attributes += 3;
+                break;
+            case 16: // 4x4 matrix
+                PUT_ATTRIBUTE(num_attributes + 0, (stream.m_Location + 0), (stream.m_Offset + 0 * stream_data_size * 4), fmt);
+                PUT_ATTRIBUTE(num_attributes + 1, (stream.m_Location + 1), (stream.m_Offset + 1 * stream_data_size * 4), fmt);
+                PUT_ATTRIBUTE(num_attributes + 2, (stream.m_Location + 2), (stream.m_Offset + 2 * stream_data_size * 4), fmt);
+                PUT_ATTRIBUTE(num_attributes + 3, (stream.m_Location + 3), (stream.m_Offset + 3 * stream_data_size * 4), fmt);
+                num_attributes += 4;
+                break;
+            default:
+                PUT_ATTRIBUTE(num_attributes, stream.m_Location, stream.m_Offset, fmt);
+                num_attributes++;
+                break;
+            }
+
+            #undef PUT_ATTRIBUTE
+        }
+
+        return num_attributes;
+    }
+
     // These lookup values should match the ones in graphics_vulkan_constants.cpp
     static const VkPrimitiveTopology g_vk_primitive_types[] = {
         VK_PRIMITIVE_TOPOLOGY_LINE_LIST,
@@ -1171,8 +1213,11 @@ bail:
     {
         assert(pipelineOut && *pipelineOut == VK_NULL_HANDLE);
 
+        // This differs from MAX_VERTEX_STREAM_COUNT, since mat4 exhausts 4 desc slots
+        const uint32_t MAX_VERTEX_INPUT_DESCS_COUNT = 32;
+
         uint16_t active_attributes = 0;
-        VkVertexInputAttributeDescription vk_vertex_input_descs[MAX_VERTEX_STREAM_COUNT] = {};
+        VkVertexInputAttributeDescription vk_vertex_input_descs[MAX_VERTEX_INPUT_DESCS_COUNT] = {};
         VkVertexInputBindingDescription vk_vx_input_descriptions[MAX_VERTEX_BUFFERS] = {};
 
         for (int i = 0; i < vertexDeclarationCount; ++i)

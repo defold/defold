@@ -184,6 +184,8 @@
   (is (true? (coll/empty? #{})))
   (is (true? (coll/empty? (sorted-map))))
   (is (true? (coll/empty? (sorted-set))))
+  (is (true? (coll/empty? (double-array 0))))
+  (is (true? (coll/empty? (object-array 0))))
   (is (true? (coll/empty? (range 0))))
   (is (true? (coll/empty? (repeatedly 0 rand))))
   (is (false? (coll/empty? "a")))
@@ -194,6 +196,8 @@
   (is (false? (coll/empty? #{1})))
   (is (false? (coll/empty? (sorted-map :a 1))))
   (is (false? (coll/empty? (sorted-set 1))))
+  (is (false? (coll/empty? (double-array 1))))
+  (is (false? (coll/empty? (object-array 1))))
   (is (false? (coll/empty? (range 1))))
   (is (false? (coll/empty? (repeatedly 1 rand)))))
 
@@ -207,6 +211,8 @@
   (is (nil? (coll/not-empty #{})))
   (is (nil? (coll/not-empty (sorted-map))))
   (is (nil? (coll/not-empty (sorted-set))))
+  (is (nil? (coll/not-empty (double-array 0))))
+  (is (nil? (coll/not-empty (object-array 0))))
   (is (nil? (coll/not-empty (range 0))))
   (is (nil? (coll/not-empty (repeatedly 0 rand))))
   (letfn [(returns-input? [input]
@@ -219,6 +225,8 @@
     (is (returns-input? #{1}))
     (is (returns-input? (sorted-map :a 1)))
     (is (returns-input? (sorted-set 1)))
+    (is (returns-input? (double-array 1)))
+    (is (returns-input? (object-array 1)))
     (is (returns-input? (range 1)))
     (is (returns-input? (repeatedly 1 rand)))))
 
@@ -246,6 +254,26 @@
     (let [result (coll/pair-map-by symbol keyword ["one" "two"])]
       (is (map? result))
       (is (= {'one :one 'two :two} result)))))
+
+(deftest remove-index-test
+  (testing "Returns a vector without the item at the specified index."
+    (is (= [:b :c] (coll/remove-index [:a :b :c] 0)))
+    (is (= [:a :c] (coll/remove-index [:a :b :c] 1)))
+    (is (= [:a :b] (coll/remove-index [:a :b :c] 2))))
+
+  (testing "Throws when index out of bounds."
+    (is (thrown? IndexOutOfBoundsException (coll/remove-index [:a :b :c] -1)))
+    (is (thrown? IndexOutOfBoundsException (coll/remove-index [:a :b :c] 3))))
+
+  (testing "Preserves metadata."
+    (let [original-meta {:meta-key "meta-value"}]
+      (doseq [checked-coll [[:a :b :c]
+                            (subvec [:a :b :c] 1)
+                            (vector-of :long 10 20 30)
+                            (vector-of :double 10.0 20.0 30.0)]]
+        (let [original-coll (with-meta checked-coll original-meta)
+              altered-coll (coll/remove-index original-coll 1)]
+          (is (identical? original-meta (meta altered-coll))))))))
 
 (deftest separate-by-test
   (testing "Separates by predicate"

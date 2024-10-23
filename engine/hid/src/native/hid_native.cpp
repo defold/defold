@@ -16,7 +16,6 @@
 #include <string.h>
 
 #include <dlib/log.h>
-#include <dlib/utf8.h>
 #include <dlib/dstrings.h>
 #include <dlib/math.h>
 

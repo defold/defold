@@ -76,6 +76,13 @@ PACKAGES_WIN32_TOOLCHAIN=f"Microsoft-Visual-Studio-2022-{VERSION_WINDOWS_MSVC_20
 PACKAGES_WIN32_SDK_10=f"WindowsKits-{VERSION_WINDOWS_SDK_10}"
 
 ## **********************************************************************************************
+# Emscripten
+
+EMSCRIPTEN_VERSION_STR  =  "3.1.65"
+EMSCRIPTEN_SDK          = f"sdk-{EMSCRIPTEN_VERSION_STR}-64bit"
+PACKAGES_EMSCRIPTEN_SDK = f"emsdk-{EMSCRIPTEN_VERSION_STR}"
+
+## **********************************************************************************************
 ## used by build.py
 
 PACKAGES_IOS_SDK="iPhoneOS%s.sdk" % VERSION_IPHONEOS
@@ -110,6 +117,28 @@ defold_info['win10sdk']['pattern'] = "Win32/%s" % PACKAGES_WIN32_SDK_10
 
 defold_info['x86_64-linux']['version'] = VERSION_LINUX_CLANG
 defold_info['x86_64-linux']['pattern'] = 'linux/clang-%s' % VERSION_LINUX_CLANG
+
+## **********************************************************************************************
+
+def log_verbose(verbose, msg):
+    if verbose:
+        log.log(msg)
+
+def _get_latest_version_from_folders(path, replace_patterns=[]):
+    dirs = [x for x in os.listdir(path)]
+    if len(dirs) == 0:
+        return None
+
+    def _replace_pattern(s, patterns):
+        for pattern, replace in patterns:
+            s = s.replace(pattern, replace)
+        return s
+
+    dirs.sort(key=lambda x: tuple(int(token) for token in _replace_pattern(x, replace_patterns).split('.')))
+    return dirs[0]
+
+class SDKException(Exception):
+    pass
 
 ## **********************************************************************************************
 ## DARWIN
@@ -162,43 +191,42 @@ def get_local_darwin_sdk_version(platform):
 ## **********************************************************************************************
 ## Android
 
-
-def get_android_local_sdk_path():
+def get_android_local_sdk_path(verbose=False):
     path = os.environ.get('ANDROID_HOME', None)
-
     if path is None:
+        log_verbose(verbose, f"  No ANDROID_HOME detected")
+
+        # on macOS, it doesn't set an environment variable
         if sys.platform == 'darwin':
             path = os.path.expanduser('~/Library/android/sdk')
 
     if path and os.path.exists(path):
+        log_verbose(verbose, f"  Detected sdk path {path}")
         return path
 
-    return None
+    raise SDKException(f"Path {path} not found")
 
-def _get_latest_version_from_folders(path):
-    dirs = [ x for x in os.listdir(path)]
-    dirs.sort(key=lambda x: tuple(int(token) for token in x.split('.')))
-    return dirs[0]
-
-def get_android_local_ndk_path(platform):
+def get_android_local_ndk_path(platform, verbose=False):
     sdk_root = get_android_local_sdk_path()
     ndk_root = os.path.join(sdk_root, 'ndk')
+    if not os.path.exists(ndk_root):
+        raise SDKException(f"  Failed to find {ndk_root}")
     version = _get_latest_version_from_folders(ndk_root)
+    if not version:
+        raise SDKException(f"  No ndk versions installed in {ndk_root}")
     return os.path.join(ndk_root, version)
 
 def get_android_local_build_tools_path(platform):
     path = get_android_local_sdk_path()
     build_tools_path = os.path.join(path, 'build-tools')
+    if not os.path.exists(build_tools_path):
+        raise SDKException(f"  Failed to find {build_tools_path}")
+
     version = _get_latest_version_from_folders(build_tools_path)
     return os.path.join(build_tools_path, version)
 
 def get_android_local_sdk_version(platform):
     return os.path.basename(get_android_local_build_tools_path(platform))
-
-## **********************************************************************************************
-
-# ANDROID_HOME
-
 
 ## **********************************************************************************************
 
@@ -379,14 +407,63 @@ def _setup_info_from_windowsinfo(windowsinfo, platform):
 
 
 ## **********************************************************************************************
+# Emscripten
+
+def get_defold_emsdk():
+    emsdk = os.path.join(SDK_ROOT, 'emsdk-' + EMSCRIPTEN_VERSION_STR)
+    if emsdk is None:
+        raise SDKException(f"Failed to installed EMSDK installation")
+    return emsdk
+
+def get_defold_emsdk_cache():
+    emsdk = get_defold_emsdk()
+    return os.path.join(emsdk, '.defold_cache')
+
+def get_defold_emsdk_config():
+    emsdk = get_defold_emsdk()
+    return os.path.join(emsdk, '.emscripten')
+
+def get_defold_emsdk_node():
+    emsdk = get_defold_emsdk()
+    node_dir = _get_latest_version_from_folders(os.path.join(emsdk, 'node'), [('_64bit', '')])
+    node = os.path.join(emsdk, 'node', node_dir, 'bin', 'node')
+    if not os.path.exists(node):
+        raise SDKException(f"Failed to find local EMSDK_NODE installation: {node}")
+    return node
+
+# ------------------------------------------------------------
+
+def _get_local_emsdk():
+    emsdk = os.environ.get('EMSDK', None)
+    if emsdk is None:
+        raise SDKException(f"Failed to find local EMSDK installation")
+    return emsdk
+
+# https://emscripten.org/docs/tools_reference/emcc.html?highlight=em_cache
+def _get_local_emsdk_cache():
+    emsdk = _get_local_emsdk()
+    return os.path.join(emsdk, '.defold_cache')
+
+# https://emscripten.org/docs/tools_reference/emcc.html?highlight=em_config
+def _get_local_emsdk_config():
+    emsdk = _get_local_emsdk()
+    return os.path.join(emsdk, '.emscripten')
+
+# https://emscripten.org/docs/tools_reference/emcc.html?highlight=em_config
+def _get_local_emsdk_node():
+    node = os.environ.get('EMSDK_NODE', None)
+    if node is None:
+        raise SDKException(f"Failed to find local EMSDK_NODE installation")
+    return node
+
+## **********************************************************************************************
 
 def _get_defold_path(sdkfolder, platform):
     return os.path.join(sdkfolder, defold_info[platform]['pattern'])
 
 def check_defold_sdk(sdkfolder, platform, verbose=False):
     folders = []
-    if verbose:
-        log.log("check_defold_sdk: %s %s" % (sdkfolder, platform))
+    log_verbose(verbose, f"check_defold_sdk: {platform} {sdkfolder}")
 
     if platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios'):
         folders.append(_get_defold_path(sdkfolder, 'xcode'))
@@ -403,41 +480,48 @@ def check_defold_sdk(sdkfolder, platform, verbose=False):
     elif platform in ('x86_64-linux',):
         folders.append(os.path.join(sdkfolder, "linux"))
 
+    elif platform in ('wasm-web','js-web'):
+        folders.append(get_defold_emsdk())
+
     if not folders:
         log.log("sdk.py: No SDK folders specified for %s" %platform)
         return False
 
     count = 0
+    msg = ''
     for f in folders:
         if not os.path.exists(f):
-            if verbose:
-                log.log("  Missing SDK in %s" % f)
+            msg += f"  Missing SDK in {f}\n"
         else:
             count = count + 1
     result = count == len(folders)
 
-    if verbose:
-        if not result:
-            log.log("  No prepackaged sdk found.")
-        else:
-            log.log("  Found prepackaged sdk folders:")
-            for f in folders:
-                log.log("    %s" % f)
+    if not result:
+        raise SDKException(msg + "  No prepackaged sdk found.")
+    else:
+        log_verbose(verbose, "  Found prepackaged sdk folders:")
+        for f in folders:
+            log_verbose(verbose, "    %s" % f)
 
     return result
 
 def check_local_sdk(platform, verbose=False):
+    log_verbose(verbose, f"check_local_sdk: {platform}")
+
     if platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios'):
         xcode_version = get_local_darwin_toolchain_version()
         if not xcode_version:
-            return False
+            raise SDKException(f"Failed to find XCode version")
+
     elif platform in ('win32', 'x86_64-win32'):
         info = get_windows_local_sdk_info(platform)
-        return info is not None
+        if info is None:
+            raise SDKException(f"Failed to find Visual Studio")
 
     elif platform in ('armv7-android', 'arm64-android'):
         path = get_android_local_sdk_path()
-        return path is not None
+        ndkpath = get_android_local_ndk_path(platform, verbose)
+        return path is not None and ndkpath is not None
 
     return True
 
@@ -474,9 +558,16 @@ def _get_defold_sdk_info(sdkfolder, platform):
         else:
             info['api'] = ANDROID_NDK_API_VERSION
 
+    elif platform in ('js-web', 'wasm-web'):
+        info['emsdk'] = {}
+        info['emsdk']['path'] = get_defold_emsdk()
+        info['emsdk']['cache'] = get_defold_emsdk_cache()
+        info['emsdk']['config'] = get_defold_emsdk_config()
+        info['emsdk']['node'] = get_defold_emsdk_node()
+
     return info
 
-def _get_local_sdk_info(platform):
+def _get_local_sdk_info(platform, verbose=False):
     info = {}
     if platform in ('x86_64-macos', 'arm64-macos','x86_64-ios','arm64-ios'):
         info['xcode'] = {}
@@ -503,13 +594,20 @@ def _get_local_sdk_info(platform):
 
     elif platform in ('armv7-android', 'arm64-android'):
         info['version'] = get_android_local_sdk_version(platform)
-        info['sdk'] = get_android_local_sdk_path()
-        info['ndk'] = get_android_local_ndk_path(platform)
+        info['sdk'] = get_android_local_sdk_path(verbose)
+        info['ndk'] = get_android_local_ndk_path(platform, verbose)
         info['build_tools'] = get_android_local_build_tools_path(platform)
         if platform == 'arm64-android':
             info['api'] = ANDROID_64_NDK_API_VERSION
         else:
             info['api'] = ANDROID_NDK_API_VERSION
+
+    elif platform in ('js-web', 'wasm-web'):
+        info['emsdk'] = {}
+        info['emsdk']['path'] = _get_local_emsdk()
+        info['emsdk']['cache'] = _get_local_emsdk_cache()
+        info['emsdk']['config'] = _get_local_emsdk_config()
+        info['emsdk']['node'] = _get_local_emsdk_node()
 
     return info
 
@@ -520,15 +618,21 @@ def get_sdk_info(sdkfolder, platform, verbose=False):
     if platform in cached_platforms:
         return cached_platforms[platform]
 
-    if check_defold_sdk(sdkfolder, platform, verbose):
-        result = _get_defold_sdk_info(sdkfolder, platform)
-        cached_platforms[platform] = result
-        return result
+    try:
+        if check_defold_sdk(sdkfolder, platform, verbose):
+            result = _get_defold_sdk_info(sdkfolder, platform)
+            cached_platforms[platform] = result
+            return result
+    except SDKException as e:
+        log_verbose(verbose, e)
 
-    if check_local_sdk(platform, verbose):
-        result = _get_local_sdk_info(platform)
-        cached_platforms[platform] = result
-        return result
+    try:
+        if check_local_sdk(platform, verbose):
+            result = _get_local_sdk_info(platform, verbose)
+            cached_platforms[platform] = result
+            return result
+    except SDKException as e:
+        log_verbose(verbose, e)
 
     return None
 

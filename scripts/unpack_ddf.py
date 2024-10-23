@@ -37,6 +37,7 @@ import binascii
 
 import gameobject.gameobject_ddf_pb2
 import gameobject.lua_ddf_pb2
+import input.input_ddf_pb2
 import gamesys.model_ddf_pb2
 import gamesys.texture_set_ddf_pb2
 import graphics.graphics_ddf_pb2
@@ -45,12 +46,15 @@ import rig.rig_ddf_pb2
 import render.material_ddf_pb2
 import render.font_ddf_pb2
 import render.render_ddf_pb2
-import render.compute_program_ddf_pb2
+import render.compute_ddf_pb2
 import particle.particle_ddf_pb2
 import gamesys.sprite_ddf_pb2
 import gamesys.physics_ddf_pb2
+import gamesys.gui_ddf_pb2
 
 BUILDERS = {}
+BUILDERS['.gamepadsc']      = input.input_ddf_pb2.GamepadMaps
+BUILDERS['.input_bindingc'] = input.input_ddf_pb2.InputBinding
 BUILDERS['.texturesetc']    = gamesys.texture_set_ddf_pb2.TextureSet
 BUILDERS['.modelc']         = gamesys.model_ddf_pb2.Model
 BUILDERS['.meshsetc']       = rig.rig_ddf_pb2.MeshSet
@@ -58,6 +62,8 @@ BUILDERS['.animationsetc']  = rig.rig_ddf_pb2.AnimationSet
 BUILDERS['.rigscenec']      = rig.rig_ddf_pb2.RigScene
 BUILDERS['.skeletonc']      = rig.rig_ddf_pb2.Skeleton
 BUILDERS['.dmanifest']      = resource.liveupdate_ddf_pb2.ManifestFile
+BUILDERS['.texturec']       = graphics.graphics_ddf_pb2.TextureImage
+BUILDERS['.guic']           = gamesys.gui_ddf_pb2.SceneDesc
 BUILDERS['.vpc']            = graphics.graphics_ddf_pb2.ShaderDesc
 BUILDERS['.fpc']            = graphics.graphics_ddf_pb2.ShaderDesc
 BUILDERS['.cpc']            = graphics.graphics_ddf_pb2.ShaderDesc
@@ -72,7 +78,7 @@ BUILDERS['.spritec']        = gamesys.sprite_ddf_pb2.SpriteDesc
 BUILDERS['.renderc']        = render.render_ddf_pb2.RenderPrototypeDesc
 BUILDERS['.convexshapec']   = gamesys.physics_ddf_pb2.ConvexShape
 BUILDERS['.collisionobjectc'] = gamesys.physics_ddf_pb2.CollisionObjectDesc
-BUILDERS['.computec']         = render.compute_program_ddf_pb2.ComputeProgramDesc
+BUILDERS['.computec']         = render.compute_ddf_pb2.ComputeDesc
 
 proto_type_to_string_map = {}
 proto_type_to_string_map[google.protobuf.descriptor.FieldDescriptor.TYPE_BOOL]    = 'TYPE_BOOL'
@@ -145,6 +151,34 @@ INDENT = 2
 # def Indent(indent):
 #     print(' ' * indent, end='')
 
+class hexdump:
+    def __init__(self, buf, off=0):
+        self.buf = buf
+        self.off = off
+
+    def __iter__(self):
+        last_bs, last_line = None, None
+        for i in range(0, len(self.buf), 16):
+            bs = bytearray(self.buf[i : i + 16])
+            line = "{:08x}  {:23}  {:23}  |{:16}|".format(
+                self.off + i,
+                " ".join(("{:02x}".format(x) for x in bs[:8])),
+                " ".join(("{:02x}".format(x) for x in bs[8:])),
+                "".join((chr(x) if 32 <= x < 127 else "." for x in bs)),
+            )
+            if bs == last_bs:
+                line = "*"
+            if bs != last_bs or line != last_line:
+                yield line
+            last_bs, last_line = bs, line
+        yield "{:08x}".format(self.off + len(self.buf))
+
+    def __str__(self):
+        return "\n".join(self)
+
+    def __repr__(self):
+        return "\n".join(self)
+
 class Printer(object):
     def __init__(self):
         self.indent = 0
@@ -161,6 +195,10 @@ class Printer(object):
 def print_object(printer, msg):
     for descriptor in msg.DESCRIPTOR.fields:
         value = getattr(msg, descriptor.name)
+
+        if not descriptor.label == descriptor.LABEL_REPEATED:
+            if not msg.HasField(descriptor.name):
+                continue
 
         cls = TYPE_CONVERTERS.get(descriptor.full_name, None)
         if cls is not None:
@@ -195,6 +233,14 @@ def print_object(printer, msg):
 def print_message(msg):
     print_object(Printer(), msg)
 
+def print_lua_file(script):
+    print_message(script)
+    source = getattr(getattr(script, "source"), "script")
+    if source:
+        lines = source.decode("utf-8", errors="replace").strip().split("\n")
+        source = '\n    '.join(['']+lines)
+        print("Source: ", source)
+
 def print_shader(shader):
     print("{")
     for field, data in shader.ListFields():
@@ -209,28 +255,38 @@ def print_shader_file(shader_file):
         pass
     print("shaders:")
     for field, data in shader_file.ListFields():
-        for shader in data:
-            print_shader(shader)
+        try:
+            iter(data)
+        except TypeError:
+            print("Unknown:", data)
+        else:
+            for shader in data:
+                print_shader(shader)
 
 
 PRINTERS = {}
+PRINTERS['.luac']       = print_lua_file
 PRINTERS['.vpc']        = print_shader_file
 PRINTERS['.fpc']        = print_shader_file
-
+PRINTERS['.cpc']        = print_shader_file
 
 if __name__ == "__main__":
     path = sys.argv[1]
 
-    _, ext = os.path.splitext(path)
-    builder = BUILDERS.get(ext, None)
-    if builder is None:
-        print("No builder registered for filetype %s" %ext)
-        sys.exit(1)
-
     with open(path, 'rb') as f:
         content = f.read()
-        obj = builder()
-        obj.ParseFromString(content)
+        _, ext = os.path.splitext(path)
+        builder = BUILDERS.get(ext, None)
+        if builder is None:
+            print("No builder registered for filetype %s" %ext)
+            try:
+                utf8 = content.decode("utf-8")
+                print("%s" % utf8)
+            except:
+                print(hexdump(content))
+        else:
+            obj = builder()
+            obj.ParseFromString(content)
 
-        printer = PRINTERS.get(ext, print_message)
-        printer(obj)
+            printer = PRINTERS.get(ext, print_message)
+            printer(obj)

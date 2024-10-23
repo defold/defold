@@ -140,8 +140,7 @@
       (let [root-path (-> project
                           (project/workspace evaluation-context)
                           (workspace/project-path evaluation-context)
-                          (fs/as-path)
-                          (fs/to-real-path))
+                          fs/real-path)
             dir-path (-> (str root-path proj-path)
                          (fs/as-path)
                          (.normalize))]
@@ -161,8 +160,7 @@
           root-path (-> project
                         (project/workspace evaluation-context)
                         (workspace/project-path evaluation-context)
-                        (fs/as-path)
-                        (fs/to-real-path))
+                        fs/real-path)
           dir-path (-> (str root-path proj-path)
                        (fs/as-path)
                        (.normalize))
@@ -273,6 +271,28 @@
                       (future/then
                         (reload-resources!)
                         (fn [_] (rt/and-refresh-context result))))))))))
+
+(def bob-options-coercer
+  (let [scalar-coercer (coerce/one-of coerce/string coerce/boolean coerce/integer)]
+    (coerce/map-of
+      (coerce/wrap-transform coerce/string string/replace \_ \-)
+      (coerce/one-of scalar-coercer (coerce/vector-of scalar-coercer)))))
+
+(def bob-options-or-command-coercer
+  (coerce/one-of coerce/string bob-options-coercer))
+
+(defn- make-ext-bob-fn [invoke-bob!]
+  (rt/suspendable-lua-fn bob [{:keys [rt evaluation-context]} & lua-args]
+    (let [[options commands] (if (empty? lua-args)
+                               [{} []]
+                               (let [options-or-command (rt/->clj rt bob-options-or-command-coercer (first lua-args))
+                                     first-arg-is-command (string? options-or-command)
+                                     options (if first-arg-is-command {} options-or-command)
+                                     commands (into (if first-arg-is-command [options-or-command] [])
+                                                    (map #(rt/->clj rt coerce/string %))
+                                                    (rest lua-args))]
+                                 [options commands]))]
+      (invoke-bob! options commands evaluation-context))))
 
 (defn- ensure-file-path-in-project-directory
   ^Path [^Path project-path ^String file-name]
@@ -510,9 +530,19 @@
                           resource either in an editor tab or in another app that
                           has OS-defined file association, returns
                           CompletableFuture (that might complete exceptionally
-                          if resource could not be opened)"
-  [project kind & {:keys [reload-resources! display-output! save! open-resource!] :as opts}]
-  {:pre [reload-resources! display-output! save! open-resource!]}
+                          if resource could not be opened)
+    :invoke-bob!          3-arg function that asynchronously invokes bob and
+                          returns a CompletableFuture (which may complete
+                          exceptionally if bob invocation fails). The args:
+                            options               bob options, a map from string
+                                                  to bob option value, see
+                                                  editor.pipeline.bob/invoke!
+                            commands              bob commands, vector of
+                                                  strings
+                            evaluation-context    evaluation context of the
+                                                  invocation"
+  [project kind & {:keys [reload-resources! display-output! save! open-resource! invoke-bob!] :as opts}]
+  {:pre [reload-resources! display-output! save! open-resource! invoke-bob!]}
   (g/with-auto-evaluation-context evaluation-context
     (let [extensions (g/node-value project :editor-extensions evaluation-context)
           old-state (ext-state project evaluation-context)
@@ -533,6 +563,7 @@
                                "resource_attributes" (make-ext-resource-attributes-fn project)
                                "external_file_attributes" (make-ext-external-file-attributes-fn project-path)
                                "execute" (make-ext-execute-fn project-path display-output! reload-resources!)
+                               "bob" (make-ext-bob-fn invoke-bob!)
                                "platform" (.getPair (Platform/getHostPlatform))
                                "save" (make-ext-save-fn save!)
                                "transact" ext-transact

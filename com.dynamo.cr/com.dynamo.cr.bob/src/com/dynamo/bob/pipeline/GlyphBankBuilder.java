@@ -17,6 +17,7 @@ package com.dynamo.bob.pipeline;
 import java.awt.FontFormatException;
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
+import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.InputStream;
 import java.io.IOException;
@@ -41,8 +42,13 @@ public class GlyphBankBuilder extends Builder {
         ProtoUtil.merge(input, fontDescbuilder);
         FontDesc fontDesc = fontDescbuilder.build();
 
+        File file = new File(fontDesc.getFont());
+        String fileNameWithExtension = file.getName();
+        int dotIndex = fileNameWithExtension.lastIndexOf(".");
+        String fileNameWithoutExtension = (dotIndex == -1) ? fileNameWithExtension : fileNameWithExtension.substring(0, dotIndex);
+
         long fontDescHash = Fontc.FontDescToHash(fontDesc);
-        IResource glyphBank = project.createGeneratedResource(fontDescHash, "glyph_bank");
+        IResource glyphBank = project.createGeneratedResource(fileNameWithoutExtension, fontDescHash, "glyph_bank");
 
         Task.TaskBuilder task = Task. newBuilder(this)
                 .setName(params.name())

@@ -308,20 +308,26 @@ public class HTML5Bundler implements IBundler {
             Platform targetPlatform = Platform.JsWeb;
             List<File> binsAsmjs = ExtenderUtil.getNativeExtensionEngineBinaries(project, targetPlatform);
             if (binsAsmjs == null) {
-                binsAsmjs = Bob.getDefaultDmengineFiles(targetPlatform, variant);
+                try {
+                    binsAsmjs = Bob.getDefaultDmengineFiles(targetPlatform, variant);
+                } catch(IOException e) {
+                    System.err.println("Unable to bundle js-web: " + e.getMessage());
+                }
             }
             else {
                 logger.info("Using extender binary for Asm.js");
             }
-            // Copy engine binaries
-            for (File bin : binsAsmjs) {
-                BundleHelper.throwIfCanceled(canceled);
-                String binExtension = FilenameUtils.getExtension(bin.getAbsolutePath());
-                if (binExtension.equals("js")) {
-                    FileUtils.copyFile(bin, new File(appDir, enginePrefix + "_asmjs.js"));
-                    AsmjsSize = bin.length();
-                } else {
-                    throw new RuntimeException("Unknown extension '" + binExtension + "' of engine binary.");
+            if(binsAsmjs != null) {
+                // Copy engine binaries
+                for (File bin : binsAsmjs) {
+                    BundleHelper.throwIfCanceled(canceled);
+                    String binExtension = FilenameUtils.getExtension(bin.getAbsolutePath());
+                    if (binExtension.equals("js")) {
+                        FileUtils.copyFile(bin, new File(appDir, enginePrefix + "_asmjs.js"));
+                        AsmjsSize = bin.length();
+                    } else {
+                        throw new RuntimeException("Unknown extension '" + binExtension + "' of engine binary.");
+                    }
                 }
             }
         }
@@ -331,22 +337,28 @@ public class HTML5Bundler implements IBundler {
             Platform targetPlatform = Platform.WasmWeb;
             List<File> binsWasm = ExtenderUtil.getNativeExtensionEngineBinaries(project, targetPlatform);
             if (binsWasm == null) {
-                binsWasm = Bob.getDefaultDmengineFiles(targetPlatform, variant);
+                try {
+                    binsWasm = Bob.getDefaultDmengineFiles(targetPlatform, variant);
+                } catch(IOException e) {
+                    System.err.println("Unable to bundle wasm-web: " + e.getMessage());
+                }
             }
             else {
                 logger.info("Using extender binary for WASM");
             }
-            for (File bin : binsWasm) {
-                BundleHelper.throwIfCanceled(canceled);
-                String binExtension = FilenameUtils.getExtension(bin.getAbsolutePath());
-                if (binExtension.equals("js")) {
-                    FileUtils.copyFile(bin, new File(appDir, enginePrefix + "_wasm.js"));
-                    WasmjsSize = bin.length();
-                } else if (binExtension.equals("wasm")) {
-                    FileUtils.copyFile(bin, new File(appDir, enginePrefix + ".wasm"));
-                    WasmSize = bin.length();
-                } else {
-                    throw new RuntimeException("Unknown extension '" + binExtension + "' of engine binary.");
+            if(binsWasm != null) {
+                for (File bin : binsWasm) {
+                    BundleHelper.throwIfCanceled(canceled);
+                    String binExtension = FilenameUtils.getExtension(bin.getAbsolutePath());
+                    if (binExtension.equals("js")) {
+                        FileUtils.copyFile(bin, new File(appDir, enginePrefix + "_wasm.js"));
+                        WasmjsSize = bin.length();
+                    } else if (binExtension.equals("wasm")) {
+                        FileUtils.copyFile(bin, new File(appDir, enginePrefix + ".wasm"));
+                        WasmSize = bin.length();
+                    } else {
+                        throw new RuntimeException("Unknown extension '" + binExtension + "' of engine binary.");
+                    }
                 }
             }
         }

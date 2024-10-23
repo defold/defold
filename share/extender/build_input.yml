@@ -9,7 +9,7 @@ context:
                   "libscript.lib","libluajit.lib-5.1","libextension.lib","libhid.lib","libhid_null.lib","libinput.lib","libparticle.lib","librig.lib","libdlib.lib","libimage.lib","libimage_null.lib","libdmglfw.lib","libgui.lib","libcrashext.lib","libsound.lib","libsound_null.lib","libtremolo.lib","libvpx.lib","libliveupdate.lib",
                   "engine_service","engine_service_null","libengine_service.lib","libengine_service_null.lib",
                   "script_box2d", "script_box2d_null", "libscript_box2d.lib", "libscript_box2d_null.lib"]
-    allowedSymbols: ["DefaultSoundDevice", "NullSoundDevice", "AudioDecoderWav", "CrashExt", "AudioDecoderStbVorbis",
+    allowedSymbols: ["DefaultSoundDevice", "NullSoundDevice", "AudioDecoderWav", "CrashExt", "AudioDecoderStbVorbis", "GraphicsAdapterWebGPU",
                     "ProfilerExt", "GraphicsAdapterOpenGL", "GraphicsAdapterVulkan", "GraphicsAdapterNull",
                     "LiveUpdateExt", "ScriptBox2DExt", "ScriptImageExt", "ScriptModelExt", "ScriptTypesExt"]
     defines: ['DLIB_LOG_DOMAIN="{{extension_name_upper}}"']
@@ -395,14 +395,19 @@ platforms:
   web:
     # It's here to whitelist this as a platform, currently used for general settings
     env:
-        EM_CACHE:               "{{env.EMSCRIPTEN_CACHE_3_1_55}}"
-        EM_CONFIG:              "{{env.EMSCRIPTEN_CONFIG_3_1_55}}"
-        EMSDK_PYTHON:           "{{env.EMSCRIPTEN_PYTHON_3_1_55}}"
-        PATH:                   "{{env.EMSCRIPTEN_PATH_3_1_55}}:{{env.PATH}}"
-        EMSCRIPTEN_HOME:        "{{env.EMSCRIPTEN_HOME_3_1_55}}"
-        EMSCRIPTEN_BIN:         "{{env.EMSCRIPTEN_BIN_3_1_55}}"
+        EM_CACHE:               "{{env.EMSCRIPTEN_CACHE_3_1_65}}"
+        EM_CONFIG:              "{{env.EMSCRIPTEN_CONFIG_3_1_65}}"
+        EMSDK_PYTHON:           "{{env.EMSCRIPTEN_PYTHON_3_1_65}}"
+        PATH:                   "{{env.EMSCRIPTEN_PATH_3_1_65}}:{{env.PATH}}"
+        EMSCRIPTEN_HOME:        "{{env.EMSCRIPTEN_HOME_3_1_65}}"
+        EMSCRIPTEN_BIN:         "{{env.EMSCRIPTEN_BIN_3_1_65}}"
         MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
     context:
+        stackSize: 5242880
+        minFirefoxVersion: 34
+        minChromeVersion: 32
+        minSafariVersion: 90000
+        initialMemory: 33554432
         engineJsLibs:   ["sys", "script", "sound"]
         externalJsLibs: ["glfw"]
         engineLibs: ["engine", "engine_service", "mbedtls", "zip", "profile_null", "remotery_null", "profilerext_null", "record_null", "gameobject", "ddf", "resource", "gamesys", "gamesys_model", "gamesys_rig", "script_box2d", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "Box2D", "render", "script", "lua", "extension", "hid", "input", "particle", "rig", "dlib", "image", "dmglfw", "gui", "crashext", "liveupdate", "sound"]
@@ -410,7 +415,7 @@ platforms:
         flags:      ["-fno-exceptions", "-fno-rtti", "-fPIC"]
         linkFlags:  ["--emit-symbol-map", "-lidbfs.js"]
         emscriptenFlags: ["DISABLE_EXCEPTION_CATCHING=1"]
-        emscriptenLinkFlags: ["INITIAL_MEMORY=33554432", "DISABLE_EXCEPTION_CATCHING=1", "IMPORTED_MEMORY=1", "EXPORTED_FUNCTIONS=_JSWriteDump,_main,_dmExportedSymbols,_malloc,_free", "EXPORTED_RUNTIME_METHODS=[\"stackTrace\",\"ccall\",\"callMain\",\"UTF8ToString\",\"HEAPU8\",\"stringToNewUTF8\"]", "ERROR_ON_UNDEFINED_SYMBOLS=1", "MAX_WEBGL_VERSION=2", "STACK_SIZE=5MB", "MIN_FIREFOX_VERSION=34", "MIN_SAFARI_VERSION=90000", "MIN_CHROME_VERSION=32"]
+        emscriptenLinkFlags: ["INITIAL_MEMORY={{initialMemory}}", "DISABLE_EXCEPTION_CATCHING=1", "IMPORTED_MEMORY=1", "EXPORTED_FUNCTIONS=_JSWriteDump,_main,_dmExportedSymbols,_malloc,_free", "EXPORTED_RUNTIME_METHODS=[\"stackTrace\",\"ccall\",\"callMain\",\"UTF8ToString\",\"HEAPU8\",\"stringToNewUTF8\"]", "ERROR_ON_UNDEFINED_SYMBOLS=1", "MAX_WEBGL_VERSION=2", "STACK_SIZE={{stackSize}}", "MIN_FIREFOX_VERSION={{minFirefoxVersion}}", "MIN_SAFARI_VERSION={{minSafariVersion}}", "MIN_CHROME_VERSION={{minChromeVersion}}"]
         libs:       []
     exePrefix:      ''
     exeExt:         '.js'
@@ -428,13 +433,13 @@ platforms:
     manifestMergeCmd: 'java -jar {{env.MANIFEST_MERGE_TOOL}} --platform {{platform}} --main {{mainManifest}} {{#libraries}} --lib {{.}} {{/libraries}} --out {{target}}'
 
   js-web:
-    context:        
+    context:
         libPaths:   ["{{dynamo_home}}/lib/js-web", "{{dynamo_home}}/ext/lib/js-web"]
         emscriptenLinkFlags: ["WASM=0", "LEGACY_VM_SUPPORT=1"]
 
     zipContentPattern: 'dmengine.js'
     linkCmd:        '{{env.EMSCRIPTEN_BIN}}/em++ {{#src}}{{{.}}} {{/src}} -o {{tgt}} -O3 {{#linkFlags}}{{{.}}} {{/linkFlags}} {{#emscriptenLinkFlags}}-s {{{.}}} {{/emscriptenLinkFlags}} {{#ext.libPaths}}-L{{{.}}} {{/ext.libPaths}} {{#libPaths}}-L{{{.}}} {{/libPaths}} -Wl,--start-group {{#libs}}-l{{{.}}} {{/libs}} {{#ext.libs}}-l{{{.}}} {{/ext.libs}} {{#engineLibs}}-l{{{.}}} {{/engineLibs}} -Wl,--end-group {{#ext.jsLibs}}--js-library {{{.}}} {{/ext.jsLibs}} {{#engineJsLibs}}--js-library {{dynamo_home}}/lib/js-web/js/library_{{{.}}}.js {{/engineJsLibs}} {{#externalJsLibs}}--js-library {{dynamo_home}}/ext/lib/js-web/js/library_{{{.}}}.js {{/externalJsLibs}}'
-    
+
 
   wasm-web:
     context:

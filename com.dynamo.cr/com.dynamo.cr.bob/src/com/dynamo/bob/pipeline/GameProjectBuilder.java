@@ -521,4 +521,9 @@ public class GameProjectBuilder extends Builder {
             IOUtils.closeQuietly(publicKeyInputStream);
         }
     }
+
+    @Override
+    public boolean isGameProjectBuilder() {
+        return true;
+    }
 }

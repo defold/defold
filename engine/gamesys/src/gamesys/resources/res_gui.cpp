@@ -26,6 +26,7 @@
 #include "res_textureset.h"
 
 #include <dmsdk/resource/resource.h>
+#include <dmsdk/gamesys/resources/res_font.h>
 
 namespace dmGameSystem
 {
@@ -79,20 +80,25 @@ namespace dmGameSystem
             resource->m_ParticlePrototypes.Push(pfx_res);
         }
 
+        resource->m_Fonts.SetCapacity(resource->m_SceneDesc->m_Fonts.m_Count);
+        resource->m_Fonts.SetSize(0);
         resource->m_FontMaps.SetCapacity(resource->m_SceneDesc->m_Fonts.m_Count);
         resource->m_FontMaps.SetSize(0);
         resource->m_FontMapPaths.SetCapacity(resource->m_FontMaps.Capacity());
         resource->m_FontMapPaths.SetSize(0);
         for (uint32_t i = 0; i < resource->m_SceneDesc->m_Fonts.m_Count; ++i)
         {
-            dmRender::HFontMap font_map;
-            dmResource::Result r = dmResource::Get(factory, resource->m_SceneDesc->m_Fonts[i].m_Font, (void**) &font_map);
+            FontResource* font;
+            dmResource::Result r = dmResource::Get(factory, resource->m_SceneDesc->m_Fonts[i].m_Font, (void**)&font);
             if (r != dmResource::RESULT_OK)
                 return r;
+            resource->m_Fonts.Push(font);
+
+            dmRender::HFontMap font_map = ResFontGetHandle(font);
             resource->m_FontMaps.Push(font_map);
 
             dmhash_t path_hash = 0;
-            dmResource::GetPath(factory, font_map, &path_hash);
+            dmResource::GetPath(factory, font, &path_hash);
             resource->m_FontMapPaths.Push(path_hash);
         }
 
@@ -152,6 +158,7 @@ namespace dmGameSystem
     {
         uint32_t size = sizeof(GuiSceneResource);
         size += ddf_size;
+        size += res->m_Fonts.Capacity()*sizeof(FontResource*);
         size += res->m_FontMaps.Capacity()*sizeof(dmRender::HFontMap);
         size += res->m_GuiTextureSets.Capacity()*sizeof(GuiSceneTextureSetResource);
         //size += res->m_Resources.Capacity()* ? // We should probably collect the sizes when we get them from the resource factory
@@ -170,9 +177,9 @@ namespace dmGameSystem
         {
             dmResource::Release(factory, resource->m_ParticlePrototypes[j]);
         }
-        for (uint32_t j = 0; j < resource->m_FontMaps.Size(); ++j)
+        for (uint32_t j = 0; j < resource->m_Fonts.Size(); ++j)
         {
-            dmResource::Release(factory, resource->m_FontMaps[j]);
+            dmResource::Release(factory, resource->m_Fonts[j]);
         }
         for (uint32_t j = 0; j < resource->m_Materials.Size(); ++j)
         {

@@ -17,6 +17,8 @@
 
 #include <stdint.h>
 
+#include <graphics/graphics_ddf.h>
+
 /*# Graphics API documentation
  * [file:<dmsdk/graphics/graphics.h>]
  *
@@ -442,6 +444,10 @@ namespace dmGraphics
         TYPE_FLOAT_MAT2       = 14,
         TYPE_FLOAT_MAT3       = 15,
         TYPE_IMAGE_2D         = 16,
+        TYPE_TEXTURE_2D       = 17,
+        TYPE_SAMPLER          = 18,
+        TYPE_TEXTURE_2D_ARRAY = 19,
+        TYPE_TEXTURE_CUBE     = 20
     };
 
     /*#
@@ -484,19 +490,6 @@ namespace dmGraphics
     };
 
     /*#
-     * Vertex step function. Dictates how the data for a vertex attribute should be read in a vertex shader.
-     * @enum
-     * @name VertexStepFunction
-     * @member VERTEX_STEP_FUNCTION_VERTEX
-     * @member VERTEX_STEP_FUNCTION_INSTANCE
-     */
-    enum VertexStepFunction
-    {
-        VERTEX_STEP_FUNCTION_VERTEX,
-        VERTEX_STEP_FUNCTION_INSTANCE,
-    };
-
-    /*#
      * Create new vertex stream declaration. A stream declaration contains a list of vertex streams
      * that should be used to create a vertex declaration from.
      * @name NewVertexStreamDeclaration
@@ -504,6 +497,16 @@ namespace dmGraphics
      * @return declaration [type: dmGraphics::HVertexStreamDeclaration] the vertex declaration
      */
     HVertexStreamDeclaration NewVertexStreamDeclaration(HContext context);
+
+    /*#
+     * Create new vertex stream declaration. A stream declaration contains a list of vertex streams
+     * that should be used to create a vertex declaration from.
+     * @name NewVertexStreamDeclaration
+     * @param context [type: dmGraphics::HContext] the context
+     * @param step_function [type: dmGraphics::VertexStepFunction] the vertex step function to use
+     * @return declaration [type: dmGraphics::HVertexStreamDeclaration] the vertex declaration
+     */
+    HVertexStreamDeclaration NewVertexStreamDeclaration(HContext context, VertexStepFunction step_function);
 
     /*#
      * Adds a stream to a stream declaration

@@ -13,7 +13,7 @@
 
 ## Updating emscripten version
 
-Note: This information is based on the latest update (2.0.11 -> 3.1.55), mileage may vary
+Note: This information is based on the latest update (3.1.55 -> 3.1.65)
 
 * update the `EMSCRIPTEN_VERSION_STR` in `scripts/build.py`
 * package_emscripten:

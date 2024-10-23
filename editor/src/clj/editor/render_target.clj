@@ -49,7 +49,7 @@
                          {:path [:format]
                           :label "format"
                           :type :choicebox
-                          :options (protobuf-forms/make-options (protobuf/enum-values Graphics$TextureImage$TextureFormat))
+                          :options (protobuf-forms/make-enum-options Graphics$TextureImage$TextureFormat)
                           :default :texture-format-rgba}]}
               {:path [:depth-stencil-attachment-width]
                :label "Depth/Stencil Width"
