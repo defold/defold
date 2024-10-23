@@ -1052,10 +1052,11 @@ namespace dmEngine
             dmLogWarning("Failed to initialize sound system.");
         }
 
-        dmGameObject::Result go_result = dmGameObject::SetCollectionDefaultCapacity(engine->m_Register, dmConfigFile::GetInt(engine->m_Config, dmGameObject::COLLECTION_MAX_INSTANCES_KEY, dmGameObject::DEFAULT_MAX_COLLECTION_CAPACITY));
+        int max_instance_count = dmConfigFile::GetInt(engine->m_Config, dmGameObject::COLLECTION_MAX_INSTANCES_KEY, dmGameObject::DEFAULT_MAX_COLLECTION_CAPACITY);
+        dmGameObject::Result go_result = dmGameObject::SetCollectionDefaultCapacity(engine->m_Register, max_instance_count);
         if(go_result != dmGameObject::RESULT_OK)
         {
-            dmLogFatal("Failed to set max instance count for collections (%d)", go_result);
+            dmLogFatal("Failed to set max instance count %d for collections (%d)", max_instance_count, go_result);
             return false;
         }
         dmGameObject::SetInputStackDefaultCapacity(engine->m_Register, dmConfigFile::GetInt(engine->m_Config, dmGameObject::COLLECTION_MAX_INPUT_STACK_ENTRIES_KEY, dmGameObject::DEFAULT_MAX_INPUT_STACK_CAPACITY));
