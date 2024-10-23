@@ -1429,11 +1429,7 @@ static void LogFrameBufferError(GLenum status)
         }
 
 #if !defined(GL_ES_VERSION_2_0)
-        {
-            GLuint vao;
-            glGenVertexArrays(1, &vao);
-            glBindVertexArray(vao);
-        }
+        glGenVertexArrays(1, &context->m_GlobalVAO);
 #endif
 
         SetSwapInterval(_context, params.m_SwapInterval);
@@ -1857,6 +1853,10 @@ static void LogFrameBufferError(GLenum status)
         assert(vertex_declaration);
 
         OpenGLContext* context = (OpenGLContext*) _context;
+
+    #if !defined(GL_ES_VERSION_2_0)
+        glBindVertexArray(context->m_GlobalVAO);
+    #endif
 
         if (!(context->m_ModificationVersion == vertex_declaration->m_ModificationVersion && vertex_declaration->m_BoundForProgram == ((OpenGLProgram*) program)->m_Id))
         {
