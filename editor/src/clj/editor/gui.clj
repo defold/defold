@@ -49,12 +49,10 @@
             [editor.util :as eutil]
             [editor.validation :as validation]
             [editor.workspace :as workspace]
-            [internal.graph :as ig]
             [internal.graph.types :as gt]
             [internal.util :as util]
             [schema.core :as s]
             [util.coll :as coll :refer [pair]]
-            [util.eduction :as e]
             [util.fn :as fn])
   (:import [com.dynamo.gamesys.proto Gui$NodeDesc Gui$NodeDesc$AdjustMode Gui$NodeDesc$BlendMode Gui$NodeDesc$ClippingMode Gui$NodeDesc$PieBounds Gui$NodeDesc$Pivot Gui$NodeDesc$SizeMode Gui$NodeDesc$XAnchor Gui$NodeDesc$YAnchor Gui$SceneDesc Gui$SceneDesc$AdjustReference Gui$SceneDesc$FontDesc Gui$SceneDesc$LayerDesc Gui$SceneDesc$LayoutDesc Gui$SceneDesc$MaterialDesc Gui$SceneDesc$ParticleFXDesc Gui$SceneDesc$ResourceDesc Gui$SceneDesc$TextureDesc]
            [com.jogamp.opengl GL GL2]
@@ -474,18 +472,6 @@
 
      :else
      (core/scope basis node))))
-
-;; TODO(gui-layout-override-refactor): Update :cascade-delete node ownership. LayoutNodes Should be owned by LayoutsNode, LayoutsNode should be owned by GuiSceneNode.
-(defn- node->current-layout-node [node-id evaluation-context]
-  (let [basis (:basis evaluation-context)
-        gui-scene (node->gui-scene basis node-id)
-        current-layout (g/node-value gui-scene :current-layout evaluation-context)
-        layouts-node (g/node-feeding-into basis gui-scene :layout->node->prop->override-value)]
-    (some (fn [^Arc layout-arc]
-            (let [layout-node (gt/source-id layout-arc)]
-              (when (= current-layout (gt/get-property layout-node basis :name))
-                layout-node)))
-          (ig/explicit-arcs-by-source basis layouts-node :name+node->prop->override-values))))
 
 (defn- next-child-index [child-indices]
   (inc (reduce max -1 (map second child-indices))))
@@ -924,12 +910,16 @@
   (output gui-base-node-msg g/Any produce-gui-base-node-msg)
   (output node-msg g/Any :abstract)
   (input node-msgs g/Any :array)
-  (output node-msgs g/Any (g/fnk [node-msgs node-msg]
-                            (into [node-msg]
-                                  (map #(dissoc % :child-index))
-                                  (flatten
-                                    (sort-by #(get-in % [0 :child-index])
-                                             node-msgs)))))
+  (output node-msgs g/Any (g/fnk [layout->prop->override node-msg node-msgs]
+                            ;; TODO(gui-layout-override-refactor): node-msg values will reflect current-layout. We want the raw property values.
+                            (let [decorated-node-msg
+                                  (assoc node-msg
+                                    :layout->prop->override layout->prop->override)]
+                              (into [decorated-node-msg]
+                                    (map #(dissoc % :child-index))
+                                    (flatten
+                                      (sort-by #(get-in % [0 :child-index])
+                                               node-msgs))))))
   (output aabb g/Any :abstract)
   (output scene-children g/Any (g/fnk [child-scenes] (vec (sort-by (comp :child-index :renderable) child-scenes))))
   (output scene-updatable g/Any (g/constantly nil))
@@ -1264,7 +1254,7 @@
             (dynamic error (g/fnk [_node-id material material-infos material-shader texture texture-infos]
                              (or (validate-material-resource _node-id material-infos material)
                                  (validate-material-capabilities _node-id material-infos material material-shader texture-infos texture))))
-            (value (layout-property-setter material))
+            (value (layout-property-getter material))
             (set (layout-property-setter material)))
   (property texture g/Str (default (protobuf/default Gui$NodeDesc :texture))
             (value (layout-property-getter texture))
@@ -1693,7 +1683,6 @@
                                                            node-ids-by-id))))))
                                        {})]
                                ;; TODO: Check if we can filter based on connection label instead of source-node-id to be able to share :traverse-fn with other overrides.
-                               ;; TODO(gui-layout-override-refactor): Seems instead of overriding the layout-related nodes, we should create new ones here, and attach the original scene-node :merged-layout->node->prop->override-value to new :aux-layout->node->prop->override-value here?
                                (g/override scene-node {:traverse-fn (g/make-override-traverse-fn
                                                                       (fn [basis ^Arc arc]
                                                                         (let [source-node-id (.source-id arc)]
@@ -1756,13 +1745,16 @@
                                                                 (get-in template-outline [:children 0 :children])))
   (output node-outline-reqs g/Any :cached (g/constantly []))
   (output node-msg g/Any :cached produce-template-node-msg)
-  (output node-msgs g/Any :cached (g/fnk [id node-msg scene-pb-msg]
-                                    (into [node-msg]
-                                          (map #(-> %
-                                                    (vary-meta update :templates (fnil conj []) node-msg)
-                                                    (assoc :template-node-child true)
-                                                    (cond-> (empty? (:parent %)) (assoc :parent id))))
-                                          (:nodes scene-pb-msg))))
+  (output node-msgs g/Any :cached (g/fnk [id layout->prop->override node-msg scene-pb-msg]
+                                    (let [decorated-node-msg
+                                          (assoc node-msg
+                                            :layout->prop->override layout->prop->override)]
+                                      (into [decorated-node-msg]
+                                            (map #(-> %
+                                                      (vary-meta update :templates (fnil conj []) decorated-node-msg)
+                                                      (assoc :template-node-child true)
+                                                      (cond-> (empty? (:parent %)) (assoc :parent id))))
+                                            (:nodes scene-pb-msg)))))
   (output node-overrides g/Any :cached (g/fnk [id _overridden-properties template-overrides]
                                               (-> {id _overridden-properties}
                                                 (merge template-overrides))))
@@ -2203,12 +2195,7 @@
   (property name g/Str ; Required protobuf field.
             (dynamic read-only? (g/constantly true))
             (dynamic error (g/fnk [_node-id name name-counts] (prop-unique-id-error _node-id :name name name-counts "Name"))))
-  (property node->prop->override-value g/Any (default {})
-            (dynamic visible (g/constantly false)))
   (input name-counts NameCounts)
-  (output name+node->prop->override-value g/Any
-          (g/fnk [name node->prop->override-value]
-            (pair name node->prop->override-value)))
   (output node-outline outline/OutlineData :cached (g/fnk [_node-id name build-errors]
                                                           {:node-id _node-id
                                                            :node-outline-key name
@@ -2527,7 +2514,7 @@
   (concat
    (g/connect layout :build-errors layouts-node :build-errors)
    (g/connect layout :node-outline layouts-node :child-outlines)
-   (g/connect layout :name+node->prop->override-value layouts-node :name+node->prop->override-values)
+   (g/connect layout :name layouts-node :names)
    (g/connect layouts-node :name-counts layout :name-counts)
    (g/connect layout :_node-id self :nodes)))
 
@@ -2542,9 +2529,10 @@
 
 (g/defnode LayoutsNode
   (inherits outline/OutlineNode)
-  (input name+node->prop->override-values g/Any :array)
+  (input names g/Str :array)
+  (output names g/Any (gu/passthrough names))
   (input unused-display-profiles g/Any)
-  (output name-counts NameCounts :cached (g/fnk [name+node->prop->override-values] (frequencies (e/map first name+node->prop->override-values))))
+  (output name-counts NameCounts :cached (g/fnk [names] (frequencies names)))
   (input build-errors g/Any :array)
   (output build-errors g/Any (gu/passthrough build-errors))
   (output node-outline outline/OutlineData :cached
@@ -2555,13 +2543,7 @@
   (output add-handler-info g/Any
           (g/fnk [_node-id unused-display-profiles]
             (mapv #(vector _node-id % layout-icon add-layout-handler {:display-profile %})
-                  unused-display-profiles)))
-  (output layout->node->prop->override-value g/Any :cached
-          (g/fnk [name+node->prop->override-values]
-            (into {}
-                  (map (fn [[name node->prop->override-value]]
-                         (pair name node->prop->override-value)))
-                  name+node->prop->override-values))))
+                  unused-display-profiles))))
 
 ;; //////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -2654,19 +2636,45 @@
       clipping/setup-states
       sort-scene)))
 
-(g/defnk produce-pb-msg [script-resource material-resource adjust-reference max-nodes max-dynamic-textures node-msgs layer-msgs font-msgs texture-msgs material-msgs layout-msgs particlefx-resource-msgs resource-msgs]
+(defn- make-layout-desc [layout-name decorated-node-msgs]
+  (protobuf/make-map-without-defaults Gui$SceneDesc$LayoutDesc
+    :name layout-name
+    :nodes (into []
+                 (keep
+                   (fn [{:keys [layout->prop->override] :as node-msg}]
+                     {:pre [(map? layout->prop->override)]}
+                     (when-some [prop->override (coll/not-empty (layout->prop->override layout-name))]
+                       (let [overridden-fields
+                             (->> prop->override
+                                  (map (comp prop-key->pb-field-index key))
+                                  (sort))]
+                         (-> node-msg
+                             (select-keys override-retained-pb-fields)
+                             (protobuf/assign-repeated :overridden-fields overridden-fields)
+                             (into (map
+                                     (fn [[prop-key :as entry]]
+                                       (if-some [[pb-field prop-value->pb-value] (node-property-to-pb-field-conversions prop-key)]
+                                         (let [prop-value (val entry)
+                                               pb-value (prop-value->pb-value prop-value)]
+                                           (pair pb-field pb-value))
+                                         entry)))
+                                   prop->override))))))
+                 decorated-node-msgs)))
+
+(g/defnk produce-pb-msg [script-resource material-resource adjust-reference max-nodes max-dynamic-textures node-msgs layer-msgs font-msgs texture-msgs material-msgs layout-infos particlefx-resource-msgs resource-msgs]
   (protobuf/make-map-without-defaults Gui$SceneDesc
     :script (resource/resource->proj-path script-resource)
     :material (resource/resource->proj-path material-resource)
     :adjust-reference adjust-reference
     :max-nodes max-nodes
     :max-dynamic-textures max-dynamic-textures
-    :nodes node-msgs
+    :nodes (mapv #(dissoc % :layout->prop->override) node-msgs)
     :layers layer-msgs
     :fonts font-msgs
     :textures texture-msgs
     :materials material-msgs
-    :layouts layout-msgs
+    :layouts (mapv #(make-layout-desc % node-msgs)
+                   (sort (keys layout-infos)))
     :particlefxs particlefx-resource-msgs
     :resources resource-msgs))
 
@@ -2946,43 +2954,17 @@
   (input material-msgs g/Any :array)
   (input layer-msgs g/Any)
   (output layer-msgs g/Any (g/fnk [layer-msgs] (mapv #(dissoc % :child-index) (sort-by :child-index layer-msgs))))
-  (input layout->node->prop->override-value g/Any)
-  (input aux-layout->node->prop->override-value g/Any)
   (output layout-infos g/Any :cached
-          (g/fnk [aux-layout->node->prop->override-value layout->node->prop->override-value]
-            {:layout->node->prop->override-value layout->node->prop->override-value
-             :merged-layout->node->prop->override-value (coll/deep-merge aux-layout->node->prop->override-value
-                                                                         layout->node->prop->override-value)}))
-  (output layout-msgs g/Any :cached
-          (g/fnk [layout->node->prop->override-value node-msgs]
-            (mapv (fn [[layout node->prop->override-value]]
-                    (protobuf/make-map-without-defaults Gui$SceneDesc$LayoutDesc
-                      :name layout
-                      :nodes (into []
-                                   (keep
-                                     (fn [{:keys [id] :as node-msg}]
-                                       (when-some [prop->override-value (coll/not-empty (node->prop->override-value id))]
-                                         (let [overridden-fields (->> prop->override-value
-                                                                      (map (comp prop-key->pb-field-index key))
-                                                                      (sort))]
-                                           (-> node-msg
-                                               (select-keys [:type :id :parent :template-node-child])
-                                               (protobuf/assign-repeated :overridden-fields overridden-fields)
-                                               (into (map
-                                                       (fn [[prop-key :as entry]]
-                                                         (if-some [[pb-field prop-value->pb-value] (node-property-to-pb-field-conversions prop-key)]
-                                                           (let [prop-value (val entry)
-                                                                 pb-value (prop-value->pb-value prop-value)]
-                                                             (pair pb-field pb-value))
-                                                           entry)))
-                                                     prop->override-value))))))
-                                   node-msgs)))
-                  layout->node->prop->override-value)))
+          (g/fnk [layout-names]
+            ;; TODO(gui-layout-override-refactor): Do we actually need anything apart from the layout names here?
+            (into {}
+                  (map #(pair % {}))
+                  layout-names)))
   (input particlefx-resource-msgs g/Any :array)
   (input resource-msgs g/Any :array)
   (input node-ids IDMap)
   (output node-ids IDMap (gu/passthrough node-ids))
-  (output layout-names g/Any (g/fnk [layout->node->prop->override-value] (keys layout->node->prop->override-value)))
+  (input layout-names g/Any)
 
   (input aux-texture-gpu-textures GuiResourceTextures :array)
   (input texture-gpu-textures GuiResourceTextures :array)
@@ -3251,24 +3233,61 @@
 (defn load-gui-scene [project self resource scene]
   {:pre [(map? scene)]} ; Gui$SceneDesc in map format.
   (let [graph-id           (g/node-id->graph-id self)
+
+        node->layout->prop->override
+        (reduce (fn [node->layout->prop->override layout-desc]
+                  (let [layout (:name layout-desc)]
+                    (reduce (fn [node->layout->prop->override node-desc]
+                              (let [node-properties (node-desc->node-properties node-desc)
+                                    prop->override (extract-overrides node-properties)]
+                                (cond-> node->layout->prop->override
+                                        (coll/not-empty prop->override)
+                                        (update (:id node-desc)
+                                                assoc layout prop->override))))
+                            node->layout->prop->override
+                            (:nodes layout-desc))))
+                {}
+                (:layouts scene))
+
         node-descs         (map node-desc->node-properties (:nodes scene)) ; TODO: These are really the properties of the GuiNode subtype. Rename to node-properties.
-        tmpl-node-descs    (into {} (map (fn [n] [(:id n) {:template (:parent n) :data (extract-overrides n)}])
-                                         (filter :template-node-child node-descs)))
-        tmpl-node-descs    (into {} (map (fn [[id data]]
-                                           [id (update data :template
-                                                       (fn [parent] (if (contains? tmpl-node-descs parent)
-                                                                      (recur (:template (get tmpl-node-descs parent)))
-                                                                      parent)))])
-                                         tmpl-node-descs))
-        node-descs         (filter (complement :template-node-child) node-descs)
+        tmpl-node-descs    (into {}
+                                 (comp (filter :template-node-child)
+                                       (map (fn [{:keys [id parent] :as node-desc}]
+                                              (pair id
+                                                    {:template parent
+                                                     :data (assoc (extract-overrides node-desc)
+                                                             :layout->prop->override (get node->layout->prop->override id {}))}))))
+                                 node-descs)
+        tmpl-node-descs    (into {}
+                                 (map (fn [[id data]]
+                                        (pair id
+                                              (update data :template
+                                                      (fn [parent]
+                                                        (if-let [parent-node-desc (tmpl-node-descs parent)]
+                                                          (recur (:template parent-node-desc))
+                                                          parent))))))
+                                 tmpl-node-descs)
+        node-descs         (eduction
+                             (remove :template-node-child)
+                             (map (fn [{:keys [id] :as node-desc}]
+                                    (if-let [layout->prop->override (node->layout->prop->override id)]
+                                      (assoc node-desc :layout->prop->override layout->prop->override)
+                                      node-desc)))
+                             node-descs)
         tmpl-children      (group-by (comp :template second) tmpl-node-descs)
         tmpl-roots         (filter (complement tmpl-node-descs) (map first tmpl-children))
-        template-data      (into {} (map (fn [r] [r (into {} (map (fn [[id tmpl]]
-                                                                    [(subs id (inc (count r))) (:data tmpl)])
-                                                                  (rest (tree-seq fn/constantly-true
-                                                                                  (comp tmpl-children first)
-                                                                                  [r nil]))))])
-                                         tmpl-roots))
+        template-data      (into {}
+                                 (map (fn [r]
+                                        (pair r
+                                              (into {}
+                                                    (map (fn [[id tmpl]]
+                                                           (pair (subs id (inc (count r)))
+                                                                 (:data tmpl))))
+                                                    (rest (tree-seq fn/constantly-true
+                                                                    (comp tmpl-children first)
+                                                                    (pair r nil)))))))
+                                 tmpl-roots)
+
         custom-loader-fns  (get-registered-gui-scene-loaders)
         custom-data        (for [loader-fn custom-loader-fns
                                  :let [result (loader-fn project self scene graph-id resource)]]
@@ -3416,36 +3435,29 @@
                                           (= :type-template (:type node-desc))
                                           (assoc :template {:resource (resolve-resource (:template node-desc))
                                                             :overrides (get template-data (:id node-desc) {})})))
-
                               tx-data (g/make-nodes graph-id [gui-node [node-type props]]
-                                                    (let [parent (if (empty? (:parent node-desc))
-                                                                   node-tree
-                                                                   (id->node (:parent node-desc)))]
-                                                      (attach-gui-node node-tree parent gui-node (:type node-desc))))
+                                        (let [parent (:parent node-desc)
+                                              parent-node (if (str/blank? parent)
+                                                            node-tree
+                                                            (id->node parent))]
+                                          (attach-gui-node node-tree parent-node gui-node (:type node-desc))))
                               node-id (first (map tx-node-id (filter tx-create-node? tx-data)))]
-                          (recur more (assoc id->node (:id node-desc) node-id) (into all-tx-data tx-data) (inc child-index)))
+                          (recur more
+                                 (assoc id->node (:id node-desc) node-id)
+                                 (into all-tx-data tx-data)
+                                 (inc child-index)))
                         all-tx-data)))
       (g/make-nodes graph-id [layouts-node LayoutsNode]
                     (g/connect layouts-node :_node-id self :layouts-node) ; for the tests :/
                     (g/connect layouts-node :_node-id self :nodes)
                     (g/connect self :unused-display-profiles layouts-node :unused-display-profiles)
+                    (g/connect layouts-node :names self :layout-names)
                     (g/connect layouts-node :build-errors self :build-errors)
                     (g/connect layouts-node :node-outline self :child-outlines)
-                    (g/connect layouts-node :layout->node->prop->override-value self :layout->node->prop->override-value)
                     (g/connect layouts-node :add-handler-info self :handler-infos)
-                    (for [{:keys [name nodes]} (:layouts scene)]
-                      (let [node->prop->override-value
-                            (into {}
-                                  (keep
-                                    (fn [node-desc]
-                                      (-> node-desc
-                                          (node-desc->node-properties)
-                                          (extract-overrides)
-                                          (coll/not-empty)
-                                          (some->> (pair (:id node-desc))))))
-                                  nodes)]
-                        (g/make-nodes graph-id [layout [LayoutNode :name name :node->prop->override-value node->prop->override-value]]
-                          (attach-layout self layouts-node layout)))))
+                    (for [layout-desc (:layouts scene)]
+                      (g/make-nodes graph-id [layout [LayoutNode (dissoc layout-desc :nodes)]]
+                        (attach-layout self layouts-node layout))))
       custom-data)))
 
 (def default-pb-read-node-color (protobuf/default Gui$NodeDesc :color))
