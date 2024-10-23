@@ -25,8 +25,8 @@
             [editor.math :as math]
             [editor.prefs :as prefs]
             [editor.scene-picking :as scene-picking])
-  (:import [java.lang Runnable Math]
-           [com.jogamp.opengl GL GL2]
+  (:import [com.jogamp.opengl GL GL2]
+           [java.lang Math Runnable]
            [javax.vecmath AxisAngle4d Matrix3d Matrix4d Point3d Quat4d Tuple3d Vector3d]))
 
 (set! *warn-on-reflection* true)
@@ -550,11 +550,11 @@
     action))
 
 (defn move-whole-pixels? [prefs]
-  (prefs/get-prefs prefs "scene-move-whole-pixels?" true))
+  (prefs/get prefs [:scene :move-whole-pixels]))
 
-(defn set-move-whole-pixels! [prefs enabled?]
-  (assert (or (true? enabled?) (false? enabled?)))
-  (prefs/set-prefs prefs "scene-move-whole-pixels?" enabled?))
+(defn set-move-whole-pixels! [prefs enabled]
+  {:pre [(boolean? enabled)]}
+  (prefs/set! prefs [:scene :move-whole-pixels] enabled))
 
 (defn move-snap-fn [prefs]
   (if (move-whole-pixels? prefs)

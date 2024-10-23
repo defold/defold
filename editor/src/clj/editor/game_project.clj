@@ -143,7 +143,7 @@
    ["input" "game_binding"] [[:build-targets :dep-build-targets]]})
 
 (g/defnk produce-build-targets [_node-id build-errors resource settings-map meta-info custom-build-targets resource-settings dep-build-targets]
-  (g/precluding-errors build-errors
+  (g/precluding-errors (some-> (g/flatten-errors build-errors) (assoc :_node-id _node-id))
      (let [clean-meta-info (settings-core/remove-to-from-string meta-info)
            dep-build-targets (vec (into (flatten dep-build-targets) custom-build-targets))
            deps-by-source (into {} (map
@@ -183,7 +183,6 @@
 
   (input raw-settings g/Any)
   (input resource-settings g/Any)
-  (input setting-errors g/Any)
 
   (input resource-map g/Any)
   (input dep-build-targets g/Any :array)
@@ -230,7 +229,7 @@
                     (g/connect settings-node :raw-settings self :raw-settings)
                     (g/connect settings-node :meta-info self :meta-info)
                     (g/connect settings-node :resource-settings self :resource-settings)
-                    (g/connect settings-node :setting-errors self :setting-errors)
+                    (g/connect settings-node :setting-errors self :build-errors)
                     (settings/load-settings-node settings-node resource source-value gpcore/basic-meta-info resource-setting-connections))
       (g/connect project :resource-map self :resource-map))))
 
