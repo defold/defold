@@ -1326,14 +1326,18 @@
       `(let [~arguments-sym ~argument-forms]
          ~(argument-error-aggregate-form checked-arguments node-id-sym label arguments-sym `(~runtime-fnk-expr ~arguments-sym))))))
 
+(defn- collect-raw-property-value-form
+  [property-label-sym node-sym node-id-sym evaluation-context-sym]
+  (with-tracer-calls-form node-id-sym property-label-sym evaluation-context-sym :raw-property
+    (check-dry-run-form evaluation-context-sym `(gt/get-property ~node-sym (:basis ~evaluation-context-sym) ~property-label-sym))))
+
 (defn- collect-property-value-form
   [description property-label node-sym node-id-sym evaluation-context-sym]
   (let [property-definition (get-in description [:property property-label])
         default? (not (:value property-definition))
         output-fn (get-in description [:property property-label :value :fn])]
     (if default?
-      (with-tracer-calls-form node-id-sym property-label evaluation-context-sym :raw-property
-        (check-dry-run-form evaluation-context-sym `(gt/get-property ~node-sym (:basis ~evaluation-context-sym) ~property-label)))
+      (collect-raw-property-value-form property-label node-sym node-id-sym evaluation-context-sym)
       (with-tracer-calls-form node-id-sym property-label evaluation-context-sym :property
         (call-with-error-checked-fnky-arguments-form description property-label node-sym node-id-sym evaluation-context-sym
                                                      (get-in property-definition [:value :arguments])
@@ -1344,6 +1348,10 @@
                                                                            `(var ~(dollar-name (:name description) [:property property-label :value])))
                                                                          `(constantly nil)))))))
 
+(defn- desc-raw-argument? [description output argument]
+  {:pre [(keyword? output) (keyword? argument)]}
+  (boolean (-> description :output output :annotations argument :raw)))
+
 (defn- desc-try-argument? [description output argument]
   {:pre [(keyword? output) (keyword? argument)]}
   (boolean (-> description :output output :annotations argument :try)))
@@ -1353,6 +1361,11 @@
   (cond
     (= :_this argument)
     node-sym
+
+    (desc-raw-argument? description output argument)
+    (if (desc-has-property? description argument)
+      (collect-raw-property-value-form argument node-sym node-id-sym evaluation-context-sym)
+      (assert false (str "A production function for " (:name description) " " output " tags argument " argument " as ^:raw, but there is no property called " (pr-str argument))))
 
     (and (= output argument)
          (desc-has-property? description argument)
@@ -1421,8 +1434,7 @@
      ; desc-has-property? this is implied if we're evaluating an output and default? holds
     (assert (or (not default?) (desc-has-property? description label)))
     (if default?
-      (with-tracer-calls-form node-id-sym label-sym evaluation-context-sym :raw-property
-        (check-dry-run-form evaluation-context-sym `(gt/get-property ~node-sym (:basis ~evaluation-context-sym) ~label-sym)))
+      (collect-raw-property-value-form label-sym node-sym node-id-sym evaluation-context-sym)
       forms)))
 
 (defn- node-type-name [node-id evaluation-context]

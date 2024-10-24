@@ -382,11 +382,14 @@
   optional. _producer_ may be a var that names an fn, or fnk.  It may
   also be a function tail as [arglist] + forms.
 
-  In the arglist, you can specify ^:try metadata on arguments to allow
-  the computation of the output even when some of its arguments are
-  errors. Note that adding ^:try metadata on an array input will never
-  supply an error value to the output fnk; instead, it will provide
-  an array where some items might be errors.
+  In the arglist, you can specify ^:raw or ^:try metadata tags on arguments to
+  control how dependencies are evaluated. Tagging a property argument with ^:raw
+  will bypass any (value _getter_) declared for the property, and instead
+  produce the raw value assigned to the property map in the node or its override
+  chain. Tagging an argument with ^:try allows the computation of the output
+  even when some of its arguments are errors. Note that adding ^:try metadata on
+  an :array input will not supply an ErrorValue to the fnk; instead, it will
+  provide an array where some items might be ErrorValues.
 
   Values produced on an output with the :cached flag will be cached in
   memory until the node is affected by some change in inputs or

@@ -64,7 +64,7 @@
            [javax.vecmath Quat4d]))
 
 ;; TODO(gui-layout-override-refactor):
-;; * Fix layout override loading. Should assign to layout->prop->override property on nodes.
+;; [DONE] Fix layout override loading. Should assign to layout->prop->override property on nodes.
 ;; * Fix layout->prop->value to include correct base values from active-layouts.
 ;; * Fix scene-view manipulators so they assign into the current-layout.
 ;; * Ensure layout overrides can be cleared using the property editor.
@@ -654,7 +654,7 @@
               (map pb-field-index->pb-field)
               (:overridden-fields node-desc))))
 
-(g/defnk produce-gui-base-node-msg [_this type custom-type child-index position rotation scale id generated-id color alpha inherit-alpha enabled layer parent]
+(g/defnk produce-gui-base-node-msg [_this type custom-type child-index ^:raw position ^:raw rotation ^:raw scale id generated-id ^:raw color ^:raw alpha ^:raw inherit-alpha ^:raw enabled ^:raw layer parent]
   ;; Warning: This base output or any of the base outputs that derive from it
   ;; must not be cached due to overridden-fields reliance on _this. Only the
   ;; node-msg outputs of concrete nodes may be cached. In that case caching is
@@ -681,11 +681,11 @@
 (defmacro layout-property-getter [prop-sym]
   {:pre [(symbol? prop-sym)]}
   (let [prop-kw (keyword prop-sym)]
-    `(g/fnk [~'layout->prop->value ~prop-sym]
-       (get ~'layout->prop->value ~prop-kw ~prop-sym))))
+    `(g/fnk [~'layout-property-values ~prop-sym]
+       (get ~'layout-property-values ~prop-kw ~prop-sym))))
 
 (defn layout-property-set-fn [_evaluation-context node-id _old-value _new-value]
-  (g/invalidate-output node-id :layout->prop->value))
+  (g/invalidate-output node-id :layout-property-values))
 
 (defmacro layout-property-setter [prop-sym]
   {:pre [(symbol? prop-sym)]}
@@ -765,7 +765,7 @@
 (defmacro layout-property-edit-type
   ([prop-sym edit-type-form]
    `(g/constantly
-      (wrap-layout-property-edit-type ~prop-sym ~edit-type-form nil)))
+      (wrap-layout-property-edit-type ~prop-sym ~edit-type-form)))
   ([prop-sym edit-type-form changes-fn-form]
    `(g/constantly
       (wrap-layout-property-edit-type ~prop-sym ~edit-type-form ~changes-fn-form))))
@@ -957,18 +957,18 @@
   (output layout-infos g/Any (gu/passthrough layout-infos))
   (input current-layout g/Str)
   (output current-layout g/Str (gu/passthrough current-layout))
-  (output layout->prop->value g/Any :cached
-          (g/fnk [_this layout->prop->override]
+  (output layout-property-values g/Any :cached
+          (g/fnk [_this current-layout layout->prop->override]
             ;; All layout-property-setters explicitly invalidate this output, so
             ;; it is safe to extract properties from _this here.
             (if (nil? (gt/original _this))
-              layout->prop->override ; Fast path, but just an optimization.
+              (layout->prop->override current-layout) ; Fast path, but just an optimization.
               (let [basis (g/now)]
                 (->> _this
                      (iterate #(some->> % (gt/original) (g/node-by-id-at basis)))
                      (take-while some?)
                      (into (list) ; Reverse the order so it goes from the override root to our node.
-                           (map #(gt/get-property % basis :layout->prop->override)))
+                           (map #(get (gt/get-property % basis :layout->prop->override) current-layout)))
                      (apply coll/deep-merge))))))
   (input child-build-errors g/Any :array)
   (output build-errors-gui-node g/Any (g/fnk [_node-id id id-counts layer layer-names]
@@ -1014,7 +1014,7 @@
         texture-page-count (:page-count (texture-infos texture))]
     (validation/prop-error :fatal _node-id :material shader/page-count-mismatch-error-message is-paged-material texture-page-count material-max-page-count "Texture")))
 
-(g/defnk produce-visual-base-node-msg [gui-base-node-msg visible blend-mode adjust-mode material pivot x-anchor y-anchor]
+(g/defnk produce-visual-base-node-msg [gui-base-node-msg ^:raw visible ^:raw blend-mode ^:raw adjust-mode ^:raw material ^:raw pivot ^:raw x-anchor ^:raw y-anchor]
   (merge gui-base-node-msg
          (protobuf/make-map-without-defaults Gui$NodeDesc
            :visible visible
@@ -1183,7 +1183,7 @@
                  (not-any? is-size-pb-field-index? overridden-fields))
             (add-size-to-overridden-fields-in-node-desc))))
 
-(g/defnk produce-shape-base-node-msg [visual-base-node-msg manual-size size-mode texture clipping-mode clipping-visible clipping-inverted]
+(g/defnk produce-shape-base-node-msg [visual-base-node-msg ^:raw manual-size ^:raw size-mode ^:raw texture ^:raw clipping-mode ^:raw clipping-visible ^:raw clipping-inverted]
   (-> visual-base-node-msg
       (merge (protobuf/make-map-without-defaults Gui$NodeDesc
                :size (protobuf/vector3->vector4-zero manual-size)
@@ -1332,7 +1332,7 @@
 
 ;; Box nodes
 
-(g/defnk produce-box-node-msg [shape-base-node-msg slice9]
+(g/defnk produce-box-node-msg [shape-base-node-msg ^:raw slice9]
   (merge shape-base-node-msg
          (protobuf/make-map-without-defaults Gui$NodeDesc
            :slice9 slice9)))
@@ -1374,7 +1374,7 @@
 (defn- validate-perimeter-vertices [node-id perimeter-vertices]
   (validation/prop-error :fatal node-id :perimeter-vertices validation/prop-outside-range? [perimeter-vertices-min perimeter-vertices-max] perimeter-vertices "Perimeter Vertices"))
 
-(g/defnk produce-pie-node-msg [shape-base-node-msg outer-bounds inner-radius perimeter-vertices pie-fill-angle]
+(g/defnk produce-pie-node-msg [shape-base-node-msg ^:raw outer-bounds ^:raw inner-radius ^:raw perimeter-vertices ^:raw pie-fill-angle]
   (merge shape-base-node-msg
          (protobuf/make-map-without-defaults Gui$NodeDesc
            :outer-bounds outer-bounds
@@ -1476,7 +1476,7 @@
 
 (def ^:private validate-font (partial validate-required-gui-resource "font '%s' does not exist in the scene" :font))
 
-(g/defnk produce-text-node-msg [visual-base-node-msg manual-size text line-break font text-leading text-tracking outline outline-alpha shadow shadow-alpha]
+(g/defnk produce-text-node-msg [visual-base-node-msg ^:raw manual-size ^:raw text ^:raw line-break ^:raw font ^:raw text-leading ^:raw text-tracking ^:raw outline ^:raw outline-alpha ^:raw shadow ^:raw shadow-alpha]
   (merge visual-base-node-msg
          (protobuf/make-map-without-defaults Gui$NodeDesc
            :size (protobuf/vector3->vector4-zero manual-size)
@@ -1703,7 +1703,7 @@
                                                                   [:build-targets :template-build-targets]
                                                                   [:build-errors :child-build-errors]
                                                                   [:resource :template-resource]
-                                                                  [:pb-msg :scene-pb-msg]
+                                                                  [:node-msgs :scene-node-msgs]
                                                                   [:node-overrides :template-overrides]]]
                                                    (g/connect or-scene from self to))
                                                  (for [[from to] [[:layer-names :layer-names]
@@ -1723,13 +1723,12 @@
                                                                   [:particlefx-resource-names :aux-particlefx-resource-names]
                                                                   [:resource-names :aux-resource-names]
                                                                   [:template-prefix :id-prefix]
-                                                                  [:layout-infos :layout-infos]
                                                                   [:current-layout :current-layout]]]
                                                    (g/connect self from or-scene to)))))))))))))))
 
   (display-order (into base-display-order [:enabled :template]))
 
-  (input scene-pb-msg g/Any :substitute (fn [_] {:nodes []}))
+  (input scene-node-msgs g/Any :substitute [])
   (input scene-build-targets g/Any)
   (output scene-build-targets g/Any (gu/passthrough scene-build-targets))
 
@@ -1745,7 +1744,7 @@
                                                                 (get-in template-outline [:children 0 :children])))
   (output node-outline-reqs g/Any :cached (g/constantly []))
   (output node-msg g/Any :cached produce-template-node-msg)
-  (output node-msgs g/Any :cached (g/fnk [id layout->prop->override node-msg scene-pb-msg]
+    (output node-msgs g/Any :cached (g/fnk [id layout->prop->override node-msg scene-node-msgs]
                                     (let [decorated-node-msg
                                           (assoc node-msg
                                             :layout->prop->override layout->prop->override)]
@@ -1754,7 +1753,7 @@
                                                       (vary-meta update :templates (fnil conj []) decorated-node-msg)
                                                       (assoc :template-node-child true)
                                                       (cond-> (empty? (:parent %)) (assoc :parent id))))
-                                            (:nodes scene-pb-msg)))))
+                                            scene-node-msgs))))
   (output node-overrides g/Any :cached (g/fnk [id _overridden-properties template-overrides]
                                               (-> {id _overridden-properties}
                                                 (merge template-overrides))))
@@ -1793,7 +1792,7 @@
     (contains? scene :renderable)
     (assoc-in [:renderable :topmost?] true)))
 
-(g/defnk produce-particlefx-node-msg [visual-base-node-msg particlefx]
+(g/defnk produce-particlefx-node-msg [visual-base-node-msg ^:raw particlefx]
   (-> visual-base-node-msg
       (merge (protobuf/make-map-without-defaults Gui$NodeDesc
                :particlefx particlefx
@@ -3270,9 +3269,7 @@
         node-descs         (eduction
                              (remove :template-node-child)
                              (map (fn [{:keys [id] :as node-desc}]
-                                    (if-let [layout->prop->override (node->layout->prop->override id)]
-                                      (assoc node-desc :layout->prop->override layout->prop->override)
-                                      node-desc)))
+                                    (assoc node-desc :layout->prop->override (get node->layout->prop->override id {}))))
                              node-descs)
         tmpl-children      (group-by (comp :template second) tmpl-node-descs)
         tmpl-roots         (filter (complement tmpl-node-descs) (map first tmpl-children))
