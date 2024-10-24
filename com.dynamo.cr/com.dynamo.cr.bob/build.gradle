@@ -170,7 +170,7 @@ task compileBobLight(dependsOn: [getGitRevision, compileSrc, createLuaJitShareZi
                 'x86_64-macos': ['glslang', 'spirv-cross', 'spirv-opt', 'luajit-32', 'luajit-64', 'lipo', 'tint'],
                 'arm64-macos': ['glslang', 'spirv-cross', 'spirv-opt', 'luac-32', 'luajit-64', 'lipo', 'tint'],
                 'x86_64-linux': ['glslang', 'spirv-cross', 'spirv-opt', 'luajit-32', 'luajit-64', 'lipo', 'tint'],
-                'arm64-linux': ['luajit-32', 'luajit-64'], // TODO!!!
+                'arm64-linux': ['glslang', 'spirv-cross', 'spirv-opt', 'luajit-32', 'luajit-64'], // TODO!!!
                 'x86_64-win32': ['glslang.exe', 'spirv-cross.exe', 'spirv-opt.exe', 'luajit-64.exe', 'lipo.exe'],
                 'x86-win32': ['glslang.exe', 'spirv-cross.exe', 'spirv-opt.exe', 'luajit-32.exe']
         ]

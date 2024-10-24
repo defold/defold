@@ -34,7 +34,6 @@ RUN \
 RUN \
   apt-get install -y --no-install-recommends \
     tofrodos \
-    cmake \
     wget \
     curl \
     zip \
@@ -83,6 +82,9 @@ RUN \
   java -version && \
   javac -version
 
+# cmake
+RUN \
+  wget -qO- "https://cmake.org/files/v3.31/cmake-3.31.0-rc1-linux-aarch64.tar.gz" | tar --strip-components=1 -xz -C /usr/local
 
 RUN apt-get autoremove
 

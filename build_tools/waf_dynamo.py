@@ -374,8 +374,10 @@ def default_flags(self):
     if "linux" == build_util.get_target_os():
 
         clang_arch = 'x86_64-unknown-linux-gnu'
+        lib_arch = "x86_64-linux-gnu"
         if build_util.get_target_platform() == 'arm64-linux':
             clang_arch = 'aarch64-unknown-linux-gnu'
+            lib_arch = "aarch64-linux-gnu"
 
         for f in ['CFLAGS', 'CXXFLAGS']:
             self.env.append_value(f, [f'--target={clang_arch}', '-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-Werror=format', '-fno-exceptions','-fPIC', '-fvisibility=hidden'])
@@ -384,6 +386,8 @@ def default_flags(self):
                 self.env.append_value(f, ['-fno-rtti'])
 
         self.env.append_value('LINKFLAGS', [f'--target={clang_arch}'])
+
+        #self.env.append_value('LIBPATH', ['/usr/lib/%s' % lib_arch])
 
     elif "macos" == build_util.get_target_os():
 

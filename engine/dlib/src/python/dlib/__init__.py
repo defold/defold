@@ -25,7 +25,10 @@ if sys.platform == "darwin":
     libdir = "lib/%s-macos" % machine
 elif sys.platform in ("linux", "linux2"): # support both python3 and python2
     libname = "libdlib_shared.so"
-    libdir = "lib/x86_64-linux"
+    if machine == 'aarch64':
+        libdir = "lib/arm64-linux"
+    else:
+        libdir = "lib/x86_64-linux"
 elif sys.platform == "win32":
     libname = "dlib_shared.dll"
     libdir = "lib/x86_64-win32"
