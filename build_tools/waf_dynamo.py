@@ -99,11 +99,6 @@ SDK_ROOT=sdk.SDK_ROOT
 
 EMSCRIPTEN_ROOT=os.environ.get('EMSCRIPTEN', '')
 
-CLANG_VERSION='clang-13.0.0'
-
-SDK_ROOT=sdk.SDK_ROOT
-LINUX_TOOLCHAIN_ROOT=os.path.join(SDK_ROOT, 'linux')
-
 # Workaround for a strange bug with the combination of ccache and clang
 # Without CCACHE_CPP2 set breakpoint for source locations can't be set, e.g. b main.cpp:1234
 os.environ['CCACHE_CPP2'] = 'yes'
@@ -377,11 +372,18 @@ def default_flags(self):
             self.env.append_value('LINKFLAGS', ['-framework', 'AppKit'])
 
     if "linux" == build_util.get_target_os():
+
+        clang_arch = 'x86_64-unknown-linux-gnu'
+        if build_util.get_target_platform() == 'arm64-linux':
+            clang_arch = 'aarch64-unknown-linux-gnu'
+
         for f in ['CFLAGS', 'CXXFLAGS']:
-            self.env.append_value(f, ['-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-Werror=format', '-fno-exceptions','-fPIC', '-fvisibility=hidden'])
+            self.env.append_value(f, [f'--target={clang_arch}', '-g', '-D__STDC_LIMIT_MACROS', '-DDDF_EXPOSE_DESCRIPTORS', '-DGOOGLE_PROTOBUF_NO_RTTI', '-Wall', '-Werror=format', '-fno-exceptions','-fPIC', '-fvisibility=hidden'])
 
             if f == 'CXXFLAGS':
                 self.env.append_value(f, ['-fno-rtti'])
+
+        self.env.append_value('LINKFLAGS', [f'--target={clang_arch}'])
 
     elif "macos" == build_util.get_target_os():
 
@@ -910,7 +912,7 @@ Task.task_factory('app_bundle',
 
 def _strip_executable(bld, platform, target_arch, path):
     """ Strips the debug symbols from an executable """
-    if platform not in ['x86_64-linux','x86_64-macos','arm64-macos','arm64-ios','armv7-android','arm64-android']:
+    if platform not in ['x86_64-linux','arm64-linux','x86_64-macos','arm64-macos','arm64-ios','armv7-android','arm64-android']:
         return 0 # return ok, path is still unstripped
 
     sdkinfo = sdk.get_sdk_info(SDK_ROOT, bld.env.PLATFORM)
@@ -1562,10 +1564,10 @@ def detect(conf):
     conf.env['PLATFORM'] = platform
     conf.env['BUILD_PLATFORM'] = host_platform
 
-    if platform in ('x86_64-linux', 'x86_64-win32', 'x86_64-macos', 'arm64-macos'):
+    if platform in ('x86_64-linux', 'arm64-linux', 'x86_64-win32', 'x86_64-macos', 'arm64-macos'):
         conf.env['IS_TARGET_DESKTOP'] = 'true'
 
-    if host_platform in ('x86_64-linux', 'x86_64-win32', 'x86_64-macos', 'arm64-macos'):
+    if host_platform in ('x86_64-linux', 'arm64-linux', 'x86_64-win32', 'x86_64-macos', 'arm64-macos'):
         conf.env['IS_HOST_DESKTOP'] = 'true'
 
     try:
@@ -1805,7 +1807,7 @@ def detect(conf):
         conf.env['STLIB_MARKER']=''
         conf.env['SHLIB_MARKER']=''
 
-    if platform in ('x86_64-linux','armv7-android','arm64-android'): # Currently the only platform exhibiting the behavior
+    if platform in ('x86_64-linux','arm64-linux','armv7-android','arm64-android'): # Currently the only platform exhibiting the behavior
         conf.env['STLIB_MARKER'] = ['-Wl,-start-group', '-Wl,-Bstatic']
         conf.env['SHLIB_MARKER'] = ['-Wl,-end-group', '-Wl,-Bdynamic']
 
@@ -1873,7 +1875,7 @@ def detect(conf):
         conf.env['LIB_OPENGL'] = ['EGL', 'GLESv1_CM', 'GLESv2']
     elif platform in ('win32', 'x86_64-win32'):
         conf.env['LINKFLAGS_OPENGL'] = ['opengl32.lib', 'glu32.lib']
-    elif platform in ('x86_64-linux',):
+    elif platform in ('x86_64-linux','arm64-linux'):
         conf.env['LIB_OPENGL'] = ['GL', 'GLU']
 
     if platform in ('x86_64-macos','arm64-macos'):
@@ -1884,7 +1886,7 @@ def detect(conf):
         conf.env['LIB_OPENAL'] = ['OpenSLES']
     elif platform in ('win32', 'x86_64-win32'):
         conf.env['LIB_OPENAL'] = ['OpenAL32']
-    elif platform in ('x86_64-linux',):
+    elif platform in ('x86_64-linux','arm64-linux'):
         conf.env['LIB_OPENAL'] = ['openal']
 
     conf.env['STLIB_DLIB'] = ['dlib', 'image', 'mbedtls', 'zip']
@@ -1902,7 +1904,7 @@ def detect(conf):
     if ('record' not in Options.options.disable_features):
         conf.env['STLIB_RECORD'] = 'record_null'
     else:
-        if platform in ('x86_64-linux', 'x86_64-win32', 'x86_64-macos', 'arm64-macos'):
+        if platform in ('x86_64-linux', 'arm64-linux', 'x86_64-win32', 'x86_64-macos', 'arm64-macos'):
             conf.env['STLIB_RECORD'] = 'record'
             conf.env['LINKFLAGS_RECORD'] = ['vpx.lib']
         else:
@@ -1933,7 +1935,7 @@ def detect(conf):
         conf.env['STLIB_VULKAN'] = 'MoltenVK'
         conf.env['FRAMEWORK_VULKAN'] = ['Metal', 'IOSurface']
         conf.env['FRAMEWORK_DMGLFW'] = ['QuartzCore', 'OpenGLES', 'CoreVideo', 'CoreGraphics']
-    elif platform in ('x86_64-linux',):
+    elif platform in ('x86_64-linux','arm64-linux'):
         conf.env['SHLIB_VULKAN'] = ['vulkan', 'X11-xcb']
     elif platform in ('armv7-android','arm64-android'):
         conf.env['SHLIB_VULKAN'] = ['vulkan']
@@ -1946,7 +1948,7 @@ def detect(conf):
     elif platform in ('armv7-android', 'arm64-android'):
         pass
         #conf.env['STLIB_TESTAPP'] += ['android']
-    elif platform in ('x86_64-linux',):
+    elif platform in ('x86_64-linux','arm64-linux',):
         conf.env['LIB_TESTAPP'] += ['Xext', 'X11', 'Xi', 'pthread']
         conf.env['LIB_APP'] += ['Xext', 'X11', 'Xi', 'pthread']
     elif platform in ('win32', 'x86_64-win32'):
