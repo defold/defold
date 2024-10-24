@@ -23,6 +23,12 @@ import java.nio.file.Files;
 import com.dynamo.bob.util.HttpUtil;
 import com.dynamo.bob.logging.Logger;
 
+
+/**
+ * This class is used to store and get resources to avoid rebuilding the same
+ * resource multiple times in consecutive builds. The cache has both a local file
+ * cache and a remote cache (http based)
+ */
 public class ResourceCache {
 
 	private static Logger logger = Logger.getLogger(ResourceCache.class.getName());
@@ -128,7 +134,7 @@ public class ResourceCache {
 	 * @param key Key to associate data with
 	 * @param data The data to store
 	 */
-	public void put(String key, byte[] data) throws IOException {
+	public synchronized void put(String key, byte[] data) throws IOException {
 		if (!enabled) {
 			return;
 		}

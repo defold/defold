@@ -25,6 +25,7 @@ import java.io.BufferedWriter;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.RuntimeMXBean;
+import java.lang.Thread;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
@@ -71,7 +72,7 @@ public class TimeProfiler {
     private static long buildTime;
 
     private static ProfilingScope rootScope;
-    private static ProfilingScope currentScope;
+    private static Map<Thread, ProfilingScope> scopes;
     private static List<File> reportFiles;
     private static Boolean fromEditor;
 
@@ -176,7 +177,7 @@ public class TimeProfiler {
         long reportStartTime = time();
 
         //Close all unclosed scopes
-        while(currentScope != _rootScope) {
+        while(getCurrentScope() != _rootScope) {
             unsafeAddData("forceFinishedScope", true);
             unsafeAddData("color", "#FF0000");
             unsafeStop();
@@ -226,12 +227,21 @@ public class TimeProfiler {
         System.out.printf("\nTime profiler report creation took %.2f seconds", (reportEndTime - reportStartTime)/1000.0f);
     }
 
+    private static synchronized void setCurrentScope(ProfilingScope scope) {
+        scopes.put(Thread.currentThread(), scope);
+    }
+
+    private static synchronized ProfilingScope getCurrentScope() {
+        return scopes.get(Thread.currentThread());
+    }
+
     public static void init(List<File> reportFiles, Boolean fromEditor) throws IOException {
         if (rootScope != null) {
             return;
         }
         TimeProfiler.reportFiles = reportFiles;
         TimeProfiler.fromEditor = fromEditor;
+        scopes = new HashMap<>();
         marks = new ArrayList();
         long startTime = time();
         if (!fromEditor) {
@@ -241,7 +251,7 @@ public class TimeProfiler {
         buildTime = startTime;
         rootScope = new ProfilingScope();
         rootScope.startTime = startTime;
-        currentScope = rootScope;
+        setCurrentScope(rootScope);
         unsafeAddData("name", "Total time");
 
         if (!fromEditor) {
@@ -267,6 +277,8 @@ public class TimeProfiler {
         if (rootScope == null) {
             return;
         }
+        
+        ProfilingScope currentScope = getCurrentScope();
         if (currentScope.children == null) {
             currentScope.children = new ArrayList<ProfilingScope>();
         }
@@ -274,7 +286,7 @@ public class TimeProfiler {
         scope.startTime = time();
         scope.parent = currentScope;
         currentScope.children.add(scope);
-        currentScope = scope;
+        setCurrentScope(scope);
     }
 
     public static void start(String scopeName) {
@@ -290,8 +302,9 @@ public class TimeProfiler {
     }
 
     private static void unsafeStop() {
+        ProfilingScope currentScope = getCurrentScope();
         currentScope.endTime = time();
-        currentScope = currentScope.parent;
+        setCurrentScope(currentScope.parent);
     }
 
     public static void stop() {
@@ -322,6 +335,7 @@ public class TimeProfiler {
     }
 
     private static void unsafeAddData(String fieldName, String data) {
+        ProfilingScope currentScope = getCurrentScope();
         if (currentScope.additionalStringData == null) {
             currentScope.additionalStringData = new HashMap<String, String>();
         }
@@ -329,6 +343,7 @@ public class TimeProfiler {
     }
 
     private static void unsafeAddData(String fieldName, Float data) {
+        ProfilingScope currentScope = getCurrentScope();
         if (currentScope.additionalNumberData == null) {
             currentScope.additionalNumberData = new HashMap<String, Float>();
         }
@@ -336,6 +351,7 @@ public class TimeProfiler {
     }
 
     private static void unsafeAddData(String fieldName, Boolean data) {
+        ProfilingScope currentScope = getCurrentScope();
         if (currentScope.additionalBooleanData == null) {
             currentScope.additionalBooleanData = new HashMap<String, Boolean>();
         }

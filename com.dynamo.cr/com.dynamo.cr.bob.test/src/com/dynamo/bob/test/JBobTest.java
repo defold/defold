@@ -233,16 +233,19 @@ public class JBobTest {
         // build
         result = build();
         assertThat(result.size(), is(1));
+        assertThat(result.get(0).getResult(), is(TaskResult.Result.SUCCESS));
 
         // rebuild with same input
         result = build();
-        assertThat(result.size(), is(0));
+        assertThat(result.size(), is(1));
+        assertThat(result.get(0).getResult(), is(TaskResult.Result.SKIPPED));
 
         // rebuild with new input
         MockResource testIn = (MockResource) fileSystem.get("test.in");
         testIn.setContent("test data prim".getBytes());
         result = build();
         assertThat(result.size(), is(1));
+        assertThat(result.get(0).getResult(), is(TaskResult.Result.SUCCESS));
     }
 
     @Test
@@ -277,7 +280,15 @@ public class JBobTest {
 
         // rebuild
         result = build();
-        assertThat(result.size(), is(1));
+        int skipped = 0;
+        int success = 0;
+        for(TaskResult r : result) {
+            if (r.getResult() == TaskResult.Result.SKIPPED) skipped++;
+            if (r.getResult() == TaskResult.Result.SUCCESS) success++;
+        }
+        assertThat(result.size(), is(3));
+        assertThat(skipped, is(2));
+        assertThat(success, is(1));
     }
 
     @Test
@@ -341,15 +352,18 @@ public class JBobTest {
         // build
         result = build();
         assertThat(result.size(), is(1));
+        assertThat(result.get(0).getResult(), is(TaskResult.Result.SUCCESS));
 
         // rebuild with new option
         project.setOption("COPTIM", "-O2");
         result = build();
         assertThat(result.size(), is(1));
+        assertThat(result.get(0).getResult(), is(TaskResult.Result.SUCCESS));
 
         // rebuild with same option
         result = build();
-        assertThat(result.size(), is(0));
+        assertThat(result.size(), is(1));
+        assertThat(result.get(0).getResult(), is(TaskResult.Result.SKIPPED));
     }
 
     @Test
