@@ -66,7 +66,8 @@ static void DeviceStop(dmSound::HDevice device)
     (void)device;
 }
 
-DM_DECLARE_SOUND_DEVICE(TestNullDevice, "device", DeviceOpen, DeviceClose, DeviceQueue, DeviceFreeBufferSlots, DeviceDeviceInfo, DeviceRestart, DeviceStop);
+DM_DECLARE_SOUND_DEVICE(TestNullDevice, "device", DeviceOpen, DeviceClose, DeviceQueue,
+                        DeviceFreeBufferSlots, 0, DeviceDeviceInfo, DeviceRestart, DeviceStop);
 
 int main(int argc, char **argv)
 {

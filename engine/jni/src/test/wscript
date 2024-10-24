@@ -37,7 +37,7 @@ def configure(conf):
                      jni_outdir     = make_path('./jni'))
 
     if conf.env.PLATFORM in ('x86_64-win32','win32'):
-        conf.env['LINKFLAGS_DEBUG'] = ['dbghelp.lib'] #['user32.lib', 'shell32.lib', 'openal32.lib', 'dbghelp.lib']
+        conf.env['LINKFLAGS_DEBUG'] = ['dbghelp.lib']
 
 def build(bld):
     if not bld.env.IS_TARGET_DESKTOP:

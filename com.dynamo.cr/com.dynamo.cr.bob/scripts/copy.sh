@@ -74,13 +74,6 @@ cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-win32/modelc_shared.dll lib/x86
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-macos/libmodelc_shared.dylib lib/x86_64-macos/libmodelc_shared.dylib
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/arm64-macos/libmodelc_shared.dylib lib/arm64-macos/libmodelc_shared.dylib
 
-# Win32 32
-cp -v $DYNAMO_HOME/ext/lib/win32/OpenAL32.dll lib/x86-win32/OpenAL32.dll
-cp -v $DYNAMO_HOME/ext/lib/win32/wrap_oal.dll lib/x86-win32/wrap_oal.dll
-# Win32 64
-cp -v $DYNAMO_HOME/ext/lib/x86_64-win32/OpenAL32.dll lib/x86_64-win32/OpenAL32.dll
-cp -v $DYNAMO_HOME/ext/lib/x86_64-win32/wrap_oal.dll lib/x86_64-win32/wrap_oal.dll
-
 cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/luajit-32 libexec/x86_64-linux/luajit-32
 cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/luajit-64 libexec/x86_64-linux/luajit-64
 cp -v $DYNAMO_HOME/ext/bin/x86_64-macos/luajit-64 libexec/x86_64-macos/luajit-64

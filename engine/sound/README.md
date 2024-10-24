@@ -8,7 +8,6 @@ Different OpenAL implementations currently are used for the supported platform:
 
 * iOS - native
 * Mac OS X - native
-* Windows - OpenAL provided by Creative
 * Android - OpenAL Soft (built from source)
 * Linux - native
 
@@ -16,6 +15,12 @@ OpenAL soft
 -----------
 
 A configuration file the target platform is required in *src/openal/config/PLATFORM/config.h*
+
+Wasapi
+------
+
+On windows we use Wasapi sound api
+
 
 Android latency issues
 ----------------------
