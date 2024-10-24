@@ -172,7 +172,6 @@ Result DeregisterTypes(HFactory factory, dmHashTable64<void*>* contexts)
             ctx.m_Contexts = contexts;
 
             HResourceType type = dmResource::FindResourceType(factory, desc->m_Name);
-
             Result result = (Result)desc->m_DeregisterFn(&ctx, type);
             if (result != RESULT_OK)
             {

@@ -659,6 +659,8 @@
                :name "console.reload.successful"}
               {:match #"^ERROR:.+?:"
                :name "console.error"}
+              {:match #"^FATAL:.+?:"
+               :name "console.fatal"}
               {:match #"^WARNING:.+?:"
                :name "console.warning"}
               {:match #"^INFO:.+?:"
@@ -672,6 +674,7 @@
     (view/make-color-scheme
       [["console.reload.successful" (Color/valueOf "#33CC33")]
        ["console.error" (Color/valueOf "#FF6161")]
+       ["console.fatal" (Color/valueOf "#8250df")]
        ["console.warning" (Color/valueOf "#FF9A34")]
        ["console.info" (Color/valueOf "#CCCFD3")]
        ["console.debug" (Color/valueOf "#3B8CF8")]
