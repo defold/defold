@@ -170,6 +170,7 @@ task compileBobLight(dependsOn: [getGitRevision, compileSrc, createLuaJitShareZi
                 'x86_64-macos': ['glslang', 'spirv-cross', 'spirv-opt', 'luajit-32', 'luajit-64', 'lipo', 'tint'],
                 'arm64-macos': ['glslang', 'spirv-cross', 'spirv-opt', 'luac-32', 'luajit-64', 'lipo', 'tint'],
                 'x86_64-linux': ['glslang', 'spirv-cross', 'spirv-opt', 'luajit-32', 'luajit-64', 'lipo', 'tint'],
+                'arm64-linux': ['luajit-32', 'luajit-64'], // TODO!!!
                 'x86_64-win32': ['glslang.exe', 'spirv-cross.exe', 'spirv-opt.exe', 'luajit-64.exe', 'lipo.exe'],
                 'x86-win32': ['glslang.exe', 'spirv-cross.exe', 'spirv-opt.exe', 'luajit-32.exe']
         ]
@@ -185,6 +186,7 @@ task compileBobLight(dependsOn: [getGitRevision, compileSrc, createLuaJitShareZi
 
         def tarFiles = [
                 'x86_64-linux': 'bin/x86_64-linux/**',
+                'arm64-linux': 'bin/arm64-linux/**',
                 'x86_64-win32': 'bin/x86_64-win32/**',
                 'x86_64-macos': 'bin/x86_64-macos/**',
                 'arm64-macos': 'bin/arm64-macos/**'
@@ -212,6 +214,7 @@ task compileBobLight(dependsOn: [getGitRevision, compileSrc, createLuaJitShareZi
                 'x86_64-macos': ['x86_64-macos/*texc_shared*', 'x86_64-macos/*modelc_shared*'],
                 'arm64-macos': ['arm64-macos/*texc_shared*', 'arm64-macos/*modelc_shared*'],
                 'x86_64-linux': ['x86_64-linux/*texc_shared*', 'x86_64-linux/*modelc_shared*'],
+                'arm64-linux': ['arm64-linux/*texc_shared*', 'arm64-linux/*modelc_shared*'],
                 'win32': ['win32/*texc_shared*', 'win32/*modelc_shared*'],
                 'x86_64-win32': ['x86_64-win32/*texc_shared*', 'x86_64-win32/*modelc_shared*']
         ]

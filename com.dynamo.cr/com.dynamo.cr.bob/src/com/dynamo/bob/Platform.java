@@ -33,6 +33,7 @@ public enum Platform {
     X86_64Win32( "x86_64",  true,   "win32",   new String[] {".exe"}, "", "", ".dll", new String[] {"win32", "x86_64-win32"}, PlatformArchitectures.Windows64, "x86_64-win32"),
     X86Linux(    "x86",     false,  "linux",   new String[] {""}, "", "lib", ".so", new String[] {"linux", "x86-linux"}, PlatformArchitectures.Linux, "x86-linux"),
     X86_64Linux( "x86_64",  true,   "linux",   new String[] {""}, "", "lib", ".so", new String[] {"linux", "x86_64-linux"}, PlatformArchitectures.Linux, "x86_64-linux"),
+    Arm6464Linux("arm64",   true,   "linux",   new String[] {""}, "", "lib", ".so", new String[] {"linux", "arm64-linux"}, PlatformArchitectures.Linux, "arm64-linux"),
     Arm64Ios(    "arm64",   true,   "ios",     new String[] {""}, "", "lib", ".so", new String[] {"ios", "arm64-ios"}, PlatformArchitectures.iOS, "arm64-ios"),
     X86_64Ios(   "x86_64",  true,   "ios",     new String[] {""}, "", "lib", ".so", new String[] {"ios", "x86_64-ios"}, PlatformArchitectures.iOS, "x86_64-ios"),
     Armv7Android("armv7",   false,  "android", new String[] {".so"}, "lib", "lib", ".so", new String[] {"android", "armv7-android"}, PlatformArchitectures.Android, "armv7-android"),
