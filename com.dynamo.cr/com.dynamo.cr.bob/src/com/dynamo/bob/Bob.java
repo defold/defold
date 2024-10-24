@@ -1013,9 +1013,22 @@ public class Bob {
     }
 
     private static void logErrorAndExit(Exception e) {
-        System.err.println(e.getMessage());
-        if (e.getCause() != null) {
-            System.err.println("Cause: " + e.getCause());
+        logger.severe(e.getMessage().toString());
+        Throwable cause = e.getCause();
+        if(cause != null) {
+            for(int i = 0; cause != null; ++i) {
+                logger.severe("Cause:%d: %s", i, cause.toString());
+                StackTraceElement[] stackTrace = cause.getStackTrace();
+                for (StackTraceElement element : stackTrace) {
+                    logger.severe(element.toString());
+                }
+                cause = cause.getCause();
+            }
+        } else {
+            StackTraceElement[] stackTrace = e.getStackTrace();
+            for (StackTraceElement element : stackTrace) {
+                logger.severe(element.toString());
+            }
         }
         logger.severe(e.getMessage(), e);
         System.exit(1);

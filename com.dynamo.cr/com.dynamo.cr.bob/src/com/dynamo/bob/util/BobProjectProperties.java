@@ -79,6 +79,10 @@ public class BobProjectProperties {
         public ProjectProperty() {
         }
 
+        public String toString() {
+            return getValue();
+        }
+
         public void setAttribute(String key, String value) {
             if (key == null || key.isEmpty() || value == null) {
                 return;
