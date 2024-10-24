@@ -55,7 +55,7 @@ SWIFT_VERSION="5.5"
 VERSION_LINUX_CLANG="16.0.0"
 PACKAGES_LINUX_CLANG="clang-16.0.0"
 PACKAGES_LINUX_X86_64_TOOLCHAIN="clang+llvm-16.0.0-x86_64-linux-gnu-ubuntu-18.04"
-PACKAGES_LINUX_ARM64_TOOLCHAIN="clang+llvm-16.0.0-aarch64-linux-gnu.tar.xz"
+PACKAGES_LINUX_ARM64_TOOLCHAIN="clang+llvm-16.0.0-aarch64-linux-gnu"
 
 ## **********************************************************************************************
 # Android
