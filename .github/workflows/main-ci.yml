@@ -134,7 +134,7 @@ jobs:
   bld-eng-linux:
     strategy:
       matrix:
-        platform: [x86_64-linux]
+        platform: [x86_64-linux, arm64-linux]
     runs-on: ubuntu-20.04
     steps: [
       { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
