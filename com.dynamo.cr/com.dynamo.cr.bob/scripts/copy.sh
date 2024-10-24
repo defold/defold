@@ -19,11 +19,13 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 set -e
 mkdir -p lib/x86_64-linux
+mkdir -p lib/arm64-linux
 mkdir -p lib/x86_64-macos
 mkdir -p lib/arm64-macos
 mkdir -p lib/x86-win32
 mkdir -p lib/x86_64-win32
 mkdir -p libexec/x86_64-linux
+mkdir -p libexec/arm64-linux
 mkdir -p libexec/x86_64-macos
 mkdir -p libexec/arm64-macos
 mkdir -p libexec/x86-win32
@@ -41,15 +43,18 @@ SHA1=`git log --pretty=%H -n1`
 cp -v $DYNAMO_HOME/ext/bin/x86_64-macos/glslang libexec/x86_64-macos/glslang
 cp -v $DYNAMO_HOME/ext/bin/arm64-macos/glslang libexec/arm64-macos/glslang
 cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/glslang libexec/x86_64-linux/glslang
+#cp -v $DYNAMO_HOME/ext/bin/arm64-linux/glslang libexec/arm64-linux/glslang
 cp -v $DYNAMO_HOME/ext/bin/x86_64-win32/glslang.exe libexec/x86_64-win32/glslang.exe
 
 cp -v $DYNAMO_HOME/ext/bin/x86_64-macos/tint libexec/x86_64-macos/tint
 cp -v $DYNAMO_HOME/ext/bin/arm64-macos/tint libexec/arm64-macos/tint
 cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/tint libexec/x86_64-linux/tint
+#cp -v $DYNAMO_HOME/ext/bin/arm64-linux/tint libexec/arm64-linux/tint
 
 cp -v $DYNAMO_HOME/ext/bin/x86_64-macos/spirv-cross libexec/x86_64-macos/spirv-cross
 cp -v $DYNAMO_HOME/ext/bin/arm64-macos/spirv-cross libexec/arm64-macos/spirv-cross
 cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/spirv-cross libexec/x86_64-linux/spirv-cross
+#cp -v $DYNAMO_HOME/ext/bin/arm64-linux/spirv-cross libexec/arm64-linux/spirv-cross
 cp -v $DYNAMO_HOME/ext/bin/x86_64-win32/spirv-cross.exe libexec/x86_64-win32/spirv-cross.exe
 
 #
@@ -64,12 +69,14 @@ cp -v $DYNAMO_HOME/archive/${SHA1}/engine/share/java/texturecompiler.jar lib/tex
 
 # TEXC Shared
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-linux/libtexc_shared.so lib/x86_64-linux/libtexc_shared.so
+cp -v $DYNAMO_HOME/archive/${SHA1}/engine/arm64-linux/libtexc_shared.so lib/arm64-linux/libtexc_shared.so
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-win32/texc_shared.dll lib/x86_64-win32/texc_shared.dll
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-macos/libtexc_shared.dylib lib/x86_64-macos/libtexc_shared.dylib
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/arm64-macos/libtexc_shared.dylib lib/arm64-macos/libtexc_shared.dylib
 
 # MODELC Shared
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-linux/libmodelc_shared.so lib/x86_64-linux/libmodelc_shared.so
+cp -v $DYNAMO_HOME/archive/${SHA1}/engine/arm64-linux/libmodelc_shared.so lib/arm64-linux/libmodelc_shared.so
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-win32/modelc_shared.dll lib/x86_64-win32/modelc_shared.dll
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-macos/libmodelc_shared.dylib lib/x86_64-macos/libmodelc_shared.dylib
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/arm64-macos/libmodelc_shared.dylib lib/arm64-macos/libmodelc_shared.dylib
@@ -83,6 +90,8 @@ cp -v $DYNAMO_HOME/ext/lib/x86_64-win32/wrap_oal.dll lib/x86_64-win32/wrap_oal.d
 
 cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/luajit-32 libexec/x86_64-linux/luajit-32
 cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/luajit-64 libexec/x86_64-linux/luajit-64
+cp -v $DYNAMO_HOME/ext/bin/arm64-linux/luajit-32 libexec/arm64-linux/luajit-32
+cp -v $DYNAMO_HOME/ext/bin/arm64-linux/luajit-64 libexec/arm64-linux/luajit-64
 cp -v $DYNAMO_HOME/ext/bin/x86_64-macos/luajit-64 libexec/x86_64-macos/luajit-64
 cp -v $DYNAMO_HOME/ext/bin/arm64-macos/luajit-64 libexec/arm64-macos/luajit-64
 cp -v $DYNAMO_HOME/ext/bin/win32/luajit-32.exe libexec/x86_64-win32/luajit-32.exe
@@ -93,6 +102,7 @@ jar cfM lib/luajit-share.zip -C $DYNAMO_HOME/ext/share/ luajit
 cp -v $DYNAMO_HOME/ext/bin/x86_64-macos/lipo libexec/x86_64-macos/lipo
 cp -v $DYNAMO_HOME/ext/bin/arm64-macos/lipo libexec/arm64-macos/lipo
 cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/lipo libexec/x86_64-linux/lipo
+#cp -v $DYNAMO_HOME/ext/bin/arm64-linux/lipo libexec/arm64-linux/lipo
 cp -v $DYNAMO_HOME/ext/bin/x86_64-win32/lipo.exe libexec/x86_64-win32/lipo.exe
 
 copy () {
@@ -102,6 +112,9 @@ copy () {
 copy x86_64-linux/stripped/dmengine x86_64-linux/dmengine
 copy x86_64-linux/stripped/dmengine_release x86_64-linux/dmengine_release
 # copy x86_64-linux/stripped/dmengine_headless x86_64-linux/dmengine_headless
+copy arm64-linux/stripped/dmengine arm64-linux/dmengine
+copy arm64-linux/stripped/dmengine_release arm64-linux/dmengine_release
+# copy arm64-linux/stripped/dmengine_headless arm64-linux/dmengine_headless
 copy x86_64-macos/stripped/dmengine x86_64-macos/dmengine
 copy x86_64-macos/stripped/dmengine_release x86_64-macos/dmengine_release
 # copy x86_64-macos/stripped/dmengine_headless x86_64-macos/dmengine_headless

@@ -22,7 +22,7 @@ from argparse import ArgumentParser
 from ci_helper import is_platform_supported, is_platform_private, is_repo_private
 
 # The platforms we deploy our editor on
-PLATFORMS_DESKTOP = ('x86_64-linux', 'x86_64-win32', 'x86_64-macos', 'arm64-macos')
+PLATFORMS_DESKTOP = ('x86_64-linux', 'arm64-linux','x86_64-win32', 'x86_64-macos', 'arm64-macos')
 
 def call(args, failonerror = True):
     print(args)
@@ -45,10 +45,17 @@ def call(args, failonerror = True):
 
 def platform_from_host():
     system = platform.system()
+    machine = platform.machine()
     if system == "Linux":
-        return "x86_64-linux"
+        if machine == 'aarch64':
+            return "arm64-linux"
+        else:
+            return "x86_64-linux"
     elif system == "Darwin":
-        return "x86_64-macos"
+        if machine in ['aarch64', 'arm64']:
+            return "arm64-macos"
+        else:
+            return "x86_64-macos"
     else:
         return "x86_64-win32"
 
@@ -190,6 +197,11 @@ def install(args):
         if args.keychain_cert:
             setup_keychain(args)
 
+def host_supports_tests(target_platform):
+    host_platform = platform_from_host()
+    if target_platform in ['x86_64-linux', 'arm64-linux']:
+        return host_platform == target_platform
+    return True # assuming it's the default
 
 def build_engine(platform, channel, with_valgrind = False, with_asan = False, with_ubsan = False, with_tsan = False,
                 with_vanilla_lua = False, skip_tests = False, skip_build_tests = False, skip_codesign = True,
@@ -261,6 +273,9 @@ def build_editor2(channel, engine_artifacts = None, skip_tests = False):
         opts.append('--engine-artifacts=%s' % engine_artifacts)
 
     opts.append('--channel=%s' % channel)
+
+    if not skip_tests and not host_supports_tests(platform):
+        skip_tests = True
 
     if skip_tests:
         opts.append('--skip-tests')

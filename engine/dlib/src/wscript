@@ -272,7 +272,7 @@ def build(bld):
 
     # ******************************************************************
 
-    desktop = bld.env['PLATFORM'] in ('x86_64-macos', 'arm64-macos', 'x86_64-linux', 'x86_64-win32')
+    desktop = bld.env['IS_HOST_DESKTOP']
     if desktop:
         dlib_shared = bld.shlib(features = 'c cxx cshlib skip_asan',
                                 includes = '. ./mbedtls/include ./mbedtls/crypto/include',

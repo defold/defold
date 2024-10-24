@@ -99,6 +99,9 @@ case $CONF_TARGET in
 	x86_64-linux)
 		CONFIGURE_ARGS="${CONFIGURE_ARGS} --target=x86_64-linux-gcc"
 		;;
+	arm64-linux)
+		CONFIGURE_ARGS="${CONFIGURE_ARGS} --target=arm64-linux-gcc"
+		;;
 	linux)
 		CONFIGURE_ARGS="${CONFIGURE_ARGS} --target=x86-linux-gcc"
 		;;

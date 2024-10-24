@@ -17,7 +17,7 @@ def build(bld):
     elif re.match('arm.*?android', platform):
         sources  = bld.path.ant_glob(['*.c', 'android/*.c'])
         includes = '. android'
-    elif platform == 'linux' or platform == 'x86_64-linux':
+    elif platform in ['x86_64-linux', 'arm64-linux']:
         sources  = bld.path.ant_glob(['*.c', 'x11/*.c'])
         includes = '. x11'
     elif 'win32' in platform:
