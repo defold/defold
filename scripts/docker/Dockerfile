@@ -3,16 +3,18 @@ FROM ubuntu:20.04
 # Base stuff
 RUN \
   apt-get update && \
-  apt-get install -y software-properties-common && \
-  add-apt-repository ppa:openjdk-r/ppa && \
-  apt-get update && \
-  apt-get install -y openjdk-11-jdk
+  apt-get install -y software-properties-common
 
 RUN \
   apt-get update && \
   apt-get install -y --no-install-recommends \
     gcc \
     g++ \
+    g++-aarch64-linux-gnu \
+    g++-x86-64-linux-gnu \
+    gcc-aarch64-linux-gnu \
+    gcc-i686-linux-gnu \
+    gcc-arm-linux-gnueabi \
     libssl-dev \
     openssl \
     libtool \
@@ -21,15 +23,13 @@ RUN \
     build-essential \
     uuid-dev \
     libxi-dev \
+    libxext-dev \
     libopenal-dev \
     libgl1-mesa-dev \
     libglw1-mesa-dev \
     freeglut3-dev \
-    gcc-multilib \
-    g++-multilib \
     # for python+ctypes
     libffi-dev
-
 
 RUN \
   apt-get install -y --no-install-recommends \
@@ -71,6 +71,19 @@ RUN \
     && pyenv global $PYTHON3_VERSION \
     && pyenv rehash
 
+ENV LC_ALL C.UTF-8
+
+# Java
+ENV JAVA_HOME=/usr/local/jdk-17.0.13+11
+ENV PATH=${JAVA_HOME}/bin:${PATH}
+
+RUN \
+  mkdir -p /usr/local && \
+  wget -q -O - https://aka.ms/download-jdk/microsoft-jdk-17.0.13-linux-aarch64.tar.gz | tar xz -C /usr/local && \
+  java -version && \
+  javac -version
+
+
 RUN apt-get autoremove
 
 ENV LC_ALL C.UTF-8
@@ -79,8 +92,8 @@ ENV LC_ALL C.UTF-8
 RUN  useradd -r -u 2222 builder && \
   mkdir -p /var/builder && \
   chown builder: /var/builder && \
-  chown builder: $(readlink -f /usr/bin/java) && \
-  chmod +s $(readlink -f /usr/bin/java)
+  chown builder: $(readlink -f ${JAVA_HOME}/bin/java) && \
+  chmod +s $(readlink -f ${JAVA_HOME}/bin/java)
 
 USER builder
 WORKDIR /home/builder
