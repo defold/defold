@@ -1993,6 +1993,8 @@ namespace dmGraphics
         return false;
     }
 
+    static void NullInvalidateGraphicsHandles(HContext context) { }
+
     bool UnmapIndexBuffer(HContext context, HIndexBuffer buffer)
     {
         IndexBuffer* ib = (IndexBuffer*)buffer;
