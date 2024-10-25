@@ -119,12 +119,11 @@ public class ShaderCompilers {
             assert shaderLanguages != null;
 
             for (ShaderDesc.Language shaderLanguage : shaderLanguages) {
-                ArrayList<ShaderDesc.ShaderModule> moduleBuilders = new ArrayList<>();
                 for (ShaderCompilePipeline.ShaderModuleDesc shaderModule : shaderModules) {
                     byte[] crossCompileResult = pipeline.crossCompile(shaderModule.type, shaderLanguage);
-                    moduleBuilders.add(ShaderProgramBuilder.makeShaderModuleBuilder(shaderModule.type, crossCompileResult).build());
+                    ShaderDesc.Shader.Builder builder = ShaderProgramBuilder.makeShaderBuilder(crossCompileResult, shaderLanguage, shaderModule.type);
+                    shaderBuildResults.add(new ShaderProgramBuilder.ShaderBuildResult(builder));
                 }
-                shaderBuildResults.add(new ShaderProgramBuilder.ShaderBuildResult(ShaderProgramBuilder.makeShaderBuilder(shaderLanguage, moduleBuilders)));
             }
             ShaderProgramBuilder.ShaderCompileResult compileResult = new ShaderProgramBuilder.ShaderCompileResult();
             compileResult.shaderBuildResults = shaderBuildResults;

@@ -322,17 +322,11 @@ public class ShaderProgramBuilder extends Builder {
         }
     }
 
-    static public ShaderDesc.ShaderModule.Builder makeShaderModuleBuilder(ShaderDesc.ShaderType type, byte[] source) {
-        ShaderDesc.ShaderModule.Builder builder = ShaderDesc.ShaderModule.newBuilder();
-        builder.setShaderType(type);
-        builder.setSource(ByteString.copyFrom(source));
-        return builder;
-    }
-
-    static public ShaderDesc.Shader.Builder makeShaderBuilder(ShaderDesc.Language language, ArrayList<ShaderDesc.ShaderModule> moduleBuilders) {
+    static public ShaderDesc.Shader.Builder makeShaderBuilder(byte[] source, ShaderDesc.Language language, ShaderDesc.ShaderType type) {
         ShaderDesc.Shader.Builder builder = ShaderDesc.Shader.newBuilder();
         builder.setLanguage(language);
-        builder.addAllModules(moduleBuilders);
+        builder.setShaderType(type);
+        builder.setSource(ByteString.copyFrom(source));
         return builder;
     }
 

@@ -2685,8 +2685,9 @@ static void LogFrameBufferError(GLenum status)
         assert(prog);
         assert(ddf);
 
-        ShaderDesc::Shader* ddf_shader = GetShaderProgram((HContext) g_Context, ddf);
-        if (ddf_shader == 0x0)
+        ShaderDesc::Language language;
+        ShaderDesc::ShaderModule* module;
+        if (!UnpackShaderProgram((HContext) g_Context, ddf, ShaderDesc::SHADER_TYPE_COMPUTE, &module, &language))
         {
             return 0x0;
         }

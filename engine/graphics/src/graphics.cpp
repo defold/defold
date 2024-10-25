@@ -307,7 +307,7 @@ namespace dmGraphics
         for(uint32_t i = 0; i < shader_desc->m_Shaders.m_Count; ++i)
         {
             ShaderDesc::Shader* shader = &shader_desc->m_Shaders.m_Data[i];
-            /*
+
             if(IsShaderLanguageSupported(context, shader->m_Language, shader_desc->m_ShaderType))
             {
                 if (shader->m_VariantTextureArray)
@@ -323,7 +323,6 @@ namespace dmGraphics
                     selected_shader = shader;
                 }
             }
-            */
         }
 
         if (selected_shader == 0)

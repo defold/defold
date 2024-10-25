@@ -841,6 +841,7 @@ namespace dmGraphics
         dmArray<ShaderBinding> m_Attributes;
     };
 
+    /*
     static ShaderProgram* NewShaderProgramFromDDF(HContext context, ShaderDesc* ddf)
     {
         assert(ddf);
@@ -898,6 +899,7 @@ namespace dmGraphics
 
         return p;
     }
+    */
 
     static HProgram NullNewProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {

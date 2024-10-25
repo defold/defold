@@ -382,17 +382,12 @@ message ShaderDesc
         repeated ResourceTypeInfo types           = 6;
     }
 
-    message ShaderModule
-    {
-        required bytes source           = 1;
-        required ShaderType shader_type = 2;
-    }
-
     message Shader
     {
-        repeated ShaderModule modules               = 1;
-        required Language     language              = 2;
-        optional bool         variant_texture_array = 3 [default = false];
+        required bytes      source                = 1;
+        required ShaderType shader_type           = 2;
+        required Language   language              = 3;
+        optional bool       variant_texture_array = 4 [default = false];
     }
 
     repeated Shader shaders              = 1;
