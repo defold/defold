@@ -249,7 +249,7 @@ namespace dmGameObject
     Result SetCollectionDefaultCapacity(HRegister regist, uint32_t capacity)
     {
         assert(regist != 0x0);
-        if(capacity >= INVALID_INSTANCE_INDEX - 1 || capacity <= 0)
+        if(capacity >= INVALID_INSTANCE_INDEX - 1 || capacity == 0)
             return RESULT_INVALID_OPERATION;
         regist->m_DefaultCollectionCapacity = capacity;
         return RESULT_OK;
