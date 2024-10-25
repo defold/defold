@@ -523,7 +523,7 @@ def check_defold_sdk(sdkfolder, platform, verbose=False):
         folders.append(get_android_ndk_path(sdkfolder))
 
     elif platform in ('x86_64-linux','arm64-linux'):
-        folders.append(os.path.join(sdkfolder, "linux"))
+        folders.append(os.path.join(sdkfolder, platform))
 
     elif platform in ('wasm-web','js-web'):
         folders.append(get_defold_emsdk())
