@@ -59,6 +59,8 @@ import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.FileUtil;
+import com.dynamo.bob.util.TimeProfiler;
+import com.dynamo.bob.util.TimeProfiler.ProfilingScope;
 
 public class ExtenderUtil {
 
@@ -488,16 +490,22 @@ public class ExtenderUtil {
      * @return True if it contains native extension code
      */
     public static boolean hasNativeExtensions(Project project) {
+        final ProfilingScope scope = TimeProfiler.start("hasNativeExtensions");
         BobProjectProperties projectProperties = project.getProjectProperties();
-        if (hasPropertyResource(project, projectProperties, "native_extension", "app_manifest") ||
-            hasPropertyResource(project, projectProperties, "android", "proguard") &&
-            !projectProperties.getStringValue("android", "proguard", "").startsWith("/builtins/")) {
-            return true;
+        boolean hasAppManifest = hasPropertyResource(project, projectProperties, "native_extension", "app_manifest");
+        boolean hasProguard = hasPropertyResource(project, projectProperties, "android", "proguard");
+        boolean isBuiltinProguard = projectProperties.getStringValue("android", "proguard", "").startsWith("/builtins/");
+        boolean result;
+        if (hasAppManifest || (hasProguard && !isBuiltinProguard)) {
+            result = true;
         }
-
-        ArrayList<String> paths = new ArrayList<>();
-        project.findResourcePaths("", paths);
-        return paths.stream().anyMatch(v -> isEngineExtensionManifest(project, v));
+        else {
+            ArrayList<String> paths = new ArrayList<>();
+            project.findResourcePaths("", paths);
+            result = paths.stream().anyMatch(v -> isEngineExtensionManifest(project, v));
+        }
+        scope.stop();
+        return result;
     }
 
     private static IResource getProjectResource(Project project, String section, String key) throws CompileExceptionError, IOException {

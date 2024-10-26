@@ -19,6 +19,7 @@ import com.dynamo.bob.TaskResult.Result;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.bundle.BundleHelper;
 import com.dynamo.bob.util.TimeProfiler;
+import com.dynamo.bob.util.TimeProfiler.ProfilingScope;
 import com.dynamo.bob.util.StringUtil;
 import com.dynamo.bob.cache.ResourceCache;
 import com.dynamo.bob.cache.ResourceCacheKey;
@@ -64,6 +65,9 @@ public class TaskBuilder {
 
     // task results
     private List<TaskResult> results = new ArrayList<>();
+
+    // lookup of profiling scopes for task results
+    private Map<TaskResult, ProfilingScope> profilingScopeLookup = new HashMap<>();
 
     // the tasks to build
     // private List<Task> tasks;
@@ -152,6 +156,11 @@ public class TaskBuilder {
     private TaskResult buildTask(Task task, IProgress monitor) throws IOException {
         BundleHelper.throwIfCanceled(monitor);
 
+        final ProfilingScope scope = TimeProfiler.start(task.getName());
+
+        TaskResult taskResult = new TaskResult(task);
+        taskResult.setResult(Result.SUCCESS);
+
         final List<IResource> outputResources = task.getOutputs();
         // check if all outputs already exist
         final boolean allOutputsExist = checkIfResourcesExist(outputResources);
@@ -161,12 +170,6 @@ public class TaskBuilder {
         final byte[] taskSignature = task.calculateSignature();
         final boolean allSigsEquals = compareAllSignatures(taskSignature, outputResources);
 
-        TimeProfiler.start(task.getName());
-        TimeProfiler.addData("output", StringUtil.truncate(task.getOutputsString(), 1000));
-        TimeProfiler.addData("type", "buildTask");
-
-        TaskResult taskResult = new TaskResult(task);
-        taskResult.setResult(Result.SUCCESS);
         try {
             Builder builder = task.getBuilder();
             Map<IResource, String> outputResourceToCacheKey = new HashMap<IResource, String>();
@@ -192,7 +195,7 @@ public class TaskBuilder {
                     // all resources exist in the cache
                     // copy them to the output
                     if (allResourcesCached) {
-                        TimeProfiler.addData("takenFromCache", true);
+                        scope.addData("takenFromCache", true);
                         for (IResource r : outputResources) {
                             r.setContent(resourceCache.get(outputResourceToCacheKey.get(r)));
                         }
@@ -248,7 +251,12 @@ public class TaskBuilder {
             taskResult.setException(e);
             e.printStackTrace(new java.io.PrintStream(System.out));
         }
-        TimeProfiler.stop();
+        scope.addData("output", StringUtil.truncate(task.getOutputsString(), 1000));
+        scope.addData("type", "buildTask");
+        scope.stop();
+        synchronized (profilingScopeLookup) {
+            profilingScopeLookup.put(taskResult, scope);
+        }
         return taskResult;
     }
 
@@ -260,7 +268,7 @@ public class TaskBuilder {
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
     public List<TaskResult> build(IProgress monitor) throws IOException {
-        TimeProfiler.start("Build tasks");
+        final ProfilingScope scope = TimeProfiler.start("Build tasks");
         logger.info("Build tasks");
         long tstart = System.currentTimeMillis();
 
@@ -290,18 +298,18 @@ public class TaskBuilder {
                 if (task.getBuilder().isGameProjectBuilder() && remainingCount > 1) continue;
 
                 String taskName = task.getName();
-                if (taskName.equals("VertexProgram") || taskName.equals("FragmentProgram") || taskName.equals("Material")) {
-                    taskName = "Shader";
-                }
                 // limit some task parallelization
-                // only one shader builder per iteration (threading issues with stdout)
-                // max two atlas builders per iteration (for memory reasons)
+                // - never build more than one material at a time. there is some
+                //   kind of threading issue when building two materials which
+                //   share a program
+                // - max two atlas builders per iteration (for memory reasons)
                 int count = taskNameCounter.getOrDefault(taskName, 0);
-                if (taskName.equals("Shader") && (count == 1)) continue;
                 if (taskName.equals("Atlas") && (count == 2)) continue;
+                if (taskName.equals("Material") && count == 1) continue;
                 if (hasUnresolvedDependencies(task)) continue;
                 tasksToSubmit.add(createCallableTask(task, monitor));
                 taskNameCounter.put(taskName, count + 1);
+                logger.info("Adding task '%s' %s", taskName, task.firstInput());
             }
 
             try {
@@ -317,6 +325,8 @@ public class TaskBuilder {
                     Task task = result.getTask();
                     results.add(result);
                     if (result.isOk()) {
+                        ProfilingScope taskScope = profilingScopeLookup.get(result);
+                        TimeProfiler.addScopeToCurrentThread(taskScope);
                         completedTasks.add(task);
                         completedOutputs.addAll(task.getOutputs());
                         boolean success = tasks.remove(task);
@@ -347,7 +357,7 @@ public class TaskBuilder {
 
         long tend = System.currentTimeMillis();
         logger.info("Build tasks took %f s", (tend-tstart)/1000.0);
-        TimeProfiler.stop();
+        scope.stop();
         return results;
     }
 }

@@ -47,7 +47,9 @@ public class TimeProfiler {
     /**
      * Helper class that contains profiling data and represents a linked list of scopes hierarchy.
      */
-    private static class ProfilingScope {
+    public static class ProfilingScope {
+        private static long scopeIdCounter = 0;
+        public long id;
         public long startTime;
         public long endTime;
         HashMap<String, String> additionalStringData;
@@ -56,6 +58,43 @@ public class TimeProfiler {
 
         public ProfilingScope parent;
         public ArrayList<ProfilingScope> children;
+
+        public ProfilingScope() {
+            this.id = scopeIdCounter++;
+        }
+
+        public void addData(String fieldName, String data) {
+            if (additionalStringData == null) {
+                additionalStringData = new HashMap<>();
+            }
+            additionalStringData.put(fieldName, data);
+        }
+
+        public void addData(String fieldName, Float data) {
+            if (additionalNumberData == null) {
+                additionalNumberData = new HashMap<>();
+            }
+            additionalNumberData.put(fieldName, data);
+        }
+
+        public void addData(String fieldName, Boolean data) {
+            if (additionalBooleanData == null) {
+                additionalBooleanData = new HashMap<>();
+            }
+            additionalBooleanData.put(fieldName, data);
+        }
+
+        public void addData(String fieldName, int data) {
+            if (additionalNumberData == null) {
+                additionalNumberData = new HashMap<>();
+            }
+            additionalNumberData.put(fieldName, (float)data);
+        }
+
+        public void stop() {
+            endTime = System.currentTimeMillis();
+            TimeProfiler.setCurrentScope(this.parent);
+        }
     }
 
     /**
@@ -72,9 +111,11 @@ public class TimeProfiler {
     private static long buildTime;
 
     private static ProfilingScope rootScope;
-    private static Map<Thread, ProfilingScope> scopes;
+    private static Map<Long, ProfilingScope> currentScopes;
     private static List<File> reportFiles;
     private static Boolean fromEditor;
+
+    private static final long MAIN_THREAD_ID = -1;
 
     private static long time() {
         return System.currentTimeMillis();
@@ -176,13 +217,18 @@ public class TimeProfiler {
         rootScope = null;
         long reportStartTime = time();
 
-        //Close all unclosed scopes
-        while(getCurrentScope() != _rootScope) {
-            unsafeAddData("forceFinishedScope", true);
-            unsafeAddData("color", "#FF0000");
-            unsafeStop();
-        };
-        unsafeStop();
+        // Close all unclosed scopes
+        synchronized (currentScopes) {
+            for (ProfilingScope scope : currentScopes.values()) {
+                while (scope != null) {
+                    scope.addData("forceFinishedScope", true);
+                    scope.addData("color", "#FF0000");
+                    scope.endTime = time();
+                    scope = scope.parent;
+                }
+            }
+        }
+        _rootScope.stop();
 
         try {
             // save report files, add '_time' to the given filenames
@@ -227,12 +273,21 @@ public class TimeProfiler {
         System.out.printf("\nTime profiler report creation took %.2f seconds", (reportEndTime - reportStartTime)/1000.0f);
     }
 
-    private static synchronized void setCurrentScope(ProfilingScope scope) {
-        scopes.put(Thread.currentThread(), scope);
+    private static long getCurrentThreadId() {
+        Thread t = Thread.currentThread();
+        return (t != null) ? t.getId() : MAIN_THREAD_ID;
     }
 
-    private static synchronized ProfilingScope getCurrentScope() {
-        return scopes.get(Thread.currentThread());
+    private static void setCurrentScope(ProfilingScope scope) {
+        synchronized (currentScopes) {
+            currentScopes.put(getCurrentThreadId(), scope);
+        }
+    }
+
+    private static ProfilingScope getCurrentScope() {
+        synchronized (currentScopes) {
+            return currentScopes.get(getCurrentThreadId());
+        }
     }
 
     public static void init(List<File> reportFiles, Boolean fromEditor) throws IOException {
@@ -241,7 +296,7 @@ public class TimeProfiler {
         }
         TimeProfiler.reportFiles = reportFiles;
         TimeProfiler.fromEditor = fromEditor;
-        scopes = new HashMap<>();
+        currentScopes = new HashMap<>();
         marks = new ArrayList();
         long startTime = time();
         if (!fromEditor) {
@@ -251,8 +306,8 @@ public class TimeProfiler {
         buildTime = startTime;
         rootScope = new ProfilingScope();
         rootScope.startTime = startTime;
+        rootScope.addData("name", "Total time");
         setCurrentScope(rootScope);
-        unsafeAddData("name", "Total time");
 
         if (!fromEditor) {
             ProfilingScope initScope = new ProfilingScope();
@@ -273,45 +328,38 @@ public class TimeProfiler {
         }));
     }
 
-    public static void start() {
+    public static void addScopeToCurrentThread(ProfilingScope scope) {
+        ProfilingScope currentScope = getCurrentScope();
+        if (currentScope != null) {
+            if (currentScope.children == null) {
+                currentScope.children = new ArrayList<ProfilingScope>();
+            }
+            currentScope.children.add(scope);
+        }
+        scope.parent = currentScope;
+    }
+
+    public static ProfilingScope start() {
+        return start(null);
+    }
+
+    public static synchronized ProfilingScope start(String scopeName) {
         if (rootScope == null) {
-            return;
+            return null;
         }
         
-        ProfilingScope currentScope = getCurrentScope();
-        if (currentScope.children == null) {
-            currentScope.children = new ArrayList<ProfilingScope>();
-        }
         ProfilingScope scope = new ProfilingScope();
         scope.startTime = time();
-        scope.parent = currentScope;
-        currentScope.children.add(scope);
+        if (scopeName != null) {
+            scope.addData("name", scopeName);
+        }
+        addScopeToCurrentThread(scope);
         setCurrentScope(scope);
+        return scope;
     }
 
-    public static void start(String scopeName) {
-        if (rootScope == null) {
-            return;
-        }
-        start();
-        addData("name", scopeName);
-    }
-
-    public static void startF(String fmt, Object... args) {
-        start(String.format(fmt, args));
-    }
-
-    private static void unsafeStop() {
-        ProfilingScope currentScope = getCurrentScope();
-        currentScope.endTime = time();
-        setCurrentScope(currentScope.parent);
-    }
-
-    public static void stop() {
-        if (rootScope == null) {
-            return;
-        }
-        unsafeStop();
+    public static ProfilingScope startF(String fmt, Object... args) {
+        return start(String.format(fmt, args));
     }
 
     public static void addMark(String shortName, String fullName, String color) {
@@ -334,52 +382,4 @@ public class TimeProfiler {
         addMark(shortName, shortName, "#EADDCA");
     }
 
-    private static void unsafeAddData(String fieldName, String data) {
-        ProfilingScope currentScope = getCurrentScope();
-        if (currentScope.additionalStringData == null) {
-            currentScope.additionalStringData = new HashMap<String, String>();
-        }
-        currentScope.additionalStringData.put(fieldName, data);
-    }
-
-    private static void unsafeAddData(String fieldName, Float data) {
-        ProfilingScope currentScope = getCurrentScope();
-        if (currentScope.additionalNumberData == null) {
-            currentScope.additionalNumberData = new HashMap<String, Float>();
-        }
-        currentScope.additionalNumberData.put(fieldName, data);
-    }
-
-    private static void unsafeAddData(String fieldName, Boolean data) {
-        ProfilingScope currentScope = getCurrentScope();
-        if (currentScope.additionalBooleanData == null) {
-            currentScope.additionalBooleanData = new HashMap<String, Boolean>();
-        }
-        currentScope.additionalBooleanData.put(fieldName, data);
-    }
-
-    public static void addData(String fieldName, String data) {
-        if (rootScope == null) {
-            return;
-        }
-        unsafeAddData(fieldName, data);
-    }
-
-    public static void addData(String fieldName, Float data) {
-        if (rootScope == null) {
-            return;
-        }
-        unsafeAddData(fieldName, data);
-    }
-
-    public static void addData(String fieldName, Boolean data) {
-        if (rootScope == null) {
-            return;
-        }
-        unsafeAddData(fieldName, data);
-    }
-
-    public static void addData(String fieldName, Integer data) {
-        addData(fieldName, data.floatValue());
-    }
 }

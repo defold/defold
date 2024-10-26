@@ -15,10 +15,14 @@
 package com.dynamo.bob.util;
 import com.dynamo.bob.Platform;
 
+import java.nio.file.Files;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
+import java.io.FileNotFoundException;
 import java.io.InputStream;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.util.List;
 import java.util.Map;
 
@@ -27,54 +31,8 @@ import com.dynamo.bob.logging.Logger;
 public class Exec {
 
     private static String verbosity = System.getenv("DM_BOB_VERBOSE");
-    private static Logger logger = Logger.getLogger(Exec.class.getCanonicalName());
+    private static Logger logger = Logger.getLogger(Exec.class.getName());
 
-    private static int getVerbosity() {
-        if (verbosity == null)
-            return 0;
-        try {
-            return Integer.parseInt(verbosity);
-        } catch (NumberFormatException nfe) {
-            return 0;
-        }
-    }
-
-    private static void addJavaBinPath(ProcessBuilder pb) {
-        Platform platform = Platform.getHostPlatform();
-        if (platform == Platform.X86Win32 || platform == Platform.X86_64Win32) {
-            // On Windows `exe` files often require vcruntime140_1.dll and vcruntime140.dll
-            // these files are available in jdk/bin folder
-            // see https://github.com/defold/defold/issues/8277#issuecomment-1836823183
-            String path = System.getenv("PATH");
-            String javaHome = System.getProperty("java.home");
-            String binPath = javaHome + File.separator + "bin";
-            path = binPath + ";" + path;
-            pb.environment().put("PATH", path);
-        }
-    }
-
-    public static int exec(String... args) throws IOException {
-        if (getVerbosity() >= 2) {
-            logger.info("CMD: " + String.join(" ", args));
-        }
-        ProcessBuilder pb = new ProcessBuilder(args);
-        addJavaBinPath(pb);
-        Process p = pb.redirectErrorStream(true).start();
-        int ret = 127;
-        byte[] buf = new byte[16 * 1024];
-        try {
-            InputStream is = p.getInputStream();
-            int n = is.read(buf);
-            while (n > 0) {
-                n = is.read(buf);
-            }
-            ret = p.waitFor();
-        } catch (InterruptedException e) {
-            logger.severe("Unexpected interruption", e);
-        }
-
-        return ret;
-    }
 
     public static class Result {
         public Result(int ret, byte[] stdOutErr) {
@@ -86,89 +44,159 @@ public class Exec {
     }
 
     /**
-     * Exec command
-     * @param args arguments
-     * @return instance with return code and stdout/stderr combined
-     * @throws IOException
+     * Wraps a process builder and redirects stdout (and stderr) to a file.
      */
-    public static Result execResult(String... args) throws IOException {
-        if (getVerbosity() >= 2) {
-            logger.info("CMD: " + String.join(" ", args));
+    private static class RedirectedProcessBuilder { 
+        private static Logger logger = Logger.getLogger(RedirectedProcessBuilder.class.getName());
+
+        private File stdoutFile;
+        private ProcessBuilder processBuilder;
+
+        public RedirectedProcessBuilder(String... command) throws IOException, FileNotFoundException {
+            processBuilder = new ProcessBuilder(command);
+            stdoutFile = File.createTempFile("exec", null);
+            FileOutputStream outputStream = new FileOutputStream(stdoutFile);
+            processBuilder.redirectErrorStream(true);
+
+            Platform platform = Platform.getHostPlatform();
+            if (platform == Platform.X86Win32 || platform == Platform.X86_64Win32) {
+                // On Windows `exe` files often require vcruntime140_1.dll and vcruntime140.dll
+                // these files are available in jdk/bin folder
+                // see https://github.com/defold/defold/issues/8277#issuecomment-1836823183
+                String path = System.getenv("PATH");
+                String javaHome = System.getProperty("java.home");
+                String binPath = javaHome + File.separator + "bin";
+                path = binPath + ";" + path;
+                processBuilder.environment().put("PATH", path);
+            }
         }
-        ProcessBuilder pb = new ProcessBuilder(args);
-        addJavaBinPath(pb);
-        Process p = pb.redirectErrorStream(true).start();
-        int ret = 127;
-        byte[] buf = new byte[16 * 1024];
-        ByteArrayOutputStream out = new ByteArrayOutputStream(10 * 1024);
+
+        public Map<String,String> environment() {
+            return processBuilder.environment();
+        }
+
+        public RedirectedProcessBuilder directory(File directory) {
+            processBuilder.directory(directory);
+            return this;
+        }
+
+        public File getStdoutFile() {
+            return stdoutFile;
+        }
+
+        public InputStream getInputStream() throws FileNotFoundException {
+            return new FileInputStream(stdoutFile);
+        }
+
+        public Process start() throws IOException {
+            return processBuilder.start();
+        }
+    }
+
+    private static int getVerbosity() {
+        if (verbosity == null)
+            return 0;
         try {
-            InputStream is = p.getInputStream();
-            int n = is.read(buf);
-            while (n > 0) {
-                out.write(buf, 0, n);
-                n = is.read(buf);
+            return Integer.parseInt(verbosity);
+        } catch (NumberFormatException nfe) {
+            return 0;
+        }
+    }
+
+    private static int startAndWaitForProcessBuilder(RedirectedProcessBuilder pb) throws IOException {
+        Process p = pb.start();
+        int ret = 127;
+        try {
+            InputStream is = pb.getInputStream();
+            while (p.isAlive()) {
+                byte[] bytes = is.readNBytes(1024);
+                if (bytes.length > 0) {
+                    logger.info(new String(bytes));
+                }
             }
             ret = p.waitFor();
+            is.close();
         } catch (InterruptedException e) {
             logger.severe("Unexpected interruption", e);
         }
-
-        return new Result(ret, out.toByteArray());
+        return ret;
+    }
+    private static Result startAndWaitForProcessBuilderResult(RedirectedProcessBuilder pb) throws IOException {
+        int ret = startAndWaitForProcessBuilder(pb);
+        byte[] out = Files.readAllBytes(pb.getStdoutFile().toPath());
+        return new Result(ret, out);
     }
 
-    private static ProcessBuilder processBuilderWithArgs(Map<String, String> env, String[] args) {
+    private static RedirectedProcessBuilder createProcessBuilder(String[] args) throws IOException {
         if (getVerbosity() >= 2) {
             logger.info("CMD: " + String.join(" ", args));
         }
-        ProcessBuilder pb = new ProcessBuilder(args);
-        addJavaBinPath(pb);
-        pb.redirectErrorStream(true);
-
-        Map<String, String> pbenv = pb.environment();
-        for (Map.Entry<String, String> entry : env.entrySet())
-        {
-            pbenv.put(entry.getKey(), entry.getValue());
-        }
-
+        RedirectedProcessBuilder pb = new RedirectedProcessBuilder(args);
         return pb;
     }
 
-    private static Result runProcessBuilder(ProcessBuilder pb) throws IOException {
-        Process p = pb.start();
-        int ret = 127;
-        byte[] buf = new byte[16 * 1024];
-        ByteArrayOutputStream out = new ByteArrayOutputStream(10 * 1024);
-        try {
-            InputStream is = p.getInputStream();
-            int n = is.read(buf);
-            while (n > 0) {
-                out.write(buf, 0, n);
-                n = is.read(buf);
-            }
-            ret = p.waitFor();
-        } catch (InterruptedException e) {
-            logger.severe("Unexpected interruption", e);
-        }
-
-        return new Result(ret, out.toByteArray());
+    /**
+     * Exec command
+     * @param args arguments
+     * @return Exit code of the command
+     * @throws IOException
+     */
+    public static int exec(String... args) throws IOException {
+        RedirectedProcessBuilder pb = createProcessBuilder(args);
+        return startAndWaitForProcessBuilder(pb);
     }
 
+    /**
+     * Exec command
+     * @param args arguments
+     * @return Result instance with return code and stdout/stderr combined
+     * @throws IOException
+     */
+    public static Result execResult(String... args) throws IOException {
+        RedirectedProcessBuilder pb = createProcessBuilder(args);
+        return startAndWaitForProcessBuilderResult(pb);
+    }
+
+    /**
+     * Exec command
+     * @param env environment variables to use
+     * @param args arguments
+     * @return Result instance with return code and stdout/stderr combined
+     * @throws IOException
+     */
     public static Result execResultWithEnvironment(Map<String, String> env, String... args) throws IOException {
-        ProcessBuilder pb = processBuilderWithArgs(env, args);
-        return runProcessBuilder(pb);
+        RedirectedProcessBuilder pb = createProcessBuilder(args);
+        pb.environment().putAll(env);
+        return startAndWaitForProcessBuilderResult(pb);
     }
 
+    /**
+     * Exec command
+     * @param env environment variables to use
+     * @param workDir working directory to run command from
+     * @param args arguments
+     * @return Result instance with return code and stdout/stderr combined
+     * @throws IOException
+     */
     public static Result execResultWithEnvironmentWorkDir(Map<String, String> env, File workDir, String... args) throws IOException {
-        ProcessBuilder pb = processBuilderWithArgs(env, args);
+        RedirectedProcessBuilder pb = createProcessBuilder(args);
+        pb.environment().putAll(env);
         pb.directory(workDir);
-        return runProcessBuilder(pb);
+        return startAndWaitForProcessBuilderResult(pb);
     }
 
+    /**
+     * Exec command
+     * @param env environment variables to use
+     * @return Result instance with return code and stdout/stderr combined
+     * @throws IOException
+     */
     public static Result execResultWithEnvironment(Map<String, String> env, List<String> args) throws IOException {
         String[] array = new String[args.size()];
         array = args.toArray(array);
-
-        return Exec.execResultWithEnvironment(env, array);
+        RedirectedProcessBuilder pb = createProcessBuilder(array);
+        pb.environment().putAll(env);
+        return startAndWaitForProcessBuilderResult(pb);
     }
 
 }

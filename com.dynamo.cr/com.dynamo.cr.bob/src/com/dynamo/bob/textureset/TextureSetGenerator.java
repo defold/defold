@@ -25,6 +25,7 @@ import com.dynamo.bob.tile.TileSetUtil;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.bob.util.TimeProfiler;
+import com.dynamo.bob.util.TimeProfiler.ProfilingScope;
 import com.dynamo.gamesys.proto.TextureSetProto;
 import com.dynamo.gamesys.proto.TextureSetProto.SpriteGeometry;
 import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
@@ -375,7 +376,7 @@ public class TextureSetGenerator {
      */
     public static LayoutResult calculateLayoutResult(List<Rect> images, int margin, int innerPadding, int extrudeBorders,
                                                     boolean rotate, boolean useTileGrid, Grid gridSize, float maxPageSizeW, float maxPageSizeH) {
-        TimeProfiler.start("calculateLayoutResult");
+        final ProfilingScope scope = TimeProfiler.start("calculateLayoutResult");
 
         int totalSizeIncrease = 2 * (innerPadding + extrudeBorders);
 
@@ -415,7 +416,7 @@ public class TextureSetGenerator {
 
         LayoutResult result = new LayoutResult(layouts, innerPadding, extrudeBorders);
 
-        TimeProfiler.stop();
+        scope.stop();
         return result;
     }
 
@@ -426,7 +427,7 @@ public class TextureSetGenerator {
     public static TextureSetResult calculateTextureSetResult(LayoutResult layout, List<SpriteGeometry> imageHulls, int useGeometries,
                                                              AnimIterator iterator) {
 
-        TimeProfiler.start("calculateTextureSetResult");
+        final ProfilingScope scope = TimeProfiler.start("calculateTextureSetResult");
 
         int layoutWidth = layout.layouts.get(0).getWidth();
         int layoutHeight = layout.layouts.get(0).getHeight();
@@ -461,7 +462,7 @@ public class TextureSetGenerator {
             }
         }
 
-        TimeProfiler.stop();
+        scope.stop();
         return new TextureSetResult(vertexData.left, vertexData.right, layout);
     }
 

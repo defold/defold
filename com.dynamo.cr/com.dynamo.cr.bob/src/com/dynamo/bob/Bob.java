@@ -54,6 +54,7 @@ import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.logging.LogHelper;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.TimeProfiler;
+import com.dynamo.bob.util.TimeProfiler.ProfilingScope;
 import com.dynamo.bob.util.HttpUtil;
 import com.dynamo.bob.cache.ResourceCacheKey;
 import com.dynamo.bob.util.FileUtil;
@@ -130,7 +131,7 @@ public class Bob {
         if (rootFolder != null) {
             return;
         }
-        TimeProfiler.start("Create root folder");
+        final ProfilingScope scope = TimeProfiler.start("Create root folder");
         try {
             String envRootFolder = System.getenv("DM_BOB_ROOTFOLDER");
             if (envRootFolder != null) {
@@ -150,10 +151,10 @@ public class Bob {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-        TimeProfiler.stop();
+        scope.stop();
     }
 
-    public static void initLua() {
+    public static synchronized void initLua() {
         if (luaInitialized) {
             return;
         }
@@ -171,8 +172,8 @@ public class Bob {
     }
 
     public static void extractToFolder(final URL url, File toFolder, boolean deleteOnExit) throws IOException {
-        TimeProfiler.startF("extractToFolder %s", toFolder.toString());
-        TimeProfiler.addData("url", url.toString());
+        final ProfilingScope scope = TimeProfiler.startF("extractToFolder %s", toFolder.toString());
+        scope.addData("url", url.toString());
         ZipInputStream zipStream = new ZipInputStream(new BufferedInputStream(url.openStream()));
 
         try{
@@ -210,7 +211,7 @@ public class Bob {
         } finally {
             IOUtils.closeQuietly(zipStream);
         }
-        TimeProfiler.stop();
+        scope.stop();
     }
 
     public static void extract(final URL url, File toFolder) throws IOException {
@@ -235,7 +236,7 @@ public class Bob {
         return exes;
     }
 
-    public static String getExe(Platform platform, String name) throws IOException {
+    public static synchronized String getExe(Platform platform, String name) throws IOException {
         List<String> exes = getExes(platform, name);
         if (exes.size() > 1) {
             throw new IOException("More than one alternative when getting binary executable for platform: " + platform.toString());
@@ -246,10 +247,10 @@ public class Bob {
     public static void unpackSharedLibraries(Platform platform, List<String> names) throws IOException {
         init();
 
-        TimeProfiler.start("unpackSharedLibraries");
-        String libSuffix = platform.getLibSuffix();
+        final String libSuffix = platform.getLibSuffix();
+        final ProfilingScope outerScope = TimeProfiler.start("unpackSharedLibraries");
         for (String name : names) {
-            TimeProfiler.start(name);
+            final ProfilingScope innerScope = TimeProfiler.start(name);
             String depName = platform.getPair() + "/" + name + libSuffix;
             File f = new File(rootFolder, depName);
             if (!f.exists()) {
@@ -260,9 +261,9 @@ public class Bob {
 
                 atomicCopy(url, f, true);
             }
-            TimeProfiler.stop();
+            innerScope.stop();
         }
-        TimeProfiler.stop();
+        outerScope.stop();
     }
 
     // https://stackoverflow.com/a/30755071/468516
@@ -306,7 +307,7 @@ public class Bob {
 
     private static String getExeWithExtension(Platform platform, String name, String extension) throws IOException {
         init();
-        TimeProfiler.startF("getExeWithExtension %s.%s", name, extension);
+        final ProfilingScope scope = TimeProfiler.startF("getExeWithExtension %s.%s", name, extension);
         String exeName = platform.getPair() + "/" + platform.getExePrefix() + name + extension;
         File f = new File(rootFolder, exeName);
         if (!f.exists()) {
@@ -317,14 +318,14 @@ public class Bob {
 
             atomicCopy(url, f, true);
         }
-        TimeProfiler.addData("path", f.getAbsolutePath());
-        TimeProfiler.stop();
+        scope.addData("path", f.getAbsolutePath());
+        scope.stop();
         return f.getAbsolutePath();
     }
 
     public static String getLibExecPath(String filename) throws IOException {
         init();
-        TimeProfiler.startF("getLibExecPath %s", filename);
+        final ProfilingScope scope = TimeProfiler.startF("getLibExecPath %s", filename);
         File f = new File(rootFolder, filename);
         if (!f.exists()) {
             URL url = Bob.class.getResource("/libexec/" + filename);
@@ -334,14 +335,14 @@ public class Bob {
 
             atomicCopy(url, f, false);
         }
-        TimeProfiler.addData("path", f.getAbsolutePath());
-        TimeProfiler.stop();
+        scope.addData("path", f.getAbsolutePath());
+        scope.stop();
         return f.getAbsolutePath();
     }
 
     public static String getJarFile(String filename) throws IOException {
         init();
-        TimeProfiler.startF("getJarFile %s", filename);
+        final ProfilingScope scope = TimeProfiler.startF("getJarFile %s", filename);
         File f = new File(rootFolder, filename);
         if (!f.exists()) {
             URL url = Bob.class.getResource("/share/java/" + filename);
@@ -350,14 +351,14 @@ public class Bob {
             }
             atomicCopy(url, f, false);
         }
-        TimeProfiler.addData("path", f.getAbsolutePath());
-        TimeProfiler.stop();
+        scope.addData("path", f.getAbsolutePath());
+        scope.stop();
         return f.getAbsolutePath();
     }
 
     private static List<File> downloadExes(Platform platform, String variant, String artifactsURL) throws IOException {
         init();
-        TimeProfiler.startF("DownloadExes %s for %s", platform, variant);
+        final ProfilingScope scope = TimeProfiler.startF("DownloadExes %s for %s", platform, variant);
         List<File> binaryFiles = new ArrayList<File>();
         String[] exeSuffixes = platform.getExeSuffixes();
         List<String> exes = new ArrayList<String>();
@@ -379,7 +380,7 @@ public class Bob {
                 throw new IOException(String.format("%s could not be found locally or downloaded, create an application manifest to build the engine remotely.", exeName));
             }
         }
-        TimeProfiler.stop();
+        scope.stop();
         return binaryFiles;
     }
 
@@ -423,7 +424,7 @@ public class Bob {
     public static String getLib(Platform platform, String name) throws IOException {
         init();
 
-        TimeProfiler.startF("getLib %s", name);
+        final ProfilingScope scope = TimeProfiler.startF("getLib %s", name);
         String libName = platform.getPair() + "/" + platform.getLibPrefix() + name + platform.getLibSuffix();
         File f = new File(rootFolder, libName);
         if (!f.exists()) {
@@ -434,14 +435,14 @@ public class Bob {
 
             atomicCopy(url, f, true);
         }
-        TimeProfiler.addData("path", f.getAbsolutePath());
-        TimeProfiler.stop();
+        scope.addData("path", f.getAbsolutePath());
+        scope.stop();
         return f.getAbsolutePath();
     }
 
     public static File getSharedLib(String name) throws IOException {
         init();
-        TimeProfiler.startF("getSharedLib %s", name);
+        final ProfilingScope scope = TimeProfiler.startF("getSharedLib %s", name);
         Platform platform = Platform.getHostPlatform();
         String libName = platform.getPair() + "/" + platform.getLibPrefix() + name + platform.getLibSuffix();
         File f = new File(rootFolder, libName);
@@ -453,7 +454,7 @@ public class Bob {
 
             atomicCopy(url, f, true);
         }
-        TimeProfiler.stop();
+        scope.stop();
         return f;
     }
 
@@ -660,9 +661,9 @@ public class Bob {
 
         project.setLibUrls(libUrls);
         if (resolveLibraries) {
-            TimeProfiler.start("Resolve libs");
+            final ProfilingScope scope = TimeProfiler.start("Resolve libs");
             project.resolveLibUrls(progress);
-            TimeProfiler.stop();
+            scope.stop();
         }
         project.mount(new ClassLoaderResourceScanner());
     }
@@ -757,7 +758,7 @@ public class Bob {
             TimeProfiler.init(reportFiles, fromEditor);
         }
 
-        TimeProfiler.start("ParseCommandLine");
+        final ProfilingScope parseCommandScope = TimeProfiler.start("ParseCommandLine");
         if (cmd.hasOption("version")) {
             System.out.println(String.format("bob.jar version: %s  sha1: %s  built: %s", EngineVersion.version, EngineVersion.sha1, EngineVersion.timestamp));
             return new InvocationResult(true, Collections.emptyList());
@@ -823,18 +824,18 @@ public class Bob {
                 project.addBuildServerHeader(header);
             }
         }
-        TimeProfiler.stop();
+        parseCommandScope.stop();
 
-        TimeProfiler.start("loadProjectFile");
+        final ProfilingScope loadProjectScope = TimeProfiler.start("loadProjectFile");
         project.loadProjectFile();
-        TimeProfiler.stop();
+        loadProjectScope.stop();
 
-        TimeProfiler.start("setupProject");
+        final ProfilingScope setupProjectScope = TimeProfiler.start("setupProject");
         // resolves libraries and finds all sources
         setupProject(project, shouldResolveLibs, progress);
-        TimeProfiler.stop();
+        setupProjectScope.stop();
 
-        TimeProfiler.start("setOptions");
+        final ProfilingScope setOptionsScope = TimeProfiler.start("setOptions");
         if (!cmd.hasOption("defoldsdk")) {
             project.setOption("defoldsdk", EngineVersion.sha1);
         }
@@ -956,7 +957,7 @@ public class Bob {
             String[] validArtifacts = {"engine", "plugins", "library"};
             validateChoicesList(project, "build-artifacts", validArtifacts);
         }
-        TimeProfiler.stop();
+        setOptionsScope.stop();
 
         boolean ret = true;
         StringBuilder errors = new StringBuilder();

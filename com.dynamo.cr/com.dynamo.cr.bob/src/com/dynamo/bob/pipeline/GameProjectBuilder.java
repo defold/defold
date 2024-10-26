@@ -59,6 +59,7 @@ import com.dynamo.bob.pipeline.graph.ResourceGraph;
 import com.dynamo.bob.util.ComponentsCounter;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.TimeProfiler;
+import com.dynamo.bob.util.TimeProfiler.ProfilingScope;
 import com.dynamo.graphics.proto.Graphics.PlatformProfile;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
 import com.dynamo.graphics.proto.Graphics.TextureProfiles;
@@ -137,7 +138,7 @@ public class GameProjectBuilder extends Builder {
             builder.addInput(propertyFile);
         }
 
-        TimeProfiler.start("Add outputs");
+        final ProfilingScope addOutputsScope = TimeProfiler.start("Add outputs");
         if (project.option("archive", "false").equals("true")) {
             builder.addOutput(input.changeExt(".arci").disableCache());
             builder.addOutput(input.changeExt(".arcd").disableCache());
@@ -148,7 +149,7 @@ public class GameProjectBuilder extends Builder {
                 builder.addOutput(output);
             }
         }
-        TimeProfiler.stop();
+        addOutputsScope.stop();
 
         createSubTask(input, CopyCustomResourcesBuilder.class, builder);
         index = 0;
@@ -170,7 +171,7 @@ public class GameProjectBuilder extends Builder {
         // Load texture profile message if supplied and enabled
         String textureProfilesPath = project.getProjectProperties().getStringValue("graphics", "texture_profiles");
         if (textureProfilesPath != null) {
-            TimeProfiler.start("Load texture profile");
+            final ProfilingScope loadTextureProfilesScope = TimeProfiler.start("Load texture profile");
             TextureProfiles.Builder texProfilesBuilder = TextureProfiles.newBuilder();
             IResource texProfilesInput = project.getResource(textureProfilesPath);
             if (!texProfilesInput.exists()) {
@@ -212,7 +213,7 @@ public class GameProjectBuilder extends Builder {
             // needs to be reachedable by the TextureGenerator.
             TextureProfiles textureProfiles = texProfilesBuilder.build();
             project.setTextureProfiles(textureProfiles);
-            TimeProfiler.stop();
+            loadTextureProfilesScope.stop();
         }
 
         return builder.build();
@@ -233,7 +234,7 @@ public class GameProjectBuilder extends Builder {
     }
 
     private void createArchive(ArchiveBuilder archiveBuilder, Collection<IResource> resources, RandomAccessFile archiveIndex, RandomAccessFile archiveData, List<String> excludedResources, Path resourcePackDirectory) throws IOException, CompileExceptionError {
-        TimeProfiler.start("createArchive");
+        final ProfilingScope createArchiveScope = TimeProfiler.start("createArchive");
         logger.info("GameProjectBuilder.createArchive");
         long tstart = System.currentTimeMillis();
 
@@ -247,14 +248,14 @@ public class GameProjectBuilder extends Builder {
             archiveBuilder.add(path, compress, encrypt);
         }
 
-        TimeProfiler.addData("resources", resources.size());
-        TimeProfiler.addData("excludedResources", excludedResources.size());
+        createArchiveScope.addData("resources", resources.size());
+        createArchiveScope.addData("excludedResources", excludedResources.size());
 
-        TimeProfiler.start("writeArchive");
+        final ProfilingScope writeArchiveScope = TimeProfiler.start("writeArchive");
         archiveBuilder.write(archiveIndex, archiveData, resourcePackDirectory, excludedResources);
         archiveIndex.close();
         archiveData.close();
-        TimeProfiler.stop();
+        writeArchiveScope.stop();
 
         // Populate publisher with the resource pack
         Publisher publisher = project.getPublisher();
@@ -266,7 +267,7 @@ public class GameProjectBuilder extends Builder {
 
         long tend = System.currentTimeMillis();
         logger.info("GameProjectBuilder.createArchive took %f", (tend-tstart)/1000.0);
-        TimeProfiler.stop();
+        createArchiveScope.stop();
     }
 
     private Set<IResource> getCustomResources(Project project) {
@@ -407,13 +408,13 @@ public class GameProjectBuilder extends Builder {
             if (project.option("archive", "false").equals("true")) {
                 // create the resource graphs
                 // the full graph contains all resources in the project
-                TimeProfiler.start("Generate resource graph");
+                final ProfilingScope resourceGraphScope = TimeProfiler.start("Generate resource graph");
                 logger.info("Generating the resource graph");
                 long tstart = System.currentTimeMillis();
                 ResourceGraph resourceGraph = createResourceGraph(project);
                 long tend = System.currentTimeMillis();
                 logger.info("Generating the resource graph took %f s", (tend-tstart)/1000.0);
-                TimeProfiler.stop();
+                resourceGraphScope.stop();
 
                 // create full list of resources including the custom resources
                 // make sure to not archive the .arci, .arcd, .projectc, .dmanifest, .resourcepack.zip, .public.der
@@ -425,7 +426,7 @@ public class GameProjectBuilder extends Builder {
                 }
                 ComponentsCounter.excludeCounterPaths(resources);
 
-                TimeProfiler.start("Create excluded resources");
+                final ProfilingScope createExcludedScope = TimeProfiler.start("Create excluded resources");
                 logger.info("Creation of the excluded resources list.");
                 tstart = System.currentTimeMillis();
                 boolean shouldPublishLU = project.option("liveupdate", "false").equals("true");
@@ -438,7 +439,7 @@ public class GameProjectBuilder extends Builder {
                 }
                 tend = System.currentTimeMillis();
                 logger.info("Creation of the excluded resources list took %f s", (tend-tstart)/1000.0);
-                TimeProfiler.stop();
+                createExcludedScope.stop();
 
                 // Create output for the data archive
                 String platform = project.option("platform", "generic");

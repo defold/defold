@@ -102,6 +102,7 @@ import com.dynamo.bob.util.LibraryUtil;
 import com.dynamo.bob.util.ReportGenerator;
 import com.dynamo.bob.util.HttpUtil;
 import com.dynamo.bob.util.TimeProfiler;
+import com.dynamo.bob.util.TimeProfiler.ProfilingScope;
 import com.dynamo.bob.util.StringUtil;
 import com.dynamo.graphics.proto.Graphics.TextureProfiles;
 
@@ -295,10 +296,10 @@ public class Project {
      * @param pkg package name to be scanned
      */
     public void scan(IClassScanner scanner, String pkg) {
-        TimeProfiler.startF("scan %s", pkg);
+        final ProfilingScope scope = TimeProfiler.startF("scan %s", pkg);
         Set<String> classNames = scanner.scan(pkg);
         doScan(scanner, classNames);
-        TimeProfiler.stop();
+        scope.stop();
     }
 
     private static String getManifestInfo(String attribute) {
@@ -330,7 +331,7 @@ public class Project {
 
     @SuppressWarnings("unchecked")
     private void doScan(IClassScanner scanner, Set<String> classNames) {
-        TimeProfiler.start("doScan");
+        final ProfilingScope scope = TimeProfiler.start("doScan");
         boolean is_bob_light = getManifestInfo("is-bob-light") != null;
         for (String className : classNames) {
             // Ignore TexcLibrary to avoid it being loaded and initialized
@@ -389,7 +390,7 @@ public class Project {
                 }
             }
         }
-        TimeProfiler.stop();
+        scope.stop();
     }
 
     static String[][] extensionMapping = new String[][] {
@@ -493,16 +494,16 @@ public class Project {
             circularDependencyChecker.remove(key);
             return task;
         }
-        TimeProfiler.start();
-        TimeProfiler.addData("type", "createTask");
+        final ProfilingScope scope = TimeProfiler.start();
+        scope.addData("type", "createTask");
         Builder builder;
         try {
             builder = builderClass.newInstance();
             builder.setProject(this);
             task = builder.create(inputResource);
             if (task != null) {
-                TimeProfiler.addData("output", StringUtil.truncate(task.getOutputsString(), 1000));
-                TimeProfiler.addData("name", task.getName());
+                scope.addData("output", StringUtil.truncate(task.getOutputsString(), 1000));
+                scope.addData("name", task.getName());
                 tasks.put(key, task);
             }
             circularDependencyChecker.remove(key);
@@ -513,7 +514,7 @@ public class Project {
         } catch (Exception e) {
             throw new RuntimeException(e);
         } finally {
-            TimeProfiler.stop();
+            scope.stop();
         }
     }
 
@@ -682,9 +683,9 @@ public class Project {
                 TimeProfiler.init(reportFiles, true);
             }
 
-            TimeProfiler.start("loadProjectFile");
+            final ProfilingScope scope = TimeProfiler.start("loadProjectFile");
             loadProjectFile();
-            TimeProfiler.stop();
+            scope.stop();
 
             String title = projectProperties.getStringValue("project", "title");
             if (title != null && title.isEmpty()) {
@@ -1512,29 +1513,27 @@ public class Project {
 
         IProgress mrep = m.subProgress(1);
         mrep.beginTask("Reading tasks...", 1);
-        TimeProfiler.start("Create tasks");
+        final ProfilingScope createTaskScope = TimeProfiler.start("Create tasks");
         BundleHelper.throwIfCanceled(monitor);
         configurePreBuildProjectOptions();
         createTasks();
         validateBuildResourceMapping();
-        TimeProfiler.addData("TasksCount", tasks.size());
-        TimeProfiler.stop();
+        createTaskScope.addData("TasksCount", tasks.size());
+        createTaskScope.stop();
         mrep.done();
 
         BundleHelper.throwIfCanceled(monitor);
         m.beginTask("Building...", tasks.size());
-        TimeProfiler.start("Build tasks");
-        TimeProfiler.addData("TasksCount", tasks.size());
-
+        final ProfilingScope buildTasksScope = TimeProfiler.start("Build tasks");
         BundleHelper.throwIfCanceled(monitor);
         List<TaskResult> result = runTasks(m);
         BundleHelper.throwIfCanceled(monitor);
+        buildTasksScope.addData("TasksCount", tasks.size());
+        buildTasksScope.stop();
         m.done();
 
-        TimeProfiler.stop();
-
         // Generate and save build report
-        TimeProfiler.start("Generating build size report");
+        final ProfilingScope buildReportScope = TimeProfiler.start("Generating build size report");
         if (generateReport && !anyFailing(result)) {
             mrep = monitor.subProgress(1);
             mrep.beginTask("Generating report...", 1);
@@ -1561,7 +1560,7 @@ public class Project {
             }
             mrep.done();
         }
-        TimeProfiler.stop();
+        buildReportScope.stop();
 
         return result;
     }
@@ -1592,13 +1591,13 @@ public class Project {
     }
 
     private List<TaskResult> doBuild(IProgress monitor, String... commands) throws Throwable, IOException, CompileExceptionError, MultipleCompileException {
-        TimeProfiler.start("Prepare cache");
+        ProfilingScope prepareCacheScope = TimeProfiler.start("Prepare cache");
         resourceCache.init(getLocalResourceCacheDirectory(), getRemoteResourceCacheDirectory());
         resourceCache.setRemoteAuthentication(getRemoteResourceCacheUser(), getRemoteResourceCachePass());
         fileSystem.loadCache();
         IResource stateResource = fileSystem.get(FilenameUtils.concat(buildDirectory, "_BobBuildState_"));
         state = State.load(stateResource);
-        TimeProfiler.stop();
+        prepareCacheScope.stop();
         List<TaskResult> result = new ArrayList<TaskResult>();
 
         BundleHelper.throwIfCanceled(monitor);
@@ -1606,12 +1605,12 @@ public class Project {
         monitor.beginTask("Working...", 100);
 
         {
-            TimeProfiler.start("scanJavaClasses");
+            ProfilingScope scope = TimeProfiler.start("scanJavaClasses");
             IProgress mrep = monitor.subProgress(1);
             mrep.beginTask("Reading classes...", 1);
             scanJavaClasses();
             mrep.done();
-            TimeProfiler.stop();
+            scope.stop();
         }
 
         List<IPlugin> plugins = new ArrayList<>();
@@ -1624,31 +1623,29 @@ public class Project {
         loop:
         for (String command : commands) {
             BundleHelper.throwIfCanceled(monitor);
-            TimeProfiler.start(command);
+            ProfilingScope scope = TimeProfiler.start(command);
             switch (command) {
                 case "build": {
-                    TimeProfiler.start("PrepExtensions");
+                    ProfilingScope prepExtensionsScope = TimeProfiler.start("PrepExtensions");
                     ExtenderUtil.checkProjectForDuplicates(this); // Throws if there are duplicate files in the project (i.e. library and local files conflict)
                     final String[] platforms = getPlatformStrings();
                     Future<Void> remoteBuildFuture = null;
                     // Get or build engine binary
-                    TimeProfiler.start("hasNativeExtensions");
                     boolean shouldBuildRemoteEngine = ExtenderUtil.hasNativeExtensions(this);
-                    TimeProfiler.stop();
                     boolean shouldBuildProject = shouldBuildEngine() && BundleHelper.isArchiveIncluded(this);
-                    TimeProfiler.stop();
+                    prepExtensionsScope.stop();
 
                     if (shouldBuildProject) {
                         // do this before buildRemoteEngine to prevent concurrent modification exception, since
                         // lua transpilation adds new mounts with compiled Lua that buildRemoteEngine iterates over
                         // when sending to extender
-                        TimeProfiler.start("transpileLua");
+                        ProfilingScope transpilerScope = TimeProfiler.start("transpileLua");
                         transpileLua(monitor);
-                        TimeProfiler.stop();
+                        transpilerScope.stop();
                     }
 
-                    TimeProfiler.start("PrepEngine");
-                    TimeProfiler.addData("shouldBuildRemoteEngine", shouldBuildRemoteEngine);
+                    ProfilingScope prepEngineScope = TimeProfiler.start("PrepEngine");
+                    prepEngineScope.addData("shouldBuildRemoteEngine", shouldBuildRemoteEngine);
                     if (shouldBuildRemoteEngine) {
                         remoteBuildFuture = buildRemoteEngine(monitor, executor);
                     }
@@ -1661,7 +1658,7 @@ public class Project {
                             progress.done();
                         }
                     }
-                    TimeProfiler.stop();
+                    prepEngineScope.stop();
 
                     if (shouldBuildProject) {
                         result = createAndRunTasks(monitor);
@@ -1705,7 +1702,7 @@ public class Project {
                 }
                 default: break;
             }
-            TimeProfiler.stop();
+            scope.stop();
         }
 
         for (IPlugin plugin : plugins) {
@@ -1714,10 +1711,10 @@ public class Project {
         plugins.clear();
 
         monitor.done();
-        TimeProfiler.start("Save cache");
+        ProfilingScope saveCacheScope = TimeProfiler.start("Save cache");
         state.save(stateResource);
         fileSystem.saveCache();
-        TimeProfiler.stop();
+        saveCacheScope.stop();
         return result;
     }
 
@@ -1806,13 +1803,13 @@ public class Project {
             subProgress.beginTask("Download archive(s)", count);
             logInfo("Downloading %d archive(s)", count);
             for (int i = 0; i < count; ++i) {
-                TimeProfiler.startF("Lib %2d", i);
+                final ProfilingScope scope = TimeProfiler.startF("Lib %2d", i);
                 BundleHelper.throwIfCanceled(progress);
                 URL url = libUrls.get(i);
                 File f = libFiles.get(url.toString());
 
                 logInfo("%2d: Downloading %s", i, url);
-                TimeProfiler.addData("url", url.toString());
+                scope.addData("url", url.toString());
                 HttpURLConnection connection = (HttpURLConnection) url.openConnection();
                 // GitLab will respond with a 406 Not Acceptable if the request
                 // is made without an Accept header
@@ -1870,7 +1867,7 @@ public class Project {
                     connection.connect();
                     int code = connection.getResponseCode();
 
-                    TimeProfiler.addData("status code", code);
+                    scope.addData("status code", code);
                     if (code == 304) {
                         logInfo("%2d: Status %d: Already cached", i, code);
                     } else if (code >= 400) {
@@ -1923,7 +1920,7 @@ public class Project {
                 }
 
                 BundleHelper.throwIfCanceled(subProgress);
-                TimeProfiler.stop();
+                scope.stop();
             }
         }
         catch(IOException ioe) {
