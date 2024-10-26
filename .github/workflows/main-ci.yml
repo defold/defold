@@ -140,7 +140,6 @@ jobs:
       { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
       { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12} },
       { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '17.0.5+8', distribution: 'temurin'} },
-      { name: 'Install LLVM and Clang', uses: KyleMayes/install-llvm-action@v2, with: { version: "16.0" } },
       { name: 'Setup dotnet', uses: actions/setup-dotnet@v4, with: {dotnet-version: '9.x', dotnet-quality: 'preview'}},
       { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
