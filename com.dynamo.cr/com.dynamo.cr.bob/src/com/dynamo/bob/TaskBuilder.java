@@ -85,6 +85,7 @@ public class TaskBuilder {
 
     // for executing the individual tasks
     private ExecutorService  executorService;
+    private int nThreads;
 
     public TaskBuilder(List<Task> tasks, Project project) {
         this.tasks = new HashSet<Task>(tasks);
@@ -97,9 +98,9 @@ public class TaskBuilder {
             allOutputs.addAll(task.getOutputs());
         }
 
-        int nThreads = project.getMaxCpuThreads();
-        logger.info("Creating a fixed thread pool executor with %d threads", nThreads);
-        this.executorService = Executors.newFixedThreadPool(nThreads);
+        this.nThreads = project.getMaxCpuThreads();
+        logger.info("Creating a fixed thread pool executor with %d threads", this.nThreads);
+        this.executorService = Executors.newFixedThreadPool(this.nThreads);
     }
 
     private Callable<TaskResult> createCallableTask(final Task task, final IProgress monitor) {
@@ -274,40 +275,47 @@ public class TaskBuilder {
 
         buildContainsChanges = false;
         boolean abort = false;
+        int maxConcurrentHighMemoryTasks = this.nThreads;
         List<Callable<TaskResult>> tasksToSubmit = new ArrayList<>();
         Map<String, Integer> taskNameCounter = new HashMap<>();
         while (!tasks.isEmpty() && !abort) {
+
+            // create a list of tasks to build this iteration
+            // - ignore tasks with unresolved dependencies
+            // - build game.project last as the only remaining task (see #9553)
+            // - never build more than one material at a time since there is
+            //   some kind of threading issue with the command line tools when
+            //   building two materials which share a program 
+            // - restrict atlas/tileset builders per iteration (for memory reasons)
             int remainingTasksCount = tasks.size();
             tasksToSubmit.clear();
             taskNameCounter.clear();
             Set<String> taskNames = new HashSet<>();
             for (Task task : tasks) {
-                // make sure that game.project is built last and as the only remaining task
-                // refer to issue #9553
                 if (task.getBuilder().isGameProjectBuilder() && remainingTasksCount > 1) continue;
-
                 String taskName = task.getName();
-                // limit some task parallelization
-                // - never build more than one material at a time. there is some
-                //   kind of threading issue when building two materials which
-                //   share a program
-                // - max two atlas builders per iteration (for memory reasons)
+                if (taskName.equals("TileSet")) taskName = "Atlas";
                 int count = taskNameCounter.getOrDefault(taskName, 0);
-                if (taskName.equals("Atlas") && (count == 2)) continue;
+                if (taskName.equals("Atlas") && (count == maxConcurrentHighMemoryTasks)) continue;
                 if (taskName.equals("Material") && count == 1) continue;
                 if (hasUnresolvedDependencies(task)) continue;
                 tasksToSubmit.add(createCallableTask(task, monitor));
                 taskNameCounter.put(taskName, count + 1);
-                logger.info("Adding task '%s' %s", taskName, task.firstInput());
             }
 
             try {
+                boolean retryAnyTask = false;
                 List<Future<TaskResult>> futures = this.executorService.invokeAll(tasksToSubmit);
                 for (Future<TaskResult> future : futures) {
                     TaskResult result = future.get();
                     // should the task be retried again?
                     // this can happen if running out of memory while building
                     if (result.getResult() == Result.RETRY) {
+                        retryAnyTask = true;
+                        if (maxConcurrentHighMemoryTasks > 1) {
+                            maxConcurrentHighMemoryTasks--;
+                            logger.info("Task must be retried. Reducing number of concurrent high memory tasks to %d", maxConcurrentHighMemoryTasks);
+                        }
                         continue;
                     }
 
@@ -333,6 +341,11 @@ public class TaskBuilder {
                         abort = true;
                         break;
                     }
+                }
+                // reset cap on max number of concurrent high memory tasks if
+                // no tasks required a retry
+                if (!retryAnyTask) {
+                    maxConcurrentHighMemoryTasks = this.nThreads;
                 }
             }
             catch (Exception e) {
