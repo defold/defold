@@ -32,7 +32,7 @@ def configure(conf):
 
     platform = conf.env['PLATFORM']
 
-    if platform == "linux" or platform in ["x86_64-linux", "arm64-linux"]:
+    if platform in ["x86_64-linux", "arm64-linux"]:
         conf.env.append_value('CXXFLAGS', ['-DGL_GLEXT_PROTOTYPES', '-D_GLFW_HAS_GLXGETPROCADDRESS'])
     elif 'web' in platform:
         conf.env.append_value('CXXFLAGS', ['-DGL_GLEXT_PROTOTYPES'])

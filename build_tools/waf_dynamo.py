@@ -1926,6 +1926,8 @@ def detect(conf):
     else:
         conf.env['STLIB_DMGLFW'] = 'dmglfw'
 
+    # ***********************************************************
+    # Vulkan
     if platform in ('x86_64-macos','arm64-macos'):
         conf.env['STLIB_VULKAN'] = Options.options.with_vulkan_validation and 'vulkan' or 'MoltenVK'
         conf.env['FRAMEWORK_VULKAN'] = ['Metal', 'IOSurface', 'QuartzCore']
@@ -1936,7 +1938,11 @@ def detect(conf):
         conf.env['FRAMEWORK_VULKAN'] = ['Metal', 'IOSurface']
         conf.env['FRAMEWORK_DMGLFW'] = ['QuartzCore', 'OpenGLES', 'CoreVideo', 'CoreGraphics']
     elif platform in ('x86_64-linux','arm64-linux'):
-        conf.env['SHLIB_VULKAN'] = ['vulkan', 'X11-xcb']
+        conf.env['LIB_VULKAN'] = ['vulkan', 'X11-xcb']
+        # currently we only have the validation
+        if Options.options.with_vulkan_validation and platform == 'arm64-linux':
+            conf.env.append_value('LIB_VULKAN', ['VkLayer_khronos_validation'])
+
     elif platform in ('armv7-android','arm64-android'):
         conf.env['SHLIB_VULKAN'] = ['vulkan']
     elif platform in ('x86_64-win32','win32'):
@@ -1948,7 +1954,7 @@ def detect(conf):
     elif platform in ('armv7-android', 'arm64-android'):
         pass
         #conf.env['STLIB_TESTAPP'] += ['android']
-    elif platform in ('x86_64-linux','arm64-linux',):
+    elif platform in ('x86_64-linux','arm64-linux'):
         conf.env['LIB_TESTAPP'] += ['Xext', 'X11', 'Xi', 'pthread']
         conf.env['LIB_APP'] += ['Xext', 'X11', 'Xi', 'pthread']
     elif platform in ('win32', 'x86_64-win32'):
