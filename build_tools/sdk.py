@@ -506,7 +506,7 @@ def _get_local_emsdk_node():
 def _get_defold_path(sdkfolder, platform):
     return os.path.join(sdkfolder, defold_info[platform]['pattern'])
 
-def check_defold_sdk(sdkfolder, platform, verbose=False):
+def check_defold_sdk(sdkfolder, host_platform, platform, verbose=False):
     folders = []
     log_verbose(verbose, f"check_defold_sdk: {platform} {sdkfolder}")
 
@@ -523,7 +523,7 @@ def check_defold_sdk(sdkfolder, platform, verbose=False):
         folders.append(get_android_ndk_path(sdkfolder))
 
     elif platform in ('x86_64-linux','arm64-linux'):
-        folders.append(os.path.join(sdkfolder, platform))
+        folders.append(os.path.join(sdkfolder, host_platform))
 
     elif platform in ('wasm-web','js-web'):
         folders.append(get_defold_emsdk())
@@ -687,7 +687,7 @@ def get_sdk_info(sdkfolder, platform, verbose=False):
 
     host_platform = get_host_platform()
     try:
-        if check_defold_sdk(sdkfolder, platform, verbose):
+        if check_defold_sdk(sdkfolder, host_platform, platform, verbose):
             result = _get_defold_sdk_info(sdkfolder, host_platform, platform)
             cached_platforms[platform] = result
             return result
