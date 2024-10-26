@@ -1635,7 +1635,6 @@ class Configuration(object):
                 tokens = line.split(' = ')
                 java_home = tokens[1].strip()
                 os.environ['JAVA_HOME'] = java_home
-                print("MAWE find_and_set_java_home", os.environ['JAVA_HOME'])
 
 
     def shell(self):
@@ -2263,10 +2262,6 @@ class Configuration(object):
                       '%s/ext/lib/python' % self.dynamo_home]
         env['PYTHONPATH'] = os.path.pathsep.join(pythonpaths)
         env['PYTHONIOENCODING'] = 'UTF-8'
-
-        if not 'FOUND_JAVA_HOME' in os.environ:
-            self.find_and_set_java_home()
-            os.environ['FOUND_JAVA_HOME'] = os.environ['JAVA_HOME']
 
         env['JAVA_HOME'] = os.environ['JAVA_HOME']
 
