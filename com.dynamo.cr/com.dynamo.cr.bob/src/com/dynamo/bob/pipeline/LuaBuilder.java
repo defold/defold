@@ -70,7 +70,9 @@ public abstract class LuaBuilder extends Builder {
 
     private static Logger logger = Logger.getLogger(LuaBuilder.class.getName());
 
-    private static ArrayList<Platform> platformUsesLua51 = new ArrayList<Platform>(Arrays.asList(Platform.JsWeb, Platform.WasmWeb));
+    private static ArrayList<Platform> LUA51_PLATFORMS = new ArrayList<Platform>(Arrays.asList(Platform.JsWeb, Platform.WasmWeb));
+    private static boolean useLua51;
+    private static String luaJITExePath;
 
     private static List<ILuaPreprocessor> luaPreprocessors = null;
     private static List<ILuaObfuscator> luaObfuscators = null;
@@ -150,6 +152,19 @@ public abstract class LuaBuilder extends Builder {
         for (String module : scanner.getModules()) {
             String module_file = String.format("/%s.lua", module.replaceAll("\\.", "/"));
             createSubTask(module_file, "Lua module", taskBuilder);
+        }
+
+        // check if the platform is using Lua 5.1 or LuaJIT
+        // get path of LuaJIT executable if the platform uses LuaJIT
+        //
+        // note: Bob.getExe() will also copy the executable from the archive
+        // so that it can be used. We do this here to avoid problems if the
+        // exe is copied in the multi-threaded build stage
+        // https://bugs.openjdk.org/browse/JDK-8068370
+        useLua51 = LUA51_PLATFORMS.contains(this.project.getPlatform());
+        if (!useLua51 && luaJITExePath == null) {
+            final Platform host = Platform.getHostPlatform();
+            luaJITExePath = Bob.getExe(host, host.is64bit() ? "luajit-64" : "luajit-32");
         }
 
         return taskBuilder.build();
@@ -329,7 +344,7 @@ public abstract class LuaBuilder extends Builder {
     }
     */
 
-    public byte[] constructLuaJITBytecode(Task task, String luajitExe, String source, boolean gen32bit) throws IOException, CompileExceptionError {
+    public byte[] constructLuaJITBytecode(Task task, String source, boolean gen32bit) throws IOException, CompileExceptionError {
 
         Bob.initLua(); // unpack the lua resources
 
@@ -353,7 +368,7 @@ public abstract class LuaBuilder extends Builder {
         // -g = keep debug info
         final String chunkName = getChunkName(task);
         List<String> options = new ArrayList<String>();
-        options.add(Bob.getExe(Platform.getHostPlatform(), luajitExe));
+        options.add(luaJITExePath);
         options.add("-b");
         options.add("-d");
         options.add("-g");
@@ -513,7 +528,7 @@ public abstract class LuaBuilder extends Builder {
         // even when compressed using lz4
         // this is unacceptable for html5 games where size is a key factor
         // see https://github.com/defold/defold/issues/6891 for more info
-        if (platformUsesLua51.contains(project.getPlatform())) {
+        if (useLua51) {
             srcBuilder.setScript(ByteString.copyFrom(script.getBytes()));
         }
         // include uncompressed Lua source code instead of bytecode
@@ -536,13 +551,12 @@ public abstract class LuaBuilder extends Builder {
                     needs32bit = true;
             }
 
-            final String luajitExe = Platform.getHostPlatform().is64bit() ? "luajit-64" : "luajit-32";
             byte[] bytecode32 = new byte[0];
             byte[] bytecode64 = new byte[0];
             if (needs32bit)
-                bytecode32 = constructLuaJITBytecode(task, luajitExe, script, true);
+                bytecode32 = constructLuaJITBytecode(task, script, true);
             if (needs64bit)
-                bytecode64 = constructLuaJITBytecode(task, luajitExe, script, false);
+                bytecode64 = constructLuaJITBytecode(task, script, false);
 
             if ( needs32bit ^ needs64bit ) { // if only one of them is set
                 if (needs64bit) {
