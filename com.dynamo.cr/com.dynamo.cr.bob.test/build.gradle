@@ -71,7 +71,7 @@ task testJar(type: Test, dependsOn: createTestJar) {
 
     testLogging {
         events 'passed', 'skipped', 'failed', 'standardOut'
-        exceptionFormat 'short'
+        exceptionFormat 'full'
         showExceptions true
         showCauses true
         showStackTraces true
@@ -90,7 +90,7 @@ task runSingleTest(type: Test, dependsOn: createTestJar) {
 
     testLogging {
         events 'passed', 'skipped', 'failed', 'standardOut'
-        exceptionFormat 'short'
+        exceptionFormat 'full'
         showExceptions true
         showCauses true
         showStackTraces true
