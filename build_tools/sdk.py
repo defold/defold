@@ -571,7 +571,7 @@ def check_local_sdk(platform, verbose=False):
     return True
 
 
-def _get_defold_sdk_info(sdkfolder, platform):
+def _get_defold_sdk_info(sdkfolder, host_platform, platform):
     info = {}
     if platform in ('x86_64-macos', 'arm64-macos','x86_64-ios','arm64-ios'):
         info['xcode'] = {}
@@ -587,7 +587,8 @@ def _get_defold_sdk_info(sdkfolder, platform):
     elif platform in ('x86_64-linux','arm64-linux'):
         info[platform] = {}
         info[platform]['version'] = defold_info[platform]['version']
-        info[platform]['path'] = _get_defold_path(sdkfolder, platform)
+        # We download the package for the host platform, and rely on its ability cross compile
+        info[platform]['path'] = _get_defold_path(sdkfolder, host_platform)
 
     elif platform in ('win32', 'x86_64-win32'):
         windowsinfo = get_windows_packaged_sdk_info(sdkfolder, platform)
@@ -658,6 +659,25 @@ def _get_local_sdk_info(platform, verbose=False):
 
     return info
 
+
+def get_host_platform():
+    machine = platform.machine().lower()
+    if machine == 'amd64':
+        machine = 'x86_64'
+    is64bit = machine.endswith('64')
+
+    if sys.platform == 'linux':
+        if machine == 'aarch64':
+            machine = 'arm64'
+        return '%s-linux' % machine
+    elif sys.platform == 'win32':
+        return '%s-win32' % machine
+    elif sys.platform == 'darwin':
+        return '%s-macos' % machine
+
+    raise Exception("Unknown host platform: %s, %s" % (sys.platform, machine))
+
+
 # It's only cached for the duration of one build
 cached_platforms = defaultdict(defaultdict)
 
@@ -665,9 +685,10 @@ def get_sdk_info(sdkfolder, platform, verbose=False):
     if platform in cached_platforms:
         return cached_platforms[platform]
 
+    host_platform = get_host_platform()
     try:
         if check_defold_sdk(sdkfolder, platform, verbose):
-            result = _get_defold_sdk_info(sdkfolder, platform)
+            result = _get_defold_sdk_info(sdkfolder, host_platform, platform)
             cached_platforms[platform] = result
             return result
     except SDKException as e:
@@ -689,20 +710,3 @@ def get_toolchain_root(sdkinfo, platform):
     if platform in ('x86_64-linux','arm64-linux'):
         return sdkinfo[platform]['path']
     return None
-
-def get_host_platform():
-    machine = platform.machine().lower()
-    if machine == 'amd64':
-        machine = 'x86_64'
-    is64bit = machine.endswith('64')
-
-    if sys.platform == 'linux':
-        if machine == 'aarch64':
-            machine = 'arm64'
-        return '%s-linux' % machine
-    elif sys.platform == 'win32':
-        return '%s-win32' % machine
-    elif sys.platform == 'darwin':
-        return '%s-macos' % machine
-
-    raise Exception("Unknown host platform: %s, %s" % (sys.platform, machine))
