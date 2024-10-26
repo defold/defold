@@ -213,7 +213,9 @@ namespace dmPlatform
 
     static PlatformResult OpenWindowOpenGL(Window* wnd, const WindowParams& params)
     {
-        if (params.m_OpenGLVersionHint != PLATFORM_OPENGL_VERSION_HIGHEST_AVAILABLE)
+        bool use_highest_version = params.m_OpenGLVersionHint == PLATFORM_OPENGL_VERSION_HIGHEST_AVAILABLE;
+
+        if (!use_highest_version)
         {
             uint32_t major, minor;
             OpenGLVersionHintToMajorMinor(params.m_OpenGLVersionHint, &major, &minor);
@@ -224,8 +226,18 @@ namespace dmPlatform
 
         if (params.m_OpenGLUseCoreProfileHint)
         {
-            glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-            glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+            bool can_set_profile_and_fc = true;
+
+        #ifdef _WIN32
+            // Not supported on windows when requesting the default OpenGL version (which will equate to the highest available)
+            can_set_profile_and_fc = !use_highest_version;
+        #endif
+
+            if (can_set_profile_and_fc)
+            {
+                glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+                glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+            }
         }
 
         glfwWindowHint(GLFW_SAMPLES, params.m_Samples);
