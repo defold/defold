@@ -28,6 +28,10 @@ RUN \
     libgl1-mesa-dev \
     libglw1-mesa-dev \
     freeglut3-dev \
+    libx11-xcb-dev \
+    libxkbcommon-dev \
+    libwayland-dev \
+    libxrandr-dev \
     # for python+ctypes
     libffi-dev
 
@@ -59,7 +63,7 @@ ENV LD_LIBRARY_PATH=/usr/lib/llvm-${CLANG_VERSION}/lib:$LD_LIBRARY_PATH
 ENV PYENV_ROOT /.pyenv
 ENV PATH $PYENV_ROOT/shims:$PYENV_ROOT/bin:$PATH
 
-ENV PYTHON3_VERSION 3.10.4
+ENV PYTHON3_VERSION 3.13
 
 RUN \
     echo "PYENV" && \
@@ -85,6 +89,11 @@ RUN \
 # cmake
 RUN \
   wget -qO- "https://cmake.org/files/v3.31/cmake-3.31.0-rc1-linux-aarch64.tar.gz" | tar --strip-components=1 -xz -C /usr/local
+
+# go
+ENV PATH=/usr/local/go/bin:${PATH}
+RUN \
+  wget -qO- "https://go.dev/dl/go1.23.2.linux-arm64.tar.gz" | tar -xz -C /usr/local
 
 RUN apt-get autoremove
 
