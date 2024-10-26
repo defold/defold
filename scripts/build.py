@@ -559,7 +559,7 @@ class Configuration(object):
     def check_sdk(self):
         sdkfolder = join(self.ext, 'SDKs')
 
-        self.sdk_info = sdk.get_sdk_info(sdkfolder, target_platform, self.verbose)
+        self.sdk_info = sdk.get_sdk_info(sdkfolder, target_platform, True)
 
         # TODO: Make sure this check works for all platforms
         if not self.sdk_info:
