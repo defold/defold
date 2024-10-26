@@ -411,6 +411,25 @@ namespace dmEngine
         delete engine;
     }
 
+    dmPlatform::PlatformOpenGLVersion ConvertOpenGLVersionHint(const char* version)
+    {
+    #define CHECK_AND_RETURN_OPENGL_VERSION(version_str, version_enum) \
+        if (strcmp(version, #version_str) == 0) return dmPlatform::PLATFORM_OPENGL_VERSION_##version_enum
+
+        CHECK_AND_RETURN_OPENGL_VERSION(opengl_3_3, 3_3);
+        CHECK_AND_RETURN_OPENGL_VERSION(opengl_4_0, 4_0);
+        CHECK_AND_RETURN_OPENGL_VERSION(opengl_4_1, 4_1);
+        CHECK_AND_RETURN_OPENGL_VERSION(opengl_4_2, 4_2);
+        CHECK_AND_RETURN_OPENGL_VERSION(opengl_4_3, 4_3);
+        CHECK_AND_RETURN_OPENGL_VERSION(opengl_4_4, 4_4);
+        CHECK_AND_RETURN_OPENGL_VERSION(opengl_4_5, 4_5);
+        CHECK_AND_RETURN_OPENGL_VERSION(opengl_4_6, 4_6);
+        CHECK_AND_RETURN_OPENGL_VERSION(opengl_highest_available, HIGHEST_AVAILABLE);
+    #undef CHECK_AND_RETURN_OPENGL_VERSION
+
+        return (dmPlatform::PlatformOpenGLVersion) -1;
+    }
+
     dmGraphics::TextureFilter ConvertMinTextureFilter(const char* filter)
     {
         if (strcmp(filter, "linear") == 0)
@@ -904,6 +923,12 @@ namespace dmEngine
         window_params.m_HighDPI                 = (bool) dmConfigFile::GetInt(engine->m_Config, "display.high_dpi", 0);
         window_params.m_BackgroundColor         = clear_color;
         window_params.m_GraphicsApi             = AdapterFamilyToGraphicsAPI(dmGraphics::GetInstalledAdapterFamily());
+
+        if (window_params.m_GraphicsApi == dmPlatform::PLATFORM_GRAPHICS_API_OPENGL)
+        {
+            window_params.m_OpenGLVersionHint        = ConvertOpenGLVersionHint(dmConfigFile::GetString(engine->m_Config, "graphics.opengl_version_hint", "opengl_3_3"));
+            window_params.m_OpenGLUseCoreProfileHint = (bool) dmConfigFile::GetInt(engine->m_Config, "graphics.opengl_core_profile_hint", 1);
+        }
 
         engine->m_Window = dmPlatform::NewWindow();
 

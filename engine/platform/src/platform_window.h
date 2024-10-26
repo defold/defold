@@ -47,6 +47,19 @@ namespace dmPlatform
         PLATFORM_GRAPHICS_API_WEBGPU = 4,
     };
 
+    enum PlatformOpenGLVersion
+    {
+        PLATFORM_OPENGL_VERSION_3_3               = 0,
+        PLATFORM_OPENGL_VERSION_4_0               = 1,
+        PLATFORM_OPENGL_VERSION_4_1               = 2,
+        PLATFORM_OPENGL_VERSION_4_2               = 3,
+        PLATFORM_OPENGL_VERSION_4_3               = 4,
+        PLATFORM_OPENGL_VERSION_4_4               = 5,
+        PLATFORM_OPENGL_VERSION_4_5               = 6,
+        PLATFORM_OPENGL_VERSION_4_6               = 7,
+        PLATFORM_OPENGL_VERSION_HIGHEST_AVAILABLE = 8,
+    };
+
     enum DeviceState
     {
         DEVICE_STATE_CURSOR              = 1,
@@ -140,6 +153,10 @@ namespace dmPlatform
         bool                    m_HighDPI;
         // Window background color, RGB 0x00BBGGRR
         uint32_t                m_BackgroundColor;
+
+        // OpenGL specific settings
+        PlatformOpenGLVersion   m_OpenGLVersionHint;
+        uint8_t                 m_OpenGLUseCoreProfileHint : 1;
     };
 
     struct TouchData

@@ -172,13 +172,62 @@ namespace dmPlatform
         return 0;
     }
 
+    static void OpenGLVersionHintToMajorMinor(PlatformOpenGLVersion version, uint32_t* major, uint32_t* minor)
+    {
+        switch(version)
+        {
+            case PLATFORM_OPENGL_VERSION_3_3:
+                *major = 3;
+                *minor = 3;
+                break;
+            case PLATFORM_OPENGL_VERSION_4_0:
+                *major = 4;
+                *minor = 0;
+                break;
+            case PLATFORM_OPENGL_VERSION_4_1:
+                *major = 4;
+                *minor = 1;
+                break;
+            case PLATFORM_OPENGL_VERSION_4_2:
+                *major = 4;
+                *minor = 2;
+                break;
+            case PLATFORM_OPENGL_VERSION_4_3:
+                *major = 4;
+                *minor = 3;
+                break;
+            case PLATFORM_OPENGL_VERSION_4_4:
+                *major = 4;
+                *minor = 4;
+                break;
+            case PLATFORM_OPENGL_VERSION_4_5:
+                *major = 4;
+                *minor = 5;
+                break;
+            case PLATFORM_OPENGL_VERSION_4_6:
+                *major = 4;
+                *minor = 6;
+                break;
+        }
+    }
+
     static PlatformResult OpenWindowOpenGL(Window* wnd, const WindowParams& params)
     {
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+        if (params.m_OpenGLVersionHint != PLATFORM_OPENGL_VERSION_HIGHEST_AVAILABLE)
+        {
+            uint32_t major, minor;
+            OpenGLVersionHintToMajorMinor(params.m_OpenGLVersionHint, &major, &minor);
 
-        glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+            glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, major);
+            glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, minor);
+        }
+
+        if (params.m_OpenGLUseCoreProfileHint)
+        {
+            glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+            glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+        }
+
         glfwWindowHint(GLFW_SAMPLES, params.m_Samples);
 
         GLFWmonitor* fullscreen_monitor = NULL;
