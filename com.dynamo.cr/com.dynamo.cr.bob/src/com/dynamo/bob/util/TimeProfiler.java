@@ -107,11 +107,11 @@ public class TimeProfiler {
         public long timestamp;
     }
 
-    private static ArrayList<ProfilingMark> marks;
+    private static ArrayList<ProfilingMark> marks = new ArrayList();
     private static long buildTime;
 
     private static ProfilingScope rootScope;
-    private static Map<Long, ProfilingScope> currentScopes;
+    private static Map<Long, ProfilingScope> currentScopes = new HashMap<>();
     private static List<File> reportFiles;
     private static Boolean fromEditor;
 
@@ -292,12 +292,15 @@ public class TimeProfiler {
 
     public static void init(List<File> reportFiles, Boolean fromEditor) throws IOException {
         if (rootScope != null) {
-            return;
+            throw new RuntimeException("TimeProfiler.init() called more than once");
+        }
+        if (!currentScopes.isEmpty()) {
+            throw new RuntimeException("TimeProfiler.init() called after scopes were added");
         }
         TimeProfiler.reportFiles = reportFiles;
         TimeProfiler.fromEditor = fromEditor;
-        currentScopes = new HashMap<>();
-        marks = new ArrayList();
+        currentScopes.clear();
+        marks.clear();
         long startTime = time();
         if (!fromEditor) {
             RuntimeMXBean bean = ManagementFactory.getRuntimeMXBean();
@@ -344,10 +347,6 @@ public class TimeProfiler {
     }
 
     public static synchronized ProfilingScope start(String scopeName) {
-        if (rootScope == null) {
-            return null;
-        }
-        
         ProfilingScope scope = new ProfilingScope();
         scope.startTime = time();
         if (scopeName != null) {
@@ -363,9 +362,6 @@ public class TimeProfiler {
     }
 
     public static void addMark(String shortName, String fullName, String color) {
-        if (rootScope == null) {
-            return;
-        }
         ProfilingMark mark = new ProfilingMark();
         mark.timestamp = time();
         mark.shortName = shortName;
