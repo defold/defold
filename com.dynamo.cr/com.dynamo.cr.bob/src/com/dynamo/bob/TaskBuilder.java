@@ -267,35 +267,24 @@ public class TaskBuilder {
 
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
-    public List<TaskResult> build(IProgress monitor) throws IOException {
+    public List<TaskResult> build(IProgress monitor) throws IOException, CompileExceptionError {
         final ProfilingScope scope = TimeProfiler.start("Build tasks");
         logger.info("Build tasks");
         long tstart = System.currentTimeMillis();
 
         buildContainsChanges = false;
-        int previousCompletedCount = 0;
-        int previousRemainingCount = 0;
         boolean abort = false;
         List<Callable<TaskResult>> tasksToSubmit = new ArrayList<>();
         Map<String, Integer> taskNameCounter = new HashMap<>();
         while (!tasks.isEmpty() && !abort) {
-            int completedCount = completedTasks.size();
-            int remainingCount = tasks.size();
-
-            // if (previousCompletedCount == completedCount && previousRemainingCount == remainingCount) {
-            //     logger.severe("Build has stalled!");
-            //     System.exit(0);
-            // }
-            previousCompletedCount = completedCount;
-            previousRemainingCount = remainingCount;
-            // logger.info("Building tasks - completed: %d remaining: %d", completedTasks.size(), tasks.size());
+            int remainingTasksCount = tasks.size();
             tasksToSubmit.clear();
             taskNameCounter.clear();
             Set<String> taskNames = new HashSet<>();
             for (Task task : tasks) {
                 // make sure that game.project is built last and as the only remaining task
                 // refer to issue #9553
-                if (task.getBuilder().isGameProjectBuilder() && remainingCount > 1) continue;
+                if (task.getBuilder().isGameProjectBuilder() && remainingTasksCount > 1) continue;
 
                 String taskName = task.getName();
                 // limit some task parallelization
