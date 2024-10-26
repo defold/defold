@@ -296,7 +296,7 @@ public class Project {
      * @param pkg package name to be scanned
      */
     public void scan(IClassScanner scanner, String pkg) {
-        final ProfilingScope scope = TimeProfiler.startF("scan %s", pkg);
+        final ProfilingScope scope = TimeProfiler.start("scan %s", pkg);
         Set<String> classNames = scanner.scan(pkg);
         doScan(scanner, classNames);
         scope.stop();
@@ -1803,7 +1803,7 @@ public class Project {
             subProgress.beginTask("Download archive(s)", count);
             logInfo("Downloading %d archive(s)", count);
             for (int i = 0; i < count; ++i) {
-                final ProfilingScope scope = TimeProfiler.startF("Lib %2d", i);
+                final ProfilingScope scope = TimeProfiler.start("Lib %2d", i);
                 BundleHelper.throwIfCanceled(progress);
                 URL url = libUrls.get(i);
                 File f = libFiles.get(url.toString());

@@ -358,7 +358,7 @@ public class TimeProfiler {
         return scope;
     }
 
-    public static ProfilingScope startF(String fmt, Object... args) {
+    public static ProfilingScope start(String fmt, Object... args) {
         return start(String.format(fmt, args));
     }
 
