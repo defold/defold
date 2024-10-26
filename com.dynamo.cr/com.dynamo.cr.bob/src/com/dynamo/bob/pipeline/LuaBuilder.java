@@ -212,57 +212,6 @@ public abstract class LuaBuilder extends Builder {
                 inputFile.delete();
                 throw new CompileExceptionError(task.input(0), 1, cmdOutput);
             }
-            // File stdoutFile = File.createTempFile("luabuilder", null);
-
-            // ProcessBuilder pb = new ProcessBuilder(options).redirectErrorStream(true);
-            // pb.redirectOutput(stdoutFile);
-            // pb.environment().putAll(env);
-
-            // Process p = pb.start();
-            // // InputStream is = null;
-            // int ret = 127;
-
-            // try {
-            //     ret = p.waitFor();
-            //     // is = p.getInputStream();
-
-            //     // int toRead = is.available();
-            //     // byte[] buf = new byte[toRead];
-            //     // is.read(buf);
-
-
-            //     String cmdOutput = Files.readString(stdoutFile.toPath());
-            //     // String cmdOutput = new String(buf);
-            //     if (ret != 0) {
-            //         // first delimiter is the executable name "luajit:" or "luac:"
-            //         int execSep = cmdOutput.indexOf(':');
-            //         if (execSep > 0) {
-            //             // then comes the filename and the line like this:
-            //             // "file.lua:30: <error message>"
-            //             int lineBegin = cmdOutput.indexOf(':', execSep + 1);
-            //             if (lineBegin > 0) {
-            //                 int lineEnd = cmdOutput.indexOf(':', lineBegin + 1);
-            //                 if (lineEnd > 0) {
-            //                     throw new CompileExceptionError(task.input(0),
-            //                             Integer.parseInt(cmdOutput.substring(
-            //                                     lineBegin + 1, lineEnd)),
-            //                             cmdOutput.substring(lineEnd + 2));
-            //                 }
-            //             }
-            //         }
-            //         else {
-            //             System.out.printf("Lua Error: for file %s: '%s'\n", task.input(0).getPath(), cmdOutput);
-            //         }
-            //         // Since parsing out the actual error failed, as a backup just
-            //         // spit out whatever luajit/luac said.
-            //         inputFile.delete();
-            //         throw new CompileExceptionError(task.input(0), 1, cmdOutput);
-            //     }
-            // } catch (InterruptedException e) {
-            //     logger.severe("Unexpected interruption", e);
-            // } finally {
-            //     IOUtils.closeQuietly(is);
-            // }
 
             long resultBytes = outputFile.length();
             rdr = new RandomAccessFile(outputFile, "r");
