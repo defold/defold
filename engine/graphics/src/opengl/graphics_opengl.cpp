@@ -222,6 +222,8 @@
     #define glBufferSubDataARB glBufferSubData
     #define glMapBufferARB glMapBufferOES
     #define glUnmapBufferARB glUnmapBufferOES
+    #define glGenVertexArrays glGenVertexArraysOES
+    #define glBindVertexArray glBindVertexArrayOES
     #define GL_ARRAY_BUFFER_ARB GL_ARRAY_BUFFER
     #define GL_ELEMENT_ARRAY_BUFFER_ARB GL_ELEMENT_ARRAY_BUFFER
     #define GL_TEXTURE_CUBE_MAP_SEAMLESS 0x884F
@@ -1428,9 +1430,8 @@ static void LogFrameBufferError(GLenum status)
             }
         }
 
-#if !defined(GL_ES_VERSION_2_0)
-        glGenVertexArrays(1, &context->m_GlobalVAO);
-#endif
+        if (glGenVertexArrays)
+            glGenVertexArrays(1, &context->m_GlobalVAO);
 
         SetSwapInterval(_context, params.m_SwapInterval);
 
@@ -1854,9 +1855,8 @@ static void LogFrameBufferError(GLenum status)
 
         OpenGLContext* context = (OpenGLContext*) _context;
 
-    #if !defined(GL_ES_VERSION_2_0)
-        glBindVertexArray(context->m_GlobalVAO);
-    #endif
+        if (glBindVertexArray)
+            glBindVertexArray(context->m_GlobalVAO);
 
         if (!(context->m_ModificationVersion == vertex_declaration->m_ModificationVersion && vertex_declaration->m_BoundForProgram == ((OpenGLProgram*) program)->m_Id))
         {
@@ -4538,6 +4538,14 @@ static void LogFrameBufferError(GLenum status)
             return GetAssetFromContainer<OpenGLRenderTarget>(context->m_AssetHandleContainer, asset_handle) != 0;
         }
         return false;
+    }
+
+    // DMSDK
+    uint32_t OpenGLGetRenderTargetId(HContext _context, HRenderTarget render_target)
+    {
+        OpenGLContext* context = (OpenGLContext*) _context;
+        OpenGLRenderTarget* rt = GetAssetFromContainer<OpenGLRenderTarget>(context->m_AssetHandleContainer, render_target);
+        return rt->m_Id;
     }
 
     GLenum TEXTURE_UNIT_NAMES[32] =
