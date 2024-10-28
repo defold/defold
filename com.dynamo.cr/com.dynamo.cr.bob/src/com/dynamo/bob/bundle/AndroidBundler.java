@@ -664,9 +664,9 @@ public class AndroidBundler implements IBundler {
                 baseZip.delete();
             }
             baseZip.createNewFile();
-            final ProfilingScope scope = TimeProfiler.start("Create base zip");
+            TimeProfiler.start("Create base zip");
             ZipUtil.zipDirRecursive(baseDir, baseZip, canceled);
-            scope.stop();
+            TimeProfiler.stop();
             BundleHelper.throwIfCanceled(canceled);
             return baseZip;
         } catch (Exception e) {
@@ -789,7 +789,7 @@ public class AndroidBundler implements IBundler {
     }
 
     private static File createAAB(Project project, File outDir, BundleHelper helper, ICanceled canceled) throws IOException, CompileExceptionError {
-        final ProfilingScope scope = TimeProfiler.start("Create AAB");
+        TimeProfiler.start("Create AAB");
         BundleHelper.throwIfCanceled(canceled);
 
         final Platform platform = getFirstPlatform(project);
@@ -827,7 +827,7 @@ public class AndroidBundler implements IBundler {
         // STEP 8. Cleanup bundle folder from intermediate folders and artifacts.
         cleanupBundleFolder(project, outDir, canceled);
 
-        scope.stop();
+        TimeProfiler.stop();
         return baseAab;
     }
 
@@ -840,7 +840,7 @@ public class AndroidBundler implements IBundler {
      */
     private static File createUniversalApks(Project project, File aab, File outDir, ICanceled canceled) throws IOException, CompileExceptionError {
         logger.info("Creating universal APK set");
-        final ProfilingScope scope = TimeProfiler.start("Create universal APK");
+        TimeProfiler.start("Create universal APK");
         String keystore = getKeystore(project);
         String keystorePasswordFile = getKeystorePasswordFile(project);
         String keystoreAlias = getKeystoreAlias(project);
@@ -871,7 +871,7 @@ public class AndroidBundler implements IBundler {
             throw new CompileExceptionError("Failed creating universal APK", e);
         }
 
-        scope.stop();
+        TimeProfiler.stop();
         BundleHelper.throwIfCanceled(canceled);
         if (res.ret == 0) {
             return new File(apksPath);
@@ -891,7 +891,7 @@ public class AndroidBundler implements IBundler {
      */
     private static File extractUniversalApk(File apks, File outDir, ICanceled canceled) throws IOException {
         logger.info("Extracting universal APK from APK set");
-        final ProfilingScope scope = TimeProfiler.start("Extract APK");
+        TimeProfiler.start("Extract APK");
         File apksDir = createDir(outDir, "apks");
         BundleHelper.unzip(new FileInputStream(apks), apksDir.toPath());
 
@@ -903,13 +903,13 @@ public class AndroidBundler implements IBundler {
         FileUtils.deleteDirectory(apksDir);
 
         BundleHelper.throwIfCanceled(canceled);
-        scope.stop();
+        TimeProfiler.stop();
         return apk;
     }
 
 
     private static File createAPK(File aab, Project project, File outDir, ICanceled canceled) throws IOException, CompileExceptionError {
-        final ProfilingScope scope = TimeProfiler.start("Create APK");
+        TimeProfiler.start("Create APK");
         // STEP 1. Create universal APK set
         File apks = createUniversalApks(project, aab, outDir, canceled);
 
@@ -918,7 +918,7 @@ public class AndroidBundler implements IBundler {
 
         // cleanup
         apks.delete();
-        scope.stop();
+        TimeProfiler.stop();
         return apk;
     }
 
@@ -985,9 +985,9 @@ public class AndroidBundler implements IBundler {
             throw new CompileExceptionError("Android package name '" + packageName + "' is not valid.");
         }
 
-        final ProfilingScope initAndroidScope = TimeProfiler.start("Init Android");
+        TimeProfiler.start("Init Android");
         initAndroid(); // extract
-        initAndroidScope.stop();
+        TimeProfiler.stop();
 
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
         BundleHelper helper = new BundleHelper(project, platform, bundleDir, variant, this);
