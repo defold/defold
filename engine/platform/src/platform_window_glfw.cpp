@@ -206,19 +206,6 @@ namespace dmPlatform
 #if defined(ANDROID)
         // Seems to work fine anyway without any hints
         // which is good, since we want to fallback from OpenGLES 3 to 2
-#elif defined(__linux__)
-        if (params.m_OpenGLVersionHint != PLATFORM_OPENGL_VERSION_HIGHEST_AVAILABLE)
-        {
-            uint32_t major, minor;
-            glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, major);
-            glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, minor);
-        }
-
-        if (params.m_OpenGLUseCoreProfileHint)
-        {
-            glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
-        }
-
 #elif defined(DM_PLATFORM_IOS)
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, 3);
         glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, 0); // 3.0 on iOS
@@ -228,9 +215,20 @@ namespace dmPlatform
 #if defined(DM_PLATFORM_LINUX) && !defined(ANDROID)
         is_desktop = true;
 #endif
-        if (is_desktop) {
-            glfwOpenWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-            glfwOpenWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+        if (is_desktop)
+        {
+            if (params.m_OpenGLVersionHint != PLATFORM_OPENGL_VERSION_HIGHEST_AVAILABLE)
+            {
+                uint32_t major, minor;
+                glfwOpenWindowHint(GLFW_OPENGL_VERSION_MAJOR, major);
+                glfwOpenWindowHint(GLFW_OPENGL_VERSION_MINOR, minor);
+            }
+
+            if (params.m_OpenGLUseCoreProfileHint)
+            {
+                glfwOpenWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+                glfwOpenWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+            }
         }
 
         int mode = GLFW_WINDOW;
