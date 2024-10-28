@@ -1511,6 +1511,37 @@ TEST_F(GuiTest, MaxDynamictextures)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+// Test setting gui font
+TEST_F(ResourceTest, ScriptSetFonts)
+{
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/goscript.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0x0, go);
+
+    void* font1 = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/font/valid_font.fontc", (void**) &font1));
+    ASSERT_TRUE(font1 != 0x0);
+
+    void* font2 = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/font/glyph_bank_test_1.fontc", (void**) &font2));
+    ASSERT_TRUE(font2 != 0x0);
+
+    for (int i = 0; i < 3; ++i)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        // Trigger a render to finalize deletion of the textures
+        dmRender::RenderListBegin(m_RenderContext);
+        dmGameObject::Render(m_Collection);
+
+        dmRender::RenderListEnd(m_RenderContext);
+        dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0);
+    }
+
+    dmResource::Release(m_Factory, font1);
+    dmResource::Release(m_Factory, font2);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 TEST_F(FontTest, GlyphBankTest)
 {
     const char path_font_1[] = "/font/glyph_bank_test_1.fontc";
