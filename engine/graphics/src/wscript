@@ -110,6 +110,9 @@ def build(bld):
 
         elif bld.env.PLATFORM in ('arm64-ios',):
             obj.source.append('vulkan/ios/graphics_vulkan_ios_surface.mm')
+
+            obj.source.append('vulkan/osx/graphics_vulkan_osx.mm')
+
         elif bld.env.PLATFORM in ['armv7-android', 'arm64-android']:
             obj.source.append('vulkan/android/graphics_vulkan_android_surface.cpp')
             obj.source.append('vulkan/android/graphics_vulkan_android.cpp')
