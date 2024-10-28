@@ -17,6 +17,7 @@
 #include "platform_window.h"
 #include "platform_window_constants.h"
 #include "platform_window_glfw3_private.h"
+#include "platform_window_opengl.h"
 
 #include <glfw/glfw3.h>
 
@@ -172,54 +173,18 @@ namespace dmPlatform
         return 0;
     }
 
-    static void OpenGLVersionHintToMajorMinor(PlatformOpenGLVersion version, uint32_t* major, uint32_t* minor)
-    {
-        switch(version)
-        {
-            case PLATFORM_OPENGL_VERSION_3_3:
-                *major = 3;
-                *minor = 3;
-                break;
-            case PLATFORM_OPENGL_VERSION_4_0:
-                *major = 4;
-                *minor = 0;
-                break;
-            case PLATFORM_OPENGL_VERSION_4_1:
-                *major = 4;
-                *minor = 1;
-                break;
-            case PLATFORM_OPENGL_VERSION_4_2:
-                *major = 4;
-                *minor = 2;
-                break;
-            case PLATFORM_OPENGL_VERSION_4_3:
-                *major = 4;
-                *minor = 3;
-                break;
-            case PLATFORM_OPENGL_VERSION_4_4:
-                *major = 4;
-                *minor = 4;
-                break;
-            case PLATFORM_OPENGL_VERSION_4_5:
-                *major = 4;
-                *minor = 5;
-                break;
-            case PLATFORM_OPENGL_VERSION_4_6:
-                *major = 4;
-                *minor = 6;
-                break;
-        }
-    }
-
     static PlatformResult OpenWindowOpenGL(Window* wnd, const WindowParams& params)
     {
-        bool use_highest_version = params.m_OpenGLVersionHint == PLATFORM_OPENGL_VERSION_HIGHEST_AVAILABLE;
+        uint32_t major = 3, minor = 3;
+        if (!OpenGLGetVersion(params.m_OpenGLVersionHint, &major, &minor))
+        {
+            dmLogWarning("OpenGL version hint %d is not supported. Using default version (%d.%d)",
+                params.m_OpenGLVersionHint, major, minor);
+        }
 
+        bool use_highest_version = major == 0 && minor == 0;
         if (!use_highest_version)
         {
-            uint32_t major, minor;
-            OpenGLVersionHintToMajorMinor(params.m_OpenGLVersionHint, &major, &minor);
-
             glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, major);
             glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, minor);
         }
