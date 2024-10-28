@@ -220,7 +220,7 @@
          text-node (get nodes "hexagon_text")]
      (are [prop v test] (test-util/with-prop [text-node prop v]
                           (is (test (test-util/prop-error text-node prop))))
-       :font nil                  g/error-fatal?
+       :font ""                   g/error-fatal?
        :font "not_a_defined_font" g/error-fatal?
        :font "highscore"          nil?))))
 
@@ -473,12 +473,14 @@
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/gui/layouts.gui")
           box (gui-node node-id "box")
-          dims (g/node-value node-id :scene-dims)
-          scene (g/node-value node-id :scene)]
+          box-default-pos (g/valid-node-value box :position)
+          dims (g/valid-node-value node-id :scene-dims)]
       (set-visible-layout! node-id "Landscape")
-      (let [new-box (gui-node node-id "box")]
-        (is (and new-box (not= box new-box))))
-      (let [new-dims (g/node-value node-id :scene-dims)]
+      (is (identical? box (gui-node node-id "box")))
+      (is (= "Landscape" (g/node-value box :current-layout)))
+      (let [box-landscape-pos (g/valid-node-value box :position)]
+        (is (and box-landscape-pos (not= box-default-pos box-landscape-pos))))
+      (let [new-dims (g/valid-node-value node-id :scene-dims)]
         (is (and new-dims (not= dims new-dims)))))))
 
 (deftest gui-layout-add
@@ -487,7 +489,8 @@
           box (gui-node node-id "box")]
       (add-layout! project app-view node-id "Portrait")
       (set-visible-layout! node-id "Portrait")
-      (is (not= box (gui-node node-id "box"))))))
+      (is (identical? box (gui-node node-id "box")))
+      (is (= "Portrait" (g/node-value box :current-layout))))))
 
 (deftest gui-layout-add-node
   (test-util/with-loaded-project
@@ -843,53 +846,58 @@
       (move-child-node! (id-map "text2") 1)
       (check-order scene < "text1" "text2"))))
 
-
-(defn- layout-gui-node-map [layout-node]
-  (let [layout-node-tree (ffirst (g/sources-of layout-node :layout-overrides))
-        layout-id-map (into {}
-                            (map (juxt :label :node-id)
-                                 (tree-seq :children :children (g/node-value layout-node-tree :node-outline))))]
-    layout-id-map))
-
 (deftest reordering-does-not-wipe-layout-overrides
   (test-util/with-loaded-project
-    (let [[workspace project _] (test-util/setup! world)
+    (let [make-restore-point! #(test-util/make-graph-reverter (project/graph project))
           scene (project/get-resource-node project "/gui/reorder.gui")
           id-map (scene-gui-node-map scene)
-          [landscape portrait] (map first (g/sources-of scene :layout-scenes))
-          landscape-id-map (layout-gui-node-map landscape)
-          portrait-id-map (layout-gui-node-map portrait)
-          scene-id-map (scene-gui-node-map scene)]
+          layouts (g/node-feeding-into scene :layout-names)
+          [landscape portrait] (map first (g/sources-of layouts :names))]
 
       ;; sanity
       (is (= "Landscape" (g/node-value landscape :name)))
       (is (= "Portrait" (g/node-value portrait :name)))
-      (is (= [(scene-id-map "box1") (landscape-id-map "box1")] (g/override-originals (landscape-id-map "box1"))))
-      (is (= [(scene-id-map "box2") (portrait-id-map "box2")] (g/override-originals (portrait-id-map "box2"))))
-      (is (= [0.0 0.0 0.0] (g/node-value (scene-id-map "box1") :position)))
-      (is (= [0.0 0.0 0.0] (g/node-value (scene-id-map "box2") :position)))
-      (is (= [-45.0 0.0 0.0] (g/node-value (scene-id-map "text1") :position)))
-      (is (= [45.0 0.0 0.0] (g/node-value (scene-id-map "text2") :position)))
+
+      (set-visible-layout! scene "")
+      (is (= [0.0 0.0 0.0] (g/node-value (id-map "box1") :position)))
+      (is (= [0.0 0.0 0.0] (g/node-value (id-map "box2") :position)))
+      (is (= [-45.0 0.0 0.0] (g/node-value (id-map "text1") :position)))
+      (is (= [45.0 0.0 0.0] (g/node-value (id-map "text2") :position)))
 
       ;; before move
-      (is (= [300.0 400.0 0.0] (g/node-value (landscape-id-map "box1") :position)))
-      (is (= [1000.0 400.0 0.0] (g/node-value (landscape-id-map "box2") :position)))
-      (is (= [360.0 900.0 0.0] (g/node-value (portrait-id-map "box1") :position)))
-      (is (= [360.0 350.0 0.0] (g/node-value (portrait-id-map "box2") :position)))
-      (is (= [45.0 0.0 0.0] (g/node-value (landscape-id-map "text1") :position))) ;; text1 & text2 swapped places in landscape vs default layout
-      (is (= [-45.0 0.0 0.0] (g/node-value (landscape-id-map "text2") :position)))
-      (is (= [0.0 -45.0 0.0] (g/node-value (portrait-id-map "text1") :position))) ;; text1 & text2 vertically stacked in portrait
-      (is (= [0.0 45.0 0.0] (g/node-value (portrait-id-map "text2") :position)))
+      (set-visible-layout! scene "Landscape")
+      (is (= [300.0 400.0 0.0] (g/node-value (id-map "box1") :position)))
+      (is (= [1000.0 400.0 0.0] (g/node-value (id-map "box2") :position)))
+      (is (= [45.0 0.0 0.0] (g/node-value (id-map "text1") :position))) ;; text1 & text2 swapped places in landscape vs default layout
+      (is (= [-45.0 0.0 0.0] (g/node-value (id-map "text2") :position)))
 
-      (move-child-node! (scene-id-map "box2") -1)
-      (move-child-node! (scene-id-map "text1") 1)
+      (set-visible-layout! scene "Portrait")
+      (is (= [360.0 900.0 0.0] (g/node-value (id-map "box1") :position)))
+      (is (= [360.0 350.0 0.0] (g/node-value (id-map "box2") :position)))
+      (is (= [0.0 -45.0 0.0] (g/node-value (id-map "text1") :position))) ;; text1 & text2 vertically stacked in portrait
+      (is (= [0.0 45.0 0.0] (g/node-value (id-map "text2") :position)))
 
       ;; reordering nodes should not change overrides for the layouts at all
-      (is (= [300.0 400.0 0.0] (g/node-value (landscape-id-map "box1") :position)))
-      (is (= [1000.0 400.0 0.0] (g/node-value (landscape-id-map "box2") :position)))
-      (is (= [360.0 900.0 0.0] (g/node-value (portrait-id-map "box1") :position)))
-      (is (= [360.0 350.0 0.0] (g/node-value (portrait-id-map "box2") :position)))
-      (is (= [45.0 0.0 0.0] (g/node-value (landscape-id-map "text1") :position)))
-      (is (= [-45.0 0.0 0.0] (g/node-value (landscape-id-map "text2") :position)))
-      (is (= [0.0 -45.0 0.0] (g/node-value (portrait-id-map "text1") :position)))
-      (is (= [0.0 45.0 0.0] (g/node-value (portrait-id-map "text2") :position))))))
+      (doseq [layout-during-reorder ["" "Landscape" "Portrait"]]
+        (with-open [_ (make-restore-point!)]
+          (set-visible-layout! scene layout-during-reorder)
+          (move-child-node! (id-map "box2") -1)
+          (move-child-node! (id-map "text1") 1)
+
+          (set-visible-layout! scene "")
+          (is (= [0.0 0.0 0.0] (g/node-value (id-map "box1") :position)))
+          (is (= [0.0 0.0 0.0] (g/node-value (id-map "box2") :position)))
+          (is (= [-45.0 0.0 0.0] (g/node-value (id-map "text1") :position)))
+          (is (= [45.0 0.0 0.0] (g/node-value (id-map "text2") :position)))
+
+          (set-visible-layout! scene "Landscape")
+          (is (= [300.0 400.0 0.0] (g/node-value (id-map "box1") :position)))
+          (is (= [1000.0 400.0 0.0] (g/node-value (id-map "box2") :position)))
+          (is (= [45.0 0.0 0.0] (g/node-value (id-map "text1") :position)))
+          (is (= [-45.0 0.0 0.0] (g/node-value (id-map "text2") :position)))
+
+          (set-visible-layout! scene "Portrait")
+          (is (= [360.0 900.0 0.0] (g/node-value (id-map "box1") :position)))
+          (is (= [360.0 350.0 0.0] (g/node-value (id-map "box2") :position)))
+          (is (= [0.0 -45.0 0.0] (g/node-value (id-map "text1") :position)))
+          (is (= [0.0 45.0 0.0] (g/node-value (id-map "text2") :position))))))))

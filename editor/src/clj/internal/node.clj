@@ -320,7 +320,7 @@
   gt/OverrideNode
   (clear-property [this basis property]
     (throw (ex-info (str "Not possible to clear property " property
-                         " of node type " (:name node-type)
+                         " of node type " (:name @node-type)
                          " since the node is not an override")
                     {:label property :node-type node-type})))
 

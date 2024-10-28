@@ -1237,7 +1237,7 @@ Macros currently mean no foreseeable performance gain, however."
                                   {:key key
                                    :pb-class cls})))))))))
 
-(def ^:private without-defaults-xform (fn/memoize without-defaults-xform-raw))
+(def without-defaults-xform (fn/memoize without-defaults-xform-raw))
 
 (defn make-map-without-defaults [^Class cls & kvs]
   (into {}

@@ -1625,38 +1625,47 @@
 (defmethod scene-tools/manip-scalable? ::SceneNode [node-id]
   (contains? (g/node-value node-id :transform-properties) :scale))
 
-(defmethod scene-tools/manip-move ::SceneNode [evaluation-context node-id delta]
-  (let [old-clj-position (g/node-value node-id :position evaluation-context)
-        old-vecmath-position (doto (Vector3d.) (math/clj->vecmath old-clj-position))
-        new-vecmath-position (math/add-vector old-vecmath-position delta)
+(defn- manip-scene-node [apply-delta-fn prop-kw evaluation-context node-id vecmath-delta]
+  (g/set-property node-id prop-kw
+    (-> (g/node-value node-id prop-kw evaluation-context)
+        (apply-delta-fn vecmath-delta))))
+
+(defn apply-move-delta [old-clj-position vecmath-delta]
+  (let [old-vecmath-position (doto (Vector3d.) (math/clj->vecmath old-clj-position))
+        new-vecmath-position (math/add-vector old-vecmath-position vecmath-delta)
         num-fn (if (math/float32? (first old-clj-position))
                  properties/round-scalar-float
-                 properties/round-scalar)
-        new-clj-position (into (coll/empty-with-meta old-clj-position)
-                               (map num-fn)
-                               (math/vecmath->clj new-vecmath-position))]
-    (g/set-property node-id :position new-clj-position)))
+                 properties/round-scalar)]
+    (into (coll/empty-with-meta old-clj-position)
+          (map num-fn)
+          (math/vecmath->clj new-vecmath-position))))
+
+(def manip-move-scene-node (partial manip-scene-node apply-move-delta :position))
+
+(defmethod scene-tools/manip-move ::SceneNode [evaluation-context node-id delta]
+  (manip-move-scene-node evaluation-context node-id delta))
+
+(defn apply-rotate-delta [old-clj-rotation vecmath-delta]
+  ;; Note! The rotation is not rounded here like we do for apply-move-delta and
+  ;; apply-scale-delta. As the user-facing property is the euler angles, they
+  ;; will be rounded in properties/quat->euler.
+  (let [new-vecmath-rotation (doto (Quat4d.) (math/clj->vecmath old-clj-rotation) (.mul vecmath-delta))]
+    (if (math/float32? (first old-clj-rotation))
+      (into (coll/empty-with-meta old-clj-rotation)
+            (map float)
+            (math/vecmath->clj new-vecmath-rotation))
+      (math/vecmath-into-clj new-vecmath-rotation
+                             (coll/empty-with-meta old-clj-rotation)))))
+
+(def manip-rotate-scene-node (partial manip-scene-node apply-rotate-delta :rotation))
 
 (defmethod scene-tools/manip-rotate ::SceneNode [evaluation-context node-id delta]
-  (let [old-clj-rotation (g/node-value node-id :rotation evaluation-context)
-        new-vecmath-rotation (doto (Quat4d.) (math/clj->vecmath old-clj-rotation) (.mul delta))
+  (manip-rotate-scene-node evaluation-context node-id delta))
 
-        ;; Note! The rotation is not rounded here like we do for manip-move and
-        ;; manip-scale. As the user-facing property is the euler angles, they
-        ;; will be rounded in properties/quat->euler.
-        new-clj-rotation
-        (if (math/float32? (first old-clj-rotation))
-          (into (coll/empty-with-meta old-clj-rotation)
-                (map float)
-                (math/vecmath->clj new-vecmath-rotation))
-          (math/vecmath-into-clj new-vecmath-rotation
-                                 (coll/empty-with-meta old-clj-rotation)))]
-    (g/set-property node-id :rotation new-clj-rotation)))
+(defn apply-scale-delta [old-scale vecmath-delta]
+  (properties/scale-and-round-vec old-scale vecmath-delta))
 
-(defn manip-scale-scene-node [evaluation-context node-id delta]
-  (let [old-scale (g/node-value node-id :scale evaluation-context)
-        new-scale (properties/scale-and-round-vec old-scale delta)]
-    (g/set-property node-id :scale new-scale)))
+(def manip-scale-scene-node (partial manip-scene-node apply-scale-delta :scale))
 
 (defmethod scene-tools/manip-scale ::SceneNode [evaluation-context node-id delta]
   (manip-scale-scene-node evaluation-context node-id delta))

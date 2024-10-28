@@ -44,6 +44,7 @@
             [editor.resource-node :as resource-node]
             [editor.scene :as scene]
             [editor.scene-picking :as scene-picking]
+            [editor.scene-tools :as scene-tools]
             [editor.texture-set :as texture-set]
             [editor.types :as types]
             [editor.util :as eutil]
@@ -66,10 +67,11 @@
 ;; TODO(gui-layout-override-refactor):
 ;; [DONE] Fix layout override loading. Should assign to layout->prop->override property on nodes.
 ;; * Fix layout->prop->value to include correct base values from active-layouts.
-;; * Fix scene-view manipulators so they assign into the current-layout.
-;; * Ensure layout overrides can be cleared using the property editor.
+;; [DONE] Fix scene-view manipulators so they assign into the current-layout.
+;; [DONE] Ensure layout overrides can be cleared using the property editor.
 ;; * Optimize save-value data path. Should maybe pull from layout->prop->value output?
 ;; * Fix resource renames so they update all layouts.
+;; * Fix outline color tint of overridden nodes.
 
 (set! *warn-on-reflection* true)
 
@@ -389,6 +391,17 @@
                (transient {})
                pb-field-index->prop-key)))
 
+(defn- prop-entry->pb-field-entry [[prop-key :as entry]]
+  (if-some [[pb-field prop-value->pb-value] (node-property-to-pb-field-conversions prop-key)]
+    (let [prop-value (val entry)
+          pb-value (prop-value->pb-value prop-value)]
+      (pair pb-field pb-value))
+    entry))
+
+(def ^:private prop-entries->pb-field-entries-xform
+  (comp (map prop-entry->pb-field-entry)
+        (protobuf/without-defaults-xform Gui$NodeDesc)))
+
 (declare get-registered-node-type-info get-registered-node-type-infos)
 
 ;; /////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -691,6 +704,17 @@
   {:pre [(symbol? prop-sym)]}
   layout-property-set-fn)
 
+(defn update-layout-property [evaluation-context node-id prop-kw update-fn & args]
+  (let [old-value (g/node-value node-id prop-kw evaluation-context)
+        new-value (apply update-fn old-value args)
+        current-layout (g/node-value node-id :current-layout evaluation-context)]
+    (if (str/blank? current-layout)
+      (g/set-property node-id prop-kw new-value)
+      (g/update-property
+        node-id :layout->prop->override
+        update current-layout
+        assoc prop-kw new-value))))
+
 (defn- layout-property-edit-type-set-impl [evaluation-context node-id prop-kw old-value new-value changes-fn]
   (let [current-layout (g/node-value node-id :current-layout evaluation-context)
         changes (if (nil? changes-fn)
@@ -778,7 +802,8 @@
   (inherits outline/OutlineNode)
 
   ;; Storage for layout overrides.
-  (property layout->prop->override g/Any)
+  (property layout->prop->override g/Any (default {})
+            (dynamic visible (g/constantly false)))
 
   ;; SceneNode property overrides with layout support
   (property position types/Vec3 (default scene/default-position)
@@ -1028,6 +1053,15 @@
   ;; restored on OverrideNode GuiNodes when a template gui scene is reloaded
   ;; from disk during resource-sync. The id must be unique within the gui scene.
   (g/node-value node-id :id evaluation-context))
+
+(defmethod scene-tools/manip-move ::GuiNode [evaluation-context node-id delta]
+  (update-layout-property evaluation-context node-id :position scene/apply-move-delta delta))
+
+(defmethod scene-tools/manip-rotate ::GuiNode [evaluation-context node-id delta]
+  (update-layout-property evaluation-context node-id :rotation scene/apply-rotate-delta delta))
+
+(defmethod scene-tools/manip-scale ::GuiNode [evaluation-context node-id delta]
+  (update-layout-property evaluation-context node-id :scale scene/apply-scale-delta delta))
 
 ;; SDK api
 (defmethod update-gui-resource-reference [::GuiNode :layer]
@@ -2690,13 +2724,7 @@
                          (-> node-msg
                              (select-keys override-retained-pb-fields)
                              (protobuf/assign-repeated :overridden-fields overridden-fields)
-                             (into (map
-                                     (fn [[prop-key :as entry]]
-                                       (if-some [[pb-field prop-value->pb-value] (node-property-to-pb-field-conversions prop-key)]
-                                         (let [prop-value (val entry)
-                                               pb-value (prop-value->pb-value prop-value)]
-                                           (pair pb-field pb-value))
-                                         entry)))
+                             (into prop-entries->pb-field-entries-xform
                                    prop->override))))))
                  decorated-node-msgs)))
 
