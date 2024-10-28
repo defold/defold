@@ -361,6 +361,26 @@ public class TimeProfiler {
         return start(String.format(fmt, args));
     }
 
+    public static void stop() {
+        getCurrentScope().stop();
+    }
+
+    public static void addData(String fieldName, String data) {
+        getCurrentScope().addData(fieldName, data);
+    }
+
+    public static void addData(String fieldName, Float data) {
+        getCurrentScope().addData(fieldName, data);
+    }
+
+    public static void addData(String fieldName, Boolean data) {
+        getCurrentScope().addData(fieldName, data);
+    }
+
+    public static void addData(String fieldName, int data) {
+        getCurrentScope().addData(fieldName, (float)data);
+    }
+
     public static void addMark(String shortName, String fullName, String color) {
         ProfilingMark mark = new ProfilingMark();
         mark.timestamp = time();

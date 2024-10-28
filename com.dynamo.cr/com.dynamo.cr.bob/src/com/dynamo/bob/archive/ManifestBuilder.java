@@ -48,7 +48,6 @@ import com.dynamo.bob.pipeline.graph.ResourceNode;
 import com.dynamo.bob.pipeline.graph.ResourceGraph;
 import com.dynamo.bob.util.MurmurHash;
 import com.dynamo.bob.util.TimeProfiler;
-import com.dynamo.bob.util.TimeProfiler.ProfilingScope;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
 import com.dynamo.liveupdate.proto.Manifest.HashDigest;
@@ -480,7 +479,7 @@ public class ManifestBuilder {
     }
 
     public ManifestData buildManifestData() throws IOException {
-        final ProfilingScope scope = TimeProfiler.start("buildManifestData");
+        TimeProfiler.start("buildManifestData");
         logger.info("buildManifestData begin");
         long tstart = System.currentTimeMillis();
 
@@ -522,12 +521,12 @@ public class ManifestBuilder {
 
         long tend = System.currentTimeMillis();
         logger.info("ManifestBuilder.buildManifestData took %f", (tend-tstart)/1000.0);
-        scope.stop();
+        TimeProfiler.stop();
         return builder.build();
     }
 
     public ManifestFile buildManifestFile() throws IOException {
-        final ProfilingScope scope = TimeProfiler.start("buildManifestFile");
+        TimeProfiler.start("buildManifestFile");
         ManifestFile.Builder builder = ManifestFile.newBuilder();
 
         ManifestData manifestData = this.buildManifestData();
@@ -549,7 +548,7 @@ public class ManifestBuilder {
         } catch (IllegalBlockSizeException | BadPaddingException | NoSuchPaddingException exception) {
             throw new IOException("Unable to create ManifestFile, cryptographic error!");
         } finally {
-            scope.stop();
+            TimeProfiler.stop();
             if (privateKey != null && !privateKey.isDestroyed()) {
                 try {
                     privateKey.destroy();

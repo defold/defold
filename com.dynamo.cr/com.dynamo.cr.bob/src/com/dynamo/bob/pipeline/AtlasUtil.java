@@ -32,7 +32,6 @@ import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.TimeProfiler;
-import com.dynamo.bob.util.TimeProfiler.ProfilingScope;
 import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.bob.textureset.TextureSetGenerator;
 import com.dynamo.bob.textureset.TextureSetGenerator.AnimDesc;
@@ -317,7 +316,7 @@ public class AtlasUtil {
     }
 
     public static TextureSetResult generateTextureSet(final Project project, IResource atlasResource, Atlas.Builder builder) throws IOException, CompileExceptionError {
-        final ProfilingScope scope = TimeProfiler.start("generateTextureSet");
+        TimeProfiler.start("generateTextureSet");
         Atlas atlas = builder.build();
 
         try {
@@ -358,7 +357,7 @@ public class AtlasUtil {
                 true, false, null,
                 atlas.getMaxPageWidth(), atlas.getMaxPageHeight());
 
-            scope.stop();
+            TimeProfiler.stop();
             return result;
         }
         catch (java.lang.NegativeArraySizeException e) {

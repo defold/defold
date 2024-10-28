@@ -50,7 +50,6 @@ import com.dynamo.liveupdate.proto.Manifest.ResourceEntryFlag;
 import com.dynamo.bob.archive.publisher.PublisherSettings;
 import com.dynamo.bob.archive.publisher.ZipPublisher;
 import com.dynamo.bob.util.TimeProfiler;
-import com.dynamo.bob.util.TimeProfiler.ProfilingScope;
 
 import net.jpountz.lz4.LZ4Compressor;
 import net.jpountz.lz4.LZ4Factory;
@@ -176,16 +175,16 @@ public class ArchiveBuilder {
         Collections.sort(entries); // Since it has no hash, it sorts on path
 
         for (int i = entries.size() - 1; i >= 0; --i) {
-            final ProfilingScope writeFileScope = TimeProfiler.start("Write file");
+            TimeProfiler.start("Write file");
             ArchiveEntry entry = entries.get(i);
-            writeFileScope.addData("res", entry.getFilename());
+            TimeProfiler.addData("res", entry.getFilename());
 
             byte[] buffer = this.loadResourceData(entry.getFilename());
 
             int resourceEntryFlags = 0;
 
             if (entry.isCompressed()) {
-                final ProfilingScope compressScope = TimeProfiler.start("Compresss");
+                TimeProfiler.start("Compresss");
                 // Compress data
                 byte[] compressed = this.compressResourceData(buffer);
                 if (this.shouldUseCompressedResourceData(buffer, compressed)) {
@@ -197,15 +196,15 @@ public class ArchiveBuilder {
                 } else {
                     entry.setCompressedSize(ArchiveEntry.FLAG_UNCOMPRESSED);
                 }
-                compressScope.stop();
+                TimeProfiler.stop();
             }
 
             // we need to do this last or the compression won't work as well
             if (entry.isEncrypted()) {
-                final ProfilingScope encryptScope = TimeProfiler.start("Encrypt");
+                TimeProfiler.start("Encrypt");
                 buffer = this.encryptResourceData(buffer);
                 resourceEntryFlags |= ResourceEntryFlag.ENCRYPTED.getNumber();
-                encryptScope.stop();
+                TimeProfiler.stop();
             }
 
             // Add entry to manifest
@@ -214,12 +213,12 @@ public class ArchiveBuilder {
             // Calculate hash digest values for resource
             String hexDigest = null;
             try {
-                final ProfilingScope hexDigestScope = TimeProfiler.start("Hex");
+                TimeProfiler.start("Hex");
                 byte[] hashDigest = ManifestBuilder.CryptographicOperations.hash(buffer, manifestBuilder.getResourceHashAlgorithm());
                 entry.setHash(new byte[HASH_MAX_LENGTH]);
                 System.arraycopy(hashDigest, 0, entry.getHash(), 0, hashDigest.length);
                 hexDigest = ManifestBuilder.CryptographicOperations.hexdigest(hashDigest);
-                hexDigestScope.stop();
+                TimeProfiler.stop();
             } catch (NoSuchAlgorithmException exception) {
                 throw new IOException("Unable to create a Resource Pack, the hashing algorithm is not supported!");
             }
@@ -227,7 +226,7 @@ public class ArchiveBuilder {
             entry.setHexDigest(hexDigest);
             hexDigestCache.put(entry.getRelativeFilename(), hexDigest);
 
-            final ProfilingScope writeArchiveScope = TimeProfiler.start("Write");
+            TimeProfiler.start("Write");
             // Write resource to resource pack or data archive
             if (excludedResources.contains(normalisedPath)) {
                 this.writeResourcePack(entry, resourcePackDirectory.toString(), buffer);
@@ -240,10 +239,10 @@ public class ArchiveBuilder {
                 archiveData.write(buffer, 0, buffer.length);
                 resourceEntryFlags |= ResourceEntryFlag.BUNDLED.getNumber();
             }
-            writeArchiveScope.stop();
+            TimeProfiler.stop();
 
             manifestBuilder.addResourceEntry(normalisedPath, buffer, entry.getSize(), entry.getCompressedSize(), resourceEntryFlags);
-            writeFileScope.stop();
+            TimeProfiler.stop();
         }
 
         Collections.sort(entries); // Since it has a hash, it sorts on hash

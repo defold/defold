@@ -196,7 +196,7 @@ public class TaskBuilder {
                     // all resources exist in the cache
                     // copy them to the output
                     if (allResourcesCached) {
-                        scope.addData("takenFromCache", true);
+                        TimeProfiler.addData("takenFromCache", true);
                         for (IResource r : outputResources) {
                             r.setContent(resourceCache.get(outputResourceToCacheKey.get(r)));
                         }
@@ -252,9 +252,9 @@ public class TaskBuilder {
             taskResult.setException(e);
             e.printStackTrace(new java.io.PrintStream(System.out));
         }
-        scope.addData("output", StringUtil.truncate(task.getOutputsString(), 1000));
-        scope.addData("type", "buildTask");
-        scope.stop();
+        TimeProfiler.addData("output", StringUtil.truncate(task.getOutputsString(), 1000));
+        TimeProfiler.addData("type", "buildTask");
+        TimeProfiler.stop();
         synchronized (profilingScopeLookup) {
             profilingScopeLookup.put(taskResult, scope);
         }
@@ -269,7 +269,7 @@ public class TaskBuilder {
 
     @SuppressWarnings({ "rawtypes", "unchecked" })
     public List<TaskResult> build(IProgress monitor) throws IOException, CompileExceptionError {
-        final ProfilingScope scope = TimeProfiler.start("Build tasks");
+        TimeProfiler.start("Build tasks");
         logger.info("Build tasks");
         long tstart = System.currentTimeMillis();
 
@@ -359,7 +359,7 @@ public class TaskBuilder {
 
         long tend = System.currentTimeMillis();
         logger.info("Build tasks took %f s", (tend-tstart)/1000.0);
-        scope.stop();
+        TimeProfiler.stop();
         return results;
     }
 }
