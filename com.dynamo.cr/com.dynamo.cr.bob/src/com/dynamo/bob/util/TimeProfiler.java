@@ -342,11 +342,11 @@ public class TimeProfiler {
         scope.parent = currentScope;
     }
 
-    public static ProfilingScope start() {
-        return start(null);
+    public static void start() {
+        start(null);
     }
 
-    public static synchronized ProfilingScope start(String scopeName) {
+    public static synchronized void start(String scopeName) {
         ProfilingScope scope = new ProfilingScope();
         scope.startTime = time();
         if (scopeName != null) {
@@ -354,11 +354,10 @@ public class TimeProfiler {
         }
         addScopeToCurrentThread(scope);
         setCurrentScope(scope);
-        return scope;
     }
 
-    public static ProfilingScope start(String fmt, Object... args) {
-        return start(String.format(fmt, args));
+    public static void start(String fmt, Object... args) {
+        start(String.format(fmt, args));
     }
 
     public static void stop() {

@@ -157,10 +157,16 @@ public class TaskBuilder {
     private TaskResult buildTask(Task task, IProgress monitor) throws IOException {
         BundleHelper.throwIfCanceled(monitor);
 
-        final ProfilingScope scope = TimeProfiler.start(task.getName());
+        TimeProfiler.start(task.getName());
 
         TaskResult taskResult = new TaskResult(task);
         taskResult.setResult(Result.SUCCESS);
+
+        // store the scope for later when the timings are merged back to the
+        // main thread
+        synchronized (profilingScopeLookup) {
+            profilingScopeLookup.put(taskResult, TimeProfiler.getCurrentScope());
+        }
 
         final List<IResource> outputResources = task.getOutputs();
         // check if all outputs already exist
@@ -255,9 +261,6 @@ public class TaskBuilder {
         TimeProfiler.addData("output", StringUtil.truncate(task.getOutputsString(), 1000));
         TimeProfiler.addData("type", "buildTask");
         TimeProfiler.stop();
-        synchronized (profilingScopeLookup) {
-            profilingScopeLookup.put(taskResult, scope);
-        }
         return taskResult;
     }
 
