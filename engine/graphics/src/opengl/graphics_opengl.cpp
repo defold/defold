@@ -222,11 +222,14 @@
     #define glBufferSubDataARB glBufferSubData
     #define glMapBufferARB glMapBufferOES
     #define glUnmapBufferARB glUnmapBufferOES
-    #define glGenVertexArrays glGenVertexArraysOES
-    #define glBindVertexArray glBindVertexArrayOES
     #define GL_ARRAY_BUFFER_ARB GL_ARRAY_BUFFER
     #define GL_ELEMENT_ARRAY_BUFFER_ARB GL_ELEMENT_ARRAY_BUFFER
     #define GL_TEXTURE_CUBE_MAP_SEAMLESS 0x884F
+
+    #ifdef ANDROID
+        #define glBindVertexArray glBindVertexArrayOES
+        #define glGenVertexArrays glGenVertexArraysOES
+    #endif
 #endif
 
 DM_PROPERTY_EXTERN(rmtp_DrawCalls);
