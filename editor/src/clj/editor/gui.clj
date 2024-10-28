@@ -707,12 +707,12 @@
         node-id :layout->prop->override
         update current-layout
         (fn [prop->override]
-          (reduce (fn [prop->override [prop-kw value]]
-                    (if (nil? value)
-                      (dissoc prop->override prop-kw)
-                      (assoc prop->override prop-kw value)))
-                  prop->override
-                  changes))))))
+          (reduce-kv (fn [prop->override prop-kw new-value]
+                       (if (nil? new-value)
+                         (dissoc prop->override prop-kw)
+                         (assoc prop->override prop-kw new-value)))
+                     prop->override
+                     changes))))))
 
 (defn- basic-layout-property-edit-type-clear-fn [node-id prop-kw]
   (let [current-layout (g/node-value node-id :current-layout)]
@@ -727,7 +727,9 @@
                 (keys (changes-fn evaluation-context node-id prop-kw nil nil))))]
     (when (coll/not-empty cleared-prop-kws)
       (if (str/blank? current-layout)
-        (coll/mapcat #(g/clear-property node-id %) cleared-prop-kws)
+        (coll/mapcat
+          #(g/clear-property node-id %)
+          cleared-prop-kws)
         (g/update-property
           node-id :layout->prop->override
           update current-layout
@@ -890,7 +892,7 @@
                                                   (get-registered-node-type-infos))))
 
   (output node-outline outline/OutlineData :cached
-          (g/fnk [_node-id id child-index node-outline-link node-outline-children node-outline-reqs type custom-type own-build-errors _overridden-properties]
+          (g/fnk [_node-id id child-index node-outline-link node-outline-children node-outline-reqs type custom-type own-build-errors current-layout layout->prop->override _overridden-properties]
             (cond-> {:node-id _node-id
                      :node-outline-key id
                      :label id
@@ -903,7 +905,11 @@
                                                (not= node-id (g/node-value node-id :parent)))))
                      :children node-outline-children
                      :outline-error? (g/error-fatal? own-build-errors)
-                     :outline-overridden? (not (empty? _overridden-properties))}
+                     :outline-overridden? (let [prop-kw->override-value
+                                                (if (str/blank? current-layout)
+                                                  _overridden-properties
+                                                  (layout->prop->override current-layout))]
+                                            (not (coll/empty? prop-kw->override-value)))}
                     (resource/openable-resource? node-outline-link) (assoc :link node-outline-link :outline-reference? true))))
 
   (output transform-properties g/Any scene/produce-scalable-transform-properties)
@@ -970,6 +976,40 @@
                      (into (list) ; Reverse the order so it goes from the override root to our node.
                            (map #(get (gt/get-property % basis :layout->prop->override) current-layout)))
                      (apply coll/deep-merge))))))
+  (output _properties g/Properties :cached
+          (g/fnk [_declared-properties current-layout layout->prop->override]
+            ;; For layout properties, the :original-value of each property is
+            ;; based on the value returned by the layout-property-getter.
+            ;; However, the presence of the :original-value is based on whether
+            ;; we have an override node. What we want is for the :original-value
+            ;; to be present when the user should be able to clear an override
+            ;; from the current layout.
+            (if (str/blank? current-layout)
+              ;; We're observing the Default layout. Since the :original-value
+              ;; will reflect overrides to the Default layout in this case, we
+              ;; don't have to do anything.
+              _declared-properties
+
+              ;; We're observing a non-Default layout. We need to manually
+              ;; manage the :original-value to reflect the layout property
+              ;; overrides present on this node.
+              (let [prop-kw->layout-override-value (layout->prop->override current-layout)]
+                (update _declared-properties :properties
+                        (fn [prop-kw->prop-info]
+                          (into {}
+                                (map
+                                  (fn [[prop-kw prop-info]]
+                                    (let [layout-override-value (get prop-kw->layout-override-value prop-kw)]
+                                      (pair prop-kw
+                                            (cond-> (assoc prop-info :assoc-original-value? false) ; Disable automatic assoc in OverrideNode.produce-value. We want to manage it ourselves.
+
+                                                    (some? layout-override-value)
+                                                    (assoc :original-value layout-override-value) ; Any :original-value is fine. The key just needs to be present.
+
+                                                    (and (nil? layout-override-value)
+                                                         (contains? prop-info :original-value))
+                                                    (dissoc :original-value))))))
+                                prop-kw->prop-info)))))))
   (input child-build-errors g/Any :array)
   (output build-errors-gui-node g/Any (g/fnk [_node-id id id-counts layer layer-names]
                                         (g/package-errors _node-id

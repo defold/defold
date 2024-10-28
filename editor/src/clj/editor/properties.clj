@@ -501,22 +501,31 @@
                                                                acc))
                                                            false
                                                            v)}
-                                       default-vals (mapv :original-value (filter #(contains? % :original-value) v))
-                                       prop (if (empty? default-vals) prop (assoc prop :original-values default-vals))]
+                                       original-values (mapv (fn [{:keys [original-value]}]
+                                                               (when-not (g/error? original-value)
+                                                                 original-value))
+                                                             v)
+                                       prop (cond-> prop
+                                                    (not-every? nil? original-values)
+                                                    (assoc :original-values original-values))]
                                    (pair k prop)))))
                         visible-prop-colls)]
     {:properties coalesced
      :display-order (prune-display-order (first display-orders) (set (keys coalesced)))
      :original-node-ids node-ids}))
 
-(defn values [property]
-  (let [f (get-in property [:edit-type :to-type] identity)]
-    (mapv (fn [value default-value]
-            (f (if-not (nil? value)
-                 value
-                 default-value)))
-          (:values property)
-          (:original-values property (repeat nil)))))
+(defn values [{:keys [edit-type original-values values]}]
+  {:pre [(or (nil? original-values)
+             (= (count values)
+                (count original-values)))]}
+  (let [to-type (:to-type edit-type identity)]
+    (mapv (fn [value original-value]
+            (to-type (if-not (nil? value)
+                       value
+                       original-value)))
+          values
+          (or original-values
+              (repeat nil)))))
 
 (defn- set-value-txs [evaluation-context node-id prop-kw key set-fn old-value new-value]
   (cond

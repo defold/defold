@@ -1739,11 +1739,23 @@
                   ;; produced property to set the :original-value here.
                   props-with-overrides-and-original-values
                   (reduce-kv (fn [props prop-kw orig-prop]
-                               (let [original-value (:value orig-prop)]
-                                 (if (or (contains? properties prop-kw)
-                                         (and (not (declared? prop-kw))
-                                              (get-in props [prop-kw :assoc-original-value?])))
-                                   (update props prop-kw assoc :original-value original-value)
+                               (let [prop (get props prop-kw)
+
+                                     assoc-original-value
+                                     (cond
+                                       (nil? prop)
+                                       false
+
+                                       (contains? properties prop-kw)
+                                       (:assoc-original-value? prop true)
+
+                                       (not (declared? prop-kw))
+                                       (:assoc-original-value? prop false)
+
+                                       :else
+                                       false)]
+                                 (if assoc-original-value
+                                   (update props prop-kw assoc :original-value (:value orig-prop))
                                    props)))
                              props-with-override-values
                              orig-props)]
