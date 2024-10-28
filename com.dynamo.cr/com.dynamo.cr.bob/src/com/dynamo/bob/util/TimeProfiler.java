@@ -284,7 +284,7 @@ public class TimeProfiler {
         }
     }
 
-    private static ProfilingScope getCurrentScope() {
+    public static ProfilingScope getCurrentScope() {
         synchronized (currentScopes) {
             return currentScopes.get(getCurrentThreadId());
         }

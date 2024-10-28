@@ -80,7 +80,6 @@ import com.dynamo.bob.util.RigUtil;
 import com.dynamo.bob.util.RigUtil.AnimationKey;
 import com.dynamo.bob.util.RigUtil.Weight;
 import com.dynamo.bob.util.TimeProfiler;
-import com.dynamo.bob.util.TimeProfiler.ProfilingScope;
 import com.dynamo.proto.DdfMath.Transform;
 
 import com.dynamo.rig.proto.Rig;
@@ -847,8 +846,8 @@ public class ColladaUtil {
         }
 
         long tstart = System.currentTimeMillis();
-        final ProfilingScope scope = TimeProfiler.start();
-        scope.addData("optimizeVertices", "Colladautil");
+        TimeProfiler.start();
+        TimeProfiler.addData("optimizeVertices", "Colladautil");
 
         // Build an optimized list of triangles from indices and instance (make unique) any vertices common attributes (position, normal etc.).
         // We can then use this to quickly build am optimized indexed vertex buffer of any selected vertex elements in run-time without any sorting.
@@ -875,7 +874,7 @@ public class ColladaUtil {
             }
         }
 
-        scope.stop();
+        TimeProfiler.stop();
         long tend = System.currentTimeMillis();
         logger.fine("ColladaUtil: Creating %d vertices (optimize: %s) took %f s", shared_vertex_indices.size(), optimize?"on":"off", (tend-tstart)/1000.0);
 

@@ -60,7 +60,6 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.BobProjectProperties;
 import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.util.TimeProfiler;
-import com.dynamo.bob.util.TimeProfiler.ProfilingScope;
 
 public class ExtenderUtil {
 
@@ -490,7 +489,7 @@ public class ExtenderUtil {
      * @return True if it contains native extension code
      */
     public static boolean hasNativeExtensions(Project project) {
-        final ProfilingScope scope = TimeProfiler.start("hasNativeExtensions");
+        TimeProfiler.start("hasNativeExtensions");
         BobProjectProperties projectProperties = project.getProjectProperties();
         boolean hasAppManifest = hasPropertyResource(project, projectProperties, "native_extension", "app_manifest");
         boolean hasProguard = hasPropertyResource(project, projectProperties, "android", "proguard");
@@ -504,7 +503,7 @@ public class ExtenderUtil {
             project.findResourcePaths("", paths);
             result = paths.stream().anyMatch(v -> isEngineExtensionManifest(project, v));
         }
-        scope.stop();
+        TimeProfiler.stop();
         return result;
     }
 

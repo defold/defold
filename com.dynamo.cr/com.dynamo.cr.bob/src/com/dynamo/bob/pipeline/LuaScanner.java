@@ -31,7 +31,6 @@ import javax.vecmath.Vector4d;
 
 import com.dynamo.bob.pipeline.LuaScanner.Property.Status;
 import com.dynamo.bob.util.TimeProfiler;
-import com.dynamo.bob.util.TimeProfiler.ProfilingScope;
 import com.dynamo.gameobject.proto.GameObject.PropertyType;
 import com.dynamo.bob.pipeline.antlr.lua.LuaParser;
 import com.dynamo.bob.pipeline.antlr.lua.LuaLexer;
@@ -178,7 +177,7 @@ public class LuaScanner extends LuaParserBaseListener {
      * @return Parsed string
      */
     public String parse(String str) {
-        final ProfilingScope scope = TimeProfiler.start("Parse");
+        TimeProfiler.start("Parse");
         modules.clear();
         properties.clear();
 
@@ -211,7 +210,7 @@ public class LuaScanner extends LuaParserBaseListener {
         ParseTreeWalker walker = new ParseTreeWalker();
         walker.walk(this, parser.chunk());
         String resultText = rewriter.getText();
-        scope.stop();
+        TimeProfiler.stop();
         // return the parsed string
         return resultText;
     }
