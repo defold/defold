@@ -26,11 +26,13 @@ namespace dmMessage
 
 namespace dmGameSystem
 {
+    struct FontResource;
+
     // Used by the engine to setup the dmGui::HContext
     void GuiGetURLCallback(dmGui::HScene scene, dmMessage::URL* url);
     uintptr_t GuiGetUserDataCallback(dmGui::HScene scene);
     dmhash_t GuiResolvePathCallback(dmGui::HScene scene, const char* path, uint32_t path_size);
-    void GuiGetTextMetricsCallback(const void* font, const char* text, float width, bool line_break, float leading, float tracking, dmGui::TextMetrics* out_metrics);
+    void GuiGetTextMetricsCallback(dmGameSystem::FontResource* font_resource, const char* text, float width, bool line_break, float leading, float tracking, dmGui::TextMetrics* out_metrics);
 
     // Used only in engine_service.cpp for resource profiling
     typedef bool (*FDynamicTextturesIterator)(dmhash_t gui_res_id, dmhash_t name_hash, uint32_t size, void* user_ctx);
