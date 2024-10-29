@@ -48,7 +48,7 @@ public enum Platform {
         // See graphics_ddf.proto
         platformPatterns.put(PlatformProfile.OS.OS_ID_GENERIC, "^$");
         platformPatterns.put(PlatformProfile.OS.OS_ID_WINDOWS, "^x86(_64)?-win32$");
-        platformPatterns.put(PlatformProfile.OS.OS_ID_OSX,     "^x86(_64)?-macos$");
+        platformPatterns.put(PlatformProfile.OS.OS_ID_OSX,     "^((arm64)|(x86_64))-macos$");
         platformPatterns.put(PlatformProfile.OS.OS_ID_LINUX,   "^x86(_64)?-linux$");
         platformPatterns.put(PlatformProfile.OS.OS_ID_IOS,     "^((arm64)|(x86_64))-ios$");
         platformPatterns.put(PlatformProfile.OS.OS_ID_ANDROID, "^arm((v7)|(64))-android$");
