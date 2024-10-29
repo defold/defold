@@ -242,7 +242,11 @@ public class Project {
         if (maxThreadsOpt == null) {
             return getDefaultMaxCpuThreads();
         }
-        return Integer.parseInt(maxThreadsOpt);
+        int threads = Integer.parseInt(maxThreadsOpt);
+        if (threads == 0) {
+            threads = Runtime.getRuntime().availableProcessors();
+        }
+        return threads;
     }
 
     public BobProjectProperties getProjectProperties() {
