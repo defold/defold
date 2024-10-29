@@ -79,7 +79,6 @@ public class ArchiveBuilder {
     private byte[] archiveIndexMD5 = new byte[MD5_HASH_DIGEST_BYTE_LENGTH];
     private int resourcePadding = 4;
     private boolean forceCompression = false; // for building unit tests to create test content
-    private long archiveDataFilePointer = 0;
 
     private Project project;
     private ExecutorService executorService;
@@ -170,20 +169,19 @@ public class ArchiveBuilder {
         }
     }
 
-
     public List<ArchiveEntry> getExcludedEntries() {
         return excludedEntries;
     }
 
-    private Callable<ArchiveEntry> createArchiveEntryWriteTask(final File archiveDataFile, final ArchiveEntry entry, final Path resourcePackDirectory) {
-        Callable<ArchiveEntry> callable = () -> {
-            writeArchiveEntry(archiveDataFile, entry, resourcePackDirectory);
-            return entry;
-        };
-        return callable;
-    }
-
-    private void writeArchiveEntry(File archiveDataFile, ArchiveEntry entry, Path resourcePackDirectory) throws IOException, CompileExceptionError {
+    /**
+     * Write a single archive entry to the archive or to disk depending on if
+     * the entry is excluded or not
+     * @param archiveData The file where the entry should be stored
+     * @param entry The entry to write
+     * @param resourcePackDirectory The directory where the entry should be
+     * stored if the entry is to be excluded from the archive
+     */
+    private void writeArchiveEntry(RandomAccessFile archiveData, ArchiveEntry entry, Path resourcePackDirectory) throws IOException, CompileExceptionError {
         logger.info("Writing archive entry %s", entry.getFilename());
         TimeProfiler.start("WriteArchiveEntry");
         TimeProfiler.addData("res", entry.getFilename());
@@ -242,14 +240,10 @@ public class ArchiveBuilder {
             resourceEntryFlags |= ResourceEntryFlag.EXCLUDED.getNumber();
         }
         else {
-            synchronized (archiveDataFile) {
-                RandomAccessFile archiveData = new RandomAccessFile(archiveDataFile, "rw");
-                archiveData.seek(archiveDataFilePointer);
+            synchronized (archiveData) {
                 alignBuffer(archiveData, this.resourcePadding);
                 entry.setResourceOffset((int) archiveData.getFilePointer());
                 archiveData.write(buffer, 0, buffer.length);
-                archiveDataFilePointer = archiveData.getFilePointer();
-                archiveData.close();
             }
             resourceEntryFlags |= ResourceEntryFlag.BUNDLED.getNumber();
         }
@@ -267,6 +261,10 @@ public class ArchiveBuilder {
         TimeProfiler.stop();
     }
 
+    /**
+     * Write the archive index
+     * @param archiveIndexFile The file where the archive index should be stored
+     */
     private void writeArchiveIndex(File archiveIndexFile) throws IOException {
         TimeProfiler.start("WriteArchiveIndex");
 
@@ -330,14 +328,25 @@ public class ArchiveBuilder {
     }
 
 
-    private void writeArchiveData(File archiveDataFile, Path resourcePackDirectory, List<String> excludedResources) throws IOException {
+    /**
+     * Write the archive data and excluded resources to disk. This function will
+     * create a thread pool and write the entries in separate threads to speed
+     * up the archive creation.
+     * @param archiveDataFile The archive data file to write to
+     * @param resourcePackDirectory The directory where excluded resources will
+     * be stored
+     * @param excludedResources List of resources which should be excluded from
+     * the archive
+     */
+    private void writeArchiveData(File archiveDataFile, Path resourcePackDirectory, List<String> excludedResources) throws IOException, CompileExceptionError {
         TimeProfiler.start("WriteArchiveData");
 
         // create the executor service to write entries in parallel
         int nThreads = project.getMaxCpuThreads();
         logger.info("Creating a fixed thread pool executor with %d threads", nThreads);
         this.executorService = Executors.newFixedThreadPool(nThreads);
-        this.archiveDataFilePointer = 0;
+        
+        RandomAccessFile archiveData = new RandomAccessFile(archiveDataFile, "rw");
 
         Collections.sort(entries); // Since it has no hash, it sorts on path
 
@@ -353,8 +362,10 @@ public class ArchiveBuilder {
                 entries.remove(i);
                 excludedEntries.add(entry);
             }
-            Callable<ArchiveEntry> callable = createArchiveEntryWriteTask(archiveDataFile, entry, resourcePackDirectory);
-            Future<ArchiveEntry> future = this.executorService.submit(callable);
+            Future<ArchiveEntry> future = this.executorService.submit(() -> {
+                writeArchiveEntry(archiveData, entry, resourcePackDirectory);
+                return entry;
+            });
             futures.add(future);
         }
 
@@ -366,11 +377,13 @@ public class ArchiveBuilder {
                 ProfilingScope scope = profilingScopeLookup.get(entry);
                 TimeProfiler.addScopeToCurrentThread(scope);
             }
-            this.executorService.shutdownNow();
         }
         catch (Exception e) {
-            logger.severe("Exception");
-            e.printStackTrace(new java.io.PrintStream(System.out));
+            throw new CompileExceptionError("Error while writing archive", e);
+        }
+        finally {
+            this.executorService.shutdownNow();
+            archiveData.close();
         }
         TimeProfiler.stop();
     }
