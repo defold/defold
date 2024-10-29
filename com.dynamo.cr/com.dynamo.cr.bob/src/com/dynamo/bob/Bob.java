@@ -590,7 +590,7 @@ public class Bob {
                 opt(null, "manifest-private-key", ONE, "Private key to use when signing manifest and archive", false),
                 opt(null, "manifest-public-key", ONE, "Public key to use when signing manifest and archive", false),
 
-                opt(null, "max-cpu-threads", ONE, "Max count of threads that bob.jar can use", false),
+                opt(null, "max-cpu-threads", ONE, "Max count of threads that bob.jar can use. Use 0 to use max available threads", false),
 
                 // debug options
                 opt(null, "debug-ne-upload", ZERO, "Outputs the files sent to build server as upload.zip", false),
