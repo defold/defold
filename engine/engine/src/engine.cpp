@@ -692,6 +692,10 @@ namespace dmEngine
 #endif
         }
 
+        // Set minimul log level
+        int32_t minimum_log_level = dmConfigFile::GetInt(engine->m_Config, "project.minimum_log_level", LOG_SEVERITY_INFO);
+        dmLogSetLevel((LogSeverity)minimum_log_level);
+
         // Try loading SSL keys
         char engine_ssl_keys_path[DMPATH_MAX_PATH];
         dmPath::Concat(resources_path, "/ssl_keys.pem", engine_ssl_keys_path, sizeof(engine_ssl_keys_path));
