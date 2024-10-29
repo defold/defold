@@ -583,7 +583,7 @@ static void DebugStructNodeTree(Node* node, int indent)
 
     for (uint32_t i = 0; i < node->m_Children.Size(); ++i)
     {
-        DebugStructNode(node->m_Children[i], indent+1);
+        DebugStructNodeTree(node->m_Children[i], indent+1);
     }
 }
 

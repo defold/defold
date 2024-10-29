@@ -26,7 +26,7 @@
 
   Performs file IO"
   [prefs]
-  (if-let [prefs-path (not-empty (prefs/get-prefs prefs "ios-deploy-path" nil))]
+  (if-let [prefs-path (not-empty (prefs/get prefs [:tools :ios-deploy-path]))]
     (or (fs/existing-path prefs-path)
         (throw (ex-info (format "ios-deploy path defined in preferences does not exist: '%s'" prefs-path)
                         {:path prefs-path})))

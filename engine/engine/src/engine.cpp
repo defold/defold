@@ -905,6 +905,12 @@ namespace dmEngine
         window_params.m_BackgroundColor         = clear_color;
         window_params.m_GraphicsApi             = AdapterFamilyToGraphicsAPI(dmGraphics::GetInstalledAdapterFamily());
 
+        if (window_params.m_GraphicsApi == dmPlatform::PLATFORM_GRAPHICS_API_OPENGL)
+        {
+            window_params.m_OpenGLVersionHint        = (uint8_t) dmConfigFile::GetInt(engine->m_Config, "graphics.opengl_version_hint", 33);
+            window_params.m_OpenGLUseCoreProfileHint = (bool) dmConfigFile::GetInt(engine->m_Config, "graphics.opengl_core_profile_hint", 1);
+        }
+
         engine->m_Window = dmPlatform::NewWindow();
 
         dmPlatform::PlatformResult platform_result = dmPlatform::OpenWindow(engine->m_Window, window_params);
