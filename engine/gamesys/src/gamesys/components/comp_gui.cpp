@@ -170,7 +170,7 @@ namespace dmGameSystem
         return node_material_res ? GetNodeMaterial(node_material_res) : gui_context->m_Material;
     }
 
-    static inline dmRender::HMaterial GetTextNodeMaterial(RenderGuiContext* gui_context, dmGui::HScene scene, dmGui::HNode node, dmRender::HFontMap font_map)
+    static inline dmRender::HMaterial GetTextNodeMaterial(RenderGuiContext* gui_context, dmGui::HScene scene, dmGui::HNode node, dmRender::HFont font_map)
     {
         void* node_material_res = dmGui::GetNodeMaterial(scene, node);
         if (node_material_res)
@@ -699,10 +699,11 @@ namespace dmGameSystem
 
         dmGui::SetSceneAdjustReference(scene, (dmGui::AdjustReference)scene_desc->m_AdjustReference);
 
-        for (uint32_t i = 0; i < scene_resource->m_FontMaps.Size(); ++i)
+        for (uint32_t i = 0; i < scene_resource->m_Fonts.Size(); ++i)
         {
             const char* name = scene_desc->m_Fonts[i].m_Name;
-            dmGui::Result r = dmGui::AddFont(scene, dmHashString64(name), (void*) scene_resource->m_FontMaps[i], scene_resource->m_FontMapPaths[i]);
+            dmGameSystem::FontResource* font = scene_resource->m_Fonts[i];
+            dmGui::Result r = dmGui::AddFont(scene, dmHashString64(name), (void*)font, scene_resource->m_FontMapPaths[i]);
             if (r != dmGui::RESULT_OK) {
                 dmLogError("Unable to add font '%s' to scene (%d)", name,  r);
                 return false;
@@ -1154,7 +1155,8 @@ namespace dmGameSystem
             dmGui::NodeType node_type = dmGui::GetNodeType(scene, node);
             assert(node_type == dmGui::NODE_TYPE_TEXT);
 
-            dmRender::HFontMap font_map  = (dmRender::HFontMap) dmGui::GetNodeFont(scene, node);
+            dmGameSystem::FontResource* font_resource = (dmGameSystem::FontResource*)dmGui::GetNodeFont(scene, node);
+            dmRender::HFont font_map = font_resource != 0 ? dmGameSystem::ResFontGetHandle(font_resource) : 0;
             if (!font_map)
                 continue;
             dmRender::HMaterial material = GetTextNodeMaterial(gui_context, scene, node, font_map);
@@ -2095,7 +2097,8 @@ namespace dmGameSystem
         uint32_t prev_custom_type                       = dmGui::GetNodeCustomType(scene, first_node);
         uint64_t prev_combined_type                     = GetCombinedNodeType(prev_node_type, prev_custom_type);
         dmGraphics::HTexture prev_texture               = GetNodeTexture(scene, first_node);
-        void* prev_font                                 = dmGui::GetNodeFont(scene, first_node);
+        dmGameSystem::FontResource* prev_font_resource  = (dmGameSystem::FontResource*)dmGui::GetNodeFont(scene, first_node);
+        dmRender::HFont             prev_font           = prev_font_resource ? dmGameSystem::ResFontGetHandle(prev_font_resource) : 0;
         HComponentRenderConstants prev_render_constants = (HComponentRenderConstants) dmGui::GetNodeRenderConstants(scene, first_node);
         const dmGui::StencilScope* prev_stencil_scope   = stencil_scopes[0];
         uint32_t prev_emitter_batch_key                 = 0;
@@ -2110,7 +2113,7 @@ namespace dmGameSystem
 
         if (prev_node_type == dmGui::NODE_TYPE_TEXT)
         {
-            prev_material = GetTextNodeMaterial(gui_context, scene, first_node, (dmRender::HFontMap) prev_font);
+            prev_material = GetTextNodeMaterial(gui_context, scene, first_node, prev_font);
         }
         else
         {
@@ -2128,7 +2131,8 @@ namespace dmGameSystem
             uint32_t custom_type                       = dmGui::GetNodeCustomType(scene, node);
             uint64_t combined_type                     = GetCombinedNodeType(node_type, custom_type);
             dmGraphics::HTexture texture               = GetNodeTexture(scene, node);
-            void* font                                 = dmGui::GetNodeFont(scene, node);
+            dmGameSystem::FontResource* font_resource  = (dmGameSystem::FontResource*)dmGui::GetNodeFont(scene, node);
+            dmRender::HFont             font           = font_resource ? dmGameSystem::ResFontGetHandle(font_resource) : 0;
             const dmGui::StencilScope* stencil_scope   = stencil_scopes[i];
             uint32_t emitter_batch_key                 = 0;
             dmRender::HMaterial material               = 0;
@@ -2143,7 +2147,7 @@ namespace dmGameSystem
 
             if (node_type == dmGui::NODE_TYPE_TEXT)
             {
-                material = GetTextNodeMaterial(gui_context, scene, node, (dmRender::HFontMap) font);
+                material = GetTextNodeMaterial(gui_context, scene, node, font);
             }
             else
             {
@@ -2694,10 +2698,11 @@ namespace dmGameSystem
     }
 
     // Public function used by engine (as callback from gui system)
-    void GuiGetTextMetricsCallback(const void* font, const char* text, float width, bool line_break, float leading, float tracking, dmGui::TextMetrics* out_metrics)
+    void GuiGetTextMetricsCallback(dmGameSystem::FontResource* font_resource, const char* text, float width, bool line_break, float leading, float tracking, dmGui::TextMetrics* out_metrics)
     {
+        dmRender::HFont font = dmGameSystem::ResFontGetHandle(font_resource);
         dmRender::TextMetrics metrics;
-        dmRender::GetTextMetrics((dmRender::HFontMap)font, text, width, line_break, leading, tracking, &metrics);
+        dmRender::GetTextMetrics(font, text, width, line_break, leading, tracking, &metrics);
         out_metrics->m_Width = metrics.m_Width;
         out_metrics->m_Height = metrics.m_Height;
         out_metrics->m_MaxAscent = metrics.m_MaxAscent;
@@ -2756,21 +2761,21 @@ namespace dmGameSystem
                 return dmGameObject::PROPERTY_RESULT_INVALID_KEY;
             }
             dmResource::HFactory factory = dmGameObject::GetFactory(params.m_Instance);
-            dmGameSystem::FontResource* font = 0;
-            dmGameObject::PropertyResult res = SetResourceProperty(factory, params.m_Value, FONT_EXT_HASH, (void**)&font);
+            dmGameSystem::FontResource* font_resource = 0;
+            dmGameObject::PropertyResult res = SetResourceProperty(factory, params.m_Value, FONT_EXT_HASH, (void**)&font_resource);
             if (res == dmGameObject::PROPERTY_RESULT_OK)
             {
-                dmGui::Result r = dmGui::AddFont(gui_component->m_Scene, params.m_Options.m_Key, (void*)font, params.m_Value.m_Hash);
+                dmGui::Result r = dmGui::AddFont(gui_component->m_Scene, params.m_Options.m_Key, (void*)font_resource, params.m_Value.m_Hash);
                 if (r != dmGui::RESULT_OK)
                 {
                     dmLogError("Unable to set font `%s` property in component `%s`", dmHashReverseSafe64(params.m_Options.m_Key), gui_component->m_Resource->m_Path);
-                    dmResource::Release(factory, font);
+                    dmResource::Release(factory, font_resource);
                     return dmGameObject::PROPERTY_RESULT_BUFFER_OVERFLOW;
                 }
                 if(gui_component->m_ResourcePropertyPointers.Full()) {
                     gui_component->m_ResourcePropertyPointers.OffsetCapacity(1);
                 }
-                gui_component->m_ResourcePropertyPointers.Push(font);
+                gui_component->m_ResourcePropertyPointers.Push(font_resource);
             }
             return res;
         }
