@@ -88,13 +88,6 @@ public class GameProjectBuilder extends Builder {
 
     private static final Logger logger = Logger.getLogger(GameProjectBuilder.class.getName());
 
-    private RandomAccessFile createRandomAccessFile(File handle) throws IOException {
-        FileUtil.deleteOnExit(handle);
-        RandomAccessFile file = new RandomAccessFile(handle, "rw");
-        file.setLength(0);
-        return file;
-    }
-
     @Override
     public Task create(IResource input) throws IOException, CompileExceptionError {
         gameProjectDependencies = new String[ROOT_NODES.length + 1];
@@ -232,7 +225,7 @@ public class GameProjectBuilder extends Builder {
         return resourcePadding;
     }
 
-    private void createArchive(ArchiveBuilder archiveBuilder, Collection<IResource> resources, RandomAccessFile archiveIndex, RandomAccessFile archiveData, List<String> excludedResources, Path resourcePackDirectory) throws IOException, CompileExceptionError {
+    private void createArchive(ArchiveBuilder archiveBuilder, Collection<IResource> resources, File archiveIndex, File archiveData, List<String> excludedResources, Path resourcePackDirectory) throws IOException, CompileExceptionError {
         TimeProfiler.start("createArchive");
         logger.info("GameProjectBuilder.createArchive");
         long tstart = System.currentTimeMillis();
@@ -250,11 +243,7 @@ public class GameProjectBuilder extends Builder {
         TimeProfiler.addData("resources", resources.size());
         TimeProfiler.addData("excludedResources", excludedResources.size());
 
-        TimeProfiler.start("writeArchive");
         archiveBuilder.write(archiveIndex, archiveData, resourcePackDirectory, excludedResources);
-        archiveIndex.close();
-        archiveData.close();
-        TimeProfiler.stop();
 
         // Populate publisher with the resource pack
         Publisher publisher = project.getPublisher();
@@ -444,15 +433,16 @@ public class GameProjectBuilder extends Builder {
                 String platform = project.option("platform", "generic");
                 project.getPublisher().setPlatform(platform);
                 File archiveIndexHandle = File.createTempFile("defold.index_", ".arci");
-                RandomAccessFile archiveIndex = createRandomAccessFile(archiveIndexHandle);
                 File archiveDataHandle = File.createTempFile("defold.data_", ".arcd");
-                RandomAccessFile archiveData = createRandomAccessFile(archiveDataHandle);
+                FileUtil.deleteOnExit(archiveIndexHandle);
+                FileUtil.deleteOnExit(archiveDataHandle);
+
                 Path resourcePackDirectory = Files.createTempDirectory("defold.resourcepack_");
 
                 // create the archive and manifest
                 ManifestBuilder manifestBuilder = createManifestBuilder(resourceGraph);
-                ArchiveBuilder archiveBuilder = new ArchiveBuilder(root, manifestBuilder, getResourcePadding());
-                createArchive(archiveBuilder, resources, archiveIndex, archiveData, excludedResources, resourcePackDirectory);
+                ArchiveBuilder archiveBuilder = new ArchiveBuilder(root, manifestBuilder, getResourcePadding(), project);
+                createArchive(archiveBuilder, resources, archiveIndexHandle, archiveDataHandle, excludedResources, resourcePackDirectory);
                 byte[] manifestFile = manifestBuilder.buildManifest();
 
                 // Write outputs to the build system

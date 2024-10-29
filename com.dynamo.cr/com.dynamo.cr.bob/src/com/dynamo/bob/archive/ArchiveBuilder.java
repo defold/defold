@@ -33,6 +33,10 @@ import java.util.HashSet;
 import java.util.Set;
 import java.util.Map;
 import java.util.HashMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Callable;
+import java.util.concurrent.Future;
+import java.util.concurrent.Executors;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -41,6 +45,7 @@ import org.apache.commons.io.IOUtils;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.pipeline.graph.ResourceNode;
 import com.dynamo.bob.pipeline.graph.ResourceGraph;
 import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
@@ -50,11 +55,14 @@ import com.dynamo.liveupdate.proto.Manifest.ResourceEntryFlag;
 import com.dynamo.bob.archive.publisher.PublisherSettings;
 import com.dynamo.bob.archive.publisher.ZipPublisher;
 import com.dynamo.bob.util.TimeProfiler;
+import com.dynamo.bob.util.TimeProfiler.ProfilingScope;
 
 import net.jpountz.lz4.LZ4Compressor;
 import net.jpountz.lz4.LZ4Factory;
 
 public class ArchiveBuilder {
+
+    private static Logger logger = Logger.getLogger(ArchiveBuilder.class.getName());
 
     public static final int VERSION = 5;
     public static final int HASH_MAX_LENGTH = 64; // 512 bits
@@ -71,12 +79,20 @@ public class ArchiveBuilder {
     private byte[] archiveIndexMD5 = new byte[MD5_HASH_DIGEST_BYTE_LENGTH];
     private int resourcePadding = 4;
     private boolean forceCompression = false; // for building unit tests to create test content
+    private long archiveDataFilePointer = 0;
 
-    public ArchiveBuilder(String root, ManifestBuilder manifestBuilder, int resourcePadding) {
+    private Project project;
+    private ExecutorService executorService;
+    private int nThreads;
+    private Map<ArchiveEntry, ProfilingScope> profilingScopeLookup = new HashMap<>();
+
+
+    public ArchiveBuilder(String root, ManifestBuilder manifestBuilder, int resourcePadding, Project project) {
         this.root = new File(root).getAbsolutePath();
         this.manifestBuilder = manifestBuilder;
         this.lz4Compressor = LZ4Factory.fastestInstance().highCompressor();
         this.resourcePadding = resourcePadding;
+        this.project = project;
     }
 
     private void add(String fileName, boolean compress, boolean encrypt, boolean isLiveUpdate) throws IOException {
@@ -159,8 +175,102 @@ public class ArchiveBuilder {
         return excludedEntries;
     }
 
-    public void write(RandomAccessFile archiveIndex, RandomAccessFile archiveData, Path resourcePackDirectory, List<String> excludedResources) throws IOException, CompileExceptionError {
-        // INDEX
+    private Callable<ArchiveEntry> createArchiveEntryWriteTask(final File archiveDataFile, final ArchiveEntry entry, final Path resourcePackDirectory) {
+        Callable<ArchiveEntry> callable = () -> {
+            writeArchiveEntry(archiveDataFile, entry, resourcePackDirectory);
+            return entry;
+        };
+        return callable;
+    }
+
+    private void writeArchiveEntry(File archiveDataFile, ArchiveEntry entry, Path resourcePackDirectory) throws IOException, CompileExceptionError {
+        logger.info("Writing archive entry %s", entry.getFilename());
+        TimeProfiler.start("WriteArchiveEntry");
+        TimeProfiler.addData("res", entry.getFilename());
+
+        byte[] buffer = this.loadResourceData(entry.getFilename());
+
+        int resourceEntryFlags = 0;
+
+        // compress entry data
+        if (entry.isCompressed()) {
+            TimeProfiler.start("Compresss");
+            byte[] compressed = this.compressResourceData(buffer);
+            if (this.shouldUseCompressedResourceData(buffer, compressed)) {
+                // Note, when forced, the compressed size may be larger than the original size (For unit tests)
+                buffer = compressed;
+                entry.setCompressedSize(compressed.length);
+                entry.setFlag(ArchiveEntry.FLAG_COMPRESSED);
+                resourceEntryFlags |= ResourceEntryFlag.COMPRESSED.getNumber();
+            } else {
+                entry.setCompressedSize(ArchiveEntry.FLAG_UNCOMPRESSED);
+            }
+            TimeProfiler.stop();
+        }
+
+        // encrypt entry data
+        // note: this has to be done after compression
+        if (entry.isEncrypted()) {
+            TimeProfiler.start("Encrypt");
+            buffer = this.encryptResourceData(buffer);
+            resourceEntryFlags |= ResourceEntryFlag.ENCRYPTED.getNumber();
+            TimeProfiler.stop();
+        }
+
+        // Calculate hash digest value for resource
+        String hexDigest = null;
+        try {
+            TimeProfiler.start("Hex");
+            byte[] hashDigest = ManifestBuilder.CryptographicOperations.hash(buffer, manifestBuilder.getResourceHashAlgorithm());
+            entry.setHash(new byte[HASH_MAX_LENGTH]);
+            System.arraycopy(hashDigest, 0, entry.getHash(), 0, hashDigest.length);
+            hexDigest = ManifestBuilder.CryptographicOperations.hexdigest(hashDigest);
+            TimeProfiler.stop();
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IOException("Unable to create a Resource Pack, the hashing algorithm is not supported!");
+        }
+
+        entry.setHexDigest(hexDigest);
+        synchronized (hexDigestCache) {
+            hexDigestCache.put(entry.getRelativeFilename(), hexDigest);
+        }
+
+        // Write resource to resource pack or data archive
+        TimeProfiler.start("Write");
+        if (entry.isExcluded()) {
+            writeResourcePack(entry, resourcePackDirectory.toString(), buffer);
+            resourceEntryFlags |= ResourceEntryFlag.EXCLUDED.getNumber();
+        }
+        else {
+            synchronized (archiveDataFile) {
+                RandomAccessFile archiveData = new RandomAccessFile(archiveDataFile, "rw");
+                archiveData.seek(archiveDataFilePointer);
+                alignBuffer(archiveData, this.resourcePadding);
+                entry.setResourceOffset((int) archiveData.getFilePointer());
+                archiveData.write(buffer, 0, buffer.length);
+                archiveDataFilePointer = archiveData.getFilePointer();
+                archiveData.close();
+            }
+            resourceEntryFlags |= ResourceEntryFlag.BUNDLED.getNumber();
+        }
+        TimeProfiler.stop();
+
+        // Add entry to manifest
+        String normalisedPath = FilenameUtils.separatorsToUnix(entry.getRelativeFilename());
+        manifestBuilder.addResourceEntry(normalisedPath, buffer, entry.getSize(), entry.getCompressedSize(), resourceEntryFlags);
+
+        // store the profiling scope for later when merging timings to main thread
+        synchronized (profilingScopeLookup) {
+            profilingScopeLookup.put(entry, TimeProfiler.getCurrentScope());
+        }
+
+        TimeProfiler.stop();
+    }
+
+    private void writeArchiveIndex(File archiveIndexFile) throws IOException {
+        TimeProfiler.start("WriteArchiveIndex");
+
+        RandomAccessFile archiveIndex = new RandomAccessFile(archiveIndexFile, "rw");
         archiveIndex.writeInt(VERSION); // Version
         archiveIndex.writeInt(0); // Pad
         archiveIndex.writeLong(0); // UserData, used in runtime to distinguish between if the index and resources are memory mapped or loaded from disk
@@ -172,82 +282,8 @@ public class ArchiveBuilder {
 
         int archiveIndexHeaderOffset = (int) archiveIndex.getFilePointer();
 
-        Collections.sort(entries); // Since it has no hash, it sorts on path
-
-        for (int i = entries.size() - 1; i >= 0; --i) {
-            TimeProfiler.start("Write file");
-            ArchiveEntry entry = entries.get(i);
-            TimeProfiler.addData("res", entry.getFilename());
-
-            byte[] buffer = this.loadResourceData(entry.getFilename());
-
-            int resourceEntryFlags = 0;
-
-            if (entry.isCompressed()) {
-                TimeProfiler.start("Compresss");
-                // Compress data
-                byte[] compressed = this.compressResourceData(buffer);
-                if (this.shouldUseCompressedResourceData(buffer, compressed)) {
-                    // Note, when forced, the compressed size may be larger than the original size (For unit tests)
-                    buffer = compressed;
-                    entry.setCompressedSize(compressed.length);
-                    entry.setFlag(ArchiveEntry.FLAG_COMPRESSED);
-                    resourceEntryFlags |= ResourceEntryFlag.COMPRESSED.getNumber();
-                } else {
-                    entry.setCompressedSize(ArchiveEntry.FLAG_UNCOMPRESSED);
-                }
-                TimeProfiler.stop();
-            }
-
-            // we need to do this last or the compression won't work as well
-            if (entry.isEncrypted()) {
-                TimeProfiler.start("Encrypt");
-                buffer = this.encryptResourceData(buffer);
-                resourceEntryFlags |= ResourceEntryFlag.ENCRYPTED.getNumber();
-                TimeProfiler.stop();
-            }
-
-            // Add entry to manifest
-            String normalisedPath = FilenameUtils.separatorsToUnix(entry.getRelativeFilename());
-
-            // Calculate hash digest values for resource
-            String hexDigest = null;
-            try {
-                TimeProfiler.start("Hex");
-                byte[] hashDigest = ManifestBuilder.CryptographicOperations.hash(buffer, manifestBuilder.getResourceHashAlgorithm());
-                entry.setHash(new byte[HASH_MAX_LENGTH]);
-                System.arraycopy(hashDigest, 0, entry.getHash(), 0, hashDigest.length);
-                hexDigest = ManifestBuilder.CryptographicOperations.hexdigest(hashDigest);
-                TimeProfiler.stop();
-            } catch (NoSuchAlgorithmException exception) {
-                throw new IOException("Unable to create a Resource Pack, the hashing algorithm is not supported!");
-            }
-
-            entry.setHexDigest(hexDigest);
-            hexDigestCache.put(entry.getRelativeFilename(), hexDigest);
-
-            TimeProfiler.start("Write");
-            // Write resource to resource pack or data archive
-            if (excludedResources.contains(normalisedPath)) {
-                this.writeResourcePack(entry, resourcePackDirectory.toString(), buffer);
-                entries.remove(i);
-                excludedEntries.add(entry);
-                resourceEntryFlags |= ResourceEntryFlag.EXCLUDED.getNumber();
-            } else {
-                alignBuffer(archiveData, this.resourcePadding);
-                entry.setResourceOffset((int) archiveData.getFilePointer());
-                archiveData.write(buffer, 0, buffer.length);
-                resourceEntryFlags |= ResourceEntryFlag.BUNDLED.getNumber();
-            }
-            TimeProfiler.stop();
-
-            manifestBuilder.addResourceEntry(normalisedPath, buffer, entry.getSize(), entry.getCompressedSize(), resourceEntryFlags);
-            TimeProfiler.stop();
-        }
-
-        Collections.sort(entries); // Since it has a hash, it sorts on hash
-
         // Write sorted hashes to index file
+        Collections.sort(entries);
         int hashOffset = (int) archiveIndex.getFilePointer();
         for(ArchiveEntry entry : entries) {
             archiveIndex.write(entry.getHash());
@@ -289,6 +325,63 @@ public class ArchiveBuilder {
         archiveIndex.writeInt(hashOffset);
         archiveIndex.writeInt(ManifestBuilder.CryptographicOperations.getHashSize(manifestBuilder.getResourceHashAlgorithm()));
         archiveIndex.write(archiveIndexMD5);
+
+        TimeProfiler.stop();
+    }
+
+
+    private void writeArchiveData(File archiveDataFile, Path resourcePackDirectory, List<String> excludedResources) throws IOException {
+        TimeProfiler.start("WriteArchiveData");
+
+        // create the executor service to write entries in parallel
+        int nThreads = project.getMaxCpuThreads();
+        logger.info("Creating a fixed thread pool executor with %d threads", nThreads);
+        this.executorService = Executors.newFixedThreadPool(nThreads);
+        this.archiveDataFilePointer = 0;
+
+        Collections.sort(entries); // Since it has no hash, it sorts on path
+
+        // create archive entry write tasks
+        // also check if an entry is supposed to be excluded, in which case it
+        // becomes flagged as a live update resource
+        List<Future<ArchiveEntry>> futures = new ArrayList<>();
+        for (int i = entries.size() - 1; i >= 0; --i) {
+            ArchiveEntry entry = entries.get(i);
+            boolean excluded = excludedResources.contains(FilenameUtils.separatorsToUnix(entry.getRelativeFilename()));
+            if (excluded) {
+                entry.setFlag(ArchiveEntry.FLAG_LIVEUPDATE);
+                entries.remove(i);
+                excludedEntries.add(entry);
+            }
+            Callable<ArchiveEntry> callable = createArchiveEntryWriteTask(archiveDataFile, entry, resourcePackDirectory);
+            Future<ArchiveEntry> future = this.executorService.submit(callable);
+            futures.add(future);
+        }
+
+        // wait for all tasks to finish
+        // merge their profiling results with the main thread timings
+        try {
+            for (Future<ArchiveEntry> future : futures) {
+                ArchiveEntry entry = future.get();
+                ProfilingScope scope = profilingScopeLookup.get(entry);
+                TimeProfiler.addScopeToCurrentThread(scope);
+            }
+            this.executorService.shutdownNow();
+        }
+        catch (Exception e) {
+            logger.severe("Exception");
+            e.printStackTrace(new java.io.PrintStream(System.out));
+        }
+        TimeProfiler.stop();
+    }
+
+    public void write(File archiveIndexFile, File archiveDataFile, Path resourcePackDirectory, List<String> excludedResources) throws IOException, CompileExceptionError {
+        TimeProfiler.start("WriteArchive");
+
+        writeArchiveData(archiveDataFile, resourcePackDirectory, excludedResources);
+        writeArchiveIndex(archiveIndexFile);
+
+        TimeProfiler.stop();
     }
 
     private void alignBuffer(RandomAccessFile outFile, int align) throws IOException {
@@ -391,7 +484,7 @@ public class ArchiveBuilder {
 
         int archivedEntries = 0;
         String dirpathRootString = dirpathRoot.toString();
-        ArchiveBuilder archiveBuilder = new ArchiveBuilder(dirpathRoot.toString(), manifestBuilder, 4);
+        ArchiveBuilder archiveBuilder = new ArchiveBuilder(dirpathRoot.toString(), manifestBuilder, 4, project);
         archiveBuilder.setForceCompression(doCompress);
         for (File currentInput : inputs) {
             String absolutePath = currentInput.getAbsolutePath();
@@ -414,18 +507,13 @@ public class ArchiveBuilder {
         }
         System.out.println("Added " + Integer.toString(archivedEntries + excludedResources.size()) + " entries to archive (" + Integer.toString(excludedResources.size()) + " entries tagged as 'liveupdate' in archive).");
 
-        RandomAccessFile archiveIndex = new RandomAccessFile(filepathArchiveIndex, "rw");
-        RandomAccessFile archiveData  = new RandomAccessFile(filepathArchiveData, "rw");
-        archiveIndex.setLength(0);
-        archiveData.setLength(0);
-
         Path resourcePackDirectory = Files.createTempDirectory("tmp.defold.resourcepack_");
         FileOutputStream outputStreamManifest = new FileOutputStream(filepathManifest);
         try {
             System.out.println("Writing " + filepathArchiveIndex.getCanonicalPath());
             System.out.println("Writing " + filepathArchiveData.getCanonicalPath());
 
-            archiveBuilder.write(archiveIndex, archiveData, resourcePackDirectory, excludedResources);
+            archiveBuilder.write(filepathArchiveIndex, filepathArchiveData, resourcePackDirectory, excludedResources);
 
             System.out.println("Writing " + filepathManifest.getCanonicalPath());
             byte[] manifestFile = manifestBuilder.buildManifest();
@@ -462,8 +550,6 @@ public class ArchiveBuilder {
         } finally {
             FileUtils.deleteDirectory(resourcePackDirectory.toFile());
             try {
-                archiveIndex.close();
-                archiveData.close();
                 outputStreamManifest.close();
             } catch (IOException exception) {
                 // Nothing to do, moving on ...
