@@ -39,9 +39,6 @@ import java.io.IOException;
 import java.lang.Throwable;
 
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.Callable;
 import java.util.concurrent.Future;
 import java.util.concurrent.Executors;
@@ -109,9 +106,6 @@ public class TaskBuilder {
             return result;
         };
         return callableTask;
-    }
-    private Future<TaskResult> submitTask(final Task task, final IProgress monitor) {
-        return this.executorService.submit(createCallableTask(task, monitor));
     }
 
     private boolean compareAllSignatures(byte[] taskSignature, List<IResource> outputResources) {

@@ -48,8 +48,6 @@ public class TimeProfiler {
      * Helper class that contains profiling data and represents a linked list of scopes hierarchy.
      */
     public static class ProfilingScope {
-        private static long scopeIdCounter = 0;
-        public long id;
         public long startTime;
         public long endTime;
         HashMap<String, String> additionalStringData;
@@ -59,9 +57,7 @@ public class TimeProfiler {
         public ProfilingScope parent;
         public ArrayList<ProfilingScope> children;
 
-        public ProfilingScope() {
-            this.id = scopeIdCounter++;
-        }
+        public ProfilingScope() {}
 
         public void addData(String fieldName, String data) {
             if (additionalStringData == null) {
