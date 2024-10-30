@@ -168,10 +168,10 @@ def install(args):
         distro = get_distro()
 
         call(f'sudo dpkg --add-architecture arm64')
-        call(f'sudo add-apt-repository "deb [arch=arm64] http://archive.ubuntu.com/ubuntu/ {distro} main restricted universe multiverse')
-        call(f'sudo add-apt-repository "deb [arch=arm64] http://archive.ubuntu.com/ubuntu/ {distro}-updates main restricted universe multiverse')
-        call(f'sudo add-apt-repository "deb [arch=arm64] http://archive.ubuntu.com/ubuntu/ {distro}-backports main restricted universe multiverse')
-        call(f'sudo add-apt-repository "deb [arch=arm64] http://archive.ubuntu.com/ubuntu/ {distro}-security main restricted universe multiverse')
+        call(f'sudo add-apt-repository "deb [arch=arm64] http://archive.ubuntu.com/ubuntu/ {distro} main restricted universe multiverse"')
+        call(f'sudo add-apt-repository "deb [arch=arm64] http://archive.ubuntu.com/ubuntu/ {distro}-updates main restricted universe multiverse"')
+        call(f'sudo add-apt-repository "deb [arch=arm64] http://archive.ubuntu.com/ubuntu/ {distro}-backports main restricted universe multiverse"')
+        call(f'sudo add-apt-repository "deb [arch=arm64] http://archive.ubuntu.com/ubuntu/ {distro}-security main restricted universe multiverse"')
 
         packages = [
             "autoconf",
