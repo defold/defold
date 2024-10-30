@@ -3,7 +3,35 @@ FROM ubuntu:20.04
 # Base stuff
 RUN \
   apt-get update && \
-  apt-get install -y software-properties-common
+  apt-get install -y --no-install-recommends \
+    software-properties-common \
+    ca-certificates \
+    curl \
+    dirmngr \
+    gpg-agent
+
+RUN \
+  apt-get update && \
+  install -m 0755 -d /etc/apt/keyrings && \
+  curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc && \
+  chmod a+r /etc/apt/keyrings/docker.asc
+
+
+RUN \
+  echo "*****************" && \
+  echo "Custom /etc/apt/sources.list" && \
+  echo "# custom" > /etc/apt/sources.list && \
+  echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ focal main restricted" >> /etc/apt/sources.list && \
+  echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ focal-updates main restricted" >> /etc/apt/sources.list && \
+  echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ focal universe" >> /etc/apt/sources.list && \
+  echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ focal-updates universe" >> /etc/apt/sources.list && \
+  echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ focal multiverse" >> /etc/apt/sources.list && \
+  echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ focal-updates multiverse" >> /etc/apt/sources.list && \
+  echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ focal-backports main restricted universe multiverse" >> /etc/apt/sources.list && \
+  echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ focal-security main restricted" >> /etc/apt/sources.list && \
+  echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ focal-security universe" >> /etc/apt/sources.list && \
+  echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ focal-security multiverse" >> /etc/apt/sources.list && \
+  echo "*****************"
 
 RUN \
   apt-get update && \
@@ -11,31 +39,16 @@ RUN \
     gcc \
     g++ \
     g++-aarch64-linux-gnu \
-    g++-x86-64-linux-gnu \
     gcc-aarch64-linux-gnu \
-    gcc-i686-linux-gnu \
-    gcc-arm-linux-gnueabi \
-    libssl-dev \
+    g++-x86-64-linux-gnu \
+    gcc-x86-64-linux-gnu \
     openssl \
     libtool \
     autoconf \
-    automake \
-    build-essential \
-    uuid-dev \
-    libxi-dev \
-    libxext-dev \
-    libopenal-dev \
-    libgl1-mesa-dev \
-    libglw1-mesa-dev \
-    freeglut3-dev \
-    libx11-xcb-dev \
-    libxkbcommon-dev \
-    libwayland-dev \
-    libxrandr-dev \
-    # for python+ctypes
-    libffi-dev
+    automake
 
 RUN \
+  apt-get update && \
   apt-get install -y --no-install-recommends \
     tofrodos \
     wget \
@@ -45,6 +58,53 @@ RUN \
     tree \
     silversearcher-ag \
     git
+
+
+RUN \
+  dpkg --add-architecture amd64 && \
+  echo "*****************" && \
+  echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] http://archive.ubuntu.com/ubuntu/ focal main restricted universe multiverse" >> /etc/apt/sources.list.d/docker.list && \
+  echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] http://archive.ubuntu.com/ubuntu/ focal-updates main restricted universe multiverse" >> /etc/apt/sources.list.d/docker.list && \
+  echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] http://archive.ubuntu.com/ubuntu/ focal-backports main restricted universe multiverse" >> /etc/apt/sources.list.d/docker.list && \
+  echo "deb [arch=amd64 signed-by=/etc/apt/keyrings/docker.asc] http://archive.ubuntu.com/ubuntu/ focal-security main restricted universe multiverse" >> /etc/apt/sources.list.d/docker.list && \
+  echo "*****************" && \
+  echo "apt-key" && \
+  apt-key --keyring /etc/apt/keyrings/docker.asc adv --keyserver keyserver.ubuntu.com --recv-keys 0E98404D386FA1D9 6ED0E7B82643E131 605C66F00D6C9793 && \
+  apt-key --keyring /etc/apt/keyrings/docker.asc adv --keyserver keyserver.ubuntu.com --recv-keys 3B4FE6ACC0B21F32 871920D1991BC93C && \
+  echo "*****************" && \
+  echo "apt-get dist-upgrade" && \
+  apt-get dist-upgrade  -y --no-install-recommends && \
+  echo "*****************"
+
+RUN \
+  apt-get update && \
+  apt-get install -y --no-install-recommends \
+    build-essential \
+    libssl-dev \
+    uuid-dev \
+    uuid-dev:amd64 \
+    libxi-dev \
+    libxi-dev:amd64 \
+    libxext-dev \
+    libxext-dev:amd64 \
+    libopenal-dev \
+    libopenal-dev:amd64 \
+    libgl1-mesa-dev \
+    libglw1-mesa-dev \
+    freeglut3-dev \
+    freeglut3-dev:amd64 \
+    libx11-xcb-dev \
+    libx11-xcb-dev:amd64 \
+    libxkbcommon-dev \
+    libxkbcommon-dev:amd64 \
+    libwayland-dev \
+    libwayland-dev:amd64 \
+    libxrandr-dev \
+    libxrandr-dev:amd64 \
+    # for python+ctypes
+    libffi-dev
+
+
 
 #
 # llvm
@@ -60,10 +120,10 @@ RUN \
 ENV PATH=/usr/lib/llvm-${CLANG_VERSION}/bin:$PATH
 ENV LD_LIBRARY_PATH=/usr/lib/llvm-${CLANG_VERSION}/lib:$LD_LIBRARY_PATH
 
-ENV PYENV_ROOT /.pyenv
-ENV PATH $PYENV_ROOT/shims:$PYENV_ROOT/bin:$PATH
+ENV PYENV_ROOT=/.pyenv
+ENV PATH=$PYENV_ROOT/shims:$PYENV_ROOT/bin:$PATH
 
-ENV PYTHON3_VERSION 3.13
+ENV PYTHON3_VERSION=3.13
 
 RUN \
     echo "PYENV" && \
@@ -74,7 +134,7 @@ RUN \
     && pyenv global $PYTHON3_VERSION \
     && pyenv rehash
 
-ENV LC_ALL C.UTF-8
+ENV LC_ALL=C.UTF-8
 
 # Java
 ENV JAVA_HOME=/usr/local/jdk-17.0.13+11
@@ -97,7 +157,7 @@ RUN \
 
 RUN apt-get autoremove
 
-ENV LC_ALL C.UTF-8
+ENV LC_ALL=C.UTF-8
 
 # Add builder user
 RUN  useradd -r -u 2222 builder && \

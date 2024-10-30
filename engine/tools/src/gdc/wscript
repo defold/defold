@@ -6,7 +6,7 @@ def configure(conf):
     pass
 
 def build(bld):
-    graphics_lib = 'GRAPHICS'
+    graphics_lib = 'GRAPHICS OPENGL'
     graphics_adapter = 'GraphicsAdapterOpenGL'
     if waflib.Options.options.with_vulkan:
         graphics_lib = 'GRAPHICS_VULKAN'
