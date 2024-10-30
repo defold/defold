@@ -187,7 +187,7 @@ def install(args):
             "libglw1-mesa-dev",
             "uuid-dev",
         ]
-        aptget(" ".join(packages+lib))
+        aptget(" ".join(packages+libs))
 
         if args.steam_config_b64:
             # for steamcmd
