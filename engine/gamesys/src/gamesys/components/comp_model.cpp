@@ -1410,11 +1410,11 @@ namespace dmGameSystem
                 if (render_item->m_BoneIndex != dmRig::INVALID_BONE_INDEX)
                 {
                     dmRig::BonePose bone_pose = pose[render_item->m_BoneIndex];
-                    model_matrix = dmTransform::ToMatrix4(bone_pose.m_World) * dmTransform::ToMatrix4(render_item->m_Model->m_Local);
+                    model_matrix = dmTransform::ToMatrix4(bone_pose.m_World) * dmTransform::ToMatrix4(render_item->m_Model->m_World);
                 }
                 else
                 {
-                    model_matrix = dmTransform::ToMatrix4(render_item->m_Model->m_Local);
+                    model_matrix = dmTransform::ToMatrix4(render_item->m_Model->m_World);
                 }
 
                 dmVMath::Matrix4 world_matrix     = c->m_World * model_matrix;

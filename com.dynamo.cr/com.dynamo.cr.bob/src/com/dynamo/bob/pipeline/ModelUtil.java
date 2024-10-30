@@ -885,8 +885,8 @@ public class ModelUtil {
         }
 
         modelBuilder.setId(MurmurHash.hash64(node.name)); // the node name is the human readable name (e.g Sword)
-        // need to flatten all meshes of the model
-        modelBuilder.setLocal(toDDFTransform(node.world));
+        modelBuilder.setLocal(toDDFTransform(node.local));
+        modelBuilder.setWorld(toDDFTransform(node.world));
         modelBuilder.setBoneId(MurmurHash.hash64(model.parentBone != null ? model.parentBone.name : ""));
 
         return modelBuilder.build();

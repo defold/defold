@@ -308,7 +308,7 @@
          :renderable-data mesh-renderable-data}))))
 
 (defn- make-renderable-model [model mesh-material-index->material-name]
-  (let [{:keys [translation rotation scale]} (:local model)
+  (let [{:keys [translation rotation scale]} (:world model)
         model-transform (math/clj->mat4 translation rotation scale)
 
         renderable-meshes

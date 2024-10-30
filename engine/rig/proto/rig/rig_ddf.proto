@@ -298,6 +298,7 @@ message Model // E.g. the Node in the Scene
     repeated Mesh               meshes      = 3;
     // If set, then this model should be transformed as a child of the bone
     optional uint64             bone_id     = 4 [default = 0]; // hash of bone id
+    required dmMath.Transform   world       = 5 [(field_align)=true];
 }
 
 message MeshSet
