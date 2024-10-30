@@ -132,6 +132,17 @@ def setup_steam_config(args):
     b64decode_to_file(args.steam_config_b64, steam_config_file)
     print("Wrote config to", steam_config_file)
 
+def get_distro():
+    with open('/etc/lsb-release', "r") as f:
+        lines=f.readlines()
+
+    print('lines1:', lines);
+    lines=[l.strip() for l in lines if l.startswith('DISTRIB_CODENAME')]
+    print('lines2:', lines);
+    if len(lines) > 0:
+        return lines[0].split('=')[1]
+    return None
+
 def install(args):
     # installed tools: https://github.com/actions/virtual-environments/blob/main/images/linux/Ubuntu2004-Readme.md
     system = platform.system()
@@ -154,10 +165,26 @@ def install(args):
         call("sudo update-alternatives --remove-all clang++")
         call("sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-12 120 --slave /usr/bin/clang++ clang++ /usr/bin/clang++-12")
 
+        distro = get_distro()
+
+        call(f'sudo dpkg --add-architecture arm64')
+        call(f'sudo add-apt-repository "deb [arch=arm64] http://archive.ubuntu.com/ubuntu/ {distro} main restricted universe multiverse')
+        call(f'sudo add-apt-repository "deb [arch=arm64] http://archive.ubuntu.com/ubuntu/ {distro}-updates main restricted universe multiverse')
+        call(f'sudo add-apt-repository "deb [arch=arm64] http://archive.ubuntu.com/ubuntu/ {distro}-backports main restricted universe multiverse')
+        call(f'sudo add-apt-repository "deb [arch=arm64] http://archive.ubuntu.com/ubuntu/ {distro}-security main restricted universe multiverse')
+
         packages = [
             "autoconf",
             "automake",
             "build-essential",
+            "lib32z1",
+            "openssl",
+            "tofrodos",
+            "tree",
+            "valgrind",
+            "xvfb"
+        ]
+        libs = [
             "freeglut3-dev",
             "libssl-dev",
             "libtool",
@@ -166,14 +193,11 @@ def install(args):
             "libopenal-dev",
             "libgl1-mesa-dev",
             "libglw1-mesa-dev",
-            "lib32z1",
-            "openssl",
-            "tofrodos",
-            "tree",
-            "valgrind",
             "uuid-dev",
-            "xvfb"
         ]
+        for lib in libs:
+            packages.add(lib)
+            packages.add(lib+':arm64')
         aptget(" ".join(packages))
 
         if args.steam_config_b64:
