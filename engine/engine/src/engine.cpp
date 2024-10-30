@@ -692,7 +692,7 @@ namespace dmEngine
 #endif
         }
 
-        // Set minimul log level
+        // Set minimum log level
         int32_t minimum_log_level = dmConfigFile::GetInt(engine->m_Config, "project.minimum_log_level", LOG_SEVERITY_INFO);
         dmLogSetLevel((LogSeverity)minimum_log_level);
 
