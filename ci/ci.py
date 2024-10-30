@@ -165,14 +165,6 @@ def install(args):
         call("sudo update-alternatives --remove-all clang++")
         call("sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-12 120 --slave /usr/bin/clang++ clang++ /usr/bin/clang++-12")
 
-        distro = get_distro()
-
-        call(f'sudo dpkg --add-architecture arm64')
-        call(f'sudo add-apt-repository "deb [arch=arm64] http://archive.ubuntu.com/ubuntu/ {distro} main restricted universe multiverse"')
-        call(f'sudo add-apt-repository "deb [arch=arm64] http://archive.ubuntu.com/ubuntu/ {distro}-updates main restricted universe multiverse"')
-        call(f'sudo add-apt-repository "deb [arch=arm64] http://archive.ubuntu.com/ubuntu/ {distro}-backports main restricted universe multiverse"')
-        call(f'sudo add-apt-repository "deb [arch=arm64] http://archive.ubuntu.com/ubuntu/ {distro}-security main restricted universe multiverse"')
-
         packages = [
             "autoconf",
             "automake",
@@ -195,10 +187,7 @@ def install(args):
             "libglw1-mesa-dev",
             "uuid-dev",
         ]
-        for lib in libs:
-            packages.add(lib)
-            packages.add(lib+':arm64')
-        aptget(" ".join(packages))
+        aptget(" ".join(packages+lib))
 
         if args.steam_config_b64:
             # for steamcmd
@@ -216,6 +205,20 @@ def install(args):
             ]
             aptget(" ".join(packages))
             setup_steam_config(args)
+
+
+        distro = get_distro()
+
+        call(f'sudo dpkg --add-architecture arm64')
+        call(f'sudo add-apt-repository "deb [arch=arm64] http://archive.ubuntu.com/ubuntu/ {distro} main restricted universe multiverse"')
+        call(f'sudo add-apt-repository "deb [arch=arm64] http://archive.ubuntu.com/ubuntu/ {distro}-updates main restricted universe multiverse"')
+        call(f'sudo add-apt-repository "deb [arch=arm64] http://archive.ubuntu.com/ubuntu/ {distro}-backports main restricted universe multiverse"')
+        call(f'sudo add-apt-repository "deb [arch=arm64] http://archive.ubuntu.com/ubuntu/ {distro}-security main restricted universe multiverse"')
+
+        arm64_packages
+        for lib in libs:
+            arm64_packages.add(lib+':arm64')
+        aptget(" ".join(arm64_packages))
 
     elif system == "Darwin":
         if args.keychain_cert:
