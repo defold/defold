@@ -1,7 +1,6 @@
-script: ""
 textures {
   name: "button_texture"
-  texture: "/main/button.atlas"
+  texture: "/assets/button.atlas"
 }
 nodes {
   size {

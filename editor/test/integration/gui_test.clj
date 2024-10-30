@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns integration.gui-test
-  (:require [clojure.string :as str]
+  (:require [clojure.string :as string]
+            [clojure.string :as str]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
@@ -21,12 +22,15 @@
             [editor.gl.pass :as pass]
             [editor.gui :as gui]
             [editor.handler :as handler]
+            [editor.protobuf :as protobuf]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
+            [internal.util :as util]
             [support.test-support :as test-support]
             [util.coll :refer [pair]]
             [util.fn :as fn])
-  (:import [javax.vecmath Matrix4d Vector3d]))
+  (:import [com.dynamo.gamesys.proto Gui$NodeDesc]
+           [javax.vecmath Matrix4d Vector3d]))
 
 (defn- prop [node-id label]
   (test-util/prop node-id label))
@@ -365,9 +369,9 @@
                   (gui-node gui-node-name)
                   (select-labels labels)))]
 
-      (let [button-gui-resource (workspace/find-resource workspace "/main/button.gui")
-            panel-gui-resource (workspace/find-resource workspace "/main/panel.gui")
-            window-gui-resource (workspace/find-resource workspace "/main/window.gui")
+      (let [button-gui-resource (workspace/find-resource workspace "/gui/template/button.gui")
+            panel-gui-resource (workspace/find-resource workspace "/gui/template/panel.gui")
+            window-gui-resource (workspace/find-resource workspace "/gui/template/window.gui")
             panel-box-props-before (select-gui-node-labels panel-gui-resource "button/box" [:color :layer :texture])
             window-box-props-before (select-gui-node-labels window-gui-resource "panel/button/box" [:color :layer :texture])]
 
@@ -901,3 +905,112 @@
           (is (= [360.0 350.0 0.0] (g/node-value (id-map "box2") :position)))
           (is (= [0.0 -45.0 0.0] (g/node-value (id-map "text1") :position)))
           (is (= [0.0 45.0 0.0] (g/node-value (id-map "text2") :position))))))))
+
+(def ^:private node-desc-text-pb-field-index
+  (some (fn [[pb-field-index pb-field-keyword]]
+          (case pb-field-keyword
+            :text pb-field-index
+            nil))
+        (protobuf/fields-by-indices Gui$NodeDesc)))
+
+(def ^:private template-layout-gui-scene-proj-paths
+  ["/gui/template_layout/button.gui"
+   "/gui/template_layout/button_l.gui"
+   "/gui/template_layout/button_lp.gui"
+   "/gui/template_layout/panel_button.gui"
+   "/gui/template_layout/panel_button_l.gui"
+   "/gui/template_layout/panel_button_lp.gui"
+   "/gui/template_layout/panel_l_button.gui"
+   "/gui/template_layout/panel_l_button_l.gui"
+   "/gui/template_layout/panel_l_button_lp.gui"
+   "/gui/template_layout/panel_lp_button.gui"
+   "/gui/template_layout/panel_lp_button_l.gui"
+   "/gui/template_layout/panel_lp_button_lp.gui"])
+
+(deftest data-unaffected-by-visible-layout
+  (test-util/with-loaded-project "test/resources/gui_project"
+    (let [make-restore-point! #(test-util/make-graph-reverter (project/graph project))]
+
+      (doseq [proj-path template-layout-gui-scene-proj-paths]
+        (testing proj-path
+          (let [scene (project/get-resource-node project proj-path)
+
+                scene-output-permutations
+                (into []
+                      (comp
+                        (map (fn [layout]
+                               (with-open [_ (make-restore-point!)]
+                                 (set-visible-layout! scene layout)
+                                 (g/with-auto-evaluation-context evaluation-context
+                                   (into {}
+                                         (map (fn [output-label]
+                                                (let [output-value (g/valid-node-value scene output-label evaluation-context)]
+                                                  (assert (some? output-value))
+                                                  (pair output-label output-value))))
+                                         [:build-targets :save-value])))))
+                        (distinct))
+                      ["" "Landscape" "Portrait"])]
+
+            (is (= [(first scene-output-permutations)] scene-output-permutations)
+                "Changing the visible layout should not affect the data.")))))))
+
+(defn- clearable-property? [node-id prop-kw]
+  (-> node-id
+      (g/node-value :_properties)
+      (:properties)
+      (get prop-kw)
+      (contains? :original-value)))
+
+(defn- find-node-desc [scene-desc layout-name node-desc-id]
+  {:pre [(map? scene-desc)
+         (string? layout-name)
+         (string? node-desc-id)]}
+  (util/first-where
+    (fn [node-desc]
+      (= node-desc-id (:id node-desc)))
+    (if (string/blank? layout-name)
+      (:nodes scene-desc)
+      (some (fn [layout-desc]
+              (when (= layout-name (:name layout-desc))
+                (:nodes layout-desc)))
+            (:layouts scene-desc)))))
+
+(deftest template-layout-test
+  (test-util/with-loaded-project "test/resources/gui_project"
+    (let [make-restore-point! #(test-util/make-graph-reverter (project/graph project))]
+
+      (with-open [_ (make-restore-point!)]
+        (let [scene (project/get-resource-node project "/gui/template_layout/button_lp.gui")
+              text (get (scene-gui-node-map scene) "text")
+              saved-scene-desc (g/valid-node-value scene :save-value)
+              built-scene-desc (get-in (g/valid-node-value scene :build-targets) [0 :user-data :pb])]
+
+          (set-visible-layout! scene "")
+          (is (not (clearable-property? text :text)))
+          (is (= "button default" (g/node-value text :text)))
+          (let [saved-node-desc (find-node-desc saved-scene-desc "" "text")]
+            (is (= "button default" (:text saved-node-desc)))
+            (is (not (contains? saved-node-desc :overridden-fields))))
+          (let [built-node-desc (find-node-desc built-scene-desc "" "text")]
+            (is (= "button default" (:text built-node-desc)))
+            (is (not (contains? built-node-desc :overridden-fields))))
+
+          (set-visible-layout! scene "Portrait")
+          (is (clearable-property? text :text))
+          (is (= "button portrait" (g/node-value text :text)))
+          (let [saved-node-desc (find-node-desc saved-scene-desc "Portrait" "text")]
+            (is (= "button portrait" (:text saved-node-desc)))
+            (is (= [node-desc-text-pb-field-index] (:overridden-fields saved-node-desc))))
+          (let [built-node-desc (find-node-desc built-scene-desc "Portrait" "text")]
+            (is (= "button portrait" (:text built-node-desc)))
+            #_(is (= [node-desc-text-pb-field-index] (:overridden-fields built-node-desc))))
+
+          (set-visible-layout! scene "Landscape")
+          (is (clearable-property? text :text))
+          (is (= "button landscape" (g/node-value text :text)))
+          (let [saved-node-desc (find-node-desc saved-scene-desc "Landscape" "text")]
+            (is (= "button landscape" (:text saved-node-desc)))
+            (is (= [node-desc-text-pb-field-index] (:overridden-fields saved-node-desc))))
+          (let [built-node-desc (find-node-desc built-scene-desc "Landscape" "text")]
+            (is (= "button landscape" (:text built-node-desc)))
+            #_(is (= [node-desc-text-pb-field-index] (:overridden-fields built-node-desc)))))))))
