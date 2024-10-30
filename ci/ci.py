@@ -165,6 +165,20 @@ def install(args):
         call("sudo update-alternatives --remove-all clang++")
         call("sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-12 120 --slave /usr/bin/clang++ clang++ /usr/bin/clang++-12")
 
+        call('echo "Custom /etc/apt/sources.list"')
+        call('echo "# custom" > /etc/apt/sources.list')
+        call('echo "deb [arch=amd64] http://azure.archive.ubuntu.com/ubuntu focal main restricted" >> /etc/apt/sources.list')
+        call('echo "deb [arch=amd64] http://azure.archive.ubuntu.com/ubuntu focal-updates main restricted" >> /etc/apt/sources.list')
+        call('echo "deb [arch=amd64] http://azure.archive.ubuntu.com/ubuntu focal universe" >> /etc/apt/sources.list')
+        call('echo "deb [arch=amd64] http://azure.archive.ubuntu.com/ubuntu focal-updates universe" >> /etc/apt/sources.list')
+        call('echo "deb [arch=amd64] http://azure.archive.ubuntu.com/ubuntu focal multiverse" >> /etc/apt/sources.list')
+        call('echo "deb [arch=amd64] http://azure.archive.ubuntu.com/ubuntu focal-updates multiverse" >> /etc/apt/sources.list')
+        call('echo "deb [arch=amd64] http://azure.archive.ubuntu.com/ubuntu focal-backports main restricted universe multiverse" >> /etc/apt/sources.list')
+        call('echo "deb [arch=amd64] http://azure.archive.ubuntu.com/ubuntu focal-security main restricted" >> /etc/apt/sources.list')
+        call('echo "deb [arch=amd64] http://azure.archive.ubuntu.com/ubuntu focal-security universe" >> /etc/apt/sources.list')
+        call('echo "deb [arch=amd64] http://azure.archive.ubuntu.com/ubuntu focal-security multiverse" >> /etc/apt/sources.list')
+
+
         packages = [
             "autoconf",
             "automake",
