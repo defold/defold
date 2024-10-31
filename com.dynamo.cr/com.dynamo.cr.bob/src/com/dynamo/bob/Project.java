@@ -243,8 +243,8 @@ public class Project {
             return getDefaultMaxCpuThreads();
         }
         int threads = Integer.parseInt(maxThreadsOpt);
-        if (threads == 0) {
-            threads = java.lang.Math.max(1, Runtime.getRuntime().availableProcessors() - 1);
+        if (threads <= 0) {
+            threads = java.lang.Math.max(1, Runtime.getRuntime().availableProcessors() + threads);
         }
         return threads;
     }
