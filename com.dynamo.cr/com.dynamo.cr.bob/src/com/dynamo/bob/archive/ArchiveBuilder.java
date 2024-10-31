@@ -55,7 +55,6 @@ import com.dynamo.liveupdate.proto.Manifest.ResourceEntryFlag;
 import com.dynamo.bob.archive.publisher.PublisherSettings;
 import com.dynamo.bob.archive.publisher.ZipPublisher;
 import com.dynamo.bob.util.TimeProfiler;
-import com.dynamo.bob.util.TimeProfiler.ProfilingScope;
 
 import net.jpountz.lz4.LZ4Compressor;
 import net.jpountz.lz4.LZ4Factory;
@@ -83,7 +82,6 @@ public class ArchiveBuilder {
     private Project project;
     private ExecutorService executorService;
     private int nThreads;
-    private Map<ArchiveEntry, ProfilingScope> profilingScopeLookup = new HashMap<>();
 
 
     public ArchiveBuilder(String root, ManifestBuilder manifestBuilder, int resourcePadding, Project project) {
@@ -183,8 +181,6 @@ public class ArchiveBuilder {
      */
     private void writeArchiveEntry(RandomAccessFile archiveData, ArchiveEntry entry, Path resourcePackDirectory) throws IOException, CompileExceptionError {
         logger.info("Writing archive entry %s", entry.getFilename());
-        TimeProfiler.start("WriteArchiveEntry");
-        TimeProfiler.addData("res", entry.getFilename());
 
         byte[] buffer = this.loadResourceData(entry.getFilename());
 
@@ -192,7 +188,6 @@ public class ArchiveBuilder {
 
         // compress entry data
         if (entry.isCompressed()) {
-            TimeProfiler.start("Compresss");
             byte[] compressed = this.compressResourceData(buffer);
             if (this.shouldUseCompressedResourceData(buffer, compressed)) {
                 // Note, when forced, the compressed size may be larger than the original size (For unit tests)
@@ -203,27 +198,22 @@ public class ArchiveBuilder {
             } else {
                 entry.setCompressedSize(ArchiveEntry.FLAG_UNCOMPRESSED);
             }
-            TimeProfiler.stop();
         }
 
         // encrypt entry data
         // note: this has to be done after compression
         if (entry.isEncrypted()) {
-            TimeProfiler.start("Encrypt");
             buffer = this.encryptResourceData(buffer);
             resourceEntryFlags |= ResourceEntryFlag.ENCRYPTED.getNumber();
-            TimeProfiler.stop();
         }
 
         // Calculate hash digest value for resource
         String hexDigest = null;
         try {
-            TimeProfiler.start("Hex");
             byte[] hashDigest = ManifestBuilder.CryptographicOperations.hash(buffer, manifestBuilder.getResourceHashAlgorithm());
             entry.setHash(new byte[HASH_MAX_LENGTH]);
             System.arraycopy(hashDigest, 0, entry.getHash(), 0, hashDigest.length);
             hexDigest = ManifestBuilder.CryptographicOperations.hexdigest(hashDigest);
-            TimeProfiler.stop();
         } catch (NoSuchAlgorithmException exception) {
             throw new IOException("Unable to create a Resource Pack, the hashing algorithm is not supported!");
         }
@@ -234,7 +224,6 @@ public class ArchiveBuilder {
         }
 
         // Write resource to resource pack or data archive
-        TimeProfiler.start("Write");
         if (entry.isExcluded()) {
             writeResourcePack(entry, resourcePackDirectory.toString(), buffer);
             resourceEntryFlags |= ResourceEntryFlag.EXCLUDED.getNumber();
@@ -247,18 +236,10 @@ public class ArchiveBuilder {
             }
             resourceEntryFlags |= ResourceEntryFlag.BUNDLED.getNumber();
         }
-        TimeProfiler.stop();
 
         // Add entry to manifest
         String normalisedPath = FilenameUtils.separatorsToUnix(entry.getRelativeFilename());
         manifestBuilder.addResourceEntry(normalisedPath, buffer, entry.getSize(), entry.getCompressedSize(), resourceEntryFlags);
-
-        // store the profiling scope for later when merging timings to main thread
-        synchronized (profilingScopeLookup) {
-            profilingScopeLookup.put(entry, TimeProfiler.getCurrentScope());
-        }
-
-        TimeProfiler.stop();
     }
 
     /**
@@ -370,12 +351,9 @@ public class ArchiveBuilder {
         }
 
         // wait for all tasks to finish
-        // merge their profiling results with the main thread timings
         try {
             for (Future<ArchiveEntry> future : futures) {
                 ArchiveEntry entry = future.get();
-                ProfilingScope scope = profilingScopeLookup.get(entry);
-                TimeProfiler.addScopeToCurrentThread(scope);
             }
         }
         catch (Exception e) {
