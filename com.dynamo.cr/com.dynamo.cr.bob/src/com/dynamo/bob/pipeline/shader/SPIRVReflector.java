@@ -35,11 +35,12 @@ public class SPIRVReflector {
     }
 
     public class Resource {
-        public String name;
-        public String type;
-        public int    binding;
-        public int    set;
-        public int    blockSize;
+        public String  name;
+        public String  type;
+        public int     binding;
+        public int     set;
+        public Integer blockSize;
+        public Integer textureIndex;
     }
 
     public class ResourceType {
@@ -161,7 +162,6 @@ public class SPIRVReflector {
                 res.type         = textureNode.get("type").asText();
                 res.binding      = textureNode.get("binding").asInt();
                 res.set          = textureNode.get("set").asInt();
-                res.blockSize    = 0;
                 textures.add(res);
             }
         }

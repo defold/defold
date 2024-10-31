@@ -1120,20 +1120,23 @@ Macros currently mean no foreseeable performance gain, however."
         parser
         pb->map-without-defaults)))
 
-(defn- enum-values-raw [^Class cls]
-  (let [^Method values-method (java/get-declared-method cls "values" [])
-        values (.invoke values-method nil (object-array 0))]
-    (mapv (fn [^ProtocolMessageEnum value]
-            [(pb-enum->val value)
-             {:display-name (-> (.getValueDescriptor value) (.getOptions) (.getExtension DdfExtensions/displayName))}])
-          values)))
+(defn- protocol-message-enums-raw [^Class enum-class]
+  (vec (java/invoke-no-arg-class-method enum-class "values")))
+
+(def protocol-message-enums (fn/memoize protocol-message-enums-raw))
+
+(defn- enum-values-raw [^Class enum-class]
+  (mapv (fn [^ProtocolMessageEnum value]
+          (pair (pb-enum->val value)
+                {:display-name (-> (.getValueDescriptor value) (.getOptions) (.getExtension DdfExtensions/displayName))}))
+        (protocol-message-enums enum-class)))
 
 (def enum-values (fn/memoize enum-values-raw))
 
-(defn- valid-enum-values-raw [^Class cls]
+(defn- valid-enum-values-raw [^Class enum-class]
   (into (sorted-set)
-        (map first)
-        (enum-values cls)))
+        (map pb-enum->val)
+        (protocol-message-enums enum-class)))
 
 (def valid-enum-values (fn/memoize valid-enum-values-raw))
 

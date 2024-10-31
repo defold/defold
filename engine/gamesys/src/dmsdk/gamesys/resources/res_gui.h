@@ -17,7 +17,6 @@
 
 #include <dmsdk/dlib/array.h>
 #include <dmsdk/dlib/hashtable.h>
-#include <dmsdk/render/render.h>
 #include <dmsdk/gui/gui.h>
 
 #include <gamesys/gui_ddf.h>
@@ -32,6 +31,7 @@ namespace dmParticle
 namespace dmGameSystem
 {
     struct MaterialResource;
+    struct FontResource;
 
     struct GuiSceneTextureSetResource
     {
@@ -43,7 +43,7 @@ namespace dmGameSystem
     {
         dmGuiDDF::SceneDesc*                m_SceneDesc;
         dmGui::HScript                      m_Script;
-        dmArray<dmRender::HFontMap>         m_FontMaps;
+        dmArray<FontResource*>              m_Fonts;
         dmArray<dmhash_t>                   m_FontMapPaths;
         dmArray<GuiSceneTextureSetResource> m_GuiTextureSets;
         dmArray<dmParticle::HPrototype>     m_ParticlePrototypes;

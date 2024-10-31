@@ -19,8 +19,18 @@ message Cubemap
 
 enum CoordinateSpace
 {
-    COORDINATE_SPACE_WORLD = 1;
-    COORDINATE_SPACE_LOCAL = 2;
+    // Used when building the default "manufactured" attributes.
+    // This setting mean that we use the vertex coordinate system setting
+    // from the material (in case of models).
+    COORDINATE_SPACE_DEFAULT = 0;
+    COORDINATE_SPACE_WORLD   = 1;
+    COORDINATE_SPACE_LOCAL   = 2;
+}
+
+enum VertexStepFunction
+{
+    VERTEX_STEP_FUNCTION_VERTEX   = 0;
+    VERTEX_STEP_FUNCTION_INSTANCE = 1;
 }
 
 message VertexAttribute
@@ -36,15 +46,28 @@ message VertexAttribute
         TYPE_FLOAT            = 7;
     }
 
+    enum VectorType
+    {
+        VECTOR_TYPE_SCALAR = 1;
+        VECTOR_TYPE_VEC2   = 2;
+        VECTOR_TYPE_VEC3   = 3;
+        VECTOR_TYPE_VEC4   = 4;
+        VECTOR_TYPE_MAT2   = 5;
+        VECTOR_TYPE_MAT3   = 6;
+        VECTOR_TYPE_MAT4   = 7;
+    }
+
     enum SemanticType
     {
-        SEMANTIC_TYPE_NONE       = 1;
-        SEMANTIC_TYPE_POSITION   = 2;
-        SEMANTIC_TYPE_TEXCOORD   = 3;
-        SEMANTIC_TYPE_PAGE_INDEX = 4;
-        SEMANTIC_TYPE_COLOR      = 5;
-        SEMANTIC_TYPE_NORMAL     = 6;
-        SEMANTIC_TYPE_TANGENT    = 7;
+        SEMANTIC_TYPE_NONE          = 1;
+        SEMANTIC_TYPE_POSITION      = 2;
+        SEMANTIC_TYPE_TEXCOORD      = 3;
+        SEMANTIC_TYPE_PAGE_INDEX    = 4;
+        SEMANTIC_TYPE_COLOR         = 5;
+        SEMANTIC_TYPE_NORMAL        = 6;
+        SEMANTIC_TYPE_TANGENT       = 7;
+        SEMANTIC_TYPE_WORLD_MATRIX  = 8;
+        SEMANTIC_TYPE_NORMAL_MATRIX = 9;
     }
 
     message LongValues
@@ -60,10 +83,12 @@ message VertexAttribute
     required string          name             = 1;
     optional uint64          name_hash        = 2 [(runtime_only) = true];
     optional SemanticType    semantic_type    = 3 [default = SEMANTIC_TYPE_NONE];
-    optional int32           element_count    = 4 [default = 0];
+    optional int32           element_count    = 4 [default = 0]; // Deprecated
     optional bool            normalize        = 5 [default = false];
     optional DataType        data_type        = 6 [default = TYPE_FLOAT];
     optional CoordinateSpace coordinate_space = 7 [default = COORDINATE_SPACE_LOCAL];
+    optional VertexStepFunction step_function = 11 [default = VERTEX_STEP_FUNCTION_VERTEX];
+    optional VectorType vector_type           = 12 [default = VECTOR_TYPE_VEC4];
 
     // Note: Add a channel field here for identifying a semantic "channel", i.e a second UV set
 
@@ -254,6 +279,7 @@ message ShaderDesc
         LANGUAGE_PSSL       = 6; // Playstation
         LANGUAGE_GLSL_SM430 = 7; // OpenGL 4.3+ compatible
         LANGUAGE_GLSL_SM330 = 8; // OpenGL 3.3 (used for macos)
+        LANGUAGE_WGSL       = 9; // WebGPU
     }
 
     enum ShaderType
@@ -291,8 +317,9 @@ message ShaderDesc
         SHADER_TYPE_UIMAGE2D          = 21;
         SHADER_TYPE_IMAGE2D           = 22;
         SHADER_TYPE_SAMPLER           = 23;
-
         SHADER_TYPE_STORAGE_BUFFER    = 24;
+        SHADER_TYPE_TEXTURE2D_ARRAY   = 25;
+        SHADER_TYPE_TEXTURE_CUBE      = 26;
     }
 
     message ResourceType
@@ -331,7 +358,18 @@ message ShaderDesc
         required ResourceType   type          = 3;
         optional uint32         set           = 4;
         optional uint32         binding       = 5;
-        optional uint32         block_size    = 6;
+
+        oneof BindingInfo
+        {
+            // Uniform buffer block size
+            uint32 block_size = 6;
+            // Sampler object index
+            // Since we split combined samplers into
+            // a texture + sampler object we need to
+            // keep track of which of the textures
+            // the sampler originally is pointing to.
+            uint32 sampler_texture_index = 7;
+        }
     }
 
     message ShaderReflection

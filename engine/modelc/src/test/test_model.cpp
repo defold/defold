@@ -53,7 +53,7 @@ static dmModelImporter::Scene* LoadScene(const char* path, dmModelImporter::Opti
 
     if (dmModelImporter::NeedsResolve(scene))
     {
-        for (uint32_t i = 0; i < scene->m_BuffersCount; ++i)
+        for (uint32_t i = 0; i < scene->m_Buffers.Size(); ++i)
         {
             if (scene->m_Buffers[i].m_Buffer)
                 continue;
@@ -112,14 +112,14 @@ TEST(ModelGLTF, LoadSkeleton)
     dmModelImporter::Scene* scene = dmModelImporter::LoadFromBuffer(&options, suffix, mem, file_size);
 
     ASSERT_NE((void*)0, scene);
-    ASSERT_EQ(1, scene->m_SkinsCount);
+    ASSERT_EQ(1, scene->m_Skins.Size());
 
     dmModelImporter::Skin* skin = &scene->m_Skins[0];
-    ASSERT_EQ(46, skin->m_BonesCount);
+    ASSERT_EQ(46, skin->m_Bones.Size());
 
-    // The first bone is generated, and doesn't have a node
+    // The first bone is generated
     uint32_t num_root_bones = 1; // Since we're skipping the first root node
-    for (uint32_t i = 1; i < skin->m_BonesCount; ++i)
+    for (uint32_t i = 1; i < skin->m_Bones.Size(); ++i)
     {
         dmModelImporter::Bone* bone = &skin->m_Bones[i];
         ASSERT_STREQ(bone->m_Name, bone->m_Node->m_Name);
@@ -152,8 +152,8 @@ TEST(ModelGLTF, VertexColor3Float)
     dmModelImporter::Mesh* mesh = &scene->m_Models[0].m_Meshes[0];
     uint32_t vcount = mesh->m_VertexCount;
     ASSERT_EQ(4112, vcount);
-    ASSERT_EQ(1.0, mesh->m_Color[vcount*4-1]); // vN.a == 1.0f
-    ASSERT_EQ(1.0, mesh->m_Color[3]); // v0.a == 1.0f
+    ASSERT_EQ(1.0, mesh->m_Colors[vcount*4-1]); // vN.a == 1.0f
+    ASSERT_EQ(1.0, mesh->m_Colors[3]); // v0.a == 1.0f
     dmModelImporter::DestroyScene(scene);
     free(mem);
 }
@@ -164,15 +164,69 @@ TEST(ModelGLTF, ExternalBuffer)
     dmModelImporter::Options options;
     dmModelImporter::Scene* scene = LoadScene(path, options);
 
-    ASSERT_EQ(1, scene->m_BuffersCount);
+    ASSERT_EQ(1, scene->m_Buffers.Size());
     ASSERT_STREQ("simpleTriangle.bin", scene->m_Buffers[0].m_Uri);
 
-    ASSERT_EQ(1, scene->m_NodesCount);
-    ASSERT_EQ(1, scene->m_ModelsCount);
+    ASSERT_EQ(1, scene->m_Nodes.Size());
+    ASSERT_EQ(1, scene->m_Models.Size());
 
     dmModelImporter::Mesh* mesh = &scene->m_Models[0].m_Meshes[0];
     uint32_t vcount = mesh->m_VertexCount;
     ASSERT_EQ(3, vcount);
+
+    dmModelImporter::DestroyScene(scene);
+}
+
+static void CheckChildren(dmModelImporter::Node* n, uint32_t num_children, const char** child_names)
+{
+    ASSERT_EQ(num_children, n->m_Children.Size());
+
+    for (uint32_t i = 0; i < num_children; ++i)
+    {
+        dmModelImporter::Node* child = n->m_Children[i];
+        ASSERT_STREQ(child_names[i], child->m_Name);
+    }
+}
+
+TEST(ModelGLTF, GeneratedBone01)
+{
+    const char* path = "./src/test/assets/generatedbone01.glb";
+    dmModelImporter::Options options;
+    dmModelImporter::Scene* scene = LoadScene(path, options);
+
+    ASSERT_EQ(5, scene->m_Nodes.Size());
+    ASSERT_EQ(1, scene->m_Models.Size());
+    ASSERT_EQ(1, scene->m_RootNodes.Size());
+
+    ASSERT_STREQ("cube", scene->m_RootNodes[0]->m_Name);
+    ASSERT_EQ(3, scene->m_RootNodes[0]->m_Children.Size());
+
+    {
+        const char* names[] = {
+            "Cube",
+            "root1",
+            "root2"
+        };
+        CheckChildren(scene->m_RootNodes[0], 3, names);
+    }
+
+    ASSERT_STREQ("Cube", scene->m_Models[0].m_Name);
+
+    ASSERT_STREQ("root1", scene->m_Nodes[0].m_Name);
+    ASSERT_STREQ("root2", scene->m_Nodes[1].m_Name);
+    ASSERT_STREQ("Cube", scene->m_Nodes[2].m_Name);
+    ASSERT_STREQ("cube", scene->m_Nodes[3].m_Name);
+    ASSERT_STREQ("_generated_node_4", scene->m_Nodes[4].m_Name);
+
+    ASSERT_EQ(1, scene->m_Skins.Size());
+
+    dmModelImporter::Skin* skin = &scene->m_Skins[0];
+    ASSERT_STREQ("cube", skin->m_Name);
+
+    ASSERT_EQ(3, skin->m_Bones.Size());
+    ASSERT_STREQ("_generated_root", skin->m_Bones[0].m_Name);
+    ASSERT_STREQ("root1", skin->m_Bones[1].m_Name);
+    ASSERT_STREQ("root2", skin->m_Bones[2].m_Name);
 
     dmModelImporter::DestroyScene(scene);
 }
@@ -192,10 +246,10 @@ TEST(ModelCrashtest, FindSkinCrash)
     dmModelImporter::Scene* scene = TestLoading("./src/test/assets/findskin/findskin_crash.glb");
     ASSERT_NE((dmModelImporter::Scene*)0, scene);
 
-    ASSERT_EQ(1, scene->m_BuffersCount);
+    ASSERT_EQ(1, scene->m_Buffers.Size());
     ASSERT_STREQ("buffer_0", scene->m_Buffers[0].m_Uri);
 
-    ASSERT_EQ(1, scene->m_SkinsCount);
+    ASSERT_EQ(1, scene->m_Skins.Size());
     ASSERT_STREQ("skin_0", scene->m_Skins[0].m_Name);
 
     dmModelImporter::DestroyScene(scene);
@@ -207,17 +261,17 @@ TEST(ModelSkinnedTopNodes, MultipleModels)
     dmModelImporter::Scene* scene = TestLoading("./src/test/assets/kay/Knight.glb");
     ASSERT_NE((dmModelImporter::Scene*)0, scene);
 
-    ASSERT_EQ(1, scene->m_SkinsCount);
+    ASSERT_EQ(1, scene->m_Skins.Size());
     ASSERT_STREQ("Rig", scene->m_Skins[0].m_Name);
 
-    ASSERT_EQ(57, scene->m_NodesCount);
-    ASSERT_EQ(1, scene->m_RootNodesCount);
+    ASSERT_EQ(57, scene->m_Nodes.Size());
+    ASSERT_EQ(1, scene->m_RootNodes.Size());
     ASSERT_STREQ("Rig", scene->m_RootNodes[0]->m_Name);
 
-    ASSERT_EQ(15, scene->m_ModelsCount);
+    ASSERT_EQ(15, scene->m_Models.Size());
 
     uint32_t num_non_skinned_models = 0;
-    for (uint32_t i = 0; i < scene->m_ModelsCount; ++i)
+    for (uint32_t i = 0; i < scene->m_Models.Size(); ++i)
     {
         dmModelImporter::Model* model = &scene->m_Models[i];
         if (model->m_ParentBone)

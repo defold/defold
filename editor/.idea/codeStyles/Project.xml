@@ -13,6 +13,7 @@
           <entry key="clojure.core/assoc!" value="1" />
           <entry key="clojure.core/defmulti" value="-1" />
           <entry key="clojure.core/defonce" value="-1" />
+          <entry key="clojure.core/vector-of" value="-1" />
           <entry key="clojure.test/are" value="-1" />
           <entry key="dev/run-with-progress" value="-1" />
           <entry key="dynamo.graph/make-nodes" value="-1" />
@@ -47,6 +48,7 @@
           <entry key="editor.handler/register-dynamic!" value="-1" />
           <entry key="editor.handler/register-menu!" value="-1" />
           <entry key="editor.lsp.async/with-auto-evaluation-context" value="-1" />
+          <entry key="editor.prefs-test/with-schemas" value="-1" />
           <entry key="editor.protobuf/assign" value="1" />
           <entry key="editor.protobuf/assign-repeated" value="1" />
           <entry key="editor.protobuf/clear-defaults" value="1" />

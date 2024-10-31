@@ -44,6 +44,7 @@ namespace dmPlatform
         PLATFORM_GRAPHICS_API_OPENGL = 1,
         PLATFORM_GRAPHICS_API_VULKAN = 2,
         PLATFORM_GRAPHICS_API_VENDOR = 3,
+        PLATFORM_GRAPHICS_API_WEBGPU = 4,
     };
 
     enum DeviceState

@@ -574,12 +574,18 @@
             pb-map (protobuf/make-map-without-defaults Font$FontMap
                      :material material
                      :glyph-bank (:resource glyph-bank-build-target)
+                     :size (:size font-map)
+                     :antialias (:antialias font-map)
                      :shadow-x (:shadow-x font-map)
                      :shadow-y (:shadow-y font-map)
+                     :shadow-blur (:shadow-blur font-map)
+                     :shadow-alpha (:shadow-alpha font-map)
                      :alpha (:alpha font-map)
                      :outline-alpha (:outline-alpha font-map)
-                     :shadow-alpha (:shadow-alpha font-map)
-                     :layer-mask (:layer-mask font-map))]
+                     :outline-width (:outline-width font-map)
+                     :layer-mask (:layer-mask font-map)
+                     :output-format (:output-format font-map)
+                     :render-mode (:render-mode font-map))]
         [(pipeline/make-protobuf-build-target _node-id resource Font$FontMap pb-map dep-build-targets+glyph-bank)])))
 
 (g/defnode FontSourceNode

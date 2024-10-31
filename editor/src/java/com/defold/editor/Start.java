@@ -30,6 +30,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.bridge.SLF4JBridgeHandler;
 
+import java.io.IOException;
 import java.lang.SecurityException;
 import java.awt.Desktop;
 import java.io.File;
@@ -164,12 +165,12 @@ public class Start extends Application {
         System.exit(0);
     }
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws IOException {
         initializeLogging();
         Start.launch(args);
     }
 
-    private static void initializeLogging() {
+    private static void initializeLogging() throws IOException {
         Path logDirectory = Editor.getLogDirectory();
         ch.qos.logback.classic.Logger root = (ch.qos.logback.classic.Logger) LoggerFactory.getLogger(Logger.ROOT_LOGGER_NAME);
         SLF4JBridgeHandler.removeHandlersForRootLogger();

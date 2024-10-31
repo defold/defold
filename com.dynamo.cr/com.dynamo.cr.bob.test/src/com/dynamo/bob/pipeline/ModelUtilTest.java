@@ -205,21 +205,21 @@ public class ModelUtilTest {
         }
     }
 
-   ModelImporter.Scene loadScene(String path) {
+   Modelimporter.Scene loadScene(String path) {
         try {
             File cwd = new File(".");
-            return ModelUtil.loadScene(getClass().getResourceAsStream(path), path, new ModelImporter.Options(), new ModelImporter.FileDataResolver(cwd));
+            return ModelUtil.loadScene(getClass().getResourceAsStream(path), path, new Modelimporter.Options(), new ModelImporterJni.FileDataResolver(cwd));
         } catch (IOException e) {
             e.printStackTrace();
             return null;
         }
     }
 
-    private ModelImporter.Scene loadBuiltScene(String path,
+    private Modelimporter.Scene loadBuiltScene(String path,
                                          Rig.MeshSet.Builder meshSetBuilder,
                                          Rig.AnimationSet.Builder animSetBuilder,
                                          Rig.Skeleton.Builder skeletonBuilder) {
-        ModelImporter.Scene scene = loadScene(path);
+        Modelimporter.Scene scene = loadScene(path);
         if (scene != null)
         {
             ModelUtil.loadModels(scene, meshSetBuilder);
@@ -231,16 +231,16 @@ public class ModelUtilTest {
         return scene;
     }
 
-    private ModelImporter.Scene loadBuiltScene(String path,
+    private Modelimporter.Scene loadBuiltScene(String path,
                                          Rig.MeshSet.Builder meshSetBuilder) {
-        ModelImporter.Scene scene = loadScene(path);
+        Modelimporter.Scene scene = loadScene(path);
         ModelUtil.loadModels(scene, meshSetBuilder);
         return scene;
     }
 
-    private ModelImporter.Scene loadBuiltScene(String path,
+    private Modelimporter.Scene loadBuiltScene(String path,
                                          Rig.Skeleton.Builder skeletonBuilder) {
-        ModelImporter.Scene scene = loadScene(path);
+        Modelimporter.Scene scene = loadScene(path);
         ModelUtil.loadSkeleton(scene, skeletonBuilder);
         return scene;
     }
@@ -287,7 +287,7 @@ public class ModelUtilTest {
         Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
         Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
-        ModelImporter.Scene scene = loadBuiltScene("bend2bones.gltf", meshSetBuilder, animSetBuilder, skeletonBuilder);
+        Modelimporter.Scene scene = loadBuiltScene("bend2bones.gltf", meshSetBuilder, animSetBuilder, skeletonBuilder);
 
         Rig.Mesh mesh = meshSetBuilder.getModels(0).getMeshes(0);
 
@@ -327,7 +327,7 @@ public class ModelUtilTest {
         String[] parentIds = {null,   "root", "Middle"};
 
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
-        ModelImporter.Scene scene = loadBuiltScene("bend2bones.gltf", skeletonBuilder);
+        Modelimporter.Scene scene = loadBuiltScene("bend2bones.gltf", skeletonBuilder);
 
         List<Rig.Bone> bones = skeletonBuilder.getBonesList();
         assertEquals(boneIds.length, bones.size());
@@ -479,7 +479,7 @@ public class ModelUtilTest {
         Rig.MeshSet.Builder meshSetBuilder = Rig.MeshSet.newBuilder();
         Rig.AnimationSet.Builder animSetBuilder = Rig.AnimationSet.newBuilder();
         Rig.Skeleton.Builder skeletonBuilder = Rig.Skeleton.newBuilder();
-        ModelImporter.Scene scene = loadBuiltScene("broken.gltf", meshSetBuilder, animSetBuilder, skeletonBuilder);
+        Modelimporter.Scene scene = loadBuiltScene("broken.gltf", meshSetBuilder, animSetBuilder, skeletonBuilder);
         assertTrue(scene == null);
     }
 }

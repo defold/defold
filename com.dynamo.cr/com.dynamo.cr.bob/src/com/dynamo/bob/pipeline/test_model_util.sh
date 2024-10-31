@@ -35,6 +35,7 @@ PACKAGE_CLASS=com.dynamo.bob.pipeline.$CLASS_NAME
 JAR=${DYNAMO_HOME}/share/java/bob-light.jar
 
 #JNI_DEBUG_FLAGS="-Xcheck:jni"
+#export DYLD_INSERT_LIBRARIES=${JAVA_HOME}/lib/libjsig.dylib
 
 echo "java.library.path ${MODELC_BUILD_DIR}"
 echo "Running jar:" $JAR

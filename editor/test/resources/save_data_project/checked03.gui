@@ -1,4 +1,3 @@
-script: ""
 fonts {
   name: "first_font"
   font: "/checked.font"

@@ -15,12 +15,13 @@
 (ns editor.buffers
   (:require [util.num :as num])
   (:import [com.google.protobuf ByteString]
-           [java.nio Buffer ByteBuffer ByteOrder DoubleBuffer FloatBuffer IntBuffer LongBuffer ShortBuffer]))
+           [java.nio Buffer ByteBuffer ByteOrder DoubleBuffer FloatBuffer IntBuffer LongBuffer ShortBuffer]
+           [java.nio.charset StandardCharsets]))
 
 (set! *warn-on-reflection* true)
 
 (defn slurp-bytes
-  [^ByteBuffer buff]
+  ^bytes [^ByteBuffer buff]
   (let [buff (.duplicate buff)
         n (.remaining buff)
         bytes (byte-array n)]
@@ -29,12 +30,16 @@
 
 (defn alias-buf-bytes
   "Avoids copy if possible."
-  [^ByteBuffer buff]
+  ^bytes [^ByteBuffer buff]
   (if (and (.hasArray buff) (= (.remaining buff) (alength (.array buff))))
     (.array buff)
     (slurp-bytes buff)))
 
-(defn bbuf->string [^ByteBuffer bb] (String. ^bytes (alias-buf-bytes bb) "UTF-8"))
+(defn bbuf->string
+  (^String [^ByteBuffer bb]
+   (String. (alias-buf-bytes bb) StandardCharsets/UTF_8))
+  (^String [^ByteBuffer bb ^long offset ^long length]
+   (String. (alias-buf-bytes bb) offset length StandardCharsets/UTF_8)))
 
 (defprotocol ByteStringCoding
   (byte-pack [source] "Return a Protocol Buffer compatible ByteString from the given source."))

@@ -280,7 +280,7 @@ namespace dmGameSystem
      * @param from [type:vector3] the world position of the start of the ray
      * @param to [type:vector3] the world position of the end of the ray
      * @param groups [type:table] a lua table containing the hashed groups for which to test collisions against
-     * @param [request_id] [type:number] a number between [0,-255]. It will be sent back in the response for identification, 0 by default
+     * @param [request_id] [type:number] a number in range [0,255]. It will be sent back in the response for identification, 0 by default
      * @examples
      *
      * How to perform a ray cast asynchronously:
@@ -1561,24 +1561,26 @@ namespace dmGameSystem
      *   if event == hash("contact_point_event") then
      *     pprint(data)
      *     -- {
-     *     --  distance = 0.0714111328125,
-     *     --  applied_impulse = 310.00769042969,
-     *     --  a = {
-     *     --      position = vmath.vector3(446, 371, 0),
-     *     --      relative_velocity = vmath.vector3(1.1722083854693e-06, -20.667181015015, -0),
-     *     --      mass = 0,
-     *     --      group = hash: [default],
-     *     --      id = hash: [/flat],
-     *     --      normal = vmath.vector3(-0, -1, -0)
+     *     --  distance = 2.1490633487701,
+     *     --  applied_impulse = 0
+     *     --  a = { --[[0x113f7c6c0]]
+     *     --    group = hash: [box],
+     *     --    id = hash: [/box]
+     *     --    mass = 0,
+     *     --    normal = vmath.vector3(0.379, 0.925, -0),
+     *     --    position = vmath.vector3(517.337, 235.068, 0),
+     *     --    instance_position = vmath.vector3(480, 144, 0),
+     *     --    relative_velocity = vmath.vector3(-0, -0, -0),
      *     --  },
-     *     --  b = {
-     *     --      position = vmath.vector3(185, 657.92858886719, 0),
-     *     --      relative_velocity = vmath.vector3(-1.1722083854693e-06, 20.667181015015, 0),
-     *     --      mass = 10,
-     *     --      group = hash: [default],
-     *     --      id = hash: [/go2],
-     *     --      normal = vmath.vector3(0, 1, 0)
-     *     --  }
+     *     --  b = { --[[0x113f7c840]]
+     *     --    group = hash: [circle],
+     *     --    id = hash: [/circle]
+     *     --    mass = 0,
+     *     --    normal = vmath.vector3(-0.379, -0.925, 0),
+     *     --    position = vmath.vector3(517.337, 235.068, 0),
+     *     --    instance_position = vmath.vector3(-0.0021, 0, -0.0022),
+     *     --    relative_velocity = vmath.vector3(0, 0, 0),
+     *     --  },
      *     -- }
      *   elseif event == hash("collision_event") then
      *     pprint(data)

@@ -34,7 +34,6 @@ namespace dmGraphics
     const static uint8_t DM_MAX_TEXTURE_UNITS          = 32;
     const static uint8_t DM_RENDERTARGET_BACKBUFFER_ID = 0;
     const static uint8_t DM_MAX_FRAMES_IN_FLIGHT       = 2; // In flight frames - number of concurrent frames being processed
-    const static uint8_t MAX_VERTEX_BUFFERS            = 2;
 
     enum VulkanResourceType
     {
@@ -399,6 +398,7 @@ namespace dmGraphics
         HRenderTarget                   m_CurrentRenderTarget;
         DeviceBuffer*                   m_CurrentVertexBuffer[MAX_VERTEX_BUFFERS];
         VertexDeclaration*              m_CurrentVertexDeclaration[MAX_VERTEX_BUFFERS];
+        uint32_t                        m_CurrentVertexBufferOffset[MAX_VERTEX_BUFFERS];
         StorageBufferBinding            m_CurrentStorageBuffers[MAX_STORAGE_BUFFERS];
         Program*                        m_CurrentProgram;
         Pipeline*                       m_CurrentPipeline;

@@ -46,7 +46,7 @@
 
   Performs file IO"
   [prefs]
-  (if-let [prefs-path (not-empty (prefs/get-prefs prefs "adb-path" nil))]
+  (if-let [prefs-path (not-empty (prefs/get prefs [:tools :adb-path]))]
     (or (fs/existing-path prefs-path)
         (throw (ex-info (str "ADB path defined in preferences does not exist: '" prefs-path "'")
                         {:path prefs-path})))

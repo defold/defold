@@ -75,6 +75,8 @@ def platform_supports_feature(platform, feature, data):
         return platform not in ['js-web', 'wasm-web', 'x86_64-ios']
     if feature == 'opengl_compute':
         return platform not in ['js-web', 'wasm-web', 'x86_64-ios', 'arm64-ios', 'arm64-macos', 'x86_64-macos']
+    if feature == 'webgpu':
+        return platform in ['js-web', 'wasm-web']
     return waf_dynamo_vendor.supports_feature(platform, feature, data)
 
 def platform_setup_tools(ctx, build_util):
@@ -489,6 +491,11 @@ def default_flags(self):
             'MIN_FIREFOX_VERSION=34',
             'MIN_SAFARI_VERSION=90000',
             'MIN_CHROME_VERSION=32']
+
+        if Options.options.with_webgpu and platform_supports_feature(build_util.get_target_platform(), 'webgpu', {}):
+            emflags_link += ['USE_WEBGPU', 'GL_WORKAROUND_SAFARI_GETCONTEXT_BUG=0']
+            # This is needed so long as we have to use sleep to make initialization blocking
+            emflags_link += ['ASYNCIFY', 'ASYNCIFY_ADVISE', 'ASYNCIFY_IGNORE_INDIRECT', 'ASYNCIFY_ADD=["main", "dmEngineCreate(int, char**)"]' ]
 
         if 'wasm' == build_util.get_target_architecture():
             emflags_link += ['WASM=1', 'ALLOW_MEMORY_GROWTH=1']
@@ -1519,7 +1526,9 @@ def remove_flag(arr, flag, nargs):
         remove_flag_at_index(arr, index, nargs+1)
 
 def detect(conf):
-    conf.find_program('valgrind', var='VALGRIND', mandatory = False)
+    if Options.options.with_valgrind:
+        conf.find_program('valgrind', var='VALGRIND', mandatory = False)
+
     conf.find_program('ccache', var='CCACHE', mandatory = False)
 
     if Options.options.with_iwyu:
@@ -1538,8 +1547,8 @@ def detect(conf):
     if platform in ('x86_64-linux', 'x86_64-win32', 'x86_64-macos', 'arm64-macos'):
         conf.env['IS_TARGET_DESKTOP'] = 'true'
 
-    if platform in ('js-web', 'wasm-web') and not conf.env['NODEJS']:
-        conf.find_program('node', var='NODEJS', mandatory = False)
+    if host_platform in ('x86_64-linux', 'x86_64-win32', 'x86_64-macos', 'arm64-macos'):
+        conf.env['IS_HOST_DESKTOP'] = 'true'
 
     try:
         build_util = create_build_utility(conf.env)
@@ -1549,6 +1558,7 @@ def detect(conf):
     dynamo_home = build_util.get_dynamo_home()
     conf.env['DYNAMO_HOME'] = dynamo_home
 
+    # these may be the same if we're building the host tools
     sdkinfo = sdk.get_sdk_info(SDK_ROOT, build_util.get_target_platform())
     sdkinfo_host = sdk.get_sdk_info(SDK_ROOT, host_platform)
 
@@ -1721,20 +1731,44 @@ def detect(conf):
     remove_flag(conf.env['shlib_CXXFLAGS'], '-compatibility_version', 1)
     remove_flag(conf.env['shlib_CXXFLAGS'], '-current_version', 1)
 
+    # Needed for api generation
+    if conf.env.IS_HOST_DESKTOP:
+        if not 'CLANG' in conf.env:
+            conf.find_program('clang',   var='CLANG', mandatory = True)
+            os.environ['CLANG'] = conf.env.CLANG[0]
+        if not 'CLANGPP' in conf.env:
+            conf.find_program('clang++', var='CLANGPP', mandatory = True)
+            os.environ['CLANGPP'] = conf.env.CLANGPP[0]
+
     # NOTE: We override after check_tool. Otherwise waf gets confused and CXX_NAME etc are missing..
     if platform in ('js-web', 'wasm-web'):
-        bin = os.environ.get('EMSCRIPTEN')
-        if None == bin:
-            conf.fatal('EMSCRIPTEN environment variable does not exist')
-        conf.env['EMSCRIPTEN'] = bin
-        conf.env['CC'] = '%s/emcc' % (bin)
-        conf.env['CXX'] = '%s/em++' % (bin)
-        conf.env['LINK_CC'] = '%s/emcc' % (bin)
-        conf.env['LINK_CXX'] = '%s/em++' % (bin)
-        conf.env['CPP'] = '%s/em++' % (bin)
-        conf.env['AR'] = '%s/emar' % (bin)
-        conf.env['RANLIB'] = '%s/emranlib' % (bin)
-        conf.env['LD'] = '%s/emcc' % (bin)
+        emsdk = sdkinfo['emsdk']['path']
+
+        if emsdk is None:
+            conf.fatal('EMSDK environment variable not found.')
+
+        if not conf.env['NODEJS']:
+            emsdk_node = sdkinfo['emsdk']['node']
+            path_list = None
+            if emsdk_node is not None and os.path.exists(emsdk_node):
+                path_list = [os.path.dirname(emsdk_node)]
+            conf.find_program('node', var='NODEJS', mandatory = False, path_list = path_list)
+
+        bin_dir = os.path.join(emsdk, 'upstream', 'emscripten')
+
+        conf.env['EMSCRIPTEN'] = bin_dir
+        conf.env['EMSDK'] = emsdk # let's use the actual install dir if we wish to use other tools
+        conf.env['EM_CACHE'] = sdkinfo['emsdk']['cache']
+        conf.env['EM_CONFIG'] = sdkinfo['emsdk']['config']
+
+        conf.env['CC'] = f'{bin_dir}/emcc'
+        conf.env['CXX'] = f'{bin_dir}/em++'
+        conf.env['LINK_CC'] = f'{bin_dir}/emcc'
+        conf.env['LINK_CXX'] = f'{bin_dir}/em++'
+        conf.env['CPP'] = f'{bin_dir}/em++'
+        conf.env['AR'] = f'{bin_dir}/emar'
+        conf.env['RANLIB'] = f'{bin_dir}/emranlib'
+        conf.env['LD'] = f'{bin_dir}/emcc'
         conf.env['cprogram_PATTERN']='%s.js'
         conf.env['cxxprogram_PATTERN']='%s.js'
 
@@ -1849,6 +1883,7 @@ def detect(conf):
 
     conf.env['STLIB_GRAPHICS']          = ['graphics', 'graphics_transcoder_basisu', 'basis_transcoder']
     conf.env['STLIB_GRAPHICS_VULKAN']   = ['graphics_vulkan', 'graphics_transcoder_basisu', 'basis_transcoder']
+    conf.env['STLIB_GRAPHICS_WEBGPU']   = ['graphics_webgpu', 'graphics_transcoder_basisu', 'basis_transcoder']
     conf.env['STLIB_GRAPHICS_NULL']     = ['graphics_null', 'graphics_transcoder_null']
 
     conf.env['STLIB_PLATFORM']        = ['platform']
@@ -1911,8 +1946,12 @@ def detect(conf):
             conf.env['LIBPATH_JDK'] = os.path.join(os.environ['JAVA_HOME'], 'lib')
             conf.env['DEFINES_JDK'] = ['DM_HAS_JDK']
 
-            conf.env['LIB_JNI'] = ['jni']
-            conf.env['LIB_JNI_NOASAN'] = ['jni_noasan']
+            # if the jdk doesn't have the jni.h
+            jni_path = os.path.join(conf.env['INCLUDES_JDK'][0], 'jni.h')
+            if not os.path.exists(jni_path):
+                Logs.error("JAVA_HOME=%s" % os.environ['JAVA_HOME'])
+                Logs.error("Failed to find jni.h at %s" % jni_path)
+                sys.exit(1)
 
     conf.load('waf_csharp')
 
@@ -1953,3 +1992,4 @@ def options(opt):
     opt.add_option('--with-valgrind', action='store_true', default=False, dest='with_valgrind', help='Enables usage of valgrind')
     opt.add_option('--with-vulkan', action='store_true', default=False, dest='with_vulkan', help='Enables Vulkan as graphics backend')
     opt.add_option('--with-vulkan-validation', action='store_true', default=False, dest='with_vulkan_validation', help='Enables Vulkan validation layers (on osx and ios)')
+    opt.add_option('--with-webgpu', action='store_true', default=False, dest='with_webgpu', help='Enables WebGPU as graphics backend')

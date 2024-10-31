@@ -191,3 +191,11 @@ All releases can be downloaded at: https://github.com/defold/defold/releases
 Official forum thread with complete update notes: https://forum.defold.com/t/defold-1-4-1-has-been-released/72246
 ```
 
+1. Announce the Stable release in other channels:
+
+* Twitter (https://x.com/defold)
+* LinkedIn (https://www.linkedin.com/company/53400322/admin/page-posts/published/?share=true)
+* Discord (usually done by Amel)
+* Telegram (usually done by Alexey)
+* WebGameDev Discord Native Engines channel (https://discord.com/channels/1032873609280106566/1052862658954670120)
+* Poki Discord (https://discord.com/channels/466173880751357963/940949540012433488)
