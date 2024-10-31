@@ -96,7 +96,7 @@ public class TaskBuilder {
         }
 
         this.nThreads = project.getMaxCpuThreads();
-        logger.info("Creating a fixed thread pool executor with %d threads", this.nThreads);
+        logger.info("Creating task builder with a fixed thread pool executor using up to %d threads", this.nThreads);
         this.executorService = Executors.newFixedThreadPool(this.nThreads);
     }
 

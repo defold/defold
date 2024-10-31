@@ -324,7 +324,7 @@ public class ArchiveBuilder {
 
         // create the executor service to write entries in parallel
         int nThreads = project.getMaxCpuThreads();
-        logger.fine("Creating a fixed thread pool executor with %d threads", nThreads);
+        logger.info("Creating archive data with a fixed thread pool executor using %d threads", nThreads);
         this.executorService = Executors.newFixedThreadPool(nThreads);
         
         RandomAccessFile archiveData = new RandomAccessFile(archiveDataFile, "rw");
