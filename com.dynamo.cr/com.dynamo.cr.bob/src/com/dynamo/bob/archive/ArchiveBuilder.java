@@ -180,7 +180,7 @@ public class ArchiveBuilder {
      * stored if the entry is to be excluded from the archive
      */
     private void writeArchiveEntry(RandomAccessFile archiveData, ArchiveEntry entry, Path resourcePackDirectory) throws IOException, CompileExceptionError {
-        logger.info("Writing archive entry %s", entry.getFilename());
+        logger.fine("Writing archive entry %s", entry.getFilename());
 
         byte[] buffer = this.loadResourceData(entry.getFilename());
 
@@ -324,7 +324,7 @@ public class ArchiveBuilder {
 
         // create the executor service to write entries in parallel
         int nThreads = project.getMaxCpuThreads();
-        logger.info("Creating a fixed thread pool executor with %d threads", nThreads);
+        logger.fine("Creating a fixed thread pool executor with %d threads", nThreads);
         this.executorService = Executors.newFixedThreadPool(nThreads);
         
         RandomAccessFile archiveData = new RandomAccessFile(archiveDataFile, "rw");
