@@ -244,7 +244,7 @@ public class Project {
         }
         int threads = Integer.parseInt(maxThreadsOpt);
         if (threads == 0) {
-            threads = Runtime.getRuntime().availableProcessors();
+            threads = java.lang.Math.max(1, Runtime.getRuntime().availableProcessors() - 1);
         }
         return threads;
     }
