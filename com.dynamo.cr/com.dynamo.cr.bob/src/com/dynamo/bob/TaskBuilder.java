@@ -305,18 +305,19 @@ public class TaskBuilder {
                 List<Future<TaskResult>> futures = this.executorService.invokeAll(tasksToSubmit);
                 for (Future<TaskResult> future : futures) {
                     TaskResult result = future.get();
+                    Task task = result.getTask();
+
                     // should the task be retried again?
                     // this can happen if running out of memory while building
                     if (result.getResult() == Result.RETRY) {
                         retryAnyTask = true;
                         if (maxConcurrentHighMemoryTasks > 1) {
                             maxConcurrentHighMemoryTasks--;
-                            logger.info("Task must be retried. Reducing number of concurrent high memory tasks to %d", maxConcurrentHighMemoryTasks);
+                            logger.warning("Task '%s' (%s) must be retried. Reducing number of concurrent high memory tasks to %d", task.getName(), task.getInputsString(), maxConcurrentHighMemoryTasks);
                         }
                         continue;
                     }
 
-                    Task task = result.getTask();
                     results.add(result);
                     if (result.isOk()) {
                         ProfilingScope taskScope = profilingScopeLookup.get(result);
@@ -334,7 +335,7 @@ public class TaskBuilder {
                     }
                     else {
                         state.removeSignatures(task.getOutputs());
-                        logger.info("Task failed: " + task.getName() + " " + task.getInputsString());
+                        logger.severe("Task '%s' (%s) failed", task.getName(), task.getInputsString());
                         abort = true;
                         break;
                     }
