@@ -1721,7 +1721,8 @@ public class Project {
     @SuppressWarnings({ "rawtypes", "unchecked" })
     private List<TaskResult> runTasks(IProgress monitor) throws IOException, CompileExceptionError {
 
-        // TextureGenerator.maxThreads = getMaxCpuThreads();
+        // tasks are now built in parallel which means that we no longer want
+        // individual textures to be generated using more than one thread
         TextureGenerator.maxThreads = 1;
 
         TaskBuilder taskBuilder = new TaskBuilder(getTasks(), this);
