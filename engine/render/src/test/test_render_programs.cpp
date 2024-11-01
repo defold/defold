@@ -131,10 +131,12 @@ TEST_F(dmRenderMaterialTest, TestMaterialConstants)
     // test setting constant
     dmGraphics::HProgram program = dmRender::GetMaterialProgram(material);
     dmGraphics::EnableProgram(m_GraphicsContext, program);
-    dmGraphics::HUniformLocation tint_loc = dmGraphics::GetUniformLocation(program, "tint");
-    ASSERT_EQ(0, tint_loc);
+
+    const dmGraphics::Uniform* tint = dmGraphics::GetUniform(program, dmHashString64("tint"));
+
+    ASSERT_EQ(0, tint->m_Location);
     dmRender::ApplyNamedConstantBuffer(m_RenderContext, material, ro.m_ConstantBuffer);
-    const Vector4& v = dmGraphics::GetConstantV4Ptr(m_GraphicsContext, tint_loc);
+    const Vector4& v = dmGraphics::GetConstantV4Ptr(m_GraphicsContext, tint->m_Location);
     ASSERT_EQ(1.0f, v.getX());
     ASSERT_EQ(0.0f, v.getY());
     ASSERT_EQ(0.0f, v.getZ());
@@ -470,11 +472,12 @@ TEST_F(dmRenderMaterialTest, TestMaterialConstantsOverride)
 
     // using the null graphics device, constant locations are assumed to be in declaration order.
     // test setting constant, no override material
-    dmGraphics::HUniformLocation tint_loc = dmGraphics::GetUniformLocation(program, "tint");
-    ASSERT_EQ(0, tint_loc);
+    const dmGraphics::Uniform* tint = dmGraphics::GetUniform(program, dmHashString64("tint"));
+
+    ASSERT_EQ(0, tint->m_Location);
     dmGraphics::EnableProgram(m_GraphicsContext, program);
     dmRender::ApplyNamedConstantBuffer(m_RenderContext, material, ro.m_ConstantBuffer);
-    const Vector4& v = dmGraphics::GetConstantV4Ptr(m_GraphicsContext, tint_loc);
+    const Vector4& v = dmGraphics::GetConstantV4Ptr(m_GraphicsContext, tint->m_Location);
     ASSERT_EQ(1.0f, v.getX());
     ASSERT_EQ(0.0f, v.getY());
     ASSERT_EQ(0.0f, v.getZ());
@@ -484,12 +487,13 @@ TEST_F(dmRenderMaterialTest, TestMaterialConstantsOverride)
     test_v = Vector4(2.0f, 1.0f, 1.0f, 1.0f);
     dmRender::ClearNamedConstantBuffer(constants);
     dmRender::SetNamedConstant(constants, dmHashString64("tint"), &test_v, 1);
-    dmGraphics::HUniformLocation tint_loc_ovr = dmGraphics::GetUniformLocation(program_ovr, "tint");
-    ASSERT_EQ(1, tint_loc_ovr);
+    const dmGraphics::Uniform* tint_ovr = dmGraphics::GetUniform(program_ovr, dmHashString64("tint"));
+
+    ASSERT_EQ(1, tint_ovr->m_Location);
     dmGraphics::EnableProgram(m_GraphicsContext, program_ovr);
     dmRender::ApplyNamedConstantBuffer(m_RenderContext, material_ovr, ro.m_ConstantBuffer);
 
-    const Vector4& v_ovr = dmGraphics::GetConstantV4Ptr(m_GraphicsContext, tint_loc_ovr);
+    const Vector4& v_ovr = dmGraphics::GetConstantV4Ptr(m_GraphicsContext, tint_ovr->m_Location);
     ASSERT_EQ(2.0f, v_ovr.getX());
     ASSERT_EQ(1.0f, v_ovr.getY());
     ASSERT_EQ(1.0f, v_ovr.getZ());
@@ -557,16 +561,16 @@ TEST_F(dmRenderComputeTest, TestComputeConstants)
     dmGraphics::HProgram program = dmRender::GetComputeProgram(compute_program);
     dmGraphics::EnableProgram(m_GraphicsContext, program);
 
-    dmGraphics::HUniformLocation tint_loc_a = dmGraphics::GetUniformLocation(program, "tint_a");
-    ASSERT_NE(dmGraphics::INVALID_UNIFORM_LOCATION, tint_loc_a);
+    const dmGraphics::Uniform* tint_loc_a = dmGraphics::GetUniform(program, dmHashString64("tint_a"));
+    ASSERT_NE(dmGraphics::INVALID_UNIFORM_LOCATION, tint_loc_a->m_Location);
 
-    dmGraphics::HUniformLocation tint_loc_b = dmGraphics::GetUniformLocation(program, "tint_b");
-    ASSERT_NE(dmGraphics::INVALID_UNIFORM_LOCATION, tint_loc_b);
+    const dmGraphics::Uniform* tint_loc_b = dmGraphics::GetUniform(program, dmHashString64("tint_b"));
+    ASSERT_NE(dmGraphics::INVALID_UNIFORM_LOCATION, tint_loc_b->m_Location);
 
     dmRender::ApplyNamedConstantBuffer(m_RenderContext, compute_program, constants);
 
     {
-        const Vector4& v = dmGraphics::GetConstantV4Ptr(m_GraphicsContext, tint_loc_a);
+        const Vector4& v = dmGraphics::GetConstantV4Ptr(m_GraphicsContext, tint_loc_a->m_Location);
         ASSERT_EQ(1.0f, v.getX());
         ASSERT_EQ(0.0f, v.getY());
         ASSERT_EQ(0.0f, v.getZ());
@@ -574,7 +578,7 @@ TEST_F(dmRenderComputeTest, TestComputeConstants)
     }
 
     {
-        const Vector4& v = dmGraphics::GetConstantV4Ptr(m_GraphicsContext, tint_loc_b);
+        const Vector4& v = dmGraphics::GetConstantV4Ptr(m_GraphicsContext, tint_loc_b->m_Location);
         ASSERT_EQ(0.0f, v.getX());
         ASSERT_EQ(1.0f, v.getY());
         ASSERT_EQ(0.0f, v.getZ());
