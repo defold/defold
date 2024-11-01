@@ -21,6 +21,7 @@ import java.io.File;
 import java.io.IOException;
 import java.io.FileNotFoundException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.util.List;
@@ -43,56 +44,6 @@ public class Exec {
         public byte[] stdOutErr;
     }
 
-    /**
-     * Wraps a process builder and redirects stdout (and stderr) to a file.
-     */
-    private static class RedirectedProcessBuilder { 
-        private static Logger logger = Logger.getLogger(RedirectedProcessBuilder.class.getName());
-
-        private File stdoutFile;
-        private ProcessBuilder processBuilder;
-
-        public RedirectedProcessBuilder(String... command) throws IOException, FileNotFoundException {
-            processBuilder = new ProcessBuilder(command);
-            stdoutFile = File.createTempFile("exec", null);
-            FileOutputStream outputStream = new FileOutputStream(stdoutFile);
-            processBuilder.redirectErrorStream(true);
-
-            Platform platform = Platform.getHostPlatform();
-            if (platform == Platform.X86Win32 || platform == Platform.X86_64Win32) {
-                // On Windows `exe` files often require vcruntime140_1.dll and vcruntime140.dll
-                // these files are available in jdk/bin folder
-                // see https://github.com/defold/defold/issues/8277#issuecomment-1836823183
-                String path = System.getenv("PATH");
-                String javaHome = System.getProperty("java.home");
-                String binPath = javaHome + File.separator + "bin";
-                path = binPath + ";" + path;
-                processBuilder.environment().put("PATH", path);
-            }
-        }
-
-        public Map<String,String> environment() {
-            return processBuilder.environment();
-        }
-
-        public RedirectedProcessBuilder directory(File directory) {
-            processBuilder.directory(directory);
-            return this;
-        }
-
-        public File getStdoutFile() {
-            return stdoutFile;
-        }
-
-        public InputStream getInputStream() throws FileNotFoundException {
-            return new FileInputStream(stdoutFile);
-        }
-
-        public Process start() throws IOException {
-            return processBuilder.start();
-        }
-    }
-
     private static int getVerbosity() {
         if (verbosity == null)
             return 0;
@@ -103,36 +54,58 @@ public class Exec {
         }
     }
 
-    private static int startAndWaitForProcessBuilder(RedirectedProcessBuilder pb) throws IOException {
+    private static int startAndWaitForProcessBuilder(ProcessBuilder pb, OutputStream os) throws IOException {
         Process p = pb.start();
+
         int ret = 127;
-        try {
-            InputStream is = pb.getInputStream();
-            while (p.isAlive()) {
+        if (os != null) {
+            InputStream is = p.getInputStream();
+            while (p.isAlive() || is.available() > 0) {
                 byte[] bytes = is.readNBytes(1024);
                 if (bytes.length > 0) {
-                    logger.info(new String(bytes));
+                    os.write(bytes);
                 }
             }
-            ret = p.waitFor();
+            ret = p.exitValue();
             is.close();
-        } catch (InterruptedException e) {
-            logger.severe("Unexpected interruption", e);
+            os.flush();
+        }
+        else {
+            try {
+                ret = p.waitFor();
+            }
+            catch (InterruptedException e) {
+                e.printStackTrace();
+            }
         }
         return ret;
     }
-    private static Result startAndWaitForProcessBuilderResult(RedirectedProcessBuilder pb) throws IOException {
-        int ret = startAndWaitForProcessBuilder(pb);
-        byte[] out = Files.readAllBytes(pb.getStdoutFile().toPath());
-        return new Result(ret, out);
+    private static Result startAndWaitForProcessBuilderResult(ProcessBuilder pb) throws IOException {
+        ByteArrayOutputStream baos = new ByteArrayOutputStream(10 * 1024);
+        int ret = startAndWaitForProcessBuilder(pb, baos);
+        return new Result(ret, baos.toByteArray());
     }
 
-    private static RedirectedProcessBuilder createProcessBuilder(String[] args) throws IOException {
+    private static ProcessBuilder createProcessBuilder(String... args) throws IOException {
         if (getVerbosity() >= 2) {
             logger.info("CMD: " + String.join(" ", args));
         }
-        RedirectedProcessBuilder pb = new RedirectedProcessBuilder(args);
-        return pb;
+
+        ProcessBuilder processBuilder = new ProcessBuilder(args);
+        processBuilder.redirectErrorStream(true);
+
+        Platform platform = Platform.getHostPlatform();
+        if (platform == Platform.X86Win32 || platform == Platform.X86_64Win32) {
+            // On Windows `exe` files often require vcruntime140_1.dll and vcruntime140.dll
+            // these files are available in jdk/bin folder
+            // see https://github.com/defold/defold/issues/8277#issuecomment-1836823183
+            String path = System.getenv("PATH");
+            String javaHome = System.getProperty("java.home");
+            String binPath = javaHome + File.separator + "bin";
+            path = binPath + ";" + path;
+            processBuilder.environment().put("PATH", path);
+        }
+        return processBuilder;
     }
 
     /**
@@ -142,8 +115,8 @@ public class Exec {
      * @throws IOException
      */
     public static int exec(String... args) throws IOException {
-        RedirectedProcessBuilder pb = createProcessBuilder(args);
-        return startAndWaitForProcessBuilder(pb);
+        ProcessBuilder pb = createProcessBuilder(args);
+        return startAndWaitForProcessBuilder(pb, null);
     }
 
     /**
@@ -153,7 +126,7 @@ public class Exec {
      * @throws IOException
      */
     public static Result execResult(String... args) throws IOException {
-        RedirectedProcessBuilder pb = createProcessBuilder(args);
+        ProcessBuilder pb = createProcessBuilder(args);
         return startAndWaitForProcessBuilderResult(pb);
     }
 
@@ -165,7 +138,7 @@ public class Exec {
      * @throws IOException
      */
     public static Result execResultWithEnvironment(Map<String, String> env, String... args) throws IOException {
-        RedirectedProcessBuilder pb = createProcessBuilder(args);
+        ProcessBuilder pb = createProcessBuilder(args);
         pb.environment().putAll(env);
         return startAndWaitForProcessBuilderResult(pb);
     }
@@ -179,7 +152,7 @@ public class Exec {
      * @throws IOException
      */
     public static Result execResultWithEnvironmentWorkDir(Map<String, String> env, File workDir, String... args) throws IOException {
-        RedirectedProcessBuilder pb = createProcessBuilder(args);
+        ProcessBuilder pb = createProcessBuilder(args);
         pb.environment().putAll(env);
         pb.directory(workDir);
         return startAndWaitForProcessBuilderResult(pb);
@@ -194,7 +167,7 @@ public class Exec {
     public static Result execResultWithEnvironment(Map<String, String> env, List<String> args) throws IOException {
         String[] array = new String[args.size()];
         array = args.toArray(array);
-        RedirectedProcessBuilder pb = createProcessBuilder(array);
+        ProcessBuilder pb = createProcessBuilder(array);
         pb.environment().putAll(env);
         return startAndWaitForProcessBuilderResult(pb);
     }
