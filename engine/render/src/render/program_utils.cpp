@@ -52,7 +52,6 @@ namespace dmRender
     {
         uint32_t constants_count = 0;
         uint32_t samplers_count  = 0;
-        int32_t value_count      = 0;
 
         for (uint32_t i = 0; i < total_constants_count; ++i)
         {
@@ -87,21 +86,15 @@ namespace dmRender
         *samplers_count_out = samplers_count;
     }
 
-    void FillElementIds(char* buffer, uint32_t buffer_size, dmhash_t element_ids[4])
+    void FillElementIds(const char* name, char* buffer, uint32_t buffer_size, dmhash_t element_ids[4])
     {
-        size_t original_size = strlen(buffer);
-        dmStrlCat(buffer, ".x", buffer_size);
+        dmSnPrintf(buffer, buffer_size, "%s.x", name);
         element_ids[0] = dmHashString64(buffer);
-        buffer[original_size] = 0;
-        dmStrlCat(buffer, ".y", buffer_size);
+        dmSnPrintf(buffer, buffer_size, "%s.y", name);
         element_ids[1] = dmHashString64(buffer);
-        buffer[original_size] = 0;
-        dmStrlCat(buffer, ".z", buffer_size);
+        dmSnPrintf(buffer, buffer_size, "%s.z", name);
         element_ids[2] = dmHashString64(buffer);
-        buffer[original_size] = 0;
-        dmStrlCat(buffer, ".w", buffer_size);
-        element_ids[3] = dmHashString64(buffer);
-        buffer[original_size] = 0;
+        dmSnPrintf(buffer, buffer_size, "%s.w", name);
     }
 
     int32_t GetProgramSamplerIndex(const dmArray<Sampler>& samplers, dmhash_t name_hash)
@@ -232,10 +225,8 @@ namespace dmRender
 
     void SetProgramConstantValues(dmGraphics::HContext graphics_context, dmGraphics::HProgram program, uint32_t total_constants_count, dmHashTable64<dmGraphics::HUniformLocation>& name_hash_to_location, dmArray<RenderConstant>& constants, dmArray<Sampler>& samplers)
     {
-        dmGraphics::Type type;
         const uint32_t buffer_size = 128;
         char buffer[buffer_size];
-        int32_t num_values = 0;
 
         uint32_t default_values_capacity = 0;
         dmVMath::Vector4* default_values = 0;
@@ -338,7 +329,7 @@ namespace dmRender
 
                 if (uniform_desc.m_Type == dmGraphics::TYPE_FLOAT_VEC4)
                 {
-                    FillElementIds(buffer, buffer_size, constant.m_ElementIds);
+                    FillElementIds(uniform_desc.m_Name, buffer, buffer_size, constant.m_ElementIds);
                 }
                 else
                 {
