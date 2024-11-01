@@ -270,9 +270,9 @@ public class ComponentsCounter {
         return replaceExt(path);
     }
 
-    public static void countComponentsInEmbededObjects(Project project, IResource res, Storage compStorage) throws IOException, CompileExceptionError {
+    public static void countComponentsInEmbededObjects(Project project, IResource input, byte[] inputContent, Storage compStorage) throws IOException, CompileExceptionError {
         PrototypeDesc.Builder prot = PrototypeDesc.newBuilder();
-        ProtoUtil.merge(res, prot);
+        ProtoUtil.merge(input, inputContent, prot);
 
         for (EmbeddedComponentDesc cd : prot.getEmbeddedComponentsList()) {
             String type = cd.getType();
