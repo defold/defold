@@ -224,11 +224,12 @@ namespace dmGraphics
     }
 
     // Test only functions:
-    void     ResetDrawCount();
-    uint64_t GetDrawCount();
-    void     GetTextureFilters(HContext context, uint32_t unit, TextureFilter& min_filter, TextureFilter& mag_filter);
-    void     EnableVertexDeclaration(HContext _context, HVertexDeclaration vertex_declaration, uint32_t binding_index);
-    void     SetOverrideShaderLanguage(HContext context, ShaderDesc::ShaderType shader_class, ShaderDesc::Language language);
+    void             ResetDrawCount();
+    uint64_t         GetDrawCount();
+    void             GetTextureFilters(HContext context, uint32_t unit, TextureFilter& min_filter, TextureFilter& mag_filter);
+    void             EnableVertexDeclaration(HContext _context, HVertexDeclaration vertex_declaration, uint32_t binding_index);
+    void             SetOverrideShaderLanguage(HContext context, ShaderDesc::ShaderType shader_class, ShaderDesc::Language language);
+    const Uniform*   GetUniform(HProgram prog, dmhash_t name_hash);
 }
 
 #endif // #ifndef DM_GRAPHICS_PRIVATE_H

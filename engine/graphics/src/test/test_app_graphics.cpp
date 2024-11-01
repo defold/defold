@@ -377,6 +377,22 @@ struct SubPassTest : ITest
     }
 };
 
+static dmGraphics::HUniformLocation GetUniformLocation(dmGraphics::HProgram program, const char* name)
+{
+    dmhash_t hash = dmHashString64(name);
+    for (int i = 0; i < dmGraphics::GetUniformCount(program); ++i)
+    {
+        dmGraphics::Uniform uniform;
+        dmGraphics::GetUniform(program, i, &uniform);
+
+        if (uniform.m_NameHash == hash)
+        {
+            return uniform.m_Location;
+        }
+    }
+    return dmGraphics::INVALID_UNIFORM_LOCATION;
+}
+
 struct ComputeTest : ITest
 {
     dmGraphics::HProgram         m_Program;
@@ -410,7 +426,7 @@ struct ComputeTest : ITest
 
         m_Program = dmGraphics::NewProgram(engine->m_GraphicsContext, compute_program);
 
-        m_UniformLoc = dmGraphics::GetUniformLocation(m_Program, "buf");
+        m_UniformLoc = GetUniformLocation(m_Program, "buf");
     }
 
     void Execute(EngineCtx* engine) override
@@ -500,7 +516,7 @@ struct StorageBufferTest : ITest
         dmGraphics::EnableVertexBuffer(engine->m_GraphicsContext, m_VertexBuffer, 0);
         dmGraphics::EnableVertexDeclaration(engine->m_GraphicsContext, m_VertexDeclaration, 0, 0, m_Program);
 
-        dmGraphics::HUniformLocation loc = dmGraphics::GetUniformLocation(m_Program, "Test");
+        dmGraphics::HUniformLocation loc = GetUniformLocation(m_Program, "Test");
         dmGraphics::VulkanSetStorageBuffer(engine->m_GraphicsContext, m_StorageBuffer, 0, 0, loc);
 
         dmGraphics::Draw(engine->m_GraphicsContext, dmGraphics::PRIMITIVE_TRIANGLES, 0, 6, 1);

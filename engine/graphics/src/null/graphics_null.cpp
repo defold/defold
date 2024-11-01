@@ -737,12 +737,8 @@ namespace dmGraphics
 
     struct ShaderBinding
     {
-        ShaderBinding() : m_Name(0) {};
-        char*    m_Name;
-        uint32_t m_Index;
-        uint32_t m_Size;
+        Uniform  m_Uniform;
         uint32_t m_Stride;
-        Type     m_Type;
     };
 
     struct ShaderProgram
@@ -762,13 +758,15 @@ namespace dmGraphics
 
         ShaderBinding binding;
         name_length++;
-        binding.m_Name   = new char[name_length];
-        binding.m_Index  = binding_array->Size();
-        binding.m_Type   = type;
-        binding.m_Size   = size;
-        binding.m_Stride = GetTypeSize(type);
+        binding.m_Uniform.m_Name     = new char[name_length];
+        binding.m_Uniform.m_Type     = type;
+        binding.m_Uniform.m_Count    = size;
+        binding.m_Uniform.m_Location = binding_array->Size();
+        binding.m_Stride             = GetTypeSize(type);
 
-        dmStrlCpy(binding.m_Name, name, name_length);
+        dmStrlCpy(binding.m_Uniform.m_Name, name, name_length);
+        binding.m_Uniform.m_NameHash = dmHashString64(binding.m_Uniform.m_Name);
+
         binding_array->Push(binding);
     }
 
@@ -811,7 +809,7 @@ namespace dmGraphics
         {
             for (int i = 0; i < p->m_Uniforms.Size(); ++i)
             {
-                PushBinding(&m_Uniforms, p->m_Uniforms[i].m_Name, strlen(p->m_Uniforms[i].m_Name), p->m_Uniforms[i].m_Type, p->m_Uniforms[i].m_Size);
+                PushBinding(&m_Uniforms, p->m_Uniforms[i].m_Uniform.m_Name, strlen(p->m_Uniforms[i].m_Uniform.m_Name), p->m_Uniforms[i].m_Uniform.m_Type, p->m_Uniforms[i].m_Uniform.m_Count);
             }
         }
 
@@ -819,16 +817,16 @@ namespace dmGraphics
         {
             for (int i = 0; i < p->m_Attributes.Size(); ++i)
             {
-                PushBinding(&m_Attributes, p->m_Attributes[i].m_Name, strlen(p->m_Attributes[i].m_Name), p->m_Attributes[i].m_Type, p->m_Attributes[i].m_Size);
+                PushBinding(&m_Attributes, p->m_Attributes[i].m_Uniform.m_Name, strlen(p->m_Attributes[i].m_Uniform.m_Name), p->m_Attributes[i].m_Uniform.m_Type, p->m_Attributes[i].m_Uniform.m_Count);
             }
         }
 
         ~Program()
         {
             for(uint32_t i = 0; i < m_Uniforms.Size(); ++i)
-                delete[] m_Uniforms[i].m_Name;
+                delete[] m_Uniforms[i].m_Uniform.m_Name;
             for(uint32_t i = 0; i < m_Attributes.Size(); ++i)
-                delete[] m_Attributes[i].m_Name;
+                delete[] m_Attributes[i].m_Uniform.m_Name;
         }
 
         ShaderDesc::Language   m_Language;
@@ -868,6 +866,8 @@ namespace dmGraphics
         for (int i = 0; i < reflection->m_UniformBuffers.m_Count; ++i)
         {
             ShaderDesc::ResourceBinding& res = reflection->m_UniformBuffers[i];
+
+            // TODO: Use the same setup as vulkan here with the binding iterator
 
             if (res.m_Type.m_UseTypeIndex)
             {
@@ -914,7 +914,7 @@ namespace dmGraphics
         ShaderProgram* p = (ShaderProgram*) prog;
         delete [] (char*)p->m_Data;
         for(uint32_t i = 0; i < p->m_Uniforms.Size(); ++i)
-            delete[] p->m_Uniforms[i].m_Name;
+            delete[] p->m_Uniforms[i].m_Uniform.m_Name;
         delete p;
     }
 
@@ -991,7 +991,7 @@ namespace dmGraphics
         ShaderProgram* p = (ShaderProgram*)program;
         delete [] (char*)p->m_Data;
         for(uint32_t i = 0; i < p->m_Uniforms.Size(); ++i)
-            delete[] p->m_Uniforms[i].m_Name;
+            delete[] p->m_Uniforms[i].m_Uniform.m_Name;
         delete p;
     }
 
@@ -1001,7 +1001,7 @@ namespace dmGraphics
         ShaderProgram* p = (ShaderProgram*)program;
         delete [] (char*)p->m_Data;
         for(uint32_t i = 0; i < p->m_Uniforms.Size(); ++i)
-            delete[] p->m_Uniforms[i].m_Name;
+            delete[] p->m_Uniforms[i].m_Uniform.m_Name;
         delete p;
     }
 
@@ -1105,11 +1105,11 @@ namespace dmGraphics
     {
         Program* program       = (Program*) prog;
         ShaderBinding& binding = program->m_Attributes[index];
-        *name_hash             = dmHashString64(binding.m_Name);
-        *type                  = binding.m_Type;
-        *element_count         = GetElementCount(binding.m_Type);
-        *num_values            = binding.m_Size;
-        *location              = binding.m_Index;
+        *name_hash             = dmHashString64(binding.m_Uniform.m_Name);
+        *type                  = binding.m_Uniform.m_Type;
+        *element_count         = GetElementCount(binding.m_Uniform.m_Type);
+        *num_values            = binding.m_Uniform.m_Count;
+        *location              = binding.m_Uniform.m_Location;
     }
 
     static uint32_t NullGetUniformCount(HProgram prog)
@@ -1117,28 +1117,25 @@ namespace dmGraphics
         return ((Program*)prog)->m_Uniforms.Size();
     }
 
-    /*
-    m_Name
-    m_NameHash
-    m_CanonicalName
-    m_CanonicalNameHash
-    m_Location
-    m_Type
-    m_Count
-    m_TextureUnit
-    m_IsTextureType
-    */
-
     static void NullGetUniform(HProgram prog, uint32_t index, Uniform* uniform_desc)
     {
         Program* program = (Program*)prog;
-        ShaderBinding& uniform = program->m_Uniforms[index];
+        *uniform_desc = program->m_Uniforms[index].m_Uniform;
+    }
 
-        uniform_desc->m_Name = uniform.m_Name;
-        uniform_desc->m_NameHash = dmHashString64(uniform.m_Name);
-        uniform_desc->m_Type = uniform.m_Type;
-        uniform_desc->m_Count = uniform.m_Size;
-        uniform_desc->m_Location = uniform.m_Index;
+    const Uniform* GetUniform(HProgram prog, dmhash_t name_hash)
+    {
+        Program* program = (Program*)prog;
+        uint32_t count = program->m_Uniforms.Size();
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            ShaderBinding& uniform = program->m_Uniforms[i];
+            if (uniform.m_Uniform.m_NameHash == name_hash || uniform.m_Uniform.m_CanonicalNameHash == name_hash)
+            {
+                return &uniform.m_Uniform;
+            }
+        }
+        return 0x0;
     }
 
     /*

@@ -2160,6 +2160,7 @@ static void LogFrameBufferError(GLenum status)
                 level_count++;
             }
         }
+        *level = level_count;
     }
 
     static void BuildUniformBuffers(OpenGLProgram* program, OpenGLShader** shaders, uint32_t num_shaders)
@@ -2305,9 +2306,14 @@ static void LogFrameBufferError(GLenum status)
             assert(base_uniform_name != 0);
 
             OpenGLUniform& uniform       = program->m_Uniforms[i];
-
             uniform.m_Uniform.m_Name     = strdup(base_uniform_name);
             uniform.m_Uniform.m_NameHash = dmHashString64(base_uniform_name);
+
+            if (base_uniform_level > 1)
+            {
+                uniform.m_Uniform.m_CanonicalName = strdup(uniform_name_buffer);
+                uniform.m_Uniform.m_CanonicalNameHash = dmHashString64(uniform.m_Uniform.m_CanonicalName);
+            }
 
             uniform.m_Uniform.m_Location = uniform_location;
             uniform.m_Uniform.m_Count    = uniform_size;
@@ -2461,6 +2467,7 @@ static void LogFrameBufferError(GLenum status)
         for (int i = 0; i < program_ptr->m_Uniforms.Size(); ++i)
         {
             free(program_ptr->m_Uniforms[i].m_Uniform.m_Name);
+            free(program_ptr->m_Uniforms[i].m_Uniform.m_CanonicalName);
         }
 
         for (int i = 0; i < program_ptr->m_UniformBuffers.Size(); ++i)

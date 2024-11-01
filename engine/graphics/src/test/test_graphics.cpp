@@ -489,26 +489,29 @@ TEST_F(dmGraphicsTest, TestProgram)
     dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_Context, &fs_desc, 0, 0);
 
     dmGraphics::HProgram program = dmGraphics::NewProgram(m_Context, vp, fp);
+
+    const dmGraphics::Uniform* view_proj = dmGraphics::GetUniform(program, dmHashString64("view_proj"));
+    const dmGraphics::Uniform* world = dmGraphics::GetUniform(program, dmHashString64("world"));
+    const dmGraphics::Uniform* texture_sampler = dmGraphics::GetUniform(program, dmHashString64("texture_sampler"));
+    const dmGraphics::Uniform* tint = dmGraphics::GetUniform(program, dmHashString64("tint"));
+
     ASSERT_EQ(4u, dmGraphics::GetUniformCount(program));
-    ASSERT_EQ(0, dmGraphics::GetUniformLocation(program, "view_proj"));
-    ASSERT_EQ(1, dmGraphics::GetUniformLocation(program, "world"));
-    ASSERT_EQ(2, dmGraphics::GetUniformLocation(program, "texture_sampler"));
-    ASSERT_EQ(3, dmGraphics::GetUniformLocation(program, "tint"));
-    char buffer[64];
-    dmGraphics::Type type;
-    int32_t size;
-    dmGraphics::GetUniformName(program, 0, buffer, 64, &type, &size);
-    ASSERT_STREQ("view_proj", buffer);
-    ASSERT_EQ(dmGraphics::TYPE_FLOAT_MAT4, type);
-    dmGraphics::GetUniformName(program, 1, buffer, 64, &type, &size);
-    ASSERT_STREQ("world", buffer);
-    ASSERT_EQ(dmGraphics::TYPE_FLOAT_MAT4, type);
-    dmGraphics::GetUniformName(program, 2, buffer, 64, &type, &size);
-    ASSERT_STREQ("texture_sampler", buffer);
-    ASSERT_EQ(dmGraphics::TYPE_SAMPLER_2D, type);
-    dmGraphics::GetUniformName(program, 3, buffer, 64, &type, &size);
-    ASSERT_STREQ("tint", buffer);
-    ASSERT_EQ(dmGraphics::TYPE_FLOAT_VEC4, type);
+    ASSERT_EQ(0, view_proj->m_Location);
+    ASSERT_EQ(1, world->m_Location);
+    ASSERT_EQ(2, texture_sampler->m_Location);
+    ASSERT_EQ(3, tint->m_Location);
+
+    ASSERT_STREQ("view_proj", view_proj->m_Name);
+    ASSERT_EQ(dmGraphics::TYPE_FLOAT_MAT4, view_proj->m_Type);
+
+    ASSERT_STREQ("world", world->m_Name);
+    ASSERT_EQ(dmGraphics::TYPE_FLOAT_MAT4, world->m_Type);
+
+    ASSERT_STREQ("texture_sampler", texture_sampler->m_Name);
+    ASSERT_EQ(dmGraphics::TYPE_SAMPLER_2D, texture_sampler->m_Type);
+
+    ASSERT_STREQ("tint", tint->m_Name);
+    ASSERT_EQ(dmGraphics::TYPE_FLOAT_VEC4, tint->m_Type);
 
     uint32_t attribute_count = dmGraphics::GetAttributeCount(program);
     ASSERT_EQ(2, attribute_count);
@@ -578,15 +581,14 @@ TEST_F(dmGraphicsTest, TestComputeProgram)
 
     dmGraphics::HComputeProgram cp                = dmGraphics::NewComputeProgram(m_Context, &compute_desc, 0, 0);
     dmGraphics::HProgram program                  = dmGraphics::NewProgram(m_Context, cp);
-    ASSERT_EQ(1, dmGraphics::GetUniformCount(program));
-    ASSERT_EQ(0, dmGraphics::GetUniformLocation(program, "my_uniform"));
 
-    char buffer[64];
-    dmGraphics::Type type;
-    int32_t size;
-    dmGraphics::GetUniformName(program, 0, buffer, 64, &type, &size);
-    ASSERT_STREQ("my_uniform", buffer);
-    ASSERT_EQ(dmGraphics::TYPE_FLOAT_VEC4, type);
+    const dmGraphics::Uniform* my_uniform = dmGraphics::GetUniform(program, dmHashString64("my_uniform"));
+
+    ASSERT_EQ(1, dmGraphics::GetUniformCount(program));
+    ASSERT_EQ(0, my_uniform->m_Location);
+
+    ASSERT_STREQ("my_uniform", my_uniform->m_Name);
+    ASSERT_EQ(dmGraphics::TYPE_FLOAT_VEC4, my_uniform->m_Type);
 
     dmGraphics::DeleteComputeProgram(cp);
     dmGraphics::DeleteProgram(m_Context, program);
