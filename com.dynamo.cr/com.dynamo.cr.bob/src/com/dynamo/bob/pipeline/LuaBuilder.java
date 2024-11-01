@@ -20,7 +20,9 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.RandomAccessFile;
 import java.io.FileOutputStream;
+import java.io.ByteArrayInputStream;
 import java.nio.file.Files;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Collection;
 import java.util.Map;
 import java.util.HashMap;
@@ -34,6 +36,7 @@ import javax.vecmath.Vector3d;
 import javax.vecmath.Vector4d;
 
 import org.apache.commons.io.IOUtils;
+import org.apache.commons.io.FileUtils;
 
 import com.defold.extension.pipeline.ILuaObfuscator;
 import com.defold.extension.pipeline.ILuaPreprocessor;
@@ -170,6 +173,29 @@ public abstract class LuaBuilder extends Builder {
         return taskBuilder.build();
     }
 
+
+    private long getSize(File f) throws IOException {
+        BasicFileAttributes attr = Files.readAttributes(f.toPath(), BasicFileAttributes.class);
+        return attr.size();
+    }
+
+    private void writeToFile(File f, byte[] b) throws CompileExceptionError, IOException {
+        InputStream in = new ByteArrayInputStream(b);
+        FileUtils.copyInputStreamToFile(in, f);
+        try {
+            int retries = 40;
+            while (getSize(f) < b.length) {
+                Thread.sleep(50);
+                if (--retries == 0) {
+                    throw new CompileExceptionError("File is not of the expected size");
+                }
+            }
+        }
+        catch (java.lang.InterruptedException e) {
+            e.printStackTrace();
+        }
+    }
+
     public byte[] constructBytecode(Task task, String source, File inputFile, File outputFile, List<String> options, Map<String, String> env) throws IOException, CompileExceptionError {
         FileOutputStream fo = null;
         RandomAccessFile rdr = null;
@@ -179,15 +205,13 @@ public abstract class LuaBuilder extends Builder {
 
             // Need to write the input file separately in case it comes from built-in, and cannot
             // be found through its path alone.
-            fo = new java.io.FileOutputStream(inputFile);
-            fo.write(source.getBytes());
-            fo.close();
-
+            writeToFile(inputFile, source.getBytes());
 
             Result r = Exec.execResultWithEnvironment(env, options);
             int ret = r.ret;
             String cmdOutput = new String(r.stdOutErr);
             if (ret != 0) {
+                logger.info("Bytecode construction failed with exit code %d", ret);
                 // first delimiter is the executable name "luajit:" or "luac:"
                 int execSep = cmdOutput.indexOf(':');
                 if (execSep > 0) {
