@@ -25,9 +25,10 @@
             [editor.protobuf :as protobuf]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
+            [internal.node :as in]
             [internal.util :as util]
             [support.test-support :as test-support]
-            [util.coll :refer [pair]]
+            [util.coll :as coll :refer [pair]]
             [util.fn :as fn])
   (:import [com.dynamo.gamesys.proto Gui$NodeDesc]
            [javax.vecmath Matrix4d Vector3d]))
@@ -473,6 +474,16 @@
 (defn- set-visible-layout! [scene layout]
   (g/transact (g/set-property scene :visible-layout layout)))
 
+(defmacro with-visible-layout! [scene layout & body]
+  `(let [scene# ~scene
+         layout# ~layout
+         prev-layout# (g/node-value scene# :visible-layout)]
+     (try
+       (set-visible-layout! scene# layout#)
+       ~@body
+       (finally
+         (set-visible-layout! scene# prev-layout#)))))
+
 (deftest gui-layout-active
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/gui/layouts.gui")
@@ -862,49 +873,49 @@
       (is (= "Landscape" (g/node-value landscape :name)))
       (is (= "Portrait" (g/node-value portrait :name)))
 
-      (set-visible-layout! scene "")
-      (is (= [0.0 0.0 0.0] (g/node-value (id-map "box1") :position)))
-      (is (= [0.0 0.0 0.0] (g/node-value (id-map "box2") :position)))
-      (is (= [-45.0 0.0 0.0] (g/node-value (id-map "text1") :position)))
-      (is (= [45.0 0.0 0.0] (g/node-value (id-map "text2") :position)))
+      (with-visible-layout! scene ""
+        (is (= [0.0 0.0 0.0] (g/node-value (id-map "box1") :position)))
+        (is (= [0.0 0.0 0.0] (g/node-value (id-map "box2") :position)))
+        (is (= [-45.0 0.0 0.0] (g/node-value (id-map "text1") :position)))
+        (is (= [45.0 0.0 0.0] (g/node-value (id-map "text2") :position))))
 
       ;; before move
-      (set-visible-layout! scene "Landscape")
-      (is (= [300.0 400.0 0.0] (g/node-value (id-map "box1") :position)))
-      (is (= [1000.0 400.0 0.0] (g/node-value (id-map "box2") :position)))
-      (is (= [45.0 0.0 0.0] (g/node-value (id-map "text1") :position))) ;; text1 & text2 swapped places in landscape vs default layout
-      (is (= [-45.0 0.0 0.0] (g/node-value (id-map "text2") :position)))
+      (with-visible-layout! scene "Landscape"
+        (is (= [300.0 400.0 0.0] (g/node-value (id-map "box1") :position)))
+        (is (= [1000.0 400.0 0.0] (g/node-value (id-map "box2") :position)))
+        (is (= [45.0 0.0 0.0] (g/node-value (id-map "text1") :position))) ;; text1 & text2 swapped places in landscape vs default layout
+        (is (= [-45.0 0.0 0.0] (g/node-value (id-map "text2") :position))))
 
-      (set-visible-layout! scene "Portrait")
-      (is (= [360.0 900.0 0.0] (g/node-value (id-map "box1") :position)))
-      (is (= [360.0 350.0 0.0] (g/node-value (id-map "box2") :position)))
-      (is (= [0.0 -45.0 0.0] (g/node-value (id-map "text1") :position))) ;; text1 & text2 vertically stacked in portrait
-      (is (= [0.0 45.0 0.0] (g/node-value (id-map "text2") :position)))
+      (with-visible-layout! scene "Portrait"
+        (is (= [360.0 900.0 0.0] (g/node-value (id-map "box1") :position)))
+        (is (= [360.0 350.0 0.0] (g/node-value (id-map "box2") :position)))
+        (is (= [0.0 -45.0 0.0] (g/node-value (id-map "text1") :position))) ;; text1 & text2 vertically stacked in portrait
+        (is (= [0.0 45.0 0.0] (g/node-value (id-map "text2") :position))))
 
       ;; reordering nodes should not change overrides for the layouts at all
       (doseq [layout-during-reorder ["" "Landscape" "Portrait"]]
         (with-open [_ (make-restore-point!)]
-          (set-visible-layout! scene layout-during-reorder)
-          (move-child-node! (id-map "box2") -1)
-          (move-child-node! (id-map "text1") 1)
+          (with-visible-layout! scene layout-during-reorder
+            (move-child-node! (id-map "box2") -1)
+            (move-child-node! (id-map "text1") 1))
 
-          (set-visible-layout! scene "")
-          (is (= [0.0 0.0 0.0] (g/node-value (id-map "box1") :position)))
-          (is (= [0.0 0.0 0.0] (g/node-value (id-map "box2") :position)))
-          (is (= [-45.0 0.0 0.0] (g/node-value (id-map "text1") :position)))
-          (is (= [45.0 0.0 0.0] (g/node-value (id-map "text2") :position)))
+          (with-visible-layout! scene ""
+            (is (= [0.0 0.0 0.0] (g/node-value (id-map "box1") :position)))
+            (is (= [0.0 0.0 0.0] (g/node-value (id-map "box2") :position)))
+            (is (= [-45.0 0.0 0.0] (g/node-value (id-map "text1") :position)))
+            (is (= [45.0 0.0 0.0] (g/node-value (id-map "text2") :position))))
 
-          (set-visible-layout! scene "Landscape")
-          (is (= [300.0 400.0 0.0] (g/node-value (id-map "box1") :position)))
-          (is (= [1000.0 400.0 0.0] (g/node-value (id-map "box2") :position)))
-          (is (= [45.0 0.0 0.0] (g/node-value (id-map "text1") :position)))
-          (is (= [-45.0 0.0 0.0] (g/node-value (id-map "text2") :position)))
+          (with-visible-layout! scene "Landscape"
+            (is (= [300.0 400.0 0.0] (g/node-value (id-map "box1") :position)))
+            (is (= [1000.0 400.0 0.0] (g/node-value (id-map "box2") :position)))
+            (is (= [45.0 0.0 0.0] (g/node-value (id-map "text1") :position)))
+            (is (= [-45.0 0.0 0.0] (g/node-value (id-map "text2") :position))))
 
-          (set-visible-layout! scene "Portrait")
-          (is (= [360.0 900.0 0.0] (g/node-value (id-map "box1") :position)))
-          (is (= [360.0 350.0 0.0] (g/node-value (id-map "box2") :position)))
-          (is (= [0.0 -45.0 0.0] (g/node-value (id-map "text1") :position)))
-          (is (= [0.0 45.0 0.0] (g/node-value (id-map "text2") :position))))))))
+          (with-visible-layout! scene "Portrait"
+            (is (= [360.0 900.0 0.0] (g/node-value (id-map "box1") :position)))
+            (is (= [360.0 350.0 0.0] (g/node-value (id-map "box2") :position)))
+            (is (= [0.0 -45.0 0.0] (g/node-value (id-map "text1") :position)))
+            (is (= [0.0 45.0 0.0] (g/node-value (id-map "text2") :position)))))))))
 
 (def ^:private node-desc-text-pb-field-index
   (some (fn [[pb-field-index pb-field-keyword]]
@@ -954,63 +965,212 @@
             (is (= [(first scene-output-permutations)] scene-output-permutations)
                 "Changing the visible layout should not affect the data.")))))))
 
-(defn- clearable-property? [node-id prop-kw]
-  (-> node-id
-      (g/node-value :_properties)
-      (:properties)
-      (get prop-kw)
-      (contains? :original-value)))
+(defn- override-node-desc? [node-desc]
+  (or (:template-node-child node-desc)
+      (string/includes? (:id node-desc) "/")))
 
-(defn- find-node-desc [scene-desc layout-name node-desc-id]
-  {:pre [(map? scene-desc)
-         (string? layout-name)
-         (string? node-desc-id)]}
-  (util/first-where
-    (fn [node-desc]
-      (= node-desc-id (:id node-desc)))
-    (if (string/blank? layout-name)
-      (:nodes scene-desc)
-      (some (fn [layout-desc]
-              (when (= layout-name (:name layout-desc))
-                (:nodes layout-desc)))
-            (:layouts scene-desc)))))
+(defn- make-node->field->value [node-descs override-node-desc? node-desc-fn]
+  (coll/transfer node-descs (sorted-map)
+    (map (fn [node-desc]
+           (pair (:id node-desc)
+                 (node-desc-fn node-desc (override-node-desc? node-desc)))))))
+
+(defn- make-layout->node->field->value [scene-desc node-desc-fn]
+  (coll/transfer
+    (:layouts scene-desc)
+    (sorted-map "" (make-node->field->value (:nodes scene-desc) override-node-desc? node-desc-fn))
+    (map (fn [layout-desc]
+           (pair (:name layout-desc)
+                 (make-node->field->value (:nodes layout-desc) fn/constantly-true node-desc-fn))))))
+
+(defn- make-built-layout->node->field->value [gui-scene-node-id]
+  (let [build-targets (g/valid-node-value gui-scene-node-id :build-targets)
+        scene-desc (get-in build-targets [0 :user-data :pb])]
+    (make-layout->node->field->value
+      scene-desc
+      (fn [node-desc _is-override-node-desc]
+        (dissoc node-desc :custom-type :id :type)))))
+
+(defn- make-saved-layout->node->field->value [gui-scene-node-id]
+  (let [scene-desc (g/valid-node-value gui-scene-node-id :save-value)]
+    (make-layout->node->field->value
+      scene-desc
+      (fn [node-desc is-override-node-desc]
+        (if-not is-override-node-desc
+          (dissoc node-desc :custom-type :id :overridden-fields :template-node-child :type)
+          (reduce (fn [clean-node-desc overridden-pb-field-index]
+                    (let [overridden-pb-field (gui/pb-field-index->pb-field overridden-pb-field-index)]
+                      (assoc clean-node-desc
+                        overridden-pb-field (get node-desc overridden-pb-field (protobuf/default Gui$NodeDesc overridden-pb-field)))))
+                  (select-keys node-desc [:parent])
+                  (:overridden-fields node-desc)))))))
+
+(defn- make-displayed-layout->node->prop->value [gui-scene-node-id]
+  (let [layout-names (cons "" (g/node-value gui-scene-node-id :layout-names))
+        node-name->node-id (g/node-value gui-scene-node-id :node-ids)]
+    (coll/transfer layout-names (sorted-map)
+      (map (fn [layout-name]
+             (with-visible-layout! gui-scene-node-id layout-name
+               (g/with-auto-evaluation-context evaluation-context
+                 (let [node->prop->value
+                       (coll/transfer node-name->node-id (sorted-map)
+                         (keep (fn [[node-name node-id]]
+                                 (let [node (g/node-by-id (:basis evaluation-context) node-id)
+                                       node-type (g/node-type node)
+                                       prop-labels (g/declared-property-labels node-type)
+                                       prop->default (in/defaults node-type)
+
+                                       prop->value
+                                       (coll/transfer prop-labels (sorted-map)
+                                         (remove #{:child-index :custom-type :generated-id :id :layout->prop->override :template :type})
+                                         (keep (fn [prop-label]
+                                                 (let [default-value (prop->default prop-label)
+                                                       prop-value (g/produce-value node prop-label evaluation-context)]
+                                                   (when (not= default-value prop-value)
+                                                     (pair prop-label prop-value))))))]
+                                   (when (coll/not-empty prop->value)
+                                     (pair node-name prop->value))))))]
+                   (when (coll/not-empty node->prop->value)
+                     (pair layout-name node->prop->value))))))))))
 
 (deftest template-layout-test
   (test-util/with-loaded-project "test/resources/gui_project"
     (let [make-restore-point! #(test-util/make-graph-reverter (project/graph project))]
 
-      (with-open [_ (make-restore-point!)]
-        (let [scene (project/get-resource-node project "/gui/template_layout/button_lp.gui")
-              text (get (scene-gui-node-map scene) "text")
-              saved-scene-desc (g/valid-node-value scene :save-value)
-              built-scene-desc (get-in (g/valid-node-value scene :build-targets) [0 :user-data :pb])]
+      (let [proj-path "/gui/template_layout/button.gui"]
+        (testing proj-path
+          (with-open [_ (make-restore-point!)]
+            (let [scene (project/get-resource-node project proj-path)]
 
-          (set-visible-layout! scene "")
-          (is (not (clearable-property? text :text)))
-          (is (= "button default" (g/node-value text :text)))
-          (let [saved-node-desc (find-node-desc saved-scene-desc "" "text")]
-            (is (= "button default" (:text saved-node-desc)))
-            (is (not (contains? saved-node-desc :overridden-fields))))
-          (let [built-node-desc (find-node-desc built-scene-desc "" "text")]
-            (is (= "button default" (:text built-node-desc)))
-            (is (not (contains? built-node-desc :overridden-fields))))
+              (testing "Before modifications."
+                (is (= {"" {"text" {:font "font"
+                                    :text "button default"}}}
+                       (make-saved-layout->node->field->value scene)))
+                (is (= {"" {"text" {:font "font"
+                                    :text "button default"}}}
+                       (make-built-layout->node->field->value scene)))
+                (is (= {"" {"text" {:font "font"
+                                    :text "button default"}}}
+                       (make-displayed-layout->node->prop->value scene))))))))
 
-          (set-visible-layout! scene "Portrait")
-          (is (clearable-property? text :text))
-          (is (= "button portrait" (g/node-value text :text)))
-          (let [saved-node-desc (find-node-desc saved-scene-desc "Portrait" "text")]
-            (is (= "button portrait" (:text saved-node-desc)))
-            (is (= [node-desc-text-pb-field-index] (:overridden-fields saved-node-desc))))
-          (let [built-node-desc (find-node-desc built-scene-desc "Portrait" "text")]
-            (is (= "button portrait" (:text built-node-desc)))
-            #_(is (= [node-desc-text-pb-field-index] (:overridden-fields built-node-desc))))
+      (let [proj-path "/gui/template_layout/button_l.gui"]
+        (testing proj-path
+          (with-open [_ (make-restore-point!)]
+            (let [scene (project/get-resource-node project proj-path)
+                  text (get (scene-gui-node-map scene) "text")]
 
-          (set-visible-layout! scene "Landscape")
-          (is (clearable-property? text :text))
-          (is (= "button landscape" (g/node-value text :text)))
-          (let [saved-node-desc (find-node-desc saved-scene-desc "Landscape" "text")]
-            (is (= "button landscape" (:text saved-node-desc)))
-            (is (= [node-desc-text-pb-field-index] (:overridden-fields saved-node-desc))))
-          (let [built-node-desc (find-node-desc built-scene-desc "Landscape" "text")]
-            (is (= "button landscape" (:text built-node-desc)))
-            #_(is (= [node-desc-text-pb-field-index] (:overridden-fields built-node-desc)))))))))
+              (testing "Before modifications."
+                (is (= {"" {"text" {:font "font"
+                                    :text "button default"}}
+                        "Landscape" {"text" {:text "button landscape"}}}
+                       (make-saved-layout->node->field->value scene)))
+                (is (= {"" {"text" {:font "font"
+                                    :text "button default"}}
+                        "Landscape" {"text" {:text "button landscape"}}}
+                       (make-built-layout->node->field->value scene)))
+                (is (= {"" {"text" {:font "font"
+                                    :text "button default"}}
+                        "Landscape" {"text" {:font "font"
+                                             :text "button landscape"}}}
+                       (make-displayed-layout->node->prop->value scene))))
+
+              (testing "After clearing Landscape layout override."
+                (with-visible-layout! scene "Landscape"
+                  (test-util/prop-clear! text :text))
+                (is (= {"" {"text" {:font "font"
+                                    :text "button default"}}
+                        "Landscape" {}}
+                       (make-saved-layout->node->field->value scene)))
+                (is (= {"" {"text" {:font "font"
+                                    :text "button default"}}
+                        "Landscape" {}}
+                       (make-built-layout->node->field->value scene)))
+                (is (= {"" {"text" {:font "font"
+                                    :text "button default"}}
+                        "Landscape" {"text" {:font "font"
+                                             :text "button default"}}}
+                       (make-displayed-layout->node->prop->value scene))))))))
+
+      (let [proj-path "/gui/template_layout/button_lp.gui"]
+        (testing proj-path
+          (with-open [_ (make-restore-point!)]
+            (let [scene (project/get-resource-node project proj-path)
+                  text (get (scene-gui-node-map scene) "text")]
+
+              (testing "Before modifications."
+                (is (= {"" {"text" {:font "font"
+                                    :text "button default"}}
+                        "Landscape" {"text" {:text "button landscape"}}
+                        "Portrait" {"text" {:text "button portrait"}}}
+                       (make-saved-layout->node->field->value scene)))
+                (is (= {"" {"text" {:font "font"
+                                    :text "button default"}}
+                        "Landscape" {"text" {:text "button landscape"}}
+                        "Portrait" {"text" {:text "button portrait"}}}
+                       (make-built-layout->node->field->value scene)))
+                (is (= {"" {"text" {:font "font"
+                                    :text "button default"}}
+                        "Landscape" {"text" {:font "font"
+                                             :text "button landscape"}}
+                        "Portrait" {"text" {:font "font"
+                                            :text "button portrait"}}}
+                       (make-displayed-layout->node->prop->value scene))))
+
+              (testing "After clearing Landscape layout override."
+                (with-visible-layout! scene "Landscape"
+                  (test-util/prop-clear! text :text))
+                (is (= {"" {"text" {:font "font"
+                                    :text "button default"}}
+                        "Landscape" {}
+                        "Portrait" {"text" {:text "button portrait"}}}
+                       (make-saved-layout->node->field->value scene)))
+                (is (= {"" {"text" {:font "font"
+                                    :text "button default"}}
+                        "Landscape" {}
+                        "Portrait" {"text" {:text "button portrait"}}}
+                       (make-built-layout->node->field->value scene)))
+                (is (= {"" {"text" {:font "font"
+                                    :text "button default"}}
+                        "Landscape" {"text" {:font "font"
+                                             :text "button default"}}
+                        "Portrait" {"text" {:font "font"
+                                            :text "button portrait"}}}
+                       (make-displayed-layout->node->prop->value scene))))
+
+              (testing "After clearing Landscape and Portrait layout overrides."
+                (with-visible-layout! scene "Portrait"
+                  (test-util/prop-clear! text :text))
+                (is (= {"" {"text" {:font "font"
+                                    :text "button default"}}
+                        "Landscape" {}
+                        "Portrait" {}}
+                       (make-saved-layout->node->field->value scene)))
+                (is (= {"" {"text" {:font "font"
+                                    :text "button default"}}
+                        "Landscape" {}
+                        "Portrait" {}}
+                       (make-built-layout->node->field->value scene)))
+                (is (= {"" {"text" {:font "font"
+                                    :text "button default"}}
+                        "Landscape" {"text" {:font "font"
+                                             :text "button default"}}
+                        "Portrait" {"text" {:font "font"
+                                            :text "button default"}}}
+                       (make-displayed-layout->node->prop->value scene))))))))
+
+      (let [proj-path "/gui/template_layout/panel_button.gui"]
+        (testing proj-path
+          (with-open [_ (make-restore-point!)]
+            (let [scene (project/get-resource-node project proj-path)]
+
+              (testing "Before modifications."
+                (is (= {"" {"button" {:template "/gui/template_layout/button.gui"}
+                            "button/text" {:parent "button"
+                                           :text "panel default"}}}
+                       (make-saved-layout->node->field->value scene)))
+                (is (= {"" {"button/text" {:parent "button" ; TODO: Is :parent used by the runtime?
+                                           :text "panel default"}}}
+                       (make-built-layout->node->field->value scene)))
+                (is (= {"" {"button/text" {:font "font"
+                                           :text "panel default"}}}
+                       (make-displayed-layout->node->prop->value scene)))))))))))

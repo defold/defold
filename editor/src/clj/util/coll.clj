@@ -22,6 +22,24 @@
 
 (def empty-sorted-map (sorted-map))
 
+(defmacro transfer
+  "Transfer the sequence supplied as the first argument into the destination
+  collection specified as the second argument, using a transducer composed of
+  the remaining arguments. Returns the resulting collection. Supplying :eduction
+  as the destination returns an eduction instead."
+  ([from to xform]
+   (case to
+     :eduction `(->Eduction ~xform ~from)
+     `(into ~to
+            ~xform
+            ~from)))
+  ([from to xform & xforms]
+   (case to
+     :eduction `(->Eduction (comp ~xform ~@xforms) ~from)
+     `(into ~to
+            (comp ~xform ~@xforms)
+            ~from))))
+
 (defn list-or-cons?
   "Returns true if the specified value is either a IPersistentList or a
   clojure.lang.Cons. Useful in macros, where list expressions can be either

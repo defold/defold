@@ -373,7 +373,7 @@
                (pair pb-field (pair prop-key pb->prop))))
         property-conversions))
 
-(def ^:private pb-field-index->pb-field (protobuf/fields-by-indices Gui$NodeDesc))
+(def pb-field-index->pb-field (protobuf/fields-by-indices Gui$NodeDesc))
 
 (def ^:private pb-field-index->prop-key
   (persistent!

@@ -75,6 +75,7 @@
           <entry key="editor.workspace/register-view-type" value="-1" />
           <entry key="editor.yaml/with-error-translation" value="-1" />
           <entry key="integration.build-test/with-build-results" value="-1" />
+          <entry key="integration.gui-test/with-visible-layout!" value="-1" />
           <entry key="integration.test-util/set-code-editor-lines" value="-1" />
           <entry key="integration.test-util/set-code-editor-lines!" value="-1" />
           <entry key="integration.test-util/with-loaded-project" value="-1" />
@@ -85,6 +86,7 @@
           <entry key="org.httpkit.server/with-channel" value="-1" />
           <entry key="support.test-support/with-clean-system" value="-1" />
           <entry key="util.coll/assoc-in-ex" value="-1" />
+          <entry key="util.coll/transfer" value="-1" />
           <entry key="util.debug-util/log-time" value="-1" />
           <entry key="util.debug-util/measuring" value="-1" />
           <entry key="util.debug-util/metrics-time" value="-1" />

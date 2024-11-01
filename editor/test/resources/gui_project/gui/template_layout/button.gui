@@ -3,19 +3,10 @@ fonts {
   font: "/assets/vera_mo_bd.font"
 }
 nodes {
-  position {
-    y: 25.0
-  }
-  size {
-    x: 300.0
-    y: 50.0
-  }
   type: TYPE_TEXT
   text: "button default"
   font: "font"
   id: "text"
-  pivot: PIVOT_W
-  inherit_alpha: true
 }
 material: "/builtins/materials/gui.material"
 adjust_reference: ADJUST_REFERENCE_PARENT
