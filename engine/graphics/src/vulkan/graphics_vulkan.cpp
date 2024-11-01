@@ -2599,9 +2599,10 @@ bail:
                         program_resource_binding.m_DynamicOffsetIndex = info.m_UniformBufferCount;
 
                         info.m_UniformBufferCount++;
+                        info.m_TotalUniformCount++;
                         info.m_UniformDataSize        += res.m_BindingInfo.m_BlockSize;
                         info.m_UniformDataSizeAligned += DM_ALIGN(res.m_BindingInfo.m_BlockSize, ubo_alignment);
-                        info.m_TotalUniformCount      += type_info.m_Members.Size();
+                        // info.m_TotalUniformCount      += type_info.m_Members.Size();
                     }
                     break;
                     case ShaderResourceBinding::BINDING_FAMILY_GENERIC:
@@ -2610,7 +2611,7 @@ bail:
 
                 info.m_MaxSet     = dmMath::Max(info.m_MaxSet, (uint32_t) (res.m_Set + 1));
                 info.m_MaxBinding = dmMath::Max(info.m_MaxBinding, (uint32_t) (res.m_Binding + 1));
-            #if 0
+            #if 1
                 dmLogInfo("    name=%s, set=%d, binding=%d, data_offset=%d", res.m_Name, res.m_Set, res.m_Binding, program_resource_binding.m_DataOffset);
             #endif
             }
@@ -2631,9 +2632,154 @@ bail:
         FillProgramResourceBindings(program, module->m_ShaderMeta.m_UniformBuffers, module->m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, stage_flag, info);
         FillProgramResourceBindings(program, module->m_ShaderMeta.m_StorageBuffers, module->m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, stage_flag, info);
         FillProgramResourceBindings(program, module->m_ShaderMeta.m_Textures, module->m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, stage_flag, info);
-            
+
         // Each module must resolve samplers individually since there is no contextual information across modules (currently)
         ResolveSamplerTextureUnits(program, module->m_ShaderMeta.m_Textures);
+    }
+
+    static uint32_t CountLeafMembers(const dmArray<ShaderResourceTypeInfo>& type_infos, ShaderResourceType type, uint32_t count = 0)
+    {
+        if (!type.m_UseTypeIndex)
+        {
+            return 1;
+        }
+
+        const ShaderResourceTypeInfo& type_info = type_infos[type.m_TypeIndex];
+        const uint32_t num_members = type_info.m_Members.Size();
+        for (int i = 0; i < num_members; ++i)
+        {
+            const ShaderResourceMember& member = type_info.m_Members[i];
+            count += CountLeafMembers(type_infos, member.m_Type, count);
+        }
+        return count;
+    }
+
+    static void BuildUniformsForUniformBuffer(const ProgramResourceBinding* resource, dmArray<Uniform>& uniforms, const dmArray<ShaderResourceTypeInfo>& type_infos, ShaderResourceType type, dmArray<char>* canonical_name_buffer, uint32_t canonical_name_buffer_offset, uint32_t base_offset = 0)
+    {
+        const ShaderResourceTypeInfo& type_info = type_infos[type.m_TypeIndex];
+        const uint32_t num_members = type_info.m_Members.Size();
+        for (int i = 0; i < num_members; ++i)
+        {
+            const ShaderResourceMember& member = type_info.m_Members[i];
+            uint32_t name_length = strlen(member.m_Name);
+            uint32_t bytes_to_write = name_length + 2; // 1 for the '.' and 1 for the null-terminator
+
+            if (canonical_name_buffer->Capacity() <= canonical_name_buffer_offset + bytes_to_write)
+            {
+                canonical_name_buffer->OffsetCapacity(bytes_to_write);
+                canonical_name_buffer->SetSize(canonical_name_buffer->Capacity());
+            }
+
+            char* name_write_start = canonical_name_buffer->Begin() + canonical_name_buffer_offset;
+
+            name_write_start[0] = '.';
+            name_write_start++;
+
+            memcpy(name_write_start, member.m_Name, name_length);
+            name_write_start[name_length] = 0;
+
+            if (member.m_Type.m_UseTypeIndex)
+            {
+                BuildUniformsForUniformBuffer(resource, uniforms, type_infos, member.m_Type, canonical_name_buffer, canonical_name_buffer_offset + name_length + 1, member.m_Offset + base_offset);
+            }
+            else
+            {
+                uint64_t buffer_offset = member.m_Offset + base_offset;
+                Uniform uniform;
+                uniform.m_Name              = member.m_Name;
+                uniform.m_NameHash          = member.m_NameHash;
+                uniform.m_CanonicalName     = strdup(canonical_name_buffer->Begin());
+                uniform.m_CanonicalNameHash = dmHashString64(uniform.m_CanonicalName);
+                uniform.m_Type              = ShaderDataTypeToGraphicsType(member.m_Type.m_ShaderType);
+                uniform.m_Count             = dmMath::Max((uint32_t) 1, member.m_ElementCount);
+                uniform.m_Location          = resource->m_Res->m_Set | resource->m_Res->m_Binding << 16 | buffer_offset << 32;
+
+                dmLogInfo("    Uniform: path=%s, name=%s, offset=%d, buffer_offset=%d", uniform.m_CanonicalName, uniform.m_Name, member.m_Offset, (uint32_t) buffer_offset);
+
+                uniforms.Push(uniform);
+            }
+        }
+    }
+
+    struct ProgramResourceBindingIterator
+    {
+        const Program* m_Program;
+        uint32_t       m_CurrentSet;
+        uint32_t       m_CurrentBinding;
+
+        ProgramResourceBindingIterator(const Program* pgm)
+        : m_Program(pgm)
+        , m_CurrentSet(0)
+        , m_CurrentBinding(0)
+        {}
+
+        const ProgramResourceBinding* Next()
+        {
+            for (; m_CurrentSet < m_Program->m_MaxSet; ++m_CurrentSet)
+            {
+                for (; m_CurrentBinding < m_Program->m_MaxBinding; ++m_CurrentBinding)
+                {
+                    if (m_Program->m_ResourceBindings[m_CurrentSet][m_CurrentBinding].m_Res != 0x0)
+                    {
+                        const ProgramResourceBinding* res = &m_Program->m_ResourceBindings[m_CurrentSet][m_CurrentBinding];
+                        m_CurrentBinding++;
+                        return res;
+                    }
+                }
+                m_CurrentBinding = 0;  // Reset binding index when moving to the next set
+            }
+            return 0x0;
+        }
+
+        void Reset()
+        {
+            m_CurrentSet = 0;
+            m_CurrentBinding = 0;
+        }
+    };
+
+    static void BuildUniforms(Program* program)
+    {
+        uint32_t uniform_count = 0;
+
+        ProgramResourceBindingIterator it(program);
+        const ProgramResourceBinding* next;
+        while((next = it.Next()))
+        {
+            const dmArray<ShaderResourceTypeInfo>& type_infos = *next->m_TypeInfos;
+            uniform_count += CountLeafMembers(type_infos, next->m_Res->m_Type);
+        }
+
+        program->m_Uniforms.SetCapacity(uniform_count);
+
+        dmArray<char> canonical_name_buffer;
+
+        it.Reset();
+        while((next = it.Next()))
+        {
+            if (next->m_Res->m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_TEXTURE ||
+                next->m_Res->m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER)
+            {
+                Uniform uniform    = {};
+                uniform.m_Name     = next->m_Res->m_Name;
+                uniform.m_NameHash = dmHashString64(next->m_Res->m_Name);
+                uniform.m_Type     = ShaderDataTypeToGraphicsType(next->m_Res->m_Type.m_ShaderType);
+                uniform.m_Count    = 1;
+                uniform.m_Location = next->m_Res->m_Set | next->m_Res->m_Binding << 16;
+                program->m_Uniforms.Push(uniform);
+            }
+            else if (next->m_Res->m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER)
+            {
+                if (canonical_name_buffer.Capacity() == 0)
+                {
+                    canonical_name_buffer.OffsetCapacity(64);
+                    canonical_name_buffer.SetSize(canonical_name_buffer.Capacity());
+                }
+                uint32_t name_length = strlen(next->m_Res->m_Name);
+                memcpy(canonical_name_buffer.Begin(), next->m_Res->m_Name, name_length + 1);
+                BuildUniformsForUniformBuffer(next, program->m_Uniforms, *next->m_TypeInfos, next->m_Res->m_Type, &canonical_name_buffer, name_length);
+            }
+        }
     }
 
     static void CreateProgramResourceBindings(VulkanContext* context, Program* program)
@@ -2669,6 +2815,8 @@ bail:
         program->m_MaxBinding             = binding_info.m_MaxBinding;
 
         CreatePipelineLayout(context, program, bindings, binding_info.m_MaxSet);
+
+        BuildUniforms(program);
     }
 
     static void CreateComputeProgram(VulkanContext* context, Program* program, ShaderModule* compute_module)
@@ -2715,6 +2863,14 @@ bail:
         }
 
         DestroyResourceDeferred(g_VulkanContext->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], program);
+
+        for (int i = 0; i < program->m_Uniforms.Size(); ++i)
+        {
+            if (program->m_Uniforms[i].m_CanonicalName)
+            {
+                free(program->m_Uniforms[i].m_CanonicalName);
+            }
+        }
     }
 
     static void VulkanDeleteProgram(HContext context, HProgram program)
@@ -2848,10 +3004,64 @@ bail:
     static uint32_t VulkanGetUniformCount(HProgram prog)
     {
         assert(prog);
-        Program* program_ptr = (Program*) prog;
-        return program_ptr->m_TotalUniformCount;
+        Program* program = (Program*) prog;
+        return program->m_Uniforms.Size();
     }
 
+    static void VulkanGetUniform(HProgram prog, uint32_t index, Uniform* uniform_desc)
+    {
+        Program* program = (Program*) prog;
+        *uniform_desc = program->m_Uniforms[index];
+
+        /*
+        for (int set = 0; set < program->m_MaxSet; ++set)
+        {
+            for (int binding = 0; binding < program->m_MaxBinding; ++binding)
+            {
+                ProgramResourceBinding& pgm_res = program->m_ResourceBindings[set][binding];
+
+                if (pgm_res.m_Res == 0x0)
+                    continue;
+
+                if (pgm_res.m_Res->m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_TEXTURE ||
+                    pgm_res.m_Res->m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER)
+                {
+                    if (search_index == index)
+                    {
+                        ShaderResourceBinding* res = pgm_res.m_Res;
+                        // *type = ShaderDataTypeToGraphicsType(res->m_Type.m_ShaderType);
+                        // *size = 1;
+                        // return (uint32_t)dmStrlCpy(buffer, res->m_Name, buffer_size);
+                    }
+                    search_index++;
+                }
+                else if (pgm_res.m_Res->m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER)
+                {
+                    // TODO: Generic type lookup is not supported yet!
+                    // We can only support one level of indirection here right now
+                    assert(pgm_res.m_Res->m_Type.m_UseTypeIndex);
+                    const dmArray<ShaderResourceTypeInfo>& type_infos = *pgm_res.m_TypeInfos;
+                    const ShaderResourceTypeInfo& type_info = type_infos[pgm_res.m_Res->m_Type.m_TypeIndex];
+
+                    const uint32_t num_members = type_info.m_Members.Size();
+                    for (int i = 0; i < num_members; ++i)
+                    {
+                        if (search_index == index)
+                        {
+                            const ShaderResourceMember& member = type_info.m_Members[i];
+                            // *type = ShaderDataTypeToGraphicsType(member.m_Type.m_ShaderType);
+                            // *size = dmMath::Max((uint32_t) 1, member.m_ElementCount);
+                            // return (uint32_t)dmStrlCpy(buffer, member.m_Name, buffer_size);
+                        }
+                        search_index++;
+                    }
+                }
+            }
+        }
+        */
+    }
+
+    /*
     static uint32_t VulkanGetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size)
     {
         assert(prog);
@@ -2947,6 +3157,7 @@ bail:
 
         return INVALID_UNIFORM_LOCATION;
     }
+    */
 
     static inline void WriteConstantData(uint32_t offset, uint8_t* uniform_data_ptr, uint8_t* data_ptr, uint32_t data_size)
     {
@@ -2959,17 +3170,17 @@ bail:
         assert(context->m_CurrentProgram);
         assert(base_location != INVALID_UNIFORM_LOCATION);
 
-        Program* program_ptr = (Program*) context->m_CurrentProgram;
-        uint32_t set         = UNIFORM_LOCATION_GET_VS(base_location);
-        uint32_t binding     = UNIFORM_LOCATION_GET_VS_MEMBER(base_location);
-        uint32_t member      = UNIFORM_LOCATION_GET_FS(base_location);
+        Program* program_ptr    = (Program*) context->m_CurrentProgram;
+        uint32_t set            = UNIFORM_LOCATION_GET_VS(base_location);
+        uint32_t binding        = UNIFORM_LOCATION_GET_VS_MEMBER(base_location);
+        uint32_t buffer_offset  = UNIFORM_LOCATION_GET_FS(base_location);
         assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
 
         ProgramResourceBinding& pgm_res                   = program_ptr->m_ResourceBindings[set][binding];
         const dmArray<ShaderResourceTypeInfo>& type_infos = *pgm_res.m_TypeInfos;
         const ShaderResourceTypeInfo&           type_info = type_infos[pgm_res.m_Res->m_Type.m_TypeIndex];
 
-        uint32_t offset = pgm_res.m_DataOffset + type_info.m_Members[member].m_Offset;
+        uint32_t offset = pgm_res.m_DataOffset + buffer_offset; //type_info.m_Members[member].m_Offset;
         WriteConstantData(offset, program_ptr->m_UniformData, (uint8_t*) data, sizeof(dmVMath::Vector4) * count);
     }
 
@@ -2979,17 +3190,17 @@ bail:
         assert(context->m_CurrentProgram);
         assert(base_location != INVALID_UNIFORM_LOCATION);
 
-        Program* program_ptr = (Program*) context->m_CurrentProgram;
-        uint32_t set         = UNIFORM_LOCATION_GET_VS(base_location);
-        uint32_t binding     = UNIFORM_LOCATION_GET_VS_MEMBER(base_location);
-        uint32_t member      = UNIFORM_LOCATION_GET_FS(base_location);
+        Program* program_ptr    = (Program*) context->m_CurrentProgram;
+        uint32_t set            = UNIFORM_LOCATION_GET_VS(base_location);
+        uint32_t binding        = UNIFORM_LOCATION_GET_VS_MEMBER(base_location);
+        uint32_t buffer_offset  = UNIFORM_LOCATION_GET_FS(base_location);
         assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
 
         ProgramResourceBinding& pgm_res                   = program_ptr->m_ResourceBindings[set][binding];
         const dmArray<ShaderResourceTypeInfo>& type_infos = *pgm_res.m_TypeInfos;
-        const ShaderResourceTypeInfo&           type_info = type_infos[pgm_res.m_Res->m_Type.m_TypeIndex];
+        const ShaderResourceTypeInfo& type_info           = type_infos[pgm_res.m_Res->m_Type.m_TypeIndex];
 
-        uint32_t offset = pgm_res.m_DataOffset + type_info.m_Members[member].m_Offset;
+        uint32_t offset = pgm_res.m_DataOffset + buffer_offset; // type_info.m_Members[member].m_Offset;
         WriteConstantData(offset, program_ptr->m_UniformData, (uint8_t*) data, sizeof(dmVMath::Vector4) * 4 * count);
     }
 

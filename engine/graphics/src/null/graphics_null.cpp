@@ -1117,6 +1117,31 @@ namespace dmGraphics
         return ((Program*)prog)->m_Uniforms.Size();
     }
 
+    /*
+    m_Name
+    m_NameHash
+    m_CanonicalName
+    m_CanonicalNameHash
+    m_Location
+    m_Type
+    m_Count
+    m_TextureUnit
+    m_IsTextureType
+    */
+
+    static void NullGetUniform(HProgram prog, uint32_t index, Uniform* uniform_desc)
+    {
+        Program* program = (Program*)prog;
+        ShaderBinding& uniform = program->m_Uniforms[index];
+
+        uniform_desc->m_Name = uniform.m_Name;
+        uniform_desc->m_NameHash = dmHashString64(uniform.m_Name);
+        uniform_desc->m_Type = uniform.m_Type;
+        uniform_desc->m_Count = uniform.m_Size;
+        uniform_desc->m_Location = uniform.m_Index;
+    }
+
+    /*
     static uint32_t NullGetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size)
     {
         Program* program = (Program*)prog;
@@ -1143,6 +1168,7 @@ namespace dmGraphics
         }
         return INVALID_UNIFORM_LOCATION;
     }
+    */
 
     static void NullSetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
     {

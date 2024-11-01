@@ -54,30 +54,32 @@ namespace dmRender
         uint32_t samplers_count  = 0;
         int32_t value_count      = 0;
 
-        dmGraphics::Type type;
-        const uint32_t buffer_size = 128;
-        char buffer[buffer_size];
-
         for (uint32_t i = 0; i < total_constants_count; ++i)
         {
-            type = (dmGraphics::Type) -1;
-            dmGraphics::GetUniformName(program, i, buffer, buffer_size, &type, &value_count);
+            dmGraphics::Uniform uniform_desc = {};
+            dmGraphics::GetUniform(program, i, &uniform_desc);
 
-            if (type == dmGraphics::TYPE_FLOAT_VEC4 || type == dmGraphics::TYPE_FLOAT_MAT4)
+            if (uniform_desc.m_Type == dmGraphics::TYPE_FLOAT_VEC4 || uniform_desc.m_Type == dmGraphics::TYPE_FLOAT_MAT4)
             {
                 constants_count++;
+
+                if (uniform_desc.m_CanonicalNameHash)
+                {
+                    constants_count++;
+                }
             }
-            else if (dmGraphics::IsTypeTextureType(type))
+            else if (dmGraphics::IsTypeTextureType(uniform_desc.m_Type))
             {
                 samplers_count++;
             }
-            else if (type == dmGraphics::TYPE_SAMPLER)
+            else if (uniform_desc.m_Type == dmGraphics::TYPE_SAMPLER)
             {
                 // ignore samplers for now
             }
             else
             {
-                dmLogWarning("Type for uniform %s is not supported (%d)", buffer, type);
+                dmLogWarning("Type for uniform %s is not supported (%d)",
+                    uniform_desc.m_Name, uniform_desc.m_Type);
             }
         }
 
@@ -120,7 +122,7 @@ namespace dmRender
         uint32_t n = constants.Size();
         for (uint32_t i = 0; i < n; ++i)
         {
-            if (GetConstantName(constants[i].m_Constant) == name_hash)
+            if (GetConstantName(constants[i].m_Constant) == name_hash || GetCanonicalConstantName(constants[i].m_Constant) == name_hash)
             {
                 return &constants[i];
             }
@@ -243,11 +245,13 @@ namespace dmRender
 
         for (uint32_t i = 0; i < total_constants_count; ++i)
         {
-            uint32_t name_str_length              = dmGraphics::GetUniformName(program, i, buffer, buffer_size, &type, &num_values);
-            dmGraphics::HUniformLocation location = dmGraphics::GetUniformLocation(program, buffer);
+            dmGraphics::Uniform uniform_desc;
+            dmGraphics::GetUniform(program, i, &uniform_desc);
 
-        #if 0
-            dmLogInfo("Uniform[%d]: name=%s, type=%s, num_values=%d, location=%lld", i, buffer, dmGraphics::GetGraphicsTypeLiteral(type), num_values, location);
+        #if 1
+            dmLogInfo("Uniform[%d]: name=%s, type=%s, num_values=%d, location=%lld",
+                i, uniform_desc.m_Name, dmGraphics::GetGraphicsTypeLiteral(uniform_desc.m_Type),
+                uniform_desc.m_Count, uniform_desc.m_Location);
         #endif
 
             // DEF-2971-hotfix
@@ -257,13 +261,13 @@ namespace dmRender
             // that wasn't used, but after the upgrade these unused uniforms will return -1
             // as location instead. The fix here is to avoid asserting on such values, but
             // not saving them in the m_Constants and m_NameHashToLocation structs.
-            if (location == dmGraphics::INVALID_UNIFORM_LOCATION)
+            if (uniform_desc.m_Location == dmGraphics::INVALID_UNIFORM_LOCATION)
             {
                 continue;
             }
 
+            /*
             assert(name_str_length > 0);
-
             if (program_language_glsl)
             {
                 // For uniform arrays, OpenGL returns the name as "uniform[0]",
@@ -277,9 +281,11 @@ namespace dmRender
                     }
                 }
             }
+            */
 
-            dmhash_t name_hash = dmHashString64(buffer);
+            // dmhash_t name_hash = dmHashString64(buffer);
 
+            /*
             // We check if we already have a constant registered for this name.
             // This will happen on NON-OPENGL context when there is a constant with the same name
             // in both the vertex and the fragment program. This forces the behavior of constants to be exactly like
@@ -293,15 +299,25 @@ namespace dmRender
             {
                 continue;
             }
+            */
 
-            if (type == dmGraphics::TYPE_FLOAT_VEC4 || type == dmGraphics::TYPE_FLOAT_MAT4)
+            uint32_t num_values = uniform_desc.m_Count;
+
+            if (uniform_desc.m_Type == dmGraphics::TYPE_FLOAT_VEC4 || uniform_desc.m_Type == dmGraphics::TYPE_FLOAT_MAT4)
             {
-                name_hash_to_location.Put(name_hash, location);
+                name_hash_to_location.Put(uniform_desc.m_NameHash, uniform_desc.m_Location);
 
-                HConstant render_constant = dmRender::NewConstant(name_hash);
-                dmRender::SetConstantLocation(render_constant, location);
+                // Add the full path to the lookup table, if it exists.
+                // This is so that we can address nested structures in shaders.
+                if (uniform_desc.m_CanonicalNameHash)
+                {
+                    name_hash_to_location.Put(uniform_desc.m_CanonicalNameHash, uniform_desc.m_Location);
+                }
 
-                if (type == dmGraphics::TYPE_FLOAT_MAT4)
+                HConstant render_constant = dmRender::NewConstant(uniform_desc.m_NameHash, uniform_desc.m_CanonicalNameHash);
+                dmRender::SetConstantLocation(render_constant, uniform_desc.m_Location);
+
+                if (uniform_desc.m_Type == dmGraphics::TYPE_FLOAT_MAT4)
                 {
                     num_values *= 4;
                     dmRender::SetConstantType(render_constant, dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER_MATRIX4);
@@ -320,7 +336,7 @@ namespace dmRender
                 RenderConstant constant;
                 constant.m_Constant = render_constant;
 
-                if (type == dmGraphics::TYPE_FLOAT_VEC4)
+                if (uniform_desc.m_Type == dmGraphics::TYPE_FLOAT_VEC4)
                 {
                     FillElementIds(buffer, buffer_size, constant.m_ElementIds);
                 }
@@ -335,12 +351,12 @@ namespace dmRender
                 }
                 constants.Push(constant);
             }
-            else if (dmGraphics::IsTypeTextureType(type))
+            else if (dmGraphics::IsTypeTextureType(uniform_desc.m_Type))
             {
-                name_hash_to_location.Put(name_hash, location);
+                name_hash_to_location.Put(uniform_desc.m_NameHash, uniform_desc.m_Location);
                 Sampler& s           = samplers[sampler_index];
                 s.m_UnitValueCount   = num_values;
-                s.m_Type             = TypeToTextureType(type);
+                s.m_Type             = TypeToTextureType(uniform_desc.m_Type);
                 sampler_index++;
             }
         }

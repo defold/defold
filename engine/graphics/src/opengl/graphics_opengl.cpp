@@ -748,6 +748,8 @@ static void LogFrameBufferError(GLenum status)
             case CONTEXT_FEATURE_COMPUTE_SHADER:         return context->m_ComputeSupport;
             case CONTEXT_FEATURE_STORAGE_BUFFER:         return context->m_StorageBufferSupport;
             case CONTEXT_FEATURE_INSTANCING:             return context->m_InstancingSupport;
+            case CONTEXT_FEATURE_VSYNC:
+                break;
         }
         return false;
     }
@@ -1433,7 +1435,7 @@ static void LogFrameBufferError(GLenum status)
             }
         }
 
-        if (glGenVertexArrays)
+        if (&glGenVertexArrays)
             glGenVertexArrays(1, &context->m_GlobalVAO);
 
         SetSwapInterval(_context, params.m_SwapInterval);
@@ -1858,7 +1860,7 @@ static void LogFrameBufferError(GLenum status)
 
         OpenGLContext* context = (OpenGLContext*) _context;
 
-        if (glBindVertexArray)
+        if (&glBindVertexArray)
             glBindVertexArray(context->m_GlobalVAO);
 
         if (!(context->m_ModificationVersion == vertex_declaration->m_ModificationVersion && vertex_declaration->m_BoundForProgram == ((OpenGLProgram*) program)->m_Id))
@@ -2144,17 +2146,20 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
-    static inline char* GetBaseUniformName(char* str, uint32_t len)
+    static inline void GetBaseUniformNameAndLevel(char* str, uint32_t len, char** str_out, uint32_t* level)
     {
+        uint32_t level_count = 1;
+        *str_out = str;
         char* ptr = str;
         for (int i = len - 1; i >= 0; i--)
         {
             if (ptr[i] == '.')
             {
-                return &ptr[i+1];
+                if (level_count == 1)
+                    *str_out = &ptr[i+1];
+                level_count++;
             }
         }
-        return str;
     }
 
     static void BuildUniformBuffers(OpenGLProgram* program, OpenGLShader** shaders, uint32_t num_shaders)
@@ -2272,8 +2277,6 @@ static void LogFrameBufferError(GLenum status)
                 glGetActiveUniformsiv(program->m_Id, 1, (GLuint*)&i, GL_UNIFORM_BLOCK_INDEX, &uniform_block_index);
             }
 
-            char* uniform_name = GetBaseUniformName(uniform_name_buffer, uniform_name_length);
-
             HUniformLocation uniform_location = INVALID_UNIFORM_LOCATION;
 
             if (uniform_block_index != -1)
@@ -2296,16 +2299,23 @@ static void LogFrameBufferError(GLenum status)
                 uniform_location = (HUniformLocation) glGetUniformLocation(program->m_Id, uniform_name_buffer);
             }
 
-            OpenGLUniform& uniform  = program->m_Uniforms[i];
-            uniform.m_Location      = uniform_location;
-            uniform.m_Name          = strdup(uniform_name);
-            uniform.m_NameHash      = dmHashString64(uniform_name);
-            uniform.m_Count         = uniform_size;
-            uniform.m_Type          = uniform_type;
-            uniform.m_IsTextureType = IsTypeTextureType(GetGraphicsType(uniform_type));
+            char* base_uniform_name     = 0;
+            uint32_t base_uniform_level = 0; // "uniform.blah.bleh" => 3
+            GetBaseUniformNameAndLevel(uniform_name_buffer, uniform_name_length, &base_uniform_name, &base_uniform_level);
+            assert(base_uniform_name != 0);
 
-        #if 0
-            dmLogInfo("Uniform[%d]: %s, %llu", i, uniform.m_Name, uniform.m_Location);
+            OpenGLUniform& uniform       = program->m_Uniforms[i];
+
+            uniform.m_Uniform.m_Name     = strdup(base_uniform_name);
+            uniform.m_Uniform.m_NameHash = dmHashString64(base_uniform_name);
+
+            uniform.m_Uniform.m_Location = uniform_location;
+            uniform.m_Uniform.m_Count    = uniform_size;
+            uniform.m_Uniform.m_Type     = GetGraphicsType(uniform_type);
+            uniform.m_IsTextureType      = IsTypeTextureType(uniform.m_Uniform.m_Type);
+
+        #if 1
+            dmLogInfo("Uniform[%d]: %s, %llu, (original_name=%s)", i, uniform.m_Uniform.m_Name, uniform.m_Uniform.m_Location, uniform_name_buffer);
         #endif
 
             if (uniform.m_IsTextureType)
@@ -2314,7 +2324,7 @@ static void LogFrameBufferError(GLenum status)
             }
 
             // JG: Original code did this, but I'm not sure why.
-            if (uniform.m_Location == -1)
+            if (uniform.m_Uniform.m_Location == -1)
             {
                 // Clear error if uniform isn't found
                 CLEAR_GL_ERROR
@@ -2450,7 +2460,7 @@ static void LogFrameBufferError(GLenum status)
 
         for (int i = 0; i < program_ptr->m_Uniforms.Size(); ++i)
         {
-            free(program_ptr->m_Uniforms[i].m_Name);
+            free(program_ptr->m_Uniforms[i].m_Uniform.m_Name);
         }
 
         for (int i = 0; i < program_ptr->m_UniformBuffers.Size(); ++i)
@@ -2762,6 +2772,13 @@ static void LogFrameBufferError(GLenum status)
         return program_ptr->m_Uniforms.Size();
     }
 
+    static void OpenGLGetUniform(HProgram prog, uint32_t index, Uniform* uniform_desc)
+    {
+        OpenGLProgram* program_ptr = (OpenGLProgram*) prog;
+        *uniform_desc = program_ptr->m_Uniforms[index].m_Uniform;
+    }
+
+    /*
     static uint32_t OpenGLGetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size)
     {
         OpenGLProgram* program_ptr = (OpenGLProgram*) prog;
@@ -2786,6 +2803,7 @@ static void LogFrameBufferError(GLenum status)
         
         return INVALID_UNIFORM_LOCATION;
     }
+    */
 
     static void OpenGLSetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
     {

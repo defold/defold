@@ -284,6 +284,9 @@ namespace dmGraphics
         VulkanHandle                    m_Handle;
         ProgramResourceBinding          m_ResourceBindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
 
+        // dmGraphics::Uniform representation of the resource bindings
+        dmArray<Uniform>                m_Uniforms;
+
         ShaderModule*                   m_VertexModule;
         ShaderModule*                   m_FragmentModule;
         ShaderModule*                   m_ComputeModule;

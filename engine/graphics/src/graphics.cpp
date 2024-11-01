@@ -1363,17 +1363,13 @@ namespace dmGraphics
     {
         return g_functions.m_GetAttribute(prog, index, name_hash, type, element_count, num_values, location);
     }
-    uint32_t GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size)
-    {
-        return g_functions.m_GetUniformName(prog, index, buffer, buffer_size, type, size);
-    }
     uint32_t GetUniformCount(HProgram prog)
     {
         return g_functions.m_GetUniformCount(prog);
     }
-    HUniformLocation GetUniformLocation(HProgram prog, const char* name)
+    void GetUniform(HProgram prog, uint32_t index, Uniform* uniform_desc)
     {
-        return g_functions.m_GetUniformLocation(prog, name);
+        return g_functions.m_GetUniform(prog, index, uniform_desc);
     }
     void SetConstantV4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location)
     {

@@ -104,13 +104,13 @@ namespace dmGraphics
             uint16_t m_SamplerTextureIndex;
         };
 
-        char*                       m_Name;
-        dmhash_t                    m_NameHash;
-        ShaderResourceType          m_Type;
-        BindingFamily               m_BindingFamily;
-        uint16_t                    m_Set;
-        uint16_t                    m_Binding;
-        BindingInfo                 m_BindingInfo;
+        char*              m_Name;
+        dmhash_t           m_NameHash;
+        ShaderResourceType m_Type;
+        BindingFamily      m_BindingFamily;
+        uint16_t           m_Set;
+        uint16_t           m_Binding;
+        BindingInfo        m_BindingInfo;
     };
 
     struct ShaderMeta
