@@ -50,14 +50,6 @@ public interface IResource {
 
     /**
      * Get sha1 checksum for resource
-     * @param allowCached allows using of previously cached sha1
-     * @return sha1 checksum
-     * @throws IOException
-     */
-    byte[] sha1(boolean allowCached) throws IOException;
-
-    /**
-     * Get sha1 checksum for resource
      * @return sha1 checksum
      * @throws IOException
      */

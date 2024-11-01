@@ -180,7 +180,7 @@ public class ExtenderUtil {
 		}
 
         @Override
-        public byte[] sha1(boolean allowCached) throws IOException {
+        public byte[] sha1() throws IOException {
             byte[] content = getContent();
             if (content == null) {
                 throw new IllegalArgumentException(String.format("Resource '%s' is not created", path));
@@ -193,11 +193,6 @@ public class ExtenderUtil {
             }
             sha1.update(content);
             return sha1.digest();
-        }
-
-        @Override
-        public byte[] sha1() throws IOException {
-            return sha1(false);
         }
 
 		@Override
