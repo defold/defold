@@ -2153,7 +2153,11 @@ static void LogFrameBufferError(GLenum status)
         char* ptr = str;
         for (int i = len - 1; i >= 0; i--)
         {
-            if (ptr[i] == '.')
+            if (ptr[i] == '[')
+            {
+                ptr[i] = 0;
+            }
+            else if (ptr[i] == '.')
             {
                 if (level_count == 1)
                     *str_out = &ptr[i+1];
