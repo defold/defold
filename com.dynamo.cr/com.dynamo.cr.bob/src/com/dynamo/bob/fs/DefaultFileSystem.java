@@ -79,9 +79,7 @@ public class DefaultFileSystem extends AbstractFileSystem<DefaultFileSystem, Def
             e = new CacheEntry();
             e.mTime = file.lastModified();
             e.sha1 = calcSha1(resource);
-            synchronized (cache) {
-                cache.put(resource.getPath(), e);
-            }
+            cache.put(resource.getPath(), e);
             return e.sha1;
         }
     }
