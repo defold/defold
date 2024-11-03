@@ -126,9 +126,7 @@ public class TaskBuilder {
     private Set<IResource> getUnresolvedDependencies(Task task) {
         Set<IResource> dependencies = new HashSet<>(task.getInputs());
         dependencies.retainAll(allOutputs);
-        synchronized (completedOutputs) {
-            dependencies.removeAll(completedOutputs);
-        }
+        dependencies.removeAll(completedOutputs);
         return dependencies;
     }
 
