@@ -312,18 +312,24 @@ public class Bob {
         }
     }
 
+    private static void copyResourceToFile(File f, String resourcePath) throws IOException {
+        TimeProfiler.start("copyResourceToFile %s -> %s", resourcePath, f.getPath());
+        URL url = Bob.class.getResource(resourcePath);
+        if (url == null) {
+            throw new RuntimeException(String.format("%s could not be found locally", resourcePath));
+        }
+        atomicCopy(url, f, true);
+        TimeProfiler.addData("path", f.getAbsolutePath());
+        TimeProfiler.stop();
+    }
+
     private static String getExeWithExtension(Platform platform, String name, String extension) throws IOException {
         init();
         TimeProfiler.start("getExeWithExtension %s.%s", name, extension);
         String exeName = platform.getPair() + "/" + platform.getExePrefix() + name + extension;
         File f = new File(rootFolder, exeName);
         if (!f.exists()) {
-            URL url = Bob.class.getResource("/libexec/" + exeName);
-            if (url == null) {
-                throw new RuntimeException(String.format("/libexec/%s could not be found locally, create an application manifest to build the engine remotely.", exeName));
-            }
-
-            atomicCopy(url, f, true);
+            copyResourceToFile(f, "/libexec/" + exeName);
         }
         TimeProfiler.addData("path", f.getAbsolutePath());
         TimeProfiler.stop();
@@ -335,12 +341,7 @@ public class Bob {
         TimeProfiler.start("getLibExecPath %s", filename);
         File f = new File(rootFolder, filename);
         if (!f.exists()) {
-            URL url = Bob.class.getResource("/libexec/" + filename);
-            if (url == null) {
-                throw new RuntimeException(String.format("/libexec/%s not found", filename));
-            }
-
-            atomicCopy(url, f, false);
+            copyResourceToFile(f, "/libexec/" + filename);
         }
         TimeProfiler.addData("path", f.getAbsolutePath());
         TimeProfiler.stop();
@@ -352,11 +353,7 @@ public class Bob {
         TimeProfiler.start("getJarFile %s", filename);
         File f = new File(rootFolder, filename);
         if (!f.exists()) {
-            URL url = Bob.class.getResource("/share/java/" + filename);
-            if (url == null) {
-                throw new RuntimeException(String.format("/share/java/%s not found", filename));
-            }
-            atomicCopy(url, f, false);
+            copyResourceToFile(f, "/share/java/" + filename);
         }
         TimeProfiler.addData("path", f.getAbsolutePath());
         TimeProfiler.stop();
@@ -435,12 +432,7 @@ public class Bob {
         String libName = platform.getPair() + "/" + platform.getLibPrefix() + name + platform.getLibSuffix();
         File f = new File(rootFolder, libName);
         if (!f.exists()) {
-            URL url = Bob.class.getResource("/lib/" + libName);
-            if (url == null) {
-                throw new RuntimeException(String.format("/lib/%s not found", libName));
-            }
-
-            atomicCopy(url, f, true);
+            copyResourceToFile(f, "/lib/" + libName);
         }
         TimeProfiler.addData("path", f.getAbsolutePath());
         TimeProfiler.stop();
@@ -454,12 +446,7 @@ public class Bob {
         String libName = platform.getPair() + "/" + platform.getLibPrefix() + name + platform.getLibSuffix();
         File f = new File(rootFolder, libName);
         if (!f.exists()) {
-            URL url = Bob.class.getResource("/lib/" + libName);
-            if (url == null) {
-                throw new RuntimeException(String.format("/lib/%s not found", libName));
-            }
-
-            atomicCopy(url, f, true);
+            copyResourceToFile(f, "/lib/" + libName);
         }
         TimeProfiler.stop();
         return f;
