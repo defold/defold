@@ -214,14 +214,12 @@ public class TimeProfiler {
         long reportStartTime = time();
 
         // Close all unclosed scopes
-        synchronized (currentScopes) {
-            for (ProfilingScope scope : currentScopes.values()) {
-                while (scope != null) {
-                    scope.addData("forceFinishedScope", true);
-                    scope.addData("color", "#FF0000");
-                    scope.endTime = time();
-                    scope = scope.parent;
-                }
+        for (ProfilingScope scope : currentScopes.values()) {
+            while (scope != null) {
+                scope.addData("forceFinishedScope", true);
+                scope.addData("color", "#FF0000");
+                scope.endTime = time();
+                scope = scope.parent;
             }
         }
         _rootScope.stop();
@@ -275,15 +273,11 @@ public class TimeProfiler {
     }
 
     private static void setCurrentScope(ProfilingScope scope) {
-        synchronized (currentScopes) {
-            currentScopes.put(getCurrentThreadId(), scope);
-        }
+        currentScopes.put(getCurrentThreadId(), scope);
     }
 
     public static ProfilingScope getCurrentScope() {
-        synchronized (currentScopes) {
-            return currentScopes.get(getCurrentThreadId());
-        }
+        return currentScopes.get(getCurrentThreadId());
     }
 
     public static void init(List<File> reportFiles, Boolean fromEditor) throws IOException {
@@ -342,7 +336,7 @@ public class TimeProfiler {
         start(null);
     }
 
-    public static synchronized void start(String scopeName) {
+    public static void start(String scopeName) {
         ProfilingScope scope = new ProfilingScope();
         scope.startTime = time();
         if (scopeName != null) {
