@@ -33,11 +33,21 @@ import com.dynamo.bob.fs.IResource;
 @BuilderParams(name = "Ogg", inExts = ".ogg", outExt = ".oggc")
 public class OggBuilder extends CopyBuilder{
 
+    private static boolean initialized = false;
+    private static String oggzValidateExe = null;
+
     @Override
     public Task create(IResource input) throws IOException, CompileExceptionError {
-        Platform curr_platform = Platform.getHostPlatform();
-        List<String> deps = List.of("libogg", "liboggz");
-        Bob.unpackSharedLibraries(curr_platform, deps);
+
+        if (!initialized) {
+            initialized = true;
+            Platform hostPlatform = Platform.getHostPlatform();
+            Bob.init();
+            Bob.unpackSharedLibrary(hostPlatform, "libogg");
+            Bob.unpackSharedLibrary(hostPlatform, "liboggz");
+            oggzValidateExe = Bob.getExe(hostPlatform, "oggz-validate");
+        }
+
         File tmpOggFile = null;
         try {
             tmpOggFile = File.createTempFile("ogg_tmp", null, Bob.getRootFolder());
@@ -51,10 +61,8 @@ public class OggBuilder extends CopyBuilder{
             throw new CompileExceptionError(input, 0, 
                 String.format("Cannot copy ogg file to further process", new String(exc.getMessage())));
         }
-        Result result = Exec.execResult(Bob.getExe(curr_platform, "oggz-validate"),
-            tmpOggFile.getAbsolutePath()
-        );
 
+        Result result = Exec.execResult(oggzValidateExe, tmpOggFile.getAbsolutePath());
         if (result.ret != 0) {
             throw new CompileExceptionError(input, 0, 
                 String.format("\nSound file validation failed. Make sure your `ogg` files are correct using `oggz-validate` https://www.xiph.org/oggz/\n%s", new String(result.stdOutErr)));

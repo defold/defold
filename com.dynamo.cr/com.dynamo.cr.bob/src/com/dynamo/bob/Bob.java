@@ -243,24 +243,26 @@ public class Bob {
         return exes.get(0);
     }
 
+    public static void unpackSharedLibrary(Platform platform, String name) throws IOException {
+        TimeProfiler.start(name);
+        String depName = platform.getPair() + "/" + name + platform.getLibSuffix();
+        File f = new File(rootFolder, depName);
+        if (!f.exists()) {
+            URL url = Bob.class.getResource("/libexec/" + depName);
+            if (url == null) {
+                throw new RuntimeException(String.format("/libexec/%s could not be found.", depName));
+            }
+
+            atomicCopy(url, f, true);
+        }
+        TimeProfiler.stop();
+    }
+
     public static void unpackSharedLibraries(Platform platform, List<String> names) throws IOException {
         init();
-
-        final String libSuffix = platform.getLibSuffix();
         TimeProfiler.start("unpackSharedLibraries");
         for (String name : names) {
-            TimeProfiler.start(name);
-            String depName = platform.getPair() + "/" + name + libSuffix;
-            File f = new File(rootFolder, depName);
-            if (!f.exists()) {
-                URL url = Bob.class.getResource("/libexec/" + depName);
-                if (url == null) {
-                    throw new RuntimeException(String.format("/libexec/%s could not be found.", depName));
-                }
-
-                atomicCopy(url, f, true);
-            }
-            TimeProfiler.stop();
+            unpackSharedLibrary(platform, name);
         }
         TimeProfiler.stop();
     }
