@@ -63,9 +63,6 @@ public class TaskBuilder {
     // task results
     private List<TaskResult> results = new ArrayList<>();
 
-    // lookup of profiling scopes for task results
-    private Map<TaskResult, ProfilingScope> profilingScopeLookup = new HashMap<>();
-
     // the tasks to build
     // private List<Task> tasks;
     private Set<Task> tasks;
@@ -155,12 +152,7 @@ public class TaskBuilder {
 
         TaskResult taskResult = new TaskResult(task);
         taskResult.setResult(Result.SUCCESS);
-
-        // store the scope for later when the timings are merged back to the
-        // main thread
-        synchronized (profilingScopeLookup) {
-            profilingScopeLookup.put(taskResult, TimeProfiler.getCurrentScope());
-        }
+        taskResult.setProfilingScope(TimeProfiler.getCurrentScope());
 
         final List<IResource> outputResources = task.getOutputs();
         // check if all outputs already exist
@@ -320,7 +312,7 @@ public class TaskBuilder {
 
                     results.add(result);
                     if (result.isOk()) {
-                        ProfilingScope taskScope = profilingScopeLookup.get(result);
+                        ProfilingScope taskScope = result.getProfilingScope();
                         TimeProfiler.addScopeToCurrentThread(taskScope);
                         completedTasks.add(task);
                         completedOutputs.addAll(task.getOutputs());
