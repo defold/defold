@@ -227,6 +227,8 @@ public class ArchiveBuilder {
             resourceEntryFlags |= ResourceEntryFlag.EXCLUDED.getNumber();
         }
         else {
+            // synchronize on the archive data file so that multiple threads
+            // do not write to it at the same time
             synchronized (archiveData) {
                 alignBuffer(archiveData, this.resourcePadding);
                 entry.setResourceOffset((int) archiveData.getFilePointer());
