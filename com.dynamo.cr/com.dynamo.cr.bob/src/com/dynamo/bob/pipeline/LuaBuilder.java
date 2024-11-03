@@ -164,6 +164,7 @@ public abstract class LuaBuilder extends Builder {
         // so that it can be used. We do this here to avoid problems if the
         // exe is copied in the multi-threaded build stage
         // https://bugs.openjdk.org/browse/JDK-8068370
+        Bob.initLua();
         useLua51 = LUA51_PLATFORMS.contains(this.project.getPlatform());
         if (!useLua51 && luaJITExePath == null) {
             final Platform host = Platform.getHostPlatform();
@@ -201,7 +202,6 @@ public abstract class LuaBuilder extends Builder {
         RandomAccessFile rdr = null;
 
         try {
-            Bob.initLua(); // unpack the lua resources
 
             // Need to write the input file separately in case it comes from built-in, and cannot
             // be found through its path alone.
@@ -318,8 +318,6 @@ public abstract class LuaBuilder extends Builder {
     */
 
     public byte[] constructLuaJITBytecode(Task task, String source, boolean gen32bit) throws IOException, CompileExceptionError {
-
-        Bob.initLua(); // unpack the lua resources
 
         File outputFile = File.createTempFile("script", ".raw");
         File inputFile = File.createTempFile("script", ".lua");
