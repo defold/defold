@@ -235,7 +235,13 @@ public class Bob {
         return exes;
     }
 
-    public static synchronized String getExe(Platform platform, String name) throws IOException {
+    /**
+     * Get the path to an executable file managed by Bob
+     * @param platform The platform to get the executable for
+     * @param name Name of the executable
+     * @return Path to the executable
+     */
+    public static String getExe(Platform platform, String name) throws IOException {
         List<String> exes = getExes(platform, name);
         if (exes.size() > 1) {
             throw new IOException("More than one alternative when getting binary executable for platform: " + platform.toString());
