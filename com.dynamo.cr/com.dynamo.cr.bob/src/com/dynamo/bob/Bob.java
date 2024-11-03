@@ -153,7 +153,7 @@ public class Bob {
         TimeProfiler.stop();
     }
 
-    public static synchronized void initLua() {
+    public static void initLua() {
         if (luaInitialized) {
             return;
         }
