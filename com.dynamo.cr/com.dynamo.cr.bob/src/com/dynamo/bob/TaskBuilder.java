@@ -279,7 +279,6 @@ public class TaskBuilder {
             int remainingTasksCount = tasks.size();
             tasksToSubmit.clear();
             taskNameCounter.clear();
-            Set<String> taskNames = new HashSet<>();
             for (Task task : tasks) {
                 if (task.getBuilder().isGameProjectBuilder() && remainingTasksCount > 1) continue;
                 String taskName = task.getName();
