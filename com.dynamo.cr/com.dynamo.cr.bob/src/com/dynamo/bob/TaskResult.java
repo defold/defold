@@ -14,6 +14,8 @@
 
 package com.dynamo.bob;
 
+import com.dynamo.bob.util.TimeProfiler.ProfilingScope;
+
 /**
  * TaskResult. Contains build information for a specifik task execution
  * @author Christian Murray
@@ -33,6 +35,7 @@ public class TaskResult {
     private Task task;
     private Throwable exception;
     private int lineNumber = 0;
+    private ProfilingScope profilingScope;
 
     public TaskResult(Task task) {
         this.task = task;
@@ -52,6 +55,14 @@ public class TaskResult {
      */
     public Result getResult() {
         return this.result;
+    }
+
+    public void setProfilingScope(ProfilingScope profilingScope) {
+        this.profilingScope = profilingScope;
+    }
+
+    public ProfilingScope getProfilingScope() {
+        return this.profilingScope;
     }
 
     public boolean isOk() {
