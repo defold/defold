@@ -54,9 +54,9 @@ public class ShaderCompilePipeline {
     protected Options options                       = null;
 
     private static String tintExe = null;
-    protected static String glslangExe = null;
-    protected static String spirvOptExe = null;
-    protected static String spirvCrossExe = null;
+    private static String glslangExe = null;
+    private static String spirvOptExe = null;
+    private static String spirvCrossExe = null;
 
     public ShaderCompilePipeline(String pipelineName) throws IOException {
         this.pipelineName = pipelineName;
