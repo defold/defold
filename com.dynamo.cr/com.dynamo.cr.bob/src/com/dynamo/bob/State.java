@@ -51,7 +51,7 @@ public class State implements Serializable {
      * @param path path to set sha1 for
      * @param signature signature to set
      */
-    public synchronized void putSignature(String path, byte[] signature) {
+    public void putSignature(String path, byte[] signature) {
         signatures.put(path, signature);
     }
 
