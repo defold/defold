@@ -134,7 +134,7 @@ public class ResourceCache {
 	 * @param key Key to associate data with
 	 * @param data The data to store
 	 */
-	public synchronized void put(String key, byte[] data) throws IOException {
+	public void put(String key, byte[] data) throws IOException {
 		if (!enabled) {
 			return;
 		}
