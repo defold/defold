@@ -398,7 +398,7 @@ public class ManifestBuilder {
         }
     }
 
-    public synchronized void addResourceEntry(String url, byte[] data, int size, int compressed_size, int flags) throws IOException {
+    public void addResourceEntry(String url, byte[] data, int size, int compressed_size, int flags) throws IOException {
         try {
             ResourceEntry.Builder builder = ResourceEntry.newBuilder();
             builder.setUrl(url);
