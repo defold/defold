@@ -325,38 +325,29 @@ public class Bob {
 
     private static String getExeWithExtension(Platform platform, String name, String extension) throws IOException {
         init();
-        TimeProfiler.start("getExeWithExtension %s.%s", name, extension);
         String exeName = platform.getPair() + "/" + platform.getExePrefix() + name + extension;
         File f = new File(rootFolder, exeName);
         if (!f.exists()) {
             copyResourceToFile(f, "/libexec/" + exeName);
         }
-        TimeProfiler.addData("path", f.getAbsolutePath());
-        TimeProfiler.stop();
         return f.getAbsolutePath();
     }
 
     public static String getLibExecPath(String filename) throws IOException {
         init();
-        TimeProfiler.start("getLibExecPath %s", filename);
         File f = new File(rootFolder, filename);
         if (!f.exists()) {
             copyResourceToFile(f, "/libexec/" + filename);
         }
-        TimeProfiler.addData("path", f.getAbsolutePath());
-        TimeProfiler.stop();
         return f.getAbsolutePath();
     }
 
     public static String getJarFile(String filename) throws IOException {
         init();
-        TimeProfiler.start("getJarFile %s", filename);
         File f = new File(rootFolder, filename);
         if (!f.exists()) {
             copyResourceToFile(f, "/share/java/" + filename);
         }
-        TimeProfiler.addData("path", f.getAbsolutePath());
-        TimeProfiler.stop();
         return f.getAbsolutePath();
     }
 
@@ -428,14 +419,11 @@ public class Bob {
     public static String getLib(Platform platform, String name) throws IOException {
         init();
 
-        TimeProfiler.start("getLib %s", name);
         String libName = platform.getPair() + "/" + platform.getLibPrefix() + name + platform.getLibSuffix();
         File f = new File(rootFolder, libName);
         if (!f.exists()) {
             copyResourceToFile(f, "/lib/" + libName);
         }
-        TimeProfiler.addData("path", f.getAbsolutePath());
-        TimeProfiler.stop();
         return f.getAbsolutePath();
     }
 
