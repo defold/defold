@@ -165,22 +165,16 @@ public class ComponentsCounter {
     }
 
     private static Map.Entry<String, Boolean> getCounterNameAndPrototypeInfo(String type, IResource resource) throws IOException, CompileExceptionError {
-        if (type.equals("factory") || type.equals("collectionfactory")) {
-            return getCounterNameAndPrototypeInfo(type, resource, resource.getContent());
-        }
-        return null;
-    }
-    private static Map.Entry<String, Boolean> getCounterNameAndPrototypeInfo(String type, IResource resource, byte[] resourceContent) throws IOException, CompileExceptionError {
         if (type.equals("factory")) {
             FactoryDesc.Builder factoryDesc = FactoryDesc.newBuilder();
-            ProtoUtil.merge(resource, resourceContent, factoryDesc);
+            ProtoUtil.merge(resource, factoryDesc);
             Boolean isDynamic = factoryDesc.getDynamicPrototype();
             String counterName = BuilderUtil.replaceExt(factoryDesc.getPrototype(), ".go", EXT_GO);
             Map.Entry<String,Boolean> entry = new AbstractMap.SimpleEntry<String, Boolean>(counterName, isDynamic);
             return entry;
         } else if (type.equals("collectionfactory")) {
             CollectionFactoryDesc.Builder factoryDesc = CollectionFactoryDesc.newBuilder();
-            ProtoUtil.merge(resource, resourceContent, factoryDesc);
+            ProtoUtil.merge(resource, factoryDesc);
             Boolean isDynamic = factoryDesc.getDynamicPrototype();
             String counterName = BuilderUtil.replaceExt(factoryDesc.getPrototype(), ".collection", EXT_COL);
             Map.Entry<String,Boolean> entry = new AbstractMap.SimpleEntry<String, Boolean>(counterName, isDynamic);
@@ -189,12 +183,10 @@ public class ComponentsCounter {
         return null;
     }
 
-    public static Boolean ifStaticFactoryAddProtoAsInput(EmbeddedComponentDesc ec,
-                                                         IResource genResource,
-                                                         byte[] genResourceContent,
-                                                         TaskBuilder taskBuilder,
-                                                         IResource input) throws IOException, CompileExceptionError {
-        Map.Entry<String, Boolean> info = getCounterNameAndPrototypeInfo(ec.getType(), genResource, genResourceContent);
+    public static Boolean ifStaticFactoryAddProtoAsInput(EmbeddedComponentDesc ec, IResource genResource,
+        TaskBuilder taskBuilder, IResource input) throws IOException, CompileExceptionError {
+        
+        Map.Entry<String, Boolean> info = getCounterNameAndPrototypeInfo(ec.getType(), genResource);
         if (info != null) {
             Boolean isStatic = !info.getValue();
             if (isStatic) {
@@ -278,9 +270,9 @@ public class ComponentsCounter {
         return replaceExt(path);
     }
 
-    public static void countComponentsInEmbededObjects(Project project, IResource input, byte[] inputContent, Storage compStorage) throws IOException, CompileExceptionError {
+    public static void countComponentsInEmbededObjects(Project project, IResource res, Storage compStorage) throws IOException, CompileExceptionError {
         PrototypeDesc.Builder prot = PrototypeDesc.newBuilder();
-        ProtoUtil.merge(input, inputContent, prot);
+        ProtoUtil.merge(res, prot);
 
         for (EmbeddedComponentDesc cd : prot.getEmbeddedComponentsList()) {
             String type = cd.getType();
@@ -289,7 +281,8 @@ public class ComponentsCounter {
                 byte[] data = cd.getData().getBytes();
                 long hash = MurmurHash.hash64(data, data.length);
                 IResource genResource = project.getGeneratedResource(hash, type);
-                Map.Entry<String, Boolean> info = getCounterNameAndPrototypeInfo(type, genResource, data);
+                genResource.setContent(data);
+                Map.Entry<String, Boolean> info = getCounterNameAndPrototypeInfo(type, genResource);
                 if (info != null && info.getValue()) {
                     compStorage.makeDynamic();
                     return;
