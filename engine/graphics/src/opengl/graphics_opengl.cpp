@@ -2146,10 +2146,8 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
-    static inline void GetBaseUniformNameAndLevel(char* str, uint32_t len, char** str_out, uint32_t* level)
+    static inline char* GetBaseUniformName(char* str, uint32_t len)
     {
-        uint32_t level_count = 1;
-        *str_out = str;
         char* ptr = str;
         for (int i = len - 1; i >= 0; i--)
         {
@@ -2159,12 +2157,11 @@ static void LogFrameBufferError(GLenum status)
             }
             else if (ptr[i] == '.')
             {
-                if (level_count == 1)
-                    *str_out = &ptr[i+1];
-                level_count++;
+                return &ptr[i+1];
             }
         }
-        *level = level_count;
+
+        return str;
     }
 
     static void BuildUniformBuffers(OpenGLProgram* program, OpenGLShader** shaders, uint32_t num_shaders)
@@ -2304,25 +2301,18 @@ static void LogFrameBufferError(GLenum status)
                 uniform_location = (HUniformLocation) glGetUniformLocation(program->m_Id, uniform_name_buffer);
             }
 
-            char* base_uniform_name     = 0;
-            uint32_t base_uniform_level = 0; // "uniform.blah.bleh" => 3
-            GetBaseUniformNameAndLevel(uniform_name_buffer, uniform_name_length, &base_uniform_name, &base_uniform_level);
+            char* base_uniform_name = GetBaseUniformName(uniform_name_buffer, uniform_name_length);
             assert(base_uniform_name != 0);
 
-            OpenGLUniform& uniform       = program->m_Uniforms[i];
-            uniform.m_Uniform.m_Name     = strdup(base_uniform_name);
-            uniform.m_Uniform.m_NameHash = dmHashString64(base_uniform_name);
-
-            if (base_uniform_level > 1)
-            {
-                uniform.m_Uniform.m_CanonicalName = strdup(uniform_name_buffer);
-                uniform.m_Uniform.m_CanonicalNameHash = dmHashString64(uniform.m_Uniform.m_CanonicalName);
-            }
-
-            uniform.m_Uniform.m_Location = uniform_location;
-            uniform.m_Uniform.m_Count    = uniform_size;
-            uniform.m_Uniform.m_Type     = GetGraphicsType(uniform_type);
-            uniform.m_IsTextureType      = IsTypeTextureType(uniform.m_Uniform.m_Type);
+            OpenGLUniform& uniform                = program->m_Uniforms[i];
+            uniform.m_Uniform.m_Name              = strdup(base_uniform_name);
+            uniform.m_Uniform.m_NameHash          = dmHashString64(base_uniform_name);
+            uniform.m_Uniform.m_CanonicalName     = strdup(uniform_name_buffer);
+            uniform.m_Uniform.m_CanonicalNameHash = dmHashString64(uniform.m_Uniform.m_CanonicalName);
+            uniform.m_Uniform.m_Location          = uniform_location;
+            uniform.m_Uniform.m_Count             = uniform_size;
+            uniform.m_Uniform.m_Type              = GetGraphicsType(uniform_type);
+            uniform.m_IsTextureType               = IsTypeTextureType(uniform.m_Uniform.m_Type);
 
         #if 1
             dmLogInfo("Uniform[%d]: %s, %llu, (original_name=%s)", i, uniform.m_Uniform.m_Name, uniform.m_Uniform.m_Location, uniform_name_buffer);

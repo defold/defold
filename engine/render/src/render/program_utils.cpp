@@ -85,6 +85,7 @@ namespace dmRender
         dmSnPrintf(buffer, buffer_size, "%s.z", name);
         element_ids[2] = dmHashString64(buffer);
         dmSnPrintf(buffer, buffer_size, "%s.w", name);
+        element_ids[3] = dmHashString64(buffer);
     }
 
     int32_t GetProgramSamplerIndex(const dmArray<Sampler>& samplers, dmhash_t name_hash)

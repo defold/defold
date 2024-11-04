@@ -110,6 +110,7 @@ namespace dmGraphics
         BindingFamily      m_BindingFamily;
         uint16_t           m_Set;
         uint16_t           m_Binding;
+        uint16_t           m_ElementCount;
         BindingInfo        m_BindingInfo;
     };
 

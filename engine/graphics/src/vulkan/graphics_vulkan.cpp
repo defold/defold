@@ -2694,7 +2694,9 @@ bail:
                 uniform.m_Count             = dmMath::Max((uint32_t) 1, member.m_ElementCount);
                 uniform.m_Location          = resource->m_Res->m_Set | resource->m_Res->m_Binding << 16 | buffer_offset << 32;
 
+            #if 0
                 dmLogInfo("    Uniform: path=%s, name=%s, offset=%d, buffer_offset=%d", uniform.m_CanonicalName, uniform.m_Name, member.m_Offset, (uint32_t) buffer_offset);
+            #endif
 
                 uniforms.Push(uniform);
             }

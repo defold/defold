@@ -214,6 +214,10 @@ public abstract class ShaderProgramBuilder extends Builder {
         resourceBindingBuilder.setNameHash(MurmurHash.hash64(res.name));
         resourceBindingBuilder.setSet(res.set);
         resourceBindingBuilder.setBinding(res.binding);
+
+        // These might not be available
+        if (res.elementCount != null)
+            resourceBindingBuilder.setElementCount(res.elementCount);
         if (res.blockSize != null)
             resourceBindingBuilder.setBlockSize(res.blockSize);
         else if (res.textureIndex != null)

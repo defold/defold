@@ -917,6 +917,7 @@ namespace dmGraphics
             res.m_NameHash             = bindings[i].m_NameHash;
             res.m_Binding              = bindings[i].m_Binding;
             res.m_Set                  = bindings[i].m_Set;
+            res.m_ElementCount         = (uint16_t) dmMath::Max(bindings[i].m_ElementCount, (uint32_t) 1);
             res.m_Type.m_UseTypeIndex  = bindings[i].m_Type.m_UseTypeIndex;
             res.m_BindingFamily        = family;
 

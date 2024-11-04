@@ -41,6 +41,7 @@ public class SPIRVReflector {
         public int     set;
         public Integer blockSize;
         public Integer textureIndex;
+        public Integer elementCount;
     }
 
     public class ResourceType {
@@ -118,6 +119,12 @@ public class SPIRVReflector {
             ubo.binding   = uboNode.get("binding").asInt();
             ubo.type      = uboNode.get("type").asText();
             ubo.blockSize = uboNode.get("block_size").asInt();
+
+            JsonNode arrayNode = uboNode.get("array");
+            if (arrayNode != null && arrayNode.isArray())
+            {
+                ubo.elementCount = arrayNode.get(0).asInt();
+            }
             ubos.add(ubo);
         }
 
