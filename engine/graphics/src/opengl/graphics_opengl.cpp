@@ -1934,7 +1934,7 @@ static void LogFrameBufferError(GLenum status)
         if (glBindVertexArray)
             glBindVertexArray(GetGLHandle(context, context->m_GlobalVAO));
 
-        if (!(context->m_ModificationVersion == vertex_declaration->m_ModificationVersion && vertex_declaration->m_BoundForProgram == ((OpenGLProgram*) program)->m_Id))
+        if (context->m_ModificationVersion != vertex_declaration->m_ModificationVersion || vertex_declaration->m_BoundForProgram != program)
         {
             BindVertexDeclarationProgram(context, vertex_declaration, program);
         }
@@ -1948,7 +1948,7 @@ static void LogFrameBufferError(GLenum status)
                 uint32_t stream_offset = base_offset + vertex_declaration->m_Streams[i].m_Offset;
                 uint32_t sub_vector_component_count = sub_vector_bind_count > 1 ? sub_vector_bind_count : vertex_declaration->m_Streams[i].m_Size;
 
-                for (int j = 0; j < sub_vector_bind_count; ++j)
+                for (uint32_t j = 0; j < sub_vector_bind_count; ++j)
                 {
                     SetVertexAttribute(
                         context,
