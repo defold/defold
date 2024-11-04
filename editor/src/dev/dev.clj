@@ -180,7 +180,7 @@
                       :node-type (g/node-type* basis node-id)})))))
 
 (defn prefs []
-  (prefs/make-prefs "defold"))
+  (prefs/project (g/node-value (workspace) :root)))
 
 (declare ^:private exclude-keys-deep-helper)
 

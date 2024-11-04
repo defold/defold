@@ -225,6 +225,11 @@
     #define GL_ARRAY_BUFFER_ARB GL_ARRAY_BUFFER
     #define GL_ELEMENT_ARRAY_BUFFER_ARB GL_ELEMENT_ARRAY_BUFFER
     #define GL_TEXTURE_CUBE_MAP_SEAMLESS 0x884F
+
+    #ifdef ANDROID
+        #define glBindVertexArray glBindVertexArrayOES
+        #define glGenVertexArrays glGenVertexArraysOES
+    #endif
 #endif
 
 DM_PROPERTY_EXTERN(rmtp_DrawCalls);
@@ -1484,13 +1489,8 @@ static void LogFrameBufferError(GLenum status)
             }
         }
 
-#if !defined(GL_ES_VERSION_2_0)
-        {
-            GLuint vao;
-            glGenVertexArrays(1, &vao);
-            glBindVertexArray(vao);
-        }
-#endif
+        if (glGenVertexArrays)
+            glGenVertexArrays(1, &context->m_GlobalVAO);
 
         SetSwapInterval(_context, params.m_SwapInterval);
 
@@ -1921,6 +1921,9 @@ static void LogFrameBufferError(GLenum status)
         assert(vertex_declaration);
 
         OpenGLContext* context = (OpenGLContext*) _context;
+
+        if (glBindVertexArray)
+            glBindVertexArray(context->m_GlobalVAO);
 
         if (!(context->m_ModificationVersion == vertex_declaration->m_ModificationVersion && vertex_declaration->m_BoundForProgram == ((OpenGLProgram*) program)->m_Id))
         {
@@ -4634,6 +4637,14 @@ static void LogFrameBufferError(GLenum status)
             return GetAssetFromContainer<OpenGLRenderTarget>(context->m_AssetHandleContainer, asset_handle) != 0;
         }
         return false;
+    }
+
+    // DMSDK
+    uint32_t OpenGLGetRenderTargetId(HContext _context, HRenderTarget render_target)
+    {
+        OpenGLContext* context = (OpenGLContext*) _context;
+        OpenGLRenderTarget* rt = GetAssetFromContainer<OpenGLRenderTarget>(context->m_AssetHandleContainer, render_target);
+        return rt->m_Id;
     }
 
     static void OpenGLInvalidateGraphicsHandles(HContext context)

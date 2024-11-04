@@ -156,6 +156,9 @@ namespace dmGraphics
         dmArray<uint32_t>       m_FreeIndexes; /// contains indexes that can be reused in m_AllGLHandles
 
         PipelineState           m_PipelineState;
+
+        GLuint                  m_GlobalVAO;
+
         uint32_t                m_Width;
         uint32_t                m_Height;
         uint32_t                m_MaxTextureSize;
