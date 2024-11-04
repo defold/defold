@@ -271,6 +271,29 @@
       (is (map? result))
       (is (= {'one :one 'two :two} result)))))
 
+(deftest reduce-partitioned-test
+  (testing "Applies accumulate-fn on arguments partitioned from the input sequence."
+    (is (= [[[[[[[] 0] 1] 2] 3] 4] 5] (coll/reduce-partitioned 1 vector [] (range 6))))
+    (is (= [[[[] 0 1] 2 3] 4 5] (coll/reduce-partitioned 2 vector [] (range 6))))
+    (is (= [[[] 0 1 2] 3 4 5] (coll/reduce-partitioned 3 vector [] (range 6))))
+    (is (= {:a 1
+            :b 2
+            :c 3}
+           (coll/reduce-partitioned 2 assoc {:a 1} [:b 2 :c 3]))))
+
+  (testing "Throws when the input sequence cannot be evenly partitioned."
+    (is (thrown-with-msg?
+          IllegalArgumentException
+          #"The length of coll must be a multiple of the partition-length."
+          (coll/reduce-partitioned 2 vector [] (range 5)))))
+
+  (testing "Throws when partition-length is not a positive number."
+    (doseq [partition-length [-1 0]]
+      (is (thrown-with-msg?
+            IllegalArgumentException
+            #"The partition-length must be positive."
+            (coll/reduce-partitioned partition-length vector [] (range 6)))))))
+
 (deftest remove-index-test
   (testing "Returns a vector without the item at the specified index."
     (is (= [:b :c] (coll/remove-index [:a :b :c] 0)))

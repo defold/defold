@@ -249,6 +249,24 @@
        (let [finished (apply vector-of primitive-type (take partition-length in-progress))]
          (cons finished (partition-all-primitives primitive-type partition-length step (nthrest in-progress step))))))))
 
+(defn reduce-partitioned
+  "Partitions coll into the requested partition-length, then reduces using the
+  accumulate-fn with the resulting arguments from each partition. If coll cannot
+  be evenly partitioned, throws IllegalArgumentException."
+  [^long partition-length accumulate-fn init coll]
+  (if (pos-int? partition-length)
+    (transduce
+      (partition-all partition-length)
+      (fn
+        ([result] result)
+        ([result partition]
+         (case (rem (count partition) partition-length)
+           0 (apply accumulate-fn result partition)
+           (throw (IllegalArgumentException. "The length of coll must be a multiple of the partition-length.")))))
+      init
+      coll)
+    (throw (IllegalArgumentException. "The partition-length must be positive."))))
+
 (defn remove-index
   "Removes an item at the specified position in a vector"
   [coll ^long index]
