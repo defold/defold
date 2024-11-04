@@ -19,6 +19,11 @@
    :help "Write log file to disk",
    :default false,
    :path ["project" "write_log"]}
+  {:type :string,
+   :help "only the minimum log level and higher levels will be shown",
+   :default "2",
+   :path ["project" "minimum_log_level"]
+   :options [["0" "DEBUG = 0"] ["1" "USER DEBUG = 1"] ["2" "INFO = 2"] ["3" "WARNING = 3"] ["4" "ERROR = 4"] ["5" "FATAL = 5"]]}
   {:type :boolean,
    :help "compress archive (not for Android)",
    :default true,
