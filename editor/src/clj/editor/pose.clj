@@ -317,3 +317,12 @@
 
 (defmacro scale-v4 [pose-expr]
   `(conj (scale-v3 ~pose-expr) 1.0))
+
+(defmacro translated? [pose-expr]
+  `(not= default-translation (translation-v3 ~pose-expr)))
+
+(defmacro rotated? [pose-expr]
+  `(not= default-rotation (rotation-q4 ~pose-expr)))
+
+(defmacro scaled? [pose-expr]
+  `(not= default-scale (scale-v3 ~pose-expr)))

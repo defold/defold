@@ -930,11 +930,9 @@
                                                (not= node-id (g/node-value node-id :parent)))))
                      :children node-outline-children
                      :outline-error? (g/error-fatal? own-build-errors)
-                     :outline-overridden? (let [prop-kw->override-value
-                                                (if (str/blank? current-layout)
-                                                  _overridden-properties
-                                                  (layout->prop->override current-layout))]
-                                            (not (coll/empty? prop-kw->override-value)))}
+                     :outline-overridden? (if (str/blank? current-layout)
+                                            (< 1 (count _overridden-properties)) ; :layout->prop->override will always be present, and we shouldn't count it.
+                                            (pos? (count (layout->prop->override current-layout))))}
                     (resource/openable-resource? node-outline-link) (assoc :link node-outline-link :outline-reference? true))))
 
   (output transform-properties g/Any scene/produce-scalable-transform-properties)
@@ -1818,7 +1816,7 @@
                                                                 (get-in template-outline [:children 0 :children])))
   (output node-outline-reqs g/Any :cached (g/constantly []))
   (output node-msg g/Any :cached produce-template-node-msg)
-    (output node-msgs g/Any :cached (g/fnk [id layout->prop->override node-msg scene-node-msgs]
+  (output node-msgs g/Any :cached (g/fnk [id layout->prop->override node-msg scene-node-msgs]
                                     (let [decorated-node-msg
                                           (assoc node-msg
                                             :layout->prop->override layout->prop->override)]
@@ -2712,38 +2710,39 @@
 (defn- make-layout-desc [layout-name decorated-node-msgs]
   (protobuf/make-map-without-defaults Gui$SceneDesc$LayoutDesc
     :name layout-name
-    :nodes (into []
-                 (keep
-                   (fn [{:keys [layout->prop->override] :as node-msg}]
-                     {:pre [(map? layout->prop->override)]}
-                     (when-some [prop->override (coll/not-empty (layout->prop->override layout-name))]
-                       (let [overridden-fields
-                             (->> prop->override
-                                  (map (comp prop-key->pb-field-index key))
-                                  (sort))]
-                         (-> node-msg
-                             (select-keys override-retained-pb-fields)
-                             (protobuf/assign-repeated :overridden-fields overridden-fields)
-                             (into prop-entries->pb-field-entries-xform
-                                   prop->override))))))
-                 decorated-node-msgs)))
+    :nodes (coll/transfer decorated-node-msgs []
+             (keep
+               (fn [{:keys [layout->prop->override] :as node-msg}]
+                 {:pre [(map? layout->prop->override)]}
+                 (when-some [prop->override (coll/not-empty (layout->prop->override layout-name))]
+                   (let [overridden-fields
+                         (->> prop->override
+                              (map (comp prop-key->pb-field-index key))
+                              (sort))]
+                     (-> node-msg
+                         (dissoc :layout->prop->override)
+                         (protobuf/assign-repeated :overridden-fields overridden-fields)
+                         (into prop-entries->pb-field-entries-xform
+                               prop->override)))))))))
 
 (g/defnk produce-pb-msg [script-resource material-resource adjust-reference max-nodes max-dynamic-textures node-msgs layer-msgs font-msgs texture-msgs material-msgs layout-infos particlefx-resource-msgs resource-msgs]
-  (protobuf/make-map-without-defaults Gui$SceneDesc
-    :script (resource/resource->proj-path script-resource)
-    :material (resource/resource->proj-path material-resource)
-    :adjust-reference adjust-reference
-    :max-nodes max-nodes
-    :max-dynamic-textures max-dynamic-textures
-    :nodes (mapv #(dissoc % :layout->prop->override) node-msgs)
-    :layers layer-msgs
-    :fonts font-msgs
-    :textures texture-msgs
-    :materials material-msgs
-    :layouts (mapv #(make-layout-desc % node-msgs)
-                   (sort (keys layout-infos)))
-    :particlefxs particlefx-resource-msgs
-    :resources resource-msgs))
+  (let [node-descs (mapv #(dissoc % :layout->prop->override) node-msgs)
+        layout-descs (mapv #(make-layout-desc % node-msgs)
+                           (sort (keys layout-infos)))]
+    (protobuf/make-map-without-defaults Gui$SceneDesc
+      :script (resource/resource->proj-path script-resource)
+      :material (resource/resource->proj-path material-resource)
+      :adjust-reference adjust-reference
+      :max-nodes max-nodes
+      :max-dynamic-textures max-dynamic-textures
+      :nodes node-descs
+      :layers layer-msgs
+      :fonts font-msgs
+      :textures texture-msgs
+      :materials material-msgs
+      :layouts layout-descs
+      :particlefxs particlefx-resource-msgs
+      :resources resource-msgs)))
 
 (g/defnk produce-save-value [pb-msg]
   (-> pb-msg
@@ -2799,10 +2798,13 @@
 (defn- pre-multiply-pb-pose [child-node-desc parent-node-desc]
   (let [pose (pose/pre-multiply (node-desc->pose child-node-desc)
                                 (node-desc->pose parent-node-desc))]
-    (assoc child-node-desc
-      :position (pose/translation-v4 pose 1.0)
-      :rotation (pose/euler-rotation-v4 pose)
-      :scale (pose/scale-v4 pose))))
+    (protobuf/assign child-node-desc
+      :position (when (pose/translated? pose)
+                  (pose/translation-v4 pose 1.0))
+      :rotation (when (pose/rotated? pose)
+                  (pose/euler-rotation-v4 pose))
+      :scale (when (pose/scaled? pose)
+               (pose/scale-v4 pose)))))
 
 (defn- node-desc->rt-node-desc [node-desc]
   {:pre [(map? node-desc)]} ; Gui$NodeDesc in map format.
@@ -2813,36 +2815,42 @@
     (:template-node-child node-desc)
     (reduce
       (fn [node template]
-        (cond-> (assoc node :template-node-child false)
+        (cond-> node
 
-                (and (coll/empty? (:layer node))
-                     (not (coll/empty? (:layer template))))
-                (assoc :layer (:layer template))
+                (coll/empty? (:layer node))
+                (protobuf/assign :layer (coll/not-empty (:layer template)))
 
                 (:inherit-alpha node)
-                (->
-                  (assoc :alpha (* (:alpha node 1.0) (:alpha template 1.0)))
-                  (assoc :inherit-alpha (:inherit-alpha template false)))
+                (as-> node
+                      (let [^float node-alpha (:alpha node protobuf/float-one)
+                            ^float template-alpha (:alpha template protobuf/float-one)
+                            inherited-alpha (* node-alpha template-alpha)]
+                        (protobuf/assign node
+                          :inherit-alpha (:inherit-alpha template) ; Protobuf default is false, and we want to exclude defaults.
+                          :alpha (when (< inherited-alpha (float 1.0))
+                                   inherited-alpha))))
 
                 (or (= (:id template) (:parent node))
                     (coll/empty? (:parent node)))
                 (->
-                  (assoc :parent (:parent template ""))
-                  (assoc :enabled (and (:enabled node true) (:enabled template true)))
+                  (protobuf/assign
+                    :parent (:parent template)
+                    :enabled (when-not (and (:enabled node true)
+                                            (:enabled template true))
+                               false)) ; Protobuf default is true, and we want to exclude defaults.
+
                   ;; In fact incorrect, but only possibility to retain rotation/scale separation.
                   (pre-multiply-pb-pose template))))
-      node-desc
+      (dissoc node-desc :overridden-fields :template-node-child)
       (:templates (meta node-desc)))
 
     :else
-    node-desc))
+    (dissoc node-desc :overridden-fields)))
 
 (defn- layout-desc->rt-layout-desc [layout-desc]
   {:pre [(map? layout-desc)]} ; Gui$SceneDesc$LayoutDesc in map format.
   (-> layout-desc
-      (protobuf/sanitize-repeated
-        :nodes (comp #(dissoc % :overridden-fields)
-                     node-desc->rt-node-desc))))
+      (protobuf/sanitize-repeated :nodes node-desc->rt-node-desc)))
 
 (defn- scene-desc->rt-scene-desc [scene-desc]
   {:pre [(map? scene-desc)]} ; Gui$SceneDesc in map format.
