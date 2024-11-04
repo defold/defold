@@ -132,10 +132,11 @@
     (analytics/start! analytics-url analytics-send-interval)
     (Shutdown/addShutdownAction analytics/shutdown!)
     (try
-      (let [game-project-path (get-in opts [:arguments 0])]
+      (let [game-project-path (get-in opts [:arguments 0])
+            game-project-file (io/file game-project-path)]
         (if (and game-project-path
-                 (.exists (io/file game-project-path)))
-          (open-project-with-progress-dialog namespace-loader prefs game-project-path updater false)
+                 (.exists game-project-file))
+          (open-project-with-progress-dialog namespace-loader prefs (.getAbsolutePath game-project-file) updater false)
           (select-project-from-welcome namespace-loader prefs updater)))
       (catch Throwable t
         (log/error :exception t)
