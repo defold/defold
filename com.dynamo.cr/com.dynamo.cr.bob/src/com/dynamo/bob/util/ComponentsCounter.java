@@ -149,9 +149,13 @@ public class ComponentsCounter {
         return new Storage();
     }
 
-    private static Boolean isFactoryType(String type) {
+    private static Boolean isFactoryType(String type, boolean compiled) {
         if (type.charAt(0) == '.') {
             type = type.substring(1);
+        }
+        if (compiled)
+        {
+            type = type.substring(0, type.length() - 1);
         }
         return type.equals("factory") || type.equals("collectionfactory");
     }
@@ -206,7 +210,7 @@ public class ComponentsCounter {
         
         String comp = cd.getComponent();
         String type = FilenameUtils.getExtension(comp);
-        if (ComponentsCounter.isFactoryType(type)) {
+        if (ComponentsCounter.isFactoryType(type, false)) {
             IResource genResource = project.getResource(comp);
             Map.Entry<String, Boolean> info = getCounterNameAndPrototypeInfo(type, genResource);
             if (info != null) {
@@ -281,7 +285,7 @@ public class ComponentsCounter {
         for (EmbeddedComponentDesc cd : prot.getEmbeddedComponentsList()) {
             String type = cd.getType();
             compStorage.add(type);
-            if (isFactoryType(type)) {
+            if (isFactoryType(type, false)) {
                 byte[] data = cd.getData().getBytes();
                 long hash = MurmurHash.hash64(data, data.length);
                 IResource genResource = project.getGeneratedResource(hash, type);
@@ -296,7 +300,7 @@ public class ComponentsCounter {
             String comp = cd.getComponent();
             String type = FilenameUtils.getExtension(comp);
             compStorage.add(type);
-            if (isFactoryType(type)) {
+            if (isFactoryType(type, false)) {
                 IResource genResource = project.getResource(comp);
                 Map.Entry<String, Boolean> info = getCounterNameAndPrototypeInfo(type, genResource);
                 if (info != null && info.getValue()) {
@@ -314,21 +318,26 @@ public class ComponentsCounter {
         }
         Map<String, Integer> components = storage.get();
         HashMap<String, Integer> mergedComponents = new HashMap<>();
+        boolean hasDynamicValue = false;
         for (Map.Entry<String, Integer> entry : components.entrySet()) {
             // different input component names may have the same output name
             // for example wav and sound both are soundc
             String name = project.replaceExt("." + entry.getKey()).substring(1);
+            Integer value = entry.getValue();
             if (mergedComponents.containsKey(name)) {
                 Integer mergedValue = mergedComponents.get(name);
-                Integer value = entry.getValue();
                 if (mergedValue.equals(DYNAMIC_VALUE) || value.equals(DYNAMIC_VALUE)) {
                     mergedComponents.put(name, DYNAMIC_VALUE);
                 } else {
                     mergedComponents.put(name, mergedValue + value);
                 }
             } else {
-                mergedComponents.put(name, entry.getValue());
+                mergedComponents.put(name, value);
             }
+            hasDynamicValue |= isFactoryType(name, true);
+        }
+        if (hasDynamicValue) {
+            mergedComponents.put("goc", DYNAMIC_VALUE);
         }
         for (Map.Entry<String, Integer> entry : mergedComponents.entrySet()) {
             ComponenTypeDesc.Builder componentTypeDesc = ComponenTypeDesc.newBuilder();

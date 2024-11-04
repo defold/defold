@@ -180,8 +180,13 @@
       (let [^String file-name decl]
         (spit (io/file entry file-name) (.toString (UUID/randomUUID)))))))
 
+(defn make-build-stage-test-prefs []
+  (prefs/global "test/resources/test.editor_settings"))
+
+(defonce ^:private shared-test-prefs-file (fs/create-temp-file! "unit-test" "prefs.editor_settings"))
 (defn make-test-prefs []
-  (prefs/load-prefs "test/resources/test_prefs.json"))
+  (prefs/make :scopes {:global shared-test-prefs-file :project shared-test-prefs-file}
+              :schemas [:default]))
 
 (declare resolve-prop)
 
@@ -412,7 +417,7 @@
 
 (defn open-scene-view! [project app-view path width height]
   (make-tab! project app-view path (fn [view-graph resource-node]
-                                     (scene/make-preview view-graph resource-node {:prefs (make-test-prefs) :app-view app-view :project project :select-fn (partial app-view/select app-view)} width height))))
+                                     (scene/make-preview view-graph resource-node {:prefs (make-build-stage-test-prefs) :app-view app-view :project project :select-fn (partial app-view/select app-view)} width height))))
 
 (defn close-tab! [project app-view path]
   (let [node-id (project/get-resource-node project path)

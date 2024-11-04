@@ -44,7 +44,7 @@ import com.dynamo.gamesys.proto.AtlasProto.AtlasImage;
 
 import com.google.protobuf.TextFormat;
 
-@ProtoParams(srcClass = Atlas.class, messageClass = Atlas.class)
+@ProtoParams(srcClass = Atlas.class, messageClass = TextureSet.class)
 @BuilderParams(name = "Atlas", inExts = {".atlas"}, outExt = ".a.texturesetc")
 public class AtlasBuilder extends ProtoBuilder<Atlas.Builder> {
 

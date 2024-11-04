@@ -16,6 +16,7 @@ package com.defold.editor;
 
 import com.defold.util.SupportPath;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -26,15 +27,15 @@ public class Editor {
         return System.getProperty("defold.version") == null;
     }
 
-    public static Path getSupportPath() {
+    public static Path getSupportPath() throws IOException {
         Path supportPath = SupportPath.getPlatformSupportPath("Defold");
         if (!Files.exists(supportPath)) {
-            supportPath.toFile().mkdirs();
+            Files.createDirectories(supportPath);
         }
         return supportPath;
     }
 
-    public static Path getLogDirectory() {
+    public static Path getLogDirectory() throws IOException {
         String defoldLogDir = System.getProperty("defold.log.dir");
         return defoldLogDir != null ? Paths.get(defoldLogDir) : getSupportPath();
     }

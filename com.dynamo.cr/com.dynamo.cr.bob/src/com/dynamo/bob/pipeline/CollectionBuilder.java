@@ -372,6 +372,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
     @Override
     protected CollectionDesc.Builder transform(Task task, IResource resource, CollectionDesc.Builder messageBuilder) throws CompileExceptionError, IOException {
         Integer countOfRealEmbededObjects = messageBuilder.getEmbeddedInstancesCount();
+        int goCount = messageBuilder.getInstancesCount();
         mergeSubCollections(resource, messageBuilder);
         ComponentsCounter.Storage compStorage = ComponentsCounter.createStorage();
         int embedIndex = 0;
@@ -454,6 +455,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
         }
         messageBuilder.addAllPropertyResources(propertyResources);
 
+        compStorage.add("goc", goCount);
         ComponentsCounter.sumInputs(compStorage, task.getInputs(), compCounterInputsCount);
         ComponentsCounter.copyDataToBuilder(compStorage, project, messageBuilder);
         task.output(1).setContent(compStorage.toByteArray());
