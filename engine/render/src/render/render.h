@@ -29,6 +29,8 @@
 namespace dmRender
 {
     extern const char* RENDER_SOCKET_NAME;
+    extern const char* KEY_CONTEXT_LOST;
+    extern const char* KEY_CONTEXT_RESTORED;
 
     static const uint32_t MAX_MATERIAL_TAG_COUNT = 32; // Max tag count per material
 

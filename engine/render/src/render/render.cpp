@@ -38,6 +38,8 @@ namespace dmRender
     using namespace dmVMath;
 
     const char* RENDER_SOCKET_NAME = "@render";
+    const char* KEY_CONTEXT_LOST = "context_lost";
+    const char* KEY_CONTEXT_RESTORED = "context_restored";
 
     StencilTestParams::StencilTestParams() {
         Init();
@@ -1228,7 +1230,7 @@ namespace dmRender
     void OnContextEvent(void* context, const char* event_name)
     {
         RenderContext* render_context = (RenderContext*)context;
-        if (strcmp(event_name, "context_lost") == 0)
+        if (strcmp(event_name, KEY_CONTEXT_LOST) == 0)
         {
             SetRenderPause(render_context, 1u);
             dmGraphics::InvalidateGraphicsHandles(render_context->m_GraphicsContext);
