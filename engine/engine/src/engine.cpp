@@ -2089,7 +2089,7 @@ bail:
             }
             else if (descriptor == dmSystemDDF::ResumeRendering::m_DDFDescriptor)
             {
-                dmRender::ResumeRender(self->m_RenderContext);
+                dmRender::SetRenderPause(self->m_RenderContext, 0u);
             }
             else
             {

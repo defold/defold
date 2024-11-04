@@ -1230,7 +1230,7 @@ namespace dmRender
         RenderContext* render_context = (RenderContext*)context;
         if (strcmp(event_name, "context_lost") == 0)
         {
-            PauseRender(render_context);
+            SetRenderPause(render_context, 1u);
             dmGraphics::InvalidateGraphicsHandles(render_context->m_GraphicsContext);
         }
         if (render_context->m_CallbackInfo != 0x0)
@@ -1254,14 +1254,9 @@ namespace dmRender
         }
     }
 
-    void PauseRender(HRenderContext context)
+    void SetRenderPause(HRenderContext context, uint8_t is_paused)
     {
-        context->m_IsRenderPaused = 1;
-    }
-
-    void ResumeRender(HRenderContext context)
-    {
-        context->m_IsRenderPaused = 0;
+        context->m_IsRenderPaused = is_paused;
     }
 
     bool IsRenderPaused(HRenderContext context)

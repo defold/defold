@@ -196,8 +196,7 @@ namespace dmRender
     Result DrawDebug3d(HRenderContext context, const FrustumOptions* frustum_options);
     Result DrawDebug2d(HRenderContext context);
 
-    void PauseRender(HRenderContext context);
-    void ResumeRender(HRenderContext context);
+    void SetRenderPause(HRenderContext context, uint8_t is_paused);
     bool IsRenderPaused(HRenderContext context);
 
     /**

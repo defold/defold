@@ -153,11 +153,11 @@ namespace dmGraphics
         * But it enables to recreate all underlying handles without changes of external connection.
         */
         dmArray<GLuint>         m_AllGLHandles;
-        dmArray<uint32_t>       m_FreeIndexes; /// contains indexes that can be reused in m_AllGLHandles
+        dmIndexPool32           m_FreeIndexes; /// contains indexes that can be reused in m_AllGLHandles
 
         PipelineState           m_PipelineState;
 
-        GLuint                  m_GlobalVAO;
+        uint32_t                m_GlobalVAO;
 
         uint32_t                m_Width;
         uint32_t                m_Height;

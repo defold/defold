@@ -2870,7 +2870,7 @@ namespace dmRender
     }
 #undef CHECK_COMPUTE_SUPPORT
 
-   /* set render's event listener
+   /*# set render's event listener
     * Set or remove listener. Currenly only only two type of events can arrived:
     * `context_lost` - when rendering context lost. Rending paused and all graphics resources become invalid.
     * `context_restored` - when rendering context was restored. Rendering still paused and graphics resources still 
