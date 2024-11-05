@@ -178,7 +178,7 @@ public abstract class LuaBuilder extends Builder {
         }
     }
 
-    private int executeProcessWithRetries(Task task, ProcessBuilder pb, File inputFile) throws IOException, CompileExceptionError {
+    private int executeProces(Task task, ProcessBuilder pb, File inputFile) throws IOException, CompileExceptionError {
         InputStream is = null;
         try {
             Process p = pb.start();
@@ -242,7 +242,7 @@ public abstract class LuaBuilder extends Builder {
             int retrievableFailure = 139; //segfault
 
             while (retries < maxRetries) {
-                int ret = executeProcessWithRetries(task, pb, inputFile);
+                int ret = executeProces(task, pb, inputFile);
                 if (ret == retrievableFailure) {
                     retries++;
                     logger.info("Attempt %d failed with exit code %d, retrying...", retries, retrievableFailure);
