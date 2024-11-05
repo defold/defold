@@ -24,6 +24,7 @@ except:
 
 import struct
 import hashlib
+import optparse
 import lz4.block
 import resource.liveupdate_ddf_pb2
 
@@ -56,8 +57,18 @@ def xtea_decryptCTR(key, data, n=32):
     return data
 
 if __name__ == "__main__":
-    resources = sys.argv[1]
-    output = sys.argv[2]
+    usage = '''usage: %prog [options] input
+'''
+    parser = optparse.OptionParser(usage)
+
+    parser.add_option('--uncompress', dest='uncompress',
+                      default = False,
+                      help = 'Whether to automatically uncompress files')
+
+    options, args = parser.parse_args()
+
+    resources = args[0]
+    output = args[1]
     os.makedirs(output, 0o777, True)
 
     if os.path.isdir(resources):
@@ -129,8 +140,11 @@ if __name__ == "__main__":
                         #print("encrypted")
                         xtea_decryptCTR(bytearray(b'aQj8CScgNP4VsfXK'), data)
                     if compressed_size != -1:
-                        #print("compressed %d" % uncompressed_size)
-                        data = lz4.block.decompress(data, uncompressed_size)
+                        if options.uncompress:
+                            data = lz4.block.decompress(data, uncompressed_size)
+                        else:
+                            url += ".lz4";
+
                 except Exception as e:
                     print("Failed: ", e)
                     print(traceback.format_exc())
