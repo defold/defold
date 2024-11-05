@@ -72,7 +72,7 @@ public class CubemapBuilder extends ProtoBuilder<Cubemap.Builder> {
     public void build(Task task) throws CompileExceptionError, IOException {
 
         TextureProfile texProfile = TextureUtil.getTextureProfileByPath(this.project.getTextureProfiles(), task.input(0).getPath());
-        logger.info("Compiling %s using profile %s", task.firstInput().getPath(), texProfile!=null?texProfile.getName():"<none>");
+        logger.fine("Compiling %s using profile %s", task.firstInput().getPath(), texProfile!=null?texProfile.getName():"<none>");
 
         TextureImage[] textures = new TextureImage[6];
         try {

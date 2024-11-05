@@ -166,14 +166,60 @@ public abstract class LuaBuilder extends Builder {
         try {
             int retries = 40;
             while (getSize(f) < b.length) {
+                logger.info("File '%s' isn't written. Retry %d.", f.getPath(), retries);
                 Thread.sleep(50);
                 if (--retries == 0) {
-                    throw new CompileExceptionError("File is not of the expected size");
+                    throw new CompileExceptionError(String.format("File '%s' is not of the expected size", f.getPath()));
                 }
             }
         }
         catch (java.lang.InterruptedException e) {
             e.printStackTrace();
+        }
+    }
+
+    private int executeProces(Task task, ProcessBuilder pb, File inputFile) throws IOException, CompileExceptionError {
+        InputStream is = null;
+        try {
+            Process p = pb.start();
+            int ret = p.waitFor();
+            is = p.getInputStream();
+
+            int toRead = is.available();
+            byte[] buf = new byte[toRead];
+            is.read(buf);
+
+            String cmdOutput = new String(buf);
+            if (ret != 0) {
+                logger.info("Bytecode construction failed with exit code %d", ret);
+
+                // Parse and handle the error output
+                int execSep = cmdOutput.indexOf(':');
+                if (execSep > 0) {
+                    int lineBegin = cmdOutput.indexOf(':', execSep + 1);
+                    if (lineBegin > 0) {
+                        int lineEnd = cmdOutput.indexOf(':', lineBegin + 1);
+                        if (lineEnd > 0) {
+                            throw new CompileExceptionError(task.input(0),
+                                    Integer.parseInt(cmdOutput.substring(
+                                            lineBegin + 1, lineEnd)),
+                                    cmdOutput.substring(lineEnd + 2));
+                        }
+                    }
+                } else {
+                    System.out.printf("Lua Error: for file %s: '%s'\n", task.input(0).getPath(), cmdOutput);
+                }
+
+                inputFile.delete();
+                throw new CompileExceptionError(task.input(0), 1, cmdOutput);
+            }
+
+            return ret; // Return the process result code
+        } catch (InterruptedException e) {
+            logger.severe("Unexpected interruption", e);
+            return -1; // Return an error code to indicate interruption
+        } finally {
+            IOUtils.closeQuietly(is);
         }
     }
 
@@ -191,51 +237,29 @@ public abstract class LuaBuilder extends Builder {
             ProcessBuilder pb = new ProcessBuilder(options).redirectErrorStream(true);
             pb.environment().putAll(env);
 
-            Process p = pb.start();
-            InputStream is = null;
-            int ret = 127;
+            int maxRetries = 10;
+            int retries = 0;
+            int retrievableFailure = 139; //segfault
 
-            try {
-                ret = p.waitFor();
-                is = p.getInputStream();
-
-                int toRead = is.available();
-                byte[] buf = new byte[toRead];
-                is.read(buf);
-
-                String cmdOutput = new String(buf);
-                if (ret != 0) {
-                    logger.info("Bytecode construction failed with exit code %d", ret);
-                    // first delimiter is the executable name "luajit:" or "luac:"
-                    int execSep = cmdOutput.indexOf(':');
-                    if (execSep > 0) {
-                        // then comes the filename and the line like this:
-                        // "file.lua:30: <error message>"
-                        int lineBegin = cmdOutput.indexOf(':', execSep + 1);
-                        if (lineBegin > 0) {
-                            int lineEnd = cmdOutput.indexOf(':', lineBegin + 1);
-                            if (lineEnd > 0) {
-                                throw new CompileExceptionError(task.input(0),
-                                        Integer.parseInt(cmdOutput.substring(
-                                                lineBegin + 1, lineEnd)),
-                                        cmdOutput.substring(lineEnd + 2));
-                            }
-                        }
+            while (retries < maxRetries) {
+                int ret = executeProces(task, pb, inputFile);
+                if (ret == retrievableFailure) {
+                    retries++;
+                    logger.info("Attempt %d failed with exit code %d, retrying...", retries, retrievableFailure);
+                    try {
+                        Thread.sleep(50);
+                    } catch (InterruptedException e) {
+                        logger.severe("Unexpected interruption", e);
                     }
-                    else {
-                        System.out.printf("Lua Error: for file %s: '%s'\n", task.input(0).getPath(), cmdOutput);
-                    }
-                    // Since parsing out the actual error failed, as a backup just
-                    // spit out whatever luajit/luac said.
-                    inputFile.delete();
-                    throw new CompileExceptionError(task.input(0), 1, cmdOutput);
+                } else {
+                    break;
                 }
-            } catch (InterruptedException e) {
-                logger.severe("Unexpected interruption", e);
-            } finally {
-                IOUtils.closeQuietly(is);
+            }
+            if (retries == maxRetries) {
+                throw new RuntimeException(String.format("Exceeded maximum retry attempts (%d) due to repeated exit code %d.", maxRetries, retrievableFailure));
             }
 
+            // Read output file contents
             long resultBytes = outputFile.length();
             rdr = new RandomAccessFile(outputFile, "r");
             byte tmp[] = new byte[(int) resultBytes];
@@ -244,8 +268,7 @@ public abstract class LuaBuilder extends Builder {
             outputFile.delete();
             inputFile.delete();
             return tmp;
-        }
-        finally {
+        } finally {
             IOUtils.closeQuietly(fo);
             IOUtils.closeQuietly(rdr);
         }
