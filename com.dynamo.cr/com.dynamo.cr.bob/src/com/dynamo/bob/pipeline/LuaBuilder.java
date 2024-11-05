@@ -174,21 +174,21 @@ public abstract class LuaBuilder extends Builder {
         return taskBuilder.build();
     }
 
-
     private long getSize(File f) throws IOException {
         BasicFileAttributes attr = Files.readAttributes(f.toPath(), BasicFileAttributes.class);
         return attr.size();
     }
-
+    
     private void writeToFile(File f, byte[] b) throws CompileExceptionError, IOException {
         InputStream in = new ByteArrayInputStream(b);
         FileUtils.copyInputStreamToFile(in, f);
         try {
             int retries = 40;
             while (getSize(f) < b.length) {
+                logger.info("File '%s' isn't written. Retry %d.", f.getPath(), retries);
                 Thread.sleep(50);
                 if (--retries == 0) {
-                    throw new CompileExceptionError("File is not of the expected size");
+                    throw new CompileExceptionError(String.format("File '%s' is not of the expected size", f.getPath()));
                 }
             }
         }
@@ -197,49 +197,78 @@ public abstract class LuaBuilder extends Builder {
         }
     }
 
+    private int executeProcess(Task task, List<String> options, Map<String, String> env, File inputFile) throws IOException, CompileExceptionError {
+        Result r = Exec.execResultWithEnvironment(env, options);
+        int ret = r.ret;
+        String cmdOutput = new String(r.stdOutErr);
+
+        if (ret != 0) {
+            logger.info("Bytecode construction failed with exit code %d", ret);
+
+            // Parse and handle the error output
+            int execSep = cmdOutput.indexOf(':');
+            if (execSep > 0) {
+	            // then comes the filename and the line like this:
+	            // "file.lua:30: <error message>"
+                int lineBegin = cmdOutput.indexOf(':', execSep + 1);
+                if (lineBegin > 0) {
+                    int lineEnd = cmdOutput.indexOf(':', lineBegin + 1);
+                    if (lineEnd > 0) {
+                        throw new CompileExceptionError(task.input(0),
+                                Integer.parseInt(cmdOutput.substring(
+                                        lineBegin + 1, lineEnd)),
+                                cmdOutput.substring(lineEnd + 2));
+                    }
+                }
+            } else {
+                System.out.printf("Lua Error: for file %s: '%s'\n", task.input(0).getPath(), cmdOutput);
+            }
+	        // Since parsing out the actual error failed, as a backup just
+           	// spit out whatever luajit/luac said.
+            inputFile.delete();
+            throw new CompileExceptionError(task.input(0), 1, cmdOutput);
+        }
+
+        return ret;
+    }
+
     public byte[] constructBytecode(Task task, String source, File inputFile, File outputFile, List<String> options, Map<String, String> env) throws IOException, CompileExceptionError {
         FileOutputStream fo = null;
         RandomAccessFile rdr = null;
 
         try {
-
             // Need to write the input file separately in case it comes from built-in, and cannot
             // be found through its path alone.
             writeToFile(inputFile, source.getBytes());
 
-            Result r = Exec.execResultWithEnvironment(env, options);
-            int ret = r.ret;
-            String cmdOutput = new String(r.stdOutErr);
-            if (ret != 0) {
-                logger.info("Bytecode construction failed with exit code %d", ret);
-                // first delimiter is the executable name "luajit:" or "luac:"
-                int execSep = cmdOutput.indexOf(':');
-                if (execSep > 0) {
-                    // then comes the filename and the line like this:
-                    // "file.lua:30: <error message>"
-                    int lineBegin = cmdOutput.indexOf(':', execSep + 1);
-                    if (lineBegin > 0) {
-                        int lineEnd = cmdOutput.indexOf(':', lineBegin + 1);
-                        if (lineEnd > 0) {
-                            throw new CompileExceptionError(task.input(0),
-                                    Integer.parseInt(cmdOutput.substring(
-                                            lineBegin + 1, lineEnd)),
-                                    cmdOutput.substring(lineEnd + 2));
-                        }
+            int maxRetries = 10;
+            int retries = 0;
+            int retrievableFailure = 139; // Segmentation fault or similar retrievable failure
+
+            while (retries < maxRetries) {
+                int ret = executeProcess(task, options, env, inputFile);
+                if (ret == retrievableFailure) {
+                    retries++;
+                    logger.info("Attempt %d failed with exit code %d, retrying...", retries, retrievableFailure);
+                    try {
+                        Thread.sleep(50); // Pause before retrying
+                    } catch (InterruptedException e) {
+                        logger.severe("Unexpected interruption during retry", e);
                     }
+                } else {
+                    // Process completed successfully or failed with a non-retriable code
+                    break;
                 }
-                else {
-                    System.out.printf("Lua Error: for file %s: '%s'\n", task.input(0).getPath(), cmdOutput);
-                }
-                // Since parsing out the actual error failed, as a backup just
-                // spit out whatever luajit/luac said.
-                inputFile.delete();
-                throw new CompileExceptionError(task.input(0), 1, cmdOutput);
             }
 
+            if (retries == maxRetries) {
+                throw new RuntimeException(String.format("Exceeded maximum retry attempts (%d) due to repeated exit code %d.", maxRetries, retrievableFailure));
+            }
+
+            // Read output file contents
             long resultBytes = outputFile.length();
             rdr = new RandomAccessFile(outputFile, "r");
-            byte tmp[] = new byte[(int) resultBytes];
+            byte[] tmp = new byte[(int) resultBytes];
             rdr.readFully(tmp);
 
             outputFile.delete();
