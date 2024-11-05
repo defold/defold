@@ -270,9 +270,9 @@ public class TaskBuilder {
             // create a list of tasks to build this iteration
             // - ignore tasks with unresolved dependencies
             // - build game.project last as the only remaining task (see #9553)
-            // - never build more than one material at a time since there is
-            //   some kind of threading issue with the command line tools when
-            //   building two materials which share a program 
+            // - never build more than one material or vp/fp at a time since
+            //   there is some kind of threading issue with the command line
+            //   tools
             // - restrict atlas/tileset builders per iteration (for memory reasons)
             int remainingTasksCount = tasks.size();
             tasksToSubmit.clear();
@@ -280,10 +280,11 @@ public class TaskBuilder {
             for (Task task : tasks) {
                 if (task.getBuilder().isGameProjectBuilder() && remainingTasksCount > 1) continue;
                 String taskName = task.getName();
+                if (taskName.equals("FragmentProgram") || taskName.equals("VertexProgram") || taskName.equals("Material")) taskName = "Shader";
                 if (taskName.equals("TileSet")) taskName = "Atlas";
                 int count = taskNameCounter.getOrDefault(taskName, 0);
                 if (taskName.equals("Atlas") && (count == maxConcurrentHighMemoryTasks)) continue;
-                if (taskName.equals("Material") && count == 1) continue;
+                if (taskName.equals("Shader") && count == 1) continue;
                 if (hasUnresolvedDependencies(task)) continue;
                 tasksToSubmit.add(createCallableTask(task, monitor));
                 taskNameCounter.put(taskName, count + 1);
