@@ -166,9 +166,10 @@ public abstract class LuaBuilder extends Builder {
         try {
             int retries = 40;
             while (getSize(f) < b.length) {
+                logger.info("File '%s' isn't written. Retry %d.", f.getPath(), retries);
                 Thread.sleep(50);
                 if (--retries == 0) {
-                    throw new CompileExceptionError("File is not of the expected size");
+                    throw new CompileExceptionError(String.format("File '%s' is not of the expected size", f.getPath()));
                 }
             }
         }
@@ -191,51 +192,68 @@ public abstract class LuaBuilder extends Builder {
             ProcessBuilder pb = new ProcessBuilder(options).redirectErrorStream(true);
             pb.environment().putAll(env);
 
-            Process p = pb.start();
+            int maxRetries = 10;
+            int retries = 0;
+            int segFaultCode = 139;
+            boolean success = false;
             InputStream is = null;
             int ret = 127;
 
-            try {
-                ret = p.waitFor();
-                is = p.getInputStream();
+            while (retries < maxRetries && !success) {
+                try {
+                    Process p = pb.start();
+                    ret = p.waitFor();
+                    is = p.getInputStream();
 
-                int toRead = is.available();
-                byte[] buf = new byte[toRead];
-                is.read(buf);
+                    int toRead = is.available();
+                    byte[] buf = new byte[toRead];
+                    is.read(buf);
 
-                String cmdOutput = new String(buf);
-                if (ret != 0) {
-                    logger.info("Bytecode construction failed with exit code %d", ret);
-                    // first delimiter is the executable name "luajit:" or "luac:"
-                    int execSep = cmdOutput.indexOf(':');
-                    if (execSep > 0) {
-                        // then comes the filename and the line like this:
-                        // "file.lua:30: <error message>"
-                        int lineBegin = cmdOutput.indexOf(':', execSep + 1);
-                        if (lineBegin > 0) {
-                            int lineEnd = cmdOutput.indexOf(':', lineBegin + 1);
-                            if (lineEnd > 0) {
-                                throw new CompileExceptionError(task.input(0),
-                                        Integer.parseInt(cmdOutput.substring(
-                                                lineBegin + 1, lineEnd)),
-                                        cmdOutput.substring(lineEnd + 2));
-                            }
+                    String cmdOutput = new String(buf);
+                    if (ret == 0) {
+                        success = true; // Process completed successfully
+                    } else {
+                        logger.info("Bytecode construction failed with exit code %d", ret);
+
+                        if (ret == segFaultCode) {
+                            retries++;
+                            logger.info("Attempt %d failed with exit code %d, retrying...", retries, segFaultCode);
+                            Thread.sleep(50);
+                            continue; // Retry the process
                         }
+
+                        // Parse and handle the error output
+                        int execSep = cmdOutput.indexOf(':');
+                        if (execSep > 0) {
+                            int lineBegin = cmdOutput.indexOf(':', execSep + 1);
+                            if (lineBegin > 0) {
+                                int lineEnd = cmdOutput.indexOf(':', lineBegin + 1);
+                                if (lineEnd > 0) {
+                                    throw new CompileExceptionError(task.input(0),
+                                            Integer.parseInt(cmdOutput.substring(
+                                                    lineBegin + 1, lineEnd)),
+                                            cmdOutput.substring(lineEnd + 2));
+                                }
+                            }
+                        } else {
+                            System.out.printf("Lua Error: for file %s: '%s'\n", task.input(0).getPath(), cmdOutput);
+                        }
+
+                        inputFile.delete();
+                        throw new CompileExceptionError(task.input(0), 1, cmdOutput);
                     }
-                    else {
-                        System.out.printf("Lua Error: for file %s: '%s'\n", task.input(0).getPath(), cmdOutput);
-                    }
-                    // Since parsing out the actual error failed, as a backup just
-                    // spit out whatever luajit/luac said.
-                    inputFile.delete();
-                    throw new CompileExceptionError(task.input(0), 1, cmdOutput);
+                } catch (InterruptedException e) {
+                    logger.severe("Unexpected interruption", e);
+                } finally {
+                    IOUtils.closeQuietly(is);
                 }
-            } catch (InterruptedException e) {
-                logger.severe("Unexpected interruption", e);
-            } finally {
-                IOUtils.closeQuietly(is);
             }
 
+            if (!success) {
+                throw new RuntimeException(String.format("Exceeded maximum retry attempts (%d) due to repeated exit code %d.", maxRetries, segFaultCode));
+            }
+
+            // Read output file contents
             long resultBytes = outputFile.length();
             rdr = new RandomAccessFile(outputFile, "r");
             byte tmp[] = new byte[(int) resultBytes];
@@ -244,8 +262,7 @@ public abstract class LuaBuilder extends Builder {
             outputFile.delete();
             inputFile.delete();
             return tmp;
-        }
-        finally {
+        } finally {
             IOUtils.closeQuietly(fo);
             IOUtils.closeQuietly(rdr);
         }
