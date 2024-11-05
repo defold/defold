@@ -1753,3 +1753,132 @@
                         "Portrait" {"button/text" {:font "font"
                                                    :text "panel portrait"}}}
                        (make-built-layout->node->field->value scene)))))))))))
+
+(deftest template-layout-add-referencing-layout-to-referenced-scene-test
+  (test-util/with-loaded-project "test/resources/gui_project"
+    (let [make-restore-point! #(test-util/make-graph-reverter (project/graph project))]
+      (with-open [_ (make-restore-point!)]
+        (let [referencing-scene (project/get-resource-node project "/gui/template_layout/panel_button.gui")
+              referenced-scene (project/get-resource-node project "/gui/template_layout/button.gui")
+              referenced-scene-text (get (scene-gui-node-map referenced-scene) "text")]
+
+          ;; Add the Landscape layout to the referencing scene.
+          (add-layout! project app-view referencing-scene "Landscape")
+
+          (testing "After adding Landscape layout to the referencing scene, but not yet to the referenced scene."
+            (testing "Referenced scene."
+              (is (= {"Default" {}}
+                     (make-visibly-overridden-layout->node->props referenced-scene)))
+              (is (= {"Default" {"text" {:font "font"
+                                         :text "button default"}}}
+                     (make-displayed-layout->node->prop->value referenced-scene)))
+              (is (= {"Default" {"text" {:font "font"
+                                         :text "button default"}}}
+                     (make-saved-layout->node->field->value referenced-scene)))
+              (is (= {"Default" {"text" {:font "font"
+                                         :text "button default"}}}
+                     (make-built-layout->node->field->value referenced-scene))))
+
+            (testing "Referencing scene."
+              (is (= {"Default" {"button/text" #{:node-outline :text}}
+                      "Landscape" {}}
+                     (make-visibly-overridden-layout->node->props referencing-scene)))
+              (is (= {"Default" {"button/text" {:font "font"
+                                                :text "panel default"}}
+                      "Landscape" {"button/text" {:font "font"
+                                                  :text "panel default"}}}
+                     (make-displayed-layout->node->prop->value referencing-scene)))
+              (is (= {"Default" {"button" {:template "/gui/template_layout/button.gui"}
+                                 "button/text" {:parent "button"
+                                                :text "panel default"}}
+                      "Landscape" {}}
+                     (make-saved-layout->node->field->value referencing-scene)))
+              (is (= {"Default" {"button/text" {:font "font"
+                                                :text "panel default"}}
+                      "Landscape" {}}
+                     (make-built-layout->node->field->value referencing-scene)))))
+
+          ;; Add the Landscape layout to the referenced scene as well. Before,
+          ;; it was only present in the referencing scene.
+          (add-layout! project app-view referenced-scene "Landscape")
+
+          (testing "After adding Landscape layout to the referencing scene, and now to the referenced scene as well."
+            (testing "Referenced scene."
+              (is (= {"Default" {}
+                      "Landscape" {}}
+                     (make-visibly-overridden-layout->node->props referenced-scene)))
+              (is (= {"Default" {"text" {:font "font"
+                                         :text "button default"}}
+                      "Landscape" {"text" {:font "font"
+                                           :text "button default"}}}
+                     (make-displayed-layout->node->prop->value referenced-scene)))
+              (is (= {"Default" {"text" {:font "font"
+                                         :text "button default"}}
+                      "Landscape" {}}
+                     (make-saved-layout->node->field->value referenced-scene)))
+              (is (= {"Default" {"text" {:font "font"
+                                         :text "button default"}}
+                      "Landscape" {}}
+                     (make-built-layout->node->field->value referenced-scene))))
+
+            (testing "Referencing scene."
+              (is (= {"Default" {"button/text" #{:node-outline :text}}
+                      "Landscape" {}}
+                     (make-visibly-overridden-layout->node->props referencing-scene)))
+              (is (= {"Default" {"button/text" {:font "font"
+                                                :text "panel default"}}
+                      "Landscape" {"button/text" {:font "font"
+                                                  :text "button default"}}}
+                     (make-displayed-layout->node->prop->value referencing-scene)))
+              (is (= {"Default" {"button" {:template "/gui/template_layout/button.gui"}
+                                 "button/text" {:parent "button"
+                                                :text "panel default"}}
+                      "Landscape" {}}
+                     (make-saved-layout->node->field->value referencing-scene)))
+              (is (= {"Default" {"button/text" {:font "font"
+                                                :text "panel default"}}
+                      "Landscape" {}}
+                     (make-built-layout->node->field->value referencing-scene)))))
+
+          ;; Override the text property for the Landscape layout in the referenced scene.
+          (with-visible-layout! referenced-scene "Landscape"
+            (test-util/prop! referenced-scene-text :text "button landscape"))
+
+          (testing "After overriding the text property for the Landscape layout in the referenced scene."
+            (testing "Referenced scene."
+              (is (= {"Default" {}
+                      "Landscape" {"text" #{:node-outline :text}}}
+                     (make-visibly-overridden-layout->node->props referenced-scene)))
+              (is (= {"Default" {"text" {:font "font"
+                                         :text "button default"}}
+                      "Landscape" {"text" {:font "font"
+                                           :text "button landscape"}}}
+                     (make-displayed-layout->node->prop->value referenced-scene)))
+              (is (= {"Default" {"text" {:font "font"
+                                         :text "button default"}}
+                      "Landscape" {"text" {:text "button landscape"}}}
+                     (make-saved-layout->node->field->value referenced-scene)))
+              (is (= {"Default" {"text" {:font "font"
+                                         :text "button default"}}
+                      "Landscape" {"text" {:font "font"
+                                           :text "button landscape"}}}
+                     (make-built-layout->node->field->value referenced-scene))))
+
+            (testing "Referencing scene."
+              (is (= {"Default" {"button/text" #{:node-outline :text}}
+                      "Landscape" {}}
+                     (make-visibly-overridden-layout->node->props referencing-scene)))
+              (is (= {"Default" {"button/text" {:font "font"
+                                                :text "panel default"}}
+                      "Landscape" {"button/text" {:font "font"
+                                                  :text "button landscape"}}}
+                     (make-displayed-layout->node->prop->value referencing-scene)))
+              (is (= {"Default" {"button" {:template "/gui/template_layout/button.gui"}
+                                 "button/text" {:parent "button"
+                                                :text "panel default"}}
+                      "Landscape" {}}
+                     (make-saved-layout->node->field->value referencing-scene)))
+              (is (= {"Default" {"button/text" {:font "font"
+                                                :text "panel default"}}
+                      "Landscape" {}}
+                     (make-built-layout->node->field->value referencing-scene))))))))))
