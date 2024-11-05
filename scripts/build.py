@@ -237,6 +237,7 @@ class Configuration(object):
                  skip_tests = False,
                  skip_codesign = False,
                  skip_docs = False,
+                 incremental = False,
                  skip_builtins = False,
                  skip_bob_light = False,
                  disable_ccache = False,
@@ -283,6 +284,7 @@ class Configuration(object):
         self.skip_tests = skip_tests
         self.skip_codesign = skip_codesign
         self.skip_docs = skip_docs
+        self.incremental = incremental
         self.skip_builtins = skip_builtins
         self.skip_bob_light = skip_bob_light
         self.disable_ccache = disable_ccache
@@ -1147,7 +1149,10 @@ class Configuration(object):
 
     def _build_engine_cmd(self, skip_tests, skip_codesign, disable_ccache, generate_compile_commands, prefix):
         prefix = prefix and prefix or self.dynamo_home
-        return '%s %s/ext/bin/waf --prefix=%s %s %s %s %s distclean configure build install' % (' '.join(self.get_python()), self.dynamo_home, prefix, skip_tests, skip_codesign, disable_ccache, generate_compile_commands)
+        targets = "build install"
+        if not self.incremental:
+            targets = targets + " distclean configure"
+        return '%s %s/ext/bin/waf --prefix=%s %s %s %s %s %s' % (' '.join(self.get_python()), self.dynamo_home, prefix, skip_tests, skip_codesign, disable_ccache, generate_compile_commands, targets)
 
     def _build_engine_lib(self, args, lib, platform, skip_tests = False, dir = 'engine'):
         self._log('Building %s for %s' % (lib, platform))
@@ -1189,7 +1194,7 @@ class Configuration(object):
         if self.verbose:
             gradle_args += ['--info']
 
-        env['GRADLE_OPTS'] = '-Dorg.gradle.parallel=true' #-Dorg.gradle.daemon=true 
+        env['GRADLE_OPTS'] = '-Dorg.gradle.parallel=true' #-Dorg.gradle.daemon=true
 
         # Clean and build the project
         s = run.command(" ".join([gradle, 'clean', 'installBobLight'] + gradle_args), cwd = bob_dir, shell = True, env = env)
@@ -1456,7 +1461,10 @@ class Configuration(object):
         self._log('Building API docs')
         cwd = join(self.defold_root, 'engine/docs')
         python_cmd = ' '.join(self.get_python())
-        cmd = '%s %s/ext/bin/waf configure --prefix=%s %s distclean configure build install' % (python_cmd, self.dynamo_home, self.dynamo_home, skip_tests)
+        targets = 'build_install'
+        if not self.incremental:
+            targets = target + " distclean configure"
+        cmd = '%s %s/ext/bin/waf configure --prefix=%s %s %s' % (python_cmd, self.dynamo_home, self.dynamo_home, skip_tests, targets)
         run.env_command(self._form_env(), [python_cmd, './scripts/bundle.py', 'docs', '--docs-dir', cwd], cwd = join(self.defold_root, 'editor'))
         run.env_command(self._form_env(), cmd.split() + self.waf_options, cwd = cwd)
         with open(join(self.dynamo_home, 'share', 'ref-doc.zip'), 'wb') as f:
@@ -2345,6 +2353,11 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       default = False,
                       help = 'skip building docs when building the engine. Default is false')
 
+    parser.add_option('--incremental', dest='incremental',
+                      action = 'store_true',
+                      default = False,
+                      help = 'skip reconfigure/distclean when building the engine. Default is false')
+
     parser.add_option('--skip-builtins', dest='skip_builtins',
                       action = 'store_true',
                       default = False,
@@ -2475,6 +2488,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       skip_tests = options.skip_tests,
                       skip_codesign = options.skip_codesign,
                       skip_docs = options.skip_docs,
+                      incremental = options.incremental,
                       skip_builtins = options.skip_builtins,
                       skip_bob_light = options.skip_bob_light,
                       disable_ccache = options.disable_ccache,
