@@ -178,6 +178,51 @@ public abstract class LuaBuilder extends Builder {
         }
     }
 
+    private int executeProcessWithRetries(Task task, ProcessBuilder pb, File inputFile) throws IOException, CompileExceptionError {
+        InputStream is = null;
+        try {
+            Process p = pb.start();
+            int ret = p.waitFor();
+            is = p.getInputStream();
+
+            int toRead = is.available();
+            byte[] buf = new byte[toRead];
+            is.read(buf);
+
+            String cmdOutput = new String(buf);
+            if (ret != 0) {
+                logger.info("Bytecode construction failed with exit code %d", ret);
+
+                // Parse and handle the error output
+                int execSep = cmdOutput.indexOf(':');
+                if (execSep > 0) {
+                    int lineBegin = cmdOutput.indexOf(':', execSep + 1);
+                    if (lineBegin > 0) {
+                        int lineEnd = cmdOutput.indexOf(':', lineBegin + 1);
+                        if (lineEnd > 0) {
+                            throw new CompileExceptionError(task.input(0),
+                                    Integer.parseInt(cmdOutput.substring(
+                                            lineBegin + 1, lineEnd)),
+                                    cmdOutput.substring(lineEnd + 2));
+                        }
+                    }
+                } else {
+                    System.out.printf("Lua Error: for file %s: '%s'\n", task.input(0).getPath(), cmdOutput);
+                }
+
+                inputFile.delete();
+                throw new CompileExceptionError(task.input(0), 1, cmdOutput);
+            }
+
+            return ret; // Return the process result code
+        } catch (InterruptedException e) {
+            logger.severe("Unexpected interruption", e);
+            return -1; // Return an error code to indicate interruption
+        } finally {
+            IOUtils.closeQuietly(is);
+        }
+    }
+
     public byte[] constructBytecode(Task task, String source, File inputFile, File outputFile, List<String> options, Map<String, String> env) throws IOException, CompileExceptionError {
         FileOutputStream fo = null;
         RandomAccessFile rdr = null;
@@ -194,63 +239,24 @@ public abstract class LuaBuilder extends Builder {
 
             int maxRetries = 10;
             int retries = 0;
-            int segFaultCode = 139;
-            boolean success = false;
-            InputStream is = null;
-            int ret = 127;
+            int retrievableFailure = 139; //segfault
 
-            while (retries < maxRetries && !success) {
-                try {
-                    Process p = pb.start();
-                    ret = p.waitFor();
-                    is = p.getInputStream();
-
-                    int toRead = is.available();
-                    byte[] buf = new byte[toRead];
-                    is.read(buf);
-
-                    String cmdOutput = new String(buf);
-                    if (ret == 0) {
-                        success = true; // Process completed successfully
-                    } else {
-                        logger.info("Bytecode construction failed with exit code %d", ret);
-
-                        if (ret == segFaultCode) {
-                            retries++;
-                            logger.info("Attempt %d failed with exit code %d, retrying...", retries, segFaultCode);
-                            Thread.sleep(50);
-                            continue; // Retry the process
-                        }
-
-                        // Parse and handle the error output
-                        int execSep = cmdOutput.indexOf(':');
-                        if (execSep > 0) {
-                            int lineBegin = cmdOutput.indexOf(':', execSep + 1);
-                            if (lineBegin > 0) {
-                                int lineEnd = cmdOutput.indexOf(':', lineBegin + 1);
-                                if (lineEnd > 0) {
-                                    throw new CompileExceptionError(task.input(0),
-                                            Integer.parseInt(cmdOutput.substring(
-                                                    lineBegin + 1, lineEnd)),
-                                            cmdOutput.substring(lineEnd + 2));
-                                }
-                            }
-                        } else {
-                            System.out.printf("Lua Error: for file %s: '%s'\n", task.input(0).getPath(), cmdOutput);
-                        }
-
-                        inputFile.delete();
-                        throw new CompileExceptionError(task.input(0), 1, cmdOutput);
+            while (retries < maxRetries) {
+                int ret = executeProcessWithRetries(task, pb, inputFile);
+                if (ret == retrievableFailure) {
+                    retries++;
+                    logger.info("Attempt %d failed with exit code %d, retrying...", retries, retrievableFailure);
+                    try {
+                        Thread.sleep(50);
+                    } catch (InterruptedException e) {
+                        logger.severe("Unexpected interruption", e);
                     }
-                } catch (InterruptedException e) {
-                    logger.severe("Unexpected interruption", e);
-                } finally {
-                    IOUtils.closeQuietly(is);
+                } else {
+                    break;
                 }
             }
-
-            if (!success) {
-                throw new RuntimeException(String.format("Exceeded maximum retry attempts (%d) due to repeated exit code %d.", maxRetries, segFaultCode));
+            if (retries == maxRetries) {
+                throw new RuntimeException(String.format("Exceeded maximum retry attempts (%d) due to repeated exit code %d.", maxRetries, retrievableFailure));
             }
 
             // Read output file contents
