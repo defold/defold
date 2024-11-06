@@ -2633,6 +2633,76 @@ namespace dmScript
         return 1;
     }
 
+    /*# converts a quaternion into euler angles
+     *
+     * Converts a quaternion into euler angles (r0, r1, r2), based on YZX rotation order.
+     * To handle gimbal lock (singularity at r1 ~ +/- 90 degrees), the cut off is at r0 = +/- 88.85 degrees, which snaps to +/- 90.
+     * The provided quaternion is expected to be normalized.
+     * The error is guaranteed to be less than +/- 0.02 degrees
+     *
+     * @name vmath.quat_to_euler
+     * @param q [type:quaternion] source quaternion
+     * @return x [type:number] euler angle x in degrees
+     * @return y [type:number] euler angle y in degrees
+     * @return z [type:number] euler angle z in degrees
+     * @example
+     * 
+     * ```lua
+     * local q = vmath.quat_rotation_z(math.rad(90))
+     * print(vmath.quat_to_euler(q)) --> 0 0 90
+     * 
+     * local q2 = vmath.quat_rotation_y(math.rad(45)) * vmath.quat_rotation_z(math.rad(90))
+     * local v = vmath.vector3(vmath.quat_to_euler(q2))
+     * print(v) --> vmath.vector3(0, 45, 90)
+     * ```
+     */
+    static int QuatToEuler(lua_State* L)
+    {
+        Quat* q = CheckQuat(L, 1);
+        Vector3 euler = dmVMath::QuatToEuler(q->getX(), q->getY(), q->getZ(), q->getW());
+        lua_pushnumber(L, euler.getX());
+        lua_pushnumber(L, euler.getY());
+        lua_pushnumber(L, euler.getZ());
+        return 3;
+    }
+
+    /*# converts euler angles into a quaternion
+     *
+     * Converts euler angles (x, y, z) in degrees into a quaternion
+     * The error is guaranteed to be less than 0.001.
+     * If the first argument is vector3, its values are used as x, y, z angles.
+     *
+     * @name vmath.euler_to_quat
+     * @param x [type:number|vector3] rotation around x-axis in degrees or vector3 with euler angles in degrees
+     * @param y [type:number] rotation around y-axis in degrees
+     * @param z [type:number] rotation around z-axis in degrees
+     * @return q [type:quaternion] quaternion describing an equivalent rotation (231 (YZX) rotation sequence)
+     * @example
+     * 
+     * ```lua
+     * local q = vmath.euler_to_quat(0, 45, 90)
+     * print(q) --> vmath.quat(0.27059805393219, 0.27059805393219, 0.65328145027161, 0.65328145027161)
+     * 
+     * local v = vmath.vector3(0, 0, 90)
+     * print(vmath.euler_to_quat(v)) --> vmath.quat(0, 0, 0.70710676908493, 0.70710676908493)
+     * ```
+     */
+    static int EulerToQuat(lua_State* L)
+    {
+        if (lua_type(L, 1) == LUA_TNUMBER)
+        {
+            float x = (float) luaL_checknumber(L, 1);
+            float y = (float) luaL_checknumber(L, 2);
+            float z = (float) luaL_checknumber(L, 3);
+            PushQuat(L, dmVMath::EulerToQuat(dmVMath::Vector3(x, y, z)));
+            return 1;
+        }
+
+        Vector3* v = CheckVector3(L, 1);
+        PushQuat(L, dmVMath::EulerToQuat(*v));
+        return 1;
+    }
+
     static const luaL_reg methods[] =
     {
         {SCRIPT_TYPE_NAME_VECTOR, Vector_new},
@@ -2674,6 +2744,8 @@ namespace dmScript
         {"matrix4_compose", Matrix4_Compose},
         {"matrix4_scale", Matrix4_Scale},
         {"clamp", Vector_Clamp},
+        {"quat_to_euler", QuatToEuler},
+        {"euler_to_quat", EulerToQuat},
         {0, 0}
     };
 
