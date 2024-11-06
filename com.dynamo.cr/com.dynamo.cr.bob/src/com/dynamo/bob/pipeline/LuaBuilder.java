@@ -197,11 +197,13 @@ public abstract class LuaBuilder extends Builder {
         }
     }
 
-    private int executeProcess(Task task, List<String> options, Map<String, String> env, File inputFile) throws IOException, CompileExceptionError {
+    private int executeProcess(Task task, List<String> options, Map<String, String> env, File inputFile, int retrievableFailure) throws IOException, CompileExceptionError {
         Result r = Exec.execResultWithEnvironment(env, options);
         int ret = r.ret;
         String cmdOutput = new String(r.stdOutErr);
-
+        if (ret == retrievableFailure) {
+            return retrievableFailure;
+        }
         if (ret != 0) {
             logger.info("Bytecode construction failed with exit code %d", ret);
 
@@ -246,7 +248,7 @@ public abstract class LuaBuilder extends Builder {
             int retrievableFailure = 139; // Segmentation fault or similar retrievable failure
 
             while (retries < maxRetries) {
-                int ret = executeProcess(task, options, env, inputFile);
+                int ret = executeProcess(task, options, env, inputFile, retrievableFailure);
                 if (ret == retrievableFailure) {
                     retries++;
                     logger.info("Attempt %d failed with exit code %d, retrying...", retries, retrievableFailure);
