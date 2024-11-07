@@ -109,13 +109,13 @@ public class ArchiveBuilder {
     }
 
     // used in tests
-    public ArchiveEntry getArchiveEntry(int index) {
-        return this.entries.get(index);
+    public ArchiveEntry getIncludedArchiveEntry(int index) {
+        return this.includedEntries.get(index);
     }
 
     // used in tests
-    public int getArchiveEntrySize() {
-        return this.entries.size();
+    public int getIncludedArchiveEntriesSize() {
+        return this.includedEntries.size();
     }
 
     public byte[] loadResourceData(String filepath) throws IOException {
