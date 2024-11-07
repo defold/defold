@@ -55,7 +55,7 @@ namespace dmGameSystem
         {
             for (int i = 0; i < m_MeshSet->m_Materials.m_Count; ++i)
             {
-                if (strcmp(s, m_MeshSet->m_Materials.m_Data[i]) == 0)
+                if (strcmp(s, m_MeshSet->m_Materials.m_Data[i].m_Name) == 0)
                     return i;
             }
             return -1;

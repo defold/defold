@@ -94,7 +94,7 @@ public class ResourceWalker {
         } catch(CompileExceptionError e) {
             throw e;
         } catch(Exception e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException("Resource '" + resource.getPath() + "': " + e.getMessage(), e);
         }
         visitor.leave(resource, parentResource);
     }

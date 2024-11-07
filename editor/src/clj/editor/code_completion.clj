@@ -80,7 +80,7 @@
     :additional-edits     vector of additional plaintext changes to apply when
                           accepting the completion, e.g. adding a require/import
                           statement at the top of the file. a vector of maps
-                          with following keys (all required):
+                          with the following keys (all required):
                             :value           replacement string
                             :cursor-range    document replacement range
     :display-string       code completion label shown in the completion popup
@@ -299,7 +299,7 @@
 (defn insertion
   "Convert completion item to insertion item
 
-  Returns a map with following keys:
+  Returns a map with the following keys:
     :insert-string       required, the string to insert
     :exit-ranges         optional, non-empty sorted vector of non-intersecting
                          from+to index pairs in the range [0, string-length]
@@ -320,7 +320,7 @@
     :additional-edits    optional, vector of additional plaintext changes to
                          apply when accepting the completion, e.g. adding a
                          require/import statement at the top of the file. a
-                         vector of maps with following keys (all required):
+                         vector of maps with the following keys (all required):
                            :value           replacement string
                            :cursor-range    document replacement range"
   [completion]

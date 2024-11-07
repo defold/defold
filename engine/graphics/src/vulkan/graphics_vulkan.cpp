@@ -28,6 +28,10 @@
 
 #include <platform/platform_window_vulkan.h>
 
+#ifdef __MACH__
+#include <vulkan/vulkan_metal.h>
+#endif
+
 DM_PROPERTY_EXTERN(rmtp_DrawCalls);
 DM_PROPERTY_EXTERN(rmtp_DispatchCalls);
 
@@ -1058,6 +1062,12 @@ namespace dmGraphics
             device_extensions.Push(VK_IMG_FORMAT_PVRTC_EXTENSION_NAME);
         }
 
+        if (VulkanIsExtensionSupported((HContext) context, VK_EXT_METAL_OBJECTS_EXTENSION_NAME))
+        {
+            device_extensions.OffsetCapacity(1);
+            device_extensions.Push(VK_EXT_METAL_OBJECTS_EXTENSION_NAME);
+        }
+
         #ifdef DM_VULKAN_VALIDATION
         if (context->m_UseValidationLayers)
         {
@@ -1686,6 +1696,16 @@ bail:
         DeviceBufferUploadHelper(g_VulkanContext, data, size, offset, buffer_ptr);
     }
 
+    static uint32_t VulkanGetVertexBufferSize(HVertexBuffer buffer)
+    {
+        if (!buffer)
+        {
+            return 0;
+        }
+        DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
+        return buffer_ptr->m_MemorySize;
+    }
+
     static uint32_t VulkanGetMaxElementsVertices(HContext context)
     {
         return ((VulkanContext*) context)->m_PhysicalDevice.m_Properties.limits.maxDrawIndexedIndexValue;
@@ -1741,6 +1761,16 @@ bail:
         DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
         assert(offset + size < buffer_ptr->m_MemorySize);
         DeviceBufferUploadHelper(g_VulkanContext, data, size, 0, buffer_ptr);
+    }
+
+    static uint32_t VulkanGetIndexBufferSize(HIndexBuffer buffer)
+    {
+        if (!buffer)
+        {
+            return 0;
+        }
+        DeviceBuffer* buffer_ptr = (DeviceBuffer*) buffer;
+        return buffer_ptr->m_MemorySize;
     }
 
     static bool VulkanIsIndexBufferFormatSupported(HContext context, IndexBufferFormat format)
@@ -1813,7 +1843,7 @@ bail:
         VertexDeclaration* vd = CreateAndFillVertexDeclaration(&decl_hash_state, stream_declaration);
         dmHashUpdateBuffer64(&decl_hash_state, &vd->m_Stride, sizeof(vd->m_Stride));
         vd->m_PipelineHash = dmHashFinal64(&decl_hash_state);
-        vd->m_StepFunction = VERTEX_STEP_FUNCTION_VERTEX;
+        vd->m_StepFunction = stream_declaration->m_StepFunction;
         return vd;
     }
 
@@ -1825,7 +1855,7 @@ bail:
         dmHashUpdateBuffer64(&decl_hash_state, &stride, sizeof(stride));
         vd->m_Stride       = stride;
         vd->m_PipelineHash = dmHashFinal64(&decl_hash_state);
-        vd->m_StepFunction = VERTEX_STEP_FUNCTION_VERTEX;
+        vd->m_StepFunction = stream_declaration->m_StepFunction;
         return vd;
     }
 
@@ -1845,7 +1875,7 @@ bail:
         }
     }
 
-    static void VulkanEnableVertexDeclaration(HContext _context, HVertexDeclaration vertex_declaration, uint32_t binding_index, HProgram program)
+    static void VulkanEnableVertexDeclaration(HContext _context, HVertexDeclaration vertex_declaration, uint32_t binding_index, uint32_t base_offset, HProgram program)
     {
         VulkanContext* context      = (VulkanContext*) _context;
         Program* program_ptr        = (Program*) program;
@@ -1857,6 +1887,7 @@ bail:
         context->m_MainVertexDeclaration[binding_index].m_PipelineHash = vertex_declaration->m_PipelineHash;
 
         context->m_CurrentVertexDeclaration[binding_index]             = &context->m_MainVertexDeclaration[binding_index];
+        context->m_CurrentVertexBufferOffset[binding_index]            = base_offset;
 
         uint32_t stream_ix = 0;
         uint32_t num_inputs = vertex_shader->m_ShaderMeta.m_Inputs.Size();
@@ -1891,7 +1922,10 @@ bail:
         for (int i = 0; i < MAX_VERTEX_BUFFERS; ++i)
         {
             if (context->m_CurrentVertexDeclaration[i] == vertex_declaration)
-                context->m_CurrentVertexDeclaration[i] = 0;
+            {
+                context->m_CurrentVertexDeclaration[i]  = 0;
+                context->m_CurrentVertexBufferOffset[i] = 0;
+            }
         }
     }
 
@@ -2148,7 +2182,6 @@ bail:
 
     static void PrepareScatchBuffer(VulkanContext* context, ScratchBuffer* scratchBuffer, Program* program_ptr)
     {
-        // Ensure there is room in the descriptor allocator to support this dispatch call
         const uint32_t num_uniform_buffers = program_ptr->m_UniformBufferCount;
         const bool resize_scratch_buffer   = program_ptr->m_UniformDataSizeAligned > (scratchBuffer->m_DeviceBuffer.m_MemorySize - scratchBuffer->m_MappedDataCursor);
 
@@ -2205,15 +2238,19 @@ bail:
         Program* program_ptr = context->m_CurrentProgram;
         VkDevice vk_device   = context->m_LogicalDevice.m_Device;
 
-        VkBuffer vk_buffers[MAX_VERTEX_BUFFERS]            = {};
-        VkDeviceSize vk_buffer_offsets[MAX_VERTEX_BUFFERS] = {};
-        uint32_t num_vx_buffers                            = 0;
+        VkBuffer vk_buffers[MAX_VERTEX_BUFFERS]                = {};
+        VkDeviceSize vk_buffer_offsets[MAX_VERTEX_BUFFERS]     = {};
+        VertexDeclaration* vx_declarations[MAX_VERTEX_BUFFERS] = {};
+        uint32_t num_vx_buffers                                = 0;
 
         for (int i = 0; i < MAX_VERTEX_BUFFERS; ++i)
         {
-            if (context->m_CurrentVertexBuffer[i])
+            if (context->m_CurrentVertexBuffer[i] && context->m_CurrentVertexDeclaration[i])
             {
-                vk_buffers[num_vx_buffers++] = context->m_CurrentVertexBuffer[i]->m_Handle.m_Buffer;
+                vx_declarations[num_vx_buffers]   = context->m_CurrentVertexDeclaration[i];
+                vk_buffers[num_vx_buffers]        = context->m_CurrentVertexBuffer[i]->m_Handle.m_Buffer;
+                vk_buffer_offsets[num_vx_buffers] = context->m_CurrentVertexBufferOffset[i];
+                num_vx_buffers++;
             }
         }
 
@@ -2275,7 +2312,7 @@ bail:
 
         Pipeline* pipeline = GetOrCreatePipeline(vk_device, vk_sample_count,
             pipeline_state_draw, context->m_PipelineCache,
-            program_ptr, current_rt, context->m_CurrentVertexDeclaration, num_vx_buffers);
+            program_ptr, current_rt, vx_declarations, num_vx_buffers);
 
         if (pipeline != context->m_CurrentPipeline)
         {
@@ -2300,7 +2337,7 @@ bail:
         vkCmdBindVertexBuffers(vk_command_buffer, 0, num_vx_buffers, vk_buffers, vk_buffer_offsets);
     }
 
-    static void VulkanDrawElements(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
+    static void VulkanDrawElements(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer, uint32_t instance_count)
     {
         DM_PROFILE(__FUNCTION__);
         DM_PROPERTY_ADD_U32(rmtp_DrawCalls, 1);
@@ -2316,10 +2353,10 @@ bail:
         // The 'first' value that comes in is intended to be a byte offset,
         // but vkCmdDrawIndexed only operates with actual offset values into the index buffer
         uint32_t index_offset = first / (type == TYPE_UNSIGNED_SHORT ? 2 : 4);
-        vkCmdDrawIndexed(vk_command_buffer, count, 1, index_offset, 0, 0);
+        vkCmdDrawIndexed(vk_command_buffer, count, dmMath::Max((uint32_t) 1, instance_count), index_offset, 0, 0);
     }
 
-    static void VulkanDraw(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count)
+    static void VulkanDraw(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count)
     {
         DM_PROFILE(__FUNCTION__);
         DM_PROPERTY_ADD_U32(rmtp_DrawCalls, 1);
@@ -2329,7 +2366,7 @@ bail:
         VkCommandBuffer vk_command_buffer = context->m_MainCommandBuffers[image_ix];
         context->m_PipelineState.m_PrimtiveType = prim_type;
         DrawSetup(context, vk_command_buffer, &context->m_MainScratchBuffers[image_ix], 0, TYPE_BYTE);
-        vkCmdDraw(vk_command_buffer, count, 1, first, 0);
+        vkCmdDraw(vk_command_buffer, count, dmMath::Max((uint32_t) 1, instance_count), first, 0);
     }
 
     static void VulkanDispatchCompute(HContext _context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z)

@@ -707,7 +707,9 @@ namespace dmGameObject
         {
             if (INVALID_INDEX == next)
             {
-                world->m_ListenerInstanceToIndex.Erase((uintptr_t)anim->m_Userdata1);
+                uint16_t* p = world->m_ListenerInstanceToIndex.Get((uintptr_t)anim->m_Userdata1);
+                if (p != 0)
+                    world->m_ListenerInstanceToIndex.Erase((uintptr_t)anim->m_Userdata1);
             }
             else
             {

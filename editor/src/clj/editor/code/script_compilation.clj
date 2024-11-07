@@ -175,7 +175,6 @@
                                  []
                                  nil))
                         (let [[_ end-row-skipped end-col-skipped] skipped
-                              end-col-skipped (- ^long end-col-skipped 1)
                               end-cursor-before-skipped (data/->Cursor end-row-skipped end-col-skipped)
                               cursor-range-before-skipped (data/->CursorRange start-cursor end-cursor-before-skipped)
                               new-cursor-ranges (conj! cursor-ranges cursor-range-before-skipped)

@@ -89,7 +89,6 @@ namespace dmGameSystem
         else
         {
             ResFactoryDestroyResource(params->m_Factory, factory_res);
-            delete factory_res;
         }
         return res;
     }

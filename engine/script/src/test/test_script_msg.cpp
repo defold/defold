@@ -781,6 +781,8 @@ TEST_F(ScriptMsgTest, TestPostDeletedSocket)
 
 int main(int argc, char **argv)
 {
+    dmHashEnableReverseHash(true);
+
     TestMainPlatformInit();
     dmLog::LogParams params;
     dmLog::LogInitialize(&params);

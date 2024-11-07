@@ -82,6 +82,8 @@ namespace dmProfileRender
         dmArray<ProfilerThread*>    m_Threads;
         dmArray<ProfilerProperty>   m_Properties;
         uint64_t                    m_Time;           // The time of the last update for this frame
+
+        ProfilerFrame();
     };
 
 

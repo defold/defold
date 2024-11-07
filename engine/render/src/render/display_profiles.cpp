@@ -21,6 +21,8 @@
 #include <dlib/math.h>
 #include <dlib/profile.h>
 #include <dlib/hashtable.h>
+#include <dlib/utf8.h>
+
 #include <graphics/graphics_util.h>
 
 #include "display_profiles.h"

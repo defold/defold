@@ -28,12 +28,11 @@ jobs:
     steps: [
       {
         name: 'Checkout',
-        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       },
       { name: 'Fetch tags', run: 'git fetch --depth=1 origin +refs/tags/*:refs/tags/*' },
       { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12} },
       { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '17.0.5+8', distribution: 'temurin'} },
-      { name: 'Install Leiningen', uses: DeLaGuardo/setup-clojure@bc7570e912b028bbcc22f457adec7fdf98e2f4ed, with: { lein: 2.8.3 } },
       { name: 'Install dependencies', run: sudo apt-get install -y libgl1-mesa-dev libglw1-mesa-dev freeglut3-dev },
       {
         name: 'Build editor',
@@ -51,7 +50,7 @@ jobs:
       matrix:
         platform: [x86_64-macos, arm64-macos]
     steps: [
-      { name: 'Checkout', uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 },
+      { name: 'Checkout', uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 },
       { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12} },
       { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '17.0.5+8', distribution: 'temurin'} },
       {
@@ -82,7 +81,7 @@ jobs:
       matrix:
         platform: [x86_64-win32]
     steps: [
-      { name: 'Checkout', uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 },
+      { name: 'Checkout', uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 },
       { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12} },
       { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '17.0.5+8', distribution: 'temurin'} },
       {
@@ -119,7 +118,7 @@ jobs:
     steps: [
       {
         name: 'Checkout',
-        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
       },
       { name: 'Fetch tags', run: 'git fetch --depth=1 origin +refs/tags/*:refs/tags/*' },
       { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12} },
