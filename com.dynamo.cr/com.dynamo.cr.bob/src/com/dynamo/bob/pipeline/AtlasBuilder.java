@@ -44,7 +44,7 @@ import com.dynamo.gamesys.proto.AtlasProto.AtlasImage;
 
 import com.google.protobuf.TextFormat;
 
-@ProtoParams(srcClass = Atlas.class, messageClass = Atlas.class)
+@ProtoParams(srcClass = Atlas.class, messageClass = TextureSet.class)
 @BuilderParams(name = "Atlas", inExts = {".atlas"}, outExt = ".a.texturesetc")
 public class AtlasBuilder extends ProtoBuilder<Atlas.Builder> {
 
@@ -106,7 +106,7 @@ public class AtlasBuilder extends ProtoBuilder<Atlas.Builder> {
                                                 .build();
 
         TextureProfile texProfile = TextureUtil.getTextureProfileByPath(this.project.getTextureProfiles(), task.input(0).getPath());
-        logger.info("Compiling %s using profile %s", task.input(0).getPath(), texProfile!=null?texProfile.getName():"<none>");
+        logger.fine("Compiling %s using profile %s", task.input(0).getPath(), texProfile!=null?texProfile.getName():"<none>");
 
         boolean compress = project.option("texture-compression", "false").equals("true");
         TextureImage texture = null;

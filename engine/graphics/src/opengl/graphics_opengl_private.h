@@ -148,6 +148,9 @@ namespace dmGraphics
         dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
 
         PipelineState           m_PipelineState;
+
+        GLuint                  m_GlobalVAO;
+
         uint32_t                m_Width;
         uint32_t                m_Height;
         uint32_t                m_MaxTextureSize;

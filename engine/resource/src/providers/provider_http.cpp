@@ -62,10 +62,11 @@ static void HttpHeader(dmHttpClient::HResponse response, void* user_data, int st
     }
 }
 
-static void HttpContent(dmHttpClient::HResponse, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length)
+static void HttpContent(dmHttpClient::HResponse, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length, const char* method)
 {
     HttpProviderContext* archive = (HttpProviderContext*)user_data;
     (void) status_code;
+    (void) method;
 
     if (!content_data && content_data_size)
     {
@@ -171,7 +172,10 @@ static dmResourceProvider::Result GetRequestFromUri(HttpProviderContext* archive
     // if (factory->m_HttpCache)
     //     dmHttpCache::SetConsistencyPolicy(factory->m_HttpCache, dmHttpCache::CONSISTENCY_POLICY_TRUSTED);
 
-    if (http_result != dmHttpClient::RESULT_OK)
+    bool http_result_ok = http_result == dmHttpClient::RESULT_OK ||
+                         (http_result == dmHttpClient::RESULT_NOT_200_OK && archive->m_HttpStatus == 304);
+
+    if (!http_result_ok)
     {
         if (archive->m_HttpStatus == 404)
         {

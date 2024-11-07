@@ -220,7 +220,8 @@ namespace dmHttpClient
         }
     }
 
-    static void DefaultHttpContentData(HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length)
+    static void DefaultHttpContentData(HResponse response, void* user_data, int status_code,
+        const void* content_data, uint32_t content_data_size, int32_t content_length, const char* method)
     {
         (void) response;
         (void) user_data;
@@ -228,6 +229,7 @@ namespace dmHttpClient
         (void) content_data;
         (void) content_data_size;
         (void) content_length;
+        (void) method;
     }
 
     void SetDefaultParams(NewParams* params)
@@ -640,7 +642,7 @@ bail:
         return client->m_SocketResult;
     }
 
-    static Result DoTransfer(HClient client, Response* response, int to_transfer, HttpContent http_content, bool add_to_cache)
+    static Result DoTransfer(HClient client, Response* response, int to_transfer, HttpContent http_content, bool add_to_cache, const char* method)
     {
         // to_transfer can be set to -1 when the "Content-Length" is unknown
         int total_transferred = 0;
@@ -654,7 +656,7 @@ bail:
             } else {
                 n = dmMath::Min(to_transfer - total_transferred, response->m_TotalReceived - response->m_ContentOffset);
             }
-            http_content(response, client->m_Userdata, response->m_Status, client->m_Buffer + response->m_ContentOffset, n, response->m_ContentLength);
+            http_content(response, client->m_Userdata, response->m_Status, client->m_Buffer + response->m_ContentOffset, n, response->m_ContentLength, method);
 
             if (response->m_CacheCreator && add_to_cache)
             {
@@ -727,7 +729,7 @@ bail:
         }
     }
 
-    static void HttpContentConsume(HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length)
+    static void HttpContentConsume(HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length, const char* method)
     {
         (void) response;
         (void) user_data;
@@ -735,9 +737,10 @@ bail:
         (void) content_data;
         (void) content_data_size;
         (void) content_length;
+        (void) method;
     }
 
-    static Result HandleCached(HClient client, const char* path, Response* response)
+    static Result HandleCached(HClient client, const char* path, Response* response, bool method_is_head)
     {
         client->m_Statistics.m_CachedResponses++;
         if (client->m_IgnoreCache)
@@ -784,15 +787,24 @@ bail:
         cache_result = dmHttpCache::Get(client->m_HttpCache, client->m_URI, cache_etag, &file, &file_size, &checksum);
         if (cache_result == dmHttpCache::RESULT_OK)
         {
-            // NOTE: We have an extra byte for null-termination so no buffer overrun here.
-            size_t nread;
-            do
+            // If the request is a "HEAD" request, and the URI is cached (i.e the file exists),
+            // then we should return the meta-data about the file (including triggering the progress callback).
+            if (method_is_head)
             {
-                nread = fread(client->m_Buffer, 1, BUFFER_SIZE, file);
-                client->m_Buffer[nread] = '\0';
-                client->m_HttpContent(response, client->m_Userdata, response->m_Status, client->m_Buffer, nread, file_size);
+                client->m_HttpContent(response, client->m_Userdata, response->m_Status, 0, 0, file_size, "HEAD");
             }
-            while (nread > 0);
+            else
+            {
+                // NOTE: We have an extra byte for null-termination so no buffer overrun here.
+                size_t nread;
+                do
+                {
+                    nread = fread(client->m_Buffer, 1, BUFFER_SIZE, file);
+                    client->m_Buffer[nread] = '\0';
+                    client->m_HttpContent(response, client->m_Userdata, response->m_Status, client->m_Buffer, nread, file_size, 0);
+                }
+                while (nread > 0);
+            }
             dmHttpCache::Release(client->m_HttpCache, client->m_URI, cache_etag, file);
         }
         else
@@ -809,13 +821,13 @@ bail:
     {
         Result r = RESULT_OK;
 
-        client->m_HttpContent(response, client->m_Userdata, response->m_Status, 0, 0, 0);
+        client->m_HttpContent(response, client->m_Userdata, response->m_Status, 0, 0, 0, 0);
 
         if (strcmp(method, "HEAD") == 0) {
             // A response from a HEAD request should not attempt to read any body despite
             // content length being non-zero, but we still call DoTransfer (with a
             // content length of 0) to ensure that the response is setup properly
-            r = DoTransfer(client, response, 0, client->m_HttpContent, true);
+            r = DoTransfer(client, response, 0, client->m_HttpContent, false, method);
         }
         else if (response->m_Chunked)
         {
@@ -842,13 +854,13 @@ bail:
 
                     // Move content-offset after chunk termination, ie after "\r\n"
                     response->m_ContentOffset = chunk_size_end - client->m_Buffer;
-                    r = DoTransfer(client, response, chunk_size, client->m_HttpContent, true);
+                    r = DoTransfer(client, response, chunk_size, client->m_HttpContent, true, method);
                     if (r != RESULT_OK)
                         break;
 
                     // Consume \r\n"
                     // NOTE: *not* added to cache
-                    r = DoTransfer(client, response, 2, &HttpContentConsume, false);
+                    r = DoTransfer(client, response, 2, &HttpContentConsume, false, method);
                     if (r != RESULT_OK)
                         break;
 
@@ -895,7 +907,7 @@ bail:
         {
             // "Regular" transfer, single chunk
             assert(response->m_ContentOffset != -1);
-            r = DoTransfer(client, response, response->m_ContentLength, client->m_HttpContent, true);
+            r = DoTransfer(client, response, response->m_ContentLength, client->m_HttpContent, true, method);
         }
 
         return r;
@@ -906,6 +918,8 @@ bail:
         dmSocket::Result sock_res;
 
         sock_res = SendRequest(client, &response, path, method);
+
+        bool method_is_head = strcmp(method, "HEAD") == 0;
 
         if (sock_res != dmSocket::RESULT_OK)
         {
@@ -942,7 +956,10 @@ bail:
             // Use cached version
             if (response.m_ContentLength == 0 || response.m_ContentLength == -1)
             {
-                r = HandleCached(client, path, &response);
+                if (!client->m_IgnoreCache && client->m_HttpCache)
+                {
+                    r = HandleCached(client, path, &response, method_is_head);
+                }
                 response.m_TotalReceived = 0;
             }
             else
@@ -956,7 +973,7 @@ bail:
         else
         {
             // Non-cached response
-            if (!client->m_IgnoreCache && client->m_HttpCache && response.m_Status == 200 /* OK */)
+            if (!client->m_IgnoreCache && client->m_HttpCache && !method_is_head && response.m_Status == 200 /* OK */)
             {
                 dmHttpCache::Begin(client->m_HttpCache, client->m_URI, response.m_ETag, response.m_MaxAge, &response.m_CacheCreator);
             }
@@ -1069,7 +1086,7 @@ bail:
             {
                 nread = fread(client->m_Buffer, 1, BUFFER_SIZE, file);
                 client->m_Buffer[nread] = '\0';
-                client->m_HttpContent(&response, client->m_Userdata, 304, client->m_Buffer, nread, file_size);
+                client->m_HttpContent(&response, client->m_Userdata, 304, client->m_Buffer, nread, file_size, "GET");
             }
             while (nread > 0);
             dmHttpCache::Release(client->m_HttpCache, client->m_URI, info->m_ETag, file);

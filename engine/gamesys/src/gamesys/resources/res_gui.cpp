@@ -82,9 +82,7 @@ namespace dmGameSystem
 
         resource->m_Fonts.SetCapacity(resource->m_SceneDesc->m_Fonts.m_Count);
         resource->m_Fonts.SetSize(0);
-        resource->m_FontMaps.SetCapacity(resource->m_SceneDesc->m_Fonts.m_Count);
-        resource->m_FontMaps.SetSize(0);
-        resource->m_FontMapPaths.SetCapacity(resource->m_FontMaps.Capacity());
+        resource->m_FontMapPaths.SetCapacity(resource->m_Fonts.Capacity());
         resource->m_FontMapPaths.SetSize(0);
         for (uint32_t i = 0; i < resource->m_SceneDesc->m_Fonts.m_Count; ++i)
         {
@@ -93,9 +91,6 @@ namespace dmGameSystem
             if (r != dmResource::RESULT_OK)
                 return r;
             resource->m_Fonts.Push(font);
-
-            dmRender::HFontMap font_map = ResFontGetHandle(font);
-            resource->m_FontMaps.Push(font_map);
 
             dmhash_t path_hash = 0;
             dmResource::GetPath(factory, font, &path_hash);
@@ -159,7 +154,6 @@ namespace dmGameSystem
         uint32_t size = sizeof(GuiSceneResource);
         size += ddf_size;
         size += res->m_Fonts.Capacity()*sizeof(FontResource*);
-        size += res->m_FontMaps.Capacity()*sizeof(dmRender::HFontMap);
         size += res->m_GuiTextureSets.Capacity()*sizeof(GuiSceneTextureSetResource);
         //size += res->m_Resources.Capacity()* ? // We should probably collect the sizes when we get them from the resource factory
         size += res->m_ParticlePrototypes.Capacity()*sizeof(dmParticle::HPrototype);
@@ -320,7 +314,6 @@ namespace dmGameSystem
             ReleaseResources(params->m_Factory, scene_resource);
             scene_resource->m_SceneDesc = tmp_scene_resource.m_SceneDesc;
             scene_resource->m_Script = tmp_scene_resource.m_Script;
-            scene_resource->m_FontMaps.Swap(tmp_scene_resource.m_FontMaps);
             scene_resource->m_GuiTextureSets.Swap(tmp_scene_resource.m_GuiTextureSets);
             scene_resource->m_Path = tmp_scene_resource.m_Path;
             scene_resource->m_GuiContext = tmp_scene_resource.m_GuiContext;

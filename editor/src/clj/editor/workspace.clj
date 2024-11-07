@@ -889,7 +889,7 @@ ordinary paths."
 
 (defn make-build-settings
   [prefs]
-  {:compress-textures? (prefs/get-prefs prefs "general-enable-texture-compression" false)})
+  {:compress-textures? (prefs/get prefs [:build :texture-compression])})
 
 (defn update-build-settings!
   [workspace prefs]

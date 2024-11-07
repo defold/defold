@@ -101,30 +101,39 @@ namespace dmHttpService
         h.Push('\n');
     }
 
-    void HttpContent(dmHttpClient::HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length)
+    void HttpContent(dmHttpClient::HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length, const char* method)
     {
         Worker* worker = (Worker*) user_data;
         worker->m_Status = status_code;
         dmArray<char>& r = worker->m_Response;
+        bool method_is_head = method && strcmp(method, "HEAD") == 0;
 
-        if (!content_data && !content_data_size)
+        if (!method_is_head && !content_data && !content_data_size)
         {
             r.SetSize(0);
             return;
         }
 
-        uint32_t left = r.Capacity() - r.Size();
-        if (left < content_data_size) {
-            r.OffsetCapacity((int32_t) dmMath::Max(content_data_size - left, 128U * 1024U));
-        }
-        r.PushArray((char*) content_data, content_data_size);
+        uint32_t bytes_received = 0;
+        if (!method_is_head)
+        {
+            uint32_t resize_to = (uint32_t) dmMath::Max((int32_t) content_data_size, content_length);
 
-        if (worker->m_ReportProgress && content_data_size > 0)
+            if (r.Capacity() < resize_to)
+            {
+                r.SetCapacity(resize_to);
+            }
+
+            r.PushArray((char*) content_data, content_data_size);
+            bytes_received = r.Size();
+        }
+
+        if (worker->m_ReportProgress && (method_is_head || content_data_size > 0))
         {
             assert(worker->m_Service->m_ReportProgressCallback);
 
             dmHttpDDF::HttpRequestProgress progress = {};
-            progress.m_BytesReceived                = r.Size();
+            progress.m_BytesReceived                = bytes_received;
             progress.m_BytesTotal                   = content_length;
             worker->m_Service->m_ReportProgressCallback(&progress, &worker->m_CurrentRequesterURL, worker->m_ResponseUserData2);
         }
