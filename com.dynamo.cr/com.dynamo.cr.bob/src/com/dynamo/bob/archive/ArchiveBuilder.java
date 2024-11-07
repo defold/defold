@@ -69,7 +69,8 @@ public class ArchiveBuilder {
     public static final int MD5_HASH_DIGEST_BYTE_LENGTH = 16; // 128 bits
 
     private List<ArchiveEntry> entries = new ArrayList<ArchiveEntry>();
-    private List<ArchiveEntry> excludedEntries = new ArrayList<ArchiveEntry>();
+    private List<ArchiveEntry> excludedEntries;
+    private List<ArchiveEntry> includedEntries;
     private Set<String> lookup = new HashSet<String>(); // To see if a resource has already been added
     private Map<String, String> hexDigestCache = new HashMap<>();
     private String root;
@@ -107,12 +108,14 @@ public class ArchiveBuilder {
         add(fileName, false, false, false);
     }
 
-    public ArchiveEntry getArchiveEntry(int index) {
-        return this.entries.get(index);
+    // used in tests
+    public ArchiveEntry getIncludedArchiveEntry(int index) {
+        return this.includedEntries.get(index);
     }
 
-    public int getArchiveEntrySize() {
-        return this.entries.size();
+    // used in tests
+    public int getIncludedArchiveEntriesSize() {
+        return this.includedEntries.size();
     }
 
     public byte[] loadResourceData(String filepath) throws IOException {
@@ -173,11 +176,12 @@ public class ArchiveBuilder {
 
     /**
      * Write a single archive entry to the archive or to disk depending on if
-     * the entry is excluded or not
-     * @param archiveData The file where the entry should be stored
+     * the entry is excluded or not. When writing to archive the entry will be
+     * aligned and written to the end of the archive.
+     * @param archiveData The archive file where the entry should be stored
      * @param entry The entry to write
-     * @param resourcePackDirectory The directory where the entry should be
-     * stored if the entry is to be excluded from the archive
+     * @param resourcePackDirectory The directory where excluded resources will
+     * be stored
      */
     private void writeArchiveEntry(RandomAccessFile archiveData, ArchiveEntry entry, Path resourcePackDirectory) throws IOException, CompileExceptionError {
         logger.fine("Writing archive entry %s", entry.getFilename());
@@ -243,7 +247,8 @@ public class ArchiveBuilder {
     }
 
     /**
-     * Write the archive index
+     * Write the archive index based on the list of included archive entries
+     * created in a previous step.
      * @param archiveIndexFile The file where the archive index should be stored
      */
     private void writeArchiveIndex(File archiveIndexFile) throws IOException {
@@ -262,9 +267,9 @@ public class ArchiveBuilder {
         int archiveIndexHeaderOffset = (int) archiveIndex.getFilePointer();
 
         // Write sorted hashes to index file
-        Collections.sort(entries);
+        Collections.sort(includedEntries);
         int hashOffset = (int) archiveIndex.getFilePointer();
-        for(ArchiveEntry entry : entries) {
+        for(ArchiveEntry entry : includedEntries) {
             archiveIndex.write(entry.getHash());
         }
 
@@ -272,8 +277,8 @@ public class ArchiveBuilder {
         int entryOffset = (int) archiveIndex.getFilePointer();
         alignBuffer(archiveIndex, 4);
 
-        ByteBuffer indexBuffer = ByteBuffer.allocate(4 * 4 * entries.size());
-        for (ArchiveEntry entry : entries) {
+        ByteBuffer indexBuffer = ByteBuffer.allocate(4 * 4 * includedEntries.size());
+        for (ArchiveEntry entry : includedEntries) {
             indexBuffer.putInt(entry.getResourceOffset());
             indexBuffer.putInt(entry.getSize());
             indexBuffer.putInt(entry.getCompressedSize());
@@ -299,7 +304,7 @@ public class ArchiveBuilder {
         archiveIndex.writeInt(VERSION);
         archiveIndex.writeInt(0); // Pad
         archiveIndex.writeLong(0); // UserData
-        archiveIndex.writeInt(entries.size());
+        archiveIndex.writeInt(includedEntries.size());
         archiveIndex.writeInt(entryOffset);
         archiveIndex.writeInt(hashOffset);
         archiveIndex.writeInt(ManifestBuilder.CryptographicOperations.getHashSize(manifestBuilder.getResourceHashAlgorithm()));
@@ -310,38 +315,40 @@ public class ArchiveBuilder {
 
 
     /**
-     * Write the archive data and excluded resources to disk. This function will
+     * Write the archive entries to disk or archive file. This function will
      * create a thread pool and write the entries in separate threads to speed
-     * up the archive creation.
+     * up the process. The entries which are excluded will be put in one list
+     * while the included entries will be put in another.
      * @param archiveDataFile The archive data file to write to
      * @param resourcePackDirectory The directory where excluded resources will
      * be stored
-     * @param excludedResources List of resources which should be excluded from
-     * the archive
+     * @param excludedResources The resources to exclude from the archive
      */
-    private void writeArchiveData(File archiveDataFile, Path resourcePackDirectory, List<String> excludedResources) throws IOException, CompileExceptionError {
-        TimeProfiler.start("WriteArchiveData");
+    private void writeArchiveEntries(final File archiveDataFile, final Path resourcePackDirectory, List<String> excludedResources) throws IOException, CompileExceptionError {
+        TimeProfiler.start("writeArchiveEntries");
 
         // create the executor service to write entries in parallel
         int nThreads = project.getMaxCpuThreads();
-        logger.info("Creating archive data with a fixed thread pool executor using %d threads", nThreads);
+        logger.info("Creating archive entries with a fixed thread pool executor using %d threads", nThreads);
         this.executorService = Executors.newFixedThreadPool(nThreads);
         
         RandomAccessFile archiveData = new RandomAccessFile(archiveDataFile, "rw");
 
         Collections.sort(entries); // Since it has no hash, it sorts on path
 
+        excludedEntries = new ArrayList<>(entries.size());
+        includedEntries = new ArrayList<>(entries.size());
+
         // create archive entry write tasks
-        // also check if an entry is supposed to be excluded, in which case it
-        // becomes flagged as a live update resource
         List<Future<ArchiveEntry>> futures = new ArrayList<>();
-        for (int i = entries.size() - 1; i >= 0; --i) {
-            ArchiveEntry entry = entries.get(i);
+        for (ArchiveEntry entry : entries) {
             boolean excluded = excludedResources.contains(FilenameUtils.separatorsToUnix(entry.getRelativeFilename()));
             if (excluded) {
                 entry.setFlag(ArchiveEntry.FLAG_LIVEUPDATE);
-                entries.remove(i);
                 excludedEntries.add(entry);
+            }
+            else {
+                includedEntries.add(entry);
             }
             Future<ArchiveEntry> future = this.executorService.submit(() -> {
                 writeArchiveEntry(archiveData, entry, resourcePackDirectory);
@@ -369,7 +376,7 @@ public class ArchiveBuilder {
     public void write(File archiveIndexFile, File archiveDataFile, Path resourcePackDirectory, List<String> excludedResources) throws IOException, CompileExceptionError {
         TimeProfiler.start("WriteArchive");
 
-        writeArchiveData(archiveDataFile, resourcePackDirectory, excludedResources);
+        writeArchiveEntries(archiveDataFile, resourcePackDirectory, excludedResources);
         writeArchiveIndex(archiveIndexFile);
 
         TimeProfiler.stop();
