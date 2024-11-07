@@ -755,6 +755,20 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
     }
 
     @Test
+    public void testCarriageReturn() throws Exception {
+        String src =
+            "#version 140 \r\n" +
+            "\r\n" +
+            "void main(){\r\n" +
+            "   gl_FragColor = vec4(1.0); \r\n" +
+            "}\r\n";
+
+        List<Message> outputs = build("/test_shader_cr.fp", src);
+        ShaderDesc shaderDesc = (ShaderDesc) outputs.get(0);
+        assertTrue(shaderDesc.getShadersCount() > 0);
+    }
+
+    @Test
     public void testShaderCompilePipelines() throws Exception {
         String shaderNewPipeline =
             """
