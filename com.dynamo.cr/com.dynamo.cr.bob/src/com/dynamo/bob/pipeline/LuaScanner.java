@@ -378,17 +378,12 @@ public class LuaScanner extends LuaParserBaseListener {
             properties.add(property);
 
             // strip property from code
-            if (isDebug) {
-              // keep tokens for hash() in debug build
-              // see https://github.com/defold/defold/issues/7422
-                if (property.type == PropertyType.PROPERTY_TYPE_HASH) {
-                    tokens.removeAll(getTokens(paramsContext));
-                }
-                removeTokens(tokens, true);
+            // keep tokens for hash() in debug build
+            // see https://github.com/defold/defold/issues/7422
+            if (isDebug && !property.isResource && property.type == PropertyType.PROPERTY_TYPE_HASH) {
+                tokens.removeAll(getTokens(paramsContext));
             }
-            else {
-                removeTokens(tokens, true);
-            }
+            removeTokens(tokens, true);
         }
     }
 

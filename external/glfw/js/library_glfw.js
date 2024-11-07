@@ -779,7 +779,7 @@ var LibraryGLFW = {
     if (GLFW.closeFunc) {
       {{{ makeDynCall('i', 'GLFW.closeFunc') }}}();
     }
-    Module.ctx = Browser.destroyContext(Module['canvas'], true, true);
+    delete Module.ctx;
   },
 
   glfwSetWindowTitle: function(title) {

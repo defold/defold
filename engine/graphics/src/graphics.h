@@ -174,6 +174,7 @@ namespace dmGraphics
         CONTEXT_FEATURE_COMPUTE_SHADER         = 2,
         CONTEXT_FEATURE_STORAGE_BUFFER         = 3,
         CONTEXT_FEATURE_VSYNC                  = 4,
+        CONTEXT_FEATURE_INSTANCING             = 5,
     };
 
     // Translation table to translate RenderTargetAttachment to BufferType
@@ -324,14 +325,15 @@ namespace dmGraphics
 
     struct VertexAttributeInfo
     {
-        dmhash_t                      m_NameHash;
-        VertexAttribute::SemanticType m_SemanticType;
-        VertexAttribute::DataType     m_DataType;
-        CoordinateSpace               m_CoordinateSpace;
-        const uint8_t*                m_ValuePtr;
-        uint32_t                      m_ValueByteSize;
-        uint32_t                      m_ElementCount;
-        bool                          m_Normalize;
+        dmhash_t                       m_NameHash;
+        VertexAttribute::SemanticType  m_SemanticType;
+        VertexAttribute::DataType      m_DataType;
+        VertexAttribute::VectorType    m_VectorType;
+        dmGraphics::VertexStepFunction m_StepFunction;
+        CoordinateSpace                m_CoordinateSpace;
+        const uint8_t*                 m_ValuePtr;
+        VertexAttribute::VectorType    m_ValueVectorType;
+        bool                           m_Normalize;
     };
 
     struct VertexAttributeInfos
@@ -346,6 +348,71 @@ namespace dmGraphics
         uint32_t            m_VertexStride;
         uint32_t            m_NumInfos;
         uint32_t            m_StructSize;
+    };
+
+    struct VertexAttributeInfoMetadata
+    {
+        uint32_t m_HasAttributeWorldPosition : 1;
+        uint32_t m_HasAttributeLocalPosition : 1;
+        uint32_t m_HasAttributeNormal        : 1;
+        uint32_t m_HasAttributeTangent       : 1;
+        uint32_t m_HasAttributeColor         : 1;
+        uint32_t m_HasAttributeTexCoord      : 1;
+        uint32_t m_HasAttributePageIndex     : 1;
+        uint32_t m_HasAttributeWorldMatrix   : 1;
+        uint32_t m_HasAttributeNormalMatrix  : 1;
+        uint32_t m_HasAttributeNone          : 1;
+    };
+
+    struct WriteAttributeStreamDesc
+    {
+        const float** m_Data;
+        // Data source vector types corresponding to each data source passed in.
+        // The destination vector type is stored in the vertexattribute infos.
+        VertexAttribute::VectorType m_VectorType;
+        // Number of data "streams" for this attribute
+        uint8_t m_StreamCount  : 7;
+        // Some streams share the value across the entire mesh (page indices for example).
+        // An alternative would be to replicate the data across all vertices in the mesh,
+        // which would be cleaner but a bit of a waste. Perhaps it should be configurable by the write params?
+        // Assume the data is not global by default
+        uint8_t m_IsGlobalData : 1;
+    };
+
+    struct WriteAttributeParams
+    {
+        const VertexAttributeInfos* m_VertexAttributeInfos;
+        WriteAttributeStreamDesc    m_WorldMatrix;
+        WriteAttributeStreamDesc    m_NormalMatrix;
+        WriteAttributeStreamDesc    m_PositionsLocalSpace;
+        WriteAttributeStreamDesc    m_PositionsWorldSpace;
+        WriteAttributeStreamDesc    m_Normals;
+        WriteAttributeStreamDesc    m_Tangents;
+        WriteAttributeStreamDesc    m_Colors;
+        WriteAttributeStreamDesc    m_TexCoords;
+        WriteAttributeStreamDesc    m_PageIndices;
+        VertexStepFunction          m_StepFunction;
+    };
+
+    struct VertexDeclaration
+    {
+        struct Stream
+        {
+            dmhash_t m_NameHash;
+            int16_t  m_Location;
+            uint16_t m_Size;
+            uint16_t m_Offset;
+            Type     m_Type;
+            bool     m_Normalize;
+        };
+
+        Stream             m_Streams[MAX_VERTEX_STREAM_COUNT];
+        dmhash_t           m_PipelineHash; // Vulkan
+        uint16_t           m_StreamCount;
+        uint16_t           m_Stride;
+        VertexStepFunction m_StepFunction;
+        HProgram           m_BoundForProgram;     // OpenGL
+        uint32_t           m_ModificationVersion; // OpenGL
     };
 
     /** Creates a graphics context
@@ -522,17 +589,20 @@ namespace dmGraphics
     void Clear(HContext context, uint32_t flags, uint8_t red, uint8_t green, uint8_t blue, uint8_t alpha, float depth, uint32_t stencil);
 
     bool     SetStreamOffset(HVertexDeclaration vertex_declaration, uint32_t stream_index, uint16_t offset);
-    void     EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, uint32_t binding_index, HProgram program);
+    void     EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, uint32_t binding_index, uint32_t base_offset, HProgram program);
     void     DisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration);
     void     HashVertexDeclaration(HashState32 *state, HVertexDeclaration vertex_declaration);
     uint32_t GetVertexDeclarationStride(HVertexDeclaration vertex_declaration);
+    uint32_t GetVertexDeclarationStreamCount(HVertexDeclaration vertex_declaration);
 
     void     EnableVertexBuffer(HContext context, HVertexBuffer vertex_buffer, uint32_t binding_index);
     void     DisableVertexBuffer(HContext context, HVertexBuffer vertex_buffer);
+    uint32_t GetVertexBufferSize(HVertexBuffer vertex_buffer);
+    uint32_t GetIndexBufferSize(HIndexBuffer buffer);
 
-    void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer);
-    void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count);
-    void DispatchCompute(HContext context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z);
+    void     DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer, uint32_t instance_count);
+    void     Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count);
+    void     DispatchCompute(HContext context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z);
 
     // Shaders
     HVertexProgram       NewVertexProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size);
@@ -563,8 +633,12 @@ namespace dmGraphics
     void             GetAttribute(HProgram prog, uint32_t index, dmhash_t* name_hash, Type* type, uint32_t* element_count, uint32_t* num_values, int32_t* location);
     void             GetAttributeValues(const VertexAttribute& attribute, const uint8_t** data_ptr, uint32_t* data_size);
     Type             GetGraphicsType(VertexAttribute::DataType data_type);
-    uint8_t*         WriteAttribute(const VertexAttributeInfos* attribute_infos, uint8_t* write_ptr, uint32_t vertex_index, const dmVMath::Matrix4* world_transform, const dmVMath::Point3& p, const dmVMath::Point3& p_local, const dmVMath::Vector4* color, float** uvs, uint32_t* page_indices, uint32_t num_textures);
 
+    float            VertexAttributeDataTypeToFloat(const dmGraphics::VertexAttribute::DataType data_type, const uint8_t* value_ptr);
+    uint8_t*         WriteVertexAttributeFromFloat(uint8_t* value_write_ptr, float value, dmGraphics::VertexAttribute::DataType data_type);
+    uint8_t*         WriteAttributes(uint8_t* write_ptr, uint32_t vertex_index, const WriteAttributeParams& params);
+
+    // Uniforms
     uint32_t         GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size);
     uint32_t         GetUniformCount(HProgram prog);
     HUniformLocation GetUniformLocation(HProgram prog, const char* name);
@@ -684,17 +758,60 @@ namespace dmGraphics
                buffer_type == BUFFER_TYPE_COLOR3_BIT;
     }
 
-    static inline bool HasLocalPositionAttribute(const VertexAttributeInfos& attribute_infos)
+    static inline void SetWriteAttributeStreamDesc(WriteAttributeStreamDesc* stream, const float** data, VertexAttribute::VectorType vector_type, uint8_t stream_count, bool is_global_data)
     {
+        stream->m_Data = data;
+        stream->m_VectorType = vector_type;
+        stream->m_StreamCount = stream_count;
+        stream->m_IsGlobalData = is_global_data;
+    }
+
+    static inline void VertexAttributeInfoMetadataMember(VertexAttributeInfoMetadata& metadata, VertexAttribute::SemanticType semantic_type, CoordinateSpace coordinate_space)
+    {
+        switch(semantic_type)
+        {
+        case VertexAttribute::SEMANTIC_TYPE_POSITION:
+            metadata.m_HasAttributeWorldPosition |= coordinate_space == COORDINATE_SPACE_WORLD;
+            metadata.m_HasAttributeLocalPosition |= coordinate_space == COORDINATE_SPACE_LOCAL;
+            break;
+        case VertexAttribute::SEMANTIC_TYPE_TEXCOORD:
+            metadata.m_HasAttributeTexCoord = true;
+            break;
+        case VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX:
+            metadata.m_HasAttributePageIndex = true;
+            break;
+        case VertexAttribute::SEMANTIC_TYPE_NORMAL:
+            metadata.m_HasAttributeNormal = true;
+            break;
+        case VertexAttribute::SEMANTIC_TYPE_TANGENT:
+            metadata.m_HasAttributeTangent = true;
+            break;
+        case VertexAttribute::SEMANTIC_TYPE_COLOR:
+            metadata.m_HasAttributeColor = true;
+            break;
+        case VertexAttribute::SEMANTIC_TYPE_WORLD_MATRIX:
+            metadata.m_HasAttributeWorldMatrix = true;
+            break;
+        case VertexAttribute::SEMANTIC_TYPE_NORMAL_MATRIX:
+            metadata.m_HasAttributeNormalMatrix = true;
+            break;
+        case VertexAttribute::SEMANTIC_TYPE_NONE:
+            metadata.m_HasAttributeNone = true;
+            break;
+        default:
+            break;
+        }
+    }
+
+    static inline VertexAttributeInfoMetadata GetVertexAttributeInfosMetaData(const VertexAttributeInfos& attribute_infos)
+    {
+        VertexAttributeInfoMetadata metadata = {};
         for (int i = 0; i < attribute_infos.m_NumInfos; ++i)
         {
-            if (attribute_infos.m_Infos[i].m_SemanticType == VertexAttribute::SEMANTIC_TYPE_POSITION &&
-                attribute_infos.m_Infos[i].m_CoordinateSpace == COORDINATE_SPACE_LOCAL)
-            {
-                return true;
-            }
+            const VertexAttributeInfo& info = attribute_infos.m_Infos[i];
+            VertexAttributeInfoMetadataMember(metadata, info.m_SemanticType, info.m_CoordinateSpace);
         }
-        return false;
+        return metadata;
     }
 
     static inline bool IsTypeTextureType(Type type)
@@ -711,6 +828,37 @@ namespace dmGraphics
     static inline uint32_t GetLayerCount(TextureType type)
     {
         return type == TEXTURE_TYPE_CUBE_MAP ? 6 : 1;
+    }
+
+    static inline uint32_t VectorTypeToElementCount(VertexAttribute::VectorType vector_type)
+    {
+        switch(vector_type)
+        {
+            case VertexAttribute::VECTOR_TYPE_SCALAR: return 1;
+            case VertexAttribute::VECTOR_TYPE_VEC2:   return 2;
+            case VertexAttribute::VECTOR_TYPE_VEC3:   return 3;
+            case VertexAttribute::VECTOR_TYPE_VEC4:   return 4;
+            case VertexAttribute::VECTOR_TYPE_MAT2:   return 4;
+            case VertexAttribute::VECTOR_TYPE_MAT3:   return 9;
+            case VertexAttribute::VECTOR_TYPE_MAT4:   return 16;
+        }
+        return 0;
+    }
+
+    static inline uint32_t DataTypeToByteWidth(VertexAttribute::DataType data_type)
+    {
+        switch(data_type)
+        {
+            case dmGraphics::VertexAttribute::TYPE_BYTE:           return 1;
+            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE:  return 1;
+            case dmGraphics::VertexAttribute::TYPE_SHORT:          return 2;
+            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_SHORT: return 2;
+            case dmGraphics::VertexAttribute::TYPE_INT:            return 4;
+            case dmGraphics::VertexAttribute::TYPE_UNSIGNED_INT:   return 4;
+            case dmGraphics::VertexAttribute::TYPE_FLOAT:          return 4;
+            default: break;
+        }
+        return 0;
     }
 
     /**

@@ -13,8 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.keymap
-  (:require [editor.ui :as ui]
-            [editor.util :as util]
+  (:require [editor.os :as os]
+            [editor.ui :as ui]
             [util.fn :as fn])
   (:import [javafx.scene Scene]
            [javafx.scene.input KeyCharacterCombination KeyCodeCombination KeyCombination KeyCombination$ModifierValue KeyEvent]))
@@ -137,7 +137,7 @@
            ["Shift+Meta+I" :toggle-visibility-filters]
            ["Shift+Meta+L" :split-selection-into-lines]
            ["Shift+Meta+Left" :select-beginning-of-line-text]
-           ["Shift+Meta+R" :open-asset]
+           ["Shift+Meta+R" :reload-extensions]
            ["Shift+Meta+Right" :select-end-of-line]
            ["Shift+Meta+T" :reopen-recent-file]
            ["Shift+Meta+Up" :select-beginning-of-file]
@@ -240,7 +240,7 @@
            ["Shift+Ctrl+I" :toggle-visibility-filters]
            ["Shift+Ctrl+L" :split-selection-into-lines]
            ["Shift+Ctrl+Left" :select-prev-word]
-           ["Shift+Ctrl+R" :open-asset]
+           ["Shift+Ctrl+R" :reload-extensions]
            ["Shift+Ctrl+Right" :select-next-word]
            ["Shift+Ctrl+T" :reopen-recent-file]
            ["Shift+Ctrl+W" :close-all]
@@ -352,7 +352,7 @@
            ["Shift+Ctrl+I" :toggle-visibility-filters]
            ["Shift+Ctrl+L" :split-selection-into-lines]
            ["Shift+Ctrl+Left" :select-prev-word]
-           ["Shift+Ctrl+R" :open-asset]
+           ["Shift+Ctrl+R" :reload-extensions]
            ["Shift+Ctrl+Right" :select-next-word]
            ["Shift+Ctrl+T" :reopen-recent-file]
            ["Shift+Ctrl+W" :close-all]
@@ -385,7 +385,7 @@
            ["Z" :rotate-brush-90-degrees]]})
 
 (def default-host-key-bindings
-  (platform->default-key-bindings (util/os)))
+  (platform->default-key-bindings (os/os)))
 
 (def ^:private default-allowed-duplicate-shortcuts
   #{"Alt+Down"
@@ -518,7 +518,7 @@
 
 (defn typable?
   ([key-combo-data]
-   (typable? key-combo-data (util/os)))
+   (typable? key-combo-data (os/os)))
   ([{:keys [alt-down? control-down? meta-down?]} os]
    (let [mac? (= os :macos)]
      (-> typable-truth-table
@@ -595,7 +595,7 @@
                          allowed-duplicate-shortcuts
                          allowed-typable-shortcuts]
                   :or   {valid-command? fn/constantly-true
-                         platform (util/os)
+                         platform (os/os)
                          throw-on-error? false
                          allowed-duplicate-shortcuts default-allowed-duplicate-shortcuts
                          allowed-typable-shortcuts default-allowed-typable-shortcuts}}]

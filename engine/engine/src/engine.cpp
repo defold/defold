@@ -234,7 +234,7 @@ namespace dmEngine
     , m_GuiScriptContext(0x0)
     , m_Factory(0x0)
     , m_SystemSocket(0x0)
-    , m_SystemFontMap(0x0)
+    , m_SystemFont(0x0)
     , m_HidContext(0x0)
     , m_InputContext(0x0)
     , m_GameInputBinding(0x0)
@@ -298,7 +298,7 @@ namespace dmEngine
         dmHttpClient::ShutdownConnectionPool();
 
         // Reregister the types before the rest of the contexts are deleted
-        if (engine->m_Factory) {
+        if (engine->m_Factory && engine->m_ResourceTypeContexts.Size() > 0) {
             dmResource::DeregisterTypes(engine->m_Factory, &engine->m_ResourceTypeContexts);
         }
 
@@ -693,6 +693,10 @@ namespace dmEngine
 #endif
         }
 
+        // Set minimum log level
+        int32_t minimum_log_level = dmConfigFile::GetInt(engine->m_Config, "project.minimum_log_level", LOG_SEVERITY_INFO);
+        dmLogSetLevel((LogSeverity)minimum_log_level);
+
         // Try loading SSL keys
         char engine_ssl_keys_path[DMPATH_MAX_PATH];
         dmPath::Concat(resources_path, "/ssl_keys.pem", engine_ssl_keys_path, sizeof(engine_ssl_keys_path));
@@ -906,6 +910,12 @@ namespace dmEngine
         window_params.m_BackgroundColor         = clear_color;
         window_params.m_GraphicsApi             = AdapterFamilyToGraphicsAPI(dmGraphics::GetInstalledAdapterFamily());
 
+        if (window_params.m_GraphicsApi == dmPlatform::PLATFORM_GRAPHICS_API_OPENGL)
+        {
+            window_params.m_OpenGLVersionHint        = (uint8_t) dmConfigFile::GetInt(engine->m_Config, "graphics.opengl_version_hint", 33);
+            window_params.m_OpenGLUseCoreProfileHint = (bool) dmConfigFile::GetInt(engine->m_Config, "graphics.opengl_core_profile_hint", 1);
+        }
+
         engine->m_Window = dmPlatform::NewWindow();
 
         dmPlatform::PlatformResult platform_result = dmPlatform::OpenWindow(engine->m_Window, window_params);
@@ -1053,10 +1063,11 @@ namespace dmEngine
             dmLogWarning("Failed to initialize sound system.");
         }
 
-        dmGameObject::Result go_result = dmGameObject::SetCollectionDefaultCapacity(engine->m_Register, dmConfigFile::GetInt(engine->m_Config, dmGameObject::COLLECTION_MAX_INSTANCES_KEY, dmGameObject::DEFAULT_MAX_COLLECTION_CAPACITY));
+        int max_instance_count = dmConfigFile::GetInt(engine->m_Config, dmGameObject::COLLECTION_MAX_INSTANCES_KEY, dmGameObject::DEFAULT_MAX_COLLECTION_CAPACITY);
+        dmGameObject::Result go_result = dmGameObject::SetCollectionDefaultCapacity(engine->m_Register, max_instance_count);
         if(go_result != dmGameObject::RESULT_OK)
         {
-            dmLogFatal("Failed to set max instance count for collections (%d)", go_result);
+            dmLogFatal("Failed to set '%s' %d for collections (%d)", dmGameObject::COLLECTION_MAX_INSTANCES_KEY, max_instance_count, go_result);
             return false;
         }
         dmGameObject::SetInputStackDefaultCapacity(engine->m_Register, dmConfigFile::GetInt(engine->m_Config, dmGameObject::COLLECTION_MAX_INPUT_STACK_ENTRIES_KEY, dmGameObject::DEFAULT_MAX_INPUT_STACK_CAPACITY));
@@ -1127,7 +1138,7 @@ namespace dmEngine
         gui_params.m_GetURLCallback = dmGameSystem::GuiGetURLCallback;
         gui_params.m_GetUserDataCallback = dmGameSystem::GuiGetUserDataCallback;
         gui_params.m_ResolvePathCallback = dmGameSystem::GuiResolvePathCallback;
-        gui_params.m_GetTextMetricsCallback = dmGameSystem::GuiGetTextMetricsCallback;
+        gui_params.m_GetTextMetricsCallback = (void (*)(const void *, const char *, float, bool, float, float, dmGui::TextMetrics *))dmGameSystem::GuiGetTextMetricsCallback;
 
         // If an extension changes window size at extensions initialization phase, engine should read that.
         physical_width = dmGraphics::GetWindowWidth(engine->m_GraphicsContext);
@@ -1790,7 +1801,7 @@ bail:
             }
 
 #if !defined(DM_RELEASE)
-            dmProfiler::RenderProfiler(profile, engine->m_GraphicsContext, engine->m_RenderContext, engine->m_SystemFontMap);
+            dmProfiler::RenderProfiler(profile, engine->m_GraphicsContext, engine->m_RenderContext, ResFontGetHandle(engine->m_SystemFont));
 #endif
             // Call post render functions for extensions, if available.
             // We do it here at the end of the frame (before swap buffers/flip)
@@ -2100,13 +2111,13 @@ bail:
         dmResource::Result fact_error;
 #if !defined(DM_RELEASE)
         const char* system_font_map = "/builtins/fonts/debug/always_on_top.fontc";
-        fact_error = dmResource::Get(engine->m_Factory, system_font_map, (void**) &engine->m_SystemFontMap);
+        fact_error = dmResource::Get(engine->m_Factory, system_font_map, (void**) &engine->m_SystemFont);
         if (fact_error != dmResource::RESULT_OK)
         {
             dmLogFatal("Could not load system font map '%s'.", system_font_map);
             return false;
         }
-        dmRender::SetSystemFontMap(engine->m_RenderContext, engine->m_SystemFontMap);
+        dmRender::SetSystemFontMap(engine->m_RenderContext, ResFontGetHandle(engine->m_SystemFont));
 #endif
         // The system font is currently the only resource we need from the connection app
         // After this point, the rest of the resources should be loaded the ordinary way
@@ -2152,8 +2163,8 @@ bail:
     {
         if (engine->m_RenderScriptPrototype)
             dmResource::Release(engine->m_Factory, engine->m_RenderScriptPrototype);
-        if (engine->m_SystemFontMap)
-            dmResource::Release(engine->m_Factory, engine->m_SystemFontMap);
+        if (engine->m_SystemFont)
+            dmResource::Release(engine->m_Factory, engine->m_SystemFont);
         if (engine->m_GameInputBinding)
             dmResource::Release(engine->m_Factory, engine->m_GameInputBinding);
         if (engine->m_DisplayProfiles)

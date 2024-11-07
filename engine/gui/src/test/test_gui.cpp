@@ -5441,6 +5441,15 @@ TEST_F(dmGuiTest, SetGetScreenPosition)
     ASSERT_EQ(dmGui::RESULT_OK, r);
 }
 
+TEST_F(dmGuiTest, ZeroMaxDynamicTextures)
+{
+    dmGui::NewSceneParams params;
+    params.m_UserData = (void*)this;
+    params.m_MaxDynamicTextures = 0;
+    dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+    ASSERT_NE((void*)scene, (void*)0x0);
+    dmGui::DeleteScene(scene);
+}
 
 int main(int argc, char **argv)
 {

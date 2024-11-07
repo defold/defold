@@ -6,13 +6,15 @@ def configure(conf):
     pass
 
 def build(bld):
+    proto_files = ['../proto/rig/rig_ddf.proto']
+
     bld.stlib(features        = 'cxx ddf',
               includes        = ['.', '..', '../proto'],
               proto_gen_py    = True,
               protoc_includes = '../proto',
               target          = 'rig',
               use             = 'DDF DLIB SOCKET',
-              source          = 'rig.cpp ../proto/rig/rig_ddf.proto')
+              source          = ['rig.cpp'] + proto_files)
 
     bld.add_group()
 
@@ -22,7 +24,7 @@ def build(bld):
               protoc_includes = '../proto',
               target          = 'rig_null',
               use             = 'DDF DLIB SOCKET',
-              source          = 'rig_null.cpp ../proto/rig/rig_ddf.proto')
+              source          = ['rig_null.cpp'] + proto_files)
 
     bld.add_group()
 
@@ -32,7 +34,7 @@ def build(bld):
                   includes        = ['.', '..', '../proto'],
                   target          = 'rig_shared',
                   protoc_includes = '../proto',
-                  use             = 'DDF_NOASAN DLIB_NOASAN PROFILE_NULL_NOASAN SOCKET',
+                  use             = 'DDF_NOASAN DLIB_NOASAN PROFILE_NULL_NOASAN SOCKET PLATFORM_NULL GRAPHICS_NULL_NOASAN',
                   source          = 'rig.cpp ../proto/rig/rig_ddf.proto')
 
     bld.install_files('${PREFIX}/include/rig', 'rig.h')

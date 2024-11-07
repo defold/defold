@@ -47,6 +47,15 @@ def build(bld):
 
     obj.source = [x for x in obj.source if not x.name.endswith('graphics_glfw_wrappers.cpp')]
 
+    bld.add_group()
+    obj = bld.stlib(features        = obj.features + ['skip_asan'],
+                    includes        = obj.includes,
+                    source          = obj.source,
+                    use             = obj.use,
+                    target          = 'graphics_null_noasan')
+
+    obj.source = [x for x in obj.source if not x.name.endswith('graphics_glfw_wrappers.cpp')]
+
     if platform_supports_feature(bld.env.PLATFORM, 'opengl', {}):
 
         opengl_defines = []
@@ -95,8 +104,15 @@ def build(bld):
 
         if bld.env.PLATFORM in ('x86_64-macos','arm64-macos', 'x86_64-win32', 'win32'):
             obj.source.append('vulkan/desktop/graphics_vulkan_surface.cpp')
+
+            if bld.env.PLATFORM in ('x86_64-macos', 'arm64-macos'):
+                obj.source.append('vulkan/osx/graphics_vulkan_osx.mm')
+
         elif bld.env.PLATFORM in ('arm64-ios',):
             obj.source.append('vulkan/ios/graphics_vulkan_ios_surface.mm')
+
+            obj.source.append('vulkan/osx/graphics_vulkan_osx.mm')
+
         elif bld.env.PLATFORM in ['armv7-android', 'arm64-android']:
             obj.source.append('vulkan/android/graphics_vulkan_android_surface.cpp')
             obj.source.append('vulkan/android/graphics_vulkan_android.cpp')
@@ -130,16 +146,16 @@ def build(bld):
                     source       = 'transcoder/graphics_transcoder_basisu.cpp',
                     target       = 'graphics_transcoder_basisu')
 
-    bld.install_files('${PREFIX}/include/graphics/', 'graphics.h')
-    bld.install_files('${PREFIX}/include/graphics/', 'graphics_util.h')
-    bld.install_files('${PREFIX}/include/graphics/', 'graphics_native.h')
+    bld.install_files('${PREFIX}/include/graphics/',             'graphics.h')
+    bld.install_files('${PREFIX}/include/graphics/',             'graphics_util.h')
+    bld.install_files('${PREFIX}/include/graphics/',             'graphics_native.h')
     bld.install_files('${PREFIX}/include/graphics/opengl/win32', 'opengl/win32/glext.h')
-    bld.install_files('${PREFIX}/include/graphics/opengl', 'opengl/graphics_opengl_defines.h')
-    bld.install_files('${PREFIX}/share/proto/graphics', '../proto/graphics/graphics_ddf.proto')
+    bld.install_files('${PREFIX}/include/graphics/opengl',       'opengl/graphics_opengl_defines.h')
+    bld.install_files('${PREFIX}/share/proto/graphics',           '../proto/graphics/graphics_ddf.proto')
 
     dmsdk_add_files(bld, '${PREFIX}/sdk/include/dmsdk', 'dmsdk')
 
-    bld.install_files('${PREFIX}/bin', 'texc.py')
+    bld.install_files('${PREFIX}/bin',        'texc.py')
     bld.install_files('${PREFIX}/lib/python', 'waf_graphics.py')
 
     if not waflib.Options.options.skip_build_tests:

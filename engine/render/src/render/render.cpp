@@ -136,6 +136,7 @@ namespace dmRender
 
         dmGraphics::AdapterFamily installed_adapter_family = dmGraphics::GetInstalledAdapterFamily();
         if (installed_adapter_family == dmGraphics::ADAPTER_FAMILY_VULKAN ||
+            installed_adapter_family == dmGraphics::ADAPTER_FAMILY_WEBGPU ||
             installed_adapter_family == dmGraphics::ADAPTER_FAMILY_VENDOR)
         {
             context->m_MultiBufferingRequired = 1;
@@ -296,6 +297,17 @@ namespace dmRender
     HMaterial GetContextMaterial(HRenderContext render_context)
     {
         return render_context->m_Material;
+    }
+
+    dmVMath::Matrix4 GetNormalMatrix(HRenderContext render_context, const dmVMath::Matrix4& world_matrix)
+    {
+        // normalT = transp(inv(view * world))
+        Matrix4 normalT = render_context->m_View * world_matrix;
+        // The world transform might include non-uniform scaling, which breaks the orthogonality of the combined model-view transform
+        // It is always affine however
+        normalT = affineInverse(normalT);
+        normalT = transpose(normalT);
+        return normalT;
     }
 
     void SetViewMatrix(HRenderContext render_context, const Matrix4& view)
@@ -1114,14 +1126,14 @@ namespace dmRender
                 }
                 if (ro->m_VertexDeclarations[i])
                 {
-                    dmGraphics::EnableVertexDeclaration(context, ro->m_VertexDeclarations[i], i, material_program);
+                    dmGraphics::EnableVertexDeclaration(context, ro->m_VertexDeclarations[i], i, ro->m_VertexBufferOffsets[i], material_program);
                 }
             }
 
             if (ro->m_IndexBuffer)
-                dmGraphics::DrawElements(context, ro->m_PrimitiveType, ro->m_VertexStart, ro->m_VertexCount, ro->m_IndexType, ro->m_IndexBuffer);
+                dmGraphics::DrawElements(context, ro->m_PrimitiveType, ro->m_VertexStart, ro->m_VertexCount, ro->m_IndexType, ro->m_IndexBuffer, ro->m_InstanceCount);
             else
-                dmGraphics::Draw(context, ro->m_PrimitiveType, ro->m_VertexStart, ro->m_VertexCount);
+                dmGraphics::Draw(context, ro->m_PrimitiveType, ro->m_VertexStart, ro->m_VertexCount, ro->m_InstanceCount);
 
             for (int i = 0; i < RenderObject::MAX_VERTEX_BUFFER_COUNT; ++i)
             {

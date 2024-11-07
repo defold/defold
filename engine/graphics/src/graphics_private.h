@@ -23,7 +23,7 @@
 namespace dmGraphics
 {
     const static uint8_t DM_RENDERTARGET_BACKBUFFER_ID = 0;
-    const static uint8_t MAX_VERTEX_BUFFERS            = 2;
+    const static uint8_t MAX_VERTEX_BUFFERS            = 3;
     const static uint8_t MAX_BINDINGS_PER_SET_COUNT    = 32;
     const static uint8_t MAX_SET_COUNT                 = 4;
     const static uint8_t MAX_STORAGE_BUFFERS           = 4;
@@ -66,29 +66,9 @@ namespace dmGraphics
 
     struct VertexStreamDeclaration
     {
-        VertexStream m_Streams[MAX_VERTEX_STREAM_COUNT];
-        uint8_t      m_StreamCount;
-    };
-
-    struct VertexDeclaration
-    {
-        struct Stream
-        {
-            dmhash_t m_NameHash;
-            int16_t  m_Location;
-            uint16_t m_Size;
-            uint16_t m_Offset;
-            Type     m_Type;
-            bool     m_Normalize;
-        };
-
-        Stream             m_Streams[MAX_VERTEX_STREAM_COUNT];
-        dmhash_t           m_PipelineHash; // Vulkan
-        uint16_t           m_StreamCount;
-        uint16_t           m_Stride;
+        VertexStream       m_Streams[MAX_VERTEX_STREAM_COUNT];
         VertexStepFunction m_StepFunction;
-        HProgram           m_BoundForProgram;     // OpenGL
-        uint32_t           m_ModificationVersion; // OpenGL
+        uint8_t            m_StreamCount;
     };
 
     struct ShaderResourceType

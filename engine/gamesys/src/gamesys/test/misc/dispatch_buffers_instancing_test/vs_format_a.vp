@@ -1,0 +1,11 @@
+attribute vec3 position;
+attribute float page_index;
+attribute mat4 mtx_world_custom;
+
+varying float var_page_index;
+
+void main()
+{
+    gl_Position = mtx_world_custom * vec4(position.xyz, 1.0);
+    var_page_index = page_index;
+}

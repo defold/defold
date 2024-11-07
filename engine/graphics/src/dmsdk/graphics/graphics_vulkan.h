@@ -326,6 +326,23 @@ namespace dmGraphics
      * @return flag [type: bool] unused
      */
     bool VulkanUnmapIndexBuffer(HContext context, HIndexBuffer buffer);
+
+    /*#
+     * Get a native MTLTexture from a Vulkan HTexture
+     * @name VulkanTextureToMetal
+     * @param context [type: dmGraphics::HContext] the vulkan context
+     * @param texture [type: dmGraphics::HTexture] the texture
+     * @return mtl_texture [type: id<MTLTexture>] the Metal texture wrapped with a (__bridge void*)
+     */
+    void* VulkanTextureToMetal(HContext context, const dmGraphics::HTexture& texture);
+
+    /*#
+     * Get the native MTLCommandQueue from the Vulkan context
+     * @name VulkanGraphicsCommandQueueToMetal
+     * @param context [type: dmGraphics::HContext] the vulkan context
+     * @return mtl_queue [type: id<MTLCommandQueue>] the Metal graphics queue wrapped with a (__bridge void*)
+     */
+    void* VulkanGraphicsCommandQueueToMetal(HContext _context);
 }
 
 #endif // DMSDK_GRAPHICS_VULKAN_H

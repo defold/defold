@@ -106,7 +106,7 @@ PACKAGES_IOS_64="protobuf-3.20.1 luajit-2.1.0-04dca79 tremolo-b0cb4d1 bullet-2.7
 PACKAGES_MACOS_X86_64="protobuf-3.20.1 luajit-2.1.0-04dca79 vpx-1.7.0 tremolo-b0cb4d1 bullet-2.77 spirv-cross-dae7a689 spirv-tools-b21dda0e glslang-42d9adf5 moltenvk-1.3.261.1 lipo-9ffdea2 sassc-5472db213ec223a67482df2226622be372921847 glfw-3.4 tint-22b958".split()
 PACKAGES_MACOS_ARM64="protobuf-3.20.1 luajit-2.1.0-04dca79 vpx-1.7.0 tremolo-b0cb4d1 bullet-2.77 spirv-cross-dae7a689 spirv-tools-b21dda0e glslang-42d9adf5 moltenvk-1.3.261.1 lipo-9ffdea2 glfw-3.4 tint-22b958".split()
 PACKAGES_WIN32="protobuf-3.20.1 luajit-2.1.0-04dca79 openal-1.1 glut-3.7.6 bullet-2.77 vulkan-1.3.261.1 glfw-3.4".split()
-PACKAGES_WIN32_64="protobuf-3.20.1 luajit-2.1.0-04dca79 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 glslang-42d9adf5 spirv-cross-edd66a2f spirv-tools-d24a39a7 vulkan-1.3.261.1 lipo-9ffdea2 glfw-3.4 directx-headers-1.611.0".split()
+PACKAGES_WIN32_64="protobuf-3.20.1 luajit-2.1.0-04dca79 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 glslang-42d9adf5 spirv-cross-edd66a2f spirv-tools-d24a39a7 vulkan-1.3.261.1 lipo-9ffdea2 glfw-3.4 tint-22b958 directx-headers-1.611.0".split()
 PACKAGES_LINUX_64="protobuf-3.20.1 luajit-2.1.0-04dca79 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 glslang-ba5c010c spirv-cross-edd66a2f spirv-tools-d24a39a7 vulkan-1.1.108 lipo-9ffdea2 glfw-2.7.1 tint-22b958".split()
 PACKAGES_ANDROID="protobuf-3.20.1 android-support-multidex androidx-multidex luajit-2.1.0-04dca79 tremolo-b0cb4d1 bullet-2.77 glfw-2.7.1".split()
 PACKAGES_ANDROID.append(sdk.ANDROID_PACKAGE)
@@ -128,9 +128,7 @@ PACKAGES_ANDROID_SDK="android-sdk"
 PACKAGES_CCTOOLS_PORT="cctools-port-darwin19-6c438753d2252274678d3e0839270045698c159b-linux"
 
 NODE_MODULE_LIB_DIR = os.path.join("ext", "lib", "node_modules")
-EMSCRIPTEN_VERSION_STR = "3.1.65"
-EMSCRIPTEN_SDK = "sdk-{0}-64bit".format(EMSCRIPTEN_VERSION_STR)
-PACKAGES_EMSCRIPTEN_SDK="emsdk-{0}".format(EMSCRIPTEN_VERSION_STR)
+
 SHELL = os.environ.get('SHELL', 'bash')
 # Don't use WSL from the msys/cygwin terminal
 if os.environ.get('TERM','') in ('cygwin',):
@@ -240,6 +238,7 @@ class Configuration(object):
                  skip_tests = False,
                  skip_codesign = False,
                  skip_docs = False,
+                 incremental = False,
                  skip_builtins = False,
                  skip_bob_light = False,
                  disable_ccache = False,
@@ -286,6 +285,7 @@ class Configuration(object):
         self.skip_tests = skip_tests
         self.skip_codesign = skip_codesign
         self.skip_docs = skip_docs
+        self.incremental = incremental
         self.skip_builtins = skip_builtins
         self.skip_bob_light = skip_bob_light
         self.disable_ccache = disable_ccache
@@ -562,16 +562,18 @@ class Configuration(object):
 
         self.sdk_info = sdk.get_sdk_info(sdkfolder, target_platform, self.verbose)
 
-        if target_platform in ('js-web', 'wasm-web'): # smoe platforms are not yet supported using this sdk_info mechanic
-            return
+        # TODO: Make sure this check works for all platforms
+        if not self.sdk_info:
+            if not self.verbose:
+                # Do it again, with verbose on, so that we can get more info straight away:
+                sdk.get_sdk_info(sdkfolder, target_platform, True)
 
-        # We currently only support a subset of platforms using this mechanic
-        if platform in ('x86_64-macos', 'arm64-macos','x86_64-ios','arm64-ios'):
-            # TODO: Make sure this check works for all platforms
-            if not self.sdk_info:
-                print("Couldn't find any sdks for platform", target_platform)
-                print("We recommend you follow the setup guide found here: %s" % "https://github.com/defold/defold/blob/dev/README_BUILD.md#important-prerequisite---platform-sdks")
-                sys.exit(1)
+            url = "https://github.com/defold/defold/blob/dev/README_BUILD.md#important-prerequisite---platform-sdks"
+            self._log(f"Failed to get sdk info for platform {target_platform}.")
+            self._log(f" * Is the local sdk setup correctly?")
+            self._log(f" * Or have you called `install_sdk`?")
+            self._log(f"We recommend you follow the setup guide found here: {url}")
+            sys.exit(1)
 
         if self.verbose:
             print("SDK info:")
@@ -611,6 +613,18 @@ class Configuration(object):
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_WIN32_SDK_10), join(win32_sdk_folder, 'WindowsKits', '10') )
             download_sdk(self,'%s/%s.tar.gz' % (self.package_path, sdk.PACKAGES_WIN32_TOOLCHAIN), join(win32_sdk_folder, 'MicrosoftVisualStudio14.0'), strip_components=0 )
 
+        if target_platform in ('js-web', 'wasm-web'):
+            emsdk_folder = sdk.get_defold_emsdk()
+            download_sdk(self,'%s/%s-%s.tar.gz' % (self.package_path, sdk.PACKAGES_EMSCRIPTEN_SDK, self.host), emsdk_folder)
+
+            if not os.path.isfile(sdk.get_defold_emsdk_config()):
+                print("Activating emsdk")
+
+                os.environ['EMSCRIPTEN'] = emsdk_folder
+                os.environ['EM_CONFIG'] = sdk.get_defold_emsdk_config()
+                os.environ['EM_CACHE'] = sdk.get_defold_emsdk_cache()
+                self._activate_ems(emsdk_folder, join(emsdk_folder, 'upstream', 'emscripten'), sdk.EMSCRIPTEN_VERSION_STR)
+
             # On OSX, the file system is already case insensitive, so no need to duplicate the files as we do on the extender server
 
         if target_platform in ('armv7-android', 'arm64-android'):
@@ -636,35 +650,8 @@ class Configuration(object):
 
         build_private.install_sdk(self, target_platform)
 
-    def get_ems_dir(self):
-        return join(self.ext, 'SDKs', 'emsdk-' + EMSCRIPTEN_VERSION_STR)
-
-    def _form_ems_path(self):
-        return join(self.get_ems_dir(), 'upstream', 'emscripten')
-
-    def install_ems(self):
-        # TODO: should eventually be moved to install_sdk
-        emsDir = self.get_ems_dir()
-
-        os.environ['EMSCRIPTEN'] = self._form_ems_path()
-        os.environ['EM_CONFIG'] = join(self.get_ems_dir(), '.emscripten')
-        os.environ['EM_CACHE'] = join(self.get_ems_dir(), 'emscripten_cache')
-
-        if os.path.isdir(emsDir):
-            print("Emscripten is already installed:", emsDir)
-        else:
-            self._check_package_path()
-            path = join(self.package_path, '%s-%s.tar.gz' % (PACKAGES_EMSCRIPTEN_SDK, self.host))
-            path = self.get_local_or_remote_file(path)
-            self._extract(path, join(self.ext, 'SDKs'))
-
-        config = os.environ['EM_CONFIG']
-        if not os.path.isfile(config):
-            self.activate_ems()
-
-    def activate_ems(self):
-        version = EMSCRIPTEN_VERSION_STR
-        run.env_command(self._form_env(), [join(self.get_ems_dir(), 'emsdk'), 'activate', version, '--embedded'])
+    def _activate_ems(self, emsdk, bin_dir, version):
+        run.env_command(self._form_env(), [join(emsdk, 'emsdk'), 'activate', version, '--embedded'])
 
         # prewarm the cache
         # Although this method might be more "correct", it also takes 10 minutes more than we'd like on CI
@@ -676,20 +663,7 @@ class Configuration(object):
         exe_file = tempfile.mktemp(suffix='.js')
         with open(c_file, 'w') as f:
             f.write('int main() { return 0; }')
-        run.env_command(self._form_env(), ['%s/emcc' % self._form_ems_path(), c_file, '-o', '%s' % exe_file])
-
-    def check_ems(self):
-        config = join(self.get_ems_dir(), '.emscripten')
-        err = False
-        if not os.path.isfile(config):
-            print('No .emscripten file.')
-            err = True
-        emsDir = self.get_ems_dir()
-        if not os.path.isdir(emsDir):
-            print('Emscripten tools not installed.')
-            err = True
-        if err:
-            print('Consider running install_ems')
+        run.env_command(self._form_env(), [f'{bin_dir}/emcc', c_file, '-o', '%s' % exe_file])
 
     def _git_sha1(self, ref = None):
         return self.build_utility.git_sha1(ref)
@@ -992,39 +966,23 @@ class Configuration(object):
         # Put the output json in the defold root since its where EasyClangComplete would look for it
         output_path = os.path.join(self.defold_root, 'compile_commands.json')
 
-        need_trailing_comma = False
+        result_config = []
+        # We loop over engine/<subdirs> and look for engine/<subdir>/build/compile_commands.json
+        engine_path = os.path.join(self.defold_root, 'engine')
+        for engine_subpath in os.listdir(engine_path):
+            potential_json_path = os.path.join(engine_path, engine_subpath, "build", "compile_commands.json")
+
+            if os.path.exists(potential_json_path):
+                self._log("Adding %s" % potential_json_path)
+
+                with open(potential_json_path, 'r') as input_file:
+                    sub_config = json.load(input_file)
+                    for elem in sub_config:
+                        result_config.append(elem)
+                    input_file.close()
         with open(output_path, 'w') as output_file:
-            # Open array json token
-            output_file.write("[\n")
-
-            # We loop over engine/<subdirs> and look for engine/<subdir>/build/compile_commands.json
-            engine_path = os.path.join(self.defold_root, 'engine')
-            for engine_subpath in os.listdir(engine_path):
-                potential_json_path = os.path.join(engine_path, engine_subpath, "build", "compile_commands.json")
-
-                if os.path.exists(potential_json_path):
-                    self._log("Adding %s" % potential_json_path)
-
-                    with open(potential_json_path, 'r') as input_file:
-                        # Take content but skip first and last lines (they would only include square brackets)
-                        input_lines = input_file.readlines()[1:-1]
-
-                        # Prettify output a bit by skipping last newline, this makes any appended comma
-                        # to appear on the same line
-                        if input_lines[-1][-1] == '\n':
-                            input_lines[-1] = input_lines[-1][:-1]
-
-                        # Append comma when adding more than one
-                        if need_trailing_comma:
-                            output_file.write(",\n")
-
-                        # Copy over contents to output file
-                        output_file.write(''.join(input_lines))
-
-                        need_trailing_comma = True
-
-            # Close array
-            output_file.write("\n]\n")
+            json.dump(result_config, output_file)
+            output_file.close()
 
     def build_builtins(self):
         with open(join(self.dynamo_home, 'share', 'builtins.zip'), 'wb') as f:
@@ -1092,6 +1050,9 @@ class Configuration(object):
                 engine_symbols = join(bin_dir, engine_name + '.symbols')
                 if os.path.exists(engine_symbols):
                     self.upload_to_archive(engine_symbols, '%s/%s.symbols' % (full_archive_path, engine_name))
+                engine_dwarf = join(bin_dir, engine_name + '.debug.wasm')
+                if os.path.exists(engine_dwarf):
+                    self.upload_to_archive(engine_symbols, '%s/%s.debug.wasm' % (full_archive_path, engine_name))
             elif 'macos' in self.target_platform or 'ios' in self.target_platform:
                 engine_symbols = join(bin_dir, engine_name + '.dSYM.zip')
                 if os.path.exists(engine_symbols):
@@ -1138,8 +1099,8 @@ class Configuration(object):
         supported_tests = {}
         # E.g. on win64, we can test multiple platforms
         supported_tests['x86_64-win32'] = ['win32', 'x86_64-win32', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5']
-        supported_tests['arm64-macos'] = ['x86_64-macos', 'arm64-macos']
-        supported_tests['x86_64-macos'] = ['x86_64-macos']
+        supported_tests['arm64-macos'] = ['x86_64-macos', 'arm64-macos', 'wasm-web', 'js-web']
+        supported_tests['x86_64-macos'] = ['x86_64-macos', 'wasm-web', 'js-web']
 
         return self.target_platform in supported_tests.get(self.host, []) or self.host == self.target_platform
 
@@ -1189,7 +1150,10 @@ class Configuration(object):
 
     def _build_engine_cmd(self, skip_tests, skip_codesign, disable_ccache, generate_compile_commands, prefix):
         prefix = prefix and prefix or self.dynamo_home
-        return '%s %s/ext/bin/waf --prefix=%s %s %s %s %s distclean configure build install' % (' '.join(self.get_python()), self.dynamo_home, prefix, skip_tests, skip_codesign, disable_ccache, generate_compile_commands)
+        commands = "build install"
+        if not self.incremental:
+            commands = "distclean configure " + commands
+        return '%s %s/ext/bin/waf --prefix=%s %s %s %s %s %s' % (' '.join(self.get_python()), self.dynamo_home, prefix, skip_tests, skip_codesign, disable_ccache, generate_compile_commands, commands)
 
     def _build_engine_lib(self, args, lib, platform, skip_tests = False, dir = 'engine'):
         self._log('Building %s for %s' % (lib, platform))
@@ -1231,7 +1195,7 @@ class Configuration(object):
         if self.verbose:
             gradle_args += ['--info']
 
-        env['GRADLE_OPTS'] = '-Dorg.gradle.parallel=true' #-Dorg.gradle.daemon=true 
+        env['GRADLE_OPTS'] = '-Dorg.gradle.parallel=true' #-Dorg.gradle.daemon=true
 
         # Clean and build the project
         s = run.command(" ".join([gradle, 'clean', 'installBobLight'] + gradle_args), cwd = bob_dir, shell = True, env = env)
@@ -1337,7 +1301,8 @@ class Configuration(object):
         linux_files = dict([['ext/lib/%s/lib%s.so' % (plf[0], lib), 'lib/%s/lib%s.so' % (plf[1], lib)] for lib in [] for plf in [['x86_64-linux', 'x86_64-linux']]])
         js_files = {}
         android_files = {'share/java/classes.dex': 'lib/classes.dex',
-                         'ext/share/java/android.jar': 'lib/android.jar'}
+                         'ext/share/java/android.jar': 'lib/android.jar'} # this should be the stripped one
+
         switch_files = {}
         # This dict is being built up and will eventually be used for copying in the end
         # - "type" - what the files are needed for, for error reporting
@@ -1496,7 +1461,12 @@ class Configuration(object):
         skip_tests = '--skip-tests' if self.skip_tests or self.target_platform != self.host else ''
         self._log('Building API docs')
         cwd = join(self.defold_root, 'engine/docs')
-        cmd = '%s %s/ext/bin/waf configure --prefix=%s %s distclean configure build install' % (' '.join(self.get_python()), self.dynamo_home, self.dynamo_home, skip_tests)
+        python_cmd = ' '.join(self.get_python())
+        commands = 'build install'
+        if not self.incremental:
+            commands = "distclean configure " + commands
+        cmd = '%s %s/ext/bin/waf configure --prefix=%s %s %s' % (python_cmd, self.dynamo_home, self.dynamo_home, skip_tests, commands)
+        run.env_command(self._form_env(), [python_cmd, './scripts/bundle.py', 'docs', '--docs-dir', cwd], cwd = join(self.defold_root, 'editor'))
         run.env_command(self._form_env(), cmd.split() + self.waf_options, cwd = cwd)
         with open(join(self.dynamo_home, 'share', 'ref-doc.zip'), 'wb') as f:
             self._ziptree(join(self.dynamo_home, 'share', 'doc'), outfile = f, directory = join(self.dynamo_home, 'share'))
@@ -1668,11 +1638,6 @@ class Configuration(object):
 
     def shell(self):
         print ('Setting up shell with DYNAMO_HOME, PATH, JAVA_HOME, and LD_LIBRARY_PATH/DYLD_LIBRARY_PATH (where applicable) set')
-        if "win32" in self.host:
-            preexec_fn = None
-        else:
-            preexec_fn = self.check_ems
-
         self.find_and_set_java_home()
 
         args = [SHELL, '-l']
@@ -1683,6 +1648,10 @@ class Configuration(object):
         if process.returncode != 0:
             self._log(str(output, encoding='utf-8'))
             sys.exit(process.returncode)
+
+    def fatal(self, msg):
+        self._log(msg)
+        sys.exit(1)
 
 # ------------------------------------------------------------
 # BEGIN: RELEASE
@@ -2066,7 +2035,7 @@ class Configuration(object):
         vmargs = filter(lambda x: not str.startswith(x, '-Ddefold.update.url='), vmargs)
         main = self._get_config(config, 'launcher', 'main', overrides)
         game_project = '../../editor/test/resources/geometry_wars/game.project'
-        args = [java, '-cp', jar] + vmargs + [main, '--preferences=../../editor/test/resources/smoke_test_prefs.json', game_project]
+        args = [java, '-cp', jar] + vmargs + [main, '--preferences=../../editor/test/resources/smoke_test.editor_settings', game_project]
         robot_jar = '%s/ext/share/java/defold-robot.jar' % self.dynamo_home
         robot_args = [java, '-jar', robot_jar, '-s', '../../share/smoke-test.edn', '-o', 'result']
         origdir = os.getcwd()
@@ -2321,9 +2290,6 @@ class Configuration(object):
         if self.no_colors:
             env['NOCOLOR'] = '1'
 
-        env['EMSCRIPTEN'] = self._form_ems_path()
-        env['EM_CACHE'] = join(self.get_ems_dir(), 'emscripten_cache')
-        env['EM_CONFIG'] = join(self.get_ems_dir(), '.emscripten')
 
         xhr2_path = os.path.join(self.dynamo_home, NODE_MODULE_LIB_DIR, 'xhr2', 'package', 'lib')
         if 'NODE_PATH' in env:
@@ -2340,10 +2306,8 @@ if __name__ == '__main__':
 Commands:
 distclean        - Removes the DYNAMO_HOME folder
 install_ext      - Install external packages
-install_ems      - Install emscripten sdk
 install_sdk      - Install sdk
 sync_archive     - Sync engine artifacts from S3
-activate_ems     - Used when changing to a branch that uses a different version of emscripten SDK (resets ~/.emscripten)
 build_engine     - Build engine
 archive_engine   - Archive engine (including builtins) to path specified with --archive-path
 build_editor2    - Build editor
@@ -2389,6 +2353,11 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       action = 'store_true',
                       default = False,
                       help = 'skip building docs when building the engine. Default is false')
+
+    parser.add_option('--incremental', dest='incremental',
+                      action = 'store_true',
+                      default = False,
+                      help = 'skip reconfigure/distclean when building the engine. Default is false')
 
     parser.add_option('--skip-builtins', dest='skip_builtins',
                       action = 'store_true',
@@ -2520,6 +2489,7 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       skip_tests = options.skip_tests,
                       skip_codesign = options.skip_codesign,
                       skip_docs = options.skip_docs,
+                      incremental = options.incremental,
                       skip_builtins = options.skip_builtins,
                       skip_bob_light = options.skip_bob_light,
                       disable_ccache = options.disable_ccache,
@@ -2547,6 +2517,18 @@ To pass on arbitrary options to waf: build.py OPTIONS COMMANDS -- WAF_OPTIONS
                       gcloud_certfile = options.gcloud_certfile,
                       gcloud_keyfile = options.gcloud_keyfile,
                       verbose = options.verbose)
+
+    needs_dynamo_home = True
+    for cmd in args:
+        if cmd in ['shell', 'save_env']:
+            needs_dynamo_home = False
+            break
+    if needs_dynamo_home:
+        for env_var in ['DYNAMO_HOME', 'PYTHONPATH', 'JAVA_HOME']:
+            if not env_var in os.environ:
+                c._log("CMD: " + ' '.join(sys.argv))
+                msg = f"{env_var} was not found in environment.\nDid you use './scripts/build.py shell'?"
+                c.fatal(msg)
 
     for cmd in args:
         f = getattr(c, cmd, None)

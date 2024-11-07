@@ -35,13 +35,12 @@
         (cond->> (pos? drop-count) (into [] (drop drop-count)))
         (conj x))))
 
-(defn add! [prefs workspace resource view-type]
+(defn add! [prefs resource view-type]
   {:pre [(resource/openable? resource)
          (some? (:id view-type))]}
   (let [item [(resource/proj-path resource) (:id view-type)]
-        k (prefs/make-project-specific-key "recent-files-by-workspace-root" workspace)]
-    (prefs/set-prefs prefs k (conj-history-item (prefs/get-prefs prefs k []) item))
-    nil))
+        k [:workflow :recent-files]]
+    (prefs/set! prefs k (conj-history-item (prefs/get prefs k) item))))
 
 (defn- project-path+view-type-id->resource+view-type [workspace evaluation-context [project-path view-type-id]]
   (when-let [res (workspace/find-resource workspace project-path evaluation-context)]
@@ -50,7 +49,7 @@
         [res view-type]))))
 
 (defn- ordered-resource+view-types [prefs workspace evaluation-context]
-  (-> (prefs/get-prefs prefs (prefs/make-project-specific-key "recent-files-by-workspace-root" workspace evaluation-context) [])
+  (-> (prefs/get prefs [:workflow :recent-files])
       rseq
       (->> (keep #(project-path+view-type-id->resource+view-type workspace evaluation-context %)))))
 
@@ -72,7 +71,7 @@
                              :children [{:fx/type fx.region/lifecycle
                                          :h-box/hgrow :always}
                                         {:fx/type fx.label/lifecycle
-                                         :style {:-fx-text-fill :-df-text-darker}
+                                         :style {:-fx-text-fill :-df-text-dark}
                                          :text (str (:label view-type) " view")}]}})
        :selection :multiple
        :filter-fn #(fuzzy-choices/filter-options (comp resource/proj-path first) (comp resource/proj-path first) %1 %2)})))

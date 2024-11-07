@@ -1,5 +1,5 @@
 // Generated, do not edit!
-// Generated with cwd=/Users/agulev/projects/defold/engine/resource and cmd=/Users/agulev/projects/defold/scripts/dmsdk/gen_sdk.py -i /Users/agulev/projects/defold/engine/resource/sdk_gen.json
+// Generated with cwd=/Users/mathiaswesterdahl/work/defold/engine/resource and cmd=/Users/mathiaswesterdahl/work/defold/scripts/dmsdk/gen_sdk.py -i /Users/mathiaswesterdahl/work/defold/engine/resource/sdk_gen.json
 
 // Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
@@ -170,13 +170,35 @@ namespace dmResource
     Result GetRaw(HFactory factory, const char * name, void ** resource, uint32_t * resource_size);
 
     /*#
-        * Generated from [ref:ResourceRelease]
+        * Generated from [ref:ResourceGetDescriptor]
         */
-    void Release(HFactory factory, void * resource);
+    Result GetDescriptor(HFactory factory, const char * path, HDescriptor * descriptor);
 
     /*#
-        * Generated from [ref:ResourcePreloadHint]
+        * Generated from [ref:ResourceGetDescriptorByHash]
         */
+    Result GetDescriptorByHash(HFactory factory, dmhash_t path_hash, HDescriptor * descriptor);
+
+    /*# 
+     * Release resource
+     * @name Release
+     * @language C++
+     * @param factory [type:HResourceFactory] Factory handle
+     * @param resource [type:void*] Resource pointer
+     * @note Decreases ref count by 1. If it reaches 0, the resource destroy function is called.
+     */
+    void Release(HFactory factory, void * resource);
+
+    /*# 
+     * Hint the preloader what to load before Create is called on the resource.
+     * The resources are not guaranteed to be loaded before Create is called.
+     * This function can be called from a worker thread.
+     * @name PreloadHint
+     * @language C++
+     * @param preloader [type:dmResource::HResourcePreloadHintInfo] Preloader handle
+     * @param path [type:const char*] Resource path
+     * @return result [type:bool] if successfully invoking preloader.
+     */
     bool PreloadHint(HPreloadHintInfo preloader, const char * path);
 
     /*# 
@@ -380,8 +402,28 @@ namespace dmResource
  */
 
 /*# 
+ * Get resource descriptor from resource (name)
+ * @name GetDescriptor
+ * @language C
+ * @param factory [type:HResourceFactory] Factory handle
+ * @param path [type:dmhash_t] Resource path
+ * @param descriptor [type:HResourceDescriptor*] Returned resource descriptor
+ * @return result [type:ResourceResult] RESULT_OK on success
+ */
+
+/*# 
+ * Get resource descriptor from resource (name)
+ * @name GetDescriptorByHash
+ * @language C
+ * @param factory [type:HResourceFactory] Factory handle
+ * @param path_hash [type:dmhash_t] Resource path hash
+ * @param descriptor [type:HResourceDescriptor*] Returned resource descriptor
+ * @return result [type:ResourceResult] RESULT_OK on success
+ */
+
+/*# 
  * Release resource
- * @name Release
+ * @name ResourceRelease
  * @language C
  * @param factory [type:HResourceFactory] Factory handle
  * @param resource [type:void*] Resource pointer
@@ -392,9 +434,9 @@ namespace dmResource
  * Hint the preloader what to load before Create is called on the resource.
  * The resources are not guaranteed to be loaded before Create is called.
  * This function can be called from a worker thread.
- * @name PreloadHint
+ * @name ResourcePreloadHint
  * @language C
- * @param factory [type:dmResource::HResourcePreloadHintInfo] Preloader handle
+ * @param preloader [type:dmResource::HResourcePreloadHintInfo] Preloader handle
  * @param path [type:const char*] Resource path
  * @return result [type:bool] if successfully invoking preloader.
  */

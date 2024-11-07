@@ -1,0 +1,5 @@
+function init(self)
+    timer.delay(.001, false, function()
+        go.set("/go#gui", "fonts", hash("/font/glyph_bank_test_1.fontc"), { key = "test_font" })
+    end)
+end
