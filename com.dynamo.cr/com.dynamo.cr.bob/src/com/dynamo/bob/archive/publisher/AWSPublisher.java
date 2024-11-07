@@ -24,6 +24,8 @@ import com.amazonaws.services.s3.model.Grant;
 import com.amazonaws.services.s3.model.Permission;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.archive.ArchiveEntry;
+import com.dynamo.bob.util.TimeProfiler;
+
 import java.io.File;
 
 public class AWSPublisher extends Publisher {
@@ -62,7 +64,7 @@ public class AWSPublisher extends Publisher {
     	} else if (this.getPublisherSettings().getAmazonCredentialProfile() == null) {
     		throw compileException("AWS Credential profile is not specified", null);
     	}
-    	
+        TimeProfiler.start("AWSPublisher.Publish");
         try {
         	String credentialProfile = this.getPublisherSettings().getAmazonCredentialProfile();
     		AWSCredentialsProvider credentials = new ProfileCredentialsProvider(credentialProfile);
@@ -96,7 +98,8 @@ public class AWSPublisher extends Publisher {
         	}
         	
             throw compileException("Failed to publish resources to Amazon", exception);
+        } finally {
+            TimeProfiler.stop();
         }
     }
-
 }
