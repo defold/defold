@@ -18,18 +18,15 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
+import com.dynamo.bob.util.TimeProfiler;
 import org.apache.commons.io.IOUtils;
 
 import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.FileUtil;
 
 public class ZipPublisher extends Publisher {
@@ -50,6 +47,7 @@ public class ZipPublisher extends Publisher {
 
     @Override
     public void Publish() throws CompileExceptionError {
+        TimeProfiler.start("ZipPublisher.Publish");
         try {
             String tempFilePrefix = "defold.resourcepack_" + this.platform + "_";
             this.resourcePackZip = File.createTempFile(tempFilePrefix, ".zip");
@@ -94,6 +92,8 @@ public class ZipPublisher extends Publisher {
             System.out.printf("\nZipPublisher: Wrote '%s'\n", exportFilehandle);
         } catch (IOException exception) {
             throw new CompileExceptionError("Unable to create zip archive for liveupdate resources: " + exception.getMessage(), exception);
+        } finally {
+            TimeProfiler.stop();
         }
     }
 }
