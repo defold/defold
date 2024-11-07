@@ -248,8 +248,9 @@ public class GameProjectBuilder extends Builder {
         // Populate publisher with the resource pack
         Publisher publisher = project.getPublisher();
         List<ArchiveEntry> excluded = archiveBuilder.getExcludedEntries();
+        final String resourcePackDirectoryAsString = resourcePackDirectory.toAbsolutePath().toString();
         for (ArchiveEntry entry : excluded) {
-            File f = new File(resourcePackDirectory.toAbsolutePath().toString(), entry.getHexDigest());
+            File f = new File(resourcePackDirectoryAsString, entry.getHexDigest());
             publisher.AddEntry(f, entry);
         }
 
