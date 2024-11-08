@@ -25,6 +25,7 @@
             [editor.fs :as fs]
             [editor.graph-util :as gu]
             [editor.resource :as resource]
+            [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
@@ -70,54 +71,58 @@
     dir))
 
 (g/defnk produce-build-output [^ILuaTranspiler instance build-file-save-data source-code-save-datas root lua-preprocessors]
-  (when (and build-file-save-data (pos? (count source-code-save-datas)))
-    (let [build-file-node-id (:node-id build-file-save-data)
-          all-sources (conj source-code-save-datas build-file-save-data)
-          workspace (resource/workspace (:resource build-file-save-data))
-          proj-path->node-id (pair-map-by (comp resource/proj-path :resource) :node-id all-sources)
-          use-project-dir (every? (fn [{:keys [resource dirty]}]
-                                    (and (not dirty) (resource/file-resource? resource)))
-                                  all-sources)
-          ;; We transpile to lua from the project dir only if all the source code files exist on disc. Since
-          ;; some source file may come as dependencies in zip archives or modified in memory without saving
-          ;; to disc, the transpiler will not be able to transpile them. In this situation, we extract all
-          ;; source files to a temporary folder. Similar logic is implemented in bob in
-          ;; com.dynamo.bob.Project::transpileLua method
-          source-dir (if use-project-dir
-                       (io/file root)
-                       (make-temporary-compile-directory! instance all-sources))
-          plugin-dir (io/file root (subs workspace/plugins-dir 1))
-          output-dir (io/file root "build" "tr" (.getSimpleName (class instance)))]
-      (fs/create-directories! output-dir)
-      (try
-        (let [issues (.transpile instance plugin-dir source-dir output-dir)]
-          (or (->> issues
-                   (mapv #(transpiler-issue->error-value proj-path->node-id %))
-                   (->fatal-error build-file-node-id))
-              (into {}
-                    (keep
-                      (fn [^File file]
-                        (when (= "lua" (string/lower-case (FilenameUtils/getExtension (.getName file))))
-                          ;; If transpiler emits invalid lua file, the build process will return
-                          ;; a build error that points to a lua file that does not exist in the
-                          ;; resource tree
-                          (let [resource (resource/make-file-resource workspace (str output-dir) file [] (constantly false))
-                                build-targets (script-compilation/build-targets build-file-node-id resource (code.util/split-lines (slurp resource)) lua-preprocessors [] [] proj-path->node-id)]
-                            (pair (resource/proj-path resource) build-targets)))))
-                    (fs/file-walker output-dir false))))
-        (catch Exception e
-          (g/->error build-file-node-id :modified-lines :fatal (:resource build-file-save-data)
-                     (str "Compilation failed: " (ex-message e))))
-        (finally
-          (when-not use-project-dir
-            (fs/delete-directory! source-dir {:fail :silently})))))))
+  (g/precluding-errors source-code-save-datas
+    (when (and build-file-save-data (pos? (count source-code-save-datas)))
+      (let [build-file-node-id (:node-id build-file-save-data)
+            all-sources (conj source-code-save-datas build-file-save-data)
+            workspace (resource/workspace (:resource build-file-save-data))
+            proj-path->node-id (pair-map-by (comp resource/proj-path :resource) :node-id all-sources)
+            use-project-dir (every? (fn [{:keys [resource dirty]}]
+                                      (and (not dirty) (resource/file-resource? resource)))
+                                    all-sources)
+            ;; We transpile to lua from the project dir only if all the source code files exist on disc. Since
+            ;; some source file may come as dependencies in zip archives or modified in memory without saving
+            ;; to disc, the transpiler will not be able to transpile them. In this situation, we extract all
+            ;; source files to a temporary folder. Similar logic is implemented in bob in
+            ;; com.dynamo.bob.Project::transpileLua method
+            source-dir (if use-project-dir
+                         (io/file root)
+                         (make-temporary-compile-directory! instance all-sources))
+            plugin-dir (io/file root (subs workspace/plugins-dir 1))
+            output-dir (io/file root "build" "tr" (.getSimpleName (class instance)))]
+        (fs/create-directories! output-dir)
+        (try
+          (let [issues (.transpile instance plugin-dir source-dir output-dir)]
+            (or (->> issues
+                     (mapv #(transpiler-issue->error-value proj-path->node-id %))
+                     (->fatal-error build-file-node-id))
+                (into {}
+                      (keep
+                        (fn [^File file]
+                          (when (= "lua" (string/lower-case (FilenameUtils/getExtension (.getName file))))
+                            ;; If transpiler emits invalid lua file, the build process will return
+                            ;; a build error that points to a lua file that does not exist in the
+                            ;; resource tree
+                            (let [resource (resource/make-file-resource workspace (str output-dir) file [] (constantly false))
+                                  build-targets (script-compilation/build-targets build-file-node-id resource (code.util/split-lines (slurp resource)) lua-preprocessors [] [] proj-path->node-id)]
+                              (pair (resource/proj-path resource) build-targets)))))
+                      (fs/file-walker output-dir false))))
+          (catch Exception e
+            (g/->error build-file-node-id :modified-lines :fatal (:resource build-file-save-data)
+                       (str "Compilation failed: " (ex-message e))))
+          (finally
+            (when-not use-project-dir
+              (fs/delete-directory! source-dir {:fail :silently}))))))))
+
+(defn- array-substitute-remove-file-not-found-errors [coll]
+  (into [] (remove resource-io/file-not-found-error?) coll))
 
 (g/defnode TranspilerNode
   (property build-file-proj-path g/Str)
   (property instance ILuaTranspiler)
   (input root g/Str)
   (input build-file-save-data g/Any)
-  (input source-code-save-datas g/Any :array)
+  (input source-code-save-datas g/Any :array :substitute array-substitute-remove-file-not-found-errors)
   (input lua-preprocessors g/Any)
   (output transpiler-info g/Any (g/fnk [_node-id build-file-proj-path instance :as info] info))
   (output build-output g/Any :cached produce-build-output))
