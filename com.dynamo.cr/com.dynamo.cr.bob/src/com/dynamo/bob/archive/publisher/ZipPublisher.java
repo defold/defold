@@ -18,22 +18,30 @@ import java.io.File;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
+import java.util.zip.ZipFile;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 import com.dynamo.bob.util.TimeProfiler;
 import org.apache.commons.io.IOUtils;
 
+import com.dynamo.bob.logging.Logger;
+import com.dynamo.bob.archive.ArchiveEntry;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.util.FileUtil;
 
 public class ZipPublisher extends Publisher {
 
-    private File resourcePackZip = null;
+    private static Logger logger = Logger.getLogger(ZipPublisher.class.getName());
+
+    private File tempZipFile = null;
+    private File destZipFile = null;
     private String projectRoot = null;
     private String filename = null;
+    private ZipOutputStream zipOutputStream;
 
     public ZipPublisher(String projectRoot, PublisherSettings settings) {
         super(settings);
@@ -45,55 +53,70 @@ public class ZipPublisher extends Publisher {
         this.filename = filename;
     }
 
+    public File getZipFile() {
+        return this.destZipFile;
+    }
+
     @Override
-    public void Publish() throws CompileExceptionError {
+    public void start() throws CompileExceptionError {
         TimeProfiler.start("ZipPublisher.Publish");
         try {
             String tempFilePrefix = "defold.resourcepack_" + this.platform + "_";
-            this.resourcePackZip = File.createTempFile(tempFilePrefix, ".zip");
+            this.tempZipFile = File.createTempFile(tempFilePrefix, ".zip");
 
-            String outputName = this.resourcePackZip.getName();
+            String destZipName = this.tempZipFile.getName();
             if (this.filename != null) {
-                outputName = this.filename;
+                destZipName = this.filename;
             }
-
-            FileOutputStream resourcePackOutputStream = new FileOutputStream(this.resourcePackZip);
-            ZipOutputStream zipOutputStream = new ZipOutputStream(resourcePackOutputStream);
-            try {
-                for (File fhandle : this.getEntries().keySet()) {
-                    ZipEntry currentEntry = new ZipEntry(fhandle.getName());
-                    zipOutputStream.putNextEntry(currentEntry);
-                    FileUtil.writeToStream(fhandle, zipOutputStream);
-                    zipOutputStream.closeEntry();
-                }
-            } catch (FileNotFoundException exception) {
-                throw new CompileExceptionError("Unable to find required file for liveupdate resources: " + exception.getMessage(), exception);
-            } catch (IOException exception) {
-                throw new CompileExceptionError("Unable to write to zip archive for liveupdate resources: " + exception.getMessage(), exception);
-            } finally {
-                IOUtils.closeQuietly(zipOutputStream);
-            }
-
-            File exportFilehandle = new File(this.getPublisherSettings().getZipFilepath(), outputName);
-            if (!exportFilehandle.isAbsolute())
+            this.destZipFile = new File(this.getPublisherSettings().getZipFilepath(), destZipName);
+            if (!destZipFile.isAbsolute())
             {
                 File cwd = new File(this.projectRoot);
-                exportFilehandle = new File(cwd, exportFilehandle.getPath());
+                this.destZipFile = new File(cwd, this.destZipFile.getPath());
             }
 
-            File parentDir = exportFilehandle.getParentFile();
-            if (!parentDir.exists()) {
-                parentDir.mkdirs();
-            } else if (!parentDir.isDirectory()) {
-                throw new IOException(String.format("'%s' exists, and is not a directory", parentDir));
-            }
-
-            Files.move(this.resourcePackZip.toPath(), exportFilehandle.toPath(), StandardCopyOption.REPLACE_EXISTING);
-            System.out.printf("\nZipPublisher: Wrote '%s'\n", exportFilehandle);
+            FileOutputStream resourcePackOutputStream = new FileOutputStream(this.tempZipFile);
+            zipOutputStream = new ZipOutputStream(resourcePackOutputStream);
         } catch (IOException exception) {
             throw new CompileExceptionError("Unable to create zip archive for liveupdate resources: " + exception.getMessage(), exception);
-        } finally {
+        }
+    }
+
+    @Override
+    public void stop() throws CompileExceptionError {
+        try {
+            // make sure parent directories exist
+            File destZipDir = this.destZipFile.getParentFile();
+            if (!destZipDir.exists()) {
+                destZipDir.mkdirs();
+            } else if (!destZipDir.isDirectory()) {
+                throw new IOException(String.format("'%s' exists, and is not a directory", destZipDir));
+            }
+
+            // move resource pack to destination
+            Files.move(this.tempZipFile.toPath(), this.destZipFile.toPath(), StandardCopyOption.REPLACE_EXISTING);
+            logger.info("Wrote '%s'", this.destZipFile);
+        }
+        catch (Exception exception) {
+            throw new CompileExceptionError("Unable to create zip archive for liveupdate resources: " + exception.getMessage(), exception);
+        }
+        finally {
+            IOUtils.closeQuietly(zipOutputStream);
             TimeProfiler.stop();
+        }
+    }
+
+    @Override
+    public void publish(ArchiveEntry entry, InputStream data) throws CompileExceptionError {
+        try {
+            ZipEntry currentEntry = new ZipEntry(entry.getHexDigest());
+            zipOutputStream.putNextEntry(currentEntry);
+            data.transferTo(zipOutputStream);
+            zipOutputStream.closeEntry();
+        } catch (FileNotFoundException exception) {
+            throw new CompileExceptionError("Unable to find required file for liveupdate resources: " + exception.getMessage(), exception);
+        } catch (IOException exception) {
+            throw new CompileExceptionError("Unable to write to zip archive for liveupdate resources: " + exception.getMessage(), exception);
         }
     }
 }

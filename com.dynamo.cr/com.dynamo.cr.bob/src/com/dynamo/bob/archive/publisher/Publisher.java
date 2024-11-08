@@ -31,6 +31,8 @@ public abstract class Publisher {
     private final Map<File, ArchiveEntry> entries = new HashMap<File, ArchiveEntry>();
     protected String platform = "";
 
+    private boolean started = false;
+
     public Publisher(PublisherSettings settings) {
         this.settings = settings;
     }
@@ -63,19 +65,26 @@ public abstract class Publisher {
         this.platform = platform;
     }
 
-    public abstract void Publish() throws CompileExceptionError;
+    /**
+     * Call this function before publishing any archive entries. Use
+     * this function to make the necessary preparations before accepting
+     * entries.
+     */
+    public abstract void start() throws CompileExceptionError;
 
-    public List<IResource> getOutputs(IResource input) {
-        List<IResource> outputs = new ArrayList<IResource>();
-        return outputs;
-    }
+    /**
+     * Call this function when the publisher should not accept any more
+     * entries. Use this function to release any resources needed while
+     * publishing.
+     */
+    public abstract void stop() throws CompileExceptionError;
 
-    public List<InputStream> getOutputResults() {
-        List<InputStream> outputs = new ArrayList<InputStream>();
-        return outputs;
-    }
-
-    public final void AddEntry(File fhandle, ArchiveEntry archiveEntry) {
-        this.entries.put(fhandle, archiveEntry);
-    }
+    /**
+     * Publish an entry using this publisher. Make sure to have called
+     * startPublisher() before calling this function. Also make sure to
+     * not call this function after a call to stopPublisher().
+     * @param archiveEntry The entry to publish
+     * @param data The data for the entry
+     */
+    public abstract void publish(ArchiveEntry archiveEntry, InputStream data) throws CompileExceptionError;
 }

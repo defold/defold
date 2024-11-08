@@ -40,6 +40,9 @@ import com.dynamo.bob.archive.ArchiveEntry;
 import com.dynamo.bob.archive.ArchiveBuilder;
 import com.dynamo.bob.archive.ArchiveReader;
 import com.dynamo.bob.archive.ManifestBuilder;
+import com.dynamo.bob.archive.publisher.NullPublisher;
+import com.dynamo.bob.archive.publisher.ZipPublisher;
+import com.dynamo.bob.archive.publisher.PublisherSettings;
 import com.dynamo.bob.Project;
 import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.fs.DefaultFileSystem;
@@ -55,6 +58,8 @@ public class ArchiveTest {
     private File outputIndex;
     private File outputData;
     private Path resourcePackDir;
+
+    private NullPublisher publisher;
 
     private ManifestBuilder manifestBuilder;
 
@@ -120,6 +125,8 @@ public class ArchiveTest {
 
         manifestBuilder = new ManifestBuilder();
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_SHA1);
+
+        publisher = new NullPublisher();
     }
 
     @After
@@ -141,7 +148,7 @@ public class ArchiveTest {
         ab.add(createDummyFile(contentRoot, "c.txt", "åäöåäöasd".getBytes()));
 
         // Write
-        ab.write(outputIndex, outputData, resourcePackDir, new ArrayList<String>());
+        ab.write(outputIndex, outputData, publisher, new ArrayList<String>());
 
         // Read
         ArchiveReader ar = new ArchiveReader(outputIndex.getAbsolutePath(), outputData.getAbsolutePath(), null);
@@ -159,7 +166,7 @@ public class ArchiveTest {
         ab.add(FilenameUtils.separatorsToSystem(createDummyFile(contentRoot, "a.txt", "åäöåäöasd".getBytes())), true, false);
 
         // Write
-        ab.write(outputIndex, outputData, resourcePackDir, new ArrayList<String>());
+        ab.write(outputIndex, outputData, publisher, new ArrayList<String>());
 
         // Read
         ArchiveReader ar = new ArchiveReader(outputIndex.getAbsolutePath(), outputData.getAbsolutePath(), null);
@@ -192,7 +199,7 @@ public class ArchiveTest {
             byte[] archiveIndexMD5 = new byte[16];
             instance.add(FilenameUtils.separatorsToSystem(createDummyFile(contentRoot, filename, content.getBytes())));
 
-            instance.write(outputIndex, outputData, resourcePackDir, new ArrayList<String>());
+            instance.write(outputIndex, outputData, publisher, new ArrayList<String>());
 
             RandomAccessFile archiveIndex = new RandomAccessFile(outputIndex, "r");
 
@@ -269,11 +276,41 @@ public class ArchiveTest {
         List<String> excludedResources = resourceGraph.createExcludedResourcesList();
 
         // Test
-        instance.write(outputIndex, outputData, resourcePackDir, excludedResources);
+        instance.write(outputIndex, outputData, publisher, excludedResources);
 
         assertEquals(2, instance.getIncludedArchiveEntriesSize());
         assertEquals("/main.collectionproxyc", instance.getIncludedArchiveEntry(0).getRelativeFilename());    // 987bcab01b929eb2c07877b224215c92
         assertEquals("/main.collectionc", instance.getIncludedArchiveEntry(1).getRelativeFilename());         // 2c1743a391305fbf367df8e4f069f9f9
+    }
+
+    @SuppressWarnings("unused")
+    @Test
+    public void testWriteArchive_ExcludedResourcesWithZipPublisher() throws Exception {
+        ManifestBuilder manifestBuilder = new ManifestBuilder();
+        manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_MD5);
+        manifestBuilder.setResourceGraph(resourceGraph);
+
+        ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, 4, project);
+
+        ResourceNode root = resourceGraph.getRootNode();
+        ResourceNode collection1 = addEntry("main.collectionc", "alpha", instance, root);
+        ResourceNode collectionproxy1 = addExcludedEntry("main.collectionproxyc", "beta", instance, collection1);
+        ResourceNode gameobject1 = addEntry("main.goc", "delta", instance, collectionproxy1);
+
+        List<String> excludedResources = resourceGraph.createExcludedResourcesList();
+
+        // Test
+        PublisherSettings settings = new PublisherSettings();
+        settings.setZipFilepath(project.getRootDirectory());
+        ZipPublisher publisher = new ZipPublisher(project.getRootDirectory(), settings);
+        publisher.setFilename("excluded.zip");
+        publisher.start();
+        instance.write(outputIndex, outputData, publisher, excludedResources);
+        publisher.stop();
+
+        File zip = publisher.getZipFile();
+        assertTrue(zip.exists());
+        zip.delete();
     }
 
     @SuppressWarnings("unused")
@@ -295,7 +332,7 @@ public class ArchiveTest {
         List<String> excludedResources = resourceGraph.createExcludedResourcesList();
 
         // Test
-        instance.write(outputIndex, outputData, resourcePackDir, excludedResources);
+        instance.write(outputIndex, outputData, publisher, excludedResources);
 
         assertEquals(4, instance.getIncludedArchiveEntriesSize());
         assertEquals("/level1.collectionproxyc", instance.getIncludedArchiveEntry(0).getRelativeFilename());  // 617905b1d0e858ca35230357710cf5f2
@@ -323,7 +360,7 @@ public class ArchiveTest {
         List<String> excludedResources = resourceGraph.createExcludedResourcesList();
 
         // Test
-        instance.write(outputIndex, outputIndex, resourcePackDir, excludedResources);
+        instance.write(outputIndex, outputIndex, publisher, excludedResources);
 
         assertEquals(4, instance.getIncludedArchiveEntriesSize());
         assertEquals("/shared.goc", instance.getIncludedArchiveEntry(0).getRelativeFilename());
@@ -351,7 +388,7 @@ public class ArchiveTest {
         List<String> excludedResources = resourceGraph.createExcludedResourcesList();
 
         // Test
-        instance.write(outputIndex, outputData, resourcePackDir, excludedResources);
+        instance.write(outputIndex, outputData, publisher, excludedResources);
 
         assertEquals(4, instance.getIncludedArchiveEntriesSize());
         assertEquals("/level1.collectionproxyc", instance.getIncludedArchiveEntry(0).getRelativeFilename());  // 617905b1d0e858ca35230357710cf5f2
@@ -378,7 +415,7 @@ public class ArchiveTest {
         List<String> excludedResources = resourceGraph.createExcludedResourcesList();
 
         // Test
-        instance.write(outputIndex, outputData, resourcePackDir, excludedResources);
+        instance.write(outputIndex, outputData, publisher, excludedResources);
 
         assertEquals(4, instance.getIncludedArchiveEntriesSize());
         assertEquals("/level1.collectionproxyc", instance.getIncludedArchiveEntry(0).getRelativeFilename());  // 617905b1d0e858ca35230357710cf5f2
@@ -408,7 +445,7 @@ public class ArchiveTest {
         List<String> excludedResources = resourceGraph.createExcludedResourcesList();
 
         // Test
-        instance.write(outputIndex, outputData, resourcePackDir, excludedResources);
+        instance.write(outputIndex, outputData, publisher, excludedResources);
 
         assertEquals(4, instance.getIncludedArchiveEntriesSize());
         assertEquals("/level1.collectionproxyc", instance.getIncludedArchiveEntry(0).getRelativeFilename());  // 617905b1d0e858ca35230357710cf5f2
@@ -436,7 +473,7 @@ public class ArchiveTest {
         List<String> excludedResources = resourceGraph.createExcludedResourcesList();
 
         // Test
-        instance.write(outputIndex, outputData, resourcePackDir, excludedResources);
+        instance.write(outputIndex, outputData, publisher, excludedResources);
 
         assertEquals(2, instance.getIncludedArchiveEntriesSize());
         assertEquals("/level1.collectionproxyc", instance.getIncludedArchiveEntry(0).getRelativeFilename());  // 617905b1d0e858ca35230357710cf5f2

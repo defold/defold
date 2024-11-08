@@ -18,7 +18,9 @@
 package com.dynamo.bob.archive;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
@@ -52,6 +54,7 @@ import com.dynamo.liveupdate.proto.Manifest.HashAlgorithm;
 import com.dynamo.liveupdate.proto.Manifest.SignAlgorithm;
 import com.dynamo.liveupdate.proto.Manifest.ResourceEntryFlag;
 
+import com.dynamo.bob.archive.publisher.Publisher;
 import com.dynamo.bob.archive.publisher.PublisherSettings;
 import com.dynamo.bob.archive.publisher.ZipPublisher;
 import com.dynamo.bob.util.TimeProfiler;
@@ -180,10 +183,10 @@ public class ArchiveBuilder {
      * aligned and written to the end of the archive.
      * @param archiveData The archive file where the entry should be stored
      * @param entry The entry to write
-     * @param resourcePackDirectory The directory where excluded resources will
-     * be stored
+     * @param publisher The publisher to which excluded resources should be
+     * published
      */
-    private void writeArchiveEntry(RandomAccessFile archiveData, ArchiveEntry entry, Path resourcePackDirectory) throws IOException, CompileExceptionError {
+    private void writeArchiveEntry(RandomAccessFile archiveData, ArchiveEntry entry, Publisher publisher) throws IOException, CompileExceptionError {
         logger.fine("Writing archive entry %s", entry.getFilename());
 
         byte[] buffer = this.loadResourceData(entry.getFilename());
@@ -227,7 +230,9 @@ public class ArchiveBuilder {
 
         // Write resource to resource pack or data archive
         if (entry.isExcluded()) {
-            writeResourcePack(entry, resourcePackDirectory.toString(), buffer);
+            synchronized (publisher) {
+                publisher.publish(entry, new ByteArrayInputStream(buffer));
+            }
             resourceEntryFlags |= ResourceEntryFlag.EXCLUDED.getNumber();
         }
         else {
@@ -320,11 +325,10 @@ public class ArchiveBuilder {
      * up the process. The entries which are excluded will be put in one list
      * while the included entries will be put in another.
      * @param archiveDataFile The archive data file to write to
-     * @param resourcePackDirectory The directory where excluded resources will
-     * be stored
+     * @param publisher The publisher where excluded resources will be published
      * @param excludedResources The resources to exclude from the archive
      */
-    private void writeArchiveEntries(final File archiveDataFile, final Path resourcePackDirectory, List<String> excludedResources) throws IOException, CompileExceptionError {
+    private void writeArchiveEntries(final File archiveDataFile, Publisher publisher, List<String> excludedResources) throws IOException, CompileExceptionError {
         TimeProfiler.start("writeArchiveEntries");
 
         // create the executor service to write entries in parallel
@@ -351,7 +355,7 @@ public class ArchiveBuilder {
                 includedEntries.add(entry);
             }
             Future<ArchiveEntry> future = this.executorService.submit(() -> {
-                writeArchiveEntry(archiveData, entry, resourcePackDirectory);
+                writeArchiveEntry(archiveData, entry, publisher);
                 return entry;
             });
             futures.add(future);
@@ -373,10 +377,10 @@ public class ArchiveBuilder {
         TimeProfiler.stop();
     }
 
-    public void write(File archiveIndexFile, File archiveDataFile, Path resourcePackDirectory, List<String> excludedResources) throws IOException, CompileExceptionError {
+    public void write(File archiveIndexFile, File archiveDataFile, Publisher publisher, List<String> excludedResources) throws IOException, CompileExceptionError {
         TimeProfiler.start("WriteArchive");
 
-        writeArchiveEntries(archiveDataFile, resourcePackDirectory, excludedResources);
+        writeArchiveEntries(archiveDataFile, publisher, excludedResources);
         writeArchiveIndex(archiveIndexFile);
 
         TimeProfiler.stop();
@@ -505,13 +509,16 @@ public class ArchiveBuilder {
         }
         System.out.println("Added " + Integer.toString(archivedEntries + excludedResources.size()) + " entries to archive (" + Integer.toString(excludedResources.size()) + " entries tagged as 'liveupdate' in archive).");
 
-        Path resourcePackDirectory = Files.createTempDirectory("tmp.defold.resourcepack_");
         FileOutputStream outputStreamManifest = new FileOutputStream(filepathManifest);
         try {
             System.out.println("Writing " + filepathArchiveIndex.getCanonicalPath());
             System.out.println("Writing " + filepathArchiveData.getCanonicalPath());
 
-            archiveBuilder.write(filepathArchiveIndex, filepathArchiveData, resourcePackDirectory, excludedResources);
+            PublisherSettings settings = new PublisherSettings();
+            settings.setZipFilepath(dirpathRoot.getAbsolutePath());
+            ZipPublisher publisher = new ZipPublisher(dirpathRoot.getAbsolutePath(), settings);
+            publisher.start();
+            archiveBuilder.write(filepathArchiveIndex, filepathArchiveData, publisher, excludedResources);
 
             System.out.println("Writing " + filepathManifest.getCanonicalPath());
             byte[] manifestFile = manifestBuilder.buildManifest();
@@ -527,26 +534,14 @@ public class ArchiveBuilder {
                 manifestHashOutoutStream.close();
             }
 
-            PublisherSettings settings = new PublisherSettings();
-            settings.setZipFilepath(dirpathRoot.getAbsolutePath());
-
-            ZipPublisher publisher = new ZipPublisher(dirpathRoot.getAbsolutePath(), settings);
-            String rootDir = resourcePackDirectory.toAbsolutePath().toString();
-            publisher.setFilename(filepathZipArchive.getName());
-            for (File fhandle : (new File(rootDir)).listFiles()) {
-                if (fhandle.isFile()) {
-                    publisher.AddEntry(fhandle, new ArchiveEntry(rootDir, fhandle.getAbsolutePath()));
-                }
-            }
-
+            // write manifest to publisher
             String liveupdateManifestFilename = "liveupdate.game.dmanifest";
             File luManifestFile = new File(dirpathRoot, liveupdateManifestFilename);
             FileUtils.copyFile(filepathManifest, luManifestFile);
-            publisher.AddEntry(luManifestFile, new ArchiveEntry(dirpathRoot.getAbsolutePath(), luManifestFile.getAbsolutePath()));
-            publisher.Publish();
+            publisher.publish(new ArchiveEntry(dirpathRoot.getAbsolutePath(), luManifestFile.getAbsolutePath()), new FileInputStream(luManifestFile));
+            publisher.stop();
 
         } finally {
-            FileUtils.deleteDirectory(resourcePackDirectory.toFile());
             try {
                 outputStreamManifest.close();
             } catch (IOException exception) {

@@ -25,78 +25,75 @@ import com.amazonaws.services.s3.model.Permission;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.archive.ArchiveEntry;
 import java.io.File;
+import java.io.InputStream;
 
 public class AWSPublisher extends Publisher {
+
+    private AmazonS3Client client;
 
     public AWSPublisher(PublisherSettings settings) {
         super(settings);
     }
 
-    private CompileExceptionError amazonException(String reason, Throwable exception) {
-        String message = "Amazon S3: " + reason;
-        return new CompileExceptionError(message, exception);
-    }
-
-    private CompileExceptionError compileException(String reason, Throwable exception) {
-        String message = "Unable to upload: " + reason;
-        return new CompileExceptionError(message, exception);
-    }
-    
     private boolean hasWritePermissions(AmazonS3 client, String bucket) {
-    	AccessControlList acl = client.getBucketAcl(bucket);
+        AccessControlList acl = client.getBucketAcl(bucket);
         for (Grant grant : acl.getGrantsAsList()) {
             if (grant.getPermission().equals(Permission.Write) || grant.getPermission().equals(Permission.FullControl)) {
                 return true;
             }
         }
-        
         return false;
     }
 
     @Override
-    public void Publish() throws CompileExceptionError {
-    	if (this.getPublisherSettings().getAmazonBucket() == null) {
-    		throw compileException("AWS Bucket is not specified", null);
-    	} else if (this.getPublisherSettings().getAmazonPrefix() == null) {
-    		throw compileException("AWS Prefix is not specified", null);
-    	} else if (this.getPublisherSettings().getAmazonCredentialProfile() == null) {
-    		throw compileException("AWS Credential profile is not specified", null);
-    	}
-    	
+    public void start() throws CompileExceptionError {
+        if (this.getPublisherSettings().getAmazonBucket() == null) {
+            throw new CompileExceptionError("AWS Bucket is not specified");
+        }
+        else if (this.getPublisherSettings().getAmazonPrefix() == null) {
+            throw new CompileExceptionError("AWS Prefix is not specified");
+        }
+        else if (this.getPublisherSettings().getAmazonCredentialProfile() == null) {
+            throw new CompileExceptionError("AWS Credential profile is not specified");
+        }
+
+        String credentialProfile = this.getPublisherSettings().getAmazonCredentialProfile();
+        AWSCredentialsProvider credentials = new ProfileCredentialsProvider(credentialProfile);
+        client = new AmazonS3Client(credentials);
+        String bucket = this.getPublisherSettings().getAmazonBucket();
+
         try {
-        	String credentialProfile = this.getPublisherSettings().getAmazonCredentialProfile();
-    		AWSCredentialsProvider credentials = new ProfileCredentialsProvider(credentialProfile);
-    		AmazonS3Client client = new AmazonS3Client(credentials);
-        	String bucket = this.getPublisherSettings().getAmazonBucket();
-            
-            if (client.doesBucketExist(bucket)) {
-                if (hasWritePermissions(client, bucket)) {
-                	String prefix = this.getPublisherSettings().getAmazonPrefix();
-                    for (File fhandle : this.getEntries().keySet()) {
-                        ArchiveEntry archiveEntry = this.getEntries().get(fhandle);
-                        String hexDigest = archiveEntry.getHexDigest();
-                        String key = (prefix + "/" + hexDigest).replaceAll("//+", "/");
-                        try {
-                        	client.putObject(bucket, key, fhandle);
-                        } catch (AmazonS3Exception exception) {
-                        	throw amazonException("Unable to upload file, " + exception.getErrorMessage() + ": " + key, exception);
-                        }
-                    }
-                } else {
-                	throw amazonException("The account does not have permission to upload resources", null);
-                }
-            } else {
-            	throw amazonException("The bucket specified does not exist: " + bucket, null);
+            if (!client.doesBucketExist(bucket)) {
+                throw new CompileExceptionError("AWS Bucket '" + bucket + "'does not exist");
             }
-        } catch (AmazonS3Exception exception) {
-            throw amazonException(exception.getErrorMessage(), exception);
-        } catch (Exception exception) {
-        	if (exception instanceof CompileExceptionError) {
-        		throw exception;
-        	}
-        	
-            throw compileException("Failed to publish resources to Amazon", exception);
+            if (!hasWritePermissions(client, bucket)) {
+                throw new CompileExceptionError("AWS Account does not have permission to upload resources");
+            }
+        }
+        catch (CompileExceptionError e) {
+            throw e;
+        }
+        catch (Exception exception) {
+            throw new CompileExceptionError("AWS Failed to publish resources", exception);
         }
     }
 
+    @Override
+    public void stop() throws CompileExceptionError {
+
+    }
+
+    @Override
+    public void publish(ArchiveEntry archiveEntry, InputStream data) throws CompileExceptionError {
+        String bucket = this.getPublisherSettings().getAmazonBucket();
+        String prefix = this.getPublisherSettings().getAmazonPrefix();
+        String hexDigest = archiveEntry.getHexDigest();
+        String key = (prefix + "/" + hexDigest).replaceAll("//+", "/");
+        try {
+            client.putObject(bucket, key, data, null);
+        }
+        catch (Exception exception) {
+            throw new CompileExceptionError("AWS Unable to publish archive entry '" + key + "'", exception);
+        }
+    }
 }
