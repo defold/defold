@@ -62,8 +62,10 @@ namespace dmParticle
     extern const char* MAX_INSTANCE_COUNT_KEY;
     /// Config key to use for tweaking maximum number of emitters in a context.
     extern const char* MAX_EMITTER_COUNT_KEY;
-    /// Config key to use for tweaking the total maximum number of particles in a context.
-    extern const char* MAX_PARTICLE_COUNT_KEY;
+    /// Config key to use for tweaking the total maximum number of particles in a context in GPU buffer.
+    extern const char* MAX_PARTICLE_GPU_COUNT_KEY;
+    /// Config key to use for tweaking the total maximum number of particles in a context in CPU buffer.
+    extern const char* MAX_PARTICLE_CPU_COUNT_KEY;
 
     /**
      * Render constants supplied to the render callback.

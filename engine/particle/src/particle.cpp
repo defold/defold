@@ -48,8 +48,10 @@ namespace dmParticle
     const char* MAX_INSTANCE_COUNT_KEY = "particle_fx.max_count";
     /// Config key to use for tweaking maximum number of emitters in a context.
     const char* MAX_EMITTER_COUNT_KEY  = "particle_fx.max_emitter_count";
-    /// Config key to use for tweaking the total maximum number of particles in a context.
-    const char* MAX_PARTICLE_COUNT_KEY = "particle_fx.max_particle_count";
+    /// Config key to use for tweaking the total maximum number of particles in a context in GPU buffer.
+    const char* MAX_PARTICLE_GPU_COUNT_KEY = "particle_fx.max_particle_count";
+    /// Config key to use for tweaking the total maximum number of particles in a context in CPU buffer.
+    const char* MAX_PARTICLE_CPU_COUNT_KEY = "particle_fx.max_particle_buffer_count";
 
     /// Used for degree to radian conversion
     const float DEG_RAD = (float) (M_PI / 180.0);
@@ -706,6 +708,7 @@ namespace dmParticle
                 for (uint32_t emitter_i = 0; emitter_i < emitter_count; ++emitter_i)
                 {
                     Emitter* emitter = &instance->m_Emitters[emitter_i];
+                    emitter->m_ParticlesConsumed = 0;
                     emitter->m_VertexCount = 0;
                     dmParticleDDF::Emitter* emitter_ddf = &instance->m_Prototype->m_DDF->m_Emitters[emitter_i];
                     UpdateEmitterVelocity(instance, emitter, emitter_ddf, dt);
@@ -722,6 +725,7 @@ namespace dmParticle
                 EmitterPrototype* emitter_prototype = &prototype->m_Emitters[emitter_i];
                 dmParticleDDF::Emitter* emitter_ddf = &prototype->m_DDF->m_Emitters[emitter_i];
 
+                emitter->m_ParticlesConsumed = 0;
                 UpdateEmitterVelocity(instance, emitter, emitter_ddf, dt);
                 UpdateEmitter(prototype, instance, emitter_prototype, emitter, emitter_ddf, dt);
                 TotalAliveParticles += (uint32_t)emitter->m_Particles.Size();
@@ -1179,7 +1183,7 @@ namespace dmParticle
         dmGraphics::SetWriteAttributeStreamDesc(&write_params.m_PositionsLocalSpace, position_local_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, 1, false);
         dmGraphics::SetWriteAttributeStreamDesc(&write_params.m_TexCoords, tex_coord_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2, 1, false);
 
-        for (j = 0; j < particle_count && vertex_index + 6 <= max_vertex_count; j++)
+        for (j = emitter->m_ParticlesConsumed; j < particle_count && vertex_index + 6 <= max_vertex_count; j++)
         {
             Particle* particle = &emitter->m_Particles[j];
             // Evaluate anim frame
@@ -1314,12 +1318,9 @@ namespace dmParticle
 
         if (j < particle_count)
         {
-            if (emitter->m_RenderWarning == 0)
-            {
-                res = GENERATE_VERTEX_DATA_MAX_PARTICLES_EXCEEDED;
-                emitter->m_RenderWarning = 1;
-            }
+            res = GENERATE_VERTEX_DATA_MAX_PARTICLES_EXCEEDED;
         }
+        emitter->m_ParticlesConsumed = j;
         emitter->m_VertexCount = vertex_index - emitter->m_VertexIndex;
         *bytes_written = emitter->m_VertexCount * attribute_infos.m_VertexStride;
 
