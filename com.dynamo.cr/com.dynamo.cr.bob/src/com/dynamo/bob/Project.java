@@ -255,7 +255,7 @@ public class Project {
      */
     public int getHalfThreads() {
         int halfOfAvailableThreads = Runtime.getRuntime().availableProcessors() / 2;
-        return Math.min(halfOfAvailableThreads, getMaxCpuThreads() / 2);
+        return Math.max(Math.min(halfOfAvailableThreads, getMaxCpuThreads() / 2), 1);
     }
 
     public BobProjectProperties getProjectProperties() {
