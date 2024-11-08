@@ -250,7 +250,7 @@
 
         ; Pivot point comes from the SpriteGeometry, where (0,0) is center of the image and +Y is up.
         [^double image-pivot-x ^double image-pivot-y] (or (:pivot animation-frame) [0.0 0.0])
-        [width height] (if (and (= :size-mode-manual size-mode)) size [(:width animation-frame) (:height animation-frame)])
+        [width height] (if (or (and (= :size-mode-manual size-mode)) (nil? animation-frame)) size [(:width animation-frame) (:height animation-frame)])
         image-pivot-x (* width image-pivot-x)
         image-pivot-y (* height image-pivot-y)
 
