@@ -26,6 +26,8 @@ import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.archive.ArchiveEntry;
 import java.io.File;
 import java.io.InputStream;
+import java.io.ByteArrayInputStream;
+import java.io.SequenceInputStream;
 
 public class AWSPublisher extends Publisher {
 
@@ -90,7 +92,9 @@ public class AWSPublisher extends Publisher {
         String hexDigest = archiveEntry.getHexDigest();
         String key = (prefix + "/" + hexDigest).replaceAll("//+", "/");
         try {
-            client.putObject(bucket, key, data, null);
+            InputStream header = new ByteArrayInputStream(archiveEntry.getHeader());
+            SequenceInputStream seq = new SequenceInputStream(header, data);
+            client.putObject(bucket, key, seq, null);
         }
         catch (Exception exception) {
             throw new CompileExceptionError("AWS Unable to publish archive entry '" + key + "'", exception);

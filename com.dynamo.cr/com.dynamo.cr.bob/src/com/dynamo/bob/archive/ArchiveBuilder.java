@@ -18,6 +18,7 @@
 package com.dynamo.bob.archive;
 
 import java.io.File;
+import java.io.InputStream;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.ByteArrayInputStream;
@@ -153,28 +154,24 @@ public class ArchiveBuilder {
         return ResourceEncryption.encrypt(buffer);
     }
 
-    public void writeResourcePack(ArchiveEntry entry, String directory, byte[] buffer) throws IOException {
-        FileOutputStream outputStream = null;
-        try {
-            File fhandle = new File(directory, entry.getHexDigest());
-            if (!fhandle.exists()) {
-                byte[] padding = new byte[11];
-                byte[] size_bytes = ByteBuffer.allocate(4).putInt(entry.getSize()).array();
-                Arrays.fill(padding, (byte)0xED);
-                outputStream = new FileOutputStream(fhandle);
-                outputStream.write(size_bytes); // 4 bytes
-                outputStream.write((byte)entry.getFlags()); // 1 byte
-                outputStream.write(padding); // 11 bytes
-                outputStream.write(buffer);
-
-            }
-        } finally {
-            IOUtils.closeQuietly(outputStream);
-        }
-    }
-
     public List<ArchiveEntry> getExcludedEntries() {
         return excludedEntries;
+    }
+
+    /**
+     * Create a resource pack entry header. The header is a 16 byte long array
+     * containing the size and flags of an entry
+     * @param entry The archive entry to get resource pack for
+     * @return header
+     */
+    private byte[] createResourcePackEntryHeader(ArchiveEntry entry) throws IOException {
+        ByteBuffer headerBuffer = ByteBuffer.allocate(16);
+        headerBuffer.putInt(entry.getSize());
+        headerBuffer.put((byte)entry.getFlags());
+        while (headerBuffer.hasRemaining()) {
+            headerBuffer.put((byte)0xED);
+        }
+        return headerBuffer.array();
     }
 
     /**
@@ -230,8 +227,10 @@ public class ArchiveBuilder {
 
         // Write resource to resource pack or data archive
         if (entry.isExcluded()) {
+            entry.setHeader(createResourcePackEntryHeader(entry));
+            InputStream bufferStream = new ByteArrayInputStream(buffer);
             synchronized (publisher) {
-                publisher.publish(entry, new ByteArrayInputStream(buffer));
+                publisher.publish(entry, bufferStream);
             }
             resourceEntryFlags |= ResourceEntryFlag.EXCLUDED.getNumber();
         }
@@ -517,6 +516,7 @@ public class ArchiveBuilder {
             PublisherSettings settings = new PublisherSettings();
             settings.setZipFilepath(dirpathRoot.getAbsolutePath());
             ZipPublisher publisher = new ZipPublisher(dirpathRoot.getAbsolutePath(), settings);
+            publisher.setFilename(filepathZipArchive.getName());
             publisher.start();
             archiveBuilder.write(filepathArchiveIndex, filepathArchiveData, publisher, excludedResources);
 

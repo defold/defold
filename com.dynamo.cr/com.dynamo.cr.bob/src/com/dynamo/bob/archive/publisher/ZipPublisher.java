@@ -25,7 +25,6 @@ import java.util.zip.ZipFile;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
-import com.dynamo.bob.util.TimeProfiler;
 import org.apache.commons.io.IOUtils;
 
 import com.dynamo.bob.logging.Logger;
@@ -59,7 +58,6 @@ public class ZipPublisher extends Publisher {
 
     @Override
     public void start() throws CompileExceptionError {
-        TimeProfiler.start("ZipPublisher.Publish");
         try {
             String tempFilePrefix = "defold.resourcepack_" + this.platform + "_";
             this.tempZipFile = File.createTempFile(tempFilePrefix, ".zip");
@@ -102,16 +100,20 @@ public class ZipPublisher extends Publisher {
         }
         finally {
             IOUtils.closeQuietly(zipOutputStream);
-            TimeProfiler.stop();
         }
     }
 
     @Override
     public void publish(ArchiveEntry entry, InputStream data) throws CompileExceptionError {
         try {
-            ZipEntry currentEntry = new ZipEntry(entry.getHexDigest());
+            final String archiveEntryHexdigest = entry.getHexDigest();
+            final String archiveEntryName = entry.getName();
+            final String zipEntryName = (archiveEntryHexdigest != null) ? archiveEntryHexdigest : archiveEntryName;
+            ZipEntry currentEntry = new ZipEntry(zipEntryName);
             zipOutputStream.putNextEntry(currentEntry);
+            zipOutputStream.write(entry.getHeader());
             data.transferTo(zipOutputStream);
+            zipOutputStream.flush();
             zipOutputStream.closeEntry();
         } catch (FileNotFoundException exception) {
             throw new CompileExceptionError("Unable to find required file for liveupdate resources: " + exception.getMessage(), exception);

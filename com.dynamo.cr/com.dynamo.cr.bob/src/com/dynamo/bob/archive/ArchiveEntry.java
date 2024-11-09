@@ -33,6 +33,7 @@ public class ArchiveEntry implements Comparable<ArchiveEntry> {
     private String fileName;
     private String hexDigest;
     private byte[] hash = null;
+    private byte[] header = new byte[0];
 
     public ArchiveEntry(String fileName) throws IOException {
         this.fileName = fileName;
@@ -81,6 +82,14 @@ public class ArchiveEntry implements Comparable<ArchiveEntry> {
         this(root, fileName, false, false, false);
     }
 
+    public void setHeader(byte[] header) {
+        this.header = header;
+    }
+
+    public byte[] getHeader() {
+        return header;
+    }
+
     public int getSize() {
         return size;
     }
@@ -119,6 +128,10 @@ public class ArchiveEntry implements Comparable<ArchiveEntry> {
 
     public void setResourceOffset(int resourceOffset) {
         this.resourceOffset = resourceOffset;
+    }
+
+    public String getName() {
+        return FilenameUtils.getName(fileName);
     }
 
     public String getFilename() {
@@ -197,5 +210,10 @@ public class ArchiveEntry implements Comparable<ArchiveEntry> {
         }
 
         return this.compare(this.hash, other.hash);
+    }
+
+    @Override
+    public String toString() {
+        return getClass().getName() + " " + this.fileName + ":" + this.hexDigest;
     }
 }
