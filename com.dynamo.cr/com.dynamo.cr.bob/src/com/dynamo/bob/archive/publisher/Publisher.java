@@ -81,8 +81,8 @@ public abstract class Publisher {
 
     /**
      * Publish an entry using this publisher. Make sure to have called
-     * startPublisher() before calling this function. Also make sure to
-     * not call this function after a call to stopPublisher().
+     * start() before calling this function. Also make sure to not call
+     * this function after a call to stop().
      * @param archiveEntry The entry to publish
      * @param data The data for the entry
      */
