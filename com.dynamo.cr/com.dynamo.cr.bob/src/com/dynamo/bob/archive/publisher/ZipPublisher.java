@@ -83,6 +83,8 @@ public class ZipPublisher extends Publisher {
     @Override
     public void stop() throws CompileExceptionError {
         try {
+            IOUtils.closeQuietly(zipOutputStream);
+
             // make sure parent directories exist
             File destZipDir = this.destZipFile.getParentFile();
             if (!destZipDir.exists()) {
@@ -97,9 +99,6 @@ public class ZipPublisher extends Publisher {
         }
         catch (Exception exception) {
             throw new CompileExceptionError("Unable to create zip archive for liveupdate resources: " + exception.getMessage(), exception);
-        }
-        finally {
-            IOUtils.closeQuietly(zipOutputStream);
         }
     }
 
