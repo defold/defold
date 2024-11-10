@@ -2037,6 +2037,102 @@ static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* 
     }
 }
 
+static void BuildUniformsForUniformBuffer(const ProgramResourceBinding* resource, dmArray<Uniform>& uniforms, const dmArray<ShaderResourceTypeInfo>& type_infos, ShaderResourceType type, dmArray<char>* canonical_name_buffer, uint32_t canonical_name_buffer_offset, uint32_t base_offset = 0)
+    {
+        const ShaderResourceTypeInfo& type_info = type_infos[type.m_TypeIndex];
+        const uint32_t num_members = type_info.m_Members.Size();
+        for (int i = 0; i < num_members; ++i)
+        {
+            const ShaderResourceMember& member = type_info.m_Members[i];
+            uint32_t name_length = strlen(member.m_Name);
+            uint32_t bytes_to_write = name_length + 2; // 1 for the '.' and 1 for the null-terminator
+
+            if (canonical_name_buffer->Capacity() <= canonical_name_buffer_offset + bytes_to_write)
+            {
+                canonical_name_buffer->OffsetCapacity(bytes_to_write);
+                canonical_name_buffer->SetSize(canonical_name_buffer->Capacity());
+            }
+
+            char* name_write_start = canonical_name_buffer->Begin() + canonical_name_buffer_offset;
+
+            name_write_start[0] = '.';
+            name_write_start++;
+
+            memcpy(name_write_start, member.m_Name, name_length);
+            name_write_start[name_length] = 0;
+
+            if (member.m_Type.m_UseTypeIndex)
+            {
+                BuildUniformsForUniformBuffer(resource, uniforms, type_infos, member.m_Type, canonical_name_buffer, canonical_name_buffer_offset + name_length + 1, member.m_Offset + base_offset);
+            }
+            else
+            {
+                uint64_t buffer_offset = member.m_Offset + base_offset;
+                Uniform uniform;
+                uniform.m_Name              = member.m_Name;
+                uniform.m_NameHash          = member.m_NameHash;
+                uniform.m_CanonicalName     = strdup(canonical_name_buffer->Begin());
+                uniform.m_CanonicalNameHash = dmHashString64(uniform.m_CanonicalName);
+                uniform.m_Type              = ShaderDataTypeToGraphicsType(member.m_Type.m_ShaderType);
+                uniform.m_Count             = dmMath::Max((uint32_t) 1, member.m_ElementCount);
+                uniform.m_Location          = resource->m_Res->m_Set | resource->m_Res->m_Binding << 16 | buffer_offset << 32;
+
+            #if 0
+                dmLogInfo("    Uniform: path=%s, name=%s, offset=%d, buffer_offset=%d", uniform.m_CanonicalName, uniform.m_Name, member.m_Offset, (uint32_t) buffer_offset);
+            #endif
+
+                uniforms.Push(uniform);
+            }
+        }
+    }
+
+static void BuildUniforms(WebGPUProgram* program)
+{
+    uint32_t uniform_count = 0;
+
+    ProgramResourceBindingIterator<WebGPUProgram> it(program);
+
+    // Uniform buffers can use nested structs, so we need to count all leaf nodes in all uniforms.
+    // This is used to pre-allocate the uniform array with entries for each leaf uniforms.
+    const ProgramResourceBinding* next;
+    while((next = it.Next()))
+    {
+        const dmArray<ShaderResourceTypeInfo>& type_infos = *next->m_TypeInfos;
+        uniform_count += CountShaderResourceLeafMembers(type_infos, next->m_Res->m_Type);
+    }
+
+    program->m_Uniforms.SetCapacity(uniform_count);
+
+    dmArray<char> canonical_name_buffer;
+
+    it.Reset();
+    while((next = it.Next()))
+    {
+        if (next->m_Res->m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_TEXTURE ||
+            next->m_Res->m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER)
+        {
+            Uniform uniform    = {};
+            uniform.m_Name     = next->m_Res->m_Name;
+            uniform.m_NameHash = dmHashString64(next->m_Res->m_Name);
+            uniform.m_Type     = ShaderDataTypeToGraphicsType(next->m_Res->m_Type.m_ShaderType);
+            uniform.m_Count    = 1;
+            uniform.m_Location = next->m_Res->m_Set | next->m_Res->m_Binding << 16;
+            program->m_Uniforms.Push(uniform);
+        }
+        else if (next->m_Res->m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER)
+        {
+            if (canonical_name_buffer.Capacity() == 0)
+            {
+                canonical_name_buffer.OffsetCapacity(64);
+                canonical_name_buffer.SetSize(canonical_name_buffer.Capacity());
+            }
+            uint32_t name_length = strlen(next->m_Res->m_Name);
+            memcpy(canonical_name_buffer.Begin(), next->m_Res->m_Name, name_length + 1);
+            BuildUniformsForUniformBuffer(next, program->m_Uniforms, *next->m_TypeInfos, next->m_Res->m_Type, &canonical_name_buffer, name_length);
+        }
+    }
+}
+
 static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* program, WebGPUShaderModule* module, WGPUBindGroupLayoutEntry bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT], WGPUShaderStage stage_flag, ProgramResourceBindingsInfo& info)
 {
     TRACE_CALL;
@@ -2096,6 +2192,8 @@ static void WebGPUUpdateProgramLayouts(WebGPUContext* context, WebGPUProgram* pr
         desc.bindGroupLayoutCount         = binding_info.m_MaxSet;
         program->m_PipelineLayout         = wgpuDeviceCreatePipelineLayout(context->m_Device, &desc);
     }
+
+    BuildUniforms(program);
 }
 
 static void WebGPUCreateComputeProgram(WebGPUContext* context, WebGPUProgram* program, WebGPUShaderModule* compute_module)
@@ -2303,9 +2401,16 @@ static uint32_t WebGPUGetUniformCount(HProgram _program)
 {
     TRACE_CALL;
     WebGPUProgram* program = (WebGPUProgram*)_program;
-    return program->m_TotalUniformCount;
+    return program->m_Uniforms.Size();
 }
 
+static void WebGPUGetUniform(HProgram _program, uint32_t index, Uniform* uniform_desc)
+{
+    WebGPUProgram* program = (WebGPUProgram*) _program;
+    *uniform_desc = program->m_Uniforms[index];
+}
+
+/*
 static uint32_t WebGPUGetUniformName(HProgram _program, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size)
 {
     TRACE_CALL;
@@ -2396,6 +2501,7 @@ static HUniformLocation WebGPUGetUniformLocation(HProgram _program, const char* 
 
     return INVALID_UNIFORM_LOCATION;
 }
+*/
 
 static void WebGPUSetConstantV4(HContext _context, const Vector4* data, int count, HUniformLocation base_location)
 {

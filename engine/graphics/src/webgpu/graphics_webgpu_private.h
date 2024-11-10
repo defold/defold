@@ -84,6 +84,9 @@ namespace dmGraphics
         uint8_t*               m_UniformData;
         ProgramResourceBinding m_ResourceBindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
 
+        // dmGraphics::Uniform representation of the resource bindings
+        dmArray<Uniform>       m_Uniforms;
+
         uint32_t               m_UniformDataSizeAligned;
         uint16_t               m_UniformBufferCount;
         uint16_t               m_StorageBufferCount;

@@ -2315,7 +2315,7 @@ static void LogFrameBufferError(GLenum status)
             uniform.m_Uniform.m_Type              = GetGraphicsType(uniform_type);
             uniform.m_IsTextureType               = IsTypeTextureType(uniform.m_Uniform.m_Type);
 
-        #if 1
+        #if 0
             dmLogInfo("Uniform[%d]: %s, %llu, (original_name=%s)", i, uniform.m_Uniform.m_Name, uniform.m_Uniform.m_Location, uniform_name_buffer);
         #endif
 
