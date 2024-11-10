@@ -43,6 +43,7 @@ namespace dmGraphics
 
         size_t                     m_Size = 0;
         size_t                     m_Used = 0;
+        size_t                     m_LastRenderPass = 0;
     };
 
     struct WebGPUUniformBuffer
@@ -158,11 +159,11 @@ namespace dmGraphics
     struct WebGPURenderPass
     {
         WGPUBindGroup         m_BindGroups[MAX_SET_COUNT];
-        WebGPUBuffer*         m_VertexBuffers[MAX_VERTEX_BUFFERS];
+        WGPUBuffer            m_VertexBuffers[MAX_VERTEX_BUFFERS];
         WebGPURenderTarget*   m_Target;
         WGPURenderPassEncoder m_Encoder;
         WGPURenderPipeline    m_Pipeline;
-        WebGPUBuffer*         m_IndexBuffer;
+        WGPUBuffer            m_IndexBuffer;
     };
 
     struct WebGPUTextureSampler
@@ -214,6 +215,8 @@ namespace dmGraphics
         WGPUTextureFormat                  m_Format;
         WGPUSwapChain                      m_SwapChain;
         WGPUCommandEncoder                 m_CommandEncoder;
+        uint32_t                           m_RenderPasses;
+        uint32_t                           m_LastSubmittedRenderPass;
 
         // Current state
         PipelineState       m_CurrentPipelineState;

@@ -219,10 +219,10 @@ def get_closing_pr(issue):
 
 def issue_to_markdown(issue, hide_details = True, title_only = False):
     if title_only:
-        md = ("* __%s__: ([#%s](%s)) %s \n" % (issue["type"], issue["number"], issue["url"], issue["title"]))
+        md = ("* __%s__: ([#%s](%s)) %s (by %s)\n" % (issue["type"], issue["number"], issue["url"], issue["title"], issue["author"]))
 
     else:    
-        md = ("__%s__: ([#%s](%s)) __'%s' by %s__ \n" % (issue["type"], issue["number"], issue["url"], issue["title"], issue["author"]))
+        md = ("__%s__: ([#%s](%s)) __'%s'__ by %s\n" % (issue["type"], issue["number"], issue["url"], issue["title"], issue["author"]))
         if hide_details: md += ("[details=\"Details\"]\n")
         md += ("%s\n" % issue["body"])
         if hide_details: md += ("\n---\n[/details]\n")
@@ -291,10 +291,12 @@ def generate(version, hide_details = False):
         entry["body"] = re.sub("## Technical details.*", "", entry["body"], flags=re.DOTALL).strip()
 
         # Remove closing keywords
+        entry["body"] = re.sub("Closes .*/.*#.....*", "", entry["body"], flags=re.IGNORECASE).strip()
         entry["body"] = re.sub("Fixes .*/.*#.....*", "", entry["body"], flags=re.IGNORECASE).strip()
         entry["body"] = re.sub("Fix .*/.*#.....*", "", entry["body"], flags=re.IGNORECASE).strip()
         entry["body"] = re.sub("Fixes #.....*", "", entry["body"], flags=re.IGNORECASE).strip()
         entry["body"] = re.sub("Fix #.....*", "", entry["body"], flags=re.IGNORECASE).strip()
+        entry["body"] = re.sub("Closes https.*", "", entry["body"], flags=re.IGNORECASE).strip()
         entry["body"] = re.sub("Fixes https.*", "", entry["body"], flags=re.IGNORECASE).strip()
         entry["body"] = re.sub("Fix https.*", "", entry["body"], flags=re.IGNORECASE).strip()
 

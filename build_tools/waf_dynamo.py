@@ -510,7 +510,12 @@ def default_flags(self):
         emflags_link =[j for i in emflags_link for j in i]
 
         flags = []
+        if os.environ.get('EMCFLAGS', None) is not None:
+            flags += os.environ.get("EMCFLAGS", "").split(' ')
         linkflags = []
+        if os.environ.get('EMLINKFLAGS', None) is not None:
+            linkflags += os.environ.get("EMLINKFLAGS", "").split(' ')
+
         if int(opt_level) < 2:
             flags = ['-gseparate-dwarf', '-gsource-map']
             linkflags = ['-gseparate-dwarf', '-gsource-map']

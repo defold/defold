@@ -25,6 +25,8 @@
 
 (def android #{:armv7-android :arm64-android})
 
+(def web #{:js-web :wasm-web})
+
 (def linux #{:x86_64-linux :arm64-linux})
 
 (def vulkan
@@ -384,6 +386,22 @@
     :both vulkan-toggles
     :open-gl))
 
+(def webgpu-toggles
+  (concat
+    (libs-toggles web ["graphics_webgpu"])
+    (generic-contains-toggles web :symbols ["GraphicsAdapterWebGPU"])
+    (generic-contains-toggles web :emscriptenLinkFlags ["USE_WEBGPU=1" "GL_WORKAROUND_SAFARI_GETCONTEXT_BUG=0"])
+    (generic-contains-toggles [:wasm-web] :emscriptenLinkFlags ["ASYNCIFY=1" "ASYNCIFY_IGNORE_INDIRECT=1" "ASYNCIFY_ADD=[\"main\",\"dmEngineCreate(*)\",\"requestDeviceCallback(*)\",\"WebGPUCreateSwapchain(*)\",\"instanceRequestAdapterCallback(*)\"]"])))
+
+(def graphics-web-setting
+  (make-choice-setting
+    :web-gpu (concat
+               webgpu-toggles
+              (exclude-libs-toggles web ["graphics"])
+              (generic-contains-toggles web :excludeSymbols ["GraphicsAdapterOpenGL"]))
+    :both webgpu-toggles
+    :web-gl))
+
 (def ^:private app-manifest-key-order-pattern
   (let [platform-pattern [[:context [;; defines
                                      :defines
@@ -507,7 +525,15 @@
                                                         [:vulkan "Vulkan"]
                                                         [:both "OpenGL & Vulkan"]]}))
             (value (setting-property-getter graphics-setting))
-            (set (setting-property-setter graphics-setting))))
+            (set (setting-property-setter graphics-setting)))
+  (property graphics-web g/Any
+            (dynamic tooltip (g/constantly "WebGPU support is in BETA (web platforms)"))
+            (dynamic edit-type (g/constantly {:type :choicebox
+                                              :options [[:web-gl "WebGL"]
+                                                        [:web-gpu "WebGPU"]
+                                                        [:both "WebGL & WebGPU"]]}))
+            (value (setting-property-getter graphics-web-setting))
+            (set (setting-property-setter graphics-web-setting))))
 
 (defn register-resource-types [workspace]
   (r/register-code-resource-type
