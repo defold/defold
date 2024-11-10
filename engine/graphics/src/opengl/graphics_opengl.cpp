@@ -2151,6 +2151,7 @@ static void LogFrameBufferError(GLenum status)
         char* ptr = str;
         for (int i = len - 1; i >= 0; i--)
         {
+            // For arrays, OpenGL returns the name as `name[0]`
             if (ptr[i] == '[')
             {
                 ptr[i] = 0;
@@ -4165,7 +4166,7 @@ static void LogFrameBufferError(GLenum status)
                 context->m_CurrentProgram->m_Uniforms[i].m_TextureUnit == unit)
             {
                 *index = i;
-                *type = GetGraphicsType(context->m_CurrentProgram->m_Uniforms[i].m_Type);
+                *type = GetGraphicsType(context->m_CurrentProgram->m_Uniforms[i].m_Uniform.m_Type);
 
                 return true;
             }
