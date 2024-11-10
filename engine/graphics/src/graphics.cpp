@@ -1030,6 +1030,23 @@ namespace dmGraphics
         return false;
     }
 
+    uint32_t CountShaderResourceLeafMembers(const dmArray<ShaderResourceTypeInfo>& type_infos, ShaderResourceType type, uint32_t count)
+    {
+        if (!type.m_UseTypeIndex)
+        {
+            return 1;
+        }
+
+        const ShaderResourceTypeInfo& type_info = type_infos[type.m_TypeIndex];
+        const uint32_t num_members = type_info.m_Members.Size();
+        for (int i = 0; i < num_members; ++i)
+        {
+            const ShaderResourceMember& member = type_info.m_Members[i];
+            count += CountShaderResourceLeafMembers(type_infos, member.m_Type, count);
+        }
+        return count;
+    }
+
     void InitializeSetTextureAsyncState(SetTextureAsyncState& state)
     {
         state.m_Mutex = dmMutex::New();

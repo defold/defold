@@ -2637,23 +2637,6 @@ bail:
         ResolveSamplerTextureUnits(program, module->m_ShaderMeta.m_Textures);
     }
 
-    static uint32_t CountLeafMembers(const dmArray<ShaderResourceTypeInfo>& type_infos, ShaderResourceType type, uint32_t count = 0)
-    {
-        if (!type.m_UseTypeIndex)
-        {
-            return 1;
-        }
-
-        const ShaderResourceTypeInfo& type_info = type_infos[type.m_TypeIndex];
-        const uint32_t num_members = type_info.m_Members.Size();
-        for (int i = 0; i < num_members; ++i)
-        {
-            const ShaderResourceMember& member = type_info.m_Members[i];
-            count += CountLeafMembers(type_infos, member.m_Type, count);
-        }
-        return count;
-    }
-
     static void BuildUniformsForUniformBuffer(const ProgramResourceBinding* resource, dmArray<Uniform>& uniforms, const dmArray<ShaderResourceTypeInfo>& type_infos, ShaderResourceType type, dmArray<char>* canonical_name_buffer, uint32_t canonical_name_buffer_offset, uint32_t base_offset = 0)
     {
         const ShaderResourceTypeInfo& type_info = type_infos[type.m_TypeIndex];
@@ -2703,53 +2686,19 @@ bail:
         }
     }
 
-    struct ProgramResourceBindingIterator
-    {
-        const Program* m_Program;
-        uint32_t       m_CurrentSet;
-        uint32_t       m_CurrentBinding;
-
-        ProgramResourceBindingIterator(const Program* pgm)
-        : m_Program(pgm)
-        , m_CurrentSet(0)
-        , m_CurrentBinding(0)
-        {}
-
-        const ProgramResourceBinding* Next()
-        {
-            for (; m_CurrentSet < m_Program->m_MaxSet; ++m_CurrentSet)
-            {
-                for (; m_CurrentBinding < m_Program->m_MaxBinding; ++m_CurrentBinding)
-                {
-                    if (m_Program->m_ResourceBindings[m_CurrentSet][m_CurrentBinding].m_Res != 0x0)
-                    {
-                        const ProgramResourceBinding* res = &m_Program->m_ResourceBindings[m_CurrentSet][m_CurrentBinding];
-                        m_CurrentBinding++;
-                        return res;
-                    }
-                }
-                m_CurrentBinding = 0;  // Reset binding index when moving to the next set
-            }
-            return 0x0;
-        }
-
-        void Reset()
-        {
-            m_CurrentSet = 0;
-            m_CurrentBinding = 0;
-        }
-    };
-
     static void BuildUniforms(Program* program)
     {
         uint32_t uniform_count = 0;
 
-        ProgramResourceBindingIterator it(program);
+        ProgramResourceBindingIterator<Program> it(program);
+
+        // Uniform buffers can use nested structs, so we need to count all leaf nodes in all uniforms.
+        // This is used to pre-allocate the uniform array with entries for each leaf uniforms.
         const ProgramResourceBinding* next;
         while((next = it.Next()))
         {
             const dmArray<ShaderResourceTypeInfo>& type_infos = *next->m_TypeInfos;
-            uniform_count += CountLeafMembers(type_infos, next->m_Res->m_Type);
+            uniform_count += CountShaderResourceLeafMembers(type_infos, next->m_Res->m_Type);
         }
 
         program->m_Uniforms.SetCapacity(uniform_count);
@@ -3014,152 +2963,7 @@ bail:
     {
         Program* program = (Program*) prog;
         *uniform_desc = program->m_Uniforms[index];
-
-        /*
-        for (int set = 0; set < program->m_MaxSet; ++set)
-        {
-            for (int binding = 0; binding < program->m_MaxBinding; ++binding)
-            {
-                ProgramResourceBinding& pgm_res = program->m_ResourceBindings[set][binding];
-
-                if (pgm_res.m_Res == 0x0)
-                    continue;
-
-                if (pgm_res.m_Res->m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_TEXTURE ||
-                    pgm_res.m_Res->m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER)
-                {
-                    if (search_index == index)
-                    {
-                        ShaderResourceBinding* res = pgm_res.m_Res;
-                        // *type = ShaderDataTypeToGraphicsType(res->m_Type.m_ShaderType);
-                        // *size = 1;
-                        // return (uint32_t)dmStrlCpy(buffer, res->m_Name, buffer_size);
-                    }
-                    search_index++;
-                }
-                else if (pgm_res.m_Res->m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER)
-                {
-                    // TODO: Generic type lookup is not supported yet!
-                    // We can only support one level of indirection here right now
-                    assert(pgm_res.m_Res->m_Type.m_UseTypeIndex);
-                    const dmArray<ShaderResourceTypeInfo>& type_infos = *pgm_res.m_TypeInfos;
-                    const ShaderResourceTypeInfo& type_info = type_infos[pgm_res.m_Res->m_Type.m_TypeIndex];
-
-                    const uint32_t num_members = type_info.m_Members.Size();
-                    for (int i = 0; i < num_members; ++i)
-                    {
-                        if (search_index == index)
-                        {
-                            const ShaderResourceMember& member = type_info.m_Members[i];
-                            // *type = ShaderDataTypeToGraphicsType(member.m_Type.m_ShaderType);
-                            // *size = dmMath::Max((uint32_t) 1, member.m_ElementCount);
-                            // return (uint32_t)dmStrlCpy(buffer, member.m_Name, buffer_size);
-                        }
-                        search_index++;
-                    }
-                }
-            }
-        }
-        */
     }
-
-    /*
-    static uint32_t VulkanGetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size)
-    {
-        assert(prog);
-        Program* program      = (Program*) prog;
-        uint32_t search_index = 0;
-
-        for (int set = 0; set < program->m_MaxSet; ++set)
-        {
-            for (int binding = 0; binding < program->m_MaxBinding; ++binding)
-            {
-                ProgramResourceBinding& pgm_res = program->m_ResourceBindings[set][binding];
-
-                if (pgm_res.m_Res == 0x0)
-                    continue;
-
-                if (pgm_res.m_Res->m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_TEXTURE ||
-                    pgm_res.m_Res->m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER)
-                {
-                    if (search_index == index)
-                    {
-                        ShaderResourceBinding* res = pgm_res.m_Res;
-                        *type = ShaderDataTypeToGraphicsType(res->m_Type.m_ShaderType);
-                        *size = 1;
-                        return (uint32_t)dmStrlCpy(buffer, res->m_Name, buffer_size);
-                    }
-                    search_index++;
-                }
-                else if (pgm_res.m_Res->m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER)
-                {
-                    // TODO: Generic type lookup is not supported yet!
-                    // We can only support one level of indirection here right now
-                    assert(pgm_res.m_Res->m_Type.m_UseTypeIndex);
-                    const dmArray<ShaderResourceTypeInfo>& type_infos = *pgm_res.m_TypeInfos;
-                    const ShaderResourceTypeInfo& type_info = type_infos[pgm_res.m_Res->m_Type.m_TypeIndex];
-
-                    const uint32_t num_members = type_info.m_Members.Size();
-                    for (int i = 0; i < num_members; ++i)
-                    {
-                        if (search_index == index)
-                        {
-                            const ShaderResourceMember& member = type_info.m_Members[i];
-                            *type = ShaderDataTypeToGraphicsType(member.m_Type.m_ShaderType);
-                            *size = dmMath::Max((uint32_t) 1, member.m_ElementCount);
-                            return (uint32_t)dmStrlCpy(buffer, member.m_Name, buffer_size);
-                        }
-                        search_index++;
-                    }
-                }
-            }
-        }
-        return 0;
-    }
-
-    static HUniformLocation VulkanGetUniformLocation(HProgram prog, const char* name)
-    {
-        assert(prog);
-        Program* program_ptr = (Program*) prog;
-        dmhash_t name_hash   = dmHashString64(name);
-
-        for (int set = 0; set < program_ptr->m_MaxSet; ++set)
-        {
-            for (int binding = 0; binding < program_ptr->m_MaxBinding; ++binding)
-            {
-                ProgramResourceBinding& pgm_res = program_ptr->m_ResourceBindings[set][binding];
-
-                if (pgm_res.m_Res == 0x0)
-                    continue;
-
-                if (pgm_res.m_Res->m_NameHash == name_hash)
-                {
-                    return set | binding << 16;
-                }
-                else if (pgm_res.m_Res->m_Type.m_UseTypeIndex)
-                {
-                    // TODO: Generic type lookup is not supported yet!
-                    // We can only support one level of indirection here right now
-                    const dmArray<ShaderResourceTypeInfo>& type_infos = *pgm_res.m_TypeInfos;
-                    const ShaderResourceTypeInfo& type_info = type_infos[pgm_res.m_Res->m_Type.m_TypeIndex];
-
-                    const uint32_t num_members = type_info.m_Members.Size();
-                    for (int i = 0; i < num_members; ++i)
-                    {
-                        const ShaderResourceMember& member = type_info.m_Members[i];
-
-                        if (member.m_NameHash == name_hash)
-                        {
-                            return set | binding << 16 | ((uint64_t) i) << 32;
-                        }
-                    }
-                }
-            }
-        }
-
-        return INVALID_UNIFORM_LOCATION;
-    }
-    */
 
     static inline void WriteConstantData(uint32_t offset, uint8_t* uniform_data_ptr, uint8_t* data_ptr, uint32_t data_size)
     {

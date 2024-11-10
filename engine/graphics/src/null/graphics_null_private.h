@@ -101,6 +101,34 @@ namespace dmGraphics
         FrameBuffer     m_FrameBuffer;
     };
 
+    struct NullUniform
+    {
+        Uniform  m_Uniform;
+        uint32_t m_Stride;
+    };
+
+    struct NullShaderModule
+    {
+        ShaderMeta           m_ShaderMeta;
+        char*                m_Data;
+        ShaderDesc::Language m_Language;
+    };
+
+    struct NullProgram
+    {
+        NullShaderModule*      m_VP;
+        NullShaderModule*      m_FP;
+        NullShaderModule*      m_Compute;
+        ProgramResourceBinding m_ResourceBindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
+        dmArray<NullUniform>   m_Uniforms;
+        ShaderDesc::Language   m_Language;
+
+        uint8_t m_MaxSet;
+        uint8_t m_MaxBinding;
+    };
+
+    static const uint32_t UNIFORM_BUFFERS_ALIGNMENT = 4;
+
     struct NullContext
     {
         NullContext(const ContextParams& params);

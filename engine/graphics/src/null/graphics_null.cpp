@@ -735,217 +735,293 @@ namespace dmGraphics
         return g_DrawCount;
     }
 
-    struct ShaderBinding
+    struct ResourceBindingDesc
     {
-        Uniform  m_Uniform;
-        uint32_t m_Stride;
+        uint16_t m_Binding;
+        uint8_t  m_Taken;
     };
 
-    struct ShaderProgram
+    // TODO: This can be merged with a certain "blue" graphics adapter
+    static void FillProgramResourceBindings(
+        NullProgram*                     program,
+        dmArray<ShaderResourceBinding>&  resources,
+        dmArray<ShaderResourceTypeInfo>& stage_type_infos,
+        ResourceBindingDesc              bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT],
+        uint32_t                         ubo_alignment,
+        uint32_t                         ssbo_alignment,
+        ShaderStageFlag                  stage_flag,
+        ProgramResourceBindingsInfo&     info)
     {
-        char*                  m_Data;
-        ShaderDesc::Language   m_Language;
-        dmArray<ShaderBinding> m_Uniforms;
-        dmArray<ShaderBinding> m_Attributes;
-    };
-
-    static void PushBinding(dmArray<ShaderBinding>* binding_array, const char* name, uint32_t name_length, dmGraphics::Type type, uint32_t size)
-    {
-        if(binding_array->Full())
+        for (int i = 0; i < resources.Size(); ++i)
         {
-            binding_array->OffsetCapacity(8);
+            ShaderResourceBinding& res   = resources[i];
+            ResourceBindingDesc& binding = bindings[res.m_Set][res.m_Binding];
+            ProgramResourceBinding& program_resource_binding = program->m_ResourceBindings[res.m_Set][res.m_Binding];
+
+            if (!binding.m_Taken)
+            {
+                binding.m_Binding = res.m_Binding;
+                binding.m_Taken   = 1;
+
+                program_resource_binding.m_Res         = &res;
+                program_resource_binding.m_TypeInfos   = &stage_type_infos;
+                program_resource_binding.m_StageFlags |= (int) stage_flag;
+
+                switch(res.m_BindingFamily)
+                {
+                    case ShaderResourceBinding::BINDING_FAMILY_TEXTURE:
+                        program_resource_binding.m_TextureUnit = info.m_TextureCount;
+                        info.m_TextureCount++;
+                        info.m_TotalUniformCount++;
+                        break;
+                    case ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER:
+                        program_resource_binding.m_StorageBufferUnit = info.m_StorageBufferCount;
+                        info.m_StorageBufferCount++;
+                        info.m_TotalUniformCount++;
+
+                    #if 0
+                        dmLogInfo("SSBO: name=%s, set=%d, binding=%d, ssbo-unit=%d", res.m_Name, res.m_Set, res.m_Binding, program_resource_binding.m_StorageBufferUnit);
+                    #endif
+
+                        break;
+                    case ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER:
+                    {
+                        assert(res.m_Type.m_UseTypeIndex);
+                        const ShaderResourceTypeInfo& type_info       = stage_type_infos[res.m_Type.m_TypeIndex];
+                        program_resource_binding.m_DataOffset         = info.m_UniformDataSize;
+                        program_resource_binding.m_DynamicOffsetIndex = info.m_UniformBufferCount;
+
+                        info.m_UniformBufferCount++;
+                        info.m_UniformDataSize        += res.m_BindingInfo.m_BlockSize;
+                        info.m_UniformDataSizeAligned += DM_ALIGN(res.m_BindingInfo.m_BlockSize, ubo_alignment);
+                        info.m_TotalUniformCount      += type_info.m_Members.Size();
+                    }
+                    break;
+                    case ShaderResourceBinding::BINDING_FAMILY_GENERIC:
+                    default:break;
+                }
+
+                info.m_MaxSet     = dmMath::Max(info.m_MaxSet, (uint32_t) (res.m_Set + 1));
+                info.m_MaxBinding = dmMath::Max(info.m_MaxBinding, (uint32_t) (res.m_Binding + 1));
+
+            #if 1
+                dmLogInfo("    name=%s, set=%d, binding=%d, data_offset=%d, texture_unit=%d", res.m_Name, res.m_Set, res.m_Binding, program_resource_binding.m_DataOffset, program_resource_binding.m_TextureUnit);
+            #endif
+            }
         }
-
-        ShaderBinding binding;
-        name_length++;
-        binding.m_Uniform.m_Name     = new char[name_length];
-        binding.m_Uniform.m_Type     = type;
-        binding.m_Uniform.m_Count    = size;
-        binding.m_Uniform.m_Location = binding_array->Size();
-        binding.m_Stride             = GetTypeSize(type);
-
-        dmStrlCpy(binding.m_Uniform.m_Name, name, name_length);
-        binding.m_Uniform.m_NameHash = dmHashString64(binding.m_Uniform.m_Name);
-
-        binding_array->Push(binding);
     }
 
-    struct Program
+    static void FillProgramResourceBindings(
+        NullProgram*                 program,
+        NullShaderModule*            module,
+        ResourceBindingDesc          bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT],
+        uint32_t                     ubo_alignment,
+        uint32_t                     ssbo_alignment,
+        ShaderStageFlag              stage_flag,
+        ProgramResourceBindingsInfo& info)
     {
-        Program(ShaderProgram* vp, ShaderProgram* fp)
+        if (program && module)
         {
-            m_Uniforms.SetCapacity(16);
-            m_Compute = 0;
-            m_VP      = vp;
-            m_FP      = fp;
-            if (m_VP != 0x0)
+            FillProgramResourceBindings(program, module->m_ShaderMeta.m_UniformBuffers, module->m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, stage_flag, info);
+            FillProgramResourceBindings(program, module->m_ShaderMeta.m_StorageBuffers, module->m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, stage_flag, info);
+            FillProgramResourceBindings(program, module->m_ShaderMeta.m_Textures, module->m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, stage_flag, info);
+        }
+    }
+
+    // TODO: MERGE WITH VULKAN
+    static void BuildUniformsForUniformBuffer(const ProgramResourceBinding* resource, dmArray<NullUniform>& uniforms, const dmArray<ShaderResourceTypeInfo>& type_infos, ShaderResourceType type, dmArray<char>* canonical_name_buffer, uint32_t canonical_name_buffer_offset, uint32_t base_offset = 0)
+    {
+        const ShaderResourceTypeInfo& type_info = type_infos[type.m_TypeIndex];
+        const uint32_t num_members = type_info.m_Members.Size();
+        for (int i = 0; i < num_members; ++i)
+        {
+            const ShaderResourceMember& member = type_info.m_Members[i];
+            uint32_t name_length = strlen(member.m_Name);
+            uint32_t bytes_to_write = name_length + 2; // 1 for the '.' and 1 for the null-terminator
+
+            if (canonical_name_buffer->Capacity() <= canonical_name_buffer_offset + bytes_to_write)
             {
-                TransferUniforms(m_VP);
-                TransferAttributes(m_VP);
-                m_Language = m_VP->m_Language;
+                canonical_name_buffer->OffsetCapacity(bytes_to_write);
+                canonical_name_buffer->SetSize(canonical_name_buffer->Capacity());
             }
-            if (m_FP != 0x0)
+
+            char* name_write_start = canonical_name_buffer->Begin() + canonical_name_buffer_offset;
+
+            name_write_start[0] = '.';
+            name_write_start++;
+
+            memcpy(name_write_start, member.m_Name, name_length);
+            name_write_start[name_length] = 0;
+
+            if (member.m_Type.m_UseTypeIndex)
             {
-                TransferUniforms(m_FP);
-                m_Language = m_FP->m_Language;
+                BuildUniformsForUniformBuffer(resource, uniforms, type_infos, member.m_Type, canonical_name_buffer, canonical_name_buffer_offset + name_length + 1, member.m_Offset + base_offset);
+            }
+            else
+            {
+                uint64_t buffer_offset = member.m_Offset + base_offset;
+                NullUniform uniform         = {};
+                uniform.m_Uniform.m_Name              = member.m_Name;
+                uniform.m_Uniform.m_NameHash          = member.m_NameHash;
+                uniform.m_Uniform.m_CanonicalName     = strdup(canonical_name_buffer->Begin());
+                uniform.m_Uniform.m_CanonicalNameHash = dmHashString64(uniform.m_Uniform.m_CanonicalName);
+                uniform.m_Uniform.m_Type              = ShaderDataTypeToGraphicsType(member.m_Type.m_ShaderType);
+                uniform.m_Uniform.m_Count             = dmMath::Max((uint32_t) 1, member.m_ElementCount);
+                uniform.m_Uniform.m_Location          = resource->m_Res->m_Set | resource->m_Res->m_Binding << 16 | buffer_offset << 32;
+
+            #if 0
+                dmLogInfo("    Uniform: path=%s, name=%s, offset=%d, buffer_offset=%d", uniform.m_CanonicalName, uniform.m_Name, member.m_Offset, (uint32_t) buffer_offset);
+            #endif
+
+                uniforms.Push(uniform);
             }
         }
+    }
 
-        Program(ShaderProgram* compute)
+    static void BuildUniforms(NullProgram* program)
+    {
+        uint32_t uniform_count = 0;
+
+        ProgramResourceBindingIterator<NullProgram> it(program);
+
+        // Uniform buffers can use nested structs, so we need to count all leaf nodes in all uniforms.
+        // This is used to pre-allocate the uniform array with entries for each leaf uniforms.
+        const ProgramResourceBinding* next;
+        while((next = it.Next()))
         {
-            m_Uniforms.SetCapacity(16);
-            m_VP      = 0;
-            m_FP      = 0;
-            m_Compute = compute;
+            const dmArray<ShaderResourceTypeInfo>& type_infos = *next->m_TypeInfos;
+            uniform_count += CountShaderResourceLeafMembers(type_infos, next->m_Res->m_Type);
+        }
 
-            if (m_Compute != 0x0)
+        program->m_Uniforms.SetCapacity(uniform_count);
+
+        dmArray<char> canonical_name_buffer;
+
+        it.Reset();
+        while((next = it.Next()))
+        {
+            if (next->m_Res->m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_TEXTURE ||
+                next->m_Res->m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER)
             {
-                TransferUniforms(m_Compute);
-                m_Language = compute->m_Language;
+                NullUniform uniform  = {};
+                uniform.m_Uniform.m_Name       = next->m_Res->m_Name;
+                uniform.m_Uniform.m_NameHash   = dmHashString64(next->m_Res->m_Name);
+                uniform.m_Uniform.m_Type       = ShaderDataTypeToGraphicsType(next->m_Res->m_Type.m_ShaderType);
+                uniform.m_Uniform.m_Count      = 1;
+                uniform.m_Uniform.m_Location   = next->m_Res->m_Set | next->m_Res->m_Binding << 16;
+                program->m_Uniforms.Push(uniform);
+            }
+            else if (next->m_Res->m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER)
+            {
+                if (canonical_name_buffer.Capacity() == 0)
+                {
+                    canonical_name_buffer.OffsetCapacity(64);
+                    canonical_name_buffer.SetSize(canonical_name_buffer.Capacity());
+                }
+                uint32_t name_length = strlen(next->m_Res->m_Name);
+                memcpy(canonical_name_buffer.Begin(), next->m_Res->m_Name, name_length + 1);
+                BuildUniformsForUniformBuffer(next, program->m_Uniforms, *next->m_TypeInfos, next->m_Res->m_Type, &canonical_name_buffer, name_length);
             }
         }
+    }
 
-        void TransferUniforms(ShaderProgram* p)
-        {
-            for (int i = 0; i < p->m_Uniforms.Size(); ++i)
-            {
-                PushBinding(&m_Uniforms, p->m_Uniforms[i].m_Uniform.m_Name, strlen(p->m_Uniforms[i].m_Uniform.m_Name), p->m_Uniforms[i].m_Uniform.m_Type, p->m_Uniforms[i].m_Uniform.m_Count);
-            }
-        }
+    static void CreateProgramResourceBindings(NullProgram* program, NullShaderModule* vertex_module, NullShaderModule* fragment_module, NullShaderModule* compute_module)
+    {
+        ResourceBindingDesc bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT] = {};
 
-        void TransferAttributes(ShaderProgram* p)
-        {
-            for (int i = 0; i < p->m_Attributes.Size(); ++i)
-            {
-                PushBinding(&m_Attributes, p->m_Attributes[i].m_Uniform.m_Name, strlen(p->m_Attributes[i].m_Uniform.m_Name), p->m_Attributes[i].m_Uniform.m_Type, p->m_Attributes[i].m_Uniform.m_Count);
-            }
-        }
+        uint32_t ubo_alignment = UNIFORM_BUFFERS_ALIGNMENT;
+        uint32_t ssbo_alignment = 0;
 
-        ~Program()
-        {
-            for(uint32_t i = 0; i < m_Uniforms.Size(); ++i)
-                delete[] m_Uniforms[i].m_Uniform.m_Name;
-            for(uint32_t i = 0; i < m_Attributes.Size(); ++i)
-                delete[] m_Attributes[i].m_Uniform.m_Name;
-        }
+        ProgramResourceBindingsInfo binding_info = {};
+        FillProgramResourceBindings(program, vertex_module, bindings, ubo_alignment, ssbo_alignment, SHADER_STAGE_FLAG_VERTEX, binding_info);
+        FillProgramResourceBindings(program, fragment_module, bindings, ubo_alignment, ssbo_alignment, SHADER_STAGE_FLAG_FRAGMENT, binding_info);
+        FillProgramResourceBindings(program, compute_module, bindings, ubo_alignment, ssbo_alignment, SHADER_STAGE_FLAG_COMPUTE, binding_info);
 
-        ShaderDesc::Language   m_Language;
+        program->m_MaxSet     = binding_info.m_MaxSet;
+        program->m_MaxBinding = binding_info.m_MaxBinding;
 
-        ShaderProgram*         m_VP;
-        ShaderProgram*         m_FP;
-        ShaderProgram*         m_Compute;
+        BuildUniforms(program);
+    }
 
-        dmArray<ShaderBinding> m_Uniforms;
-        dmArray<ShaderBinding> m_Attributes;
-    };
-
-    static ShaderProgram* NewShaderProgramFromDDF(HContext context, ShaderDesc* ddf)
+    static NullShaderModule* NewShaderModuleFromDDF(HContext context, ShaderDesc* ddf)
     {
         assert(ddf);
 
-        ShaderDesc::Shader* shader = GetShaderProgram(context, ddf);
-        if (shader == 0x0)
+        ShaderDesc::Shader* ddf_shader = GetShaderProgram(context, ddf);
+        if (ddf_shader == 0x0)
         {
             return 0x0;
         }
 
-        ShaderProgram* p = new ShaderProgram();
-        p->m_Data = new char[shader->m_Source.m_Count+1];
-        memcpy(p->m_Data, shader->m_Source.m_Data, shader->m_Source.m_Count);
-        p->m_Data[shader->m_Source.m_Count] = '\0';
-        p->m_Language = shader->m_Language;
+        NullShaderModule* shader = new NullShaderModule();
+        shader->m_Data           = new char[ddf_shader->m_Source.m_Count+1];
+        shader->m_Language       = ddf_shader->m_Language;
 
-        ShaderDesc::ShaderReflection* reflection = &ddf->m_Reflection;
+        memcpy(shader->m_Data, ddf_shader->m_Source.m_Data, ddf_shader->m_Source.m_Count);
+        shader->m_Data[ddf_shader->m_Source.m_Count] = '\0';
 
-        for (int i = 0; i < reflection->m_Inputs.m_Count; ++i)
-        {
-            ShaderDesc::ResourceBinding& res = reflection->m_Inputs[i];
-            PushBinding(&p->m_Attributes, res.m_Name, strlen(res.m_Name), ShaderDataTypeToGraphicsType(res.m_Type.m_Type.m_ShaderType), 1);
-        }
-
-        for (int i = 0; i < reflection->m_UniformBuffers.m_Count; ++i)
-        {
-            ShaderDesc::ResourceBinding& res = reflection->m_UniformBuffers[i];
-
-            // TODO: Use the same setup as vulkan here with the binding iterator
-
-            if (res.m_Type.m_UseTypeIndex)
-            {
-                ShaderDesc::ResourceTypeInfo& type = reflection->m_Types[res.m_Type.m_Type.m_TypeIndex];
-                for (int j = 0; j < type.m_Members.m_Count; ++j)
-                {
-                    uint32_t element_count = dmMath::Max(type.m_Members[j].m_ElementCount, 1u);
-                    PushBinding(&p->m_Uniforms, type.m_Members[j].m_Name, strlen(type.m_Members[j].m_Name), ShaderDataTypeToGraphicsType(type.m_Members[j].m_Type.m_Type.m_ShaderType), element_count);
-                }
-            }
-            else
-            {
-                PushBinding(&p->m_Uniforms, res.m_Name, strlen(res.m_Name), ShaderDataTypeToGraphicsType(res.m_Type.m_Type.m_ShaderType), 1);
-            }
-        }
-
-        for (int i = 0; i < reflection->m_StorageBuffers.m_Count; ++i)
-        {
-            ShaderDesc::ResourceBinding& res = reflection->m_StorageBuffers[i];
-            PushBinding(&p->m_Uniforms, res.m_Name, strlen(res.m_Name), ShaderDataTypeToGraphicsType(res.m_Type.m_Type.m_ShaderType), 1);
-        }
-
-        for (int i = 0; i < reflection->m_Textures.m_Count; ++i)
-        {
-            ShaderDesc::ResourceBinding& res = reflection->m_Textures[i];
-            PushBinding(&p->m_Uniforms, res.m_Name, strlen(res.m_Name), ShaderDataTypeToGraphicsType(res.m_Type.m_Type.m_ShaderType), 1);
-        }
-
-        return p;
+        CreateShaderMeta(&ddf->m_Reflection, &shader->m_ShaderMeta);
+        return shader;
     }
 
     static HComputeProgram NullNewComputeProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
-        return (HComputeProgram) NewShaderProgramFromDDF(context, ddf);
+        return (HComputeProgram) NewShaderModuleFromDDF(context, ddf);
     }
 
     static HProgram NullNewProgramFromCompute(HContext context, HComputeProgram compute_program)
     {
-        return (HProgram) new Program((ShaderProgram*) compute_program);
+        NullProgram* p = new NullProgram();
+        p->m_Compute = (NullShaderModule*) compute_program;
+        CreateProgramResourceBindings(p, p->m_Compute, 0x0, 0x0);
+        return (HProgram) p;
     }
 
     static void NullDeleteComputeProgram(HComputeProgram prog)
     {
-        ShaderProgram* p = (ShaderProgram*) prog;
+        /*
+        NullShaderModule* p = (NullShaderModule*) prog;
         delete [] (char*)p->m_Data;
         for(uint32_t i = 0; i < p->m_Uniforms.Size(); ++i)
             delete[] p->m_Uniforms[i].m_Uniform.m_Name;
         delete p;
+        */
     }
 
     static HProgram NullNewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
     {
-        ShaderProgram* vertex   = 0x0;
-        ShaderProgram* fragment = 0x0;
+        NullShaderModule* vertex   = 0x0;
+        NullShaderModule* fragment = 0x0;
         if (vertex_program != INVALID_VERTEX_PROGRAM_HANDLE)
         {
-            vertex = (ShaderProgram*) vertex_program;
+            vertex = (NullShaderModule*) vertex_program;
         }
         if (fragment_program != INVALID_FRAGMENT_PROGRAM_HANDLE)
         {
-            fragment = (ShaderProgram*) fragment_program;
+            fragment = (NullShaderModule*) fragment_program;
         }
-        return (HProgram) new Program(vertex, fragment);
+
+        NullProgram* p = new NullProgram();
+        p->m_VP = vertex;
+        p->m_FP = fragment;
+
+        CreateProgramResourceBindings(p, vertex, fragment, 0x0);
+        return (HProgram) p;
     }
 
     static void NullDeleteProgram(HContext context, HProgram program)
     {
-        delete (Program*) program;
+        // delete (NullProgram*) program;
     }
 
     static HVertexProgram NullNewVertexProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
-        return (HVertexProgram) NewShaderProgramFromDDF(context, ddf);
+        return (HVertexProgram) NewShaderModuleFromDDF(context, ddf);
     }
 
     static HFragmentProgram NullNewFragmentProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
-        return (HFragmentProgram) NewShaderProgramFromDDF(context, ddf);
+        return (HFragmentProgram) NewShaderModuleFromDDF(context, ddf);
     }
 
     static bool NullReloadVertexProgram(HVertexProgram prog, ShaderDesc* ddf)
@@ -959,8 +1035,7 @@ namespace dmGraphics
             return false;
         }
 
-
-        ShaderProgram* p = (ShaderProgram*) prog;
+        NullShaderModule* p = (NullShaderModule*) prog;
         delete [] (char*)p->m_Data;
         p->m_Data = new char[shader->m_Source.m_Count];
         memcpy((char*)p->m_Data, shader->m_Source.m_Data, shader->m_Source.m_Count);
@@ -978,7 +1053,7 @@ namespace dmGraphics
             return false;
         }
 
-        ShaderProgram* p = (ShaderProgram*)prog;
+        NullShaderModule* p = (NullShaderModule*)prog;
         delete [] (char*)p->m_Data;
         p->m_Data = new char[shader->m_Source.m_Count];
         memcpy((char*)p->m_Data, shader->m_Source.m_Data, shader->m_Source.m_Count);
@@ -988,26 +1063,30 @@ namespace dmGraphics
     static void NullDeleteVertexProgram(HVertexProgram program)
     {
         assert(program);
-        ShaderProgram* p = (ShaderProgram*)program;
+        /*
+        NullShaderModule* p = (NullShaderModule*)program;
         delete [] (char*)p->m_Data;
         for(uint32_t i = 0; i < p->m_Uniforms.Size(); ++i)
             delete[] p->m_Uniforms[i].m_Uniform.m_Name;
         delete p;
+        */
     }
 
     static void NullDeleteFragmentProgram(HFragmentProgram program)
     {
         assert(program);
-        ShaderProgram* p = (ShaderProgram*)program;
+        /*
+        NullShaderModule* p = (NullShaderModule*)program;
         delete [] (char*)p->m_Data;
         for(uint32_t i = 0; i < p->m_Uniforms.Size(); ++i)
             delete[] p->m_Uniforms[i].m_Uniform.m_Name;
         delete p;
+        */
     }
 
     static ShaderDesc::Language NullGetProgramLanguage(HProgram program)
     {
-        return ((ShaderProgram*) program)->m_Language;
+        return ((NullShaderModule*) program)->m_Language;
     }
 
     static bool NullIsShaderLanguageSupported(HContext context, ShaderDesc::Language language, ShaderDesc::ShaderType shader_type)
@@ -1070,7 +1149,8 @@ namespace dmGraphics
 
     static uint32_t NullGetAttributeCount(HProgram prog)
     {
-        return ((Program*) prog)->m_Attributes.Size();
+        NullProgram* program_ptr = (NullProgram*) prog;
+        return program_ptr->m_VP->m_ShaderMeta.m_Inputs.Size();
     }
 
     static uint32_t GetElementCount(Type type)
@@ -1103,33 +1183,33 @@ namespace dmGraphics
 
     static void NullGetAttribute(HProgram prog, uint32_t index, dmhash_t* name_hash, Type* type, uint32_t* element_count, uint32_t* num_values, int32_t* location)
     {
-        Program* program       = (Program*) prog;
-        ShaderBinding& binding = program->m_Attributes[index];
-        *name_hash             = dmHashString64(binding.m_Uniform.m_Name);
-        *type                  = binding.m_Uniform.m_Type;
-        *element_count         = GetElementCount(binding.m_Uniform.m_Type);
-        *num_values            = binding.m_Uniform.m_Count;
-        *location              = binding.m_Uniform.m_Location;
+        NullProgram* program        = (NullProgram*) prog;
+        ShaderResourceBinding& attr = program->m_VP->m_ShaderMeta.m_Inputs[index];
+        *name_hash                  = attr.m_NameHash;
+        *type                       = ShaderDataTypeToGraphicsType(attr.m_Type.m_ShaderType);
+        *num_values                 = 1;
+        *location                   = attr.m_Binding;
+        *element_count              = GetShaderTypeSize(attr.m_Type.m_ShaderType) / sizeof(float);
     }
 
     static uint32_t NullGetUniformCount(HProgram prog)
     {
-        return ((Program*)prog)->m_Uniforms.Size();
+        return ((NullProgram*)prog)->m_Uniforms.Size();
     }
 
     static void NullGetUniform(HProgram prog, uint32_t index, Uniform* uniform_desc)
     {
-        Program* program = (Program*)prog;
+        NullProgram* program = (NullProgram*)prog;
         *uniform_desc = program->m_Uniforms[index].m_Uniform;
     }
 
     const Uniform* GetUniform(HProgram prog, dmhash_t name_hash)
     {
-        Program* program = (Program*)prog;
+        NullProgram* program = (NullProgram*)prog;
         uint32_t count = program->m_Uniforms.Size();
         for (uint32_t i = 0; i < count; ++i)
         {
-            ShaderBinding& uniform = program->m_Uniforms[i];
+            NullUniform& uniform = program->m_Uniforms[i];
             if (uniform.m_Uniform.m_NameHash == name_hash || uniform.m_Uniform.m_CanonicalNameHash == name_hash)
             {
                 return &uniform.m_Uniform;
@@ -1137,35 +1217,6 @@ namespace dmGraphics
         }
         return 0x0;
     }
-
-    /*
-    static uint32_t NullGetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size)
-    {
-        Program* program = (Program*)prog;
-        assert(index < program->m_Uniforms.Size());
-        ShaderBinding& uniform = program->m_Uniforms[index];
-        *buffer = '\0';
-        dmStrlCat(buffer, uniform.m_Name, buffer_size);
-        *type = uniform.m_Type;
-        *size = uniform.m_Size;
-        return (uint32_t)strlen(buffer);
-    }
-
-    static HUniformLocation NullGetUniformLocation(HProgram prog, const char* name)
-    {
-        Program* program = (Program*)prog;
-        uint32_t count = program->m_Uniforms.Size();
-        for (uint32_t i = 0; i < count; ++i)
-        {
-            ShaderBinding& uniform = program->m_Uniforms[i];
-            if (dmStrCaseCmp(uniform.m_Name, name)==0)
-            {
-                return (int32_t)uniform.m_Index;
-            }
-        }
-        return INVALID_UNIFORM_LOCATION;
-    }
-    */
 
     static void NullSetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
     {
