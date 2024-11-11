@@ -249,6 +249,15 @@ public class Project {
         return threads;
     }
 
+    /**
+     * Returns half of the threads specified by the user, but no more than half of the available threads.
+     * @return half of specified or available threads
+     */
+    public int getHalfThreads() {
+        int halfOfAvailableThreads = Runtime.getRuntime().availableProcessors() / 2;
+        return Math.max(Math.min(halfOfAvailableThreads, getMaxCpuThreads() / 2), 1);
+    }
+
     public BobProjectProperties getProjectProperties() {
         return projectProperties;
     }
@@ -1521,12 +1530,9 @@ public class Project {
 
         BundleHelper.throwIfCanceled(monitor);
         m.beginTask("Building...", tasks.size());
-        TimeProfiler.start("Build tasks");
         BundleHelper.throwIfCanceled(monitor);
         List<TaskResult> result = runTasks(m);
         BundleHelper.throwIfCanceled(monitor);
-        TimeProfiler.addData("TasksCount", tasks.size());
-        TimeProfiler.stop();
         m.done();
 
         // Generate and save build report
@@ -1723,7 +1729,7 @@ public class Project {
 
         // tasks are now built in parallel which means that we no longer want
         // to use all the cores just for texture generation
-        TextureGenerator.maxThreads = 8;
+        TextureGenerator.maxThreads = getHalfThreads();
 
         TaskBuilder taskBuilder = new TaskBuilder(getTasks(), this);
 

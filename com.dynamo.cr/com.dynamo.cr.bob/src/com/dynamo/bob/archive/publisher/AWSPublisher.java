@@ -24,6 +24,8 @@ import com.amazonaws.services.s3.model.Grant;
 import com.amazonaws.services.s3.model.Permission;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.archive.ArchiveEntry;
+import com.dynamo.bob.util.TimeProfiler;
+
 import java.io.File;
 import java.io.InputStream;
 import java.io.ByteArrayInputStream;
@@ -74,8 +76,9 @@ public class AWSPublisher extends Publisher {
         }
         catch (CompileExceptionError e) {
             throw e;
-        }
-        catch (Exception exception) {
+        } catch (AmazonS3Exception exception) {
+            throw amazonException(exception.getErrorMessage(), exception);
+        } catch (Exception exception) {
             throw new CompileExceptionError("AWS Failed to publish resources", exception);
         }
     }
