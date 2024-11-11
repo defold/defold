@@ -31,7 +31,7 @@ import java.util.stream.Stream;
 import com.defold.editor.Editor;
 import com.dynamo.bob.util.FileUtil;
 
-import com.dynamo.graphics.proto.Graphics;
+import com.dynamo.graphics.proto.Graphics.PlatformProfile.OS;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.commons.io.FileUtils;
@@ -111,11 +111,14 @@ public class ResourceUnpacker {
                     unpackResourceFile("libexec/" + platform.getPair() + "/liboggz" + platform.getLibSuffix(), unpackPath);
                     unpackResourceFile("libexec/" + platform.getPair() + "/oggz-validate" + platform.getExeSuffixes()[0], unpackPath, true, false);
 
-                    if (Platform.matchPlatformAgainstOS(platform.getPair(), Graphics.PlatformProfile.OS.OS_ID_WINDOWS)) {
+                    if (Platform.matchPlatformAgainstOS(platform.getPair(), OS.OS_ID_WINDOWS)) {
                         unpackResourceFile("libexec/" + platform.getPair() + "/dmengine.exe", unpackPath.resolve("bin"), true, true);
                         unpackResourceFile("libexec/" + platform.getPair() + "/luajit-64.exe", unpackPath.resolve("bin"), true, true);
                         unpackResourceFile("lib/" + platform.getPair() + "/wrap_oal.dll", unpackPath.resolve("bin"), false, true);
                         unpackResourceFile("lib/" + platform.getPair() + "/OpenAL32.dll", unpackPath.resolve("bin"), false, true);
+                    }
+                    else {
+                        unpackResourceFile("libexec/" + platform.getPair() + "/luajit-64", unpackPath.resolve("bin"), true, true);
                     }
 
                     Path binDir = unpackPath.resolve(platform.getPair() + "/bin").toAbsolutePath();
