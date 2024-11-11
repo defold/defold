@@ -36,4 +36,7 @@
             -fx-min-height: 26px;
         }
     }
+    &:disabled {
+        -fx-opacity: 0.4;
+    }
 }

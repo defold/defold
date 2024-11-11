@@ -29,6 +29,6 @@ public class DefoldUserdata extends LuaUserdata {
 
     @Override
     public String tojstring() {
-        return stringRepresentation + ": " + Integer.toHexString(Objects.hashCode(stringRepresentation));
+        return stringRepresentation + ": " + Integer.toHexString(Objects.hashCode(userdata()));
     }
 }

@@ -278,7 +278,8 @@
                   :attributes vertex-attribute}}
 
      "particlefx"
-     {:emitters {:modifiers {:properties (required {:points {:y 0.0}})}}
+     {:emitters {:modifiers {:properties (required {:points {:y 0.0}})}
+                 :attributes vertex-attribute}
       :modifiers {:properties (required {:points (required {:y 0.0})})}}
 
      "sprite"

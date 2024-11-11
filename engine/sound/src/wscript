@@ -43,7 +43,7 @@ def build(bld):
     if 'web' in bld.env['PLATFORM']:
         bld.install_files('${PREFIX}/lib/%s/js' % bld.env['PLATFORM'], 'js/library_sound.js', postpone = False)
     elif re.match('arm.*?android', bld.env['PLATFORM']):
-        classpath = ['%s/ext/share/java/android.jar' % bld.env.DYNAMO_HOME]
+        classpath = [bld.env.ANDROID_JAR]
         classpath = os.pathsep.join(classpath)
         bld.env['JAVACFLAGS'] = '-g -source 1.7 -target 1.7'.split()
         bld(features='javac seq',

@@ -1,4 +1,3 @@
-
 // Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
@@ -14,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include "modelimporter.h"
+#include <dmsdk/dlib/array.h>
 #include <dmsdk/dlib/dstrings.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -140,10 +140,246 @@ static void OutputNodeTree(Node* node, int indent)
     }
 }
 
+template <int N>
+static void OutputArray(const char* name, float (&p)[N], int indent)
+{
+    OutputIndent(indent);
+    printf("%s: ", name);
+    for (int i = 0; i < N; ++i)
+    {
+        printf("%.3f", p[i]);
+        if (i < (N-1))
+            printf(", ");
+    }
+    printf("\n");
+}
+
+template<typename T>
+static void OutputValue(const char* name, T value, int indent)
+{
+    OutputIndent(indent);
+    printf("%s: %.3f\n", name, (float)value);
+}
+
+template<>
+void OutputValue(const char* name, int value, int indent)
+{
+    OutputIndent(indent);
+    printf("%s: %d\n", name, value);
+}
+
+template<>
+void OutputValue(const char* name, bool value, int indent)
+{
+    OutputIndent(indent);
+    printf("%s: %s\n", name, value?"true":"false");
+}
+
+template<>
+void OutputValue(const char* name, const char* value, int indent)
+{
+    OutputIndent(indent);
+    printf("%s: %s\n", name, value);
+}
+
+template<>
+void OutputValue(const char* name, AlphaMode value, int indent)
+{
+    const char* modes[] = {
+        "OPAQUE",
+        "MASK",
+        "BLEND",
+        "MAX_ENUM"
+    };
+    OutputIndent(indent);
+    printf("%s: %s (%d)\n", name, modes[value], value);
+}
+
+static void OutputSampler(Sampler* sampler, int indent)
+{
+    OutputIndent(indent);
+    printf("Sampler %d: %s \n", sampler->m_Index, sampler->m_Name);
+
+    OutputValue("mag_filter", sampler->m_MagFilter, indent+1);
+    OutputValue("min_filter", sampler->m_MinFilter, indent+1);
+    OutputValue("wrap_s", sampler->m_WrapS,     indent+1);
+    OutputValue("wrap_t", sampler->m_WrapT,     indent+1);
+}
+
+static void OutputTextureTransform(TextureTransform* p, int indent)
+{
+    OutputArray("offset", p->m_Offset,      indent);
+    OutputValue("rotation", p->m_Rotation,  indent);
+    OutputArray("scale", p->m_Scale,        indent);
+    if (p->m_Texcoord >= 0)
+        OutputValue("texcoord", p->m_Texcoord, indent);
+}
+
+static void OutputTextureView(const char* name, TextureView* p, int indent)
+{
+    if (!p)
+        return;
+    OutputIndent(indent);
+    printf("%s:\n", name);
+    if (p->m_Texture)
+    {
+        OutputIndent(indent+1);
+        printf("texture: %s\n", p->m_Texture->m_Name);
+    }
+
+    OutputValue("tex_coord", p->m_Texcoord, indent);
+    OutputValue("scale", p->m_Scale, indent);
+
+    if (p->m_HasTransform)
+    {
+        OutputIndent(indent+1);
+        printf("transform:\n");
+        OutputTextureTransform(&p->m_Transform, indent+1);
+    }
+}
+
+static void OutputTexture(Texture* texture, int indent)
+{
+    OutputIndent(indent);
+    printf("Texture %d: %s \n", texture->m_Index, texture->m_Name);
+
+    if (texture->m_Image)
+        OutputValue("image", texture->m_Image->m_Name, indent+1);
+    if (texture->m_Sampler)
+        OutputValue("sampler", texture->m_Sampler->m_Name, indent+1);
+    if (texture->m_BasisuImage)
+        OutputValue("basisu_image", texture->m_BasisuImage->m_Name, indent+1);
+}
+
+
+static void OutputPbrMetallicRoughness(PbrMetallicRoughness* p, int indent)
+{
+    OutputIndent(indent);
+    printf("pbr_metallic_roughness\n");
+    OutputArray("base_color_factor", p->m_BaseColorFactor, indent+1);
+    OutputValue("roughness_factor", p->m_RoughnessFactor, indent+1);
+
+    OutputTextureView("base_color_texture", &p->m_BaseColorTexture, indent+1);
+    OutputTextureView("metallic_roughness_texture", &p->m_MetallicRoughnessTexture, indent+1);
+}
+
+static void OutputPbrSpecularGlossiness(PbrSpecularGlossiness* p, int indent)
+{
+    OutputIndent(indent);
+    printf("pbr_specular_glossiness\n");
+
+    OutputArray("diffuse_factor", p->m_DiffuseFactor, indent+1);
+    OutputArray("specular_factor", p->m_SpecularFactor, indent+1);
+
+    OutputValue("specular_glossiness", p->m_GlossinessFactor, indent+1);
+
+    OutputTextureView("diffuse_texture", &p->m_DiffuseTexture, indent+1);
+    OutputTextureView("specular_glossiness_texture", &p->m_SpecularGlossinessTexture, indent+1);
+}
+
+static void OutputClearcoat(Clearcoat* p, int indent)
+{
+    OutputIndent(indent);
+    printf("clearcoat\n");
+
+    OutputValue("clearcoat_factor", p->m_ClearcoatFactor, indent+1);
+    OutputValue("clearcoat_roughness_factor", p->m_ClearcoatRoughnessFactor, indent+1);
+
+    OutputTextureView("clearcoat_texture", &p->m_ClearcoatTexture, indent+1);
+    OutputTextureView("clearcoat_roughness_texture", &p->m_ClearcoatRoughnessTexture, indent+1);
+    OutputTextureView("clearcoat_normal_texture", &p->m_ClearcoatNormalTexture, indent+1);
+}
+
+static void OutputTransmission(Transmission* p, int indent)
+{
+    OutputIndent(indent);
+    printf("transmission\n");
+    OutputValue("transmission_factor", p->m_TransmissionFactor, indent+1);
+    OutputTextureView("transmission_texture", &p->m_TransmissionTexture, indent+1);
+}
+
+static void OutputIor(Ior* p, int indent)
+{
+    OutputIndent(indent);
+    printf("transmission\n");
+    OutputValue("ior", p->m_Ior, indent+1);
+}
+
+static void OutputSpecular(Specular* p, int indent)
+{
+    OutputIndent(indent);
+    printf("specular\n");
+    OutputArray("specular_color_factor", p->m_SpecularColorFactor, indent+1);
+    OutputValue("specular_factor", p->m_SpecularFactor, indent+1);
+    OutputTextureView("specular_texture", &p->m_SpecularTexture, indent+1);
+    OutputTextureView("specular_color_texture", &p->m_SpecularColorTexture, indent+1);
+}
+
+static void OutputVolume(Volume* p, int indent)
+{
+    OutputIndent(indent);
+    printf("volume\n");
+    OutputArray("attenuation_color", p->m_AttenuationColor, indent+1);
+    OutputValue("attenuation_distance", p->m_AttenuationDistance, indent+1);
+    OutputValue("thickness_factor", p->m_ThicknessFactor, indent+1);
+    OutputTextureView("thickness_texture", &p->m_ThicknessTexture, indent+1);
+}
+
+static void OutputSheen(Sheen* p, int indent)
+{
+    OutputIndent(indent);
+    printf("sheen\n");
+    OutputArray("sheen_color_factor", p->m_SheenColorFactor, indent+1);
+    OutputValue("sheen_roughness_factor", p->m_SheenRoughnessFactor, indent+1);
+    OutputTextureView("sheen_color_texture", &p->m_SheenColorTexture, indent+1);
+    OutputTextureView("sheen_roughness_texture", &p->m_SheenRoughnessTexture, indent+1);
+}
+
+static void OutputEmissiveStrength(EmissiveStrength* p, int indent)
+{
+    OutputIndent(indent);
+    printf("emissive_strength\n");
+    OutputValue("emissive_strength", p->m_EmissiveStrength, indent+1);
+}
+
+static void OutputIridescence(Iridescence* p, int indent)
+{
+    OutputIndent(indent);
+    printf("iridescence\n");
+    OutputValue("iridescence_factor", p->m_IridescenceFactor, indent+1);
+    OutputTextureView("iridescence_texture", &p->m_IridescenceTexture, indent+1);
+
+    OutputValue("iridescence_ior", p->m_IridescenceIor, indent+1);
+    OutputValue("iridescence_thickness_min", p->m_IridescenceThicknessMin, indent+1);
+    OutputValue("iridescence_thickness_max", p->m_IridescenceThicknessMax, indent+1);
+    OutputTextureView("iridescence_thickness_texture", &p->m_IridescenceThicknessTexture, indent+1);
+}
+
 static void OutputMaterial(Material* material, int indent)
 {
     OutputIndent(indent);
     printf("material  %s\n", material->m_Name);
+
+    if (material->m_PbrMetallicRoughness)   OutputPbrMetallicRoughness(material->m_PbrMetallicRoughness, indent+1);
+    if (material->m_PbrSpecularGlossiness)  OutputPbrSpecularGlossiness(material->m_PbrSpecularGlossiness, indent+1);
+    if (material->m_Clearcoat)              OutputClearcoat(material->m_Clearcoat, indent+1);
+    if (material->m_Transmission)           OutputTransmission(material->m_Transmission, indent+1);
+    if (material->m_Ior)                    OutputIor(material->m_Ior, indent+1);
+    if (material->m_Specular)               OutputSpecular(material->m_Specular, indent+1);
+    if (material->m_Volume)                 OutputVolume(material->m_Volume, indent+1);
+    if (material->m_Sheen)                  OutputSheen(material->m_Sheen, indent+1);
+    if (material->m_EmissiveStrength)       OutputEmissiveStrength(material->m_EmissiveStrength, indent+1);
+    if (material->m_Iridescence)            OutputIridescence(material->m_Iridescence, indent+1);
+
+    OutputTextureView("normal_texture", &material->m_NormalTexture, indent+1);
+    OutputTextureView("occlusion_texture", &material->m_OcclusionTexture, indent+1);
+    OutputTextureView("emissive_texture", &material->m_EmissiveTexture, indent+1);
+
+    OutputArray("emissive_factor", material->m_EmissiveFactor, indent+1);
+    OutputValue("alpha_cutoff", material->m_AlphaCutoff, indent+1);
+    OutputValue("alpha_mode", material->m_AlphaMode, indent+1);
+    OutputValue("double_sided", material->m_DoubleSided, indent+1);
+    OutputValue("unlit", material->m_Unlit, indent+1);
 }
 
 static void OutputMesh(Mesh* mesh, int indent)
@@ -258,6 +494,23 @@ void DebugScene(Scene* scene)
     }
 
     printf("------------------------------\n");
+    printf("Samplers\n");
+
+    for (uint32_t i = 0; i < scene->m_Samplers.Size(); ++i)
+    {
+        OutputSampler(&scene->m_Samplers[i], 0);
+    }
+
+    printf("------------------------------\n");
+    printf("Textures\n");
+
+    for (uint32_t i = 0; i < scene->m_Samplers.Size(); ++i)
+    {
+        OutputTexture(&scene->m_Textures[i], 0);
+    }
+
+    printf("------------------------------\n");
+    printf("Materials\n");
 
     for (uint32_t i = 0; i < scene->m_Materials.Size(); ++i)
     {
@@ -330,7 +583,7 @@ static void DebugStructNodeTree(Node* node, int indent)
 
     for (uint32_t i = 0; i < node->m_Children.Size(); ++i)
     {
-        DebugStructNode(node->m_Children[i], indent+1);
+        DebugStructNodeTree(node->m_Children[i], indent+1);
     }
 }
 

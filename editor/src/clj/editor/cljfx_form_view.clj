@@ -49,6 +49,7 @@
             [editor.resource :as resource]
             [editor.resource-dialog :as resource-dialog]
             [editor.settings :as settings]
+            [editor.system :as system]
             [editor.ui :as ui]
             [editor.url :as url]
             [editor.view :as view]
@@ -56,22 +57,24 @@
             [internal.util :as util]
             [util.coll :as coll]
             [util.fn :as fn])
-  (:import [java.io File]
+  (:import [com.defold.control DefoldStringConverter]
+           [java.io File]
            [javafx.event Event]
            [javafx.scene Node]
            [javafx.scene.control Cell ComboBox ListView ListView$EditEvent TableColumn TableColumn$CellEditEvent TableView TableView$ResizeFeatures]
            [javafx.scene.input KeyCode KeyEvent]
-           [javafx.util Callback StringConverter]))
+           [javafx.util Callback]))
 
 (set! *warn-on-reflection* true)
 
 (def ^:private line-height 27)
+(def ^:private line-spacing 12)
 
 (def ^:private cell-height (inc line-height))
 
-(def ^:private small-max-width 120)
-(def ^:private normal-max-width 400)
-(def ^:private large-max-width 1000)
+(def ^:private small-field-width 120)
+(def ^:private normal-field-width 400)
+(def ^:private large-field-width 1000)
 
 (g/defnk produce-form-view [renderer form-data ui-state]
   (renderer {:form-data form-data
@@ -98,49 +101,28 @@
 (defmethod handle-event :set [{:keys [path fx/event]}]
   {:set [path event]})
 
-(def ^:private uri-string-converter
-  (proxy [StringConverter] []
-    (toString
-      ([] "uri-string-converter")
-      ([v] (str v)))
-    (fromString [v]
-      (url/try-parse v))))
+(defonce ^:private uri-string-converter
+  (DefoldStringConverter. str url/try-parse))
 
-(def ^:private float-converter
-  (proxy [StringConverter] []
-    (toString
-      ([] "float-string-converter")
-      ([v] (field-expression/format-real v)))
-    (fromString [v]
-      (or (field-expression/to-float v)
-          (throw (RuntimeException.))))))
+(defonce ^:private float-converter
+  (DefoldStringConverter.
+    field-expression/format-real
+    #(or (field-expression/to-float %) (throw (RuntimeException.)))))
 
-(def ^:private double-converter
-  (proxy [StringConverter] []
-    (toString
-      ([] "double-string-converter")
-      ([v] (field-expression/format-real v)))
-    (fromString [v]
-      (or (field-expression/to-double v)
-          (throw (RuntimeException.))))))
+(defonce ^:private double-converter
+  (DefoldStringConverter.
+    field-expression/format-real
+    #(or (field-expression/to-double %) (throw (RuntimeException.)))))
 
-(def ^:private int-converter
-  (proxy [StringConverter] []
-    (toString
-      ([] "int-string-converter")
-      ([v] (field-expression/format-int v)))
-    (fromString [v]
-      (or (field-expression/to-int v)
-          (throw (RuntimeException.))))))
+(defonce ^:private int-converter
+  (DefoldStringConverter.
+    field-expression/format-int
+    #(or (field-expression/to-int %) (throw (RuntimeException.)))))
 
-(def ^:private long-converter
-  (proxy [StringConverter] []
-    (toString
-      ([] "long-string-converter")
-      ([v] (field-expression/format-int v)))
-    (fromString [v]
-      (or (field-expression/to-long v)
-          (throw (RuntimeException.))))))
+(defonce ^:private long-converter
+  (DefoldStringConverter.
+    field-expression/format-int
+    #(or (field-expression/to-long %) (throw (RuntimeException.)))))
 
 (defn- number-string-converter [value]
   (condp instance? value
@@ -150,14 +132,11 @@
     Long long-converter))
 
 (defn- make-resource-string-converter [workspace]
-  (proxy [StringConverter] []
-    (toString
-      ([] "resource-string-converter")
-      ([v] (resource/resource->proj-path v)))
-    (fromString [v]
-      (some->> (when-not (string/blank? v) v)
-               (workspace/to-absolute-path)
-               (workspace/resolve-workspace-resource workspace)))))
+  (DefoldStringConverter.
+    resource/resource->proj-path
+    #(some->> (when-not (string/blank? %) %)
+              (workspace/to-absolute-path)
+              (workspace/resolve-workspace-resource workspace))))
 
 (defn- contains-ignore-case? [^String str ^String sub]
   (let [sub-length (.length sub)]
@@ -254,10 +233,15 @@
 
 ;; region string input
 
+(defn- text-formatter [props]
+  {:fx/type fx/ext-recreate-on-key-changed
+   :key (:value-converter props)
+   :desc (assoc props :fx/type fx.text-formatter/lifecycle)})
+
 (defmethod form-input-view :string [{:keys [value on-value-changed]}]
   {:fx/type text-field
-   :max-width normal-max-width
-   :text-formatter {:fx/type fx.text-formatter/lifecycle
+   :max-width normal-field-width
+   :text-formatter {:fx/type text-formatter
                     :value-converter :default
                     :value value
                     :on-value-changed on-value-changed}})
@@ -282,13 +266,13 @@
 
 ;; region integer input
 
-(defmethod form-input-view :integer [{:keys [value on-value-changed custom-max-width] :as field}]
+(defmethod form-input-view :integer [{:keys [value on-value-changed max-width] :as field}]
   (let [value (ensure-value value field)
         value-converter (number-string-converter value)]
     {:fx/type text-field
      :alignment :center-right
-     :max-width (or custom-max-width small-max-width)
-     :text-formatter {:fx/type fx.text-formatter/lifecycle
+     :max-width (or max-width small-field-width)
+     :text-formatter {:fx/type text-formatter
                       :value-converter value-converter
                       :value value
                       :on-value-changed on-value-changed}}))
@@ -300,13 +284,14 @@
 
 ;; region number input
 
-(defmethod form-input-view :number [{:keys [value on-value-changed custom-max-width] :as field}]
+(defmethod form-input-view :number [{:keys [value on-value-changed pref-width max-width] :as field}]
   (let [value (ensure-value value field)
         value-converter (number-string-converter value)]
     {:fx/type text-field
      :alignment :center-right
-     :max-width (or custom-max-width small-max-width)
-     :text-formatter {:fx/type fx.text-formatter/lifecycle
+     :pref-width (or pref-width :use-computed-size)
+     :max-width (or max-width small-field-width)
+     :text-formatter {:fx/type text-formatter
                       :value-converter value-converter
                       :value value
                       :on-value-changed on-value-changed}}))
@@ -324,8 +309,8 @@
 
 (defmethod form-input-view :url [{:keys [value on-value-changed]}]
   {:fx/type text-field
-   :max-width normal-max-width
-   :text-formatter {:fx/type fx.text-formatter/lifecycle
+   :max-width normal-field-width
+   :text-formatter {:fx/type text-formatter
                     :value-converter uri-string-converter
                     :value value
                     :on-value-changed {:event-type :skip-malformed-urls
@@ -347,6 +332,7 @@
     {:fx/type fx.h-box/lifecycle
      :padding {:left 5}
      :spacing 5
+     :max-width normal-field-width
      :children (into []
                      (map-indexed
                        (fn [i n]
@@ -359,7 +345,8 @@
                                      {:fx/type form-input-view
                                       :type :number
                                       :h-box/hgrow :always
-                                      :custom-max-width normal-max-width
+                                      :pref-width normal-field-width
+                                      :max-width :use-computed-size
                                       :value n
                                       :on-value-changed {:event-type :on-vec4-element-change
                                                          :on-value-changed on-value-changed
@@ -404,6 +391,73 @@
 
 ;; endregion
 
+;; region mat4 input
+
+(def ^:private matrix-field-label-texts
+  ;; These correspond to the semantic meaning of the linear values in the array
+  ;; of doubles. We might choose to present the fields in a different order in
+  ;; the form.
+  ["X" "X" "X" "X"
+   "Y" "Y" "Y" "Y"
+   "Z" "Z" "Z" "Z"
+   "T" "T" "T" "W"])
+
+(defn- matrix-field-grid [^long row-column-count double-values on-value-changed]
+  (let [labels
+        (for [^long row (range row-column-count)
+              ^long column (range row-column-count)]
+          (let [text (matrix-field-label-texts (+ column (* row 4)))
+                presentation-row column
+                presentation-column (* row 2)
+                margin {:left 5}]
+            {:fx/type fx.label/lifecycle
+             :grid-pane/row presentation-row
+             :grid-pane/column presentation-column
+             :grid-pane/hgrow :never
+             :grid-pane/margin margin
+             :grid-pane/fill-height true
+             :padding {:right 5}
+             :min-width :use-pref-size
+             :text text}))
+
+        text-fields
+        (for [^long row (range row-column-count)
+              ^long column (range row-column-count)]
+          (let [component-index (+ column (* row row-column-count))
+                component-value (double-values component-index)
+                presentation-row column
+                presentation-column (inc (* row 2))]
+            {:fx/type form-input-view
+             :type :number
+             :grid-pane/row presentation-row
+             :grid-pane/column presentation-column
+             :grid-pane/hgrow :always
+             :pref-width normal-field-width
+             :max-width :use-computed-size
+             :value component-value
+             :on-value-changed {:event-type :on-matrix-element-change
+                                :on-value-changed on-value-changed
+                                :value double-values
+                                :index component-index}}))]
+
+    {:fx/type fx.grid-pane/lifecycle
+     :vgap 4
+     :max-width normal-field-width
+     :children (interleave labels text-fields)}))
+
+(defmethod handle-event :on-matrix-element-change [{:keys [value index on-value-changed fx/event]}]
+  {:dispatch (assoc on-value-changed :fx/event (assoc value index event))})
+
+(defmethod form-input-view :mat4 [{:keys [value on-value-changed] :as field}]
+  (let [value (ensure-value value field)
+        row-column-count (case (count value)
+                           4 2
+                           9 3
+                           16 4)]
+    (matrix-field-grid row-column-count value on-value-changed)))
+
+;; endregion
+
 ;; region choicebox input
 
 (defmethod form-input-view :choicebox [{:keys [value
@@ -416,15 +470,12 @@
         label->value (set/map-invert value->label)]
     {:fx/type fx.combo-box/lifecycle
      :style-class ["combo-box" "combo-box-base" "cljfx-form-combo-box"]
+     :min-width normal-field-width
      :value value
      :on-value-changed on-value-changed
-     :converter (proxy [StringConverter] []
-                  (toString
-                    ([] "string-converter")
-                    ([value]
-                     (get value->label value (to-string value))))
-                  (fromString [s]
-                    (get label->value s (and from-string (from-string s)))))
+     :converter (DefoldStringConverter.
+                  #(get value->label % (to-string %))
+                  #(get label->value % (and from-string (from-string %))))
      :editable (some? from-string)
      :button-cell (fn [x]
                     {:text (value->label x)})
@@ -610,7 +661,7 @@
                           :desc
                           {:fx/type fx.list-view/lifecycle
                            :style-class ["list-view" "cljfx-form-list-view"]
-                           :max-width normal-max-width
+                           :max-width normal-field-width
                            :items (into [] (map-indexed vector) value)
                            :editable true
                            :on-edit-start {:event-type :on-list-edit-start
@@ -669,7 +720,7 @@
                                    :or {value []}
                                    :as field}]
   (assoc field :fx/type list-input
-               :max-width normal-max-width
+               :max-width normal-field-width
                :on-edited {:event-type :edit-list-item
                            :value value
                            :on-value-changed on-value-changed}
@@ -700,10 +751,10 @@
                                               resource-string-converter]}]
   {:fx/type fx.h-box/lifecycle
    :spacing 4
-   :max-width normal-max-width
+   :max-width normal-field-width
    :children [{:fx/type text-field
                :h-box/hgrow :always
-               :text-formatter {:fx/type fx.text-formatter/lifecycle
+               :text-formatter {:fx/type text-formatter
                                 :value-converter resource-string-converter
                                 :value value
                                 :on-value-changed on-value-changed}}
@@ -744,10 +795,10 @@
 (defmethod form-input-view :file [{:keys [on-value-changed value filter title in-project]}]
   {:fx/type fx.h-box/lifecycle
    :spacing 4
-   :max-width normal-max-width
+   :max-width normal-field-width
    :children [{:fx/type text-field
                :h-box/hgrow :always
-               :text-formatter {:fx/type fx.text-formatter/lifecycle
+               :text-formatter {:fx/type text-formatter
                                 :value-converter :default
                                 :value value
                                 :on-value-changed on-value-changed}}
@@ -772,10 +823,10 @@
 (defmethod form-input-view :directory [{:keys [on-value-changed value title in-project]}]
   {:fx/type fx.h-box/lifecycle
    :spacing 4
-   :max-width normal-max-width
+   :max-width normal-field-width
    :children [{:fx/type text-field
                :h-box/hgrow :always
-               :text-formatter {:fx/type fx.text-formatter/lifecycle
+               :text-formatter {:fx/type text-formatter
                                 :value-converter :default
                                 :value value
                                 :on-value-changed on-value-changed}}
@@ -888,7 +939,7 @@
       (-> column
           (assoc :fx/type cell-input-view
                  :value item
-                 :custom-max-width normal-max-width
+                 :max-width normal-field-width
                  :on-value-changed {:event-type :keep-table-edit
                                     :state-path state-path}
                  :on-cancel {:event-type :cancel-table-edit
@@ -1111,88 +1162,110 @@
                                             state
                                             state-path
                                             panel-key
-                                            panel-form
                                             resource-string-converter]
                                      :as field}]
-  (let [default-row (form/two-panel-defaults field)
+  (let [indented-label-column-width 150
+        default-row (form/two-panel-defaults field)
         key-path (:path panel-key)
-        selected-index (-> state :key :selected-indices peek)
-        fn-setter (:set field)]
-    {:fx/type fx.v-box/lifecycle
-     :spacing 4
-     :children
-     [(cond-> {:fx/type list-input
-               :value (mapv #(get-in % key-path) value)
-               :on-added {:event-type :2panel-key-added
-                          :value value
-                          :on-value-changed on-value-changed
-                          :key-path key-path
-                          :default-row default-row
-                          :on-add (:on-add field)}
-               :on-edited {:event-type :2panel-key-edited
-                           :value value
-                           :on-value-changed on-value-changed
-                           :set fn-setter
-                           :key-path key-path}
-               :on-removed {:event-type :2panel-key-removed
+        selected-index (-> state :key :selected-indices util/only)
+        fn-setter (:set field)
+
+        item-list
+        (cond-> {:fx/type list-input
+                 :value (mapv #(get-in % key-path) value)
+                 :on-added {:event-type :2panel-key-added
                             :value value
                             :on-value-changed on-value-changed
-                            :on-remove (:on-remove field)}
-               :state-path (conj state-path :key)
-               :element panel-key
-               :resource-string-converter resource-string-converter}
+                            :key-path key-path
+                            :default-row default-row
+                            :on-add (:on-add field)}
+                 :on-edited {:event-type :2panel-key-edited
+                             :value value
+                             :on-value-changed on-value-changed
+                             :set fn-setter
+                             :key-path key-path}
+                 :on-removed {:event-type :2panel-key-removed
+                              :value value
+                              :on-value-changed on-value-changed
+                              :on-remove (:on-remove field)}
+                 :state-path (conj state-path :key)
+                 :element panel-key
+                 :resource-string-converter resource-string-converter}
 
-              (contains? state :key)
-              (assoc :state (:key state)))
-      {:fx/type fx.v-box/lifecycle
-       :spacing 6
-       :children
-       (if (some? selected-index)
-         (into []
-               (comp
-                 (mapcat :fields)
-                 (map
-                   (fn [field]
-                     (let [field-path (into [selected-index] (:path field))
-                           field-value (get-in value field-path ::no-value)
-                           field-state-path (conj state-path :val selected-index (:path field))
-                           field-state (get-in state [:val selected-index (:path field)] ::no-value)]
-                       {:fx/type fx.v-box/lifecycle
-                        :spacing 4
-                        :children
-                        [{:fx/type fx.h-box/lifecycle
-                          :spacing 4
-                          :pref-height line-height
-                          :children (cond-> [{:fx/type fx.label/lifecycle
-                                              :h-box/margin {:top 5}
-                                              :text (:label field)}]
-                                            (and (form/optional-field? field)
-                                                 (not= field-value ::no-value))
-                                            (conj {:fx/type icon-button
-                                                   :image "icons/32/Icons_S_02_Reset.png"
-                                                   :on-action {:event-type :2panel-value-clear
-                                                               :index selected-index
-                                                               :value-path (:path field)
-                                                               :set fn-setter
-                                                               :value value
-                                                               :on-value-changed on-value-changed}}))}
-                         (cond->
-                           (assoc field :fx/type form-input-view
-                                        :value (if (= ::no-value field-value)
-                                                 (form/field-default field)
-                                                 field-value)
-                                        :on-value-changed {:event-type :2panel-value-set
-                                                           :index selected-index
-                                                           :value-path (:path field)
-                                                           :value value
-                                                           :set fn-setter
-                                                           :on-value-changed on-value-changed}
-                                        :state-path field-state-path
-                                        :resource-string-converter resource-string-converter)
-                           (not= ::no-value field-state)
-                           (assoc :state field-state))]}))))
-               (:sections panel-form))
-         [])}]}))
+                (contains? state :key)
+                (assoc :state (:key state)))
+
+        selected-item-fields
+        (when selected-index
+          {:fx/type fx.v-box/lifecycle
+           :spacing line-spacing
+           :children
+           (into []
+                 (comp
+                   (mapcat :fields)
+                   (map
+                     (fn [field]
+                       (let [field-path (into [selected-index] (:path field))
+                             field-value (get-in value field-path ::no-value)
+                             field-state-path (conj state-path :val selected-index (:path field))
+                             field-state (get-in state [:val selected-index (:path field)] ::no-value)]
+                         {:fx/type fx.stack-pane/lifecycle
+                          :alignment :center-left
+                          :children
+                          [{:fx/type fx.grid-pane/lifecycle
+                            :column-constraints [{:fx/type fx.column-constraints/lifecycle
+                                                  :hgrow :always}
+                                                 {:fx/type fx.column-constraints/lifecycle
+                                                  :hgrow :never
+                                                  :min-width line-height
+                                                  :max-width line-height}]
+                            :max-width indented-label-column-width
+                            :min-height line-height
+                            :hgap 4
+                            :translate-x (- -5.0 indented-label-column-width)
+                            :children (cond-> [{:fx/type fx.label/lifecycle
+                                                :grid-pane/column 0
+                                                :grid-pane/margin {:top 5}
+                                                :opacity 0.6
+                                                :text (:label field)}]
+                                              (and (form/optional-field? field)
+                                                   (not= field-value ::no-value))
+                                              (conj {:fx/type icon-button
+                                                     :grid-pane/column 1
+                                                     :image "icons/32/Icons_S_02_Reset.png"
+                                                     :on-action {:event-type :2panel-value-clear
+                                                                 :index selected-index
+                                                                 :value-path (:path field)
+                                                                 :set fn-setter
+                                                                 :value value
+                                                                 :on-value-changed on-value-changed}}))}
+                           (cond->
+                             (assoc field :fx/type form-input-view
+                                          :value (if (= ::no-value field-value)
+                                                   (form/field-default field)
+                                                   field-value)
+                                          :on-value-changed {:event-type :2panel-value-set
+                                                             :index selected-index
+                                                             :value-path (:path field)
+                                                             :value value
+                                                             :set fn-setter
+                                                             :on-value-changed on-value-changed}
+                                          :state-path field-state-path
+                                          :resource-string-converter resource-string-converter)
+                             (not= ::no-value field-state)
+                             (assoc :state field-state))]}))))
+                 (:sections
+                   (if-some [panel-form-fn (:panel-form-fn field)]
+                     (let [selected-item (get value selected-index ::no-value)]
+                       (when (not= ::no-value selected-item)
+                         (panel-form-fn selected-item)))
+                     (:panel-form field))))})]
+
+    {:fx/type fx.v-box/lifecycle
+     :spacing line-spacing
+     :children (if selected-item-fields
+                 [item-list selected-item-fields]
+                 [item-list])}))
 
 ;; endregion
 
@@ -1281,6 +1354,7 @@
                      :always
                      (conj {:fx/type fx.grid-pane/lifecycle
                             :style-class "cljfx-form-fields"
+                            :vgap line-spacing
                             :column-constraints [{:fx/type fx.column-constraints/lifecycle
                                                   :min-width 150
                                                   :max-width 150}
@@ -1290,7 +1364,7 @@
                                                  {:fx/type fx.column-constraints/lifecycle
                                                   :hgrow :always
                                                   :min-width 200
-                                                  :max-width large-max-width}]
+                                                  :max-width large-field-width}]
                             :children (first
                                         (reduce
                                           (fn [[acc row] field]
@@ -1553,52 +1627,57 @@
     (f event)
     (g/node-value view-id :form-view)))
 
+
+
 (defn- create-renderer [view-id parent workspace project]
   (let [resource-string-converter (make-resource-string-converter workspace)]
     (fx/create-renderer
       :error-handler error-reporting/report-exception!
-      :opts {:fx.opt/map-event-handler
-             (-> handle-event
-                 (fx/wrap-co-effects
-                   {:ui-state #(g/node-value view-id :ui-state)
-                    :form-data #(g/node-value view-id :form-data)
-                    :workspace (constantly workspace)
-                    :project (constantly project)
-                    :parent (constantly parent)})
-                 (fx/wrap-effects
-                   {:dispatch fx/dispatch-effect
-                    :set (fn [[path value] _]
-                           (let [ops (:form-ops (g/node-value view-id :form-data))]
-                             (form/set-value! ops path value)))
-                    :clear (fn [path _]
+      :opts (cond->
+              {:fx.opt/map-event-handler
+               (-> handle-event
+                   (fx/wrap-co-effects
+                     {:ui-state #(g/node-value view-id :ui-state)
+                      :form-data #(g/node-value view-id :form-data)
+                      :workspace (constantly workspace)
+                      :project (constantly project)
+                      :parent (constantly parent)})
+                   (fx/wrap-effects
+                     {:dispatch fx/dispatch-effect
+                      :set (fn [[path value] _]
                              (let [ops (:form-ops (g/node-value view-id :form-data))]
-                               (when (form/can-clear? ops)
-                                 (form/clear-value! ops path))))
-                    :set-ui-state (fn [ui-state _]
-                                    (g/set-property! view-id :ui-state ui-state))
-                    :cancel-edit (fn [x _]
-                                   (cond
-                                     (instance? Cell x)
-                                     (fx/run-later (.cancelEdit ^Cell x))
+                               (form/set-value! ops path value)))
+                      :clear (fn [path _]
+                               (let [ops (:form-ops (g/node-value view-id :form-data))]
+                                 (when (form/can-clear? ops)
+                                   (form/clear-value! ops path))))
+                      :set-ui-state (fn [ui-state _]
+                                      (g/set-property! view-id :ui-state ui-state))
+                      :cancel-edit (fn [x _]
+                                     (cond
+                                       (instance? Cell x)
+                                       (fx/run-later (.cancelEdit ^Cell x))
 
-                                     (instance? ListView x)
-                                     (.edit ^ListView x -1)))
-                    :open-resource (fn [[node value] _]
-                                     (ui/run-command node :open {:resources [value]}))
-                    :show-dialog (fn [dialog-type _]
-                                   (case dialog-type
-                                     :directory-not-in-project
-                                     (dialogs/make-info-dialog
-                                       {:title "Invalid Directory"
-                                        :icon :icon/triangle-error
-                                        :header "The directory must reside within the project."})
+                                       (instance? ListView x)
+                                       (.edit ^ListView x -1)))
+                      :open-resource (fn [[node value] _]
+                                       (ui/run-command node :open {:resources [value]}))
+                      :show-dialog (fn [dialog-type _]
+                                     (case dialog-type
+                                       :directory-not-in-project
+                                       (dialogs/make-info-dialog
+                                         {:title "Invalid Directory"
+                                          :icon :icon/triangle-error
+                                          :header "The directory must reside within the project."})
 
-                                     :file-not-in-project
-                                     (dialogs/make-info-dialog
-                                       {:title "Invalid File"
-                                        :icon :icon/triangle-error
-                                        :header "The file must reside within the project."})))})
-                 (wrap-force-refresh view-id))}
+                                       :file-not-in-project
+                                       (dialogs/make-info-dialog
+                                         {:title "Invalid File"
+                                          :icon :icon/triangle-error
+                                          :header "The file must reside within the project."})))})
+                   (wrap-force-refresh view-id))}
+              (system/defold-dev?)
+              (assoc :fx.opt/type->lifecycle (requiring-resolve 'cljfx.dev/type->lifecycle)))
 
       :middleware (comp
                     fxui/wrap-dedupe-desc

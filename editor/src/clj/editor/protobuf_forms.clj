@@ -16,8 +16,9 @@
   (:require [clojure.string :as str]
             [dynamo.graph :as g]
             [editor.protobuf :as protobuf]
-            [editor.util :as util])
-  (:import [com.dynamo.graphics.proto Graphics$PlatformProfile$OS Graphics$TextureFormatAlternative$CompressionLevel Graphics$TextureImage$CompressionType Graphics$TextureImage$TextureFormat Graphics$TextureProfiles]
+            [editor.util :as util]
+            [util.fn :as fn])
+  (:import [com.dynamo.graphics.proto Graphics$PlatformProfile Graphics$PlatformProfile$OS Graphics$TextureFormatAlternative$CompressionLevel Graphics$TextureImage$CompressionType Graphics$TextureImage$TextureFormat Graphics$TextureProfiles]
            [com.dynamo.input.proto Input$Gamepad Input$GamepadMaps Input$GamepadType Input$InputBinding Input$Key Input$Mouse Input$Text Input$Touch]))
 
 (set! *warn-on-reflection* true)
@@ -48,7 +49,12 @@
 
 (defn make-options [enum-values]
   (let [prefix-size (longest-prefix-size enum-values)]
-    (map (juxt first #(display-name-or-default % prefix-size)) enum-values)))
+    (mapv (juxt first #(display-name-or-default % prefix-size)) enum-values)))
+
+(defn- make-enum-options-raw [^Class pb-enum-class]
+  (make-options (protobuf/enum-values pb-enum-class)))
+
+(def make-enum-options (fn/memoize make-enum-options-raw))
 
 (defn- default-form-ops [node-id]
   {:form-ops {:user-data {:node-id node-id}
@@ -296,12 +302,12 @@
                                           {:path [:max-texture-size]
                                            :type :integer
                                            :label "Max texture size"
-                                           :default 0
+                                           :default (protobuf/default Graphics$PlatformProfile :max-texture-size)
                                            :optional true}
                                           {:path [:premultiply-alpha]
                                            :type :boolean
                                            :label "Premultiply alpha"
-                                           :default true
+                                           :default (protobuf/default Graphics$PlatformProfile :premultiply-alpha)
                                            :optional true}]}]}}]}]}}]}]}))
 
 (defn produce-form-data

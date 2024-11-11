@@ -275,6 +275,21 @@
             (dynamic edit-type (g/constantly {:type types/Vec2 :labels ["W" "H"]}))
             (dynamic read-only? (g/constantly true)))
 
+  (property pivot types/Vec2
+            (value (g/fnk [pivot-x pivot-y] [pivot-x pivot-y]))
+            (set (fn [_evaluation-context self old-value new-value]
+                   (concat
+                     (g/set-property self :pivot-x (new-value 0))
+                     (g/set-property self :pivot-y (new-value 1)))))
+            (dynamic edit-type (g/constantly {:type types/Vec2 :labels ["X" "Y"]})))
+
+  (property pivot-x g/Num
+            (default (protobuf/default AtlasProto$AtlasImage :pivot-x))
+            (dynamic visible (g/constantly false)))
+  (property pivot-y g/Num
+            (default (protobuf/default AtlasProto$AtlasImage :pivot-y))
+            (dynamic visible (g/constantly false)))
+
   (property sprite-trim-mode g/Keyword (default (protobuf/default AtlasProto$AtlasImage :sprite-trim-mode))
             (dynamic edit-type (g/constantly texture-set-gen/sprite-trim-mode-edit-type)))
 
@@ -310,9 +325,9 @@
 
   (input layout-size g/Any)
 
-  (output atlas-image Image (g/fnk [_node-id image-resource maybe-image-size sprite-trim-mode]
+  (output atlas-image Image (g/fnk [_node-id image-resource maybe-image-size pivot-x pivot-y sprite-trim-mode]
                               (with-meta
-                                (Image. image-resource nil (:width maybe-image-size) (:height maybe-image-size) sprite-trim-mode)
+                                (Image. image-resource nil (:width maybe-image-size) (:height maybe-image-size) pivot-x pivot-y sprite-trim-mode)
                                 {:error-node-id _node-id})))
   (output atlas-images [Image] (g/fnk [atlas-image] [atlas-image]))
   (output animation Animation (g/fnk [atlas-image id]
@@ -328,10 +343,12 @@
 
                                                                (resource/openable-resource? maybe-image-resource)
                                                                (assoc :link maybe-image-resource :outline-show-link? true)))))
-  (output ddf-message g/Any (g/fnk [maybe-image-resource order sprite-trim-mode]
+  (output ddf-message g/Any (g/fnk [maybe-image-resource order sprite-trim-mode pivot-x pivot-y]
                               (-> (protobuf/make-map-without-defaults AtlasProto$AtlasImage
                                     :image (resource/resource->proj-path maybe-image-resource)
-                                    :sprite-trim-mode sprite-trim-mode)
+                                    :sprite-trim-mode sprite-trim-mode
+                                    :pivot-x pivot-x
+                                    :pivot-y pivot-y)
                                   (assoc :order order))))
   (output scene g/Any produce-image-scene)
   (output build-errors g/Any (g/fnk [_node-id id id-counts maybe-image-resource]
@@ -887,7 +904,9 @@
         [atlas-image AtlasImage]
         (gu/set-properties-from-pb-map atlas-image AtlasProto$AtlasImage image-msg
           image :image
-          sprite-trim-mode :sprite-trim-mode)
+          sprite-trim-mode :sprite-trim-mode
+          pivot-x :pivot-x
+          pivot-y :pivot-y)
         (attach-fn parent atlas-image)))))
 
 (def ^:private make-image-nodes-in-atlas (partial make-image-nodes attach-image-to-atlas))

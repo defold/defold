@@ -33,6 +33,7 @@ ordinary paths."
             [editor.url :as url]
             [editor.util :as util]
             [internal.cache :as c]
+            [internal.java :as java]
             [internal.util :as iutil]
             [schema.core :as s]
             [service.log :as log]
@@ -50,15 +51,12 @@ ordinary paths."
 
 (set! *warn-on-reflection* true)
 
-;; Class loader used when loading editor extensions from libraries.
-;; It's important to use the same class loader, so the type signatures match.
-(def ^DynamicClassLoader class-loader (DynamicClassLoader. (.getContextClassLoader (Thread/currentThread))))
-
-(defn load-class! [class-name]
-  (Class/forName class-name true class-loader))
-
 (def build-dir "/build/default/")
+(def build-html5-dir "/build/default_html5/")
 (def plugins-dir "/build/plugins/")
+
+;; SDK api
+(def load-class! java/load-class!)
 
 (defn project-path
   (^File [workspace]
@@ -89,6 +87,10 @@ ordinary paths."
    (io/file (project-path workspace) (skip-first-char build-dir)))
   (^File [workspace build-resource-path]
    (io/file (build-path workspace) (skip-first-char build-resource-path))))
+
+(defn build-html5-path
+  (^File [workspace]
+   (io/file (project-path workspace) (skip-first-char build-html5-dir))))
 
 (defn plugin-path
   (^File [workspace]
@@ -613,7 +615,7 @@ ordinary paths."
     (System/setProperty propertyname newvalue)))
 
 (defn- register-jar-file! [jar-file]
-  (.addURL ^DynamicClassLoader class-loader (io/as-url jar-file)))
+  (.addURL ^DynamicClassLoader java/class-loader (io/as-url jar-file)))
 
 (defn- native-library-parent-dir-allowed? [parent-dir-name]
     (->> (Platform/getHostPlatform)
@@ -887,7 +889,7 @@ ordinary paths."
 
 (defn make-build-settings
   [prefs]
-  {:compress-textures? (prefs/get-prefs prefs "general-enable-texture-compression" false)})
+  {:compress-textures? (prefs/get prefs [:build :texture-compression])})
 
 (defn update-build-settings!
   [workspace prefs]

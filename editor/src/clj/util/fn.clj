@@ -23,8 +23,8 @@
 (set! *unchecked-math* :warn-on-boxed)
 
 (defonce constantly-false (constantly false))
-
 (defonce constantly-true (constantly true))
+(defonce constantly-nil (constantly nil))
 
 (definline ^:private with-memoize-info [memoized-fn cache arity]
   `(with-meta ~memoized-fn
@@ -169,13 +169,13 @@
                  (into {} key-value-pairs))]
     (fn key->value [key]
       (let [value (lookup key ::not-found)]
-        (if (not= ::not-found value)
-          value
+        (if (identical? ::not-found value)
           (throw (IllegalArgumentException.
                    (str "No matching clause: " key)
                    (ex-info "Key not found in lookup."
                             {:key key
-                             :valid-keys (keys lookup)}))))))))
+                             :valid-keys (keys lookup)})))
+          value)))))
 
 (deftype PartialFn [pfn fn args]
   Fn

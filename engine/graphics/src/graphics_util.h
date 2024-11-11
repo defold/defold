@@ -18,6 +18,8 @@
 #include <dlib/endian.h>
 #include <dmsdk/dlib/vmath.h>
 
+#include "graphics.h"
+
 namespace dmGraphics
 {
     inline uint32_t PackRGBA(const dmVMath::Vector4& in_color)

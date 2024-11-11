@@ -1,6 +1,15 @@
+// Installed during "install_ext"
+
+var Module = null
+
 if (typeof window === 'undefined') {
 	// TODO: Remove global variables. Use the "module" pattern in js?
 	console.log("node.js detected")
+
+	Module = {
+	  'print': console.log.bind(console),
+	  'printErr': console.error.bind(console)
+	};
 
 	var node_fs = require('fs')
 	var _created_files = {}

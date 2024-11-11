@@ -84,7 +84,7 @@ namespace dmGameSystem
         return dmResource::RESULT_OK;
     }
 
-    static void SetProgram(ComputeResource* resource, dmRenderDDF::ComputeDesc* ddf, ComputeProgramResources* resources)
+    static void SetProgram(const char* path, ComputeResource* resource, dmRenderDDF::ComputeDesc* ddf, ComputeProgramResources* resources)
     {
         //////////////////////////////
         // Set program constants
@@ -97,8 +97,16 @@ namespace dmGameSystem
             const char* name   = constants[i].m_Name;
             dmhash_t name_hash = dmHashString64(name);
 
-            dmRender::SetComputeProgramConstantType(resource->m_Program, name_hash, constants[i].m_Type);
-            dmRender::SetComputeProgramConstant(resource->m_Program, name_hash, (dmVMath::Vector4*) constants[i].m_Value.m_Data, constants[i].m_Value.m_Count);
+            dmRender::HConstant constant;
+            if (dmRender::GetComputeProgramConstant(resource->m_Program, name_hash, constant))
+            {
+                dmRender::SetComputeProgramConstantType(resource->m_Program, name_hash, constants[i].m_Type);
+                dmRender::SetComputeProgramConstant(resource->m_Program, name_hash, (dmVMath::Vector4*) constants[i].m_Value.m_Data, constants[i].m_Value.m_Count);
+            }
+            else
+            {
+                dmLogWarning("Compute %s has specified a constant named '%s', but it does not exist or isn't used in the shader.", path, name);
+            }
         }
 
         //////////////////////////////
@@ -120,6 +128,7 @@ namespace dmGameSystem
             dmGraphics::TextureFilter magfilter = dmRender::FilterMagFromDDF(sampler[i].m_FilterMag);
             float anisotropy                    = sampler[i].m_MaxAnisotropy;
 
+            uint32_t sampler_unit_before = sampler_unit;
             if (dmRender::SetComputeProgramSampler(resource->m_Program, base_name_hash, sampler_unit, uwrap, vwrap, minfilter, magfilter, anisotropy))
             {
                 sampler_unit++;
@@ -131,6 +140,11 @@ namespace dmGameSystem
                 {
                     sampler_unit++;
                 }
+            }
+
+            if (sampler_unit_before == sampler_unit)
+            {
+                dmLogWarning("Compute %s has specified a sampler named '%s', but it does not exist or isn't used in the shader.", path, sampler[i].m_Name);
             }
         }
 
@@ -189,7 +203,7 @@ namespace dmGameSystem
 
             ComputeResource* resource = new ComputeResource();
             resource->m_Program       = compute_program;
-            SetProgram(resource, ddf, &resources);
+            SetProgram(params->m_Filename, resource, ddf, &resources);
 
             ResourceDescriptorSetResource(params->m_Resource, resource);
         }
@@ -235,7 +249,7 @@ namespace dmGameSystem
             dmResource::Release(params->m_Factory, (void*) program);
 
             // Set up resources
-            SetProgram(resource, ddf, &resources);
+            SetProgram(params->m_Filename, resource, ddf, &resources);
         }
         dmDDF::FreeMessage(ddf);
         return r;

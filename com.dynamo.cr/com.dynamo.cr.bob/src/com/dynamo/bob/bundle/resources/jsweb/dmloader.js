@@ -257,7 +257,7 @@ var EngineLoader = {
             function(error) { throw error; },
             function(wasm) {
                 if (wasm.byteLength != EngineLoader.wasm_size) {
-                   console.warn("Unexpected wasm size:: " + wasm.byteLength + ", expected: " + EngineLoader.wasm_size);
+                   console.warn("Unexpected wasm size: " + wasm.byteLength + ", expected: " + EngineLoader.wasm_size);
                 }
                 var wasmInstantiate = WebAssembly.instantiate(new Uint8Array(wasm), imports).then(function(output) {
                     successCallback(output.instance);
@@ -429,7 +429,9 @@ var GameArchiveLoader = {
         this.addListener(this._onFileLoadedListeners, callback);
     },
     notifyFileLoaded: function(file) {
-        this.notifyListeners(this._onFileLoadedListeners, { name: file.name, data: file.data });
+        if (file.data) {
+            this.notifyListeners(this._onFileLoadedListeners, { name: file.name, data: file.data });
+        }
     },
 
     addArchiveLoadedListener: function(callback) {
@@ -470,7 +472,11 @@ var GameArchiveLoader = {
             EngineLoader.loadAsmJsAsync(exeName);
             totalSize += EngineLoader.asmjs_size;
         }
-        this.downloadContent();
+        if (!Module['isDMFSSupported']) {
+            // we can download in parallel here because we will not rely on FS, otherwise
+            // we have to wait until after the [w]asm is loaded.
+            this.downloadContent();
+        }
         ProgressUpdater.resetCurrent();
         if (isWASMSupported) {
             EngineLoader.updateWasmInstantiateProgress(totalSize);
@@ -480,16 +486,27 @@ var GameArchiveLoader = {
 
     downloadContent: function() {
         var file = this._files[this._fileIndex];
-        // if the file consists of more than one piece we prepare an array to store the pieces in
-        if (file.pieces.length > 1) {
-            file.data = new Uint8Array(file.size);
+
+        if (Module['isDMFSSupported']) {
+            const path = `${DMSYS.GetUserPersistentDataRoot()}/${file.name}`;
+            try { // see if already and stored
+                const stat = FS.stat(path);
+                if(stat) {
+                    if (file.size == stat.size) { // should we verify hash too?
+                        this.onFileLoaded(file);
+                        return;
+                    }
+                }
+            } catch(_e) { }
+            file.stream = FS.open(path, "w");
         }
+
         // how many pieces to download at a time
         var limit = file.pieces.length;
         if (typeof this.MAX_CONCURRENT_XHR !== 'undefined') {
             limit = Math.min(limit, this.MAX_CONCURRENT_XHR);
         }
-        // download pieces
+
         for (var i=0; i<limit; ++i) {
             this.downloadPiece(file, i);
         }
@@ -532,9 +549,14 @@ var GameArchiveLoader = {
     },
 
     addPieceToFile: function(file, piece) {
-        if (1 == file.pieces.length) {
+        if (file.stream !== undefined) {
+            FS.write(file.stream, piece.data, 0, piece.data.length, piece.offset);
+        } else if (1 == file.pieces.length) {
             file.data = piece.data;
         } else {
+            if(!file.data) {
+               file.data = new Uint8Array(file.size);
+            }
             var start = piece.offset;
             var end = start + piece.data.length;
             if (0 > start) {
@@ -553,6 +575,11 @@ var GameArchiveLoader = {
         ++file.totalLoadedPieces;
         // is all pieces of the file loaded?
         if (file.totalLoadedPieces == file.pieces.length) {
+            if (file.stream !== undefined) {
+                FS.close(file.stream);
+                file.stream = undefined;
+            }
+            this.verifyFile(file);
             this.onFileLoaded(file);
         }
         // continue loading more pieces of the file
@@ -600,7 +627,6 @@ var GameArchiveLoader = {
     },
 
     onFileLoaded: function(file) {
-        this.verifyFile(file);
         this.notifyFileLoaded(file);
         ++this._fileIndex;
         if (this._fileIndex == this._files.length) {
@@ -753,6 +779,13 @@ var Module = {
 
     setStatus: function(text) { console.log(text); },
 
+    isDMFSSupported: (function() {
+        // DMFS is meant as a mount for FS to provide another way to acess resources, by default we just use IDBFS
+        if(typeof DMFS === "undefined")
+            return false;
+        return true;
+    })(),
+
     isWASMSupported: (function() {
         try {
             if (typeof WebAssembly === "object" && typeof WebAssembly.instantiate === "function") {
@@ -801,25 +834,11 @@ var Module = {
         return { stack:stack, message:message };
     },
 
-    hasWebGPUSupport: function() {
-        var webgpu_support = false;
-        try {
-            var canvas = document.createElement("canvas");
-            var webgpu = canvas.getContext("webgpu");
-            if (webgpu && webgpu instanceof WebGPURenderingContext) {
-                webgpu_support = true;
-            }
-        } catch (error) {
-            console.log("An error occurred while detecting WebGPU support: " + error);
-            webgpu_support = false;
-        }
-
-        return webgpu_support;
-    },
-
     hasWebGLSupport: function() {
         var webgl_support = false;
         try {
+            // create canvas to simply check is rendering context supported
+            // real render context created by glfw
             var canvas = document.createElement("canvas");
             var gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
             if (gl && gl instanceof WebGLRenderingContext) {
@@ -847,14 +866,7 @@ var Module = {
         Module._isEngineLoaded = true;
         Module.setupCanvas(appCanvasId);
 
-        Module.arguments = [];
-        for(let arg of CUSTOM_PARAMETERS["engine_arguments"])
-            Module.arguments.push(arg);
-        if(window.location.search) {
-            const params = new URLSearchParams(window.location.search);
-            for (const [key, value] of params)
-                Module.arguments.push(`--${key}=${value}`);
-        }
+        Module.arguments = CUSTOM_PARAMETERS["engine_arguments"];
 
         var fullScreenContainer = CUSTOM_PARAMETERS["full_screen_container"];
         if (typeof fullScreenContainer === "string") {
@@ -862,7 +874,7 @@ var Module = {
         }
         Module.fullScreenContainer = fullScreenContainer || Module.canvas;
 
-        if (Module.hasWebGLSupport() || Module.hasWebGPUSupport()) {
+        if (Module.hasWebGLSupport()) {
             Module.canvas.focus();
 
             // Add context menu hide-handler if requested
@@ -971,18 +983,25 @@ var Module = {
             return;
         }
 
-        // If IndexedDB is supported we mount the persistent data root as IDBFS,
-        // then try to do a IDB->MEM sync before we start the engine to get
-        // previously saved data before boot.
         try {
-            FS.mount(IDBFS, {}, dir);
+            if (Module['isDMFSSupported']) {
+                // In DMFS mode we will use that as our mountpoint and make sure that all
+                // relative paths point into there.
+                FS.mount(new DMFS(CUSTOM_PARAMETERS['exe_name']), {}, dir);
+                FS.chdir(dir);
+            } else {
+                // If IndexedDB is supported we mount the persistent data root as IDBFS,
+                // then try to do a IDB->MEM sync before we start the engine to get
+                // previously saved data before boot.
+                FS.mount(IDBFS, {}, dir);
+            }
             // Patch FS.close so it will try to sync MEM->IDB
             var _close = FS.close;
             FS.close = function(stream) {
                 var r = _close(stream);
                 Module.persistentSync();
                 return r;
-            }
+            };
         }
         catch (error) {
             Module.persistentStorage = false;
@@ -1006,6 +1025,9 @@ var Module = {
     postRun: [function() {
         if(Module._archiveLoaded) {
             ProgressView.removeProgress();
+        } else if (Module['isDMFSSupported']) {
+            // kick off the content download now that we have FS access
+            GameArchiveLoader.downloadContent();
         }
     }],
 
@@ -1024,7 +1046,7 @@ var Module = {
         }
     },
 
-    _callMain: function(argc, argv) {
+    _callMain: function(_, _) {
         ProgressView.removeProgress();
         if (Module.callMain === undefined) {
             Module.noInitialRun = false;

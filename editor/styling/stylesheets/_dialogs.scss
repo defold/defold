@@ -6,7 +6,7 @@ $spacing-largest: 40px;
 
 @use "sass:string";
 @mixin font-size-default { -fx-font-size: 110%; }
-@mixin font-size-header { -fx-font-size: 170%; }
+@mixin font-size-header { -fx-font-size: 22px; }
 @mixin font-default { -fx-font-family: $default-font; }
 @mixin font-light { -fx-font-family: $default-font-light; }
 @mixin text-fill-text-color { -fx-text-fill: -df-text; }
