@@ -120,8 +120,9 @@ namespace dmRender
 
     struct RenderConstant
     {
-        HConstant           m_Constant;
-        dmhash_t            m_ElementIds[4];
+        HConstant  m_Constant;
+        dmhash_t   m_ElementIdsName[4];
+        dmhash_t   m_ElementIdsCanonicalName[4];
     };
 
     struct RenderContextParams

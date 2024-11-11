@@ -1014,15 +1014,22 @@ namespace dmGraphics
 
     // This function will be called recursively to visit all the nested types of a uniform buffer,
     // so that we can create leaf uniforms for all leaf data members.
-    void BuildUniformsForUniformBuffer(const ProgramResourceBinding* resource, dmArray<Uniform>& uniforms, const dmArray<ShaderResourceTypeInfo>& type_infos, ShaderResourceType type, dmArray<char>* canonical_name_buffer, uint32_t canonical_name_buffer_offset, uint32_t base_offset)
+    static void BuildUniformsForUniformBuffer(const ProgramResourceBinding* resource, dmArray<Uniform>& uniforms, const dmArray<ShaderResourceTypeInfo>& type_infos, ShaderResourceType type, dmArray<char>* canonical_name_buffer, uint32_t canonical_name_buffer_offset, uint32_t base_offset = 0)
     {
         const ShaderResourceTypeInfo& type_info = type_infos[type.m_TypeIndex];
         const uint32_t num_members = type_info.m_Members.Size();
         for (int i = 0; i < num_members; ++i)
         {
             const ShaderResourceMember& member = type_info.m_Members[i];
-            uint32_t name_length = strlen(member.m_Name);
-            uint32_t bytes_to_write = name_length + 2; // 1 for the '.' and 1 for the null-terminator
+
+            uint32_t name_length    = strlen(member.m_Name);
+            uint32_t bytes_to_write = name_length + 1; // +1 for null-terminator
+            bool add_prefixed_dot   = canonical_name_buffer_offset > 0;
+
+            if (add_prefixed_dot)
+            {
+                bytes_to_write++; // 1 for the prefix '.'
+            }
 
             if (canonical_name_buffer->Capacity() <= canonical_name_buffer_offset + bytes_to_write)
             {
@@ -1032,15 +1039,19 @@ namespace dmGraphics
 
             char* name_write_start = canonical_name_buffer->Begin() + canonical_name_buffer_offset;
 
-            name_write_start[0] = '.';
-            name_write_start++;
+            if (add_prefixed_dot)
+            {
+                name_write_start[0] = '.';
+                name_write_start++;
+            }
 
             memcpy(name_write_start, member.m_Name, name_length);
             name_write_start[name_length] = 0;
 
             if (member.m_Type.m_UseTypeIndex)
             {
-                BuildUniformsForUniformBuffer(resource, uniforms, type_infos, member.m_Type, canonical_name_buffer, canonical_name_buffer_offset + name_length + 1, member.m_Offset + base_offset);
+                uint32_t sub_name_offset = canonical_name_buffer_offset + name_length + (int) add_prefixed_dot;
+                BuildUniformsForUniformBuffer(resource, uniforms, type_infos, member.m_Type, canonical_name_buffer, sub_name_offset, member.m_Offset + base_offset);
             }
             else
             {
@@ -1103,8 +1114,19 @@ namespace dmGraphics
                     canonical_name_buffer.OffsetCapacity(64);
                     canonical_name_buffer.SetSize(canonical_name_buffer.Capacity());
                 }
-                uint32_t name_length = strlen(next->m_Res->m_Name);
-                memcpy(canonical_name_buffer.Begin(), next->m_Res->m_Name, name_length + 1);
+
+                uint32_t name_length = 0;
+
+                // Legacy:
+                // We skip over the constructed uniform name here, so it is not part of the canonical name.
+                // The old shader pipeline can make up uniform buffers that are prefixed with this constant,
+                // but since the name is hidden we don't want to include the base here for that part.
+                if (strcmp("_DMENGINE_GENERATED_UB_", next->m_Res->m_Name) != 0)
+                {
+                    uint32_t name_length = strlen(next->m_Res->m_Name);
+                    memcpy(canonical_name_buffer.Begin(), next->m_Res->m_Name, name_length + 1);
+                }
+
                 BuildUniformsForUniformBuffer(next, program->m_Uniforms, *next->m_TypeInfos, next->m_Res->m_Type, &canonical_name_buffer, name_length);
             }
         }
