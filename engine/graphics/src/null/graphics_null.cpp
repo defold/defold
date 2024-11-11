@@ -1138,17 +1138,6 @@ namespace dmGraphics
         *element_count              = GetShaderTypeSize(attr.m_Type.m_ShaderType) / sizeof(float);
     }
 
-    static uint32_t NullGetUniformCount(HProgram prog)
-    {
-        return ((NullProgram*)prog)->m_BaseProgram.m_Uniforms.Size();
-    }
-
-    static void NullGetUniform(HProgram prog, uint32_t index, Uniform* uniform_desc)
-    {
-        NullProgram* program = (NullProgram*)prog;
-        *uniform_desc = program->m_BaseProgram.m_Uniforms[index];
-    }
-
     const Uniform* GetUniform(HProgram prog, dmhash_t name_hash)
     {
         NullProgram* program = (NullProgram*)prog;

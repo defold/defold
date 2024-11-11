@@ -102,8 +102,6 @@ namespace dmGraphics
     typedef bool (*ReloadProgramComputeFn)(HContext context, HProgram program, HComputeProgram compute_program);
     typedef uint32_t (*GetAttributeCountFn)(HProgram prog);
     typedef void (*GetAttributeFn)(HProgram prog, uint32_t index, dmhash_t* name_hash, Type* type, uint32_t* element_count, uint32_t* num_values, int32_t* location);
-    typedef uint32_t (*GetUniformCountFn)(HProgram prog);
-    typedef void (*GetUniformFn)(HProgram prog, uint32_t index, Uniform* uniform_desc);
 
     typedef void (*SetConstantV4Fn)(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);
     typedef void (*SetConstantM4Fn)(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);
@@ -215,8 +213,6 @@ namespace dmGraphics
         ReloadProgramGraphicsFn m_ReloadProgramGraphics;
         GetAttributeCountFn m_GetAttributeCount;
         GetAttributeFn m_GetAttribute;
-        GetUniformCountFn m_GetUniformCount;
-        GetUniformFn m_GetUniform;
         SetConstantV4Fn m_SetConstantV4;
         SetConstantM4Fn m_SetConstantM4;
         SetSamplerFn m_SetSampler;
@@ -335,8 +331,6 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, ReloadComputeProgram); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetAttributeCount); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetAttribute); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetUniformCount); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetUniform); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetConstantV4); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetConstantM4); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, SetSampler); \

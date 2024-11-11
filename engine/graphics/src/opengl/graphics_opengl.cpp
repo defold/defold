@@ -2761,18 +2761,6 @@ static void LogFrameBufferError(GLenum status)
         *element_count              = GetElementCount(attr.m_Type);
     }
 
-    static uint32_t OpenGLGetUniformCount(HProgram prog)
-    {
-        OpenGLProgram* program_ptr = (OpenGLProgram*) prog;
-        return program_ptr->m_BaseProgram.m_Uniforms.Size();
-    }
-
-    static void OpenGLGetUniform(HProgram prog, uint32_t index, Uniform* uniform_desc)
-    {
-        OpenGLProgram* program_ptr = (OpenGLProgram*) prog;
-        *uniform_desc = program_ptr->m_BaseProgram.m_Uniforms[index];
-    }
-
     static void OpenGLSetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
     {
         assert(context);

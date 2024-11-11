@@ -1012,6 +1012,8 @@ namespace dmGraphics
         return count;
     }
 
+    // This function will be called recursively to visit all the nested types of a uniform buffer,
+    // so that we can create leaf uniforms for all leaf data members.
     void BuildUniformsForUniformBuffer(const ProgramResourceBinding* resource, dmArray<Uniform>& uniforms, const dmArray<ShaderResourceTypeInfo>& type_infos, ShaderResourceType type, dmArray<char>* canonical_name_buffer, uint32_t canonical_name_buffer_offset, uint32_t base_offset)
     {
         const ShaderResourceTypeInfo& type_info = type_infos[type.m_TypeIndex];
@@ -1193,7 +1195,22 @@ namespace dmGraphics
     {
         dmPlatform::SetSwapInterval(g_functions.m_GetWindow(context), swap_interval);
     }
+
     ///////////////////////////////////////////////////
+    //////// BASE ADAPTER SPECIFIC FUNCTIONS //////////
+    uint32_t GetUniformCount(HProgram prog)
+    {
+        Program* p = (Program*) prog;
+        return p->m_Uniforms.Size();
+    }
+    void GetUniform(HProgram prog, uint32_t index, Uniform* uniform_desc)
+    {
+        Program* p = (Program*) prog;
+        *uniform_desc = p->m_Uniforms[index];
+    }
+
+    ///////////////////////////////////////////////////
+    ////////// ADAPTER SPECIFIC FUNCTIONS /////////////
     void CloseWindow(HContext context)
     {
         g_functions.m_CloseWindow(context);
@@ -1394,14 +1411,6 @@ namespace dmGraphics
     void GetAttribute(HProgram prog, uint32_t index, dmhash_t* name_hash, Type* type, uint32_t* element_count, uint32_t* num_values, int32_t* location)
     {
         return g_functions.m_GetAttribute(prog, index, name_hash, type, element_count, num_values, location);
-    }
-    uint32_t GetUniformCount(HProgram prog)
-    {
-        return g_functions.m_GetUniformCount(prog);
-    }
-    void GetUniform(HProgram prog, uint32_t index, Uniform* uniform_desc)
-    {
-        return g_functions.m_GetUniform(prog, index, uniform_desc);
     }
     void SetConstantV4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location)
     {

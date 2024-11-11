@@ -2897,19 +2897,6 @@ bail:
         *element_count = GetShaderTypeSize(attr.m_Type.m_ShaderType) / sizeof(float);
     }
 
-    static uint32_t VulkanGetUniformCount(HProgram prog)
-    {
-        assert(prog);
-        VulkanProgram* program = (VulkanProgram*) prog;
-        return program->m_BaseProgram.m_Uniforms.Size();
-    }
-
-    static void VulkanGetUniform(HProgram prog, uint32_t index, Uniform* uniform_desc)
-    {
-        VulkanProgram* program = (VulkanProgram*) prog;
-        *uniform_desc = program->m_BaseProgram.m_Uniforms[index];
-    }
-
     static inline void WriteConstantData(uint32_t offset, uint8_t* uniform_data_ptr, uint8_t* data_ptr, uint32_t data_size)
     {
         memcpy(&uniform_data_ptr[offset], data_ptr, data_size);
@@ -2931,7 +2918,7 @@ bail:
         const dmArray<ShaderResourceTypeInfo>& type_infos = *pgm_res.m_TypeInfos;
         const ShaderResourceTypeInfo&           type_info = type_infos[pgm_res.m_Res->m_Type.m_TypeIndex];
 
-        uint32_t offset = pgm_res.m_DataOffset + buffer_offset; //type_info.m_Members[member].m_Offset;
+        uint32_t offset = pgm_res.m_DataOffset + buffer_offset;
         WriteConstantData(offset, program_ptr->m_UniformData, (uint8_t*) data, sizeof(dmVMath::Vector4) * count);
     }
 
