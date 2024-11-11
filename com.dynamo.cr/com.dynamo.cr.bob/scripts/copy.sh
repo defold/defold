@@ -70,14 +70,14 @@ cp -v $DYNAMO_HOME/archive/${SHA1}/engine/share/java/texturecompiler.jar lib/tex
 
 # TEXC Shared
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-linux/libtexc_shared.so lib/x86_64-linux/libtexc_shared.so
-cp -v $DYNAMO_HOME/archive/${SHA1}/engine/arm64-linux/libtexc_shared.so lib/arm64-linux/libtexc_shared.so
+#cp -v $DYNAMO_HOME/archive/${SHA1}/engine/arm64-linux/libtexc_shared.so lib/arm64-linux/libtexc_shared.so
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-win32/texc_shared.dll lib/x86_64-win32/texc_shared.dll
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-macos/libtexc_shared.dylib lib/x86_64-macos/libtexc_shared.dylib
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/arm64-macos/libtexc_shared.dylib lib/arm64-macos/libtexc_shared.dylib
 
 # MODELC Shared
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-linux/libmodelc_shared.so lib/x86_64-linux/libmodelc_shared.so
-cp -v $DYNAMO_HOME/archive/${SHA1}/engine/arm64-linux/libmodelc_shared.so lib/arm64-linux/libmodelc_shared.so
+#cp -v $DYNAMO_HOME/archive/${SHA1}/engine/arm64-linux/libmodelc_shared.so lib/arm64-linux/libmodelc_shared.so
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-win32/modelc_shared.dll lib/x86_64-win32/modelc_shared.dll
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-macos/libmodelc_shared.dylib lib/x86_64-macos/libmodelc_shared.dylib
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/arm64-macos/libmodelc_shared.dylib lib/arm64-macos/libmodelc_shared.dylib
