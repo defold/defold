@@ -31,6 +31,7 @@ import java.util.stream.Stream;
 import com.defold.editor.Editor;
 import com.dynamo.bob.util.FileUtil;
 
+import com.dynamo.graphics.proto.Graphics;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.apache.commons.io.FileUtils;
@@ -104,17 +105,17 @@ public class ResourceUnpacker {
                 if (alreadyUnpacked) {
                     logger.info("Already unpacked for the editor version {}", sha1);
                 } else {
-                    unpackResourceFile("lib/builtins.zip", unpackPath.resolve("builtins"));
+                    unpackResourceFile("lib/builtins.zip", unpackPath.resolve("builtins"), false, true);
                     unpackResourceDir("/_unpack", unpackPath);
                     unpackResourceFile("libexec/" + platform.getPair() + "/libogg" + platform.getLibSuffix(), unpackPath);
                     unpackResourceFile("libexec/" + platform.getPair() + "/liboggz" + platform.getLibSuffix(), unpackPath);
-                    unpackResourceFile("libexec/" + platform.getPair() + "/oggz-validate" + platform.getExeSuffixes()[0], unpackPath, true);
+                    unpackResourceFile("libexec/" + platform.getPair() + "/oggz-validate" + platform.getExeSuffixes()[0], unpackPath, true, false);
 
-                    if (platform.getOs().equals("win32")) {
-                        unpackResourceFile("libexec/" + platform.getPair() + "/dmengine.exe", unpackPath.resolve("bin"));
-                        unpackResourceFile("libexec/" + platform.getPair() + "/luajit-64.exe", unpackPath.resolve("bin"));
-                        unpackResourceFile("lib/" + platform.getPair() + "/wrap_oal.dll", unpackPath.resolve("bin"));
-                        unpackResourceFile("lib/" + platform.getPair() + "/OpenAL32.dll", unpackPath.resolve("bin"));
+                    if (Platform.matchPlatformAgainstOS(platform.getPair(), Graphics.PlatformProfile.OS.OS_ID_WINDOWS)) {
+                        unpackResourceFile("libexec/" + platform.getPair() + "/dmengine.exe", unpackPath.resolve("bin"), true, true);
+                        unpackResourceFile("libexec/" + platform.getPair() + "/luajit-64.exe", unpackPath.resolve("bin"), true, true);
+                        unpackResourceFile("lib/" + platform.getPair() + "/wrap_oal.dll", unpackPath.resolve("bin"), false, true);
+                        unpackResourceFile("lib/" + platform.getPair() + "/OpenAL32.dll", unpackPath.resolve("bin"), false, true);
                     }
 
                     Path binDir = unpackPath.resolve(platform.getPair() + "/bin").toAbsolutePath();
@@ -153,10 +154,10 @@ public class ResourceUnpacker {
     }
 
     private static void unpackResourceFile(String resourceFileName, Path target) throws IOException {
-        unpackResourceFile(resourceFileName, target, false);
+        unpackResourceFile(resourceFileName, target, false, false);
     }
 
-    private static void unpackResourceFile(String resourceFileName, Path target, boolean executable) throws IOException {
+    private static void unpackResourceFile(String resourceFileName, Path target, boolean executable, boolean ignoreInputFilePath) throws IOException {
         ClassLoader classLoader = ResourceUnpacker.class.getClassLoader();
 
         try (InputStream inputStream = classLoader.getResourceAsStream(resourceFileName)) {
@@ -166,6 +167,9 @@ public class ResourceUnpacker {
             }
 
             Path outputPath = target.resolve(resourceFileName);
+            if (ignoreInputFilePath) {
+                outputPath =  target.resolve(outputPath.getFileName());
+            }
             File outputFile = outputPath.toFile();
 
             try {
