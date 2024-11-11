@@ -3006,7 +3006,7 @@ bail:
         const dmArray<ShaderResourceTypeInfo>& type_infos = *pgm_res.m_TypeInfos;
         const ShaderResourceTypeInfo& type_info           = type_infos[pgm_res.m_Res->m_Type.m_TypeIndex];
 
-        uint32_t offset = pgm_res.m_DataOffset + buffer_offset; // type_info.m_Members[member].m_Offset;
+        uint32_t offset = pgm_res.m_DataOffset + buffer_offset;
         WriteConstantData(offset, program_ptr->m_UniformData, (uint8_t*) data, sizeof(dmVMath::Vector4) * 4 * count);
     }
 

@@ -2511,20 +2511,17 @@ static void WebGPUSetConstantV4(HContext _context, const Vector4* data, int coun
     assert(context->m_CurrentProgram);
     assert(base_location != INVALID_UNIFORM_LOCATION);
 
-    const uint32_t set     = UNIFORM_LOCATION_GET_VS(base_location);
-    const uint32_t binding = UNIFORM_LOCATION_GET_VS_MEMBER(base_location);
-    const uint32_t member  = UNIFORM_LOCATION_GET_FS(base_location);
+    const uint32_t set           = UNIFORM_LOCATION_GET_VS(base_location);
+    const uint32_t binding       = UNIFORM_LOCATION_GET_VS_MEMBER(base_location);
+    const uint32_t buffer_offset = UNIFORM_LOCATION_GET_FS(base_location);
     assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
 
-    const ProgramResourceBinding& pgm_res   = context->m_CurrentProgram->m_ResourceBindings[set][binding];
-    const ShaderResourceTypeInfo& type_info = (*pgm_res.m_TypeInfos)[pgm_res.m_Res->m_Type.m_TypeIndex];
-    if (memcpy(context->m_CurrentProgram->m_UniformData + pgm_res.m_DataOffset + type_info.m_Members[member].m_Offset,
-               (uint8_t*)data,
-               sizeof(dmVMath::Vector4) * count))
+    const ProgramResourceBinding& pgm_res = context->m_CurrentProgram->m_ResourceBindings[set][binding];
+    uint8_t* write_ptr = context->m_CurrentProgram->m_UniformData + pgm_res.m_DataOffset + buffer_offset;
+
+    if (memcpy(write_ptr, (uint8_t*) data, sizeof(dmVMath::Vector4) * count))
     {
-        memcpy(context->m_CurrentProgram->m_UniformData + pgm_res.m_DataOffset + type_info.m_Members[member].m_Offset,
-               (uint8_t*)data,
-               sizeof(dmVMath::Vector4) * count);
+        memcpy(write_ptr, (uint8_t*)data, sizeof(dmVMath::Vector4) * count);
         context->m_CurrentProgram->m_BindGroups[set] = NULL;
     }
 }
@@ -2537,20 +2534,17 @@ static void WebGPUSetConstantM4(HContext _context, const Vector4* data, int coun
     assert(context->m_CurrentProgram);
     assert(base_location != INVALID_UNIFORM_LOCATION);
 
-    const uint32_t set     = UNIFORM_LOCATION_GET_VS(base_location);
-    const uint32_t binding = UNIFORM_LOCATION_GET_VS_MEMBER(base_location);
-    const uint32_t member  = UNIFORM_LOCATION_GET_FS(base_location);
+    const uint32_t set           = UNIFORM_LOCATION_GET_VS(base_location);
+    const uint32_t binding       = UNIFORM_LOCATION_GET_VS_MEMBER(base_location);
+    const uint32_t buffer_offset = UNIFORM_LOCATION_GET_FS(base_location);
     assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
 
-    const ProgramResourceBinding& pgm_res   = context->m_CurrentProgram->m_ResourceBindings[set][binding];
-    const ShaderResourceTypeInfo& type_info = (*pgm_res.m_TypeInfos)[pgm_res.m_Res->m_Type.m_TypeIndex];
-    if (memcmp(context->m_CurrentProgram->m_UniformData + pgm_res.m_DataOffset + type_info.m_Members[member].m_Offset,
-               (uint8_t*)data,
-               sizeof(dmVMath::Vector4) * 4 * count))
+    const ProgramResourceBinding& pgm_res = context->m_CurrentProgram->m_ResourceBindings[set][binding];
+    uint8_t* write_ptr = context->m_CurrentProgram->m_UniformData + pgm_res.m_DataOffset + buffer_offset;
+
+    if (memcmp(write_ptr, (uint8_t*) data, sizeof(dmVMath::Vector4) * 4 * count))
     {
-        memcpy(context->m_CurrentProgram->m_UniformData + pgm_res.m_DataOffset + type_info.m_Members[member].m_Offset,
-               (uint8_t*)data,
-               sizeof(dmVMath::Vector4) * 4 * count);
+        memcpy(write_ptr, (uint8_t*) data, sizeof(dmVMath::Vector4) * 4 * count);
         context->m_CurrentProgram->m_BindGroups[set] = NULL;
     }
 }
