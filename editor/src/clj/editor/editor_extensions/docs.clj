@@ -167,7 +167,6 @@
         {:name "editor.platform"
          :type :variable
          :description "Editor platform id.\n\nA `string`, either:\n- `\"x86_64-win32\"`\n- `\"x86_64-macos\"`\n- `\"arm64-macos\"`\n- `\"x86_64-linux\"`"}
-
         {:name "editor.save"
          :type :function
          :parameters []

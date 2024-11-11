@@ -102,7 +102,7 @@
                                   :coerce schema-coercer
                                   :types ["schema"]
                                   :doc "set item schema")
-               (make-default-prop "table&lt;item, true&gt;") ;; todo whacky html parsing
+               (make-default-prop "table&lt;item, true&gt;")
                scope-prop])
      (ui-docs/component
        "object"
@@ -110,7 +110,7 @@
        :props [(ui-docs/make-prop :properties
                                   :required true
                                   :coerce (coerce/map-of serializable-keyword-coercer schema-coercer)
-                                  :types ["table&lt;string, schema&gt;"] ;; todo whacky html parsing
+                                  :types ["table&lt;string, schema&gt;"]
                                   :doc "a table from property key (string) to value schema")
                (make-default-prop "table")
                scope-prop])

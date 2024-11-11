@@ -73,172 +73,155 @@
 (defn- nilable [schema]
   {:type :one-of :schemas [{:type :enum :values [nil]} schema]})
 
-(defn- resolve-schema
-  "Convert schema to a fully-specified one
-
-  In a fully resolved schema, every schema element up to leaves has a defined
-  scope. All nested object schemas are considered branches, and all non-object
-  schemas are leaves."
-  ([schema]
-   (resolve-schema schema :global))
-  ([schema default-scope]
-   (let [scope (:scope schema default-scope)
-         schema (assoc schema :scope scope)]
-     (case (:type schema)
-       :object (update schema :properties (fn [m]
-                                            (coll/pair-map-by key #(resolve-schema (val %) scope) m)))
-       schema))))
-
 (def default-schema
-  (resolve-schema
-    {:type :object
-     :properties
-     {:asset-browser {:type :object
-                      :properties
-                      {:track-active-tab {:type :boolean :label "Track Active Tab in Asset Browser"}}}
-      :input {:type :object
-              :properties
-              {:keymap-path {:type :string :label "Path to Custom Keymap"}}}
-      :code {:type :object
-             :properties
-             {:custom-editor {:type :string}
-              :open-file {:type :string :default "{file}"}
-              :open-file-at-line {:type :string :default "{file}:{line}" :label "Open File at Line"}
-              :font {:type :object
-                     :properties
-                     {:name {:type :string :default "Dejavu Sans Mono"}
-                      :size {:type :number :default 12.0}}}
-              :find {:type :object
-                     :scope :project
-                     :properties
-                     {:term {:type :string}
-                      :replacement {:type :string}
-                      :whole-word {:type :boolean}
-                      :case-sensitive {:type :boolean}
-                      :wrap {:type :boolean :default true}}}
-              :visibility {:type :object
-                           :properties
-                           {:indentation-guides {:type :boolean :default true}
-                            :minimap {:type :boolean :default true}
-                            :whitespace {:type :boolean :default true}}}}}
-      :tools {:type :object
-              :properties
-              {:adb-path {:type :string
-                          :label "ADB path"
-                          :description "Path to ADB command that might be used to install and launch the Android app when it's bundled"}
-               :ios-deploy-path {:type :string
-                                 :label "ios-deploy path"
-                                 :description "Path to ios-deploy command that might be used to install and launch iOS app when it's bundled"}}}
-      :extensions {:type :object
-                   :properties
-                   {:build-server {:type :string}
-                    :build-server-headers {:type :string}}}
-      :search-in-files {:type :object
-                        :scope :project
-                        :properties
-                        {:term {:type :string}
-                         :exts {:type :string}
-                         :include-libraries {:type :boolean :default true}}}
-      :open-assets {:type :object
-                    :scope :project
+  {:type :object
+   :properties
+   {:asset-browser {:type :object
                     :properties
-                    {:term {:type :string}}}
-      :build {:type :object
-              :scope :project
-              :properties
-              {:lint-code {:type :boolean :default true :label "Lint Code on Build"}
-               :texture-compression {:type :boolean}}}
-      :bundle {:type :object
-               :scope :project
-               :properties
-               {:variant {:type :enum :values ["debug" "release" "headless"]}
-                :texture-compression {:type :enum :values ["enabled" "disabled" "editor"]}
-                :debug-symbols {:type :boolean :default true}
-                :build-report {:type :boolean}
-                :liveupdate {:type :boolean}
-                :contentless {:type :boolean}
-                :output-directory (nilable {:type :string})
-                :open-output-directory {:type :boolean :default true}
-                :android {:type :object
-                          :properties
-                          {:keystore (nilable {:type :string})
-                           :keystore-pass (nilable {:type :string})
-                           :key-pass (nilable {:type :string})
-                           :architecture {:type :object
-                                          :properties
-                                          {:armv7-android {:type :boolean :default true}
-                                           :arm64-android {:type :boolean}}}
-                           :format (nilable {:type :enum :values ["apk" "aab" "apk,aab"]})
-                           :install {:type :boolean}
-                           :launch {:type :boolean}}}
-                :macos {:type :object
-                        :properties
-                        {:architecture {:type :object
-                                        :properties
-                                        {:x86_64-macos {:type :boolean :default true}
-                                         :arm64-macos {:type :boolean :default true}}}}}
-                :ios {:type :object
-                      :properties
-                      {:sign {:type :boolean :default true}
-                       :code-signing-identity (nilable {:type :string})
-                       :provisioning-profile (nilable {:type :string})
-                       :architecture {:type :object
-                                      :properties
-                                      {:arm64-ios {:type :boolean :default true}
-                                       :x86_64-ios {:type :boolean}}}
-                       :install {:type :boolean}
-                       :launch {:type :boolean}}}
-                :html5 {:type :object
-                        :properties
-                        {:architecture {:type :object
-                                        :properties
-                                        {:js-web {:type :boolean}
-                                         :wasm-web {:type :boolean :default true}}}}}
-                :windows {:type :object
-                          :properties
-                          {:platform {:type :enum
-                                      ;; derive from bob?
-                                      :values ["x86_64-win32" "x86-win32"]}}}}}
-      :window {:type :object
-               :properties
-               {:dimensions {:type :any}
-                :split-positions {:type :any}
-                :hidden-panes {:type :set :item {:type :keyword}}}}
-      :workflow {:type :object
+                    {:track-active-tab {:type :boolean :label "Track Active Tab in Asset Browser"}}}
+    :input {:type :object
+            :properties
+            {:keymap-path {:type :string :label "Path to Custom Keymap"}}}
+    :code {:type :object
+           :properties
+           {:custom-editor {:type :string}
+            :open-file {:type :string :default "{file}"}
+            :open-file-at-line {:type :string :default "{file}:{line}" :label "Open File at Line"}
+            :font {:type :object
+                   :properties
+                   {:name {:type :string :default "Dejavu Sans Mono"}
+                    :size {:type :number :default 12.0}}}
+            :find {:type :object
+                   :scope :project
+                   :properties
+                   {:term {:type :string}
+                    :replacement {:type :string}
+                    :whole-word {:type :boolean}
+                    :case-sensitive {:type :boolean}
+                    :wrap {:type :boolean :default true}}}
+            :visibility {:type :object
+                         :properties
+                         {:indentation-guides {:type :boolean :default true}
+                          :minimap {:type :boolean :default true}
+                          :whitespace {:type :boolean :default true}}}}}
+    :tools {:type :object
+            :properties
+            {:adb-path {:type :string
+                        :label "ADB path"
+                        :description "Path to ADB command that might be used to install and launch the Android app when it's bundled"}
+             :ios-deploy-path {:type :string
+                               :label "ios-deploy path"
+                               :description "Path to ios-deploy command that might be used to install and launch iOS app when it's bundled"}}}
+    :extensions {:type :object
                  :properties
-                 {:load-external-changes-on-app-focus {:type :boolean
-                                                       :default true
-                                                       :label "Load External Changes on App Focus"}
-                  :recent-files {:type :array
-                                 :item {:type :tuple :items [{:type :string} {:type :keyword}]}
-                                 :scope :project}}}
-      :console {:type :object
-                :properties
-                {:filters {:type :array
-                           :item {:type :tuple :items [{:type :string} {:type :boolean}]}}}}
-      :run {:type :object
+                 {:build-server {:type :string}
+                  :build-server-headers {:type :string}}}
+    :search-in-files {:type :object
+                      :scope :project
+                      :properties
+                      {:term {:type :string}
+                       :exts {:type :string}
+                       :include-libraries {:type :boolean :default true}}}
+    :open-assets {:type :object
+                  :scope :project
+                  :properties
+                  {:term {:type :string}}}
+    :build {:type :object
+            :scope :project
             :properties
-            {:instance-count {:type :integer :default 1 :scope :project}
-             :selected-target-id {:type :any}
-             :manual-target-ip+port {:type :string}
-             :quit-on-escape {:type :boolean :label "Escape Quits Game"}
-             :simulate-rotated-device (nilable {:type :boolean :scope :project})
-             :simulated-resolution {:type :any :scope :project}}}
-      :scene {:type :object
+            {:lint-code {:type :boolean :default true :label "Lint Code on Build"}
+             :texture-compression {:type :boolean}}}
+    :bundle {:type :object
+             :scope :project
+             :properties
+             {:variant {:type :enum :values ["debug" "release" "headless"]}
+              :texture-compression {:type :enum :values ["enabled" "disabled" "editor"]}
+              :debug-symbols {:type :boolean :default true}
+              :build-report {:type :boolean}
+              :liveupdate {:type :boolean}
+              :contentless {:type :boolean}
+              :output-directory (nilable {:type :string})
+              :open-output-directory {:type :boolean :default true}
+              :android {:type :object
+                        :properties
+                        {:keystore (nilable {:type :string})
+                         :keystore-pass (nilable {:type :string})
+                         :key-pass (nilable {:type :string})
+                         :architecture {:type :object
+                                        :properties
+                                        {:armv7-android {:type :boolean :default true}
+                                         :arm64-android {:type :boolean}}}
+                         :format (nilable {:type :enum :values ["apk" "aab" "apk,aab"]})
+                         :install {:type :boolean}
+                         :launch {:type :boolean}}}
+              :macos {:type :object
+                      :properties
+                      {:architecture {:type :object
+                                      :properties
+                                      {:x86_64-macos {:type :boolean :default true}
+                                       :arm64-macos {:type :boolean :default true}}}}}
+              :ios {:type :object
+                    :properties
+                    {:sign {:type :boolean :default true}
+                     :code-signing-identity (nilable {:type :string})
+                     :provisioning-profile (nilable {:type :string})
+                     :architecture {:type :object
+                                    :properties
+                                    {:arm64-ios {:type :boolean :default true}
+                                     :x86_64-ios {:type :boolean}}}
+                     :install {:type :boolean}
+                     :launch {:type :boolean}}}
+              :html5 {:type :object
+                      :properties
+                      {:architecture {:type :object
+                                      :properties
+                                      {:js-web {:type :boolean}
+                                       :wasm-web {:type :boolean :default true}}}}}
+              :windows {:type :object
+                        :properties
+                        {:platform {:type :enum
+                                    ;; derive from bob?
+                                    :values ["x86_64-win32" "x86-win32"]}}}}}
+    :window {:type :object
+             :properties
+             {:dimensions {:type :any}
+              :split-positions {:type :any}
+              :hidden-panes {:type :set :item {:type :keyword}}}}
+    :workflow {:type :object
+               :properties
+               {:load-external-changes-on-app-focus {:type :boolean
+                                                     :default true
+                                                     :label "Load External Changes on App Focus"}
+                :recent-files {:type :array
+                               :item {:type :tuple :items [{:type :string} {:type :keyword}]}
+                               :scope :project}}}
+    :console {:type :object
               :properties
-              {:move-whole-pixels {:type :boolean :default true}}}
-      :dev {:type :object
+              {:filters {:type :array
+                         :item {:type :tuple :items [{:type :string} {:type :boolean}]}}}}
+    :run {:type :object
+          :properties
+          {:instance-count {:type :integer :default 1 :scope :project}
+           :selected-target-id {:type :any}
+           :manual-target-ip+port {:type :string}
+           :quit-on-escape {:type :boolean :label "Escape Quits Game"}
+           :simulate-rotated-device (nilable {:type :boolean :scope :project})
+           :simulated-resolution {:type :any :scope :project}}}
+    :scene {:type :object
             :properties
-            {:custom-engine {:type :any}}}
-      :git {:type :object
-            :properties
-            {:credentials {:type :any :scope :project}}}
-      :welcome {:type :object
-                :properties
-                {:last-opened-project-directory {:type :any}
-                 :recent-projects {:type :object-of
-                                   :key {:type :string}
-                                   :val {:type :string}}}}}}))
+            {:move-whole-pixels {:type :boolean :default true}}}
+    :dev {:type :object
+          :properties
+          {:custom-engine {:type :any}}}
+    :git {:type :object
+          :properties
+          {:credentials {:type :any :scope :project}}}
+    :welcome {:type :object
+              :properties
+              {:last-opened-project-directory {:type :any}
+               :recent-projects {:type :object-of
+                                 :key {:type :string}
+                                 :val {:type :string}}}}}})
 
 ;; region schema validation
 
@@ -333,8 +316,6 @@
 (s/def ::preferences (s/keys :req-un [:editor.prefs.preferences/scopes
                                       :editor.prefs.preferences/schemas]))
 
-(s/assert ::schema default-schema)
-
 ;; endregion
 
 ;; region internal global state
@@ -427,6 +408,22 @@
              (:events new-state))
     (.schedule sync-executor ^Runnable #(sync-state! global-state) 30 TimeUnit/SECONDS)))
 
+(defn- resolve-schema
+  "Convert schema to a fully-specified one
+
+  In a fully resolved schema, every schema element up to leaves has a defined
+  scope. All nested object schemas are considered branches, and all non-object
+  schemas are leaves."
+  ([schema]
+   (resolve-schema schema :global))
+  ([schema default-scope]
+   (let [scope (:scope schema default-scope)
+         schema (assoc schema :scope scope)]
+     (case (:type schema)
+       :object (update schema :properties (fn [m]
+                                            (coll/pair-map-by key #(resolve-schema (val %) scope) m)))
+       schema))))
+
 (def global-state
   ;; global state value is a map with the following keys:
   ;;   :storage     a map from absolute file Path to its prefs map
@@ -439,7 +436,7 @@
                    ;; we put default schema into state to use the same schema
                    ;; access pattern, but it is not modifiable (register-schema!
                    ;; disallows using :default key)
-                   :registry {:default default-schema}})]
+                   :registry {:default (s/assert ::schema (resolve-schema default-schema))}})]
     (add-watch ret global-state-watcher global-state-watcher)
     (.addShutdownHook (Runtime/getRuntime) (Thread. #(sync-state! global-state)))
     ret))
