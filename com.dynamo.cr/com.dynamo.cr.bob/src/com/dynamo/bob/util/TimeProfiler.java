@@ -351,23 +351,28 @@ public class TimeProfiler {
     }
 
     public static void stop() {
-        getCurrentScope().stop();
+        final ProfilingScope scope = getCurrentScope();
+        if (scope != null) scope.stop();
     }
 
     public static void addData(String fieldName, String data) {
-        getCurrentScope().addData(fieldName, data);
+        final ProfilingScope scope = getCurrentScope();
+        if (scope != null) scope.addData(fieldName, data);
     }
 
     public static void addData(String fieldName, Float data) {
-        getCurrentScope().addData(fieldName, data);
+        final ProfilingScope scope = getCurrentScope();
+        if (scope != null) scope.addData(fieldName, data);
     }
 
     public static void addData(String fieldName, Boolean data) {
-        getCurrentScope().addData(fieldName, data);
+        final ProfilingScope scope = getCurrentScope();
+        if (scope != null) scope.addData(fieldName, data);
     }
 
     public static void addData(String fieldName, int data) {
-        getCurrentScope().addData(fieldName, (float)data);
+        final ProfilingScope scope = getCurrentScope();
+        if (scope != null) scope.addData(fieldName, (float)data);
     }
 
     public static void addMark(String shortName, String fullName, String color) {

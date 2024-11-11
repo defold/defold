@@ -222,9 +222,9 @@ public class ResourceGraph implements IResourceVisitor {
      * a non-excluded collection it will not be considered an excluded resource.
      * @return List of excluded resources
      */
-    public List<String> createExcludedResourcesList() {
+    public Set<String> createExcludedResourcesList() {
         findAllResourcesReferencedFromMainCollection();
-        List<String> excludedResources = new LinkedList<>();
+        Set<String> excludedResources = new HashSet<>();
         for (ResourceNode node : resourceNodes) {
             if (node.isInMainBundle()) {
                 continue;

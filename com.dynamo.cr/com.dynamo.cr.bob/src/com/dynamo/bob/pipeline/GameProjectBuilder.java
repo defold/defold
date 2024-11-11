@@ -137,9 +137,6 @@ public class GameProjectBuilder extends Builder {
             builder.addOutput(input.changeExt(".dmanifest").disableCache());
             builder.addOutput(input.changeExt(".public.der").disableCache());
             builder.addOutput(input.changeExt(".graph.json").disableCache());
-            for (IResource output : project.getPublisher().getOutputs(input)) {
-                builder.addOutput(output);
-            }
         }
         TimeProfiler.stop();
 
@@ -225,7 +222,7 @@ public class GameProjectBuilder extends Builder {
         return resourcePadding;
     }
 
-    private void createArchive(ArchiveBuilder archiveBuilder, Collection<IResource> resources, File archiveIndex, File archiveData, List<String> excludedResources, Path resourcePackDirectory) throws IOException, CompileExceptionError {
+    private void createArchive(ArchiveBuilder archiveBuilder, Collection<IResource> resources, File archiveIndex, File archiveData, Set<String> excludedResources, Publisher publisher) throws IOException, CompileExceptionError {
         TimeProfiler.start("createArchive");
         logger.info("GameProjectBuilder.createArchive");
         long tstart = System.currentTimeMillis();
@@ -243,16 +240,7 @@ public class GameProjectBuilder extends Builder {
         TimeProfiler.addData("resources", resources.size());
         TimeProfiler.addData("excludedResources", excludedResources.size());
 
-        archiveBuilder.write(archiveIndex, archiveData, resourcePackDirectory, excludedResources);
-
-        // Populate publisher with the resource pack
-        Publisher publisher = project.getPublisher();
-        List<ArchiveEntry> excluded = archiveBuilder.getExcludedEntries();
-        final String resourcePackDirectoryAsString = resourcePackDirectory.toAbsolutePath().toString();
-        for (ArchiveEntry entry : excluded) {
-            File f = new File(resourcePackDirectoryAsString, entry.getHexDigest());
-            publisher.AddEntry(f, entry);
-        }
+        archiveBuilder.write(archiveIndex, archiveData, publisher, excludedResources);
 
         long tend = System.currentTimeMillis();
         logger.info("GameProjectBuilder.createArchive took %f", (tend-tstart)/1000.0);
@@ -419,12 +407,12 @@ public class GameProjectBuilder extends Builder {
                 logger.info("Creation of the excluded resources list.");
                 tstart = System.currentTimeMillis();
                 boolean shouldPublishLU = project.option("liveupdate", "false").equals("true");
-                List<String> excludedResources;
+                Set<String> excludedResources;
                 if (shouldPublishLU) {
                     excludedResources = resourceGraph.createExcludedResourcesList();
                 }
                 else {
-                    excludedResources = new ArrayList<String>();
+                    excludedResources = new HashSet<String>();
                 }
                 tend = System.currentTimeMillis();
                 logger.info("Creation of the excluded resources list took %f s", (tend-tstart)/1000.0);
@@ -440,10 +428,13 @@ public class GameProjectBuilder extends Builder {
 
                 Path resourcePackDirectory = Files.createTempDirectory("defold.resourcepack_");
 
+                Publisher publisher = project.getPublisher();
+                publisher.start();
+
                 // create the archive and manifest
                 ManifestBuilder manifestBuilder = createManifestBuilder(resourceGraph);
                 ArchiveBuilder archiveBuilder = new ArchiveBuilder(root, manifestBuilder, getResourcePadding(), project);
-                createArchive(archiveBuilder, resources, archiveIndexHandle, archiveDataHandle, excludedResources, resourcePackDirectory);
+                createArchive(archiveBuilder, resources, archiveIndexHandle, archiveDataHandle, excludedResources, publisher);
                 byte[] manifestFile = manifestBuilder.buildManifest();
 
                 // Write outputs to the build system
@@ -478,8 +469,8 @@ public class GameProjectBuilder extends Builder {
                 FileUtils.copyFile(manifestFileHandle, manifestTmpFileHandle);
 
                 ArchiveEntry manifestArchiveEntry = new ArchiveEntry(root, manifestTmpFileHandle.getAbsolutePath());
-                project.getPublisher().AddEntry(manifestTmpFileHandle, manifestArchiveEntry);
-                project.getPublisher().Publish();
+                publisher.publish(manifestArchiveEntry, new FileInputStream(manifestTmpFileHandle));
+                publisher.stop();
 
                 // Copy SSL public keys if specified
                 String sslCertificatesPath = project.getProjectProperties().getStringValue("network", "ssl_certificates");
@@ -495,12 +486,6 @@ public class GameProjectBuilder extends Builder {
                 File resourcePackDirectoryHandle = new File(resourcePackDirectory.toAbsolutePath().toString());
                 if (resourcePackDirectoryHandle.exists() && resourcePackDirectoryHandle.isDirectory()) {
                     FileUtils.deleteDirectory(resourcePackDirectoryHandle);
-                }
-
-                List<InputStream> publisherOutputs = project.getPublisher().getOutputResults();
-                for (int i = 0; i < publisherOutputs.size(); ++i) {
-                    task.getOutputs().get(6 + i).setContent(publisherOutputs.get(i));
-                    IOUtils.closeQuietly(publisherOutputs.get(i));
                 }
             }
 
