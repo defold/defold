@@ -72,6 +72,7 @@ namespace dmGraphics
             memset(this, 0, sizeof(*this));
         }
 
+        Program                m_BaseProgram;
         WebGPUShaderModule*    m_VertexModule;
         WebGPUShaderModule*    m_FragmentModule;
         WebGPUShaderModule*    m_ComputeModule;
@@ -82,20 +83,12 @@ namespace dmGraphics
 
         uint64_t               m_Hash;
         uint8_t*               m_UniformData;
-        ProgramResourceBinding m_ResourceBindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
-
-        // dmGraphics::Uniform representation of the resource bindings
-        dmArray<Uniform>       m_Uniforms;
 
         uint32_t               m_UniformDataSizeAligned;
         uint16_t               m_UniformBufferCount;
         uint16_t               m_StorageBufferCount;
         uint16_t               m_TextureSamplerCount;
         uint16_t               m_TotalResourcesCount;
-        uint16_t               m_TotalUniformCount;
-
-        uint8_t                m_MaxSet;
-        uint8_t                m_MaxBinding;
         uint8_t                m_Destroyed : 1;
     };
 

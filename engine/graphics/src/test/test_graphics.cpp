@@ -436,9 +436,9 @@ TEST_F(dmGraphicsTest, TestProgram)
     FillResourceBindingType(&vx_inputs[1], "texcoord0", 1, dmGraphics::ShaderDesc::SHADER_TYPE_VEC2);
 
     dmGraphics::ShaderDesc::ResourceTypeInfo types[3] = {};
-    FillShaderResourceTypeInfo(&types[0], "view_proj", dmGraphics::ShaderDesc::SHADER_TYPE_MAT4);
-    FillShaderResourceTypeInfo(&types[1], "world", dmGraphics::ShaderDesc::SHADER_TYPE_MAT4);
-    FillShaderResourceTypeInfo(&types[2], "tint", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+    FillShaderResourceWithSingleTypeMember(&types[0], "view_proj", dmGraphics::ShaderDesc::SHADER_TYPE_MAT4);
+    FillShaderResourceWithSingleTypeMember(&types[1], "world", dmGraphics::ShaderDesc::SHADER_TYPE_MAT4);
+    FillShaderResourceWithSingleTypeMember(&types[2], "tint", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
 
     // TODO: Need to clean the member pointer from the types list
 
@@ -549,7 +549,7 @@ TEST_F(dmGraphicsTest, TestComputeProgram)
         "}\n";
 
     dmGraphics::ShaderDesc::ResourceTypeInfo types[1] = {};
-    FillShaderResourceTypeInfo(&types[0], "my_uniform", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+    FillShaderResourceWithSingleTypeMember(&types[0], "my_uniform", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
 
     dmGraphics::ShaderDesc::ResourceBinding uniform = {};
     FillResourceBindingTypeIndex(&uniform, "my_uniform", 0, 0);
@@ -1237,7 +1237,7 @@ TEST_F(dmGraphicsTest, TestVertexAttributesGL3)
         "}\n";
 
     dmGraphics::ShaderDesc::ResourceTypeInfo resource_types[1] = {};
-    FillShaderResourceTypeInfo(&resource_types[0], "view_proj", dmGraphics::ShaderDesc::SHADER_TYPE_MAT4);
+    FillShaderResourceWithSingleTypeMember(&resource_types[0], "view_proj", dmGraphics::ShaderDesc::SHADER_TYPE_MAT4);
 
     dmGraphics::ShaderDesc::ResourceBinding vx_inputs[3] = {};
     FillResourceBindingType(&vx_inputs[0], "position", 0, dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);

@@ -119,11 +119,11 @@ namespace dmGraphics
 
     struct OpenGLProgram
     {
-        GLuint                         m_Id;
-        ShaderDesc::Language           m_Language;
+        Program                        m_BaseProgram;
         dmArray<OpenGLVertexAttribute> m_Attributes;
         dmArray<OpenGLUniformBuffer>   m_UniformBuffers;
-        dmArray<OpenGLUniform>         m_Uniforms;
+        GLuint                         m_Id;
+        ShaderDesc::Language           m_Language;
     };
 
     struct OpenGLContext

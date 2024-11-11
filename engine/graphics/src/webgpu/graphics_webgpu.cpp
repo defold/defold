@@ -1999,7 +1999,6 @@ static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* 
                     }
                     program_resource_binding.m_TextureUnit = info.m_TextureCount;
                     info.m_TextureCount++;
-                    info.m_TotalUniformCount++;
                     break;
                 case ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER: {
                     assert(false);
@@ -2008,7 +2007,6 @@ static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* 
 
                     program_resource_binding.m_StorageBufferUnit = info.m_StorageBufferCount;
                     info.m_StorageBufferCount++;
-                    info.m_TotalUniformCount++;
                     break;
                 }
                 case ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER: {
@@ -2020,9 +2018,8 @@ static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* 
                     program_resource_binding.m_DynamicOffsetIndex = info.m_UniformBufferCount;
 
                     info.m_UniformBufferCount++;
-                    info.m_UniformDataSize += res.m_BindingInfo.m_BlockSize;
+                    info.m_UniformDataSize        += res.m_BindingInfo.m_BlockSize;
                     info.m_UniformDataSizeAligned += DM_ALIGN(res.m_BindingInfo.m_BlockSize, ubo_alignment);
-                    info.m_TotalUniformCount += stage_type_infos[res.m_Type.m_TypeIndex].m_Members.Size();
                     break;
                 }
                 case ShaderResourceBinding::BINDING_FAMILY_GENERIC:
@@ -2117,7 +2114,6 @@ static void WebGPUUpdateProgramLayouts(WebGPUContext* context, WebGPUProgram* pr
     program->m_UniformBufferCount     = binding_info.m_UniformBufferCount;
     program->m_StorageBufferCount     = binding_info.m_StorageBufferCount;
     program->m_TextureSamplerCount    = binding_info.m_TextureCount;
-    program->m_TotalUniformCount      = binding_info.m_TotalUniformCount;
     program->m_TotalResourcesCount    = binding_info.m_UniformBufferCount + binding_info.m_TextureCount + binding_info.m_StorageBufferCount; // num actual descriptors
     program->m_MaxSet                 = binding_info.m_MaxSet;
     program->m_MaxBinding             = binding_info.m_MaxBinding;

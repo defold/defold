@@ -104,7 +104,7 @@ TEST_F(dmRenderMaterialTest, TestTags)
 TEST_F(dmRenderMaterialTest, TestMaterialConstants)
 {
     dmGraphics::ShaderDesc::ResourceTypeInfo types = {};
-    FillShaderResourceTypeInfo(&types, "tint", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+    FillShaderResourceWithSingleTypeMember(&types, "tint", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
 
     dmGraphics::ShaderDesc::ResourceBinding uniform = {};
     FillResourceBindingTypeIndex(&uniform, "tint", 0, 0);
@@ -436,8 +436,8 @@ TEST_F(dmRenderMaterialTest, TestMaterialInstanceAttributes)
 TEST_F(dmRenderMaterialTest, TestMaterialConstantsOverride)
 {
     dmGraphics::ShaderDesc::ResourceTypeInfo types[2] = {};
-    dmGraphics::FillShaderResourceTypeInfo(&types[0], "tint", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
-    dmGraphics::FillShaderResourceTypeInfo(&types[1], "dummy", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+    dmGraphics::FillShaderResourceWithSingleTypeMember(&types[0], "tint", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+    dmGraphics::FillShaderResourceWithSingleTypeMember(&types[1], "dummy", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
 
     dmGraphics::ShaderDesc::ResourceBinding uniform_one = {};
     dmGraphics::FillResourceBindingTypeIndex(&uniform_one, "tint", 0, 0);
@@ -548,8 +548,8 @@ TEST_F(dmRenderComputeTest, TestComputeConstants)
         "uniform sampler2D texture_sampler;\n";
 
     dmGraphics::ShaderDesc::ResourceTypeInfo types[2] = {};
-    dmGraphics::FillShaderResourceTypeInfo(&types[0], "tint_a", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
-    dmGraphics::FillShaderResourceTypeInfo(&types[1], "tint_b", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+    dmGraphics::FillShaderResourceWithSingleTypeMember(&types[0], "tint_a", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+    dmGraphics::FillShaderResourceWithSingleTypeMember(&types[1], "tint_b", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
 
     dmGraphics::ShaderDesc::ResourceBinding uniforms[3] = {};
     dmGraphics::FillResourceBindingTypeIndex(&uniforms[0], "tint_a", 0, 0);

@@ -2251,15 +2251,14 @@ static void LogFrameBufferError(GLenum status)
             BuildUniformBuffers(program, shaders, num_shaders);
         }
 
-        uint32_t texture_unit = 0;
         char uniform_name_buffer[256];
 
         GLint num_uniforms;
         glGetProgramiv(program->m_Id, GL_ACTIVE_UNIFORMS, &num_uniforms);
         CHECK_GL_ERROR;
 
-        program->m_Uniforms.SetCapacity(num_uniforms);
-        program->m_Uniforms.SetSize(num_uniforms);
+        program->m_BaseProgram.m_Uniforms.SetCapacity(num_uniforms);
+        program->m_BaseProgram.m_Uniforms.SetSize(num_uniforms);
 
         for (int i = 0; i < num_uniforms; ++i)
         {
@@ -2305,27 +2304,21 @@ static void LogFrameBufferError(GLenum status)
             char* base_uniform_name = GetBaseUniformName(uniform_name_buffer, uniform_name_length);
             assert(base_uniform_name != 0);
 
-            OpenGLUniform& uniform                = program->m_Uniforms[i];
-            uniform.m_Uniform.m_Name              = strdup(base_uniform_name);
-            uniform.m_Uniform.m_NameHash          = dmHashString64(base_uniform_name);
-            uniform.m_Uniform.m_CanonicalName     = strdup(uniform_name_buffer);
-            uniform.m_Uniform.m_CanonicalNameHash = dmHashString64(uniform.m_Uniform.m_CanonicalName);
-            uniform.m_Uniform.m_Location          = uniform_location;
-            uniform.m_Uniform.m_Count             = uniform_size;
-            uniform.m_Uniform.m_Type              = GetGraphicsType(uniform_type);
-            uniform.m_IsTextureType               = IsTypeTextureType(uniform.m_Uniform.m_Type);
+            Uniform& uniform            = program->m_BaseProgram.m_Uniforms[i];
+            uniform.m_Name              = strdup(base_uniform_name);
+            uniform.m_NameHash          = dmHashString64(base_uniform_name);
+            uniform.m_CanonicalName     = strdup(uniform_name_buffer);
+            uniform.m_CanonicalNameHash = dmHashString64(uniform.m_CanonicalName);
+            uniform.m_Location          = uniform_location;
+            uniform.m_Count             = uniform_size;
+            uniform.m_Type              = GetGraphicsType(uniform_type);
 
         #if 0
-            dmLogInfo("Uniform[%d]: %s, %llu, (original_name=%s)", i, uniform.m_Uniform.m_Name, uniform.m_Uniform.m_Location, uniform_name_buffer);
+            dmLogInfo("Uniform[%d]: %s, %llu, (original_name=%s)", i, uniform.m_Name, uniform.m_Location, uniform_name_buffer);
         #endif
 
-            if (uniform.m_IsTextureType)
-            {
-                uniform.m_TextureUnit = texture_unit++;
-            }
-
             // JG: Original code did this, but I'm not sure why.
-            if (uniform.m_Uniform.m_Location == -1)
+            if (uniform.m_Location == -1)
             {
                 // Clear error if uniform isn't found
                 CLEAR_GL_ERROR
@@ -2459,10 +2452,10 @@ static void LogFrameBufferError(GLenum status)
         OpenGLProgram* program_ptr = (OpenGLProgram*) program;
         glDeleteProgram(program_ptr->m_Id);
 
-        for (int i = 0; i < program_ptr->m_Uniforms.Size(); ++i)
+        for (int i = 0; i < program_ptr->m_BaseProgram.m_Uniforms.Size(); ++i)
         {
-            free(program_ptr->m_Uniforms[i].m_Uniform.m_Name);
-            free(program_ptr->m_Uniforms[i].m_Uniform.m_CanonicalName);
+            free(program_ptr->m_BaseProgram.m_Uniforms[i].m_Name);
+            free(program_ptr->m_BaseProgram.m_Uniforms[i].m_CanonicalName);
         }
 
         for (int i = 0; i < program_ptr->m_UniformBuffers.Size(); ++i)
@@ -2771,41 +2764,14 @@ static void LogFrameBufferError(GLenum status)
     static uint32_t OpenGLGetUniformCount(HProgram prog)
     {
         OpenGLProgram* program_ptr = (OpenGLProgram*) prog;
-        return program_ptr->m_Uniforms.Size();
+        return program_ptr->m_BaseProgram.m_Uniforms.Size();
     }
 
     static void OpenGLGetUniform(HProgram prog, uint32_t index, Uniform* uniform_desc)
     {
         OpenGLProgram* program_ptr = (OpenGLProgram*) prog;
-        *uniform_desc = program_ptr->m_Uniforms[index].m_Uniform;
+        *uniform_desc = program_ptr->m_BaseProgram.m_Uniforms[index];
     }
-
-    /*
-    static uint32_t OpenGLGetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size)
-    {
-        OpenGLProgram* program_ptr = (OpenGLProgram*) prog;
-        *type = GetGraphicsType(program_ptr->m_Uniforms[index].m_Type);
-        *size = program_ptr->m_Uniforms[index].m_Count;
-        return dmStrlCpy(buffer, program_ptr->m_Uniforms[index].m_Name, buffer_size);
-    }
-
-    static HUniformLocation OpenGLGetUniformLocation(HProgram prog, const char* name)
-    {
-        OpenGLProgram* program_ptr = (OpenGLProgram*) prog;
-        dmhash_t name_hash         = dmHashString64(name);
-        uint32_t num_uniforms      = program_ptr->m_Uniforms.Size();
-
-        for (int i = 0; i < num_uniforms; ++i)
-        {
-            if (program_ptr->m_Uniforms[i].m_NameHash == name_hash)
-            {
-                return program_ptr->m_Uniforms[i].m_Location;
-            }
-        }
-        
-        return INVALID_UNIFORM_LOCATION;
-    }
-    */
 
     static void OpenGLSetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
     {
@@ -4159,16 +4125,19 @@ static void LogFrameBufferError(GLenum status)
 #ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
     static bool GetTextureUniform(OpenGLContext* context, uint32_t unit, int32_t* index, Type* type)
     {
-        uint32_t num_uniforms = context->m_CurrentProgram->m_Uniforms.Size();
+        uint32_t num_uniforms = context->m_CurrentProgram->m_BaseProgram.m_Uniforms.Size();
+        uint32_t texture_unit = 0;
         for (int i = 0; i < num_uniforms; ++i)
         {
-            if (context->m_CurrentProgram->m_Uniforms[i].m_IsTextureType &&
-                context->m_CurrentProgram->m_Uniforms[i].m_TextureUnit == unit)
+            if (IsTypeTextureType(context->m_CurrentProgram->m_BaseProgram.m_Uniforms[i].m_Type))
             {
-                *index = i;
-                *type = GetGraphicsType(context->m_CurrentProgram->m_Uniforms[i].m_Uniform.m_Type);
-
-                return true;
+                if (texture_unit == unit)
+                {
+                    *index = i;
+                    *type = GetGraphicsType(context->m_CurrentProgram->m_BaseProgram.m_Uniforms[i].m_Type);
+                    return true;
+                }
+                texture_unit++;
             }
         }
         return false;

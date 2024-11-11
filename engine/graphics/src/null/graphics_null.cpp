@@ -743,7 +743,7 @@ namespace dmGraphics
 
     // TODO: This can be merged with a certain "blue" graphics adapter
     static void FillProgramResourceBindings(
-        NullProgram*                     program,
+        Program&                         program,
         dmArray<ShaderResourceBinding>&  resources,
         dmArray<ShaderResourceTypeInfo>& stage_type_infos,
         ResourceBindingDesc              bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT],
@@ -756,7 +756,7 @@ namespace dmGraphics
         {
             ShaderResourceBinding& res   = resources[i];
             ResourceBindingDesc& binding = bindings[res.m_Set][res.m_Binding];
-            ProgramResourceBinding& program_resource_binding = program->m_ResourceBindings[res.m_Set][res.m_Binding];
+            ProgramResourceBinding& program_resource_binding = program.m_ResourceBindings[res.m_Set][res.m_Binding];
 
             if (!binding.m_Taken)
             {
@@ -772,12 +772,10 @@ namespace dmGraphics
                     case ShaderResourceBinding::BINDING_FAMILY_TEXTURE:
                         program_resource_binding.m_TextureUnit = info.m_TextureCount;
                         info.m_TextureCount++;
-                        info.m_TotalUniformCount++;
                         break;
                     case ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER:
                         program_resource_binding.m_StorageBufferUnit = info.m_StorageBufferCount;
                         info.m_StorageBufferCount++;
-                        info.m_TotalUniformCount++;
 
                     #if 0
                         dmLogInfo("SSBO: name=%s, set=%d, binding=%d, ssbo-unit=%d", res.m_Name, res.m_Set, res.m_Binding, program_resource_binding.m_StorageBufferUnit);
@@ -787,14 +785,12 @@ namespace dmGraphics
                     case ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER:
                     {
                         assert(res.m_Type.m_UseTypeIndex);
-                        const ShaderResourceTypeInfo& type_info       = stage_type_infos[res.m_Type.m_TypeIndex];
                         program_resource_binding.m_DataOffset         = info.m_UniformDataSize;
                         program_resource_binding.m_DynamicOffsetIndex = info.m_UniformBufferCount;
 
                         info.m_UniformBufferCount++;
                         info.m_UniformDataSize        += res.m_BindingInfo.m_BlockSize;
                         info.m_UniformDataSizeAligned += DM_ALIGN(res.m_BindingInfo.m_BlockSize, ubo_alignment);
-                        info.m_TotalUniformCount      += type_info.m_Members.Size();
                     }
                     break;
                     case ShaderResourceBinding::BINDING_FAMILY_GENERIC:
@@ -804,7 +800,7 @@ namespace dmGraphics
                 info.m_MaxSet     = dmMath::Max(info.m_MaxSet, (uint32_t) (res.m_Set + 1));
                 info.m_MaxBinding = dmMath::Max(info.m_MaxBinding, (uint32_t) (res.m_Binding + 1));
 
-            #if 1
+            #if 0
                 dmLogInfo("    name=%s, set=%d, binding=%d, data_offset=%d, texture_unit=%d", res.m_Name, res.m_Set, res.m_Binding, program_resource_binding.m_DataOffset, program_resource_binding.m_TextureUnit);
             #endif
             }
@@ -822,9 +818,9 @@ namespace dmGraphics
     {
         if (program && module)
         {
-            FillProgramResourceBindings(program, module->m_ShaderMeta.m_UniformBuffers, module->m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, stage_flag, info);
-            FillProgramResourceBindings(program, module->m_ShaderMeta.m_StorageBuffers, module->m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, stage_flag, info);
-            FillProgramResourceBindings(program, module->m_ShaderMeta.m_Textures, module->m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, stage_flag, info);
+            FillProgramResourceBindings(program->m_BaseProgram, module->m_ShaderMeta.m_UniformBuffers, module->m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, stage_flag, info);
+            FillProgramResourceBindings(program->m_BaseProgram, module->m_ShaderMeta.m_StorageBuffers, module->m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, stage_flag, info);
+            FillProgramResourceBindings(program->m_BaseProgram, module->m_ShaderMeta.m_Textures, module->m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, stage_flag, info);
         }
     }
 
@@ -832,7 +828,7 @@ namespace dmGraphics
     {
         uint32_t uniform_count = 0;
 
-        ProgramResourceBindingIterator<NullProgram> it(program);
+        ProgramResourceBindingIterator it(&program->m_BaseProgram);
 
         // Uniform buffers can use nested structs, so we need to count all leaf nodes in all uniforms.
         // This is used to pre-allocate the uniform array with entries for each leaf uniforms.
@@ -843,7 +839,7 @@ namespace dmGraphics
             uniform_count += CountShaderResourceLeafMembers(type_infos, next->m_Res->m_Type);
         }
 
-        program->m_Uniforms.SetCapacity(uniform_count);
+        program->m_BaseProgram.m_Uniforms.SetCapacity(uniform_count);
 
         dmArray<char> canonical_name_buffer;
 
@@ -859,7 +855,7 @@ namespace dmGraphics
                 uniform.m_Type       = ShaderDataTypeToGraphicsType(next->m_Res->m_Type.m_ShaderType);
                 uniform.m_Count      = 1;
                 uniform.m_Location   = next->m_Res->m_Set | next->m_Res->m_Binding << 16;
-                program->m_Uniforms.Push(uniform);
+                program->m_BaseProgram.m_Uniforms.Push(uniform);
             }
             else if (next->m_Res->m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER)
             {
@@ -870,7 +866,7 @@ namespace dmGraphics
                 }
                 uint32_t name_length = strlen(next->m_Res->m_Name);
                 memcpy(canonical_name_buffer.Begin(), next->m_Res->m_Name, name_length + 1);
-                BuildUniformsForUniformBuffer(next, program->m_Uniforms, *next->m_TypeInfos, next->m_Res->m_Type, &canonical_name_buffer, name_length);
+                BuildUniformsForUniformBuffer(next, program->m_BaseProgram.m_Uniforms, *next->m_TypeInfos, next->m_Res->m_Type, &canonical_name_buffer, name_length);
             }
         }
     }
@@ -887,8 +883,8 @@ namespace dmGraphics
         FillProgramResourceBindings(program, fragment_module, bindings, ubo_alignment, ssbo_alignment, SHADER_STAGE_FLAG_FRAGMENT, binding_info);
         FillProgramResourceBindings(program, compute_module, bindings, ubo_alignment, ssbo_alignment, SHADER_STAGE_FLAG_COMPUTE, binding_info);
 
-        program->m_MaxSet     = binding_info.m_MaxSet;
-        program->m_MaxBinding = binding_info.m_MaxBinding;
+        program->m_BaseProgram.m_MaxSet     = binding_info.m_MaxSet;
+        program->m_BaseProgram.m_MaxBinding = binding_info.m_MaxBinding;
 
         BuildUniforms(program);
     }
@@ -960,11 +956,11 @@ namespace dmGraphics
     {
         NullProgram* program = (NullProgram*) _program;
 
-        for (int i = 0; i < program->m_Uniforms.Size(); ++i)
+        for (int i = 0; i < program->m_BaseProgram.m_Uniforms.Size(); ++i)
         {
-            if (program->m_Uniforms[i].m_CanonicalName)
+            if (program->m_BaseProgram.m_Uniforms[i].m_CanonicalName)
             {
-                free(program->m_Uniforms[i].m_CanonicalName);
+                free(program->m_BaseProgram.m_Uniforms[i].m_CanonicalName);
             }
         }
         delete program;
@@ -1144,22 +1140,22 @@ namespace dmGraphics
 
     static uint32_t NullGetUniformCount(HProgram prog)
     {
-        return ((NullProgram*)prog)->m_Uniforms.Size();
+        return ((NullProgram*)prog)->m_BaseProgram.m_Uniforms.Size();
     }
 
     static void NullGetUniform(HProgram prog, uint32_t index, Uniform* uniform_desc)
     {
         NullProgram* program = (NullProgram*)prog;
-        *uniform_desc = program->m_Uniforms[index];
+        *uniform_desc = program->m_BaseProgram.m_Uniforms[index];
     }
 
     const Uniform* GetUniform(HProgram prog, dmhash_t name_hash)
     {
         NullProgram* program = (NullProgram*)prog;
-        uint32_t count = program->m_Uniforms.Size();
+        uint32_t count = program->m_BaseProgram.m_Uniforms.Size();
         for (uint32_t i = 0; i < count; ++i)
         {
-            Uniform& uniform = program->m_Uniforms[i];
+            Uniform& uniform = program->m_BaseProgram.m_Uniforms[i];
             if (uniform.m_NameHash == name_hash || uniform.m_CanonicalNameHash == name_hash)
             {
                 return &uniform;

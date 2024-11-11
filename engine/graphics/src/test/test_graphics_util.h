@@ -23,7 +23,9 @@
 
 namespace dmGraphics
 {
-    static inline dmGraphics::ShaderDesc MakeDDFShaderDesc(dmGraphics::ShaderDesc::Shader* shader,
+    // TODO: We should consider making this take a parameter struct instead
+    static inline dmGraphics::ShaderDesc MakeDDFShaderDesc(
+        dmGraphics::ShaderDesc::Shader* shader,
         dmGraphics::ShaderDesc::ShaderType type,
         dmGraphics::ShaderDesc::ResourceBinding* inputs, uint32_t input_count,
         dmGraphics::ShaderDesc::ResourceBinding* ubos, uint32_t ubos_count,
@@ -80,7 +82,8 @@ namespace dmGraphics
         res->m_Type.m_Type.m_ShaderType = type;
     }
 
-    static void FillShaderResourceTypeInfo(dmGraphics::ShaderDesc::ResourceTypeInfo* info, const char* name, dmGraphics::ShaderDesc::ShaderDataType type)
+    // For simplicity, we add a single type as member here to cover most test cases
+    static void FillShaderResourceWithSingleTypeMember(dmGraphics::ShaderDesc::ResourceTypeInfo* info, const char* name, dmGraphics::ShaderDesc::ShaderDataType type)
     {
         info->m_Name                                         = name;
         info->m_NameHash                                     = dmHashString64(name);

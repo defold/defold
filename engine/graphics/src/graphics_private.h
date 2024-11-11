@@ -145,7 +145,6 @@ namespace dmGraphics
         uint32_t m_StorageBufferCount;
         uint32_t m_TextureCount;
         uint32_t m_SamplerCount;
-        uint32_t m_TotalUniformCount;
         uint32_t m_UniformDataSize;
         uint32_t m_UniformDataSizeAligned;
         uint32_t m_MaxSet;
@@ -168,14 +167,21 @@ namespace dmGraphics
         uint8_t m_StageFlags;
     };
 
-    template <typename T>
+    struct Program
+    {
+        ProgramResourceBinding m_ResourceBindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
+        dmArray<Uniform>       m_Uniforms;
+        uint8_t                m_MaxSet;
+        uint8_t                m_MaxBinding;
+    };
+
     struct ProgramResourceBindingIterator
     {
-        const T* m_Program;
-        uint32_t m_CurrentSet;
-        uint32_t m_CurrentBinding;
+        const Program* m_Program;
+        uint32_t       m_CurrentSet;
+        uint32_t       m_CurrentBinding;
 
-        ProgramResourceBindingIterator(const T* pgm)
+        ProgramResourceBindingIterator(const Program* pgm)
         : m_Program(pgm)
         , m_CurrentSet(0)
         , m_CurrentBinding(0)

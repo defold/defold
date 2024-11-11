@@ -110,15 +110,11 @@ namespace dmGraphics
 
     struct NullProgram
     {
-        NullShaderModule*      m_VP;
-        NullShaderModule*      m_FP;
-        NullShaderModule*      m_Compute;
-        ProgramResourceBinding m_ResourceBindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
-        dmArray<Uniform>       m_Uniforms;
-        ShaderDesc::Language   m_Language;
-
-        uint8_t m_MaxSet;
-        uint8_t m_MaxBinding;
+        Program              m_BaseProgram;
+        NullShaderModule*    m_VP;
+        NullShaderModule*    m_FP;
+        NullShaderModule*    m_Compute;
+        ShaderDesc::Language m_Language;
     };
 
     static const uint32_t UNIFORM_BUFFERS_ALIGNMENT = 4;
