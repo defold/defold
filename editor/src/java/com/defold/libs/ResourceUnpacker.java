@@ -110,6 +110,13 @@ public class ResourceUnpacker {
                     unpackResourceFile("libexec/" + platform.getPair() + "/liboggz" + platform.getLibSuffix(), unpackPath);
                     unpackResourceFile("libexec/" + platform.getPair() + "/oggz-validate" + platform.getExeSuffixes()[0], unpackPath, true);
 
+                    if (platform.getOs().equals("win32")) {
+                        unpackResourceFile("libexec/" + platform.getPair() + "/dmengine.exe", unpackPath.resolve("bin"));
+                        unpackResourceFile("libexec/" + platform.getPair() + "/luajit-64.exe", unpackPath.resolve("bin"));
+                        unpackResourceFile("lib/" + platform.getPair() + "/wrap_oal.dll", unpackPath.resolve("bin"));
+                        unpackResourceFile("lib/" + platform.getPair() + "/OpenAL32.dll", unpackPath.resolve("bin"));
+                    }
+
                     Path binDir = unpackPath.resolve(platform.getPair() + "/bin").toAbsolutePath();
                     if (Files.exists(binDir)) {
                         Files.walk(binDir).forEach(path -> path.toFile().setExecutable(true));
