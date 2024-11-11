@@ -1063,6 +1063,53 @@ namespace dmGraphics
         }
     }
 
+    void BuildUniforms(Program* program)
+    {
+        uint32_t uniform_count = 0;
+
+        ProgramResourceBindingIterator it(program);
+
+        // Uniform buffers can use nested structs, so we need to count all leaf nodes in all uniforms.
+        // This is used to pre-allocate the uniform array with entries for each leaf uniforms.
+        const ProgramResourceBinding* next;
+        while((next = it.Next()))
+        {
+            const dmArray<ShaderResourceTypeInfo>& type_infos = *next->m_TypeInfos;
+            uniform_count += CountShaderResourceLeafMembers(type_infos, next->m_Res->m_Type);
+        }
+
+        program->m_Uniforms.SetCapacity(uniform_count);
+
+        dmArray<char> canonical_name_buffer;
+
+        it.Reset();
+        while((next = it.Next()))
+        {
+            if (next->m_Res->m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_TEXTURE ||
+                next->m_Res->m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER)
+            {
+                Uniform uniform    = {};
+                uniform.m_Name     = next->m_Res->m_Name;
+                uniform.m_NameHash = dmHashString64(next->m_Res->m_Name);
+                uniform.m_Type     = ShaderDataTypeToGraphicsType(next->m_Res->m_Type.m_ShaderType);
+                uniform.m_Count    = 1;
+                uniform.m_Location = next->m_Res->m_Set | next->m_Res->m_Binding << 16;
+                program->m_Uniforms.Push(uniform);
+            }
+            else if (next->m_Res->m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER)
+            {
+                if (canonical_name_buffer.Capacity() == 0)
+                {
+                    canonical_name_buffer.OffsetCapacity(64);
+                    canonical_name_buffer.SetSize(canonical_name_buffer.Capacity());
+                }
+                uint32_t name_length = strlen(next->m_Res->m_Name);
+                memcpy(canonical_name_buffer.Begin(), next->m_Res->m_Name, name_length + 1);
+                BuildUniformsForUniformBuffer(next, program->m_Uniforms, *next->m_TypeInfos, next->m_Res->m_Type, &canonical_name_buffer, name_length);
+            }
+        }
+    }
+
     void InitializeSetTextureAsyncState(SetTextureAsyncState& state)
     {
         state.m_Mutex = dmMutex::New();

@@ -110,13 +110,6 @@ namespace dmGraphics
         uint8_t        m_Dirty : 1;
     };
 
-    struct OpenGLUniform
-    {
-        Uniform m_Uniform;
-        uint8_t m_TextureUnit   : 7;
-        uint8_t m_IsTextureType : 1;
-    };
-
     struct OpenGLProgram
     {
         Program                        m_BaseProgram;
