@@ -285,7 +285,7 @@ namespace dmDeviceWasapi
         return buffer_size - buffer_pos;
     }
 
-    // We get this call after we've returned a non zero value from the
+    // We get this call after we've returned a non zero value from the DeviceWasapiGetAvailableFrames()
     static dmSound::Result DeviceWasapiQueue(dmSound::HDevice _device, const int16_t* samples, uint32_t sample_count)
     {
         assert(_device);
@@ -380,7 +380,6 @@ namespace dmDeviceWasapi
             device->m_AudioClient->GetCurrentPadding(&buffer_pos);
 
             uint32_t frames_available = buffer_size;// buffer_size - buffer_pos;
-            // printf("stop: buffer_size: %u  buffer_pos: %u  available: %u\n", buffer_size, buffer_pos, frames_available);
             device->m_AudioRenderClient->GetBuffer(frames_available, &out);
             device->m_AudioRenderClient->ReleaseBuffer(frames_available, AUDCLNT_BUFFERFLAGS_SILENT);
 
