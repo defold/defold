@@ -76,8 +76,6 @@ public class AWSPublisher extends Publisher {
         }
         catch (CompileExceptionError e) {
             throw e;
-        } catch (AmazonS3Exception exception) {
-            throw amazonException(exception.getErrorMessage(), exception);
         } catch (Exception exception) {
             throw new CompileExceptionError("AWS Failed to publish resources", exception);
         }
