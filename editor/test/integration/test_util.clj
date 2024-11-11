@@ -183,7 +183,7 @@
 (defn make-build-stage-test-prefs []
   (prefs/global "test/resources/test.editor_settings"))
 
-(defonce ^:private shared-test-prefs-file (fs/create-temp-file! "unit-test" "prefs.editor_settings"))
+(defonce shared-test-prefs-file (fs/create-temp-file! "unit-test" "prefs.editor_settings"))
 (defn make-test-prefs []
   (prefs/make :scopes {:global shared-test-prefs-file :project shared-test-prefs-file}
               :schemas [:default]))

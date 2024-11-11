@@ -14,6 +14,7 @@
 
 (ns editor.editor-extensions.docs
   (:require [clojure.string :as string]
+            [editor.editor-extensions.prefs-docs :as prefs-docs]
             [editor.editor-extensions.ui-docs :as ui-docs]
             [editor.lua-completion :as lua-completion]))
 
@@ -166,6 +167,7 @@
         {:name "editor.platform"
          :type :variable
          :description "Editor platform id.\n\nA `string`, either:\n- `\"x86_64-win32\"`\n- `\"x86_64-macos\"`\n- `\"arm64-macos\"`\n- `\"x86_64-linux\"`"}
+
         {:name "editor.save"
          :type :function
          :parameters []
@@ -226,4 +228,5 @@
                             :description (format "`\"%s\"`" (name enum-value))}))
                     enum-values)]))))
          ui-docs/enums)
-       (ui-docs/script-docs)])))
+       (ui-docs/script-docs)
+       (prefs-docs/script-docs)])))

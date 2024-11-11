@@ -2663,6 +2663,7 @@ If you do not specifically require different script states, consider changing th
 (defn reload-extensions! [app-view project kind workspace changes-view build-errors-view prefs]
   (extensions/reload!
     project kind
+    :prefs prefs
     :reload-resources! (fn reload-resources! []
                          (let [f (future/make)]
                            (disk/async-reload! (make-render-task-progress :resource-sync)

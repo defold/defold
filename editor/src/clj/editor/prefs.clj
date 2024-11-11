@@ -19,21 +19,24 @@
   additional properties of the schema. The schema is largely inspired by JSON
   schema, which is used in vscode extensions that contribute configuration
   used by the language servers. Supported types:
-    :any        anything goes, no validation is performed
-    :boolean    a boolean value
-    :string     a string
-    :keyword    a keyword
-    :integer    an integer
-    :number     floating point number
-    :array      homogeneous typed array, requires :item key which defines array
-                item schema
-    :set        typed set, requires :item key which defines set item schema
-    :object     heterogeneous object, requires :properties key with a map of
-                keyword key to value schema
-    :enum       limited set of values, requires :values vector with available
-                values
-    :tuple      heterogeneous fixed-length array, requires :items vector with
-                positional schemas
+    :any           anything goes, no validation is performed
+    :boolean       a boolean value
+    :string        a string
+    :keyword       a keyword
+    :integer       an integer
+    :number        floating point number
+    :array         homogeneous typed array, requires :item key which defines
+                   array item schema
+    :set           typed set, requires :item key which defines set item schema
+    :object        heterogeneous object, requires :properties key with a map of
+                   keyword key to value schema
+    :object-of     homogeneous object, requires :key and :val schema keys
+    :enum          limited set of values, requires :values vector with available
+                   values
+    :tuple         heterogeneous fixed-length array, requires :items vector with
+                   positional schemas
+    :one-of        compositional schema, requires :schemas vector with at least
+                   2 alternative schemas
 
   Additionally, each schema map supports these optional keys:
     :default        explicit default value to use instead of a type default
@@ -45,7 +48,7 @@
     https://code.visualstudio.com/api/references/contribution-points#contributes.configuration
     https://docs.google.com/document/d/17ke9huzMaagHAYmdzGGGRHnDD5ViLZrChT3OYaEXZuU/edit
     https://json-schema.org/understanding-json-schema/reference"
-  (:refer-clojure :exclude [get set])
+  (:refer-clojure :exclude [get])
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.spec.alpha :as s]
@@ -65,155 +68,177 @@
 
 ;; All types, for reference:
 
-#_[:any :boolean :string :keyword :integer :number :array :set :object :enum :tuple]
+#_[:any :boolean :string :keyword :integer :number :array :set :object :object-of :enum :tuple :one-of]
 
-(def ^:private default-schema
-  {:type :object
-   :properties
-   {:asset-browser {:type :object
-                    :properties
-                    {:track-active-tab {:type :boolean :label "Track Active Tab in Asset Browser"}}}
-    :input {:type :object
-            :properties
-            {:keymap-path {:type :string :label "Path to Custom Keymap"}}}
-    :code {:type :object
-           :properties
-           {:custom-editor {:type :string}
-            :open-file {:type :string :default "{file}"}
-            :open-file-at-line {:type :string :default "{file}:{line}" :label "Open File at Line"}
-            :font {:type :object
-                   :properties
-                   {:name {:type :string :default "Dejavu Sans Mono"}
-                    :size {:type :number :default 12.0}}}
-            :find {:type :object
-                   :scope :project
-                   :properties
-                   {:term {:type :string}
-                    :replacement {:type :string}
-                    :whole-word {:type :boolean}
-                    :case-sensitive {:type :boolean}
-                    :wrap {:type :boolean :default true}}}
-            :visibility {:type :object
-                         :properties
-                         {:indentation-guides {:type :boolean :default true}
-                          :minimap {:type :boolean :default true}
-                          :whitespace {:type :boolean :default true}}}}}
-    :tools {:type :object
-            :properties
-            {:adb-path {:type :string
-                        :label "ADB path"
-                        :description "Path to ADB command that might be used to install and launch the Android app when it's bundled"}
-             :ios-deploy-path {:type :string
-                               :label "ios-deploy path"
-                               :description "Path to ios-deploy command that might be used to install and launch iOS app when it's bundled"}}}
-    :extensions {:type :object
-                 :properties
-                 {:build-server {:type :string}
-                  :build-server-headers {:type :string}}}
-    :search-in-files {:type :object
-                      :scope :project
+(defn- nilable [schema]
+  {:type :one-of :schemas [{:type :enum :values [nil]} schema]})
+
+(defn- resolve-schema
+  "Convert schema to a fully-specified one
+
+  In a fully resolved schema, every schema element up to leaves has a defined
+  scope. All nested object schemas are considered branches, and all non-object
+  schemas are leaves."
+  ([schema]
+   (resolve-schema schema :global))
+  ([schema default-scope]
+   (let [scope (:scope schema default-scope)
+         schema (assoc schema :scope scope)]
+     (case (:type schema)
+       :object (update schema :properties (fn [m]
+                                            (coll/pair-map-by key #(resolve-schema (val %) scope) m)))
+       schema))))
+
+(def default-schema
+  (resolve-schema
+    {:type :object
+     :properties
+     {:asset-browser {:type :object
                       :properties
-                      {:term {:type :string}
-                       :exts {:type :string}
-                       :include-libraries {:type :boolean :default true}}}
-    :open-assets {:type :object
-                  :scope :project
-                  :properties
-                  {:term {:type :string}}}
-    :build {:type :object
-            :scope :project
-            :properties
-            {:lint-code {:type :boolean :default true :label "Lint Code on Build"}
-             :texture-compression {:type :boolean}}}
-    :bundle {:type :object
-             :scope :project
+                      {:track-active-tab {:type :boolean :label "Track Active Tab in Asset Browser"}}}
+      :input {:type :object
+              :properties
+              {:keymap-path {:type :string :label "Path to Custom Keymap"}}}
+      :code {:type :object
              :properties
-             {:variant {:type :enum :values ["debug" "release" "headless"]}
-              :texture-compression {:type :enum :values ["enabled" "disabled" "editor"]}
-              :debug-symbols {:type :boolean :default true}
-              :build-report {:type :boolean}
-              :liveupdate {:type :boolean}
-              :contentless {:type :boolean}
-              :output-directory {:type :string}
-              :open-output-directory {:type :boolean :default true}
-              :android {:type :object
+             {:custom-editor {:type :string}
+              :open-file {:type :string :default "{file}"}
+              :open-file-at-line {:type :string :default "{file}:{line}" :label "Open File at Line"}
+              :font {:type :object
+                     :properties
+                     {:name {:type :string :default "Dejavu Sans Mono"}
+                      :size {:type :number :default 12.0}}}
+              :find {:type :object
+                     :scope :project
+                     :properties
+                     {:term {:type :string}
+                      :replacement {:type :string}
+                      :whole-word {:type :boolean}
+                      :case-sensitive {:type :boolean}
+                      :wrap {:type :boolean :default true}}}
+              :visibility {:type :object
+                           :properties
+                           {:indentation-guides {:type :boolean :default true}
+                            :minimap {:type :boolean :default true}
+                            :whitespace {:type :boolean :default true}}}}}
+      :tools {:type :object
+              :properties
+              {:adb-path {:type :string
+                          :label "ADB path"
+                          :description "Path to ADB command that might be used to install and launch the Android app when it's bundled"}
+               :ios-deploy-path {:type :string
+                                 :label "ios-deploy path"
+                                 :description "Path to ios-deploy command that might be used to install and launch iOS app when it's bundled"}}}
+      :extensions {:type :object
+                   :properties
+                   {:build-server {:type :string}
+                    :build-server-headers {:type :string}}}
+      :search-in-files {:type :object
+                        :scope :project
                         :properties
-                        {:keystore {:type :string}
-                         :keystore-pass {:type :string}
-                         :key-pass {:type :string}
-                         :architecture {:type :object
-                                        :properties
-                                        {:armv7-android {:type :boolean :default true}
-                                         :arm64-android {:type :boolean}}}
-                         :format {:type :enum :values ["apk" "aab" "apk,aab"]}
-                         :install {:type :boolean}
-                         :launch {:type :boolean}}}
-              :macos {:type :object
-                      :properties
-                      {:architecture {:type :object
-                                      :properties
-                                      {:x86_64-macos {:type :boolean :default true}
-                                       :arm64-macos {:type :boolean :default true}}}}}
-              :ios {:type :object
+                        {:term {:type :string}
+                         :exts {:type :string}
+                         :include-libraries {:type :boolean :default true}}}
+      :open-assets {:type :object
+                    :scope :project
                     :properties
-                    {:sign {:type :boolean :default true}
-                     :code-signing-identity {:type :string}
-                     :provisioning-profile {:type :string}
-                     :architecture {:type :object
-                                    :properties
-                                    {:arm64-ios {:type :boolean :default true}
-                                     :x86_64-ios {:type :boolean}}}
-                     :install {:type :boolean}
-                     :launch {:type :boolean}}}
-              :html5 {:type :object
-                      :properties
-                      {:architecture {:type :object
-                                      :properties
-                                      {:js-web {:type :boolean}
-                                       :wasm-web {:type :boolean :default true}}}}}
-              :windows {:type :object
-                        :properties
-                        {:platform {:type :enum
-                                    ;; derive from bob?
-                                    :values ["x86_64-win32" "x86-win32"]}}}}}
-    :window {:type :object
-             :properties
-             {:dimensions {:type :any}
-              :split-positions {:type :any}
-              :hidden-panes {:type :set :item {:type :keyword}}}}
-    :workflow {:type :object
+                    {:term {:type :string}}}
+      :build {:type :object
+              :scope :project
+              :properties
+              {:lint-code {:type :boolean :default true :label "Lint Code on Build"}
+               :texture-compression {:type :boolean}}}
+      :bundle {:type :object
+               :scope :project
                :properties
-               {:load-external-changes-on-app-focus {:type :boolean
-                                                     :default true
-                                                     :label "Load External Changes on App Focus"}
-                :recent-files {:type :array
-                               :item {:type :tuple :items [{:type :string} {:type :keyword}]}
-                               :scope :project}}}
-    :console {:type :object
-              :properties
-              {:filters {:type :array
-                         :item {:type :tuple :items [{:type :string} {:type :boolean}]}}}}
-    :run {:type :object
-          :properties
-          {:instance-count {:type :integer :default 1 :scope :project}
-           :selected-target-id {:type :any}
-           :manual-target-ip+port {:type :string}
-           :quit-on-escape {:type :boolean :label "Escape Quits Game"}
-           :simulate-rotated-device {:type :boolean :scope :project}
-           :simulated-resolution {:type :any :scope :project}}}
-    :scene {:type :object
+               {:variant {:type :enum :values ["debug" "release" "headless"]}
+                :texture-compression {:type :enum :values ["enabled" "disabled" "editor"]}
+                :debug-symbols {:type :boolean :default true}
+                :build-report {:type :boolean}
+                :liveupdate {:type :boolean}
+                :contentless {:type :boolean}
+                :output-directory (nilable {:type :string})
+                :open-output-directory {:type :boolean :default true}
+                :android {:type :object
+                          :properties
+                          {:keystore (nilable {:type :string})
+                           :keystore-pass (nilable {:type :string})
+                           :key-pass (nilable {:type :string})
+                           :architecture {:type :object
+                                          :properties
+                                          {:armv7-android {:type :boolean :default true}
+                                           :arm64-android {:type :boolean}}}
+                           :format (nilable {:type :enum :values ["apk" "aab" "apk,aab"]})
+                           :install {:type :boolean}
+                           :launch {:type :boolean}}}
+                :macos {:type :object
+                        :properties
+                        {:architecture {:type :object
+                                        :properties
+                                        {:x86_64-macos {:type :boolean :default true}
+                                         :arm64-macos {:type :boolean :default true}}}}}
+                :ios {:type :object
+                      :properties
+                      {:sign {:type :boolean :default true}
+                       :code-signing-identity (nilable {:type :string})
+                       :provisioning-profile (nilable {:type :string})
+                       :architecture {:type :object
+                                      :properties
+                                      {:arm64-ios {:type :boolean :default true}
+                                       :x86_64-ios {:type :boolean}}}
+                       :install {:type :boolean}
+                       :launch {:type :boolean}}}
+                :html5 {:type :object
+                        :properties
+                        {:architecture {:type :object
+                                        :properties
+                                        {:js-web {:type :boolean}
+                                         :wasm-web {:type :boolean :default true}}}}}
+                :windows {:type :object
+                          :properties
+                          {:platform {:type :enum
+                                      ;; derive from bob?
+                                      :values ["x86_64-win32" "x86-win32"]}}}}}
+      :window {:type :object
+               :properties
+               {:dimensions {:type :any}
+                :split-positions {:type :any}
+                :hidden-panes {:type :set :item {:type :keyword}}}}
+      :workflow {:type :object
+                 :properties
+                 {:load-external-changes-on-app-focus {:type :boolean
+                                                       :default true
+                                                       :label "Load External Changes on App Focus"}
+                  :recent-files {:type :array
+                                 :item {:type :tuple :items [{:type :string} {:type :keyword}]}
+                                 :scope :project}}}
+      :console {:type :object
+                :properties
+                {:filters {:type :array
+                           :item {:type :tuple :items [{:type :string} {:type :boolean}]}}}}
+      :run {:type :object
             :properties
-            {:move-whole-pixels {:type :boolean :default true}}}
-    :dev {:type :object
-          :properties
-          {:custom-engine {:type :any}}}
-    :git {:type :object
-          :properties
-          {:credentials {:type :any :scope :project}}}
-    :welcome {:type :object
+            {:instance-count {:type :integer :default 1 :scope :project}
+             :selected-target-id {:type :any}
+             :manual-target-ip+port {:type :string}
+             :quit-on-escape {:type :boolean :label "Escape Quits Game"}
+             :simulate-rotated-device (nilable {:type :boolean :scope :project})
+             :simulated-resolution {:type :any :scope :project}}}
+      :scene {:type :object
               :properties
-              {:last-opened-project-directory {:type :any}
-               :recent-projects {:type :any}}}}})
+              {:move-whole-pixels {:type :boolean :default true}}}
+      :dev {:type :object
+            :properties
+            {:custom-engine {:type :any}}}
+      :git {:type :object
+            :properties
+            {:credentials {:type :any :scope :project}}}
+      :welcome {:type :object
+                :properties
+                {:last-opened-project-directory {:type :any}
+                 :recent-projects {:type :object-of
+                                   :key {:type :string}
+                                   :val {:type :string}}}}}}))
 
 ;; region schema validation
 
@@ -237,12 +262,18 @@
                              (or (identical? v ::not-found)
                                  (valid? s v))))
                          (:properties schema)))
+    :object-of (and (map? value)
+                    (let [{:keys [key val]} schema]
+                      (every? (fn [[k v]]
+                                (and (valid? key k) (valid? val v)))
+                              value)))
     :enum (boolean (some #(= value %) (:values schema)))
     :tuple (and (vector? value)
                 (let [items (:items schema)
                       n (count items)]
                   (and (= (count value) n)
-                       (every? #(valid? (items %) (value %)) (range n)))))))
+                       (every? #(valid? (items %) (value %)) (range n)))))
+    :one-of (boolean (coll/some #(valid? % value) (:schemas schema)))))
 
 (defn default-value [schema]
   (let [explicit-default (:default schema ::not-found)]
@@ -257,8 +288,10 @@
         :array []
         :set #{}
         :object {}
+        :object-of {}
         :enum ((:values schema) 0)
-        :tuple (mapv default-value (:items schema)))
+        :tuple (mapv default-value (:items schema))
+        :one-of (default-value ((:schemas schema) 0)))
       explicit-default)))
 
 ;; endregion
@@ -273,7 +306,7 @@
 (s/def ::description string?)
 (s/def ::default any?)
 (s/def ::scope #{:global :project})
-(s/def ::type #{:any :boolean :string :keyword :integer :number :array :set :object :enum :tuple})
+(s/def ::type #{:any :boolean :string :keyword :integer :number :array :set :object :object-of :enum :tuple :one-of})
 (s/def ::schema
   (s/and
     (s/multi-spec type-spec :type)
@@ -285,14 +318,22 @@
 (defmethod type-spec :set [_] (s/keys :req-un [::item]))
 (s/def ::properties (s/map-of keyword? ::schema))
 (defmethod type-spec :object [_] (s/keys :req-un [::properties]))
+(s/def ::key ::schema)
+(s/def ::val ::schema)
+(defmethod type-spec :object-of [_] (s/keys :req-un [::key ::val]))
 (s/def ::items (s/coll-of ::schema :kind vector?))
 (defmethod type-spec :tuple [_] (s/keys :req-un [::items]))
 (s/def ::values (s/coll-of any? :min-count 1 :kind vector?))
 (defmethod type-spec :enum [_] (s/keys :req-un [::values]))
+(s/def ::schemas (s/coll-of ::schema :kind vector? :distinct true :min-count 2)) ;; 2 alternatives required
+(defmethod type-spec :one-of [_] (s/keys :req-un [::schemas]))
 
-(s/def ::scopes (s/map-of ::scope fs/path? :min-count 1))
-(s/def ::schemas (s/coll-of any? :kind vector? :distinct true :min-count 1))
-(s/def ::preferences (s/keys :req-un [::scopes ::schemas]))
+(s/def :editor.prefs.preferences/scopes (s/map-of ::scope fs/path? :min-count 1))
+(s/def :editor.prefs.preferences/schemas (s/coll-of any? :kind vector? :distinct true :min-count 1))
+(s/def ::preferences (s/keys :req-un [:editor.prefs.preferences/scopes
+                                      :editor.prefs.preferences/schemas]))
+
+(s/assert ::schema default-schema)
 
 ;; endregion
 
@@ -386,22 +427,6 @@
              (:events new-state))
     (.schedule sync-executor ^Runnable #(sync-state! global-state) 30 TimeUnit/SECONDS)))
 
-(defn- resolve-schema
-  "Convert schema to a fully-specified one
-
-  In a fully resolved schema, every schema element up to leaves has a defined
-  scope. All nested object schemas are considered branches, and all non-object
-  schemas are leaves."
-  ([schema]
-   (resolve-schema schema :global))
-  ([schema default-scope]
-   (let [scope (:scope schema default-scope)
-         schema (assoc schema :scope scope)]
-     (case (:type schema)
-       :object (update schema :properties (fn [m]
-                                            (coll/pair-map-by key #(resolve-schema (val %) scope) m)))
-       schema))))
-
 (def global-state
   ;; global state value is a map with the following keys:
   ;;   :storage     a map from absolute file Path to its prefs map
@@ -411,7 +436,10 @@
   ;;                of assoc-in paths to valid config values, i.e.:
   ;;                {java.nio.Path {assoc-in-path value}}
   (let [ret (atom {:storage {}
-                   :registry {:default (resolve-schema (s/assert ::schema default-schema))}})]
+                   ;; we put default schema into state to use the same schema
+                   ;; access pattern, but it is not modifiable (register-schema!
+                   ;; disallows using :default key)
+                   :registry {:default default-schema}})]
     (add-watch ret global-state-watcher global-state-watcher)
     (.addShutdownHook (Runtime/getRuntime) (Thread. #(sync-state! global-state)))
     ret))
@@ -445,23 +473,119 @@
         (default-value schema)
         value))))
 
-(defn- deep-merge-prefer-original-leaves [a b]
-  (if (and (map? a) (map? b))
-    (merge-with deep-merge-prefer-original-leaves a b)
-    ;; if values can't be combined, prefer the original value
-    a))
+(defn merge-schemas
+  "Similar to clojure.core/merge-with, but for schemas
 
-(defn- valid-set-value-events [scopes schema path value]
+  Automatically merges nested object schemas
+
+  Args:
+    f       schema merge function, will receive 3 args:
+            - first conflicting schema
+            - second conflicting schema
+            - conflict path
+            if f returns nil, both schemas are omitted from the output
+    a       first schema
+    b       second schema
+    path    initial schema path"
+  ([f a b]
+   (merge-schemas f a b []))
+  ([f a b path]
+   (if (and (= :object (:type a))
+            (= :object (:type b)))
+     (-> b
+         (conj a)
+         (assoc :properties (reduce-kv
+                              (fn [acc b-k b-v]
+                                (let [a-v (acc b-k ::not-found)]
+                                  (if (identical? ::not-found a-v)
+                                    (assoc acc b-k b-v)
+                                    (let [v (merge-schemas f a-v b-v (conj path b-k))]
+                                      (if v
+                                        (assoc acc b-k v)
+                                        (dissoc acc b-k))))))
+                              (:properties a)
+                              (:properties b))))
+     (f a b path))))
+
+(defn difference-schemas
+  "Similar to clojure.set/difference, but for schemas
+
+  Automatically diffs nested object schemas
+
+  Args:
+    f       callback function for removed entries, will receive 3 args:
+            - first conflicting schema
+            - second conflicting schema
+            - conflict path
+    a       first schema
+    b       second schema
+    path    initial schema path"
+  ([f a b]
+   (difference-schemas f a b []))
+  ([f a b path]
+   (if (and (= :object (:type a))
+            (= :object (:type b)))
+     (let [new-properties (reduce-kv
+                            (fn [acc b-k b-v]
+                              (let [a-v (acc b-k ::not-found)]
+                                (if (identical? ::not-found a-v)
+                                  acc
+                                  (let [v (difference-schemas f a-v b-v (conj path b-k))]
+                                    (if v
+                                      (assoc acc b-k v)
+                                      (dissoc acc b-k))))))
+                            (:properties a)
+                            (:properties b))]
+       (if (coll/empty? new-properties)
+         nil
+         (assoc a :properties new-properties)))
+     (do (f a b path)
+         nil))))
+
+(defn- prefer-first [a _ _] a)
+
+(defn- path-error [path]
+  (ex-info (str "No schema defined for prefs path " path)
+           {::error :path
+            :path path}))
+
+(defn- value-error [path value schema]
+  (ex-info (str "Invalid new value at prefs path " path ": " value)
+           {::error :value
+            :path path
+            :value value
+            :schema schema}))
+
+(defn- combined-schema-at-path [registry prefs path]
+  (let [ret (->> prefs
+                 :schemas
+                 (e/keep #(some-> (registry %) (lookup-schema-at-path path)))
+                 (reduce
+                   (fn [acc schema]
+                     (if (identical? ::not-found acc)
+                       schema
+                       (merge-schemas prefer-first acc schema path)))
+                   ::not-found))]
+    (if (identical? ::not-found ret)
+      (throw (path-error path))
+      ret)))
+
+(defn- set-value-events [scopes schema path value]
   (if (= :object (:type schema))
-    (when (map? value)
-      (e/mapcat
-        (fn [e]
-          (let [v (value (key e) ::not-found)]
-            (when-not (identical? ::not-found v)
-              (valid-set-value-events scopes (val e) (conj path (key e)) v))))
-        (:properties schema)))
-    (when (valid? schema value)
-      [[(-> schema :scope scopes) path value]])))
+    (if (map? value)
+      (let [{:keys [properties]} schema]
+        (e/mapcat
+          (fn [e]
+            (let [k (key e)
+                  property-path (conj path k)]
+              (if-let [property-schema (properties k)]
+                (set-value-events scopes property-schema property-path (val e))
+                (throw (path-error property-path)))))
+          value))
+      (throw (value-error path value schema)))
+    (if (valid? schema value)
+      [[(-> schema :scope scopes) path value]]
+      (throw (value-error path value schema)))))
 
 ;; endregion
 
@@ -490,46 +614,40 @@
 (defn get
   "Get a value from preferences at a specified get-in path
 
-  Will only return values specified in the combined schema, otherwise it will
-  return nil. Does not perform file IO.
+  Will only return values specified in the combined schema. Does not perform
+  file IO.
 
   Using [] as a path will return the full preference map"
   [prefs path]
   {:pre [(vector? path)]}
   (let [{:keys [registry storage]} @global-state
-        {:keys [scopes schemas]} prefs
-        ret (->> schemas
-                 (e/keep #(some-> (registry %) (lookup-schema-at-path path)))
-                 (reduce
-                   (fn [acc schema]
-                     (if (identical? ::not-found acc)
-                       (lookup-valid-value-at-path scopes storage schema path)
-                       (deep-merge-prefer-original-leaves
-                         acc
-                         (lookup-valid-value-at-path scopes storage schema path))))
-                   ::not-found))]
-    (if (identical? ::not-found ret)
-      nil
-      ret)))
+        schema (combined-schema-at-path registry prefs path)]
+    (lookup-valid-value-at-path (:scopes prefs) storage schema path)))
 
 (defn set!
   "Set a value in preferences at a specified assoc-in path
 
-  Will only set values specified in the combined schema, otherwise the value
-  will be discarded. Does not perform file IO."
+  The new value must satisfy the combined schema. Does not perform file IO.
+
+  Using [] as a path allows changing the whole preference state"
   [prefs path value]
-  (let [{:keys [scopes schemas]} prefs]
+  (let [{:keys [scopes]} prefs]
     (swap! global-state (fn [{:keys [registry] :as m}]
-                          (->> schemas
-                               (e/keep #(some-> (registry %) (lookup-schema-at-path path)))
-                               (e/mapcat #(valid-set-value-events scopes % path value))
-                               (reduce
-                                 (fn [acc [file-path config-path value]]
-                                   (-> acc
-                                       (update-in [:storage file-path] safe-assoc-in config-path value)
-                                       (assoc-in [:events file-path config-path] value)))
-                                 m))))
+                          (let [schema (combined-schema-at-path registry prefs path)]
+                            (->> value
+                                 (set-value-events scopes schema path)
+                                 (reduce
+                                   (fn [acc [file-path config-path value]]
+                                     (-> acc
+                                         (update-in [:storage file-path] safe-assoc-in config-path value)
+                                         (assoc-in [:events file-path config-path] value)))
+                                   m)))))
     nil))
+
+(defn schema
+  "Get a preference schema at a specified get-in path"
+  [prefs path]
+  (combined-schema-at-path (:registry @global-state) prefs path))
 
 (defn register-schema!
   "Register a new schema, e.g. a project-specific one"

@@ -47,13 +47,14 @@
     :string ["string"]
     :function ["function"]
     :integer ["integer"]
+    :number ["number"]
     :table ["table"]
     :any ["any"]
     :array (when-let [item-types (infer-doc-types-from-coercer-schema (:item schema))]
              [(str (group-doc-types item-types) "[]")])
     nil))
 
-(defn- ^{:arglists '([name & {:keys [coerce required types doc]}])} make-prop
+(defn ^{:arglists '([name & {:keys [coerce required types doc]}])} make-prop
   "Construct a prop definition map
 
   Args:
@@ -388,7 +389,7 @@
 
 ;; region component definitions
 
-(defn- props-doc-html [props]
+(defn props-doc-html [props]
   (lua-completion/args-doc-html
     (map #(update % :name name) props)))
 
