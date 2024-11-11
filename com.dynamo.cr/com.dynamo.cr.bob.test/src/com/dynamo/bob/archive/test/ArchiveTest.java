@@ -30,6 +30,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 import java.util.HashSet;
+import java.util.zip.ZipFile;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -102,12 +103,22 @@ public class ArchiveTest {
     }
 
     private ResourceNode addEntry(String filename, String content, ArchiveBuilder archiveBuilder, ResourceNode parent) throws IOException {
-        String filepath = createDummyFile(contentRoot, filename, filename.getBytes());
+        String filepath = createDummyFile(contentRoot, filename, content.getBytes());
         archiveBuilder.add(filepath, true, false);
         return resourceGraph.add(filename, parent);
     }
     private ResourceNode addExcludedEntry(String filename, String content, ArchiveBuilder archiveBuilder, ResourceNode parent) throws IOException {
         ResourceNode current = addEntry(filename, content, archiveBuilder, parent);
+        current.setType(ResourceNode.Type.ExcludedCollectionProxy);
+        return current;
+    }
+    private ResourceNode addEntry(String filename, ArchiveBuilder archiveBuilder, ResourceNode parent) throws IOException {
+        String filepath = createDummyFile(contentRoot, filename, filename.getBytes());
+        archiveBuilder.add(filepath, true, false);
+        return resourceGraph.add(filename, parent);
+    }
+    private ResourceNode addExcludedEntry(String filename, ArchiveBuilder archiveBuilder, ResourceNode parent) throws IOException {
+        ResourceNode current = addEntry(filename, archiveBuilder, parent);
         current.setType(ResourceNode.Type.ExcludedCollectionProxy);
         return current;
     }
@@ -271,9 +282,9 @@ public class ArchiveTest {
         ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, 4, project);
 
         ResourceNode root = resourceGraph.getRootNode();
-        ResourceNode collection1 = addEntry("main.collectionc", "alpha", instance, root);
-        ResourceNode collectionproxy1 = addExcludedEntry("main.collectionproxyc", "beta", instance, collection1);
-        ResourceNode gameobject1 = addEntry("main.goc", "delta", instance, collectionproxy1);
+        ResourceNode collection1 = addEntry("main.collectionc", instance, root);
+        ResourceNode collectionproxy1 = addExcludedEntry("main.collectionproxyc", instance, collection1);
+        ResourceNode gameobject1 = addEntry("main.goc", instance, collectionproxy1);
 
         Set<String> excludedResources = resourceGraph.createExcludedResourcesList();
 
@@ -295,9 +306,9 @@ public class ArchiveTest {
         ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, 4, project);
 
         ResourceNode root = resourceGraph.getRootNode();
-        ResourceNode collection1 = addEntry("main.collectionc", "alpha", instance, root);
-        ResourceNode collectionproxy1 = addExcludedEntry("main.collectionproxyc", "beta", instance, collection1);
-        ResourceNode gameobject1 = addEntry("main.goc", "delta", instance, collectionproxy1);
+        ResourceNode collection1 = addEntry("main.collectionc", instance, root);
+        ResourceNode collectionproxy1 = addExcludedEntry("main.collectionproxyc", instance, collection1);
+        ResourceNode gameobject1 = addEntry("main.goc", instance, collectionproxy1);
 
         Set<String> excludedResources = resourceGraph.createExcludedResourcesList();
 
@@ -317,6 +328,44 @@ public class ArchiveTest {
 
     @SuppressWarnings("unused")
     @Test
+    public void testWriteArchive_ExcludedIdenticalResourcesWithZipPublisher() throws Exception {
+        ManifestBuilder manifestBuilder = new ManifestBuilder();
+        manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_MD5);
+        manifestBuilder.setResourceGraph(resourceGraph);
+
+        ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, 4, project);
+
+        ResourceNode root = resourceGraph.getRootNode();
+        ResourceNode collection1 = addEntry("main.collectionc", instance, root);
+        ResourceNode collectionproxy1 = addExcludedEntry("main.collectionproxyc", instance, collection1);
+        // this should end up as one file in the zip archive (since the content is identical)
+        ResourceNode gameobject1 = addEntry("main1.goc", "delta", instance, collectionproxy1);
+        ResourceNode gameobject2 = addEntry("main2.goc", "delta", instance, collectionproxy1);
+
+        Set<String> excludedResources = resourceGraph.createExcludedResourcesList();
+
+        // Test
+        PublisherSettings settings = new PublisherSettings();
+        settings.setZipFilepath(project.getRootDirectory());
+        ZipPublisher publisher = new ZipPublisher(project.getRootDirectory(), settings);
+        publisher.setFilename("excluded.zip");
+        publisher.start();
+        instance.write(outputIndex, outputData, publisher, excludedResources);
+        publisher.stop();
+
+        File zip = publisher.getZipFile();
+        assertTrue(zip.exists());
+
+        ZipFile zipFile = new ZipFile(zip);
+
+        assertEquals(1, zipFile.size());
+        assertEquals(2, instance.getExcludedEntries().size());
+
+        zip.delete();
+    }
+
+    @SuppressWarnings("unused")
+    @Test
     public void testWriteArchive_SiblingProxies() throws Exception {
         ManifestBuilder manifestBuilder = new ManifestBuilder();
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_MD5);
@@ -325,11 +374,11 @@ public class ArchiveTest {
         ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, 4, project);
 
         ResourceNode root = resourceGraph.getRootNode();
-        ResourceNode collection1 = addEntry("main.collectionc", "alpha", instance, root);
-        ResourceNode collectionproxy1 = addEntry("level1.collectionproxyc", "beta", instance, collection1);
-        ResourceNode collectionproxy2 = addExcludedEntry("level2.collectionproxyc", "delta", instance, collection1);
-        ResourceNode gameobject1 = addEntry("level1.goc", "gamma", instance, collectionproxy1);
-        ResourceNode gameobject2 = addEntry("level2.goc", "epsilon", instance, collectionproxy2);
+        ResourceNode collection1 = addEntry("main.collectionc", instance, root);
+        ResourceNode collectionproxy1 = addEntry("level1.collectionproxyc", instance, collection1);
+        ResourceNode collectionproxy2 = addExcludedEntry("level2.collectionproxyc", instance, collection1);
+        ResourceNode gameobject1 = addEntry("level1.goc", instance, collectionproxy1);
+        ResourceNode gameobject2 = addEntry("level2.goc", instance, collectionproxy2);
 
         Set<String> excludedResources = resourceGraph.createExcludedResourcesList();
 
@@ -353,11 +402,11 @@ public class ArchiveTest {
         ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, 4, project);
 
         ResourceNode root = resourceGraph.getRootNode();
-        ResourceNode collection1 = addEntry("main.collectionc", "alpha", instance, root);
-        ResourceNode collectionproxy1 = addExcludedEntry("level1.collectionproxyc", "beta", instance, collection1);
-        ResourceNode collectionproxy2 = addEntry("level2.collectionproxyc", "delta", instance, collection1);
-        ResourceNode gameobject1 = addEntry("shared.goc", "gamma", instance, collectionproxy1);
-        ResourceNode gameobject2 = addEntry("shared.goc", "gamma", instance, collectionproxy2);
+        ResourceNode collection1 = addEntry("main.collectionc", instance, root);
+        ResourceNode collectionproxy1 = addExcludedEntry("level1.collectionproxyc", instance, collection1);
+        ResourceNode collectionproxy2 = addEntry("level2.collectionproxyc", instance, collection1);
+        ResourceNode gameobject1 = addEntry("shared.goc", instance, collectionproxy1);
+        ResourceNode gameobject2 = addEntry("shared.goc", instance, collectionproxy2);
 
         Set<String> excludedResources = resourceGraph.createExcludedResourcesList();
 
@@ -381,11 +430,11 @@ public class ArchiveTest {
         ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, 4, project);
 
         ResourceNode root = resourceGraph.getRootNode();
-        ResourceNode collection1 = addEntry("main.collectionc", "alpha", instance, root);
-        ResourceNode collectionproxy1 = addEntry("level1.collectionproxyc", "beta", instance, collection1);
-        ResourceNode collectionproxy2 = addExcludedEntry("level2.collectionproxyc", "delta", instance, collectionproxy1);
-        ResourceNode gameobject1 = addEntry("level1.goc", "gamma", instance, collectionproxy1);
-        ResourceNode gameobject2 = addEntry("level2.goc", "epsilon", instance, collectionproxy2);
+        ResourceNode collection1 = addEntry("main.collectionc", instance, root);
+        ResourceNode collectionproxy1 = addEntry("level1.collectionproxyc", instance, collection1);
+        ResourceNode collectionproxy2 = addExcludedEntry("level2.collectionproxyc", instance, collectionproxy1);
+        ResourceNode gameobject1 = addEntry("level1.goc", instance, collectionproxy1);
+        ResourceNode gameobject2 = addEntry("level2.goc", instance, collectionproxy2);
 
         Set<String> excludedResources = resourceGraph.createExcludedResourcesList();
 
@@ -408,11 +457,11 @@ public class ArchiveTest {
 
         ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, 4, project);
         ResourceNode root = resourceGraph.getRootNode();
-        ResourceNode collection1 = addEntry("main.collectionc", "alpha", instance, root);
-        ResourceNode collectionproxy1 = addEntry("level1.collectionproxyc", "beta", instance, collection1);
-        ResourceNode collectionproxy2 = addExcludedEntry("level2.collectionproxyc", "delta", instance, collection1);
-        ResourceNode gameobject11 = addEntry("level1.goc", "gamma", instance, collectionproxy1); // should be bundled
-        ResourceNode gameobject2 = addEntry("level2.goc", "epsilon", instance, collectionproxy2); // should be excluded
+        ResourceNode collection1 = addEntry("main.collectionc", instance, root);
+        ResourceNode collectionproxy1 = addEntry("level1.collectionproxyc", instance, collection1);
+        ResourceNode collectionproxy2 = addExcludedEntry("level2.collectionproxyc", instance, collection1);
+        ResourceNode gameobject11 = addEntry("level1.goc", instance, collectionproxy1); // should be bundled
+        ResourceNode gameobject2 = addEntry("level2.goc", instance, collectionproxy2); // should be excluded
 
         Set<String> excludedResources = resourceGraph.createExcludedResourcesList();
 
@@ -436,13 +485,13 @@ public class ArchiveTest {
 
         ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, 4, project);
         ResourceNode root = resourceGraph.getRootNode();
-        ResourceNode collection1 = addEntry("main.collectionc", "alpha", instance, root);
-        ResourceNode collectionproxy1 = addEntry("level1.collectionproxyc", "beta", instance, collection1);
-        ResourceNode collectionproxy2 = addExcludedEntry("level2.collectionproxyc", "delta", instance, collection1);
-        ResourceNode gameobject11 = addEntry("level1.goc", "gamma", instance, collectionproxy1); // should be bundled
-        ResourceNode gameobject12 = addEntry("level1.goc", "gamma", instance, collectionproxy2);
-        ResourceNode gameobject2 = addEntry("level2.goc", "epsilon", instance, collectionproxy2); // should be excluded
-        ResourceNode gameobject3 = addEntry("level3.goc", "eta", instance, collectionproxy2); // should be excluded
+        ResourceNode collection1 = addEntry("main.collectionc", instance, root);
+        ResourceNode collectionproxy1 = addEntry("level1.collectionproxyc", instance, collection1);
+        ResourceNode collectionproxy2 = addExcludedEntry("level2.collectionproxyc", instance, collection1);
+        ResourceNode gameobject11 = addEntry("level1.goc", instance, collectionproxy1); // should be bundled
+        ResourceNode gameobject12 = addEntry("level1.goc", instance, collectionproxy2);
+        ResourceNode gameobject2 = addEntry("level2.goc", instance, collectionproxy2); // should be excluded
+        ResourceNode gameobject3 = addEntry("level3.goc", instance, collectionproxy2); // should be excluded
 
         Set<String> excludedResources = resourceGraph.createExcludedResourcesList();
 
@@ -466,11 +515,11 @@ public class ArchiveTest {
         ArchiveBuilder instance = new ArchiveBuilder(FilenameUtils.separatorsToSystem(contentRoot), manifestBuilder, 4, project);
 
         ResourceNode root = resourceGraph.getRootNode();
-        ResourceNode collection1 = addEntry("main.collectionc", "alpha", instance, root);
-        ResourceNode collectionproxy1 = addExcludedEntry("level1.collectionproxyc", "beta", instance, collection1);
-        ResourceNode collectionproxy2 = addEntry("level2.collectionproxyc", "delta", instance, collectionproxy1);
-        ResourceNode gameobject1 = addEntry("level1.goc", "gamma", instance, collectionproxy1);
-        ResourceNode gameobject2 = addEntry("level2.goc", "epsilon", instance, collectionproxy2);
+        ResourceNode collection1 = addEntry("main.collectionc", instance, root);
+        ResourceNode collectionproxy1 = addExcludedEntry("level1.collectionproxyc", instance, collection1);
+        ResourceNode collectionproxy2 = addEntry("level2.collectionproxyc", instance, collectionproxy1);
+        ResourceNode gameobject1 = addEntry("level1.goc", instance, collectionproxy1);
+        ResourceNode gameobject2 = addEntry("level2.goc", instance, collectionproxy2);
 
         Set<String> excludedResources = resourceGraph.createExcludedResourcesList();
 

@@ -21,6 +21,8 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
+import java.util.Set;
+import java.util.HashSet;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -41,6 +43,7 @@ public class ZipPublisher extends Publisher {
     private String projectRoot = null;
     private String filename = null;
     private ZipOutputStream zipOutputStream;
+    private Set<String> zipEntries =  new HashSet<>();
 
     public ZipPublisher(String projectRoot, PublisherSettings settings) {
         super(settings);
@@ -72,6 +75,8 @@ public class ZipPublisher extends Publisher {
                 File cwd = new File(this.projectRoot);
                 this.destZipFile = new File(cwd, this.destZipFile.getPath());
             }
+
+            zipEntries.clear();
 
             FileOutputStream resourcePackOutputStream = new FileOutputStream(this.tempZipFile);
             zipOutputStream = new ZipOutputStream(resourcePackOutputStream);
@@ -108,12 +113,15 @@ public class ZipPublisher extends Publisher {
             final String archiveEntryHexdigest = entry.getHexDigest();
             final String archiveEntryName = entry.getName();
             final String zipEntryName = (archiveEntryHexdigest != null) ? archiveEntryHexdigest : archiveEntryName;
-            ZipEntry currentEntry = new ZipEntry(zipEntryName);
-            zipOutputStream.putNextEntry(currentEntry);
-            zipOutputStream.write(entry.getHeader());
-            data.transferTo(zipOutputStream);
-            zipOutputStream.flush();
-            zipOutputStream.closeEntry();
+            if (!zipEntries.contains(zipEntryName)) {
+                ZipEntry currentEntry = new ZipEntry(zipEntryName);
+                zipOutputStream.putNextEntry(currentEntry);
+                zipOutputStream.write(entry.getHeader());
+                data.transferTo(zipOutputStream);
+                zipOutputStream.flush();
+                zipOutputStream.closeEntry();
+                zipEntries.add(zipEntryName);
+            }
         } catch (FileNotFoundException exception) {
             throw new CompileExceptionError("Unable to find required file for liveupdate resources: " + exception.getMessage(), exception);
         } catch (IOException exception) {
