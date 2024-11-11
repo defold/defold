@@ -2037,55 +2037,6 @@ static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* 
     }
 }
 
-static void BuildUniformsForUniformBuffer(const ProgramResourceBinding* resource, dmArray<Uniform>& uniforms, const dmArray<ShaderResourceTypeInfo>& type_infos, ShaderResourceType type, dmArray<char>* canonical_name_buffer, uint32_t canonical_name_buffer_offset, uint32_t base_offset = 0)
-    {
-        const ShaderResourceTypeInfo& type_info = type_infos[type.m_TypeIndex];
-        const uint32_t num_members = type_info.m_Members.Size();
-        for (int i = 0; i < num_members; ++i)
-        {
-            const ShaderResourceMember& member = type_info.m_Members[i];
-            uint32_t name_length = strlen(member.m_Name);
-            uint32_t bytes_to_write = name_length + 2; // 1 for the '.' and 1 for the null-terminator
-
-            if (canonical_name_buffer->Capacity() <= canonical_name_buffer_offset + bytes_to_write)
-            {
-                canonical_name_buffer->OffsetCapacity(bytes_to_write);
-                canonical_name_buffer->SetSize(canonical_name_buffer->Capacity());
-            }
-
-            char* name_write_start = canonical_name_buffer->Begin() + canonical_name_buffer_offset;
-
-            name_write_start[0] = '.';
-            name_write_start++;
-
-            memcpy(name_write_start, member.m_Name, name_length);
-            name_write_start[name_length] = 0;
-
-            if (member.m_Type.m_UseTypeIndex)
-            {
-                BuildUniformsForUniformBuffer(resource, uniforms, type_infos, member.m_Type, canonical_name_buffer, canonical_name_buffer_offset + name_length + 1, member.m_Offset + base_offset);
-            }
-            else
-            {
-                uint64_t buffer_offset = member.m_Offset + base_offset;
-                Uniform uniform;
-                uniform.m_Name              = member.m_Name;
-                uniform.m_NameHash          = member.m_NameHash;
-                uniform.m_CanonicalName     = strdup(canonical_name_buffer->Begin());
-                uniform.m_CanonicalNameHash = dmHashString64(uniform.m_CanonicalName);
-                uniform.m_Type              = ShaderDataTypeToGraphicsType(member.m_Type.m_ShaderType);
-                uniform.m_Count             = dmMath::Max((uint32_t) 1, member.m_ElementCount);
-                uniform.m_Location          = resource->m_Res->m_Set | resource->m_Res->m_Binding << 16 | buffer_offset << 32;
-
-            #if 0
-                dmLogInfo("    Uniform: path=%s, name=%s, offset=%d, buffer_offset=%d", uniform.m_CanonicalName, uniform.m_Name, member.m_Offset, (uint32_t) buffer_offset);
-            #endif
-
-                uniforms.Push(uniform);
-            }
-        }
-    }
-
 static void BuildUniforms(WebGPUProgram* program)
 {
     uint32_t uniform_count = 0;

@@ -995,41 +995,6 @@ namespace dmGraphics
         }
     }
 
-    // TODO, comment from the PR (#4544):
-    //   "These frequent lookups could be improved by sorting on the key beforehand,
-    //   and during lookup, do a lower_bound, to find the item (or not).
-    //   E.g see: engine/render/src/render/material.cpp#L446"
-    bool GetUniformIndices(const dmArray<ShaderResourceTypeInfo> types, const dmArray<ShaderResourceBinding>& bindings, dmhash_t name_hash, uint64_t* index_out, uint64_t* index_member_out)
-    {
-        // JG: WHERE IS THIS FUNCTION USED
-        assert(bindings.Size() < UNIFORM_LOCATION_MAX);
-        for (uint32_t i = 0; i < bindings.Size(); ++i)
-        {
-            if (bindings[i].m_NameHash == name_hash)
-            {
-                *index_out = i;
-                *index_member_out = 0;
-                return true;
-            }
-            else if (bindings[i].m_Type.m_UseTypeIndex)
-            {
-                const ShaderResourceTypeInfo& type_info = types[bindings[i].m_Type.m_TypeIndex];
-                const uint32_t num_members = type_info.m_Members.Size();
-                for (int j = 0; j < num_members; ++j)
-                {
-                    if (type_info.m_NameHash == name_hash)
-                    {
-                        *index_out = i;
-                        *index_member_out = j;
-                        return true;
-                    }
-                }
-            }
-        }
-
-        return false;
-    }
-
     uint32_t CountShaderResourceLeafMembers(const dmArray<ShaderResourceTypeInfo>& type_infos, ShaderResourceType type, uint32_t count)
     {
         if (!type.m_UseTypeIndex)
@@ -1045,6 +1010,55 @@ namespace dmGraphics
             count += CountShaderResourceLeafMembers(type_infos, member.m_Type, count);
         }
         return count;
+    }
+
+    void BuildUniformsForUniformBuffer(const ProgramResourceBinding* resource, dmArray<Uniform>& uniforms, const dmArray<ShaderResourceTypeInfo>& type_infos, ShaderResourceType type, dmArray<char>* canonical_name_buffer, uint32_t canonical_name_buffer_offset, uint32_t base_offset)
+    {
+        const ShaderResourceTypeInfo& type_info = type_infos[type.m_TypeIndex];
+        const uint32_t num_members = type_info.m_Members.Size();
+        for (int i = 0; i < num_members; ++i)
+        {
+            const ShaderResourceMember& member = type_info.m_Members[i];
+            uint32_t name_length = strlen(member.m_Name);
+            uint32_t bytes_to_write = name_length + 2; // 1 for the '.' and 1 for the null-terminator
+
+            if (canonical_name_buffer->Capacity() <= canonical_name_buffer_offset + bytes_to_write)
+            {
+                canonical_name_buffer->OffsetCapacity(bytes_to_write);
+                canonical_name_buffer->SetSize(canonical_name_buffer->Capacity());
+            }
+
+            char* name_write_start = canonical_name_buffer->Begin() + canonical_name_buffer_offset;
+
+            name_write_start[0] = '.';
+            name_write_start++;
+
+            memcpy(name_write_start, member.m_Name, name_length);
+            name_write_start[name_length] = 0;
+
+            if (member.m_Type.m_UseTypeIndex)
+            {
+                BuildUniformsForUniformBuffer(resource, uniforms, type_infos, member.m_Type, canonical_name_buffer, canonical_name_buffer_offset + name_length + 1, member.m_Offset + base_offset);
+            }
+            else
+            {
+                uint64_t buffer_offset = member.m_Offset + base_offset;
+                Uniform uniform;
+                uniform.m_Name              = member.m_Name;
+                uniform.m_NameHash          = member.m_NameHash;
+                uniform.m_CanonicalName     = strdup(canonical_name_buffer->Begin());
+                uniform.m_CanonicalNameHash = dmHashString64(uniform.m_CanonicalName);
+                uniform.m_Type              = ShaderDataTypeToGraphicsType(member.m_Type.m_ShaderType);
+                uniform.m_Count             = dmMath::Max((uint32_t) 1, member.m_ElementCount);
+                uniform.m_Location          = resource->m_Res->m_Set | resource->m_Res->m_Binding << 16 | buffer_offset << 32;
+
+            #if 0
+                dmLogInfo("    Uniform: path=%s, name=%s, offset=%d, buffer_offset=%d", uniform.m_CanonicalName, uniform.m_Name, member.m_Offset, (uint32_t) buffer_offset);
+            #endif
+
+                uniforms.Push(uniform);
+            }
+        }
     }
 
     void InitializeSetTextureAsyncState(SetTextureAsyncState& state)
