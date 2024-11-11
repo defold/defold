@@ -327,7 +327,7 @@ public class ArchiveBuilder {
      * @param publisher The publisher where excluded resources will be published
      * @param excludedResources The resources to exclude from the archive
      */
-    private void writeArchiveEntries(final File archiveDataFile, Publisher publisher, List<String> excludedResources) throws IOException, CompileExceptionError {
+    private void writeArchiveEntries(final File archiveDataFile, Publisher publisher, Set<String> excludedResources) throws IOException, CompileExceptionError {
         TimeProfiler.start("writeArchiveEntries");
 
         // create the executor service to write entries in parallel
@@ -376,7 +376,7 @@ public class ArchiveBuilder {
         TimeProfiler.stop();
     }
 
-    public void write(File archiveIndexFile, File archiveDataFile, Publisher publisher, List<String> excludedResources) throws IOException, CompileExceptionError {
+    public void write(File archiveIndexFile, File archiveDataFile, Publisher publisher, Set<String> excludedResources) throws IOException, CompileExceptionError {
         TimeProfiler.start("WriteArchive");
 
         writeArchiveEntries(archiveDataFile, publisher, excludedResources);
@@ -481,7 +481,7 @@ public class ArchiveBuilder {
 
         ResourceNode rootNode = resourceGraph.getRootNode();
 
-        List<String> excludedResources = new ArrayList<String>();
+        Set<String> excludedResources = new HashSet<String>();
 
         int archivedEntries = 0;
         String dirpathRootString = dirpathRoot.toString();
