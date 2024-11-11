@@ -104,7 +104,7 @@ public class ResourceUnpacker {
                 if (alreadyUnpacked) {
                     logger.info("Already unpacked for the editor version {}", sha1);
                 } else {
-                    unpackResourceFile("builtins.zip", unpackPath.resolve("builtins"));
+                    unpackResourceFile("lib/builtins.zip", unpackPath.resolve("builtins"));
                     unpackResourceDir("/_unpack", unpackPath);
                     unpackResourceFile("libexec/" + platform.getPair() + "/libogg" + platform.getLibSuffix(), unpackPath);
                     unpackResourceFile("libexec/" + platform.getPair() + "/liboggz" + platform.getLibSuffix(), unpackPath);
