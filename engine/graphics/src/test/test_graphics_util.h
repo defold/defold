@@ -90,6 +90,14 @@ namespace dmGraphics
         info->m_Members.m_Data[0].m_NameHash                 = dmHashString64(name);
         info->m_Members.m_Data[0].m_Type.m_Type.m_ShaderType = type;
     }
+
+    static void CleanupShaderResourceTypeInfos(dmGraphics::ShaderDesc::ResourceTypeInfo* infos, uint32_t count)
+    {
+        for (int i = 0; i < count; ++i)
+        {
+            delete[] infos[i].m_Members.m_Data;
+        }
+    }
 }
 
 #endif

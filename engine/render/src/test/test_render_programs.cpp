@@ -118,6 +118,8 @@ TEST_F(dmRenderMaterialTest, TestMaterialConstants)
     dmGraphics::ShaderDesc fp_desc           = dmGraphics::MakeDDFShaderDesc(&fp_shader, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, 0, 0, 0, 0, 0, 0, &types, 1);
     dmGraphics::HFragmentProgram fp          = dmGraphics::NewFragmentProgram(m_GraphicsContext, &fp_desc, 0, 0);
 
+    CleanupShaderResourceTypeInfos(&types, 1);
+
     dmRender::HMaterial material = dmRender::NewMaterial(m_RenderContext, vp, fp);
 
     // Constants buffer
@@ -460,11 +462,12 @@ TEST_F(dmRenderMaterialTest, TestMaterialConstantsOverride)
     vp_shader = dmGraphics::MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, "uniform vec4 dummy;\nuniform vec4 tint;\n", 40);
     vs_desc = dmGraphics::MakeDDFShaderDesc(&vp_shader, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, 0, 0, uniforms, 2, 0, 0, types, 2);
 
-
     dmGraphics::HVertexProgram vp_ovr = dmGraphics::NewVertexProgram(m_GraphicsContext, &vs_desc, 0, 0);
     dmGraphics::HFragmentProgram fp_ovr = dmGraphics::NewFragmentProgram(m_GraphicsContext, &fp_desc, 0, 0);
     dmRender::HMaterial material_ovr = dmRender::NewMaterial(m_RenderContext, vp_ovr, fp_ovr);
     dmGraphics::HProgram program_ovr = dmRender::GetMaterialProgram(material_ovr);
+
+    CleanupShaderResourceTypeInfos(types, 2);
 
     // Constants
     dmRender::HNamedConstantBuffer constants = dmRender::NewNamedConstantBuffer();
@@ -558,6 +561,8 @@ TEST_F(dmRenderComputeTest, TestComputeConstants)
     dmGraphics::HComputeProgram cp            = dmGraphics::NewComputeProgram(m_GraphicsContext, &cp_desc, 0, 0);
     dmRender::HComputeProgram compute_program = dmRender::NewComputeProgram(m_RenderContext, cp);
     ASSERT_NE((dmRender::HComputeProgram) 0, compute_program);
+
+    CleanupShaderResourceTypeInfos(types, 2);
 
     // Constants buffer
     dmRender::HNamedConstantBuffer constants = dmRender::NewNamedConstantBuffer();

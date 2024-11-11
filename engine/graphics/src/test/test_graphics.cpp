@@ -458,10 +458,11 @@ TEST_F(dmGraphicsTest, TestProgram)
     dmGraphics::ShaderDesc vs_desc = MakeDDFShaderDesc(&vs_shader, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, vx_inputs, DM_ARRAY_SIZE(vx_inputs), vx_uniforms, DM_ARRAY_SIZE(vx_uniforms), 0, 0, types, DM_ARRAY_SIZE(types));
     dmGraphics::ShaderDesc fs_desc = MakeDDFShaderDesc(&fs_shader, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, 0, 0, fs_uniforms, DM_ARRAY_SIZE(fs_uniforms), fs_textures, DM_ARRAY_SIZE(fs_textures), types, DM_ARRAY_SIZE(types));
 
-    dmGraphics::HVertexProgram vp = dmGraphics::NewVertexProgram(m_Context, &vs_desc, 0, 0);
+    dmGraphics::HVertexProgram vp   = dmGraphics::NewVertexProgram(m_Context, &vs_desc, 0, 0);
     dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_Context, &fs_desc, 0, 0);
+    dmGraphics::HProgram program    = dmGraphics::NewProgram(m_Context, vp, fp);
 
-    dmGraphics::HProgram program = dmGraphics::NewProgram(m_Context, vp, fp);
+    CleanupShaderResourceTypeInfos(types, 3);
 
     const dmGraphics::Uniform* view_proj       = dmGraphics::GetUniform(program, dmHashString64("view_proj"));
     const dmGraphics::Uniform* world           = dmGraphics::GetUniform(program, dmHashString64("world"));
@@ -555,9 +556,10 @@ TEST_F(dmGraphicsTest, TestComputeProgram)
 
     dmGraphics::ShaderDesc::Shader compute_shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430, compute_data, (uint32_t) strlen(compute_data));
     dmGraphics::ShaderDesc compute_desc           = MakeDDFShaderDesc(&compute_shader, dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE, 0, 0, &uniform, 1, 0, 0, types, 1);
-
     dmGraphics::HComputeProgram cp                = dmGraphics::NewComputeProgram(m_Context, &compute_desc, 0, 0);
     dmGraphics::HProgram program                  = dmGraphics::NewProgram(m_Context, cp);
+
+    CleanupShaderResourceTypeInfos(types, 1);
 
     const dmGraphics::Uniform* my_uniform = dmGraphics::GetUniform(program, dmHashString64("my_uniform"));
 
@@ -1254,6 +1256,8 @@ TEST_F(dmGraphicsTest, TestVertexAttributesGL3)
     dmGraphics::HVertexProgram vp   = dmGraphics::NewVertexProgram(m_Context, &vs_desc, 0, 0);
     dmGraphics::HFragmentProgram fp = dmGraphics::NewFragmentProgram(m_Context, &fs_desc, 0, 0);
     dmGraphics::HProgram program    = dmGraphics::NewProgram(m_Context, vp, fp);
+
+    CleanupShaderResourceTypeInfos(resource_types, 1);
 
     uint32_t attribute_count = dmGraphics::GetAttributeCount(program);
     ASSERT_EQ(3, attribute_count);

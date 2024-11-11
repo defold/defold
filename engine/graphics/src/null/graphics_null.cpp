@@ -979,13 +979,10 @@ namespace dmGraphics
 
     static void NullDeleteComputeProgram(HComputeProgram prog)
     {
-        /*
         NullShaderModule* p = (NullShaderModule*) prog;
-        delete [] (char*)p->m_Data;
-        for(uint32_t i = 0; i < p->m_Uniforms.Size(); ++i)
-            delete[] p->m_Uniforms[i].m_Uniform.m_Name;
+        delete [] (char*) p->m_Data;
+        DestroyShaderMeta(p->m_ShaderMeta);
         delete p;
-        */
     }
 
     static HProgram NullNewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
@@ -1009,9 +1006,18 @@ namespace dmGraphics
         return (HProgram) p;
     }
 
-    static void NullDeleteProgram(HContext context, HProgram program)
+    static void NullDeleteProgram(HContext context, HProgram _program)
     {
-        // delete (NullProgram*) program;
+        NullProgram* program = (NullProgram*) _program;
+
+        for (int i = 0; i < program->m_Uniforms.Size(); ++i)
+        {
+            if (program->m_Uniforms[i].m_Uniform.m_CanonicalName)
+            {
+                free(program->m_Uniforms[i].m_Uniform.m_CanonicalName);
+            }
+        }
+        delete program;
     }
 
     static HVertexProgram NullNewVertexProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
@@ -1063,25 +1069,19 @@ namespace dmGraphics
     static void NullDeleteVertexProgram(HVertexProgram program)
     {
         assert(program);
-        /*
         NullShaderModule* p = (NullShaderModule*)program;
-        delete [] (char*)p->m_Data;
-        for(uint32_t i = 0; i < p->m_Uniforms.Size(); ++i)
-            delete[] p->m_Uniforms[i].m_Uniform.m_Name;
+        delete [] (char*) p->m_Data;
+        DestroyShaderMeta(p->m_ShaderMeta);
         delete p;
-        */
     }
 
     static void NullDeleteFragmentProgram(HFragmentProgram program)
     {
         assert(program);
-        /*
         NullShaderModule* p = (NullShaderModule*)program;
-        delete [] (char*)p->m_Data;
-        for(uint32_t i = 0; i < p->m_Uniforms.Size(); ++i)
-            delete[] p->m_Uniforms[i].m_Uniform.m_Name;
+        delete [] (char*) p->m_Data;
+        DestroyShaderMeta(p->m_ShaderMeta);
         delete p;
-        */
     }
 
     static ShaderDesc::Language NullGetProgramLanguage(HProgram program)

@@ -649,11 +649,8 @@ namespace dmGraphics
     uint8_t*         WriteAttributes(uint8_t* write_ptr, uint32_t vertex_index, const WriteAttributeParams& params);
 
     // Uniforms
-    //uint32_t         GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size);
     uint32_t         GetUniformCount(HProgram prog);
     void             GetUniform(HProgram prog, uint32_t index, Uniform* uniform);
-
-    //HUniformLocation GetUniformLocation(HProgram prog, const char* name);
 
     void SetConstantV4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);
     void SetConstantM4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);
