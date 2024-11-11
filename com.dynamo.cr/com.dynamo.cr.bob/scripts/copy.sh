@@ -113,8 +113,8 @@ copy () {
 copy x86_64-linux/stripped/dmengine x86_64-linux/dmengine
 copy x86_64-linux/stripped/dmengine_release x86_64-linux/dmengine_release
 # copy x86_64-linux/stripped/dmengine_headless x86_64-linux/dmengine_headless
-copy arm64-linux/stripped/dmengine arm64-linux/dmengine
-copy arm64-linux/stripped/dmengine_release arm64-linux/dmengine_release
+#copy arm64-linux/stripped/dmengine arm64-linux/dmengine
+#copy arm64-linux/stripped/dmengine_release arm64-linux/dmengine_release
 # copy arm64-linux/stripped/dmengine_headless arm64-linux/dmengine_headless
 copy x86_64-macos/stripped/dmengine x86_64-macos/dmengine
 copy x86_64-macos/stripped/dmengine_release x86_64-macos/dmengine_release
