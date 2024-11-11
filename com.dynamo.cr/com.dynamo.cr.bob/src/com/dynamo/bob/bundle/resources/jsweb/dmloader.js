@@ -846,10 +846,10 @@ var Module = {
 
             Module.canvas.addEventListener("webglcontextlost", function(event) {
                 event.preventDefault();
-                dmRenderer.rendererContextEvent("context_lost");
+                dmRenderer.rendererContextEvent(dmRenderer.CONTEXT_LOST_EVENT);
             }, false);
             Module.canvas.addEventListener("webglcontextrestored", function(event) {
-                dmRenderer.rendererContextEvent("context_restored");
+                dmRenderer.rendererContextEvent(dmRenderer.CONTEXT_RESTORED_EVENT);
             }, false);
             // Add context menu hide-handler if requested
             if (CUSTOM_PARAMETERS["disable_context_menu"])

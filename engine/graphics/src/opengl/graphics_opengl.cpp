@@ -480,19 +480,20 @@ static void LogFrameBufferError(GLenum status)
 
     OpenGLContext* g_Context = 0x0;
 
-    static void UpdateGLHandle(HContext context, uint32_t idx, GLuint handle)
+    static void UpdateGLHandle(HContext context, HOpenglID idx, GLuint handle)
     {
         OpenGLContext* gl_context = (OpenGLContext*)context;
         gl_context->m_AllGLHandles[idx] = handle;
     }
 
-    static uint32_t AddNewGLHandle(HContext context, GLuint handle)
+    static HOpenglID AddNewGLHandle(HContext context, GLuint handle)
     {
         OpenGLContext* gl_context = (OpenGLContext*)context;
-        uint32_t result_idx = gl_context->m_AllGLHandles.Size();
-        if (gl_context->m_FreeIndexes.Size() != 0)
+        HOpenglID result_idx = gl_context->m_AllGLHandles.Size();
+        if (!gl_context->m_FreeIndexes.Empty())
         {
-            result_idx = gl_context->m_FreeIndexes.Pop();
+            result_idx = gl_context->m_FreeIndexes.Back();
+            gl_context->m_FreeIndexes.Pop();
         }
         else
         {
@@ -507,31 +508,31 @@ static void LogFrameBufferError(GLenum status)
         return result_idx;
     }
 
-    static bool IsGLHandleValid(HContext context, uint32_t idx)
+    static bool IsGLHandleValid(HContext context, HOpenglID idx)
     {
         OpenGLContext* gl_context = (OpenGLContext*)context;
         return idx < gl_context->m_AllGLHandles.Size() && gl_context->m_AllGLHandles[idx] != 0;
     }
 
-    static GLuint GetGLHandle(HContext context, uint32_t idx)
+    static GLuint GetGLHandle(HContext context, HOpenglID idx)
     {
         OpenGLContext* gl_context = (OpenGLContext*)context;
         return gl_context->m_AllGLHandles[idx];
     }
 
-    static GLuint* GetGLHandlePointer(HContext context, uint32_t idx)
+    static GLuint* GetGLHandlePointer(HContext context, HOpenglID idx)
     {
         OpenGLContext* gl_context = (OpenGLContext*)context;
         return &(gl_context->m_AllGLHandles[idx]);
     }
 
-    static void CleanupGLHandle(HContext context, uint32_t idx)
+    static void CleanupGLHandle(HContext context, HOpenglID idx)
     {
         OpenGLContext* gl_context = (OpenGLContext*)context;
         gl_context->m_AllGLHandles[idx] = 0;
-        if (gl_context->m_FreeIndexes.Size() == 0)
+        if (gl_context->m_FreeIndexes.Full())
         {
-            gl_context->m_FreeIndexes.SetCapacity(gl_context->m_FreeIndexes.Capacity() + 32);
+            gl_context->m_FreeIndexes.OffsetCapacity(32);
         }
         gl_context->m_FreeIndexes.Push(idx);
     }
@@ -3494,7 +3495,7 @@ static void LogFrameBufferError(GLenum status)
             texture_type    = TEXTURE_TYPE_2D;
         }
 
-        uint32_t* static_ids = (uint32_t*) malloc(num_texture_ids * sizeof(uint32_t));
+        HOpenglID* static_ids = (uint32_t*) malloc(num_texture_ids * sizeof(HOpenglID));
         GLuint* gl_texture_ids = (GLuint*) malloc(num_texture_ids * sizeof(GLuint));
         glGenTextures(num_texture_ids, gl_texture_ids);
         CHECK_GL_ERROR;

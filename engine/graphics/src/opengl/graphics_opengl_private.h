@@ -24,6 +24,8 @@
 
 namespace dmGraphics
 {
+    typedef uint32_t HOpenglID;
+
     enum AttachmentType
     {
         ATTACHMENT_TYPE_UNUSED  = 0,
@@ -41,7 +43,7 @@ namespace dmGraphics
     {
         TextureParams     m_Params;
         TextureType       m_Type;
-        uint32_t*         m_TextureIds;
+        HOpenglID*        m_TextureIds;
         uint32_t          m_ResourceSize; // For Mip level 0. We approximate each mip level is 1/4th. Or MipSize0 * 1.33
         int32_atomic_t    m_DataState; // data state per mip-map (mipX = bitX). 0=ok, 1=pending
         uint16_t          m_NumTextureIds;
@@ -59,8 +61,8 @@ namespace dmGraphics
         TextureParams m_Params;
         union
         {
-            HTexture m_Texture;
-            uint32_t m_Buffer;
+            HTexture  m_Texture;
+            HOpenglID m_Buffer;
         };
         AttachmentType m_Type;
         bool           m_Attached;
@@ -72,20 +74,20 @@ namespace dmGraphics
         OpenGLRenderTargetAttachment m_DepthAttachment;
         OpenGLRenderTargetAttachment m_StencilAttachment;
         OpenGLRenderTargetAttachment m_DepthStencilAttachment;
-        uint32_t                     m_Id;
+        HOpenglID                    m_Id;
         uint32_t                     m_BufferTypeFlags;
     };
 
     struct OpenGLShader
     {
-        uint32_t             m_Id;
+        HOpenglID            m_Id;
         ShaderMeta           m_ShaderMeta;
         ShaderDesc::Language m_Language;
     };
 
     struct OpenGLBuffer
     {
-        uint32_t         m_Id;
+        HOpenglID        m_Id;
         DeviceBufferType m_Type;
         uint32_t         m_MemorySize;
     };
@@ -103,7 +105,7 @@ namespace dmGraphics
         dmArray<GLint> m_Indices;
         dmArray<GLint> m_Offsets;
         uint8_t*       m_BlockMemory;
-        uint32_t       m_Id;
+        HOpenglID      m_Id;
         GLint          m_Binding;
         GLint          m_BlockSize;
         GLint          m_ActiveUniforms;
@@ -153,11 +155,11 @@ namespace dmGraphics
         * But it enables to recreate all underlying handles without changes of external connection.
         */
         dmArray<GLuint>         m_AllGLHandles;
-        dmIndexPool32           m_FreeIndexes; /// contains indexes that can be reused in m_AllGLHandles
+        dmArray<HOpenglID>      m_FreeIndexes; /// contains indexes that can be reused in m_AllGLHandles
 
         PipelineState           m_PipelineState;
 
-        uint32_t                m_GlobalVAO;
+        HOpenglID               m_GlobalVAO;
 
         uint32_t                m_Width;
         uint32_t                m_Height;

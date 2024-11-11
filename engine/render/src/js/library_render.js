@@ -2,11 +2,12 @@ var LibraryRenderer = {
     $dmRenderer: {
         renderContext: null,
         renderCallback: null,
+        CONTEXT_LOST_EVENT: 0, // the same as dmRender::CONTEXT_LOST
+        CONTEXT_RESTORED_EVENT: 1, // the same as dmRender::CONTEXT_RESTORED
 
-        rendererContextEvent: function(event_name) {
+        rendererContextEvent: function(event_type) {
             if (dmRenderer.renderCallback) {
-                var event_id = stringToUTF8OnStack(event_name);
-                {{{ makeDynCall('vii', 'dmRenderer.renderCallback') }}}(dmRenderer.renderContext, event_id);
+                {{{ makeDynCall('vii', 'dmRenderer.renderCallback') }}}(dmRenderer.renderContext, event_type);
             }
         }
     },

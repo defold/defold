@@ -245,6 +245,6 @@ message SetUpdateFrequency
  * msg.post("@system:", "resume_rendering")
  * </pre>
  */
- message ResumeRendering
- {
- }
+message ResumeRendering
+{
+}

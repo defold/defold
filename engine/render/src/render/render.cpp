@@ -38,8 +38,6 @@ namespace dmRender
     using namespace dmVMath;
 
     const char* RENDER_SOCKET_NAME = "@render";
-    const char* KEY_CONTEXT_LOST = "context_lost";
-    const char* KEY_CONTEXT_RESTORED = "context_restored";
 
     StencilTestParams::StencilTestParams() {
         Init();
@@ -1227,10 +1225,10 @@ namespace dmRender
         PlatformSetupContextEventCallback(context, callback);
     }
 
-    void OnContextEvent(void* context, const char* event_name)
+    void OnContextEvent(void* context, RenderContextEvent event_type)
     {
         RenderContext* render_context = (RenderContext*)context;
-        if (strcmp(event_name, KEY_CONTEXT_LOST) == 0)
+        if (event_type == dmRender::CONTEXT_LOST)
         {
             SetRenderPause(render_context, 1u);
             dmGraphics::InvalidateGraphicsHandles(render_context->m_GraphicsContext);
@@ -1249,7 +1247,7 @@ namespace dmRender
             {
                 return;
             }
-            lua_pushstring(L, event_name);
+            lua_pushinteger(L, event_type);
             int ret = dmScript::PCall(L, 2, 0);
             (void)ret;
             dmScript::TeardownCallback(cbk);

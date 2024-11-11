@@ -376,7 +376,7 @@ namespace dmRender
     };
 
     typedef void (*RangeCallback)(void* ctx, uint32_t val, size_t start, size_t count);
-    typedef void (*ContextEventCallback)(void* ctx, const char* event_name);
+    typedef void (*ContextEventCallback)(void* ctx, RenderContextEvent event_type);
 
     // Invokes the callback for each range. Two ranges are not guaranteed to preceed/succeed one another.
     void FindRenderListRanges(uint32_t* first, size_t offset, size_t size, RenderListEntry* entries, FindRangeComparator& comp, void* ctx, RangeCallback callback );
@@ -384,10 +384,10 @@ namespace dmRender
     bool FindTagListRange(RenderListRange* ranges, uint32_t num_ranges, uint32_t tag_list_key, RenderListRange& range);
 
     /*
-    * Possible event_name values: "context_lost", "context_restored"
-    * See dmloader.js for event's name constants.
+    * Possible event_type see in dmRender::RenderContextEvent enum.
+    * Values matches "context_lost"/"context_restored" events from JS code.
     */
-    void OnContextEvent(void* context, const char* event_name);
+    void OnContextEvent(void* context, RenderContextEvent event_type);
     void SetupContextEventCallback(void* context, ContextEventCallback callback);
     void PlatformSetupContextEventCallback(void* context, ContextEventCallback callback);
 
