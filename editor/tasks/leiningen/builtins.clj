@@ -26,4 +26,4 @@
   (let [sha (or git-sha (:engine project))
         archive-domain (get project :archive-domain)]
     (io/copy (builtins-zip archive-domain sha)
-             (io/file "generated-resources/lib/builtins.zip"))))
+             (io/file "generated-resources/builtins.zip"))))
