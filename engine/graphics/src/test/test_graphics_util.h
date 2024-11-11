@@ -64,7 +64,7 @@ namespace dmGraphics
         return ddf;
     }
 
-    static void FillResourceBindingTypeIndex(dmGraphics::ShaderDesc::ResourceBinding* res, const char* name, int binding, int type_index)
+    static inline void FillResourceBindingTypeIndex(dmGraphics::ShaderDesc::ResourceBinding* res, const char* name, int binding, int type_index)
     {
         res->m_Name                    = name;
         res->m_NameHash                = dmHashString64(name);
@@ -73,7 +73,7 @@ namespace dmGraphics
         res->m_Type.m_Type.m_TypeIndex = type_index;
     }
 
-    static void FillResourceBindingType(dmGraphics::ShaderDesc::ResourceBinding* res, const char* name, int binding, dmGraphics::ShaderDesc::ShaderDataType type)
+    static inline void FillResourceBindingType(dmGraphics::ShaderDesc::ResourceBinding* res, const char* name, int binding, dmGraphics::ShaderDesc::ShaderDataType type)
     {
         res->m_Name                     = name;
         res->m_NameHash                 = dmHashString64(name);
@@ -83,7 +83,7 @@ namespace dmGraphics
     }
 
     // For simplicity, we add a single type as member here to cover most test cases
-    static void FillShaderResourceWithSingleTypeMember(dmGraphics::ShaderDesc::ResourceTypeInfo* info, const char* name, dmGraphics::ShaderDesc::ShaderDataType type)
+    static inline void FillShaderResourceWithSingleTypeMember(dmGraphics::ShaderDesc::ResourceTypeInfo* info, const char* name, dmGraphics::ShaderDesc::ShaderDataType type)
     {
         info->m_Name                                         = name;
         info->m_NameHash                                     = dmHashString64(name);
@@ -94,7 +94,15 @@ namespace dmGraphics
         info->m_Members.m_Data[0].m_Type.m_Type.m_ShaderType = type;
     }
 
-    static void CleanupShaderResourceTypeInfos(dmGraphics::ShaderDesc::ResourceTypeInfo* infos, uint32_t count)
+    static inline void FillShaderResourceWithMembers(dmGraphics::ShaderDesc::ResourceTypeInfo* info, const char* name, dmGraphics::ShaderDesc::ResourceMember* members, uint32_t members_count)
+    {
+        info->m_Name            = name;
+        info->m_NameHash        = dmHashString64(name);
+        info->m_Members.m_Count = members_count;
+        info->m_Members.m_Data  = members;
+    }
+
+    static inline void CleanupShaderResourceTypeInfos(dmGraphics::ShaderDesc::ResourceTypeInfo* infos, uint32_t count)
     {
         for (int i = 0; i < count; ++i)
         {

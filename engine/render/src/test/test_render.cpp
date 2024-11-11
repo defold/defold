@@ -565,10 +565,10 @@ TEST_F(dmRenderTest, TestEnableTextureByHash)
                              "uniform lowp sampler2D texture_sampler_4;\n";
 
     dmGraphics::ShaderDesc::ResourceBinding fs_uniforms[4] = {};
-    FillResourceBindingType(&fs_uniforms[0], "texture_sampler_1", 0, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
-    FillResourceBindingType(&fs_uniforms[1], "texture_sampler_2", 1, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
-    FillResourceBindingType(&fs_uniforms[2], "texture_sampler_3", 2, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D_ARRAY);
-    FillResourceBindingType(&fs_uniforms[3], "texture_sampler_4", 3, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+    dmGraphics::FillResourceBindingType(&fs_uniforms[0], "texture_sampler_1", 0, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+    dmGraphics::FillResourceBindingType(&fs_uniforms[1], "texture_sampler_2", 1, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+    dmGraphics::FillResourceBindingType(&fs_uniforms[2], "texture_sampler_3", 2, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D_ARRAY);
+    dmGraphics::FillResourceBindingType(&fs_uniforms[3], "texture_sampler_4", 3, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
 
     dmGraphics::ShaderDesc::Shader vs_shader = dmGraphics::MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, "foo", 3);
     dmGraphics::ShaderDesc::Shader fs_shader = dmGraphics::MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, shader_src, strlen(shader_src));
@@ -846,9 +846,9 @@ TEST_F(dmRenderTest, TestDefaultSamplerFilters)
                              "uniform lowp sampler2D texture_sampler_3;\n";
 
     dmGraphics::ShaderDesc::ResourceBinding uniforms[3] = {};
-    FillResourceBindingType(&uniforms[0], "texture_sampler_1", 0, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
-    FillResourceBindingType(&uniforms[1], "texture_sampler_2", 1, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
-    FillResourceBindingType(&uniforms[2], "texture_sampler_3", 2, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+    dmGraphics::FillResourceBindingType(&uniforms[0], "texture_sampler_1", 0, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+    dmGraphics::FillResourceBindingType(&uniforms[1], "texture_sampler_2", 1, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
+    dmGraphics::FillResourceBindingType(&uniforms[2], "texture_sampler_3", 2, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
 
     dmGraphics::ShaderDesc::Shader shader    = dmGraphics::MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, shader_src, strlen(shader_src));
     dmGraphics::ShaderDesc vs_desc           = dmGraphics::MakeDDFShaderDesc(&shader, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, 0, 0, 0, 0, uniforms, 3, 0, 0);
