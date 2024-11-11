@@ -436,7 +436,7 @@
                    ;; we put default schema into state to use the same schema
                    ;; access pattern, but it is not modifiable (register-schema!
                    ;; disallows using :default key)
-                   :registry {:default (s/assert ::schema (resolve-schema default-schema))}})]
+                   :registry {:default (resolve-schema (s/assert ::schema default-schema))}})]
     (add-watch ret global-state-watcher global-state-watcher)
     (.addShutdownHook (Runtime/getRuntime) (Thread. #(sync-state! global-state)))
     ret))
