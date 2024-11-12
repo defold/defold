@@ -368,8 +368,8 @@ union SaveLoadBuffer
         }
 
         dmStrlCat(app_support_path, dmPath::PATH_CHARACTER, sizeof(app_support_path));
-        dmStrlCat(app_support_path, filename, sizeof(app_support_path));
-        lua_pushstring(L, app_support_path);
+        int length = dmStrlCat(app_support_path, filename, sizeof(app_support_path));
+        lua_pushlstring(L, app_support_path, length < sizeof(app_support_path) ? length : sizeof(app_support_path) - 1);
 
         return 1;
     }
@@ -998,7 +998,7 @@ union SaveLoadBuffer
 
             if (ifa->m_Flags & dmSocket::FLAGS_LINK)
             {
-                char tmp[64];
+                char tmp[18];
                 dmSnPrintf(tmp, sizeof(tmp), "%02x:%02x:%02x:%02x:%02x:%02x",
                         ifa->m_MacAddress[0],
                         ifa->m_MacAddress[1],
@@ -1006,7 +1006,7 @@ union SaveLoadBuffer
                         ifa->m_MacAddress[3],
                         ifa->m_MacAddress[4],
                         ifa->m_MacAddress[5]);
-                lua_pushstring(L, tmp);
+                lua_pushlstring(L, tmp, 17);
             }
             else if (IsAndroidMarshmallowOrAbove()) // Marshmallow and above should return const value MAC address (https://developer.android.com/about/versions/marshmallow/android-6.0-changes.html#behavior-hardware-id).
             {
@@ -1201,12 +1201,12 @@ union SaveLoadBuffer
     * project root.
     *
     * @name sys.reboot
-    * @param [arg1] [type:string] argument 1
-    * @param [arg2] [type:string] argument 2
-    * @param [arg3] [type:string] argument 3
-    * @param [arg4] [type:string] argument 4
-    * @param [arg5] [type:string] argument 5
-    * @param [arg6] [type:string] argument 6
+    * @param [arg1] [type:string|number] argument 1
+    * @param [arg2] [type:string|number] argument 2
+    * @param [arg3] [type:string|number] argument 3
+    * @param [arg4] [type:string|number] argument 4
+    * @param [arg5] [type:string|number] argument 5
+    * @param [arg6] [type:string|number] argument 6
     * @examples
     *
     * How to reboot engine with a specific bootstrap collection.
@@ -1223,7 +1223,9 @@ union SaveLoadBuffer
 
 #define PUSH_FIELD(name, index) \
         if (lua_isstring(L, index)) { \
-            lua_pushstring(L, luaL_checkstring(L, index)); \
+            size_t length; \
+            const char* string = luaL_checklstring(L, index, &length); \
+            lua_pushlstring(L, string, length); \
             lua_setfield(L, -2, name);\
         }
 

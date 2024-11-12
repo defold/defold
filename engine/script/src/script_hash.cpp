@@ -116,7 +116,7 @@ namespace dmScript
         dmhash_t hash = dmScript::CheckHash(L, 1);
         char buf[17];
         dmSnPrintf(buf, sizeof(buf), "%016llx", (unsigned long long)hash);
-        lua_pushstring(L, buf);
+        lua_pushlstring(L, buf, 16);
 
         assert(top + 1 == lua_gettop(L));
         return 1;
@@ -132,10 +132,10 @@ namespace dmScript
         uint8_t d[16];
         dmCrypt::HashMd5((const uint8_t*)str, len, d);
 
-        char md5[16 * 2 + 1]; // We need a terminal zero for snprintf
+        char md5[33]; // We need a terminal zero for snprintf
         dmSnPrintf(md5, sizeof(md5), "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
                     d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7], d[8], d[9], d[10], d[11], d[12], d[13], d[14], d[15]);
-        lua_pushstring(L, md5);
+        lua_pushlstring(L, md5, 32);
 
         assert(top + 1 == lua_gettop(L));
         return 1;
@@ -271,9 +271,9 @@ namespace dmScript
         DM_HASH_REVERSE_MEM(hash_ctx, 64);
         const char* reverse = (const char*) dmHashReverseSafe64Alloc(&hash_ctx, hash);
         char buffer[256];
-        dmSnPrintf(buffer, sizeof(buffer), "%s: [%s]", SCRIPT_TYPE_NAME_HASH, reverse);
+        int length = dmSnPrintf(buffer, sizeof(buffer), "%s: [%s]", SCRIPT_TYPE_NAME_HASH, reverse);
 
-        lua_pushstring(L, buffer);
+        lua_pushlstring(L, buffer, length < 0 ? strlen(buffer) : length);
         return 1;
     }
 
@@ -284,12 +284,14 @@ namespace dmScript
         {
             char buffer[256];
             DM_HASH_REVERSE_MEM(hash_ctx, 256);
-            dmSnPrintf(buffer, sizeof(buffer), "[%s]", dmHashReverseSafe64Alloc(&hash_ctx, *phash));
-            lua_pushstring(L, buffer);
+            int length = dmSnPrintf(buffer, sizeof(buffer), "[%s]", dmHashReverseSafe64Alloc(&hash_ctx, *phash));
+            lua_pushlstring(L, buffer, length < 0 ? strlen(buffer) : length);
         }
         else
         {
-            lua_pushstring(L, luaL_checkstring(L, index));
+            size_t length;
+            const char* string = luaL_checklstring(L, index, &length);
+            lua_pushlstring(L, string, length);
         }
     }
 

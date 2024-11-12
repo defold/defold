@@ -755,18 +755,18 @@ namespace dmGameSystem
         }
 
         char buf[128];
-        uint32_t maxlen = 64 + num_streams * sizeof(buf);
-        char* s = (char*)alloca( maxlen );
+        uint32_t ssize = 64 + num_streams * sizeof(buf);
+        char* s = (char*)alloca( ssize );
         if( !s )
         {
-            return DM_LUA_ERROR("buffer.tostring: Failed creating temp memory (%u bytes)", maxlen);
+            return DM_LUA_ERROR("buffer.tostring: Failed creating temp memory (%u bytes)", ssize);
         }
 
         *s = 0;
         uint32_t version = 0;
         dmBuffer::GetContentVersion(hbuffer, &version);
         dmSnPrintf(buf, sizeof(buf), "buffer.%s(count = %d, version = %u, handle = %u, ", SCRIPT_TYPE_NAME_BUFFER, out_element_count, version, (uint32_t) hbuffer);
-        dmStrlCat(s, buf, maxlen);
+        dmStrlCat(s, buf, ssize);
 
         for( uint32_t i = 0; i < num_streams; ++i )
         {
@@ -780,11 +780,11 @@ namespace dmGameSystem
             const char* comma = i<(num_streams-1)?", ":"";
             const char* typestring = dmBuffer::GetValueTypeString(type);
             dmSnPrintf(buf, sizeof(buf), "{ hash(\"%s\"), buffer.%s, %d }%s", dmHashReverseSafe64(stream_name), typestring, type_count, comma );
-            dmStrlCat(s, buf, maxlen);
+            dmStrlCat(s, buf, ssize);
         }
-        dmStrlCat(s, ")", maxlen);
+        int length = (int)dmStrlCat(s, ")", ssize);
 
-        lua_pushstring(L, s);
+        lua_pushlstring(L, s, length < ssize ? length : ssize - 1);
         return 1;
     }
 

@@ -29,7 +29,7 @@ namespace dmScript
     #define BIT_INDEX(b) ((b) / sizeof(uint32_t))
     #define BIT_OFFSET(b) ((b) % sizeof(uint32_t))
 
-    const char* EXTENSIONS_CONTEXT_NAME = "__extensions_context__";
+    const char EXTENSIONS_CONTEXT_NAME[] = "__extensions_context__";
 
     struct ExtensionsData
     {
@@ -52,7 +52,7 @@ namespace dmScript
         // [-1] extension_data
         extension_data->m_Ref = Ref(L, LUA_REGISTRYINDEX);
         // [-1] extension_data
-        lua_pushstring(L, EXTENSIONS_CONTEXT_NAME);
+        lua_pushlstring(L, EXTENSIONS_CONTEXT_NAME, sizeof(EXTENSIONS_CONTEXT_NAME) - 1);
         // [-2] extension_data
         // [-1] EXTENSIONS_CONTEXT_NAME
 
@@ -74,7 +74,7 @@ namespace dmScript
     {
         lua_State* L = GetLuaState(context);
         DM_LUA_STACK_CHECK(L, 0);
-        lua_pushstring(L, EXTENSIONS_CONTEXT_NAME);
+        lua_pushlstring(L, EXTENSIONS_CONTEXT_NAME, sizeof(EXTENSIONS_CONTEXT_NAME) - 1);
         GetContextValue(context);
 
         ExtensionsData* extension_data = (ExtensionsData*)lua_touserdata(L, -1);

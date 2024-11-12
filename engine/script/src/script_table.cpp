@@ -265,7 +265,7 @@ namespace dmScript
             luaL_error(L, "Reading outside of buffer at element #%d (string): wanted to read: %d bytes left: %d [BufStart: %p, BufSize: %lu]\n'%s'", count, total_size, (int)(buffer_end - buffer), logger.m_BufferStart, logger.m_BufferSize, log_str);
         }
 
-        lua_pushstring(L, buffer);
+        lua_pushlstring(L, buffer, total_size - 1);
         return total_size;
     }
 

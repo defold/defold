@@ -394,8 +394,8 @@ namespace dmScript
         const int buffer_size = size + MAX_CHARS_PER_VECTOR3 + 1;
         char* buffer = new char[buffer_size];
         // Use same format as Lua when converting number to string (from LUA_NUMBER_FMT in luaconf.h)
-        dmSnPrintf(buffer, buffer_size, STRING_FORMAT_CONCAT_VECTOR3, s, v->getX(), v->getY(), v->getZ());
-        lua_pushstring(L, buffer);
+        int length = dmSnPrintf(buffer, buffer_size, STRING_FORMAT_CONCAT_VECTOR3, s, v->getX(), v->getY(), v->getZ());
+        lua_pushlstring(L, buffer, length);
         delete [] buffer;
         return 1;
     }
@@ -559,8 +559,8 @@ namespace dmScript
         const int buffer_size = size + MAX_CHARS_PER_VECTOR4 + 1;
         char* buffer = new char[size + buffer_size];
         // Use same format as Lua when converting number to string (from LUA_NUMBER_FMT in luaconf.h)
-        dmSnPrintf(buffer, buffer_size, STRING_FORMAT_CONCAT_VECTOR4, s, v->getX(), v->getY(), v->getZ(), v->getW());
-        lua_pushstring(L, buffer);
+        int length = dmSnPrintf(buffer, buffer_size, STRING_FORMAT_CONCAT_VECTOR4, s, v->getX(), v->getY(), v->getZ(), v->getW());
+        lua_pushlstring(L, buffer, length);
         delete [] buffer;
         return 1;
     }
@@ -685,8 +685,8 @@ namespace dmScript
         const int buffer_size = size + MAX_CHARS_PER_QUAT + 1;
         char* buffer = new char[buffer_size];
         // Use same format as Lua when converting number to string (from LUA_NUMBER_FMT in luaconf.h)
-        dmSnPrintf(buffer, buffer_size, STRING_FORMAT_CONCAT_QUAT, s, q->getX(), q->getY(), q->getZ(), q->getW());
-        lua_pushstring(L, buffer);
+        int length = dmSnPrintf(buffer, buffer_size, STRING_FORMAT_CONCAT_QUAT, s, q->getX(), q->getY(), q->getZ(), q->getW());
+        lua_pushlstring(L, buffer, length);
         delete [] buffer;
         return 1;
     }
@@ -835,12 +835,12 @@ namespace dmScript
         const int buffer_size = size + MAX_CHARS_PER_MATRIX4 + 1;
         char* buffer = new char[buffer_size];
         // Use same format as Lua when converting number to string (from LUA_NUMBER_FMT in luaconf.h)
-        dmSnPrintf(buffer, buffer_size, STRING_FORMAT_CONCAT_MATRIX4, s,
+        int length = dmSnPrintf(buffer, buffer_size, STRING_FORMAT_CONCAT_MATRIX4, s,
             m->getElem(0, 0), m->getElem(1, 0), m->getElem(2, 0), m->getElem(3, 0),
             m->getElem(0, 1), m->getElem(1, 1), m->getElem(2, 1), m->getElem(3, 1),
             m->getElem(0, 2), m->getElem(1, 2), m->getElem(2, 2), m->getElem(3, 2),
             m->getElem(0, 3), m->getElem(1, 3), m->getElem(2, 3), m->getElem(3, 3));
-        lua_pushstring(L, buffer);
+        lua_pushlstring(L, buffer, length);
         delete [] buffer;
         return 1;
     }

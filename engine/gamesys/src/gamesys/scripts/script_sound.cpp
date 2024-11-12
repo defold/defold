@@ -391,9 +391,10 @@ namespace dmGameSystem
         int top = lua_gettop(L);
 
         dmhash_t group_hash = dmScript::CheckHash(L, 1);
-        const char* name = (const char*) dmHashReverse64(group_hash, 0);
+        uint32_t length;
+        const char* name = (const char*) dmHashReverse64(group_hash, &length);
         if (name) {
-            lua_pushstring(L, name);
+            lua_pushlstring(L, name, length);
         } else {
             lua_pushfstring(L, "unknown_%llu", (unsigned long long)group_hash);
         }
