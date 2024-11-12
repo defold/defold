@@ -29,7 +29,8 @@
 
 /*# Size-bounded string formating.
  *
- * Size-bounded string formating. Resulting string is guaranteed to be 0-terminated.
+ * Size-bounded string formating. Resulting string is guaranteed to be 0-terminated. Unlike snprintf, which
+ * always returns the untruncated string length, this function returns -1 if the string was truncated.
  *
  * @name dmSnPrintf
  * @param buffer Buffer to write to

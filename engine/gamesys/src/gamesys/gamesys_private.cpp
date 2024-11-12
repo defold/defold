@@ -46,13 +46,21 @@ namespace dmGameSystem
             const char* path_name_receiver = dmHashReverseSafe64(receiver->m_Path);
             const char* fragment_name_receiver = dmHashReverseSafe64(receiver->m_Fragment);
 
-            n+= dmSnPrintf(buf + n, sizeof(buf) - n, " Message '%s' sent from %s:%s#%s to %s:%s#%s.",
+            int length = dmSnPrintf(buf + n, sizeof(buf) - n, " Message '%s' sent from %s:%s#%s to %s:%s#%s.",
                             id_str,
                             socket_name_sender, path_name_sender, fragment_name_sender,
                             socket_name_receiver, path_name_receiver, fragment_name_receiver);
+            if (length == -1)
+            {
+                n = sizeof(buf);
+            }
+            else
+            {
+                n += length;
+            }
         }
 
-        if (n >= (int) sizeof(buf) - 1) {
+        if (n > (int) sizeof(buf) - 1) {
             dmLogError("Buffer underflow when formatting message-error (LogMessageError)");
         }
 
