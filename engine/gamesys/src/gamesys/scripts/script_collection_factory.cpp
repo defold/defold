@@ -56,7 +56,9 @@ namespace dmGameSystem
     {
         if (lua_isstring(L, -1))
         {
-            dmScript::PushHash(L, dmHashString64(lua_tostring(L, -1)));
+            size_t length;
+            const char* string = lua_tolstring(L, -1, &length);
+            dmScript::PushHash(L, dmHashBuffer64(string, length));
             lua_rawget(L, -3);
             return 1;
         }
@@ -455,8 +457,9 @@ namespace dmGameSystem
         dmhash_t path_hash = 0;
         if (!lua_isnil(L, 2))
         {
-            path = luaL_checkstring(L, 2);
-            path_hash = dmHashString64(path);
+            size_t path_length;
+            path = luaL_checklstring(L, 2, &path_length);
+            path_hash = dmHashBuffer64(path, path_length);
 
             // check that the path is a .collectionc
             const char* ext = dmResource::GetExtFromPath(path);

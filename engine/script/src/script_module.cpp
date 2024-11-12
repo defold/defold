@@ -91,8 +91,9 @@ namespace dmScript
 
         HContext context = dmScript::GetScriptContext(L);
 
-        const char *name = luaL_checkstring(L, 1);
-        dmhash_t name_hash = dmHashString64(name);
+        size_t length;
+        const char *name = luaL_checklstring(L, 1, &length);
+        dmhash_t name_hash = dmHashBuffer64(name, length);
         Module* module = context->m_Modules.Get(name_hash);
 
         if (module == NULL)

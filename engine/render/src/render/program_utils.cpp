@@ -87,19 +87,20 @@ namespace dmRender
 
     void FillElementIds(char* buffer, uint32_t buffer_size, dmhash_t element_ids[4])
     {
-        size_t original_size = strlen(buffer);
-        dmStrlCat(buffer, ".x", buffer_size);
-        element_ids[0] = dmHashString64(buffer);
-        buffer[original_size] = 0;
-        dmStrlCat(buffer, ".y", buffer_size);
-        element_ids[1] = dmHashString64(buffer);
-        buffer[original_size] = 0;
-        dmStrlCat(buffer, ".z", buffer_size);
-        element_ids[2] = dmHashString64(buffer);
-        buffer[original_size] = 0;
-        dmStrlCat(buffer, ".w", buffer_size);
-        element_ids[3] = dmHashString64(buffer);
-        buffer[original_size] = 0;
+        uint32_t insert_index = (uint32_t)strlen(buffer);
+        uint32_t final_length = insert_index + 2;
+        assert(final_length < buffer_size);
+        buffer[final_length] = 0;
+        buffer[insert_index] = '.';
+        buffer[insert_index + 1] = 'x';
+        element_ids[0] = dmHashBuffer64(buffer, final_length);
+        buffer[insert_index + 1] = 'y';
+        element_ids[1] = dmHashBuffer64(buffer, final_length);
+        buffer[insert_index + 1] = 'z';
+        element_ids[2] = dmHashBuffer64(buffer, final_length);
+        buffer[insert_index + 1] = 'w';
+        element_ids[3] = dmHashBuffer64(buffer, final_length);
+        buffer[insert_index] = 0;
     }
 
     int32_t GetProgramSamplerIndex(const dmArray<Sampler>& samplers, dmhash_t name_hash)

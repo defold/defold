@@ -223,7 +223,9 @@ namespace dmGameObject
             if (lua_isstring(L, -2))
             {
                 void* userdata = 0;
-                dmhash_t id = dmHashString64(lua_tostring(L, -2));
+                size_t length;
+                const char* string = lua_tolstring(L, -2, &length);
+                dmhash_t id = dmHashBuffer64(string, length);
                 switch(GetPropertyType(L, -1, &userdata))
                 {
                     case PROPERTY_TYPE_NUMBER:

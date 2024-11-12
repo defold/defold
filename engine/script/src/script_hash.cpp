@@ -85,8 +85,9 @@ namespace dmScript
         }
         else
         {
-            const char* str = luaL_checkstring(L, 1);
-            hash = dmHashString64(str);
+            size_t length;
+            const char* str = luaL_checklstring(L, 1, &length);
+            hash = dmHashBuffer64(str, length);
         }
         PushHash(L, hash);
 

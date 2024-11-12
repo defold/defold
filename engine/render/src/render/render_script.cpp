@@ -150,8 +150,9 @@ namespace dmRender
         HNamedConstantBuffer cb            = cb_table->m_ConstantBuffer;
         assert(cb);
 
-        const char* name         = luaL_checkstring(L, 2);
-        dmhash_t name_hash       = dmHashString64(name);
+        size_t name_length;
+        const char* name         = luaL_checklstring(L, 2, &name_length);
+        dmhash_t name_hash       = dmHashBuffer64(name, name_length);
         dmVMath::Vector4* values = 0;
         uint32_t num_values      = 0;
 
@@ -201,8 +202,9 @@ namespace dmRender
         HNamedConstantBuffer cb = cb_table->m_ConstantBuffer;
         assert(cb);
 
-        const char* name = luaL_checkstring(L, 2);
-        dmhash_t name_hash = dmHashString64(name);
+        size_t name_length;
+        const char* name = luaL_checklstring(L, 2, &name_length);
+        dmhash_t name_hash = dmHashBuffer64(name, name_length);
 
         if (lua_istable(L, 3))
         {
@@ -437,7 +439,9 @@ namespace dmRender
 
     static int RenderScriptResolvePath(lua_State* L)
     {
-        dmScript::PushHash(L, dmHashString64(luaL_checkstring(L, 2)));
+        size_t length;
+        const char* string = luaL_checklstring(L, 2, &length);
+        dmScript::PushHash(L, dmHashBuffer64(string, length));
         return 1;
     }
 
@@ -534,7 +538,9 @@ namespace dmRender
 
     static int RenderScriptInstanceResolvePath(lua_State* L)
     {
-        dmScript::PushHash(L, dmHashString64(luaL_checkstring(L, 2)));
+        size_t length;
+        const char* string = luaL_checklstring(L, 2, &length);
+        dmScript::PushHash(L, dmHashBuffer64(string, length));
         return 1;
     }
 

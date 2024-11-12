@@ -130,7 +130,8 @@ union SaveLoadBuffer
 
     static int Sys_Save(lua_State* L)
     {
-        const char* filename = luaL_checkstring(L, 1);
+        size_t filename_length;
+        const char* filename = luaL_checklstring(L, 1, &filename_length);
 
         luaL_checktype(L, 2, LUA_TTABLE);
 
@@ -149,7 +150,7 @@ union SaveLoadBuffer
         // The counter and hash are there to make the files unique enough to avoid that the user
         // accidentally writes to it.
         static int save_counter = 0;
-        uint32_t hash = dmHashString32(filename);
+        uint32_t hash = dmHashBuffer32(filename, filename_length);
         int res = dmSnPrintf(tmp_filename, sizeof(tmp_filename), "%s.defoldtmp_%x_%d", filename, hash, save_counter++);
         if (res == -1)
         {

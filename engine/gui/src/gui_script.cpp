@@ -155,8 +155,9 @@ namespace dmGui
 
     static int GuiScriptResolvePath(lua_State* L)
     {
-        const char* path = luaL_checkstring(L, 2);
-        dmScript::PushHash(L, dmHashString64(path));
+        size_t length;
+        const char* path = luaL_checklstring(L, 2, &length);
+        dmScript::PushHash(L, dmHashBuffer64(path, length));
         return 1;
     }
 
@@ -629,7 +630,9 @@ namespace dmGui
         dmhash_t id = 0;
         if (lua_isstring(L, 2))
         {
-            id = dmHashString64(lua_tostring(L, 2));
+            size_t length;
+            const char* string = lua_tolstring(L, 2, &length);
+            id = dmHashBuffer64(string, length);
         }
         else
         {
@@ -1445,9 +1448,11 @@ namespace dmGui
 
         dmhash_t property_hash;
         if (dmScript::IsHash(L, 2)) {
-           property_hash = dmScript::CheckHash(L, 2);
+            property_hash = dmScript::CheckHash(L, 2);
         } else {
-           property_hash = dmHashString64(luaL_checkstring(L, 2));
+            size_t length;
+            const char* string = luaL_checklstring(L, 2, &length);
+            property_hash = dmHashBuffer64(string, length);
         }
 
         if (!dmGui::HasPropertyHash(scene, hnode, property_hash)) {
@@ -1586,9 +1591,11 @@ namespace dmGui
 
         dmhash_t property_hash;
         if (dmScript::IsHash(L, 2)) {
-           property_hash = dmScript::CheckHash(L, 2);
+            property_hash = dmScript::CheckHash(L, 2);
         } else {
-           property_hash = dmHashString64(luaL_checkstring(L, 2));
+            size_t length;
+            const char* string = luaL_checklstring(L, 2, &length);
+            property_hash = dmHashBuffer64(string, length);
         }
 
         if (!dmGui::HasPropertyHash(scene, hnode, property_hash)) {
@@ -2736,8 +2743,9 @@ namespace dmGui
 
         dmhash_t font_id_hash = 0;
         if (lua_isstring(L, 1)) {
-            const char* font_id = luaL_checkstring(L, 1);
-            font_id_hash = dmHashString64(font_id);
+            size_t font_id_length;
+            const char* font_id = luaL_checklstring(L, 1, &font_id_length);
+            font_id_hash = dmHashBuffer64(font_id, font_id_length);
         } else {
             font_id_hash = dmScript::CheckHash(L, 1);
         }
@@ -3706,7 +3714,9 @@ namespace dmGui
     {
         if (lua_isstring(L, -1))
         {
-            dmScript::PushHash(L, dmHashString64(lua_tostring(L, -1)));
+            size_t length;
+            const char* string = lua_tolstring(L, -1, &length);
+            dmScript::PushHash(L, dmHashBuffer64(string, length));
             lua_rawget(L, -3);
             return 1;
         }

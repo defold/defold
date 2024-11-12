@@ -198,7 +198,9 @@ namespace dmScript
         {
             if (lua_isstring(L, 3))
             {
-                url->m_Path = dmHashString64(lua_tostring(L, 3));
+                size_t length;
+                const char* string = lua_tolstring(L, 3, &length);
+                url->m_Path = dmHashBuffer64(string, length);
             }
             else if (lua_isnil(L, 3))
             {
@@ -221,7 +223,9 @@ namespace dmScript
         {
             if (lua_isstring(L, 3))
             {
-                url->m_Fragment = dmHashString64(lua_tostring(L, 3));
+                size_t length;
+                const char* string = lua_tolstring(L, 3, &length);
+                url->m_Fragment = dmHashBuffer64(string, length);
             }
             else if (lua_isnil(L, 3))
             {
@@ -404,7 +408,7 @@ namespace dmScript
                     }
                     else
                     {
-                        url.m_Path = dmHashString64(path);
+                        url.m_Path = dmHashBuffer64(path, path_length);
                     }
                 }
                 else
@@ -427,7 +431,9 @@ namespace dmScript
             {
                 if (lua_isstring(L, 3))
                 {
-                    url.m_Fragment = dmHashString64(lua_tostring(L, 3));
+                    size_t length;
+                    const char* string = lua_tolstring(L, 3, &length);
+                    url.m_Fragment = dmHashBuffer64(string, length);
                 }
                 else
                 {
@@ -502,7 +508,9 @@ namespace dmScript
         dmhash_t message_id;
         if (lua_isstring(L, 2))
         {
-            message_id = dmHashString64(lua_tostring(L, 2));
+            size_t id_length;
+            const char* id_string = lua_tolstring(L, 2, &id_length);
+            message_id = dmHashBuffer64(id_string, id_length);
         }
         else
         {

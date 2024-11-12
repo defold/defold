@@ -327,7 +327,8 @@ namespace dmGameSystem
     static int Sys_LoadBufferAsync(lua_State* L)
     {
         int top          = lua_gettop(L);
-        const char* path = luaL_checkstring(L, 1);
+        size_t path_length;
+        const char* path = luaL_checklstring(L, 1, &path_length);
         dmScript::LuaCallbackInfo* callback_info = dmScript::CreateCallback(dmScript::GetMainThread(L), 2);
 
         if (callback_info == 0x0)
@@ -335,7 +336,7 @@ namespace dmGameSystem
             return luaL_error(L, "sys.load_buffer_async failed to create callback");
         }
 
-        dmhash_t path_hash = dmHashString64(path);
+        dmhash_t path_hash = dmHashBuffer64(path, path_length);
         {
             DM_MUTEX_SCOPED_LOCK(g_SysModule.m_LoadRequestsMutex);
 

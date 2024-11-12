@@ -596,10 +596,14 @@ bail:
 
         char key[64];
         key[sizeof(key)-1] = '\0'; // Ensure NULL termination
+        uint32_t key_length = 0;
         for (uint32_t i = 0; i < sizeof(key); ++i) {
             key[i] = toupper(orig_key[i]);
             if (key[i] == '\0')
+            {
+                key_length = i;
                 break;
+            }
         }
 
         if (strcmp(key, "CACHE-CONTROL") == 0)
@@ -619,7 +623,7 @@ bail:
             state->m_NTSHash = dmHashString64(value);
         }
 
-        dmhash_t key_hash = dmHashString64(key);
+        dmhash_t key_hash = dmHashBuffer64(key, key_length);
         state->m_Headers.Put(key_hash, strdup(value));
     }
 

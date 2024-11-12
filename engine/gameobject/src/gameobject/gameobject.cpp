@@ -969,8 +969,8 @@ namespace dmGameObject
     dmhash_t ConstructInstanceId(uint32_t index)
     {
         char buffer[16] = { 0 };
-        dmSnPrintf(buffer, sizeof(buffer), "%sinstance%d", ID_SEPARATOR, index);
-        return dmHashString64(buffer);
+        int length = dmSnPrintf(buffer, sizeof(buffer), "%sinstance%d", ID_SEPARATOR, index);
+        return dmHashBuffer64(buffer, length);
     }
 
     uint32_t AcquireInstanceIndex(HCollection hcollection)

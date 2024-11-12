@@ -210,8 +210,9 @@ namespace dmGameObject
 
     static int ScriptResolvePath(lua_State* L)
     {
-        const char* path = luaL_checkstring(L, 2);
-        dmScript::PushHash(L, dmHashString64(path));
+        size_t length;
+        const char* path = luaL_checklstring(L, 2, &length);
+        dmScript::PushHash(L, dmHashBuffer64(path, length));
         return 1;
     }
 
@@ -620,7 +621,9 @@ namespace dmGameObject
         dmhash_t property_id = 0;
         if (lua_isstring(L, 2))
         {
-            property_id = dmHashString64(lua_tostring(L, 2));
+            size_t id_length;
+            const char* id_string = lua_tolstring(L, 2, &id_length);
+            property_id = dmHashBuffer64(id_string, id_length);
         }
         else
         {
@@ -816,7 +819,9 @@ namespace dmGameObject
 
         if (lua_isstring(L, 2))
         {
-            property_id = dmHashString64(lua_tostring(L, 2));
+            size_t id_length;
+            const char* id_string = lua_tolstring(L, 2, &id_length);
+            property_id = dmHashBuffer64(id_string, id_length);
         }
         else
         {
@@ -1598,7 +1603,9 @@ namespace dmGameObject
         dmhash_t property_id = 0;
         if (lua_isstring(L, 2))
         {
-            property_id = dmHashString64(lua_tostring(L, 2));
+            size_t id_length;
+            const char* id_string = lua_tolstring(L, 2, &id_length);
+            property_id = dmHashBuffer64(id_string, id_length);
         }
         else
         {
@@ -1750,7 +1757,9 @@ namespace dmGameObject
         {
             if (lua_isstring(L, 2))
             {
-                property_id = dmHashString64(lua_tostring(L, 2));
+                size_t id_length;
+                const char* id_string = lua_tolstring(L, 2, &id_length);
+                property_id = dmHashBuffer64(id_string, id_length);
             }
             else
             {

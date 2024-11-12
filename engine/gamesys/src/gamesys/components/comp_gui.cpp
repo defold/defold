@@ -2259,8 +2259,8 @@ namespace dmGameSystem
 
     static inline dmhash_t ResolveDynamicTexturePath(GuiComponent* component, dmhash_t path_hash, char* buffer, uint32_t buffer_size)
     {
-        dmSnPrintf(buffer, buffer_size, "%s/%llu.texturec", component->m_Resource->m_Path, (unsigned long long) path_hash);
-        return dmHashString64(buffer);
+        int length = dmSnPrintf(buffer, buffer_size, "%s/%llu.texturec", component->m_Resource->m_Path, (unsigned long long) path_hash);
+        return dmHashBuffer64(buffer, length < 0 ? buffer_size - 1 : length);
     }
 
     static dmGui::HTextureSource NewTextureResourceCallback(dmGui::HScene scene, const dmhash_t path_hash, uint32_t width, uint32_t height, dmImage::Type type, const void* data)
@@ -2929,7 +2929,7 @@ namespace dmGameSystem
                 const char* custom_type_name = (const char*)dmHashReverse32(custom_type, &length);
                 if (custom_type_name == 0)
                     custom_type_name = "";
-                pit->m_Property.m_Value.m_Hash = dmHashString64(custom_type_name);
+                pit->m_Property.m_Value.m_Hash = dmHashBuffer64(custom_type_name, length);
             } else if (index == 2) // id
             {
                 pit->m_Property.m_Type = dmGameObject::SCENE_NODE_PROPERTY_TYPE_HASH;

@@ -417,11 +417,12 @@ namespace dmHttpCache
             return RESULT_INVAL;
         }
 
-        uint64_t uri_hash = dmHashString64(uri);
+        size_t uri_length = strlen(uri);
+        uint64_t uri_hash = dmHashBuffer64(uri, uri_length);
 
         HashState64 hash_state;
         dmHashInit64(&hash_state, false);
-        dmHashUpdateBuffer64(&hash_state, uri, strlen(uri));
+        dmHashUpdateBuffer64(&hash_state, uri, uri_length);
         dmHashUpdateBuffer64(&hash_state, etag, strlen(etag));
         uint64_t identifier_hash = dmHashFinal64(&hash_state);
 
@@ -670,13 +671,14 @@ namespace dmHttpCache
     {
         dmMutex::ScopedLock lock(cache->m_Mutex);
 
+        size_t uri_length = strlen(uri);
         HashState64 hash_state;
         dmHashInit64(&hash_state, false);
-        dmHashUpdateBuffer64(&hash_state, uri, strlen(uri));
+        dmHashUpdateBuffer64(&hash_state, uri, uri_length);
         dmHashUpdateBuffer64(&hash_state, etag, strlen(etag));
         uint64_t identifier_hash = dmHashFinal64(&hash_state);
 
-        uint64_t uri_hash = dmHashString64(uri);
+        uint64_t uri_hash = dmHashBuffer64(uri, uri_length);
         Entry* entry = cache->m_CacheTable.Get(uri_hash);
         if (entry != 0 && entry->m_Info.m_IdentifierHash == identifier_hash)
         {
@@ -738,13 +740,14 @@ namespace dmHttpCache
     {
         dmMutex::ScopedLock lock(cache->m_Mutex);
 
+        size_t uri_length = strlen(uri);
         HashState64 hash_state;
         dmHashInit64(&hash_state, false);
-        dmHashUpdateBuffer64(&hash_state, uri, strlen(uri));
+        dmHashUpdateBuffer64(&hash_state, uri, uri_length);
         dmHashUpdateBuffer64(&hash_state, etag, strlen(etag));
         uint64_t identifier_hash = dmHashFinal64(&hash_state);
 
-        uint64_t uri_hash = dmHashString64(uri);
+        uint64_t uri_hash = dmHashBuffer64(uri, uri_length);
         Entry* entry = cache->m_CacheTable.Get(uri_hash);
         assert(entry);
         assert(entry->m_Info.m_IdentifierHash == identifier_hash);

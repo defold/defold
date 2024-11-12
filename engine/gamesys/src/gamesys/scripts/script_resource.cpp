@@ -1909,7 +1909,9 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
             lua_getfield(L, -1, "id");
             if (lua_isstring(L, -1))
             {
-                id_hash = dmHashString64(lua_tostring(L, -1));
+                size_t id_length;
+                const char* id_string = lua_tolstring(L, -1, &id_length);
+                id_hash = dmHashBuffer64(id_string, id_length);
             }
             lua_pop(L, 1);
             texture_set_ddf->m_ImageNameHashes[i] = id_hash;
