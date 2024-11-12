@@ -386,13 +386,13 @@ namespace dmScript
             {
                 if (lua_isstring(L, 2))
                 {
-                    const char* path = lua_tostring(L, 2);
+                    size_t path_length;
+                    const char* path = lua_tolstring(L, 2, &path_length);
                     if (lua_isnil(L, 1) || (lua_isstring(L, 1) && *lua_tostring(L, 1) == '\0'))
                     {
-                        size_t path_size = strlen(path);
-                        if (path_size > 0)
+                        if (path_length > 0)
                         {
-                            ResolvePath(L, path, path_size, url.m_Path);
+                            ResolvePath(L, path, path_length, url.m_Path);
                         }
                         else
                         {

@@ -289,20 +289,23 @@ namespace dmScript
                 case dmDDF::TYPE_STRING:
                 {
                     const char* s = "";
+                    size_t ssize = 1;
                     if (!nil_val)
-                        s = luaL_checkstring(L, -1);
-                    int size = strlen(s) + 1;
-                    if (*data_start + size > *data_end)
+                    {
+                        s = luaL_checklstring(L, -1, &ssize);
+                        ++ssize;
+                    }
+                    if (*data_start + ssize > *data_end)
                     {
                         luaL_error(L, "Message data doesn't fit");
                     }
                     else
                     {
-                        memcpy(*data_start, s, size);
+                        memcpy(*data_start, s, ssize);
                         // NOTE: We store offset here an relocate later...
                         *((const char**) where) = (const char*) (*data_start - pointer_base);
                     }
-                    *data_start += size;
+                    *data_start += ssize;
                 }
                 break;
 

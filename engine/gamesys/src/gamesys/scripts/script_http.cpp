@@ -129,18 +129,18 @@ namespace dmGameSystem
         dmMessage::URL sender;
         if (dmScript::GetURL(L, &sender)) {
 
-            const char* url = luaL_checkstring(L, 1);
+            size_t url_len;
+            const char* url = luaL_checklstring(L, 1, &url_len);
             const uint32_t max_url_len = dmURI::MAX_URI_LEN;
-            const uint32_t url_len = (uint32_t)strlen(url);
             if (url_len > max_url_len)
             {
                 assert(top == lua_gettop(L));
                 return luaL_error(L, "http.request does not support URIs longer than %d characters.", max_url_len);
             }
 
-            const char* method = luaL_checkstring(L, 2);
+            size_t method_len;
+            const char* method = luaL_checklstring(L, 2, &method_len);
             const uint32_t max_method_len = 16;
-            const uint32_t method_len = (uint32_t)strlen(method);
             if (method_len > max_method_len) {
                 assert(top == lua_gettop(L));
                 return luaL_error(L, "http.request does not support request methods longer than %d characters.", max_method_len);

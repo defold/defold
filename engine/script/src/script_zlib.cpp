@@ -73,8 +73,8 @@ namespace dmScript
     {
         dmArray<uint8_t> out;
         out.SetCapacity(32 * 1024);
-        const char* in = luaL_checkstring(L, 1);
-        int in_len = lua_strlen(L, 1);
+        size_t in_len;
+        const char* in = luaL_checklstring(L, 1, &in_len);
         dmZlib::Result r = dmZlib::InflateBuffer(in, in_len, &out, Writer);
         if (r == dmZlib::RESULT_OK)
         {
@@ -114,8 +114,8 @@ namespace dmScript
     {
         dmArray<uint8_t> out;
         out.SetCapacity(32 * 1024);
-        const char* in = luaL_checkstring(L, 1);
-        int in_len = lua_strlen(L, 1);
+        size_t in_len;
+        const char* in = luaL_checklstring(L, 1, &in_len);
         dmZlib::Result r = dmZlib::DeflateBuffer(in, in_len, 3, &out, Writer);
         if (r == dmZlib::RESULT_OK)
         {

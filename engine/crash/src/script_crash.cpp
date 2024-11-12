@@ -125,14 +125,15 @@ namespace dmCrash
     static int Crash_SetUserField(lua_State* L)
     {
         int index = luaL_checkint(L, 1);
-        const char* value = luaL_checkstring(L, 2);
+        size_t value_length;
+        const char* value = luaL_checklstring(L, 2, &value_length);
 
         if (index < 0 || index >= (int)AppState::USERDATA_SLOTS)
         {
             return luaL_error(L, "User data slot index out of range. Max elements is %d", AppState::USERDATA_SLOTS);
         }
 
-        if (strlen(value) > (int)(AppState::USERDATA_SIZE-1))
+        if (value_length > (int)(AppState::USERDATA_SIZE-1))
         {
             dmLogWarning("Userdata value will be truncated to max length %d", AppState::USERDATA_SIZE-1);
         }

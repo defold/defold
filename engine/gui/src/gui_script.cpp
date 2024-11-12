@@ -257,8 +257,9 @@ namespace dmGui
     static int GuiScriptInstanceResolvePath(lua_State* L)
     {
         Scene* scene = (Scene*)lua_touserdata(L, 1);
-        const char* path = luaL_checkstring(L, 2);
-        dmScript::PushHash(L, scene->m_Context->m_ResolvePathCallback(scene, path, strlen(path)));
+        size_t length;
+        const char* path = luaL_checklstring(L, 2, &length);
+        dmScript::PushHash(L, scene->m_Context->m_ResolvePathCallback(scene, path, length));
         return 1;
     }
 

@@ -331,11 +331,11 @@ namespace dmGameObject
     static int ScriptInstanceResolvePath(lua_State* L)
     {
         ScriptInstance* i = (ScriptInstance*)lua_touserdata(L, 1);
-        const char* path = luaL_checkstring(L, 2);
-
-        if (path != 0x0 && *path != 0)
+        size_t path_length;
+        const char* path = luaL_checklstring(L, 2, &path_length);
+        if (path_length > 0)
         {
-            dmScript::PushHash(L, GetAbsoluteIdentifier(i->m_Instance, path, strlen(path)));
+            dmScript::PushHash(L, GetAbsoluteIdentifier(i->m_Instance, path, path_length));
         }
         else
         {
@@ -1444,8 +1444,9 @@ namespace dmGameObject
         ScriptInstance* i = ScriptInstance_Check(L);
         if (lua_gettop(L) > 0)
         {
-            const char* ident = luaL_checkstring(L, 1);
-            dmScript::PushHash(L, GetAbsoluteIdentifier(i->m_Instance, ident, strlen(ident)));
+            size_t length;
+            const char* ident = luaL_checklstring(L, 1, &length);
+            dmScript::PushHash(L, GetAbsoluteIdentifier(i->m_Instance, ident, length));
         }
         else
         {
