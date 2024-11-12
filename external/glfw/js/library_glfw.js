@@ -738,7 +738,8 @@ var LibraryGLFW = {
         var contextAttributes = {
             antialias: (GLFW.params[0x00020013] > 1), // GLFW_FSAA_SAMPLES
             depth: (GLFW.params[0x00020009] > 0), // GLFW_DEPTH_BITS
-            stencil: (GLFW.params[0x0002000A] > 0) // GLFW_STENCIL_BITS
+            stencil: (GLFW.params[0x0002000A] > 0), // GLFW_STENCIL_BITS
+            alpha: (GLFW.params[0x0002000A] > 0) // GLFW_ALPHA_BITS
         };
 
         // iOS < 15.2 has issues with WebGl 2.0 contexts. It's created without issues but doesn't work.
@@ -774,7 +775,6 @@ var LibraryGLFW = {
     }
   },
 
-  glfwCloseWindow__deps: ['$Browser'],
   glfwCloseWindow: function() {
     if (GLFW.closeFunc) {
       {{{ makeDynCall('i', 'GLFW.closeFunc') }}}();
