@@ -58,9 +58,9 @@ namespace dmGui
     /**
      * Default layer id
      */
-    const dmhash_t DEFAULT_LAYER = dmHashString64("");
+    const dmhash_t DEFAULT_LAYER = dmHashLiteral64("");
 
-    const dmhash_t DEFAULT_LAYOUT = dmHashString64("");
+    const dmhash_t DEFAULT_LAYOUT = dmHashLiteral64("");
 
     const uint16_t INVALID_INDEX = 0xffff;
 
@@ -93,11 +93,11 @@ namespace dmGui
     };
 
 #define PROP(name, prop)\
-    { dmHashString64(#name), prop, 0xff }, \
-    { dmHashString64(#name ".x"), prop, 0 }, \
-    { dmHashString64(#name ".y"), prop, 1 }, \
-    { dmHashString64(#name ".z"), prop, 2 }, \
-    { dmHashString64(#name ".w"), prop, 3 },
+    { dmHashLiteral64(#name), prop, 0xff }, \
+    { dmHashLiteral64(#name ".x"), prop, 0 }, \
+    { dmHashLiteral64(#name ".y"), prop, 1 }, \
+    { dmHashLiteral64(#name ".z"), prop, 2 }, \
+    { dmHashLiteral64(#name ".w"), prop, 3 },
 
     PropDesc g_Properties[] = {
             PROP(position, PROPERTY_POSITION )
@@ -109,23 +109,23 @@ namespace dmGui
             PROP(shadow, PROPERTY_SHADOW )
             PROP(slice9, PROPERTY_SLICE9 )
             PROP(euler, PROPERTY_EULER )
-            { dmHashString64("inner_radius"), PROPERTY_PIE_PARAMS, 0 },
-            { dmHashString64("fill_angle"), PROPERTY_PIE_PARAMS, 1 },
-            { dmHashString64("leading"), PROPERTY_TEXT_PARAMS, 0 },
-            { dmHashString64("tracking"), PROPERTY_TEXT_PARAMS, 1 },
+            { dmHashLiteral64("inner_radius"), PROPERTY_PIE_PARAMS, 0 },
+            { dmHashLiteral64("fill_angle"), PROPERTY_PIE_PARAMS, 1 },
+            { dmHashLiteral64("leading"), PROPERTY_TEXT_PARAMS, 0 },
+            { dmHashLiteral64("tracking"), PROPERTY_TEXT_PARAMS, 1 },
     };
 #undef PROP
 
     PropDesc g_PropTable[] = {
-            { dmHashString64("position"), PROPERTY_POSITION, 0xff },
-            { dmHashString64("rotation"), PROPERTY_ROTATION, 0xff },
-            { dmHashString64("scale"), PROPERTY_SCALE, 0xff },
-            { dmHashString64("color"), PROPERTY_COLOR, 0xff },
-            { dmHashString64("size"), PROPERTY_SIZE, 0xff },
-            { dmHashString64("outline"), PROPERTY_OUTLINE, 0xff },
-            { dmHashString64("shadow"), PROPERTY_SHADOW, 0xff },
-            { dmHashString64("slice"), PROPERTY_SLICE9, 0xff },
-            { dmHashString64("euler"), PROPERTY_EULER, 0xff },
+            { dmHashLiteral64("position"), PROPERTY_POSITION, 0xff },
+            { dmHashLiteral64("rotation"), PROPERTY_ROTATION, 0xff },
+            { dmHashLiteral64("scale"), PROPERTY_SCALE, 0xff },
+            { dmHashLiteral64("color"), PROPERTY_COLOR, 0xff },
+            { dmHashLiteral64("size"), PROPERTY_SIZE, 0xff },
+            { dmHashLiteral64("outline"), PROPERTY_OUTLINE, 0xff },
+            { dmHashLiteral64("shadow"), PROPERTY_SHADOW, 0xff },
+            { dmHashLiteral64("slice"), PROPERTY_SLICE9, 0xff },
+            { dmHashLiteral64("euler"), PROPERTY_EULER, 0xff },
     };
 
     PropDesc* GetPropertyDesc(dmhash_t property_hash)

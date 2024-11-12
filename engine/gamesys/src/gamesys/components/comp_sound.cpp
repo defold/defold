@@ -71,10 +71,10 @@ namespace dmGameSystem
         dmIndexPool32                   m_EntryIndices;
     };
 
-    static const dmhash_t SOUND_PROP_GAIN   = dmHashString64("gain");
-    static const dmhash_t SOUND_PROP_PAN    = dmHashString64("pan");
-    static const dmhash_t SOUND_PROP_SPEED  = dmHashString64("speed");
-    static const dmhash_t SOUND_PROP_SOUND  = dmHashString64("sound");
+    static const dmhash_t SOUND_PROP_GAIN   = dmHashLiteral64("gain");
+    static const dmhash_t SOUND_PROP_PAN    = dmHashLiteral64("pan");
+    static const dmhash_t SOUND_PROP_SPEED  = dmHashLiteral64("speed");
+    static const dmhash_t SOUND_PROP_SOUND  = dmHashLiteral64("sound");
 
     dmGameObject::CreateResult CompSoundNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
@@ -182,8 +182,8 @@ namespace dmGameSystem
     {
         // For reverse hashing to work for easier debugging we hash these ids here
         // The hash container is enabled in engine init so it's too early in compilation unit scope
-        static const dmhash_t SOUND_EVENT_DONE    = dmHashString64("sound_done");
-        static const dmhash_t SOUND_EVENT_STOPPED = dmHashString64("sound_stopped");
+        static const dmhash_t SOUND_EVENT_DONE    = dmHashLiteral64("sound_done");
+        static const dmhash_t SOUND_EVENT_STOPPED = dmHashLiteral64("sound_stopped");
 
         dmSound::Result r = dmSound::DeleteSoundInstance(entry.m_SoundInstance);
         entry.m_SoundInstance = 0;

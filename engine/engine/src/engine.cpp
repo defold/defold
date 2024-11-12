@@ -203,12 +203,12 @@ namespace dmEngine
         component_create_ctx.m_Register = engine->m_Register;
         component_create_ctx.m_Factory = engine->m_Factory;
         component_create_ctx.m_Contexts.SetCapacity(3, 8);
-        component_create_ctx.m_Contexts.Put(dmHashString64("graphics"), engine->m_GraphicsContext);
-        component_create_ctx.m_Contexts.Put(dmHashString64("render"), engine->m_RenderContext);
+        component_create_ctx.m_Contexts.Put(dmHashLiteral64("graphics"), engine->m_GraphicsContext);
+        component_create_ctx.m_Contexts.Put(dmHashLiteral64("render"), engine->m_RenderContext);
         if (engine->m_GuiContext)
         {
-            component_create_ctx.m_Contexts.Put(dmHashString64("gui_scriptc"), engine->m_GuiScriptContext);
-            component_create_ctx.m_Contexts.Put(dmHashString64("guic"), engine->m_GuiContext);
+            component_create_ctx.m_Contexts.Put(dmHashLiteral64("gui_scriptc"), engine->m_GuiScriptContext);
+            component_create_ctx.m_Contexts.Put(dmHashLiteral64("guic"), engine->m_GuiContext);
         }
     }
 
@@ -1257,14 +1257,14 @@ namespace dmEngine
         // Variables need to be declared up here due to the goto's
         bool has_host_mount = dmSys::GetEnv("DM_HOSTFS") != 0;
 
-        engine->m_ResourceTypeContexts.Put(dmHashString64("goc"), engine->m_Register);
-        engine->m_ResourceTypeContexts.Put(dmHashString64("collectionc"), engine->m_Register);
-        engine->m_ResourceTypeContexts.Put(dmHashString64("luac"), &engine->m_ModuleContext);
-        engine->m_ResourceTypeContexts.Put(dmHashString64("scriptc"), engine->m_GOScriptContext);
+        engine->m_ResourceTypeContexts.Put(dmHashLiteral64("goc"), engine->m_Register);
+        engine->m_ResourceTypeContexts.Put(dmHashLiteral64("collectionc"), engine->m_Register);
+        engine->m_ResourceTypeContexts.Put(dmHashLiteral64("luac"), &engine->m_ModuleContext);
+        engine->m_ResourceTypeContexts.Put(dmHashLiteral64("scriptc"), engine->m_GOScriptContext);
         if (engine->m_GuiContext)
         {
-            engine->m_ResourceTypeContexts.Put(dmHashString64("gui_scriptc"), engine->m_GuiScriptContext);
-            engine->m_ResourceTypeContexts.Put(dmHashString64("guic"), engine->m_GuiContext);
+            engine->m_ResourceTypeContexts.Put(dmHashLiteral64("gui_scriptc"), engine->m_GuiScriptContext);
+            engine->m_ResourceTypeContexts.Put(dmHashLiteral64("guic"), engine->m_GuiContext);
         }
 
         fact_result = dmResource::RegisterTypes(engine->m_Factory, &engine->m_ResourceTypeContexts);

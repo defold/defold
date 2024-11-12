@@ -528,7 +528,7 @@ namespace dmRender
         }
     };
 
-    static dmhash_t g_TextureSizeRecipHash = dmHashString64("texture_size_recip");
+    static dmhash_t g_TextureSizeRecipHash = dmHashLiteral64("texture_size_recip");
 
     static dmVMath::Point3 CalcCenterPoint(HFontMap font_map, const TextEntry& te, const TextMetrics& metrics) {
         float x_offset = OffsetX(te.m_Align, te.m_Width);

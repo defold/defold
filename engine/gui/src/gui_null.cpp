@@ -43,7 +43,7 @@ namespace dmGui
 
 
     // gui_null.cpp
-    const dmhash_t DEFAULT_LAYER = dmHashString64("");
+    const dmhash_t DEFAULT_LAYER = dmHashLiteral64("");
     const dmhash_t DEFAULT_LAYOUT = DEFAULT_LAYER;
     const uint16_t INVALID_INDEX = 0xffff;
 

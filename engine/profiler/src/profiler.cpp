@@ -760,9 +760,9 @@ static dmExtension::Result AppInitializeProfiler(dmExtension::AppParams* params)
     }
 
     g_ProfilerThreadSortOrder.SetCapacity(7, 8);
-    g_ProfilerThreadSortOrder.Put(dmHashString64("Main"), 0);
-    g_ProfilerThreadSortOrder.Put(dmHashString64("sound"), 1);
-    g_ProfilerThreadSortOrder.Put(dmHashString64("liveupdate"), 2);
+    g_ProfilerThreadSortOrder.Put(dmHashLiteral64("Main"), 0);
+    g_ProfilerThreadSortOrder.Put(dmHashLiteral64("sound"), 1);
+    g_ProfilerThreadSortOrder.Put(dmHashLiteral64("liveupdate"), 2);
 
     return dmExtension::RESULT_OK;
 }

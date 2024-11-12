@@ -1006,7 +1006,7 @@ namespace dmGameSystem
             {
                 pit->m_Property.m_Type = dmGameObject::SCENE_NODE_PROPERTY_TYPE_BOOLEAN;
                 pit->m_Property.m_Value.m_Bool = component->m_Enabled;
-                pit->m_Property.m_NameHash = dmHashString64("enabled");
+                pit->m_Property.m_NameHash = dmHashLiteral64("enabled");
             }
             return true;
         }

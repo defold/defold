@@ -301,7 +301,7 @@ namespace dmGameSystem
             lua_pushliteral(L, "buffer");
 
             dmBuffer::StreamDeclaration streams_decl[] = {
-                { dmHashString64("data"), dmBuffer::VALUE_TYPE_UINT8, bytes_per_pixel }
+                { dmHashLiteral64("data"), dmBuffer::VALUE_TYPE_UINT8, bytes_per_pixel }
             };
 
             dmBuffer::HBuffer buffer = 0;

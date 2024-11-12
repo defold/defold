@@ -144,10 +144,10 @@ namespace dmGameSystem
     static const uint8_t VX_DECL_INSTANCE_BUFFER    = 1;
     static const uint8_t VX_DECL_CUSTOM_BUFFER      = 2;
 
-    static const dmhash_t PROP_SKIN          = dmHashString64("skin");
-    static const dmhash_t PROP_ANIMATION     = dmHashString64("animation");
-    static const dmhash_t PROP_CURSOR        = dmHashString64("cursor");
-    static const dmhash_t PROP_PLAYBACK_RATE = dmHashString64("playback_rate");
+    static const dmhash_t PROP_SKIN          = dmHashLiteral64("skin");
+    static const dmhash_t PROP_ANIMATION     = dmHashLiteral64("animation");
+    static const dmhash_t PROP_CURSOR        = dmHashLiteral64("cursor");
+    static const dmhash_t PROP_PLAYBACK_RATE = dmHashLiteral64("playback_rate");
 
     static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams* params);
     static void DestroyComponent(ModelWorld* world, uint32_t index);
@@ -2135,7 +2135,7 @@ namespace dmGameSystem
             {
                 pit->m_Property.m_Type = dmGameObject::SCENE_NODE_PROPERTY_TYPE_BOOLEAN;
                 pit->m_Property.m_Value.m_Bool = component->m_Enabled;
-                pit->m_Property.m_NameHash = dmHashString64("enabled");
+                pit->m_Property.m_NameHash = dmHashLiteral64("enabled");
             }
             return true;
         }

@@ -172,7 +172,7 @@ namespace dmGameSystem
             HOpaqueHandle request_handle = (HOpaqueHandle) (uintptr_t) context;
             LuaRequest* request          = g_SysModule.m_LoadRequests.Get(request_handle);
             request->m_Status            = REQUEST_STATUS_FINISHED;
-            dmBuffer::StreamDeclaration streams_decl[] = {{ dmHashString64("data"), dmBuffer::VALUE_TYPE_UINT8, 1 }};
+            dmBuffer::StreamDeclaration streams_decl[] = {{ dmHashLiteral64("data"), dmBuffer::VALUE_TYPE_UINT8, 1 }};
             dmBuffer::Create(request->m_LoadBuffer.Size(), streams_decl, 1, &request->m_Payload);
 
             uint8_t* buffer_data     = 0;
@@ -239,7 +239,7 @@ namespace dmGameSystem
             return luaL_error(L, "sys.load_buffer failed to load the resource (code=%d)", (int) res);
         }
 
-        dmBuffer::StreamDeclaration streams_decl[] = {{ dmHashString64("data"), dmBuffer::VALUE_TYPE_UINT8, 1 }};
+        dmBuffer::StreamDeclaration streams_decl[] = {{ dmHashLiteral64("data"), dmBuffer::VALUE_TYPE_UINT8, 1 }};
 
         dmBuffer::HBuffer buffer = 0;
         dmBuffer::Create(load_buffer_data.Size(), streams_decl, 1, &buffer);

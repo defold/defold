@@ -648,9 +648,9 @@ namespace dmEngineService
 
     static void OutputGuiDynamicTextures(dmGameObject::SceneNode* node, dmWebServer::Request* request)
     {
-        static const dmhash_t s_GuiResource = dmHashString64("guic");
-        static const dmhash_t s_PropertyResource = dmHashString64("resource");
-        static const dmhash_t s_PropertyType = dmHashString64("type");
+        static const dmhash_t s_GuiResource = dmHashLiteral64("guic");
+        static const dmhash_t s_PropertyResource = dmHashLiteral64("resource");
+        static const dmhash_t s_PropertyType = dmHashLiteral64("type");
 
         if (node->m_Type == dmGameObject::SCENE_NODE_TYPE_SUBCOMPONENT)
             return;
@@ -719,9 +719,9 @@ namespace dmEngineService
 
     static void OutputResourceSceneGraph(dmGameObject::SceneNode* node, uint32_t parent, uint32_t* counter, dmWebServer::Request* request)
     {
-        static const dmhash_t s_PropertyId = dmHashString64("id");
-        static const dmhash_t s_PropertyResource = dmHashString64("resource");
-        static const dmhash_t s_PropertyType = dmHashString64("type");
+        static const dmhash_t s_PropertyId = dmHashLiteral64("id");
+        static const dmhash_t s_PropertyResource = dmHashLiteral64("resource");
+        static const dmhash_t s_PropertyType = dmHashLiteral64("type");
 
         if (node->m_Type == dmGameObject::SCENE_NODE_TYPE_SUBCOMPONENT)
             return;

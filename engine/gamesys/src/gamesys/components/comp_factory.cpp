@@ -39,7 +39,7 @@ namespace dmGameSystem
 
     const char* FACTORY_MAX_COUNT_KEY = "factory.max_count";
 
-    static const dmhash_t FACTORY_PROP_PROTOTYPE = dmHashString64("prototype");
+    static const dmhash_t FACTORY_PROP_PROTOTYPE = dmHashLiteral64("prototype");
 
     static void CleanupAsyncLoading(lua_State*, FactoryComponent*);
     static bool PreloadCompleteCallback(const dmResource::PreloaderCompleteCallbackParams*);

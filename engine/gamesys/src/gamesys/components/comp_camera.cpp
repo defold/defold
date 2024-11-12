@@ -58,13 +58,13 @@ namespace dmGameSystem
         dmArray<CameraComponent*> m_CameraStack;
     };
 
-    static const dmhash_t CAMERA_PROP_FOV               = dmHashString64("fov");
-    static const dmhash_t CAMERA_PROP_NEAR_Z            = dmHashString64("near_z");
-    static const dmhash_t CAMERA_PROP_FAR_Z             = dmHashString64("far_z");
-    static const dmhash_t CAMERA_PROP_ORTHOGRAPHIC_ZOOM = dmHashString64("orthographic_zoom");
-    static const dmhash_t CAMERA_PROP_PROJECTION        = dmHashString64("projection");
-    static const dmhash_t CAMERA_PROP_VIEW              = dmHashString64("view");
-    static const dmhash_t CAMERA_PROP_ASPECT_RATIO      = dmHashString64("aspect_ratio");
+    static const dmhash_t CAMERA_PROP_FOV               = dmHashLiteral64("fov");
+    static const dmhash_t CAMERA_PROP_NEAR_Z            = dmHashLiteral64("near_z");
+    static const dmhash_t CAMERA_PROP_FAR_Z             = dmHashLiteral64("far_z");
+    static const dmhash_t CAMERA_PROP_ORTHOGRAPHIC_ZOOM = dmHashLiteral64("orthographic_zoom");
+    static const dmhash_t CAMERA_PROP_PROJECTION        = dmHashLiteral64("projection");
+    static const dmhash_t CAMERA_PROP_VIEW              = dmHashLiteral64("view");
+    static const dmhash_t CAMERA_PROP_ASPECT_RATIO      = dmHashLiteral64("aspect_ratio");
 
 
     static void CompCameraUpdateViewProjection(CameraComponent* camera, dmRender::RenderContext* render_context)

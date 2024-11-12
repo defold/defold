@@ -51,8 +51,8 @@ namespace dmGameObject
 {
     const char* COLLECTION_MAX_INSTANCES_KEY = "collection.max_instances";
     const char* COLLECTION_MAX_INPUT_STACK_ENTRIES_KEY = "collection.max_input_stack_entries";
-    const dmhash_t UNNAMED_IDENTIFIER = dmHashBuffer64("__unnamed__", strlen("__unnamed__"));
-    const dmhash_t GAME_OBJECT_EXT = dmHashString64("goc");
+    const dmhash_t UNNAMED_IDENTIFIER = dmHashLiteral64("__unnamed__");
+    const dmhash_t GAME_OBJECT_EXT = dmHashLiteral64("goc");
     const char* ID_SEPARATOR = "/";
     const uint32_t MAX_DISPATCH_ITERATION_COUNT = 10;
 
@@ -61,20 +61,20 @@ namespace dmGameObject
     static void Unlink(Collection* collection, Instance* instance);
 
 #define PROP_FLOAT(var_name, prop_name)\
-    const dmhash_t PROP_##var_name = dmHashString64(#prop_name);\
+    const dmhash_t PROP_##var_name = dmHashLiteral64(#prop_name);\
 
 #define PROP_VECTOR3(var_name, prop_name)\
-    const dmhash_t PROP_##var_name = dmHashString64(#prop_name);\
-    const dmhash_t PROP_##var_name##_X = dmHashString64(#prop_name ".x");\
-    const dmhash_t PROP_##var_name##_Y = dmHashString64(#prop_name ".y");\
-    const dmhash_t PROP_##var_name##_Z = dmHashString64(#prop_name ".z");
+    const dmhash_t PROP_##var_name = dmHashLiteral64(#prop_name);\
+    const dmhash_t PROP_##var_name##_X = dmHashLiteral64(#prop_name ".x");\
+    const dmhash_t PROP_##var_name##_Y = dmHashLiteral64(#prop_name ".y");\
+    const dmhash_t PROP_##var_name##_Z = dmHashLiteral64(#prop_name ".z");
 
 #define PROP_QUAT(var_name, prop_name)\
-    const dmhash_t PROP_##var_name = dmHashString64(#prop_name);\
-    const dmhash_t PROP_##var_name##_X = dmHashString64(#prop_name ".x");\
-    const dmhash_t PROP_##var_name##_Y = dmHashString64(#prop_name ".y");\
-    const dmhash_t PROP_##var_name##_Z = dmHashString64(#prop_name ".z");\
-    const dmhash_t PROP_##var_name##_W = dmHashString64(#prop_name ".w");
+    const dmhash_t PROP_##var_name = dmHashLiteral64(#prop_name);\
+    const dmhash_t PROP_##var_name##_X = dmHashLiteral64(#prop_name ".x");\
+    const dmhash_t PROP_##var_name##_Y = dmHashLiteral64(#prop_name ".y");\
+    const dmhash_t PROP_##var_name##_Z = dmHashLiteral64(#prop_name ".z");\
+    const dmhash_t PROP_##var_name##_W = dmHashLiteral64(#prop_name ".w");
 
     PROP_VECTOR3(POSITION, position);
     PROP_QUAT(ROTATION, rotation);

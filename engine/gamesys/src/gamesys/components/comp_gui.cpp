@@ -654,7 +654,7 @@ namespace dmGameSystem
             memset(message, 0, sizeof(dmMessage::Message));
             message->m_Sender = dmMessage::URL();
             message->m_Receiver = dmMessage::URL();
-            message->m_Id = dmHashString64("layout_changed");
+            message->m_Id = dmHashLiteral64("layout_changed");
             message->m_Descriptor = (uintptr_t)dmGuiDDF::LayoutChanged::m_DDFDescriptor;
             message->m_DataSize = sizeof(dmGuiDDF::LayoutChanged);
             dmGuiDDF::LayoutChanged* message_data = (dmGuiDDF::LayoutChanged*)message->m_Data;
@@ -2872,8 +2872,7 @@ namespace dmGameSystem
     static dmhash_t PivotToHash(dmGui::HScene scene, dmGui::HNode node)
     {
         dmGui::Pivot pivot = dmGui::GetNodePivot(scene, node);
-        const char* pivot_name = "";
-#define CASE_PIVOT(_NAME) case dmGui:: _NAME: pivot_name = # _NAME; break
+#define CASE_PIVOT(_NAME) case dmGui::_NAME: return dmHashLiteral64(#_NAME)
 
         switch (pivot)
         {
@@ -2890,7 +2889,7 @@ namespace dmGameSystem
 
 #undef CASE_PIVOT
 
-        return dmHashString64(pivot_name);
+        return dmHashLiteral64("");
     }
 
     static bool CompGuiIterPropertiesGetNext(dmGameObject::SceneNodePropertyIterator* pit)
@@ -3037,7 +3036,7 @@ namespace dmGameSystem
             {
                 pit->m_Property.m_Type = dmGameObject::SCENE_NODE_PROPERTY_TYPE_BOOLEAN;
                 pit->m_Property.m_Value.m_Bool = dmGui::IsNodeEnabled(component->m_Scene, node, false);
-                pit->m_Property.m_NameHash = dmHashString64("enabled");
+                pit->m_Property.m_NameHash = dmHashLiteral64("enabled");
             }
             return true;
         }
@@ -3053,7 +3052,7 @@ namespace dmGameSystem
                 {
                     pit->m_Property.m_Type = dmGameObject::SCENE_NODE_PROPERTY_TYPE_TEXT;
                     pit->m_Property.m_Value.m_Text = dmGui::GetNodeText(component->m_Scene, node);
-                    pit->m_Property.m_NameHash = dmHashString64("text");
+                    pit->m_Property.m_NameHash = dmHashLiteral64("text");
                 }
                 return true;
             }
@@ -3087,9 +3086,9 @@ namespace dmGameSystem
     {
         CompGuiContext* gui_context = new CompGuiContext;
         gui_context->m_Factory = ctx->m_Factory;
-        gui_context->m_RenderContext = *(dmRender::HRenderContext*)ctx->m_Contexts.Get(dmHashString64("render"));
-        gui_context->m_GuiContext = *(dmGui::HContext*)ctx->m_Contexts.Get(dmHashString64("guic"));
-        gui_context->m_ScriptContext = *(dmScript::HContext*)ctx->m_Contexts.Get(dmHashString64("gui_scriptc"));
+        gui_context->m_RenderContext = *(dmRender::HRenderContext*)ctx->m_Contexts.Get(dmHashLiteral64("render"));
+        gui_context->m_GuiContext = *(dmGui::HContext*)ctx->m_Contexts.Get(dmHashLiteral64("guic"));
+        gui_context->m_ScriptContext = *(dmScript::HContext*)ctx->m_Contexts.Get(dmHashLiteral64("gui_scriptc"));
 
         gui_context->m_MaxGuiComponents = dmConfigFile::GetInt(ctx->m_Config, "gui.max_count", 64);
         gui_context->m_MaxParticleFXCount = dmConfigFile::GetInt(ctx->m_Config, "gui.max_particlefx_count", 64);

@@ -49,7 +49,7 @@ namespace dmSound
     // TODO: How many bits?
     const uint32_t RESAMPLE_FRACTION_BITS = 31;
 
-    const dmhash_t MASTER_GROUP_HASH = dmHashString64("master");
+    const dmhash_t MASTER_GROUP_HASH = dmHashLiteral64("master");
     const uint32_t GROUP_MEMORY_BUFFER_COUNT = 64;
 
     static void SoundThread(void* ctx);

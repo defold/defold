@@ -631,7 +631,7 @@ bail:
 
     void HandleAnnounce(RequestParseState* state, const char* usn)
     {
-        static const dmhash_t location_hash = dmHashString64("LOCATION");
+        static const dmhash_t location_hash = dmHashLiteral64("LOCATION");
 
         dmhash_t id = dmHashString64(usn);
         SSDP* ssdp = state->m_SSDP;
@@ -732,7 +732,7 @@ bail:
 
     void HandleSearch(RequestParseState* state, dmSocket::Address from_address, uint16_t from_port)
     {
-        static const dmhash_t st_hash = dmHashString64("ST");
+        static const dmhash_t st_hash = dmHashLiteral64("ST");
         const char** st = state->m_Headers.Get(st_hash);
         if (!st)
         {
@@ -753,9 +753,9 @@ bail:
      */
     bool DispatchSocket(SSDP* ssdp, dmSocket::Socket socket, bool response)
     {
-        static const dmhash_t usn_hash = dmHashString64("USN");
-        static const dmhash_t ssdp_alive_hash = dmHashString64("ssdp:alive");
-        static const dmhash_t ssdp_byebye_hash = dmHashString64("ssdp:byebye");
+        static const dmhash_t usn_hash = dmHashLiteral64("USN");
+        static const dmhash_t ssdp_alive_hash = dmHashLiteral64("ssdp:alive");
+        static const dmhash_t ssdp_byebye_hash = dmHashLiteral64("ssdp:byebye");
 
         dmSocket::Result sr;
         int recv_bytes;

@@ -656,7 +656,7 @@ namespace dmLiveUpdate
         dmURI::Parts uri;
         dmURI::Parse(archive_uri, &uri);
 
-        dmResourceProvider::HArchiveLoader loader = dmResourceProvider::FindLoaderByName(dmHashString64("zip"));
+        dmResourceProvider::HArchiveLoader loader = dmResourceProvider::FindLoaderByName(dmHashLiteral64("zip"));
         if (!loader)
         {
             dmLogError("Failed to find 'mutable' loader");

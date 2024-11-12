@@ -32,7 +32,7 @@ namespace dmGameSystem
 {
 #define EXT_CONSTANTS(prefix, ext)\
     static const char* prefix##_EXT = ext;\
-    static const dmhash_t prefix##_EXT_HASH = dmHashString64(ext);\
+    static const dmhash_t prefix##_EXT_HASH = dmHashLiteral64(ext);\
 
     EXT_CONSTANTS(COLLECTION_FACTORY, "collectionfactoryc")
     EXT_CONSTANTS(COLLISION_OBJECT, "collisionobjectc")
@@ -49,23 +49,23 @@ namespace dmGameSystem
 
 #undef EXT_CONSTANTS
 
-    static const dmhash_t PROP_FONT = dmHashString64("font");
-    static const dmhash_t PROP_FONTS = dmHashString64("fonts");
-    static const dmhash_t PROP_IMAGE = dmHashString64("image");
-    static const dmhash_t PROP_MATERIAL = dmHashString64("material");
-    static const dmhash_t PROP_MATERIALS = dmHashString64("materials");
+    static const dmhash_t PROP_FONT = dmHashLiteral64("font");
+    static const dmhash_t PROP_FONTS = dmHashLiteral64("fonts");
+    static const dmhash_t PROP_IMAGE = dmHashLiteral64("image");
+    static const dmhash_t PROP_MATERIAL = dmHashLiteral64("material");
+    static const dmhash_t PROP_MATERIALS = dmHashLiteral64("materials");
     static const dmhash_t PROP_TEXTURE[dmRender::RenderObject::MAX_TEXTURE_COUNT] = {
-        dmHashString64("texture0"),
-        dmHashString64("texture1"),
-        dmHashString64("texture2"),
-        dmHashString64("texture3"),
-        dmHashString64("texture4"),
-        dmHashString64("texture5"),
-        dmHashString64("texture6"),
-        dmHashString64("texture7")
+        dmHashLiteral64("texture0"),
+        dmHashLiteral64("texture1"),
+        dmHashLiteral64("texture2"),
+        dmHashLiteral64("texture3"),
+        dmHashLiteral64("texture4"),
+        dmHashLiteral64("texture5"),
+        dmHashLiteral64("texture6"),
+        dmHashLiteral64("texture7")
     };
-    static const dmhash_t PROP_TEXTURES = dmHashString64("textures");
-    static const dmhash_t PROP_TILE_SOURCE = dmHashString64("tile_source");
+    static const dmhash_t PROP_TEXTURES = dmHashLiteral64("textures");
+    static const dmhash_t PROP_TILE_SOURCE = dmHashLiteral64("tile_source");
 
     struct EmitterStateChangedScriptData
     {

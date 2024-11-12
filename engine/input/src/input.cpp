@@ -27,7 +27,7 @@
 
 namespace dmInput
 {
-    const uint32_t UNKNOWN_GAMEPAD_CONFIG_ID = dmHashString32("UNKNOWN_GAMEPAD_CONFIG_ID");
+    const uint32_t UNKNOWN_GAMEPAD_CONFIG_ID = dmHashLiteral32("UNKNOWN_GAMEPAD_CONFIG_ID");
     static const uint16_t INVALID_INDEX = 0xFFFF;
 
 

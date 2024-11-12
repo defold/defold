@@ -32,15 +32,15 @@ namespace dmRender
 
     static const uint32_t MAX_MATERIAL_TAG_COUNT = 32; // Max tag count per material
 
-    static const dmhash_t VERTEX_STREAM_POSITION      = dmHashString64("position");
-    static const dmhash_t VERTEX_STREAM_NORMAL        = dmHashString64("normal");
-    static const dmhash_t VERTEX_STREAM_TANGENT       = dmHashString64("tangent");
-    static const dmhash_t VERTEX_STREAM_COLOR         = dmHashString64("color");
-    static const dmhash_t VERTEX_STREAM_TEXCOORD0     = dmHashString64("texcoord0");
-    static const dmhash_t VERTEX_STREAM_TEXCOORD1     = dmHashString64("texcoord1");
-    static const dmhash_t VERTEX_STREAM_PAGE_INDEX    = dmHashString64("page_index");
-    static const dmhash_t VERTEX_STREAM_WORLD_MATRIX  = dmHashString64("mtx_world");
-    static const dmhash_t VERTEX_STREAM_NORMAL_MATRIX = dmHashString64("mtx_normal");
+    static const dmhash_t VERTEX_STREAM_POSITION      = dmHashLiteral64("position");
+    static const dmhash_t VERTEX_STREAM_NORMAL        = dmHashLiteral64("normal");
+    static const dmhash_t VERTEX_STREAM_TANGENT       = dmHashLiteral64("tangent");
+    static const dmhash_t VERTEX_STREAM_COLOR         = dmHashLiteral64("color");
+    static const dmhash_t VERTEX_STREAM_TEXCOORD0     = dmHashLiteral64("texcoord0");
+    static const dmhash_t VERTEX_STREAM_TEXCOORD1     = dmHashLiteral64("texcoord1");
+    static const dmhash_t VERTEX_STREAM_PAGE_INDEX    = dmHashLiteral64("page_index");
+    static const dmhash_t VERTEX_STREAM_WORLD_MATRIX  = dmHashLiteral64("mtx_world");
+    static const dmhash_t VERTEX_STREAM_NORMAL_MATRIX = dmHashLiteral64("mtx_normal");
 
     typedef struct RenderTargetSetup*       HRenderTargetSetup;
     typedef uint64_t                        HRenderType;

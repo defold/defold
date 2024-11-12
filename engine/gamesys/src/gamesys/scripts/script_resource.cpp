@@ -411,7 +411,7 @@ static int Load(lua_State* L)
     }
 
     dmBuffer::StreamDeclaration streams_decl[] = {
-        {dmHashString64("data"), dmBuffer::VALUE_TYPE_UINT8, 1}
+        {dmHashLiteral64("data"), dmBuffer::VALUE_TYPE_UINT8, 1}
     };
 
     dmBuffer::HBuffer buffer = 0;
@@ -1027,7 +1027,7 @@ static int CreateTextureAsync(lua_State* L)
     bool use_upload_buffer = create_params.m_Buffer == 0;
     if (use_upload_buffer)
     {
-        const dmBuffer::StreamDeclaration streams_decl = {dmHashString64("data"), dmBuffer::VALUE_TYPE_UINT8, 1};
+        const dmBuffer::StreamDeclaration streams_decl = {dmHashLiteral64("data"), dmBuffer::VALUE_TYPE_UINT8, 1};
         dmBuffer::Result r = dmBuffer::Create(create_params.m_Width * create_params.m_Height * create_params.m_TextureBpp, &streams_decl, 1, &upload_buffer);
         if (r != dmBuffer::RESULT_OK)
         {

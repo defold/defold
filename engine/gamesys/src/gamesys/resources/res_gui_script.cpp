@@ -119,14 +119,14 @@ namespace dmGameSystem
 
     static ResourceResult ResourceTypeGuiScript_Register(HResourceTypeContext ctx, HResourceType type)
     {
-        dmScript::HContext gui_scriptc_ctx = (dmScript::HContext)ResourceTypeContextGetContextByHash(ctx, dmHashString64("gui_scriptc"));
+        dmScript::HContext gui_scriptc_ctx = (dmScript::HContext)ResourceTypeContextGetContextByHash(ctx, dmHashLiteral64("gui_scriptc"));
         if (gui_scriptc_ctx == 0)
         {
             dmLogError("Missing resource context 'gui_scriptc' when registering resource type 'gui_scriptc'");
             return RESOURCE_RESULT_INVAL;
         }
 
-        dmGui::HContext gui_ctx = (dmGui::HContext)ResourceTypeContextGetContextByHash(ctx, dmHashString64("guic"));
+        dmGui::HContext gui_ctx = (dmGui::HContext)ResourceTypeContextGetContextByHash(ctx, dmHashLiteral64("guic"));
         if (gui_ctx == 0)
         {
             dmLogError("Missing resource context 'guic' when registering resource type 'gui_scriptc'");

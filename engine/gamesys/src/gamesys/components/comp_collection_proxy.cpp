@@ -55,13 +55,13 @@ namespace dmGameSystem
 
     const char* COLLECTION_PROXY_MAX_COUNT_KEY = "collection_proxy.max_count";
 
-    static const dmhash_t COLLECTION_PROXY_LOAD_HASH = dmHashString64("load");
-    static const dmhash_t COLLECTION_PROXY_ASYNC_LOAD_HASH = dmHashString64("async_load");
-    static const dmhash_t COLLECTION_PROXY_UNLOAD_HASH = dmHashString64("unload");
-    static const dmhash_t COLLECTION_PROXY_INIT_HASH = dmHashString64("init");
-    static const dmhash_t COLLECTION_PROXY_FINAL_HASH = dmHashString64("final");
-    static const dmhash_t COLLECTION_PROXY_LOADED_HASH = dmHashString64("proxy_loaded");
-    static const dmhash_t COLLECTION_PROXY_UNLOADED_HASH = dmHashString64("proxy_unloaded");
+    static const dmhash_t COLLECTION_PROXY_LOAD_HASH = dmHashLiteral64("load");
+    static const dmhash_t COLLECTION_PROXY_ASYNC_LOAD_HASH = dmHashLiteral64("async_load");
+    static const dmhash_t COLLECTION_PROXY_UNLOAD_HASH = dmHashLiteral64("unload");
+    static const dmhash_t COLLECTION_PROXY_INIT_HASH = dmHashLiteral64("init");
+    static const dmhash_t COLLECTION_PROXY_FINAL_HASH = dmHashLiteral64("final");
+    static const dmhash_t COLLECTION_PROXY_LOADED_HASH = dmHashLiteral64("proxy_loaded");
+    static const dmhash_t COLLECTION_PROXY_UNLOADED_HASH = dmHashLiteral64("proxy_unloaded");
 
     struct CollectionProxyComponent
     {
@@ -747,7 +747,7 @@ namespace dmGameSystem
             dmGameObject::Result r = CompCollectionProxySetTimeStep(0, proxy, ddf->m_Factor, (int)ddf->m_Mode);
             return dmGameObject::RESULT_OK == r ? dmGameObject::UPDATE_RESULT_OK : dmGameObject::UPDATE_RESULT_UNKNOWN_ERROR;
         }
-        else if (params.m_Message->m_Id == dmHashString64("reset_time_step")) // DEPRECATED!
+        else if (params.m_Message->m_Id == dmHashLiteral64("reset_time_step")) // DEPRECATED!
         {
             proxy->m_TimeStepFactor = 1.0f;
             proxy->m_TimeStepMode = dmGameSystemDDF::TIME_STEP_MODE_CONTINUOUS;

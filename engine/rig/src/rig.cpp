@@ -29,7 +29,7 @@ namespace dmRig
 {
     using namespace dmVMath;
 
-    static const dmhash_t NULL_ANIMATION = dmHashString64("");
+    static const dmhash_t NULL_ANIMATION = dmHashLiteral64("");
     static const float CURSOR_EPSILON = 0.0001f;
 
     static void DoAnimate(HRigContext context, RigInstance* instance, float dt);

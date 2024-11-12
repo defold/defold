@@ -112,18 +112,18 @@ namespace dmGameSystem
     dmGameObject::PropertyResult SetResourceProperty(dmResource::HFactory factory, const dmGameObject::PropertyVar& value, dmhash_t* exts, uint32_t ext_count, void** out_resource);
 
 #define DM_GAMESYS_PROP_VECTOR3(var_name, prop_name, readOnly)\
-    static const dmGameSystem::PropVector3 var_name(dmHashString64(#prop_name),\
-            dmHashString64(#prop_name ".x"),\
-            dmHashString64(#prop_name ".y"),\
-            dmHashString64(#prop_name ".z"),\
+    static const dmGameSystem::PropVector3 var_name(dmHashLiteral64(#prop_name),\
+            dmHashLiteral64(#prop_name ".x"),\
+            dmHashLiteral64(#prop_name ".y"),\
+            dmHashLiteral64(#prop_name ".z"),\
             readOnly);
 
 #define DM_GAMESYS_PROP_VECTOR4(var_name, prop_name, readOnly)\
-    static const dmGameSystem::PropVector4 var_name(dmHashString64(#prop_name),\
-            dmHashString64(#prop_name ".x"),\
-            dmHashString64(#prop_name ".y"),\
-            dmHashString64(#prop_name ".z"),\
-            dmHashString64(#prop_name ".w"),\
+    static const dmGameSystem::PropVector4 var_name(dmHashLiteral64(#prop_name),\
+            dmHashLiteral64(#prop_name ".x"),\
+            dmHashLiteral64(#prop_name ".y"),\
+            dmHashLiteral64(#prop_name ".z"),\
+            dmHashLiteral64(#prop_name ".w"),\
             readOnly);
 
 

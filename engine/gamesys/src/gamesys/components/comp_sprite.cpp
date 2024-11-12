@@ -157,10 +157,10 @@ namespace dmGameSystem
     DM_GAMESYS_PROP_VECTOR3(SPRITE_PROP_SIZE, size, false);
     DM_GAMESYS_PROP_VECTOR4(SPRITE_PROP_SLICE, slice, false);
 
-    static const dmhash_t SPRITE_PROP_CURSOR        = dmHashString64("cursor");
-    static const dmhash_t SPRITE_PROP_PLAYBACK_RATE = dmHashString64("playback_rate");
-    static const dmhash_t SPRITE_PROP_ANIMATION     = dmHashString64("animation");
-    static const dmhash_t SPRITE_PROP_FRAME_COUNT   = dmHashString64("frame_count");
+    static const dmhash_t SPRITE_PROP_CURSOR        = dmHashLiteral64("cursor");
+    static const dmhash_t SPRITE_PROP_PLAYBACK_RATE = dmHashLiteral64("playback_rate");
+    static const dmhash_t SPRITE_PROP_ANIMATION     = dmHashLiteral64("animation");
+    static const dmhash_t SPRITE_PROP_FRAME_COUNT   = dmHashLiteral64("frame_count");
 
     // The 9 slice function produces 16 vertices (4 rows 4 columns)
     // and since there's 2 triangles per quad and 9 quads in total,
@@ -2414,7 +2414,7 @@ namespace dmGameSystem
             {
                 pit->m_Property.m_Type = dmGameObject::SCENE_NODE_PROPERTY_TYPE_BOOLEAN;
                 pit->m_Property.m_Value.m_Bool = component->m_Enabled;
-                pit->m_Property.m_NameHash = dmHashString64("enabled");
+                pit->m_Property.m_NameHash = dmHashLiteral64("enabled");
             }
             return true;
         }

@@ -84,6 +84,7 @@ DM_DLLEXPORT uint64_t dmHashBuffer64(const void* buffer, uint32_t buffer_len);
  * @return hash [type:uint32_t] hash value
  */
 DM_DLLEXPORT uint32_t dmHashString32(const char* string);
+#define dmHashLiteral32(string) dmHashBuffer32((string), sizeof((string)) - 1)
 
 
 /*# calculate 64-bit hash value from string
@@ -93,6 +94,7 @@ DM_DLLEXPORT uint32_t dmHashString32(const char* string);
  * @return hash [type:uint64_t] hash value
  */
 DM_DLLEXPORT uint64_t dmHashString64(const char* string);
+#define dmHashLiteral64(string) dmHashBuffer64((string), sizeof((string)) - 1)
 
 
 /*# get string value from hash

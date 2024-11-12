@@ -57,12 +57,12 @@ namespace dmGameSystem
     /// Config key for using max updates during a single step
     const char* PHYSICS_MAX_FIXED_TIMESTEPS         = "physics.max_fixed_timesteps";
 
-    static const dmhash_t PROP_LINEAR_DAMPING = dmHashString64("linear_damping");
-    static const dmhash_t PROP_ANGULAR_DAMPING = dmHashString64("angular_damping");
-    static const dmhash_t PROP_LINEAR_VELOCITY = dmHashString64("linear_velocity");
-    static const dmhash_t PROP_ANGULAR_VELOCITY = dmHashString64("angular_velocity");
-    static const dmhash_t PROP_MASS = dmHashString64("mass");
-    static const dmhash_t PROP_BULLET = dmHashString64("bullet");
+    static const dmhash_t PROP_LINEAR_DAMPING = dmHashLiteral64("linear_damping");
+    static const dmhash_t PROP_ANGULAR_DAMPING = dmHashLiteral64("angular_damping");
+    static const dmhash_t PROP_LINEAR_VELOCITY = dmHashLiteral64("linear_velocity");
+    static const dmhash_t PROP_ANGULAR_VELOCITY = dmHashLiteral64("angular_velocity");
+    static const dmhash_t PROP_MASS = dmHashLiteral64("mass");
+    static const dmhash_t PROP_BULLET = dmHashLiteral64("bullet");
 
     struct CollisionComponent;
     struct JointEndPoint;
@@ -2128,7 +2128,7 @@ namespace dmGameSystem
                 {
                     pit->m_Property.m_Value.m_Bool = dmPhysics::IsEnabled2D(component->m_Object2D);
                 }
-                pit->m_Property.m_NameHash = dmHashString64("enabled");
+                pit->m_Property.m_NameHash = dmHashLiteral64("enabled");
             }
             return true;
         }

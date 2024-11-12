@@ -471,10 +471,10 @@ void GamesysTest<T>::SetupComponentCreateContext(dmGameObject::ComponentTypeCrea
     component_create_ctx.m_Factory = m_Factory;
     component_create_ctx.m_Config = m_Config;
     component_create_ctx.m_Contexts.SetCapacity(3, 8);
-    component_create_ctx.m_Contexts.Put(dmHashString64("graphics"), m_GraphicsContext);
-    component_create_ctx.m_Contexts.Put(dmHashString64("render"), m_RenderContext);
-    component_create_ctx.m_Contexts.Put(dmHashString64("guic"), m_GuiContext);
-    component_create_ctx.m_Contexts.Put(dmHashString64("gui_scriptc"), m_ScriptContext);
+    component_create_ctx.m_Contexts.Put(dmHashLiteral64("graphics"), m_GraphicsContext);
+    component_create_ctx.m_Contexts.Put(dmHashLiteral64("render"), m_RenderContext);
+    component_create_ctx.m_Contexts.Put(dmHashLiteral64("guic"), m_GuiContext);
+    component_create_ctx.m_Contexts.Put(dmHashLiteral64("gui_scriptc"), m_ScriptContext);
 }
 
 template<typename T>
@@ -531,12 +531,12 @@ void GamesysTest<T>::SetUp()
     dmGameObject::Initialize(m_Register, m_ScriptContext);
 
     m_Contexts.SetCapacity(7,16);
-    m_Contexts.Put(dmHashString64("goc"), m_Register);
-    m_Contexts.Put(dmHashString64("collectionc"), m_Register);
-    m_Contexts.Put(dmHashString64("scriptc"), m_ScriptContext);
-    m_Contexts.Put(dmHashString64("luac"), &m_ModuleContext);
-    m_Contexts.Put(dmHashString64("guic"), m_GuiContext);
-    m_Contexts.Put(dmHashString64("gui_scriptc"), m_ScriptContext);
+    m_Contexts.Put(dmHashLiteral64("goc"), m_Register);
+    m_Contexts.Put(dmHashLiteral64("collectionc"), m_Register);
+    m_Contexts.Put(dmHashLiteral64("scriptc"), m_ScriptContext);
+    m_Contexts.Put(dmHashLiteral64("luac"), &m_ModuleContext);
+    m_Contexts.Put(dmHashLiteral64("guic"), m_GuiContext);
+    m_Contexts.Put(dmHashLiteral64("gui_scriptc"), m_ScriptContext);
 
     dmResource::RegisterTypes(m_Factory, &m_Contexts);
 
@@ -758,8 +758,8 @@ protected:
         L = dmScript::GetLuaState(m_Context);
 
         const dmBuffer::StreamDeclaration streams_decl[] = {
-            {dmHashString64("rgb"), dmBuffer::VALUE_TYPE_UINT16, 3},
-            {dmHashString64("a"), dmBuffer::VALUE_TYPE_FLOAT32, 1},
+            {dmHashLiteral64("rgb"), dmBuffer::VALUE_TYPE_UINT16, 3},
+            {dmHashLiteral64("a"), dmBuffer::VALUE_TYPE_FLOAT32, 1},
         };
 
         m_Count = 256;
@@ -814,8 +814,8 @@ protected:
 
 
         const dmBuffer::StreamDeclaration streams_decl[] = {
-            {dmHashString64("rgb"), dmBuffer::VALUE_TYPE_UINT16, 3},
-            {dmHashString64("a"), dmBuffer::VALUE_TYPE_FLOAT32, 1},
+            {dmHashLiteral64("rgb"), dmBuffer::VALUE_TYPE_UINT16, 3},
+            {dmHashLiteral64("a"), dmBuffer::VALUE_TYPE_FLOAT32, 1},
         };
 
         const CopyBufferTestParams& p = GetParam();

@@ -253,15 +253,15 @@ static dmhash_t g_SceneNodePropertyName_world_scale = 0;
 // In order to do reverse hashes on these, we need to hash them after the engine has started
 static void InitSceneNodePropertyNames()
 {
-    g_SceneNodePropertyName_id             = dmHashString64("id");
-    g_SceneNodePropertyName_type           = dmHashString64("type");
-    g_SceneNodePropertyName_resource       = dmHashString64("resource");
-    g_SceneNodePropertyName_position       = dmHashString64("position");
-    g_SceneNodePropertyName_rotation       = dmHashString64("rotation");
-    g_SceneNodePropertyName_scale          = dmHashString64("scale");
-    g_SceneNodePropertyName_world_position = dmHashString64("world_position");
-    g_SceneNodePropertyName_world_rotation = dmHashString64("world_rotation");
-    g_SceneNodePropertyName_world_scale    = dmHashString64("world_scale");
+    g_SceneNodePropertyName_id             = dmHashLiteral64("id");
+    g_SceneNodePropertyName_type           = dmHashLiteral64("type");
+    g_SceneNodePropertyName_resource       = dmHashLiteral64("resource");
+    g_SceneNodePropertyName_position       = dmHashLiteral64("position");
+    g_SceneNodePropertyName_rotation       = dmHashLiteral64("rotation");
+    g_SceneNodePropertyName_scale          = dmHashLiteral64("scale");
+    g_SceneNodePropertyName_world_position = dmHashLiteral64("world_position");
+    g_SceneNodePropertyName_world_rotation = dmHashLiteral64("world_rotation");
+    g_SceneNodePropertyName_world_scale    = dmHashLiteral64("world_scale");
 }
 
 // ********************************************************************************************
@@ -293,7 +293,7 @@ static bool IterateCollectionPropertiesGetNext(SceneNodePropertyIterator* pit)
     else if (pit->m_Property.m_NameHash == g_SceneNodePropertyName_type)
     {
         pit->m_Property.m_Type = SCENE_NODE_PROPERTY_TYPE_HASH;
-        pit->m_Property.m_Value.m_Hash = dmHashString64("collectionc");
+        pit->m_Property.m_Value.m_Hash = dmHashLiteral64("collectionc");
     }
     else if (pit->m_Property.m_NameHash == g_SceneNodePropertyName_resource)
     {
@@ -354,7 +354,7 @@ static bool IterateGameObjectPropertiesGetNext(SceneNodePropertyIterator* pit)
         else if (property_names[index] == g_SceneNodePropertyName_type)
         {
             pit->m_Property.m_Type = SCENE_NODE_PROPERTY_TYPE_HASH;
-            pit->m_Property.m_Value.m_Hash = dmHashString64("goc");
+            pit->m_Property.m_Value.m_Hash = dmHashLiteral64("goc");
         }
         else if (property_names[index] == g_SceneNodePropertyName_resource)
         {

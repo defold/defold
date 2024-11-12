@@ -213,9 +213,9 @@ namespace dmGameSystem
 
     static const uint32_t MAX_TEXTURE_COUNT = dmRender::RenderObject::MAX_TEXTURE_COUNT;
 
-    static const dmhash_t PROP_VERTICES = dmHashString64("vertices");
+    static const dmhash_t PROP_VERTICES = dmHashLiteral64("vertices");
 
-    static const uint64_t AABB_HASH = dmHashString64("AABB");
+    static const uint64_t AABB_HASH = dmHashLiteral64("AABB");
 
     static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams* params);
 
@@ -1133,7 +1133,7 @@ namespace dmGameSystem
             {
                 pit->m_Property.m_Type = dmGameObject::SCENE_NODE_PROPERTY_TYPE_BOOLEAN;
                 pit->m_Property.m_Value.m_Bool = component->m_Enabled;
-                pit->m_Property.m_NameHash = dmHashString64("enabled");
+                pit->m_Property.m_NameHash = dmHashLiteral64("enabled");
             }
             return true;
         }
@@ -1155,7 +1155,7 @@ namespace dmGameSystem
     {
         MeshContext* mesh_context = new MeshContext;
         mesh_context->m_Factory = ctx->m_Factory;
-        mesh_context->m_RenderContext = *(dmRender::HRenderContext*)ctx->m_Contexts.Get(dmHashString64("render"));
+        mesh_context->m_RenderContext = *(dmRender::HRenderContext*)ctx->m_Contexts.Get(dmHashLiteral64("render"));
         mesh_context->m_MaxMeshCount = dmConfigFile::GetInt(ctx->m_Config, "mesh.max_count", 128);
 
         ComponentTypeSetPrio(type, 725);

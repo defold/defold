@@ -184,7 +184,7 @@ static Result AddBuiltinMount(HFactory factory, NewFactoryParams* params)
         return RESULT_INVAL;
     }
 
-    dmResourceProvider::HArchiveLoader loader = dmResourceProvider::FindLoaderByName(dmHashString64("archive"));
+    dmResourceProvider::HArchiveLoader loader = dmResourceProvider::FindLoaderByName(dmHashLiteral64("archive"));
     result = dmResourceProvider::CreateMount(loader, internal, &factory->m_BuiltinMount);
 
     if (dmResourceProvider::RESULT_OK != result)

@@ -99,9 +99,9 @@ namespace dmGameSystem
     DM_GAMESYS_PROP_VECTOR4(LABEL_PROP_COLOR, color, false);
     DM_GAMESYS_PROP_VECTOR4(LABEL_PROP_OUTLINE, outline, false);
     DM_GAMESYS_PROP_VECTOR4(LABEL_PROP_SHADOW, shadow, false);
-    static const dmhash_t LABEL_PROP_LEADING = dmHashString64("leading");
-    static const dmhash_t LABEL_PROP_TRACKING = dmHashString64("tracking");
-    static const dmhash_t LABEL_PROP_LINE_BREAK = dmHashString64("line_break");
+    static const dmhash_t LABEL_PROP_LEADING = dmHashLiteral64("leading");
+    static const dmhash_t LABEL_PROP_TRACKING = dmHashLiteral64("tracking");
+    static const dmhash_t LABEL_PROP_LINE_BREAK = dmHashLiteral64("line_break");
 
     dmGameObject::CreateResult CompLabelNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
@@ -801,7 +801,7 @@ namespace dmGameSystem
             {
                 pit->m_Property.m_Type = dmGameObject::SCENE_NODE_PROPERTY_TYPE_BOOLEAN;
                 pit->m_Property.m_Value.m_Bool = component->m_Enabled;
-                pit->m_Property.m_NameHash = dmHashString64("enabled");
+                pit->m_Property.m_NameHash = dmHashLiteral64("enabled");
             }
             return true;
         }
