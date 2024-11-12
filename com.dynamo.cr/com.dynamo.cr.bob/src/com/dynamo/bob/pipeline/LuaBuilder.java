@@ -178,7 +178,7 @@ public abstract class LuaBuilder extends Builder {
         }
     }
 
-    private int executeProces(Task task, ProcessBuilder pb, File inputFile) throws IOException, CompileExceptionError {
+    private int executeProces(Task task, ProcessBuilder pb, File inputFile, int retrievableFailure) throws IOException, CompileExceptionError {
         InputStream is = null;
         try {
             Process p = pb.start();
@@ -190,6 +190,9 @@ public abstract class LuaBuilder extends Builder {
             is.read(buf);
 
             String cmdOutput = new String(buf);
+            if (ret == retrievableFailure) {
+                return ret;
+            }
             if (ret != 0) {
                 logger.info("Bytecode construction failed with exit code %d", ret);
 
@@ -242,7 +245,7 @@ public abstract class LuaBuilder extends Builder {
             int retrievableFailure = 139; //segfault
 
             while (retries < maxRetries) {
-                int ret = executeProces(task, pb, inputFile);
+                int ret = executeProces(task, pb, inputFile, retrievableFailure);
                 if (ret == retrievableFailure) {
                     retries++;
                     logger.info("Attempt %d failed with exit code %d, retrying...", retries, retrievableFailure);

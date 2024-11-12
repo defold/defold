@@ -28,13 +28,13 @@ mkdir -p libexec/x86_64-linux
 mkdir -p libexec/arm64-linux
 mkdir -p libexec/x86_64-macos
 mkdir -p libexec/arm64-macos
-mkdir -p libexec/x86-win32
+# mkdir -p libexec/x86-win32
 mkdir -p libexec/x86_64-win32
 mkdir -p libexec/arm64-ios
 mkdir -p libexec/x86_64-ios
-mkdir -p libexec/armv7-android
+# mkdir -p libexec/armv7-android
 mkdir -p libexec/arm64-android
-mkdir -p libexec/js-web
+# mkdir -p libexec/js-web
 mkdir -p libexec/wasm-web
 
 SHA1=`git log --pretty=%H -n1`
@@ -61,7 +61,7 @@ cp -v $DYNAMO_HOME/ext/bin/x86_64-win32/spirv-cross.exe libexec/x86_64-win32/spi
 #
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/share/builtins.zip lib/builtins.zip
 
-cp -v $DYNAMO_HOME/archive/${SHA1}/engine/armv7-android/classes.dex lib/classes.dex
+cp -v $DYNAMO_HOME/archive/${SHA1}/engine/arm64-android/classes.dex lib/classes.dex
 cp -v $DYNAMO_HOME/ext/share/java/android.jar lib/android.jar
 
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/share/java/dlib.jar lib/dlib.jar
@@ -122,8 +122,8 @@ copy x86_64-macos/stripped/dmengine_release x86_64-macos/dmengine_release
 copy arm64-macos/stripped/dmengine arm64-macos/dmengine
 copy arm64-macos/stripped/dmengine_release arm64-macos/dmengine_release
 # copy arm64-macos/stripped/dmengine_headless arm64-macos/dmengine_headless
-copy win32/dmengine.exe x86-win32/dmengine.exe
-copy win32/dmengine_release.exe x86-win32/dmengine_release.exe
+# copy win32/dmengine.exe x86-win32/dmengine.exe
+# copy win32/dmengine_release.exe x86-win32/dmengine_release.exe
 # copy win32/dmengine_headless.exe x86-win32/dmengine_headless.exe
 copy x86_64-win32/dmengine.exe x86_64-win32/dmengine.exe
 copy x86_64-win32/dmengine_release.exe x86_64-win32/dmengine_release.exe
@@ -132,14 +132,14 @@ copy arm64-ios/stripped/dmengine arm64-ios/dmengine
 copy arm64-ios/stripped/dmengine_release arm64-ios/dmengine_release
 copy x86_64-ios/stripped/dmengine x86_64-ios/dmengine
 copy x86_64-ios/stripped/dmengine_release x86_64-ios/dmengine_release
-copy armv7-android/stripped/libdmengine.so armv7-android/libdmengine.so
-copy armv7-android/stripped/libdmengine_release.so armv7-android/libdmengine_release.so
+# copy armv7-android/stripped/libdmengine.so armv7-android/libdmengine.so
+# copy armv7-android/stripped/libdmengine_release.so armv7-android/libdmengine_release.so
 copy arm64-android/stripped/libdmengine.so arm64-android/libdmengine.so # TODO only valid once arm64-android CI target is present --jbnn
 copy arm64-android/stripped/libdmengine_release.so arm64-android/libdmengine_release.so # TODO only valid once arm64-android CI target is present --jbnn
-copy js-web/dmengine.js js-web/dmengine.js
-#copy js-web/dmengine.js.mem js-web/dmengine.js.mem
-copy js-web/dmengine_release.js js-web/dmengine_release.js
-#copy js-web/dmengine_release.js.mem js-web/dmengine_release.js.mem
+# copy js-web/dmengine.js js-web/dmengine.js
+# copy js-web/dmengine.js.mem js-web/dmengine.js.mem
+# copy js-web/dmengine_release.js js-web/dmengine_release.js
+# copy js-web/dmengine_release.js.mem js-web/dmengine_release.js.mem
 copy wasm-web/dmengine.js wasm-web/dmengine.js
 copy wasm-web/dmengine.wasm wasm-web/dmengine.wasm
 copy wasm-web/dmengine_release.js wasm-web/dmengine_release.js
