@@ -31,7 +31,7 @@ namespace dmPlatform
         use_highest_version_supported = false;
     #endif
 
-        if (version == 0 && use_highest_version_supported ||   // Highest available
+        if ((version == 0 && use_highest_version_supported) ||   // Highest available
             (tmp_major == 3 && tmp_minor == 3) ||              // Only 3.3 is supported from 3.x
             (tmp_major == 4 && tmp_minor >= 0 && *minor <= 6)) // Only 4.0 - 4.6 are proper versions
         {
