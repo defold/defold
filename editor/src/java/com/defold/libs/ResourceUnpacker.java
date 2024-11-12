@@ -112,13 +112,13 @@ public class ResourceUnpacker {
                     unpackResourceFile("libexec/" + platform.getPair() + "/oggz-validate" + platform.getExeSuffixes()[0], unpackPath, true, false);
 
                     if (Platform.matchPlatformAgainstOS(platform.getPair(), OS.OS_ID_WINDOWS)) {
-                        unpackResourceFile("libexec/" + platform.getPair() + "/dmengine.exe", unpackPath.resolve("bin"), true, true);
-                        unpackResourceFile("libexec/" + platform.getPair() + "/luajit-64.exe", unpackPath.resolve("bin"), true, true);
-                        unpackResourceFile("lib/" + platform.getPair() + "/wrap_oal.dll", unpackPath.resolve("bin"), false, true);
-                        unpackResourceFile("lib/" + platform.getPair() + "/OpenAL32.dll", unpackPath.resolve("bin"), false, true);
+                        unpackResourceFile("libexec/" + platform.getPair() + "/dmengine.exe", unpackPath.resolve(platform.getPair()).resolve("bin"), true, true);
+                        unpackResourceFile("libexec/" + platform.getPair() + "/luajit-64.exe", unpackPath.resolve(platform.getPair()).resolve("bin"), true, true);
+                        unpackResourceFile("lib/" + platform.getPair() + "/wrap_oal.dll", unpackPath.resolve(platform.getPair()).resolve("bin"), false, true);
+                        unpackResourceFile("lib/" + platform.getPair() + "/OpenAL32.dll", unpackPath.resolve(platform.getPair()).resolve("bin"), false, true);
                     }
                     else {
-                        unpackResourceFile("libexec/" + platform.getPair() + "/luajit-64", unpackPath.resolve("bin"), true, true);
+                        unpackResourceFile("libexec/" + platform.getPair() + "/luajit-64", unpackPath.resolve(platform.getPair()).resolve("bin"), true, true);
                     }
 
                     Path binDir = unpackPath.resolve(platform.getPair() + "/bin").toAbsolutePath();
