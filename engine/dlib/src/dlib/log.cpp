@@ -45,7 +45,7 @@
 namespace dmLog
 {
 
-const char* LOG_OUTPUT_TRUNCATED_MESSAGE = "...\n[Output truncated]\n";
+const char LOG_OUTPUT_TRUNCATED_MESSAGE[] = "...\n[Output truncated]\n";
 const int MAX_LOG_FILE_SIZE = 1024 * 1024 * 32;
 
 struct dmLogConnection
@@ -237,15 +237,15 @@ static void dmLogUpdateNetwork()
                 if (connections_full)
                 {
                     dmLogError("Too many log connections opened");
-                    const char* resp = "1 Too many log connections opened\n";
-                    SendAll(client_socket, resp, strlen(resp));
+                    const char resp[] = "1 Too many log connections opened\n";
+                    SendAll(client_socket, resp, sizeof(resp) - 1);
                     dmSocket::Shutdown(client_socket, dmSocket::SHUTDOWNTYPE_READWRITE);
                     dmSocket::Delete(client_socket);
                 }
                 else
                 {
-                    const char* resp = "0 OK\n";
-                    SendAll(client_socket, resp, strlen(resp));
+                    const char resp[] = "0 OK\n";
+                    SendAll(client_socket, resp, sizeof(resp) - 1);
                     dmSocket::SetNoDelay(client_socket, true);
                     dmLogConnection connection;
                     memset(&connection, 0, sizeof(connection));
@@ -672,7 +672,7 @@ void LogInternal(LogSeverity severity, const char* domain, const char* format, .
 
     if (n >= dmLog::MAX_STRING_SIZE)
     {
-        strcpy(&str_buf[dmLog::MAX_STRING_SIZE - (strlen(dmLog::LOG_OUTPUT_TRUNCATED_MESSAGE) + 1)], dmLog::LOG_OUTPUT_TRUNCATED_MESSAGE);
+        strcpy(&str_buf[dmLog::MAX_STRING_SIZE - sizeof(dmLog::LOG_OUTPUT_TRUNCATED_MESSAGE)], dmLog::LOG_OUTPUT_TRUNCATED_MESSAGE);
     }
 
     str_buf[dmLog::MAX_STRING_SIZE-1] = '\0';

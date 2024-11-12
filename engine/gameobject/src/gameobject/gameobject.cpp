@@ -54,6 +54,7 @@ namespace dmGameObject
     const dmhash_t UNNAMED_IDENTIFIER = dmHashBuffer64("__unnamed__", strlen("__unnamed__"));
     const dmhash_t GAME_OBJECT_EXT = dmHashString64("goc");
     const char* ID_SEPARATOR = "/";
+    const uint32_t ID_SEPARATOR_LENGTH = 1;
     const uint32_t MAX_DISPATCH_ITERATION_COUNT = 10;
 
     static Prototype EMPTY_PROTOTYPE;
@@ -1190,7 +1191,7 @@ namespace dmGameObject
         collection->m_WorldTransforms[instance->m_Index] = dmTransform::ToMatrix4(instance->m_Transform);
 
         dmHashInit64(&instance->m_CollectionPathHashState, true);
-        dmHashUpdateBuffer64(&instance->m_CollectionPathHashState, ID_SEPARATOR, strlen(ID_SEPARATOR));
+        dmHashUpdateBuffer64(&instance->m_CollectionPathHashState, ID_SEPARATOR, ID_SEPARATOR_LENGTH);
 
         Result result = SetIdentifier(collection, instance, id);
         if (result == RESULT_IDENTIFIER_IN_USE)
@@ -1390,9 +1391,10 @@ namespace dmGameObject
             // to with the root_path added)
             HashState64 new_id_hs;
             dmHashClone64(&new_id_hs, &prefixHashState, true);
-            dmHashUpdateBuffer64(&new_id_hs, instance_desc.m_Id, strlen(instance_desc.m_Id));
+            size_t id_length = strlen(instance_desc.m_Id);
+            dmHashUpdateBuffer64(&new_id_hs, instance_desc.m_Id, id_length);
             dmhash_t new_id = dmHashFinal64(&new_id_hs);
-            dmhash_t id = dmHashBuffer64(instance_desc.m_Id, strlen(instance_desc.m_Id));
+            dmhash_t id = dmHashBuffer64(instance_desc.m_Id, id_length);
             id_mapping->Put(id, new_id);
             new_instances.Push(instance);
 

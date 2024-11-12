@@ -1123,10 +1123,10 @@ namespace dmGraphics
         assert(index < program->m_Uniforms.Size());
         ShaderBinding& uniform = program->m_Uniforms[index];
         *buffer = '\0';
-        dmStrlCat(buffer, uniform.m_Name, buffer_size);
+        size_t length = dmStrlCat(buffer, uniform.m_Name, buffer_size);
         *type = uniform.m_Type;
         *size = uniform.m_Size;
-        return (uint32_t)strlen(buffer);
+        return dmMath::Min((uint32_t)length, buffer_size - 1);
     }
 
     static HUniformLocation NullGetUniformLocation(HProgram prog, const char* name)

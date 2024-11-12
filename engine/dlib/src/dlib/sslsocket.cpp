@@ -288,10 +288,10 @@ Result New(dmSocket::Socket socket, const char* host, uint64_t timeout, SSLSocke
 #endif
     int ret = 0;
 
-    const char* pers = "defold_ssl_client";
+    const char pers[] = "defold_ssl_client";
     if( ( ret = mbedtls_ctr_drbg_seed( c->m_MbedCtrDrbg, mbedtls_entropy_func, c->m_MbedEntropy,
                                (const unsigned char *) pers,
-                               strlen( pers ) ) ) != 0 )
+                               sizeof( pers ) - 1 ) ) != 0 )
     {
         SSL_LOGE("mbedtls_ctr_drbg_seed failed", ret);
         return RESULT_SSL_INIT_FAILED;

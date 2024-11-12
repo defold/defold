@@ -23,7 +23,7 @@ namespace dmResource
 {
 
 static Result DecryptWithXtea(void* buffer, uint32_t buffer_len);
-const char* KEY = "aQj8CScgNP4VsfXK";
+const char KEY[] = "aQj8CScgNP4VsfXK";
 
 FDecryptResource g_ResourceDecryption = DecryptWithXtea; // Currently global since we didn't use the resource factory as the context!
 
@@ -36,7 +36,7 @@ void RegisterResourceDecryptionFunction(FDecryptResource decrypt_resource)
 
 static dmResource::Result DecryptWithXtea(void* buffer, uint32_t buffer_len)
 {
-    dmCrypt::Result cr = dmCrypt::Decrypt(dmCrypt::ALGORITHM_XTEA, (uint8_t*) buffer, buffer_len, (const uint8_t*) KEY, strlen(KEY));
+    dmCrypt::Result cr = dmCrypt::Decrypt(dmCrypt::ALGORITHM_XTEA, (uint8_t*) buffer, buffer_len, (const uint8_t*) KEY, sizeof(KEY) - 1);
     if (cr != dmCrypt::RESULT_OK)
     {
         return dmResource::RESULT_UNKNOWN_ERROR;

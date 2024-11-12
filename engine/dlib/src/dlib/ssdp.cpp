@@ -37,9 +37,9 @@
 namespace dmSSDP
 {
 
-    static const char * SSDP_MCAST_ADDR_IPV4               = "239.255.255.250";
+    static const char SSDP_MCAST_ADDR_IPV4[] = "239.255.255.250";
 
-    static const char* SSDP_ALIVE_TMPL =
+    static const char SSDP_ALIVE_TMPL[] =
         "NOTIFY * HTTP/1.1\r\n"
         "SERVER: Defold SSDP 1.0\r\n"
         "CACHE-CONTROL: max-age=${MAX_AGE}\r\n"
@@ -49,7 +49,7 @@ namespace dmSSDP
         "NT: ${NT}\r\n"
         "USN: ${UDN}::${DEVICE_TYPE}\r\n\r\n";
 
-    static const char* SSDP_BYEBYE_TMPL =
+    static const char SSDP_BYEBYE_TMPL[] =
         "NOTIFY * HTTP/1.1\r\n"
         "SERVER: Defold SSDP 1.0\r\n"
         "HOST: 239.255.255.250:1900\r\n"
@@ -57,7 +57,7 @@ namespace dmSSDP
         "NT: ${NT}\r\n"
         "USN: ${UDN}::${DEVICE_TYPE}\r\n\r\n";
 
-    static const char* SEARCH_RESULT_FMT =
+    static const char SEARCH_RESULT_FMT[] =
         "HTTP/1.1 200 OK\r\n"
         "SERVER: Defold SSDP 1.0\r\n"
         "CACHE-CONTROL: max-age=${MAX_AGE}\r\n"
@@ -67,7 +67,7 @@ namespace dmSSDP
         "USN: ${UDN}::${DEVICE_TYPE}\r\n"
         "Content-Length: 0\r\n\r\n";
 
-    static const char* M_SEARCH_FMT =
+    static const char M_SEARCH_FMT[] =
         "M-SEARCH * HTTP/1.1\r\n"
         "SERVER: Defold SSDP 1.0\r\n"
         "HOST: 239.255.255.250:1900\r\n"
@@ -317,8 +317,8 @@ bail:
         if (!last_slash)
         {
             dmHttpServer::SetStatusCode(request, 400);
-            const char* s = "Bad URL";
-            dmHttpServer::Send(request, s, strlen(s));
+            const char s[] = "Bad URL";
+            dmHttpServer::Send(request, s, sizeof(s) - 1);
             return;
         }
         const char* id = last_slash + 1;
@@ -328,8 +328,8 @@ bail:
         if (!device)
         {
             dmHttpServer::SetStatusCode(request, 404);
-            const char* s = "Device not found";
-            dmHttpServer::Send(request, s, strlen(s));
+            const char s[] = "Device not found";
+            dmHttpServer::Send(request, s, sizeof(s) - 1);
             return;
         }
 
@@ -339,8 +339,8 @@ bail:
         if (tr != dmTemplate::RESULT_OK)
         {
             dmLogError("Error formating http response (%d)", tr);
-            const char *s = "Internal error";
-            dmHttpServer::Send(request, s, strlen(s));
+            const char s[] = "Internal error";
+            dmHttpServer::Send(request, s, sizeof(s) - 1);
             return;
         }
 
@@ -1022,7 +1022,7 @@ bail:
 
                 int sent_bytes;
                 dmSocket::Result sr;
-                sr = dmSocket::SendTo(ssdp->m_LocalAddrSocket[i], M_SEARCH_FMT, strlen(M_SEARCH_FMT), &sent_bytes,
+                sr = dmSocket::SendTo(ssdp->m_LocalAddrSocket[i], M_SEARCH_FMT, sizeof(M_SEARCH_FMT) - 1, &sent_bytes,
                     dmSocket::AddressFromIPString(SSDP_MCAST_ADDR_IPV4), SSDP_MCAST_PORT);
 
                 dmLogDebug("SSDP M-SEARCH");

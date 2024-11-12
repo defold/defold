@@ -1984,18 +1984,20 @@ namespace basisu
 		basist::ktx2_transcoder::key_value_vec key_values(m_params.m_ktx2_key_values);
 		key_values.enlarge(1);
 		
-		const char* pKTXwriter = "KTXwriter";
-		key_values.back().m_key.resize(strlen(pKTXwriter) + 1);
-		memcpy(key_values.back().m_key.data(), pKTXwriter, strlen(pKTXwriter) + 1);
+		const char pKTXwriter[] = "KTXwriter";
+		key_values.back().m_key.resize(sizeof(pKTXwriter));
+		memcpy(key_values.back().m_key.data(), pKTXwriter, sizeof(pKTXwriter));
 
 		char writer_id[128];
+		int writer_id_length =
 #ifdef _MSC_VER
-		sprintf_s(writer_id, sizeof(writer_id), "Basis Universal %s", BASISU_LIB_VERSION_STRING);
+			sprintf_s(writer_id, sizeof(writer_id), "Basis Universal %s", BASISU_LIB_VERSION_STRING);
 #else
-		snprintf(writer_id, sizeof(writer_id), "Basis Universal %s", BASISU_LIB_VERSION_STRING);
+			snprintf(writer_id, sizeof(writer_id), "Basis Universal %s", BASISU_LIB_VERSION_STRING);
 #endif
-		key_values.back().m_value.resize(strlen(writer_id) + 1);
-		memcpy(key_values.back().m_value.data(), writer_id, strlen(writer_id) + 1);
+		assert(writer_id_length >= 0 && writer_id_length < sizeof(writer_id));
+		key_values.back().m_value.resize(writer_id_length + 1);
+		memcpy(key_values.back().m_value.data(), writer_id, writer_id_length + 1);
 
 		key_values.sort();
 

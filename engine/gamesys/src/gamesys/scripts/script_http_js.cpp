@@ -174,16 +174,18 @@ namespace dmGameSystem
                 lua_pushvalue(L, 4);
                 lua_pushnil(L);
                 while (lua_next(L, -2)) {
-                    const char* attr = lua_tostring(L, -2);
-                    const char* val = lua_tostring(L, -1);
+                    size_t attr_len;
+                    const char* attr = lua_tolstring(L, -2, &attr_len);
+                    size_t val_len;
+                    const char* val = lua_tolstring(L, -1, &val_len);
                     uint32_t left = h.Capacity() - h.Size();
-                    uint32_t required = strlen(attr) + strlen(val) + 2;
+                    uint32_t required = attr_len + val_len + 2;
                     if (left < required) {
                         h.OffsetCapacity(dmMath::Max(required, 1024U));
                     }
-                    h.PushArray(attr, strlen(attr));
+                    h.PushArray(attr, attr_len);
                     h.Push(':');
-                    h.PushArray(val, strlen(val));
+                    h.PushArray(val, val_len);
                     h.Push('\n');
                     lua_pop(L, 1);
                 }

@@ -185,7 +185,7 @@ namespace dmEngineService
             }
 
             dmWebServer::SetStatusCode(request, 200);
-            dmWebServer::Send(request, "OK", strlen("OK"));
+            dmWebServer::Send(request, "OK", sizeof("OK") - 1);
             return;
 
     bail:
@@ -198,7 +198,7 @@ namespace dmEngineService
         static void PingHandler(void* user_data, dmWebServer::Request* request)
         {
             dmWebServer::SetStatusCode(request, 200);
-            dmWebServer::Send(request, "PONG\n", strlen("PONG\n"));
+            dmWebServer::Send(request, "PONG\n", sizeof("PONG\n") - 1);
         }
 
         static void InfoHandler(void* user_data, dmWebServer::Request* request)

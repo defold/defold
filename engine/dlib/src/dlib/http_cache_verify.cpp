@@ -62,11 +62,13 @@ namespace dmHttpCacheVerify
             // Young enough
 
             // #path + space + #etag + \n
-            verify_context->m_BytesWritten += strlen(entry_info->m_URI) + 1 + strlen(entry_info->m_ETag) + 1;
+            size_t uri_length = strlen(entry_info->m_URI);
+            size_t etag_length = strlen(entry_info->m_ETag);
+            verify_context->m_BytesWritten += uri_length + 1 + etag_length + 1;
             if (!verify_context->m_DryRun)
             {
                 dmHttpClient::Result r;
-                r = Write(verify_context->m_Response, entry_info->m_URI, strlen(entry_info->m_URI));
+                r = Write(verify_context->m_Response, entry_info->m_URI, uri_length);
                 if (r != dmHttpClient::RESULT_OK)
                 {
                     verify_context->m_Result = r;
@@ -80,7 +82,7 @@ namespace dmHttpCacheVerify
                     return;
                 }
 
-                r = Write(verify_context->m_Response, entry_info->m_ETag, strlen(entry_info->m_ETag));
+                r = Write(verify_context->m_Response, entry_info->m_ETag, etag_length);
                 if (r != dmHttpClient::RESULT_OK)
                 {
                     verify_context->m_Result = r;
