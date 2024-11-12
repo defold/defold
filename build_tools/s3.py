@@ -190,13 +190,14 @@ def move_release(archive_path, sha1, channel):
 
         # copy the file to the new location
         new_object = bucket.Object(new_key)
-        new_redirect = "http://%s/%s" % (bucket_name, new_key)
 
-        print("Copy object: %s -> %s" % (obj.key, new_key))
-        print("Create redirection %s to %s\n" % (obj.key, new_redirect))
+        print("Copy object: %s -> %s" % (redirect_name, new_key))
         new_object.copy_from(
-            CopySource={'Bucket': bucket_name, 'Key': obj.key}
+            CopySource={'Bucket': bucket_name, 'Key': redirect_name}
         )
+
+        new_redirect = "http://%s/%s" % (bucket_name, new_key)
+        print("Create redirection %s to %s\n" % (obj.key, new_redirect))
         # set redirect for old object to new object
         obj.copy_from(
             CopySource={'Bucket': bucket_name, 'Key': obj.key},

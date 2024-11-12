@@ -72,6 +72,10 @@ public abstract class ShaderProgramBuilder extends Builder {
 
         // Parse source for includes and add the include nodes as inputs/dependancies to the shader
         String source = new String(input.getContent(), StandardCharsets.UTF_8);
+
+        // SPIR-v tools cannot handle carriage return
+        source = source.replace("\r", "");
+
         shaderPreprocessor = new ShaderPreprocessor(this.project, input.getPath(), source);
         String[] includes = shaderPreprocessor.getIncludes();
 
@@ -326,7 +330,11 @@ public abstract class ShaderProgramBuilder extends Builder {
             byte[] inBytes = new byte[is.available()];
             is.read(inBytes);
 
-            String source                         = new String(inBytes, StandardCharsets.UTF_8);
+            String source = new String(inBytes, StandardCharsets.UTF_8);
+
+            // SPIR-v tools cannot handle carriage return
+            source = source.replace("\r", "");
+
             ShaderPreprocessor shaderPreprocessor = new ShaderPreprocessor(this.project, args[0], source);
             String finalShaderSource              = shaderPreprocessor.getCompiledSource();
 

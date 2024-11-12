@@ -367,11 +367,20 @@ public class Bob {
                 logger.info("Download: %s", url);
                 File file = new File(downloadFolder, exeName);
                 HttpUtil http = new HttpUtil();
-                http.downloadToFile(url, file);
+
+                // Try to download the first URL
+                try {
+                    http.downloadToFile(url, file);
+                } catch (Exception downloadException) {
+                    // If the first URL fails, try the fallback URL for 'win32' platform
+                    URL fallbackUrl = new URL(String.format(artifactsURL + "%s/engine/%s/%s", EngineVersion.sha1, platform.getOs(), exeName));
+                    logger.info("First download attempt failed, trying fallback URL: %s", fallbackUrl);
+                    http.downloadToFile(fallbackUrl, file);
+                }
+
                 FileUtil.deleteOnExit(file);
                 binaryFiles.add(file);
-            }
-            catch (Exception e) {
+            } catch (Exception e) {
                 throw new IOException(String.format("%s could not be found locally or downloaded, create an application manifest to build the engine remotely.", exeName));
             }
         }
@@ -996,9 +1005,22 @@ public class Bob {
     }
 
     private static void logErrorAndExit(Exception e) {
-        System.err.println(e.getMessage());
-        if (e.getCause() != null) {
-            System.err.println("Cause: " + e.getCause());
+        logger.severe(e.getMessage().toString());
+        Throwable cause = e.getCause();
+        if (cause != null) {
+            for (int i = 0; cause != null; ++i) {
+                logger.severe("Cause:%d: %s", i, cause.toString());
+                StackTraceElement[] stackTrace = cause.getStackTrace();
+                for (StackTraceElement element : stackTrace) {
+                    logger.severe(element.toString());
+                }
+                cause = cause.getCause();
+            }
+        } else {
+            StackTraceElement[] stackTrace = e.getStackTrace();
+            for (StackTraceElement element : stackTrace) {
+                logger.severe(element.toString());
+            }
         }
         logger.severe(e.getMessage(), e);
         System.exit(1);

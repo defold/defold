@@ -66,7 +66,7 @@
 (def init-tasks
   [["clean"]
    ["local-jars"]
-   ["builtins"]
+   ; ["builtins"] builtins is in bob which we install in `local-jars` step
    ["ref-doc"]
    ["protobuf"]
    ["sass" "once"]
