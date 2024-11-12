@@ -33,7 +33,7 @@ int dmSnPrintf(char *buffer, size_t count, const char *format, ...)
     int result = vsnprintf(buffer, count, format, argp);
     va_end(argp);
     // mimics ms pre-ucrt vsnprintf_s behavior
-    if (count == 0 || (count > 0 && result >= (int)count))
+    if (result >= (int)count)
         return -1;
     return result;
 }
