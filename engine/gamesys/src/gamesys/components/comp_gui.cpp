@@ -2895,6 +2895,10 @@ namespace dmGameSystem
 
     static bool CompGuiIterPropertiesGetNext(dmGameObject::SceneNodePropertyIterator* pit)
     {
+        struct StrView { const char* str; size_t len; };
+#define STR_VIEW_LITERAL(literal) {(literal), sizeof((literal)) - 1}
+#define dmHashStrView64(str_view) dmHashBuffer64((str_view).str, (str_view).len)
+
         if (pit->m_Node->m_Type == dmGameObject::SCENE_NODE_TYPE_COMPONENT)
         {
             return false; // currently not implemented
@@ -2906,21 +2910,34 @@ namespace dmGameSystem
 
         uint64_t index = pit->m_Next++;
 
-        const char* properties_common[] = { "type", "custom_type", "id", "pivot" };
+        const StrView properties_common[] = {
+            STR_VIEW_LITERAL("type"),
+            STR_VIEW_LITERAL("custom_type"),
+            STR_VIEW_LITERAL("id"),
+            STR_VIEW_LITERAL("pivot"),
+        };
         uint32_t num_properties_common = DM_ARRAY_SIZE(properties_common);
 
         if (index < num_properties_common)
         {
-            const char* type_names[] = {"gui_node_box", "gui_node_text", "gui_node_pie", "gui_node_template", "gui_node_spine", "gui_node_particlefx", "gui_node_custom"};
+            const StrView type_names[] = {
+                STR_VIEW_LITERAL("gui_node_box"),
+                STR_VIEW_LITERAL("gui_node_text"),
+                STR_VIEW_LITERAL("gui_node_pie"),
+                STR_VIEW_LITERAL("gui_node_template"),
+                STR_VIEW_LITERAL("gui_node_spine"),
+                STR_VIEW_LITERAL("gui_node_particlefx"),
+                STR_VIEW_LITERAL("gui_node_custom"),
+            };
             // TODO: Get the correct custom type
             const uint32_t num_gui_types = DM_ARRAY_SIZE(type_names);
             DM_STATIC_ASSERT(num_gui_types == dmGui::NODE_TYPE_COUNT, _size_mismatch);
 
-            pit->m_Property.m_NameHash = dmHashString64(properties_common[index]);
+            pit->m_Property.m_NameHash = dmHashStrView64(properties_common[index]);
             if (index == 0) // type
             {
                 pit->m_Property.m_Type = dmGameObject::SCENE_NODE_PROPERTY_TYPE_HASH;
-                pit->m_Property.m_Value.m_Hash = dmHashString64(type_names[type]);
+                pit->m_Property.m_Value.m_Hash = dmHashStrView64(type_names[type]);
             } else if (index == 1) // custom_type
             {
                 pit->m_Property.m_Type = dmGameObject::SCENE_NODE_PROPERTY_TYPE_HASH;
@@ -2945,18 +2962,18 @@ namespace dmGameSystem
 
         index -= num_properties_common;
 
-        const char* property_names[] = {
-            "position",
-            "rotation",
-            "euler",
-            "scale",
-            "color",
-            "size",
-            "outline",
-            "shadow",
-            "slice9",
-            "pie_params",
-            "text_params",
+        const StrView property_names[] = {
+            STR_VIEW_LITERAL("position"),
+            STR_VIEW_LITERAL("rotation"),
+            STR_VIEW_LITERAL("euler"),
+            STR_VIEW_LITERAL("scale"),
+            STR_VIEW_LITERAL("color"),
+            STR_VIEW_LITERAL("size"),
+            STR_VIEW_LITERAL("outline"),
+            STR_VIEW_LITERAL("shadow"),
+            STR_VIEW_LITERAL("slice9"),
+            STR_VIEW_LITERAL("pie_params"),
+            STR_VIEW_LITERAL("text_params"),
         };
 
         const dmGui::Property* properties = 0;
@@ -2984,7 +3001,7 @@ namespace dmGameSystem
             dmGui::Property property = properties[index];
             Vector4 value = dmGui::GetNodeProperty(component->m_Scene, node, property);
 
-            pit->m_Property.m_NameHash = dmHashString64(property_names[property]);
+            pit->m_Property.m_NameHash = dmHashStrView64(property_names[property]);
             pit->m_Property.m_Value.m_V4[0] = value.getX();
             pit->m_Property.m_Value.m_V4[1] = value.getY();
             pit->m_Property.m_Value.m_V4[2] = value.getZ();
@@ -2995,11 +3012,11 @@ namespace dmGameSystem
 
         index -= num_properties;
 
-        const char* world_property_names[] = {
-            "world_position",
-            "world_rotation",
-            "world_scale",
-            "world_size",
+        const StrView world_property_names[] = {
+            STR_VIEW_LITERAL("world_position"),
+            STR_VIEW_LITERAL("world_rotation"),
+            STR_VIEW_LITERAL("world_scale"),
+            STR_VIEW_LITERAL("world_size"),
         };
 
         uint32_t num_world_properties = DM_ARRAY_SIZE(world_property_names);
@@ -3021,7 +3038,7 @@ namespace dmGameSystem
             }
 
             pit->m_Property.m_Type = type;
-            pit->m_Property.m_NameHash = dmHashString64(world_property_names[index]);
+            pit->m_Property.m_NameHash = dmHashStrView64(world_property_names[index]);
             pit->m_Property.m_Value.m_V4[0] = value.getX();
             pit->m_Property.m_Value.m_V4[1] = value.getY();
             pit->m_Property.m_Value.m_V4[2] = value.getZ();
@@ -3058,6 +3075,9 @@ namespace dmGameSystem
                 return true;
             }
         }
+
+#undef dmHashStrView64
+#undef STR_VIEW_LITERAL
 
         return false;
     }
