@@ -14,6 +14,9 @@
 
 package com.dynamo.bob.bundle;
 
+import java.math.BigInteger;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.BufferedWriter;
@@ -159,9 +162,12 @@ public class HTML5Bundler implements IBundler {
 
     class SplitFile {
         private File source;
+        private Project project;
+        private MessageDigest sha1;
         private List<File> subdivisions;
 
-        SplitFile(File src) {
+        SplitFile(Project proj, File src) {
+            project = proj;
             source = src;
             subdivisions = new ArrayList<File>();
         }
@@ -183,6 +189,13 @@ public class HTML5Bundler implements IBundler {
 
         void performSplit(File destDir) throws IOException {
             InputStream input = null;
+            if (project.hasOption("with-sha1")) {
+                try {
+                    this.sha1 = MessageDigest.getInstance("SHA1");
+                } catch (NoSuchAlgorithmException e) {
+                    throw new RuntimeException(e);
+                }
+            }
             try {
                 input = new BufferedInputStream(new FileInputStream(source));
                 long remaining = source.length();
@@ -195,6 +208,9 @@ public class HTML5Bundler implements IBundler {
                     File output = new File(destDir, insertNumberBeforeExtension(source.getName(), subdivisions.size()));
                     writeChunk(output, readBuffer);
                     subdivisions.add(output);
+                    if (this.sha1 != null) {
+                        this.sha1.update(readBuffer);
+                    }
 
                     remaining -= thisRead;
                 }
@@ -211,7 +227,14 @@ public class HTML5Bundler implements IBundler {
             generator.writeString(source.getName());
             generator.writeFieldName("size");
             generator.writeNumber(source.length());
-
+            if(this.sha1 != null) {
+                generator.writeFieldName("sha1");
+                String sha1 = new BigInteger(1, this.sha1.digest()).toString(16);
+                while (sha1.length() < 40) {
+                    sha1 = "0" + sha1;
+                }
+                generator.writeString(sha1);
+            }
             generator.writeFieldName("pieces");
             generator.writeStartArray();
             long offset = 0;
@@ -278,7 +301,7 @@ public class HTML5Bundler implements IBundler {
         FileUtils.deleteDirectory(appDir);
         File splitDir = new File(appDir, SplitFileDir);
         splitDir.mkdirs();
-        createSplitFiles(buildDir, splitDir);
+        createSplitFiles(project, buildDir, splitDir);
 
         BundleHelper.throwIfCanceled(canceled);
         // Copy bundle resources into bundle directory
@@ -381,10 +404,10 @@ public class HTML5Bundler implements IBundler {
         }
     }
 
-    private void createSplitFiles(File buildDir, File targetDir) throws IOException {
+    private void createSplitFiles(Project project, File buildDir, File targetDir) throws IOException {
         ArrayList<SplitFile> splitFiles = new ArrayList<SplitFile>();
         for (String name : BundleHelper.getArchiveFilenames(buildDir)) {
-            SplitFile toSplit = new SplitFile(new File(buildDir, name));
+            SplitFile toSplit = new SplitFile(project, new File(buildDir, name));
             toSplit.performSplit(targetDir);
             splitFiles.add(toSplit);
         }
