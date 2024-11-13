@@ -401,6 +401,8 @@ dmResource::Result GetResourceSize(HContext ctx, dmhash_t path_hash, const char*
 {
     DM_MUTEX_SCOPED_LOCK(ctx->m_Mutex);
 
+    dmLogInfo("GetResourceSize() path = %s", path);
+
     uint32_t size = ctx->m_Mounts.Size();
     for (uint32_t i = 0; i < size; ++i)
     {

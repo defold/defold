@@ -75,8 +75,10 @@ static void DeleteZipArchiveInternal(dmResourceProvider::HArchiveInternal _archi
 
 static void CreateEntryMap(ZipProviderContext* archive)
 {
+    dmLogInfo("CreateEntryMap()");
     dmZip::HZip zip = archive->m_Zip;
     uint32_t archive_entry_count = dmZip::GetNumEntries(zip);
+    dmLogInfo("CreateEntryMap() %d", archive_entry_count);
 
     dmHashTable64<EntryInfo> temp_archive_map;
     temp_archive_map.SetCapacity(dmMath::Max(1U, (archive_entry_count * 2) / 3), archive_entry_count);
@@ -129,6 +131,7 @@ static void CreateEntryMap(ZipProviderContext* archive)
         EntryInfo* info = temp_archive_map.Get(archive_path_hash);
         if (!info)
         {
+            dmLogWarning("Unable to find %s  %llx", archive_path_buffer, archive_path_hash);
             // There is no such file in this archive
             continue;
         }
@@ -139,6 +142,7 @@ static void CreateEntryMap(ZipProviderContext* archive)
         manifest_info.m_Size = entry->m_Size;
         manifest_info.m_EntryIndex = info->m_EntryIndex;
         entry_map->Put(entry->m_UrlHash, manifest_info);
+        dmLogInfo("Added entry: %s %llx (%u bytes)\n", archive_path_buffer, archive_path_hash, manifest_info.m_Size);
         DM_RESOURCE_DBG_LOG(3, "Added entry: %s %llx (%u bytes)\n", archive_path_buffer, archive_path_hash, manifest_info.m_Size);
     }
 
@@ -154,6 +158,7 @@ static void CreateEntryMap(ZipProviderContext* archive)
         }
         dmhash_t hash_key = archive_entries_iter.GetKey();
         entry_map->Put(hash_key, info);
+        dmLogInfo("Added extra entry: %llx (%u bytes)\n", hash_key, info.m_Size);
         DM_RESOURCE_DBG_LOG(3, "Added extra entry: %llx (%u bytes)\n", hash_key, info.m_Size);
     }
 
@@ -235,6 +240,7 @@ static dmResourceProvider::Result Unmount(dmResourceProvider::HArchiveInternal a
 
 static dmResourceProvider::Result GetFileSize(dmResourceProvider::HArchiveInternal _archive, dmhash_t path_hash, const char* path, uint32_t* file_size)
 {
+    dmLogInfo("GetFileSize() path = %s", path);
     ZipProviderContext* archive = (ZipProviderContext*)_archive;
     EntryInfo* entry = archive->m_EntryMap.Get(path_hash);
     if (entry)
