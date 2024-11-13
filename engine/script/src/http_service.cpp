@@ -108,6 +108,8 @@ namespace dmHttpService
         dmArray<char>& r = worker->m_Response;
         bool method_is_head = method && strcmp(method, "HEAD") == 0;
 
+        dmLogInfo("HttpContent status_code=%d, method=%s, content_data_size=%d, content_length=%d", status_code, method, content_data_size, content_length);
+
         if (!method_is_head && !content_data && !content_data_size)
         {
             r.SetSize(0);
@@ -121,15 +123,18 @@ namespace dmHttpService
 
             if (r.Capacity() < resize_to)
             {
+                dmLogInfo("HttpContent: Resizing content buffer from %d to %d", r.Capacity(), resize_to);
                 r.SetCapacity(resize_to);
             }
 
+            dmLogInfo("HttpContent: Pushing data array");
             r.PushArray((char*) content_data, content_data_size);
             bytes_received = r.Size();
         }
 
         if (worker->m_ReportProgress && (method_is_head || content_data_size > 0))
         {
+            dmLogInfo("HttpContent: Report progress bytes_received=%d, content_length=%d", bytes_received, content_length);
             assert(worker->m_Service->m_ReportProgressCallback);
 
             dmHttpDDF::HttpRequestProgress progress = {};
@@ -137,6 +142,8 @@ namespace dmHttpService
             progress.m_BytesTotal                   = content_length;
             worker->m_Service->m_ReportProgressCallback(&progress, &worker->m_CurrentRequesterURL, worker->m_ResponseUserData2);
         }
+
+        dmLogInfo("HttpContent: Done!");
     }
 
     uint32_t HttpSendContentLength(dmHttpClient::HResponse response, void* user_data)
@@ -233,6 +240,9 @@ namespace dmHttpService
         dmURI::Parts url;
         request->m_Method = (const char*) ((uintptr_t) request + (uintptr_t) request->m_Method);
         request->m_Url = (const char*) ((uintptr_t) request + (uintptr_t) request->m_Url);
+
+        dmLogInfo("HandleRequest: %s %s", request->m_Method, request->m_Url);
+
         dmURI::Result ur =  dmURI::Parse(request->m_Url, &url);
         if (ur != dmURI::RESULT_OK)
         {
