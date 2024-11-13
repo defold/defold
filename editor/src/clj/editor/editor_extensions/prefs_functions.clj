@@ -65,7 +65,7 @@
             {req true opt false} (iutil/group-into {} {} :required (coll/pair-fn :name :coerce) props)
             coercer (coerce/hash-map :req req :opt opt)
             make-schema-lua-value
-            (fn [rt m]
+            (fn make-schema-lua-value [rt m]
               (let [schema (assoc m :type schema-type)
                     schema (if-let [default-lua-value (:default schema)]
                              (assoc schema :default (rt/->clj rt (schema->coercer schema) default-lua-value))
@@ -169,7 +169,7 @@
         m))))
 
 (defn env [prefs]
-  (conj
+  (merge
     {"get" (make-get-fn prefs)
      "set" (make-set-fn prefs)
      "schema" schema-lua-env}

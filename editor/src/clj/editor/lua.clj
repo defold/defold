@@ -23,7 +23,8 @@
             [editor.lua-completion :as lua-completion]
             [editor.protobuf :as protobuf]
             [internal.util :as util]
-            [util.coll :refer [pair]])
+            [util.coll :refer [pair]]
+            [util.eduction :as e])
   (:import [com.dynamo.scriptdoc.proto ScriptDoc$Document]
            [java.net URI]
            [org.apache.commons.io FilenameUtils]))
@@ -231,9 +232,9 @@
               (make-ast-completions local-completion-info required-completion-infos)))
 
 (def editor-completions
-  (make-completion-map
-    (eduction
-      (map (fn [doc]
-             (let [name-parts (string/split (:name doc) #"\.")]
-               [(pop name-parts) (lua-completion/make (assoc doc :name (peek name-parts)))])))
-      (ext-docs/editor-script-docs))))
+  (->> (ext-docs/editor-script-docs)
+       (e/map
+         (fn [doc]
+           (let [name-parts (string/split (:name doc) #"\.")]
+             [(pop name-parts) (lua-completion/make (assoc doc :name (peek name-parts)))])))
+       (make-completion-map)))

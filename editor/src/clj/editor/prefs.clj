@@ -304,7 +304,7 @@
 (s/def ::key ::schema)
 (s/def ::val ::schema)
 (defmethod type-spec :object-of [_] (s/keys :req-un [::key ::val]))
-(s/def ::items (s/coll-of ::schema :kind vector?))
+(s/def ::items (s/coll-of ::schema :kind vector? :min-count 2))
 (defmethod type-spec :tuple [_] (s/keys :req-un [::items]))
 (s/def ::values (s/coll-of any? :min-count 1 :kind vector?))
 (defmethod type-spec :enum [_] (s/keys :req-un [::values]))

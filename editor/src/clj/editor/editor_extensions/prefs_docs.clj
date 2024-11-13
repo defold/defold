@@ -38,7 +38,7 @@
 (definline allowed-keyword-character? [ch]
   `(or (Character/isLetterOrDigit (char ~ch)) (= \- ~ch) (= \_ ~ch)))
 
-(defn- edn-serializable-string? [^String s]
+(defn- edn-serializable-keyword-name? [^String s]
   (let [n (.length s)]
     (and (pos? n)
          (loop [i 0]
@@ -49,7 +49,7 @@
 
 (def serializable-keyword-coercer
   (-> coerce/string
-      (coerce/wrap-with-pred edn-serializable-string? "is not a valid keyword")
+      (coerce/wrap-with-pred edn-serializable-keyword-name? "is not a valid keyword")
       (coerce/wrap-transform keyword)))
 
 (def schema-components
@@ -81,7 +81,7 @@
                scope-prop])
      (ui-docs/component
        "number"
-       :description "floating point number schema"
+       :description "floating-point number schema"
        :props [(make-default-prop "number")
                scope-prop])
      (ui-docs/component
@@ -151,7 +151,7 @@
        :description "tuple schema\n\nA tuple is a fixed-length array where each item has its own defined type"
        :props [(ui-docs/make-prop :items
                                   :required true
-                                  :coerce (coerce/vector-of schema-coercer :min-count 1)
+                                  :coerce (coerce/vector-of schema-coercer :min-count 2)
                                   :types ["schema[]"]
                                   :doc "schemas for the items")
                (make-default-prop "any[]")
@@ -189,44 +189,45 @@
   {:scope [:global :project]})
 
 (defn script-docs []
-  (e/concat
-    [{:name "editor.prefs"
-      :type :module
-      :description "Reading and writing editor preferences"}
-     {:name "editor.prefs.get"
-      :type :function
-      :parameters [{:name "key"
-                    :types ["string"]
-                    :doc "dot-separated preference key path"}]
-      :returnvalues [{:name "value"
+  (vec
+    (e/concat
+      [{:name "editor.prefs"
+        :type :module
+        :description "Reading and writing editor preferences"}
+       {:name "editor.prefs.get"
+        :type :function
+        :parameters [{:name "key"
+                      :types ["string"]
+                      :doc "dot-separated preference key path"}]
+        :returnvalues [{:name "value"
+                        :types ["any"]
+                        :doc "current pref value or default if a schema for the key path exists, nil otherwise"}]
+        :description "Get preference value\n\nThe schema for the preference value should be defined beforehand."}
+       {:name "editor.prefs.set"
+        :type :function
+        :parameters [{:name "key"
+                      :types ["string"]
+                      :doc "dot-separated preference key path"}
+                     {:name "value"
                       :types ["any"]
-                      :doc "current pref value or default if a schema for the key path exists, nil otherwise"}]
-      :description "Get preference value\n\nThe schema for the preference value should be defined beforehand."}
-     {:name "editor.prefs.set"
-      :type :function
-      :parameters [{:name "key"
-                    :types ["string"]
-                    :doc "dot-separated preference key path"}
-                   {:name "value"
-                    :types ["any"]
-                    :doc "new pref value to set"}]
-      :description "Set preference value\n\nThe schema for the preference value should be defined beforehand."}
-     {:name "editor.prefs.schema"
-      :type :module
-      :description "Schema for defining preferences"}]
-    (e/map schema-component->script-doc schema-components)
-    (e/mapcat (fn [[id-kw vs]]
-                (let [id (str "editor.prefs." (ui-docs/->screaming-snake-case id-kw))]
-                  (e/concat
-                    [{:name id
-                      :type :module
-                      :description (str "Constants for "
-                                        (string/replace (name id-kw) \- \space)
-                                        " enums")}]
-                    (e/map
-                      (fn [v-kw]
-                        {:name (str id "." (ui-docs/->screaming-snake-case v-kw))
-                         :type :constant
-                         :description (format "`\"%s\"`" (name v-kw))})
-                      vs))))
-              enums)))
+                      :doc "new pref value to set"}]
+        :description "Set preference value\n\nThe schema for the preference value should be defined beforehand."}
+       {:name "editor.prefs.schema"
+        :type :module
+        :description "Schema for defining preferences"}]
+      (e/map schema-component->script-doc schema-components)
+      (e/mapcat (fn [[id-kw vs]]
+                  (let [id (str "editor.prefs." (ui-docs/->screaming-snake-case id-kw))]
+                    (e/concat
+                      [{:name id
+                        :type :module
+                        :description (str "Constants for "
+                                          (string/replace (name id-kw) \- \space)
+                                          " enums")}]
+                      (e/map
+                        (fn [v-kw]
+                          {:name (str id "." (ui-docs/->screaming-snake-case v-kw))
+                           :type :constant
+                           :description (format "`\"%s\"`" (name v-kw))})
+                        vs))))
+                enums))))
