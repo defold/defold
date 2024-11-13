@@ -184,7 +184,7 @@ public class ArchiveBuilder {
      * published
      */
     private void writeArchiveEntry(RandomAccessFile archiveData, ArchiveEntry entry, Publisher publisher) throws IOException, CompileExceptionError {
-        logger.fine("Writing archive entry %s", entry.getFilename());
+        logger.info("Writing archive entry %s", entry.getFilename());
 
         byte[] buffer = this.loadResourceData(entry.getFilename());
 
@@ -230,6 +230,7 @@ public class ArchiveBuilder {
             entry.setHeader(createResourcePackEntryHeader(entry));
             InputStream bufferStream = new ByteArrayInputStream(buffer);
             synchronized (publisher) {
+                logger.info("writing archive entry to live update %s", entry.getFilename());
                 publisher.publish(entry, bufferStream);
             }
             resourceEntryFlags |= ResourceEntryFlag.EXCLUDED.getNumber();
@@ -238,6 +239,7 @@ public class ArchiveBuilder {
             // synchronize on the archive data file so that multiple threads
             // do not write to it at the same time
             synchronized (archiveData) {
+                logger.info("writing archive entry to archive %s", entry.getFilename());
                 alignBuffer(archiveData, this.resourcePadding);
                 entry.setResourceOffset((int) archiveData.getFilePointer());
                 archiveData.write(buffer, 0, buffer.length);
@@ -353,6 +355,7 @@ public class ArchiveBuilder {
             else {
                 includedEntries.add(entry);
             }
+            logger.info("creating task for archive entry %s", entry.getFilename());
             Future<ArchiveEntry> future = this.executorService.submit(() -> {
                 writeArchiveEntry(archiveData, entry, publisher);
                 return entry;

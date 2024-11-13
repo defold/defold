@@ -414,6 +414,7 @@ public class ManifestBuilder {
             // threads access a tree set concurrently, and at least one of the
             // threads modifies the set, it must be synchronized externally.
             synchronized (this) {
+                logger.info("addResourceEntry() %s", url);
                 this.resourceEntries.add(builder.buildPartial());
             }
         } catch (NoSuchAlgorithmException exception) {
@@ -501,6 +502,7 @@ public class ManifestBuilder {
 
         for (ResourceEntry entry : this.resourceEntries) {
             String url = entry.getUrl();
+            logger.info("buildManifestData resource entry %s", url);
             ResourceEntry.Builder resourceEntryBuilder = entry.toBuilder();
 
             // Since we'll only ever ask collection proxies we store lists only for
@@ -520,6 +522,7 @@ public class ManifestBuilder {
                     if (resource == null) {
                         continue;
                     }
+                    logger.info("buildManifestData adding dependant %s", resource.getUrl());
                     resourceEntryBuilder.addDependants(resource.getUrlHash());
                 }
             }
