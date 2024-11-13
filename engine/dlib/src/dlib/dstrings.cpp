@@ -25,18 +25,14 @@
 
 int dmSnPrintf(char *buffer, size_t count, const char *format, ...)
 {
-    // MS-compliance
+    // mimics ms pre-ucrt vsnprintf_s behavior
     if (buffer == 0x0 || count == 0 || format == 0x0)
         return -1;
     va_list argp;
     va_start(argp, format);
-#if defined(_WIN32)
-    int result = _vsnprintf_s(buffer, count, _TRUNCATE, format, argp);
-#else
     int result = vsnprintf(buffer, count, format, argp);
-#endif
     va_end(argp);
-    // MS-compliance
+    // mimics ms pre-ucrt vsnprintf_s behavior
     if (count == 0 || (count > 0 && result >= (int)count))
         return -1;
     return result;
