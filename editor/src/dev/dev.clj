@@ -129,17 +129,19 @@
                         (when (= outline-label (:label child-outline))
                           child-outline))
                       (:children node-outline))
-                (throw (ex-info (format "node-outline for %s '%s' has no child-outline '%s'."
-                                        (symbol (g/node-type-kw node-id))
-                                        (:label node-outline)
-                                        outline-label)
-                                {:start-node-type-kw (g/node-type-kw node-id)
-                                 :outline-labels (vec outline-labels)
-                                 :failed-outline-label outline-label
-                                 :failed-outline-label-candidates (into (sorted-set)
-                                                                        (map :label)
-                                                                        (:children node-outline))
-                                 :failed-node-outline node-outline}))))
+                (let [candidates (into (sorted-set)
+                                       (map :label)
+                                       (:children node-outline))]
+                  (throw (ex-info (format "node-outline for %s '%s' has no child-outline '%s'. Candidates: %s"
+                                          (symbol (g/node-type-kw node-id))
+                                          (:label node-outline)
+                                          outline-label
+                                          (string/join ", " (map #(str \' % \') candidates)))
+                                  {:start-node-type-kw (g/node-type-kw node-id)
+                                   :outline-labels (vec outline-labels)
+                                   :failed-outline-label outline-label
+                                   :failed-outline-label-candidates candidates
+                                   :failed-node-outline node-outline})))))
           (g/node-value node-id :node-outline)
           outline-labels))
 

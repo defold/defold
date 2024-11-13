@@ -89,7 +89,7 @@
 
 (defprotocol NodeType)
 
-(defn- node-type-deref? [x] (satisfies? NodeType x))
+(defn node-type-deref? [x] (satisfies? NodeType x))
 
 (defrecord NodeTypeRef [k]
   Ref

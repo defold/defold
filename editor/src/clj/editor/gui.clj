@@ -51,9 +51,11 @@
             [editor.validation :as validation]
             [editor.workspace :as workspace]
             [internal.graph.types :as gt]
+            [internal.node :as in]
             [internal.util :as util]
             [schema.core :as s]
             [util.coll :as coll :refer [pair]]
+            [util.eduction :as e]
             [util.fn :as fn])
   (:import [com.dynamo.gamesys.proto Gui$NodeDesc Gui$NodeDesc$AdjustMode Gui$NodeDesc$BlendMode Gui$NodeDesc$ClippingMode Gui$NodeDesc$PieBounds Gui$NodeDesc$Pivot Gui$NodeDesc$SizeMode Gui$NodeDesc$XAnchor Gui$NodeDesc$YAnchor Gui$SceneDesc Gui$SceneDesc$AdjustReference Gui$SceneDesc$FontDesc Gui$SceneDesc$LayerDesc Gui$SceneDesc$LayoutDesc Gui$SceneDesc$MaterialDesc Gui$SceneDesc$ParticleFXDesc Gui$SceneDesc$ResourceDesc Gui$SceneDesc$TextureDesc]
            [com.jogamp.opengl GL GL2]
@@ -66,12 +68,14 @@
 
 ;; TODO(gui-layout-override-refactor):
 ;; [DONE] Fix layout override loading. Should assign to layout->prop->override property on nodes.
-;; * Fix layout->prop->value to include correct base values from active-layouts.
+;; [DONE] Fix layout->prop->value to include correct base values from active-layouts.
 ;; [DONE] Fix scene-view manipulators so they assign into the current-layout.
 ;; [DONE] Ensure layout overrides can be cleared using the property editor.
-;; * Optimize save-value data path. Should maybe pull from layout->prop->value output?
+;; [DONE] Optimize save-value data path. Should maybe pull from layout->prop->value output?
 ;; * Fix resource renames so they update all layouts.
 ;; * Fix outline color tint of overridden nodes.
+;; * Add test for node added to referenced scene. Should not appear overridden in referencing scene.
+;; * Fix hacky evaluation inside layout->prop->value output.
 
 (set! *warn-on-reflection* true)
 
@@ -398,10 +402,6 @@
       (pair pb-field pb-value))
     entry))
 
-(def ^:private prop-entries->pb-field-entries-xform
-  (comp (map prop-entry->pb-field-entry)
-        (protobuf/without-defaults-xform Gui$NodeDesc)))
-
 (declare get-registered-node-type-info get-registered-node-type-infos)
 
 ;; /////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -453,6 +453,8 @@
          TextNode TemplateNode ParticleFXNode)
 
 (declare get-registered-node-type-cls)
+
+(def ^:private default-node-desc-pb-field-values (protobuf/default-value Gui$NodeDesc))
 
 (def ^:private default-pb-node-type (protobuf/default Gui$NodeDesc :type)) ; E.g. :type-box.
 
@@ -694,15 +696,47 @@
 (defmacro layout-property-getter [prop-sym]
   {:pre [(symbol? prop-sym)]}
   (let [prop-kw (keyword prop-sym)]
-    `(g/fnk [~'layout-property-values ~prop-sym]
-       (get ~'layout-property-values ~prop-kw ~prop-sym))))
+    `(g/fnk [~'layout->prop->value ~'current-layout ~prop-sym]
+       (-> ~'layout->prop->value
+           (get ~'current-layout)
+           (get ~prop-kw ~prop-sym)))))
 
 (defn layout-property-set-fn [_evaluation-context node-id _old-value _new-value]
-  (g/invalidate-output node-id :layout-property-values))
+  (g/invalidate-output node-id :layout->prop->value))
 
 (defmacro layout-property-setter [prop-sym]
   {:pre [(symbol? prop-sym)]}
   layout-property-set-fn)
+
+(defn- layout-property-prop-def? [prop-def]
+  (let [value-dependencies (-> prop-def :value :dependencies)]
+    (and (= 3 (count value-dependencies))
+         (contains? value-dependencies :layout->prop->value)
+         (contains? value-dependencies :current-layout))))
+
+(def ^:private own-layout-related-property-values
+  (let [node-type-deref->stripped-prop-kws
+        (fn/memoize
+          (fn node-type-deref->stripped-prop-kws [node-type-deref]
+            {:pre [(in/node-type-deref? node-type-deref)]}
+            (->> (:property node-type-deref)
+                 (e/keep
+                   (fn [[prop-kw prop-def]]
+                     (when-not (layout-property-prop-def? prop-def)
+                       prop-kw)))
+                 (sort)
+                 (vec))))]
+    (fn own-layout-related-property-values [node]
+      (let [node-properties (gt/own-properties node)]
+        (if (coll/empty? node-properties)
+          {}
+          (let [node-type (g/node-type node)
+                stripped-prop-kws (node-type-deref->stripped-prop-kws @node-type)]
+            (persistent!
+              (reduce
+                dissoc!
+                (transient node-properties)
+                stripped-prop-kws))))))))
 
 (defn update-layout-property [evaluation-context node-id prop-kw update-fn & args]
   (let [old-value (g/node-value node-id prop-kw evaluation-context)
@@ -939,11 +973,11 @@
   (output gui-base-node-msg g/Any produce-gui-base-node-msg)
   (output node-msg g/Any :abstract)
   (input node-msgs g/Any :array)
-  (output node-msgs g/Any (g/fnk [layout->prop->override node-msg node-msgs]
-                            ;; TODO(gui-layout-override-refactor): node-msg values will reflect current-layout. We want the raw property values.
+  (output node-msgs g/Any (g/fnk [layout->prop->override layout->prop->value node-msg node-msgs]
                             (let [decorated-node-msg
                                   (assoc node-msg
-                                    :layout->prop->override layout->prop->override)]
+                                    :layout->prop->override layout->prop->override
+                                    :layout->prop->value layout->prop->value)]
                               (into [decorated-node-msg]
                                     (map #(dissoc % :child-index))
                                     (flatten
@@ -986,19 +1020,37 @@
   (output layout-infos g/Any (gu/passthrough layout-infos))
   (input current-layout g/Str)
   (output current-layout g/Str (gu/passthrough current-layout))
-  (output layout-property-values g/Any :cached
-          (g/fnk [_this current-layout layout->prop->override]
+  (output layout->prop->value g/Any :cached
+          (g/fnk [_this layout->prop->override layout-infos]
             ;; All layout-property-setters explicitly invalidate this output, so
             ;; it is safe to extract properties from _this here.
-            (if (nil? (gt/original _this))
-              (layout->prop->override current-layout) ; Fast path, but just an optimization.
-              (let [basis (g/now)]
-                (->> _this
-                     (iterate #(some->> % (gt/original) (g/node-by-id-at basis)))
-                     (take-while some?)
-                     (into (list) ; Reverse the order so it goes from the override root to our node.
-                           (map #(get (gt/get-property % basis :layout->prop->override) current-layout)))
-                     (apply coll/deep-merge))))))
+            (let [original-node-id (gt/original _this)
+                  original-layout->prop->value (some-> original-node-id (g/node-value :layout->prop->value))] ; TODO(gui-layout-override-refactor): Hacky evaluation inside output fnk.
+              (if (g/error-value? original-layout->prop->value)
+                original-layout->prop->value
+                (let [original-meta (meta original-layout->prop->value)
+                      original-layout-infos (:layout-infos original-meta)
+
+                      default-prop->value
+                      (if (nil? original-node-id)
+                        (own-layout-related-property-values _this)
+                        (merge (get original-layout->prop->value "")
+                               (own-layout-related-property-values _this)))
+
+                      introduced-layouts
+                      (eduction
+                        (map key)
+                        (remove #(contains? original-layout-infos %))
+                        layout-infos)]
+
+                  (-> (reduce
+                        (fn [layout->prop->value introduced-layout]
+                          (update layout->prop->value introduced-layout merge default-prop->value))
+                        original-layout->prop->value
+                        introduced-layouts)
+                      (assoc "" default-prop->value)
+                      (coll/deep-merge layout->prop->override)
+                      (vary-meta assoc :layout-infos layout-infos)))))))
   (output _properties g/Properties :cached
           (g/fnk [_declared-properties current-layout layout->prop->override]
             ;; For layout properties, the :original-value of each property is
@@ -1794,8 +1846,9 @@
                                                                   [:particlefx-infos :aux-particlefx-infos]
                                                                   [:particlefx-resource-names :aux-particlefx-resource-names]
                                                                   [:resource-names :aux-resource-names]
-                                                                  [:template-prefix :id-prefix]
-                                                                  [:current-layout :current-layout]]]
+                                                                  [:layout-infos :aux-layout-infos]
+                                                                  [:current-layout :current-layout]
+                                                                  [:template-prefix :id-prefix]]]
                                                    (g/connect self from or-scene to)))))))))))))))
 
   (display-order (into base-display-order [:enabled :template]))
@@ -1816,10 +1869,11 @@
                                                                 (get-in template-outline [:children 0 :children])))
   (output node-outline-reqs g/Any :cached (g/constantly []))
   (output node-msg g/Any :cached produce-template-node-msg)
-  (output node-msgs g/Any :cached (g/fnk [id layout->prop->override node-msg scene-node-msgs]
+  (output node-msgs g/Any :cached (g/fnk [id layout->prop->override layout->prop->value node-msg scene-node-msgs]
                                     (let [decorated-node-msg
                                           (assoc node-msg
-                                            :layout->prop->override layout->prop->override)]
+                                            :layout->prop->override layout->prop->override
+                                            :layout->prop->value layout->prop->value)]
                                       (into [decorated-node-msg]
                                             (map #(-> %
                                                       (vary-meta update :templates (fnil conj []) decorated-node-msg)
@@ -2719,41 +2773,61 @@
                          (->> prop->override
                               (map (comp prop-key->pb-field-index key))
                               (sort))]
-                     (-> node-msg
-                         (dissoc :layout->prop->override)
-                         (protobuf/assign-repeated :overridden-fields overridden-fields)
-                         (into prop-entries->pb-field-entries-xform
-                               prop->override)))))))))
+                     (->> prop->override
+                          (e/map prop-entry->pb-field-entry)
+                          (reduce
+                            (fn [node-desc [pb-field pb-value]]
+                              (let [default-pb-value (default-node-desc-pb-field-values pb-field)]
+                                (if (= default-pb-value pb-value)
+                                  (dissoc node-desc pb-field)
+                                  (assoc node-desc pb-field pb-value))))
+                            (-> node-msg
+                                (dissoc :layout->prop->override :layout->prop->value)
+                                (protobuf/assign-repeated :overridden-fields overridden-fields)))
+                          (strip-unused-overridden-fields-from-node-desc)))))))))
 
-(g/defnk produce-pb-msg [script-resource material-resource adjust-reference max-nodes max-dynamic-textures node-msgs layer-msgs font-msgs texture-msgs material-msgs layout-infos particlefx-resource-msgs resource-msgs]
-  (let [node-descs (mapv #(dissoc % :layout->prop->override) node-msgs)
-        layout-descs (mapv #(make-layout-desc % node-msgs)
-                           (sort (keys layout-infos)))]
-    (protobuf/make-map-without-defaults Gui$SceneDesc
-      :script (resource/resource->proj-path script-resource)
-      :material (resource/resource->proj-path material-resource)
-      :adjust-reference adjust-reference
-      :max-nodes max-nodes
-      :max-dynamic-textures max-dynamic-textures
-      :nodes node-descs
-      :layers layer-msgs
-      :fonts font-msgs
-      :textures texture-msgs
-      :materials material-msgs
-      :layouts layout-descs
-      :particlefxs particlefx-resource-msgs
-      :resources resource-msgs)))
+(g/defnk produce-pb-msg [script-resource material-resource adjust-reference max-nodes max-dynamic-textures layer-msgs font-msgs texture-msgs material-msgs particlefx-resource-msgs resource-msgs]
+  ;; Note: Both :layouts and :nodes are omitted here. They will be added to the
+  ;; final Gui$SceneDesc when producing the save-value and build-targets,
+  ;; because their contents differ between saving and building.
+  (protobuf/make-map-without-defaults Gui$SceneDesc
+    :script (resource/resource->proj-path script-resource)
+    :material (resource/resource->proj-path material-resource)
+    :adjust-reference adjust-reference
+    :max-nodes max-nodes
+    :max-dynamic-textures max-dynamic-textures
+    :layers layer-msgs
+    :fonts font-msgs
+    :textures texture-msgs
+    :materials material-msgs
+    :particlefxs particlefx-resource-msgs
+    :resources resource-msgs))
 
-(g/defnk produce-save-value [pb-msg]
-  (-> pb-msg
-      (protobuf/sanitize-repeated
-        :nodes (fn [node-desc]
+(g/defnk produce-save-value [layout-infos node-msgs pb-msg]
+  ;; Any Gui$NodeDescs in the resulting SceneDesc or its LayoutDescs should be
+  ;; sparsely stored. Only field values that deviate from their originals should
+  ;; be included, but ultimately it is the fields listed as :overridden-fields
+  ;; that is the source of truth for whether a field shows up as overridden
+  ;; inside the editor. Note that a field may be among the :overridden-fields
+  ;; without us writing a corresponding value for it to the file in case its
+  ;; overridden value matches the protobuf field default.
+  (let [layout-names (sort (keys layout-infos))
+
+        layout-descs
+        (mapv #(make-layout-desc % node-msgs)
+              layout-names)
+
+        node-descs
+        (coll/transfer node-msgs []
+          (map #(dissoc % :layout->prop->override :layout->prop->value))
+          (map (fn [node-desc]
                  (if (:template-node-child node-desc)
                    (strip-unused-overridden-fields-from-node-desc node-desc)
-                   (strip-redundant-size-from-node-desc node-desc))))
-      (protobuf/sanitize-repeated
-        :layouts (fn [layout-desc]
-                   (protobuf/sanitize-repeated layout-desc :nodes strip-unused-overridden-fields-from-node-desc)))))
+                   (strip-redundant-size-from-node-desc node-desc)))))]
+
+    (protobuf/assign-repeated pb-msg
+      :layouts layout-descs
+      :nodes node-descs)))
 
 (defn- build-pb [resource dep-resources user-data]
   (let [def (:def user-data)
@@ -2847,34 +2921,57 @@
     :else
     (dissoc node-desc :overridden-fields)))
 
-(defn- layout-desc->rt-layout-desc [layout-desc]
-  {:pre [(map? layout-desc)]} ; Gui$SceneDesc$LayoutDesc in map format.
-  (-> layout-desc
-      (protobuf/sanitize-repeated :nodes node-desc->rt-node-desc)))
+(defn- make-rt-layout-desc [layout-name decorated-node-msgs]
+  (protobuf/make-map-without-defaults Gui$SceneDesc$LayoutDesc
+    :name layout-name
+    :nodes (coll/transfer decorated-node-msgs []
+             (keep
+               (fn [{:keys [layout->prop->value] :as decorated-node-msg}]
+                 {:pre [(map? layout->prop->value)]}
+                 (let [default-prop->value (layout->prop->value "")
+                       prop->value (layout->prop->value layout-name)]
+                   (assert (map? default-prop->value))
+                   (assert (map? prop->value))
+                   (when (not= default-prop->value prop->value)
+                     (some->> (-> decorated-node-msg
+                                  (select-keys [:custom-type :id :parent :template-node-child :type])
+                                  (into (map prop-entry->pb-field-entry)
+                                        prop->value)
+                                  (node-desc->rt-node-desc))
+                              (protobuf/clear-defaults Gui$NodeDesc)))))))))
 
-(defn- scene-desc->rt-scene-desc [scene-desc]
-  {:pre [(map? scene-desc)]} ; Gui$SceneDesc in map format.
-  (-> scene-desc
-      (protobuf/sanitize-repeated :nodes node-desc->rt-node-desc)
-      (protobuf/sanitize-repeated :layouts layout-desc->rt-layout-desc)))
-
-(g/defnk produce-build-targets [_node-id build-errors resource pb-msg dep-build-targets template-build-targets]
+(g/defnk produce-build-targets [_node-id build-errors resource pb-msg dep-build-targets template-build-targets layout-infos node-msgs]
+  ;; Built Gui$NodeDescs should be fully-formed, since no additional merging of
+  ;; overridden properties will be done by the runtime. A corresponding NodeDesc
+  ;; in a LayoutDesc will fully replace its original NodeDesc, if present in the
+  ;; LayoutDesc. However, NodeDescs that are equivalent to their originals may
+  ;; be omitted from the LayoutDesc to save space.
   (g/precluding-errors build-errors
-    (let [def pb-def
-          template-build-targets (flatten template-build-targets)
-          rt-pb-msg (scene-desc->rt-scene-desc pb-msg)
+    (let [template-build-targets (flatten template-build-targets)
+          layout-names (sort (keys layout-infos))
+          rt-layout-descs (mapv #(make-rt-layout-desc % node-msgs)
+                                layout-names)
+          rt-node-descs (coll/transfer node-msgs []
+                          (keep
+                            (fn [decorated-node-msg]
+                              (-> decorated-node-msg
+                                  (dissoc :layout->prop->override :layout->prop->value)
+                                  (node-desc->rt-node-desc)))))
+          rt-pb-msg (protobuf/assign-repeated pb-msg
+                      :layouts rt-layout-descs
+                      :nodes rt-node-descs)
           rt-pb-msg (merge-rt-pb-msg rt-pb-msg template-build-targets)
           dep-build-targets (concat (flatten dep-build-targets) (mapcat :deps (flatten template-build-targets)))
           deps-by-source (into {} (map #(let [res (:resource %)] [(resource/resource->proj-path (:resource res)) res]) dep-build-targets))
-          resource-fields (mapcat (fn [field] (if (vector? field) (mapv (fn [i] (into [(first field) i] (rest field))) (range (count (get rt-pb-msg (first field))))) [field])) (:resource-fields def))
+          resource-fields (mapcat (fn [field] (if (vector? field) (mapv (fn [i] (into [(first field) i] (rest field))) (range (count (get rt-pb-msg (first field))))) [field])) (:resource-fields pb-def))
           dep-resources (mapv (fn [label] [label (get deps-by-source (if (vector? label) (get-in rt-pb-msg label) (get rt-pb-msg label)))]) resource-fields)]
       [(bt/with-content-hash
          {:node-id _node-id
           :resource (workspace/make-build-resource resource)
           :build-fn build-pb
           :user-data {:pb rt-pb-msg
-                      :pb-class (:pb-class def)
-                      :def def
+                      :pb-class (:pb-class pb-def)
+                      :def pb-def
                       :dep-resources dep-resources}
           :deps dep-build-targets})])))
 
@@ -3029,10 +3126,12 @@
   (input material-msgs g/Any :array)
   (input layer-msgs g/Any)
   (output layer-msgs g/Any (g/fnk [layer-msgs] (mapv #(dissoc % :child-index) (sort-by :child-index layer-msgs))))
+  (input aux-layout-infos g/Any) ; TODO: Doesn't look like the other aux inputs need to be :array inputs either?
   (output layout-infos g/Any :cached
-          (g/fnk [layout-names]
+          (g/fnk [aux-layout-infos layout-names]
             ;; TODO(gui-layout-override-refactor): Do we actually need anything apart from the layout names here?
-            (into {}
+            ;; Note: Unsure about the merge order here. Should the aux-layout-infos win over our own?
+            (into (or aux-layout-infos {})
                   (map #(pair % {}))
                   layout-names)))
   (input particlefx-resource-msgs g/Any :array)
@@ -3288,8 +3387,7 @@
 
 (def ^:private non-overridable-properties #{:template :id :parent})
 
-(def ^:private node-property-defaults
-  (node-desc->node-properties (protobuf/default-value Gui$NodeDesc)))
+(def ^:private node-property-defaults (node-desc->node-properties default-node-desc-pb-field-values))
 
 (defn- extract-overrides [node-properties]
   (into {}

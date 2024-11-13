@@ -460,7 +460,7 @@
 (deftest gui-layout
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/gui/scene.gui")]
-      (is (= ["Landscape"] (map :name (:layouts (g/node-value node-id :pb-msg))))))))
+      (is (= ["Landscape"] (map :name (:layouts (g/node-value node-id :save-value))))))))
 
 (defn- add-layout! [project app-view scene name]
   (let [parent (g/node-value scene :layouts-node)
@@ -1071,10 +1071,10 @@
                        (make-displayed-layout->node->prop->value scene)))
                 (is (= {"Default" {"text" {:font "font"
                                            :text "button default"}}}
-                       (make-saved-layout->node->field->value scene)))
+                       (make-built-layout->node->field->value scene)))
                 (is (= {"Default" {"text" {:font "font"
                                            :text "button default"}}}
-                       (make-built-layout->node->field->value scene))))))))
+                       (make-saved-layout->node->field->value scene))))))))
 
       (let [proj-path "/gui/template_layout/button_l.gui"]
         (testing proj-path
@@ -1093,13 +1093,13 @@
                        (make-displayed-layout->node->prop->value scene)))
                 (is (= {"Default" {"text" {:font "font"
                                            :text "button default"}}
-                        "Landscape" {"text" {:text "button landscape"}}}
-                       (make-saved-layout->node->field->value scene)))
-                (is (= {"Default" {"text" {:font "font"
-                                           :text "button default"}}
                         "Landscape" {"text" {:font "font"
                                              :text "button landscape"}}}
-                       (make-built-layout->node->field->value scene))))
+                       (make-built-layout->node->field->value scene)))
+                (is (= {"Default" {"text" {:font "font"
+                                           :text "button default"}}
+                        "Landscape" {"text" {:text "button landscape"}}}
+                       (make-saved-layout->node->field->value scene))))
 
               (testing "After clearing Landscape layout override."
                 (with-visible-layout! scene "Landscape"
@@ -1115,11 +1115,11 @@
                 (is (= {"Default" {"text" {:font "font"
                                            :text "button default"}}
                         "Landscape" {}}
-                       (make-saved-layout->node->field->value scene)))
+                       (make-built-layout->node->field->value scene)))
                 (is (= {"Default" {"text" {:font "font"
                                            :text "button default"}}
                         "Landscape" {}}
-                       (make-built-layout->node->field->value scene))))))))
+                       (make-saved-layout->node->field->value scene))))))))
 
       (let [proj-path "/gui/template_layout/button_lp.gui"]
         (testing proj-path
@@ -1141,16 +1141,16 @@
                        (make-displayed-layout->node->prop->value scene)))
                 (is (= {"Default" {"text" {:font "font"
                                            :text "button default"}}
-                        "Landscape" {"text" {:text "button landscape"}}
-                        "Portrait" {"text" {:text "button portrait"}}}
-                       (make-saved-layout->node->field->value scene)))
-                (is (= {"Default" {"text" {:font "font"
-                                           :text "button default"}}
                         "Landscape" {"text" {:font "font"
                                              :text "button landscape"}}
                         "Portrait" {"text" {:font "font"
                                             :text "button portrait"}}}
-                       (make-built-layout->node->field->value scene))))
+                       (make-built-layout->node->field->value scene)))
+                (is (= {"Default" {"text" {:font "font"
+                                           :text "button default"}}
+                        "Landscape" {"text" {:text "button landscape"}}
+                        "Portrait" {"text" {:text "button portrait"}}}
+                       (make-saved-layout->node->field->value scene))))
 
               (testing "After clearing Landscape layout override."
                 (with-visible-layout! scene "Landscape"
@@ -1169,14 +1169,14 @@
                 (is (= {"Default" {"text" {:font "font"
                                            :text "button default"}}
                         "Landscape" {}
-                        "Portrait" {"text" {:text "button portrait"}}}
-                       (make-saved-layout->node->field->value scene)))
+                        "Portrait" {"text" {:font "font"
+                                            :text "button portrait"}}}
+                       (make-built-layout->node->field->value scene)))
                 (is (= {"Default" {"text" {:font "font"
                                            :text "button default"}}
                         "Landscape" {}
-                        "Portrait" {"text" {:font "font"
-                                            :text "button portrait"}}}
-                       (make-built-layout->node->field->value scene))))))))
+                        "Portrait" {"text" {:text "button portrait"}}}
+                       (make-saved-layout->node->field->value scene))))))))
 
       (let [proj-path "/gui/template_layout/panel_button.gui"]
         (testing proj-path
@@ -1190,13 +1190,13 @@
                 (is (= {"Default" {"button/text" {:font "font"
                                                   :text "panel default"}}}
                        (make-displayed-layout->node->prop->value scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "panel default"}}}
+                       (make-built-layout->node->field->value scene)))
                 (is (= {"Default" {"button" {:template "/gui/template_layout/button.gui"}
                                    "button/text" {:parent "button"
                                                   :text "panel default"}}}
-                       (make-saved-layout->node->field->value scene)))
-                (is (= {"Default" {"button/text" {:font "font"
-                                                  :text "panel default"}}}
-                       (make-built-layout->node->field->value scene))))
+                       (make-saved-layout->node->field->value scene))))
 
               (testing "After clearing Default layout override."
                 (with-visible-layout! scene ""
@@ -1206,12 +1206,12 @@
                 (is (= {"Default" {"button/text" {:font "font"
                                                   :text "button default"}}}
                        (make-displayed-layout->node->prop->value scene)))
-                (is (= {"Default" {"button" {:template "/gui/template_layout/button.gui"}
-                                   "button/text" {:parent "button"}}}
-                       (make-saved-layout->node->field->value scene)))
                 (is (= {"Default" {"button/text" {:font "font"
                                                   :text "button default"}}}
-                       (make-built-layout->node->field->value scene))))))))
+                       (make-built-layout->node->field->value scene)))
+                (is (= {"Default" {"button" {:template "/gui/template_layout/button.gui"}
+                                   "button/text" {:parent "button"}}}
+                       (make-saved-layout->node->field->value scene))))))))
 
       (let [proj-path "/gui/template_layout/panel_button_l.gui"]
         (testing proj-path
@@ -1225,13 +1225,13 @@
                 (is (= {"Default" {"button/text" {:font "font"
                                                   :text "panel default"}}}
                        (make-displayed-layout->node->prop->value scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "panel default"}}}
+                       (make-built-layout->node->field->value scene)))
                 (is (= {"Default" {"button" {:template "/gui/template_layout/button_l.gui"}
                                    "button/text" {:parent "button"
                                                   :text "panel default"}}}
-                       (make-saved-layout->node->field->value scene)))
-                (is (= {"Default" {"button/text" {:font "font"
-                                                  :text "panel default"}}}
-                       (make-built-layout->node->field->value scene))))
+                       (make-saved-layout->node->field->value scene))))
 
               (testing "After clearing Default layout override."
                 (with-visible-layout! scene ""
@@ -1241,12 +1241,12 @@
                 (is (= {"Default" {"button/text" {:font "font"
                                                   :text "button default"}}}
                        (make-displayed-layout->node->prop->value scene)))
-                (is (= {"Default" {"button" {:template "/gui/template_layout/button_l.gui"}
-                                   "button/text" {:parent "button"}}}
-                       (make-saved-layout->node->field->value scene)))
                 (is (= {"Default" {"button/text" {:font "font"
                                                   :text "button default"}}}
-                       (make-built-layout->node->field->value scene))))))))
+                       (make-built-layout->node->field->value scene)))
+                (is (= {"Default" {"button" {:template "/gui/template_layout/button_l.gui"}
+                                   "button/text" {:parent "button"}}}
+                       (make-saved-layout->node->field->value scene))))))))
 
       (let [proj-path "/gui/template_layout/panel_button_lp.gui"]
         (testing proj-path
@@ -1260,13 +1260,13 @@
                 (is (= {"Default" {"button/text" {:font "font"
                                                   :text "panel default"}}}
                        (make-displayed-layout->node->prop->value scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "panel default"}}}
+                       (make-built-layout->node->field->value scene)))
                 (is (= {"Default" {"button" {:template "/gui/template_layout/button_lp.gui"}
                                    "button/text" {:parent "button"
                                                   :text "panel default"}}}
-                       (make-saved-layout->node->field->value scene)))
-                (is (= {"Default" {"button/text" {:font "font"
-                                                  :text "panel default"}}}
-                       (make-built-layout->node->field->value scene))))
+                       (make-saved-layout->node->field->value scene))))
 
               (testing "After clearing Default layout override."
                 (with-visible-layout! scene ""
@@ -1276,12 +1276,12 @@
                 (is (= {"Default" {"button/text" {:font "font"
                                                   :text "button default"}}}
                        (make-displayed-layout->node->prop->value scene)))
-                (is (= {"Default" {"button" {:template "/gui/template_layout/button_lp.gui"}
-                                   "button/text" {:parent "button"}}}
-                       (make-saved-layout->node->field->value scene)))
                 (is (= {"Default" {"button/text" {:font "font"
                                                   :text "button default"}}}
-                       (make-built-layout->node->field->value scene))))))))
+                       (make-built-layout->node->field->value scene)))
+                (is (= {"Default" {"button" {:template "/gui/template_layout/button_lp.gui"}
+                                   "button/text" {:parent "button"}}}
+                       (make-saved-layout->node->field->value scene))))))))
 
       (let [proj-path "/gui/template_layout/panel_l_button.gui"]
         (testing proj-path
@@ -1298,17 +1298,17 @@
                         "Landscape" {"button/text" {:font "font"
                                                     :text "panel landscape"}}}
                        (make-displayed-layout->node->prop->value scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "panel default"}}
+                        "Landscape" {"button/text" {:font "font"
+                                                    :text "panel landscape"}}}
+                       (make-built-layout->node->field->value scene)))
                 (is (= {"Default" {"button" {:template "/gui/template_layout/button.gui"}
                                    "button/text" {:parent "button"
                                                   :text "panel default"}}
                         "Landscape" {"button/text" {:parent "button"
                                                     :text "panel landscape"}}}
-                       (make-saved-layout->node->field->value scene)))
-                (is (= {"Default" {"button/text" {:font "font"
-                                                  :text "panel default"}}
-                        "Landscape" {"button/text" {:font "font"
-                                                    :text "panel landscape"}}}
-                       (make-built-layout->node->field->value scene))))
+                       (make-saved-layout->node->field->value scene))))
 
               (testing "After clearing Landscape layout override."
                 (with-visible-layout! scene "Landscape"
@@ -1321,15 +1321,15 @@
                         "Landscape" {"button/text" {:font "font"
                                                     :text "panel default"}}}
                        (make-displayed-layout->node->prop->value scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "panel default"}}
+                        "Landscape" {}}
+                       (make-built-layout->node->field->value scene)))
                 (is (= {"Default" {"button" {:template "/gui/template_layout/button.gui"}
                                    "button/text" {:parent "button"
                                                   :text "panel default"}}
                         "Landscape" {}}
-                       (make-saved-layout->node->field->value scene)))
-                (is (= {"Default" {"button/text" {:font "font"
-                                                  :text "panel default"}}
-                        "Landscape" {}}
-                       (make-built-layout->node->field->value scene))))
+                       (make-saved-layout->node->field->value scene))))
 
               (testing "After clearing Landscape and Default layout overrides."
                 (with-visible-layout! scene ""
@@ -1342,14 +1342,14 @@
                         "Landscape" {"button/text" {:font "font"
                                                     :text "button default"}}}
                        (make-displayed-layout->node->prop->value scene)))
-                (is (= {"Default" {"button" {:template "/gui/template_layout/button.gui"}
-                                   "button/text" {:parent "button"}}
-                        "Landscape" {}}
-                       (make-saved-layout->node->field->value scene)))
                 (is (= {"Default" {"button/text" {:font "font"
                                                   :text "button default"}}
                         "Landscape" {}}
-                       (make-built-layout->node->field->value scene))))))))
+                       (make-built-layout->node->field->value scene)))
+                (is (= {"Default" {"button" {:template "/gui/template_layout/button.gui"}
+                                   "button/text" {:parent "button"}}
+                        "Landscape" {}}
+                       (make-saved-layout->node->field->value scene))))))))
 
       (let [proj-path "/gui/template_layout/panel_l_button_l.gui"]
         (testing proj-path
@@ -1366,17 +1366,17 @@
                         "Landscape" {"button/text" {:font "font"
                                                     :text "panel landscape"}}}
                        (make-displayed-layout->node->prop->value scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "panel default"}}
+                        "Landscape" {"button/text" {:font "font"
+                                                    :text "panel landscape"}}}
+                       (make-built-layout->node->field->value scene)))
                 (is (= {"Default" {"button" {:template "/gui/template_layout/button_l.gui"}
                                    "button/text" {:parent "button"
                                                   :text "panel default"}}
                         "Landscape" {"button/text" {:parent "button"
                                                     :text "panel landscape"}}}
-                       (make-saved-layout->node->field->value scene)))
-                (is (= {"Default" {"button/text" {:font "font"
-                                                  :text "panel default"}}
-                        "Landscape" {"button/text" {:font "font"
-                                                    :text "panel landscape"}}}
-                       (make-built-layout->node->field->value scene))))
+                       (make-saved-layout->node->field->value scene))))
 
               (testing "After clearing Landscape layout override."
                 (with-visible-layout! scene "Landscape"
@@ -1389,15 +1389,16 @@
                         "Landscape" {"button/text" {:font "font"
                                                     :text "button landscape"}}}
                        (make-displayed-layout->node->prop->value scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "panel default"}}
+                        "Landscape" {"button/text" {:font "font"
+                                                    :text "button landscape"}}}
+                       (make-built-layout->node->field->value scene)))
                 (is (= {"Default" {"button" {:template "/gui/template_layout/button_l.gui"}
                                    "button/text" {:parent "button"
                                                   :text "panel default"}}
                         "Landscape" {}}
-                       (make-saved-layout->node->field->value scene)))
-                (is (= {"Default" {"button/text" {:font "font"
-                                                  :text "panel default"}}
-                        "Landscape" {}}
-                       (make-built-layout->node->field->value scene))))
+                       (make-saved-layout->node->field->value scene))))
 
               (testing "After clearing Landscape and Default layout overrides."
                 (with-visible-layout! scene ""
@@ -1410,14 +1411,15 @@
                         "Landscape" {"button/text" {:font "font"
                                                     :text "button landscape"}}}
                        (make-displayed-layout->node->prop->value scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "button default"}}
+                        "Landscape" {"button/text" {:font "font"
+                                                    :text "button landscape"}}}
+                       (make-built-layout->node->field->value scene)))
                 (is (= {"Default" {"button" {:template "/gui/template_layout/button_l.gui"}
                                    "button/text" {:parent "button"}}
                         "Landscape" {}}
-                       (make-saved-layout->node->field->value scene)))
-                (is (= {"Default" {"button/text" {:font "font"
-                                                  :text "button default"}}
-                        "Landscape" {}}
-                       (make-built-layout->node->field->value scene))))))))
+                       (make-saved-layout->node->field->value scene))))))))
 
       (let [proj-path "/gui/template_layout/panel_l_button_lp.gui"]
         (testing proj-path
@@ -1434,17 +1436,17 @@
                         "Landscape" {"button/text" {:font "font"
                                                     :text "panel landscape"}}}
                        (make-displayed-layout->node->prop->value scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "panel default"}}
+                        "Landscape" {"button/text" {:font "font"
+                                                    :text "panel landscape"}}}
+                       (make-built-layout->node->field->value scene)))
                 (is (= {"Default" {"button" {:template "/gui/template_layout/button_lp.gui"}
                                    "button/text" {:parent "button"
                                                   :text "panel default"}}
                         "Landscape" {"button/text" {:parent "button"
                                                     :text "panel landscape"}}}
-                       (make-saved-layout->node->field->value scene)))
-                (is (= {"Default" {"button/text" {:font "font"
-                                                  :text "panel default"}}
-                        "Landscape" {"button/text" {:font "font"
-                                                    :text "panel landscape"}}}
-                       (make-built-layout->node->field->value scene))))
+                       (make-saved-layout->node->field->value scene))))
 
               (testing "After clearing Landscape layout override."
                 (with-visible-layout! scene "Landscape"
@@ -1457,15 +1459,16 @@
                         "Landscape" {"button/text" {:font "font"
                                                     :text "button landscape"}}}
                        (make-displayed-layout->node->prop->value scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "panel default"}}
+                        "Landscape" {"button/text" {:font "font"
+                                                    :text "button landscape"}}}
+                       (make-built-layout->node->field->value scene)))
                 (is (= {"Default" {"button" {:template "/gui/template_layout/button_lp.gui"}
                                    "button/text" {:parent "button"
                                                   :text "panel default"}}
                         "Landscape" {}}
-                       (make-saved-layout->node->field->value scene)))
-                (is (= {"Default" {"button/text" {:font "font"
-                                                  :text "panel default"}}
-                        "Landscape" {}}
-                       (make-built-layout->node->field->value scene))))
+                       (make-saved-layout->node->field->value scene))))
 
               (testing "After clearing Landscape and Default layout overrides."
                 (with-visible-layout! scene ""
@@ -1478,14 +1481,15 @@
                         "Landscape" {"button/text" {:font "font"
                                                     :text "button landscape"}}}
                        (make-displayed-layout->node->prop->value scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "button default"}}
+                        "Landscape" {"button/text" {:font "font"
+                                                    :text "button landscape"}}}
+                       (make-built-layout->node->field->value scene)))
                 (is (= {"Default" {"button" {:template "/gui/template_layout/button_lp.gui"}
                                    "button/text" {:parent "button"}}
                         "Landscape" {}}
-                       (make-saved-layout->node->field->value scene)))
-                (is (= {"Default" {"button/text" {:font "font"
-                                                  :text "button default"}}
-                        "Landscape" {}}
-                       (make-built-layout->node->field->value scene))))))))
+                       (make-saved-layout->node->field->value scene))))))))
 
       (let [proj-path "/gui/template_layout/panel_lp_button.gui"]
         (testing proj-path
@@ -1505,6 +1509,13 @@
                         "Portrait" {"button/text" {:font "font"
                                                    :text "panel portrait"}}}
                        (make-displayed-layout->node->prop->value scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "panel default"}}
+                        "Landscape" {"button/text" {:font "font"
+                                                    :text "panel landscape"}}
+                        "Portrait" {"button/text" {:font "font"
+                                                   :text "panel portrait"}}}
+                       (make-built-layout->node->field->value scene)))
                 (is (= {"Default" {"button" {:template "/gui/template_layout/button.gui"}
                                    "button/text" {:parent "button"
                                                   :text "panel default"}}
@@ -1512,14 +1523,7 @@
                                                     :text "panel landscape"}}
                         "Portrait" {"button/text" {:parent "button"
                                                    :text "panel portrait"}}}
-                       (make-saved-layout->node->field->value scene)))
-                (is (= {"Default" {"button/text" {:font "font"
-                                                  :text "panel default"}}
-                        "Landscape" {"button/text" {:font "font"
-                                                    :text "panel landscape"}}
-                        "Portrait" {"button/text" {:font "font"
-                                                   :text "panel portrait"}}}
-                       (make-built-layout->node->field->value scene))))
+                       (make-saved-layout->node->field->value scene))))
 
               (testing "After clearing Landscape layout override."
                 (with-visible-layout! scene "Landscape"
@@ -1535,19 +1539,19 @@
                         "Portrait" {"button/text" {:font "font"
                                                    :text "panel portrait"}}}
                        (make-displayed-layout->node->prop->value scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "panel default"}}
+                        "Landscape" {}
+                        "Portrait" {"button/text" {:font "font"
+                                                   :text "panel portrait"}}}
+                       (make-built-layout->node->field->value scene)))
                 (is (= {"Default" {"button" {:template "/gui/template_layout/button.gui"}
                                    "button/text" {:parent "button"
                                                   :text "panel default"}}
                         "Landscape" {}
                         "Portrait" {"button/text" {:parent "button"
                                                    :text "panel portrait"}}}
-                       (make-saved-layout->node->field->value scene)))
-                (is (= {"Default" {"button/text" {:font "font"
-                                                  :text "panel default"}}
-                        "Landscape" {}
-                        "Portrait" {"button/text" {:font "font"
-                                                   :text "panel portrait"}}}
-                       (make-built-layout->node->field->value scene))))
+                       (make-saved-layout->node->field->value scene))))
 
               (testing "After clearing Landscape and Default layout overrides."
                 (with-visible-layout! scene ""
@@ -1563,18 +1567,18 @@
                         "Portrait" {"button/text" {:font "font"
                                                    :text "panel portrait"}}}
                        (make-displayed-layout->node->prop->value scene)))
-                (is (= {"Default" {"button" {:template "/gui/template_layout/button.gui"}
-                                   "button/text" {:parent "button"}}
-                        "Landscape" {}
-                        "Portrait" {"button/text" {:parent "button"
-                                                   :text "panel portrait"}}}
-                       (make-saved-layout->node->field->value scene)))
                 (is (= {"Default" {"button/text" {:font "font"
                                                   :text "button default"}}
                         "Landscape" {}
                         "Portrait" {"button/text" {:font "font"
                                                    :text "panel portrait"}}}
-                       (make-built-layout->node->field->value scene))))))))
+                       (make-built-layout->node->field->value scene)))
+                (is (= {"Default" {"button" {:template "/gui/template_layout/button.gui"}
+                                   "button/text" {:parent "button"}}
+                        "Landscape" {}
+                        "Portrait" {"button/text" {:parent "button"
+                                                   :text "panel portrait"}}}
+                       (make-saved-layout->node->field->value scene))))))))
 
       (let [proj-path "/gui/template_layout/panel_lp_button_l.gui"]
         (testing proj-path
@@ -1594,6 +1598,13 @@
                         "Portrait" {"button/text" {:font "font"
                                                    :text "panel portrait"}}}
                        (make-displayed-layout->node->prop->value scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "panel default"}}
+                        "Landscape" {"button/text" {:font "font"
+                                                    :text "panel landscape"}}
+                        "Portrait" {"button/text" {:font "font"
+                                                   :text "panel portrait"}}}
+                       (make-built-layout->node->field->value scene)))
                 (is (= {"Default" {"button" {:template "/gui/template_layout/button_l.gui"}
                                    "button/text" {:parent "button"
                                                   :text "panel default"}}
@@ -1601,14 +1612,7 @@
                                                     :text "panel landscape"}}
                         "Portrait" {"button/text" {:parent "button"
                                                    :text "panel portrait"}}}
-                       (make-saved-layout->node->field->value scene)))
-                (is (= {"Default" {"button/text" {:font "font"
-                                                  :text "panel default"}}
-                        "Landscape" {"button/text" {:font "font"
-                                                    :text "panel landscape"}}
-                        "Portrait" {"button/text" {:font "font"
-                                                   :text "panel portrait"}}}
-                       (make-built-layout->node->field->value scene))))
+                       (make-saved-layout->node->field->value scene))))
 
               (testing "After clearing Landscape layout override."
                 (with-visible-layout! scene "Landscape"
@@ -1624,19 +1628,20 @@
                         "Portrait" {"button/text" {:font "font"
                                                    :text "panel portrait"}}}
                        (make-displayed-layout->node->prop->value scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "panel default"}}
+                        "Landscape" {"button/text" {:font "font"
+                                                    :text "button landscape"}}
+                        "Portrait" {"button/text" {:font "font"
+                                                   :text "panel portrait"}}}
+                       (make-built-layout->node->field->value scene)))
                 (is (= {"Default" {"button" {:template "/gui/template_layout/button_l.gui"}
                                    "button/text" {:parent "button"
                                                   :text "panel default"}}
                         "Landscape" {}
                         "Portrait" {"button/text" {:parent "button"
                                                    :text "panel portrait"}}}
-                       (make-saved-layout->node->field->value scene)))
-                (is (= {"Default" {"button/text" {:font "font"
-                                                  :text "panel default"}}
-                        "Landscape" {}
-                        "Portrait" {"button/text" {:font "font"
-                                                   :text "panel portrait"}}}
-                       (make-built-layout->node->field->value scene))))
+                       (make-saved-layout->node->field->value scene))))
 
               (testing "After clearing Landscape and Default layout overrides."
                 (with-visible-layout! scene ""
@@ -1652,18 +1657,19 @@
                         "Portrait" {"button/text" {:font "font"
                                                    :text "panel portrait"}}}
                        (make-displayed-layout->node->prop->value scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "button default"}}
+                        "Landscape" {"button/text" {:font "font"
+                                                    :text "button landscape"}}
+                        "Portrait" {"button/text" {:font "font"
+                                                   :text "panel portrait"}}}
+                       (make-built-layout->node->field->value scene)))
                 (is (= {"Default" {"button" {:template "/gui/template_layout/button_l.gui"}
                                    "button/text" {:parent "button"}}
                         "Landscape" {}
                         "Portrait" {"button/text" {:parent "button"
                                                    :text "panel portrait"}}}
-                       (make-saved-layout->node->field->value scene)))
-                (is (= {"Default" {"button/text" {:font "font"
-                                                  :text "button default"}}
-                        "Landscape" {}
-                        "Portrait" {"button/text" {:font "font"
-                                                   :text "panel portrait"}}}
-                       (make-built-layout->node->field->value scene))))))))
+                       (make-saved-layout->node->field->value scene))))))))
 
       (let [proj-path "/gui/template_layout/panel_lp_button_lp.gui"]
         (testing proj-path
@@ -1683,6 +1689,13 @@
                         "Portrait" {"button/text" {:font "font"
                                                    :text "panel portrait"}}}
                        (make-displayed-layout->node->prop->value scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "panel default"}}
+                        "Landscape" {"button/text" {:font "font"
+                                                    :text "panel landscape"}}
+                        "Portrait" {"button/text" {:font "font"
+                                                   :text "panel portrait"}}}
+                       (make-built-layout->node->field->value scene)))
                 (is (= {"Default" {"button" {:template "/gui/template_layout/button_lp.gui"}
                                    "button/text" {:parent "button"
                                                   :text "panel default"}}
@@ -1690,14 +1703,7 @@
                                                     :text "panel landscape"}}
                         "Portrait" {"button/text" {:parent "button"
                                                    :text "panel portrait"}}}
-                       (make-saved-layout->node->field->value scene)))
-                (is (= {"Default" {"button/text" {:font "font"
-                                                  :text "panel default"}}
-                        "Landscape" {"button/text" {:font "font"
-                                                    :text "panel landscape"}}
-                        "Portrait" {"button/text" {:font "font"
-                                                   :text "panel portrait"}}}
-                       (make-built-layout->node->field->value scene))))
+                       (make-saved-layout->node->field->value scene))))
 
               (testing "After clearing Landscape layout override."
                 (with-visible-layout! scene "Landscape"
@@ -1713,19 +1719,20 @@
                         "Portrait" {"button/text" {:font "font"
                                                    :text "panel portrait"}}}
                        (make-displayed-layout->node->prop->value scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "panel default"}}
+                        "Landscape" {"button/text" {:font "font"
+                                                    :text "button landscape"}}
+                        "Portrait" {"button/text" {:font "font"
+                                                   :text "panel portrait"}}}
+                       (make-built-layout->node->field->value scene)))
                 (is (= {"Default" {"button" {:template "/gui/template_layout/button_lp.gui"}
                                    "button/text" {:parent "button"
                                                   :text "panel default"}}
                         "Landscape" {}
                         "Portrait" {"button/text" {:parent "button"
                                                    :text "panel portrait"}}}
-                       (make-saved-layout->node->field->value scene)))
-                (is (= {"Default" {"button/text" {:font "font"
-                                                  :text "panel default"}}
-                        "Landscape" {}
-                        "Portrait" {"button/text" {:font "font"
-                                                   :text "panel portrait"}}}
-                       (make-built-layout->node->field->value scene))))
+                       (make-saved-layout->node->field->value scene))))
 
               (testing "After clearing Landscape and Default layout overrides."
                 (with-visible-layout! scene ""
@@ -1741,18 +1748,19 @@
                         "Portrait" {"button/text" {:font "font"
                                                    :text "panel portrait"}}}
                        (make-displayed-layout->node->prop->value scene)))
+                (is (= {"Default" {"button/text" {:font "font"
+                                                  :text "button default"}}
+                        "Landscape" {"button/text" {:font "font"
+                                                    :text "button landscape"}}
+                        "Portrait" {"button/text" {:font "font"
+                                                   :text "panel portrait"}}}
+                       (make-built-layout->node->field->value scene)))
                 (is (= {"Default" {"button" {:template "/gui/template_layout/button_lp.gui"}
                                    "button/text" {:parent "button"}}
                         "Landscape" {}
                         "Portrait" {"button/text" {:parent "button"
                                                    :text "panel portrait"}}}
-                       (make-saved-layout->node->field->value scene)))
-                (is (= {"Default" {"button/text" {:font "font"
-                                                  :text "button default"}}
-                        "Landscape" {}
-                        "Portrait" {"button/text" {:font "font"
-                                                   :text "panel portrait"}}}
-                       (make-built-layout->node->field->value scene)))))))))))
+                       (make-saved-layout->node->field->value scene)))))))))))
 
 (deftest template-layout-add-referencing-layout-to-referenced-scene-test
   (test-util/with-loaded-project "test/resources/gui_project"
@@ -1774,10 +1782,10 @@
                      (make-displayed-layout->node->prop->value referenced-scene)))
               (is (= {"Default" {"text" {:font "font"
                                          :text "button default"}}}
-                     (make-saved-layout->node->field->value referenced-scene)))
+                     (make-built-layout->node->field->value referenced-scene)))
               (is (= {"Default" {"text" {:font "font"
                                          :text "button default"}}}
-                     (make-built-layout->node->field->value referenced-scene))))
+                     (make-saved-layout->node->field->value referenced-scene))))
 
             (testing "Referencing scene."
               (is (= {"Default" {"button/text" #{:node-outline :text}}
@@ -1788,15 +1796,15 @@
                       "Landscape" {"button/text" {:font "font"
                                                   :text "panel default"}}}
                      (make-displayed-layout->node->prop->value referencing-scene)))
+              (is (= {"Default" {"button/text" {:font "font"
+                                                :text "panel default"}}
+                      "Landscape" {}}
+                     (make-built-layout->node->field->value referencing-scene)))
               (is (= {"Default" {"button" {:template "/gui/template_layout/button.gui"}
                                  "button/text" {:parent "button"
                                                 :text "panel default"}}
                       "Landscape" {}}
-                     (make-saved-layout->node->field->value referencing-scene)))
-              (is (= {"Default" {"button/text" {:font "font"
-                                                :text "panel default"}}
-                      "Landscape" {}}
-                     (make-built-layout->node->field->value referencing-scene)))))
+                     (make-saved-layout->node->field->value referencing-scene)))))
 
           ;; Add the Landscape layout to the referenced scene as well. Before,
           ;; it was only present in the referencing scene.
@@ -1815,11 +1823,11 @@
               (is (= {"Default" {"text" {:font "font"
                                          :text "button default"}}
                       "Landscape" {}}
-                     (make-saved-layout->node->field->value referenced-scene)))
+                     (make-built-layout->node->field->value referenced-scene)))
               (is (= {"Default" {"text" {:font "font"
                                          :text "button default"}}
                       "Landscape" {}}
-                     (make-built-layout->node->field->value referenced-scene))))
+                     (make-saved-layout->node->field->value referenced-scene))))
 
             (testing "Referencing scene."
               (is (= {"Default" {"button/text" #{:node-outline :text}}
@@ -1830,15 +1838,16 @@
                       "Landscape" {"button/text" {:font "font"
                                                   :text "button default"}}}
                      (make-displayed-layout->node->prop->value referencing-scene)))
+              (is (= {"Default" {"button/text" {:font "font"
+                                                :text "panel default"}}
+                      "Landscape" {"button/text" {:font "font"
+                                                  :text "button default"}}}
+                     (make-built-layout->node->field->value referencing-scene)))
               (is (= {"Default" {"button" {:template "/gui/template_layout/button.gui"}
                                  "button/text" {:parent "button"
                                                 :text "panel default"}}
                       "Landscape" {}}
-                     (make-saved-layout->node->field->value referencing-scene)))
-              (is (= {"Default" {"button/text" {:font "font"
-                                                :text "panel default"}}
-                      "Landscape" {}}
-                     (make-built-layout->node->field->value referencing-scene)))))
+                     (make-saved-layout->node->field->value referencing-scene)))))
 
           ;; Override the text property for the Landscape layout in the referenced scene.
           (with-visible-layout! referenced-scene "Landscape"
@@ -1856,13 +1865,13 @@
                      (make-displayed-layout->node->prop->value referenced-scene)))
               (is (= {"Default" {"text" {:font "font"
                                          :text "button default"}}
-                      "Landscape" {"text" {:text "button landscape"}}}
-                     (make-saved-layout->node->field->value referenced-scene)))
-              (is (= {"Default" {"text" {:font "font"
-                                         :text "button default"}}
                       "Landscape" {"text" {:font "font"
                                            :text "button landscape"}}}
-                     (make-built-layout->node->field->value referenced-scene))))
+                     (make-built-layout->node->field->value referenced-scene)))
+              (is (= {"Default" {"text" {:font "font"
+                                         :text "button default"}}
+                      "Landscape" {"text" {:text "button landscape"}}}
+                     (make-saved-layout->node->field->value referenced-scene))))
 
             (testing "Referencing scene."
               (is (= {"Default" {"button/text" #{:node-outline :text}}
@@ -1873,12 +1882,13 @@
                       "Landscape" {"button/text" {:font "font"
                                                   :text "button landscape"}}}
                      (make-displayed-layout->node->prop->value referencing-scene)))
+              (is (= {"Default" {"button/text" {:font "font"
+                                                :text "panel default"}}
+                      "Landscape" {"button/text" {:font "font"
+                                                  :text "button landscape"}}}
+                     (make-built-layout->node->field->value referencing-scene)))
               (is (= {"Default" {"button" {:template "/gui/template_layout/button.gui"}
                                  "button/text" {:parent "button"
                                                 :text "panel default"}}
                       "Landscape" {}}
-                     (make-saved-layout->node->field->value referencing-scene)))
-              (is (= {"Default" {"button/text" {:font "font"
-                                                :text "panel default"}}
-                      "Landscape" {}}
-                     (make-built-layout->node->field->value referencing-scene))))))))))
+                     (make-saved-layout->node->field->value referencing-scene))))))))))

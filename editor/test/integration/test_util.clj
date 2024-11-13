@@ -1573,7 +1573,7 @@
             save-text (resource-node/save-data-content save-data)]
         (text-diff-message disk-text save-text)))))
 
-(defn check-save-data-disk-equivalence! [save-data]
+(defn check-save-data-disk-equivalence! [save-data ^String project-path]
   (let [resource (:resource save-data)
         resource-type (resource/resource-type resource)
         read-fn (:read-fn resource-type)

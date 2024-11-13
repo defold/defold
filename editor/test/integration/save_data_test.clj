@@ -1332,7 +1332,7 @@
   (test-util/with-loaded-project project-path
     (test-util/clear-cached-save-data! project)
     (doseq [save-data (project->save-datas project)]
-      (test-util/check-save-data-disk-equivalence! save-data))))
+      (test-util/check-save-data-disk-equivalence! save-data project-path))))
 
 (deftest save-value-is-equivalent-to-source-value-test
   ;; This test is intended to verify that the saved data contains all the same
@@ -1401,7 +1401,7 @@
                 (is (not (:dirty save-data))
                     "Unsaved changes detected after saving.")
                 (when (:dirty save-data)
-                  (test-util/check-save-data-disk-equivalence! save-data))))))))))
+                  (test-util/check-save-data-disk-equivalence! save-data project-path))))))))))
 
 (deftest resource-save-data-retention-test
   ;; This test is intended to verify that the system cache is populated with the
