@@ -53,8 +53,7 @@
     :object (coerce/hash-map :opt (coll/pair-map-by key (comp schema->coercer val) (:properties schema))
                              :extra-keys false)
     :enum (apply coerce/enum (:values schema))
-    :tuple (apply coerce/tuple (mapv schema->coercer (:items schema)))
-    :one-of (apply coerce/one-of (mapv schema->coercer (:schemas schema)))))
+    :tuple (apply coerce/tuple (mapv schema->coercer (:items schema)))))
 
 (def ^:private schema-lua-env
   (coll/pair-map-by

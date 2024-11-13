@@ -183,7 +183,7 @@
 
 (defn- set-string-pref!
   [prefs key ^String string]
-  (prefs/set! prefs key (not-empty string)))
+  (prefs/set! prefs key string))
 
 (defn- get-file-pref
   ^File [prefs key]
@@ -191,7 +191,7 @@
 
 (defn- set-file-pref!
   [prefs key ^File file]
-  (set-string-pref! prefs key (when file (.getPath file))))
+  (set-string-pref! prefs key (if file (.getPath file) "")))
 
 ;; -----------------------------------------------------------------------------
 ;; Generic

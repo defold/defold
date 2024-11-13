@@ -155,16 +155,6 @@
                                   :types ["schema[]"]
                                   :doc "schemas for the items")
                (make-default-prop "any[]")
-               scope-prop])
-     (ui-docs/component
-       "one_of"
-       :description "compositional one-of schema\n\nRequires at least one of the alternative schemas to satisfy the data (checked in order)"
-       :props [(ui-docs/make-prop :schemas
-                                  :required true
-                                  :coerce (coerce/vector-of schema-coercer :min-count 2)
-                                  :types ["schema[]"]
-                                  :doc "alternative schemas for the value")
-               (make-default-prop "any")
                scope-prop])]))
 
 (defn- schema-component->script-doc [{:keys [name props description]}]

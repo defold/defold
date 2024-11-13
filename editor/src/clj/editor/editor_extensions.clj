@@ -453,7 +453,7 @@
                           :display-output! display-output!
                           :label (str "Reloading prefs schema in " proj-path)
                           :catch nil
-                          (prefs/difference-schemas
+                          (prefs/subtract-schemas
                             (fn [_ _ path]
                               (report-omitted-schema! path (str "'" proj-path "' defines a schema that conflicts with the editor schema")))
                             (prefs-functions/lua-schema-definition->schema rt lua-ret)

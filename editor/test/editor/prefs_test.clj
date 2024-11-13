@@ -62,10 +62,7 @@
                                                             :set {:type :set :item {:type :string}}
                                                             :enum {:type :enum :values [:foo :bar]}
                                                             :tuple {:type :tuple :items [{:type :string} {:type :keyword :default :code-view}]}
-                                                            :object-of {:type :object-of :key {:type :string} :val {:type :string}}
-                                                            :one-of {:type :one-of
-                                                                     :schemas [{:type :enum :values [nil]}
-                                                                               {:type :string}]}}}}}}
+                                                            :object-of {:type :object-of :key {:type :string} :val {:type :string}}}}}}}
     (let [p (prefs/make :scopes {:global (fs/create-temp-file! "global" "test.editor_settings")}
                         :schemas [::types])]
       ;; ensure defaults are properly typed
@@ -79,8 +76,7 @@
                       :set #{}
                       :enum :foo
                       :tuple ["" :code-view]
-                      :object-of {}
-                      :one-of nil}}
+                      :object-of {}}}
              (prefs/get p [])))
       ;; change values
       (prefs/set! p [] {:types {:any 'foo/bar
@@ -93,8 +89,7 @@
                                 :set #{"heh"}
                                 :enum :bar
                                 :tuple ["/game.project" :form-view]
-                                :object-of {"foo" "bar"}
-                                :one-of "foo"}})
+                                :object-of {"foo" "bar"}}})
       ;; ensure updated values are as expected
       (is (= {:types {:any 'foo/bar
                       :boolean false
@@ -106,8 +101,7 @@
                       :set #{"heh"}
                       :enum :bar
                       :tuple ["/game.project" :form-view]
-                      :object-of {"foo" "bar"}
-                      :one-of "foo"}}
+                      :object-of {"foo" "bar"}}}
              (prefs/get p [])))
       ;; set to invalid values
       (is (thrown-with-data? (value-error-data? [:types :boolean])
@@ -124,8 +118,7 @@
         [:types :set] false
         [:types :enum] 12
         [:types :tuple] nil
-        [:types :object-of] {:foo :bar}
-        [:types :one-of] true)
+        [:types :object-of] {:foo :bar})
       ;; No invalid changes are recorded
       (is (= {:types {:any 'foo/bar
                       :boolean false
@@ -137,8 +130,7 @@
                       :set #{"heh"}
                       :enum :bar
                       :tuple ["/game.project" :form-view]
-                      :object-of {"foo" "bar"}
-                      :one-of "foo"}}
+                      :object-of {"foo" "bar"}}}
              (prefs/get p []))))))
 
 (deftest get-unregistered-key-test
@@ -364,7 +356,7 @@
     (let [conflicts (atom {})]
       (is (= {:type :object
               :properties {:only-in-a {:type :string}}}
-             (prefs/difference-schemas
+             (prefs/subtract-schemas
                (fn [a b path]
                  (swap! conflicts assoc path [a b]))
                {:type :object
@@ -375,7 +367,7 @@
   (testing "top-level conflict"
     (let [conflicts (atom {})]
       (is (nil?
-            (prefs/difference-schemas
+            (prefs/subtract-schemas
               (fn [a b path]
                 (swap! conflicts assoc path [a b]))
               {:type :integer}
@@ -386,7 +378,7 @@
     (let [conflicts (atom {})]
       (is (= {:type :object
               :properties {:only-in-a {:type :string}}}
-             (prefs/difference-schemas
+             (prefs/subtract-schemas
                (fn [a b path]
                  (swap! conflicts assoc path [a b]))
                {:type :object
@@ -403,7 +395,7 @@
               :properties {:only-in-a {:type :string}
                            :present-in-both {:type :object
                                              :properties {:only-in-a {:type :boolean}}}}}
-             (prefs/difference-schemas
+             (prefs/subtract-schemas
                (fn [a b path]
                  (swap! conflicts assoc path [a b]))
                {:type :object

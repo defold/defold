@@ -15,10 +15,6 @@ function M.get_prefs_schema()
             key = editor.prefs.schema.keyword(),
             val = editor.prefs.schema.boolean()
         }),
-        ["test.one_of"] = editor.prefs.schema.one_of({schemas = {
-            editor.prefs.schema.integer(),
-            editor.prefs.schema.string()
-        }}),
         ["test.set"] = editor.prefs.schema.set({item = editor.prefs.schema.string()}),
         ["test.string"] = editor.prefs.schema.string(),
         ["test.tuple"] = editor.prefs.schema.tuple({items = {
@@ -90,13 +86,6 @@ function M.get_commands()
             editor.prefs.set("test.object_of", {foo = false, bar = true})
             object_of = editor.prefs.get("test.object_of")
             print(("object of: %s foo = %s, bar = %s"):format(type(object_of), tostring(object_of.foo), tostring(object_of.bar)))
-
-            editor.prefs.set("test.one_of", 1)
-            local one_of = editor.prefs.get("test.one_of")
-            print(("one_of: %s %s"):format(type(one_of), one_of))
-            editor.prefs.set("test.one_of", "foo")
-            one_of = editor.prefs.get("test.one_of")
-            print(("one_of: %s %s"):format(type(one_of), one_of))
 
             editor.prefs.set("test.set", {foo = true, bar = true})
             local set = editor.prefs.get("test.set")

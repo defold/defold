@@ -35,8 +35,6 @@
                    values
     :tuple         heterogeneous fixed-length array, requires :items vector with
                    positional schemas
-    :one-of        compositional schema, requires :schemas vector with at least
-                   2 alternative schemas
 
   Additionally, each schema map supports these optional keys:
     :default        explicit default value to use instead of a type default
@@ -68,10 +66,7 @@
 
 ;; All types, for reference:
 
-#_[:any :boolean :string :keyword :integer :number :array :set :object :object-of :enum :tuple :one-of]
-
-(defn- nilable [schema]
-  {:type :one-of :schemas [{:type :enum :values [nil]} schema]})
+#_[:any :boolean :string :keyword :integer :number :array :set :object :object-of :enum :tuple]
 
 (def default-schema
   {:type :object
@@ -140,18 +135,18 @@
               :build-report {:type :boolean}
               :liveupdate {:type :boolean}
               :contentless {:type :boolean}
-              :output-directory (nilable {:type :string})
+              :output-directory {:type :string}
               :open-output-directory {:type :boolean :default true}
               :android {:type :object
                         :properties
-                        {:keystore (nilable {:type :string})
-                         :keystore-pass (nilable {:type :string})
-                         :key-pass (nilable {:type :string})
+                        {:keystore {:type :string}
+                         :keystore-pass {:type :string}
+                         :key-pass {:type :string}
                          :architecture {:type :object
                                         :properties
                                         {:armv7-android {:type :boolean :default true}
                                          :arm64-android {:type :boolean}}}
-                         :format (nilable {:type :enum :values ["apk" "aab" "apk,aab"]})
+                         :format {:type :enum :values ["apk" "aab" "apk,aab"]}
                          :install {:type :boolean}
                          :launch {:type :boolean}}}
               :macos {:type :object
@@ -163,8 +158,8 @@
               :ios {:type :object
                     :properties
                     {:sign {:type :boolean :default true}
-                     :code-signing-identity (nilable {:type :string})
-                     :provisioning-profile (nilable {:type :string})
+                     :code-signing-identity {:type :string}
+                     :provisioning-profile {:type :string}
                      :architecture {:type :object
                                     :properties
                                     {:arm64-ios {:type :boolean :default true}
@@ -205,7 +200,7 @@
            :selected-target-id {:type :any}
            :manual-target-ip+port {:type :string}
            :quit-on-escape {:type :boolean :label "Escape Quits Game"}
-           :simulate-rotated-device (nilable {:type :boolean :scope :project})
+           :simulate-rotated-device {:type :boolean :scope :project}
            :simulated-resolution {:type :any :scope :project}}}
     :scene {:type :object
             :properties
@@ -255,8 +250,7 @@
                 (let [items (:items schema)
                       n (count items)]
                   (and (= (count value) n)
-                       (every? #(valid? (items %) (value %)) (range n)))))
-    :one-of (boolean (coll/some #(valid? % value) (:schemas schema)))))
+                       (every? #(valid? (items %) (value %)) (range n)))))))
 
 (defn default-value [schema]
   (let [explicit-default (:default schema ::not-found)]
@@ -273,8 +267,7 @@
         :object {}
         :object-of {}
         :enum ((:values schema) 0)
-        :tuple (mapv default-value (:items schema))
-        :one-of (default-value ((:schemas schema) 0)))
+        :tuple (mapv default-value (:items schema)))
       explicit-default)))
 
 ;; endregion
@@ -289,7 +282,7 @@
 (s/def ::description string?)
 (s/def ::default any?)
 (s/def ::scope #{:global :project})
-(s/def ::type #{:any :boolean :string :keyword :integer :number :array :set :object :object-of :enum :tuple :one-of})
+(s/def ::type #{:any :boolean :string :keyword :integer :number :array :set :object :object-of :enum :tuple})
 (s/def ::schema
   (s/and
     (s/multi-spec type-spec :type)
@@ -308,13 +301,10 @@
 (defmethod type-spec :tuple [_] (s/keys :req-un [::items]))
 (s/def ::values (s/coll-of any? :min-count 1 :kind vector?))
 (defmethod type-spec :enum [_] (s/keys :req-un [::values]))
-(s/def ::schemas (s/coll-of ::schema :kind vector? :distinct true :min-count 2)) ;; 2 alternatives required
-(defmethod type-spec :one-of [_] (s/keys :req-un [::schemas]))
 
-(s/def :editor.prefs.preferences/scopes (s/map-of ::scope fs/path? :min-count 1))
-(s/def :editor.prefs.preferences/schemas (s/coll-of any? :kind vector? :distinct true :min-count 1))
-(s/def ::preferences (s/keys :req-un [:editor.prefs.preferences/scopes
-                                      :editor.prefs.preferences/schemas]))
+(s/def ::scopes (s/map-of ::scope fs/path? :min-count 1))
+(s/def ::schemas (s/coll-of any? :kind vector? :distinct true :min-count 1))
+(s/def ::preferences (s/keys :req-un [::scopes ::schemas]))
 
 ;; endregion
 
@@ -473,7 +463,8 @@
 (defn merge-schemas
   "Similar to clojure.core/merge-with, but for schemas
 
-  Automatically merges nested object schemas
+  When given object schemas (that might nest other object schemas), the function
+  will perform a deep merge of the properties of the object schemas
 
   Args:
     f       schema merge function, will receive 3 args:
@@ -490,7 +481,7 @@
    (if (and (= :object (:type a))
             (= :object (:type b)))
      (-> b
-         (conj a)
+         (merge a)
          (assoc :properties (reduce-kv
                               (fn [acc b-k b-v]
                                 (let [a-v (acc b-k ::not-found)]
@@ -504,10 +495,11 @@
                               (:properties b))))
      (f a b path))))
 
-(defn difference-schemas
-  "Similar to clojure.set/difference, but for schemas
+(defn subtract-schemas
+  "Subtract a second schema from the first schema
 
-  Automatically diffs nested object schemas
+  When given object schemas (that might nest other object schemas), the function
+  will perform a deep subtract of the properties of the object schemas
 
   Args:
     f       callback function for removed entries, will receive 3 args:
@@ -518,7 +510,7 @@
     b       second schema
     path    initial schema path"
   ([f a b]
-   (difference-schemas f a b []))
+   (subtract-schemas f a b []))
   ([f a b path]
    (if (and (= :object (:type a))
             (= :object (:type b)))
@@ -527,7 +519,7 @@
                               (let [a-v (acc b-k ::not-found)]
                                 (if (identical? ::not-found a-v)
                                   acc
-                                  (let [v (difference-schemas f a-v b-v (conj path b-k))]
+                                  (let [v (subtract-schemas f a-v b-v (conj path b-k))]
                                     (if v
                                       (assoc acc b-k v)
                                       (dissoc acc b-k))))))
@@ -611,8 +603,8 @@
 (defn get
   "Get a value from preferences at a specified get-in path
 
-  Will only return values specified in the combined schema. Does not perform
-  file IO.
+  Will only return values specified in the combined schema. Will throw if
+  invalid (unregistered) path is provided. Does not perform file IO.
 
   Using [] as a path will return the full preference map"
   [prefs path]
@@ -624,7 +616,8 @@
 (defn set!
   "Set a value in preferences at a specified assoc-in path
 
-  The new value must satisfy the combined schema. Does not perform file IO.
+  The new value must satisfy the combined schema. Will throw if invalid
+  (unregistered) path is provided. Does not perform file IO.
 
   Using [] as a path allows changing the whole preference state"
   [prefs path value]
@@ -715,15 +708,20 @@
         {:keys [registry storage]} @global-state]
     (->> legacy-key->path
          (e/keep (fn [[legacy-key path]]
-                   (let [v (.get legacy-prefs legacy-key not-found)]
-                     (when (and (not (identical? not-found v))
+                   (let [transit-str (.get legacy-prefs legacy-key not-found)]
+                     (when (and (not (identical? not-found transit-str))
                                 ;; is fresh file?
                                 (->> schemas
                                      (e/keep #(some-> (registry %) (lookup-schema-at-path path)))
                                      (e/map #(-> % :scope scopes storage))
                                      (coll/some #(identical? ::not-found %))
                                      boolean))
-                       (coll/pair path (transit/read (transit/reader (ByteArrayInputStream. (.getBytes v StandardCharsets/UTF_8)) :json)))))))
+                       (when-some [v (-> transit-str
+                                         (.getBytes StandardCharsets/UTF_8)
+                                         ByteArrayInputStream.
+                                         (transit/reader :json)
+                                         transit/read)]
+                         (coll/pair path v))))))
          (reduce #(assoc-in %1 (key %2) (val %2)) {})
          ;; since `set!` is a special form, we need to use a fully-qualified reference
          (editor.prefs/set! prefs []))))

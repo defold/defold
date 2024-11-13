@@ -666,8 +666,6 @@
               [:out "object: table baz"]
               [:out "object of: table foo = true, bar = false"]
               [:out "object of: table foo = false, bar = true"]
-              [:out "one_of: number 1"]
-              [:out "one_of: string foo"]
               [:out "set: table foo = true, bar = true"]
               [:out "set: table foo = true, bar = nil"]
               [:out "string: a string"]
