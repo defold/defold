@@ -284,7 +284,7 @@ public class TextureSetGenerator {
         builder.setCenterX(center.x);
         builder.setCenterY(center.y);
 
-        TextureSetLayout.Pointi pivot = rect.getPivot();
+        TextureSetLayout.Point pivot = rect.getPivot();
         {
             // Convert from texel coords to unit coords [-0.5, 0.5]
             // (it may actually extend outside of its original image space)
