@@ -933,7 +933,7 @@
 (defmethod bundle-options-presenter :android [workspace view _platform] (AndroidBundleOptionsPresenter. workspace view common-variants common-compressions))
 (defmethod bundle-options-presenter :html5   [workspace view _platform] (HTML5BundleOptionsPresenter. workspace view common-variants common-compressions))
 (defmethod bundle-options-presenter :ios     [workspace view _platform] (IOSBundleOptionsPresenter. workspace view common-variants common-compressions))
-(defmethod bundle-options-presenter :linux   [workspace view _platform] (GenericBundleOptionsPresenter. workspace view "Bundle Linux Application" :linux [["x86_64-linux" "x86_64-linux"]] desktop-variants common-compressions))
+(defmethod bundle-options-presenter :linux   [workspace view _platform] (GenericBundleOptionsPresenter. workspace view "Bundle Linux Application" "x86_64-linux" desktop-variants common-compressions))
 (defmethod bundle-options-presenter :macos   [workspace view _platform] (MacOSBundleOptionsPresenter. workspace view desktop-variants common-compressions))
 (defmethod bundle-options-presenter :windows [workspace view _platform] (SelectablePlatformBundleOptionsPresenter. workspace view "Bundle Windows Application" :windows [["32-bit" "x86-win32"] ["64-bit" "x86_64-win32"]] desktop-variants common-compressions))
 
