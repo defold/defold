@@ -13,13 +13,15 @@
 // specific language governing permissions and limitations under the License.
 
 #include <stdlib.h>
-#include <map>
+#include <string.h>
 #include <set>
-#include <vector>
+
 #define JC_TEST_IMPLEMENTATION
 #include <jc_test/jc_test.h>
 #include <dlib/array.h>
+#include <dlib/dstrings.h>
 #include <dlib/hash.h>
+#include <dlib/memory.h>
 #include <dlib/message.h>
 #include <dlib/log.h>
 #include <dlib/time.h>
@@ -29,24 +31,43 @@
 #include "../sound_codec.h"
 #include "../stb_vorbis/stb_vorbis.h"
 
-#include "test/mono_tone_440_22050_44100.wav.embed.h"
+#include "test/mono_tone_2000_22050_5512.wav.embed.h"
 #include "test/mono_tone_2000_22050_44100.wav.embed.h"
-#include "test/mono_tone_440_32000_64000.wav.embed.h"
+#include "test/mono_tone_2000_32000_8000.wav.embed.h"
 #include "test/mono_tone_2000_32000_64000.wav.embed.h"
-#include "test/mono_tone_440_44000_88000.wav.embed.h"
+#include "test/mono_tone_2000_44000_11000.wav.embed.h"
 #include "test/mono_tone_2000_44000_88000.wav.embed.h"
-#include "test/mono_tone_440_44100_88200.wav.embed.h"
+#include "test/mono_tone_2000_44100_11025.wav.embed.h"
 #include "test/mono_tone_2000_44100_88200.wav.embed.h"
-
-#include "test/stereo_tone_440_22050_44100.wav.embed.h"
+#include "test/mono_tone_440_22050_5512.wav.embed.h"
+#include "test/mono_tone_440_32000_8000.wav.embed.h"
+#include "test/mono_tone_440_44000_11000.wav.embed.h"
+#include "test/mono_tone_440_44000_88000.wav.embed.h"
+#include "test/mono_tone_440_44100_11025.wav.embed.h"
+#include "test/mono_tone_440_48000_12000.wav.embed.h"
+#include "test/mono_tone_440_44100_88200.wav.embed.h"
+#include "test/mono_tone_2000_48000_12000.wav.embed.h"
+#include "test/stereo_tone_2000_22050_5512.wav.embed.h"
 #include "test/stereo_tone_2000_22050_44100.wav.embed.h"
-#include "test/stereo_tone_440_32000_64000.wav.embed.h"
+#include "test/stereo_tone_2000_32000_8000.wav.embed.h"
 #include "test/stereo_tone_2000_32000_64000.wav.embed.h"
-#include "test/stereo_tone_440_44000_88000.wav.embed.h"
+#include "test/stereo_tone_2000_44000_11000.wav.embed.h"
 #include "test/stereo_tone_2000_44000_88000.wav.embed.h"
-#include "test/stereo_tone_440_44100_88200.wav.embed.h"
+#include "test/stereo_tone_2000_44100_11025.wav.embed.h"
 #include "test/stereo_tone_2000_44100_88200.wav.embed.h"
+#include "test/stereo_tone_440_22050_5512.wav.embed.h"
+#include "test/stereo_tone_440_22050_44100.wav.embed.h"
+#include "test/stereo_tone_440_32000_8000.wav.embed.h"
+#include "test/stereo_tone_440_32000_64000.wav.embed.h"
+#include "test/stereo_tone_440_44000_11000.wav.embed.h"
+#include "test/stereo_tone_440_44000_88000.wav.embed.h"
+#include "test/stereo_tone_440_44100_11025.wav.embed.h"
+#include "test/stereo_tone_440_44100_88200.wav.embed.h"
+#include "test/stereo_tone_440_48000_12000.wav.embed.h"
+#include "test/stereo_tone_2000_48000_12000.wav.embed.h"
 
+#include "test/mono_tone_440_22050_44100.wav.embed.h"
+#include "test/mono_tone_440_32000_64000.wav.embed.h"
 #include "test/mono_toneramp_440_32000_64000.wav.embed.h"
 
 #include "test/mono_resample_framecount_16000.ogg.embed.h"
@@ -147,20 +168,20 @@ struct TestParams2
     const char* m_DeviceName;
 
     void*       m_Sound1;
-    SoundDataType m_Type1;
     uint32_t    m_SoundSize1;
-    uint32_t    m_FrameCount1;
+    SoundDataType m_Type1;
     uint32_t    m_ToneRate1;
     uint32_t    m_MixRate1;
+    uint32_t    m_FrameCount1;
     float       m_Gain1;
     bool        m_Ramp1;
 
     void*       m_Sound2;
-    SoundDataType m_Type2;
     uint32_t    m_SoundSize2;
-    uint32_t    m_FrameCount2;
+    SoundDataType m_Type2;
     uint32_t    m_ToneRate2;
     uint32_t    m_MixRate2;
+    uint32_t    m_FrameCount2;
     float       m_Gain2;
     bool        m_Ramp2;
 
@@ -225,6 +246,7 @@ public:
 
     virtual void TearDown()
     {
+        dmTime::Sleep(10000); // waiting for sounds to finish playing (to make it less choppy)
         dmSound::Result r = dmSound::Finalize();
         ASSERT_EQ(dmSound::RESULT_OK, r);
     }
@@ -314,9 +336,10 @@ struct LoopbackDevice
     dmArray<LoopbackBuffer*> m_Buffers;
     dmArray<int16_t> m_AllOutput;
     uint32_t         m_TotalBuffersQueued;
-    int              m_Time; // read cursor
-    int              m_QueueTime; // write cursor
+    int              m_Time; // read cursor (frames)
+    int              m_QueueTime; // write cursor (frames)
     int              m_NumWrites;
+    uint32_t         m_DeviceFrameCount;
 };
 
 
@@ -325,6 +348,8 @@ LoopbackDevice *g_LoopbackDevice = 0;
 dmSound::Result DeviceLoopbackOpen(const dmSound::OpenDeviceParams* params, dmSound::HDevice* device)
 {
     LoopbackDevice* d = new LoopbackDevice;
+
+    d->m_DeviceFrameCount = params->m_FrameCount;
 
     // to avoid making big spammy requests and getting huge chunks all at the same time
     // set up the buffers as if we have been playing continuously already. first call
@@ -336,7 +361,7 @@ dmSound::Result DeviceLoopbackOpen(const dmSound::OpenDeviceParams* params, dmSo
     //
     d->m_Buffers.SetCapacity(params->m_BufferCount);
     for (uint32_t i = 0; i < params->m_BufferCount; ++i) {
-        d->m_Buffers.Push(new LoopbackBuffer(params->m_FrameCount, i));
+        d->m_Buffers.Push(new LoopbackBuffer(d->m_DeviceFrameCount, i));
     }
 
     d->m_TotalBuffersQueued = 0;
@@ -410,7 +435,9 @@ uint32_t DeviceLoopbackFreeBufferSlots(dmSound::HDevice device)
 
 void DeviceLoopbackDeviceInfo(dmSound::HDevice device, dmSound::DeviceInfo* info)
 {
+    LoopbackDevice* loopback = (LoopbackDevice*) device;
     info->m_MixRate = 44100;
+    info->m_FrameCount = loopback->m_DeviceFrameCount;
 }
 
 void DeviceLoopbackRestart(dmSound::HDevice device)
@@ -578,18 +605,7 @@ TestParams("loopback",
             440,
             22050,
             44100,
-            2048)};
-
-/*
-const TestParams params_verify_test[] = {
-TestParams("loopback",
-            MONO_TONE_440_22050_44100_WAV,
-            MONO_TONE_440_22050_44100_WAV_SIZE,
-            dmSound::SOUND_DATA_TYPE_WAV,
-            440,
-            22050,
-            44100,
-            2048),
+            1056),
 TestParams("loopback",
             MONO_TONE_440_32000_64000_WAV,
             MONO_TONE_440_32000_64000_WAV_SIZE,
@@ -597,7 +613,7 @@ TestParams("loopback",
             440,
             32000,
             64000,
-            2048),
+            1056),
 TestParams("loopback",
             MONO_TONE_440_44000_88000_WAV,
             MONO_TONE_440_44000_88000_WAV_SIZE,
@@ -605,7 +621,7 @@ TestParams("loopback",
             440,
             44000,
             88000,
-            2048),
+            1056),
 TestParams("loopback",
             MONO_TONE_440_44100_88200_WAV,
             MONO_TONE_440_44100_88200_WAV_SIZE,
@@ -613,7 +629,7 @@ TestParams("loopback",
             440,
             44100,
             88200,
-            2048),
+            1056),
 TestParams("loopback",
             MONO_TONE_2000_22050_44100_WAV,
             MONO_TONE_2000_22050_44100_WAV_SIZE,
@@ -621,7 +637,7 @@ TestParams("loopback",
             2000,
             22050,
             44100,
-            2048),
+            1056),
 TestParams("loopback",
             MONO_TONE_2000_32000_64000_WAV,
             MONO_TONE_2000_32000_64000_WAV_SIZE,
@@ -629,7 +645,7 @@ TestParams("loopback",
             2000,
             32000,
             64000,
-            2048),
+            1056),
 TestParams("loopback",
             MONO_TONE_2000_44000_88000_WAV,
             MONO_TONE_2000_44000_88000_WAV_SIZE,
@@ -637,7 +653,7 @@ TestParams("loopback",
             2000,
             44000,
             88000,
-            2048),
+            1056),
 TestParams("loopback",
             MONO_TONE_2000_44100_88200_WAV,
             MONO_TONE_2000_44100_88200_WAV_SIZE,
@@ -645,7 +661,7 @@ TestParams("loopback",
             2000,
             44100,
             88200,
-            2048),
+            1056),
 TestParams("loopback",
             STEREO_TONE_440_22050_44100_WAV,
             STEREO_TONE_440_22050_44100_WAV_SIZE,
@@ -653,7 +669,7 @@ TestParams("loopback",
             440,
             22050,
             44100,
-            2048),
+            1056),
 TestParams("loopback",
             STEREO_TONE_440_32000_64000_WAV,
             STEREO_TONE_440_32000_64000_WAV_SIZE,
@@ -661,7 +677,7 @@ TestParams("loopback",
             440,
             32000,
             64000,
-            2048),
+            1056),
 TestParams("loopback",
             STEREO_TONE_440_44000_88000_WAV,
             STEREO_TONE_440_44000_88000_WAV_SIZE,
@@ -669,7 +685,7 @@ TestParams("loopback",
             440,
             44000,
             88000,
-            2048),
+            1056),
 TestParams("loopback",
             STEREO_TONE_440_44100_88200_WAV,
             STEREO_TONE_440_44100_88200_WAV_SIZE,
@@ -677,7 +693,7 @@ TestParams("loopback",
             440,
             44100,
             88200,
-            2048),
+            1056),
 TestParams("loopback",
             STEREO_TONE_2000_22050_44100_WAV,
             STEREO_TONE_2000_22050_44100_WAV_SIZE,
@@ -685,7 +701,7 @@ TestParams("loopback",
             2000,
             22050,
             44100,
-            2048),
+            1056),
 TestParams("loopback",
             STEREO_TONE_2000_32000_64000_WAV,
             STEREO_TONE_2000_32000_64000_WAV_SIZE,
@@ -693,7 +709,7 @@ TestParams("loopback",
             2000,
             32000,
             64000,
-            2048),
+            1056),
 TestParams("loopback",
             STEREO_TONE_2000_44000_88000_WAV,
             STEREO_TONE_2000_44000_88000_WAV_SIZE,
@@ -701,7 +717,7 @@ TestParams("loopback",
             2000,
             44000,
             88000,
-            2048),
+            1056),
 TestParams("loopback",
             STEREO_TONE_2000_44100_88200_WAV,
             STEREO_TONE_2000_44100_88200_WAV_SIZE,
@@ -709,8 +725,8 @@ TestParams("loopback",
             2000,
             44100,
             88200,
-            2048)
-};*/
+            1056)
+};
 
 INSTANTIATE_TEST_CASE_P(dmSoundVerifyTest, dmSoundVerifyTest, jc_test_values_in(params_verify_test));
 
@@ -904,16 +920,16 @@ const TestParams params_speed_test[] = {
             2048,
             0.0f,
             0.5f),
-	TestParams("loopback",
-			MONO_TONE_440_44100_88200_WAV,		// sound
-            MONO_TONE_440_44100_88200_WAV_SIZE,	// uint32_t sound_size
-            dmSound::SOUND_DATA_TYPE_WAV,		// SoundDataType type
-            440,								// uint32_t tone_rate
-            44100,								// uint32_t mix_rate
-            88200,								// uint32_t frame_count
-            1999,								// uint32_t buffer_frame_count
-            0.0f,								// float pan
-            3.999909297f),						// float speed - this strange number will result in having remainder frames at the end of mixing
+    TestParams("loopback",
+            MONO_TONE_440_44100_88200_WAV,      // sound
+            MONO_TONE_440_44100_88200_WAV_SIZE, // uint32_t sound_size
+            dmSound::SOUND_DATA_TYPE_WAV,       // SoundDataType type
+            440,                                // uint32_t tone_rate
+            44100,                              // uint32_t mix_rate
+            88200,                              // uint32_t frame_count
+            1999,                               // uint32_t buffer_frame_count
+            0.0f,                               // float pan
+            3.999909297f),                      // float speed - this strange number will result in having remainder frames at the end of mixing
 };
 INSTANTIATE_TEST_CASE_P(dmSoundTestSpeedTest, dmSoundTestSpeedTest, jc_test_values_in(params_speed_test));
 #endif
@@ -1207,54 +1223,46 @@ TEST_P(dmSoundTestPlaySpeedTest, Play)
     ASSERT_EQ(dmSound::RESULT_OK, r);
 }
 
+#define SOUND_TEST(DEVICE, CHANNELS, FREQ, FRAMES, BYTES, BUFFERSIZE) \
+    TestParams(DEVICE, \
+                CHANNELS ## _TONE_ ## FREQ ## _ ## FRAMES ## _ ## BYTES ## _WAV, \
+                CHANNELS ## _TONE_ ## FREQ ## _ ## FRAMES ## _ ## BYTES ## _WAV_SIZE, \
+                dmSound::SOUND_DATA_TYPE_WAV, \
+                FREQ, \
+                FRAMES, \
+                FRAMES, \
+                BUFFERSIZE)
+
 const TestParams params_test_play_test[] = {
-    TestParams("default",
-                MONO_TONE_440_32000_64000_WAV,
-                MONO_TONE_440_32000_64000_WAV_SIZE,
-                dmSound::SOUND_DATA_TYPE_WAV,
-                440,
-                32000,
-                64000,
-                2048),
-    TestParams("default",
-                MONO_TONE_440_44000_88000_WAV,
-                MONO_TONE_440_44000_88000_WAV_SIZE,
-                dmSound::SOUND_DATA_TYPE_WAV,
-                440,
-                44000,
-                88000,
-                2048),
-    TestParams("default",
-                STEREO_TONE_440_32000_64000_WAV,
-                STEREO_TONE_440_32000_64000_WAV_SIZE,
-                dmSound::SOUND_DATA_TYPE_WAV,
-                440,
-                32000,
-                64000,
-                2048),
-    TestParams("default",
-                STEREO_TONE_440_44000_88000_WAV,
-                STEREO_TONE_440_44000_88000_WAV_SIZE,
-                dmSound::SOUND_DATA_TYPE_WAV,
-                440,
-                44000,
-                88000,
-                2048),
-    TestParams("default",
-                MONO_TONE_440_44100_88200_WAV,
-                MONO_TONE_440_44100_88200_WAV_SIZE,
-                dmSound::SOUND_DATA_TYPE_WAV,
-                440,
-                44100,
-                44100,
-                2048),
+
+    SOUND_TEST("default", MONO, 2000, 22050, 5512, 2048),
+    SOUND_TEST("default", MONO, 2000, 32000, 8000, 2048),
+    SOUND_TEST("default", MONO, 2000, 44000, 11000, 2048),
+    SOUND_TEST("default", MONO, 2000, 44100, 11025, 2048),
+    SOUND_TEST("default", MONO, 2000, 48000, 12000, 2048),
+    SOUND_TEST("default", MONO, 440, 22050, 5512, 2048),
+    SOUND_TEST("default", MONO, 440, 32000, 8000, 2048),
+    SOUND_TEST("default", MONO, 440, 44000, 11000, 2048),
+    SOUND_TEST("default", MONO, 440, 44100, 11025, 2048),
+    SOUND_TEST("default", MONO, 440, 48000, 12000, 2048),
+
+    SOUND_TEST("default", STEREO, 440, 22050, 5512, 2048),
+    SOUND_TEST("default", STEREO, 440, 32000, 8000, 2048),
+    SOUND_TEST("default", STEREO, 440, 44000, 11000, 2048),
+    SOUND_TEST("default", STEREO, 440, 44100, 11025, 2048),
+    SOUND_TEST("default", STEREO, 440, 48000, 12000, 2048),
+    SOUND_TEST("default", STEREO, 2000, 22050, 5512, 2048),
+    SOUND_TEST("default", STEREO, 2000, 32000, 8000, 2048),
+    SOUND_TEST("default", STEREO, 2000, 44000, 11000, 2048),
+    SOUND_TEST("default", STEREO, 2000, 44100, 11025, 2048),
+    SOUND_TEST("default", STEREO, 2000, 48000, 12000, 2048),
 };
-INSTANTIATE_TEST_CASE_P(dmSoundTestPlayTest, dmSoundTestPlayTest, jc_test_values_in(params_test_play_test));
+INSTANTIATE_TEST_CASE_P(dmSoundTestPlayTestMono, dmSoundTestPlayTest, jc_test_values_in(params_test_play_test));
 
 const TestParams params_test_play_speed_test[] = {
     TestParams("default",
-            MONO_TONE_440_44100_88200_WAV,
-            MONO_TONE_440_44100_88200_WAV_SIZE,
+            MONO_TONE_440_44100_11025_WAV,
+            MONO_TONE_440_44100_11025_WAV_SIZE,
             dmSound::SOUND_DATA_TYPE_WAV,
             440,
             44100,
@@ -1265,8 +1273,8 @@ const TestParams params_test_play_speed_test[] = {
             0       // loopcount. Increase it to stress the mix algorithm when testing by listening.
     ),
     TestParams("default",
-            MONO_TONE_440_32000_64000_WAV,
-            MONO_TONE_440_32000_64000_WAV_SIZE,
+            MONO_TONE_440_32000_8000_WAV,
+            MONO_TONE_440_32000_8000_WAV_SIZE,
             dmSound::SOUND_DATA_TYPE_WAV,
             440,
             32000,
@@ -1277,8 +1285,8 @@ const TestParams params_test_play_speed_test[] = {
             0
     ),
     TestParams("default",
-            STEREO_TONE_440_32000_64000_WAV,
-            STEREO_TONE_440_32000_64000_WAV_SIZE,
+            STEREO_TONE_440_32000_8000_WAV,
+            STEREO_TONE_440_32000_8000_WAV_SIZE,
             dmSound::SOUND_DATA_TYPE_WAV,
             440,
             32000,
@@ -1289,8 +1297,8 @@ const TestParams params_test_play_speed_test[] = {
             0
     ),
     TestParams("default",
-            MONO_TONE_440_44100_88200_WAV,
-            MONO_TONE_440_44100_88200_WAV_SIZE,
+            MONO_TONE_440_44100_11025_WAV,
+            MONO_TONE_440_44100_11025_WAV_SIZE,
             dmSound::SOUND_DATA_TYPE_WAV,
             440,
             44100,
@@ -1301,8 +1309,8 @@ const TestParams params_test_play_speed_test[] = {
             0
     ),
     TestParams("default",
-            STEREO_TONE_440_32000_64000_WAV,
-            STEREO_TONE_440_32000_64000_WAV_SIZE,
+            STEREO_TONE_440_32000_8000_WAV,
+            STEREO_TONE_440_32000_8000_WAV_SIZE,
             dmSound::SOUND_DATA_TYPE_WAV,
             440,
             32000,
@@ -1313,8 +1321,8 @@ const TestParams params_test_play_speed_test[] = {
             0
     ),
     TestParams("default",
-            MONO_TONE_440_44100_88200_WAV,
-            MONO_TONE_440_44100_88200_WAV_SIZE,
+            MONO_TONE_440_44100_11025_WAV,
+            MONO_TONE_440_44100_11025_WAV_SIZE,
             dmSound::SOUND_DATA_TYPE_WAV,
             440,
             44100,
@@ -1453,6 +1461,10 @@ TEST_P(dmSoundMixerTest, Mixer)
     const float rate2 = params.m_ToneRate2;
     const float mix_rate1 = params.m_MixRate1;
     const float mix_rate2 = params.m_MixRate2;
+
+    // TODO: Get this from the device
+    //int mix_rate = 44100;
+    int mix_rate = 48000;
 
     const int n1 = (frame_count1 * 44100) / (int) mix_rate1;
     const int n2 = (frame_count2 * 44100) / (int) mix_rate2;
@@ -1605,19 +1617,144 @@ const TestParams2 params_mixer_test[] = {
                 false,
 
                 2048,
-                true),
+                true)
 };
 INSTANTIATE_TEST_CASE_P(dmSoundMixerTest, dmSoundMixerTest, jc_test_values_in(params_mixer_test));
 #endif
 
-DM_DECLARE_SOUND_DEVICE(LoopBackDevice, "loopback", DeviceLoopbackOpen, DeviceLoopbackClose, DeviceLoopbackQueue, DeviceLoopbackFreeBufferSlots, DeviceLoopbackDeviceInfo, DeviceLoopbackRestart, DeviceLoopbackStop);
+DM_DECLARE_SOUND_DEVICE(LoopBackDevice, "loopback", DeviceLoopbackOpen, DeviceLoopbackClose, DeviceLoopbackQueue,
+                        DeviceLoopbackFreeBufferSlots, 0, DeviceLoopbackDeviceInfo, DeviceLoopbackRestart, DeviceLoopbackStop);
 
 extern "C" void dmExportedSymbols();
+
+static uint8_t* ReadFile(const char* path, uint32_t* file_size)
+{
+    FILE* f = fopen(path, "rb");
+    if (!f)
+    {
+        dmLogError("Failed to load file %s", path);
+        return 0;
+    }
+
+    if (fseek(f, 0, SEEK_END) != 0)
+    {
+        fclose(f);
+        dmLogError("Failed to seek to end of file %s", path);
+        return 0;
+    }
+
+    size_t size = (size_t)ftell(f);
+    if (fseek(f, 0, SEEK_SET) != 0)
+    {
+        fclose(f);
+        dmLogError("Failed to seek to start of file %s", path);
+        return 0;
+    }
+
+    uint8_t* buffer;
+    dmMemory::AlignedMalloc((void**)&buffer, 16, size);
+
+    size_t nread = fread(buffer, 1, size, f);
+    fclose(f);
+
+    if (nread != size)
+    {
+        dmMemory::AlignedFree((void*)buffer);
+        dmLogError("Failed to read %u bytes from file %s", (uint32_t)size, path);
+        return 0;
+    }
+
+    *file_size = size;
+    return buffer;
+}
+
+static const char* FindSoundFile(int argc, char** argv, dmSound::SoundDataType* type)
+{
+    for (int i = 0; i < argc; ++i)
+    {
+        const char* arg = argv[i];
+        const char* suffix = strrchr(arg, '.');
+        if (!suffix)
+            continue;
+        if (dmStrCaseCmp(suffix, ".wav")==0)
+        {
+            *type = dmSound::SOUND_DATA_TYPE_WAV;
+            return arg;
+        }
+
+        if (dmStrCaseCmp(suffix, ".ogg")==0)
+        {
+            *type = dmSound::SOUND_DATA_TYPE_OGG_VORBIS;
+            return arg;
+        }
+    }
+    return 0;
+}
+
+#define CHECK_ERROR(RESULT) \
+    if (dmSound::RESULT_OK != RESULT) { \
+        fprintf(stderr, "Error: %d on line %d\n", RESULT, __LINE__); \
+    }
+
+static int PlaySound(const char* path, dmSound::SoundDataType type)
+{
+    uint32_t sound_size;
+    uint8_t* sound_data = ReadFile(path, &sound_size);
+    if (!sound_data)
+    {
+        fprintf(stderr, "Failed to read file '%s'\n", path);
+        return 1;
+    }
+    printf("Found '%s' of type %d\n", path, type);
+
+    dmSound::InitializeParams params;
+    params.m_MaxBuffers = MAX_BUFFERS;
+    params.m_MaxSources = MAX_SOURCES;
+    params.m_OutputDevice = "default";
+    params.m_FrameCount = 2048;//512;//GetParam().m_BufferFrameCount;
+    params.m_UseThread = true; // all our desktop platforms support this
+
+    dmSound::Result r = dmSound::Initialize(0, &params);
+    CHECK_ERROR(r);
+
+    dmSound::HSoundData sd = 0;
+    dmSound::NewSoundData(sound_data, sound_size, type, &sd, 1234);
+
+    dmSound::HSoundInstance instance = 0;
+    r = dmSound::NewSoundInstance(sd, &instance);
+    CHECK_ERROR(r);
+
+    r = dmSound::Play(instance);
+    CHECK_ERROR(r);
+
+    printf("Playing sound %s: %d\n", path, (int)dmSound::IsPlaying(instance));
+
+    do {
+        r = dmSound::Update();
+    } while (dmSound::IsPlaying(instance));
+
+    dmTime::Sleep(1000000);
+
+    r = dmSound::DeleteSoundInstance(instance);
+    CHECK_ERROR(r);
+
+    r = dmSound::Finalize();
+    CHECK_ERROR(r);
+
+    dmMemory::AlignedFree(sound_data);
+    return 0;
+}
 
 int main(int argc, char **argv)
 {
     dmExportedSymbols();
-    LoopBackDevice();
+
+    dmSound::SoundDataType sound_type;
+    const char* sound_file = FindSoundFile(argc, argv, &sound_type);
+    if (sound_file)
+    {
+        return PlaySound(sound_file, sound_type);
+    }
 
     jc_test_init(&argc, argv);
     return jc_test_run_all();

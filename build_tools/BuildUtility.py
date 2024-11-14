@@ -108,7 +108,7 @@ class BuildUtility:
                 platform = p
                 break
         if platform == None:
-            raise BuildUtilityException(("Could not identify platform '%s'" % platform_id))
+            raise BuildUtilityException(("BuiltUtility.py: Could not identify platform '%s'" % platform_id))
         return platform
     # _identify_platform
 

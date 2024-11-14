@@ -104,8 +104,8 @@ PACKAGES_IOS_X86_64="protobuf-3.20.1 luajit-2.1.0-04dca79 tremolo-b0cb4d1 bullet
 PACKAGES_IOS_64="protobuf-3.20.1 luajit-2.1.0-04dca79 tremolo-b0cb4d1 bullet-2.77 moltenvk-1.3.261.1 glfw-2.7.1".split()
 PACKAGES_MACOS_X86_64="protobuf-3.20.1 luajit-2.1.0-04dca79 vpx-1.7.0 tremolo-b0cb4d1 bullet-2.77 spirv-cross-dae7a689 spirv-tools-b21dda0e glslang-42d9adf5 moltenvk-1.3.261.1 lipo-9ffdea2 sassc-5472db213ec223a67482df2226622be372921847 glfw-3.4 tint-22b958".split()
 PACKAGES_MACOS_ARM64="protobuf-3.20.1 luajit-2.1.0-04dca79 vpx-1.7.0 tremolo-b0cb4d1 bullet-2.77 spirv-cross-dae7a689 spirv-tools-b21dda0e glslang-42d9adf5 moltenvk-1.3.261.1 lipo-9ffdea2 glfw-3.4 tint-22b958".split()
-PACKAGES_WIN32="protobuf-3.20.1 luajit-2.1.0-04dca79 openal-1.1 glut-3.7.6 bullet-2.77 vulkan-1.3.261.1 glfw-3.4".split()
-PACKAGES_WIN32_64="protobuf-3.20.1 luajit-2.1.0-04dca79 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 glslang-42d9adf5 spirv-cross-edd66a2f spirv-tools-d24a39a7 vulkan-1.3.261.1 lipo-9ffdea2 glfw-3.4 tint-22b958".split()
+PACKAGES_WIN32="protobuf-3.20.1 luajit-2.1.0-04dca79 glut-3.7.6 bullet-2.77 vulkan-1.3.261.1 glfw-3.4".split()
+PACKAGES_WIN32_64="protobuf-3.20.1 luajit-2.1.0-04dca79 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 glslang-42d9adf5 spirv-cross-edd66a2f spirv-tools-d24a39a7 vulkan-1.3.261.1 lipo-9ffdea2 glfw-3.4 tint-22b958".split()
 PACKAGES_LINUX_X86_64="protobuf-3.20.1 luajit-2.1.0-04dca79 bullet-2.77 glslang-ba5c010c spirv-cross-edd66a2f spirv-tools-d24a39a7 vulkan-1.1.108  tremolo-b0cb4d1 lipo-9ffdea2 glfw-2.7.1 tint-22b958 sassc-5472db213ec223a67482df2226622be372921847 ".split()
 PACKAGES_LINUX_ARM64 ="protobuf-3.20.1 luajit-2.1.0-04dca79 bullet-2.77 glslang-2fed4fc0 spirv-cross-37fee00a spirv-tools-4fab7435 vulkan-v1.3.299 tremolo-b0cb4d1 lipo-abb8ab1 glfw-2.7.1".split() # vulkan-1.1.108  tint-22b958".split()
 PACKAGES_ANDROID="protobuf-3.20.1 android-support-multidex androidx-multidex luajit-2.1.0-04dca79 tremolo-b0cb4d1 bullet-2.77 glfw-2.7.1".split()
@@ -1305,7 +1305,8 @@ class Configuration(object):
                     self._mkdirs(tgt_dir)
                     self._copy(src, join(tgt_dir, luajit_exe))
 
-        win32_files = dict([['ext/lib/%s/%s.dll' % (plf[0], lib), 'lib/%s/%s.dll' % (plf[1], lib)] for lib in ['OpenAL32', 'wrap_oal'] for plf in [['win32', 'x86-win32'], ['x86_64-win32', 'x86_64-win32']]])
+        # Any shared libraries that we depend on
+        win32_files = dict([['ext/lib/%s/%s.dll' % (plf[0], lib), 'lib/%s/%s.dll' % (plf[1], lib)] for lib in [] for plf in [['win32', 'x86-win32'], ['x86_64-win32', 'x86_64-win32']]])
         macos_files = dict([['ext/lib/%s/lib%s.dylib' % (plf[0], lib), 'lib/%s/lib%s.dylib' % (plf[1], lib)] for lib in [] for plf in [['x86_64-macos', 'x86_64-macos'], ['arm64-macos', 'arm64-macos']]])
         linux_files = dict([['ext/lib/%s/lib%s.so' % (plf[0], lib), 'lib/%s/lib%s.so' % (plf[1], lib)] for lib in [] for plf in [['x86_64-linux', 'x86_64-linux'], ['arm64-linux', 'arm64-linux']]])
         js_files = {}

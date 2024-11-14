@@ -440,5 +440,6 @@ cleanup_sl:
         opensl->m_IsPlaying = false;
     }
 
-    DM_DECLARE_SOUND_DEVICE(DefaultSoundDevice, "default", DeviceOpenSLOpen, DeviceOpenSLClose, DeviceOpenSLQueue, DeviceOpenSLFreeBufferSlots, DeviceOpenSLDeviceInfo, DeviceOpenSLStart, DeviceOpenSLStop);
+    DM_DECLARE_SOUND_DEVICE(DefaultSoundDevice, "default", DeviceOpenSLOpen, DeviceOpenSLClose, DeviceOpenSLQueue,
+                            DeviceOpenSLFreeBufferSlots, 0, DeviceOpenSLDeviceInfo, DeviceOpenSLStart, DeviceOpenSLStop);
 }
