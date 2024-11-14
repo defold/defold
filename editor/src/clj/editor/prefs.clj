@@ -200,7 +200,8 @@
            :manual-target-ip+port {:type :string}
            :quit-on-escape {:type :boolean :label "Escape Quits Game"}
            :simulate-rotated-device {:type :boolean :scope :project}
-           :simulated-resolution {:type :any :scope :project}}}
+           :simulated-resolution {:type :any :scope :project}
+           :engine-arguments {:type :string :scope :project}}}
     :scene {:type :object
             :properties
             {:move-whole-pixels {:type :boolean :default true}}}

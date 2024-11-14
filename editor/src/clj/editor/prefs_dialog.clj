@@ -103,7 +103,8 @@
                     {:label "Escape Quits Game" :type :boolean :key [:run :quit-on-escape]}
                     {:label "Track Active Tab in Asset Browser" :type :boolean :key [:asset-browser :track-active-tab]}
                     {:label "Lint Code on Build" :type :boolean :key [:build :lint-code]}
-                    {:label "Path to Custom Keymap" :type :string :key [:input :keymap-path]}]}
+                    {:label "Path to Custom Keymap" :type :string :key [:input :keymap-path]}
+                    {:label "Engine Arguments" :type :string :key [:run :engine-arguments]}]}
            {:name "Code"
             :prefs [{:label "Custom Editor" :type :string :key [:code :custom-editor]}
                     {:label "Open File" :type :string :key [:code :open-file]}

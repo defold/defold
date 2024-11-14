@@ -268,6 +268,7 @@
                                (File.)
                                (.getAbsolutePath))
         command (.getAbsolutePath engine)
+        engine-argument (prefs/get prefs [:run :engine-arguments])
         args (cond-> []
                      defold-log-dir
                      (into ["--config=project.write_log=1"
@@ -277,7 +278,10 @@
                      (into ["--config=bootstrap.debug_init_script=/_defold/debugger/start.luac"])
 
                      (> instance-index 0)
-                     (into [(format "--config=project.instance_index=%d" instance-index)]))
+                     (into [(format "--config=project.instance_index=%d" instance-index)])
+
+                     (not-empty engine-argument)
+                     (into [engine-argument]))
         env {"DM_SERVICE_PORT" "dynamic"
              "DM_QUIT_ON_ESC" (if (prefs/get prefs [:run :quit-on-escape])
                                 "1" "0")
