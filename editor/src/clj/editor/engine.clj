@@ -14,7 +14,6 @@
 
 (ns editor.engine
   (:require [clojure.java.io :as io]
-            [clojure.string :as string]
             [clojure.string :as str]
             [editor.code.util :refer [split-lines]]
             [editor.engine.native-extensions :as native-extensions]
@@ -282,8 +281,8 @@
                      (> instance-index 0)
                      (into [(format "--config=project.instance_index=%d" instance-index)])
 
-                     (not (string/blank? engine-arguments))
-                     (into (remove string/blank?) (split-lines engine-arguments)))
+                     (not (str/blank? engine-arguments))
+                     (into (remove str/blank?) (split-lines engine-arguments)))
         env {"DM_SERVICE_PORT" "dynamic"
              "DM_QUIT_ON_ESC" (if (prefs/get prefs [:run :quit-on-escape])
                                 "1" "0")
