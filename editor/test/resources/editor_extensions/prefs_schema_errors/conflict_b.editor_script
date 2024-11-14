@@ -1,0 +1,10 @@
+local M = {}
+
+function M.get_prefs_schema()
+    return {
+        ["test.only-in-b"] = editor.prefs.schema.string({default = "b"}),
+        ["test.conflict"] = editor.prefs.schema.boolean()
+    }
+end
+
+return M

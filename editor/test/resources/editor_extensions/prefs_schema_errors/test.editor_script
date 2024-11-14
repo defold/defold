@@ -1,0 +1,21 @@
+local M = {}
+
+local function print_pref_value(k)
+    local success, error_or_value = pcall(editor.prefs.get, k)
+    print(("pcall(editor.prefs.get, '%s') => %s, %s"):format(k, tostring(success), tostring(error_or_value)))
+end
+
+function M.get_commands()
+    return {{
+        label = "Test",
+        locations = {"Edit"},
+        run = function()
+            print_pref_value("test.only-in-a")
+            print_pref_value("test.only-in-b")
+            print_pref_value("test.conflict")
+            print_pref_value("bundle.variant")
+        end
+    }}
+end
+
+return M
