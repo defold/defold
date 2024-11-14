@@ -131,7 +131,7 @@ static void CreateEntryMap(ZipProviderContext* archive)
         EntryInfo* info = temp_archive_map.Get(archive_path_hash);
         if (!info)
         {
-            dmLogWarning("Unable to find %s  %lx", archive_path_buffer, archive_path_hash);
+            DM_RESOURCE_DBG_LOG(3, "Unable to find: %s %llx\n", archive_path_buffer, archive_path_hash);
             // There is no such file in this archive
             continue;
         }
@@ -142,7 +142,6 @@ static void CreateEntryMap(ZipProviderContext* archive)
         manifest_info.m_Size = entry->m_Size;
         manifest_info.m_EntryIndex = info->m_EntryIndex;
         entry_map->Put(entry->m_UrlHash, manifest_info);
-        dmLogInfo("Added entry: %s %lx (%u bytes)\n", archive_path_buffer, archive_path_hash, manifest_info.m_Size);
         DM_RESOURCE_DBG_LOG(3, "Added entry: %s %llx (%u bytes)\n", archive_path_buffer, archive_path_hash, manifest_info.m_Size);
     }
 
@@ -158,7 +157,6 @@ static void CreateEntryMap(ZipProviderContext* archive)
         }
         dmhash_t hash_key = archive_entries_iter.GetKey();
         entry_map->Put(hash_key, info);
-        dmLogInfo("Added extra entry: %lx (%u bytes)\n", hash_key, info.m_Size);
         DM_RESOURCE_DBG_LOG(3, "Added extra entry: %llx (%u bytes)\n", hash_key, info.m_Size);
     }
 
