@@ -286,7 +286,7 @@ public class ArchiveTest {
         ResourceNode collectionproxy1 = addExcludedEntry("main.collectionproxyc", instance, collection1);
         ResourceNode gameobject1 = addEntry("main.goc", instance, collectionproxy1);
 
-        Set<String> excludedResources = resourceGraph.createExcludedResourcesList();
+        List<String> excludedResources = resourceGraph.createExcludedResourcesList();
 
         // Test
         instance.write(outputIndex, outputData, publisher, excludedResources);
@@ -310,7 +310,7 @@ public class ArchiveTest {
         ResourceNode collectionproxy1 = addExcludedEntry("main.collectionproxyc", instance, collection1);
         ResourceNode gameobject1 = addEntry("main.goc", instance, collectionproxy1);
 
-        Set<String> excludedResources = resourceGraph.createExcludedResourcesList();
+        List<String> excludedResources = resourceGraph.createExcludedResourcesList();
 
         // Test
         PublisherSettings settings = new PublisherSettings();
@@ -342,7 +342,7 @@ public class ArchiveTest {
         ResourceNode gameobject1 = addEntry("main1.goc", "delta", instance, collectionproxy1);
         ResourceNode gameobject2 = addEntry("main2.goc", "delta", instance, collectionproxy1);
 
-        Set<String> excludedResources = resourceGraph.createExcludedResourcesList();
+        List<String> excludedResources = resourceGraph.createExcludedResourcesList();
 
         // Test
         PublisherSettings settings = new PublisherSettings();
@@ -380,7 +380,7 @@ public class ArchiveTest {
         ResourceNode gameobject1 = addEntry("level1.goc", instance, collectionproxy1);
         ResourceNode gameobject2 = addEntry("level2.goc", instance, collectionproxy2);
 
-        Set<String> excludedResources = resourceGraph.createExcludedResourcesList();
+        List<String> excludedResources = resourceGraph.createExcludedResourcesList();
 
         // Test
         instance.write(outputIndex, outputData, publisher, excludedResources);
@@ -408,7 +408,7 @@ public class ArchiveTest {
         ResourceNode gameobject1 = addEntry("shared.goc", instance, collectionproxy1);
         ResourceNode gameobject2 = addEntry("shared.goc", instance, collectionproxy2);
 
-        Set<String> excludedResources = resourceGraph.createExcludedResourcesList();
+        List<String> excludedResources = resourceGraph.createExcludedResourcesList();
 
         // Test
         instance.write(outputIndex, outputIndex, publisher, excludedResources);
@@ -436,7 +436,7 @@ public class ArchiveTest {
         ResourceNode gameobject1 = addEntry("level1.goc", instance, collectionproxy1);
         ResourceNode gameobject2 = addEntry("level2.goc", instance, collectionproxy2);
 
-        Set<String> excludedResources = resourceGraph.createExcludedResourcesList();
+        List<String> excludedResources = resourceGraph.createExcludedResourcesList();
 
         // Test
         instance.write(outputIndex, outputData, publisher, excludedResources);
@@ -463,7 +463,7 @@ public class ArchiveTest {
         ResourceNode gameobject11 = addEntry("level1.goc", instance, collectionproxy1); // should be bundled
         ResourceNode gameobject2 = addEntry("level2.goc", instance, collectionproxy2); // should be excluded
 
-        Set<String> excludedResources = resourceGraph.createExcludedResourcesList();
+        List<String> excludedResources = resourceGraph.createExcludedResourcesList();
 
         // Test
         instance.write(outputIndex, outputData, publisher, excludedResources);
@@ -493,7 +493,7 @@ public class ArchiveTest {
         ResourceNode gameobject2 = addEntry("level2.goc", instance, collectionproxy2); // should be excluded
         ResourceNode gameobject3 = addEntry("level3.goc", instance, collectionproxy2); // should be excluded
 
-        Set<String> excludedResources = resourceGraph.createExcludedResourcesList();
+        List<String> excludedResources = resourceGraph.createExcludedResourcesList();
 
         // Test
         instance.write(outputIndex, outputData, publisher, excludedResources);
@@ -521,7 +521,7 @@ public class ArchiveTest {
         ResourceNode gameobject1 = addEntry("level1.goc", instance, collectionproxy1);
         ResourceNode gameobject2 = addEntry("level2.goc", instance, collectionproxy2);
 
-        Set<String> excludedResources = resourceGraph.createExcludedResourcesList();
+        List<String> excludedResources = resourceGraph.createExcludedResourcesList();
 
         // Test
         instance.write(outputIndex, outputData, publisher, excludedResources);

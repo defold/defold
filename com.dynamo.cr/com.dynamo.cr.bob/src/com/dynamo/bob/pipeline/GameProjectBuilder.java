@@ -31,6 +31,7 @@ import java.util.Set;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Collection;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -222,7 +223,7 @@ public class GameProjectBuilder extends Builder {
         return resourcePadding;
     }
 
-    private void createArchive(ArchiveBuilder archiveBuilder, Collection<IResource> resources, File archiveIndex, File archiveData, Set<String> excludedResources, Publisher publisher) throws IOException, CompileExceptionError {
+    private void createArchive(ArchiveBuilder archiveBuilder, Collection<IResource> resources, File archiveIndex, File archiveData, Collection<String> excludedResources, Publisher publisher) throws IOException, CompileExceptionError {
         TimeProfiler.start("createArchive");
         logger.info("GameProjectBuilder.createArchive");
         long tstart = System.currentTimeMillis();
@@ -407,12 +408,12 @@ public class GameProjectBuilder extends Builder {
                 logger.info("Creation of the excluded resources list.");
                 tstart = System.currentTimeMillis();
                 boolean shouldPublishLU = project.option("liveupdate", "false").equals("true");
-                Set<String> excludedResources;
+                List<String> excludedResources;
                 if (shouldPublishLU) {
                     excludedResources = resourceGraph.createExcludedResourcesList();
                 }
                 else {
-                    excludedResources = new HashSet<String>();
+                    excludedResources = new ArrayList<String>();
                 }
                 tend = System.currentTimeMillis();
                 logger.info("Creation of the excluded resources list took %f s", (tend-tstart)/1000.0);

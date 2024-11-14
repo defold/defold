@@ -17,7 +17,7 @@ package com.dynamo.bob.pipeline.graph.test;
 import static org.junit.Assert.assertEquals;
 
 import java.io.IOException;
-import java.util.Set;
+import java.util.Collection;
 
 import org.junit.After;
 import org.junit.Before;
@@ -95,7 +95,7 @@ public class ResourceGraphTest {
 
     @Test
     public void testUsageCounts() throws IOException {
-        Set<String> excludedResources = resourceGraph.createExcludedResourcesList();
+        Collection<String> excludedResources = resourceGraph.createExcludedResourcesList();
         System.out.println("excludedResources " + excludedResources);
         assertEquals(3, excludedResources.size());
     }

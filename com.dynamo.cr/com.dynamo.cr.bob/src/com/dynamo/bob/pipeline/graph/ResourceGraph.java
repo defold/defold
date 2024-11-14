@@ -20,6 +20,7 @@ import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.Collection;
 
@@ -222,9 +223,9 @@ public class ResourceGraph implements IResourceVisitor {
      * a non-excluded collection it will not be considered an excluded resource.
      * @return List of excluded resources
      */
-    public Set<String> createExcludedResourcesList() {
+    public List<String> createExcludedResourcesList() {
         findAllResourcesReferencedFromMainCollection();
-        Set<String> excludedResources = new HashSet<>();
+        List<String> excludedResources = new ArrayList<>();
         for (ResourceNode node : resourceNodes) {
             if (node.isInMainBundle()) {
                 continue;
