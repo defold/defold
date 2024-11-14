@@ -115,7 +115,7 @@ namespace dmResourceProviderArchiveMutable
             dmResource::BytesToHexString(info.m_ManifestEntry->m_Hash.m_Data.m_Data, hash_len, hash_buffer, sizeof(hash_buffer));
             hash_buffer[dmResourceArchive::MAX_HASH*2] = 0;
         }
-        DM_RESOURCE_DBG_LOG(3, "Added entry: name: '%s' url_hash: %016llx\n", hash_buffer, url_hash);
+        DM_RESOURCE_DBG_LOG(3, "Added entry: name: '%s' url_hash: " DM_HASH_FMT "\n", hash_buffer, url_hash);
         #endif // DM_RESOURCE_DBG_LOG_LEVEL
     }
 
