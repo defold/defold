@@ -16,17 +16,11 @@
   (:require [clojure.edn :as edn]
             [clojure.test :refer :all]
             [editor.fs :as fs]
-            [editor.prefs :as prefs]))
-
-(defmethod assert-expr 'thrown-with-data? [msg [_ expected-data-pred & body :as form]]
-  `(try
-     (do ~@body)
-     (do-report {:type :fail :message ~msg :expected '~form :actual nil})
-     (catch Throwable e#
-       (let [actual-data# (ex-data e#)
-             result# (if (~expected-data-pred actual-data#) :pass :fail)]
-         (do-report {:type result# :message ~msg :expected '~form :actual e#})
-         e#))))
+            [editor.prefs :as prefs]
+            [clojure.test.check.clojure-test :refer [defspec]]
+            [clojure.test.check.generators :as gen]
+            [clojure.test.check.properties :as prop]
+            [integration.test-util :as test-util]))
 
 (defmacro with-schemas [id->schema & body]
   `(try
@@ -48,6 +42,106 @@
   (fn [x]
     (and (= :path (::prefs/error x))
          (= path (:path x)))))
+
+(defspec any-schema-spec 100
+  (prop/for-all [any gen/any]
+    (prefs/valid? {:type :any} any)))
+
+(defspec boolean-schema-valid-spec 100
+  (prop/for-all [b gen/boolean]
+    (prefs/valid? {:type :boolean} b)))
+
+(defspec boolean-schema-invalid-spec 10
+  (prop/for-all [b (gen/such-that (complement boolean?) gen/any)]
+    (not (prefs/valid? {:type :boolean} b))))
+
+(defspec string-schema-valid-spec 100
+  (prop/for-all [x gen/string]
+    (prefs/valid? {:type :string} x)))
+
+(defspec string-schema-invalid-spec 10
+  (prop/for-all [x (gen/such-that (complement string?) gen/any)]
+    (not (prefs/valid? {:type :string} x))))
+
+(defspec keyword-schema-valid-spec 100
+  (prop/for-all [x gen/keyword]
+    (prefs/valid? {:type :keyword} x)))
+
+(defspec keyword-schema-invalid-spec 10
+  (prop/for-all [x (gen/such-that (complement keyword?) gen/any)]
+    (not (prefs/valid? {:type :keyword} x))))
+
+(defspec integer-schema-valid-spec 100
+  (prop/for-all [x gen/int]
+    (prefs/valid? {:type :integer} x)))
+
+(defspec integer-schema-invalid-spec 10
+  (prop/for-all [x (gen/such-that (complement int?) gen/any)]
+    (not (prefs/valid? {:type :integer} x))))
+
+(defspec number-schema-valid-spec 100
+  (prop/for-all [x (gen/one-of [gen/double gen/int])]
+    (prefs/valid? {:type :number} x)))
+
+(defspec number-schema-invalid-spec 10
+  (prop/for-all [x (gen/such-that (complement number?) gen/any)]
+    (not (prefs/valid? {:type :number} x))))
+
+(defspec array-schema-valid-spec 100
+  (prop/for-all [x (gen/vector gen/string)]
+    (prefs/valid? {:type :array :item {:type :string}} x)))
+
+(defspec array-schema-invalid-spec 10
+  (prop/for-all [x (gen/such-that (complement vector?) gen/any)]
+    (not (prefs/valid? {:type :array :item {:type :string}} x))))
+
+(defspec array-schema-invalid-item-spec 10
+  (prop/for-all [x (gen/not-empty (gen/vector (gen/such-that (complement string?) gen/any)))]
+    (not (prefs/valid? {:type :array :item {:type :string}} x))))
+
+(defspec set-schema-valid-spec 100
+  (prop/for-all [x (gen/set gen/string)]
+    (prefs/valid? {:type :set :item {:type :string}} x)))
+
+(defspec set-schema-invalid-spec 10
+  (prop/for-all [x (gen/such-that (complement set?) gen/any)]
+    (not (prefs/valid? {:type :set :item {:type :string}} x))))
+
+(defspec set-schema-invalid-item-spec 10
+  (prop/for-all [x (gen/not-empty (gen/set (gen/such-that (complement string?) gen/any)))]
+    (not (prefs/valid? {:type :set :item {:type :string}} x))))
+
+(defspec enum-schema-valid-spec 100
+  (prop/for-all [x (gen/elements [:a :b :c])]
+    (prefs/valid? {:type :enum :values [:a :b :c]} x)))
+
+(defspec enum-schema-invalid-spec 10
+  (prop/for-all [x (gen/such-that (complement #{:a :b :c}) gen/any)]
+    (not (prefs/valid? {:type :enum :values [:a :b :c]} x))))
+
+(defspec tuple-schema-valid-spec 100
+  (prop/for-all [s gen/string
+                 i gen/int]
+    (prefs/valid? {:type :tuple :items [{:type :string} {:type :integer}]} [s i])))
+
+(defspec tuple-schema-invalid-size-spec 100
+  (prop/for-all [strings (gen/such-that #(not= 2 (count %)) (gen/vector gen/string))]
+    (not (prefs/valid? {:type :tuple :items [{:type :string} {:type :string}]} strings))))
+
+(defspec tuple-schema-invalid-type-spec 100
+  (prop/for-all [not-s (gen/such-that (complement string?) gen/any)
+                 not-i (gen/such-that (complement integer?) gen/any)]
+    (not (prefs/valid? {:type :tuple :items [{:type :string} {:type :integer}]} [not-s not-i]))))
+
+(defspec object-of-schema-valid-spec 100
+  (prop/for-all [m (gen/map gen/string gen/double)]
+    (prefs/valid? {:type :object-of :key {:type :string} :val {:type :number}} m)))
+
+(defspec object-of-schema-invalid-spec 10
+  (prop/for-all [m (gen/not-empty
+                     (gen/map (gen/such-that (complement string?) gen/any)
+                              (gen/such-that (complement number?) gen/any)))]
+    (not (prefs/valid? {:type :object-of :key {:type :string} :val {:type :number}} m))))
 
 (deftest prefs-types-test
   (with-schemas {::types {:type :object
@@ -104,21 +198,25 @@
                       :object-of {"foo" "bar"}}}
              (prefs/get p [])))
       ;; set to invalid values
-      (is (thrown-with-data? (value-error-data? [:types :boolean])
-                             (prefs/set! p [] {:types {:boolean "not-a-boolean"}})))
-      (is (thrown-with-data? (value-error-data? [:types :boolean])
-                             (prefs/set! p [:types] {:boolean "not-a-boolean"})))
-      (are [path value] (thrown-with-data? (value-error-data? path) (prefs/set! p path value))
-        [:types :boolean] "not-a-boolean"
-        [:types :string] 12
-        [:types :keyword] "not-a-keyword"
-        [:types :integer] "not-an-int"
-        [:types :number] "NaN"
-        [:types :array] true
-        [:types :set] false
-        [:types :enum] 12
-        [:types :tuple] nil
-        [:types :object-of] {:foo :bar})
+      (test-util/check-thrown-with-data!
+        (value-error-data? [:types :boolean])
+        (prefs/set! p [] {:types {:boolean "not-a-boolean"}}))
+      (test-util/check-thrown-with-data!
+        (value-error-data? [:types :boolean])
+        (prefs/set! p [:types] {:boolean "not-a-boolean"}))
+      (run!
+        (fn [[path value]]
+          (test-util/check-thrown-with-data! (value-error-data? path) (prefs/set! p path value)))
+        {[:types :boolean] "not-a-boolean"
+         [:types :string] 12
+         [:types :keyword] "not-a-keyword"
+         [:types :integer] "not-an-int"
+         [:types :number] "NaN"
+         [:types :array] true
+         [:types :set] false
+         [:types :enum] 12
+         [:types :tuple] nil
+         [:types :object-of] {:foo :bar}})
       ;; No invalid changes are recorded
       (is (= {:types {:any 'foo/bar
                       :boolean false
@@ -138,7 +236,7 @@
     (let [p (prefs/make :scopes {:global (fs/create-temp-file! "global" "test.editor_settings")}
                         :schemas [::unregistered-key])]
       (is (= {:name ""} (prefs/get p [])))
-      (is (thrown-with-data? (path-error-data? [:undefined]) (prefs/get p [:undefined]))))))
+      (test-util/check-thrown-with-data! (path-error-data? [:undefined]) (prefs/get p [:undefined])))))
 
 (deftest utf8-handling-test
   (with-schemas {::utf8 {:type :string}}
