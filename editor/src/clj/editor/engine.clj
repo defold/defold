@@ -15,6 +15,7 @@
 (ns editor.engine
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
+            [editor.code.util :refer [split-lines]]
             [editor.engine.native-extensions :as native-extensions]
             [editor.fs :as fs]
             [editor.prefs :as prefs]
@@ -268,7 +269,7 @@
                                (File.)
                                (.getAbsolutePath))
         command (.getAbsolutePath engine)
-        engine-argument (prefs/get prefs [:run :engine-arguments])
+        engine-arguments (prefs/get prefs [:run :engine-arguments])
         args (cond-> []
                      defold-log-dir
                      (into ["--config=project.write_log=1"
@@ -280,8 +281,8 @@
                      (> instance-index 0)
                      (into [(format "--config=project.instance_index=%d" instance-index)])
 
-                     (not-empty engine-argument)
-                     (into [engine-argument]))
+                     (not-empty engine-arguments)
+                     (into (split-lines engine-arguments)))
         env {"DM_SERVICE_PORT" "dynamic"
              "DM_QUIT_ON_ESC" (if (prefs/get prefs [:run :quit-on-escape])
                                 "1" "0")
