@@ -55,7 +55,7 @@ void Register(ArchiveLoader* loader, uint32_t size, const char* name, void (*set
 
     setup_fn(loader);
     RegisterArchiveLoader(loader);
-    DM_RESOURCE_DBG_LOG(2, "\nRegistered loader: %s %llx\n", name, loader->m_NameHash);
+    DM_RESOURCE_DBG_LOG(2, "\nRegistered loader: %s " DM_HASH_FMT "\n", name, loader->m_NameHash);
 }
 
 void ClearArchiveLoaders(ArchiveLoader* loader)
@@ -65,11 +65,11 @@ void ClearArchiveLoaders(ArchiveLoader* loader)
 
 ArchiveLoader* FindLoaderByName(dmhash_t name_hash)
 {
-    DM_RESOURCE_DBG_LOG(2, "\nFind loader: %s %llx\n", dmHashReverseSafe64(name_hash), name_hash);
+    DM_RESOURCE_DBG_LOG(2, "\nFind loader: %s " DM_HASH_FMT "\n", dmHashReverseSafe64(name_hash), name_hash);
     ArchiveLoader* loader = g_ArchiveLoaders;
     while (loader)
     {
-        DM_RESOURCE_DBG_LOG(2, "  loader: %s %llx\n", dmHashReverseSafe64(loader->m_NameHash), loader->m_NameHash);
+        DM_RESOURCE_DBG_LOG(2, "  loader: %s " DM_HASH_FMT "\n", dmHashReverseSafe64(loader->m_NameHash), loader->m_NameHash);
         if (loader->m_NameHash == name_hash)
             return loader;
         loader = loader->m_Next;
