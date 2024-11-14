@@ -15,7 +15,7 @@
 (ns integration.test-util
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
-            [clojure.test :refer [is testing]]
+            [clojure.test :as test :refer [is testing]]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.atlas :as atlas]
@@ -183,7 +183,7 @@
 (defn make-build-stage-test-prefs []
   (prefs/global "test/resources/test.editor_settings"))
 
-(defonce ^:private shared-test-prefs-file (fs/create-temp-file! "unit-test" "prefs.editor_settings"))
+(defonce shared-test-prefs-file (fs/create-temp-file! "unit-test" "prefs.editor_settings"))
 (defn make-test-prefs []
   (prefs/make :scopes {:global shared-test-prefs-file :project shared-test-prefs-file}
               :schemas [:default]))
@@ -1641,3 +1641,16 @@
             save-text (resource-node/save-data-content save-data)]
         ;; Compare text.
         (check-text-equivalence! disk-text save-text message)))))
+
+(defmethod test/assert-expr 'thrown-with-data? [msg [_ expected-data-pred & body :as form]]
+  `(try
+     (do ~@body)
+     (test/do-report {:type :fail :message ~msg :expected '~form :actual nil})
+     (catch Throwable e#
+       (let [actual-data# (ex-data e#)
+             result# (if (~expected-data-pred actual-data#) :pass :fail)]
+         (test/do-report {:type result# :message ~msg :expected '~form :actual e#})
+         e#))))
+
+(defmacro check-thrown-with-data! [expected-data-pred & body]
+  `(is (~'thrown-with-data? ~expected-data-pred ~@body)))

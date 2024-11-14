@@ -19,21 +19,22 @@
   additional properties of the schema. The schema is largely inspired by JSON
   schema, which is used in vscode extensions that contribute configuration
   used by the language servers. Supported types:
-    :any        anything goes, no validation is performed
-    :boolean    a boolean value
-    :string     a string
-    :keyword    a keyword
-    :integer    an integer
-    :number     floating point number
-    :array      homogeneous typed array, requires :item key which defines array
-                item schema
-    :set        typed set, requires :item key which defines set item schema
-    :object     heterogeneous object, requires :properties key with a map of
-                keyword key to value schema
-    :enum       limited set of values, requires :values vector with available
-                values
-    :tuple      heterogeneous fixed-length array, requires :items vector with
-                positional schemas
+    :any           anything goes, no validation is performed
+    :boolean       a boolean value
+    :string        a string
+    :keyword       a keyword
+    :integer       an integer
+    :number        floating point number
+    :array         homogeneous typed array, requires :item key which defines
+                   array item schema
+    :set           typed set, requires :item key which defines set item schema
+    :object        heterogeneous object, requires :properties key with a map of
+                   keyword key to value schema
+    :object-of     homogeneous object, requires :key and :val schema keys
+    :enum          limited set of values, requires :values vector with available
+                   values
+    :tuple         heterogeneous fixed-length array, requires :items vector with
+                   positional schemas
 
   Additionally, each schema map supports these optional keys:
     :default        explicit default value to use instead of a type default
@@ -45,7 +46,7 @@
     https://code.visualstudio.com/api/references/contribution-points#contributes.configuration
     https://docs.google.com/document/d/17ke9huzMaagHAYmdzGGGRHnDD5ViLZrChT3OYaEXZuU/edit
     https://json-schema.org/understanding-json-schema/reference"
-  (:refer-clojure :exclude [get set])
+  (:refer-clojure :exclude [get])
   (:require [clojure.edn :as edn]
             [clojure.java.io :as io]
             [clojure.spec.alpha :as s]
@@ -65,9 +66,9 @@
 
 ;; All types, for reference:
 
-#_[:any :boolean :string :keyword :integer :number :array :set :object :enum :tuple]
+#_[:any :boolean :string :keyword :integer :number :array :set :object :object-of :enum :tuple]
 
-(def ^:private default-schema
+(def default-schema
   {:type :object
    :properties
    {:asset-browser {:type :object
@@ -213,7 +214,9 @@
     :welcome {:type :object
               :properties
               {:last-opened-project-directory {:type :any}
-               :recent-projects {:type :any}}}}})
+               :recent-projects {:type :object-of
+                                 :key {:type :string}
+                                 :val {:type :string}}}}}})
 
 ;; region schema validation
 
@@ -237,6 +240,11 @@
                              (or (identical? v ::not-found)
                                  (valid? s v))))
                          (:properties schema)))
+    :object-of (and (map? value)
+                    (let [{:keys [key val]} schema]
+                      (every? (fn [[k v]]
+                                (and (valid? key k) (valid? val v)))
+                              value)))
     :enum (boolean (some #(= value %) (:values schema)))
     :tuple (and (vector? value)
                 (let [items (:items schema)
@@ -257,6 +265,7 @@
         :array []
         :set #{}
         :object {}
+        :object-of {}
         :enum ((:values schema) 0)
         :tuple (mapv default-value (:items schema)))
       explicit-default)))
@@ -273,7 +282,7 @@
 (s/def ::description string?)
 (s/def ::default any?)
 (s/def ::scope #{:global :project})
-(s/def ::type #{:any :boolean :string :keyword :integer :number :array :set :object :enum :tuple})
+(s/def ::type #{:any :boolean :string :keyword :integer :number :array :set :object :object-of :enum :tuple})
 (s/def ::schema
   (s/and
     (s/multi-spec type-spec :type)
@@ -285,7 +294,10 @@
 (defmethod type-spec :set [_] (s/keys :req-un [::item]))
 (s/def ::properties (s/map-of keyword? ::schema))
 (defmethod type-spec :object [_] (s/keys :req-un [::properties]))
-(s/def ::items (s/coll-of ::schema :kind vector?))
+(s/def ::key ::schema)
+(s/def ::val ::schema)
+(defmethod type-spec :object-of [_] (s/keys :req-un [::key ::val]))
+(s/def ::items (s/coll-of ::schema :kind vector? :min-count 2))
 (defmethod type-spec :tuple [_] (s/keys :req-un [::items]))
 (s/def ::values (s/coll-of any? :min-count 1 :kind vector?))
 (defmethod type-spec :enum [_] (s/keys :req-un [::values]))
@@ -411,6 +423,9 @@
   ;;                of assoc-in paths to valid config values, i.e.:
   ;;                {java.nio.Path {assoc-in-path value}}
   (let [ret (atom {:storage {}
+                   ;; we put default schema into state to use the same schema
+                   ;; access pattern, but it is not modifiable (register-schema!
+                   ;; disallows using :default key)
                    :registry {:default (resolve-schema (s/assert ::schema default-schema))}})]
     (add-watch ret global-state-watcher global-state-watcher)
     (.addShutdownHook (Runtime/getRuntime) (Thread. #(sync-state! global-state)))
@@ -445,23 +460,121 @@
         (default-value schema)
         value))))
 
-(defn- deep-merge-prefer-original-leaves [a b]
-  (if (and (map? a) (map? b))
-    (merge-with deep-merge-prefer-original-leaves a b)
-    ;; if values can't be combined, prefer the original value
-    a))
+(defn merge-schemas
+  "Similar to clojure.core/merge-with, but for schemas
 
-(defn- valid-set-value-events [scopes schema path value]
+  When given object schemas (that might nest other object schemas), the function
+  will perform a deep merge of the properties of the object schemas
+
+  Args:
+    f       schema merge function, will receive 3 args:
+            - first conflicting schema
+            - second conflicting schema
+            - conflict path
+            if f returns nil, both schemas are omitted from the output
+    a       first schema
+    b       second schema
+    path    initial schema path"
+  ([f a b]
+   (merge-schemas f a b []))
+  ([f a b path]
+   (if (and (= :object (:type a))
+            (= :object (:type b)))
+     (-> b
+         (merge a)
+         (assoc :properties (reduce-kv
+                              (fn [acc b-k b-v]
+                                (let [a-v (acc b-k ::not-found)]
+                                  (if (identical? ::not-found a-v)
+                                    (assoc acc b-k b-v)
+                                    (let [v (merge-schemas f a-v b-v (conj path b-k))]
+                                      (if v
+                                        (assoc acc b-k v)
+                                        (dissoc acc b-k))))))
+                              (:properties a)
+                              (:properties b))))
+     (f a b path))))
+
+(defn subtract-schemas
+  "Subtract a second schema from the first schema
+
+  When given object schemas (that might nest other object schemas), the function
+  will perform a deep subtract of the properties of the object schemas
+
+  Args:
+    f       callback function for removed entries, will receive 3 args:
+            - first conflicting schema
+            - second conflicting schema
+            - conflict path
+    a       first schema
+    b       second schema
+    path    initial schema path"
+  ([f a b]
+   (subtract-schemas f a b []))
+  ([f a b path]
+   (if (and (= :object (:type a))
+            (= :object (:type b)))
+     (let [new-properties (reduce-kv
+                            (fn [acc b-k b-v]
+                              (let [a-v (acc b-k ::not-found)]
+                                (if (identical? ::not-found a-v)
+                                  acc
+                                  (let [v (subtract-schemas f a-v b-v (conj path b-k))]
+                                    (if v
+                                      (assoc acc b-k v)
+                                      (dissoc acc b-k))))))
+                            (:properties a)
+                            (:properties b))]
+       (if (coll/empty? new-properties)
+         nil
+         (assoc a :properties new-properties)))
+     (do (f a b path)
+         nil))))
+
+(defn- prefer-first [a _ _] a)
+
+(defn- path-error [path]
+  (ex-info (str "No schema defined for prefs path " path)
+           {::error :path
+            :path path}))
+
+(defn- value-error [path value schema]
+  (ex-info (str "Invalid new value at prefs path " path ": " value)
+           {::error :value
+            :path path
+            :value value
+            :schema schema}))
+
+(defn- combined-schema-at-path [registry prefs path]
+  (let [ret (->> prefs
+                 :schemas
+                 (e/keep #(some-> (registry %) (lookup-schema-at-path path)))
+                 (reduce
+                   (fn [acc schema]
+                     (if (identical? ::not-found acc)
+                       schema
+                       (merge-schemas prefer-first acc schema path)))
+                   ::not-found))]
+    (if (identical? ::not-found ret)
+      (throw (path-error path))
+      ret)))
+
+(defn- set-value-events [scopes schema path value]
   (if (= :object (:type schema))
-    (when (map? value)
-      (e/mapcat
-        (fn [e]
-          (let [v (value (key e) ::not-found)]
-            (when-not (identical? ::not-found v)
-              (valid-set-value-events scopes (val e) (conj path (key e)) v))))
-        (:properties schema)))
-    (when (valid? schema value)
-      [[(-> schema :scope scopes) path value]])))
+    (if (map? value)
+      (let [{:keys [properties]} schema]
+        (e/mapcat
+          (fn [e]
+            (let [k (key e)
+                  property-path (conj path k)]
+              (if-let [property-schema (properties k)]
+                (set-value-events scopes property-schema property-path (val e))
+                (throw (path-error property-path)))))
+          value))
+      (throw (value-error path value schema)))
+    (if (valid? schema value)
+      [[(-> schema :scope scopes) path value]]
+      (throw (value-error path value schema)))))
 
 ;; endregion
 
@@ -490,46 +603,41 @@
 (defn get
   "Get a value from preferences at a specified get-in path
 
-  Will only return values specified in the combined schema, otherwise it will
-  return nil. Does not perform file IO.
+  Will only return values specified in the combined schema. Will throw if
+  invalid (unregistered) path is provided. Does not perform file IO.
 
   Using [] as a path will return the full preference map"
   [prefs path]
   {:pre [(vector? path)]}
   (let [{:keys [registry storage]} @global-state
-        {:keys [scopes schemas]} prefs
-        ret (->> schemas
-                 (e/keep #(some-> (registry %) (lookup-schema-at-path path)))
-                 (reduce
-                   (fn [acc schema]
-                     (if (identical? ::not-found acc)
-                       (lookup-valid-value-at-path scopes storage schema path)
-                       (deep-merge-prefer-original-leaves
-                         acc
-                         (lookup-valid-value-at-path scopes storage schema path))))
-                   ::not-found))]
-    (if (identical? ::not-found ret)
-      nil
-      ret)))
+        schema (combined-schema-at-path registry prefs path)]
+    (lookup-valid-value-at-path (:scopes prefs) storage schema path)))
 
 (defn set!
   "Set a value in preferences at a specified assoc-in path
 
-  Will only set values specified in the combined schema, otherwise the value
-  will be discarded. Does not perform file IO."
+  The new value must satisfy the combined schema. Will throw if invalid
+  (unregistered) path is provided. Does not perform file IO.
+
+  Using [] as a path allows changing the whole preference state"
   [prefs path value]
-  (let [{:keys [scopes schemas]} prefs]
+  (let [{:keys [scopes]} prefs]
     (swap! global-state (fn [{:keys [registry] :as m}]
-                          (->> schemas
-                               (e/keep #(some-> (registry %) (lookup-schema-at-path path)))
-                               (e/mapcat #(valid-set-value-events scopes % path value))
-                               (reduce
-                                 (fn [acc [file-path config-path value]]
-                                   (-> acc
-                                       (update-in [:storage file-path] safe-assoc-in config-path value)
-                                       (assoc-in [:events file-path config-path] value)))
-                                 m))))
+                          (let [schema (combined-schema-at-path registry prefs path)]
+                            (->> value
+                                 (set-value-events scopes schema path)
+                                 (reduce
+                                   (fn [acc [file-path config-path value]]
+                                     (-> acc
+                                         (update-in [:storage file-path] safe-assoc-in config-path value)
+                                         (assoc-in [:events file-path config-path] value)))
+                                   m)))))
     nil))
+
+(defn schema
+  "Get a preference schema at a specified get-in path"
+  [prefs path]
+  (combined-schema-at-path (:registry @global-state) prefs path))
 
 (defn register-schema!
   "Register a new schema, e.g. a project-specific one"
@@ -600,15 +708,20 @@
         {:keys [registry storage]} @global-state]
     (->> legacy-key->path
          (e/keep (fn [[legacy-key path]]
-                   (let [v (.get legacy-prefs legacy-key not-found)]
-                     (when (and (not (identical? not-found v))
+                   (let [transit-str (.get legacy-prefs legacy-key not-found)]
+                     (when (and (not (identical? not-found transit-str))
                                 ;; is fresh file?
                                 (->> schemas
                                      (e/keep #(some-> (registry %) (lookup-schema-at-path path)))
                                      (e/map #(-> % :scope scopes storage))
                                      (coll/some #(identical? ::not-found %))
                                      boolean))
-                       (coll/pair path (transit/read (transit/reader (ByteArrayInputStream. (.getBytes v StandardCharsets/UTF_8)) :json)))))))
+                       (when-some [v (-> transit-str
+                                         (.getBytes StandardCharsets/UTF_8)
+                                         ByteArrayInputStream.
+                                         (transit/reader :json)
+                                         transit/read)]
+                         (coll/pair path v))))))
          (reduce #(assoc-in %1 (key %2) (val %2)) {})
          ;; since `set!` is a special form, we need to use a fully-qualified reference
          (editor.prefs/set! prefs []))))
