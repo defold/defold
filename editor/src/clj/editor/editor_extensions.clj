@@ -27,6 +27,7 @@
             [editor.editor-extensions.commands :as commands]
             [editor.editor-extensions.error-handling :as error-handling]
             [editor.editor-extensions.graph :as graph]
+            [editor.editor-extensions.prefs-functions :as prefs-functions]
             [editor.editor-extensions.runtime :as rt]
             [editor.editor-extensions.ui-components :as ui-components]
             [editor.fs :as fs]
@@ -36,10 +37,12 @@
             [editor.lsp :as lsp]
             [editor.lsp.async :as lsp.async]
             [editor.os :as os]
+            [editor.prefs :as prefs]
             [editor.process :as process]
             [editor.resource :as resource]
             [editor.system :as system]
-            [editor.workspace :as workspace])
+            [editor.workspace :as workspace]
+            [util.eduction :as e])
   (:import [com.dynamo.bob Platform]
            [java.nio.file FileAlreadyExistsException Files NotDirectoryException Path]
            [org.luaj.vm2 LuaError Prototype]))
@@ -434,6 +437,36 @@
                     (rt/->clj rt commands-coercer lua-ret)))))
             (execute-all-top-level-functions state :get_commands {} evaluation-context)))))
 
+(defn- reload-prefs! [project-path state evaluation-context]
+  (let [{:keys [display-output! rt]} state
+        report-omitted-schema! (fn report-omitted-schema! [path reason]
+                                 (display-output! :err (str "Omitting prefs schema definition for path '" (string/join "." (map name path)) "': " reason)))
+        omit-on-conflict (fn omit-on-conflict [a b path]
+                           (if (= a b)
+                             a
+                             (do (report-omitted-schema! path "conflicts with another editor script schema")
+                                 nil)))
+        schema (->> (execute-all-top-level-functions state :get_prefs_schema nil evaluation-context)
+                    (e/keep
+                      (fn [[proj-path lua-ret]]
+                        (error-handling/try-with-extension-exceptions
+                          :display-output! display-output!
+                          :label (str "Reloading prefs schema in " proj-path)
+                          :catch nil
+                          (prefs/subtract-schemas
+                            (fn [_ _ path]
+                              (report-omitted-schema! path (str "'" proj-path "' defines a schema that conflicts with the editor schema")))
+                            (prefs-functions/lua-schema-definition->schema rt lua-ret)
+                            prefs/default-schema))))
+                    (reduce
+                      (fn [a b]
+                        (if a
+                          (prefs/merge-schemas omit-on-conflict a b)
+                          b))
+                      nil))]
+    (when schema
+      (prefs/register-project-schema! project-path schema))))
+
 (defn- add-all-entry [m path module]
   (reduce-kv
     (fn [acc k v]
@@ -446,6 +479,7 @@
 (def module-coercer
   (coerce/hash-map :opt {:get_commands coerce/function
                          :get_language_servers coerce/function
+                         :get_prefs_schema coerce/function
                          :on_build_started coerce/function
                          :on_build_finished coerce/function
                          :on_bundle_started coerce/function
@@ -516,6 +550,7 @@
     kind       which scripts to reload, either :all, :library or :project
 
   Required kv-args:
+    :prefs                editor prefs
     :reload-resources!    0-arg function that asynchronously reloads the editor
                           resources, returns a CompletableFuture (that might
                           complete exceptionally if reload fails)
@@ -541,8 +576,8 @@
                                                   strings
                             evaluation-context    evaluation context of the
                                                   invocation"
-  [project kind & {:keys [reload-resources! display-output! save! open-resource! invoke-bob!] :as opts}]
-  {:pre [reload-resources! display-output! save! open-resource! invoke-bob!]}
+  [project kind & {:keys [prefs reload-resources! display-output! save! open-resource! invoke-bob!] :as opts}]
+  {:pre [prefs reload-resources! display-output! save! open-resource! invoke-bob!]}
   (g/with-auto-evaluation-context evaluation-context
     (let [extensions (g/node-value project :editor-extensions evaluation-context)
           old-state (ext-state project evaluation-context)
@@ -565,6 +600,7 @@
                                "execute" (make-ext-execute-fn project-path display-output! reload-resources!)
                                "bob" (make-ext-bob-fn invoke-bob!)
                                "platform" (.getPair (Platform/getHostPlatform))
+                               "prefs" (prefs-functions/env prefs)
                                "save" (make-ext-save-fn save!)
                                "transact" ext-transact
                                "tx" {"set" (make-ext-tx-set-fn project)}
@@ -593,6 +629,7 @@
                                               (:project-prototypes old-state [])))
                       evaluation-context)]
       (g/user-data-swap! extensions :state (constantly new-state))
+      (reload-prefs! project-path new-state evaluation-context)
       (reload-language-servers! project new-state evaluation-context)
       (reload-commands! project new-state evaluation-context)
       nil)))

@@ -16,7 +16,11 @@
   (:require [clojure.edn :as edn]
             [clojure.test :refer :all]
             [editor.fs :as fs]
-            [editor.prefs :as prefs]))
+            [editor.prefs :as prefs]
+            [clojure.test.check.clojure-test :refer [defspec]]
+            [clojure.test.check.generators :as gen]
+            [clojure.test.check.properties :as prop]
+            [integration.test-util :as test-util]))
 
 (defmacro with-schemas [id->schema & body]
   `(try
@@ -28,6 +32,116 @@
        ~@(map (fn [id]
                 `(prefs/unregister-schema! ~id))
               (keys id->schema)))))
+
+(defn- value-error-data? [path]
+  (fn [x]
+    (and (= :value (::prefs/error x))
+         (= path (:path x)))))
+
+(defn- path-error-data? [path]
+  (fn [x]
+    (and (= :path (::prefs/error x))
+         (= path (:path x)))))
+
+(defspec any-schema-spec 100
+  (prop/for-all [any gen/any]
+    (prefs/valid? {:type :any} any)))
+
+(defspec boolean-schema-valid-spec 100
+  (prop/for-all [b gen/boolean]
+    (prefs/valid? {:type :boolean} b)))
+
+(defspec boolean-schema-invalid-spec 10
+  (prop/for-all [b (gen/such-that (complement boolean?) gen/any)]
+    (not (prefs/valid? {:type :boolean} b))))
+
+(defspec string-schema-valid-spec 100
+  (prop/for-all [x gen/string]
+    (prefs/valid? {:type :string} x)))
+
+(defspec string-schema-invalid-spec 10
+  (prop/for-all [x (gen/such-that (complement string?) gen/any)]
+    (not (prefs/valid? {:type :string} x))))
+
+(defspec keyword-schema-valid-spec 100
+  (prop/for-all [x gen/keyword]
+    (prefs/valid? {:type :keyword} x)))
+
+(defspec keyword-schema-invalid-spec 10
+  (prop/for-all [x (gen/such-that (complement keyword?) gen/any)]
+    (not (prefs/valid? {:type :keyword} x))))
+
+(defspec integer-schema-valid-spec 100
+  (prop/for-all [x gen/int]
+    (prefs/valid? {:type :integer} x)))
+
+(defspec integer-schema-invalid-spec 10
+  (prop/for-all [x (gen/such-that (complement int?) gen/any)]
+    (not (prefs/valid? {:type :integer} x))))
+
+(defspec number-schema-valid-spec 100
+  (prop/for-all [x (gen/one-of [gen/double gen/int])]
+    (prefs/valid? {:type :number} x)))
+
+(defspec number-schema-invalid-spec 10
+  (prop/for-all [x (gen/such-that (complement number?) gen/any)]
+    (not (prefs/valid? {:type :number} x))))
+
+(defspec array-schema-valid-spec 100
+  (prop/for-all [x (gen/vector gen/string)]
+    (prefs/valid? {:type :array :item {:type :string}} x)))
+
+(defspec array-schema-invalid-spec 10
+  (prop/for-all [x (gen/such-that (complement vector?) gen/any)]
+    (not (prefs/valid? {:type :array :item {:type :string}} x))))
+
+(defspec array-schema-invalid-item-spec 10
+  (prop/for-all [x (gen/not-empty (gen/vector (gen/such-that (complement string?) gen/any)))]
+    (not (prefs/valid? {:type :array :item {:type :string}} x))))
+
+(defspec set-schema-valid-spec 100
+  (prop/for-all [x (gen/set gen/string)]
+    (prefs/valid? {:type :set :item {:type :string}} x)))
+
+(defspec set-schema-invalid-spec 10
+  (prop/for-all [x (gen/such-that (complement set?) gen/any)]
+    (not (prefs/valid? {:type :set :item {:type :string}} x))))
+
+(defspec set-schema-invalid-item-spec 10
+  (prop/for-all [x (gen/not-empty (gen/set (gen/such-that (complement string?) gen/any)))]
+    (not (prefs/valid? {:type :set :item {:type :string}} x))))
+
+(defspec enum-schema-valid-spec 100
+  (prop/for-all [x (gen/elements [:a :b :c])]
+    (prefs/valid? {:type :enum :values [:a :b :c]} x)))
+
+(defspec enum-schema-invalid-spec 10
+  (prop/for-all [x (gen/such-that (complement #{:a :b :c}) gen/any)]
+    (not (prefs/valid? {:type :enum :values [:a :b :c]} x))))
+
+(defspec tuple-schema-valid-spec 100
+  (prop/for-all [s gen/string
+                 i gen/int]
+    (prefs/valid? {:type :tuple :items [{:type :string} {:type :integer}]} [s i])))
+
+(defspec tuple-schema-invalid-size-spec 100
+  (prop/for-all [strings (gen/such-that #(not= 2 (count %)) (gen/vector gen/string))]
+    (not (prefs/valid? {:type :tuple :items [{:type :string} {:type :string}]} strings))))
+
+(defspec tuple-schema-invalid-type-spec 100
+  (prop/for-all [not-s (gen/such-that (complement string?) gen/any)
+                 not-i (gen/such-that (complement integer?) gen/any)]
+    (not (prefs/valid? {:type :tuple :items [{:type :string} {:type :integer}]} [not-s not-i]))))
+
+(defspec object-of-schema-valid-spec 100
+  (prop/for-all [m (gen/map gen/string gen/double)]
+    (prefs/valid? {:type :object-of :key {:type :string} :val {:type :number}} m)))
+
+(defspec object-of-schema-invalid-spec 10
+  (prop/for-all [m (gen/not-empty
+                     (gen/map (gen/such-that (complement string?) gen/any)
+                              (gen/such-that (complement number?) gen/any)))]
+    (not (prefs/valid? {:type :object-of :key {:type :string} :val {:type :number}} m))))
 
 (deftest prefs-types-test
   (with-schemas {::types {:type :object
@@ -41,7 +155,8 @@
                                                             :array {:type :array :item {:type :string}}
                                                             :set {:type :set :item {:type :string}}
                                                             :enum {:type :enum :values [:foo :bar]}
-                                                            :tuple {:type :tuple :items [{:type :string} {:type :keyword :default :code-view}]}}}}}}
+                                                            :tuple {:type :tuple :items [{:type :string} {:type :keyword :default :code-view}]}
+                                                            :object-of {:type :object-of :key {:type :string} :val {:type :string}}}}}}}
     (let [p (prefs/make :scopes {:global (fs/create-temp-file! "global" "test.editor_settings")}
                         :schemas [::types])]
       ;; ensure defaults are properly typed
@@ -54,7 +169,8 @@
                       :array []
                       :set #{}
                       :enum :foo
-                      :tuple ["" :code-view]}}
+                      :tuple ["" :code-view]
+                      :object-of {}}}
              (prefs/get p [])))
       ;; change values
       (prefs/set! p [] {:types {:any 'foo/bar
@@ -66,7 +182,8 @@
                                 :array ["heh"]
                                 :set #{"heh"}
                                 :enum :bar
-                                :tuple ["/game.project" :form-view]}})
+                                :tuple ["/game.project" :form-view]
+                                :object-of {"foo" "bar"}}})
       ;; ensure updated values are as expected
       (is (= {:types {:any 'foo/bar
                       :boolean false
@@ -77,29 +194,41 @@
                       :array ["heh"]
                       :set #{"heh"}
                       :enum :bar
-                      :tuple ["/game.project" :form-view]}}
+                      :tuple ["/game.project" :form-view]
+                      :object-of {"foo" "bar"}}}
              (prefs/get p [])))
-      ;; set to invalid values (expect a single correct field — :string)
-      (prefs/set! p [] {:types {:boolean "not-a-boolean"
-                                :string "STILL A STRING"
-                                :keyword "not-a-keyword"
-                                :integer "not-an-int"
-                                :number "NaN"
-                                :array true
-                                :set false
-                                :enum 12
-                                :tuple nil}})
-      ;; only a valid preference is applied
+      ;; set to invalid values
+      (test-util/check-thrown-with-data!
+        (value-error-data? [:types :boolean])
+        (prefs/set! p [] {:types {:boolean "not-a-boolean"}}))
+      (test-util/check-thrown-with-data!
+        (value-error-data? [:types :boolean])
+        (prefs/set! p [:types] {:boolean "not-a-boolean"}))
+      (run!
+        (fn [[path value]]
+          (test-util/check-thrown-with-data! (value-error-data? path) (prefs/set! p path value)))
+        {[:types :boolean] "not-a-boolean"
+         [:types :string] 12
+         [:types :keyword] "not-a-keyword"
+         [:types :integer] "not-an-int"
+         [:types :number] "NaN"
+         [:types :array] true
+         [:types :set] false
+         [:types :enum] 12
+         [:types :tuple] nil
+         [:types :object-of] {:foo :bar}})
+      ;; No invalid changes are recorded
       (is (= {:types {:any 'foo/bar
                       :boolean false
-                      :string "STILL A STRING"
+                      :string "str"
                       :keyword :something
                       :integer 42
                       :number 42
                       :array ["heh"]
                       :set #{"heh"}
                       :enum :bar
-                      :tuple ["/game.project" :form-view]}}
+                      :tuple ["/game.project" :form-view]
+                      :object-of {"foo" "bar"}}}
              (prefs/get p []))))))
 
 (deftest get-unregistered-key-test
@@ -107,7 +236,7 @@
     (let [p (prefs/make :scopes {:global (fs/create-temp-file! "global" "test.editor_settings")}
                         :schemas [::unregistered-key])]
       (is (= {:name ""} (prefs/get p [])))
-      (is (nil? (prefs/get p [:undefined]))))))
+      (test-util/check-thrown-with-data! (path-error-data? [:undefined]) (prefs/get p [:undefined])))))
 
 (deftest utf8-handling-test
   (with-schemas {::utf8 {:type :string}}
@@ -250,3 +379,133 @@
         (prefs/set! p-num [:timeout] 10.0)
         (is (= 10.0 (prefs/get p-num [:timeout])))
         (is (= "" (prefs/get p-str [:timeout])))))))
+
+(deftest schema-merge-test
+  (testing "no conflicts"
+    (let [conflicts (atom {})]
+      (is (= {:type :object
+              :properties {:only-in-a {:type :string}
+                           :only-in-b {:type :string}}}
+             (prefs/merge-schemas
+               (fn [a b path]
+                 (swap! conflicts assoc path [a b])
+                 a)
+               {:type :object
+                :properties {:only-in-a {:type :string}}}
+               {:type :object
+                :properties {:only-in-b {:type :string}}})))
+      (is (= {} @conflicts))))
+  (testing "a conflict: prefer left"
+    ;; left -> integer, right -> string
+    (let [conflicts (atom {})]
+      (is (= {:type :object
+              :properties {:only-in-a {:type :string}
+                           :only-in-b {:type :string}
+                           :present-in-both {:type :integer}}}
+             (prefs/merge-schemas
+               (fn [a b path]
+                 (swap! conflicts assoc path [a b])
+                 a)
+               {:type :object
+                :properties {:only-in-a {:type :string}
+                             :present-in-both {:type :integer}}}
+               {:type :object
+                :properties {:present-in-both {:type :string}
+                             :only-in-b {:type :string}}})))
+      (is (= {[:present-in-both] [{:type :integer} {:type :string}]} @conflicts))))
+  (testing "a conflict: prefer right"
+    ;; left -> integer, right -> string
+    (let [conflicts (atom {})]
+      (is (= {:type :object
+              :properties {:only-in-a {:type :string}
+                           :only-in-b {:type :string}
+                           :present-in-both {:type :string}}}
+             (prefs/merge-schemas
+               (fn [a b path]
+                 (swap! conflicts assoc path [a b])
+                 b)
+               {:type :object
+                :properties {:only-in-a {:type :string}
+                             :present-in-both {:type :integer}}}
+               {:type :object
+                :properties {:present-in-both {:type :string}
+                             :only-in-b {:type :string}}})))
+      (is (= {[:present-in-both] [{:type :integer} {:type :string}]} @conflicts))))
+  (testing "a conflict: exclude"
+    ;; left -> integer, right -> string
+    (let [conflicts (atom {})]
+      (is (= {:type :object
+              :properties {:only-in-a {:type :string}
+                           :only-in-b {:type :string}}}
+             (prefs/merge-schemas
+               (fn [a b path]
+                 (swap! conflicts assoc path [a b])
+                 nil)
+               {:type :object
+                :properties {:only-in-a {:type :string}
+                             :present-in-both {:type :integer}}}
+               {:type :object
+                :properties {:present-in-both {:type :string}
+                             :only-in-b {:type :string}}})))
+      (is (= {[:present-in-both] [{:type :integer} {:type :string}]} @conflicts)))))
+
+(deftest schema-difference-test
+  (testing "no conflict"
+    (let [conflicts (atom {})]
+      (is (= {:type :object
+              :properties {:only-in-a {:type :string}}}
+             (prefs/subtract-schemas
+               (fn [a b path]
+                 (swap! conflicts assoc path [a b]))
+               {:type :object
+                :properties {:only-in-a {:type :string}}}
+               {:type :object
+                :properties {:only-in-b {:type :string}}})))
+      (is (= {} @conflicts))))
+  (testing "top-level conflict"
+    (let [conflicts (atom {})]
+      (is (nil?
+            (prefs/subtract-schemas
+              (fn [a b path]
+                (swap! conflicts assoc path [a b]))
+              {:type :integer}
+              {:type :string})))
+      (is (= {[] [{:type :integer} {:type :string}]}
+             @conflicts))))
+  (testing "depth-1 conflict"
+    (let [conflicts (atom {})]
+      (is (= {:type :object
+              :properties {:only-in-a {:type :string}}}
+             (prefs/subtract-schemas
+               (fn [a b path]
+                 (swap! conflicts assoc path [a b]))
+               {:type :object
+                :properties {:only-in-a {:type :string}
+                             :present-in-both {:type :integer}}}
+               {:type :object
+                :properties {:only-in-b {:type :string}
+                             :present-in-both {:type :string}}})))
+      (is (= {[:present-in-both] [{:type :integer} {:type :string}]}
+             @conflicts))))
+  (testing "depth-2 conflict"
+    (let [conflicts (atom {})]
+      (is (= {:type :object
+              :properties {:only-in-a {:type :string}
+                           :present-in-both {:type :object
+                                             :properties {:only-in-a {:type :boolean}}}}}
+             (prefs/subtract-schemas
+               (fn [a b path]
+                 (swap! conflicts assoc path [a b]))
+               {:type :object
+                :properties {:only-in-a {:type :string}
+                             :present-in-both {:type :object
+                                               :properties {:only-in-a {:type :boolean}
+                                                            :conflict {:type :integer}}}}}
+               {:type :object
+                :properties {:only-in-b {:type :string}
+                             :present-in-both {:type :object
+                                               :properties {:conflict {:type :string}}}}})))
+      (is (= {[:present-in-both :conflict] [{:type :integer} {:type :string}]}
+             @conflicts)))))
+
+

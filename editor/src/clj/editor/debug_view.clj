@@ -642,7 +642,7 @@
   (enabled? [prefs] (prefs/get prefs [:run :simulated-resolution]))
   (run [project prefs]
        (prefs/set! prefs [:run :simulated-resolution] nil)
-       (prefs/set! prefs [:run :simulate-rotated-device] nil)
+       (prefs/set! prefs [:run :simulate-rotated-device] false)
        (let [project-settings-data (project-settings-screen-data project)]
          (change-resolution! prefs (:width project-settings-data) (:height project-settings-data)))))
 
