@@ -508,4 +508,12 @@
       (is (= {[:present-in-both :conflict] [{:type :integer} {:type :string}]}
              @conflicts)))))
 
+(deftest safe-assoc-in-test
+  (is (= "val" (prefs/safe-assoc-in {} [] "val")))
+  (is (= {:a "val"} (prefs/safe-assoc-in {} [:a] "val")))
+  (is (= {:a "val"} (prefs/safe-assoc-in 42 [:a] "val")))
+  (is (= {:a {:b "val"}} (prefs/safe-assoc-in {:a 1} [:a :b] "val")))
+  (is (= {:a {:b "val"}} (prefs/safe-assoc-in ::prefs/not-found [:a :b] "val")))
+  (is (= {:a {:b "val" :other true}} (prefs/safe-assoc-in {:a {:other true}} [:a :b] "val")))
+  (is (= {:a {:other true} :x "val"} (prefs/safe-assoc-in {:a {:other true}} [:x] "val"))))
 
