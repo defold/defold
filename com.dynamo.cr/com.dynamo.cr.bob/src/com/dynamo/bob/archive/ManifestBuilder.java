@@ -408,7 +408,13 @@ public class ManifestBuilder {
             builder.setFlags(flags);
             builder.setSize(size);
             builder.setCompressedSize(compressed_size);
-            this.resourceEntries.add(builder.buildPartial());
+
+            // From TreeSet (https://docs.oracle.com/javase/8/docs/api/java/util/TreeSet.html)
+            // Note that this implementation is not synchronized. If multiple
+            // threads access a tree set concurrently, and at least one of the
+            // threads modifies the set, it must be synchronized externally.
+            synchronized (this) {
+            }
         } catch (NoSuchAlgorithmException exception) {
             throw new IOException("Unable to create Manifest, hashing algorithm is not supported!");
         }
