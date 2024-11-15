@@ -25,7 +25,7 @@
 // 1 - higher level mount info
 // 3 - more debug info per file
 
-#define DM_RESOURCE_DBG_LOG_LEVEL 3
+//#define DM_RESOURCE_DBG_LOG_LEVEL 1
 
 #if defined(DM_RESOURCE_DBG_LOG_LEVEL)
     #include <stdio.h> // for debug log

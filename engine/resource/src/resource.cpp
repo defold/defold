@@ -611,7 +611,6 @@ static Result LoadResourceFromBufferLocked(HFactory factory, const char* path, c
 {
     DM_PROFILE(__FUNCTION__);
 
-    dmLogInfo("LoadResourceFromBufferLocked path: %s original_name: %s", path, original_name);
     char normalized_path[RESOURCE_PATH_MAX];
     GetCanonicalPath(path, normalized_path); // normalize the path
 
@@ -650,7 +649,6 @@ Result LoadResourceFromBuffer(HFactory factory, const char* path, const char* or
 // Assumes m_LoadMutex is already held
 Result LoadResource(HFactory factory, const char* path, const char* original_name, void** buffer, uint32_t* resource_size)
 {
-    dmLogInfo("LoadResource() path = %s original_name = %s", path, original_name);
     if (factory->m_Buffer.Capacity() != DEFAULT_BUFFER_SIZE) {
         factory->m_Buffer.SetCapacity(DEFAULT_BUFFER_SIZE);
     }
@@ -658,12 +656,10 @@ Result LoadResource(HFactory factory, const char* path, const char* original_nam
     Result r = LoadResourceFromBufferLocked(factory, path, original_name, resource_size, &factory->m_Buffer);
     if (r == RESULT_OK)
     {
-        dmLogError("LoadResource() successfully loaded path = %s original_name = %s", path, original_name);
         *buffer = factory->m_Buffer.Begin();
     }
     else
     {
-        dmLogError("LoadResource() failed to load path = %s original_name = %s", path, original_name);
         *buffer = 0;
     }
     return r;
@@ -975,7 +971,6 @@ Result GetRaw(HFactory factory, const char* name, void** resource, uint32_t* res
     assert(resource);
     assert(resource_size);
 
-    dmLogInfo("GetRaw %s", name);
     *resource = 0;
     *resource_size = 0;
 
@@ -987,7 +982,6 @@ Result GetRaw(HFactory factory, const char* name, void** resource, uint32_t* res
 
     char canonical_path[RESOURCE_PATH_MAX];
     GetCanonicalPath(name, canonical_path);
-    dmLogInfo("GetRaw canonical_path %s", canonical_path);
 
     void* buffer;
     uint32_t buffer_size;
@@ -998,9 +992,6 @@ Result GetRaw(HFactory factory, const char* name, void** resource, uint32_t* res
         assert(buffer == factory->m_Buffer.Begin());
         memcpy(*resource, buffer, buffer_size);
         *resource_size = buffer_size;
-    }
-    else {
-        dmLogError("GetRaw failed!");
     }
     return result;
 }

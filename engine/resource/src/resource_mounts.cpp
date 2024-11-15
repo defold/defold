@@ -391,7 +391,7 @@ static dmResource::Result ReadCustomResource(HContext ctx, dmhash_t path_hash, u
 
         memcpy(buffer, file->m_Resource, buffer_size);
 
-        DM_RESOURCE_DBG_LOG(3, "ReadResource OK: " DM_HASH_FMT " (%u bytes) (custom file)\n", path_hash, buffer_size);
+        DM_RESOURCE_DBG_LOG(3, "ReadResource OK: %s  " DM_HASH_FMT " (%u bytes) (custom file)\n", path_hash, buffer_size);
         return dmResource::RESULT_OK;
     }
     return dmResource::RESULT_RESOURCE_NOT_FOUND;
@@ -400,8 +400,6 @@ static dmResource::Result ReadCustomResource(HContext ctx, dmhash_t path_hash, u
 dmResource::Result GetResourceSize(HContext ctx, dmhash_t path_hash, const char* path, uint32_t* resource_size)
 {
     DM_MUTEX_SCOPED_LOCK(ctx->m_Mutex);
-
-    dmLogInfo("GetResourceSize() path = %s", path);
 
     uint32_t size = ctx->m_Mounts.Size();
     for (uint32_t i = 0; i < size; ++i)
