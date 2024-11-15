@@ -37,9 +37,9 @@ choco install <package_name>
 ```
 </p></details>
 
-### Required Software - Java JDK 17
+### Required Software - Java JDK 21
 
-Download and install the latest JDK 17 (17.0.5 or later) release from either of these locations:
+Download and install the latest JDK 21 (21.0.5 or later) release from either of these locations:
 
 * [Adoptium/Temurin](https://github.com/adoptium/temurin17-binaries/releases) - The Adoptium Working Group promotes and supports high-quality runtimes and associated technology for use across the Java ecosystem
 * [Microsoft OpenJDK builds](https://docs.microsoft.com/en-us/java/openjdk/download#openjdk-17) - The Microsoft Build of OpenJDK is a no-cost distribution of OpenJDK that's open source and available for free for anyone to deploy anywhere
@@ -53,7 +53,7 @@ Or install using Chocolatey:
 choco install openjdk17
 ```
 
-*With choco, the install path is something like /c/Program\ Files/OpenJDK/openjdk-17.0.5_8*
+*With choco, the install path is something like /c/Program\ Files/OpenJDK/openjdk-21.0.5_11*
 </p></details>
 
 <details><summary>Linux...</summary><p>

@@ -53,23 +53,22 @@ import http_cache
 
 
 DEFAULT_ARCHIVE_DOMAIN=os.environ.get("DM_ARCHIVE_DOMAIN", "d.defold.com")
-CDN_PACKAGES_URL=os.environ.get("DM_PACKAGES_URL", None)
 
 # If you update java version, don't forget to update it here too:
 # - /editor/bundle-resources/config at "launcher.jdk" key
 # - /scripts/build.py smoke_test, `java` variable
 # - /editor/src/clj/editor/updater.clj, `protected-dirs` let binding
-java_version = '17.0.5+8'
+java_version = '21.0.5+11'
 
-platform_to_java = {'x86_64-linux': 'linux-x64',
-                    'x86_64-macos': 'macos-x64',
-                    'arm64-macos': 'macos-arm64',
-                    'x86_64-win32': 'windows-x64'}
+platform_to_java = {'x86_64-linux': 'x64_linux',
+                    'x86_64-macos': 'x64_mac',
+                    'arm64-macos': 'aarch64_mac',
+                    'x86_64-win32': 'x64_windows'}
 
-python_platform_to_java = {'x86_64-linux': 'linux-x64',
-                           'x86_64-win32': 'windows-x64',
-                           'x86_64-darwin': 'macos-x64',
-                           'arm64-darwin': 'macos-arm64'}
+python_platform_to_java = {'x86_64-linux': 'x64_linux',
+                           'x86_64-win32': 'x64_windows',
+                           'x86_64-darwin': 'x64_mac',
+                           'arm64-darwin': 'aarch64_mac'}
 
 def log(msg):
     print(msg)
@@ -255,7 +254,9 @@ def full_jdk_url(jdk_platform):
     version = urllib.parse.quote(java_version)
     platform = urllib.parse.quote(jdk_platform)
     extension = "zip" if jdk_platform.startswith("windows") else "tar.gz"
-    return '%s/OpenJDK17U-jdk_%s_hotspot_%s.%s' % (CDN_PACKAGES_URL, platform, version, extension)
+    major_version = java_version.split('.')[0]
+    artifact_version = java_version.replace('+', '_')
+    return 'https://github.com/adoptium/temurin%s-binaries/releases/download/jdk-%s/OpenJDK%sU-jdk_%s_hotspot_%s.%s' % (major_version, version, major_version, platform, artifact_version, extension)
 
 def full_build_jdk_url():
     return full_jdk_url(python_platform_to_java["%s-%s" % (platform.machine(), sys.platform)])
@@ -283,7 +284,7 @@ def extract_build_jdk(build_jdk):
 def invoke_lein(args, jdk_path=None):
     # this weird dance with env and bash instead of supplying env kwarg to run.command is needed for the build script to work on windows
     jdk_path = jdk_path or os.environ['JAVA_HOME']
-    return run.command(['env', 'JAVA_CMD=%s/bin/java' % jdk_path, 'LEIN_HOME=build/lein', 'bash', './scripts/lein'] + args)
+    return run.command(['env', 'JAVA_CMD=%s/bin/java' % jdk_path, 'LEIN_HOME=build/lein', 'bash', './scripts/lein'] + args, stdout=True)
 
 def check_reflections(jdk_path):
     reflection_prefix = 'Reflection warning, ' # final space important

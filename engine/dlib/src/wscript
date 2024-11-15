@@ -341,7 +341,7 @@ def build(bld):
         srcdir='java',
         outdir='java')
 
-    bld.env["JAVACFLAGS"] = '-g -source 1.7 -target 1.7'.split()
+    bld.env["JAVACFLAGS"] = '-g -source 1.8 -target 1.8'.split()
 
     bld(features='jar seq',
         basedir='java',
