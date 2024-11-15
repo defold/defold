@@ -171,7 +171,7 @@ public class Bob {
     }
 
     public static void extractToFolder(final URL url, File toFolder, boolean deleteOnExit) throws IOException {
-        TimeProfiler.startF("extractToFolder %s", toFolder.toString());
+        TimeProfiler.start("extractToFolder %s", toFolder.toString());
         TimeProfiler.addData("url", url.toString());
         ZipInputStream zipStream = new ZipInputStream(new BufferedInputStream(url.openStream()));
 
@@ -306,7 +306,7 @@ public class Bob {
 
     private static String getExeWithExtension(Platform platform, String name, String extension) throws IOException {
         init();
-        TimeProfiler.startF("getExeWithExtension %s.%s", name, extension);
+        TimeProfiler.start("getExeWithExtension %s.%s", name, extension);
         String exeName = platform.getPair() + "/" + platform.getExePrefix() + name + extension;
         File f = new File(rootFolder, exeName);
         if (!f.exists()) {
@@ -324,7 +324,7 @@ public class Bob {
 
     public static String getLibExecPath(String filename) throws IOException {
         init();
-        TimeProfiler.startF("getLibExecPath %s", filename);
+        TimeProfiler.start("getLibExecPath %s", filename);
         File f = new File(rootFolder, filename);
         if (!f.exists()) {
             URL url = Bob.class.getResource("/libexec/" + filename);
@@ -341,7 +341,7 @@ public class Bob {
 
     public static String getJarFile(String filename) throws IOException {
         init();
-        TimeProfiler.startF("getJarFile %s", filename);
+        TimeProfiler.start("getJarFile %s", filename);
         File f = new File(rootFolder, filename);
         if (!f.exists()) {
             URL url = Bob.class.getResource("/share/java/" + filename);
@@ -357,7 +357,7 @@ public class Bob {
 
     private static List<File> downloadExes(Platform platform, String variant, String artifactsURL) throws IOException {
         init();
-        TimeProfiler.startF("DownloadExes %s for %s", platform, variant);
+        TimeProfiler.start("DownloadExes %s for %s", platform, variant);
         List<File> binaryFiles = new ArrayList<File>();
         String[] exeSuffixes = platform.getExeSuffixes();
         List<String> exes = new ArrayList<String>();
@@ -432,7 +432,7 @@ public class Bob {
     public static String getLib(Platform platform, String name) throws IOException {
         init();
 
-        TimeProfiler.startF("getLib %s", name);
+        TimeProfiler.start("getLib %s", name);
         String libName = platform.getPair() + "/" + platform.getLibPrefix() + name + platform.getLibSuffix();
         File f = new File(rootFolder, libName);
         if (!f.exists()) {
@@ -450,7 +450,7 @@ public class Bob {
 
     public static File getSharedLib(String name) throws IOException {
         init();
-        TimeProfiler.startF("getSharedLib %s", name);
+        TimeProfiler.start("getSharedLib %s", name);
         Platform platform = Platform.getHostPlatform();
         String libName = platform.getPair() + "/" + platform.getLibPrefix() + name + platform.getLibSuffix();
         File f = new File(rootFolder, libName);
