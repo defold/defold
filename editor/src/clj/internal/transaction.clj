@@ -59,11 +59,12 @@
     :node-id node-id}])
 
 (defn- new-override
-  [override-id root-id traverse-fn]
+  [override-id root-id traverse-fn init-props-fn]
   [{:type :new-override
     :override-id override-id
     :root-id root-id
-    :traverse-fn traverse-fn}])
+    :traverse-fn traverse-fn
+    :init-props-fn init-props-fn}])
 
 (defn- override-node
   [original-node-id override-node-id]
@@ -72,11 +73,12 @@
     :override-node-id override-node-id}])
 
 (defn override
-  [root-id traverse-fn init-fn properties-by-node-id]
+  [root-id traverse-fn init-props-fn init-fn properties-by-node-id]
   [{:type :override
     :root-id root-id
     :traverse-fn traverse-fn
     :init-fn init-fn
+    :init-props-fn init-props-fn
     :properties-by-node-id properties-by-node-id}])
 
 (defn transfer-overrides [from-id->to-id]
@@ -316,9 +318,9 @@
   node-id)
 
 (defmethod perform :new-override
-  [ctx {:keys [override-id root-id traverse-fn]}]
+  [ctx {:keys [override-id root-id traverse-fn init-props-fn]}]
   (-> ctx
-      (update :basis gt/add-override override-id (ig/make-override root-id traverse-fn))))
+      (update :basis gt/add-override override-id (ig/make-override root-id traverse-fn init-props-fn))))
 
 (defmethod metrics-key :new-override
   [{:keys [root-id]}]
@@ -361,23 +363,27 @@
 (declare apply-tx)
 
 (defmethod perform :override
-  [ctx {:keys [root-id traverse-fn init-fn properties-by-node-id]}]
+  [ctx {:keys [root-id traverse-fn init-props-fn init-fn properties-by-node-id]}]
   (let [basis (:basis ctx)
         graph-id (gt/node-id->graph-id root-id)
         node-ids (ig/pre-traverse basis [root-id] traverse-fn)
         override-id (next-override-id ctx graph-id)
-        override-nodes (mapv #(in/make-override-node
-                                override-id
-                                (next-node-id ctx graph-id)
-                                (gt/node-type (gt/node-by-id-at basis %))
-                                %
-                                (properties-by-node-id %))
+        override-nodes (mapv (fn [original-node-id]
+                               (let [override-node-id (next-node-id ctx graph-id)
+                                     original-node (gt/node-by-id-at basis original-node-id)
+                                     node-type (gt/node-type original-node)
+                                     init-props (when init-props-fn
+                                                  (init-props-fn basis original-node-id node-type))
+                                     properties (cond->> (properties-by-node-id original-node-id)
+                                                         (pos? (count init-props))
+                                                         (merge init-props))]
+                                 (in/make-override-node override-id override-node-id node-type original-node-id properties)))
                              node-ids)
         override-node-ids (map gt/node-id override-nodes)
         original-node-id->override-node-id (zipmap node-ids override-node-ids)
         new-override-nodes-tx-data (map new-node override-nodes)
         new-override-tx-data (concat
-                               (new-override override-id root-id traverse-fn)
+                               (new-override override-id root-id traverse-fn init-props-fn)
                                (map
                                  (fn [node-id override-node-id]
                                    (override-node node-id override-node-id))
@@ -400,20 +406,24 @@
 
 (declare ctx-add-node)
 
-(defn- ctx-make-override-nodes [ctx override-id node-ids]
+(defn- ctx-make-override-nodes [ctx override-id node-ids init-props-fn]
   (reduce (fn [ctx node-id]
             (let [basis (:basis ctx)]
               (if (some #(= override-id (node-id->override-id basis %))
                         (ig/get-overrides basis node-id))
                 ctx
                 (let [graph-id (gt/node-id->graph-id node-id)
+                      original-node (gt/node-by-id-at basis node-id)
+                      node-type (gt/node-type original-node)
+                      properties (when init-props-fn
+                                   (init-props-fn basis node-id node-type))
                       new-override-node-id (next-node-id ctx graph-id)
                       new-override-node (in/make-override-node
                                           override-id
                                           new-override-node-id
-                                          (gt/node-type (gt/node-by-id-at basis node-id))
+                                          node-type
                                           node-id
-                                          {})]
+                                          properties)]
                   (-> ctx
                       (ctx-add-node new-override-node)
                       (ctx-override-node node-id new-override-node-id))))))
@@ -432,12 +442,12 @@
                 ctx
                 (let [override-node-id (override-node-ids override-node-index)
                       override-id (node-id->override-id basis override-node-id)
-                      traverse-fn (:traverse-fn (ig/override-by-id basis override-id))
+                      {:keys [init-props-fn traverse-fn]} (ig/override-by-id basis override-id)
                       node-ids (if (identical? prev-traverse-fn traverse-fn)
                                  prev-traverse-result
                                  (subvec (ig/pre-traverse basis [node-id] traverse-fn) 1))]
                   (recur (inc override-node-index)
-                         (ctx-make-override-nodes ctx override-id node-ids)
+                         (ctx-make-override-nodes ctx override-id node-ids init-props-fn)
                          traverse-fn
                          node-ids))))]
     (reduce populate-overrides

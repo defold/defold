@@ -1081,8 +1081,7 @@
                                                     (some? layout-override-value)
                                                     (assoc :original-value layout-override-value) ; Any :original-value is fine. The key just needs to be present.
 
-                                                    (and (nil? layout-override-value)
-                                                         (contains? prop-info :original-value))
+                                                    (nil? layout-override-value)
                                                     (dissoc :original-value))))))
                                 prop-kw->prop-info)))))))
   (input child-build-errors g/Any :array)
@@ -1758,6 +1757,8 @@
            ;; TODO: We should not have to overwrite the base properties here. Refactor?
            :color [1.0 1.0 1.0 1.0])))
 
+(def ^:private override-gui-node-init-props {:layout->prop->override {}})
+
 (g/defnode TemplateNode
   (inherits GuiNode)
 
@@ -1817,6 +1818,9 @@
                                                                                                        GuiSceneNode
                                                                                                        LayoutsNode
                                                                                                        LayoutNode])))))
+                                                       :init-props-fn (fn init-props-fn [_basis _node-id node-type]
+                                                                        (when (in/inherits? node-type GuiNode)
+                                                                          override-gui-node-init-props))
                                                        :properties-by-node-id properties-by-node-id}
                                            (fn [evaluation-context id-mapping]
                                              (let [or-scene (get id-mapping scene-node)]
@@ -3268,16 +3272,15 @@
        (g/connect resource-node :resource-path     resources-node :paths)
        (g/connect resources-node :name-counts resource-node :name-counts))))))
 
-(defn add-gui-node! [project scene parent node-type custom-type select-fn]
-  ;; TODO: The project argument is unused. Remove.
+(defn add-gui-node-with-props! [scene parent node-type custom-type props select-fn]
   (let [node-tree (g/node-value scene :node-tree)
-        taken-ids (g/node-value node-tree :id-counts)
-        id (outline/resolve-id (subs (name node-type) 5) taken-ids)
-        node-type-info (get-registered-node-type-info node-type custom-type)
-        def-node-type (:node-cls node-type-info)
+        id (or (:id props)
+               (outline/resolve-id (subs (name node-type) 5)
+                                   (g/node-value node-tree :id-counts)))
+        def-node-type (get-registered-node-type-cls node-type custom-type)
         child-indices (g/node-value parent :child-indices)
         next-index (next-child-index child-indices)
-        node-properties (assoc (:defaults node-type-info)
+        node-properties (assoc props
                           :id id
                           :child-index next-index
                           :custom-type custom-type
@@ -3291,6 +3294,12 @@
         g/transact
         g/tx-nodes-added
         first)))
+
+(defn add-gui-node! [project scene parent node-type custom-type select-fn]
+  ;; TODO: The project argument is unused. Remove.
+  (let [node-type-info (get-registered-node-type-info node-type custom-type)
+        props (:defaults node-type-info)]
+    (add-gui-node-with-props! scene parent node-type custom-type props select-fn)))
 
 (defn add-gui-node-handler [project {:keys [scene parent node-type custom-type]} select-fn]
   (add-gui-node! project scene parent node-type custom-type select-fn))

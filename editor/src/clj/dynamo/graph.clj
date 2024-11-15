@@ -1404,10 +1404,10 @@
   ([root-id opts]
    (override root-id opts default-override-init-fn))
   ([root-id opts init-fn]
-   (let [{:keys [traverse-fn properties-by-node-id]
+   (let [{:keys [traverse-fn init-props-fn properties-by-node-id]
           :or {traverse-fn always-override-traverse-fn
                properties-by-node-id default-override-properties-by-node-id}} opts]
-     (it/override root-id traverse-fn init-fn properties-by-node-id))))
+     (it/override root-id traverse-fn init-props-fn init-fn properties-by-node-id))))
 
 (defn transfer-overrides [from-id->to-id]
   (it/transfer-overrides from-id->to-id))

@@ -41,10 +41,10 @@
 
 (defn- gui-node [scene id]
   (let [id->node (->> (get-in (g/node-value scene :node-outline) [:children 0])
-                   (tree-seq fn/constantly-true :children)
-                   (map :node-id)
-                   (map (fn [node-id] [(g/node-value node-id :id) node-id]))
-                   (into {}))]
+                      (tree-seq fn/constantly-true :children)
+                      (map :node-id)
+                      (map (fn [node-id] [(g/node-value node-id :id) node-id]))
+                      (into {}))]
     (id->node id)))
 
 (defn- gui-resource [resources-node-label scene id]
@@ -146,40 +146,40 @@
 
 (deftest gui-textures
   (test-util/with-loaded-project
-   (let [node-id (test-util/resource-node project "/logic/main.gui")
-         outline (g/node-value node-id :node-outline)
-         png-node (get-in outline [:children 0 :children 1 :node-id])
-         png-tex (get-in outline [:children 1 :children 0 :node-id])]
-     (is (some? png-tex))
-     (is (= "png_texture" (prop png-node :texture)))
-     (prop! png-tex :name "new-name")
-     (is (= "new-name" (prop png-node :texture))))))
+    (let [node-id (test-util/resource-node project "/logic/main.gui")
+          outline (g/node-value node-id :node-outline)
+          png-node (get-in outline [:children 0 :children 1 :node-id])
+          png-tex (get-in outline [:children 1 :children 0 :node-id])]
+      (is (some? png-tex))
+      (is (= "png_texture" (prop png-node :texture)))
+      (prop! png-tex :name "new-name")
+      (is (= "new-name" (prop png-node :texture))))))
 
 (deftest gui-texture-validation
   (test-util/with-loaded-project
-   (let [node-id (test-util/resource-node project "/logic/main.gui")
-        atlas-tex (:node-id (test-util/outline node-id [1 1]))]
-     (test-util/with-prop [atlas-tex :name ""]
-       (is (g/error-fatal? (test-util/prop-error atlas-tex :name))))
-     (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.atlas")]]
-       (test-util/with-prop [atlas-tex :texture v]
-         (is (g/error-fatal? (test-util/prop-error atlas-tex :texture))))))))
+    (let [node-id (test-util/resource-node project "/logic/main.gui")
+          atlas-tex (:node-id (test-util/outline node-id [1 1]))]
+      (test-util/with-prop [atlas-tex :name ""]
+        (is (g/error-fatal? (test-util/prop-error atlas-tex :name))))
+      (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.atlas")]]
+        (test-util/with-prop [atlas-tex :texture v]
+          (is (g/error-fatal? (test-util/prop-error atlas-tex :texture))))))))
 
 (deftest gui-atlas
   (test-util/with-loaded-project
-   (let [node-id (test-util/resource-node project "/logic/main.gui")
-         outline (g/node-value node-id :node-outline)
-         box (get-in outline [:children 0 :children 2 :node-id])
-         atlas-tex (get-in outline [:children 1 :children 1 :node-id])]
-     (is (some? atlas-tex))
-     (is (= "atlas_texture/anim" (prop box :texture)))
-     (prop! atlas-tex :name "new-name")
-     (is (= "new-name/anim" (prop box :texture))))))
+    (let [node-id (test-util/resource-node project "/logic/main.gui")
+          outline (g/node-value node-id :node-outline)
+          box (get-in outline [:children 0 :children 2 :node-id])
+          atlas-tex (get-in outline [:children 1 :children 1 :node-id])]
+      (is (some? atlas-tex))
+      (is (= "atlas_texture/anim" (prop box :texture)))
+      (prop! atlas-tex :name "new-name")
+      (is (= "new-name/anim" (prop box :texture))))))
 
 (deftest gui-shaders
   (test-util/with-loaded-project
-   (let [node-id (test-util/resource-node project "/logic/main.gui")]
-     (is (some? (g/node-value node-id :material-shader))))))
+    (let [node-id (test-util/resource-node project "/logic/main.gui")]
+      (is (some? (g/node-value node-id :material-shader))))))
 
 (defn- font-resource-node [project gui-font-node]
   (project/get-resource-node project (g/node-value gui-font-node :font)))
@@ -189,63 +189,63 @@
 
 (deftest gui-fonts
   (test-util/with-loaded-project
-   (let [gui-scene-node   (test-util/resource-node project "/logic/main.gui")
-         outline (g/node-value gui-scene-node :node-outline)
-         gui-font-node (get-in outline [:children 3 :children 0 :node-id])
-         old-font (font-resource-node project gui-font-node)
-         new-font (project/get-resource-node project "/fonts/big_score.font")]
-     (is (some? (g/node-value gui-font-node :font-data)))
-     (is (some #{old-font} (build-targets-deps gui-scene-node)))
-     (g/transact (g/set-property gui-font-node :font (g/node-value new-font :resource)))
-     (is (not (some #{old-font} (build-targets-deps gui-scene-node))))
-     (is (some #{new-font} (build-targets-deps gui-scene-node))))))
+    (let [gui-scene-node   (test-util/resource-node project "/logic/main.gui")
+          outline (g/node-value gui-scene-node :node-outline)
+          gui-font-node (get-in outline [:children 3 :children 0 :node-id])
+          old-font (font-resource-node project gui-font-node)
+          new-font (project/get-resource-node project "/fonts/big_score.font")]
+      (is (some? (g/node-value gui-font-node :font-data)))
+      (is (some #{old-font} (build-targets-deps gui-scene-node)))
+      (g/transact (g/set-property gui-font-node :font (g/node-value new-font :resource)))
+      (is (not (some #{old-font} (build-targets-deps gui-scene-node))))
+      (is (some #{new-font} (build-targets-deps gui-scene-node))))))
 
 (deftest gui-font-validation
   (test-util/with-loaded-project
-   (let [gui-scene-node (test-util/resource-node project "/logic/main.gui")
-         gui-font-node (:node-id (test-util/outline gui-scene-node [3 0]))]
-     (is (nil? (test-util/prop-error gui-font-node :font)))
-     (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.font")]]
-       (test-util/with-prop [gui-font-node :font v]
-         (is (g/error-fatal? (test-util/prop-error gui-font-node :font))))))))
+    (let [gui-scene-node (test-util/resource-node project "/logic/main.gui")
+          gui-font-node (:node-id (test-util/outline gui-scene-node [3 0]))]
+      (is (nil? (test-util/prop-error gui-font-node :font)))
+      (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.font")]]
+        (test-util/with-prop [gui-font-node :font v]
+          (is (g/error-fatal? (test-util/prop-error gui-font-node :font))))))))
 
 (deftest gui-text-node
   (test-util/with-loaded-project
-   (let [node-id (test-util/resource-node project "/logic/main.gui")
-         outline (g/node-value node-id :node-outline)
-         nodes (into {} (map (fn [item] [(:label item) (:node-id item)]) (get-in outline [:children 0 :children])))
-         text-node (get nodes "hexagon_text")]
-     (is (= false (g/node-value text-node :line-break))))))
+    (let [node-id (test-util/resource-node project "/logic/main.gui")
+          outline (g/node-value node-id :node-outline)
+          nodes (into {} (map (fn [item] [(:label item) (:node-id item)]) (get-in outline [:children 0 :children])))
+          text-node (get nodes "hexagon_text")]
+      (is (= false (g/node-value text-node :line-break))))))
 
 (deftest gui-text-node-validation
   (test-util/with-loaded-project
-   (let [node-id (test-util/resource-node project "/logic/main.gui")
-         outline (g/node-value node-id :node-outline)
-         nodes (into {} (map (fn [item] [(:label item) (:node-id item)]) (get-in outline [:children 0 :children])))
-         text-node (get nodes "hexagon_text")]
-     (are [prop v test] (test-util/with-prop [text-node prop v]
-                          (is (test (test-util/prop-error text-node prop))))
-       :font ""                   g/error-fatal?
-       :font "not_a_defined_font" g/error-fatal?
-       :font "highscore"          nil?))))
+    (let [node-id (test-util/resource-node project "/logic/main.gui")
+          outline (g/node-value node-id :node-outline)
+          nodes (into {} (map (fn [item] [(:label item) (:node-id item)]) (get-in outline [:children 0 :children])))
+          text-node (get nodes "hexagon_text")]
+      (are [prop v test] (test-util/with-prop [text-node prop v]
+                           (is (test (test-util/prop-error text-node prop))))
+        :font ""                   g/error-fatal?
+        :font "not_a_defined_font" g/error-fatal?
+        :font "highscore"          nil?))))
 
 (deftest gui-text-node-text-layout
   (test-util/with-loaded-project
-   (let [node-id (test-util/resource-node project "/logic/main.gui")
-         outline (g/node-value node-id :node-outline)
-         nodes (into {} (map (fn [item] [(:label item) (:node-id item)]) (get-in outline [:children 0 :children])))
-         text-node (get nodes "multi_line_text")]
-     (is (some? (g/node-value text-node :text-layout)))
-     (is (some? (g/node-value text-node :aabb)))
-     (is (some? (g/node-value text-node :text-data))))))
+    (let [node-id (test-util/resource-node project "/logic/main.gui")
+          outline (g/node-value node-id :node-outline)
+          nodes (into {} (map (fn [item] [(:label item) (:node-id item)]) (get-in outline [:children 0 :children])))
+          text-node (get nodes "multi_line_text")]
+      (is (some? (g/node-value text-node :text-layout)))
+      (is (some? (g/node-value text-node :aabb)))
+      (is (some? (g/node-value text-node :text-data))))))
 
 (defn- render-order [view]
   (let [renderables (g/node-value view :all-renderables)]
     (->> (get renderables pass/transparent)
-      (map :node-id)
-      (filter #(and (some? %) (g/node-instance? gui/GuiNode %)))
-      (map #(g/node-value % :id))
-      vec)))
+         (map :node-id)
+         (filter #(and (some? %) (g/node-instance? gui/GuiNode %)))
+         (map #(g/node-value % :id))
+         vec)))
 
 (deftest gui-layers
   (test-util/with-loaded-project
@@ -289,14 +289,14 @@
         (is (false? (get-in props [:id :visible])))))))
 
 (deftest gui-templates-complex-property
- (test-util/with-loaded-project
-   (let [node-id (test-util/resource-node project "/gui/scene.gui")
-         sub-node (gui-node node-id "sub_scene/sub_box")]
-     (let [alpha (prop sub-node :alpha)]
-       (g/transact (g/set-property sub-node :alpha (* 0.5 alpha)))
-       (is (not= alpha (prop sub-node :alpha)))
-       (g/transact (g/clear-property sub-node :alpha))
-       (is (= alpha (prop sub-node :alpha)))))))
+  (test-util/with-loaded-project
+    (let [node-id (test-util/resource-node project "/gui/scene.gui")
+          sub-node (gui-node node-id "sub_scene/sub_box")]
+      (let [alpha (prop sub-node :alpha)]
+        (g/transact (g/set-property sub-node :alpha (* 0.5 alpha)))
+        (is (not= alpha (prop sub-node :alpha)))
+        (g/transact (g/clear-property sub-node :alpha))
+        (is (= alpha (prop sub-node :alpha)))))))
 
 (deftest gui-template-hierarchy
   (test-util/with-loaded-project
@@ -402,10 +402,10 @@
 
 (defn- strip-scene [scene]
   (-> scene
-    (select-keys [:node-id :children :renderable])
-    (update :children (fn [c] (mapv #(strip-scene %) c)))
-    (update-in [:renderable :user-data] select-keys [:color])
-    (update :renderable select-keys [:user-data :tags])))
+      (select-keys [:node-id :children :renderable])
+      (update :children (fn [c] (mapv #(strip-scene %) c)))
+      (update-in [:renderable :user-data] select-keys [:color])
+      (update :renderable select-keys [:user-data :tags])))
 
 (defn- scene-by-nid [root-id node-id]
   (let [scene (g/node-value root-id :scene)
@@ -519,7 +519,7 @@
 
 (defn- gui-text [scene id]
   (-> (gui-node scene id)
-    (g/node-value :text)))
+      (g/node-value :text)))
 
 (defn- trans-x [root-id target-id]
   (let [s (tree-seq fn/constantly-true :children (g/node-value root-id :scene))]
@@ -532,9 +532,9 @@
   (test-util/with-loaded-project
     (let [node-id (test-util/resource-node project "/gui/super_scene.gui")]
       (testing "regular layout override, through templates"
-               (is (= "Test" (gui-text node-id "scene/text")))
-               (set-visible-layout! node-id "Landscape")
-               (is (= "Testing Text" (gui-text node-id "scene/text"))))
+        (is (= "Test" (gui-text node-id "scene/text")))
+        (set-visible-layout! node-id "Landscape")
+        (is (= "Testing Text" (gui-text node-id "scene/text"))))
       (testing "scene generation"
         (is (= {:width 1280 :height 720}
                (g/node-value node-id :scene-dims)))
@@ -573,13 +573,13 @@
             (is (some? res-node))
             (is (some? shape-node))
             (with-open [_ (make-restore-point!)]
-             (g/set-property! res-node :name new-name)
-             (is (= expected-name (g/node-value shape-node res-label)))
-             (is (= expected-choices (property-value-choices shape-node res-label)))
+              (g/set-property! res-node :name new-name)
+              (is (= expected-name (g/node-value shape-node res-label)))
+              (is (= expected-choices (property-value-choices shape-node res-label)))
 
-             (testing "Reference remains updated after resource deletion"
-               (g/delete-node! res-node)
-               (is (= expected-name (g/node-value shape-node res-label)))))))
+              (testing "Reference remains updated after resource deletion"
+                (g/delete-node! res-node)
+                (is (= expected-name (g/node-value shape-node res-label)))))))
         "font" gui-font "text" :font "renamed_font" "renamed_font" ["renamed_font"]
         "layer" gui-layer "pie" :layer "renamed_layer" "renamed_layer" ["" "renamed_layer"]
         "texture" gui-texture "box" :texture "renamed_texture" "renamed_texture/particle_blob" ["" "renamed_texture/particle_blob"]
@@ -681,9 +681,9 @@
                 font-resource (test-util/resource workspace font-path)
                 font-resource-node (test-util/resource-node project font-path)
                 after-font-data (g/node-value font-resource-node :font-data)]
-          (is (not= after-font-data (g/node-value (:text shapes) :font-data)))
-          (add-font! scene (g/node-value (:text shapes) :font) font-resource)
-          (is (= after-font-data (g/node-value (:text shapes) :font-data))))))
+            (is (not= after-font-data (g/node-value (:text shapes) :font-data)))
+            (add-font! scene (g/node-value (:text shapes) :font) font-resource)
+            (is (= after-font-data (g/node-value (:text shapes) :font-data))))))
 
       (testing "Introduce missing referenced layer"
         (with-open [_ (make-restore-point!)]
@@ -710,9 +710,9 @@
           (let [particlefx-path "/particlefx/default.particlefx"
                 particlefx-resource (test-util/resource workspace particlefx-path)
                 particlefx-resource-node (test-util/resource-node project particlefx-path)]
-          (is (nil? (g/node-value (:particlefx shapes) :source-scene)))
-          (add-particlefx-resource! scene (g/node-value (:particlefx shapes) :particlefx) particlefx-resource)
-          (is (some? (g/node-value (:particlefx shapes) :source-scene)))))))))
+            (is (nil? (g/node-value (:particlefx shapes) :source-scene)))
+            (add-particlefx-resource! scene (g/node-value (:particlefx shapes) :particlefx) particlefx-resource)
+            (is (some? (g/node-value (:particlefx shapes) :source-scene)))))))))
 
 (deftest introduce-missing-referenced-gui-resource-in-template
   (test-util/with-loaded-project
@@ -2023,3 +2023,143 @@
                                                 :text "panel default"}}
                       "Landscape" {}}
                      (make-saved-layout->node->field->value referencing-scene))))))))))
+
+(deftest template-layout-remove-gui-node-from-referenced-scene-test
+  (test-util/with-loaded-project "test/resources/gui_project"
+    (let [referencing-scene (project/get-resource-node project "/gui/template_layout/panel_l_button_l.gui")
+          referenced-scene (project/get-resource-node project "/gui/template_layout/button_l.gui")
+          referenced-scene-text (get (scene-gui-node-map referenced-scene) "text")]
+
+      ;; Delete the text node from the referenced scene.
+      (g/delete-node! referenced-scene-text)
+
+      (testing "After deleting the text node from the referenced scene."
+        (testing "Referenced scene."
+          (is (= {"Default" {}
+                  "Landscape" {}}
+                 (make-visibly-overridden-layout->node->props referenced-scene)))
+          (is (= {"Default" {}
+                  "Landscape" {}}
+                 (make-displayed-layout->node->prop->value referenced-scene)))
+          (is (= {"Default" {}
+                  "Landscape" {}}
+                 (make-built-layout->node->field->value referenced-scene)))
+          (is (= {"Default" {}
+                  "Landscape" {}}
+                 (make-saved-layout->node->field->value referenced-scene))))
+
+        (testing "Referencing scene."
+          (is (= {"Default" {}
+                  "Landscape" {}}
+                 (make-visibly-overridden-layout->node->props referencing-scene)))
+          (is (= {"Default" {}
+                  "Landscape" {}}
+                 (make-displayed-layout->node->prop->value referencing-scene)))
+          (is (= {"Default" {}
+                  "Landscape" {}}
+                 (make-built-layout->node->field->value referencing-scene)))
+          (is (= {"Default" {"button" {:template "/gui/template_layout/button_l.gui"}}
+                  "Landscape" {}}
+                 (make-saved-layout->node->field->value referencing-scene))))))))
+
+(deftest template-layout-add-gui-node-to-referenced-scene-test
+  (test-util/with-loaded-project "test/resources/gui_project"
+    (let [referencing-scene (project/get-resource-node project "/gui/template_layout/panel_l_button_l.gui")
+          referenced-scene (project/get-resource-node project "/gui/template_layout/button_l.gui")
+          referenced-scene-text (get (scene-gui-node-map referenced-scene) "text")
+          referenced-scene-node-tree (g/node-value referenced-scene :node-tree)
+          added-text-props {:id "added" :font "font" :text "button default"}
+          referenced-scene-added-text (gui/add-gui-node-with-props! referenced-scene referenced-scene-node-tree :type-text 0 added-text-props nil)
+          referencing-scene-added-text (get (scene-gui-node-map referencing-scene) "button/added")]
+
+      ;; Delete the original text node from the referenced scene in order to
+      ;; keep the test data simple.
+      (g/delete-node! referenced-scene-text)
+
+      (testing "After adding text node to the referenced scene."
+        (testing "Referenced scene."
+          (is (= {"Default" {}
+                  "Landscape" {}}
+                 (make-visibly-overridden-layout->node->props referenced-scene)))
+          (is (= {"Default" {"added" {:font "font"
+                                      :text "button default"}}
+                  "Landscape" {"added" {:font "font"
+                                        :text "button default"}}}
+                 (make-displayed-layout->node->prop->value referenced-scene)))
+          (is (= {"Default" {"added" {:font "font"
+                                      :text "button default"}}
+                  "Landscape" {}}
+                 (make-built-layout->node->field->value referenced-scene)))
+          (is (= {"Default" {"added" {:font "font"
+                                      :text "button default"}}
+                  "Landscape" {}}
+                 (make-saved-layout->node->field->value referenced-scene))))
+
+        (testing "Referencing scene."
+          (is (= {"Default" {}
+                  "Landscape" {}}
+                 (make-visibly-overridden-layout->node->props referencing-scene)))
+          (is (= {"Default" {"button/added" {:font "font"
+                                             :text "button default"}}
+                  "Landscape" {"button/added" {:font "font"
+                                               :text "button default"}}}
+                 (make-displayed-layout->node->prop->value referencing-scene)))
+          (is (= {"Default" {"button/added" {:font "font"
+                                             :text "button default"}}
+                  "Landscape" {}}
+                 (make-built-layout->node->field->value referencing-scene)))
+          (is (= {"Default" {"button" {:template "/gui/template_layout/button_l.gui"}
+                             "button/added" {:parent "button"}}
+                  "Landscape" {}}
+                 (make-saved-layout->node->field->value referencing-scene)))))
+
+      (testing "Before: Layout overrides are not present in either node (sanity check)."
+        (is (= {} (g/node-value referenced-scene-added-text :layout->prop->override)))
+        (is (= {} (g/node-value referencing-scene-added-text :layout->prop->override))))
+
+      ;; Override the text property for the Landscape layout in the referenced scene.
+      (with-visible-layout! referenced-scene "Landscape"
+        (test-util/prop! referenced-scene-added-text :text "button landscape"))
+
+      (testing "After: Layout override is present only in referenced scene node (sanity check)."
+        (is (= {"Landscape" {:text "button landscape"}} (g/node-value referenced-scene-added-text :layout->prop->override)))
+        (is (= {} (g/node-value referencing-scene-added-text :layout->prop->override))))
+
+      (testing "After overriding the text property for the Landscape layout in the referenced scene."
+        (testing "Referenced scene."
+          (is (= {"Default" {}
+                  "Landscape" {"added" #{:node-outline :text}}}
+                 (make-visibly-overridden-layout->node->props referenced-scene)))
+          (is (= {"Default" {"added" {:font "font"
+                                      :text "button default"}}
+                  "Landscape" {"added" {:font "font"
+                                        :text "button landscape"}}}
+                 (make-displayed-layout->node->prop->value referenced-scene)))
+          (is (= {"Default" {"added" {:font "font"
+                                      :text "button default"}}
+                  "Landscape" {"added" {:font "font"
+                                        :text "button landscape"}}}
+                 (make-built-layout->node->field->value referenced-scene)))
+          (is (= {"Default" {"added" {:font "font"
+                                      :text "button default"}}
+                  "Landscape" {"added" {:text "button landscape"}}}
+                 (make-saved-layout->node->field->value referenced-scene))))
+
+        (testing "Referencing scene."
+          (is (= {"Default" {}
+                  "Landscape" {}}
+                 (make-visibly-overridden-layout->node->props referencing-scene)))
+          (is (= {"Default" {"button/added" {:font "font"
+                                             :text "button default"}}
+                  "Landscape" {"button/added" {:font "font"
+                                               :text "button landscape"}}}
+                 (make-displayed-layout->node->prop->value referencing-scene)))
+          (is (= {"Default" {"button/added" {:font "font"
+                                             :text "button default"}}
+                  "Landscape" {"button/added" {:font "font"
+                                               :text "button landscape"}}}
+                 (make-built-layout->node->field->value referencing-scene)))
+          (is (= {"Default" {"button" {:template "/gui/template_layout/button_l.gui"}
+                             "button/added" {:parent "button"}}
+                  "Landscape" {}}
+                 (make-saved-layout->node->field->value referencing-scene))))))))
