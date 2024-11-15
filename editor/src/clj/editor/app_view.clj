@@ -1338,7 +1338,6 @@ If you do not specifically require different script states, consider changing th
                              (.close out)))))
 
 (handler/defhandler :rebuild-html5 :global
-  (enabled? [] (not (build-in-progress?)))
   (run [project prefs web-server build-errors-view changes-view main-stage tool-tab-pane]
        (build-html5! project prefs web-server build-errors-view changes-view main-stage tool-tab-pane
                      bob/rebuild-html5-bob-commands)))
