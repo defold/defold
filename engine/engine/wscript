@@ -105,7 +105,7 @@ def configure(conf):
         conf.env.append_value('LINKFLAGS', ['-lEGL', '-lGLESv1_CM', '-lGLESv2', '-landroid', '-Wl,-soname=libdmengine.so'])
         conf.env['STLIB_CPP_RUNTIME'] = 'c++_static'
 
-    elif operating_sys == "win":
+    elif target_os == "win":
         conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'shell32.lib', 'xinput9_1_0.lib', 'dbghelp.lib', 'dinput8.lib', 'dxguid.lib'])
 
         # For Vulkan
