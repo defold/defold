@@ -403,7 +403,7 @@
          build-path (workspace/build-html5-path ws)]
      (io/file build-path "__htmlLaunchDir"))))
 
-(def build-html5-bob-commands ["resolve" "build" "bundle"])
+(def build-html5-bob-commands ["build" "bundle"])
 
 (defn build-html5-bob-options [project prefs]
   (let [output-path (build-html5-output-path project)
