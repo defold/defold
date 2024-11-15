@@ -349,11 +349,17 @@
                 :else (.write w (pr-str x))))]
       (write! config 0))))
 
-(defn- safe-assoc-in [m p v]
-  (cond
-    (coll/empty? p) v
-    (identical? ::not-found m) (assoc-in {} p v)
-    :else (assoc-in m p v)))
+(defn safe-assoc-in
+  "Like assoc-in, but allows empty paths and replaces non-map vals with maps"
+  [m p v]
+  (if (coll/empty? p)
+    v
+    (let [is-map (map? m)
+          k (p 0)]
+      (assoc
+        (if is-map m {})
+        k
+        (safe-assoc-in (if is-map (m k) {}) (subvec p 1) v)))))
 
 (defn- incorporate-updated-storage [{:keys [events storage] :as current-state} updated-storage]
   (let [merged-storage (conj storage updated-storage)]
