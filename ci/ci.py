@@ -22,7 +22,7 @@ from argparse import ArgumentParser
 from ci_helper import is_platform_supported, is_platform_private, is_repo_private
 
 # The platforms we deploy our editor on
-PLATFORMS_DESKTOP = ('x86_64-linux', 'arm64-linux','x86_64-win32', 'x86_64-macos', 'arm64-macos')
+PLATFORMS_DESKTOP = ('x86_64-linux', 'x86_64-win32', 'x86_64-macos', 'arm64-macos')
 
 def call(args, failonerror = True):
     print(args)
