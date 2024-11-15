@@ -1,0 +1,7 @@
+local M = {}
+
+function M.get_prefs_schema()
+    return editor.prefs.schema.string()
+end
+
+return M

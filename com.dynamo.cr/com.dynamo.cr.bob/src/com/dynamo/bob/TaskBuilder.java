@@ -324,7 +324,10 @@ public class TaskBuilder {
                         }
                     }
                     else {
-                        state.removeSignatures(task.getOutputs());
+                        List<IResource> outputs = task.getOutputs();
+                        for (IResource o : outputs) {
+                            state.removeSignature(o.getAbsPath());
+                        }
                         logger.severe("Task '%s' (%s) failed", task.getName(), task.getInputsString());
                         abort = true;
                         break;

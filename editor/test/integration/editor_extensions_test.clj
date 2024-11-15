@@ -16,14 +16,17 @@
   (:require [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
+            [editor.defold-project :as project]
             [editor.editor-extensions :as extensions]
             [editor.editor-extensions.coerce :as coerce]
+            [editor.editor-extensions.prefs-functions :as prefs-functions]
             [editor.editor-extensions.runtime :as rt]
             [editor.editor-extensions.vm :as vm]
             [editor.future :as future]
             [editor.graph-util :as gu]
             [editor.handler :as handler]
             [editor.pipeline.bob :as bob]
+            [editor.prefs :as prefs]
             [editor.process :as process]
             [editor.resource :as resource]
             [editor.ui :as ui]
@@ -272,15 +275,21 @@
         (when (or (:error ret) (:exception ret))
           (throw (LuaError. "Bob invocation failed")))))))
 
+(defn- reload-editor-scripts! [project & {:keys [display-output! open-resource! prefs]
+                                          :or {display-output! println
+                                               open-resource! open-resource-noop!}}]
+  (extensions/reload! project :all
+                      :prefs (or prefs (test-util/make-test-prefs))
+                      :reload-resources! (make-reload-resources-fn (project/workspace project))
+                      :display-output! display-output!
+                      :save! (make-save-fn project)
+                      :open-resource! open-resource!
+                      :invoke-bob! (make-invoke-bob-fn project)))
+
 (deftest editor-scripts-commands-test
   (test-util/with-loaded-project "test/resources/editor_extensions/commands_project"
     (let [sprite-outline (:node-id (test-util/outline (test-util/resource-node project "/main/main.collection") [0 0]))]
-      (extensions/reload! project :all
-                          :reload-resources! (make-reload-resources-fn workspace)
-                          :display-output! println
-                          :save! (make-save-fn project)
-                          :open-resource! open-resource-noop!
-                          :invoke-bob! (make-invoke-bob-fn project))
+      (reload-editor-scripts! project)
       (let [handler+context (handler/active
                               (:command (first (handler/realize-menu :editor.outline-view/context-menu-end)))
                               (handler/eval-contexts
@@ -302,12 +311,7 @@
 (deftest refresh-context-after-write-test
   (test-util/with-loaded-project "test/resources/editor_extensions/refresh_context_project"
     (let [output (atom [])
-          _ (extensions/reload! project :all
-                                :reload-resources! (make-reload-resources-fn workspace)
-                                :display-output! #(swap! output conj [%1 %2])
-                                :save! (make-save-fn project)
-                                :open-resource! open-resource-noop!
-                                :invoke-bob! (make-invoke-bob-fn project))
+          _ (reload-editor-scripts! project :display-output! #(swap! output conj [%1 %2]))
           handler+context (handler/active
                             (:command (first (handler/realize-menu :editor.asset-browser/context-menu-end)))
                             (handler/eval-contexts
@@ -324,22 +328,21 @@
       (is (= [[:out "old = Initial content, new = Another text!, reverted = Initial content"]]
              @output)))))
 
+(defn- run-edit-menu-test-command! []
+  (let [handler+context (handler/active
+                          (:command (last (handler/realize-menu :editor.app-view/edit-end)))
+                          (handler/eval-contexts
+                            [(handler/->context :global {} (->StaticSelection []))]
+                            false)
+                          {})]
+    (assert handler+context "Test bug: undefined test command")
+    @(handler/run handler+context)))
+
 (deftest execute-test
   (test-util/with-loaded-project "test/resources/editor_extensions/execute_test"
-    (let [output (atom [])
-          _ (extensions/reload! project :all
-                                :reload-resources! (make-reload-resources-fn workspace)
-                                :display-output! #(swap! output conj [%1 %2])
-                                :save! (make-save-fn project)
-                                :open-resource! open-resource-noop!
-                                :invoke-bob! (make-invoke-bob-fn project))
-          handler+context (handler/active
-                            (:command (last (handler/realize-menu :editor.app-view/edit-end)))
-                            (handler/eval-contexts
-                              [(handler/->context :global {} (->StaticSelection []))]
-                              false)
-                            {})]
-      @(handler/run handler+context)
+    (let [output (atom [])]
+      (reload-editor-scripts! project :display-output! #(swap! output conj [%1 %2]))
+      (run-edit-menu-test-command!)
       ;; see test.editor_script:
       ;; first, it tries to execute `git bleh`, catches the error, then prints it.
       ;; second, it captures the output of `git log --oneline --max-count=10` and
@@ -354,12 +357,7 @@
 (deftest transact-test
   (test-util/with-loaded-project "test/resources/editor_extensions/transact_test"
     (let [output (atom [])
-          _ (extensions/reload! project :all
-                                :reload-resources! (make-reload-resources-fn workspace)
-                                :display-output! #(swap! output conj [%1 %2])
-                                :save! (make-save-fn project)
-                                :open-resource! open-resource-noop!
-                                :invoke-bob! (make-invoke-bob-fn project))
+          _ (reload-editor-scripts! project :display-output! #(swap! output conj [%1 %2]))
           node (:node-id (test-util/outline (test-util/resource-node project "/main/main.collection") [0 0]))
           handler+context (handler/active
                             (:command (first (handler/realize-menu :editor.outline-view/context-menu-end)))
@@ -400,12 +398,7 @@
 (deftest save-test
   (test-util/with-loaded-project "test/resources/editor_extensions/save_test"
     (let [output (atom [])
-          _ (extensions/reload! project :all
-                                :reload-resources! (make-reload-resources-fn workspace)
-                                :display-output! #(swap! output conj [%1 %2])
-                                :save! (make-save-fn project)
-                                :open-resource! open-resource-noop!
-                                :invoke-bob! (make-invoke-bob-fn project))
+          _ (reload-editor-scripts! project :display-output! #(swap! output conj [%1 %2]))
           handler+context (handler/active
                             (:command (first (handler/realize-menu :editor.asset-browser/context-menu-end)))
                             (handler/eval-contexts
@@ -420,20 +413,9 @@
 
 (deftest resource-attributes-test
   (test-util/with-loaded-project "test/resources/editor_extensions/resource_attributes_project"
-    (let [output (atom [])
-          _ (extensions/reload! project :all
-                                :reload-resources! (make-reload-resources-fn workspace)
-                                :display-output! #(swap! output conj [%1 %2])
-                                :save! (make-save-fn project)
-                                :open-resource! open-resource-noop!
-                                :invoke-bob! (make-invoke-bob-fn project))
-          handler+context (handler/active
-                            (:command (last (handler/realize-menu :editor.app-view/edit-end)))
-                            (handler/eval-contexts
-                              [(handler/->context :global {} (->StaticSelection []))]
-                              false)
-                            {})]
-      @(handler/run handler+context)
+    (let [output (atom [])]
+      (reload-editor-scripts! project :display-output! #(swap! output conj [%1 %2]))
+      (run-edit-menu-test-command!)
       ;; see test.editor script: it uses editor.resource_attributes with different resource
       ;; paths and prints results
       (is (= [[:out "test '/': exists = true, file = false, directory = true)"]
@@ -444,21 +426,11 @@
 
 (deftest open-resource-test
   (test-util/with-loaded-project "test/resources/editor_extensions/open_resource_project"
-    (let [output (atom [])
-          _ (extensions/reload! project :all
-                                :reload-resources! (make-reload-resources-fn workspace)
-                                :display-output! #(swap! output conj [%1 %2])
-                                :save! (make-save-fn project)
-                                :open-resource! (fn [resource]
-                                                  (swap! output conj [:open-resource (resource/proj-path resource)]))
-                                :invoke-bob! (make-invoke-bob-fn project))
-          handler+context (handler/active
-                            (:command (last (handler/realize-menu :editor.app-view/edit-end)))
-                            (handler/eval-contexts
-                              [(handler/->context :global {} (->StaticSelection []))]
-                              false)
-                            {})]
-      @(handler/run handler+context)
+    (let [output (atom [])]
+      (reload-editor-scripts! project
+                              :display-output! #(swap! output conj [%1 %2])
+                              :open-resource! #(swap! output conj [:open-resource (resource/proj-path %)]))
+      (run-edit-menu-test-command!)
       ;; see test.editor script: it uses editor.open_resource with different resource
       ;; paths and prints results
       (is (= [[:open-resource "/game.project"]
@@ -479,6 +451,12 @@
         (is (identical? foo-str (coerce enum "foo")))
         (is (= :bar (coerce enum "bar")))
         (is (thrown? LuaError (coerce enum "something else")))))
+
+    (testing "const"
+      (let [foo-str "foo"
+            const (coerce/const foo-str)]
+        (is (identical? foo-str (coerce const "foo")))
+        (is (thrown? LuaError (coerce const 12)))))
 
     (testing "string"
       (is (= "foo" (coerce coerce/string "foo")))
@@ -587,7 +565,11 @@
       (is (= {:a 1 :b 2} (coerce (coerce/hash-map
                                    :req {:a coerce/integer}
                                    :opt {:b coerce/integer})
-                                 {:a 1 :b 2}))))
+                                 {:a 1 :b 2})))
+      (is (thrown? LuaError (coerce (coerce/hash-map :extra-keys false) {:a 1})))
+      (is (thrown? LuaError (coerce (coerce/hash-map :opt {:b coerce/integer} :extra-keys false) {:a 1})))
+      (is (= {:a 1} (coerce (coerce/hash-map :opt {:a coerce/integer} :extra-keys false) {:a 1})))
+      (is (= {:a 1} (coerce (coerce/hash-map :req {:a coerce/integer} :extra-keys false) {:a 1}))))
 
     (testing "one-of"
       (is (= "foo" (coerce (coerce/one-of coerce/string coerce/integer) "foo")))
@@ -611,20 +593,9 @@
 
 (deftest external-file-attributes-test
   (test-util/with-loaded-project "test/resources/editor_extensions/external_file_attributes_project"
-    (let [output (atom [])
-          _ (extensions/reload! project :all
-                                :reload-resources! (make-reload-resources-fn workspace)
-                                :display-output! #(swap! output conj [%1 %2])
-                                :save! (make-save-fn project)
-                                :open-resource! open-resource-noop!
-                                :invoke-bob! (make-invoke-bob-fn project))
-          handler+context (handler/active
-                            (:command (last (handler/realize-menu :editor.app-view/edit-end)))
-                            (handler/eval-contexts
-                              [(handler/->context :global {} (->StaticSelection []))]
-                              false)
-                            {})]
-      @(handler/run handler+context)
+    (let [output (atom [])]
+      (reload-editor-scripts! project :display-output! #(swap! output conj [%1 %2]))
+      (run-edit-menu-test-command!)
       ;; see test.editor_script: it uses editor.external_file_attributes() to
       ;; get fs information about 3 paths, and then prints it
       (is (= [[:out "path = '.', exists = true, file = false, directory = true"]
@@ -634,21 +605,124 @@
 
 (deftest ui-test
   (test-util/with-loaded-project "test/resources/editor_extensions/ui_project"
-    (let [output (atom [])
-          _ (extensions/reload! project :all
-                                :reload-resources! (make-reload-resources-fn workspace)
-                                :display-output! #(swap! output conj [%1 %2])
-                                :save! (make-save-fn project)
-                                :open-resource! open-resource-noop!
-                                :invoke-bob! (make-invoke-bob-fn project))
-          handler+context (handler/active
-                            (:command (last (handler/realize-menu :editor.app-view/edit-end)))
-                            (handler/eval-contexts
-                              [(handler/->context :global {} (->StaticSelection []))]
-                              false)
-                            {})]
-      @(handler/run handler+context)
+    (let [output (atom [])]
+      (reload-editor-scripts! project :display-output! #(swap! output conj [%1 %2]))
+      (run-edit-menu-test-command!)
       ;; see test.editor_script: it creates a lot of ui components that should
       ;; form a valid UI tree. In case of any errors the output will get error
       ;; entries.
       (is (= [] @output)))))
+
+(deftest prefs-round-trip-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/prefs_round_trip_project"
+    (let [output (atom [])
+          prefs (prefs/project
+                  "test/resources/editor_extensions/prefs_round_trip_project"
+                  (prefs/global test-util/shared-test-prefs-file))
+          _ (reload-editor-scripts! project
+                                    :prefs prefs
+                                    :display-output! #(swap! output conj [%1 %2]))
+          all-keys (mapv (comp name key) (:properties (prefs/schema prefs [])))
+          _ (prefs/set! prefs [:test :prefs-keys] all-keys)
+          initial-prefs (prefs/get prefs [])
+          ;; See test.editor_script: it iterates over every 'test.prefs-keys'
+          ;; preference, gets the value, and then sets the same value back.
+          ;; This get->set->get round-tripping should not cause any errors, and
+          ;; should not change any values
+          _ (run-edit-menu-test-command!)]
+      ;; no output => no runtime errors
+      (is (= [] @output))
+      ;; the prefs are unchanged
+      (is (= initial-prefs (prefs/get prefs []))))))
+
+(deftest prefs-set-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/prefs_get_set_test"
+    (let [output (atom [])
+          prefs (prefs/project
+                  "test/resources/editor_extensions/prefs_get_set_test"
+                  (prefs/global test-util/shared-test-prefs-file))]
+      (reload-editor-scripts! project
+                              :prefs prefs
+                              :display-output! #(swap! output conj [%1 %2]))
+      (run-edit-menu-test-command!)
+      ;; See test.editor_script: it defines prefs for every available schema,
+      ;; then, for every pref it sets a value, gets it and prints it (possibly
+      ;; with some metadata), then sets it to another value, and then gets and
+      ;; prints it again
+      (is (= [[:out "array: table 0"]
+              [:out "array: table 2 foo bar"]
+              [:out "boolean: boolean false"]
+              [:out "boolean: boolean true"]
+              [:out "enum: number 1"]
+              [:out "enum: string foo"]
+              [:out "integer: 42"]
+              [:out "integer: 43"]
+              [:out "keyword: string foo-bar"]
+              [:out "keyword: string code-view"]
+              [:out "number: 12.3"]
+              [:out "number: 0.1"]
+              [:out "object: table foo"]
+              [:out "object: table bar"]
+              [:out "object: table baz"]
+              [:out "object of: table foo = true, bar = false"]
+              [:out "object of: table foo = false, bar = true"]
+              [:out "set: table foo = true, bar = true"]
+              [:out "set: table foo = true, bar = nil"]
+              [:out "string: a string"]
+              [:out "string: another_string"]
+              [:out "tuple: a string 12"]
+              [:out "tuple: another string 42"]]
+             @output)))))
+
+(deftest prefs-schema-test
+  (test-util/with-loaded-project "test/resources/editor_extensions/prefs_schema_errors"
+    (let [output (atom [])
+          prefs (prefs/project
+                  "test/resources/editor_extensions/prefs_schema_errors"
+                  (prefs/global test-util/shared-test-prefs-file))]
+      (reload-editor-scripts! project
+                              :prefs prefs
+                              :display-output! #(swap! output conj [%1 %2]))
+      (run-edit-menu-test-command!)
+      ;; See the test project:
+      ;; - /not_an_object_schema.editor_script defines a schema that is not
+      ;;   an object
+      ;; - /conflict_a.editor_script and /conflict_b.editor_script define
+      ;;   conflicting schemas
+      ;; - /builtin_conflict.editor_script defines a schema that conflicts with
+      ;;   a built-in editor schema (sets 'bundle' to boolean)
+      ;; - /test.editor_script accesses prefs defined by other editor scripts
+      (is (= #{[:err "Omitting prefs schema definition for path '': '/not_an_object_schema.editor_script' defines a schema that conflicts with the editor schema"]
+               [:err "Omitting prefs schema definition for path 'bundle': '/builtin_conflict.editor_script' defines a schema that conflicts with the editor schema"]
+               [:err "Omitting prefs schema definition for path 'test.conflict': conflicts with another editor script schema"]
+               [:out "pcall(editor.prefs.get, 'test.only-in-a') => true, a"]
+               [:out "pcall(editor.prefs.get, 'test.only-in-b') => true, b"]
+               [:out "pcall(editor.prefs.get, 'test.conflict') => false, No schema defined for prefs path 'test.conflict'"]
+               [:out "pcall(editor.prefs.get, 'bundle.variant') => true, debug"]}
+             (set @output))))))
+
+(deftest prefs-test
+  (testing "dot-separated paths parsing"
+    (are [s path] (= path (prefs-functions/parse-dot-separated-path s))
+      "foo.bar.baz" [:foo :bar :baz]
+      "foo-bar.baz" [:foo-bar :baz]
+      "foo-bar_baz" [:foo-bar_baz]
+      "3d" [:3d])
+    (are [s re] (thrown-with-msg? LuaError (re-pattern re) (prefs-functions/parse-dot-separated-path s))
+      "" "Key path element cannot be empty"
+      "." "Key path element cannot be empty"
+      "foo." "Key path element cannot be empty"
+      ".foo" "Key path element cannot be empty"
+      "foo..bar" "Key path element cannot be empty"
+      "foo.bar..." "Key path element cannot be empty"
+
+      "with space" "Invalid identifier character"
+      "brace{" "Invalid identifier character"
+      "brace[" "Invalid identifier character"
+      ":colon" "Invalid identifier character"
+      "hash#" "Invalid identifier character"
+      "hash#" "Invalid identifier character"
+      "\\backslash" "Invalid identifier character"
+      "/slash" "Invalid identifier character"
+      "^hat" "Invalid identifier character"
+      "%percent" "Invalid identifier character")))

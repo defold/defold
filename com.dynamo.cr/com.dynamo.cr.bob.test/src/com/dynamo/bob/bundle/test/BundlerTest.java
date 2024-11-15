@@ -82,17 +82,17 @@ public class BundlerTest {
     private Platform platform;
 
     private final String ANDROID_MANIFEST = "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
-    	+ "<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" package=\"com.example\" android:versionCode=\"1\">"
-    	+ "  <application android:label=\"Minimal Android Application\">"
-    	+ "    <activity android:name=\".MainActivity\" android:label=\"Hello World\">"
-    	+ "      <intent-filter>"
-    	+ "        <action android:name=\"android.intent.action.MAIN\" />"
-    	+ "        <category android:name=\"android.intent.category.DEFAULT\" />"
-    	+ "        <category android:name=\"android.intent.category.LAUNCHER\" />"
-    	+ "      </intent-filter>"
-    	+ "    </activity>"
-    	+ "  </application>"
-    	+ "</manifest>";
+        + "<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" package=\"com.example\" android:versionCode=\"1\">"
+        + "  <application android:label=\"Minimal Android Application\">"
+        + "    <activity android:name=\".MainActivity\" android:label=\"Hello World\">"
+        + "      <intent-filter>"
+        + "        <action android:name=\"android.intent.action.MAIN\" />"
+        + "        <category android:name=\"android.intent.category.DEFAULT\" />"
+        + "        <category android:name=\"android.intent.category.LAUNCHER\" />"
+        + "      </intent-filter>"
+        + "    </activity>"
+        + "  </application>"
+        + "</manifest>";
 
     @Parameters
     public static Collection<Platform[]> data() {
@@ -542,9 +542,7 @@ public class BundlerTest {
                 expectedFiles.add("unnamed.exe");
                 expectedFiles.add("game.public.der");
                 expectedFiles.add("game.dmanifest");
-                expectedFiles.add("OpenAL32.dll");
                 expectedFiles.add("game.arci");
-                expectedFiles.add("wrap_oal.dll");
                 expectedFiles.add("game.arcd");
                 expectedFiles.add("game.projectc");
                 break;

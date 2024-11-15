@@ -1246,6 +1246,12 @@ static void LogFrameBufferError(GLenum status)
                 context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB32F;
                 context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA32F;
             }
+
+            // https://registry.khronos.org/webgl/extensions/ANGLE_instanced_arrays/
+            if (OpenGLIsExtensionSupported(context, "ANGLE_instanced_arrays"))
+            {
+                context->m_InstancingSupport = 1;
+            }
         }
 
         // GL_NUM_COMPRESSED_TEXTURE_FORMATS is deprecated in newer OpenGL Versions
