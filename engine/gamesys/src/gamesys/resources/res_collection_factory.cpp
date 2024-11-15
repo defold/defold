@@ -38,14 +38,14 @@ namespace dmGameSystem
         uint32_t msg_size;
         dmResource::Result r = dmResource::GetRaw(factory, prototype, &msg, &msg_size);
         if (r != dmResource::RESULT_OK) {
-            dmLogError("failed to load collection prototype (%d) [%s]", r, prototype);
+            dmLogError("failed to load collection prototype [%s]", prototype);
             return dmResource::RESULT_RESOURCE_NOT_FOUND;
         }
         dmDDF::Result e = dmDDF::LoadMessage<dmGameObjectDDF::CollectionDesc>(msg, msg_size, out_desc);
         free(msg);
         if (e != dmDDF::RESULT_OK)
         {
-            dmLogError("Failed to parse collection prototype (%d) [%s]", e, prototype);
+            dmLogError("Failed to parse collection prototype [%s]", prototype);
             return dmResource::RESULT_DDF_ERROR;
         }
         return dmResource::RESULT_OK;
