@@ -95,6 +95,8 @@ import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.pipeline.IShaderCompiler;
 import com.dynamo.bob.pipeline.ShaderCompilers;
 import com.dynamo.bob.pipeline.TextureGenerator;
+import com.dynamo.bob.pipeline.TextureCompression;
+import com.defold.extension.pipeline.ITextureCompressor;
 import com.dynamo.bob.plugin.IPlugin;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.BobProjectProperties;
@@ -157,6 +159,7 @@ public class Project {
     private ClassLoader classLoader = null;
 
     private List<Class<? extends IShaderCompiler>> shaderCompilerClasses = new ArrayList();
+    private List<Class<? extends ITextureCompressor>> textureCompressorClasses = new ArrayList();
 
     public Project(IFileSystem fileSystem) {
         this.fileSystem = fileSystem;
@@ -387,6 +390,13 @@ public class Project {
                     {
                         if (!klass.equals(IShaderCompiler.class)) {
                             shaderCompilerClasses.add((Class<? extends IShaderCompiler>) klass);
+                        }
+                    }
+
+                    if (ITextureCompressor.class.isAssignableFrom(klass))
+                    {
+                        if (!klass.equals(ITextureCompressor.class)) {
+                            textureCompressorClasses.add((Class<? extends ITextureCompressor>) klass);
                         }
                     }
 
@@ -877,6 +887,20 @@ public class Project {
         bundler.bundleApplication(this, platform, bundleDir, monitor);
         m.worked(1);
         m.done();
+    }
+
+    public void registerTextureCompressors() {
+        for (Class<? extends ITextureCompressor> klass : textureCompressorClasses) {
+            try {
+                TextureCompression.registerCompressor(klass.newInstance());
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+        textureCompressorClasses.clear();
+
+        // TODO: We need to read the presets from file later
+        TextureCompression.registerPresets();
     }
 
     private Class<? extends IShaderCompiler> getShaderCompilerClass(Platform platform) {
@@ -1637,6 +1661,12 @@ public class Project {
             IPlugin plugin = klass.getConstructor().newInstance();
             plugin.init(this);
             plugins.add(plugin);
+        }
+
+        boolean texture_compress = this.option("texture-compression", "false").equals("true");
+        if (texture_compress)
+        {
+            registerTextureCompressors();
         }
 
         loop:
