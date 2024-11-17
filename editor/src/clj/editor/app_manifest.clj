@@ -27,11 +27,11 @@
 
 (def web #{:js-web :wasm-web})
 
-(def linux #{:x86_64-linux})
+(def linux #{:x86_64-linux :arm64-linux})
 
 (def vulkan
   #{:x86_64-osx :arm64-osx
-    :x86_64-linux
+    :x86_64-linux :arm64-linux
     :x86-win32 :x86_64-win32
     :armv7-android :arm64-android
     :arm64-ios})
@@ -44,7 +44,7 @@
     ;; osx
     :x86_64-osx :arm64-osx
     ;; linux
-    :x86_64-linux
+    :x86_64-linux :arm64-linux
     ;; windows
     :x86-win32 :x86_64-win32
     ;; web
@@ -434,6 +434,7 @@
                   [:x86_64-osx platform-pattern]
                   ;; linux
                   [:x86_64-linux platform-pattern]
+                  [:arm64-linux platform-pattern]
                   ;; windows
                   [:x86-win32 platform-pattern]
                   [:x86_64-win32 platform-pattern]

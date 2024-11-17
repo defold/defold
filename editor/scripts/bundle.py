@@ -382,11 +382,11 @@ def remove_platform_files_from_archive(platform, jar):
     # find libs to remove in the root folder
     for file in files:
         if "/" not in file:
-            if (platform == "x86_64-macos" or platform == "arm64-macos") and (file.endswith(".so") or file.endswith(".dll")):
+            if platform in ["x86_64-macos", "arm64-macos"] and (file.endswith(".so") or file.endswith(".dll")):
                 files_to_remove.append(file)
-            elif platform == "x86_64-win32" and (file.endswith(".so") or file.endswith(".dylib")):
+            elif platform in ["x86_64-win32"] and (file.endswith(".so") or file.endswith(".dylib")):
                 files_to_remove.append(file)
-            elif platform == "x86_64-linux" and (file.endswith(".dll") or file.endswith(".dylib")):
+            elif platform in ["x86_64-linux", "arm64-linux"]  and (file.endswith(".dll") or file.endswith(".dylib")):
                 files_to_remove.append(file)
 
     # write new jar without the files that should be removed
