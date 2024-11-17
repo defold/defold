@@ -2581,8 +2581,9 @@ static int GetAtlas(lua_State* L)
 
                 SET_LUA_TABLE_FIELD(lua_pushnumber, "width",    geom.m_Width);
                 SET_LUA_TABLE_FIELD(lua_pushnumber, "height",   geom.m_Height);
-                SET_LUA_TABLE_FIELD(lua_pushnumber, "pivot_x",  geom.m_PivotX);
-                SET_LUA_TABLE_FIELD(lua_pushnumber, "pivot_y",  geom.m_PivotX);
+                // Transform back to image space (0,0) is top left corner, (1,1) is bottom right
+                SET_LUA_TABLE_FIELD(lua_pushnumber, "pivot_x",          geom.m_PivotX + 0.5);
+                SET_LUA_TABLE_FIELD(lua_pushnumber, "pivot_y",  1.0f - (geom.m_PivotY + 0.5f));
 
                 lua_pushliteral(L, "vertices");
                 lua_newtable(L);
