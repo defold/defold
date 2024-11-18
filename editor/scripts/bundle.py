@@ -253,7 +253,7 @@ def launcher_path(options, platform, exe_suffix):
 def full_jdk_url(jdk_platform):
     version = urllib.parse.quote(java_version)
     platform = urllib.parse.quote(jdk_platform)
-    extension = "zip" if jdk_platform.startswith("windows") else "tar.gz"
+    extension = "zip" if "windows" in jdk_platform else "tar.gz"
     major_version = java_version.split('.')[0]
     artifact_version = java_version.replace('+', '_')
     return 'https://github.com/adoptium/temurin%s-binaries/releases/download/jdk-%s/OpenJDK%sU-jdk_%s_hotspot_%s.%s' % (major_version, version, major_version, platform, artifact_version, extension)
