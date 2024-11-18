@@ -2,7 +2,7 @@
 
 in vec4 position;
 in vec3 normal;
-in vec2 TexCoord;
+in vec2 tex_coord;
 
 uniform matrices
 {
@@ -12,15 +12,20 @@ uniform matrices
     mat4 mtx_normal;
 };
 
+uniform extra
+{
+    vec4 offset;
+} extra_variable;
+
 out vec2 oTexcoord;
 out vec3 oNormal;
 out vec4 oPositionWorld;
 
 void main()
 {
-    gl_Position = mtx_projection * mtx_view * mtx_world * position;
+    gl_Position = mtx_projection * mtx_view * mtx_world * position + extra_variable.offset;
 
-    oTexcoord = TexCoord;
+    oTexcoord = tex_coord;
     oNormal = (mtx_normal * vec4(normal, 0.0)).xyz;
     oPositionWorld = mtx_world * position;
 }
