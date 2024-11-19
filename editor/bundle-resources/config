@@ -13,7 +13,7 @@ time =
 channel =
 archive_domain =
 [launcher]
-jdk = ${bootstrap.resourcespath}/packages/jdk-17.0.5+8
+jdk = ${bootstrap.resourcespath}/packages/jdk-21.0.5+11
 java = ${launcher.jdk}/bin/java
 jar = ${bootstrap.resourcespath}/packages/defold-${build.editor_sha1}.jar
 main = com.defold.editor.Main
