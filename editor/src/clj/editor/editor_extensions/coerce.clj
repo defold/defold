@@ -19,8 +19,9 @@
             [editor.editor-extensions.vm :as vm]
             [editor.util :as util]
             [util.coll :as coll]
+            [util.eduction :as e]
             [util.fn :as fn])
-  (:import [org.luaj.vm2 LuaDouble LuaError LuaInteger LuaString LuaValue]))
+  (:import [org.luaj.vm2 LuaDouble LuaError LuaInteger LuaString LuaValue Varargs]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -99,6 +100,16 @@
                                          (mapv #(vm/lua-value->string vm %))
                                          (util/join-words ", " " or "))))
           v)))))
+
+(defn const
+  "Coercer that deserializes a LuaValue into a predefined expected constant"
+  [value]
+  (let [expected-lua-value (enum-lua-value-cache value)]
+    ^{:schema {:type :enum :values [value]}}
+    (fn coerce-const [vm ^LuaValue x]
+      (if (vm/with-lock vm (.eq_b x expected-lua-value))
+        value
+        (failure x (str "is not " (vm/lua-value->string vm expected-lua-value)))))))
 
 (def string
   "Coercer that deserializes a Lua string into a string"
@@ -223,6 +234,16 @@
         (not (pred ret)) (failure x error-message)
         :else ret))))
 
+(defn wrap-transform
+  "Wrap a coercer with a transformation step that changes the coerced value"
+  [coercer f & args]
+  ^{:schema (schema coercer)}
+  (fn coerce-transform [vm x]
+    (let [ret (coercer vm x)]
+      (if (failure? ret)
+        ret
+        (apply f ret args)))))
+
 (defn vector-of
   "Collection coercer, converts LuaTable to a vector
 
@@ -260,49 +281,65 @@
   "Coerces Lua table to a Clojure map with required and optional keys
 
   Optional kv-args:
-    :req    a map from required key to a coercer for a value at that key
-    :opt    a map from optional key to a coercer for a value at that key"
-  [& {:keys [req opt]}]
-  (let [reqs (mapv (fn [[k v]]
-                     [(vm/->lua k) k v])
-                   req)
-        opts (mapv (fn [[k v]]
-                     [(vm/->lua k) k v])
-                   opt)]
+    :req           a map from required key to a coercer for a value at that key
+    :opt           a map from optional key to a coercer for a value at that key
+    :extra-keys    boolean, whether to allow unspecified keys (default true)"
+  [& {:keys [req opt extra-keys]
+      :or {extra-keys true}}]
+  (let [required-keys (mapv key req)
+        lua-key->clj-key+coerce-val (coll/pair-map-by (comp enum-lua-value-cache key) (e/concat req opt))]
     ^{:schema {:type :table}}
     (fn coerce-hash-map [vm ^LuaValue x]
       (if (.istable x)
-        (let [acc (transient {})
-              acc (vm/with-lock vm
-                    (reduce
-                      (fn acc-req [acc [^LuaValue lua-key clj-key coerce-val]]
-                        (let [lua-val (.rawget x lua-key)]
-                          (if (.isnil lua-val)
-                            (reduced (failure x (str "needs " (vm/lua-value->string vm lua-key) " key")))
-                            (let [coerced-val (coerce-val vm lua-val)]
-                              (if (failure? coerced-val)
-                                (reduced coerced-val)
-                                (assoc! acc clj-key coerced-val))))))
-                      acc
-                      reqs))]
+        (let [acc (reduce
+                    (fn [acc ^Varargs varargs]
+                      (let [lua-key (.arg1 varargs)]
+                        (if-let [[clj-key coerce-val] (lua-key->clj-key+coerce-val lua-key)]
+                          (let [coerced-val (coerce-val vm (.arg varargs 2))]
+                            (if (failure? coerced-val)
+                              (reduced coerced-val)
+                              (assoc! acc clj-key coerced-val)))
+                          (if extra-keys
+                            acc
+                            (reduced (failure x (str "cannot have the " (vm/lua-value->string vm lua-key) " key")))))))
+                    (transient {})
+                    (vm/lua-table-reducer vm x))]
           (if (failure? acc)
             acc
-            (let [acc (vm/with-lock vm
-                        (reduce
-                          (fn acc-opt [acc [^LuaValue lua-key clj-key coerce-val]]
-                            (let [lua-val (.rawget x lua-key)]
-                              (if (.isnil lua-val)
-                                acc
-                                (let [coerced-val (coerce-val vm lua-val)]
-                                  (if (failure? coerced-val)
-                                    (reduced coerced-val)
-                                    (assoc! acc clj-key coerced-val))))))
-                          acc
-                          opts))]
+            (let [acc (reduce
+                        (fn [acc k]
+                          (if (contains? acc k)
+                            acc
+                            (reduced (failure x (str "must have the " (vm/lua-value->string vm (enum-lua-value-cache k)) " key")))))
+                        acc
+                        required-keys)]
               (if (failure? acc)
                 acc
                 (persistent! acc)))))
         (failure x "is not a table")))))
+
+(defn map-of
+  "Coerces Lua table to a homogeneous Clojure map"
+  [key-coercer val-coercer]
+  ^{:schema {:type :table}}
+  (fn coerce-map-of [vm ^LuaValue x]
+    (if (.istable x)
+      (let [acc (transient {})
+            acc (reduce
+                  (fn acc-kv [acc ^Varargs varargs]
+                    (let [k (key-coercer vm (.arg1 varargs))]
+                      (if (failure? k)
+                        (reduced k)
+                        (let [v (val-coercer vm (.arg varargs 2))]
+                          (if (failure? v)
+                            (reduced v)
+                            (assoc! acc k v))))))
+                  acc
+                  (vm/lua-table-reducer vm x))]
+        (if (failure? acc)
+          acc
+          (persistent! acc)))
+      (failure x "is not a table"))))
 
 (defn one-of
   "Tries several coercers in the provided order, returns first success result"

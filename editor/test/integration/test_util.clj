@@ -15,7 +15,7 @@
 (ns integration.test-util
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
-            [clojure.test :refer [is testing]]
+            [clojure.test :as test :refer [is testing]]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.atlas :as atlas]
@@ -180,8 +180,13 @@
       (let [^String file-name decl]
         (spit (io/file entry file-name) (.toString (UUID/randomUUID)))))))
 
+(defn make-build-stage-test-prefs []
+  (prefs/global "test/resources/test.editor_settings"))
+
+(defonce shared-test-prefs-file (fs/create-temp-file! "unit-test" "prefs.editor_settings"))
 (defn make-test-prefs []
-  (prefs/load-prefs "test/resources/test_prefs.json"))
+  (prefs/make :scopes {:global shared-test-prefs-file :project shared-test-prefs-file}
+              :schemas [:default]))
 
 (declare resolve-prop)
 
@@ -412,7 +417,7 @@
 
 (defn open-scene-view! [project app-view path width height]
   (make-tab! project app-view path (fn [view-graph resource-node]
-                                     (scene/make-preview view-graph resource-node {:prefs (make-test-prefs) :app-view app-view :project project :select-fn (partial app-view/select app-view)} width height))))
+                                     (scene/make-preview view-graph resource-node {:prefs (make-build-stage-test-prefs) :app-view app-view :project project :select-fn (partial app-view/select app-view)} width height))))
 
 (defn close-tab! [project app-view path]
   (let [node-id (project/get-resource-node project path)
@@ -783,8 +788,10 @@
   (let [[node-id# property# value#] binding]
     `(let [old-value# (prop ~node-id# ~property#)]
        (prop! ~node-id# ~property# ~value#)
-       ~@forms
-       (prop! ~node-id# ~property# old-value#))))
+       (try
+         ~@forms
+         (finally
+           (prop! ~node-id# ~property# old-value#))))))
 
 (defn make-call-logger
   "Returns a function that keeps track of its invocations. Every
@@ -1634,3 +1641,16 @@
             save-text (resource-node/save-data-content save-data)]
         ;; Compare text.
         (check-text-equivalence! disk-text save-text message)))))
+
+(defmethod test/assert-expr 'thrown-with-data? [msg [_ expected-data-pred & body :as form]]
+  `(try
+     (do ~@body)
+     (test/do-report {:type :fail :message ~msg :expected '~form :actual nil})
+     (catch Throwable e#
+       (let [actual-data# (ex-data e#)
+             result# (if (~expected-data-pred actual-data#) :pass :fail)]
+         (test/do-report {:type result# :message ~msg :expected '~form :actual e#})
+         e#))))
+
+(defmacro check-thrown-with-data! [expected-data-pred & body]
+  `(is (~'thrown-with-data? ~expected-data-pred ~@body)))

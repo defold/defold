@@ -132,6 +132,7 @@
 (defonce ^:private ^"[Lcom.dynamo.graphics.proto.Graphics$ShaderDesc$Language;" java-shader-languages-with-spirv
   (into-array Graphics$ShaderDesc$Language
               (map shader-language-to-java
+                   ;; TODO: WGSL support (:language-wgsl)
                    [:language-glsl-sm140 :language-glsl-sm330 :language-gles-sm300 :language-gles-sm100 :language-glsl-sm430 :language-spirv])))
 
 (defn- build-shader [build-resource _dep-resources user-data]

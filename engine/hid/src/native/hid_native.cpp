@@ -16,7 +16,6 @@
 #include <string.h>
 
 #include <dlib/log.h>
-#include <dlib/utf8.h>
 #include <dlib/dstrings.h>
 #include <dlib/math.h>
 
@@ -198,13 +197,15 @@ namespace dmHID
         if (context)
         {
             NativeContextUserData* user_data = (NativeContextUserData*) context->m_NativeContextUserData;
-
-            for (int i = 0; i < user_data->m_GamepadDrivers.Size(); ++i)
+            if (user_data)
             {
-                user_data->m_GamepadDrivers[i]->m_Destroy(context, user_data->m_GamepadDrivers[i]);
-            }
+                for (int i = 0; i < user_data->m_GamepadDrivers.Size(); ++i)
+                {
+                    user_data->m_GamepadDrivers[i]->m_Destroy(context, user_data->m_GamepadDrivers[i]);
+                }
 
-            delete user_data;
+                delete user_data;
+            }
             context->m_NativeContextUserData = 0;
         }
     }

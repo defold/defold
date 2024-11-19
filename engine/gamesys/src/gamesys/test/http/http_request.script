@@ -12,7 +12,7 @@
 -- CONDITIONS OF ANY KIND, either express or implied. See the License for the
 -- specific language governing permissions and limitations under the License.
 
-local tests_left = 6
+local tests_left = 8
 tests_done = false
 
 local function test_done(response, data_str)
@@ -24,7 +24,6 @@ local function test_done(response, data_str)
         tests_done = true
     end
 end
-
 
 function test_get(self)
     local chunked_data   = ""
@@ -116,8 +115,31 @@ function test_post(self)
         nil, test_post_1_data_str, { report_progress = true })
 end
 
+function test_head(self)
+    -- 7
+    http.request(ADDRESS .. "/test_head", "HEAD",
+        function(self, id, response)
+            assert(response.headers["content-length"] == "1234")
+            test_done(response, "")
+        end)
+
+    -- 8
+    http.request(ADDRESS .. "/test_head_progress", "HEAD",
+        function(self, id, response)
+            if not self.test_8_progress then
+                assert(response.bytes_received == 0)
+                assert(response.bytes_total    == 1234)
+                self.test_8_progress = true
+            else
+                test_done(response, "")
+            end
+        end,
+        nil, nil, { report_progress = true })
+end
+
 function init(self)
     test_get(self)
     test_post(self)
+    test_head(self)
 end
 

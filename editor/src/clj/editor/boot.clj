@@ -53,24 +53,26 @@
                     (apply f prefix lib options))))
 
 (defn- open-project-with-progress-dialog
-  [namespace-loader prefs project updater newly-created?]
+  [namespace-loader user-prefs project updater newly-created?]
   (dialogs/make-load-project-dialog
     (fn [render-progress!]
       (let [namespace-progress (progress/make "Loading editor" 1471) ; Magic number from printing namespace-counter after load. Connecting a REPL skews the result!
             render-namespace-progress! (progress/nest-render-progress render-progress! (progress/make "Loading" 5 0) 1)
             render-project-progress! (progress/nest-render-progress render-progress! (progress/make "Loading" 5 1) 4)
-            project-file (io/file project)]
-        (welcome/add-recent-project! prefs project-file)
+            project-file (io/file project)
+            project-dir (.getParentFile project-file)
+            project-prefs (doto (prefs/project project-dir user-prefs) prefs/migrate-project-prefs!)]
+        (welcome/add-recent-project! project-prefs project-file)
         (reset! namespace-progress-reporter #(render-namespace-progress! (% namespace-progress)))
 
         ;; Ensure that namespace loading has completed.
         @namespace-loader
 
         ;; Initialize the system and load the project.
-        (let [system-config (apply (var-get (ns-resolve 'editor.shared-editor-settings 'load-project-system-config)) [(.getParentFile project-file)])]
-          (apply (var-get (ns-resolve 'editor.boot-open-project 'initialize-systems!)) [prefs])
+        (let [system-config (apply (var-get (ns-resolve 'editor.shared-editor-settings 'load-project-system-config)) [project-dir])]
+          (apply (var-get (ns-resolve 'editor.boot-open-project 'initialize-systems!)) [project-prefs])
           (apply (var-get (ns-resolve 'editor.boot-open-project 'initialize-project!)) [system-config])
-          (apply (var-get (ns-resolve 'editor.boot-open-project 'open-project!)) [project-file prefs render-project-progress! updater newly-created?])
+          (apply (var-get (ns-resolve 'editor.boot-open-project 'open-project!)) [project-file project-prefs render-project-progress! updater newly-created?])
           (reset! namespace-progress-reporter nil))))))
 
 (defn- select-project-from-welcome
@@ -120,8 +122,8 @@
   (let [args (Arrays/asList args)
         opts (cli/parse-opts args cli-options)
         prefs (if-let [prefs-path (get-in opts [:options :preferences])]
-                (prefs/load-prefs prefs-path)
-                (prefs/make-prefs "defold"))
+                (prefs/global prefs-path)
+                (doto (prefs/global) prefs/migrate-global-prefs!))
         updater (updater/start!)
         analytics-url (get connection-properties :analytics-url)
         analytics-send-interval 300]
@@ -130,10 +132,11 @@
     (analytics/start! analytics-url analytics-send-interval)
     (Shutdown/addShutdownAction analytics/shutdown!)
     (try
-      (let [game-project-path (get-in opts [:arguments 0])]
+      (let [game-project-path (get-in opts [:arguments 0])
+            game-project-file (io/file game-project-path)]
         (if (and game-project-path
-                 (.exists (io/file game-project-path)))
-          (open-project-with-progress-dialog namespace-loader prefs game-project-path updater false)
+                 (.exists game-project-file))
+          (open-project-with-progress-dialog namespace-loader prefs (.getAbsolutePath game-project-file) updater false)
           (select-project-from-welcome namespace-loader prefs updater)))
       (catch Throwable t
         (log/error :exception t)

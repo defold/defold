@@ -27,6 +27,11 @@ namespace dmGameSystem
 {
     static const uint32_t MAX_MIPMAP_COUNT = 15; // 2^14 => 16384 (+1 for base mipmap)
 
+    TextureResource::TextureResource()
+    {
+        memset(this, 0, sizeof(*this));
+    }
+
     struct ImageDesc
     {
         dmGraphics::TextureImage* m_DDFImage;
@@ -86,7 +91,13 @@ namespace dmGameSystem
         return (dmGraphics::TextureFormat)-1;
     }
 
-    bool SynchronizeTexture(dmGraphics::HTexture texture, bool wait)
+    static void DestroyTexture(TextureResource* resource)
+    {
+        dmGraphics::DeleteTexture(resource->m_Texture);
+        delete resource;
+    }
+
+    static bool SynchronizeTexture(dmGraphics::HTexture texture, bool wait)
     {
         while(dmGraphics::GetTextureStatusFlags(texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING)
         {
@@ -339,11 +350,18 @@ namespace dmGameSystem
         // Poll state of texture async texture processing and return state. RESULT_PENDING indicates we need to poll again.
         TextureResource* texture_res = (TextureResource*) dmResource::GetResource(params->m_Resource);
 
+        if (texture_res->m_DelayDelete)
+        {
+            DestroyTexture(texture_res);
+            return dmResource::RESULT_OK;
+        }
+
         if(!SynchronizeTexture(texture_res->m_Texture, false))
         {
             return dmResource::RESULT_PENDING;
         }
 
+        texture_res->m_Uploading = 0;
         ImageDesc* image_desc = (ImageDesc*) params->m_PreloadData;
         dmDDF::FreeMessage(image_desc->m_DDFImage);
         DestroyImage(image_desc);
@@ -355,18 +373,21 @@ namespace dmGameSystem
     {
         ResTextureUploadParams upload_params = {};
         dmGraphics::HContext graphics_context = (dmGraphics::HContext) params->m_Context;
-        dmGraphics::HTexture texture;
-
         ImageDesc* image_desc = (ImageDesc*) params->m_PreloadData;
+
+        TextureResource* texture_res = new TextureResource();
 
         if (image_desc->m_DDFImage->m_Alternatives.m_Count > 0)
         {
-            dmResource::Result r = AcquireResources(params->m_Filename, graphics_context, image_desc, upload_params, 0, &texture);
+            texture_res->m_Uploading = 1;
+            dmResource::Result r = AcquireResources(params->m_Filename, graphics_context, image_desc, upload_params, 0, &texture_res->m_Texture);
             if (r == dmResource::RESULT_OK)
             {
-                TextureResource* texture_res = new TextureResource();
-                texture_res->m_Texture = texture;
                 dmResource::SetResource(params->m_Resource, texture_res);
+            }
+            else
+            {
+                delete texture_res;
             }
             return r;
         }
@@ -375,7 +396,6 @@ namespace dmGameSystem
             // This allows us to create a texture resource that can contain an empty texture handle,
             // which is needed in some cases where we don't want to have to create a small texture that then
             // has to be removed, e.g render target resources.
-            TextureResource* texture_res  = new TextureResource();
             texture_res->m_Texture        = 0;
             dmResource::SetResource(params->m_Resource, texture_res);
         }
@@ -386,8 +406,15 @@ namespace dmGameSystem
     dmResource::Result ResTextureDestroy(const dmResource::ResourceDestroyParams* params)
     {
         TextureResource* texture_res = (TextureResource*) dmResource::GetResource(params->m_Resource);
-        dmGraphics::DeleteTexture(texture_res->m_Texture);
-        delete texture_res;
+
+        if (texture_res->m_Uploading)
+        {
+            // The job is currently in flight
+            texture_res->m_DelayDelete = 1;
+            return dmResource::RESULT_OK;
+        }
+
+        DestroyTexture(texture_res);
         return dmResource::RESULT_OK;
     }
 

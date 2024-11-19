@@ -13,17 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.bundle
-  (:require [clojure.java.io :as io]
-            [clojure.java.shell :as shell]
-            [dynamo.graph :as g]
-            [editor.dialogs :as dialogs]
-            [editor.engine :as engine]
-            [editor.fs :as fs]
-            [editor.handler :as handler]
-            [editor.prefs :as prefs]
-            [editor.system :as system]
-            [editor.ui :as ui]
-            [editor.workspace :as workspace]))
+  (:require [clojure.java.shell :as shell]))
 
 (set! *warn-on-reflection* true)
 

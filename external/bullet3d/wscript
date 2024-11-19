@@ -17,6 +17,11 @@ def options(opt):
     opt.load('waf_dynamo')
 
 def configure(conf):
+    if os.environ['DYNAMO_HOME'] != conf.env.PREFIX:
+        if 'PREFIX' not in os.environ:
+            conf.env.PREFIX = os.environ['DYNAMO_HOME']
+            print("Setting PREFIX=$DYNAMO_HOME")
+
     conf.load('waf_dynamo')
     conf.env.append_unique('DEFINES', 'NDEBUG')
 
@@ -102,6 +107,8 @@ def create_package(self):
     target = os.path.normpath(os.path.join(os.environ['DYNAMO_HOME'], '..', '..', 'packages', name))
     shutil.copy2(source, target)
     print("Installed to", target)
+
+    shutil.rmtree(self.cwd)
 
 def package(self):
     pass

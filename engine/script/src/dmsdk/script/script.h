@@ -406,9 +406,18 @@ namespace dmScript
      * @name dmScript::IsHash
      * @param L [type:lua_State*] Lua state
      * @param index [type:int] Index of the value
-     * @return true if the value at #index is a hash
+     * @return result [type:bool] true if the value at #index is a hash
      */
     bool IsHash(lua_State *L, int index);
+
+    /*#
+     * Check if the value at #index is a hash
+     * @name dmScript::ToHash
+     * @param L [type:lua_State*] Lua state
+     * @param index [type:int] Index of the value
+     * @return hash [type: dmhash_t*] pointer to hash or 0 if it's not a hash
+     */
+    dmhash_t* ToHash(lua_State *L, int index);
 
     /*#
      * Push a hash value onto the supplied lua state, will increase the stack by 1.

@@ -22,6 +22,10 @@ namespace dmGameSystem
     struct TextureResource
     {
         dmGraphics::HTexture m_Texture;
+        uint8_t              m_Uploading:1;
+        uint8_t              m_DelayDelete:1;
+
+        TextureResource();
     };
 }
 

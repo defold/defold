@@ -4,6 +4,20 @@
 
 ## Required Software
 
+### Platform SDK
+
+To make contributions easier, we detect local installations of the common platform SDK's:
+
+* macOS + iOS: [XCode](https://apps.apple.com/us/app/xcode/id497799835)
+* Linux: [Clang++](https://apt.llvm.org/)
+* Windows: [Visual Studio Community 2022](https://visualstudio.microsoft.com/vs/older-downloads/)
+  * We also require Clang:
+    * In Visual Studio Installer, under Individual components, select *C++ Clang Compiler for Windows* and *MSBuild support for LLVM (clang-cl) toolset*.
+    * Add clang to your PATH. For a default installation, the path to add will likely be C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\Llvm\bin
+* Android: [Android Studio](https://developer.android.com/studio)
+
+For consoles, we refer to each vendor's installation notes.
+
 ### Package managers
 
 <details><summary>Windows...</summary><p>
@@ -12,7 +26,9 @@
 
 Open a Command (cmd.exe) as administator and run:
 
-`@"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -InputFormat None -ExecutionPolicy Bypass -Command "[System.Net.ServicePointManager]::SecurityProtocol = 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))" && SET "PATH=%PATH%;%ALLUSERSPROFILE%\chocolatey\bin"`
+```sh
+@"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -InputFormat None -ExecutionPolicy Bypass -Command "[System.Net.ServicePointManager]::SecurityProtocol = 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))" && SET "PATH=%PATH%;%ALLUSERSPROFILE%\chocolatey\bin"
+```
 
 Once this is done, you can install new packages which are added to the PATH, by running:
 
@@ -126,16 +142,14 @@ PowerShell (Windows):
 ```
 </p></details>
 
-
 ### Required Software
 
 <details><summary>macOS...</summary><p>
 
-You need the `dos2unix` command line tool to convert line endings of certain source files when building files in `share/ext`. You can install `dos2unix` using [Brew](https://brew.sh/):
+#### XCode
 
-```sh
-> brew install dos2unix
-```
+we use [XCode](https://apps.apple.com/us/app/xcode/id497799835) for building and debugging macOS + iOS targets.
+
 </p></details>
 
 <details><summary>Windows...</summary><p>
@@ -153,26 +167,12 @@ The `git-bash` setup can also install a setup for the Windows Terminal app.
 
 This terminal has the tool `winget` to install some packages.
 
+#### Git Bash
 
-#### MSYS/MinGW
+This installs both Git as well as a Terminal addon to allow you to use a *nix like bash terminal,
+making it much easier to build Defold through.
 
-This is an alternative to Terminal/git-bash setup.
-
-This will get you a shell that behaves like Linux and is much easier to build Defold through. [Download](https://sourceforge.net/projects/mingw/files/Installer/mingw-get-setup.exe/download) and run the installer and check these packages (binary):
-
-* MingW Base System: `mingw32-base-bin`, 'mingw32-gcc-g++-bin'
-* MSYS Base System: `msys-base-bin`, `msys-patch-bin`
-* MinGW Developer Toolkit: `mingw-developer-toolkit-bin`
-
-Select the menu option `Installation -> Apply Changes`.
-
-You also need to install `wget`. From the mingw terminal run:
-
-```sh
-> mingw-get install msys-wget-bin msys-zip msys-unzip
-```
-
-**NOTE:** You can start the visual installer again by simply running `mingw-get`
+Download: [Git For Windows](https://gitforwindows.org)
 
 #### Git
 
@@ -261,17 +261,18 @@ It is recommended but not required that you install the following software:
 
 <details><summary>macOS...</summary><p>
 
-* **wget** + **curl** - for downloading packages
+* **wget** + **curl** - for downloading packages (used for downloading packages in different scripts)
 * **7z** - for extracting packages (archives and binaries)
-* **ccache** - for faster compilations of source code
+* **ccache** - for faster compilations of source code (optional)
 * **cmake** for easier building of external projects
 * **patch** for easier patching on windows (when building external projects)
 * **ripgrep** for faster search
+* **dos2unix** tool to convert line endings of certain source files (e.g. when building files in `share/ext`)
 
 Quick and easy install:
 
 ```sh
-> brew install wget curl p7zip ccache ripgrep
+> brew install wget curl p7zip ccache ripgrep dos2unix
 ```
 
 Configure `ccache` by running ([source](https://ccache.samba.org/manual.html))
@@ -283,9 +284,9 @@ Configure `ccache` by running ([source](https://ccache.samba.org/manual.html))
 
 <details><summary>Windows...</summary><p>
 
-* **wget** + **curl** - for downloading packages
+* **wget** + **curl** - for downloading packages (used for downloading packages in different scripts)
 * **7z** - for extracting packages (archives and binaries)
-* **ccache** - for faster compilations of source code
+* **ccache** - for faster compilations of source code (optional)
 * **cmake** for easier building of external projects
 * **patch** for easier patching on windows (when building external projects)
 
@@ -310,9 +311,9 @@ Open a Command (cmd.exe) as administrator and run:
 
 <details><summary>Linux...</summary><p>
 
-* **wget** + **curl** - for downloading packages
+* **wget** + **curl** - for downloading packages (used for downloading packages in different scripts)
 * **7z** - for extracting packages (archives and binaries)
-* **ccache** - for faster compilations of source code
+* **ccache** - for faster compilations of source code (optional)
 * **cmake** for easier building of external projects
 * **patch** for easier patching on windows (when building external projects)
 * **snapd** for installing snap packages

@@ -21,7 +21,7 @@ BUILD_DIR=$(realpath ./build/src)
 
 set -e
 
-CLASS_NAME=com.dynamo.bob.pipeline.ModelImporter
+CLASS_NAME=com.dynamo.bob.pipeline.ModelImporterJni
 LIBNAME=modelc_shared
 SUFFIX=.so
 if [ "Darwin" == "$(uname)" ]; then
@@ -95,6 +95,7 @@ if [ "${USING_UBSAN}" != "" ]; then
 fi
 
 #JNI_DEBUG_FLAGS="-Xcheck:jni"
+#export DYLD_INSERT_LIBRARIES=${JAVA_HOME}/lib/libjsig.dylib
 
 export DM_MODELIMPORTER_LOG_LEVEL=DEBUG
 

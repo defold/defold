@@ -257,7 +257,7 @@ var EngineLoader = {
             function(error) { throw error; },
             function(wasm) {
                 if (wasm.byteLength != EngineLoader.wasm_size) {
-                    throw "Invalid wasm size. Expected: " + EngineLoader.wasm_size + ", actual: " + wasm.byteLength;
+                   console.warn("Unexpected wasm size: " + wasm.byteLength + ", expected: " + EngineLoader.wasm_size);
                 }
                 var wasmInstantiate = WebAssembly.instantiate(new Uint8Array(wasm), imports).then(function(output) {
                     successCallback(output.instance);
@@ -804,6 +804,8 @@ var Module = {
     hasWebGLSupport: function() {
         var webgl_support = false;
         try {
+            // create canvas to simply check is rendering context supported
+            // real render context created by glfw
             var canvas = document.createElement("canvas");
             var gl = canvas.getContext("webgl") || canvas.getContext("experimental-webgl");
             if (gl && gl instanceof WebGLRenderingContext) {
@@ -1001,7 +1003,7 @@ var Module = {
         }
     },
 
-    _callMain: function() {
+    _callMain: function(_, _) {
         ProgressView.removeProgress();
         if (Module.callMain === undefined) {
             Module.noInitialRun = false;

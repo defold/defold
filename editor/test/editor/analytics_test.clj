@@ -73,14 +73,15 @@
   (let [validation-messages (let [validation-messages-atom (atom [])]
                               (with-redefs [analytics/get-response-code! (partial get-response-code-and-append-validation-messages! validation-messages-atom)
                                             sys/defold-version (constantly "0.1.234")]
-                                (with-config! {:cid mock-cid}
-                                  (analytics/start! validation-server-url send-interval)
-                                  (analytics/track-event! "test-category" "test-action")
-                                  (analytics/track-event! "test-category" "test-action" "test-label")
-                                  (analytics/track-exception! (NullPointerException.))
-                                  (analytics/track-screen! "test-screen-name")
-                                  (analytics/shutdown! shutdown-timeout)
-                                  @validation-messages-atom)))]
+                                (log/without-logging
+                                  (with-config! {:cid mock-cid}
+                                    (analytics/start! validation-server-url send-interval)
+                                    (analytics/track-event! "test-category" "test-action")
+                                    (analytics/track-event! "test-category" "test-action" "test-label")
+                                    (analytics/track-exception! (NullPointerException.))
+                                    (analytics/track-screen! "test-screen-name")
+                                    (analytics/shutdown! shutdown-timeout)
+                                    @validation-messages-atom))))]
     (is (= 0 (count validation-messages)))))
 
 (deftest send-error-test
