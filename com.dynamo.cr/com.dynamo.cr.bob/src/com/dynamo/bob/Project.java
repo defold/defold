@@ -716,8 +716,6 @@ public class Project {
             throw e;
         } catch (Throwable e) {
             throw new CompileExceptionError(null, 0, e.getMessage(), e);
-        } finally {
-            TimeProfiler.createReport(true);
         }
     }
 
