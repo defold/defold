@@ -47,19 +47,34 @@
                       (into {}))]
     (id->node id)))
 
-(defn- gui-resource [resources-node-label scene id]
-  (->> (-> scene
-           (g/node-value resources-node-label)
-           (g/node-value :node-outline))
-       :children
-       (filter #(= id (:label %)))
-       first
-       :node-id))
+(defn- gui-resources-node [resources-node-outline-key scene]
+  (->> (g/node-value scene :node-outline)
+       (:children)
+       (some (fn [resources-node-outline]
+               (when (= resources-node-outline-key (:node-outline-key resources-node-outline))
+                 (:node-id resources-node-outline))))))
 
-(def ^:private gui-texture (partial gui-resource :textures-node))
-(def ^:private gui-font (partial gui-resource :fonts-node))
-(def ^:private gui-layer (partial gui-resource :layers-node))
-(def ^:private gui-particlefx-resource (partial gui-resource :particlefx-resources-node))
+(def ^:private gui-textures (partial gui-resources-node "Textures"))
+(def ^:private gui-fonts (partial gui-resources-node "Fonts"))
+(def ^:private gui-layers (partial gui-resources-node "Layers"))
+(def ^:private gui-particlefx-resources (partial gui-resources-node "Particle FX"))
+(def ^:private gui-materials (partial gui-resources-node "Materials"))
+(def ^:private gui-spine-scenes (partial gui-resources-node "Spine Scenes"))
+
+(defn- gui-resource-node [gui-resources-node-fn scene resource-name]
+  (some (fn [resource-node-outline]
+          (when (= resource-name (:node-outline-key resource-node-outline))
+            (:node-id resource-node-outline)))
+        (some-> (gui-resources-node-fn scene)
+                (g/node-value :node-outline)
+                (:children))))
+
+(def ^:private gui-texture (partial gui-resource-node gui-textures))
+(def ^:private gui-font (partial gui-resource-node gui-fonts))
+(def ^:private gui-layer (partial gui-resource-node gui-layers))
+(def ^:private gui-particlefx-resource (partial gui-resource-node gui-particlefx-resources))
+(def ^:private gui-material (partial gui-resource-node gui-materials))
+(def ^:private gui-spine-scene (partial gui-resource-node gui-spine-scenes))
 
 (defn- property-value-choices [node-id label]
   (->> (g/node-value node-id :_properties)
@@ -586,6 +601,9 @@
         "particlefx" gui-particlefx-resource "particlefx" :particlefx "renamed_particlefx" "renamed_particlefx" ["renamed_particlefx"]))))
 
 (deftest rename-referenced-gui-resource-in-template
+  ;; Note: This test does not verify that override values in the outer scene
+  ;; that refer to resources in the template scene are updated after the rename.
+  ;; This is covered by template-layout-resource-rename-test below.
   (test-util/with-loaded-project
     (let [make-restore-point! #(test-util/make-graph-reverter (project/graph project))
           template-scene (test-util/resource-node project "/gui_resources/gui_resources.gui")
@@ -1019,9 +1037,9 @@
 
 (defn- make-node->field->value [node-descs override-node-desc? node-desc-fn]
   (coll/transfer node-descs (sorted-map)
-    (map (fn [node-desc]
-           (pair (:id node-desc)
-                 (node-desc-fn node-desc (override-node-desc? node-desc)))))))
+    (keep (fn [node-desc]
+            (when-some [field->value (node-desc-fn node-desc (override-node-desc? node-desc))]
+              (pair (:id node-desc) field->value))))))
 
 (defn- make-layout->node->field->value [scene-desc node-desc-fn]
   (coll/transfer
@@ -2163,3 +2181,234 @@
                              "button/added" {:parent "button"}}
                   "Landscape" {}}
                  (make-saved-layout->node->field->value referencing-scene))))))))
+
+(deftest template-layout-resource-rename-test
+  (test-util/with-loaded-project "test/resources/gui_project"
+    (let [referencing-scene (project/get-resource-node project "/gui/resources/panel.gui")
+          referenced-scene (project/get-resource-node project "/gui/resources/button.gui")
+
+          make-layout->node->resource-field-values
+          (fn make-layout->node->resource-field-values [gui-scene-node-id]
+            (let [scene-desc (g/valid-node-value gui-scene-node-id :save-value)]
+              (make-layout->node->field->value
+                scene-desc
+                (fn node-desc-fn [node-desc _is-override-node-desc]
+                  (-> node-desc
+                      (select-keys [:font :layer :material :particlefx :spine-scene :texture])
+                      (coll/not-empty))))))]
+
+      (testing "Before renaming resources."
+        (testing "Referenced scene."
+          (is (= {"Default" {"box" {:layer "button_layer"
+                                    :material "button_material"
+                                    :texture "button_texture/button_striped"}
+                             "particlefx" {:layer "button_layer"
+                                           :material "button_material"
+                                           :particlefx "button_particlefx"}
+                             "pie" {:layer "button_layer"
+                                    :material "button_material"
+                                    :texture "button_texture/button_striped"}
+                             "spine" {:layer "button_layer"
+                                      :material "button_material"
+                                      :spine-scene "button_spinescene"}
+                             "text" {:font "button_font"
+                                     :layer "button_layer"
+                                     :material "button_material"}}
+                  "Landscape" {"box" {:layer "button_layer"
+                                      :material "button_material"
+                                      :texture "button_texture/button_striped"}
+                               "particlefx" {:layer "button_layer"
+                                             :material "button_material"
+                                             :particlefx "button_particlefx"}
+                               "pie" {:layer "button_layer"
+                                      :material "button_material"
+                                      :texture "button_texture/button_striped"}
+                               "spine" {:layer "button_layer"
+                                        :material "button_material"
+                                        :spine-scene "button_spinescene"}
+                               "text" {:font "button_font"
+                                       :layer "button_layer"
+                                       :material "button_material"}}}
+                 (make-layout->node->resource-field-values referenced-scene))))
+
+        (testing "Referencing scene."
+          (is (= {"Default" {"button_resources" {:layer "button_layer"}
+                             "button_resources/box" {:layer "button_layer"
+                                                     :material "button_material"
+                                                     :texture "button_texture/button_striped"}
+                             "button_resources/particlefx" {:layer "button_layer"
+                                                            :material "button_material"
+                                                            :particlefx "button_particlefx"}
+                             "button_resources/pie" {:layer "button_layer"
+                                                     :material "button_material"
+                                                     :texture "button_texture/button_striped"}
+                             "button_resources/spine" {:layer "button_layer"
+                                                       :material "button_material"
+                                                       :spine-scene "button_spinescene"}
+                             "button_resources/text" {:font "button_font"
+                                                      :layer "button_layer"
+                                                      :material "button_material"}
+                             "panel_resources" {:layer "panel_layer"}
+                             "panel_resources/box" {:layer "panel_layer"
+                                                    :material "panel_material"
+                                                    :texture "panel_texture/button_striped"}
+                             "panel_resources/particlefx" {:layer "panel_layer"
+                                                           :material "panel_material"
+                                                           :particlefx "panel_particlefx"}
+                             "panel_resources/pie" {:layer "panel_layer"
+                                                    :material "panel_material"
+                                                    :texture "panel_texture/button_striped"}
+                             "panel_resources/spine" {:layer "panel_layer"
+                                                      :material "panel_material"
+                                                      :spine-scene "panel_spinescene"}
+                             "panel_resources/text" {:font "panel_font"
+                                                     :layer "panel_layer"
+                                                     :material "panel_material"}}
+                  "Landscape" {"button_resources/box" {:layer "button_layer"
+                                                       :material "button_material"
+                                                       :texture "button_texture/button_striped"}
+                               "button_resources/particlefx" {:layer "button_layer"
+                                                              :material "button_material"
+                                                              :particlefx "button_particlefx"}
+                               "button_resources/pie" {:layer "button_layer"
+                                                       :material "button_material"
+                                                       :texture "button_texture/button_striped"}
+                               "button_resources/spine" {:layer "button_layer"
+                                                         :material "button_material"
+                                                         :spine-scene "button_spinescene"}
+                               "button_resources/text" {:font "button_font"
+                                                        :layer "button_layer"
+                                                        :material "button_material"}
+                               "panel_resources/box" {:layer "panel_layer"
+                                                      :material "panel_material"
+                                                      :texture "panel_texture/button_striped"}
+                               "panel_resources/particlefx" {:layer "panel_layer"
+                                                             :material "panel_material"
+                                                             :particlefx "panel_particlefx"}
+                               "panel_resources/pie" {:layer "panel_layer"
+                                                      :material "panel_material"
+                                                      :texture "panel_texture/button_striped"}
+                               "panel_resources/spine" {:layer "panel_layer"
+                                                        :material "panel_material"
+                                                        :spine-scene "panel_spinescene"}
+                               "panel_resources/text" {:font "panel_font"
+                                                       :layer "panel_layer"
+                                                       :material "panel_material"}}}
+                 (make-layout->node->resource-field-values referencing-scene)))))
+
+      ;; Rename all resources in the referenced scene.
+      (let [button-font (gui-font referenced-scene "button_font")
+            button-layer (gui-layer referenced-scene "button_layer")
+            button-material (gui-material referenced-scene "button_material")
+            button-particlefx (gui-particlefx-resource referenced-scene "button_particlefx")
+            button-spinescene (gui-spine-scene referenced-scene "button_spinescene")
+            button-texture (gui-texture referenced-scene "button_texture")]
+        (test-util/prop! button-font :name "button_font_renamed")
+        (test-util/prop! button-layer :name "button_layer_renamed")
+        (test-util/prop! button-material :name "button_material_renamed")
+        (test-util/prop! button-particlefx :name "button_particlefx_renamed")
+        (test-util/prop! button-spinescene :name "button_spinescene_renamed")
+        (test-util/prop! button-texture :name "button_texture_renamed"))
+
+      (testing "After renaming resources in the referenced scene."
+        (testing "Referenced scene."
+          (is (= {"Default" {"box" {:layer "button_layer_renamed"
+                                    :material "button_material_renamed"
+                                    :texture "button_texture_renamed/button_striped"}
+                             "particlefx" {:layer "button_layer_renamed"
+                                           :material "button_material_renamed"
+                                           :particlefx "button_particlefx_renamed"}
+                             "pie" {:layer "button_layer_renamed"
+                                    :material "button_material_renamed"
+                                    :texture "button_texture_renamed/button_striped"}
+                             "spine" {:layer "button_layer_renamed"
+                                      :material "button_material_renamed"
+                                      :spine-scene "button_spinescene_renamed"}
+                             "text" {:font "button_font_renamed"
+                                     :layer "button_layer_renamed"
+                                     :material "button_material_renamed"}}
+                  "Landscape" {"box" {:layer "button_layer_renamed"
+                                      :material "button_material_renamed"
+                                      :texture "button_texture_renamed/button_striped"}
+                               "particlefx" {:layer "button_layer_renamed"
+                                             :material "button_material_renamed"
+                                             :particlefx "button_particlefx_renamed"}
+                               "pie" {:layer "button_layer_renamed"
+                                      :material "button_material_renamed"
+                                      :texture "button_texture_renamed/button_striped"}
+                               "spine" {:layer "button_layer_renamed"
+                                        :material "button_material_renamed"
+                                        :spine-scene "button_spinescene_renamed"}
+                               "text" {:font "button_font_renamed"
+                                       :layer "button_layer_renamed"
+                                       :material "button_material_renamed"}}}
+                 (make-layout->node->resource-field-values referenced-scene))))
+
+        (testing "Referencing scene."
+          ;; Note: "button_layer" existed in both button.gui and panel.gui
+          ;; before the rename. After the rename of "button_layer" to
+          ;; "button_layer_renamed" in button.gui, we should not see any updated
+          ;; references to it in panel.gui, since it has its own "button_layer".
+          (is (= {"Default" {"button_resources" {:layer "button_layer"}
+                             "button_resources/box" {:layer "button_layer"
+                                                     :material "button_material_renamed"
+                                                     :texture "button_texture_renamed/button_striped"}
+                             "button_resources/particlefx" {:layer "button_layer"
+                                                            :material "button_material_renamed"
+                                                            :particlefx "button_particlefx_renamed"}
+                             "button_resources/pie" {:layer "button_layer"
+                                                     :material "button_material_renamed"
+                                                     :texture "button_texture_renamed/button_striped"}
+                             "button_resources/spine" {:layer "button_layer"
+                                                       :material "button_material_renamed"
+                                                       :spine-scene "button_spinescene_renamed"}
+                             "button_resources/text" {:font "button_font_renamed"
+                                                      :layer "button_layer"
+                                                      :material "button_material_renamed"}
+                             "panel_resources" {:layer "panel_layer"}
+                             "panel_resources/box" {:layer "panel_layer"
+                                                    :material "panel_material"
+                                                    :texture "panel_texture/button_striped"}
+                             "panel_resources/particlefx" {:layer "panel_layer"
+                                                           :material "panel_material"
+                                                           :particlefx "panel_particlefx"}
+                             "panel_resources/pie" {:layer "panel_layer"
+                                                    :material "panel_material"
+                                                    :texture "panel_texture/button_striped"}
+                             "panel_resources/spine" {:layer "panel_layer"
+                                                      :material "panel_material"
+                                                      :spine-scene "panel_spinescene"}
+                             "panel_resources/text" {:font "panel_font"
+                                                     :layer "panel_layer"
+                                                     :material "panel_material"}}
+                  "Landscape" {"button_resources/box" {:layer "button_layer"
+                                                       :material "button_material_renamed"
+                                                       :texture "button_texture_renamed/button_striped"}
+                               "button_resources/particlefx" {:layer "button_layer"
+                                                              :material "button_material_renamed"
+                                                              :particlefx "button_particlefx_renamed"}
+                               "button_resources/pie" {:layer "button_layer"
+                                                       :material "button_material_renamed"
+                                                       :texture "button_texture_renamed/button_striped"}
+                               "button_resources/spine" {:layer "button_layer"
+                                                         :material "button_material_renamed"
+                                                         :spine-scene "button_spinescene_renamed"}
+                               "button_resources/text" {:font "button_font_renamed"
+                                                        :layer "button_layer"
+                                                        :material "button_material_renamed"}
+                               "panel_resources/box" {:layer "panel_layer"
+                                                      :material "panel_material"
+                                                      :texture "panel_texture/button_striped"}
+                               "panel_resources/particlefx" {:layer "panel_layer"
+                                                             :material "panel_material"
+                                                             :particlefx "panel_particlefx"}
+                               "panel_resources/pie" {:layer "panel_layer"
+                                                      :material "panel_material"
+                                                      :texture "panel_texture/button_striped"}
+                               "panel_resources/spine" {:layer "panel_layer"
+                                                        :material "panel_material"
+                                                        :spine-scene "panel_spinescene"}
+                               "panel_resources/text" {:font "panel_font"
+                                                       :layer "panel_layer"
+                                                       :material "panel_material"}}}
+                 (make-layout->node->resource-field-values referencing-scene))))))))

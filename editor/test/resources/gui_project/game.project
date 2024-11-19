@@ -13,6 +13,7 @@ input_method = HiddenInputField
 
 [project]
 title = gui_project
+dependencies#0 = {{defold.extension.spine.url}}
 
 [input]
 game_binding = /game.input_bindingc

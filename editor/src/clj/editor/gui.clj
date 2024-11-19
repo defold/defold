@@ -73,8 +73,10 @@
 ;; [DONE] Ensure layout overrides can be cleared using the property editor.
 ;; [DONE] Optimize save-value data path. Should maybe pull from layout->prop->value output?
 ;; * Fix resource renames so they update all layouts.
+;;   [DONE] Don't forget to override spine_scene resource in button.gui Landscape layout in test gui_project.
 ;; * Fix outline color tint of overridden nodes.
-;; * Add test for node added to referenced scene. Should not appear overridden in referencing scene.
+;; [DONE] Add test for node added to referenced scene. Should not appear overridden in referencing scene.
+;; * Add test for adding a layout to referenced scene that already existed in the referencing scene, then adding a node to the referenced scene.
 ;; * Fix hacky evaluation inside layout->prop->value output.
 
 (set! *warn-on-reflection* true)
@@ -598,33 +600,85 @@
    (or (prop-resource-error node-id prop-kw prop-value prop-name)
        (validation/prop-error :fatal node-id prop-kw validation/prop-resource-ext? prop-value resource-ext prop-name))))
 
-;; SDK api
-(defn references-gui-resource? [evaluation-context node-id prop-kw gui-resource-name]
-  (and (g/property-value-origin? (:basis evaluation-context) node-id prop-kw)
-       (= gui-resource-name (g/node-value node-id prop-kw evaluation-context))))
-
 (defmulti update-gui-resource-reference (fn [gui-resource-type evaluation-context node-id _old-name _new-name]
                                           [(g/node-type-kw (:basis evaluation-context) node-id) gui-resource-type]))
 (defmethod update-gui-resource-reference :default [_ _evaluation-context _node-id _old-name _new-name] nil)
 
+(defn- gui-scene-declares-gui-resource? [gui-scene gui-resource-type gui-resource-name]
+  ;; TODO(gui-layout-override-refactor): Scan node-outline or something?
+  false)
+
 ;; used by (property x (set (partial ...)), thus evaluation-context in signature
 ;; SDK api
 (defn update-gui-resource-references [gui-resource-type evaluation-context gui-resource-node-id old-name new-name]
-  ;; TODO(gui-layout-override-refactor): Make this work with layouts.
   (assert (keyword? gui-resource-type))
   (assert (or (nil? old-name) (string? old-name)))
   (assert (string? new-name))
   (when (and (not (empty? old-name))
              (not (empty? new-name)))
-    (when-some [scene (core/scope-of-type (:basis evaluation-context) gui-resource-node-id GuiSceneNode)]
-      (let [node-ids-by-id (g/node-value scene :node-ids evaluation-context)]
-        (when (and (not (g/error-value? node-ids-by-id))
-                   (coll/not-empty node-ids-by-id))
-          (into []
-                (comp (map val)
-                      (keep (fn [node-id]
-                              (update-gui-resource-reference gui-resource-type evaluation-context node-id old-name new-name))))
-                node-ids-by-id))))))
+    (let [basis (:basis evaluation-context)
+          owning-gui-scene (core/scope-of-type basis gui-resource-node-id GuiSceneNode)
+          gui-scenes (tree-seq
+                       any?
+                       (fn [gui-scene]
+                         (->> gui-scene
+                              (g/overrides basis)
+                              (e/remove #(gui-scene-declares-gui-resource? % gui-resource-type old-name))))
+                       owning-gui-scene)]
+      (coll/transfer gui-scenes []
+        (mapcat #(g/valid-node-value % :node-ids evaluation-context))
+        (map val)
+        (keep (fn [gui-node]
+                (update-gui-resource-reference gui-resource-type evaluation-context gui-node old-name new-name)))))))
+
+(defn- update-gui-resource-reference-impl [rename-fn evaluation-context node-id prop-kw old-name new-name]
+  (let [basis (:basis evaluation-context)]
+    (assert (g/property-value-origin? basis node-id :layout->prop->override))
+    (concat
+      (when (g/property-value-origin? basis node-id prop-kw)
+        (let [old-value (g/node-value node-id prop-kw evaluation-context)
+              new-value (rename-fn old-value old-name new-name)]
+          (when (not= old-value new-value)
+            (g/set-property node-id prop-kw new-value))))
+      (let [old-layout->prop->override
+            (g/node-value node-id :layout->prop->override evaluation-context)
+
+            new-layout->prop->override
+            (reduce-kv
+              (fn [layout->prop->override layout-name prop->override]
+                (let [old-value (prop->override prop-kw ::not-found)]
+                  (case old-value
+                    ::not-found layout->prop->override
+                    (let [new-value (rename-fn old-value old-name new-name)]
+                      (cond-> layout->prop->override
+                              (not= old-value new-value)
+                              (update layout-name assoc prop-kw new-value))))))
+              old-layout->prop->override
+              old-layout->prop->override)]
+        (when-not (identical? old-layout->prop->override new-layout->prop->override)
+          (g/set-property node-id :layout->prop->override new-layout->prop->override))))))
+
+(defn- basic-gui-resource-rename-fn [prop-value old-name new-name]
+  (if (= old-name prop-value)
+    new-name
+    prop-value))
+
+(defn- namespaced-gui-resource-rename-fn [prop-value old-name new-name]
+  (if (= old-name prop-value)
+    new-name
+    (let [[old-namespace element] (str/split prop-value #"/")]
+      (if (and (= old-name old-namespace)
+               (not (coll/empty? element)))
+        (str new-name "/" element)
+        prop-value))))
+
+;; SDK api
+(def update-basic-gui-resource-reference
+  (partial update-gui-resource-reference-impl basic-gui-resource-rename-fn))
+
+;; SDK api
+(def update-namespaced-gui-resource-reference
+  (partial update-gui-resource-reference-impl namespaced-gui-resource-rename-fn))
 
 ;; Base nodes
 
@@ -693,6 +747,7 @@
         :type type ; Explicitly include the type (pb-field is optional, so :type-box would be stripped otherwise).
         :child-index child-index))) ; Used to order sibling nodes in the SceneDesc.
 
+;; SDK api
 (defmacro layout-property-getter [prop-sym]
   {:pre [(symbol? prop-sym)]}
   (let [prop-kw (keyword prop-sym)]
@@ -704,6 +759,7 @@
 (defn layout-property-set-fn [_evaluation-context node-id _old-value _new-value]
   (g/invalidate-output node-id :layout->prop->value))
 
+;; SDK api
 (defmacro layout-property-setter [prop-sym]
   {:pre [(symbol? prop-sym)]}
   layout-property-set-fn)
@@ -738,7 +794,7 @@
                 (transient node-properties)
                 stripped-prop-kws))))))))
 
-(defn update-layout-property [evaluation-context node-id prop-kw update-fn & args]
+(defn- update-layout-property [evaluation-context node-id prop-kw update-fn & args]
   (let [old-value (g/node-value node-id prop-kw evaluation-context)
         new-value (apply update-fn old-value args)
         current-layout (g/node-value node-id :current-layout evaluation-context)]
@@ -749,7 +805,7 @@
         update current-layout
         assoc prop-kw new-value))))
 
-(defn- layout-property-edit-type-set-impl [evaluation-context node-id prop-kw old-value new-value changes-fn]
+(defn layout-property-edit-type-set-impl [evaluation-context node-id prop-kw old-value new-value changes-fn]
   (let [current-layout (g/node-value node-id :current-layout evaluation-context)
         changes (if (nil? changes-fn)
                   {prop-kw new-value}
@@ -772,13 +828,13 @@
                      prop->override
                      changes))))))
 
-(defn- basic-layout-property-edit-type-clear-fn [node-id prop-kw]
+(defn basic-layout-property-edit-type-clear-fn [node-id prop-kw]
   (let [current-layout (g/node-value node-id :current-layout)]
     (if (str/blank? current-layout)
       (g/clear-property node-id prop-kw)
       (g/update-property node-id :layout->prop->override eutil/dissoc-in [current-layout prop-kw]))))
 
-(defn- layout-property-edit-type-clear-impl [node-id prop-kw changes-fn]
+(defn layout-property-edit-type-clear-impl [node-id prop-kw changes-fn]
   (let [[current-layout cleared-prop-kws]
         (g/with-auto-evaluation-context evaluation-context
           (pair (g/node-value node-id :current-layout evaluation-context)
@@ -795,6 +851,7 @@
             (coll/not-empty
               (apply dissoc prop->override cleared-prop-kws))))))))
 
+;; SDK api
 (defmacro wrap-layout-property-edit-type
   ([prop-sym edit-type-form]
    {:pre [(symbol? prop-sym)]}
@@ -822,6 +879,7 @@
         :set-fn ~edit-type-set-fn-form
         :clear-fn ~edit-type-clear-fn-form))))
 
+;; SDK api
 (defmacro layout-property-edit-type
   ([prop-sym edit-type-form]
    `(g/constantly
@@ -1115,8 +1173,7 @@
 ;; SDK api
 (defmethod update-gui-resource-reference [::GuiNode :layer]
   [_ evaluation-context node-id old-name new-name]
-  (when (references-gui-resource? evaluation-context node-id :layer old-name)
-    (g/set-property node-id :layer new-name)))
+  (update-basic-gui-resource-reference evaluation-context node-id :layer old-name new-name))
 
 (defn- validate-particlefx-adjust-mode [node-id adjust-mode]
   (validation/prop-error :warning
@@ -1437,21 +1494,11 @@
 
 (defmethod update-gui-resource-reference [::ShapeNode :texture]
   [_ evaluation-context node-id old-name new-name]
-  (when (g/property-value-origin? (:basis evaluation-context) node-id :texture)
-    (let [old-value (g/node-value node-id :texture evaluation-context)]
-      (if (= old-name old-value)
-        (g/set-property node-id :texture new-name)
-        (let [[old-texture animation] (str/split old-value #"/")]
-          (when (and (= old-name old-texture)
-                     (not (empty? animation)))
-            (g/set-property node-id :texture (str new-name "/" animation))))))))
+  (update-namespaced-gui-resource-reference evaluation-context node-id :texture old-name new-name))
 
 (defmethod update-gui-resource-reference [::VisualNode :material]
   [_ evaluation-context node-id old-name new-name]
-  (when (g/property-value-origin? (:basis evaluation-context) node-id :material)
-    (let [old-value (g/node-value node-id :material evaluation-context)]
-      (if (= old-name old-value)
-        (g/set-property node-id :material new-name)))))
+  (update-basic-gui-resource-reference evaluation-context node-id :material old-name new-name))
 
 ;; Box nodes
 
@@ -1718,8 +1765,7 @@
 
 (defmethod update-gui-resource-reference [::TextNode :font]
   [_ evaluation-context node-id old-name new-name]
-  (when (references-gui-resource? evaluation-context node-id :font old-name)
-    (g/set-property node-id :font new-name)))
+  (update-basic-gui-resource-reference evaluation-context node-id :font old-name new-name))
 
 ;; Template nodes
 
@@ -1812,6 +1858,7 @@
                                                                       (fn [basis ^Arc arc]
                                                                         (let [source-node-id (.source-id arc)]
                                                                           (and (not= source-node-id current-scene)
+                                                                               ;; TODO(gui-layout-override-refactor): Should we traverse the layout-related nodes?
                                                                                (g/node-instance-match basis source-node-id
                                                                                                       [GuiNode
                                                                                                        NodeTree
@@ -1999,8 +2046,7 @@
 
 (defmethod update-gui-resource-reference [::ParticleFXNode :particlefx]
   [_ evaluation-context node-id old-name new-name]
-  (when (references-gui-resource? evaluation-context node-id :particlefx old-name)
-    (g/set-property node-id :particlefx new-name)))
+  (update-basic-gui-resource-reference evaluation-context node-id :particlefx old-name new-name))
 
 ;; This InternalTextureNode is a drop-in replacement for TextureNode below.
 ;; It can be used in place of TextureNode when you already have a gpu-texture.
@@ -3924,8 +3970,16 @@
 (defn- get-registered-node-type-cls [node-type custom-type]
   (:node-cls (get-registered-node-type-info node-type custom-type)))
 
+(def ^:private node-type-info-version 1)
+
 ;; SDK api
-(defn register-node-type-info! [{:keys [custom-type node-cls] :as type-info}]
+(defn register-node-type-info! [{:keys [custom-type node-cls version] :or {version 0} :as type-info}]
+  (when (not= node-type-info-version version)
+    (throw (ex-info (format "Plugin GUI node type %s is incompatible with this version of the editor."
+                            (:name @node-cls))
+                    {:node-cls node-cls
+                     :version version
+                     :required-version node-type-info-version})))
   (when-not (integer? custom-type)
     (throw (ex-info (format "Plugin GUI node type %s does not specify a valid custom type."
                             (:name @node-cls))
