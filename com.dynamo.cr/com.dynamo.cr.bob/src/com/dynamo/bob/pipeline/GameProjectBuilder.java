@@ -31,6 +31,7 @@ import java.util.Set;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Collection;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -88,13 +89,6 @@ public class GameProjectBuilder extends Builder {
 
     private static final Logger logger = Logger.getLogger(GameProjectBuilder.class.getName());
 
-    private RandomAccessFile createRandomAccessFile(File handle) throws IOException {
-        FileUtil.deleteOnExit(handle);
-        RandomAccessFile file = new RandomAccessFile(handle, "rw");
-        file.setLength(0);
-        return file;
-    }
-
     @Override
     public Task create(IResource input) throws IOException, CompileExceptionError {
         gameProjectDependencies = new String[ROOT_NODES.length + 1];
@@ -144,9 +138,6 @@ public class GameProjectBuilder extends Builder {
             builder.addOutput(input.changeExt(".dmanifest").disableCache());
             builder.addOutput(input.changeExt(".public.der").disableCache());
             builder.addOutput(input.changeExt(".graph.json").disableCache());
-            for (IResource output : project.getPublisher().getOutputs(input)) {
-                builder.addOutput(output);
-            }
         }
         TimeProfiler.stop();
 
@@ -232,7 +223,7 @@ public class GameProjectBuilder extends Builder {
         return resourcePadding;
     }
 
-    private void createArchive(ArchiveBuilder archiveBuilder, Collection<IResource> resources, RandomAccessFile archiveIndex, RandomAccessFile archiveData, List<String> excludedResources, Path resourcePackDirectory) throws IOException, CompileExceptionError {
+    private void createArchive(ArchiveBuilder archiveBuilder, Collection<IResource> resources, File archiveIndex, File archiveData, Collection<String> excludedResources, Publisher publisher) throws IOException, CompileExceptionError {
         TimeProfiler.start("createArchive");
         logger.info("GameProjectBuilder.createArchive");
         long tstart = System.currentTimeMillis();
@@ -250,19 +241,7 @@ public class GameProjectBuilder extends Builder {
         TimeProfiler.addData("resources", resources.size());
         TimeProfiler.addData("excludedResources", excludedResources.size());
 
-        TimeProfiler.start("writeArchive");
-        archiveBuilder.write(archiveIndex, archiveData, resourcePackDirectory, excludedResources);
-        archiveIndex.close();
-        archiveData.close();
-        TimeProfiler.stop();
-
-        // Populate publisher with the resource pack
-        Publisher publisher = project.getPublisher();
-        List<ArchiveEntry> excluded = archiveBuilder.getExcludedEntries();
-        for (ArchiveEntry entry : excluded) {
-            File f = new File(resourcePackDirectory.toAbsolutePath().toString(), entry.getHexDigest());
-            publisher.AddEntry(f, entry);
-        }
+        archiveBuilder.write(archiveIndex, archiveData, publisher, excludedResources);
 
         long tend = System.currentTimeMillis();
         logger.info("GameProjectBuilder.createArchive took %f", (tend-tstart)/1000.0);
@@ -444,15 +423,19 @@ public class GameProjectBuilder extends Builder {
                 String platform = project.option("platform", "generic");
                 project.getPublisher().setPlatform(platform);
                 File archiveIndexHandle = File.createTempFile("defold.index_", ".arci");
-                RandomAccessFile archiveIndex = createRandomAccessFile(archiveIndexHandle);
                 File archiveDataHandle = File.createTempFile("defold.data_", ".arcd");
-                RandomAccessFile archiveData = createRandomAccessFile(archiveDataHandle);
+                FileUtil.deleteOnExit(archiveIndexHandle);
+                FileUtil.deleteOnExit(archiveDataHandle);
+
                 Path resourcePackDirectory = Files.createTempDirectory("defold.resourcepack_");
+
+                Publisher publisher = project.getPublisher();
+                publisher.start();
 
                 // create the archive and manifest
                 ManifestBuilder manifestBuilder = createManifestBuilder(resourceGraph);
-                ArchiveBuilder archiveBuilder = new ArchiveBuilder(root, manifestBuilder, getResourcePadding());
-                createArchive(archiveBuilder, resources, archiveIndex, archiveData, excludedResources, resourcePackDirectory);
+                ArchiveBuilder archiveBuilder = new ArchiveBuilder(root, manifestBuilder, getResourcePadding(), project);
+                createArchive(archiveBuilder, resources, archiveIndexHandle, archiveDataHandle, excludedResources, publisher);
                 byte[] manifestFile = manifestBuilder.buildManifest();
 
                 // Write outputs to the build system
@@ -487,8 +470,8 @@ public class GameProjectBuilder extends Builder {
                 FileUtils.copyFile(manifestFileHandle, manifestTmpFileHandle);
 
                 ArchiveEntry manifestArchiveEntry = new ArchiveEntry(root, manifestTmpFileHandle.getAbsolutePath());
-                project.getPublisher().AddEntry(manifestTmpFileHandle, manifestArchiveEntry);
-                project.getPublisher().Publish();
+                publisher.publish(manifestArchiveEntry, new FileInputStream(manifestTmpFileHandle));
+                publisher.stop();
 
                 // Copy SSL public keys if specified
                 String sslCertificatesPath = project.getProjectProperties().getStringValue("network", "ssl_certificates");
@@ -504,12 +487,6 @@ public class GameProjectBuilder extends Builder {
                 File resourcePackDirectoryHandle = new File(resourcePackDirectory.toAbsolutePath().toString());
                 if (resourcePackDirectoryHandle.exists() && resourcePackDirectoryHandle.isDirectory()) {
                     FileUtils.deleteDirectory(resourcePackDirectoryHandle);
-                }
-
-                List<InputStream> publisherOutputs = project.getPublisher().getOutputResults();
-                for (int i = 0; i < publisherOutputs.size(); ++i) {
-                    task.getOutputs().get(6 + i).setContent(publisherOutputs.get(i));
-                    IOUtils.closeQuietly(publisherOutputs.get(i));
                 }
             }
 

@@ -14,7 +14,9 @@
 
 package com.dynamo.bob.archive.publisher;
 
+import com.dynamo.bob.archive.ArchiveEntry;
 import com.dynamo.bob.CompileExceptionError;
+import java.io.InputStream;
 
 public class DefoldPublisher extends Publisher {
 
@@ -23,8 +25,11 @@ public class DefoldPublisher extends Publisher {
     }
 
     @Override
-    public void Publish() throws CompileExceptionError {
+    public void start() throws CompileExceptionError {}
 
-    }
+    @Override
+    public void stop() throws CompileExceptionError {}
 
+    @Override
+    public void publish(ArchiveEntry archiveEntry, InputStream data) throws CompileExceptionError {}
 }
