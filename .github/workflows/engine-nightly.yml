@@ -17,7 +17,7 @@ jobs:
   bld-eng-macos-64:
     runs-on: macOS-14
     steps: [
-      { name: 'Checkout', uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 },
+      { name: 'Checkout', uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 },
       { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12} },
       { name: 'XCode', uses: maxim-lobanov/setup-xcode@60606e260d2fc5762a71e64e74b2174e8ea3c8bd, with: { xcode-version: '15.4' } },
       { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '17.0.5+8', distribution: 'temurin'} },
@@ -46,7 +46,7 @@ jobs:
   bld-eng-linux-64:
     runs-on: ubuntu-20.04
     steps: [
-      { name: 'Checkout', uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 },
+      { name: 'Checkout', uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 },
       { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12} },
       { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '17.0.5+8', distribution: 'temurin'} },
       { name: 'Setup dotnet', uses: actions/setup-dotnet@v4, with: {dotnet-version: '9.x', dotnet-quality: 'preview'}},
@@ -85,6 +85,11 @@ jobs:
       { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12} },
       { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '17.0.5+8', distribution: 'temurin'} },
       { name: 'Setup dotnet', uses: actions/setup-dotnet@v4, with: {dotnet-version: '9.x', dotnet-quality: 'preview'}},
+      { name: 'Setup emsdk', uses: mymindstorm/setup-emsdk@v14, with: {version: '3.1.65'}},
+      { name: 'Verify emsdk',
+        run: 'emcc -v && export | grep EM'
+      },
+      { name: 'Install LLVM and Clang', uses: KyleMayes/install-llvm-action@v2, with: {version: "13.0"}},
       { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
@@ -102,7 +107,7 @@ jobs:
   bld-eng-win:
     runs-on: windows-latest
     steps: [
-      { name: 'Checkout', uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 },
+      { name: 'Checkout', uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 },
       { name: 'Install Python', uses: actions/setup-python@0a5c61591373683505ea898e09a3ea4f39ef2b9c, with: { python-version: 3.12} },
       { name: 'Install Java', uses: actions/setup-java@99b8673ff64fbf99d8d325f52d9a5bdedb8483e9, with: { java-version: '11.0.15', distribution: 'microsoft'} },
       { name: 'Setup dotnet', uses: actions/setup-dotnet@v4, with: {dotnet-version: '9.x', dotnet-quality: 'preview'}},

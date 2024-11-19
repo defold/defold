@@ -134,7 +134,7 @@ def _get_latest_version_from_folders(path, replace_patterns=[]):
             s = s.replace(pattern, replace)
         return s
 
-    dirs.sort(key=lambda x: tuple(int(token) for token in _replace_pattern(x, replace_patterns).split('.')))
+    dirs.sort(key=lambda x: tuple(int(token) for token in _replace_pattern(x, replace_patterns).split('.')), reverse=True)
     return dirs[0]
 
 class SDKException(Exception):
@@ -191,6 +191,33 @@ def get_local_darwin_sdk_version(platform):
 ## **********************************************************************************************
 ## Android
 
+def get_android_sdk_path(root):
+    path = os.path.join(root, "android-sdk")
+    if not os.path.exists(path):
+        raise SDKException(f"Path {path} not found")
+    return path
+
+def get_android_ndk_path(root):
+    path = os.path.join(root, "android-ndk-r%s" % ANDROID_NDK_VERSION)
+    if not os.path.exists(path):
+        raise SDKException(f"Path {path} not found")
+    return path
+
+def get_android_build_tools_path(root):
+    sdkfolder = get_android_sdk_path(root)
+    path = os.path.join(sdkfolder, "build-tools", ANDROID_BUILD_TOOLS_VERSION)
+    if not os.path.exists(path):
+        raise SDKException(f"Path {path} not found")
+    return path
+
+def get_android_jar_path(root):
+    sdkfolder = get_android_sdk_path(root)
+    path = os.path.join(sdkfolder, 'platforms', 'android-%s' % ANDROID_TARGET_API_LEVEL, 'android.jar')
+    if not os.path.exists(path):
+        raise SDKException(f"Path {path} not found")
+    return path
+
+
 def get_android_local_sdk_path(verbose=False):
     path = os.environ.get('ANDROID_HOME', None)
     if path is None:
@@ -199,6 +226,9 @@ def get_android_local_sdk_path(verbose=False):
         # on macOS, it doesn't set an environment variable
         if sys.platform == 'darwin':
             path = os.path.expanduser('~/Library/android/sdk')
+        elif sys.platform == 'win32':
+            path = os.path.expandvars('${LOCALAPPDATA}/Android/Sdk')
+        path = os.path.normpath(path)
 
     if path and os.path.exists(path):
         log_verbose(verbose, f"  Detected sdk path {path}")
@@ -227,6 +257,17 @@ def get_android_local_build_tools_path(platform):
 
 def get_android_local_sdk_version(platform):
     return os.path.basename(get_android_local_build_tools_path(platform))
+
+def get_android_local_jar_path(verbose=False):
+    sdkfolder = get_android_local_sdk_path()
+    platforms_folder = os.path.join(sdkfolder, 'platforms')
+    android_version = _get_latest_version_from_folders(platforms_folder, [('android-', '')])
+    path = os.path.join(sdkfolder, 'platforms', android_version, 'android.jar')
+    if not os.path.exists(path):
+        raise SDKException(f"Path {path} not found")
+    return path
+
+
 
 ## **********************************************************************************************
 
@@ -474,8 +515,8 @@ def check_defold_sdk(sdkfolder, platform, verbose=False):
         folders.append(os.path.join(sdkfolder, 'Win32','MicrosoftVisualStudio14.0','VC'))
 
     elif platform in ('armv7-android', 'arm64-android'):
-        folders.append(os.path.join(sdkfolder, "android-ndk-r%s" % ANDROID_NDK_VERSION))
-        folders.append(os.path.join(sdkfolder, "android-sdk"))
+        folders.append(get_android_sdk_path(sdkfolder))
+        folders.append(get_android_ndk_path(sdkfolder))
 
     elif platform in ('x86_64-linux',):
         folders.append(os.path.join(sdkfolder, "linux"))
@@ -550,9 +591,10 @@ def _get_defold_sdk_info(sdkfolder, platform):
 
     elif platform in ('armv7-android', 'arm64-android'):
         info['version'] = ANDROID_BUILD_TOOLS_VERSION
-        info['sdk'] = os.path.join(sdkfolder, "android-sdk")
-        info['ndk'] = os.path.join(sdkfolder, "android-ndk-r%s" % ANDROID_NDK_VERSION)
-        info['build_tools'] = os.path.join(info['sdk'], "build-tools" , ANDROID_BUILD_TOOLS_VERSION)
+        info['sdk'] = get_android_sdk_path(sdkfolder)
+        info['ndk'] = get_android_ndk_path(sdkfolder)
+        info['build_tools'] = get_android_build_tools_path(sdkfolder)
+        info['jar'] = get_android_jar_path(sdkfolder)
         if platform == 'arm64-android':
             info['api'] = ANDROID_64_NDK_API_VERSION
         else:
@@ -596,6 +638,7 @@ def _get_local_sdk_info(platform, verbose=False):
         info['version'] = get_android_local_sdk_version(platform)
         info['sdk'] = get_android_local_sdk_path(verbose)
         info['ndk'] = get_android_local_ndk_path(platform, verbose)
+        info['jar'] = get_android_local_jar_path(verbose)
         info['build_tools'] = get_android_local_build_tools_path(platform)
         if platform == 'arm64-android':
             info['api'] = ANDROID_64_NDK_API_VERSION

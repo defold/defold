@@ -298,7 +298,7 @@ namespace dmEngine
         dmHttpClient::ShutdownConnectionPool();
 
         // Reregister the types before the rest of the contexts are deleted
-        if (engine->m_Factory) {
+        if (engine->m_Factory && engine->m_ResourceTypeContexts.Size() > 0) {
             dmResource::DeregisterTypes(engine->m_Factory, &engine->m_ResourceTypeContexts);
         }
 
@@ -692,6 +692,10 @@ namespace dmEngine
 #endif
         }
 
+        // Set minimum log level
+        int32_t minimum_log_level = dmConfigFile::GetInt(engine->m_Config, "project.minimum_log_level", LOG_SEVERITY_INFO);
+        dmLogSetLevel((LogSeverity)minimum_log_level);
+
         // Try loading SSL keys
         char engine_ssl_keys_path[DMPATH_MAX_PATH];
         dmPath::Concat(resources_path, "/ssl_keys.pem", engine_ssl_keys_path, sizeof(engine_ssl_keys_path));
@@ -905,6 +909,12 @@ namespace dmEngine
         window_params.m_BackgroundColor         = clear_color;
         window_params.m_GraphicsApi             = AdapterFamilyToGraphicsAPI(dmGraphics::GetInstalledAdapterFamily());
 
+        if (window_params.m_GraphicsApi == dmPlatform::PLATFORM_GRAPHICS_API_OPENGL)
+        {
+            window_params.m_OpenGLVersionHint        = (uint8_t) dmConfigFile::GetInt(engine->m_Config, "graphics.opengl_version_hint", 33);
+            window_params.m_OpenGLUseCoreProfileHint = (bool) dmConfigFile::GetInt(engine->m_Config, "graphics.opengl_core_profile_hint", 1);
+        }
+
         engine->m_Window = dmPlatform::NewWindow();
 
         dmPlatform::PlatformResult platform_result = dmPlatform::OpenWindow(engine->m_Window, window_params);
@@ -1052,10 +1062,11 @@ namespace dmEngine
             dmLogWarning("Failed to initialize sound system.");
         }
 
-        dmGameObject::Result go_result = dmGameObject::SetCollectionDefaultCapacity(engine->m_Register, dmConfigFile::GetInt(engine->m_Config, dmGameObject::COLLECTION_MAX_INSTANCES_KEY, dmGameObject::DEFAULT_MAX_COLLECTION_CAPACITY));
+        int max_instance_count = dmConfigFile::GetInt(engine->m_Config, dmGameObject::COLLECTION_MAX_INSTANCES_KEY, dmGameObject::DEFAULT_MAX_COLLECTION_CAPACITY);
+        dmGameObject::Result go_result = dmGameObject::SetCollectionDefaultCapacity(engine->m_Register, max_instance_count);
         if(go_result != dmGameObject::RESULT_OK)
         {
-            dmLogFatal("Failed to set max instance count for collections (%d)", go_result);
+            dmLogFatal("Failed to set '%s' %d for collections (%d)", dmGameObject::COLLECTION_MAX_INSTANCES_KEY, max_instance_count, go_result);
             return false;
         }
         dmGameObject::SetInputStackDefaultCapacity(engine->m_Register, dmConfigFile::GetInt(engine->m_Config, dmGameObject::COLLECTION_MAX_INPUT_STACK_ENTRIES_KEY, dmGameObject::DEFAULT_MAX_INPUT_STACK_CAPACITY));

@@ -105,7 +105,7 @@ PACKAGES_IOS_64="protobuf-3.20.1 luajit-2.1.0-04dca79 tremolo-b0cb4d1 bullet-2.7
 PACKAGES_MACOS_X86_64="protobuf-3.20.1 luajit-2.1.0-04dca79 vpx-1.7.0 tremolo-b0cb4d1 bullet-2.77 spirv-cross-dae7a689 spirv-tools-b21dda0e glslang-42d9adf5 moltenvk-1.3.261.1 lipo-9ffdea2 sassc-5472db213ec223a67482df2226622be372921847 glfw-3.4 tint-22b958".split()
 PACKAGES_MACOS_ARM64="protobuf-3.20.1 luajit-2.1.0-04dca79 vpx-1.7.0 tremolo-b0cb4d1 bullet-2.77 spirv-cross-dae7a689 spirv-tools-b21dda0e glslang-42d9adf5 moltenvk-1.3.261.1 lipo-9ffdea2 glfw-3.4 tint-22b958".split()
 PACKAGES_WIN32="protobuf-3.20.1 luajit-2.1.0-04dca79 openal-1.1 glut-3.7.6 bullet-2.77 vulkan-1.3.261.1 glfw-3.4".split()
-PACKAGES_WIN32_64="protobuf-3.20.1 luajit-2.1.0-04dca79 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 glslang-42d9adf5 spirv-cross-edd66a2f spirv-tools-d24a39a7 vulkan-1.3.261.1 lipo-9ffdea2 glfw-3.4".split()
+PACKAGES_WIN32_64="protobuf-3.20.1 luajit-2.1.0-04dca79 openal-1.1 glut-3.7.6 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 glslang-42d9adf5 spirv-cross-edd66a2f spirv-tools-d24a39a7 vulkan-1.3.261.1 lipo-9ffdea2 glfw-3.4 tint-22b958".split()
 PACKAGES_LINUX_64="protobuf-3.20.1 luajit-2.1.0-04dca79 sassc-5472db213ec223a67482df2226622be372921847 bullet-2.77 glslang-ba5c010c spirv-cross-edd66a2f spirv-tools-d24a39a7 vulkan-1.1.108 lipo-9ffdea2 glfw-2.7.1 tint-22b958".split()
 PACKAGES_ANDROID="protobuf-3.20.1 android-support-multidex androidx-multidex luajit-2.1.0-04dca79 tremolo-b0cb4d1 bullet-2.77 glfw-2.7.1".split()
 PACKAGES_ANDROID.append(sdk.ANDROID_PACKAGE)
@@ -555,10 +555,6 @@ class Configuration(object):
         return path
 
     def check_sdk(self):
-        # TODO: Make sure this check works for all platforms
-        if target_platform in ('js-web', 'wasm-web'): # some platforms are not yet supported using this sdk_info mechanic
-            return
-
         sdkfolder = join(self.ext, 'SDKs')
 
         self.sdk_info = sdk.get_sdk_info(sdkfolder, target_platform, self.verbose)
@@ -1051,6 +1047,9 @@ class Configuration(object):
                 engine_symbols = join(bin_dir, engine_name + '.symbols')
                 if os.path.exists(engine_symbols):
                     self.upload_to_archive(engine_symbols, '%s/%s.symbols' % (full_archive_path, engine_name))
+                engine_dwarf = join(bin_dir, engine_name + '.debug.wasm')
+                if os.path.exists(engine_dwarf):
+                    self.upload_to_archive(engine_symbols, '%s/%s.debug.wasm' % (full_archive_path, engine_name))
             elif 'macos' in self.target_platform or 'ios' in self.target_platform:
                 engine_symbols = join(bin_dir, engine_name + '.dSYM.zip')
                 if os.path.exists(engine_symbols):
@@ -1097,8 +1096,8 @@ class Configuration(object):
         supported_tests = {}
         # E.g. on win64, we can test multiple platforms
         supported_tests['x86_64-win32'] = ['win32', 'x86_64-win32', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5']
-        supported_tests['arm64-macos'] = ['x86_64-macos', 'arm64-macos']
-        supported_tests['x86_64-macos'] = ['x86_64-macos']
+        supported_tests['arm64-macos'] = ['x86_64-macos', 'arm64-macos', 'wasm-web', 'js-web']
+        supported_tests['x86_64-macos'] = ['x86_64-macos', 'wasm-web', 'js-web']
 
         return self.target_platform in supported_tests.get(self.host, []) or self.host == self.target_platform
 
@@ -1296,7 +1295,8 @@ class Configuration(object):
         linux_files = dict([['ext/lib/%s/lib%s.so' % (plf[0], lib), 'lib/%s/lib%s.so' % (plf[1], lib)] for lib in [] for plf in [['x86_64-linux', 'x86_64-linux']]])
         js_files = {}
         android_files = {'share/java/classes.dex': 'lib/classes.dex',
-                         'ext/share/java/android.jar': 'lib/android.jar'}
+                         'ext/share/java/android.jar': 'lib/android.jar'} # this should be the stripped one
+
         switch_files = {}
         # This dict is being built up and will eventually be used for copying in the end
         # - "type" - what the files are needed for, for error reporting
