@@ -157,6 +157,15 @@ public abstract class LuaBuilder extends Builder {
             createSubTask(module_file, "Lua module", taskBuilder);
         }
 
+        // Create obfuscators if some exists.
+        if (luaObfuscators == null) {
+            luaObfuscators = PluginScanner.getOrCreatePlugins("com.defold.extension.pipeline", ILuaObfuscator.class);
+
+            if (luaObfuscators == null) {
+                luaObfuscators = new ArrayList<ILuaObfuscator>(0);
+            }
+        }
+
         // check if the platform is using Lua 5.1 or LuaJIT
         // get path of LuaJIT executable if the platform uses LuaJIT
         //
@@ -482,15 +491,7 @@ public abstract class LuaBuilder extends Builder {
         builder.setProperties(propertiesMsg);
         builder.addAllPropertyResources(propertyResources);
 
-        // Create and run obfuscators if some exists.
-        if (luaObfuscators == null) {
-            luaObfuscators = PluginScanner.getOrCreatePlugins("com.defold.extension.pipeline", ILuaObfuscator.class);
-
-            if (luaObfuscators == null) {
-                luaObfuscators = new ArrayList<ILuaObfuscator>(0);
-            }
-        }
-
+        // apply obfuscation
         final IResource sourceResource = task.firstInput();
         final String sourcePath = sourceResource.getAbsPath();
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);
