@@ -610,6 +610,28 @@ namespace dmGameSystem
         return 1;
     }
 
+    static int LuaModelComp_SetMaterial(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+
+        ModelComponent* component;
+        dmGameObject::GetComponentFromLua(L, 1, collection, MODEL_EXT, (dmGameObject::HComponent*)&component, 0, 0);
+
+        dmhash_t material_name_id = dmScript::CheckHashOrString(L, 2);
+        dmhash_t material_res_id = dmScript::CheckHashOrString(L, 3);
+        dmResource::Result res = CompModelSetMaterial(component, material_name_id, material_res_id);
+
+        if (res != dmResource::RESULT_OK)
+        {
+            return luaL_error(L, "Unable to set material '%s' to resource '%s', reason: %s",
+                dmHashReverseSafe64(material_name_id), dmHashReverseSafe64(material_res_id), dmResource::ResultToString(res));
+        }
+        return 0;
+    }
+
     static const luaL_reg MODEL_COMP_FUNCTIONS[] =
     {
             {"play",    LuaModelComp_Play}, // Deprecated
@@ -618,9 +640,9 @@ namespace dmGameSystem
             {"get_go",  LuaModelComp_GetGO},
             {"set_constant",    LuaModelComp_SetConstant},
             {"reset_constant",  LuaModelComp_ResetConstant},
-
             {"set_mesh_enabled",  LuaModelComp_SetMeshEnabled},
             {"get_mesh_enabled",  LuaModelComp_GetMeshEnabled},
+            {"set_material", LuaModelComp_SetMaterial},
             {0, 0}
     };
 

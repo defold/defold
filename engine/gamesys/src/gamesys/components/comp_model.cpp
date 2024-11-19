@@ -103,7 +103,7 @@ namespace dmGameSystem
         int                         m_FunctionRef;
         HComponentRenderConstants   m_RenderConstants;
         TextureResource*            m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
-        MaterialResource*           m_Material; // Override material
+        dmArray<MaterialResource*>  m_Materials;
 
         /// Node instances corresponding to the bones
         dmArray<dmGameObject::HInstance> m_NodeInstances;
@@ -353,8 +353,11 @@ namespace dmGameSystem
     }
 
     static inline MaterialResource* GetMaterialResource(const ModelComponent* component, const ModelResource* resource, uint32_t index) {
-        // TODO: Add support for setting material on different indices
-        return component->m_Material ? component->m_Material : resource->m_Materials[index].m_Material;
+        if (index < component->m_Materials.Size())
+        {
+            return component->m_Materials[index] ? component->m_Materials[index] : resource->m_Materials[index].m_Material;
+        }
+        return resource->m_Materials[index].m_Material;
     }
 
     static inline dmRender::HMaterial GetComponentMaterial(const ModelComponent* component, const ModelResource* resource, uint32_t index) {
@@ -434,7 +437,9 @@ namespace dmGameSystem
         dmHashUpdateBuffer32(state, item.m_Mesh, sizeof(*item.m_Mesh));
 
         // If we use an override material, we don't need to hash the override values
-        if (component->m_Material && component->m_Material->m_Material == material)
+        if (item.m_MaterialIndex < component->m_Materials.Size() &&
+            component->m_Materials[item.m_MaterialIndex] &&
+            component->m_Materials[item.m_MaterialIndex]->m_Material == material)
         {
             return;
         }
@@ -478,17 +483,17 @@ namespace dmGameSystem
         {
             HashMaterial(&state, resource->m_Materials[i].m_Material);
 
+            if (i < component->m_Materials.Size() && component->m_Materials[i])
+            {
+                HashMaterial(&state, component->m_Materials[i]);
+            }
+
             dmHashUpdateBuffer32(&state, resource->m_Materials[i].m_Textures, sizeof(dmGameSystem::MaterialTextureInfo)*resource->m_Materials[i].m_TexturesCount);
         }
 
         // The unused slots should be 0
         // Note: In the future, we want the textures so be set on a per-material basis
         dmHashUpdateBuffer32(&state, component->m_Textures, DM_ARRAY_SIZE(component->m_Textures));
-
-        if (component->m_Material)
-        {
-            HashMaterial(&state, component->m_Material);
-        }
 
         if (component->m_RenderConstants)
         {
@@ -935,9 +940,13 @@ namespace dmGameSystem
         uint32_t index = *params.m_UserData;
         ModelComponent* component = world->m_Components.Get(index);
         dmResource::HFactory factory = dmGameObject::GetFactory(params.m_Instance);
-        if (component->m_Material)
+
+        for (int i = 0; i < component->m_Materials.Size(); ++i)
         {
-            dmResource::Release(factory, component->m_Material);
+            if (component->m_Materials[i])
+            {
+                dmResource::Release(factory, component->m_Materials[i]);
+            }
         }
         for (uint32_t i = 0; i < dmRender::RenderObject::MAX_TEXTURE_COUNT; ++i)
         {
@@ -1994,7 +2003,13 @@ namespace dmGameSystem
         }
         else if (params.m_PropertyId == PROP_MATERIAL)
         {
-            dmGameObject::PropertyResult res = SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, MATERIAL_EXT_HASH, (void**)&component->m_Material);
+            if (component->m_Materials.Size() == 0)
+            {
+                component->m_Materials.SetCapacity(1);
+                component->m_Materials.SetSize(1);
+            }
+
+            dmGameObject::PropertyResult res = SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, MATERIAL_EXT_HASH, (void**)&component->m_Materials[0]);
             component->m_ReHash |= res == dmGameObject::PROPERTY_RESULT_OK;
             return res;
         }
@@ -2119,6 +2134,29 @@ namespace dmGameSystem
             }
         }
         return found;
+    }
+
+    dmResource::Result CompModelSetMaterial(ModelComponent* component, dmhash_t material_name_id, dmhash_t material_res_id)
+    {
+        for (int i = 0; i < component->m_Resource->m_Materials.Size(); ++i)
+        {
+            if (component->m_Resource->m_Materials[i].m_NameHash == material_name_id)
+            {
+                if (component->m_Materials.Capacity() <= (i + 1))
+                {
+                    uint32_t old_capacity = component->m_Materials.Capacity();
+                    component->m_Materials.SetCapacity(i + 1);
+                    component->m_Materials.SetSize(component->m_Materials.Capacity());
+
+                    uint32_t bytes_to_clear = sizeof(ModelResource*) * (component->m_Materials.Capacity() - old_capacity);
+                    uint32_t bytes_start    = sizeof(ModelResource*) * old_capacity;
+                    memset(component->m_Materials.Begin() + bytes_start, 0, bytes_to_clear);
+                }
+                return SetResource(dmGameObject::GetFactory(component->m_Instance), material_res_id, (dmhash_t*) &MATERIAL_EXT_HASH, 1, (void**) &component->m_Materials[i]);
+            }
+        }
+
+        return dmResource::RESULT_RESOURCE_NOT_FOUND;
     }
 
     static bool CompModelIterPropertiesGetNext(dmGameObject::SceneNodePropertyIterator* pit)

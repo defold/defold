@@ -260,27 +260,36 @@ dmGameObject::PropertyResult GetResourceProperty(dmResource::HFactory factory, v
     return dmGameObject::PROPERTY_RESULT_RESOURCE_NOT_FOUND;
 }
 
+dmResource::Result SetResource(dmResource::HFactory factory, dmhash_t resource_hash, dmhash_t* exts, uint32_t ext_count, void** out_resource)
+{
+    HResourceDescriptor rd;
+    dmResource::Result res = dmResource::GetDescriptorWithExt(factory, resource_hash, exts, ext_count, &rd);
+    if (res == dmResource::RESULT_OK)
+    {
+        void* resource = dmResource::GetResource(rd);
+        if (*out_resource != resource)
+        {
+            dmResource::IncRef(factory, rd);
+            if (*out_resource)
+            {
+                dmResource::Release(factory, *out_resource);
+            }
+            *out_resource = resource;
+        }
+    }
+    return res;
+}
+
 dmGameObject::PropertyResult SetResourceProperty(dmResource::HFactory factory, const dmGameObject::PropertyVar& value, dmhash_t* exts, uint32_t ext_count, void** out_resource)
 {
     if (value.m_Type != dmGameObject::PROPERTY_TYPE_HASH) {
         return dmGameObject::PROPERTY_RESULT_TYPE_MISMATCH;
     }
-    HResourceDescriptor rd;
-    dmResource::Result res = dmResource::GetDescriptorWithExt(factory, value.m_Hash, exts, ext_count, &rd);
-    if (res == dmResource::RESULT_OK)
-    {
-        void* resource = dmResource::GetResource(rd);
-        if (*out_resource != resource) {
-            dmResource::IncRef(factory, rd);
-            if (*out_resource) {
-                dmResource::Release(factory, *out_resource);
-            }
-            *out_resource = resource;
-        }
-        return dmGameObject::PROPERTY_RESULT_OK;
-    }
+    dmResource::Result res = SetResource(factory, value.m_Hash, exts, ext_count, out_resource);
     switch (res)
     {
+    case dmResource::RESULT_OK:
+        return dmGameObject::PROPERTY_RESULT_OK;
     case dmResource::RESULT_INVALID_FILE_EXTENSION:
         return dmGameObject::PROPERTY_RESULT_UNSUPPORTED_VALUE;
     default:

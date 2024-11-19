@@ -68,6 +68,7 @@ namespace dmGameSystem
     struct MaterialInfo
     {
         const char*                  m_Name;
+        dmhash_t                     m_NameHash;
         MaterialResource*            m_Material;
         dmGraphics::VertexAttribute* m_Attributes;
         uint32_t                     m_AttributeCount;

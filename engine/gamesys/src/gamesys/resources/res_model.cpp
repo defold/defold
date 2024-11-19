@@ -256,6 +256,7 @@ namespace dmGameSystem
             }
 
             info.m_Name = strdup(model_material->m_Name);
+            info.m_NameHash = dmHashString64(model_material->m_Name);
 
             info.m_Attributes = model_material->m_Attributes.m_Data;
             info.m_AttributeCount = model_material->m_Attributes.m_Count;

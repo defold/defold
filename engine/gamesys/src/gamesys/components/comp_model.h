@@ -53,11 +53,13 @@ namespace dmGameSystem
     struct ModelComponent;
     struct ModelWorld;
     struct ModelResource;
+    struct MaterialResource;
 
     ModelResource*          CompModelGetModelResource(ModelComponent* component);
     dmGameObject::HInstance CompModelGetNodeInstance(ModelComponent* component, uint32_t bone_index);
     bool                    CompModelSetMeshEnabled(ModelComponent* component, dmhash_t mesh_id, bool enabled);
     bool                    CompModelGetMeshEnabled(ModelComponent* component, dmhash_t mesh_id, bool* out);
+    dmResource::Result      CompModelSetMaterial(ModelComponent* component, dmhash_t material_name_id, dmhash_t material_res_id);
 
     // these aren't used yet??
     bool CompModelSetIKTargetInstance(ModelComponent* component, dmhash_t constraint_id, float mix, dmhash_t instance_id);

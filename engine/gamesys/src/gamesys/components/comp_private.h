@@ -27,6 +27,8 @@ namespace dmGameSystem
 
     dmGameObject::PropertyResult GetProperty(dmGameObject::PropertyDesc& out_value, dmhash_t get_property, const dmVMath::Vector4& ref_value, const PropVector4& property);
     dmGameObject::PropertyResult SetProperty(dmhash_t set_property, const dmGameObject::PropertyVar& in_value, dmVMath::Vector4& set_value, const PropVector4& property);
+
+    dmResource::Result SetResource(dmResource::HFactory factory, dmhash_t resource_hash, dmhash_t* exts, uint32_t ext_count, void** out_resource);
 }
 
 #endif // DM_GAMESYS_COMP_PRIVATE_H
