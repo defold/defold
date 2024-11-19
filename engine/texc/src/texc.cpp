@@ -37,9 +37,9 @@ namespace dmTexc
         }
     }
 
-    HTexture Create(const char* name, uint32_t width, uint32_t height, PixelFormat pixel_format, ColorSpace color_space, CompressionType compression_type, void* data)
+    Texture* CreateTexture(const char* name, uint32_t width, uint32_t height, PixelFormat pixel_format, ColorSpace color_space, CompressionType compression_type, void* data)
     {
-        Texture* t = new Texture;
+        TextureImpl* t = new TextureImpl;
         if (!GetEncoder(compression_type, &t->m_Encoder))
         {
             dmLogError("Failed to get an encoder for compression type: %d", (int)compression_type);
@@ -65,83 +65,98 @@ namespace dmTexc
             t->m_Name = strdup(buffer);
         }
 
-        return t;
+        Texture* out = new Texture;
+        out->m_Impl = t;
+        return out;
     }
 
-    void Destroy(HTexture texture)
+    void DestroyTexture(Texture* texture)
     {
-        Texture* t = (Texture *) texture;
+        TextureImpl* t = (TextureImpl*)texture->m_Impl;
         free((void*)t->m_Name);
         t->m_Encoder.m_FnDestroy(t);
         delete t;
+        delete texture;
     }
 
     // For testing
-    bool GetHeader(HTexture texture, Header* out_header)
+    bool GetHeader(Texture* texture, Header* out_header)
     {
-        Texture* t = (Texture*) texture;
+        TextureImpl* t = (TextureImpl*)texture->m_Impl;
         return t->m_Encoder.m_FnGetHeader(t, out_header);
     }
 
-    uint32_t GetDataSizeCompressed(HTexture texture, uint32_t mip_map)
+    uint32_t GetDataSizeCompressed(Texture* texture, uint32_t mip_map)
     {
-        Texture* t = (Texture*) texture;
-        return mip_map < t->m_Mips.Size() ? t->m_Mips[mip_map].m_ByteSize : 0;
+        TextureImpl* t = (TextureImpl*)texture->m_Impl;
+        return mip_map < t->m_Mips.Size() ? t->m_Mips[mip_map].m_DataCount : 0;
     }
 
-    uint32_t GetDataSizeUncompressed(HTexture texture, uint32_t mip_map)
+    uint32_t GetDataSizeUncompressed(Texture* texture, uint32_t mip_map)
     {
         // Since we don't add any extra compression on top of the resource, the
         // amount of memory required to store the
         return GetDataSizeCompressed(texture, mip_map);
     }
 
-    uint32_t GetTotalDataSize(HTexture texture)
+    uint32_t GetTotalDataSize(Texture* texture)
     {
-        Texture* t = (Texture*) texture;
+        TextureImpl* t = (TextureImpl*)texture->m_Impl;
         return t->m_Encoder.m_FnGetTotalDataSize(t);
     }
 
-    uint32_t GetData(HTexture texture, void* out_data, uint32_t out_data_size)
+    uint32_t GetData(Texture* texture, void* out_data, uint32_t out_data_size)
     {
-        Texture* t = (Texture*) texture;
+        TextureImpl* t = (TextureImpl*)texture->m_Impl;
         return t->m_Encoder.m_FnGetData(t, out_data, out_data_size);
     }
 
-    uint64_t GetCompressionFlags(HTexture texture)
+    uint64_t GetCompressionFlags(Texture* texture)
     {
-        Texture* t = (Texture*) texture;
+        TextureImpl* t = (TextureImpl*)texture->m_Impl;
         return t->m_CompressionFlags;
     }
 
-    bool Resize(HTexture texture, uint32_t width, uint32_t height)
+    bool Resize(Texture* texture, uint32_t width, uint32_t height)
     {
-        Texture* t = (Texture*) texture;
+        TextureImpl* t = (TextureImpl*)texture->m_Impl;
         return t->m_Encoder.m_FnResize(t, width, height);
     }
 
-    bool PreMultiplyAlpha(HTexture texture)
+    bool PreMultiplyAlpha(Texture* texture)
     {
-        Texture* t = (Texture*) texture;
+        TextureImpl* t = (TextureImpl*)texture->m_Impl;
         return t->m_Encoder.m_FnPreMultiplyAlpha(t);
     }
 
-    bool GenMipMaps(HTexture texture)
+    bool GenMipMaps(Texture* texture)
     {
-        Texture* t = (Texture*) texture;
+        TextureImpl* t = (TextureImpl*)texture->m_Impl;
         return t->m_Encoder.m_FnGenMipMaps(t);
     }
 
-    bool Flip(HTexture texture, FlipAxis flip_axis)
+    bool Flip(Texture* texture, FlipAxis flip_axis)
     {
         if (flip_axis == FLIP_AXIS_Z)
         {
             dmLogWarning("FLIP_AXIS_Z not supported");
             return true;
         }
-        Texture* t = (Texture*) texture;
+        TextureImpl* t = (TextureImpl*)texture->m_Impl;
         return t->m_Encoder.m_FnFlip(t, flip_axis);
     }
+
+    // bool Dither(HTexture texture, PixelFormat pixel_format)
+    // {
+    //     Texture* t = (Texture*) texture;
+
+    //     if (pixel_format == PF_R4G4B4A4) {
+    //         DitherRGBA4444((uint8_t*)t->m_, w, h);
+    //     }
+    //     else if(pixel_format == PF_R5G6B5) {
+    //         DitherRGBx565((uint8_t*)pixels, w, h);
+    //     }
+    // }
 
     static uint32_t GetNumThreads(int max_threads)
     {
@@ -157,77 +172,100 @@ namespace dmTexc
         return num_threads;
     }
 
-    bool Encode(HTexture texture, PixelFormat pixel_format, ColorSpace color_space,
+    bool Encode(Texture* texture, PixelFormat pixel_format, ColorSpace color_space,
                 CompressionLevel compression_level, CompressionType compression_type, bool mipmaps, int max_threads)
     {
-        Texture* t = (Texture*) texture;
-
         uint32_t num_threads = GetNumThreads(max_threads);
+        TextureImpl* t = (TextureImpl*)texture->m_Impl;
         return t->m_Encoder.m_FnEncode(t, num_threads, pixel_format, compression_type, compression_level);
     }
 
-#define DM_TEXC_TRAMPOLINE1(ret, name, t1) \
-    ret TEXC_##name(t1 a1)\
-    {\
-        return name(a1);\
-    }\
+// #define DM_TEXC_TRAMPOLINE1(ret, name, t1) \
+//     ret TEXC_##name(t1 a1)\
+//     {\
+//         return name(a1);\
+//     }\
 
-#define DM_TEXC_TRAMPOLINE2(ret, name, t1, t2) \
-    ret TEXC_##name(t1 a1, t2 a2)\
-    {\
-        return name(a1, a2);\
-    }\
+// #define DM_TEXC_TRAMPOLINE2(ret, name, t1, t2) \
+//     ret TEXC_##name(t1 a1, t2 a2)\
+//     {\
+//         return name(a1, a2);\
+//     }\
 
-#define DM_TEXC_TRAMPOLINE3(ret, name, t1, t2, t3) \
-    ret TEXC_##name(t1 a1, t2 a2, t3 a3)\
-    {\
-        return name(a1, a2, a3);\
-    }\
+// #define DM_TEXC_TRAMPOLINE3(ret, name, t1, t2, t3) \
+//     ret TEXC_##name(t1 a1, t2 a2, t3 a3)\
+//     {\
+//         return name(a1, a2, a3);\
+//     }\
 
-#define DM_TEXC_TRAMPOLINE4(ret, name, t1, t2, t3, t4) \
-    ret TEXC_##name(t1 a1, t2 a2, t3 a3, t4 a4)\
-    {\
-        return name(a1, a2, a3, a4);\
-    }\
+// #define DM_TEXC_TRAMPOLINE4(ret, name, t1, t2, t3, t4) \
+//     ret TEXC_##name(t1 a1, t2 a2, t3 a3, t4 a4)\
+//     {\
+//         return name(a1, a2, a3, a4);\
+//     }\
 
-#define DM_TEXC_TRAMPOLINE5(ret, name, t1, t2, t3, t4, t5) \
-    ret TEXC_##name(t1 a1, t2 a2, t3 a3, t4 a4, t5 a5)\
-    {\
-        return name(a1, a2, a3, a4, a5);\
-    }\
+// #define DM_TEXC_TRAMPOLINE5(ret, name, t1, t2, t3, t4, t5) \
+//     ret TEXC_##name(t1 a1, t2 a2, t3 a3, t4 a4, t5 a5)\
+//     {\
+//         return name(a1, a2, a3, a4, a5);\
+//     }\
 
-#define DM_TEXC_TRAMPOLINE6(ret, name, t1, t2, t3, t4, t5, t6) \
-    ret TEXC_##name(t1 a1, t2 a2, t3 a3, t4 a4, t5 a5, t6 a6)\
-    {\
-        return name(a1, a2, a3, a4, a5, a6);\
-    }\
+// #define DM_TEXC_TRAMPOLINE6(ret, name, t1, t2, t3, t4, t5, t6) \
+//     ret TEXC_##name(t1 a1, t2 a2, t3 a3, t4 a4, t5 a5, t6 a6)\
+//     {\
+//         return name(a1, a2, a3, a4, a5, a6);\
+//     }\
 
-#define DM_TEXC_TRAMPOLINE7(ret, name, t1, t2, t3, t4, t5, t6, t7) \
-    ret TEXC_##name(t1 a1, t2 a2, t3 a3, t4 a4, t5 a5, t6 a6, t7 a7)\
-    {\
-        return name(a1, a2, a3, a4, a5, a6, a7);\
-    }\
+// #define DM_TEXC_TRAMPOLINE7(ret, name, t1, t2, t3, t4, t5, t6, t7) \
+//     ret TEXC_##name(t1 a1, t2 a2, t3 a3, t4 a4, t5 a5, t6 a6, t7 a7)\
+//     {\
+//         return name(a1, a2, a3, a4, a5, a6, a7);\
+//     }\
 
-#define DM_TEXC_TRAMPOLINE8(ret, name, t1, t2, t3, t4, t5, t6, t7, t8) \
-    ret TEXC_##name(t1 a1, t2 a2, t3 a3, t4 a4, t5 a5, t6 a6, t7 a7, t8 a8)\
-    {\
-        return name(a1, a2, a3, a4, a5, a6, a7, a8);\
-    }\
+// #define DM_TEXC_TRAMPOLINE8(ret, name, t1, t2, t3, t4, t5, t6, t7, t8) \
+//     ret TEXC_##name(t1 a1, t2 a2, t3 a3, t4 a4, t5 a5, t6 a6, t7 a7, t8 a8)\
+//     {\
+//         return name(a1, a2, a3, a4, a5, a6, a7, a8);\
+//     }\
 
-    DM_TEXC_TRAMPOLINE7(HTexture, Create, const char*, uint32_t, uint32_t, PixelFormat, ColorSpace, CompressionType, void*);
-    DM_TEXC_TRAMPOLINE1(void, Destroy, HTexture);
-    DM_TEXC_TRAMPOLINE2(uint32_t, GetDataSizeCompressed, HTexture, uint32_t);
-    DM_TEXC_TRAMPOLINE2(uint32_t, GetDataSizeUncompressed, HTexture, uint32_t);
-    DM_TEXC_TRAMPOLINE1(uint32_t, GetTotalDataSize, HTexture);
-    DM_TEXC_TRAMPOLINE3(uint32_t, GetData, HTexture, void*, uint32_t);
-    DM_TEXC_TRAMPOLINE1(uint64_t, GetCompressionFlags, HTexture);
-    DM_TEXC_TRAMPOLINE3(bool, Resize, HTexture, uint32_t, uint32_t);
-    DM_TEXC_TRAMPOLINE1(bool, PreMultiplyAlpha, HTexture);
-    DM_TEXC_TRAMPOLINE1(bool, GenMipMaps, HTexture);
-    DM_TEXC_TRAMPOLINE2(bool, Flip, HTexture, FlipAxis);
-    DM_TEXC_TRAMPOLINE7(bool, Encode, HTexture, PixelFormat, ColorSpace, CompressionLevel, CompressionType, bool, int);
-    DM_TEXC_TRAMPOLINE2(HBuffer, CompressBuffer, void*, uint32_t);
-    DM_TEXC_TRAMPOLINE1(uint32_t, GetTotalBufferDataSize, HBuffer);
-    DM_TEXC_TRAMPOLINE3(uint32_t, GetBufferData, HBuffer, void*, uint32_t);
-    DM_TEXC_TRAMPOLINE1(void, DestroyBuffer, HBuffer);
+// #define DM_TEXC_TRAMPOLINE11(ret, name, t1, t2, t3, t4, t5, t6, t7, t8, t9, t10, t11) \
+//     ret TEXC_##name(t1 a1, t2 a2, t3 a3, t4 a4, t5 a5, t6 a6, t7 a7, t8 a8, t9 a9, t10 a10, t11 a11)\
+//     {\
+//         return name(a1, a2, a3, a4, a5, a6, a7, a8, a9, a10, a11);\
+//     }\
+
+//     DM_TEXC_TRAMPOLINE7(HTexture, Create, const char*, uint32_t, uint32_t, PixelFormat, ColorSpace, CompressionType, void*);
+//     DM_TEXC_TRAMPOLINE1(void, Destroy, HTexture);
+//     DM_TEXC_TRAMPOLINE2(uint32_t, GetDataSizeCompressed, HTexture, uint32_t);
+//     DM_TEXC_TRAMPOLINE2(uint32_t, GetDataSizeUncompressed, HTexture, uint32_t);
+//     DM_TEXC_TRAMPOLINE1(uint32_t, GetTotalDataSize, HTexture);
+//     DM_TEXC_TRAMPOLINE3(uint32_t, GetData, HTexture, void*, uint32_t);
+//     DM_TEXC_TRAMPOLINE1(uint64_t, GetCompressionFlags, HTexture);
+//     DM_TEXC_TRAMPOLINE3(bool, Resize, HTexture, uint32_t, uint32_t);
+//     DM_TEXC_TRAMPOLINE1(bool, PreMultiplyAlpha, HTexture);
+//     DM_TEXC_TRAMPOLINE1(bool, GenMipMaps, HTexture);
+//     DM_TEXC_TRAMPOLINE2(bool, Flip, HTexture, FlipAxis);
+//     DM_TEXC_TRAMPOLINE7(bool, Encode, HTexture, PixelFormat, ColorSpace, CompressionLevel, CompressionType, bool, int);
+//     DM_TEXC_TRAMPOLINE2(HBuffer, CompressBuffer, void*, uint32_t);
+//     DM_TEXC_TRAMPOLINE1(uint32_t, GetTotalBufferDataSize, HBuffer);
+//     DM_TEXC_TRAMPOLINE3(uint32_t, GetBufferData, HBuffer, void*, uint32_t);
+//     DM_TEXC_TRAMPOLINE1(void, DestroyBuffer, HBuffer);
+
+//     // New api
+//     DM_TEXC_TRAMPOLINE5(bool, Image_Resize, uint8_t* image, int width, int height, int depth, int numChannels, int newWidth, int newHeight, int newDepth);
+//     DM_TEXC_TRAMPOLINE5(bool, Image_PreMultiplyAlpha, uint8_t* image, int width, int height, int depth, int numChannels);
+//     //DM_TEXC_TRAMPOLINE5(byte[]  Image_GenMipMap, uint8_t* image, int width, int height, int depth, int numChannels);
+//     DM_TEXC_TRAMPOLINE5(bool, Image_Flip, uint8_t* image, int width, int height, int depth, int numChannels, int flipAxis);
+//     DM_TEXC_TRAMPOLINE5(bool, Image_Dither, uint8_t* image, int width, int height, int depth, int numChannels), int pixelFormat);
+
+//     // BasisU specific
+//     DM_TEXC_TRAMPOLINE5(uint8_t*, BasisU_Encode, uint8_t* image, int width, int height, int depth, int numChannels, int pixelFormat, int colorSpace, int compressionLevel, int compressionType, boolean mipmaps, int num_threads);
+
+
+//     DM_TEXC_TRAMPOLINE5(bool, Resize, HTexture, uint32_t, uint32_t);
+//     DM_TEXC_TRAMPOLINE1(bool, PreMultiplyAlpha, HTexture);
+//     DM_TEXC_TRAMPOLINE1(bool, GenMipMaps, HTexture);
+//     DM_TEXC_TRAMPOLINE2(bool, Flip, HTexture, FlipAxis);
+
+//     DM_TEXC_TRAMPOLINE11(bool, TEXC_BasisU_Encode
 }

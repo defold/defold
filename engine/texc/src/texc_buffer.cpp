@@ -47,7 +47,7 @@ namespace dmTexc
         return true;
     }
 
-    static HBuffer CompressBuffer_Deflate(void* data, uint32_t size)
+    static Buffer* CompressBuffer_Deflate(void* data, uint32_t size)
     {
         uint8_t* delta_encoded_data = (uint8_t*)malloc(size);
         memcpy(delta_encoded_data, data, size);
@@ -64,56 +64,50 @@ namespace dmTexc
 
         free(delta_encoded_data);
 
-        TextureData* out = new TextureData;
+        Buffer* out = new Buffer;
         out->m_Data = out_data;
         out->m_IsCompressed = 1;
-        out->m_ByteSize = size;
+        out->m_DataCount = size;
         return out;
     }
 
-    HBuffer CompressBuffer(void* data, uint32_t size)
+    Buffer* CompressBuffer(void* data, uint32_t size)
     {
-        TextureData* out = (TextureData*)CompressBuffer_Deflate(data, size);
+        Buffer* out = CompressBuffer_Deflate(data, size);
         if (!out)
         {
-            out = new TextureData;
+            out = new Buffer;
             out->m_Data = 0;
-            out->m_ByteSize = 0xFFFFFFFF; // trigger realloc below
+            out->m_DataCount = 0xFFFFFFFF; // trigger realloc below
         }
 
-        if (out->m_ByteSize > size)
+        if (out->m_DataCount > size)
         {
             free(out->m_Data);
             out->m_IsCompressed = 0;
-            out->m_ByteSize = size;
+            out->m_DataCount = size;
             out->m_Data = (uint8_t*)malloc(size);
             memcpy(out->m_Data, data, size);
         }
         return out;
     }
 
-    uint32_t GetTotalBufferDataSize(HBuffer _buffer)
+    uint32_t GetTotalBufferDataSize(Buffer* buffer)
     {
-        TextureData* buffer = (TextureData*) _buffer;
-        return (uint32_t)buffer->m_ByteSize + 1;
+        return buffer->m_DataCount + 1;
     }
 
-    uint32_t GetBufferData(HBuffer _buffer, void* _out_data, uint32_t out_data_size)
+    uint32_t GetBufferData(Buffer* buffer, void* _out_data, uint32_t out_data_size)
     {
-        TextureData* buffer = (TextureData*) _buffer;
         uint8_t* out_data = (uint8_t*)_out_data;
         out_data[0] = buffer->m_IsCompressed;
-        memcpy(out_data+1, buffer->m_Data, dmMath::Min(out_data_size, (uint32_t)buffer->m_ByteSize));
-        return dmMath::Min(out_data_size, (uint32_t)buffer->m_ByteSize + 1);
+        memcpy(out_data+1, buffer->m_Data, dmMath::Min(out_data_size, (uint32_t)buffer->m_DataCount));
+        return dmMath::Min(out_data_size, (uint32_t)buffer->m_DataCount + 1);
     }
 
-    void DestroyBuffer(HBuffer buffer)
+    void DestroyBuffer(Buffer* buffer)
     {
-        TextureData* t = (TextureData*)buffer;
-        if (t->m_Data) {
-            free(t->m_Data);
-        }
-
-        delete t;
+        free(buffer->m_Data);
+        delete buffer;
     }
 }

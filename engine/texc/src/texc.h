@@ -17,8 +17,6 @@
 
 #include <stdint.h>
 
-#include <dlib/shared_library.h>
-
 /**
  * Texture processing
  */
@@ -91,6 +89,7 @@ namespace dmTexc
         DT_DEFAULT = 1
     };
 
+    // OLD API
     struct Header
     {
         uint32_t m_Version;
@@ -107,103 +106,152 @@ namespace dmTexc
         uint32_t m_MetaDataSize;
     };
 
+    struct Texture
+    {
+        void* m_Impl;
+    };
 
+    struct Buffer
+    {
+        uint8_t* m_Data;
+        uint32_t m_DataCount; // Encoded size
+        uint32_t m_Width;
+        uint32_t m_Height;
+        bool     m_IsCompressed;
+    };
 
-    /**
-     * Texture handle
-     */
-    typedef void* HTexture;
+    Texture* CreateTexture(const char* name, uint32_t width, uint32_t height, PixelFormat pixel_format, ColorSpace colorSpace, CompressionType compression_type, void* data);
+    void DestroyTexture(Texture* texture);
 
-    /**
-     * Texture handle
-     */
-    typedef void* HBuffer;
+    // Get header (info) of a texture
+    bool GetHeader(Texture* texture, Header* out_header);
 
-    /**
-     * Invalid texture handle
-     */
-    const HTexture INVALID_TEXTURE = 0;
+    // Get the compressed data size in bytes of a mip map. Returns 0 if not compressed
+    uint32_t GetDataSizeCompressed(Texture* texture, uint32_t mip_map);
 
-#define DM_TEXC_PROTO(ret, name,  ...) \
-    \
-    ret name(__VA_ARGS__);\
-    extern "C" DM_DLLEXPORT ret TEXC_##name(__VA_ARGS__);
+    // Get the uncompressed data size in bytes of a mip map in a texture
+    uint32_t GetDataSizeUncompressed(Texture* texture, uint32_t mip_map);
 
-    /**
-     * Create a texture
-     */
-    DM_TEXC_PROTO(HTexture, Create, const char* name, uint32_t width, uint32_t height, PixelFormat pixel_format, ColorSpace colorSpace, CompressionType compression_type, void* data);
-    /**
-     * Destroy a texture
-     */
-    DM_TEXC_PROTO(void, Destroy, HTexture texture);
+    // Get the total data size in bytes including all mip maps in a texture (compressed or not)
+    uint32_t GetTotalDataSize(Texture* texture);
 
-    /**
-     * Get header (info) of a texture
-     */
-    DM_TEXC_PROTO(bool, GetHeader, HTexture texture, Header* out_header);
+    // Get the data pointer to texture (mip maps linear layout in memory)
+    uint32_t GetData(Texture* texture, void* out_data, uint32_t out_data_size);
 
-    /**
-     * Get the compressed data size in bytes of a mip map. Returns 0 if not compressed
-     */
-    DM_TEXC_PROTO(uint32_t, GetDataSizeCompressed, HTexture texture, uint32_t mip_map);
+    // Get compression flags
+    uint64_t GetCompressionFlags(Texture* texture);
 
-    /**
-     * Get the uncompressed data size in bytes of a mip map in a texture
-     */
-    DM_TEXC_PROTO(uint32_t, GetDataSizeUncompressed, HTexture texture, uint32_t mip_map);
+    // Resize a texture. The texture must have format PF_R8G8B8A8 to be resized.
+    bool Resize(Texture* texture, uint32_t width, uint32_t height);
 
-    /**
-     * Get the total data size in bytes including all mip maps in a texture (compressed or not)
-     */
-    DM_TEXC_PROTO(uint32_t, GetTotalDataSize, HTexture texture);
+    // Pre-multiply the color with alpha in a texture. The texture must have format PF_R8G8B8A8 for the alpha to be pre-multiplied.
+    bool PreMultiplyAlpha(Texture* texture);
 
-    /**
-     * Get the data pointer to texture (mip maps linear layout in memory)
-     */
-    DM_TEXC_PROTO(uint32_t, GetData, HTexture texture, void* out_data, uint32_t out_data_size);
-    /**
-     * Get compression flags
-     */
-    DM_TEXC_PROTO(uint64_t, GetCompressionFlags, HTexture texture);
+    // Generate mip maps. The texture must have format PF_R8G8B8A8 for mip maps to be generated.
+    bool GenMipMaps(Texture* texture);
 
-    /**
-     * Resize a texture.
-     * The texture must have format PF_R8G8B8A8 to be resized.
-     */
-    DM_TEXC_PROTO(bool, Resize, HTexture texture, uint32_t width, uint32_t height);
-    /**
-     * Pre-multiply the color with alpha in a texture.
-     * The texture must have format PF_R8G8B8A8 for the alpha to be pre-multiplied.
-     */
-    DM_TEXC_PROTO(bool, PreMultiplyAlpha, HTexture texture);
-    /**
-     * Generate mip maps.
-     * The texture must have format PF_R8G8B8A8 for mip maps to be generated.
-     */
-    DM_TEXC_PROTO(bool, GenMipMaps, HTexture texture);
-    /**
-     * Flips a texture vertically
-     */
-    DM_TEXC_PROTO(bool, Flip, HTexture texture, FlipAxis flip_axis);
-    /**
-     * Encode a texture into basis format.
-     */
-    DM_TEXC_PROTO(bool, Encode, HTexture texture, PixelFormat pixelFormat, ColorSpace color_space, CompressionLevel compressionLevel, CompressionType compression_type, bool mipmaps, int max_threads);
+    // Flips a texture vertically
+    bool Flip(Texture* texture, FlipAxis flip_axis);
+
+    // Encode a texture into basis format.
+    bool Encode(Texture* texture, PixelFormat pixelFormat, ColorSpace color_space, CompressionLevel compressionLevel, CompressionType compression_type, bool mipmaps, int max_threads);
 
     // Now only used for font glyphs
     // Compresses an image buffer
-    DM_TEXC_PROTO(HBuffer, CompressBuffer, void* data, uint32_t size);
+    Buffer* CompressBuffer(uint8_t* byte, uint32_t byte_count);
 
-    // Get the total data size in bytes including all mip maps in a texture (compressed or not)
-    DM_TEXC_PROTO(uint32_t, GetTotalBufferDataSize, HBuffer buffer);
+    // // Get the total data size in bytes including all mip maps in a texture (compressed or not)
+    // uint32_t GetTotalBufferDataSize(HBuffer buffer);
 
-    // Gets the data from a buffer
-    DM_TEXC_PROTO(uint32_t, GetBufferData, HBuffer buffer, void* out_data, uint32_t out_data_size);
+    // // Gets the data from a buffer
+    // uint32_t GetBufferData(HBuffer buffer, void* buffer, uint32_t buffer_size);
 
     // Destroys a buffer created by CompressBuffer
-    DM_TEXC_PROTO(void, DestroyBuffer, HBuffer buffer);
-#undef DM_TEXC_PROTO
+    void DestroyBuffer(Buffer* buffer);
+
+
+// #define DM_TEXC_PROTO(ret, name,  ...) \
+//     \
+//     ret name(__VA_ARGS__);\
+//     extern "C" DM_DLLEXPORT ret TEXC_##name(__VA_ARGS__);
+
+// #define DM_TEXC_PROTO(ret, name,  ...) ret name(__VA_ARGS__);
+
+//     /**
+//      * Create a texture
+//      */
+//     DM_TEXC_PROTO(HTexture, Create, const char* name, uint32_t width, uint32_t height, PixelFormat pixel_format, ColorSpace colorSpace, CompressionType compression_type, void* data);
+//     /**
+//      * Destroy a texture
+//      */
+//     DM_TEXC_PROTO(void, Destroy, HTexture texture);
+
+//     /**
+//      * Get header (info) of a texture
+//      */
+//     DM_TEXC_PROTO(bool, GetHeader, HTexture texture, Header* out_header);
+
+//     /**
+//      * Get the compressed data size in bytes of a mip map. Returns 0 if not compressed
+//      */
+//     DM_TEXC_PROTO(uint32_t, GetDataSizeCompressed, HTexture texture, uint32_t mip_map);
+
+//     /**
+//      * Get the uncompressed data size in bytes of a mip map in a texture
+//      */
+//     DM_TEXC_PROTO(uint32_t, GetDataSizeUncompressed, HTexture texture, uint32_t mip_map);
+
+//     /**
+//      * Get the total data size in bytes including all mip maps in a texture (compressed or not)
+//      */
+//     DM_TEXC_PROTO(uint32_t, GetTotalDataSize, HTexture texture);
+
+//     /**
+//      * Get the data pointer to texture (mip maps linear layout in memory)
+//      */
+//     DM_TEXC_PROTO(uint32_t, GetData, HTexture texture, void* out_data, uint32_t out_data_size);
+//     /**
+//      * Get compression flags
+//      */
+//     DM_TEXC_PROTO(uint64_t, GetCompressionFlags, HTexture texture);
+
+//     /**
+//      * Resize a texture.
+//      * The texture must have format PF_R8G8B8A8 to be resized.
+//      */
+//     DM_TEXC_PROTO(bool, Resize, HTexture texture, uint32_t width, uint32_t height);
+//     /**
+//      * Pre-multiply the color with alpha in a texture.
+//      * The texture must have format PF_R8G8B8A8 for the alpha to be pre-multiplied.
+//      */
+//     DM_TEXC_PROTO(bool, PreMultiplyAlpha, HTexture texture);
+//     /**
+//      * Generate mip maps.
+//      * The texture must have format PF_R8G8B8A8 for mip maps to be generated.
+//      */
+//     DM_TEXC_PROTO(bool, GenMipMaps, HTexture texture);
+//     /**
+//      * Flips a texture vertically
+//      */
+//     DM_TEXC_PROTO(bool, Flip, HTexture texture, FlipAxis flip_axis);
+//     /**
+//      * Encode a texture into basis format.
+//      */
+//     DM_TEXC_PROTO(bool, Encode, HTexture texture, PixelFormat pixelFormat, ColorSpace color_space, CompressionLevel compressionLevel, CompressionType compression_type, bool mipmaps, int max_threads);
+
+//     // Now only used for font glyphs
+//     // Compresses an image buffer
+//     DM_TEXC_PROTO(HBuffer, CompressBuffer, void* data, uint32_t size);
+
+//     // Get the total data size in bytes including all mip maps in a texture (compressed or not)
+//     DM_TEXC_PROTO(uint32_t, GetTotalBufferDataSize, HBuffer buffer);
+
+//     // Gets the data from a buffer
+//     DM_TEXC_PROTO(uint32_t, GetBufferData, HBuffer buffer, void* out_data, uint32_t out_data_size);
+
+//     // Destroys a buffer created by CompressBuffer
+//     DM_TEXC_PROTO(void, DestroyBuffer, HBuffer buffer);
+// #undef DM_TEXC_PROTO
 }
 
 #endif // DM_TEXC_H

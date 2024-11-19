@@ -21,7 +21,7 @@ BUILD_DIR=$(realpath ./build/src)
 
 set -e
 
-CLASS_NAME=com.dynamo.bob.TexcLibrary
+CLASS_NAME=com.dynamo.bob.pipeline.TexcLibraryJni
 LIBNAME=texc_shared
 SUFFIX=.so
 if [ "Darwin" == "$(uname)" ]; then
@@ -95,10 +95,11 @@ if [ "${USING_UBSAN}" != "" ]; then
 fi
 
 #JNI_DEBUG_FLAGS="-Xcheck:jni"
+#export DYLD_INSERT_LIBRARIES=${JAVA_HOME}/lib/libjsig.dylib
 
 export DM_TEXTURECOMPILER_LOG_LEVEL=DEBUG
 export DM_ATLASPACKER_LOG_LEVEL=DEBUG
 
 JAR_FOLDER=${DYNAMO_HOME}/../../com.dynamo.cr/com.dynamo.cr.bob/bin/lib/*
 
-java ${JNI_DEBUG_FLAGS} -Djava.library.path=${BUILD_DIR} -Djni.library.path=${BUILD_DIR} -Djna.library.path=${BUILD_DIR} ${JNA_DEBUG_FLAGS} -cp "${JAR}:${JAR_FOLDER}" ${CLASS_NAME} $*
+java ${JNI_DEBUG_FLAGS} -Djava.library.path=${BUILD_DIR} -Djni.library.path=${BUILD_DIR} -cp "${JAR}:${JAR_FOLDER}" ${CLASS_NAME} $*
