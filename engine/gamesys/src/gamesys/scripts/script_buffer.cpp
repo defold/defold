@@ -16,6 +16,7 @@
 #include <stdint.h>
 #include <string.h>
 
+#include <dlib/dalloca.h>
 #include <dlib/buffer.h>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
@@ -26,11 +27,6 @@
 
 #include <dmsdk/script/script.h>
 #include <dmsdk/gamesys/script.h>
-
-#if defined(_WIN32)
-#include <malloc.h>
-#define alloca(_SIZE) _alloca(_SIZE)
-#endif
 
 extern "C"
 {
