@@ -103,7 +103,7 @@ def build(bld):
         name='test_http_server',
         source_root='http_server')
 
-    bld.env["JAVACFLAGS"] = '-g -source 1.8 -target 1.8'.split()
+    bld.env["JAVACFLAGS"] = '-g -parameters -source 1.8 -target 1.8'.split()
 
     extra_defines = []
     if bld.env.PLATFORM in ('arm64-ios', 'x86_64-ios'):
