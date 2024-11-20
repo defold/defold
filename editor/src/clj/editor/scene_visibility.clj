@@ -33,8 +33,10 @@
 
 (def ^:private renderable-tag-toggles-info
   (cond-> [{:label "Collision Shapes" :tag :collision-shape}
+           {:label "Component Guides" :tag :outline :command :toggle-component-guides}
            {:label "Camera" :tag :camera}
            #_{:label "GUI Elements" :tag :gui} ; This tag exists, but we decided to hide it and put in granular control instead. Add back if we make the toggles hierarchical?
+           {:label "Grid" :tag :grid}
            {:label "GUI Bounds" :tag :gui-bounds}
            {:label "GUI Shapes" :tag :gui-shape}
            {:label "GUI Particle Effects" :tag :gui-particlefx}
@@ -61,9 +63,7 @@
         renderable-tag-toggles-info))
 
 (defn filters-appear-active?
-  "Returns true if some parts of the scene are hidden due to visibility filters.
-  Does not consider scene elements that you'd not typically expect to be there,
-  such as debug rendering of bounding volumes, etc."
+  "Returns true if some parts of the scene are hidden due to visibility filters."
   ([scene-visibility]
    (g/with-auto-evaluation-context evaluation-context
      (filters-appear-active? scene-visibility evaluation-context)))
@@ -310,14 +310,16 @@
   (g/update-property! scene-visibility :visibility-filters-enabled? not))
 
 (defn- make-visibility-toggles-list
-  ^Region [scene-visibility]
-  (let [make-control
-        (fn [{:keys [label tag]}]
+  ^Region [app-view scene-visibility]
+  (let [keymap (g/node-value app-view :keymap)
+        command->shortcut (keymap/command->shortcut keymap)
+        make-control
+        (fn [{:keys [label tag command]}]
           (if (= :separator label)
             [(Separator.) nil]
             (let [[control update-fn]
                   (make-toggle {:label label
-                                :acc ""
+                                :acc (if command (keymap/key-combo->display-text (get command->shortcut command)) "")
                                 :on-change (fn [checked]
                                              (set-tag-visibility! scene-visibility tag checked))})
                   update-from-hidden-tags
@@ -336,7 +338,7 @@
 
         [filters-enabled-control filters-enabled-update-fn]
         (make-toggle {:label "Visibility Filters"
-                      :acc (keymap/key-combo->display-text "Shift+Shortcut+I")
+                      :acc (keymap/key-combo->display-text (get command->shortcut :toggle-visibility-filters))
                       :on-change (fn [checked]
                                    (set-filters-enabled! scene-visibility checked))})
 
@@ -366,10 +368,10 @@
     (Point2D. (- (.getMaxX container-screen-bounds) width 10)
               (+ (.getMaxY container-screen-bounds) y-gap))))
 
-(defn show-visibility-settings! [^Parent owner scene-visibility]
+(defn show-visibility-settings! [app-view ^Parent owner scene-visibility]
   (if-let [popup ^PopupControl (ui/user-data owner ::popup)]
     (.hide popup)
-    (let [[^Region toggles update-fn] (make-visibility-toggles-list scene-visibility)
+    (let [[^Region toggles update-fn] (make-visibility-toggles-list app-view scene-visibility)
           popup (popup/make-popup owner toggles)
           anchor (pref-popup-position owner (.getMinWidth toggles) -5)
           refresh-timer (ui/->timer 13 "refresh-tag-filters" (fn [_ _ _] (update-fn)))]
