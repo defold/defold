@@ -581,6 +581,8 @@ public class Bob {
 
                 opt("l", "liveupdate", ONE, "Yes if liveupdate content should be published", true),
 
+                opt(null, "with-sha1", ZERO, "Generate (and verify) sha1 signatures from build artifacts (when bunding for web)", false),
+
                 opt("ar", "architectures", ONE, "Comma separated list of architectures to include for the platform", true),
 
                 opt(null, "settings", MANY, ABS_OR_CWD_REL_PATH, "Path to a game project settings file. The settings files are applied left to right", false),
