@@ -57,7 +57,7 @@ static void* ReadFile(const char* path, uint32_t* file_size)
 TEST(Shaderc, TestSimpleShader)
 {
     uint32_t data_size;
-    void* data = ReadFile("./src/test/data/simple.frag.spv", &data_size);
+    void* data = ReadFile("./build/src/test/data/simple.spv", &data_size);
     ASSERT_NE((void*) 0, data);
 
 	dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(data, data_size);
@@ -67,7 +67,7 @@ TEST(Shaderc, TestSimpleShader)
 TEST(Shaderc, TestShaderReflection)
 {
     uint32_t data_size;
-    void* data = ReadFile("./src/test/data/reflection.frag.spv", &data_size);
+    void* data = ReadFile("./build/src/test/data/reflection.spv", &data_size);
     ASSERT_NE((void*) 0, data);
 
     dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(data, data_size);
@@ -84,8 +84,6 @@ TEST(Shaderc, TestShaderReflection)
     ASSERT_EQ(dmHashString64("ubo_inst"),       reflection->m_UniformBuffers[2].m_NameHash);
     ASSERT_EQ(dmHashString64("inst_variable"),  reflection->m_UniformBuffers[2].m_InstanceNameHash);
 
-    dmShaderc::DebugPrintReflection(reflection);
-
     dmShaderc::DeleteShaderContext(shader_ctx);
 }
 
@@ -101,16 +99,19 @@ static const dmShaderc::ShaderResource* GetShaderResourceByNameHash(const dmArra
     return 0;
 }
 
+static inline const char* FindFirstOccurance(const char* src, const char* text)
+{
+    return strstr(src, text);
+}
+
 TEST(Shaderc, ModifyBindings)
 {
     uint32_t data_size;
-    void* data = ReadFile("./src/test/data/bindings.vert.spv", &data_size);
+    void* data = ReadFile("./build/src/test/data/bindings.spv", &data_size);
     ASSERT_NE((void*) 0, data);
 
     dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(data, data_size);
     const dmShaderc::ShaderReflection* reflection = dmShaderc::GetReflection(shader_ctx);
-
-    dmShaderc::DebugPrintReflection(reflection);
 
     const dmShaderc::ShaderResource* position  = GetShaderResourceByNameHash(reflection->m_Inputs, dmHashString64("position"));
     const dmShaderc::ShaderResource* normal    = GetShaderResourceByNameHash(reflection->m_Inputs, dmHashString64("normal"));
@@ -133,15 +134,54 @@ TEST(Shaderc, ModifyBindings)
 
     dmShaderc::ShaderCompilerOptions options;
     options.m_Stage   = dmShaderc::SHADER_STAGE_VERTEX;
-    options.m_Version = 100;
-    options.m_GlslEs = 1;
+    options.m_Version = 330;
 
     const char* dst = dmShaderc::Compile(shader_ctx, compiler, options);
     ASSERT_NE((void*) 0, dst);
 
-    dmLogInfo("%s", dst);
+    ASSERT_NE((const char*) 0, FindFirstOccurance(dst, "layout(location = 3) in vec4 position;"));
+    ASSERT_NE((const char*) 0, FindFirstOccurance(dst, "layout(location = 4) in vec3 normal;"));
+    ASSERT_NE((const char*) 0, FindFirstOccurance(dst, "layout(location = 5) in vec2 tex_coord;"));
 
     dmShaderc::DeleteShaderContext(shader_ctx);
+}
+
+TEST(Shaderc, Types)
+{
+    uint32_t data_size;
+    void* data = ReadFile("./build/src/test/data/types.spv", &data_size);
+    ASSERT_NE((void*) 0, data);
+
+    /*
+    struct nested_struct
+    {
+        vec4 nested_member;
+    };
+
+    struct base_struct
+    {
+        vec4          member;
+        nested_struct nested;
+    };
+
+    uniform fs_uniforms
+    {
+        vec4        base_type_vec4;
+        float       base_type_float;
+        int         base_type_int;
+        bool        base_type_bool;
+        base_struct base;
+    };
+    */
+
+    dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(data, data_size);
+    const dmShaderc::ShaderReflection* reflection = dmShaderc::GetReflection(shader_ctx);
+
+    dmShaderc::DebugPrintReflection(reflection);
+
+    ASSERT_EQ(1, reflection->m_UniformBuffers.Size());
+
+    // ASSERT_EQ(dmShaderc::BASE_TYPE_)
 }
 
 int main(int argc, char **argv)

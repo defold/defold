@@ -35,32 +35,153 @@ namespace dmShaderc
         dmLogError("Shaderc error: '%s'", error);
     }
 
-    static void SetReflectionResourceForType(spvc_compiler compiler, spvc_resources resources, spvc_resource_type type, dmArray<ShaderResource>& resources_out)
+    static struct BaseTypeMapping
+    {
+        BaseType      m_BaseType;
+        spvc_basetype m_SPVCBaseType;
+        const char*   m_BaseTypeStr;
+    } BASE_TYPE_MAPPING[] = {
+        {BASE_TYPE_UNKNOWN, SPVC_BASETYPE_UNKNOWN, "BASE_TYPE_UNKNOWN"},
+        {BASE_TYPE_VOID, SPVC_BASETYPE_VOID, "BASE_TYPE_VOID"},
+        {BASE_TYPE_BOOLEAN, SPVC_BASETYPE_BOOLEAN, "BASE_TYPE_BOOLEAN"},
+        {BASE_TYPE_INT8, SPVC_BASETYPE_INT8, "BASE_TYPE_INT8"},
+        {BASE_TYPE_UINT8, SPVC_BASETYPE_UINT8, "BASE_TYPE_UINT8"},
+        {BASE_TYPE_INT16, SPVC_BASETYPE_INT16, "BASE_TYPE_INT16"},
+        {BASE_TYPE_UINT16, SPVC_BASETYPE_UINT16, "BASE_TYPE_UINT16"},
+        {BASE_TYPE_INT32, SPVC_BASETYPE_INT32, "BASE_TYPE_INT32"},
+        {BASE_TYPE_UINT32, SPVC_BASETYPE_UINT32, "BASE_TYPE_UINT32"},
+        {BASE_TYPE_INT64, SPVC_BASETYPE_INT64, "BASE_TYPE_INT64"},
+        {BASE_TYPE_UINT64, SPVC_BASETYPE_UINT64, "BASE_TYPE_UINT64"},
+        {BASE_TYPE_ATOMIC_COUNTER, SPVC_BASETYPE_ATOMIC_COUNTER, "BASE_TYPE_ATOMIC_COUNTER"},
+        {BASE_TYPE_FP16, SPVC_BASETYPE_FP16, "BASE_TYPE_FP16"},
+        {BASE_TYPE_FP32, SPVC_BASETYPE_FP32, "BASE_TYPE_FP32"},
+        {BASE_TYPE_FP64, SPVC_BASETYPE_FP64, "BASE_TYPE_FP64"},
+        {BASE_TYPE_STRUCT, SPVC_BASETYPE_STRUCT, "BASE_TYPE_STRUCT"},
+        {BASE_TYPE_IMAGE, SPVC_BASETYPE_IMAGE, "BASE_TYPE_IMAGE"},
+        {BASE_TYPE_SAMPLED_IMAGE, SPVC_BASETYPE_SAMPLED_IMAGE, "BASE_TYPE_SAMPLED_IMAGE"},
+        {BASE_TYPE_SAMPLER, SPVC_BASETYPE_SAMPLER, "BASE_TYPE_SAMPLER"},
+        {BASE_TYPE_ACCELERATION_STRUCTURE, SPVC_BASETYPE_ACCELERATION_STRUCTURE, "BASE_TYPE_ACCELERATION_STRUCTURE"},
+    };
+
+    static uint32_t GetTypeIndex(ShaderReflection& reflection, spvc_compiler compiler, const char* type_name, spvc_type_id type_id, spvc_type type)
+    {
+        dmhash_t type_name_hash = dmHashString64(type_name);
+        for (int i = 0; i < reflection.m_Types.Size(); ++i)
+        {
+            if (reflection.m_Types[i].m_NameHash == type_name_hash)
+            {
+                return i;
+            }
+        }
+
+        /*
+        struct ResourceTypeInfo
+        {
+            const char*             m_Name;
+            dmhash_t                m_NameHash;
+            dmArray<ResourceMember> m_Members;
+        };
+        */
+
+        uint32_t member_count = spvc_type_get_num_member_types(type);
+
+        ResourceTypeInfo type_info;
+        type_info.m_Name = type_name;
+        type_info.m_NameHash = type_name_hash;
+        type_info.m_MemberCount = member_count;
+        type_info.m_Members = new ResourceMember[member_count];
+
+        for (int i = 0; i < member_count; ++i)
+        {
+            spvc_type_id member_type_id    = spvc_type_get_member_type(type, i);
+            spvc_type member_type          = spvc_compiler_get_type_handle(compiler, member_type_id);
+            spvc_basetype member_base_type = spvc_type_get_basetype(member_type);
+
+            ResourceMember& member = type_info.m_Members[i];
+
+            // struct ResourceMember
+            // {
+            //     const char*     m_Name;
+            //     dmhash_t        m_NameHash;
+            //     ResourceType    m_Type;
+            //     uint32_t        m_ElementCount;
+            //     uint32_t        m_Offset;
+            // };
+
+            if (member_base_type == SPVC_BASETYPE_STRUCT)
+            {
+                // resolve index
+                member.m_Type.m_UseTypeIndex = true;
+            }
+            else
+            {
+                member.m_Type.m_BaseType     = BASE_TYPE_MAPPING[member_base_type].m_BaseType;
+                member.m_Type.m_UseTypeIndex = false;
+            }
+
+            // const char* name = spvc_compiler_get_name(compiler, member_type_id);
+            // dmLogInfo("Member name? %s", name);
+        }
+
+        uint32_t type_index = reflection.m_Types.Size();
+
+        reflection.m_Types.OffsetCapacity(1);
+        reflection.m_Types.Push(type_info);
+
+        return type_index;
+    }
+
+    static void SetReflectionResourceForType(ShaderReflection& reflection, spvc_compiler compiler, spvc_resources resources, spvc_resource_type type, dmArray<ShaderResource>& resources_out)
     {
         const spvc_reflected_resource *list = NULL;
         size_t count = 0;
         spvc_resources_get_resource_list_for_type(resources, type, &list, &count);
 
-        resources_out.SetCapacity(count);
-        resources_out.SetSize(count);
+        if (count == 0)
+            return;
+
+        if (resources_out.Remaining() < count)
+        {
+            resources_out.OffsetCapacity(count);
+            resources_out.SetSize(resources_out.Capacity());
+        }
 
         for (uint32_t i = 0; i < count; ++i)
         {
+            spvc_type type          = spvc_compiler_get_type_handle(compiler, list[i].type_id);
+            spvc_basetype base_type = spvc_type_get_basetype(type);
+
             resources_out[i].m_Name             = list[i].name;
             resources_out[i].m_NameHash         = dmHashString64(list[i].name);
             resources_out[i].m_InstanceName     = spvc_compiler_get_name(compiler, list[i].id);
             resources_out[i].m_InstanceNameHash = dmHashString64(resources_out[i].m_InstanceName);
             resources_out[i].m_Set              = spvc_compiler_get_decoration(compiler, list[i].id, SpvDecorationDescriptorSet);
-            resources_out[i].m_Binding          = spvc_compiler_get_decoration(compiler, list[i].id, SpvDecorationBinding);;
+            resources_out[i].m_Binding          = spvc_compiler_get_decoration(compiler, list[i].id, SpvDecorationBinding);
             resources_out[i].m_Location         = spvc_compiler_get_decoration(compiler, list[i].id, SpvDecorationLocation);
+
+            if (base_type == SPVC_BASETYPE_STRUCT)
+            {
+                resources_out[i].m_Type.m_TypeIndex    = GetTypeIndex(reflection, compiler, resources_out[i].m_Name, list[i].type_id, type);
+                resources_out[i].m_Type.m_UseTypeIndex = true;
+            }
+            else
+            {
+                resources_out[i].m_Type.m_BaseType     = BASE_TYPE_MAPPING[base_type].m_BaseType;
+                resources_out[i].m_Type.m_UseTypeIndex = false;
+            }
         }
     }
 
     static void SetReflectionInternal(HShaderContext context)
     {
-        SetReflectionResourceForType(context->m_CompilerNone, context->m_Resources, SPVC_RESOURCE_TYPE_STAGE_INPUT, context->m_Reflection.m_Inputs);
-        SetReflectionResourceForType(context->m_CompilerNone, context->m_Resources, SPVC_RESOURCE_TYPE_STAGE_OUTPUT, context->m_Reflection.m_Outputs);
-        SetReflectionResourceForType(context->m_CompilerNone, context->m_Resources, SPVC_RESOURCE_TYPE_UNIFORM_BUFFER, context->m_Reflection.m_UniformBuffers);
+        SetReflectionResourceForType(context->m_Reflection, context->m_CompilerNone, context->m_Resources, SPVC_RESOURCE_TYPE_STAGE_INPUT, context->m_Reflection.m_Inputs);
+        SetReflectionResourceForType(context->m_Reflection, context->m_CompilerNone, context->m_Resources, SPVC_RESOURCE_TYPE_STAGE_OUTPUT, context->m_Reflection.m_Outputs);
+        SetReflectionResourceForType(context->m_Reflection, context->m_CompilerNone, context->m_Resources, SPVC_RESOURCE_TYPE_UNIFORM_BUFFER, context->m_Reflection.m_UniformBuffers);
+
+        SetReflectionResourceForType(context->m_Reflection, context->m_CompilerNone, context->m_Resources, SPVC_RESOURCE_TYPE_STORAGE_IMAGE, context->m_Reflection.m_Textures);
+        SetReflectionResourceForType(context->m_Reflection, context->m_CompilerNone, context->m_Resources, SPVC_RESOURCE_TYPE_SAMPLED_IMAGE, context->m_Reflection.m_Textures);
+        SetReflectionResourceForType(context->m_Reflection, context->m_CompilerNone, context->m_Resources, SPVC_RESOURCE_TYPE_SEPARATE_IMAGE, context->m_Reflection.m_Textures);
+        SetReflectionResourceForType(context->m_Reflection, context->m_CompilerNone, context->m_Resources, SPVC_RESOURCE_TYPE_SEPARATE_SAMPLERS, context->m_Reflection.m_Textures);
     }
 
     HShaderContext NewShaderContext(const void* source, uint32_t source_size)
@@ -200,24 +321,73 @@ namespace dmShaderc
         return result;
     }
 
+    static const char* ResolveTypeName(const ShaderReflection* reflection, const ResourceType& type)
+    {
+        if (type.m_UseTypeIndex)
+        {
+            return "TODO";
+        }
+        else
+        {
+            return BASE_TYPE_MAPPING[type.m_BaseType].m_BaseTypeStr;
+        }
+    }
+
     void DebugPrintReflection(const ShaderReflection* reflection)
     {
         dmLogInfo("Inputs: %d", reflection->m_Inputs.Size());
         for (uint32_t i = 0; i < reflection->m_Inputs.Size(); ++i)
         {
-            dmLogInfo("  Name: %s, Instance-name: %s Location: %d", reflection->m_Inputs[i].m_Name, reflection->m_Inputs[i].m_InstanceName, reflection->m_Inputs[i].m_Location);
+            dmLogInfo("  Name: %s, Instance-name: %s Location: %d, Type: %s",
+                reflection->m_Inputs[i].m_Name,
+                reflection->m_Inputs[i].m_InstanceName,
+                reflection->m_Inputs[i].m_Location,
+                ResolveTypeName(reflection, reflection->m_Inputs[i].m_Type));
         }
 
         dmLogInfo("Outputs: %d", reflection->m_Outputs.Size());
         for (uint32_t i = 0; i < reflection->m_Outputs.Size(); ++i)
         {
-            dmLogInfo("  Name: %s, Instance-name: %s Location: %d", reflection->m_Outputs[i].m_Name, reflection->m_Outputs[i].m_InstanceName, reflection->m_Outputs[i].m_Location);
+            dmLogInfo("  Name: %s, Instance-name: %s Location: %d, Type: %s",
+                reflection->m_Outputs[i].m_Name,
+                reflection->m_Outputs[i].m_InstanceName,
+                reflection->m_Outputs[i].m_Location,
+                ResolveTypeName(reflection, reflection->m_Outputs[i].m_Type));
         }
 
         dmLogInfo("Uniform buffers: %d", reflection->m_UniformBuffers.Size());
         for (uint32_t i = 0; i < reflection->m_UniformBuffers.Size(); ++i)
         {
-            dmLogInfo("  Name: %s, Instance-name: %s, Set: %d, Binding: %d", reflection->m_UniformBuffers[i].m_Name, reflection->m_UniformBuffers[i].m_InstanceName, reflection->m_UniformBuffers[i].m_Set, reflection->m_UniformBuffers[i].m_Binding);
+            dmLogInfo("  Name: %s, Instance-name: %s, Set: %d, Binding: %d, Type: %s",
+                reflection->m_UniformBuffers[i].m_Name,
+                reflection->m_UniformBuffers[i].m_InstanceName,
+                reflection->m_UniformBuffers[i].m_Set,
+                reflection->m_UniformBuffers[i].m_Binding,
+                ResolveTypeName(reflection, reflection->m_UniformBuffers[i].m_Type));
+        }
+
+        dmLogInfo("Textures: %d", reflection->m_Textures.Size());
+        for (uint32_t i = 0; i < reflection->m_Textures.Size(); ++i)
+        {
+            dmLogInfo("  Name: %s, Set: %d, Binding: %d, Type: %s",
+                reflection->m_Textures[i].m_Name,
+                reflection->m_Textures[i].m_Set,
+                reflection->m_Textures[i].m_Binding,
+                ResolveTypeName(reflection, reflection->m_Textures[i].m_Type));
+        }
+
+        dmLogInfo("Types: %d", reflection->m_Types.Size());
+        for (uint32_t i = 0; i < reflection->m_Types.Size(); ++i)
+        {
+            dmLogInfo("  Name: %s, Members: %d", reflection->m_Types[i].m_Name, reflection->m_Types[i].m_MemberCount);
+
+            for (int j = 0; j < reflection->m_Types[i].m_MemberCount; ++j)
+            {
+                dmLogInfo("    Name: %s, Offset: %d, Type: %s",
+                    reflection->m_Types[i].m_Members[j].m_Name,
+                    reflection->m_Types[i].m_Members[j].m_Offset,
+                    ResolveTypeName(reflection, reflection->m_Types[i].m_Members[j].m_Type));
+            }
         }
     }
 }

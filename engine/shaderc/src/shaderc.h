@@ -40,15 +40,28 @@ namespace dmShaderc
         SHADER_STAGE_COMPUTE  = 3,
     };
 
-    struct ShaderResource
+    enum BaseType
     {
-        const char* m_Name;
-        dmhash_t    m_NameHash;
-        const char* m_InstanceName;
-        dmhash_t    m_InstanceNameHash;
-        uint8_t     m_Location;
-        uint8_t     m_Binding;
-        uint8_t     m_Set;
+        BASE_TYPE_UNKNOWN,
+        BASE_TYPE_VOID,
+        BASE_TYPE_BOOLEAN,
+        BASE_TYPE_INT8,
+        BASE_TYPE_UINT8,
+        BASE_TYPE_INT16,
+        BASE_TYPE_UINT16,
+        BASE_TYPE_INT32,
+        BASE_TYPE_UINT32,
+        BASE_TYPE_INT64,
+        BASE_TYPE_UINT64,
+        BASE_TYPE_ATOMIC_COUNTER,
+        BASE_TYPE_FP16,
+        BASE_TYPE_FP32,
+        BASE_TYPE_FP64,
+        BASE_TYPE_STRUCT,
+        BASE_TYPE_IMAGE,
+        BASE_TYPE_SAMPLED_IMAGE,
+        BASE_TYPE_SAMPLER,
+        BASE_TYPE_ACCELERATION_STRUCTURE,
     };
 
     struct ShaderCompilerOptions
@@ -73,21 +86,62 @@ namespace dmShaderc
         uint8_t     m_GlslEs                     : 1;
     };
 
-    struct ShaderReflection
+    struct ResourceType
     {
-        dmArray<ShaderResource> m_Inputs;
-        dmArray<ShaderResource> m_Outputs;
-        dmArray<ShaderResource> m_UniformBuffers;
+        union
+        {
+            BaseType m_BaseType;
+            uint32_t m_TypeIndex;
+        };
+        bool m_UseTypeIndex;
     };
 
+    struct ResourceMember
+    {
+        const char*     m_Name;
+        dmhash_t        m_NameHash;
+        ResourceType    m_Type;
+        uint32_t        m_ElementCount;
+        uint32_t        m_Offset;
+    };
+
+    struct ResourceTypeInfo
+    {
+        const char*     m_Name;
+        dmhash_t        m_NameHash;
+        ResourceMember* m_Members;
+        uint32_t        m_MemberCount;
+    };
+
+    struct ShaderResource
+    {
+        const char*  m_Name;
+        dmhash_t     m_NameHash;
+        const char*  m_InstanceName;
+        dmhash_t     m_InstanceNameHash;
+        ResourceType m_Type;
+        uint8_t      m_Location;
+        uint8_t      m_Binding;
+        uint8_t      m_Set;
+    };
+
+    struct ShaderReflection
+    {
+        dmArray<ShaderResource>   m_Inputs;
+        dmArray<ShaderResource>   m_Outputs;
+        dmArray<ShaderResource>   m_UniformBuffers;
+        dmArray<ShaderResource>   m_Textures;
+        dmArray<ResourceTypeInfo> m_Types;
+    };
+
+    // Shader context
     HShaderContext          NewShaderContext(const void* source, uint32_t source_size);
     void                    DeleteShaderContext(HShaderContext context);
-
     const ShaderReflection* GetReflection(HShaderContext context);
 
+    // Compilers
     HShaderCompiler         NewShaderCompiler(HShaderContext context, ShaderLanguage language);
     void                    DeleteShaderCompiler(HShaderCompiler compiler);
-
     void                    SetLocation(HShaderContext context, HShaderCompiler compiler, dmhash_t name_hash, uint8_t location);
     const char*             Compile(HShaderContext context, HShaderCompiler compiler, const ShaderCompilerOptions& options);
 

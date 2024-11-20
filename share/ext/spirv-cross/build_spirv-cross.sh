@@ -30,9 +30,17 @@ OSX_MIN_SDK_VERSION=10.15
 
 CMAKE_FLAGS="-DCMAKE_BUILD_TYPE=Release ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DSPIRV_CROSS_STATIC=ON ${CMAKE_FLAGS}"
-CMAKE_FLAGS="-DSPIRV_CROSS_CLI=ON ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DSPIRV_CROSS_CLI=OFF ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DSPIRV_CROSS_SHARED=OFF ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DSPIRV_CROSS_ENABLE_TESTS=OFF ${CMAKE_FLAGS}"
+
+CMAKE_FLAGS="-DSPIRV_CROSS_ENABLE_GLSL=ON ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DSPIRV_CROSS_ENABLE_HLSL=ON ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DSPIRV_CROSS_ENABLE_MSL=OFF ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DSPIRV_CROSS_ENABLE_CPP=OFF ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DSPIRV_CROSS_ENABLE_REFLECT=ON ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DSPIRV_CROSS_ENABLE_C_API=ON ${CMAKE_FLAGS}"
+CMAKE_FLAGS="-DSPIRV_CROSS_ENABLE_UTIL=OFF ${CMAKE_FLAGS}"
 
 case $PLATFORM in
     arm64-macos)
@@ -62,30 +70,28 @@ echo "CMAKE_FLAGS: '${CMAKE_FLAGS}"
 cmake ${CMAKE_FLAGS} ${SOURCE_DIR}
 cmake --build . --config Release
 
-EXE_SUFFIX=
+LIB_SUFFIX=.a
 case $PLATFORM in
     win32|x86_64-win32)
-        EXE_SUFFIX=.exe
-        SRC_EXE=./Release/spirv-cross${EXE_SUFFIX}
+        LIB_SUFFIX=.lib
         ;;
     *)
-        SRC_EXE=./spirv-cross${EXE_SUFFIX}
         ;;
 esac
 
-TARGET_EXE=./bin/$PLATFORM/spirv-cross${EXE_SUFFIX}
+mkdir -p ./lib/$PLATFORM
+mkdir -p ./include/$PLATFORM
+mkdir -p ./include/$PLATFORM/spirv
 
-mkdir -p ./bin/$PLATFORM
+cp -v ../../source/spirv_cross_c.h ./include/$PLATFORM/spirv/spirv_cross_c.h
+cp -v ../../source/spirv.h         ./include/$PLATFORM/spirv/spirv.h
 
-cp -v ${SRC_EXE} ${TARGET_EXE}
-
-case $PLATFORM in
-    win32|x86_64-win32)
-        ;;
-    *)
-        strip ${TARGET_EXE}
-        ;;
-esac
+cp -v libspirv-cross-c${LIB_SUFFIX} ./lib/$PLATFORM
+cp -v libspirv-cross-core${LIB_SUFFIX} ./lib/$PLATFORM
+cp -v libspirv-cross-glsl${LIB_SUFFIX} ./lib/$PLATFORM
+cp -v libspirv-cross-hlsl${LIB_SUFFIX} ./lib/$PLATFORM
+cp -v libspirv-cross-util${LIB_SUFFIX} ./lib/$PLATFORM
+cp -v libspirv-cross-reflect${LIB_SUFFIX} ./lib/$PLATFORM
 
 popd
 
@@ -97,6 +103,6 @@ echo VERSION=${VERSION}
 PACKAGE=spirv-cross-${VERSION}-${PLATFORM}.tar.gz
 
 pushd $BUILD_DIR
-tar cfvz $PACKAGE bin
+tar cfvz $PACKAGE lib include
 echo "Wrote ${BUILD_DIR}/${PACKAGE}"
 popd
