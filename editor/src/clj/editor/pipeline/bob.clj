@@ -256,7 +256,6 @@
             (let [result (Bob/invoke
                            java/class-loader
                            (->progress render-progress! task-cancelled?)
-                           #_from-editor true
                            internal-options
                            (into-array String cli-args))]
               (if (.-success result)

@@ -50,41 +50,18 @@ public class TimeProfiler {
     public static class ProfilingScope {
         public long startTime;
         public long endTime;
-        HashMap<String, String> additionalStringData;
-        HashMap<String, Float> additionalNumberData;
-        HashMap<String, Boolean> additionalBooleanData;
+        HashMap<String, Object> data;
 
         public ProfilingScope parent;
         public ArrayList<ProfilingScope> children;
 
         public ProfilingScope() {}
 
-        public void addData(String fieldName, String data) {
-            if (additionalStringData == null) {
-                additionalStringData = new HashMap<>();
+        public void addData(String fieldName, Object value) {
+            if (data == null) {
+                data = new HashMap<>();
             }
-            additionalStringData.put(fieldName, data);
-        }
-
-        public void addData(String fieldName, Float data) {
-            if (additionalNumberData == null) {
-                additionalNumberData = new HashMap<>();
-            }
-            additionalNumberData.put(fieldName, data);
-        }
-
-        public void addData(String fieldName, Boolean data) {
-            if (additionalBooleanData == null) {
-                additionalBooleanData = new HashMap<>();
-            }
-            additionalBooleanData.put(fieldName, data);
-        }
-
-        public void addData(String fieldName, int data) {
-            if (additionalNumberData == null) {
-                additionalNumberData = new HashMap<>();
-            }
-            additionalNumberData.put(fieldName, (float)data);
+            data.put(fieldName, value);
         }
 
         public void stop() {
@@ -103,15 +80,12 @@ public class TimeProfiler {
         public long timestamp;
     }
 
-    private static ArrayList<ProfilingMark> marks = new ArrayList();
+    private static final ArrayList<ProfilingMark> marks = new ArrayList<>();
     private static long buildTime;
 
     private static ProfilingScope rootScope;
-    private static Map<Long, ProfilingScope> currentScopes = new HashMap<>();
+    private static final Map<Long, ProfilingScope> currentScopes = new HashMap<>();
     private static List<File> reportFiles;
-    private static Boolean fromEditor;
-
-    private static final long MAIN_THREAD_ID = -1;
 
     private static long time() {
         return System.currentTimeMillis();
@@ -123,22 +97,10 @@ public class TimeProfiler {
         generator.writeNumber(scope.startTime - buildTime);
         generator.writeFieldName("duration");
         generator.writeNumber(scope.endTime - scope.startTime);
-        if (scope.additionalStringData != null) {
-            for (Map.Entry<String, String> entry : scope.additionalStringData.entrySet())  {
+        if (scope.data != null) {
+            for (Map.Entry<String, Object> entry : scope.data.entrySet()) {
                 generator.writeFieldName(entry.getKey());
-                generator.writeString(entry.getValue());
-            }
-        }
-        if (scope.additionalNumberData != null) {
-            for (Map.Entry<String, Float> entry : scope.additionalNumberData.entrySet())  {
-                generator.writeFieldName(entry.getKey());
-                generator.writeNumber(entry.getValue());
-            }
-        }
-        if (scope.additionalBooleanData != null) {
-            for (Map.Entry<String, Boolean> entry : scope.additionalBooleanData.entrySet())  {
-                generator.writeFieldName(entry.getKey());
-                generator.writeBoolean(entry.getValue());
+                generator.writeObject(entry.getValue());
             }
         }
         if (scope.children != null) {
@@ -203,9 +165,8 @@ public class TimeProfiler {
         return new String[]{beforeToken, afterToken};
     }
 
-    public static void createReport(Boolean fromEditor) {
-        // avoid double creation of the report by checking `fromEditor` flag
-        if (rootScope == null || TimeProfiler.fromEditor != fromEditor) {
+    public static void createReport() {
+        if (rootScope == null) {
             return;
         }
         ProfilingScope _rootScope = rootScope;
@@ -255,21 +216,20 @@ public class TimeProfiler {
                     writer.flush();
                     IOUtils.closeQuietly(writer);
                 }
-                catch (IOException e) {
-                    throw e;
-                }
             }
         } catch (Exception e) {
             throw new RuntimeException(e);
+        } finally {
+            marks.clear();
+            currentScopes.clear();
         }
 
         long reportEndTime = time();
-        System.out.printf("\nTime profiler report creation took %.2f seconds", (reportEndTime - reportStartTime)/1000.0f);
+        System.out.printf("Time profiler report creation took %.2f seconds\n", (reportEndTime - reportStartTime)/1000.0f);
     }
 
     private static long getCurrentThreadId() {
-        Thread t = Thread.currentThread();
-        return (t != null) ? t.getId() : MAIN_THREAD_ID;
+        return Thread.currentThread().getId();
     }
 
     private static void setCurrentScope(ProfilingScope scope) {
@@ -280,52 +240,33 @@ public class TimeProfiler {
         return currentScopes.get(getCurrentThreadId());
     }
 
-    public static void init(List<File> reportFiles, Boolean fromEditor) throws IOException {
+    public static void init(List<File> reportFiles) throws IOException {
         if (rootScope != null) {
-            throw new RuntimeException("TimeProfiler.init() called more than once");
-        }
-        if (!currentScopes.isEmpty()) {
-            throw new RuntimeException("TimeProfiler.init() called after scopes were added");
+            throw new RuntimeException("TimeProfiler.init() called while the profiling was already in progress");
         }
         TimeProfiler.reportFiles = reportFiles;
-        TimeProfiler.fromEditor = fromEditor;
-        currentScopes.clear();
-        marks.clear();
+
         long startTime = time();
-        if (!fromEditor) {
-            RuntimeMXBean bean = ManagementFactory.getRuntimeMXBean();
-            startTime = bean.getStartTime(); //Returns the start time of the Java virtual machine in milliseconds.
-        }
         buildTime = startTime;
         rootScope = new ProfilingScope();
         rootScope.startTime = startTime;
         rootScope.addData("name", "Total time");
         setCurrentScope(rootScope);
 
-        if (!fromEditor) {
-            ProfilingScope initScope = new ProfilingScope();
-            initScope.additionalStringData = new HashMap<String, String>();
-            initScope.additionalStringData.put("name", "Java VM init");
-            initScope.startTime = startTime;
-            initScope.endTime = time();
-            rootScope.children = new ArrayList<ProfilingScope>();
-            rootScope.children.add(initScope);
-            initScope.parent = rootScope;
-        }
-
-        Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
-            @Override
-            public void run() {
-                createReport(fromEditor);
-            }
-        }));
+        ProfilingScope initScope = new ProfilingScope();
+        initScope.addData("name", "Time Profiler init");
+        initScope.startTime = startTime;
+        initScope.endTime = time();
+        rootScope.children = new ArrayList<>();
+        rootScope.children.add(initScope);
+        initScope.parent = rootScope;
     }
 
     public static void addScopeToCurrentThread(ProfilingScope scope) {
         ProfilingScope currentScope = getCurrentScope();
         if (currentScope != null) {
             if (currentScope.children == null) {
-                currentScope.children = new ArrayList<ProfilingScope>();
+                currentScope.children = new ArrayList<>();
             }
             currentScope.children.add(scope);
         }
@@ -355,24 +296,9 @@ public class TimeProfiler {
         if (scope != null) scope.stop();
     }
 
-    public static void addData(String fieldName, String data) {
+    public static void addData(String fieldName, Object data) {
         final ProfilingScope scope = getCurrentScope();
         if (scope != null) scope.addData(fieldName, data);
-    }
-
-    public static void addData(String fieldName, Float data) {
-        final ProfilingScope scope = getCurrentScope();
-        if (scope != null) scope.addData(fieldName, data);
-    }
-
-    public static void addData(String fieldName, Boolean data) {
-        final ProfilingScope scope = getCurrentScope();
-        if (scope != null) scope.addData(fieldName, data);
-    }
-
-    public static void addData(String fieldName, int data) {
-        final ProfilingScope scope = getCurrentScope();
-        if (scope != null) scope.addData(fieldName, (float)data);
     }
 
     public static void addMark(String shortName, String fullName, String color) {
