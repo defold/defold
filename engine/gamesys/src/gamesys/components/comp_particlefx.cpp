@@ -469,6 +469,7 @@ namespace dmGameSystem
             case dmRender::RENDER_LIST_OPERATION_END:
                 if (pfx_world->m_GPUVertexBufferOffset)
                 {
+                    dmRender::SetBufferData(params.m_Context, pfx_world->m_VertexBuffer, pfx_world->m_VertexBufferData.Size(), pfx_world->m_VertexBufferData.Begin(), dmGraphics::BUFFER_USAGE_STREAM_DRAW);
                     DM_PROPERTY_ADD_U32(rmtp_ParticleVertexCount, pfx_world->m_VerticesWritten);
                     DM_PROPERTY_ADD_U32(rmtp_ParticleVertexSize, pfx_world->m_VertexBufferData.Capacity());
                     pfx_world->m_DispatchCount++;
