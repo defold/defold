@@ -45,7 +45,7 @@ def build(bld):
     elif re.match('arm.*?android', bld.env['PLATFORM']):
         classpath = [bld.env.ANDROID_JAR]
         classpath = os.pathsep.join(classpath)
-        bld.env['JAVACFLAGS'] = '-g -source 1.8 -target 1.8'.split()
+        bld.env['JAVACFLAGS'] = '-g -parameters -source 1.8 -target 1.8'.split()
         bld(features='javac seq',
             classpath=classpath,
             outdir='java',
