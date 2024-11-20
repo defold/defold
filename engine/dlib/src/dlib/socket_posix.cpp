@@ -173,6 +173,7 @@ namespace dmSocket
             case TYPE_STREAM:  return SOCK_STREAM;
             case TYPE_DGRAM:   return SOCK_DGRAM;
         }
+        return 0;
     }
     static int ProtocolToNative(Protocol protocol)
     {
@@ -181,6 +182,7 @@ namespace dmSocket
             case PROTOCOL_TCP:  return IPPROTO_TCP;
             case PROTOCOL_UDP:  return IPPROTO_UDP;
         }
+        return 0;
     }
     static int DomainToNative(Domain domain)
     {
@@ -191,6 +193,7 @@ namespace dmSocket
             case DOMAIN_IPV6:     return AF_INET6;
             case DOMAIN_UNKNOWN:  return 0xff;
         }
+        return 0;
     }
 
     Result New(Domain domain, Type type, Protocol protocol, Socket* socket)
@@ -433,6 +436,7 @@ namespace dmSocket
             case SHUTDOWNTYPE_READWRITE:    return SHUT_RDWR;
 #endif
         }
+        return 0;
     }
 
     Result Shutdown(Socket socket, ShutdownType how)
