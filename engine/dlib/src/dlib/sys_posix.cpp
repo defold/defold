@@ -274,7 +274,7 @@ namespace dmSys
 
     Result OpenURL(const char* url, const char* target)
     {
-        int ret = (int) ShellExecuteA(NULL, "open", url, NULL, NULL, SW_SHOWNORMAL);
+        intptr_t ret = (intptr_t) ShellExecuteA(NULL, "open", url, NULL, NULL, SW_SHOWNORMAL);
         if (ret == 32)
         {
             return RESULT_OK;
