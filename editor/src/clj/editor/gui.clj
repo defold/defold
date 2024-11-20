@@ -57,7 +57,7 @@
             [util.coll :as coll :refer [pair]]
             [util.eduction :as e]
             [util.fn :as fn])
-  (:import [com.dynamo.gamesys.proto Gui$NodeDesc Gui$NodeDesc$AdjustMode Gui$NodeDesc$BlendMode Gui$NodeDesc$ClippingMode Gui$NodeDesc$PieBounds Gui$NodeDesc$Pivot Gui$NodeDesc$SizeMode Gui$NodeDesc$XAnchor Gui$NodeDesc$YAnchor Gui$SceneDesc Gui$SceneDesc$AdjustReference Gui$SceneDesc$FontDesc Gui$SceneDesc$LayerDesc Gui$SceneDesc$LayoutDesc Gui$SceneDesc$MaterialDesc Gui$SceneDesc$ParticleFXDesc Gui$SceneDesc$ResourceDesc Gui$SceneDesc$TextureDesc]
+  (:import [com.dynamo.gamesys.proto Gui$NodeDesc Gui$NodeDesc$AdjustMode Gui$NodeDesc$BlendMode Gui$NodeDesc$ClippingMode Gui$NodeDesc$PieBounds Gui$NodeDesc$Pivot Gui$NodeDesc$SizeMode Gui$NodeDesc$XAnchor Gui$NodeDesc$YAnchor Gui$SceneDesc Gui$SceneDesc$AdjustReference Gui$SceneDesc$FontDesc Gui$SceneDesc$LayerDesc Gui$SceneDesc$LayoutDesc Gui$SceneDesc$MaterialDesc Gui$SceneDesc$ParticleFXDesc Gui$SceneDesc$TextureDesc]
            [com.jogamp.opengl GL GL2]
            [editor.gl.shader ShaderLifecycle]
            [editor.gl.texture TextureLifecycle]
@@ -72,10 +72,10 @@
 ;; [DONE] Fix scene-view manipulators so they assign into the current-layout.
 ;; [DONE] Ensure layout overrides can be cleared using the property editor.
 ;; [DONE] Optimize save-value data path. Should maybe pull from layout->prop->value output?
-;; * Fix resource renames so they update all layouts.
-;;   [DONE] Don't forget to override spine_scene resource in button.gui Landscape layout in test gui_project.
-;; * Fix outline color tint of overridden nodes.
+;; [DONE] Fix resource renames so they update all layouts.
+;; [DONE] Fix outline color tint of overridden nodes.
 ;; [DONE] Add test for node added to referenced scene. Should not appear overridden in referencing scene.
+;; * Don't focus on property field after reset.
 ;; * Add test for adding a layout to referenced scene that already existed in the referencing scene, then adding a node to the referenced scene.
 ;; * Fix hacky evaluation inside layout->prop->value output.
 
@@ -519,18 +519,27 @@
 ;; Schema validation is disabled because it severely affects project load times.
 ;; You might want to enable these before making drastic changes to Gui nodes.
 
+(s/def ^:private TMaterialInfo {(s/optional-key :max-page-count) s/Int})
+
+(s/def ^:private TTextureInfo {(s/optional-key :anim-data) {s/Keyword s/Any}
+                               (s/optional-key :page-count) s/Int})
+
+(s/def ^:private TGuiResourceType (s/enum :font
+                                          :layer
+                                          :material
+                                          :particlefx
+                                          :spine-scene
+                                          :texture))
+
+(s/def ^:private TGuiResourceNames s/Any #_(s/constrained #{s/Str} sorted?))
+
 ;; SDK api
-(g/deftype GuiResourceNames s/Any #_(s/constrained #{s/Str} sorted?))
-
-(s/def ^:private MaterialInfo {(s/optional-key :max-page-count) s/Int})
-
-(s/def ^:private TextureInfo {(s/optional-key :anim-data) {s/Keyword s/Any}
-                              (s/optional-key :page-count) s/Int})
+(g/deftype GuiResourceNames TGuiResourceNames)
 
 (g/deftype ^:private GuiResourceTextures s/Any #_{s/Str TextureLifecycle})
 (g/deftype ^:private GuiResourceShaders s/Any #_{s/Str ShaderLifecycle})
-(g/deftype ^:private GuiResourceMaterialInfos s/Any #_{s/Str MaterialInfo})
-(g/deftype ^:private GuiResourceTextureInfos s/Any #_{s/Str TextureInfo})
+(g/deftype ^:private GuiResourceMaterialInfos s/Any #_{s/Str TMaterialInfo})
+(g/deftype ^:private GuiResourceTextureInfos s/Any #_{s/Str TTextureInfo})
 (g/deftype ^:private FontDatas s/Any #_{s/Str {s/Keyword s/Any}})
 (g/deftype ^:private SpineSceneElementIds s/Any #_{s/Str {:spine-anim-ids (s/constrained #{s/Str} sorted?)
                                                           :spine-skin-ids (s/constrained #{s/Str} sorted?)}})
@@ -539,6 +548,8 @@
                                                      :spine-scene-scene (s/maybe {s/Keyword s/Any})
                                                      :spine-scene-pb (s/maybe {s/Keyword s/Any})}})
 (g/deftype ^:private ParticleFXInfos s/Any #_{s/Str {:particlefx-scene (s/maybe {s/Keyword s/Any})}})
+(g/deftype ^:private GuiResourceTypeNames {TGuiResourceType TGuiResourceNames})
+
 (g/deftype NameCounts {s/Str s/Int}) ;; SDK api
 (g/deftype ^:private IDMap {s/Str s/Int})
 (g/deftype ^:private TemplateData {:resource  (s/maybe (s/protocol resource/Resource))
@@ -604,14 +615,10 @@
                                           [(g/node-type-kw (:basis evaluation-context) node-id) gui-resource-type]))
 (defmethod update-gui-resource-reference :default [_ _evaluation-context _node-id _old-name _new-name] nil)
 
-(defn- gui-scene-declares-gui-resource? [gui-scene gui-resource-type gui-resource-name]
-  ;; TODO(gui-layout-override-refactor): Scan node-outline or something?
-  false)
-
 ;; used by (property x (set (partial ...)), thus evaluation-context in signature
 ;; SDK api
 (defn update-gui-resource-references [gui-resource-type evaluation-context gui-resource-node-id old-name new-name]
-  (assert (keyword? gui-resource-type))
+  (s/validate TGuiResourceType gui-resource-type)
   (assert (or (nil? old-name) (string? old-name)))
   (assert (string? new-name))
   (when (and (not (empty? old-name))
@@ -623,7 +630,12 @@
                        (fn [gui-scene]
                          (->> gui-scene
                               (g/overrides basis)
-                              (e/remove #(gui-scene-declares-gui-resource? % gui-resource-type old-name))))
+                              (e/remove
+                                (fn [ov-gui-scene]
+                                  (-> ov-gui-scene
+                                      (g/valid-node-value :own-gui-resource-type-names evaluation-context)
+                                      (get gui-resource-type)
+                                      (contains? old-name))))))
                        owning-gui-scene)]
       (coll/transfer gui-scenes []
         (mapcat #(g/valid-node-value % :node-ids evaluation-context))
@@ -2189,7 +2201,6 @@
                                          ;; This will cause every usage to fall back on the no-font entry for "".
                                          (when (some? font-data)
                                            {name font-data})))
-  (output font-names GuiResourceNames (g/fnk [name] (sorted-set name)))
   (output build-errors g/Any (g/fnk [_node-id name name-counts font]
                                (g/package-errors _node-id
                                                  (prop-unique-id-error _node-id :name name name-counts "Name")
@@ -2278,49 +2289,6 @@
                                (g/package-errors _node-id
                                                  (prop-unique-id-error _node-id :name name name-counts "Name")))))
 
-(g/defnode ResourceNode
-  (inherits outline/OutlineNode)
-  (property name g/Str ; Required protobuf field.
-            (dynamic error (g/fnk [_node-id name name-counts] (prop-unique-id-error _node-id :name name name-counts "Name")))
-            (set (partial update-gui-resource-references :path)))
-  (property path resource/Resource ; Required protobuf field.
-            (value (gu/passthrough resource))
-            (set (fn [evaluation-context self old-value new-value]
-                   (project/resource-setter
-                    evaluation-context self old-value new-value
-                    [:resource :resource]
-                    [:build-targets :dep-build-targets])))
-            (dynamic error (g/fnk [_node-id path]
-                                  (prop-resource-error _node-id :path path "Path")))
-            (dynamic edit-type (g/constantly
-                                {:type resource/Resource})))
-
-  (input resource resource/Resource)
-  (output resource-path g/Str (g/fnk [resource] (resource/resource->proj-path resource)))
-
-  (input name-counts NameCounts)
-  (output node-outline outline/OutlineData :cached (g/fnk [_node-id name resource build-errors]
-                                                          (cond-> {:node-id _node-id
-                                                                   :node-outline-key name
-                                                                   :label name
-                                                                   :icon layer-icon
-                                                                   :outline-error? (g/error-fatal? build-errors)}
-                                                            (resource/openable-resource? resource) (assoc :link resource :outline-show-link? true))))
-
-  (output resource-names GuiResourceNames (g/fnk [name] (sorted-set name)))
-
-  (input dep-build-targets g/Any)
-  (output dep-build-targets g/Any (gu/passthrough dep-build-targets))
-
-  (output pb-msg g/Any (g/fnk [name resource-path]
-                         (protobuf/make-map-without-defaults Gui$SceneDesc$ResourceDesc
-                           :name name
-                           :path resource-path)))
-  (output build-errors g/Any (g/fnk [_node-id name name-counts path]
-                                    (g/package-errors _node-id
-                                                      (prop-unique-id-error _node-id :name name name-counts "Name")
-                                                      (prop-resource-error _node-id :path path "Path")))))
-
 (g/defnode ParticleFXResource
   (inherits outline/OutlineNode)
   (property name g/Str ; Required protobuf field.
@@ -2357,7 +2325,6 @@
                          (protobuf/make-map-without-defaults Gui$SceneDesc$ParticleFXDesc
                            :name name
                            :particlefx (resource/resource->proj-path particlefx))))
-  (output particlefx-resource-names GuiResourceNames (g/fnk [name] (sorted-set name)))
   (output particlefx-infos ParticleFXInfos (g/fnk [name particlefx-scene]
                                              {name {:particlefx-scene particlefx-scene}}))
   (output build-errors g/Any (g/fnk [_node-id name name-counts particlefx]
@@ -2506,7 +2473,7 @@
    (concat
     (g/connect texture :_node-id self :nodes)
     (g/connect texture :texture-gpu-textures self :texture-gpu-textures)
-    (g/connect texture :texture-infos self :texture-infos)
+    (g/connect texture :texture-infos self :own-texture-infos)
     (when (not internal?)
       (concat
        (g/connect texture :dep-build-targets self :dep-build-targets)
@@ -2551,7 +2518,7 @@
      (g/connect material :material-shaders self :material-shaders)
      (when (not internal?)
        (concat
-         (g/connect material :material-infos self :material-infos)
+         (g/connect material :material-infos self :own-material-infos)
          (g/connect material :dep-build-targets self :dep-build-targets)
          (g/connect material :pb-msg self :material-msgs)
          (g/connect material :build-errors materials-node :build-errors)
@@ -2593,7 +2560,7 @@
     (g/connect font :font-datas self :font-datas)
     (when (not internal?)
       (concat
-       (g/connect font :font-names self :font-names)
+       (g/connect font :name self :own-font-names)
        (g/connect font :dep-build-targets self :dep-build-targets)
        (g/connect font :pb-msg self :font-msgs)
        (g/connect font :build-errors fonts-node :build-errors)
@@ -2731,7 +2698,7 @@
     (g/connect particlefx-resource :particlefx-infos self :particlefx-infos)
     (when (not internal?)
       (concat
-       (g/connect particlefx-resource :particlefx-resource-names self :particlefx-resource-names)
+       (g/connect particlefx-resource :name                      self :own-particlefx-resource-names)
        (g/connect particlefx-resource :dep-build-targets         self :dep-build-targets)
        (g/connect particlefx-resource :pb-msg                    self :particlefx-resource-msgs)
        (g/connect particlefx-resource :build-errors particlefx-resources-node :build-errors)
@@ -3194,9 +3161,18 @@
   (input texture-gpu-textures GuiResourceTextures :array)
   (output texture-gpu-textures GuiResourceTextures :cached (g/fnk [aux-texture-gpu-textures texture-gpu-textures] (into {} (concat aux-texture-gpu-textures texture-gpu-textures))))
 
-  (input aux-texture-infos GuiResourceTextureInfos :array)
-  (input texture-infos GuiResourceTextureInfos :array)
-  (output texture-infos GuiResourceTextureInfos :cached (g/fnk [aux-texture-infos texture-infos] (into (sorted-map) (concat aux-texture-infos texture-infos))))
+  (input aux-texture-infos GuiResourceTextureInfos)
+  (input own-texture-infos GuiResourceTextureInfos :array)
+  (output own-texture-infos GuiResourceTextureInfos
+          (g/fnk [own-texture-infos]
+            (into (sorted-map)
+                  cat
+                  own-texture-infos)))
+  (output texture-infos GuiResourceTextureInfos :cached
+          (g/fnk [aux-texture-infos own-texture-infos]
+            (if aux-texture-infos
+              (into aux-texture-infos own-texture-infos)
+              own-texture-infos)))
 
   (input aux-material-shaders GuiResourceShaders :array)
   (input material-shaders GuiResourceShaders :array)
@@ -3204,11 +3180,18 @@
                                                         (into {"" material-shader}
                                                               (concat aux-material-shaders material-shaders))))
 
-  (input aux-material-infos GuiResourceMaterialInfos :array)
-  (input material-infos GuiResourceMaterialInfos :array)
-  (output material-infos GuiResourceMaterialInfos :cached (g/fnk [aux-material-infos material-infos material-max-page-count]
-                                                            (into (sorted-map "" {:max-page-count material-max-page-count})
-                                                                  (concat aux-material-infos material-infos))))
+  (input aux-material-infos GuiResourceMaterialInfos)
+  (input own-material-infos GuiResourceMaterialInfos :array)
+  (output own-material-infos GuiResourceMaterialInfos
+          (g/fnk [own-material-infos material-max-page-count]
+            (into (sorted-map "" {:max-page-count material-max-page-count})
+                  cat
+                  own-material-infos)))
+  (output material-infos GuiResourceMaterialInfos :cached
+          (g/fnk [aux-material-infos own-material-infos]
+            (if aux-material-infos
+              (into aux-material-infos own-material-infos)
+              own-material-infos)))
 
   (input aux-font-shaders GuiResourceShaders :array)
   (input font-shaders GuiResourceShaders :array)
@@ -3216,12 +3199,19 @@
   (input aux-font-datas FontDatas :array)
   (input font-datas FontDatas :array)
   (output font-datas FontDatas :cached (g/fnk [aux-font-datas font-datas] (into {} (concat aux-font-datas font-datas))))
-  (input aux-font-names GuiResourceNames :array)
-  (input font-names GuiResourceNames :array)
-  (output font-names GuiResourceNames :cached (g/fnk [aux-font-names font-names] (into (sorted-set) cat (concat aux-font-names font-names))))
+  (input aux-font-names GuiResourceNames)
+  (input own-font-names g/Str :array)
+  (output own-font-names GuiResourceNames
+          (g/fnk [own-font-names]
+            (into (sorted-set) own-font-names)))
+  (output font-names GuiResourceNames :cached
+          (g/fnk [aux-font-names own-font-names]
+            (if aux-font-names
+              (into aux-font-names own-font-names)
+              own-font-names)))
 
-  (input layer-names GuiResourceNames :array)
-  (output layer-names GuiResourceNames :cached (g/fnk [layer-names] (into (sorted-set) cat layer-names)))
+  (input layer-names GuiResourceNames)
+  (output layer-names GuiResourceNames (gu/passthrough layer-names))
   (input layer->index g/Any)
   (output layer->index g/Any (gu/passthrough layer->index))
 
@@ -3231,16 +3221,30 @@
   (input aux-spine-scene-infos SpineSceneInfos :array)
   (input spine-scene-infos SpineSceneInfos :array)
   (output spine-scene-infos SpineSceneInfos :cached (g/fnk [aux-spine-scene-infos spine-scene-infos] (into {} (concat aux-spine-scene-infos spine-scene-infos))))
-  (input aux-spine-scene-names GuiResourceNames :array)
-  (input spine-scene-names GuiResourceNames :array)
-  (output spine-scene-names GuiResourceNames :cached (g/fnk [aux-spine-scene-names spine-scene-names] (into (sorted-set) cat (concat aux-spine-scene-names spine-scene-names))))
+  (input aux-spine-scene-names GuiResourceNames)
+  (input own-spine-scene-names g/Str :array)
+  (output own-spine-scene-names GuiResourceNames
+          (g/fnk [own-spine-scene-names]
+            (into (sorted-set) own-spine-scene-names)))
+  (output spine-scene-names GuiResourceNames :cached
+          (g/fnk [aux-spine-scene-names own-spine-scene-names]
+            (if aux-spine-scene-names
+              (into aux-spine-scene-names own-spine-scene-names)
+              own-spine-scene-names)))
 
   (input aux-particlefx-infos ParticleFXInfos :array)
   (input particlefx-infos ParticleFXInfos :array)
   (output particlefx-infos ParticleFXInfos :cached (g/fnk [aux-particlefx-infos particlefx-infos] (into {} (concat aux-particlefx-infos particlefx-infos))))
-  (input aux-particlefx-resource-names GuiResourceNames :array)
-  (input particlefx-resource-names GuiResourceNames :array)
-  (output particlefx-resource-names GuiResourceNames :cached (g/fnk [aux-particlefx-resource-names particlefx-resource-names] (into (sorted-set) cat (concat aux-particlefx-resource-names particlefx-resource-names))))
+  (input aux-particlefx-resource-names GuiResourceNames)
+  (input own-particlefx-resource-names g/Str :array)
+  (output own-particlefx-resource-names GuiResourceNames
+          (g/fnk [own-particlefx-resource-names]
+            (into (sorted-set) own-particlefx-resource-names)))
+  (output particlefx-resource-names GuiResourceNames :cached
+          (g/fnk [aux-particlefx-resource-names own-particlefx-resource-names]
+            (if aux-particlefx-resource-names
+              (into aux-particlefx-resource-names own-particlefx-resource-names)
+              own-particlefx-resource-names)))
 
   (input aux-resource-names GuiResourceNames :array)
   (input resource-names GuiResourceNames :array)
@@ -3252,6 +3256,17 @@
   (output material-shader ShaderLifecycle (gu/passthrough material-shader))
   (input samplers [g/KeywordMap])
   (output samplers [g/KeywordMap] (gu/passthrough samplers))
+
+  (output own-gui-resource-type-names GuiResourceTypeNames :cached
+          (g/fnk [own-font-names layer-names own-material-infos own-particlefx-resource-names own-spine-scene-names own-texture-infos]
+            (let [own-material-names (coll/sorted-key-set own-material-infos)
+                  own-texture-names (coll/sorted-key-set own-texture-infos)]
+              {:font own-font-names
+               :layer layer-names
+               :material own-material-names
+               :particlefx own-particlefx-resource-names
+               :spine-scene own-spine-scene-names
+               :texture own-texture-names})))
 
   (output pb-msg g/Any :cached produce-pb-msg)
   (output save-value g/Any :cached produce-save-value)
@@ -3970,16 +3985,8 @@
 (defn- get-registered-node-type-cls [node-type custom-type]
   (:node-cls (get-registered-node-type-info node-type custom-type)))
 
-(def ^:private node-type-info-version 1)
-
 ;; SDK api
-(defn register-node-type-info! [{:keys [custom-type node-cls version] :or {version 0} :as type-info}]
-  (when (not= node-type-info-version version)
-    (throw (ex-info (format "Plugin GUI node type %s is incompatible with this version of the editor."
-                            (:name @node-cls))
-                    {:node-cls node-cls
-                     :version version
-                     :required-version node-type-info-version})))
+(defn register-node-type-info! [{:keys [custom-type node-cls] :as type-info}]
   (when-not (integer? custom-type)
     (throw (ex-info (format "Plugin GUI node type %s does not specify a valid custom type."
                             (:name @node-cls))

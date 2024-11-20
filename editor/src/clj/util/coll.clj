@@ -40,6 +40,20 @@
             (comp ~xform ~@xforms)
             ~from))))
 
+(defn key-set
+  "Returns an unordered set with all keys from the supplied map."
+  [coll]
+  (into #{}
+        (map key)
+        coll))
+
+(defn sorted-key-set
+  "Returns a sorted set with all keys from the supplied map."
+  [coll]
+  (into (sorted-set)
+        (map key)
+        coll))
+
 (defn list-or-cons?
   "Returns true if the specified value is either a IPersistentList or a
   clojure.lang.Cons. Useful in macros, where list expressions can be either

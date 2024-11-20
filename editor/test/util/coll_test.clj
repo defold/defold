@@ -17,7 +17,8 @@
             [clojure.test :refer :all]
             [util.coll :as coll]
             [util.fn :as fn])
-  (:import [clojure.lang IPersistentVector]))
+  (:import [clojure.lang IPersistentVector]
+           [java.util Hashtable]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -25,6 +26,34 @@
 (defrecord Nothing [])
 (defrecord JustA [a])
 (defrecord PairAB [a b])
+
+(defn- java-map
+  ^Hashtable [& key-vals]
+  {:pre [(even? (count key-vals))]}
+  (let [coll (Hashtable.)]
+    (doseq [[key value] (partition-all 2 key-vals)]
+      (.put coll key value))
+    coll))
+
+(deftest key-set-test
+  (letfn [(check! [expected actual]
+            (is (set? actual))
+            (is (not (sorted? actual)))
+            (is (= expected actual)))]
+    (check! #{} (coll/key-set nil))
+    (check! #{:a} (coll/key-set {:a 1}))
+    (check! #{:a :b} (coll/key-set (sorted-map :a 1 :b 2)))
+    (check! #{:a :b :c} (coll/key-set (java-map :a 1 :b 2 :c 3)))))
+
+(deftest sorted-key-set-test
+  (letfn [(check! [expected actual]
+            (is (set? actual))
+            (is (sorted? actual))
+            (is (= expected actual)))]
+    (check! (sorted-set) (coll/sorted-key-set nil))
+    (check! (sorted-set :a) (coll/sorted-key-set {:a 1}))
+    (check! (sorted-set :a :b) (coll/sorted-key-set (sorted-map :a 1 :b 2)))
+    (check! (sorted-set :a :b :c) (coll/sorted-key-set (java-map :a 1 :b 2 :c 3)))))
 
 (deftest list-or-cons?-test
   (is (true? (coll/list-or-cons? '())))
