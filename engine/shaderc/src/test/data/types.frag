@@ -19,6 +19,8 @@ struct base_struct
 uniform fs_uniforms
 {
     vec4        base_type_vec4;
+    vec3        base_type_vec3;
+    vec2        base_type_vec2;
     float       base_type_float;
     int         base_type_int;
     bool        base_type_bool;

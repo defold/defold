@@ -101,7 +101,8 @@ namespace dmShaderc
         const char*     m_Name;
         dmhash_t        m_NameHash;
         ResourceType    m_Type;
-        uint32_t        m_ElementCount;
+        uint32_t        m_VectorSize;
+        uint32_t        m_ColumnCount;
         uint32_t        m_Offset;
     };
 
@@ -142,7 +143,9 @@ namespace dmShaderc
     // Compilers
     HShaderCompiler         NewShaderCompiler(HShaderContext context, ShaderLanguage language);
     void                    DeleteShaderCompiler(HShaderCompiler compiler);
-    void                    SetLocation(HShaderContext context, HShaderCompiler compiler, dmhash_t name_hash, uint8_t location);
+    void                    SetResourceLocation(HShaderContext context, HShaderCompiler compiler, dmhash_t name_hash, uint8_t location);
+    void                    SetResourceBinding(HShaderContext context, HShaderCompiler compiler, dmhash_t name_hash, uint8_t binding);
+    void                    SetResourceSet(HShaderContext context, HShaderCompiler compiler, dmhash_t name_hash, uint8_t set);
     const char*             Compile(HShaderContext context, HShaderCompiler compiler, const ShaderCompilerOptions& options);
 
     void                    DebugPrintReflection(const ShaderReflection* reflection);

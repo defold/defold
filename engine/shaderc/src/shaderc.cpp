@@ -74,18 +74,9 @@ namespace dmShaderc
             }
         }
 
-        /*
-        struct ResourceTypeInfo
-        {
-            const char*             m_Name;
-            dmhash_t                m_NameHash;
-            dmArray<ResourceMember> m_Members;
-        };
-        */
-
         uint32_t member_count = spvc_type_get_num_member_types(type);
 
-        ResourceTypeInfo type_info;
+        ResourceTypeInfo type_info = {};
         type_info.m_Name = type_name;
         type_info.m_NameHash = type_name_hash;
         type_info.m_MemberCount = member_count;
@@ -97,30 +88,27 @@ namespace dmShaderc
             spvc_type member_type          = spvc_compiler_get_type_handle(compiler, member_type_id);
             spvc_basetype member_base_type = spvc_type_get_basetype(member_type);
 
-            ResourceMember& member = type_info.m_Members[i];
+            unsigned member_offset = 0;
+            spvc_compiler_type_struct_member_offset(compiler, type, i, &member_offset);
 
-            // struct ResourceMember
-            // {
-            //     const char*     m_Name;
-            //     dmhash_t        m_NameHash;
-            //     ResourceType    m_Type;
-            //     uint32_t        m_ElementCount;
-            //     uint32_t        m_Offset;
-            // };
+            ResourceMember& member = type_info.m_Members[i];
+            member.m_Name     = spvc_compiler_get_member_name(compiler, type_id, i);
+            member.m_NameHash = dmHashString64(member.m_Name);
+            member.m_Offset   = (uint32_t) member_offset;
 
             if (member_base_type == SPVC_BASETYPE_STRUCT)
             {
-                // resolve index
+                const char* name             = spvc_compiler_get_name(compiler, member_type_id);
+                member.m_Type.m_TypeIndex    = GetTypeIndex(reflection, compiler, name, member_type_id, member_type);
                 member.m_Type.m_UseTypeIndex = true;
             }
             else
             {
                 member.m_Type.m_BaseType     = BASE_TYPE_MAPPING[member_base_type].m_BaseType;
                 member.m_Type.m_UseTypeIndex = false;
+                member.m_VectorSize          = spvc_type_get_vector_size(member_type);
+                member.m_ColumnCount         = spvc_type_get_columns(member_type);
             }
-
-            // const char* name = spvc_compiler_get_name(compiler, member_type_id);
-            // dmLogInfo("Member name? %s", name);
         }
 
         uint32_t type_index = reflection.m_Types.Size();
@@ -161,7 +149,7 @@ namespace dmShaderc
 
             if (base_type == SPVC_BASETYPE_STRUCT)
             {
-                resources_out[i].m_Type.m_TypeIndex    = GetTypeIndex(reflection, compiler, resources_out[i].m_Name, list[i].type_id, type);
+                resources_out[i].m_Type.m_TypeIndex    = GetTypeIndex(reflection, compiler, resources_out[i].m_Name, list[i].base_type_id, type);
                 resources_out[i].m_Type.m_UseTypeIndex = true;
             }
             else
@@ -209,28 +197,14 @@ namespace dmShaderc
     {
         spvc_context_destroy(context->m_SPVCContext);
 
+        // TODO: Cleanup reflection
+
         free(context);
     }
 
     const ShaderReflection* GetReflection(HShaderContext context)
     {
         return &context->m_Reflection;
-    }
-
-    static void SetLocationForType(spvc_compiler& compiler, spvc_resources resources, spvc_resource_type type, dmhash_t name_hash, uint8_t location)
-    {
-        const spvc_reflected_resource *list = NULL;
-        size_t count = 0;
-        spvc_resources_get_resource_list_for_type(resources, type, &list, &count);
-
-        for (uint32_t i = 0; i < count; ++i)
-        {
-            dmhash_t list_name_hash = dmHashString64(list[i].name);
-            if (list_name_hash == name_hash)
-            {
-                spvc_compiler_set_decoration(compiler, list[i].id, SpvDecorationLocation, location);
-            }
-        }
     }
 
     HShaderCompiler NewShaderCompiler(HShaderContext context, ShaderLanguage language)
@@ -265,10 +239,67 @@ namespace dmShaderc
         free(compiler);
     }
 
-    void SetLocation(HShaderContext context, HShaderCompiler compiler, dmhash_t name_hash, uint8_t location)
+    static void SetLocationForType(spvc_compiler& compiler, spvc_resources resources, spvc_resource_type type, dmhash_t name_hash, uint8_t location)
+    {
+        const spvc_reflected_resource *list = NULL;
+        size_t count = 0;
+        spvc_resources_get_resource_list_for_type(resources, type, &list, &count);
+
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            dmhash_t list_name_hash = dmHashString64(list[i].name);
+            if (list_name_hash == name_hash)
+            {
+                spvc_compiler_set_decoration(compiler, list[i].id, SpvDecorationLocation, location);
+            }
+        }
+    }
+
+    void SetResourceLocation(HShaderContext context, HShaderCompiler compiler, dmhash_t name_hash, uint8_t location)
     {
         SetLocationForType(compiler->m_SPVCCompiler, context->m_Resources, SPVC_RESOURCE_TYPE_STAGE_INPUT, name_hash, location);
         SetLocationForType(compiler->m_SPVCCompiler, context->m_Resources, SPVC_RESOURCE_TYPE_STAGE_OUTPUT, name_hash, location);
+    }
+
+    static void SetBindingOrSetForType(spvc_compiler& compiler, spvc_resources resources, spvc_resource_type type, dmhash_t name_hash, uint8_t* binding, uint8_t* set)
+    {
+        const spvc_reflected_resource *list = NULL;
+        size_t count = 0;
+        spvc_resources_get_resource_list_for_type(resources, type, &list, &count);
+
+        for (uint32_t i = 0; i < count; ++i)
+        {
+            dmhash_t list_name_hash = dmHashString64(list[i].name);
+            if (list_name_hash == name_hash)
+            {
+                if (binding)
+                {
+                    spvc_compiler_set_decoration(compiler, list[i].id, SpvDecorationBinding, *binding);
+                }
+                if (set)
+                {
+                    spvc_compiler_set_decoration(compiler, list[i].id, SpvDecorationDescriptorSet, *set);
+                }
+            }
+        }
+    }
+
+    void SetResourceBinding(HShaderContext context, HShaderCompiler compiler, dmhash_t name_hash, uint8_t binding)
+    {
+        SetBindingOrSetForType(compiler->m_SPVCCompiler, context->m_Resources, SPVC_RESOURCE_TYPE_UNIFORM_BUFFER, name_hash, &binding, 0);
+        SetBindingOrSetForType(compiler->m_SPVCCompiler, context->m_Resources, SPVC_RESOURCE_TYPE_STORAGE_IMAGE, name_hash, &binding, 0);
+        SetBindingOrSetForType(compiler->m_SPVCCompiler, context->m_Resources, SPVC_RESOURCE_TYPE_SAMPLED_IMAGE, name_hash, &binding, 0);
+        SetBindingOrSetForType(compiler->m_SPVCCompiler, context->m_Resources, SPVC_RESOURCE_TYPE_SEPARATE_IMAGE, name_hash, &binding, 0);
+        SetBindingOrSetForType(compiler->m_SPVCCompiler, context->m_Resources, SPVC_RESOURCE_TYPE_SEPARATE_SAMPLERS, name_hash, &binding, 0);
+    }
+
+    void SetResourceSet(HShaderContext context, HShaderCompiler compiler, dmhash_t name_hash, uint8_t set)
+    {
+        SetBindingOrSetForType(compiler->m_SPVCCompiler, context->m_Resources, SPVC_RESOURCE_TYPE_UNIFORM_BUFFER, name_hash, 0, &set);
+        SetBindingOrSetForType(compiler->m_SPVCCompiler, context->m_Resources, SPVC_RESOURCE_TYPE_STORAGE_IMAGE, name_hash, 0, &set);
+        SetBindingOrSetForType(compiler->m_SPVCCompiler, context->m_Resources, SPVC_RESOURCE_TYPE_SAMPLED_IMAGE, name_hash, 0, &set);
+        SetBindingOrSetForType(compiler->m_SPVCCompiler, context->m_Resources, SPVC_RESOURCE_TYPE_SEPARATE_IMAGE, name_hash, 0, &set);
+        SetBindingOrSetForType(compiler->m_SPVCCompiler, context->m_Resources, SPVC_RESOURCE_TYPE_SEPARATE_SAMPLERS, name_hash, 0, &set);
     }
 
     const char* Compile(HShaderContext context, HShaderCompiler compiler, const ShaderCompilerOptions& options)
@@ -325,7 +356,7 @@ namespace dmShaderc
     {
         if (type.m_UseTypeIndex)
         {
-            return "TODO";
+            return reflection->m_Types[type.m_TypeIndex].m_Name;
         }
         else
         {

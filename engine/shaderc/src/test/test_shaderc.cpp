@@ -60,8 +60,8 @@ TEST(Shaderc, TestSimpleShader)
     void* data = ReadFile("./build/src/test/data/simple.spv", &data_size);
     ASSERT_NE((void*) 0, data);
 
-	dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(data, data_size);
-	dmShaderc::DeleteShaderContext(shader_ctx);
+    dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(data, data_size);
+    dmShaderc::DeleteShaderContext(shader_ctx);
 }
 
 TEST(Shaderc, TestShaderReflection)
@@ -119,6 +119,10 @@ TEST(Shaderc, ModifyBindings)
 
     dmShaderc::HShaderCompiler compiler = dmShaderc::NewShaderCompiler(shader_ctx, dmShaderc::SHADER_LANGUAGE_GLSL);
 
+#if 0
+    dmShaderc::DebugPrintReflection(reflection);
+#endif
+
     ASSERT_NE((void*) 0, position);
     ASSERT_EQ(0, position->m_Location);
 
@@ -128,13 +132,16 @@ TEST(Shaderc, ModifyBindings)
     ASSERT_NE((void*) 0, tex_coord);
     ASSERT_EQ(2, tex_coord->m_Location);
 
-    dmShaderc::SetLocation(shader_ctx, compiler, dmHashString64("position"), 3);
-    dmShaderc::SetLocation(shader_ctx, compiler, dmHashString64("normal"), 4);
-    dmShaderc::SetLocation(shader_ctx, compiler, dmHashString64("tex_coord"), 5);
+    dmShaderc::SetResourceLocation(shader_ctx, compiler, dmHashString64("position"), 3);
+    dmShaderc::SetResourceLocation(shader_ctx, compiler, dmHashString64("normal"), 4);
+    dmShaderc::SetResourceLocation(shader_ctx, compiler, dmHashString64("tex_coord"), 5);
+
+    dmShaderc::SetResourceBinding(shader_ctx, compiler, dmHashString64("matrices"), 3);
+    dmShaderc::SetResourceBinding(shader_ctx, compiler, dmHashString64("extra"), 4);
 
     dmShaderc::ShaderCompilerOptions options;
     options.m_Stage   = dmShaderc::SHADER_STAGE_VERTEX;
-    options.m_Version = 330;
+    options.m_Version = 460;
 
     const char* dst = dmShaderc::Compile(shader_ctx, compiler, options);
     ASSERT_NE((void*) 0, dst);
@@ -143,7 +150,22 @@ TEST(Shaderc, ModifyBindings)
     ASSERT_NE((const char*) 0, FindFirstOccurance(dst, "layout(location = 4) in vec3 normal;"));
     ASSERT_NE((const char*) 0, FindFirstOccurance(dst, "layout(location = 5) in vec2 tex_coord;"));
 
+    ASSERT_NE((const char*) 0, FindFirstOccurance(dst, "layout(binding = 3, std140) uniform matrices"));
+    ASSERT_NE((const char*) 0, FindFirstOccurance(dst, "layout(binding = 4, std140) uniform extra"));
+
     dmShaderc::DeleteShaderContext(shader_ctx);
+}
+
+static const dmShaderc::ResourceTypeInfo* GetType(const dmShaderc::ShaderReflection* reflection, dmhash_t name_hash)
+{
+    for (uint32_t i = 0; i < reflection->m_Types.Size(); ++i)
+    {
+        if (reflection->m_Types[i].m_NameHash == name_hash)
+        {
+            return &reflection->m_Types[i];
+        }
+    }
+    return 0;
 }
 
 TEST(Shaderc, Types)
@@ -152,36 +174,46 @@ TEST(Shaderc, Types)
     void* data = ReadFile("./build/src/test/data/types.spv", &data_size);
     ASSERT_NE((void*) 0, data);
 
-    /*
-    struct nested_struct
-    {
-        vec4 nested_member;
-    };
-
-    struct base_struct
-    {
-        vec4          member;
-        nested_struct nested;
-    };
-
-    uniform fs_uniforms
-    {
-        vec4        base_type_vec4;
-        float       base_type_float;
-        int         base_type_int;
-        bool        base_type_bool;
-        base_struct base;
-    };
-    */
-
     dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(data, data_size);
     const dmShaderc::ShaderReflection* reflection = dmShaderc::GetReflection(shader_ctx);
 
+#if 0
     dmShaderc::DebugPrintReflection(reflection);
+#endif
 
     ASSERT_EQ(1, reflection->m_UniformBuffers.Size());
+    ASSERT_EQ(3, reflection->m_Types.Size());
 
-    // ASSERT_EQ(dmShaderc::BASE_TYPE_)
+    const dmShaderc::ResourceTypeInfo* fs_uniforms = GetType(reflection, dmHashString64("fs_uniforms"));
+    ASSERT_NE((void*) 0, fs_uniforms);
+    ASSERT_EQ(7, fs_uniforms->m_MemberCount);
+
+    ASSERT_EQ(dmHashString64("base_type_vec4"), fs_uniforms->m_Members[0].m_NameHash);
+    ASSERT_EQ(dmHashString64("base_type_vec3"), fs_uniforms->m_Members[1].m_NameHash);
+    ASSERT_EQ(dmHashString64("base_type_vec2"), fs_uniforms->m_Members[2].m_NameHash);
+    ASSERT_EQ(dmHashString64("base_type_float"), fs_uniforms->m_Members[3].m_NameHash);
+    ASSERT_EQ(dmHashString64("base_type_int"), fs_uniforms->m_Members[4].m_NameHash);
+    ASSERT_EQ(dmHashString64("base_type_bool"), fs_uniforms->m_Members[5].m_NameHash);
+    ASSERT_EQ(dmHashString64("base"), fs_uniforms->m_Members[6].m_NameHash);
+    ASSERT_EQ(4, fs_uniforms->m_Members[0].m_VectorSize);
+    ASSERT_EQ(1, fs_uniforms->m_Members[0].m_ColumnCount);
+    ASSERT_EQ(3, fs_uniforms->m_Members[1].m_VectorSize);
+    ASSERT_EQ(1, fs_uniforms->m_Members[1].m_ColumnCount);
+    ASSERT_EQ(2, fs_uniforms->m_Members[2].m_VectorSize);
+    ASSERT_EQ(1, fs_uniforms->m_Members[2].m_ColumnCount);
+    ASSERT_TRUE(fs_uniforms->m_Members[6].m_Type.m_UseTypeIndex);
+
+    const dmShaderc::ResourceTypeInfo* base_struct = GetType(reflection, dmHashString64("base_struct"));
+    ASSERT_NE((void*) 0, base_struct);
+    ASSERT_EQ(2, base_struct->m_MemberCount);
+    ASSERT_EQ(dmHashString64("member"), base_struct->m_Members[0].m_NameHash);
+    ASSERT_EQ(dmHashString64("nested"), base_struct->m_Members[1].m_NameHash);
+    ASSERT_TRUE(base_struct->m_Members[1].m_Type.m_UseTypeIndex);
+
+    const dmShaderc::ResourceTypeInfo* nested_struct = GetType(reflection, dmHashString64("nested_struct"));
+    ASSERT_NE((void*) 0, nested_struct);
+    ASSERT_EQ(1, nested_struct->m_MemberCount);
+    ASSERT_EQ(dmHashString64("nested_member"), nested_struct->m_Members[0].m_NameHash);
 }
 
 int main(int argc, char **argv)
