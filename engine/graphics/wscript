@@ -32,7 +32,7 @@ def configure(conf):
 
     platform = conf.env['PLATFORM']
 
-    if platform == "linux" or platform == "x86_64-linux":
+    if platform in ["x86_64-linux", "arm64-linux"]:
         conf.env.append_value('CXXFLAGS', ['-DGL_GLEXT_PROTOTYPES', '-D_GLFW_HAS_GLXGETPROCADDRESS'])
     elif 'web' in platform:
         conf.env.append_value('CXXFLAGS', ['-DGL_GLEXT_PROTOTYPES'])
@@ -52,7 +52,7 @@ def configure(conf):
         conf.env.append_value('LINKFLAGS', ['-framework', 'Carbon', '-framework', 'OpenGL', '-framework', 'AGL', '-framework', 'IOKit', '-framework', 'CoreVideo'])
     elif platform == "x86_64-ios":
         pass
-    elif platform == "linux" or platform == "x86_64-linux":
+    elif platform in ["x86_64-linux", "arm64-linux"]:
         conf.env.append_value('LINKFLAGS', ['-lXext', '-lX11', '-lXi', '-lGL', '-lGLU', '-lpthread'])
     elif "win32" in platform:
         conf.env.append_value('LINKFLAGS', ['opengl32.lib'])

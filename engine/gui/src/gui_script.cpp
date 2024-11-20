@@ -398,7 +398,7 @@ namespace dmGui
         }
         else
         {
-            lua_pushstring(L,"<foreign scene node>");
+            lua_pushliteral(L, "<foreign scene node>");
         }
 
         return 1;

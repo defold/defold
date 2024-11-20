@@ -103,13 +103,7 @@ const char* MakeHostPathf(char* dst, uint32_t dst_len, const char* path_format, 
 
     va_list argp;
     va_start(argp, path_format);
-
-#if defined(_WIN32)
-    int result = _vsnprintf_s(dst+len, dst_len-len, _TRUNCATE, path_format, argp);
-#else
-    int result = vsnprintf(dst+len, dst_len-len, path_format, argp);
-#endif
-    (void)result;
+    vsnprintf(dst+len, dst_len-len, path_format, argp);
     va_end(argp);
 
     dmPath::Normalize(dst, dst, dst_len);

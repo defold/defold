@@ -84,6 +84,7 @@ namespace dmGameSystem
         uint32_t                                m_DispatchCount;
         float                                   m_DT;
         uint32_t                                m_WarnOutOfROs : 1;
+        uint32_t                                m_WarnParticlesExceeded : 1;
     };
 
     dmGameObject::CreateResult CompParticleFXNewWorld(const dmGameObject::ComponentNewWorldParams& params)
@@ -110,8 +111,9 @@ namespace dmGameSystem
         // color      : 4
         // texcoord0  : 2
         // page_index : 1
-        const uint32_t default_vx_size = sizeof(float) * (3 + 4 + 2 + 1);
-        const uint32_t buffer_size     = ctx->m_MaxParticleCount * 6 * default_vx_size;
+        const uint32_t particle_buffer_count = dmMath::Min(ctx->m_MaxParticleBufferCount, ctx->m_MaxParticleCount);
+        const uint32_t default_vx_size       = sizeof(float) * (3 + 4 + 2 + 1);
+        const uint32_t buffer_size           = particle_buffer_count * 6 * default_vx_size;
         world->m_VertexBufferData.SetCapacity(buffer_size);
         world->m_VertexBuffer = dmRender::NewBufferedRenderBuffer(ctx->m_RenderContext, dmRender::RENDER_BUFFER_TYPE_VERTEX_BUFFER);
 
@@ -286,11 +288,12 @@ namespace dmGameSystem
 
         dmGraphics::HVertexDeclaration vx_decl = dmRender::GetVertexDeclaration(material);
         uint32_t vx_stride = dmGraphics::GetVertexDeclarationStride(vx_decl);
-        uint32_t max_size = pfx_context->m_MaxParticleCount * 6 * vx_stride;
+        uint32_t max_gpu_size = pfx_context->m_MaxParticleCount * 6 * vx_stride;
+        uint32_t max_cpu_size = dmMath::Min(pfx_context->m_MaxParticleBufferCount, pfx_context->m_MaxParticleCount) * 6 * vx_stride;
 
-        if (pfx_world->m_VertexBufferData.Capacity() < max_size)
+        if (pfx_world->m_VertexBufferData.Capacity() < max_cpu_size)
         {
-            pfx_world->m_VertexBufferData.SetCapacity(max_size);
+            pfx_world->m_VertexBufferData.SetCapacity(max_cpu_size);
         }
 
         dmArray<uint8_t> &vertex_buffer = pfx_world->m_VertexBufferData;
@@ -308,15 +311,17 @@ namespace dmGameSystem
         }
 
         uint32_t vb_size_init = vb_begin - vertex_buffer.Begin();
-        uint32_t vb_size      = vb_size_init;
         uint32_t vb_max_size  = pfx_world->m_VertexBufferData.Capacity();
+        uint32_t vb_size      = vb_size_init;
+        uint32_t vb_offset    = 0;
 
         dmGraphics::VertexAttributeInfos emitter_attribute_info = {};
         dmGraphics::VertexAttributeInfos material_attribute_info;
         // Same default coordinate space as the editor
         FillMaterialAttributeInfos(material, vx_decl, &material_attribute_info, dmGraphics::COORDINATE_SPACE_WORLD);
 
-        for (uint32_t *i = begin; i != end; ++i)
+        int cnt = 0;
+        for (uint32_t *i = begin; vb_offset < max_gpu_size && i != end; ++i)
         {
             const dmParticle::EmitterRenderData* emitter_render_data = (dmParticle::EmitterRenderData*) buf[*i].m_UserData;
 
@@ -330,23 +335,52 @@ namespace dmGameSystem
                 pfx_world->m_DT, emitter_render_data->m_Instance, emitter_render_data->m_EmitterIndex,
                 emitter_attribute_info, Vector4(1,1,1,1), (void*) vertex_buffer.Begin(), vb_max_size, &vb_size);
 
-            if (res != dmParticle::GENERATE_VERTEX_DATA_OK)
+            if (res == dmParticle::GENERATE_VERTEX_DATA_MAX_PARTICLES_EXCEEDED)
             {
-                if (res == dmParticle::GENERATE_VERTEX_DATA_MAX_PARTICLES_EXCEEDED)
-                {
-                    dmLogWarning("Maximum number of particles (%d) exceeded, particles will not be rendered. Change \"%s\" in the config file.",
-                        pfx_context->m_MaxParticleCount, dmParticle::MAX_PARTICLE_COUNT_KEY);
+                if (!vb_offset) { // need to set the size of the buffer
+                    uint32_t vx_size = 0;
+                    for (uint32_t *t = begin; t != end; ++t)
+                    {
+                        const dmParticle::EmitterRenderData* ed = (dmParticle::EmitterRenderData*) buf[*t].m_UserData;
+                        vx_size += GetEmitterVertexCount(pfx_world->m_ParticleContext, ed->m_Instance, ed->m_EmitterIndex);
+                    }
+                    if (vx_size >= pfx_context->m_MaxParticleCount) {
+                        if (!pfx_world->m_WarnParticlesExceeded) {
+                            dmLogWarning("Maximum number of particles (%d) exceeded, particles will not be rendered. Change \"%s\" in the config file.",
+                                         pfx_context->m_MaxParticleCount, dmParticle::MAX_PARTICLE_GPU_COUNT_KEY);
+                            pfx_world->m_WarnParticlesExceeded = 1;
+                        }
+                        vx_size = pfx_context->m_MaxParticleCount;
+                    }
+                    vx_size *= 6 * material_attribute_info.m_VertexStride;
+                    dmRender::SetBufferData(render_context, pfx_world->m_VertexBuffer, vx_size, 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
                 }
-                else if (res == dmParticle::GENERATE_VERTEX_DATA_INVALID_INSTANCE)
-                {
-                    dmLogWarning("Cannot generate vertex data for emitter (%d), particle instance handle is invalid.", (*i));
-                }
+
+                const uint32_t vb_upload_size = dmMath::Min(max_gpu_size, vb_size);
+                dmRender::SetBufferSubData(render_context, pfx_world->m_VertexBuffer, vb_offset, vb_upload_size, vertex_buffer.Begin());
+                vertex_buffer.SetSize(0); // consumed
+                vb_offset += (vb_upload_size - vb_size_init);
+                vb_size = vb_size_init;
+            }
+            else if (res == dmParticle::GENERATE_VERTEX_DATA_INVALID_INSTANCE)
+            {
+                dmLogWarning("Cannot generate vertex data for emitter (%d), particle instance handle is invalid.", (*i));
             }
         }
 
-        uint32_t ro_vertex_count = (vb_size - vb_size_init) / material_attribute_info.m_VertexStride;
-
-        vertex_buffer.SetSize(vb_size);
+        uint32_t ro_vertex_count;
+        if (vb_offset) { // consume the last chunk of data
+            if (vb_size != vb_size_init) {
+                const uint32_t vb_upload_size = dmMath::Min(max_gpu_size, vb_size);
+                dmRender::SetBufferSubData(render_context, pfx_world->m_VertexBuffer, vb_offset, vb_upload_size, vertex_buffer.Begin());
+                vb_offset += (vb_upload_size - vb_size_init);
+            }
+            ro_vertex_count = vb_offset / material_attribute_info.m_VertexStride;
+            vertex_buffer.SetSize(0);
+        } else {
+            ro_vertex_count = (vb_size - vb_size_init) / material_attribute_info.m_VertexStride;
+            vertex_buffer.SetSize(vb_size);
+        }
 
         // In place writing of render object
         uint32_t ro_index = pfx_world->m_RenderObjects.Size();

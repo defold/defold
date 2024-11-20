@@ -29,6 +29,7 @@ class BuildUtility:
 
     _supported_platforms = [
                             {'platform': 'x86_64-linux', 'os': 'linux', 'arch': 'x86_64'},
+                            {'platform': 'arm64-linux', 'os': 'linux', 'arch': 'arm64'},
                             {'platform': 'x86_64-macos', 'os': 'macos', 'arch': 'x86_64'},
                             {'platform': 'arm64-macos', 'os': 'macos', 'arch': 'arm64'},
                             {'platform': 'win32', 'os': 'win', 'arch': 'x86'},

@@ -150,8 +150,8 @@ platforms:
 
     exePrefix: ''
     exeExt: ''
-    shlibRe: 'lib(.+).dylib'
-    stlibRe: 'lib(.+).a'
+    shlibRe: 'lib(.+)\.dylib'
+    stlibRe: 'lib(.+)\.a'
     sourceRe: '(?i).*(\.cpp|\.c|\.cc|\.cxx|\.c\+\+|.mm|.m)'
     writeLibPattern: 'lib%s.a'
     writeShLibPattern: 'lib%s.dylib'
@@ -216,9 +216,9 @@ platforms:
 
     exePrefix: ''
     exeExt: ''
-    shlibRe: 'lib(.+).dylib'
-    stlibRe: 'lib(.+).a'
-    sourceRe: '(?i).*(\.cpp|\.c|\.cc|\.cxx|\.c\+\+|.mm|.m)'
+    shlibRe: 'lib(.+)\.dylib'
+    stlibRe: 'lib(.+)\.a'
+    sourceRe: '(?i).*(\.cpp|\.c|\.cc|\.cxx|\.c\+\+|\.mm|\.m)'
     writeLibPattern: 'lib%s.a'
     writeExePattern: 'dmengine'
     zipContentPattern: 'dmengine'
@@ -288,8 +288,8 @@ platforms:
 
     exePrefix: 'lib'
     exeExt: '.so'
-    shlibRe: 'lib(.+).so'
-    stlibRe: 'lib(.+).a'
+    shlibRe: 'lib(.+)\.so'
+    stlibRe: 'lib(.+)\.a'
     sourceRe: '(?i).+(\.cpp|\.c|\.cc|\.cxx|\.c\+\+)$'
     javaSourceRe: '(?i).+(\.java)$'
     writeLibPattern: 'lib%s.a'
@@ -360,8 +360,8 @@ platforms:
         libs:       ["idbfs.js"]
     exePrefix:      ''
     exeExt:         '.js'
-    shlibRe:        'lib(.+).so'
-    stlibRe:        'lib(.+).a'
+    shlibRe:        'lib(.+)\.so'
+    stlibRe:        'lib(.+)\.a'
     sourceRe:       '(?i).*(\.cpp|\.c|\.cc|\.cxx|\.c\+\+)'
     writeLibPattern: 'lib%s.a'
     writeExePattern: 'dmengine.js'
@@ -402,13 +402,13 @@ platforms:
     context:
         systemIncludes: ["{{env.CLANG_HOME}}/include", "{{env.MSVC_DIR}}/include", "{{env.MSVC_DIR}}/atlmfc/include", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/ucrt", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/winrt", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/um", "{{env.SDK10_DIR}}/Include/{{env.SDK10_VERSION}}/shared"]
         engineLibs:     ["libengine","libengine_service","libmbedtls","libzip","libprofile","libremotery","libprofilerext","librecord","libgameobject","libddf","libresource","libgamesys","libgamesys_model","libgamesys_rig","libscript_box2d","libgraphics","libgraphics_transcoder_basisu","libbasis_transcoder","libphysics","libBulletDynamics","libBulletCollision","libplatform","libLinearMath","libBox2D","librender","libscript","libluajit-5.1","libextension","libhid","libinput","libparticle","librig","libdlib", "libimage", "libglfw3","libgui","libcrashext","libliveupdate","libsound","vpx"]
-        libs:           ["OpenGL32", "delayimp", "User32", "shell32", "Xinput9_1_0", "dinput8", "dxguid", "WS2_32", "iphlpapi", "DbgHelp", "AdvAPI32", "Psapi", "Gdi32"]
+        libs:           ["OpenGL32", "delayimp", "User32", "shell32", "Xinput9_1_0", "dinput8", "dxguid", "WS2_32", "iphlpapi", "DbgHelp", "AdvAPI32", "Psapi", "Gdi32", "ole32"]
         symbols:        []
 
     exePrefix:      ''
     exeExt:         '.exe'
-    shlibRe:        '(.+).dll'
-    stlibRe:        '(.+).lib'
+    shlibRe:        '(.+)\.dll'
+    stlibRe:        '(.+)\.lib'
     sourceRe:       '(?i).*(\.cpp|\.c|\.cc|\.cxx|\.c\+\+)'
     writeLibPattern: '%s.lib'
     writeShLibPattern: 'lib%s.dll'
@@ -460,8 +460,8 @@ platforms:
 
     exePrefix:      ''
     exeExt:         ''
-    shlibRe:        'lib(.+).so'
-    stlibRe:        'lib(.+).a'
+    shlibRe:        'lib(.+)\.so'
+    stlibRe:        'lib(.+)\.a'
     sourceRe:       '(?i).*(\.cpp|\.c|\.cc|\.cxx|\.c\+\+)'
     writeLibPattern: 'lib%s.a'
     writeShLibPattern: 'lib%s.so'

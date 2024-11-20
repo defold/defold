@@ -2412,7 +2412,7 @@ static void WebGPUSetConstantV4(HContext _context, const Vector4* data, int coun
 
     const ProgramResourceBinding& pgm_res   = context->m_CurrentProgram->m_ResourceBindings[set][binding];
     const ShaderResourceTypeInfo& type_info = (*pgm_res.m_TypeInfos)[pgm_res.m_Res->m_Type.m_TypeIndex];
-    if (memcpy(context->m_CurrentProgram->m_UniformData + pgm_res.m_DataOffset + type_info.m_Members[member].m_Offset,
+    if (memcmp(context->m_CurrentProgram->m_UniformData + pgm_res.m_DataOffset + type_info.m_Members[member].m_Offset,
                (uint8_t*)data,
                sizeof(dmVMath::Vector4) * count))
     {

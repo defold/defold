@@ -984,11 +984,11 @@ union SaveLoadBuffer
 
             if (ifa->m_Address.m_family == dmSocket::DOMAIN_IPV4)
             {
-                lua_pushstring(L, "ipv4");
+                lua_pushliteral(L, "ipv4");
             }
             else if (ifa->m_Address.m_family == dmSocket::DOMAIN_IPV6)
             {
-                lua_pushstring(L, "ipv6");
+                lua_pushliteral(L, "ipv6");
             }
             else
             {
@@ -1010,7 +1010,7 @@ union SaveLoadBuffer
             }
             else if (IsAndroidMarshmallowOrAbove()) // Marshmallow and above should return const value MAC address (https://developer.android.com/about/versions/marshmallow/android-6.0-changes.html#behavior-hardware-id).
             {
-                lua_pushstring(L, "02:00:00:00:00:00");
+                lua_pushliteral(L, "02:00:00:00:00:00");
             }
             else
             {
