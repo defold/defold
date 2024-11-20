@@ -2994,10 +2994,10 @@ TEST_F(ComponentTest, DispatchBuffersTest)
             vs_format_a* written_sprite_a = (vs_format_a*) &gfx_vx_buffer->m_Buffer[0];
             vs_format_b* written_sprite_b = (vs_format_b*) &gfx_vx_buffer->m_Buffer[vertex_stride_a * vertex_count + vertex_padding];
 
-            for (int i = 0; i < vertex_count; ++i)
+            for (int j = 0; j < vertex_count; ++j)
             {
-                ASSERT_VTX_A_EQ(sprite_a[i], written_sprite_a[i]);
-                ASSERT_VTX_B_EQ(sprite_b[i], written_sprite_b[i]);
+                ASSERT_VTX_A_EQ(sprite_a[j], written_sprite_a[j]);
+                ASSERT_VTX_B_EQ(sprite_b[j], written_sprite_b[j]);
             }
         }
     }
@@ -3055,10 +3055,10 @@ TEST_F(ComponentTest, DispatchBuffersTest)
             vs_format_a* written_model_a = (vs_format_a*) &gfx_vx_buffer->m_Buffer[0];
             vs_format_b* written_model_b = (vs_format_b*) &gfx_vx_buffer->m_Buffer[vertex_stride_a * vertex_count + vertex_padding];
 
-            for (int i = 0; i < vertex_count; ++i)
+            for (int j = 0; j < vertex_count; ++j)
             {
-                ASSERT_VTX_A_EQ(model_a[i], written_model_a[i]);
-                ASSERT_VTX_B_EQ(model_b[i], written_model_b[i]);
+                ASSERT_VTX_A_EQ(model_a[j], written_model_a[j]);
+                ASSERT_VTX_B_EQ(model_b[j], written_model_b[j]);
             }
         }
     }
@@ -3101,18 +3101,25 @@ TEST_F(ComponentTest, DispatchBuffersTest)
         SET_VTX_B(pfx_b[4], p2[0], p2[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
         SET_VTX_B(pfx_b[5], p0[0], p0[1], 0.0f, 4.0f, 3.0f, 2.0f, 1.0f);
 
+        uint32_t buffer_sizes[] = { vertex_stride_a * vertex_count,
+                                    vertex_stride_b * vertex_count,
+                                    vertex_stride_a * vertex_count,
+                                    vertex_stride_b * vertex_count};
         for (int i = 0; i < num_draws; ++i)
         {
             dmGraphics::VertexBuffer* gfx_vx_buffer = (dmGraphics::VertexBuffer*) vx_buffer->m_Buffers[i];
-            ASSERT_EQ(buffer_size, gfx_vx_buffer->m_Size);
+            ASSERT_EQ(buffer_sizes[i], gfx_vx_buffer->m_Size);
 
             vs_format_a* written_pfx_a = (vs_format_a*) &gfx_vx_buffer->m_Buffer[0];
             vs_format_b* written_pfx_b = (vs_format_b*) &gfx_vx_buffer->m_Buffer[vertex_stride_a * vertex_count + vertex_padding];
 
-            for (int i = 0; i < vertex_count; ++i)
+            for (int j = 0; j < vertex_count; ++j)
             {
-                ASSERT_VTX_A_EQ(pfx_a[i], written_pfx_a[i]);
-                ASSERT_VTX_B_EQ(pfx_b[i], written_pfx_b[i]);
+                ASSERT_VTX_A_EQ(pfx_a[j], written_pfx_a[j]);
+                if (i > 0)
+                {
+                    ASSERT_VTX_B_EQ(pfx_b[j], written_pfx_b[j]);
+                }
             }
         }
     }
