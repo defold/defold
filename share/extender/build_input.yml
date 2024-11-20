@@ -267,15 +267,16 @@ platforms:
 
   android:
     env:
-        PROGUARD:               "{{env.ANDROID_PROGUARD}}"
-        LIBRARYJAR:             "{{env.ANDROID_LIBRARYJAR_34}}"
-        NDK_PATH:               "{{env.ANDROID_NDK25_PATH}}"
-        SYSROOT:                "{{env.ANDROID_NDK25_SYSROOT}}"
-        MANIFEST_MERGE_TOOL:    "{{env.MANIFEST_MERGE_TOOL}}"
-        PATH:                   "{{env.ANDROID_SDK_BUILD_TOOLS_PATH_34}}:{{env.ANDROID_NDK25_BIN_PATH}}:{{env.PATH}}"
-        NDK_LD:                 "{{env.ANDROID_NDK25_BIN_PATH}}/ld.lld"
-        NDK_AR:                 "{{env.ANDROID_NDK25_BIN_PATH}}/llvm-ar"
-        ANDROID_SDK_VERSION:    "{{env.ANDROID_SDK_VERSION_34}}"
+        PROGUARD:                 "{{env.ANDROID_PROGUARD}}"
+        LIBRARYJAR:               "{{env.ANDROID_LIBRARYJAR_34}}"
+        NDK_PATH:                 "{{env.ANDROID_NDK25_PATH}}"
+        SYSROOT:                  "{{env.ANDROID_NDK25_SYSROOT}}"
+        MANIFEST_MERGE_TOOL:      "{{env.MANIFEST_MERGE_TOOL}}"
+        PATH:                     "{{env.PATH}}"
+        NDK_LD:                   "{{env.ANDROID_NDK25_BIN_PATH}}/ld.lld"
+        NDK_AR:                   "{{env.ANDROID_NDK25_BIN_PATH}}/llvm-ar"
+        ANDROID_SDK_VERSION:      "{{env.ANDROID_SDK_VERSION_34}}"
+        ANDROID_BUILD_TOOLS_PATH: "{{env.ANDROID_SDK_BUILD_TOOLS_PATH_34}}"
     context:
         engineJars: ["{{dynamo_home}}/ext/share/java/android-support-multidex.jar", "{{dynamo_home}}/ext/share/java/androidx-multidex.jar", "{{dynamo_home}}/ext/share/java/glfw_android.jar", "{{dynamo_home}}/share/java/gamesys_android.jar", "{{dynamo_home}}/share/java/sound_android.jar"]
         engineLibs: ["engine", "engine_service", "mbedtls", "zip", "profile", "remotery", "profilerext", "record_null", "gameobject", "ddf", "resource", "gamesys", "gamesys_model", "gamesys_rig", "script_box2d", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "Box2D", "render", "script", "luajit-5.1", "extension", "hid", "input", "particle", "rig", "dlib", "image", "dmglfw", "gui", "crashext", "sound", "tremolo", "liveupdate", "unwind"]
@@ -301,11 +302,11 @@ platforms:
     javacCmd: 'javac -source 1.8 -target 1.8 -J-Xms2048m -J-Xmx2048m -classpath {{env.LIBRARYJAR}}:{{classPath}} -d {{classesDir}} @{{sourcesListFile}}'
     jarCmd: 'jar cf {{outputJar}} -C {{classesDir}} .'
     # mainDexList is automatically created by listing all classes inside the engine jars
-    dxCmd: 'd8 --main-dex-list {{mainDexList}} --output {{classes_dex_dir}} --release --lib {{env.LIBRARYJAR}} {{#jars}}{{.}} {{/jars}}'
+    dxCmd: '{{env.ANDROID_BUILD_TOOLS_PATH}}/d8 --main-dex-rules {{mainDexList}} --output {{classes_dex_dir}} --release --lib {{env.LIBRARYJAR}} {{#jars}}{{.}} {{/jars}}'
     proGuardCmd: 'java -jar {{env.PROGUARD}} {{#src}}-include {{.}} {{/src}} -libraryjars {{env.LIBRARYJAR}} {{#jars}}-injars {{.}} {{/jars}} {{#libraryjars}}-libraryjars {{.}} {{/libraryjars}} -outjar {{tgt}} -printmapping {{mapping}}'
     proGuardSourceRe: '(?i).+(\.pro)$'
-    aapt2compileCmd: 'aapt2 compile {{resourceFile}} -o {{outputDirectory}}'
-    aapt2linkCmd: 'aapt2 link {{#extraPackages.length}}--extra-packages {{#extraPackages}}{{.}}{{/extraPackages}}{{/extraPackages.length}} --proto-format --non-final-ids --auto-add-overlay --manifest {{manifestFile}} -I {{env.LIBRARYJAR}} --java {{outJavaDirectory}} -o {{outApkFile}} --emit-ids {{resourceIdsFile}} -R @{{resourceListFile}}'
+    aapt2compileCmd: '{{env.ANDROID_BUILD_TOOLS_PATH}}/aapt2 compile {{resourceFile}} -o {{outputDirectory}}'
+    aapt2linkCmd: '{{env.ANDROID_BUILD_TOOLS_PATH}}/aapt2 link {{#extraPackages.length}}--extra-packages {{#extraPackages}}{{.}}{{/extraPackages}}{{/extraPackages.length}} --proto-format --non-final-ids --auto-add-overlay --manifest {{manifestFile}} -I {{env.LIBRARYJAR}} --java {{outJavaDirectory}} -o {{outApkFile}} --emit-ids {{resourceIdsFile}} -R @{{resourceListFile}}'
     manifestName:     'AndroidManifest.xml'
     manifestMergeCmd: 'java -jar {{env.MANIFEST_MERGE_TOOL}} --platform {{platform}} --main {{mainManifest}} {{#libraries}} --lib {{.}} {{/libraries}} --out {{target}}'
 
