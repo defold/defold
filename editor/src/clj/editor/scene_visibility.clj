@@ -33,10 +33,8 @@
 
 (def ^:private renderable-tag-toggles-info
   (cond-> [{:label "Collision Shapes" :tag :collision-shape}
-           {:label "Component Guides" :tag :outline :command :toggle-component-guides}
            {:label "Camera" :tag :camera}
            #_{:label "GUI Elements" :tag :gui} ; This tag exists, but we decided to hide it and put in granular control instead. Add back if we make the toggles hierarchical?
-           {:label "Grid" :tag :grid}
            {:label "GUI Bounds" :tag :gui-bounds}
            {:label "GUI Shapes" :tag :gui-shape}
            {:label "GUI Particle Effects" :tag :gui-particlefx}
@@ -48,7 +46,10 @@
            {:label "Spine Scenes" :tag :spine}
            {:label "Sprites" :tag :sprite}
            {:label "Text" :tag :text}
-           {:label "Tile Maps" :tag :tilemap}]
+           {:label "Tile Maps" :tag :tilemap}
+           {:label :separator}
+           {:label "Component Guides" :tag :outline :command :toggle-component-guides :always-active true}
+           {:label "Grid" :tag :grid :always-active true}]
 
           (system/defold-dev?)
           (into [{:label :separator}
@@ -313,19 +314,21 @@
   ^Region [app-view scene-visibility]
   (let [keymap (g/node-value app-view :keymap)
         command->shortcut (keymap/command->shortcut keymap)
+        command->display-text (fn [command]
+                                (keymap/key-combo->display-text (get command->shortcut command)))
         make-control
-        (fn [{:keys [label tag command]}]
+        (fn [{:keys [label tag command always-active]}]
           (if (= :separator label)
             [(Separator.) nil]
             (let [[control update-fn]
                   (make-toggle {:label label
-                                :acc (if command (keymap/key-combo->display-text (get command->shortcut command)) "")
+                                :acc (if command (command->display-text command) "")
                                 :on-change (fn [checked]
                                              (set-tag-visibility! scene-visibility tag checked))})
                   update-from-hidden-tags
                   (fn [hidden-tags enabled]
                     (let [checked (not (contains? hidden-tags tag))]
-                      (update-fn checked enabled)))]
+                      (update-fn checked (or always-active enabled))))]
               [control update-from-hidden-tags])))
 
         tag-toggles (mapv make-control renderable-tag-toggles-info)
@@ -338,7 +341,7 @@
 
         [filters-enabled-control filters-enabled-update-fn]
         (make-toggle {:label "Visibility Filters"
-                      :acc (keymap/key-combo->display-text (get command->shortcut :toggle-visibility-filters))
+                      :acc (command->display-text :toggle-visibility-filters)
                       :on-change (fn [checked]
                                    (set-filters-enabled! scene-visibility checked))})
 
