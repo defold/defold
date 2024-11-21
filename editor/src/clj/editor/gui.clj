@@ -75,7 +75,7 @@
 ;; [DONE] Fix resource renames so they update all layouts.
 ;; [DONE] Fix outline color tint of overridden nodes.
 ;; [DONE] Add test for node added to referenced scene. Should not appear overridden in referencing scene.
-;; * Don't focus on property field after reset.
+;; [DONE] Don't focus on property field after reset.
 ;; * Add test for adding a layout to referenced scene that already existed in the referencing scene, then adding a node to the referenced scene.
 ;; * Fix hacky evaluation inside layout->prop->value output.
 

@@ -605,7 +605,7 @@
   (on-edit! node (fn [_old _new]
                    (user-data! node ::auto-commit true))))
 
-(defn- clear-auto-commit! [^Node node]
+(defn clear-auto-commit! [^Node node]
   ;; Clear the auto-commit flag. You should call this whenever data has been
   ;; synced with the graph while the field still has focus. This ensures the
   ;; unedited value will not be committed to the graph unnecessarily after the
