@@ -24,13 +24,12 @@
      clojure.core/cat
      ~coll))
 
-(defmacro concat
-  ([] `empty-eduction)
-  ([coll] `(eduction ~coll))
-  ([coll & colls]
-   `(eduction
-      clojure.core/cat
-      [~coll ~@colls])))
+(defn concat
+  ([] empty-eduction)
+  ([x] x)
+  ([x y] (eduction clojure.core/cat [x y]))
+  ([x y & zs]
+   (eduction clojure.core/cat (into [x y] zs))))
 
 (definline dedupe [coll]
   `(eduction

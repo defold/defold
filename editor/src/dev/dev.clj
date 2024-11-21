@@ -37,6 +37,7 @@
             [editor.outline-view :as outline-view]
             [editor.pipeline.bob :as bob]
             [editor.prefs :as prefs]
+            [editor.progress :as progress]
             [editor.properties-view :as properties-view]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]

@@ -31,9 +31,9 @@
   (is (= (concat)
          (e/concat)))
   (is (eduction? (e/concat)))
-  (is (= (concat (range 0 3))
-         (e/concat (range 0 3))))
-  (is (eduction? (e/concat (range 0 3))))
+  (let [single-coll (range 0 3)]
+    (is (identical? single-coll
+                    (e/concat single-coll))))
   (is (= (concat (range 0 3) (range 3 5))
          (e/concat (range 0 3) (range 3 5))))
   (is (eduction? (e/concat (range 0 3) (range 3 5))))

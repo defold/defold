@@ -29,47 +29,47 @@
   ^String [num ^String unit]
   (String/format Locale/ROOT "%.2f %s" (to-array [num unit])))
 
-(defn counter->ms
-  "Converts a nanosecond counter value into a double in milliseconds."
-  ^double [^long counter]
-  (/ (double counter) nanos-per-ms))
+(defn nanos->millis
+  "Converts a nanosecond value into a double in milliseconds."
+  ^double [^long nanos]
+  (/ (double nanos) nanos-per-ms))
 
-(defn counter->seconds
-  "Converts a nanosecond counter value into a double in seconds."
-  ^double [^long counter]
-  (/ (double counter) nanos-per-second))
+(defn nanos->seconds
+  "Converts a nanosecond value into a double in seconds."
+  ^double [^long nanos]
+  (/ (double nanos) nanos-per-second))
 
-(defn counter->minutes
-  "Converts a nanosecond counter value into a double in minutes."
-  ^double [^long counter]
-  (/ (double counter) nanos-per-minute))
+(defn nanos->minutes
+  "Converts a nanosecond value into a double in minutes."
+  ^double [^long nanos]
+  (/ (double nanos) nanos-per-minute))
 
-(defn counter->hours
-  "Converts a nanosecond counter value into a double in hours."
-  ^double [^long counter]
-  (/ (double counter) nanos-per-hour))
+(defn nanos->hours
+  "Converts a nanosecond value into a double in hours."
+  ^double [^long nanos]
+  (/ (double nanos) nanos-per-hour))
 
-(defn counter->days
-  "Converts a nanosecond counter value into a double in days."
-  ^double [^long counter]
-  (/ (double counter) nanos-per-day))
+(defn nanos->days
+  "Converts a nanosecond value into a double in days."
+  ^double [^long nanos]
+  (/ (double nanos) nanos-per-day))
 
-(defn counter->string
-  "Converts a nanosecond counter value into a human-readable duration string."
-  ^String [^long counter]
-  (let [ms (counter->ms counter)]
+(defn nanos->string
+  "Converts a nanosecond value into a human-readable duration string."
+  ^String [^long nanos]
+  (let [ms (nanos->millis nanos)]
     (if (> 1000.0 ms)
       (time-string ms "ms")
-      (let [seconds (counter->seconds counter)]
+      (let [seconds (nanos->seconds nanos)]
         (if (> 60.0 seconds)
           (time-string seconds "s")
-          (let [minutes (counter->minutes counter)]
+          (let [minutes (nanos->minutes nanos)]
             (if (> 60.0 minutes)
               (time-string minutes "min")
-              (let [hours (counter->hours counter)]
+              (let [hours (nanos->hours nanos)]
                 (if (> 24.0 hours)
                   (time-string hours "h")
-                  (let [days (counter->days counter)]
+                  (let [days (nanos->days nanos)]
                     (time-string days "d")))))))))))
 
 (defn release-build?
@@ -115,7 +115,7 @@
      `(let [start# (System/nanoTime)
             ret# ~expr
             end# (System/nanoTime)]
-        (println (str ~label " completed in " (counter->string (- end# start#))))
+        (println (str ~label " completed in " (nanos->string (- end# start#))))
         ret#))))
 
 (defmacro log-time
@@ -130,7 +130,7 @@
      `(let [start# (System/nanoTime)
             ret# ~expr
             end# (System/nanoTime)]
-        (log/info :message (str ~label " completed in " (counter->string (- end# start#))))
+        (log/info :message (str ~label " completed in " (nanos->string (- end# start#))))
         ret#))))
 
 (defmacro log-statistics!
