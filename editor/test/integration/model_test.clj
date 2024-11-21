@@ -89,14 +89,15 @@
         (is (nil? (test-util/prop-error node-id :mesh)))
         (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.dae")]]
           (test-util/with-prop [node-id :mesh v]
-            (is (g/error? (test-util/prop-error node-id :mesh))))))
+            (is (g/error? (test-util/prop-error node-id :mesh)))
+            (is (g/error-value? (g/node-value node-id :build-targets))))))
 
-      (testing "at least 1 material is required"
+      (testing "material must be assigned and exist"
         (is (not (g/error-value? (g/node-value node-id :build-targets))))
-        (let [material-binding-id (get-in (g/node-value node-id :material-binding-infos) [0 :_node-id])]
-          (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.material")]]
-            (test-util/with-prop [material-binding-id :material v]
-              (is (g/error-value? (g/node-value node-id :build-targets)))))))
+        (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.material")]]
+          (test-util/with-prop [node-id :__material__0 v]
+            (is (g/error? (test-util/prop-error node-id :__material__0)))
+            (is (g/error-value? (g/node-value node-id :build-targets))))))
 
       (testing "default-animation should be empty string or a valid animation"
         (is (nil? (test-util/prop-error node-id :animations)))
@@ -107,4 +108,5 @@
           (test-util/with-prop [node-id :default-animation "treasure_chest"]
             (is (not (g/error? (test-util/prop-error node-id :default-animation)))))
           (test-util/with-prop [node-id :default-animation "gurka"]
-            (is (g/error? (test-util/prop-error node-id :default-animation)))))))))
+            (is (g/error? (test-util/prop-error node-id :default-animation)))
+            (is (g/error-value? (g/node-value node-id :build-targets)))))))))

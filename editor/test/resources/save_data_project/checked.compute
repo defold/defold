@@ -12,8 +12,6 @@ constants {
 constants {
   name: "constant_2"
   type: CONSTANT_TYPE_VIEWPROJ
-  value {
-  }
 }
 samplers {
   name: "texture0"

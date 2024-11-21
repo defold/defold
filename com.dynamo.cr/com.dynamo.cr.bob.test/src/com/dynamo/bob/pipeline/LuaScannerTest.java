@@ -507,4 +507,44 @@ public class LuaScannerTest {
         expected = "  ";
         assertEquals(expected, scanner.getParsedLua());
     }
+
+    @Test
+    public void testGoPropertyHash() throws Exception {
+        String luaCode = "go.property(\"hash1\", hash(\"value\"))";
+        LuaScanner scanner = new LuaScanner();
+        scanner.parse(luaCode);
+        String expected = " ";
+        assertEquals(expected, scanner.getParsedLua());
+
+        scanner = new LuaScanner();
+        scanner.setDebug();
+        scanner.parse(luaCode);
+        expected = " hash(\"value\")";
+        assertEquals(expected, scanner.getParsedLua());
+
+        luaCode = "go.property(\"hash2\", hash \"value\")";
+        scanner = new LuaScanner();
+        scanner.parse(luaCode);
+        expected = "  ";
+        assertEquals(expected, scanner.getParsedLua());
+
+        luaCode = "go.property(\"hash3\", hash \"value\")";
+        scanner = new LuaScanner();
+        scanner.setDebug();
+        scanner.parse(luaCode);
+        expected = " hash \"value\"";
+        assertEquals(expected, scanner.getParsedLua());
+
+        luaCode = "go.property(\"data_texture\", resource.texture(\"/builtins/assets/images/logo/logo_256.png\"))";
+        scanner = new LuaScanner();
+        scanner.parse(luaCode);
+        expected = " ";
+        assertEquals(expected, scanner.getParsedLua());
+
+        scanner = new LuaScanner();
+        scanner.setDebug();
+        scanner.parse(luaCode);
+        expected = " ";
+        assertEquals(expected, scanner.getParsedLua());
+    }
 }

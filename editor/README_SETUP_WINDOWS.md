@@ -31,18 +31,18 @@ and then set the project SDK setting (file->project structure/Project) to the ne
 
 ### Required Software - Leiningen
 
-Start by following the Windows instructions in [Defold Readme](../README_SETUP.md).
+Start by following the Windows instructions in the [engine setup guide](../README_SETUP.md).
 
-* Start `msys.bat` as described
-* Download the [lein.sh script](https://raw.githubusercontent.com/technomancy/leiningen/stable/bin/lein) from [Leiningen.org](http://leiningen.org) Put it somewhere in your (msys) path - if you're lazy, put it in `C:\MinGW\msys\1.0\bin`. You might need to `chmod a+x lein.sh`.
-* Run `lein` in the `editor` subdirectory
+* Download the [lein script](https://raw.githubusercontent.com/technomancy/leiningen/stable/bin/lein) from [Leiningen.org](http://leiningen.org) and put it somewhere in your PATH. You might need to `chmod a+x lein`.
+* Start Git Bash and run `lein` in the `editor` subdirectory.
+
   This will attempt to download leiningen and dependencies to your home directory.
 
   - If this fails with message
 
           Could not find or load main class clojure.main
 
-    Try pointing your `HOME` environment variable to your “windows home”. For instance change it from `/home/Erik.Angelin` (msys) to `/c/Users/erik.angelin`:
+    Try pointing your `HOME` environment variable to your "windows home". For instance change it from `/home/Erik.Angelin` (msys) to `/c/Users/erik.angelin`:
 
         export HOME="/c/Users/erik.angelin"
 

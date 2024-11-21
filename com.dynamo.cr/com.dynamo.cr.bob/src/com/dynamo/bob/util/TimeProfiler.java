@@ -36,9 +36,6 @@ import org.codehaus.jackson.JsonGenerator;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.commons.io.IOUtils;
 
-import com.samskivert.mustache.Mustache;
-import com.samskivert.mustache.Template;
-
 /**
  * Class helps to profile time of the Bob tool and generate report.
  */
@@ -117,14 +114,10 @@ public class TimeProfiler {
         generator.writeEndObject();
     }
 
-    private static String generateJSON(ProfilingScope scope) throws IOException {
+    private static void generateJSON(ProfilingScope scope, BufferedWriter writer) throws IOException {
 
-        StringWriter strWriter = new StringWriter();
-        BufferedWriter writer = null;
         JsonGenerator generator = null;
-
         try {
-            writer = new BufferedWriter(strWriter);
             generator = (new JsonFactory()).createJsonGenerator(writer);
             generator.useDefaultPrettyPrinter();
             generator.writeStartObject();
@@ -150,25 +143,12 @@ public class TimeProfiler {
             generator.writeEndObject();
         } finally {
             if (null != generator) {
-                generator.close();
+                generator.flush();
             }
-            IOUtils.closeQuietly(writer);
         }
-
-        return strWriter.toString();
     }
 
-    private static void saveJSON(String jsonReport, File reportFile) throws IOException {
-        FileWriter fileJSONWriter = null;
-        fileJSONWriter = new FileWriter(reportFile);
-        fileJSONWriter.write(jsonReport);
-        fileJSONWriter.close();
-    }
-
-    private static void saveHTML(String jsonReport, File reportFile) throws IOException {
-        FileWriter fileHTMMLWriter = null;
-        fileHTMMLWriter = new FileWriter(reportFile);
-
+    public static String[] getHtmlContent() throws IOException {
         InputStream templateStream = Bob.class.getResourceAsStream("/lib/time_report_template.html");
 
         StringWriter writer = new StringWriter();
@@ -178,21 +158,15 @@ public class TimeProfiler {
             throw new IOException("Error while reading time report template: " + e.toString());
         }
         String templateString = writer.toString();
-
-        HashMap<String, Object> ctx = new HashMap<String, Object>();
-        ctx.put("json-data", jsonReport);
-
-        Template template = Mustache.compiler().compile(templateString);
-        StringWriter sw = new StringWriter();
-        template.execute(ctx, sw);
-        sw.flush();
-
-        fileHTMMLWriter.write(sw.toString());
-        fileHTMMLWriter.close();
+        String token = "{{json-data}}";
+        int tokenIndex = templateString.indexOf(token);
+        String beforeToken = templateString.substring(0, tokenIndex - 1);
+        String afterToken = templateString.substring(tokenIndex + token.length()+1);
+        return new String[]{beforeToken, afterToken};
     }
 
     public static void createReport(Boolean fromEditor) {
-        // avoid douple creation of the report by checking `fromEditor` flag
+        // avoid double creation of the report by checking `fromEditor` flag
         if (rootScope == null || TimeProfiler.fromEditor != fromEditor) {
             return;
         }
@@ -210,8 +184,6 @@ public class TimeProfiler {
         unsafeStop();
 
         try {
-            String jsonReport = generateJSON(_rootScope);
-
             // save report files, add '_time' to the given filenames
             // foo.json -> foo_time.json
             for (File reportFile : reportFiles) {
@@ -220,19 +192,30 @@ public class TimeProfiler {
                 String finalReportFileName = reportFileName.replace(extension, FILENAME_POSTFIX + extension);
                 File finalReportFile = new File(reportFile.getParent(), finalReportFileName);
                 File parentDir = finalReportFile.getParentFile();
-                if (!parentDir.exists()) {
+                if (parentDir != null && !parentDir.exists()) {
                     if (!parentDir.mkdirs()) {
                         System.out.println("Failed to create directories: " + parentDir);
                     }
                 }
-                if (extension.equals(".json")) {
-                    saveJSON(jsonReport, finalReportFile);
+                int bufferSize = 8 * 1024 * 1024; // 8 MB in bytes
+                try (BufferedWriter writer = new BufferedWriter(new FileWriter(finalReportFile), bufferSize)) {
+                    if (extension.equals(".json")) {
+                        generateJSON(_rootScope, writer);
+                    } else if (extension.equals(".html")) {
+                        String[] htmlContent = getHtmlContent();
+                        writer.write(htmlContent[0]);
+                        writer.flush();
+                        generateJSON(_rootScope, writer);
+                        writer.flush();
+                        writer.write(htmlContent[1]);
+                    } else {
+                        System.err.println("Report file " + reportFileName + "has unsupported extension");
+                    }
+                    writer.flush();
+                    IOUtils.closeQuietly(writer);
                 }
-                else if (extension.equals(".html")) {
-                    saveHTML(jsonReport, finalReportFile);
-                }
-                else {
-                    System.err.println("Report file " + reportFileName + "has unsupported extension");
+                catch (IOException e) {
+                    throw e;
                 }
             }
         } catch (Exception e) {
@@ -383,5 +366,4 @@ public class TimeProfiler {
     public static void addData(String fieldName, Integer data) {
         addData(fieldName, data.floatValue());
     }
-
 }

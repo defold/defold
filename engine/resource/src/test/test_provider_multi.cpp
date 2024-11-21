@@ -87,13 +87,22 @@ protected:
         {
             dmResourceProvider::Result result;
 
-            result = Mount(loader_file, "build/src/test/overrides", &m_Archives[0]);
+#define FSPREFIX ""
+#if defined(__EMSCRIPTEN__)
+            // Trigger the vsf init for emscripten (hidden in MakeHostPath)
+            char path[1024];
+            dmTestUtil::MakeHostPath(path, sizeof(path), "src");
+            #undef FSPREFIX
+            #define FSPREFIX DM_HOSTFS
+#endif
+
+            result = Mount(loader_file, FSPREFIX "build/src/test/overrides", &m_Archives[0]);
             ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
 
-            result = Mount(loader_archive, "dmanif:build/src/test/resources", &m_Archives[1]);
+            result = Mount(loader_archive, "dmanif:" FSPREFIX "build/src/test/resources", &m_Archives[1]);
             ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
 
-            result = Mount(loader_zip, "zip:build/src/test/luresources_compressed.zip", &m_Archives[2]);
+            result = Mount(loader_zip, "zip:" FSPREFIX "build/src/test/luresources_compressed.zip", &m_Archives[2]);
             ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
 
             m_Mounts = dmResourceMounts::Create(0);

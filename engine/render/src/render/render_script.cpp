@@ -1698,7 +1698,7 @@ namespace dmRender
      * @param [options] [type:table] optional table with properties:
      *
      * `frustum`
-     * : [type:vmath.matrix4] A frustum matrix used to cull renderable items. (E.g. `local frustum = proj * view`). default=nil
+     * : [type:matrix4] A frustum matrix used to cull renderable items. (E.g. `local frustum = proj * view`). default=nil
      *
      * `frustum_planes`
      * : [type:int] Determines which sides of the frustum will be used. Default is render.FRUSTUM_PLANES_SIDES.
@@ -1810,7 +1810,7 @@ namespace dmRender
      * @param [options] [type:table] optional table with properties:
      *
      * `frustum`
-     * : [type:vmath.matrix4] A frustum matrix used to cull renderable items. (E.g. `local frustum = proj * view`). May be nil.
+     * : [type:matrix4] A frustum matrix used to cull renderable items. (E.g. `local frustum = proj * view`). May be nil.
      *
      * `frustum_planes`
      * : [type:int] Determines which sides of the frustum will be used. Default is render.FRUSTUM_PLANES_SIDES.

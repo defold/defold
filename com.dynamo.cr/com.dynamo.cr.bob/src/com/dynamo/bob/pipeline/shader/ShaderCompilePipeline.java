@@ -21,6 +21,7 @@ import java.util.ArrayList;
 
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.Platform;
+import com.dynamo.bob.pipeline.ShaderUtil;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.FileUtil;
@@ -31,6 +32,9 @@ import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 import org.apache.commons.io.FileUtils;
 
 public class ShaderCompilePipeline {
+    public static class Options {
+        public boolean splitTextureSamplers;
+    }
 
     protected static class ShaderModule {
         public String                source;
@@ -47,6 +51,7 @@ public class ShaderCompilePipeline {
     protected File spirvFileOut                     = null;
     protected SPIRVReflector spirvReflector         = null;
     protected ArrayList<ShaderModule> shaderModules = new ArrayList<>();
+    protected Options options                       = null;
 
     public ShaderCompilePipeline(String pipelineName) {
         this.pipelineName = pipelineName;
@@ -78,13 +83,39 @@ public class ShaderCompilePipeline {
         };
     }
 
-    protected static boolean canBeCrossCompiled(ShaderDesc.Language shaderLanguage) {
+    protected static boolean shaderLanguageIsGLSL(ShaderDesc.Language shaderLanguage) {
         return shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM120 ||
                shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM140 ||
                shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100 ||
                shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM300 ||
                shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM330 ||
                shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM430;
+    }
+
+    protected static boolean canBeCrossCompiled(ShaderDesc.Language shaderLanguage) {
+        return shaderLanguageIsGLSL(shaderLanguage) || shaderLanguage == ShaderDesc.Language.LANGUAGE_WGSL;
+    }
+
+    private static byte[] remapTextureSamplers(ArrayList<SPIRVReflector.Resource> textures, String source) {
+        // Textures are remapped via spirv-cross according to:
+        //   SPIRV_Cross_Combined<TEXTURE_NAME><SAMPLER_NAME>
+        //
+        // Due to WGSL, before we pass the source into crosscompilation, we 'expand' samplers into texture + sampler:
+        //   uniform sampler2D my_texture;
+        // which becomes:
+        //   uniform texture2D my_texture;
+        //   uniform sampler   my_texture_separated;
+        //
+        // So these two rules together then becomes:
+        //   uniform sampler2D my_texture; ==> SPIRV_Cross_Combinedsampler_2dsampler_2d_separated
+        //
+        // Even without the separation of texture/sampler, we will still need to rename the texture in the source
+        // due to how spirv-cross works.
+        for (SPIRVReflector.Resource texture : textures) {
+            String spirvCrossSamplerName = String.format("SPIRV_Cross_Combined%s%s_separated", texture.name, texture.name);
+            source = source.replaceAll(spirvCrossSamplerName, texture.name);
+        }
+        return source.getBytes(StandardCharsets.UTF_8);
     }
 
     private static void checkResult(Result result) throws CompileExceptionError {
@@ -99,9 +130,18 @@ public class ShaderCompilePipeline {
         }
     }
 
+    protected static void generateWGSL(String pathFileInSpv, String pathFileOutWGSL) throws IOException, CompileExceptionError {
+        Result result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "tint"),
+            "--format", "wgsl",
+            "-o", pathFileOutWGSL,
+            pathFileInSpv);
+        checkResult(result);
+    }
+
     private void generateSPIRv(ShaderDesc.ShaderType shaderType, String pathFileInGLSL, String pathFileOutSpv) throws IOException, CompileExceptionError {
         Result result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "glslang"),
             "-w",
+            "--entry-point", "main",
             "--auto-map-bindings",
             "--auto-map-locations",
             "-Os",
@@ -125,12 +165,17 @@ public class ShaderCompilePipeline {
     private void generateSPIRvReflection(String pathFileInSpv, String pathFileOutSpvReflection) throws IOException, CompileExceptionError{
         Result result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "spirv-cross"),
             pathFileInSpv,
+            "--entry", "main",
             "--output", pathFileOutSpvReflection,
             "--reflect");
         checkResult(result);
     }
 
     private void generateCrossCompiledShader(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, String pathFileInSpv, String pathFileOut, int versionOut) throws IOException, CompileExceptionError{
+        if(shaderLanguage == ShaderDesc.Language.LANGUAGE_WGSL) {
+            generateWGSL(pathFileInSpv, pathFileOut);
+            return;
+        }
 
         ArrayList<String> args = new ArrayList<>();
         args.add(Bob.getExe(Platform.getHostPlatform(), "spirv-cross"));
@@ -139,6 +184,8 @@ public class ShaderCompilePipeline {
         args.add(String.valueOf(versionOut));
         args.add("--output");
         args.add(pathFileOut);
+        args.add("--entry");
+        args.add("main");
         args.add("--stage");
         args.add(shaderTypeToSpirvStage(shaderType));
         args.add("--remove-unused-variables");
@@ -171,13 +218,17 @@ public class ShaderCompilePipeline {
 
             File fileInGLSL = File.createTempFile(baseName, ".glsl");
             FileUtil.deleteOnExit(fileInGLSL);
-            FileUtils.writeByteArrayToFile(fileInGLSL, module.source.getBytes());
+
+            String glsl = module.source;
+            if (this.options.splitTextureSamplers) {
+                // We need to expand all combined samplers into texture + sampler due for certain targets (webgpu + dx12)
+                glsl = ShaderUtil.ES2ToES3Converter.transformTextureUniforms(module.source).output;
+            }
+            FileUtils.writeByteArrayToFile(fileInGLSL, glsl.getBytes());
 
             File fileOutSpv = File.createTempFile(baseName, ".spv");
             FileUtil.deleteOnExit(fileOutSpv);
-
             generateSPIRv(module.type, fileInGLSL.getAbsolutePath(), fileOutSpv.getAbsolutePath());
-
             module.spirvFile = fileOutSpv;
         }
 
@@ -216,7 +267,15 @@ public class ShaderCompilePipeline {
 
             generateCrossCompiledShader(shaderType, shaderLanguage, this.spirvFileOut.getAbsolutePath(), fileCrossCompiled.getAbsolutePath(), version);
 
-            return FileUtils.readFileToByteArray(fileCrossCompiled);
+            byte[] bytes = FileUtils.readFileToByteArray(fileCrossCompiled);
+
+            // JG: spirv-cross renames samplers for GLSL based shaders, so we have to run a second pass to force renaming them back.
+            //     There doesn't seem to be a simpler way to do this in spirv-cross from what I can understand.
+            if (shaderLanguageIsGLSL(shaderLanguage)) {
+                bytes = remapTextureSamplers(this.spirvReflector.getTextures(), new String(bytes));
+            }
+
+            return bytes;
         }
 
         throw new CompileExceptionError("Cannot crosscompile to shader language: " + shaderLanguage);
@@ -226,7 +285,8 @@ public class ShaderCompilePipeline {
         return this.spirvReflector;
     }
 
-    public static ShaderCompilePipeline createShaderPipeline(ShaderCompilePipeline pipeline, String source, ShaderDesc.ShaderType type) throws IOException, CompileExceptionError {
+    public static ShaderCompilePipeline createShaderPipeline(ShaderCompilePipeline pipeline, String source, ShaderDesc.ShaderType type, Options options) throws IOException, CompileExceptionError {
+        pipeline.options = options;
         pipeline.reset();
         pipeline.addShaderModule(source, type);
         pipeline.prepare();

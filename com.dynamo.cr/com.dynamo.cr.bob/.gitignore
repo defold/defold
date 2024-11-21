@@ -21,6 +21,7 @@
 /libexec/*/*luajit*
 /libexec/*/glslang*
 /libexec/*/spirv-cross*
+/libexec/*/tint*
 /libexec/*/spirv-opt*
 /libexec/*/luac-32*
 /share/luajit

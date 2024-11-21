@@ -377,12 +377,16 @@ This must be submitted to the driver for compilation before you can use it. See
             (delete-program gl program)))))))
 
 (defn shader-compile-errors
-  [^GL2 gl shader-name]
-  (let [msg-len (IntBuffer/allocate 1)]
-    (.glGetShaderiv gl shader-name GL2/GL_INFO_LOG_LENGTH msg-len)
-    (let [msg (ByteBuffer/allocate (.get msg-len 0))]
-      (.glGetShaderInfoLog gl shader-name (.capacity msg) nil msg)
-      (bbuf->string msg))))
+  ^String [^GL2 gl shader-name]
+  (let [log-length-storage (IntBuffer/allocate 1)]
+    (.glGetShaderiv gl shader-name GL2/GL_INFO_LOG_LENGTH log-length-storage)
+    (let [null-terminated-string-length (.get log-length-storage 0) ; Note: Some implementations return zero when the log is empty, some return one.
+          string-length (dec null-terminated-string-length)]
+      (if (pos? string-length)
+        (let [info-log-buffer (ByteBuffer/allocate null-terminated-string-length)]
+          (.glGetShaderInfoLog gl shader-name null-terminated-string-length nil info-log-buffer)
+          (bbuf->string info-log-buffer 0 string-length))
+        ""))))
 
 (defn delete-shader
   [^GL2 gl shader]

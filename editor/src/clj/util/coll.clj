@@ -140,7 +140,8 @@
     (nil? coll)
     true
 
-    (counted? coll)
+    (or (counted? coll)
+        (.isArray (class coll)))
     (zero? (count coll))
 
     (instance? CharSequence coll)
@@ -211,6 +212,13 @@
      (when-let [in-progress (seq coll)]
        (let [finished (apply vector-of primitive-type (take partition-length in-progress))]
          (cons finished (partition-all-primitives primitive-type partition-length step (nthrest in-progress step))))))))
+
+(defn remove-index
+  "Removes an item at the specified position in a vector"
+  [coll ^long index]
+  (-> (into (subvec coll 0 index)
+            (subvec coll (inc index)))
+      (with-meta (meta coll))))
 
 (defn separate-by
   "Separates items in the supplied collection into two based on a predicate.

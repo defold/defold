@@ -108,6 +108,20 @@
     (when (not (<= min v max))
       (util/format* tmpl name min max))))
 
+(defn prop-minimum-check? [min v name]
+  (when (< v min)
+    (let [tmpl (if (integer? min)
+                 "'%s' must be at least %d"
+                 "'%s' must be at least %f")]
+      (util/format* tmpl name min))))
+
+(defn prop-maximum-check? [max v name]
+  (when (> v max)
+    (let [tmpl (if (integer? max)
+                 "'%s' must be at most %d"
+                 "'%s' must be at most %f")]
+      (util/format* tmpl name max))))
+
 (defn prop-collision-shape-conflict? [shapes collision-shape]
   (when (and collision-shape (not (empty? shapes)))
     "Cannot combine embedded shapes with a referenced 'Collision Shape'. Please remove either."))

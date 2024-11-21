@@ -360,7 +360,11 @@ namespace dmGui
         scene->m_NodePool.SetCapacity(params->m_MaxNodes);
         scene->m_Animations.SetCapacity(params->m_MaxAnimations);
         scene->m_Textures.SetCapacity(params->m_MaxTextures*2, params->m_MaxTextures);
-        scene->m_DynamicTextures.SetCapacity(params->m_MaxDynamicTextures*2, params->m_MaxDynamicTextures);
+        // hashtable has zero capacity by default
+        if (params->m_MaxDynamicTextures > 0)
+        {
+            scene->m_DynamicTextures.SetCapacity(params->m_MaxDynamicTextures*2, params->m_MaxDynamicTextures);
+        }
         scene->m_MaterialResources.SetCapacity(params->m_MaxMaterials*2, params->m_MaxMaterials);
         scene->m_Fonts.SetCapacity(params->m_MaxFonts*2, params->m_MaxFonts);
         scene->m_Particlefxs.SetCapacity(params->m_MaxParticlefxs*2, params->m_MaxParticlefxs);

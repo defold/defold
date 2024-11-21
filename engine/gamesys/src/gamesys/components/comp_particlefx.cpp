@@ -313,7 +313,8 @@ namespace dmGameSystem
 
         dmGraphics::VertexAttributeInfos emitter_attribute_info = {};
         dmGraphics::VertexAttributeInfos material_attribute_info;
-        FillMaterialAttributeInfos(material, vx_decl, &material_attribute_info);
+        // Same default coordinate space as the editor
+        FillMaterialAttributeInfos(material, vx_decl, &material_attribute_info, dmGraphics::COORDINATE_SPACE_WORLD);
 
         for (uint32_t *i = begin; i != end; ++i)
         {

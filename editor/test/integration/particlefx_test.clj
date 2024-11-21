@@ -76,7 +76,7 @@
 
 (deftest particlefx-validation
   (test-util/with-loaded-project
-    (let [node-id   (test-util/resource-node project "/particlefx/default.particlefx")
+    (let [node-id (test-util/resource-node project "/particlefx/default.particlefx")
           emitter (:node-id (test-util/outline node-id [0]))]
       (is (nil? (test-util/prop-error emitter :tile-source)))
       (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.atlas")]]
@@ -85,7 +85,8 @@
       (is (nil? (test-util/prop-error emitter :material)))
       (doseq [v [nil (workspace/resolve-workspace-resource workspace "/not_found.material")]]
         (test-util/with-prop [emitter :material v]
-          (is (g/error? (test-util/prop-error emitter :material)))))
+          (is (g/error? (test-util/prop-error emitter :material)))
+          (is (g/error-value? (g/node-value node-id :build-targets)))))
       (is (nil? (test-util/prop-error emitter :animation)))
       (doseq [v ["" "not_found"]]
         (test-util/with-prop [emitter :animation v]
@@ -94,7 +95,7 @@
 (deftest particle-scene
   (test-util/with-loaded-project
     (let [node-id (project/get-resource-node project "/particlefx/default.particlefx")
-          material-node (project/get-resource-node project "/materials/test_samplers.material")          
+          material-node (project/get-resource-node project "/materials/test_samplers.material")
           [emitter-a emitter-b] (g/node-value node-id :nodes)]
       (testing "uses shader and texture params from assigned material"
         (test-util/with-prop [emitter-a :material (workspace/resolve-workspace-resource workspace "/materials/test_samplers.material")]
