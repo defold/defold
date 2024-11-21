@@ -92,12 +92,12 @@ jobs:
       { name: 'Verify emsdk',
         run: 'emcc -v && export | grep EM'
       },
-      { name: Install LLVM and Clang, uses: KyleMayes/install-llvm-action@v2, with: {version: "13.0"}},
+      { name: 'Install LLVM and Clang', uses: KyleMayes/install-llvm-action@v2, with: {version: "13.0"}},
       { name: 'Install dependencies', run: 'ci/ci.sh install --platform=${{ matrix.platform }}' },
       {
         name: 'Build engine',
         if: (github.event_name != 'repository_dispatch') || ((github.event_name == 'repository_dispatch') && (github.event.client_payload.skip_engine != true)),
-        run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-tests --skip-builtins --skip-docs --skip-build-tests engine'
+        run: 'ci/ci.sh --platform=${{ matrix.platform }} --archive --skip-builtins --skip-docs engine'
       },
       {
         name: 'Notify if build status changed',

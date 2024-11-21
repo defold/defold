@@ -281,7 +281,7 @@
   metadata associated with the returned function. If fn f is
   supplied, it will be invoked after the call is logged."
   ([]
-   (make-call-logger (constantly nil)))
+   (make-call-logger constantly-nil))
   ([f]
    (let [calls (atom [])]
      (with-meta (fn [& args]

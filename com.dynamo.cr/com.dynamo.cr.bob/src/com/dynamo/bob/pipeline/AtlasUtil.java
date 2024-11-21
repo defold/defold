@@ -331,10 +331,8 @@ public class AtlasUtil {
 
         List<AtlasImage> atlasImages = collectImages(atlasResource, atlas, transformer);
         List<String> imageResourcePaths = new ArrayList<String>();
-        List<SpriteTrimmingMode> imageTrimModes = new ArrayList<>();
         for (AtlasImage image : atlasImages) {
             imageResourcePaths.add(image.getImage());
-            imageTrimModes.add(image.getSpriteTrimMode());
         }
         List<IResource> imageResources = toResources(atlasResource, imageResourcePaths);
         List<BufferedImage> images = TextureUtil.loadImages(imageResources);
@@ -350,7 +348,7 @@ public class AtlasUtil {
         List<MappedAnimDesc> animDescs = createAnimDescs(atlas, transformer);
         MappedAnimIterator iterator = new MappedAnimIterator(animDescs, imageResourcePaths);
         try {
-            TextureSetResult result = TextureSetGenerator.generate(images, imageTrimModes, imageNames, iterator,
+            TextureSetResult result = TextureSetGenerator.generate(images, atlasImages, imageNames, iterator,
                 Math.max(0, atlas.getMargin()),
                 Math.max(0, atlas.getInnerPadding()),
                 Math.max(0, atlas.getExtrudeBorders()),
@@ -387,7 +385,6 @@ public class AtlasUtil {
         List<String> imagePaths = new ArrayList<String>();
         List<String> imageAbsolutePaths = new ArrayList<String>();
         List<String> imageNames = new ArrayList<String>();
-        List<SpriteTrimmingMode> imageTrimModes = new ArrayList<>();
 
         final String renamePatterns = atlas.getRenamePatterns();
         AtlasUtil.PathTransformer nameTransformer = new AtlasUtil.PathTransformer() {
@@ -409,7 +406,6 @@ public class AtlasUtil {
         for (AtlasImage image : atlasImages) {
             imagePaths.add(image.getImage());
             imageNames.add(nameTransformer.transform(image.getImage()));
-            imageTrimModes.add(image.getSpriteTrimMode());
         }
 
         for (String path : imagePaths) {
@@ -421,7 +417,7 @@ public class AtlasUtil {
         List<MappedAnimDesc> animDescs = createAnimDescs(atlas, nameTransformer);
         MappedAnimIterator iterator = new MappedAnimIterator(animDescs, imagePaths);
         try {
-            TextureSetResult result = TextureSetGenerator.generate(imageDatas, imageTrimModes, imageNames, iterator,
+            TextureSetResult result = TextureSetGenerator.generate(imageDatas, atlasImages, imageNames, iterator,
                 Math.max(0, atlas.getMargin()),
                 Math.max(0, atlas.getInnerPadding()),
                 Math.max(0, atlas.getExtrudeBorders()),

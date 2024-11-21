@@ -10,8 +10,10 @@ To make contributions easier, we detect local installations of the common platfo
 
 * macOS + iOS: [XCode](https://apps.apple.com/us/app/xcode/id497799835)
 * Linux: [Clang++](https://apt.llvm.org/)
-* Windows: [Visual Studio COmmunity 2022](https://visualstudio.microsoft.com/vs/older-downloads/)
-  * (Note that we also require Clang!)
+* Windows: [Visual Studio Community 2022](https://visualstudio.microsoft.com/vs/older-downloads/)
+  * We also require Clang:
+    * In Visual Studio Installer, under Individual components, select *C++ Clang Compiler for Windows* and *MSBuild support for LLVM (clang-cl) toolset*.
+    * Add clang to your PATH. For a default installation, the path to add will likely be C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\Llvm\bin
 * Android: [Android Studio](https://developer.android.com/studio)
 
 For consoles, we refer to each vendor's installation notes.
@@ -24,7 +26,9 @@ For consoles, we refer to each vendor's installation notes.
 
 Open a Command (cmd.exe) as administator and run:
 
-`@"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -InputFormat None -ExecutionPolicy Bypass -Command "[System.Net.ServicePointManager]::SecurityProtocol = 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))" && SET "PATH=%PATH%;%ALLUSERSPROFILE%\chocolatey\bin"`
+```sh
+@"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -InputFormat None -ExecutionPolicy Bypass -Command "[System.Net.ServicePointManager]::SecurityProtocol = 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))" && SET "PATH=%PATH%;%ALLUSERSPROFILE%\chocolatey\bin"
+```
 
 Once this is done, you can install new packages which are added to the PATH, by running:
 

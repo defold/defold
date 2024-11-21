@@ -660,6 +660,8 @@
                 :command :rebuild}
                {:label "Build HTML5"
                 :command :build-html5}
+               {:label "Rebuild HTML5"
+                :command :rebuild-html5}
                {:label "Bundle"
                 :children (mapv (fn [[platform label]]
                                   {:label label

@@ -276,6 +276,36 @@ static WGPUTextureFormat WebGPUFormatFromTextureFormat(TextureFormat format)
     };
 }
 
+static size_t WebGPUCompressedBlockWidth(TextureFormat format)
+{
+    assert(format <= TEXTURE_FORMAT_COUNT);
+    switch (format)
+    {
+    case TEXTURE_FORMAT_RGB_ETC1:           return 4;
+    case TEXTURE_FORMAT_RGBA_ETC2:          return 4;
+    case TEXTURE_FORMAT_RGBA_ASTC_4x4:      return 4;
+    case TEXTURE_FORMAT_RGB_BC1:            return 4;
+    case TEXTURE_FORMAT_RGBA_BC3:           return 4;
+    case TEXTURE_FORMAT_RGBA_BC7:           return 4;
+    default:                                return 0;
+    };
+}
+
+static size_t WebGPUCompressedBlockByteSize(TextureFormat format)
+{
+    assert(format <= TEXTURE_FORMAT_COUNT);
+    switch (format)
+    {
+    case TEXTURE_FORMAT_RGB_ETC1:           return 8;
+    case TEXTURE_FORMAT_RGBA_ETC2:          return 8;
+    case TEXTURE_FORMAT_RGBA_ASTC_4x4:      return 16;
+    case TEXTURE_FORMAT_RGB_BC1:            return 8;
+    case TEXTURE_FORMAT_RGBA_BC3:           return 16;
+    case TEXTURE_FORMAT_RGBA_BC7:           return 16;
+    default:                                return 0;
+    };
+}
+
 static void WebGPURealizeTexture(WebGPUTexture* texture, WGPUTextureFormat format, uint8_t depth, uint32_t sampleCount, WGPUTextureUsage usage)
 {
     if (texture->m_Depth > depth)
@@ -383,8 +413,12 @@ static void WebGPUSetTextureInternal(WebGPUTexture* texture, const TextureParams
             const uint8_t bpp     = ceil(GetTextureFormatBitsPerPixel(params.m_Format) / 8.0f);
             const size_t dataSize = bpp * params.m_Width * params.m_Height * depth;
 
-            dest.texture              = texture->m_Texture;
-            layout.bytesPerRow        = extent.width * bpp;
+            dest.texture = texture->m_Texture;
+            layout.bytesPerRow = extent.width;
+            if(IsTextureFormatCompressed(params.m_Format))
+                layout.bytesPerRow = (layout.bytesPerRow / WebGPUCompressedBlockWidth(params.m_Format)) * WebGPUCompressedBlockByteSize(params.m_Format);
+            else
+                layout.bytesPerRow *= bpp;
             extent.depthOrArrayLayers = depth;
             wgpuQueueWriteTexture(g_WebGPUContext->m_Queue, &dest, params.m_Data, dataSize, &layout, &extent);
         }
@@ -822,6 +856,12 @@ static void instanceRequestAdapterCallback(WGPURequestAdapterStatus status, WGPU
         wgpuAdapterGetLimits(context->m_Adapter, &context->m_AdapterLimits);
 
         WGPUDeviceDescriptor descriptor = {};
+        WGPUFeatureName features[16];
+        descriptor.requiredFeatures = features;
+        if (wgpuAdapterHasFeature(context->m_Adapter, WGPUFeatureName_TextureCompressionBC))
+            features[descriptor.requiredFeatureCount++] = WGPUFeatureName_TextureCompressionBC;
+        if (wgpuAdapterHasFeature(context->m_Adapter, WGPUFeatureName_TextureCompressionASTC))
+            features[descriptor.requiredFeatureCount++] = WGPUFeatureName_TextureCompressionASTC;
         wgpuAdapterRequestDevice(context->m_Adapter, &descriptor, requestDeviceCallback, userdata);
         context->m_InitComplete = true;
     }
@@ -968,6 +1008,7 @@ static HContext WebGPUNewContext(const ContextParams& params)
     if (!g_WebGPUContext)
     {
         g_WebGPUContext = (WebGPUContext*)malloc(sizeof(WebGPUContext));
+        memset(g_WebGPUContext, 0, sizeof(*g_WebGPUContext));
         if (InitializeWebGPUContext(g_WebGPUContext, params))
             return g_WebGPUContext;
         DeleteContext(g_WebGPUContext);
@@ -1007,10 +1048,18 @@ static void WebGPUDeleteContext(HContext _context)
 static void WebGPURunApplicationLoop(void* user_data, WindowStepMethod step_method, WindowIsRunning is_running)
 {
     TRACE_CALL;
+#ifdef __EMSCRIPTEN__
+    while (0 != is_running(user_data))
+    {
+        // N.B. Beyond the first test, the above statement is essentially formal since set_main_loop will throw an exception.
+        emscripten_set_main_loop_arg(step_method, user_data, 0, 1);
+    }
+#else
     while (0 != is_running(user_data))
     {
         step_method(user_data);
     }
+#endif
 }
 
 static dmPlatform::HWindow WebGPUGetWindow(HContext _context)
@@ -1074,6 +1123,14 @@ static void WebGPUGetDefaultTextureFilters(HContext _context, TextureFilter& out
     out_mag_filter         = context->m_DefaultTextureMagFilter;
 }
 
+static void WebGPUCreateCommandEncoder(WebGPUContext* context)
+{
+    if(!context->m_CommandEncoder)
+    {
+        context->m_CommandEncoder = wgpuDeviceCreateCommandEncoder(context->m_Device, NULL);
+    }
+}
+
 static void WebGPUEndRenderPass(WebGPUContext* context);
 
 static void WebGPUEndComputePass(WebGPUContext* context)
@@ -1087,12 +1144,30 @@ static void WebGPUEndComputePass(WebGPUContext* context)
     }
 }
 
+static void WebGPUSubmitCommandEncoder(WebGPUContext* context)
+{
+    TRACE_CALL;
+    if (context->m_CommandEncoder)
+    {
+        WebGPUEndComputePass(context);
+        WebGPUEndRenderPass(context);
+
+        const WGPUCommandBuffer buffer = wgpuCommandEncoderFinish(context->m_CommandEncoder, NULL);
+        wgpuQueueSubmit(context->m_Queue, 1, &buffer);
+        wgpuCommandBufferRelease(buffer);
+        wgpuCommandEncoderRelease(context->m_CommandEncoder);
+        context->m_CommandEncoder = NULL;
+        context->m_LastSubmittedRenderPass = context->m_RenderPasses;
+    }
+}
+
 static void WebGPUBeginComputePass(WebGPUContext* context)
 {
     TRACE_CALL;
     if (!context->m_CurrentComputePass.m_Encoder)
     {
         WebGPUEndRenderPass(context);
+        WebGPUCreateCommandEncoder(context);
         WGPUComputePassDescriptor desc          = {};
         context->m_CurrentComputePass.m_Encoder = wgpuCommandEncoderBeginComputePass(context->m_CommandEncoder, &desc);
     }
@@ -1117,6 +1192,8 @@ static void WebGPUBeginRenderPass(WebGPUContext* context, const float* clearColo
     if (context->m_CurrentRenderPass.m_Target != context->m_CurrentRenderTarget)
     {
         WebGPUEndRenderPass(context);
+        WebGPUCreateCommandEncoder(context);
+        ++context->m_RenderPasses;
         context->m_CurrentRenderPass.m_Target = context->m_CurrentRenderTarget;
         {
             WGPURenderPassDescriptor desc = {};
@@ -1240,7 +1317,6 @@ static void WebGPUBeginFrame(HContext _context)
         texture->m_Texture     = wgpuSwapChainGetCurrentTexture(context->m_SwapChain);
         texture->m_TextureView = wgpuSwapChainGetCurrentTextureView(context->m_SwapChain);
     }
-    context->m_CommandEncoder      = wgpuDeviceCreateCommandEncoder(context->m_Device, NULL);
     context->m_CurrentRenderTarget = context->m_MainRenderTarget;
 }
 
@@ -1248,17 +1324,8 @@ static void WebGPUFlip(HContext _context)
 {
     TRACE_CALL;
     WebGPUContext* context = (WebGPUContext*)_context;
-    WebGPUEndComputePass(context);
-    WebGPUEndRenderPass(context);
+    WebGPUSubmitCommandEncoder(context);
     context->m_CurrentRenderTarget = NULL;
-    if (context->m_CommandEncoder)
-    {
-        const WGPUCommandBuffer buffer = wgpuCommandEncoderFinish(context->m_CommandEncoder, NULL);
-        wgpuQueueSubmit(context->m_Queue, 1, &buffer);
-        wgpuCommandBufferRelease(buffer);
-        wgpuCommandEncoderRelease(context->m_CommandEncoder);
-        context->m_CommandEncoder = NULL;
-    }
     {
 #if !defined(__EMSCRIPTEN__)
         wgpuSwapChainPresent(context->m_SwapChain);
@@ -1296,13 +1363,18 @@ static void WebGPUWriteBuffer(WebGPUContext* context, WebGPUBuffer* buffer, size
 {
     TRACE_CALL;
     assert(size);
-    if (!buffer->m_Buffer)
+    if (!buffer->m_Buffer) // create it
     {
         WGPUBufferDescriptor desc = {};
         desc.usage                = buffer->m_Usage;
         desc.size                 = size;
         buffer->m_Buffer          = wgpuDeviceCreateBuffer(context->m_Device, &desc);
         buffer->m_Used = buffer->m_Size = desc.size;
+    }
+    else if (buffer->m_LastRenderPass && buffer->m_LastRenderPass > context->m_LastSubmittedRenderPass) // flush pipeline
+    {
+        //dmLogWarning("Deoptimization: Forcing pipeline flush due to buffer write");
+        WebGPUSubmitCommandEncoder(context);
     }
     wgpuQueueWriteBuffer(context->m_Queue, buffer->m_Buffer, offset, data, size);
 }
@@ -1346,6 +1418,7 @@ static void WebGPUSetVertexBufferData(HVertexBuffer buffer, uint32_t size, const
         wgpuBufferRelease(gpu_buffer->m_Buffer);
         gpu_buffer->m_Buffer = NULL;
         gpu_buffer->m_Used = gpu_buffer->m_Size = 0;
+        gpu_buffer->m_LastRenderPass = 0;
     }
     else
     {
@@ -1413,6 +1486,7 @@ static void WebGPUSetIndexBufferData(HIndexBuffer _buffer, uint32_t size, const 
         wgpuBufferRelease(buffer->m_Buffer);
         buffer->m_Buffer = NULL;
         buffer->m_Used = buffer->m_Size = 0;
+        buffer->m_LastRenderPass = 0;
     }
     else
     {
@@ -1752,20 +1826,22 @@ static void WebGPUSetupRenderPipeline(WebGPUContext* context, WebGPUBuffer* inde
     }
 
     // Set the indexbuffer
-    if (indexBuffer && indexBuffer != context->m_CurrentRenderPass.m_IndexBuffer)
+    if (indexBuffer && indexBuffer->m_Buffer != context->m_CurrentRenderPass.m_IndexBuffer)
     {
         assert(indexBufferType == TYPE_UNSIGNED_SHORT || indexBufferType == TYPE_UNSIGNED_INT);
-        wgpuRenderPassEncoderSetIndexBuffer(context->m_CurrentRenderPass.m_Encoder, indexBuffer->m_Buffer, indexBufferType == TYPE_UNSIGNED_INT ? WGPUIndexFormat_Uint32 : WGPUIndexFormat_Uint16, 0, indexBuffer->m_Used);
-        context->m_CurrentRenderPass.m_IndexBuffer = indexBuffer;
+        wgpuRenderPassEncoderSetIndexBuffer(context->m_CurrentRenderPass.m_Encoder, indexBuffer->m_Buffer, indexBufferType == TYPE_UNSIGNED_INT ? WGPUIndexFormat_Uint32 : WGPUIndexFormat_Uint16, 0, WGPU_WHOLE_SIZE);
+        context->m_CurrentRenderPass.m_IndexBuffer = indexBuffer->m_Buffer;
+        indexBuffer->m_LastRenderPass = context->m_RenderPasses;
     }
 
     // Set the vertexbuffer(s)
     for (int slot = 0; slot < MAX_VERTEX_BUFFERS; ++slot)
     {
-        if (context->m_CurrentVertexBuffers[slot] && context->m_CurrentVertexBuffers[slot] != context->m_CurrentRenderPass.m_VertexBuffers[slot])
+        if (context->m_CurrentVertexBuffers[slot] && context->m_CurrentVertexBuffers[slot]->m_Buffer != context->m_CurrentRenderPass.m_VertexBuffers[slot])
         {
             wgpuRenderPassEncoderSetVertexBuffer(context->m_CurrentRenderPass.m_Encoder, slot, context->m_CurrentVertexBuffers[slot]->m_Buffer, 0, context->m_CurrentVertexBuffers[slot]->m_Used);
-            context->m_CurrentRenderPass.m_VertexBuffers[slot] = context->m_CurrentVertexBuffers[slot];
+            context->m_CurrentRenderPass.m_VertexBuffers[slot] = context->m_CurrentVertexBuffers[slot]->m_Buffer;
+            context->m_CurrentVertexBuffers[slot]->m_LastRenderPass = context->m_RenderPasses;
         }
     }
 

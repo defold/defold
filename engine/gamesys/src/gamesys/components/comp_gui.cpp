@@ -1625,11 +1625,20 @@ namespace dmGameSystem
                 GetNodeFlipbookAnimUVFlip(scene, node, flip_u, flip_v);
             }
 
+            const dmGameSystemDDF::SpriteGeometry* geometry = 0;
+            float pivot_x = 0;
+            float pivot_y = 0;
+
+            if (use_geometries)
+            {
+                geometry = &texture_set_ddf->m_Geometries.m_Data[frame_index];
+                pivot_x = geometry->m_PivotX;
+                pivot_y = geometry->m_PivotY;
+            }
+
             // render using geometries without 9-slicing
             if (!use_slice_nine && use_geometries)
             {
-                const dmGameSystemDDF::SpriteGeometry* geometry = &texture_set_ddf->m_Geometries.m_Data[frame_index];
-
                 const Matrix4& w = node_transforms[i];
 
                 // NOTE: The original rendering code is from the comp_sprite.cpp.
@@ -1656,8 +1665,8 @@ namespace dmGameSystem
                     const float* point = &points[i * 2];
                     const float* uv = &uvs[i * 2];
                     // COnvert from range [-0.5,+0.5] to [0.0, 1.0]
-                    float x = point[0] * scaleX + 0.5f;
-                    float y = point[1] * scaleY + 0.5f;
+                    float x = (point[0] - pivot_x) * scaleX + 0.5f;
+                    float y = (point[1] - pivot_y) * scaleY + 0.5f;
 
                     Vector4 p = w * Point3(x, y, 0.0f);
                     BoxVertex v(p, uv[0], uv[1], pm_color, page_index);
@@ -1756,10 +1765,11 @@ namespace dmGameSystem
             {
                 for (int x=0;x<3;x++)
                 {
-                    const int x0 = x;
-                    const int x1 = x+1;
-                    const int y0 = y;
-                    const int y1 = y+1;
+                    const int x0 = x   - pivot_x;
+                    const int x1 = x+1 - pivot_x;
+                    const int y0 = y   - pivot_y;
+                    const int y1 = y+1 - pivot_y;
+
                     v00.SetPosition(pts[y0][x0]);
                     v10.SetPosition(pts[y0][x1]);
                     v01.SetPosition(pts[y1][x0]);

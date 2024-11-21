@@ -12,21 +12,31 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DMSDK_GAMESYS_RES_TEXTURE_H
-#define DMSDK_GAMESYS_RES_TEXTURE_H
+#ifndef DMSDK_GRAPHICS_OPENGL_H
+#define DMSDK_GRAPHICS_OPENGL_H
 
 #include <dmsdk/graphics/graphics.h>
 
-namespace dmGameSystem
-{
-    struct TextureResource
-    {
-        dmGraphics::HTexture m_Texture;
-        uint8_t              m_Uploading:1;
-        uint8_t              m_DelayDelete:1;
+/*# Graphics API documentation
+ * [file:<dmsdk/graphics/graphics_opengl.h>]
+ *
+ * Graphics OpenGL API
+ *
+ * @document
+ * @name Graphics OpenGL
+ * @namespace dmGraphics
+ */
 
-        TextureResource();
-    };
+namespace dmGraphics
+{
+	/*#
+     * Get the OpenGL render target id from a render target
+     * @name OpenGLGetRenderTargetId
+     * @param context [type: dmGraphics::HContext] the OpenGL context
+     * @param render_target [type: dmGraphics::HRenderTarget] the render target to get the ID from
+     * @return id [type: uint32_t] the OpenGL render target id
+     */
+	uint32_t OpenGLGetRenderTargetId(HContext context, HRenderTarget render_target);
 }
 
 #endif
