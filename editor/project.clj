@@ -214,7 +214,11 @@
                       :jamm {:dependencies [[com.github.jbellis/jamm "0.4.0"]]
                              :jvm-opts [~(str "-javaagent:"
                                            (.replace (System/getProperty "user.home") \\ \/)
-                                           "/.m2/repository/com/github/jbellis/jamm/0.4.0/jamm-0.4.0.jar")]}
+                                           "/.m2/repository/com/github/jbellis/jamm/0.4.0/jamm-0.4.0.jar")
+                                        "-Ddefold.jamm=true"
+                                        "--add-opens=java.base/java.util.function=ALL-UNNAMED"
+                                        "--add-opens=java.base/java.util.regex=ALL-UNNAMED"
+                                        "--add-opens=java.base/sun.nio.ch=ALL-UNNAMED"]}
                       :no-asserts {:global-vars {*assert* false}}
                       :no-decorated-exceptions {:jvm-opts ["-Ddefold.exception.decorate.disable=true"]}
                       :no-schemas {:jvm-opts ["-Ddefold.schema.check.disable=true"]}
