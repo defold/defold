@@ -321,7 +321,6 @@ namespace dmGameSystem
         uint32_t vb_max_size    = pfx_world->m_VertexBufferData.Capacity();
         // loop vars
         uint32_t vb_size        = 0;
-        bool     flush_vb       = false;
 
         uint32_t num_particles_written = 0;
 
@@ -338,7 +337,7 @@ namespace dmGameSystem
             uint32_t particle_count = dmParticle::GetParticleCount(particle_context, emitter_render_data->m_Instance, emitter_render_data->m_EmitterIndex);
 
             // fill upp the vertex buffer, and then schedule an upload of vertex buffer data
-            for (int p = 0; p < particle_count; p += max_cpu_count)
+            for (int p = 0; p < particle_count; )
             {
                 dmParticle::GenerateVertexDataResult res = dmParticle::GenerateVertexDataPartial(particle_context,
                     pfx_world->m_DT, emitter_render_data->m_Instance, emitter_render_data->m_EmitterIndex,
@@ -348,44 +347,38 @@ namespace dmGameSystem
                 uint32_t num_written = vb_size / (6 * vx_stride);
                 num_particles_written += num_written;
 
+
+                bool flush = vb_size >= vb_max_size;
+
+                // If the buffer didn't actually hold all particles, it's time to reset the buffer now
                 if (res == dmParticle::GENERATE_VERTEX_DATA_MAX_PARTICLES_EXCEEDED)
                 {
-                    flush_vb = true;
-
-                    // since we hit the limit, some of the particles were skipped.
-                    uint32_t num_skipped = max_cpu_count - num_written;
-                    // We need to start next loop at the correct particle
-                    p -= num_skipped;
+                    // If the buffer didn't actually hold all particles, it's time to reset the buffer now
+                    flush = true;
                 }
                 else if (res == dmParticle::GENERATE_VERTEX_DATA_INVALID_INSTANCE)
                 {
                     dmLogWarning("Cannot generate vertex data for emitter (%d), particle instance handle is invalid.", (*i));
                 }
 
-                if (flush_vb)
+                p += num_written;
+
+                if (flush) // Upload the written data (if there was any)
                 {
-
-
                     const uint32_t vb_upload_size = dmMath::Min(max_gpu_size, vb_size);
                     dmRender::SetBufferSubData(render_context, pfx_world->m_VertexBuffer, gpu_vb_offset, vb_upload_size, vertex_buffer.Begin());
-
                     gpu_vb_offset += vb_upload_size;
                     vb_size = 0;
-                    flush_vb = false;
                 }
             }
         }
 
-        flush_vb = vb_size != 0; // Do we have any lingering data?
 
-        if (flush_vb)
+        if (vb_size != 0) // Do we have any lingering data?
         {
             const uint32_t vb_upload_size = dmMath::Min(max_gpu_size, vb_size);
             dmRender::SetBufferSubData(render_context, pfx_world->m_VertexBuffer, gpu_vb_offset, vb_upload_size, vertex_buffer.Begin());
-
             gpu_vb_offset += vb_upload_size;
-            vb_size = 0;
-            flush_vb = false;
         }
 
         // In place writing of render object

@@ -1233,7 +1233,9 @@ namespace dmParticle
         dmGraphics::SetWriteAttributeStreamDesc(&write_params.m_PositionsLocalSpace, position_local_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, 1, false);
         dmGraphics::SetWriteAttributeStreamDesc(&write_params.m_TexCoords, tex_coord_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2, 1, false);
 
-        for (j = particle_start; j < particle_count && vertex_index + 6 <= max_vertex_count; j++)
+        uint32_t particle_full_count = emitter->m_Particles.Size();
+        uint32_t particle_end = dmMath::Min(particle_start + particle_count, particle_full_count);
+        for (j = particle_start; j < particle_end && vertex_index + 6 <= max_vertex_count; j++)
         {
             Particle* particle = &emitter->m_Particles[j];
             // Evaluate anim frame
@@ -1366,7 +1368,7 @@ namespace dmParticle
 
         GenerateVertexDataResult res = GENERATE_VERTEX_DATA_OK;
 
-        if (j < particle_count) // If we did an early out, it means the perticles didn't fit the buffer
+        if (j < particle_count) // If we did an early out, it means the particles didn't fit the buffer
         {
             res = GENERATE_VERTEX_DATA_MAX_PARTICLES_EXCEEDED;
         }
