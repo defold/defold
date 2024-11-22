@@ -1096,7 +1096,8 @@ namespace dmEngine
         engine->m_ParticleFXContext.m_RenderContext = engine->m_RenderContext;
         engine->m_ParticleFXContext.m_MaxParticleFXCount = dmConfigFile::GetInt(engine->m_Config, dmParticle::MAX_INSTANCE_COUNT_KEY, 64);
         engine->m_ParticleFXContext.m_MaxEmitterCount = dmConfigFile::GetInt(engine->m_Config, dmParticle::MAX_EMITTER_COUNT_KEY, 64);
-        engine->m_ParticleFXContext.m_MaxParticleCount = dmConfigFile::GetInt(engine->m_Config, dmParticle::MAX_PARTICLE_COUNT_KEY, 1024);
+        engine->m_ParticleFXContext.m_MaxParticleCount = dmConfigFile::GetInt(engine->m_Config, dmParticle::MAX_PARTICLE_GPU_COUNT_KEY, 1024);
+        engine->m_ParticleFXContext.m_MaxParticleBufferCount = dmConfigFile::GetInt(engine->m_Config, dmParticle::MAX_PARTICLE_CPU_COUNT_KEY, 1024);
         engine->m_ParticleFXContext.m_Debug = false;
 
         dmInput::NewContextParams input_params;

@@ -429,9 +429,7 @@ var GameArchiveLoader = {
         this.addListener(this._onFileLoadedListeners, callback);
     },
     notifyFileLoaded: function(file) {
-        if (file.data) {
-            this.notifyListeners(this._onFileLoadedListeners, { name: file.name, data: file.data });
-        }
+        this.notifyListeners(this._onFileLoadedListeners, { name: file.name, data: file.data });
     },
 
     addArchiveLoadedListener: function(callback) {
@@ -484,7 +482,7 @@ var GameArchiveLoader = {
         ProgressUpdater.setupTotal(totalSize + EngineLoader.wasm_instantiate_progress);
     },
 
-    downloadContent: function() {
+    downloadContent: async function() {
         var file = this._files[this._fileIndex];
 
         if (Module['isDMFSSupported']) {
@@ -492,13 +490,29 @@ var GameArchiveLoader = {
             try { // see if already and stored
                 const stat = FS.stat(path);
                 if(stat) {
-                    if (file.size == stat.size) { // should we verify hash too?
+                    let matches = (file.size == stat.size)
+                    if (matches && file.sha1) {
+                        const stream = FS.open(path, "r");
+                        if(stream) {
+                            try {
+                                const mmap = FS.mmap(stream, stat.size, 0, 0x01, 0x01); //PROT_READ, MAP_SHARED
+                                if(mmap) {
+                                    const digest = await window.crypto.subtle.digest("SHA-1", mmap);
+                                    matches = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('') == file.sha1;
+                                }
+                            } catch(e) { }
+                            FS.close(stream);
+                        } else {
+                            matches = false;
+                        }
+                    }
+                    if (matches) {
                         this.onFileLoaded(file);
                         return;
                     }
                 }
             } catch(_e) { }
-            file.stream = FS.open(path, "w");
+            file.stream = FS.open(path, "w+");
         }
 
         // how many pieces to download at a time
@@ -575,12 +589,16 @@ var GameArchiveLoader = {
         ++file.totalLoadedPieces;
         // is all pieces of the file loaded?
         if (file.totalLoadedPieces == file.pieces.length) {
-            if (file.stream !== undefined) {
-                FS.close(file.stream);
-                file.stream = undefined;
-            }
-            this.verifyFile(file);
-            this.onFileLoaded(file);
+            this.verifyFile(file).then(() => {
+                if (file.stream !== undefined) {
+                    FS.close(file.stream);
+                    file.stream = undefined;
+                }
+                this.onFileLoaded(file);
+            }).catch((e) => {
+                console.log('file verification failed! ' + e);
+                throw e;
+            });
         }
         // continue loading more pieces of the file
         // if not all pieces are already in progress
@@ -599,7 +617,7 @@ var GameArchiveLoader = {
             actualSize += file.pieces[i].dataLength;
         }
         if (actualSize != file.size) {
-            throw "Unexpected data size: " + file.name + ", expected size: " + file.size + ", actual size: " + actualSize;
+            return Promise.reject(new Error("Unexpected data size: " + file.name + ", expected size: " + file.size + ", actual size: " + actualSize));
         }
 
         // verify the pieces
@@ -613,17 +631,32 @@ var GameArchiveLoader = {
                 if (0 < i) {
                     var previous = pieces[i - 1];
                     if (previous.offset + previous.dataLength > start) {
-                        throw RangeError("Segment underflow in file: " + file.name + ", offset: " + (previous.offset + previous.dataLength) + " , start: " + start);
+                        return Promise.reject(new RangeError("Segment underflow in file: " + file.name + ", offset: " + (previous.offset + previous.dataLength) + " , start: " + start));
                     }
                 }
                 if (pieces.length - 2 > i) {
                     var next = pieces[i + 1];
                     if (end > next.offset) {
-                        throw RangeError("Segment overflow in file: " + file.name + ", offset: " + next.offset + ", end: " + end);
+                        return Promise.reject(new RangeError("Segment overflow in file: " + file.name + ", offset: " + next.offset + ", end: " + end));
                     }
                 }
             }
         }
+        if(file.sha1) {
+            let data = file.data;
+            if(file.stream) {
+                try {
+                    data = FS.mmap(file.stream, file.size, 0, 0x01, 0x01); //PROT_READ, MAP_SHARED
+                } catch(e) { }
+            }
+            return window.crypto.subtle.digest("SHA-1", data).then((digest) => {
+                const sha1 = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+                if(sha1 !== file.sha1)
+                    return Promise.reject(new Error(`Unexpected hash ${sha1} wanted ${file.sha1}`));
+                return;
+            });
+        }
+        return Promise.resolve();
     },
 
     onFileLoaded: function(file) {
@@ -899,7 +932,9 @@ var Module = {
     },
 
     onArchiveFileLoaded: function(file) {
-        Module._filesToPreload.push({path: file.name, data: file.data});
+        if (file.data) {
+            Module._filesToPreload.push({path: file.name, data: file.data});
+        }
     },
 
     onArchiveLoaded: function() {

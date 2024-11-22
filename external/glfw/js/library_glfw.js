@@ -688,6 +688,8 @@ var LibraryGLFW = {
     GLFW.params[0x00050003] = 2; // GLFW_BUTTONS
     GLFW.params[0x00020019] = 0; // GLFW_WINDOW_HIGH_DPI
 
+    GLFW.dpi = 1;
+
     GLFW.keys = new Array();
 
     GLFW.GLFW_PHASE_BEGAN = 0;
@@ -765,6 +767,7 @@ var LibraryGLFW = {
 
   glfwOpenWindowHint: function(target, hint) {
     GLFW.params[target] = hint;
+
     // if display._high_dpi flag is on in game.project
     // we get information about the current pixel ratio from browser
     if (target == 0x00020019) { //GLFW_WINDOW_HIGH_DPI
@@ -1127,7 +1130,7 @@ var LibraryGLFW = {
   },
 
   glfwGetDisplayScaleFactor: function() {
-    return 1;
+    return GLFW.dpi;
   }
 };
 

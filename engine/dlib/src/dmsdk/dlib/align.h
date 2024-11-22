@@ -61,7 +61,7 @@
  * int result = DM_ALIGN(24, 16);
  * ```
  */
-#define DM_ALIGN(x, a) (((uintptr_t) (x) + (a-1)) & ~(a-1))
+#define DM_ALIGN(x, a) (((uintptr_t) (x) + (a-1)) & ~(uintptr_t) (a-1))
 
 #if defined(__GNUC__)
 #define DM_ALIGNED(a) __attribute__ ((aligned (a)))
