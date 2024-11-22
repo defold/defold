@@ -77,7 +77,7 @@
 ;; [DONE] Add test for node added to referenced scene. Should not appear overridden in referencing scene.
 ;; [DONE] Don't focus on property field after reset.
 ;; * Add test for adding a layout to referenced scene that already existed in the referencing scene, then adding a node to the referenced scene.
-;; * Fix hacky evaluation inside layout->prop->value output.
+;; [DONE] Fix hacky evaluation inside layout->prop->value output.
 
 (set! *warn-on-reflection* true)
 
@@ -1091,11 +1091,11 @@
   (input current-layout g/Str)
   (output current-layout g/Str (gu/passthrough current-layout))
   (output layout->prop->value g/Any :cached
-          (g/fnk [_this layout->prop->override layout-infos]
+          (g/fnk [_evaluation-context _this layout->prop->override layout-infos]
             ;; All layout-property-setters explicitly invalidate this output, so
             ;; it is safe to extract properties from _this here.
             (let [original-node-id (gt/original _this)
-                  original-layout->prop->value (some-> original-node-id (g/node-value :layout->prop->value))] ; TODO(gui-layout-override-refactor): Hacky evaluation inside output fnk.
+                  original-layout->prop->value (some-> original-node-id (g/node-value :layout->prop->value _evaluation-context))]
               (if (g/error-value? original-layout->prop->value)
                 original-layout->prop->value
                 (let [original-meta (meta original-layout->prop->value)

@@ -900,13 +900,13 @@
 (g/defnk produce-all [test :as all]
   all)
 
-(g/defnk produce-all-intrinsics [test _node-id _this :as all]
+(g/defnk produce-all-intrinsics [test _node-id _this _evaluation-context :as all]
   all)
 
 (g/defnode AsAllNode
   (property test g/Str (default "test"))
   (output inline g/Any (g/fnk [test :as all] all))
-  (output inline-intrinsics g/Any (g/fnk [test _node-id _this :as all] all))
+  (output inline-intrinsics g/Any (g/fnk [test _node-id _this _evaluation-context :as all] all))
   (output defnk g/Any produce-all)
   (output defnk-intrinsics g/Any produce-all-intrinsics))
 
@@ -914,9 +914,9 @@
   (with-clean-system
     (let [[n] (tx-nodes (g/make-node world AsAllNode))]
       (is (= {:test "test"} (g/node-value n :inline)))
-      (is (= #{:test :_node-id :_this} (set (keys (g/node-value n :inline-intrinsics)))))
+      (is (= #{:test :_node-id :_this :_evaluation-context} (set (keys (g/node-value n :inline-intrinsics)))))
       (is (= {:test "test"} (g/node-value n :defnk)))
-      (is (= #{:test :_node-id :_this} (set (keys (g/node-value n :defnk-intrinsics))))))))
+      (is (= #{:test :_node-id :_this :_evaluation-context} (set (keys (g/node-value n :defnk-intrinsics))))))))
 
 ;; try on output
 (g/defnode TryModifierOnErrorOutput

@@ -664,7 +664,7 @@
 
 (defn- all-available-arguments
   [description]
-  (set/union #{:_this}
+  (set/union #{:_this :_evaluation-context}
              (util/key-set (:input description))
              (util/key-set (:property description))
              (util/key-set (:output description))))
@@ -1315,7 +1315,6 @@
                   (pair
                     argument
                     (condp = argument
-                      :_node-id `(gt/node-id ~node-sym)
                       label `(gt/get-property ~node-sym (:basis ~evaluation-context-sym) ~label)
                       (fnk-argument-form description label argument node-sym node-id-sym evaluation-context-sym)))))
               arguments)
@@ -1359,8 +1358,14 @@
 (defn- fnk-argument-form
   [description output argument node-sym node-id-sym evaluation-context-sym]
   (cond
+    (= :_node-id argument)
+    node-id-sym
+
     (= :_this argument)
     node-sym
+
+    (= :_evaluation-context argument)
+    evaluation-context-sym
 
     (desc-raw-argument? description output argument)
     (if (desc-has-property? description argument)
@@ -1493,10 +1498,9 @@
          (trace-expr-result ~node-id-sym ~label-sym ~evaluation-context-sym :cache (cached-nil->nil ~result-sym))
          ~forms))))
 
-(defn- gather-arguments-form [description label node-sym node-id-sym evaluation-context-sym arguments-sym schema-sym forms]
+(defn- gather-arguments-form [description label node-sym node-id-sym evaluation-context-sym arguments-sym forms]
   (let [arg-names (get-in description [:output label :arguments])
-        argument-forms (zipmap arg-names (map #(fnk-argument-form description label % node-sym node-id-sym evaluation-context-sym) arg-names))
-        argument-forms (assoc argument-forms :_node-id node-id-sym)]
+        argument-forms (zipmap arg-names (map #(fnk-argument-form description label % node-sym node-id-sym evaluation-context-sym) arg-names))]
     (list `let
           [arguments-sym argument-forms]
           forms)))
@@ -1585,7 +1589,6 @@
           evaluation-context-sym 'evaluation-context
           node-id-sym 'node-id
           arguments-sym 'arguments
-          schema-sym 'schema
           result-sym 'result]
       `(fn [~node-sym ~label-sym ~evaluation-context-sym]
          (let [~node-id-sym (gt/node-id ~node-sym)]
@@ -1594,7 +1597,7 @@
                 (mark-in-production-form node-id-sym label-sym evaluation-context-sym
                   (check-caches-form description label node-id-sym label-sym evaluation-context-sym
                     (with-tracer-calls-form node-id-sym label-sym evaluation-context-sym tracer-label-type
-                      (gather-arguments-form description label node-sym node-id-sym evaluation-context-sym arguments-sym schema-sym
+                      (gather-arguments-form description label node-sym node-id-sym evaluation-context-sym arguments-sym
                         (call-production-function-form description label node-id-sym label-sym evaluation-context-sym arguments-sym result-sym
                           (schema-check-result-form description label node-id-sym label-sym evaluation-context-sym result-sym
                             (cache-result-form description label node-id-sym label-sym evaluation-context-sym result-sym
