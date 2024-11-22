@@ -39,7 +39,8 @@
 DM_PROPERTY_EXTERN(rmtp_Components);
 DM_PROPERTY_U32(rmtp_ParticleFx, 0, FrameReset, "# components", &rmtp_Components);
 DM_PROPERTY_U32(rmtp_ParticleVertexCount, 0, FrameReset, "# vertices", &rmtp_ParticleFx);
-DM_PROPERTY_U32(rmtp_ParticleVertexSize, 0, FrameReset, "size of vertices in bytes", &rmtp_ParticleFx);
+DM_PROPERTY_U32(rmtp_ParticleVertexSize, 0, FrameReset, "size of CPU vertex buffer (in bytes)", &rmtp_ParticleFx);
+DM_PROPERTY_U32(rmtp_ParticleVertexSizeGPU, 0, FrameReset, "size of GPU vertex buffer (in bytes)", &rmtp_ParticleFx);
 
 namespace dmGameSystem
 {
@@ -460,7 +461,7 @@ namespace dmGameSystem
                     dmGraphics::HVertexDeclaration vx_decl = dmRender::GetVertexDeclaration(mat);
                     uint32_t stride = dmGraphics::GetVertexDeclarationStride(vx_decl);
 
-                    uint32_t pcount = GetEmitterVertexCount(pfx_world->m_ParticleContext, render_data->m_Instance, render_data->m_EmitterIndex) / 6;
+                    uint32_t pcount = dmParticle::GetParticleCount(pfx_world->m_ParticleContext, render_data->m_Instance, render_data->m_EmitterIndex);
 
                     bool is_full = false;
                     if ((pcount + particle_count) > pfx_context->m_MaxParticleCount)
@@ -527,6 +528,7 @@ namespace dmGameSystem
                 {
                     DM_PROPERTY_ADD_U32(rmtp_ParticleVertexCount, pfx_world->m_VerticesWritten);
                     DM_PROPERTY_ADD_U32(rmtp_ParticleVertexSize, pfx_world->m_VertexBufferData.Capacity());
+                    DM_PROPERTY_ADD_U32(rmtp_ParticleVertexSizeGPU, pfx_world->m_VertexBufferSize);
                     pfx_world->m_DispatchCount++;
                 }
                 break;
