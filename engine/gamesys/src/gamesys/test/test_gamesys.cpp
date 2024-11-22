@@ -3074,7 +3074,7 @@ TEST_F(ComponentTest, DispatchBuffersTest)
 
         const uint32_t vertex_count   = 6;
         const uint32_t vertex_padding = vertex_stride_b - (vertex_stride_a * vertex_count) % vertex_stride_b;
-        const uint32_t buffer_size    = (vertex_stride_a + vertex_stride_b) * vertex_count + vertex_padding;
+        const uint32_t buffer_size    = vertex_stride_a * (vertex_count + 6) + vertex_stride_b * (vertex_count + 6); // we allocate for an extra particle
         uint8_t buffer[buffer_size];
 
         vs_format_a* pfx_a = (vs_format_a*) &buffer[0];
