@@ -21,56 +21,6 @@
 
 #include <texc.h>
 
-
-    // Get header (info) of a texture
-    // bool GetHeader(Texture* texture, Header* out_header);
-
-    // Get the compressed data size in bytes of a mip map. Returns 0 if not compressed
-    // uint32_t GetDataSizeCompressed(Texture* texture, uint32_t mip_map);
-
-    // Get the uncompressed data size in bytes of a mip map in a texture
-    // uint32_t GetDataSizeUncompressed(Texture* texture, uint32_t mip_map);
-
-    // Get the total data size in bytes including all mip maps in a texture (compressed or not)
-    // uint32_t GetTotalDataSize(Texture* texture);
-
-    // Get the data pointer to texture (mip maps linear layout in memory)
-    // uint32_t GetData(Texture* texture, void* out_data, uint32_t out_data_size);
-
-    // Get compression flags
-    // uint64_t GetCompressionFlags(Texture* texture);
-
-    // Resize a texture. The texture must have format PF_R8G8B8A8 to be resized.
-    // bool Resize(Texture* texture, uint32_t width, uint32_t height);
-
-    // Pre-multiply the color with alpha in a texture. The texture must have format PF_R8G8B8A8 for the alpha to be pre-multiplied.
-    // bool PreMultiplyAlpha(Texture* texture);
-
-    // Generate mip maps. The texture must have format PF_R8G8B8A8 for mip maps to be generated.
-    // bool GenMipMaps(Texture* texture);
-
-    // Flips a texture vertically
-    // bool Flip(Texture* texture, FlipAxis flip_axis);
-
-    // Encode a texture into basis format.
-    // bool Encode(Texture* texture, PixelFormat pixelFormat, ColorSpace color_space, CompressionLevel compressionLevel, CompressionType compression_type, bool mipmaps, int max_threads);
-
-
-
-    // Now only used for font glyphs
-    // Compresses an image buffer
-    // BufferData* CompressBuffer(uint8_t* byte, uint32_t byte_count);
-
-    // Get the total data size in bytes including all mip maps in a texture (compressed or not)
-    // // uint32_t GetTotalBufferDataSize(HBuffer buffer);
-
-    // Gets the data from a buffer
-    // // uint32_t GetBufferData(HBuffer buffer, void* buffer, uint32_t buffer_size);
-
-    // // Destroys a buffer created by CompressBuffer
-    // void DestroyBuffer(BufferData* buffer);
-
-
 JNIEXPORT jlong JNICALL Java_TexcLibraryJni_CreateTexture(JNIEnv* env, jclass cls, jstring _path, jint width, jint height, jint pixelFormat, jint colorSpace, jint compressionType, jbyteArray array)
 {
     dmLogDebug("%s: env = %p\n", __FUNCTION__, env);
@@ -192,32 +142,77 @@ JNIEXPORT jobject JNICALL Java_TexcLibraryJni_GetData(JNIEnv* env, jclass cls, j
     return obj;
 }
 
-
-JNIEXPORT jboolean JNICALL Java_TexcLibraryJni_GetCompressionFlags(JNIEnv* env, jclass cls, jlong texture)
+JNIEXPORT jboolean JNICALL Java_TexcLibraryJni_Resize(JNIEnv* env, jclass cls, jlong texture, jint width, jint height)
 {
     jboolean result = 0;
     DM_JNI_GUARD_SCOPE_BEGIN();
         dmTexc::Texture* ptexture = (dmTexc::Texture*)texture;
         if (ptexture)
         {
-            result = dmTexc::GetCompressionFlags(ptexture);
+            result = dmTexc::Resize(ptexture, width, height);
+        }
+    DM_JNI_GUARD_SCOPE_END(return 0;);
+    return result;
+}
+
+JNIEXPORT jboolean JNICALL Java_TexcLibraryJni_PreMultiplyAlpha(JNIEnv* env, jclass cls, jlong texture)
+{
+    jboolean result = 0;
+    DM_JNI_GUARD_SCOPE_BEGIN();
+        dmTexc::Texture* ptexture = (dmTexc::Texture*)texture;
+        if (ptexture)
+        {
+            result = dmTexc::PreMultiplyAlpha(ptexture);
+        }
+    DM_JNI_GUARD_SCOPE_END(return 0;);
+    return result;
+}
+
+JNIEXPORT jboolean JNICALL Java_TexcLibraryJni_GenMipMaps(JNIEnv* env, jclass cls, jlong texture)
+{
+    jboolean result = 0;
+    DM_JNI_GUARD_SCOPE_BEGIN();
+        dmTexc::Texture* ptexture = (dmTexc::Texture*)texture;
+        if (ptexture)
+        {
+            result = dmTexc::GenMipMaps(ptexture);
+        }
+    DM_JNI_GUARD_SCOPE_END(return 0;);
+    return result;
+}
+
+JNIEXPORT jboolean JNICALL Java_TexcLibraryJni_Flip(JNIEnv* env, jclass cls, jlong texture, jint flip_axis)
+{
+    jboolean result = 0;
+    DM_JNI_GUARD_SCOPE_BEGIN();
+        dmTexc::Texture* ptexture = (dmTexc::Texture*)texture;
+        if (ptexture)
+        {
+            result = dmTexc::Flip(ptexture, (dmTexc::FlipAxis)flip_axis);
         }
     DM_JNI_GUARD_SCOPE_END(return 0;);
     return result;
 }
 
 
-    // Resize a texture. The texture must have format PF_R8G8B8A8 to be resized.
-    bool Resize(Texture* texture, uint32_t width, uint32_t height);
+    // Encode a texture into basis format.
+    // bool Encode(Texture* texture, PixelFormat pixelFormat, ColorSpace color_space, CompressionLevel compressionLevel, CompressionType compression_type, bool mipmaps, int max_threads);
 
-    // Pre-multiply the color with alpha in a texture. The texture must have format PF_R8G8B8A8 for the alpha to be pre-multiplied.
-    bool PreMultiplyAlpha(Texture* texture);
 
-    // Generate mip maps. The texture must have format PF_R8G8B8A8 for mip maps to be generated.
-    bool GenMipMaps(Texture* texture);
 
-    // Flips a texture vertically
-    bool Flip(Texture* texture, FlipAxis flip_axis);
+    // Now only used for font glyphs
+    // Compresses an image buffer
+    // BufferData* CompressBuffer(uint8_t* byte, uint32_t byte_count);
+
+    // Get the total data size in bytes including all mip maps in a texture (compressed or not)
+    // // uint32_t GetTotalBufferDataSize(HBuffer buffer);
+
+    // Gets the data from a buffer
+    // // uint32_t GetBufferData(HBuffer buffer, void* buffer, uint32_t buffer_size);
+
+    // // Destroys a buffer created by CompressBuffer
+    // void DestroyBuffer(BufferData* buffer);
+
 
 
 // JNIEXPORT jobject JNICALL Java_TexcLibraryJni_CreateImage(JNIEnv* env, jclass cls, jstring path, jbyteArray bytes, jint width, jint height, jint depth, jint numChannels)

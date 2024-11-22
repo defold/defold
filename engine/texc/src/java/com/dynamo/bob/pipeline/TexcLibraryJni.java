@@ -17,6 +17,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.util.Arrays;
 
 import java.awt.image.BufferedImage;
+import java.awt.image.ColorModel;
 import java.awt.image.DataBuffer;
 import java.awt.image.DataBufferByte;
 import java.awt.image.DataBufferShort;
@@ -404,7 +405,7 @@ public class TexcLibraryJni {
     // Used for testing the importer. Usage:
     //    cd engine/modelc
     //   ./scripts/test_model_importer.sh <model path>
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) throws IOException, Exception {
         System.setProperty("java.awt.headless", "true");
 
         if (args.length < 1) {
@@ -460,9 +461,96 @@ public class TexcLibraryJni {
         System.out.printf("-----------------\nHeader\n");
         DebugPrintObject(header, 1);
 
+
+        boolean premulAlpha = true;
+
+        // Premultiply before scale so filtering cannot introduce colour artefacts.
+        if (premulAlpha && !ColorModel.getRGBdefault().isAlphaPremultiplied()) {
+            if (!TexcLibraryJni.PreMultiplyAlpha(texture)) {
+                throw new Exception("could not premultiply alpha");
+            }
+        }
+
+            // if (width != newWidth || height != newHeight) {
+            //     if (!TexcLibrary.TEXC_Resize(texture, newWidth, newHeight)) {
+            //         throw new Exception("could not resize texture to POT");
+            //     }
+            // }
+
+            // // Loop over all axis that should be flipped.
+            // for (FlipAxis flip : flipAxis) {
+            //     if (!TexcLibrary.TEXC_Flip(texture, flip.getValue())) {
+            //         throw new Exception("could not flip on " + flip.toString());
+            //     }
+            // }
+
+            // if (generateMipMaps) {
+            //     if (!TexcLibrary.TEXC_GenMipMaps(texture)) {
+            //         throw new Exception("could not generate mip-maps");
+            //     }
+            // }
+            // if (!TexcLibrary.TEXC_Encode(texture, pixelFormat, ColorSpace.SRGB, texcCompressionLevel, texcCompressionType, generateMipMaps, maxThreads)) {
+            //     throw new Exception("could not encode");
+            // }
+
+            // int bufferSize = TexcLibrary.TEXC_GetTotalDataSize(texture);
+            // ByteBuffer buffer_output = ByteBuffer.allocateDirect(bufferSize);
+            // dataSize = TexcLibrary.TEXC_GetData(texture, buffer_output, bufferSize);
+            // buffer_output.limit(dataSize);
+
+            // // TextureImage.Image.Builder raw = TextureImage.Image.newBuilder().setWidth(newWidth).setHeight(newHeight)
+            // //         .setOriginalWidth(width).setOriginalHeight(height).setFormat(textureFormat);
+
+            // boolean texcBasisCompression = false;
+
+            // // If we're writing a .basis file, we don't actually store each mip map separately
+            // // In this case, we pretend that there's only one mip level
+            // if (texcCompressionType == CompressionType.CT_BASIS_UASTC ||
+            //     texcCompressionType == CompressionType.CT_BASIS_ETC1S )
+            // {
+            //     generateMipMaps = false;
+            //     texcBasisCompression = true;
+            // }
+
+            // int w = newWidth;
+            // int h = newHeight;
+            // int offset = 0;
+            // int mipMap = 0;
+            // while (w != 0 || h != 0) {
+            //     w = Math.max(w, 1);
+            //     h = Math.max(h, 1);
+            //     raw.addMipMapOffset(offset);
+            //     int size = TexcLibrary.TEXC_GetDataSizeUncompressed(texture, mipMap);
+
+            //     // For basis the GetDataSizeCompressed and GetDataSizeUncompressed will always return 0,
+            //     // so we use this hack / workaround to calculate offsets in the engine..
+            //     if (texcBasisCompression)
+            //     {
+            //         size = bufferSize;
+            //         raw.addMipMapSize(size);
+            //         raw.addMipMapSizeCompressed(size);
+            //     }
+            //     else
+            //     {
+            //         raw.addMipMapSize(size);
+            //         int size_compressed = TexcLibrary.TEXC_GetDataSizeCompressed(texture, mipMap);
+            //         if(size_compressed != 0) {
+            //             size = size_compressed;
+            //         }
+            //         raw.addMipMapSizeCompressed(size_compressed);
+            //     }
+            //     offset += size;
+            //     w >>= 1;
+            //     h >>= 1;
+            //     mipMap += 1;
+
+            //     if (!generateMipMaps) // Run section only once for non-mipmaps
+            //         break;
+            // }
+
+
+
         // long timeEnd = System.currentTimeMillis();
         TexcLibraryJni.DestroyTexture(texture);
-
-
     }
 }
