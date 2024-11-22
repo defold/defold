@@ -66,19 +66,6 @@
            [java.awt.image BufferedImage]
            [javax.vecmath Quat4d]))
 
-;; TODO(gui-layout-override-refactor):
-;; [DONE] Fix layout override loading. Should assign to layout->prop->override property on nodes.
-;; [DONE] Fix layout->prop->value to include correct base values from active-layouts.
-;; [DONE] Fix scene-view manipulators so they assign into the current-layout.
-;; [DONE] Ensure layout overrides can be cleared using the property editor.
-;; [DONE] Optimize save-value data path. Should maybe pull from layout->prop->value output?
-;; [DONE] Fix resource renames so they update all layouts.
-;; [DONE] Fix outline color tint of overridden nodes.
-;; [DONE] Add test for node added to referenced scene. Should not appear overridden in referencing scene.
-;; [DONE] Don't focus on property field after reset.
-;; * Add test for adding a layout to referenced scene that already existed in the referencing scene, then adding a node to the referenced scene.
-;; [DONE] Fix hacky evaluation inside layout->prop->value output.
-
 (set! *warn-on-reflection* true)
 
 (def ^:private texture-icon "icons/32/Icons_25-AT-Image.png")
@@ -428,7 +415,7 @@
    [:particlefx-resource-names :particlefx-resource-names]
    [:resource-names :resource-names]
    [:id-prefix :id-prefix]
-   [:layout-infos :layout-infos]
+   [:layout-names :layout-names]
    [:current-layout :current-layout]])
 
 (def gui-node-attachments
@@ -1086,12 +1073,12 @@
   (output node-overrides g/Any :cached (g/fnk [node-overrides id _overridden-properties]
                                          (into {id _overridden-properties}
                                                node-overrides)))
-  (input layout-infos g/Any)
-  (output layout-infos g/Any (gu/passthrough layout-infos))
+  (input layout-names g/Any)
+  (output layout-names g/Any (gu/passthrough layout-names))
   (input current-layout g/Str)
   (output current-layout g/Str (gu/passthrough current-layout))
   (output layout->prop->value g/Any :cached
-          (g/fnk [_evaluation-context _this layout->prop->override layout-infos]
+          (g/fnk [_evaluation-context _this layout-names layout->prop->override]
             ;; All layout-property-setters explicitly invalidate this output, so
             ;; it is safe to extract properties from _this here.
             (let [original-node-id (gt/original _this)
@@ -1099,7 +1086,7 @@
               (if (g/error-value? original-layout->prop->value)
                 original-layout->prop->value
                 (let [original-meta (meta original-layout->prop->value)
-                      original-layout-infos (:layout-infos original-meta)
+                      original-layout-names (:layout-names original-meta)
 
                       default-prop->value
                       (if (nil? original-node-id)
@@ -1108,10 +1095,9 @@
                                (own-layout-related-property-values _this)))
 
                       introduced-layouts
-                      (eduction
-                        (map key)
-                        (remove #(contains? original-layout-infos %))
-                        layout-infos)]
+                      (if original-layout-names
+                        (e/remove original-layout-names layout-names)
+                        layout-names)]
 
                   (-> (reduce
                         (fn [layout->prop->value introduced-layout]
@@ -1120,7 +1106,7 @@
                         introduced-layouts)
                       (assoc "" default-prop->value)
                       (coll/deep-merge layout->prop->override)
-                      (vary-meta assoc :layout-infos layout-infos)))))))
+                      (vary-meta assoc :layout-names layout-names)))))))
   (output _properties g/Properties :cached
           (g/fnk [_declared-properties current-layout layout->prop->override]
             ;; For layout properties, the :original-value of each property is
@@ -1870,13 +1856,10 @@
                                                                       (fn [basis ^Arc arc]
                                                                         (let [source-node-id (.source-id arc)]
                                                                           (and (not= source-node-id current-scene)
-                                                                               ;; TODO(gui-layout-override-refactor): Should we traverse the layout-related nodes?
                                                                                (g/node-instance-match basis source-node-id
                                                                                                       [GuiNode
                                                                                                        NodeTree
-                                                                                                       GuiSceneNode
-                                                                                                       LayoutsNode
-                                                                                                       LayoutNode])))))
+                                                                                                       GuiSceneNode])))))
                                                        :init-props-fn (fn init-props-fn [_basis _node-id node-type]
                                                                         (when (in/inherits? node-type GuiNode)
                                                                           override-gui-node-init-props))
@@ -1909,7 +1892,7 @@
                                                                   [:particlefx-infos :aux-particlefx-infos]
                                                                   [:particlefx-resource-names :aux-particlefx-resource-names]
                                                                   [:resource-names :aux-resource-names]
-                                                                  [:layout-infos :aux-layout-infos]
+                                                                  [:layout-names :aux-layout-names]
                                                                   [:current-layout :current-layout]
                                                                   [:template-prefix :id-prefix]]]
                                                    (g/connect self from or-scene to)))))))))))))))
@@ -2427,8 +2410,8 @@
   (output resource-names GuiResourceNames (gu/passthrough resource-names))
   (input id-prefix g/Str)
   (output id-prefix g/Str (gu/passthrough id-prefix))
-  (input layout-infos g/Any)
-  (output layout-infos g/Any (gu/passthrough layout-infos))
+  (input layout-names g/Any)
+  (output layout-names g/Any (gu/passthrough layout-names))
   (input current-layout g/Str)
   (output current-layout g/Str (gu/passthrough current-layout))
   (input child-build-errors g/Any :array)
@@ -2820,7 +2803,7 @@
     :particlefxs particlefx-resource-msgs
     :resources resource-msgs))
 
-(g/defnk produce-save-value [layout-infos node-msgs pb-msg]
+(g/defnk produce-save-value [own-layout-names node-msgs pb-msg]
   ;; Any Gui$NodeDescs in the resulting SceneDesc or its LayoutDescs should be
   ;; sparsely stored. Only field values that deviate from their originals should
   ;; be included, but ultimately it is the fields listed as :overridden-fields
@@ -2828,11 +2811,9 @@
   ;; inside the editor. Note that a field may be among the :overridden-fields
   ;; without us writing a corresponding value for it to the file in case its
   ;; overridden value matches the protobuf field default.
-  (let [layout-names (sort (keys layout-infos))
-
-        layout-descs
+  (let [layout-descs
         (mapv #(make-layout-desc % node-msgs)
-              layout-names)
+              own-layout-names)
 
         node-descs
         (coll/transfer node-msgs []
@@ -2957,7 +2938,7 @@
                                   (node-desc->rt-node-desc))
                               (protobuf/clear-defaults Gui$NodeDesc)))))))))
 
-(g/defnk produce-build-targets [_node-id build-errors resource pb-msg dep-build-targets template-build-targets layout-infos node-msgs]
+(g/defnk produce-build-targets [_node-id build-errors resource pb-msg dep-build-targets template-build-targets own-layout-names node-msgs]
   ;; Built Gui$NodeDescs should be fully-formed, since no additional merging of
   ;; overridden properties will be done by the runtime. A corresponding NodeDesc
   ;; in a LayoutDesc will fully replace its original NodeDesc, if present in the
@@ -2965,9 +2946,8 @@
   ;; be omitted from the LayoutDesc to save space.
   (g/precluding-errors build-errors
     (let [template-build-targets (flatten template-build-targets)
-          layout-names (sort (keys layout-infos))
           rt-layout-descs (mapv #(make-rt-layout-desc % node-msgs)
-                                layout-names)
+                                own-layout-names)
           rt-node-descs (coll/transfer node-msgs []
                           (keep
                             (fn [decorated-node-msg]
@@ -3143,19 +3123,22 @@
   (input material-msgs g/Any :array)
   (input layer-msgs g/Any)
   (output layer-msgs g/Any (g/fnk [layer-msgs] (mapv #(dissoc % :child-index) (sort-by :child-index layer-msgs))))
-  (input aux-layout-infos g/Any) ; TODO: Doesn't look like the other aux inputs need to be :array inputs either?
-  (output layout-infos g/Any :cached
-          (g/fnk [aux-layout-infos layout-names]
-            ;; TODO(gui-layout-override-refactor): Do we actually need anything apart from the layout names here?
-            ;; Note: Unsure about the merge order here. Should the aux-layout-infos win over our own?
-            (into (or aux-layout-infos {})
-                  (map #(pair % {}))
-                  layout-names)))
   (input particlefx-resource-msgs g/Any :array)
   (input resource-msgs g/Any :array)
   (input node-ids IDMap)
   (output node-ids IDMap (gu/passthrough node-ids))
-  (input layout-names g/Any)
+
+  (input aux-layout-names g/Any)
+  (input own-layout-names g/Any)
+  (output own-layout-names g/Any
+          (g/fnk [own-layout-names]
+            (into (sorted-set)
+                  own-layout-names)))
+  (output layout-names g/Any :cached
+          (g/fnk [aux-layout-names own-layout-names]
+            (if aux-layout-names
+              (into aux-layout-names own-layout-names)
+              own-layout-names)))
 
   (input aux-texture-gpu-textures GuiResourceTextures :array)
   (input texture-gpu-textures GuiResourceTextures :array)
@@ -3279,7 +3262,6 @@
   (input default-node-outline g/Any)
   (output node-outline outline/OutlineData :cached
           (g/fnk [_node-id default-node-outline child-outlines own-build-errors]
-                 ;; TODO(gui-layout-override-refactor): Dependent on current-layout.
                  (let [node-outline default-node-outline
                        label (:label pb-def)
                        icon (:icon pb-def)]
@@ -3291,7 +3273,6 @@
                     :outline-error? (g/error-fatal? own-build-errors)})))
   (input default-scene g/Any)
   (output child-scenes g/Any (g/fnk [default-scene]
-                               ;; TODO(gui-layout-override-refactor): Dependent on current-layout.
                                (let [node-tree-scene default-scene]
                                  (:children node-tree-scene))))
   (output scene g/Any :cached produce-scene)
@@ -3302,13 +3283,10 @@
                                                 {:width w :height h}))))
   (input id-prefix g/Str)
   (output id-prefix g/Str (gu/passthrough id-prefix))
-  (output unused-display-profiles g/Any (g/fnk [layout-names display-profiles]
-                                          (let [layouts (set layout-names)]
-                                            (into []
-                                                  (comp
-                                                    (map :name)
-                                                    (remove layouts))
-                                                  display-profiles)))))
+  (output unused-display-profiles g/Any (g/fnk [own-layout-names display-profiles]
+                                          (coll/transfer display-profiles []
+                                            (map :name)
+                                            (remove own-layout-names)))))
 
 (defn- tx-create-node? [tx-entry]
   (= :create-node (:type tx-entry)))
@@ -3655,7 +3633,7 @@
                                      [:particlefx-resource-names :particlefx-resource-names]
                                      [:resource-names :resource-names]
                                      [:id-prefix :id-prefix]
-                                     [:layout-infos :layout-infos]
+                                     [:layout-names :layout-names]
                                      [:current-layout :current-layout]]]
                       (g/connect self from node-tree to))
                     ;; Note that the child-index used below is
@@ -3692,7 +3670,7 @@
                     (g/connect layouts-node :_node-id self :layouts-node) ; for the tests :/
                     (g/connect layouts-node :_node-id self :nodes)
                     (g/connect self :unused-display-profiles layouts-node :unused-display-profiles)
-                    (g/connect layouts-node :names self :layout-names)
+                    (g/connect layouts-node :names self :own-layout-names)
                     (g/connect layouts-node :build-errors self :build-errors)
                     (g/connect layouts-node :node-outline self :child-outlines)
                     (g/connect layouts-node :add-handler-info self :handler-infos)
@@ -3830,7 +3808,6 @@
 
 (defn- move-child-node!
   [node-id offset]
-  ;; TODO(gui-layout-override-refactor): Make sure layout node order cannot be independently rearranged.
   (let [parent (core/scope node-id)
         node-index (g/node-value node-id :child-index)
         child-indices (g/node-value parent :child-indices)
@@ -3900,7 +3877,7 @@
   (options [project active-resource user-data]
            (when-not user-data
              (when-let [scene (resource->gui-scene project active-resource)]
-               (let [layout-names (g/node-value scene :layout-names)
+               (let [layout-names (g/node-value scene :own-layout-names)
                      layouts (cons "" layout-names)]
                  (for [l layouts]
                    {:label (if (empty? l) "Default" l)
