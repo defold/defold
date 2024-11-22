@@ -119,6 +119,7 @@ public class Shaderc {
         public String instanceName;
         public long instanceNameHash = 0;
         public ResourceType type;
+        public int id = 0;
         public byte location = 0;
         public byte binding = 0;
         public byte set = 0;

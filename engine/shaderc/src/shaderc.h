@@ -119,6 +119,7 @@ namespace dmShaderc
         const char*  m_InstanceName;
         uint64_t     m_InstanceNameHash;
         ResourceType m_Type;
+        uint32_t     m_Id;
         uint8_t      m_Location;
         uint8_t      m_Binding;
         uint8_t      m_Set;
@@ -147,7 +148,7 @@ namespace dmShaderc
     extern "C" DM_DLLEXPORT void                    SetResourceSet(HShaderContext context, HShaderCompiler compiler, uint64_t name_hash, uint8_t set);
     extern "C" DM_DLLEXPORT const char*             Compile(HShaderContext context, HShaderCompiler compiler, const ShaderCompilerOptions& options);
 
-    void                    DebugPrintReflection(const ShaderReflection* reflection);
+    void DebugPrintReflection(const ShaderReflection* reflection);
 }
 
 #endif // DM_SHADERC_H

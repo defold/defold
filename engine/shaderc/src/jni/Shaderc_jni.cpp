@@ -66,6 +66,7 @@ void InitializeJNITypes(JNIEnv* env, TypeInfos* infos) {
         GET_FLD_TYPESTR(instanceName, "Ljava/lang/String;");
         GET_FLD_TYPESTR(instanceNameHash, "J");
         GET_FLD(type, "ResourceType");
+        GET_FLD_TYPESTR(id, "I");
         GET_FLD_TYPESTR(location, "B");
         GET_FLD_TYPESTR(binding, "B");
         GET_FLD_TYPESTR(set, "B");
@@ -148,6 +149,7 @@ jobject C2J_CreateShaderResource(JNIEnv* env, TypeInfos* types, const ShaderReso
     dmJNI::SetString(env, obj, types->m_ShaderResourceJNI.instanceName, src->m_InstanceName);
     dmJNI::SetULong(env, obj, types->m_ShaderResourceJNI.instanceNameHash, src->m_InstanceNameHash);
     dmJNI::SetObjectDeref(env, obj, types->m_ShaderResourceJNI.type, C2J_CreateResourceType(env, types, &src->m_Type));
+    dmJNI::SetUInt(env, obj, types->m_ShaderResourceJNI.id, src->m_Id);
     dmJNI::SetUByte(env, obj, types->m_ShaderResourceJNI.location, src->m_Location);
     dmJNI::SetUByte(env, obj, types->m_ShaderResourceJNI.binding, src->m_Binding);
     dmJNI::SetUByte(env, obj, types->m_ShaderResourceJNI.set, src->m_Set);
@@ -354,6 +356,7 @@ bool J2C_CreateShaderResource(JNIEnv* env, TypeInfos* types, jobject obj, Shader
             env->DeleteLocalRef(field_object);
         }
     }
+    out->m_Id = dmJNI::GetUInt(env, obj, types->m_ShaderResourceJNI.id);
     out->m_Location = dmJNI::GetUByte(env, obj, types->m_ShaderResourceJNI.location);
     out->m_Binding = dmJNI::GetUByte(env, obj, types->m_ShaderResourceJNI.binding);
     out->m_Set = dmJNI::GetUByte(env, obj, types->m_ShaderResourceJNI.set);

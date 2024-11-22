@@ -8,6 +8,8 @@ import java.io.InputStream;
 import java.lang.reflect.Method;
 import java.lang.reflect.InvocationTargetException;
 
+import com.dynamo.bob.pipeline.Shaderc;
+
 public class ShadercJni {
     static final String LIBRARY_NAME = "shaderc_shared";
 
@@ -63,7 +65,11 @@ public class ShadercJni {
 
     public static native long CreateShaderContext(byte[] buffer);
 
+    public static native long CreateShaderCompiler(long context, int version);
+
     public static native Shaderc.ShaderReflection GetReflection(long context);
+
+    public static native byte[] Compile(long context, long compiler, Shaderc.ShaderCompilerOptions options);
 
     public static byte[] ReadFile(File file) throws IOException
     {
@@ -78,34 +84,18 @@ public class ShadercJni {
         return ReadFile(new File(path));
     }
 
-    /*
-    public static class ShaderResource {
-        public String name;
-        public long nameHash = 0;
-        public String instanceName;
-        public long instanceNameHash = 0;
-        public ResourceType type;
-        public byte location = 0;
-        public byte binding = 0;
-        public byte set = 0;
-    };
-    public static class ShaderReflection {
-        public ShaderResource[] inputs;
-        public ShaderResource[] outputs;
-        public ShaderResource[] uniformBuffers;
-        public ShaderResource[] textures;
-        public ResourceTypeInfo[] types;
-    };
-    */
-
     private static void printResourceArray(Shaderc.ShaderResource resources[], String label) {
         if (resources != null) {
-            System.out.println("Num " + label + ": " + resources.length);
+            System.out.println("---- " + label + " ----");
+            System.out.println("Resource-count: " + resources.length);
+            int c=0;
             for (Shaderc.ShaderResource res : resources) {
-                System.out.println("name:     " + res.name);
-                System.out.println("location: " + res.location);
-                System.out.println("binding:  " + res.binding);
-                System.out.println("set:      " + res.set);
+                System.out.println("[" + c++ + "]:");
+                System.out.println("  ID:       " + res.id);
+                System.out.println("  name:     " + res.name);
+                System.out.println("  location: " + res.location);
+                System.out.println("  binding:  " + res.binding);
+                System.out.println("  set:      " + res.set);
             }
         }
     }
@@ -123,7 +113,17 @@ public class ShadercJni {
     }
 
     private static void crossCompile(long context, int version) {
-        // TODO
+        long compiler = CreateShaderCompiler(context, Shaderc.ShaderLanguage.SHADER_LANGUAGE_GLSL.getValue());
+
+        Shaderc.ShaderCompilerOptions options = new Shaderc.ShaderCompilerOptions();
+        options.version    = version;
+        options.stage      = Shaderc.ShaderStage.SHADER_STAGE_VERTEX;
+        options.entryPoint = "main";
+
+        byte[] res = Compile(context, compiler, options);
+
+        System.out.println("Result:");
+        System.out.println(new String(res));
     }
 
     public static void main(String[] args) throws IOException {
@@ -135,22 +135,17 @@ public class ShadercJni {
         }
 
         String pathSpv = args[0];
-        String pathOut = null;
-        int version    = 330;
+        int version    = -1;
 
         if (args.length > 1) {
-            pathOut = args[1];
+            version = Integer.parseInt(args[1]);
         }
-        if (args.length > 2) {
-            version = Integer.parseInt(args[2]);
-        }
-
-        System.out.println("Printing reflectin for: " + pathSpv);
 
         byte[] spvBytes = ReadFile(pathSpv);
         long ptr = CreateShaderContext(spvBytes);
 
-        if (pathOut == null) {
+        if (version < 0) {
+            System.out.println("Printing reflection for: " + pathSpv);
             printReflection(ptr);
         } else {
             crossCompile(ptr, version);

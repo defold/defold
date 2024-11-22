@@ -139,6 +139,7 @@ namespace dmShaderc
             spvc_type type          = spvc_compiler_get_type_handle(compiler, list[i].type_id);
             spvc_basetype base_type = spvc_type_get_basetype(type);
 
+            resources_out[i].m_Id               = list[i].id;
             resources_out[i].m_Name             = list[i].name;
             resources_out[i].m_NameHash         = dmHashString64(list[i].name);
             resources_out[i].m_InstanceName     = spvc_compiler_get_name(compiler, list[i].id);

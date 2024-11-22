@@ -56,6 +56,58 @@ static jlong CreateShaderContext(JNIEnv* env, jclass cls, jbyteArray array)
     return (jlong) shader_ctx;
 }
 
+// HShaderCompiler NewShaderCompiler(HShaderContext context, ShaderLanguage language);
+static jlong CreateShaderCompiler(JNIEnv* env, jclass cls, jlong context, jint language)
+{
+    dmShaderc::HShaderContext shader_ctx = (dmShaderc::HShaderContext) context;
+    dmShaderc::HShaderCompiler compiler = dmShaderc::NewShaderCompiler(shader_ctx, (dmShaderc::ShaderLanguage) language);
+
+    if (!compiler)
+    {
+        dmLogError("Failed to create shader compiler");
+        return 0;
+    }
+
+    return (jlong) compiler;
+}
+
+static jbyteArray Compile(JNIEnv* env, jclass cls, jlong context, jlong compiler, jobject options)
+{
+    dmShaderc::jni::ScopedContext jni_scope(env);
+    dmShaderc::jni::TypeInfos* types = &jni_scope.m_TypeInfos;
+
+    dmShaderc::HShaderContext shader_ctx = (dmShaderc::HShaderContext) context;
+    dmShaderc::HShaderCompiler shader_compiler = (dmShaderc::HShaderCompiler) compiler;
+
+    dmShaderc::ShaderCompilerOptions shader_options;
+    dmShaderc::jni::J2C_CreateShaderCompilerOptions(env, types, options, &shader_options);
+
+    const char* res = dmShaderc::Compile(shader_ctx, shader_compiler, shader_options);
+
+    if (!res)
+    {
+        dmLogError("Failed to compile shader");
+        return 0;
+    }
+
+    jbyteArray result = env->NewByteArray((jsize) strlen(res));
+    env->SetByteArrayRegion(result, 0, (jsize) strlen(res), (jbyte*) res);
+
+    return result;
+}
+
+// public static native byte[] Compile(long context, long compiler, Shaderc.ShaderCompilerOptions options);
+JNIEXPORT jbyteArray JNICALL Java_ShadercJni_Compile(JNIEnv* env, jclass cls, jlong context, jlong compiler, jobject options)
+{
+    jbyteArray result;
+    DM_JNI_GUARD_SCOPE_BEGIN();
+    {
+        result = Compile(env, cls, context, compiler, options);
+    }
+    DM_JNI_GUARD_SCOPE_END(return 0;);
+    return result;
+}
+
 JNIEXPORT jobject JNICALL Java_ShadercJni_GetReflection(JNIEnv* env, jclass cls, jlong context)
 {
     jobject reflection;
@@ -79,6 +131,18 @@ JNIEXPORT jlong JNICALL Java_ShadercJni_CreateShaderContext(JNIEnv* env, jclass 
     return context;
 }
 
+// public static native Shaderc.ShaderCompiler CreateShaderCompiler(Shaderc.ShaderContext context, int language);
+JNIEXPORT jlong JNICALL Java_ShadercJni_CreateShaderCompiler(JNIEnv* env, jclass cls, jlong context, jint language)
+{
+    jlong compiler;
+    DM_JNI_GUARD_SCOPE_BEGIN();
+    {
+        compiler = CreateShaderCompiler(env, cls, context, language);
+    }
+    DM_JNI_GUARD_SCOPE_END(return 0;);
+    return compiler;
+}
+
 JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved)
 {
     dmLogDebug("JNI_OnLoad ->");
@@ -100,9 +164,11 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved)
     }
 
     // Register your class' native methods.
-    // Don't forget to add them to the corresponding java file (e.g. ModelImporter.java)
+    // Don't forget to add them to the corresponding java file (e.g. Shaderc.java)
     static const JNINativeMethod methods[] = {
         { (char*) "CreateShaderContext", (char*) "([B)J", reinterpret_cast<void*>(Java_ShadercJni_CreateShaderContext)},
+        { (char*) "CreateShaderCompiler", (char*) "(JI)J", reinterpret_cast<void*>(Java_ShadercJni_CreateShaderCompiler)},
+        { (char*) "Compile", (char*) "(JJL" CLASS_NAME "$ShaderCompilerOptions;)[B", reinterpret_cast<void*>(Java_ShadercJni_Compile)},
         { (char*) "GetReflection", (char*) "(J)L" CLASS_NAME "$ShaderReflection;", reinterpret_cast<void*>(Java_ShadercJni_GetReflection)},
     };
     int rc = env->RegisterNatives(c, methods, sizeof(methods)/sizeof(JNINativeMethod));

@@ -47,6 +47,7 @@ struct ShaderResourceJNI {
     jfieldID instanceName;
     jfieldID instanceNameHash;
     jfieldID type;
+    jfieldID id;
     jfieldID location;
     jfieldID binding;
     jfieldID set;
