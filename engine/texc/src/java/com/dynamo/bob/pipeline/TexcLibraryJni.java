@@ -15,6 +15,7 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.InvocationTargetException;
 import java.util.Arrays;
+import java.util.EnumSet;
 
 import java.awt.image.BufferedImage;
 import java.awt.image.ColorModel;
@@ -95,7 +96,7 @@ public class TexcLibraryJni {
     public static native boolean GenMipMaps(long texture);
     public static native boolean Flip(long texture, int flipAxis);
 
-    // public static native boolean TEXC_Encode(long texture, int pixelFormat, int colorSpace, int compressionLevel, int compressionType, boolean mipmaps, int num_threads);
+    public static native boolean Encode(long texture, int pixelFormat, int colorSpace, int compressionLevel, int compressionType, boolean mipmaps, int num_threads);
 
     // // For font glyphs
     // public static native Pointer TEXC_CompressBuffer(Buffer data, int datasize);
@@ -461,41 +462,96 @@ public class TexcLibraryJni {
         System.out.printf("-----------------\nHeader\n");
         DebugPrintObject(header, 1);
 
+        int width = image.getWidth();
+        int height = image.getHeight();
 
+        int maxThreads = 4;
         boolean premulAlpha = true;
+        boolean generateMipMaps = true;
+        Texc.PixelFormat pixelFormat = Texc.PixelFormat.PF_R8G8B8A8;
+        Texc.CompressionLevel texcCompressionLevel = Texc.CompressionLevel.CL_FAST;
+        Texc.CompressionType texcCompressionType = Texc.CompressionType.CT_DEFAULT;
 
         // Premultiply before scale so filtering cannot introduce colour artefacts.
         if (premulAlpha && !ColorModel.getRGBdefault().isAlphaPremultiplied()) {
+            System.out.printf("-----------------\n");
+            System.out.printf("PreMultiplyAlpha\n");
+            timeStart = System.currentTimeMillis();
             if (!TexcLibraryJni.PreMultiplyAlpha(texture)) {
                 throw new Exception("could not premultiply alpha");
             }
+            timeEnd = System.currentTimeMillis();
+            System.out.printf("PreMultiplyAlpha took %d ms\n", timeEnd - timeStart);
         }
 
-            // if (width != newWidth || height != newHeight) {
-            //     if (!TexcLibrary.TEXC_Resize(texture, newWidth, newHeight)) {
-            //         throw new Exception("could not resize texture to POT");
-            //     }
-            // }
+        int newWidth = width / 2;
+        int newHeight = height / 2;
 
-            // // Loop over all axis that should be flipped.
-            // for (FlipAxis flip : flipAxis) {
-            //     if (!TexcLibrary.TEXC_Flip(texture, flip.getValue())) {
-            //         throw new Exception("could not flip on " + flip.toString());
-            //     }
-            // }
+        if (width != newWidth || height != newHeight) {
+            System.out.printf("-----------------\n");
+            System.out.printf("Resize to %dx%d from %dx%d\n", newWidth, newHeight, width, height);
+            timeStart = System.currentTimeMillis();
+            if (!TexcLibraryJni.Resize(texture, newWidth, newHeight)) {
+                throw new Exception("could not resize texture to POT");
+            }
+            timeEnd = System.currentTimeMillis();
+            System.out.printf("Resize took %d ms\n", timeEnd - timeStart);
+        }
 
-            // if (generateMipMaps) {
-            //     if (!TexcLibrary.TEXC_GenMipMaps(texture)) {
-            //         throw new Exception("could not generate mip-maps");
-            //     }
-            // }
-            // if (!TexcLibrary.TEXC_Encode(texture, pixelFormat, ColorSpace.SRGB, texcCompressionLevel, texcCompressionType, generateMipMaps, maxThreads)) {
-            //     throw new Exception("could not encode");
-            // }
+        // Loop over all axis that should be flipped.
+        EnumSet<Texc.FlipAxis> flipAxis = EnumSet.of(Texc.FlipAxis.FLIP_AXIS_Y);
+        for (Texc.FlipAxis flip : flipAxis) {
+            System.out.printf("-----------------\n");
+            System.out.printf("Flip %s\n", flip.toString());
+            timeStart = System.currentTimeMillis();
+            if (!TexcLibraryJni.Flip(texture, flip.getValue())) {
+                throw new Exception("could not flip on " + flip.toString());
+            }
+            timeEnd = System.currentTimeMillis();
+            System.out.printf("Flip took %d ms\n", timeEnd - timeStart);
+        }
 
-            // int bufferSize = TexcLibrary.TEXC_GetTotalDataSize(texture);
+
+        if (generateMipMaps) {
+            System.out.printf("-----------------\n");
+            System.out.printf("GenMipMaps\n");
+            timeStart = System.currentTimeMillis();
+            if (!TexcLibraryJni.GenMipMaps(texture)) {
+                throw new Exception("could not generate mip-maps");
+            }
+            timeEnd = System.currentTimeMillis();
+            System.out.printf("GenMipMaps took %d ms\n", timeEnd - timeStart);
+        }
+
+        {
+            System.out.printf("-----------------\n");
+            System.out.printf("Encode\n");
+            timeStart = System.currentTimeMillis();
+            if (!TexcLibraryJni.Encode(texture, pixelFormat.getValue(),
+                                                Texc.ColorSpace.CS_SRGB.getValue(),
+                                                texcCompressionLevel.getValue(),
+                                                texcCompressionType.getValue(),
+                                                generateMipMaps, maxThreads)) {
+                throw new Exception("could not encode");
+            }
+            timeEnd = System.currentTimeMillis();
+            System.out.printf("Encode took %d ms\n", timeEnd - timeStart);
+        }
+
+        {
+            System.out.printf("-----------------\n");
+            System.out.printf("GetData\n");
+            timeStart = System.currentTimeMillis();
+
+            byte[] data = TexcLibraryJni.GetData(texture);
+
+            timeEnd = System.currentTimeMillis();
+            System.out.printf("GetData of %d bytes took %d ms\n", data.length, timeEnd - timeStart);
+        }
+
+            // int bufferSize = TexcLibraryJni.GetTotalDataSize(texture);
             // ByteBuffer buffer_output = ByteBuffer.allocateDirect(bufferSize);
-            // dataSize = TexcLibrary.TEXC_GetData(texture, buffer_output, bufferSize);
+            // dataSize = TexcLibraryJni.GetData(texture, buffer_output, bufferSize);
             // buffer_output.limit(dataSize);
 
             // // TextureImage.Image.Builder raw = TextureImage.Image.newBuilder().setWidth(newWidth).setHeight(newHeight)
@@ -520,7 +576,7 @@ public class TexcLibraryJni {
             //     w = Math.max(w, 1);
             //     h = Math.max(h, 1);
             //     raw.addMipMapOffset(offset);
-            //     int size = TexcLibrary.TEXC_GetDataSizeUncompressed(texture, mipMap);
+            //     int size = TexcLibraryJni.GetDataSizeUncompressed(texture, mipMap);
 
             //     // For basis the GetDataSizeCompressed and GetDataSizeUncompressed will always return 0,
             //     // so we use this hack / workaround to calculate offsets in the engine..
@@ -533,7 +589,7 @@ public class TexcLibraryJni {
             //     else
             //     {
             //         raw.addMipMapSize(size);
-            //         int size_compressed = TexcLibrary.TEXC_GetDataSizeCompressed(texture, mipMap);
+            //         int size_compressed = TexcLibraryJni.GetDataSizeCompressed(texture, mipMap);
             //         if(size_compressed != 0) {
             //             size = size_compressed;
             //         }

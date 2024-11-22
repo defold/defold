@@ -194,6 +194,25 @@ JNIEXPORT jboolean JNICALL Java_TexcLibraryJni_Flip(JNIEnv* env, jclass cls, jlo
     return result;
 }
 
+JNIEXPORT jboolean JNICALL Java_TexcLibraryJni_Encode(JNIEnv* env, jclass cls, jlong texture,
+                                                                    jint pixel_format, jint color_space, jint compression_level, jint compression_type, jboolean gen_mip_maps, jint max_threads)
+{
+    jboolean result = 0;
+    DM_JNI_GUARD_SCOPE_BEGIN();
+        dmTexc::Texture* ptexture = (dmTexc::Texture*)texture;
+        if (ptexture)
+        {
+            result = dmTexc::Encode(ptexture,   (dmTexc::PixelFormat)pixel_format,
+                                                (dmTexc::ColorSpace)color_space,
+                                                (dmTexc::CompressionLevel)compression_level,
+                                                (dmTexc::CompressionType)compression_type,
+                                                (bool)gen_mip_maps,
+                                                max_threads);
+        }
+    DM_JNI_GUARD_SCOPE_END(return 0;);
+    return result;
+}
+
 
     // Encode a texture into basis format.
     // bool Encode(Texture* texture, PixelFormat pixelFormat, ColorSpace color_space, CompressionLevel compressionLevel, CompressionType compression_type, bool mipmaps, int max_threads);
@@ -231,19 +250,6 @@ JNIEXPORT jboolean JNICALL Java_TexcLibraryJni_Flip(JNIEnv* env, jclass cls, jlo
 //     return jimage;
 // }
 
-// public static native Pointer TEXC_Create(String name, int width, int height, int pixelFormat, int colorSpace, int compressionType, Buffer data);
-// public static native void TEXC_Destroy(Pointer texture);
-
-// public static native int TEXC_GetDataSizeCompressed(Pointer texture, int minMap);
-// public static native int TEXC_GetDataSizeUncompressed(Pointer texture, int minMap);
-// public static native int TEXC_GetTotalDataSize(Pointer texture);
-// public static native int TEXC_GetData(Pointer texture, Buffer outData, int maxOutDataSize);
-// public static native int TEXC_GetCompressionFlags(Pointer texture);
-
-// public static native boolean TEXC_Resize(Pointer texture, int width, int height);
-// public static native boolean TEXC_PreMultiplyAlpha(Pointer texture);
-// public static native boolean TEXC_GenMipMaps(Pointer texture);
-// public static native boolean TEXC_Flip(Pointer texture, int flipAxis);
 // public static native boolean TEXC_Encode(Pointer texture, int pixelFormat, int colorSpace, int compressionLevel, int compressionType, boolean mipmaps, int num_threads);
 
 // // For font glyphs
@@ -286,6 +292,8 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved)
         JNIFUNC(PreMultiplyAlpha,       "(J)Z"),
         JNIFUNC(GenMipMaps,             "(J)Z"),
         JNIFUNC(Flip,                   "(JI)Z"),
+
+        JNIFUNC(Encode,                 "(JIIIIZI)Z"),
 
         // Image api
         //{(char*)"CreateImage", (char*)"(Ljava/lang/String;[BIIII)L" CLASS_NAME "$Scene;", reinterpret_cast<void*>(Java_TexcLibraryJni_CreateImage)},
