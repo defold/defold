@@ -14,7 +14,6 @@ def configure(conf):
         print("Skipping build of shaderc for non host platform")
         return
 
-    """
     dynamo_home = conf.env.DYNAMO_HOME
     includes = [os.getcwd(),
                 os.path.join(dynamo_home, 'sdk', 'include')]
@@ -24,13 +23,12 @@ def configure(conf):
         script_dir = conf.path.abspath()
         return os.path.relpath(os.path.normpath(os.path.join(script_dir, path)), cwd)
 
-    gen_java.generate(header_path   = make_path('./modelimporter.h'),
-                     namespace      = 'dmModelImporter',
+    gen_java.generate(header_path   = make_path('./shaderc.h'),
+                     namespace      = 'dmShaderc',
                      package_name   = 'com.dynamo.bob.pipeline',
                      includes       = includes,
                      java_outdir    = make_path('./java'),
                      jni_outdir     = make_path('./jni'))
-    """
 
 def build(bld):
     # We only need this library in the editor and bob
@@ -51,11 +49,10 @@ def build(bld):
                       source = shaderc_sources_no_jni,
                       target = 'shaderc')
 
-    """
     # Used by bob.jar + editor
-    model_shared = bld(features = 'c cxx cshlib skip_asan extract_symbols',
-                       includes = ['.', './model', './jni'],
-                       uselib = 'DLIB_NOASAN APP PROFILE_NULL_NOASAN JNI_NOASAN JDK',
+    shaderc_shared = bld(features = 'c cxx cshlib skip_asan extract_symbols',
+                       includes = ['.', './shader', './jni'],
+                       uselib = 'DLIB_NOASAN APP PROFILE_NULL_NOASAN JNI_NOASAN JDK SPIRV_CROSS',
                        source = shaderc_sources + bld.path.ant_glob("jni/*.cpp"),
                        target = 'shaderc_shared')
 
@@ -70,10 +67,9 @@ def build(bld):
 
     bld(features='jar seq',
         basedir='java',
-        destfile='modelimporter.jar')
+        destfile='shaderc.jar')
 
-    bld.install_files('${PREFIX}/share/java', 'modelimporter.jar')
-    """
+    bld.install_files('${PREFIX}/share/java', 'shaderc.jar')
 
     if not Options.options.skip_build_tests:
         bld.recurse('test')

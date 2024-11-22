@@ -20,6 +20,7 @@
 
 #include <dmsdk/dlib/array.h>
 #include <dmsdk/dlib/hash.h>
+#include <dmsdk/dlib/shared_library.h>
 
 namespace dmShaderc
 {
@@ -88,18 +89,15 @@ namespace dmShaderc
 
     struct ResourceType
     {
-        union
-        {
-            BaseType m_BaseType;
-            uint32_t m_TypeIndex;
-        };
-        bool m_UseTypeIndex;
+        BaseType m_BaseType;
+        uint32_t m_TypeIndex;
+        bool     m_UseTypeIndex;
     };
 
     struct ResourceMember
     {
         const char*     m_Name;
-        dmhash_t        m_NameHash;
+        uint64_t        m_NameHash;
         ResourceType    m_Type;
         uint32_t        m_VectorSize;
         uint32_t        m_ColumnCount;
@@ -109,7 +107,7 @@ namespace dmShaderc
     struct ResourceTypeInfo
     {
         const char*     m_Name;
-        dmhash_t        m_NameHash;
+        uint64_t        m_NameHash;
         ResourceMember* m_Members;
         uint32_t        m_MemberCount;
     };
@@ -117,9 +115,9 @@ namespace dmShaderc
     struct ShaderResource
     {
         const char*  m_Name;
-        dmhash_t     m_NameHash;
+        uint64_t     m_NameHash;
         const char*  m_InstanceName;
-        dmhash_t     m_InstanceNameHash;
+        uint64_t     m_InstanceNameHash;
         ResourceType m_Type;
         uint8_t      m_Location;
         uint8_t      m_Binding;
@@ -135,18 +133,19 @@ namespace dmShaderc
         dmArray<ResourceTypeInfo> m_Types;
     };
 
+
     // Shader context
-    HShaderContext          NewShaderContext(const void* source, uint32_t source_size);
-    void                    DeleteShaderContext(HShaderContext context);
-    const ShaderReflection* GetReflection(HShaderContext context);
+    extern "C" DM_DLLEXPORT HShaderContext          NewShaderContext(const void* source, uint32_t source_size);
+    extern "C" DM_DLLEXPORT void                    DeleteShaderContext(HShaderContext context);
+    extern "C" DM_DLLEXPORT const ShaderReflection* GetReflection(HShaderContext context);
 
     // Compilers
-    HShaderCompiler         NewShaderCompiler(HShaderContext context, ShaderLanguage language);
-    void                    DeleteShaderCompiler(HShaderCompiler compiler);
-    void                    SetResourceLocation(HShaderContext context, HShaderCompiler compiler, dmhash_t name_hash, uint8_t location);
-    void                    SetResourceBinding(HShaderContext context, HShaderCompiler compiler, dmhash_t name_hash, uint8_t binding);
-    void                    SetResourceSet(HShaderContext context, HShaderCompiler compiler, dmhash_t name_hash, uint8_t set);
-    const char*             Compile(HShaderContext context, HShaderCompiler compiler, const ShaderCompilerOptions& options);
+    extern "C" DM_DLLEXPORT HShaderCompiler         NewShaderCompiler(HShaderContext context, ShaderLanguage language);
+    extern "C" DM_DLLEXPORT void                    DeleteShaderCompiler(HShaderCompiler compiler);
+    extern "C" DM_DLLEXPORT void                    SetResourceLocation(HShaderContext context, HShaderCompiler compiler, uint64_t name_hash, uint8_t location);
+    extern "C" DM_DLLEXPORT void                    SetResourceBinding(HShaderContext context, HShaderCompiler compiler, uint64_t name_hash, uint8_t binding);
+    extern "C" DM_DLLEXPORT void                    SetResourceSet(HShaderContext context, HShaderCompiler compiler, uint64_t name_hash, uint8_t set);
+    extern "C" DM_DLLEXPORT const char*             Compile(HShaderContext context, HShaderCompiler compiler, const ShaderCompilerOptions& options);
 
     void                    DebugPrintReflection(const ShaderReflection* reflection);
 }
