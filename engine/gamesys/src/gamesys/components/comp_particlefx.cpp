@@ -365,7 +365,7 @@ namespace dmGameSystem
 
                 if (flush) // Upload the written data (if there was any)
                 {
-                    const uint32_t vb_upload_size = dmMath::Min(max_gpu_size, vb_size);
+                    uint32_t vb_upload_size = dmMath::Min(max_gpu_size, vb_size);
                     dmRender::SetBufferSubData(render_context, pfx_world->m_VertexBuffer, gpu_vb_offset, vb_upload_size, vertex_buffer.Begin());
                     gpu_vb_offset += vb_upload_size;
                     vb_size = 0;
@@ -373,10 +373,9 @@ namespace dmGameSystem
             }
         }
 
-
         if (vb_size != 0) // Do we have any lingering data?
         {
-            const uint32_t vb_upload_size = dmMath::Min(max_gpu_size, vb_size);
+            uint32_t vb_upload_size = dmMath::Min(max_gpu_size, vb_size);
             dmRender::SetBufferSubData(render_context, pfx_world->m_VertexBuffer, gpu_vb_offset, vb_upload_size, vertex_buffer.Begin());
             gpu_vb_offset += vb_upload_size;
         }
@@ -443,12 +442,6 @@ namespace dmGameSystem
 
                     uint32_t pcount = GetEmitterVertexCount(pfx_world->m_ParticleContext, render_data->m_Instance, render_data->m_EmitterIndex) / 6;
 
-                    // Align to the next boundary for the material
-                    if (buffer_size % stride != 0)
-                    {
-                        buffer_size += stride - buffer_size % stride;
-                    }
-
                     bool is_full = false;
                     if ((pcount + particle_count) > pfx_context->m_MaxParticleCount)
                     {
@@ -463,6 +456,10 @@ namespace dmGameSystem
                     }
 
                     particle_count += pcount;
+
+                    // To accomodate for aligning the buffer to the different strides
+                    // we add one extra particle to give us some extra room
+                    ++pcount;
 
                     buffer_size += stride * pcount * 6;
 
