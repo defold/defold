@@ -46,8 +46,15 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
         }
     }
 
-	public ShaderCompilePipelineLegacy(String pipelineName) {
+    private static String glslangExe = null;
+    private static String spirvOptExe = null;
+    private static String spirvCrossExe = null;
+
+    public ShaderCompilePipelineLegacy(String pipelineName) throws IOException {
         super(pipelineName);
+        if (this.glslangExe == null) this.glslangExe = Bob.getExe(Platform.getHostPlatform(), "glslang");
+        if (this.spirvOptExe == null) this.spirvOptExe = Bob.getExe(Platform.getHostPlatform(), "spirv-opt");
+        if (this.spirvCrossExe == null) this.spirvCrossExe = Bob.getExe(Platform.getHostPlatform(), "spirv-cross");
     }
 
     static private void checkResult(String result_string, IResource resource, String resourceOutput) throws CompileExceptionError {
@@ -103,7 +110,7 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
             file_out_spv = File.createTempFile(FilenameUtils.getName(resourceOutput), ".spv");
             FileUtil.deleteOnExit(file_out_spv);
 
-            result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "glslang"),
+            result = Exec.execResult(glslangExe,
                     "-w",
                     "-V",
                     "--entry-point", "main",
@@ -146,7 +153,7 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
             FileUtil.deleteOnExit(file_out_spv);
 
             String spirvShaderStage = (shaderType == ShaderDesc.ShaderType.SHADER_TYPE_VERTEX ? "vert" : "frag");
-            result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "glslang"),
+            result = Exec.execResult(glslangExe,
                     "-w",
                     "-V",
                     "--entry-point", "main",
@@ -171,7 +178,7 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
         FileUtil.deleteOnExit(file_out_spv_opt);
 
         // Run optimization pass
-        result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "spirv-opt"),
+        result = Exec.execResult(spirvOptExe,
                 "-O",
                 file_out_spv.getAbsolutePath(),
                 "-o", file_out_spv_opt.getAbsolutePath());
@@ -188,7 +195,7 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
         File file_out_refl = File.createTempFile(FilenameUtils.getName(resourceOutput), ".json");
         FileUtil.deleteOnExit(file_out_refl);
 
-        result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "spirv-cross"),
+        result = Exec.execResult(spirvCrossExe,
                 file_out_spv_opt.getAbsolutePath(),
                 "--output",file_out_refl.getAbsolutePath(),
                 "--reflect");
