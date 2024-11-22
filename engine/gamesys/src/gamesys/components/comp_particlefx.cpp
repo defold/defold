@@ -299,7 +299,7 @@ namespace dmGameSystem
         uint32_t vx_stride = material_attribute_info.m_VertexStride;
         uint32_t max_gpu_count = pfx_context->m_MaxParticleCount;
         uint32_t max_cpu_count = pfx_context->m_MaxParticleBufferCount; // How many particles will fit into the scratch buffer
-        uint32_t max_gpu_size = max_gpu_count * 6 * vx_stride;
+        uint32_t max_gpu_size = pfx_world->m_VertexBufferSize;
         uint32_t max_cpu_size = dmMath::Min(max_cpu_count, max_gpu_count) * 6 * vx_stride;
 
         // Each batch uses the scratch data exclusively (i.e. no mixed vertex formats)
@@ -323,6 +323,7 @@ namespace dmGameSystem
         uint32_t vb_size        = 0;
 
         uint32_t num_particles_written = 0;
+        uint32_t num_written = 0;
 
         for (uint32_t *i = begin; gpu_vb_offset < max_gpu_size && i != end; ++i)
         {
@@ -336,7 +337,7 @@ namespace dmGameSystem
 
             uint32_t particle_count = dmParticle::GetParticleCount(particle_context, emitter_render_data->m_Instance, emitter_render_data->m_EmitterIndex);
 
-            // fill upp the vertex buffer, and then schedule an upload of vertex buffer data
+            // fill up the vertex buffer, and then schedule an upload of vertex buffer data
             for (int p = 0; p < particle_count; )
             {
                 dmParticle::GenerateVertexDataResult res = dmParticle::GenerateVertexDataPartial(particle_context,
@@ -344,9 +345,8 @@ namespace dmGameSystem
                     p, max_cpu_count,
                     emitter_attribute_info, Vector4(1,1,1,1), (void*) vertex_buffer.Begin(), vb_max_size, &vb_size);
 
-                uint32_t num_written = vb_size / (6 * vx_stride);
+                num_written = vb_size / (6 * vx_stride);
                 num_particles_written += num_written;
-
 
                 bool flush = vb_size >= vb_max_size;
 
@@ -365,7 +365,17 @@ namespace dmGameSystem
 
                 if (flush) // Upload the written data (if there was any)
                 {
-                    uint32_t vb_upload_size = dmMath::Min(max_gpu_size, vb_size);
+                    uint32_t vb_upload_size = vb_size;
+                    if ((gpu_vb_offset + vb_upload_size) > max_gpu_size) // Make sure we don't do an overrun on the gpu buffer
+                    {
+                        vb_upload_size = max_gpu_size - gpu_vb_offset;
+                        vb_upload_size = vb_upload_size - vb_upload_size % (6 * vx_stride); // Only upload vertices for a full particle
+
+                        // adjust the num written
+                        uint32_t num_actually_written = vb_upload_size / (6 * vx_stride);
+                        num_particles_written -= num_written;
+                        num_particles_written += num_actually_written;
+                    }
                     dmRender::SetBufferSubData(render_context, pfx_world->m_VertexBuffer, gpu_vb_offset, vb_upload_size, vertex_buffer.Begin());
                     gpu_vb_offset += vb_upload_size;
                     vb_size = 0;
@@ -375,7 +385,17 @@ namespace dmGameSystem
 
         if (vb_size != 0) // Do we have any lingering data?
         {
-            uint32_t vb_upload_size = dmMath::Min(max_gpu_size, vb_size);
+            uint32_t vb_upload_size = vb_size;
+            if ((gpu_vb_offset + vb_upload_size) > max_gpu_size) // Make sure we don't do an overrun on the gpu buffer
+            {
+                vb_upload_size = max_gpu_size - gpu_vb_offset;
+                vb_upload_size = vb_upload_size - vb_upload_size % (6 * vx_stride); // Only upload vertices for a full particle
+
+                // adjust the num written
+                uint32_t num_actually_written = vb_upload_size / (6 * vx_stride);
+                num_particles_written -= num_written;
+                num_particles_written += num_actually_written;
+            }
             dmRender::SetBufferSubData(render_context, pfx_world->m_VertexBuffer, gpu_vb_offset, vb_upload_size, vertex_buffer.Begin());
             gpu_vb_offset += vb_upload_size;
         }
