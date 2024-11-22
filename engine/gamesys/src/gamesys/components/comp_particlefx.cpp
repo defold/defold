@@ -44,6 +44,8 @@ DM_PROPERTY_U32(rmtp_ParticleVertexSizeGPU, 0, FrameReset, "size of GPU vertex b
 
 namespace dmGameSystem
 {
+    const int VERTEX_COUNT = 6; // Fixed vertex count per particle
+
     using namespace dmVMath;
 
     struct ParticleFXWorld;
@@ -54,7 +56,7 @@ namespace dmGameSystem
         Quat m_Rotation;
         dmParticle::HPrototype m_ParticlePrototype;
         uint16_t m_AddedToUpdate : 1;
-        uint16_t m_Padding : 15;
+        uint16_t : 15;
     };
 
     struct ParticleFXComponent
@@ -66,7 +68,7 @@ namespace dmGameSystem
         ParticleFXWorld* m_World;
         uint32_t m_PrototypeIndex;
         uint16_t m_AddedToUpdate : 1;
-        uint16_t m_Padding : 15;
+        uint16_t : 15;
     };
 
     struct ParticleFXWorld
@@ -116,7 +118,7 @@ namespace dmGameSystem
         // page_index : 1
         const uint32_t particle_buffer_count = dmMath::Min(ctx->m_MaxParticleBufferCount, ctx->m_MaxParticleCount);
         const uint32_t default_vx_size       = sizeof(float) * (3 + 4 + 2 + 1);
-        const uint32_t buffer_size           = particle_buffer_count * 6 * default_vx_size;
+        const uint32_t buffer_size           = particle_buffer_count * VERTEX_COUNT * default_vx_size;
         world->m_VertexBufferData.SetCapacity(buffer_size);
         world->m_VertexBufferData.SetSize(buffer_size);
         world->m_VertexBuffer = dmRender::NewBufferedRenderBuffer(ctx->m_RenderContext, dmRender::RENDER_BUFFER_TYPE_VERTEX_BUFFER);
@@ -297,11 +299,11 @@ namespace dmGameSystem
         // Same default coordinate space as the editor
         FillMaterialAttributeInfos(material, vx_decl, &material_attribute_info, dmGraphics::COORDINATE_SPACE_WORLD);
 
-        uint32_t vx_stride = material_attribute_info.m_VertexStride;
-        uint32_t max_gpu_count = pfx_context->m_MaxParticleCount;
-        uint32_t max_cpu_count = pfx_context->m_MaxParticleBufferCount; // How many particles will fit into the scratch buffer
-        uint32_t max_gpu_size = pfx_world->m_VertexBufferSize;
-        uint32_t max_cpu_size = dmMath::Min(max_cpu_count, max_gpu_count) * 6 * vx_stride;
+        const uint32_t vx_stride = material_attribute_info.m_VertexStride;
+        const uint32_t max_gpu_count = pfx_context->m_MaxParticleCount;
+        const uint32_t max_cpu_count = pfx_context->m_MaxParticleBufferCount; // How many particles will fit into the scratch buffer
+        const uint32_t max_gpu_size = pfx_world->m_VertexBufferSize;
+        const uint32_t max_cpu_size = dmMath::Min(max_cpu_count, max_gpu_count) * VERTEX_COUNT * vx_stride;
 
         // Each batch uses the scratch data exclusively (i.e. no mixed vertex formats)
         dmArray<uint8_t>& vertex_buffer = pfx_world->m_VertexBufferData;
@@ -316,15 +318,14 @@ namespace dmGameSystem
         {
             pfx_world->m_VertexBufferOffset += vx_stride - pfx_world->m_VertexBufferOffset % vx_stride;
         }
-        uint32_t gpu_vb_offset      = pfx_world->m_VertexBufferOffset;   // The offset into the GPU vertex buffer
-        uint32_t gpu_vb_offset_start= gpu_vb_offset;
-        uint32_t vertex_offset      = gpu_vb_offset / vx_stride;            // Offset in #particles
-        uint32_t vb_max_size        = pfx_world->m_VertexBufferData.Capacity();
+
+        const uint32_t gpu_vb_offset_start= pfx_world->m_VertexBufferOffset;
+        const uint32_t vertex_offset      = gpu_vb_offset_start / vx_stride;            // Offset in #particles
+        const uint32_t vb_max_size        = pfx_world->m_VertexBufferData.Capacity();
 
         // loop vars
         uint32_t vb_size        = 0;
-
-        uint32_t num_written = 0;
+        uint32_t gpu_vb_offset  = gpu_vb_offset_start;   // The offset into the GPU vertex buffer
 
         for (uint32_t *i = begin; gpu_vb_offset < max_gpu_size && i != end; ++i)
         {
@@ -343,7 +344,7 @@ namespace dmGameSystem
             {
                 uint32_t size_left = vb_max_size - vb_size;
                 // only get the number of particles that will fit
-                uint32_t num_particles_to_write = size_left / (6 * vx_stride);
+                uint32_t num_particles_to_write = size_left / (VERTEX_COUNT * vx_stride);
 
                 dmParticle::GenerateVertexDataResult res = dmParticle::GenerateVertexDataPartial(particle_context,
                     pfx_world->m_DT, emitter_render_data->m_Instance, emitter_render_data->m_EmitterIndex,
@@ -373,7 +374,7 @@ namespace dmGameSystem
                     if ((gpu_vb_offset + vb_upload_size) > max_gpu_size) // Make sure we don't do an overrun on the gpu buffer
                     {
                         vb_upload_size = max_gpu_size - gpu_vb_offset;
-                        vb_upload_size = vb_upload_size - vb_upload_size % (6 * vx_stride); // Only upload vertices for a full particle
+                        vb_upload_size = vb_upload_size - vb_upload_size % (VERTEX_COUNT * vx_stride); // Only upload vertices for a full particle
                     }
 
                     dmRender::SetBufferSubData(render_context, pfx_world->m_VertexBuffer, gpu_vb_offset, vb_upload_size, vertex_buffer.Begin());
@@ -389,7 +390,7 @@ namespace dmGameSystem
             if ((gpu_vb_offset + vb_upload_size) > max_gpu_size) // Make sure we don't do an overrun on the gpu buffer
             {
                 vb_upload_size = max_gpu_size - gpu_vb_offset;
-                vb_upload_size = vb_upload_size - vb_upload_size % (6 * vx_stride); // Only upload vertices for a full particle
+                vb_upload_size = vb_upload_size - vb_upload_size % (VERTEX_COUNT * vx_stride); // Only upload vertices for a full particle
             }
 
             dmRender::SetBufferSubData(render_context, pfx_world->m_VertexBuffer, gpu_vb_offset, vb_upload_size, vertex_buffer.Begin());
@@ -479,7 +480,7 @@ namespace dmGameSystem
                     // we add one extra particle to give us some extra room
                     ++pcount;
 
-                    buffer_size += stride * pcount * 6;
+                    buffer_size += stride * pcount * VERTEX_COUNT;
 
                     if (is_full)
                         return buffer_size;

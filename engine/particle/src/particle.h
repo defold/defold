@@ -366,7 +366,7 @@ namespace dmParticle
     DM_PARTICLE_PROTO(GenerateVertexDataResult, GenerateVertexData, HParticleContext context, float dt, HInstance instance, uint32_t emitter_index, const dmGraphics::VertexAttributeInfos& attribute_infos, const dmVMath::Vector4& color, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size);
 
     /**
-     * Gets the
+     * Gets the particle count for an emitter
      * @param context Particle context
      * @param dt Time step.
      * @param instance Particle instance handle
