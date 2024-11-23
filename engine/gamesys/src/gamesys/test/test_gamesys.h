@@ -573,6 +573,7 @@ void GamesysTest<T>::SetUp()
     m_ParticleFXContext.m_RenderContext = m_RenderContext;
     m_ParticleFXContext.m_MaxParticleFXCount = 64;
     m_ParticleFXContext.m_MaxParticleCount = 256;
+    m_ParticleFXContext.m_MaxParticleBufferCount = 256;
     m_ParticleFXContext.m_MaxEmitterCount = 8;
 
     m_SpriteContext.m_RenderContext = m_RenderContext;

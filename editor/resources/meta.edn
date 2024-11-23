@@ -462,10 +462,13 @@
    :default 64,
    :path ["gui" "max_count"]},
   {:type :integer,
-   :help
-   "max number of particlefx nodes per collection",
-   :default 64,
-   :path ["gui" "max_particlefx_count"]}
+   :help "max total number of living particles. limits the GPU vertex buffer size. 1024 by default",
+   :default 1024,
+   :path ["particle_fx" "max_particle_count"]}
+  {:type :integer,
+   :help "max number of particles per upload to the GPU. limits the CPU memory usage. 1024 by default.",
+   :default 1024,
+   :path ["particle_fx" "max_particle_buffer_count"]}
   {:type :integer,
    :help
    "max total number of active animations in gui, 1024 by default",
