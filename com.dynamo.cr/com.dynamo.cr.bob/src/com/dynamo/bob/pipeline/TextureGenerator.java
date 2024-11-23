@@ -369,7 +369,6 @@ public class TextureGenerator {
                 TimeProfiler.stop();
             }
 
-            System.out.printf("Encode: pf: %d  cl: %d  ct: %d  mm: %b  mt: %d\n", pixelFormat, texcCompressionLevel, texcCompressionType, generateMipMaps, maxThreads);
             TimeProfiler.start("Encode");
 
             if (!TexcLibraryJni.Encode(texture,
