@@ -382,10 +382,6 @@ public class TextureGenerator {
             TimeProfiler.stop();
 
             byte[] data = TexcLibraryJni.GetData(texture);
-            // int bufferSize = TexcLibraryJni.GetTotalDataSize(texture);
-            // ByteBuffer buffer_output = ByteBuffer.allocateDirect(bufferSize);
-            // dataSize = TexcLibraryJni.GetData(texture, buffer_output, bufferSize);
-            // buffer_output.limit(dataSize);
 
             TextureImage.Image.Builder raw = TextureImage.Image.newBuilder().setWidth(newWidth).setHeight(newHeight)
                     .setOriginalWidth(width).setOriginalHeight(height).setFormat(textureFormat);
@@ -437,7 +433,6 @@ public class TextureGenerator {
                     break;
             }
 
-            //raw.setData(ByteString.copyFrom(buffer_output));
             raw.setData(ByteString.copyFrom(data));
             raw.setFormat(textureFormat);
             raw.setCompressionType(compressionType);

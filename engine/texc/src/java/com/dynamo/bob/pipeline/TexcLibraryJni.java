@@ -210,7 +210,6 @@ public class TexcLibraryJni {
         Field[] fields = cls.getDeclaredFields();
         // Print "simple" fields first
         PrintFields(obj, fields, true, builder, indent);
-        // Print "model" fields last
         PrintFields(obj, fields, false, builder, indent);
 
         return builder;
@@ -267,8 +266,8 @@ public class TexcLibraryJni {
     }
 
     // Used for testing the importer. Usage:
-    //    cd engine/modelc
-    //   ./scripts/test_model_importer.sh <model path>
+    //    cd engine/texc
+    //   ./scripts/test_texture_compiler.sh <image path (e.g. .png)>
     public static void main(String[] args) throws IOException, Exception {
         System.setProperty("java.awt.headless", "true");
 
