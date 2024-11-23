@@ -61,7 +61,8 @@ import javax.imageio.ImageIO;
 import org.apache.commons.io.FilenameUtils;
 import com.sun.jna.Pointer;
 
-import com.dynamo.bob.TexcLibrary;
+import com.dynamo.bob.pipeline.Texc;
+import com.dynamo.bob.pipeline.TexcLibraryJni;
 
 import com.dynamo.bob.pipeline.BuilderUtil;
 import com.dynamo.bob.pipeline.TextureGeneratorException;
@@ -396,9 +397,10 @@ public class Fontc {
         return sdfLimitValue * (1.0f - sdf_edge) + sdf_edge;
     }
 
-    private ByteBuffer toByteArray(BufferedImage image, int width, int height, int bpp, int targetBpp) throws IOException {
+    private byte[] toByteArray(BufferedImage image, int width, int height, int bpp, int targetBpp) throws IOException {
         int dataSize = width * height * bpp;
-        ByteBuffer buffer = ByteBuffer.allocateDirect(dataSize);
+        byte[] out = new byte[dataSize];
+        int cursor = 0;
 
         int[] rasterData = new int[width * height * 4];
         image.getRaster().getPixels(0, 0, width, height, rasterData);
@@ -418,17 +420,16 @@ public class Fontc {
                 if (bpp > 3)
                     alpha = rasterData[i + 3];
 
-                buffer.put((byte)(red & 0xFF));
+                out[cursor++] = (byte)(red & 0xFF);
                 if (targetBpp > 1)
-                    buffer.put((byte)(green & 0xFF));
+                    out[cursor++] = (byte)(green & 0xFF);
                 if (targetBpp > 2)
-                    buffer.put((byte)(blue & 0xFF));
+                    out[cursor++] = (byte)(blue & 0xFF);
                 if (targetBpp > 3)
-                    buffer.put((byte)(alpha & 0xFF));
+                    out[cursor++] = (byte)(alpha & 0xFF);
             }
         }
-        buffer.flip(); // limit is set to current position, and position is set to zero
-        return buffer;
+        return out;
     }
 
     private int getPadding() {
@@ -683,23 +684,14 @@ public class Fontc {
                     paddedGlyphImage.setRGB(x, py, clearData);
                 }
 
-                Pointer compressedTexture = null;
                 try {
                     int width = paddedGlyphImage.getWidth();
                     int height = paddedGlyphImage.getHeight();
 
-                    ByteBuffer paddedBuffer = toByteArray(paddedGlyphImage, width, height, 4, channelCount);
+                    byte[] uncompressedBytes = toByteArray(paddedGlyphImage, width, height, 4, channelCount);
 
-                    compressedTexture = TexcLibrary.TEXC_CompressBuffer(paddedBuffer, paddedBuffer.limit());
-                    int texcBufferSize = TexcLibrary.TEXC_GetTotalBufferDataSize(compressedTexture);
-                    ByteBuffer compressedBuffer = ByteBuffer.allocateDirect(texcBufferSize);
-                    TexcLibrary.TEXC_GetBufferData(compressedTexture, compressedBuffer, texcBufferSize);
-
-                    byte[] uncompressedBytes = new byte[paddedBuffer.limit()];
-                    paddedBuffer.get(uncompressedBytes);
-
-                    byte[] compressedBytes = new byte[compressedBuffer.limit()];
-                    compressedBuffer.get(compressedBytes);
+                    Texc.Buffer compressedBuffer = TexcLibraryJni.CompressBuffer(uncompressedBytes);
+                    byte[] compressedBytes = compressedBuffer.isCompressed ? compressedBuffer.data : uncompressedBytes;
 
                     // If the uncompressed size is smaller we write uncompressed
                     // bytes instead
@@ -726,8 +718,6 @@ public class Fontc {
 
                 } catch(IOException e) {
                     throw new TextureGeneratorException(String.format("Failed to generate font texture: %s", e.getMessage()));
-                } finally {
-                    TexcLibrary.TEXC_DestroyBuffer(compressedTexture);
                 }
             }
         }

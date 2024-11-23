@@ -71,7 +71,7 @@ namespace dmTexc
         return out;
     }
 
-    Buffer* CompressBuffer(void* data, uint32_t size)
+    Buffer* CompressBuffer(uint8_t* data, uint32_t size)
     {
         Buffer* out = CompressBuffer_Deflate(data, size);
         if (!out)

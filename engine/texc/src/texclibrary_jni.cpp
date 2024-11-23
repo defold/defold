@@ -26,6 +26,12 @@ JNIEXPORT jlong JNICALL Java_TexcLibraryJni_CreateTexture(JNIEnv* env, jclass cl
     dmLogDebug("%s: env = %p\n", __FUNCTION__, env);
     //DM_SCOPED_SIGNAL_CONTEXT(env, return 0;);
 
+    if (!array)
+    {
+        dmLogError("%s: Texture data array was null!", __FUNCTION__);
+        return 0;
+    }
+
     jlong obj = 0;
     DM_JNI_GUARD_SCOPE_BEGIN();
         dmTexc::jni::ScopedContext jni_scope(env);
@@ -34,13 +40,11 @@ JNIEXPORT jlong JNICALL Java_TexcLibraryJni_CreateTexture(JNIEnv* env, jclass cl
         dmJNI::ScopedString j_path(env, _path);
         const char* path = strdup(j_path.m_String ? j_path.m_String : "null");
 
-        //jsize array_size = env->GetArrayLength(array);
-        jbyte* array_data = env->GetByteArrayElements(array, 0);
+        dmJNI::ScopedByteArray j_array(env, array);
 
-        dmTexc::Texture* texture = dmTexc::CreateTexture(path, width, height, (dmTexc::PixelFormat)pixelFormat, (dmTexc::ColorSpace)colorSpace, (dmTexc::CompressionType)compressionType, array_data);
+        dmTexc::Texture* texture = dmTexc::CreateTexture(path, width, height, (dmTexc::PixelFormat)pixelFormat, (dmTexc::ColorSpace)colorSpace, (dmTexc::CompressionType)compressionType, j_array.m_Array);
         obj = (jlong)texture;
 
-        env->ReleaseByteArrayElements(array, array_data, JNI_ABORT);
     DM_JNI_GUARD_SCOPE_END(return 0;);
     return obj;
 }
@@ -131,6 +135,8 @@ JNIEXPORT jobject JNICALL Java_TexcLibraryJni_GetData(JNIEnv* env, jclass cls, j
         {
             uint32_t data_count = dmTexc::GetTotalDataSize(ptexture);
 
+            //obj = dmJNI::C2J_CreateByteArray(env, );
+
             jbyteArray arr = env->NewByteArray(data_count);
             jbyte* data = env->GetByteArrayElements(arr, 0);
             dmTexc::GetData(ptexture, data, data_count);
@@ -214,25 +220,34 @@ JNIEXPORT jboolean JNICALL Java_TexcLibraryJni_Encode(JNIEnv* env, jclass cls, j
 }
 
 
-    // Encode a texture into basis format.
-    // bool Encode(Texture* texture, PixelFormat pixelFormat, ColorSpace color_space, CompressionLevel compressionLevel, CompressionType compression_type, bool mipmaps, int max_threads);
+// *************************************************************************************************************
+// FONTS
 
+JNIEXPORT jobject JNICALL Java_TexcLibraryJni_CompressBuffer(JNIEnv* env, jclass cls, jbyteArray array)
+{
+    dmLogDebug("%s: env = %p\n", __FUNCTION__, env);
+    //DM_SCOPED_SIGNAL_CONTEXT(env, return 0;);
 
+    jobject obj = 0;
+    DM_JNI_GUARD_SCOPE_BEGIN();
+        dmTexc::jni::ScopedContext jni_scope(env);
+        dmTexc::jni::TypeInfos* types = &jni_scope.m_TypeInfos;
 
-    // Now only used for font glyphs
-    // Compresses an image buffer
-    // BufferData* CompressBuffer(uint8_t* byte, uint32_t byte_count);
+        dmJNI::ScopedByteArray j_array(env, array);
 
-    // Get the total data size in bytes including all mip maps in a texture (compressed or not)
-    // // uint32_t GetTotalBufferDataSize(HBuffer buffer);
+        dmTexc::Buffer* buffer = dmTexc::CompressBuffer((uint8_t*)j_array.m_Array, (uint32_t)j_array.m_ArraySize);
+        if (buffer)
+        {
+            obj = C2J_CreateBuffer(env, types, buffer);
+            dmTexc::DestroyBuffer(buffer);
+        }
 
-    // Gets the data from a buffer
-    // // uint32_t GetBufferData(HBuffer buffer, void* buffer, uint32_t buffer_size);
+        //env->ReleaseByteArrayElements(array, array_data, JNI_ABORT);
+    DM_JNI_GUARD_SCOPE_END(return 0;);
+    return obj;
+}
 
-    // // Destroys a buffer created by CompressBuffer
-    // void DestroyBuffer(BufferData* buffer);
-
-
+// *************************************************************************************************************
 
 // JNIEXPORT jobject JNICALL Java_TexcLibraryJni_CreateImage(JNIEnv* env, jclass cls, jstring path, jbyteArray bytes, jint width, jint height, jint depth, jint numChannels)
 // {
@@ -250,13 +265,6 @@ JNIEXPORT jboolean JNICALL Java_TexcLibraryJni_Encode(JNIEnv* env, jclass cls, j
 //     return jimage;
 // }
 
-// public static native boolean TEXC_Encode(Pointer texture, int pixelFormat, int colorSpace, int compressionLevel, int compressionType, boolean mipmaps, int num_threads);
-
-// // For font glyphs
-// public static native Pointer TEXC_CompressBuffer(Buffer data, int datasize);
-// public static native int TEXC_GetTotalBufferDataSize(Pointer buffer);
-// public static native int TEXC_GetBufferData(Pointer buffer, Buffer outData, int maxOutDataSize);
-// public static native void TEXC_DestroyBuffer(Pointer buffer);
 
 JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved)
 {
@@ -275,7 +283,7 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved)
     if (c == 0)
         return JNI_ERR;
 
-#define JNIFUNC(NAME, SIGNATURE) {(char*) #NAME, (char*)(SIGNATURE), reinterpret_cast<void*>(Java_TexcLibraryJni_ ## NAME )}
+    #define JNIFUNC(NAME, SIGNATURE) {(char*) #NAME, (char*)(SIGNATURE), reinterpret_cast<void*>(Java_TexcLibraryJni_ ## NAME )}
 
     // Register your class' native methods.
     // Don't forget to add them to the corresponding java file (e.g. ModelImporter.java)
@@ -287,6 +295,8 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved)
         JNIFUNC(GetDataSizeCompressed,  "(JI)I"),
         JNIFUNC(GetDataSizeUncompressed,"(JI)I"),
         JNIFUNC(GetData,                "(J)[B"),
+        JNIFUNC(GetCompressionFlags,    "(J)I"),
+
 
         JNIFUNC(Resize,                 "(JII)Z"),
         JNIFUNC(PreMultiplyAlpha,       "(J)Z"),
@@ -295,9 +305,15 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved)
 
         JNIFUNC(Encode,                 "(JIIIIZI)Z"),
 
+        // Font glyph buffers
+        JNIFUNC(CompressBuffer,         "([B)L" CLASS_NAME "$Buffer;"),
+
+
         // Image api
         //{(char*)"CreateImage", (char*)"(Ljava/lang/String;[BIIII)L" CLASS_NAME "$Scene;", reinterpret_cast<void*>(Java_TexcLibraryJni_CreateImage)},
     };
+    #undef JNIFUNC
+
     int rc = env->RegisterNatives(c, methods, sizeof(methods)/sizeof(JNINativeMethod));
     env->DeleteLocalRef(c);
 
