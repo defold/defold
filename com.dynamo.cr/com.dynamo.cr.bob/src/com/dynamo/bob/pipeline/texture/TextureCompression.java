@@ -13,10 +13,10 @@
 // specific language governing permissions and limitations under the License.
 
 
-package com.dynamo.bob.pipeline;
+package com.defold.extension.pipeline.texture;
 
-import com.defold.extension.pipeline.ITextureCompressor;
-import com.defold.extension.pipeline.TextureCompressorPreset;
+import com.defold.extension.pipeline.texture.ITextureCompressor;
+import com.defold.extension.pipeline.texture.TextureCompressorPreset;
 
 
 import com.dynamo.bob.logging.Logger;
