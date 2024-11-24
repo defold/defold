@@ -43,7 +43,7 @@ def build(bld):
                             source       = texc_sources + bld.path.ant_glob("jni/*.cpp"),
                             includes     = ['.'],
                             target       = 'texc_shared',
-                            use          = 'BASIS_ENCODER_NOASAN DLIB_NOASAN PROFILE_NULL_NOASAN JNI_NOASAN JDK')
+                            use          = 'BASIS_ENCODER_NOASAN DLIB_NOASAN PROFILE_NULL_NOASAN JNI_NOASAN APP JDK')
 
     bld.install_files('${PREFIX}/include/texc', 'texc.h')
 
