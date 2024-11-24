@@ -187,5 +187,20 @@ public class Texc {
         public int height = 0;
         public boolean isCompressed = false;
     };
+    public static class BasisUSettings {
+        public String path;
+        public int width = 0;
+        public int height = 0;
+        public PixelFormat pixelFormat = PixelFormat.PF_L8;
+        public ColorSpace colorSpace = ColorSpace.CS_LRGB;
+        public byte[] data;
+        public int numThreads = 0;
+        public boolean debug = false;
+        public PixelFormat outPixelFormat = PixelFormat.PF_L8;
+        public boolean rdo_uastc = false;
+        public int pack_uastc_flags = 0;
+        public int rdo_uastc_dict_size = 0;
+        public float rdo_uastc_quality_scalar = 0.0f;
+    };
 }
 

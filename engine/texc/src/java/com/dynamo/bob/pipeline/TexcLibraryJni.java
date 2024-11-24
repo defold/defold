@@ -95,7 +95,7 @@ public class TexcLibraryJni {
     public static native boolean GenMipMaps(long texture);
     public static native boolean Flip(long texture, int flipAxis);
 
-    public static native boolean Encode(long texture, int pixelFormat, int colorSpace, int compressionLevel, int compressionType, boolean mipmaps, int num_threads);
+    public static native byte[] BasisUEncode(Texc.BasisUSettings input);
 
     // For font glyphs
     public static native Texc.Buffer CompressBuffer(byte[] data);
@@ -385,20 +385,59 @@ public class TexcLibraryJni {
             System.out.printf("GenMipMaps took %d ms\n", timeEnd - timeStart);
         }
 
+        // {
+        //     System.out.printf("-----------------\n");
+        //     System.out.printf("Encode\n");
+        //     timeStart = System.currentTimeMillis();
+        //     if (!TexcLibraryJni.Encode(texture, pixelFormat.getValue(),
+        //                                         Texc.ColorSpace.CS_SRGB.getValue(),
+        //                                         texcCompressionLevel.getValue(),
+        //                                         texcCompressionType.getValue(),
+        //                                         generateMipMaps, maxThreads)) {
+        //         throw new Exception("could not encode");
+        //     }
+        //     timeEnd = System.currentTimeMillis();
+        //     System.out.printf("Encode took %d ms\n", timeEnd - timeStart);
+        // }
+
         {
             System.out.printf("-----------------\n");
-            System.out.printf("Encode\n");
+            System.out.printf("BasisUEncode\n");
+
+            Texc.BasisUSettings settings = new Texc.BasisUSettings();
+            settings.path = path;
+            settings.width = width;
+            settings.height = height;
+
+            settings.pixelFormat = pixelFormat;
+            settings.outPixelFormat = pixelFormat;
+            settings.colorSpace = Texc.ColorSpace.CS_SRGB;
+
+            settings.numThreads = 8;
+            settings.debug = false;
+
+            settings.numThreads = 8;
+            settings.debug = false;
+
+            // CL_BEST
+            settings.rdo_uastc = true;
+            settings.pack_uastc_flags = 0;
+            settings.rdo_uastc_dict_size = 4096;
+            settings.rdo_uastc_quality_scalar = 3.0f;
+
+            DebugPrintObject(settings, 1);
+
+            settings.data = bytes;
+
             timeStart = System.currentTimeMillis();
-            if (!TexcLibraryJni.Encode(texture, pixelFormat.getValue(),
-                                                Texc.ColorSpace.CS_SRGB.getValue(),
-                                                texcCompressionLevel.getValue(),
-                                                texcCompressionType.getValue(),
-                                                generateMipMaps, maxThreads)) {
-                throw new Exception("could not encode");
+            byte[] encoded = TexcLibraryJni.BasisUEncode(settings);
+            if (encoded == null || encoded.length == 0) {
+                throw new Exception("Could not encode");
             }
             timeEnd = System.currentTimeMillis();
-            System.out.printf("Encode took %d ms\n", timeEnd - timeStart);
+            System.out.printf("Encode %d bytes took %d ms\n", encoded.length, timeEnd - timeStart);
         }
+
 
         {
             System.out.printf("-----------------\n");

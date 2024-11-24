@@ -153,15 +153,44 @@ namespace dmTexc
     // Flips a texture vertically
     bool Flip(Texture* texture, FlipAxis flip_axis);
 
-    // Encode a texture into basis format.
-    bool Encode(Texture* texture, PixelFormat pixelFormat, ColorSpace color_space, CompressionLevel compressionLevel, CompressionType compression_type, bool mipmaps, int max_threads);
-
+    // **********************************************************************
     // Now only used for font glyphs
     // Compresses an image buffer
     Buffer* CompressBuffer(uint8_t* byte, uint32_t byte_count);
 
     // Destroys a buffer created by CompressBuffer
     void DestroyBuffer(Buffer* buffer);
+
+
+    // **********************************************************************
+    // Texture compression api
+    struct BasisUSettings
+    {
+        // Input
+        const char* m_Path;
+        int         m_Width;
+        int         m_Height;
+        PixelFormat m_PixelFormat;
+        ColorSpace  m_ColorSpace;
+        uint8_t*    m_Data;
+        uint32_t    m_DataCount;
+
+        int         m_NumThreads;
+        bool        m_Debug;
+
+        // Output
+        PixelFormat m_OutPixelFormat;
+
+        // Naming matching variables in basis_compressor_params (basis_comp.h)
+        bool        m_rdo_uastc;
+        uint32_t    m_pack_uastc_flags;
+        int         m_rdo_uastc_dict_size;
+        float       m_rdo_uastc_quality_scalar;
+    };
+
+    // Encode a texture into basis format.
+    bool BasisUEncode(BasisUSettings* settings, uint8_t** out, uint32_t* out_size);
+
 }
 
 #endif // DM_TEXC_H

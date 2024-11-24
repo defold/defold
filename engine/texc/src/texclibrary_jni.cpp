@@ -200,26 +200,6 @@ JNIEXPORT jboolean JNICALL Java_TexcLibraryJni_Flip(JNIEnv* env, jclass cls, jlo
     return result;
 }
 
-JNIEXPORT jboolean JNICALL Java_TexcLibraryJni_Encode(JNIEnv* env, jclass cls, jlong texture,
-                                                                    jint pixel_format, jint color_space, jint compression_level, jint compression_type, jboolean gen_mip_maps, jint max_threads)
-{
-    jboolean result = 0;
-    DM_JNI_GUARD_SCOPE_BEGIN();
-        dmTexc::Texture* ptexture = (dmTexc::Texture*)texture;
-        if (ptexture)
-        {
-            result = dmTexc::Encode(ptexture,   (dmTexc::PixelFormat)pixel_format,
-                                                (dmTexc::ColorSpace)color_space,
-                                                (dmTexc::CompressionLevel)compression_level,
-                                                (dmTexc::CompressionType)compression_type,
-                                                (bool)gen_mip_maps,
-                                                max_threads);
-        }
-    DM_JNI_GUARD_SCOPE_END(return 0;);
-    return result;
-}
-
-
 // *************************************************************************************************************
 // FONTS
 
@@ -266,6 +246,51 @@ JNIEXPORT jobject JNICALL Java_TexcLibraryJni_CompressBuffer(JNIEnv* env, jclass
 // }
 
 
+JNIEXPORT jobject JNICALL Java_TexcLibraryJni_BasisUEncode(JNIEnv* env, jclass cls, jobject settings)
+{
+    jobject obj = 0;
+    DM_JNI_GUARD_SCOPE_BEGIN();
+        dmTexc::jni::ScopedContext jni_scope(env);
+        dmTexc::jni::TypeInfos* types = &jni_scope.m_TypeInfos;
+
+        dmTexc::BasisUSettings input;
+        bool result = J2C_CreateBasisUSettings(env, types, settings, &input);
+        if (!result)
+        {
+            dmLogError("%s: J2C_CreateBasisUSettings. settings == %p", __FUNCTION__, settings);
+            return 0;
+        }
+
+        // todo: support debug prints etc from commandline/environment variables
+        // printf("EncodeBasisU:\n");
+        // printf("    path: %s\n",  input.m_Path?input.m_Path:"null");
+        // printf("   width: %d\n", input.m_Width);
+        // printf("  height: %d\n", input.m_Height);
+        // printf("      pf: %d\n", input.m_PixelFormat);
+        // printf("      cs: %d\n", input.m_ColorSpace);
+        // printf("    data: %p\n", input.m_Data);
+        // printf("      sz: %u\n", input.m_DataCount);
+
+        uint8_t* out = 0;
+        uint32_t out_size = 0;
+        result = dmTexc::BasisUEncode(&input, &out, &out_size);
+        if (!result)
+        {
+            dmLogError("%s: dmTexc::BasisUEncode failed", __FUNCTION__);
+            return 0;
+        }
+
+        obj = dmJNI::C2J_CreateUByteArray(env, out, out_size);
+
+        if (out)
+            free(out);
+
+    DM_JNI_GUARD_SCOPE_END(return 0;);
+    return obj;
+}
+
+
+
 JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved)
 {
     dmLogDebug("JNI_OnLoad ->\n");
@@ -297,20 +322,16 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved)
         JNIFUNC(GetData,                "(J)[B"),
         JNIFUNC(GetCompressionFlags,    "(J)I"),
 
-
         JNIFUNC(Resize,                 "(JII)Z"),
         JNIFUNC(PreMultiplyAlpha,       "(J)Z"),
         JNIFUNC(GenMipMaps,             "(J)Z"),
         JNIFUNC(Flip,                   "(JI)Z"),
 
-        JNIFUNC(Encode,                 "(JIIIIZI)Z"),
-
         // Font glyph buffers
         JNIFUNC(CompressBuffer,         "([B)L" CLASS_NAME "$Buffer;"),
 
-
-        // Image api
-        //{(char*)"CreateImage", (char*)"(Ljava/lang/String;[BIIII)L" CLASS_NAME "$Scene;", reinterpret_cast<void*>(Java_TexcLibraryJni_CreateImage)},
+        // Compressor api
+        JNIFUNC(BasisUEncode,           "(L" CLASS_NAME "$BasisUSettings;)[B"),
     };
     #undef JNIFUNC
 

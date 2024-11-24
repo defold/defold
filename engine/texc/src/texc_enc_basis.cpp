@@ -103,39 +103,19 @@ namespace dmTexc
         }
     }
 
-    static bool EncodeBasis(TextureImpl* texture, int num_threads, PixelFormat pixel_format, CompressionType compression_type, CompressionLevel compression_level)
-    {
-        (void)pixel_format;
 
+    static bool BasisUEncodeInternal(int num_threads, basisu::basis_compressor_params& comp_params, PixelFormat pixel_format, dmArray<uint8_t>& out)
+    {
+        basisu::enable_debug_printf(false);
         basisu::job_pool jpool(num_threads);
 
-        basisu::basis_compressor_params comp_params;
+        comp_params.m_pJob_pool = &jpool;
+        comp_params.m_multithreading = num_threads > 1;
 
         comp_params.m_read_source_images = false;
         comp_params.m_write_output_basis_files = false;
-        comp_params.m_pJob_pool = &jpool;
-        comp_params.m_multithreading = num_threads > 1;
-        comp_params.m_uastc = compression_type == CT_BASIS_UASTC;
-        comp_params.m_mip_gen = texture->m_BasisGenMipmaps;
-
         comp_params.m_status_output = false;
         comp_params.m_debug = false;
-        basisu::enable_debug_printf(false);
-
-        uint32_t w = texture->m_BasisImage.get_width();
-        uint32_t h = texture->m_BasisImage.get_height();
-        basisu::color_rgba* pixels = texture->m_BasisImage.get_ptr();
-
-        if (pixel_format == PF_R4G4B4A4) {
-            DitherRGBA4444((uint8_t*)pixels, w, h);
-        }
-        else if(pixel_format == PF_R5G6B5) {
-            DitherRGBx565((uint8_t*)pixels, w, h);
-        }
-
-        comp_params.m_source_images.push_back(texture->m_BasisImage);
-
-        SetCompressionLevel(compression_type, compression_level, comp_params);
 
         basisu::basis_compressor compressor;
         if (!compressor.init(comp_params))
@@ -201,11 +181,37 @@ namespace dmTexc
         //const uint8_vec& comp_data = m_basis_file.get_compressed_data();
 
         const basisu::uint8_vec& data = compressor.get_output_basis_file();
-        texture->m_BasisFile.SetCapacity(data.size());
-        texture->m_BasisFile.SetSize(data.size());
-        memcpy(texture->m_BasisFile.Begin(), &data[0], data.size());
+        out.SetCapacity(data.size());
+        out.SetSize(data.size());
+        memcpy(out.Begin(), &data[0], data.size());
 
         return true;
+    }
+
+
+    static bool EncodeBasis(TextureImpl* texture, int num_threads, PixelFormat pixel_format, CompressionType compression_type, CompressionLevel compression_level)
+    {
+        basisu::basis_compressor_params comp_params;
+
+        comp_params.m_uastc = compression_type == CT_BASIS_UASTC;
+        comp_params.m_mip_gen = texture->m_BasisGenMipmaps;
+
+        uint32_t w = texture->m_BasisImage.get_width();
+        uint32_t h = texture->m_BasisImage.get_height();
+        basisu::color_rgba* pixels = texture->m_BasisImage.get_ptr();
+
+        if (pixel_format == PF_R4G4B4A4) {
+            DitherRGBA4444((uint8_t*)pixels, w, h);
+        }
+        else if(pixel_format == PF_R5G6B5) {
+            DitherRGBx565((uint8_t*)pixels, w, h);
+        }
+
+        comp_params.m_source_images.push_back(texture->m_BasisImage);
+
+        SetCompressionLevel(compression_type, compression_level, comp_params);
+
+        return BasisUEncodeInternal(num_threads, comp_params, pixel_format, texture->m_BasisFile);
     }
 
     bool CreateBasis(TextureImpl* texture, uint32_t width, uint32_t height, PixelFormat pixel_format, ColorSpace color_space, CompressionType compression_type, void* data)
@@ -306,7 +312,6 @@ namespace dmTexc
         return false;
     }
 
-
     void GetEncoderBasis(Encoder* encoder)
     {
         encoder->m_FnCreate             = CreateBasis;
@@ -319,5 +324,50 @@ namespace dmTexc
         encoder->m_FnPreMultiplyAlpha   = PreMultiplyAlphaBasis;
         encoder->m_FnFlip               = FlipBasis;
         encoder->m_FnGetHeader          = GetHeaderBasis;
+    }
+
+    bool BasisUEncode(BasisUSettings* input, uint8_t** out, uint32_t* out_size)
+    {
+        // During refactoring, we'll reuse the old code
+        TextureImpl impl;
+        impl.m_CompressionType = CT_BASIS_UASTC;
+        bool res = CreateBasis(&impl, input->m_Width, input->m_Height, input->m_PixelFormat, input->m_ColorSpace, impl.m_CompressionType, input->m_Data);
+        if (!res)
+        {
+            dmLogError("Failed to encode Basis texture: %s\n", input->m_Path);
+        }
+
+        basisu::basis_compressor_params comp_params;
+
+        comp_params.m_mip_gen = 0;
+        comp_params.m_uastc = input->m_rdo_uastc;
+
+        uint32_t w = impl.m_BasisImage.get_width();
+        uint32_t h = impl.m_BasisImage.get_height();
+        basisu::color_rgba* pixels = impl.m_BasisImage.get_ptr();
+
+        if (input->m_PixelFormat == PF_R4G4B4A4) {
+            DitherRGBA4444((uint8_t*)pixels, w, h);
+        }
+        else if(input->m_PixelFormat == PF_R5G6B5) {
+            DitherRGBx565((uint8_t*)pixels, w, h);
+        }
+
+        comp_params.m_source_images.push_back(impl.m_BasisImage);
+
+        dmArray<uint8_t> arr;
+        res = BasisUEncodeInternal(input->m_NumThreads, comp_params, input->m_OutPixelFormat, arr);
+
+        // TODO: Avoid extra copies!
+        uint32_t size = arr.Size();
+        uint8_t* compressed = (uint8_t*)malloc(size);
+        memcpy(compressed, arr.Begin(), size);
+
+        *out = compressed;
+        *out_size = size;
+
+        DestroyBasis(&impl);
+
+        return true;
     }
 }
