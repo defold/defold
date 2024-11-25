@@ -21,14 +21,14 @@
 
 #include <texc.h>
 
-JNIEXPORT jlong JNICALL Java_TexcLibraryJni_CreateTexture(JNIEnv* env, jclass cls, jstring _path, jint width, jint height, jint pixelFormat, jint colorSpace, jint compressionType, jbyteArray array)
+JNIEXPORT jlong JNICALL Java_TexcLibraryJni_CreateImage(JNIEnv* env, jclass cls, jstring _path, jint width, jint height, jint pixelFormat, jint colorSpace, jbyteArray array)
 {
     dmLogDebug("%s: env = %p\n", __FUNCTION__, env);
     //DM_SCOPED_SIGNAL_CONTEXT(env, return 0;);
 
     if (!array)
     {
-        dmLogError("%s: Texture data array was null!", __FUNCTION__);
+        dmLogError("%s: Image data array was null!", __FUNCTION__);
         return 0;
     }
 
@@ -42,159 +42,112 @@ JNIEXPORT jlong JNICALL Java_TexcLibraryJni_CreateTexture(JNIEnv* env, jclass cl
 
         dmJNI::ScopedByteArray j_array(env, array);
 
-        dmTexc::Texture* texture = dmTexc::CreateTexture(path, width, height, (dmTexc::PixelFormat)pixelFormat, (dmTexc::ColorSpace)colorSpace, (dmTexc::CompressionType)compressionType, j_array.m_Array);
-        obj = (jlong)texture;
+        dmTexc::Image* image = dmTexc::CreateImage(path, width, height, (dmTexc::PixelFormat)pixelFormat, (dmTexc::ColorSpace)colorSpace, j_array.m_ArraySize, (uint8_t*)j_array.m_Array);
+        obj = (jlong)image;
 
     DM_JNI_GUARD_SCOPE_END(return 0;);
     return obj;
 }
 
-JNIEXPORT void JNICALL Java_TexcLibraryJni_DestroyTexture(JNIEnv* env, jclass cls, jlong texture)
+JNIEXPORT void JNICALL Java_TexcLibraryJni_DestroyImage(JNIEnv* env, jclass cls, jlong _image)
 {
     dmLogDebug("%s: env = %p\n", __FUNCTION__, env);
     //DM_SCOPED_SIGNAL_CONTEXT(env, return 0;);
 
     DM_JNI_GUARD_SCOPE_BEGIN();
         dmTexc::jni::ScopedContext jni_scope(env);
-        dmTexc::DestroyTexture((dmTexc::Texture*)texture);
+        dmTexc::DestroyImage((dmTexc::Image*)_image);
     DM_JNI_GUARD_SCOPE_END(return;);
 }
 
-JNIEXPORT jobject JNICALL Java_TexcLibraryJni_GetHeader(JNIEnv* env, jclass cls, jlong texture)
+JNIEXPORT jint JNICALL Java_TexcLibraryJni_GetWidth(JNIEnv* env, jclass cls, jlong _image)
 {
-    //DM_SCOPED_SIGNAL_CONTEXT(env, return 0;);
-
-    jobject obj = 0;
+    jlong obj = 0;
     DM_JNI_GUARD_SCOPE_BEGIN();
-        dmTexc::jni::ScopedContext jni_scope(env);
-        dmTexc::jni::TypeInfos* types = &jni_scope.m_TypeInfos;
-
-        dmTexc::Texture* ptexture = (dmTexc::Texture*)texture;
-        if (ptexture)
+        dmTexc::Image* image = (dmTexc::Image*)_image;
+        if (image)
         {
-            dmTexc::Header header;
-            if (dmTexc::GetHeader(ptexture, &header))
-            {
-                obj = C2J_CreateHeader(env, types, &header);
-            }
+            obj = (jlong)dmTexc::GetWidth(image);
         }
     DM_JNI_GUARD_SCOPE_END(return 0;);
     return obj;
 }
 
-JNIEXPORT jint JNICALL Java_TexcLibraryJni_GetDataSizeCompressed(JNIEnv* env, jclass cls, jlong texture, jint mip_map)
+JNIEXPORT jint JNICALL Java_TexcLibraryJni_GetHeight(JNIEnv* env, jclass cls, jlong _image)
 {
-    jint result = 0;
+    jlong obj = 0;
     DM_JNI_GUARD_SCOPE_BEGIN();
-        //dmTexc::jni::ScopedContext jni_scope(env);
-        dmTexc::Texture* ptexture = (dmTexc::Texture*)texture;
-        if (ptexture)
+        dmTexc::Image* image = (dmTexc::Image*)_image;
+        if (image)
         {
-            result = dmTexc::GetDataSizeCompressed(ptexture, mip_map);
-        }
-    DM_JNI_GUARD_SCOPE_END(return 0;);
-    return result;
-}
-
-JNIEXPORT jint JNICALL Java_TexcLibraryJni_GetDataSizeUncompressed(JNIEnv* env, jclass cls, jlong texture, jint mip_map)
-{
-    jint result = 0;
-    DM_JNI_GUARD_SCOPE_BEGIN();
-        //dmTexc::jni::ScopedContext jni_scope(env);
-        dmTexc::Texture* ptexture = (dmTexc::Texture*)texture;
-        if (ptexture)
-        {
-            result = dmTexc::GetDataSizeUncompressed(ptexture, mip_map);
-        }
-    DM_JNI_GUARD_SCOPE_END(return 0;);
-    return result;
-}
-
-JNIEXPORT jint JNICALL Java_TexcLibraryJni_GetCompressionFlags(JNIEnv* env, jclass cls, jlong texture)
-{
-    jint result = 0;
-    DM_JNI_GUARD_SCOPE_BEGIN();
-        //dmTexc::jni::ScopedContext jni_scope(env);
-        dmTexc::Texture* ptexture = (dmTexc::Texture*)texture;
-        if (ptexture)
-        {
-            result = dmTexc::GetCompressionFlags(ptexture);
-        }
-    DM_JNI_GUARD_SCOPE_END(return 0;);
-    return result;
-}
-
-JNIEXPORT jobject JNICALL Java_TexcLibraryJni_GetData(JNIEnv* env, jclass cls, jlong texture)
-{
-    jobject obj = 0;
-    DM_JNI_GUARD_SCOPE_BEGIN();
-        dmTexc::jni::ScopedContext jni_scope(env);
-
-        dmTexc::Texture* ptexture = (dmTexc::Texture*)texture;
-        if (ptexture)
-        {
-            uint32_t data_count = dmTexc::GetTotalDataSize(ptexture);
-
-            //obj = dmJNI::C2J_CreateByteArray(env, );
-
-            jbyteArray arr = env->NewByteArray(data_count);
-            jbyte* data = env->GetByteArrayElements(arr, 0);
-            dmTexc::GetData(ptexture, data, data_count);
-            env->ReleaseByteArrayElements(arr, data, 0);
-
-            obj = arr;
+            obj = (jlong)dmTexc::GetHeight(image);
         }
     DM_JNI_GUARD_SCOPE_END(return 0;);
     return obj;
 }
 
-JNIEXPORT jboolean JNICALL Java_TexcLibraryJni_Resize(JNIEnv* env, jclass cls, jlong texture, jint width, jint height)
+
+JNIEXPORT jobject JNICALL Java_TexcLibraryJni_GetData(JNIEnv* env, jclass cls, jlong _image)
+{
+    jobject obj = 0;
+    DM_JNI_GUARD_SCOPE_BEGIN();
+        dmTexc::jni::ScopedContext jni_scope(env);
+        dmTexc::Image* image = (dmTexc::Image*)_image;
+        if (image)
+        {
+            obj = dmJNI::C2J_CreateUByteArray(env, image->m_Data, image->m_DataCount);
+        }
+    DM_JNI_GUARD_SCOPE_END(return 0;);
+    return obj;
+}
+
+JNIEXPORT jlong JNICALL Java_TexcLibraryJni_Resize(JNIEnv* env, jclass cls, jlong _image, jint width, jint height)
+{
+    jlong obj = 0;
+    DM_JNI_GUARD_SCOPE_BEGIN();
+        dmTexc::Image* image = (dmTexc::Image*)_image;
+        if (image)
+        {
+            obj = (jlong)dmTexc::Resize(image, width, height);
+        }
+    DM_JNI_GUARD_SCOPE_END(return 0;);
+    return obj;
+}
+
+JNIEXPORT jboolean JNICALL Java_TexcLibraryJni_PreMultiplyAlpha(JNIEnv* env, jclass cls, jlong _image)
 {
     jboolean result = 0;
     DM_JNI_GUARD_SCOPE_BEGIN();
-        dmTexc::Texture* ptexture = (dmTexc::Texture*)texture;
-        if (ptexture)
+        dmTexc::Image* image = (dmTexc::Image*)_image;
+        if (image)
         {
-            result = dmTexc::Resize(ptexture, width, height);
+            result = dmTexc::PreMultiplyAlpha(image);
         }
     DM_JNI_GUARD_SCOPE_END(return 0;);
     return result;
 }
 
-JNIEXPORT jboolean JNICALL Java_TexcLibraryJni_PreMultiplyAlpha(JNIEnv* env, jclass cls, jlong texture)
+JNIEXPORT jboolean JNICALL Java_TexcLibraryJni_Flip(JNIEnv* env, jclass cls, jlong _image, jint flip_axis)
 {
     jboolean result = 0;
     DM_JNI_GUARD_SCOPE_BEGIN();
-        dmTexc::Texture* ptexture = (dmTexc::Texture*)texture;
-        if (ptexture)
+        dmTexc::Image* image = (dmTexc::Image*)_image;
+        if (image)
         {
-            result = dmTexc::PreMultiplyAlpha(ptexture);
+            result = dmTexc::Flip(image, (dmTexc::FlipAxis)flip_axis);
         }
     DM_JNI_GUARD_SCOPE_END(return 0;);
     return result;
 }
 
-JNIEXPORT jboolean JNICALL Java_TexcLibraryJni_GenMipMaps(JNIEnv* env, jclass cls, jlong texture)
+JNIEXPORT jboolean JNICALL Java_TexcLibraryJni_Dither(JNIEnv* env, jclass cls, jlong _image, jint pixel_format)
 {
     jboolean result = 0;
     DM_JNI_GUARD_SCOPE_BEGIN();
-        dmTexc::Texture* ptexture = (dmTexc::Texture*)texture;
-        if (ptexture)
+        dmTexc::Image* image = (dmTexc::Image*)_image;
+        if (image)
         {
-            result = dmTexc::GenMipMaps(ptexture);
-        }
-    DM_JNI_GUARD_SCOPE_END(return 0;);
-    return result;
-}
-
-JNIEXPORT jboolean JNICALL Java_TexcLibraryJni_Flip(JNIEnv* env, jclass cls, jlong texture, jint flip_axis)
-{
-    jboolean result = 0;
-    DM_JNI_GUARD_SCOPE_BEGIN();
-        dmTexc::Texture* ptexture = (dmTexc::Texture*)texture;
-        if (ptexture)
-        {
-            result = dmTexc::Flip(ptexture, (dmTexc::FlipAxis)flip_axis);
+            result = dmTexc::Dither(image, (dmTexc::PixelFormat)pixel_format);
         }
     DM_JNI_GUARD_SCOPE_END(return 0;);
     return result;
@@ -229,23 +182,6 @@ JNIEXPORT jobject JNICALL Java_TexcLibraryJni_CompressBuffer(JNIEnv* env, jclass
 
 // *************************************************************************************************************
 
-// JNIEXPORT jobject JNICALL Java_TexcLibraryJni_CreateImage(JNIEnv* env, jclass cls, jstring path, jbyteArray bytes, jint width, jint height, jint depth, jint numChannels)
-// {
-//     dmLogDebug("%s: env = %p\n", __FUNCTION__, env);
-//     //DM_SCOPED_SIGNAL_CONTEXT(env, return 0;);
-
-//     jobject jimage;
-//     DM_JNI_GUARD_SCOPE_BEGIN();
-
-//         dmTexc::jni::ScopedContext jni_scope(env);
-//         dmTexc::jni::TypeInfos* types = &jni_scope.m_TypeInfos;
-//         //jimage = LoadFromBufferInternal(env, cls, _path, array, data_resolver);
-//         jimage = dmTexc::jni::C2J_CreateImage(env, types, path, bytes, width, height, depth, numChannels);
-//     DM_JNI_GUARD_SCOPE_END(return 0;);
-//     return jimage;
-// }
-
-
 JNIEXPORT jobject JNICALL Java_TexcLibraryJni_BasisUEncode(JNIEnv* env, jclass cls, jobject settings)
 {
     jobject obj = 0;
@@ -253,16 +189,16 @@ JNIEXPORT jobject JNICALL Java_TexcLibraryJni_BasisUEncode(JNIEnv* env, jclass c
         dmTexc::jni::ScopedContext jni_scope(env);
         dmTexc::jni::TypeInfos* types = &jni_scope.m_TypeInfos;
 
-        dmTexc::BasisUSettings input;
-        bool result = J2C_CreateBasisUSettings(env, types, settings, &input);
+        dmTexc::BasisUEncodeSettings input;
+        bool result = J2C_CreateBasisUEncodeSettings(env, types, settings, &input);
         if (!result)
         {
-            dmLogError("%s: J2C_CreateBasisUSettings. settings == %p", __FUNCTION__, settings);
+            dmLogError("%s: J2C_CreateBasisUEncodeSettings. settings == %p", __FUNCTION__, settings);
             return 0;
         }
 
         // todo: support debug prints etc from commandline/environment variables
-        // printf("EncodeBasisU:\n");
+        // printf("BasisUEncode:\n");
         // printf("    path: %s\n",  input.m_Path?input.m_Path:"null");
         // printf("   width: %d\n", input.m_Width);
         // printf("  height: %d\n", input.m_Height);
@@ -274,6 +210,49 @@ JNIEXPORT jobject JNICALL Java_TexcLibraryJni_BasisUEncode(JNIEnv* env, jclass c
         uint8_t* out = 0;
         uint32_t out_size = 0;
         result = dmTexc::BasisUEncode(&input, &out, &out_size);
+        if (!result)
+        {
+            dmLogError("%s: dmTexc::BasisUEncode failed", __FUNCTION__);
+            return 0;
+        }
+
+        obj = dmJNI::C2J_CreateUByteArray(env, out, out_size);
+
+        if (out)
+            free(out);
+
+    DM_JNI_GUARD_SCOPE_END(return 0;);
+    return obj;
+}
+
+JNIEXPORT jobject JNICALL Java_TexcLibraryJni_DefaultEncode(JNIEnv* env, jclass cls, jobject settings)
+{
+    jobject obj = 0;
+    DM_JNI_GUARD_SCOPE_BEGIN();
+        dmTexc::jni::ScopedContext jni_scope(env);
+        dmTexc::jni::TypeInfos* types = &jni_scope.m_TypeInfos;
+
+        dmTexc::DefaultEncodeSettings input;
+        bool result = J2C_CreateDefaultEncodeSettings(env, types, settings, &input);
+        if (!result)
+        {
+            dmLogError("%s: J2C_CreateDefaultEncodeSettings. settings == %p", __FUNCTION__, settings);
+            return 0;
+        }
+
+        // todo: support debug prints etc from commandline/environment variables
+        // printf("DefaultEncode:\n");
+        // printf("    path: %s\n",  input.m_Path?input.m_Path:"null");
+        // printf("   width: %d\n", input.m_Width);
+        // printf("  height: %d\n", input.m_Height);
+        // printf("      pf: %d\n", input.m_PixelFormat);
+        // printf("      cs: %d\n", input.m_ColorSpace);
+        // printf("    data: %p\n", input.m_Data);
+        // printf("      sz: %u\n", input.m_DataCount);
+
+        uint8_t* out = 0;
+        uint32_t out_size = 0;
+        result = dmTexc::DefaultEncode(&input, &out, &out_size);
         if (!result)
         {
             dmLogError("%s: dmTexc::BasisUEncode failed", __FUNCTION__);
@@ -313,25 +292,23 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved)
     // Register your class' native methods.
     // Don't forget to add them to the corresponding java file (e.g. ModelImporter.java)
     static const JNINativeMethod methods[] = {
-        // OLD API
-        JNIFUNC(CreateTexture,          "(Ljava/lang/String;IIIII[B)J"),
-        JNIFUNC(DestroyTexture,         "(J)V"),
-        JNIFUNC(GetHeader,              "(J)L" CLASS_NAME "$Header;"),
-        JNIFUNC(GetDataSizeCompressed,  "(JI)I"),
-        JNIFUNC(GetDataSizeUncompressed,"(JI)I"),
+        // Image api
+        JNIFUNC(CreateImage,           "(Ljava/lang/String;IIII[B)J"),
+        JNIFUNC(DestroyImage,           "(J)V"),
+        JNIFUNC(GetWidth,               "(J)I"),
+        JNIFUNC(GetHeight,              "(J)I"),
         JNIFUNC(GetData,                "(J)[B"),
-        JNIFUNC(GetCompressionFlags,    "(J)I"),
-
-        JNIFUNC(Resize,                 "(JII)Z"),
+        JNIFUNC(Resize,                 "(JII)J"),
         JNIFUNC(PreMultiplyAlpha,       "(J)Z"),
-        JNIFUNC(GenMipMaps,             "(J)Z"),
         JNIFUNC(Flip,                   "(JI)Z"),
+        JNIFUNC(Dither,                 "(JI)Z"),
 
         // Font glyph buffers
         JNIFUNC(CompressBuffer,         "([B)L" CLASS_NAME "$Buffer;"),
 
         // Compressor api
-        JNIFUNC(BasisUEncode,           "(L" CLASS_NAME "$BasisUSettings;)[B"),
+        JNIFUNC(BasisUEncode,           "(L" CLASS_NAME "$BasisUEncodeSettings;)[B"),
+        JNIFUNC(DefaultEncode,          "(L" CLASS_NAME "$DefaultEncodeSettings;)[B"),
     };
     #undef JNIFUNC
 

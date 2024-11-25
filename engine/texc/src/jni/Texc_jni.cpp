@@ -28,23 +28,13 @@ void InitializeJNITypes(JNIEnv* env, TypeInfos* infos) {
         obj-> NAME = dmJNI::GetFieldFromString(env, obj->cls, # NAME, "[L" CLASS_NAME "$" TYPE_NAME ";")
 
     {
-        SETUP_CLASS(HeaderJNI, "Header");
-        GET_FLD_TYPESTR(version, "I");
-        GET_FLD_TYPESTR(flags, "I");
-        GET_FLD_TYPESTR(pixelFormat, "J");
-        GET_FLD_TYPESTR(colourSpace, "I");
-        GET_FLD_TYPESTR(channelType, "I");
-        GET_FLD_TYPESTR(height, "I");
+        SETUP_CLASS(ImageJNI, "Image");
+        GET_FLD_TYPESTR(path, "Ljava/lang/String;");
+        GET_FLD_TYPESTR(data, "[B");
         GET_FLD_TYPESTR(width, "I");
-        GET_FLD_TYPESTR(depth, "I");
-        GET_FLD_TYPESTR(numSurfaces, "I");
-        GET_FLD_TYPESTR(numFaces, "I");
-        GET_FLD_TYPESTR(mipMapCount, "I");
-        GET_FLD_TYPESTR(metaDataSize, "I");
-    }
-    {
-        SETUP_CLASS(TextureJNI, "Texture");
-        GET_FLD_TYPESTR(impl, "J");
+        GET_FLD_TYPESTR(height, "I");
+        GET_FLD(pixelFormat, "PixelFormat");
+        GET_FLD(colorSpace, "ColorSpace");
     }
     {
         SETUP_CLASS(BufferJNI, "Buffer");
@@ -54,7 +44,7 @@ void InitializeJNITypes(JNIEnv* env, TypeInfos* infos) {
         GET_FLD_TYPESTR(isCompressed, "Z");
     }
     {
-        SETUP_CLASS(BasisUSettingsJNI, "BasisUSettings");
+        SETUP_CLASS(BasisUEncodeSettingsJNI, "BasisUEncodeSettings");
         GET_FLD_TYPESTR(path, "Ljava/lang/String;");
         GET_FLD_TYPESTR(width, "I");
         GET_FLD_TYPESTR(height, "I");
@@ -69,44 +59,43 @@ void InitializeJNITypes(JNIEnv* env, TypeInfos* infos) {
         GET_FLD_TYPESTR(rdo_uastc_dict_size, "I");
         GET_FLD_TYPESTR(rdo_uastc_quality_scalar, "F");
     }
+    {
+        SETUP_CLASS(DefaultEncodeSettingsJNI, "DefaultEncodeSettings");
+        GET_FLD_TYPESTR(path, "Ljava/lang/String;");
+        GET_FLD_TYPESTR(width, "I");
+        GET_FLD_TYPESTR(height, "I");
+        GET_FLD(pixelFormat, "PixelFormat");
+        GET_FLD(colorSpace, "ColorSpace");
+        GET_FLD_TYPESTR(data, "[B");
+        GET_FLD_TYPESTR(numThreads, "I");
+        GET_FLD_TYPESTR(debug, "Z");
+        GET_FLD(outPixelFormat, "PixelFormat");
+    }
     #undef GET_FLD
     #undef GET_FLD_ARRAY
     #undef GET_FLD_TYPESTR
 }
 
 void FinalizeJNITypes(JNIEnv* env, TypeInfos* infos) {
-    env->DeleteLocalRef(infos->m_HeaderJNI.cls);
-    env->DeleteLocalRef(infos->m_TextureJNI.cls);
+    env->DeleteLocalRef(infos->m_ImageJNI.cls);
     env->DeleteLocalRef(infos->m_BufferJNI.cls);
-    env->DeleteLocalRef(infos->m_BasisUSettingsJNI.cls);
+    env->DeleteLocalRef(infos->m_BasisUEncodeSettingsJNI.cls);
+    env->DeleteLocalRef(infos->m_DefaultEncodeSettingsJNI.cls);
 }
 
 
 //----------------------------------------
 // From C to Jni
 //----------------------------------------
-jobject C2J_CreateHeader(JNIEnv* env, TypeInfos* types, const Header* src) {
+jobject C2J_CreateImage(JNIEnv* env, TypeInfos* types, const Image* src) {
     if (src == 0) return 0;
-    jobject obj = env->AllocObject(types->m_HeaderJNI.cls);
-    dmJNI::SetUInt(env, obj, types->m_HeaderJNI.version, src->m_Version);
-    dmJNI::SetUInt(env, obj, types->m_HeaderJNI.flags, src->m_Flags);
-    dmJNI::SetULong(env, obj, types->m_HeaderJNI.pixelFormat, src->m_PixelFormat);
-    dmJNI::SetUInt(env, obj, types->m_HeaderJNI.colourSpace, src->m_ColourSpace);
-    dmJNI::SetUInt(env, obj, types->m_HeaderJNI.channelType, src->m_ChannelType);
-    dmJNI::SetUInt(env, obj, types->m_HeaderJNI.height, src->m_Height);
-    dmJNI::SetUInt(env, obj, types->m_HeaderJNI.width, src->m_Width);
-    dmJNI::SetUInt(env, obj, types->m_HeaderJNI.depth, src->m_Depth);
-    dmJNI::SetUInt(env, obj, types->m_HeaderJNI.numSurfaces, src->m_NumSurfaces);
-    dmJNI::SetUInt(env, obj, types->m_HeaderJNI.numFaces, src->m_NumFaces);
-    dmJNI::SetUInt(env, obj, types->m_HeaderJNI.mipMapCount, src->m_MipMapCount);
-    dmJNI::SetUInt(env, obj, types->m_HeaderJNI.metaDataSize, src->m_MetaDataSize);
-    return obj;
-}
-
-jobject C2J_CreateTexture(JNIEnv* env, TypeInfos* types, const Texture* src) {
-    if (src == 0) return 0;
-    jobject obj = env->AllocObject(types->m_TextureJNI.cls);
-    dmJNI::SetLong(env, obj, types->m_TextureJNI.impl, (uintptr_t)src->m_Impl);
+    jobject obj = env->AllocObject(types->m_ImageJNI.cls);
+    dmJNI::SetString(env, obj, types->m_ImageJNI.path, src->m_Path);
+    dmJNI::SetObjectDeref(env, obj, types->m_ImageJNI.data, dmJNI::C2J_CreateUByteArray(env, src->m_Data, src->m_DataCount));
+    dmJNI::SetUInt(env, obj, types->m_ImageJNI.width, src->m_Width);
+    dmJNI::SetUInt(env, obj, types->m_ImageJNI.height, src->m_Height);
+    dmJNI::SetEnum(env, obj, types->m_ImageJNI.pixelFormat, src->m_PixelFormat);
+    dmJNI::SetEnum(env, obj, types->m_ImageJNI.colorSpace, src->m_ColorSpace);
     return obj;
 }
 
@@ -120,60 +109,55 @@ jobject C2J_CreateBuffer(JNIEnv* env, TypeInfos* types, const Buffer* src) {
     return obj;
 }
 
-jobject C2J_CreateBasisUSettings(JNIEnv* env, TypeInfos* types, const BasisUSettings* src) {
+jobject C2J_CreateBasisUEncodeSettings(JNIEnv* env, TypeInfos* types, const BasisUEncodeSettings* src) {
     if (src == 0) return 0;
-    jobject obj = env->AllocObject(types->m_BasisUSettingsJNI.cls);
-    dmJNI::SetString(env, obj, types->m_BasisUSettingsJNI.path, src->m_Path);
-    dmJNI::SetInt(env, obj, types->m_BasisUSettingsJNI.width, src->m_Width);
-    dmJNI::SetInt(env, obj, types->m_BasisUSettingsJNI.height, src->m_Height);
-    dmJNI::SetEnum(env, obj, types->m_BasisUSettingsJNI.pixelFormat, src->m_PixelFormat);
-    dmJNI::SetEnum(env, obj, types->m_BasisUSettingsJNI.colorSpace, src->m_ColorSpace);
-    dmJNI::SetObjectDeref(env, obj, types->m_BasisUSettingsJNI.data, dmJNI::C2J_CreateUByteArray(env, src->m_Data, src->m_DataCount));
-    dmJNI::SetInt(env, obj, types->m_BasisUSettingsJNI.numThreads, src->m_NumThreads);
-    dmJNI::SetBoolean(env, obj, types->m_BasisUSettingsJNI.debug, src->m_Debug);
-    dmJNI::SetEnum(env, obj, types->m_BasisUSettingsJNI.outPixelFormat, src->m_OutPixelFormat);
-    dmJNI::SetBoolean(env, obj, types->m_BasisUSettingsJNI.rdo_uastc, src->m_rdo_uastc);
-    dmJNI::SetUInt(env, obj, types->m_BasisUSettingsJNI.pack_uastc_flags, src->m_pack_uastc_flags);
-    dmJNI::SetInt(env, obj, types->m_BasisUSettingsJNI.rdo_uastc_dict_size, src->m_rdo_uastc_dict_size);
-    dmJNI::SetFloat(env, obj, types->m_BasisUSettingsJNI.rdo_uastc_quality_scalar, src->m_rdo_uastc_quality_scalar);
+    jobject obj = env->AllocObject(types->m_BasisUEncodeSettingsJNI.cls);
+    dmJNI::SetString(env, obj, types->m_BasisUEncodeSettingsJNI.path, src->m_Path);
+    dmJNI::SetInt(env, obj, types->m_BasisUEncodeSettingsJNI.width, src->m_Width);
+    dmJNI::SetInt(env, obj, types->m_BasisUEncodeSettingsJNI.height, src->m_Height);
+    dmJNI::SetEnum(env, obj, types->m_BasisUEncodeSettingsJNI.pixelFormat, src->m_PixelFormat);
+    dmJNI::SetEnum(env, obj, types->m_BasisUEncodeSettingsJNI.colorSpace, src->m_ColorSpace);
+    dmJNI::SetObjectDeref(env, obj, types->m_BasisUEncodeSettingsJNI.data, dmJNI::C2J_CreateUByteArray(env, src->m_Data, src->m_DataCount));
+    dmJNI::SetInt(env, obj, types->m_BasisUEncodeSettingsJNI.numThreads, src->m_NumThreads);
+    dmJNI::SetBoolean(env, obj, types->m_BasisUEncodeSettingsJNI.debug, src->m_Debug);
+    dmJNI::SetEnum(env, obj, types->m_BasisUEncodeSettingsJNI.outPixelFormat, src->m_OutPixelFormat);
+    dmJNI::SetBoolean(env, obj, types->m_BasisUEncodeSettingsJNI.rdo_uastc, src->m_rdo_uastc);
+    dmJNI::SetUInt(env, obj, types->m_BasisUEncodeSettingsJNI.pack_uastc_flags, src->m_pack_uastc_flags);
+    dmJNI::SetInt(env, obj, types->m_BasisUEncodeSettingsJNI.rdo_uastc_dict_size, src->m_rdo_uastc_dict_size);
+    dmJNI::SetFloat(env, obj, types->m_BasisUEncodeSettingsJNI.rdo_uastc_quality_scalar, src->m_rdo_uastc_quality_scalar);
     return obj;
 }
 
-jobjectArray C2J_CreateHeaderArray(JNIEnv* env, TypeInfos* types, const Header* src, uint32_t src_count) {
+jobject C2J_CreateDefaultEncodeSettings(JNIEnv* env, TypeInfos* types, const DefaultEncodeSettings* src) {
+    if (src == 0) return 0;
+    jobject obj = env->AllocObject(types->m_DefaultEncodeSettingsJNI.cls);
+    dmJNI::SetString(env, obj, types->m_DefaultEncodeSettingsJNI.path, src->m_Path);
+    dmJNI::SetInt(env, obj, types->m_DefaultEncodeSettingsJNI.width, src->m_Width);
+    dmJNI::SetInt(env, obj, types->m_DefaultEncodeSettingsJNI.height, src->m_Height);
+    dmJNI::SetEnum(env, obj, types->m_DefaultEncodeSettingsJNI.pixelFormat, src->m_PixelFormat);
+    dmJNI::SetEnum(env, obj, types->m_DefaultEncodeSettingsJNI.colorSpace, src->m_ColorSpace);
+    dmJNI::SetObjectDeref(env, obj, types->m_DefaultEncodeSettingsJNI.data, dmJNI::C2J_CreateUByteArray(env, src->m_Data, src->m_DataCount));
+    dmJNI::SetInt(env, obj, types->m_DefaultEncodeSettingsJNI.numThreads, src->m_NumThreads);
+    dmJNI::SetBoolean(env, obj, types->m_DefaultEncodeSettingsJNI.debug, src->m_Debug);
+    dmJNI::SetEnum(env, obj, types->m_DefaultEncodeSettingsJNI.outPixelFormat, src->m_OutPixelFormat);
+    return obj;
+}
+
+jobjectArray C2J_CreateImageArray(JNIEnv* env, TypeInfos* types, const Image* src, uint32_t src_count) {
     if (src == 0 || src_count == 0) return 0;
-    jobjectArray arr = env->NewObjectArray(src_count, types->m_HeaderJNI.cls, 0);
+    jobjectArray arr = env->NewObjectArray(src_count, types->m_ImageJNI.cls, 0);
     for (uint32_t i = 0; i < src_count; ++i) {
-        jobject obj = C2J_CreateHeader(env, types, &src[i]);
+        jobject obj = C2J_CreateImage(env, types, &src[i]);
         env->SetObjectArrayElement(arr, i, obj);
         env->DeleteLocalRef(obj);
     }
     return arr;
 }
-jobjectArray C2J_CreateHeaderPtrArray(JNIEnv* env, TypeInfos* types, const Header* const* src, uint32_t src_count) {
+jobjectArray C2J_CreateImagePtrArray(JNIEnv* env, TypeInfos* types, const Image* const* src, uint32_t src_count) {
     if (src == 0 || src_count == 0) return 0;
-    jobjectArray arr = env->NewObjectArray(src_count, types->m_HeaderJNI.cls, 0);
+    jobjectArray arr = env->NewObjectArray(src_count, types->m_ImageJNI.cls, 0);
     for (uint32_t i = 0; i < src_count; ++i) {
-        jobject obj = C2J_CreateHeader(env, types, src[i]);
-        env->SetObjectArrayElement(arr, i, obj);
-        env->DeleteLocalRef(obj);
-    }
-    return arr;
-}
-jobjectArray C2J_CreateTextureArray(JNIEnv* env, TypeInfos* types, const Texture* src, uint32_t src_count) {
-    if (src == 0 || src_count == 0) return 0;
-    jobjectArray arr = env->NewObjectArray(src_count, types->m_TextureJNI.cls, 0);
-    for (uint32_t i = 0; i < src_count; ++i) {
-        jobject obj = C2J_CreateTexture(env, types, &src[i]);
-        env->SetObjectArrayElement(arr, i, obj);
-        env->DeleteLocalRef(obj);
-    }
-    return arr;
-}
-jobjectArray C2J_CreateTexturePtrArray(JNIEnv* env, TypeInfos* types, const Texture* const* src, uint32_t src_count) {
-    if (src == 0 || src_count == 0) return 0;
-    jobjectArray arr = env->NewObjectArray(src_count, types->m_TextureJNI.cls, 0);
-    for (uint32_t i = 0; i < src_count; ++i) {
-        jobject obj = C2J_CreateTexture(env, types, src[i]);
+        jobject obj = C2J_CreateImage(env, types, src[i]);
         env->SetObjectArrayElement(arr, i, obj);
         env->DeleteLocalRef(obj);
     }
@@ -199,21 +183,41 @@ jobjectArray C2J_CreateBufferPtrArray(JNIEnv* env, TypeInfos* types, const Buffe
     }
     return arr;
 }
-jobjectArray C2J_CreateBasisUSettingsArray(JNIEnv* env, TypeInfos* types, const BasisUSettings* src, uint32_t src_count) {
+jobjectArray C2J_CreateBasisUEncodeSettingsArray(JNIEnv* env, TypeInfos* types, const BasisUEncodeSettings* src, uint32_t src_count) {
     if (src == 0 || src_count == 0) return 0;
-    jobjectArray arr = env->NewObjectArray(src_count, types->m_BasisUSettingsJNI.cls, 0);
+    jobjectArray arr = env->NewObjectArray(src_count, types->m_BasisUEncodeSettingsJNI.cls, 0);
     for (uint32_t i = 0; i < src_count; ++i) {
-        jobject obj = C2J_CreateBasisUSettings(env, types, &src[i]);
+        jobject obj = C2J_CreateBasisUEncodeSettings(env, types, &src[i]);
         env->SetObjectArrayElement(arr, i, obj);
         env->DeleteLocalRef(obj);
     }
     return arr;
 }
-jobjectArray C2J_CreateBasisUSettingsPtrArray(JNIEnv* env, TypeInfos* types, const BasisUSettings* const* src, uint32_t src_count) {
+jobjectArray C2J_CreateBasisUEncodeSettingsPtrArray(JNIEnv* env, TypeInfos* types, const BasisUEncodeSettings* const* src, uint32_t src_count) {
     if (src == 0 || src_count == 0) return 0;
-    jobjectArray arr = env->NewObjectArray(src_count, types->m_BasisUSettingsJNI.cls, 0);
+    jobjectArray arr = env->NewObjectArray(src_count, types->m_BasisUEncodeSettingsJNI.cls, 0);
     for (uint32_t i = 0; i < src_count; ++i) {
-        jobject obj = C2J_CreateBasisUSettings(env, types, src[i]);
+        jobject obj = C2J_CreateBasisUEncodeSettings(env, types, src[i]);
+        env->SetObjectArrayElement(arr, i, obj);
+        env->DeleteLocalRef(obj);
+    }
+    return arr;
+}
+jobjectArray C2J_CreateDefaultEncodeSettingsArray(JNIEnv* env, TypeInfos* types, const DefaultEncodeSettings* src, uint32_t src_count) {
+    if (src == 0 || src_count == 0) return 0;
+    jobjectArray arr = env->NewObjectArray(src_count, types->m_DefaultEncodeSettingsJNI.cls, 0);
+    for (uint32_t i = 0; i < src_count; ++i) {
+        jobject obj = C2J_CreateDefaultEncodeSettings(env, types, &src[i]);
+        env->SetObjectArrayElement(arr, i, obj);
+        env->DeleteLocalRef(obj);
+    }
+    return arr;
+}
+jobjectArray C2J_CreateDefaultEncodeSettingsPtrArray(JNIEnv* env, TypeInfos* types, const DefaultEncodeSettings* const* src, uint32_t src_count) {
+    if (src == 0 || src_count == 0) return 0;
+    jobjectArray arr = env->NewObjectArray(src_count, types->m_DefaultEncodeSettingsJNI.cls, 0);
+    for (uint32_t i = 0; i < src_count; ++i) {
+        jobject obj = C2J_CreateDefaultEncodeSettings(env, types, src[i]);
         env->SetObjectArrayElement(arr, i, obj);
         env->DeleteLocalRef(obj);
     }
@@ -222,26 +226,20 @@ jobjectArray C2J_CreateBasisUSettingsPtrArray(JNIEnv* env, TypeInfos* types, con
 //----------------------------------------
 // From Jni to C
 //----------------------------------------
-bool J2C_CreateHeader(JNIEnv* env, TypeInfos* types, jobject obj, Header* out) {
+bool J2C_CreateImage(JNIEnv* env, TypeInfos* types, jobject obj, Image* out) {
     if (out == 0) return false;
-    out->m_Version = dmJNI::GetUInt(env, obj, types->m_HeaderJNI.version);
-    out->m_Flags = dmJNI::GetUInt(env, obj, types->m_HeaderJNI.flags);
-    out->m_PixelFormat = dmJNI::GetULong(env, obj, types->m_HeaderJNI.pixelFormat);
-    out->m_ColourSpace = dmJNI::GetUInt(env, obj, types->m_HeaderJNI.colourSpace);
-    out->m_ChannelType = dmJNI::GetUInt(env, obj, types->m_HeaderJNI.channelType);
-    out->m_Height = dmJNI::GetUInt(env, obj, types->m_HeaderJNI.height);
-    out->m_Width = dmJNI::GetUInt(env, obj, types->m_HeaderJNI.width);
-    out->m_Depth = dmJNI::GetUInt(env, obj, types->m_HeaderJNI.depth);
-    out->m_NumSurfaces = dmJNI::GetUInt(env, obj, types->m_HeaderJNI.numSurfaces);
-    out->m_NumFaces = dmJNI::GetUInt(env, obj, types->m_HeaderJNI.numFaces);
-    out->m_MipMapCount = dmJNI::GetUInt(env, obj, types->m_HeaderJNI.mipMapCount);
-    out->m_MetaDataSize = dmJNI::GetUInt(env, obj, types->m_HeaderJNI.metaDataSize);
-    return true;
-}
-
-bool J2C_CreateTexture(JNIEnv* env, TypeInfos* types, jobject obj, Texture* out) {
-    if (out == 0) return false;
-    out->m_Impl = (void*)(uintptr_t)dmJNI::GetLong(env, obj, types->m_TextureJNI.impl);
+    out->m_Path = dmJNI::GetString(env, obj, types->m_ImageJNI.path);
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_ImageJNI.data);
+        if (field_object) {
+            out->m_Data = dmJNI::J2C_CreateUByteArray(env, (jbyteArray)field_object, &out->m_DataCount);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    out->m_Width = dmJNI::GetUInt(env, obj, types->m_ImageJNI.width);
+    out->m_Height = dmJNI::GetUInt(env, obj, types->m_ImageJNI.height);
+    out->m_PixelFormat = (PixelFormat)dmJNI::GetEnum(env, obj, types->m_ImageJNI.pixelFormat);
+    out->m_ColorSpace = (ColorSpace)dmJNI::GetEnum(env, obj, types->m_ImageJNI.colorSpace);
     return true;
 }
 
@@ -260,31 +258,51 @@ bool J2C_CreateBuffer(JNIEnv* env, TypeInfos* types, jobject obj, Buffer* out) {
     return true;
 }
 
-bool J2C_CreateBasisUSettings(JNIEnv* env, TypeInfos* types, jobject obj, BasisUSettings* out) {
+bool J2C_CreateBasisUEncodeSettings(JNIEnv* env, TypeInfos* types, jobject obj, BasisUEncodeSettings* out) {
     if (out == 0) return false;
-    out->m_Path = dmJNI::GetString(env, obj, types->m_BasisUSettingsJNI.path);
-    out->m_Width = dmJNI::GetInt(env, obj, types->m_BasisUSettingsJNI.width);
-    out->m_Height = dmJNI::GetInt(env, obj, types->m_BasisUSettingsJNI.height);
-    out->m_PixelFormat = (PixelFormat)dmJNI::GetEnum(env, obj, types->m_BasisUSettingsJNI.pixelFormat);
-    out->m_ColorSpace = (ColorSpace)dmJNI::GetEnum(env, obj, types->m_BasisUSettingsJNI.colorSpace);
+    out->m_Path = dmJNI::GetString(env, obj, types->m_BasisUEncodeSettingsJNI.path);
+    out->m_Width = dmJNI::GetInt(env, obj, types->m_BasisUEncodeSettingsJNI.width);
+    out->m_Height = dmJNI::GetInt(env, obj, types->m_BasisUEncodeSettingsJNI.height);
+    out->m_PixelFormat = (PixelFormat)dmJNI::GetEnum(env, obj, types->m_BasisUEncodeSettingsJNI.pixelFormat);
+    out->m_ColorSpace = (ColorSpace)dmJNI::GetEnum(env, obj, types->m_BasisUEncodeSettingsJNI.colorSpace);
     {
-        jobject field_object = env->GetObjectField(obj, types->m_BasisUSettingsJNI.data);
+        jobject field_object = env->GetObjectField(obj, types->m_BasisUEncodeSettingsJNI.data);
         if (field_object) {
             out->m_Data = dmJNI::J2C_CreateUByteArray(env, (jbyteArray)field_object, &out->m_DataCount);
             env->DeleteLocalRef(field_object);
         }
     }
-    out->m_NumThreads = dmJNI::GetInt(env, obj, types->m_BasisUSettingsJNI.numThreads);
-    out->m_Debug = dmJNI::GetBoolean(env, obj, types->m_BasisUSettingsJNI.debug);
-    out->m_OutPixelFormat = (PixelFormat)dmJNI::GetEnum(env, obj, types->m_BasisUSettingsJNI.outPixelFormat);
-    out->m_rdo_uastc = dmJNI::GetBoolean(env, obj, types->m_BasisUSettingsJNI.rdo_uastc);
-    out->m_pack_uastc_flags = dmJNI::GetUInt(env, obj, types->m_BasisUSettingsJNI.pack_uastc_flags);
-    out->m_rdo_uastc_dict_size = dmJNI::GetInt(env, obj, types->m_BasisUSettingsJNI.rdo_uastc_dict_size);
-    out->m_rdo_uastc_quality_scalar = dmJNI::GetFloat(env, obj, types->m_BasisUSettingsJNI.rdo_uastc_quality_scalar);
+    out->m_NumThreads = dmJNI::GetInt(env, obj, types->m_BasisUEncodeSettingsJNI.numThreads);
+    out->m_Debug = dmJNI::GetBoolean(env, obj, types->m_BasisUEncodeSettingsJNI.debug);
+    out->m_OutPixelFormat = (PixelFormat)dmJNI::GetEnum(env, obj, types->m_BasisUEncodeSettingsJNI.outPixelFormat);
+    out->m_rdo_uastc = dmJNI::GetBoolean(env, obj, types->m_BasisUEncodeSettingsJNI.rdo_uastc);
+    out->m_pack_uastc_flags = dmJNI::GetUInt(env, obj, types->m_BasisUEncodeSettingsJNI.pack_uastc_flags);
+    out->m_rdo_uastc_dict_size = dmJNI::GetInt(env, obj, types->m_BasisUEncodeSettingsJNI.rdo_uastc_dict_size);
+    out->m_rdo_uastc_quality_scalar = dmJNI::GetFloat(env, obj, types->m_BasisUEncodeSettingsJNI.rdo_uastc_quality_scalar);
     return true;
 }
 
-void J2C_CreateHeaderArrayInPlace(JNIEnv* env, TypeInfos* types, jobjectArray arr, Header* dst, uint32_t dst_count) {
+bool J2C_CreateDefaultEncodeSettings(JNIEnv* env, TypeInfos* types, jobject obj, DefaultEncodeSettings* out) {
+    if (out == 0) return false;
+    out->m_Path = dmJNI::GetString(env, obj, types->m_DefaultEncodeSettingsJNI.path);
+    out->m_Width = dmJNI::GetInt(env, obj, types->m_DefaultEncodeSettingsJNI.width);
+    out->m_Height = dmJNI::GetInt(env, obj, types->m_DefaultEncodeSettingsJNI.height);
+    out->m_PixelFormat = (PixelFormat)dmJNI::GetEnum(env, obj, types->m_DefaultEncodeSettingsJNI.pixelFormat);
+    out->m_ColorSpace = (ColorSpace)dmJNI::GetEnum(env, obj, types->m_DefaultEncodeSettingsJNI.colorSpace);
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_DefaultEncodeSettingsJNI.data);
+        if (field_object) {
+            out->m_Data = dmJNI::J2C_CreateUByteArray(env, (jbyteArray)field_object, &out->m_DataCount);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    out->m_NumThreads = dmJNI::GetInt(env, obj, types->m_DefaultEncodeSettingsJNI.numThreads);
+    out->m_Debug = dmJNI::GetBoolean(env, obj, types->m_DefaultEncodeSettingsJNI.debug);
+    out->m_OutPixelFormat = (PixelFormat)dmJNI::GetEnum(env, obj, types->m_DefaultEncodeSettingsJNI.outPixelFormat);
+    return true;
+}
+
+void J2C_CreateImageArrayInPlace(JNIEnv* env, TypeInfos* types, jobjectArray arr, Image* dst, uint32_t dst_count) {
     jsize len = env->GetArrayLength(arr);
     if (len != dst_count) {
         printf("Number of elements mismatch. Expected %u, but got %u\n", dst_count, len);
@@ -293,18 +311,18 @@ void J2C_CreateHeaderArrayInPlace(JNIEnv* env, TypeInfos* types, jobjectArray ar
         len = dst_count;
     for (uint32_t i = 0; i < len; ++i) {
         jobject obj = env->GetObjectArrayElement(arr, i);
-        J2C_CreateHeader(env, types, obj, &dst[i]);
+        J2C_CreateImage(env, types, obj, &dst[i]);
         env->DeleteLocalRef(obj);
     }
 }
-Header* J2C_CreateHeaderArray(JNIEnv* env, TypeInfos* types, jobjectArray arr, uint32_t* out_count) {
+Image* J2C_CreateImageArray(JNIEnv* env, TypeInfos* types, jobjectArray arr, uint32_t* out_count) {
     jsize len = env->GetArrayLength(arr);
-    Header* out = new Header[len];
-    J2C_CreateHeaderArrayInPlace(env, types, arr, out, len);
+    Image* out = new Image[len];
+    J2C_CreateImageArrayInPlace(env, types, arr, out, len);
     *out_count = (uint32_t)len;
     return out;
 }
-void J2C_CreateHeaderPtrArrayInPlace(JNIEnv* env, TypeInfos* types, jobjectArray arr, Header** dst, uint32_t dst_count) {
+void J2C_CreateImagePtrArrayInPlace(JNIEnv* env, TypeInfos* types, jobjectArray arr, Image** dst, uint32_t dst_count) {
     jsize len = env->GetArrayLength(arr);
     if (len != dst_count) {
         printf("Number of elements mismatch. Expected %u, but got %u\n", dst_count, len);
@@ -313,56 +331,15 @@ void J2C_CreateHeaderPtrArrayInPlace(JNIEnv* env, TypeInfos* types, jobjectArray
         len = dst_count;
     for (uint32_t i = 0; i < len; ++i) {
         jobject obj = env->GetObjectArrayElement(arr, i);
-        dst[i] = new Header();
-        J2C_CreateHeader(env, types, obj, dst[i]);
+        dst[i] = new Image();
+        J2C_CreateImage(env, types, obj, dst[i]);
         env->DeleteLocalRef(obj);
     }
 }
-Header** J2C_CreateHeaderPtrArray(JNIEnv* env, TypeInfos* types, jobjectArray arr, uint32_t* out_count) {
+Image** J2C_CreateImagePtrArray(JNIEnv* env, TypeInfos* types, jobjectArray arr, uint32_t* out_count) {
     jsize len = env->GetArrayLength(arr);
-    Header** out = new Header*[len];
-    J2C_CreateHeaderPtrArrayInPlace(env, types, arr, out, len);
-    *out_count = (uint32_t)len;
-    return out;
-}
-void J2C_CreateTextureArrayInPlace(JNIEnv* env, TypeInfos* types, jobjectArray arr, Texture* dst, uint32_t dst_count) {
-    jsize len = env->GetArrayLength(arr);
-    if (len != dst_count) {
-        printf("Number of elements mismatch. Expected %u, but got %u\n", dst_count, len);
-    }
-    if (len > dst_count)
-        len = dst_count;
-    for (uint32_t i = 0; i < len; ++i) {
-        jobject obj = env->GetObjectArrayElement(arr, i);
-        J2C_CreateTexture(env, types, obj, &dst[i]);
-        env->DeleteLocalRef(obj);
-    }
-}
-Texture* J2C_CreateTextureArray(JNIEnv* env, TypeInfos* types, jobjectArray arr, uint32_t* out_count) {
-    jsize len = env->GetArrayLength(arr);
-    Texture* out = new Texture[len];
-    J2C_CreateTextureArrayInPlace(env, types, arr, out, len);
-    *out_count = (uint32_t)len;
-    return out;
-}
-void J2C_CreateTexturePtrArrayInPlace(JNIEnv* env, TypeInfos* types, jobjectArray arr, Texture** dst, uint32_t dst_count) {
-    jsize len = env->GetArrayLength(arr);
-    if (len != dst_count) {
-        printf("Number of elements mismatch. Expected %u, but got %u\n", dst_count, len);
-    }
-    if (len > dst_count)
-        len = dst_count;
-    for (uint32_t i = 0; i < len; ++i) {
-        jobject obj = env->GetObjectArrayElement(arr, i);
-        dst[i] = new Texture();
-        J2C_CreateTexture(env, types, obj, dst[i]);
-        env->DeleteLocalRef(obj);
-    }
-}
-Texture** J2C_CreateTexturePtrArray(JNIEnv* env, TypeInfos* types, jobjectArray arr, uint32_t* out_count) {
-    jsize len = env->GetArrayLength(arr);
-    Texture** out = new Texture*[len];
-    J2C_CreateTexturePtrArrayInPlace(env, types, arr, out, len);
+    Image** out = new Image*[len];
+    J2C_CreateImagePtrArrayInPlace(env, types, arr, out, len);
     *out_count = (uint32_t)len;
     return out;
 }
@@ -407,7 +384,7 @@ Buffer** J2C_CreateBufferPtrArray(JNIEnv* env, TypeInfos* types, jobjectArray ar
     *out_count = (uint32_t)len;
     return out;
 }
-void J2C_CreateBasisUSettingsArrayInPlace(JNIEnv* env, TypeInfos* types, jobjectArray arr, BasisUSettings* dst, uint32_t dst_count) {
+void J2C_CreateBasisUEncodeSettingsArrayInPlace(JNIEnv* env, TypeInfos* types, jobjectArray arr, BasisUEncodeSettings* dst, uint32_t dst_count) {
     jsize len = env->GetArrayLength(arr);
     if (len != dst_count) {
         printf("Number of elements mismatch. Expected %u, but got %u\n", dst_count, len);
@@ -416,18 +393,18 @@ void J2C_CreateBasisUSettingsArrayInPlace(JNIEnv* env, TypeInfos* types, jobject
         len = dst_count;
     for (uint32_t i = 0; i < len; ++i) {
         jobject obj = env->GetObjectArrayElement(arr, i);
-        J2C_CreateBasisUSettings(env, types, obj, &dst[i]);
+        J2C_CreateBasisUEncodeSettings(env, types, obj, &dst[i]);
         env->DeleteLocalRef(obj);
     }
 }
-BasisUSettings* J2C_CreateBasisUSettingsArray(JNIEnv* env, TypeInfos* types, jobjectArray arr, uint32_t* out_count) {
+BasisUEncodeSettings* J2C_CreateBasisUEncodeSettingsArray(JNIEnv* env, TypeInfos* types, jobjectArray arr, uint32_t* out_count) {
     jsize len = env->GetArrayLength(arr);
-    BasisUSettings* out = new BasisUSettings[len];
-    J2C_CreateBasisUSettingsArrayInPlace(env, types, arr, out, len);
+    BasisUEncodeSettings* out = new BasisUEncodeSettings[len];
+    J2C_CreateBasisUEncodeSettingsArrayInPlace(env, types, arr, out, len);
     *out_count = (uint32_t)len;
     return out;
 }
-void J2C_CreateBasisUSettingsPtrArrayInPlace(JNIEnv* env, TypeInfos* types, jobjectArray arr, BasisUSettings** dst, uint32_t dst_count) {
+void J2C_CreateBasisUEncodeSettingsPtrArrayInPlace(JNIEnv* env, TypeInfos* types, jobjectArray arr, BasisUEncodeSettings** dst, uint32_t dst_count) {
     jsize len = env->GetArrayLength(arr);
     if (len != dst_count) {
         printf("Number of elements mismatch. Expected %u, but got %u\n", dst_count, len);
@@ -436,15 +413,56 @@ void J2C_CreateBasisUSettingsPtrArrayInPlace(JNIEnv* env, TypeInfos* types, jobj
         len = dst_count;
     for (uint32_t i = 0; i < len; ++i) {
         jobject obj = env->GetObjectArrayElement(arr, i);
-        dst[i] = new BasisUSettings();
-        J2C_CreateBasisUSettings(env, types, obj, dst[i]);
+        dst[i] = new BasisUEncodeSettings();
+        J2C_CreateBasisUEncodeSettings(env, types, obj, dst[i]);
         env->DeleteLocalRef(obj);
     }
 }
-BasisUSettings** J2C_CreateBasisUSettingsPtrArray(JNIEnv* env, TypeInfos* types, jobjectArray arr, uint32_t* out_count) {
+BasisUEncodeSettings** J2C_CreateBasisUEncodeSettingsPtrArray(JNIEnv* env, TypeInfos* types, jobjectArray arr, uint32_t* out_count) {
     jsize len = env->GetArrayLength(arr);
-    BasisUSettings** out = new BasisUSettings*[len];
-    J2C_CreateBasisUSettingsPtrArrayInPlace(env, types, arr, out, len);
+    BasisUEncodeSettings** out = new BasisUEncodeSettings*[len];
+    J2C_CreateBasisUEncodeSettingsPtrArrayInPlace(env, types, arr, out, len);
+    *out_count = (uint32_t)len;
+    return out;
+}
+void J2C_CreateDefaultEncodeSettingsArrayInPlace(JNIEnv* env, TypeInfos* types, jobjectArray arr, DefaultEncodeSettings* dst, uint32_t dst_count) {
+    jsize len = env->GetArrayLength(arr);
+    if (len != dst_count) {
+        printf("Number of elements mismatch. Expected %u, but got %u\n", dst_count, len);
+    }
+    if (len > dst_count)
+        len = dst_count;
+    for (uint32_t i = 0; i < len; ++i) {
+        jobject obj = env->GetObjectArrayElement(arr, i);
+        J2C_CreateDefaultEncodeSettings(env, types, obj, &dst[i]);
+        env->DeleteLocalRef(obj);
+    }
+}
+DefaultEncodeSettings* J2C_CreateDefaultEncodeSettingsArray(JNIEnv* env, TypeInfos* types, jobjectArray arr, uint32_t* out_count) {
+    jsize len = env->GetArrayLength(arr);
+    DefaultEncodeSettings* out = new DefaultEncodeSettings[len];
+    J2C_CreateDefaultEncodeSettingsArrayInPlace(env, types, arr, out, len);
+    *out_count = (uint32_t)len;
+    return out;
+}
+void J2C_CreateDefaultEncodeSettingsPtrArrayInPlace(JNIEnv* env, TypeInfos* types, jobjectArray arr, DefaultEncodeSettings** dst, uint32_t dst_count) {
+    jsize len = env->GetArrayLength(arr);
+    if (len != dst_count) {
+        printf("Number of elements mismatch. Expected %u, but got %u\n", dst_count, len);
+    }
+    if (len > dst_count)
+        len = dst_count;
+    for (uint32_t i = 0; i < len; ++i) {
+        jobject obj = env->GetObjectArrayElement(arr, i);
+        dst[i] = new DefaultEncodeSettings();
+        J2C_CreateDefaultEncodeSettings(env, types, obj, dst[i]);
+        env->DeleteLocalRef(obj);
+    }
+}
+DefaultEncodeSettings** J2C_CreateDefaultEncodeSettingsPtrArray(JNIEnv* env, TypeInfos* types, jobjectArray arr, uint32_t* out_count) {
+    jsize len = env->GetArrayLength(arr);
+    DefaultEncodeSettings** out = new DefaultEncodeSettings*[len];
+    J2C_CreateDefaultEncodeSettingsPtrArrayInPlace(env, types, arr, out, len);
     *out_count = (uint32_t)len;
     return out;
 }
