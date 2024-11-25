@@ -295,8 +295,8 @@ namespace dmShaderc
         ShaderContext* context = (ShaderContext*) malloc(sizeof(ShaderContext));
         memset(context, 0, sizeof(ShaderContext));
 
-        SpvId* as_spv_ptr    = (SpvId*) source;
-        u_int32_t word_count = source_size / sizeof(SpvId);
+        SpvId* as_spv_ptr = (SpvId*) source;
+        size_t word_count = source_size / sizeof(SpvId);
 
         spvc_context_create(&context->m_SPVCContext);
         spvc_context_set_error_callback(context->m_SPVCContext, _spvc_error_callback, NULL);

@@ -54,7 +54,6 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
         super(pipelineName);
         if (this.glslangExe == null) this.glslangExe = Bob.getExe(Platform.getHostPlatform(), "glslang");
         if (this.spirvOptExe == null) this.spirvOptExe = Bob.getExe(Platform.getHostPlatform(), "spirv-opt");
-        if (this.spirvCrossExe == null) this.spirvCrossExe = Bob.getExe(Platform.getHostPlatform(), "spirv-cross");
     }
 
     static private void checkResult(String result_string, IResource resource, String resourceOutput) throws CompileExceptionError {

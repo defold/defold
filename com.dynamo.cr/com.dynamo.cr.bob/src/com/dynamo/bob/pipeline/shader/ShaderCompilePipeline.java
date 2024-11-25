@@ -67,7 +67,6 @@ public class ShaderCompilePipeline {
         if (this.tintExe == null) this.tintExe = Bob.getExe(Platform.getHostPlatform(), "tint");
         if (this.glslangExe == null) this.glslangExe = Bob.getExe(Platform.getHostPlatform(), "glslang");
         if (this.spirvOptExe == null) this.spirvOptExe = Bob.getExe(Platform.getHostPlatform(), "spirv-opt");
-        if (this.spirvCrossExe == null) this.spirvCrossExe = Bob.getExe(Platform.getHostPlatform(), "spirv-cross");
     }
 
     protected void reset() {
