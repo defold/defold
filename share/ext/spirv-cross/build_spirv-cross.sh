@@ -71,9 +71,12 @@ cmake ${CMAKE_FLAGS} ${SOURCE_DIR}
 cmake --build . --config Release
 
 LIB_SUFFIX=.a
+LIB_PREFIX=lib
+
 case $PLATFORM in
     win32|x86_64-win32)
         LIB_SUFFIX=.lib
+        LIB_PREFIX=Release/
         ;;
     *)
         ;;
@@ -86,12 +89,12 @@ mkdir -p ./include/$PLATFORM/spirv
 cp -v ../../source/spirv_cross_c.h ./include/$PLATFORM/spirv/spirv_cross_c.h
 cp -v ../../source/spirv.h         ./include/$PLATFORM/spirv/spirv.h
 
-cp -v libspirv-cross-c${LIB_SUFFIX} ./lib/$PLATFORM
-cp -v libspirv-cross-core${LIB_SUFFIX} ./lib/$PLATFORM
-cp -v libspirv-cross-glsl${LIB_SUFFIX} ./lib/$PLATFORM
-cp -v libspirv-cross-hlsl${LIB_SUFFIX} ./lib/$PLATFORM
-cp -v libspirv-cross-util${LIB_SUFFIX} ./lib/$PLATFORM
-cp -v libspirv-cross-reflect${LIB_SUFFIX} ./lib/$PLATFORM
+cp -v ${LIB_PREFIX}spirv-cross-c${LIB_SUFFIX} ./lib/$PLATFORM/libspirv-cross-c${LIB_SUFFIX}
+cp -v ${LIB_PREFIX}spirv-cross-core${LIB_SUFFIX} ./lib/$PLATFORM/libspirv-cross-core${LIB_SUFFIX}
+cp -v ${LIB_PREFIX}spirv-cross-glsl${LIB_SUFFIX} ./lib/$PLATFORM/libspirv-cross-glsl${LIB_SUFFIX}
+cp -v ${LIB_PREFIX}spirv-cross-hlsl${LIB_SUFFIX} ./lib/$PLATFORM/libspirv-cross-hlsl${LIB_SUFFIX}
+cp -v ${LIB_PREFIX}spirv-cross-util${LIB_SUFFIX} ./lib/$PLATFORM/libspirv-cross-util${LIB_SUFFIX}
+cp -v ${LIB_PREFIX}spirv-cross-reflect${LIB_SUFFIX} ./lib/$PLATFORM/libspirv-cross-reflect${LIB_SUFFIX}
 
 popd
 
