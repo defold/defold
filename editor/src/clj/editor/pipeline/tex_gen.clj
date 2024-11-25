@@ -15,7 +15,7 @@
 (ns editor.pipeline.tex-gen
   (:require [editor.protobuf :as protobuf]
             [internal.util :as util])
-  (:import [com.dynamo.bob TexcLibrary$FlipAxis]
+  (:import [com.dynamo.bob.pipeline Texc$FlipAxis]
            [com.dynamo.bob.pipeline TextureGenerator]
            [com.dynamo.bob.util TextureUtil]
            [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$Type Graphics$TextureProfile Graphics$TextureProfiles]
@@ -59,7 +59,7 @@
    (make-texture-image image texture-profile compress? true))
   (^Graphics$TextureImage [^BufferedImage image texture-profile compress? flip-y?]
    (let [^Graphics$TextureProfile texture-profile-data (some->> texture-profile (protobuf/map->pb Graphics$TextureProfile))]
-     (TextureGenerator/generate image texture-profile-data ^boolean compress? (if ^boolean flip-y? (EnumSet/of TexcLibrary$FlipAxis/FLIP_AXIS_Y) (EnumSet/noneOf TexcLibrary$FlipAxis))))))
+     (TextureGenerator/generate image texture-profile-data ^boolean compress? (if ^boolean flip-y? (EnumSet/of Texc$FlipAxis/FLIP_AXIS_Y) (EnumSet/noneOf Texc$FlipAxis))))))
 
 (defn- make-preview-profile
   "Given a texture-profile, return a simplified texture-profile that can be used
@@ -85,7 +85,7 @@
 (defn make-cubemap-texture-images
   ^Graphics$TextureImage [images texture-profile compress?]
   (let [^Graphics$TextureProfile texture-profile-data (some->> texture-profile (protobuf/map->pb Graphics$TextureProfile))
-        flip-axis (EnumSet/noneOf TexcLibrary$FlipAxis)]
+        flip-axis (EnumSet/noneOf Texc$FlipAxis)]
     (util/map-vals #(TextureGenerator/generate ^BufferedImage % texture-profile-data ^boolean compress? flip-axis)
                    images)))
 
