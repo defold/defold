@@ -233,6 +233,7 @@ namespace dmShaderc
             spvc_basetype base_type = spvc_type_get_basetype(type);
 
             ShaderResource& resource = resources_out[write_index + i];
+            memset(&resource, 0, sizeof(ShaderResource));
 
             resource.m_Id               = list[i].id;
             resource.m_Name             = list[i].name;

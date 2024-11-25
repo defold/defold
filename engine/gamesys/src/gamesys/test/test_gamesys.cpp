@@ -4847,6 +4847,12 @@ TEST_F(MaterialTest, CustomInstanceAttributes)
     const dmGraphics::VertexAttribute* attributes;
     uint32_t attribute_count;
     dmRender::GetMaterialProgramAttributes(material, &attributes, &attribute_count);
+
+    for (int i = 0; i < attribute_count; ++i)
+    {
+        dmLogInfo("Attribute %d: %s", i, attributes[i].m_Name);
+    }
+
     ASSERT_EQ(5, attribute_count);
     ASSERT_EQ(dmHashString64("position"),   attributes[0].m_NameHash);
     ASSERT_EQ(dmHashString64("normal"),     attributes[1].m_NameHash);
