@@ -21,16 +21,23 @@ struct ShaderCompilerOptionsJNI {
 struct ResourceTypeJNI {
     jclass cls;
     jfieldID baseType;
+    jfieldID dimensionType;
+    jfieldID imageStorageType;
+    jfieldID imageAccessQualifier;
+    jfieldID imageBaseType;
     jfieldID typeIndex;
+    jfieldID vectorSize;
+    jfieldID columnCount;
+    jfieldID arraySize;
     jfieldID useTypeIndex;
+    jfieldID imageIsArrayed;
+    jfieldID imageIsStorage;
 };
 struct ResourceMemberJNI {
     jclass cls;
     jfieldID name;
     jfieldID nameHash;
     jfieldID type;
-    jfieldID vectorSize;
-    jfieldID columnCount;
     jfieldID offset;
 };
 struct ResourceTypeInfoJNI {
@@ -38,7 +45,6 @@ struct ResourceTypeInfoJNI {
     jfieldID name;
     jfieldID nameHash;
     jfieldID members;
-    jfieldID memberCount;
 };
 struct ShaderResourceJNI {
     jclass cls;
@@ -48,6 +54,7 @@ struct ShaderResourceJNI {
     jfieldID instanceNameHash;
     jfieldID type;
     jfieldID id;
+    jfieldID blockSize;
     jfieldID location;
     jfieldID binding;
     jfieldID set;

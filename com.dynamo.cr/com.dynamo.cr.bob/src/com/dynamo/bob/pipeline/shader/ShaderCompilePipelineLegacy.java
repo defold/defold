@@ -23,6 +23,7 @@ import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.pipeline.ShadercJni;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.pipeline.ShaderUtil;
@@ -84,7 +85,7 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
         return FileUtils.readFileToString(file_out_wgsl);
     }
 
-    static private SPIRVCompileResult compileGLSLToSPIRV(String shaderSource, ShaderDesc.ShaderType shaderType, String resourceOutput, String targetProfile, boolean softFail, boolean splitTextureSamplers)  throws IOException, CompileExceptionError {
+    private SPIRVCompileResult compileGLSLToSPIRV(String shaderSource, ShaderDesc.ShaderType shaderType, String resourceOutput, String targetProfile, boolean softFail, boolean splitTextureSamplers)  throws IOException, CompileExceptionError {
         SPIRVCompileResult res = new SPIRVCompileResult();
 
         Exec.Result result;
@@ -184,6 +185,7 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
             checkResult(resultString, null, resourceOutput);
         }
 
+        /*
         // Generate reflection data
         File file_out_refl = File.createTempFile(FilenameUtils.getName(resourceOutput), ".json");
         FileUtil.deleteOnExit(file_out_refl);
@@ -202,8 +204,10 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
         }
 
         String result_json = FileUtils.readFileToString(file_out_refl, StandardCharsets.UTF_8);
+         */
 
-        res.reflector = new SPIRVReflector(result_json);
+        this.spirvContext = ShadercJni.NewShaderContext(FileUtils.readFileToByteArray(file_out_spv));
+        res.reflector = new SPIRVReflector(this.spirvContext);
         res.source = FileUtils.readFileToByteArray(file_out_spv);
 
         return res;

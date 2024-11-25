@@ -193,7 +193,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
     private static void debugPrintShaderReflection(String label, ShaderDesc.ShaderReflection r) {
         // Remove for debugging:
-        boolean debugPrintReflectionEnabled = false;
+        boolean debugPrintReflectionEnabled = true;
         if (!debugPrintReflectionEnabled) {
             return;
         }
@@ -262,13 +262,16 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             debugPrintShaderReflection("Reflection Test 0", r);
 
             // Note: When we don't specify a version and the uniforms are not packed in constant buffers,
-            //       we wrap them around generated uniform buffers, which requires us to dig out the type infomartion like this:
+            //       we wrap them around generated uniform buffers, which requires us to dig out the type information like this:
             ShaderDesc.ResourceBinding binding_test = r.getUniformBuffers(0);
             ShaderDesc.ResourceTypeInfo binding_type = r.getTypes(binding_test.getType().getTypeIndex());
             ShaderDesc.ResourceMember binding_type_member = binding_type.getMembers(0);
             assertEquals("u_lights", binding_type_member.getName());
 
             ShaderDesc.ResourceTypeInfo lights_binding_type = r.getTypes(binding_type_member.getType().getTypeIndex());
+
+            System.out.println(lights_binding_type.getName());
+
             assertEquals("Light", lights_binding_type.getName());
             assertEquals(3, lights_binding_type.getMembersCount());
 
@@ -816,10 +819,14 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testNativeReflectionAPI() throws Exception {
-
         byte[] spvSimple = getFile("simple.spv");
         assertTrue(spvSimple != null);
 
-        ShadercJni.Hello();
+        long ctx = ShadercJni.NewShaderContext(spvSimple);
+        Shaderc.ShaderReflection reflection = ShadercJni.GetReflection(ctx);
+
+        assertEquals("FragColor", reflection.outputs[0].name);
+
+        ShadercJni.DeleteShaderContext(ctx);
     }
 }

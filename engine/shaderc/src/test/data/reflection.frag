@@ -13,6 +13,7 @@ uniform ubo_global_one
 uniform ubo_global_two
 {
     vec4 color_two;
+    vec4 color_array[4];
 };
 
 uniform ubo_inst
@@ -28,6 +29,7 @@ void main()
     out_color *= color;
     out_color *= color_two;
     out_color *= inst_variable.color;
+    out_color += color_array[3];
 
     FragColor = out_color;
 }

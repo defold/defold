@@ -153,6 +153,7 @@ TEST(Shaderc, ModifyBindings)
     ASSERT_NE((const char*) 0, FindFirstOccurance(dst, "layout(binding = 3, std140) uniform matrices"));
     ASSERT_NE((const char*) 0, FindFirstOccurance(dst, "layout(binding = 4, std140) uniform extra"));
 
+    dmShaderc::DeleteShaderCompiler(compiler);
     dmShaderc::DeleteShaderContext(shader_ctx);
 }
 
@@ -168,10 +169,87 @@ static const dmShaderc::ResourceTypeInfo* GetType(const dmShaderc::ShaderReflect
     return 0;
 }
 
+static const dmShaderc::ShaderResource* GetShaderResource(const dmArray<dmShaderc::ShaderResource>& resources, dmhash_t name_hash)
+{
+    for (uint32_t i = 0; i < resources.Size(); ++i)
+    {
+        if (resources[i].m_NameHash == name_hash)
+        {
+            return &resources[i];
+        }
+    }
+    return 0;
+}
+
+static void AssertResourceMember(const dmShaderc::ResourceMember* member, const char* name, uint32_t offset, dmShaderc::BaseType base_type, uint32_t vector_size)
+{
+    ASSERT_EQ(dmHashString64(name), member->m_NameHash);
+    ASSERT_EQ(offset,               member->m_Offset);
+    ASSERT_EQ(base_type,            member->m_Type.m_BaseType);
+    ASSERT_EQ(vector_size,          member->m_Type.m_VectorSize);
+}
+
+static void AssertTexture(const dmShaderc::ShaderReflection* reflection, const char* name, dmShaderc::BaseType base_type, dmShaderc::DimensionType dimension, bool is_arrayed)
+{
+    const dmShaderc::ShaderResource* tex = GetShaderResource(reflection->m_Textures, dmHashString64(name));
+    ASSERT_NE((void*) 0, tex);
+    ASSERT_EQ(base_type, tex->m_Type.m_BaseType);
+    ASSERT_EQ(dimension, tex->m_Type.m_DimensionType);
+    ASSERT_EQ(is_arrayed, tex->m_Type.m_ImageIsArrayed);
+}
+
 TEST(Shaderc, Types)
 {
     uint32_t data_size;
     void* data = ReadFile("./build/src/test/data/types.spv", &data_size);
+    ASSERT_NE((void*) 0, data);
+
+    dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(data, data_size);
+    const dmShaderc::ShaderReflection* reflection = dmShaderc::GetReflection(shader_ctx);
+
+#if 0
+    dmShaderc::DebugPrintReflection(reflection);
+#endif
+
+    const dmShaderc::ResourceTypeInfo* data_types = GetType(reflection, dmHashString64("data_types"));
+    ASSERT_NE((void*) 0, data_types);
+    ASSERT_EQ(dmHashString64("data_types"), data_types->m_NameHash);
+    ASSERT_EQ(12, data_types->m_Members.Size());
+
+    AssertResourceMember(&data_types->m_Members[0], "type_int", 0, dmShaderc::BASE_TYPE_INT32, 1);
+    AssertResourceMember(&data_types->m_Members[1], "type_uint", 4, dmShaderc::BASE_TYPE_UINT32, 1);
+    AssertResourceMember(&data_types->m_Members[2], "type_float", 8, dmShaderc::BASE_TYPE_FP32, 1);
+    AssertResourceMember(&data_types->m_Members[3], "type_vec2", 16, dmShaderc::BASE_TYPE_FP32, 2);
+    AssertResourceMember(&data_types->m_Members[4], "type_vec3", 32, dmShaderc::BASE_TYPE_FP32, 3);
+    AssertResourceMember(&data_types->m_Members[5], "type_vec4", 48, dmShaderc::BASE_TYPE_FP32, 4);
+    AssertResourceMember(&data_types->m_Members[6], "type_mat2", 64, dmShaderc::BASE_TYPE_FP32, 2);
+    AssertResourceMember(&data_types->m_Members[7], "type_mat3", 96, dmShaderc::BASE_TYPE_FP32, 3);
+    AssertResourceMember(&data_types->m_Members[8], "type_mat4", 144, dmShaderc::BASE_TYPE_FP32, 4);
+    AssertResourceMember(&data_types->m_Members[9], "type_uvec2", 208, dmShaderc::BASE_TYPE_UINT32, 2);
+    AssertResourceMember(&data_types->m_Members[10], "type_uvec3", 224, dmShaderc::BASE_TYPE_UINT32, 3);
+    AssertResourceMember(&data_types->m_Members[11], "type_uvec4", 240, dmShaderc::BASE_TYPE_UINT32, 4);
+
+    ASSERT_EQ(12, reflection->m_Textures.Size());
+    AssertTexture(reflection, "type_sampler2D", dmShaderc::BASE_TYPE_SAMPLED_IMAGE, dmShaderc::DIMENSION_TYPE_2D, false);
+    AssertTexture(reflection, "type_sampler3D", dmShaderc::BASE_TYPE_SAMPLED_IMAGE, dmShaderc::DIMENSION_TYPE_3D, false);
+    AssertTexture(reflection, "type_samplerCube", dmShaderc::BASE_TYPE_SAMPLED_IMAGE, dmShaderc::DIMENSION_TYPE_CUBE, false);
+    AssertTexture(reflection, "type_sampler2DArray", dmShaderc::BASE_TYPE_SAMPLED_IMAGE, dmShaderc::DIMENSION_TYPE_2D, true);
+    AssertTexture(reflection, "type_texture2D", dmShaderc::BASE_TYPE_IMAGE, dmShaderc::DIMENSION_TYPE_2D, false);
+    AssertTexture(reflection, "type_texture3D", dmShaderc::BASE_TYPE_IMAGE, dmShaderc::DIMENSION_TYPE_3D, false);
+    AssertTexture(reflection, "type_textureCube", dmShaderc::BASE_TYPE_IMAGE, dmShaderc::DIMENSION_TYPE_CUBE, false);
+    AssertTexture(reflection, "type_texture2DArray", dmShaderc::BASE_TYPE_IMAGE, dmShaderc::DIMENSION_TYPE_2D, true);
+    AssertTexture(reflection, "type_utexture2D", dmShaderc::BASE_TYPE_IMAGE, dmShaderc::DIMENSION_TYPE_2D, false);
+    AssertTexture(reflection, "type_uimage2D", dmShaderc::BASE_TYPE_IMAGE, dmShaderc::DIMENSION_TYPE_2D, false);
+    AssertTexture(reflection, "type_image2D", dmShaderc::BASE_TYPE_IMAGE, dmShaderc::DIMENSION_TYPE_2D, false);
+    AssertTexture(reflection, "type_sampler", dmShaderc::BASE_TYPE_SAMPLER, (dmShaderc::DimensionType) 0, false);
+
+    dmShaderc::DeleteShaderContext(shader_ctx);
+}
+
+TEST(Shaderc, Structs)
+{
+    uint32_t data_size;
+    void* data = ReadFile("./build/src/test/data/structs.spv", &data_size);
     ASSERT_NE((void*) 0, data);
 
     dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(data, data_size);
@@ -186,7 +264,7 @@ TEST(Shaderc, Types)
 
     const dmShaderc::ResourceTypeInfo* fs_uniforms = GetType(reflection, dmHashString64("fs_uniforms"));
     ASSERT_NE((void*) 0, fs_uniforms);
-    ASSERT_EQ(7, fs_uniforms->m_MemberCount);
+    ASSERT_EQ(7, fs_uniforms->m_Members.Size());
 
     ASSERT_EQ(dmHashString64("base_type_vec4"), fs_uniforms->m_Members[0].m_NameHash);
     ASSERT_EQ(dmHashString64("base_type_vec3"), fs_uniforms->m_Members[1].m_NameHash);
@@ -195,29 +273,51 @@ TEST(Shaderc, Types)
     ASSERT_EQ(dmHashString64("base_type_int"), fs_uniforms->m_Members[4].m_NameHash);
     ASSERT_EQ(dmHashString64("base_type_bool"), fs_uniforms->m_Members[5].m_NameHash);
     ASSERT_EQ(dmHashString64("base"), fs_uniforms->m_Members[6].m_NameHash);
-    ASSERT_EQ(4, fs_uniforms->m_Members[0].m_VectorSize);
-    ASSERT_EQ(1, fs_uniforms->m_Members[0].m_ColumnCount);
-    ASSERT_EQ(3, fs_uniforms->m_Members[1].m_VectorSize);
-    ASSERT_EQ(1, fs_uniforms->m_Members[1].m_ColumnCount);
-    ASSERT_EQ(2, fs_uniforms->m_Members[2].m_VectorSize);
-    ASSERT_EQ(1, fs_uniforms->m_Members[2].m_ColumnCount);
+    ASSERT_EQ(4, fs_uniforms->m_Members[0].m_Type.m_VectorSize);
+    ASSERT_EQ(1, fs_uniforms->m_Members[0].m_Type.m_ColumnCount);
+    ASSERT_EQ(3, fs_uniforms->m_Members[1].m_Type.m_VectorSize);
+    ASSERT_EQ(1, fs_uniforms->m_Members[1].m_Type.m_ColumnCount);
+    ASSERT_EQ(2, fs_uniforms->m_Members[2].m_Type.m_VectorSize);
+    ASSERT_EQ(1, fs_uniforms->m_Members[2].m_Type.m_ColumnCount);
     ASSERT_TRUE(fs_uniforms->m_Members[6].m_Type.m_UseTypeIndex);
 
     const dmShaderc::ResourceTypeInfo* base_struct = GetType(reflection, dmHashString64("base_struct"));
     ASSERT_NE((void*) 0, base_struct);
-    ASSERT_EQ(2, base_struct->m_MemberCount);
+    ASSERT_EQ(2, base_struct->m_Members.Size());
     ASSERT_EQ(dmHashString64("member"), base_struct->m_Members[0].m_NameHash);
     ASSERT_EQ(dmHashString64("nested"), base_struct->m_Members[1].m_NameHash);
     ASSERT_TRUE(base_struct->m_Members[1].m_Type.m_UseTypeIndex);
 
     const dmShaderc::ResourceTypeInfo* nested_struct = GetType(reflection, dmHashString64("nested_struct"));
     ASSERT_NE((void*) 0, nested_struct);
-    ASSERT_EQ(1, nested_struct->m_MemberCount);
+    ASSERT_EQ(1, nested_struct->m_Members.Size());
     ASSERT_EQ(dmHashString64("nested_member"), nested_struct->m_Members[0].m_NameHash);
+
+    dmShaderc::DeleteShaderContext(shader_ctx);
+}
+
+static int TestStandalone(const char* filename)
+{
+    uint32_t data_size;
+    void* data = ReadFile(filename, &data_size);
+
+    dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(data, data_size);
+    const dmShaderc::ShaderReflection* reflection = dmShaderc::GetReflection(shader_ctx);
+
+    dmShaderc::DebugPrintReflection(reflection);
+
+    dmShaderc::DeleteShaderContext(shader_ctx);
+
+    return 0;
 }
 
 int main(int argc, char **argv)
 {
+    if (argc > 1 && (strstr(argv[1], ".spv") != 0))
+    {
+        return TestStandalone(argv[1]);
+    }
+
     jc_test_init(&argc, argv);
     return jc_test_run_all();
 }

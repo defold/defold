@@ -38,7 +38,7 @@ static jobject GetReflection(JNIEnv* env, jclass cls, jlong context)
     return C2J_CreateShaderReflection(env, types, reflection);
 }
 
-static jlong CreateShaderContext(JNIEnv* env, jclass cls, jbyteArray array)
+static jlong NewShaderContext(JNIEnv* env, jclass cls, jbyteArray array)
 {
     jsize file_size = env->GetArrayLength(array);
     jbyte* file_data = env->GetByteArrayElements(array, 0);
@@ -57,7 +57,7 @@ static jlong CreateShaderContext(JNIEnv* env, jclass cls, jbyteArray array)
 }
 
 // HShaderCompiler NewShaderCompiler(HShaderContext context, ShaderLanguage language);
-static jlong CreateShaderCompiler(JNIEnv* env, jclass cls, jlong context, jint language)
+static jlong NewShaderCompiler(JNIEnv* env, jclass cls, jlong context, jint language)
 {
     dmShaderc::HShaderContext shader_ctx = (dmShaderc::HShaderContext) context;
     dmShaderc::HShaderCompiler compiler = dmShaderc::NewShaderCompiler(shader_ctx, (dmShaderc::ShaderLanguage) language);
@@ -108,6 +108,51 @@ JNIEXPORT jbyteArray JNICALL Java_ShadercJni_Compile(JNIEnv* env, jclass cls, jl
     return result;
 }
 
+// public static native void DeleteShaderContext(long context);
+JNIEXPORT void JNICALL Java_ShadercJni_DeleteShaderContext(JNIEnv* env, jclass cls, jlong context)
+{
+    DM_JNI_GUARD_SCOPE_BEGIN();
+    {
+        dmShaderc::DeleteShaderContext((dmShaderc::HShaderContext) context);
+    }
+    DM_JNI_GUARD_SCOPE_END();
+}
+
+// public static native Shaderc.ShaderContext NewShaderContext(byte[] buffer);
+JNIEXPORT jlong JNICALL Java_ShadercJni_NewShaderContext(JNIEnv* env, jclass cls, jbyteArray array)
+{
+    jlong context;
+    DM_JNI_GUARD_SCOPE_BEGIN();
+    {
+        context = NewShaderContext(env, cls, array);
+    }
+    DM_JNI_GUARD_SCOPE_END(return 0;);
+    return context;
+}
+
+
+// public static native Shaderc.ShaderCompiler NewShaderCompiler(Shaderc.ShaderContext context, int language);
+JNIEXPORT jlong JNICALL Java_ShadercJni_NewShaderCompiler(JNIEnv* env, jclass cls, jlong context, jint language)
+{
+    jlong compiler;
+    DM_JNI_GUARD_SCOPE_BEGIN();
+    {
+        compiler = NewShaderCompiler(env, cls, context, language);
+    }
+    DM_JNI_GUARD_SCOPE_END(return 0;);
+    return compiler;
+}
+
+// public static native void DeleteShaderCompiler(long compiler);
+JNIEXPORT void JNICALL Java_ShadercJni_DeleteShaderCompiler(JNIEnv* env, jclass cls, jlong compiler)
+{
+    DM_JNI_GUARD_SCOPE_BEGIN();
+    {
+        dmShaderc::DeleteShaderCompiler((dmShaderc::HShaderCompiler) compiler);
+    }
+    DM_JNI_GUARD_SCOPE_END();
+}
+
 JNIEXPORT jobject JNICALL Java_ShadercJni_GetReflection(JNIEnv* env, jclass cls, jlong context)
 {
     jobject reflection;
@@ -117,30 +162,6 @@ JNIEXPORT jobject JNICALL Java_ShadercJni_GetReflection(JNIEnv* env, jclass cls,
     }
     DM_JNI_GUARD_SCOPE_END(return 0;);
     return reflection;
-}
-
-// public static native Shaderc.ShaderContext CreateShaderContext(byte[] buffer);
-JNIEXPORT jlong JNICALL Java_ShadercJni_CreateShaderContext(JNIEnv* env, jclass cls, jbyteArray array)
-{
-    jlong context;
-    DM_JNI_GUARD_SCOPE_BEGIN();
-    {
-        context = CreateShaderContext(env, cls, array);
-    }
-    DM_JNI_GUARD_SCOPE_END(return 0;);
-    return context;
-}
-
-// public static native Shaderc.ShaderCompiler CreateShaderCompiler(Shaderc.ShaderContext context, int language);
-JNIEXPORT jlong JNICALL Java_ShadercJni_CreateShaderCompiler(JNIEnv* env, jclass cls, jlong context, jint language)
-{
-    jlong compiler;
-    DM_JNI_GUARD_SCOPE_BEGIN();
-    {
-        compiler = CreateShaderCompiler(env, cls, context, language);
-    }
-    DM_JNI_GUARD_SCOPE_END(return 0;);
-    return compiler;
 }
 
 JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved)
@@ -166,8 +187,10 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved)
     // Register your class' native methods.
     // Don't forget to add them to the corresponding java file (e.g. Shaderc.java)
     static const JNINativeMethod methods[] = {
-        { (char*) "CreateShaderContext", (char*) "([B)J", reinterpret_cast<void*>(Java_ShadercJni_CreateShaderContext)},
-        { (char*) "CreateShaderCompiler", (char*) "(JI)J", reinterpret_cast<void*>(Java_ShadercJni_CreateShaderCompiler)},
+        { (char*) "NewShaderContext", (char*) "([B)J", reinterpret_cast<void*>(Java_ShadercJni_NewShaderContext)},
+        { (char*) "DeleteShaderContext", (char*) "(J)V", reinterpret_cast<void*>(Java_ShadercJni_DeleteShaderContext)},
+        { (char*) "NewShaderCompiler", (char*) "(JI)J", reinterpret_cast<void*>(Java_ShadercJni_NewShaderCompiler)},
+        { (char*) "DeleteShaderCompiler", (char*) "(J)V", reinterpret_cast<void*>(Java_ShadercJni_DeleteShaderCompiler)},
         { (char*) "Compile", (char*) "(JJL" CLASS_NAME "$ShaderCompilerOptions;)[B", reinterpret_cast<void*>(Java_ShadercJni_Compile)},
         { (char*) "GetReflection", (char*) "(J)L" CLASS_NAME "$ShaderReflection;", reinterpret_cast<void*>(Java_ShadercJni_GetReflection)},
     };

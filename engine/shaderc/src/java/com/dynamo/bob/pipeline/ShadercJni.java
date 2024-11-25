@@ -63,9 +63,11 @@ public class ShadercJni {
         }
     }
 
-    public static native long CreateShaderContext(byte[] buffer);
+    public static native long NewShaderContext(byte[] buffer);
+    public static native void DeleteShaderContext(long context);
 
-    public static native long CreateShaderCompiler(long context, int version);
+    public static native long NewShaderCompiler(long context, int version);
+    public static native void DeleteShaderCompiler(long compiler);
 
     public static native Shaderc.ShaderReflection GetReflection(long context);
 
@@ -101,7 +103,7 @@ public class ShadercJni {
     }
 
     private static void Usage() {
-        System.out.println("Usage: ShadercJni <path_to_spv> [<path_to_output> <version>]");
+        System.out.println("Usage: ShadercJni <path_to_spv> [<version> <stage=(vs|fs)>]");
     }
 
     private static void printReflection(long context) {
@@ -112,18 +114,20 @@ public class ShadercJni {
         printResourceArray(reflection.textures, "textures");
     }
 
-    private static void crossCompile(long context, int version) {
-        long compiler = CreateShaderCompiler(context, Shaderc.ShaderLanguage.SHADER_LANGUAGE_GLSL.getValue());
+    private static void crossCompile(long context, int version, Shaderc.ShaderStage stage) {
+        long compiler = NewShaderCompiler(context, Shaderc.ShaderLanguage.SHADER_LANGUAGE_GLSL.getValue());
 
         Shaderc.ShaderCompilerOptions options = new Shaderc.ShaderCompilerOptions();
         options.version    = version;
-        options.stage      = Shaderc.ShaderStage.SHADER_STAGE_VERTEX;
+        options.stage      = stage;
         options.entryPoint = "main";
 
         byte[] res = Compile(context, compiler, options);
 
         System.out.println("Result:");
         System.out.println(new String(res));
+
+        DeleteShaderCompiler(compiler);
     }
 
     public static void main(String[] args) throws IOException {
@@ -134,21 +138,31 @@ public class ShadercJni {
             return;
         }
 
-        String pathSpv = args[0];
-        int version    = -1;
+        String pathSpv            = args[0];
+        int version               = -1;
+        Shaderc.ShaderStage stage = Shaderc.ShaderStage.SHADER_STAGE_VERTEX;
 
         if (args.length > 1) {
             version = Integer.parseInt(args[1]);
         }
+        if (args.length > 2) {
+            if (args[2].equals("vs")) {
+                stage = Shaderc.ShaderStage.SHADER_STAGE_VERTEX;
+            } else if (args[2].equals("fs")) {
+                stage = Shaderc.ShaderStage.SHADER_STAGE_FRAGMENT;
+            }
+        }
 
         byte[] spvBytes = ReadFile(pathSpv);
-        long ptr = CreateShaderContext(spvBytes);
+        long context = NewShaderContext(spvBytes);
 
         if (version < 0) {
             System.out.println("Printing reflection for: " + pathSpv);
-            printReflection(ptr);
+            printReflection(context);
         } else {
-            crossCompile(ptr, version);
+            crossCompile(context, version, stage);
         }
+
+        DeleteShaderContext(context);
     }
 }

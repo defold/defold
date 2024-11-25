@@ -85,6 +85,109 @@ public class Shaderc {
         }
     };
 
+    public enum DimensionType {
+        DIMENSION_TYPE_1D(0),
+        DIMENSION_TYPE_2D(1),
+        DIMENSION_TYPE_3D(2),
+        DIMENSION_TYPE_CUBE(3),
+        DIMENSION_TYPE_RECT(4),
+        DIMENSION_TYPE_BUFFER(5),
+        DIMENSION_TYPE_SUBPASS_DATA(6);
+        private final int value;
+        private DimensionType(int value) {
+            this.value = value;
+        }
+        public int getValue() {
+            return this.value;
+        }
+        static public DimensionType fromValue(int value) throws IllegalArgumentException {
+            for (DimensionType e : DimensionType.values()) {
+                if (e.value == value)
+                    return e;
+            }
+            throw new IllegalArgumentException(String.format("Invalid value to DimensionType: %d", value) );
+        }
+    };
+
+    public enum ImageStorageType {
+        IMAGE_STORAGE_TYPE_UNKNOWN(0),
+        IMAGE_STORAGE_TYPE_RGBA32F(1),
+        IMAGE_STORAGE_TYPE_RGBA16F(2),
+        IMAGE_STORAGE_TYPE_R32F(3),
+        IMAGE_STORAGE_TYPE_RGBA8(4),
+        IMAGE_STORAGE_TYPE_RGBA8_SNORM(5),
+        IMAGE_STORAGE_TYPE_RG32F(6),
+        IMAGE_STORAGE_TYPE_RG16F(7),
+        IMAGE_STORAGE_TYPE_R11F_G11F_B10F(8),
+        IMAGE_STORAGE_TYPE_R16F(9),
+        IMAGE_STORAGE_TYPE_RGBA16(10),
+        IMAGE_STORAGE_TYPE_RGB10A2(11),
+        IMAGE_STORAGE_TYPE_RG16(12),
+        IMAGE_STORAGE_TYPE_RG8(13),
+        IMAGE_STORAGE_TYPE_R16(14),
+        IMAGE_STORAGE_TYPE_R8(15),
+        IMAGE_STORAGE_TYPE_RGBA16_SNORM(16),
+        IMAGE_STORAGE_TYPE_RG16_SNORM(17),
+        IMAGE_STORAGE_TYPE_RG8_SNORM(18),
+        IMAGE_STORAGE_TYPE_R16_SNORM(19),
+        IMAGE_STORAGE_TYPE_R8_SNORM(20),
+        IMAGE_STORAGE_TYPE_RGBA32I(21),
+        IMAGE_STORAGE_TYPE_RGBA16I(22),
+        IMAGE_STORAGE_TYPE_RGBA8I(23),
+        IMAGE_STORAGE_TYPE_R32I(24),
+        IMAGE_STORAGE_TYPE_RG32I(25),
+        IMAGE_STORAGE_TYPE_RG16I(26),
+        IMAGE_STORAGE_TYPE_RG8I(27),
+        IMAGE_STORAGE_TYPE_R16I(28),
+        IMAGE_STORAGE_TYPE_R8I(29),
+        IMAGE_STORAGE_TYPE_RGBA32UI(30),
+        IMAGE_STORAGE_TYPE_RGBA16UI(31),
+        IMAGE_STORAGE_TYPE_RGBA8UI(32),
+        IMAGE_STORAGE_TYPE_R32UI(33),
+        IMAGE_STORAGE_TYPE_RGb10a2UI(34),
+        IMAGE_STORAGE_TYPE_RG32UI(35),
+        IMAGE_STORAGE_TYPE_RG16UI(36),
+        IMAGE_STORAGE_TYPE_RG8UI(37),
+        IMAGE_STORAGE_TYPE_R16UI(38),
+        IMAGE_STORAGE_TYPE_R8UI(39),
+        IMAGE_STORAGE_TYPE_R64UI(40),
+        IMAGE_STORAGE_TYPE_R64I(41);
+        private final int value;
+        private ImageStorageType(int value) {
+            this.value = value;
+        }
+        public int getValue() {
+            return this.value;
+        }
+        static public ImageStorageType fromValue(int value) throws IllegalArgumentException {
+            for (ImageStorageType e : ImageStorageType.values()) {
+                if (e.value == value)
+                    return e;
+            }
+            throw new IllegalArgumentException(String.format("Invalid value to ImageStorageType: %d", value) );
+        }
+    };
+
+    public enum ImageAccessQualifier {
+        IMAGE_ACCESS_QUALIFIER_READ_ONLY(0),
+        IMAGE_ACCESS_QUALIFIER_WRITE_ONLY(1),
+        IMAGE_ACCESS_QUALIFIER_READ_WRITE(2);
+        private final int value;
+        private ImageAccessQualifier(int value) {
+            this.value = value;
+        }
+        public int getValue() {
+            return this.value;
+        }
+        static public ImageAccessQualifier fromValue(int value) throws IllegalArgumentException {
+            for (ImageAccessQualifier e : ImageAccessQualifier.values()) {
+                if (e.value == value)
+                    return e;
+            }
+            throw new IllegalArgumentException(String.format("Invalid value to ImageAccessQualifier: %d", value) );
+        }
+    };
+
     public static class ShaderCompilerOptions {
         public int version = 0;
         public String entryPoint;
@@ -96,22 +199,28 @@ public class Shaderc {
     };
     public static class ResourceType {
         public BaseType baseType = BaseType.BASE_TYPE_UNKNOWN;
+        public DimensionType dimensionType = DimensionType.DIMENSION_TYPE_1D;
+        public ImageStorageType imageStorageType = ImageStorageType.IMAGE_STORAGE_TYPE_UNKNOWN;
+        public ImageAccessQualifier imageAccessQualifier = ImageAccessQualifier.IMAGE_ACCESS_QUALIFIER_READ_ONLY;
+        public BaseType imageBaseType = BaseType.BASE_TYPE_UNKNOWN;
         public int typeIndex = 0;
+        public int vectorSize = 0;
+        public int columnCount = 0;
+        public int arraySize = 0;
         public boolean useTypeIndex = false;
+        public boolean imageIsArrayed = false;
+        public boolean imageIsStorage = false;
     };
     public static class ResourceMember {
         public String name;
         public long nameHash = 0;
         public ResourceType type;
-        public int vectorSize = 0;
-        public int columnCount = 0;
         public int offset = 0;
     };
     public static class ResourceTypeInfo {
         public String name;
         public long nameHash = 0;
-        public ResourceMember members;
-        public int memberCount = 0;
+        public ResourceMember[] members;
     };
     public static class ShaderResource {
         public String name;
@@ -120,6 +229,7 @@ public class Shaderc {
         public long instanceNameHash = 0;
         public ResourceType type;
         public int id = 0;
+        public int blockSize = 0;
         public byte location = 0;
         public byte binding = 0;
         public byte set = 0;

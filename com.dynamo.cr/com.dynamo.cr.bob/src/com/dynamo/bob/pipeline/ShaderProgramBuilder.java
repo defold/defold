@@ -109,7 +109,7 @@ public abstract class ShaderProgramBuilder extends Builder {
         return fromProjectOptions || fromProjectProperties;
     }
 
-    static public ShaderDescBuildResult buildResultsToShaderDescBuildResults(ShaderCompileResult shaderCompileresult, ShaderDesc.ShaderType shaderType) {
+    static public ShaderDescBuildResult buildResultsToShaderDescBuildResults(ShaderCompileResult shaderCompileresult, ShaderDesc.ShaderType shaderType) throws CompileExceptionError {
 
         ShaderDescBuildResult shaderDescBuildResult = new ShaderDescBuildResult();
         ShaderDesc.Builder shaderDescBuilder = ShaderDesc.newBuilder();
@@ -179,9 +179,9 @@ public abstract class ShaderProgramBuilder extends Builder {
         return ShaderCompilePipeline.createShaderPipeline(pipeline, shaderSource, type, options);
     }
 
-    static private int getTypeIndex(ArrayList<SPIRVReflector.ResourceType> types, String typeName) {
+    static private int getTypeIndex(ArrayList<Shaderc.ResourceTypeInfo> types, String typeName) {
         for (int i=0; i < types.size(); i++) {
-            if (types.get(i).key.equals(typeName)) {
+            if (types.get(i).name.equals(typeName)) {
                 return i;
             }
         }
@@ -194,104 +194,205 @@ public abstract class ShaderProgramBuilder extends Builder {
         builder.setSource(ByteString.copyFrom(source, "UTF-8"));
         return new ShaderProgramBuilder.ShaderBuildResult(builder);
     }
+    /*
+        SHADER_TYPE_UNKNOWN         = 0;
+        SHADER_TYPE_UNIFORM_BUFFER  = 14;
+        SHADER_TYPE_RENDER_PASS_INPUT = 20;
+        SHADER_TYPE_STORAGE_BUFFER    = 24;
+     */
 
-    static public ShaderDesc.ResourceType.Builder getResourceTypeBuilder(ArrayList<SPIRVReflector.ResourceType> types, String typeName) {
-        ShaderDesc.ResourceType.Builder resourceTypeBuilder = ShaderDesc.ResourceType.newBuilder();
-        ShaderDesc.ShaderDataType knownType = Common.stringTypeToShaderType(typeName);
+    static private ShaderDesc.ShaderDataType TextureToShaderDataType(Shaderc.ResourceType type) throws CompileExceptionError {
+        if (type.baseType == Shaderc.BaseType.BASE_TYPE_SAMPLED_IMAGE) {
+            switch (type.dimensionType) {
+                case DIMENSION_TYPE_2D -> {
+                    if (type.imageIsArrayed) {
+                        return ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D_ARRAY;
+                    } else {
+                        return ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER2D;
+                    }
+                }
+                case DIMENSION_TYPE_3D -> {
+                    return ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER3D;
+                }
+                case DIMENSION_TYPE_CUBE -> {
+                    return ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER_CUBE;
+                }
+            }
+        } else if (type.baseType == Shaderc.BaseType.BASE_TYPE_SAMPLER) {
+            return ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER;
+        } else if (type.baseType == Shaderc.BaseType.BASE_TYPE_IMAGE) {
+            if (type.dimensionType == Shaderc.DimensionType.DIMENSION_TYPE_2D) {
+                if (type.imageIsStorage) {
+                    if (type.imageStorageType == Shaderc.ImageStorageType.IMAGE_STORAGE_TYPE_RGBA32F) {
+                        return ShaderDesc.ShaderDataType.SHADER_TYPE_IMAGE2D;
+                    } else if (type.imageStorageType == Shaderc.ImageStorageType.IMAGE_STORAGE_TYPE_RGBA8UI) {
+                        return ShaderDesc.ShaderDataType.SHADER_TYPE_UIMAGE2D;
+                    }
+                } else if (type.imageIsArrayed) {
+                    return ShaderDesc.ShaderDataType.SHADER_TYPE_TEXTURE2D_ARRAY;
+                } else if (type.imageBaseType == Shaderc.BaseType.BASE_TYPE_UINT32) {
+                    return ShaderDesc.ShaderDataType.SHADER_TYPE_UTEXTURE2D;
+                } else if (type.imageBaseType == Shaderc.BaseType.BASE_TYPE_FP32) {
+                    return ShaderDesc.ShaderDataType.SHADER_TYPE_TEXTURE2D;
+                }
+            } else if (type.dimensionType == Shaderc.DimensionType.DIMENSION_TYPE_CUBE) {
+                return ShaderDesc.ShaderDataType.SHADER_TYPE_TEXTURE_CUBE;
+            }
+        }
+        throw new CompileExceptionError("Unsupported shader type " + type);
+    }
 
-        if (knownType == ShaderDesc.ShaderDataType.SHADER_TYPE_UNKNOWN) {
-            resourceTypeBuilder.setTypeIndex(getTypeIndex(types, typeName));
-            resourceTypeBuilder.setUseTypeIndex(true);
-        } else {
-            resourceTypeBuilder.setShaderType(knownType);
-            resourceTypeBuilder.setUseTypeIndex(false);
+    static private ShaderDesc.ShaderDataType DataTypeToShaderDataType(Shaderc.ResourceType type) throws CompileExceptionError{
+        if (type.baseType == Shaderc.BaseType.BASE_TYPE_FP32) {
+            if (type.vectorSize == 1) {
+                return ShaderDesc.ShaderDataType.SHADER_TYPE_FLOAT;
+            } else if (type.vectorSize == 2) {
+                if (type.columnCount == 2) {
+                    return ShaderDesc.ShaderDataType.SHADER_TYPE_MAT2;
+                } else if (type.columnCount == 1) {
+                    return ShaderDesc.ShaderDataType.SHADER_TYPE_VEC2;
+                }
+            } else if (type.vectorSize == 3) {
+                if (type.columnCount == 3) {
+                    return ShaderDesc.ShaderDataType.SHADER_TYPE_MAT3;
+                } else if (type.columnCount == 1) {
+                    return ShaderDesc.ShaderDataType.SHADER_TYPE_VEC3;
+                }
+            } else if (type.vectorSize == 4) {
+                if (type.columnCount == 4) {
+                    return ShaderDesc.ShaderDataType.SHADER_TYPE_MAT4;
+                } else if (type.columnCount == 1) {
+                    return ShaderDesc.ShaderDataType.SHADER_TYPE_VEC4;
+                }
+            }
+        }  else if (type.baseType == Shaderc.BaseType.BASE_TYPE_INT32) {
+            if (type.columnCount == 1) {
+                return ShaderDesc.ShaderDataType.SHADER_TYPE_INT;
+            }
+        } else if (type.baseType == Shaderc.BaseType.BASE_TYPE_UINT32) {
+            if (type.columnCount == 1) {
+                switch (type.vectorSize) {
+                    case 1: return ShaderDesc.ShaderDataType.SHADER_TYPE_UINT;
+                    case 2: return ShaderDesc.ShaderDataType.SHADER_TYPE_UVEC2;
+                    case 3: return ShaderDesc.ShaderDataType.SHADER_TYPE_UVEC3;
+                    case 4: return ShaderDesc.ShaderDataType.SHADER_TYPE_UVEC4;
+                }
+            }
         }
 
+        throw new CompileExceptionError("Unsupported shader type " + type);
+    }
+
+    public static ShaderDesc.ShaderDataType resourceTypeToShaderDataType(Shaderc.ResourceType type) throws CompileExceptionError {
+        if (type.baseType == Shaderc.BaseType.BASE_TYPE_SAMPLED_IMAGE) {
+            return TextureToShaderDataType(type);
+        } else {
+            return DataTypeToShaderDataType(type);
+        }
+    }
+
+    static public ShaderDesc.ResourceType.Builder getResourceTypeBuilder(Shaderc.ResourceType type) throws CompileExceptionError {
+        ShaderDesc.ResourceType.Builder resourceTypeBuilder = ShaderDesc.ResourceType.newBuilder();
+        resourceTypeBuilder.setUseTypeIndex(type.useTypeIndex);
+
+        if (type.useTypeIndex) {
+            resourceTypeBuilder.setTypeIndex(type.typeIndex);
+        } else {
+            ShaderDesc.ShaderDataType shaderType = resourceTypeToShaderDataType(type);
+            resourceTypeBuilder.setShaderType(shaderType);
+        }
         return resourceTypeBuilder;
     }
 
-    static public ShaderDesc.ResourceBinding.Builder SPIRVResourceToResourceBindingBuilder(ArrayList<SPIRVReflector.ResourceType> types, SPIRVReflector.Resource res) {
+    static public ShaderDesc.ResourceBinding.Builder SPIRVResourceToResourceBindingBuilder(ArrayList<Shaderc.ResourceTypeInfo> types, Shaderc.ShaderResource res) throws CompileExceptionError {
         ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderDesc.ResourceBinding.newBuilder();
-        ShaderDesc.ResourceType.Builder typeBuilder = getResourceTypeBuilder(types, res.type);
+        ShaderDesc.ResourceType.Builder typeBuilder = getResourceTypeBuilder(res.type);
         resourceBindingBuilder.setType(typeBuilder);
         resourceBindingBuilder.setName(res.name);
         resourceBindingBuilder.setNameHash(MurmurHash.hash64(res.name));
         resourceBindingBuilder.setSet(res.set);
         resourceBindingBuilder.setBinding(res.binding);
-        if (res.blockSize != null)
+        if (res.blockSize != 0) {
             resourceBindingBuilder.setBlockSize(res.blockSize);
-        else if (res.textureIndex != null)
+        }
+        /*
+        else if (res.textureIndex != null) {
             resourceBindingBuilder.setSamplerTextureIndex(res.textureIndex);
+        }
+         */
         return resourceBindingBuilder;
     }
 
-    static private void ResolveSamplerIndices(ArrayList<SPIRVReflector.Resource> textures) {
+    static private void ResolveSamplerIndices(ArrayList<Shaderc.ShaderResource> textures) {
         for (int i=0; i < textures.size(); i++) {
-            SPIRVReflector.Resource texture = textures.get(i);
+            Shaderc.ShaderResource texture = textures.get(i);
+
+            /*
             // Look for a matching sampler resource
             if (ShaderUtil.Common.stringTypeToShaderType(texture.type) != ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER) {
                 // TODO: the extension should be a constant
                 String constructedSamplerName = texture.name + "_separated";
-                for (SPIRVReflector.Resource other : textures) {
+                for (Shaderc.ShaderResource other : textures) {
                     if (other.name.equals(constructedSamplerName)) {
                         other.textureIndex = i;
                     }
                 }
             }
+             */
         }
     }
 
-    static private ShaderDesc.ShaderReflection.Builder makeShaderReflectionBuilder(SPIRVReflector reflector) {
+    static private ShaderDesc.ShaderReflection.Builder makeShaderReflectionBuilder(SPIRVReflector reflector) throws CompileExceptionError {
         ShaderDesc.ShaderReflection.Builder builder = ShaderDesc.ShaderReflection.newBuilder();
 
-        ArrayList<SPIRVReflector.Resource> inputs    = reflector.getInputs();
-        ArrayList<SPIRVReflector.Resource> outputs   = reflector.getOutputs();
-        ArrayList<SPIRVReflector.Resource> ubos      = reflector.getUBOs();
-        ArrayList<SPIRVReflector.Resource> ssbos     = reflector.getSsbos();
-        ArrayList<SPIRVReflector.Resource> textures  = reflector.getTextures();
-        ArrayList<SPIRVReflector.ResourceType> types = reflector.getTypes();
+        ArrayList<Shaderc.ShaderResource> inputs    = reflector.getInputs();
+        ArrayList<Shaderc.ShaderResource> outputs   = reflector.getOutputs();
+        ArrayList<Shaderc.ShaderResource> ubos      = reflector.getUBOs();
+        ArrayList<Shaderc.ShaderResource> ssbos     = reflector.getSsbos();
+        ArrayList<Shaderc.ShaderResource> textures  = reflector.getTextures();
+        ArrayList<Shaderc.ResourceTypeInfo> types   = reflector.getTypes();
 
         ResolveSamplerIndices(textures);
 
-        for (SPIRVReflector.Resource input : inputs) {
+        for (Shaderc.ShaderResource input : inputs) {
             ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(types, input);
             builder.addInputs(resourceBindingBuilder);
         }
 
-        for (SPIRVReflector.Resource output : outputs) {
+        for (Shaderc.ShaderResource output : outputs) {
             ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(types, output);
             builder.addOutputs(resourceBindingBuilder);
         }
 
-        for (SPIRVReflector.Resource ubo : ubos) {
+        for (Shaderc.ShaderResource ubo : ubos) {
             ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(types, ubo);
             builder.addUniformBuffers(resourceBindingBuilder);
         }
 
-        for (SPIRVReflector.Resource ssbo : ssbos) {
+        for (Shaderc.ShaderResource ssbo : ssbos) {
             ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(types, ssbo);
             builder.addStorageBuffers(resourceBindingBuilder);
         }
 
-        for (SPIRVReflector.Resource texture : textures) {
+        for (Shaderc.ShaderResource texture : textures) {
             ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(types, texture);
             builder.addTextures(resourceBindingBuilder);
         }
 
-        for (SPIRVReflector.ResourceType type : types) {
+        for (Shaderc.ResourceTypeInfo type : types) {
             ShaderDesc.ResourceTypeInfo.Builder resourceTypeInfoBuilder = ShaderDesc.ResourceTypeInfo.newBuilder();
 
             resourceTypeInfoBuilder.setName(type.name);
             resourceTypeInfoBuilder.setNameHash(MurmurHash.hash64(type.name));
 
-            for (SPIRVReflector.ResourceMember member : type.members) {
+            for (Shaderc.ResourceMember member : type.members) {
                 ShaderDesc.ResourceMember.Builder typeMemberBuilder = ShaderDesc.ResourceMember.newBuilder();
 
-                ShaderDesc.ResourceType.Builder typeBuilder = getResourceTypeBuilder(types, member.type);
+                ShaderDesc.ResourceType.Builder typeBuilder = getResourceTypeBuilder(member.type);
                 typeMemberBuilder.setType(typeBuilder);
                 typeMemberBuilder.setName(member.name);
                 typeMemberBuilder.setNameHash(MurmurHash.hash64(member.name));
-                typeMemberBuilder.setElementCount(member.elementCount);
+                typeMemberBuilder.setElementCount(member.type.arraySize);
                 typeMemberBuilder.setOffset(member.offset);
 
                 resourceTypeInfoBuilder.addMembers(typeMemberBuilder);

@@ -99,7 +99,8 @@ public class ShaderCompilers {
 
             assert shaderLanguages != null;
             for (ShaderDesc.Language shaderLanguage : shaderLanguages) {
-                ShaderDesc.Shader.Builder builder = ShaderProgramBuilder.makeShaderBuilder(shaderLanguage, pipeline.crossCompile(shaderType, shaderLanguage));
+                byte[] shaderBytes = pipeline.crossCompile(shaderType, shaderLanguage);
+                ShaderDesc.Shader.Builder builder = ShaderProgramBuilder.makeShaderBuilder(shaderLanguage, shaderBytes);
                 shaderBuildResults.add(new ShaderProgramBuilder.ShaderBuildResult(builder));
             }
 

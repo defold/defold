@@ -38,29 +38,101 @@ namespace dmShaderc
     static struct BaseTypeMapping
     {
         BaseType      m_BaseType;
-        spvc_basetype m_SPVCBaseType;
-        const char*   m_BaseTypeStr;
+        const char*   m_Str;
     } BASE_TYPE_MAPPING[] = {
-        {BASE_TYPE_UNKNOWN, SPVC_BASETYPE_UNKNOWN, "BASE_TYPE_UNKNOWN"},
-        {BASE_TYPE_VOID, SPVC_BASETYPE_VOID, "BASE_TYPE_VOID"},
-        {BASE_TYPE_BOOLEAN, SPVC_BASETYPE_BOOLEAN, "BASE_TYPE_BOOLEAN"},
-        {BASE_TYPE_INT8, SPVC_BASETYPE_INT8, "BASE_TYPE_INT8"},
-        {BASE_TYPE_UINT8, SPVC_BASETYPE_UINT8, "BASE_TYPE_UINT8"},
-        {BASE_TYPE_INT16, SPVC_BASETYPE_INT16, "BASE_TYPE_INT16"},
-        {BASE_TYPE_UINT16, SPVC_BASETYPE_UINT16, "BASE_TYPE_UINT16"},
-        {BASE_TYPE_INT32, SPVC_BASETYPE_INT32, "BASE_TYPE_INT32"},
-        {BASE_TYPE_UINT32, SPVC_BASETYPE_UINT32, "BASE_TYPE_UINT32"},
-        {BASE_TYPE_INT64, SPVC_BASETYPE_INT64, "BASE_TYPE_INT64"},
-        {BASE_TYPE_UINT64, SPVC_BASETYPE_UINT64, "BASE_TYPE_UINT64"},
-        {BASE_TYPE_ATOMIC_COUNTER, SPVC_BASETYPE_ATOMIC_COUNTER, "BASE_TYPE_ATOMIC_COUNTER"},
-        {BASE_TYPE_FP16, SPVC_BASETYPE_FP16, "BASE_TYPE_FP16"},
-        {BASE_TYPE_FP32, SPVC_BASETYPE_FP32, "BASE_TYPE_FP32"},
-        {BASE_TYPE_FP64, SPVC_BASETYPE_FP64, "BASE_TYPE_FP64"},
-        {BASE_TYPE_STRUCT, SPVC_BASETYPE_STRUCT, "BASE_TYPE_STRUCT"},
-        {BASE_TYPE_IMAGE, SPVC_BASETYPE_IMAGE, "BASE_TYPE_IMAGE"},
-        {BASE_TYPE_SAMPLED_IMAGE, SPVC_BASETYPE_SAMPLED_IMAGE, "BASE_TYPE_SAMPLED_IMAGE"},
-        {BASE_TYPE_SAMPLER, SPVC_BASETYPE_SAMPLER, "BASE_TYPE_SAMPLER"},
-        {BASE_TYPE_ACCELERATION_STRUCTURE, SPVC_BASETYPE_ACCELERATION_STRUCTURE, "BASE_TYPE_ACCELERATION_STRUCTURE"},
+        {BASE_TYPE_UNKNOWN, "UNKNOWN"},
+        {BASE_TYPE_VOID, "VOID"},
+        {BASE_TYPE_BOOLEAN, "BOOLEAN"},
+        {BASE_TYPE_INT8, "INT8"},
+        {BASE_TYPE_UINT8, "UINT8"},
+        {BASE_TYPE_INT16, "INT16"},
+        {BASE_TYPE_UINT16, "UINT16"},
+        {BASE_TYPE_INT32, "INT32"},
+        {BASE_TYPE_UINT32, "UINT32"},
+        {BASE_TYPE_INT64, "INT64"},
+        {BASE_TYPE_UINT64, "UINT64"},
+        {BASE_TYPE_ATOMIC_COUNTER, "ATOMIC_COUNTER"},
+        {BASE_TYPE_FP16, "FP16"},
+        {BASE_TYPE_FP32, "FP32"},
+        {BASE_TYPE_FP64, "FP64"},
+        {BASE_TYPE_STRUCT, "STRUCT"},
+        {BASE_TYPE_IMAGE, "IMAGE"},
+        {BASE_TYPE_SAMPLED_IMAGE, "SAMPLED_IMAGE"},
+        {BASE_TYPE_SAMPLER, "SAMPLER"},
+        {BASE_TYPE_ACCELERATION_STRUCTURE, "ACCELERATION_STRUCTURE"},
+    };
+
+    static struct DimensionTypeMapping
+    {
+        DimensionType  m_DimensionType;
+        const char*    m_Str;
+    } DIMENSION_TYPE_MAPPING[] {
+        {DIMENSION_TYPE_1D, "1D"},
+        {DIMENSION_TYPE_2D, "2D"},
+        {DIMENSION_TYPE_3D, "3D"},
+        {DIMENSION_TYPE_CUBE, "CUBE"},
+        {DIMENSION_TYPE_RECT, "RECT"},
+        {DIMENSION_TYPE_BUFFER, "BUFFER"},
+        {DIMENSION_TYPE_SUBPASS_DATA, "SUBPASS_DATA"},
+    };
+
+    static struct ImageAccessQualifierMapping
+    {
+        ImageAccessQualifier m_ImageAccessQualifier;
+        const char*          m_Str;
+    } IMAGE_ACCESS_QUALIFIER_MAPPING[] = {
+        {IMAGE_ACCESS_QUALIFIER_READ_ONLY, "READ_ONLY"},
+        {IMAGE_ACCESS_QUALIFIER_WRITE_ONLY, "RITE_ONLY"},
+        {IMAGE_ACCESS_QUALIFIER_READ_WRITE, "EAD_WRITE"},
+    };
+
+    static struct ImageStorageTypeMapping
+    {
+        ImageStorageType m_ImageStorageType;
+        const char*      m_Str;
+    } IMAGE_STORAGE_TYPE_MAPPING[] = {
+        {IMAGE_STORAGE_TYPE_UNKNOWN, "UNKNOWN"},
+        {IMAGE_STORAGE_TYPE_RGBA32F, "RGBA32F"},
+        {IMAGE_STORAGE_TYPE_RGBA16F, "RGBA16F"},
+        {IMAGE_STORAGE_TYPE_R32F, "R32F"},
+        {IMAGE_STORAGE_TYPE_RGBA8, "RGBA8"},
+        {IMAGE_STORAGE_TYPE_RGBA8_SNORM, "RGBA8_SNORM"},
+        {IMAGE_STORAGE_TYPE_RG32F, "RG32F"},
+        {IMAGE_STORAGE_TYPE_RG16F, "RG16F"},
+        {IMAGE_STORAGE_TYPE_R11F_G11F_B10F, "R11F_G11F_B10F"},
+        {IMAGE_STORAGE_TYPE_R16F, "R16F"},
+        {IMAGE_STORAGE_TYPE_RGBA16, "RGBA16"},
+        {IMAGE_STORAGE_TYPE_RGB10A2, "RGB10A2"},
+        {IMAGE_STORAGE_TYPE_RG16, "RG16"},
+        {IMAGE_STORAGE_TYPE_RG8, "RG8"},
+        {IMAGE_STORAGE_TYPE_R16, "R16"},
+        {IMAGE_STORAGE_TYPE_R8, "R8"},
+        {IMAGE_STORAGE_TYPE_RGBA16_SNORM, "RGBA16_SNORM"},
+        {IMAGE_STORAGE_TYPE_RG16_SNORM, "RG16_SNORM"},
+        {IMAGE_STORAGE_TYPE_RG8_SNORM, "RG8_SNORM"},
+        {IMAGE_STORAGE_TYPE_R16_SNORM, "R16_SNORM"},
+        {IMAGE_STORAGE_TYPE_R8_SNORM, "R8_SNORM"},
+        {IMAGE_STORAGE_TYPE_RGBA32I, "RGBA32I"},
+        {IMAGE_STORAGE_TYPE_RGBA16I, "RGBA16I"},
+        {IMAGE_STORAGE_TYPE_RGBA8I, "RGBA8I"},
+        {IMAGE_STORAGE_TYPE_R32I, "R32I"},
+        {IMAGE_STORAGE_TYPE_RG32I, "RG32I"},
+        {IMAGE_STORAGE_TYPE_RG16I, "RG16I"},
+        {IMAGE_STORAGE_TYPE_RG8I, "RG8I"},
+        {IMAGE_STORAGE_TYPE_R16I, "R16I"},
+        {IMAGE_STORAGE_TYPE_R8I, "R8I"},
+        {IMAGE_STORAGE_TYPE_RGBA32UI, "RGBA32UI"},
+        {IMAGE_STORAGE_TYPE_RGBA16UI, "RGBA16UI"},
+        {IMAGE_STORAGE_TYPE_RGBA8UI, "RGBA8UI"},
+        {IMAGE_STORAGE_TYPE_R32UI, "R32UI"},
+        {IMAGE_STORAGE_TYPE_RGb10a2UI, "RGb10a2UI"},
+        {IMAGE_STORAGE_TYPE_RG32UI, "RG32UI"},
+        {IMAGE_STORAGE_TYPE_RG16UI, "RG16UI"},
+        {IMAGE_STORAGE_TYPE_RG8UI, "RG8UI"},
+        {IMAGE_STORAGE_TYPE_R16UI, "R16UI"},
+        {IMAGE_STORAGE_TYPE_R8UI, "R8UI"},
+        {IMAGE_STORAGE_TYPE_R64UI, "R64UI"},
+        {IMAGE_STORAGE_TYPE_R64I, "R64I"},
     };
 
     static uint32_t GetTypeIndex(ShaderReflection& reflection, spvc_compiler compiler, const char* type_name, spvc_type_id type_id, spvc_type type)
@@ -76,11 +148,17 @@ namespace dmShaderc
 
         uint32_t member_count = spvc_type_get_num_member_types(type);
 
-        ResourceTypeInfo type_info = {};
+        uint32_t type_index = reflection.m_Types.Size();
+
+        reflection.m_Types.OffsetCapacity(1);
+        reflection.m_Types.SetSize(reflection.m_Types.Capacity());
+
+        ResourceTypeInfo& type_info = reflection.m_Types.Back();
         type_info.m_Name = type_name;
         type_info.m_NameHash = type_name_hash;
-        type_info.m_MemberCount = member_count;
-        type_info.m_Members = new ResourceMember[member_count];
+
+        ResourceMember* members = (ResourceMember*) malloc(sizeof(ResourceMember) * member_count);
+        type_info.m_Members.Set(members, member_count, member_count, false);
 
         for (int i = 0; i < member_count; ++i)
         {
@@ -91,10 +169,23 @@ namespace dmShaderc
             unsigned member_offset = 0;
             spvc_compiler_type_struct_member_offset(compiler, type, i, &member_offset);
 
+            unsigned num_array_dimensions = spvc_type_get_num_array_dimensions(member_type);
+            if (num_array_dimensions > 1)
+            {
+                dmLogWarning("Unsupported array dimension: %u", num_array_dimensions);
+            }
+
             ResourceMember& member = type_info.m_Members[i];
-            member.m_Name     = spvc_compiler_get_member_name(compiler, type_id, i);
-            member.m_NameHash = dmHashString64(member.m_Name);
-            member.m_Offset   = (uint32_t) member_offset;
+            member.m_Name             = spvc_compiler_get_member_name(compiler, type_id, i);
+            member.m_NameHash         = dmHashString64(member.m_Name);
+            member.m_Offset           = (uint32_t) member_offset;
+            member.m_Type.m_ArraySize = 1;
+
+            // TODO: We only support one array dimension right now
+            if (num_array_dimensions > 0)
+            {
+                member.m_Type.m_ArraySize = spvc_type_get_array_dimension(member_type, 0);
+            }
 
             if (member_base_type == SPVC_BASETYPE_STRUCT)
             {
@@ -106,15 +197,10 @@ namespace dmShaderc
             {
                 member.m_Type.m_BaseType     = BASE_TYPE_MAPPING[member_base_type].m_BaseType;
                 member.m_Type.m_UseTypeIndex = false;
-                member.m_VectorSize          = spvc_type_get_vector_size(member_type);
-                member.m_ColumnCount         = spvc_type_get_columns(member_type);
+                member.m_Type.m_VectorSize   = spvc_type_get_vector_size(member_type);
+                member.m_Type.m_ColumnCount  = spvc_type_get_columns(member_type);
             }
         }
-
-        uint32_t type_index = reflection.m_Types.Size();
-
-        reflection.m_Types.OffsetCapacity(1);
-        reflection.m_Types.Push(type_info);
 
         return type_index;
     }
@@ -128,6 +214,8 @@ namespace dmShaderc
         if (count == 0)
             return;
 
+        uint32_t write_index = resources_out.Size();
+
         if (resources_out.Remaining() < count)
         {
             resources_out.OffsetCapacity(count);
@@ -139,24 +227,51 @@ namespace dmShaderc
             spvc_type type          = spvc_compiler_get_type_handle(compiler, list[i].type_id);
             spvc_basetype base_type = spvc_type_get_basetype(type);
 
-            resources_out[i].m_Id               = list[i].id;
-            resources_out[i].m_Name             = list[i].name;
-            resources_out[i].m_NameHash         = dmHashString64(list[i].name);
-            resources_out[i].m_InstanceName     = spvc_compiler_get_name(compiler, list[i].id);
-            resources_out[i].m_InstanceNameHash = dmHashString64(resources_out[i].m_InstanceName);
-            resources_out[i].m_Set              = spvc_compiler_get_decoration(compiler, list[i].id, SpvDecorationDescriptorSet);
-            resources_out[i].m_Binding          = spvc_compiler_get_decoration(compiler, list[i].id, SpvDecorationBinding);
-            resources_out[i].m_Location         = spvc_compiler_get_decoration(compiler, list[i].id, SpvDecorationLocation);
+            ShaderResource& resource = resources_out[write_index + i];
+
+            resource.m_Id               = list[i].id;
+            resource.m_Name             = list[i].name;
+            resource.m_NameHash         = dmHashString64(list[i].name);
+            resource.m_InstanceName     = spvc_compiler_get_name(compiler, list[i].id);
+            resource.m_InstanceNameHash = dmHashString64(resource.m_InstanceName);
+            resource.m_Set              = spvc_compiler_get_decoration(compiler, list[i].id, SpvDecorationDescriptorSet);
+            resource.m_Binding          = spvc_compiler_get_decoration(compiler, list[i].id, SpvDecorationBinding);
+            resource.m_Location         = spvc_compiler_get_decoration(compiler, list[i].id, SpvDecorationLocation);
 
             if (base_type == SPVC_BASETYPE_STRUCT)
             {
-                resources_out[i].m_Type.m_TypeIndex    = GetTypeIndex(reflection, compiler, resources_out[i].m_Name, list[i].base_type_id, type);
-                resources_out[i].m_Type.m_UseTypeIndex = true;
+                size_t size = 0;
+                spvc_compiler_get_declared_struct_size(compiler, type, &size);
+
+                resource.m_BlockSize           = (uint32_t) size;
+                resource.m_Type.m_TypeIndex    = GetTypeIndex(reflection, compiler, resource.m_Name, list[i].base_type_id, type);
+                resource.m_Type.m_UseTypeIndex = true;
             }
             else
             {
-                resources_out[i].m_Type.m_BaseType     = BASE_TYPE_MAPPING[base_type].m_BaseType;
-                resources_out[i].m_Type.m_UseTypeIndex = false;
+                resource.m_Type.m_BaseType     = BASE_TYPE_MAPPING[base_type].m_BaseType;
+                resource.m_Type.m_UseTypeIndex = false;
+                resource.m_Type.m_VectorSize   = spvc_type_get_vector_size(type);
+                resource.m_Type.m_ColumnCount  = spvc_type_get_columns(type);
+
+                if (base_type == SPVC_BASETYPE_IMAGE || base_type == SPVC_BASETYPE_SAMPLED_IMAGE)
+                {
+                    resource.m_Type.m_ImageIsArrayed   = spvc_type_get_image_arrayed(type);
+                    resource.m_Type.m_ImageIsStorage   = spvc_type_get_image_is_storage(type);
+                    resource.m_Type.m_DimensionType    = DIMENSION_TYPE_MAPPING[spvc_type_get_image_dimension(type)].m_DimensionType;
+                    resource.m_Type.m_ImageStorageType = IMAGE_STORAGE_TYPE_MAPPING[spvc_type_get_image_storage_format(type)].m_ImageStorageType;
+
+                    SpvAccessQualifier qualifier = spvc_type_get_image_access_qualifier(type);
+                    if (qualifier != SpvAccessQualifierMax)
+                    {
+                        resource.m_Type.m_ImageAccessQualifier = IMAGE_ACCESS_QUALIFIER_MAPPING[qualifier].m_ImageAccessQualifier;
+                    }
+
+                    spvc_type_id sampled_type_it    = spvc_type_get_image_sampled_type(type);
+                    spvc_type sample_type           = spvc_compiler_get_type_handle(compiler, sampled_type_it);
+                    spvc_basetype sampled_base_type = spvc_type_get_basetype(sample_type);
+                    resource.m_Type.m_ImageBaseType = BASE_TYPE_MAPPING[sampled_base_type].m_BaseType;
+                }
             }
         }
     }
@@ -361,7 +476,7 @@ namespace dmShaderc
         }
         else
         {
-            return BASE_TYPE_MAPPING[type.m_BaseType].m_BaseTypeStr;
+            return BASE_TYPE_MAPPING[type.m_BaseType].m_Str;
         }
     }
 
@@ -390,35 +505,45 @@ namespace dmShaderc
         dmLogInfo("Uniform buffers: %d", reflection->m_UniformBuffers.Size());
         for (uint32_t i = 0; i < reflection->m_UniformBuffers.Size(); ++i)
         {
-            dmLogInfo("  Name: %s, Instance-name: %s, Set: %d, Binding: %d, Type: %s",
+            dmLogInfo("  Name: %s, Instance-name: %s, Set: %d, Binding: %d, Type: %s, BlockSize: %d",
                 reflection->m_UniformBuffers[i].m_Name,
                 reflection->m_UniformBuffers[i].m_InstanceName,
                 reflection->m_UniformBuffers[i].m_Set,
                 reflection->m_UniformBuffers[i].m_Binding,
-                ResolveTypeName(reflection, reflection->m_UniformBuffers[i].m_Type));
+                ResolveTypeName(reflection, reflection->m_UniformBuffers[i].m_Type),
+                reflection->m_UniformBuffers[i].m_BlockSize);
         }
 
         dmLogInfo("Textures: %d", reflection->m_Textures.Size());
         for (uint32_t i = 0; i < reflection->m_Textures.Size(); ++i)
         {
-            dmLogInfo("  Name: %s, Set: %d, Binding: %d, Type: %s",
+            dmLogInfo("  Name: %s, Set: %d, Binding: %d, BaseType: %s, Type: %s, DimensionType: %s, IsArrayed: %s, IsStorage: %s, StorageType: %s, AccessQualifier: %s",
                 reflection->m_Textures[i].m_Name,
                 reflection->m_Textures[i].m_Set,
                 reflection->m_Textures[i].m_Binding,
-                ResolveTypeName(reflection, reflection->m_Textures[i].m_Type));
+                BASE_TYPE_MAPPING[reflection->m_Textures[i].m_Type.m_ImageBaseType].m_Str,
+                ResolveTypeName(reflection, reflection->m_Textures[i].m_Type),
+                DIMENSION_TYPE_MAPPING[reflection->m_Textures[i].m_Type.m_DimensionType].m_Str,
+                reflection->m_Textures[i].m_Type.m_ImageIsArrayed ? "true" : "false",
+                reflection->m_Textures[i].m_Type.m_ImageIsStorage ? "true" : "false",
+                IMAGE_STORAGE_TYPE_MAPPING[reflection->m_Textures[i].m_Type.m_ImageStorageType].m_Str,
+                IMAGE_ACCESS_QUALIFIER_MAPPING[reflection->m_Textures[i].m_Type.m_ImageAccessQualifier].m_Str);
         }
 
         dmLogInfo("Types: %d", reflection->m_Types.Size());
         for (uint32_t i = 0; i < reflection->m_Types.Size(); ++i)
         {
-            dmLogInfo("  Name: %s, Members: %d", reflection->m_Types[i].m_Name, reflection->m_Types[i].m_MemberCount);
+            dmLogInfo("  Name: %s, Members: %d", reflection->m_Types[i].m_Name, reflection->m_Types[i].m_Members.Size());
 
-            for (int j = 0; j < reflection->m_Types[i].m_MemberCount; ++j)
+            for (int j = 0; j < reflection->m_Types[i].m_Members.Size(); ++j)
             {
-                dmLogInfo("    Name: %s, Offset: %d, Type: %s",
+                dmLogInfo("    Name: %s, Offset: %d, Type: %s, VectorSize: %d, ArraySize: %d, ColumnCount: %d",
                     reflection->m_Types[i].m_Members[j].m_Name,
                     reflection->m_Types[i].m_Members[j].m_Offset,
-                    ResolveTypeName(reflection, reflection->m_Types[i].m_Members[j].m_Type));
+                    ResolveTypeName(reflection, reflection->m_Types[i].m_Members[j].m_Type),
+                    reflection->m_Types[i].m_Members[j].m_Type.m_VectorSize,
+                    reflection->m_Types[i].m_Members[j].m_Type.m_ArraySize,
+                    reflection->m_Types[i].m_Members[j].m_Type.m_ColumnCount);
             }
         }
     }

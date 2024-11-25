@@ -65,6 +65,70 @@ namespace dmShaderc
         BASE_TYPE_ACCELERATION_STRUCTURE,
     };
 
+    enum DimensionType
+    {
+        DIMENSION_TYPE_1D,
+        DIMENSION_TYPE_2D,
+        DIMENSION_TYPE_3D,
+        DIMENSION_TYPE_CUBE,
+        DIMENSION_TYPE_RECT,
+        DIMENSION_TYPE_BUFFER,
+        DIMENSION_TYPE_SUBPASS_DATA,
+    };
+
+    enum ImageStorageType
+    {
+        IMAGE_STORAGE_TYPE_UNKNOWN,
+        IMAGE_STORAGE_TYPE_RGBA32F,
+        IMAGE_STORAGE_TYPE_RGBA16F,
+        IMAGE_STORAGE_TYPE_R32F,
+        IMAGE_STORAGE_TYPE_RGBA8,
+        IMAGE_STORAGE_TYPE_RGBA8_SNORM,
+        IMAGE_STORAGE_TYPE_RG32F,
+        IMAGE_STORAGE_TYPE_RG16F,
+        IMAGE_STORAGE_TYPE_R11F_G11F_B10F,
+        IMAGE_STORAGE_TYPE_R16F,
+        IMAGE_STORAGE_TYPE_RGBA16,
+        IMAGE_STORAGE_TYPE_RGB10A2,
+        IMAGE_STORAGE_TYPE_RG16,
+        IMAGE_STORAGE_TYPE_RG8,
+        IMAGE_STORAGE_TYPE_R16,
+        IMAGE_STORAGE_TYPE_R8,
+        IMAGE_STORAGE_TYPE_RGBA16_SNORM,
+        IMAGE_STORAGE_TYPE_RG16_SNORM,
+        IMAGE_STORAGE_TYPE_RG8_SNORM,
+        IMAGE_STORAGE_TYPE_R16_SNORM,
+        IMAGE_STORAGE_TYPE_R8_SNORM,
+        IMAGE_STORAGE_TYPE_RGBA32I,
+        IMAGE_STORAGE_TYPE_RGBA16I,
+        IMAGE_STORAGE_TYPE_RGBA8I,
+        IMAGE_STORAGE_TYPE_R32I,
+        IMAGE_STORAGE_TYPE_RG32I,
+        IMAGE_STORAGE_TYPE_RG16I,
+        IMAGE_STORAGE_TYPE_RG8I,
+        IMAGE_STORAGE_TYPE_R16I,
+        IMAGE_STORAGE_TYPE_R8I,
+        IMAGE_STORAGE_TYPE_RGBA32UI,
+        IMAGE_STORAGE_TYPE_RGBA16UI,
+        IMAGE_STORAGE_TYPE_RGBA8UI,
+        IMAGE_STORAGE_TYPE_R32UI,
+        IMAGE_STORAGE_TYPE_RGb10a2UI,
+        IMAGE_STORAGE_TYPE_RG32UI,
+        IMAGE_STORAGE_TYPE_RG16UI,
+        IMAGE_STORAGE_TYPE_RG8UI,
+        IMAGE_STORAGE_TYPE_R16UI,
+        IMAGE_STORAGE_TYPE_R8UI,
+        IMAGE_STORAGE_TYPE_R64UI,
+        IMAGE_STORAGE_TYPE_R64I,
+    };
+
+    enum ImageAccessQualifier
+    {
+        IMAGE_ACCESS_QUALIFIER_READ_ONLY,
+        IMAGE_ACCESS_QUALIFIER_WRITE_ONLY,
+        IMAGE_ACCESS_QUALIFIER_READ_WRITE,
+    };
+
     struct ShaderCompilerOptions
     {
         ShaderCompilerOptions()
@@ -89,9 +153,18 @@ namespace dmShaderc
 
     struct ResourceType
     {
-        BaseType m_BaseType;
-        uint32_t m_TypeIndex;
-        bool     m_UseTypeIndex;
+        BaseType             m_BaseType;
+        DimensionType        m_DimensionType;
+        ImageStorageType     m_ImageStorageType;
+        ImageAccessQualifier m_ImageAccessQualifier;
+        BaseType             m_ImageBaseType;
+        uint32_t             m_TypeIndex;
+        uint32_t             m_VectorSize;
+        uint32_t             m_ColumnCount;
+        uint32_t             m_ArraySize;
+        bool                 m_UseTypeIndex;
+        bool                 m_ImageIsArrayed;
+        bool                 m_ImageIsStorage;
     };
 
     struct ResourceMember
@@ -99,17 +172,14 @@ namespace dmShaderc
         const char*     m_Name;
         uint64_t        m_NameHash;
         ResourceType    m_Type;
-        uint32_t        m_VectorSize;
-        uint32_t        m_ColumnCount;
         uint32_t        m_Offset;
     };
 
     struct ResourceTypeInfo
     {
-        const char*     m_Name;
-        uint64_t        m_NameHash;
-        ResourceMember* m_Members;
-        uint32_t        m_MemberCount;
+        const char*             m_Name;
+        uint64_t                m_NameHash;
+        dmArray<ResourceMember> m_Members;
     };
 
     struct ShaderResource
@@ -120,6 +190,7 @@ namespace dmShaderc
         uint64_t     m_InstanceNameHash;
         ResourceType m_Type;
         uint32_t     m_Id;
+        uint32_t     m_BlockSize;
         uint8_t      m_Location;
         uint8_t      m_Binding;
         uint8_t      m_Set;

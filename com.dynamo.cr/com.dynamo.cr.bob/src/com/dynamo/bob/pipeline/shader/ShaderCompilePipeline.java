@@ -21,8 +21,11 @@ import java.util.ArrayList;
 
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.Platform;
+import com.dynamo.bob.pipeline.ShaderCompilers;
 import com.dynamo.bob.pipeline.ShaderUtil;
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.pipeline.Shaderc;
+import com.dynamo.bob.pipeline.ShadercJni;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.util.Exec.Result;
@@ -50,6 +53,7 @@ public class ShaderCompilePipeline {
     protected String pipelineName;
     protected File spirvFileOut                     = null;
     protected SPIRVReflector spirvReflector         = null;
+    protected long spirvContext                     = 0;
     protected ArrayList<ShaderModule> shaderModules = new ArrayList<>();
     protected Options options                       = null;
 
@@ -96,7 +100,7 @@ public class ShaderCompilePipeline {
         return shaderLanguageIsGLSL(shaderLanguage) || shaderLanguage == ShaderDesc.Language.LANGUAGE_WGSL;
     }
 
-    private static byte[] remapTextureSamplers(ArrayList<SPIRVReflector.Resource> textures, String source) {
+    private static byte[] remapTextureSamplers(ArrayList<Shaderc.ShaderResource> textures, String source) {
         // Textures are remapped via spirv-cross according to:
         //   SPIRV_Cross_Combined<TEXTURE_NAME><SAMPLER_NAME>
         //
@@ -111,7 +115,7 @@ public class ShaderCompilePipeline {
         //
         // Even without the separation of texture/sampler, we will still need to rename the texture in the source
         // due to how spirv-cross works.
-        for (SPIRVReflector.Resource texture : textures) {
+        for (Shaderc.ShaderResource texture : textures) {
             String spirvCrossSamplerName = String.format("SPIRV_Cross_Combined%s%s_separated", texture.name, texture.name);
             source = source.replaceAll(spirvCrossSamplerName, texture.name);
         }
@@ -162,6 +166,7 @@ public class ShaderCompilePipeline {
         checkResult(result);
     }
 
+    /*
     private void generateSPIRvReflection(String pathFileInSpv, String pathFileOutSpvReflection) throws IOException, CompileExceptionError{
         Result result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "spirv-cross"),
             pathFileInSpv,
@@ -170,8 +175,40 @@ public class ShaderCompilePipeline {
             "--reflect");
         checkResult(result);
     }
+    */
 
-    private void generateCrossCompiledShader(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, String pathFileInSpv, String pathFileOut, int versionOut) throws IOException, CompileExceptionError{
+    private byte[] generateCrossCompiledShader(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage, int versionOut) throws IOException, CompileExceptionError{
+
+        /*
+        // TODO:
+        generateWGSL(pathFileInSpv, pathFileOut);
+        return;
+        */
+
+        long compiler = ShadercJni.NewShaderCompiler(this.spirvContext, Shaderc.ShaderLanguage.SHADER_LANGUAGE_GLSL.getValue());
+
+        Shaderc.ShaderCompilerOptions opts = new Shaderc.ShaderCompilerOptions();
+        opts.version = versionOut;
+        opts.entryPoint = "main";
+
+        switch (shaderType) {
+            case SHADER_TYPE_VERTEX -> opts.stage = Shaderc.ShaderStage.SHADER_STAGE_VERTEX;
+            case SHADER_TYPE_FRAGMENT -> opts.stage = Shaderc.ShaderStage.SHADER_STAGE_FRAGMENT;
+            case SHADER_TYPE_COMPUTE -> opts.stage = Shaderc.ShaderStage.SHADER_STAGE_COMPUTE;
+        }
+
+        if (shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100 || shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM120) {
+            opts.glslEmitUboAsPlainUniforms = 1;
+        }
+
+        if (shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100 || shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM300) {
+            opts.glslEs = 1;
+        }
+
+        return ShadercJni.Compile(this.spirvContext, compiler, opts);
+
+
+        /*
         if(shaderLanguage == ShaderDesc.Language.LANGUAGE_WGSL) {
             generateWGSL(pathFileInSpv, pathFileOut);
             return;
@@ -201,6 +238,7 @@ public class ShaderCompilePipeline {
 
         Result result = Exec.execResult(args.toArray(new String[0]));
         checkResult(result);
+         */
     }
 
     protected void addShaderModule(String source, ShaderDesc.ShaderType type) {
@@ -240,6 +278,7 @@ public class ShaderCompilePipeline {
         FileUtil.deleteOnExit(fileOutSpvOpt);
         generateSPIRvOptimized(fileOutSpvLinked.getAbsolutePath(), fileOutSpvOpt.getAbsolutePath());
 
+        /*
         // 4. Generate the reflection data from the final .spv file
         File fileOutSpvReflection = File.createTempFile(this.pipelineName, ".reflection.json");
         FileUtil.deleteOnExit(fileOutSpvReflection);
@@ -248,6 +287,11 @@ public class ShaderCompilePipeline {
 
         // 4. Finalize output
         this.spirvReflector = new SPIRVReflector(FileUtils.readFileToString(fileOutSpvReflection, StandardCharsets.UTF_8));
+        */
+
+        // TODO: Delete the context!
+        this.spirvContext = ShadercJni.NewShaderContext(FileUtils.readFileToByteArray(fileOutSpvOpt));
+        this.spirvReflector = new SPIRVReflector(this.spirvContext);
         this.spirvFileOut = fileOutSpvOpt;
     }
 
@@ -262,12 +306,7 @@ public class ShaderCompilePipeline {
             String shaderTypeStr = shaderTypeToSpirvStage(shaderType);
             String versionStr    = "v" + version;
 
-            File fileCrossCompiled = File.createTempFile(this.pipelineName, "." + versionStr + "." + shaderTypeStr);
-            FileUtil.deleteOnExit(fileCrossCompiled);
-
-            generateCrossCompiledShader(shaderType, shaderLanguage, this.spirvFileOut.getAbsolutePath(), fileCrossCompiled.getAbsolutePath(), version);
-
-            byte[] bytes = FileUtils.readFileToByteArray(fileCrossCompiled);
+            byte[] bytes = generateCrossCompiledShader(shaderType, shaderLanguage, version);
 
             // JG: spirv-cross renames samplers for GLSL based shaders, so we have to run a second pass to force renaming them back.
             //     There doesn't seem to be a simpler way to do this in spirv-cross from what I can understand.

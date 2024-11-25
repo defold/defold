@@ -40,24 +40,30 @@ void InitializeJNITypes(JNIEnv* env, TypeInfos* infos) {
     {
         SETUP_CLASS(ResourceTypeJNI, "ResourceType");
         GET_FLD(baseType, "BaseType");
+        GET_FLD(dimensionType, "DimensionType");
+        GET_FLD(imageStorageType, "ImageStorageType");
+        GET_FLD(imageAccessQualifier, "ImageAccessQualifier");
+        GET_FLD(imageBaseType, "BaseType");
         GET_FLD_TYPESTR(typeIndex, "I");
+        GET_FLD_TYPESTR(vectorSize, "I");
+        GET_FLD_TYPESTR(columnCount, "I");
+        GET_FLD_TYPESTR(arraySize, "I");
         GET_FLD_TYPESTR(useTypeIndex, "Z");
+        GET_FLD_TYPESTR(imageIsArrayed, "Z");
+        GET_FLD_TYPESTR(imageIsStorage, "Z");
     }
     {
         SETUP_CLASS(ResourceMemberJNI, "ResourceMember");
         GET_FLD_TYPESTR(name, "Ljava/lang/String;");
         GET_FLD_TYPESTR(nameHash, "J");
         GET_FLD(type, "ResourceType");
-        GET_FLD_TYPESTR(vectorSize, "I");
-        GET_FLD_TYPESTR(columnCount, "I");
         GET_FLD_TYPESTR(offset, "I");
     }
     {
         SETUP_CLASS(ResourceTypeInfoJNI, "ResourceTypeInfo");
         GET_FLD_TYPESTR(name, "Ljava/lang/String;");
         GET_FLD_TYPESTR(nameHash, "J");
-        GET_FLD(members, "ResourceMember");
-        GET_FLD_TYPESTR(memberCount, "I");
+        GET_FLD_ARRAY(members, "ResourceMember");
     }
     {
         SETUP_CLASS(ShaderResourceJNI, "ShaderResource");
@@ -67,6 +73,7 @@ void InitializeJNITypes(JNIEnv* env, TypeInfos* infos) {
         GET_FLD_TYPESTR(instanceNameHash, "J");
         GET_FLD(type, "ResourceType");
         GET_FLD_TYPESTR(id, "I");
+        GET_FLD_TYPESTR(blockSize, "I");
         GET_FLD_TYPESTR(location, "B");
         GET_FLD_TYPESTR(binding, "B");
         GET_FLD_TYPESTR(set, "B");
@@ -114,8 +121,17 @@ jobject C2J_CreateResourceType(JNIEnv* env, TypeInfos* types, const ResourceType
     if (src == 0) return 0;
     jobject obj = env->AllocObject(types->m_ResourceTypeJNI.cls);
     dmJNI::SetEnum(env, obj, types->m_ResourceTypeJNI.baseType, src->m_BaseType);
+    dmJNI::SetEnum(env, obj, types->m_ResourceTypeJNI.dimensionType, src->m_DimensionType);
+    dmJNI::SetEnum(env, obj, types->m_ResourceTypeJNI.imageStorageType, src->m_ImageStorageType);
+    dmJNI::SetEnum(env, obj, types->m_ResourceTypeJNI.imageAccessQualifier, src->m_ImageAccessQualifier);
+    dmJNI::SetEnum(env, obj, types->m_ResourceTypeJNI.imageBaseType, src->m_ImageBaseType);
     dmJNI::SetUInt(env, obj, types->m_ResourceTypeJNI.typeIndex, src->m_TypeIndex);
+    dmJNI::SetUInt(env, obj, types->m_ResourceTypeJNI.vectorSize, src->m_VectorSize);
+    dmJNI::SetUInt(env, obj, types->m_ResourceTypeJNI.columnCount, src->m_ColumnCount);
+    dmJNI::SetUInt(env, obj, types->m_ResourceTypeJNI.arraySize, src->m_ArraySize);
     dmJNI::SetBoolean(env, obj, types->m_ResourceTypeJNI.useTypeIndex, src->m_UseTypeIndex);
+    dmJNI::SetBoolean(env, obj, types->m_ResourceTypeJNI.imageIsArrayed, src->m_ImageIsArrayed);
+    dmJNI::SetBoolean(env, obj, types->m_ResourceTypeJNI.imageIsStorage, src->m_ImageIsStorage);
     return obj;
 }
 
@@ -125,8 +141,6 @@ jobject C2J_CreateResourceMember(JNIEnv* env, TypeInfos* types, const ResourceMe
     dmJNI::SetString(env, obj, types->m_ResourceMemberJNI.name, src->m_Name);
     dmJNI::SetULong(env, obj, types->m_ResourceMemberJNI.nameHash, src->m_NameHash);
     dmJNI::SetObjectDeref(env, obj, types->m_ResourceMemberJNI.type, C2J_CreateResourceType(env, types, &src->m_Type));
-    dmJNI::SetUInt(env, obj, types->m_ResourceMemberJNI.vectorSize, src->m_VectorSize);
-    dmJNI::SetUInt(env, obj, types->m_ResourceMemberJNI.columnCount, src->m_ColumnCount);
     dmJNI::SetUInt(env, obj, types->m_ResourceMemberJNI.offset, src->m_Offset);
     return obj;
 }
@@ -136,8 +150,7 @@ jobject C2J_CreateResourceTypeInfo(JNIEnv* env, TypeInfos* types, const Resource
     jobject obj = env->AllocObject(types->m_ResourceTypeInfoJNI.cls);
     dmJNI::SetString(env, obj, types->m_ResourceTypeInfoJNI.name, src->m_Name);
     dmJNI::SetULong(env, obj, types->m_ResourceTypeInfoJNI.nameHash, src->m_NameHash);
-    dmJNI::SetObjectDeref(env, obj, types->m_ResourceTypeInfoJNI.members, C2J_CreateResourceMember(env, types, src->m_Members));
-    dmJNI::SetUInt(env, obj, types->m_ResourceTypeInfoJNI.memberCount, src->m_MemberCount);
+    dmJNI::SetObjectDeref(env, obj, types->m_ResourceTypeInfoJNI.members, C2J_CreateResourceMemberArray(env, types, src->m_Members.Begin(), src->m_Members.Size()));
     return obj;
 }
 
@@ -150,6 +163,7 @@ jobject C2J_CreateShaderResource(JNIEnv* env, TypeInfos* types, const ShaderReso
     dmJNI::SetULong(env, obj, types->m_ShaderResourceJNI.instanceNameHash, src->m_InstanceNameHash);
     dmJNI::SetObjectDeref(env, obj, types->m_ShaderResourceJNI.type, C2J_CreateResourceType(env, types, &src->m_Type));
     dmJNI::SetUInt(env, obj, types->m_ShaderResourceJNI.id, src->m_Id);
+    dmJNI::SetUInt(env, obj, types->m_ShaderResourceJNI.blockSize, src->m_BlockSize);
     dmJNI::SetUByte(env, obj, types->m_ShaderResourceJNI.location, src->m_Location);
     dmJNI::SetUByte(env, obj, types->m_ShaderResourceJNI.binding, src->m_Binding);
     dmJNI::SetUByte(env, obj, types->m_ShaderResourceJNI.set, src->m_Set);
@@ -305,8 +319,17 @@ bool J2C_CreateShaderCompilerOptions(JNIEnv* env, TypeInfos* types, jobject obj,
 bool J2C_CreateResourceType(JNIEnv* env, TypeInfos* types, jobject obj, ResourceType* out) {
     if (out == 0) return false;
     out->m_BaseType = (BaseType)dmJNI::GetEnum(env, obj, types->m_ResourceTypeJNI.baseType);
+    out->m_DimensionType = (DimensionType)dmJNI::GetEnum(env, obj, types->m_ResourceTypeJNI.dimensionType);
+    out->m_ImageStorageType = (ImageStorageType)dmJNI::GetEnum(env, obj, types->m_ResourceTypeJNI.imageStorageType);
+    out->m_ImageAccessQualifier = (ImageAccessQualifier)dmJNI::GetEnum(env, obj, types->m_ResourceTypeJNI.imageAccessQualifier);
+    out->m_ImageBaseType = (BaseType)dmJNI::GetEnum(env, obj, types->m_ResourceTypeJNI.imageBaseType);
     out->m_TypeIndex = dmJNI::GetUInt(env, obj, types->m_ResourceTypeJNI.typeIndex);
+    out->m_VectorSize = dmJNI::GetUInt(env, obj, types->m_ResourceTypeJNI.vectorSize);
+    out->m_ColumnCount = dmJNI::GetUInt(env, obj, types->m_ResourceTypeJNI.columnCount);
+    out->m_ArraySize = dmJNI::GetUInt(env, obj, types->m_ResourceTypeJNI.arraySize);
     out->m_UseTypeIndex = dmJNI::GetBoolean(env, obj, types->m_ResourceTypeJNI.useTypeIndex);
+    out->m_ImageIsArrayed = dmJNI::GetBoolean(env, obj, types->m_ResourceTypeJNI.imageIsArrayed);
+    out->m_ImageIsStorage = dmJNI::GetBoolean(env, obj, types->m_ResourceTypeJNI.imageIsStorage);
     return true;
 }
 
@@ -321,8 +344,6 @@ bool J2C_CreateResourceMember(JNIEnv* env, TypeInfos* types, jobject obj, Resour
             env->DeleteLocalRef(field_object);
         }
     }
-    out->m_VectorSize = dmJNI::GetUInt(env, obj, types->m_ResourceMemberJNI.vectorSize);
-    out->m_ColumnCount = dmJNI::GetUInt(env, obj, types->m_ResourceMemberJNI.columnCount);
     out->m_Offset = dmJNI::GetUInt(env, obj, types->m_ResourceMemberJNI.offset);
     return true;
 }
@@ -334,12 +355,12 @@ bool J2C_CreateResourceTypeInfo(JNIEnv* env, TypeInfos* types, jobject obj, Reso
     {
         jobject field_object = env->GetObjectField(obj, types->m_ResourceTypeInfoJNI.members);
         if (field_object) {
-            out->m_Members = new ResourceMember();
-            J2C_CreateResourceMember(env, types, field_object, out->m_Members);
+            uint32_t tmp_count;
+            ResourceMember* tmp = J2C_CreateResourceMemberArray(env, types, (jobjectArray)field_object, &tmp_count);
+            out->m_Members.Set(tmp, tmp_count, tmp_count, false);
             env->DeleteLocalRef(field_object);
         }
     }
-    out->m_MemberCount = dmJNI::GetUInt(env, obj, types->m_ResourceTypeInfoJNI.memberCount);
     return true;
 }
 
@@ -357,6 +378,7 @@ bool J2C_CreateShaderResource(JNIEnv* env, TypeInfos* types, jobject obj, Shader
         }
     }
     out->m_Id = dmJNI::GetUInt(env, obj, types->m_ShaderResourceJNI.id);
+    out->m_BlockSize = dmJNI::GetUInt(env, obj, types->m_ShaderResourceJNI.blockSize);
     out->m_Location = dmJNI::GetUByte(env, obj, types->m_ShaderResourceJNI.location);
     out->m_Binding = dmJNI::GetUByte(env, obj, types->m_ShaderResourceJNI.binding);
     out->m_Set = dmJNI::GetUByte(env, obj, types->m_ShaderResourceJNI.set);
