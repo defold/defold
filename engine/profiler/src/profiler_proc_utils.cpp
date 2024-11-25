@@ -135,7 +135,7 @@ void dmProfilerExt::SampleProcCpuUsage(bool use_virtual_metric)
         return;
     }
 
-    uint64_t time = dmTime::GetTime();
+    uint64_t time = dmTime::GetMonotomicTime();
     if (_sample_cpu_last_t == 0) {
         _sample_cpu_last_t = time;
         return;

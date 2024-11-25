@@ -927,7 +927,7 @@ namespace dmResource
     {
         DM_PROFILE("UpdatePreloader");
 
-        uint64_t start           = dmTime::GetTime();
+        uint64_t start           = dmTime::GetMonotomicTime();
         uint32_t empty_runs      = 0;
         bool close_to_time_limit = soft_time_limit < 1000;
 
@@ -1003,7 +1003,7 @@ namespace dmResource
             }
             else
             {
-                close_to_time_limit = (dmTime::GetTime() + 1000 - start) > soft_time_limit;
+                close_to_time_limit = (dmTime::GetMonotomicTime() + 1000 - start) > soft_time_limit;
                 if (close_to_time_limit)
                 {
                     // Sleep a very short time, on windows it this small number just means "give up time slice"
@@ -1016,7 +1016,7 @@ namespace dmResource
                 // more of our time waiting for files to complete loading.
                 dmTime::Sleep(1000);
             }
-        } while (dmTime::GetTime() - start <= soft_time_limit);
+        } while (dmTime::GetMonotomicTime() - start <= soft_time_limit);
 
         return RESULT_PENDING;
     }

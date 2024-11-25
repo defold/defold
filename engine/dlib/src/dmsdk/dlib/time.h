@@ -43,6 +43,16 @@ namespace dmTime
      * @name dmTime::GetMonotomicTime
      * @return result [type:uint64_t] Monotomic time in microseconds
      */
+    
+    /*
+        +------------------+------------------+----------------------------------+------------------------------------+
+        | Platform         | Precision        | Resolution                       | Behavior                           |
+        +------------------+------------------+----------------------------------+------------------------------------+
+        | Windows          | Sub-microsecond  | ~100 nanoseconds or better       | Monotonic (QueryPerformanceCounter)|
+        | POSIX (Linux)    | Nanoseconds      | ~10 nanoseconds to 1 microsecond | Monotonic (CLOCK_MONOTONIC)        |
+        | macOS            | Nanoseconds      | ~10 nanoseconds to 1 microsecond | Monotonic (CLOCK_UPTIME_RAW)       |
+        +------------------+------------------+----------------------------------+------------------------------------+
+    */
     uint64_t GetMonotomicTime();
 
     /*# sleep thread with low precision (~10 milliseconds).
