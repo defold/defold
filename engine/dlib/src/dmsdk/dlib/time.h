@@ -37,6 +37,14 @@ namespace dmTime
      */
     uint64_t GetTime();
 
+    /*# get monotomic time in microseconds
+     *
+     * Get monotomic time in microseconds since some unspecified starting point.
+     * @name dmTime::GetMonotomicTime
+     * @return result [type:uint64_t] Monotomic time in microseconds
+     */
+    uint64_t GetMonotomicTime();
+
     /*# sleep thread with low precision (~10 milliseconds).
      *
      * Sleep thread with low precision (~10 milliseconds).
