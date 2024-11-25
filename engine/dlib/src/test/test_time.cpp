@@ -22,15 +22,13 @@ TEST(dmTime, Sleep)
     dmTime::Sleep(1);
 }
 
-#if !defined(GITHUB_CI)
-TEST(dmTime, GetTime)
+TEST(dmTime, GetMonotonicTime)
 {
-    uint64_t start = dmTime::GetTime();
+    uint64_t start = dmTime::GetMonotonicTime();
     dmTime::Sleep(200000);
-    uint64_t end = dmTime::GetTime();
+    uint64_t end = dmTime::GetMonotonicTime();
     ASSERT_NEAR((double) 200000, (double) (end-start), (double) 40000);
 }
-#endif
 
 int main(int argc, char **argv)
 {

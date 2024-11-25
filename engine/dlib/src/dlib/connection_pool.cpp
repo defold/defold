@@ -227,7 +227,7 @@ namespace dmConnectionPool
     static void PurgeExpired(HPool pool) {
         uint32_t n = pool->m_Connections.Size();
 
-        uint64_t now = dmTime::GetTime();
+        uint64_t now = dmTime::GetMonotonicTime();
         for (uint32_t i = 0; i < n; ++i) {
             Connection* c = &pool->m_Connections[i];
             if (c->m_State == STATE_CONNECTED && now >= c->m_Expires) {
@@ -399,7 +399,7 @@ namespace dmConnectionPool
                 c->m_ID = conn_id;
                 c->m_ReuseCount = 0;
                 c->m_State = STATE_INUSE;
-                c->m_Expires = pool->m_MaxKeepAlive * 1000000U + dmTime::GetTime();
+                c->m_Expires = pool->m_MaxKeepAlive * 1000000U + dmTime::GetMonotonicTime();
                 c->m_Address = address;
                 c->m_Port = port;
                 c->m_WasShutdown = 0;

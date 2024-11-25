@@ -198,7 +198,7 @@ Result SetSslPublicKeys(const uint8_t* key, uint32_t keylen)
 static void TimingSetDelay(void* data, uint32_t int_ms, uint32_t fin_ms)
 {
     SSLSocket* socket = (SSLSocket*)data;
-    socket->m_TimeStart = dmTime::GetTime();
+    socket->m_TimeStart = dmTime::GetMonotonicTime();
     socket->m_TimeLimit1 = int_ms; // intermediate limit
     socket->m_TimeLimit2 = fin_ms; // final limit
 }
@@ -209,7 +209,7 @@ static int TimingGetDelay(void* data)
     if( socket->m_TimeLimit2 == 0 )
         return -1;
 
-    uint64_t t = dmTime::GetTime();
+    uint64_t t = dmTime::GetMonotonicTime();
     uint64_t elapsed_ms = (t - socket->m_TimeStart) / 1000;
 
     if( elapsed_ms >= socket->m_TimeLimit2 )

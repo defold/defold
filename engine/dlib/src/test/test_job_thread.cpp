@@ -62,9 +62,9 @@ TEST(dmJobThread, PushJobsMultipleThreads)
         dmJobThread::PushJob(ctx, process, callback, (void*) &contexts[i], (void*) &datas[i]);
     }
 
-    uint64_t stop_time = dmTime::GetTime() + 1*1e6; // 1 second
+    uint64_t stop_time = dmTime::GetMonotonicTime() + 1*1e6; // 1 second
     bool tests_done = false;
-    while (dmTime::GetTime() < stop_time && !tests_done)
+    while (dmTime::GetMonotonicTime() < stop_time && !tests_done)
     {
         dmJobThread::Update(ctx);
 
