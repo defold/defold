@@ -312,7 +312,7 @@ public abstract class ShaderProgramBuilder extends Builder {
         return resourceTypeBuilder;
     }
 
-    static public ShaderDesc.ResourceBinding.Builder SPIRVResourceToResourceBindingBuilder(ArrayList<Shaderc.ResourceTypeInfo> types, Shaderc.ShaderResource res) throws CompileExceptionError {
+    static public ShaderDesc.ResourceBinding.Builder SPIRVResourceToResourceBindingBuilder(Shaderc.ShaderResource res) throws CompileExceptionError {
         ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = ShaderDesc.ResourceBinding.newBuilder();
         ShaderDesc.ResourceType.Builder typeBuilder = getResourceTypeBuilder(res.type);
         resourceBindingBuilder.setType(typeBuilder);
@@ -320,6 +320,7 @@ public abstract class ShaderProgramBuilder extends Builder {
         resourceBindingBuilder.setNameHash(MurmurHash.hash64(res.name));
         resourceBindingBuilder.setSet(res.set);
         resourceBindingBuilder.setBinding(res.binding);
+
         if (res.blockSize != 0) {
             resourceBindingBuilder.setBlockSize(res.blockSize);
         }
@@ -374,27 +375,29 @@ public abstract class ShaderProgramBuilder extends Builder {
         ResolveSamplerIndices(textures, idToTextureIndex);
 
         for (Shaderc.ShaderResource input : inputs) {
-            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(types, input);
+            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(input);
+            resourceBindingBuilder.setBinding(input.location);
             builder.addInputs(resourceBindingBuilder);
         }
 
         for (Shaderc.ShaderResource output : outputs) {
-            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(types, output);
+            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(output);
+            resourceBindingBuilder.setBinding(output.location);
             builder.addOutputs(resourceBindingBuilder);
         }
 
         for (Shaderc.ShaderResource ubo : ubos) {
-            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(types, ubo);
+            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(ubo);
             builder.addUniformBuffers(resourceBindingBuilder);
         }
 
         for (Shaderc.ShaderResource ssbo : ssbos) {
-            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(types, ssbo);
+            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(ssbo);
             builder.addStorageBuffers(resourceBindingBuilder);
         }
 
         for (Shaderc.ShaderResource texture : textures) {
-            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(types, texture);
+            ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(texture);
 
             Integer textureIndex = idToTextureIndex.get(texture.id);
             if (textureIndex != null) {
