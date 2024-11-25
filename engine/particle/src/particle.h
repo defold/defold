@@ -366,6 +366,40 @@ namespace dmParticle
     DM_PARTICLE_PROTO(GenerateVertexDataResult, GenerateVertexData, HParticleContext context, float dt, HInstance instance, uint32_t emitter_index, const dmGraphics::VertexAttributeInfos& attribute_infos, const dmVMath::Vector4& color, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size);
 
     /**
+     * Gets the particle count for an emitter
+     * @param context Particle context
+     * @param dt Time step.
+     * @param instance Particle instance handle
+     * @param emitter_index Emitter index for which to generate vertex data for
+     * @param attribute_infos Attribute information on the streams to write
+     * @param color The particle color to (potentially) write
+     * @param offset The particle index to start from
+     * @param count The number of particles to update
+     * @param vertex_buffer Vertex buffer into which to store the particle vertex data. If this is 0x0, no data will be generated.
+     * @param vertex_buffer_size Size in bytes of the supplied vertex buffer.
+     * @param out_vertex_buffer_size Size in bytes of the total data written to vertex buffer.
+     * @return Result enum value
+     */
+    DM_PARTICLE_PROTO(uint32_t, GetParticleCount, HParticleContext context, HInstance instance, uint32_t emitter_index);
+
+    /**
+     * Generates partial vertex data for an emitter
+     * @param context Particle context
+     * @param dt Time step.
+     * @param instance Particle instance handle
+     * @param emitter_index Emitter index for which to generate vertex data for
+     * @param particle_start The particle index to start from
+     * @param particle_count The number of particles to update
+     * @param attribute_infos Attribute information on the streams to write
+     * @param color The particle color to (potentially) write
+     * @param vertex_buffer Vertex buffer into which to store the particle vertex data. If this is 0x0, no data will be generated.
+     * @param vertex_buffer_size Size in bytes of the supplied vertex buffer.
+     * @param out_vertex_buffer_size Size in bytes of the total data written to vertex buffer.
+     * @return Result enum value
+     */
+    DM_PARTICLE_PROTO(GenerateVertexDataResult, GenerateVertexDataPartial, HParticleContext context, float dt, HInstance instance, uint32_t emitter_index, uint32_t particle_start, uint32_t particle_count, const dmGraphics::VertexAttributeInfos& attribute_infos, const dmVMath::Vector4& color, void* vertex_buffer, uint32_t vertex_buffer_size, uint32_t* out_vertex_buffer_size);
+
+    /**
      * Debug render the status of the instances within the specified context.
      * @param context Context of the instances to render.
      * @param RenderLine Function pointer to use to render the lines.

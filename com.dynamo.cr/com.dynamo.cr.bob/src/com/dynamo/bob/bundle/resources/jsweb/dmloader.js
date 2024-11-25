@@ -910,6 +910,13 @@ var Module = {
         if (Module.hasWebGLSupport()) {
             Module.canvas.focus();
 
+            Module.canvas.addEventListener("webglcontextlost", function(event) {
+                event.preventDefault();
+                dmRenderer.rendererContextEvent(dmRenderer.CONTEXT_LOST_EVENT);
+            }, false);
+            Module.canvas.addEventListener("webglcontextrestored", function(event) {
+                dmRenderer.rendererContextEvent(dmRenderer.CONTEXT_RESTORED_EVENT);
+            }, false);
             // Add context menu hide-handler if requested
             if (CUSTOM_PARAMETERS["disable_context_menu"])
             {
@@ -960,14 +967,17 @@ var Module = {
         FS.syncfs(true, function(err) {
             if (err) {
                 Module._syncTries += 1;
-                console.warn("Unable to synchronize mounted file systems: " + err);
+                console.info(`Unable to synchronize mounted file systems (attempt ${Module._syncTries} of ${Module._syncMaxTries}): `, err);
                 if (Module._syncMaxTries > Module._syncTries) {
                     Module.preSync(done);
                 } else {
+                    console.warn("Mounted system wasn't synchronized. Retry count was exceeded.");
+                    Module._syncTries = 0;
                     Module._syncInitial = true;
                     done();
                 }
             } else {
+                Module._syncTries = 0;
                 Module._syncInitial = true;
                 if (done !== undefined) {
                     done();
@@ -1099,8 +1109,10 @@ var Module = {
                 Module._syncInProgress = false;
 
                 if (err) {
-                    console.warn("Unable to synchronize mounted file systems: " + err);
+                    console.info(`Unable to synchronize mounted file systems (attempt ${Module._syncTries} of ${Module._syncMaxTries}): `, err);
                     Module._syncTries += 1;
+                } else {
+                    Module._syncTries = 0;
                 }
 
                 if (Module._syncNeeded) {
@@ -1109,6 +1121,9 @@ var Module = {
                 }
 
             });
+        } else {
+            console.warn("Mounted system wasn't synchronized. Retry count was exceeded.");
+            Module._syncTries = 0;
         }
     },
 };
