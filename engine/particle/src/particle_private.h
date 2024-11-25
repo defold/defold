@@ -120,8 +120,6 @@ namespace dmParticle
         dmVMath::Point3         m_LastPosition;
         dmhash_t                m_Id;
         EmitterRenderData       m_RenderData;
-        /// Number of particles that have been consumed by the renderer
-        uint32_t                m_ParticlesConsumed;
         /// Vertex index of the render data for the particles spawned by this emitter.
         uint32_t                m_VertexIndex;
         /// Number of vertices of the render data for the particles spawned by this emitter.

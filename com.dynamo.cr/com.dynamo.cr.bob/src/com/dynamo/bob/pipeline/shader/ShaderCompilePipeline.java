@@ -57,8 +57,17 @@ public class ShaderCompilePipeline {
     protected ArrayList<ShaderModule> shaderModules = new ArrayList<>();
     protected Options options                       = null;
 
-    public ShaderCompilePipeline(String pipelineName) {
+    private static String tintExe = null;
+    private static String glslangExe = null;
+    private static String spirvOptExe = null;
+    private static String spirvCrossExe = null;
+
+    public ShaderCompilePipeline(String pipelineName) throws IOException {
         this.pipelineName = pipelineName;
+        if (this.tintExe == null) this.tintExe = Bob.getExe(Platform.getHostPlatform(), "tint");
+        if (this.glslangExe == null) this.glslangExe = Bob.getExe(Platform.getHostPlatform(), "glslang");
+        if (this.spirvOptExe == null) this.spirvOptExe = Bob.getExe(Platform.getHostPlatform(), "spirv-opt");
+        if (this.spirvCrossExe == null) this.spirvCrossExe = Bob.getExe(Platform.getHostPlatform(), "spirv-cross");
     }
 
     protected void reset() {
@@ -135,7 +144,7 @@ public class ShaderCompilePipeline {
     }
 
     protected static void generateWGSL(String pathFileInSpv, String pathFileOutWGSL) throws IOException, CompileExceptionError {
-        Result result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "tint"),
+        Result result = Exec.execResult(tintExe,
             "--format", "wgsl",
             "-o", pathFileOutWGSL,
             pathFileInSpv);
@@ -143,7 +152,7 @@ public class ShaderCompilePipeline {
     }
 
     private void generateSPIRv(ShaderDesc.ShaderType shaderType, String pathFileInGLSL, String pathFileOutSpv) throws IOException, CompileExceptionError {
-        Result result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "glslang"),
+        Result result = Exec.execResult(glslangExe,
             "-w",
             "--entry-point", "main",
             "--auto-map-bindings",
@@ -159,7 +168,7 @@ public class ShaderCompilePipeline {
 
     private void generateSPIRvOptimized(String pathFileInSpv, String pathFileOutSpvOpt) throws IOException, CompileExceptionError{
         // Run optimization pass on the result
-        Result result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "spirv-opt"),
+        Result result = Exec.execResult(spirvOptExe,
             "-O",
             pathFileInSpv,
             "-o", pathFileOutSpvOpt);
@@ -168,7 +177,7 @@ public class ShaderCompilePipeline {
 
     /*
     private void generateSPIRvReflection(String pathFileInSpv, String pathFileOutSpvReflection) throws IOException, CompileExceptionError{
-        Result result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "spirv-cross"),
+        Result result = Exec.execResult(spirvCrossExe,
             pathFileInSpv,
             "--entry", "main",
             "--output", pathFileOutSpvReflection,
@@ -215,7 +224,7 @@ public class ShaderCompilePipeline {
         }
 
         ArrayList<String> args = new ArrayList<>();
-        args.add(Bob.getExe(Platform.getHostPlatform(), "spirv-cross"));
+        args.add(spirvCrossExe);
         args.add(pathFileInSpv);
         args.add("--version");
         args.add(String.valueOf(versionOut));

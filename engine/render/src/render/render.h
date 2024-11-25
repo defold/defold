@@ -98,6 +98,12 @@ namespace dmRender
         TEXT_VALIGN_BOTTOM = 2
     };
 
+    enum RenderContextEvent
+    {
+        CONTEXT_LOST = 0,
+        CONTEXT_RESTORED = 1
+    };
+
     struct Predicate
     {
         static const uint32_t MAX_TAG_COUNT = 32;
@@ -195,6 +201,9 @@ namespace dmRender
     Result Draw(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer);
     Result DrawDebug3d(HRenderContext context, const FrustumOptions* frustum_options);
     Result DrawDebug2d(HRenderContext context);
+
+    void SetRenderPause(HRenderContext context, uint8_t is_paused);
+    bool IsRenderPaused(HRenderContext context);
 
     /**
      * Render debug square. The upper left corner of the screen is (-1,-1) and the bottom right is (1,1).

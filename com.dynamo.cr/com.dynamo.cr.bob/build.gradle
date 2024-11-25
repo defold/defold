@@ -211,12 +211,12 @@ task compileBobLight(dependsOn: [getGitRevision, compileSrc, createLuaJitShareZi
         }
 
         def sharedLibs = [
-                'x86_64-macos': ['x86_64-macos/*texc_shared*', 'x86_64-macos/*modelc_shared*'],
+                'x86_64-macos': ['x86_64-macos/*texc_shared*', 'x86_64-macos/*modelc_shared*', 'x86_64-macos/*shaderc_shared*'],
                 'arm64-macos': ['arm64-macos/*texc_shared*', 'arm64-macos/*modelc_shared*', 'arm64-macos/*shaderc_shared*'],
-                'x86_64-linux': ['x86_64-linux/*texc_shared*', 'x86_64-linux/*modelc_shared*'],
-                'arm64-linux': ['arm64-linux/*texc_shared*', 'arm64-linux/*modelc_shared*'],
+                'x86_64-linux': ['x86_64-linux/*texc_shared*', 'x86_64-linux/*modelc_shared*', 'x86_64-linux/*shaderc_shared*'],
+                'arm64-linux': ['arm64-linux/*texc_shared*', 'arm64-linux/*modelc_shared*', 'arm64-linux/*shaderc_shared*'],
                 'win32': ['win32/*texc_shared*', 'win32/*modelc_shared*'],
-                'x86_64-win32': ['x86_64-win32/*texc_shared*', 'x86_64-win32/*modelc_shared*']
+                'x86_64-win32': ['x86_64-win32/*texc_shared*', 'x86_64-win32/*modelc_shared*', 'x86_64-win32/*shaderc_shared*']
         ]
 
         sharedLibs.forEach { platform, includePatterns ->
