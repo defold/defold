@@ -32,7 +32,6 @@ namespace dmGameSystem
             return false;
         }
         size_t nwritten = fwrite(data, 1, data_len, f);
-        fflush(f);
         fclose(f);
         if (nwritten != data_len)
         {

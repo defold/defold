@@ -967,14 +967,17 @@ var Module = {
         FS.syncfs(true, function(err) {
             if (err) {
                 Module._syncTries += 1;
-                console.warn("Unable to synchronize mounted file systems: " + err);
+                console.info(`Unable to synchronize mounted file systems (attempt ${Module._syncTries} of ${Module._syncMaxTries}): `, err);
                 if (Module._syncMaxTries > Module._syncTries) {
                     Module.preSync(done);
                 } else {
+                    console.warn("Mounted system wasn't synchronized. Retry count was exceeded.");
+                    Module._syncTries = 0;
                     Module._syncInitial = true;
                     done();
                 }
             } else {
+                Module._syncTries = 0;
                 Module._syncInitial = true;
                 if (done !== undefined) {
                     done();
@@ -1106,8 +1109,10 @@ var Module = {
                 Module._syncInProgress = false;
 
                 if (err) {
-                    console.warn("Unable to synchronize mounted file systems: " + err);
+                    console.info(`Unable to synchronize mounted file systems (attempt ${Module._syncTries} of ${Module._syncMaxTries}): `, err);
                     Module._syncTries += 1;
+                } else {
+                    Module._syncTries = 0;
                 }
 
                 if (Module._syncNeeded) {
@@ -1116,6 +1121,9 @@ var Module = {
                 }
 
             });
+        } else {
+            console.warn("Mounted system wasn't synchronized. Retry count was exceeded.");
+            Module._syncTries = 0;
         }
     },
 };
