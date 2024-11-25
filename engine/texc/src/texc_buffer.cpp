@@ -59,8 +59,8 @@ namespace dmTexc
         dmZlib::DeflateBuffer(data, size, 9, &out_data_array, DeflateWriter);
         size = out_data_array.Size();
 
-        uint8_t* out_data = (uint8_t*)malloc(size + 1);
-        memcpy(out_data+1, &out_data_array[0], size);
+        uint8_t* out_data = (uint8_t*)malloc(size);
+        memcpy(out_data, &out_data_array[0], size);
 
         free(delta_encoded_data);
 
@@ -68,30 +68,12 @@ namespace dmTexc
         out->m_Data = out_data;
         out->m_IsCompressed = 1;
         out->m_DataCount = size;
-        out_data[0] = out->m_IsCompressed;
-
         return out;
     }
 
     Buffer* CompressBuffer(uint8_t* data, uint32_t size)
     {
         Buffer* out = CompressBuffer_Deflate(data, size);
-        if (!out)
-        {
-            out = new Buffer;
-            out->m_Data = 0;
-            out->m_DataCount = 0xFFFFFFFF; // trigger realloc below
-        }
-
-        if (out->m_DataCount > size)
-        {
-            free(out->m_Data);
-            out->m_DataCount = size + 1;
-            out->m_Data = (uint8_t*)malloc(out->m_DataCount);
-            out->m_IsCompressed = 0;
-            out->m_Data[0] = out->m_IsCompressed; // No compression
-            memcpy(out->m_Data, data, size);
-        }
         return out;
     }
 

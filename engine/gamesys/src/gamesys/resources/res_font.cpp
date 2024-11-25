@@ -152,7 +152,7 @@ namespace dmGameSystem
         uint8_t* data = (uint8_t*)glyph_bank->m_GlyphData.m_Data;
         uint8_t* glyph_data = GetPointer(data, glyph->m_GlyphDataOffset);
 
-        *out_size = glyph->m_GlyphDataSize;
+        *out_size = glyph->m_GlyphDataSize - 1;
         *out_width = glyph->m_Width + resource->m_CacheCellPadding*2;
         *out_height = glyph->m_Ascent + glyph->m_Descent + resource->m_CacheCellPadding*2;
         *out_compression = glyph_data[0];
