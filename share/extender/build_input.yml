@@ -350,7 +350,7 @@ platforms:
         minChromeVersion: 32
         minSafariVersion: 90000
         initialMemory: 33554432
-        engineJsLibs:   ["sys", "script", "sound"]
+        engineJsLibs:   ["sys", "script", "sound", "render"]
         externalJsLibs: ["glfw"]
         engineLibs: ["engine", "engine_service", "mbedtls", "zip", "profile_null", "remotery_null", "profilerext_null", "record_null", "gameobject", "ddf", "resource", "gamesys", "gamesys_model", "gamesys_rig", "script_box2d", "graphics", "graphics_transcoder_basisu", "basis_transcoder", "physics", "BulletDynamics", "BulletCollision", "platform", "LinearMath", "Box2D", "render", "script", "lua", "extension", "hid", "input", "particle", "rig", "dlib", "image", "dmglfw", "gui", "crashext", "liveupdate", "sound"]
         defines:    ["DM_PLATFORM_HTML5", "GL_ES_VERSION_2_0"]
