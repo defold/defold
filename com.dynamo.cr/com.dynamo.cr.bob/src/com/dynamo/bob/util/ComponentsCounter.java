@@ -304,6 +304,11 @@ public class ComponentsCounter {
         }
     }
 
+    // Temporary workaround for max_instances counter (GOs) to make sure componens with bones work fine
+    private static boolean hasBones(String name) {
+        return name.equals("modelc") || name.equals("spinemodelc") || name.equals("rivemodelc");
+    }
+
     public static void copyDataToBuilder(Storage storage, Project project, CollectionDesc.Builder builder) {
         //Do not copy values for collections with dynamic factories
         if (storage.isDynamic()) {
@@ -328,6 +333,7 @@ public class ComponentsCounter {
                 mergedComponents.put(name, value);
             }
             hasDynamicValue |= isFactoryType(name, true);
+            hasDynamicValue |= hasBones(name);
         }
         if (hasDynamicValue) {
             mergedComponents.put("goc", DYNAMIC_VALUE);
