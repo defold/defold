@@ -154,10 +154,14 @@ namespace dmShaderc
         reflection.m_Types.SetSize(reflection.m_Types.Capacity());
 
         ResourceTypeInfo* type_info = &reflection.m_Types.Back();
+        memset(type_info, 0, sizeof(ResourceTypeInfo));
+
         type_info->m_Name = type_name;
         type_info->m_NameHash = type_name_hash;
 
         ResourceMember* members = (ResourceMember*) malloc(sizeof(ResourceMember) * member_count);
+        memset(members, 0, sizeof(ResourceMember) * member_count);
+
         type_info->m_Members.Set(members, member_count, member_count, false);
 
         for (int i = 0; i < member_count; ++i)
@@ -250,10 +254,11 @@ namespace dmShaderc
             }
             else
             {
-                resource.m_Type.m_BaseType     = BASE_TYPE_MAPPING[base_type].m_BaseType;
-                resource.m_Type.m_UseTypeIndex = false;
-                resource.m_Type.m_VectorSize   = spvc_type_get_vector_size(type);
-                resource.m_Type.m_ColumnCount  = spvc_type_get_columns(type);
+                resource.m_Type.m_BaseType      = BASE_TYPE_MAPPING[base_type].m_BaseType;
+                resource.m_Type.m_UseTypeIndex  = false;
+                resource.m_Type.m_VectorSize    = spvc_type_get_vector_size(type);
+                resource.m_Type.m_ColumnCount   = spvc_type_get_columns(type);
+                resource.m_Type.m_DimensionType = (DimensionType) 0;
 
                 if (base_type == SPVC_BASETYPE_IMAGE || base_type == SPVC_BASETYPE_SAMPLED_IMAGE)
                 {
