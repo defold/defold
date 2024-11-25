@@ -36,6 +36,12 @@ public class SPIRVReflector {
         }
     }
 
+    private static class SortLocationsComparator implements Comparator<Shaderc.ShaderResource> {
+        public int compare(Shaderc.ShaderResource a, Shaderc.ShaderResource b) {
+            return a.location - b.location;
+        }
+    }
+
     public ArrayList<Shaderc.ResourceTypeInfo> getTypes() {
         if (this.reflection.types == null)
             return new ArrayList<>();
@@ -72,7 +78,7 @@ public class SPIRVReflector {
         if (reflection.inputs == null)
             return new ArrayList<>();
         ArrayList<Shaderc.ShaderResource> inputs = new ArrayList<>(Arrays.asList(this.reflection.inputs));
-        inputs.sort(new SortBindingsComparator());
+        inputs.sort(new SortLocationsComparator());
         return inputs;
     }
 
@@ -80,7 +86,7 @@ public class SPIRVReflector {
         if (reflection.outputs == null)
             return new ArrayList<>();
         ArrayList<Shaderc.ShaderResource> outputs = new ArrayList<>(Arrays.asList(this.reflection.outputs));
-        outputs.sort(new SortBindingsComparator());
+        outputs.sort(new SortLocationsComparator());
         return outputs;
     }
 }
