@@ -18,7 +18,10 @@
 package com.dynamo.bob.archive;
 
 import java.io.File;
+import java.io.InputStream;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
@@ -54,6 +57,7 @@ import com.dynamo.liveupdate.proto.Manifest.ResourceEntryFlag;
 
 import com.dynamo.bob.archive.publisher.PublisherSettings;
 import com.dynamo.bob.archive.publisher.ZipPublisher;
+import com.dynamo.bob.archive.publisher.Publisher;
 import com.dynamo.bob.util.TimeProfiler;
 
 import net.jpountz.lz4.LZ4Compressor;
@@ -81,6 +85,7 @@ public class ArchiveBuilder {
     private boolean forceCompression = false; // for building unit tests to create test content
 
     private Project project;
+    private Publisher publisher;
     private ExecutorService executorService;
     private int nThreads;
 
@@ -92,6 +97,7 @@ public class ArchiveBuilder {
         this.lz4Compressor = LZ4Factory.fastestInstance().highCompressor();
         this.resourcePadding = resourcePadding;
         this.project = project;
+        this.publisher = project.getPublisher();
         Arrays.fill(archiveEntryPadding, (byte)0xED);
     }
 
@@ -150,21 +156,8 @@ public class ArchiveBuilder {
         return ResourceEncryption.encrypt(buffer);
     }
 
-    public void writeResourcePack(ArchiveEntry entry, String directory, byte[] buffer) throws IOException {
-        FileOutputStream outputStream = null;
-        try {
-            File fhandle = new File(directory, entry.getHexDigest());
-            if (!fhandle.exists()) {
-                byte[] size_bytes = ByteBuffer.allocate(4).putInt(entry.getSize()).array();
-                outputStream = new FileOutputStream(fhandle);
-                outputStream.write(size_bytes); // 4 bytes
-                outputStream.write((byte)entry.getFlags()); // 1 byte
-                outputStream.write(archiveEntryPadding); // 11 bytes
-                outputStream.write(buffer);
-            }
-        } finally {
-            IOUtils.closeQuietly(outputStream);
-        }
+    public void writeResourcePack(ArchiveEntry entry, String directory, byte[] buffer) throws IOException, CompileExceptionError {
+        publisher.publish(entry, new ByteArrayInputStream(buffer));
     }
 
 
@@ -216,7 +209,17 @@ public class ArchiveBuilder {
 
         // Write resource to resource pack or data archive
         if (excludedResources.contains(normalisedPath)) {
-            this.writeResourcePack(entry, resourcePackDirectory.toString(), buffer);
+            if (this.publisher != null) {
+                byte[] header = ByteBuffer.allocate(16)
+                    .putInt(entry.getSize()) // 4 bytes
+                    .put((byte)entry.getFlags()) // 1 byte
+                    .put(archiveEntryPadding) // 11 bytes
+                    .array();
+                entry.setHeader(header);
+                synchronized (publisher) {
+                    this.writeResourcePack(entry, resourcePackDirectory.toString(), buffer);
+                }
+            }
             resourceEntryFlags |= ResourceEntryFlag.EXCLUDED.getNumber();
         } else {
             // synchronize on the archive data file so that multiple threads
@@ -298,7 +301,6 @@ public class ArchiveBuilder {
     }
 
     public void write(RandomAccessFile archiveIndex, RandomAccessFile archiveData, Path resourcePackDirectory, List<String> excludedResources) throws IOException, CompileExceptionError {
-
         // create the executor service to write entries in parallel
         int nThreads = project.getMaxCpuThreads();
         logger.info("Creating archive entries with a fixed thread pool executor using %d threads", nThreads);
@@ -476,6 +478,12 @@ public class ArchiveBuilder {
         archiveData.setLength(0);
 
         Path resourcePackDirectory = Files.createTempDirectory("tmp.defold.resourcepack_");
+        PublisherSettings settings = new PublisherSettings();
+        settings.setZipFilepath(dirpathRoot.getAbsolutePath());
+        ZipPublisher publisher = new ZipPublisher(dirpathRoot.getAbsolutePath(), settings);
+        project.setPublisher(publisher);
+        publisher.setFilename(filepathZipArchive.getName());
+        publisher.start();
         FileOutputStream outputStreamManifest = new FileOutputStream(filepathManifest);
         try {
             System.out.println("Writing " + filepathArchiveIndex.getCanonicalPath());
@@ -497,27 +505,15 @@ public class ArchiveBuilder {
                 manifestHashOutoutStream.close();
             }
 
-            PublisherSettings settings = new PublisherSettings();
-            settings.setZipFilepath(dirpathRoot.getAbsolutePath());
-
-            ZipPublisher publisher = new ZipPublisher(dirpathRoot.getAbsolutePath(), settings);
-            String rootDir = resourcePackDirectory.toAbsolutePath().toString();
-            publisher.setFilename(filepathZipArchive.getName());
-            for (File fhandle : (new File(rootDir)).listFiles()) {
-                if (fhandle.isFile()) {
-                    publisher.AddEntry(fhandle, new ArchiveEntry(rootDir, fhandle.getAbsolutePath()));
-                }
-            }
-
             String liveupdateManifestFilename = "liveupdate.game.dmanifest";
             File luManifestFile = new File(dirpathRoot, liveupdateManifestFilename);
             FileUtils.copyFile(filepathManifest, luManifestFile);
-            publisher.AddEntry(luManifestFile, new ArchiveEntry(dirpathRoot.getAbsolutePath(), luManifestFile.getAbsolutePath()));
-            publisher.Publish();
+            publisher.publish(new ArchiveEntry(dirpathRoot.getAbsolutePath(), luManifestFile.getAbsolutePath()), luManifestFile);
 
         } finally {
             FileUtils.deleteDirectory(resourcePackDirectory.toFile());
             try {
+                publisher.stop();
                 archiveIndex.close();
                 archiveData.close();
                 outputStreamManifest.close();
