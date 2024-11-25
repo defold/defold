@@ -84,12 +84,15 @@ public class ArchiveBuilder {
     private ExecutorService executorService;
     private int nThreads;
 
+    private byte[] archiveEntryPadding = new byte[11];
+
     public ArchiveBuilder(String root, ManifestBuilder manifestBuilder, int resourcePadding, Project project) {
         this.root = new File(root).getAbsolutePath();
         this.manifestBuilder = manifestBuilder;
         this.lz4Compressor = LZ4Factory.fastestInstance().highCompressor();
         this.resourcePadding = resourcePadding;
         this.project = project;
+        Arrays.fill(archiveEntryPadding, (byte)0xED);
     }
 
     private void add(String fileName, boolean compress, boolean encrypt, boolean isLiveUpdate) throws IOException {
@@ -152,15 +155,12 @@ public class ArchiveBuilder {
         try {
             File fhandle = new File(directory, entry.getHexDigest());
             if (!fhandle.exists()) {
-                byte[] padding = new byte[11];
                 byte[] size_bytes = ByteBuffer.allocate(4).putInt(entry.getSize()).array();
-                Arrays.fill(padding, (byte)0xED);
                 outputStream = new FileOutputStream(fhandle);
                 outputStream.write(size_bytes); // 4 bytes
                 outputStream.write((byte)entry.getFlags()); // 1 byte
-                outputStream.write(padding); // 11 bytes
+                outputStream.write(archiveEntryPadding); // 11 bytes
                 outputStream.write(buffer);
-
             }
         } finally {
             IOUtils.closeQuietly(outputStream);
@@ -173,15 +173,11 @@ public class ArchiveBuilder {
     }
 
     private void writeArchiveEntry(RandomAccessFile archiveData, ArchiveEntry entry, Path resourcePackDirectory, List<String> excludedResources) throws IOException, CompileExceptionError {
-        TimeProfiler.start("Write file");
-        TimeProfiler.addData("res", entry.getFilename());
-
         byte[] buffer = this.loadResourceData(entry.getFilename());
 
         int resourceEntryFlags = 0;
 
         if (entry.isCompressed()) {
-            TimeProfiler.start("Compresss");
             // Compress data
             byte[] compressed = this.compressResourceData(buffer);
             if (this.shouldUseCompressedResourceData(buffer, compressed)) {
@@ -193,15 +189,12 @@ public class ArchiveBuilder {
             } else {
                 entry.setCompressedSize(ArchiveEntry.FLAG_UNCOMPRESSED);
             }
-            TimeProfiler.stop();
         }
 
         // we need to do this last or the compression won't work as well
         if (entry.isEncrypted()) {
-            TimeProfiler.start("Encrypt");
             buffer = this.encryptResourceData(buffer);
             resourceEntryFlags |= ResourceEntryFlag.ENCRYPTED.getNumber();
-            TimeProfiler.stop();
         }
 
         // Add entry to manifest
@@ -210,12 +203,10 @@ public class ArchiveBuilder {
         // Calculate hash digest values for resource
         String hexDigest = null;
         try {
-            TimeProfiler.start("Hex");
             byte[] hashDigest = ManifestBuilder.CryptographicOperations.hash(buffer, manifestBuilder.getResourceHashAlgorithm());
             entry.setHash(new byte[HASH_MAX_LENGTH]);
             System.arraycopy(hashDigest, 0, entry.getHash(), 0, hashDigest.length);
             hexDigest = ManifestBuilder.CryptographicOperations.hexdigest(hashDigest);
-            TimeProfiler.stop();
         } catch (NoSuchAlgorithmException exception) {
             throw new IOException("Unable to create a Resource Pack, the hashing algorithm is not supported!");
         }
@@ -223,7 +214,6 @@ public class ArchiveBuilder {
         entry.setHexDigest(hexDigest);
         hexDigestCache.put(entry.getRelativeFilename(), hexDigest);
 
-        TimeProfiler.start("Write");
         // Write resource to resource pack or data archive
         if (excludedResources.contains(normalisedPath)) {
             this.writeResourcePack(entry, resourcePackDirectory.toString(), buffer);
@@ -238,15 +228,15 @@ public class ArchiveBuilder {
             }
             resourceEntryFlags |= ResourceEntryFlag.BUNDLED.getNumber();
         }
-        TimeProfiler.stop();
 
         synchronized (manifestBuilder) {
             manifestBuilder.addResourceEntry(normalisedPath, buffer, entry.getSize(), entry.getCompressedSize(), resourceEntryFlags);
         }
-        TimeProfiler.stop();
     }
 
-    public void write(RandomAccessFile archiveIndex, RandomAccessFile archiveData, Path resourcePackDirectory, List<String> excludedResources) throws IOException, CompileExceptionError {
+    private void writeArchiveIndex(RandomAccessFile archiveIndex) throws IOException {
+        TimeProfiler.start("writeArchiveIndex");
+
         // INDEX
         archiveIndex.writeInt(VERSION); // Version
         archiveIndex.writeInt(0); // Pad
@@ -258,52 +248,6 @@ public class ArchiveBuilder {
         archiveIndex.write(new byte[MD5_HASH_DIGEST_BYTE_LENGTH]);
 
         int archiveIndexHeaderOffset = (int) archiveIndex.getFilePointer();
-
-        // create the executor service to write entries in parallel
-        int nThreads = project.getMaxCpuThreads();
-        logger.info("Creating archive entries with a fixed thread pool executor using %d threads", nThreads);
-        this.executorService = Executors.newFixedThreadPool(nThreads);
-
-        Collections.sort(entries); // Since it has no hash, it sorts on path
-
-        excludedEntries = new ArrayList<>(entries.size());
-        includedEntries = new ArrayList<>(entries.size());
-
-        // create archive entry write tasks
-        List<Future<ArchiveEntry>> futures = new ArrayList<>();
-        for (int i = entries.size() - 1; i >= 0; --i) {
-            ArchiveEntry entry = entries.get(i);
-            String normalisedPath = FilenameUtils.separatorsToUnix(entry.getRelativeFilename());
-            boolean excluded = excludedResources.contains(normalisedPath);
-            if (excluded) {
-                entry.setFlag(ArchiveEntry.FLAG_LIVEUPDATE);
-                entries.remove(i);
-                excludedEntries.add(entry);
-            }
-            else {
-                includedEntries.add(entry);
-            }
-            logger.info("creating task for archive entry %s", entry.getFilename());
-            Future<ArchiveEntry> future = this.executorService.submit(() -> {
-                writeArchiveEntry(archiveData, entry, resourcePackDirectory, excludedResources);
-                return entry;
-            });
-            futures.add(future);
-        }
-
-        // wait for all tasks to finish
-        try {
-            for (Future<ArchiveEntry> future : futures) {
-                ArchiveEntry entry = future.get();
-            }
-        }
-        catch (Exception e) {
-            throw new CompileExceptionError("Error while writing archive", e);
-        }
-        finally {
-            this.executorService.shutdownNow();
-            archiveData.close();
-        }
 
         Collections.sort(entries); // Since it has a hash, it sorts on hash
 
@@ -349,6 +293,58 @@ public class ArchiveBuilder {
         archiveIndex.writeInt(hashOffset);
         archiveIndex.writeInt(ManifestBuilder.CryptographicOperations.getHashSize(manifestBuilder.getResourceHashAlgorithm()));
         archiveIndex.write(archiveIndexMD5);
+
+        TimeProfiler.stop();
+    }
+
+    public void write(RandomAccessFile archiveIndex, RandomAccessFile archiveData, Path resourcePackDirectory, List<String> excludedResources) throws IOException, CompileExceptionError {
+
+        // create the executor service to write entries in parallel
+        int nThreads = project.getMaxCpuThreads();
+        logger.info("Creating archive entries with a fixed thread pool executor using %d threads", nThreads);
+        this.executorService = Executors.newFixedThreadPool(nThreads);
+
+        Collections.sort(entries); // Since it has no hash, it sorts on path
+
+        excludedEntries = new ArrayList<>(entries.size());
+        includedEntries = new ArrayList<>(entries.size());
+
+        // create archive entry write tasks
+        List<Future<ArchiveEntry>> futures = new ArrayList<>(entries.size());
+        for (int i = entries.size() - 1; i >= 0; --i) {
+            ArchiveEntry entry = entries.get(i);
+            String normalisedPath = FilenameUtils.separatorsToUnix(entry.getRelativeFilename());
+            boolean excluded = excludedResources.contains(normalisedPath);
+            if (excluded) {
+                entry.setFlag(ArchiveEntry.FLAG_LIVEUPDATE);
+                entries.remove(i);
+                excludedEntries.add(entry);
+            }
+            else {
+                includedEntries.add(entry);
+            }
+            Future<ArchiveEntry> future = this.executorService.submit(() -> {
+                writeArchiveEntry(archiveData, entry, resourcePackDirectory, excludedResources);
+                return entry;
+            });
+            futures.add(future);
+        }
+
+        // wait for all tasks to finish
+        try {
+            for (Future<ArchiveEntry> future : futures) {
+                ArchiveEntry entry = future.get();
+            }
+        }
+        catch (Exception e) {
+            throw new CompileExceptionError("Error while writing archive", e);
+        }
+        finally {
+            this.executorService.shutdownNow();
+            archiveData.close();
+        }
+
+        writeArchiveIndex(archiveIndex);
     }
 
     private void alignBuffer(RandomAccessFile outFile, int align) throws IOException {
