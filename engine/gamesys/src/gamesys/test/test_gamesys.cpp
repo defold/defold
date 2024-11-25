@@ -155,8 +155,8 @@ TEST_P(ResourceTest, TestPreload)
     dmResource::HPreloader pr = dmResource::NewPreloader(m_Factory, resource_name);
     dmResource::Result r;
 
-    uint64_t stop_time = dmTime::GetTime() + 30*10e6;
-    while (dmTime::GetTime() < stop_time)
+    uint64_t stop_time = dmTime::GetMonotonicTime() + 30*10e6;
+    while (dmTime::GetMonotonicTime() < stop_time)
     {
         // Simulate running at 30fps
         r = dmResource::UpdatePreloader(pr, 0, 0, 33*1000);
@@ -258,11 +258,11 @@ static bool UpdateAndWaitUntilDone(
     uint32_t                           timeout_seconds = 1)
 {
     uint64_t timeout = timeout_seconds * 1000000; // microseconds
-    uint64_t stop_time = dmTime::GetTime() + timeout;
+    uint64_t stop_time = dmTime::GetMonotonicTime() + timeout;
     bool tests_done = false;
     while (!tests_done)
     {
-        if (dmTime::GetTime() >= stop_time)
+        if (dmTime::GetMonotonicTime() >= stop_time)
         {
             dmLogError("Test timed out after %f seconds", timeout / 1000000.0f);
             break;
@@ -1807,8 +1807,8 @@ TEST_P(FactoryTest, Test)
     {
         go_pr = dmResource::NewPreloader(m_Factory, param.m_GOPath);
         dmResource::Result r;
-        uint64_t stop_time = dmTime::GetTime() + 30*10e6;
-        while (dmTime::GetTime() < stop_time)
+        uint64_t stop_time = dmTime::GetMonotonicTime() + 30*10e6;
+        while (dmTime::GetMonotonicTime() < stop_time)
         {
             r = dmResource::UpdatePreloader(go_pr, 0, 0, 16*1000);
             if (r != dmResource::RESULT_PENDING)
@@ -2003,8 +2003,8 @@ TEST_P(CollectionFactoryTest, Test)
     {
         go_pr = dmResource::NewPreloader(m_Factory, param.m_GOPath);
         dmResource::Result r;
-        uint64_t stop_time = dmTime::GetTime() + 30*10e6;
-        while (dmTime::GetTime() < stop_time)
+        uint64_t stop_time = dmTime::GetMonotonicTime() + 30*10e6;
+        while (dmTime::GetMonotonicTime() < stop_time)
         {
             r = dmResource::UpdatePreloader(go_pr, 0, 0, 16*1000);
             if (r != dmResource::RESULT_PENDING)

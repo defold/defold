@@ -304,7 +304,7 @@ namespace dmConnectionPool
     static Result Connect(HPool pool, const char* host, dmSocket::Address address, uint16_t port, bool ssl, int timeout,
                                     dmSocket::Socket* socket, dmSSLSocket::Socket* sslsocket, dmSocket::Result* sr)
     {
-        uint64_t connectstart = dmTime::GetTime();
+        uint64_t connectstart = dmTime::GetMonotonicTime();
 
         Result r = ConnectSocket(pool, address, port, timeout, socket, sr);
         if( r != RESULT_OK )
@@ -313,7 +313,7 @@ namespace dmConnectionPool
             return r;
         }
 
-        uint64_t handshakestart = dmTime::GetTime();
+        uint64_t handshakestart = dmTime::GetMonotonicTime();
         if( timeout > 0 && (handshakestart - connectstart) > (uint64_t)timeout )
         {
             dmSocket::Delete(*socket);
@@ -350,11 +350,11 @@ namespace dmConnectionPool
         // that the caller can try to connect first to ipv4 and then to ipv6 if ipv4 failed.
         dmSocket::Address address;
 
-        uint64_t dial_started = dmTime::GetTime();
+        uint64_t dial_started = dmTime::GetMonotonicTime();
         bool gethost_did_succeed = dmSocket::GetHostByNameT(host, &address, timeout, cancelflag, ipv4, ipv6) == dmSocket::RESULT_OK;
         if (timeout > 0)
         {
-            timeout = timeout - (int)(dmTime::GetTime() - dial_started);
+            timeout = timeout - (int)(dmTime::GetMonotonicTime() - dial_started);
             if (timeout <= 0)
             {
                 return RESULT_SOCKET_ERROR;
@@ -415,7 +415,7 @@ namespace dmConnectionPool
     Result Dial(HPool pool, const char* host, uint16_t port, bool ssl, int timeout, int* cancelflag, HConnection* connection, dmSocket::Result* sock_res)
     {
         // try connecting to the host using ipv4 first
-        uint64_t dial_started = dmTime::GetTime();
+        uint64_t dial_started = dmTime::GetMonotonicTime();
         Result r = DoDial(pool, host, port, ssl, timeout, cancelflag, connection, sock_res, 1, 0);
         // Only if handshake failed NOT because of timeout
         if (r == RESULT_OK || r == RESULT_SHUT_DOWN || r == RESULT_OUT_OF_RESOURCES ||
@@ -426,7 +426,7 @@ namespace dmConnectionPool
         // ipv4 connection failed - reduce timeout (if needed) and try using ipv6 instead
         if (timeout > 0)
         {
-            timeout = timeout - (int)(dmTime::GetTime() - dial_started);
+            timeout = timeout - (int)(dmTime::GetMonotonicTime() - dial_started);
             if (timeout <= 0)
             {
                 return RESULT_SOCKET_ERROR;

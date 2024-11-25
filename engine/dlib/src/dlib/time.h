@@ -21,8 +21,8 @@
 namespace dmTime
 {
     inline void BusyWait(uint32_t useconds) {
-        uint64_t end = dmTime::GetMonotomicTime() + (uint64_t)useconds;
-        while (dmTime::GetMonotomicTime() < end);
+        uint64_t end = dmTime::GetMonotonicTime() + (uint64_t)useconds;
+        while (dmTime::GetMonotonicTime() < end);
     }
 }
 

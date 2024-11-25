@@ -263,7 +263,7 @@ static int RecvTimeout( void* _ctx, unsigned char *buf, size_t len, uint32_t tim
 
 Result New(dmSocket::Socket socket, const char* host, uint64_t timeout, SSLSocket** sslsocket)
 {
-    uint64_t handshakestart = dmTime::GetTime();
+    uint64_t handshakestart = dmTime::GetMonotonicTime();
 
     SSLSocket* c = (SSLSocket*)malloc(sizeof(SSLSocket));
     memset(c, 0, sizeof(SSLSocket));
@@ -359,7 +359,7 @@ Result New(dmSocket::Socket socket, const char* host, uint64_t timeout, SSLSocke
     } while (ret == MBEDTLS_ERR_SSL_WANT_READ ||
              ret == MBEDTLS_ERR_SSL_WANT_WRITE);
 
-    uint64_t currenttime = dmTime::GetTime();
+    uint64_t currenttime = dmTime::GetMonotonicTime();
     if( timeout > 0 && int(currenttime - handshakestart) > timeout )
     {
         ret = MBEDTLS_ERR_SSL_TIMEOUT;

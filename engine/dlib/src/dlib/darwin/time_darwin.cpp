@@ -31,7 +31,7 @@ namespace dmTime
         return ((uint64_t) tv.tv_sec) * 1000000U + tv.tv_usec;
     }
 
-    uint64_t GetMonotomicTime()
+    uint64_t GetMonotonicTime()
     {
         uint64_t nanoseconds = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
         return nanoseconds / 1000U;

@@ -597,7 +597,7 @@ static void SampleTreeCallback(void* _ctx, const char* thread_name, dmProfile::H
     DM_MUTEX_SCOPED_LOCK(g_ProfilerMutex);
 
     dmProfileRender::ProfilerFrame* frame = (dmProfileRender::ProfilerFrame*)_ctx;
-    frame->m_Time = dmTime::GetMonotomicTime();
+    frame->m_Time = dmTime::GetMonotonicTime();
 
     // Prune old profiler threads
     dmProfileRender::PruneProfilerThreads(frame, frame->m_Time - 150000);

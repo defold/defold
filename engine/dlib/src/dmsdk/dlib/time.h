@@ -37,11 +37,11 @@ namespace dmTime
      */
     uint64_t GetTime();
 
-    /*# get monotomic time in microseconds
+    /*# get monotonic time in microseconds
      *
-     * Get monotomic time in microseconds since some unspecified starting point.
-     * @name dmTime::GetMonotomicTime
-     * @return result [type:uint64_t] Monotomic time in microseconds
+     * Get monotonic time in microseconds since some unspecified starting point.
+     * @name dmTime::GetMonotonicTime
+     * @return result [type:uint64_t] Monotonic time in microseconds
      */
     
     /*
@@ -53,7 +53,7 @@ namespace dmTime
         | macOS            | Nanoseconds      | ~10 nanoseconds to 1 microsecond | Monotonic (CLOCK_UPTIME_RAW)       |
         +------------------+------------------+----------------------------------+------------------------------------+
     */
-    uint64_t GetMonotomicTime();
+    uint64_t GetMonotonicTime();
 
     /*# sleep thread with low precision (~10 milliseconds).
      *

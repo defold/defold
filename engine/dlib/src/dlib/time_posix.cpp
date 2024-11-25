@@ -31,7 +31,7 @@ namespace dmTime
         return (uint64_t)ts.tv_sec * 1000000U + ts.tv_nsec / 1000U;
     }
 
-    uint64_t GetMonotomicTime()
+    uint64_t GetMonotonicTime()
     {
         struct timespec ts;
         clock_gettime(CLOCK_MONOTONIC, &ts);
