@@ -246,6 +246,100 @@ TEST(Shaderc, Types)
     dmShaderc::DeleteShaderContext(shader_ctx);
 }
 
+TEST(Shaderc, SSBO)
+{
+    uint32_t data_size;
+    void* data = ReadFile("./build/src/test/data/ssbo.spv", &data_size);
+    ASSERT_NE((void*) 0, data);
+
+    dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(data, data_size);
+    const dmShaderc::ShaderReflection* reflection = dmShaderc::GetReflection(shader_ctx);
+
+#if 0
+    dmShaderc::DebugPrintReflection(reflection);
+#endif
+
+    ASSERT_EQ(1, reflection->m_StorageBuffers.Size());
+
+    const dmShaderc::ResourceTypeInfo* type_ssbo = GetType(reflection, dmHashString64("Test"));
+    ASSERT_NE((void*) 0, type_ssbo);
+    ASSERT_EQ(2, type_ssbo->m_Members.Size());
+
+    const dmShaderc::ResourceMember* member = &type_ssbo->m_Members[0];
+    ASSERT_EQ(dmHashString64("my_data_one"), member->m_NameHash);
+    ASSERT_EQ(1, member->m_Type.m_TypeIndex);
+    ASSERT_EQ(1, member->m_Type.m_UseTypeIndex);
+
+    member = &type_ssbo->m_Members[1];
+    ASSERT_EQ(dmHashString64("my_data_two"), member->m_NameHash);
+    ASSERT_EQ(1, member->m_Type.m_TypeIndex);
+    ASSERT_EQ(1, member->m_Type.m_UseTypeIndex);
+
+    const dmShaderc::ResourceTypeInfo* type_data = GetType(reflection, dmHashString64("Data"));
+    ASSERT_NE((void*) 0, type_data);
+
+    member = &type_data->m_Members[0];
+    ASSERT_EQ(dmHashString64("member1"), member->m_NameHash);
+    ASSERT_EQ(0, member->m_Type.m_TypeIndex);
+    ASSERT_EQ(0, member->m_Type.m_UseTypeIndex);
+    ASSERT_EQ(4, member->m_Type.m_VectorSize);
+    ASSERT_EQ(dmShaderc::BASE_TYPE_FP32, member->m_Type.m_BaseType);
+
+    dmShaderc::DeleteShaderContext(shader_ctx);
+}
+
+TEST(Shaderc, LegacyPipeline)
+{
+    uint32_t data_size;
+    void* data = ReadFile("./build/src/test/data/legacy_pipeline.spv", &data_size);
+    ASSERT_NE((void*) 0, data);
+
+    dmShaderc::HShaderContext shader_ctx = dmShaderc::NewShaderContext(data, data_size);
+    const dmShaderc::ShaderReflection* reflection = dmShaderc::GetReflection(shader_ctx);
+
+#if 0
+    dmShaderc::DebugPrintReflection(reflection);
+#endif
+
+    ASSERT_EQ(1, reflection->m_UniformBuffers.Size());
+    ASSERT_EQ(2, reflection->m_Types.Size());
+
+    const dmShaderc::ResourceTypeInfo* type_uniforms = GetType(reflection, dmHashString64("uniforms"));
+    ASSERT_NE((void*) 0, type_uniforms);
+    ASSERT_EQ(3, type_uniforms->m_Members.Size());
+    ASSERT_EQ(dmHashString64("u_test"), type_uniforms->m_Members[0].m_NameHash);
+    ASSERT_EQ(1, type_uniforms->m_Members[0].m_Type.m_UseTypeIndex);
+    ASSERT_EQ(1, type_uniforms->m_Members[0].m_Type.m_TypeIndex);
+
+    ASSERT_EQ(dmHashString64("u_test2"), type_uniforms->m_Members[1].m_NameHash);
+    ASSERT_EQ(1, type_uniforms->m_Members[1].m_Type.m_UseTypeIndex);
+    ASSERT_EQ(1, type_uniforms->m_Members[1].m_Type.m_TypeIndex);
+
+    ASSERT_EQ(dmHashString64("u_lights"), type_uniforms->m_Members[2].m_NameHash);
+    ASSERT_EQ(1, type_uniforms->m_Members[2].m_Type.m_UseTypeIndex);
+    ASSERT_EQ(1, type_uniforms->m_Members[2].m_Type.m_TypeIndex);
+
+    const dmShaderc::ResourceTypeInfo* type_light = GetType(reflection, dmHashString64("Light"));
+    ASSERT_NE((void*) 0, type_light);
+    ASSERT_EQ(3, type_light->m_Members.Size());
+    ASSERT_EQ(dmHashString64("type"), type_light->m_Members[0].m_NameHash);
+    ASSERT_EQ(dmShaderc::BASE_TYPE_INT32, type_light->m_Members[0].m_Type.m_BaseType);
+    ASSERT_EQ(0, type_light->m_Members[0].m_Type.m_UseTypeIndex);
+    ASSERT_EQ(1, type_light->m_Members[0].m_Type.m_VectorSize);
+
+    ASSERT_EQ(dmHashString64("position"), type_light->m_Members[1].m_NameHash);
+    ASSERT_EQ(dmShaderc::BASE_TYPE_FP32, type_light->m_Members[1].m_Type.m_BaseType);
+    ASSERT_EQ(0, type_light->m_Members[1].m_Type.m_UseTypeIndex);
+    ASSERT_EQ(3, type_light->m_Members[1].m_Type.m_VectorSize);
+
+    ASSERT_EQ(dmHashString64("color"), type_light->m_Members[2].m_NameHash);
+    ASSERT_EQ(dmShaderc::BASE_TYPE_FP32, type_light->m_Members[2].m_Type.m_BaseType);
+    ASSERT_EQ(0, type_light->m_Members[2].m_Type.m_UseTypeIndex);
+    ASSERT_EQ(4, type_light->m_Members[2].m_Type.m_VectorSize);
+
+    dmShaderc::DeleteShaderContext(shader_ctx);
+}
+
 TEST(Shaderc, Structs)
 {
     uint32_t data_size;

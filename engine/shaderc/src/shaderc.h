@@ -201,6 +201,7 @@ namespace dmShaderc
         dmArray<ShaderResource>   m_Inputs;
         dmArray<ShaderResource>   m_Outputs;
         dmArray<ShaderResource>   m_UniformBuffers;
+        dmArray<ShaderResource>   m_StorageBuffers;
         dmArray<ShaderResource>   m_Textures;
         dmArray<ResourceTypeInfo> m_Types;
     };

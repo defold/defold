@@ -83,6 +83,7 @@ void InitializeJNITypes(JNIEnv* env, TypeInfos* infos) {
         GET_FLD_ARRAY(inputs, "ShaderResource");
         GET_FLD_ARRAY(outputs, "ShaderResource");
         GET_FLD_ARRAY(uniformBuffers, "ShaderResource");
+        GET_FLD_ARRAY(storageBuffers, "ShaderResource");
         GET_FLD_ARRAY(textures, "ShaderResource");
         GET_FLD_ARRAY(types, "ResourceTypeInfo");
     }
@@ -176,6 +177,7 @@ jobject C2J_CreateShaderReflection(JNIEnv* env, TypeInfos* types, const ShaderRe
     dmJNI::SetObjectDeref(env, obj, types->m_ShaderReflectionJNI.inputs, C2J_CreateShaderResourceArray(env, types, src->m_Inputs.Begin(), src->m_Inputs.Size()));
     dmJNI::SetObjectDeref(env, obj, types->m_ShaderReflectionJNI.outputs, C2J_CreateShaderResourceArray(env, types, src->m_Outputs.Begin(), src->m_Outputs.Size()));
     dmJNI::SetObjectDeref(env, obj, types->m_ShaderReflectionJNI.uniformBuffers, C2J_CreateShaderResourceArray(env, types, src->m_UniformBuffers.Begin(), src->m_UniformBuffers.Size()));
+    dmJNI::SetObjectDeref(env, obj, types->m_ShaderReflectionJNI.storageBuffers, C2J_CreateShaderResourceArray(env, types, src->m_StorageBuffers.Begin(), src->m_StorageBuffers.Size()));
     dmJNI::SetObjectDeref(env, obj, types->m_ShaderReflectionJNI.textures, C2J_CreateShaderResourceArray(env, types, src->m_Textures.Begin(), src->m_Textures.Size()));
     dmJNI::SetObjectDeref(env, obj, types->m_ShaderReflectionJNI.types, C2J_CreateResourceTypeInfoArray(env, types, src->m_Types.Begin(), src->m_Types.Size()));
     return obj;
@@ -411,6 +413,15 @@ bool J2C_CreateShaderReflection(JNIEnv* env, TypeInfos* types, jobject obj, Shad
             uint32_t tmp_count;
             ShaderResource* tmp = J2C_CreateShaderResourceArray(env, types, (jobjectArray)field_object, &tmp_count);
             out->m_UniformBuffers.Set(tmp, tmp_count, tmp_count, false);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_ShaderReflectionJNI.storageBuffers);
+        if (field_object) {
+            uint32_t tmp_count;
+            ShaderResource* tmp = J2C_CreateShaderResourceArray(env, types, (jobjectArray)field_object, &tmp_count);
+            out->m_StorageBuffers.Set(tmp, tmp_count, tmp_count, false);
             env->DeleteLocalRef(field_object);
         }
     }

@@ -193,7 +193,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
     private static void debugPrintShaderReflection(String label, ShaderDesc.ShaderReflection r) {
         // Remove for debugging:
-        boolean debugPrintReflectionEnabled = true;
+        boolean debugPrintReflectionEnabled = false;
         if (!debugPrintReflectionEnabled) {
             return;
         }

@@ -16,7 +16,6 @@ package com.dynamo.bob.pipeline.shader;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 
 import com.dynamo.bob.Bob;
@@ -184,27 +183,6 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
         } else {
             checkResult(resultString, null, resourceOutput);
         }
-
-        /*
-        // Generate reflection data
-        File file_out_refl = File.createTempFile(FilenameUtils.getName(resourceOutput), ".json");
-        FileUtil.deleteOnExit(file_out_refl);
-
-        result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "spirv-cross"),
-                file_out_spv_opt.getAbsolutePath(),
-                "--output",file_out_refl.getAbsolutePath(),
-                "--reflect");
-
-        resultString = getResultString(result);
-        if (softFail && resultString != null) {
-            res.compile_warnings.add("\nUnable to get reflection data: " + resultString);
-            return res;
-        } else {
-            checkResult(resultString, null, resourceOutput);
-        }
-
-        String result_json = FileUtils.readFileToString(file_out_refl, StandardCharsets.UTF_8);
-         */
 
         this.spirvContext = ShadercJni.NewShaderContext(FileUtils.readFileToByteArray(file_out_spv));
         res.reflector = new SPIRVReflector(this.spirvContext);

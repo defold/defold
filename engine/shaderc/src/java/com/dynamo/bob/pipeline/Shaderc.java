@@ -238,6 +238,7 @@ public class Shaderc {
         public ShaderResource[] inputs;
         public ShaderResource[] outputs;
         public ShaderResource[] uniformBuffers;
+        public ShaderResource[] storageBuffers;
         public ShaderResource[] textures;
         public ResourceTypeInfo[] types;
     };

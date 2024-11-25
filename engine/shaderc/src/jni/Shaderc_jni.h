@@ -64,6 +64,7 @@ struct ShaderReflectionJNI {
     jfieldID inputs;
     jfieldID outputs;
     jfieldID uniformBuffers;
+    jfieldID storageBuffers;
     jfieldID textures;
     jfieldID types;
 };

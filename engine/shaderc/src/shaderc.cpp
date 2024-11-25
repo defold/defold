@@ -153,12 +153,12 @@ namespace dmShaderc
         reflection.m_Types.OffsetCapacity(1);
         reflection.m_Types.SetSize(reflection.m_Types.Capacity());
 
-        ResourceTypeInfo& type_info = reflection.m_Types.Back();
-        type_info.m_Name = type_name;
-        type_info.m_NameHash = type_name_hash;
+        ResourceTypeInfo* type_info = &reflection.m_Types.Back();
+        type_info->m_Name = type_name;
+        type_info->m_NameHash = type_name_hash;
 
         ResourceMember* members = (ResourceMember*) malloc(sizeof(ResourceMember) * member_count);
-        type_info.m_Members.Set(members, member_count, member_count, false);
+        type_info->m_Members.Set(members, member_count, member_count, false);
 
         for (int i = 0; i < member_count; ++i)
         {
@@ -175,15 +175,16 @@ namespace dmShaderc
                 dmLogWarning("Unsupported array dimension: %u", num_array_dimensions);
             }
 
-            ResourceMember& member = type_info.m_Members[i];
+            ResourceMember& member    = members[i];
+            member.m_Offset           = (uint32_t) member_offset;
             member.m_Name             = spvc_compiler_get_member_name(compiler, type_id, i);
             member.m_NameHash         = dmHashString64(member.m_Name);
-            member.m_Offset           = (uint32_t) member_offset;
             member.m_Type.m_ArraySize = 1;
 
             // TODO: We only support one array dimension right now
             if (num_array_dimensions > 0)
             {
+                member_type_id = spvc_type_get_base_type_id(member_type);
                 member.m_Type.m_ArraySize = spvc_type_get_array_dimension(member_type, 0);
             }
 
@@ -281,6 +282,7 @@ namespace dmShaderc
         SetReflectionResourceForType(context->m_Reflection, context->m_CompilerNone, context->m_Resources, SPVC_RESOURCE_TYPE_STAGE_INPUT, context->m_Reflection.m_Inputs);
         SetReflectionResourceForType(context->m_Reflection, context->m_CompilerNone, context->m_Resources, SPVC_RESOURCE_TYPE_STAGE_OUTPUT, context->m_Reflection.m_Outputs);
         SetReflectionResourceForType(context->m_Reflection, context->m_CompilerNone, context->m_Resources, SPVC_RESOURCE_TYPE_UNIFORM_BUFFER, context->m_Reflection.m_UniformBuffers);
+        SetReflectionResourceForType(context->m_Reflection, context->m_CompilerNone, context->m_Resources, SPVC_RESOURCE_TYPE_STORAGE_BUFFER, context->m_Reflection.m_StorageBuffers);
 
         SetReflectionResourceForType(context->m_Reflection, context->m_CompilerNone, context->m_Resources, SPVC_RESOURCE_TYPE_STORAGE_IMAGE, context->m_Reflection.m_Textures);
         SetReflectionResourceForType(context->m_Reflection, context->m_CompilerNone, context->m_Resources, SPVC_RESOURCE_TYPE_SAMPLED_IMAGE, context->m_Reflection.m_Textures);
@@ -403,6 +405,7 @@ namespace dmShaderc
     void SetResourceBinding(HShaderContext context, HShaderCompiler compiler, dmhash_t name_hash, uint8_t binding)
     {
         SetBindingOrSetForType(compiler->m_SPVCCompiler, context->m_Resources, SPVC_RESOURCE_TYPE_UNIFORM_BUFFER, name_hash, &binding, 0);
+        SetBindingOrSetForType(compiler->m_SPVCCompiler, context->m_Resources, SPVC_RESOURCE_TYPE_STORAGE_BUFFER, name_hash, &binding, 0);
         SetBindingOrSetForType(compiler->m_SPVCCompiler, context->m_Resources, SPVC_RESOURCE_TYPE_STORAGE_IMAGE, name_hash, &binding, 0);
         SetBindingOrSetForType(compiler->m_SPVCCompiler, context->m_Resources, SPVC_RESOURCE_TYPE_SAMPLED_IMAGE, name_hash, &binding, 0);
         SetBindingOrSetForType(compiler->m_SPVCCompiler, context->m_Resources, SPVC_RESOURCE_TYPE_SEPARATE_IMAGE, name_hash, &binding, 0);
@@ -412,6 +415,7 @@ namespace dmShaderc
     void SetResourceSet(HShaderContext context, HShaderCompiler compiler, dmhash_t name_hash, uint8_t set)
     {
         SetBindingOrSetForType(compiler->m_SPVCCompiler, context->m_Resources, SPVC_RESOURCE_TYPE_UNIFORM_BUFFER, name_hash, 0, &set);
+        SetBindingOrSetForType(compiler->m_SPVCCompiler, context->m_Resources, SPVC_RESOURCE_TYPE_STORAGE_BUFFER, name_hash, 0, &set);
         SetBindingOrSetForType(compiler->m_SPVCCompiler, context->m_Resources, SPVC_RESOURCE_TYPE_STORAGE_IMAGE, name_hash, 0, &set);
         SetBindingOrSetForType(compiler->m_SPVCCompiler, context->m_Resources, SPVC_RESOURCE_TYPE_SAMPLED_IMAGE, name_hash, 0, &set);
         SetBindingOrSetForType(compiler->m_SPVCCompiler, context->m_Resources, SPVC_RESOURCE_TYPE_SEPARATE_IMAGE, name_hash, 0, &set);
@@ -463,6 +467,8 @@ namespace dmShaderc
 
         spvc_compiler_set_entry_point(compiler->m_SPVCCompiler, options.m_EntryPoint, stage);
 
+        spvc_compiler_build_combined_image_samplers(compiler->m_SPVCCompiler);
+
         const char *result = NULL;
         spvc_compiler_compile(compiler->m_SPVCCompiler, &result);
         return result;
@@ -512,6 +518,18 @@ namespace dmShaderc
                 reflection->m_UniformBuffers[i].m_Binding,
                 ResolveTypeName(reflection, reflection->m_UniformBuffers[i].m_Type),
                 reflection->m_UniformBuffers[i].m_BlockSize);
+        }
+
+        dmLogInfo("Storage buffers: %d", reflection->m_StorageBuffers.Size());
+        for (uint32_t i = 0; i < reflection->m_StorageBuffers.Size(); ++i)
+        {
+            dmLogInfo("  Name: %s, Instance-name: %s, Set: %d, Binding: %d, Type: %s, BlockSize: %d",
+                reflection->m_StorageBuffers[i].m_Name,
+                reflection->m_StorageBuffers[i].m_InstanceName,
+                reflection->m_StorageBuffers[i].m_Set,
+                reflection->m_StorageBuffers[i].m_Binding,
+                ResolveTypeName(reflection, reflection->m_StorageBuffers[i].m_Type),
+                reflection->m_StorageBuffers[i].m_BlockSize);
         }
 
         dmLogInfo("Textures: %d", reflection->m_Textures.Size());

@@ -51,37 +51,10 @@ public class SPIRVReflector {
     }
 
     public ArrayList<Shaderc.ShaderResource> getSsbos() {
-        /*
         if (reflection.storageBuffers == null)
             return new ArrayList<>();
-         */
-
-        ArrayList<Shaderc.ShaderResource> ssbos = new ArrayList<Shaderc.ShaderResource>();
-
-        /*
-        JsonNode ssboNode  = root.get("ssbos");
-
-        if (ssboNode == null) {
-            return ssbos;
-        }
-
-        Iterator<JsonNode> ssboBlockIt = ssboNode.getElements();
-        while (ssboBlockIt.hasNext()) {
-            JsonNode ssboBlockNode = ssboBlockIt.next();
-
-            Resource ssbo  = new Resource();
-            ssbo.name      = ssboBlockNode.get("name").asText();
-            ssbo.set       = ssboBlockNode.get("set").asInt();
-            ssbo.binding   = ssboBlockNode.get("binding").asInt();
-            ssbo.type      = ssboBlockNode.get("type").asText();
-            ssbo.blockSize = ssboBlockNode.get("block_size").asInt();
-            ssbos.add(ssbo);
-        }
-
-         */
-
+        ArrayList<Shaderc.ShaderResource> ssbos = new ArrayList<>(Arrays.asList(reflection.storageBuffers));
         ssbos.sort(new SortBindingsComparator());
-
         return ssbos;
     }
 

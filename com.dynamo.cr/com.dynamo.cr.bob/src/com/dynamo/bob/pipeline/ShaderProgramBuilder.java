@@ -23,6 +23,7 @@ import java.io.FileOutputStream;
 import java.nio.charset.StandardCharsets;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 
 import com.google.protobuf.ByteString;
 
@@ -280,11 +281,18 @@ public abstract class ShaderProgramBuilder extends Builder {
             }
         }
 
-        throw new CompileExceptionError("Unsupported shader type " + type);
+        String errorMsg = "";
+        errorMsg += "BaseType: " + type.baseType + "\n";
+        errorMsg += "Columncount: " + type.columnCount + "\n";
+        errorMsg += "DimensionType: " + type.dimensionType + "\n";
+        errorMsg += "ArraySize: " +  type.arraySize + "\n";
+        throw new CompileExceptionError("Unsupported shader type:\n" + errorMsg);
     }
 
     public static ShaderDesc.ShaderDataType resourceTypeToShaderDataType(Shaderc.ResourceType type) throws CompileExceptionError {
-        if (type.baseType == Shaderc.BaseType.BASE_TYPE_SAMPLED_IMAGE) {
+        if (type.baseType == Shaderc.BaseType.BASE_TYPE_SAMPLED_IMAGE ||
+            type.baseType == Shaderc.BaseType.BASE_TYPE_SAMPLER ||
+            type.baseType == Shaderc.BaseType.BASE_TYPE_IMAGE) {
             return TextureToShaderDataType(type);
         } else {
             return DataTypeToShaderDataType(type);
@@ -323,9 +331,19 @@ public abstract class ShaderProgramBuilder extends Builder {
         return resourceBindingBuilder;
     }
 
-    static private void ResolveSamplerIndices(ArrayList<Shaderc.ShaderResource> textures) {
+    static private void ResolveSamplerIndices(ArrayList<Shaderc.ShaderResource> textures, HashMap<Integer, Integer> idToTextureIndexMap) {
         for (int i=0; i < textures.size(); i++) {
             Shaderc.ShaderResource texture = textures.get(i);
+
+            if (texture.type.baseType != Shaderc.BaseType.BASE_TYPE_SAMPLER) {
+                String constructedSamplerName = texture.name + "_separated";
+
+                for (Shaderc.ShaderResource other : textures) {
+                    if (other.name.equals(constructedSamplerName)) {
+                        idToTextureIndexMap.put(other.id, i);
+                    }
+                }
+            }
 
             /*
             // Look for a matching sampler resource
@@ -352,7 +370,8 @@ public abstract class ShaderProgramBuilder extends Builder {
         ArrayList<Shaderc.ShaderResource> textures  = reflector.getTextures();
         ArrayList<Shaderc.ResourceTypeInfo> types   = reflector.getTypes();
 
-        ResolveSamplerIndices(textures);
+        HashMap<Integer, Integer> idToTextureIndex = new HashMap<>();
+        ResolveSamplerIndices(textures, idToTextureIndex);
 
         for (Shaderc.ShaderResource input : inputs) {
             ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(types, input);
@@ -376,6 +395,12 @@ public abstract class ShaderProgramBuilder extends Builder {
 
         for (Shaderc.ShaderResource texture : textures) {
             ShaderDesc.ResourceBinding.Builder resourceBindingBuilder = SPIRVResourceToResourceBindingBuilder(types, texture);
+
+            Integer textureIndex = idToTextureIndex.get(texture.id);
+            if (textureIndex != null) {
+                resourceBindingBuilder.setSamplerTextureIndex(textureIndex);
+            }
+
             builder.addTextures(resourceBindingBuilder);
         }
 

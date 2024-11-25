@@ -102,6 +102,24 @@ public class ShadercJni {
         }
     }
 
+    private static void printResourceTypes(Shaderc.ResourceTypeInfo types[], String label) {
+        if (types != null) {
+            System.out.println("---- " + label + " ----");
+            System.out.println("Resource-count: " + types.length);
+            int c=0;
+            for (Shaderc.ResourceTypeInfo res : types) {
+                System.out.println("[" + c++ + "]:");
+                System.out.println("  name: " + res.name);
+
+                int m=0;
+                for (Shaderc.ResourceMember member : res.members) {
+                    System.out.println("  [" + m++ + "]:");
+                    System.out.println("    name:     " + member.name);
+                }
+            }
+        }
+    }
+
     private static void Usage() {
         System.out.println("Usage: ShadercJni <path_to_spv> [<version> <stage=(vs|fs)>]");
     }
@@ -111,7 +129,9 @@ public class ShadercJni {
         printResourceArray(reflection.inputs, "inputs");
         printResourceArray(reflection.outputs, "outputs");
         printResourceArray(reflection.uniformBuffers, "uniformBuffers");
+        printResourceArray(reflection.storageBuffers, "storageBuffers");
         printResourceArray(reflection.textures, "textures");
+        printResourceTypes(reflection.types, "resourceTypes");
     }
 
     private static void crossCompile(long context, int version, Shaderc.ShaderStage stage) {
