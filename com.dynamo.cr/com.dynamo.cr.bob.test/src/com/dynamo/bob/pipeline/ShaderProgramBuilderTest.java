@@ -270,8 +270,6 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
             ShaderDesc.ResourceTypeInfo lights_binding_type = r.getTypes(binding_type_member.getType().getTypeIndex());
 
-            System.out.println(lights_binding_type.getName());
-
             assertEquals("Light", lights_binding_type.getName());
             assertEquals(3, lights_binding_type.getMembersCount());
 
