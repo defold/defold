@@ -195,12 +195,6 @@ public abstract class ShaderProgramBuilder extends Builder {
         builder.setSource(ByteString.copyFrom(source, "UTF-8"));
         return new ShaderProgramBuilder.ShaderBuildResult(builder);
     }
-    /*
-        SHADER_TYPE_UNKNOWN         = 0;
-        SHADER_TYPE_UNIFORM_BUFFER  = 14;
-        SHADER_TYPE_RENDER_PASS_INPUT = 20;
-        SHADER_TYPE_STORAGE_BUFFER    = 24;
-     */
 
     static private ShaderDesc.ShaderDataType TextureToShaderDataType(Shaderc.ResourceType type) throws CompileExceptionError {
         if (type.baseType == Shaderc.BaseType.BASE_TYPE_SAMPLED_IMAGE) {
@@ -324,11 +318,6 @@ public abstract class ShaderProgramBuilder extends Builder {
         if (res.blockSize != 0) {
             resourceBindingBuilder.setBlockSize(res.blockSize);
         }
-        /*
-        else if (res.textureIndex != null) {
-            resourceBindingBuilder.setSamplerTextureIndex(res.textureIndex);
-        }
-         */
         return resourceBindingBuilder;
     }
 
@@ -345,19 +334,6 @@ public abstract class ShaderProgramBuilder extends Builder {
                     }
                 }
             }
-
-            /*
-            // Look for a matching sampler resource
-            if (ShaderUtil.Common.stringTypeToShaderType(texture.type) != ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER) {
-                // TODO: the extension should be a constant
-                String constructedSamplerName = texture.name + "_separated";
-                for (Shaderc.ShaderResource other : textures) {
-                    if (other.name.equals(constructedSamplerName)) {
-                        other.textureIndex = i;
-                    }
-                }
-            }
-             */
         }
     }
 

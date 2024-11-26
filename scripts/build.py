@@ -1076,6 +1076,7 @@ class Configuration(object):
             self.upload_to_archive(join(dynamo_home, 'share', 'java', 'dlib.jar'), '%s/dlib.jar' % (java_archive_path))
             self.upload_to_archive(join(dynamo_home, 'share', 'java', 'modelimporter.jar'), '%s/modelimporter.jar' % (java_archive_path))
             self.upload_to_archive(join(dynamo_home, 'share', 'java', 'texturecompiler.jar'), '%s/texturecompiler.jar' % (java_archive_path))
+            self.upload_to_archive(join(dynamo_home, 'share', 'java', 'shaderc.jar'), '%s/shaderc.jar' % (java_archive_path))
 
         if 'android' in self.target_platform:
             files = [
@@ -1319,6 +1320,7 @@ class Configuration(object):
         #   - pairs of src-file -> dst-file
         artefacts = {'generic': {'share/java/dlib.jar': 'lib/dlib.jar',
                                  'share/java/modelimporter.jar': 'lib/modelimporter.jar',
+                                 'share/java/shaderc.jar': 'lib/shaderc.jar',
                                  'share/builtins.zip': 'lib/builtins.zip',
                                  'lib/%s/%s' % (self.host, texc_name): 'lib/%s/%s' % (self.host, texc_name),
                                  'lib/%s/%s' % (self.host, modelc_name): 'lib/%s/%s' % (self.host, modelc_name)},
