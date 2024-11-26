@@ -180,15 +180,6 @@ public abstract class ShaderProgramBuilder extends Builder {
         return ShaderCompilePipeline.createShaderPipeline(pipeline, shaderSource, type, options);
     }
 
-    static private int getTypeIndex(ArrayList<Shaderc.ResourceTypeInfo> types, String typeName) {
-        for (int i=0; i < types.size(); i++) {
-            if (types.get(i).name.equals(typeName)) {
-                return i;
-            }
-        }
-        return -1;
-    }
-
     static public ShaderProgramBuilder.ShaderBuildResult makeShaderBuilderFromGLSLSource(String source, ShaderDesc.Language shaderLanguage) throws IOException {
         ShaderDesc.Shader.Builder builder = ShaderDesc.Shader.newBuilder();
         builder.setLanguage(shaderLanguage);

@@ -79,6 +79,8 @@ public class ShaderCompilePipelineTest {
             pipelineVertex.crossCompile(ShaderDesc.ShaderType.SHADER_TYPE_VERTEX, l);
         }
 
+        ShaderCompilePipeline.destroyShaderPipeline(pipelineVertex);
+
         String fsShader =
                 """
                 #version 140
@@ -121,6 +123,8 @@ public class ShaderCompilePipelineTest {
         for (ShaderDesc.Language l : allLanguages) {
             pipelineFragment.crossCompile(ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT, l);
         }
+
+        ShaderCompilePipeline.destroyShaderPipeline(pipelineFragment);
     }
 
     @Test
@@ -150,7 +154,7 @@ public class ShaderCompilePipelineTest {
         ShaderCompilePipeline pipelineFragment = new ShaderCompilePipeline("testFragment");
         ShaderCompilePipeline.createShaderPipeline(pipelineFragment, fsShader, ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT, new ShaderCompilePipeline.Options());
 
-        SPIRVReflector reflector                     = pipelineFragment.getReflectionData();
+        SPIRVReflector reflector                    = pipelineFragment.getReflectionData();
         ArrayList<Shaderc.ShaderResource> inputs    = reflector.getInputs();
         ArrayList<Shaderc.ShaderResource> outputs   = reflector.getOutputs();
         ArrayList<Shaderc.ShaderResource> ubos      = reflector.getUBOs();
@@ -160,6 +164,8 @@ public class ShaderCompilePipelineTest {
         assertEquals(2, outputs.size());
         assertEquals(1, ubos.size());
         assertEquals("fs_uniforms", ubos.get(0).name);
+
+        ShaderCompilePipeline.destroyShaderPipeline(pipelineFragment);
 
         // Do the same test, but with the legacy pipeline
         String fsShaderLegacy =
@@ -190,5 +196,7 @@ public class ShaderCompilePipelineTest {
         assertEquals(1, ubos.size());
         assertEquals("_DMENGINE_GENERATED_UB_FS_0", ubos.get(0).name);
         assertEquals("tint", types.get(0).members[0].name);
+
+        ShaderCompilePipeline.destroyShaderPipeline(pipelineFragmentLegacy);
     }
 }

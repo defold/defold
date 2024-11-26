@@ -38,7 +38,7 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
         public SPIRVReflector reflector;
     }
 
-    protected class ShaderModuleLegacy extends ShaderCompilePipeline.ShaderModule {
+    protected static class ShaderModuleLegacy extends ShaderCompilePipeline.ShaderModule {
         public SPIRVCompileResult spirvResult;
 
         public ShaderModuleLegacy(String source, ShaderDesc.ShaderType type) {
@@ -48,12 +48,11 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
 
     private static String glslangExe = null;
     private static String spirvOptExe = null;
-    private static String spirvCrossExe = null;
 
     public ShaderCompilePipelineLegacy(String pipelineName) throws IOException {
         super(pipelineName);
-        if (this.glslangExe == null) this.glslangExe = Bob.getExe(Platform.getHostPlatform(), "glslang");
-        if (this.spirvOptExe == null) this.spirvOptExe = Bob.getExe(Platform.getHostPlatform(), "spirv-opt");
+        if (glslangExe == null) glslangExe = Bob.getExe(Platform.getHostPlatform(), "glslang");
+        if (spirvOptExe == null) spirvOptExe = Bob.getExe(Platform.getHostPlatform(), "spirv-opt");
     }
 
     static private void checkResult(String result_string, IResource resource, String resourceOutput) throws CompileExceptionError {
