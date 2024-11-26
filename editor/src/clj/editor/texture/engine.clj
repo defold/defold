@@ -132,10 +132,7 @@
         (premultiply-alpha texture)                             "could not premultiply alpha"
         (gen-mipmaps texture)                                   "could not generate mip-maps"
         (transcode texture pixel-format SRGB compression-level CT_DEFAULT mipmaps) "could not transcode")
-      (let [;buffer-size  (* width-pot height-pot color-count 2)
-            ;buffer       (little-endian (new-byte-buffer buffer-size))
-            ;data-size    (TexcLibraryJni/GetData texture buffer buffer-size)
-            buffer       (TexcLibraryJni/GetData texture)
+      (let [buffer       (TexcLibraryJni/GetData texture)
             mipmap-sizes (mipmap-sizes width-pot height-pot color-count)]
         (map->EngineFormatTexture
           {:width           width-pot

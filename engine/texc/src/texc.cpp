@@ -146,18 +146,6 @@ namespace dmTexc
         return t->m_Encoder.m_FnFlip(t, flip_axis);
     }
 
-    // bool Dither(HTexture texture, PixelFormat pixel_format)
-    // {
-    //     Texture* t = (Texture*) texture;
-
-    //     if (pixel_format == PF_R4G4B4A4) {
-    //         DitherRGBA4444((uint8_t*)t->m_, w, h);
-    //     }
-    //     else if(pixel_format == PF_R5G6B5) {
-    //         DitherRGBx565((uint8_t*)pixels, w, h);
-    //     }
-    // }
-
     static uint32_t GetNumThreads(int max_threads)
     {
         uint32_t num_threads = max_threads;

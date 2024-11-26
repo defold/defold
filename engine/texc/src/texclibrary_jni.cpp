@@ -249,23 +249,6 @@ JNIEXPORT jobject JNICALL Java_TexcLibraryJni_CompressBuffer(JNIEnv* env, jclass
 
 // *************************************************************************************************************
 
-// JNIEXPORT jobject JNICALL Java_TexcLibraryJni_CreateImage(JNIEnv* env, jclass cls, jstring path, jbyteArray bytes, jint width, jint height, jint depth, jint numChannels)
-// {
-//     dmLogDebug("%s: env = %p\n", __FUNCTION__, env);
-//     //DM_SCOPED_SIGNAL_CONTEXT(env, return 0;);
-
-//     jobject jimage;
-//     DM_JNI_GUARD_SCOPE_BEGIN();
-
-//         dmTexc::jni::ScopedContext jni_scope(env);
-//         dmTexc::jni::TypeInfos* types = &jni_scope.m_TypeInfos;
-//         //jimage = LoadFromBufferInternal(env, cls, _path, array, data_resolver);
-//         jimage = dmTexc::jni::C2J_CreateImage(env, types, path, bytes, width, height, depth, numChannels);
-//     DM_JNI_GUARD_SCOPE_END(return 0;);
-//     return jimage;
-// }
-
-
 JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved)
 {
     dmLogDebug("JNI_OnLoad ->\n");
@@ -307,10 +290,6 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved)
 
         // Font glyph buffers
         JNIFUNC(CompressBuffer,         "([B)L" CLASS_NAME "$Buffer;"),
-
-
-        // Image api
-        //{(char*)"CreateImage", (char*)"(Ljava/lang/String;[BIIII)L" CLASS_NAME "$Scene;", reinterpret_cast<void*>(Java_TexcLibraryJni_CreateImage)},
     };
     #undef JNIFUNC
 
