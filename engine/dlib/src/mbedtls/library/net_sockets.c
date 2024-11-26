@@ -235,7 +235,7 @@ int mbedtls_net_bind( mbedtls_net_context *ctx, const char *bind_ip, const char 
             setsockopt( ctx->fd, SOL_SOCKET, SO_REUSEADDR,
                         (const char *) &n, sizeof( n ) ) != 0
 #else
-            0 // setsockopt in emscripten sub return always ENOPROTOOPT
+            1 // setsockopt in emscripten sub return always ENOPROTOOPT
 #endif
             )
         {

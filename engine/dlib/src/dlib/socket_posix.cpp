@@ -207,7 +207,7 @@ namespace dmSocket
         *socket = sock;
         if (sock >= 0)
         {
-#if defined(__MACH__) && !defined(__EMSCRIPTEN__)
+#if defined(__MACH__)
             int set = 1;
             // Disable SIGPIPE on socket. On Linux MSG_NOSIGNAL is passed on send(.)
             setsockopt(sock, SOL_SOCKET, SO_NOSIGPIPE, &set, sizeof(set));

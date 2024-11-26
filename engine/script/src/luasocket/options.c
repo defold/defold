@@ -315,9 +315,9 @@ int opt_get(lua_State *L, p_socket ps, int level, int name, void *val, int* len)
 static 
 int opt_set(lua_State *L, p_socket ps, int level, int name, void *val, int len)
 {
-    if (0
+    if (1
 #if !defined(__EMSCRIPTEN__)
-        || setsockopt(*ps, level, name, (char *) val, len) < 0
+        && setsockopt(*ps, level, name, (char *) val, len) < 0
 #endif
         ) {
         lua_pushnil(L);
