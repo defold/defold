@@ -104,11 +104,12 @@ public class ShaderCompilers {
                 shaderBuildResults.add(new ShaderProgramBuilder.ShaderBuildResult(builder));
             }
 
-            ShaderCompilePipeline.destroyShaderPipeline(pipeline);
-
             ShaderProgramBuilder.ShaderCompileResult compileResult = new ShaderProgramBuilder.ShaderCompileResult();
             compileResult.shaderBuildResults = shaderBuildResults;
             compileResult.reflector = pipeline.getReflectionData();
+
+            ShaderCompilePipeline.destroyShaderPipeline(pipeline);
+
             return compileResult;
         }
     }
