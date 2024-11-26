@@ -28,6 +28,36 @@ public class TextureCompressorBasisU implements ITextureCompressor {
     public byte[] compress(TextureCompressorPreset preset, TextureCompressorParams params, byte[] input)
     {
         System.out.printf(String.format("Compressing using compressor '%s' and preset '%s'\n", getName(), preset.getName()));
+
+        Texc.BasisUEncodeSettings settings = new Texc.BasisUEncodeSettings();
+        // settings.path = params.getPath();
+        // settings.width = params.getWidth();
+        // settings.height = params.getHeight();
+
+        // settings.pixelFormat = params.getWidth();
+        // settings.outPixelFormat = outPixelFormat; ?
+        // settings.colorSpace = colorSpace;
+
+        // settings.numThreads = maxThreads;
+        // settings.debug = false;
+
+        // // CL_BEST
+        // settings.rdo_uastc = true;
+        // settings.pack_uastc_flags = 0;
+        // settings.rdo_uastc_dict_size = 4096;
+        // settings.rdo_uastc_quality_scalar = 3.0f;
+
+        // DebugPrintObject(settings, 1);
+
+        // settings.data = uncompressed;
+
+        // timeStart = System.currentTimeMillis();
+
+        // encoded = TexcLibraryJni.BasisUEncode(settings);
+        // if (encoded == null || encoded.length == 0) {
+        // throw new Exception("Could not encode");
+        // }
+
         return null;
     }
 }

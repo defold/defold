@@ -18,18 +18,24 @@ package com.defold.extension.pipeline.texture;
  * NOTE: Public API for ITextureCompressor
  */
 public class TextureCompressorParams {
+    private String      path;
+    private int         mipMapLevel;
+    private int         width;
+    private int         height;
+    private int         depth;          // 1 for regular texture
+    private int         numChannels;
 
-    int         mipMapLevel;
-    int         width;
-    int         height;
-    int         depth;          // 1 for regular texture
-    int         numChannels;
-    TextureCompressorParams(int mipMapLevel, int width, int height, int depth, int numChannels) {
+    TextureCompressorParams(String path, int mipMapLevel, int width, int height, int depth, int numChannels) {
+        this.path = path;
         this.mipMapLevel = mipMapLevel;
         this.width = width;
         this.height = height;
         this.depth = depth;
         this.numChannels = numChannels;
+    }
+
+    public int getPath() {
+        return path;
     }
 
     public int getMipMapLevel() {
