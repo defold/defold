@@ -68,28 +68,12 @@ namespace dmTexc
         out->m_Data = out_data;
         out->m_IsCompressed = 1;
         out->m_DataCount = size;
-
         return out;
     }
 
     Buffer* CompressBuffer(uint8_t* data, uint32_t size)
     {
         Buffer* out = CompressBuffer_Deflate(data, size);
-        if (!out)
-        {
-            out = new Buffer;
-            out->m_Data = 0;
-            out->m_DataCount = 0xFFFFFFFF; // trigger realloc below
-        }
-
-        if (out->m_DataCount > size)
-        {
-            free(out->m_Data);
-            out->m_DataCount = size;
-            out->m_Data = (uint8_t*)malloc(out->m_DataCount);
-            out->m_IsCompressed = 0;
-            memcpy(out->m_Data, data, size);
-        }
         return out;
     }
 

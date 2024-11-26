@@ -17,7 +17,7 @@
             [editor.image-util :refer [image-color-components image-convert-type image-pixels]]
             [editor.texture.math :refer [closest-power-of-two]]
             [editor.types :refer [map->EngineFormatTexture]])
-  (:import [com.dynamo.bob TexcLibrary TexcLibrary$ColorSpace TexcLibrary$CompressionLevel TexcLibrary$CompressionType TexcLibrary$DitherType TexcLibrary$PixelFormat]
+  (:import [com.dynamo.bob.pipeline Texc TexcLibraryJni Texc$ColorSpace Texc$CompressionLevel Texc$CompressionType Texc$PixelFormat]
            [com.dynamo.graphics.proto Graphics$TextureFormatAlternative$CompressionLevel Graphics$TextureImage$TextureFormat]
            [java.awt.image BufferedImage ColorModel]
            [java.nio ByteBuffer]))
@@ -26,22 +26,22 @@
 (set! *unchecked-math* true)
 
 ; Set up some compile-time aliases for those long Java constant names
-(def L8       TexcLibrary$PixelFormat/L8)
-(def R8G8B8   TexcLibrary$PixelFormat/R8G8B8)
-(def R8G8B8A8 TexcLibrary$PixelFormat/R8G8B8A8)
+(def L8       Texc$PixelFormat/PF_L8)
+(def R8G8B8   Texc$PixelFormat/PF_R8G8B8)
+(def R8G8B8A8 Texc$PixelFormat/PF_R8G8B8A8)
 
-(def CL_FAST   TexcLibrary$CompressionLevel/CL_FAST)
-(def CL_NORMAL TexcLibrary$CompressionLevel/CL_NORMAL)
-(def CL_HIGH   TexcLibrary$CompressionLevel/CL_HIGH)
-(def CL_BEST   TexcLibrary$CompressionLevel/CL_BEST)
+(def CL_FAST   Texc$CompressionLevel/CL_FAST)
+(def CL_NORMAL Texc$CompressionLevel/CL_NORMAL)
+(def CL_HIGH   Texc$CompressionLevel/CL_HIGH)
+(def CL_BEST   Texc$CompressionLevel/CL_BEST)
 
-(def CT_DEFAULT     TexcLibrary$CompressionType/CT_DEFAULT)
+(def CT_DEFAULT     Texc$CompressionType/CT_DEFAULT)
 
 (def TEXTURE_FORMAT_LUMINANCE Graphics$TextureImage$TextureFormat/TEXTURE_FORMAT_LUMINANCE)
 (def TEXTURE_FORMAT_RGB       Graphics$TextureImage$TextureFormat/TEXTURE_FORMAT_RGB)
 (def TEXTURE_FORMAT_RGBA      Graphics$TextureImage$TextureFormat/TEXTURE_FORMAT_RGBA)
 
-(def SRGB     TexcLibrary$ColorSpace/SRGB)
+(def SRGB     Texc$ColorSpace/CS_SRGB)
 
 (def default-formats
   [R8G8B8A8 TEXTURE_FORMAT_RGBA])
@@ -80,14 +80,14 @@
 
 (defn- resize [texture width height width-pot height-pot]
   (or (and (= width width-pot) (= height height-pot))
-      (TexcLibrary/TEXC_Resize texture width-pot height-pot)))
+      (TexcLibraryJni/Resize texture width-pot height-pot)))
 
 (defn- premultiply-alpha [texture]
   (or (.. ColorModel getRGBdefault isAlphaPremultiplied)
-      (TexcLibrary/TEXC_PreMultiplyAlpha texture)))
+      (TexcLibraryJni/PreMultiplyAlpha texture)))
 
 (defn- gen-mipmaps [texture]
-  (TexcLibrary/TEXC_GenMipMaps texture))
+  (TexcLibraryJni/GenMipMaps texture))
 
 (defn num-texc-threads []
   (let [count (.availableProcessors (Runtime/getRuntime))]
@@ -96,7 +96,7 @@
           :else 1)))
 
 (defn- transcode [texture pixel-format color-model compression-level compression-type mipmaps]
-  (TexcLibrary/TEXC_Encode texture pixel-format color-model compression-level compression-type mipmaps (num-texc-threads)))
+  (TexcLibraryJni/Encode texture pixel-format color-model compression-level compression-type mipmaps (num-texc-threads)))
 
 (defn double-down [[n m]] [(max (bit-shift-right n 1) 1)
                            (max (bit-shift-right m 1) 1)])
@@ -122,7 +122,7 @@
         color-count                   (image-color-components img)
         [pixel-format texture-format] (get formats color-count default-formats)
         name                          nil ; for easier debugging
-        texture                       (TexcLibrary/TEXC_Create name, width height R8G8B8A8 SRGB CT_DEFAULT (image->byte-buffer img))
+        texture                       (TexcLibraryJni/CreateTexture name, width height R8G8B8A8 SRGB CT_DEFAULT (image->byte-buffer img))
         compression-level             Graphics$TextureFormatAlternative$CompressionLevel/FAST
         mipmaps                       false]
 
@@ -132,9 +132,10 @@
         (premultiply-alpha texture)                             "could not premultiply alpha"
         (gen-mipmaps texture)                                   "could not generate mip-maps"
         (transcode texture pixel-format SRGB compression-level CT_DEFAULT mipmaps) "could not transcode")
-      (let [buffer-size  (* width-pot height-pot color-count 2)
-            buffer       (little-endian (new-byte-buffer buffer-size))
-            data-size    (TexcLibrary/TEXC_GetData texture buffer buffer-size)
+      (let [;buffer-size  (* width-pot height-pot color-count 2)
+            ;buffer       (little-endian (new-byte-buffer buffer-size))
+            ;data-size    (TexcLibraryJni/GetData texture buffer buffer-size)
+            buffer       (TexcLibraryJni/GetData texture)
             mipmap-sizes (mipmap-sizes width-pot height-pot color-count)]
         (map->EngineFormatTexture
           {:width           width-pot
@@ -142,11 +143,11 @@
            :original-width  width
            :original-height height
            :format          texture-format
-           :data            (.limit buffer data-size)
+           :data            buffer
            :mipmap-sizes    mipmap-sizes
            :mipmap-offsets (mipmap-offsets mipmap-sizes)}))
       (finally
-        (TexcLibrary/TEXC_Destroy texture)))))
+        (TexcLibraryJni/DestroyTexture texture)))))
 
 (defn compress-rgba-buffer
   ^ByteBuffer [^ByteBuffer rgba-buffer ^long width ^long height ^long channel-count]
@@ -155,11 +156,12 @@
   (assert (pos? channel-count))
   (assert (= (* width height channel-count) (.remaining rgba-buffer)) "Buffer size mismatch.")
   (let [rgba-buffer-size (.remaining rgba-buffer)
-        compressed-texture (TexcLibrary/TEXC_CompressBuffer rgba-buffer rgba-buffer-size)]
-    (try
-      (let [compressed-size (TexcLibrary/TEXC_GetTotalBufferDataSize compressed-texture)
-            compressed-buffer (ByteBuffer/allocateDirect compressed-size)]
-        (TexcLibrary/TEXC_GetBufferData compressed-texture compressed-buffer compressed-size)
-        compressed-buffer)
-      (finally
-        (TexcLibrary/TEXC_DestroyBuffer compressed-texture)))))
+        uncompressed-bytes (byte-array rgba-buffer-size)
+        _ (.get rgba-buffer uncompressed-bytes)
+        compressed-buffer (TexcLibraryJni/CompressBuffer uncompressed-bytes) ; Texc.Buffer from Texc.java
+        compressed-data (.data compressed-buffer)
+        data-with-header (doto (ByteBuffer/allocateDirect (+ 1 (alength compressed-data)))
+                                                  (.put (byte 1)) ; First byte is the header, where 0 = uncompressed, and 1 = compressed
+                                                  (.put compressed-data) ; the payload
+                                                  (.flip))]
+    data-with-header))
