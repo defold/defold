@@ -19,7 +19,8 @@
             [editor.os :as os]
             [editor.prefs :as prefs]
             [editor.process :as process])
-  (:import [clojure.lang IReduceInit]))
+  (:import [clojure.lang IReduceInit]
+           [java.io PushbackReader]))
 
 (defn get-ios-deploy-path
   "Find ios-deploy path or throw if it's not found
@@ -40,7 +41,7 @@
 (defn- json-stream [input & {:as json-opts}]
   (reify IReduceInit
     (reduce [_ f init]
-      (with-open [reader (io/reader input)]
+      (with-open [reader (PushbackReader. (io/reader input))]
         (let [eof-value reader]
           (loop [acc init]
             (let [json (apply json/read reader (into [] cat (assoc json-opts
