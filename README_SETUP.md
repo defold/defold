@@ -50,7 +50,7 @@ Download and install the latest JDK 21 (21.0.5 or later) release from either of 
 Or install using Chocolatey:
 
 ```sh
-choco install openjdk17
+choco install temurin21
 ```
 
 *With choco, the install path is something like /c/Program\ Files/OpenJDK/openjdk-21.0.5_11*
@@ -61,7 +61,7 @@ choco install openjdk17
 Or install from apt-get:
 
 ```
-> sudo apt-get install openjdk-17-jdk
+> sudo apt install openjdk-21-jdk
 ```
 </p></details>
 
