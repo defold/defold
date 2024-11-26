@@ -156,7 +156,7 @@ public class ArchiveBuilder {
         return ResourceEncryption.encrypt(buffer);
     }
 
-    public void writeResourcePack(ArchiveEntry entry, String directory, byte[] buffer) throws IOException, CompileExceptionError {
+    public void writeResourcePack(ArchiveEntry entry, byte[] buffer) throws IOException, CompileExceptionError {
         publisher.publish(entry, new ByteArrayInputStream(buffer));
     }
 
@@ -165,7 +165,7 @@ public class ArchiveBuilder {
         return excludedEntries;
     }
 
-    private void writeArchiveEntry(RandomAccessFile archiveData, ArchiveEntry entry, Path resourcePackDirectory, List<String> excludedResources) throws IOException, CompileExceptionError {
+    private void writeArchiveEntry(RandomAccessFile archiveData, ArchiveEntry entry, List<String> excludedResources) throws IOException, CompileExceptionError {
         byte[] buffer = this.loadResourceData(entry.getFilename());
 
         int resourceEntryFlags = 0;
@@ -217,7 +217,7 @@ public class ArchiveBuilder {
                     .array();
                 entry.setHeader(header);
                 synchronized (publisher) {
-                    this.writeResourcePack(entry, resourcePackDirectory.toString(), buffer);
+                    this.writeResourcePack(entry, buffer);
                 }
             }
             resourceEntryFlags |= ResourceEntryFlag.EXCLUDED.getNumber();
@@ -300,7 +300,7 @@ public class ArchiveBuilder {
         TimeProfiler.stop();
     }
 
-    public void write(RandomAccessFile archiveIndex, RandomAccessFile archiveData, Path resourcePackDirectory, List<String> excludedResources) throws IOException, CompileExceptionError {
+    public void write(RandomAccessFile archiveIndex, RandomAccessFile archiveData, List<String> excludedResources) throws IOException, CompileExceptionError {
         // create the executor service to write entries in parallel
         int nThreads = project.getMaxCpuThreads();
         logger.info("Creating archive entries with a fixed thread pool executor using %d threads", nThreads);
@@ -326,7 +326,7 @@ public class ArchiveBuilder {
                 includedEntries.add(entry);
             }
             Future<ArchiveEntry> future = this.executorService.submit(() -> {
-                writeArchiveEntry(archiveData, entry, resourcePackDirectory, excludedResources);
+                writeArchiveEntry(archiveData, entry, excludedResources);
                 return entry;
             });
             futures.add(future);
@@ -447,6 +447,13 @@ public class ArchiveBuilder {
 
         List<String> excludedResources = new ArrayList<String>();
 
+        // set up publisher - has to be done before creating the ArchiveBuilder
+        PublisherSettings settings = new PublisherSettings();
+        settings.setZipFilepath(dirpathRoot.getAbsolutePath());
+        ZipPublisher publisher = new ZipPublisher(dirpathRoot.getAbsolutePath(), settings);
+        project.setPublisher(publisher);
+        publisher.setFilename(filepathZipArchive.getName());
+
         int archivedEntries = 0;
         String dirpathRootString = dirpathRoot.toString();
         ArchiveBuilder archiveBuilder = new ArchiveBuilder(dirpathRoot.toString(), manifestBuilder, 4, project);
@@ -477,19 +484,13 @@ public class ArchiveBuilder {
         archiveIndex.setLength(0);
         archiveData.setLength(0);
 
-        Path resourcePackDirectory = Files.createTempDirectory("tmp.defold.resourcepack_");
-        PublisherSettings settings = new PublisherSettings();
-        settings.setZipFilepath(dirpathRoot.getAbsolutePath());
-        ZipPublisher publisher = new ZipPublisher(dirpathRoot.getAbsolutePath(), settings);
-        project.setPublisher(publisher);
-        publisher.setFilename(filepathZipArchive.getName());
         publisher.start();
         FileOutputStream outputStreamManifest = new FileOutputStream(filepathManifest);
         try {
             System.out.println("Writing " + filepathArchiveIndex.getCanonicalPath());
             System.out.println("Writing " + filepathArchiveData.getCanonicalPath());
 
-            archiveBuilder.write(archiveIndex, archiveData, resourcePackDirectory, excludedResources);
+            archiveBuilder.write(archiveIndex, archiveData, excludedResources);
 
             System.out.println("Writing " + filepathManifest.getCanonicalPath());
             byte[] manifestFile = manifestBuilder.buildManifest();
@@ -511,7 +512,6 @@ public class ArchiveBuilder {
             publisher.publish(new ArchiveEntry(dirpathRoot.getAbsolutePath(), luManifestFile.getAbsolutePath()), luManifestFile);
 
         } finally {
-            FileUtils.deleteDirectory(resourcePackDirectory.toFile());
             try {
                 publisher.stop();
                 archiveIndex.close();

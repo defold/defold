@@ -229,7 +229,7 @@ public class GameProjectBuilder extends Builder {
         return resourcePadding;
     }
 
-    private void createArchive(ArchiveBuilder archiveBuilder, Collection<IResource> resources, RandomAccessFile archiveIndex, RandomAccessFile archiveData, List<String> excludedResources, Path resourcePackDirectory) throws IOException, CompileExceptionError {
+    private void createArchive(ArchiveBuilder archiveBuilder, Collection<IResource> resources, RandomAccessFile archiveIndex, RandomAccessFile archiveData, List<String> excludedResources) throws IOException, CompileExceptionError {
         TimeProfiler.start("createArchive");
         logger.info("GameProjectBuilder.createArchive");
         long tstart = System.currentTimeMillis();
@@ -251,7 +251,7 @@ public class GameProjectBuilder extends Builder {
 
         Publisher publisher = project.getPublisher();
         if (publisher != null) publisher.start();
-        archiveBuilder.write(archiveIndex, archiveData, resourcePackDirectory, excludedResources);
+        archiveBuilder.write(archiveIndex, archiveData, excludedResources);
         archiveIndex.close();
         archiveData.close();
         TimeProfiler.stop();
@@ -439,13 +439,12 @@ public class GameProjectBuilder extends Builder {
                 RandomAccessFile archiveIndex = createRandomAccessFile(archiveIndexHandle);
                 File archiveDataHandle = File.createTempFile("defold.data_", ".arcd");
                 RandomAccessFile archiveData = createRandomAccessFile(archiveDataHandle);
-                Path resourcePackDirectory = Files.createTempDirectory("defold.resourcepack_");
 
                 // create the archive and manifest
                 project.getPublisher().start();
                 ManifestBuilder manifestBuilder = createManifestBuilder(resourceGraph);
                 ArchiveBuilder archiveBuilder = new ArchiveBuilder(root, manifestBuilder, getResourcePadding(), project);
-                createArchive(archiveBuilder, resources, archiveIndex, archiveData, excludedResources, resourcePackDirectory);
+                createArchive(archiveBuilder, resources, archiveIndex, archiveData, excludedResources);
                 byte[] manifestFile = manifestBuilder.buildManifest();
 
                 // Write outputs to the build system
@@ -494,10 +493,6 @@ public class GameProjectBuilder extends Builder {
                 }
 
                 manifestTmpFileHandle.delete();
-                File resourcePackDirectoryHandle = new File(resourcePackDirectory.toAbsolutePath().toString());
-                if (resourcePackDirectoryHandle.exists() && resourcePackDirectoryHandle.isDirectory()) {
-                    FileUtils.deleteDirectory(resourcePackDirectoryHandle);
-                }
             }
 
             transformGameProjectFile(properties);
