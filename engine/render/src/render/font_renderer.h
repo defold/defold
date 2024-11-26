@@ -19,13 +19,14 @@
 
 #include <dmsdk/dlib/vmath.h>
 
-#include <ddf/ddf.h>
+//#include <ddf/ddf.h>
 
 #include <graphics/graphics.h>
 
-#include <render/font_ddf.h>
+//#include <render/font_ddf.h>
 
 #include "render.h"
+#include "font.h"
 
 namespace dmRender
 {
@@ -35,138 +36,6 @@ namespace dmRender
         FONT_GLYPH_COMPRESSION_NONE = 0,
         FONT_GLYPH_COMPRESSION_DEFLATE = 1,
     };
-
-    typedef dmRenderDDF::GlyphBank::Glyph FontGlyph;
-    typedef FontGlyph* (*FGetGlyph)(uint32_t codepoint, void* user_ctx);
-    typedef void*  (*FGetGlyphData)(uint32_t codepoint, void* user_ctx, uint32_t* out_size, uint32_t* out_compression, uint32_t* out_width, uint32_t* out_height);
-
-    /**
-     * Font map parameters supplied to NewFontMap
-     */
-    struct FontMapParams
-    {
-        /// Default constructor
-        FontMapParams();
-
-        FGetGlyph       m_GetGlyph;
-        FGetGlyphData   m_GetGlyphData;
-
-        dmhash_t        m_NameHash;
-
-        /// Offset of the shadow along the x-axis
-        float m_ShadowX;
-        /// Offset of the shadow along the y-axis
-        float m_ShadowY;
-        /// Max ascent of font
-        float m_MaxAscent;
-        /// Max descent of font, positive value
-        float m_MaxDescent;
-        /// Value to scale SDF texture values with
-        float m_SdfSpread;
-        /// Value to offset SDF texture values with
-        float m_SdfOffset;
-        /// Distance value where outline should end
-        float m_SdfOutline;
-        /// Distance value where shadow should end
-        float m_SdfShadow;
-        /// Font alpha
-        float m_Alpha;
-        /// Font outline alpha
-        float m_OutlineAlpha;
-        /// Font shadow alpha
-        float m_ShadowAlpha;
-
-        uint32_t m_CacheWidth;
-        uint32_t m_CacheHeight;
-        uint32_t m_CacheCellWidth;
-        uint32_t m_CacheCellHeight;
-        uint32_t m_CacheCellMaxAscent;
-        uint8_t m_GlyphChannels; // How many bitmap channels
-        uint8_t m_CacheCellPadding;
-        uint8_t m_LayerMask;
-
-        uint8_t m_IsMonospaced:1;
-        uint8_t m_Padding:7;
-
-        dmRenderDDF::FontTextureFormat m_ImageFormat;
-    };
-
-    /**
-     * Font metrics about a text string
-     */
-    struct TextMetrics
-    {
-        /// Total string width
-        float m_Width;
-        /// Total string height
-        float m_Height;
-        /// Max ascent of font
-        float m_MaxAscent;
-        /// Max descent of font, positive value
-        float m_MaxDescent;
-        /// Number of lines of text
-        uint32_t m_LineCount;
-    };
-
-    /**
-     * Input settings when getting text metrics
-     */
-    struct TextMetricsSettings
-    {
-        /// Max width. used only when line_break is true
-        float m_Width;
-        /// Allow line break
-        bool m_LineBreak;
-        ///
-        float m_Leading;
-        ///
-        float m_Tracking;
-    };
-
-    /**
-     * Create a new font map. The parameters struct is consumed and should not be read after this call.
-     * @param graphics_context Graphics context handle
-     * @param params Params used to initialize the font map
-     * @return HFontMap on success. NULL on failure
-     */
-    HFontMap NewFontMap(dmGraphics::HContext graphics_context, FontMapParams& params);
-
-    void SetFontMapCacheSize(HFontMap font_map, uint32_t cell_width, uint32_t cell_height, uint32_t max_ascent);
-    void GetFontMapCacheSize(HFontMap font_map, uint32_t* cell_width, uint32_t* cell_height, uint32_t* max_ascent);
-
-    /**
-     * Delete a font map
-     * @param font_map Font map handle
-     */
-    void DeleteFontMap(HFontMap font_map);
-
-    /**
-     * Update the font map with the specified parameters. The parameters are consumed and should not be read after this call.
-     * @param font_map Font map handle
-     * @param params Parameters to update
-     */
-    void SetFontMap(HFontMap font_map, dmGraphics::HContext graphics_context, FontMapParams& params);
-
-    /**
-     * Get texture from a font map
-     * @param font_map Font map handle
-     * @return dmGraphics::HTexture Texture handle
-     */
-    dmGraphics::HTexture GetFontMapTexture(HFontMap font_map);
-
-    /**
-     * Set font map material
-     * @param font_map Font map handle
-     * @param material Material handle
-     */
-    void SetFontMapMaterial(HFontMap font_map, HMaterial material);
-
-    /**
-     * Get font map material
-     * @param font_map Font map handle
-     * @return HMaterial handle
-     */
-    HMaterial GetFontMapMaterial(HFontMap font_map);
 
     void InitializeTextContext(HRenderContext render_context, uint32_t max_characters, uint32_t max_batches);
     void FinalizeTextContext(HRenderContext render_context);
@@ -240,36 +109,6 @@ namespace dmRender
      * @param render_context Context to use when rendering
      */
     void FlushTexts(HRenderContext render_context, uint32_t major_order, uint32_t render_order, bool final);
-
-    /**
-     * Get text metrics for string
-     * @param font_map Font map handle
-     * @param text utf8 text to get metrics for
-     * @param settings settings for getting the text metrics
-     * @param metrics Metrics, out-value
-     */
-    void GetTextMetrics(HFontMap font_map, const char* text, TextMetricsSettings* settings, TextMetrics* metrics);
-
-    /**
-     * Get the resource size for fontmap
-     * @param font_map Font map handle
-     * @return size
-     */
-    uint32_t GetFontMapResourceSize(HFontMap font_map);
-
-    /**
-     * Set the user data assigned to this font map
-     * @param font_map [type: HFontMap] Font map handle
-     * @param user_data [type: void*] the user data
-     */
-    void SetFontMapUserData(HFontMap font_map, void* user_data);
-
-    /**
-     * Get the user data assigned to this font map
-     * @param font_map [type: HFontMap] Font map handle
-     * @return user_data [type: void*] the user data
-     */
-    void* GetFontMapUserData(HFontMap font_map);
 }
 
 #endif // DM_FONT_RENDERER_H

@@ -16,8 +16,13 @@
 #define DM_FONT_RENDERER_PRIVATE
 
 #include "font_renderer.h"
-#include <dlib/utf8.h>
+#include "render_private.h"
+
+#include <dlib/align.h>
 #include <dlib/math.h>
+#include <dlib/utf8.h>
+
+#include <graphics/graphics.h>
 
 namespace dmRender
 {
@@ -28,15 +33,6 @@ namespace dmRender
         FACE    = 0x1,
         OUTLINE = 0x2,
         SHADOW  = 0x4
-    };
-
-    // We only store glyphs for our cache
-    struct CacheGlyph
-    {
-        dmRender::FontGlyph* m_Glyph;
-        uint32_t             m_Frame;
-        int16_t              m_X;
-        int16_t              m_Y;
     };
 
     struct FontMap
@@ -132,8 +128,31 @@ namespace dmRender
     };
 
     ///////////////////////////////////////////////////////////////////////////////
+    // Internal font renderer api
+
+    uint32_t GetFontVertexSize();
+
+    dmGraphics::HVertexDeclaration CreateVertexDclaration(dmGraphics::HContext context);
+
+    // Outputs a triangle list
+    // Returns number of vertices consumed from the vertex buffer
+    uint32_t CreateFontVertexData(TextContext& text_context, HFontMap font_map, const char* text, const TextEntry& te, float recip_w, float recip_h, uint8_t* vertices, uint32_t num_vertices);
+
+    ///////////////////////////////////////////////////////////////////////////////
     // Default implementation (wip, should go into the font_renderer_default.cpp)
     float GetLineTextMetrics(HFontMap font_map, float tracking, const char* text, int n, bool measure_trailing_space);
+
+    struct DM_ALIGNED(16) GlyphVertex
+    {
+        // NOTE: The struct *must* be 16-bytes aligned due to SIMD operations.
+        float m_Position[4];
+        float m_UV[2];
+        float m_FaceColor[4];
+        float m_OutlineColor[4];
+        float m_ShadowColor[4];
+        float m_SdfParams[4];
+        float m_LayerMasks[3];
+    };
 
     struct LayoutMetrics
     {
@@ -146,6 +165,8 @@ namespace dmRender
         }
     };
 
+    ///////////////////////////////////////////////////////////////////////////////
+    // Also potential helpers that should go into font_renderer_default.cpp
 
     static bool IsBreaking(uint32_t c)
     {
@@ -289,9 +310,6 @@ namespace dmRender
     // Used in unit tests
     bool VerifyFontMapMinFilter(dmRender::HFontMap font_map, dmGraphics::TextureFilter filter);
     bool VerifyFontMapMagFilter(dmRender::HFontMap font_map, dmGraphics::TextureFilter filter);
-
-    dmRender::FontGlyph* GetGlyph(dmRender::HFontMap font_map, uint32_t codepoint);
-    const uint8_t*       GetGlyphData(dmRender::HFontMap font_map, uint32_t codepoint, uint32_t* out_size, uint32_t* out_compression, uint32_t* out_width, uint32_t* out_height);
 }
 
 #endif // #ifndef DM_FONT_RENDERER_PRIVATE
