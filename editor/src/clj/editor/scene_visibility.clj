@@ -48,8 +48,8 @@
            {:label "Text" :tag :text}
            {:label "Tile Maps" :tag :tilemap}
            {:label :separator}
-           {:label "Component Guides" :tag :outline :command :toggle-component-guides :always-active true}
-           {:label "Grid" :tag :grid :always-active true}]
+           {:label "Component Guides" :tag :outline :command :toggle-component-guides :always-enabled true}
+           {:label "Grid" :tag :grid :always-enabled true}]
 
           (system/defold-dev?)
           (into [{:label :separator}
@@ -315,9 +315,12 @@
   (let [keymap (g/node-value app-view :keymap)
         command->shortcut (keymap/command->shortcut keymap)
         command->display-text (fn [command]
-                                (keymap/key-combo->display-text (get command->shortcut command)))
+                                (let [shortcut (get command->shortcut command)]
+                                  (if shortcut
+                                    (keymap/key-combo->display-text shortcut)
+                                    "")))
         make-control
-        (fn [{:keys [label tag command always-active]}]
+        (fn [{:keys [label tag command always-enabled]}]
           (if (= :separator label)
             [(Separator.) nil]
             (let [[control update-fn]
@@ -328,7 +331,7 @@
                   update-from-hidden-tags
                   (fn [hidden-tags enabled]
                     (let [checked (not (contains? hidden-tags tag))]
-                      (update-fn checked (or always-active enabled))))]
+                      (update-fn checked (or always-enabled enabled))))]
               [control update-from-hidden-tags])))
 
         tag-toggles (mapv make-control renderable-tag-toggles-info)
