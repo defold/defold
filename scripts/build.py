@@ -1278,6 +1278,7 @@ class Configuration(object):
     def copy_local_bob_artefacts(self):
         texc_name = format_lib('texc_shared', self.host)
         modelc_name = format_lib('modelc_shared', self.host)
+        shaderc_name = format_lib('shaderc_shared', self.host)
         luajit_dir = tempfile.mkdtemp()
         cwd = join(self.defold_root, 'com.dynamo.cr/com.dynamo.cr.bob')
         missing = {}
@@ -1323,7 +1324,8 @@ class Configuration(object):
                                  'share/java/shaderc.jar': 'lib/shaderc.jar',
                                  'share/builtins.zip': 'lib/builtins.zip',
                                  'lib/%s/%s' % (self.host, texc_name): 'lib/%s/%s' % (self.host, texc_name),
-                                 'lib/%s/%s' % (self.host, modelc_name): 'lib/%s/%s' % (self.host, modelc_name)},
+                                 'lib/%s/%s' % (self.host, modelc_name): 'lib/%s/%s' % (self.host, modelc_name),
+                                 'lib/%s/%s' % (self.host, shaderc_name): 'lib/%s/%s' % (self.host, shaderc_name)},
                      'android-bundling': android_files,
                      'win32-bundling': win32_files,
                      'js-bundling': js_files,
