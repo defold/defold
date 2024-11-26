@@ -41,7 +41,7 @@
 (defn- json-stream [input & {:as json-opts}]
   (reify IReduceInit
     (reduce [_ f init]
-      (with-open [reader (PushbackReader. (io/reader input))]
+      (with-open [reader (PushbackReader. (io/reader input) 64)]
         (let [eof-value reader]
           (loop [acc init]
             (let [json (apply json/read reader (into [] cat (assoc json-opts
