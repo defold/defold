@@ -796,6 +796,7 @@ var Module = {
     _archiveLoaded: false,
     _preLoadDone: false,
     _isEngineLoaded: false,
+    _isMainCalled: false,
 
     // Persistent storage
     persistentStorage: true,
@@ -1092,11 +1093,16 @@ var Module = {
     },
 
     _callMain: function(_, _) {
-        ProgressView.removeProgress();
-        if (Module.callMain === undefined) {
-            Module.noInitialRun = false;
+        if (!Module._isMainCalled) {
+            Module._isMainCalled = true;
+            ProgressView.removeProgress();
+            if (Module.callMain === undefined) {
+                Module.noInitialRun = false;
+            } else {
+                Module.callMain(Module.arguments);
+            }
         } else {
-            Module.callMain(Module.arguments);
+            console.warn("Main was called several times!");
         }
     },
     // Wrap IDBFS syncfs call with logic to avoid multiple syncs
@@ -1134,6 +1140,10 @@ Module['persistentStorage'] = (typeof window !== 'undefined') && !!(window.index
 Module['INITIAL_MEMORY'] = CUSTOM_PARAMETERS.custom_heap_size;
 
 Module['onRuntimeInitialized'] = function() {
+    window.addEventListener("error", (errorEvent) => {
+        var errorObject = Module.prepareErrorObject(errorEvent.message, errorEvent.filename, errorEvent.lineno, errorEvent.colno, errorEvent.error);
+        Module.ccall('JSWriteDump', 'null', ['string'], [JSON.stringify(errorObject.stack)]);
+    });
     Module.runApp("canvas");
 };
 
@@ -1151,13 +1161,9 @@ Module["locateFile"] = function(path, scriptDirectory)
 Module["isWASMSupported"] = false; 
 {{/DEFOLD_HAS_WASM_ENGINE}}
 
-window.onerror = function(err, url, line, column, errObj) {
-    if (typeof Module.ccall !== 'undefined') {
-        var errorObject = Module.prepareErrorObject(err, url, line, column, errObj);
-        Module.ccall('JSWriteDump', 'null', ['string'], [JSON.stringify(errorObject.stack)]);
-    }
+window.addEventListener("error", (errorEvent) => {
     Module.setStatus('Exception thrown, see JavaScript console');
     Module.setStatus = function(text) {
         if (text) Module.printErr('[post-exception status] ' + text);
     };
-};
+});
