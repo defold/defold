@@ -23,6 +23,130 @@ namespace dmRender
 {
     const uint32_t ZERO_WIDTH_SPACE_UNICODE = 0x200B;
 
+    enum RenderLayerMask
+    {
+        FACE    = 0x1,
+        OUTLINE = 0x2,
+        SHADOW  = 0x4
+    };
+
+    // We only store glyphs for our cache
+    struct CacheGlyph
+    {
+        dmRender::FontGlyph* m_Glyph;
+        uint32_t             m_Frame;
+        int16_t              m_X;
+        int16_t              m_Y;
+    };
+
+    struct FontMap
+    {
+        FontMap()
+        : m_UserData(0)
+        , m_Texture(0)
+        , m_Material(0)
+        , m_NameHash(0)
+        , m_GetGlyph(0)
+        , m_GetGlyphData(0)
+        , m_ShadowX(0.0f)
+        , m_ShadowY(0.0f)
+        , m_MaxAscent(0.0f)
+        , m_MaxDescent(0.0f)
+        , m_CellTempData(0)
+        , m_Cache(0)
+        , m_CacheIndices(0)
+        , m_CacheCursor(0)
+        , m_CacheWidth(0)
+        , m_CacheHeight(0)
+        , m_CacheCellWidth(0)
+        , m_CacheCellHeight(0)
+        , m_CacheCellMaxAscent(0)
+        , m_CacheColumns(0)
+        , m_CacheRows(0)
+        , m_CacheCellCount(0)
+        , m_CacheCellPadding(0)
+        , m_LayerMask(FACE)
+        , m_IsMonospaced(false)
+        , m_Padding(0)
+        {
+        }
+
+        ~FontMap()
+        {
+            free(m_CacheIndices);
+            m_CacheIndices = 0;
+
+            free(m_Cache);
+            m_Cache = 0;
+
+            free(m_CellTempData);
+            m_CellTempData = 0;
+
+            dmGraphics::DeleteTexture(m_Texture);
+        }
+
+        void*                   m_UserData; // The font map resources (see res_font.cpp)
+        dmGraphics::HTexture    m_Texture;
+        HMaterial               m_Material;
+        dmhash_t                m_NameHash;
+
+        FGetGlyph               m_GetGlyph;
+        FGetGlyphData           m_GetGlyphData;
+
+        float                   m_ShadowX;
+        float                   m_ShadowY;
+        float                   m_MaxAscent;
+        float                   m_MaxDescent;
+        float                   m_SdfSpread;
+        float                   m_SdfOffset;
+        float                   m_SdfOutline;
+        float                   m_SdfShadow;
+        float                   m_Alpha;
+        float                   m_OutlineAlpha;
+        float                   m_ShadowAlpha;
+
+        uint8_t*                m_CellTempData; // a temporary unpack buffer for the compressed glyphs
+
+        dmHashTable32<CacheGlyph*>  m_GlyphCache;   // Quick check what glyphs are in the cache
+        CacheGlyph*                 m_Cache;        // The data (i.e. the pool)
+        uint16_t*                   m_CacheIndices; // Indices into the cache array
+        uint32_t                    m_CacheCursor;
+
+        dmGraphics::TextureFormat m_CacheFormat;
+        dmGraphics::TextureFilter m_MinFilter;
+        dmGraphics::TextureFilter m_MagFilter;
+
+        uint32_t                m_CacheWidth;           // In texels
+        uint32_t                m_CacheHeight;          // In texels
+        uint32_t                m_CacheCellWidth;       // In texels
+        uint32_t                m_CacheCellHeight;      // In texels
+        uint32_t                m_CacheCellMaxAscent;   // In texels
+        uint32_t                m_CacheColumns;         // Number of cells in horizontal direction
+        uint32_t                m_CacheRows;            // Number of cells in horizontal direction
+        uint32_t                m_CacheCellCount;       // Number of cells in total
+        uint8_t                 m_CacheChannels;        // Number of channels
+        uint8_t                 m_CacheCellPadding;
+        uint8_t                 m_LayerMask;
+        uint8_t                 m_IsMonospaced:1;
+        uint8_t                 m_Padding:7;
+    };
+
+    ///////////////////////////////////////////////////////////////////////////////
+    // Default implementation (wip, should go into the font_renderer_default.cpp)
+    float GetLineTextMetrics(HFontMap font_map, float tracking, const char* text, int n, bool measure_trailing_space);
+
+    struct LayoutMetrics
+    {
+        HFontMap m_FontMap;
+        float m_Tracking;
+        LayoutMetrics(HFontMap font_map, float tracking) : m_FontMap(font_map), m_Tracking(tracking) {}
+        float operator()(const char* text, uint32_t n, bool measure_trailing_space)
+        {
+            return GetLineTextMetrics(m_FontMap, m_Tracking, text, n, measure_trailing_space);
+        }
+    };
+
+
     static bool IsBreaking(uint32_t c)
     {
         return c == ' ' || c == '\n' || c == ZERO_WIDTH_SPACE_UNICODE;

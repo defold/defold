@@ -70,13 +70,6 @@ namespace dmRender
         float m_LayerMasks[3];
     };
 
-    enum RenderLayerMask
-    {
-        FACE    = 0x1,
-        OUTLINE = 0x2,
-        SHADOW  = 0x4
-    };
-
     FontMapParams::FontMapParams()
     : m_GetGlyph(0)
     , m_GetGlyphData(0)
@@ -101,109 +94,6 @@ namespace dmRender
     {
 
     }
-
-    // We only store glyphs for our cache
-    struct CacheGlyph
-    {
-        dmRender::FontGlyph* m_Glyph;
-        uint32_t             m_Frame;
-        int16_t              m_X;
-        int16_t              m_Y;
-    };
-
-    struct FontMap
-    {
-        FontMap()
-        : m_UserData(0)
-        , m_Texture(0)
-        , m_Material(0)
-        , m_NameHash(0)
-        , m_GetGlyph(0)
-        , m_GetGlyphData(0)
-        , m_ShadowX(0.0f)
-        , m_ShadowY(0.0f)
-        , m_MaxAscent(0.0f)
-        , m_MaxDescent(0.0f)
-        , m_CellTempData(0)
-        , m_Cache(0)
-        , m_CacheIndices(0)
-        , m_CacheCursor(0)
-        , m_CacheWidth(0)
-        , m_CacheHeight(0)
-        , m_CacheCellWidth(0)
-        , m_CacheCellHeight(0)
-        , m_CacheCellMaxAscent(0)
-        , m_CacheColumns(0)
-        , m_CacheRows(0)
-        , m_CacheCellCount(0)
-        , m_CacheCellPadding(0)
-        , m_LayerMask(FACE)
-        , m_IsMonospaced(false)
-        , m_Padding(0)
-        {
-        }
-
-        ~FontMap()
-        {
-            free(m_CacheIndices);
-            m_CacheIndices = 0;
-
-            free(m_Cache);
-            m_Cache = 0;
-
-            free(m_CellTempData);
-            m_CellTempData = 0;
-
-            dmGraphics::DeleteTexture(m_Texture);
-        }
-
-        void*                   m_UserData; // The font map resources (see res_font.cpp)
-        dmGraphics::HTexture    m_Texture;
-        HMaterial               m_Material;
-        dmhash_t                m_NameHash;
-
-        FGetGlyph               m_GetGlyph;
-        FGetGlyphData           m_GetGlyphData;
-
-        float                   m_ShadowX;
-        float                   m_ShadowY;
-        float                   m_MaxAscent;
-        float                   m_MaxDescent;
-        float                   m_SdfSpread;
-        float                   m_SdfOffset;
-        float                   m_SdfOutline;
-        float                   m_SdfShadow;
-        float                   m_Alpha;
-        float                   m_OutlineAlpha;
-        float                   m_ShadowAlpha;
-
-        uint8_t*                m_CellTempData; // a temporary unpack buffer for the compressed glyphs
-
-        dmHashTable32<CacheGlyph*>  m_GlyphCache;   // Quick check what glyphs are in the cache
-        CacheGlyph*                 m_Cache;        // The data (i.e. the pool)
-        uint16_t*                   m_CacheIndices; // Indices into the cache array
-        uint32_t                    m_CacheCursor;
-
-        dmGraphics::TextureFormat m_CacheFormat;
-        dmGraphics::TextureFilter m_MinFilter;
-        dmGraphics::TextureFilter m_MagFilter;
-
-        uint32_t                m_CacheWidth;           // In texels
-        uint32_t                m_CacheHeight;          // In texels
-        uint32_t                m_CacheCellWidth;       // In texels
-        uint32_t                m_CacheCellHeight;      // In texels
-        uint32_t                m_CacheCellMaxAscent;   // In texels
-        uint32_t                m_CacheColumns;         // Number of cells in horizontal direction
-        uint32_t                m_CacheRows;            // Number of cells in horizontal direction
-        uint32_t                m_CacheCellCount;       // Number of cells in total
-        uint8_t                 m_CacheChannels;        // Number of channels
-        uint8_t                 m_CacheCellPadding;
-        uint8_t                 m_LayerMask;
-        uint8_t                 m_IsMonospaced:1;
-        uint8_t                 m_Padding:7;
-    };
-
-    static float GetLineTextMetrics(HFontMap font_map, float tracking, const char* text, int n, bool measure_trailing_space);
 
     static void InitFontmap(FontMapParams& params, dmGraphics::TextureParams& tex_params, uint8_t init_val)
     {
@@ -517,17 +407,6 @@ namespace dmRender
         m_StencilTestParams.Init();
     }
 
-    struct LayoutMetrics
-    {
-        HFontMap m_FontMap;
-        float m_Tracking;
-        LayoutMetrics(HFontMap font_map, float tracking) : m_FontMap(font_map), m_Tracking(tracking) {}
-        float operator()(const char* text, uint32_t n, bool measure_trailing_space)
-        {
-            return GetLineTextMetrics(m_FontMap, m_Tracking, text, n, measure_trailing_space);
-        }
-    };
-
     static dmhash_t g_TextureSizeRecipHash = dmHashString64("texture_size_recip");
 
     static dmVMath::Point3 CalcCenterPoint(HFontMap font_map, const TextEntry& te, const TextMetrics& metrics) {
@@ -615,8 +494,13 @@ namespace dmRender
         te.m_SourceBlendFactor = params.m_SourceBlendFactor;
         te.m_DestinationBlendFactor = params.m_DestinationBlendFactor;
 
+        TextMetricsSettings settings;
+        settings.m_Width = params.m_Width;
+        settings.m_LineBreak = params.m_LineBreak;
+        settings.m_Leading = params.m_Leading;
+        settings.m_Tracking = params.m_Tracking;
         TextMetrics metrics;
-        GetTextMetrics(font_map, params.m_Text, params.m_Width, params.m_LineBreak, params.m_Leading, params.m_Tracking, &metrics);
+        GetTextMetrics(font_map, params.m_Text, &settings, &metrics);
 
         // find center and radius for frustum culling
         dmVMath::Point3 centerpoint_local = CalcCenterPoint(font_map, te, metrics);
@@ -1294,67 +1178,6 @@ namespace dmRender
 
         // Always update after flushing
         text_context.m_TextEntriesFlushed = text_context.m_TextEntries.Size();
-    }
-
-    static float GetLineTextMetrics(HFontMap font_map, float tracking, const char* text, int n, bool measure_trailing_space)
-    {
-        float width = 0;
-        const char* cursor = text;
-        const FontGlyph* last = 0;
-        for (int i = 0; i < n; ++i)
-        {
-            uint32_t c = dmUtf8::NextChar(&cursor);
-            const FontGlyph* g = GetGlyph(font_map, c);
-            if (!g) {
-                continue;
-            }
-
-            last = g;
-            width += g->m_Advance + tracking;
-        }
-        if (n > 0 && 0 != last)
-        {
-            if (font_map->m_IsMonospaced) {
-                width += font_map->m_Padding;
-            }
-            else {
-                uint32_t last_width = (measure_trailing_space && last->m_Character == ' ') ? last->m_Advance : last->m_Width;
-                float last_end_point = last->m_LeftBearing + last_width;
-                float last_right_bearing = last->m_Advance - last_end_point;
-                width = width - last_right_bearing;
-            }
-            width -= tracking;
-        }
-
-        return width;
-    }
-
-    void GetTextMetrics(HFontMap font_map, const char* text, float width, bool line_break, float leading, float tracking, TextMetrics* metrics)
-    {
-        metrics->m_MaxAscent = font_map->m_MaxAscent;
-        metrics->m_MaxDescent = font_map->m_MaxDescent;
-
-        if (!line_break) {
-            width = FLT_MAX;
-        }
-
-        const uint32_t max_lines = 128;
-        dmRender::TextLine lines[max_lines];
-
-        float line_height = font_map->m_MaxAscent + font_map->m_MaxDescent;
-
-        // Trailing space characters should be ignored when measuring and
-        // rendering multiline text.
-        // For single line text we still want to include spaces when the text
-        // layout is calculated (https://github.com/defold/defold/issues/5911)
-        bool measure_trailing_space = !line_break;
-
-        LayoutMetrics lm(font_map, tracking * line_height);
-        float layout_width;
-        uint32_t num_lines = Layout(text, width, lines, max_lines, &layout_width, lm, measure_trailing_space);
-        metrics->m_Width = layout_width;
-        metrics->m_Height = num_lines * (line_height * leading) - line_height * (leading - 1.0f);
-        metrics->m_LineCount = num_lines;
     }
 
     uint32_t GetFontMapResourceSize(HFontMap font_map)

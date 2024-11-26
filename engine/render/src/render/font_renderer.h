@@ -12,8 +12,8 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef FONTRENDERER_H
-#define FONTRENDERER_H
+#ifndef DM_FONT_RENDERER_H
+#define DM_FONT_RENDERER_H
 
 #include <stdint.h>
 
@@ -106,6 +106,21 @@ namespace dmRender
         float m_MaxDescent;
         /// Number of lines of text
         uint32_t m_LineCount;
+    };
+
+    /**
+     * Input settings when getting text metrics
+     */
+    struct TextMetricsSettings
+    {
+        /// Max width. used only when line_break is true
+        float m_Width;
+        /// Allow line break
+        bool m_LineBreak;
+        ///
+        float m_Leading;
+        ///
+        float m_Tracking;
     };
 
     /**
@@ -230,11 +245,10 @@ namespace dmRender
      * Get text metrics for string
      * @param font_map Font map handle
      * @param text utf8 text to get metrics for
-     * @param width max width. used only when line_break is true
-     * @param line_break line break characters
+     * @param settings settings for getting the text metrics
      * @param metrics Metrics, out-value
      */
-    void GetTextMetrics(HFontMap font_map, const char* text, float width, bool line_break, float leading, float tracking, TextMetrics* metrics);
+    void GetTextMetrics(HFontMap font_map, const char* text, TextMetricsSettings* settings, TextMetrics* metrics);
 
     /**
      * Get the resource size for fontmap
@@ -258,4 +272,4 @@ namespace dmRender
     void* GetFontMapUserData(HFontMap font_map);
 }
 
-#endif // FONTRENDERER_H
+#endif // DM_FONT_RENDERER_H
