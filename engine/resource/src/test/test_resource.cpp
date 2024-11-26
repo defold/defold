@@ -1165,13 +1165,13 @@ TEST(RecreateTest, RecreateTestHttp)
 
     dmThread::Thread send_thread = dmThread::New(&SendReloadThread, 0x8000, 0, "reload");
 
-    uint64_t t_start = dmTime::GetTime();
+    uint64_t t_start = dmTime::GetMonotonicTime();
     do
     {
         dmTime::Sleep(1000 * 10);
         dmResource::UpdateFactory(factory);
 
-        uint64_t t = dmTime::GetTime();
+        uint64_t t = dmTime::GetMonotonicTime();
         if ((t - t_start) >= 2 * 1000000)
         {
             ASSERT_TRUE(false && "Test timed out");

@@ -183,7 +183,7 @@ namespace dmEngine
 
         // We reset the time on both events because
         // on some platforms both events will arrive when regaining focus
-        engine->m_PreviousFrameTime = dmTime::GetTime(); // we might have stalled for a long time
+        engine->m_PreviousFrameTime = dmTime::GetMonotonicTime(); // we might have stalled for a long time
 
         dmExtension::Params params;
         params.m_ConfigFile = engine->m_Config;
@@ -265,7 +265,7 @@ namespace dmEngine
         m_ModelContext.m_RenderContext = 0x0;
         m_ModelContext.m_MaxModelCount = 0;
         m_AccumFrameTime = 0;
-        m_PreviousFrameTime = dmTime::GetTime();
+        m_PreviousFrameTime = dmTime::GetMonotonicTime();
     }
 
     HEngine New(dmEngineService::HEngineService engine_service)
@@ -1479,7 +1479,7 @@ namespace dmEngine
             dmExtension::DispatchEvent( &params, &event );
         }
 
-        engine->m_PreviousFrameTime = dmTime::GetTime();
+        engine->m_PreviousFrameTime = dmTime::GetMonotonicTime();
 
         return true;
 
@@ -1584,7 +1584,7 @@ bail:
 
     static void StepFrame(HEngine engine, float dt)
     {
-        uint64_t frame_start = dmTime::GetTime();
+        uint64_t frame_start = dmTime::GetMonotonicTime();
 
         dmProfiler::SetUpdateFrequency((uint32_t)(1.0f / dt));
 
@@ -1830,7 +1830,7 @@ bail:
                 if (engine->m_UseSwVSync && engine->m_UpdateFrequency > 0)
                 {
                     DM_PROFILE("SoftwareVsync");
-                    uint64_t current = dmTime::GetTime();
+                    uint64_t current = dmTime::GetMonotonicTime();
 
                     float target_time = dt; // already pre calculated by CalcTimeStep
                     uint64_t elapsed = current - frame_start;
@@ -1838,9 +1838,9 @@ bail:
 
                     while (remainder > 500) // dont bother with less than 0.5ms
                     {
-                        uint64_t t1 = dmTime::GetTime();
+                        uint64_t t1 = dmTime::GetMonotonicTime();
                         dmTime::Sleep(100); // sleep in chunks of 0.1ms
-                        uint64_t t2 = dmTime::GetTime();
+                        uint64_t t2 = dmTime::GetMonotonicTime();
                         uint64_t slept = t2 - t1;
                         if (slept >= remainder)
                             break;
@@ -1879,7 +1879,7 @@ bail:
 
     static void CalcTimeStep(HEngine engine, float& step_dt, uint32_t& num_steps)
     {
-        uint64_t time = dmTime::GetTime();
+        uint64_t time = dmTime::GetMonotonicTime();
         uint64_t frame_time = time - engine->m_PreviousFrameTime; // The actual time between two engine frames
         engine->m_PreviousFrameTime = time;
 
