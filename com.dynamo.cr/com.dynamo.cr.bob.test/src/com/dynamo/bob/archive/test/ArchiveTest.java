@@ -54,7 +54,6 @@ public class ArchiveTest {
     private File outputDarc;
     private File outputIndex;
     private File outputData;
-    private Path resourcePackDir;
 
     private ManifestBuilder manifestBuilder;
 
@@ -116,8 +115,6 @@ public class ArchiveTest {
         outputIndex = Files.createTempFile("tmp.defold", "arci").toFile();
         outputData = Files.createTempFile("tmp.defold", "arcd").toFile();
 
-        resourcePackDir = Files.createTempDirectory("tmp.defold.resourcepack_");
-
         manifestBuilder = new ManifestBuilder();
         manifestBuilder.setResourceHashAlgorithm(HashAlgorithm.HASH_SHA1);
     }
@@ -145,7 +142,7 @@ public class ArchiveTest {
         RandomAccessFile outFileData = new RandomAccessFile(outputData, "rw");
         outFileIndex.setLength(0);
         outFileData.setLength(0);
-        ab.write(outFileIndex, outFileData, resourcePackDir, new ArrayList<String>());
+        ab.write(outFileIndex, outFileData, new ArrayList<String>());
         outFileIndex.close();
         outFileData.close();
 
@@ -169,7 +166,7 @@ public class ArchiveTest {
         RandomAccessFile outFileData = new RandomAccessFile(outputData, "rw");
         outFileIndex.setLength(0);
         outFileData.setLength(0);
-        ab.write(outFileIndex, outFileData, resourcePackDir, new ArrayList<String>());
+        ab.write(outFileIndex, outFileData, new ArrayList<String>());
         outFileIndex.close();
         outFileData.close();
 
@@ -208,7 +205,7 @@ public class ArchiveTest {
             RandomAccessFile archiveData = new RandomAccessFile(outputData, "rw");
             archiveIndex.setLength(0);
             archiveData.setLength(0);
-            instance.write(archiveIndex, archiveData, resourcePackDir, new ArrayList<String>());
+            instance.write(archiveIndex, archiveData, new ArrayList<String>());
             archiveIndex.close();
             archiveData.close();
 
@@ -289,7 +286,7 @@ public class ArchiveTest {
         // Test
         RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");
         RandomAccessFile outFileData = new RandomAccessFile(outputData, "rw");
-        instance.write(outFileIndex, outFileData, resourcePackDir, excludedResources);
+        instance.write(outFileIndex, outFileData, excludedResources);
 
         assertEquals(2, instance.getArchiveEntrySize());
         assertEquals("/main.collectionproxyc", instance.getArchiveEntry(0).getRelativeFilename());    // 987bcab01b929eb2c07877b224215c92
@@ -317,7 +314,7 @@ public class ArchiveTest {
         // Test
         RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");
         RandomAccessFile outFileData = new RandomAccessFile(outputData, "rw");
-        instance.write(outFileIndex, outFileData, resourcePackDir, excludedResources);
+        instance.write(outFileIndex, outFileData, excludedResources);
 
         assertEquals(4, instance.getArchiveEntrySize());
         assertEquals("/level1.collectionproxyc", instance.getArchiveEntry(0).getRelativeFilename());  // 617905b1d0e858ca35230357710cf5f2
@@ -347,7 +344,7 @@ public class ArchiveTest {
         // Test
         RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");
         RandomAccessFile outFileData = new RandomAccessFile(outputData, "rw");
-        instance.write(outFileIndex, outFileData, resourcePackDir, excludedResources);
+        instance.write(outFileIndex, outFileData, excludedResources);
 
         assertEquals(4, instance.getArchiveEntrySize());
         assertEquals("/shared.goc", instance.getArchiveEntry(0).getRelativeFilename());
@@ -377,7 +374,7 @@ public class ArchiveTest {
         // Test
         RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");
         RandomAccessFile outFileData = new RandomAccessFile(outputData, "rw");
-        instance.write(outFileIndex, outFileData, resourcePackDir, excludedResources);
+        instance.write(outFileIndex, outFileData, excludedResources);
 
         assertEquals(4, instance.getArchiveEntrySize());
         assertEquals("/level1.collectionproxyc", instance.getArchiveEntry(0).getRelativeFilename());  // 617905b1d0e858ca35230357710cf5f2
@@ -406,7 +403,7 @@ public class ArchiveTest {
         // Test
         RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");
         RandomAccessFile outFileData = new RandomAccessFile(outputData, "rw");
-        instance.write(outFileIndex, outFileData, resourcePackDir, excludedResources);
+        instance.write(outFileIndex, outFileData, excludedResources);
 
         assertEquals(4, instance.getArchiveEntrySize());
         assertEquals("/level1.collectionproxyc", instance.getArchiveEntry(0).getRelativeFilename());  // 617905b1d0e858ca35230357710cf5f2
@@ -438,7 +435,7 @@ public class ArchiveTest {
         // Test
         RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");
         RandomAccessFile outFileData = new RandomAccessFile(outputData, "rw");
-        instance.write(outFileIndex, outFileData, resourcePackDir, excludedResources);
+        instance.write(outFileIndex, outFileData, excludedResources);
 
         assertEquals(4, instance.getArchiveEntrySize());
         assertEquals("/level1.collectionproxyc", instance.getArchiveEntry(0).getRelativeFilename());  // 617905b1d0e858ca35230357710cf5f2
@@ -468,7 +465,7 @@ public class ArchiveTest {
         // Test
         RandomAccessFile outFileIndex = new RandomAccessFile(outputIndex, "rw");
         RandomAccessFile outFileData = new RandomAccessFile(outputData, "rw");
-        instance.write(outFileIndex, outFileData, resourcePackDir, excludedResources);
+        instance.write(outFileIndex, outFileData, excludedResources);
 
         assertEquals(2, instance.getArchiveEntrySize());
         assertEquals("/level1.collectionproxyc", instance.getArchiveEntry(0).getRelativeFilename());  // 617905b1d0e858ca35230357710cf5f2
