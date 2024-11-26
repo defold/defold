@@ -78,11 +78,12 @@ cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-macos/libmodelc_shared.dylib li
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/arm64-macos/libmodelc_shared.dylib lib/arm64-macos/libmodelc_shared.dylib
 
 # SHADERC Shared
-cp -v $DYNAMO_HOME/archive/${SHA1}/engine/arm64-macos/libshaderc_shared.dylib lib/arm64-macos/libshaderc_shared.dyl
+cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-linux/libshaderc_shared.so lib/x86_64-linux/libshaderc_shared.so
 #cp -v $DYNAMO_HOME/archive/${SHA1}/engine/arm64-linux/libshaderc_shared.so lib/arm64-linux/libshaderc_shared.so
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-win32/shaderc_shared.dll lib/x86_64-win32/shaderc_shared.dll
 cp -v $DYNAMO_HOME/archive/${SHA1}/engine/x86_64-macos/libshaderc_shared.dylib lib/x86_64-macos/libshaderc_shared.dylib
-cp -v $DYNAMO_HOME/archive/${SHA1}/engine/arm64-macos/libshaderc_shared.dylib lib/arm64-macos/libshaderc_shared.dylibib
+cp -v $DYNAMO_HOME/archive/${SHA1}/engine/arm64-macos/libshaderc_shared.dylib lib/arm64-macos/libshaderc_shared.dylib
+
 
 cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/luajit-32 libexec/x86_64-linux/luajit-32
 cp -v $DYNAMO_HOME/ext/bin/x86_64-linux/luajit-64 libexec/x86_64-linux/luajit-64
