@@ -44,6 +44,7 @@
                                          search-value-fn (when (:search-fn resource-type)
                                                            (:search-value-fn resource-type))]
                                      (when (and search-value-fn
+                                                (resource/exists? resource)
                                                 (resource/textual? resource))
                                        (let [search-value (search-value-fn node-id resource evaluation-context)]
                                          (when-not (g/error? search-value)

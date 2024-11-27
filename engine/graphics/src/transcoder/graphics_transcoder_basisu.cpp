@@ -48,7 +48,7 @@ namespace dmGraphics
     }
 
 
-#define TEX_TRANSCODE_DEBUG 1
+#define TEX_TRANSCODE_DEBUG 0
     #if defined(TEX_TRANSCODE_DEBUG)
         const char* ToString(dmGraphics::TextureFormat format)
         {

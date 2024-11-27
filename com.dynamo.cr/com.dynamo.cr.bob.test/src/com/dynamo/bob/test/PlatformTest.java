@@ -31,8 +31,10 @@ public class PlatformTest {
         assertTrue(Platform.matchPlatformAgainstOS("x86-win32",      PlatformProfile.OS.OS_ID_WINDOWS));
         assertTrue(Platform.matchPlatformAgainstOS("x86_64-win32",   PlatformProfile.OS.OS_ID_WINDOWS));
         assertTrue(Platform.matchPlatformAgainstOS("x86_64-macos",   PlatformProfile.OS.OS_ID_OSX));
+        assertTrue(Platform.matchPlatformAgainstOS("arm64-macos",    PlatformProfile.OS.OS_ID_OSX));
         assertTrue(Platform.matchPlatformAgainstOS("x86_64-linux",   PlatformProfile.OS.OS_ID_LINUX));
         assertTrue(Platform.matchPlatformAgainstOS("arm64-ios",      PlatformProfile.OS.OS_ID_IOS));
+        assertTrue(Platform.matchPlatformAgainstOS("x86_64-ios",     PlatformProfile.OS.OS_ID_IOS));
         assertTrue(Platform.matchPlatformAgainstOS("armv7-android",  PlatformProfile.OS.OS_ID_ANDROID));
         assertTrue(Platform.matchPlatformAgainstOS("js-web",         PlatformProfile.OS.OS_ID_WEB));
         assertTrue(Platform.matchPlatformAgainstOS("wasm-web",       PlatformProfile.OS.OS_ID_WEB));

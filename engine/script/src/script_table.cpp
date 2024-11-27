@@ -820,11 +820,7 @@ namespace dmScript
         size_t count = sizeof(buffer);
         va_list argp;
         va_start(argp, format);
-#if defined(_WIN32)
-        _vsnprintf_s(buffer, count, _TRUNCATE, format, argp);
-#else
         vsnprintf(buffer, count, format, argp);
-#endif
         va_end(argp);
         PushTableLogString(logger, buffer);
     }

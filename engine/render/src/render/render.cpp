@@ -119,6 +119,7 @@ namespace dmRender
         InitializeRenderScriptContext(context->m_RenderScriptContext, graphics_context, params.m_ScriptContext, params.m_CommandBufferSize);
         InitializeRenderScriptCameraContext(context, params.m_ScriptContext);
         context->m_ScriptWorld = dmScript::NewScriptWorld(context->m_ScriptContext);
+        context->m_CallbackInfo = 0x0;
 
         context->m_DebugRenderer.m_RenderContext = 0;
         if (params.m_VertexShaderDesc != 0 && params.m_VertexShaderDescSize != 0 &&
@@ -134,6 +135,8 @@ namespace dmRender
 
         context->m_MultiBufferingRequired = 0;
 
+        context->m_IsRenderPaused = 0;
+
         dmGraphics::AdapterFamily installed_adapter_family = dmGraphics::GetInstalledAdapterFamily();
         if (installed_adapter_family == dmGraphics::ADAPTER_FAMILY_VULKAN ||
             installed_adapter_family == dmGraphics::ADAPTER_FAMILY_WEBGPU ||
@@ -144,6 +147,8 @@ namespace dmRender
 
         context->m_RenderListDispatch.SetCapacity(255);
 
+        SetupContextEventCallback(context, &OnContextEvent);
+
         dmMessage::Result r = dmMessage::NewSocket(RENDER_SOCKET_NAME, &context->m_Socket);
         assert(r == dmMessage::RESULT_OK);
         return context;
@@ -153,6 +158,11 @@ namespace dmRender
     {
         if (render_context == 0x0) return RESULT_INVALID_CONTEXT;
 
+        if (render_context->m_CallbackInfo != 0x0)
+        {
+            dmScript::DestroyCallback(render_context->m_CallbackInfo);
+            render_context->m_CallbackInfo = 0x0;
+        }
         FinalizeRenderScriptContext(render_context->m_RenderScriptContext, script_context);
         FinalizeRenderScriptCameraContext(render_context);
         dmScript::DeleteScriptWorld(render_context->m_ScriptWorld);
@@ -1208,5 +1218,49 @@ namespace dmRender
         predicate->m_Tags[predicate->m_TagCount++] = tag;
         std::sort(predicate->m_Tags, predicate->m_Tags+predicate->m_TagCount);
         return RESULT_OK;
+    }
+
+    void SetupContextEventCallback(void* context, ContextEventCallback callback)
+    {
+        PlatformSetupContextEventCallback(context, callback);
+    }
+
+    void OnContextEvent(void* context, RenderContextEvent event_type)
+    {
+        RenderContext* render_context = (RenderContext*)context;
+        if (event_type == dmRender::CONTEXT_LOST)
+        {
+            SetRenderPause(render_context, 1u);
+            dmGraphics::InvalidateGraphicsHandles(render_context->m_GraphicsContext);
+        }
+        if (render_context->m_CallbackInfo != 0x0)
+        {
+            dmScript::LuaCallbackInfo* cbk = render_context->m_CallbackInfo;
+            if (!dmScript::IsCallbackValid(cbk))
+            {
+                return;
+            }
+            lua_State* L = dmScript::GetCallbackLuaContext(cbk);
+            DM_LUA_STACK_CHECK(L, 0);
+
+            if (!dmScript::SetupCallback(cbk))
+            {
+                return;
+            }
+            lua_pushinteger(L, event_type);
+            int ret = dmScript::PCall(L, 2, 0);
+            (void)ret;
+            dmScript::TeardownCallback(cbk);
+        }
+    }
+
+    void SetRenderPause(HRenderContext context, uint8_t is_paused)
+    {
+        context->m_IsRenderPaused = is_paused;
+    }
+
+    bool IsRenderPaused(HRenderContext context)
+    {
+        return context->m_IsRenderPaused;
     }
 }

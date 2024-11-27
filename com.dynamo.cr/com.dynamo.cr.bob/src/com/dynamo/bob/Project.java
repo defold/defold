@@ -242,7 +242,20 @@ public class Project {
         if (maxThreadsOpt == null) {
             return getDefaultMaxCpuThreads();
         }
-        return Integer.parseInt(maxThreadsOpt);
+        int threads = Integer.parseInt(maxThreadsOpt);
+        if (threads <= 0) {
+            threads = java.lang.Math.max(1, Runtime.getRuntime().availableProcessors() + threads);
+        }
+        return threads;
+    }
+
+    /**
+     * Returns half of the threads specified by the user, but no more than half of the available threads.
+     * @return half of specified or available threads
+     */
+    public int getHalfThreads() {
+        int halfOfAvailableThreads = Runtime.getRuntime().availableProcessors() / 2;
+        return Math.max(Math.min(halfOfAvailableThreads, getMaxCpuThreads() / 2), 1);
     }
 
     public BobProjectProperties getProjectProperties() {
@@ -295,7 +308,7 @@ public class Project {
      * @param pkg package name to be scanned
      */
     public void scan(IClassScanner scanner, String pkg) {
-        TimeProfiler.startF("scan %s", pkg);
+        TimeProfiler.start("scan %s", pkg);
         Set<String> classNames = scanner.scan(pkg);
         doScan(scanner, classNames);
         TimeProfiler.stop();
@@ -643,8 +656,8 @@ public class Project {
         buildServerHeaders.add(header);
     }
 
-    public void addPropertyFile(String filepath) {
-        propertyFiles.add(filepath);
+    public void addPropertyFile(String propertyFile) {
+        propertyFiles.add(propertyFile);
     }
 
     public void addEngineBuildDir(String dirpath) {
@@ -659,10 +672,13 @@ public class Project {
     public List<IResource> getPropertyFilesAsResources() {
         List<IResource> resources = new ArrayList<>();
         for (String propertyFile : propertyFiles) {
-            Path rootDir = Paths.get(getRootDirectory()).normalize().toAbsolutePath();
-            Path settingsFile = Paths.get(propertyFile).normalize().toAbsolutePath();
-            Path relativePath = rootDir.relativize(settingsFile);
-            resources.add(fileSystem.get(relativePath.toString()));
+            Path path = Paths.get(propertyFile);
+            if (!path.isAbsolute()) {
+                Path rootDir = Paths.get(getRootDirectory()).normalize().toAbsolutePath();
+                Path settingsFile = path.normalize().toAbsolutePath();
+                path = rootDir.relativize(settingsFile);
+            }
+            resources.add(fileSystem.get(path.getFileName().toString()));
         }
         return resources;
     }
@@ -676,12 +692,6 @@ public class Project {
      */
     public List<TaskResult> build(IProgress monitor, String... commands) throws IOException, CompileExceptionError, MultipleCompileException {
         try {
-            if (this.hasOption("build-report-html")) {
-                List<File> reportFiles = new ArrayList<>();
-                reportFiles.add(new File(this.option("build-report-html", "report.html")));
-                TimeProfiler.init(reportFiles, true);
-            }
-
             TimeProfiler.start("loadProjectFile");
             loadProjectFile();
             TimeProfiler.stop();
@@ -706,8 +716,6 @@ public class Project {
             throw e;
         } catch (Throwable e) {
             throw new CompileExceptionError(null, 0, e.getMessage(), e);
-        } finally {
-            TimeProfiler.createReport(true);
         }
     }
 
@@ -719,7 +727,22 @@ public class Project {
      */
     public void mount(IResourceScanner resourceScanner) throws IOException, CompileExceptionError {
         this.fileSystem.clearMountPoints();
+        Set<String> mounts = new HashSet<>();
         this.fileSystem.addMountPoint(new ClassLoaderMountPoint(this.fileSystem, "builtins/**", resourceScanner));
+        for (String propertyFile : propertyFiles) {
+            Path path = Paths.get(propertyFile);
+            if (path.isAbsolute()) {
+                String normalizedRoot = path.getParent().normalize().toString();
+                // do not add the same mount twice if multiple settings are passed on commandline in same directory
+                if (!mounts.contains(normalizedRoot)) {
+                    DefaultFileSystem fs = new DefaultFileSystem();
+                    fs.setRootDirectory(normalizedRoot);
+                    this.fileSystem.addMountPoint(new FileSystemMountPoint(this.fileSystem, fs));
+                    mounts.add(normalizedRoot);
+                }
+            }
+        }
+
         Map<String, File> libFiles = LibraryUtil.collectLibraryFiles(getLibPath(), this.libUrls);
         if (libFiles == null) {
             throw new CompileExceptionError("Missing libraries folder. You need to run the 'resolve' command first!");
@@ -1523,15 +1546,10 @@ public class Project {
 
         BundleHelper.throwIfCanceled(monitor);
         m.beginTask("Building...", tasks.size());
-        TimeProfiler.start("Build tasks");
-        TimeProfiler.addData("TasksCount", tasks.size());
-
         BundleHelper.throwIfCanceled(monitor);
         List<TaskResult> result = runTasks(m);
         BundleHelper.throwIfCanceled(monitor);
         m.done();
-
-        TimeProfiler.stop();
 
         // Generate and save build report
         TimeProfiler.start("Generating build size report");
@@ -1632,9 +1650,7 @@ public class Project {
                     final String[] platforms = getPlatformStrings();
                     Future<Void> remoteBuildFuture = null;
                     // Get or build engine binary
-                    TimeProfiler.start("hasNativeExtensions");
                     boolean shouldBuildRemoteEngine = ExtenderUtil.hasNativeExtensions(this);
-                    TimeProfiler.stop();
                     boolean shouldBuildProject = shouldBuildEngine() && BundleHelper.isArchiveIncluded(this);
                     TimeProfiler.stop();
 
@@ -1723,217 +1739,29 @@ public class Project {
 
 
 
+
     @SuppressWarnings({ "rawtypes", "unchecked" })
     private List<TaskResult> runTasks(IProgress monitor) throws IOException, CompileExceptionError {
-        // set of all completed tasks. The set includes both task run
-        // in this session and task already completed (output already exists with correct signatures, see below)
-        // the set also contains failed tasks
-        Set<Task> completedTasks = new HashSet<>();
 
-        // the set of all output files generated
-        // in this or previous session
-        Set<IResource> completedOutputs = new HashSet<>();
+        // tasks are now built in parallel which means that we no longer want
+        // to use all the cores just for texture generation
+        TextureGenerator.maxThreads = getHalfThreads();
 
-        List<TaskResult> result = new ArrayList<>();
+        TaskBuilder taskBuilder = new TaskBuilder(getTasks(), this);
 
-        List<Task> buildTasks = new ArrayList<>(this.getTasks());
-        // set of *all* possible output files
-        Set<IResource> allOutputs = new HashSet<>();
-        for (Task task : this.getTasks()) {
-            allOutputs.addAll(task.getOutputs());
-        }
-        tasks.clear();
-
-        TextureGenerator.maxThreads = getMaxCpuThreads();
-
-        // Keep track of the paths for all outputs
-        outputs = new HashMap<>(allOutputs.size());
-        for (IResource res : allOutputs) {
+        // create mapping between output and flags
+        outputs.clear();
+        for (IResource res : taskBuilder.getAllOutputs()) {
             outputs.put(res.getAbsPath(), EnumSet.noneOf(OutputFlags.class));
         }
 
-        // This flag is set to true as soon as one task has failed. This will
-        // break out of the outer loop after the remaining tasks has been tried once.
-        // NOTE The underlying problem is that if a task fails and has dependent
-        // tasks, the dependent tasks will be tried forever. It should be solved
-        // by marking all dependent tasks as failed instead of this flag.
-        boolean taskFailed = false;
-        // This flag is needed to determine if at least one file was built or taken from the cache.
-        // It is used to know whether GameProjectBuilder.build() (the builder for `game.project`)
-        // needs to be executed.
-        boolean buildContainsChanges = false;
-run:
-        while (completedTasks.size() < buildTasks.size()) {
-            for (Task task : buildTasks) {
-                BundleHelper.throwIfCanceled(monitor);
-
-                // deps are the task input files generated by another task not yet completed,
-                // i.e. "solve" the dependency graph
-                Set<IResource> deps = new HashSet<>(task.getInputs());
-                deps.retainAll(allOutputs);
-                deps.removeAll(completedOutputs);
-                if (deps.size() > 0) {
-                    // postpone task. dependent input not yet generated
-                    continue;
-                }
-
-                final List<IResource> outputResources = task.getOutputs();
-
-                // do all output files exist?
-                boolean allOutputExists = true;
-                for (IResource r : outputResources) {
-                    if (!r.exists()) {
-                        allOutputExists = false;
-                        break;
-                    }
-                }
-
-                // compare all task signature. current task signature between previous
-                // signature from state on disk
-                byte[] taskSignature = task.calculateSignature();
-                boolean allSigsEquals = true;
-                for (IResource r : outputResources) {
-                    byte[] s = state.getSignature(r.getAbsPath());
-                    if (!Arrays.equals(s, taskSignature)) {
-                        allSigsEquals = false;
-                        break;
-                    }
-                }
-
-                // game.project is always the last task
-                boolean isLastTask = completedTasks.size() + 1 == buildTasks.size();
-                boolean shouldRun = !completedTasks.contains(task);
-                // GameProjectBuilder creates archives, and it is always the last task.
-                // If for some reason it's not, something went wrong, and the build pipeline is broken.
-                // But some tests may run build for some particular files without building game.project at all.
-                shouldRun = shouldRun && (!allOutputExists || !allSigsEquals ||
-                            (isLastTask && buildContainsChanges && (task.getBuilder().isGameProjectBuilder())));
-
-                if (!shouldRun) {
-                    if (allOutputExists && allSigsEquals)
-                    {
-                        // Task is successfully completed now or in a previous build.
-                        // Only if the conditions in the if-statements are true add the task to the completed set and the
-                        // output files to the completed output set
-                        completedTasks.add(task);
-                        completedOutputs.addAll(outputResources);
-                    }
-
-                    monitor.worked(1);
-                    continue;
-                }
-
-                TimeProfiler.start(task.getName());
-                TimeProfiler.addData("output", StringUtil.truncate(task.getOutputsString(), 1000));
-                TimeProfiler.addData("type", "buildTask");
-
-                completedTasks.add(task);
-
-                TaskResult taskResult = new TaskResult(task);
-                result.add(taskResult);
-                Builder builder = task.getBuilder();
-                boolean ok = true;
-                int lineNumber = 0;
-                String message = null;
-                Throwable exception = null;
-                boolean abort = false;
-                Map<IResource, String> outputResourceToCacheKey = new HashMap<IResource, String>();
-                try {
-                    if (task.isCacheable() && resourceCache.isCacheEnabled()) {
-                        // check if all output resources exist in the resource cache
-                        boolean allResourcesCached = true;
-                        for (IResource r : outputResources) {
-                            final String key = ResourceCacheKey.calculate(task, options, r);
-                            outputResourceToCacheKey.put(r, key);
-                            if (!r.isCacheable()) {
-                                allResourcesCached = false;
-                            }
-                            else if (!resourceCache.contains(key)) {
-                                allResourcesCached = false;
-                            }
-                        }
-
-                        // all resources exist in the cache
-                        // copy them to the output
-                        if (allResourcesCached) {
-                            TimeProfiler.addData("takenFromCache", true);
-                            for (IResource r : outputResources) {
-                                r.setContent(resourceCache.get(outputResourceToCacheKey.get(r)));
-                            }
-                        }
-                        // build task and cache output
-                        else {
-                            builder.build(task);
-                            for (IResource r : outputResources) {
-                                state.putSignature(r.getAbsPath(), taskSignature);
-                                if (r.isCacheable()) {
-                                    resourceCache.put(outputResourceToCacheKey.get(r), r.getContent());
-                                }
-                            }
-                        }
-                    }
-                    else {
-                        builder.build(task);
-                        for (IResource r : outputResources) {
-                            state.putSignature(r.getAbsPath(), taskSignature);
-                        }
-                    }
-                    builder.clearState();
-                    monitor.worked(1);
-                    buildContainsChanges = true;
-
-                    for (IResource r : outputResources) {
-                        if (!r.exists()) {
-                            message = String.format("Output '%s' not found", r.getAbsPath());
-                            ok = false;
-                            break;
-                        }
-                    }
-                    completedOutputs.addAll(outputResources);
-                    TimeProfiler.stop();
-
-                } catch (CompileExceptionError e) {
-                    TimeProfiler.stop();
-                    ok = false;
-                    lineNumber = e.getLineNumber();
-                    message = e.getMessage();
-                } catch (Throwable e) {
-                    TimeProfiler.stop();
-                    ok = false;
-                    message = e.getMessage();
-                    exception = e;
-                    abort = true;
-
-                    // to fix the issue it's easier to see the actual callstack
-                    exception.printStackTrace(new java.io.PrintStream(System.out));
-                }
-                if (!ok) {
-                    taskFailed = true;
-                    taskResult.setOk(ok);
-                    taskResult.setLineNumber(lineNumber);
-                    taskResult.setMessage(message);
-                    taskResult.setException(exception);
-                    // Clear sigs for all outputs when a task fails
-                    for (IResource r : outputResources) {
-                        state.putSignature(r.getAbsPath(), new byte[0]);
-                    }
-                    if (abort) {
-                        break run;
-                    }
-                }
-            }
-            if (taskFailed) {
-                break;
-            }
-            // set of *all* possible output files
-            // TODO: do we really need this?
-            // It seems like we never create new tasks during building process
-            for (Task task : this.getTasks()) {
-                allOutputs.addAll(task.getOutputs());
-            }
-            buildTasks.addAll(this.getTasks());
-            tasks.clear();
+        // build all tasks and make sure no new tasks were created while building
+        tasks.clear();
+        List<TaskResult> result = taskBuilder.build(monitor);
+        if (!tasks.isEmpty()) {
+            throw new CompileExceptionError("New tasks were created while tasks were building");
         }
+
         return result;
     }
 
@@ -1995,7 +1823,7 @@ run:
             subProgress.beginTask("Download archive(s)", count);
             logInfo("Downloading %d archive(s)", count);
             for (int i = 0; i < count; ++i) {
-                TimeProfiler.startF("Lib %2d", i);
+                TimeProfiler.start("Lib %2d", i);
                 BundleHelper.throwIfCanceled(progress);
                 URL url = libUrls.get(i);
                 File f = libFiles.get(url.toString());
@@ -2164,6 +1992,22 @@ run:
      */
     public Map<String, String> getOptions() {
         return options;
+    }
+
+    /**
+     * Get the project build state
+     * @return The project build state
+     */
+    public State getState() {
+        return state;
+    }
+
+    /**
+     * Get the resource cache for this project
+     * @return The project resource cache
+     */
+    public ResourceCache getResourceCache() {
+        return resourceCache;
     }
 
     public IResource getResource(String path) {

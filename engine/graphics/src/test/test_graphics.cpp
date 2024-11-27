@@ -1372,8 +1372,8 @@ TEST_F(dmGraphicsTest, TestTextureAsync)
         dmGraphics::SetTextureAsync(textures[i], params, TestTextureAsyncCallback, (void*) (values + i));
     }
 
-    uint64_t stop_time = dmTime::GetTime() + 1*1e6; // 1 second
-    while(!all_complete && dmTime::GetTime() < stop_time)
+    uint64_t stop_time = dmTime::GetMonotonicTime() + 1*1e6; // 1 second
+    while(!all_complete && dmTime::GetMonotonicTime() < stop_time)
     {
         dmJobThread::Update(m_JobThread);
         all_complete = true;
@@ -1402,8 +1402,8 @@ TEST_F(dmGraphicsTest, TestTextureAsync)
     }
 
     all_complete = false;
-    stop_time = dmTime::GetTime() + 1*1e6; // 1 second
-    while(!all_complete && dmTime::GetTime() < stop_time)
+    stop_time = dmTime::GetMonotonicTime() + 1*1e6; // 1 second
+    while(!all_complete && dmTime::GetMonotonicTime() < stop_time)
     {
         dmJobThread::Update(m_JobThread);
         all_complete = true;
@@ -1433,8 +1433,8 @@ enum SyncronizedWaitCondition
 static bool WaitUntilSyncronizedTextures(dmGraphics::HContext graphics_context, dmJobThread::HContext job_thread, dmGraphics::HTexture* textures, uint32_t texture_count, SyncronizedWaitCondition cond)
 {
     bool all_complete = false;
-    uint64_t stop_time = dmTime::GetTime() + 1*1e6; // 1 second
-    while(!all_complete && dmTime::GetTime() < stop_time)
+    uint64_t stop_time = dmTime::GetMonotonicTime() + 1*1e6; // 1 second
+    while(!all_complete && dmTime::GetMonotonicTime() < stop_time)
     {
         dmJobThread::Update(job_thread);
         all_complete = true;

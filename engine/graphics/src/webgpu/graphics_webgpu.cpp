@@ -2938,6 +2938,8 @@ static void WebGPUCloseWindow(HContext _context)
     }
 }
 
+static void WebGPUInvalidateGraphicsHandles(HContext context) { }
+
 static GraphicsAdapterFunctionTable WebGPURegisterFunctionTable()
 {
     GraphicsAdapterFunctionTable fn_table = {};

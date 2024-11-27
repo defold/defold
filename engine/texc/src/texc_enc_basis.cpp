@@ -103,7 +103,7 @@ namespace dmTexc
         }
     }
 
-    static bool EncodeBasis(Texture* texture, int num_threads, PixelFormat pixel_format, CompressionType compression_type, CompressionLevel compression_level)
+    static bool EncodeBasis(TextureImpl* texture, int num_threads, PixelFormat pixel_format, CompressionType compression_type, CompressionLevel compression_level)
     {
         (void)pixel_format;
 
@@ -208,7 +208,7 @@ namespace dmTexc
         return true;
     }
 
-    bool CreateBasis(Texture* texture, uint32_t width, uint32_t height, PixelFormat pixel_format, ColorSpace color_space, CompressionType compression_type, void* data)
+    bool CreateBasis(TextureImpl* texture, uint32_t width, uint32_t height, PixelFormat pixel_format, ColorSpace color_space, CompressionType compression_type, void* data)
     {
         static int first = 1;
         if (first)
@@ -237,18 +237,18 @@ namespace dmTexc
         return true;
     }
 
-    void DestroyBasis(Texture* texture)
+    void DestroyBasis(TextureImpl* texture)
     {
         (void)texture;
     }
 
-    bool GenMipMapsBasis(Texture* texture)
+    bool GenMipMapsBasis(TextureImpl* texture)
     {
         texture->m_BasisGenMipmaps = true;
         return true; // we're actually delaying it until later
     }
 
-    bool ResizeBasis(Texture* texture, uint32_t width, uint32_t height)
+    bool ResizeBasis(TextureImpl* texture, uint32_t width, uint32_t height)
     {
         basisu::image tmp(width, height);
         basisu::image_resample(texture->m_BasisImage, tmp);
@@ -258,18 +258,18 @@ namespace dmTexc
         return true;
     }
 
-    uint32_t GetTotalDataSizeBasis(Texture* texture)
+    uint32_t GetTotalDataSizeBasis(TextureImpl* texture)
     {
         return texture->m_BasisFile.Size();
     }
 
-    uint32_t GetDataBasis(Texture* texture, void* out_data, uint32_t out_data_size)
+    uint32_t GetDataBasis(TextureImpl* texture, void* out_data, uint32_t out_data_size)
     {
         memcpy(out_data, texture->m_BasisFile.Begin(), out_data_size);
         return out_data_size;
     }
 
-    bool PreMultiplyAlphaBasis(Texture* texture)
+    bool PreMultiplyAlphaBasis(TextureImpl* texture)
     {
         if (!texture->m_BasisImage.has_alpha())
             return true;
@@ -282,7 +282,7 @@ namespace dmTexc
         return true;
     }
 
-    bool FlipBasis(Texture* texture, FlipAxis flip_axis)
+    bool FlipBasis(TextureImpl* texture, FlipAxis flip_axis)
     {
         basisu::color_rgba* pixels = texture->m_BasisImage.get_ptr();
         switch(flip_axis)
@@ -301,7 +301,7 @@ namespace dmTexc
     }
 
 
-    bool GetHeaderBasis(Texture* texture, Header* out_header)
+    bool GetHeaderBasis(TextureImpl* texture, Header* out_header)
     {
         return false;
     }

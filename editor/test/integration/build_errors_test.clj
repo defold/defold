@@ -22,12 +22,13 @@
             [editor.resource :as resource]
             [editor.workspace :as workspace]
             [integration.test-util :as test-util]
-            [internal.util :as util]))
+            [internal.util :as util]
+            [util.fn :as fn]))
 
 (def ^:private project-path "test/resources/errors_project")
 
 (defn- build-error [render-error-fn-call-logger]
-  (let [calls (test-util/call-logger-calls render-error-fn-call-logger)
+  (let [calls (fn/call-logger-calls render-error-fn-call-logger)
         args (last calls)
         error-value (first args)]
     error-value))

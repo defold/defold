@@ -43,7 +43,7 @@ static luaL_Reg func[] = {
 \*-------------------------------------------------------------------------*/
 int inet_open(lua_State *L)
 {
-    lua_pushstring(L, "dns");
+    lua_pushliteral(L, "dns");
     lua_newtable(L);
 #if LUA_VERSION_NUM > 501 && !defined(LUA_COMPAT_MODULE)
     luaL_setfuncs(L, func, 0);
@@ -223,7 +223,7 @@ static int inet_global_gethostname(lua_State *L)
 {
 #if defined(__NX__)
     lua_pushnil(L);
-    lua_pushstring(L, "gethostname is unsupported on this platform");
+    lua_pushliteral(L, "gethostname is unsupported on this platform");
     return 2;
 #else
     char name[257];
@@ -324,11 +324,11 @@ static void inet_pushresolved(lua_State *L, struct hostent *hp)
     struct in_addr **addr;
     int i, resolved;
     lua_newtable(L); resolved = lua_gettop(L);
-    lua_pushstring(L, "name");
+    lua_pushliteral(L, "name");
     lua_pushstring(L, hp->h_name);
     lua_settable(L, resolved);
-    lua_pushstring(L, "ip");
-    lua_pushstring(L, "alias");
+    lua_pushliteral(L, "ip");
+    lua_pushliteral(L, "alias");
     i = 1;
     alias = hp->h_aliases;
     lua_newtable(L);

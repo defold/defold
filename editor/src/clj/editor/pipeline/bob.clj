@@ -256,7 +256,6 @@
             (let [result (Bob/invoke
                            java/class-loader
                            (->progress render-progress! task-cancelled?)
-                           #_from-editor true
                            internal-options
                            (into-array String cli-args))]
               (if (.-success result)
@@ -403,7 +402,8 @@
          build-path (workspace/build-html5-path ws)]
      (io/file build-path "__htmlLaunchDir"))))
 
-(def build-html5-bob-commands ["resolve" "build" "bundle"])
+(def rebuild-html5-bob-commands ["distclean" "resolve" "build" "bundle"])
+(def build-html5-bob-commands ["build" "bundle"])
 
 (defn build-html5-bob-options [project prefs]
   (let [output-path (build-html5-output-path project)

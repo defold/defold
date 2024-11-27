@@ -15,7 +15,8 @@
 (ns util.coll-test
   (:require [clojure.core :as core]
             [clojure.test :refer :all]
-            [util.coll :as coll])
+            [util.coll :as coll]
+            [util.fn :as fn])
   (:import [clojure.lang IPersistentVector]))
 
 (set! *warn-on-reflection* true)
@@ -99,6 +100,13 @@
       (swap! value-fn-atom assoc "item" :b)
       (is (= [1 "item"] (make-pair "item")))
       (is (= [1 :a] (make-transformed-pair "item"))))))
+
+(deftest flip-test
+  (doseq [original [[1 2] (coll/pair 1 2)]]
+    (is (instance? IPersistentVector (coll/flip original)))
+    (is (counted? (coll/flip original)))
+    (is (= 2 (count (coll/flip original))))
+    (is (= [2 1] (coll/flip original)))))
 
 (deftest flipped-pair-test
   (is (instance? IPersistentVector (coll/flipped-pair 1 2)))
@@ -330,6 +338,64 @@
               [odds evens] (coll/separate-by (comp odd? key) coll)]
           (is (identical? (meta coll) (meta odds)))
           (is (identical? (meta coll) (meta evens))))))))
+
+(deftest aggregate-into-test
+  (testing "Aggregates pairs into the specified associative."
+    (is (= {\a 5
+            \b 7
+            \c 0}
+           (coll/aggregate-into {\c 0}
+                                +
+                                (map (juxt first count)
+                                     ["apple" "book" "box"])))))
+
+  (testing "Uses supplied init values as the starting point."
+    (is (= {\a #{:init :a1 :a2}
+            \b #{:init :b1}
+            \c #{:c1}}
+           (coll/aggregate-into {\c #{:c1}}
+                                conj
+                                #{:init}
+                                (map (juxt first keyword)
+                                     ["a1" "b1" "a2"])))))
+
+  (testing "Uses values produced by supplied init function as the starting point."
+    (let [init-fn (fn/make-call-logger
+                    (fn init-fn [unseen-key]
+                      (is (contains? #{\a \b} unseen-key))
+                      (transient [])))]
+      (is (= {\a [:a1 :a2]
+              \b [:b1]}
+             (into {}
+                   (map (fn [[key value]]
+                          [key (persistent! value)]))
+                   (coll/aggregate-into {}
+                                        conj!
+                                        init-fn
+                                        (map (juxt first keyword)
+                                             ["a1" "b1" "a2"])))))
+      (is (= [[\a]
+              [\b]]
+             (fn/call-logger-calls init-fn)))))
+
+  (testing "Does nothing and returns target coll when there are no pairs."
+    (doseq [empty-pairs [nil '() [] #{} {} (sorted-set) (sorted-map) (vector-of :long)]]
+      (doseq [target-coll [(array-map) (hash-map) (sorted-map)]]
+        (let [result (coll/aggregate-into target-coll
+                                          (fn accumulate-fn [_ _] (assert false))
+                                          (fn init-fn [_] (assert false))
+                                          empty-pairs)]
+          (is (identical? target-coll result))))))
+
+  (testing "Preserves metadata."
+    (doseq [target-coll [(array-map) (hash-map) (sorted-map)]]
+      (let [original-meta {:meta-key "meta-value"}
+            original-map (with-meta target-coll original-meta)
+            altered-map (coll/aggregate-into original-map
+                                             conj
+                                             (map (juxt first keyword)
+                                                  ["a1" "b1" "a2"]))]
+        (is (identical? original-meta (meta altered-map)))))))
 
 (deftest mapcat-test
   (testing "Over collection."
