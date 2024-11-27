@@ -30,7 +30,7 @@ end
 function update(self, dt)
 	self.dt_sum = self.dt_sum + dt
 	if self.steps_count >= steps then
-		if math.abs(self.dt_sum - self.time_elapsed_sum) < epsilon then
+		if math.abs(self.dt_sum - self.time_elapsed_sum) < epsilon * steps then
 			msg.post("@system:", "exit", { code = 0 })
 		else
 			print("Too big difference between socket.get_time() and time_elapsed in timers:", math.abs(self.dt_sum - self.time_elapsed_sum))
