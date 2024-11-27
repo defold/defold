@@ -44,4 +44,18 @@ namespace dmTime
         t -= DELTA_EPOCH_IN_MICROSECS;
         return t;
     }
+
+    static uint64_t frequency = 0;
+
+    uint64_t GetMonotonicTime()
+    {
+        if (frequency == 0) {
+            LARGE_INTEGER freq;
+            QueryPerformanceFrequency(&freq);
+            frequency = freq.QuadPart;
+        }
+        LARGE_INTEGER counter;
+        QueryPerformanceCounter(&counter);
+        return (uint64_t)counter.QuadPart * 1000000ULL / frequency;
+    }
 }

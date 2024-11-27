@@ -1345,14 +1345,14 @@ TEST_P(dmSoundVerifyWavTest, Mix)
 
     dmSound::NewSoundData(params.m_Sound, params.m_SoundSize, params.m_Type, &sd, 1234);
 
-    uint64_t tstart = dmTime::GetTime();
+    uint64_t tstart = dmTime::GetMonotonicTime();
 
     dmSound::HSoundInstance instance = 0;
     r = dmSound::NewSoundInstance(sd, &instance);
     ASSERT_EQ(dmSound::RESULT_OK, r);
     ASSERT_NE((dmSound::HSoundInstance) 0, instance);
 
-    uint64_t tend = dmTime::GetTime();
+    uint64_t tend = dmTime::GetMonotonicTime();
     ASSERT_GT(250u, tend-tstart);
 
     r = dmSound::Play(instance);

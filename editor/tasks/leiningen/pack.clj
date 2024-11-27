@@ -70,11 +70,6 @@
    "$DYNAMO_HOME/ext/bin/arm64-linux/tint"              "arm64-macos/tint"
    "$DYNAMO_HOME/ext/bin/x86_64-win32/tint.exe"         "x86_64-win32/tint.exe"
 
-   "$DYNAMO_HOME/ext/bin/x86_64-macos/spirv-cross"      "x86_64-macos/spirv-cross"
-   "$DYNAMO_HOME/ext/bin/arm64-macos/spirv-cross"       "arm64-macos/spirv-cross"
-   "$DYNAMO_HOME/ext/bin/x86_64-linux/spirv-cross"      "x86_64-linux/spirv-cross"
-   "$DYNAMO_HOME/ext/bin/x86_64-win32/spirv-cross.exe"  "x86_64-win32/spirv-cross.exe"
-
    "${DYNAMO-HOME}/ext/share/luajit"                    "shared/luajit"
 
    "bundle-resources/_defold"                           "_defold"})

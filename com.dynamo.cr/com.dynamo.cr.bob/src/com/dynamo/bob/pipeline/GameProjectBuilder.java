@@ -451,7 +451,7 @@ public class GameProjectBuilder extends Builder {
 
                 // create the archive and manifest
                 ManifestBuilder manifestBuilder = createManifestBuilder(resourceGraph);
-                ArchiveBuilder archiveBuilder = new ArchiveBuilder(root, manifestBuilder, getResourcePadding());
+                ArchiveBuilder archiveBuilder = new ArchiveBuilder(root, manifestBuilder, getResourcePadding(), project);
                 createArchive(archiveBuilder, resources, archiveIndex, archiveData, excludedResources, resourcePackDirectory);
                 byte[] manifestFile = manifestBuilder.buildManifest();
 
