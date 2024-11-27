@@ -82,7 +82,6 @@ import com.defold.extender.client.ExtenderResource;
 
 import com.dynamo.bob.archive.EngineVersion;
 import com.dynamo.bob.archive.publisher.AWSPublisher;
-import com.dynamo.bob.archive.publisher.DefoldPublisher;
 import com.dynamo.bob.archive.publisher.NullPublisher;
 import com.dynamo.bob.archive.publisher.Publisher;
 import com.dynamo.bob.archive.publisher.PublisherSettings;
@@ -567,8 +566,6 @@ public class Project {
                 if (shouldPublish) {
                     if (PublisherSettings.PublishMode.Amazon.equals(settings.getMode())) {
                         this.publisher = new AWSPublisher(settings);
-                    } else if (PublisherSettings.PublishMode.Defold.equals(settings.getMode())) {
-                        this.publisher = new DefoldPublisher(settings);
                     } else if (PublisherSettings.PublishMode.Zip.equals(settings.getMode())) {
                         this.publisher = new ZipPublisher(getRootDirectory(), settings);
                     } else {

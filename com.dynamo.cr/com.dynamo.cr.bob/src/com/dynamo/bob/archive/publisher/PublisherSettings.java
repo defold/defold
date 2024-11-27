@@ -29,7 +29,7 @@ import org.apache.commons.io.IOUtils;
 public class PublisherSettings {
 
     public enum PublishMode {
-        Amazon, Defold, Zip
+        Amazon, Zip
     };
 
     private Map<String, Map<String, String>> properties = new LinkedHashMap<String, Map<String, String>>();
