@@ -19,7 +19,8 @@
 
 #include <graphics/graphics.h>
 
-#include "font_renderer_private.h"
+//#include "font_renderer_private.h"
+#include "render_private.h"             // TextEntry
 
 /**
  * Internal font rendering api
@@ -27,18 +28,37 @@
  */
 namespace dmRender
 {
+    struct FontRenderBackend;
+    typedef FontRenderBackend* HFontRenderBackend;
+
+    /**
+     * Called once during the application lifecycle
+     * @name CreateFontRenderBackend
+     * @return backend [type: HFontRenderBackend] the backend
+     */
+    HFontRenderBackend CreateFontRenderBackend();
+
+    /**
+     * Called when shutting down the engine
+     * @name DestroyFontRenderBackend
+     * @param backend [type: HFontRenderBackend] the backend
+     */
+    void DestroyFontRenderBackend(HFontRenderBackend backend);
+
     /**
      * Gets the vertex size
+     * @param backend [type: HFontRenderBackend] the backend
+     * @return size [type: uint32_t] the size of a vertex
      */
-    uint32_t GetFontVertexSize();
+    uint32_t GetFontVertexSize(HFontRenderBackend backend);
 
-    dmGraphics::HVertexDeclaration CreateVertexDeclaration(dmGraphics::HContext context);
+    dmGraphics::HVertexDeclaration CreateVertexDeclaration(HFontRenderBackend backend, dmGraphics::HContext context);
 
-    void GetTextMetrics(HFontMap font_map, const char* text, TextMetricsSettings* settings, TextMetrics* metrics);
+    void GetTextMetrics(HFontRenderBackend backend, HFontMap font_map, const char* text, TextMetricsSettings* settings, TextMetrics* metrics);
 
     // Outputs a triangle list
     // Returns number of vertices consumed from the vertex buffer
-    uint32_t CreateFontVertexData(TextContext& text_context, HFontMap font_map, const char* text, const TextEntry& te, float recip_w, float recip_h, uint8_t* vertices, uint32_t num_vertices);
+    uint32_t CreateFontVertexData(HFontRenderBackend backend, TextContext& text_context, HFontMap font_map, const char* text, const TextEntry& te, float recip_w, float recip_h, uint8_t* vertices, uint32_t num_vertices);
 }
 
 #endif // DM_FONT_RENDERER_API_H

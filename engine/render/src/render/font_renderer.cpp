@@ -49,8 +49,10 @@ namespace dmRender
 
         TextContext& text_context = render_context->m_TextContext;
 
+        text_context.m_FontRenderBackend = CreateFontRenderBackend();
+
         text_context.m_MaxVertexCount = max_characters * 6; // 6 vertices per character
-        uint32_t buffer_size = GetFontVertexSize() * text_context.m_MaxVertexCount;
+        uint32_t buffer_size = GetFontVertexSize(text_context.m_FontRenderBackend) * text_context.m_MaxVertexCount;
         text_context.m_ClientBuffer = 0x0;
         text_context.m_VertexIndex = 0;
         text_context.m_VerticesFlushed = 0;
@@ -64,7 +66,7 @@ namespace dmRender
             return;
         }
 
-        text_context.m_VertexDecl = CreateVertexDeclaration(render_context->m_GraphicsContext);
+        text_context.m_VertexDecl = CreateVertexDeclaration(text_context.m_FontRenderBackend, render_context->m_GraphicsContext);
         text_context.m_VertexBuffer = dmGraphics::NewVertexBuffer(render_context->m_GraphicsContext, buffer_size, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
 
         text_context.m_ConstantBuffers.SetCapacity(max_batches); // 1:1 index mapping with render object
@@ -100,6 +102,8 @@ namespace dmRender
         dmMemory::AlignedFree(text_context.m_ClientBuffer);
         dmGraphics::DeleteVertexBuffer(text_context.m_VertexBuffer);
         dmGraphics::DeleteVertexDeclaration(text_context.m_VertexDecl);
+
+        DestroyFontRenderBackend(text_context.m_FontRenderBackend);
     }
 
     DrawTextParams::DrawTextParams()
@@ -217,7 +221,7 @@ namespace dmRender
         settings.m_Leading = params.m_Leading;
         settings.m_Tracking = params.m_Tracking;
         TextMetrics metrics;
-        GetTextMetrics(font_map, params.m_Text, &settings, &metrics);
+        GetTextMetrics(text_context->m_FontRenderBackend, font_map, params.m_Text, &settings, &metrics);
 
         // find center and radius for frustum culling
         dmVMath::Point3 centerpoint_local = CalcCenterPoint(font_map, te, metrics);
@@ -260,7 +264,7 @@ namespace dmRender
             cache_cell_height_ratio = ((float) font_map->m_CacheCellHeight) / cache_height;
         }
 
-        uint32_t vertex_stride = GetFontVertexSize();
+        uint32_t vertex_stride = GetFontVertexSize(text_context.m_FontRenderBackend);
         uint8_t* vertices = (uint8_t*)text_context.m_ClientBuffer;
 
         if (text_context.m_RenderObjectIndex >= text_context.m_RenderObjects.Size()) {
@@ -294,7 +298,7 @@ namespace dmRender
             const TextEntry& te = *(TextEntry*) buf[*i].m_UserData;
             const char* text = &text_context.m_TextBuffer[te.m_StringOffset];
 
-            uint32_t num_vertices = CreateFontVertexData(text_context, font_map, text, te, im_recip, ih_recip, vertices + text_context.m_VertexIndex * vertex_stride, text_context.m_MaxVertexCount - text_context.m_VertexIndex);
+            uint32_t num_vertices = CreateFontVertexData(text_context.m_FontRenderBackend, text_context, font_map, text, te, im_recip, ih_recip, vertices + text_context.m_VertexIndex * vertex_stride, text_context.m_MaxVertexCount - text_context.m_VertexIndex);
             text_context.m_VertexIndex += num_vertices;
         }
 
@@ -315,7 +319,7 @@ namespace dmRender
             case dmRender::RENDER_LIST_OPERATION_END:
                 if (text_context.m_VerticesFlushed != text_context.m_VertexIndex)
                 {
-                    uint32_t vertex_size = GetFontVertexSize();
+                    uint32_t vertex_size = GetFontVertexSize(text_context.m_FontRenderBackend);
                     uint32_t buffer_size = vertex_size * text_context.m_VertexIndex;
                     dmGraphics::SetVertexBufferData(text_context.m_VertexBuffer, 0, 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
                     dmGraphics::SetVertexBufferData(text_context.m_VertexBuffer, buffer_size, text_context.m_ClientBuffer, dmGraphics::BUFFER_USAGE_STREAM_DRAW);

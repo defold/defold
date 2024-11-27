@@ -82,6 +82,7 @@ namespace dmRender
         }
 
         void*                   m_UserData; // The font map resources (see res_font.cpp)
+        HFontRenderBackend      m_FontRenderBackend;
         dmGraphics::HTexture    m_Texture;
         HMaterial               m_Material;
         dmhash_t                m_NameHash;

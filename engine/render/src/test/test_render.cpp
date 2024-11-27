@@ -105,7 +105,7 @@ protected:
         font_map_params.m_GetGlyph = GetGlyph;
         font_map_params.m_GetGlyphData = GetGlyphData;
 
-        m_SystemFontMap = dmRender::NewFontMap(m_GraphicsContext, font_map_params);
+        m_SystemFontMap = dmRender::NewFontMap(m_Context, m_GraphicsContext, font_map_params);
 
         memset(m_Glyphs, 0, sizeof(m_Glyphs));
         for (uint32_t i = 0; i < DM_ARRAY_SIZE(m_Glyphs); ++i)
@@ -148,7 +148,7 @@ TEST_F(dmRenderTest, TestFontMapTextureFiltering)
     bitmap_font_map_params.m_GetGlyph = GetGlyph;
     bitmap_font_map_params.m_GetGlyphData = GetGlyphData;
 
-    bitmap_font_map = dmRender::NewFontMap(m_GraphicsContext, bitmap_font_map_params);
+    bitmap_font_map = dmRender::NewFontMap(m_Context, m_GraphicsContext, bitmap_font_map_params);
     ASSERT_TRUE(VerifyFontMapMinFilter(bitmap_font_map, dmGraphics::TEXTURE_FILTER_LINEAR));
     ASSERT_TRUE(VerifyFontMapMagFilter(bitmap_font_map, dmGraphics::TEXTURE_FILTER_LINEAR));
     dmRender::DeleteFontMap(bitmap_font_map);

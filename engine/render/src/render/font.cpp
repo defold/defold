@@ -1,6 +1,7 @@
 
 #include "font.h"
 #include "font_renderer_private.h"
+#include "font_renderer_api.h"
 
 #include <dlib/zlib.h>
 
@@ -124,7 +125,7 @@ namespace dmRender
         }
     }
 
-    void SetFontMap(HFontMap font_map, dmGraphics::HContext graphics_context, FontMapParams& params)
+    void SetFontMap(HFontMap font_map, dmRender::HRenderContext render_context, dmGraphics::HContext graphics_context, FontMapParams& params)
     {
 
         assert(params.m_GetGlyph);
@@ -213,10 +214,10 @@ namespace dmRender
         CleanupFontmap(tex_params);
     }
 
-    HFontMap NewFontMap(dmGraphics::HContext graphics_context, FontMapParams& params)
+    HFontMap NewFontMap(dmRender::HRenderContext render_context, dmGraphics::HContext graphics_context, FontMapParams& params)
     {
         FontMap* font_map = new FontMap();
-        SetFontMap(font_map, graphics_context, params);
+        SetFontMap(font_map, render_context, graphics_context, params);
         return font_map;
     }
 
@@ -262,6 +263,11 @@ namespace dmRender
     HMaterial GetFontMapMaterial(HFontMap font_map)
     {
         return font_map->m_Material;
+    }
+
+    void GetTextMetrics(HFontMap font_map, const char* text, TextMetricsSettings* settings, TextMetrics* metrics)
+    {
+        GetTextMetrics(font_map->m_FontRenderBackend, font_map, text, settings, metrics);
     }
 
     // also used for test

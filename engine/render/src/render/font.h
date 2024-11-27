@@ -135,7 +135,7 @@ namespace dmRender
      * @param params Params used to initialize the font map
      * @return HFontMap on success. NULL on failure
      */
-    HFontMap NewFontMap(dmGraphics::HContext graphics_context, FontMapParams& params);
+    HFontMap NewFontMap(dmRender::HRenderContext render_context, dmGraphics::HContext graphics_context, FontMapParams& params);
 
     void SetFontMapCacheSize(HFontMap font_map, uint32_t cell_width, uint32_t cell_height, uint32_t max_ascent);
     void GetFontMapCacheSize(HFontMap font_map, uint32_t* cell_width, uint32_t* cell_height, uint32_t* max_ascent);
@@ -151,7 +151,7 @@ namespace dmRender
      * @param font_map Font map handle
      * @param params Parameters to update
      */
-    void SetFontMap(HFontMap font_map, dmGraphics::HContext graphics_context, FontMapParams& params);
+    void SetFontMap(HFontMap font_map, dmRender::HRenderContext render_context, dmGraphics::HContext graphics_context, FontMapParams& params);
 
     /**
      * Get texture from a font map

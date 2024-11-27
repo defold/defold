@@ -41,13 +41,32 @@ namespace dmRender
         float m_LayerMasks[3];
     };
 
-    uint32_t GetFontVertexSize()
+    struct FontRenderBackend
     {
+        // intentionally empty, as we currently don't need a context.
+        uint32_t _unused;
+    };
+
+    HFontRenderBackend CreateFontRenderBackend()
+    {
+        return new FontRenderBackend;
+    }
+
+    void DestroyFontRenderBackend(HFontRenderBackend backend)
+    {
+        delete backend;
+    }
+
+    uint32_t GetFontVertexSize(HFontRenderBackend backend)
+    {
+        (void)backend;
         return sizeof(GlyphVertex);
     }
 
-    dmGraphics::HVertexDeclaration CreateVertexDeclaration(dmGraphics::HContext context)
+    dmGraphics::HVertexDeclaration CreateVertexDeclaration(HFontRenderBackend backend, dmGraphics::HContext context)
     {
+        (void)backend;
+
         dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(context);
         dmGraphics::AddVertexStream(stream_declaration, "position", 4, dmGraphics::TYPE_FLOAT, false);
         dmGraphics::AddVertexStream(stream_declaration, "texcoord0", 2, dmGraphics::TYPE_FLOAT, false);
@@ -57,7 +76,7 @@ namespace dmRender
         dmGraphics::AddVertexStream(stream_declaration, "sdf_params", 4, dmGraphics::TYPE_FLOAT, false);
         dmGraphics::AddVertexStream(stream_declaration, "layer_mask", 3, dmGraphics::TYPE_FLOAT, false);
 
-        dmGraphics::HVertexDeclaration decl = dmGraphics::NewVertexDeclaration(context, stream_declaration, GetFontVertexSize());
+        dmGraphics::HVertexDeclaration decl = dmGraphics::NewVertexDeclaration(context, stream_declaration, GetFontVertexSize(backend));
 
         dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
 
@@ -108,9 +127,10 @@ namespace dmRender
         }
     };
 
-    void GetTextMetrics(HFontMap font_map, const char* text, TextMetricsSettings* settings, TextMetrics* metrics)
+    void GetTextMetrics(HFontRenderBackend backend, HFontMap font_map, const char* text, TextMetricsSettings* settings, TextMetrics* metrics)
     {
         DM_PROFILE(__FUNCTION__);
+        (void)backend;
 
         metrics->m_MaxAscent = font_map->m_MaxAscent;
         metrics->m_MaxDescent = font_map->m_MaxDescent;
@@ -139,9 +159,10 @@ namespace dmRender
         metrics->m_LineCount = num_lines;
     }
 
-    uint32_t CreateFontVertexData(TextContext& text_context, HFontMap font_map, const char* text, const TextEntry& te, float recip_w, float recip_h, uint8_t* _vertices, uint32_t num_vertices)
+    uint32_t CreateFontVertexData(HFontRenderBackend backend, TextContext& text_context, HFontMap font_map, const char* text, const TextEntry& te, float recip_w, float recip_h, uint8_t* _vertices, uint32_t num_vertices)
     {
         DM_PROFILE(__FUNCTION__);
+        (void)backend;
 
         GlyphVertex* vertices = (GlyphVertex*)_vertices;
 
