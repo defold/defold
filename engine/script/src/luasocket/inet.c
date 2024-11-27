@@ -228,6 +228,7 @@ static int inet_global_gethostname(lua_State *L)
 #else
     char name[257];
     name[256] = '\0';
+/// DEFOLD BEGIN
 #if !defined(__EMSCRIPTEN__)
     if (gethostname(name, 256) < 0) {
         lua_pushnil(L);
@@ -235,6 +236,7 @@ static int inet_global_gethostname(lua_State *L)
         return 2;
     } else
 #endif
+/// DEFOLD END
     {
         lua_pushstring(L, name);
         return 1;
