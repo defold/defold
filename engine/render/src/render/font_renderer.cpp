@@ -224,6 +224,7 @@ namespace dmRender
         GetTextMetrics(text_context->m_FontRenderBackend, font_map, params.m_Text, &settings, &metrics);
 
         // find center and radius for frustum culling
+        // TODO: Calculate proper AABB
         dmVMath::Point3 centerpoint_local = CalcCenterPoint(font_map, te, metrics);
         dmVMath::Point3 cornerpoint_local(centerpoint_local.getX() + metrics.m_Width/2, centerpoint_local.getY() + metrics.m_Height/2, centerpoint_local.getZ());
         dmVMath::Vector4 centerpoint_world = te.m_Transform * centerpoint_local; // transform to world coordinates
@@ -298,7 +299,7 @@ namespace dmRender
             const TextEntry& te = *(TextEntry*) buf[*i].m_UserData;
             const char* text = &text_context.m_TextBuffer[te.m_StringOffset];
 
-            uint32_t num_vertices = CreateFontVertexData(text_context.m_FontRenderBackend, text_context, font_map, text, te, im_recip, ih_recip, vertices + text_context.m_VertexIndex * vertex_stride, text_context.m_MaxVertexCount - text_context.m_VertexIndex);
+            uint32_t num_vertices = CreateFontVertexData(text_context.m_FontRenderBackend, font_map, text_context.m_Frame, text, te, im_recip, ih_recip, vertices + text_context.m_VertexIndex * vertex_stride, text_context.m_MaxVertexCount - text_context.m_VertexIndex);
             text_context.m_VertexIndex += num_vertices;
         }
 

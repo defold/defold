@@ -25,7 +25,7 @@
 
 #include "font.h"                           // for GetGlyph, TextMetri...
 #include "font_renderer_private.h"          // for RenderLayerMask
-#include "render/render_private.h"          // for TextEntry, TextContext
+#include "render/render_private.h"          // for TextEntry
 
 namespace dmRender
 {
@@ -159,7 +159,7 @@ namespace dmRender
         metrics->m_LineCount = num_lines;
     }
 
-    uint32_t CreateFontVertexData(HFontRenderBackend backend, TextContext& text_context, HFontMap font_map, const char* text, const TextEntry& te, float recip_w, float recip_h, uint8_t* _vertices, uint32_t num_vertices)
+    uint32_t CreateFontVertexData(HFontRenderBackend backend, HFontMap font_map, uint32_t frame, const char* text, const TextEntry& te, float recip_w, float recip_h, uint8_t* _vertices, uint32_t num_vertices)
     {
         DM_PROFILE(__FUNCTION__);
         (void)backend;
@@ -265,7 +265,7 @@ namespace dmRender
                         // Prepare the cache here aswell since we only count glyphs we definitely will render.
                         if (!IsInCache(font_map, c))
                         {
-                            AddGlyphToCache(font_map, text_context.m_Frame, g, px_cell_offset_y);
+                            AddGlyphToCache(font_map, frame, g, px_cell_offset_y);
                         }
 
                         CacheGlyph* cache_glyph = GetFromCache(font_map, c);
@@ -324,7 +324,7 @@ namespace dmRender
 
                     if (!IsInCache(font_map, c))
                     {
-                        AddGlyphToCache(font_map, text_context.m_Frame, glyph, px_cell_offset_y);
+                        AddGlyphToCache(font_map, frame, glyph, px_cell_offset_y);
                     }
 
                     CacheGlyph* cache_glyph = GetFromCache(font_map, c);
