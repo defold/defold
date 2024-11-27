@@ -14,7 +14,7 @@
 
 package com.defold.extension.pipeline.texture;
 
-import com.dynamo.bob.logging.Logger;
+import com.dynamo.bob.pipeline.Texc;
 
 /**
  * Implementation of our base texture compressor, using BasisU

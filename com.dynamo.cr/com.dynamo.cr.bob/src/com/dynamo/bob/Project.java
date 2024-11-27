@@ -108,7 +108,6 @@ import com.dynamo.bob.util.StringUtil;
 import com.dynamo.graphics.proto.Graphics.TextureProfiles;
 
 import com.dynamo.bob.cache.ResourceCache;
-import com.dynamo.bob.cache.ResourceCacheKey;
 
 /**
  * Project abstraction. Contains input files, builder, tasks, etc

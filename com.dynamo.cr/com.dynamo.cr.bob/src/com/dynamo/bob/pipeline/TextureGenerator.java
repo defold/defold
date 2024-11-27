@@ -292,13 +292,12 @@ public class TextureGenerator {
         byte[] bytes = byteBuffer.array();
 
         TimeProfiler.start("CreateTexture");
-        long texture = TexcLibraryJni.CreateTexture(name, width, height,
+        long textureImage = TexcLibraryJni.CreateImage(name, width, height,
                                                         Texc.PixelFormat.PF_A8B8G8R8.getValue(),
-                                                        Texc.ColorSpace.CS_SRGB.getValue(),
-                                                        texcCompressionType, bytes);
+                                                        Texc.ColorSpace.CS_SRGB.getValue(), bytes);
 
         TimeProfiler.stop();
-        if (texture == 0) {
+        if (textureImage == 0) {
             throw new TextureGeneratorException("Failed to create texture");
         }
 
@@ -338,7 +337,7 @@ public class TextureGenerator {
             // Premultiply before scale so filtering cannot introduce colour artefacts.
             if (premulAlpha && !ColorModel.getRGBdefault().isAlphaPremultiplied()) {
                 TimeProfiler.start("PreMultiplyAlpha");
-                if (!TexcLibraryJni.PreMultiplyAlpha(texture)) {
+                if (!TexcLibraryJni.PreMultiplyAlpha(textureImage)) {
                     throw new TextureGeneratorException("could not premultiply alpha");
                 }
                 TimeProfiler.stop();
@@ -346,31 +345,38 @@ public class TextureGenerator {
 
             if (width != newWidth || height != newHeight) {
                 TimeProfiler.start("Resize");
-                if (!TexcLibraryJni.Resize(texture, newWidth, newHeight)) {
+                long resizedTextureImage = TexcLibraryJni.Resize(textureImage, newWidth, newHeight);
+                if (resizedTextureImage == 0) {
                     throw new TextureGeneratorException("could not resize texture to POT");
                 }
+                textureImage = resizedTextureImage;
                 TimeProfiler.stop();
             }
 
             // Loop over all axis that should be flipped.
             for (Texc.FlipAxis flip : flipAxis) {
                 TimeProfiler.start("FlipAxis");
-                if (!TexcLibraryJni.Flip(texture, flip.getValue())) {
+                /*
+                if (!TexcLibraryJni.Flip(textureImage, flip.getValue())) {
                     throw new TextureGeneratorException("could not flip on " + flip.toString());
                 }
+                */
                 TimeProfiler.stop();
             }
 
             if (generateMipMaps) {
                 TimeProfiler.start("GenMipMaps");
-                if (!TexcLibraryJni.GenMipMaps(texture)) {
+                /*
+                if (!TexcLibraryJni.GenMipMaps(textureImage)) {
                     throw new TextureGeneratorException("could not generate mip-maps");
                 }
+                 */
                 TimeProfiler.stop();
             }
 
             TimeProfiler.start("Encode");
 
+            /*
             if (!TexcLibraryJni.Encode(texture,
                                             pixelFormat,
                                             Texc.ColorSpace.CS_SRGB.getValue(),
@@ -379,9 +385,11 @@ public class TextureGenerator {
                                             generateMipMaps, maxThreads)) {
                 throw new TextureGeneratorException("could not encode");
             }
+            */
+
             TimeProfiler.stop();
 
-            byte[] data = TexcLibraryJni.GetData(texture);
+            byte[] data = TexcLibraryJni.GetData(textureImage);
 
             TextureImage.Image.Builder raw = TextureImage.Image.newBuilder().setWidth(newWidth).setHeight(newHeight)
                     .setOriginalWidth(width).setOriginalHeight(height).setFormat(textureFormat);
@@ -401,6 +409,8 @@ public class TextureGenerator {
             int h = newHeight;
             int offset = 0;
             int mipMap = 0;
+
+            /*
             while (w != 0 || h != 0) {
                 w = Math.max(w, 1);
                 h = Math.max(h, 1);
@@ -432,16 +442,19 @@ public class TextureGenerator {
                 if (!generateMipMaps) // Run section only once for non-mipmaps
                     break;
             }
+             */
 
             raw.setData(ByteString.copyFrom(data));
             raw.setFormat(textureFormat);
             raw.setCompressionType(compressionType);
-            raw.setCompressionFlags(TexcLibraryJni.GetCompressionFlags(texture));
+
+            // What are the flags here?
+            // raw.setCompressionFlags(TexcLibraryJni.GetCompressionFlags(texture));
 
             return raw.build();
 
         } finally {
-            TexcLibraryJni.DestroyTexture(texture);
+            TexcLibraryJni.DestroyImage(textureImage);
         }
     }
 

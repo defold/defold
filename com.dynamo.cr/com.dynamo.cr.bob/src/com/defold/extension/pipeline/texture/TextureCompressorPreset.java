@@ -14,7 +14,6 @@
 
 package com.defold.extension.pipeline.texture;
 import java.util.HashMap;
-import java.util.List;
 
 /**
  * Interface for compressing a texture using settings

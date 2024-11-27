@@ -34,7 +34,7 @@ public class TextureCompressorParams {
         this.numChannels = numChannels;
     }
 
-    public int getPath() {
+    public String getPath() {
         return path;
     }
 

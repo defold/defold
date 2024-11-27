@@ -15,14 +15,11 @@
 
 package com.defold.extension.pipeline.texture;
 
-import com.defold.extension.pipeline.texture.ITextureCompressor;
-import com.defold.extension.pipeline.texture.TextureCompressorPreset;
-
 
 import com.dynamo.bob.logging.Logger;
-import java.util.ArrayList;
+import com.dynamo.bob.pipeline.TextureGenerator;
+
 import java.util.HashMap;
-import java.util.List;
 
 /**
  * Interface for compressing a texture using settings

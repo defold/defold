@@ -13,7 +13,6 @@
 // specific language governing permissions and limitations under the License.
 
 package com.defold.extension.pipeline.texture;
-package com.dynamo.bob.pipeline;
 
 import com.dynamo.bob.pipeline.Texc.ColorSpace;
 import com.dynamo.bob.pipeline.Texc.PixelFormat;
@@ -34,7 +33,7 @@ public class Image {
     private ColorSpace  colorSpace;
     private byte[]      data;
 
-    public Image(String path, int mipLevel, int width, int height, int depth, PixelFormat pixelFormat, ColorSpace colorSpace, bytes[] data) {
+    public Image(String path, int mipLevel, int width, int height, int depth, PixelFormat pixelFormat, ColorSpace colorSpace, byte[] data) {
         this.path       = path;
         this.mipLevel   = mipLevel;
         this.width      = width;
