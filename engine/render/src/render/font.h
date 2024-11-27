@@ -204,13 +204,53 @@ namespace dmRender
      */
     void* GetFontMapUserData(HFontMap font_map);
 
+    /**
+     * Gets a struct representing a slot in the glyph texture cache
+     * @param font_map [type: HFontMap] Font map handle
+     * @return cache_glyph [type: CacheGlyph*] the glyph cache info
+     */
     CacheGlyph* GetFromCache(HFontMap font_map, uint32_t c);
-    bool IsInCache(HFontMap font_map, uint32_t c);
-    void AddGlyphToCache(HFontMap font_map, uint32_t frame, dmRender::FontGlyph* g, int32_t g_offset_y);
 
+    /**
+     * Checks if a codepoint is already stored within the cache
+     * @param font_map [type: HFontMap] Font map handle
+     * @param codepoint [type: uint32_t] The unicode codepoint
+     * @return result [type: bool] true if the glyph is already cached
+     */
+    bool IsInCache(HFontMap font_map, uint32_t codepoint);
+
+    /**
+     * Adds a font glyph to the glyph texture cache
+     * @param font_map [type: HFontMap] Font map handle
+     * @param frame [type: uint32_t] The current frame number. Used to for evicting old cache entries.
+     * @param glyph [type: dmRender::FontGlyph*] The current frame number. Used to for evicting old cache entries.
+     * @param g_offset_y [type: int32_t] The offset from the top of the cache cell. Used to align the glyph with the baseline.
+     */
+    void AddGlyphToCache(HFontMap font_map, uint32_t frame, FontGlyph* glyph, int32_t g_offset_y);
+
+    /**
+     * Get the glyph from the font map given a unicode codepoint
+     * @param font_map [type: HFontMap] Font map handle
+     * @param codepoint [type: uint32_t] The unicode codepoint
+     * @return glyph [type: FontGlyph*] the glyph
+     */
     dmRender::FontGlyph* GetGlyph(dmRender::HFontMap font_map, uint32_t codepoint);
-    const uint8_t*       GetGlyphData(dmRender::HFontMap font_map, uint32_t codepoint, uint32_t* out_size, uint32_t* out_compression, uint32_t* out_width, uint32_t* out_height);
 
+    /**
+     * Get the rendered glyph image from the font map given a unicode codepoint.
+     * @param font_map [type: HFontMap] Font map handle
+     * @param codepoint [type: uint32_t] The unicode codepoint
+     * @param out_size [out] [type: uint32_t*] The size of the image data payload
+     * @param out_compression [out] [type: uint32_t*] Tells if the data is compressed. 1 = deflate, 0 = uncompressed.
+     * @param out_width [out] [type: uint32_t*] The width of the final image
+     * @param out_height [out] [type: uint32_t*] The height of the final image
+     * @return data [type: uint8_t*] the image data. See out_compression.
+     */
+    const uint8_t* GetGlyphData(dmRender::HFontMap font_map, uint32_t codepoint, uint32_t* out_size, uint32_t* out_compression, uint32_t* out_width, uint32_t* out_height);
+
+    // Used in unit tests
+    bool VerifyFontMapMinFilter(dmRender::HFontMap font_map, dmGraphics::TextureFilter filter);
+    bool VerifyFontMapMagFilter(dmRender::HFontMap font_map, dmGraphics::TextureFilter filter);
 }
 
 #endif // DM_FONT_RENDERER_DEFAULT_H
