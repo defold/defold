@@ -57,18 +57,15 @@ def gen_dc(task):
     return 0
 
 def build(bld):
+    if waflib.Options.options.skip_build_tests:
+        return
+
     platform = bld.env['PLATFORM']
 
     if 'web' in platform:
         lib_dirs = {}
         lib_dirs['library_sound.js'] = '../src/js'
         bld.env['JS_LIB_PATHS'] = lib_dirs
-
-    elif 'win32' in platform:
-        src_dir = "%s/ext/lib/%s" % (bld.env['PREFIX'], platform)
-        if not waflib.Options.options.skip_build_tests:
-          copy_file_task(bld, "%s/OpenAL32.dll" % src_dir)
-          copy_file_task(bld, "%s/wrap_oal.dll" % src_dir)
 
     wavs = ["booster_on_sfx.wav",
             "door_opening.wav",
@@ -77,48 +74,48 @@ def build(bld):
             "osc2_sin_440hz.wav",
             "def2938.wav"]
 
-    if not waflib.Options.options.skip_build_tests:
-      for rate in [22050, 32000, 44000, 44100]:
-          for tone in [440, 2000]:
-              for channels in [1, 2]:
-                  frames = 2 * rate
-                  name = '%s_tone_%d_%d_%d.wav' % (["mono", "stereo"][channels-1], tone, rate, frames)
-                  wavs.append(name)
-                  bld(target = name,
-                      tone = tone,
-                      rate = rate,
-                      frames = frames,
-                      channels = channels,
-                      ramp = False,
-                      rule = gen_tone,)
+    for tone in [440, 2000]:
+        for rate in [22050, 32000, 44000, 44100, 48000]:
+            for channels in [1, 2]:
+                for length in  [0.25, 2.0]: # seconds
+                    frames = length * rate
+                    name = '%s_tone_%d_%d_%d.wav' % (["mono", "stereo"][channels-1], tone, rate, frames)
+                    wavs.append(name)
+                    bld(target = name,
+                        tone = tone,
+                        rate = rate,
+                        frames = frames,
+                        channels = channels,
+                        ramp = False,
+                        rule = gen_tone)
 
-      for rate in [32000]:
-          for tone in [440]:
-              channels = 1
-              frames = 2 * rate
-              name = '%s_toneramp_%d_%d_%d.wav' % (["mono", "stereo"][channels-1], tone, rate, frames)
-              wavs.append(name)
-              bld(target = name,
-                  tone = tone,
-                  rate = rate,
-                  frames = frames,
-                  channels = channels,
-                  ramp = True,
-                  rule = gen_tone)
+    for rate in [32000]:
+        for tone in [440]:
+            channels = 1
+            frames = 2 * rate
+            name = '%s_toneramp_%d_%d_%d.wav' % (["mono", "stereo"][channels-1], tone, rate, frames)
+            wavs.append(name)
+            bld(target = name,
+                tone = tone,
+                rate = rate,
+                frames = frames,
+                channels = channels,
+                ramp = True,
+                rule = gen_tone)
 
-      for rate in [44100]:
-          channels = 1
-          frames = 2 * rate
-          name = '%s_dc_%d_%d.wav' % (["mono", "stereo"][channels-1], rate, frames)
-          wavs.append(name)
-          bld(target = name,
-              rate = rate,
-              frames = frames,
-              channels = channels,
-              ramp = True,
-              rule = gen_dc)
+    for rate in [44100]:
+        channels = 1
+        frames = 2 * rate
+        name = '%s_dc_%d_%d.wav' % (["mono", "stereo"][channels-1], rate, frames)
+        wavs.append(name)
+        bld(target = name,
+            rate = rate,
+            frames = frames,
+            channels = channels,
+            ramp = True,
+            rule = gen_dc)
 
-      bld.add_group()
+    bld.add_group()
 
     embedded_wavs = bld.stlib(features = 'cxx embed test',
                                      target = 'embedded_wavs',
@@ -161,7 +158,7 @@ def build(bld):
                 includes = '../../src .',
                 use = 'TESTMAIN DLIB SOCKET PROFILE_NULL sound embedded_wavs embedded_oggs'.split() + soundlibs,
                 web_libs = ['library_sound.js'],
-                exported_symbols = exported_symbols,
+                exported_symbols = exported_symbols + ['LoopBackDevice'],
                 target = 'test_sound',
                 source = 'test_sound.cpp')
 

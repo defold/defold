@@ -19,6 +19,7 @@
             [editor.lua-completion :as lua-completion]
             [editor.util :as util]
             [util.coll :as coll]
+            [util.eduction :as e]
             [util.fn :as fn]))
 
 ;; region make-prop
@@ -47,13 +48,14 @@
     :string ["string"]
     :function ["function"]
     :integer ["integer"]
+    :number ["number"]
     :table ["table"]
     :any ["any"]
     :array (when-let [item-types (infer-doc-types-from-coercer-schema (:item schema))]
              [(str (group-doc-types item-types) "[]")])
     nil))
 
-(defn- ^{:arglists '([name & {:keys [coerce required types doc]}])} make-prop
+(defn ^{:arglists '([name & {:keys [coerce required types doc]}])} make-prop
   "Construct a prop definition map
 
   Args:
@@ -388,7 +390,7 @@
 
 ;; region component definitions
 
-(defn- props-doc-html [props]
+(defn props-doc-html [props]
   (lua-completion/args-doc-html
     (map #(update % :name name) props)))
 
@@ -717,43 +719,42 @@ end)</code></pre>"})
                   input-with-issue-props)}))
 
 (defn script-docs
-  "Returns reducible with all ui-related script doc maps"
+  "Returns a vector with all ui-related script doc maps"
   []
   (let [add-ns-prefix #(str "editor.ui." %)]
-    (eduction
-      cat
-      (map #(update % :name add-ns-prefix))
-      [(eduction
-         (map component->script-doc)
-         [horizontal-component
-          vertical-component
-          grid-component
-          separator-component
-          scroll-component
-          label-component
-          paragraph-component
-          heading-component
-          icon-component
-          button-component
-          check-box-component
-          select-box-component
-          ;; We don't need these components for the initial release, but we
-          ;; might want to add them later on:
-          #_text-field-component
-          #_value-field-component
-          string-field-component
-          integer-field-component
-          number-field-component
-          dialog-button-component
-          dialog-component])
-       [show-dialog-doc
-        function-component-doc
-        external-file-field-doc
-        resource-field-doc
-        show-external-file-dialog-doc
-        show-external-directory-dialog-doc
-        show-resource-dialog-doc
-        use-state-doc
-        use-memo-doc]])))
-
+    (->> (e/concat
+           (e/map
+             component->script-doc
+             [horizontal-component
+              vertical-component
+              grid-component
+              separator-component
+              scroll-component
+              label-component
+              paragraph-component
+              heading-component
+              icon-component
+              button-component
+              check-box-component
+              select-box-component
+              ;; We don't need these components for the initial release, but we
+              ;; might want to add them later on:
+              #_text-field-component
+              #_value-field-component
+              string-field-component
+              integer-field-component
+              number-field-component
+              dialog-button-component
+              dialog-component])
+           [show-dialog-doc
+            function-component-doc
+            external-file-field-doc
+            resource-field-doc
+            show-external-file-dialog-doc
+            show-external-directory-dialog-doc
+            show-resource-dialog-doc
+            use-state-doc
+            use-memo-doc])
+         (e/map #(update % :name add-ns-prefix))
+         vec)))
 ;; endregion

@@ -82,17 +82,17 @@ public class BundlerTest {
     private Platform platform;
 
     private final String ANDROID_MANIFEST = "<?xml version=\"1.0\" encoding=\"utf-8\"?>"
-    	+ "<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" package=\"com.example\" android:versionCode=\"1\">"
-    	+ "  <application android:label=\"Minimal Android Application\">"
-    	+ "    <activity android:name=\".MainActivity\" android:label=\"Hello World\">"
-    	+ "      <intent-filter>"
-    	+ "        <action android:name=\"android.intent.action.MAIN\" />"
-    	+ "        <category android:name=\"android.intent.category.DEFAULT\" />"
-    	+ "        <category android:name=\"android.intent.category.LAUNCHER\" />"
-    	+ "      </intent-filter>"
-    	+ "    </activity>"
-    	+ "  </application>"
-    	+ "</manifest>";
+        + "<manifest xmlns:android=\"http://schemas.android.com/apk/res/android\" package=\"com.example\" android:versionCode=\"1\">"
+        + "  <application android:label=\"Minimal Android Application\">"
+        + "    <activity android:name=\".MainActivity\" android:label=\"Hello World\">"
+        + "      <intent-filter>"
+        + "        <action android:name=\"android.intent.action.MAIN\" />"
+        + "        <category android:name=\"android.intent.category.DEFAULT\" />"
+        + "        <category android:name=\"android.intent.category.LAUNCHER\" />"
+        + "      </intent-filter>"
+        + "    </activity>"
+        + "  </application>"
+        + "</manifest>";
 
     @Parameters
     public static Collection<Platform[]> data() {
@@ -224,15 +224,11 @@ public class BundlerTest {
                 List<String> names = Arrays.asList(
                     exeName,
                     "Info.plist",
-                    "Icon.png",
-                    "Icon@2x.png",
-                    "Icon-60@2x.png",
-                    "Icon-60@3x.png",
-                    "Icon-72.png",
-                    "Icon-72@2x.png",
-                    "Icon-76.png",
-                    "Icon-76@2x.png",
-                    "Icon-167.png"
+                    "AppIcon60x60@2x.png",
+                    "AppIcon60x60@3x.png",
+                    "AppIcon76x76@2x~ipad.png",
+                    "AppIcon83.5x83.5@2x~ipad.png",
+                    "AppIcon76x76~ipad.png"
                 );
                 for (String name : names) {
                     File file = new File(outputDirFile, name);
@@ -546,9 +542,7 @@ public class BundlerTest {
                 expectedFiles.add("unnamed.exe");
                 expectedFiles.add("game.public.der");
                 expectedFiles.add("game.dmanifest");
-                expectedFiles.add("OpenAL32.dll");
                 expectedFiles.add("game.arci");
-                expectedFiles.add("wrap_oal.dll");
                 expectedFiles.add("game.arcd");
                 expectedFiles.add("game.projectc");
                 break;
@@ -613,15 +607,11 @@ public class BundlerTest {
                 expectedFiles.add("Payload/unnamed.app/game.dmanifest");
                 expectedFiles.add("Payload/unnamed.app/game.projectc");
                 expectedFiles.add("Payload/unnamed.app/game.public.der");
-                expectedFiles.add("Payload/unnamed.app/Icon-167.png");
-                expectedFiles.add("Payload/unnamed.app/Icon-60@2x.png");
-                expectedFiles.add("Payload/unnamed.app/Icon-60@3x.png");
-                expectedFiles.add("Payload/unnamed.app/Icon-72.png");
-                expectedFiles.add("Payload/unnamed.app/Icon-72@2x.png");
-                expectedFiles.add("Payload/unnamed.app/Icon-76.png");
-                expectedFiles.add("Payload/unnamed.app/Icon-76@2x.png");
-                expectedFiles.add("Payload/unnamed.app/Icon.png");
-                expectedFiles.add("Payload/unnamed.app/Icon@2x.png");
+                expectedFiles.add("Payload/unnamed.app/AppIcon60x60@2x.png");
+                expectedFiles.add("Payload/unnamed.app/AppIcon60x60@3x.png");
+                expectedFiles.add("Payload/unnamed.app/AppIcon76x76@2x~ipad.png");
+                expectedFiles.add("Payload/unnamed.app/AppIcon83.5x83.5@2x~ipad.png");
+                expectedFiles.add("Payload/unnamed.app/AppIcon76x76~ipad.png");
                 break;
             case X86_64MacOS:
             case Arm64MacOS:

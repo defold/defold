@@ -685,11 +685,11 @@ namespace dmGameObject
                     lua_pushinteger(L, (lua_Integer) t.m_DY);
                     lua_settable(L, -3);
 
-                    lua_pushstring(L, "screen_dx");
+                    lua_pushliteral(L, "screen_dx");
                     lua_pushnumber(L, (lua_Integer) t.m_ScreenDX);
                     lua_rawset(L, -3);
 
-                    lua_pushstring(L, "screen_dy");
+                    lua_pushliteral(L, "screen_dy");
                     lua_pushnumber(L, (lua_Integer) t.m_ScreenDY);
                     lua_rawset(L, -3);
 
@@ -703,7 +703,7 @@ namespace dmGameObject
                 int tc = params.m_InputAction->m_TextCount;
                 lua_pushliteral(L, "text");
                 if (tc == 0) {
-                    lua_pushstring(L, "");
+                    lua_pushliteral(L, "");
                 } else {
                     lua_pushlstring(L, params.m_InputAction->m_Text, tc);
                 }

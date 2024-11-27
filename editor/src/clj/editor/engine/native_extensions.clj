@@ -69,7 +69,9 @@
    (.getPair Platform/X86_64Win32)  {:platform      "x86_64-win32"
                                      :library-paths #{"win32" "x86_64-win32"}}
    (.getPair Platform/X86_64Linux)  {:platform      "x86_64-linux"
-                                     :library-paths #{"linux" "x86_64-linux"}}})
+                                     :library-paths #{"linux" "x86_64-linux"}}
+   (.getPair Platform/Arm64Linux)   {:platform      "arm64-linux"
+                                     :library-paths #{"linux" "arm64-linux"}}})
 
 (def ^:private common-extension-paths
   [["ext.manifest"]

@@ -40,9 +40,9 @@ uint8_t default_data_l[4] =
         255, 0, 0, 255
 };
 
-static dmTexc::HTexture CreateDefaultL8(dmTexc::CompressionType compression_type)
+static dmTexc::Texture* CreateDefaultL8(dmTexc::CompressionType compression_type)
 {
-    return dmTexc::Create(0, 2, 2, dmTexc::PF_L8, dmTexc::CS_LRGB, compression_type, default_data_l);
+    return dmTexc::CreateTexture(0, 2, 2, dmTexc::PF_L8, dmTexc::CS_LRGB, compression_type, default_data_l);
 }
 
 uint16_t default_data_l8a8[4] =
@@ -50,9 +50,9 @@ uint16_t default_data_l8a8[4] =
         0xffff, 0xff00, 0xff00, 0xffff,
 };
 
-static dmTexc::HTexture CreateDefaultL8A8(dmTexc::CompressionType compression_type)
+static dmTexc::Texture* CreateDefaultL8A8(dmTexc::CompressionType compression_type)
 {
-    return dmTexc::Create(0, 2, 2, dmTexc::PF_L8A8, dmTexc::CS_LRGB, compression_type, default_data_l8a8);
+    return dmTexc::CreateTexture(0, 2, 2, dmTexc::PF_L8A8, dmTexc::CS_LRGB, compression_type, default_data_l8a8);
 }
 
 uint16_t default_data_rgb_565[4] =
@@ -63,9 +63,9 @@ uint16_t default_data_rgb_565[4] =
     dmTexc::RGB888ToRGB565(0xff, 0xff, 0xff),
 };
 
-static dmTexc::HTexture CreateDefaultRGB16(dmTexc::CompressionType compression_type)
+static dmTexc::Texture* CreateDefaultRGB16(dmTexc::CompressionType compression_type)
 {
-    return dmTexc::Create(0, 2, 2, dmTexc::PF_R5G6B5, dmTexc::CS_LRGB, compression_type, default_data_rgb_565);
+    return dmTexc::CreateTexture(0, 2, 2, dmTexc::PF_R5G6B5, dmTexc::CS_LRGB, compression_type, default_data_rgb_565);
 }
 
 uint8_t default_data_rgb_888[4*3] =
@@ -76,9 +76,9 @@ uint8_t default_data_rgb_888[4*3] =
         255, 255, 255
 };
 
-static dmTexc::HTexture CreateDefaultRGB24(dmTexc::CompressionType compression_type)
+static dmTexc::Texture* CreateDefaultRGB24(dmTexc::CompressionType compression_type)
 {
-    return dmTexc::Create(0, 2, 2, dmTexc::PF_R8G8B8, dmTexc::CS_LRGB, compression_type, default_data_rgb_888);
+    return dmTexc::CreateTexture(0, 2, 2, dmTexc::PF_R8G8B8, dmTexc::CS_LRGB, compression_type, default_data_rgb_888);
 }
 
 uint8_t default_data_rgba_8888[4*4] =
@@ -89,9 +89,9 @@ uint8_t default_data_rgba_8888[4*4] =
         255, 255, 255, 255
 };
 
-static dmTexc::HTexture CreateDefaultRGBA32(dmTexc::CompressionType compression_type)
+static dmTexc::Texture* CreateDefaultRGBA32(dmTexc::CompressionType compression_type)
 {
-    return dmTexc::Create(0, 2, 2, dmTexc::PF_R8G8B8A8, dmTexc::CS_LRGB, compression_type, default_data_rgba_8888);
+    return dmTexc::CreateTexture(0, 2, 2, dmTexc::PF_R8G8B8A8, dmTexc::CS_LRGB, compression_type, default_data_rgba_8888);
 }
 
 uint16_t default_data_rgba_4444[4] =
@@ -102,16 +102,16 @@ uint16_t default_data_rgba_4444[4] =
         dmTexc::RGBA8888ToRGBA4444(255, 255, 255, 255)
 };
 
-static dmTexc::HTexture CreateDefaultRGBA16(dmTexc::CompressionType compression_type)
+static dmTexc::Texture* CreateDefaultRGBA16(dmTexc::CompressionType compression_type)
 {
-    return dmTexc::Create(0, 2, 2, dmTexc::PF_R4G4B4A4, dmTexc::CS_LRGB, dmTexc::CT_DEFAULT, default_data_rgba_4444);
+    return dmTexc::CreateTexture(0, 2, 2, dmTexc::PF_R4G4B4A4, dmTexc::CS_LRGB, dmTexc::CT_DEFAULT, default_data_rgba_4444);
 }
 
 
 
 struct Format
 {
-    dmTexc::HTexture (*m_CreateFn)(dmTexc::CompressionType);
+    dmTexc::Texture* (*m_CreateFn)(dmTexc::CompressionType);
     uint32_t m_BytesPerPixel;
     void* m_DefaultData;
     dmTexc::CompressionType m_CompressionType;
@@ -135,8 +135,8 @@ TEST_F(TexcTest, Load)
     for (uint32_t i = 0; i < format_count ; ++i)
     {
         Format& format = formats[i];
-        dmTexc::HTexture texture = (*format.m_CreateFn)(format.m_CompressionType);
-        ASSERT_NE(dmTexc::INVALID_TEXTURE, texture);
+        dmTexc::Texture* texture = (*format.m_CreateFn)(format.m_CompressionType);
+        ASSERT_NE((dmTexc::Texture*)0, texture);
         dmTexc::Header header;
         dmTexc::GetHeader(texture, &header);
         ASSERT_EQ(2u, header.m_Width);
@@ -150,7 +150,7 @@ TEST_F(TexcTest, Load)
         ASSERT_TRUE(result);
         ASSERT_ARRAY_EQ_LEN(expected_rgba, out, sizeof(out));
 
-        dmTexc::Destroy(texture);
+        dmTexc::DestroyTexture(texture);
     }
 }
 
@@ -174,7 +174,7 @@ TEST_F(TexcTest, Resize)
     {
         Format& format = formats[i];
 
-        dmTexc::HTexture texture = (*format.m_CreateFn)(format.m_CompressionType);
+        dmTexc::Texture* texture = (*format.m_CreateFn)(format.m_CompressionType);
         dmTexc::Header header;
 
         dmTexc::GetData(texture, orig, sizeof(orig));
@@ -202,7 +202,7 @@ TEST_F(TexcTest, Resize)
         ox=owidth-1; oy=oheight-1; rx=rwidth-1; ry=rheight-1;
         ComparePixel(&orig[ox*bpp+oy*owidth*bpp],      &resized[rx*bpp+ry*rwidth*bpp], 4);
 
-        dmTexc::Destroy(texture);
+        dmTexc::DestroyTexture(texture);
     }
 }
 
@@ -212,9 +212,9 @@ TEST_F(TexcTest, PreMultipliedAlpha)
     for (uint32_t i = 0; i < format_count; ++i)
     {
         Format& format = formats[i];
-        dmTexc::HTexture texture = (*format.m_CreateFn)(format.m_CompressionType);
+        dmTexc::Texture* texture = (*format.m_CreateFn)(format.m_CompressionType);
         ASSERT_TRUE(dmTexc::PreMultiplyAlpha(texture));
-        dmTexc::Destroy(texture);
+        dmTexc::DestroyTexture(texture);
     }
 }
 
@@ -223,9 +223,9 @@ TEST_F(TexcTest, MipMaps)
     for (uint32_t i = 0; i < format_count; ++i)
     {
         Format& format = formats[i];
-        dmTexc::HTexture texture = (*format.m_CreateFn)(format.m_CompressionType);
+        dmTexc::Texture* texture = (*format.m_CreateFn)(format.m_CompressionType);
         ASSERT_TRUE(dmTexc::GenMipMaps(texture));
-        dmTexc::Destroy(texture);
+        dmTexc::DestroyTexture(texture);
     }
 }
 
@@ -253,7 +253,7 @@ TEST_F(TexcTest, FlipAxis)
     const uint8_t white[4] = {255, 255, 255, 255};
 
     uint8_t out[4*4];
-    dmTexc::HTexture texture = CreateDefaultRGBA32(dmTexc::CT_DEFAULT);
+    dmTexc::Texture* texture = CreateDefaultRGBA32(dmTexc::CT_DEFAULT);
 
     // Original values
     dmTexc::GetData(texture, out, 16);
@@ -298,7 +298,7 @@ TEST_F(TexcTest, FlipAxis)
     ASSERT_RGBA(out+8,  green);
     ASSERT_RGBA(out+12,   red);
 
-    dmTexc::Destroy(texture);
+    dmTexc::DestroyTexture(texture);
 }
 
 #undef ASSERT_RGBA
@@ -454,16 +454,16 @@ protected:
         uint8_t* image = stbi_load(info.m_Path, &m_Width, &m_Height, 0, 0);
         ASSERT_TRUE(image != 0);
 
-        m_Texture = dmTexc::Create(info.m_Path, m_Width, m_Height, info.m_InputFormat, info.m_ColorSpace, info.m_CompressionType, image);
+        m_Texture = dmTexc::CreateTexture(info.m_Path, m_Width, m_Height, info.m_InputFormat, info.m_ColorSpace, info.m_CompressionType, image);
         printf("image: %s   %u x %u\n", info.m_Path, m_Width, m_Height);
     }
 
     virtual void TearDown()
     {
-        dmTexc::Destroy(m_Texture);
+        dmTexc::DestroyTexture(m_Texture);
     }
 
-    dmTexc::HTexture m_Texture;
+    dmTexc::Texture* m_Texture;
     int m_Width;
     int m_Height;
 };

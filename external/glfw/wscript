@@ -40,7 +40,7 @@ def configure(conf):
 
     platform = conf.env.PLATFORM
 
-    if platform == "linux" or platform == "x86_64-linux":
+    if platform in ["x86_64-linux", "arm64-linux"]:
         conf.env.append_value('CFLAGS', ['-DGL_GLEXT_PROTOTYPES', '-D_GLFW_HAS_GLXGETPROCADDRESS', '-D_GLFW_USE_LINUX_JOYSTICKS', '-D_GLFW_HAS_PTHREAD', '-D_GLFW_HAS_SCHED_YIELD', '-D_GLFW_HAS_SYSCONF'])
 
     dynamo_home = conf.env.DYNAMO_HOME
@@ -58,7 +58,7 @@ def configure(conf):
             conf.env.append_value('LINKFLAGS', ['-framework', 'OpenGLES'])
     elif re.match('arm.*?android', platform):
         conf.env.append_value('LINKFLAGS', ['-lEGL', '-lGLESv1_CM', '-lGLESv2', '-landroid'])
-    elif platform == "linux" or platform == "x86_64-linux":
+    elif platform in ["x86_64-linux", "arm64-linux"]:
         conf.env['LIB_X'] = ['Xext', 'X11', 'Xi', 'GL', 'GLU']
     elif 'win32' in platform:
         conf.env.append_value('LINKFLAGS', ['opengl32.lib', 'user32.lib', 'xinput9_1_0.lib', 'glu32.lib'])
@@ -93,14 +93,14 @@ def build(bld):
             outdir      ='java',
             source_root = 'java')
 
-        bld.env['JAVACFLAGS'] = '-g -source 1.7 -target 1.7'.split()
+        bld.env['JAVACFLAGS'] = '-g -source 1.8 -target 1.8'.split()
 
         bld(features = 'jar seq',
             basedir  = 'java',
             destfile = 'glfw_android.jar')
 
         bld.install_files('${PREFIX}/%s/share/java' % name, 'glfw_android.jar')
-    if 'web' in bld.env['PLATFORM']:
+    elif 'web' in bld.env['PLATFORM']:
         bld.install_files('${PREFIX}/%s/lib/%s/js' % (name, bld.env['PLATFORM']), 'js/library_glfw.js')
 
     TestContext.initialize_test_context(test_context, bld)

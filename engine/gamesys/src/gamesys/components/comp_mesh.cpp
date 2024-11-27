@@ -409,20 +409,24 @@ namespace dmGameSystem
         uint32_t index = (uint32_t)*params.m_UserData;
         MeshComponent* component = world->m_Components.Get(index);
         dmResource::HFactory factory = dmGameObject::GetFactory(params.m_Instance);
-        if (component->m_Material) {
-            dmResource::Release(factory, component->m_Material);
-        }
-        for (uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i) {
-            if (component->m_Textures[i]) {
-                dmResource::Release(factory, component->m_Textures[i]);
-            }
-        }
 
         dmGameSystem::BufferResource* br = GetVerticesBuffer(component, component->m_Resource);
 
         if (dmRender::GetMaterialVertexSpace(GetMaterial(component, component->m_Resource)) == dmRenderDDF::MaterialDesc::VERTEX_SPACE_LOCAL) {
             DecRefVertexBuffer(world, br->m_NameHash);
         }
+
+        if (component->m_Material)
+        {
+            dmResource::Release(factory, component->m_Material);
+        }
+
+        for (uint32_t i = 0; i < MAX_TEXTURE_COUNT; ++i) {
+            if (component->m_Textures[i]) {
+                dmResource::Release(factory, component->m_Textures[i]);
+            }
+        }
+
         if (component->m_BufferResource) {
             dmResource::Release(factory, component->m_BufferResource);
         }

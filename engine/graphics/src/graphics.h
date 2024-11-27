@@ -861,6 +861,8 @@ namespace dmGraphics
         return 0;
     }
 
+    void InvalidateGraphicsHandles(HContext context);
+
     /**
      * Get status of texture.
      *

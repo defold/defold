@@ -1587,6 +1587,10 @@ namespace dmGraphics
         assert(asset_handle <= MAX_ASSET_HANDLE_VALUE);
         return g_functions.m_IsAssetHandleValid(context, asset_handle);
     }
+    void InvalidateGraphicsHandles(HContext context)
+    {
+        g_functions.m_InvalidateGraphicsHandles(context);
+    }
     HComputeProgram NewComputeProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
         assert(ddf->m_ShaderType == dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE);

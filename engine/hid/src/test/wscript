@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 import os
-from waf_dynamo import platform_supports_feature
+from waf_dynamo import platform_supports_feature, platform_glfw_version
 from BuildUtility import create_build_utility
 from waflib import Options
 
@@ -34,7 +34,8 @@ def build(bld):
     if platform_supports_feature(bld.env.PLATFORM, 'vulkan', {}) and Options.options.with_vulkan:
         graphics_lib_symbols += ['GraphicsAdapterVulkan']
         graphics_lib += ['GRAPHICS_VULKAN', 'VULKAN']
-        platform_lib = ['PLATFORM_VULKAN']
+        if platform_glfw_version(bld.env.PLATFORM) == 3:
+            platform_lib = ['PLATFORM_VULKAN']
 
     if len(graphics_lib_symbols) == 0:
         graphics_lib = ['GRAPHICS_NULL']

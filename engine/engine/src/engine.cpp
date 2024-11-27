@@ -183,7 +183,7 @@ namespace dmEngine
 
         // We reset the time on both events because
         // on some platforms both events will arrive when regaining focus
-        engine->m_PreviousFrameTime = dmTime::GetTime(); // we might have stalled for a long time
+        engine->m_PreviousFrameTime = dmTime::GetMonotonicTime(); // we might have stalled for a long time
 
         dmExtension::Params params;
         params.m_ConfigFile = engine->m_Config;
@@ -265,7 +265,7 @@ namespace dmEngine
         m_ModelContext.m_RenderContext = 0x0;
         m_ModelContext.m_MaxModelCount = 0;
         m_AccumFrameTime = 0;
-        m_PreviousFrameTime = dmTime::GetTime();
+        m_PreviousFrameTime = dmTime::GetMonotonicTime();
     }
 
     HEngine New(dmEngineService::HEngineService engine_service)
@@ -1097,7 +1097,8 @@ namespace dmEngine
         engine->m_ParticleFXContext.m_RenderContext = engine->m_RenderContext;
         engine->m_ParticleFXContext.m_MaxParticleFXCount = dmConfigFile::GetInt(engine->m_Config, dmParticle::MAX_INSTANCE_COUNT_KEY, 64);
         engine->m_ParticleFXContext.m_MaxEmitterCount = dmConfigFile::GetInt(engine->m_Config, dmParticle::MAX_EMITTER_COUNT_KEY, 64);
-        engine->m_ParticleFXContext.m_MaxParticleCount = dmConfigFile::GetInt(engine->m_Config, dmParticle::MAX_PARTICLE_COUNT_KEY, 1024);
+        engine->m_ParticleFXContext.m_MaxParticleCount = dmConfigFile::GetInt(engine->m_Config, dmParticle::MAX_PARTICLE_GPU_COUNT_KEY, 1024);
+        engine->m_ParticleFXContext.m_MaxParticleBufferCount = dmConfigFile::GetInt(engine->m_Config, dmParticle::MAX_PARTICLE_CPU_COUNT_KEY, 1024);
         engine->m_ParticleFXContext.m_Debug = false;
 
         dmInput::NewContextParams input_params;
@@ -1479,7 +1480,7 @@ namespace dmEngine
             dmExtension::DispatchEvent( &params, &event );
         }
 
-        engine->m_PreviousFrameTime = dmTime::GetTime();
+        engine->m_PreviousFrameTime = dmTime::GetMonotonicTime();
 
         return true;
 
@@ -1584,11 +1585,12 @@ bail:
 
     static void StepFrame(HEngine engine, float dt)
     {
-        uint64_t frame_start = dmTime::GetTime();
+        uint64_t frame_start = dmTime::GetMonotonicTime();
 
         dmProfiler::SetUpdateFrequency((uint32_t)(1.0f / dt));
 
-        if (dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, dmPlatform::WINDOW_STATE_ICONIFIED))
+        if (dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, dmPlatform::WINDOW_STATE_ICONIFIED)
+            && !dmRender::IsRenderPaused(engine->m_RenderContext))
         {
             if (!engine->m_WasIconified)
             {
@@ -1728,7 +1730,8 @@ bail:
                 dmGameObject::Update(engine->m_MainCollection, &update_context);
 
                 // Don't render while iconified
-                if (!dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, dmPlatform::WINDOW_STATE_ICONIFIED))
+                if (!dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, dmPlatform::WINDOW_STATE_ICONIFIED)
+                    && !dmRender::IsRenderPaused(engine->m_RenderContext))
                 {
                     // Call pre render functions for extensions, if available.
                     // We do it here before we render rest of the frame
@@ -1778,7 +1781,10 @@ bail:
                 dmGameObject::PostUpdate(engine->m_MainCollection);
                 dmGameObject::PostUpdate(engine->m_Register);
 
-                dmRender::ClearRenderObjects(engine->m_RenderContext);
+                if (!dmRender::IsRenderPaused(engine->m_RenderContext))
+                {
+                    dmRender::ClearRenderObjects(engine->m_RenderContext);
+                }
 
 
                 dmMessage::Dispatch(engine->m_SystemSocket, Dispatch, engine);
@@ -1800,67 +1806,70 @@ bail:
                 dmEngineService::Update(engine->m_EngineService, profile);
             }
 
+            if (!dmRender::IsRenderPaused(engine->m_RenderContext))
+            {
 #if !defined(DM_RELEASE)
-            dmProfiler::RenderProfiler(profile, engine->m_GraphicsContext, engine->m_RenderContext, ResFontGetHandle(engine->m_SystemFont));
+                dmProfiler::RenderProfiler(profile, engine->m_GraphicsContext, engine->m_RenderContext, ResFontGetHandle(engine->m_SystemFont));
 #endif
-            // Call post render functions for extensions, if available.
-            // We do it here at the end of the frame (before swap buffers/flip)
-            // in case any extension wants to render just before the Flip().
-            // Don't do this while iconified
-            if (!dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, dmPlatform::WINDOW_STATE_ICONIFIED))
-            {
-                dmExtension::Params ext_params;
-                ext_params.m_ConfigFile = engine->m_Config;
-                ext_params.m_ResourceFactory = engine->m_Factory;
-                if (engine->m_SharedScriptContext) {
-                    ext_params.m_L = dmScript::GetLuaState(engine->m_SharedScriptContext);
-                } else {
-                    ext_params.m_L = dmScript::GetLuaState(engine->m_GOScriptContext);
-                }
-                dmExtension::PostRender(&ext_params);
-            }
-
-            if (engine->m_UseSwVSync && engine->m_UpdateFrequency > 0)
-            {
-                DM_PROFILE("SoftwareVsync");
-                uint64_t current = dmTime::GetTime();
-
-                float target_time = dt; // already pre calculated by CalcTimeStep
-                uint64_t elapsed = current - frame_start;
-                uint64_t remainder = uint64_t(target_time*1000000) - elapsed;
-
-                while (remainder > 500) // dont bother with less than 0.5ms
+                // Call post render functions for extensions, if available.
+                // We do it here at the end of the frame (before swap buffers/flip)
+                // in case any extension wants to render just before the Flip().
+                // Don't do this while iconified
+                if (!dmGraphics::GetWindowStateParam(engine->m_GraphicsContext, dmPlatform::WINDOW_STATE_ICONIFIED))
                 {
-                    uint64_t t1 = dmTime::GetTime();
-                    dmTime::Sleep(100); // sleep in chunks of 0.1ms
-                    uint64_t t2 = dmTime::GetTime();
-                    uint64_t slept = t2 - t1;
-                    if (slept >= remainder)
-                        break;
-                    remainder -= slept;
+                    dmExtension::Params ext_params;
+                    ext_params.m_ConfigFile = engine->m_Config;
+                    ext_params.m_ResourceFactory = engine->m_Factory;
+                    if (engine->m_SharedScriptContext) {
+                        ext_params.m_L = dmScript::GetLuaState(engine->m_SharedScriptContext);
+                    } else {
+                        ext_params.m_L = dmScript::GetLuaState(engine->m_GOScriptContext);
+                    }
+                    dmExtension::PostRender(&ext_params);
                 }
-            }
 
-            dmGraphics::Flip(engine->m_GraphicsContext);
-
-            RecordData* record_data = &engine->m_RecordData;
-            if (record_data->m_Recorder)
-            {
-                if (record_data->m_FrameCount % record_data->m_FramePeriod == 0)
+                if (engine->m_UseSwVSync && engine->m_UpdateFrequency > 0)
                 {
-                    uint32_t width = dmGraphics::GetWidth(engine->m_GraphicsContext);
-                    uint32_t height = dmGraphics::GetHeight(engine->m_GraphicsContext);
-                    uint32_t buffer_size = width * height * 4;
+                    DM_PROFILE("SoftwareVsync");
+                    uint64_t current = dmTime::GetMonotonicTime();
 
-                    dmGraphics::ReadPixels(engine->m_GraphicsContext, record_data->m_Buffer, buffer_size);
+                    float target_time = dt; // already pre calculated by CalcTimeStep
+                    uint64_t elapsed = current - frame_start;
+                    uint64_t remainder = uint64_t(target_time*1000000) - elapsed;
 
-                    dmRecord::Result r = dmRecord::RecordFrame(record_data->m_Recorder, record_data->m_Buffer, buffer_size, dmRecord::BUFFER_FORMAT_BGRA);
-                    if (r != dmRecord::RESULT_OK)
+                    while (remainder > 500) // dont bother with less than 0.5ms
                     {
-                        dmLogError("Error while recoding frame (%d)", r);
+                        uint64_t t1 = dmTime::GetMonotonicTime();
+                        dmTime::Sleep(100); // sleep in chunks of 0.1ms
+                        uint64_t t2 = dmTime::GetMonotonicTime();
+                        uint64_t slept = t2 - t1;
+                        if (slept >= remainder)
+                            break;
+                        remainder -= slept;
                     }
                 }
-                record_data->m_FrameCount++;
+
+                dmGraphics::Flip(engine->m_GraphicsContext);
+
+                RecordData* record_data = &engine->m_RecordData;
+                if (record_data->m_Recorder)
+                {
+                    if (record_data->m_FrameCount % record_data->m_FramePeriod == 0)
+                    {
+                        uint32_t width = dmGraphics::GetWidth(engine->m_GraphicsContext);
+                        uint32_t height = dmGraphics::GetHeight(engine->m_GraphicsContext);
+                        uint32_t buffer_size = width * height * 4;
+
+                        dmGraphics::ReadPixels(engine->m_GraphicsContext, record_data->m_Buffer, buffer_size);
+
+                        dmRecord::Result r = dmRecord::RecordFrame(record_data->m_Recorder, record_data->m_Buffer, buffer_size, dmRecord::BUFFER_FORMAT_BGRA);
+                        if (r != dmRecord::RESULT_OK)
+                        {
+                            dmLogError("Error while recoding frame (%d)", r);
+                        }
+                    }
+                    record_data->m_FrameCount++;
+                }
             }
         }
         dmProfile::EndFrame(profile);
@@ -1871,7 +1880,7 @@ bail:
 
     static void CalcTimeStep(HEngine engine, float& step_dt, uint32_t& num_steps)
     {
-        uint64_t time = dmTime::GetTime();
+        uint64_t time = dmTime::GetMonotonicTime();
         uint64_t frame_time = time - engine->m_PreviousFrameTime; // The actual time between two engine frames
         engine->m_PreviousFrameTime = time;
 
@@ -2083,6 +2092,10 @@ bail:
                     dmGameObject::LuaLoad(factory, self->m_GuiScriptContext, &run_script->m_Module);
                     dmGameObject::LuaLoad(factory, self->m_RenderScriptContext, &run_script->m_Module);
                 }
+            }
+            else if (descriptor == dmSystemDDF::ResumeRendering::m_DDFDescriptor)
+            {
+                dmRender::SetRenderPause(self->m_RenderContext, 0u);
             }
             else
             {

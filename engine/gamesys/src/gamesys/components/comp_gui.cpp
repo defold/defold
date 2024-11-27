@@ -124,6 +124,7 @@ namespace dmGameSystem
         uint32_t                    m_MaxGuiComponents;
         uint32_t                    m_MaxParticleFXCount;
         uint32_t                    m_MaxParticleCount;
+        uint32_t                    m_MaxParticleBufferCount;
         uint32_t                    m_MaxAnimationCount;
     };
 
@@ -378,6 +379,7 @@ namespace dmGameSystem
 
         gui_world->m_MaxParticleFXCount = gui_context->m_MaxParticleFXCount;
         gui_world->m_MaxParticleCount = gui_context->m_MaxParticleCount;
+        gui_world->m_MaxParticleBufferCount = gui_context->m_MaxParticleBufferCount;
         gui_world->m_ParticleContext = dmParticle::CreateContext(gui_world->m_MaxParticleFXCount, gui_world->m_MaxParticleCount);
         gui_world->m_MaxAnimationCount = gui_context->m_MaxAnimationCount;
 
@@ -3095,6 +3097,7 @@ namespace dmGameSystem
         gui_context->m_MaxParticleFXCount = dmConfigFile::GetInt(ctx->m_Config, "gui.max_particlefx_count", 64);
         gui_context->m_MaxParticleCount = dmConfigFile::GetInt(ctx->m_Config, "gui.max_particle_count", 1024);
         gui_context->m_MaxAnimationCount = dmConfigFile::GetInt(ctx->m_Config, "gui.max_animation_count", 1024);
+        gui_context->m_MaxParticleBufferCount = dmConfigFile::GetInt(ctx->m_Config, "gui.max_particle_buffer_count", 1024);
 
         int32_t max_gui_count = dmConfigFile::GetInt(ctx->m_Config, "gui.max_instance_count", 128);
         gui_context->m_Worlds.SetCapacity(max_gui_count);

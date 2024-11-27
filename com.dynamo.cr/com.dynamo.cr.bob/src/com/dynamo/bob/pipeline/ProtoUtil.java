@@ -26,8 +26,8 @@ import com.google.protobuf.TextFormat;
 public class ProtoUtil {
 
     public static void merge(IResource input, Builder builder) throws IOException, CompileExceptionError {
-        byte[] content = input.getContent();
-        if (content == null) {
+        byte[] inputContent = input.getContent();
+        if (inputContent == null) {
             if (!input.exists()) {
                 throw new CompileExceptionError(input, 0, "Resource does not exist");
             }
@@ -35,8 +35,12 @@ public class ProtoUtil {
                 throw new CompileExceptionError(input, 0, "Resource is empty");
             }
         }
+        merge(input, inputContent, builder);
+    }
+
+    public static void merge(IResource input, byte[] inputContent, Builder builder) throws IOException, CompileExceptionError {
         try {
-            TextFormat.merge(new String(content), builder);
+            TextFormat.merge(new String(inputContent), builder);
         } catch (TextFormat.ParseException e) {
             // 1:7: String missing ending quote.
             Pattern pattern = Pattern.compile("(\\d+):(\\d+): (.*)");

@@ -1917,11 +1917,16 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
             float geo_width = (float)CheckFieldValue<int>(L, -1, "width", 0);
             float geo_height = (float)CheckFieldValue<int>(L, -1, "height",  0);
 
-            geometry.m_PivotX = CheckFieldValue<float>(L, -1, "pivot_x", geo_width * 0.5);
-            geometry.m_PivotY = CheckFieldValue<float>(L, -1, "pivot_y", geo_height * 0.5);
+            // pivot in unit space, where (0,0) is top left of image, (1,1) is bottom right
+            float pivot_x = CheckFieldValue<float>(L, -1, "pivot_x", 0.5f);
+            float pivot_y = CheckFieldValue<float>(L, -1, "pivot_y", 0.5f);
 
             lua_pop(L, 1);
             // End of lua table interaction
+
+            // default SpriteGeometry pivot is (0,0) which is middle of image.
+            geometry.m_PivotX =        pivot_x - 0.5f;
+            geometry.m_PivotY = 1.0f - pivot_y - 0.5f;
 
             // Legacy, we should have required the user to specify width/height from the start
             if (geo_width == 0 || geo_height == 0)
@@ -1937,10 +1942,6 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
 
             geometry.m_Width  = geo_width;
             geometry.m_Height = geo_height;
-
-            // transform the point from image space to SpriteGeometry unit space
-            geometry.m_PivotX =        geometry.m_PivotX / geo_width - 0.5f;
-            geometry.m_PivotY = 1.0f - geometry.m_PivotY / geo_height - 0.5f;
 
             // Transform from texel to local space for position and uvs
             // Position and texcoords are flipped on y/t axis so that coordinates are
@@ -2172,10 +2173,10 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
  * : [type:number] The height of the image the sprite geometry represents
  *
  * * `pivot_x`
- * : [type:number] The pivot x value of the image in image coords. Default is width / 2.
+ * : [type:number] The pivot x value of the image in unit coords. (0,0) is upper left corner, (1,1) is bottom right. Default is 0.5.
  *
  * * `pivot_y`
- * : [type:number] The pivot y value of the image in image coords.  Default is height / 2.
+ * : [type:number] The pivot y value of the image in unit coords. (0,0) is upper left corner, (1,1) is bottom right. Default is 0.5.
  *
  * * `vertices`
  * : [type:table] a list of the vertices in image space of the geometry in the form {px0, py0, px1, py1, ..., pxn, pyn}
@@ -2556,8 +2557,6 @@ static int GetAtlas(lua_State* L)
         lua_rawset(L, -3);
     }
 
-    #undef SET_LUA_TABLE_FIELD
-
     lua_rawset(L, -3);
 
     {
@@ -2579,6 +2578,12 @@ static int GetAtlas(lua_State* L)
                 assert(geom.m_Vertices.m_Count % 2 == 0);
                 assert(geom.m_Uvs.m_Count      % 2 == 0);
                 assert(geom.m_Indices.m_Count  % 3 == 0);
+
+                SET_LUA_TABLE_FIELD(lua_pushnumber, "width",    geom.m_Width);
+                SET_LUA_TABLE_FIELD(lua_pushnumber, "height",   geom.m_Height);
+                // Transform back to image space (0,0) is top left corner, (1,1) is bottom right
+                SET_LUA_TABLE_FIELD(lua_pushnumber, "pivot_x",          geom.m_PivotX + 0.5);
+                SET_LUA_TABLE_FIELD(lua_pushnumber, "pivot_y",  1.0f - (geom.m_PivotY + 0.5f));
 
                 lua_pushliteral(L, "vertices");
                 lua_newtable(L);
@@ -2619,6 +2624,8 @@ static int GetAtlas(lua_State* L)
         }
         lua_rawset(L, -3);
     }
+
+    #undef SET_LUA_TABLE_FIELD
 
     return 1;
 }

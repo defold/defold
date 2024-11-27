@@ -662,7 +662,11 @@ void LogInternal(LogSeverity severity, const char* domain, const char* format, .
     n += dmSnPrintf(str_buf + n, dmLog::MAX_STRING_SIZE - n, "%s:%s: ", severity_str, domain);
     if (n < dmLog::MAX_STRING_SIZE)
     {
-        n += vsnprintf(str_buf + n, dmLog::MAX_STRING_SIZE - n, format, lst);
+        int length = vsnprintf(str_buf + n, dmLog::MAX_STRING_SIZE - n, format, lst);
+        if (length > 0)
+        {
+            n += length;
+        }
     }
 
     if (n < dmLog::MAX_STRING_SIZE)

@@ -27,6 +27,14 @@ platforms:
             libs: ["physics_null"]
             linkFlags: []
 
+    arm64-linux:
+        context:
+            excludeLibs: ["physics","LinearMath","BulletDynamics","BulletCollision","Box2D","script_box2d"]
+            excludeSymbols: ["ScriptBox2DExt"]
+            symbols: []
+            libs: ["physics_null"]
+            linkFlags: []
+
     js-web:
         context:
             excludeLibs: ["physics","LinearMath","BulletDynamics","BulletCollision","Box2D","script_box2d"]

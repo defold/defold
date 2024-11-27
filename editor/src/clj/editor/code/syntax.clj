@@ -43,7 +43,7 @@
 (defn- replace-back-references
   ^Pattern [^Pattern re ^MatchResult input]
   (re-pattern (reduce (fn [re-string group]
-                        (if-some [capture (.group input group)]
+                        (if-some [capture (.group input ^int group)]
                           (string/replace re-string
                                           (re-pattern (str "\\\\" group "(?!\\d)"))
                                           (string/re-quote-replacement (Pattern/quote capture)))
@@ -88,11 +88,11 @@
 (defn- append-captures! [transient-runs parent-scope ^MatchResult match-result captures]
   (reduce (fn [runs group]
             (or (when-some [capture (captures group)]
-                  (when (not= -1 (.start match-result group))
+                  (when (not= -1 (.start match-result ^int group))
                     (when-some [scope (:name capture)]
                       (-> runs
-                          (append-run! (.start match-result group) scope)
-                          (append-run! (.end match-result group) parent-scope)))))
+                          (append-run! (.start match-result ^int group) scope)
+                          (append-run! (.end match-result ^int group) parent-scope)))))
                 runs))
           transient-runs
           (range 0 (inc (.groupCount match-result)))))

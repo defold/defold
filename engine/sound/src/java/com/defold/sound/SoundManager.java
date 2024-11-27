@@ -64,12 +64,7 @@ public class SoundManager {
             if (activity.checkCallingOrSelfPermission("android.permission.READ_PHONE_STATE") != PackageManager.PERMISSION_GRANTED) {
                 Log.e(TAG, "App is missing the READ_PHONE_STATE permission. Audio will continue while phone call is active.");
             } else {
-                activity.runOnUiThread(new Runnable() {
-                    @Override
-                    public void run() {
-                        SoundManager.this.telephonyManager.listen(new CustomPhoneCallListener(SoundManager.this), PhoneStateListener.LISTEN_CALL_STATE);
-                    }
-                });
+                activity.runOnUiThread(() -> SoundManager.this.telephonyManager.listen(new CustomPhoneCallListener(SoundManager.this), PhoneStateListener.LISTEN_CALL_STATE));
             }
 
             this.updatePhoneCallState(this.telephonyManager.getCallState());

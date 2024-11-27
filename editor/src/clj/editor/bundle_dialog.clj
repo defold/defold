@@ -721,7 +721,7 @@
                           install-app-check-box
                           launch-app-check-box]
     (prefs/set! prefs [:bundle :ios :sign] (ui/value sign-app-check-box))
-    (set-string-pref! prefs [:bundle :ios :code-signing-identity] (ui/value code-signing-identity-choice-box))
+    (set-string-pref! prefs [:bundle :ios :code-signing-identity] (or (ui/value code-signing-identity-choice-box) ""))
     (set-string-pref! prefs [:bundle :ios :provisioning-profile] (ui/value provisioning-profile-text-field))
     (prefs/set! prefs [:bundle :ios :architecture :arm64-ios] (ui/value architecture-64bit-check-box))
     (prefs/set! prefs [:bundle :ios :architecture :x86_64-ios] (ui/value architecture-simulator-check-box))

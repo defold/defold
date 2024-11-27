@@ -145,7 +145,7 @@ echo "**************************************************"
 PACKAGE_NAME=${PRODUCT}-${VERSION}-${PLATFORM}.tar.gz
 
 case ${PLATFORM} in
-    x86_64-macos|arm64-macos|x86_64-linux|x86_64-win32)
+    x86_64-macos|arm64-macos|x86_64-linux|arm64-linux|x86_64-win32)
         IS_DESKTOP=1
         ;;
 esac
@@ -155,7 +155,7 @@ case ${PLATFORM} in
         SUFFIX=.exe
         ;;
 
-    x86_64-macos|arm64-macos|x86_64-linux)
+    x86_64-macos|arm64-macos|x86_64-linux|arm64-linux)
         echo "Stripping executable"
         strip "${SOURCE_HOST}/_build/protoc"
         ;;

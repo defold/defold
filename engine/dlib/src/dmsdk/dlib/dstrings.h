@@ -97,7 +97,7 @@ size_t dmStrlCpy(char *dst, const char *src, size_t size);
  * Size-bounded string concatenation. Same as OpenBSD 2.4 [strlcat](http://www.manpagez.com/man/3/strlcat).
  * Appends src to string dst of size siz (unlike strncat, siz is the full size of dst, not space left).
  * At most siz-1 characters will be copied.  Always NUL terminates (unless siz == 0).
- * Returns strlen(src); if retval >= siz, truncation occurred.
+ * Returns strlen(dst) + strlen(src); if retval >= siz, truncation occurred.
  *
  * @name dmStrlCat
  * @param dst Destination string

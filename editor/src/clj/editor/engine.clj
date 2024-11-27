@@ -15,6 +15,7 @@
 (ns editor.engine
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
+            [editor.code.util :refer [split-lines]]
             [editor.engine.native-extensions :as native-extensions]
             [editor.fs :as fs]
             [editor.prefs :as prefs]
@@ -234,8 +235,8 @@
             (io/copy stream saveFile)))))))
 
 (def ^:private dmengine-dependencies
-  {"x86_64-win32" #{"OpenAL32.dll" "wrap_oal.dll"}
-   "x86-win32"    #{"OpenAL32.dll" "wrap_oal.dll"}})
+  ; Mapping between platform name and list of file names: {"x86_64-win32" #{"OpenAL32.dll" "wrap_oal.dll"}}
+  {})
 
 (defn- copy-dmengine-dependencies!
   [unpack-dir extender-platform]
@@ -268,6 +269,7 @@
                                (File.)
                                (.getAbsolutePath))
         command (.getAbsolutePath engine)
+        engine-arguments (prefs/get prefs [:run :engine-arguments])
         args (cond-> []
                      defold-log-dir
                      (into ["--config=project.write_log=1"
@@ -277,7 +279,10 @@
                      (into ["--config=bootstrap.debug_init_script=/_defold/debugger/start.luac"])
 
                      (> instance-index 0)
-                     (into [(format "--config=project.instance_index=%d" instance-index)]))
+                     (into [(format "--config=project.instance_index=%d" instance-index)])
+
+                     (not (str/blank? engine-arguments))
+                     (into (remove str/blank?) (split-lines engine-arguments)))
         env {"DM_SERVICE_PORT" "dynamic"
              "DM_QUIT_ON_ESC" (if (prefs/get prefs [:run :quit-on-escape])
                                 "1" "0")
