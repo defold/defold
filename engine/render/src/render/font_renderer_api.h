@@ -52,12 +52,36 @@ namespace dmRender
      */
     uint32_t GetFontVertexSize(HFontRenderBackend backend);
 
+    /**
+     * Creates the vertex declaration
+     * @param backend [type: HFontRenderBackend] the backend
+     * @param context [type: dmGraphics::HContext] the graphics context
+     * @return decl [type: dmGraphics::HVertexDeclaration] the vertex declaration, or 0 if it failed
+     */
     dmGraphics::HVertexDeclaration CreateVertexDeclaration(HFontRenderBackend backend, dmGraphics::HContext context);
 
+    /**
+     * Calculates the metrics of the text
+     * @param backend [type: HFontRenderBackend] the backend
+     * @param font_map [type: HFontMap] the font
+     * @param text [type: const char*] the text
+     * @param settings [type: TextMetricsSettings*] settings like leading/tracking/linebreaks etc
+     * @param metrics [out] [type: TextMetrics*] the resultinf metrics
+     */
     void GetTextMetrics(HFontRenderBackend backend, HFontMap font_map, const char* text, TextMetricsSettings* settings, TextMetrics* metrics);
 
-    // Outputs a triangle list
-    // Returns number of vertices consumed from the vertex buffer
+    /**
+     * Outputs a triangle list
+     * @param backend [type: HFontRenderBackend] the backend
+     * @param font_map [type: HFontMap] the font
+     * @param text [type: const char*] the text
+     * @param text_entry [type: TextEntry] the text entry
+     * @param recip_w [type: float] 1/texture_width
+     * @param recip_h [type: float] 1/texture_height
+     * @param vertices [type: uint8_t*] the vertex buffer
+     * @param num_vertices [type: uint32_t] the number of vertices that will fit into the vertex buffer
+     * @return num_vertices [type: uint32_t] Returns number of vertices consumed from the vertex buffer
+     */
     uint32_t CreateFontVertexData(HFontRenderBackend backend, TextContext& text_context, HFontMap font_map, const char* text, const TextEntry& te, float recip_w, float recip_h, uint8_t* vertices, uint32_t num_vertices);
 }
 
