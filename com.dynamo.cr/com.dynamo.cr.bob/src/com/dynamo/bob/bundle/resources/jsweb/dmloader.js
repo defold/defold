@@ -897,6 +897,10 @@ var Module = {
     * Module.runApp - Starts the application given a canvas element id
     **/
     runApp: function(appCanvasId, _) {
+        window.addEventListener("error", (errorEvent) => {
+            var errorObject = Module.prepareErrorObject(errorEvent.message, errorEvent.filename, errorEvent.lineno, errorEvent.colno, errorEvent.error);
+            Module.ccall('JSWriteDump', 'null', ['string'], [JSON.stringify(errorObject.stack)]);
+        });
         Module._isEngineLoaded = true;
         Module.setupCanvas(appCanvasId);
 
@@ -1140,10 +1144,6 @@ Module['persistentStorage'] = (typeof window !== 'undefined') && !!(window.index
 Module['INITIAL_MEMORY'] = CUSTOM_PARAMETERS.custom_heap_size;
 
 Module['onRuntimeInitialized'] = function() {
-    window.addEventListener("error", (errorEvent) => {
-        var errorObject = Module.prepareErrorObject(errorEvent.message, errorEvent.filename, errorEvent.lineno, errorEvent.colno, errorEvent.error);
-        Module.ccall('JSWriteDump', 'null', ['string'], [JSON.stringify(errorObject.stack)]);
-    });
     Module.runApp("canvas");
 };
 
