@@ -14,6 +14,8 @@
 
 package com.dynamo.bob.pipeline.shader;
 
+import com.dynamo.bob.pipeline.Shaderc;
+import com.dynamo.bob.pipeline.ShadercJni;
 import org.codehaus.jackson.JsonNode;
 import org.codehaus.jackson.map.ObjectMapper;
 
@@ -21,206 +23,70 @@ import java.io.IOException;
 import java.util.*;
 
 public class SPIRVReflector {
-    private static JsonNode root;
 
-    public SPIRVReflector(String json) throws IOException {
-        this.root = (new ObjectMapper()).readTree(json);
+    private final Shaderc.ShaderReflection reflection;
+
+    public SPIRVReflector(long ctx) {
+        this.reflection = ShadercJni.GetReflection(ctx);
     }
 
-    public class ResourceMember {
-        public String name;
-        public String type;
-        public int    elementCount;
-        public int    offset;
-    }
-
-    public class Resource {
-        public String  name;
-        public String  type;
-        public int     binding;
-        public int     set;
-        public Integer blockSize;
-        public Integer textureIndex;
-    }
-
-    public class ResourceType {
-        public String                    key;
-        public String                    name;
-        public ArrayList<ResourceMember> members = new ArrayList<>();
-    }
-
-    private class SortBindingsComparator implements Comparator<Resource> {
-        public int compare(SPIRVReflector.Resource a, SPIRVReflector.Resource b) {
+    private static class SortBindingsComparator implements Comparator<Shaderc.ShaderResource> {
+        public int compare(Shaderc.ShaderResource a, Shaderc.ShaderResource b) {
             return a.binding - b.binding;
         }
     }
 
-    public ArrayList<ResourceType> getTypes() {
-        ArrayList<ResourceType> resourceTypes = new ArrayList<>();
-        JsonNode typesNode = root.get("types");
-        if (typesNode == null) {
-            return resourceTypes;
+    private static class SortLocationsComparator implements Comparator<Shaderc.ShaderResource> {
+        public int compare(Shaderc.ShaderResource a, Shaderc.ShaderResource b) {
+            return a.location - b.location;
         }
-
-        for (Iterator<Map.Entry<String, JsonNode>> jsonFields = typesNode.getFields(); jsonFields.hasNext();) {
-            Map.Entry<String, JsonNode> jsonField = jsonFields.next();
-            String key = jsonField.getKey();
-            JsonNode value = jsonField.getValue();
-
-            ResourceType type = new ResourceType();
-            type.key = key;
-            type.name = value.get("name").asText();
-
-            JsonNode membersNode = value.get("members");
-            Iterator<JsonNode> membersNodeIt = membersNode.getElements();
-
-            while(membersNodeIt.hasNext()) {
-                JsonNode memberNode = membersNodeIt.next();
-                ResourceMember res  = new ResourceMember();
-                res.name            = memberNode.get("name").asText();
-                res.type            = memberNode.get("type").asText();
-
-                JsonNode offsetNode = memberNode.get("offset");
-                if (offsetNode != null) {
-                    res.offset = offsetNode.asInt();
-                }
-
-                JsonNode arrayNode = memberNode.get("array");
-                if (arrayNode != null && arrayNode.isArray())
-                {
-                    res.elementCount = arrayNode.get(0).asInt();
-                }
-
-                type.members.add(res);
-            }
-
-            resourceTypes.add(type);
-        }
-
-        return resourceTypes;
     }
 
-    public ArrayList<Resource> getUBOs() {
-        ArrayList<Resource> ubos = new ArrayList<>();
-        JsonNode ubosNode = root.get("ubos");
+    public ArrayList<Shaderc.ResourceTypeInfo> getTypes() {
+        if (this.reflection.types == null)
+            return new ArrayList<>();
+        return new ArrayList<>(Arrays.asList(this.reflection.types));
+    }
 
-        if (ubosNode == null) {
-            return ubos;
-        }
-
-        Iterator<JsonNode> uniformBlockNodeIt = ubosNode.getElements();
-        while (uniformBlockNodeIt.hasNext()) {
-            JsonNode uboNode = uniformBlockNodeIt.next();
-
-            Resource ubo  = new Resource();
-            ubo.name      = uboNode.get("name").asText();
-            ubo.set       = uboNode.get("set").asInt();
-            ubo.binding   = uboNode.get("binding").asInt();
-            ubo.type      = uboNode.get("type").asText();
-            ubo.blockSize = uboNode.get("block_size").asInt();
-            ubos.add(ubo);
-        }
-
+    public ArrayList<Shaderc.ShaderResource> getUBOs() {
+        if (reflection.uniformBuffers == null)
+            return new ArrayList<>();
+        ArrayList<Shaderc.ShaderResource> ubos = new ArrayList<>(Arrays.asList(reflection.uniformBuffers));
         ubos.sort(new SortBindingsComparator());
-
         return ubos;
     }
 
-    public ArrayList<Resource> getSsbos() {
-        ArrayList<Resource> ssbos = new ArrayList<Resource>();
-
-        JsonNode ssboNode  = root.get("ssbos");
-
-        if (ssboNode == null) {
-            return ssbos;
-        }
-
-        Iterator<JsonNode> ssboBlockIt = ssboNode.getElements();
-        while (ssboBlockIt.hasNext()) {
-            JsonNode ssboBlockNode = ssboBlockIt.next();
-
-            Resource ssbo  = new Resource();
-            ssbo.name      = ssboBlockNode.get("name").asText();
-            ssbo.set       = ssboBlockNode.get("set").asInt();
-            ssbo.binding   = ssboBlockNode.get("binding").asInt();
-            ssbo.type      = ssboBlockNode.get("type").asText();
-            ssbo.blockSize = ssboBlockNode.get("block_size").asInt();
-            ssbos.add(ssbo);
-        }
-
+    public ArrayList<Shaderc.ShaderResource> getSsbos() {
+        if (reflection.storageBuffers == null)
+            return new ArrayList<>();
+        ArrayList<Shaderc.ShaderResource> ssbos = new ArrayList<>(Arrays.asList(reflection.storageBuffers));
         ssbos.sort(new SortBindingsComparator());
-
         return ssbos;
     }
 
-    private void addTexturesFromNode(JsonNode node, ArrayList<Resource> textures) {
-        if (node != null) {
-            for (Iterator<JsonNode> iter = node.getElements(); iter.hasNext();) {
-                JsonNode textureNode = iter.next();
-                Resource res     = new Resource();
-                res.name         = textureNode.get("name").asText();
-                res.type         = textureNode.get("type").asText();
-                res.binding      = textureNode.get("binding").asInt();
-                res.set          = textureNode.get("set").asInt();
-                textures.add(res);
-            }
-        }
-    }
+    public ArrayList<Shaderc.ShaderResource> getTextures() {
 
-    public ArrayList<Resource> getTextures() {
-        ArrayList<Resource> textures = new ArrayList<>();
-        addTexturesFromNode(root.get("textures"),          textures);
-        addTexturesFromNode(root.get("separate_images"),   textures);
-        addTexturesFromNode(root.get("images"),            textures);
-        addTexturesFromNode(root.get("separate_samplers"), textures);
+        if (reflection.textures == null)
+            return new ArrayList<>();
 
+        ArrayList<Shaderc.ShaderResource> textures = new ArrayList<>(Arrays.asList(this.reflection.textures));
         textures.sort(new SortBindingsComparator());
         return textures;
     }
 
-    public ArrayList<Resource> getInputs() {
-        ArrayList<Resource> inputs = new ArrayList<>();
-
-        JsonNode inputsNode = root.get("inputs");
-
-        if (inputsNode == null) {
-            return inputs;
-        }
-
-        for (Iterator<JsonNode> iter = inputsNode.getElements(); iter.hasNext();) {
-            JsonNode inputNode = iter.next();
-            Resource res = new Resource();
-            res.name     = inputNode.get("name").asText();
-            res.type     = inputNode.get("type").asText();
-            res.binding  = inputNode.get("location").asInt();
-            inputs.add(res);
-        }
-
-        inputs.sort(new SortBindingsComparator());
-
+    public ArrayList<Shaderc.ShaderResource> getInputs() {
+        if (reflection.inputs == null)
+            return new ArrayList<>();
+        ArrayList<Shaderc.ShaderResource> inputs = new ArrayList<>(Arrays.asList(this.reflection.inputs));
+        inputs.sort(new SortLocationsComparator());
         return inputs;
     }
 
-    public ArrayList<Resource> getOutputs() {
-        ArrayList<Resource> outputs = new ArrayList<>();
-
-        JsonNode outputsNode = root.get("outputs");
-
-        if (outputsNode == null) {
-            return outputs;
-        }
-
-        for (Iterator<JsonNode> iter = outputsNode.getElements(); iter.hasNext();) {
-            JsonNode outputNode = iter.next();
-            Resource res = new Resource();
-            res.name     = outputNode.get("name").asText();
-            res.type     = outputNode.get("type").asText();
-            res.binding  = outputNode.get("location").asInt();
-            outputs.add(res);
-        }
-
-        outputs.sort(new SortBindingsComparator());
-
+    public ArrayList<Shaderc.ShaderResource> getOutputs() {
+        if (reflection.outputs == null)
+            return new ArrayList<>();
+        ArrayList<Shaderc.ShaderResource> outputs = new ArrayList<>(Arrays.asList(this.reflection.outputs));
+        outputs.sort(new SortLocationsComparator());
         return outputs;
     }
 }
