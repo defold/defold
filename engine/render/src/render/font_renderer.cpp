@@ -32,6 +32,7 @@
 
 #include "font.h"
 #include "font_renderer.h"
+#include "font_renderer_api.h"
 #include "font_renderer_private.h"
 
 #include "render_private.h"
@@ -321,7 +322,8 @@ namespace dmRender
             case dmRender::RENDER_LIST_OPERATION_END:
                 if (text_context.m_VerticesFlushed != text_context.m_VertexIndex)
                 {
-                    uint32_t buffer_size = sizeof(GlyphVertex) * text_context.m_VertexIndex;
+                    uint32_t vertex_size = GetFontVertexSize();
+                    uint32_t buffer_size = vertex_size * text_context.m_VertexIndex;
                     dmGraphics::SetVertexBufferData(text_context.m_VertexBuffer, 0, 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
                     dmGraphics::SetVertexBufferData(text_context.m_VertexBuffer, buffer_size, text_context.m_ClientBuffer, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
 
@@ -329,7 +331,7 @@ namespace dmRender
                     text_context.m_VerticesFlushed = text_context.m_VertexIndex;
 
                     DM_PROPERTY_ADD_U32(rmtp_FontCharacterCount, num_vertices / 6);
-                    DM_PROPERTY_ADD_U32(rmtp_FontVertexSize, num_vertices * sizeof(GlyphVertex));
+                    DM_PROPERTY_ADD_U32(rmtp_FontVertexSize, num_vertices * vertex_size);
                 }
                 break;
             case dmRender::RENDER_LIST_OPERATION_BATCH:

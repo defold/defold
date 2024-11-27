@@ -128,44 +128,6 @@ namespace dmRender
     };
 
     ///////////////////////////////////////////////////////////////////////////////
-    // Internal font renderer api
-
-    uint32_t GetFontVertexSize();
-
-    dmGraphics::HVertexDeclaration CreateVertexDclaration(dmGraphics::HContext context);
-
-    // Outputs a triangle list
-    // Returns number of vertices consumed from the vertex buffer
-    uint32_t CreateFontVertexData(TextContext& text_context, HFontMap font_map, const char* text, const TextEntry& te, float recip_w, float recip_h, uint8_t* vertices, uint32_t num_vertices);
-
-    ///////////////////////////////////////////////////////////////////////////////
-    // Default implementation (wip, should go into the font_renderer_default.cpp)
-    float GetLineTextMetrics(HFontMap font_map, float tracking, const char* text, int n, bool measure_trailing_space);
-
-    struct DM_ALIGNED(16) GlyphVertex
-    {
-        // NOTE: The struct *must* be 16-bytes aligned due to SIMD operations.
-        float m_Position[4];
-        float m_UV[2];
-        float m_FaceColor[4];
-        float m_OutlineColor[4];
-        float m_ShadowColor[4];
-        float m_SdfParams[4];
-        float m_LayerMasks[3];
-    };
-
-    struct LayoutMetrics
-    {
-        HFontMap m_FontMap;
-        float m_Tracking;
-        LayoutMetrics(HFontMap font_map, float tracking) : m_FontMap(font_map), m_Tracking(tracking) {}
-        float operator()(const char* text, uint32_t n, bool measure_trailing_space)
-        {
-            return GetLineTextMetrics(m_FontMap, m_Tracking, text, n, measure_trailing_space);
-        }
-    };
-
-    ///////////////////////////////////////////////////////////////////////////////
     // Also potential helpers that should go into font_renderer_default.cpp
 
     static bool IsBreaking(uint32_t c)

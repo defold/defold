@@ -16,11 +16,24 @@
 #include "font_renderer.h"
 #include "font_renderer_private.h"
 
+#include <dlib/align.h>
 #include <graphics/graphics.h>
 #include <graphics/graphics_util.h>
 
 namespace dmRender
 {
+    struct DM_ALIGNED(16) GlyphVertex
+    {
+        // NOTE: The struct *must* be 16-bytes aligned due to SIMD operations.
+        float m_Position[4];
+        float m_UV[2];
+        float m_FaceColor[4];
+        float m_OutlineColor[4];
+        float m_ShadowColor[4];
+        float m_SdfParams[4];
+        float m_LayerMasks[3];
+    };
+
     uint32_t GetFontVertexSize()
     {
         return sizeof(GlyphVertex);
@@ -44,7 +57,7 @@ namespace dmRender
         return decl;
     }
 
-    float GetLineTextMetrics(HFontMap font_map, float tracking, const char* text, int n, bool measure_trailing_space)
+    static float GetLineTextMetrics(HFontMap font_map, float tracking, const char* text, int n, bool measure_trailing_space)
     {
         float width = 0;
         const char* cursor = text;
@@ -76,6 +89,17 @@ namespace dmRender
 
         return width;
     }
+
+    struct LayoutMetrics
+    {
+        HFontMap m_FontMap;
+        float m_Tracking;
+        LayoutMetrics(HFontMap font_map, float tracking) : m_FontMap(font_map), m_Tracking(tracking) {}
+        float operator()(const char* text, uint32_t n, bool measure_trailing_space)
+        {
+            return GetLineTextMetrics(m_FontMap, m_Tracking, text, n, measure_trailing_space);
+        }
+    };
 
     void GetTextMetrics(HFontMap font_map, const char* text, TextMetricsSettings* settings, TextMetrics* metrics)
     {
