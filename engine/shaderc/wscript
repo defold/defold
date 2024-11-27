@@ -44,8 +44,6 @@ def configure(conf):
         conf.env['LIBPATH_JDK'] = os.path.join(os.environ['JAVA_HOME'], 'lib')
         conf.env['DEFINES_JDK'] = ['DM_HAS_JDK']
 
-    # platform = conf.env['PLATFORM']
-
     conf.env.append_unique('DEFINES', 'DLIB_LOG_DOMAIN="SHADERC"')
 
 def build(bld):

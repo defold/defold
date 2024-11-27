@@ -4,8 +4,6 @@ import waflib
 
 from waflib.TaskGen import extension, feature, after, before
 
-#glslang -w --auto-map-bindings --auto-map-locations -g -V -o test.vs.spv test.vert
-
 waflib.Task.task_factory('glslang', 'glslang -w --auto-map-bindings --auto-map-locations -g -V -o ${TGT} ${SRC}',
                       color='PINK',
                       after='proto_gen_py',
@@ -15,7 +13,6 @@ waflib.Task.task_factory('glslang', 'glslang -w --auto-map-bindings --auto-map-l
 @extension('.vert', '.frag')
 def fragmentprogram_file(self, node):
     shader = self.create_task('glslang')
-    #shader.env['CLASSPATH'] = os.pathsep.join(classpath)
     shader.set_inputs(node)
     obj_ext = '.spv'
     out = node.change_ext(obj_ext)
