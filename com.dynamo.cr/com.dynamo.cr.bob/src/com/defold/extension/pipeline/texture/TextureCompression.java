@@ -56,7 +56,7 @@ public class TextureCompression {
             preset.setOptionInt("rdo_uastc_dict_size", 4096);
             preset.setOptionFloat("rdo_uastc_quality_scalar", 3.0f);
 
-            System.out.printf("PRESET:\n%s\n", preset.toString());
+            // System.out.printf("PRESET:\n%s\n", preset.toString());
             presets.put(preset.getName(), preset);
         }
 
@@ -67,7 +67,7 @@ public class TextureCompression {
             preset.setOptionInt("rdo_uastc_dict_size", 8192);
             preset.setOptionFloat("rdo_uastc_quality_scalar", 1.0f);
 
-            System.out.printf("PRESET:\n%s\n", preset.toString());
+            // System.out.printf("PRESET:\n%s\n", preset.toString());
             presets.put(preset.getName(), preset);
         }
 
@@ -76,7 +76,7 @@ public class TextureCompression {
             preset.setOptionInt("rdo_uastc", 0);
             preset.setOptionInt("pack_uastc_flags", 2); // cPackUASTCLevelDefault = 2 from basisu_uastc_enc.h
 
-            System.out.printf("PRESET:\n%s\n", preset.toString());
+            // System.out.printf("PRESET:\n%s\n", preset.toString());
             presets.put(preset.getName(), preset);
         }
 
@@ -85,7 +85,13 @@ public class TextureCompression {
             preset.setOptionInt("rdo_uastc", 0);
             preset.setOptionInt("pack_uastc_flags", 1); // cPackUASTCLevelFaster = 1 from basisu_uastc_enc.h
 
-            System.out.printf("PRESET:\n%s\n", preset.toString());
+            // System.out.printf("PRESET:\n%s\n", preset.toString());
+            presets.put(preset.getName(), preset);
+        }
+
+        {
+            TextureCompressorPreset preset = new TextureCompressorPreset("DEFAULT", "Default (no compression)", "Default");
+            // System.out.printf("PRESET:\n%s\n", preset);
             presets.put(preset.getName(), preset);
         }
     }

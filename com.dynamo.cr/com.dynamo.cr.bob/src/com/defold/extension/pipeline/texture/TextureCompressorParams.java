@@ -24,14 +24,24 @@ public class TextureCompressorParams {
     private int         height;
     private int         depth;          // 1 for regular texture
     private int         numChannels;
+    private int         pixelFormat; // Corresponds to Texc.PixelFormat
+    private int         pixelFormatOut; // Corresponds to Texc.PixelFormat
+    private int         colorSpace; // Corresponds to Texc.ColorFormat
 
-    TextureCompressorParams(String path, int mipMapLevel, int width, int height, int depth, int numChannels) {
+    //settings.pixelFormat = pixelFormat;
+    //settings.outPixelFormat = outPixelFormat;
+    //settings.colorSpace = colorSpace;
+
+    public TextureCompressorParams(String path, int mipMapLevel, int width, int height, int depth, int numChannels, int pixelFormat, int pixelFormatOut, int colorSpace) {
         this.path = path;
         this.mipMapLevel = mipMapLevel;
         this.width = width;
         this.height = height;
         this.depth = depth;
         this.numChannels = numChannels;
+        this.pixelFormat = pixelFormat;
+        this.pixelFormatOut = pixelFormatOut;
+        this.colorSpace = colorSpace;
     }
 
     public String getPath() {
@@ -57,4 +67,10 @@ public class TextureCompressorParams {
     public int getDepth() {
         return depth;
     }
+
+    public int getPixelFormat() {return pixelFormat;}
+
+    public int getPixelFormatOut() {return pixelFormatOut;}
+
+    public int getColorSpace() {return colorSpace;}
 }

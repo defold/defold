@@ -18,19 +18,19 @@ import com.dynamo.bob.pipeline.Texc;
 import com.dynamo.bob.pipeline.TexcLibraryJni;
 
 /**
- * Implementation of our base texture compressor, using BasisU
+ * Implementation of our base texture compressor, with NO compression
  */
-public class TextureCompressorBasisU implements ITextureCompressor {
+public class TextureCompressorDefault implements ITextureCompressor {
 
+    @Override
     public String getName() {
-        return "BasisU";
+        return "Default";
     }
 
-    public byte[] compress(TextureCompressorPreset preset, TextureCompressorParams params, byte[] input)
-    {
-        System.out.printf(String.format("Compressing using compressor '%s' and preset '%s'\n", getName(), preset.getName()));
+    @Override
+    public byte[] compress(TextureCompressorPreset preset, TextureCompressorParams params, byte[] input) {
 
-        Texc.BasisUEncodeSettings settings = new Texc.BasisUEncodeSettings();
+        Texc.DefaultEncodeSettings settings = new Texc.DefaultEncodeSettings();
         settings.path = params.getPath();
         settings.width = params.getWidth();
         settings.height = params.getHeight();
@@ -39,17 +39,10 @@ public class TextureCompressorBasisU implements ITextureCompressor {
         settings.outPixelFormat = Texc.PixelFormat.fromValue(params.getPixelFormatOut());
         settings.colorSpace = Texc.ColorSpace.fromValue(params.getColorSpace());
 
-        settings.numThreads = 4;
+        settings.numThreads = 4; // maxThreads;
         settings.debug = false;
         settings.data = input;
 
-        settings.rdo_uastc = preset.getOptionInt("rdo_uastc") != 0;
-        settings.pack_uastc_flags = preset.getOptionInt("pack_uastc_flags");
-        settings.rdo_uastc_dict_size = preset.getOptionInt("rdo_uastc_dict_size");
-        settings.rdo_uastc_quality_scalar = preset.getOptionFloat("rdo_uastc_quality_scalar");
-
-        return TexcLibraryJni.BasisUEncode(settings);
+        return TexcLibraryJni.DefaultEncode(settings);
     }
 }
-
-
