@@ -46,7 +46,7 @@ namespace dmRender
         return sizeof(GlyphVertex);
     }
 
-    dmGraphics::HVertexDeclaration CreateVertexDclaration(dmGraphics::HContext context)
+    dmGraphics::HVertexDeclaration CreateVertexDeclaration(dmGraphics::HContext context)
     {
         dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(context);
         dmGraphics::AddVertexStream(stream_declaration, "position", 4, dmGraphics::TYPE_FLOAT, false);

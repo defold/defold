@@ -64,7 +64,7 @@ namespace dmRender
             return;
         }
 
-        text_context.m_VertexDecl = CreateVertexDclaration(render_context->m_GraphicsContext);
+        text_context.m_VertexDecl = CreateVertexDeclaration(render_context->m_GraphicsContext);
         text_context.m_VertexBuffer = dmGraphics::NewVertexBuffer(render_context->m_GraphicsContext, buffer_size, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
 
         text_context.m_ConstantBuffers.SetCapacity(max_batches); // 1:1 index mapping with render object

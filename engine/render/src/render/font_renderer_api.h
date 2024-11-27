@@ -28,11 +28,11 @@
 namespace dmRender
 {
     /**
-     *
+     * Gets the vertex size
      */
     uint32_t GetFontVertexSize();
 
-    dmGraphics::HVertexDeclaration CreateVertexDclaration(dmGraphics::HContext context);
+    dmGraphics::HVertexDeclaration CreateVertexDeclaration(dmGraphics::HContext context);
 
     void GetTextMetrics(HFontMap font_map, const char* text, TextMetricsSettings* settings, TextMetrics* metrics);
 
