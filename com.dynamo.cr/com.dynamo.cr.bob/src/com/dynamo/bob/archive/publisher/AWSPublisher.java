@@ -86,19 +86,35 @@ public class AWSPublisher extends Publisher {
 
     }
 
-    @Override
-    public void publish(ArchiveEntry archiveEntry, InputStream data) throws CompileExceptionError {
+    private void putObject(ArchiveEntry archiveEntry, InputStream data, InputStream header) {
         String bucket = this.getPublisherSettings().getAmazonBucket();
         String prefix = this.getPublisherSettings().getAmazonPrefix();
         String hexDigest = archiveEntry.getHexDigest();
         String key = (prefix + "/" + hexDigest).replaceAll("//+", "/");
+        SequenceInputStream seq = new SequenceInputStream(header, data);
+        client.putObject(bucket, key, seq, null);
+    }
+
+    @Override
+    public void publish(ArchiveEntry archiveEntry, InputStream data) throws CompileExceptionError {
         try {
             InputStream header = new ByteArrayInputStream(archiveEntry.getHeader());
-            SequenceInputStream seq = new SequenceInputStream(header, data);
-            client.putObject(bucket, key, seq, null);
+            putObject(archiveEntry, data, header);
         }
         catch (Exception exception) {
-            throw new CompileExceptionError("AWS Unable to publish archive entry '" + key + "'", exception);
+            throw new CompileExceptionError("AWS Unable to publish archive entry", exception);
+        }
+    }
+
+    @Override
+    public void publish(ArchiveEntry archiveEntry, byte[] data) throws CompileExceptionError {
+        try {
+            InputStream headerStream = new ByteArrayInputStream(archiveEntry.getHeader());
+            InputStream dataStream = new ByteArrayInputStream(data);
+            putObject(archiveEntry, dataStream, headerStream);
+        }
+        catch (Exception exception) {
+            throw new CompileExceptionError("AWS Unable to publish archive entry", exception);
         }
     }
 }

@@ -37,4 +37,7 @@ public class NullPublisher extends Publisher {
     @Override
     public void publish(ArchiveEntry archiveEntry, InputStream data) throws CompileExceptionError {}
 
+    @Override
+    public void publish(ArchiveEntry archiveEntry, byte[] data) throws CompileExceptionError {}
+
 }

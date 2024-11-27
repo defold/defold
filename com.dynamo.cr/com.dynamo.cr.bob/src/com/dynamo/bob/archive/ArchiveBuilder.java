@@ -157,7 +157,7 @@ public class ArchiveBuilder {
     }
 
     public void writeResourcePack(ArchiveEntry entry, byte[] buffer) throws IOException, CompileExceptionError {
-        publisher.publish(entry, new ByteArrayInputStream(buffer));
+        publisher.publish(entry, buffer);
     }
 
 
@@ -216,9 +216,7 @@ public class ArchiveBuilder {
                     .put(archiveEntryPadding) // 11 bytes
                     .array();
                 entry.setHeader(header);
-                synchronized (publisher) {
-                    this.writeResourcePack(entry, buffer);
-                }
+                this.writeResourcePack(entry, buffer);
             }
             resourceEntryFlags |= ResourceEntryFlag.EXCLUDED.getNumber();
         } else {

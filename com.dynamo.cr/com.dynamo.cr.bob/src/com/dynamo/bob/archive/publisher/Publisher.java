@@ -88,6 +88,15 @@ public abstract class Publisher {
      */
     public abstract void publish(ArchiveEntry archiveEntry, InputStream data) throws CompileExceptionError;
 
+    /**
+     * Publish an entry using this publisher. Make sure to have called
+     * start() before calling this function. Also make sure to not call
+     * this function after a call to stop().
+     * @param archiveEntry The entry to publish
+     * @param data The data for the entry
+     */
+    public abstract void publish(ArchiveEntry archiveEntry, byte[] data) throws CompileExceptionError;
+
     public void publish(ArchiveEntry archiveEntry, File data) throws CompileExceptionError {
         try {
             publish(archiveEntry, new FileInputStream(data));

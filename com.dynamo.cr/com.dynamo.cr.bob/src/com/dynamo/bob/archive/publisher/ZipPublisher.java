@@ -114,13 +114,39 @@ public class ZipPublisher extends Publisher {
             final String archiveEntryName = entry.getName();
             final String zipEntryName = (archiveEntryHexdigest != null) ? archiveEntryHexdigest : archiveEntryName;
             if (!zipEntries.contains(zipEntryName)) {
-                ZipEntry currentEntry = new ZipEntry(zipEntryName);
-                zipOutputStream.putNextEntry(currentEntry);
-                zipOutputStream.write(entry.getHeader());
-                data.transferTo(zipOutputStream);
-                zipOutputStream.flush();
-                zipOutputStream.closeEntry();
                 zipEntries.add(zipEntryName);
+                ZipEntry currentEntry = new ZipEntry(zipEntryName);
+                synchronized (zipOutputStream) {
+                    zipOutputStream.putNextEntry(currentEntry);
+                    zipOutputStream.write(entry.getHeader());
+                    data.transferTo(zipOutputStream);
+                    zipOutputStream.flush();
+                    zipOutputStream.closeEntry();
+                }
+            }
+        } catch (FileNotFoundException exception) {
+            throw new CompileExceptionError("Unable to find required file for liveupdate resources: " + exception.getMessage(), exception);
+        } catch (IOException exception) {
+            throw new CompileExceptionError("Unable to write to zip archive for liveupdate resources: " + exception.getMessage(), exception);
+        }
+    }
+
+    @Override
+    public void publish(ArchiveEntry entry, byte[] data) throws CompileExceptionError {
+        try {
+            final String archiveEntryHexdigest = entry.getHexDigest();
+            final String archiveEntryName = entry.getName();
+            final String zipEntryName = (archiveEntryHexdigest != null) ? archiveEntryHexdigest : archiveEntryName;
+            if (!zipEntries.contains(zipEntryName)) {
+                zipEntries.add(zipEntryName);
+                ZipEntry currentEntry = new ZipEntry(zipEntryName);
+                synchronized (zipOutputStream) {
+                    zipOutputStream.putNextEntry(currentEntry);
+                    zipOutputStream.write(entry.getHeader());
+                    zipOutputStream.write(data);
+                    zipOutputStream.flush();
+                    zipOutputStream.closeEntry();
+                }
             }
         } catch (FileNotFoundException exception) {
             throw new CompileExceptionError("Unable to find required file for liveupdate resources: " + exception.getMessage(), exception);
