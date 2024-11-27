@@ -292,6 +292,7 @@ public class LuaScanner extends LuaParserBaseListener {
         if (firstCtx == null) {
             return null;
         }
+
         if (firstCtx.getRuleIndex() == LuaParser.RULE_explist) {
             firstCtx = ((LuaParser.ExplistContext)firstCtx).exp(0).getRuleContext(ParserRuleContext.class, 0);
         }
@@ -300,6 +301,42 @@ public class LuaScanner extends LuaParserBaseListener {
         }
         Token initialToken = firstCtx.getStart();
         return initialToken.getText().replace(QUOTES.getOrDefault(initialToken.getType(), ""), "");
+    }
+
+    private List<String> getAllStringArgs(LuaParser.ArgsContext argsCtx) {
+        if (argsCtx == null) {
+            return null;
+        }
+
+        ParserRuleContext firstCtx = argsCtx.getRuleContext(ParserRuleContext.class, 0);
+        if (firstCtx == null) {
+            return null;
+        }
+
+        List<String> stringArgs = new ArrayList<>();
+
+        // Check if firstCtx is an explist
+        if (firstCtx.getRuleIndex() == LuaParser.RULE_explist) {
+            LuaParser.ExplistContext explistCtx = (LuaParser.ExplistContext) firstCtx;
+
+            // Iterate through each expression in the explist
+            for (LuaParser.ExpContext expCtx : explistCtx.exp()) {
+                ParserRuleContext expChildCtx = expCtx.getRuleContext(ParserRuleContext.class, 0);
+
+                if (expChildCtx != null && expChildCtx.getRuleIndex() == LuaParser.RULE_lstring) {
+                    Token token = expChildCtx.getStart();
+                    String stringArg = token.getText().replace(QUOTES.getOrDefault(token.getType(), ""), "");
+                    stringArgs.add(stringArg);
+                }
+                else if (expChildCtx != null && (expChildCtx instanceof LuaParser.FunctioncallContext)) {
+                    LuaParser.FunctioncallContext fnCtx = ((LuaParser.FunctioncallContext) expChildCtx);
+                    String firstString = getFirstStringArg(fnCtx.nameAndArgs().args());
+                    stringArgs.add(firstString);
+                }
+            }
+        }
+
+        return stringArgs;
     }
 
     // returns boolean if parsing successfull and fill double[] with parsed values with needed length.
@@ -474,27 +511,40 @@ public class LuaScanner extends LuaParserBaseListener {
                     }
                 }
                 else {
-                    String firstStrArg = getFirstStringArg(ctx.nameAndArgs().args());
                     if (fnDesc.isObject("resource")) {
                         property.type = PropertyType.PROPERTY_TYPE_HASH;
                         property.isResource = true;
                         resultContext = ctx;
+                        String firstStrArg = getFirstStringArg(ctx.nameAndArgs().args());
+                        property.value = firstStrArg == null ? "" : firstStrArg;
                     }
                     else if (fnDesc.is("hash", null) || fnDesc.is("hash", "_G")) {
                         property.type = PropertyType.PROPERTY_TYPE_HASH;
+                        String firstStrArg = getFirstStringArg(ctx.nameAndArgs().args());
                         // hash(arg) requires an argument
                         if (firstStrArg != null) {
                             resultContext = ctx;
                         }
+                        property.value = firstStrArg == null ? "" : firstStrArg;
                     }
                     else if (fnDesc.is("url", "msg")) {
                         property.type = PropertyType.PROPERTY_TYPE_URL;
                         resultContext = ctx;
+                        List<String> allArgs = getAllStringArgs(ctx.nameAndArgs().args());
+                        property.value = concatenateUrl(allArgs);
                     }
-                    property.value = firstStrArg == null ? "" : firstStrArg;
                 }
             }
         }
         return resultContext;
+    }
+    public static String concatenateUrl(List<String> allArgs) {
+        if (allArgs == null || allArgs.size() == 0) {
+            return "";
+        }
+        if (allArgs.size() == 1) {
+            return allArgs.get(0);
+        }
+        return allArgs.get(0) + ":" + allArgs.get(1) + "#" + allArgs.get(2);
     }
 }

@@ -211,11 +211,15 @@ public class LuaScannerTest {
     public void testPropsUrl() throws Exception {
         List<Property> properties = getPropertiesFromFile("test_props_url.lua");
 
-        assertEquals(4, properties.size());
+        assertEquals(8, properties.size());
         assertProperty(properties, "prop1", "url", 0);
         assertProperty(properties, "prop2", "", 1);
         assertProperty(properties, "prop3", "", 2);
         assertProperty(properties, "prop4", "url", 3);
+        assertProperty(properties, "prop5", "", 4);
+        assertProperty(properties, "prop6", "socket:/path/to/object#fragment", 5);
+        assertProperty(properties, "prop7", "socket-hash:/path/to/object-hash#fragment-hash", 6);
+        assertProperty(properties, "prop8", ":#", 7);
     }
 
     @Test
