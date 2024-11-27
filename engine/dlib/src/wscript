@@ -100,6 +100,9 @@ def build(bld):
         source_files = remove_files(source_files, ['thread_win32.cpp'])
         source_files = remove_files(source_files, ['mutex_win32.cpp'])
 
+    if build_util.get_target_os() in ['macos', 'ios']:
+        source_files = remove_files(source_files, ['time_posix.cpp'])
+
     dlib = bld.stlib(features = 'c cxx',
                      source   = source_files + platform_source_files,
                      includes = ['.', './mbedtls/include', './mbedtls/crypto/include'],

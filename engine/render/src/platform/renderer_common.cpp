@@ -12,29 +12,11 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "time.h"
+#include "render/render_private.h"
 
-#include <time.h>
-#include <unistd.h>
-
-namespace dmTime
+namespace dmRender
 {
-    void Sleep(uint32_t useconds)
+    void PlatformSetupContextEventCallback(void* context, ContextEventCallback callback)
     {
-        usleep(useconds);
-    }
-
-    uint64_t GetTime()
-    {
-        struct timespec ts;
-        clock_gettime(CLOCK_REALTIME, &ts);
-        return (uint64_t)ts.tv_sec * 1000000U + ts.tv_nsec / 1000U;
-    }
-
-    uint64_t GetMonotonicTime()
-    {
-        struct timespec ts;
-        clock_gettime(CLOCK_MONOTONIC, &ts);
-        return (uint64_t) ts.tv_sec * 1000000U + ts.tv_nsec / 1000U;
     }
 }

@@ -542,7 +542,6 @@ public class TexcLibraryJni {
             System.out.printf("      is compressed: %b\n", buffer.isCompressed);
         }
 
-
         System.out.printf("-----------------\n");
         System.out.printf("Done\n");
     }

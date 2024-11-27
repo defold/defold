@@ -14,7 +14,7 @@
 
 #include "time.h"
 
-#include <time.h>
+#include <sys/time.h>
 #include <unistd.h>
 
 namespace dmTime
@@ -26,15 +26,14 @@ namespace dmTime
 
     uint64_t GetTime()
     {
-        struct timespec ts;
-        clock_gettime(CLOCK_REALTIME, &ts);
-        return (uint64_t)ts.tv_sec * 1000000U + ts.tv_nsec / 1000U;
+        timeval tv;
+        gettimeofday(&tv, 0);
+        return ((uint64_t) tv.tv_sec) * 1000000U + tv.tv_usec;
     }
 
     uint64_t GetMonotonicTime()
     {
-        struct timespec ts;
-        clock_gettime(CLOCK_MONOTONIC, &ts);
-        return (uint64_t) ts.tv_sec * 1000000U + ts.tv_nsec / 1000U;
+        uint64_t nanoseconds = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+        return nanoseconds / 1000U;
     }
 }
