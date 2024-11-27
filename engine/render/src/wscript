@@ -17,12 +17,8 @@ def build(bld):
         sources += ['platform/renderer_common.cpp']
 
     # remove the font render plugins
-
-    for x in sources:
-        print(x.name, type(x.name))
-        break
-
     sources = [x for x in sources if not str(x).endswith('font_renderer_default.cpp')]
+    #sources = [x for x in sources if not str(x).endswith('font_renderer_raqm.cpp')]
 
     bld.stlib(features        = 'cxx ddf',
               includes        = ['.', '../build/proto'],

@@ -12,32 +12,25 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <string.h>
-#include <math.h>
-#include <float.h>
+#include <assert.h>                 // for assert
+#include <string.h>                 // for memcpy
+#include <float.h>                  // for FLT_MAX
 
-#include <dlib/align.h>
-#include <dlib/memory.h>
-#include <dlib/static_assert.h>
-#include <dlib/array.h>
-#include <dlib/log.h>
-#include <dlib/math.h>
-#include <dlib/profile.h>
-#include <dlib/hashtable.h>
-#include <dlib/utf8.h>
-#include <dmsdk/dlib/vmath.h>
-#include <dmsdk/dlib/intersection.h>
+#include <dlib/memory.h>            // for dmMemory
+#include <dlib/hashtable.h>         // for dmHashTable32
+#include <dlib/log.h>               // for dmLogError, dmLogOnceError, dmLog...
+#include <dlib/profile.h>           // for DM_PROFILE, DM_PROPERTY_*
+#include <dlib/zlib.h>              // for InflateBuffer
+#include <dmsdk/dlib/intersection.h>// for dmIntersection
 
-#include <graphics/graphics_util.h>
+#include <graphics/graphics.h>      // for TextureParams, TextureFilter, Tex...
+#include <graphics/graphics_util.h> // for PackRGBA
 
 #include "font.h"
-#include "font_renderer.h"
-#include "font_renderer_api.h"
-#include "font_renderer_private.h"
+#include "font_renderer_private.h"  // for FontMap, RenderLayerMask
 
-#include "render_private.h"
-#include "render/font_ddf.h"
-#include "render.h"
+#include "font_renderer.h"       // for FontGlyphCompression
+#include "font_renderer_api.h"   // for the font renderer backend api
 
 DM_PROPERTY_EXTERN(rmtp_Render);
 DM_PROPERTY_U32(rmtp_FontCharacterCount, 0, FrameReset, "# glyphs", &rmtp_Render);

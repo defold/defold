@@ -12,13 +12,20 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include "font.h"
-#include "font_renderer.h"
-#include "font_renderer_private.h"
+#include <math.h>                           // for sqrtf
+#include <stdint.h>                         // for uint32_t, int16_t
+#include <dlib/align.h>                     // for DM_ALIGNED
+#include <dlib/log.h>                       // for dmLog*
+#include <dlib/profile.h>                   // for DM_PROFILE, DM_PROPERTY_*
+#include <dlib/utf8.h>                      // for NextChar
+#include <dlib/vmath.h>                     // for Vector4
 
-#include <dlib/align.h>
-#include <graphics/graphics.h>
-#include <graphics/graphics_util.h>
+#include <graphics/graphics.h>              // for AddVertexStream etc
+#include <graphics/graphics_util.h>         // for UnpackRGBA
+
+#include "font.h"                           // for GetGlyph, TextMetri...
+#include "font_renderer_private.h"          // for RenderLayerMask
+#include "render/render_private.h"          // for TextEntry, TextContext
 
 namespace dmRender
 {
@@ -103,6 +110,8 @@ namespace dmRender
 
     void GetTextMetrics(HFontMap font_map, const char* text, TextMetricsSettings* settings, TextMetrics* metrics)
     {
+        DM_PROFILE(__FUNCTION__);
+
         metrics->m_MaxAscent = font_map->m_MaxAscent;
         metrics->m_MaxDescent = font_map->m_MaxDescent;
 
@@ -132,6 +141,8 @@ namespace dmRender
 
     uint32_t CreateFontVertexData(TextContext& text_context, HFontMap font_map, const char* text, const TextEntry& te, float recip_w, float recip_h, uint8_t* _vertices, uint32_t num_vertices)
     {
+        DM_PROFILE(__FUNCTION__);
+
         GlyphVertex* vertices = (GlyphVertex*)_vertices;
 
         float width = te.m_Width;
