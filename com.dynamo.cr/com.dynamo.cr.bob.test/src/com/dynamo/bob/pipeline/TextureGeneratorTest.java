@@ -23,7 +23,7 @@ import java.util.EnumSet;
 import org.junit.Test;
 
 import com.dynamo.bob.util.TextureUtil;
-import com.dynamo.bob.TexcLibrary.FlipAxis;
+import com.dynamo.bob.pipeline.Texc.FlipAxis;
 import com.dynamo.graphics.proto.Graphics.PlatformProfile;
 import com.dynamo.graphics.proto.Graphics.TextureFormatAlternative;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
