@@ -467,17 +467,20 @@ ordinary paths."
   (or (:template resource-type)
       (some->> resource-type :ext (str "templates/template."))))
 
+(def ^:private user-resource-path "/templates/template.")
+
 (defn- get-template-resource [workspace resource-type]
   (let [path (template-path resource-type)
         java-resource (when path (io/resource path))
+        user-resource (find-resource workspace (some->> resource-type :ext (str user-resource-path)))
         editor-resource (when path (find-resource workspace path))]
-    (or java-resource editor-resource)))
-  
+    (or user-resource java-resource editor-resource)))
+
 (defn has-template? [workspace resource-type]
   (let [resource (get-template-resource workspace resource-type)]
     (not= resource nil)))
 
-(defn- template-raw [workspace resource-type]
+(defn template [workspace resource-type]
   (when-let [resource (get-template-resource workspace resource-type)]
     (let [{:keys [read-fn write-fn]} resource-type]
       (if (and read-fn write-fn)
@@ -489,8 +492,6 @@ ordinary paths."
         ;; Just read the file as-is.
         (with-open [reader (io/reader resource)]
           (slurp reader))))))
-
-(def template (fn/memoize template-raw))
 
 (defn- update-dependency-notifications! [workspace lib-states]
   (let [{:keys [error missing]} (->> lib-states
