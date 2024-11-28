@@ -39,7 +39,7 @@ void ArchiveLoader::Verify()
     assert(m_Unmount != 0);
     assert(m_GetFileSize != 0);
     assert(m_ReadFile != 0);
-    //assert(m_ReadFilePartial != 0);
+    assert(m_ReadFilePartial != 0);
 }
 
 void RegisterArchiveLoader(ArchiveLoader* loader)
