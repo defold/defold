@@ -19,7 +19,6 @@
 
 #include <graphics/graphics.h>
 
-//#include "font_renderer_private.h"
 #include "render_private.h"             // TextEntry
 
 /**
