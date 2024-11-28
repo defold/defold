@@ -109,20 +109,23 @@ public class ZipPublisher extends Publisher {
 
     @Override
     public void publish(ArchiveEntry entry, InputStream data) throws CompileExceptionError {
+        final String archiveEntryHexdigest = entry.getHexDigest();
+        final String archiveEntryName = entry.getName();
+        final String zipEntryName = (archiveEntryHexdigest != null) ? archiveEntryHexdigest : archiveEntryName;
+        synchronized (zipEntries) {
+            if (zipEntries.contains(zipEntryName)) {
+                return;
+            }
+            zipEntries.add(zipEntryName);
+        }
         try {
-            final String archiveEntryHexdigest = entry.getHexDigest();
-            final String archiveEntryName = entry.getName();
-            final String zipEntryName = (archiveEntryHexdigest != null) ? archiveEntryHexdigest : archiveEntryName;
-            if (!zipEntries.contains(zipEntryName)) {
-                zipEntries.add(zipEntryName);
-                ZipEntry currentEntry = new ZipEntry(zipEntryName);
-                synchronized (zipOutputStream) {
-                    zipOutputStream.putNextEntry(currentEntry);
-                    zipOutputStream.write(entry.getHeader());
-                    data.transferTo(zipOutputStream);
-                    zipOutputStream.flush();
-                    zipOutputStream.closeEntry();
-                }
+            ZipEntry currentEntry = new ZipEntry(zipEntryName);
+            synchronized (zipOutputStream) {
+                zipOutputStream.putNextEntry(currentEntry);
+                zipOutputStream.write(entry.getHeader());
+                data.transferTo(zipOutputStream);
+                zipOutputStream.flush();
+                zipOutputStream.closeEntry();
             }
         } catch (FileNotFoundException exception) {
             throw new CompileExceptionError("Unable to find required file for liveupdate resources: " + exception.getMessage(), exception);
@@ -133,20 +136,23 @@ public class ZipPublisher extends Publisher {
 
     @Override
     public void publish(ArchiveEntry entry, byte[] data) throws CompileExceptionError {
+        final String archiveEntryHexdigest = entry.getHexDigest();
+        final String archiveEntryName = entry.getName();
+        final String zipEntryName = (archiveEntryHexdigest != null) ? archiveEntryHexdigest : archiveEntryName;
+        synchronized (zipEntries) {
+            if (zipEntries.contains(zipEntryName)) {
+                return;
+            }
+            zipEntries.add(zipEntryName);
+        }
         try {
-            final String archiveEntryHexdigest = entry.getHexDigest();
-            final String archiveEntryName = entry.getName();
-            final String zipEntryName = (archiveEntryHexdigest != null) ? archiveEntryHexdigest : archiveEntryName;
-            if (!zipEntries.contains(zipEntryName)) {
-                zipEntries.add(zipEntryName);
-                ZipEntry currentEntry = new ZipEntry(zipEntryName);
-                synchronized (zipOutputStream) {
-                    zipOutputStream.putNextEntry(currentEntry);
-                    zipOutputStream.write(entry.getHeader());
-                    zipOutputStream.write(data);
-                    zipOutputStream.flush();
-                    zipOutputStream.closeEntry();
-                }
+            ZipEntry currentEntry = new ZipEntry(zipEntryName);
+            synchronized (zipOutputStream) {
+                zipOutputStream.putNextEntry(currentEntry);
+                zipOutputStream.write(entry.getHeader());
+                zipOutputStream.write(data);
+                zipOutputStream.flush();
+                zipOutputStream.closeEntry();
             }
         } catch (FileNotFoundException exception) {
             throw new CompileExceptionError("Unable to find required file for liveupdate resources: " + exception.getMessage(), exception);
