@@ -61,11 +61,14 @@ struct ResourceDescriptor
     uint16_t        m_Version;
 };
 
+static const uint32_t RESOURCE_INVALID_PRELOAD_SIZE = 0xFFFFFFFF;
+
 struct ResourceType
 {
     ResourceType() // TODO: Will it be ok using C++ constructor, since this is a private header?
     {
         memset(this, 0, sizeof(*this));
+        m_PreloadSize = RESOURCE_INVALID_PRELOAD_SIZE;
     }
     dmhash_t            m_ExtensionHash;
     const char*         m_Extension; // The suffix, without the '.'
@@ -75,6 +78,7 @@ struct ResourceType
     FResourcePostCreate m_PostCreateFunction;
     FResourceDestroy    m_DestroyFunction;
     FResourceRecreate   m_RecreateFunction;
+    uint32_t            m_PreloadSize;
     uint8_t             m_Index;
 };
 

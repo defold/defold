@@ -614,6 +614,64 @@ namespace dmResourceArchive
         return dmResourceArchive::RESULT_OK;
     }
 
+    Result ReadEntryPartial(HArchiveIndexContainer archive, const EntryData* entry, uint32_t offset, uint32_t size, void* buffer, uint32_t* nread)
+    {
+        // We always assume it's in Host format, since it may arrive from memory mapped data
+        const uint32_t resource_size    = dmEndian::ToNetwork(entry->m_ResourceSize);
+        const uint32_t resource_offset  = dmEndian::ToNetwork(entry->m_ResourceDataOffset);
+
+        if (offset >= resource_size)
+        {
+            *nread = 0;
+            return RESULT_OK;
+        }
+
+        if ((offset+size) > resource_size)
+        {
+            size = resource_size - offset;
+        }
+
+        // bool encrypted = (flags & dmResourceArchive::ENTRY_FLAG_ENCRYPTED);
+        // bool compressed = (flags & dmResourceArchive::ENTRY_FLAG_COMPRESSED);
+
+        Result result = dmResourceArchive::RESULT_OK;
+
+        const ArchiveFileIndex* afi = archive->m_ArchiveFileIndex;
+        bool resource_memmapped = afi->m_IsMemMapped;
+
+        uint8_t* temp_data = 0;
+        uint8_t* source_data = 0;
+        uint32_t source_data_size = 0;
+
+        if (!resource_memmapped)
+        {
+            // we need to read from the file on disc
+            FILE* resource_file = afi->m_FileResourceData;
+            fseek(resource_file, resource_offset+offset, SEEK_SET);
+
+            // we can read directly to the output buffer
+            size_t nmemb = fread(buffer, 1, size, resource_file);
+            if (!ferror(resource_file))
+            {
+                *nread = (uint32_t)nmemb;
+            }
+            else {
+                result = RESULT_IO_ERROR;
+            }
+
+            return result;
+        }
+        else
+        {
+            const uint8_t* archive_data = (uint8_t*) (((uintptr_t)afi->m_ResourceData + resource_offset));
+
+            // we can copy it directly to the output buffer
+            memcpy(buffer, archive_data + offset, size);
+        }
+
+        return dmResourceArchive::RESULT_OK;
+    }
+
     Result WriteArchiveIndex(const char* path, ArchiveIndex* ai)
     {
         // Write to temporary index file, filename liveupdate.arci.tmp

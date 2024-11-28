@@ -600,6 +600,31 @@ namespace dmEngine
         return (dmPlatform::PlatformGraphicsApi) -1;
     }
 
+    static void SetupStreamingResourceTypes(HEngine engine)
+    {
+        // Setup streaming if wanted
+        int32_t sound_streaming_enabled = dmConfigFile::GetInt(engine->m_Config, "sound.stream_enabled", 0);
+        if (sound_streaming_enabled)
+        {
+            // We currently use size (as opposed to time), as that doesn't require us to know anything about the sound file itself
+            int32_t sound_streaming_preload_size = dmConfigFile::GetInt(engine->m_Config, "sound.stream_preload_size", 0);
+
+            const char* extensions[] = {"oggc"}; // wavc
+            for (int i = 0; i < DM_ARRAY_SIZE(extensions); ++i)
+            {
+                dmResource::HResourceType type;
+                dmResource::Result result = dmResource::GetTypeFromExtension(engine->m_Factory, extensions[i], &type);
+                if (dmResource::RESULT_OK != result)
+                {
+                    dmLogWarning("Failed to find resource type %s, couldn't enable for streaming", extensions[i]);
+                    continue;
+                }
+
+                ResourceTypeSetStreaming(type, sound_streaming_preload_size);
+            }
+        }
+    }
+
     /*
      The game.projectc is located using the following scheme:
 
@@ -1391,6 +1416,9 @@ namespace dmEngine
             if (!dmGameSystem::InitializeScriptLibs(script_lib_context))
                 goto bail;
         }
+
+        // setup streaming for resource types, before we load the first collection
+        SetupStreamingResourceTypes(engine);
 
         fact_result = dmResource::Get(engine->m_Factory, dmConfigFile::GetString(engine->m_Config, "bootstrap.main_collection", "/logic/main.collectionc"), (void**) &engine->m_MainCollection);
         if (fact_result != dmResource::RESULT_OK)

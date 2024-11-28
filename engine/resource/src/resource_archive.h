@@ -213,6 +213,19 @@ namespace dmResourceArchive
     Result ReadEntry(HArchiveIndexContainer archive, const EntryData* entry, void* buffer);
 
     /**
+     * Read a partial resource from the given archive
+     * @name ReadEntryPartial
+     * @param archive archive index handle
+     * @param entry_data entry data
+     * @param offset
+     * @param size
+     * @param buffer buffer to load to
+     * @param nread [out] the number of bytes read
+     * @return RESULT_OK on success
+     */
+    Result ReadEntryPartial(HArchiveIndexContainer archive, const EntryData* entry, uint32_t offset, uint32_t size, void* buffer, uint32_t* nread);
+
+    /**
      * Delete archive index. Only required for archives created with LoadArchive function
      * @param archive archive index handle
      */

@@ -296,12 +296,15 @@ void*           ResourceDescriptorGetPrevResource(HResourceDescriptor rd);
 void            ResourceDescriptorSetResourceSize(HResourceDescriptor rd, uint32_t size);
 uint32_t        ResourceDescriptorGetResourceSize(HResourceDescriptor rd);
 HResourceType   ResourceDescriptorGetType(HResourceDescriptor rd);
+// Streaming api
+ResourceResult  ResourceDescriptorGetData(HResourceFactory factory, HResourceDescriptor rd, void* out, uint32_t offset, uint32_t size);
+ResourceResult  ResourceDescriptorPreloadData(HResourceFactory factory, HResourceDescriptor rd, uint32_t offset, uint32_t size);
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Type functions
 
-void*  ResourceTypeContextGetContextByHash(HResourceTypeContext, dmhash_t extension_hash);
+void*   ResourceTypeContextGetContextByHash(HResourceTypeContext, dmhash_t extension_hash);
 
 typedef ResourceResult (*FResourceTypeRegister)(HResourceTypeContext ctx, HResourceType type);
 typedef ResourceResult (*FResourceTypeDeregister)(HResourceTypeContext ctx, HResourceType type);
@@ -310,6 +313,7 @@ typedef ResourceResult (*FResourceCreate)(const struct ResourceCreateParams* par
 typedef ResourceResult (*FResourcePostCreate)(const struct ResourcePostCreateParams* params);
 typedef ResourceResult (*FResourceDestroy)(const struct ResourceDestroyParams* params);
 typedef ResourceResult (*FResourceRecreate)(const struct ResourceRecreateParams* params);
+
 
 void* ResourceTypeGetContext(HResourceType type);
 void ResourceTypeSetContext(HResourceType type, void* context);
@@ -320,8 +324,14 @@ void ResourceTypeSetCreateFn(HResourceType type, FResourceCreate fn);
 void ResourceTypeSetPostCreateFn(HResourceType type, FResourcePostCreate fn);
 void ResourceTypeSetDestroyFn(HResourceType type, FResourceDestroy fn);
 void ResourceTypeSetRecreateFn(HResourceType type, FResourceRecreate fn);
+// Enables streaming for a resource
+void        ResourceTypeSetStreaming(HResourceType type, uint32_t preload_size);
+bool        ResourceTypeIsStreaming(HResourceType type);
+uint32_t    ResourceTypeGetPreloadSize(HResourceType type);
 
 // internal
+void ResourceTypeReset(HResourceType type);
+
 ResourceResult ResourceRegisterType(HResourceFactory factory,
                                    const char* extension,
                                    void* context,
@@ -347,7 +357,8 @@ struct ResourcePreloadParams
     void*                    m_Context;
     const char*              m_Filename;
     const void*              m_Buffer;
-    uint32_t                 m_BufferSize;
+    uint32_t                 m_BufferSize:31;
+    uint32_t                 m_IsBufferPartial:1;
     HResourcePreloadHintInfo m_HintInfo;
     void**                   m_PreloadData;
     HResourceType            m_Type;
@@ -371,7 +382,8 @@ struct ResourceCreateParams
     void*               m_Context;
     const char*         m_Filename;
     const void*         m_Buffer;
-    uint32_t            m_BufferSize;
+    uint32_t            m_BufferSize:31;
+    uint32_t            m_IsBufferPartial:1;
     void*               m_PreloadData;
     HResourceDescriptor m_Resource;
     HResourceType       m_Type;
@@ -418,7 +430,8 @@ struct ResourceRecreateParams
     dmhash_t            m_FilenameHash;
     const char*         m_Filename;
     const void*         m_Buffer;
-    uint32_t            m_BufferSize;
+    uint32_t            m_BufferSize:31;
+    uint32_t            m_IsBufferPartial:1;
     const void*         m_Message;
     HResourceDescriptor m_Resource;
     HResourceType       m_Type;
@@ -543,7 +556,7 @@ void ResourceRegisterTypeCreatorDesc(void* desc, uint32_t size, const char *name
  *     ResourceTypeSetRecreateFn(type, MyResourceTypeScriptRecreate);
  * }
  *
- * static ResourceResult DeregisterResourceTypeBlob(ResourceTypeRegisterContext& ctx)
+ * static ResourceResult DeregisterResourceTypeBlob(HResourceTypeRegisterContext ctx)
  * {
  *     MyContext** context = (MyContext*)ResourceTypeGetContext(type);
  *     delete *context;

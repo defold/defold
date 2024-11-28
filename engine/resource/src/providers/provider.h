@@ -50,6 +50,7 @@ namespace dmResourceProvider
 
     typedef Result (*FGetFileSize)(HArchiveInternal archive, dmhash_t path_hash, const char* path, uint32_t* file_size);
     typedef Result (*FReadFile)(HArchiveInternal archive, dmhash_t path_hash, const char* path, uint8_t* buffer, uint32_t buffer_len);
+    typedef Result (*FReadFilePartial)(HArchiveInternal archive, dmhash_t path_hash, const char* path, uint32_t offset, uint32_t size, uint8_t* buffer, uint32_t* nread);
     typedef Result (*FWriteFile)(HArchiveInternal archive, dmhash_t path_hash, const char* path, const uint8_t* buffer, uint32_t buffer_len);
     typedef Result (*FGetManifest)(HArchiveInternal, dmResource::HManifest*); // In order for other providers to get the base manifest
     typedef Result (*FSetManifest)(HArchiveInternal, dmResource::HManifest);  // In order to set a downloaded manifest to a provider
@@ -71,6 +72,7 @@ namespace dmResourceProvider
 
     Result GetFileSize(HArchive archive, dmhash_t path_hash, const char* path, uint32_t* file_size);
     Result ReadFile(HArchive archive, dmhash_t path_hash, const char* path, uint8_t* buffer, uint32_t buffer_len);
+    Result ReadFilePartial(HArchive archive, dmhash_t path_hash, const char* path, uint32_t offset, uint32_t size, uint8_t* buffer, uint32_t* nread);
     Result WriteFile(HArchive archive, dmhash_t path_hash, const char* path, const uint8_t* buffer, uint32_t buffer_len);
 
 
