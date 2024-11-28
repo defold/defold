@@ -34,6 +34,22 @@ namespace dmGraphics
     #define UNIFORM_LOCATION_GET_FS(loc)        ((loc & (UNIFORM_LOCATION_MAX << 32)) >> 32)
     #define UNIFORM_LOCATION_GET_FS_MEMBER(loc) ((loc & (UNIFORM_LOCATION_MAX << 48)) >> 48)
 
+    struct ProgramResourceBinding;
+    struct ShaderResourceMember;
+
+    struct CreateUniformLeafMembersCallbackParams
+    {
+        // Temporary char*, don't count on them existing outside of the callback
+        char*                         m_CanonicalName;
+        char*                         m_Namespace;
+        char*                         m_InstanceName;
+        const ProgramResourceBinding* m_Resource;
+        const ShaderResourceMember*   m_Member;
+        uint32_t                      m_BaseOffset;
+    };
+
+    typedef void (*IterateUniformsCallback)(const CreateUniformLeafMembersCallbackParams& params, void* user_data);
+
     const static uint8_t MAX_BINDINGS_PER_SET_COUNT = 32;
     const static uint8_t MAX_SET_COUNT              = 4;
     const static uint8_t MAX_STORAGE_BUFFERS        = 4;
@@ -106,6 +122,8 @@ namespace dmGraphics
 
         char*              m_Name;
         dmhash_t           m_NameHash;
+        char*              m_InstanceName;
+        dmhash_t           m_InstanceNameHash;
         ShaderResourceType m_Type;
         BindingFamily      m_BindingFamily;
         uint16_t           m_Set;
@@ -149,6 +167,12 @@ namespace dmGraphics
         uint32_t m_UniformDataSizeAligned;
         uint32_t m_MaxSet;
         uint32_t m_MaxBinding;
+    };
+
+    struct ResourceBindingDesc
+    {
+        uint16_t m_Binding;
+        uint8_t  m_Taken;
     };
 
     struct ProgramResourceBinding
@@ -236,6 +260,25 @@ namespace dmGraphics
     bool                 GetUniformIndices(const dmArray<ShaderResourceBinding>& uniforms, dmhash_t name_hash, uint64_t* index_out, uint64_t* index_member_out);
     uint32_t             CountShaderResourceLeafMembers(const dmArray<ShaderResourceTypeInfo>& type_infos, ShaderResourceType type, uint32_t count = 0);
     void                 BuildUniforms(Program* program);
+    void                 IterateUniforms(Program* program, IterateUniformsCallback callback, void* user_data);
+
+    void FillProgramResourceBindings(Program& program,
+        dmArray<ShaderResourceBinding>&       resources,
+        dmArray<ShaderResourceTypeInfo>&      stage_type_infos,
+        ResourceBindingDesc                   bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT],
+        uint32_t                              ubo_alignment,
+        uint32_t                              ssbo_alignment,
+        ShaderStageFlag                       stage_flag,
+        ProgramResourceBindingsInfo&          info);
+
+    void FillProgramResourceBindings(
+        Program*                     program,
+        ShaderMeta*                  meta,
+        ResourceBindingDesc          bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT],
+        uint32_t                     ubo_alignment,
+        uint32_t                     ssbo_alignment,
+        ShaderStageFlag              stage_flag,
+        ProgramResourceBindingsInfo& info);
 
     void                  InitializeSetTextureAsyncState(SetTextureAsyncState& state);
     void                  ResetSetTextureAsyncState(SetTextureAsyncState& state);

@@ -735,95 +735,6 @@ namespace dmGraphics
         return g_DrawCount;
     }
 
-    struct ResourceBindingDesc
-    {
-        uint16_t m_Binding;
-        uint8_t  m_Taken;
-    };
-
-    // TODO: This can be merged with a certain "blue" graphics adapter
-    static void FillProgramResourceBindings(
-        Program&                         program,
-        dmArray<ShaderResourceBinding>&  resources,
-        dmArray<ShaderResourceTypeInfo>& stage_type_infos,
-        ResourceBindingDesc              bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT],
-        uint32_t                         ubo_alignment,
-        uint32_t                         ssbo_alignment,
-        ShaderStageFlag                  stage_flag,
-        ProgramResourceBindingsInfo&     info)
-    {
-        for (int i = 0; i < resources.Size(); ++i)
-        {
-            ShaderResourceBinding& res   = resources[i];
-            ResourceBindingDesc& binding = bindings[res.m_Set][res.m_Binding];
-            ProgramResourceBinding& program_resource_binding = program.m_ResourceBindings[res.m_Set][res.m_Binding];
-
-            if (!binding.m_Taken)
-            {
-                binding.m_Binding = res.m_Binding;
-                binding.m_Taken   = 1;
-
-                program_resource_binding.m_Res         = &res;
-                program_resource_binding.m_TypeInfos   = &stage_type_infos;
-                program_resource_binding.m_StageFlags |= (int) stage_flag;
-
-                switch(res.m_BindingFamily)
-                {
-                    case ShaderResourceBinding::BINDING_FAMILY_TEXTURE:
-                        program_resource_binding.m_TextureUnit = info.m_TextureCount;
-                        info.m_TextureCount++;
-                        break;
-                    case ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER:
-                        program_resource_binding.m_StorageBufferUnit = info.m_StorageBufferCount;
-                        info.m_StorageBufferCount++;
-
-                    #if 0
-                        dmLogInfo("SSBO: name=%s, set=%d, binding=%d, ssbo-unit=%d", res.m_Name, res.m_Set, res.m_Binding, program_resource_binding.m_StorageBufferUnit);
-                    #endif
-
-                        break;
-                    case ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER:
-                    {
-                        assert(res.m_Type.m_UseTypeIndex);
-                        program_resource_binding.m_DataOffset         = info.m_UniformDataSize;
-                        program_resource_binding.m_DynamicOffsetIndex = info.m_UniformBufferCount;
-
-                        info.m_UniformBufferCount++;
-                        info.m_UniformDataSize        += res.m_BindingInfo.m_BlockSize;
-                        info.m_UniformDataSizeAligned += DM_ALIGN(res.m_BindingInfo.m_BlockSize, ubo_alignment);
-                    }
-                    break;
-                    case ShaderResourceBinding::BINDING_FAMILY_GENERIC:
-                    default:break;
-                }
-
-                info.m_MaxSet     = dmMath::Max(info.m_MaxSet, (uint32_t) (res.m_Set + 1));
-                info.m_MaxBinding = dmMath::Max(info.m_MaxBinding, (uint32_t) (res.m_Binding + 1));
-
-            #if 0
-                dmLogInfo("    name=%s, set=%d, binding=%d, data_offset=%d, texture_unit=%d", res.m_Name, res.m_Set, res.m_Binding, program_resource_binding.m_DataOffset, program_resource_binding.m_TextureUnit);
-            #endif
-            }
-        }
-    }
-
-    static void FillProgramResourceBindings(
-        NullProgram*                 program,
-        NullShaderModule*            module,
-        ResourceBindingDesc          bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT],
-        uint32_t                     ubo_alignment,
-        uint32_t                     ssbo_alignment,
-        ShaderStageFlag              stage_flag,
-        ProgramResourceBindingsInfo& info)
-    {
-        if (program && module)
-        {
-            FillProgramResourceBindings(program->m_BaseProgram, module->m_ShaderMeta.m_UniformBuffers, module->m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, stage_flag, info);
-            FillProgramResourceBindings(program->m_BaseProgram, module->m_ShaderMeta.m_StorageBuffers, module->m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, stage_flag, info);
-            FillProgramResourceBindings(program->m_BaseProgram, module->m_ShaderMeta.m_Textures, module->m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, stage_flag, info);
-        }
-    }
-
     static void CreateProgramResourceBindings(NullProgram* program, NullShaderModule* vertex_module, NullShaderModule* fragment_module, NullShaderModule* compute_module)
     {
         ResourceBindingDesc bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT] = {};
@@ -832,9 +743,9 @@ namespace dmGraphics
         uint32_t ssbo_alignment = 0;
 
         ProgramResourceBindingsInfo binding_info = {};
-        FillProgramResourceBindings(program, vertex_module, bindings, ubo_alignment, ssbo_alignment, SHADER_STAGE_FLAG_VERTEX, binding_info);
-        FillProgramResourceBindings(program, fragment_module, bindings, ubo_alignment, ssbo_alignment, SHADER_STAGE_FLAG_FRAGMENT, binding_info);
-        FillProgramResourceBindings(program, compute_module, bindings, ubo_alignment, ssbo_alignment, SHADER_STAGE_FLAG_COMPUTE, binding_info);
+        FillProgramResourceBindings(&program->m_BaseProgram, &vertex_module->m_ShaderMeta, bindings, ubo_alignment, ssbo_alignment, SHADER_STAGE_FLAG_VERTEX, binding_info);
+        FillProgramResourceBindings(&program->m_BaseProgram, &fragment_module->m_ShaderMeta, bindings, ubo_alignment, ssbo_alignment, SHADER_STAGE_FLAG_FRAGMENT, binding_info);
+        FillProgramResourceBindings(&program->m_BaseProgram, &compute_module->m_ShaderMeta, bindings, ubo_alignment, ssbo_alignment, SHADER_STAGE_FLAG_COMPUTE, binding_info);
 
         program->m_BaseProgram.m_MaxSet     = binding_info.m_MaxSet;
         program->m_BaseProgram.m_MaxBinding = binding_info.m_MaxBinding;

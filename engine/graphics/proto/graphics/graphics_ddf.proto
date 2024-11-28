@@ -353,23 +353,25 @@ message ShaderDesc
 
     message ResourceBinding
     {
-        required string         name          = 1;
-        required uint64         name_hash     = 2;
-        required ResourceType   type          = 3;
-        optional uint32         set           = 4;
-        optional uint32         binding       = 5;
-        optional uint32         element_count = 6;
+        required string         name               = 1;
+        required uint64         name_hash          = 2;
+        required ResourceType   type               = 3;
+        optional uint32         set                = 4;
+        optional uint32         binding            = 5;
+        optional uint32         element_count      = 6;
+        optional string         instance_name      = 7;
+        optional uint64         instance_name_hash = 8;
 
         oneof BindingInfo
         {
             // Uniform buffer block size
-            uint32 block_size = 7;
+            uint32 block_size = 9;
             // Sampler object index
             // Since we split combined samplers into
             // a texture + sampler object we need to
             // keep track of which of the textures
             // the sampler originally is pointing to.
-            uint32 sampler_texture_index = 8;
+            uint32 sampler_texture_index = 10;
         }
     }
 

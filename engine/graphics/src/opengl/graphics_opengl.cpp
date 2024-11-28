@@ -2169,6 +2169,21 @@ static void LogFrameBufferError(GLenum status)
         shader->m_Id         = AddNewGLHandle(context, shader_id);
         shader->m_Language   = ddf_shader->m_Language;
 
+        switch(type)
+        {
+            case GL_VERTEX_SHADER:
+                shader->m_Stage = SHADER_STAGE_FLAG_VERTEX;
+                break;
+            case GL_FRAGMENT_SHADER:
+                shader->m_Stage = SHADER_STAGE_FLAG_FRAGMENT;
+                break;
+            case DMGRAPHICS_TYPE_COMPUTE_SHADER:
+                shader->m_Stage = SHADER_STAGE_FLAG_COMPUTE;
+                break;
+            default:
+                break;
+        }
+
         CreateShaderMeta(&ddf->m_Reflection, &shader->m_ShaderMeta);
 
         return shader;
@@ -2244,6 +2259,19 @@ static void LogFrameBufferError(GLenum status)
         }
 
         return str;
+    }
+
+    static inline int FindNamespace(char* str, uint32_t len)
+    {
+        // Look for the first dot in the string
+        for (int i = 0; i < len; ++i)
+        {
+            if (str[i] == '.')
+            {
+                return i;
+            }
+        }
+        return -1;
     }
 
     static void BuildUniformBuffers(HContext context, OpenGLProgram* program, OpenGLShader** shaders, uint32_t num_shaders)
@@ -2328,6 +2356,165 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
+    struct BuildCanonicalPathsCallbackContext
+    {
+        struct PathPointers
+        {
+            uint32_t m_OffsetCanonicalName     : 31;
+            uint32_t m_OffsetCanonicalNameUsed : 1;
+            uint32_t m_OffsetNamespace         : 31;
+            uint32_t m_OffsetNamespaceUsed     : 1;
+            uint32_t m_OffsetInstanceName      : 31;
+            uint32_t m_OffsetInstanceNameUsed  : 1;
+        };
+
+        char* CanonicalName(uint32_t i)
+        {
+            if (!m_Paths[i].m_OffsetCanonicalNameUsed)
+            {
+                return 0;
+            }
+            return m_Buffer.Begin() + m_Paths[i].m_OffsetCanonicalName;
+        }
+        char* Namespace(uint32_t i)
+        {
+            if (!m_Paths[i].m_OffsetNamespaceUsed)
+            {
+                return 0;
+            }
+            return m_Buffer.Begin() + m_Paths[i].m_OffsetNamespace;
+        }
+        char* InstanceName(uint32_t i)
+        {
+            if (!m_Paths[i].m_OffsetInstanceNameUsed)
+            {
+                return 0;
+            }
+            return m_Buffer.Begin() + m_Paths[i].m_OffsetInstanceName;
+        }
+
+        dmArray<char>         m_Buffer;
+        dmArray<PathPointers> m_Paths;
+    };
+
+    static void BuildCanonicalPathsCallback(const CreateUniformLeafMembersCallbackParams& params, void* user_data)
+    {
+        BuildCanonicalPathsCallbackContext* context = (BuildCanonicalPathsCallbackContext*) user_data;
+
+        BuildCanonicalPathsCallbackContext::PathPointers path_pointers = {};
+
+        uint32_t increase_bytes        = 0;
+        uint32_t canonical_name_length = 0;
+        uint32_t namespace_length      = 0;
+        uint32_t instance_name_length  = 0;
+
+        if (params.m_CanonicalName)
+        {
+            canonical_name_length = strlen(params.m_CanonicalName);
+            increase_bytes += canonical_name_length + 1;
+        }
+        if (params.m_Namespace)
+        {
+            namespace_length = strlen(params.m_Namespace);
+            increase_bytes += namespace_length + 1;
+        }
+        if (params.m_InstanceName)
+        {
+            instance_name_length = strlen(params.m_InstanceName);
+            increase_bytes += instance_name_length + 1;
+        }
+
+        context->m_Buffer.OffsetCapacity(increase_bytes);
+        uint32_t buffer_offset = context->m_Buffer.Size();
+
+        char* write_ptr = context->m_Buffer.Begin() + buffer_offset;
+        char* write_begin = write_ptr;
+
+        if (params.m_CanonicalName)
+        {
+            memcpy(write_ptr, params.m_CanonicalName, canonical_name_length);
+            path_pointers.m_OffsetCanonicalName  = buffer_offset + write_ptr - write_begin;
+            path_pointers.m_OffsetCanonicalNameUsed = 1;
+            write_ptr[canonical_name_length]     = 0;
+            write_ptr                           += canonical_name_length + 1;
+        }
+        if (params.m_Namespace)
+        {
+            memcpy(write_ptr, params.m_Namespace, namespace_length);
+            path_pointers.m_OffsetNamespace  = buffer_offset + write_ptr - write_begin;
+            path_pointers.m_OffsetNamespaceUsed = 1;
+            write_ptr[namespace_length]      = 0;
+            write_ptr                       += namespace_length + 1;
+        }
+        if (params.m_InstanceName)
+        {
+            memcpy(write_ptr, params.m_InstanceName, instance_name_length);
+            path_pointers.m_OffsetInstanceName  = buffer_offset + write_ptr - write_begin;
+            path_pointers.m_OffsetInstanceNameUsed = 1;
+            write_ptr[instance_name_length]     = 0;
+            write_ptr                          += instance_name_length + 1;
+        }
+
+        context->m_Buffer.SetSize(context->m_Buffer.Capacity());
+
+        context->m_Paths.OffsetCapacity(1);
+        context->m_Paths.Push(path_pointers);
+    }
+
+    // Input: PBRMaterialUniform.material.metallicRoughness.baseColorFactor
+    // Output: my_material.material.metallicRoughness.baseColorFactor
+    static char* GetConstructedCanonicalName(BuildCanonicalPathsCallbackContext& context, char* str, uint32_t str_len, char* canonical_name_buffer, uint32_t canonical_name_buffer_len)
+    {
+        int namespace_end = FindNamespace(str, str_len);
+        if (namespace_end == -1)
+        {
+            // Texture uniforms doesn't have namespaces
+            return str;
+        }
+
+        memcpy(canonical_name_buffer, str, namespace_end);
+        canonical_name_buffer[namespace_end] = 0;
+
+        for (int i = 0; i < context.m_Paths.Size(); ++i)
+        {
+            // These should be null-terminated
+            char* namespace_path = context.Namespace(i);
+            uint32_t namespace_path_len = strlen(namespace_path);
+
+            if (namespace_path && strcmp(namespace_path, canonical_name_buffer) == 0)
+            {
+                // Matching namespace found
+                char* canonical_name = context.CanonicalName(i);
+                assert(canonical_name);
+
+                char* str_without_namespace = str + namespace_end + 1;
+
+                // Found a match, we now write either the name without the namespace,
+                // or the instance + name without namespace
+                if (strcmp(canonical_name, str_without_namespace) == 0)
+                {
+                    char* instance_name = context.InstanceName(i);
+                    char* write_ptr = canonical_name_buffer;
+
+                    if (instance_name && instance_name[0] != 0)
+                    {
+                        uint32_t instance_name_len = strlen(instance_name);
+                        memcpy(write_ptr, instance_name, instance_name_len);
+                        write_ptr[instance_name_len] = '.';
+                        write_ptr += instance_name_len + 1;
+                    }
+
+                    uint32_t canonical_name_len = strlen(canonical_name);
+                    memcpy(write_ptr, canonical_name, canonical_name_len);
+                    write_ptr[canonical_name_len] = 0;
+                    return canonical_name_buffer;
+                }
+            }
+        }
+
+        return str;
+    }
+
     static void BuildUniforms(OpenGLContext* context, OpenGLProgram* program, OpenGLShader** shaders, uint32_t num_shaders)
     {
         if (context->m_IsGles3Version)
@@ -2336,11 +2523,16 @@ static void LogFrameBufferError(GLenum status)
         }
 
         char uniform_name_buffer[256];
+        char canonical_name_buffer[256];
 
         GLint num_uniforms;
         GLuint program_handle = GetGLHandle((HContext)context, program->m_Id);
         glGetProgramiv(program_handle, GL_ACTIVE_UNIFORMS, &num_uniforms);
         CHECK_GL_ERROR;
+
+        // Create a list of all canonical leaf paths from reflected uniforms
+        BuildCanonicalPathsCallbackContext callback_context;
+        IterateUniforms(&program->m_BaseProgram, BuildCanonicalPathsCallback, &callback_context);
 
         program->m_BaseProgram.m_Uniforms.SetCapacity(num_uniforms);
         program->m_BaseProgram.m_Uniforms.SetSize(num_uniforms);
@@ -2389,17 +2581,20 @@ static void LogFrameBufferError(GLenum status)
             char* base_uniform_name = GetBaseUniformName(uniform_name_buffer, uniform_name_length);
             assert(base_uniform_name != 0);
 
+            char* canonical_name = GetConstructedCanonicalName(callback_context, uniform_name_buffer, uniform_name_length, canonical_name_buffer, sizeof(canonical_name_buffer));
+            assert(canonical_name != 0);
+
             Uniform& uniform            = program->m_BaseProgram.m_Uniforms[i];
             uniform.m_Name              = strdup(base_uniform_name);
             uniform.m_NameHash          = dmHashString64(base_uniform_name);
-            uniform.m_CanonicalName     = strdup(uniform_name_buffer);
-            uniform.m_CanonicalNameHash = dmHashString64(uniform.m_CanonicalName);
+            uniform.m_CanonicalName     = strdup(canonical_name_buffer);
+            uniform.m_CanonicalNameHash = dmHashString64(canonical_name_buffer);
             uniform.m_Location          = uniform_location;
             uniform.m_Count             = uniform_size;
             uniform.m_Type              = GetGraphicsType(uniform_type);
 
         #if 0
-            dmLogInfo("Uniform[%d]: %s, %llu, (original_name=%s)", i, uniform.m_Name, uniform.m_Location, uniform_name_buffer);
+            dmLogInfo("  Uniform[%d]: full-name: %s, canonical-name: %s", i, uniform_name_buffer, canonical_name);
         #endif
 
             // JG: Original code did this, but I'm not sure why.
@@ -2479,6 +2674,17 @@ static void LogFrameBufferError(GLenum status)
     #endif
     }
 
+    static void CreateProgramResourceBindings(OpenGLProgram* program, ResourceBindingDesc bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT], OpenGLShader** shaders, uint32_t num_shaders)
+    {
+        ProgramResourceBindingsInfo binding_info = {};
+        for (int i = 0; i < num_shaders; ++i)
+        {
+            FillProgramResourceBindings(&program->m_BaseProgram, &shaders[i]->m_ShaderMeta, bindings, 0, 0, shaders[i]->m_Stage, binding_info);
+        }
+        program->m_BaseProgram.m_MaxSet     = binding_info.m_MaxSet;
+        program->m_BaseProgram.m_MaxBinding = binding_info.m_MaxBinding;
+    }
+
     // TODO: Rename to graphicsprogram instead of newprogram
     static HProgram OpenGLNewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
     {
@@ -2525,6 +2731,9 @@ static void LogFrameBufferError(GLenum status)
         program->m_Language = vertex_shader->m_Language;
 
         OpenGLShader* shaders[] = { vertex_shader, fragment_shader };
+
+        ResourceBindingDesc bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT] = {};
+        CreateProgramResourceBindings(program, bindings, shaders, DM_ARRAY_SIZE(shaders));
 
         BuildUniforms((OpenGLContext*) context, program, shaders, DM_ARRAY_SIZE(shaders));
         BuildAttributes(program);

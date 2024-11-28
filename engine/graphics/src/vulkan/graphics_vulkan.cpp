@@ -2529,7 +2529,7 @@ bail:
     }
 
     static void FillProgramResourceBindings(
-        VulkanProgram*                         program,
+        VulkanProgram*                   program,
         dmArray<ShaderResourceBinding>&  resources,
         dmArray<ShaderResourceTypeInfo>& stage_type_infos,
         VkDescriptorSetLayoutBinding     bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT],

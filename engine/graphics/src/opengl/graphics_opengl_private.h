@@ -83,6 +83,7 @@ namespace dmGraphics
         HOpenglID            m_Id;
         ShaderMeta           m_ShaderMeta;
         ShaderDesc::Language m_Language;
+        ShaderStageFlag      m_Stage;
     };
 
     struct OpenGLBuffer
