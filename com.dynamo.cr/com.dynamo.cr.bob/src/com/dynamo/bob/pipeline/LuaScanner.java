@@ -46,6 +46,25 @@ import org.antlr.v4.runtime.TokenStreamRewriter;
 
 public class LuaScanner extends LuaParserBaseListener {
 
+    public class LuaScannerException extends Exception {
+        private final String errorMessage;
+        private final int lineNumber;
+
+        public LuaScannerException(String errorMessage, int lineNumber) {
+            super(String.format("Error: %s at line: %d", errorMessage, lineNumber));
+            this.errorMessage = errorMessage;
+            this.lineNumber = lineNumber;
+        }
+
+        public String getErrorMessage() {
+            return errorMessage;
+        }
+
+        public int getLineNumber() {
+            return lineNumber;
+        }
+    }
+
     private static final Logger LOGGER = Logger.getLogger(LuaScanner.class.getName());
 
     /**
@@ -94,8 +113,9 @@ public class LuaScanner extends LuaParserBaseListener {
     private CommonTokenStream tokenStream = null;
     private TokenStreamRewriter rewriter;
 
-    private List<String> modules = new ArrayList<String>();
-    private List<Property> properties = new ArrayList<Property>();
+    private final List<String> modules = new ArrayList<String>();
+    private final List<Property> properties = new ArrayList<Property>();
+    public final List<LuaScannerException> exceptions = new ArrayList<>();
 
     private boolean isDebug;
 
@@ -176,7 +196,7 @@ public class LuaScanner extends LuaParserBaseListener {
      * @param str Lua code to parse
      * @return Parsed string
      */
-    public String parse(String str) {
+    public String parse(String str)  {
         TimeProfiler.start("Parse");
         modules.clear();
         properties.clear();
@@ -323,15 +343,19 @@ public class LuaScanner extends LuaParserBaseListener {
             for (LuaParser.ExpContext expCtx : explistCtx.exp()) {
                 ParserRuleContext expChildCtx = expCtx.getRuleContext(ParserRuleContext.class, 0);
 
-                if (expChildCtx != null && expChildCtx.getRuleIndex() == LuaParser.RULE_lstring) {
-                    Token token = expChildCtx.getStart();
-                    String stringArg = token.getText().replace(QUOTES.getOrDefault(token.getType(), ""), "");
-                    stringArgs.add(stringArg);
+                if (expChildCtx != null) {
+                    if (expChildCtx.getRuleIndex() == LuaParser.RULE_lstring) {
+                        Token token = expChildCtx.getStart();
+                        String stringArg = token.getText().replace(QUOTES.getOrDefault(token.getType(), ""), "");
+                        stringArgs.add(stringArg);
+                    } else if (expChildCtx instanceof LuaParser.FunctioncallContext) {
+                        LuaParser.FunctioncallContext fnCtx = ((LuaParser.FunctioncallContext) expChildCtx);
+                        String firstString = getFirstStringArg(fnCtx.nameAndArgs().args());
+                        stringArgs.add(firstString);
+                    }
                 }
-                else if (expChildCtx != null && (expChildCtx instanceof LuaParser.FunctioncallContext)) {
-                    LuaParser.FunctioncallContext fnCtx = ((LuaParser.FunctioncallContext) expChildCtx);
-                    String firstString = getFirstStringArg(fnCtx.nameAndArgs().args());
-                    stringArgs.add(firstString);
+                else {
+                    stringArgs.add(null);
                 }
             }
         }
@@ -405,7 +429,11 @@ public class LuaScanner extends LuaParserBaseListener {
             if (firstArg == null) {
                 property.status = Status.INVALID_ARGS;
             } else {
-                paramsContext = parsePropertyValue(argsCtx, property);
+                try {
+                    paramsContext = parsePropertyValue(argsCtx, property);
+                } catch (LuaScannerException e) {
+                    exceptions.add(e);
+                }
                 if (paramsContext != null) {
                     property.status = Status.OK;
                 } else {
@@ -451,7 +479,7 @@ public class LuaScanner extends LuaParserBaseListener {
         }
     }
 
-    private ParserRuleContext parsePropertyValue(LuaParser.ArgsContext argsCtx, Property property) {
+    private ParserRuleContext parsePropertyValue(LuaParser.ArgsContext argsCtx, Property property) throws LuaScannerException {
         ParserRuleContext resultContext = null;
         List<LuaParser.ExpContext> expCtxList = ((LuaParser.ExplistContext)argsCtx.getRuleContext(ParserRuleContext.class, 0)).exp();
         // go.property(name, vaule) should have a value and only one value
@@ -531,19 +559,30 @@ public class LuaScanner extends LuaParserBaseListener {
                         property.type = PropertyType.PROPERTY_TYPE_URL;
                         resultContext = ctx;
                         List<String> allArgs = getAllStringArgs(ctx.nameAndArgs().args());
-                        property.value = concatenateUrl(allArgs);
+                        try {
+                            property.value = concatenateUrl(allArgs);
+                        } catch (Exception e) {
+                            throw new LuaScannerException(e.getMessage(), ctx.start.getLine());
+                        }
                     }
                 }
             }
         }
         return resultContext;
     }
-    public static String concatenateUrl(List<String> allArgs) {
+
+    public static String concatenateUrl(List<String> allArgs) throws Exception {
         if (allArgs == null || allArgs.size() == 0) {
             return "";
         }
+        if (allArgs.contains(null)) {
+            throw new Exception("`nil` can't be used in `go.property(msg.url(_))`");
+        }
         if (allArgs.size() == 1) {
             return allArgs.get(0);
+        }
+        if (allArgs.size() != 3) {
+            throw new Exception("The URL may have only one or three strings in it");
         }
         return allArgs.get(0) + ":" + allArgs.get(1) + "#" + allArgs.get(2);
     }
