@@ -180,8 +180,10 @@ public class ShaderCompilePipeline {
         long compiler = ShadercJni.NewShaderCompiler(this.spirvContext, Shaderc.ShaderLanguage.SHADER_LANGUAGE_GLSL.getValue());
 
         Shaderc.ShaderCompilerOptions opts = new Shaderc.ShaderCompilerOptions();
-        opts.version = versionOut;
-        opts.entryPoint = "main";
+        opts.version               = versionOut;
+        opts.entryPoint            = "main";
+        opts.removeUnusedVariables = 1;
+        opts.no420PackExtension    = 1;
 
         switch (shaderType) {
             case SHADER_TYPE_VERTEX -> opts.stage = Shaderc.ShaderStage.SHADER_STAGE_VERTEX;
