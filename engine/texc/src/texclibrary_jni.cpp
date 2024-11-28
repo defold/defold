@@ -17,6 +17,8 @@
 
 #include <jni/Texc_jni.h>
 
+#include <stdlib.h>
+
 #include <dlib/log.h>
 
 #include <texc.h>
