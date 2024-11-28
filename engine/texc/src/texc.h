@@ -107,7 +107,7 @@ namespace dmTexc
     bool PreMultiplyAlpha(Image* image);
 
     // Generate mip maps. The texture must have format PF_R8G8B8A8 for mip maps to be generated.
-    bool GenMipMaps(Image* image);
+    bool GenMipMaps(Image* image); // This doesn't exist??
 
     // Flips a texture vertically
     bool Flip(Image* image, FlipAxis flip_axis);

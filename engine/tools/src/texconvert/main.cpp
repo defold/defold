@@ -185,54 +185,63 @@ int DoEncode(EncodeParams params)
     int x,y,n;
     unsigned char *data = stbi_load(params.m_PathIn, &x, &y, &n, 0);
 
-    dmTexc::Texture* tex = dmTexc::CreateTexture(params.m_PathIn, x, y,
-        GetPixelFormatFromChannels(n), params.m_ColorSpace, params.m_CompressionType, data);
+    uint32_t data_size = x * y * n;
 
-    if (params.m_PremultiplyAlpha && !dmTexc::PreMultiplyAlpha(tex))
+    dmTexc::Image* image = dmTexc::CreateImage(params.m_PathIn, x, y, GetPixelFormatFromChannels(n), params.m_ColorSpace, data_size,data);
+
+    // params.m_CompressionType
+
+    if (params.m_PremultiplyAlpha && !dmTexc::PreMultiplyAlpha(image))
     {
         printf("Unable to premultiply alpha\n");
         return -1;
     }
 
-    if (params.m_FlipY && !dmTexc::Flip(tex, dmTexc::FLIP_AXIS_Y))
+    if (params.m_FlipY && !dmTexc::Flip(image, dmTexc::FLIP_AXIS_Y))
     {
         printf("Unable to flip Y\n");
         return -1;
     }
 
-    if (params.m_FlipX && !dmTexc::Flip(tex, dmTexc::FLIP_AXIS_X))
+    if (params.m_FlipX && !dmTexc::Flip(image, dmTexc::FLIP_AXIS_X))
     {
         printf("Unable to flip Y\n");
         return -1;
     }
 
     // Note: For basis, the mipmaps are actually created when we encode, this call just requests that we want mipmaps later
-    if (params.m_MipMaps && !dmTexc::GenMipMaps(tex))
+    /*
+    if (params.m_MipMaps && !dmTexc::GenMipMaps(image))
     {
         printf("Unable to generate mipmaps\n");
         return -1;
     }
 
     if (params.m_CompressionType != dmTexc::CT_DEFAULT &&
-        !dmTexc::Encode(tex, dmTexc::PF_RGBA_BC3, params.m_ColorSpace,
+        !dmTexc::Encode(image, dmTexc::PF_RGBA_BC3, params.m_ColorSpace,
             params.m_CompressionLevel, params.m_CompressionType, params.m_MipMaps, 4))
     {
         printf("Unable to encode texture data\n");
         return -1;
     }
+    */
 
-    uint32_t out_data_size = dmTexc::GetTotalDataSize(tex);
+    /*
+    uint32_t out_data_size = dmTexc::GetTotalDataSize(image);
     void* out_data         = malloc(out_data_size);
-    dmTexc::GetData(tex, out_data, out_data_size);
+    dmTexc::GetData(image, out_data, out_data_size);
+    */
 
-    dmTexc::DestroyTexture(tex);
+    dmTexc::DestroyImage(image);
 
     stbi_image_free(data);
 
+    /*
     FILE* f = fopen(params.m_PathOut, "w");
-
     fwrite(out_data, out_data_size, 1, f);
     fclose(f);
+    */
+
     return 0;
 }
 

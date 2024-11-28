@@ -41,10 +41,7 @@ import java.util.List;
 
 import javax.imageio.ImageIO;
 
-import com.defold.extension.pipeline.texture.ITextureCompressor;
-import com.defold.extension.pipeline.texture.TextureCompression;
-import com.defold.extension.pipeline.texture.TextureCompressorParams;
-import com.defold.extension.pipeline.texture.TextureCompressorPreset;
+import com.defold.extension.pipeline.texture.*;
 import com.dynamo.bob.pipeline.TexcLibraryJni;
 import com.dynamo.bob.pipeline.Texc.ColorSpace;
 import com.dynamo.bob.pipeline.Texc.PixelFormat;
@@ -619,6 +616,14 @@ public class TextureGenerator {
 
     public static void main(String[] args) throws IOException, TextureGeneratorException {
         System.setProperty("java.awt.headless", "true");
+
+        // Install default texture compressors
+        TextureCompression.registerCompressor(new TextureCompressorDefault());
+        TextureCompression.registerCompressor(new TextureCompressorBasisU());
+
+        // Install presets
+        TextureCompression.registerPresets();
+
         try (BufferedInputStream is = new BufferedInputStream(new FileInputStream(args[0]));
              BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream(args[1]))) {
             TextureImage texture = generate(is);
