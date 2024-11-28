@@ -631,19 +631,11 @@ namespace dmResourceArchive
             size = resource_size - offset;
         }
 
-        // bool encrypted = (flags & dmResourceArchive::ENTRY_FLAG_ENCRYPTED);
-        // bool compressed = (flags & dmResourceArchive::ENTRY_FLAG_COMPRESSED);
-
         Result result = dmResourceArchive::RESULT_OK;
 
         const ArchiveFileIndex* afi = archive->m_ArchiveFileIndex;
-        bool resource_memmapped = afi->m_IsMemMapped;
 
-        uint8_t* temp_data = 0;
-        uint8_t* source_data = 0;
-        uint32_t source_data_size = 0;
-
-        if (!resource_memmapped)
+        if (!afi->m_IsMemMapped)
         {
             // we need to read from the file on disc
             FILE* resource_file = afi->m_FileResourceData;
@@ -664,9 +656,8 @@ namespace dmResourceArchive
         else
         {
             const uint8_t* archive_data = (uint8_t*) (((uintptr_t)afi->m_ResourceData + resource_offset));
-
-            // we can copy it directly to the output buffer
             memcpy(buffer, archive_data + offset, size);
+            *nread = size;
         }
 
         return dmResourceArchive::RESULT_OK;
