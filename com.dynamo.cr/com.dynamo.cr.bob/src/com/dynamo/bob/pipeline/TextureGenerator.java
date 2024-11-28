@@ -621,9 +621,6 @@ public class TextureGenerator {
         TextureCompression.registerCompressor(new TextureCompressorDefault());
         TextureCompression.registerCompressor(new TextureCompressorBasisU());
 
-        // Install presets
-        TextureCompression.registerPresets();
-
         try (BufferedInputStream is = new BufferedInputStream(new FileInputStream(args[0]));
              BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream(args[1]))) {
             TextureImage texture = generate(is);

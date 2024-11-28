@@ -62,6 +62,7 @@ import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 
 import com.defold.extension.pipeline.ILuaTranspiler;
+import com.defold.extension.pipeline.texture.TextureCompressorDefault;
 import com.dynamo.bob.fs.ClassLoaderMountPoint;
 import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.fs.DefaultResource;
@@ -897,9 +898,6 @@ public class Project {
             }
         }
         textureCompressorClasses.clear();
-
-        // TODO: We need to read the presets from file later
-        TextureCompression.registerPresets();
     }
 
     private Class<? extends IShaderCompiler> getShaderCompilerClass(Platform platform) {
@@ -1666,6 +1664,11 @@ public class Project {
         if (texture_compress)
         {
             registerTextureCompressors();
+        }
+        else
+        {
+            // We need at least a default texture compressor
+            TextureCompression.registerCompressor(new TextureCompressorDefault());
         }
 
         loop:

@@ -21,6 +21,9 @@ import com.dynamo.bob.pipeline.TexcLibraryJni;
  * Implementation of our base texture compressor, with NO compression
  */
 public class TextureCompressorDefault implements ITextureCompressor {
+    public TextureCompressorDefault() {
+        TextureCompression.registerPreset(new TextureCompressorPreset("DEFAULT", "Default (no compression)", "Default"));
+    }
 
     @Override
     public String getName() {

@@ -50,9 +50,6 @@ public class TextureGeneratorTest {
         // Install default texture compressors
         TextureCompression.registerCompressor(new TextureCompressorDefault());
         TextureCompression.registerCompressor(new TextureCompressorBasisU());
-
-        // Install presets (TODO)
-        TextureCompression.registerPresets();
     }
 
     // Create a 2x2 image that will be easy to verify after different flip operations.

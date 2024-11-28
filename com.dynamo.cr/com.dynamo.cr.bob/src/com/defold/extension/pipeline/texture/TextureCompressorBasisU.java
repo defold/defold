@@ -22,6 +22,45 @@ import com.dynamo.bob.pipeline.TexcLibraryJni;
  */
 public class TextureCompressorBasisU implements ITextureCompressor {
 
+    public TextureCompressorBasisU() {
+        // TODO: These should be read from config files!
+        {
+            TextureCompressorPreset preset = new TextureCompressorPreset("BASISU_BEST", "1. BasisU Best", "BasisU");
+            preset.setOptionInt("rdo_uastc", 1);
+            preset.setOptionInt("pack_uastc_flags", 0);
+            preset.setOptionInt("rdo_uastc_dict_size", 4096);
+            preset.setOptionFloat("rdo_uastc_quality_scalar", 3.0f);
+
+            TextureCompression.registerPreset(preset);
+        }
+
+        {
+            TextureCompressorPreset preset = new TextureCompressorPreset("BASISU_HIGH", "2. BasisU High", "BasisU");
+            preset.setOptionInt("rdo_uastc", 1);
+            preset.setOptionInt("pack_uastc_flags", 1);  // cPackUASTCLevelFaster = 1 from basisu_uastc_enc.h
+            preset.setOptionInt("rdo_uastc_dict_size", 8192);
+            preset.setOptionFloat("rdo_uastc_quality_scalar", 1.0f);
+
+            TextureCompression.registerPreset(preset);
+        }
+
+        {
+            TextureCompressorPreset preset = new TextureCompressorPreset("BASISU_NORMAL", "3. BasisU Normal", "BasisU");
+            preset.setOptionInt("rdo_uastc", 0);
+            preset.setOptionInt("pack_uastc_flags", 2); // cPackUASTCLevelDefault = 2 from basisu_uastc_enc.h
+
+            TextureCompression.registerPreset(preset);
+        }
+
+        {
+            TextureCompressorPreset preset = new TextureCompressorPreset("BASISU_FAST", "4. BasisU Fast", "BasisU");
+            preset.setOptionInt("rdo_uastc", 0);
+            preset.setOptionInt("pack_uastc_flags", 1); // cPackUASTCLevelFaster = 1 from basisu_uastc_enc.h
+
+            TextureCompression.registerPreset(preset);
+        }
+    }
+
     public String getName() {
         return "BasisU";
     }
