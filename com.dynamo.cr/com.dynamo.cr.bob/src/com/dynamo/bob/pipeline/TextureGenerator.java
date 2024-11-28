@@ -474,6 +474,8 @@ public class TextureGenerator {
                 raw.addMipMapSize(compressedData.length);
                 raw.addMipMapSizeCompressed(compressedData.length);
 
+                System.out.println("Compressed data size for mipmap " + mipMapLevel + ": " + compressedData.length);
+
                 offset += compressedData.length;
                 mipMapLevel++;
             }
