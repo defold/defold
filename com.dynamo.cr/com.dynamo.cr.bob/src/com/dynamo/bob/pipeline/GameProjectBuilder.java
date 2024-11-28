@@ -485,10 +485,16 @@ public class GameProjectBuilder extends Builder {
                 String liveupdateManifestFilename = "liveupdate.game.dmanifest";
                 File manifestTmpFileHandle = new File(FilenameUtils.concat(manifestFileHandle.getParent(), liveupdateManifestFilename));
                 FileUtils.copyFile(manifestFileHandle, manifestTmpFileHandle);
-
                 ArchiveEntry manifestArchiveEntry = new ArchiveEntry(root, manifestTmpFileHandle.getAbsolutePath());
                 project.getPublisher().AddEntry(manifestTmpFileHandle, manifestArchiveEntry);
+
+                TimeProfiler.start("Publish excluded resources");
+                logger.info("Publishing excluded resources");
+                tstart = System.currentTimeMillis();
                 project.getPublisher().Publish();
+                tend = System.currentTimeMillis();
+                logger.info("Publishing excluded resources took %f s", (tend-tstart)/1000.0);
+                TimeProfiler.stop();
 
                 // Copy SSL public keys if specified
                 String sslCertificatesPath = project.getProjectProperties().getStringValue("network", "ssl_certificates");

@@ -23,24 +23,34 @@ import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.zip.ZipEntry;
-import java.util.zip.ZipOutputStream;
 
 import org.apache.commons.io.IOUtils;
 
+import org.apache.commons.compress.archivers.zip.ZipArchiveOutputStream;
+import org.apache.commons.compress.archivers.zip.ParallelScatterZipCreator;
+import org.apache.commons.compress.archivers.zip.ZipArchiveEntry;
+import org.apache.commons.compress.parallel.InputStreamSupplier;
+
+import com.dynamo.bob.Project;
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.FileUtil;
 
 public class ZipPublisher extends Publisher {
 
+    private static Logger logger = Logger.getLogger(ZipPublisher.class.getName());
+
+    private Project project = null;
     private File resourcePackZip = null;
-    private String projectRoot = null;
     private String filename = null;
 
-    public ZipPublisher(String projectRoot, PublisherSettings settings) {
+    public ZipPublisher(PublisherSettings settings, Project project) {
         super(settings);
-        this.projectRoot = projectRoot;
+        this.project = project;
     }
 
     public void setFilename(String filename)
@@ -59,30 +69,48 @@ public class ZipPublisher extends Publisher {
                 outputName = this.filename;
             }
 
-            FileOutputStream resourcePackOutputStream = new FileOutputStream(this.resourcePackZip);
-            ZipOutputStream zipOutputStream = new ZipOutputStream(resourcePackOutputStream);
+            int nThreads = project.getMaxCpuThreads();
+            logger.info("Writing zip archive with a fixed thread pool executor using %d threads", nThreads);
+            ExecutorService executorService = Executors.newFixedThreadPool(nThreads);
+
+            // write files to zip
+            final FileOutputStream outputStream = new FileOutputStream(this.resourcePackZip);
+            final ZipArchiveOutputStream zipArchiveOutputStream = new ZipArchiveOutputStream(outputStream);
             try {
-                for (File fhandle : this.getEntries().keySet()) {
-                    ZipEntry currentEntry = new ZipEntry(fhandle.getName());
-                    zipOutputStream.putNextEntry(currentEntry);
-                    FileUtil.writeToStream(fhandle, zipOutputStream);
-                    zipOutputStream.closeEntry();
+                final ParallelScatterZipCreator scatterZipCreator = new ParallelScatterZipCreator(executorService);
+                for (final File file : this.getEntries().keySet()) {
+                    final InputStreamSupplier streamSupplier = new InputStreamSupplier() {
+                        @Override
+                        public InputStream get() {
+                            InputStream is = null;
+                            try {
+                                is = Files.newInputStream(file.toPath());
+                            } catch (IOException e) {
+                                e.printStackTrace();
+                            }
+                            return is;
+                        }
+                    };
+                    final ZipArchiveEntry zipArchiveEntry = new ZipArchiveEntry(file, file.getName());
+                    zipArchiveEntry.setMethod(ZipEntry.DEFLATED);
+                    scatterZipCreator.addArchiveEntry(zipArchiveEntry, streamSupplier);
                 }
-            } catch (FileNotFoundException exception) {
-                throw new CompileExceptionError("Unable to find required file for liveupdate resources: " + exception.getMessage(), exception);
-            } catch (IOException exception) {
+                scatterZipCreator.writeTo(zipArchiveOutputStream);
+            } catch (Exception exception) {
                 throw new CompileExceptionError("Unable to write to zip archive for liveupdate resources: " + exception.getMessage(), exception);
             } finally {
-                IOUtils.closeQuietly(zipOutputStream);
+                IOUtils.closeQuietly(zipArchiveOutputStream);
             }
 
+            // get handle to output zip file
             File exportFilehandle = new File(this.getPublisherSettings().getZipFilepath(), outputName);
             if (!exportFilehandle.isAbsolute())
             {
-                File cwd = new File(this.projectRoot);
+                File cwd = new File(project.getRootDirectory());
                 exportFilehandle = new File(cwd, exportFilehandle.getPath());
             }
 
+            // create missing folders
             File parentDir = exportFilehandle.getParentFile();
             if (!parentDir.exists()) {
                 parentDir.mkdirs();
@@ -90,6 +118,7 @@ public class ZipPublisher extends Publisher {
                 throw new IOException(String.format("'%s' exists, and is not a directory", parentDir));
             }
 
+            // move temp zip to output zip
             Files.move(this.resourcePackZip.toPath(), exportFilehandle.toPath(), StandardCopyOption.REPLACE_EXISTING);
             System.out.printf("\nZipPublisher: Wrote '%s'\n", exportFilehandle);
         } catch (IOException exception) {

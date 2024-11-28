@@ -437,7 +437,7 @@ public class ArchiveBuilder {
         manifestBuilder.setPrivateKeyFilepath(filepathPrivateKey.getAbsolutePath());
         manifestBuilder.setPublicKeyFilepath(filepathPublicKey.getAbsolutePath());
 
-        Project project = new Project(new DefaultFileSystem());
+        Project project = new Project(new DefaultFileSystem(), dirpathRoot.getAbsolutePath(), "build");
         ResourceGraph resourceGraph = new ResourceGraph(project);
         manifestBuilder.setResourceGraph(resourceGraph);
 
@@ -500,7 +500,7 @@ public class ArchiveBuilder {
             PublisherSettings settings = new PublisherSettings();
             settings.setZipFilepath(dirpathRoot.getAbsolutePath());
 
-            ZipPublisher publisher = new ZipPublisher(dirpathRoot.getAbsolutePath(), settings);
+            ZipPublisher publisher = new ZipPublisher(settings, project);
             String rootDir = resourcePackDirectory.toAbsolutePath().toString();
             publisher.setFilename(filepathZipArchive.getName());
             for (File fhandle : (new File(rootDir)).listFiles()) {
