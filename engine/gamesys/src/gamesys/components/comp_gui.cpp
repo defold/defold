@@ -2950,7 +2950,6 @@ namespace dmGameSystem
         const char* property_names[] = {
             "position",
             "rotation",
-            "euler",
             "scale",
             "color",
             "size",
@@ -2959,6 +2958,7 @@ namespace dmGameSystem
             "slice9",
             "pie_params",
             "text_params",
+            "euler",
         };
 
         const dmGui::Property* properties = 0;
@@ -2968,7 +2968,6 @@ namespace dmGameSystem
         const dmGui::Property properties_all[] = {
             dmGui::PROPERTY_POSITION,
             dmGui::PROPERTY_ROTATION,
-            dmGui::PROPERTY_EULER,
             dmGui::PROPERTY_SCALE,
             dmGui::PROPERTY_COLOR,
             dmGui::PROPERTY_SIZE,
@@ -2977,6 +2976,7 @@ namespace dmGameSystem
             dmGui::PROPERTY_SLICE9,
             dmGui::PROPERTY_PIE_PARAMS,
             dmGui::PROPERTY_TEXT_PARAMS,
+            dmGui::PROPERTY_EULER,
         };
         properties = properties_all;
         num_properties = DM_ARRAY_SIZE(properties_all);
