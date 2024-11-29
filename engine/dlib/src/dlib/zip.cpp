@@ -32,7 +32,7 @@ void Close(HZip zip)
 
 uint32_t GetNumEntries(HZip zip)
 {
-    return (uint32_t)zip_total_entries(zip);
+    return (uint32_t)zip_entries_total(zip);
 }
 
 Result OpenEntry(HZip zip, const char* name)
