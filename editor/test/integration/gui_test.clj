@@ -822,10 +822,7 @@
   (#'gui/move-child-node! node-id offset))
 
 (defn- scene-gui-node-map [scene]
-  (into {}
-        (map (juxt :label :node-id)
-             (tree-seq :children :children (g/node-value scene :node-outline)))))
-
+  (g/node-value scene :node-ids))
 
 (deftest reorder-child-nodes
   ;; /gui/reorder.gui
@@ -1010,15 +1007,14 @@
   (make-displayed-layout->node->data
     gui-scene-node-id
     (fn data-fn [gui-node-id evaluation-context]
-      (let [node (g/node-by-id (:basis evaluation-context) gui-node-id)
-            node-type (g/node-type node)
+      (let [node-type (g/node-type* (:basis evaluation-context) gui-node-id)
             prop-labels (g/declared-property-labels node-type)
             prop->default (in/defaults node-type)]
         (coll/transfer prop-labels (sorted-map)
           (remove #{:child-index :custom-type :generated-id :id :layout->prop->override :template :type})
           (keep (fn [prop-label]
                   (let [default-value (prop->default prop-label)
-                        prop-value (g/produce-value node prop-label evaluation-context)]
+                        prop-value (g/node-value gui-node-id prop-label evaluation-context)]
                     (when (not= default-value prop-value)
                       (pair prop-label prop-value))))))))))
 
@@ -1058,6 +1054,72 @@
                         overridden-pb-field (get node-desc overridden-pb-field (protobuf/default Gui$NodeDesc overridden-pb-field)))))
                   (select-keys node-desc [:parent])
                   (:overridden-fields node-desc)))))))
+
+(defn has-successor?
+  ([source-id+source-label target-id+target-label]
+   (has-successor? (g/now) source-id+source-label target-id+target-label))
+  ([basis [source-id source-label] [target-id target-label]]
+   (let [graph-id (g/node-id->graph-id source-id)
+         successor-endpoint-array (get-in basis [:graphs graph-id :successors source-id source-label])
+         length (count successor-endpoint-array)
+         target-endpoint (g/endpoint target-id target-label)]
+     (loop [index 0]
+       (cond
+         (= index length) false
+         (= target-endpoint (aget successor-endpoint-array index)) true
+         :else (recur (unchecked-inc-int index)))))))
+
+(deftest template-layout-visible-layout-property-successors-test
+  (test-util/with-loaded-project "test/resources/gui_project"
+    (let [referencing-scene (project/get-resource-node project "/gui/template_layout/panel_l_button_l.gui")
+          referenced-scene (project/get-resource-node project "/gui/template_layout/button_l.gui")]
+
+      ;; Add a new node to the referenced scene.
+      (let [referenced-scene-node-tree (g/node-value referenced-scene :node-tree)
+            added-text-props {:id "added" :font "font" :text "button default"}
+            referenced-scene-text (get (scene-gui-node-map referenced-scene) "text")
+            referenced-scene-added-text (gui/add-gui-node-with-props! referenced-scene referenced-scene-node-tree :type-text 0 added-text-props nil)]
+
+        ;; Override the text property on the added node for the Landscape layout in the referenced scene.
+        (with-visible-layout! referenced-scene "Landscape"
+          (test-util/prop! referenced-scene-added-text :text "button landscape"))
+
+        (testing "Current layout is reflected across referenced scenes."
+          (let [referencing-scene-node-map (scene-gui-node-map referencing-scene)
+                referencing-scene-button (get referencing-scene-node-map "button")
+                referencing-scene-node-tree (g/node-value referencing-scene :node-tree)
+                referencing-scene-referenced-scene (g/node-feeding-into referencing-scene-button :template-resource)
+                referencing-scene-referenced-scene-node-tree (g/node-value referencing-scene-referenced-scene :node-tree)
+                referencing-scene-referenced-scene-text (get referencing-scene-node-map "button/text")
+                referencing-scene-referenced-scene-added-text (get referencing-scene-node-map "button/added")]
+
+            (testing "Successors in referenced scene."
+              (is (has-successor? [referenced-scene :visible-layout] [referenced-scene :current-layout]))
+              (is (has-successor? [referenced-scene :current-layout] [referenced-scene-node-tree :current-layout]))
+              (is (has-successor? [referenced-scene-node-tree :current-layout] [referenced-scene-text :current-layout]))
+              (is (has-successor? [referenced-scene-node-tree :current-layout] [referenced-scene-added-text :current-layout]))
+              (is (has-successor? [referenced-scene-text :current-layout] [referenced-scene-text :prop->value]))
+              (is (has-successor? [referenced-scene-added-text :current-layout] [referenced-scene-added-text :prop->value])))
+
+            (testing "Successors in referencing scene."
+              (is (has-successor? [referencing-scene :visible-layout] [referencing-scene :current-layout]))
+              (is (has-successor? [referencing-scene :current-layout] [referencing-scene-node-tree :current-layout]))
+              (is (has-successor? [referencing-scene-node-tree :current-layout] [referencing-scene-button :current-layout]))
+              (is (has-successor? [referencing-scene-button :current-layout] [referencing-scene-referenced-scene :current-layout]))
+              (is (has-successor? [referencing-scene-referenced-scene :current-layout] [referencing-scene-referenced-scene-node-tree :current-layout]))
+              (is (has-successor? [referencing-scene-referenced-scene-node-tree :current-layout] [referencing-scene-referenced-scene-text :current-layout]))
+              (is (has-successor? [referencing-scene-referenced-scene-node-tree :current-layout] [referencing-scene-referenced-scene-added-text :current-layout]))
+              (is (has-successor? [referencing-scene-referenced-scene-text :current-layout] [referencing-scene-referenced-scene-text :prop->value]))
+              (is (has-successor? [referencing-scene-referenced-scene-added-text :current-layout] [referencing-scene-referenced-scene-added-text :prop->value])))
+
+            (testing "Visible layout selected for referencing scene is reflected in imported nodes."
+              (set-visible-layout! referencing-scene "")
+              (is (= "panel default" (g/node-value referencing-scene-referenced-scene-text :text)))
+              (is (= "button default" (g/node-value referencing-scene-referenced-scene-added-text :text)))
+
+              (set-visible-layout! referencing-scene "Landscape")
+              (is (= "panel landscape" (g/node-value referencing-scene-referenced-scene-text :text)))
+              (is (= "button landscape" (g/node-value referencing-scene-referenced-scene-added-text :text))))))))))
 
 (deftest template-layout-data-test
   (test-util/with-loaded-project "test/resources/gui_project"
@@ -2096,7 +2158,7 @@
               (is (= {} (g/node-value referenced-scene-added-text :layout->prop->override)))
               (is (= {} (g/node-value referencing-scene-added-text :layout->prop->override))))
 
-            ;; Override the text property for the Landscape layout in the referenced scene.
+            ;; Override the text property on the added node for the Landscape layout in the referenced scene.
             (with-visible-layout! referenced-scene "Landscape"
               (test-util/prop! referenced-scene-added-text :text "button landscape"))
 

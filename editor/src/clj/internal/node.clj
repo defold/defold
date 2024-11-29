@@ -1355,6 +1355,10 @@
   {:pre [(keyword? output) (keyword? argument)]}
   (boolean (-> description :output output :annotations argument :try)))
 
+(defn- desc-unsafe-argument? [description output argument]
+  {:pre [(keyword? output) (keyword? argument)]}
+  (boolean (-> description :output output :annotations argument :unsafe)))
+
 (defn- fnk-argument-form
   [description output argument node-sym node-id-sym evaluation-context-sym]
   (cond
@@ -1365,7 +1369,9 @@
     node-sym
 
     (= :_evaluation-context argument)
-    evaluation-context-sym
+    (if (desc-unsafe-argument? description output argument)
+      evaluation-context-sym
+      (assert false (str "A production function for " (:name description) " " output " uses argument " argument ", which must be tagged as ^:unsafe")))
 
     (desc-raw-argument? description output argument)
     (if (desc-has-property? description argument)

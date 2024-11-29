@@ -750,13 +750,13 @@
 (defmacro layout-property-getter [prop-sym]
   {:pre [(symbol? prop-sym)]}
   (let [prop-kw (keyword prop-sym)]
-    `(g/fnk [~'layout->prop->value ~'current-layout ~prop-sym]
-       (-> ~'layout->prop->value
-           (get ~'current-layout)
-           (get ~prop-kw ~prop-sym)))))
+    `(g/fnk [~'prop->value ~prop-sym]
+       (get ~'prop->value ~prop-kw ~prop-sym))))
 
 (defn layout-property-set-fn [_evaluation-context node-id _old-value _new-value]
-  (g/invalidate-output node-id :layout->prop->value))
+  (concat
+    (g/invalidate-output node-id :prop->value)
+    (g/invalidate-output node-id :layout->prop->value)))
 
 ;; SDK api
 (defmacro layout-property-setter [prop-sym]
@@ -765,33 +765,51 @@
 
 (defn- layout-property-prop-def? [prop-def]
   (let [value-dependencies (-> prop-def :value :dependencies)]
-    (and (= 3 (count value-dependencies))
-         (contains? value-dependencies :layout->prop->value)
-         (contains? value-dependencies :current-layout))))
+    (and (= 2 (count value-dependencies))
+         (contains? value-dependencies :prop->value))))
 
-(def ^:private own-layout-related-property-values
-  (let [node-type-deref->stripped-prop-kws
-        (fn/memoize
-          (fn node-type-deref->stripped-prop-kws [node-type-deref]
-            {:pre [(in/node-type-deref? node-type-deref)]}
-            (->> (:property node-type-deref)
-                 (e/keep
-                   (fn [[prop-kw prop-def]]
-                     (when-not (layout-property-prop-def? prop-def)
-                       prop-kw)))
-                 (sort)
-                 (vec))))]
-    (fn own-layout-related-property-values [node]
-      (let [node-properties (gt/own-properties node)]
-        (if (coll/empty? node-properties)
-          {}
-          (let [node-type (g/node-type node)
-                stripped-prop-kws (node-type-deref->stripped-prop-kws @node-type)]
-            (persistent!
-              (reduce
-                dissoc!
-                (transient node-properties)
-                stripped-prop-kws))))))))
+(defn- node-type-deref->stripped-prop-kws-raw [node-type-deref]
+  {:pre [(in/node-type-deref? node-type-deref)]}
+  (->> (:property node-type-deref)
+       (e/keep
+         (fn [[prop-kw prop-def]]
+           (when-not (layout-property-prop-def? prop-def)
+             prop-kw)))
+       (sort)
+       (vec)))
+
+(def ^:private node-type-deref->stripped-prop-kws (fn/memoize node-type-deref->stripped-prop-kws-raw))
+
+(defn- make-prop->value-for-default-layout [node]
+  (let [node-properties (gt/own-properties node)]
+    (if (coll/empty? node-properties)
+      {}
+      (let [node-type (g/node-type node)
+            stripped-prop-kws (node-type-deref->stripped-prop-kws @node-type)]
+        (persistent!
+          (reduce
+            dissoc!
+            (transient node-properties)
+            stripped-prop-kws))))))
+
+(defn- make-recursive-prop->value-for-default-layout [basis gui-node-id]
+  (let [[root-node-id & override-node-ids] (g/override-originals basis gui-node-id)
+        root-node (g/node-by-id basis root-node-id)
+
+        node-properties
+        (reduce (fn [node-properties override-node-id]
+                  (if-let [override-node (g/node-by-id basis override-node-id)]
+                    (reduce conj! node-properties (gt/overridden-properties override-node))
+                    node-properties))
+                (transient (or (gt/own-properties root-node) {}))
+                override-node-ids)]
+
+    (if (coll/empty? node-properties)
+      {}
+      (let [node-type (g/node-type root-node)
+            stripped-prop-kws (node-type-deref->stripped-prop-kws @node-type)]
+        (persistent!
+          (reduce dissoc! node-properties stripped-prop-kws))))))
 
 (defn- update-layout-property [evaluation-context node-id prop-kw update-fn & args]
   (let [old-value (g/node-value node-id prop-kw evaluation-context)
@@ -1077,36 +1095,86 @@
   (output layout-names g/Any (gu/passthrough layout-names))
   (input current-layout g/Str)
   (output current-layout g/Str (gu/passthrough current-layout))
-  (output layout->prop->value g/Any :cached
-          (g/fnk [_evaluation-context _this layout-names layout->prop->override]
+  (output layout->prop->value g/Any
+          (g/fnk [^:unsafe _evaluation-context _this layout-names layout->prop->override]
             ;; All layout-property-setters explicitly invalidate this output, so
             ;; it is safe to extract properties from _this here.
             (let [original-node-id (gt/original _this)
-                  original-layout->prop->value (some-> original-node-id (g/node-value :layout->prop->value _evaluation-context))]
-              (if (g/error-value? original-layout->prop->value)
-                original-layout->prop->value
-                (let [original-meta (meta original-layout->prop->value)
+                  layout->prop->value-for-original (some-> original-node-id (g/node-value :layout->prop->value _evaluation-context))]
+              (if (g/error-value? layout->prop->value-for-original)
+                layout->prop->value-for-original
+                (let [original-meta (meta layout->prop->value-for-original)
                       original-layout-names (:layout-names original-meta)
 
-                      default-prop->value
-                      (if (nil? original-node-id)
-                        (own-layout-related-property-values _this)
-                        (merge (get original-layout->prop->value "")
-                               (own-layout-related-property-values _this)))
+                      prop->value-for-default-layout-in-original
+                      (coll/not-empty (get layout->prop->value-for-original ""))
 
-                      introduced-layouts
+                      prop->value-for-default-layout
+                      (cond->> (make-prop->value-for-default-layout _this)
+                               prop->value-for-default-layout-in-original
+                               (merge prop->value-for-default-layout-in-original))
+
+                      introduced-layout-names
                       (if original-layout-names
                         (e/remove original-layout-names layout-names)
                         layout-names)]
 
                   (-> (reduce
-                        (fn [layout->prop->value introduced-layout]
-                          (update layout->prop->value introduced-layout merge default-prop->value))
-                        original-layout->prop->value
-                        introduced-layouts)
-                      (assoc "" default-prop->value)
+                        (fn [layout->prop->value introduced-layout-name]
+                          (update layout->prop->value introduced-layout-name merge prop->value-for-default-layout))
+                        layout->prop->value-for-original
+                        introduced-layout-names)
+                      (assoc "" prop->value-for-default-layout)
                       (coll/deep-merge layout->prop->override)
                       (vary-meta assoc :layout-names layout-names)))))))
+  (output prop->value g/Any :cached
+          (g/fnk [^:unsafe _evaluation-context _node-id current-layout layout-names layout->prop->override]
+            ;; This output is used in the getters for all layout-related
+            ;; properties. Since it only needs to consider the current layout,
+            ;; and will fall back on the raw property values from the default
+            ;; layout if there isn't a layout-specific override, we can make it
+            ;; faster than the full layout->prop->value output.
+            ;;
+            ;; All layout-property-setters explicitly invalidate this output, so
+            ;; it is safe to evaluate properties on ourselves and our override
+            ;; originals here.
+            (when (coll/not-empty current-layout)
+              (let [basis (:basis _evaluation-context)]
+                (loop [node-id _node-id
+                       layout-names layout-names
+                       prop->value (get layout->prop->override current-layout)]
+                  (if-let [original-node-id (g/override-original basis node-id)]
+                    (let [layout-names-for-original (g/node-value original-node-id :layout-names _evaluation-context)]
+                      (cond
+                        (g/error-value? layout-names-for-original)
+                        layout-names-for-original
+
+                        ;; If our scene introduces the current-layout, we don't
+                        ;; need to consider any more layout overrides from our
+                        ;; override originals. Instead, anything not overridden
+                        ;; for the current-layout by this point will use values
+                        ;; from our default layout, or values inherited from the
+                        ;; default layout in our override originals.
+                        (and (contains? layout-names current-layout)
+                             (not (contains? layout-names-for-original current-layout)))
+                        (merge (make-recursive-prop->value-for-default-layout basis node-id)
+                               prop->value)
+
+                        :else
+                        (let [layout->prop->override-for-original (g/node-value original-node-id :layout->prop->override _evaluation-context)]
+                          (if (g/error-value? layout->prop->override-for-original)
+                            layout->prop->override-for-original
+                            (recur original-node-id
+                                   layout-names-for-original
+                                   (merge (get layout->prop->override-for-original current-layout)
+                                          prop->value))))))
+
+                    ;; We've reached the override root. Anything not overridden
+                    ;; for the current-layout by this point will use values from
+                    ;; our default layout.
+                    (let [node (g/node-by-id basis node-id)]
+                      (merge (make-prop->value-for-default-layout node)
+                             prop->value))))))))
   (output _properties g/Properties :cached
           (g/fnk [_declared-properties current-layout layout->prop->override]
             ;; For layout properties, the :original-value of each property is

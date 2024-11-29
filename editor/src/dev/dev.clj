@@ -18,6 +18,7 @@
             [cljfx.fx.progress-bar :as fx.progress-bar]
             [cljfx.fx.v-box :as fx.v-box]
             [clojure.pprint :as pprint]
+            [clojure.repl :as repl]
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.asset-browser :as asset-browser]
@@ -81,6 +82,21 @@
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
+
+(defn stack-trace
+  "Returns a human-readable stack trace as a vector of strings. Elements are
+  ordered from the stack-trace function call site towards the outermost stack
+  frame of the current Thread. Optionally, a different Thread can be specified."
+  ([]
+   (stack-trace (Thread/currentThread)))
+  ([^Thread thread]
+   (into []
+         (comp (drop 1)
+               (drop-while (fn [^StackTraceElement stack-trace-element]
+                             (= "dev$stack_trace"
+                                (.getClassName stack-trace-element))))
+               (map repl/stack-element-str))
+         (.getStackTrace thread))))
 
 (defn javafx-tree [obj]
   (jfx/info-tree obj))

@@ -13,15 +13,13 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns internal.defnode-test
-  (:require [clojure.test :refer :all]
-            [clojure.set :as set]
+  (:require [clojure.set :as set]
             [clojure.string :as string]
+            [clojure.test :refer :all]
             [dynamo.graph :as g]
-            [internal.graph.types :as gt]
             [internal.node :as in]
-            [support.test-support :refer [tx-nodes with-clean-system]]
-            [internal.util :as util]
-            [schema.core :as s])
+            [schema.core :as s]
+            [support.test-support :refer [tx-nodes with-clean-system]])
   (:import [clojure.lang Compiler$CompilerException]))
 
 (g/deftype Int s/Int)
@@ -900,13 +898,13 @@
 (g/defnk produce-all [test :as all]
   all)
 
-(g/defnk produce-all-intrinsics [test _node-id _this _evaluation-context :as all]
+(g/defnk produce-all-intrinsics [test _node-id _this ^:unsafe _evaluation-context :as all]
   all)
 
 (g/defnode AsAllNode
   (property test g/Str (default "test"))
   (output inline g/Any (g/fnk [test :as all] all))
-  (output inline-intrinsics g/Any (g/fnk [test _node-id _this _evaluation-context :as all] all))
+  (output inline-intrinsics g/Any (g/fnk [test _node-id _this ^:unsafe _evaluation-context :as all] all))
   (output defnk g/Any produce-all)
   (output defnk-intrinsics g/Any produce-all-intrinsics))
 

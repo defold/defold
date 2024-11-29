@@ -17,6 +17,7 @@
           <entry key="clojure.test/are" value="-1" />
           <entry key="dev/run-with-progress" value="-1" />
           <entry key="dynamo.graph/make-nodes" value="-1" />
+          <entry key="dynamo.graph/override" value="-1" />
           <entry key="dynamo.graph/precluding-errors" value="-1" />
           <entry key="dynamo.graph/set-property" value="-1" />
           <entry key="dynamo.graph/transact" value="-1" />

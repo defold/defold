@@ -22,7 +22,8 @@
             [internal.util :as util]
             [schema.core :as s]
             [util.coll :refer [pair]]
-            [util.debug-util :as du])
+            [util.debug-util :as du]
+            [util.eduction :as e])
   (:import [internal.graph.types Arc]))
 
 (set! *warn-on-reflection* true)
@@ -349,8 +350,14 @@
         all-originals (ig/override-originals basis original-node-id)]
     (-> ctx
         (assoc :basis (gt/override-node basis original-node-id override-node-id))
+
+        ;; Any property, input or output on any original nodes must now take the
+        ;; new override node into account.
         (flag-all-successors-changed all-originals)
-        (flag-successors-changed (mapcat #(gt/sources basis %) all-originals)))))
+
+        ;; Similarly, so must the source outputs of any arcs that target any of
+        ;; the original nodes.
+        (flag-successors-changed (e/mapcat #(gt/sources basis %) all-originals)))))
 
 (defmethod perform :override-node
   [ctx {:keys [original-node-id override-node-id]}]
@@ -739,9 +746,9 @@
                     (in/type-name input-nodetype) target-label))
     (assert-schema-type-compatible source-id source-label output-nodetype output-valtype target-id target-label input-nodetype input-valtype)))
 
-(defn- ctx-connect [ctx source-id source-label target-id target-label]
-  (if-let [source (gt/node-by-id-at (:basis ctx) source-id)] ; nil if source node was deleted in this transaction
-    (if-let [target (gt/node-by-id-at (:basis ctx) target-id)] ; nil if target node was deleted in this transaction
+(defn- ctx-connect [{:keys [basis] :as ctx} source-id source-label target-id target-label]
+  (if-let [source (gt/node-by-id-at basis source-id)] ; nil if source node was deleted in this transaction
+    (if-let [target (gt/node-by-id-at basis target-id)] ; nil if target node was deleted in this transaction
       (do
         (assert-type-compatible source-id source source-label target-id target target-label)
         (-> ctx
@@ -749,7 +756,13 @@
             (ctx-disconnect-single target target-id target-label)
             (mark-input-activated target-id target-label)
             (update :basis gt/connect source-id source-label target-id target-label)
-            (flag-successors-changed [[source-id source-label]])
+            ;; When updating the successors, we must also consider any override
+            ;; nodes of the source node, since these will inherit an implicit
+            ;; connection between them and the corresponding override nodes of
+            ;; the target node.
+            (flag-successors-changed (cons (pair source-id source-label)
+                                           (e/map #(pair % source-label)
+                                                  (ig/get-overrides basis source-id))))
             (flag-override-nodes-affected target target-label)))
       ctx)
     ctx))
@@ -785,7 +798,12 @@
   (-> ctx
       (mark-input-activated target-id target-label)
       (update :basis gt/disconnect source-id source-label target-id target-label)
-      (flag-successors-changed [[source-id source-label]])
+      ;; When updating the successors, we must also consider any override nodes
+      ;; of the source node, since these will inherit an implicit connection
+      ;; between them and the corresponding override nodes of the target node.
+      (flag-successors-changed (cons (pair source-id source-label)
+                                     (e/map #(pair % source-label)
+                                            (ig/get-overrides (:basis ctx) source-id))))
       (ctx-remove-overrides source-id source-label target-id target-label)))
 
 (defmethod perform :disconnect
