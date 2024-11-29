@@ -411,12 +411,9 @@ public class TextureGenerator {
                 TimeProfiler.stop();
             }
 
-            // TODO: We should get the real settings from the texture profile (I think?)
             ITextureCompressor textureCompressor;
             TextureCompressorPreset textureCompressorPreset = null;
 
-            // If we're writing a .basis file, we don't actually store each mip map separately
-            // In this case, we pretend that there's only one mip level
             if (texcCompressionType == CompressionType.CT_BASIS_UASTC.getValue() ||
                     texcCompressionType == CompressionType.CT_BASIS_ETC1S.getValue() )
             {
@@ -437,7 +434,13 @@ public class TextureGenerator {
                 textureCompressorPreset = TextureCompression.getPreset("DEFAULT");
             }
 
-            // Generate output images into builder
+            if (textureCompressor == null) {
+                throw new TextureGeneratorException("No texture compressor has been installed.");
+            } else if (textureCompressorPreset == null) {
+                throw new TextureGeneratorException("Texture compressor preset now found.");
+            }
+
+            // Generate output images for builder
             TextureImage.Image.Builder raw = TextureImage.Image.newBuilder()
                     .setWidth(newWidth)
                     .setHeight(newHeight)
@@ -473,8 +476,6 @@ public class TextureGenerator {
                 raw.addMipMapOffset(offset);
                 raw.addMipMapSize(compressedData.length);
                 raw.addMipMapSizeCompressed(compressedData.length);
-
-                System.out.println("Compressed data size for mipmap " + mipMapLevel + ": " + compressedData.length);
 
                 offset += compressedData.length;
                 mipMapLevel++;

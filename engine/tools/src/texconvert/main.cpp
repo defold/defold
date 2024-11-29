@@ -189,8 +189,6 @@ int DoEncode(EncodeParams params)
 
     dmTexc::Image* image = dmTexc::CreateImage(params.m_PathIn, x, y, GetPixelFormatFromChannels(n), params.m_ColorSpace, data_size,data);
 
-    // params.m_CompressionType
-
     if (params.m_PremultiplyAlpha && !dmTexc::PreMultiplyAlpha(image))
     {
         printf("Unable to premultiply alpha\n");
@@ -209,38 +207,75 @@ int DoEncode(EncodeParams params)
         return -1;
     }
 
-    // Note: For basis, the mipmaps are actually created when we encode, this call just requests that we want mipmaps later
-    /*
-    if (params.m_MipMaps && !dmTexc::GenMipMaps(image))
+    if (params.m_MipMaps)
     {
-        printf("Unable to generate mipmaps\n");
-        return -1;
+        printf("Mipmap generation is currently not implement. File a feature request if you need it.\n");
     }
 
-    if (params.m_CompressionType != dmTexc::CT_DEFAULT &&
-        !dmTexc::Encode(image, dmTexc::PF_RGBA_BC3, params.m_ColorSpace,
-            params.m_CompressionLevel, params.m_CompressionType, params.m_MipMaps, 4))
-    {
-        printf("Unable to encode texture data\n");
-        return -1;
-    }
-    */
+    uint8_t* out = 0;
+    uint32_t out_size = 0;
 
-    /*
-    uint32_t out_data_size = dmTexc::GetTotalDataSize(image);
-    void* out_data         = malloc(out_data_size);
-    dmTexc::GetData(image, out_data, out_data_size);
-    */
+    if (params.m_CompressionType == dmTexc::CT_DEFAULT)
+    {
+        dmTexc::DefaultEncodeSettings settings = {};
+        settings.m_Path           = image->m_Path;
+        settings.m_Width          = x;
+        settings.m_Height         = y;
+        settings.m_PixelFormat    = image->m_PixelFormat;
+        settings.m_ColorSpace     = image->m_ColorSpace;
+        settings.m_Data           = image->m_Data;
+        settings.m_DataCount      = image->m_DataCount;
+        settings.m_NumThreads     = 4;
+        settings.m_Debug          = false;
+        settings.m_OutPixelFormat = image->m_PixelFormat;
+
+        if (!dmTexc::DefaultEncode(&settings, &out, &out_size))
+        {
+            printf("Unable to encode\n");
+            dmTexc::DestroyImage(image);
+            free(out);
+            return -1;
+        }
+    }
+    else if (params.m_CompressionType == dmTexc::CT_BASIS_UASTC ||
+             params.m_CompressionType == dmTexc::CT_BASIS_ETC1S)
+    {
+        dmTexc::BasisUEncodeSettings settings = {};
+        settings.m_Path           = image->m_Path;
+        settings.m_Width          = x;
+        settings.m_Height         = y;
+        settings.m_PixelFormat    = image->m_PixelFormat;
+        settings.m_ColorSpace     = image->m_ColorSpace;
+        settings.m_Data           = image->m_Data;
+        settings.m_DataCount      = image->m_DataCount;
+        settings.m_NumThreads     = 4;
+        settings.m_Debug          = false;
+        settings.m_OutPixelFormat = dmTexc::PF_RGBA_BC3;
+
+        // These params corresponds to the "BEST" preset
+        settings.m_rdo_uastc                = 1;
+        settings.m_pack_uastc_flags         = 0;
+        settings.m_rdo_uastc_dict_size      = 4096;
+        settings.m_rdo_uastc_quality_scalar = 3.0f;
+
+        if (!dmTexc::BasisUEncode(&settings, &out, &out_size))
+        {
+            printf("Unable to encode to BasisU\n");
+            dmTexc::DestroyImage(image);
+            free(out);
+            return -1;
+        }
+    }
 
     dmTexc::DestroyImage(image);
 
     stbi_image_free(data);
 
-    /*
     FILE* f = fopen(params.m_PathOut, "w");
-    fwrite(out_data, out_data_size, 1, f);
+    fwrite(out, out_size, 1, f);
     fclose(f);
-    */
+
+    free(out);
 
     return 0;
 }
