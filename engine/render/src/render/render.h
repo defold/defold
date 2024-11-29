@@ -382,6 +382,7 @@ namespace dmRender
     void                            GetRenderCameraProjection(HRenderContext render_context, HRenderCamera camera, dmVMath::Matrix4* mtx);
     void                            SetRenderCameraData(HRenderContext render_context, HRenderCamera camera, const RenderCameraData* data);
     void                            GetRenderCameraData(HRenderContext render_context, HRenderCamera camera, RenderCameraData* data);
+    void                            SetRenderCameraEnabled(HRenderContext render_context, HRenderCamera camera, bool value);
     void                            UpdateRenderCamera(HRenderContext render_context, HRenderCamera camera, const dmVMath::Point3* position, const dmVMath::Quat* rotation);
 
     static inline dmGraphics::TextureWrap WrapFromDDF(dmRenderDDF::MaterialDesc::WrapMode wrap_mode)
