@@ -2966,6 +2966,7 @@ namespace dmGameSystem
 
 
         const dmGui::Property properties_all[] = {
+            // keep order as in `gui.h`->`num Property`
             dmGui::PROPERTY_POSITION,
             dmGui::PROPERTY_ROTATION,
             dmGui::PROPERTY_SCALE,
@@ -2977,6 +2978,7 @@ namespace dmGameSystem
             dmGui::PROPERTY_PIE_PARAMS,
             dmGui::PROPERTY_TEXT_PARAMS,
             dmGui::PROPERTY_EULER,
+            //dmGui::PROPERTY_PREV_EULER
         };
         properties = properties_all;
         num_properties = DM_ARRAY_SIZE(properties_all);
