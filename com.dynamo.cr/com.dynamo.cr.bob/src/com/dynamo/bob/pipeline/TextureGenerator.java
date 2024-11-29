@@ -227,6 +227,15 @@ public class TextureGenerator {
         return byteBuffer;
     }
 
+    private static ITextureCompressor getDefaultTextureCompressor() {
+        ITextureCompressor defaultCompressor = TextureCompression.getCompressor("Default");
+        if (defaultCompressor == null) {
+            defaultCompressor = new TextureCompressorDefault();
+            TextureCompression.registerCompressor(defaultCompressor);
+        }
+        return defaultCompressor;
+    }
+
     private static List<Long> GenerateImages(long image, int width, int height, boolean generateMipChain) throws TextureGeneratorException {
         List<Long> images = new ArrayList<>();
         int mipWidth = width;
@@ -430,7 +439,7 @@ public class TextureGenerator {
                 }
 
             } else {
-                textureCompressor = TextureCompression.getCompressor("Default");
+                textureCompressor       = getDefaultTextureCompressor();
                 textureCompressorPreset = TextureCompression.getPreset("DEFAULT");
             }
 
@@ -621,7 +630,6 @@ public class TextureGenerator {
         System.setProperty("java.awt.headless", "true");
 
         // Install default texture compressors
-        TextureCompression.registerCompressor(new TextureCompressorDefault());
         TextureCompression.registerCompressor(new TextureCompressorBasisU());
 
         try (BufferedInputStream is = new BufferedInputStream(new FileInputStream(args[0]));

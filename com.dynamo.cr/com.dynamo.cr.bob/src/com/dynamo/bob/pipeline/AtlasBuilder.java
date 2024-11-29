@@ -131,7 +131,6 @@ public class AtlasBuilder extends ProtoBuilder<Atlas.Builder> {
             System.exit(1);
         }
 
-        TextureCompression.registerCompressor(new TextureCompressorDefault());
         TextureCompression.registerCompressor(new TextureCompressorBasisU());
 
         String atlasInPath       = args[0];

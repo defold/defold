@@ -47,8 +47,6 @@ public class TextureGeneratorTest {
 
     @Before
     public void setUp() throws Exception {
-        // Install default texture compressors
-        TextureCompression.registerCompressor(new TextureCompressorDefault());
         TextureCompression.registerCompressor(new TextureCompressorBasisU());
     }
 

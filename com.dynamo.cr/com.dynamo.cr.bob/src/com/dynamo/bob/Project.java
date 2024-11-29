@@ -1662,11 +1662,6 @@ public class Project {
         {
             registerTextureCompressors();
         }
-        else
-        {
-            // We need at least a default texture compressor
-            TextureCompression.registerCompressor(new TextureCompressorDefault());
-        }
 
         loop:
         for (String command : commands) {
