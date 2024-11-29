@@ -463,18 +463,18 @@ ordinary paths."
                                                                         path))))]
       (resolve-workspace-resource workspace path))))
 
-(defn- template-path [resource-type]
-  (or (:template resource-type)
-      (some->> resource-type :ext (str "templates/template."))))
-
-(def ^:private user-resource-path "/templates/template.")
+(def ^:private default-user-resource-path "/templates/default.")
+(def ^:private java-resource-path "templates/template.")
 
 (defn- get-template-resource [workspace resource-type]
-  (let [path (template-path resource-type)
-        java-resource (when path (io/resource path))
-        user-resource (find-resource workspace (some->> resource-type :ext (str user-resource-path)))
-        editor-resource (when path (find-resource workspace path))]
-    (or user-resource java-resource editor-resource)))
+  (let [resource-path (:template resource-type)]
+    (or
+      ;; default user resource
+      (find-resource workspace (some->> resource-type :ext (str default-user-resource-path)))
+      ;; editor resource provided from extensions
+      (when resource-path (find-resource workspace resource-path))
+      ;; java resource
+      (io/resource (some->> resource-type :ext (str java-resource-path))))))
 
 (defn has-template? [workspace resource-type]
   (let [resource (get-template-resource workspace resource-type)]
