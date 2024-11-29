@@ -1,0 +1,3 @@
+function init(self)
+	print("initialized")
+end

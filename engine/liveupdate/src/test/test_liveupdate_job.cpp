@@ -93,10 +93,10 @@ TEST_F(AsyncTestSingleThread, TestJobs)
         PushJob(m_JobThread, &hash_state, &contexts[i]);
     }
 
-    uint64_t time_start = dmTime::GetTime();
+    uint64_t time_start = dmTime::GetMonotonicTime();
     while (true)
     {
-        if ((dmTime::GetTime() - time_start) >= 5 * 10000000)
+        if ((dmTime::GetMonotonicTime() - time_start) >= 5 * 10000000)
         {
             dmLogError("Test timed out!");
             break;

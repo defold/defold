@@ -15,7 +15,6 @@
 (ns editor.code.util-test
   (:require [clojure.test :refer :all]
             [editor.code.util :as util]
-            [integration.test-util :as test-util]
             [util.fn :as fn]))
 
 (deftest last-index-where-test
@@ -31,9 +30,9 @@
   (is (nil? (util/last-index-where even? [1 3 5])))
 
   (testing "stops calling pred after first true"
-    (let [pred (test-util/make-call-logger fn/constantly-true)]
+    (let [pred (fn/make-call-logger fn/constantly-true)]
       (is (= 9 (util/last-index-where pred (range 10))))
-      (is (= 1 (count (test-util/call-logger-calls pred)))))))
+      (is (= 1 (count (fn/call-logger-calls pred)))))))
 
 (deftest join-lines-test
   (is (= "" (util/join-lines nil)))

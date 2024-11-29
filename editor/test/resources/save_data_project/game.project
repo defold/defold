@@ -160,6 +160,7 @@ split_meshes = 1
 max_count = 128
 max_emitter_count = 128
 max_particle_count = 2048
+max_particle_buffer_count = 512
 
 [sound]
 use_thread = 0

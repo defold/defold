@@ -100,6 +100,9 @@ def build(bld):
         source_files = remove_files(source_files, ['thread_win32.cpp'])
         source_files = remove_files(source_files, ['mutex_win32.cpp'])
 
+    if build_util.get_target_os() in ['macos', 'ios']:
+        source_files = remove_files(source_files, ['time_posix.cpp'])
+
     dlib = bld.stlib(features = 'c cxx',
                      source   = source_files + platform_source_files,
                      includes = ['.', './mbedtls/include', './mbedtls/crypto/include'],
@@ -272,8 +275,7 @@ def build(bld):
 
     # ******************************************************************
 
-    desktop = bld.env['IS_HOST_DESKTOP']
-    if desktop:
+    if bld.env.IS_TARGET_DESKTOP:
         dlib_shared = bld.shlib(features = 'c cxx cshlib skip_asan',
                                 includes = '. ./mbedtls/include ./mbedtls/crypto/include',
                                 target = 'dlib_shared',
@@ -341,7 +343,7 @@ def build(bld):
         srcdir='java',
         outdir='java')
 
-    bld.env["JAVACFLAGS"] = '-g -source 1.7 -target 1.7'.split()
+    bld.env["JAVACFLAGS"] = '-g -source 1.8 -target 1.8'.split()
 
     bld(features='jar seq',
         basedir='java',

@@ -129,7 +129,6 @@ namespace dmSys
 #endif
 
 
-#if !defined(__EMSCRIPTEN__)
     Result Rename(const char* dst_filename, const char* src_filename)
     {
 #if defined(_WIN32)
@@ -143,52 +142,6 @@ namespace dmSys
         }
         return RESULT_UNKNOWN;
     }
-#else // EMSCRIPTEN
-    Result Rename(const char* dst_filename, const char* src_filename)
-    {
-        FILE* src_file = fopen(src_filename, "rb");
-        if (!src_file)
-        {
-            return RESULT_IO;
-        }
-
-        fseek(src_file, 0, SEEK_END);
-        size_t buf_len = ftell(src_file);
-        fseek(src_file, 0, SEEK_SET);
-        char* buf = (char*)malloc(buf_len);
-        if (fread(buf, 1, buf_len, src_file) != buf_len)
-        {
-            fclose(src_file);
-            free(buf);
-            return RESULT_IO;
-        }
-
-        FILE* dst_file = fopen(dst_filename, "wb");
-        if (!dst_file)
-        {
-            fclose(src_file);
-            free(buf);
-            return RESULT_IO;
-        }
-
-        if(fwrite(buf, 1, buf_len, dst_file) != buf_len)
-        {
-            fclose(src_file);
-            fclose(dst_file);
-            free(buf);
-            return RESULT_IO;
-        }
-
-        fclose(src_file);
-        fclose(dst_file);
-        free(buf);
-
-        dmSys::Unlink(src_filename);
-
-        return RESULT_OK;
-    }
-
-#endif
 
     Result GetHostFileName(char* buffer, size_t buffer_size, const char* path)
     {
@@ -274,7 +227,7 @@ namespace dmSys
 
     Result OpenURL(const char* url, const char* target)
     {
-        int ret = (int) ShellExecuteA(NULL, "open", url, NULL, NULL, SW_SHOWNORMAL);
+        intptr_t ret = (intptr_t) ShellExecuteA(NULL, "open", url, NULL, NULL, SW_SHOWNORMAL);
         if (ret == 32)
         {
             return RESULT_OK;

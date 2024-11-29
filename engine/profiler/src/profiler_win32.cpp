@@ -42,7 +42,7 @@ static ULONGLONG SubtractTimes(const FILETIME& ftA, const FILETIME& ftB)
 }
 
 void dmProfilerExt::SampleCpuUsage() {
-    uint64_t time = dmTime::GetTime();
+    uint64_t time = dmTime::GetMonotonicTime();
     if (_sample_cpu_last_t == 0 || (time - _sample_cpu_last_t) * 0.000001 > SAMPLE_CPU_INTERVAL) {
         FILETIME ftSysIdle, ftSysKernel, ftSysUser;
         FILETIME ftProcCreation, ftProcExit, ftProcKernel, ftProcUser;

@@ -13,6 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.lua-parser
+  (:refer-clojure :exclude [parse-boolean])
   (:require [clj-antlr.core :as antlr]
             [clojure.java.io :as io]
             [clojure.set :as set]
