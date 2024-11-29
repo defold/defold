@@ -26,6 +26,9 @@ import java.util.List;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
+import com.defold.extension.pipeline.texture.TextureCompression;
+import com.defold.extension.pipeline.texture.TextureCompressorBasisU;
+import com.defold.extension.pipeline.texture.TextureCompressorDefault;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.ProtoBuilder;
@@ -127,6 +130,9 @@ public class AtlasBuilder extends ProtoBuilder<Atlas.Builder> {
             System.err.println("Usage: AtlasBuilder atlas-path texture-set-out-path texture-out-path project-path");
             System.exit(1);
         }
+
+        TextureCompression.registerCompressor(new TextureCompressorDefault());
+        TextureCompression.registerCompressor(new TextureCompressorBasisU());
 
         String atlasInPath       = args[0];
         String textureSetOutPath = args[1];
