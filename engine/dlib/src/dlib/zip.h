@@ -84,6 +84,11 @@ namespace dmZip
      *
      */
     Result GetEntryData(HZip zip, void* buffer, uint32_t buffer_size);
+
+    /*# gets partial data for the currently open entry
+     *
+     */
+    Result GetEntryDataOffset(HZip zip, uint32_t offset, uint32_t size, void* buffer, uint32_t* nread);
 }
 
 #endif // DM_ZIP_H

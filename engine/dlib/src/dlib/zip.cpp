@@ -87,5 +87,14 @@ Result GetEntryData(HZip zip, void* buffer, uint32_t buffer_size)
     return RESULT_OK;
 }
 
+Result GetEntryDataOffset(HZip zip, uint32_t offset, uint32_t size, void* buffer, uint32_t* nread)
+{
+    ssize_t nwritten = zip_entry_noallocread_offset(zip, (size_t)offset, (size_t)size, buffer);
+    if (nwritten < 0)
+        return RESULT_BUFFER_NOT_LARGE_ENOUGH;
+    *nread = nwritten;
+    return RESULT_OK;
+}
+
 
 } // namespace

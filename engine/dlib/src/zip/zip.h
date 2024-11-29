@@ -62,6 +62,11 @@ typedef long ssize_t; /* byte count or error */
 #define ZIP_DEFAULT_COMPRESSION_LEVEL 6
 
 /**
+ * Default zip iterator stack size (in bytes)
+ */
+#define ZIP_DEFAULT_ITER_BUF_SIZE 32*1024
+
+/**
  * Error codes
  */
 #define ZIP_ENOINIT -1      // not initialized
@@ -96,6 +101,8 @@ typedef long ssize_t; /* byte count or error */
 #define ZIP_ERINIT -30      // cannot initialize reader
 #define ZIP_EWINIT -31      // cannot initialize writer
 #define ZIP_EWRINIT -32     // cannot initialize writer from reader
+#define ZIP_EINVAL -33      // invalid argument
+#define ZIP_ENORITER -34    // cannot initialize reader iterator
 
 /**
  * Looks up the error message string corresponding to an error number.
@@ -372,6 +379,24 @@ extern ZIP_EXPORT ssize_t zip_entry_read(struct zip_t *zip, void **buf,
  */
 extern ZIP_EXPORT ssize_t zip_entry_noallocread(struct zip_t *zip, void *buf,
                                                 size_t bufsize);
+
+/**
+ * Extracts the part of the current zip entry into a memory buffer using no memory
+ * allocation for the buffer.
+ *
+ * @param zip zip archive handler.
+ * @param offset the offset of the entry (in bytes).
+ * @param size requested number of bytes (in bytes).
+ * @param buf preallocated output buffer.
+ *
+ * @note the iterator api uses an allocation to create its state
+ * @note each call will iterate from the start of the entry
+ *
+ * @return the return code - the number of bytes actually read on success.
+ *         Otherwise a negative number (< 0) on error (e.g. offset is too large).
+ */
+extern ZIP_EXPORT ssize_t zip_entry_noallocread_offset(struct zip_t *zip,
+                                        size_t offset, size_t size, void *buf);
 
 /**
  * Extracts the current zip entry into output file.
