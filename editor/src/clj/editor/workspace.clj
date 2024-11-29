@@ -467,15 +467,16 @@ ordinary paths."
 (def ^:private java-resource-path "templates/template.")
 
 (defn- get-template-resource [workspace resource-type]
-  (let [resource-path (:template resource-type)
-        ext (:ext resource-type)]
-    (or
-      ;; default user resource
-      (when ext (find-resource workspace (str default-user-resource-path ext)))
-      ;; editor resource provided from extensions
-      (when resource-path (find-resource workspace resource-path))
-      ;; java resource
-      (when ext (io/resource (str java-resource-path ext))))))
+  (when resource-type
+    (let [resource-path (:template resource-type)
+          ext (:ext resource-type)]
+      (or
+        ;; default user resource
+        (find-resource workspace (str default-user-resource-path ext))
+        ;; editor resource provided from extensions
+        (when resource-path (find-resource workspace resource-path))
+        ;; java resource
+        (io/resource (str java-resource-path ext))))))
 
 (defn has-template? [workspace resource-type]
   (let [resource (get-template-resource workspace resource-type)]
