@@ -357,7 +357,8 @@ struct ResourcePreloadParams
     void*                    m_Context;
     const char*              m_Filename;
     const void*              m_Buffer;
-    uint32_t                 m_BufferSize:31;
+    uint32_t                 m_BufferSize;
+    uint32_t                 m_FileSize:31;
     uint32_t                 m_IsBufferPartial:1;
     HResourcePreloadHintInfo m_HintInfo;
     void**                   m_PreloadData;
@@ -382,7 +383,8 @@ struct ResourceCreateParams
     void*               m_Context;
     const char*         m_Filename;
     const void*         m_Buffer;
-    uint32_t            m_BufferSize:31;
+    uint32_t            m_BufferSize;
+    uint32_t            m_FileSize:31;
     uint32_t            m_IsBufferPartial:1;
     void*               m_PreloadData;
     HResourceDescriptor m_Resource;
@@ -430,7 +432,8 @@ struct ResourceRecreateParams
     dmhash_t            m_FilenameHash;
     const char*         m_Filename;
     const void*         m_Buffer;
-    uint32_t            m_BufferSize:31;
+    uint32_t            m_BufferSize;
+    uint32_t            m_FileSize:31;
     uint32_t            m_IsBufferPartial:1;
     const void*         m_Message;
     HResourceDescriptor m_Resource;

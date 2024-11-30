@@ -701,7 +701,7 @@ const char* GetExtFromPath(const char* path)
 
 // Assumes m_LoadMutex is already held
 static Result DoCreateResource(HFactory factory, ResourceType* resource_type, const char* name, const char* canonical_path,
-    dmhash_t canonical_path_hash, void* buffer, uint32_t buffer_size, bool is_partial, void** resource_out)
+    dmhash_t canonical_path_hash, void* buffer, uint32_t buffer_size, uint32_t resource_size, void** resource_out)
 {
     // TODO: We should *NOT* allocate SResource dynamically...
     ResourceDescriptor tmp_resource;
@@ -713,6 +713,8 @@ static Result DoCreateResource(HFactory factory, ResourceType* resource_type, co
     void *preload_data = 0;
     Result create_error = RESULT_OK;
 
+    bool is_partial = buffer_size != resource_size;
+
     if (resource_type->m_PreloadFunction)
     {
         ResourcePreloadParams params;
@@ -721,6 +723,7 @@ static Result DoCreateResource(HFactory factory, ResourceType* resource_type, co
         params.m_Context        = resource_type->m_Context;
         params.m_Buffer         = buffer;
         params.m_BufferSize     = buffer_size;
+        params.m_FileSize       = resource_size;
         params.m_IsBufferPartial= is_partial;
         params.m_PreloadData    = &preload_data;
         params.m_Filename       = name;
@@ -739,6 +742,7 @@ static Result DoCreateResource(HFactory factory, ResourceType* resource_type, co
         params.m_Context        = resource_type->m_Context;
         params.m_Buffer         = buffer;
         params.m_BufferSize     = buffer_size;
+        params.m_FileSize       = resource_size;
         params.m_IsBufferPartial= is_partial;
         params.m_PreloadData    = preload_data;
         params.m_Resource       = &tmp_resource;
@@ -879,8 +883,8 @@ static Result CreateAndLoadResource(HFactory factory, const char* name, void** r
     }
     assert(buffer == factory->m_Buffer.Begin());
 
-    return DoCreateResource(factory, resource_type, name, canonical_path, canonical_path_hash, buffer, buffer_size,
-            resource_size != buffer_size, resource);
+    return DoCreateResource(factory, resource_type, name, canonical_path, canonical_path_hash,
+                                buffer, buffer_size, resource_size, resource);
 }
 
 Result CreateResource(HFactory factory, const char* name, void* data, uint32_t data_size, void** resource)
@@ -909,7 +913,7 @@ Result CreateResource(HFactory factory, const char* name, void* data, uint32_t d
         return RESULT_OK;
     }
 
-    return DoCreateResource(factory, resource_type, name, canonical_path, canonical_path_hash, data, data_size, false, resource);
+    return DoCreateResource(factory, resource_type, name, canonical_path, canonical_path_hash, data, data_size, data_size, resource);
 }
 
 Result Get(HFactory factory, const char* name, void** resource)
@@ -1074,15 +1078,17 @@ static Result DoReloadResource(HFactory factory, const char* name, HResourceDesc
     assert(buffer == factory->m_Buffer.Begin());
 
     ResourceRecreateParams params;
-    params.m_Factory    = factory;
-    params.m_Type       = resource_type;
-    params.m_Context    = resource_type->m_Context;
-    params.m_Message    = 0;
-    params.m_Buffer     = buffer;
-    params.m_BufferSize = buffer_size;
-    params.m_Resource   = rd;
-    params.m_Filename   = name;
-    rd->m_PrevResource  = 0;
+    params.m_Factory        = factory;
+    params.m_Type           = resource_type;
+    params.m_Context        = resource_type->m_Context;
+    params.m_Message        = 0;
+    params.m_Buffer         = buffer;
+    params.m_BufferSize     = buffer_size;
+    params.m_FileSize       = resource_size;
+    params.m_IsBufferPartial= buffer_size != resource_size;
+    params.m_Resource       = rd;
+    params.m_Filename       = name;
+    rd->m_PrevResource = 0;
     Result create_result = (Result)resource_type->m_RecreateFunction(&params);
     if (create_result == RESULT_OK)
     {

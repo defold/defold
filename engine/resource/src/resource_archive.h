@@ -118,7 +118,6 @@ namespace dmResourceArchive
         ArchiveIndex*       m_ArchiveIndex;     // this could be mem-mapped or loaded into memory from file
         ArchiveFileIndex*   m_ArchiveFileIndex; // Used if the archive is loaded from file (bundled archive)
 
-        //ArchiveLoader       m_Loader;
         void*               m_UserData;         // private to the loader
 
         uint32_t m_ArchiveIndexSize;            // kept for unmapping
