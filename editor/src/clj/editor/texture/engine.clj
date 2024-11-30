@@ -152,7 +152,6 @@
 (defn reload-texture-compressors! [^ClassLoader class-loader]
   (let [{:keys [texture-compressor-classes faulty-class-names]}
         (try-initialize-texture-compressors class-loader)]
-    (println texture-compressor-classes faulty-class-names)
     (if (seq faulty-class-names)
       (report-error! "Failed to initialize texture compressors" faulty-class-names)
       (set-texture-compressors! texture-compressor-classes))))

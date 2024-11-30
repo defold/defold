@@ -312,14 +312,8 @@ namespace dmGraphics
         dmLogInfo("Transcoding: %s from %d to %d (%s -> %s)", path, format, (int)transcoder_format, ToString(format), ToString(transcoder_format));
     #endif
 
-        uint32_t max_mipmap_count        = dmMath::Min(*num_transcoded_mips, image[0].m_MipMapSize.m_Count);
-        uint32_t images_and_mipmap_count = 0;
-
-        for (int i = 0; i < image_count; ++i)
-        {
-            images_and_mipmap_count += max_mipmap_count;
-        }
-
+        uint32_t max_mipmap_count              = dmMath::Min(*num_transcoded_mips, image[0].m_MipMapSize.m_Count);
+        uint32_t images_and_mipmap_count       = max_mipmap_count * image_count;
         ImageTranscodeState* image_transcoders = new ImageTranscodeState[images_and_mipmap_count];
 
         uint32_t slice_data_offset = 0;
