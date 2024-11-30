@@ -32,6 +32,17 @@ TEST(dmTime, GetTime)
 }
 #endif
 
+TEST(dmTime, GetMonotonicTime)
+{
+    uint64_t prev = dmTime::GetMonotonicTime();
+    for (int i = 0; i < 1000; ++i)
+    {
+        uint64_t next = dmTime::GetMonotonicTime();
+        ASSERT_LE(prev, next);
+        prev = next;
+    }
+}
+
 int main(int argc, char **argv)
 {
     jc_test_init(&argc, argv);
