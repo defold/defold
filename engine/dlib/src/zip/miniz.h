@@ -5032,6 +5032,12 @@ static int mz_mkdir(const char *pDirname) {
 #define MZ_FCLOSE fclose
 #define MZ_FREAD fread
 #define MZ_FWRITE fwrite
+#if defined(MINIZ_USE_ANSI) // defold
+#define MZ_FTELL64 ftell
+#define MZ_FSEEK64 fseek
+#define MZ_FILE_STAT_STRUCT _stat
+#define MZ_FILE_STAT mz_stat
+#else
 #define MZ_FTELL64 _ftelli64
 #define MZ_FSEEK64 _fseeki64
 #if defined(__MINGW32__)
@@ -5041,6 +5047,7 @@ static int mz_mkdir(const char *pDirname) {
 #define MZ_FILE_STAT_STRUCT _stat64
 #define MZ_FILE_STAT mz_stat64
 #endif
+#endif // MINIZ_USE_ANSI
 #define MZ_FFLUSH fflush
 #define MZ_FREOPEN mz_freopen
 #define MZ_DELETE_FILE remove
@@ -5054,8 +5061,13 @@ static int mz_mkdir(const char *pDirname) {
 #define MZ_FCLOSE fclose
 #define MZ_FREAD fread
 #define MZ_FWRITE fwrite
+#if defined(MINIZ_USE_ANSI) // defold
+#define MZ_FTELL64 ftell
+#define MZ_FSEEK64 fseek
+#else
 #define MZ_FTELL64 _ftelli64
 #define MZ_FSEEK64 _fseeki64
+#endif
 #define MZ_FILE_STAT_STRUCT stat
 #define MZ_FILE_STAT stat
 #define MZ_FFLUSH fflush
@@ -5092,10 +5104,17 @@ static int mz_mkdir(const char *pDirname) {
 #define MZ_FCLOSE fclose
 #define MZ_FREAD fread
 #define MZ_FWRITE fwrite
+#if defined(MINIZ_USE_ANSI) // defold
+#define MZ_FTELL64 ftell
+#define MZ_FSEEK64 fseek
+#define MZ_FILE_STAT_STRUCT stat
+#define MZ_FILE_STAT stat
+#else
 #define MZ_FTELL64 ftello64
 #define MZ_FSEEK64 fseeko64
 #define MZ_FILE_STAT_STRUCT stat64
 #define MZ_FILE_STAT stat64
+#endif
 #define MZ_FFLUSH fflush
 #define MZ_FREOPEN(p, m, s) freopen64(p, m, s)
 #define MZ_DELETE_FILE remove
@@ -5110,8 +5129,13 @@ static int mz_mkdir(const char *pDirname) {
 #define MZ_FCLOSE fclose
 #define MZ_FREAD fread
 #define MZ_FWRITE fwrite
+#if defined(MINIZ_USE_ANSI) // defold
+#define MZ_FTELL64 ftell
+#define MZ_FSEEK64 fseek
+#else
 #define MZ_FTELL64 ftello
 #define MZ_FSEEK64 fseeko
+#endif
 #define MZ_FILE_STAT_STRUCT stat
 #define MZ_FILE_STAT stat
 #define MZ_FFLUSH fflush
@@ -5129,7 +5153,7 @@ static int mz_mkdir(const char *pDirname) {
 #define MZ_FCLOSE fclose
 #define MZ_FREAD fread
 #define MZ_FWRITE fwrite
-#ifdef __STRICT_ANSI__
+#if defined(__STRICT_ANSI__) || defined(MINIZ_USE_ANSI)
 #define MZ_FTELL64 ftell
 #define MZ_FSEEK64 fseek
 #else
