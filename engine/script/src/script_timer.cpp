@@ -69,6 +69,9 @@ namespace dmScript
         // The timer delay, we need to keep this for repeating timers
         float           m_Delay;
 
+        // The time that exceeded the delay in previous cycle in repeat timer.
+        float           m_PrevCycleExcess;
+
         // Flag if the timer should repeat
         uint32_t        m_Repeat : 1;
         // Flag if the timer is alive
@@ -243,7 +246,7 @@ namespace dmScript
                 continue;
             }
 
-            float elapsed_time = timer->m_Delay - timer->m_Remaining;
+            float elapsed_time = timer->m_Delay - timer->m_Remaining - timer->m_PrevCycleExcess;
 
             TimerEventType eventType = timer->m_Repeat == 0 ? TIMER_EVENT_TRIGGER_WILL_DIE : TIMER_EVENT_TRIGGER_WILL_REPEAT;
             timer->m_Callback(timer_world, eventType, timer->m_Handle, elapsed_time, timer->m_Owner, timer->m_UserData);
@@ -269,14 +272,18 @@ namespace dmScript
             if (timer->m_Delay == 0.0f)
             {
                 timer->m_Remaining = 0.0f;
+                timer->m_PrevCycleExcess = 0.0f;
                 continue;
             }
 
             float wrapped_count = ((-timer->m_Remaining) / timer->m_Delay) + 1.f;
             float offset_to_next_trigger  = floor(wrapped_count) * timer->m_Delay;
             timer->m_Remaining += offset_to_next_trigger;
-            if (timer->m_Remaining < 0) // If the delay is very small, the floating point precision might produce issues
+            timer->m_PrevCycleExcess = timer->m_Delay - timer->m_Remaining;
+            if (timer->m_Remaining < 0) {// If the delay is very small, the floating point precision might produce issues
                 timer->m_Remaining = timer->m_Delay; // reset the timer
+                timer->m_PrevCycleExcess = 0.0f;
+            }
         }
 
         timer_world->m_InUpdate = 0;
@@ -322,6 +329,7 @@ namespace dmScript
         timer->m_UserData = userdata;
         timer->m_Callback = timer_callback;
         timer->m_Repeat = repeat;
+        timer->m_PrevCycleExcess = 0.0f;
         timer->m_IsAlive = 1;
 
         return timer->m_Handle;

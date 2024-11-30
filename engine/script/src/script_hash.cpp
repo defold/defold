@@ -320,15 +320,15 @@ namespace dmScript
 
         luaL_openlib(L, 0x0, ScriptHash_methods, 0);
 
-        lua_pushstring(L, "__eq");
+        lua_pushliteral(L, "__eq");
         lua_pushcfunction(L, Hash_eq);
         lua_settable(L, -3);
 
-        lua_pushstring(L, "__tostring");
+        lua_pushliteral(L, "__tostring");
         lua_pushcfunction(L, Hash_tostring);
         lua_settable(L, -3);
 
-        lua_pushstring(L, "__concat");
+        lua_pushliteral(L, "__concat");
         lua_pushcfunction(L, Hash_concat);
         lua_settable(L, -3);
 

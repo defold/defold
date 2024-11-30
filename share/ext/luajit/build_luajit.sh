@@ -177,16 +177,23 @@ case $1 in
 			make install
 		}
 		;;
-	x86_64-linux)
+	x86_64-linux|arm64-linux)
 		export TARGET_SYS=Linux
 		function cmi_make() {
+			export ARCH_FLAGS="--target=x86_64-unknown-linux-gnu"
+			if [ "arm64-linux" == "$1" ]; then
+				ARCH_FLAGS="--target=aarch64-unknown-linux-gnu"
+				XCFLAGS="-DLUAJIT_TARGET=LUAJIT_ARCH_ARM ${XCFLAGS}"
+			fi
+
 			export DEFOLD_ARCH="32"
 			export XCFLAGS="-DLUAJIT_DISABLE_GC64 ${COMMON_XCFLAGS}"
 
 			export HOST_CC="clang"
 			export HOST_CFLAGS="${COMMON_XCFLAGS} -I."
-			export HOST_ALDFLAGS=""
-			export TARGET_LDFLAGS=""
+			export HOST_LDFLAGS=""
+			export TARGET_CFLAGS="${ARCH_FLAGS}"
+			export TARGET_LDFLAGS="${ARCH_FLAGS}"
 
 			echo "Building $CONF_TARGET ($DEFOLD_ARCH) with '$XCFLAGS'"
 			set -e
@@ -196,11 +203,20 @@ case $1 in
 			make clean
 			set +e
 
+			echo "****************************************************"
+			file $PREFIX/bin/$CONF_TARGET/luajit-${DEFOLD_ARCH}
+			echo "****************************************************"
+			exit 1
+
+			if [ "arm64-linux" == "$1" ]; then
+				XCFLAGS="-DLUAJIT_TARGET=LUAJIT_ARCH_ARM64 ${XCFLAGS}"
+			fi
+
 			export DEFOLD_ARCH="64"
-			export XCFLAGS=" ${COMMON_XCFLAGS}"
+			export XCFLAGS="${ARCH_FLAGS} ${COMMON_XCFLAGS}"
 
 			export HOST_CC="clang"
-			export HOST_CFLAGS="${COMMON_XCFLAGS} -m64 -I."
+			export HOST_CFLAGS="${COMMON_XCFLAGS} ${ARCH_FLAGS} -m64 -I."
 			export HOST_ALDFLAGS="-m64"
 			export TARGET_LDFLAGS="-m64"
 
@@ -209,6 +225,11 @@ case $1 in
 			make -j8
 			make install
 			mv $PREFIX/bin/$CONF_TARGET/${TARGET_FILE} $PREFIX/bin/$CONF_TARGET/luajit-${DEFOLD_ARCH}
+
+			echo "****************************************************"
+			file $PREFIX/bin/$CONF_TARGET/luajit-${DEFOLD_ARCH}
+			echo "****************************************************"
+
 			# remove symlink. we don't need it, and it doesn't extract under git-bash
 			rm -v $PREFIX/bin/$CONF_TARGET/luajit
 			set +e

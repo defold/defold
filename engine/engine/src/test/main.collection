@@ -130,5 +130,11 @@ embedded_instances {
   "  data: \"collection: \\\"/init_script/game_connection.collection\\\"\\n"
   "\"\n"
   "}\n"
+  "embedded_components {\n"
+  "  id: \"collectionproxy29\"\n"
+  "  type: \"collectionproxy\"\n"
+  "  data: \"collection: \\\"/issue-8672/issue-8672.collection\\\"\\n"
+  "\"\n"
+  "}\n"
   ""
 }

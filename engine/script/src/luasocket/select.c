@@ -37,7 +37,7 @@ static luaL_Reg func[] = {
 * Initializes module
 \*-------------------------------------------------------------------------*/
 int select_open(lua_State *L) {
-    lua_pushstring(L, "_SETSIZE");
+    lua_pushliteral(L, "_SETSIZE");
     lua_pushnumber(L, FD_SETSIZE);
     lua_rawset(L, -3);
 #if LUA_VERSION_NUM > 501 && !defined(LUA_COMPAT_MODULE)
@@ -79,7 +79,7 @@ static int global_select(lua_State *L) {
         make_assoc(L, wtab);
         return 2;
     } else if (ret == 0) {
-        lua_pushstring(L, "timeout");
+        lua_pushliteral(L, "timeout");
         return 3;
     } else {
         luaL_error(L, "select failed");
@@ -92,7 +92,7 @@ static int global_select(lua_State *L) {
 \*=========================================================================*/
 static t_socket getfd(lua_State *L) {
     t_socket fd = SOCKET_INVALID;
-    lua_pushstring(L, "getfd");
+    lua_pushliteral(L, "getfd");
     lua_gettable(L, -2);
     if (!lua_isnil(L, -1)) {
         lua_pushvalue(L, -2);
@@ -108,7 +108,7 @@ static t_socket getfd(lua_State *L) {
 
 static int dirty(lua_State *L) {
     int is = 0;
-    lua_pushstring(L, "dirty");
+    lua_pushliteral(L, "dirty");
     lua_gettable(L, -2);
     if (!lua_isnil(L, -1)) {
         lua_pushvalue(L, -2);

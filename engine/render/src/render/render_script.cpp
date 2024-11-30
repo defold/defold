@@ -2870,6 +2870,72 @@ namespace dmRender
     }
 #undef CHECK_COMPUTE_SUPPORT
 
+   /*# set render's event listener
+    * Set or remove listener. Currenly only only two type of events can arrived:
+    * `render.CONTEXT_EVENT_CONTEXT_LOST` - when rendering context lost. Rending paused and all graphics resources become invalid.
+    * `render.CONTEXT_EVENT_CONTEXT_RESTORED` - when rendering context was restored. Rendering still paused and graphics resources still 
+    * invalid but can be reloaded.
+    *
+    * @name render.set_listener
+    * @param callback [type:function(self, event_type)|nil] A callback that receives all render related events.
+    * Pass `nil` if want to remove listener.
+    *
+    * `self`
+    * : [type:object] The render script
+    *
+    * `event_type`
+    * : [type:string] Rendering event. Possible values: `render.CONTEXT_EVENT_CONTEXT_LOST`, `render.CONTEXT_EVENT_CONTEXT_RESTORED`
+    *
+    * @examples
+    *
+    * Set listener and handle render context events.
+    *
+    * ```lua
+    * --- custom.render_script
+    * function init(self)
+    *    render.set_listener(function(self, event_type)
+    *        if event_type == render.CONTEXT_EVENT_CONTEXT_LOST then
+    *            --- Some stuff when rendering context is lost
+    *        elseif event_type == render.CONTEXT_EVENT_CONTEXT_RESTORED then
+    *            --- Start reload resources, reload game, etc.
+    *        end
+    *    end)
+    * end
+    * ```
+    */
+    static int RenderScript_SetListener(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 0);
+
+        RenderScriptInstance* script_instance = RenderScriptInstance_Check(L);
+        dmScript::LuaCallbackInfo* cbk = script_instance->m_RenderContext->m_CallbackInfo;
+
+        int type = lua_type(L, 1);
+        if (type == LUA_TNONE || type == LUA_TNIL)
+        {
+            if (cbk != 0x0)
+            {
+                dmScript::DestroyCallback(cbk);
+                script_instance->m_RenderContext->m_CallbackInfo = 0x0;
+            }
+        }
+        else if (type == LUA_TFUNCTION)
+        {
+            if (cbk != 0x0)
+            {
+                dmScript::DestroyCallback(cbk);
+                script_instance->m_RenderContext->m_CallbackInfo = 0x0;
+            }
+            cbk = dmScript::CreateCallback(L, 1);
+            script_instance->m_RenderContext->m_CallbackInfo = cbk;
+        }
+        else
+        {
+            return DM_LUA_ERROR("argument 1 to render.set_listener() must be either nil or function");
+        }
+        return 0;
+    }
+
     static const luaL_reg Render_methods[] =
     {
         {"enable_state",                    RenderScript_EnableState},
@@ -2911,6 +2977,7 @@ namespace dmRender
         {"set_compute",                     RenderScript_SetCompute},
         {"dispatch_compute",                RenderScript_Dispatch},
         {"set_camera",                      RenderScript_SetCamera},
+        {"set_listener",                    RenderScript_SetListener},
         {0, 0}
     };
 
@@ -3097,6 +3164,12 @@ namespace dmRender
         // Flags (only flag here currently, so no need for an enum)
         lua_pushnumber(L, RENDER_SCRIPT_FLAG_TEXTURE_BIT);
         lua_setfield(L, -2, "TEXTURE_BIT");
+
+        lua_pushnumber(L, dmRender::CONTEXT_LOST);
+        lua_setfield(L, -2, "CONTEXT_EVENT_CONTEXT_LOST");
+
+        lua_pushnumber(L, dmRender::CONTEXT_RESTORED);
+        lua_setfield(L, -2, "CONTEXT_EVENT_CONTEXT_RESTORED");
 
         lua_pop(L, 1);
 

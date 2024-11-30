@@ -619,7 +619,7 @@ bail:
                     Connection connection;
                     memset(&connection, 0, sizeof(connection));
                     connection.m_Socket = client_socket;
-                    connection.m_ConnectionTimeStart = dmTime::GetTime();
+                    connection.m_ConnectionTimeStart = dmTime::GetMonotonicTime();
                     server->m_Connections.Push(connection);
                 }
             }
@@ -631,7 +631,7 @@ bail:
 
         dmSocket::SelectorZero(&selector);
 
-        uint64_t current_time = dmTime::GetTime();
+        uint64_t current_time = dmTime::GetMonotonicTime();
 
         // Iterate over persistent connections, timeout phase
         for (uint32_t i = 0; i < server->m_Connections.Size(); ++i)

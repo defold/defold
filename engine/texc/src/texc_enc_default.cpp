@@ -30,14 +30,14 @@
 
 namespace dmTexc
 {
-    static bool EncodeDefault(Texture* texture, int num_threads, PixelFormat pixel_format, CompressionType compression_type, CompressionLevel compression_level)
+    static bool EncodeDefault(TextureImpl* texture, int num_threads, PixelFormat pixel_format, CompressionType compression_type, CompressionLevel compression_level)
     {
         // static int image = 0;
         // ++image;
 
         for (uint32_t i = 0; i < texture->m_Mips.Size(); ++i)
         {
-            TextureData* mip_level = &texture->m_Mips[i];
+            Buffer* mip_level = &texture->m_Mips[i];
             uint32_t size = GetDataSize(pixel_format, mip_level->m_Width, mip_level->m_Height);
             uint8_t* packed_data = new uint8_t[size];
 
@@ -52,7 +52,7 @@ namespace dmTexc
 
             uint8_t* old_data = mip_level->m_Data;
             mip_level->m_Data = packed_data;
-            mip_level->m_ByteSize = size;
+            mip_level->m_DataCount = size;
 
             // char name[256];
             // // dmSnPrintf(name, sizeof(name), "../mipimages_enc_default_stb/image%d_mip%02u.png", image, i);
@@ -66,7 +66,7 @@ namespace dmTexc
         return true;
     }
 
-    static bool CreateDefault(Texture* texture, uint32_t width, uint32_t height, PixelFormat pixel_format, ColorSpace color_space, CompressionType compression_type, void* data)
+    static bool CreateDefault(TextureImpl* texture, uint32_t width, uint32_t height, PixelFormat pixel_format, ColorSpace color_space, CompressionType compression_type, void* data)
     {
         uint32_t size = width * height * 4;
         uint8_t* base_image = new uint8_t[size];
@@ -76,9 +76,9 @@ namespace dmTexc
             return false;
         }
 
-        TextureData mip_level;
+        Buffer mip_level;
         mip_level.m_Data = base_image;
-        mip_level.m_ByteSize = size;
+        mip_level.m_DataCount = size;
         mip_level.m_IsCompressed = false;
         mip_level.m_Width = width;
         mip_level.m_Height = height;
@@ -94,7 +94,7 @@ namespace dmTexc
         return true;
     }
 
-    static void DestroyDefault(Texture* texture)
+    static void DestroyDefault(TextureImpl* texture)
     {
         for(uint32_t i = 0; i < texture->m_Mips.Size(); ++i)
         {
@@ -102,7 +102,7 @@ namespace dmTexc
         }
     }
 
-    static uint8_t* GenMipMapDefault(Texture* texture, int miplevel, const basisu::image& origimage, uint32_t mip_width, uint32_t mip_height, ColorSpace color_space)
+    static uint8_t* GenMipMapDefault(TextureImpl* texture, int miplevel, const basisu::image& origimage, uint32_t mip_width, uint32_t mip_height, ColorSpace color_space)
     {
         (void)texture;
         (void)miplevel;
@@ -130,7 +130,7 @@ namespace dmTexc
         return mip_data;
     }
 
-    static bool GenMipMapsDefault(Texture* texture)
+    static bool GenMipMapsDefault(TextureImpl* texture)
     {
         uint32_t width = texture->m_Width;
         uint32_t height = texture->m_Height;
@@ -152,18 +152,18 @@ namespace dmTexc
             uint8_t* mipmap = GenMipMapDefault(texture, level, origimage, width, height, texture->m_ColorSpace);
             level++;
 
-            TextureData mip_level;
+            Buffer mip_level;
             mip_level.m_Width = width;
             mip_level.m_Height = height;
             mip_level.m_Data = mipmap;
-            mip_level.m_ByteSize = width * height * 4;
+            mip_level.m_DataCount = width * height * 4;
             mip_level.m_IsCompressed = false;
             texture->m_Mips.Push(mip_level);
         }
         return true;
     }
 
-    static bool ResizeDefault(Texture* texture, uint32_t width, uint32_t height)
+    static bool ResizeDefault(TextureImpl* texture, uint32_t width, uint32_t height)
     {
         uint32_t num_channels = 4;
         uint32_t new_size = width * height * num_channels;
@@ -181,7 +181,7 @@ namespace dmTexc
 
         delete[] texture->m_Mips[0].m_Data;
         texture->m_Mips[0].m_Data = new_data;
-        texture->m_Mips[0].m_ByteSize = new_size;
+        texture->m_Mips[0].m_DataCount = new_size;
         texture->m_Mips[0].m_Width = width;
         texture->m_Mips[0].m_Height = height;
         texture->m_Width = width;
@@ -190,43 +190,43 @@ namespace dmTexc
         return true;
     }
 
-    static uint32_t GetTotalDataSizeDefault(Texture* texture)
+    static uint32_t GetTotalDataSizeDefault(TextureImpl* texture)
     {
         uint32_t total_size = 0;
         for (uint32_t i = 0; i < texture->m_Mips.Size(); ++i)
         {
-            const TextureData* mip_level = &texture->m_Mips[i];
-            total_size += mip_level->m_ByteSize;
+            const Buffer* mip_level = &texture->m_Mips[i];
+            total_size += mip_level->m_DataCount;
         }
         return total_size;
     }
 
-    static uint32_t GetDataDefault(Texture* texture, void* out_data, uint32_t out_data_size)
+    static uint32_t GetDataDefault(TextureImpl* texture, void* out_data, uint32_t out_data_size)
     {
         uint8_t* write_ptr = (uint8_t*)out_data;
         uint32_t total_size = 0;
         for (uint32_t i = 0; i < texture->m_Mips.Size(); ++i)
         {
-            const TextureData* mip_level = &texture->m_Mips[i];
-            memcpy(write_ptr, mip_level->m_Data, mip_level->m_ByteSize);
+            const Buffer* mip_level = &texture->m_Mips[i];
+            memcpy(write_ptr, mip_level->m_Data, mip_level->m_DataCount);
 
-            write_ptr += mip_level->m_ByteSize;
-            total_size += mip_level->m_ByteSize;
+            write_ptr += mip_level->m_DataCount;
+            total_size += mip_level->m_DataCount;
         }
         return total_size;
     }
 
-    static bool PreMultiplyAlphaDefault(Texture* texture)
+    static bool PreMultiplyAlphaDefault(TextureImpl* texture)
     {
         // Do we need to check for alpha?
-        TextureData* mip_level = &texture->m_Mips[0];
+        Buffer* mip_level = &texture->m_Mips[0];
         PreMultiplyAlpha(mip_level->m_Data, texture->m_Width, texture->m_Height);
         return true;
     }
 
-    static bool FlipDefault(Texture* texture, FlipAxis flip_axis)
+    static bool FlipDefault(TextureImpl* texture, FlipAxis flip_axis)
     {
-        TextureData* mip_level = &texture->m_Mips[0];
+        Buffer* mip_level = &texture->m_Mips[0];
         switch(flip_axis)
         {
         case FLIP_AXIS_Y:   FlipImageY_RGBA8888((uint32_t*)mip_level->m_Data, texture->m_Width, texture->m_Height);
@@ -239,7 +239,7 @@ namespace dmTexc
         }
     }
 
-    static bool GetHeaderDefault(Texture* texture, Header* out_header)
+    static bool GetHeaderDefault(TextureImpl* texture, Header* out_header)
     {
         out_header->m_Width = texture->m_Width;
         out_header->m_Height = texture->m_Height;

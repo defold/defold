@@ -137,7 +137,7 @@ static void* EngineCreate(int argc, char** argv)
     EngineCtx* engine = &g_EngineCtx;
 
     engine->m_WasCreated++;
-    engine->m_TimeStart = dmTime::GetTime();
+    engine->m_TimeStart = dmTime::GetMonotonicTime();
 
     dmPlatform::WindowParams params = {};
     params.m_Width                  = 512;
@@ -194,7 +194,7 @@ TEST(App, Run)
     ASSERT_EQ(0, ret);
 
 
-    uint64_t t = dmTime::GetTime();
+    uint64_t t = dmTime::GetMonotonicTime();
     float elapsed = (t - g_EngineCtx.m_TimeStart) / 1000000.0f;
     (void)elapsed;
 

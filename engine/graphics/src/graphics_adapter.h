@@ -150,6 +150,10 @@ namespace dmGraphics
     typedef uint32_t (*GetTextureUsageHintFlagsFn)(HTexture texture);
     typedef bool (*IsContextFeatureSupportedFn)(HContext context, ContextFeature feature);
     typedef bool (*IsAssetHandleValidFn)(HContext context, HAssetHandle asset_handle);
+    typedef HComputeProgram (*NewComputeProgramFn)(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size);
+    typedef HProgram (*NewProgramFromComputeFn)(HContext context, HComputeProgram compute_program);
+    typedef void (*DeleteComputeProgramFn)(HComputeProgram prog);
+    typedef void (*InvalidateGraphicsHandlesFn)(HContext context);
 
     struct GraphicsAdapterFunctionTable
     {
@@ -255,6 +259,14 @@ namespace dmGraphics
         GetPipelineStateFn m_GetPipelineState;
         IsContextFeatureSupportedFn m_IsContextFeatureSupported;
         IsAssetHandleValidFn m_IsAssetHandleValid;
+        InvalidateGraphicsHandlesFn m_InvalidateGraphicsHandles;
+
+        // Compute
+        ReloadComputeProgramFn  m_ReloadComputeProgram;
+        ReloadProgramComputeFn  m_ReloadProgramCompute;
+        NewComputeProgramFn     m_NewComputeProgram;
+        NewProgramFromComputeFn m_NewProgramFromCompute;
+        DeleteComputeProgramFn  m_DeleteComputeProgram;
     };
 
     #define DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, fn_name) \
@@ -361,7 +373,11 @@ namespace dmGraphics
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetTextureUsageHintFlags); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, GetPipelineState); \
         DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IsContextFeatureSupported); \
-        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IsAssetHandleValid);
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, IsAssetHandleValid); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, InvalidateGraphicsHandles); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewComputeProgram); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, NewProgramFromCompute); \
+        DM_REGISTER_GRAPHICS_FUNCTION(tbl, adapter_name, DeleteComputeProgram);
 }
 
 #endif

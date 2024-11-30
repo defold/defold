@@ -14,6 +14,7 @@
           <entry key="clojure.core/defonce" value="-1" />
           <entry key="clojure.core/vector-of" value="-1" />
           <entry key="clojure.test/are" value="-1" />
+          <entry key="dev/run-with-progress" value="-1" />
           <entry key="dynamo.graph/make-nodes" value="-1" />
           <entry key="dynamo.graph/precluding-errors" value="-1" />
           <entry key="dynamo.graph/set-property" value="-1" />
@@ -81,6 +82,7 @@
           <entry key="org.httpkit.server/with-channel" value="-1" />
           <entry key="support.test-support/with-clean-system" value="-1" />
           <entry key="util.coll/assoc-in-ex" value="-1" />
+          <entry key="util.debug-util/log-time" value="-1" />
           <entry key="util.debug-util/measuring" value="-1" />
           <entry key="util.debug-util/metrics-time" value="-1" />
           <entry key="util.profiler/profile" value="-1" />

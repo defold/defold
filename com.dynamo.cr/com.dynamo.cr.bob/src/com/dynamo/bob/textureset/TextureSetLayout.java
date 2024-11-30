@@ -110,7 +110,7 @@ public class TextureSetLayout {
         private String id;
         private int index; // for easier keeping the original order
         private int page;
-        private Pointi pivot;
+        private Point pivot; // in image space (texels)
         // Full rect.
         // The final placement in the texture.
         // May lay outside of the texture image.
@@ -130,7 +130,7 @@ public class TextureSetLayout {
             this.index = index;
             this.page = page;
             this.rotated = rotated;
-            this.pivot = new Pointi(width/2, height/2);
+            this.pivot = new Point(width/2.0f, height/2.0f);
             this.rect = new Rectanglei(x, y, width, height);
             this.vertices = new ArrayList<>();
             this.indices = new ArrayList<>();
@@ -204,10 +204,10 @@ public class TextureSetLayout {
         public Point getCenter() {
             return rect.getCenter();
         }
-        public Pointi getPivot() {
+        public Point getPivot() {
             return pivot;
         }
-        public void setPivot(Pointi pivot) {
+        public void setPivot(Point pivot) {
             this.pivot = pivot;
         }
         public List<Pointi> getVertices() {
@@ -436,6 +436,10 @@ public class TextureSetLayout {
             this.x = x;
             this.y = y;
         };
+        public Point(Point rhs) {
+            this.x = rhs.x;
+            this.y = rhs.y;
+        };
 
         public float getX()                 { return x; }
         public void setX(float x)           { this.x = x; }
@@ -588,11 +592,11 @@ public class TextureSetLayout {
                 rect.setPage(page.index);
                 rect.setRotated(image.rotated);
 
-                Pointi p;
+                Point p;
                 if (image.pivot != null)
-                    p = new Pointi(image.pivot);
+                    p = new Point(image.pivot);
                 else
-                    p = new Pointi(width/2, height/2);
+                    p = new Point(width/2.0f, height/2.0f);
                 rect.setPivot(p);
 
                 for (Point vertex : image.vertices) {

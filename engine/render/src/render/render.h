@@ -98,6 +98,12 @@ namespace dmRender
         TEXT_VALIGN_BOTTOM = 2
     };
 
+    enum RenderContextEvent
+    {
+        CONTEXT_LOST = 0,
+        CONTEXT_RESTORED = 1
+    };
+
     struct Predicate
     {
         static const uint32_t MAX_TAG_COUNT = 32;
@@ -195,6 +201,9 @@ namespace dmRender
     Result Draw(HRenderContext context, HPredicate predicate, HNamedConstantBuffer constant_buffer);
     Result DrawDebug3d(HRenderContext context, const FrustumOptions* frustum_options);
     Result DrawDebug2d(HRenderContext context);
+
+    void SetRenderPause(HRenderContext context, uint8_t is_paused);
+    bool IsRenderPaused(HRenderContext context);
 
     /**
      * Render debug square. The upper left corner of the screen is (-1,-1) and the bottom right is (1,1).
@@ -356,6 +365,7 @@ namespace dmRender
     HRenderBuffer                   GetBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer);
     int32_t                         GetBufferIndex(HRenderContext render_context, HBufferedRenderBuffer buffer);
     void                            SetBufferData(HRenderContext render_context, HBufferedRenderBuffer buffer, uint32_t size, void* data, dmGraphics::BufferUsage buffer_usage);
+    void                            SetBufferSubData(HRenderContext render_context, HBufferedRenderBuffer buffer, uint32_t offset, uint32_t size, void* data);
     void                            TrimBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer);
     void                            RewindBuffer(HRenderContext render_context, HBufferedRenderBuffer buffer);
 
@@ -372,6 +382,7 @@ namespace dmRender
     void                            GetRenderCameraProjection(HRenderContext render_context, HRenderCamera camera, dmVMath::Matrix4* mtx);
     void                            SetRenderCameraData(HRenderContext render_context, HRenderCamera camera, const RenderCameraData* data);
     void                            GetRenderCameraData(HRenderContext render_context, HRenderCamera camera, RenderCameraData* data);
+    void                            SetRenderCameraEnabled(HRenderContext render_context, HRenderCamera camera, bool value);
     void                            UpdateRenderCamera(HRenderContext render_context, HRenderCamera camera, const dmVMath::Point3* position, const dmVMath::Quat* rotation);
 
     static inline dmGraphics::TextureWrap WrapFromDDF(dmRenderDDF::MaterialDesc::WrapMode wrap_mode)

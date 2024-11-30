@@ -105,6 +105,7 @@ int main(int argc, char *argv[])
     window_params.m_Height = 32;
     window_params.m_Title = "gdc";
     window_params.m_PrintDeviceInfo = false;
+    window_params.m_OpenGLVersionHint = 33;
     window_params.m_GraphicsApi = dmPlatform::PLATFORM_GRAPHICS_API_OPENGL;
 
     dmPlatform::HWindow window = dmPlatform::NewWindow();

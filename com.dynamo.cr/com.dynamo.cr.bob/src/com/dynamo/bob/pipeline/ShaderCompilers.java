@@ -45,6 +45,7 @@ public class ShaderCompilers {
                 case X86Win32:
                 case X86_64Win32:
                 case X86Linux:
+                case Arm64Linux:
                 case X86_64Linux: {
                     if (isComputeType) {
                         shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM430);
@@ -128,6 +129,9 @@ public class ShaderCompilers {
             ShaderProgramBuilder.ShaderCompileResult compileResult = new ShaderProgramBuilder.ShaderCompileResult();
             compileResult.shaderBuildResults = shaderBuildResults;
             compileResult.reflector = pipeline.getReflectionData();
+
+            ShaderCompilePipeline.destroyShaderPipeline(pipeline);
+
             return compileResult;
         }
     }

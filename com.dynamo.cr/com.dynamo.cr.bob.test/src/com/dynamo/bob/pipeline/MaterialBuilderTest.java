@@ -93,7 +93,7 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
         addAttribute(src, "ele_count_4_normal", 4, Graphics.VertexAttribute.SemanticType.SEMANTIC_TYPE_NORMAL_MATRIX);
         addAttribute(src, "ele_count_4_world", 4, Graphics.VertexAttribute.SemanticType.SEMANTIC_TYPE_WORLD_MATRIX);
 
-        MaterialDesc material = (MaterialDesc) build("/test_migrate_vx_attributes.material", src.toString()).get(0);
+        MaterialDesc material = getMessage(build("/test_migrate_vx_attributes.material", src.toString()), MaterialDesc.class);
         assertEquals(8, material.getAttributesCount());
 
         assertAttribute(material.getAttributes(0), "ele_count_1", Graphics.VertexAttribute.VectorType.VECTOR_TYPE_SCALAR);
@@ -150,7 +150,7 @@ public class MaterialBuilderTest extends AbstractProtoBuilderTest {
         src.append("    filter_mag: FILTER_MODE_MAG_LINEAR\n");
         src.append("}\n");
 
-        MaterialDesc material = (MaterialDesc) build("/test.material", src.toString()).get(0);
+        MaterialDesc material = getMessage(build("/test.material", src.toString()), MaterialDesc.class);
         assertEquals(0, material.getTexturesCount());
         assertEquals(5, material.getSamplersCount());
 

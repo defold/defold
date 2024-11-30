@@ -190,11 +190,9 @@
   exist will be filtered out. The projects are returned in descending order with
   the most recently opened project first."
   [prefs]
-  (sort-by :last-opened
-           coll/descending-order
-           (if-some [timestamps-by-path (prefs/get prefs recent-projects-prefs-key)]
-             (into [] xform-timestamps-by-path->recent-projects timestamps-by-path)
-             [])))
+  (->> (prefs/get prefs recent-projects-prefs-key)
+       (into [] xform-timestamps-by-path->recent-projects)
+       (sort-by :last-opened coll/descending-order)))
 
 (defn add-recent-project!
   "Updates the recent projects list in the preferences to include a new entry

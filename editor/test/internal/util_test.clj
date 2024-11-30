@@ -19,7 +19,6 @@
             [clojure.test.check.generators :as gen]
             [clojure.test.check.properties :as prop]
             [dynamo.graph :as g]
-            [integration.test-util :as test-util]
             [internal.util :as util]
             [util.fn :as fn]))
 
@@ -106,9 +105,9 @@
   (is (nil? (util/first-where even? [1 3 5])))
 
   (testing "stops calling pred after first true"
-    (let [pred (test-util/make-call-logger fn/constantly-true)]
+    (let [pred (fn/make-call-logger fn/constantly-true)]
       (is (= 0 (util/first-where pred (range 10))))
-      (is (= 1 (count (test-util/call-logger-calls pred)))))))
+      (is (= 1 (count (fn/call-logger-calls pred)))))))
 
 (deftest first-index-where-test
   (is (= 1 (util/first-index-where even? (range 1 4))))
@@ -123,9 +122,9 @@
   (is (nil? (util/first-index-where even? [1 3 5])))
 
   (testing "stops calling pred after first true"
-    (let [pred (test-util/make-call-logger fn/constantly-true)]
+    (let [pred (fn/make-call-logger fn/constantly-true)]
       (is (= 0 (util/first-index-where pred (range 10))))
-      (is (= 1 (count (test-util/call-logger-calls pred)))))))
+      (is (= 1 (count (fn/call-logger-calls pred)))))))
 
 (deftest only-test
   (is (= :a (util/only [:a])))
