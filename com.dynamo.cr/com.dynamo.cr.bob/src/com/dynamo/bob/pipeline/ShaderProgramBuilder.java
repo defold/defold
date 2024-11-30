@@ -166,34 +166,23 @@ public class ShaderProgramBuilder extends Builder {
         return shaderDescBuildResult;
     }
 
-    static private void ResolveSamplerIndices(ArrayList<SPIRVReflector.Resource> textures) {
-        for (int i=0; i < textures.size(); i++) {
-            SPIRVReflector.Resource texture = textures.get(i);
-            // Look for a matching sampler resource
-            if (ShaderUtil.Common.stringTypeToShaderType(texture.type) != ShaderDesc.ShaderDataType.SHADER_TYPE_SAMPLER) {
-                // TODO: the extension should be a constant
-                String constructedSamplerName = texture.name + "_separated";
-                for (SPIRVReflector.Resource other : textures) {
-                    if (other.name.equals(constructedSamplerName)) {
-                        other.textureIndex = i;
-                    }
-                }
-            }
-        }
-    }
-
     public ShaderDesc getCompiledShaderDesc(Task task, ShaderDesc.ShaderType shaderType) throws IOException, CompileExceptionError {
         boolean outputSpirv                   = getOutputSpirvFlag();
         boolean outputWGSL                    = getOutputWGSLFlag();
         String resourceOutputPath             = task.getOutputs().get(0).getPath();
 
+        /*
         ShaderDescBuildResult shaderDescBuildResult = makeShaderDesc(resourceOutputPath, shaderPreprocessor, shaderType, this.project.getPlatformStrings()[0], outputSpirv, outputWGSL);
 
         handleShaderDescBuildResult(shaderDescBuildResult, resourceOutputPath);
 
         return shaderDescBuildResult.shaderDesc;
+        */
+
+        return null;
     }
 
+    /*
     static public ShaderCompilePipeline newShaderPipelineFromShaderSource(ShaderDesc.ShaderType type, String resourcePath, String shaderSource, ShaderCompilePipeline.Options options) throws IOException, CompileExceptionError {
         ShaderCompilePipeline pipeline;
         Common.GLSLShaderInfo shaderInfo = Common.getShaderInfo(shaderSource);
@@ -204,8 +193,11 @@ public class ShaderProgramBuilder extends Builder {
             pipeline = new ShaderCompilePipeline(resourcePath);
         }
 
+        createShaderPipeline(ShaderCompilePipeline pipeline, ArrayList<ShaderModuleDesc> descs, Options options)
+
         return ShaderCompilePipeline.createShaderPipeline(pipeline, shaderSource, type, options);
     }
+    */
 
     static public ShaderProgramBuilder.ShaderBuildResult makeShaderBuilderFromGLSLSource(String source, ShaderDesc.Language shaderLanguage) throws IOException {
         ShaderDesc.Shader.Builder builder = ShaderDesc.Shader.newBuilder();
