@@ -688,6 +688,9 @@ except Exception as e:
     print("Failed to import sdk_vendor.py:")
     raise e
 
+if 'sdk_vendor' not in sys.modules:
+    sdk_vendor = None
+
 # ********************************************************************
 
 def get_host_platform():
