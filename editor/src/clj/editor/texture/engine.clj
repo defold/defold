@@ -13,35 +13,36 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.texture.engine
-  (:require [editor.buffers :refer [little-endian new-byte-buffer]]
-            [editor.image-util :refer [image-color-components image-convert-type image-pixels]]
-            [editor.texture.math :refer [closest-power-of-two]]
-            [editor.types :refer [map->EngineFormatTexture]])
-  (:import [com.dynamo.bob.pipeline Texc Texc$DefaultEncodeSettings TexcLibraryJni Texc$ColorSpace Texc$CompressionLevel Texc$CompressionType Texc$PixelFormat]
-           [com.dynamo.graphics.proto Graphics$TextureFormatAlternative$CompressionLevel Graphics$TextureImage$TextureFormat]
-           [java.awt.image BufferedImage ColorModel]
+  (:require [clojure.string :as string]
+            [editor.buffers :refer [little-endian new-byte-buffer]]
+            [editor.dialogs :as dialogs]
+            [editor.image-util :refer [image-pixels]]
+            [editor.ui :as ui]
+            [internal.java :as java]
+            [internal.util :as util]
+            [service.log :as log]
+            [util.coll :refer [pair]])
+  (:import [com.defold.extension.pipeline.texture TextureCompression ITextureCompressor]
+           [com.dynamo.bob ClassLoaderScanner]
+           [com.dynamo.bob.pipeline Texc$PixelFormat TexcLibraryJni]
+           [com.dynamo.graphics.proto Graphics$TextureImage$TextureFormat]
+           [java.awt.image BufferedImage]
            [java.nio ByteBuffer]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* true)
+
+(defonce ^:private ^String scanned-package-name "com.defold.extension.pipeline.texture")
 
 ; Set up some compile-time aliases for those long Java constant names
 (def L8       Texc$PixelFormat/PF_L8)
 (def R8G8B8   Texc$PixelFormat/PF_R8G8B8)
 (def R8G8B8A8 Texc$PixelFormat/PF_R8G8B8A8)
 
-(def CL_FAST   Texc$CompressionLevel/CL_FAST)
-(def CL_NORMAL Texc$CompressionLevel/CL_NORMAL)
-(def CL_HIGH   Texc$CompressionLevel/CL_HIGH)
-(def CL_BEST   Texc$CompressionLevel/CL_BEST)
-
-(def CT_DEFAULT     Texc$CompressionType/CT_DEFAULT)
 
 (def TEXTURE_FORMAT_LUMINANCE Graphics$TextureImage$TextureFormat/TEXTURE_FORMAT_LUMINANCE)
 (def TEXTURE_FORMAT_RGB       Graphics$TextureImage$TextureFormat/TEXTURE_FORMAT_RGB)
 (def TEXTURE_FORMAT_RGBA      Graphics$TextureImage$TextureFormat/TEXTURE_FORMAT_RGBA)
-
-(def SRGB     Texc$ColorSpace/CS_SRGB)
 
 (def default-formats
   [R8G8B8A8 TEXTURE_FORMAT_RGBA])
@@ -82,79 +83,12 @@
   (or (and (= width width-pot) (= height height-pot))
       (TexcLibraryJni/Resize texture width-pot height-pot)))
 
-(defn- premultiply-alpha [texture]
-  (or (.. ColorModel getRGBdefault isAlphaPremultiplied)
-      (TexcLibraryJni/PreMultiplyAlpha texture)))
-
-(defn- gen-mipmaps [texture])
-
-(defn num-texc-threads []
-  (let [count (.availableProcessors (Runtime/getRuntime))]
-    (cond (> count 4) (- count 2)
-          (> count 1) (- count 1)
-          :else 1)))
-
-(defn- transcode [texture pixel-format color-space compression-type _compression-level]
-  (if (= compression-type CT_DEFAULT)
-    (let [^Texc$DefaultEncodeSettings encode-settings (Texc$DefaultEncodeSettings.)
-          data-uncompressed (TexcLibraryJni/GetData texture)
-          width             (TexcLibraryJni/GetWidth texture)
-          height            (TexcLibraryJni/GetHeight texture)]
-      (set! (. encode-settings width) width)
-      (set! (. encode-settings height) height)
-      (set! (. encode-settings pixelFormat) pixel-format)
-      (set! (. encode-settings colorSpace) color-space)
-      (set! (. encode-settings data) data-uncompressed)
-      (set! (. encode-settings numThreads) (num-texc-threads))
-      (set! (. encode-settings outPixelFormat) pixel-format)
-      (TexcLibraryJni/DefaultEncode encode-settings))))
-
 (defn double-down [[n m]] [(max (bit-shift-right n 1) 1)
                            (max (bit-shift-right m 1) 1)])
 
 (defn double-down-pairs [m n]
   (assert (and (> m 0) (> n 0)) "Both arguments must be greater than zero")
   (concat (take-while #(not= [1 1] %) (iterate double-down [m n])) [[1 1]]))
-
-(defn- mipmap-sizes [width height color-count]
-  (let [dims (double-down-pairs width height)]
-    (map (fn [[w h]] (int (* w h color-count))) dims)))
-
-(defn- mipmap-offsets [sizes]
-  (reductions (fn [off sz] (int (+ off sz))) (int 0) sizes))
-
-(defn texture-engine-format-generate
-  [^BufferedImage img]
-  (let [img                           (image-convert-type img BufferedImage/TYPE_4BYTE_ABGR)
-        width                         (.getWidth img)
-        height                        (.getHeight img)
-        width-pot                     (int (closest-power-of-two width))
-        height-pot                    (int (closest-power-of-two height))
-        color-count                   (image-color-components img)
-        [pixel-format texture-format] (get formats color-count default-formats)
-        name                          nil ; for easier debugging
-        texture                       (TexcLibraryJni/CreateImage name, width height R8G8B8A8 SRGB (image->byte-buffer img))
-        compression-level             Graphics$TextureFormatAlternative$CompressionLevel/FAST
-        mipmaps                       false
-        texture-mip-zero              (resize texture width height width-pot height-pot)]
-
-    (try
-      (do-or-do-not!
-        (premultiply-alpha texture-mip-zero) "could not premultiply alpha"
-        (gen-mipmaps texture-mip-zero)       "could not generate mip-maps")
-      (let [buffer       (transcode texture-mip-zero pixel-format SRGB compression-level CT_DEFAULT)
-            mipmap-sizes (mipmap-sizes width-pot height-pot color-count)]
-        (map->EngineFormatTexture
-          {:width           width-pot
-           :height          height-pot
-           :original-width  width
-           :original-height height
-           :format          texture-format
-           :data            buffer
-           :mipmap-sizes    mipmap-sizes
-           :mipmap-offsets (mipmap-offsets mipmap-sizes)}))
-      (finally
-        (TexcLibraryJni/DestroyImage texture)))))
 
 (defn compress-rgba-buffer
   ^ByteBuffer [^ByteBuffer rgba-buffer ^long width ^long height ^long channel-count]
@@ -172,3 +106,53 @@
                                                   (.put compressed-data) ; the payload
                                                   (.flip))]
     data-with-header))
+
+(defn- try-initialize-texture-compressors [^ClassLoader class-loader]
+  (util/group-into
+    {} []
+    key val
+    (keep (fn [^String class-name]
+            (try
+              (let [uninitialized-class (Class/forName class-name false class-loader)]
+                (when (java/public-implementation? uninitialized-class ITextureCompressor)
+                  (let [initialized-class (Class/forName class-name true class-loader)]
+                    (pair :texture-compressor-classes initialized-class))))
+              (catch Exception e
+                (log/error :msg (str "Exception in static initializer of ITextureCompressor implementation " class-name ": " (.getMessage e))
+                           :exception e)
+                (pair :faulty-class-names class-name))))
+          (ClassLoaderScanner/scanClassLoader class-loader scanned-package-name))))
+
+(defn- set-texture-compressors! [texture-compressor-classes]
+  (doall
+    (map (fn [^Class texture-compressor-class]
+           (let [texture-compressor-instance (java/invoke-no-arg-constructor texture-compressor-class)]
+             (TextureCompression/registerCompressor texture-compressor-instance)))
+         texture-compressor-classes)))
+
+(defn- report-error! [error-message faulty-class-names]
+  (ui/run-later
+    (dialogs/make-info-dialog
+      {:title "Unable to Load Plugin"
+       :size :large
+       :icon :icon/triangle-error
+       :always-on-top true
+       :header error-message
+       :content (string/join
+                  "\n"
+                  (concat
+                    ["The following classes from editor plugins are not compatible with this version of the editor:"
+                     ""]
+                    (map dialogs/indent-with-bullet
+                         (sort faulty-class-names))
+                    [""
+                     "The project might not build without them."
+                     "Please edit your project dependencies to refer to a suitable version."]))})))
+
+(defn reload-texture-compressors! [^ClassLoader class-loader]
+  (let [{:keys [texture-compressor-classes faulty-class-names]}
+        (try-initialize-texture-compressors class-loader)]
+    (println texture-compressor-classes faulty-class-names)
+    (if (seq faulty-class-names)
+      (report-error! "Failed to initialize texture compressors" faulty-class-names)
+      (set-texture-compressors! texture-compressor-classes))))
