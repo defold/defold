@@ -510,7 +510,10 @@ def check_defold_sdk(sdkfolder, host_platform, platform, verbose=False):
     folders = []
     log_verbose(verbose, f"check_defold_sdk: {platform} {sdkfolder}")
 
-    if platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios'):
+    if sdk_vendor is not None and sdk_vendor.supports_platform(platform):
+        folders = sdk_vendor.get_defold_sdk_folders(platform)
+
+    elif platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios'):
         folders.append(_get_defold_path(sdkfolder, 'xcode'))
         folders.append(_get_defold_path(sdkfolder, platform))
 
@@ -573,7 +576,11 @@ def check_local_sdk(platform, verbose=False):
 
 def _get_defold_sdk_info(sdkfolder, host_platform, platform):
     info = {}
-    if platform in ('x86_64-macos', 'arm64-macos','x86_64-ios','arm64-ios'):
+
+    if sdk_vendor is not None and sdk_vendor.supports_platform(platform):
+        return sdk_vendor.get_sdk_info(platform)
+
+    elif platform in ('x86_64-macos', 'arm64-macos','x86_64-ios','arm64-ios'):
         info['xcode'] = {}
         info['xcode']['version'] = VERSION_XCODE
         info['xcode']['path'] = _get_defold_path(sdkfolder, 'xcode')
@@ -659,6 +666,29 @@ def _get_local_sdk_info(platform, verbose=False):
 
     return info
 
+# ********************************************************************
+# vendor
+
+def dummy_check_vendor_sdk(sdkfolder, platform, verbose):
+    pass
+
+check_vendor_sdk = dummy_check_vendor_sdk
+
+try:
+    import sdk_vendor
+    sdk_vendor.SDKException = SDKException # give access to the esception
+    check_vendor_sdk = sdk_vendor.check_vendor_sdk
+except ModuleNotFoundError as e:
+    # Currently, the output is parsed by other scripts
+    if "No module named 'sdk_vendor'" in str(e):
+        pass
+    else:
+        raise e
+except Exception as e:
+    print("Failed to import sdk_vendor.py:")
+    raise e
+
+# ********************************************************************
 
 def get_host_platform():
     machine = platform.machine().lower()
@@ -677,15 +707,23 @@ def get_host_platform():
 
     raise Exception("Unknown host platform: %s, %s" % (sys.platform, machine))
 
-
 # It's only cached for the duration of one build
 cached_platforms = defaultdict(defaultdict)
+
 
 def get_sdk_info(sdkfolder, platform, verbose=False):
     if platform in cached_platforms:
         return cached_platforms[platform]
 
     host_platform = get_host_platform()
+    try:
+        if check_vendor_sdk(sdkfolder, platform, verbose):
+            result = _get_defold_sdk_info(sdkfolder, host_platform, platform)
+            cached_platforms[platform] = result
+            return result
+    except SDKException as e:
+        log_verbose(verbose, e)
+
     try:
         if check_defold_sdk(sdkfolder, host_platform, platform, verbose):
             result = _get_defold_sdk_info(sdkfolder, host_platform, platform)
