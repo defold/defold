@@ -323,35 +323,27 @@ public class ComponentsCounter {
         }
         Map<String, Integer> components = storage.get();
         HashMap<String, Integer> mergedComponents = new HashMap<>();
-        Integer max_instances = 0;
         boolean hasDynamicValue = false;
         for (Map.Entry<String, Integer> entry : components.entrySet()) {
             // different input component names may have the same output name
             // for example wav and sound both are soundc
             String name = project.replaceExt("." + entry.getKey()).substring(1);
             Integer value = entry.getValue();
-            Integer result = 0;
             if (mergedComponents.containsKey(name)) {
                 Integer mergedValue = mergedComponents.get(name);
                 if (mergedValue.equals(DYNAMIC_VALUE) || value.equals(DYNAMIC_VALUE)) {
-                    result = DYNAMIC_VALUE;
+                    mergedComponents.put(name, DYNAMIC_VALUE);
                 } else {
-                    result = mergedValue + value;
+                    mergedComponents.put(name, mergedValue + value);
                 }
             } else {
-                result = value;
+                mergedComponents.put(name, value);
             }
-            mergedComponents.put(name, result);
-            max_instances = Math.max(max_instances, result);
-            if (isFactoryType(name, true) || hasBones(name)) {
-                hasDynamicValue = true;
-            }
+            hasDynamicValue |= isFactoryType(name, true);
+            hasDynamicValue |= hasBones(name);
         }
         if (hasDynamicValue) {
             mergedComponents.put("goc", DYNAMIC_VALUE);
-        }
-        else {
-            mergedComponents.put("goc", max_instances);
         }
         for (Map.Entry<String, Integer> entry : mergedComponents.entrySet()) {
             ComponenTypeDesc.Builder componentTypeDesc = ComponenTypeDesc.newBuilder();
