@@ -561,7 +561,7 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
                 Assert.assertEquals(2, type.getMaxCount());
             }
             else if (type.getNameHash() == MurmurHash.hash64("goc")) {
-                Assert.assertEquals(1, type.getMaxCount());
+                Assert.assertEquals(2, type.getMaxCount());
             }
         }
     }
