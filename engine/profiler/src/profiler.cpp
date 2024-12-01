@@ -248,7 +248,6 @@ static int EnableProfilerUI(lua_State* L)
  * You can also use the `view_recorded_frame` function to display a recorded frame. Doing so stops the recording as well.
  *
  * Every time you switch to recording mode the recording buffer is cleared.
- * The recording buffer is also cleared when setting the `MODE_SHOW_PEAK_FRAME` mode.
  *
  * @examples
  * ```lua
