@@ -354,7 +354,6 @@ public class ComponentsCounter {
         }
         if (hasDynamicValue) {
             builder.setMaxInstances(DYNAMIC_VALUE);
-            mergedComponents.put("goc", DYNAMIC_VALUE);
         }
         else {
             builder.setMaxInstances(max_instances);

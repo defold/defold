@@ -366,16 +366,7 @@ namespace dmGameObject
 
     Collection* AllocCollection(const char* name, HRegister regist, uint32_t max_instances, dmGameObjectDDF::CollectionDesc* collection_desc)
     {
-        uint32_t max_gameobjects = GetMaxComponentInstances(GAME_OBJECT_EXT, collection_desc);
-        if (max_gameobjects == 0)
-        {
-            max_gameobjects = max_instances;
-        }
-        else
-        {
-            max_gameobjects = dmMath::Min(max_gameobjects, max_instances);
-        }
-        Collection* collection = new Collection(0, 0, max_gameobjects, GetInputStackDefaultCapacity(regist));
+        Collection* collection = new Collection(0, 0, max_instances, GetInputStackDefaultCapacity(regist));
         collection->m_Mutex = dmMutex::New();
 
         for (uint32_t i = 0; i < regist->m_ComponentTypeCount; ++i)
