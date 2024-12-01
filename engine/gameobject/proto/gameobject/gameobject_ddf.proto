@@ -121,6 +121,7 @@ message CollectionDesc
     repeated EmbeddedInstanceDesc   embedded_instances      = 5;
     repeated string                 property_resources      = 6 [(runtime_only) = true, (resource) = true];
     repeated ComponenTypeDesc       component_types         = 7 [(runtime_only) = true];
+    optional uint32                 max_instances           = 8 [(runtime_only) = true];
 }
 
 /*# Game object API documentation

@@ -366,16 +366,7 @@ namespace dmGameObject
 
     Collection* AllocCollection(const char* name, HRegister regist, uint32_t max_instances, dmGameObjectDDF::CollectionDesc* collection_desc)
     {
-        uint32_t instances_in_collection = GetMaxComponentInstances(GAME_OBJECT_EXT, collection_desc);
-        if (instances_in_collection == 0)
-        {
-            instances_in_collection = max_instances;
-        }
-        else
-        {
-            instances_in_collection = dmMath::Min(max_instances, instances_in_collection);
-        }
-        Collection* collection = new Collection(0, 0, instances_in_collection, GetInputStackDefaultCapacity(regist));
+        Collection* collection = new Collection(0, 0, max_instances, GetInputStackDefaultCapacity(regist));
         collection->m_Mutex = dmMutex::New();
 
         for (uint32_t i = 0; i < regist->m_ComponentTypeCount; ++i)
@@ -386,7 +377,7 @@ namespace dmGameObject
                 params.m_Context = regist->m_ComponentTypes[i].m_Context;
                 params.m_ComponentIndex = i;
                 params.m_MaxComponentInstances = GetMaxComponentInstances(regist->m_ComponentTypes[i].m_NameHash, collection_desc);
-                params.m_MaxInstances = instances_in_collection;
+                params.m_MaxInstances = max_instances;
                 params.m_World = &collection->m_ComponentWorlds[i];
                 regist->m_ComponentTypes[i].m_NewWorldFunction(params);
             }

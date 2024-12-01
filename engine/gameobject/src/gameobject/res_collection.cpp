@@ -33,8 +33,12 @@ namespace dmGameObject
 
         uint32_t created_instances = 0;
         uint32_t default_capacity = dmGameObject::GetCollectionDefaultCapacity(regist);
+        uint32_t max_instances = collection_desc->m_MaxInstances;
+        if (max_instances == 0 || max_instances == 0xFFFFFFFF) {
+            max_instances = default_capacity;
+        }
 
-        HCollection hcollection = NewCollection(collection_desc->m_Name, factory, regist, default_capacity, collection_desc);
+        HCollection hcollection = NewCollection(collection_desc->m_Name, factory, regist, max_instances, collection_desc);
         if (hcollection == 0)
         {
             dmLogError("AcquireResources NewCollection RESULT_OUT_OF_RESOURCES");

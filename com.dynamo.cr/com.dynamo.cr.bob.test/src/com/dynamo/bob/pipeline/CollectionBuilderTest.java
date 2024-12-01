@@ -561,9 +561,10 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
                 Assert.assertEquals(2, type.getMaxCount());
             }
             else if (type.getNameHash() == MurmurHash.hash64("goc")) {
-                Assert.assertEquals(2, type.getMaxCount());
+                Assert.assertEquals(1, type.getMaxCount());
             }
         }
+        Assert.assertEquals(2, collection.getMaxInstances());
     }
 
     /**
@@ -697,9 +698,10 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
                 Assert.assertEquals((int)ComponentsCounter.DYNAMIC_VALUE, type.getMaxCount());
             }
             else if (type.getNameHash() == MurmurHash.hash64("goc")) {
-                Assert.assertEquals((int)ComponentsCounter.DYNAMIC_VALUE, type.getMaxCount());
+                Assert.assertEquals(1, type.getMaxCount());
             }
         }
+        Assert.assertEquals((int)ComponentsCounter.DYNAMIC_VALUE, collection.getMaxInstances());
     }
 
     /**
@@ -774,9 +776,10 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
                 Assert.assertEquals((int)ComponentsCounter.DYNAMIC_VALUE, type.getMaxCount());
             }
             else if (type.getNameHash() == MurmurHash.hash64("goc")) {
-                Assert.assertEquals((int)ComponentsCounter.DYNAMIC_VALUE, type.getMaxCount());
+                Assert.assertEquals(2, type.getMaxCount());
             }
         }
+        Assert.assertEquals((int)ComponentsCounter.DYNAMIC_VALUE, collection.getMaxInstances());
     }
 
     /**
