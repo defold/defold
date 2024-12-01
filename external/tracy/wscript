@@ -1,0 +1,142 @@
+#! /usr/bin/env python
+
+VERSION = 'a9e8f9a5f8ec20e2d5ea29c3feb8fd6b6d777435'[:7]
+APPNAME = 'tracy'
+
+srcdir = '.'
+blddir = 'build'
+
+import os, sys, re, run, shutil
+
+from waf_dynamo import platform_supports_feature
+import waf_ddf, waf_dynamo
+import waflib.Options
+import TestContext
+from waflib import Build
+
+test_context = None
+
+def init(ctx):
+    global test_context
+    if 'build' in waflib.Options.commands:
+        test_context = TestContext.create_test_context()
+
+def options(opt):
+    opt.load('waf_dynamo')
+
+def configure(conf):
+    if os.environ['DYNAMO_HOME'] != conf.env.PREFIX:
+        if 'PREFIX' not in os.environ:
+            conf.env.PREFIX = os.environ['DYNAMO_HOME']
+            print("Setting PREFIX=$DYNAMO_HOME")
+
+    if not platform_supports_feature(conf.env.PLATFORM, "opengl", None):
+        print("GLFW isn't supported on this platform", conf.env.PLATFORM)
+        return
+
+    conf.load('waf_dynamo')
+
+    platform = conf.env.PLATFORM
+
+    dynamo_home = conf.env.DYNAMO_HOME
+    if not dynamo_home:
+        conf.fatal("DYNAMO_HOME not set")
+    dynamo_ext = os.path.join(dynamo_home, "ext")
+
+
+def build(bld):
+    global test_context
+
+    name = "%s-%s" % (APPNAME, VERSION)
+
+    #bld.recurse('lib')
+    #bld.install_files('${PREFIX}/%s/include/glfw' % name, 'include/GL/glfw.h')
+    #bld.install_files('${PREFIX}/%s/include/glfw' % name, 'include/GL/glfw_native.h')
+
+    if bld.env.PLATFORM in ('win32', 'x86_64-win32'):
+        bld.env.cxxstlib_PATTERN = 'lib%s.lib'
+
+    lib_name = bld.env.cxxstlib_PATTERN % 'tracy'
+    bld.install_files('${PREFIX}/%s/lib/%s' % (name, bld.env.PLATFORM), 'build/%s' % lib_name)
+
+    platform = bld.env.PLATFORM
+
+    sources = bld.path.ant_glob(['public/**/*.cpp'])
+    includes = []
+
+    sources = [x for x in sources if os.path.basename(x.srcpath()) not in ['elf.cpp', 'macho.cpp']]
+    if platform in ['x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios']:
+        sources += bld.path.ant_glob(['public/**/macho.cpp'])
+    else:
+        sources += bld.path.ant_glob(['public/**/elf.cpp'])
+
+    obj = bld.stlib(features     = 'c',
+                   source       = sources,
+                   includes     = includes,
+                   target       = 'tracy')
+
+    # ********************************************************************************************
+    # Profiler
+
+    # if platform in ['x86_64-macos', 'arm64-macos', 'x86_64-win', 'x86_64-linux']:
+    #     imgui_sources = bld.path.ant_glob(['imgui/*.cpp'])
+
+    #     if platform in ['x86_64-macos', 'arm64-macos', 'x86_64-win', 'x86_64-linux']:
+    #         imgui_sources += bld.path.ant_glob(['imgui/backends/imgui_impl_metal.mm'])
+    #     elif platform in ['x86_64-win']:
+    #         imgui_sources += bld.path.ant_glob(['imgui/backends/imgui_impl_dx12.cpp'])
+    #     elif platform in ['x86_64-linux']:
+    #         imgui_sources += bld.path.ant_glob(['imgui/backends/imgui_impl_vulkan.cpp'])
+
+    #     sources = bld.path.ant_glob(['profiler/**/*.cpp', 'server/**/*.cpp'])
+    #     includes = ['./profiler', './server', './deps/imgui', './deps/ppqsort/include']
+    #     obj = bld.program(features     = 'cxx remove_flags',
+    #                          source       = sources + imgui_sources,
+    #                          includes     = includes,
+    #                          remove_flags = {'CXXFLAGS': [('-std=c++11', 0)]},
+    #                          target       = 'tracy-profiler')
+
+    #     obj.env.append_value('CXXFLAGS', ['-std=c++20'])
+
+    # ********************************************************************************************
+
+    TestContext.initialize_test_context(test_context, bld)
+
+    if isinstance(bld, Build.InstallContext):
+        bld.add_group() # make sure the previous install step is done before we create the archive
+
+        output_dir = '%s/%s' % (bld.env.PREFIX, name)
+        pkg = bld(rule=create_package,
+                  cwd=output_dir,
+                  target='%s-%s.tar.gz' % (name, bld.env.PLATFORM),
+                  always=True)
+
+def create_package(self):
+    target = self.outputs[0].abspath()
+    name = self.outputs[0].name
+    dirs = []
+    dirs_search = ['include', 'lib', 'sdk', 'share']
+
+    for x in dirs_search:
+        if os.path.exists(os.path.join(self.cwd, x)):
+            dirs.append(x)
+
+    args = ['tar', 'zcvf', os.path.normpath(target)] + dirs
+
+    run.command(args, cwd=self.cwd)
+    print("Wrote", target)
+
+    # copy to the defold package path
+    source = target
+    target = os.path.normpath(os.path.join(os.environ['DYNAMO_HOME'], '..', '..', 'packages', name))
+    shutil.copy2(source, target)
+    print("Installed to", target)
+
+    shutil.rmtree(self.cwd)
+
+
+def shutdown(self):
+    waf_dynamo.run_tests(test_context, valgrind = True)
+
+def package(self):
+    pass
