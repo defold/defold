@@ -618,7 +618,9 @@ namespace dmSys
     {
         memset(info, 0, sizeof(*info));
         struct utsname uts;
+#if !defined(__EMSCRIPTEN__)
         uname(&uts);
+#endif
 
 #if defined(__EMSCRIPTEN__)
         dmStrlCpy(info->m_SystemName, "HTML5", sizeof(info->m_SystemName));
