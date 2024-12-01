@@ -55,9 +55,9 @@ def create_test(bld, name, extra_libs = None, extra_features = None, embed_sourc
     local_libs = 'dlib mbedtls zip'.split()
 
     if bld.env.PLATFORM in ('js-web','wasm-web', 'arm64-nx64', 'x86_64-ps4', 'x86_64-ps5'):
-        local_libs += ['profile_null','remotery_null']
+        local_libs += ['PROFILE_NULL']
     else:
-        local_libs += ['profile','remotery']
+        local_libs += ['PROFILE']
 
     if exclude_libs != None:
         req_libs = [x for x in req_libs if not x in exclude_libs]
@@ -148,8 +148,8 @@ def build(bld):
 
     create_test(bld, 'test_profile', extra_libs = ['THREAD'])
     create_test(bld, 'test_profile',    extra_libs = ['THREAD'],
-                                        extra_local_libs = ['profile_null', 'remotery_null'],
-                                        exclude_libs = ['PROFILE', 'profile', 'remotery'],
+                                        extra_local_libs = ['profile_null'],
+                                        exclude_libs = ['PROFILE', 'profile', 'tracy'],
                                         skip_run = True,
                                         target_name = 'test_profile_null')
 

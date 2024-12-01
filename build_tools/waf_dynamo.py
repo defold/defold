@@ -1896,10 +1896,10 @@ def detect(conf):
     conf.env['STLIB_DDF'] = 'ddf'
     conf.env['STLIB_CRASH'] = 'crashext'
     conf.env['STLIB_CRASH_NULL'] = 'crashext_null'
-    conf.env['STLIB_PROFILE'] = ['profile', 'remotery']
-    conf.env['STLIB_PROFILE_NULL'] = ['profile_null', 'remotery_null']
+    conf.env['STLIB_PROFILE'] = ['profile', 'remotery', 'tracy']
+    conf.env['STLIB_PROFILE_NULL'] = ['profile_null']
     conf.env['DEFINES_PROFILE_NULL'] = ['DM_PROFILE_NULL']
-    conf.env['STLIB_PROFILE_NULL_NOASAN'] = ['profile_null_noasan', 'remotery_null_noasan']
+    conf.env['STLIB_PROFILE_NULL_NOASAN'] = ['profile_null_noasan']
 
     if platform in ('arm64-nx64',):
         conf.env['STLIB_PROFILE'] = conf.env['STLIB_PROFILE_NULL']
