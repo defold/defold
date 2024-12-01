@@ -347,16 +347,16 @@ public class ComponentsCounter {
                 hasDynamicValue = true;
             }
         }
+        if (hasDynamicValue) {
+            mergedComponents.put("goc", DYNAMIC_VALUE);
+        }
+        else {
+            mergedComponents.put("goc", max_instances);
+        }
         for (Map.Entry<String, Integer> entry : mergedComponents.entrySet()) {
             ComponenTypeDesc.Builder componentTypeDesc = ComponenTypeDesc.newBuilder();
             componentTypeDesc.setNameHash(MurmurHash.hash64(entry.getKey())).setMaxCount(entry.getValue());
             builder.addComponentTypes(componentTypeDesc);
-        }
-        if (hasDynamicValue) {
-            builder.setMaxInstances(DYNAMIC_VALUE);
-        }
-        else {
-            builder.setMaxInstances(max_instances);
         }
     }
 
