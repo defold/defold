@@ -49,9 +49,11 @@ def build(bld):
 
     name = "%s-%s" % (APPNAME, VERSION)
 
-    #bld.recurse('lib')
-    #bld.install_files('${PREFIX}/%s/include/glfw' % name, 'include/GL/glfw.h')
-    #bld.install_files('${PREFIX}/%s/include/glfw' % name, 'include/GL/glfw_native.h')
+    for folder in ['tracy', 'common', 'client']:
+        for root, dirs, files in os.walk(f"./public/{folder}"):
+            for file in files:
+                if os.path.splitext(file)[1] in ['.hpp', '.h', '.hmm']:
+                    bld.install_files('${PREFIX}/%s/include/tracy/%s' % (name, folder), f'public/{folder}/{file}')
 
     if bld.env.PLATFORM in ('win32', 'x86_64-win32'):
         bld.env.cxxstlib_PATTERN = 'lib%s.lib'
@@ -70,8 +72,9 @@ def build(bld):
     else:
         sources += bld.path.ant_glob(['public/**/elf.cpp'])
 
-    obj = bld.stlib(features     = 'c',
+    obj = bld.stlib(features    = 'c',
                    source       = sources,
+                   defines      = ['TRACY_ENABLE'],
                    includes     = includes,
                    target       = 'tracy')
 
