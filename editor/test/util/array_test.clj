@@ -24,10 +24,9 @@
   (Arrays/equals a b))
 
 (deftest of-test
-  (let [items [:a :b :c :d :e :f :g :h :i :j :k :l :m :n :o :p]]
-    (doseq [^long length (range 4)]
+  (let [items (mapv #(str "item" %) (range 20))]
+    (dotimes [length (count items)]
       (let [expected-items (take length items)]
-        (is (apply array/of expected-items))
         (is (object-arrays-equal?
               (object-array expected-items)
               (apply array/of expected-items)))))))
