@@ -25,7 +25,9 @@
 
 #else
 
+#if defined(ZIP_USE_DISC_IO)
 #include <unistd.h> // needed for symlink()
+#endif
 
 #endif
 
@@ -89,8 +91,10 @@ struct zip_entry_t {
   mz_uint8 header[MZ_ZIP_LOCAL_DIR_HEADER_SIZE];
   mz_uint64 header_offset;
   mz_uint16 method;
+#if defined(ZIP_USE_DEFLATE) // defold
   mz_zip_writer_add_state state;
   tdefl_compressor comp;
+#endif
   mz_uint32 external_attr;
   time_t m_time;
 };
@@ -297,6 +301,7 @@ static char *zip_name_normalize(char *name, char *const nname, size_t len) {
   return nname;
 }
 
+#if defined(ZIP_USE_DEFLATE) // defold
 static int zip_archive_truncate(mz_zip_archive *pzip) {
   mz_zip_internal_state *pState = pzip->m_pState;
   mz_uint64 file_size = pzip->m_archive_size;
@@ -311,7 +316,9 @@ static int zip_archive_truncate(mz_zip_archive *pzip) {
   }
   return 0;
 }
+#endif
 
+#if defined(ZIP_USE_DISC_IO)
 static int zip_archive_extract(mz_zip_archive *zip_archive, const char *dir,
                                int (*on_extract)(const char *filename,
                                                  void *arg),
@@ -439,10 +446,13 @@ out:
   }
   return err;
 }
+#endif // ZIP_USE_DISC_IO
 
 static inline void zip_archive_finalize(mz_zip_archive *pzip) {
+#if defined(ZIP_USE_DEFLATE) // defold
   mz_zip_writer_finalize_archive(pzip);
   zip_archive_truncate(pzip);
+#endif
 }
 
 static ssize_t zip_entry_mark(struct zip_t *zip,
@@ -862,6 +872,7 @@ static int zip_central_dir_delete(mz_zip_internal_state *pState,
   return 0;
 }
 
+#if defined(ZIP_USE_DEFLATE) // defold
 static ssize_t zip_entries_delete_mark(struct zip_t *zip,
                                        struct zip_entry_mark_t *entry_mark,
                                        int entry_num) {
@@ -937,6 +948,7 @@ static ssize_t zip_entries_delete_mark(struct zip_t *zip,
 
   return (ssize_t)deleted_entry_num;
 }
+#endif // ZIP_USE_DEFLATE
 
 struct zip_t *zip_open(const char *zipname, int level, char mode) {
   int errnum = 0;
@@ -972,15 +984,6 @@ struct zip_t *zip_openwitherror(const char *zipname, int level, char mode,
   zip->level = (mz_uint)level;
   zip->entry.index = -1;
   switch (mode) {
-  case 'w':
-    // Create a new archive.
-    if (!mz_zip_writer_init_file_v2(&(zip->archive), zipname, 0,
-                                    MZ_ZIP_FLAG_WRITE_ZIP64)) {
-      // Cannot initialize zip_archive writer
-      *errnum = ZIP_EWINIT;
-      goto cleanup;
-    }
-    break;
 
   case 'r':
     if (!mz_zip_reader_init_file_v2(
@@ -989,6 +992,17 @@ struct zip_t *zip_openwitherror(const char *zipname, int level, char mode,
       // An archive file does not exist or cannot initialize
       // zip_archive reader
       *errnum = ZIP_ERINIT;
+      goto cleanup;
+    }
+    break;
+
+#if defined(ZIP_USE_DEFLATE) // defold
+  case 'w':
+    // Create a new archive.
+    if (!mz_zip_writer_init_file_v2(&(zip->archive), zipname, 0,
+                                    MZ_ZIP_FLAG_WRITE_ZIP64)) {
+      // Cannot initialize zip_archive writer
+      *errnum = ZIP_EWINIT;
       goto cleanup;
     }
     break;
@@ -1018,6 +1032,7 @@ struct zip_t *zip_openwitherror(const char *zipname, int level, char mode,
     // The file pointer is now owned by the archive object.
     zip->archive.m_zip_type = MZ_ZIP_TYPE_FILE;
   } break;
+#endif
 
   default:
     *errnum = ZIP_EINVMODE;
@@ -1036,6 +1051,7 @@ void zip_close(struct zip_t *zip) {
     mz_zip_archive *pZip = &(zip->archive);
     // Always finalize, even if adding failed for some reason, so we have a
     // valid central directory.
+#if defined(ZIP_USE_DEFLATE) // defold
     if (pZip->m_zip_mode == MZ_ZIP_MODE_WRITING) {
       mz_zip_writer_finalize_archive(pZip);
     }
@@ -1045,6 +1061,7 @@ void zip_close(struct zip_t *zip) {
       zip_archive_truncate(pZip);
       mz_zip_writer_end(pZip);
     }
+#endif
     if (pZip->m_zip_mode == MZ_ZIP_MODE_READING) {
       mz_zip_reader_end(pZip);
     }
@@ -1081,7 +1098,9 @@ static int _zip_entry_open(struct zip_t *zip, const char *entryname,
   int err = 0;
   mz_uint16 dos_time = 0, dos_date = 0;
   mz_uint32 extra_size = 0;
+#if defined(ZIP_USE_DEFLATE) // defold
   mz_uint8 extra_data[MZ_ZIP64_MAX_CENTRAL_EXTRA_FIELD_SIZE];
+#endif
   mz_uint64 local_dir_header_ofs = 0;
 
   if (!zip) {
@@ -1137,6 +1156,10 @@ static int _zip_entry_open(struct zip_t *zip, const char *entryname,
 
     return 0;
   }
+
+#if !defined(ZIP_USE_DEFLATE) // defold
+  return ZIP_ENOFILE;
+#else
 
   /*
     .ZIP File Format Specification Version: 6.3.3
@@ -1270,6 +1293,7 @@ static int _zip_entry_open(struct zip_t *zip, const char *entryname,
   }
 
   return 0;
+#endif //ZIP_USE_DEFLATE
 
 cleanup:
   CLEANUP(zip->entry.name);
@@ -1350,13 +1374,18 @@ int zip_entry_openbyindex(struct zip_t *zip, size_t index) {
 int zip_entry_close(struct zip_t *zip) {
   mz_zip_archive *pzip = NULL;
   mz_uint level;
+#if defined(ZIP_USE_DEFLATE) // defold
   tdefl_status done;
+#endif
   mz_uint16 entrylen;
   mz_uint16 dos_time = 0, dos_date = 0;
   int err = 0;
   mz_uint8 *pExtra_data = NULL;
   mz_uint32 extra_size = 0;
+
+#if defined(ZIP_USE_DEFLATE) // defold
   mz_uint8 extra_data[MZ_ZIP64_MAX_CENTRAL_EXTRA_FIELD_SIZE];
+#endif
   mz_uint8 local_dir_footer[MZ_ZIP_DATA_DESCRIPTER_SIZE64];
   mz_uint32 local_dir_footer_size = MZ_ZIP_DATA_DESCRIPTER_SIZE64;
 
@@ -1371,6 +1400,7 @@ int zip_entry_close(struct zip_t *zip) {
     goto cleanup;
   }
 
+#if defined(ZIP_USE_DEFLATE) // defold
   level = zip->level & 0xF;
   if (level) {
     done = tdefl_compress_buffer(&(zip->entry.comp), "", 0, TDEFL_FINISH);
@@ -1433,6 +1463,8 @@ int zip_entry_close(struct zip_t *zip) {
 
   pzip->m_total_files++;
   pzip->m_archive_size = zip->entry.dir_offset;
+
+#endif // ZIP_USE_DEFLATE
 
 cleanup:
   if (zip) {
@@ -1500,6 +1532,7 @@ unsigned long long zip_entry_header_offset(struct zip_t *zip) {
   return zip ? zip->entry.header_offset : 0;
 }
 
+#if defined(ZIP_USE_DEFLATE) // defold
 int zip_entry_write(struct zip_t *zip, const void *buf, size_t bufsize) {
   mz_uint level;
   mz_zip_archive *pzip = NULL;
@@ -1537,7 +1570,9 @@ int zip_entry_write(struct zip_t *zip, const void *buf, size_t bufsize) {
 
   return 0;
 }
+#endif // ZIP_USE_DEFLATE
 
+#if defined(ZIP_USE_DISC_IO) // defold
 int zip_entry_fwrite(struct zip_t *zip, const char *filename) {
   int err = 0;
   size_t n = 0;
@@ -1602,6 +1637,7 @@ int zip_entry_fwrite(struct zip_t *zip, const char *filename) {
 
   return err;
 }
+#endif // ZIP_USE_DISC_IO
 
 ssize_t zip_entry_read(struct zip_t *zip, void **buf, size_t *bufsize) {
   mz_zip_archive *pzip = NULL;
@@ -1805,6 +1841,7 @@ ssize_t zip_entries_total(struct zip_t *zip) {
   return (ssize_t)zip->archive.m_total_files;
 }
 
+#if defined(ZIP_USE_DEFLATE) // defold
 ssize_t zip_entries_delete(struct zip_t *zip, char *const entries[],
                            size_t len) {
   ssize_t n = 0;
@@ -1880,7 +1917,9 @@ ssize_t zip_entries_deletebyindex(struct zip_t *zip, size_t entries[],
   CLEANUP(entry_mark);
   return err;
 }
+#endif // ZIP_USE_DEFLATE
 
+#if defined(ZIP_USE_DISC_IO) // defold
 int zip_stream_extract(const char *stream, size_t size, const char *dir,
                        int (*on_extract)(const char *filename, void *arg),
                        void *arg) {
@@ -1900,6 +1939,7 @@ int zip_stream_extract(const char *stream, size_t size, const char *dir,
 
   return zip_archive_extract(&zip_archive, dir, on_extract, arg);
 }
+#endif // ZIP_USE_DISC_IO
 
 struct zip_t *zip_stream_open(const char *stream, size_t size, int level,
                               char mode) {
@@ -1931,14 +1971,18 @@ struct zip_t *zip_stream_openwitherror(const char *stream, size_t size,
       *errnum = ZIP_ERINIT;
       goto cleanup;
     }
-  } else if ((stream == NULL) && (size == 0) && (mode == 'w')) {
+  }
+#if defined(ZIP_USE_DEFLATE) // defold
+  else if ((stream == NULL) && (size == 0) && (mode == 'w')) {
     // Create a new archive.
     if (!mz_zip_writer_init_heap(&(zip->archive), 0, 1024)) {
       // Cannot initialize zip_archive writer
       *errnum = ZIP_EWINIT;
       goto cleanup;
     }
-  } else {
+  }
+#endif // ZIP_USE_DEFLATE
+  else {
     *errnum = ZIP_EINVMODE;
     goto cleanup;
   }
@@ -1972,7 +2016,9 @@ ssize_t zip_stream_copy(struct zip_t *zip, void **buf, size_t *bufsize) {
 
 void zip_stream_close(struct zip_t *zip) {
   if (zip) {
+#if defined(ZIP_USE_DEFLATE) // defold
     mz_zip_writer_end(&(zip->archive));
+#endif
     mz_zip_reader_end(&(zip->archive));
     CLEANUP(zip);
   }
@@ -2010,16 +2056,6 @@ struct zip_t *zip_cstream_openwitherror(FILE *stream, int level, char mode,
 
   zip->level = (mz_uint)level;
   switch (mode) {
-  case 'w':
-    // Create a new archive.
-    if (!mz_zip_writer_init_cfile(&(zip->archive), stream,
-                                  MZ_ZIP_FLAG_WRITE_ZIP64)) {
-      // Cannot initialize zip_archive writer
-      *errnum = ZIP_EWINIT;
-      goto cleanup;
-    }
-    break;
-
   case 'r':
     if (!mz_zip_reader_init_cfile(
             &(zip->archive), stream, 0,
@@ -2027,6 +2063,17 @@ struct zip_t *zip_cstream_openwitherror(FILE *stream, int level, char mode,
       // An archive file does not exist or cannot initialize
       // zip_archive reader
       *errnum = ZIP_ERINIT;
+      goto cleanup;
+    }
+    break;
+
+#if defined(ZIP_USE_DEFLATE) // defold
+  case 'w':
+    // Create a new archive.
+    if (!mz_zip_writer_init_cfile(&(zip->archive), stream,
+                                  MZ_ZIP_FLAG_WRITE_ZIP64)) {
+      // Cannot initialize zip_archive writer
+      *errnum = ZIP_EWINIT;
       goto cleanup;
     }
     break;
@@ -2049,6 +2096,7 @@ struct zip_t *zip_cstream_openwitherror(FILE *stream, int level, char mode,
       }
     }
     break;
+#endif
 
   default:
     *errnum = ZIP_EINVMODE;
@@ -2064,6 +2112,7 @@ cleanup:
 
 void zip_cstream_close(struct zip_t *zip) { zip_close(zip); }
 
+#if defined(ZIP_USE_DEFLATE) // defold
 int zip_create(const char *zipname, const char *filenames[], size_t len) {
   int err = 0;
   size_t i;
@@ -2145,7 +2194,9 @@ int zip_create(const char *zipname, const char *filenames[], size_t len) {
   mz_zip_writer_end(&zip_archive);
   return err;
 }
+#endif // ZIP_USE_DEFLATE
 
+#if defined(ZIP_USE_DISC_IO) // defold
 int zip_extract(const char *zipname, const char *dir,
                 int (*on_extract)(const char *filename, void *arg), void *arg) {
   mz_zip_archive zip_archive;
@@ -2168,3 +2219,4 @@ int zip_extract(const char *zipname, const char *dir,
 
   return zip_archive_extract(&zip_archive, dir, on_extract, arg);
 }
+#endif
