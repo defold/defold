@@ -31,15 +31,16 @@
   (is (= (concat)
          (e/concat)))
   (is (eduction? (e/concat)))
-  (let [single-coll (range 0 3)]
-    (is (identical? single-coll
-                    (e/concat single-coll))))
-  (is (= (concat (range 0 3) (range 3 5))
-         (e/concat (range 0 3) (range 3 5))))
-  (is (eduction? (e/concat (range 0 3) (range 3 5))))
-  (is (= (concat (range 0 3) (range 3 5) (range 5 8))
-         (e/concat (range 0 3) (range 3 5) (range 5 8))))
-  (is (eduction? (e/concat (range 0 3) (range 3 5) (range 5 8)))))
+  (let [single-arg (range 0 3)]
+    (is (identical? single-arg
+                    (e/concat single-arg))))
+  (let [ranges (partition-all 4 (range))]
+    (doseq [arg-count (range 2 20)]
+      (let [args (take arg-count ranges)
+            expected (apply concat args)
+            actual (apply e/concat args)]
+        (is (= expected actual))
+        (is (eduction? actual))))))
 
 (deftest dedupe-test
   (is (= (dedupe [1 2 1 1 2])
