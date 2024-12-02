@@ -21,6 +21,7 @@
             [internal.system :as is]
             [internal.util :as util]
             [schema.core :as s]
+            [util.array :as array]
             [util.coll :refer [pair]]
             [util.debug-util :as du]
             [util.eduction :as e])
@@ -744,9 +745,10 @@
             ;; nodes of the source node, since these will inherit an implicit
             ;; connection between them and the corresponding override nodes of
             ;; the target node.
-            (flag-successors-changed (cons (pair source-id source-label)
-                                           (e/map #(pair % source-label)
-                                                  (ig/get-overrides basis source-id))))
+            (flag-successors-changed (e/concat
+                                       (array/of (pair source-id source-label))
+                                       (e/map #(pair % source-label)
+                                              (ig/get-overrides basis source-id))))
             (flag-override-nodes-affected target target-label)))
       ctx)
     ctx))
@@ -785,9 +787,10 @@
       ;; When updating the successors, we must also consider any override nodes
       ;; of the source node, since these will inherit an implicit connection
       ;; between them and the corresponding override nodes of the target node.
-      (flag-successors-changed (cons (pair source-id source-label)
-                                     (e/map #(pair % source-label)
-                                            (ig/get-overrides (:basis ctx) source-id))))
+      (flag-successors-changed (e/concat
+                                 (array/of (pair source-id source-label))
+                                 (e/map #(pair % source-label)
+                                        (ig/get-overrides (:basis ctx) source-id))))
       (ctx-remove-overrides source-id source-label target-id target-label)))
 
 (defmethod perform :disconnect
