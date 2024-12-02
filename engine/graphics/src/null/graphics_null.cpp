@@ -749,6 +749,8 @@ namespace dmGraphics
 
         program->m_BaseProgram.m_MaxSet     = binding_info.m_MaxSet;
         program->m_BaseProgram.m_MaxBinding = binding_info.m_MaxBinding;
+        program->m_UniformData              = new uint8_t[binding_info.m_UniformDataSize];
+        memset(program->m_UniformData, 0, binding_info.m_UniformDataSize);
 
         BuildUniforms(&program->m_BaseProgram);
     }
@@ -1023,7 +1025,23 @@ namespace dmGraphics
         assert(_context);
         NullContext* context = (NullContext*) _context;
         assert(context->m_Program != 0x0);
-        return context->m_ProgramRegisters[base_location];
+
+        uint32_t set               = UNIFORM_LOCATION_GET_VS(base_location);
+        uint32_t binding           = UNIFORM_LOCATION_GET_VS_MEMBER(base_location);
+        uint32_t buffer_offset     = UNIFORM_LOCATION_GET_FS(base_location);
+        assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
+
+        NullProgram* program            = (NullProgram*) context->m_Program;
+        ProgramResourceBinding& pgm_res = program->m_BaseProgram.m_ResourceBindings[set][binding];
+        uint32_t offset                 = pgm_res.m_DataOffset + buffer_offset;
+
+        Vector4* ptr = (Vector4*) (program->m_UniformData + offset);
+        return *ptr;
+    }
+
+    static inline void WriteConstantData(uint32_t offset, uint8_t* uniform_data_ptr, uint8_t* data_ptr, uint32_t data_size)
+    {
+        memcpy(&uniform_data_ptr[offset], data_ptr, data_size);
     }
 
     static void NullSetConstantV4(HContext _context, const Vector4* data, int count, HUniformLocation base_location)
@@ -1031,7 +1049,17 @@ namespace dmGraphics
         assert(_context);
         NullContext* context = (NullContext*) _context;
         assert(context->m_Program != 0x0);
-        memcpy(&context->m_ProgramRegisters[base_location], data, sizeof(Vector4) * count);
+
+        uint32_t set               = UNIFORM_LOCATION_GET_VS(base_location);
+        uint32_t binding           = UNIFORM_LOCATION_GET_VS_MEMBER(base_location);
+        uint32_t buffer_offset     = UNIFORM_LOCATION_GET_FS(base_location);
+        assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
+
+        NullProgram* program            = (NullProgram*) context->m_Program;
+        ProgramResourceBinding& pgm_res = program->m_BaseProgram.m_ResourceBindings[set][binding];
+        uint32_t offset                 = pgm_res.m_DataOffset + buffer_offset;
+
+        WriteConstantData(offset, program->m_UniformData, (uint8_t*) data, sizeof(dmVMath::Vector4) * count);
     }
 
     static void NullSetConstantM4(HContext _context, const Vector4* data, int count, HUniformLocation base_location)
@@ -1039,7 +1067,17 @@ namespace dmGraphics
         assert(_context);
         NullContext* context = (NullContext*) _context;
         assert(context->m_Program != 0x0);
-        memcpy(&context->m_ProgramRegisters[base_location], data, sizeof(Vector4) * 4 * count);
+
+        uint32_t set               = UNIFORM_LOCATION_GET_VS(base_location);
+        uint32_t binding           = UNIFORM_LOCATION_GET_VS_MEMBER(base_location);
+        uint32_t buffer_offset     = UNIFORM_LOCATION_GET_FS(base_location);
+        assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
+
+        NullProgram* program            = (NullProgram*) context->m_Program;
+        ProgramResourceBinding& pgm_res = program->m_BaseProgram.m_ResourceBindings[set][binding];
+        uint32_t offset                 = pgm_res.m_DataOffset + buffer_offset;
+
+        WriteConstantData(offset, program->m_UniformData, (uint8_t*) data, sizeof(dmVMath::Vector4) * 4 * count);
     }
 
     static void NullSetSampler(HContext context, HUniformLocation location, int32_t unit)

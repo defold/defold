@@ -2851,10 +2851,10 @@ bail:
         assert(context->m_CurrentProgram);
         assert(base_location != INVALID_UNIFORM_LOCATION);
 
-        VulkanProgram* program_ptr    = (VulkanProgram*) context->m_CurrentProgram;
-        uint32_t set            = UNIFORM_LOCATION_GET_VS(base_location);
-        uint32_t binding        = UNIFORM_LOCATION_GET_VS_MEMBER(base_location);
-        uint32_t buffer_offset  = UNIFORM_LOCATION_GET_FS(base_location);
+        VulkanProgram* program_ptr = (VulkanProgram*) context->m_CurrentProgram;
+        uint32_t set               = UNIFORM_LOCATION_GET_VS(base_location);
+        uint32_t binding           = UNIFORM_LOCATION_GET_VS_MEMBER(base_location);
+        uint32_t buffer_offset     = UNIFORM_LOCATION_GET_FS(base_location);
         assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
 
         ProgramResourceBinding& pgm_res = program_ptr->m_BaseProgram.m_ResourceBindings[set][binding];
