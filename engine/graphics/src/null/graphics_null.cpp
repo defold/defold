@@ -783,7 +783,7 @@ namespace dmGraphics
     {
         NullProgram* p = new NullProgram();
         p->m_Compute = (NullShaderModule*) compute_program;
-        CreateProgramResourceBindings(p, p->m_Compute, 0x0, 0x0);
+        CreateProgramResourceBindings(p, 0x0, 0x0, p->m_Compute);
         return (HProgram) p;
     }
 

@@ -909,6 +909,7 @@ namespace dmGraphics
     {
         bindings_out.SetCapacity(bindings_count);
         bindings_out.SetSize(bindings_count);
+        memset(bindings_out.Begin(), 0, sizeof(ShaderResourceBinding) * bindings_count);
 
         for (int i = 0; i < bindings_count; ++i)
         {
@@ -1024,22 +1025,21 @@ namespace dmGraphics
     {
         dmArray<Uniform>* uniforms = (dmArray<Uniform>*) user_data;
 
-        Uniform uniform;
+        Uniform uniform = {};
+        uniform.m_CanonicalName     = strdup(params.m_CanonicalName);
+        uniform.m_CanonicalNameHash = dmHashString64(uniform.m_CanonicalName);
 
         if (params.m_Member)
         {
-            uint64_t buffer_offset      = params.m_Member->m_Offset + params.m_BaseOffset;
-            uniform.m_Name              = params.m_Member->m_Name;
-            uniform.m_NameHash          = params.m_Member->m_NameHash;
-            uniform.m_CanonicalName     = strdup(params.m_CanonicalName);
-            uniform.m_CanonicalNameHash = dmHashString64(uniform.m_CanonicalName);
-            uniform.m_Type              = ShaderDataTypeToGraphicsType(params.m_Member->m_Type.m_ShaderType);
-            uniform.m_Count             = dmMath::Max((uint32_t) 1, params.m_Member->m_ElementCount);
-            uniform.m_Location          = params.m_Resource->m_Res->m_Set | params.m_Resource->m_Res->m_Binding << 16 | buffer_offset << 32;
+            uint64_t buffer_offset = params.m_Member->m_Offset + params.m_BaseOffset;
+            uniform.m_Name         = params.m_Member->m_Name;
+            uniform.m_NameHash     = params.m_Member->m_NameHash;
+            uniform.m_Type         = ShaderDataTypeToGraphicsType(params.m_Member->m_Type.m_ShaderType);
+            uniform.m_Count        = dmMath::Max((uint32_t) 1, params.m_Member->m_ElementCount);
+            uniform.m_Location     = params.m_Resource->m_Res->m_Set | params.m_Resource->m_Res->m_Binding << 16 | buffer_offset << 32;
         }
         else
         {
-            Uniform uniform    = {};
             uniform.m_Name     = params.m_Resource->m_Res->m_Name;
             uniform.m_NameHash = dmHashString64(params.m_Resource->m_Res->m_Name);
             uniform.m_Type     = ShaderDataTypeToGraphicsType(params.m_Resource->m_Res->m_Type.m_ShaderType);
@@ -1141,7 +1141,7 @@ namespace dmGraphics
             {
                 uint32_t canonical_name_buffer_offset = 0;
 
-                if (prepend_instance_name && next->m_Res->m_InstanceName)
+                if (prepend_instance_name && next->m_Res->m_InstanceName && next->m_Res->m_InstanceName[0] != 0)
                 {
                     canonical_name_buffer_offset = strlen(next->m_Res->m_InstanceName);
 

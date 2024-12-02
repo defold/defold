@@ -85,10 +85,13 @@ namespace dmGraphics
     // For simplicity, we add a single type as member here to cover most test cases
     static inline void FillShaderResourceWithSingleTypeMember(dmGraphics::ShaderDesc::ResourceTypeInfo* info, const char* name, dmGraphics::ShaderDesc::ShaderDataType type)
     {
-        info->m_Name                                         = name;
-        info->m_NameHash                                     = dmHashString64(name);
-        info->m_Members.m_Count                              = 1;
-        info->m_Members.m_Data                               = new dmGraphics::ShaderDesc::ResourceMember[1];
+        info->m_Name            = name;
+        info->m_NameHash        = dmHashString64(name);
+        info->m_Members.m_Count = 1;
+
+        info->m_Members.m_Data = new dmGraphics::ShaderDesc::ResourceMember[1];
+        memset(info->m_Members.m_Data, 0, sizeof(dmGraphics::ShaderDesc::ResourceMember));
+
         info->m_Members.m_Data[0].m_Name                     = name;
         info->m_Members.m_Data[0].m_NameHash                 = dmHashString64(name);
         info->m_Members.m_Data[0].m_Type.m_Type.m_ShaderType = type;

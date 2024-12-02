@@ -503,7 +503,7 @@ static void LogFrameBufferError(GLenum status)
             }
             gl_context->m_AllGLHandles.Push(0);
         }
-        
+
         UpdateGLHandle(context, result_idx, handle);
         return result_idx;
     }
@@ -2558,7 +2558,7 @@ static void LogFrameBufferError(GLenum status)
         // uniform fs_uniforms {
         //     PBRMaterial material;
         // } my_material;
-        // 
+        //
         // OpenGL will yield the following binding:
         // fs_uniforms.material
         //
@@ -3019,7 +3019,7 @@ static void LogFrameBufferError(GLenum status)
         OpenGLProgram* program_ptr = (OpenGLProgram*) program;
         glLinkProgram(GetGLHandle(context, program_ptr->m_Id));
         CHECK_GL_ERROR;
-        
+
         return true;
     }
 
