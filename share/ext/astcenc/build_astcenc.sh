@@ -57,6 +57,7 @@ cmake ${CMAKE_FLAGS} $SOURCE_DIR
 cmake --build . --config Release -j 8
 
 LIB_NAME=
+LIB_EXT=.a
 
 case $PLATFORM in
     arm64-macos)
@@ -69,18 +70,18 @@ case $PLATFORM in
         LIB_NAME=TODO
         ;;
     x86_64-win32)
-        LIB_NAME=TODO
+        LIB_NAME=Release/astcenc-native-static.lib
+        LIB_EXT=.lib
         ;;
     *)
         ;;
 esac
 
-#mkdir -p ./bin/$PLATFORM
 mkdir -p ./lib/$PLATFORM
 mkdir -p ./include/$PLATFORM
 mkdir -p ./include/$PLATFORM/astcenc
 
-cp -v Source/${LIB_NAME} ./lib/$PLATFORM/${LIB_NAME}
+cp -v Source/${LIB_NAME} ./lib/$PLATFORM/libastcenc${LIB_EXT}
 
 cp -v ../../source/Source/astcenc.h ./include/$PLATFORM/astcenc/astcenc.h
 
