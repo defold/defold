@@ -69,6 +69,7 @@ namespace dmTexc
         CT_WEBP_LOSSY,  // Deprecated
         CT_BASIS_UASTC,
         CT_BASIS_ETC1S,
+        CT_ASTC,
     };
 
     enum CompressionFlags
@@ -185,6 +186,20 @@ namespace dmTexc
     // Encode a texture into correct pixel format. Caller must call free() on the returned data.
     bool DefaultEncode(DefaultEncodeSettings* settings, uint8_t** out, uint32_t* out_size);
 
+    struct ASTCEncodeSettings
+    {
+        // Input
+        const char* m_Path;
+        int         m_Width;
+        int         m_Height;
+        PixelFormat m_PixelFormat;
+        ColorSpace  m_ColorSpace;
+        uint8_t*    m_Data;
+        uint32_t    m_DataCount;
+    };
+
+    // Encode a texture into basis format. Caller must call free() on the returned data.
+    bool ASTCEncode(ASTCEncodeSettings* settings, uint8_t** out, uint32_t* out_size);
 }
 
 #endif // DM_TEXC_H

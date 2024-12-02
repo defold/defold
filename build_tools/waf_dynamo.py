@@ -93,6 +93,11 @@ def platform_glfw_version(platform):
         return 3
     return 2
 
+def platform_astc_library(platform):
+    if platform == 'arm64-macos':
+        return 'astcenc-neon-static'
+    return None
+
 # Note that some of these version numbers are also present in build.py (TODO: put in a waf_versions.py or similar)
 # The goal is to put the sdk versions in sdk.py
 SDK_ROOT=sdk.SDK_ROOT

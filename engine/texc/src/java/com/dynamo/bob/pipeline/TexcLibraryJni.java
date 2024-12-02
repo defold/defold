@@ -97,6 +97,7 @@ public class TexcLibraryJni {
 
     // Part of the basisu compressor api
     public static native byte[] BasisUEncode(Texc.BasisUEncodeSettings input);
+    public static native byte[] ASTCEncode(Texc.ASTCEncodeSettings input);
     public static native byte[] DefaultEncode(Texc.DefaultEncodeSettings input);
 
     // For font glyphs

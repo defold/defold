@@ -90,7 +90,8 @@ public class Texc {
         CT_WEBP(1),
         CT_WEBP_LOSSY(2),
         CT_BASIS_UASTC(3),
-        CT_BASIS_ETC1S(4);
+        CT_BASIS_ETC1S(4),
+        CT_ASTC(5);
         private final int value;
         private CompressionType(int value) {
             this.value = value;
@@ -184,6 +185,14 @@ public class Texc {
         public int numThreads = 0;
         public boolean debug = false;
         public PixelFormat outPixelFormat = PixelFormat.PF_L8;
+    };
+    public static class ASTCEncodeSettings {
+        public String path;
+        public int width = 0;
+        public int height = 0;
+        public PixelFormat pixelFormat = PixelFormat.PF_L8;
+        public ColorSpace colorSpace = ColorSpace.CS_LRGB;
+        public byte[] data;
     };
 }
 

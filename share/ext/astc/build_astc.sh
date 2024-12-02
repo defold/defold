@@ -23,69 +23,79 @@ BUILD_DIR=${PWD}/build/${PLATFORM}
 
 . ../common.sh
 
+if [ -z "$PLATFORM" ]; then
+    echo "No platform specified!"
+    exit 1
+fi
 
-ASTC_EXE_NAME=
-ASTC_PLATFORM=
+eval $(python ${DYNAMO_HOME}/../../build_tools/set_sdk_vars.py VERSION_MACOSX_MIN)
+OSX_MIN_SDK_VERSION=$VERSION_MACOSX_MIN
 
+CMAKE_FLAGS="-DASTCENC_CLI=OFF ${CMAKE_FLAGS}"
 
-# From the ASTC readme regarding x86_64 binaries:
-#
-# For x86-64 we provide, in order of increasing performance:
-#
-# astcenc-sse2 - uses SSE2
-# astcenc-sse4.1 - uses SSE4.1 and POPCNT
-# astcenc-avx2 - uses AVX2, SSE4.2, POPCNT, and F16C
-# The x86-64 SSE2 builds will work on all x86-64 machines, but it is the slowest of the three. The other two require extended CPU instruction set support which is not universally available, but each step gains ~15% more performance.
 case $PLATFORM in
-    arm64-macos|x86_64-macos)
-        ASTC_EXE_NAME=astcenc
-        ASTC_PLATFORM=macos-universal
+    arm64-macos)
+        CMAKE_FLAGS="-DCMAKE_OSX_ARCHITECTURES=arm64 ${CMAKE_FLAGS}"
+        CMAKE_FLAGS="-DCMAKE_OSX_DEPLOYMENT_TARGET=${OSX_MIN_SDK_VERSION} ${CMAKE_FLAGS}"
         ;;
-    x86_64-win32)
-        ASTC_EXE_NAME=astcenc-sse2.exe
-        ASTC_PLATFORM=windows-x64
-        ;;
-    x86_64-linux)
-        ASTC_EXE_NAME=astcenc-sse2
-        ASTC_PLATFORM=linux-x64
-        ;;
-    *)
-        echo "Platform unsupported"
-        exit 1
+    x86_64-macos)
+        CMAKE_FLAGS="-DCMAKE_OSX_ARCHITECTURES=x86_64 ${CMAKE_FLAGS}"
+        CMAKE_FLAGS="-DCMAKE_OSX_DEPLOYMENT_TARGET=${OSX_MIN_SDK_VERSION} ${CMAKE_FLAGS}"
         ;;
 esac
 
-ASTC_VERSION=5.1.0
-ASTC_ZIP_NAME=astcenc-${ASTC_VERSION}-${ASTC_PLATFORM}.zip
-
-readonly BASE_URL=https://github.com/ARM-software/astc-encoder/releases/download/${ASTC_VERSION}/
-readonly FILE_URL=astcenc-${ASTC_VERSION}-${ASTC_PLATFORM}.zip
-
-download
-
-cmi_unpack
+# Follow the build instructions on https://github.com/ARM-software/astc-encoder
+if [ ! -d "$SOURCE_DIR" ]; then
+    git clone https://github.com/ARM-software/astc-encoder.git $SOURCE_DIR
+fi
 
 mkdir -p ${BUILD_DIR}
 
 pushd $BUILD_DIR
 
-mkdir -p ./bin/$PLATFORM
+cmake ${CMAKE_FLAGS} $SOURCE_DIR
+cmake --build . --config Release -j 8
+
+LIB_NAME=
 
 case $PLATFORM in
     arm64-macos)
-        lipo -thin arm64 ../../${ASTC_EXE_NAME} -o ./bin/$PLATFORM/astcenc
+        LIB_NAME=libastcenc-neon-static.a
         ;;
     x86_64-macos)
-        lipo -thin x86_64 ../../${ASTC_EXE_NAME} -o ./bin/$PLATFORM/astcenc
+        LIB_NAME=TODO
+        ;;
+    x86_64-linux)
+        LIB_NAME=TODO
+        ;;
+    x86_64-win32)
+        LIB_NAME=TODO
         ;;
     *)
-        cp -v ../../${ASTC_EXE_NAME} ./bin/$PLATFORM
         ;;
 esac
 
-PACKAGE=astcenc-${ASTC_VERSION}-${PLATFORM}.tar.gz
+#mkdir -p ./bin/$PLATFORM
+mkdir -p ./lib/$PLATFORM
+mkdir -p ./include/$PLATFORM
+mkdir -p ./include/$PLATFORM/astcenc
 
-tar cfvz ${PACKAGE} bin
+cp -v Source/${LIB_NAME} ./lib/$PLATFORM/${LIB_NAME}
+
+cp -v ../../source/Source/astcenc.h ./include/$PLATFORM/astcenc/astcenc.h
+
 popd
 
-echo "Wrote ${PACKAGE}"
+# Package
+
+VERSION=$(cd $SOURCE_DIR && git rev-parse --short HEAD)
+echo VERSION=${VERSION}
+
+PACKAGE=astcenc-${VERSION}-${PLATFORM}.tar.gz
+
+pushd $BUILD_DIR
+tar cfvz $PACKAGE lib include
+echo "Wrote ${BUILD_DIR}/${PACKAGE}"
+popd
+
+echo "Done!"

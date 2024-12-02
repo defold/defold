@@ -91,6 +91,11 @@ namespace dmGameSystem
         return (dmGraphics::TextureFormat)-1;
     }
 
+    static bool IsTextureFormatHardwareEncoded(dmGraphics::TextureImage::CompressionType compression_type)
+    {
+        return compression_type == dmGraphics::TextureImage::COMPRESSION_TYPE_ASTC;
+    }
+
     static void DestroyTexture(TextureResource* resource)
     {
         dmGraphics::DeleteTexture(resource->m_Texture);
@@ -144,7 +149,13 @@ namespace dmGameSystem
                     continue;
                 }
             }
-            else if (!dmGraphics::IsTextureFormatSupported(context, original_format))
+            else if (IsTextureFormatHardwareEncoded(image->m_CompressionType))
+            {
+                // TODO
+                output_format = dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_4x4;
+            }
+
+            if (!dmGraphics::IsTextureFormatSupported(context, output_format))
             {
                 continue;
             }

@@ -141,6 +141,8 @@ message TextureImage
         COMPRESSION_TYPE_BASIS_UASTC = 3;
         // Basis ETC1S
         COMPRESSION_TYPE_BASIS_ETC1S = 4;
+        // ASTC
+        COMPRESSION_TYPE_ASTC = 5;
     }
 
     enum CompressionFlags

@@ -71,6 +71,15 @@ void InitializeJNITypes(JNIEnv* env, TypeInfos* infos) {
         GET_FLD_TYPESTR(debug, "Z");
         GET_FLD(outPixelFormat, "PixelFormat");
     }
+    {
+        SETUP_CLASS(ASTCEncodeSettingsJNI, "ASTCEncodeSettings");
+        GET_FLD_TYPESTR(path, "Ljava/lang/String;");
+        GET_FLD_TYPESTR(width, "I");
+        GET_FLD_TYPESTR(height, "I");
+        GET_FLD(pixelFormat, "PixelFormat");
+        GET_FLD(colorSpace, "ColorSpace");
+        GET_FLD_TYPESTR(data, "[B");
+    }
     #undef GET_FLD
     #undef GET_FLD_ARRAY
     #undef GET_FLD_TYPESTR
@@ -81,6 +90,7 @@ void FinalizeJNITypes(JNIEnv* env, TypeInfos* infos) {
     env->DeleteLocalRef(infos->m_BufferJNI.cls);
     env->DeleteLocalRef(infos->m_BasisUEncodeSettingsJNI.cls);
     env->DeleteLocalRef(infos->m_DefaultEncodeSettingsJNI.cls);
+    env->DeleteLocalRef(infos->m_ASTCEncodeSettingsJNI.cls);
 }
 
 
@@ -140,6 +150,18 @@ jobject C2J_CreateDefaultEncodeSettings(JNIEnv* env, TypeInfos* types, const Def
     dmJNI::SetInt(env, obj, types->m_DefaultEncodeSettingsJNI.numThreads, src->m_NumThreads);
     dmJNI::SetBoolean(env, obj, types->m_DefaultEncodeSettingsJNI.debug, src->m_Debug);
     dmJNI::SetEnum(env, obj, types->m_DefaultEncodeSettingsJNI.outPixelFormat, src->m_OutPixelFormat);
+    return obj;
+}
+
+jobject C2J_CreateASTCEncodeSettings(JNIEnv* env, TypeInfos* types, const ASTCEncodeSettings* src) {
+    if (src == 0) return 0;
+    jobject obj = env->AllocObject(types->m_ASTCEncodeSettingsJNI.cls);
+    dmJNI::SetString(env, obj, types->m_ASTCEncodeSettingsJNI.path, src->m_Path);
+    dmJNI::SetInt(env, obj, types->m_ASTCEncodeSettingsJNI.width, src->m_Width);
+    dmJNI::SetInt(env, obj, types->m_ASTCEncodeSettingsJNI.height, src->m_Height);
+    dmJNI::SetEnum(env, obj, types->m_ASTCEncodeSettingsJNI.pixelFormat, src->m_PixelFormat);
+    dmJNI::SetEnum(env, obj, types->m_ASTCEncodeSettingsJNI.colorSpace, src->m_ColorSpace);
+    dmJNI::SetObjectDeref(env, obj, types->m_ASTCEncodeSettingsJNI.data, dmJNI::C2J_CreateUByteArray(env, src->m_Data, src->m_DataCount));
     return obj;
 }
 
@@ -223,6 +245,26 @@ jobjectArray C2J_CreateDefaultEncodeSettingsPtrArray(JNIEnv* env, TypeInfos* typ
     }
     return arr;
 }
+jobjectArray C2J_CreateASTCEncodeSettingsArray(JNIEnv* env, TypeInfos* types, const ASTCEncodeSettings* src, uint32_t src_count) {
+    if (src == 0 || src_count == 0) return 0;
+    jobjectArray arr = env->NewObjectArray(src_count, types->m_ASTCEncodeSettingsJNI.cls, 0);
+    for (uint32_t i = 0; i < src_count; ++i) {
+        jobject obj = C2J_CreateASTCEncodeSettings(env, types, &src[i]);
+        env->SetObjectArrayElement(arr, i, obj);
+        env->DeleteLocalRef(obj);
+    }
+    return arr;
+}
+jobjectArray C2J_CreateASTCEncodeSettingsPtrArray(JNIEnv* env, TypeInfos* types, const ASTCEncodeSettings* const* src, uint32_t src_count) {
+    if (src == 0 || src_count == 0) return 0;
+    jobjectArray arr = env->NewObjectArray(src_count, types->m_ASTCEncodeSettingsJNI.cls, 0);
+    for (uint32_t i = 0; i < src_count; ++i) {
+        jobject obj = C2J_CreateASTCEncodeSettings(env, types, src[i]);
+        env->SetObjectArrayElement(arr, i, obj);
+        env->DeleteLocalRef(obj);
+    }
+    return arr;
+}
 //----------------------------------------
 // From Jni to C
 //----------------------------------------
@@ -299,6 +341,23 @@ bool J2C_CreateDefaultEncodeSettings(JNIEnv* env, TypeInfos* types, jobject obj,
     out->m_NumThreads = dmJNI::GetInt(env, obj, types->m_DefaultEncodeSettingsJNI.numThreads);
     out->m_Debug = dmJNI::GetBoolean(env, obj, types->m_DefaultEncodeSettingsJNI.debug);
     out->m_OutPixelFormat = (PixelFormat)dmJNI::GetEnum(env, obj, types->m_DefaultEncodeSettingsJNI.outPixelFormat);
+    return true;
+}
+
+bool J2C_CreateASTCEncodeSettings(JNIEnv* env, TypeInfos* types, jobject obj, ASTCEncodeSettings* out) {
+    if (out == 0) return false;
+    out->m_Path = dmJNI::GetString(env, obj, types->m_ASTCEncodeSettingsJNI.path);
+    out->m_Width = dmJNI::GetInt(env, obj, types->m_ASTCEncodeSettingsJNI.width);
+    out->m_Height = dmJNI::GetInt(env, obj, types->m_ASTCEncodeSettingsJNI.height);
+    out->m_PixelFormat = (PixelFormat)dmJNI::GetEnum(env, obj, types->m_ASTCEncodeSettingsJNI.pixelFormat);
+    out->m_ColorSpace = (ColorSpace)dmJNI::GetEnum(env, obj, types->m_ASTCEncodeSettingsJNI.colorSpace);
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_ASTCEncodeSettingsJNI.data);
+        if (field_object) {
+            out->m_Data = dmJNI::J2C_CreateUByteArray(env, (jbyteArray)field_object, &out->m_DataCount);
+            env->DeleteLocalRef(field_object);
+        }
+    }
     return true;
 }
 
@@ -463,6 +522,47 @@ DefaultEncodeSettings** J2C_CreateDefaultEncodeSettingsPtrArray(JNIEnv* env, Typ
     jsize len = env->GetArrayLength(arr);
     DefaultEncodeSettings** out = new DefaultEncodeSettings*[len];
     J2C_CreateDefaultEncodeSettingsPtrArrayInPlace(env, types, arr, out, len);
+    *out_count = (uint32_t)len;
+    return out;
+}
+void J2C_CreateASTCEncodeSettingsArrayInPlace(JNIEnv* env, TypeInfos* types, jobjectArray arr, ASTCEncodeSettings* dst, uint32_t dst_count) {
+    jsize len = env->GetArrayLength(arr);
+    if (len != dst_count) {
+        printf("Number of elements mismatch. Expected %u, but got %u\n", dst_count, len);
+    }
+    if (len > dst_count)
+        len = dst_count;
+    for (uint32_t i = 0; i < len; ++i) {
+        jobject obj = env->GetObjectArrayElement(arr, i);
+        J2C_CreateASTCEncodeSettings(env, types, obj, &dst[i]);
+        env->DeleteLocalRef(obj);
+    }
+}
+ASTCEncodeSettings* J2C_CreateASTCEncodeSettingsArray(JNIEnv* env, TypeInfos* types, jobjectArray arr, uint32_t* out_count) {
+    jsize len = env->GetArrayLength(arr);
+    ASTCEncodeSettings* out = new ASTCEncodeSettings[len];
+    J2C_CreateASTCEncodeSettingsArrayInPlace(env, types, arr, out, len);
+    *out_count = (uint32_t)len;
+    return out;
+}
+void J2C_CreateASTCEncodeSettingsPtrArrayInPlace(JNIEnv* env, TypeInfos* types, jobjectArray arr, ASTCEncodeSettings** dst, uint32_t dst_count) {
+    jsize len = env->GetArrayLength(arr);
+    if (len != dst_count) {
+        printf("Number of elements mismatch. Expected %u, but got %u\n", dst_count, len);
+    }
+    if (len > dst_count)
+        len = dst_count;
+    for (uint32_t i = 0; i < len; ++i) {
+        jobject obj = env->GetObjectArrayElement(arr, i);
+        dst[i] = new ASTCEncodeSettings();
+        J2C_CreateASTCEncodeSettings(env, types, obj, dst[i]);
+        env->DeleteLocalRef(obj);
+    }
+}
+ASTCEncodeSettings** J2C_CreateASTCEncodeSettingsPtrArray(JNIEnv* env, TypeInfos* types, jobjectArray arr, uint32_t* out_count) {
+    jsize len = env->GetArrayLength(arr);
+    ASTCEncodeSettings** out = new ASTCEncodeSettings*[len];
+    J2C_CreateASTCEncodeSettingsPtrArrayInPlace(env, types, arr, out, len);
     *out_count = (uint32_t)len;
     return out;
 }

@@ -457,6 +457,26 @@ TEST_P(TexcCompileTest, EncodeBasisU)
     ASSERT_TRUE(dmTexc::BasisUEncode(&settings, &out, &out_size));
 }
 
+TEST_P(TexcCompileTest, EncodeASTC)
+{
+    const CompileInfo& info = GetParam();
+
+    dmTexc::ASTCEncodeSettings settings;
+    memset(&settings, 0, sizeof(settings));
+
+    settings.m_Path        = info.m_Path;
+    settings.m_Width       = m_Width;
+    settings.m_Height      = m_Height;
+    settings.m_PixelFormat = info.m_InputFormat;
+    settings.m_ColorSpace  = info.m_ColorSpace;
+    settings.m_Data        = m_Image->m_Data;
+    settings.m_DataCount   = m_Image->m_DataCount;
+
+    uint8_t* out = 0;
+    uint32_t out_size = 0;
+    ASSERT_TRUE(dmTexc::ASTCEncode(&settings, &out, &out_size));
+}
+
 INSTANTIATE_TEST_CASE_P(TexcCompileTest, TexcCompileTest, jc_test_values_in(compile_info));
 
 

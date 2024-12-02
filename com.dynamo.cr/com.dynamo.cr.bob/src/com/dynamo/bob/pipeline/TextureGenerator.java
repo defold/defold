@@ -85,6 +85,9 @@ public class TextureGenerator {
 
         compressionTypeLUT.put(TextureImage.CompressionType.COMPRESSION_TYPE_BASIS_UASTC, Texc.CompressionType.CT_BASIS_UASTC.getValue());
         compressionTypeLUT.put(TextureImage.CompressionType.COMPRESSION_TYPE_BASIS_ETC1S, Texc.CompressionType.CT_BASIS_ETC1S.getValue());
+
+        // Hardware compressed formats
+        compressionTypeLUT.put(TextureImage.CompressionType.COMPRESSION_TYPE_ASTC, CompressionType.CT_ASTC.getValue());
     }
 
     private static HashMap<TextureFormat, Integer> pixelFormatLUT = new HashMap<TextureFormat, Integer>();
@@ -291,17 +294,15 @@ public class TextureGenerator {
         int texcCompressionLevel;
         int texcCompressionType;
 
-        int dataSize = width * height * 4;
-
         // convert from protobuf specified compressionlevel to texc int
         texcCompressionLevel = compressionLevelLUT.get(compressionLevel);
 
         // convert compression type from WebP to something else
-        if (compressionType == TextureImage.CompressionType.COMPRESSION_TYPE_WEBP)
+        if (compressionType == TextureImage.CompressionType.COMPRESSION_TYPE_WEBP) {
             compressionType = TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT;
-        else
-        if (compressionType == TextureImage.CompressionType.COMPRESSION_TYPE_WEBP_LOSSY)
+        }  else  if (compressionType == TextureImage.CompressionType.COMPRESSION_TYPE_WEBP_LOSSY) {
             compressionType = TextureImage.CompressionType.COMPRESSION_TYPE_BASIS_UASTC;
+        }
 
         // convert from protobuf specified compressionType to texc int
         texcCompressionType = compressionTypeLUT.get(compressionType);
@@ -437,6 +438,12 @@ public class TextureGenerator {
                 } else if (texcCompressionLevel == CompressionLevel.CL_BEST.getValue()) {
                     textureCompressorPreset = TextureCompression.getPreset("BASISU_BEST");
                 }
+            } else if (texcCompressionType == CompressionType.CT_ASTC.getValue()) {
+
+                System.out.println("ASTC TIME!");
+
+                textureCompressor       = TextureCompression.getCompressor("ASTC");
+                textureCompressorPreset = TextureCompression.getPreset("ASTC_DEFAULT");
 
             } else {
                 textureCompressor       = getDefaultTextureCompressor();
