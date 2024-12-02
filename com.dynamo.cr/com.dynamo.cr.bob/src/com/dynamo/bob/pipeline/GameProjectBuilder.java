@@ -144,9 +144,6 @@ public class GameProjectBuilder extends Builder {
             builder.addOutput(input.changeExt(".dmanifest").disableCache());
             builder.addOutput(input.changeExt(".public.der").disableCache());
             builder.addOutput(input.changeExt(".graph.json").disableCache());
-            for (IResource output : project.getPublisher().getOutputs(input)) {
-                builder.addOutput(output);
-            }
         }
         TimeProfiler.stop();
 
@@ -232,7 +229,7 @@ public class GameProjectBuilder extends Builder {
         return resourcePadding;
     }
 
-    private void createArchive(ArchiveBuilder archiveBuilder, Collection<IResource> resources, RandomAccessFile archiveIndex, RandomAccessFile archiveData, List<String> excludedResources, Path resourcePackDirectory) throws IOException, CompileExceptionError {
+    private void createArchive(ArchiveBuilder archiveBuilder, Collection<IResource> resources, RandomAccessFile archiveIndex, RandomAccessFile archiveData, List<String> excludedResources) throws IOException, CompileExceptionError {
         TimeProfiler.start("createArchive");
         logger.info("GameProjectBuilder.createArchive");
         long tstart = System.currentTimeMillis();
@@ -251,18 +248,13 @@ public class GameProjectBuilder extends Builder {
         TimeProfiler.addData("excludedResources", excludedResources.size());
 
         TimeProfiler.start("writeArchive");
-        archiveBuilder.write(archiveIndex, archiveData, resourcePackDirectory, excludedResources);
+
+        Publisher publisher = project.getPublisher();
+        if (publisher != null) publisher.start();
+        archiveBuilder.write(archiveIndex, archiveData, excludedResources);
         archiveIndex.close();
         archiveData.close();
         TimeProfiler.stop();
-
-        // Populate publisher with the resource pack
-        Publisher publisher = project.getPublisher();
-        List<ArchiveEntry> excluded = archiveBuilder.getExcludedEntries();
-        for (ArchiveEntry entry : excluded) {
-            File f = new File(resourcePackDirectory.toAbsolutePath().toString(), entry.getHexDigest());
-            publisher.AddEntry(f, entry);
-        }
 
         long tend = System.currentTimeMillis();
         logger.info("GameProjectBuilder.createArchive took %f", (tend-tstart)/1000.0);
@@ -447,12 +439,12 @@ public class GameProjectBuilder extends Builder {
                 RandomAccessFile archiveIndex = createRandomAccessFile(archiveIndexHandle);
                 File archiveDataHandle = File.createTempFile("defold.data_", ".arcd");
                 RandomAccessFile archiveData = createRandomAccessFile(archiveDataHandle);
-                Path resourcePackDirectory = Files.createTempDirectory("defold.resourcepack_");
 
                 // create the archive and manifest
+                project.getPublisher().start();
                 ManifestBuilder manifestBuilder = createManifestBuilder(resourceGraph);
                 ArchiveBuilder archiveBuilder = new ArchiveBuilder(root, manifestBuilder, getResourcePadding(), project);
-                createArchive(archiveBuilder, resources, archiveIndex, archiveData, excludedResources, resourcePackDirectory);
+                createArchive(archiveBuilder, resources, archiveIndex, archiveData, excludedResources);
                 byte[] manifestFile = manifestBuilder.buildManifest();
 
                 // Write outputs to the build system
@@ -487,8 +479,8 @@ public class GameProjectBuilder extends Builder {
                 FileUtils.copyFile(manifestFileHandle, manifestTmpFileHandle);
 
                 ArchiveEntry manifestArchiveEntry = new ArchiveEntry(root, manifestTmpFileHandle.getAbsolutePath());
-                project.getPublisher().AddEntry(manifestTmpFileHandle, manifestArchiveEntry);
-                project.getPublisher().Publish();
+                project.getPublisher().publish(manifestArchiveEntry, manifestTmpFileHandle);
+                project.getPublisher().stop();
 
                 // Copy SSL public keys if specified
                 String sslCertificatesPath = project.getProjectProperties().getStringValue("network", "ssl_certificates");
@@ -501,16 +493,6 @@ public class GameProjectBuilder extends Builder {
                 }
 
                 manifestTmpFileHandle.delete();
-                File resourcePackDirectoryHandle = new File(resourcePackDirectory.toAbsolutePath().toString());
-                if (resourcePackDirectoryHandle.exists() && resourcePackDirectoryHandle.isDirectory()) {
-                    FileUtils.deleteDirectory(resourcePackDirectoryHandle);
-                }
-
-                List<InputStream> publisherOutputs = project.getPublisher().getOutputResults();
-                for (int i = 0; i < publisherOutputs.size(); ++i) {
-                    task.getOutputs().get(6 + i).setContent(publisherOutputs.get(i));
-                    IOUtils.closeQuietly(publisherOutputs.get(i));
-                }
             }
 
             transformGameProjectFile(properties);

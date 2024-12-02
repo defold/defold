@@ -315,7 +315,13 @@ int opt_get(lua_State *L, p_socket ps, int level, int name, void *val, int* len)
 static 
 int opt_set(lua_State *L, p_socket ps, int level, int name, void *val, int len)
 {
-    if (setsockopt(*ps, level, name, (char *) val, len) < 0) {
+/// DEFOLD BEGIN
+    if (1
+#if !defined(__EMSCRIPTEN__)
+        && setsockopt(*ps, level, name, (char *) val, len) < 0
+#endif
+        ) {
+/// DEFOLD END
         lua_pushnil(L);
         lua_pushliteral(L, "setsockopt failed");
         return 2;
