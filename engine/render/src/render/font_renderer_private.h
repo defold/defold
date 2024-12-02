@@ -12,8 +12,8 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_FONT_RENDERER_PRIVATE
-#define DM_FONT_RENDERER_PRIVATE
+#ifndef DM_FONT_RENDERER_PRIVATE_H
+#define DM_FONT_RENDERER_PRIVATE_H
 
 #include "font_renderer.h"
 #include "render_private.h"
@@ -164,4 +164,4 @@ namespace dmRender
     }
 }
 
-#endif // #ifndef DM_FONT_RENDERER_PRIVATE
+#endif // #ifndef DM_FONT_RENDERER_PRIVATE_H

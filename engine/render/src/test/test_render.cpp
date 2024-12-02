@@ -32,6 +32,7 @@
 #include "render/render.h"
 #include "render/render_private.h"
 #include "render/font_renderer_private.h"
+#include "render/font_renderer_default.h" // for dmRender::Layout
 
 const static uint32_t WIDTH = 600;
 const static uint32_t HEIGHT = 400;

@@ -12,8 +12,8 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_FONT_RENDERER_DEFAULT_H
-#define DM_FONT_RENDERER_DEFAULT_H
+#ifndef DM_FONT_H
+#define DM_FONT_H
 
 #include <stdint.h>
 
@@ -253,4 +253,4 @@ namespace dmRender
     bool VerifyFontMapMagFilter(dmRender::HFontMap font_map, dmGraphics::TextureFilter filter);
 }
 
-#endif // DM_FONT_RENDERER_DEFAULT_H
+#endif // DM_FONT_H
