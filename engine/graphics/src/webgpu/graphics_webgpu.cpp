@@ -2174,6 +2174,8 @@ static void WebGPUDeleteProgram(HContext context, HProgram _program)
     TRACE_CALL;
     WebGPUProgram* program = (WebGPUProgram*)_program;
     WebGPUDestroyProgram((WebGPUContext*)context, program);
+
+    DestroyProgram(&program->m_BaseProgram);
     delete program;
 }
 

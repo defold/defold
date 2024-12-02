@@ -1047,8 +1047,8 @@ namespace dmGraphics
             uniform.m_Location = params.m_Resource->m_Res->m_Set | params.m_Resource->m_Res->m_Binding << 16;
         }
 
-    #if 0
-        dmLogInfo("    Uniform: path=%s, name=%s, offset=%d, buffer_offset=%d", uniform.m_CanonicalName, uniform.m_Name, params.m_Member.m_Offset, (uint32_t) buffer_offset);
+    #if 1
+        dmLogInfo("    Uniform: canonical_name=%s, name=%s", uniform.m_CanonicalName, uniform.m_Name);
     #endif
 
         uniforms->Push(uniform);
@@ -1119,7 +1119,7 @@ namespace dmGraphics
         }
     }
 
-    void IterateUniforms(Program* program, IterateUniformsCallback callback, void* user_data)
+    void IterateUniforms(Program* program, bool prepend_instance_name, IterateUniformsCallback callback, void* user_data)
     {
         ProgramResourceBindingIterator it(program);
 
@@ -1139,14 +1139,30 @@ namespace dmGraphics
             }
             else if (next->m_Res->m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER)
             {
-                if (canonical_name_buffer.Empty())
+                uint32_t canonical_name_buffer_offset = 0;
+
+                if (prepend_instance_name && next->m_Res->m_InstanceName)
                 {
-                    canonical_name_buffer.OffsetCapacity(128);
-                    canonical_name_buffer.SetSize(canonical_name_buffer.Capacity());
+                    canonical_name_buffer_offset = strlen(next->m_Res->m_InstanceName);
+
+                    if (canonical_name_buffer.Empty())
+                    {
+                        canonical_name_buffer.OffsetCapacity(dmMath::Max((uint32_t) 128, canonical_name_buffer_offset));
+                        canonical_name_buffer.SetSize(canonical_name_buffer.Capacity());
+                    }
+                    memcpy(canonical_name_buffer.Begin(), next->m_Res->m_InstanceName, canonical_name_buffer_offset);
+                }
+                else
+                {
+                    if (canonical_name_buffer.Empty())
+                    {
+                        canonical_name_buffer.OffsetCapacity(128);
+                        canonical_name_buffer.SetSize(canonical_name_buffer.Capacity());
+                    }
                 }
 
                 const dmArray<ShaderResourceTypeInfo>& type_infos = *next->m_TypeInfos;
-                VisitUniformLeafNodes(callback, user_data, next, type_infos, next->m_Res->m_Type, next->m_Res->m_Name, next->m_Res->m_InstanceName, &canonical_name_buffer, 0);
+                VisitUniformLeafNodes(callback, user_data, next, type_infos, next->m_Res->m_Type, next->m_Res->m_Name, next->m_Res->m_InstanceName, &canonical_name_buffer, canonical_name_buffer_offset);
             }
         }
     }
@@ -1168,7 +1184,18 @@ namespace dmGraphics
 
         program->m_Uniforms.SetCapacity(uniform_count);
 
-        IterateUniforms(program, CreateUniformLeafMembersCallback, &program->m_Uniforms);
+        IterateUniforms(program, true, CreateUniformLeafMembersCallback, &program->m_Uniforms);
+    }
+
+    void DestroyProgram(Program* program)
+    {
+        for (int i = 0; i < program->m_Uniforms.Size(); ++i)
+        {
+            if (program->m_Uniforms[i].m_CanonicalName)
+            {
+                free(program->m_Uniforms[i].m_CanonicalName);
+            }
+        }
     }
 
     void FillProgramResourceBindings(

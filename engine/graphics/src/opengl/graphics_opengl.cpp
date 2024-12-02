@@ -508,6 +508,7 @@ static void LogFrameBufferError(GLenum status)
         return result_idx;
     }
 
+    // Unused?
     static bool IsGLHandleValid(HContext context, HOpenglID idx)
     {
         OpenGLContext* gl_context = (OpenGLContext*)context;
@@ -2427,32 +2428,32 @@ static void LogFrameBufferError(GLenum status)
         context->m_Buffer.OffsetCapacity(increase_bytes);
         uint32_t buffer_offset = context->m_Buffer.Size();
 
-        char* write_ptr = context->m_Buffer.Begin() + buffer_offset;
+        char* write_ptr   = context->m_Buffer.Begin() + buffer_offset;
         char* write_begin = write_ptr;
 
         if (params.m_CanonicalName)
         {
             memcpy(write_ptr, params.m_CanonicalName, canonical_name_length);
-            path_pointers.m_OffsetCanonicalName  = buffer_offset + write_ptr - write_begin;
+            path_pointers.m_OffsetCanonicalName     = buffer_offset + write_ptr - write_begin;
             path_pointers.m_OffsetCanonicalNameUsed = 1;
-            write_ptr[canonical_name_length]     = 0;
-            write_ptr                           += canonical_name_length + 1;
+            write_ptr[canonical_name_length]        = 0;
+            write_ptr                              += canonical_name_length + 1;
         }
         if (params.m_Namespace)
         {
             memcpy(write_ptr, params.m_Namespace, namespace_length);
-            path_pointers.m_OffsetNamespace  = buffer_offset + write_ptr - write_begin;
+            path_pointers.m_OffsetNamespace     = buffer_offset + write_ptr - write_begin;
             path_pointers.m_OffsetNamespaceUsed = 1;
-            write_ptr[namespace_length]      = 0;
-            write_ptr                       += namespace_length + 1;
+            write_ptr[namespace_length]         = 0;
+            write_ptr                          += namespace_length + 1;
         }
         if (params.m_InstanceName)
         {
             memcpy(write_ptr, params.m_InstanceName, instance_name_length);
-            path_pointers.m_OffsetInstanceName  = buffer_offset + write_ptr - write_begin;
+            path_pointers.m_OffsetInstanceName     = buffer_offset + write_ptr - write_begin;
             path_pointers.m_OffsetInstanceNameUsed = 1;
-            write_ptr[instance_name_length]     = 0;
-            write_ptr                          += instance_name_length + 1;
+            write_ptr[instance_name_length]        = 0;
+            write_ptr                             += instance_name_length + 1;
         }
 
         context->m_Buffer.SetSize(context->m_Buffer.Capacity());
@@ -2461,8 +2462,28 @@ static void LogFrameBufferError(GLenum status)
         context->m_Paths.Push(path_pointers);
     }
 
-    // Input: PBRMaterialUniform.material.metallicRoughness.baseColorFactor
-    // Output: my_material.material.metallicRoughness.baseColorFactor
+    // Create a canonical path for all leaf members in uniform buffers, e.g:
+    //
+    // Case 1:
+    // struct PBRMaterial
+    // {
+    //     float metallic;
+    //     float roughness;
+    //     ...
+    // };
+    // uniform fs_uniforms {
+    //     PBRMaterial material;
+    // };
+    // member 0: fs_uniforms.material.metallic;
+    // member 1: fs_uniforms.material.roughness;
+    //
+    // Case 2:
+    // We have the same, but we also use an "instance member" to rename the uniform (will also be useful later for arrayed uniforms):
+    // uniform fs_uniforms {
+    //     PBRMaterial material;
+    // } my_material;
+    // member 0: my_material.material.metallic;
+    // member 1: my_material.material.roughness;
     static char* GetConstructedCanonicalName(BuildCanonicalPathsCallbackContext& context, char* str, uint32_t str_len, char* canonical_name_buffer, uint32_t canonical_name_buffer_len)
     {
         int namespace_end = FindNamespace(str, str_len);
@@ -2515,7 +2536,7 @@ static void LogFrameBufferError(GLenum status)
         return str;
     }
 
-    static void BuildUniforms(OpenGLContext* context, OpenGLProgram* program, OpenGLShader** shaders, uint32_t num_shaders)
+    static void OpenGLBuildUniforms(OpenGLContext* context, OpenGLProgram* program, OpenGLShader** shaders, uint32_t num_shaders)
     {
         if (context->m_IsGles3Version)
         {
@@ -2530,9 +2551,25 @@ static void LogFrameBufferError(GLenum status)
         glGetProgramiv(program_handle, GL_ACTIVE_UNIFORMS, &num_uniforms);
         CHECK_GL_ERROR;
 
+        // The OpenGL reflect will not return the instance name of a uniform block,
+        // so we need to look at the reflection data to get the actual canonical path for a uniform.
+        // I.e, if a uniform is specified as:
+        //
+        // uniform fs_uniforms {
+        //     PBRMaterial material;
+        // } my_material;
+        // 
+        // OpenGL will yield the following binding:
+        // fs_uniforms.material
+        //
+        // But what we actually want is:
+        // my_material.material
+
+        const bool prepend_instance_name = false;
+
         // Create a list of all canonical leaf paths from reflected uniforms
-        BuildCanonicalPathsCallbackContext callback_context;
-        IterateUniforms(&program->m_BaseProgram, BuildCanonicalPathsCallback, &callback_context);
+        BuildCanonicalPathsCallbackContext canonical_paths_ctx;
+        IterateUniforms(&program->m_BaseProgram, prepend_instance_name, BuildCanonicalPathsCallback, &canonical_paths_ctx);
 
         program->m_BaseProgram.m_Uniforms.SetCapacity(num_uniforms);
         program->m_BaseProgram.m_Uniforms.SetSize(num_uniforms);
@@ -2578,22 +2615,23 @@ static void LogFrameBufferError(GLenum status)
                 uniform_location = (HUniformLocation) glGetUniformLocation(program_handle, uniform_name_buffer);
             }
 
+            // These are temporary strings, we need copies of them.
             char* base_uniform_name = GetBaseUniformName(uniform_name_buffer, uniform_name_length);
             assert(base_uniform_name != 0);
 
-            char* canonical_name = GetConstructedCanonicalName(callback_context, uniform_name_buffer, uniform_name_length, canonical_name_buffer, sizeof(canonical_name_buffer));
+            char* canonical_name = GetConstructedCanonicalName(canonical_paths_ctx, uniform_name_buffer, uniform_name_length, canonical_name_buffer, sizeof(canonical_name_buffer));
             assert(canonical_name != 0);
 
             Uniform& uniform            = program->m_BaseProgram.m_Uniforms[i];
             uniform.m_Name              = strdup(base_uniform_name);
             uniform.m_NameHash          = dmHashString64(base_uniform_name);
-            uniform.m_CanonicalName     = strdup(canonical_name_buffer);
-            uniform.m_CanonicalNameHash = dmHashString64(canonical_name_buffer);
+            uniform.m_CanonicalName     = strdup(canonical_name);
+            uniform.m_CanonicalNameHash = dmHashString64(canonical_name);
             uniform.m_Location          = uniform_location;
             uniform.m_Count             = uniform_size;
             uniform.m_Type              = GetGraphicsType(uniform_type);
 
-        #if 0
+        #if 1
             dmLogInfo("  Uniform[%d]: full-name: %s, canonical-name: %s", i, uniform_name_buffer, canonical_name);
         #endif
 
@@ -2666,7 +2704,7 @@ static void LogFrameBufferError(GLenum status)
         program->m_Id       = AddNewGLHandle(context, p);
         program->m_Language = compute_shader->m_Language;
 
-        BuildUniforms((OpenGLContext*) context, program, &compute_shader, 1);
+        OpenGLBuildUniforms((OpenGLContext*) context, program, &compute_shader, 1);
         return (HProgram) program;
     #else
         dmLogInfo("Compute Shaders are not supported for OpenGL on this platform.");
@@ -2735,7 +2773,7 @@ static void LogFrameBufferError(GLenum status)
         ResourceBindingDesc bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT] = {};
         CreateProgramResourceBindings(program, bindings, shaders, DM_ARRAY_SIZE(shaders));
 
-        BuildUniforms((OpenGLContext*) context, program, shaders, DM_ARRAY_SIZE(shaders));
+        OpenGLBuildUniforms((OpenGLContext*) context, program, shaders, DM_ARRAY_SIZE(shaders));
         BuildAttributes(program);
         return (HProgram) program;
     }

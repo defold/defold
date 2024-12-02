@@ -2588,7 +2588,6 @@ bail:
                     case ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER:
                     {
                         assert(res.m_Type.m_UseTypeIndex);
-                        const ShaderResourceTypeInfo& type_info       = stage_type_infos[res.m_Type.m_TypeIndex];
                         program_resource_binding.m_DataOffset         = info.m_UniformDataSize;
                         program_resource_binding.m_DynamicOffsetIndex = info.m_UniformBufferCount;
 
@@ -2710,13 +2709,7 @@ bail:
 
         DestroyResourceDeferred(g_VulkanContext->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], program);
 
-        for (int i = 0; i < program->m_BaseProgram.m_Uniforms.Size(); ++i)
-        {
-            if (program->m_BaseProgram.m_Uniforms[i].m_CanonicalName)
-            {
-                free(program->m_BaseProgram.m_Uniforms[i].m_CanonicalName);
-            }
-        }
+        DestroyProgram(&program->m_BaseProgram);
     }
 
     static void VulkanDeleteProgram(HContext context, HProgram program)
@@ -2864,9 +2857,7 @@ bail:
         uint32_t buffer_offset  = UNIFORM_LOCATION_GET_FS(base_location);
         assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
 
-        ProgramResourceBinding& pgm_res                   = program_ptr->m_BaseProgram.m_ResourceBindings[set][binding];
-        const dmArray<ShaderResourceTypeInfo>& type_infos = *pgm_res.m_TypeInfos;
-        const ShaderResourceTypeInfo&           type_info = type_infos[pgm_res.m_Res->m_Type.m_TypeIndex];
+        ProgramResourceBinding& pgm_res = program_ptr->m_BaseProgram.m_ResourceBindings[set][binding];
 
         uint32_t offset = pgm_res.m_DataOffset + buffer_offset;
         WriteConstantData(offset, program_ptr->m_UniformData, (uint8_t*) data, sizeof(dmVMath::Vector4) * count);
@@ -2884,9 +2875,7 @@ bail:
         uint32_t buffer_offset  = UNIFORM_LOCATION_GET_FS(base_location);
         assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
 
-        ProgramResourceBinding& pgm_res                   = program_ptr->m_BaseProgram.m_ResourceBindings[set][binding];
-        const dmArray<ShaderResourceTypeInfo>& type_infos = *pgm_res.m_TypeInfos;
-        const ShaderResourceTypeInfo& type_info           = type_infos[pgm_res.m_Res->m_Type.m_TypeIndex];
+        ProgramResourceBinding& pgm_res = program_ptr->m_BaseProgram.m_ResourceBindings[set][binding];
 
         uint32_t offset = pgm_res.m_DataOffset + buffer_offset;
         WriteConstantData(offset, program_ptr->m_UniformData, (uint8_t*) data, sizeof(dmVMath::Vector4) * 4 * count);

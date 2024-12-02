@@ -820,13 +820,8 @@ namespace dmGraphics
     {
         NullProgram* program = (NullProgram*) _program;
 
-        for (int i = 0; i < program->m_BaseProgram.m_Uniforms.Size(); ++i)
-        {
-            if (program->m_BaseProgram.m_Uniforms[i].m_CanonicalName)
-            {
-                free(program->m_BaseProgram.m_Uniforms[i].m_CanonicalName);
-            }
-        }
+        DestroyProgram(&program->m_BaseProgram);
+
         delete program;
     }
 
