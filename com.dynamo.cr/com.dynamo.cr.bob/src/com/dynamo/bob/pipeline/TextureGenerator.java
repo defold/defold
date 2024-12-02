@@ -34,11 +34,14 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.EnumSet;
+import java.util.List;
 
 import javax.imageio.ImageIO;
 
+import com.defold.extension.pipeline.texture.*;
 import com.dynamo.bob.pipeline.TexcLibraryJni;
 import com.dynamo.bob.pipeline.Texc.ColorSpace;
 import com.dynamo.bob.pipeline.Texc.PixelFormat;
@@ -224,6 +227,51 @@ public class TextureGenerator {
         return byteBuffer;
     }
 
+    private static ITextureCompressor getDefaultTextureCompressor() {
+        ITextureCompressor defaultCompressor = TextureCompression.getCompressor("Default");
+        if (defaultCompressor == null) {
+            defaultCompressor = new TextureCompressorDefault();
+            TextureCompression.registerCompressor(defaultCompressor);
+        }
+        return defaultCompressor;
+    }
+
+    private static List<Long> GenerateImages(long image, int width, int height, boolean generateMipChain) throws TextureGeneratorException {
+        List<Long> images = new ArrayList<>();
+        int mipWidth = width;
+        int mipHeight = height;
+        int mipLevel = 0;
+        long prevImage = image;
+
+        while (mipWidth != 0 || mipHeight != 0) {
+            mipWidth = Math.max(mipWidth, 1);
+            mipHeight = Math.max(mipHeight, 1);
+            long resizedImage;
+
+            TimeProfiler.start("ResizeMipLevel" + mipLevel);
+            resizedImage = TexcLibraryJni.Resize(prevImage, mipWidth, mipHeight);
+            if (resizedImage == 0) {
+                throw new TextureGeneratorException("Failed to create mipmap " + mipLevel);
+            }
+            TimeProfiler.stop();
+
+            images.add(resizedImage);
+
+            // If we don't need all the mipmap images, just return the first.
+            if (!generateMipChain) {
+                return images;
+            }
+
+            prevImage = resizedImage;
+
+            mipLevel++;
+            mipWidth /= 2;
+            mipHeight /= 2;
+        }
+
+        return images;
+    }
+
     private static TextureImage.Image generateFromColorAndFormat(String name,
                                                                 BufferedImage image,
                                                                 ColorModel colorModel,
@@ -239,7 +287,7 @@ public class TextureGenerator {
         int width = image.getWidth();
         int height = image.getHeight();
         int componentCount = colorModel.getNumComponents();
-        Integer pixelFormat = Texc.PixelFormat.PF_R8G8B8A8.getValue();
+        Integer pixelFormat;
         int texcCompressionLevel;
         int texcCompressionType;
 
@@ -272,7 +320,7 @@ public class TextureGenerator {
             }
         }
         else {
-            // Issue 5753: Since we currently don't support precompressed hardware textures so we use UASTC instead
+            // Issue 5753: Since we currently don't support pre compressed hardware textures, so we use UASTC instead
             if (textureFormat == TextureFormat.TEXTURE_FORMAT_RGB_PVRTC_2BPPV1 || textureFormat == TextureFormat.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1 || textureFormat == TextureFormat.TEXTURE_FORMAT_RGB_ETC1) {
                 compressionType = TextureImage.CompressionType.COMPRESSION_TYPE_BASIS_UASTC;
                 textureFormat = TextureFormat.TEXTURE_FORMAT_RGB;
@@ -292,13 +340,12 @@ public class TextureGenerator {
         byte[] bytes = byteBuffer.array();
 
         TimeProfiler.start("CreateTexture");
-        long texture = TexcLibraryJni.CreateTexture(name, width, height,
+        long textureImage = TexcLibraryJni.CreateImage(name, width, height,
                                                         Texc.PixelFormat.PF_A8B8G8R8.getValue(),
-                                                        Texc.ColorSpace.CS_SRGB.getValue(),
-                                                        texcCompressionType, bytes);
+                                                        Texc.ColorSpace.CS_SRGB.getValue(), bytes);
 
         TimeProfiler.stop();
-        if (texture == 0) {
+        if (textureImage == 0) {
             throw new TextureGeneratorException("Failed to create texture");
         }
 
@@ -338,110 +385,136 @@ public class TextureGenerator {
             // Premultiply before scale so filtering cannot introduce colour artefacts.
             if (premulAlpha && !ColorModel.getRGBdefault().isAlphaPremultiplied()) {
                 TimeProfiler.start("PreMultiplyAlpha");
-                if (!TexcLibraryJni.PreMultiplyAlpha(texture)) {
+                if (!TexcLibraryJni.PreMultiplyAlpha(textureImage)) {
                     throw new TextureGeneratorException("could not premultiply alpha");
                 }
                 TimeProfiler.stop();
             }
 
+            // Resize to POT if necessary
             if (width != newWidth || height != newHeight) {
                 TimeProfiler.start("Resize");
-                if (!TexcLibraryJni.Resize(texture, newWidth, newHeight)) {
+                long resizedTextureImage = TexcLibraryJni.Resize(textureImage, newWidth, newHeight);
+                if (resizedTextureImage == 0) {
                     throw new TextureGeneratorException("could not resize texture to POT");
                 }
+                textureImage = resizedTextureImage;
                 TimeProfiler.stop();
             }
 
             // Loop over all axis that should be flipped.
             for (Texc.FlipAxis flip : flipAxis) {
                 TimeProfiler.start("FlipAxis");
-                if (!TexcLibraryJni.Flip(texture, flip.getValue())) {
-                    throw new TextureGeneratorException("could not flip on " + flip.toString());
+                if (!TexcLibraryJni.Flip(textureImage, flip.getValue())) {
+                    throw new TextureGeneratorException("could not flip on " + flip);
                 }
                 TimeProfiler.stop();
             }
 
-            if (generateMipMaps) {
-                TimeProfiler.start("GenMipMaps");
-                if (!TexcLibraryJni.GenMipMaps(texture)) {
-                    throw new TextureGeneratorException("could not generate mip-maps");
+            if (pixelFormat == Texc.PixelFormat.PF_R4G4B4A4.getValue() || pixelFormat == Texc.PixelFormat.PF_R5G6B5.getValue()) {
+
+                TimeProfiler.start("Dither");
+                if (!TexcLibraryJni.Dither(textureImage, pixelFormat)) {
+                    throw new TextureGeneratorException("could not dither image");
                 }
                 TimeProfiler.stop();
             }
 
-            TimeProfiler.start("Encode");
+            ITextureCompressor textureCompressor;
+            TextureCompressorPreset textureCompressorPreset = null;
 
-            if (!TexcLibraryJni.Encode(texture,
-                                            pixelFormat,
-                                            Texc.ColorSpace.CS_SRGB.getValue(),
-                                            texcCompressionLevel,
-                                            texcCompressionType,
-                                            generateMipMaps, maxThreads)) {
-                throw new TextureGeneratorException("could not encode");
-            }
-            TimeProfiler.stop();
-
-            byte[] data = TexcLibraryJni.GetData(texture);
-
-            TextureImage.Image.Builder raw = TextureImage.Image.newBuilder().setWidth(newWidth).setHeight(newHeight)
-                    .setOriginalWidth(width).setOriginalHeight(height).setFormat(textureFormat);
-
-            boolean texcBasisCompression = false;
-
-            // If we're writing a .basis file, we don't actually store each mip map separately
-            // In this case, we pretend that there's only one mip level
             if (texcCompressionType == CompressionType.CT_BASIS_UASTC.getValue() ||
-                texcCompressionType == CompressionType.CT_BASIS_ETC1S.getValue() )
+                    texcCompressionType == CompressionType.CT_BASIS_ETC1S.getValue() )
             {
-                generateMipMaps = false;
-                texcBasisCompression = true;
+                textureCompressor = TextureCompression.getCompressor("BasisU");
+
+                if (texcCompressionLevel == Texc.CompressionLevel.CL_FAST.getValue()) {
+                    textureCompressorPreset = TextureCompression.getPreset("BASISU_FAST");
+                } else if (texcCompressionLevel == CompressionLevel.CL_NORMAL.getValue()) {
+                    textureCompressorPreset = TextureCompression.getPreset("BASISU_NORMAL");
+                } else if (texcCompressionLevel == CompressionLevel.CL_HIGH.getValue()) {
+                    textureCompressorPreset = TextureCompression.getPreset("BASISU_HIGH");
+                } else if (texcCompressionLevel == CompressionLevel.CL_BEST.getValue()) {
+                    textureCompressorPreset = TextureCompression.getPreset("BASISU_BEST");
+                }
+
+            } else {
+                textureCompressor       = getDefaultTextureCompressor();
+                textureCompressorPreset = TextureCompression.getPreset("DEFAULT");
             }
 
-            int w = newWidth;
-            int h = newHeight;
+            if (textureCompressor == null) {
+                throw new TextureGeneratorException("No texture compressor has been installed.");
+            } else if (textureCompressorPreset == null) {
+                throw new TextureGeneratorException("Texture compressor preset now found.");
+            }
+
+            // Generate output images for builder
+            TextureImage.Image.Builder raw = TextureImage.Image.newBuilder()
+                    .setWidth(newWidth)
+                    .setHeight(newHeight)
+                    .setOriginalWidth(width)
+                    .setOriginalHeight(height)
+                    .setFormat(textureFormat);
+
+            int mipMapLevel = 0;
             int offset = 0;
-            int mipMap = 0;
-            while (w != 0 || h != 0) {
-                w = Math.max(w, 1);
-                h = Math.max(h, 1);
+
+            List<Long> mipImages = GenerateImages(textureImage, newWidth, newHeight, generateMipMaps);
+            List<byte[]> compressedMipImageDatas = new ArrayList<>();
+
+            for (Long mipImage : mipImages) {
+
+                byte[] uncompressed = TexcLibraryJni.GetData(mipImage);
+                int mipWidth        = TexcLibraryJni.GetWidth(mipImage);
+                int mipHeight       = TexcLibraryJni.GetHeight(mipImage);
+
+                String paramsName = name;
+                if (paramsName == null) {
+                    paramsName = "MipMap_" + mipMapLevel;
+                }
+
+                TextureCompressorParams params = new TextureCompressorParams(paramsName, mipMapLevel, mipWidth, mipHeight, 0, componentCount, pixelFormat, pixelFormat, Texc.ColorSpace.CS_SRGB.getValue());
+                byte[] compressedData = textureCompressor.compress(textureCompressorPreset, params, uncompressed);
+
+                if (compressedData.length == 0) {
+                    throw new TextureGeneratorException("could not encode");
+                }
+
+                compressedMipImageDatas.add(compressedData);
                 raw.addMipMapOffset(offset);
-                int size = TexcLibraryJni.GetDataSizeUncompressed(texture, mipMap);
+                raw.addMipMapSize(compressedData.length);
+                raw.addMipMapSizeCompressed(compressedData.length);
 
-                // For basis the GetDataSizeCompressed and GetDataSizeUncompressed will always return 0,
-                // so we use this hack / workaround to calculate offsets in the engine..
-                if (texcBasisCompression)
-                {
-                    size = data.length;
-                    raw.addMipMapSize(size);
-                    raw.addMipMapSizeCompressed(size);
-                }
-                else
-                {
-                    raw.addMipMapSize(size);
-                    int size_compressed = TexcLibraryJni.GetDataSizeCompressed(texture, mipMap);
-                    if(size_compressed != 0) {
-                        size = size_compressed;
-                    }
-                    raw.addMipMapSizeCompressed(size_compressed);
-                }
-                offset += size;
-                w >>= 1;
-                h >>= 1;
-                mipMap += 1;
-
-                if (!generateMipMaps) // Run section only once for non-mipmaps
-                    break;
+                offset += compressedData.length;
+                mipMapLevel++;
             }
 
-            raw.setData(ByteString.copyFrom(data));
+            // Copy each slice into the final byte buffer
+            // Offset == total size
+            byte[] textureData = new byte[offset];
+            int currentPos = 0;
+            for(byte[] mipImageData : compressedMipImageDatas) {
+                System.arraycopy(mipImageData, 0, textureData, currentPos, mipImageData.length);
+                currentPos += mipImageData.length;
+            }
+
+            // Cleanup the texture images
+            for (Long mipImage : mipImages) {
+                TexcLibraryJni.DestroyImage(mipImage);
+            }
+
+            raw.setData(ByteString.copyFrom(textureData));
             raw.setFormat(textureFormat);
             raw.setCompressionType(compressionType);
-            raw.setCompressionFlags(TexcLibraryJni.GetCompressionFlags(texture));
+
+            // What are the flags here?
+            // raw.setCompressionFlags(TexcLibraryJni.GetCompressionFlags(texture));
 
             return raw.build();
 
         } finally {
-            TexcLibraryJni.DestroyTexture(texture);
+            TexcLibraryJni.DestroyImage(textureImage);
         }
     }
 
@@ -555,6 +628,10 @@ public class TextureGenerator {
 
     public static void main(String[] args) throws IOException, TextureGeneratorException {
         System.setProperty("java.awt.headless", "true");
+
+        // Install default texture compressors
+        TextureCompression.registerCompressor(new TextureCompressorBasisU());
+
         try (BufferedInputStream is = new BufferedInputStream(new FileInputStream(args[0]));
              BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream(args[1]))) {
             TextureImage texture = generate(is);

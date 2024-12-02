@@ -20,6 +20,11 @@ import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.util.EnumSet;
 
+import com.defold.extension.pipeline.texture.ITextureCompressor;
+import com.defold.extension.pipeline.texture.TextureCompression;
+import com.defold.extension.pipeline.texture.TextureCompressorBasisU;
+import com.defold.extension.pipeline.texture.TextureCompressorDefault;
+import org.junit.Before;
 import org.junit.Test;
 
 import com.dynamo.bob.util.TextureUtil;
@@ -40,7 +45,12 @@ public class TextureGeneratorTest {
     private static int pixelGreen = 0xFF002200;
     private static int pixelBlue  = 0xFF330000;
 
-    // Create a 2x2 image that will be easy to verfy after different flip operations.
+    @Before
+    public void setUp() throws Exception {
+        TextureCompression.registerCompressor(new TextureCompressorBasisU());
+    }
+
+    // Create a 2x2 image that will be easy to verify after different flip operations.
     // +---+
     // |W|R|  W= White
     // +---+  R= Red
@@ -298,7 +308,7 @@ public class TextureGeneratorTest {
         textureProfile.setName("Test Profile");
         textureProfile.addPlatforms(platformProfile.build());
 
-        // Generate texture withput compression applied
+        // Generate texture without compression applied
         TextureImage texture = TextureGenerator.generate(getClass().getResourceAsStream("128_64_rgba.png"), textureProfile.build(), false);
 
         assertEquals(1, texture.getAlternativesCount());
