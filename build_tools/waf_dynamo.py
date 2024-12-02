@@ -96,6 +96,8 @@ def platform_glfw_version(platform):
 def platform_astc_library(platform):
     if platform == 'arm64-macos':
         return 'astcenc-neon-static'
+    elif platform == 'x86_64-macos':
+        return 'astcenc-sse4.1-static'
     return None
 
 # Note that some of these version numbers are also present in build.py (TODO: put in a waf_versions.py or similar)

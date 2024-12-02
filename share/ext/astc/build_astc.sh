@@ -63,7 +63,7 @@ case $PLATFORM in
         LIB_NAME=libastcenc-neon-static.a
         ;;
     x86_64-macos)
-        LIB_NAME=TODO
+        LIB_NAME=libastcenc-sse4.1-static.a
         ;;
     x86_64-linux)
         LIB_NAME=TODO
