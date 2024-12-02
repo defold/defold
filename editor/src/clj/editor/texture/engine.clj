@@ -124,11 +124,10 @@
           (ClassLoaderScanner/scanClassLoader class-loader scanned-package-name))))
 
 (defn- set-texture-compressors! [texture-compressor-classes]
-  (doall
-    (map (fn [^Class texture-compressor-class]
-           (let [texture-compressor-instance (java/invoke-no-arg-constructor texture-compressor-class)]
-             (TextureCompression/registerCompressor texture-compressor-instance)))
-         texture-compressor-classes)))
+  (run! (fn [^Class texture-compressor-class]
+          (let [texture-compressor-instance (java/invoke-no-arg-constructor texture-compressor-class)]
+            (TextureCompression/registerCompressor texture-compressor-instance)))
+        texture-compressor-classes))
 
 (defn- report-error! [error-message faulty-class-names]
   (ui/run-later
