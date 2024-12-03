@@ -31,6 +31,8 @@ fi
 eval $(python ${DYNAMO_HOME}/../../build_tools/set_sdk_vars.py VERSION_MACOSX_MIN)
 OSX_MIN_SDK_VERSION=$VERSION_MACOSX_MIN
 
+CONFIG=Release
+
 CMAKE_FLAGS="-DASTCENC_CLI=OFF ${CMAKE_FLAGS}"
 CMAKE_FLAGS="-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded ${CMAKE_FLAGS}"
 
@@ -47,6 +49,10 @@ case $PLATFORM in
         # Need to setup clang on linux
         cmi_setup_cc $PLATFORM
         ;;
+    x86_64-win32)
+        # TODO: Currently crashes on win32 when using release config!
+        CONFIG=Debug
+        ;;
 esac
 
 # Follow the build instructions on https://github.com/ARM-software/astc-encoder
@@ -59,7 +65,7 @@ mkdir -p ${BUILD_DIR}
 pushd $BUILD_DIR
 
 cmake ${CMAKE_FLAGS} $SOURCE_DIR
-cmake --build . --config Release -j 8
+cmake --build . --config $CONFIG -j 8
 
 LIB_NAME=
 LIB_EXT=.a
@@ -75,7 +81,7 @@ case $PLATFORM in
         LIB_NAME=libastcenc-native-static.a
         ;;
     x86_64-win32)
-        LIB_NAME=Release/astcenc-native-static.lib
+        LIB_NAME=$CONFIG/astcenc-native-static.lib
         LIB_EXT=.lib
         ;;
     *)

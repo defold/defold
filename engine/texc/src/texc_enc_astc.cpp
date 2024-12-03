@@ -14,6 +14,8 @@
 
 #include <dlib/log.h>
 
+#include <stdio.h>
+
 #include <astcenc/astcenc.h>
 
 #include "texc.h"
@@ -21,6 +23,11 @@
 
 namespace dmTexc
 {
+    void astcenc_progress(float progress)
+    {
+        printf("astcenc_progress: %f\n", progress);
+    }
+
     // Implementation taken from https://github.com/ARM-software/astc-encoder/blob/main/Utils/Example/astc_api_example.cpp
     bool ASTCEncode(ASTCEncodeSettings* settings, uint8_t** out, uint32_t* out_size)
     {
@@ -42,10 +49,11 @@ namespace dmTexc
         uint32_t block_count_x = (settings->m_Width + block_x - 1) / block_x;
         uint32_t block_count_y = (settings->m_Height + block_y - 1) / block_y;
 
-        astcenc_config config;
+        astcenc_config config = {};
         config.block_x = block_x;
         config.block_y = block_y;
         config.profile = profile;
+        config.progress_callback = astcenc_progress;
 
         astcenc_error status;
         status = astcenc_config_init(profile, block_x, block_y, block_z, quality, 0, &config);
@@ -65,7 +73,7 @@ namespace dmTexc
         }
 
         // Compress the image
-        astcenc_image image;
+        astcenc_image image = {};
         image.dim_x = settings->m_Width;
         image.dim_y = settings->m_Height;
         image.dim_z = 1;
