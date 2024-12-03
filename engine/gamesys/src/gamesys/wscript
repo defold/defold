@@ -51,6 +51,7 @@ def build(bld):
     bld.stlib(features = 'cxx ddf',
         includes = '. .. ../../src ../../proto',
         protoc_includes = '../../proto',
+        proto_gen_py = True,
         source = 'resources/res_model.cpp components/comp_model.cpp scripts/script_model.cpp ../../proto/gamesys/model_ddf.proto',
         target = 'gamesys_model')
 
