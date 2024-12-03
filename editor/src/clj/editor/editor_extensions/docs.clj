@@ -165,6 +165,12 @@
           :returnvalues []
           :description "Run bob the builder program\n\nFor the full documentation of the available commands and options, see [the bob manual](https://defold.com/manuals/bob/)."
           :examples "Print help in the console:\n```\neditor.bob({help = true})\n```\n\nBundle the game for the host platform:\n```\nlocal opts = {\n    archive = true,\n    platform = editor.platform\n}\neditor.bob(opts, \"distclean\", \"resolve\", \"build\", \"bundle\")\n```\nUsing snake_cased and repeated options:\n```\nlocal opts = {\n    archive = true,\n    platform = editor.platform,\n    build_server = \"https://build.my-company.com\",\n    settings = {\"test.ini\", \"headless.ini\"}\n}\neditor.bob(opts, \"distclean\", \"resolve\", \"build\")\n```\n"}
+         {:name "editor.open_url"
+          :type :function
+          :parameters [{:name "url"
+                        :types ["string"]
+                        :doc "http(s) or file URL"}]
+          :description "Open a URL in the default browser or a registered application"}
          {:name "editor.platform"
           :type :variable
           :description "Editor platform id.\n\nA `string`, either:\n- `\"x86_64-win32\"`\n- `\"x86_64-macos\"`\n- `\"arm64-macos\"`\n- `\"x86_64-linux\"`"}
