@@ -1304,7 +1304,7 @@
   ;; being overridden from a template node in one of the root-level files in the
   ;; save data test project. If you add a field to the NodeDesc protobuf
   ;; message, you'll either need to add a template override for it (we suggest
-  ;; you add it to `checked02.gui`, which hosts the majority of the template
+  ;; you add it to `checked01.gui`, which hosts the majority of the template
   ;; overrides), or add a field ignore rule to the `pb-ignored-fields` map at
   ;; the top of this file.
   (test-util/with-loaded-project project-path

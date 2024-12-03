@@ -936,12 +936,18 @@
      (valid-node-value node-id label evaluation-context)))
   ([node-id label evaluation-context]
    (let [value (node-value node-id label evaluation-context)]
-     (if (error? value)
-       (throw (ex-info "Evaluation produced an ErrorValue."
-                       {:node-type-kw (node-type-kw (:basis evaluation-context) node-id)
-                        :label label
-                        :error value}))
-       value))))
+     (if-not (error? value)
+       value
+       (let [node-type-kw (node-type-kw (:basis evaluation-context) node-id)]
+         (throw
+           (ex-info
+             (format "Evaluation produced an ErrorValue from %s on %s %d."
+                     label
+                     (symbol node-type-kw)
+                     node-id)
+             {:node-type-kw node-type-kw
+              :label label
+              :error value})))))))
 
 (defn maybe-node-value
   "Like the node-value function, but returns nil if evaluation produced an
