@@ -67,7 +67,8 @@ public class TextureCompressorBasisU implements ITextureCompressor {
 
     public byte[] compress(TextureCompressorPreset preset, TextureCompressorParams params, byte[] input)
     {
-        System.out.printf(String.format("Compressing using compressor '%s' and preset '%s'\n", getName(), preset.getName()));
+        // Debug:
+        // System.out.printf(String.format("Compressing using compressor '%s' and preset '%s'\n", getName(), preset.getName()));
 
         Texc.BasisUEncodeSettings settings = new Texc.BasisUEncodeSettings();
         settings.path = params.getPath();
@@ -84,8 +85,16 @@ public class TextureCompressorBasisU implements ITextureCompressor {
 
         settings.rdo_uastc = preset.getOptionInt("rdo_uastc") != 0;
         settings.pack_uastc_flags = preset.getOptionInt("pack_uastc_flags");
-        settings.rdo_uastc_dict_size = preset.getOptionInt("rdo_uastc_dict_size");
-        settings.rdo_uastc_quality_scalar = preset.getOptionFloat("rdo_uastc_quality_scalar");
+
+        Integer dictSize = preset.getOptionInt("rdo_uastc_dict_size");
+        if (dictSize != null) {
+            settings.rdo_uastc_dict_size = dictSize;
+        }
+
+        Float qualityScalar = preset.getOptionFloat("rdo_uastc_quality_scalar");
+        if (qualityScalar != null) {
+            settings.rdo_uastc_quality_scalar = qualityScalar;
+        }
 
         return TexcLibraryJni.BasisUEncode(settings);
     }
