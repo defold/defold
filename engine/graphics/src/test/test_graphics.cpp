@@ -443,11 +443,11 @@ TEST_F(dmGraphicsTest, TestProgram)
     // TODO: Need to clean the member pointer from the types list
 
     dmGraphics::ShaderDesc::ResourceBinding vx_uniforms[2] = {};
-    FillResourceBindingTypeIndex(&vx_uniforms[0], "view_proj", 0, 0);
-    FillResourceBindingTypeIndex(&vx_uniforms[1], "world", 1, 1);
+    FillResourceBindingUniformBufferTypeIndex(&vx_uniforms[0], "view_proj", 0, 0, dmGraphics::GetShaderTypeSize(dmGraphics::ShaderDesc::SHADER_TYPE_MAT4));
+    FillResourceBindingUniformBufferTypeIndex(&vx_uniforms[1], "world", 1, 1, dmGraphics::GetShaderTypeSize(dmGraphics::ShaderDesc::SHADER_TYPE_MAT4));
 
     dmGraphics::ShaderDesc::ResourceBinding fs_uniforms[1] = {};
-    FillResourceBindingTypeIndex(&fs_uniforms[0], "tint", 2, 2);
+    FillResourceBindingUniformBufferTypeIndex(&fs_uniforms[0], "tint", 2, 2, dmGraphics::GetShaderTypeSize(dmGraphics::ShaderDesc::SHADER_TYPE_VEC4));
 
     dmGraphics::ShaderDesc::ResourceBinding fs_textures[1] = {};
     FillResourceBindingType(&fs_textures[0], "texture_sampler", 3, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
@@ -515,12 +515,12 @@ TEST_F(dmGraphicsTest, TestProgram)
 
     dmGraphics::EnableProgram(m_Context, program);
     Vector4 constant(1.0f, 2.0f, 3.0f, 4.0f);
-    dmGraphics::SetConstantV4(m_Context, &constant, 1, 0);
+    dmGraphics::SetConstantV4(m_Context, &constant, 1, tint->m_Location);
     Vector4 matrix[4] = {   Vector4(1.0f, 2.0f, 3.0f, 4.0f),
                             Vector4(5.0f, 6.0f, 7.0f, 8.0f),
                             Vector4(9.0f, 10.0f, 11.0f, 12.0f),
                             Vector4(13.0f, 14.0f, 15.0f, 16.0f) };
-    dmGraphics::SetConstantM4(m_Context, matrix, 1, 4);
+    dmGraphics::SetConstantM4(m_Context, matrix, 1, view_proj->m_Location);
     char* program_data = new char[1024];
     *program_data = 0;
     vs_shader = MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, program_data, 1024);
