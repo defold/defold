@@ -112,48 +112,57 @@ namespace dmSoundCodec
             Info m_Info;
             uint32_t m_Cursor;
             const void* m_Buffer;
+            uint32_t m_BufferOffset;
+            dmSound::HSoundData m_SoundData;
         };
     }
 
-    static Result WavOpenStream(const void* buffer, uint32_t buffer_size, HDecodeStream* stream)
+    static Result WavOpenStream(dmSound::HSoundData sound_data, HDecodeStream* stream)
     {
-        RiffHeader* header = (RiffHeader*) buffer;
+dmLogWarning("@@@ WAV DECODER");
+        // note: the code below assumes enough data to be present to evaluate a WAV files structure
+        // (this also assumes all format / header chunks to be situated BEFORE the data chunk! - at least if the data is streamed)
+
+        RiffHeader header;
         DecodeStreamInfo streamTemp;
 
         bool fmt_found = false;
         bool data_found = false;
 
-        if (buffer_size < sizeof(RiffHeader)) {
-            dmLogWarning("Size too small for riff header: %u", buffer_size);
+        dmSound::Result res = dmSound::SoundDataRead(sound_data, 0, sizeof(header), &header);
+        if (res != dmSound::RESULT_OK) {
+            dmLogWarning("Available data size too small for riff header");
             return RESULT_INVALID_FORMAT;
         }
 
-        if (header->m_ChunkID == FOUR_CC('R', 'I', 'F', 'F') &&
-            header->m_Format == FOUR_CC('W', 'A', 'V', 'E')) {
+        if (header.m_ChunkID == FOUR_CC('R', 'I', 'F', 'F') &&
+            header.m_Format == FOUR_CC('W', 'A', 'V', 'E')) {
 
-            const char* begin = (const char*) buffer;
-            const char* current = (const char*) buffer;
-            const char* end = (const char*) buffer + buffer_size;
-            current += sizeof(RiffHeader);
+            uint32_t current_offset = sizeof(header);
             do {
                 CommonHeader header;
-                if (current + sizeof(header) > end) {
+
+                res = dmSound::SoundDataRead(sound_data, 0, sizeof(header), &header);
+                if (res != dmSound::RESULT_OK) {
                     // not enough bytes left for a full header. just ignore this.
                     break;
                 }
-
-                memcpy(&header, current, sizeof(header));
                 header.SwapHeader();
+
+                current_offset += sizeof(header);
+
                 if (header.m_ChunkID == FOUR_CC('f', 'm', 't', ' ')) {
                     FmtChunk fmt;
-                    if (current + sizeof(fmt) > end) {
-                        dmLogWarning("WAV sound data seems corrupt or truncated at position %d out of %d", (int)(current - begin), buffer_size);
+
+                    res = dmSound::SoundDataRead(sound_data, 0, sizeof(fmt), &fmt);
+                    if (res != dmSound::RESULT_OK) {
+                        dmLogWarning("WAV sound data seems corrupt or truncated");
                         return RESULT_INVALID_FORMAT;
                     }
-
-                    memcpy(&fmt, current, sizeof(fmt));
                     fmt.Swap();
                     fmt_found = true;
+
+                    current_offset += sizeof(fmt);
 
                     if( fmt.m_AudioFormat != 1 )
                     {
@@ -167,19 +176,22 @@ namespace dmSoundCodec
                 } else if (header.m_ChunkID == FOUR_CC('d', 'a', 't', 'a')) {
                     // NOTE: We don't byte-swap PCM-data and a potential problem on big-endian architectures
                     DataChunk data;
-                    if (current + sizeof(data) > end) {
-                        dmLogWarning("WAV sound data seems corrupt or truncated at position %d out of %d", (int)(current - begin), buffer_size);
+
+                    res = dmSound::SoundDataRead(sound_data, 0, sizeof(data), &data);
+                    if (res != dmSound::RESULT_OK) {
+                        dmLogWarning("WAV sound data seems corrupt or truncated");
                         return RESULT_INVALID_FORMAT;
                     }
-
-                    memcpy(&data, current, sizeof(data));
                     data.Swap();
-                    streamTemp.m_Buffer = (void*) (current + sizeof(DataChunk));
+
+                    current_offset += sizeof(data);
+
+                    streamTemp.m_BufferOffset = current_offset;
                     streamTemp.m_Info.m_Size = data.m_ChunkSize;
                     data_found = true;
                 }
-                current += header.m_ChunkSize + sizeof(CommonHeader);
-            } while (current < end && !(fmt_found && data_found));
+
+            } while (!(fmt_found && data_found));
 
             if (fmt_found && data_found) {
                 // Allocate stream output and copy temporary data over there.
@@ -195,9 +207,9 @@ namespace dmSoundCodec
                 return RESULT_INVALID_FORMAT;
             }
         } else {
-            const char* chunk = (const char*)&header->m_ChunkID;
-            dmLogWarning("Unknown header: chunk: %08x %c%c%c%c  format: %08x", header->m_ChunkID,
-                        (char)chunk[0], (char)chunk[1], (char)chunk[2], (char)chunk[3], header->m_Format);
+            const char* chunk = (const char*)&header.m_ChunkID;
+            dmLogWarning("Unknown header: chunk: %08x %c%c%c%c  format: %08x", header.m_ChunkID,
+                        (char)chunk[0], (char)chunk[1], (char)chunk[2], (char)chunk[3], header.m_Format);
             return RESULT_INVALID_FORMAT;
         }
     }
@@ -224,9 +236,18 @@ namespace dmSoundCodec
 
         assert(streamInfo->m_Cursor <= streamInfo->m_Info.m_Size);
         uint32_t n = dmMath::Min(buffer_size, streamInfo->m_Info.m_Size - streamInfo->m_Cursor);
-        *decoded = n;
-        memcpy(buffer, (const char*) streamInfo->m_Buffer + streamInfo->m_Cursor, n);
-        streamInfo->m_Cursor += n;
+
+        uint32_t read_size;
+        dmSound::Result res = dmSound::SoundDataRead(streamInfo->m_SoundData, streamInfo->m_BufferOffset + streamInfo->m_Cursor, n, buffer, &read_size);
+        if (res == dmSound::RESULT_OK || res == dmSound::RESULT_PARTIAL_DATA)
+        {
+            *decoded = read_size;
+            streamInfo->m_Cursor += read_size;
+        }
+        else
+        {
+            *decoded = 0;
+        }
         return RESULT_OK;
     }
 

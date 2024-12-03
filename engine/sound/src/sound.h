@@ -58,6 +58,8 @@ namespace dmSound
         RESULT_NOTHING_TO_PLAY    = -14,   //!< RESULT_NOTHING_TO_PLAY
         RESULT_INIT_ERROR         = -15,   //!< RESULT_INIT_ERROR
         RESULT_FINI_ERROR         = -16,   //!< RESULT_FINI_ERROR
+        RESULT_NO_DATA            = -17,   //!< RESULT_NO_DATA
+        RESULT_PARTIAL_DATA       = -18,   //!< RESULT_PAARTIAL_DATA
         RESULT_UNKNOWN_ERROR      = -1000, //!< RESULT_UNKNOWN_ERROR
     };
 
@@ -105,6 +107,9 @@ namespace dmSound
     Result SetSoundData(HSoundData sound_data, const void* sound_buffer, uint32_t sound_buffer_size);
     uint32_t GetSoundResourceSize(HSoundData sound_data);
     Result DeleteSoundData(HSoundData sound_data);
+
+    void* GetSoundDataBaseAndSize(HSoundData sound_data, uint32_t& sound_buffer_size);
+    Result SoundDataRead(HSoundData sound_data, uint32_t offset, uint32_t size, void* out, uint32_t* out_size = nullptr);
 
     Result NewSoundInstance(HSoundData sound_data, HSoundInstance* sound_instance);
     Result DeleteSoundInstance(HSoundInstance sound_instance);

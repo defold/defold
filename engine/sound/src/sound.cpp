@@ -151,15 +151,24 @@ namespace dmSound
         return ramp;
     }
 
+    typedef Result (*FGetData)(void* context, uint32_t offset, uint32_t size, void* out, uint32_t* out_size);
+
+    struct SoundDataCallbacks
+    {
+        void*       m_Context;
+        FGetData    m_GetData;
+    };
+
     struct SoundData
     {
-        dmhash_t      m_NameHash;
-        void*         m_Data;
-        int           m_Size;
+        dmhash_t            m_NameHash;
+        void*               m_Data;
+        int                 m_Size;
+        SoundDataCallbacks  m_DataCallbacks;
         // Index in m_SoundData
-        uint16_t      m_Index;
-        SoundDataType m_Type;
-        uint16_t      m_RefCount;
+        uint16_t            m_Index;
+        SoundDataType       m_Type;
+        uint16_t            m_RefCount;
     };
 
     struct SoundInstance
@@ -509,6 +518,8 @@ namespace dmSound
         sd->m_Index = index;
         sd->m_Data = 0;
         sd->m_Size = 0;
+        sd->m_DataCallbacks.m_Context = 0;
+        sd->m_DataCallbacks.m_GetData = 0;
         sd->m_RefCount = 1;
 
         Result result = SetSoundDataNoLock(sd, sound_buffer, sound_buffer_size);
@@ -551,6 +562,36 @@ namespace dmSound
         return RESULT_OK;
     }
 
+    void* GetSoundDataBaseAndSize(HSoundData sound_data, uint32_t& sound_buffer_size)
+    {
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_SoundSystem->m_Mutex);
+        sound_buffer_size = sound_data->m_Size;
+        return sound_data->m_Data;
+    }
+
+    Result SoundDataRead(HSoundData sound_data, uint32_t offset, uint32_t size, void* out, uint32_t* out_size)
+    {
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_SoundSystem->m_Mutex);
+        if (sound_data->m_DataCallbacks.m_GetData)
+        {
+            return sound_data->m_DataCallbacks.m_GetData(sound_data->m_DataCallbacks.m_Context, offset, size, out, out_size);
+        }
+
+        if (sound_data->m_Data && offset < sound_data->m_Size)
+        {
+            uint32_t read_size = dmMath::Min(sound_data->m_Size - offset, size);
+            if (read_size != 0)
+            {
+                memcpy(out, (void*)((uintptr_t)sound_data->m_Data + offset), read_size);
+                if (out_size)
+                    *out_size = read_size;
+                return (read_size < size) ? RESULT_PARTIAL_DATA : RESULT_OK;
+            }
+        }
+
+        return RESULT_NO_DATA;
+    }
+
     Result NewSoundInstance(HSoundData sound_data, HSoundInstance* sound_instance)
     {
         SoundSystem* ss = g_SoundSystem;
@@ -577,7 +618,7 @@ namespace dmSound
                 return RESULT_OUT_OF_INSTANCES;
             }
 
-            dmSoundCodec::Result r = dmSoundCodec::NewDecoder(ss->m_CodecContext, codec_format, sound_data->m_Data, sound_data->m_Size, &decoder);
+            dmSoundCodec::Result r = dmSoundCodec::NewDecoder(ss->m_CodecContext, codec_format, sound_data, &decoder);
             if (r != dmSoundCodec::RESULT_OK) {
                 dmLogError("Failed to decode sound (%d)", r);
                 return RESULT_INVALID_STREAM_DATA;
