@@ -303,6 +303,7 @@ public abstract class ShaderProgramBuilder extends Builder {
         resourceBindingBuilder.setType(typeBuilder);
         resourceBindingBuilder.setName(res.name);
         resourceBindingBuilder.setNameHash(res.nameHash);
+        resourceBindingBuilder.setId(res.id);
         resourceBindingBuilder.setSet(res.set);
         resourceBindingBuilder.setBinding(res.binding);
 

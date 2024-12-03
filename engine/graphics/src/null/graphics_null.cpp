@@ -749,6 +749,7 @@ namespace dmGraphics
 
         program->m_BaseProgram.m_MaxSet     = binding_info.m_MaxSet;
         program->m_BaseProgram.m_MaxBinding = binding_info.m_MaxBinding;
+        program->m_UniformDataSize          = binding_info.m_UniformDataSize;
         program->m_UniformData              = new uint8_t[binding_info.m_UniformDataSize];
         memset(program->m_UniformData, 0, binding_info.m_UniformDataSize);
 
@@ -1041,9 +1042,10 @@ namespace dmGraphics
         return *ptr;
     }
 
-    static inline void WriteConstantData(uint32_t offset, uint8_t* uniform_data_ptr, uint8_t* data_ptr, uint32_t data_size)
+    static inline void WriteConstantData(NullProgram* program, uint32_t offset, uint8_t* data_ptr, uint32_t data_size)
     {
-        memcpy(&uniform_data_ptr[offset], data_ptr, data_size);
+        assert(offset + data_size <= program->m_UniformDataSize);
+        memcpy(program->m_UniformData + offset, data_ptr, data_size);
     }
 
     static void NullSetConstantV4(HContext _context, const Vector4* data, int count, HUniformLocation base_location)
@@ -1061,7 +1063,7 @@ namespace dmGraphics
         ProgramResourceBinding& pgm_res = program->m_BaseProgram.m_ResourceBindings[set][binding];
         uint32_t offset                 = pgm_res.m_DataOffset + buffer_offset;
 
-        WriteConstantData(offset, program->m_UniformData, (uint8_t*) data, sizeof(dmVMath::Vector4) * count);
+        WriteConstantData(program, offset, (uint8_t*) data, sizeof(dmVMath::Vector4) * count);
     }
 
     static void NullSetConstantM4(HContext _context, const Vector4* data, int count, HUniformLocation base_location)
@@ -1079,7 +1081,7 @@ namespace dmGraphics
         ProgramResourceBinding& pgm_res = program->m_BaseProgram.m_ResourceBindings[set][binding];
         uint32_t offset                 = pgm_res.m_DataOffset + buffer_offset;
 
-        WriteConstantData(offset, program->m_UniformData, (uint8_t*) data, sizeof(dmVMath::Vector4) * 4 * count);
+        WriteConstantData(program, offset, (uint8_t*) data, sizeof(dmVMath::Vector4) * 4 * count);
     }
 
     static void NullSetSampler(HContext context, HUniformLocation location, int32_t unit)
