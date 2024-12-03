@@ -23,8 +23,6 @@ BUILD_DIR=${PWD}/build/${PLATFORM}
 
 . ../common.sh
 
-cmi_setup_cc $PLATFORM
-
 if [ -z "$PLATFORM" ]; then
     echo "No platform specified!"
     exit 1
@@ -44,6 +42,10 @@ case $PLATFORM in
     x86_64-macos)
         CMAKE_FLAGS="-DCMAKE_OSX_ARCHITECTURES=x86_64 ${CMAKE_FLAGS}"
         CMAKE_FLAGS="-DCMAKE_OSX_DEPLOYMENT_TARGET=${OSX_MIN_SDK_VERSION} ${CMAKE_FLAGS}"
+        ;;
+    x86_64-linux)
+        # Need to setup clang on linux
+        cmi_setup_cc $PLATFORM
         ;;
 esac
 
