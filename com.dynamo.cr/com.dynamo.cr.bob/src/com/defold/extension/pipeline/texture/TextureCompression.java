@@ -36,7 +36,8 @@ public class TextureCompression {
     public static void registerCompressor(ITextureCompressor compressor) {
         compressors.put(compressor.getName(), compressor);
 
-        logger.info(String.format("Registered texture compressor: '%s'", compressor.getName()));
+        // Debug
+        // logger.info(String.format("Registered texture compressor: '%s'", compressor.getName()));
     }
 
     public static ITextureCompressor getCompressor(String name) {
