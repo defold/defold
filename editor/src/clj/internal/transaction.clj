@@ -338,9 +338,11 @@
 (defn- flag-successors-changed [ctx changes]
   (let [successors (get ctx :successors-changed)]
     (assoc ctx :successors-changed (reduce (fn [successors [node-id label]]
-                                             (if-let [node-succ (get successors node-id #{})]
-                                               (assoc successors node-id (conj node-succ label))
-                                               successors)) ; Found nil - all successors already flagged as changed.
+                                             (let [node-succ (get successors node-id ::not-found)]
+                                               (case node-succ
+                                                 nil successors ; Found nil - all successors already flagged as changed.
+                                                 ::not-found (assoc successors node-id #{label})
+                                                 (assoc successors node-id (conj node-succ label)))))
                                            successors
                                            changes))))
 
