@@ -45,6 +45,7 @@
             [internal.util :as iutil]
             [schema.core :as s]
             [service.log :as log]
+            [util.coll :as coll]
             [util.coll :refer [pair]]
             [util.debug-util :as du]
             [util.fn :as fn]
@@ -282,19 +283,26 @@
             (let [end-time (System/nanoTime)
                   ^long start-time @resource-metrics-load-timer]
               (du/update-metrics resource-metrics resource-path :process-load-tx-data (- end-time start-time)))))]
-    (doall
-      (for [[node-index node-load-info] (map-indexed #(pair (inc %1) %2) node-load-infos)]
-        (let [resource (:resource node-load-info)
-              proj-path (resource/proj-path resource)]
-          (progress-loading! node-index proj-path)
-          (du/if-metrics
-            [(g/callback progress-processing! node-index proj-path)
-             (g/callback start-resource-metrics-load-timer!)
-             (du/measuring resource-metrics proj-path :generate-load-tx-data
-               (node-load-info-tx-data node-load-info project))
-             (g/callback stop-resource-metrics-load-timer! proj-path)]
-            [(g/callback progress-processing! node-index proj-path)
-             (node-load-info-tx-data node-load-info project)]))))))
+
+    (-> (reduce-kv
+          (fn [tx-data node-index node-load-info]
+            (let [resource (:resource node-load-info)
+                  proj-path (resource/proj-path resource)]
+              (progress-loading! node-index proj-path)
+              (let [tx-data (reduce conj! tx-data (g/callback progress-processing! node-index proj-path))
+                    tx-data (du/if-metrics
+                              (reduce conj! tx-data (g/callback start-resource-metrics-load-timer!))
+                              tx-data)
+                    tx-data (reduce conj! tx-data (du/measuring resource-metrics proj-path :generate-load-tx-data
+                                                    (node-load-info-tx-data node-load-info project)))
+                    tx-data (du/if-metrics
+                              (reduce conj! tx-data (g/callback stop-resource-metrics-load-timer! proj-path))
+                              tx-data)]
+                tx-data)))
+          (transient [])
+          node-load-infos)
+        (conj! (g/callback progress-processing! (progress/make-indeterminate "Finalizing...")))
+        (persistent!))))
 
 (defn- read-node-load-infos [node-ids progress-reading! resource-metrics]
   (let [basis (g/now)]
@@ -405,11 +413,14 @@
                       render-nested-progress! (progress/nest-render-progress render-progress! parent-progress task-size)]
                   (pair (+ accumulated-task-size task-size)
                         (conj progress-fns
-                              (fn progress-fn [loaded-node-index proj-path]
-                                (render-nested-progress!
-                                  (progress/make (str task-label \space proj-path)
-                                                 loaded-node-count
-                                                 loaded-node-index)))))))
+                              (fn progress-fn
+                                ([progress]
+                                 (render-progress! progress))
+                                ([loaded-node-index proj-path]
+                                 (render-nested-progress!
+                                   (progress/make (str task-label \space proj-path)
+                                                  loaded-node-count
+                                                  loaded-node-index))))))))
               (pair 0 [])
               task-allocations))))
 
