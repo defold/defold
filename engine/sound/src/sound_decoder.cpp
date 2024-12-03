@@ -18,6 +18,8 @@
 #include <stdint.h>
 #include <assert.h>
 
+#include <dlib/log.h>
+
 #include "sound_codec.h"
 #include "sound_decoder.h"
 
@@ -62,6 +64,7 @@ namespace dmSoundCodec
                 continue;
             }
 
+dmLogWarning("@@@ DECODER %p %d", decoder, decoder->m_Score);
             if (!best || decoder->m_Score > highest_score)
             {
                 highest_score = decoder->m_Score;

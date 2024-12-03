@@ -55,7 +55,7 @@ public:
 
     char m_UnCache[4*1024*1024];
 
-    void DecodeAndTime(const dmSoundCodec::DecoderInfo *decoder, unsigned char *buf, uint32_t size, const char *decoder_name, bool skip, const char *test_name)
+    void DecodeAndTime(const dmSoundCodec::DecoderInfo *decoder, unsigned char *buf, uint32_t size, const char *decoder_name, dmSound::SoundDataType sound_datatype,  bool skip, const char *test_name)
     {
         int junk = 0;
         for (unsigned int i=0;i<size;i+=4096)
@@ -66,9 +66,14 @@ public:
         char tmp[4096];
         dmSoundCodec::HDecodeStream stream;
 
+        dmSound::HSoundData sound_data;
+        dmSound::NewSoundData(buf, size, sound_datatype, &sound_data, dmHashString64(test_name));
+
         const uint64_t time_beg = dmTime::GetMonotonicTime();
-        ASSERT_EQ(decoder->m_OpenStream(buf, size, &stream), dmSoundCodec::RESULT_OK);
+        ASSERT_EQ(decoder->m_OpenStream(sound_data, &stream), dmSoundCodec::RESULT_OK);
         const uint64_t time_open = dmTime::GetMonotonicTime();
+
+        dmSound::DeleteSoundData(sound_data);
 
         uint64_t max_chunk_time = 0;
         uint64_t iterations = 0;
@@ -119,14 +124,15 @@ public:
     void RunSuite(const char *decoder_name, bool skip)
     {
         const dmSoundCodec::DecoderInfo *info = dmSoundCodec::FindDecoderByName(decoder_name);
+        const dmSound::SoundDataType sound_datatype = dmSound::SOUND_DATA_TYPE_OGG_VORBIS;
         ASSERT_NE((void*) 0, info);
-        DecodeAndTime(info, AMBIENCE_OGG,     AMBIENCE_OGG_SIZE, decoder_name, skip, "Cymbal");
-        DecodeAndTime(info, GLOCKENSPIEL_OGG, GLOCKENSPIEL_OGG_SIZE, decoder_name, skip, "Glockenspiel");
-        DecodeAndTime(info, EXPLOSION_OGG,    EXPLOSION_OGG_SIZE, decoder_name, skip, "Explosion");
-        DecodeAndTime(info, EXPLOSION_LOW_MONO_OGG,EXPLOSION_LOW_MONO_OGG_SIZE, decoder_name, skip, "Explosion Low Mono");
-        DecodeAndTime(info, MUSIC_OGG,        MUSIC_OGG_SIZE, decoder_name, skip, "Music");
-        DecodeAndTime(info, MUSIC_LOW_OGG,    MUSIC_LOW_OGG_SIZE, decoder_name, skip, "Music Low");
-        DecodeAndTime(info, CYMBAL_OGG,       CYMBAL_OGG_SIZE, decoder_name, skip, "Cymbal");
+        DecodeAndTime(info, AMBIENCE_OGG,     AMBIENCE_OGG_SIZE, decoder_name, sound_datatype, skip, "Cymbal");
+        DecodeAndTime(info, GLOCKENSPIEL_OGG, GLOCKENSPIEL_OGG_SIZE, decoder_name, sound_datatype, skip, "Glockenspiel");
+        DecodeAndTime(info, EXPLOSION_OGG,    EXPLOSION_OGG_SIZE, decoder_name, sound_datatype, skip, "Explosion");
+        DecodeAndTime(info, EXPLOSION_LOW_MONO_OGG,EXPLOSION_LOW_MONO_OGG_SIZE, decoder_name, sound_datatype, skip, "Explosion Low Mono");
+        DecodeAndTime(info, MUSIC_OGG,        MUSIC_OGG_SIZE, decoder_name, sound_datatype, skip, "Music");
+        DecodeAndTime(info, MUSIC_LOW_OGG,    MUSIC_LOW_OGG_SIZE, decoder_name, sound_datatype, skip, "Music Low");
+        DecodeAndTime(info, CYMBAL_OGG,       CYMBAL_OGG_SIZE, decoder_name, sound_datatype, skip, "Cymbal");
 
         if (dmSoundCodec::FindBestDecoder(dmSoundCodec::FORMAT_VORBIS) == info)
             printf("%s is used by default with current build settings on this platform\n", decoder_name);

@@ -80,8 +80,12 @@ namespace dmSoundCodec
         return info->m_Cursor;
     }
 
-    static Result TremoloOpenStream(const void* buffer, uint32_t buffer_size, HDecodeStream* stream)
+    static Result TremoloOpenStream(dmSound::HSoundData sound_data, HDecodeStream* stream)
     {
+dmLogWarning("@@@ TREMOLO DECODER");
+        uint32_t buffer_size;
+        void* buffer = dmSound::GetSoundDataBaseAndSize(sound_data, buffer_size);
+        
         DecodeStreamInfo *tmp = new DecodeStreamInfo();
         tmp->m_Buffer = (const char*) buffer;
         tmp->m_Size = buffer_size;

@@ -15,6 +15,10 @@
 #ifndef DM_SOUND_CODEC_H
 #define DM_SOUND_CODEC_H
 
+namespace dmSound {
+    typedef struct SoundData* HSoundData;
+}
+
 /**
  * Sound decoding support
  */
@@ -93,12 +97,11 @@ namespace dmSoundCodec
      * Create a new decoder
      * @param context context
      * @param format format
-     * @param buffer buffer
-     * @param buffer_size buffer size
+     * @param sound_data
      * @param decoder decoder (out)
      * @return RESULT_OK on success
      */
-    Result NewDecoder(HCodecContext context, Format format, const void* buffer, uint32_t buffer_size, HDecoder* decoder);
+    Result NewDecoder(HCodecContext context, Format format, dmSound::HSoundData sound_data, HDecoder* decoder);
 
     /**
      * Delete decoder
