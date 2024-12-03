@@ -115,6 +115,7 @@ namespace dmGraphics
         NullShaderModule*    m_FP;
         NullShaderModule*    m_Compute;
         uint8_t*             m_UniformData;
+        uint32_t             m_UniformDataSize;
         ShaderDesc::Language m_Language;
     };
 

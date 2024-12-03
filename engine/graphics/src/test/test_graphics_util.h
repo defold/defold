@@ -73,6 +73,12 @@ namespace dmGraphics
         res->m_Type.m_Type.m_TypeIndex = type_index;
     }
 
+    static inline void FillResourceBindingUniformBufferTypeIndex(dmGraphics::ShaderDesc::ResourceBinding* res, const char* name, int binding, int index, uint32_t buffer_size)
+    {
+        FillResourceBindingTypeIndex(res, name, binding, index);
+        res->m_Bindinginfo.m_BlockSize = buffer_size;
+    }
+
     static inline void FillResourceBindingType(dmGraphics::ShaderDesc::ResourceBinding* res, const char* name, int binding, dmGraphics::ShaderDesc::ShaderDataType type)
     {
         res->m_Name                     = name;

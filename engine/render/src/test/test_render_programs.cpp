@@ -107,7 +107,7 @@ TEST_F(dmRenderMaterialTest, TestMaterialConstants)
     FillShaderResourceWithSingleTypeMember(&types, "tint", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
 
     dmGraphics::ShaderDesc::ResourceBinding uniform = {};
-    FillResourceBindingTypeIndex(&uniform, "tint", 0, 0);
+    FillResourceBindingUniformBufferTypeIndex(&uniform, "tint", 0, 0, dmGraphics::GetShaderTypeSize(dmGraphics::ShaderDesc::SHADER_TYPE_VEC4));
 
     // create default material
     dmGraphics::ShaderDesc::Shader vp_shader = dmGraphics::MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, "uniform vec4 tint;\n", 19);
@@ -440,7 +440,7 @@ TEST_F(dmRenderMaterialTest, TestMaterialConstantsOverride)
     dmGraphics::FillShaderResourceWithSingleTypeMember(&types[1], "dummy", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
 
     dmGraphics::ShaderDesc::ResourceBinding uniform_one = {};
-    dmGraphics::FillResourceBindingTypeIndex(&uniform_one, "tint", 0, 0);
+    dmGraphics::FillResourceBindingUniformBufferTypeIndex(&uniform_one, "tint", 0, 0, dmGraphics::GetShaderTypeSize(dmGraphics::ShaderDesc::SHADER_TYPE_VEC4));
 
     // create default material
     dmGraphics::ShaderDesc::Shader vp_shader = dmGraphics::MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, "uniform vec4 tint;\n", 19);
@@ -455,8 +455,8 @@ TEST_F(dmRenderMaterialTest, TestMaterialConstantsOverride)
     dmGraphics::HProgram program = dmRender::GetMaterialProgram(material);
 
     dmGraphics::ShaderDesc::ResourceBinding uniforms[2] = {};
-    dmGraphics::FillResourceBindingTypeIndex(&uniforms[0], "tint", 0, 0);
-    dmGraphics::FillResourceBindingTypeIndex(&uniforms[1], "dummy", 1, 1);
+    dmGraphics::FillResourceBindingUniformBufferTypeIndex(&uniforms[0], "tint", 0, 0, dmGraphics::GetShaderTypeSize(dmGraphics::ShaderDesc::SHADER_TYPE_VEC4));
+    dmGraphics::FillResourceBindingUniformBufferTypeIndex(&uniforms[1], "dummy", 1, 1, dmGraphics::GetShaderTypeSize(dmGraphics::ShaderDesc::SHADER_TYPE_VEC4));
 
     // create override material which contains tint, but at a different location
     vp_shader = dmGraphics::MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, "uniform vec4 dummy;\nuniform vec4 tint;\n", 40);
@@ -552,8 +552,8 @@ TEST_F(dmRenderComputeTest, TestComputeConstants)
     dmGraphics::FillShaderResourceWithSingleTypeMember(&types[1], "tint_b", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
 
     dmGraphics::ShaderDesc::ResourceBinding uniforms[3] = {};
-    dmGraphics::FillResourceBindingTypeIndex(&uniforms[0], "tint_a", 0, 0);
-    dmGraphics::FillResourceBindingTypeIndex(&uniforms[1], "tint_b", 1, 1);
+    dmGraphics::FillResourceBindingUniformBufferTypeIndex(&uniforms[0], "tint_a", 0, 0, dmGraphics::GetShaderTypeSize(dmGraphics::ShaderDesc::SHADER_TYPE_VEC4));
+    dmGraphics::FillResourceBindingUniformBufferTypeIndex(&uniforms[1], "tint_b", 1, 1, dmGraphics::GetShaderTypeSize(dmGraphics::ShaderDesc::SHADER_TYPE_VEC4));
     dmGraphics::FillResourceBindingType(&uniforms[2], "texture_sampler", 2, dmGraphics::ShaderDesc::SHADER_TYPE_SAMPLER2D);
 
     dmGraphics::ShaderDesc::Shader cp_shader  = dmGraphics::MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430, shader_src, strlen(shader_src));
