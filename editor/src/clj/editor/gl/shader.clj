@@ -421,6 +421,10 @@ This must be submitted to the driver for compilation before you can use it. See
 (def make-vertex-shader (partial make-shader* GL2/GL_VERTEX_SHADER))
 
 (defn- set-uniform-impl! [gl program uniform-infos uniform-name uniform-value]
+
+  (println "setting" uniform-name)
+  (println  uniform-infos)
+
   (when-some [uniform-info (uniform-infos uniform-name)]
     (try
       (set-uniform-at-index gl program (:index uniform-info) uniform-value)
@@ -584,6 +588,7 @@ of GLSL strings and returns an object that satisfies GlBind and GlEnable."
             ;;    I.e, "uniform_buffer.my_uniform" -> "my_uniform"
             sanitized-name (last (string/split sanitized-name #"\."))]
         {:name sanitized-name
+         :canonical-name name
          :index location
          :type type
          :count count}))))

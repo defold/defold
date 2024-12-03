@@ -507,9 +507,10 @@ namespace dmShaderc
         dmLogInfo("Inputs: %d", reflection->m_Inputs.Size());
         for (uint32_t i = 0; i < reflection->m_Inputs.Size(); ++i)
         {
-            dmLogInfo("  Name: %s, Instance-name: %s Location: %d, Type: %s",
+            dmLogInfo("  Name: %s, Instance-name: %s, Id: %d, Location: %d, Type: %s",
                 reflection->m_Inputs[i].m_Name,
                 reflection->m_Inputs[i].m_InstanceName,
+                reflection->m_Inputs[i].m_Id,
                 reflection->m_Inputs[i].m_Location,
                 ResolveTypeName(reflection, reflection->m_Inputs[i].m_Type));
         }
@@ -517,9 +518,10 @@ namespace dmShaderc
         dmLogInfo("Outputs: %d", reflection->m_Outputs.Size());
         for (uint32_t i = 0; i < reflection->m_Outputs.Size(); ++i)
         {
-            dmLogInfo("  Name: %s, Instance-name: %s Location: %d, Type: %s",
+            dmLogInfo("  Name: %s, Instance-name: %s, Id: %d, Location: %d, Type: %s",
                 reflection->m_Outputs[i].m_Name,
                 reflection->m_Outputs[i].m_InstanceName,
+                reflection->m_Outputs[i].m_Id,
                 reflection->m_Outputs[i].m_Location,
                 ResolveTypeName(reflection, reflection->m_Outputs[i].m_Type));
         }
@@ -527,9 +529,10 @@ namespace dmShaderc
         dmLogInfo("Uniform buffers: %d", reflection->m_UniformBuffers.Size());
         for (uint32_t i = 0; i < reflection->m_UniformBuffers.Size(); ++i)
         {
-            dmLogInfo("  Name: %s, Instance-name: %s, Set: %d, Binding: %d, Type: %s, BlockSize: %d",
+            dmLogInfo("  Name: %s, Instance-name: %s, Id: %d, Set: %d, Binding: %d, Type: %s, BlockSize: %d",
                 reflection->m_UniformBuffers[i].m_Name,
                 reflection->m_UniformBuffers[i].m_InstanceName,
+                reflection->m_UniformBuffers[i].m_Id,
                 reflection->m_UniformBuffers[i].m_Set,
                 reflection->m_UniformBuffers[i].m_Binding,
                 ResolveTypeName(reflection, reflection->m_UniformBuffers[i].m_Type),
@@ -551,10 +554,11 @@ namespace dmShaderc
         dmLogInfo("Textures: %d", reflection->m_Textures.Size());
         for (uint32_t i = 0; i < reflection->m_Textures.Size(); ++i)
         {
-            dmLogInfo("  Name: %s, Set: %d, Binding: %d, BaseType: %s, Type: %s, DimensionType: %s, IsArrayed: %s, IsStorage: %s, StorageType: %s, AccessQualifier: %s",
+            dmLogInfo("  Name: %s, Set: %d, Binding: %d, Id: %d, BaseType: %s, Type: %s, DimensionType: %s, IsArrayed: %s, IsStorage: %s, StorageType: %s, AccessQualifier: %s",
                 reflection->m_Textures[i].m_Name,
                 reflection->m_Textures[i].m_Set,
                 reflection->m_Textures[i].m_Binding,
+                reflection->m_Textures[i].m_Id,
                 BASE_TYPE_MAPPING[reflection->m_Textures[i].m_Type.m_ImageBaseType].m_Str,
                 ResolveTypeName(reflection, reflection->m_Textures[i].m_Type),
                 DIMENSION_TYPE_MAPPING[reflection->m_Textures[i].m_Type.m_DimensionType].m_Str,

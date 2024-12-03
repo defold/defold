@@ -440,8 +440,6 @@ TEST_F(dmGraphicsTest, TestProgram)
     FillShaderResourceWithSingleTypeMember(&types[1], "world", dmGraphics::ShaderDesc::SHADER_TYPE_MAT4);
     FillShaderResourceWithSingleTypeMember(&types[2], "tint", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
 
-    // TODO: Need to clean the member pointer from the types list
-
     dmGraphics::ShaderDesc::ResourceBinding vx_uniforms[2] = {};
     FillResourceBindingUniformBufferTypeIndex(&vx_uniforms[0], "view_proj", 0, 0, dmGraphics::GetShaderTypeSize(dmGraphics::ShaderDesc::SHADER_TYPE_MAT4));
     FillResourceBindingUniformBufferTypeIndex(&vx_uniforms[1], "world", 1, 1, dmGraphics::GetShaderTypeSize(dmGraphics::ShaderDesc::SHADER_TYPE_MAT4));
