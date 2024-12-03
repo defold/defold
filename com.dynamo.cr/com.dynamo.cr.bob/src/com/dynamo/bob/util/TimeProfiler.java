@@ -25,6 +25,7 @@ import java.io.BufferedWriter;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.RuntimeMXBean;
+import java.lang.Thread;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
@@ -46,15 +47,27 @@ public class TimeProfiler {
     /**
      * Helper class that contains profiling data and represents a linked list of scopes hierarchy.
      */
-    private static class ProfilingScope {
+    public static class ProfilingScope {
         public long startTime;
         public long endTime;
-        HashMap<String, String> additionalStringData;
-        HashMap<String, Float> additionalNumberData;
-        HashMap<String, Boolean> additionalBooleanData;
+        HashMap<String, Object> data;
 
         public ProfilingScope parent;
         public ArrayList<ProfilingScope> children;
+
+        public ProfilingScope() {}
+
+        public void addData(String fieldName, Object value) {
+            if (data == null) {
+                data = new HashMap<>();
+            }
+            data.put(fieldName, value);
+        }
+
+        public void stop() {
+            endTime = System.currentTimeMillis();
+            TimeProfiler.setCurrentScope(this.parent);
+        }
     }
 
     /**
@@ -67,13 +80,12 @@ public class TimeProfiler {
         public long timestamp;
     }
 
-    private static ArrayList<ProfilingMark> marks;
+    private static final ArrayList<ProfilingMark> marks = new ArrayList<>();
     private static long buildTime;
 
     private static ProfilingScope rootScope;
-    private static ProfilingScope currentScope;
+    private static final Map<Long, ProfilingScope> currentScopes = new HashMap<>();
     private static List<File> reportFiles;
-    private static Boolean fromEditor;
 
     private static long time() {
         return System.currentTimeMillis();
@@ -85,22 +97,10 @@ public class TimeProfiler {
         generator.writeNumber(scope.startTime - buildTime);
         generator.writeFieldName("duration");
         generator.writeNumber(scope.endTime - scope.startTime);
-        if (scope.additionalStringData != null) {
-            for (Map.Entry<String, String> entry : scope.additionalStringData.entrySet())  {
+        if (scope.data != null) {
+            for (Map.Entry<String, Object> entry : scope.data.entrySet()) {
                 generator.writeFieldName(entry.getKey());
-                generator.writeString(entry.getValue());
-            }
-        }
-        if (scope.additionalNumberData != null) {
-            for (Map.Entry<String, Float> entry : scope.additionalNumberData.entrySet())  {
-                generator.writeFieldName(entry.getKey());
-                generator.writeNumber(entry.getValue());
-            }
-        }
-        if (scope.additionalBooleanData != null) {
-            for (Map.Entry<String, Boolean> entry : scope.additionalBooleanData.entrySet())  {
-                generator.writeFieldName(entry.getKey());
-                generator.writeBoolean(entry.getValue());
+                generator.writeObject(entry.getValue());
             }
         }
         if (scope.children != null) {
@@ -165,9 +165,8 @@ public class TimeProfiler {
         return new String[]{beforeToken, afterToken};
     }
 
-    public static void createReport(Boolean fromEditor) {
-        // avoid double creation of the report by checking `fromEditor` flag
-        if (rootScope == null || TimeProfiler.fromEditor != fromEditor) {
+    public static void createReport() {
+        if (rootScope == null) {
             return;
         }
         ProfilingScope _rootScope = rootScope;
@@ -175,13 +174,16 @@ public class TimeProfiler {
         rootScope = null;
         long reportStartTime = time();
 
-        //Close all unclosed scopes
-        while(currentScope != _rootScope) {
-            unsafeAddData("forceFinishedScope", true);
-            unsafeAddData("color", "#FF0000");
-            unsafeStop();
-        };
-        unsafeStop();
+        // Close all unclosed scopes
+        for (ProfilingScope scope : currentScopes.values()) {
+            while (scope != null) {
+                scope.addData("forceFinishedScope", true);
+                scope.addData("color", "#FF0000");
+                scope.endTime = time();
+                scope = scope.parent;
+            }
+        }
+        _rootScope.stop();
 
         try {
             // save report files, add '_time' to the given filenames
@@ -214,97 +216,92 @@ public class TimeProfiler {
                     writer.flush();
                     IOUtils.closeQuietly(writer);
                 }
-                catch (IOException e) {
-                    throw e;
-                }
             }
         } catch (Exception e) {
             throw new RuntimeException(e);
+        } finally {
+            marks.clear();
+            currentScopes.clear();
         }
 
         long reportEndTime = time();
-        System.out.printf("\nTime profiler report creation took %.2f seconds", (reportEndTime - reportStartTime)/1000.0f);
+        System.out.printf("Time profiler report creation took %.2f seconds\n", (reportEndTime - reportStartTime)/1000.0f);
     }
 
-    public static void init(List<File> reportFiles, Boolean fromEditor) throws IOException {
+    private static long getCurrentThreadId() {
+        return Thread.currentThread().getId();
+    }
+
+    private static void setCurrentScope(ProfilingScope scope) {
+        currentScopes.put(getCurrentThreadId(), scope);
+    }
+
+    public static ProfilingScope getCurrentScope() {
+        return currentScopes.get(getCurrentThreadId());
+    }
+
+    public static void init(List<File> reportFiles) throws IOException {
         if (rootScope != null) {
-            return;
+            throw new RuntimeException("TimeProfiler.init() called while the profiling was already in progress");
         }
         TimeProfiler.reportFiles = reportFiles;
-        TimeProfiler.fromEditor = fromEditor;
-        marks = new ArrayList();
+
         long startTime = time();
-        if (!fromEditor) {
-            RuntimeMXBean bean = ManagementFactory.getRuntimeMXBean();
-            startTime = bean.getStartTime(); //Returns the start time of the Java virtual machine in milliseconds.
-        }
         buildTime = startTime;
         rootScope = new ProfilingScope();
         rootScope.startTime = startTime;
-        currentScope = rootScope;
-        unsafeAddData("name", "Total time");
+        rootScope.addData("name", "Total time");
+        setCurrentScope(rootScope);
 
-        if (!fromEditor) {
-            ProfilingScope initScope = new ProfilingScope();
-            initScope.additionalStringData = new HashMap<String, String>();
-            initScope.additionalStringData.put("name", "Java VM init");
-            initScope.startTime = startTime;
-            initScope.endTime = time();
-            rootScope.children = new ArrayList<ProfilingScope>();
-            rootScope.children.add(initScope);
-            initScope.parent = rootScope;
-        }
+        ProfilingScope initScope = new ProfilingScope();
+        initScope.addData("name", "Time Profiler init");
+        initScope.startTime = startTime;
+        initScope.endTime = time();
+        rootScope.children = new ArrayList<>();
+        rootScope.children.add(initScope);
+        initScope.parent = rootScope;
+    }
 
-        Runtime.getRuntime().addShutdownHook(new Thread(new Runnable() {
-            @Override
-            public void run() {
-                createReport(fromEditor);
+    public static void addScopeToCurrentThread(ProfilingScope scope) {
+        ProfilingScope currentScope = getCurrentScope();
+        if (currentScope != null) {
+            if (currentScope.children == null) {
+                currentScope.children = new ArrayList<>();
             }
-        }));
+            currentScope.children.add(scope);
+        }
+        scope.parent = currentScope;
     }
 
     public static void start() {
-        if (rootScope == null) {
-            return;
-        }
-        if (currentScope.children == null) {
-            currentScope.children = new ArrayList<ProfilingScope>();
-        }
-        ProfilingScope scope = new ProfilingScope();
-        scope.startTime = time();
-        scope.parent = currentScope;
-        currentScope.children.add(scope);
-        currentScope = scope;
+        start(null);
     }
 
     public static void start(String scopeName) {
-        if (rootScope == null) {
-            return;
+        ProfilingScope scope = new ProfilingScope();
+        scope.startTime = time();
+        if (scopeName != null) {
+            scope.addData("name", scopeName);
         }
-        start();
-        addData("name", scopeName);
+        addScopeToCurrentThread(scope);
+        setCurrentScope(scope);
     }
 
-    public static void startF(String fmt, Object... args) {
+    public static void start(String fmt, Object... args) {
         start(String.format(fmt, args));
     }
 
-    private static void unsafeStop() {
-        currentScope.endTime = time();
-        currentScope = currentScope.parent;
+    public static void stop() {
+        final ProfilingScope scope = getCurrentScope();
+        if (scope != null) scope.stop();
     }
 
-    public static void stop() {
-        if (rootScope == null) {
-            return;
-        }
-        unsafeStop();
+    public static void addData(String fieldName, Object data) {
+        final ProfilingScope scope = getCurrentScope();
+        if (scope != null) scope.addData(fieldName, data);
     }
 
     public static void addMark(String shortName, String fullName, String color) {
-        if (rootScope == null) {
-            return;
-        }
         ProfilingMark mark = new ProfilingMark();
         mark.timestamp = time();
         mark.shortName = shortName;
@@ -321,49 +318,4 @@ public class TimeProfiler {
         addMark(shortName, shortName, "#EADDCA");
     }
 
-    private static void unsafeAddData(String fieldName, String data) {
-        if (currentScope.additionalStringData == null) {
-            currentScope.additionalStringData = new HashMap<String, String>();
-        }
-        currentScope.additionalStringData.put(fieldName, data);
-    }
-
-    private static void unsafeAddData(String fieldName, Float data) {
-        if (currentScope.additionalNumberData == null) {
-            currentScope.additionalNumberData = new HashMap<String, Float>();
-        }
-        currentScope.additionalNumberData.put(fieldName, data);
-    }
-
-    private static void unsafeAddData(String fieldName, Boolean data) {
-        if (currentScope.additionalBooleanData == null) {
-            currentScope.additionalBooleanData = new HashMap<String, Boolean>();
-        }
-        currentScope.additionalBooleanData.put(fieldName, data);
-    }
-
-    public static void addData(String fieldName, String data) {
-        if (rootScope == null) {
-            return;
-        }
-        unsafeAddData(fieldName, data);
-    }
-
-    public static void addData(String fieldName, Float data) {
-        if (rootScope == null) {
-            return;
-        }
-        unsafeAddData(fieldName, data);
-    }
-
-    public static void addData(String fieldName, Boolean data) {
-        if (rootScope == null) {
-            return;
-        }
-        unsafeAddData(fieldName, data);
-    }
-
-    public static void addData(String fieldName, Integer data) {
-        addData(fieldName, data.floatValue());
-    }
 }

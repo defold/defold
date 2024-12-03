@@ -177,6 +177,60 @@ TEST(ModelGLTF, ExternalBuffer)
     dmModelImporter::DestroyScene(scene);
 }
 
+static void CheckChildren(dmModelImporter::Node* n, uint32_t num_children, const char** child_names)
+{
+    ASSERT_EQ(num_children, n->m_Children.Size());
+
+    for (uint32_t i = 0; i < num_children; ++i)
+    {
+        dmModelImporter::Node* child = n->m_Children[i];
+        ASSERT_STREQ(child_names[i], child->m_Name);
+    }
+}
+
+TEST(ModelGLTF, GeneratedBone01)
+{
+    const char* path = "./src/test/assets/generatedbone01.glb";
+    dmModelImporter::Options options;
+    dmModelImporter::Scene* scene = LoadScene(path, options);
+
+    ASSERT_EQ(5, scene->m_Nodes.Size());
+    ASSERT_EQ(1, scene->m_Models.Size());
+    ASSERT_EQ(1, scene->m_RootNodes.Size());
+
+    ASSERT_STREQ("cube", scene->m_RootNodes[0]->m_Name);
+    ASSERT_EQ(3, scene->m_RootNodes[0]->m_Children.Size());
+
+    {
+        const char* names[] = {
+            "Cube",
+            "root1",
+            "root2"
+        };
+        CheckChildren(scene->m_RootNodes[0], 3, names);
+    }
+
+    ASSERT_STREQ("Cube", scene->m_Models[0].m_Name);
+
+    ASSERT_STREQ("root1", scene->m_Nodes[0].m_Name);
+    ASSERT_STREQ("root2", scene->m_Nodes[1].m_Name);
+    ASSERT_STREQ("Cube", scene->m_Nodes[2].m_Name);
+    ASSERT_STREQ("cube", scene->m_Nodes[3].m_Name);
+    ASSERT_STREQ("_generated_node_4", scene->m_Nodes[4].m_Name);
+
+    ASSERT_EQ(1, scene->m_Skins.Size());
+
+    dmModelImporter::Skin* skin = &scene->m_Skins[0];
+    ASSERT_STREQ("cube", skin->m_Name);
+
+    ASSERT_EQ(3, skin->m_Bones.Size());
+    ASSERT_STREQ("_generated_root", skin->m_Bones[0].m_Name);
+    ASSERT_STREQ("root1", skin->m_Bones[1].m_Name);
+    ASSERT_STREQ("root2", skin->m_Bones[2].m_Name);
+
+    dmModelImporter::DestroyScene(scene);
+}
+
 // Some tests are simply loading the file to make sure it doesn't crash
 
 static dmModelImporter::Scene* TestLoading(const char* path)
@@ -239,7 +293,7 @@ TEST(ModelSkinnedTopNodes, MultipleModels)
 
 static int TestStandalone(const char* path)
 {
-    uint64_t tstart = dmTime::GetTime();
+    uint64_t tstart = dmTime::GetMonotonicTime();
 
     dmModelImporter::Options options;
     dmModelImporter::Scene* scene = LoadScene(path, options);
@@ -247,7 +301,7 @@ static int TestStandalone(const char* path)
     if (!scene)
         return 1;
 
-    uint64_t tend = dmTime::GetTime();
+    uint64_t tend = dmTime::GetMonotonicTime();
     printf("Model %s loaded in %.3f seconds.\n", path, float(tend-tstart)/1000000.0f);
 
     dmModelImporter::DebugScene(scene);

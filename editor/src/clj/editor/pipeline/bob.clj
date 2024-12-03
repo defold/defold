@@ -256,7 +256,6 @@
             (let [result (Bob/invoke
                            java/class-loader
                            (->progress render-progress! task-cancelled?)
-                           #_from-editor true
                            internal-options
                            (into-array String cli-args))]
               (if (.-success result)
@@ -286,7 +285,7 @@
               (.isDirectory output-directory)))
   (assert (string? (not-empty platform)))
   (let [build-server-url (native-extensions/get-build-server-url prefs project)
-        editor-texture-compression (if (prefs/get-prefs prefs "general-enable-texture-compression" false) "true" "false")
+        editor-texture-compression (if (prefs/get prefs [:build :texture-compression]) "true" "false")
         build-report-path (.getAbsolutePath (io/file output-directory "report.html"))
         bundle-output-path (.getAbsolutePath output-directory)
         defold-sdk-sha1 (or (system/defold-engine-sha1) "")
@@ -403,7 +402,8 @@
          build-path (workspace/build-html5-path ws)]
      (io/file build-path "__htmlLaunchDir"))))
 
-(def build-html5-bob-commands ["resolve" "build" "bundle"])
+(def rebuild-html5-bob-commands ["distclean" "resolve" "build" "bundle"])
+(def build-html5-bob-commands ["build" "bundle"])
 
 (defn build-html5-bob-options [project prefs]
   (let [output-path (build-html5-output-path project)

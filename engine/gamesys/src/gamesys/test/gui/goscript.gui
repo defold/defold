@@ -1,0 +1,51 @@
+script: "/gui/goscript.gui_script"
+fonts {
+  name: "test_font"
+  font: "/font/valid_font.font"
+}
+fonts {
+  name: "test_font2"
+  font: "/font/glyph_bank_test_1.font"
+}
+textures {
+  name: "test_texture"
+  texture: "/texture/valid_png.png"
+}
+nodes {
+  position {
+    x: 1.0
+    y: 0.0
+    z: 0.0
+    w: 0.0
+  }
+  rotation {
+    x: 1.0
+    y: 0.0
+    z: 0.0
+    w: 0.0
+  }
+  scale {
+    x: 1.0
+    y: 0.0
+    z: 0.0
+    w: 0.0
+  }
+  size {
+    x: 1.0
+    y: 0.0
+    z: 0.0
+    w: 0.0
+  }
+  color {
+    x: 1.0
+    y: 0.0
+    z: 0.0
+    w: 0.0
+  }
+  type: TYPE_TEXT
+  blend_mode: BLEND_MODE_ALPHA
+  id: "text"
+  font: "test_font"
+  text: "HELLO"
+}
+material: "/gui/gui.material"

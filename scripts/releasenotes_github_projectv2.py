@@ -71,6 +71,9 @@ QUERY_PROJECT_ISSUES_AND_PRS = r"""
               number
               body
               url
+              author {
+                login
+              }
               labels(first: 10) {
                 nodes {
                   name
@@ -87,6 +90,9 @@ QUERY_PROJECT_ISSUES_AND_PRS = r"""
                         merged
                         title
                         url
+                        author {
+                          login
+                        }
                         labels(first: 10) {
                           nodes {
                             name
@@ -105,6 +111,9 @@ QUERY_PROJECT_ISSUES_AND_PRS = r"""
               number
               body
               url
+              author {
+                login
+              }
               labels(first: 10) {
                 nodes {
                   name
@@ -121,6 +130,9 @@ QUERY_PROJECT_ISSUES_AND_PRS = r"""
                         closed
                         title
                         url
+                        author {
+                          login
+                        }
                         labels(first: 10) {
                           nodes {
                             name
@@ -207,10 +219,10 @@ def get_closing_pr(issue):
 
 def issue_to_markdown(issue, hide_details = True, title_only = False):
     if title_only:
-        md = ("* __%s__: ([#%s](%s)) %s \n" % (issue["type"], issue["number"], issue["url"], issue["title"]))
+        md = ("* __%s__: ([#%s](%s)) %s (by %s)\n" % (issue["type"], issue["number"], issue["url"], issue["title"], issue["author"]))
 
     else:    
-        md = ("__%s__: ([#%s](%s)) __%s__ \n" % (issue["type"], issue["number"], issue["url"], issue["title"]))
+        md = ("__%s__: ([#%s](%s)) __'%s'__ by %s\n" % (issue["type"], issue["number"], issue["url"], issue["title"], issue["author"]))
         if hide_details: md += ("[details=\"Details\"]\n")
         md += ("%s\n" % issue["body"])
         if hide_details: md += ("\n---\n[/details]\n")
@@ -233,6 +245,7 @@ def generate(version, hide_details = False):
             continue
 
         # if content.get("number") != 1234: continue
+        # if content.get("number") != 9376: continue
 
         is_issue = m.get("type") == "ISSUE"
         is_pr = m.get("type") == "PULL_REQUEST"
@@ -262,6 +275,7 @@ def generate(version, hide_details = False):
             "body": content.get("body"),
             "url": content.get("url"),
             "number": content.get("number"),
+            "author": content.get("author").get("login"),
             "labels": issue_labels,
             "is_pr": is_pr,
             "is_issue": is_issue,
@@ -277,10 +291,12 @@ def generate(version, hide_details = False):
         entry["body"] = re.sub("## Technical details.*", "", entry["body"], flags=re.DOTALL).strip()
 
         # Remove closing keywords
+        entry["body"] = re.sub("Closes .*/.*#.....*", "", entry["body"], flags=re.IGNORECASE).strip()
         entry["body"] = re.sub("Fixes .*/.*#.....*", "", entry["body"], flags=re.IGNORECASE).strip()
         entry["body"] = re.sub("Fix .*/.*#.....*", "", entry["body"], flags=re.IGNORECASE).strip()
         entry["body"] = re.sub("Fixes #.....*", "", entry["body"], flags=re.IGNORECASE).strip()
         entry["body"] = re.sub("Fix #.....*", "", entry["body"], flags=re.IGNORECASE).strip()
+        entry["body"] = re.sub("Closes https.*", "", entry["body"], flags=re.IGNORECASE).strip()
         entry["body"] = re.sub("Fixes https.*", "", entry["body"], flags=re.IGNORECASE).strip()
         entry["body"] = re.sub("Fix https.*", "", entry["body"], flags=re.IGNORECASE).strip()
 

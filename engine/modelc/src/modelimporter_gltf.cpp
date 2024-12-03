@@ -1183,10 +1183,11 @@ static void GenerateRootBone(Scene* scene)
         if (!generated_node)
         {
             // We've already pre allocated in LoadNodes()
-            Node* node = &scene->m_Nodes[scene->m_Nodes.Size()-1];
-            memset(node, 0, sizeof(Node));
-            node->m_Index = scene->m_Nodes.Size();
+            uint32_t node_index = scene->m_Nodes.Size();
             scene->m_Nodes.SetSize(scene->m_Nodes.Size()+1);
+            Node* node = &scene->m_Nodes[node_index];
+            memset(node, 0, sizeof(Node));
+            node->m_Index = node_index;
             node->m_Name = CreateNameFromHash("_generated_node", node->m_Index);
             SetIdentity(node->m_Local);
             SetIdentity(node->m_World);

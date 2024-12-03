@@ -35,7 +35,6 @@
             [editor.error-reporting :as error-reporting]
             [editor.field-expression :as field-expression]
             [editor.fxui :as fxui]
-            [editor.icons :as icons]
             [editor.outline :as outline]
             [editor.prefs :as prefs]
             [editor.properties :as properties]
@@ -259,13 +258,13 @@
                         [resource opts]))))))
         selection))
 
-(def ^:private search-in-files-term-prefs-key "search-in-files-term")
-(def ^:private search-in-files-exts-prefs-key "search-in-files-exts")
-(def ^:private search-in-files-include-libraries-prefs-key "search-in-files-include-libraries")
+(def ^:private search-in-files-term-prefs-key [:search-in-files :term])
+(def ^:private search-in-files-exts-prefs-key [:search-in-files :exts])
+(def ^:private search-in-files-include-libraries-prefs-key [:search-in-files :include-libraries])
 
 (defn set-search-term! [prefs term]
   (assert (string? term))
-  (prefs/set-prefs prefs search-in-files-term-prefs-key term))
+  (prefs/set! prefs search-in-files-term-prefs-key term))
 
 (defn- start-search-in-files! [project prefs results-tab-tree-view results-tab-progress-indicator open-fn show-find-results-fn]
   (let [root      ^Parent (ui/load-fxml "search-in-files-dialog.fxml")
@@ -289,9 +288,9 @@
                                 (let [term (.getText search)
                                       exts (.getText types)
                                       include-libraries? (.isSelected include-libraries-check-box)]
-                                  (prefs/set-prefs prefs search-in-files-term-prefs-key term)
-                                  (prefs/set-prefs prefs search-in-files-exts-prefs-key exts)
-                                  (prefs/set-prefs prefs search-in-files-include-libraries-prefs-key include-libraries?)
+                                  (prefs/set! prefs search-in-files-term-prefs-key term)
+                                  (prefs/set! prefs search-in-files-exts-prefs-key exts)
+                                  (prefs/set! prefs search-in-files-include-libraries-prefs-key include-libraries?)
                                   (start-search! term exts include-libraries?)))
             dismiss-and-abort-search! (fn []
                                         (abort-search!)
@@ -331,9 +330,9 @@
                                                 (ui/request-focus! search))
                                nil))))
 
-        (let [term (prefs/get-prefs prefs search-in-files-term-prefs-key "")
-              exts (prefs/get-prefs prefs search-in-files-exts-prefs-key "")
-              include-libraries? (prefs/get-prefs prefs search-in-files-include-libraries-prefs-key true)]
+        (let [term (prefs/get prefs search-in-files-term-prefs-key)
+              exts (prefs/get prefs search-in-files-exts-prefs-key)
+              include-libraries? (prefs/get prefs search-in-files-include-libraries-prefs-key)]
           (ui/text! search term)
           (ui/text! types exts)
           (ui/value! include-libraries-check-box include-libraries?)

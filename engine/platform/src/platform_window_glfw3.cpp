@@ -17,6 +17,7 @@
 #include "platform_window.h"
 #include "platform_window_constants.h"
 #include "platform_window_glfw3_private.h"
+#include "platform_window_opengl.h"
 
 #include <glfw/glfw3.h>
 
@@ -103,8 +104,9 @@ namespace dmPlatform
 
     static void OnContentScaleCallback(GLFWwindow* glfw_window, float xscale, float yscale)
     {
-        (void)xscale;
-        (void)yscale;
+        HWindow window = (HWindow) glfwGetWindowUserPointer(glfw_window);
+        window->m_XScale = xscale;
+        window->m_YScale = yscale;
 
         int width, height;
         glfwGetWindowSize(glfw_window, &width, &height);
@@ -174,11 +176,36 @@ namespace dmPlatform
 
     static PlatformResult OpenWindowOpenGL(Window* wnd, const WindowParams& params)
     {
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
-        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
+        uint32_t major = 3, minor = 3;
+        if (!OpenGLGetVersion(params.m_OpenGLVersionHint, &major, &minor))
+        {
+            dmLogWarning("OpenGL version hint %d is not supported. Using default version (%d.%d)",
+                params.m_OpenGLVersionHint, major, minor);
+        }
 
-        glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
-        glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+        bool use_highest_version = major == 0 && minor == 0;
+        if (!use_highest_version)
+        {
+            glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, major);
+            glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, minor);
+        }
+
+        if (params.m_OpenGLUseCoreProfileHint)
+        {
+            bool can_set_profile_and_fc = true;
+
+        #ifdef _WIN32
+            // Not supported on windows when requesting the default OpenGL version (which will equate to the highest available)
+            can_set_profile_and_fc = !use_highest_version;
+        #endif
+
+            if (can_set_profile_and_fc)
+            {
+                glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
+                glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
+            }
+        }
+
         glfwWindowHint(GLFW_SAMPLES, params.m_Samples);
 
         GLFWmonitor* fullscreen_monitor = NULL;
@@ -267,6 +294,7 @@ namespace dmPlatform
             glfwSetWindowSize(window->m_Window, params.m_Width, params.m_Height);
         #endif
 
+            glfwGetWindowContentScale(window->m_Window, &window->m_XScale, &window->m_YScale);
             glfwSetWindowUserPointer(window->m_Window, (void*) window);
             glfwSetWindowSizeCallback(window->m_Window, OnWindowResize);
             glfwSetWindowCloseCallback(window->m_Window, OnWindowClose);
@@ -373,7 +401,7 @@ namespace dmPlatform
 
     float GetDisplayScaleFactor(HWindow window)
     {
-        return dmMath::Max(window->m_Width / window->m_WidthScreen, window->m_Height / window->m_HeightScreen);
+        return dmMath::Max(window->m_XScale, window->m_YScale);
     }
 
     void* AcquireAuxContext(HWindow window)

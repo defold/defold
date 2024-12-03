@@ -1415,7 +1415,7 @@ namespace dmScript
             dmLogError("%s\n%s", lua_tostring(L, -2), lua_tostring(L, -1));
             lua_getfield(L, LUA_GLOBALSINDEX, "debug");
             if (lua_istable(L, -1)) {
-                lua_pushstring(L, SCRIPT_ERROR_HANDLER_VAR);
+                lua_pushliteral(L, SCRIPT_ERROR_HANDLER_VAR);
                 lua_rawget(L, -2);
                 if (lua_isfunction(L, -1)) {
                     lua_pushlstring(L, "lua", 3); // 1st arg: source = 'lua'

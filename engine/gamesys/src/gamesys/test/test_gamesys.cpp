@@ -155,8 +155,8 @@ TEST_P(ResourceTest, TestPreload)
     dmResource::HPreloader pr = dmResource::NewPreloader(m_Factory, resource_name);
     dmResource::Result r;
 
-    uint64_t stop_time = dmTime::GetTime() + 30*10e6;
-    while (dmTime::GetTime() < stop_time)
+    uint64_t stop_time = dmTime::GetMonotonicTime() + 30*10e6;
+    while (dmTime::GetMonotonicTime() < stop_time)
     {
         // Simulate running at 30fps
         r = dmResource::UpdatePreloader(pr, 0, 0, 33*1000);
@@ -258,11 +258,11 @@ static bool UpdateAndWaitUntilDone(
     uint32_t                           timeout_seconds = 1)
 {
     uint64_t timeout = timeout_seconds * 1000000; // microseconds
-    uint64_t stop_time = dmTime::GetTime() + timeout;
+    uint64_t stop_time = dmTime::GetMonotonicTime() + timeout;
     bool tests_done = false;
     while (!tests_done)
     {
-        if (dmTime::GetTime() >= stop_time)
+        if (dmTime::GetMonotonicTime() >= stop_time)
         {
             dmLogError("Test timed out after %f seconds", timeout / 1000000.0f);
             break;
@@ -1511,6 +1511,37 @@ TEST_F(GuiTest, MaxDynamictextures)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+// Test setting gui font
+TEST_F(ResourceTest, ScriptSetFonts)
+{
+    dmGameObject::HInstance go = Spawn(m_Factory, m_Collection, "/gui/goscript.goc", dmHashString64("/go"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
+    ASSERT_NE((void*)0x0, go);
+
+    void* font1 = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/font/valid_font.fontc", (void**) &font1));
+    ASSERT_TRUE(font1 != 0x0);
+
+    void* font2 = 0;
+    ASSERT_EQ(dmResource::RESULT_OK, dmResource::Get(m_Factory, "/font/glyph_bank_test_1.fontc", (void**) &font2));
+    ASSERT_TRUE(font2 != 0x0);
+
+    for (int i = 0; i < 3; ++i)
+    {
+        ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+        // Trigger a render to finalize deletion of the textures
+        dmRender::RenderListBegin(m_RenderContext);
+        dmGameObject::Render(m_Collection);
+
+        dmRender::RenderListEnd(m_RenderContext);
+        dmRender::DrawRenderList(m_RenderContext, 0x0, 0x0, 0x0);
+    }
+
+    dmResource::Release(m_Factory, font1);
+    dmResource::Release(m_Factory, font2);
+
+    ASSERT_TRUE(dmGameObject::Final(m_Collection));
+}
+
 TEST_F(FontTest, GlyphBankTest)
 {
     const char path_font_1[] = "/font/glyph_bank_test_1.fontc";
@@ -1776,8 +1807,8 @@ TEST_P(FactoryTest, Test)
     {
         go_pr = dmResource::NewPreloader(m_Factory, param.m_GOPath);
         dmResource::Result r;
-        uint64_t stop_time = dmTime::GetTime() + 30*10e6;
-        while (dmTime::GetTime() < stop_time)
+        uint64_t stop_time = dmTime::GetMonotonicTime() + 30*10e6;
+        while (dmTime::GetMonotonicTime() < stop_time)
         {
             r = dmResource::UpdatePreloader(go_pr, 0, 0, 16*1000);
             if (r != dmResource::RESULT_PENDING)
@@ -1972,8 +2003,8 @@ TEST_P(CollectionFactoryTest, Test)
     {
         go_pr = dmResource::NewPreloader(m_Factory, param.m_GOPath);
         dmResource::Result r;
-        uint64_t stop_time = dmTime::GetTime() + 30*10e6;
-        while (dmTime::GetTime() < stop_time)
+        uint64_t stop_time = dmTime::GetMonotonicTime() + 30*10e6;
+        while (dmTime::GetMonotonicTime() < stop_time)
         {
             r = dmResource::UpdatePreloader(go_pr, 0, 0, 16*1000);
             if (r != dmResource::RESULT_PENDING)
@@ -2963,10 +2994,10 @@ TEST_F(ComponentTest, DispatchBuffersTest)
             vs_format_a* written_sprite_a = (vs_format_a*) &gfx_vx_buffer->m_Buffer[0];
             vs_format_b* written_sprite_b = (vs_format_b*) &gfx_vx_buffer->m_Buffer[vertex_stride_a * vertex_count + vertex_padding];
 
-            for (int i = 0; i < vertex_count; ++i)
+            for (int j = 0; j < vertex_count; ++j)
             {
-                ASSERT_VTX_A_EQ(sprite_a[i], written_sprite_a[i]);
-                ASSERT_VTX_B_EQ(sprite_b[i], written_sprite_b[i]);
+                ASSERT_VTX_A_EQ(sprite_a[j], written_sprite_a[j]);
+                ASSERT_VTX_B_EQ(sprite_b[j], written_sprite_b[j]);
             }
         }
     }
@@ -3024,10 +3055,10 @@ TEST_F(ComponentTest, DispatchBuffersTest)
             vs_format_a* written_model_a = (vs_format_a*) &gfx_vx_buffer->m_Buffer[0];
             vs_format_b* written_model_b = (vs_format_b*) &gfx_vx_buffer->m_Buffer[vertex_stride_a * vertex_count + vertex_padding];
 
-            for (int i = 0; i < vertex_count; ++i)
+            for (int j = 0; j < vertex_count; ++j)
             {
-                ASSERT_VTX_A_EQ(model_a[i], written_model_a[i]);
-                ASSERT_VTX_B_EQ(model_b[i], written_model_b[i]);
+                ASSERT_VTX_A_EQ(model_a[j], written_model_a[j]);
+                ASSERT_VTX_B_EQ(model_b[j], written_model_b[j]);
             }
         }
     }
@@ -3043,7 +3074,7 @@ TEST_F(ComponentTest, DispatchBuffersTest)
 
         const uint32_t vertex_count   = 6;
         const uint32_t vertex_padding = vertex_stride_b - (vertex_stride_a * vertex_count) % vertex_stride_b;
-        const uint32_t buffer_size    = (vertex_stride_a + vertex_stride_b) * vertex_count + vertex_padding;
+        const uint32_t buffer_size    = vertex_stride_a * (vertex_count + 6) + vertex_stride_b * (vertex_count + 6); // we allocate for an extra particle
         uint8_t buffer[buffer_size];
 
         vs_format_a* pfx_a = (vs_format_a*) &buffer[0];
@@ -3078,10 +3109,10 @@ TEST_F(ComponentTest, DispatchBuffersTest)
             vs_format_a* written_pfx_a = (vs_format_a*) &gfx_vx_buffer->m_Buffer[0];
             vs_format_b* written_pfx_b = (vs_format_b*) &gfx_vx_buffer->m_Buffer[vertex_stride_a * vertex_count + vertex_padding];
 
-            for (int i = 0; i < vertex_count; ++i)
+            for (int j = 0; j < vertex_count; ++j)
             {
-                ASSERT_VTX_A_EQ(pfx_a[i], written_pfx_a[i]);
-                ASSERT_VTX_B_EQ(pfx_b[i], written_pfx_b[i]);
+                ASSERT_VTX_A_EQ(pfx_a[j], written_pfx_a[j]);
+                ASSERT_VTX_B_EQ(pfx_b[j], written_pfx_b[j]);
             }
         }
     }

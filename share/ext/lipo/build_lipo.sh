@@ -64,6 +64,10 @@ case $PLATFORM in
         export GOOS=linux
         export GOARCH=amd64
         ;;
+    arm64-linux)
+        export GOOS=linux
+        export GOARCH=arm64
+        ;;
     *)
         ;;
 esac

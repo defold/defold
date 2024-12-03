@@ -131,7 +131,7 @@ public:
         }
     }
 
-    static void ClientHttpContent(dmHttpClient::HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length)
+    static void ClientHttpContent(dmHttpClient::HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length, const char* method)
     {
         dmHttpServerTest* self = (dmHttpServerTest*) user_data;
         self->m_ClientData.append((const char*) content_data, content_data_size);

@@ -66,9 +66,9 @@ public:
         char tmp[4096];
         dmSoundCodec::HDecodeStream stream;
 
-        const uint64_t time_beg = dmTime::GetTime();
+        const uint64_t time_beg = dmTime::GetMonotonicTime();
         ASSERT_EQ(decoder->m_OpenStream(buf, size, &stream), dmSoundCodec::RESULT_OK);
-        const uint64_t time_open = dmTime::GetTime();
+        const uint64_t time_open = dmTime::GetMonotonicTime();
 
         uint64_t max_chunk_time = 0;
         uint64_t iterations = 0;
@@ -80,7 +80,7 @@ public:
 
             uint32_t decoded;
 
-            const uint64_t chunk_begin = dmTime::GetTime();
+            const uint64_t chunk_begin = dmTime::GetMonotonicTime();
 
             if (skip)
                 decoder->m_SkipInStream(stream, sizeof(tmp), &decoded);
@@ -92,14 +92,14 @@ public:
             if (decoded != sizeof(tmp))
                 break;
 
-            const uint64_t chunk_time = dmTime::GetTime() - chunk_begin;
+            const uint64_t chunk_time = dmTime::GetMonotonicTime() - chunk_begin;
             if (chunk_time > max_chunk_time)
                 max_chunk_time = chunk_time;
         }
 
         const float t2s = 0.000001f;
         const float t2ms = 0.001f;
-        const uint64_t time_done = dmTime::GetTime();
+        const uint64_t time_done = dmTime::GetMonotonicTime();
 
         dmSoundCodec::Info streamInfo;
         decoder->m_GetStreamInfo(stream, &streamInfo);

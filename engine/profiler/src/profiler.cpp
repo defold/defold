@@ -248,7 +248,6 @@ static int EnableProfilerUI(lua_State* L)
  * You can also use the `view_recorded_frame` function to display a recorded frame. Doing so stops the recording as well.
  *
  * Every time you switch to recording mode the recording buffer is cleared.
- * The recording buffer is also cleared when setting the `MODE_SHOW_PEAK_FRAME` mode.
  *
  * @examples
  * ```lua
@@ -597,7 +596,7 @@ static void SampleTreeCallback(void* _ctx, const char* thread_name, dmProfile::H
     DM_MUTEX_SCOPED_LOCK(g_ProfilerMutex);
 
     dmProfileRender::ProfilerFrame* frame = (dmProfileRender::ProfilerFrame*)_ctx;
-    frame->m_Time = dmTime::GetTime();
+    frame->m_Time = dmTime::GetMonotonicTime();
 
     // Prune old profiler threads
     dmProfileRender::PruneProfilerThreads(frame, frame->m_Time - 150000);

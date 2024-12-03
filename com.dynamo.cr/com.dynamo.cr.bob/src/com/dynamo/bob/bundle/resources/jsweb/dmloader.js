@@ -470,7 +470,11 @@ var GameArchiveLoader = {
             EngineLoader.loadAsmJsAsync(exeName);
             totalSize += EngineLoader.asmjs_size;
         }
-        this.downloadContent();
+        if (!Module['isDMFSSupported']) {
+            // we can download in parallel here because we will not rely on FS, otherwise
+            // we have to wait until after the [w]asm is loaded.
+            this.downloadContent();
+        }
         ProgressUpdater.resetCurrent();
         if (isWASMSupported) {
             EngineLoader.updateWasmInstantiateProgress(totalSize);
@@ -478,18 +482,45 @@ var GameArchiveLoader = {
         ProgressUpdater.setupTotal(totalSize + EngineLoader.wasm_instantiate_progress);
     },
 
-    downloadContent: function() {
+    downloadContent: async function() {
         var file = this._files[this._fileIndex];
-        // if the file consists of more than one piece we prepare an array to store the pieces in
-        if (file.pieces.length > 1) {
-            file.data = new Uint8Array(file.size);
+
+        if (Module['isDMFSSupported']) {
+            const path = `${DMSYS.GetUserPersistentDataRoot()}/${file.name}`;
+            try { // see if already and stored
+                const stat = FS.stat(path);
+                if(stat) {
+                    let matches = (file.size == stat.size)
+                    if (matches && file.sha1) {
+                        const stream = FS.open(path, "r");
+                        if(stream) {
+                            try {
+                                const mmap = FS.mmap(stream, stat.size, 0, 0x01, 0x01); //PROT_READ, MAP_SHARED
+                                if(mmap) {
+                                    const digest = await window.crypto.subtle.digest("SHA-1", mmap);
+                                    matches = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('') == file.sha1;
+                                }
+                            } catch(e) { }
+                            FS.close(stream);
+                        } else {
+                            matches = false;
+                        }
+                    }
+                    if (matches) {
+                        this.onFileLoaded(file);
+                        return;
+                    }
+                }
+            } catch(_e) { }
+            file.stream = FS.open(path, "w+");
         }
+
         // how many pieces to download at a time
         var limit = file.pieces.length;
         if (typeof this.MAX_CONCURRENT_XHR !== 'undefined') {
             limit = Math.min(limit, this.MAX_CONCURRENT_XHR);
         }
-        // download pieces
+
         for (var i=0; i<limit; ++i) {
             this.downloadPiece(file, i);
         }
@@ -532,9 +563,14 @@ var GameArchiveLoader = {
     },
 
     addPieceToFile: function(file, piece) {
-        if (1 == file.pieces.length) {
+        if (file.stream !== undefined) {
+            FS.write(file.stream, piece.data, 0, piece.data.length, piece.offset);
+        } else if (1 == file.pieces.length) {
             file.data = piece.data;
         } else {
+            if(!file.data) {
+               file.data = new Uint8Array(file.size);
+            }
             var start = piece.offset;
             var end = start + piece.data.length;
             if (0 > start) {
@@ -553,7 +589,16 @@ var GameArchiveLoader = {
         ++file.totalLoadedPieces;
         // is all pieces of the file loaded?
         if (file.totalLoadedPieces == file.pieces.length) {
-            this.onFileLoaded(file);
+            this.verifyFile(file).then(() => {
+                if (file.stream !== undefined) {
+                    FS.close(file.stream);
+                    file.stream = undefined;
+                }
+                this.onFileLoaded(file);
+            }).catch((e) => {
+                console.log('file verification failed! ' + e);
+                throw e;
+            });
         }
         // continue loading more pieces of the file
         // if not all pieces are already in progress
@@ -572,7 +617,7 @@ var GameArchiveLoader = {
             actualSize += file.pieces[i].dataLength;
         }
         if (actualSize != file.size) {
-            throw "Unexpected data size: " + file.name + ", expected size: " + file.size + ", actual size: " + actualSize;
+            return Promise.reject(new Error("Unexpected data size: " + file.name + ", expected size: " + file.size + ", actual size: " + actualSize));
         }
 
         // verify the pieces
@@ -586,21 +631,35 @@ var GameArchiveLoader = {
                 if (0 < i) {
                     var previous = pieces[i - 1];
                     if (previous.offset + previous.dataLength > start) {
-                        throw RangeError("Segment underflow in file: " + file.name + ", offset: " + (previous.offset + previous.dataLength) + " , start: " + start);
+                        return Promise.reject(new RangeError("Segment underflow in file: " + file.name + ", offset: " + (previous.offset + previous.dataLength) + " , start: " + start));
                     }
                 }
                 if (pieces.length - 2 > i) {
                     var next = pieces[i + 1];
                     if (end > next.offset) {
-                        throw RangeError("Segment overflow in file: " + file.name + ", offset: " + next.offset + ", end: " + end);
+                        return Promise.reject(new RangeError("Segment overflow in file: " + file.name + ", offset: " + next.offset + ", end: " + end));
                     }
                 }
             }
         }
+        if(file.sha1) {
+            let data = file.data;
+            if(file.stream) {
+                try {
+                    data = FS.mmap(file.stream, file.size, 0, 0x01, 0x01); //PROT_READ, MAP_SHARED
+                } catch(e) { }
+            }
+            return window.crypto.subtle.digest("SHA-1", data).then((digest) => {
+                const sha1 = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+                if(sha1 !== file.sha1)
+                    return Promise.reject(new Error(`Unexpected hash ${sha1} wanted ${file.sha1}`));
+                return;
+            });
+        }
+        return Promise.resolve();
     },
 
     onFileLoaded: function(file) {
-        this.verifyFile(file);
         this.notifyFileLoaded(file);
         ++this._fileIndex;
         if (this._fileIndex == this._files.length) {
@@ -737,6 +796,7 @@ var Module = {
     _archiveLoaded: false,
     _preLoadDone: false,
     _isEngineLoaded: false,
+    _isMainCalled: false,
 
     // Persistent storage
     persistentStorage: true,
@@ -752,6 +812,13 @@ var Module = {
     printErr: function(text) { console.error(text); },
 
     setStatus: function(text) { console.log(text); },
+
+    isDMFSSupported: (function() {
+        // DMFS is meant as a mount for FS to provide another way to acess resources, by default we just use IDBFS
+        if(typeof DMFS === "undefined")
+            return false;
+        return true;
+    })(),
 
     isWASMSupported: (function() {
         try {
@@ -801,22 +868,6 @@ var Module = {
         return { stack:stack, message:message };
     },
 
-    hasWebGPUSupport: function() {
-        var webgpu_support = false;
-        try {
-            var canvas = document.createElement("canvas");
-            var webgpu = canvas.getContext("webgpu");
-            if (webgpu && webgpu instanceof WebGPURenderingContext) {
-                webgpu_support = true;
-            }
-        } catch (error) {
-            console.log("An error occurred while detecting WebGPU support: " + error);
-            webgpu_support = false;
-        }
-
-        return webgpu_support;
-    },
-
     hasWebGLSupport: function() {
         var webgl_support = false;
         try {
@@ -846,6 +897,10 @@ var Module = {
     * Module.runApp - Starts the application given a canvas element id
     **/
     runApp: function(appCanvasId, _) {
+        window.addEventListener("error", (errorEvent) => {
+            var errorObject = Module.prepareErrorObject(errorEvent.message, errorEvent.filename, errorEvent.lineno, errorEvent.colno, errorEvent.error);
+            Module.ccall('JSWriteDump', 'null', ['string'], [JSON.stringify(errorObject.stack)]);
+        });
         Module._isEngineLoaded = true;
         Module.setupCanvas(appCanvasId);
 
@@ -857,9 +912,16 @@ var Module = {
         }
         Module.fullScreenContainer = fullScreenContainer || Module.canvas;
 
-        if (Module.hasWebGPUSupport() || Module.hasWebGLSupport()) {
+        if (Module.hasWebGLSupport()) {
             Module.canvas.focus();
 
+            Module.canvas.addEventListener("webglcontextlost", function(event) {
+                event.preventDefault();
+                dmRenderer.rendererContextEvent(dmRenderer.CONTEXT_LOST_EVENT);
+            }, false);
+            Module.canvas.addEventListener("webglcontextrestored", function(event) {
+                dmRenderer.rendererContextEvent(dmRenderer.CONTEXT_RESTORED_EVENT);
+            }, false);
             // Add context menu hide-handler if requested
             if (CUSTOM_PARAMETERS["disable_context_menu"])
             {
@@ -882,7 +944,9 @@ var Module = {
     },
 
     onArchiveFileLoaded: function(file) {
-        Module._filesToPreload.push({path: file.name, data: file.data});
+        if (file.data) {
+            Module._filesToPreload.push({path: file.name, data: file.data});
+        }
     },
 
     onArchiveLoaded: function() {
@@ -908,14 +972,17 @@ var Module = {
         FS.syncfs(true, function(err) {
             if (err) {
                 Module._syncTries += 1;
-                console.warn("Unable to synchronize mounted file systems: " + err);
+                console.info(`Unable to synchronize mounted file systems (attempt ${Module._syncTries} of ${Module._syncMaxTries}): `, err);
                 if (Module._syncMaxTries > Module._syncTries) {
                     Module.preSync(done);
                 } else {
+                    console.warn("Mounted system wasn't synchronized. Retry count was exceeded.");
+                    Module._syncTries = 0;
                     Module._syncInitial = true;
                     done();
                 }
             } else {
+                Module._syncTries = 0;
                 Module._syncInitial = true;
                 if (done !== undefined) {
                     done();
@@ -966,18 +1033,25 @@ var Module = {
             return;
         }
 
-        // If IndexedDB is supported we mount the persistent data root as IDBFS,
-        // then try to do a IDB->MEM sync before we start the engine to get
-        // previously saved data before boot.
         try {
-            FS.mount(IDBFS, {}, dir);
+            if (Module['isDMFSSupported']) {
+                // In DMFS mode we will use that as our mountpoint and make sure that all
+                // relative paths point into there.
+                FS.mount(new DMFS(CUSTOM_PARAMETERS['exe_name']), {}, dir);
+                FS.chdir(dir);
+            } else {
+                // If IndexedDB is supported we mount the persistent data root as IDBFS,
+                // then try to do a IDB->MEM sync before we start the engine to get
+                // previously saved data before boot.
+                FS.mount(IDBFS, {}, dir);
+            }
             // Patch FS.close so it will try to sync MEM->IDB
             var _close = FS.close;
             FS.close = function(stream) {
                 var r = _close(stream);
                 Module.persistentSync();
                 return r;
-            }
+            };
         }
         catch (error) {
             Module.persistentStorage = false;
@@ -1001,6 +1075,9 @@ var Module = {
     postRun: [function() {
         if(Module._archiveLoaded) {
             ProgressView.removeProgress();
+        } else if (Module['isDMFSSupported']) {
+            // kick off the content download now that we have FS access
+            GameArchiveLoader.downloadContent();
         }
     }],
 
@@ -1020,11 +1097,16 @@ var Module = {
     },
 
     _callMain: function(_, _) {
-        ProgressView.removeProgress();
-        if (Module.callMain === undefined) {
-            Module.noInitialRun = false;
+        if (!Module._isMainCalled) {
+            Module._isMainCalled = true;
+            ProgressView.removeProgress();
+            if (Module.callMain === undefined) {
+                Module.noInitialRun = false;
+            } else {
+                Module.callMain(Module.arguments);
+            }
         } else {
-            Module.callMain(Module.arguments);
+            console.warn("Main was called several times!");
         }
     },
     // Wrap IDBFS syncfs call with logic to avoid multiple syncs
@@ -1037,8 +1119,10 @@ var Module = {
                 Module._syncInProgress = false;
 
                 if (err) {
-                    console.warn("Unable to synchronize mounted file systems: " + err);
+                    console.info(`Unable to synchronize mounted file systems (attempt ${Module._syncTries} of ${Module._syncMaxTries}): `, err);
                     Module._syncTries += 1;
+                } else {
+                    Module._syncTries = 0;
                 }
 
                 if (Module._syncNeeded) {
@@ -1047,6 +1131,9 @@ var Module = {
                 }
 
             });
+        } else {
+            console.warn("Mounted system wasn't synchronized. Retry count was exceeded.");
+            Module._syncTries = 0;
         }
     },
 };
@@ -1074,13 +1161,9 @@ Module["locateFile"] = function(path, scriptDirectory)
 Module["isWASMSupported"] = false; 
 {{/DEFOLD_HAS_WASM_ENGINE}}
 
-window.onerror = function(err, url, line, column, errObj) {
-    if (typeof Module.ccall !== 'undefined') {
-        var errorObject = Module.prepareErrorObject(err, url, line, column, errObj);
-        Module.ccall('JSWriteDump', 'null', ['string'], [JSON.stringify(errorObject.stack)]);
-    }
+window.addEventListener("error", (errorEvent) => {
     Module.setStatus('Exception thrown, see JavaScript console');
     Module.setStatus = function(text) {
         if (text) Module.printErr('[post-exception status] ' + text);
     };
-};
+});

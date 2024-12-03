@@ -15,7 +15,7 @@
 (ns integration.test-util
   (:require [clojure.java.io :as io]
             [clojure.string :as string]
-            [clojure.test :refer [is testing]]
+            [clojure.test :as test :refer [is testing]]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
             [editor.atlas :as atlas]
@@ -180,8 +180,13 @@
       (let [^String file-name decl]
         (spit (io/file entry file-name) (.toString (UUID/randomUUID)))))))
 
+(defn make-build-stage-test-prefs []
+  (prefs/global "test/resources/test.editor_settings"))
+
+(defonce shared-test-prefs-file (fs/create-temp-file! "unit-test" "prefs.editor_settings"))
 (defn make-test-prefs []
-  (prefs/load-prefs "test/resources/test_prefs.json"))
+  (prefs/make :scopes {:global shared-test-prefs-file :project shared-test-prefs-file}
+              :schemas [:default]))
 
 (declare resolve-prop)
 
@@ -412,7 +417,7 @@
 
 (defn open-scene-view! [project app-view path width height]
   (make-tab! project app-view path (fn [view-graph resource-node]
-                                     (scene/make-preview view-graph resource-node {:prefs (make-test-prefs) :app-view app-view :project project :select-fn (partial app-view/select app-view)} width height))))
+                                     (scene/make-preview view-graph resource-node {:prefs (make-build-stage-test-prefs) :app-view app-view :project project :select-fn (partial app-view/select app-view)} width height))))
 
 (defn close-tab! [project app-view path]
   (let [node-id (project/get-resource-node project path)
@@ -788,52 +793,6 @@
          (finally
            (prop! ~node-id# ~property# old-value#))))))
 
-(defn make-call-logger
-  "Returns a function that keeps track of its invocations. Every
-  time it is called, the call and its arguments are stored in the
-  metadata associated with the returned function. If fn f is
-  supplied, it will be invoked after the call is logged."
-  ([]
-   (make-call-logger (constantly nil)))
-  ([f]
-   (let [calls (atom [])]
-     (with-meta (fn [& args]
-                  (swap! calls conj args)
-                  (apply f args))
-                {::calls calls}))))
-
-(defn call-logger-calls
-  "Given a function obtained from make-call-logger, returns a
-  vector of sequences containing the arguments for every time it
-  was called."
-  [call-logger]
-  (-> call-logger meta ::calls deref))
-
-(defmacro with-logged-calls
-  "Temporarily redefines the specified functions into call-loggers
-  while executing the body. Returns a map of functions to the
-  result of (call-logger-calls fn). Non-invoked functions will not
-  be included in the returned map.
-
-  Example:
-  (with-logged-calls [print println]
-    (println :a)
-    (println :a :b))
-  => {#object[clojure.core$println] [(:a)
-                                     (:a :b)]}"
-  [var-symbols & body]
-  `(let [binding-map# ~(into {}
-                             (map (fn [var-symbol]
-                                    `[(var ~var-symbol) (make-call-logger)]))
-                             var-symbols)]
-     (with-redefs-fn binding-map# (fn [] ~@body))
-     (into {}
-           (keep (fn [[var# call-logger#]]
-                   (let [calls# (call-logger-calls call-logger#)]
-                     (when (seq calls#)
-                       [(deref var#) calls#]))))
-           binding-map#)))
-
 (def temp-directory-path
   (memoize
     (fn temp-directory-path []
@@ -938,7 +897,7 @@
                       :node-type (g/node-type* basis node-id)})))))
 
 (defn- created-node [select-fn-call-logger]
-  (let [calls (call-logger-calls select-fn-call-logger)
+  (let [calls (fn/call-logger-calls select-fn-call-logger)
         args (last calls)
         selection (first args)
         node-id (first selection)]
@@ -949,7 +908,7 @@
   node. Returns the id of the added ReferencedComponent node."
   [game-object-or-instance-id component-resource]
   (let [game-object-id (to-game-object-node-id game-object-or-instance-id)
-        select-fn (make-call-logger)]
+        select-fn (fn/make-call-logger)]
     (game-object/add-referenced-component! game-object-id component-resource select-fn)
     (created-node select-fn)))
 
@@ -958,7 +917,7 @@
   node. Returns the id of the added EmbeddedComponent node."
   [game-object-or-instance-id resource-type]
   (let [game-object-id (to-game-object-node-id game-object-or-instance-id)
-        select-fn (make-call-logger)]
+        select-fn (fn/make-call-logger)]
     (game-object/add-embedded-component! game-object-id resource-type select-fn)
     (created-node select-fn)))
 
@@ -970,7 +929,7 @@
      (add-referenced-game-object! collection-id collection-id game-object-resource)))
   ([collection-or-instance-id parent-id game-object-resource]
    (let [collection-id (to-collection-node-id collection-or-instance-id)
-         select-fn (make-call-logger)]
+         select-fn (fn/make-call-logger)]
      (collection/add-referenced-game-object! collection-id parent-id game-object-resource select-fn)
      (created-node select-fn))))
 
@@ -984,7 +943,7 @@
    (let [collection-id (to-collection-node-id collection-or-instance-id)
          project (project/get-project collection-id)
          workspace (project/workspace project)
-         select-fn (make-call-logger)]
+         select-fn (fn/make-call-logger)]
      (collection/add-embedded-game-object! workspace project collection-id parent-id select-fn)
      (created-node select-fn))))
 
@@ -996,7 +955,7 @@
         id (resource/base-name collection-resource)
         transform-properties nil
         overrides nil
-        select-fn (make-call-logger)]
+        select-fn (fn/make-call-logger)]
     (collection/add-referenced-collection! collection-id collection-resource id transform-properties overrides select-fn)
     (created-node select-fn)))
 
@@ -1636,3 +1595,16 @@
             save-text (resource-node/save-data-content save-data)]
         ;; Compare text.
         (check-text-equivalence! disk-text save-text message)))))
+
+(defmethod test/assert-expr 'thrown-with-data? [msg [_ expected-data-pred & body :as form]]
+  `(try
+     (do ~@body)
+     (test/do-report {:type :fail :message ~msg :expected '~form :actual nil})
+     (catch Throwable e#
+       (let [actual-data# (ex-data e#)
+             result# (if (~expected-data-pred actual-data#) :pass :fail)]
+         (test/do-report {:type result# :message ~msg :expected '~form :actual e#})
+         e#))))
+
+(defmacro check-thrown-with-data! [expected-data-pred & body]
+  `(is (~'thrown-with-data? ~expected-data-pred ~@body)))

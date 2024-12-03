@@ -262,13 +262,14 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             debugPrintShaderReflection("Reflection Test 0", r);
 
             // Note: When we don't specify a version and the uniforms are not packed in constant buffers,
-            //       we wrap them around generated uniform buffers, which requires us to dig out the type infomartion like this:
+            //       we wrap them around generated uniform buffers, which requires us to dig out the type information like this:
             ShaderDesc.ResourceBinding binding_test = r.getUniformBuffers(0);
             ShaderDesc.ResourceTypeInfo binding_type = r.getTypes(binding_test.getType().getTypeIndex());
             ShaderDesc.ResourceMember binding_type_member = binding_type.getMembers(0);
             assertEquals("u_lights", binding_type_member.getName());
 
             ShaderDesc.ResourceTypeInfo lights_binding_type = r.getTypes(binding_type_member.getType().getTypeIndex());
+
             assertEquals("Light", lights_binding_type.getName());
             assertEquals(3, lights_binding_type.getMembersCount());
 
@@ -323,30 +324,30 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         // Shared shader for split/non-split sampler tests:
         String fs_sampler_type_src =
             "#version 430\n" +
-                    "uniform sampler2D sampler_2d;\n" +
-                    "uniform sampler2DArray sampler_2d_array;\n" +
-                    "uniform samplerCube sampler_cube;\n" +
-                    // TODO:
-                    //"uniform samplerBuffer sampler_buffer;\n" +
-                    "uniform texture2D texture_2d;\n" +
-                    "uniform utexture2D utexture_2d;\n" +
-                    "uniform layout(rgba8ui) uimage2D uimage_2d;\n" +
-                    "uniform layout(rgba32f) image2D image_2d;\n" +
-                    "uniform sampler sampler_name;\n" +
-                    "out vec4 color_out;\n" +
-                    "void main()\n" +
-                    "{\n" +
-                    "   color_out  = vec4(0.0);\n" +
-                    "   color_out += texture(sampler_2d, vec2(0.0));\n" +
-                    "   color_out += texture(sampler_2d_array, vec3(0.0));\n" +
-                    "   color_out += texture(sampler_cube, vec3(0.0));\n" +
-                    // TODO:
-                    //"   color_out += texelFetch(sampler_buffer, 0);\n" +
-                    "   color_out += texture(sampler2D(texture_2d, sampler_name), vec2(0.0));\n" +
-                    "   color_out += texture(usampler2D(utexture_2d, sampler_name), vec2(0));\n" +
-                    "   color_out += imageLoad(uimage_2d, ivec2(0));\n" +
-                    "   color_out += imageLoad(image_2d, ivec2(0));\n" +
-                    "}\n";
+            "uniform sampler2D sampler_2d;\n" +
+            "uniform sampler2DArray sampler_2d_array;\n" +
+            "uniform samplerCube sampler_cube;\n" +
+            // TODO:
+            //"uniform samplerBuffer sampler_buffer;\n" +
+            "uniform texture2D texture_2d;\n" +
+            "uniform utexture2D utexture_2d;\n" +
+            "uniform layout(rgba8ui) uimage2D uimage_2d;\n" +
+            "uniform layout(rgba32f) image2D image_2d;\n" +
+            "uniform sampler sampler_name;\n" +
+            "out vec4 color_out;\n" +
+            "void main()\n" +
+            "{\n" +
+            "   color_out  = vec4(0.0);\n" +
+            "   color_out += texture(sampler_2d, vec2(0.0));\n" +
+            "   color_out += texture(sampler_2d_array, vec3(0.0));\n" +
+            "   color_out += texture(sampler_cube, vec3(0.0));\n" +
+            // TODO:
+            //"   color_out += texelFetch(sampler_buffer, 0);\n" +
+            "   color_out += texture(sampler2D(texture_2d, sampler_name), vec2(0.0));\n" +
+            "   color_out += texture(usampler2D(utexture_2d, sampler_name), vec2(0));\n" +
+            "   color_out += imageLoad(uimage_2d, ivec2(0));\n" +
+            "   color_out += imageLoad(image_2d, ivec2(0));\n" +
+            "}\n";
 
 
         // Test non-split samplers
@@ -755,6 +756,20 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
     }
 
     @Test
+    public void testCarriageReturn() throws Exception {
+        String src =
+            "#version 140 \r\n" +
+            "\r\n" +
+            "void main(){\r\n" +
+            "   gl_FragColor = vec4(1.0); \r\n" +
+            "}\r\n";
+
+        List<Message> outputs = build("/test_shader_cr.fp", src);
+        ShaderDesc shaderDesc = (ShaderDesc) outputs.get(0);
+        assertTrue(shaderDesc.getShadersCount() > 0);
+    }
+
+    @Test
     public void testShaderCompilePipelines() throws Exception {
         String shaderNewPipeline =
             """
@@ -798,5 +813,18 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         s = shaderDesc.getReflection();
         assertEquals("tint", s.getTypes(0).getMembers(0).getName());
         assertEquals("_DMENGINE_GENERATED_UB_FS_0", s.getUniformBuffers(0).getName());
+    }
+
+    @Test
+    public void testNativeReflectionAPI() throws Exception {
+        byte[] spvSimple = getFile("simple.spv");
+        assertTrue(spvSimple != null);
+
+        long ctx = ShadercJni.NewShaderContext(spvSimple);
+        Shaderc.ShaderReflection reflection = ShadercJni.GetReflection(ctx);
+
+        assertEquals("FragColor", reflection.outputs[0].name);
+
+        ShadercJni.DeleteShaderContext(ctx);
     }
 }

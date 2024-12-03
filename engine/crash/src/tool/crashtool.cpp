@@ -189,7 +189,7 @@ uintptr_t GetProcessBaseAddress(PlatformInfo& pinfo, DWORD processID)
             MODULEINFO info;
             if (GetModuleInformation(process, mods[i], &info, sizeof(info)))
             {
-            fprintf(stderr, "  size: 0x%08x\n", (uintptr_t)info.lpBaseOfDll);
+            fprintf(stderr, "  size: 0x%08x\n", info.SizeOfImage);
             }
         }
     }
