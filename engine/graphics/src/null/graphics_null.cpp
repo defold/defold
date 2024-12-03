@@ -822,6 +822,8 @@ namespace dmGraphics
     {
         NullProgram* program = (NullProgram*) _program;
 
+        delete[] program->m_UniformData;
+
         DestroyProgram(&program->m_BaseProgram);
 
         delete program;
