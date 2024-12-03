@@ -23,6 +23,8 @@ BUILD_DIR=${PWD}/build/${PLATFORM}
 
 . ../common.sh
 
+cmi_setup_cc $PLATFORM
+
 if [ -z "$PLATFORM" ]; then
     echo "No platform specified!"
     exit 1
@@ -67,7 +69,7 @@ case $PLATFORM in
         LIB_NAME=libastcenc-sse4.1-static.a
         ;;
     x86_64-linux)
-        LIB_NAME=TODO
+        LIB_NAME=libastcenc-native-static.a
         ;;
     x86_64-win32)
         LIB_NAME=Release/astcenc-native-static.lib
