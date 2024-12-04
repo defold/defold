@@ -432,10 +432,11 @@ TEST_P(TexcCompileTest, EncodeASTC)
     dmTexc::ASTCEncodeSettings settings;
     memset(&settings, 0, sizeof(settings));
 
+    // Note: We can't use the pixel format from the params.
     settings.m_Path        = info.m_Path;
     settings.m_Width       = m_Width;
     settings.m_Height      = m_Height;
-    settings.m_PixelFormat = info.m_InputFormat;
+    settings.m_PixelFormat = dmTexc::PF_RGBA_ASTC_4x4;
     settings.m_ColorSpace  = info.m_ColorSpace;
     settings.m_Data        = m_Image->m_Data;
     settings.m_DataCount   = m_Image->m_DataCount;
