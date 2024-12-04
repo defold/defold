@@ -60,6 +60,7 @@ namespace dmSound
         RESULT_FINI_ERROR         = -16,   //!< RESULT_FINI_ERROR
         RESULT_NO_DATA            = -17,   //!< RESULT_NO_DATA
         RESULT_PARTIAL_DATA       = -18,   //!< RESULT_PAARTIAL_DATA
+        RESULT_END_OF_STREAM      = -19,   //!< RESULT_END_OF_STREAM
         RESULT_UNKNOWN_ERROR      = -1000, //!< RESULT_UNKNOWN_ERROR
     };
 
