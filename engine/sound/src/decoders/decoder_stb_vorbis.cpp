@@ -23,7 +23,8 @@
 #include "sound_codec.h"
 #include "sound_decoder.h"
 
-#define STREAM_BLOCK_SIZE   (64 << 10)           // note: we assume this to be large enough to ALWAYS contain all data needed for stream initialization (and always be present on stream startup)
+#define STREAM_BLOCK_SIZE   (16 << 10)          // notes: - we assume this to be large enough to ALWAYS contain all data needed for stream initialization (and always be present on stream startup)
+                                                //        - OggVorbis usually has blocks up to 8K-sh at maximum, but might go as high as 64K - this would FAIL currently (but practically we say WAY smaller sizes; hence the current value)
 
 namespace dmSoundCodec
 {
@@ -63,41 +64,35 @@ dmLogWarning("@@@ STB DECODER");
 
         if (res != dmSound::RESULT_NO_DATA) {
             streamInfo->m_DataBuffer.SetSize(read_size);
+            streamInfo->m_StreamOffset = read_size;
 
             int error, consumed;
-            stb_vorbis * vorbis = NULL;
-            while(1)
-            {
-                vorbis = stb_vorbis_open_pushdata(streamInfo->m_DataBuffer.Begin(), (int)streamInfo->m_DataBuffer.Size(), &consumed, &error, NULL);
-                if (vorbis) {
-                    CleanupBuffer(streamInfo->m_DataBuffer, consumed);
+            stb_vorbis *vorbis = stb_vorbis_open_pushdata(streamInfo->m_DataBuffer.Begin(), (int)streamInfo->m_DataBuffer.Size(), &consumed, &error, NULL);
+            if (vorbis) {
+                CleanupBuffer(streamInfo->m_DataBuffer, consumed);
 
-                    streamInfo->m_SoundData = sound_data;
-                    streamInfo->m_StreamOffset = consumed;
-                    streamInfo->m_LastOutput = NULL;
-                    
-                    stb_vorbis_info info = stb_vorbis_get_info(vorbis);
+                streamInfo->m_SoundData = sound_data;
+                streamInfo->m_LastOutput = NULL;
+                
+                stb_vorbis_info info = stb_vorbis_get_info(vorbis);
 
-                    streamInfo->m_Info.m_Rate = info.sample_rate;
-                    streamInfo->m_Info.m_Size = 0;
-                    streamInfo->m_Info.m_Channels = info.channels;
-                    streamInfo->m_Info.m_BitsPerSample = 16;
-                    streamInfo->m_StbVorbis = vorbis;
+                streamInfo->m_Info.m_Rate = info.sample_rate;
+                streamInfo->m_Info.m_Size = 0;
+                streamInfo->m_Info.m_Channels = info.channels;
+                streamInfo->m_Info.m_BitsPerSample = 16;
+                streamInfo->m_StbVorbis = vorbis;
 
-                    streamInfo->m_NumSamples = (uint32_t)stb_vorbis_stream_length_in_samples(vorbis);
+                streamInfo->m_NumSamples = (uint32_t)stb_vorbis_stream_length_in_samples(vorbis);
 
-                    *stream = streamInfo;
-                    return RESULT_OK;
-                } else {
-                    if (error != VORBIS_need_more_data) {
-                        dmLogWarning("Vorbis data seems to be invalid!");
-                        break;
-                    }
+                *stream = streamInfo;
+                return RESULT_OK;
+            }
 
-                    // Now would be the time to present even more data to the decoder to startup decoding - but we fail as we assume our initial block always being large enough
-                    dmLogWarning("Vorbis needs more data to be initialized than expected!");
-                    break;
-                }
+            if (error != VORBIS_need_more_data) {
+                dmLogWarning("Vorbis data seems to be invalid!");
+            } else {
+                // Now would be the time to present even more data to the decoder to startup decoding - but we fail as we assume our initial block always being large enough
+                dmLogWarning("Vorbis needs more data to be initialized than expected!");
             }
         }
 
@@ -119,7 +114,7 @@ dmLogWarning("@@@ STB DECODER");
 
         for(uint32_t c=0; c<channels; ++c) {
             for(uint32_t f=0; f<frames; ++f) {
-                out[(f << s) + c] = f32_to_s16(data[c][f]);
+                out[(f << s) + c] = f32_to_s16(data[c][f + offset]);
             }
         }
     }
@@ -133,6 +128,8 @@ dmLogWarning("@@@ STB DECODER");
         int needed_frames = buffer_size / (streamInfo->m_Info.m_Channels * sizeof(int16_t));
         int done_frames = 0;
 
+        bool bEOS = false;
+
         while (done_frames < needed_frames) {
 
             // Do we still have output from the last decode?
@@ -144,13 +141,14 @@ dmLogWarning("@@@ STB DECODER");
                 if (!streamInfo->m_DataBuffer.Full()) {
                     uint32_t read_bytes;
                     dmSound::Result res = dmSound::SoundDataRead(streamInfo->m_SoundData, streamInfo->m_StreamOffset, STREAM_BLOCK_SIZE - streamInfo->m_DataBuffer.Size(), streamInfo->m_DataBuffer.End(), &read_bytes);
-                    if (res == dmSound::RESULT_OK && res == dmSound::RESULT_PARTIAL_DATA) {
+                    if (res == dmSound::RESULT_OK || res == dmSound::RESULT_PARTIAL_DATA) {
                         streamInfo->m_StreamOffset += read_bytes;
                         streamInfo->m_DataBuffer.SetSize(streamInfo->m_DataBuffer.Size() + read_bytes);
-                    } else if (res != dmSound::RESULT_NO_DATA) {
+                    } else if (res != dmSound::RESULT_NO_DATA && res != dmSound::RESULT_END_OF_STREAM) {
                         return RESULT_DECODE_ERROR;
                     } else {
                         bInputDry = true;
+                        bEOS = (res == dmSound::RESULT_END_OF_STREAM);
                     }
                 }
 
@@ -158,6 +156,7 @@ dmLogWarning("@@@ STB DECODER");
                 int channels;
                 int consumed = stb_vorbis_decode_frame_pushdata(streamInfo->m_StbVorbis, streamInfo->m_DataBuffer.Begin(), streamInfo->m_DataBuffer.Size(), &channels, &streamInfo->m_LastOutput, &streamInfo->m_LastOutputFrames);
                 if (consumed < 0) {
+                    dmLogWarning("Vorbis decoder returned error code %d.", consumed);
                     return RESULT_DECODE_ERROR;
                 }
 
@@ -202,12 +201,18 @@ dmLogWarning("@@@ STB DECODER");
 
         *decoded = done_frames * streamInfo->m_Info.m_Channels * sizeof(int16_t);
 
-        return RESULT_OK;
+        return bEOS ? RESULT_END_OF_STREAM : RESULT_OK;
     }
 
     static Result StbVorbisResetStream(HDecodeStream stream)
     {
-        stb_vorbis_flush_pushdata(((DecodeStreamInfo*)stream)->m_StbVorbis);
+        DecodeStreamInfo *streamInfo = (DecodeStreamInfo *) stream;
+
+        stb_vorbis_flush_pushdata(streamInfo->m_StbVorbis);
+
+        streamInfo->m_LastOutput = NULL;
+        streamInfo->m_StreamOffset = 0;
+        streamInfo->m_DataBuffer.SetSize(0);
         return RESULT_OK;
     }
 
@@ -245,9 +250,8 @@ dmLogWarning("@@@ STB DECODER");
         return stb_vorbis_get_sample_offset(streamInfo->m_StbVorbis);
     }
 
-//HACK: ENSURE THIS IS THE OGG DECODER FOR NOW!
     DM_DECLARE_SOUND_DECODER(AudioDecoderStbVorbis, "VorbisDecoderStb", FORMAT_VORBIS,
-                             10, //5, // baseline score (1-10)
+                             5, // baseline score (1-10)
                              StbVorbisOpenStream, StbVorbisCloseStream, StbVorbisDecode,
                              StbVorbisResetStream, StbVorbisSkipInStream, StbVorbisGetInfo,
                              StbVorbisGetInternalPos);

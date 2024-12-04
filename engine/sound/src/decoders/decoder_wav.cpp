@@ -248,7 +248,7 @@ dmLogWarning("@@@ WAV DECODER");
         {
             *decoded = 0;
         }
-        return RESULT_OK;
+        return (res == dmSound::RESULT_END_OF_STREAM) ? RESULT_END_OF_STREAM : RESULT_OK;
     }
 
     static Result WavSkipInStream(HDecodeStream stream, uint32_t bytes, uint32_t* skipped)
