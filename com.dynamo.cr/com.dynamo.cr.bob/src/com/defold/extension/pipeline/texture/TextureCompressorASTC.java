@@ -18,7 +18,7 @@ import com.dynamo.bob.pipeline.Texc;
 import com.dynamo.bob.pipeline.TexcLibraryJni;
 
 /**
- * Implementation of our base texture compressor, using BasisU
+ * Implementation of our base texture compressor, using ASTC encoding
  */
 public class TextureCompressorASTC implements ITextureCompressor {
 
@@ -56,7 +56,8 @@ public class TextureCompressorASTC implements ITextureCompressor {
 
     public byte[] compress(TextureCompressorPreset preset, TextureCompressorParams params, byte[] input)
     {
-        System.out.printf(String.format("Compressing using compressor '%s' and preset '%s'\n", getName(), preset.getName()));
+        // Debug
+        // System.out.printf(String.format("Compressing using compressor '%s' and preset '%s'\n", getName(), preset.getName()));
 
         Texc.ASTCEncodeSettings settings = new Texc.ASTCEncodeSettings();
         settings.path = params.getPath();

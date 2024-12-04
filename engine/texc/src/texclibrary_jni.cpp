@@ -242,16 +242,6 @@ JNIEXPORT jobject JNICALL Java_TexcLibraryJni_ASTCEncode(JNIEnv* env, jclass cls
             return 0;
         }
 
-        // todo: support debug prints etc from commandline/environment variables
-        // printf("BasisUEncode:\n");
-        // printf("    path: %s\n",  input.m_Path?input.m_Path:"null");
-        // printf("   width: %d\n", input.m_Width);
-        // printf("  height: %d\n", input.m_Height);
-        // printf("      pf: %d\n", input.m_PixelFormat);
-        // printf("      cs: %d\n", input.m_ColorSpace);
-        // printf("    data: %p\n", input.m_Data);
-        // printf("      sz: %u\n", input.m_DataCount);
-
         uint8_t* out = 0;
         uint32_t out_size = 0;
         result = dmTexc::ASTCEncode(&input, &out, &out_size);
