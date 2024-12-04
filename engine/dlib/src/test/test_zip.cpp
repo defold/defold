@@ -25,6 +25,12 @@
 extern unsigned char FOO_ZIP[];
 extern uint32_t FOO_ZIP_SIZE;
 
+// If you get a duplicate here, then we've missed to put the "miniz.h" header within a namespace
+extern "C" void mz_free(void *p)
+{
+    free(p);
+}
+
 
 #define PATH_FORMAT "src/test/data/%s"
 
