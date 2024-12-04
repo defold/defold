@@ -50,8 +50,14 @@ case $PLATFORM in
         cmi_setup_cc $PLATFORM
         ;;
     x86_64-win32)
-        # TODO: Currently crashes on win32 when using release config!
-        CONFIG=Debug
+
+        # NOTE! For windows we need to use the exact same version of the toolset as we use for the engine
+        #       However, I could not get the cmake setup to work, so I just installed the same version via the visual studio installer.
+        #       Leaving the almost-working-code here for posterity..
+        #
+        # eval $(python ${DYNAMO_HOME}/../../build_tools/set_sdk_vars.py VERSION_WINDOWS_MSVC_2022)
+        # MSVC_CL_EXE=$(cygpath -u "${DYNAMO_HOME}/ext/SDKs/Win32/MicrosoftVisualStudio14.0/VC/Tools/MSVC/${VERSION_WINDOWS_MSVC_2022}/bin/Hostx64/x64/cl.exe")
+        # CMAKE_FLAGS="-DCMAKE_C_COMPILER=${MSVC_CL_EXE} -DCMAKE_CXX_COMPILER=${MSVC_CL_EXE} $CMAKE_FLAGS"
         ;;
 esac
 

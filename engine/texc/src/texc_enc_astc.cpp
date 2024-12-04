@@ -23,11 +23,6 @@
 
 namespace dmTexc
 {
-    void astcenc_progress(float progress)
-    {
-        printf("astcenc_progress: %f\n", progress);
-    }
-
     // Implementation taken from https://github.com/ARM-software/astc-encoder/blob/main/Utils/Example/astc_api_example.cpp
     bool ASTCEncode(ASTCEncodeSettings* settings, uint8_t** out, uint32_t* out_size)
     {
@@ -49,14 +44,8 @@ namespace dmTexc
         uint32_t block_count_x = (settings->m_Width + block_x - 1) / block_x;
         uint32_t block_count_y = (settings->m_Height + block_y - 1) / block_y;
 
-        astcenc_config config = {};
-        config.block_x = block_x;
-        config.block_y = block_y;
-        config.profile = profile;
-        config.progress_callback = astcenc_progress;
-
-        astcenc_error status;
-        status = astcenc_config_init(profile, block_x, block_y, block_z, quality, 0, &config);
+        astcenc_config config;
+        astcenc_error status = astcenc_config_init(profile, block_x, block_y, block_z, quality, 0, &config);
         if (status != ASTCENC_SUCCESS)
         {
             dmLogError("Codec config init failed: %s", astcenc_get_error_string(status));
