@@ -359,8 +359,8 @@
       (when (and resource (resource/exists? resource) (resource/openable? resource))
         (open-resource! resource)))))
 
-(def ext-open-url-fn
-  (rt/suspendable-lua-fn open-url [{:keys [rt]} lua-string]
+(def ext-browse-fn
+  (rt/suspendable-lua-fn browse [{:keys [rt]} lua-string]
     (let [s (rt/->clj rt coerce/string lua-string)]
       (future/io
         (try
@@ -610,7 +610,7 @@
                                "external_file_attributes" (make-ext-external-file-attributes-fn project-path)
                                "execute" (make-ext-execute-fn project-path display-output! reload-resources!)
                                "bob" (make-ext-bob-fn invoke-bob!)
-                               "open_url" ext-open-url-fn
+                               "browse" ext-browse-fn
                                "platform" (.getPair (Platform/getHostPlatform))
                                "prefs" (prefs-functions/env prefs)
                                "save" (make-ext-save-fn save!)
