@@ -60,6 +60,8 @@ struct ASTCEncodeSettingsJNI {
     jfieldID pixelFormat;
     jfieldID colorSpace;
     jfieldID data;
+    jfieldID numThreads;
+    jfieldID qualityLevel;
 };
 struct TypeInfos {
     ImageJNI m_ImageJNI;

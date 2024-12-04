@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include <dlib/log.h>
+#include <dlib/math.h>
 
 #include <stdio.h>
 
@@ -23,17 +24,60 @@
 
 namespace dmTexc
 {
+    static bool ParseBlockSizes(PixelFormat pf, uint32_t* x, uint32_t* y)
+    {
+    #define CASE_AND_SET(a,b) \
+        case PF_RGBA_ASTC_##a##x##b: \
+            *x = a; \
+            *y = b; \
+            break;
+
+        switch(pf)
+        {
+            CASE_AND_SET(4,4);
+            CASE_AND_SET(5,4);
+            CASE_AND_SET(5,5);
+            CASE_AND_SET(6,5);
+            CASE_AND_SET(6,6);
+            CASE_AND_SET(8,5);
+            CASE_AND_SET(8,6);
+            CASE_AND_SET(8,8);
+            CASE_AND_SET(10,5);
+            CASE_AND_SET(10,6);
+            CASE_AND_SET(10,8);
+            CASE_AND_SET(10,10);
+            CASE_AND_SET(12,10);
+            CASE_AND_SET(12,12);
+            default: return false;
+        }
+        return true;
+
+    #undef CASE_AND_SET
+    }
+
     // Implementation taken from https://github.com/ARM-software/astc-encoder/blob/main/Utils/Example/astc_api_example.cpp
     bool ASTCEncode(ASTCEncodeSettings* settings, uint8_t** out, uint32_t* out_size)
     {
         // For the purposes of this sample we hard-code the compressor settings
-        static const uint32_t thread_count = 1;
-        static const uint32_t block_x = 4; // TODO
-        static const uint32_t block_y = 4; // TODO
-        static const uint32_t block_z = 1;
-        static const astcenc_profile profile = ASTCENC_PRF_LDR;
-        static const float quality = ASTCENC_PRE_MEDIUM;
-        static const astcenc_swizzle swizzle {
+        uint32_t thread_count   = dmMath::Max(1, settings->m_NumThreads);
+        uint32_t block_x        = 0;
+        uint32_t block_y        = 0;
+        uint32_t block_z        = 1;
+        astcenc_profile profile = ASTCENC_PRF_LDR;
+
+        if (settings->m_QualityLevel < 0.0 || settings->m_QualityLevel > 100.0f)
+        {
+            dmLogError("Invalid quality level, range must be [0..100], but is %f", settings->m_QualityLevel);
+            return false;
+        }
+
+        if (!ParseBlockSizes(settings->m_PixelFormat, &block_x, &block_y))
+        {
+            dmLogError("Unable to parse block sizes from pixel format %d", settings->m_PixelFormat);
+            return false;
+        }
+
+        const astcenc_swizzle swizzle {
             ASTCENC_SWZ_R,
             ASTCENC_SWZ_G,
             ASTCENC_SWZ_B,
@@ -45,7 +89,7 @@ namespace dmTexc
         uint32_t block_count_y = (settings->m_Height + block_y - 1) / block_y;
 
         astcenc_config config;
-        astcenc_error status = astcenc_config_init(profile, block_x, block_y, block_z, quality, 0, &config);
+        astcenc_error status = astcenc_config_init(profile, block_x, block_y, block_z, settings->m_QualityLevel, 0, &config);
         if (status != ASTCENC_SUCCESS)
         {
             dmLogError("Codec config init failed: %s", astcenc_get_error_string(status));
@@ -63,16 +107,16 @@ namespace dmTexc
 
         // Compress the image
         astcenc_image image = {};
-        image.dim_x = settings->m_Width;
-        image.dim_y = settings->m_Height;
-        image.dim_z = 1;
-        image.data_type = ASTCENC_TYPE_U8;
-        uint8_t* slices = settings->m_Data;
-        image.data = reinterpret_cast<void**>(&slices);
+        image.dim_x         = settings->m_Width;
+        image.dim_y         = settings->m_Height;
+        image.dim_z         = 1;
+        image.data_type     = ASTCENC_TYPE_U8;
+        uint8_t* slices     = settings->m_Data;
+        image.data          = reinterpret_cast<void**>(&slices);
 
         // Space needed for 16 bytes of output per compressed block
-        size_t comp_len = block_count_x * block_count_y * 16;
-        uint8_t* comp_data = new uint8_t[comp_len];
+        size_t comp_len     = block_count_x * block_count_y * 16;
+        uint8_t* comp_data  = new uint8_t[comp_len];
 
         status = astcenc_compress_image(context, &image, &swizzle, comp_data, comp_len, 0);
         if (status != ASTCENC_SUCCESS)
@@ -81,7 +125,7 @@ namespace dmTexc
             return false;
         }
 
-        *out = comp_data;
+        *out      = comp_data;
         *out_size = comp_len;
 
         return true;

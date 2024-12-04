@@ -39,12 +39,27 @@ namespace dmTexc
         PF_R4G4B4A4,
         PF_L8A8,
         PF_RGBA_ETC2,
-        PF_RGBA_ASTC_4x4,
         PF_RGB_BC1,
         PF_RGBA_BC3,
         PF_R_BC4,
         PF_RG_BC5,
         PF_RGBA_BC7,
+
+        // ASTC formats
+        PF_RGBA_ASTC_4x4,
+        PF_RGBA_ASTC_5x4,
+        PF_RGBA_ASTC_5x5,
+        PF_RGBA_ASTC_6x5,
+        PF_RGBA_ASTC_6x6,
+        PF_RGBA_ASTC_8x5,
+        PF_RGBA_ASTC_8x6,
+        PF_RGBA_ASTC_8x8,
+        PF_RGBA_ASTC_10x5,
+        PF_RGBA_ASTC_10x6,
+        PF_RGBA_ASTC_10x8,
+        PF_RGBA_ASTC_10x10,
+        PF_RGBA_ASTC_12x10,
+        PF_RGBA_ASTC_12x12,
     };
 
     enum ColorSpace
@@ -196,6 +211,9 @@ namespace dmTexc
         ColorSpace  m_ColorSpace;
         uint8_t*    m_Data;
         uint32_t    m_DataCount;
+
+        int         m_NumThreads;
+        float       m_QualityLevel;
     };
 
     // Encode a texture into basis format. Caller must call free() on the returned data.

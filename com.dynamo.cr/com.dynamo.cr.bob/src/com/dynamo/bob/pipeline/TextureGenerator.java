@@ -105,12 +105,27 @@ public class TextureGenerator {
         pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_LUMINANCE_ALPHA, Texc.PixelFormat.PF_L8A8.getValue());
 
         pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_ETC2, Texc.PixelFormat.PF_RGBA_ETC2.getValue());
-        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_4x4, Texc.PixelFormat.PF_RGBA_ASTC_4x4.getValue());
         pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGB_BC1, Texc.PixelFormat.PF_RGB_BC1.getValue());
         pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_BC3, Texc.PixelFormat.PF_RGBA_BC3.getValue());
         pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_R_BC4, Texc.PixelFormat.PF_R_BC4.getValue());
         pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RG_BC5, Texc.PixelFormat.PF_RG_BC5.getValue());
         pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_BC7, Texc.PixelFormat.PF_RGBA_BC7.getValue());
+
+        // ASTC formats
+        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_4x4, Texc.PixelFormat.PF_RGBA_ASTC_4x4.getValue());
+        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_5x4, Texc.PixelFormat.PF_RGBA_ASTC_5x4.getValue());
+        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_5x5, Texc.PixelFormat.PF_RGBA_ASTC_5x5.getValue());
+        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_6x5, Texc.PixelFormat.PF_RGBA_ASTC_6x5.getValue());
+        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_6x6, Texc.PixelFormat.PF_RGBA_ASTC_6x6.getValue());
+        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_8x5, Texc.PixelFormat.PF_RGBA_ASTC_8x5.getValue());
+        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_8x6, Texc.PixelFormat.PF_RGBA_ASTC_8x6.getValue());
+        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_8x8, Texc.PixelFormat.PF_RGBA_ASTC_8x8.getValue());
+        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_10x5, Texc.PixelFormat.PF_RGBA_ASTC_10x5.getValue());
+        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_10x6, Texc.PixelFormat.PF_RGBA_ASTC_10x6.getValue());
+        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_10x8, Texc.PixelFormat.PF_RGBA_ASTC_10x8.getValue());
+        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_10x10, Texc.PixelFormat.PF_RGBA_ASTC_10x10.getValue());
+        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_12x10, Texc.PixelFormat.PF_RGBA_ASTC_12x10.getValue());
+        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_12x12, Texc.PixelFormat.PF_RGBA_ASTC_12x12.getValue());
     }
 
     private static BufferedImage convertImage(BufferedImage origImage, int type) {
@@ -237,6 +252,19 @@ public class TextureGenerator {
             TextureCompression.registerCompressor(defaultCompressor);
         }
         return defaultCompressor;
+    }
+
+    private static TextureCompressorPreset getTextureCompressorPresetFromCompressionLevel(int compressionLevel, String prefix) {
+        if (compressionLevel == Texc.CompressionLevel.CL_FAST.getValue()) {
+            return TextureCompression.getPreset(prefix + "_FAST");
+        } else if (compressionLevel == CompressionLevel.CL_NORMAL.getValue()) {
+            return TextureCompression.getPreset(prefix + "_NORMAL");
+        } else if (compressionLevel == CompressionLevel.CL_HIGH.getValue()) {
+            return TextureCompression.getPreset(prefix + "_HIGH");
+        } else if (compressionLevel == CompressionLevel.CL_BEST.getValue()) {
+            return TextureCompression.getPreset(prefix + "_BEST");
+        }
+        return null;
     }
 
     private static List<Long> GenerateImages(long image, int width, int height, boolean generateMipChain) throws TextureGeneratorException {
@@ -428,23 +456,10 @@ public class TextureGenerator {
                     texcCompressionType == CompressionType.CT_BASIS_ETC1S.getValue() )
             {
                 textureCompressor = TextureCompression.getCompressor("BasisU");
-
-                if (texcCompressionLevel == Texc.CompressionLevel.CL_FAST.getValue()) {
-                    textureCompressorPreset = TextureCompression.getPreset("BASISU_FAST");
-                } else if (texcCompressionLevel == CompressionLevel.CL_NORMAL.getValue()) {
-                    textureCompressorPreset = TextureCompression.getPreset("BASISU_NORMAL");
-                } else if (texcCompressionLevel == CompressionLevel.CL_HIGH.getValue()) {
-                    textureCompressorPreset = TextureCompression.getPreset("BASISU_HIGH");
-                } else if (texcCompressionLevel == CompressionLevel.CL_BEST.getValue()) {
-                    textureCompressorPreset = TextureCompression.getPreset("BASISU_BEST");
-                }
+                textureCompressorPreset = getTextureCompressorPresetFromCompressionLevel(texcCompressionLevel, "BASISU");
             } else if (texcCompressionType == CompressionType.CT_ASTC.getValue()) {
-
-                System.out.println("ASTC TIME!");
-
                 textureCompressor       = TextureCompression.getCompressor("ASTC");
-                textureCompressorPreset = TextureCompression.getPreset("ASTC_DEFAULT");
-
+                textureCompressorPreset = getTextureCompressorPresetFromCompressionLevel(texcCompressionLevel, "ASTC");
             } else {
                 textureCompressor       = getDefaultTextureCompressor();
                 textureCompressorPreset = TextureCompression.getPreset("DEFAULT");
@@ -514,9 +529,6 @@ public class TextureGenerator {
             raw.setData(ByteString.copyFrom(textureData));
             raw.setFormat(textureFormat);
             raw.setCompressionType(compressionType);
-
-            // What are the flags here?
-            // raw.setCompressionFlags(TexcLibraryJni.GetCompressionFlags(texture));
 
             return raw.build();
 

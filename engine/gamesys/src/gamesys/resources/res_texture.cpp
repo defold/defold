@@ -71,7 +71,6 @@ namespace dmGameSystem
             CASE_TF(RGBA_PVRTC_4BPPV1);
             CASE_TF(RGB_ETC1);
             CASE_TF(RGBA_ETC2);
-            CASE_TF(RGBA_ASTC_4x4);
             CASE_TF(RGB_BC1);
             CASE_TF(RGBA_BC3);
             CASE_TF(R_BC4);
@@ -85,15 +84,25 @@ namespace dmGameSystem
             CASE_TF(RG16F);
             CASE_TF(R32F);
             CASE_TF(RG32F);
+            // ASTC
+            CASE_TF(RGBA_ASTC_4x4);
+            CASE_TF(RGBA_ASTC_5x4);
+            CASE_TF(RGBA_ASTC_5x5);
+            CASE_TF(RGBA_ASTC_6x5);
+            CASE_TF(RGBA_ASTC_6x6);
+            CASE_TF(RGBA_ASTC_8x5);
+            CASE_TF(RGBA_ASTC_8x6);
+            CASE_TF(RGBA_ASTC_8x8);
+            CASE_TF(RGBA_ASTC_10x5);
+            CASE_TF(RGBA_ASTC_10x6);
+            CASE_TF(RGBA_ASTC_10x8);
+            CASE_TF(RGBA_ASTC_10x10);
+            CASE_TF(RGBA_ASTC_12x10);
+            CASE_TF(RGBA_ASTC_12x12);
             default: assert(0);
 #undef CASE_TF
         }
         return (dmGraphics::TextureFormat)-1;
-    }
-
-    static bool IsTextureFormatHardwareEncoded(dmGraphics::TextureImage::CompressionType compression_type)
-    {
-        return compression_type == dmGraphics::TextureImage::COMPRESSION_TYPE_ASTC;
     }
 
     static void DestroyTexture(TextureResource* resource)
@@ -148,11 +157,6 @@ namespace dmGameSystem
                     dmLogError("Failed to transcode %s", path);
                     continue;
                 }
-            }
-            else if (IsTextureFormatHardwareEncoded(image->m_CompressionType))
-            {
-                // TODO
-                output_format = dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_4x4;
             }
 
             if (!dmGraphics::IsTextureFormatSupported(context, output_format))

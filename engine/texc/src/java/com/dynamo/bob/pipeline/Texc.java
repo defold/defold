@@ -22,12 +22,25 @@ public class Texc {
         PF_R4G4B4A4(10),
         PF_L8A8(11),
         PF_RGBA_ETC2(12),
-        PF_RGBA_ASTC_4x4(13),
-        PF_RGB_BC1(14),
-        PF_RGBA_BC3(15),
-        PF_R_BC4(16),
-        PF_RG_BC5(17),
-        PF_RGBA_BC7(18);
+        PF_RGB_BC1(13),
+        PF_RGBA_BC3(14),
+        PF_R_BC4(15),
+        PF_RG_BC5(16),
+        PF_RGBA_BC7(17),
+        PF_RGBA_ASTC_4x4(18),
+        PF_RGBA_ASTC_5x4(19),
+        PF_RGBA_ASTC_5x5(20),
+        PF_RGBA_ASTC_6x5(21),
+        PF_RGBA_ASTC_6x6(22),
+        PF_RGBA_ASTC_8x5(23),
+        PF_RGBA_ASTC_8x6(24),
+        PF_RGBA_ASTC_8x8(25),
+        PF_RGBA_ASTC_10x5(26),
+        PF_RGBA_ASTC_10x6(27),
+        PF_RGBA_ASTC_10x8(28),
+        PF_RGBA_ASTC_10x10(29),
+        PF_RGBA_ASTC_12x10(30),
+        PF_RGBA_ASTC_12x12(31);
         private final int value;
         private PixelFormat(int value) {
             this.value = value;
@@ -193,6 +206,8 @@ public class Texc {
         public PixelFormat pixelFormat = PixelFormat.PF_L8;
         public ColorSpace colorSpace = ColorSpace.CS_LRGB;
         public byte[] data;
+        public int numThreads = 0;
+        public float qualityLevel = 0.0f;
     };
 }
 

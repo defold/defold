@@ -79,6 +79,8 @@ void InitializeJNITypes(JNIEnv* env, TypeInfos* infos) {
         GET_FLD(pixelFormat, "PixelFormat");
         GET_FLD(colorSpace, "ColorSpace");
         GET_FLD_TYPESTR(data, "[B");
+        GET_FLD_TYPESTR(numThreads, "I");
+        GET_FLD_TYPESTR(qualityLevel, "F");
     }
     #undef GET_FLD
     #undef GET_FLD_ARRAY
@@ -162,6 +164,8 @@ jobject C2J_CreateASTCEncodeSettings(JNIEnv* env, TypeInfos* types, const ASTCEn
     dmJNI::SetEnum(env, obj, types->m_ASTCEncodeSettingsJNI.pixelFormat, src->m_PixelFormat);
     dmJNI::SetEnum(env, obj, types->m_ASTCEncodeSettingsJNI.colorSpace, src->m_ColorSpace);
     dmJNI::SetObjectDeref(env, obj, types->m_ASTCEncodeSettingsJNI.data, dmJNI::C2J_CreateUByteArray(env, src->m_Data, src->m_DataCount));
+    dmJNI::SetInt(env, obj, types->m_ASTCEncodeSettingsJNI.numThreads, src->m_NumThreads);
+    dmJNI::SetFloat(env, obj, types->m_ASTCEncodeSettingsJNI.qualityLevel, src->m_QualityLevel);
     return obj;
 }
 
@@ -358,6 +362,8 @@ bool J2C_CreateASTCEncodeSettings(JNIEnv* env, TypeInfos* types, jobject obj, AS
             env->DeleteLocalRef(field_object);
         }
     }
+    out->m_NumThreads = dmJNI::GetInt(env, obj, types->m_ASTCEncodeSettingsJNI.numThreads);
+    out->m_QualityLevel = dmJNI::GetFloat(env, obj, types->m_ASTCEncodeSettingsJNI.qualityLevel);
     return true;
 }
 

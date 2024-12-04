@@ -23,9 +23,29 @@ import com.dynamo.bob.pipeline.TexcLibraryJni;
 public class TextureCompressorASTC implements ITextureCompressor {
 
     public TextureCompressorASTC() {
-        {
-            TextureCompressorPreset preset = new TextureCompressorPreset("ASTC_DEFAULT", "ASTC Default", "ASTC");
 
+        // Note: Quality levels are taken from astcenc.h
+        {
+            TextureCompressorPreset preset = new TextureCompressorPreset("ASTC_FAST", "ASTC Fast (Quality=10.0)", "ASTC");
+            preset.setOptionFloat("astc_quality", 10);
+            TextureCompression.registerPreset(preset);
+        }
+
+        {
+            TextureCompressorPreset preset = new TextureCompressorPreset("ASTC_NORMAL", "ASTC Normal (Quality=60.0)", "ASTC");
+            preset.setOptionFloat("astc_quality", 60);
+            TextureCompression.registerPreset(preset);
+        }
+
+        {
+            TextureCompressorPreset preset = new TextureCompressorPreset("ASTC_HIGH", "ASTC High (Quality=98.0)", "ASTC");
+            preset.setOptionFloat("astc_quality", 98);
+            TextureCompression.registerPreset(preset);
+        }
+
+        {
+            TextureCompressorPreset preset = new TextureCompressorPreset("ASTC_BEST", "ASTC Best (Quality=100.0)", "ASTC");
+            preset.setOptionFloat("astc_quality", 100);
             TextureCompression.registerPreset(preset);
         }
     }
@@ -42,21 +62,13 @@ public class TextureCompressorASTC implements ITextureCompressor {
         settings.path = params.getPath();
         settings.width = params.getWidth();
         settings.height = params.getHeight();
-
-        //settings.pixelFormat = Texc.PixelFormat.fromValue(params.getPixelFormat());
-        //settings.outPixelFormat = Texc.PixelFormat.fromValue(params.getPixelFormatOut());
-        //settings.colorSpace = Texc.ColorSpace.fromValue(params.getColorSpace());
-
-        //settings.numThreads = 4;
-        //settings.debug = false;
+        settings.pixelFormat = Texc.PixelFormat.fromValue(params.getPixelFormat());
+        settings.colorSpace = Texc.ColorSpace.fromValue(params.getColorSpace());
+        settings.numThreads = 4;
         settings.data = input;
 
-        /*
-        settings.rdo_uastc = preset.getOptionInt("rdo_uastc") != 0;
-        settings.pack_uastc_flags = preset.getOptionInt("pack_uastc_flags");
-        settings.rdo_uastc_dict_size = preset.getOptionInt("rdo_uastc_dict_size");
-        settings.rdo_uastc_quality_scalar = preset.getOptionFloat("rdo_uastc_quality_scalar");
-        */
+        // ASTC specifics
+        settings.qualityLevel = preset.getOptionFloat("astc_quality");
 
         return TexcLibraryJni.ASTCEncode(settings);
     }
