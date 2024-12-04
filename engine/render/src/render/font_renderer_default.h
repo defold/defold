@@ -23,9 +23,9 @@
 
 namespace dmRender
 {
+    //////////////////////////////////////////////////////////////////////////////////////////////////
     // Private!
-    // Only here for unit tests
-
+    // These functions are only exposed because they're currently used by the unit tests
     static bool IsBreaking(uint32_t c)
     {
         return c == ' ' || c == '\n' || c == ZERO_WIDTH_SPACE_UNICODE;
@@ -64,7 +64,7 @@ namespace dmRender
      * when breaking but the count is included in the lines array
      * and should be skipped when rendering
      */
-    static template <typename Metric>
+    template <typename Metric>
     uint32_t Layout(const char* str,
                float width,
                TextLine* lines, uint16_t lines_count,
@@ -131,6 +131,8 @@ namespace dmRender
         *text_width = max_width;
         return l;
     }
+    // Private!
+    //////////////////////////////////////////////////////////////////////////////////////////////////
 }
 
 #endif // #ifndef DM_FONT_RENDERER_DEFAULT_H

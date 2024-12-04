@@ -276,10 +276,6 @@ namespace dmRender
         dmRender::FontGlyph* glyph = font_map->m_GetGlyph(c, font_map->m_UserData);
         if (!glyph)
             glyph = font_map->m_GetGlyph(126U, font_map->m_UserData); // Fallback to ~
-
-        if (!glyph) {
-            //dmLogWarning("Character code %x not supported by font, nor is fallback '~'", c);
-        }
         return glyph;
     }
 
