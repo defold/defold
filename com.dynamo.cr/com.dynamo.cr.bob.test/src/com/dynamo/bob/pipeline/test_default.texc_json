@@ -2,7 +2,7 @@
     "name": "Default",
     "presets": [
         {
-            "name": "DEFAULT",
+            "name": "TEST_PRESET",
             "args": {
                 "test_int": 1234,
                 "test_float": 8080.0,

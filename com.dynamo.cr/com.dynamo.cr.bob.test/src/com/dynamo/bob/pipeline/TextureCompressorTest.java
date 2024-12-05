@@ -6,10 +6,6 @@ import com.defold.extension.pipeline.texture.TextureCompressorParams;
 import com.defold.extension.pipeline.texture.TextureCompressorPreset;
 import org.junit.Test;
 
-import java.io.IOException;
-
-import static org.junit.Assert.assertEquals;
-
 public class TextureCompressorTest extends AbstractProtoBuilderTest {
 
     private void ensureBuildProject() throws Exception {
@@ -62,8 +58,14 @@ public class TextureCompressorTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testTextureCompressionPresetsGettingUsed() throws Exception {
+        // Temporary workaround
+        String oldName = TextureGenerator.defaultTextureCompressionPresetName;
+        TextureGenerator.defaultTextureCompressionPresetName = "TEST_PRESET";
+
         TestTextureCompressor testCompressor = new TestTextureCompressor();
         TextureCompression.registerCompressor(testCompressor);
         ensureBuildProject();
+
+        TextureGenerator.defaultTextureCompressionPresetName = oldName;
     }
 }

@@ -68,6 +68,9 @@ public class TextureGenerator {
     // specify what is maximum of threads TextureGenerator may use
     public static int maxThreads = Project.getDefaultMaxCpuThreads();
 
+    // Temporary workaround for the texture compressor preset test.
+    public static String defaultTextureCompressionPresetName = "DEFAULT";
+
     private static HashMap<TextureFormatAlternative.CompressionLevel, Integer> compressionLevelLUT = new HashMap<TextureFormatAlternative.CompressionLevel, Integer>();
     static {
         compressionLevelLUT.put(TextureFormatAlternative.CompressionLevel.FAST, Texc.CompressionLevel.CL_FAST.getValue());
@@ -440,7 +443,7 @@ public class TextureGenerator {
 
             } else {
                 textureCompressor       = getDefaultTextureCompressor();
-                textureCompressorPreset = TextureCompression.getPreset("DEFAULT");
+                textureCompressorPreset = TextureCompression.getPreset(defaultTextureCompressionPresetName);
             }
 
             if (textureCompressor == null) {
