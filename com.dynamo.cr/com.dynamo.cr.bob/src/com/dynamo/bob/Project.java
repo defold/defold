@@ -1473,7 +1473,7 @@ public class Project {
     // the texture compressor handler.
     private void installTextureCompressorPresets() throws IOException, CompileExceptionError {
         ArrayList<String> paths = new ArrayList<>();
-        findResourcePathsByExtension(this.rootDirectory, ".texc_json", paths);
+        findResourcePathsByExtension("", ".texc_json", paths);
 
         for (String p : paths) {
             IResource r = getResource(p);
