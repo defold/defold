@@ -33,7 +33,6 @@ namespace dmSoundCodec
         struct DecodeStreamInfo {
             Info m_Info;
             stb_vorbis* m_StbVorbis;
-            uint32_t m_NumSamples;
             dmSound::HSoundData m_SoundData;
             uint32_t m_StreamOffset;
             dmArray<uint8_t> m_DataBuffer;
@@ -55,7 +54,6 @@ namespace dmSoundCodec
 
     static Result StbVorbisOpenStream(dmSound::HSoundData sound_data, HDecodeStream* stream)
     {
-dmLogWarning("@@@ STB DECODER");
         DecodeStreamInfo *streamInfo = new DecodeStreamInfo;
         streamInfo->m_DataBuffer.SetCapacity(STREAM_BLOCK_SIZE);
 
@@ -82,8 +80,6 @@ dmLogWarning("@@@ STB DECODER");
                 streamInfo->m_Info.m_BitsPerSample = 16;
                 streamInfo->m_StbVorbis = vorbis;
 
-                streamInfo->m_NumSamples = (uint32_t)stb_vorbis_stream_length_in_samples(vorbis);
-
                 *stream = streamInfo;
                 return RESULT_OK;
             }
@@ -100,27 +96,28 @@ dmLogWarning("@@@ STB DECODER");
         return RESULT_INVALID_FORMAT;
     }
 
-//OPT!!
-    static inline int16_t f32_to_s16(float in)
+    static inline int16_t FloatToS16(float in)
     {
         int32_t t = (int32_t)(in * 32767.0f);
         return (int16_t)dmMath::Clamp(t, -32768, 32767);
     }
 
-    static void convert_decoder_output(uint32_t channels, int16_t *out, float **data, uint32_t offset, uint32_t frames)
+    static void ConvertDecoderOutput(uint32_t channels, int16_t *out, float **data, uint32_t offset, uint32_t frames)
     {
         assert(channels == 1 || channels == 2);
         uint32_t s = channels - 1;
 
         for(uint32_t c=0; c<channels; ++c) {
             for(uint32_t f=0; f<frames; ++f) {
-                out[(f << s) + c] = f32_to_s16(data[c][f + offset]);
+                out[(f << s) + c] = FloatToS16(data[c][f + offset]);
             }
         }
     }
 
     static Result StbVorbisDecode(HDecodeStream stream, char* buffer, uint32_t buffer_size, uint32_t* decoded)
     {
+        // note: EOS detection is solely based on data consumption and hence not sample precise (the last decoded block may contain silence not part of the original material)
+        
         DecodeStreamInfo *streamInfo = (DecodeStreamInfo *) stream;
 
         DM_PROFILE(__FUNCTION__);
@@ -144,11 +141,13 @@ dmLogWarning("@@@ STB DECODER");
                     if (res == dmSound::RESULT_OK || res == dmSound::RESULT_PARTIAL_DATA) {
                         streamInfo->m_StreamOffset += read_bytes;
                         streamInfo->m_DataBuffer.SetSize(streamInfo->m_DataBuffer.Size() + read_bytes);
-                    } else if (res != dmSound::RESULT_NO_DATA && res != dmSound::RESULT_END_OF_STREAM) {
-                        return RESULT_DECODE_ERROR;
-                    } else {
+                    } else if (res == dmSound::RESULT_NO_DATA) {
                         bInputDry = true;
-                        bEOS = (res == dmSound::RESULT_END_OF_STREAM);
+                    } else if (res == dmSound::RESULT_END_OF_STREAM) {
+                        bInputDry = true;
+                        bEOS = true;
+                    } else {
+                        return RESULT_DECODE_ERROR;
                     }
                 }
 
@@ -185,7 +184,7 @@ dmLogWarning("@@@ STB DECODER");
                 uint32_t out_frames = dmMath::Min(streamInfo->m_LastOutputFrames, needed_frames - done_frames);
                 // This might be called with a NULL buffer to avoid delivering data, so we need to check...
                 if (buffer) {
-                    convert_decoder_output(streamInfo->m_Info.m_Channels, (short*)buffer + done_frames * streamInfo->m_Info.m_Channels, streamInfo->m_LastOutput, streamInfo->m_LastOutputOffset, out_frames);
+                    ConvertDecoderOutput(streamInfo->m_Info.m_Channels, (short*)buffer + done_frames * streamInfo->m_Info.m_Channels, streamInfo->m_LastOutput, streamInfo->m_LastOutputOffset, out_frames);
                 }
                 
                 done_frames += out_frames;
@@ -228,6 +227,7 @@ dmLogWarning("@@@ STB DECODER");
         //
         // - modifications in Vorbis are no longer needed
         // - NULL buffer really (old & new version) just skips the final float to short conversion - decode of the actual data still happens (unless decoder is in seek mode)
+        // - we still need to decode to be able to monitor data consumption & keep decode state to reengage output later on / detect EOS
         //
         return StbVorbisDecode(stream, NULL, num_bytes, skipped);
     }

@@ -119,7 +119,6 @@ namespace dmSoundCodec
 
     static Result WavOpenStream(dmSound::HSoundData sound_data, HDecodeStream* stream)
     {
-dmLogWarning("@@@ WAV DECODER");
         // note: the code below assumes enough data to be present to evaluate a WAV files structure
         // (this also assumes all format / header chunks to be situated BEFORE the data chunk! - at least if the data is streamed)
 

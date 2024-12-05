@@ -64,7 +64,6 @@ namespace dmSoundCodec
                 continue;
             }
 
-dmLogWarning("@@@ DECODER %p %d", decoder, decoder->m_Score);
             if (!best || decoder->m_Score > highest_score)
             {
                 highest_score = decoder->m_Score;

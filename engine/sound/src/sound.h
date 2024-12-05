@@ -109,7 +109,6 @@ namespace dmSound
     uint32_t GetSoundResourceSize(HSoundData sound_data);
     Result DeleteSoundData(HSoundData sound_data);
 
-    void* GetSoundDataBaseAndSize(HSoundData sound_data, uint32_t& sound_buffer_size);
     Result SoundDataRead(HSoundData sound_data, uint32_t offset, uint32_t size, void* out, uint32_t* out_size = nullptr);
 
     Result NewSoundInstance(HSoundData sound_data, HSoundInstance* sound_instance);

@@ -562,13 +562,6 @@ namespace dmSound
         return RESULT_OK;
     }
 
-    void* GetSoundDataBaseAndSize(HSoundData sound_data, uint32_t& sound_buffer_size)
-    {
-        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_SoundSystem->m_Mutex);
-        sound_buffer_size = sound_data->m_Size;
-        return sound_data->m_Data;
-    }
-
     Result SoundDataRead(HSoundData sound_data, uint32_t offset, uint32_t size, void* out, uint32_t* out_size)
     {
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_SoundSystem->m_Mutex);
@@ -577,12 +570,6 @@ namespace dmSound
             return sound_data->m_DataCallbacks.m_GetData(sound_data->m_DataCallbacks.m_Context, offset, size, out, out_size);
         }
 
-//CASES WHERE THIS ACTUALLY WOULD HAPPEN:
-// -- LOOPS
-// -- OFFSET AT START (sorta)
-        // note: the code below allows for the offset to jump around in a non-seaquential manner as all data is in memory and we do
-        // not have any state (last offset) to check against. This should not be exploited as real streaming code using above callbacks will
-        // likely fail with that kind of usage)
         if (sound_data->m_Data && offset < sound_data->m_Size)
         {
             uint32_t read_size = dmMath::Min(sound_data->m_Size - offset, size);
@@ -1253,7 +1240,6 @@ namespace dmSound
                     assert(decoded % stride == 0);
                     instance->m_FrameCount += decoded / stride;
                 } else if (r == dmSoundCodec::RESULT_END_OF_STREAM) {
-//Q: DOES THE LOOP LOGIC REALLY WORK? WHAT ABOUT THE INFINITE CASE (L=0)??
                     if (instance->m_Looping && instance->m_Loopcounter != 0) {
                         dmSoundCodec::Reset(sound->m_CodecContext, instance->m_Decoder);
                         if ( instance->m_Loopcounter > 0 ) {
