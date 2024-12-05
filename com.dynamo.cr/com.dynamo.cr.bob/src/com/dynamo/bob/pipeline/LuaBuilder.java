@@ -120,6 +120,9 @@ public abstract class LuaBuilder extends Builder {
                 luaScanner.setDebug();
             }
             luaScanner.parse(script);
+            for(LuaScanner.LuaScannerException e: luaScanner.exceptions) {
+                throw new CompileExceptionError(resource, e.getLineNumber(), e.getErrorMessage());
+            }
         }
         return luaScanner;
     }

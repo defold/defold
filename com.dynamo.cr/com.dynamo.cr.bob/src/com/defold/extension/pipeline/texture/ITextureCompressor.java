@@ -12,19 +12,15 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-package com.dynamo.bob.archive.publisher;
+package com.defold.extension.pipeline.texture;
 
-import com.dynamo.bob.CompileExceptionError;
+/**
+ * Interface for compressing a texture using settings
+ * We will scan for public non-abstract classes that implement this interface inside the com.defold.extension.pipeline
+ * package and instantiate them to transform Lua source code. Implementors must provide a no-argument constructor.
+ */
+public interface ITextureCompressor {
+    public String getName();
 
-public class DefoldPublisher extends Publisher {
-
-    public DefoldPublisher(PublisherSettings settings) {
-        super(settings);
-    }
-
-    @Override
-    public void Publish() throws CompileExceptionError {
-
-    }
-
+    public byte[] compress(TextureCompressorPreset preset, TextureCompressorParams params, byte[] input);
 }

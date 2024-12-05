@@ -13,115 +13,130 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns util.eduction
-  (:refer-clojure :exclude [cat concat dedupe distinct drop drop-while filter interpose keep keep-indexed map map-indexed mapcat partition-all partition-by random-sample remove replace take take-nth take-while]))
+  (:refer-clojure :exclude [cat concat dedupe distinct drop drop-while filter interpose keep keep-indexed map map-indexed mapcat partition-all partition-by random-sample remove replace take take-nth take-while])
+  (:require [util.array :as array]))
 
 (set! *warn-on-reflection* true)
+(set! *unchecked-math* :warn-on-boxed)
 
 (defonce empty-eduction (eduction))
 
 (definline cat [coll]
-  `(eduction
+  `(->Eduction
      clojure.core/cat
      ~coll))
 
 (defn concat
   ([] empty-eduction)
-  ([x] x)
-  ([x y] (eduction clojure.core/cat [x y]))
-  ([x y & zs]
-   (eduction clojure.core/cat (into [x y] zs))))
+  ([a] a)
+  ([a b]
+   (->Eduction
+     clojure.core/cat
+     (array/of a b)))
+  ([a b c]
+   (->Eduction
+     clojure.core/cat
+     (array/of a b c)))
+  ([a b c d]
+   (->Eduction
+     clojure.core/cat
+     (array/of a b c d)))
+  ([a b c d & more]
+   (->Eduction
+     clojure.core/cat
+     (apply array/of a b c d more))))
 
 (definline dedupe [coll]
-  `(eduction
+  `(->Eduction
      (clojure.core/dedupe)
      ~coll))
 
 (definline distinct [coll]
-  `(eduction
+  `(->Eduction
      (clojure.core/distinct)
      ~coll))
 
 (definline drop [n coll]
-  `(eduction
+  `(->Eduction
      (clojure.core/drop ~n)
      ~coll))
 
 (definline drop-while [pred coll]
-  `(eduction
+  `(->Eduction
      (clojure.core/drop-while ~pred)
      ~coll))
 
 (definline filter [pred coll]
-  `(eduction
+  `(->Eduction
      (clojure.core/filter ~pred)
      ~coll))
 
 (definline interpose [sep coll]
-  `(eduction
+  `(->Eduction
      (clojure.core/interpose ~sep)
      ~coll))
 
 (definline keep [f coll]
-  `(eduction
+  `(->Eduction
      (clojure.core/keep ~f)
      ~coll))
 
 (definline keep-indexed [f coll]
-  `(eduction
+  `(->Eduction
      (clojure.core/keep-indexed ~f)
      ~coll))
 
 (definline map [f coll]
-  `(eduction
+  `(->Eduction
      (clojure.core/map ~f)
      ~coll))
 
 (definline map-indexed [f coll]
-  `(eduction
+  `(->Eduction
      (clojure.core/map-indexed ~f)
      ~coll))
 
 (definline mapcat [f coll]
-  `(eduction
+  `(->Eduction
      (clojure.core/mapcat ~f)
      ~coll))
 
 (definline partition-all [n coll]
-  `(eduction
+  `(->Eduction
      (clojure.core/partition-all ~n)
      ~coll))
 
 (definline partition-by [f coll]
-  `(eduction
+  `(->Eduction
      (clojure.core/partition-by ~f)
      ~coll))
 
 (definline random-sample [prob coll]
-  `(eduction
+  `(->Eduction
      (clojure.core/random-sample ~prob)
      ~coll))
 
 (definline remove [pred coll]
-  `(eduction
+  `(->Eduction
      (clojure.core/remove ~pred)
      ~coll))
 
 (definline replace [smap coll]
-  `(eduction
+  `(->Eduction
      (clojure.core/replace ~smap)
      ~coll))
 
 (definline take [n coll]
-  `(eduction
+  `(->Eduction
      (clojure.core/take ~n)
      ~coll))
 
 (definline take-nth [n coll]
-  `(eduction
+  `(->Eduction
      (clojure.core/take-nth ~n)
      ~coll))
 
 (definline take-while [pred coll]
-  `(eduction
+  `(->Eduction
      (clojure.core/take-while ~pred)
      ~coll))

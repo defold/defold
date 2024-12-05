@@ -1,4 +1,3 @@
-
 // Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
@@ -13,14 +12,28 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_TEXC_ENCODER_DEFAULT_H
-#define DM_TEXC_ENCODER_DEFAULT_H
+#include "time.h"
 
-#include "texc_private.h"
+#include <sys/time.h>
+#include <unistd.h>
 
-namespace dmTexc
+namespace dmTime
 {
-    void GetEncoderDefault(Encoder* encoder);
-}
+    void Sleep(uint32_t useconds)
+    {
+        usleep(useconds);
+    }
 
-#endif // DM_TEXC_ENCODER_DEFAULT_H
+    uint64_t GetTime()
+    {
+        timeval tv;
+        gettimeofday(&tv, 0);
+        return ((uint64_t) tv.tv_sec) * 1000000U + tv.tv_usec;
+    }
+
+    uint64_t GetMonotonicTime()
+    {
+        uint64_t nanoseconds = clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+        return nanoseconds / 1000U;
+    }
+}

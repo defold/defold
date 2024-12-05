@@ -150,13 +150,13 @@ TEST(dmMessage, Bench)
     ASSERT_LT(0u, dmMessage::Dispatch(receiver.m_Socket, HandleMessage, 0));
 
     // Benchmark
-    uint64_t start = dmTime::GetTime();
+    uint64_t start = dmTime::GetMonotonicTime();
     for (uint32_t iter = 0; iter < iter_count; ++iter)
     {
         ASSERT_EQ(dmMessage::RESULT_OK, dmMessage::Post(0x0, &receiver, m_HashMessage1, 0, 0x0, &message_data1, sizeof(CustomMessageData1), 0));
     }
     ASSERT_LT(0u, dmMessage::Dispatch(receiver.m_Socket, HandleMessage, 0));
-    uint64_t end = dmTime::GetTime();
+    uint64_t end = dmTime::GetMonotonicTime();
     printf("Bench elapsed: %f ms (%f us per call)\n", (end-start) / 1000.0f, (end-start) / float(iter_count));
 
     ASSERT_EQ(0u, dmMessage::Dispatch(receiver.m_Socket, HandleMessage, 0));

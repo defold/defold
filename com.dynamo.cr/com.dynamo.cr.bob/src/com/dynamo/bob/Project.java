@@ -62,6 +62,7 @@ import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 
 import com.defold.extension.pipeline.ILuaTranspiler;
+import com.defold.extension.pipeline.texture.TextureCompressorDefault;
 import com.dynamo.bob.fs.ClassLoaderMountPoint;
 import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.fs.DefaultResource;
@@ -82,7 +83,6 @@ import com.defold.extender.client.ExtenderResource;
 
 import com.dynamo.bob.archive.EngineVersion;
 import com.dynamo.bob.archive.publisher.AWSPublisher;
-import com.dynamo.bob.archive.publisher.DefoldPublisher;
 import com.dynamo.bob.archive.publisher.NullPublisher;
 import com.dynamo.bob.archive.publisher.Publisher;
 import com.dynamo.bob.archive.publisher.PublisherSettings;
@@ -95,6 +95,8 @@ import com.dynamo.bob.pipeline.ExtenderUtil;
 import com.dynamo.bob.pipeline.IShaderCompiler;
 import com.dynamo.bob.pipeline.ShaderCompilers;
 import com.dynamo.bob.pipeline.TextureGenerator;
+import com.defold.extension.pipeline.texture.TextureCompression;
+import com.defold.extension.pipeline.texture.ITextureCompressor;
 import com.dynamo.bob.plugin.IPlugin;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.BobProjectProperties;
@@ -106,7 +108,6 @@ import com.dynamo.bob.util.StringUtil;
 import com.dynamo.graphics.proto.Graphics.TextureProfiles;
 
 import com.dynamo.bob.cache.ResourceCache;
-import com.dynamo.bob.cache.ResourceCacheKey;
 
 /**
  * Project abstraction. Contains input files, builder, tasks, etc
@@ -157,6 +158,7 @@ public class Project {
     private ClassLoader classLoader = null;
 
     private List<Class<? extends IShaderCompiler>> shaderCompilerClasses = new ArrayList();
+    private List<Class<? extends ITextureCompressor>> textureCompressorClasses = new ArrayList();
 
     public Project(IFileSystem fileSystem) {
         this.fileSystem = fileSystem;
@@ -390,6 +392,13 @@ public class Project {
                         }
                     }
 
+                    if (ITextureCompressor.class.isAssignableFrom(klass))
+                    {
+                        if (!klass.equals(ITextureCompressor.class)) {
+                            textureCompressorClasses.add((Class<? extends ITextureCompressor>) klass);
+                        }
+                    }
+
                     if (IPlugin.class.isAssignableFrom(klass))
                     {
                         if (!klass.equals(IPlugin.class)) {
@@ -567,8 +576,6 @@ public class Project {
                 if (shouldPublish) {
                     if (PublisherSettings.PublishMode.Amazon.equals(settings.getMode())) {
                         this.publisher = new AWSPublisher(settings);
-                    } else if (PublisherSettings.PublishMode.Defold.equals(settings.getMode())) {
-                        this.publisher = new DefoldPublisher(settings);
                     } else if (PublisherSettings.PublishMode.Zip.equals(settings.getMode())) {
                         this.publisher = new ZipPublisher(getRootDirectory(), settings);
                     } else {
@@ -877,6 +884,17 @@ public class Project {
         bundler.bundleApplication(this, platform, bundleDir, monitor);
         m.worked(1);
         m.done();
+    }
+
+    public void registerTextureCompressors() {
+        for (Class<? extends ITextureCompressor> klass : textureCompressorClasses) {
+            try {
+                TextureCompression.registerCompressor(klass.newInstance());
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }
+        textureCompressorClasses.clear();
     }
 
     private Class<? extends IShaderCompiler> getShaderCompilerClass(Platform platform) {
@@ -1637,6 +1655,12 @@ public class Project {
             IPlugin plugin = klass.getConstructor().newInstance();
             plugin.init(this);
             plugins.add(plugin);
+        }
+
+        boolean texture_compress = this.option("texture-compression", "false").equals("true");
+        if (texture_compress)
+        {
+            registerTextureCompressors();
         }
 
         loop:

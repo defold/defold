@@ -54,9 +54,9 @@ TEST_F(ComponentTest, HTTPRequest)
     dmGameObject::HInstance go = ::Spawn(m_Factory, m_Collection, "/http/http_request.goc", dmHashString64("/http_request"), 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go);
 
-    uint64_t stop_time = dmTime::GetTime() + 1*1e6; // 1 second
+    uint64_t stop_time = dmTime::GetMonotonicTime() + 1*1e6; // 1 second
     bool tests_done = false;
-    while (dmTime::GetTime() < stop_time && !tests_done)
+    while (dmTime::GetMonotonicTime() < stop_time && !tests_done)
     {
     	ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
 

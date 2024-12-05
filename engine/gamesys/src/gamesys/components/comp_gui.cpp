@@ -2993,7 +2993,7 @@ namespace dmGameSystem
             dmGui::Property property = properties[index];
             Vector4 value = dmGui::GetNodeProperty(component->m_Scene, node, property);
 
-            pit->m_Property.m_NameHash = dmHashString64(property_names[property]);
+            pit->m_Property.m_NameHash = dmHashString64(property_names[index]);
             pit->m_Property.m_Value.m_V4[0] = value.getX();
             pit->m_Property.m_Value.m_V4[1] = value.getY();
             pit->m_Property.m_Value.m_V4[2] = value.getZ();

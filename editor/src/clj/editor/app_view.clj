@@ -467,7 +467,7 @@
     (when-let [btn (some-> ^TabPane (g/node-value app-view :active-tab-pane)
                            (ui/selected-tab)
                            (.. getContent (lookup "#show-visibility-settings")))]
-      (scene-visibility/show-visibility-settings! btn scene-visibility)))
+      (scene-visibility/show-visibility-settings! app-view btn scene-visibility)))
   (state [app-view scene-visibility]
     (when-let [btn (some-> ^TabPane (g/node-value app-view :active-tab-pane)
                            (ui/selected-tab)

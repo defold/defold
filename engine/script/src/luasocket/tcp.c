@@ -369,7 +369,7 @@ static int tcp_create(lua_State *L, int family) {
         /* initialize remaining structure fields */
         socket_setnonblocking(&sock);
 
-#if !defined(DM_IPV6_UNSUPPORTED)
+#if !defined(DM_IPV6_UNSUPPORTED) && !defined(__EMSCRIPTEN__)
         if (family == PF_INET6) {
             int yes = 1;
             setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY,

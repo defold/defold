@@ -267,7 +267,8 @@ namespace dmRender
 
         RenderCameraData m_Data;
         uint8_t          m_UseFrustum : 1;
-        uint8_t          m_Dirty : 1;
+        uint8_t          m_Dirty      : 1;
+        uint8_t          m_Enabled    : 1;
     };
 
     struct RenderContext
