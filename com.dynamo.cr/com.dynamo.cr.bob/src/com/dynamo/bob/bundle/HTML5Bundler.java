@@ -404,6 +404,18 @@ public class HTML5Bundler implements IBundler {
                 logger.info("Using extender binary for WASM");
             }
             if(binsWasm != null) {
+                // Copy dwarf debug file if it is generated
+                String dwarfName = "dmengine.wasm.debug.wasm";
+                if (variant.equals(Bob.VARIANT_RELEASE)) {
+                    dwarfName = "dmengine_release.wasm.debug.wasm";
+                }
+                String dwarfZipDir = FilenameUtils.concat(project.getBinaryOutputDirectory(), Platform.WasmWeb.getExtenderPair());
+                File bundleDwarf = new File(dwarfZipDir, dwarfName);
+                if (bundleDwarf.exists()) {
+                    File dwarfOut = new File(appDir, enginePrefix + ".wasm.debug.wasm");
+                    FileUtils.copyFile(bundleDwarf, dwarfOut);
+                }
+
                 for (File bin : binsWasm) {
                     BundleHelper.throwIfCanceled(canceled);
                     String binExtension = FilenameUtils.getExtension(bin.getAbsolutePath());
