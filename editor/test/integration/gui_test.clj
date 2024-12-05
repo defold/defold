@@ -13,8 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns integration.gui-test
-  (:require [clojure.string :as string]
-            [clojure.string :as str]
+  (:require [clojure.string :as str]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [editor.app-view :as app-view]
@@ -969,7 +968,7 @@
 
 (defn- override-node-desc? [node-desc]
   (or (:template-node-child node-desc)
-      (string/includes? (:id node-desc) "/")))
+      (str/includes? (:id node-desc) "/")))
 
 (defn- make-displayed-layout->node->data [gui-scene-node-id data-fn]
   {:pre [(g/node-id? gui-scene-node-id)
