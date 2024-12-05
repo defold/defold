@@ -235,6 +235,8 @@ namespace dmGameSystem
         world->m_WorldVertexData = 0x0;
         world->m_WorldVertexDataSize = 0;
 
+        world->m_GraphicsContext = dmRender::GetGraphicsContext(context->m_RenderContext);
+
         *params.m_World = world;
 
         dmResource::RegisterResourceReloadedCallback(context->m_Factory, ResourceReloadedCallback, world);
