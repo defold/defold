@@ -46,6 +46,14 @@
                              :duration "Medium"
                              :user-level "Intermediate"
                              :zip-url "https://github.com/defold/template-platformer/archive/main.zip"
+                             :skip-root? true}
+
+                             {:name "Rive project"
+                             :description "This template uses the rive extension to get you started."
+                             :image "rive.svg"
+                             :duration "Medium"
+                             :user-level "Advanced"
+                             :zip-url "https://github.com/defold/template-rive/archive/master.zip"
                              :skip-root? true}]}
 
                {:label "From Tutorial"
