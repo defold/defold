@@ -32,8 +32,8 @@ namespace dmSoundCodec
             Info m_Info;
             OggVorbis_File m_File;
             size_t m_Cursor;
-            bool m_bEOS;
             dmSound::HSoundData m_SoundData;
+            uint8_t m_bEOS : 1;
         };
     }
 
@@ -74,13 +74,11 @@ namespace dmSoundCodec
     static long OggTell(void *datasource)
     {
         (void)datasource;
-        return -1;  // flag this data as non-seekable
+        return -1;  // flag this data as non-seekable (this will deactivate any and all seeking / length-query etc. support in Tremolo)
     }
 
     static Result TremoloOpenStream(dmSound::HSoundData sound_data, HDecodeStream* stream)
     {
-dmLogWarning("@@@ TREMOLO DECODER");
-        
         DecodeStreamInfo *tmp = new DecodeStreamInfo();
         tmp->m_SoundData = sound_data;
         tmp->m_Cursor = 0;
@@ -111,6 +109,8 @@ dmLogWarning("@@@ TREMOLO DECODER");
 
     static Result TremoloDecode(HDecodeStream stream, char* buffer, uint32_t buffer_size, uint32_t* decoded)
     {
+        // note: EOS detection is solely based on data consumption and hence not sample precise (the last decoded block may contain silence not part of the original material)
+
         DM_PROFILE(__FUNCTION__);
 
         DecodeStreamInfo *streamInfo = (DecodeStreamInfo *) stream;
@@ -122,17 +122,17 @@ dmLogWarning("@@@ TREMOLO DECODER");
         while (true)
         {
             const uint32_t remaining = buffer_size - got_bytes;
-            if (!remaining)
+            if (remaining == 0)
             {
                 break;
             }
 
             int bitstream;
-            int bytes = ov_read(&streamInfo->m_File, &buffer[buffer_size - remaining], (int) remaining, &bitstream);
+            int bytes = ov_read(&streamInfo->m_File, buffer ? &buffer[buffer_size - remaining] : NULL, (int) remaining, &bitstream);
 
-            if (!bytes)
+            if (bytes == 0)
             {
-                // reached end of file
+                // no more data available for now
                 break;
             }
 
@@ -171,10 +171,7 @@ dmLogWarning("@@@ TREMOLO DECODER");
 
     static Result TremoloSkipInStream(HDecodeStream stream, uint32_t bytes, uint32_t* skipped)
     {
-//TODO: GUESSING THIS IS NOT REALLY ACCEPTABLE? BUT WE COULD ONLY REENABLE THIS FOR MEMORY BASED ONES IF WE'D MAKE THAT DIFFERENTIATION KNOWN HERE... NOT NICE :-/
-        // unseekable stream -- all of ours are now...
-        *skipped = 0;
-        return RESULT_UNSUPPORTED;
+        return TremoloDecode(stream, NULL, bytes, skipped);
     }
 
     static void TremoloCloseStream(HDecodeStream stream)
@@ -189,11 +186,9 @@ dmLogWarning("@@@ TREMOLO DECODER");
         *out = ((DecodeStreamInfo *) stream)->m_Info;
     }
 
-//USED? FOR WHAT?
     static int64_t TremoloGetInternalPos(HDecodeStream stream)
     {
         DecodeStreamInfo *streamInfo = (DecodeStreamInfo *) stream;
-//        return streamInfo->m_SeekTo == -1 ? (int64_t)ov_pcm_tell(&streamInfo->m_File) : streamInfo->m_SeekTo;
         return (int64_t)ov_pcm_tell(&streamInfo->m_File);
     }
 
