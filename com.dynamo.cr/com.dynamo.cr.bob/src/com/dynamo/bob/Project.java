@@ -25,6 +25,7 @@ import java.io.FileOutputStream;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
+import java.lang.reflect.Array;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -35,18 +36,7 @@ import java.net.URL;
 import java.net.URI;
 import java.nio.file.attribute.FileTime;
 import java.text.ParseException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Enumeration;
-import java.util.EnumSet;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Callable;
@@ -62,7 +52,7 @@ import java.util.zip.ZipFile;
 import java.util.zip.ZipOutputStream;
 
 import com.defold.extension.pipeline.ILuaTranspiler;
-import com.defold.extension.pipeline.texture.TextureCompressorDefault;
+import com.defold.extension.pipeline.texture.TextureCompressorPreset;
 import com.dynamo.bob.fs.ClassLoaderMountPoint;
 import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.fs.DefaultResource;
@@ -108,6 +98,9 @@ import com.dynamo.bob.util.StringUtil;
 import com.dynamo.graphics.proto.Graphics.TextureProfiles;
 
 import com.dynamo.bob.cache.ResourceCache;
+import org.codehaus.jackson.JsonNode;
+import org.codehaus.jackson.JsonProcessingException;
+import org.codehaus.jackson.map.ObjectMapper;
 
 /**
  * Project abstraction. Contains input files, builder, tasks, etc
@@ -145,7 +138,7 @@ public class Project {
     private List<URL> libUrls = new ArrayList<URL>();
     private List<String> propertyFiles = new ArrayList<>();
     private List<String> buildServerHeaders = new ArrayList<>();
-    private List<String> excluedFilesAndFoldersEntries = new ArrayList<>();
+    private List<String> excludedFilesAndFoldersEntries = new ArrayList<>();
     private List<String> engineBuildDirs = new ArrayList<>();
 
     private BobProjectProperties projectProperties;
@@ -1431,6 +1424,70 @@ public class Project {
         this.setOption("output-wgsl", outputWGSL);
     }
 
+    private ArrayList<TextureCompressorPreset> parseTextureCompressorPresetFromJSON(String fromPath, byte[] data) throws CompileExceptionError {
+        ObjectMapper objectMapper = new ObjectMapper();
+        ArrayList<TextureCompressorPreset> presets = new ArrayList<>();
+
+        try {
+            JsonNode rootNode = objectMapper.readTree(data);
+            String compressorName = rootNode.get("name").asText();
+
+            JsonNode presetsArray = rootNode.get("presets");
+            if (presetsArray.isArray()) {
+                for (JsonNode jsonPreset : presetsArray) {
+                    // Access preset fields
+                    String presetName = jsonPreset.get("name").asText();
+
+                    TextureCompressorPreset preset = new TextureCompressorPreset(presetName, presetName, compressorName);
+
+                    JsonNode argsNode = jsonPreset.get("args");
+                    Iterator<Map.Entry<String, JsonNode>> fields = argsNode.getFields();
+                    while (fields.hasNext()) {
+                        Map.Entry<String, JsonNode> field = fields.next();
+                        String key = field.getKey();
+                        JsonNode value = field.getValue();
+
+                        // Handle only int, float, and string types
+                        if (value.isInt()) {
+                            preset.setOptionInt(key, value.asInt());
+                        } else if (value.isDouble() || value.isFloatingPointNumber()) {
+                            preset.setOptionFloat(key, (float) value.asDouble());
+                        } else if (value.isTextual()) {
+                            preset.setOptionString(key, value.asText());
+                        } else {
+                            throw new CompileExceptionError("Error processing texture compressor preset from " + fromPath + ", unsupported type for key '" + key + "'");
+                        }
+                    }
+
+                    presets.add(preset);
+                }
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        return presets;
+    }
+
+    // Look for all files in the project named "something.texc_json"
+    // and parse them into TextureCompressorPreset files that gets installed into
+    // the texture compressor handler.
+    private void installTextureCompressorPresets() throws IOException, CompileExceptionError {
+        ArrayList<String> paths = new ArrayList<>();
+        findResourcePathsByExtension(this.rootDirectory, ".texc_json", paths);
+
+        for (String p : paths) {
+            IResource r = getResource(p);
+
+            if (r.isFile()) {
+                ArrayList<TextureCompressorPreset> presets = parseTextureCompressorPresetFromJSON(r.getPath(), r.getContent());
+                for (TextureCompressorPreset preset : presets) {
+                    logger.info("Installing texture compression preset from file: " + r.getPath());
+                    TextureCompression.registerPreset(preset);
+                }
+            }
+        }
+    }
+
     private void transpileLua(IProgress monitor) throws CompileExceptionError, IOException {
         List<ILuaTranspiler> transpilers = PluginScanner.getOrCreatePlugins("com.defold.extension.pipeline", ILuaTranspiler.class);
         if (transpilers != null) {
@@ -1684,6 +1741,10 @@ public class Project {
                         // when sending to extender
                         TimeProfiler.start("transpileLua");
                         transpileLua(monitor);
+                        TimeProfiler.stop();
+
+                        TimeProfiler.start("installTextureCompressorPresets");
+                        installTextureCompressorPresets();
                         TimeProfiler.stop();
                     }
 
@@ -2113,14 +2174,20 @@ public class Project {
         return maxThreads;
     }
 
-    public void findResourcePaths(String _path, Collection<String> result) {
+    private void findResourcePathsByExtension(String _path, String ext, Collection<String> result) {
         final String path = Project.stripLeadingSlash(_path);
         fileSystem.walk(path, new FileSystemWalker() {
             public void handleFile(String path, Collection<String> results) {
                 boolean shouldAdd = true;
+
+                // Do a first pass on the path to check if it satisfies the ext check
+                if (ext != null) {
+                    shouldAdd = path.endsWith(ext);
+                }
+
                 // Ignore for native extensions and the other systems.
                 // Check comment for loadIgnoredFilesAndFolders()
-                for (String prefix : excluedFilesAndFoldersEntries) {
+                for (String prefix : excludedFilesAndFoldersEntries) {
                     if (path.startsWith(prefix)) {
                         shouldAdd = false;
                         break;
@@ -2131,6 +2198,10 @@ public class Project {
                 }
             }
         }, result);
+    }
+
+    public void findResourcePaths(String _path, Collection<String> result) {
+        findResourcePathsByExtension(_path, null, result);
     }
 
     // Finds the first level of directories in a path
