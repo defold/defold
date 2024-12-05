@@ -2703,8 +2703,15 @@ namespace dmGameSystem
     void GuiGetTextMetricsCallback(dmGameSystem::FontResource* font_resource, const char* text, float width, bool line_break, float leading, float tracking, dmGui::TextMetrics* out_metrics)
     {
         dmRender::HFont font = dmGameSystem::ResFontGetHandle(font_resource);
+
+        dmRender::TextMetricsSettings settings;
+        settings.m_Width = width;
+        settings.m_LineBreak = line_break;
+        settings.m_Leading = leading;
+        settings.m_Tracking = tracking;
+
         dmRender::TextMetrics metrics;
-        dmRender::GetTextMetrics(font, text, width, line_break, leading, tracking, &metrics);
+        dmRender::GetTextMetrics(font, text, &settings, &metrics);
         out_metrics->m_Width = metrics.m_Width;
         out_metrics->m_Height = metrics.m_Height;
         out_metrics->m_MaxAscent = metrics.m_MaxAscent;
