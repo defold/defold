@@ -29,6 +29,7 @@
 #include <dlib/dstrings.h>
 #include <dlib/hash.h>
 #include <dlib/hashtable.h>
+#include <dlib/job_thread.h>
 #include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/memory.h>
@@ -109,6 +110,9 @@ struct ResourceFactory
     dmResourceMounts::HContext                   m_Mounts;
     dmResourceProvider::HArchive                 m_BuiltinMount;
     dmResourceProvider::HArchive                 m_BaseArchiveMount;
+
+    // Streaming chunked reading support
+    dmJobThread::HContext                        m_JobThreadContext;
 
     // Serial version that increases per resource insertion
     uint16_t                                     m_Version;
@@ -238,6 +242,11 @@ HFactory NewFactory(NewFactoryParams* params, const char* uri)
         {"file", "file", true},
     };
 
+    dmJobThread::JobThreadCreationParams job_thread_create_param;
+    job_thread_create_param.m_ThreadNames[0] = "ResourceJobThread";
+    job_thread_create_param.m_ThreadCount    = 1;
+    factory->m_JobThreadContext              = dmJobThread::Create(job_thread_create_param);
+
     int num_mounted = 0;
     for (uint32_t i = 0; i < DM_ARRAY_SIZE(type_pairs); ++i)
     {
@@ -365,6 +374,12 @@ static void ResourceIteratorCallback(void*, const dmhash_t* id, ResourceDescript
 
 void DeleteFactory(HFactory factory)
 {
+    if (factory->m_JobThreadContext)
+    {
+        dmJobThread::Destroy(factory->m_JobThreadContext);
+        factory->m_JobThreadContext = 0;
+    }
+
     if (factory->m_Socket)
     {
         dmMessage::DeleteSocket(factory->m_Socket);
@@ -431,6 +446,7 @@ void UpdateFactory(HFactory factory)
 {
     DM_PROFILE(__FUNCTION__);
     dmMessage::Dispatch(factory->m_Socket, &Dispatch, factory);
+    dmJobThread::Update(factory->m_JobThreadContext);
     DM_PROPERTY_ADD_U32(rmtp_Resource, factory->m_Resources->Size());
 }
 
@@ -607,7 +623,7 @@ dmResourceProvider::HArchive GetBaseArchive(HFactory factory)
 }
 
 // Assumes m_LoadMutex is already held
-static Result LoadResourceFromBufferLocked(HFactory factory, const char* path, const char* original_name, uint32_t preload_size, uint32_t* resource_size, uint32_t* buffer_size, LoadBufferType* buffer)
+Result LoadResourceToBufferLocked(HFactory factory, const char* path, const char* original_name, uint32_t offset, uint32_t size, uint32_t* resource_size, uint32_t* buffer_size, LoadBufferType* buffer)
 {
     DM_PROFILE(__FUNCTION__);
 
@@ -626,39 +642,45 @@ static Result LoadResourceFromBufferLocked(HFactory factory, const char* path, c
     {
         *resource_size = file_size;
 
+        uint32_t bytes_to_read = file_size;
         bool is_streaming = false;
-        if (preload_size != RESOURCE_INVALID_PRELOAD_SIZE)
+        if (size != RESOURCE_INVALID_PRELOAD_SIZE)
         {
-            file_size = dmMath::Min(file_size, preload_size);
+            bytes_to_read = dmMath::Min(file_size, size);
             is_streaming = true;
         }
 
-        if (buffer->Capacity() < file_size) {
-            buffer->SetCapacity(file_size);
+        if (buffer->Capacity() < bytes_to_read) {
+            buffer->SetCapacity(bytes_to_read);
         }
-        buffer->SetSize(0);
+        buffer->SetSize(bytes_to_read);
 
         // Only actually read the resource if we requested any bytes
         uint32_t nread;
-        if (file_size > 0)
+        if (bytes_to_read > 0)
         {
             if (is_streaming)
             {
                 // no decryption or decompressing is done on these resources
-                r = dmResourceMounts::ReadResourcePartial(factory->m_Mounts, normalized_path_hash, normalized_path, 0, file_size, (uint8_t*)buffer->Begin(), &nread);
+                r = dmResourceMounts::ReadResourcePartial(factory->m_Mounts, normalized_path_hash, normalized_path, offset, bytes_to_read, (uint8_t*)buffer->Begin(), &nread);
             }
             else
             {
                 // The non streaming code path supports unpacking compressed resources
-                r = dmResourceMounts::ReadResource(factory->m_Mounts, normalized_path_hash, normalized_path, (uint8_t*)buffer->Begin(), file_size);
+                r = dmResourceMounts::ReadResource(factory->m_Mounts, normalized_path_hash, normalized_path, (uint8_t*)buffer->Begin(), buffer->Size());
+                nread = buffer->Size();
             }
         }
 
         if (r == dmResource::RESULT_OK)
         {
-            buffer->SetSize(file_size);
-            *buffer_size = file_size;
+            buffer->SetSize(nread); // If we read fewer bytes than previously set
+            *buffer_size = nread;
             return RESULT_OK;
+        }
+        else
+        {
+            buffer->SetSize(0);
         }
         return r;
     }
@@ -666,13 +688,14 @@ static Result LoadResourceFromBufferLocked(HFactory factory, const char* path, c
 }
 
 // Takes the lock.
-Result LoadResourceFromBuffer(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size, LoadBufferType* buffer)
+Result LoadResourceToBuffer(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size, LoadBufferType* buffer)
 {
     // Called from async queue so we wrap around a lock
     dmMutex::ScopedLock lk(factory->m_LoadMutex);
-    uint32_t preload_size = RESOURCE_INVALID_PRELOAD_SIZE;
+    uint32_t offset = 0;
+    uint32_t size = RESOURCE_INVALID_PRELOAD_SIZE;
     uint32_t buffer_size;
-    return LoadResourceFromBufferLocked(factory, path, original_name, preload_size, resource_size, &buffer_size, buffer);
+    return LoadResourceToBufferLocked(factory, path, original_name, offset, size, resource_size, &buffer_size, buffer);
 }
 
 // Assumes m_LoadMutex is already held
@@ -682,7 +705,8 @@ Result LoadResource(HFactory factory, const char* path, const char* original_nam
         factory->m_Buffer.SetCapacity(DEFAULT_BUFFER_SIZE);
     }
     factory->m_Buffer.SetSize(0);
-    Result r = LoadResourceFromBufferLocked(factory, path, original_name, preload_size, resource_size, buffer_size, &factory->m_Buffer);
+    uint32_t offset = 0;
+    Result r = LoadResourceToBufferLocked(factory, path, original_name, offset, preload_size, resource_size, buffer_size, &factory->m_Buffer);
     if (r == RESULT_OK)
     {
         *buffer = factory->m_Buffer.Begin();
@@ -1513,6 +1537,11 @@ Result RemoveFile(HFactory factory, const char* path)
 {
     dmResourceMounts::HContext mounts = GetMountsContext(factory);
     return dmResourceMounts::RemoveFile(mounts, dmHashString64(path));
+}
+
+dmJobThread::HContext GetJobThread(const dmResource::HFactory factory)
+{
+    return factory->m_JobThreadContext;
 }
 
 dmMutex::HMutex GetLoadMutex(const dmResource::HFactory factory)

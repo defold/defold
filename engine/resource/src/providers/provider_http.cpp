@@ -20,6 +20,7 @@
 #include <dlib/array.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
+#include <dlib/math.h>
 #include <dlib/sys.h>
 
 #include <dlib/http_client.h>
@@ -264,10 +265,14 @@ static dmResourceProvider::Result GetRequestFromUri(HttpProviderContext* archive
         }
 
         // We might have streamed more than we have a buffer for
-        if (archive->m_HttpTotalBytesStreamed > *buffer_length)
+        // If we got more than requested, and we wanted the full file, let's fail for now.
+        bool full_file = size == INVALID_CHUNK_VALUE && offset == INVALID_CHUNK_VALUE;
+        if (archive->m_HttpTotalBytesStreamed > *buffer_length && full_file)
+        {
             return dmResourceProvider::RESULT_IO_ERROR;
+        }
 
-        *buffer_length = archive->m_HttpTotalBytesStreamed;
+        *buffer_length = dmMath::Min(archive->m_HttpTotalBytesStreamed, size);
         if (buffer)
         {
             memcpy(buffer, archive->m_HttpBuffer.Begin(), *buffer_length);

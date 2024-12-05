@@ -35,6 +35,11 @@
 #endif
 
 
+namespace dmJobThread
+{
+    typedef struct JobContext* HContext;
+}
+
 /**
  * Resource descriptor
  * @name ResourceDescriptor
@@ -101,6 +106,11 @@ namespace dmResource
 
     // load with default internal buffer and its management, returns buffer ptr in 'buffer'
     Result LoadResource(HFactory factory, const char* path, const char* original_name, void** buffer, uint32_t* resource_size);
+
+    // load directly to a user supplied buffer, and chunk size
+    Result LoadResourceToBufferLocked(HFactory factory, const char* path, const char* original_name, uint32_t offset, uint32_t size, uint32_t* resource_size, uint32_t* buffer_size, LoadBufferType* buffer);
+
+    dmJobThread::HContext GetJobThread(const dmResource::HFactory factory);
 
     Result InsertResource(HFactory factory, const char* path, uint64_t canonical_path_hash, HResourceDescriptor descriptor);
     uint32_t GetCanonicalPathFromBase(const char* base_dir, const char* relative_dir, char* buf);
