@@ -395,7 +395,7 @@ public class TextureGenerator {
                     paramsName = "MipMap_" + mipMapLevel;
                 }
 
-                TextureCompressorParams params = new TextureCompressorParams(paramsName, mipMapLevel, mipWidth, mipHeight, 0, componentCount, pixelFormat, pixelFormat, Texc.ColorSpace.CS_SRGB.getValue());
+                TextureCompressorParams params = new TextureCompressorParams(paramsName, mipMapLevel, mipWidth, mipHeight, 0, componentCount, Texc.PixelFormat.PF_R8G8B8A8.getValue(), pixelFormat, Texc.ColorSpace.CS_SRGB.getValue());
                 byte[] compressedData = textureCompressor.compress(textureCompressorPreset, params, uncompressed);
 
                 if (compressedData.length == 0) {
