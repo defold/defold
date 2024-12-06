@@ -320,7 +320,9 @@
    "OpenGL context version hint. If a specific version is selected, this will used as the minimum version required (does not apply to OpenGL ES). Defaults to OpenGL 3.3",
    :default "33",
    :path ["graphics" "opengl_version_hint"]
-   :options [["33" "OpenGL 3.3"]
+   :options [["31" "OpenGL 3.1"]
+   										["32" "OpenGL 3.2"]
+   										["33" "OpenGL 3.3"]
              ["40" "OpenGL 4.0"]
              ["41" "OpenGL 4.1"]
              ["42" "OpenGL 4.2"]

@@ -960,6 +960,11 @@ static void LogFrameBufferError(GLenum status)
     #undef PRINT_FEATURE_IF_SUPPORTED
     }
 
+    static bool OpenGLVersionNeeded(OpenGLContext* context, int major, int minor)
+    {
+        return major > context->m_VersionMajor || (context->m_VersionMajor ==  major && context->m_VersionMinor >= minor)
+    }
+
     static bool OpenGLInitialize(HContext _context, const ContextParams& params)
     {
         assert(_context);
@@ -1070,6 +1075,13 @@ static void LogFrameBufferError(GLenum status)
 
         context->m_IsGles3Version = 1; // 0 == gles 2, 1 == gles 3
         context->m_PipelineState  = GetDefaultPipelineState();
+
+        int32_t version_major = 0, version_minor = 0;
+        glGetIntegerv(DMGRAPHICS_MAJOR_VERSION, &version_major);
+        glGetIntegerv(DMGRAPHICS_MINOR_VERSION, &version_minor);
+
+        context->m_VersionMajor = version_major;
+        context->m_VersionMinor = version_minor;
 
 #if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
         context->m_IsShaderLanguageGles = 1;
@@ -1285,7 +1297,14 @@ static void LogFrameBufferError(GLenum status)
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_R32F;
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RG32F;
 
-            context->m_InstancingSupport = 1;
+            // For instancing, we need access to the glVertexAttribDivisor function,
+            // which is available on 3.0 for ES and for 3.3+ for desktop versions
+
+        #if defined(GL_ES_VERSION_3_0) || defined(GL_ES_VERSION_2_0)
+            context->m_InstancingSupport = OpenGLVersionNeeded(context, 3,0);
+        #else
+            context->m_InstancingSupport = OpenGLVersionNeeded(context, 3,3);
+        #endif
 
         #ifdef ANDROID
             context->m_InstancingSupport &= PFN_glDrawArraysInstanced   != 0;
@@ -1458,23 +1477,15 @@ static void LogFrameBufferError(GLenum status)
 #endif
 
     #ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
-        int32_t version_major = 0, version_minor = 0;
-        glGetIntegerv(DMGRAPHICS_MAJOR_VERSION, &version_major);
-        glGetIntegerv(DMGRAPHICS_MINOR_VERSION, &version_minor);
-
-        #define COMPUTE_VERSION_NEEDED(MAJOR, MINOR) (MAJOR > version_major || (version_major ==  MAJOR && version_minor >= MINOR))
-
         #if defined(GL_ES_VERSION_3_0) || defined(GL_ES_VERSION_2_0)
-            context->m_ComputeSupport = COMPUTE_VERSION_NEEDED(3,1);
+            context->m_ComputeSupport = OpenGLVersionNeeded(context, 3,1);
         #else
-            context->m_ComputeSupport = COMPUTE_VERSION_NEEDED(4,3);
+            context->m_ComputeSupport = OpenGLVersionNeeded(context, 4,3);
         #endif
 
         context->m_ComputeSupport &= glDispatchCompute  != 0;
         context->m_ComputeSupport &= glMemoryBarrier    != 0;
         context->m_ComputeSupport &= glBindImageTexture != 0;
-
-        #undef COMPUTE_VERSION_NEEDED
     #endif
 
         if (context->m_PrintDeviceInfo)

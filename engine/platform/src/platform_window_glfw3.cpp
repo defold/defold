@@ -199,6 +199,8 @@ namespace dmPlatform
             can_set_profile_and_fc = !use_highest_version;
         #endif
 
+            can_set_profile_and_fc &= major > 3 && minor > 2;
+
             if (can_set_profile_and_fc)
             {
                 glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
