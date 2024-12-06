@@ -233,7 +233,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testShaderReflection() throws Exception {
-        GetProject().getProjectProperties().putBooleanValue("shader", "output_spirv", true);
+        getProject().getProjectProperties().putBooleanValue("shader", "output_spirv", true);
 
         {
             String fs_src =
@@ -384,7 +384,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         // but since we only build shaders for the host platform no actual WGSL shaders will be built!
         if (isHostPlatformDesktop())
         {
-            GetProject().getProjectProperties().putBooleanValue("shader", "output_wgsl", true);
+            getProject().getProjectProperties().putBooleanValue("shader", "output_wgsl", true);
 
             List<Message> outputs = build("/reflection_3.fp", fs_sampler_type_src);
             ShaderDesc shaderDesc = (ShaderDesc) outputs.get(0);
@@ -423,14 +423,14 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             // The non-constructed sampler shouldn't have any reference to a texture
             assertFalse(r.getTextures(10).hasSamplerTextureIndex());
 
-            GetProject().getProjectProperties().putBooleanValue("shader", "output_wgsl", false);
+            getProject().getProjectProperties().putBooleanValue("shader", "output_wgsl", false);
         }
     }
 
     @Test
     public void testShaderPrograms() throws Exception {
         doTest(false);
-        GetProject().getProjectProperties().putBooleanValue("shader", "output_spirv", true);
+        getProject().getProjectProperties().putBooleanValue("shader", "output_spirv", true);
         doTest(true);
     }
 
@@ -667,7 +667,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             "   gl_Position = position; \n" +
             "}\n";
 
-        GetProject().getProjectProperties().putBooleanValue("shader", "output_spirv", true);
+        getProject().getProjectProperties().putBooleanValue("shader", "output_spirv", true);
 
         List<Message> outputs = build("/test_shader.vp", vp);
         ShaderDesc shaderDesc = (ShaderDesc) outputs.get(0);
@@ -705,7 +705,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             source_no_version +
             "\n";
 
-        GetProject().getProjectProperties().putBooleanValue("shader", "output_spirv", true);
+        getProject().getProjectProperties().putBooleanValue("shader", "output_spirv", true);
 
         List<Message> outputs = build("/test_compute.cp", source_no_version);
         ShaderDesc shaderDesc = (ShaderDesc) outputs.get(0);

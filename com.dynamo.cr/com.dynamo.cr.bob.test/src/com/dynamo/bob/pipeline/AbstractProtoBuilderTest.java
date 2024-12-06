@@ -20,7 +20,6 @@ import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
-import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -152,7 +151,7 @@ public abstract class AbstractProtoBuilderTest {
         }
     }
 
-    protected Project GetProject() {
+    protected Project getProject() {
         return this.project;
     }
 
