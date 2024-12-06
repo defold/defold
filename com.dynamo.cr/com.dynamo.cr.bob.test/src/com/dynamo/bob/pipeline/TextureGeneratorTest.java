@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.EnumSet;
 
 import com.defold.extension.pipeline.texture.*;
+import com.defold.extension.pipeline.texture.TestTextureProfileCompressor;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -226,27 +227,6 @@ public class TextureGeneratorTest {
         assertEquals((byte) 0, image.getData().byteAt(1));
         assertEquals((byte) 0, image.getData().byteAt(2));
         assertEquals((byte) 0, image.getData().byteAt(3));
-    }
-
-    public class TestTextureProfileCompressor implements ITextureCompressor {
-        @Override
-        public String getName() {
-            return "TestCompressor";
-        }
-
-        @Override
-        public byte[] compress(TextureCompressorPreset preset, TextureCompressorParams params, byte[] input) {
-            assert(1337 == preset.getOptionInt("option_one"));
-            assert(99.0f == preset.getOptionFloat("option_two"));
-            assert(preset.getOptionString("option_three").equals("option_three"));
-
-            byte[] out = new byte[4];
-            out[0] = (byte) 32;
-            out[1] = (byte) 64;
-            out[2] = (byte) 128;
-            out[3] = (byte) 255;
-            return out;
-        }
     }
 
     @Test
