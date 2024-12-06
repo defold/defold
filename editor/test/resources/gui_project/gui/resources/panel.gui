@@ -1,0 +1,286 @@
+fonts {
+  name: "panel_font"
+  font: "/assets/vera_mo_bd.font"
+}
+textures {
+  name: "panel_texture"
+  texture: "/assets/button.atlas"
+}
+nodes {
+  type: TYPE_TEMPLATE
+  id: "button_resources"
+  layer: "button_layer"
+  template: "/gui/resources/button.gui"
+}
+nodes {
+  type: TYPE_BOX
+  texture: "button_texture/button_striped"
+  id: "button_resources/box"
+  parent: "button_resources"
+  layer: "button_layer"
+  overridden_fields: 9
+  overridden_fields: 20
+  overridden_fields: 47
+  template_node_child: true
+  material: "button_material"
+}
+nodes {
+  type: TYPE_PIE
+  texture: "button_texture/button_striped"
+  id: "button_resources/pie"
+  parent: "button_resources"
+  layer: "button_layer"
+  overridden_fields: 9
+  overridden_fields: 20
+  overridden_fields: 47
+  template_node_child: true
+  material: "button_material"
+}
+nodes {
+  type: TYPE_TEXT
+  font: "button_font"
+  id: "button_resources/text"
+  parent: "button_resources"
+  layer: "button_layer"
+  overridden_fields: 10
+  overridden_fields: 20
+  overridden_fields: 47
+  template_node_child: true
+  material: "button_material"
+}
+nodes {
+  type: TYPE_PARTICLEFX
+  id: "button_resources/particlefx"
+  parent: "button_resources"
+  layer: "button_layer"
+  overridden_fields: 20
+  overridden_fields: 43
+  overridden_fields: 47
+  template_node_child: true
+  particlefx: "button_particlefx"
+  material: "button_material"
+}
+nodes {
+  type: TYPE_CUSTOM
+  id: "button_resources/spine"
+  parent: "button_resources"
+  layer: "button_layer"
+  overridden_fields: 20
+  overridden_fields: 39
+  overridden_fields: 47
+  template_node_child: true
+  spine_scene: "button_spinescene"
+  custom_type: 405028931
+  material: "button_material"
+}
+nodes {
+  type: TYPE_TEMPLATE
+  id: "panel_resources"
+  layer: "panel_layer"
+  template: "/gui/resources/button.gui"
+}
+nodes {
+  type: TYPE_BOX
+  texture: "panel_texture/button_striped"
+  id: "panel_resources/box"
+  parent: "panel_resources"
+  layer: "panel_layer"
+  overridden_fields: 9
+  overridden_fields: 20
+  overridden_fields: 47
+  template_node_child: true
+  material: "panel_material"
+}
+nodes {
+  type: TYPE_PIE
+  texture: "panel_texture/button_striped"
+  id: "panel_resources/pie"
+  parent: "panel_resources"
+  layer: "panel_layer"
+  overridden_fields: 9
+  overridden_fields: 20
+  overridden_fields: 47
+  template_node_child: true
+  material: "panel_material"
+}
+nodes {
+  type: TYPE_TEXT
+  font: "panel_font"
+  id: "panel_resources/text"
+  parent: "panel_resources"
+  layer: "panel_layer"
+  overridden_fields: 10
+  overridden_fields: 20
+  overridden_fields: 47
+  template_node_child: true
+  material: "panel_material"
+}
+nodes {
+  type: TYPE_PARTICLEFX
+  id: "panel_resources/particlefx"
+  parent: "panel_resources"
+  layer: "panel_layer"
+  overridden_fields: 20
+  overridden_fields: 43
+  overridden_fields: 47
+  template_node_child: true
+  particlefx: "panel_particlefx"
+  material: "panel_material"
+}
+nodes {
+  type: TYPE_CUSTOM
+  id: "panel_resources/spine"
+  parent: "panel_resources"
+  layer: "panel_layer"
+  overridden_fields: 20
+  overridden_fields: 39
+  overridden_fields: 47
+  template_node_child: true
+  spine_scene: "panel_spinescene"
+  custom_type: 405028931
+  material: "panel_material"
+}
+layers {
+  name: "button_layer"
+}
+layers {
+  name: "panel_layer"
+}
+material: "/builtins/materials/gui.material"
+layouts {
+  name: "Landscape"
+  nodes {
+    type: TYPE_BOX
+    texture: "button_texture/button_striped"
+    id: "button_resources/box"
+    parent: "button_resources"
+    layer: "button_layer"
+    overridden_fields: 9
+    overridden_fields: 20
+    overridden_fields: 47
+    template_node_child: true
+    material: "button_material"
+  }
+  nodes {
+    type: TYPE_PIE
+    texture: "button_texture/button_striped"
+    id: "button_resources/pie"
+    parent: "button_resources"
+    layer: "button_layer"
+    overridden_fields: 9
+    overridden_fields: 20
+    overridden_fields: 47
+    template_node_child: true
+    material: "button_material"
+  }
+  nodes {
+    type: TYPE_TEXT
+    font: "button_font"
+    id: "button_resources/text"
+    parent: "button_resources"
+    layer: "button_layer"
+    overridden_fields: 10
+    overridden_fields: 20
+    overridden_fields: 47
+    template_node_child: true
+    material: "button_material"
+  }
+  nodes {
+    type: TYPE_PARTICLEFX
+    id: "button_resources/particlefx"
+    parent: "button_resources"
+    layer: "button_layer"
+    overridden_fields: 20
+    overridden_fields: 43
+    overridden_fields: 47
+    template_node_child: true
+    particlefx: "button_particlefx"
+    material: "button_material"
+  }
+  nodes {
+    type: TYPE_CUSTOM
+    id: "button_resources/spine"
+    parent: "button_resources"
+    layer: "button_layer"
+    overridden_fields: 20
+    overridden_fields: 39
+    overridden_fields: 47
+    template_node_child: true
+    spine_scene: "button_spinescene"
+    custom_type: 405028931
+    material: "button_material"
+  }
+  nodes {
+    type: TYPE_BOX
+    texture: "panel_texture/button_striped"
+    id: "panel_resources/box"
+    parent: "panel_resources"
+    layer: "panel_layer"
+    overridden_fields: 9
+    overridden_fields: 20
+    overridden_fields: 47
+    template_node_child: true
+    material: "panel_material"
+  }
+  nodes {
+    type: TYPE_PIE
+    texture: "panel_texture/button_striped"
+    id: "panel_resources/pie"
+    parent: "panel_resources"
+    layer: "panel_layer"
+    overridden_fields: 9
+    overridden_fields: 20
+    overridden_fields: 47
+    template_node_child: true
+    material: "panel_material"
+  }
+  nodes {
+    type: TYPE_TEXT
+    font: "panel_font"
+    id: "panel_resources/text"
+    parent: "panel_resources"
+    layer: "panel_layer"
+    overridden_fields: 10
+    overridden_fields: 20
+    overridden_fields: 47
+    template_node_child: true
+    material: "panel_material"
+  }
+  nodes {
+    type: TYPE_PARTICLEFX
+    id: "panel_resources/particlefx"
+    parent: "panel_resources"
+    layer: "panel_layer"
+    overridden_fields: 20
+    overridden_fields: 43
+    overridden_fields: 47
+    template_node_child: true
+    particlefx: "panel_particlefx"
+    material: "panel_material"
+  }
+  nodes {
+    type: TYPE_CUSTOM
+    id: "panel_resources/spine"
+    parent: "panel_resources"
+    layer: "panel_layer"
+    overridden_fields: 20
+    overridden_fields: 39
+    overridden_fields: 47
+    template_node_child: true
+    spine_scene: "panel_spinescene"
+    custom_type: 405028931
+    material: "panel_material"
+  }
+}
+particlefxs {
+  name: "panel_particlefx"
+  particlefx: "/assets/spray.particlefx"
+}
+resources {
+  name: "panel_spinescene"
+  path: "/defold-spine/assets/template/template.spinescene"
+}
+materials {
+  name: "panel_material"
+  material: "/builtins/materials/gui.material"
+}
