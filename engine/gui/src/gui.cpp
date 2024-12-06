@@ -598,6 +598,11 @@ namespace dmGui
             return RESULT_INVAL_ERROR;
         }
 
+        if (scene->m_DynamicTextures.Get(path) != 0x0)
+        {
+            return RESULT_TEXTURE_ALREADY_EXISTS;
+        }
+
         void* data = MakeDynamicTextureData(width, height, type, flip, buffer, buffer_size);
         if (!data)
         {

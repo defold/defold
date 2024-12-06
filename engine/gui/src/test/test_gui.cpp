@@ -717,6 +717,16 @@ TEST_F(dmGuiTest, DynamicTexture)
     r = dmGui::SetDynamicTextureData(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_RGB, false, data, sizeof(data));
     ASSERT_EQ(r, dmGui::RESULT_INVAL_ERROR);
 
+    // test create same texture twice
+    // https://github.com/defold/defold/issues/9893
+    r = dmGui::NewDynamicTexture(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_RGB, false, data, sizeof(data));
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+    r = dmGui::NewDynamicTexture(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_RGB, false, data, sizeof(data));
+    ASSERT_EQ(r, dmGui::RESULT_TEXTURE_ALREADY_EXISTS);
+    r = dmGui::DeleteDynamicTexture(m_Scene, dmHashString64("t1"));
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+
+
     dmGui::DeleteNode(m_Scene, node, true);
 
     dmGui::RenderScene(m_Scene, rp, &count);
