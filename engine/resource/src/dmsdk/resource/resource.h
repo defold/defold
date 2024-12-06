@@ -296,9 +296,6 @@ void*           ResourceDescriptorGetPrevResource(HResourceDescriptor rd);
 void            ResourceDescriptorSetResourceSize(HResourceDescriptor rd, uint32_t size);
 uint32_t        ResourceDescriptorGetResourceSize(HResourceDescriptor rd);
 HResourceType   ResourceDescriptorGetType(HResourceDescriptor rd);
-// Streaming api
-ResourceResult  ResourceDescriptorGetData(HResourceFactory factory, HResourceDescriptor rd, void* out, uint32_t offset, uint32_t size);
-ResourceResult  ResourceDescriptorPreloadData(HResourceFactory factory, HResourceDescriptor rd, uint32_t offset, uint32_t size);
 
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
