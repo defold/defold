@@ -38,13 +38,11 @@
 
 (def component-transform-property-keys (set (keys scene/identity-transform-properties)))
 
-(defn- template-pb-map-raw [workspace resource-type]
+(defn template-pb-map [workspace resource-type]
   (let [template (workspace/template workspace resource-type)
         read-fn (:read-fn resource-type)]
     (with-open [reader (StringReader. template)]
       (read-fn reader))))
-
-(def template-pb-map (fn/memoize template-pb-map-raw))
 
 (defn strip-default-scale-from-component-desc [component-desc]
   ;; GameObject$ComponentDesc or GameObject$EmbeddedComponentDesc in map format.

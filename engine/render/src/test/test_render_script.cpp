@@ -128,7 +128,7 @@ protected:
         font_map_params.m_GetGlyph = GetGlyph;
         font_map_params.m_GetGlyphData = GetGlyphData;
 
-        m_SystemFontMap = dmRender::NewFontMap(m_GraphicsContext, font_map_params);
+        m_SystemFontMap = dmRender::NewFontMap(m_Context, m_GraphicsContext, font_map_params);
 
         memset(m_Glyphs, 0, sizeof(m_Glyphs));
         for (uint32_t i = 0; i < DM_ARRAY_SIZE(m_Glyphs); ++i)

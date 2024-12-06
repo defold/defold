@@ -37,6 +37,9 @@ namespace dmRender
 {
     using namespace dmVMath;
 
+    struct FontRenderBackend;
+    typedef FontRenderBackend* HFontRenderBackend;
+
 #define DEBUG_3D_NAME "_debug3d"
 #define DEBUG_2D_NAME "_debug2d"
 
@@ -181,6 +184,7 @@ namespace dmRender
         dmGraphics::HVertexBuffer           m_VertexBuffer;
         void*                               m_ClientBuffer;
         dmGraphics::HVertexDeclaration      m_VertexDecl;
+        HFontRenderBackend                  m_FontRenderBackend;
         uint32_t                            m_RenderObjectIndex;
         uint32_t                            m_VertexIndex;
         uint32_t                            m_MaxVertexCount;
