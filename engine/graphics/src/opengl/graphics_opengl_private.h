@@ -190,6 +190,9 @@ namespace dmGraphics
         uint32_t                m_StorageBufferSupport             : 1;
         uint32_t                m_RenderDocSupport                 : 1;
         uint32_t                m_InstancingSupport                : 1;
+
+        uint32_t                m_VersionMajor                     : 2; // Max is 4
+        uint32_t                m_VersionMinor                     : 3; // Max is 6
     };
 }
 #endif // __GRAPHICS_DEVICE_OPENGL__

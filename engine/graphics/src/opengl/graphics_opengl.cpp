@@ -962,7 +962,7 @@ static void LogFrameBufferError(GLenum status)
 
     static bool OpenGLVersionNeeded(OpenGLContext* context, int major, int minor)
     {
-        return major > context->m_VersionMajor || (context->m_VersionMajor ==  major && context->m_VersionMinor >= minor)
+        return major > context->m_VersionMajor || (context->m_VersionMajor ==  major && context->m_VersionMinor >= minor);
     }
 
     static bool OpenGLInitialize(HContext _context, const ContextParams& params)
