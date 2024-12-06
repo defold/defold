@@ -1575,8 +1575,6 @@ namespace dmGameSystem
         else
             ro.m_Textures[0] = gui_world->m_WhiteTexture;
 
-        // const int verts_per_node = 6*9;
-        // const uint32_t max_total_vertices = verts_per_node * node_count;
         const uint32_t max_total_vertices = CalcVertexCount(scene, gui_world, texture, entries, node_count);
 
         if (gui_world->m_ClientVertexBuffer.Remaining() < (max_total_vertices)) {
