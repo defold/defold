@@ -564,7 +564,10 @@ namespace dmSound
 
     Result SoundDataRead(HSoundData sound_data, uint32_t offset, uint32_t size, void* out, uint32_t* out_size)
     {
+        assert(sound_data);
+
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_SoundSystem->m_Mutex);
+
         if (sound_data->m_DataCallbacks.m_GetData)
         {
             return sound_data->m_DataCallbacks.m_GetData(sound_data->m_DataCallbacks.m_Context, offset, size, out, out_size);
@@ -572,6 +575,12 @@ namespace dmSound
 
         if (sound_data->m_Data && offset < sound_data->m_Size)
         {
+            if (size == 0) {
+                if (out_size)
+                    *out_size = 0;
+                return RESULT_OK;
+            }
+
             uint32_t read_size = dmMath::Min(sound_data->m_Size - offset, size);
             if (read_size != 0)
             {
@@ -1267,13 +1276,10 @@ namespace dmSound
             }
 
             if (instance->m_FrameCount > 0) {
-                if (instance->m_FrameCount < mixed_instance_FrameCount) {
-                    memset(((char*) instance->m_Frames) + instance->m_FrameCount * stride, 0x00, (mixed_instance_FrameCount - instance->m_FrameCount) * stride);
-                }
                 Mix(mix_context, instance, &info);
             }
 
-            if (instance->m_FrameCount <= 1 && instance->m_EndOfStream) {
+            if (instance->m_FrameCount <= instance->m_Speed && instance->m_EndOfStream) {
                 // NOTE: Due to round-off errors, e.g 32000 -> 44100,
                 // the last frame might be partially sampled and
                 // used in the *next* buffer. We truncate such scenarios to 0

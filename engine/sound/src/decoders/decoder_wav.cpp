@@ -125,6 +125,8 @@ namespace dmSoundCodec
         RiffHeader header;
         DecodeStreamInfo streamTemp;
 
+        streamTemp.m_SoundData = sound_data;
+
         bool fmt_found = false;
         bool data_found = false;
 
@@ -139,29 +141,27 @@ namespace dmSoundCodec
 
             uint32_t current_offset = sizeof(header);
             do {
-                CommonHeader header;
+                CommonHeader header, org_header;
 
-                res = dmSound::SoundDataRead(sound_data, 0, sizeof(header), &header);
+                res = dmSound::SoundDataRead(sound_data, current_offset, sizeof(org_header), &org_header);
                 if (res != dmSound::RESULT_OK) {
                     // not enough bytes left for a full header. just ignore this.
                     break;
                 }
+                memcpy(&header, &org_header, sizeof(header));
                 header.SwapHeader();
-
-                current_offset += sizeof(header);
 
                 if (header.m_ChunkID == FOUR_CC('f', 'm', 't', ' ')) {
                     FmtChunk fmt;
 
-                    res = dmSound::SoundDataRead(sound_data, 0, sizeof(fmt), &fmt);
+                    memcpy(&fmt, &org_header, sizeof(CommonHeader));
+                    res = dmSound::SoundDataRead(sound_data, current_offset + sizeof(CommonHeader), sizeof(fmt) - sizeof(CommonHeader), (void*)((uintptr_t)&fmt + sizeof(CommonHeader)));
                     if (res != dmSound::RESULT_OK) {
                         dmLogWarning("WAV sound data seems corrupt or truncated");
                         return RESULT_INVALID_FORMAT;
                     }
                     fmt.Swap();
                     fmt_found = true;
-
-                    current_offset += sizeof(fmt);
 
                     if( fmt.m_AudioFormat != 1 )
                     {
@@ -173,22 +173,14 @@ namespace dmSoundCodec
                     streamTemp.m_Info.m_BitsPerSample = fmt.m_BitsPerSample;
 
                 } else if (header.m_ChunkID == FOUR_CC('d', 'a', 't', 'a')) {
-                    // NOTE: We don't byte-swap PCM-data and a potential problem on big-endian architectures
-                    DataChunk data;
-
-                    res = dmSound::SoundDataRead(sound_data, 0, sizeof(data), &data);
-                    if (res != dmSound::RESULT_OK) {
-                        dmLogWarning("WAV sound data seems corrupt or truncated");
-                        return RESULT_INVALID_FORMAT;
-                    }
-                    data.Swap();
-
-                    current_offset += sizeof(data);
-
-                    streamTemp.m_BufferOffset = current_offset;
-                    streamTemp.m_Info.m_Size = data.m_ChunkSize;
                     data_found = true;
+
+                    streamTemp.m_BufferOffset = current_offset + sizeof(DataChunk);
+                    streamTemp.m_Info.m_Size = header.m_ChunkSize;
                 }
+                // note: we assume the Riff header, format chunk and data chunk to roughly appear in this order and close proximity. Theoretically we might see WAV files that do NOT follow this pattern!
+//TODO: ^^^ WE SHOULD CATCH THAT! FILES LIKE THAT WOULD NOT BE SUITABLE FOR STREAMING IN THIS MANNER! --> WE WOULD NEED READ DATA CONVERSION!!!
+                current_offset += sizeof(CommonHeader) + header.m_ChunkSize;
 
             } while (!(fmt_found && data_found));
 
@@ -230,11 +222,16 @@ namespace dmSoundCodec
     static Result WavDecodeStream(HDecodeStream stream, char* buffer, uint32_t buffer_size, uint32_t* decoded)
     {
         DecodeStreamInfo *streamInfo = (DecodeStreamInfo *) stream;
-
         DM_PROFILE(__FUNCTION__);
 
         assert(streamInfo->m_Cursor <= streamInfo->m_Info.m_Size);
         uint32_t n = dmMath::Min(buffer_size, streamInfo->m_Info.m_Size - streamInfo->m_Cursor);
+
+        // WAV files can contain data beyond the end of the data chunk. Hence the EOS of the reader is not the only thing tgat can trigger an EOS logically!
+        if (n == 0) {
+            *decoded = 0;
+            return RESULT_END_OF_STREAM;
+        }
 
         uint32_t read_size;
         dmSound::Result res = dmSound::SoundDataRead(streamInfo->m_SoundData, streamInfo->m_BufferOffset + streamInfo->m_Cursor, n, buffer, &read_size);
@@ -247,13 +244,19 @@ namespace dmSoundCodec
         {
             *decoded = 0;
         }
+
         return (res == dmSound::RESULT_END_OF_STREAM) ? RESULT_END_OF_STREAM : RESULT_OK;
     }
 
     static Result WavSkipInStream(HDecodeStream stream, uint32_t bytes, uint32_t* skipped)
     {
         DecodeStreamInfo *streamInfo = (DecodeStreamInfo *) stream;
-        assert(streamInfo->m_Cursor <= streamInfo->m_Info.m_Size);
+        
+        if (streamInfo->m_Cursor >= streamInfo->m_Info.m_Size) {
+            *skipped = 0;
+            return RESULT_END_OF_STREAM;
+        }
+
         uint32_t n = dmMath::Min(bytes, streamInfo->m_Info.m_Size - streamInfo->m_Cursor);
         *skipped = n;
         streamInfo->m_Cursor += n;
