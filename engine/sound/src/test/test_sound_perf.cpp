@@ -39,6 +39,9 @@ DEF_EMBED(MUSIC_LOW_OGG)
 
 #undef DEF_EMBED
 
+#define MAX_BUFFERS 32
+#define MAX_SOURCES 16
+
 class dmSoundTest : public jc_test_base_class
 {
 public:
@@ -66,14 +69,12 @@ public:
         char tmp[4096];
         dmSoundCodec::HDecodeStream stream;
 
-        dmSound::HSoundData sound_data;
-        dmSound::NewSoundData(buf, size, sound_datatype, &sound_data, dmHashString64(test_name));
+        dmSound::HSoundData sd = 0;
+        dmSound::NewSoundData(buf, size, sound_datatype, &sd, dmHashString64(test_name));
 
         const uint64_t time_beg = dmTime::GetMonotonicTime();
-        ASSERT_EQ(decoder->m_OpenStream(sound_data, &stream), dmSoundCodec::RESULT_OK);
+        ASSERT_EQ(decoder->m_OpenStream(sd, &stream), dmSoundCodec::RESULT_OK);
         const uint64_t time_open = dmTime::GetMonotonicTime();
-
-        dmSound::DeleteSoundData(sound_data);
 
         uint64_t max_chunk_time = 0;
         uint64_t iterations = 0;
@@ -119,14 +120,26 @@ public:
         printf(" | In %.1f kbps | Out: %.1f Kb/s\n", (float)size / (128.0f * audio_length), (float)bytes_per_second / 1024.0f);
 
         decoder->m_CloseStream(stream);
+
+        dmSound::DeleteSoundData(sd);
     }
 
     void RunSuite(const char *decoder_name, bool skip)
     {
+        dmSound::InitializeParams params;
+        params.m_MaxBuffers = MAX_BUFFERS;
+        params.m_MaxSources = MAX_SOURCES;
+        params.m_OutputDevice = "default";
+        params.m_FrameCount = 2048;//512;//GetParam().m_BufferFrameCount;
+        params.m_UseThread = true; // all our desktop platforms support this
+
+        dmSound::Result r = dmSound::Initialize(0, &params);
+        assert(r == dmSound::RESULT_OK);
+
         const dmSoundCodec::DecoderInfo *info = dmSoundCodec::FindDecoderByName(decoder_name);
         const dmSound::SoundDataType sound_datatype = dmSound::SOUND_DATA_TYPE_OGG_VORBIS;
         ASSERT_NE((void*) 0, info);
-        DecodeAndTime(info, AMBIENCE_OGG,     AMBIENCE_OGG_SIZE, decoder_name, sound_datatype, skip, "Cymbal");
+        DecodeAndTime(info, AMBIENCE_OGG,     AMBIENCE_OGG_SIZE, decoder_name, sound_datatype, skip, "Ambience");
         DecodeAndTime(info, GLOCKENSPIEL_OGG, GLOCKENSPIEL_OGG_SIZE, decoder_name, sound_datatype, skip, "Glockenspiel");
         DecodeAndTime(info, EXPLOSION_OGG,    EXPLOSION_OGG_SIZE, decoder_name, sound_datatype, skip, "Explosion");
         DecodeAndTime(info, EXPLOSION_LOW_MONO_OGG,EXPLOSION_LOW_MONO_OGG_SIZE, decoder_name, sound_datatype, skip, "Explosion Low Mono");
@@ -138,6 +151,9 @@ public:
             printf("%s is used by default with current build settings on this platform\n", decoder_name);
         else
             printf("%s is NOT used by default with current build settings on this platform\n", decoder_name);
+
+        r = dmSound::Finalize();
+        assert(r == dmSound::RESULT_OK);
     }
 };
 
