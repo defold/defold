@@ -22,8 +22,7 @@ function convert_line_endings() {
 
 function cmi_unpack() {
 	echo cmi_unpack
-    #unzip -q ../../download/$FILE_URL
-    unzip -q ../$FILE_URL
+    unzip -q ../../download/$FILE_URL
     pushd ${PRODUCT}-${VERSION}
     rm -rf Demos Extras UnitTests msvc Glut
     # Convert line endings to unix style
