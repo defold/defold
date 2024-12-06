@@ -137,6 +137,7 @@ TEST_F(FileProviderArchive, ReadFilePartial)
     uint32_t file_size;
     result = dmResourceProvider::GetFileSize(m_Archive, 0, "/src/test/files/somedata", &file_size);
     ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
+    ASSERT_LE(file_size, (uint32_t)sizeof(long_buffer));
 
     result = dmResourceProvider::ReadFile(m_Archive, 0, "/src/test/files/somedata", long_buffer, sizeof(long_buffer));
     ASSERT_EQ(dmResourceProvider::RESULT_OK, result);

@@ -398,7 +398,7 @@ static dmResource::Result ReadCustomResource(HContext ctx, dmhash_t path_hash, u
     return dmResource::RESULT_RESOURCE_NOT_FOUND;
 }
 
-static dmResource::Result ReadCustomResourcePartial(HContext ctx, dmhash_t path_hash, uint32_t offset, uint32_t size, uint8_t* buffer)
+static dmResource::Result ReadCustomResourcePartial(HContext ctx, dmhash_t path_hash, uint32_t offset, uint32_t size, uint8_t* buffer, uint32_t* nread)
 {
     // Lock should already be held
     CustomFile* file = ctx->m_CustomFiles.Get(path_hash);
@@ -411,6 +411,7 @@ static dmResource::Result ReadCustomResourcePartial(HContext ctx, dmhash_t path_
         }
 
         memcpy(buffer, ((uint8_t*)file->m_Resource) + offset, size);
+        *nread = size;
 
         DM_RESOURCE_DBG_LOG(3, "ReadResource OK: %s  " DM_HASH_FMT " (offset: %u  size: %u) (custom file)\n", path_hash, offset, size);
         return dmResource::RESULT_OK;
@@ -497,7 +498,7 @@ dmResource::Result ReadResourcePartial(HContext ctx, dmhash_t path_hash, const c
     }
 
     if (!ctx->m_CustomFiles.Empty())
-        return ReadCustomResourcePartial(ctx, path_hash, offset, size, buffer);
+        return ReadCustomResourcePartial(ctx, path_hash, offset, size, buffer, nread);
 
     return dmResource::RESULT_RESOURCE_NOT_FOUND;
 }

@@ -279,6 +279,47 @@ TEST_F(ArchiveProvidersMulti, ReadCustomFile)
     ASSERT_EQ(0u, resource_size);
 }
 
+TEST_F(ArchiveProvidersMulti, ReadCustomFilePartial)
+{
+    uint8_t     file_data[] = {0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15};
+    uint32_t    file_size = DM_ARRAY_SIZE(file_data);
+    const char* file_path = "/custom/test.adc";
+    dmhash_t    file_hash = dmHashString64(file_path);
+
+    dmResource::Result result = dmResource::RESULT_UNKNOWN_ERROR;
+
+    // Test with adding the file
+    result = dmResourceMounts::AddFile(m_Mounts, file_hash, file_size, file_data);
+    ASSERT_EQ(dmResource::RESULT_OK, result);
+
+    uint32_t resource_size = 0;
+    result = dmResourceMounts::GetResourceSize(m_Mounts, file_hash, file_path, &resource_size);
+    ASSERT_EQ(dmResource::RESULT_OK, result);
+    ASSERT_EQ(file_size, resource_size);
+
+    for (uint32_t chunk_size = 1; chunk_size < file_size+2; ++chunk_size)
+    {
+        uint8_t read_buffer[DM_ARRAY_SIZE(file_data)];
+        memset(read_buffer, 0, sizeof(read_buffer));
+
+        uint32_t offset = 0;
+        while (offset < file_size)
+        {
+            uint32_t nread;
+            result = dmResourceMounts::ReadResourcePartial(m_Mounts, file_hash, file_path, offset, chunk_size, read_buffer, &nread);
+            ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
+            ASSERT_NE(0u, nread);
+            ASSERT_GE(chunk_size, nread);
+
+            ASSERT_ARRAY_EQ_LEN(&file_data[offset], read_buffer, nread);
+            offset += nread;
+        }
+    }
+
+    result = dmResourceMounts::RemoveFile(m_Mounts, file_hash);
+    ASSERT_EQ(dmResource::RESULT_OK, result);
+}
+
 extern "C" void dmExportedSymbols();
 
 int main(int argc, char **argv)

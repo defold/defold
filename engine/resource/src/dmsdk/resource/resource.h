@@ -311,7 +311,6 @@ typedef ResourceResult (*FResourcePostCreate)(const struct ResourcePostCreatePar
 typedef ResourceResult (*FResourceDestroy)(const struct ResourceDestroyParams* params);
 typedef ResourceResult (*FResourceRecreate)(const struct ResourceRecreateParams* params);
 
-
 void* ResourceTypeGetContext(HResourceType type);
 void ResourceTypeSetContext(HResourceType type, void* context);
 const char* ResourceTypeGetName(HResourceType type);
