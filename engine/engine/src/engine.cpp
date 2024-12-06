@@ -609,7 +609,7 @@ namespace dmEngine
             // We currently use size (as opposed to time), as that doesn't require us to know anything about the sound file itself
             int32_t sound_streaming_preload_size = dmConfigFile::GetInt(engine->m_Config, "sound.stream_preload_size", 0);
 
-            const char* extensions[] = {"oggc"}; // wavc
+            const char* extensions[] = {"oggc", "wavc"};
             for (int i = 0; i < DM_ARRAY_SIZE(extensions); ++i)
             {
                 dmResource::HResourceType type;
