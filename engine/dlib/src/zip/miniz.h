@@ -267,7 +267,7 @@
 #endif
 
 #ifdef __cplusplus
-extern "C" {
+//extern "C" {
 #endif
 
 /* ------------------- zlib-style API Definitions. */
@@ -621,7 +621,7 @@ typedef void *const voidpc;
 #endif /* MINIZ_NO_ZLIB_APIS */
 
 #ifdef __cplusplus
-}
+//}
 #endif
 
 #pragma once
@@ -714,7 +714,7 @@ typedef struct mz_dummy_time_t_tag {
 #endif
 
 #ifdef __cplusplus
-extern "C" {
+//extern "C" {
 #endif
 
 extern MINIZ_EXPORT void *miniz_def_alloc_func(void *opaque, size_t items,
@@ -727,14 +727,14 @@ extern MINIZ_EXPORT void *miniz_def_realloc_func(void *opaque, void *address,
 #define MZ_UINT32_MAX (0xFFFFFFFFU)
 
 #ifdef __cplusplus
-}
+//}
 #endif
 #pragma once
 
 #ifndef MINIZ_NO_DEFLATE_APIS
 
 #ifdef __cplusplus
-extern "C" {
+//extern "C" {
 #endif
 /* ------------------- Low-level Compression API Definitions */
 
@@ -978,7 +978,7 @@ MINIZ_EXPORT void tdefl_compressor_free(tdefl_compressor *pComp);
 #endif
 
 #ifdef __cplusplus
-}
+//}
 #endif
 
 #endif /*#ifndef MINIZ_NO_DEFLATE_APIS*/
@@ -989,7 +989,7 @@ MINIZ_EXPORT void tdefl_compressor_free(tdefl_compressor *pComp);
 #ifndef MINIZ_NO_INFLATE_APIS
 
 #ifdef __cplusplus
-extern "C" {
+//extern "C" {
 #endif
 /* Decompression flags used by tinfl_decompress(). */
 /* TINFL_FLAG_PARSE_ZLIB_HEADER: If set, the input has a valid zlib header and
@@ -1180,7 +1180,7 @@ struct tinfl_decompressor_tag {
 };
 
 #ifdef __cplusplus
-}
+//}
 #endif
 
 #endif /*#ifndef MINIZ_NO_INFLATE_APIS*/
@@ -1192,7 +1192,7 @@ struct tinfl_decompressor_tag {
 #ifndef MINIZ_NO_ARCHIVE_APIS
 
 #ifdef __cplusplus
-extern "C" {
+//extern "C" {
 #endif
 
 enum {
@@ -1823,7 +1823,7 @@ MINIZ_EXPORT void *mz_zip_extract_archive_file_to_heap_v2(
 #endif /* #ifndef MINIZ_NO_ARCHIVE_WRITING_APIS */
 
 #ifdef __cplusplus
-}
+//}
 #endif
 
 #endif /* MINIZ_NO_ARCHIVE_APIS */
@@ -1860,7 +1860,7 @@ typedef unsigned char mz_validate_uint32[sizeof(mz_uint32) == 4 ? 1 : -1];
 typedef unsigned char mz_validate_uint64[sizeof(mz_uint64) == 8 ? 1 : -1];
 
 #ifdef __cplusplus
-extern "C" {
+//extern "C" {
 #endif
 
 /* ------------------- zlib-style API's */
@@ -2455,7 +2455,7 @@ const char *mz_error(int err) {
 #endif /*MINIZ_NO_ZLIB_APIS */
 
 #ifdef __cplusplus
-}
+//}
 #endif
 
 /*
@@ -2513,7 +2513,7 @@ const char *mz_error(int err) {
 #ifndef MINIZ_NO_DEFLATE_APIS
 
 #ifdef __cplusplus
-extern "C" {
+//extern "C" {
 #endif
 
 /* ------------------- Low-level Compression (independent from all decompression
@@ -4132,7 +4132,7 @@ void tdefl_compressor_free(tdefl_compressor *pComp) { MZ_FREE(pComp); }
 #endif
 
 #ifdef __cplusplus
-}
+//}
 #endif
 
 #endif /*#ifndef MINIZ_NO_DEFLATE_APIS*/
@@ -4165,7 +4165,7 @@ void tdefl_compressor_free(tdefl_compressor *pComp) { MZ_FREE(pComp); }
 #ifndef MINIZ_NO_INFLATE_APIS
 
 #ifdef __cplusplus
-extern "C" {
+//extern "C" {
 #endif
 
 /* ------------------- Low-level Decompression (completely independent from all
@@ -4902,7 +4902,7 @@ void tinfl_decompressor_free(tinfl_decompressor *pDecomp) { MZ_FREE(pDecomp); }
 #endif
 
 #ifdef __cplusplus
-}
+//}
 #endif
 
 #endif /*#ifndef MINIZ_NO_INFLATE_APIS*/
@@ -4936,7 +4936,7 @@ void tinfl_decompressor_free(tinfl_decompressor *pDecomp) { MZ_FREE(pDecomp); }
 #ifndef MINIZ_NO_ARCHIVE_APIS
 
 #ifdef __cplusplus
-extern "C" {
+//extern "C" {
 #endif
 
 /* ------------------- .ZIP archive reading */
@@ -5032,6 +5032,12 @@ static int mz_mkdir(const char *pDirname) {
 #define MZ_FCLOSE fclose
 #define MZ_FREAD fread
 #define MZ_FWRITE fwrite
+#if defined(MINIZ_USE_ANSI) // defold
+#define MZ_FTELL64 ftell
+#define MZ_FSEEK64 fseek
+#define MZ_FILE_STAT_STRUCT _stat
+#define MZ_FILE_STAT mz_stat
+#else
 #define MZ_FTELL64 _ftelli64
 #define MZ_FSEEK64 _fseeki64
 #if defined(__MINGW32__)
@@ -5041,6 +5047,7 @@ static int mz_mkdir(const char *pDirname) {
 #define MZ_FILE_STAT_STRUCT _stat64
 #define MZ_FILE_STAT mz_stat64
 #endif
+#endif // MINIZ_USE_ANSI
 #define MZ_FFLUSH fflush
 #define MZ_FREOPEN mz_freopen
 #define MZ_DELETE_FILE remove
@@ -5054,8 +5061,13 @@ static int mz_mkdir(const char *pDirname) {
 #define MZ_FCLOSE fclose
 #define MZ_FREAD fread
 #define MZ_FWRITE fwrite
+#if defined(MINIZ_USE_ANSI) // defold
+#define MZ_FTELL64 ftell
+#define MZ_FSEEK64 fseek
+#else
 #define MZ_FTELL64 _ftelli64
 #define MZ_FSEEK64 _fseeki64
+#endif
 #define MZ_FILE_STAT_STRUCT stat
 #define MZ_FILE_STAT stat
 #define MZ_FFLUSH fflush
@@ -5092,10 +5104,17 @@ static int mz_mkdir(const char *pDirname) {
 #define MZ_FCLOSE fclose
 #define MZ_FREAD fread
 #define MZ_FWRITE fwrite
+#if defined(MINIZ_USE_ANSI) // defold
+#define MZ_FTELL64 ftell
+#define MZ_FSEEK64 fseek
+#define MZ_FILE_STAT_STRUCT stat
+#define MZ_FILE_STAT stat
+#else
 #define MZ_FTELL64 ftello64
 #define MZ_FSEEK64 fseeko64
 #define MZ_FILE_STAT_STRUCT stat64
 #define MZ_FILE_STAT stat64
+#endif
 #define MZ_FFLUSH fflush
 #define MZ_FREOPEN(p, m, s) freopen64(p, m, s)
 #define MZ_DELETE_FILE remove
@@ -5110,8 +5129,13 @@ static int mz_mkdir(const char *pDirname) {
 #define MZ_FCLOSE fclose
 #define MZ_FREAD fread
 #define MZ_FWRITE fwrite
+#if defined(MINIZ_USE_ANSI) // defold
+#define MZ_FTELL64 ftell
+#define MZ_FSEEK64 fseek
+#else
 #define MZ_FTELL64 ftello
 #define MZ_FSEEK64 fseeko
+#endif
 #define MZ_FILE_STAT_STRUCT stat
 #define MZ_FILE_STAT stat
 #define MZ_FFLUSH fflush
@@ -5129,7 +5153,7 @@ static int mz_mkdir(const char *pDirname) {
 #define MZ_FCLOSE fclose
 #define MZ_FREAD fread
 #define MZ_FWRITE fwrite
-#ifdef __STRICT_ANSI__
+#if defined(__STRICT_ANSI__) || defined(MINIZ_USE_ANSI)
 #define MZ_FTELL64 ftell
 #define MZ_FSEEK64 fseek
 #else
@@ -10172,7 +10196,7 @@ mz_bool mz_zip_end(mz_zip_archive *pZip) {
 }
 
 #ifdef __cplusplus
-}
+//}
 #endif
 
 #endif /*#ifndef MINIZ_NO_ARCHIVE_APIS*/

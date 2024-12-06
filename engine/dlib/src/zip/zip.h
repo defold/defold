@@ -62,6 +62,25 @@ typedef long ssize_t; /* byte count or error */
 #define ZIP_DEFAULT_COMPRESSION_LEVEL 6
 
 /**
+ * Default zip iterator stack size (in bytes)
+ */
+#define ZIP_DEFAULT_ITER_BUF_SIZE 32*1024
+
+/**
+ * If defined, supports deflate functionality
+ */
+#if !defined(ZIP_NO_DEFLATE)
+#define ZIP_USE_DEFLATE
+#endif
+
+/**
+ * If defined, supports using file operations
+ */
+#if !defined(ZIP_NO_DISC_IO)
+#define ZIP_USE_DISC_IO
+#endif
+
+/**
  * Error codes
  */
 #define ZIP_ENOINIT -1      // not initialized
@@ -469,10 +488,12 @@ extern ZIP_EXPORT ssize_t zip_entries_deletebyindex(struct zip_t *zip,
  *
  * @return the return code - 0 on success, negative number (< 0) on error.
  */
+#if defined(ZIP_USE_DISC_IO)
 extern ZIP_EXPORT int
 zip_stream_extract(const char *stream, size_t size, const char *dir,
                    int (*on_extract)(const char *filename, void *arg),
                    void *arg);
+#endif
 
 /**
  * Opens zip archive stream into memory.
@@ -583,8 +604,10 @@ extern ZIP_EXPORT void zip_cstream_close(struct zip_t *zip);
  *
  * @return the return code - 0 on success, negative number (< 0) on error.
  */
+#if defined(ZIP_USE_DEFLATE)
 extern ZIP_EXPORT int zip_create(const char *zipname, const char *filenames[],
                                  size_t len);
+#endif
 
 /**
  * Extracts a zip archive file into directory.

@@ -14,10 +14,9 @@
 
 #include "texc.h"
 #include "texc_private.h"
-#include "texc_enc_basis.h"
-#include "texc_enc_default.h"
 
 #include <assert.h>
+#include <stdlib.h>
 
 #include <dlib/log.h>
 #include <dlib/math.h>
@@ -25,146 +24,83 @@
 
 namespace dmTexc
 {
-    static bool GetEncoder(CompressionType compression_type, Encoder* encoder)
+    Image* CreateImage(const char* path, uint32_t width, uint32_t height, PixelFormat pixel_format, ColorSpace color_space, uint32_t data_size, uint8_t* data)
     {
-        switch(compression_type)
-        {
-            case dmTexc::CT_BASIS_UASTC:
-            case dmTexc::CT_BASIS_ETC1S:    GetEncoderBasis(encoder); return true;
-            case dmTexc::CT_DEFAULT:        GetEncoderDefault(encoder); return true;
-            default:
-                return false;
-        }
-    }
+        Image* image = new Image;
+        image->m_Path = strdup(path?path:"null");
+        image->m_Width = width;
+        image->m_Height = height;
+        image->m_PixelFormat = pixel_format;
+        image->m_ColorSpace = color_space;
 
-    Texture* CreateTexture(const char* name, uint32_t width, uint32_t height, PixelFormat pixel_format, ColorSpace color_space, CompressionType compression_type, void* data)
-    {
-        TextureImpl* t = new TextureImpl;
-        if (!GetEncoder(compression_type, &t->m_Encoder))
-        {
-            dmLogError("Failed to get an encoder for compression type: %d", (int)compression_type);
-            delete t;
-            return 0;
+        image->m_DataCount = width * height * 4;
+        image->m_Data = (uint8_t*)malloc(image->m_DataCount);
 
-        }
-
-        t->m_CompressionType = compression_type;
-        if (!t->m_Encoder.m_FnCreate(t, width, height, pixel_format, color_space, compression_type, data))
+        if (!ConvertToRGBA8888((uint8_t*)data, width, height, pixel_format, image->m_Data))
         {
-            delete t;
-            dmLogError("Create failed");
+            DestroyImage(image);
             return 0;
         }
-        t->m_Name = name != 0 ? strdup(name) : 0;
+        return image;
+    }
 
-        if (t->m_Name == 0)
+    void DestroyImage(Image* image)
+    {
+        free((void*)image->m_Data);
+        free((void*)image->m_Path);
+        delete image;
+    }
+
+    uint32_t GetWidth(Image* image)
+    {
+        return image->m_Width;
+    }
+
+    uint32_t GetHeight(Image* image)
+    {
+        return image->m_Height;
+    }
+
+    Image* Resize(Image* image, uint32_t width, uint32_t height)
+    {
+        Image* resized = dmTexc::ResizeBasis(image, width, height);
+        resized->m_Path = strdup(image->m_Path?image->m_Path:"null");
+        return resized;
+    }
+
+    // Pre-multiply the color with alpha in a texture. The texture must have format PF_R8G8B8A8 for the alpha to be pre-multiplied.
+    bool PreMultiplyAlpha(Image* image)
+    {
+        PreMultiplyAlpha(image->m_Data, image->m_Width, image->m_Height);
+        return true;
+    }
+
+    // Flips a texture
+    bool Flip(Image* image, FlipAxis flip_axis)
+    {
+        switch(flip_axis)
         {
-            static int counter = 0;
-            char buffer[65];
-            dmSnPrintf(buffer, sizeof(buffer), "image%d_%dx%d", counter++, width, height);
-            t->m_Name = strdup(buffer);
+        case FLIP_AXIS_Y:   FlipImageY_RGBA8888((uint32_t*)image->m_Data, image->m_Width, image->m_Height);
+                            return true;
+        case FLIP_AXIS_X:   FlipImageX_RGBA8888((uint32_t*)image->m_Data, image->m_Width, image->m_Height);
+                            return true;
+        default:
+            dmLogError("Unexpected flip direction: %d", flip_axis);
+            return false;
         }
-
-        Texture* out = new Texture;
-        out->m_Impl = t;
-        return out;
     }
 
-    void DestroyTexture(Texture* texture)
+    // Dithers a texture
+    bool Dither(Image* image, PixelFormat pixel_format)
     {
-        TextureImpl* t = (TextureImpl*)texture->m_Impl;
-        free((void*)t->m_Name);
-        t->m_Encoder.m_FnDestroy(t);
-        delete t;
-        delete texture;
-    }
-
-    // For testing
-    bool GetHeader(Texture* texture, Header* out_header)
-    {
-        TextureImpl* t = (TextureImpl*)texture->m_Impl;
-        return t->m_Encoder.m_FnGetHeader(t, out_header);
-    }
-
-    uint32_t GetDataSizeCompressed(Texture* texture, uint32_t mip_map)
-    {
-        TextureImpl* t = (TextureImpl*)texture->m_Impl;
-        return mip_map < t->m_Mips.Size() ? t->m_Mips[mip_map].m_DataCount : 0;
-    }
-
-    uint32_t GetDataSizeUncompressed(Texture* texture, uint32_t mip_map)
-    {
-        // Since we don't add any extra compression on top of the resource, the
-        // amount of memory required to store the
-        return GetDataSizeCompressed(texture, mip_map);
-    }
-
-    uint32_t GetTotalDataSize(Texture* texture)
-    {
-        TextureImpl* t = (TextureImpl*)texture->m_Impl;
-        return t->m_Encoder.m_FnGetTotalDataSize(t);
-    }
-
-    uint32_t GetData(Texture* texture, void* out_data, uint32_t out_data_size)
-    {
-        TextureImpl* t = (TextureImpl*)texture->m_Impl;
-        return t->m_Encoder.m_FnGetData(t, out_data, out_data_size);
-    }
-
-    uint64_t GetCompressionFlags(Texture* texture)
-    {
-        TextureImpl* t = (TextureImpl*)texture->m_Impl;
-        return t->m_CompressionFlags;
-    }
-
-    bool Resize(Texture* texture, uint32_t width, uint32_t height)
-    {
-        TextureImpl* t = (TextureImpl*)texture->m_Impl;
-        return t->m_Encoder.m_FnResize(t, width, height);
-    }
-
-    bool PreMultiplyAlpha(Texture* texture)
-    {
-        TextureImpl* t = (TextureImpl*)texture->m_Impl;
-        return t->m_Encoder.m_FnPreMultiplyAlpha(t);
-    }
-
-    bool GenMipMaps(Texture* texture)
-    {
-        TextureImpl* t = (TextureImpl*)texture->m_Impl;
-        return t->m_Encoder.m_FnGenMipMaps(t);
-    }
-
-    bool Flip(Texture* texture, FlipAxis flip_axis)
-    {
-        if (flip_axis == FLIP_AXIS_Z)
-        {
-            dmLogWarning("FLIP_AXIS_Z not supported");
+        if (pixel_format == PF_R4G4B4A4) {
+            DitherRGBA4444(image->m_Data, image->m_Width, image->m_Height);
             return true;
         }
-        TextureImpl* t = (TextureImpl*)texture->m_Impl;
-        return t->m_Encoder.m_FnFlip(t, flip_axis);
-    }
-
-    static uint32_t GetNumThreads(int max_threads)
-    {
-        uint32_t num_threads = max_threads;
-        if (max_threads > 1)
-        {
-            num_threads = std::thread::hardware_concurrency();
-            if (num_threads < 1)
-                num_threads = 1;
-            if (num_threads > max_threads)
-                num_threads = max_threads;
+        else if(pixel_format == PF_R5G6B5) {
+            DitherRGBx565(image->m_Data, image->m_Width, image->m_Height);
+            return true;
         }
-        return num_threads;
-    }
-
-    bool Encode(Texture* texture, PixelFormat pixel_format, ColorSpace color_space,
-                CompressionLevel compression_level, CompressionType compression_type, bool mipmaps, int max_threads)
-    {
-        uint32_t num_threads = GetNumThreads(max_threads);
-        TextureImpl* t = (TextureImpl*)texture->m_Impl;
-        return t->m_Encoder.m_FnEncode(t, num_threads, pixel_format, compression_type, compression_level);
+        return false;
     }
 }

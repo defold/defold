@@ -230,8 +230,16 @@ int mbedtls_net_bind( mbedtls_net_context *ctx, const char *bind_ip, const char 
         }
 
         n = 1;
-        if( setsockopt( ctx->fd, SOL_SOCKET, SO_REUSEADDR,
-                        (const char *) &n, sizeof( n ) ) != 0 )
+        if(
+/// DEFOLD BEGIN
+#if !defined(__EMSCRIPTEN__)
+            setsockopt( ctx->fd, SOL_SOCKET, SO_REUSEADDR,
+                        (const char *) &n, sizeof( n ) ) != 0
+#else
+            1 // setsockopt in emscripten sub return always ENOPROTOOPT
+#endif
+/// DEFOLD END
+            )
         {
             close( ctx->fd );
             ret = MBEDTLS_ERR_NET_SOCKET_FAILED;
@@ -392,9 +400,14 @@ int mbedtls_net_accept( mbedtls_net_context *bind_ctx,
         if( getsockname( client_ctx->fd,
                          (struct sockaddr *) &local_addr, &n ) != 0 ||
             ( bind_ctx->fd = (int) socket( local_addr.ss_family,
-                                           SOCK_DGRAM, IPPROTO_UDP ) ) < 0 ||
-            setsockopt( bind_ctx->fd, SOL_SOCKET, SO_REUSEADDR,
-                        (const char *) &one, sizeof( one ) ) != 0 )
+                                           SOCK_DGRAM, IPPROTO_UDP ) ) < 0
+/// DEFOLD BEGIN
+#if !defined(__EMSCRIPTEN__)
+            || setsockopt( bind_ctx->fd, SOL_SOCKET, SO_REUSEADDR,
+                        (const char *) &one, sizeof( one ) ) != 0
+#endif
+/// DEFOLD END
+            )
         {
             return( MBEDTLS_ERR_NET_SOCKET_FAILED );
         }

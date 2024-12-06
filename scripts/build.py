@@ -1638,7 +1638,6 @@ class Configuration(object):
         cmd = ['java', '-XshowSettings:properties', '-version']
         process = subprocess.Popen(cmd, stdout = subprocess.PIPE, stderr = subprocess.PIPE, shell = False)
         output = process.communicate()[1]
-
         lines = output.decode("utf-8").replace('\r', '').split('\n')
 
         for line in lines:
@@ -1654,7 +1653,6 @@ class Configuration(object):
         print ('Setting up shell with DYNAMO_HOME, PATH, JAVA_HOME, and LD_LIBRARY_PATH/DYLD_LIBRARY_PATH (where applicable) set')
 
         args = [SHELL, '-l']
-        print("MAWE" "shell", SHELL)
 
         process = subprocess.Popen(args, env=self._form_env(), shell=True)
         output = process.communicate()[0]
@@ -2280,6 +2278,10 @@ class Configuration(object):
         env['PYTHONPATH'] = os.path.pathsep.join(pythonpaths)
         env['PYTHONIOENCODING'] = 'UTF-8'
 
+        if not 'JAVA_HOME' in os.environ:
+            self.find_and_set_java_home()
+        if not 'JAVA_HOME' in os.environ:
+            self.fatal("Failed to find JAVA_HOME environment variable or valid java executable")
         env['JAVA_HOME'] = os.environ['JAVA_HOME']
 
         env['DYNAMO_HOME'] = self.dynamo_home
