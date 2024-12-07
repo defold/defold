@@ -392,7 +392,7 @@ static dmResource::Result ReadCustomResource(HContext ctx, dmhash_t path_hash, u
 
         memcpy(buffer, file->m_Resource, buffer_size);
 
-        DM_RESOURCE_DBG_LOG(3, "ReadResource OK: %s  " DM_HASH_FMT " (%u bytes) (custom file)\n", path_hash, buffer_size);
+        DM_RESOURCE_DBG_LOG(3, "ReadResource OK: %s  " DM_HASH_FMT " (%u bytes) (custom file)\n", dmHashReverseSafe64(path_hash), path_hash, buffer_size);
         return dmResource::RESULT_OK;
     }
     return dmResource::RESULT_RESOURCE_NOT_FOUND;
@@ -413,7 +413,7 @@ static dmResource::Result ReadCustomResourcePartial(HContext ctx, dmhash_t path_
         memcpy(buffer, ((uint8_t*)file->m_Resource) + offset, size);
         *nread = size;
 
-        DM_RESOURCE_DBG_LOG(3, "ReadResource OK: %s  " DM_HASH_FMT " (offset: %u  size: %u) (custom file)\n", path_hash, offset, size);
+        DM_RESOURCE_DBG_LOG(3, "ReadResource OK: %s  " DM_HASH_FMT " (offset: %u  size: %u) (custom file)\n", dmHashReverseSafe64(path_hash), path_hash, offset, size);
         return dmResource::RESULT_OK;
     }
     return dmResource::RESULT_RESOURCE_NOT_FOUND;
@@ -432,7 +432,7 @@ dmResource::Result GetResourceSize(HContext ctx, dmhash_t path_hash, const char*
             continue;
         if (dmResourceProvider::RESULT_OK == result)
         {
-            DM_RESOURCE_DBG_LOG(3, "GetResourceSize OK: %s  " DM_HASH_FMT " (%u bytes)\n", path, path_hash, *resource_size);
+            DM_RESOURCE_DBG_LOG(3, "GetResourceSize OK: %s  " DM_HASH_FMT " (%u bytes) - mount %s\n", path, path_hash, *resource_size, mount.m_Name);
             DebugPrintMount(3, mount);
             return dmResource::RESULT_OK;
         }
@@ -460,11 +460,12 @@ dmResource::Result ReadResource(HContext ctx, dmhash_t path_hash, const char* pa
     {
         ArchiveMount& mount = ctx->m_Mounts[i];
         dmResourceProvider::Result result = dmResourceProvider::ReadFile(mount.m_Archive, path_hash, path, buffer, buffer_size);
+        printf("  READ RESOURCE RESULT: %d\n", result);
         if (dmResourceProvider::RESULT_NOT_FOUND == result)
             continue;
         if (dmResourceProvider::RESULT_OK == result)
         {
-            DM_RESOURCE_DBG_LOG(3, "%s: %s (%u bytes)\n", __FUNCTION__, path, buffer_size);
+            DM_RESOURCE_DBG_LOG(3, "%s: %s (%u bytes) - mount %s\n", __FUNCTION__, path, buffer_size, mount.m_Name);
             DebugPrintMount(3, mount);
             return dmResource::RESULT_OK;
         }
