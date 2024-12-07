@@ -13,7 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns util.coll
-  (:refer-clojure :exclude [bounded-count empty? mapcat not-empty some])
+  (:refer-clojure :exclude [bounded-count empty? mapcat merge not-empty some])
   (:import [clojure.lang Cons IEditableCollection MapEntry]
            [java.util ArrayList]))
 
@@ -211,6 +211,21 @@
    (into {}
          (map (pair-fn key-fn value-fn))
          coll)))
+
+(defn merge
+  "Like core.merge, but makes use of transients for efficiency, and ignores
+  empty collections (even in LHS position!). Also works with sets."
+  ([] nil)
+  ([a] a)
+  ([a b]
+   (cond
+     (empty? a) b
+     (empty? b) a
+     :else (into a b)))
+  ([a b & maps]
+   (reduce merge
+           (merge a b)
+           maps)))
 
 (defn deep-merge
   "Deep-merge the supplied maps. Values from later maps will overwrite values in
