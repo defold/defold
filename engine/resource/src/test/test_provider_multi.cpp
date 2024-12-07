@@ -307,7 +307,7 @@ TEST_F(ArchiveProvidersMulti, ReadCustomFilePartial)
         {
             uint32_t nread;
             result = dmResourceMounts::ReadResourcePartial(m_Mounts, file_hash, file_path, offset, chunk_size, read_buffer, &nread);
-            ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
+            ASSERT_EQ(dmResource::RESULT_OK, result);
             ASSERT_NE(0u, nread);
             ASSERT_GE(chunk_size, nread);
 

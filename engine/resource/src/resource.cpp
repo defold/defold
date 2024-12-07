@@ -699,7 +699,7 @@ Result LoadResourceToBuffer(HFactory factory, const char* path, const char* orig
 }
 
 // Assumes m_LoadMutex is already held
-Result LoadResource(HFactory factory, const char* path, const char* original_name, uint32_t preload_size, void** buffer, uint32_t* buffer_size, uint32_t* resource_size)
+static Result LoadResource(HFactory factory, const char* path, const char* original_name, uint32_t preload_size, void** buffer, uint32_t* buffer_size, uint32_t* resource_size)
 {
     if (factory->m_Buffer.Capacity() != DEFAULT_BUFFER_SIZE) {
         factory->m_Buffer.SetCapacity(DEFAULT_BUFFER_SIZE);
@@ -716,6 +716,12 @@ Result LoadResource(HFactory factory, const char* path, const char* original_nam
         *buffer = 0;
     }
     return r;
+}
+
+Result LoadResource(HFactory factory, const char* path, const char* original_name, void** buffer, uint32_t* resource_size)
+{
+    uint32_t buffer_size;
+    return LoadResource(factory, path, original_name, RESOURCE_INVALID_PRELOAD_SIZE, buffer, &buffer_size, resource_size);
 }
 
 const char* GetExtFromPath(const char* path)
