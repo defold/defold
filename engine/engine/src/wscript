@@ -135,7 +135,7 @@ def build(bld):
         additional_libs.append('APP')
 
     platform_lib = ['PLATFORM']
-    if not platform_supports_feature(bld.env.PLATFORM, "opengl", None):
+    if not (platform_supports_feature(bld.env.PLATFORM, "opengl", None) or platform_supports_feature(bld.env.PLATFORM, "vulkan", None)):
         platform_lib = ['PLATFORM_NULL']
 
     obj = bld(

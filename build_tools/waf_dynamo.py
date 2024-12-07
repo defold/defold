@@ -560,7 +560,7 @@ def default_flags(self):
         hostfs = self.env['DM_HOSTFS']
     self.env.append_unique('DEFINES', 'DM_HOSTFS=\"%s\"' % hostfs)
 
-    if Options.options.with_iwyu and 'IWYU' in self.env:
+    if 'IWYU' in self.env: # enabled during configure step
         wrapper = build_util.get_dynamo_home('..', '..', 'scripts', 'iwyu-clang.sh')
         for f in ['CC', 'CXX']:
             self.env[f] = [wrapper, self.env[f][0]]

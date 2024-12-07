@@ -1,4 +1,3 @@
-
 // Copyright 2020-2024 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
@@ -13,14 +12,15 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#ifndef DM_TEXC_ENCODER_DEFAULT_H
-#define DM_TEXC_ENCODER_DEFAULT_H
+package com.defold.extension.pipeline.texture;
 
-#include "texc_private.h"
+/**
+ * Interface for compressing a texture using settings
+ * We will scan for public non-abstract classes that implement this interface inside the com.defold.extension.pipeline
+ * package and instantiate them to transform Lua source code. Implementors must provide a no-argument constructor.
+ */
+public interface ITextureCompressor {
+    public String getName();
 
-namespace dmTexc
-{
-    void GetEncoderDefault(Encoder* encoder);
+    public byte[] compress(TextureCompressorPreset preset, TextureCompressorParams params, byte[] input);
 }
-
-#endif // DM_TEXC_ENCODER_DEFAULT_H

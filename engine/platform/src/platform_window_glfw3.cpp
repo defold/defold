@@ -104,8 +104,9 @@ namespace dmPlatform
 
     static void OnContentScaleCallback(GLFWwindow* glfw_window, float xscale, float yscale)
     {
-        (void)xscale;
-        (void)yscale;
+        HWindow window = (HWindow) glfwGetWindowUserPointer(glfw_window);
+        window->m_XScale = xscale;
+        window->m_YScale = yscale;
 
         int width, height;
         glfwGetWindowSize(glfw_window, &width, &height);
@@ -293,6 +294,7 @@ namespace dmPlatform
             glfwSetWindowSize(window->m_Window, params.m_Width, params.m_Height);
         #endif
 
+            glfwGetWindowContentScale(window->m_Window, &window->m_XScale, &window->m_YScale);
             glfwSetWindowUserPointer(window->m_Window, (void*) window);
             glfwSetWindowSizeCallback(window->m_Window, OnWindowResize);
             glfwSetWindowCloseCallback(window->m_Window, OnWindowClose);
@@ -399,7 +401,7 @@ namespace dmPlatform
 
     float GetDisplayScaleFactor(HWindow window)
     {
-        return dmMath::Max(window->m_Width / window->m_WidthScreen, window->m_Height / window->m_HeightScreen);
+        return dmMath::Max(window->m_XScale, window->m_YScale);
     }
 
     void* AcquireAuxContext(HWindow window)

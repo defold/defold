@@ -38,6 +38,7 @@
             [editor.resource-node :as resource-node]
             [editor.resource-update :as resource-update]
             [editor.settings-core :as settings-core]
+            [editor.texture.engine :as texture.engine]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [internal.java :as java]
@@ -912,6 +913,7 @@
       (workspace/unpack-editor-plugins! workspace touched-resources)
       (code.preprocessors/reload-lua-preprocessors! code-preprocessors java/class-loader)
       (code.transpilers/reload-lua-transpilers! code-transpilers workspace java/class-loader)
+      (texture.engine/reload-texture-compressors! java/class-loader)
       (workspace/load-clojure-editor-plugins! workspace touched-resources))))
 
 (defn- handle-resource-changes [project changes render-progress!]

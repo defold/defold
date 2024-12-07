@@ -83,33 +83,40 @@ namespace dmTexc
         FLIP_AXIS_Z = 2
     };
 
-    enum DitherType
+    struct Image
     {
-        DT_NONE = 0,
-        DT_DEFAULT = 1
+        const char* m_Path;
+        uint8_t*    m_Data;
+        uint32_t    m_DataCount;
+        uint32_t    m_Width;
+        uint32_t    m_Height;
+        PixelFormat m_PixelFormat;
+        ColorSpace  m_ColorSpace;
     };
 
-    // OLD API
-    struct Header
-    {
-        uint32_t m_Version;
-        uint32_t m_Flags;
-        uint64_t m_PixelFormat;
-        uint32_t m_ColourSpace;
-        uint32_t m_ChannelType;
-        uint32_t m_Height;
-        uint32_t m_Width;
-        uint32_t m_Depth;
-        uint32_t m_NumSurfaces;
-        uint32_t m_NumFaces;
-        uint32_t m_MipMapCount;
-        uint32_t m_MetaDataSize;
-    };
+    Image* CreateImage(const char* path, uint32_t width, uint32_t height, PixelFormat pixel_format, ColorSpace colorSpace, uint32_t data_size, uint8_t* data);
+    void DestroyImage(Image* image);
 
-    struct Texture
-    {
-        void* m_Impl;
-    };
+    uint32_t GetWidth(Image* image);
+    uint32_t GetHeight(Image* image);
+
+    // Resize a texture. The texture must have format PF_R8G8B8A8 to be resized.
+    Image* Resize(Image* image, uint32_t width, uint32_t height);
+
+    // Pre-multiply the color with alpha in a texture. The texture must have format PF_R8G8B8A8 for the alpha to be pre-multiplied.
+    bool PreMultiplyAlpha(Image* image);
+
+    // Generate mip maps. The texture must have format PF_R8G8B8A8 for mip maps to be generated.
+    bool GenMipMaps(Image* image); // This doesn't exist??
+
+    // Flips a texture vertically
+    bool Flip(Image* image, FlipAxis flip_axis);
+
+    // Dithers a texture given the intended target pixel format
+    bool Dither(Image* image, PixelFormat pixel_format);
+
+    // **********************************************************************
+    // Font API
 
     struct Buffer
     {
@@ -120,48 +127,64 @@ namespace dmTexc
         bool     m_IsCompressed;
     };
 
-    Texture* CreateTexture(const char* name, uint32_t width, uint32_t height, PixelFormat pixel_format, ColorSpace colorSpace, CompressionType compression_type, void* data);
-    void DestroyTexture(Texture* texture);
-
-    // Get header (info) of a texture
-    bool GetHeader(Texture* texture, Header* out_header);
-
-    // Get the compressed data size in bytes of a mip map. Returns 0 if not compressed
-    uint32_t GetDataSizeCompressed(Texture* texture, uint32_t mip_map);
-
-    // Get the uncompressed data size in bytes of a mip map in a texture
-    uint32_t GetDataSizeUncompressed(Texture* texture, uint32_t mip_map);
-
-    // Get the total data size in bytes including all mip maps in a texture (compressed or not)
-    uint32_t GetTotalDataSize(Texture* texture);
-
-    // Get the data pointer to texture (mip maps linear layout in memory)
-    uint32_t GetData(Texture* texture, void* out_data, uint32_t out_data_size);
-
-    // Get compression flags
-    uint64_t GetCompressionFlags(Texture* texture);
-
-    // Resize a texture. The texture must have format PF_R8G8B8A8 to be resized.
-    bool Resize(Texture* texture, uint32_t width, uint32_t height);
-
-    // Pre-multiply the color with alpha in a texture. The texture must have format PF_R8G8B8A8 for the alpha to be pre-multiplied.
-    bool PreMultiplyAlpha(Texture* texture);
-
-    // Generate mip maps. The texture must have format PF_R8G8B8A8 for mip maps to be generated.
-    bool GenMipMaps(Texture* texture);
-
-    // Flips a texture vertically
-    bool Flip(Texture* texture, FlipAxis flip_axis);
-
-    // Encode a texture into basis format.
-    bool Encode(Texture* texture, PixelFormat pixelFormat, ColorSpace color_space, CompressionLevel compressionLevel, CompressionType compression_type, bool mipmaps, int max_threads);
-
-    // Now only used for font glyphs
     // Compresses an image buffer
     Buffer* CompressBuffer(uint8_t* byte, uint32_t byte_count);
 
     // Destroys a buffer created by CompressBuffer
     void DestroyBuffer(Buffer* buffer);
+
+
+    // **********************************************************************
+    // Texture compression api
+
+    struct BasisUEncodeSettings
+    {
+        // Input
+        const char* m_Path;
+        int         m_Width;
+        int         m_Height;
+        PixelFormat m_PixelFormat;
+        ColorSpace  m_ColorSpace;
+        uint8_t*    m_Data;
+        uint32_t    m_DataCount;
+
+        int         m_NumThreads;
+        bool        m_Debug;
+
+        // Output
+        PixelFormat m_OutPixelFormat;
+
+        // Naming matching variables in basis_compressor_params (basis_comp.h)
+        bool        m_rdo_uastc;
+        uint32_t    m_pack_uastc_flags;
+        int         m_rdo_uastc_dict_size;
+        float       m_rdo_uastc_quality_scalar;
+    };
+
+    // Encode a texture into basis format. Caller must call free() on the returned data.
+    bool BasisUEncode(BasisUEncodeSettings* settings, uint8_t** out, uint32_t* out_size);
+
+    struct DefaultEncodeSettings
+    {
+        // Input
+        const char* m_Path;
+        int         m_Width;
+        int         m_Height;
+        PixelFormat m_PixelFormat;
+        ColorSpace  m_ColorSpace;
+        uint8_t*    m_Data;
+        uint32_t    m_DataCount;
+
+        int         m_NumThreads;
+        bool        m_Debug;
+
+        // Output
+        PixelFormat m_OutPixelFormat;
+    };
+
+    // Encode a texture into correct pixel format. Caller must call free() on the returned data.
+    bool DefaultEncode(DefaultEncodeSettings* settings, uint8_t** out, uint32_t* out_size);
+
 }
 
 #endif // DM_TEXC_H

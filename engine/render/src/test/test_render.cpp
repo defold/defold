@@ -31,6 +31,7 @@
 #include "render/render.h"
 #include "render/render_private.h"
 #include "render/font_renderer_private.h"
+#include "render/font_renderer_default.h" // for dmRender::Layout
 
 const static uint32_t WIDTH = 600;
 const static uint32_t HEIGHT = 400;
@@ -104,7 +105,7 @@ protected:
         font_map_params.m_GetGlyph = GetGlyph;
         font_map_params.m_GetGlyphData = GetGlyphData;
 
-        m_SystemFontMap = dmRender::NewFontMap(m_GraphicsContext, font_map_params);
+        m_SystemFontMap = dmRender::NewFontMap(m_Context, m_GraphicsContext, font_map_params);
 
         memset(m_Glyphs, 0, sizeof(m_Glyphs));
         for (uint32_t i = 0; i < DM_ARRAY_SIZE(m_Glyphs); ++i)
@@ -147,7 +148,7 @@ TEST_F(dmRenderTest, TestFontMapTextureFiltering)
     bitmap_font_map_params.m_GetGlyph = GetGlyph;
     bitmap_font_map_params.m_GetGlyphData = GetGlyphData;
 
-    bitmap_font_map = dmRender::NewFontMap(m_GraphicsContext, bitmap_font_map_params);
+    bitmap_font_map = dmRender::NewFontMap(m_Context, m_GraphicsContext, bitmap_font_map_params);
     ASSERT_TRUE(VerifyFontMapMinFilter(bitmap_font_map, dmGraphics::TEXTURE_FILTER_LINEAR));
     ASSERT_TRUE(VerifyFontMapMagFilter(bitmap_font_map, dmGraphics::TEXTURE_FILTER_LINEAR));
     dmRender::DeleteFontMap(bitmap_font_map);
@@ -1386,6 +1387,16 @@ static inline float ExpectedHeight(float line_height, float num_lines, float lea
     return num_lines * (line_height * fabsf(leading)) - line_height * (fabsf(leading) - 1.0f);
 }
 
+static void GetTextMetrics(dmRender::HFontMap font_map, const char* text, float width, bool line_break, float leading, float tracking, dmRender::TextMetrics* metrics)
+{
+    dmRender::TextMetricsSettings settings;
+    settings.m_Width = width;
+    settings.m_LineBreak = line_break;
+    settings.m_Leading = leading;
+    settings.m_Tracking = tracking;
+    dmRender::GetTextMetrics(font_map, text, &settings, metrics);
+}
+
 TEST_F(dmRenderTest, GetTextMetrics)
 {
     dmRender::TextMetrics metrics;
@@ -1395,7 +1406,7 @@ TEST_F(dmRenderTest, GetTextMetrics)
     const int descent       = 1;
     const int lineheight    = ascent + descent;
 
-    dmRender::GetTextMetrics(m_SystemFontMap, "Hello World", 0, false, 1.0f, 0.0f, &metrics);
+    GetTextMetrics(m_SystemFontMap, "Hello World", 0, false, 1.0f, 0.0f, &metrics);
     ASSERT_EQ(ascent, metrics.m_MaxAscent);
     ASSERT_EQ(descent, metrics.m_MaxDescent);
     ASSERT_EQ(charwidth*11, metrics.m_Width);
@@ -1404,7 +1415,7 @@ TEST_F(dmRenderTest, GetTextMetrics)
     // line break in the middle of the sentence
     int numlines = 2;
 
-    dmRender::GetTextMetrics(m_SystemFontMap, "Hello World", 8*charwidth, true, 1.0f, 0.0f, &metrics);
+    GetTextMetrics(m_SystemFontMap, "Hello World", 8*charwidth, true, 1.0f, 0.0f, &metrics);
     ASSERT_EQ(ascent, metrics.m_MaxAscent);
     ASSERT_EQ(descent, metrics.m_MaxDescent);
     ASSERT_EQ(charwidth*5, metrics.m_Width);
@@ -1415,7 +1426,7 @@ TEST_F(dmRenderTest, GetTextMetrics)
 
     leading = 2.0f;
     tracking = 0.0f;
-    dmRender::GetTextMetrics(m_SystemFontMap, "Hello World", 8*charwidth, true, leading, tracking, &metrics);
+    GetTextMetrics(m_SystemFontMap, "Hello World", 8*charwidth, true, leading, tracking, &metrics);
     ASSERT_EQ(ascent, metrics.m_MaxAscent);
     ASSERT_EQ(descent, metrics.m_MaxDescent);
     ASSERT_EQ(charwidth*5, metrics.m_Width);
@@ -1423,7 +1434,7 @@ TEST_F(dmRenderTest, GetTextMetrics)
 
     leading = 0.0f;
     tracking = 0.0f;
-    dmRender::GetTextMetrics(m_SystemFontMap, "Hello World", 8*charwidth, true, leading, tracking, &metrics);
+    GetTextMetrics(m_SystemFontMap, "Hello World", 8*charwidth, true, leading, tracking, &metrics);
     ASSERT_EQ(ascent, metrics.m_MaxAscent);
     ASSERT_EQ(descent, metrics.m_MaxDescent);
     ASSERT_EQ(charwidth*5, metrics.m_Width);
@@ -1432,7 +1443,7 @@ TEST_F(dmRenderTest, GetTextMetrics)
     leading = 1.0f;
     tracking = 0.0f;
     numlines = 3;
-    dmRender::GetTextMetrics(m_SystemFontMap, "Hello World Bonanza", 8*charwidth, true, leading, tracking, &metrics);
+    GetTextMetrics(m_SystemFontMap, "Hello World Bonanza", 8*charwidth, true, leading, tracking, &metrics);
     ASSERT_EQ(ascent, metrics.m_MaxAscent);
     ASSERT_EQ(descent, metrics.m_MaxDescent);
     ASSERT_EQ(charwidth*7, metrics.m_Width);
@@ -1447,14 +1458,14 @@ TEST_F(dmRenderTest, GetTextMetricsMeasureTrailingSpace)
     dmRender::TextMetrics metricsSingleLineHelloAndSpace;
     dmRender::TextMetrics metricsSingleLineSpace;
 
-    dmRender::GetTextMetrics(m_SystemFontMap, "Hello", 0, true, 1.0f, 0.0f, &metricsHello);
-    dmRender::GetTextMetrics(m_SystemFontMap, "Hello      ", 0, true, 1.0f, 0.0f, &metricsMultiLineHelloAndSpace);
+    GetTextMetrics(m_SystemFontMap, "Hello", 0, true, 1.0f, 0.0f, &metricsHello);
+    GetTextMetrics(m_SystemFontMap, "Hello      ", 0, true, 1.0f, 0.0f, &metricsMultiLineHelloAndSpace);
     ASSERT_EQ(metricsHello.m_Width, metricsMultiLineHelloAndSpace.m_Width);
 
-    dmRender::GetTextMetrics(m_SystemFontMap, "Hello      ", 0, false, 1.0f, 0.0f, &metricsSingleLineHelloAndSpace);
+    GetTextMetrics(m_SystemFontMap, "Hello      ", 0, false, 1.0f, 0.0f, &metricsSingleLineHelloAndSpace);
     ASSERT_LT(metricsHello.m_Width, metricsSingleLineHelloAndSpace.m_Width);
 
-    dmRender::GetTextMetrics(m_SystemFontMap, " ", 0, false, 1.0f, 0.0f, &metricsSingleLineSpace);
+    GetTextMetrics(m_SystemFontMap, " ", 0, false, 1.0f, 0.0f, &metricsSingleLineSpace);
     ASSERT_GT(metricsSingleLineSpace.m_Width, 0);
 }
 
@@ -1476,7 +1487,7 @@ TEST_F(dmRenderTest, TextAlignment)
         float leading = leadings[i];
         tracking = 0.0f;
         numlines = 3;
-        dmRender::GetTextMetrics(m_SystemFontMap, "Hello World Bonanza", 8*charwidth, true, leading, tracking, &metrics);
+        GetTextMetrics(m_SystemFontMap, "Hello World Bonanza", 8*charwidth, true, leading, tracking, &metrics);
         ASSERT_EQ(ascent, metrics.m_MaxAscent);
         ASSERT_EQ(descent, metrics.m_MaxDescent);
         ASSERT_EQ(charwidth*7, metrics.m_Width);

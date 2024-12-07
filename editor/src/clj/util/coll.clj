@@ -22,6 +22,38 @@
 
 (def empty-sorted-map (sorted-map))
 
+(defmacro transfer
+  "Transfer the sequence supplied as the first argument into the destination
+  collection specified as the second argument, using a transducer composed of
+  the remaining arguments. Returns the resulting collection. Supplying :eduction
+  as the destination returns an eduction instead."
+  ([from to xform]
+   (case to
+     :eduction `(->Eduction ~xform ~from)
+     `(into ~to
+            ~xform
+            ~from)))
+  ([from to xform & xforms]
+   (case to
+     :eduction `(->Eduction (comp ~xform ~@xforms) ~from)
+     `(into ~to
+            (comp ~xform ~@xforms)
+            ~from))))
+
+(defn key-set
+  "Returns an unordered set with all keys from the supplied map."
+  [coll]
+  (into #{}
+        (map key)
+        coll))
+
+(defn sorted-key-set
+  "Returns a sorted set with all keys from the supplied map."
+  [coll]
+  (into (sorted-set)
+        (map key)
+        coll))
+
 (defn list-or-cons?
   "Returns true if the specified value is either a IPersistentList or a
   clojure.lang.Cons. Useful in macros, where list expressions can be either
@@ -180,6 +212,24 @@
          (map (pair-fn key-fn value-fn))
          coll)))
 
+(defn deep-merge
+  "Deep-merge the supplied maps. Values from later maps will overwrite values in
+  the previous maps. Records can be merged with maps, but are otherwise treated
+  as values. Any non-map collections are treated as values. Types and metadata
+  are preserved."
+  ([] nil)
+  ([a] a)
+  ([a b]
+   (cond
+     (and (record? b) (record? a)) b
+     (or (not (map? a)) (empty? a)) b
+     (and (map? b) (not (empty? b))) (merge-with deep-merge a b)
+     :else a))
+  ([a b & maps]
+   (reduce deep-merge
+           (deep-merge a b)
+           maps)))
+
 (defn partition-all-primitives
   "Returns a lazy sequence of primitive vectors. Like core.partition-all, but
   creates a new vector of a single primitive-type for each partition. The
@@ -212,6 +262,24 @@
      (when-let [in-progress (seq coll)]
        (let [finished (apply vector-of primitive-type (take partition-length in-progress))]
          (cons finished (partition-all-primitives primitive-type partition-length step (nthrest in-progress step))))))))
+
+(defn reduce-partitioned
+  "Partitions coll into the requested partition-length, then reduces using the
+  accumulate-fn with the resulting arguments from each partition. If coll cannot
+  be evenly partitioned, throws IllegalArgumentException."
+  [^long partition-length accumulate-fn init coll]
+  (if (pos-int? partition-length)
+    (transduce
+      (partition-all partition-length)
+      (fn
+        ([result] result)
+        ([result partition]
+         (case (rem (count partition) partition-length)
+           0 (apply accumulate-fn result partition)
+           (throw (IllegalArgumentException. "The length of coll must be a multiple of the partition-length.")))))
+      init
+      coll)
+    (throw (IllegalArgumentException. "The partition-length must be positive."))))
 
 (defn remove-index
   "Removes an item at the specified position in a vector"

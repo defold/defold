@@ -838,6 +838,7 @@ static void requestDeviceCallback(WGPURequestDeviceStatus status, WGPUDevice dev
         }
         context->m_Format = wgpuSurfaceGetPreferredFormat(context->m_Surface, context->m_Adapter);
         WebGPUCreateSwapchain(context, context->m_OriginalWidth, context->m_OriginalHeight);
+        context->m_InitComplete = true;
     }
     else
     {
@@ -863,7 +864,6 @@ static void instanceRequestAdapterCallback(WGPURequestAdapterStatus status, WGPU
         if (wgpuAdapterHasFeature(context->m_Adapter, WGPUFeatureName_TextureCompressionASTC))
             features[descriptor.requiredFeatureCount++] = WGPUFeatureName_TextureCompressionASTC;
         wgpuAdapterRequestDevice(context->m_Adapter, &descriptor, requestDeviceCallback, userdata);
-        context->m_InitComplete = true;
     }
     else
     {

@@ -308,16 +308,16 @@ namespace dmGraphics
             return false;
         }
 
-        uint32_t max_num_images = *num_transcoded_mips;
-        uint32_t slice_data_offset = 0;
-
-        ImageTranscodeState* image_transcoders = new ImageTranscodeState[image_count];
-
     #if defined(TEX_TRANSCODE_DEBUG)
         dmLogInfo("Transcoding: %s from %d to %d (%s -> %s)", path, format, (int)transcoder_format, ToString(format), ToString(transcoder_format));
     #endif
 
-        for (int i = 0; i < image_count; ++i)
+        uint32_t max_mipmap_count              = dmMath::Min(*num_transcoded_mips, image[0].m_MipMapSize.m_Count);
+        uint32_t images_and_mipmap_count       = max_mipmap_count * image_count;
+        ImageTranscodeState* image_transcoders = new ImageTranscodeState[images_and_mipmap_count];
+
+        uint32_t slice_data_offset = 0;
+        for (int i = 0; i < image_count * max_mipmap_count; ++i)
         {
             uint32_t size = image->m_MipMapSizeCompressed[i];
             uint8_t* ptr  = &image->m_Data.m_Data[slice_data_offset];
@@ -330,33 +330,34 @@ namespace dmGraphics
             slice_data_offset += size;
         }
 
-        uint32_t num_levels = dmMath::Min(image_transcoders[0].m_Info.m_total_levels, max_num_images);
-        for (uint32_t level_index = 0; level_index < num_levels; ++level_index)
-        {
-            uint32_t data_size      = image_transcoders[0].m_LevelData[level_index].m_Size;
-            uint8_t* data_write_ptr = new uint8_t[data_size * image_count];
+        uint32_t transcoder_index = 0;
 
-            images[level_index] = data_write_ptr;
-            sizes[level_index]  = data_size;
+        for (int i = 0; i < max_mipmap_count; ++i)
+        {
+            uint32_t data_size        = image_transcoders[transcoder_index].m_LevelData[0].m_Size;
+            uint8_t* data_write_ptr   = new uint8_t[data_size * image_count];
+            images[i]                 = data_write_ptr;
+            sizes[i]                  = data_size;
 
             bool level_result = true;
-            for (int i = 0; i < image_count && level_result; ++i)
-            {
-                assert(image_transcoders[i].m_Info.m_total_levels == num_levels);
-                level_result = TranscodeLevel(path, image_transcoders[i], data_write_ptr, level_index, transcoder_format, format);
-                data_write_ptr += data_size;
-            }
 
-            if (!level_result)
+            for (int j = 0; j < image_count; ++j)
             {
-                dmLogError("Transcoding failed on level %d for %s\n", level_index, path);
-                delete[] data_write_ptr;
-                TranscoderDeleteStateArray(image_transcoders, image_count);
-                return false;
+                level_result = TranscodeLevel(path, image_transcoders[transcoder_index], data_write_ptr, 0, transcoder_format, format);
+                data_write_ptr += data_size;
+                transcoder_index++;
+
+                if (!level_result)
+                {
+                    dmLogError("Transcoding failed on level %d for %s\n", i, path);
+                    delete[] data_write_ptr;
+                    TranscoderDeleteStateArray(image_transcoders, image_count);
+                    return false;
+                }
             }
         }
 
-        *num_transcoded_mips = num_levels;
+        *num_transcoded_mips = max_mipmap_count;
 
         TranscoderDeleteStateArray(image_transcoders, image_count);
         return true;

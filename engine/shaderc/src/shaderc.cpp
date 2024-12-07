@@ -458,6 +458,10 @@ namespace dmShaderc
             spvc_compiler_options_set_bool(spv_options, SPVC_COMPILER_OPTION_GLSL_ES,                       options.m_GlslEs);
             spvc_compiler_options_set_bool(spv_options, SPVC_COMPILER_OPTION_GLSL_ENABLE_420PACK_EXTENSION, !options.m_No420PackExtension);
         }
+        else if (compiler->m_Language == SHADER_LANGUAGE_HLSL)
+        {
+            spvc_compiler_options_set_uint(spv_options, SPVC_COMPILER_OPTION_HLSL_SHADER_MODEL, options.m_Version);
+        }
         else
         {
             assert(0 && "Shader langauge not yet supported");

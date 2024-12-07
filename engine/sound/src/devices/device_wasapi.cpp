@@ -140,34 +140,53 @@ namespace dmDeviceWasapi
         }
 
         // While we can suggest the format, the SHARED mode will return the current format
-        WAVEFORMATEX format;
-        format.cbSize           = sizeof(WAVEFORMATEX);
-        format.wFormatTag       = WAVE_FORMAT_PCM;
-        format.nChannels        = 2;
-        format.nSamplesPerSec   = 44100; // Currently our supported audio format, so let's hint for that
-        format.wBitsPerSample   = 16;
-        format.nBlockAlign      = format.nChannels * (format.wBitsPerSample >> 3);
-        format.nAvgBytesPerSec  = format.nSamplesPerSec * format.nBlockAlign;
-
-        hr = device->m_AudioClient->IsFormatSupported(AUDCLNT_SHAREMODE_SHARED, &format, &device->m_MixFormat);
+        WAVEFORMATEX* pformat;
+        hr = device->m_AudioClient->GetMixFormat(&pformat);
         if (FAILED(hr))
         {
-            dmLogError("Format not supported");
+            dmLogError("Failed to get mix format from device:");
             CheckAndPrintError(hr);
             DeleteDevice(device);
             return dmSound::RESULT_INIT_ERROR;
         }
 
-        if (WAVE_FORMAT_EXTENSIBLE == device->m_MixFormat->wFormatTag)
+        dmLogInfo("Mix format:");
+        dmLogInfo("  wFormatTag:       %x  IEEE_FLOAT/PCM/EXTENSIBLE: %x / %x / %x", pformat->wFormatTag, WAVE_FORMAT_IEEE_FLOAT, WAVE_FORMAT_PCM, WAVE_FORMAT_EXTENSIBLE);
+        dmLogInfo("  nChannels:        %d", pformat->nChannels);
+        dmLogInfo("  nSamplesPerSec:   %d", pformat->nSamplesPerSec);
+        dmLogInfo("  nAvgBytesPerSec:  %d", pformat->nAvgBytesPerSec);
+        dmLogInfo("  nBlockAlign:      %d", pformat->nBlockAlign);
+        dmLogInfo("  wBitsPerSample:   %d", pformat->wBitsPerSample);
+
+        WAVEFORMATEX* closest = 0;
+        hr = device->m_AudioClient->IsFormatSupported(AUDCLNT_SHAREMODE_SHARED, pformat, &closest);
+        if (FAILED(hr))
         {
-            WAVEFORMATEXTENSIBLE* wfex = (WAVEFORMATEXTENSIBLE*)device->m_MixFormat;
+            dmLogError("Format not supported:");
+            CheckAndPrintError(hr);
+            if (closest)
+            {
+                dmLogInfo("Closest format:");
+                dmLogInfo("  wFormatTag:       %x  IEEE_FLOAT/PCM/EXTENSIBLE: %x / %x / %x", pformat->wFormatTag, WAVE_FORMAT_IEEE_FLOAT, WAVE_FORMAT_PCM, WAVE_FORMAT_EXTENSIBLE);
+                dmLogInfo("  nChannels:        %d", pformat->nChannels);
+                dmLogInfo("  nSamplesPerSec:   %d", pformat->nSamplesPerSec);
+                dmLogInfo("  nAvgBytesPerSec:  %d", pformat->nAvgBytesPerSec);
+                dmLogInfo("  nBlockAlign:      %d", pformat->nBlockAlign);
+                dmLogInfo("  wBitsPerSample:   %d", pformat->wBitsPerSample);
+                pformat = closest;
+            }
+        }
+
+        if (WAVE_FORMAT_EXTENSIBLE == pformat->wFormatTag)
+        {
+            WAVEFORMATEXTENSIBLE* wfex = (WAVEFORMATEXTENSIBLE*)pformat;
             if (wfex->SubFormat == KSDATAFORMAT_SUBTYPE_PCM)
                 device->m_Format = WAVE_FORMAT_PCM;
             else if (wfex->SubFormat == KSDATAFORMAT_SUBTYPE_IEEE_FLOAT)
                 device->m_Format = WAVE_FORMAT_IEEE_FLOAT;
         }
         else {
-            device->m_Format = device->m_MixFormat->wFormatTag;
+            device->m_Format = pformat->wFormatTag;
         }
 
         if (device->m_Format != WAVE_FORMAT_PCM &&
@@ -178,6 +197,9 @@ namespace dmDeviceWasapi
             DeleteDevice(device);
             return dmSound::RESULT_INIT_ERROR;
         }
+
+        dmLogInfo("  -> Format:        %x  IEEE_FLOAT/PCM/EXTENSIBLE: %x / %x / %x", device->m_Format, WAVE_FORMAT_IEEE_FLOAT, WAVE_FORMAT_PCM, WAVE_FORMAT_EXTENSIBLE);
+        device->m_MixFormat = pformat;
 
         REFERENCE_TIME buffer_duration = 0;
 
@@ -190,19 +212,11 @@ namespace dmDeviceWasapi
                                                 0);
         if (FAILED(hr))
         {
-            dmLogError("Failed to initialize audio client");
+            dmLogError("Failed to initialize audio client:");
             CheckAndPrintError(hr);
             DeleteDevice(device);
             return dmSound::RESULT_INIT_ERROR;
         }
-
-        dmLogInfo("Wasapi device selected:");
-        dmLogInfo("  wFormatTag:       %x  IEEE_FLOAT/PCM/EXTENSIBLE: %x / %x / %x\n", device->m_Format, WAVE_FORMAT_IEEE_FLOAT, WAVE_FORMAT_PCM, WAVE_FORMAT_EXTENSIBLE);
-        dmLogInfo("  nChannels:        %d\n", device->m_MixFormat->nChannels);
-        dmLogInfo("  nSamplesPerSec:   %d\n", device->m_MixFormat->nSamplesPerSec);
-        dmLogInfo("  nAvgBytesPerSec:  %d\n", device->m_MixFormat->nAvgBytesPerSec);
-        dmLogInfo("  nBlockAlign:      %d\n", device->m_MixFormat->nBlockAlign);
-        dmLogInfo("  wBitsPerSample:   %d\n", device->m_MixFormat->wBitsPerSample);
 
         // Get the render client
         hr = device->m_AudioClient->GetService(__uuidof(IAudioRenderClient), (void**)&device->m_AudioRenderClient);
