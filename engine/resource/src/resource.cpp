@@ -656,7 +656,7 @@ Result LoadResourceToBufferLocked(HFactory factory, const char* path, const char
         buffer->SetSize(bytes_to_read);
 
         // Only actually read the resource if we requested any bytes
-        uint32_t nread;
+        uint32_t nread = 0;
         if (bytes_to_read > 0)
         {
             if (is_streaming)

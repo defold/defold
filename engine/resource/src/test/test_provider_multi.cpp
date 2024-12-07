@@ -246,7 +246,7 @@ TEST_F(ArchiveProvidersMulti, ReadCustomFile)
     // Test without having added the file
     result = dmResourceMounts::GetResourceSize(m_Mounts, file0_hash, file0_path, &resource_size);
     ASSERT_EQ(dmResource::RESULT_RESOURCE_NOT_FOUND, result);
-    ASSERT_EQ(0u, resource_size);
+    ASSERT_EQ(0u, resource_size); // test that the value hasn't been touched
 
     // Test with adding the file
     result = dmResourceMounts::AddFile(m_Mounts, file0_hash, file0_size, file0_data);
@@ -316,6 +316,37 @@ TEST_F(ArchiveProvidersMulti, ReadCustomFilePartial)
         }
     }
 
+    result = dmResourceMounts::RemoveFile(m_Mounts, file_hash);
+    ASSERT_EQ(dmResource::RESULT_OK, result);
+}
+
+TEST_F(ArchiveProvidersMulti, ReadCustomEmptyFile)
+{
+    uint8_t     file_data[] = {0};
+    uint32_t    file_size = 0;
+    const char* file_path = "/custom/empty.adc";
+    dmhash_t    file_hash = dmHashString64(file_path);
+
+    uint32_t resource_size = 0;
+    dmResource::Result result = dmResource::RESULT_UNKNOWN_ERROR;
+
+    // Test with adding the file
+    result = dmResourceMounts::AddFile(m_Mounts, file_hash, file_size, file_data);
+    ASSERT_EQ(dmResource::RESULT_OK, result);
+
+    result = dmResourceMounts::GetResourceSize(m_Mounts, file_hash, file_path, &resource_size);
+    ASSERT_EQ(dmResource::RESULT_OK, result);
+    ASSERT_EQ(file_size, resource_size);
+
+    uint8_t resource[1];
+    result = dmResourceMounts::ReadResource(m_Mounts, file_hash, file_path, resource, resource_size);
+    ASSERT_EQ(file_size, resource_size);
+
+    uint32_t nread;
+    result = dmResourceMounts::ReadResourcePartial(m_Mounts, file_hash, file_path, 0, file_size, resource, &nread);
+    ASSERT_EQ(file_size, nread);
+
+    // Test removing the file
     result = dmResourceMounts::RemoveFile(m_Mounts, file_hash);
     ASSERT_EQ(dmResource::RESULT_OK, result);
 }

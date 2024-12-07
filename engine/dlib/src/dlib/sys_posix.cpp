@@ -911,6 +911,9 @@ namespace dmSys
 
     Result LoadResourcePartial(const char* path, uint32_t offset, uint32_t size, void* buffer, uint32_t* nread)
     {
+        if (buffer == 0 || size == 0)
+            return RESULT_INVAL;
+
 #ifdef __ANDROID__
         const char* asset_path = FixAndroidResourcePath(path);
 
@@ -929,8 +932,6 @@ namespace dmSys
             return RESULT_OK;
         }
 #endif
-        if (buffer == 0 || size == 0)
-            return RESULT_INVAL;
 
         FILE* f = fopen(path, "rb");
         if (!f)
