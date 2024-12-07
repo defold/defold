@@ -932,29 +932,37 @@ namespace dmSys
             return RESULT_OK;
         }
 #endif
+        struct stat file_stat;
+        if (stat(path, &file_stat) == 0) {
+            if (!S_ISREG(file_stat.st_mode)) {
+                return RESULT_NOENT;
+            }
 
-        FILE* f = fopen(path, "rb");
-        if (!f)
-        {
-            return RESULT_NOENT;
-        }
+            FILE* f = fopen(path, "rb");
+            if (!f)
+            {
+                return RESULT_NOENT;
+            }
 
-        int result = fseek(f, offset, SEEK_SET);
-        if (result < 0)
-        {
+            int result = fseek(f, offset, SEEK_SET);
+            if (result < 0)
+            {
+                fclose(f);
+                return ErrnoToResult(errno);
+            }
+
+            size_t nmemb = fread(buffer, 1, size, f);
+            if (ferror(f))
+            {
+                fclose(f);
+                return ErrnoToResult(errno);
+            }
             fclose(f);
+
+            *nread = (uint32_t)nmemb;
+        } else {
             return ErrnoToResult(errno);
         }
-
-        size_t nmemb = fread(buffer, 1, size, f);
-        if (ferror(f))
-        {
-            fclose(f);
-            return ErrnoToResult(errno);
-        }
-        fclose(f);
-
-        *nread = (uint32_t)nmemb;
         return RESULT_OK;
     }
 

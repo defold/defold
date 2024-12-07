@@ -277,7 +277,7 @@ TEST(dmSys, LoadResourcePartial)
     ASSERT_EQ(dmSys::RESULT_NOENT, r);
 
     r = dmSys::LoadResourcePartial(dmTestUtil::MakeHostPath(path, sizeof(path), "."), 0, sizeof(buffer), buffer, &nread);
-    ASSERT_EQ(dmSys::RESULT_ISDIR, r);
+    ASSERT_EQ(dmSys::RESULT_NOENT, r);
     r = dmSys::ResourceSize(dmTestUtil::MakeHostPath(path, sizeof(path), "does_not_exists"), &nread);
     ASSERT_EQ(dmSys::RESULT_NOENT, r);
 
