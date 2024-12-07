@@ -26,6 +26,11 @@ profiles {
       compression_level: HIGH
       compression_type: COMPRESSION_TYPE_BASIS_UASTC
     }
+    formats {
+      format: TEXTURE_FORMAT_RGBA
+      compressor: "BasisU"
+      compressor_preset: "BASISU_HIGH"
+    }
     mipmaps: false
     max_texture_size: 8192
     premultiply_alpha: false
