@@ -1,9 +1,5 @@
 #! /usr/bin/env python
 
-import socket
-from contextlib import closing
-
-
 VERSION='0.1'
 APPNAME='resource'
 
@@ -23,10 +19,13 @@ test_context = None
 os.environ['PATH'] = os.path.abspath('src') + os.pathsep + os.environ['PATH']
 
 def find_free_port():
-    with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
-        s.bind(('', 0))
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        return s.getsockname()[1]
+    return 6123 # the below code didn't seem to work on win32
+    # import socket
+    # from contextlib import closing
+    # with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
+    #     s.bind(('', 0))
+    #     s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    #     return s.getsockname()[1]
 
 def init(ctx):
     global test_context
