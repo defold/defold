@@ -73,38 +73,27 @@ def _start_server(self, local_ip, port, configname=None):
     Logs.info('Starting test server at http://%s:%d' % (local_ip, port))
     configfile = waf_dynamo.create_test_server_config(self, port=port, ip=local_ip, config_name=configname)
 
-    proc = subprocess.Popen(["python", "-m", "RangeHTTPServer", str(port)],
-                            shell = False, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+    servertype = "RangeHTTPServer"
+    # For some reason, the ranged server doesn't work on Win32
+    if 'win32' == sys.platform:
+        servertype = "http.server"
+
+    proc = subprocess.Popen(["python", "-m", servertype, str(port)],
+                            shell = False,
                             cwd = "build/src/test")
     return proc, configfile
-
-def _log_server(self, proc):
-    status = proc.poll()
-    if status: # it has finished
-        print("Server finished:", status)
-    try:
-        out, err = proc.communicate(timeout=0.01)
-        if out or err:
-            print("Server:", out)
-            print("Server:", err)
-    except subprocess.TimeoutExpired:
-        pass
-
 
 def _wait_for_server(self, proc, local_ip, port):
     timeout = 8 # seconds
     start = time.time()
     while True:
-        _log_server(self, proc)
         if time.time() - start > timeout:
-            _log_server(self, proc)
             Logs.error('HTTP server failed to start within %d seconds' % timeout)
             sys.exit(1)
         try:
             urllib.request.urlopen('http://%s:%d' % (local_ip, port))
             break
         except urllib.error.URLError:
-            _log_server(self, proc)
             print('Waiting for HTTP testserver to start...')
             sys.stdout.flush()
             time.sleep(0.5)
