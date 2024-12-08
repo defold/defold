@@ -180,6 +180,7 @@ namespace dmGraphics
     bool                 IsUniformTextureSampler(ShaderDesc::ShaderDataType uniform_type);
     bool                 IsUniformStorageBuffer(ShaderDesc::ShaderDataType uniform_type);
     void                 RepackRGBToRGBA(uint32_t num_pixels, uint8_t* rgb, uint8_t* rgba);
+    bool                 IsTextureFormatASTC(TextureFormat format);
     const char*          TextureFormatToString(TextureFormat format);
     ShaderDesc::Language GetShaderProgramLanguage(HContext context);
     uint32_t             GetShaderTypeSize(ShaderDesc::ShaderDataType type);

@@ -230,12 +230,26 @@
     :texture-format-rgba-bc3
     :texture-format-rgba-bc7
     :texture-format-rgba-etc2
-    :texture-format-rgba-astc-4x4})
+    :texture-format-rgba-astc-4x4
+    :texture-format-rgba-astc-5x4
+    :texture-format-rgba-astc-5x5
+    :texture-format-rgba-astc-6x5
+    :texture-format-rgba-astc-6x6
+    :texture-format-rgba-astc-8x5
+    :texture-format-rgba-astc-8x6
+    :texture-format-rgba-astc-8x8
+    :texture-format-rgba-astc-10x5
+    :texture-format-rgba-astc-10x6
+    :texture-format-rgba-astc-10x8
+    :texture-format-rgba-astc-10x10
+    :texture-format-rgba-astc-12x10
+    :texture-format-rgba-astc-12x12})
 
 (def texture-profiles-unsupported-compressions
   #{:compression-type-webp
     :compression-type-webp-lossy
-    :compression-type-basis-etc1s})
+    :compression-type-basis-etc1s
+    :compression-type-astc})
 
 (defmethod protobuf-form-data Graphics$TextureProfiles [_node-id pb _def]
   (let [os-values (protobuf/enum-values Graphics$PlatformProfile$OS)

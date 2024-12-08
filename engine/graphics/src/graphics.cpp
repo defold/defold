@@ -216,7 +216,6 @@ namespace dmGraphics
             GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1);
             GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGB_ETC1);
             GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ETC2);
-            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_4x4);
             GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGB_BC1);
             GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_BC3);
             GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_R_BC4);
@@ -231,6 +230,21 @@ namespace dmGraphics
             GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_R32F);
             GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RG32F);
             GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA32UI);
+
+            // ASTC
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_4x4);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_5x5);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_6x5);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_6x6);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_8x5);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_8x6);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_8x8);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_10x5);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_10x6);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_10x8);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_10x10);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_12x10);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_12x12);
             default:break;
         }
         return "<unknown dmGraphics::TextureFormat>";
@@ -592,6 +606,24 @@ namespace dmGraphics
     }
     #undef DM_TEXTURE_FORMAT_TO_STR_CASE
 
+    bool IsTextureFormatASTC(TextureFormat format)
+    {
+        return format == TEXTURE_FORMAT_RGBA_ASTC_4x4 ||
+               format == TEXTURE_FORMAT_RGBA_ASTC_5x4 ||
+               format == TEXTURE_FORMAT_RGBA_ASTC_5x5 ||
+               format == TEXTURE_FORMAT_RGBA_ASTC_6x5 ||
+               format == TEXTURE_FORMAT_RGBA_ASTC_6x6 ||
+               format == TEXTURE_FORMAT_RGBA_ASTC_8x5 ||
+               format == TEXTURE_FORMAT_RGBA_ASTC_8x6 ||
+               format == TEXTURE_FORMAT_RGBA_ASTC_8x8 ||
+               format == TEXTURE_FORMAT_RGBA_ASTC_10x5 ||
+               format == TEXTURE_FORMAT_RGBA_ASTC_10x6 ||
+               format == TEXTURE_FORMAT_RGBA_ASTC_10x8 ||
+               format == TEXTURE_FORMAT_RGBA_ASTC_10x10 ||
+               format == TEXTURE_FORMAT_RGBA_ASTC_12x10 ||
+               format == TEXTURE_FORMAT_RGBA_ASTC_12x12;
+    }
+
     // For estimating resource size
     uint32_t GetTextureFormatBitsPerPixel(TextureFormat format)
     {
@@ -607,7 +639,6 @@ namespace dmGraphics
         case TEXTURE_FORMAT_R_ETC2:             return 8;
         case TEXTURE_FORMAT_RG_ETC2:            return 8;
         case TEXTURE_FORMAT_RGBA_ETC2:          return 8;
-        case TEXTURE_FORMAT_RGBA_ASTC_4x4:      return 8;
         case TEXTURE_FORMAT_RGB_BC1:            return 4;
         case TEXTURE_FORMAT_RGBA_BC3:           return 4;
         case TEXTURE_FORMAT_R_BC4:              return 8;
@@ -630,10 +661,15 @@ namespace dmGraphics
         case TEXTURE_FORMAT_RGBA32UI:           return 128;
         case TEXTURE_FORMAT_BGRA8U:             return 32;
         case TEXTURE_FORMAT_R32UI:              return 32;
-        default:
-            assert(false && "Unknown texture format");
-            return TEXTURE_FORMAT_COUNT;
+        default: break;
         }
+
+        // Not straight-forward to return a BPP value here.
+        if (IsTextureFormatASTC(format))
+            return 0;
+
+        assert(false && "Unknown texture format");
+        return TEXTURE_FORMAT_COUNT;
     }
 
     uint32_t GetGraphicsTypeDataSize(Type type)
@@ -706,7 +742,6 @@ namespace dmGraphics
             case dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:
             case dmGraphics::TEXTURE_FORMAT_RGB_ETC1:
             case dmGraphics::TEXTURE_FORMAT_RGBA_ETC2:
-            case dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_4x4:
             case dmGraphics::TEXTURE_FORMAT_RGB_BC1:
             case dmGraphics::TEXTURE_FORMAT_RGBA_BC3:
             case dmGraphics::TEXTURE_FORMAT_R_BC4:
@@ -714,7 +749,8 @@ namespace dmGraphics
             case dmGraphics::TEXTURE_FORMAT_RGBA_BC7:
                 return true;
             default:
-                return false;
+                // Lastly check if it's one of the ASTC formats
+                return IsTextureFormatASTC(format);
         }
     }
 
@@ -726,13 +762,13 @@ namespace dmGraphics
             case dmGraphics::TEXTURE_FORMAT_RGBA32UI:
             case dmGraphics::TEXTURE_FORMAT_RGBA_BC7:
             case dmGraphics::TEXTURE_FORMAT_RGBA_BC3:
-            case dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_4x4:
             case dmGraphics::TEXTURE_FORMAT_RGBA_ETC2:
             case dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:
             case dmGraphics::TEXTURE_FORMAT_RGBA_16BPP:
                 return true;
             default:
-                return false;
+                // Lastly check if it's one of the ASTC formats
+                return IsTextureFormatASTC(format);
         }
     }
 

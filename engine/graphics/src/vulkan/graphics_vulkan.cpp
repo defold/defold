@@ -895,7 +895,7 @@ namespace dmGraphics
 
         if (context->m_PhysicalDevice.m_Features.textureCompressionASTC_LDR)
         {
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_ASTC_4x4;
+            context->m_ASTCSupport = 1;
         }
 
         TextureFormat texture_formats[] = { TEXTURE_FORMAT_LUMINANCE,
@@ -3167,7 +3167,6 @@ bail:
             case TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:  return VK_FORMAT_PVRTC1_4BPP_UNORM_BLOCK_IMG;
             case TEXTURE_FORMAT_RGB_ETC1:           return VK_FORMAT_ETC2_R8G8B8_UNORM_BLOCK;
             case TEXTURE_FORMAT_RGBA_ETC2:          return VK_FORMAT_ETC2_R8G8B8A8_UNORM_BLOCK;
-            case TEXTURE_FORMAT_RGBA_ASTC_4x4:      return VK_FORMAT_ASTC_4x4_UNORM_BLOCK;
             case TEXTURE_FORMAT_RGB_BC1:            return VK_FORMAT_BC1_RGB_UNORM_BLOCK;
             case TEXTURE_FORMAT_RGBA_BC3:           return VK_FORMAT_BC3_UNORM_BLOCK;
             case TEXTURE_FORMAT_RGBA_BC7:           return VK_FORMAT_BC7_UNORM_BLOCK;
@@ -3184,6 +3183,22 @@ bail:
             case TEXTURE_FORMAT_RGBA32UI:           return VK_FORMAT_R32G32B32A32_UINT;
             case TEXTURE_FORMAT_BGRA8U:             return VK_FORMAT_B8G8R8A8_UNORM;
             case TEXTURE_FORMAT_R32UI:              return VK_FORMAT_R32_UINT;
+            // ASTC
+            case TEXTURE_FORMAT_RGBA_ASTC_4x4:      return VK_FORMAT_ASTC_4x4_UNORM_BLOCK;
+            case TEXTURE_FORMAT_RGBA_ASTC_5x4:      return VK_FORMAT_ASTC_5x4_UNORM_BLOCK;
+            case TEXTURE_FORMAT_RGBA_ASTC_5x5:      return VK_FORMAT_ASTC_5x5_UNORM_BLOCK;
+            case TEXTURE_FORMAT_RGBA_ASTC_6x5:      return VK_FORMAT_ASTC_6x5_UNORM_BLOCK;
+            case TEXTURE_FORMAT_RGBA_ASTC_6x6:      return VK_FORMAT_ASTC_6x6_UNORM_BLOCK;
+            case TEXTURE_FORMAT_RGBA_ASTC_8x5:      return VK_FORMAT_ASTC_8x5_UNORM_BLOCK;
+            case TEXTURE_FORMAT_RGBA_ASTC_8x6:      return VK_FORMAT_ASTC_8x6_UNORM_BLOCK;
+            case TEXTURE_FORMAT_RGBA_ASTC_8x8:      return VK_FORMAT_ASTC_8x8_UNORM_BLOCK;
+            case TEXTURE_FORMAT_RGBA_ASTC_10x5:     return VK_FORMAT_ASTC_10x5_UNORM_BLOCK;
+            case TEXTURE_FORMAT_RGBA_ASTC_10x6:     return VK_FORMAT_ASTC_10x6_UNORM_BLOCK;
+            case TEXTURE_FORMAT_RGBA_ASTC_10x8:     return VK_FORMAT_ASTC_10x8_UNORM_BLOCK;
+            case TEXTURE_FORMAT_RGBA_ASTC_10x10:    return VK_FORMAT_ASTC_10x10_UNORM_BLOCK;
+            case TEXTURE_FORMAT_RGBA_ASTC_12x10:    return VK_FORMAT_ASTC_12x10_UNORM_BLOCK;
+            case TEXTURE_FORMAT_RGBA_ASTC_12x12:    return VK_FORMAT_ASTC_12x12_UNORM_BLOCK;
+
             default:                                return VK_FORMAT_UNDEFINED;
         };
     }
@@ -3615,9 +3630,10 @@ bail:
         CHECK_VK_ERROR(res);
     }
 
-    static bool VulkanIsTextureFormatSupported(HContext context, TextureFormat format)
+    static bool VulkanIsTextureFormatSupported(HContext _context, TextureFormat format)
     {
-        return (g_VulkanContext->m_TextureFormatSupport & (1 << format)) != 0;
+        VulkanContext* context = (VulkanContext*) _context;
+        return (context->m_TextureFormatSupport & (1 << format)) != 0 || (context->m_ASTCSupport && IsTextureFormatASTC(format));
     }
 
     static VulkanTexture* VulkanNewTextureInternal(const TextureCreationParams& params)
@@ -3849,7 +3865,7 @@ bail:
         TextureFormat format_orig   = params.m_Format;
         uint16_t tex_layer_count    = dmMath::Max(texture->m_Depth, params.m_Depth);
         uint8_t tex_bpp             = GetTextureFormatBitsPerPixel(params.m_Format);
-        size_t tex_data_size        = 0;
+        size_t tex_data_size        = params.m_DataSize * tex_layer_count * 8; // Convert into bits
         void*  tex_data_ptr         = (void*)params.m_Data;
         VkFormat vk_format          = GetVulkanFormatFromTextureFormat(params.m_Format);
 
@@ -3857,6 +3873,16 @@ bail:
         {
             dmLogError("Unable to upload texture data, unsupported type (%s).", GetTextureFormatLiteral(format_orig));
             return;
+        }
+
+        // For future reference, we could validate ASTC buffer sizes by using these calculations:
+        // https://registry.khronos.org/webgl/extensions/WEBGL_compressed_texture_astc/
+
+        // In cases where we just want to clear the texture we don't have a valid data or datasize, so we need to infer it.
+        // This will NOT work for clearing compressed texture formats, but I don't think that is a case we can support anyway.
+        if (tex_data_size == 0)
+        {
+            tex_data_size = tex_bpp * params.m_Width * params.m_Height * tex_layer_count;
         }
 
         LogicalDevice& logical_device       = g_VulkanContext->m_LogicalDevice;
@@ -3867,16 +3893,15 @@ bail:
         if (format_orig == TEXTURE_FORMAT_RGB)
         {
             uint32_t data_pixel_count = params.m_Width * params.m_Height * tex_layer_count;
-            uint8_t bpp_new           = 32;
-            uint8_t* data_new         = new uint8_t[data_pixel_count * bpp_new];
+            uint8_t* data_new         = new uint8_t[data_pixel_count * 4]; // RGBA => 4 bytes per pixel
 
             RepackRGBToRGBA(data_pixel_count, (uint8_t*) tex_data_ptr, data_new);
             vk_format     = VK_FORMAT_R8G8B8A8_UNORM;
             tex_data_ptr  = data_new;
-            tex_bpp       = bpp_new;
+            tex_bpp       = 32;
+            tex_data_size = tex_bpp * params.m_Width * params.m_Height * tex_layer_count;
         }
 
-        tex_data_size             = tex_bpp * params.m_Width * params.m_Height * tex_layer_count;
         texture->m_GraphicsFormat = params.m_Format;
         texture->m_MipMapCount    = dmMath::Max(texture->m_MipMapCount, (uint16_t)(params.m_MipMap+1));
         texture->m_Depth          = tex_layer_count;
@@ -3885,6 +3910,7 @@ bail:
 
         if (params.m_SubUpdate)
         {
+            // TODO: Not sure this will work for compressed formats..
             // data size might be different if we have generated a new image
             tex_data_size = params.m_Width * params.m_Height * tex_bpp * tex_layer_count;
         }
