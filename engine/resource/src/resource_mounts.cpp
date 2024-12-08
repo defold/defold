@@ -460,7 +460,6 @@ dmResource::Result ReadResource(HContext ctx, dmhash_t path_hash, const char* pa
     {
         ArchiveMount& mount = ctx->m_Mounts[i];
         dmResourceProvider::Result result = dmResourceProvider::ReadFile(mount.m_Archive, path_hash, path, buffer, buffer_size);
-        printf("  READ RESOURCE RESULT: %d\n", result);
         if (dmResourceProvider::RESULT_NOT_FOUND == result)
             continue;
         if (dmResourceProvider::RESULT_OK == result)
