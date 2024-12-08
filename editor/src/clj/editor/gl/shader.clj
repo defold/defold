@@ -429,9 +429,6 @@ This must be submitted to the driver for compilation before you can use it. See
 (def my-atom (atom 0))
 
 (defn- set-uniform-impl! [gl program uniform-infos uniform-name uniform-value]
-
-  (reset! my-atom uniform-infos)
-
   (when-some [uniform-info (uniform-name->uniform-infos uniform-name uniform-infos)]
     (try
       (set-uniform-at-index gl program (:index uniform-info) uniform-value)
@@ -439,11 +436,12 @@ This must be submitted to the driver for compilation before you can use it. See
         (throw (IllegalArgumentException. (format "Failed setting uniform '%s'." uniform-name) e))))))
 
 (defn- set-sampler-uniform-impl! [gl program uniform-infos slice-sampler-uniform-names texture-units]
+  (reset! my-atom uniform-infos)
   (doall
     (map (fn [slice-sampler-uniform-name texture-unit]
            (if (and (int? texture-unit)
                     (not (neg? texture-unit)))
-             (when-some [slice-sampler-uniform-info (uniform-infos slice-sampler-uniform-name)]
+             (when-some [slice-sampler-uniform-info (uniform-name->uniform-infos slice-sampler-uniform-name uniform-infos)]
                (set-uniform-at-index gl program (:index slice-sampler-uniform-info) texture-unit))
              (throw (IllegalArgumentException. (format "Invalid texture unit '%s' for uniform '%s'." texture-unit slice-sampler-uniform-name)))))
          slice-sampler-uniform-names
