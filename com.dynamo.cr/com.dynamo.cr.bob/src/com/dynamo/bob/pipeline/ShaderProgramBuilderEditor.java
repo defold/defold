@@ -32,7 +32,7 @@ public class ShaderProgramBuilderEditor {
         ShaderUtil.Common.GLSLCompileResult variantCompileResult = ShaderUtil.VariantTextureArrayFallback.transform(compiledSource, maxPageCount);
 
         // If the variant transformation didn't do anything, we pass the original source but without array samplers
-        return Objects.requireNonNullElseGet(variantCompileResult, () -> new ShaderUtil.Common.GLSLCompileResult(compiledSource));
+        return Objects.requireNonNullElseGet(variantCompileResult, () -> new ShaderUtil.Common.GLSLCompileResult(compiledSource, pipeline.getReflectionData()));
     }
 
     static private boolean isCompatibleLanguage(Graphics.ShaderDesc.ShaderType shaderType, Graphics.ShaderDesc.Language shaderLanguage) {

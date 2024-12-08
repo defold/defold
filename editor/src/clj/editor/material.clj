@@ -33,6 +33,7 @@
             [util.murmur :as murmur]
             [util.num :as num])
   (:import [com.dynamo.bob.pipeline ShaderProgramBuilderEditor]
+           [com.dynamo.bob.pipeline.shader SPIRVReflector]
            [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$VertexAttribute Graphics$VertexAttribute$DataType Graphics$VertexAttribute$SemanticType Graphics$VertexAttribute$VectorType Graphics$VertexStepFunction]
            [com.dynamo.render.proto Material$MaterialDesc Material$MaterialDesc$Sampler Material$MaterialDesc$VertexSpace]
            [com.jogamp.opengl GL2]
@@ -145,14 +146,41 @@
             :user-data {:material-desc-with-build-resources material-desc-with-build-resources}
             :deps dep-build-targets})])))
 
+"A resource namespace is the first literal up until the first dot in a resource binding.
+For example, if we have a uniform buffer with some nested data types:
+
+struct MyMaterial {
+  vec4 diffuse;
+  vec4 specular;
+};
+
+uniform my_uniforms {
+  MyMaterial material;
+};
+
+When crosscompiled to SM120 (which is used by the editor), we will get two uniforms:
+_<id>.material.diffuse
+_<id>.material.specular
+
+To be able to map this in a material constant, we need to strip the namespace from the
+reflected data when the shader is created (see editor.gl.shader:make-shader-program) since
+there is no way a user can know what the generated id will be for older shaders.
+"
+(defn- resource-binding-namespaces [^SPIRVReflector reflector]
+  ;; SSBOs will need the same remapping as UBOs, but since we don't support
+  ;; them in the editor, we don't gather their namespaces here.
+  (mapv (fn [ubo] (str "_" (.id ubo))) (.getUBOs reflector)))
+
 (defn- transpile-shader-source [shader-ext ^String shader-source ^long max-page-count]
   (let [shader-type (code.shader/shader-type-from-ext shader-ext)
         shader-language (code.shader/shader-language-to-java :language-glsl-sm120) ; use the old gles2 compatible shaders
         is-debug true
         result (ShaderProgramBuilderEditor/buildGLSLVariantTextureArray shader-source shader-type shader-language is-debug max-page-count)
         full-source (.source result)
-        array-sampler-names-array (.arraySamplers result)]
+        array-sampler-names-array (.arraySamplers result)
+        ^SPIRVReflector reflector (.reflector result)]
     {:shader-source full-source
+     :resource-binding-namespaces (resource-binding-namespaces reflector)
      :array-sampler-names (vec array-sampler-names-array)}))
 
 (defn- constant->val [constant]
@@ -191,6 +219,12 @@
                     (:array-sampler-names augmented-vertex-shader-info)
                     (:array-sampler-names augmented-fragment-shader-info)))
 
+            resource-binding-namespaces
+            (into []
+                  (distinct (concat
+                              (:resource-binding-namespaces augmented-vertex-shader-info)
+                              (:resource-binding-namespaces augmented-fragment-shader-info))))
+
             uniforms (-> {}
                          (into (map (fn [constant]
                                       (pair (:name constant) (constant->val constant))))
@@ -202,7 +236,7 @@
                                  (map (fn [resolved-sampler-name]
                                         (pair resolved-sampler-name nil))))
                                samplers))]
-        (shader/make-shader _node-id (:shader-source augmented-vertex-shader-info) (:shader-source augmented-fragment-shader-info) uniforms array-sampler-name->slice-sampler-names))))
+        (shader/make-shader _node-id (:shader-source augmented-vertex-shader-info) (:shader-source augmented-fragment-shader-info) uniforms array-sampler-name->slice-sampler-names resource-binding-namespaces))))
 
 (defn- vector-type->form-field-type [vector-type]
   (case vector-type

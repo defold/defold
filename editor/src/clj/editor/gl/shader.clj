@@ -420,12 +420,19 @@ This must be submitted to the driver for compilation before you can use it. See
 (def make-fragment-shader (partial make-shader* GL2/GL_FRAGMENT_SHADER))
 (def make-vertex-shader (partial make-shader* GL2/GL_VERTEX_SHADER))
 
+(defn- uniform-name->uniform-infos [uniform-name uniform-infos]
+  (first (filter (fn [uniform-info]
+                   (or (= (:name uniform-info) uniform-name)
+                       (= (:canonical-name uniform-info) uniform-name)))
+                 uniform-infos)))
+
+(def my-atom (atom 0))
+
 (defn- set-uniform-impl! [gl program uniform-infos uniform-name uniform-value]
 
-  (println "setting" uniform-name)
-  (println  uniform-infos)
+  (reset! my-atom uniform-infos)
 
-  (when-some [uniform-info (uniform-infos uniform-name)]
+  (when-some [uniform-info (uniform-name->uniform-infos uniform-name uniform-infos)]
     (try
       (set-uniform-at-index gl program (:index uniform-info) uniform-value)
       (catch IllegalArgumentException e
@@ -442,10 +449,10 @@ This must be submitted to the driver for compilation before you can use it. See
          slice-sampler-uniform-names
          texture-units)))
 
-(defrecord ShaderLifecycle [request-id verts frags uniforms array-sampler-name->uniform-names]
+(defrecord ShaderLifecycle [request-id verts frags uniforms array-sampler-name->uniform-names resource-binding-namespaces]
   GlBind
   (bind [_this gl render-args]
-    (let [{:keys [program uniform-infos]} (scene-cache/request-object! ::shader request-id gl [verts frags array-sampler-name->uniform-names])]
+    (let [{:keys [program uniform-infos]} (scene-cache/request-object! ::shader request-id gl [verts frags array-sampler-name->uniform-names resource-binding-namespaces])]
       (.glUseProgram ^GL2 gl program)
       (when-not (zero? program)
         (doseq [[name val] uniforms
@@ -460,20 +467,20 @@ This must be submitted to the driver for compilation before you can use it. See
 
   ShaderVariables
   (attribute-infos [_this gl]
-    (when-let [{:keys [attribute-infos]} (scene-cache/request-object! ::shader request-id gl [verts frags array-sampler-name->uniform-names])]
+    (when-let [{:keys [attribute-infos]} (scene-cache/request-object! ::shader request-id gl [verts frags array-sampler-name->uniform-names resource-binding-namespaces])]
       attribute-infos))
 
   (set-uniform [_this gl name val]
     (assert (string? (not-empty name)))
-    (when-let [{:keys [program uniform-infos]} (scene-cache/request-object! ::shader request-id gl [verts frags array-sampler-name->uniform-names])]
+    (when-let [{:keys [program uniform-infos]} (scene-cache/request-object! ::shader request-id gl [verts frags array-sampler-name->uniform-names resource-binding-namespaces])]
       (when (and (not (zero? program)) (= program (gl/gl-current-program gl)))
         (set-uniform-impl! gl program uniform-infos name val))))
 
   (set-uniform-array [_this gl name count vals]
     (assert (string? (not-empty name)))
-    (when-let [{:keys [program uniform-infos]} (scene-cache/request-object! ::shader request-id gl [verts frags array-sampler-name->uniform-names])]
+    (when-let [{:keys [program uniform-infos]} (scene-cache/request-object! ::shader request-id gl [verts frags array-sampler-name->uniform-names resource-binding-namespaces])]
       (when (and (not (zero? program)) (= program (gl/gl-current-program gl)))
-        (when-some [uniform-info (uniform-infos name)]
+        (when-some [uniform-info (uniform-name->uniform-infos name uniform-infos)]
           (try
             (set-uniforms-at-index gl program (:index uniform-info) count vals)
             (catch IllegalArgumentException e
@@ -483,7 +490,7 @@ This must be submitted to the driver for compilation before you can use it. See
   (set-samplers-by-name [_this gl sampler-name texture-units]
     (assert (string? (not-empty sampler-name)))
     (when-let [{:keys [program uniform-infos sampler-name->uniform-names]}
-               (scene-cache/request-object! ::shader request-id gl [verts frags array-sampler-name->uniform-names])]
+               (scene-cache/request-object! ::shader request-id gl [verts frags array-sampler-name->uniform-names resource-binding-namespaces])]
       (when (and (not (zero? program)) (= program (gl/gl-current-program gl)))
         (when-some [uniform-names (sampler-name->uniform-names sampler-name)]
           (try
@@ -493,7 +500,7 @@ This must be submitted to the driver for compilation before you can use it. See
 
   (set-samplers-by-index [_this gl sampler-index texture-units]
     (when-let [{:keys [program uniform-infos sampler-index->sampler-name sampler-name->uniform-names]}
-               (scene-cache/request-object! ::shader request-id gl [verts frags array-sampler-name->uniform-names])]
+               (scene-cache/request-object! ::shader request-id gl [verts frags array-sampler-name->uniform-names resource-binding-namespaces])]
       (when (and (not (zero? program)) (= program (gl/gl-current-program gl)))
         (when-some [sampler-name (sampler-index->sampler-name sampler-index)]
           (let [uniform-names (sampler-name->uniform-names sampler-name)]
@@ -508,9 +515,11 @@ of GLSL strings and returns an object that satisfies GlBind and GlEnable."
   ([request-id verts frags]
    (make-shader request-id verts frags {}))
   ([request-id verts frags uniforms]
-   (->ShaderLifecycle request-id verts frags uniforms {}))
+   (->ShaderLifecycle request-id verts frags uniforms {} []))
   ([request-id verts frags uniforms array-sampler-name->uniform-names]
-   (->ShaderLifecycle request-id verts frags uniforms array-sampler-name->uniform-names)))
+   (->ShaderLifecycle request-id verts frags uniforms array-sampler-name->uniform-names []))
+  ([request-id verts frags uniforms array-sampler-name->uniform-names resource-binding-namespaces]
+   (->ShaderLifecycle request-id verts frags uniforms array-sampler-name->uniform-names resource-binding-namespaces)))
 
 (defn shader-lifecycle? [value]
   (instance? ShaderLifecycle value))
@@ -587,6 +596,7 @@ of GLSL strings and returns an object that satisfies GlBind and GlEnable."
             ;;    a uniform buffer so we can match it to constants.
             ;;    I.e, "uniform_buffer.my_uniform" -> "my_uniform"
             sanitized-name (last (string/split sanitized-name #"\."))]
+        (println name sanitized-name)
         {:name sanitized-name
          :canonical-name name
          :index location
@@ -610,8 +620,20 @@ of GLSL strings and returns an object that satisfies GlBind and GlEnable."
          :index location
          :type type
          :count count}))))
+(defn- strip-resource-namespaces [uniform-infos resource-binding-namespaces]
+  (mapv (fn [uniform-info]
+          (let [uniform-canonical-name (:canonical-name uniform-info)
+                uniform-name-parts (string/split uniform-canonical-name #"\.")
+                uniform-namespace (first uniform-name-parts)]
+            (assoc uniform-info :canonical-name
+                                (if (some #(= uniform-namespace %) resource-binding-namespaces)
+                                  ;; Strip namespace
+                                  (string/join "." (drop 1 uniform-name-parts))
+                                  ;; Not found, keep canonical name as-is
+                                  uniform-canonical-name))))
+        uniform-infos))
 
-(defn- make-shader-program [^GL2 gl [vertex-shader-source fragment-shader-source array-sampler-name->uniform-names _max-page-count]]
+(defn- make-shader-program [^GL2 gl [vertex-shader-source fragment-shader-source array-sampler-name->uniform-names resource-binding-namespaces]]
   (let [vertex-shader (make-vertex-shader gl vertex-shader-source)]
     (try
       (let [fragment-shader (make-fragment-shader gl fragment-shader-source)]
@@ -626,10 +648,9 @@ of GLSL strings and returns an object that satisfies GlBind and GlEnable."
                       (range (gl-shader-parameter gl program GL2/GL_ACTIVE_ATTRIBUTES)))
 
                 uniform-infos
-                (into {}
+                (into []
                       (map (fn [^long uniform-index]
-                             (let [uniform-info (uniform-info gl program uniform-index)]
-                               [(:name uniform-info) uniform-info])))
+                             (uniform-info gl program uniform-index)))
                       (range (gl-shader-parameter gl program GL2/GL_ACTIVE_UNIFORMS)))
 
                 array-sampler-uniform-name?
@@ -639,21 +660,21 @@ of GLSL strings and returns an object that satisfies GlBind and GlEnable."
 
                 sampler-name->uniform-names
                 (into array-sampler-name->uniform-names
-                      (keep (fn [[uniform-name uniform-info]]
+                      (keep (fn [uniform-info]
                               (when (sampler-uniform-type? (:type uniform-info))
-                                (when-not (array-sampler-uniform-name? uniform-name)
-                                  (pair uniform-name [uniform-name])))))
+                                (when-not (array-sampler-uniform-name? (:name uniform-info))
+                                  (pair (:name uniform-info) [(:name uniform-info)])))))
                       uniform-infos)
 
                 sampler-index->sampler-name
                 (->> sampler-name->uniform-names
                      (mapv (fn [[sampler-name uniform-names]]
                              (pair sampler-name
-                                   (uniform-infos (first uniform-names)))))
+                                   (uniform-name->uniform-infos (first uniform-names) uniform-infos))))
                      (sort-by (comp :index second))
                      (mapv first))]
             {:program program
-             :uniform-infos uniform-infos
+             :uniform-infos (strip-resource-namespaces uniform-infos resource-binding-namespaces)
              :attribute-infos attribute-infos
              :sampler-name->uniform-names sampler-name->uniform-names
              :sampler-index->sampler-name #(get sampler-index->sampler-name %)})
