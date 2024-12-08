@@ -38,6 +38,7 @@ namespace dmResourceProvider
 
         FGetFileSize            m_GetFileSize;
         FReadFile               m_ReadFile;
+        FReadFilePartial        m_ReadFilePartial;
         FWriteFile              m_WriteFile;        // For writeable archives
 
         void Verify();

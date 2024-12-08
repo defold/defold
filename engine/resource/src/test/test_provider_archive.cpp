@@ -18,6 +18,7 @@
 #include <dlib/crypt.h>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
+#include <dlib/math.h>
 #include <dlib/memory.h>
 #include <dlib/testutil.h>
 #include <dlib/uri.h>
@@ -198,8 +199,54 @@ TEST_F(ArchiveProviderArchive, ReadFile)
     }
 }
 
+TEST_F(ArchiveProviderArchive, ReadFilePartial)
+{
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(FILE_PATHS); ++i)
+    {
+        const char* path = FILE_PATHS[i];
+        dmhash_t path_hash = dmHashString64(path);
+
+        if (strstr(path, ".scriptc") != 0)
+        {
+            // Since the scripts are encrypted, we'll just skip the test for now,
+            // as the raw resource won't compare with the raw (encrypted) bytes we get from the archive.
+            printf("Skipping encrypted file: %s\n", path);
+            continue;
+        }
+
+        char path_buffer1[256];
+        dmSnPrintf(path_buffer1, sizeof(path_buffer1), "build/src/test%s", path);
+        uint32_t expected_file_size;
+        const uint8_t* expected_file = dmTestUtil::ReadHostFile(path_buffer1, &expected_file_size);
+        ASSERT_NE((uint8_t*)0, expected_file);
+
+        dmResourceProvider::Result result;
+
+        // Try to get chunk size non multiple of the file size
+        uint32_t chunk_size = dmMath::Max(1u, expected_file_size / 5 + 1);
+        uint8_t* buffer = new uint8_t[chunk_size];
+
+        uint32_t offset = 0;
+        while (offset < expected_file_size)
+        {
+            uint32_t nread;
+            result = dmResourceProvider::ReadFilePartial(m_Archive, path_hash, path, offset, chunk_size, buffer, &nread);
+            ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
+            ASSERT_GE(chunk_size, nread);
+            ASSERT_NE(0u, nread);
+
+            ASSERT_ARRAY_EQ_LEN(&expected_file[offset], buffer, nread);
+            offset += nread;
+        }
+
+        delete[] buffer;
+        dmMemory::AlignedFree((void*)expected_file);
+    }
+}
+
 struct InMemoryParams
 {
+    bool m_Compressed;
     uint8_t* m_ManifestData;
     uint32_t m_ManifestDataSize;
     uint8_t* m_ArciData;
@@ -220,6 +267,7 @@ protected:
         dmResourceProvider::ArchiveLoader* loader = dmResourceProvider::FindLoaderByName(dmHashString64("archive"));
         ASSERT_NE((ArchiveLoader*)0, loader);
 
+        m_Compressed = params.m_Compressed;
         dmResourceProvider::HArchiveInternal internal;
         result = dmResourceProviderArchive::CreateArchive(  params.m_ManifestData, params.m_ManifestDataSize,
                                                             params.m_ArciData, params.m_ArciDataSize,
@@ -238,6 +286,7 @@ protected:
     }
 
     dmResourceProvider::HArchive m_Archive;
+    bool m_Compressed;
 };
 
 TEST_P(ArchiveProviderArchiveInMemory, GetSize)
@@ -299,9 +348,63 @@ TEST_P(ArchiveProviderArchiveInMemory, ReadFile)
         dmMemory::AlignedFree((void*)expected_file);
     }
 }
+
+TEST_P(ArchiveProviderArchiveInMemory, ReadFilePartial)
+{
+    if (m_Compressed)
+    {
+        printf("Skipping comparing comrpessed archive\n");
+        return;
+    }
+
+    for (uint32_t i = 0; i < DM_ARRAY_SIZE(FILE_PATHS); ++i)
+    {
+        const char* path = FILE_PATHS[i];
+        dmhash_t path_hash = dmHashString64(path);
+
+        if (strstr(path, ".scriptc") != 0)
+        {
+            // Since the scripts are encrypted, we'll just skip the test for now,
+            // as the raw resource won't compare with the raw (encrypted) bytes we get from the archive.
+            printf("Skipping encrypted file: %s\n", path);
+            continue;
+        }
+
+        char path_buffer1[256];
+        char path_buffer2[256];
+        dmSnPrintf(path_buffer2, sizeof(path_buffer2), "build/src/test%s", path);
+        const char* file_path = dmTestUtil::MakeHostPath(path_buffer1, sizeof(path_buffer1), path_buffer2);
+        uint32_t expected_file_size;
+        const uint8_t* expected_file = dmTestUtil::ReadFile(file_path, &expected_file_size);
+        ASSERT_NE((uint8_t*)0, expected_file);
+
+        dmResourceProvider::Result result;
+
+        // Try to get chunk size non multiple of the file size
+        uint32_t chunk_size = dmMath::Max(1u, expected_file_size / 5 + 1);
+        uint8_t* buffer = new uint8_t[chunk_size];
+
+        uint32_t offset = 0;
+        while (offset < expected_file_size)
+        {
+            uint32_t nread;
+            result = dmResourceProvider::ReadFilePartial(m_Archive, path_hash, path, offset, chunk_size, buffer, &nread);
+            ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
+            ASSERT_GE(chunk_size, nread);
+            ASSERT_NE(0u, nread);
+
+            ASSERT_ARRAY_EQ_LEN(&expected_file[offset], buffer, nread);
+            offset += nread;
+        }
+
+        delete[] buffer;
+        dmMemory::AlignedFree((void*)expected_file);
+    }
+}
+
 InMemoryParams params_in_memory_archives[] = {
-    {RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, RESOURCES_ARCI, RESOURCES_ARCI_SIZE, RESOURCES_ARCD, RESOURCES_ARCD_SIZE},
-    {RESOURCES_COMPRESSED_DMANIFEST, RESOURCES_COMPRESSED_DMANIFEST_SIZE, RESOURCES_COMPRESSED_ARCI, RESOURCES_COMPRESSED_ARCI_SIZE, RESOURCES_COMPRESSED_ARCD, RESOURCES_COMPRESSED_ARCD_SIZE},
+    {false, RESOURCES_DMANIFEST, RESOURCES_DMANIFEST_SIZE, RESOURCES_ARCI, RESOURCES_ARCI_SIZE, RESOURCES_ARCD, RESOURCES_ARCD_SIZE},
+    {true, RESOURCES_COMPRESSED_DMANIFEST, RESOURCES_COMPRESSED_DMANIFEST_SIZE, RESOURCES_COMPRESSED_ARCI, RESOURCES_COMPRESSED_ARCI_SIZE, RESOURCES_COMPRESSED_ARCD, RESOURCES_COMPRESSED_ARCD_SIZE},
 };
 
 INSTANTIATE_TEST_CASE_P(ArchiveProviderInMemory, ArchiveProviderArchiveInMemory, jc_test_values_in(params_in_memory_archives));

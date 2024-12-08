@@ -70,6 +70,7 @@ def build(bld):
                         'ComponentTypeGui',
                         'ComponentTypeMesh',
                         'ResourceTypeGui','ResourceTypeGuiScript',
+                        'ResourceTypeOgg','ResourceTypeWav',
                         'GraphicsAdapterNull',
                         'ScriptImageExt']
 

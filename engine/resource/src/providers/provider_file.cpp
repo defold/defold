@@ -112,13 +112,29 @@ namespace dmResourceProviderFile
         return SysResultToProviderResult(r);
     }
 
+    static dmResourceProvider::Result ReadFilePartial(dmResourceProvider::HArchiveInternal _archive, dmhash_t path_hash, const char* path, uint32_t offset, uint32_t size, uint8_t* buffer, uint32_t* nread)
+    {
+        FileProviderContext* archive = (FileProviderContext*)_archive;
+        (void)path_hash;
+
+        char path_buffer[DMPATH_MAX_PATH];
+        const char* resolved_path = ResolveFilePath(&archive->m_BaseUri, path, path_buffer, sizeof(path_buffer));
+        if (!resolved_path) {
+            return dmResourceProvider::RESULT_NOT_FOUND;
+        }
+
+        dmSys::Result r = dmSys::LoadResourcePartial(resolved_path, offset, size, buffer, nread);
+        return SysResultToProviderResult(r);
+    }
+
     static void SetupArchiveLoader(dmResourceProvider::ArchiveLoader* loader)
     {
-        loader->m_CanMount      = MatchesUri;
-        loader->m_Mount         = Mount;
-        loader->m_Unmount       = Unmount;
-        loader->m_GetFileSize   = GetFileSize;
-        loader->m_ReadFile      = ReadFile;
+        loader->m_CanMount          = MatchesUri;
+        loader->m_Mount             = Mount;
+        loader->m_Unmount           = Unmount;
+        loader->m_GetFileSize       = GetFileSize;
+        loader->m_ReadFile          = ReadFile;
+        loader->m_ReadFilePartial   = ReadFilePartial;
     }
 
     DM_DECLARE_ARCHIVE_LOADER(ResourceProviderFile, "file", SetupArchiveLoader);

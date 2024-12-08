@@ -139,7 +139,7 @@ namespace dmLoadQueue
                     current->m_Buffer.SetCapacity(DEFAULT_CAPACITY);
                 }
 
-                result.m_LoadResult = dmResource::LoadResourceFromBuffer(queue->m_Factory, current->m_CanonicalPath, current->m_Name, &size, &current->m_Buffer);
+                result.m_LoadResult = dmResource::LoadResourceToBuffer(queue->m_Factory, current->m_CanonicalPath, current->m_Name, &size, &current->m_Buffer);
                 result.m_PreloadResult = dmResource::RESULT_PENDING;
                 result.m_PreloadData   = 0;
 

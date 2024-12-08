@@ -51,6 +51,7 @@ namespace dmResourceMounts
     dmResource::Result GetResourceSize(HContext ctx, dmhash_t path_hash, const char* path, uint32_t* resource_size);
     dmResource::Result ReadResource(HContext ctx, dmhash_t path_hash, const char* path, uint8_t* buffer, uint32_t buffer_size);
     dmResource::Result ReadResource(HContext ctx, dmhash_t path_hash, const char* path, dmArray<char>* buffer);
+    dmResource::Result ReadResourcePartial(HContext ctx, dmhash_t path_hash, const char* path, uint32_t offset, uint32_t size, uint8_t* buffer, uint32_t* nread);
 
     struct SGetMountResult
     {

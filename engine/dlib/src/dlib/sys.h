@@ -288,7 +288,7 @@ namespace dmSys
     Result ResourceSize(const char* path, uint32_t* resource_size);
 
     /**
-     * Load resource. That path supplied should
+     * Load resource from disc. That path supplied should
      * be prepended by the path returned from GetResourcesPath()
      * @note LoadResource can only operate on local filesystem
      * @param path path
@@ -298,6 +298,20 @@ namespace dmSys
      * @return RESULT_OK on success. RESULT_INVAL if the buffer is too small. RESULT_NOENT if the file doesn't exists or isn't a regular file.
      */
     Result LoadResource(const char* path, void* buffer, uint32_t buffer_size, uint32_t* resource_size);
+
+    /**
+     * Load partial resource from disc. That path supplied should
+     * be prepended by the path returned from GetResourcesPath()
+     * @note LoadResourcePartial can only operate on local filesystem
+     * @note It opens and closes a file handle for each call
+     * @param path path
+     * @param offset where to read from
+     * @param size maximum number of bytes to read
+     * @param buffer buffer
+     * @param nread [out] actual number of bytes read
+     * @return RESULT_OK on success. RESULT_NOENT if the file doesn't exists or isn't a regular file.
+     */
+    Result LoadResourcePartial(const char* path, uint32_t offset, uint32_t size, void* buffer, uint32_t* nread);
 
     /**
      * Open URL in default application

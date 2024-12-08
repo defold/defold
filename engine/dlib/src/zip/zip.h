@@ -409,7 +409,7 @@ extern ZIP_EXPORT ssize_t zip_entry_noallocread(struct zip_t *zip, void *buf,
  * @return the return code - the number of bytes actually read on success.
  *         Otherwise a negative number (< 0) on error (e.g. offset is too large).
  */
-extern ZIP_EXPORT ssize_t zip_entry_noallocread_offset(struct zip_t *zip,
+extern ZIP_EXPORT ssize_t zip_entry_noallocreadwithoffset(struct zip_t *zip,
                                         size_t offset, size_t size, void *buf);
 
 /**

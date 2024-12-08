@@ -120,7 +120,7 @@ namespace dmGameSystem
     static dmResource::Result HandleRequestLoading(dmResource::HFactory factory, const char* path, const char* original_name, dmResource::LoadBufferType* buffer, LuaRequest* request)
     {
         uint32_t resource_size;
-        dmResource::Result res = dmResource::LoadResourceFromBuffer(factory, path, original_name, &resource_size, buffer);
+        dmResource::Result res = dmResource::LoadResourceToBuffer(factory, path, original_name, &resource_size, buffer);
 
         if (res != dmResource::RESULT_OK)
         {
