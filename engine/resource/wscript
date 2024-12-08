@@ -43,6 +43,10 @@ def configure(conf):
 
     waf_ddf.configure(conf)
 
+    # For some reason, the ranged server doesn't work on Win32
+    if 'win32' == sys.platform:
+        conf.env.append_value('DEFINES', 'DM_TEST_NO_SUPPORT_RANGE_REQUEST')
+
     conf.recurse('src')
 
     conf.env.append_value('INCLUDES', "src")
@@ -73,8 +77,8 @@ def _start_server(self, local_ip, port, configname=None):
     Logs.info('Starting test server at http://%s:%d' % (local_ip, port))
     configfile = waf_dynamo.create_test_server_config(self, port=port, ip=local_ip, config_name=configname)
 
-    servertype = "RangeHTTPServer"
     # For some reason, the ranged server doesn't work on Win32
+    servertype = "RangeHTTPServer"
     if 'win32' == sys.platform:
         servertype = "http.server"
 

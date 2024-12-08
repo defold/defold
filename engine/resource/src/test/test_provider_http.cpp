@@ -148,6 +148,8 @@ TEST_F(HttpProviderArchive, ReadFile)
     ASSERT_ARRAY_EQ_LEN(SOMEDATA, long_buffer, sizeof(SOMEDATA));
 }
 
+#if !defined(DM_TEST_NO_SUPPORT_RANGE_REQUEST)
+
 TEST_F(HttpProviderArchive, ReadFilePartial)
 {
     dmResourceProvider::Result result;
@@ -176,6 +178,8 @@ TEST_F(HttpProviderArchive, ReadFilePartial)
         offset += nread;
     }
 }
+#endif // DM_TEST_NO_SUPPORT_RANGE_REQUEST
+
 
 #if defined(DM_TEST_HTTP_SUPPORTED)
 
