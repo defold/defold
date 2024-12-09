@@ -1485,6 +1485,46 @@ namespace dmGameSystem
         }
     }
 
+    static uint32_t CalcVertexCount(dmGui::HScene scene, GuiWorld* gui_world, dmGraphics::HTexture texture, const dmGui::RenderEntry* entries, uint32_t node_count)
+    {
+        DM_PROFILE("CalcVertexCount");
+
+        uint32_t num_vertices = 0;
+        for (uint32_t i = 0; i < node_count; ++i)
+        {
+            const dmGui::HNode node = entries[i].m_Node;
+
+            dmGameSystemDDF::TextureSet* texture_set_ddf = GetNodeTextureSetDDF(scene, node);
+            bool use_geometries = texture_set_ddf && texture_set_ddf->m_Geometries.m_Count > 0;
+
+            Vector4 slice9 = dmGui::GetNodeSlice9(scene, node);
+            bool use_slice_nine = sum(slice9) != 0;
+
+            // tc equals 0 when texture is set from lua script directly with gui.set_texture(...) method
+            const float* tc = dmGui::GetNodeFlipbookAnimUV(scene, node);
+            bool manually_set_texture = tc == 0;
+
+            if ((!use_slice_nine && manually_set_texture) || !texture) // simple quad
+            {
+                num_vertices += 6;
+            }
+            else if (!use_slice_nine && use_geometries) // Use polygons
+            {
+                uint32_t frame_index = dmGui::GetNodeAnimationFrame(scene, node);
+                frame_index = texture_set_ddf->m_FrameIndices[frame_index];
+
+                const dmGameSystemDDF::SpriteGeometry* geometry = &texture_set_ddf->m_Geometries.m_Data[frame_index];
+
+                num_vertices += geometry->m_Indices.m_Count;
+            }
+            else // slice 9
+            {
+                num_vertices += 9 * 6; // 9 cells in the slice9, each with 6 vertices
+            }
+        }
+        return num_vertices;
+    }
+
     static void RenderBoxNodes(dmGui::HScene scene,
                         const dmGui::RenderEntry* entries,
                         const Matrix4* node_transforms,
@@ -1513,8 +1553,6 @@ namespace dmGameSystem
 
         ApplyStencilClipping(gui_context, stencil_scopes[0], ro);
 
-        const int verts_per_node = 6*9;
-        const uint32_t max_total_vertices = verts_per_node * node_count;
 
         dmGui::BlendMode blend_mode = dmGui::GetNodeBlendMode(scene, first_node);
         SetBlendMode(ro, blend_mode);
@@ -1536,6 +1574,8 @@ namespace dmGameSystem
             ro.m_Textures[0] = texture;
         else
             ro.m_Textures[0] = gui_world->m_WhiteTexture;
+
+        const uint32_t max_total_vertices = CalcVertexCount(scene, gui_world, texture, entries, node_count);
 
         if (gui_world->m_ClientVertexBuffer.Remaining() < (max_total_vertices)) {
             gui_world->m_ClientVertexBuffer.OffsetCapacity(dmMath::Max(128U, max_total_vertices));
@@ -1691,6 +1731,7 @@ namespace dmGameSystem
             // 2 *-*-----*-*
             //   | |  w  | |
             // 3 *-*-----*-*
+            const int verts_per_slice9 = 6*9;
             float us[4], vs[4], xs[4], ys[4];
 
             // v are '1-v'
@@ -1798,7 +1839,7 @@ namespace dmGameSystem
                     gui_world->m_ClientVertexBuffer.Push(v01);
                 }
             }
-            rendered_vert_count += verts_per_node;
+            rendered_vert_count += verts_per_slice9;
         }
 
         ro.m_VertexCount = rendered_vert_count;
@@ -2703,8 +2744,15 @@ namespace dmGameSystem
     void GuiGetTextMetricsCallback(dmGameSystem::FontResource* font_resource, const char* text, float width, bool line_break, float leading, float tracking, dmGui::TextMetrics* out_metrics)
     {
         dmRender::HFont font = dmGameSystem::ResFontGetHandle(font_resource);
+
+        dmRender::TextMetricsSettings settings;
+        settings.m_Width = width;
+        settings.m_LineBreak = line_break;
+        settings.m_Leading = leading;
+        settings.m_Tracking = tracking;
+
         dmRender::TextMetrics metrics;
-        dmRender::GetTextMetrics(font, text, width, line_break, leading, tracking, &metrics);
+        dmRender::GetTextMetrics(font, text, &settings, &metrics);
         out_metrics->m_Width = metrics.m_Width;
         out_metrics->m_Height = metrics.m_Height;
         out_metrics->m_MaxAscent = metrics.m_MaxAscent;

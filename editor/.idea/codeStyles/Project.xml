@@ -10,6 +10,7 @@
         <map>
           <entry key="cljfx.composite/props" value="-1" />
           <entry key="clojure.core.cache/defcache" value="-1" />
+          <entry key="clojure.core/assoc!" value="1" />
           <entry key="clojure.core/defmulti" value="-1" />
           <entry key="clojure.core/defonce" value="-1" />
           <entry key="clojure.core/vector-of" value="-1" />
@@ -42,6 +43,8 @@
           <entry key="editor.gl/with-gl-bindings" value="-1" />
           <entry key="editor.graph-util/connect-existing-outputs" value="-1" />
           <entry key="editor.graph-util/set-properties-from-pb-map" value="-1" />
+          <entry key="editor.gui/layout-property-edit-type" value="-1" />
+          <entry key="editor.gui/wrap-layout-property-edit-type" value="-1" />
           <entry key="editor.handler/defhandler" value="-1" />
           <entry key="editor.handler/register-dynamic!" value="-1" />
           <entry key="editor.handler/register-menu!" value="-1" />
@@ -73,6 +76,7 @@
           <entry key="editor.workspace/register-view-type" value="-1" />
           <entry key="editor.yaml/with-error-translation" value="-1" />
           <entry key="integration.build-test/with-build-results" value="-1" />
+          <entry key="integration.gui-test/with-visible-layout!" value="-1" />
           <entry key="integration.test-util/set-code-editor-lines" value="-1" />
           <entry key="integration.test-util/set-code-editor-lines!" value="-1" />
           <entry key="integration.test-util/with-loaded-project" value="-1" />
@@ -83,6 +87,7 @@
           <entry key="org.httpkit.server/with-channel" value="-1" />
           <entry key="support.test-support/with-clean-system" value="-1" />
           <entry key="util.coll/assoc-in-ex" value="-1" />
+          <entry key="util.coll/transfer" value="-1" />
           <entry key="util.debug-util/log-time" value="-1" />
           <entry key="util.debug-util/measuring" value="-1" />
           <entry key="util.debug-util/metrics-time" value="-1" />

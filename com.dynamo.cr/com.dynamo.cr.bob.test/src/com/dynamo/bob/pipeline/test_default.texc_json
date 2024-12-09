@@ -1,5 +1,5 @@
 {
-    "name": "Default",
+    "name": "TestCompressor",
     "presets": [
         {
             "name": "TEST_PRESET",

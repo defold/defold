@@ -1,13 +1,12 @@
-script: ""
 textures {
   name: "window_texture"
-  texture: "/main/window.atlas"
+  texture: "/assets/window.atlas"
 }
 nodes {
   type: TYPE_TEMPLATE
   id: "panel"
   inherit_alpha: true
-  template: "/main/panel.gui"
+  template: "/gui/template/panel.gui"
 }
 nodes {
   type: TYPE_TEMPLATE

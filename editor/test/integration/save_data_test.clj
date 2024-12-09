@@ -1304,7 +1304,7 @@
   ;; being overridden from a template node in one of the root-level files in the
   ;; save data test project. If you add a field to the NodeDesc protobuf
   ;; message, you'll either need to add a template override for it (we suggest
-  ;; you add it to `checked02.gui`, which hosts the majority of the template
+  ;; you add it to `checked01.gui`, which hosts the majority of the template
   ;; overrides), or add a field ignore rule to the `pb-ignored-fields` map at
   ;; the top of this file.
   (test-util/with-loaded-project project-path
@@ -1332,7 +1332,7 @@
   (test-util/with-loaded-project project-path
     (test-util/clear-cached-save-data! project)
     (doseq [save-data (project->save-datas project)]
-      (test-util/check-save-data-disk-equivalence! save-data))))
+      (test-util/check-save-data-disk-equivalence! save-data project-path))))
 
 (deftest save-value-is-equivalent-to-source-value-test
   ;; This test is intended to verify that the saved data contains all the same
@@ -1401,7 +1401,7 @@
                 (is (not (:dirty save-data))
                     "Unsaved changes detected after saving.")
                 (when (:dirty save-data)
-                  (test-util/check-save-data-disk-equivalence! save-data))))))))))
+                  (test-util/check-save-data-disk-equivalence! save-data project-path))))))))))
 
 (deftest resource-save-data-retention-test
   ;; This test is intended to verify that the system cache is populated with the

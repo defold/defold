@@ -52,7 +52,7 @@ def configure(conf):
     conf.env['STLIB_GAMEOBJECT'] = 'gameobject'
     conf.env['STLIB_EXTENSION'] = 'extension'
     conf.env['STLIB_SCRIPT'] = 'script'
-    conf.env['STLIB_RENDER'] = 'render'
+    conf.env['STLIB_RENDER'] = 'render render_font_default'.split()
     conf.env['STLIB_PARTICLE'] = 'particle'
     conf.env['STLIB_RIG'] = 'rig'
     conf.env['STLIB_GUI'] = 'gui'

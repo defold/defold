@@ -1,0 +1,26 @@
+nodes {
+  type: TYPE_TEMPLATE
+  id: "button"
+  template: "/gui/template_layout/button.gui"
+}
+nodes {
+  type: TYPE_TEXT
+  text: "panel default"
+  id: "button/text"
+  parent: "button"
+  overridden_fields: 8
+  template_node_child: true
+}
+material: "/builtins/materials/gui.material"
+layouts {
+  name: "Landscape"
+  nodes {
+    type: TYPE_TEXT
+    text: "panel landscape"
+    id: "button/text"
+    parent: "button"
+    overridden_fields: 8
+    template_node_child: true
+  }
+}
+adjust_reference: ADJUST_REFERENCE_PARENT

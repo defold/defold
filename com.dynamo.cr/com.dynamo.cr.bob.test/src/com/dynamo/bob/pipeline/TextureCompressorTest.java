@@ -1,9 +1,21 @@
+// Copyright 2020-2024 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+//
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+//
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
 package com.dynamo.bob.pipeline;
 
-import com.defold.extension.pipeline.texture.ITextureCompressor;
-import com.defold.extension.pipeline.texture.TextureCompression;
-import com.defold.extension.pipeline.texture.TextureCompressorParams;
-import com.defold.extension.pipeline.texture.TextureCompressorPreset;
+import com.defold.extension.pipeline.texture.*;
+import com.defold.extension.pipeline.texture.TestTextureCompressor;
 import org.junit.Test;
 
 public class TextureCompressorTest extends AbstractProtoBuilderTest {
@@ -33,39 +45,14 @@ public class TextureCompressorTest extends AbstractProtoBuilderTest {
         assert(presetTwo.getOptionString("test_string").equals("test_preset_two"));
     }
 
-    private class TestTextureCompressor implements ITextureCompressor {
-        // For now we are hijacking the "Default" compressor for this test.
-        @Override
-        public String getName() {
-            return "Default";
-        }
-
-        @Override
-        public byte[] compress(TextureCompressorPreset preset, TextureCompressorParams params, byte[] input) {
-
-            assert(preset.getOptionInt("test_int") == 1234);
-            assert(preset.getOptionFloat("test_float") == 8080.0);
-            assert(preset.getOptionString("test_string").equals("test_default_param"));
-
-            byte[] bytes = new byte[4];
-            bytes[0] = 1;
-            bytes[1] = 2;
-            bytes[2] = 3;
-            bytes[3] = 4;
-            return bytes;
-        }
-    }
-
     @Test
     public void testTextureCompressionPresetsGettingUsed() throws Exception {
-        // Temporary workaround
-        String oldName = TextureGenerator.defaultTextureCompressionPresetName;
-        TextureGenerator.defaultTextureCompressionPresetName = "TEST_PRESET";
-
         TestTextureCompressor testCompressor = new TestTextureCompressor();
+        testCompressor.expectedOptionOne = 1234;
+        testCompressor.expectedOptionTwo = 8080.0f;
+        testCompressor.expectedOptionThree = "test_default_param";
+
         TextureCompression.registerCompressor(testCompressor);
         ensureBuildProject();
-
-        TextureGenerator.defaultTextureCompressionPresetName = oldName;
     }
 }
