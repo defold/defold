@@ -49,7 +49,7 @@ task createTestJar(type: Jar, dependsOn: [compileTest, 'compileJava']) {
         include 'com/dynamo/bob/**/*.txt', 'com/dynamo/bob/**/*.yml', 'com/dynamo/bob/**/*.png',
                 'com/dynamo/bob/**/*.dae', 'com/dynamo/bob/**/*.gltf', 'com/dynamo/bob/**/*.glb',
                 'com/dynamo/bob/**/*.lua', 'com/dynamo/bob/**/*.fnt', 'com/dynamo/bob/**/*.ttf',
-                'com/dynamo/bob/**/*.json', 'builtins/**/*.*'
+                'com/dynamo/bob/**/*.json', 'com/dynamo/bob/**/*.texc_json', 'builtins/**/*.*'
     }
     from("$project.testDir") {
         include 'test/**/*.*', 'testappmanifest/**/*.*', 'testextension/**/*.*'

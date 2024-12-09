@@ -2180,8 +2180,6 @@ public class Project {
             public void handleFile(String path, Collection<String> results) {
                 boolean shouldAdd = true;
 
-                System.out.println("findResourcePathsByExtension: " + path);
-
                 // Do a first pass on the path to check if it satisfies the ext check
                 if (ext != null) {
                     shouldAdd = path.endsWith(ext);
