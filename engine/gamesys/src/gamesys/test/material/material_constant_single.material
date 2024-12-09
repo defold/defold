@@ -3,10 +3,7 @@ tags: "tile"
 vertex_program: "/vertex_program/valid.vp"
 fragment_program: "/material/material_constant_single.fp"
 vertex_space: VERTEX_SPACE_WORLD
-vertex_constants {
-  name: "view_proj"
-  type: CONSTANT_TYPE_VIEWPROJ
-}
+
 fragment_constants {
   name: "tint"
   type: CONSTANT_TYPE_USER
@@ -14,6 +11,17 @@ fragment_constants {
     x: 1.0
     y: 1.0
     z: 1.0
+    w: 1.0
+  }
+}
+
+fragment_constants {
+  name: "nested.tint"
+  type: CONSTANT_TYPE_USER
+  value {
+    x: 1.0
+    y: 0.0
+    z: 0.0
     w: 1.0
   }
 }

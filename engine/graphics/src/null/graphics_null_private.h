@@ -101,6 +101,26 @@ namespace dmGraphics
         FrameBuffer     m_FrameBuffer;
     };
 
+    struct NullShaderModule
+    {
+        ShaderMeta           m_ShaderMeta;
+        char*                m_Data;
+        ShaderDesc::Language m_Language;
+    };
+
+    struct NullProgram
+    {
+        Program              m_BaseProgram;
+        NullShaderModule*    m_VP;
+        NullShaderModule*    m_FP;
+        NullShaderModule*    m_Compute;
+        uint8_t*             m_UniformData;
+        uint32_t             m_UniformDataSize;
+        ShaderDesc::Language m_Language;
+    };
+
+    static const uint32_t UNIFORM_BUFFERS_ALIGNMENT = 4;
+
     struct NullContext
     {
         NullContext(const ContextParams& params);
@@ -113,7 +133,6 @@ namespace dmGraphics
         dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
         VertexStreamBuffer                 m_VertexStreams[MAX_VERTEX_BUFFERS][MAX_VERTEX_STREAM_COUNT];
         HVertexDeclaration                 m_VertexDeclarations[MAX_VERTEX_BUFFERS];
-        dmVMath::Vector4                   m_ProgramRegisters[MAX_REGISTER_COUNT];
         TextureSampler                     m_Samplers[MAX_TEXTURE_COUNT];
         HTexture                           m_Textures[MAX_TEXTURE_COUNT];
         HVertexBuffer                      m_VertexBuffers[MAX_VERTEX_BUFFERS];
