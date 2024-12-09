@@ -104,4 +104,19 @@ namespace dmGameSystem
         dmResource::SetResourceSize(params->m_Resource, dmSound::GetSoundResourceSize(sound_data));
         return dmResource::RESULT_OK;
     }
+
+    static ResourceResult ResourceTypeSoundData_Register(HResourceTypeContext ctx, HResourceType type)
+    {
+        return (ResourceResult)dmResource::SetupType(ctx,
+                                                       type,
+                                                       0, // context
+                                                       0, // preload
+                                                       ResSoundDataCreate,
+                                                       0, // post create
+                                                       ResSoundDataDestroy,
+                                                       ResSoundDataRecreate);
+    }
 }
+
+DM_DECLARE_RESOURCE_TYPE(ResourceTypeOgg, "oggc", dmGameSystem::ResourceTypeSoundData_Register, 0);
+DM_DECLARE_RESOURCE_TYPE(ResourceTypeWav, "wavc", dmGameSystem::ResourceTypeSoundData_Register, 0);
