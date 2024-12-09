@@ -2264,3 +2264,24 @@ diff -u -r --strip-trailing-cr a/bullet-2.77/src/LinearMath/btVector3.h c/bullet
  {
  	// wAxis must be a unit lenght vector
  
+diff -u -r --strip-trailing-cr a/bullet-2.77/src/vectormath/scalar/vectormath_aos.h c/bullet-2.77/src/vectormath/scalar/vectormath_aos.h
+--- a/bullet-2.77/src/vectormath/scalar/vectormath_aos.h	2024-11-27 12:00:00.000000000 +0200
++++ c/bullet-2.77/src/vectormath/scalar/vectormath_aos.h	2024-11-27 12:00:01.000000000 +0200
+@@ -47,7 +47,7 @@ class Vector3
+     float mY;
+     float mZ;
+ #ifndef __GNUC__
+-    float d;
++    uint32_t :32; // replaces 'float d' -- unnamed bit-field adds the required padding while avoiding clang's unused-private-field warning
+ #endif
+ 
+ public:
+@@ -635,7 +635,7 @@ class Point3
+     float mY;
+     float mZ;
+ #ifndef __GNUC__
+-    float d;
++    uint32_t :32; // replaces 'float d' -- unnamed bit-field adds the required padding while avoiding clang's unused-private-field warning
+ #endif
+ 
+ public:
