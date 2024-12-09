@@ -601,8 +601,8 @@ public class TextureGenerator {
             }
         }
 
-        // If no texture profile was supplied, or no matching format was found
-        if (texProfile == null) {
+        // If no texture profile was supplied, or no matching format was found, or no compression has been requested
+        if (texProfile == null || !compress) {
 
             // Guess texture format based on number color components of input image
             TextureFormat textureFormat = pickOptimalFormat(componentCount, TextureFormat.TEXTURE_FORMAT_RGBA);
@@ -610,7 +610,6 @@ public class TextureGenerator {
             imageBuilder.setCompressionType(TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT);
             textureBuilder.addAlternatives(imageBuilder);
             textureBuilder.setCount(1);
-
         }
 
         textureBuilder.setType(Type.TYPE_2D);
