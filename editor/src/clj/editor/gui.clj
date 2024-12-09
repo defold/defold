@@ -403,7 +403,6 @@
    [:texture-infos :texture-infos]
    [:material-infos :material-infos]
    [:material-shaders :material-shaders]
-   [:font-shaders :font-shaders]
    [:font-names :font-names]
    [:layer-names :layer-names]
    [:layer->index :layer->index]
@@ -1018,8 +1017,6 @@
   (input material-shaders GuiResourceShaders)
   (output material-shaders GuiResourceShaders (gu/passthrough material-shaders))
 
-  (input font-shaders GuiResourceShaders)
-  (output font-shaders GuiResourceShaders (gu/passthrough font-shaders))
   (input font-names GuiResourceNames)
   (output font-names GuiResourceNames (gu/passthrough font-names))
   (input layer-names GuiResourceNames)
@@ -1817,14 +1814,15 @@
   (output node-msg g/Any :cached produce-text-node-msg)
   (output gpu-texture TextureLifecycle (g/fnk [font-data] (:texture font-data)))
   (output scene-renderable-user-data g/Any :cached
-          (g/fnk [manual-size font font-shaders material material-shaders pivot text-data color+alpha]
+          (g/fnk [costly-gui-scene-info manual-size font material material-shaders pivot text-data color+alpha]
                  (let [[w h] manual-size
                        offset (pivot-offset pivot manual-size)
                        lines (mapv conj (apply concat (take 4 (partition 2 1 (cycle (geom/transl offset [[0 0] [w 0] [w h] [0 h]]))))) (repeat 0))
                        font-map (get-in text-data [:font-data :font-map])
                        texture-recip-uniform (font/get-texture-recip-uniform font-map)
                        material-shader (when (not (empty? material)) (material-shaders material))
-                       font-shader (or material-shader (font-shaders font) (font-shaders ""))
+                       font-shaders (:font-shaders costly-gui-scene-info)
+                       font-shader (or material-shader (get font-shaders font) (get font-shaders ""))
                        font-shader (assoc-in font-shader [:uniforms "texture_size_recip"] texture-recip-uniform)]
                    ;; The material-shader output is used to propagate the shader
                    ;; from the GuiSceneNode to our child nodes. Thus, we cannot
@@ -1977,7 +1975,6 @@
                                                                   [:texture-infos :aux-texture-infos]
                                                                   [:material-infos :aux-material-infos]
                                                                   [:material-shaders :aux-material-shaders]
-                                                                  [:font-shaders :aux-font-shaders]
                                                                   [:font-names :aux-font-names]
 
                                                                   [:spine-scene-element-ids :aux-spine-scene-element-ids]
@@ -2483,9 +2480,6 @@
 
   (input material-shaders GuiResourceShaders)
   (output material-shaders GuiResourceShaders (gu/passthrough material-shaders))
-
-  (input font-shaders GuiResourceShaders)
-  (output font-shaders GuiResourceShaders (gu/passthrough font-shaders))
 
   (input font-names GuiResourceNames)
   (output font-names GuiResourceNames (gu/passthrough font-names))
@@ -3263,9 +3257,7 @@
               (into aux-material-infos own-material-infos)
               own-material-infos)))
 
-  (input aux-font-shaders GuiResourceShaders :array)
   (input font-shaders GuiResourceShaders :array)
-  (output font-shaders GuiResourceShaders :cached (g/fnk [aux-font-shaders font-shaders] (into {} (concat aux-font-shaders font-shaders))))
   (input font-datas FontDatas :array)
   (input aux-font-names GuiResourceNames)
   (input own-font-names g/Str :array)
@@ -3402,9 +3394,9 @@
 
   (input aux-costly-gui-scene-info CostlyGuiSceneInfo)
   (output own-costly-gui-scene-info CostlyGuiSceneInfo :cached
-          (g/fnk [font-datas texture-gpu-textures]
+          (g/fnk [font-datas font-shaders texture-gpu-textures]
             {:font-datas (reduce coll/merge font-datas)
-             :font-shaders nil
+             :font-shaders (reduce coll/merge font-shaders)
              :material-shaders nil
              :particlefx-infos nil
              :texture-gpu-textures (reduce coll/merge texture-gpu-textures)}))
@@ -3412,7 +3404,8 @@
           (g/fnk [aux-costly-gui-scene-info own-costly-gui-scene-info]
             {:font-datas (coll/merge (:font-datas aux-costly-gui-scene-info)
                                      (:font-datas own-costly-gui-scene-info))
-             :font-shaders nil
+             :font-shaders (coll/merge (:font-shaders aux-costly-gui-scene-info)
+                                       (:font-shaders own-costly-gui-scene-info))
              :material-shaders nil
              :particlefx-infos nil
              :texture-gpu-textures (coll/merge (:texture-gpu-textures aux-costly-gui-scene-info)
@@ -3751,7 +3744,6 @@
                                      [:texture-infos :texture-infos]
                                      [:material-infos :material-infos]
                                      [:material-shaders :material-shaders]
-                                     [:font-shaders :font-shaders]
                                      [:font-names :font-names]
                                      [:layer-names :layer-names]
                                      [:layer->index :layer->index]
