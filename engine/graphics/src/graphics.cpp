@@ -1047,7 +1047,7 @@ namespace dmGraphics
             uniform.m_Location = params.m_Resource->m_Res->m_Set | params.m_Resource->m_Res->m_Binding << 16;
         }
 
-    #if 1
+    #if 0
         dmLogInfo("    Uniform: canonical_name=%s, name=%s", uniform.m_CanonicalName, uniform.m_Name);
     #endif
 

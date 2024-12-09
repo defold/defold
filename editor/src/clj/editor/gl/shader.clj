@@ -426,8 +426,6 @@ This must be submitted to the driver for compilation before you can use it. See
                        (= (:canonical-name uniform-info) uniform-name)))
                  uniform-infos)))
 
-(def my-atom (atom 0))
-
 (defn- set-uniform-impl! [gl program uniform-infos uniform-name uniform-value]
   (when-some [uniform-info (uniform-name->uniform-infos uniform-name uniform-infos)]
     (try
@@ -436,7 +434,6 @@ This must be submitted to the driver for compilation before you can use it. See
         (throw (IllegalArgumentException. (format "Failed setting uniform '%s'." uniform-name) e))))))
 
 (defn- set-sampler-uniform-impl! [gl program uniform-infos slice-sampler-uniform-names texture-units]
-  (reset! my-atom uniform-infos)
   (doall
     (map (fn [slice-sampler-uniform-name texture-unit]
            (if (and (int? texture-unit)
@@ -594,7 +591,6 @@ of GLSL strings and returns an object that satisfies GlBind and GlEnable."
             ;;    a uniform buffer so we can match it to constants.
             ;;    I.e, "uniform_buffer.my_uniform" -> "my_uniform"
             sanitized-name (last (string/split sanitized-name #"\."))]
-        (println name sanitized-name)
         {:name sanitized-name
          :canonical-name name
          :index location

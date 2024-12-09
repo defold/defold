@@ -22,17 +22,11 @@
 
 namespace dmGraphics
 {
-    // In OpenGL, there is a single global resource identifier between
-    // fragment and vertex uniforms for a single program. In Vulkan,
-    // a uniform can be present in both shaders so we have to keep track
-    // of this ourselves. Because of this we pack resource locations
-    // for uniforms in a single base register with 15 bits
-    // per shader location. If uniform is not found, we return -1 as usual.
     #define UNIFORM_LOCATION_MAX                ((uint64_t) 0xFFFF)
-    #define UNIFORM_LOCATION_GET_VS(loc)        (loc & UNIFORM_LOCATION_MAX)
-    #define UNIFORM_LOCATION_GET_VS_MEMBER(loc) ((loc & (UNIFORM_LOCATION_MAX << 16)) >> 16)
-    #define UNIFORM_LOCATION_GET_FS(loc)        ((loc & (UNIFORM_LOCATION_MAX << 32)) >> 32)
-    #define UNIFORM_LOCATION_GET_FS_MEMBER(loc) ((loc & (UNIFORM_LOCATION_MAX << 48)) >> 48)
+    #define UNIFORM_LOCATION_GET_OP0(loc) (loc & UNIFORM_LOCATION_MAX)
+    #define UNIFORM_LOCATION_GET_OP1(loc) ((loc & (UNIFORM_LOCATION_MAX << 16)) >> 16)
+    #define UNIFORM_LOCATION_GET_OP2(loc) ((loc & (UNIFORM_LOCATION_MAX << 32)) >> 32)
+    #define UNIFORM_LOCATION_GET_OP3(loc) ((loc & (UNIFORM_LOCATION_MAX << 48)) >> 48)
 
     struct ProgramResourceBinding;
     struct ShaderResourceMember;

@@ -2307,9 +2307,9 @@ static void WebGPUSetConstantV4(HContext _context, const Vector4* data, int coun
     assert(context->m_CurrentProgram);
     assert(base_location != INVALID_UNIFORM_LOCATION);
 
-    const uint32_t set           = UNIFORM_LOCATION_GET_VS(base_location);
-    const uint32_t binding       = UNIFORM_LOCATION_GET_VS_MEMBER(base_location);
-    const uint32_t buffer_offset = UNIFORM_LOCATION_GET_FS(base_location);
+    const uint32_t set           = UNIFORM_LOCATION_GET_OP0(base_location);
+    const uint32_t binding       = UNIFORM_LOCATION_GET_OP1(base_location);
+    const uint32_t buffer_offset = UNIFORM_LOCATION_GET_OP2(base_location);
     assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
 
     const ProgramResourceBinding& pgm_res = context->m_CurrentProgram->m_BaseProgram.m_ResourceBindings[set][binding];
@@ -2330,9 +2330,9 @@ static void WebGPUSetConstantM4(HContext _context, const Vector4* data, int coun
     assert(context->m_CurrentProgram);
     assert(base_location != INVALID_UNIFORM_LOCATION);
 
-    const uint32_t set           = UNIFORM_LOCATION_GET_VS(base_location);
-    const uint32_t binding       = UNIFORM_LOCATION_GET_VS_MEMBER(base_location);
-    const uint32_t buffer_offset = UNIFORM_LOCATION_GET_FS(base_location);
+    const uint32_t set           = UNIFORM_LOCATION_GET_OP0(base_location);
+    const uint32_t binding       = UNIFORM_LOCATION_GET_OP1(base_location);
+    const uint32_t buffer_offset = UNIFORM_LOCATION_GET_OP2(base_location);
     assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
 
     const ProgramResourceBinding& pgm_res = context->m_CurrentProgram->m_BaseProgram.m_ResourceBindings[set][binding];
@@ -2352,8 +2352,8 @@ static void WebGPUSetSampler(HContext _context, HUniformLocation location, int32
     assert(context->m_CurrentProgram);
     assert(location != INVALID_UNIFORM_LOCATION);
 
-    const uint32_t set     = UNIFORM_LOCATION_GET_VS(location);
-    const uint32_t binding = UNIFORM_LOCATION_GET_VS_MEMBER(location);
+    const uint32_t set     = UNIFORM_LOCATION_GET_OP0(location);
+    const uint32_t binding = UNIFORM_LOCATION_GET_OP1(location);
     assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
 
     if (context->m_CurrentProgram->m_BaseProgram.m_ResourceBindings[set][binding].m_TextureUnit != unit)

@@ -1029,9 +1029,9 @@ namespace dmGraphics
         NullContext* context = (NullContext*) _context;
         assert(context->m_Program != 0x0);
 
-        uint32_t set               = UNIFORM_LOCATION_GET_VS(base_location);
-        uint32_t binding           = UNIFORM_LOCATION_GET_VS_MEMBER(base_location);
-        uint32_t buffer_offset     = UNIFORM_LOCATION_GET_FS(base_location);
+        uint32_t set           = UNIFORM_LOCATION_GET_OP0(base_location);
+        uint32_t binding       = UNIFORM_LOCATION_GET_OP1(base_location);
+        uint32_t buffer_offset = UNIFORM_LOCATION_GET_OP2(base_location);
         assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
 
         NullProgram* program            = (NullProgram*) context->m_Program;
@@ -1054,9 +1054,9 @@ namespace dmGraphics
         NullContext* context = (NullContext*) _context;
         assert(context->m_Program != 0x0);
 
-        uint32_t set               = UNIFORM_LOCATION_GET_VS(base_location);
-        uint32_t binding           = UNIFORM_LOCATION_GET_VS_MEMBER(base_location);
-        uint32_t buffer_offset     = UNIFORM_LOCATION_GET_FS(base_location);
+        uint32_t set           = UNIFORM_LOCATION_GET_OP0(base_location);
+        uint32_t binding       = UNIFORM_LOCATION_GET_OP1(base_location);
+        uint32_t buffer_offset = UNIFORM_LOCATION_GET_OP2(base_location);
         assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
 
         NullProgram* program            = (NullProgram*) context->m_Program;
@@ -1072,9 +1072,9 @@ namespace dmGraphics
         NullContext* context = (NullContext*) _context;
         assert(context->m_Program != 0x0);
 
-        uint32_t set               = UNIFORM_LOCATION_GET_VS(base_location);
-        uint32_t binding           = UNIFORM_LOCATION_GET_VS_MEMBER(base_location);
-        uint32_t buffer_offset     = UNIFORM_LOCATION_GET_FS(base_location);
+        uint32_t set           = UNIFORM_LOCATION_GET_OP0(base_location);
+        uint32_t binding       = UNIFORM_LOCATION_GET_OP1(base_location);
+        uint32_t buffer_offset = UNIFORM_LOCATION_GET_OP2(base_location);
         assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
 
         NullProgram* program            = (NullProgram*) context->m_Program;

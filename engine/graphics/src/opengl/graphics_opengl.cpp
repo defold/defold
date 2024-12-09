@@ -2631,7 +2631,7 @@ static void LogFrameBufferError(GLenum status)
             uniform.m_Count             = uniform_size;
             uniform.m_Type              = GetGraphicsType(uniform_type);
 
-        #if 1
+        #if 0
             dmLogInfo("  Uniform[%d]: full-name: %s, canonical-name: %s", i, uniform_name_buffer, canonical_name);
         #endif
 
@@ -3106,12 +3106,12 @@ static void LogFrameBufferError(GLenum status)
 
     static void OpenGLSetConstantV4(HContext context, const Vector4* data, int count, HUniformLocation base_location)
     {
-        uint32_t block_member = UNIFORM_LOCATION_GET_FS(base_location);
+        uint32_t block_member = UNIFORM_LOCATION_GET_OP2(base_location);
 
         if (block_member)
         {
-            uint32_t block_index = UNIFORM_LOCATION_GET_VS(base_location);
-            uint32_t member_index = UNIFORM_LOCATION_GET_VS_MEMBER(base_location);
+            uint32_t block_index = UNIFORM_LOCATION_GET_OP0(base_location);
+            uint32_t member_index = UNIFORM_LOCATION_GET_OP1(base_location);
             OpenGLUniformBuffer& ubo = ((OpenGLContext*) context)->m_CurrentProgram->m_UniformBuffers[block_index];
 
             uint8_t* data_ptr = ubo.m_BlockMemory + ubo.m_Offsets[member_index];
@@ -3127,12 +3127,12 @@ static void LogFrameBufferError(GLenum status)
 
     static void OpenGLSetConstantM4(HContext context, const Vector4* data, int count, HUniformLocation base_location)
     {
-        uint32_t block_member = UNIFORM_LOCATION_GET_FS(base_location);
+        uint32_t block_member = UNIFORM_LOCATION_GET_OP2(base_location);
 
         if (block_member)
         {
-            uint32_t block_index = UNIFORM_LOCATION_GET_VS(base_location);
-            uint32_t member_index = UNIFORM_LOCATION_GET_VS_MEMBER(base_location);
+            uint32_t block_index = UNIFORM_LOCATION_GET_OP0(base_location);
+            uint32_t member_index = UNIFORM_LOCATION_GET_OP1(base_location);
             OpenGLUniformBuffer& ubo = ((OpenGLContext*) context)->m_CurrentProgram->m_UniformBuffers[block_index];
 
             uint8_t* data_ptr = ubo.m_BlockMemory + ubo.m_Offsets[member_index];
