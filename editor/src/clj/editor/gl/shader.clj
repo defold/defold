@@ -614,6 +614,7 @@ of GLSL strings and returns an object that satisfies GlBind and GlEnable."
          :index location
          :type type
          :count count}))))
+
 (defn- strip-resource-namespaces [uniform-infos resource-binding-namespaces]
   (mapv (fn [uniform-info]
           (let [uniform-canonical-name (:canonical-name uniform-info)
@@ -641,10 +642,13 @@ of GLSL strings and returns an object that satisfies GlBind and GlEnable."
                                [(:name attribute-info) attribute-info])))
                       (range (gl-shader-parameter gl program GL2/GL_ACTIVE_ATTRIBUTES)))
 
+                ;; WORK-IN-PROGRESS:
                 uniform-infos
-                (into []
-                      (map (fn [^long uniform-index]
-                             (uniform-info gl program uniform-index)))
+                (into {}
+                      (mapcat (fn [^long uniform-index]
+                                (let [uniform-info (uniform-info gl program uniform-index)]
+                                  [(pair (:name uniform-info) uniform-info)
+                                   (pair (:canonical-name uniform-info) uniform-info)])))
                       (range (gl-shader-parameter gl program GL2/GL_ACTIVE_UNIFORMS)))
 
                 array-sampler-uniform-name?

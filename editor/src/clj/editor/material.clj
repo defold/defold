@@ -32,7 +32,7 @@
             [util.coll :as coll :refer [pair]]
             [util.murmur :as murmur]
             [util.num :as num])
-  (:import [com.dynamo.bob.pipeline ShaderProgramBuilderEditor]
+  (:import [com.dynamo.bob.pipeline ShaderProgramBuilderEditor Shaderc$ShaderResource]
            [com.dynamo.bob.pipeline.shader SPIRVReflector]
            [com.dynamo.graphics.proto Graphics$CoordinateSpace Graphics$VertexAttribute Graphics$VertexAttribute$DataType Graphics$VertexAttribute$SemanticType Graphics$VertexAttribute$VectorType Graphics$VertexStepFunction]
            [com.dynamo.render.proto Material$MaterialDesc Material$MaterialDesc$Sampler Material$MaterialDesc$VertexSpace]
@@ -167,9 +167,12 @@ reflected data when the shader is created (see editor.gl.shader:make-shader-prog
 there is no way a user can know what the generated id will be for older shaders.
 "
 (defn- resource-binding-namespaces [^SPIRVReflector reflector]
-  ;; SSBOs will need the same remapping as UBOs, but since we don't support
-  ;; them in the editor, we don't gather their namespaces here.
-  (mapv (fn [ubo] (str "_" (.id ubo))) (.getUBOs reflector)))
+  ;; Storage buffers (also known as SSBOs) will need the same mapping as uniform buffers,
+  ;; but since we don't support them in the editor, we don't gather their namespaces here.
+  (mapv
+    (fn [^Shaderc$ShaderResource uniform-buffer-object]
+      (str "_" (.id uniform-buffer-object)))
+    (.getUBOs reflector)))
 
 (defn- transpile-shader-source [shader-ext ^String shader-source ^long max-page-count]
   (let [shader-type (code.shader/shader-type-from-ext shader-ext)
