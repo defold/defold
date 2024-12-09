@@ -15,6 +15,7 @@
 package com.dynamo.bob.pipeline;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 
 import java.awt.image.BufferedImage;
 import java.io.IOException;
@@ -238,6 +239,8 @@ public class TextureGeneratorTest {
 
         // Create the texture compressor + preset
         TextureCompressorPreset presetOne = new TextureCompressorPreset("TestCompressorPresetOne", "Test Compressor One", "TestCompressor");
+        assertNotNull(presetOne);
+
         presetOne.setOptionInt("option_one", 1337);
         presetOne.setOptionFloat("option_two", 99.0f);
         presetOne.setOptionString("option_three", "option_three");
@@ -332,7 +335,7 @@ public class TextureGeneratorTest {
         textureProfile.setName("Test Profile");
         textureProfile.addPlatforms(platformProfile.build());
 
-        // Generate texture withput compression applied
+        // Generate texture without compression applied
         TextureImage texture = TextureGenerator.generate(getClass().getResourceAsStream("128_64_rgba.png"), textureProfile.build(), false);
 
         assertEquals(1, texture.getAlternativesCount());

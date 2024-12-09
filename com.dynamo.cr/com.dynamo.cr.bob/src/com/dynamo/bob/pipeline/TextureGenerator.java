@@ -553,7 +553,7 @@ public class TextureGenerator {
         int componentCount = colorModel.getNumComponents();
         TextureImage.Builder textureBuilder = TextureImage.newBuilder();
 
-        if (texProfile != null && compress) {
+        if (texProfile != null) {
 
             // Generate an image for each format specified in the profile
             for (PlatformProfile platformProfile : texProfile.getPlatformsList()) {
@@ -602,11 +602,11 @@ public class TextureGenerator {
         }
 
         // If no texture profile was supplied, or no matching format was found, or no compression has been requested
-        if (texProfile == null || !compress) {
+        if (texProfile == null) {
 
             // Guess texture format based on number color components of input image
             TextureFormat textureFormat = pickOptimalFormat(componentCount, TextureFormat.TEXTURE_FORMAT_RGBA);
-            TextureImage.Image.Builder imageBuilder = generateFromColorAndFormat(null, image, colorModel, textureFormat, "Default", "DEFAULT", true, 0, false, flipAxis);
+            TextureImage.Image.Builder imageBuilder = generateFromColorAndFormat(null, image, colorModel, textureFormat, "Default", "DEFAULT", true, 0, true, flipAxis);
             imageBuilder.setCompressionType(TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT);
             textureBuilder.addAlternatives(imageBuilder);
             textureBuilder.setCount(1);

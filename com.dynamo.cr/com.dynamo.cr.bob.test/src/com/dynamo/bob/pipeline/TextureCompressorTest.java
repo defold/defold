@@ -18,6 +18,8 @@ import com.defold.extension.pipeline.texture.*;
 import com.defold.extension.pipeline.texture.TestTextureCompressor;
 import org.junit.Test;
 
+import static org.junit.Assert.assertNotNull;
+
 public class TextureCompressorTest extends AbstractProtoBuilderTest {
 
     private void ensureBuildProject() throws Exception {
@@ -35,6 +37,8 @@ public class TextureCompressorTest extends AbstractProtoBuilderTest {
         ensureBuildProject();
 
         TextureCompressorPreset presetOne = TextureCompression.getPreset("PresetOne");
+        assertNotNull(presetOne);
+
         assert(presetOne.getOptionInt("test_int") == 7);
         assert(presetOne.getOptionFloat("test_float") == 42.0);
         assert(presetOne.getOptionString("test_string").equals("test_preset_one"));

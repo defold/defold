@@ -64,6 +64,7 @@ public abstract class AbstractProtoBuilderTest {
 
         project.scan(scanner, "com.dynamo.bob");
         project.scan(scanner, "com.dynamo.bob.pipeline");
+        project.scan(scanner, "com.defold.extension.pipeline.texture");
 
         try {
             CodeSource src = getClass().getProtectionDomain().getCodeSource();
