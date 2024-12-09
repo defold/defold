@@ -171,7 +171,18 @@ namespace dmSoundCodec
 
     static Result TremoloSkipInStream(HDecodeStream stream, uint32_t bytes, uint32_t* skipped)
     {
-        return TremoloDecode(stream, NULL, bytes, skipped);
+        // Decode to 'NIL' (unfortunately with zero cycle savings vs. a real decode)
+        char buffer[4096];
+        Result ret = RESULT_OK;
+        while(bytes && ret == RESULT_OK)
+        {
+            uint32_t chunk = dmMath::Min(bytes, (uint32_t)sizeof(buffer));
+            uint32_t decoded = 0;
+            ret = TremoloDecode(stream, buffer, chunk, &decoded);
+            (*skipped) += decoded;
+            bytes -= decoded;
+        }
+        return ret;
     }
 
     static void TremoloCloseStream(HDecodeStream stream)
