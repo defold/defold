@@ -402,7 +402,6 @@
    [:id :parent]
    [:texture-infos :texture-infos]
    [:material-infos :material-infos]
-   [:font-names :font-names]
    [:layer-names :layer-names]
    [:layer->index :layer->index]
 
@@ -1008,8 +1007,6 @@
   (input material-infos GuiResourceMaterialInfos)
   (output material-infos GuiResourceMaterialInfos (gu/passthrough material-infos))
 
-  (input font-names GuiResourceNames)
-  (output font-names GuiResourceNames (gu/passthrough font-names))
   (input layer-names GuiResourceNames)
   (output layer-names GuiResourceNames (gu/passthrough layer-names))
   (input layer->index g/Any)
@@ -1748,8 +1745,12 @@
             (value (layout-property-getter line-break))
             (set (layout-property-setter line-break)))
   (property font g/Str (default (protobuf/default Gui$NodeDesc :font))
-            (dynamic edit-type (g/fnk [font-names] (wrap-layout-property-edit-type font (required-gui-resource-choicebox font-names))))
-            (dynamic error (g/fnk [_node-id font-names font] (validate-font _node-id font-names font)))
+            (dynamic edit-type (g/fnk [basic-gui-scene-info]
+                                 (let [font-names (:font-names basic-gui-scene-info)]
+                                   (wrap-layout-property-edit-type font (required-gui-resource-choicebox font-names)))))
+            (dynamic error (g/fnk [_node-id basic-gui-scene-info font]
+                             (let [font-names (:font-names basic-gui-scene-info)]
+                               (validate-font _node-id font-names font))))
             (value (layout-property-getter font))
             (set (layout-property-setter font)))
   (property text-leading g/Num (default (protobuf/default Gui$NodeDesc :text-leading))
@@ -1830,10 +1831,13 @@
                                            font-data (assoc :offset (let [[x y] (pivot-offset pivot aabb-size)
                                                                           h (second aabb-size)]
                                                                       [x (+ y (- h (get-in font-data [:font-map :max-ascent])))])))))
-  (output own-build-errors g/Any (g/fnk [_node-id build-errors-visual-node font font-names]
-                                   (g/package-errors _node-id
-                                                     build-errors-visual-node
-                                                     (validate-font _node-id font-names font)))))
+  (output own-build-errors g/Any
+          (g/fnk [_node-id basic-gui-scene-info build-errors-visual-node font]
+            (let [font-names (:font-names basic-gui-scene-info)]
+              (g/package-errors
+                _node-id
+                build-errors-visual-node
+                (validate-font _node-id font-names font))))))
 
 (defmethod update-gui-resource-reference [::TextNode :font]
   [_ evaluation-context node-id old-name new-name]
@@ -1956,7 +1960,6 @@
                                                                   [:layer-names :layer-names]
                                                                   [:texture-infos :aux-texture-infos]
                                                                   [:material-infos :aux-material-infos]
-                                                                  [:font-names :aux-font-names]
 
                                                                   [:particlefx-resource-names :aux-particlefx-resource-names]
                                                                   [:resource-names :aux-resource-names]
@@ -2454,8 +2457,6 @@
   (input material-infos GuiResourceMaterialInfos)
   (output material-infos GuiResourceMaterialInfos (gu/passthrough material-infos))
 
-  (input font-names GuiResourceNames)
-  (output font-names GuiResourceNames (gu/passthrough font-names))
   (input layer-names GuiResourceNames)
   (output layer-names GuiResourceNames (gu/passthrough layer-names))
   (input layer->index g/Any)
@@ -2597,7 +2598,7 @@
     (g/connect font :font-datas self :font-datas)
     (when (not internal?)
       (concat
-       (g/connect font :name self :own-font-names)
+       (g/connect font :name self :font-names)
        (g/connect font :dep-build-targets self :dep-build-targets)
        (g/connect font :pb-msg self :font-msgs)
        (g/connect font :build-errors fonts-node :build-errors)
@@ -3220,16 +3221,10 @@
 
   (input font-shaders GuiResourceShaders :array)
   (input font-datas FontDatas :array)
-  (input aux-font-names GuiResourceNames)
-  (input own-font-names g/Str :array)
-  (output own-font-names GuiResourceNames
-          (g/fnk [own-font-names]
-            (into (sorted-set) own-font-names)))
-  (output font-names GuiResourceNames :cached
-          (g/fnk [aux-font-names own-font-names]
-            (if aux-font-names
-              (into aux-font-names own-font-names)
-              own-font-names)))
+  (input font-names g/Str :array)
+  (output own-font-names GuiResourceNames :cached
+          (g/fnk [font-names]
+            (into (sorted-set) font-names)))
 
   (input layer-names GuiResourceNames)
   (output layer-names GuiResourceNames (gu/passthrough layer-names))
@@ -3315,8 +3310,8 @@
 
   (input aux-basic-gui-scene-info BasicGuiSceneInfo)
   (output own-basic-gui-scene-info BasicGuiSceneInfo :cached
-          (g/fnk [own-layout-names own-spine-scene-names spine-scene-element-ids]
-            {:font-names nil
+          (g/fnk [own-font-names own-layout-names own-spine-scene-names spine-scene-element-ids]
+            {:font-names own-font-names
              :layer-names nil
              :layout-names own-layout-names
              :material-infos nil
@@ -3327,7 +3322,8 @@
              :texture-infos nil}))
   (output basic-gui-scene-info BasicGuiSceneInfo :cached
           (g/fnk [aux-basic-gui-scene-info own-basic-gui-scene-info]
-            {:font-names nil
+            {:font-names (coll/merge (:font-names aux-basic-gui-scene-info)
+                                     (:font-names own-basic-gui-scene-info))
              :layer-names nil
              :layout-names (coll/merge (:layout-names aux-basic-gui-scene-info)
                                        (:layout-names own-basic-gui-scene-info))
@@ -3685,7 +3681,6 @@
 
                                      [:texture-infos :texture-infos]
                                      [:material-infos :material-infos]
-                                     [:font-names :font-names]
                                      [:layer-names :layer-names]
                                      [:layer->index :layer->index]
 
