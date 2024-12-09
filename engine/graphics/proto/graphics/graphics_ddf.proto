@@ -219,9 +219,11 @@ message TextureFormatAlternative
         BEST    = 3;
     }
 
-    required TextureImage.TextureFormat format  = 1;
-    required CompressionLevel compression_level = 2;
-    optional TextureImage.CompressionType compression_type = 3 [default = COMPRESSION_TYPE_DEFAULT];
+    required TextureImage.TextureFormat format             = 1;
+    optional CompressionLevel compression_level            = 2;                                      // DEPRECATED, use compressor + compressor_preset instead
+    optional TextureImage.CompressionType compression_type = 3 [default = COMPRESSION_TYPE_DEFAULT]; // DEPRECATED, use compressor + compressor_preset instead
+    optional string compressor                             = 4;
+    optional string compressor_preset                      = 5;
 }
 
 message PathSettings
