@@ -118,7 +118,7 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testUseUncompressedLuaSource() throws Exception {
-        Project p = GetProject();
+        Project p = getProject();
         p.setOption("use-uncompressed-lua-source", "true");
 
         final String path = "/test.script";
@@ -135,7 +135,7 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testCompressedLuaSourceForHTML5() throws Exception {
-        Project p = GetProject();
+        Project p = getProject();
         p.setOption("platform", "js-web");
 
         final String path = "/test.script";
@@ -181,7 +181,7 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testLuaJITBytecode64WithoutDelta() throws Exception {
-        Project p = GetProject();
+        Project p = getProject();
         p.setOption("platform", "armv7-android");
         p.setOption("architectures", "arm64-android");
 
@@ -195,7 +195,7 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testLuaJITBytecode32WithoutDelta() throws Exception {
-        Project p = GetProject();
+        Project p = getProject();
         p.setOption("platform", "armv7-android");
         p.setOption("architectures", "armv7-android");
 
@@ -210,7 +210,7 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testLuaJITBytecode32And64WithoutDelta() throws Exception {
-        Project p = GetProject();
+        Project p = getProject();
         p.setOption("platform", "armv7-android");
         p.setOption("architectures", "armv7-android,arm64-android");
 
@@ -224,7 +224,7 @@ public class LuaBuilderTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testLuaJITBytecode64WithDelta() throws Exception {
-        Project p = GetProject();
+        Project p = getProject();
         p.setOption("platform", "armv7-android");
         p.setOption("architectures", "armv7-android,arm64-android");
         p.setOption("use-lua-bytecode-delta", "true");

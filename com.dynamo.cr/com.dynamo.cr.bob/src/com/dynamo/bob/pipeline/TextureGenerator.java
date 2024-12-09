@@ -254,7 +254,6 @@ public class TextureGenerator {
                                                                 String compressorPresetName,
                                                                 boolean generateMipMaps,
                                                                 int maxTextureSize,
-                                                                boolean compress,
                                                                 boolean premulAlpha,
                                                                 EnumSet<Texc.FlipAxis> flipAxis) throws TextureGeneratorException {
 
@@ -586,7 +585,7 @@ public class TextureGenerator {
                     }
 
                     try {
-                        TextureImage.Image.Builder imageBuilder = generateFromColorAndFormat(null, image, colorModel, textureFormat, textureCompressor, textureCompressorPreset, platformProfile.getMipmaps(), platformProfile.getMaxTextureSize(), compress, platformProfile.getPremultiplyAlpha(), flipAxis);
+                        TextureImage.Image.Builder imageBuilder = generateFromColorAndFormat(null, image, colorModel, textureFormat, textureCompressor, textureCompressorPreset, platformProfile.getMipmaps(), platformProfile.getMaxTextureSize(), platformProfile.getPremultiplyAlpha(), flipAxis);
                         imageBuilder.setCompressionType(compressionType);
                         textureBuilder.addAlternatives(imageBuilder);
                     } catch (TextureGeneratorException e) {
@@ -602,16 +601,15 @@ public class TextureGenerator {
             }
         }
 
-        // If no texture profile was supplied, or no matching format was found
+        // If no texture profile was supplied, or no matching format was found, or no compression has been requested
         if (texProfile == null) {
 
             // Guess texture format based on number color components of input image
             TextureFormat textureFormat = pickOptimalFormat(componentCount, TextureFormat.TEXTURE_FORMAT_RGBA);
-            TextureImage.Image.Builder imageBuilder = generateFromColorAndFormat(null, image, colorModel, textureFormat, "Default", "DEFAULT", true, 0, false, true, flipAxis);
+            TextureImage.Image.Builder imageBuilder = generateFromColorAndFormat(null, image, colorModel, textureFormat, "Default", "DEFAULT", true, 0, true, flipAxis);
             imageBuilder.setCompressionType(TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT);
             textureBuilder.addAlternatives(imageBuilder);
             textureBuilder.setCount(1);
-
         }
 
         textureBuilder.setType(Type.TYPE_2D);
