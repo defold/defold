@@ -402,7 +402,6 @@
    [:id :parent]
    [:texture-infos :texture-infos]
    [:material-infos :material-infos]
-   [:material-shaders :material-shaders]
    [:font-names :font-names]
    [:layer-names :layer-names]
    [:layer->index :layer->index]
@@ -1014,9 +1013,6 @@
   (input material-infos GuiResourceMaterialInfos)
   (output material-infos GuiResourceMaterialInfos (gu/passthrough material-infos))
 
-  (input material-shaders GuiResourceShaders)
-  (output material-shaders GuiResourceShaders (gu/passthrough material-shaders))
-
   (input font-names GuiResourceNames)
   (output font-names GuiResourceNames (gu/passthrough font-names))
   (input layer-names GuiResourceNames)
@@ -1332,10 +1328,10 @@
   (output visual-base-node-msg g/Any produce-visual-base-node-msg)
   (output gui-scene g/Any (g/fnk [_node-id]
                                  (node->gui-scene _node-id)))
-
-  (output material-shader ShaderLifecycle (g/fnk [material-shaders material]
-                                            (or (material-shaders material)
-                                                (material-shaders ""))))
+  (output material-shader ShaderLifecycle (g/fnk [costly-gui-scene-info material]
+                                            (let [material-shaders (:material-shaders costly-gui-scene-info)]
+                                              (or (get material-shaders material)
+                                                  (get material-shaders "")))))
   (output gpu-texture TextureLifecycle (g/constantly nil))
   (output scene-renderable-user-data g/Any (g/constantly nil))
   (output scene-renderable g/Any :cached
@@ -1814,13 +1810,13 @@
   (output node-msg g/Any :cached produce-text-node-msg)
   (output gpu-texture TextureLifecycle (g/fnk [font-data] (:texture font-data)))
   (output scene-renderable-user-data g/Any :cached
-          (g/fnk [costly-gui-scene-info manual-size font material material-shaders pivot text-data color+alpha]
+          (g/fnk [costly-gui-scene-info manual-size font material material-shader pivot text-data color+alpha]
                  (let [[w h] manual-size
                        offset (pivot-offset pivot manual-size)
                        lines (mapv conj (apply concat (take 4 (partition 2 1 (cycle (geom/transl offset [[0 0] [w 0] [w h] [0 h]]))))) (repeat 0))
                        font-map (get-in text-data [:font-data :font-map])
                        texture-recip-uniform (font/get-texture-recip-uniform font-map)
-                       material-shader (when (not (empty? material)) (material-shaders material))
+                       material-shader (when (not (empty? material)) material-shader)
                        font-shaders (:font-shaders costly-gui-scene-info)
                        font-shader (or material-shader (get font-shaders font) (get font-shaders ""))
                        font-shader (assoc-in font-shader [:uniforms "texture_size_recip"] texture-recip-uniform)]
@@ -1974,7 +1970,6 @@
                                                                   [:layer-names :layer-names]
                                                                   [:texture-infos :aux-texture-infos]
                                                                   [:material-infos :aux-material-infos]
-                                                                  [:material-shaders :aux-material-shaders]
                                                                   [:font-names :aux-font-names]
 
                                                                   [:spine-scene-element-ids :aux-spine-scene-element-ids]
@@ -2477,9 +2472,6 @@
   (output texture-infos GuiResourceTextureInfos (gu/passthrough texture-infos))
   (input material-infos GuiResourceMaterialInfos)
   (output material-infos GuiResourceMaterialInfos (gu/passthrough material-infos))
-
-  (input material-shaders GuiResourceShaders)
-  (output material-shaders GuiResourceShaders (gu/passthrough material-shaders))
 
   (input font-names GuiResourceNames)
   (output font-names GuiResourceNames (gu/passthrough font-names))
@@ -3238,11 +3230,7 @@
               (into aux-texture-infos own-texture-infos)
               own-texture-infos)))
 
-  (input aux-material-shaders GuiResourceShaders :array)
   (input material-shaders GuiResourceShaders :array)
-  (output material-shaders GuiResourceShaders :cached (g/fnk [aux-material-shaders material-shaders material-shader]
-                                                        (into {"" material-shader}
-                                                              (concat aux-material-shaders material-shaders))))
 
   (input aux-material-infos GuiResourceMaterialInfos)
   (input own-material-infos GuiResourceMaterialInfos :array)
@@ -3394,10 +3382,10 @@
 
   (input aux-costly-gui-scene-info CostlyGuiSceneInfo)
   (output own-costly-gui-scene-info CostlyGuiSceneInfo :cached
-          (g/fnk [font-datas font-shaders texture-gpu-textures]
+          (g/fnk [font-datas font-shaders material-shader material-shaders texture-gpu-textures]
             {:font-datas (reduce coll/merge font-datas)
              :font-shaders (reduce coll/merge font-shaders)
-             :material-shaders nil
+             :material-shaders (reduce coll/merge {"" material-shader} material-shaders)
              :particlefx-infos nil
              :texture-gpu-textures (reduce coll/merge texture-gpu-textures)}))
   (output costly-gui-scene-info CostlyGuiSceneInfo :cached
@@ -3406,7 +3394,8 @@
                                      (:font-datas own-costly-gui-scene-info))
              :font-shaders (coll/merge (:font-shaders aux-costly-gui-scene-info)
                                        (:font-shaders own-costly-gui-scene-info))
-             :material-shaders nil
+             :material-shaders (coll/merge (:material-shaders aux-costly-gui-scene-info)
+                                           (:material-shaders own-costly-gui-scene-info))
              :particlefx-infos nil
              :texture-gpu-textures (coll/merge (:texture-gpu-textures aux-costly-gui-scene-info)
                                                (:texture-gpu-textures own-costly-gui-scene-info))})))
@@ -3743,7 +3732,6 @@
 
                                      [:texture-infos :texture-infos]
                                      [:material-infos :material-infos]
-                                     [:material-shaders :material-shaders]
                                      [:font-names :font-names]
                                      [:layer-names :layer-names]
                                      [:layer->index :layer->index]
