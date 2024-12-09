@@ -406,10 +406,6 @@
    [:layer-names :layer-names]
    [:layer->index :layer->index]
 
-   [:spine-scene-element-ids :spine-scene-element-ids]
-   [:spine-scene-infos :spine-scene-infos]
-   [:spine-scene-names :spine-scene-names]
-
    [:particlefx-resource-names :particlefx-resource-names]
    [:resource-names :resource-names]
    [:id-prefix :id-prefix]
@@ -558,13 +554,13 @@
                               (s/optional-key :particlefx-resource-names) TGuiResourceNames
                               (s/optional-key :resource-names) TGuiResourceNames
                               (s/optional-key :spine-scene-element-ids) TSpineSceneElementIds
-                              (s/optional-key :spine-scene-infos) TSpineSceneInfos
                               (s/optional-key :spine-scene-names) TGuiResourceNames
                               (s/optional-key :texture-infos) TGuiResourceTextureInfos})
 (g/deftype CostlyGuiSceneInfo {(s/optional-key :font-datas) TFontDatas
                                (s/optional-key :font-shaders) TGuiResourceShaders
                                (s/optional-key :material-shaders) TGuiResourceShaders
                                (s/optional-key :particlefx-infos) TParticleFXInfos
+                               (s/optional-key :spine-scene-infos) TSpineSceneInfos
                                (s/optional-key :texture-gpu-textures) TGuiResourceTextures})
 
 (g/defnk override-node? [_this] (g/node-override? _this))
@@ -1018,13 +1014,6 @@
   (output layer-names GuiResourceNames (gu/passthrough layer-names))
   (input layer->index g/Any)
   (output layer->index g/Any (gu/passthrough layer->index))
-
-  (input spine-scene-element-ids SpineSceneElementIds)
-  (output spine-scene-element-ids SpineSceneElementIds (gu/passthrough spine-scene-element-ids))
-  (input spine-scene-infos SpineSceneInfos)
-  (output spine-scene-infos SpineSceneInfos (gu/passthrough spine-scene-infos))
-  (input spine-scene-names GuiResourceNames)
-  (output spine-scene-names GuiResourceNames (gu/passthrough spine-scene-names))
 
   (input particlefx-resource-names GuiResourceNames)
   (output particlefx-resource-names GuiResourceNames (gu/passthrough particlefx-resource-names))
@@ -1969,10 +1958,6 @@
                                                                   [:material-infos :aux-material-infos]
                                                                   [:font-names :aux-font-names]
 
-                                                                  [:spine-scene-element-ids :aux-spine-scene-element-ids]
-                                                                  [:spine-scene-infos :aux-spine-scene-infos]
-                                                                  [:spine-scene-names :aux-spine-scene-names]
-
                                                                   [:particlefx-resource-names :aux-particlefx-resource-names]
                                                                   [:resource-names :aux-resource-names]
                                                                   [:current-layout :current-layout]
@@ -2475,12 +2460,6 @@
   (output layer-names GuiResourceNames (gu/passthrough layer-names))
   (input layer->index g/Any)
   (output layer->index g/Any (gu/passthrough layer->index))
-  (input spine-scene-element-ids SpineSceneElementIds)
-  (output spine-scene-element-ids SpineSceneElementIds (gu/passthrough spine-scene-element-ids))
-  (input spine-scene-infos SpineSceneInfos)
-  (output spine-scene-infos SpineSceneInfos (gu/passthrough spine-scene-infos))
-  (input spine-scene-names GuiResourceNames)
-  (output spine-scene-names GuiResourceNames (gu/passthrough spine-scene-names))
   (input particlefx-resource-names GuiResourceNames)
   (output particlefx-resource-names GuiResourceNames (gu/passthrough particlefx-resource-names))
   (input resource-names GuiResourceNames)
@@ -3257,22 +3236,12 @@
   (input layer->index g/Any)
   (output layer->index g/Any (gu/passthrough layer->index))
 
-  (input aux-spine-scene-element-ids SpineSceneElementIds :array)
   (input spine-scene-element-ids SpineSceneElementIds :array)
-  (output spine-scene-element-ids SpineSceneElementIds :cached (g/fnk [aux-spine-scene-element-ids spine-scene-element-ids] (into {} (concat aux-spine-scene-element-ids spine-scene-element-ids))))
-  (input aux-spine-scene-infos SpineSceneInfos :array)
   (input spine-scene-infos SpineSceneInfos :array)
-  (output spine-scene-infos SpineSceneInfos :cached (g/fnk [aux-spine-scene-infos spine-scene-infos] (into {} (concat aux-spine-scene-infos spine-scene-infos))))
-  (input aux-spine-scene-names GuiResourceNames)
-  (input own-spine-scene-names g/Str :array)
-  (output own-spine-scene-names GuiResourceNames
-          (g/fnk [own-spine-scene-names]
-            (into (sorted-set) own-spine-scene-names)))
-  (output spine-scene-names GuiResourceNames :cached
-          (g/fnk [aux-spine-scene-names own-spine-scene-names]
-            (if aux-spine-scene-names
-              (into aux-spine-scene-names own-spine-scene-names)
-              own-spine-scene-names)))
+  (input spine-scene-names g/Str :array)
+  (output own-spine-scene-names GuiResourceNames :cached
+          (g/fnk [spine-scene-names]
+            (into (sorted-set) spine-scene-names)))
   (input particlefx-infos ParticleFXInfos :array)
   (input aux-particlefx-resource-names GuiResourceNames)
   (input own-particlefx-resource-names g/Str :array)
@@ -3346,16 +3315,15 @@
 
   (input aux-basic-gui-scene-info BasicGuiSceneInfo)
   (output own-basic-gui-scene-info BasicGuiSceneInfo :cached
-          (g/fnk [own-layout-names]
+          (g/fnk [own-layout-names own-spine-scene-names spine-scene-element-ids]
             {:font-names nil
              :layer-names nil
              :layout-names own-layout-names
              :material-infos nil
              :particlefx-resource-names nil
              :resource-names nil
-             :spine-scene-element-ids nil
-             :spine-scene-infos nil
-             :spine-scene-names nil
+             :spine-scene-element-ids (reduce coll/merge spine-scene-element-ids)
+             :spine-scene-names own-spine-scene-names
              :texture-infos nil}))
   (output basic-gui-scene-info BasicGuiSceneInfo :cached
           (g/fnk [aux-basic-gui-scene-info own-basic-gui-scene-info]
@@ -3366,31 +3334,24 @@
              :material-infos nil
              :particlefx-resource-names nil
              :resource-names nil
-             :spine-scene-element-ids nil
-             :spine-scene-infos nil
-             :spine-scene-names nil
+             :spine-scene-element-ids (coll/merge (:spine-scene-element-ids aux-basic-gui-scene-info)
+                                                  (:spine-scene-element-ids own-basic-gui-scene-info))
+             :spine-scene-names (coll/merge (:spine-scene-names aux-basic-gui-scene-info)
+                                            (:spine-scene-names own-basic-gui-scene-info))
              :texture-infos nil}))
 
   (input aux-costly-gui-scene-info CostlyGuiSceneInfo)
   (output own-costly-gui-scene-info CostlyGuiSceneInfo :cached
-          (g/fnk [font-datas font-shaders material-shader material-shaders particlefx-infos texture-gpu-textures]
+          (g/fnk [font-datas font-shaders material-shader material-shaders particlefx-infos spine-scene-infos texture-gpu-textures]
             {:font-datas (reduce coll/merge font-datas)
              :font-shaders (reduce coll/merge font-shaders)
              :material-shaders (reduce coll/merge {"" material-shader} material-shaders)
              :particlefx-infos (reduce coll/merge particlefx-infos)
+             :spine-scene-infos (reduce coll/merge spine-scene-infos)
              :texture-gpu-textures (reduce coll/merge texture-gpu-textures)}))
   (output costly-gui-scene-info CostlyGuiSceneInfo :cached
           (g/fnk [aux-costly-gui-scene-info own-costly-gui-scene-info]
-            {:font-datas (coll/merge (:font-datas aux-costly-gui-scene-info)
-                                     (:font-datas own-costly-gui-scene-info))
-             :font-shaders (coll/merge (:font-shaders aux-costly-gui-scene-info)
-                                       (:font-shaders own-costly-gui-scene-info))
-             :material-shaders (coll/merge (:material-shaders aux-costly-gui-scene-info)
-                                           (:material-shaders own-costly-gui-scene-info))
-             :particlefx-infos (coll/merge (:particlefx-infos aux-costly-gui-scene-info)
-                                           (:particlefx-infos own-costly-gui-scene-info))
-             :texture-gpu-textures (coll/merge (:texture-gpu-textures aux-costly-gui-scene-info)
-                                               (:texture-gpu-textures own-costly-gui-scene-info))})))
+            (merge-with coll/merge aux-costly-gui-scene-info own-costly-gui-scene-info))))
 
 (defn- tx-create-node? [tx-entry]
   (= :create-node (:type tx-entry)))
@@ -3727,10 +3688,6 @@
                                      [:font-names :font-names]
                                      [:layer-names :layer-names]
                                      [:layer->index :layer->index]
-
-                                     [:spine-scene-element-ids :spine-scene-element-ids]
-                                     [:spine-scene-infos :spine-scene-infos]
-                                     [:spine-scene-names :spine-scene-names]
 
                                      [:particlefx-resource-names :particlefx-resource-names]
                                      [:resource-names :resource-names]
