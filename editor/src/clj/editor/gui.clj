@@ -404,7 +404,6 @@
    [:material-infos :material-infos]
    [:material-shaders :material-shaders]
    [:font-shaders :font-shaders]
-   [:font-datas :font-datas]
    [:font-names :font-names]
    [:layer-names :layer-names]
    [:layer->index :layer->index]
@@ -1021,8 +1020,6 @@
 
   (input font-shaders GuiResourceShaders)
   (output font-shaders GuiResourceShaders (gu/passthrough font-shaders))
-  (input font-datas FontDatas)
-  (output font-datas FontDatas (gu/passthrough font-datas))
   (input font-names GuiResourceNames)
   (output font-names GuiResourceNames (gu/passthrough font-names))
   (input layer-names GuiResourceNames)
@@ -1811,9 +1808,10 @@
 
   (display-order (into base-display-order [:manual-size :enabled :visible :text :line-break :font :material :color :alpha :inherit-alpha :text-leading :text-tracking :outline :outline-alpha :shadow :shadow-alpha :layer]))
 
-  (output font-data font/FontData (g/fnk [font-datas font]
-                                    (or (font-datas font)
-                                        (font-datas ""))))
+  (output font-data font/FontData (g/fnk [costly-gui-scene-info font]
+                                    (let [font-datas (:font-datas costly-gui-scene-info)]
+                                      (or (get font-datas font)
+                                          (get font-datas "")))))
 
   ;; Overloaded outputs
   (output node-msg g/Any :cached produce-text-node-msg)
@@ -1980,7 +1978,6 @@
                                                                   [:material-infos :aux-material-infos]
                                                                   [:material-shaders :aux-material-shaders]
                                                                   [:font-shaders :aux-font-shaders]
-                                                                  [:font-datas :aux-font-datas]
                                                                   [:font-names :aux-font-names]
 
                                                                   [:spine-scene-element-ids :aux-spine-scene-element-ids]
@@ -2490,8 +2487,6 @@
   (input font-shaders GuiResourceShaders)
   (output font-shaders GuiResourceShaders (gu/passthrough font-shaders))
 
-  (input font-datas FontDatas)
-  (output font-datas FontDatas (gu/passthrough font-datas))
   (input font-names GuiResourceNames)
   (output font-names GuiResourceNames (gu/passthrough font-names))
   (input layer-names GuiResourceNames)
@@ -3271,9 +3266,7 @@
   (input aux-font-shaders GuiResourceShaders :array)
   (input font-shaders GuiResourceShaders :array)
   (output font-shaders GuiResourceShaders :cached (g/fnk [aux-font-shaders font-shaders] (into {} (concat aux-font-shaders font-shaders))))
-  (input aux-font-datas FontDatas :array)
   (input font-datas FontDatas :array)
-  (output font-datas FontDatas :cached (g/fnk [aux-font-datas font-datas] (into {} (concat aux-font-datas font-datas))))
   (input aux-font-names GuiResourceNames)
   (input own-font-names g/Str :array)
   (output own-font-names GuiResourceNames
@@ -3409,15 +3402,16 @@
 
   (input aux-costly-gui-scene-info CostlyGuiSceneInfo)
   (output own-costly-gui-scene-info CostlyGuiSceneInfo :cached
-          (g/fnk [texture-gpu-textures]
-            {:font-datas nil
+          (g/fnk [font-datas texture-gpu-textures]
+            {:font-datas (reduce coll/merge font-datas)
              :font-shaders nil
              :material-shaders nil
              :particlefx-infos nil
              :texture-gpu-textures (reduce coll/merge texture-gpu-textures)}))
   (output costly-gui-scene-info CostlyGuiSceneInfo :cached
           (g/fnk [aux-costly-gui-scene-info own-costly-gui-scene-info]
-            {:font-datas nil
+            {:font-datas (coll/merge (:font-datas aux-costly-gui-scene-info)
+                                     (:font-datas own-costly-gui-scene-info))
              :font-shaders nil
              :material-shaders nil
              :particlefx-infos nil
@@ -3758,7 +3752,6 @@
                                      [:material-infos :material-infos]
                                      [:material-shaders :material-shaders]
                                      [:font-shaders :font-shaders]
-                                     [:font-datas :font-datas]
                                      [:font-names :font-names]
                                      [:layer-names :layer-names]
                                      [:layer->index :layer->index]
