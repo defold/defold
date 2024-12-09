@@ -19,8 +19,9 @@ public class TestTextureCompressor implements ITextureCompressor {
     public int expectedOptionOne;
     public float expectedOptionTwo;
     public String expectedOptionThree;
-
     public byte[] expectedBytes = new byte[4];
+
+    public boolean didRun = false;
 
     @Override
     public String getName() {
@@ -29,9 +30,10 @@ public class TestTextureCompressor implements ITextureCompressor {
 
     @Override
     public byte[] compress(TextureCompressorPreset preset, TextureCompressorParams params, byte[] input) {
-        assert(expectedOptionOne == preset.getOptionInt("option_one"));
-        assert(expectedOptionTwo == preset.getOptionFloat("option_two"));
-        assert(expectedOptionThree.equals(preset.getOptionString("option_three")));
+        assert(expectedOptionOne == preset.getOptionInt("test_int"));
+        assert(expectedOptionTwo == preset.getOptionFloat("test_float"));
+        assert(expectedOptionThree.equals(preset.getOptionString("test_string")));
+        didRun = true;
         return expectedBytes;
     }
 }

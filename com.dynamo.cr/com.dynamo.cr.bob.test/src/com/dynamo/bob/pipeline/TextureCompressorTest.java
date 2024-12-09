@@ -16,11 +16,18 @@ package com.dynamo.bob.pipeline;
 
 import com.defold.extension.pipeline.texture.*;
 import com.defold.extension.pipeline.texture.TestTextureCompressor;
+import com.dynamo.graphics.proto.Graphics;
+import org.junit.Before;
 import org.junit.Test;
 
 import static org.junit.Assert.assertNotNull;
 
 public class TextureCompressorTest extends AbstractProtoBuilderTest {
+
+    @Before
+    public void setUp() {
+        addTestFiles();
+    }
 
     private void ensureBuildProject() throws Exception {
         // We need to build some dummy data
@@ -56,7 +63,33 @@ public class TextureCompressorTest extends AbstractProtoBuilderTest {
         testCompressor.expectedOptionTwo = 8080.0f;
         testCompressor.expectedOptionThree = "test_default_param";
 
+        Graphics.TextureProfile.Builder textureProfile = Graphics.TextureProfile.newBuilder();
+        Graphics.PlatformProfile.Builder platformProfile = Graphics.PlatformProfile.newBuilder();
+        Graphics.TextureFormatAlternative.Builder textureFormatAlt1 = Graphics.TextureFormatAlternative.newBuilder();
+
+        textureFormatAlt1.setFormat(Graphics.TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA);
+        textureFormatAlt1.setCompressor("TestCompressor");
+        textureFormatAlt1.setCompressorPreset("TEST_PRESET");
+
+        platformProfile.setOs(Graphics.PlatformProfile.OS.OS_ID_GENERIC);
+        platformProfile.addFormats(textureFormatAlt1.build());
+        platformProfile.setMipmaps(false);
+        platformProfile.setMaxTextureSize(0);
+        platformProfile.setPremultiplyAlpha(false);
+
+        textureProfile.setName("Test Profile");
+        textureProfile.addPlatforms(platformProfile.build());
+
+        Graphics.PathSettings genericPath = Graphics.PathSettings.newBuilder().setProfile("Test Profile").setPath("**").build();
+
+        Graphics.TextureProfiles.Builder texProfilesBuilder = Graphics.TextureProfiles.newBuilder();
+        texProfilesBuilder.addProfiles(textureProfile.build()).addPathSettings(genericPath);
+
+        this.getProject().setTextureProfiles(texProfilesBuilder.build());
+
         TextureCompression.registerCompressor(testCompressor);
         ensureBuildProject();
+
+        assert(testCompressor.didRun);
     }
 }

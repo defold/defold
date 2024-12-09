@@ -241,14 +241,14 @@ public class TextureGeneratorTest {
         TextureCompressorPreset presetOne = new TextureCompressorPreset("TestCompressorPresetOne", "Test Compressor One", "TestCompressor");
         assertNotNull(presetOne);
 
-        presetOne.setOptionInt("option_one", 1337);
-        presetOne.setOptionFloat("option_two", 99.0f);
-        presetOne.setOptionString("option_three", "option_three");
+        presetOne.setOptionInt("test_int", 1337);
+        presetOne.setOptionFloat("test_float", 99.0f);
+        presetOne.setOptionString("test_string", "test_string");
 
         TestTextureCompressor testCompressor = new TestTextureCompressor();
         testCompressor.expectedOptionOne = 1337;
         testCompressor.expectedOptionTwo = 99.0f;
-        testCompressor.expectedOptionThree = "option_three";
+        testCompressor.expectedOptionThree = "test_string";
         testCompressor.expectedBytes[0] = (byte) 32;
         testCompressor.expectedBytes[1] = (byte) 64;
         testCompressor.expectedBytes[2] = (byte) 128;
