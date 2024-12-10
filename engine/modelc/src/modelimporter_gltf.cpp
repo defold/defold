@@ -1088,7 +1088,7 @@ static void SortSkinBones(Skin* skin)
         for (uint32_t i = 0; i < bones_count; ++i)
         {
             uint32_t new_index = skin->m_BoneRemap[i];
-            CopyBone(&sorted_bones[new_index], &skin->m_Bones[i]);
+            CopyBone(&skin->m_Bones[i], &sorted_bones[new_index]);
         }
 
         skin->m_Bones.Swap(sorted_bones);
