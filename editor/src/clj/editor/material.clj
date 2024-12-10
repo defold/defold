@@ -206,8 +206,8 @@ there is no way a user can know what the generated id will be for older shaders.
     :constant-type-worldview :world-view
     :constant-type-worldviewproj :world-view-proj))
 
-(defn- resource-binding-namespaces->regexp [resource-binding-namespaces]
-  (re-pattern (str "^(" (string/join "|" resource-binding-namespaces) ")\\.")))
+(defn- resource-binding-namespaces->regex-str [resource-binding-namespaces]
+  (str "^(" (string/join "|" resource-binding-namespaces) ")\\."))
 
 (g/defnk produce-shader [_node-id vertex-shader-source-info vertex-program fragment-shader-source-info fragment-program vertex-constants fragment-constants samplers max-page-count]
   (or (prop-resource-error _node-id :vertex-program vertex-program "Vertex Program" "vp")
@@ -226,8 +226,8 @@ there is no way a user can know what the generated id will be for older shaders.
                     (:array-sampler-names augmented-vertex-shader-info)
                     (:array-sampler-names augmented-fragment-shader-info)))
 
-            strip-resource-binding-namespace-regexp
-            (resource-binding-namespaces->regexp
+            strip-resource-binding-namespace-regex-str
+            (resource-binding-namespaces->regex-str
               (concat
                 (:resource-binding-namespaces augmented-vertex-shader-info)
                 (:resource-binding-namespaces augmented-fragment-shader-info)))
@@ -243,7 +243,7 @@ there is no way a user can know what the generated id will be for older shaders.
                                  (map (fn [resolved-sampler-name]
                                         (pair resolved-sampler-name nil))))
                                samplers))]
-        (shader/make-shader _node-id (:shader-source augmented-vertex-shader-info) (:shader-source augmented-fragment-shader-info) uniforms array-sampler-name->slice-sampler-names strip-resource-binding-namespace-regexp))))
+        (shader/make-shader _node-id (:shader-source augmented-vertex-shader-info) (:shader-source augmented-fragment-shader-info) uniforms array-sampler-name->slice-sampler-names strip-resource-binding-namespace-regex-str))))
 
 (defn- vector-type->form-field-type [vector-type]
   (case vector-type
