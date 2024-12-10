@@ -483,7 +483,7 @@ var GameArchiveLoader = {
         try {
             json = JSON.parse(text);
             if (EngineLoader.arc_sha1) {
-                const digest = await window.crypto.subtle.digest("SHA-1", text);
+                const digest = await window.crypto.subtle.digest("SHA-1", (new TextEncoder()).encode(text));
                 const sha1 = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
                 if (sha1 != EngineLoader.arc_sha1) {
                     throw new Error(`Unexpected hash ${sha1} wanted ${EngineLoader.arc_sha1}`);
