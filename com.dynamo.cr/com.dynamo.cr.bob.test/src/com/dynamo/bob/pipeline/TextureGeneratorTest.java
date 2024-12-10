@@ -48,6 +48,7 @@ public class TextureGeneratorTest {
     public void setUp() throws Exception {
         TextureCompression.registerCompressor(new TextureCompressorDefault()); // Thwarts console warnings
         TextureCompression.registerCompressor(new TextureCompressorBasisU());
+        TextureCompression.registerCompressor(new TextureCompressorASTC());
     }
 
     // Create a 2x2 image that will be easy to verify after different flip operations.
