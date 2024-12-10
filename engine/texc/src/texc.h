@@ -214,6 +214,7 @@ namespace dmTexc
 
         int         m_NumThreads;
         float       m_QualityLevel;
+        PixelFormat m_OutPixelFormat;
     };
 
     // Encode a texture into basis format. Caller must call free() on the returned data.

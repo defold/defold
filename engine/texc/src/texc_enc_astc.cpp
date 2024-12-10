@@ -71,9 +71,9 @@ namespace dmTexc
             return false;
         }
 
-        if (!ParseBlockSizes(settings->m_PixelFormat, &block_x, &block_y))
+        if (!ParseBlockSizes(settings->m_OutPixelFormat, &block_x, &block_y))
         {
-            dmLogError("Unable to parse block sizes from pixel format %d", settings->m_PixelFormat);
+            dmLogError("Unable to parse block sizes from pixel format %d", settings->m_OutPixelFormat);
             return false;
         }
 

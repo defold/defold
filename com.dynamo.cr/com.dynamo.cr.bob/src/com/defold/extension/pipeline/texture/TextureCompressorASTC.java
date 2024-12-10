@@ -22,36 +22,38 @@ import com.dynamo.bob.pipeline.TexcLibraryJni;
  */
 public class TextureCompressorASTC implements ITextureCompressor {
 
+    public static String TextureCompressorName = "ASTC";
+
     public TextureCompressorASTC() {
 
         // Note: Quality levels are taken from astcenc.h
         {
-            TextureCompressorPreset preset = new TextureCompressorPreset("ASTC_FAST", "ASTC Fast (Quality=10.0)", "ASTC");
+            TextureCompressorPreset preset = new TextureCompressorPreset("ASTC_FAST", "ASTC Fast (Quality=10.0)", TextureCompressorName);
             preset.setOptionFloat("astc_quality", 10);
             TextureCompression.registerPreset(preset);
         }
 
         {
-            TextureCompressorPreset preset = new TextureCompressorPreset("ASTC_NORMAL", "ASTC Normal (Quality=60.0)", "ASTC");
+            TextureCompressorPreset preset = new TextureCompressorPreset("ASTC_NORMAL", "ASTC Normal (Quality=60.0)", TextureCompressorName);
             preset.setOptionFloat("astc_quality", 60);
             TextureCompression.registerPreset(preset);
         }
 
         {
-            TextureCompressorPreset preset = new TextureCompressorPreset("ASTC_HIGH", "ASTC High (Quality=98.0)", "ASTC");
+            TextureCompressorPreset preset = new TextureCompressorPreset("ASTC_HIGH", "ASTC High (Quality=98.0)", TextureCompressorName);
             preset.setOptionFloat("astc_quality", 98);
             TextureCompression.registerPreset(preset);
         }
 
         {
-            TextureCompressorPreset preset = new TextureCompressorPreset("ASTC_BEST", "ASTC Best (Quality=100.0)", "ASTC");
+            TextureCompressorPreset preset = new TextureCompressorPreset("ASTC_BEST", "ASTC Best (Quality=100.0)", TextureCompressorName);
             preset.setOptionFloat("astc_quality", 100);
             TextureCompression.registerPreset(preset);
         }
     }
 
     public String getName() {
-        return "ASTC";
+        return TextureCompressorName;
     }
 
     public byte[] compress(TextureCompressorPreset preset, TextureCompressorParams params, byte[] input)
@@ -67,6 +69,7 @@ public class TextureCompressorASTC implements ITextureCompressor {
         settings.colorSpace = Texc.ColorSpace.fromValue(params.getColorSpace());
         settings.numThreads = 4;
         settings.data = input;
+        settings.outPixelFormat = Texc.PixelFormat.fromValue(params.getPixelFormatOut());
 
         // ASTC specifics
         settings.qualityLevel = preset.getOptionFloat("astc_quality");

@@ -208,6 +208,7 @@ public class Texc {
         public byte[] data;
         public int numThreads = 0;
         public float qualityLevel = 0.0f;
+        public PixelFormat outPixelFormat = PixelFormat.PF_L8;
     };
 }
 

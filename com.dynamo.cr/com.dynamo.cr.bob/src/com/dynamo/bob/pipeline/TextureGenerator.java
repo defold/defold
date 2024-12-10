@@ -114,15 +114,14 @@ public class TextureGenerator {
         switch (targetFormat) {
 
             // Force down to luminance if only 1 input component
-            case TEXTURE_FORMAT_RGB: {
+            case TEXTURE_FORMAT_RGB -> {
                 if (componentCount == 1)
                     return TextureFormat.TEXTURE_FORMAT_LUMINANCE;
                 else if (componentCount == 2)
                     return TextureFormat.TEXTURE_FORMAT_LUMINANCE_ALPHA;
                 return TextureFormat.TEXTURE_FORMAT_RGB;
             }
-
-            case TEXTURE_FORMAT_RGBA: {
+            case TEXTURE_FORMAT_RGBA -> {
                 if (componentCount == 1)
                     return TextureFormat.TEXTURE_FORMAT_LUMINANCE;
                 else if (componentCount == 2)
@@ -133,45 +132,39 @@ public class TextureGenerator {
                 return TextureFormat.TEXTURE_FORMAT_RGBA;
             }
 
+
             // PVRTC with 4 channels
-            case TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1: {
+            case TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1 -> {
                 if (componentCount < 4)
                     return TextureFormat.TEXTURE_FORMAT_RGB_PVRTC_4BPPV1;
                 return TextureFormat.TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1;
             }
-
-            case TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1: {
+            case TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1 -> {
                 if (componentCount < 4)
                     return TextureFormat.TEXTURE_FORMAT_RGB_PVRTC_2BPPV1;
                 return TextureFormat.TEXTURE_FORMAT_RGBA_PVRTC_2BPPV1;
             }
-
-            case TEXTURE_FORMAT_RGBA_16BPP: {
+            case TEXTURE_FORMAT_RGBA_16BPP -> {
                 if (componentCount < 4)
                     return TextureFormat.TEXTURE_FORMAT_RGB_16BPP;
                 return TextureFormat.TEXTURE_FORMAT_RGBA_16BPP;
             }
-
-
-            case TEXTURE_FORMAT_RGBA_ETC2: {
+            case TEXTURE_FORMAT_RGBA_ETC2 -> {
                 if (componentCount < 4)
                     return TextureFormat.TEXTURE_FORMAT_RGB_BC1;
                 return TextureFormat.TEXTURE_FORMAT_RGBA_ETC2;
             }
-
-            case TEXTURE_FORMAT_RGBA_ASTC_4x4: {
+            case TEXTURE_FORMAT_RGBA_ASTC_4x4 -> {
                 if (componentCount < 4)
                     return TextureFormat.TEXTURE_FORMAT_RGB_BC1;
                 return TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_4x4;
             }
-
-            case TEXTURE_FORMAT_RGBA_BC3: {
+            case TEXTURE_FORMAT_RGBA_BC3 -> {
                 if (componentCount < 4)
                     return TextureFormat.TEXTURE_FORMAT_RGB_BC1;
                 return TextureFormat.TEXTURE_FORMAT_RGBA_BC3;
             }
-
-            case TEXTURE_FORMAT_RGBA_BC7: {
+            case TEXTURE_FORMAT_RGBA_BC7 -> {
                 if (componentCount == 1)
                     return TextureFormat.TEXTURE_FORMAT_R_BC4;
                 else if (componentCount == 2)
@@ -223,19 +216,6 @@ public class TextureGenerator {
             TextureCompression.registerCompressor(defaultCompressor);
         }
         return defaultCompressor;
-    }
-
-    private static TextureCompressorPreset getTextureCompressorPresetFromCompressionLevel(int compressionLevel, String prefix) {
-        if (compressionLevel == Texc.CompressionLevel.CL_FAST.getValue()) {
-            return TextureCompression.getPreset(prefix + "_FAST");
-        } else if (compressionLevel == CompressionLevel.CL_NORMAL.getValue()) {
-            return TextureCompression.getPreset(prefix + "_NORMAL");
-        } else if (compressionLevel == CompressionLevel.CL_HIGH.getValue()) {
-            return TextureCompression.getPreset(prefix + "_HIGH");
-        } else if (compressionLevel == CompressionLevel.CL_BEST.getValue()) {
-            return TextureCompression.getPreset(prefix + "_BEST");
-        }
-        return null;
     }
 
     private static List<Long> GenerateImages(long image, int width, int height, boolean generateMipChain) throws TextureGeneratorException {
@@ -530,23 +510,17 @@ public class TextureGenerator {
             case COMPRESSION_TYPE_BASIS_ETC1S,
                  COMPRESSION_TYPE_BASIS_UASTC,
                  COMPRESSION_TYPE_WEBP_LOSSY -> TextureCompressorBasisU.TextureCompressorName;
+            case COMPRESSION_TYPE_ASTC -> TextureCompressorASTC.TextureCompressorName;
         };
     }
 
     private static String compressionLevelToTextureCompressorPreset(TextureImage.CompressionType type, TextureFormatAlternative.CompressionLevel level) {
         // Convert from basis to basis preset
         if (type == TextureImage.CompressionType.COMPRESSION_TYPE_BASIS_UASTC || type == TextureImage.CompressionType.COMPRESSION_TYPE_BASIS_ETC1S) {
-            if (level == TextureFormatAlternative.CompressionLevel.FAST) {
-                return "BASISU_FAST";
-            } else if (level == TextureFormatAlternative.CompressionLevel.NORMAL) {
-                return "BASISU_NORMAL";
-            } else if (level == TextureFormatAlternative.CompressionLevel.HIGH) {
-                return "BASISU_HIGH";
-            } else if (level == TextureFormatAlternative.CompressionLevel.BEST) {
-                return "BASISU_BEST";
-            }
-        }
-        else if (type == TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT) {
+            return "BASISU_" + level.toString();
+        } else if (type == TextureImage.CompressionType.COMPRESSION_TYPE_ASTC) {
+            return "ASTC_" + level.toString();
+        } else if (type == TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT) {
             return "DEFAULT";
         }
         return null;
@@ -557,6 +531,8 @@ public class TextureGenerator {
             return TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT;
         } else if (compressor.equals(TextureCompressorBasisU.TextureCompressorName)) {
             return TextureImage.CompressionType.COMPRESSION_TYPE_BASIS_UASTC;
+        } else if (compressor.equals(TextureCompressorASTC.TextureCompressorName)) {
+            return TextureImage.CompressionType.COMPRESSION_TYPE_ASTC;
         }
         // TODO: This shouldn't be needed eventually, but right now we need a compression type in the engine.
         return TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT;
@@ -651,6 +627,7 @@ public class TextureGenerator {
 
         // Install default texture compressors
         TextureCompression.registerCompressor(new TextureCompressorBasisU());
+        TextureCompression.registerCompressor(new TextureCompressorASTC());
 
         try (BufferedInputStream is = new BufferedInputStream(new FileInputStream(args[0]));
              BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream(args[1]))) {
