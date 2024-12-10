@@ -425,27 +425,6 @@ TEST_P(TexcCompileTest, PreMultiplyAlpha)
     ASSERT_TRUE(dmTexc::PreMultiplyAlpha(m_Image));
 }
 
-TEST_P(TexcCompileTest, EncodeASTC)
-{
-    const CompileInfo& info = GetParam();
-
-    dmTexc::ASTCEncodeSettings settings;
-    memset(&settings, 0, sizeof(settings));
-
-    // Note: We can't use the pixel format from the params.
-    settings.m_Path        = info.m_Path;
-    settings.m_Width       = m_Width;
-    settings.m_Height      = m_Height;
-    settings.m_PixelFormat = dmTexc::PF_RGBA_ASTC_4x4;
-    settings.m_ColorSpace  = info.m_ColorSpace;
-    settings.m_Data        = m_Image->m_Data;
-    settings.m_DataCount   = m_Image->m_DataCount;
-
-    uint8_t* out = 0;
-    uint32_t out_size = 0;
-    ASSERT_TRUE(dmTexc::ASTCEncode(&settings, &out, &out_size));
-}
-
 TEST_P(TexcCompileTest, EncodeBasisU)
 {
     const CompileInfo& info = GetParam();
@@ -480,6 +459,58 @@ TEST_P(TexcCompileTest, EncodeBasisU)
 
 INSTANTIATE_TEST_CASE_P(TexcCompileTest, TexcCompileTest, jc_test_values_in(compile_info));
 
+// We use a smaller texture to test ASTC with, so encoding is a bit faster.
+TEST(TexcCompileTestASTC, Encode)
+{
+    const char* path = "src/test/data/a_small.png";
+
+    int width, height;
+
+    uint8_t* image_data = stbi_load(path, &width, &height, 0, 0);
+    ASSERT_TRUE(image_data != 0);
+
+    dmTexc::Image* image = dmTexc::CreateImage(path, width, height, dmTexc::PF_R8G8B8A8, dmTexc::CS_SRGB, width*height*4, image_data);
+
+    dmTexc::ASTCEncodeSettings settings;
+    memset(&settings, 0, sizeof(settings));
+
+    // Note: We can't use the pixel format from the params.
+    settings.m_Path        = path;
+    settings.m_Width       = width;
+    settings.m_Height      = height;
+    settings.m_PixelFormat = dmTexc::PF_R8G8B8A8;
+    settings.m_ColorSpace  = dmTexc::CS_SRGB;
+    settings.m_Data        = image->m_Data;
+    settings.m_DataCount   = image->m_DataCount;
+
+    dmTexc::PixelFormat pixel_formats_astc[] = {
+        dmTexc::PF_RGBA_ASTC_4x4,
+        dmTexc::PF_RGBA_ASTC_5x4,
+        dmTexc::PF_RGBA_ASTC_5x5,
+        dmTexc::PF_RGBA_ASTC_6x5,
+        dmTexc::PF_RGBA_ASTC_6x6,
+        dmTexc::PF_RGBA_ASTC_8x5,
+        dmTexc::PF_RGBA_ASTC_8x6,
+        dmTexc::PF_RGBA_ASTC_8x8,
+        dmTexc::PF_RGBA_ASTC_10x5,
+        dmTexc::PF_RGBA_ASTC_10x6,
+        dmTexc::PF_RGBA_ASTC_10x8,
+        dmTexc::PF_RGBA_ASTC_10x10,
+        dmTexc::PF_RGBA_ASTC_12x10,
+        dmTexc::PF_RGBA_ASTC_12x12,
+    };
+
+    uint8_t* out = 0;
+    uint32_t out_size = 0;
+
+    for (int i = 0; i < DM_ARRAY_SIZE(pixel_formats_astc); ++i)
+    {
+        settings.m_OutPixelFormat = pixel_formats_astc[i];
+        ASSERT_TRUE(dmTexc::ASTCEncode(&settings, &out, &out_size));
+    }
+
+    dmTexc::DestroyImage(image);
+}
 
 int main(int argc, char **argv)
 {
