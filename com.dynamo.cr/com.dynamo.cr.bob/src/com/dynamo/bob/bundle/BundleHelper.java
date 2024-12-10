@@ -962,7 +962,7 @@ public class BundleHelper {
     // move archive into bundle folder if it's requested by a user
     public static void moveBundleIfNeed(Project project, File bundleDir) throws IOException {
         Publisher publisher = project.getPublisher();
-        if (publisher != null && publisher.ifShouldBeMovedIntoBundleFolder() && publisher instanceof ZipPublisher) {
+        if (publisher != null && publisher.shouldBeMovedIntoBundleFolder() && publisher instanceof ZipPublisher) {
             ZipPublisher zipPublisher = (ZipPublisher) publisher;
             File zipFile = zipPublisher.getZipFile();
             Files.move(zipFile.toPath(), (new File(bundleDir, zipFile.getName())).toPath(), StandardCopyOption.REPLACE_EXISTING);
