@@ -165,6 +165,7 @@ const char *zip_strerror(int errnum) {
   return zip_errlist[errnum];
 }
 
+#if defined(ZIP_USE_DEFLATE) // defold
 static const char *zip_basename(const char *name) {
   char const *p;
   char const *base = name += FILESYSTEM_PREFIX_LEN(name);
@@ -218,6 +219,7 @@ static int zip_mkpath(char *path) {
 
   return 0;
 }
+#endif
 
 static char *zip_strclone(const char *str, size_t n) {
   char c;
@@ -235,6 +237,7 @@ static char *zip_strclone(const char *str, size_t n) {
   return begin;
 }
 
+#if defined(ZIP_USE_DISC_IO) // defold
 static char *zip_strrpl(const char *str, size_t n, char oldchar, char newchar) {
   char c;
   size_t i;
@@ -301,7 +304,6 @@ static char *zip_name_normalize(char *name, char *const nname, size_t len) {
   return nname;
 }
 
-#if defined(ZIP_USE_DEFLATE) // defold
 static int zip_archive_truncate(mz_zip_archive *pzip) {
   mz_zip_internal_state *pState = pzip->m_pState;
   mz_uint64 file_size = pzip->m_archive_size;
@@ -455,6 +457,7 @@ static inline void zip_archive_finalize(mz_zip_archive *pzip) {
 #endif
 }
 
+#if defined(ZIP_USE_DEFLATE) // defold
 static ssize_t zip_entry_mark(struct zip_t *zip,
                               struct zip_entry_mark_t *entry_mark,
                               const size_t n, char *const entries[],
@@ -568,6 +571,7 @@ static ssize_t zip_entry_markbyindex(struct zip_t *zip,
   }
   return err;
 }
+
 static ssize_t zip_index_next(mz_uint64 *local_header_ofs_array,
                               ssize_t cur_index) {
   ssize_t new_index = 0, i;
@@ -872,7 +876,6 @@ static int zip_central_dir_delete(mz_zip_internal_state *pState,
   return 0;
 }
 
-#if defined(ZIP_USE_DEFLATE) // defold
 static ssize_t zip_entries_delete_mark(struct zip_t *zip,
                                        struct zip_entry_mark_t *entry_mark,
                                        int entry_num) {
@@ -1093,21 +1096,19 @@ static int _zip_entry_open(struct zip_t *zip, const char *entryname,
                            int case_sensitive) {
   size_t entrylen = 0;
   mz_zip_archive *pzip = NULL;
-  mz_uint num_alignment_padding_bytes, level;
   mz_zip_archive_file_stat stats;
   int err = 0;
-  mz_uint16 dos_time = 0, dos_date = 0;
-  mz_uint32 extra_size = 0;
 #if defined(ZIP_USE_DEFLATE) // defold
+  mz_uint32 extra_size = 0;
+  mz_uint num_alignment_padding_bytes, level;
+  mz_uint16 dos_time = 0, dos_date = 0;
   mz_uint8 extra_data[MZ_ZIP64_MAX_CENTRAL_EXTRA_FIELD_SIZE];
-#endif
   mz_uint64 local_dir_header_ofs = 0;
+#endif
 
   if (!zip) {
     return ZIP_ENOINIT;
   }
-
-  local_dir_header_ofs = zip->archive.m_archive_size;
 
   if (!entryname) {
     return ZIP_EINVENTNAME;
@@ -1160,6 +1161,8 @@ static int _zip_entry_open(struct zip_t *zip, const char *entryname,
 #if !defined(ZIP_USE_DEFLATE) // defold
   return ZIP_ENOFILE;
 #else
+
+  local_dir_header_ofs = zip->archive.m_archive_size;
 
   /*
     .ZIP File Format Specification Version: 6.3.3
@@ -1373,21 +1376,18 @@ int zip_entry_openbyindex(struct zip_t *zip, size_t index) {
 
 int zip_entry_close(struct zip_t *zip) {
   mz_zip_archive *pzip = NULL;
-  mz_uint level;
+  int err = 0;
 #if defined(ZIP_USE_DEFLATE) // defold
+  mz_uint level;
   tdefl_status done;
-#endif
   mz_uint16 entrylen;
   mz_uint16 dos_time = 0, dos_date = 0;
-  int err = 0;
   mz_uint8 *pExtra_data = NULL;
   mz_uint32 extra_size = 0;
-
-#if defined(ZIP_USE_DEFLATE) // defold
   mz_uint8 extra_data[MZ_ZIP64_MAX_CENTRAL_EXTRA_FIELD_SIZE];
-#endif
   mz_uint8 local_dir_footer[MZ_ZIP_DATA_DESCRIPTER_SIZE64];
   mz_uint32 local_dir_footer_size = MZ_ZIP_DATA_DESCRIPTER_SIZE64;
+#endif
 
   if (!zip) {
     // zip_t handler is not initialized
@@ -1692,7 +1692,7 @@ ssize_t zip_entry_noallocread(struct zip_t *zip, void *buf, size_t bufsize) {
   return (ssize_t)zip->entry.uncomp_size;
 }
 
-ssize_t zip_entry_noallocread_offset(struct zip_t *zip,
+ssize_t zip_entry_noallocreadwithoffset(struct zip_t *zip,
                                     size_t offset, size_t size, void *buf) {
   mz_zip_archive *pzip = NULL;
 
@@ -1722,8 +1722,7 @@ ssize_t zip_entry_noallocread_offset(struct zip_t *zip,
     return (ssize_t)ZIP_ENORITER;
   }
 
-  mz_uint8  tmpbuf[ZIP_DEFAULT_ITER_BUF_SIZE];
-  size_t    tmpbuf_size = sizeof(tmpbuf);
+  mz_uint8* writebuf = (mz_uint8*)buf;
   size_t    file_offset = 0;
   size_t    write_cursor = 0;
   size_t    to_read = size;
@@ -1731,21 +1730,25 @@ ssize_t zip_entry_noallocread_offset(struct zip_t *zip,
   // iterate until the requested offset is in range
   while (file_offset < zip->entry.uncomp_size && to_read > 0)
   {
-    size_t nread = mz_zip_reader_extract_iter_read(iter, tmpbuf, tmpbuf_size);
+    size_t nread = mz_zip_reader_extract_iter_read(iter, (void*)&writebuf[write_cursor], to_read);
 
     if (nread == 0)
       break;
 
     if (offset < (file_offset+nread)) {
       size_t read_cursor = offset - file_offset;
-      MZ_ASSERT(read_cursor < tmpbuf_size);
+      MZ_ASSERT(read_cursor < size);
       size_t read_size = nread - read_cursor;
 
       if (to_read < read_size)
         read_size = to_read;
-      MZ_ASSERT(read_size <= tmpbuf_size);
+      MZ_ASSERT(read_size <= size);
 
-      memcpy(&((mz_uint8*)buf)[write_cursor], &tmpbuf[read_cursor], read_size);
+      // If it's an unaligned read (i.e. the first one)
+      if (read_cursor != 0)
+      {
+        memmove(&writebuf[write_cursor], &writebuf[read_cursor], read_size);
+      }
 
       write_cursor += read_size;
       offset += read_size;

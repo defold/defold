@@ -129,6 +129,36 @@ TEST_F(FileProviderArchive, ReadFile)
     ASSERT_ARRAY_EQ_LEN(SOMEDATA, long_buffer, sizeof(SOMEDATA));
 }
 
+TEST_F(FileProviderArchive, ReadFilePartial)
+{
+    dmResourceProvider::Result result;
+    uint8_t long_buffer[64];
+
+    uint32_t file_size;
+    result = dmResourceProvider::GetFileSize(m_Archive, 0, "/src/test/files/somedata", &file_size);
+    ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
+    ASSERT_LE(file_size, (uint32_t)sizeof(long_buffer));
+
+    result = dmResourceProvider::ReadFile(m_Archive, 0, "/src/test/files/somedata", long_buffer, sizeof(long_buffer));
+    ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
+    ASSERT_ARRAY_EQ_LEN(SOMEDATA, long_buffer, sizeof(SOMEDATA));
+
+    const uint32_t chunk_size = 5;
+    uint8_t short_buffer[chunk_size];
+
+    uint32_t offset = 0;
+    while (offset < file_size)
+    {
+        uint32_t nread;
+        result = dmResourceProvider::ReadFilePartial(m_Archive, 0, "/src/test/files/somedata", offset, chunk_size, short_buffer, &nread);
+        ASSERT_EQ(dmResourceProvider::RESULT_OK, result);
+        ASSERT_GE(chunk_size, nread);
+
+        ASSERT_ARRAY_EQ_LEN(&long_buffer[offset], short_buffer, nread);
+        offset += nread;
+    }
+}
+
 extern "C" void dmExportedSymbols();
 
 int main(int argc, char **argv)

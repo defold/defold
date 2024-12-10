@@ -31,9 +31,8 @@
 
 (defn- create-generic [^Class class prefs grid desc]
   (let [control (.newInstance class)
-        commit (fn [] (prefs/set! prefs (:key desc) (ui/value control)))
-        value (prefs/get prefs (:key desc))]
-    (ui/value! control ((:replace desc {}) value value))
+        commit (fn [] (prefs/set! prefs (:key desc) (ui/value control)))]
+    (ui/value! control (prefs/get prefs (:key desc)))
     (ui/on-focus! control (fn [focus] (when-not focus (commit))))
     (when-not (:multi-line desc)
       (ui/on-action! control (fn [e] (commit))))
@@ -115,7 +114,7 @@
                     {:label "Open File at Line" :type :string :key [:code :open-file-at-line]}
                     {:label "Code Editor Font (Requires Restart)" :type :string :key [:code :font :name]}]}
            {:name  "Extensions"
-            :prefs [{:label "Build Server" :type :string :key [:extensions :build-server] :replace {"" native-extensions/defold-build-server-url} :prompt-value "https://build.defold.com"}
+            :prefs [{:label "Build Server" :type :string :key [:extensions :build-server] :prompt-value native-extensions/defold-build-server-url}
                     {:label "Build Server Headers" :type :string :key [:extensions :build-server-headers] :multi-line true}]}
            {:name "Tools"
             :prefs [{:label "ADB path" :type :string :key [:tools :adb-path] :tooltip "Path to ADB command that might be used to install and launch the Android app when it's bundled"}
