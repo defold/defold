@@ -37,7 +37,8 @@ namespace dmGraphics
 
 namespace dmRig
 {
-    static const uint32_t INVALID_BONE_INDEX = 0xFFFFFFFF;
+    static const uint32_t INVALID_BONE_INDEX              = 0xFFFFFFFF;
+    static const uint16_t INVALID_POSE_MATRIX_CACHE_INDEX = 0xFFFF;
 
     typedef struct RigContext*  HRigContext;
     typedef struct RigInstance* HRigInstance;
@@ -115,6 +116,13 @@ namespace dmRig
         float uv1[2];
     };
 
+    struct RigModelSkinnedVertex
+    {
+        RigModelVertex m_Vertex;
+        float          m_BoneWeights[4];
+        float          m_BoneIndices[4];
+    };
+
     // Can we not use the skeleton directly?
     struct RigBone
     {
@@ -164,12 +172,23 @@ namespace dmRig
         bool                          m_ForceAnimatePose;
     };
 
+    struct PoseMatrixCache
+    {
+        dmArray<dmVMath::Matrix4> m_PoseMatrices;
+        dmArray<uint32_t>         m_BoneCounts;
+        uint32_t                  m_MaxBoneCount;
+    };
+
     Result NewContext(const NewContextParams& params, HRigContext* context);
     void DeleteContext(HRigContext context);
     Result Update(HRigContext context, float dt);
 
     Result InstanceCreate(HRigContext context, const InstanceCreateParams& params, HRigInstance* instance);
     Result InstanceDestroy(HRigContext context, HRigInstance instance);
+
+    void             ResetPoseMatrixCache(HRigContext context);
+    PoseMatrixCache* GetPoseMatrixCache(HRigContext context);
+    uint16_t         AcquirePoseMatrixCacheIndex(HRigContext context, HRigInstance instance);
 
     Result PlayAnimation(HRigInstance instance, dmhash_t animation_id, RigPlayback playback, float blend_duration, float offset, float playback_rate);
     Result CancelAnimation(HRigInstance instance);
