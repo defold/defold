@@ -30,6 +30,8 @@
 #include "../graphics_adapter.h"
 #include "graphics_webgpu_private.h"
 
+#include "../dmsdk/graphics/graphics_webgpu.h"
+
 #if defined(__EMSCRIPTEN__)
 #include <emscripten/html5.h>
 #endif
@@ -838,13 +840,14 @@ static void requestDeviceCallback(WGPURequestDeviceStatus status, WGPUDevice dev
         }
         context->m_Format = wgpuSurfaceGetPreferredFormat(context->m_Surface, context->m_Adapter);
         WebGPUCreateSwapchain(context, context->m_OriginalWidth, context->m_OriginalHeight);
-        context->m_InitComplete = true;
+
+        dmLogInfo("WebGPU: Created device");
     }
     else
     {
         dmLogError("WebGPU: Unable to create device %s", message);
-        context->m_InitComplete = true;
     }
+    context->m_InitComplete = true;
 }
 
 static void instanceRequestAdapterCallback(WGPURequestAdapterStatus status, WGPUAdapter adapter, const char* message, void* userdata)
@@ -3045,6 +3048,20 @@ static void WebGPUCloseWindow(HContext _context)
 }
 
 static void WebGPUInvalidateGraphicsHandles(HContext context) { }
+
+///////////////////////////////////
+// dmsdk / graphics_webgpu.h impls:
+///////////////////////////////////
+
+WGPUDevice dmGraphics::WebGPUGetDevice(HContext context)
+{
+    return ((WebGPUContext*)context)->m_Device;
+}
+
+WGPUQueue dmGraphics::WebGPUGetQueue(HContext context)
+{
+    return ((WebGPUContext*)context)->m_Queue;
+}
 
 static GraphicsAdapterFunctionTable WebGPURegisterFunctionTable()
 {
