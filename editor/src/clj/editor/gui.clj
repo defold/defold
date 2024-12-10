@@ -400,7 +400,6 @@
    [:costly-gui-scene-info :costly-gui-scene-info]
 
    [:id :parent]
-   [:material-infos :material-infos]
    [:layer-names :layer-names]
    [:layer->index :layer->index]
 
@@ -1005,9 +1004,6 @@
 
   (input parent g/Str)
 
-  (input material-infos GuiResourceMaterialInfos)
-  (output material-infos GuiResourceMaterialInfos (gu/passthrough material-infos))
-
   (input layer-names GuiResourceNames)
   (output layer-names GuiResourceNames (gu/passthrough layer-names))
   (input layer->index g/Any)
@@ -1304,11 +1300,15 @@
             (value (layout-property-getter y-anchor))
             (set (layout-property-setter y-anchor)))
   (property material g/Str (default (protobuf/default Gui$NodeDesc :material))
-            (dynamic edit-type (g/fnk [material-infos] (wrap-layout-property-edit-type material (optional-gui-resource-choicebox (keys material-infos)))))
+            (dynamic edit-type (g/fnk [basic-gui-scene-info]
+                                 (let [material-infos (:material-infos basic-gui-scene-info)
+                                       material-names (some-> material-infos keys)]
+                                   (wrap-layout-property-edit-type material (optional-gui-resource-choicebox material-names)))))
             (value (layout-property-getter material))
             (set (layout-property-setter material))
-            (dynamic error (g/fnk [_node-id material-infos material]
-                             (validate-material-resource _node-id material-infos material))))
+            (dynamic error (g/fnk [_node-id basic-gui-scene-info material]
+                             (let [material-infos (:material-infos basic-gui-scene-info)]
+                               (validate-material-resource _node-id material-infos material)))))
 
   (output visual-base-node-msg g/Any produce-visual-base-node-msg)
   (output gui-scene g/Any (g/fnk [_node-id]
@@ -1362,10 +1362,12 @@
                   :visible-children? enabled}))
 
   (output build-errors-visual-node g/Any :cached
-          (g/fnk [_node-id build-errors-gui-node material material-infos]
-            (g/package-errors _node-id
-                              build-errors-gui-node
-                              (validate-material-resource _node-id material-infos material))))
+          (g/fnk [_node-id basic-gui-scene-info build-errors-gui-node material]
+            (let [material-infos (:material-infos basic-gui-scene-info)]
+              (g/package-errors
+                _node-id
+                build-errors-gui-node
+                (validate-material-resource _node-id material-infos material)))))
 
   (output own-build-errors g/Any (gu/passthrough build-errors-visual-node)))
 
@@ -1500,9 +1502,13 @@
             (value (layout-property-getter size-mode))
             (set (layout-property-setter size-mode)))
   (property material g/Str (default (protobuf/default Gui$NodeDesc :material))
-            (dynamic edit-type (g/fnk [material-infos] (wrap-layout-property-edit-type material (optional-gui-resource-choicebox (keys material-infos)))))
-            (dynamic error (g/fnk [_node-id costly-gui-scene-info material material-infos material-shader texture]
-                             (let [texture-infos (:texture-infos costly-gui-scene-info)]
+            (dynamic edit-type (g/fnk [basic-gui-scene-info]
+                                 (let [material-infos (:material-infos basic-gui-scene-info)
+                                       material-names (some-> material-infos keys)]
+                                   (wrap-layout-property-edit-type material (optional-gui-resource-choicebox material-names)))))
+            (dynamic error (g/fnk [_node-id basic-gui-scene-info costly-gui-scene-info material material-shader texture]
+                             (let [material-infos (:material-infos basic-gui-scene-info)
+                                   texture-infos (:texture-infos costly-gui-scene-info)]
                                (or (validate-material-resource _node-id material-infos material)
                                    (validate-material-capabilities _node-id material-infos material material-shader texture-infos texture)))))
             (value (layout-property-getter material))
@@ -1562,8 +1568,9 @@
                               manual-size
                               texture-size)))
   (output build-errors-shape-node g/Any
-          (g/fnk [_node-id build-errors-visual-node costly-gui-scene-info material material-infos material-shader texture]
-            (let [texture-infos (:texture-infos costly-gui-scene-info)]
+          (g/fnk [_node-id basic-gui-scene-info build-errors-visual-node costly-gui-scene-info material material-shader texture]
+            (let [material-infos (:material-infos basic-gui-scene-info)
+                  texture-infos (:texture-infos costly-gui-scene-info)]
               (g/package-errors
                 _node-id
                 build-errors-visual-node ; Validates material name.
@@ -1970,7 +1977,6 @@
                                                                   [:costly-gui-scene-info :aux-costly-gui-scene-info]
 
                                                                   [:layer-names :layer-names]
-                                                                  [:material-infos :aux-material-infos]
 
                                                                   [:particlefx-resource-names :aux-particlefx-resource-names]
                                                                   [:resource-names :aux-resource-names]
@@ -2472,8 +2478,6 @@
   (output node-overrides g/Any :cached (g/fnk [node-overrides] (into {} node-overrides)))
   (input node-ids IDMap :array)
   (output node-ids IDMap :cached (g/fnk [node-ids] (reduce merge {} node-ids)))
-  (input material-infos GuiResourceMaterialInfos)
-  (output material-infos GuiResourceMaterialInfos (gu/passthrough material-infos))
 
   (input layer-names GuiResourceNames)
   (output layer-names GuiResourceNames (gu/passthrough layer-names))
@@ -2575,7 +2579,7 @@
      (g/connect material :material-shaders self :material-shaders)
      (when (not internal?)
        (concat
-         (g/connect material :material-infos self :own-material-infos)
+         (g/connect material :material-infos self :material-infos)
          (g/connect material :dep-build-targets self :dep-build-targets)
          (g/connect material :pb-msg self :material-msgs)
          (g/connect material :build-errors materials-node :build-errors)
@@ -3219,18 +3223,12 @@
   (input texture-infos GuiResourceTextureInfos :array)
   (input material-shaders GuiResourceShaders :array)
 
-  (input aux-material-infos GuiResourceMaterialInfos)
-  (input own-material-infos GuiResourceMaterialInfos :array)
+  (input material-infos GuiResourceMaterialInfos :array)
   (output own-material-infos GuiResourceMaterialInfos
-          (g/fnk [own-material-infos material-max-page-count]
+          (g/fnk [material-infos material-max-page-count]
             (into (sorted-map "" {:max-page-count material-max-page-count})
                   cat
-                  own-material-infos)))
-  (output material-infos GuiResourceMaterialInfos :cached
-          (g/fnk [aux-material-infos own-material-infos]
-            (if aux-material-infos
-              (into aux-material-infos own-material-infos)
-              own-material-infos)))
+                  material-infos)))
 
   (input font-shaders GuiResourceShaders :array)
   (input font-datas FontDatas :array)
@@ -3322,11 +3320,11 @@
 
   (input aux-basic-gui-scene-info BasicGuiSceneInfo)
   (output own-basic-gui-scene-info BasicGuiSceneInfo :cached
-          (g/fnk [own-font-names own-layout-names own-spine-scene-names own-texture-names spine-scene-element-ids]
+          (g/fnk [own-font-names own-layout-names own-material-infos own-spine-scene-names own-texture-names spine-scene-element-ids]
             {:font-names own-font-names
              :layer-names nil
              :layout-names own-layout-names
-             :material-infos nil
+             :material-infos own-material-infos
              :particlefx-resource-names nil
              :resource-names nil
              :spine-scene-element-ids (reduce coll/merge spine-scene-element-ids)
@@ -3339,7 +3337,8 @@
              :layer-names nil
              :layout-names (coll/merge (:layout-names aux-basic-gui-scene-info)
                                        (:layout-names own-basic-gui-scene-info))
-             :material-infos nil
+             :material-infos (coll/merge (:material-infos aux-basic-gui-scene-info)
+                                         (:material-infos own-basic-gui-scene-info))
              :particlefx-resource-names nil
              :resource-names nil
              :spine-scene-element-ids (coll/merge (:spine-scene-element-ids aux-basic-gui-scene-info)
@@ -3693,7 +3692,6 @@
                     (for [[from to] [[:basic-gui-scene-info :basic-gui-scene-info]
                                      [:costly-gui-scene-info :costly-gui-scene-info]
 
-                                     [:material-infos :material-infos]
                                      [:layer-names :layer-names]
                                      [:layer->index :layer->index]
 
