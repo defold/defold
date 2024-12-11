@@ -157,15 +157,6 @@ namespace dmSoundCodec
 
         streamInfo->m_bEOS = false;
         streamInfo->m_Cursor = 0;
-
-        ov_callbacks cb;
-        cb.read_func = OggRead;
-        cb.close_func = OggClose;
-        cb.seek_func = OggSeek;
-        cb.tell_func = OggTell;
-        int res = ov_open_callbacks(streamInfo, &streamInfo->m_File, 0, 0, cb);
-        assert(res == 0);
-
         return RESULT_OK;
     }
 
