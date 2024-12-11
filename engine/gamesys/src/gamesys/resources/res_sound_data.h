@@ -28,26 +28,18 @@ namespace dmGameSystem
 {
     struct SoundDataContext;
     struct SoundDataChunk;
+    struct SoundDataResource;
 
-    struct SoundDataResource
-    {
-        dmSound::HSoundData       m_SoundData;
-        dmSound::SoundDataType    m_Type;
+    // *********************************************************************************
+    // for internal api's
 
-        // For the streaming
-        SoundDataContext*         m_Context; // the global context for .oggc and .wavc respectively
-        dmResource::HFactory      m_Factory;
-        dmArray<SoundDataChunk*>  m_Chunks;
-        const char*               m_Path;
-        uint32_t                  m_FileSize:31;
-        uint32_t                  m_RequestInFlight:1;        // Have we already requested the next chunk?
-    };
+    dmSound::HSoundData ResSoundDataGetSoundData(SoundDataResource* resource);
 
-    dmResource::Result ResSoundDataCreate(const dmResource::ResourceCreateParams* params);
+    // set the size of in memory cache for all streaming sound datas
+    void ResSoundDataSetStreamingCacheSize(uint32_t cache_size);
 
-    dmResource::Result ResSoundDataDestroy(const dmResource::ResourceDestroyParams* params);
-
-    dmResource::Result ResSoundDataRecreate(const dmResource::ResourceRecreateParams* params);
+    // set the size of each streaming chunk size
+    void ResSoundDataSetStreamingChunkSize(uint32_t chunke_size);
 }
 
 #endif
