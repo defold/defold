@@ -234,7 +234,7 @@ namespace dmGameSystem
             // We found a chunk and can start copying
             uint32_t chunk_internal_offset = offset - chunk_offset; // the index to start from within this chunk
             uint32_t chunk_remaining = chunk_size - chunk_internal_offset;
-            uint32_t to_read = dmMath::Min(size, chunk_remaining);
+            uint32_t to_read = dmMath::Min(bytes_to_read, chunk_remaining);
             memcpy(out + nread, &chunk->m_Data[chunk_internal_offset], to_read);
 
             bytes_to_read   -= to_read;
@@ -247,8 +247,15 @@ namespace dmGameSystem
                 chunk = 0;
         }
 
-        uint32_t next_chunk_offset = uint32_t(offset / request_size) * request_size + request_size;
+        uint32_t next_chunk_offset = uint32_t(offset / request_size) * request_size;
+        if (next_chunk_offset == request_offset)
+            next_chunk_offset += request_size;
+
         SoundDataChunk* next_chunk = FindChunk(resource, next_chunk_offset);
+        if (next_chunk && next_chunk->m_Offset != next_chunk_offset)
+        {
+            next_chunk = 0; // we're actually missing the next chunk. Let's trigger a pre fetch
+        }
 
         //printf("  nread: %u  off: %u  next off: %u  next_chunk: %p  in flight: %u\n", nread, offset, next_chunk_offset, next_chunk, resource->m_RequestInFlight);
 
@@ -257,7 +264,7 @@ namespace dmGameSystem
         // Last resort:
         //  If we didn't have any chunks that matched
         //  This will cause a delay
-        if (nread == 0)
+        if (nread == 0) // we failed to read from the _current_ offset
         {
             // Round down to nearest chunk offset
             request_offset = uint32_t(offset / request_size) * request_size;
