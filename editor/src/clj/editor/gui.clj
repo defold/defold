@@ -400,7 +400,6 @@
    [:costly-gui-scene-info :costly-gui-scene-info]
 
    [:id :parent]
-   [:layer-names :layer-names]
    [:layer->index :layer->index]
 
    [:particlefx-resource-names :particlefx-resource-names]
@@ -994,9 +993,12 @@
             (value (layout-property-getter enabled))
             (set (layout-property-setter enabled)))
   (property layer g/Str (default (protobuf/default Gui$NodeDesc :layer))
-            (dynamic edit-type (g/fnk [layer-names layer->index]
-                                 (wrap-layout-property-edit-type layer (optional-gui-resource-choicebox layer-names (partial sort-by layer->index)))))
-            (dynamic error (g/fnk [_node-id layer layer-names] (validate-layer true _node-id layer-names layer)))
+            (dynamic edit-type (g/fnk [basic-gui-scene-info layer->index]
+                                 (let [layer-names (:layer-names basic-gui-scene-info)]
+                                   (wrap-layout-property-edit-type layer (optional-gui-resource-choicebox layer-names (partial sort-by layer->index))))))
+            (dynamic error (g/fnk [_node-id layer basic-gui-scene-info]
+                             (let [layer-names (:layer-names basic-gui-scene-info)]
+                               (validate-layer true _node-id layer-names layer))))
             (value (layout-property-getter layer))
             (set (layout-property-setter layer)))
   (output layer-index g/Any :cached
@@ -1004,8 +1006,6 @@
 
   (input parent g/Str)
 
-  (input layer-names GuiResourceNames)
-  (output layer-names GuiResourceNames (gu/passthrough layer-names))
   (input layer->index g/Any)
   (output layer->index g/Any (gu/passthrough layer->index))
 
@@ -1206,10 +1206,13 @@
                                                     (dissoc :original-value))))))
                                 prop-kw->prop-info)))))))
   (input child-build-errors g/Any :array)
-  (output build-errors-gui-node g/Any (g/fnk [_node-id id id-counts layer layer-names]
-                                        (g/package-errors _node-id
-                                                          (prop-unique-id-error _node-id :id id id-counts "Id")
-                                                          (validate-layer false _node-id layer-names layer))))
+  (output build-errors-gui-node g/Any
+          (g/fnk [_node-id basic-gui-scene-info id id-counts layer]
+            (let [layer-names (:layer-names basic-gui-scene-info)]
+              (g/package-errors
+                _node-id
+                (prop-unique-id-error _node-id :id id id-counts "Id")
+                (validate-layer false _node-id layer-names layer)))))
   (output own-build-errors g/Any (gu/passthrough build-errors-gui-node))
   (output build-errors g/Any (g/fnk [_node-id own-build-errors child-build-errors]
                                (g/package-errors _node-id
@@ -1976,7 +1979,7 @@
                                                  (for [[from to] [[:basic-gui-scene-info :aux-basic-gui-scene-info]
                                                                   [:costly-gui-scene-info :aux-costly-gui-scene-info]
 
-                                                                  [:layer-names :layer-names]
+                                                                  #_[:layer->index :layer->index] ; TODO: Should this be here?
 
                                                                   [:particlefx-resource-names :aux-particlefx-resource-names]
                                                                   [:resource-names :aux-resource-names]
@@ -2479,8 +2482,6 @@
   (input node-ids IDMap :array)
   (output node-ids IDMap :cached (g/fnk [node-ids] (reduce merge {} node-ids)))
 
-  (input layer-names GuiResourceNames)
-  (output layer-names GuiResourceNames (gu/passthrough layer-names))
   (input layer->index g/Any)
   (output layer->index g/Any (gu/passthrough layer->index))
   (input particlefx-resource-names GuiResourceNames)
@@ -3237,8 +3238,7 @@
           (g/fnk [font-names]
             (into (sorted-set) font-names)))
 
-  (input layer-names GuiResourceNames)
-  (output layer-names GuiResourceNames (gu/passthrough layer-names))
+  (input own-layer-names GuiResourceNames)
   (input layer->index g/Any)
   (output layer->index g/Any (gu/passthrough layer->index))
 
@@ -3272,10 +3272,10 @@
   (output samplers [g/KeywordMap] (gu/passthrough samplers))
 
   (output own-gui-resource-type-names GuiResourceTypeNames :cached
-          (g/fnk [own-font-names layer-names own-material-infos own-particlefx-resource-names own-spine-scene-names own-texture-names]
+          (g/fnk [own-font-names own-layer-names own-material-infos own-particlefx-resource-names own-spine-scene-names own-texture-names]
             (let [own-material-names (coll/sorted-key-set own-material-infos)]
               {:font own-font-names
-               :layer layer-names
+               :layer own-layer-names
                :material own-material-names
                :particlefx own-particlefx-resource-names
                :spine-scene own-spine-scene-names
@@ -3320,9 +3320,9 @@
 
   (input aux-basic-gui-scene-info BasicGuiSceneInfo)
   (output own-basic-gui-scene-info BasicGuiSceneInfo :cached
-          (g/fnk [own-font-names own-layout-names own-material-infos own-spine-scene-names own-texture-names spine-scene-element-ids]
+          (g/fnk [own-font-names own-layer-names own-layout-names own-material-infos own-spine-scene-names own-texture-names spine-scene-element-ids]
             {:font-names own-font-names
-             :layer-names nil
+             :layer-names own-layer-names
              :layout-names own-layout-names
              :material-infos own-material-infos
              :particlefx-resource-names nil
@@ -3332,9 +3332,13 @@
              :texture-names own-texture-names}))
   (output basic-gui-scene-info BasicGuiSceneInfo :cached
           (g/fnk [aux-basic-gui-scene-info own-basic-gui-scene-info]
+            ;; Note: The layer configurations of any template sources are
+            ;; covered up by the layer configuration of the referencing scene.
             {:font-names (coll/merge (:font-names aux-basic-gui-scene-info)
                                      (:font-names own-basic-gui-scene-info))
-             :layer-names nil
+             :layer-names (if aux-basic-gui-scene-info
+                            (:layer-names aux-basic-gui-scene-info)
+                            (:layer-names own-basic-gui-scene-info))
              :layout-names (coll/merge (:layout-names aux-basic-gui-scene-info)
                                        (:layout-names own-basic-gui-scene-info))
              :material-infos (coll/merge (:material-infos aux-basic-gui-scene-info)
@@ -3661,7 +3665,7 @@
                     (g/connect layers-node :_node-id self :layers-node) ; for the tests :/
                     (g/connect layers-node :_node-id self :nodes)
                     (g/connect layers-node :layer-msgs self :layer-msgs)
-                    (g/connect layers-node :layer-names self :layer-names)
+                    (g/connect layers-node :layer-names self :own-layer-names)
                     (g/connect layers-node :layer->index self :layer->index)
                     (g/connect layers-node :build-errors self :build-errors)
                     (g/connect layers-node :node-outline self :child-outlines)
@@ -3692,7 +3696,6 @@
                     (for [[from to] [[:basic-gui-scene-info :basic-gui-scene-info]
                                      [:costly-gui-scene-info :costly-gui-scene-info]
 
-                                     [:layer-names :layer-names]
                                      [:layer->index :layer->index]
 
                                      [:particlefx-resource-names :particlefx-resource-names]

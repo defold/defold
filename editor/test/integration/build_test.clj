@@ -26,6 +26,7 @@
             [editor.progress :as progress]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
+            [editor.resource-node :as resource-node]
             [editor.settings-core :as settings-core]
             [editor.workspace :as workspace]
             [integration.test-util :refer [with-loaded-project] :as test-util]
@@ -294,7 +295,21 @@
     build-results))
 
 (defn- project-build-artifacts [project resource-node evaluation-context]
-  (:artifacts (project-build project resource-node evaluation-context)))
+  (let [build-results (project-build project resource-node evaluation-context)
+        error-value (:error build-results)]
+    (if (nil? error-value)
+      (:artifacts build-results)
+      (let [resource (resource-node/resource resource-node)
+            proj-path (resource/proj-path resource)
+            error-message (some :message (tree-seq :causes :causes error-value))]
+        (throw
+          (ex-info
+            (format "Failed to build '%s': %s"
+                    proj-path
+                    error-message)
+            {:resource-node resource-node
+             :resource resource
+             :error-value error-value}))))))
 
 (deftest merge-gos
   (testing "Verify equivalent game objects are merged"
