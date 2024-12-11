@@ -1,0 +1,4 @@
+tile_set: "/tile/flipbook.tilesource"
+default_animation: "anim"
+material: "/material/material_constant_array_v140.material"
+blend_mode: BLEND_MODE_ALPHA

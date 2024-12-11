@@ -5419,6 +5419,9 @@ TEST_F(MaterialTest, DynamicVertexAttributesCount)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+// Test setting material constants via go.set and go.get
+// for both single constants and array constants.
+// The test also tests for setting nested structs.
 TEST_F(MaterialTest, GoGetSetConstants)
 {
     ASSERT_TRUE(dmGameObject::Init(m_Collection));
