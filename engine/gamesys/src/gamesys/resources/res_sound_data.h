@@ -15,6 +15,7 @@
 #ifndef DM_GAMESYS_SOUND_DATA_H
 #define DM_GAMESYS_SOUND_DATA_H
 
+#include <dmsdk/dlib/array.h>
 #include <dmsdk/resource/resource.h>
 #include <dmsdk/gamesys/resources/res_sound.h>
 
@@ -25,9 +26,21 @@ namespace dmSound
 
 namespace dmGameSystem
 {
-    struct SoundDataResource {
-        dmSound::HSoundData m_SoundData;
-        int m_Type;
+    struct SoundDataContext;
+    struct SoundDataChunk;
+
+    struct SoundDataResource
+    {
+        dmSound::HSoundData       m_SoundData;
+        dmSound::SoundDataType    m_Type;
+
+        // For the streaming
+        SoundDataContext*         m_Context; // the global context for .oggc and .wavc respectively
+        dmResource::HFactory      m_Factory;
+        dmArray<SoundDataChunk*>  m_Chunks;
+        const char*               m_Path;
+        uint32_t                  m_FileSize:31;
+        uint32_t                  m_RequestInFlight:1;        // Have we already requested the next chunk?
     };
 
     dmResource::Result ResSoundDataCreate(const dmResource::ResourceCreateParams* params);
