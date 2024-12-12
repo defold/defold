@@ -30,7 +30,6 @@ import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.bob.pipeline.Texc.FlipAxis;
 import com.dynamo.graphics.proto.Graphics.PlatformProfile;
 import com.dynamo.graphics.proto.Graphics.TextureFormatAlternative;
-import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.graphics.proto.Graphics.TextureFormatAlternative.CompressionLevel;
 import com.dynamo.graphics.proto.Graphics.TextureImage.Image;
 import com.dynamo.graphics.proto.Graphics.TextureImage.TextureFormat;

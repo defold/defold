@@ -22,7 +22,6 @@
 #include <dlib/time.h>
 #include <dlib/math.h>
 #include <graphics/graphics.h>
-
 namespace dmGameSystem
 {
     static const uint32_t MAX_MIPMAP_COUNT = 15; // 2^14 => 16384 (+1 for base mipmap)
@@ -35,6 +34,7 @@ namespace dmGameSystem
     struct ImageDesc
     {
         dmGraphics::TextureImage* m_DDFImage;
+        uint8_t*                  m_DDFImageBytes;
         uint8_t*                  m_DecompressedData[MAX_MIPMAP_COUNT];
         uint32_t                  m_DecompressedDataSize[MAX_MIPMAP_COUNT];
     };
@@ -152,7 +152,8 @@ namespace dmGameSystem
             {
                 num_mips = MAX_MIPMAP_COUNT;
                 output_format = dmGraphics::GetSupportedCompressionFormat(context, output_format, image->m_Width, image->m_Height);
-                if (!dmGraphics::Transcode(path, image, image_desc->m_DDFImage->m_Count, output_format, image_desc->m_DecompressedData, image_desc->m_DecompressedDataSize, &num_mips))
+
+                if (!dmGraphics::Transcode(path, image, image_desc->m_DDFImage->m_Count, image_desc->m_DDFImageBytes, output_format, image_desc->m_DecompressedData, image_desc->m_DecompressedDataSize, &num_mips))
                 {
                     dmLogError("Failed to transcode %s", path);
                     continue;
@@ -247,8 +248,9 @@ namespace dmGameSystem
             {
                 if (image_desc->m_DecompressedData[0] == 0)
                 {
-                    params.m_Data     = &image->m_Data[image->m_MipMapOffset[0]];
-                    params.m_DataSize = image->m_MipMapSize[0];
+                    // TODO
+                    // params.m_Data     = &image->m_Data[image->m_MipMapOffset[0]];
+                    // params.m_DataSize = image->m_MipMapSize[0];
                 }
                 else
                 {
@@ -263,8 +265,8 @@ namespace dmGameSystem
                 {
                     if (image_desc->m_DecompressedData[i] == 0)
                     {
-                        params.m_Data     = &image->m_Data[image->m_MipMapOffset[i]];
-                        params.m_DataSize = image->m_MipMapSize[i];
+                        // params.m_Data     = &image->m_Data[image->m_MipMapOffset[i]];
+                        // params.m_DataSize = image->m_MipMapSize[i];
                     }
                     else
                     {
@@ -323,11 +325,12 @@ namespace dmGameSystem
         return result;
     }
 
-    static ImageDesc* CreateImage(dmGraphics::HContext context, dmGraphics::TextureImage* texture_image)
+    static ImageDesc* CreateImage(dmGraphics::HContext context, dmGraphics::TextureImage* texture_image, uint8_t* image_bytes)
     {
         ImageDesc* image_desc = new ImageDesc;
         memset(image_desc, 0x0, sizeof(ImageDesc));
         image_desc->m_DDFImage = texture_image;
+        image_desc->m_DDFImageBytes = image_bytes;
         return image_desc;
     }
 
@@ -347,14 +350,20 @@ namespace dmGameSystem
     dmResource::Result ResTexturePreload(const dmResource::ResourcePreloadParams* params)
     {
         DM_PROFILE(__FUNCTION__);
+
+        uint8_t* message_bytes = (uint8_t*) params->m_Buffer;
+        uint32_t header_size = ((uint32_t*) message_bytes)[0];
+        void* buffer = (void*) (message_bytes + sizeof(uint32_t));
+        uint8_t* image_payload = message_bytes + header_size + sizeof(uint32_t);
+
         dmGraphics::TextureImage* texture_image;
-        dmDDF::Result e = dmDDF::LoadMessage<dmGraphics::TextureImage>(params->m_Buffer, params->m_BufferSize, (&texture_image));
+        dmDDF::Result e = dmDDF::LoadMessage<dmGraphics::TextureImage>(buffer, header_size, (&texture_image));
         if ( e != dmDDF::RESULT_OK )
         {
             return dmResource::RESULT_FORMAT_ERROR;
         }
 
-        ImageDesc* image_desc = CreateImage((dmGraphics::HContext) params->m_Context, texture_image);
+        ImageDesc* image_desc = CreateImage((dmGraphics::HContext) params->m_Context, texture_image, image_payload);
         *params->m_PreloadData = image_desc;
         return dmResource::RESULT_OK;
     }
@@ -388,7 +397,6 @@ namespace dmGameSystem
         ResTextureUploadParams upload_params = {};
         dmGraphics::HContext graphics_context = (dmGraphics::HContext) params->m_Context;
         ImageDesc* image_desc = (ImageDesc*) params->m_PreloadData;
-
         TextureResource* texture_res = new TextureResource();
 
         if (image_desc->m_DDFImage->m_Alternatives.m_Count > 0)
@@ -458,7 +466,7 @@ namespace dmGameSystem
 
         // Create the image from the DDF data.
         // Note that the image desc for performance reasons keeps references to the DDF image, meaning they're invalid after the DDF message has been free'd!
-        ImageDesc* image_desc = CreateImage((dmGraphics::HContext) params->m_Context, texture_image);
+        ImageDesc* image_desc = CreateImage((dmGraphics::HContext) params->m_Context, texture_image, 0);
 
         ResTextureUploadParams upload_params = {};
 

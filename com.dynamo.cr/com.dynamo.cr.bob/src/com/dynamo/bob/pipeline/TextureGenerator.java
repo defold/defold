@@ -55,7 +55,6 @@ import com.dynamo.graphics.proto.Graphics.TextureImage.TextureFormat;
 import com.dynamo.graphics.proto.Graphics.TextureFormatAlternative;
 import com.dynamo.graphics.proto.Graphics.TextureImage.Type;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
-import com.google.protobuf.ByteString;
 
 public class TextureGenerator {
 

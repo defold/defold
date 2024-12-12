@@ -889,7 +889,7 @@ namespace dmGraphics
      * @param format dmGraphics::TextureImage::CompressionType
      * @return true if the format is transcoded
      */
-    bool Transcode(const char* path, TextureImage::Image* image, uint8_t image_count, TextureFormat format, uint8_t** images, uint32_t* sizes, uint32_t* num_transcoded_mips);
+    bool Transcode(const char* path, TextureImage::Image* image, uint8_t image_count, uint8_t* image_bytes, TextureFormat format, uint8_t** images, uint32_t* sizes, uint32_t* num_transcoded_mips);
 
     /**
      * Read frame buffer pixels in BGRA format

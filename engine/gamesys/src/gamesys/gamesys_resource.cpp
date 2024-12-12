@@ -81,8 +81,8 @@ namespace dmGameSystem
         image->m_Format               = params.m_TextureFormat;
         image->m_CompressionType      = params.m_CompressionType;
         image->m_CompressionFlags     = 0;
-        image->m_Data.m_Data          = image_data;
-        image->m_Data.m_Count         = image_data_size;
+        // image->m_Data.m_Data          = image_data;
+        // image->m_Data.m_Count         = image_data_size;
 
         image->m_MipMapOffset.m_Data  = mip_map_offsets;
         image->m_MipMapOffset.m_Count = params.m_MaxMipMaps;
@@ -100,8 +100,8 @@ namespace dmGameSystem
             delete[] image.m_MipMapOffset.m_Data;
             delete[] image.m_MipMapSize.m_Data;
             delete[] image.m_MipMapSizeCompressed.m_Data;
-            if (destroy_image_data)
-                delete[] image.m_Data.m_Data;
+            //if (destroy_image_data)
+            //    delete[] image.m_Data.m_Data;
         }
         delete[] texture_image.m_Alternatives.m_Data;
     }
@@ -197,8 +197,8 @@ namespace dmGameSystem
         image.m_Format               = GraphicsTextureFormatToImageFormat(params.m_TextureFormat);
         image.m_CompressionType      = params.m_CompressionType;
         image.m_CompressionFlags     = 0;
-        image.m_Data.m_Data          = (uint8_t*) params.m_Data;
-        image.m_Data.m_Count         = params.m_DataSize;
+        // image.m_Data.m_Data          = (uint8_t*) params.m_Data;
+        // image.m_Data.m_Count         = params.m_DataSize;
 
         // Note: When uploading cubemap faces on OpenGL, we expect that the "data size" is **per** slice
         //       and not the entire data size of the buffer. For vulkan we don't look at this value but instead
