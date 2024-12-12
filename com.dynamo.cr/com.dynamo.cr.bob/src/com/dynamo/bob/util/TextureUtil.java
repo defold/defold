@@ -216,8 +216,8 @@ public class TextureUtil {
         return null;
     }
 
-    public static TextureImage createCombinedTextureImage(TextureImage[] textures, TextureImage.Type type) throws TextureGeneratorException {
-        int numTextures = textures.length;
+    public static TextureGenerator.GenerateResult createCombinedTextureImage(TextureGenerator.GenerateResult[] generateResults, TextureImage.Type type) throws TextureGeneratorException {
+        int numTextures = generateResults.length;
         if (numTextures == 0) {
             return null;
         }
@@ -227,35 +227,48 @@ public class TextureUtil {
             numTextures = 1;
         }
 
-        TextureImage.Builder combinedImageBuilder = TextureImage.newBuilder(textures[0]);
+        TextureGenerator.GenerateResult resultOut = new TextureGenerator.GenerateResult();
+        resultOut.imageDatas = new ArrayList<>();
+
+        TextureImage.Builder combinedImageBuilder = TextureImage.newBuilder(generateResults[0].textureImage);
 
         for (int i = 0; i < combinedImageBuilder.getAlternativesCount(); i++) {
-            TextureImage.Image.Builder alternativeImageBuilder = TextureImage.Image.newBuilder(textures[0].getAlternatives(i));
-
+            TextureImage.Image.Builder alternativeImageBuilder = TextureImage.Image.newBuilder(generateResults[0].textureImage.getAlternatives(i));
             alternativeImageBuilder.clearMipMapSizeCompressed();
 
-            try {
-                ByteArrayOutputStream os = new ByteArrayOutputStream(1024 * 4);
-                for (int j = 0; j < alternativeImageBuilder.getMipMapSizeCount(); j++) {
+            int mipMapCount = alternativeImageBuilder.getMipMapSizeCount();
+            int byteSize = 0;
 
-                    for (int k = 0; k < numTextures; k++) {
-                        int mipSize = textures[k].getAlternatives(i).getMipMapSize(j);
-                        // ByteString data = textures[k].getAlternatives(i).getData();
-                        int mipOffset = alternativeImageBuilder.getMipMapOffset(j);
-                        alternativeImageBuilder.addMipMapSizeCompressed(mipSize);
+            for (int j = 0; j < mipMapCount; j++) {
 
-                        // Sizes can change between textures (maybe resize only if needed)
-                        byte[] buf = new byte[mipSize];
-                        //data.copyTo(buf, mipOffset, 0, mipSize);
-                        os.write(buf);
-                    }
+                for (int k = 0; k < numTextures; k++) {
+                    int mipSize = generateResults[k].textureImage.getAlternatives(i).getMipMapSize(j);
+                    ArrayList<byte[]> textureBytes = generateResults[k].imageDatas;
+                    byte[] mipBytes = textureBytes.get(i);
+
+                    //resultOut.imageDatas.add(mipBytes);
+                    //byteSize += mipBytes.length;
+
+                    // ByteString data = textures[k].getAlternatives(i).getData();
+
+                    int mipOffset = alternativeImageBuilder.getMipMapOffset(j);
+                    alternativeImageBuilder.addMipMapSizeCompressed(mipSize);
+
+                    // Sizes can change between textures (maybe resize only if needed)
+                    byte[] buf = new byte[mipSize];
+                    System.arraycopy(mipBytes, mipOffset, buf, 0, mipSize);
+                    resultOut.imageDatas.add(buf);
+
+                    byteSize += mipSize;
+
+                    //data.copyTo(buf, mipOffset, 0, mipSize);
                 }
-                os.flush();
-                //alternativeImageBuilder.setData(ByteString.copyFrom(os.toByteArray()));
-
-            } catch (IOException e) {
-                throw new TextureGeneratorException(e.getMessage());
             }
+
+            alternativeImageBuilder.setDataSize(byteSize);
+
+            //os.flush();
+            //alternativeImageBuilder.setData(ByteString.copyFrom(os.toByteArray()));
 
             for (int j = 0; j < alternativeImageBuilder.getMipMapSizeCount(); j++) {
                 alternativeImageBuilder.setMipMapOffset(j, alternativeImageBuilder.getMipMapOffset(j) * numTextures);
@@ -265,7 +278,9 @@ public class TextureUtil {
 
         combinedImageBuilder.setCount(numTextures);
         combinedImageBuilder.setType(type);
-        return combinedImageBuilder.build();
+
+        resultOut.textureImage = combinedImageBuilder.build();
+        return resultOut;
     }
 
     public static BufferedImage Resize(BufferedImage img, int newW, int newH, int type) {
@@ -308,8 +323,7 @@ public class TextureUtil {
 
     // Public api
     public static TextureGenerator.GenerateResult createMultiPageTexture(List<BufferedImage> images, TextureImage.Type textureType, TextureProfile texProfile, boolean compress) throws TextureGeneratorException {
-        TextureImage[] textureImages = new TextureImage[images.size()];
-        ArrayList<byte[]> textureImageDatas = new ArrayList<>();
+        TextureGenerator.GenerateResult[] generateResults = new TextureGenerator.GenerateResult[images.size()];
 
         // Since external tools may provide pages of varying sizes, we need to make sure
         // our output is of the correct dimensions (as we're using a texture array)
@@ -337,21 +351,13 @@ public class TextureUtil {
                     image = Resize(image, maxWidth, maxHeight, firstType);
                 }
 
-                TextureGenerator.GenerateResult result = TextureGenerator.generate(image, texProfile, compress);
-                textureImages[i] = result.textureImage;
-
-                // Hm, offsets
-                textureImageDatas.addAll(result.imageDatas);
+                generateResults[i] = TextureGenerator.generate(image, texProfile, compress);
             } catch (IOException e) {
                 throw new TextureGeneratorException(e.getMessage());
             }
         }
 
-        TextureGenerator.GenerateResult generateResult = new TextureGenerator.GenerateResult();
-        generateResult.textureImage = TextureUtil.createCombinedTextureImage(textureImages, textureType);
-        generateResult.imageDatas = textureImageDatas;
-
-        return generateResult;
+        return TextureUtil.createCombinedTextureImage(generateResults, textureType);
     }
 
     // Public api

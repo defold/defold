@@ -84,6 +84,8 @@ public class AtlasBuilderTest extends AbstractProtoBuilderTest {
         assertEquals(textureSet.getPageIndices(1), 1);
 
         int expectedSize = (16 * 16 + 8 * 8 + 4 * 4 + 2 * 2 + 1) * 4 * 2;
+
+        TextureImage.Image img = textureImage1.getAlternatives(0);
         assertEquals(expectedSize, textureImage1.getAlternatives(0).getDataSize());
     }
 
