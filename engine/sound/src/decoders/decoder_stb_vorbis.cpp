@@ -137,7 +137,7 @@ namespace dmSoundCodec
                 // No, keep input buffers as full as possible...
                 if (!streamInfo->m_DataBuffer.Full()) {
                     uint32_t read_bytes;
-                    dmSound::Result res = dmSound::SoundDataRead(streamInfo->m_SoundData, streamInfo->m_StreamOffset, STREAM_BLOCK_SIZE - streamInfo->m_DataBuffer.Size(), streamInfo->m_DataBuffer.End(), &read_bytes);
+                    dmSound::Result res = dmSound::SoundDataRead(streamInfo->m_SoundData, streamInfo->m_StreamOffset, streamInfo->m_DataBuffer.Remaining(), streamInfo->m_DataBuffer.End(), &read_bytes);
                     if (res == dmSound::RESULT_OK || res == dmSound::RESULT_PARTIAL_DATA) {
                         streamInfo->m_StreamOffset += read_bytes;
                         streamInfo->m_DataBuffer.SetSize(streamInfo->m_DataBuffer.Size() + read_bytes);

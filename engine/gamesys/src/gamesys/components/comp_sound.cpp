@@ -422,7 +422,7 @@ namespace dmGameSystem
             {
                 dmGameSystemDDF::PlaySound* play_sound = (dmGameSystemDDF::PlaySound*)params.m_Message->m_Data;
                 Sound* sound = component->m_Resource;
-                dmSound::HSoundData sound_data = sound->m_SoundDataRes->m_SoundData;
+                dmSound::HSoundData sound_data = ResSoundDataGetSoundData(sound->m_SoundDataRes);
                 uint32_t index = world->m_EntryIndices.Pop();
                 PlayEntry& entry = world->m_Entries[index];
                 dmResource::HFactory factory = dmGameObject::GetFactory(dmGameObject::GetCollection(params.m_Instance));

@@ -66,8 +66,6 @@ struct ResourceDescriptor
     uint16_t        m_Version;
 };
 
-static const uint32_t RESOURCE_INVALID_PRELOAD_SIZE = 0xFFFFFFFF;
-
 struct ResourceType
 {
     ResourceType() // TODO: Will it be ok using C++ constructor, since this is a private header?

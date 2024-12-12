@@ -61,7 +61,7 @@ static void JobCallback(void* context, void* data, int result)
     ResourceStreamJob* job = (ResourceStreamJob*)data;
     assert(job->m_Callback);
 
-    dmResource::Result r = GetDescriptor(factory, job->m_CanonicalPath, &job->m_Resource);
+    dmResource::Result r = dmResource::GetDescriptor(factory, job->m_CanonicalPath, &job->m_Resource);
     if (dmResource::RESULT_OK != r)
     {
         dmLogError("RESOURCE STREAMER: No resource found for '%s'", job->m_Path);
@@ -70,7 +70,7 @@ static void JobCallback(void* context, void* data, int result)
     {
         if (job->m_Callback)
         {
-            job->m_Callback(factory, job->m_CallbackCtx, job->m_Resource, job->m_Data.Size(), (uint8_t*)job->m_Data.Begin());
+            job->m_Callback(factory, job->m_CallbackCtx, job->m_Resource, job->m_Offset, job->m_Data.Size(), (uint8_t*)job->m_Data.Begin());
         }
     }
 

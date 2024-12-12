@@ -35,9 +35,11 @@ namespace dmLoadQueue
 
     struct PreloadInfo
     {
-        FResourcePreload        m_CompleteFunction;
-        ResourcePreloadHintInfo m_HintInfo;
-        void*                   m_Context;
+        ResourcePreloadHintInfo     m_HintInfo;
+        dmResource::HResourceType   m_Type;
+        // TODO: Now that we have the type, we can access these at the call site
+        FResourcePreload            m_CompleteFunction;
+        void*                       m_Context;
     };
 
     struct LoadResult
@@ -55,7 +57,7 @@ namespace dmLoadQueue
     HRequest BeginLoad(HQueue queue, const char* name, const char* canonical_path, PreloadInfo* info);
 
     // Actual load result will be put in load_result. Ptrs can be handled until FreeLoad has been called.
-    Result EndLoad(HQueue queue, HRequest request, void** buf, uint32_t* size, LoadResult* load_result);
+    Result EndLoad(HQueue queue, HRequest request, void** buffer, uint32_t* buffer_size, uint32_t* resource_size, LoadResult* load_result);
 
     // Free once completed.
     void FreeLoad(HQueue queue, HRequest request);
