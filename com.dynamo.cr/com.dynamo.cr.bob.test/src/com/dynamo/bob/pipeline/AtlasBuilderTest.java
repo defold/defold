@@ -26,7 +26,6 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.HashSet;
 
-import com.dynamo.bob.archive.ArchiveEntry;
 import com.dynamo.bob.archive.ManifestBuilder;
 import com.dynamo.liveupdate.proto.Manifest;
 import org.junit.Test;
@@ -54,7 +53,7 @@ public class AtlasBuilderTest extends AbstractProtoBuilderTest {
         assertNotNull(textureSet);
         assertNotNull(textureImage);
         int expectedSize = (16 * 16 + 8 * 8 + 4 * 4 + 2 * 2 + 1) * 4;
-        assertEquals(expectedSize, textureImage.getAlternatives(0).getData().size());
+        assertEquals(expectedSize, textureImage.getAlternatives(0).getDataSize());
     }
 
     @Test
@@ -85,7 +84,7 @@ public class AtlasBuilderTest extends AbstractProtoBuilderTest {
         assertEquals(textureSet.getPageIndices(1), 1);
 
         int expectedSize = (16 * 16 + 8 * 8 + 4 * 4 + 2 * 2 + 1) * 4 * 2;
-        assertEquals(expectedSize, textureImage1.getAlternatives(0).getData().size());
+        assertEquals(expectedSize, textureImage1.getAlternatives(0).getDataSize());
     }
 
     @Test

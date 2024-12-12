@@ -89,13 +89,13 @@ public class CubemapBuilder extends ProtoBuilder<Cubemap.Builder> {
                 //    OpenGL behaviour of having the image origin in the lower left."
                 // Source: https://stackoverflow.com/a/11690553/129360
                 //
-                // So for cube map textures we don't flip on any axis, meaning the texture data begin at the
+                // So for cube map textures we don't flip on any axis, meaning the texture data begin in the
                 // upper left corner of the input image.
 
 
                 // NOTE: Setting the same input for more than one side will cause a NPE when generating!
-                TextureImage texture = TextureGenerator.generate(is, texProfile, compress, EnumSet.noneOf(Texc.FlipAxis.class));
-                textures[i] = texture;
+                TextureGenerator.GenerateResult result = TextureGenerator.generate(is, texProfile, compress, EnumSet.noneOf(Texc.FlipAxis.class));
+                textures[i] = result.textureImage;
             }
             validate(task, textures);
 

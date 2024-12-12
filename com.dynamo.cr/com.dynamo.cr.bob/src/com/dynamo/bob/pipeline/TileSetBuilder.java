@@ -143,7 +143,8 @@ public class TileSetBuilder extends ProtoBuilder<TileSet.Builder> {
         TextureImage texture;
         try {
             boolean compress = project.option("texture-compression", "false").equals("true");
-            texture = TextureGenerator.generate(result.images.get(0), texProfile, compress);
+            TextureGenerator.GenerateResult generateResult = TextureGenerator.generate(result.images.get(0), texProfile, compress);
+            texture = generateResult.textureImage;
         } catch (TextureGeneratorException e) {
             throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
         }

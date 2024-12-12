@@ -60,10 +60,14 @@ public class TextureBuilder extends Builder {
         logger.fine("Compiling %s using profile %s", task.firstInput().getPath(), texProfile!=null?texProfile.getName():"<none>");
 
         ByteArrayInputStream is = new ByteArrayInputStream(task.firstInput().getContent());
+
+
+
         TextureImage texture;
         try {
             boolean compress = project.option("texture-compression", "false").equals("true");
-            texture = TextureGenerator.generate(is, texProfile, compress);
+            TextureGenerator.GenerateResult result = TextureGenerator.generate(is, texProfile, compress);
+            texture = result.textureImage;
         } catch (TextureGeneratorException e) {
             throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
         }

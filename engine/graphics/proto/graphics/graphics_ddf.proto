@@ -209,11 +209,12 @@ message TextureImage
         required uint32 original_height           = 4;
         required TextureFormat format             = 5;
         repeated uint32 mip_map_offset            = 6;
-        repeated uint32 mip_map_size              = 7;    // always uncompressed (native) size
-        required bytes data                       = 8;
-        optional CompressionType compression_type = 9 [default = COMPRESSION_TYPE_DEFAULT];
-        optional uint64 compression_flags         = 10;
-        repeated uint32 mip_map_size_compressed   = 11;
+        repeated uint32 mip_map_size              = 7; // always uncompressed (native) size
+        optional CompressionType compression_type = 8 [default = COMPRESSION_TYPE_DEFAULT];
+        optional uint64 compression_flags         = 9;
+        repeated uint32 mip_map_size_compressed   = 10;
+        required uint32 data_offset               = 11; // Offset into the "payload" data area, i.e after the protobuf message
+        required uint32 data_size                 = 12; // Size of the image data
     }
 
     repeated Image alternatives = 1;
