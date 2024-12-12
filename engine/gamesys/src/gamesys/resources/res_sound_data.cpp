@@ -251,6 +251,12 @@ namespace dmGameSystem
         if (next_chunk_offset == request_offset)
             next_chunk_offset += request_size;
 
+        if (next_chunk_offset >= resource->m_FileSize) // Are we wrapping around?
+        {
+            next_chunk_offset = 0;
+            request_offset = 0;
+        }
+
         SoundDataChunk* next_chunk = FindChunk(resource, next_chunk_offset);
         if (next_chunk && next_chunk->m_Offset != next_chunk_offset)
         {
@@ -269,10 +275,16 @@ namespace dmGameSystem
             // Round down to nearest chunk offset
             request_offset = uint32_t(offset / request_size) * request_size;
         }
-
         else if (next_chunk == 0)
         {
             request_offset = next_chunk_offset;
+        }
+
+        dmSound::Result result = dmSound::RESULT_PARTIAL_DATA;
+        if (offset >= resource->m_FileSize)
+        {
+            // we just read the last chunk
+            result = dmSound::RESULT_END_OF_STREAM;
         }
 
         if (next_chunk == 0 && !resource->m_RequestInFlight)
@@ -281,7 +293,7 @@ namespace dmGameSystem
             dmResource::PreloadData(resource->m_Factory, resource->m_Path, request_offset, request_size, StreamingPreloadCallback, (void*)resource);
         }
 
-        return dmSound::RESULT_PARTIAL_DATA;
+        return result;
     }
 
     dmResource::Result ResSoundDataCreate(const dmResource::ResourceCreateParams* params)
