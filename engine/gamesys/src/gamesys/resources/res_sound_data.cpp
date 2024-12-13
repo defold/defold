@@ -341,7 +341,10 @@ namespace dmGameSystem
         sound_data_res->m_Type = type;
 
         dmResource::SetResource(params->m_Resource, sound_data_res);
-        dmResource::SetResourceSize(params->m_Resource, params->m_BufferSize);
+        if (params->m_IsBufferPartial)
+            dmResource::SetResourceSize(params->m_Resource, params->m_BufferSize);
+        else
+            dmResource::SetResourceSize(params->m_Resource, dmSound::GetSoundResourceSize(sound_data));
         return dmResource::RESULT_OK;
     }
 
