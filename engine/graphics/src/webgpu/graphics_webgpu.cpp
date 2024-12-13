@@ -469,7 +469,7 @@ static void WebGPUSetTextureInternal(WebGPUTexture* texture, const TextureParams
             else
                 layout.bytesPerRow *= ceil(GetTextureFormatBitsPerPixel(params.m_Format) / 8.0f);
             extent.depthOrArrayLayers = depth;
-            wgpuQueueWriteTexture(g_WebGPUContext->m_Queue, &dest, params.m_Data, layout.bytesPerRow * layout.rowsPerImage, &layout, &extent);
+            wgpuQueueWriteTexture(g_WebGPUContext->m_Queue, &dest, params.m_Data, layout.bytesPerRow * layout.rowsPerImage * depth, &layout, &extent);
         }
     }
 
