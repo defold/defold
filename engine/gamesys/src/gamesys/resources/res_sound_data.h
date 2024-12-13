@@ -15,6 +15,7 @@
 #ifndef DM_GAMESYS_SOUND_DATA_H
 #define DM_GAMESYS_SOUND_DATA_H
 
+#include <dmsdk/dlib/array.h>
 #include <dmsdk/resource/resource.h>
 #include <dmsdk/gamesys/resources/res_sound.h>
 
@@ -25,16 +26,20 @@ namespace dmSound
 
 namespace dmGameSystem
 {
-    struct SoundDataResource {
-        dmSound::HSoundData m_SoundData;
-        int m_Type;
-    };
+    struct SoundDataContext;
+    struct SoundDataChunk;
+    struct SoundDataResource;
 
-    dmResource::Result ResSoundDataCreate(const dmResource::ResourceCreateParams* params);
+    // *********************************************************************************
+    // for internal api's
 
-    dmResource::Result ResSoundDataDestroy(const dmResource::ResourceDestroyParams* params);
+    dmSound::HSoundData ResSoundDataGetSoundData(SoundDataResource* resource);
 
-    dmResource::Result ResSoundDataRecreate(const dmResource::ResourceRecreateParams* params);
+    // set the size of in memory cache for all streaming sound datas
+    void ResSoundDataSetStreamingCacheSize(uint32_t cache_size);
+
+    // set the size of each streaming chunk size
+    void ResSoundDataSetStreamingChunkSize(uint32_t chunke_size);
 }
 
 #endif

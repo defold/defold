@@ -66,14 +66,14 @@ namespace dmLoadQueue
         return queue->m_ActiveRequest;
     }
 
-    Result EndLoad(HQueue queue, HRequest request, void** buf, uint32_t* size, LoadResult* load_result)
+    Result EndLoad(HQueue queue, HRequest request, void** buf, uint32_t* buffer_size, uint32_t* resource_size, LoadResult* load_result)
     {
         if (!queue || !request || queue->m_ActiveRequest != request)
         {
             return RESULT_INVALID_PARAM;
         }
 
-        load_result->m_LoadResult    = dmResource::LoadResource(queue->m_Factory, request->m_CanonicalPath, request->m_Name, buf, size);
+        load_result->m_LoadResult    = dmResource::LoadResource(queue->m_Factory, request->m_CanonicalPath, request->m_Name, buf, buffer_size, resource_size);
         load_result->m_PreloadResult = dmResource::RESULT_PENDING;
         load_result->m_PreloadData   = 0;
 
@@ -83,7 +83,9 @@ namespace dmLoadQueue
             params.m_Factory             = queue->m_Factory;
             params.m_Context             = request->m_PreloadInfo.m_Context;
             params.m_Buffer              = *buf;
-            params.m_BufferSize          = *size;
+            params.m_BufferSize          = *buffer_size;
+            params.m_FileSize            = *resource_size;
+            params.m_IsBufferPartial     = params.m_BufferSize != params.m_FileSize;
             params.m_HintInfo            = &request->m_PreloadInfo.m_HintInfo;
             params.m_PreloadData         = &load_result->m_PreloadData;
             load_result->m_PreloadResult = (dmResource::Result)request->m_PreloadInfo.m_CompleteFunction(&params);

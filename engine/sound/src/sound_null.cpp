@@ -27,6 +27,9 @@ namespace dmSound
 
     struct SoundData
     {
+        FSoundDataGetData   m_GetData;
+        void*               m_GetDataCtx;
+
         char* m_Buffer;
         uint32_t m_BufferSize;
 
@@ -64,7 +67,7 @@ namespace dmSound
     Result NewSoundData(const void* sound_buffer, uint32_t sound_buffer_size, SoundDataType type, HSoundData* sound_data, dmhash_t name)
     {
         HSoundData sd = new SoundData();
-        sd->m_Buffer = 0x0;
+        memset(sd, 0, sizeof(*sd));
         Result result = SetSoundData(sd, sound_buffer, sound_buffer_size);
         if (result == RESULT_OK)
             *sound_data = sd;
@@ -73,13 +76,30 @@ namespace dmSound
         return result;
     }
 
+    Result NewSoundDataStreaming(FSoundDataGetData cbk, void* cbk_ctx, SoundDataType type, HSoundData* sound_data, dmhash_t name)
+    {
+        HSoundData sd = new SoundData();
+        memset(sd, 0, sizeof(*sd));
+        sd->m_GetData = cbk;
+        sd->m_GetDataCtx = cbk_ctx;
+        return RESULT_OK;
+    }
+
     Result SetSoundData(HSoundData sound_data, const void* sound_buffer, uint32_t sound_buffer_size)
     {
+        assert(sound_data->m_GetData == 0);
         if (sound_data->m_Buffer != 0x0)
             delete [] sound_data->m_Buffer;
         sound_data->m_Buffer = new char[sound_buffer_size];
         sound_data->m_BufferSize = sound_buffer_size;
         memcpy(sound_data->m_Buffer, sound_buffer, sound_buffer_size);
+        return RESULT_OK;
+    }
+
+    Result SetSoundDataCallback(HSoundData sound_data, FSoundDataGetData cbk, void* cbk_ctx)
+    {
+        sound_data->m_GetData = cbk;
+        sound_data->m_GetDataCtx = cbk_ctx;
         return RESULT_OK;
     }
 
