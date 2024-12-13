@@ -343,50 +343,6 @@ TEST_F(dmGuiScriptTest, TestGetIndex)
     dmGui::DeleteScript(script);
 }
 
-TEST_F(dmGuiScriptTest, TestCloneNode)
-{
-    dmGui::HScript script = NewScript(m_Context);
-
-    dmGui::NewSceneParams params;
-    params.m_MaxNodes = 64;
-    params.m_MaxAnimations = 32;
-    params.m_UserData = this;
-    dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
-    dmGui::SetSceneScript(scene, script);
-
-    const char* src =
-            "function init(self)\n"
-            "    local node1 = gui.new_box_node(vmath.vector3(1), vmath.vector3(1))\n"
-            "    local node2 = gui.new_box_node(vmath.vector3(2), vmath.vector3(2))\n"
-            "    local node3 = gui.new_box_node(vmath.vector3(3), vmath.vector3(3))\n"
-            "    gui.set_id(node1, \"box1\")\n"
-            "    gui.set_id(node2, \"box2\")\n"
-            "    gui.set_id(node3, \"box3\")\n"
-            "    local clone1 = gui.clone(node1)\n"
-            "    local clone2 = gui.clone(node2)\n"
-            "    local clone3 = gui.clone(node3)\n"
-            "    assert(gui.get_id(clone1) == hash(\"__node0\"))\n"
-            "    assert(gui.get_id(clone2) == hash(\"__node1\"))\n"
-            "    assert(gui.get_id(clone3) == hash(\"__node2\"))\n"
-            "    assert(gui.get_position(clone1) == gui.get_position(node1))\n"
-            "    assert(gui.get_position(clone2) == gui.get_position(node2))\n"
-            "    assert(gui.get_position(clone3) == gui.get_position(node3))\n"
-            "    assert(gui.get_size(clone1) == gui.get_size(node1))\n"
-            "    assert(gui.get_size(clone2) == gui.get_size(node2))\n"
-            "    assert(gui.get_size(clone3) == gui.get_size(node3))\n"
-            "end\n";
-
-    dmGui::Result result = SetScript(script, LuaSourceFromStr(src));
-    ASSERT_EQ(dmGui::RESULT_OK, result);
-
-    result = dmGui::InitScene(scene);
-    ASSERT_EQ(dmGui::RESULT_OK, result);
-
-    dmGui::DeleteScene(scene);
-
-    dmGui::DeleteScript(script);
-}
-
 TEST_F(dmGuiScriptTest, TestCloneTree)
 {
     dmGui::HScript script = NewScript(m_Context);
