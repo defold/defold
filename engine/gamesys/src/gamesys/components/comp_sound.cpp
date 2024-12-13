@@ -71,12 +71,19 @@ namespace dmGameSystem
         dmIndexPool32                   m_EntryIndices;
     };
 
+    struct SoundContext
+    {
+        uint32_t m_MaxComponentCount;
+        uint32_t m_MaxSoundInstances;
+    };
+
+
     static const dmhash_t SOUND_PROP_GAIN   = dmHashString64("gain");
     static const dmhash_t SOUND_PROP_PAN    = dmHashString64("pan");
     static const dmhash_t SOUND_PROP_SPEED  = dmHashString64("speed");
     static const dmhash_t SOUND_PROP_SOUND  = dmHashString64("sound");
 
-    dmGameObject::CreateResult CompSoundNewWorld(const dmGameObject::ComponentNewWorldParams& params)
+    static dmGameObject::CreateResult CompSoundNewWorld(const dmGameObject::ComponentNewWorldParams& params)
     {
         SoundContext* sound_context = (SoundContext*)params.m_Context;
 
@@ -94,7 +101,7 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::CreateResult CompSoundDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
+    static dmGameObject::CreateResult CompSoundDeleteWorld(const dmGameObject::ComponentDeleteWorldParams& params)
     {
         SoundWorld* world = (SoundWorld*)params.m_World;
         uint32_t size = world->m_Entries.Size();
@@ -113,7 +120,7 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::CreateResult CompSoundCreate(const dmGameObject::ComponentCreateParams& params)
+    static dmGameObject::CreateResult CompSoundCreate(const dmGameObject::ComponentCreateParams& params)
     {
         SoundWorld* world = (SoundWorld*)params.m_World;
         if (world->m_Components.Full())
@@ -139,7 +146,7 @@ namespace dmGameSystem
         return &world->m_Components.Get(params.m_UserData);
     }
 
-    dmGameObject::CreateResult CompSoundDestroy(const dmGameObject::ComponentDestroyParams& params)
+    static dmGameObject::CreateResult CompSoundDestroy(const dmGameObject::ComponentDestroyParams& params)
     {
         SoundWorld* world = (SoundWorld*)params.m_World;
         uint32_t index = *params.m_UserData;
@@ -148,7 +155,7 @@ namespace dmGameSystem
         return dmGameObject::CREATE_RESULT_OK;
     }
 
-    dmGameObject::CreateResult CompSoundAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params) {
+    static dmGameObject::CreateResult CompSoundAddToUpdate(const dmGameObject::ComponentAddToUpdateParams& params) {
         // Intentional pass-through
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -200,7 +207,7 @@ namespace dmGameSystem
         return dmGameObject::UPDATE_RESULT_OK;
     }
 
-    dmGameObject::UpdateResult CompSoundUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult&)
+    static dmGameObject::UpdateResult CompSoundUpdate(const dmGameObject::ComponentsUpdateParams& params, dmGameObject::ComponentsUpdateResult&)
     {
         dmGameObject::UpdateResult update_result = dmGameObject::UPDATE_RESULT_OK;
         SoundWorld* world = (SoundWorld*)params.m_World;
@@ -410,7 +417,7 @@ namespace dmGameSystem
         return dmGameObject::PROPERTY_RESULT_OK;
     }
 
-    dmGameObject::UpdateResult CompSoundOnMessage(const dmGameObject::ComponentOnMessageParams& params)
+    static dmGameObject::UpdateResult CompSoundOnMessage(const dmGameObject::ComponentOnMessageParams& params)
     {
         SoundWorld* world = (SoundWorld*)params.m_World;
         uint32_t index = *params.m_UserData;
@@ -547,7 +554,7 @@ namespace dmGameSystem
         return dmSound::PARAMETER_MAX;
     }
 
-    dmGameObject::PropertyResult CompSoundGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)
+    static dmGameObject::PropertyResult CompSoundGetProperty(const dmGameObject::ComponentGetPropertyParams& params, dmGameObject::PropertyDesc& out_value)
     {
         SoundWorld* world = (SoundWorld*) params.m_World;
         uint32_t index = *params.m_UserData;
@@ -564,7 +571,7 @@ namespace dmGameSystem
         }
     }
 
-    dmGameObject::PropertyResult CompSoundSetProperty(const dmGameObject::ComponentSetPropertyParams& params)
+    static dmGameObject::PropertyResult CompSoundSetProperty(const dmGameObject::ComponentSetPropertyParams& params)
     {
         SoundWorld* world = (SoundWorld*) params.m_World;
         uint32_t index = *params.m_UserData;
@@ -580,4 +587,30 @@ namespace dmGameSystem
 
         return SoundSetParameter(world, params.m_Instance, component, parameter, params.m_Value.m_Number);
     }
+
+    static dmGameObject::Result CompSoundcInit(const dmGameObject::ComponentTypeCreateCtx* ctx, dmGameObject::ComponentType* type)
+    {
+        SoundContext* context = new SoundContext;
+        context->m_MaxComponentCount  = dmConfigFile::GetInt(ctx->m_Config, "sound.max_component_count", 32);
+        context->m_MaxSoundInstances  = dmConfigFile::GetInt(ctx->m_Config, "sound.max_sound_instances", 256);
+
+        ComponentTypeSetPrio(type, 600);
+        ComponentTypeSetContext(type, context);
+        ComponentTypeSetHasUserData(type, true);
+        ComponentTypeSetReadsTransforms(type, true);
+
+        ComponentTypeSetNewWorldFn(type, CompSoundNewWorld);
+        ComponentTypeSetDeleteWorldFn(type, CompSoundDeleteWorld);
+        ComponentTypeSetCreateFn(type, CompSoundCreate);
+        ComponentTypeSetDestroyFn(type, CompSoundDestroy);
+        ComponentTypeSetAddToUpdateFn(type, CompSoundAddToUpdate);
+        ComponentTypeSetUpdateFn(type, CompSoundUpdate);
+        ComponentTypeSetOnMessageFn(type, CompSoundOnMessage);
+        ComponentTypeSetGetPropertyFn(type, CompSoundGetProperty);
+        ComponentTypeSetSetPropertyFn(type, CompSoundSetProperty);
+
+        return dmGameObject::RESULT_OK;
+    }
 }
+
+DM_DECLARE_COMPONENT_TYPE(ComponentTypeSound, "soundc", dmGameSystem::CompSoundcInit, 0);
