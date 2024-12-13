@@ -61,21 +61,16 @@ public class TextureBuilder extends Builder {
 
         ByteArrayInputStream is = new ByteArrayInputStream(task.firstInput().getContent());
 
-
-
-        TextureImage texture;
+        TextureGenerator.GenerateResult generateResult;
         try {
             boolean compress = project.option("texture-compression", "false").equals("true");
-            TextureGenerator.GenerateResult result = TextureGenerator.generate(is, texProfile, compress);
-            texture = result.textureImage;
+            generateResult = TextureGenerator.generate(is, texProfile, compress);
         } catch (TextureGeneratorException e) {
             throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
         }
 
-        ByteArrayOutputStream out = new ByteArrayOutputStream(1024 * 1024);
-        texture.writeTo(out);
-        out.close();
-        task.output(0).setContent(out.toByteArray());
+        byte[] resultBytes = TextureUtil.generateResultToByteArray(generateResult);
+        task.output(0).setContent(resultBytes);
     }
 
 }
