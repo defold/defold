@@ -23,6 +23,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.lang.reflect.Array;
 import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -313,7 +314,12 @@ public class TextureUtil {
 
     public static byte[] generateResultToByteArray(TextureGenerator.GenerateResult generateResult) {
         byte[] header = generateResult.textureImage.toByteArray();
-        byte[] headerSizeInBytes = ByteBuffer.allocate(4).putInt(header.length).array();
+
+        ByteBuffer buffer = ByteBuffer.allocate(4);
+        buffer.order(ByteOrder.LITTLE_ENDIAN);
+        buffer.putInt(header.length);
+        byte[] headerSizeInBytes = buffer.array();
+
         ArrayList<byte[]> byteParts = new ArrayList<>();
         byteParts.add(headerSizeInBytes);
         byteParts.add(header);

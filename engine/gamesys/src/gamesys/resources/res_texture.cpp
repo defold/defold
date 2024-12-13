@@ -248,9 +248,8 @@ namespace dmGameSystem
             {
                 if (image_desc->m_DecompressedData[0] == 0)
                 {
-                    // TODO
-                    // params.m_Data     = &image->m_Data[image->m_MipMapOffset[0]];
-                    // params.m_DataSize = image->m_MipMapSize[0];
+                    params.m_Data     = &image_desc->m_DDFImageBytes[image->m_MipMapOffset[0]]; // &image->m_Data[image->m_MipMapOffset[0]];
+                    params.m_DataSize = image->m_MipMapSize[0];
                 }
                 else
                 {
@@ -265,8 +264,8 @@ namespace dmGameSystem
                 {
                     if (image_desc->m_DecompressedData[i] == 0)
                     {
-                        // params.m_Data     = &image->m_Data[image->m_MipMapOffset[i]];
-                        // params.m_DataSize = image->m_MipMapSize[i];
+                        params.m_Data     = &image_desc->m_DDFImageBytes[image->m_MipMapOffset[i]];
+                        params.m_DataSize = image->m_MipMapSize[i];
                     }
                     else
                     {
@@ -352,9 +351,9 @@ namespace dmGameSystem
         DM_PROFILE(__FUNCTION__);
 
         uint8_t* message_bytes = (uint8_t*) params->m_Buffer;
-        uint32_t header_size = ((uint32_t*) message_bytes)[0];
-        void* buffer = (void*) (message_bytes + sizeof(uint32_t));
-        uint8_t* image_payload = message_bytes + header_size + sizeof(uint32_t);
+        int32_t header_size    = ((int32_t*) message_bytes)[0];
+        void* buffer           = (void*) (message_bytes + sizeof(int32_t));
+        uint8_t* image_payload = message_bytes + header_size + sizeof(int32_t);
 
         dmGraphics::TextureImage* texture_image;
         dmDDF::Result e = dmDDF::LoadMessage<dmGraphics::TextureImage>(buffer, header_size, (&texture_image));
