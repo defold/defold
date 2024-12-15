@@ -613,6 +613,13 @@ namespace dmGameSystem
 
         return dmGameObject::RESULT_OK;
     }
+
+    dmGameObject::Result CompSoundcExit(const dmGameObject::ComponentTypeCreateCtx* ctx, dmGameObject::HComponentType type)
+    {
+        SoundContext* context = (SoundContext*)ComponentTypeGetContext(type);
+        delete context;
+        return dmGameObject::RESULT_OK;
+    }
 }
 
-DM_DECLARE_COMPONENT_TYPE(ComponentTypeSound, "soundc", dmGameSystem::CompSoundcInit, 0);
+DM_DECLARE_COMPONENT_TYPE(ComponentTypeSound, "soundc", dmGameSystem::CompSoundcInit, dmGameSystem::CompSoundcExit);
