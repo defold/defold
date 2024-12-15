@@ -19,7 +19,6 @@
 
 namespace dmGameSystem
 {
-    void* CompSoundGetComponent(const dmGameObject::ComponentGetParams& params);
 }
 
 #endif
