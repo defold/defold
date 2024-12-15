@@ -75,6 +75,38 @@ namespace dmGameSystem
         g_SoundDataContext->m_ChunkSize = chunk_size;
     }
 
+
+    static SoundDataChunk* AllocChunk(SoundDataContext* ctx, uint8_t* data, uint32_t data_size, uint32_t offset)
+    {
+        SoundDataChunk* chunk = new SoundDataChunk;
+        chunk->m_Size   = data_size;
+        chunk->m_Offset = offset;
+        chunk->m_Data = new uint8_t[data_size];
+        memcpy(chunk->m_Data, data, data_size);
+
+        ctx->m_CacheSizeUsed += chunk->m_Size;
+        return chunk;
+    }
+
+    static void FreeChunk(SoundDataContext* ctx, SoundDataChunk* chunk)
+    {
+        ctx->m_CacheSizeUsed -= chunk->m_Size;
+        delete chunk->m_Data;
+        delete chunk;
+    }
+
+    static void DebugChunks(SoundDataResource* resource)
+    {
+        uint32_t num_chunks = resource->m_Chunks.Size();
+        printf("NUM CHUNKS: %u\n", num_chunks);
+        for (uint32_t i = 0; i < num_chunks; ++i)
+        {
+            SoundDataChunk* chunk = resource->m_Chunks[i];
+            assert(chunk != 0);
+            printf("  chunk %u: offset: %u  size: %u\n", i, chunk->m_Offset, chunk->m_Size);
+        }
+    }
+
     static dmSound::SoundDataType TryToGetTypeFromBuffer(char* buffer, dmSound::SoundDataType default_type, uint32_t bufferSize)
     {
         dmSound::SoundDataType type = default_type;
@@ -105,38 +137,17 @@ namespace dmGameSystem
         dmSound::SetSoundDataCallback(resource->m_SoundData, 0, 0);
         dmSound::Result r = dmSound::DeleteSoundData(resource->m_SoundData);
 
+        uint32_t num_chunks = resource->m_Chunks.Size();
+        for (uint32_t i = 0; i < num_chunks; ++i)
+        {
+            SoundDataChunk* chunk = resource->m_Chunks[i];
+            FreeChunk(resource->m_Context, chunk);
+        }
+
         free((void*)resource->m_Path);
         delete resource;
 
         return dmSound::RESULT_OK == r ? dmResource::RESULT_OK : dmResource::RESULT_INVAL;
-    }
-
-    static SoundDataChunk* AllocChunk(uint8_t* data, uint32_t data_size, uint32_t offset)
-    {
-        SoundDataChunk* chunk = new SoundDataChunk;
-        chunk->m_Size   = data_size;
-        chunk->m_Offset = offset;
-        chunk->m_Data = new uint8_t[data_size];
-        memcpy(chunk->m_Data, data, data_size);
-        return chunk;
-    }
-
-    static void FreeChunk(SoundDataChunk* chunk)
-    {
-        delete chunk->m_Data;
-        delete chunk;
-    }
-
-    static void DebugChunks(SoundDataResource* resource)
-    {
-        uint32_t num_chunks = resource->m_Chunks.Size();
-        printf("NUM CHUNKS: %u\n", num_chunks);
-        for (uint32_t i = 0; i < num_chunks; ++i)
-        {
-            SoundDataChunk* chunk = resource->m_Chunks[i];
-            assert(chunk != 0);
-            printf("  chunk %u: offset: %u  size: %u\n", i, chunk->m_Offset, chunk->m_Size);
-        }
     }
 
     static void InsertChunk(SoundDataResource* resource, SoundDataChunk* chunk)
@@ -178,7 +189,7 @@ namespace dmGameSystem
 
         //printf("%s: offset: %u  size: %u  %s\n", __FUNCTION__, offset, nread, resource->m_Path);
 
-        SoundDataChunk* chunk = AllocChunk(buffer, nread, offset);
+        SoundDataChunk* chunk = AllocChunk(resource->m_Context, buffer, nread, offset);
         InsertChunk(resource, chunk);
         //DebugChunks(resource);
         resource->m_RequestInFlight = 0;
@@ -320,7 +331,7 @@ namespace dmGameSystem
         dmSound::Result r;
         if (params->m_IsBufferPartial)
         {
-            SoundDataChunk* chunk = AllocChunk((uint8_t*)params->m_Buffer, params->m_BufferSize, 0);
+            SoundDataChunk* chunk = AllocChunk(sound_data_res->m_Context, (uint8_t*)params->m_Buffer, params->m_BufferSize, 0);
             InsertChunk(sound_data_res, chunk);
             //DebugChunks(sound_data_res);
 
