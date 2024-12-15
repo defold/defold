@@ -109,6 +109,14 @@ namespace dmRender
                 attribute->m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE;
             }
         }
+        else if (name_hash == VERTEX_STREAM_ANIMATION_DATA)
+        {
+            // attribute->m_SemanticType = dmGraphics::VertexAttribute::SEMANTIC_TYPE_ANIMATION_DATA;
+            if (instancing_supported)
+            {
+                attribute->m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE;
+            }
+        }
     }
 
     static void CreateVertexDeclarations(dmGraphics::HContext graphics_context, Material* m)
@@ -224,7 +232,7 @@ namespace dmRender
 
             num_attribute_byte_size += dmGraphics::GetTypeSize(base_type) * element_count;
 
-        #if 0 // Debugging
+        #if 1 // Debugging
             dmLogInfo("Vertex Attribute: %s", dmHashReverseSafe64(name_hash));
             dmLogInfo("type: %d, ele_count: %d, num_vals: %d, loc: %d, valueIndex: %d",
                 (int) type, element_count, num_values, location, material_attribute.m_ValueIndex);

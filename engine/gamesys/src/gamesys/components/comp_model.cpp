@@ -68,6 +68,12 @@ namespace dmGameSystem
         dmVMath::Matrix4 m_NormalTransform;
     };
 
+    struct ModelSkinnedInstanceData
+    {
+        ModelInstanceData m_InstanceData;
+        dmVMath::Vector4  m_AnimationData;
+    };
+
     struct MeshAttributeRenderData
     {
         dmGraphics::HVertexBuffer      m_VertexBuffer;
@@ -126,6 +132,7 @@ namespace dmGameSystem
         dmGraphics::HVertexDeclaration   m_VertexDeclaration;
         dmGraphics::HVertexDeclaration   m_VertexDeclarationSkinned;
         dmGraphics::HVertexDeclaration   m_InstanceVertexDeclaration;
+        dmGraphics::HVertexDeclaration   m_InstanceVertexDeclarationSkinned;
         dmArray<uint8_t>                 m_InstanceBufferDataLocalSpace;
         dmRender::HBufferedRenderBuffer  m_InstanceBufferLocalSpace;
         dmRender::HBufferedRenderBuffer* m_VertexBuffers;
@@ -154,6 +161,9 @@ namespace dmGameSystem
     static const dmhash_t PROP_ANIMATION     = dmHashString64("animation");
     static const dmhash_t PROP_CURSOR        = dmHashString64("cursor");
     static const dmhash_t PROP_PLAYBACK_RATE = dmHashString64("playback_rate");
+
+    const dmhash_t DM_POSE_MATRIX_CACHE_HASH = dmHashString64("dm_pose_matrix_cache");
+    const dmhash_t DM_ANIMATION_DATA_HASH    = dmHashString64("dm_animation_data");
 
     static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams* params);
     static void DestroyComponent(ModelWorld* world, uint32_t index);
@@ -197,6 +207,9 @@ namespace dmGameSystem
         dmGraphics::AddVertexStream(stream_declaration_instance, "mtx_world",  16, dmGraphics::TYPE_FLOAT, false);
         dmGraphics::AddVertexStream(stream_declaration_instance, "mtx_normal", 16, dmGraphics::TYPE_FLOAT, false);
         world->m_InstanceVertexDeclaration = dmGraphics::NewVertexDeclaration(graphics_context, stream_declaration_instance);
+
+        dmGraphics::AddVertexStream(stream_declaration_instance, "animation_data", 4, dmGraphics::TYPE_FLOAT, false);
+        world->m_InstanceVertexDeclarationSkinned = dmGraphics::NewVertexDeclaration(graphics_context, stream_declaration_instance);
 
         world->m_MaxBatchIndex             = 0;
         world->m_MaxElementsVertices       = dmGraphics::GetMaxElementsVertices(graphics_context);
@@ -376,6 +389,10 @@ namespace dmGameSystem
                     return name_hash == dmRender::VERTEX_STREAM_NORMAL_MATRIX;
                 default:break;
             }
+
+            return name_hash == dmRender::VERTEX_STREAM_BONE_WEIGHTS ||
+                   name_hash == dmRender::VERTEX_STREAM_BONE_INDICES ||
+                   name_hash == dmRender::VERTEX_STREAM_ANIMATION_DATA;
         }
         return false;
     }
@@ -1009,6 +1026,16 @@ namespace dmGameSystem
     }
     #endif
 
+    static inline dmGraphics::HVertexDeclaration GetBaseVertexDeclaration(ModelWorld* world, dmRender::HMaterial material, bool has_skin_data)
+    {
+        return has_skin_data && dmRender::GetMaterialHasSkinnedAttributes(material) ? world->m_VertexDeclarationSkinned : world->m_VertexDeclaration;
+    }
+
+    static inline dmGraphics::HVertexDeclaration GetBaseInstanceDeclaration(ModelWorld* world, dmRender::HMaterial material, bool has_skin_data)
+    {
+        return has_skin_data && dmRender::GetMaterialHasSkinnedAttributes(material) ? world->m_InstanceVertexDeclarationSkinned : world->m_InstanceVertexDeclaration;
+    }
+
     static void RenderBatchLocalVSInstanced(ModelWorld* world, dmRender::HRenderContext render_context,
         dmRender::HMaterial render_context_material, uint32_t material_index,
         ModelComponent* component, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end, dmGraphics::HVertexDeclaration inst_decl)
@@ -1026,9 +1053,17 @@ namespace dmGameSystem
         }
 
         uint32_t required_instance_buffer_memory = instance_count * instance_stride;
-        if (!render_context_material_custom_attributes && render_item->m_AttributeRenderDataIndex == ATTRIBUTE_RENDER_DATA_INDEX_UNUSED)
+
+        if (!render_context_material_custom_attributes)
         {
-            required_instance_buffer_memory = instance_count * sizeof(ModelInstanceData);
+            if (component->m_RigInstance && render_item->m_Buffers->m_RigModelVertexFormat == RIG_MODEL_VERTEX_FORMAT_SKINNED)
+            {
+                required_instance_buffer_memory = instance_count * sizeof(ModelSkinnedInstanceData);
+            }
+            else if (render_item->m_AttributeRenderDataIndex == ATTRIBUTE_RENDER_DATA_INDEX_UNUSED)
+            {
+                required_instance_buffer_memory = instance_count * sizeof(ModelInstanceData);
+            }
         }
 
         if (world->m_InstanceBufferDataLocalSpace.Remaining() < required_instance_buffer_memory)
@@ -1036,15 +1071,10 @@ namespace dmGameSystem
             world->m_InstanceBufferDataLocalSpace.OffsetCapacity(required_instance_buffer_memory - world->m_InstanceBufferDataLocalSpace.Remaining());
         }
 
-        dmGraphics::HVertexDeclaration vx_decl_base = 0;
-        if (render_item->m_Buffers->m_RigModelVertexFormat == RIG_MODEL_VERTEX_FORMAT_STATIC)
-        {
-            vx_decl_base = world->m_VertexDeclaration;
-        }
-        else if (render_item->m_Buffers->m_RigModelVertexFormat == RIG_MODEL_VERTEX_FORMAT_SKINNED)
-        {
-            vx_decl_base = world->m_VertexDeclarationSkinned;
-        }
+        bool has_skin_data = render_item->m_Buffers->m_RigModelVertexFormat == RIG_MODEL_VERTEX_FORMAT_SKINNED;
+
+        dmGraphics::HVertexDeclaration vx_decl_base = GetBaseVertexDeclaration(world, render_material, has_skin_data);
+        dmGraphics::HVertexDeclaration inst_decl_base = GetBaseInstanceDeclaration(world, render_material, has_skin_data);
 
         uint8_t* instance_write_ptr = world->m_InstanceBufferDataLocalSpace.End();
 
@@ -1062,12 +1092,14 @@ namespace dmGameSystem
         ro.m_VertexDeclarations[VX_DECL_BASE_BUFFER]      = vx_decl_base;
         ro.m_VertexBuffers[VX_DECL_BASE_BUFFER]           = render_item->m_Buffers->m_VertexBuffer;
         ro.m_WorldTransform                               = render_item->m_World;
-        ro.m_VertexDeclarations[VX_DECL_INSTANCE_BUFFER]  = world->m_InstanceVertexDeclaration;
+        ro.m_VertexDeclarations[VX_DECL_INSTANCE_BUFFER]  = inst_decl_base;
         ro.m_VertexBuffers[VX_DECL_INSTANCE_BUFFER]       = (dmGraphics::HVertexBuffer) dmRender::GetBuffer(render_context, world->m_InstanceBufferLocalSpace);
         ro.m_VertexBufferOffsets[VX_DECL_INSTANCE_BUFFER] = world->m_InstanceBufferDataLocalSpace.Size();
 
         dmGraphics::VertexAttributeInfos material_infos;
         dmGraphics::VertexAttributeInfos attribute_infos;
+
+        uint32_t first_free_index = FillTextures(&ro, component, material_index);
 
         for (uint32_t *i=begin;i!=end;i++)
         {
@@ -1151,6 +1183,26 @@ namespace dmGameSystem
 
                 instance_write_ptr = dmGraphics::WriteAttributes(instance_write_ptr, 0, params);
             }
+            else if (component->m_RigInstance && render_item->m_Buffers->m_RigModelVertexFormat == RIG_MODEL_VERTEX_FORMAT_SKINNED)
+            {
+                assert(dmGraphics::GetVertexDeclarationStride(world->m_InstanceVertexDeclarationSkinned) == sizeof(ModelSkinnedInstanceData));
+                ModelSkinnedInstanceData* instance_data         = (ModelSkinnedInstanceData*) instance_write_ptr;
+                instance_data->m_InstanceData.m_WorldTransform  = instance_render_item->m_World;
+                instance_data->m_InstanceData.m_NormalTransform = dmRender::GetNormalMatrix(render_context, instance_data->m_InstanceData.m_WorldTransform);
+
+                instance_data->m_AnimationData.setX((float) component->m_BindPoseCacheAnimationIndex); // Animation start
+                instance_data->m_AnimationData.setY((float) GetBoneCount(component->m_RigInstance)); // Bone count
+                instance_data->m_AnimationData.setZ(dmGraphics::GetTextureWidth(world->m_BindPoseCacheTexture)); // Inv cache W
+                instance_data->m_AnimationData.setW(dmGraphics::GetTextureHeight(world->m_BindPoseCacheTexture)); // Inv cache H
+
+                dmRender::SetMaterialSampler(ro.m_Material, DM_POSE_MATRIX_CACHE_HASH, first_free_index,
+                dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE,
+                dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, 0.0f);
+
+                ro.m_Textures[first_free_index] = world->m_BindPoseCacheTexture;
+
+                instance_write_ptr += sizeof(ModelSkinnedInstanceData);
+            }
             else
             {
                 // The material is using a standard vertex declaration and not custom vertex attributes,
@@ -1162,8 +1214,6 @@ namespace dmGameSystem
                 instance_write_ptr              += sizeof(ModelInstanceData);
             }
         }
-
-        FillTextures(&ro, component, material_index);
 
         if (component->m_RenderConstants)
         {
@@ -1181,11 +1231,6 @@ namespace dmGameSystem
             render_item->m_Buffers->m_LastUsedFrame = world->m_CurrentFrameTick;
         }
         world->m_StatisticsVertexCount += ro.m_VertexCount;
-    }
-
-    static inline dmGraphics::HVertexDeclaration GetBaseVertexDeclaration(ModelWorld* world, dmRender::HMaterial material, bool has_skin_data)
-    {
-        return has_skin_data && dmRender::GetMaterialHasSkinnedAttributes(material) ? world->m_VertexDeclarationSkinned : world->m_VertexDeclaration;
     }
 
     static void RenderBatchLocalVSUninstanced(ModelWorld* world, dmRender::HRenderContext render_context,
@@ -1264,9 +1309,6 @@ namespace dmGameSystem
 
             if (component->m_RigInstance && render_item->m_Buffers->m_RigModelVertexFormat == RIG_MODEL_VERTEX_FORMAT_SKINNED)
             {
-                const dmhash_t DM_POSE_MATRIX_CACHE_HASH = dmHashString64("dm_pose_matrix_cache");
-                const dmhash_t DM_ANIMATION_DATA_HASH = dmHashString64("dm_animation_data");
-
                 dmRender::SetMaterialSampler(ro.m_Material, DM_POSE_MATRIX_CACHE_HASH, first_free_index,
                     dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE,
                     dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, 0.0f);

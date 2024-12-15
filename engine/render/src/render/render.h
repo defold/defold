@@ -32,17 +32,18 @@ namespace dmRender
 
     static const uint32_t MAX_MATERIAL_TAG_COUNT = 32; // Max tag count per material
 
-    static const dmhash_t VERTEX_STREAM_POSITION      = dmHashString64("position");
-    static const dmhash_t VERTEX_STREAM_NORMAL        = dmHashString64("normal");
-    static const dmhash_t VERTEX_STREAM_TANGENT       = dmHashString64("tangent");
-    static const dmhash_t VERTEX_STREAM_COLOR         = dmHashString64("color");
-    static const dmhash_t VERTEX_STREAM_TEXCOORD0     = dmHashString64("texcoord0");
-    static const dmhash_t VERTEX_STREAM_TEXCOORD1     = dmHashString64("texcoord1");
-    static const dmhash_t VERTEX_STREAM_PAGE_INDEX    = dmHashString64("page_index");
-    static const dmhash_t VERTEX_STREAM_WORLD_MATRIX  = dmHashString64("mtx_world");
-    static const dmhash_t VERTEX_STREAM_NORMAL_MATRIX = dmHashString64("mtx_normal");
-    static const dmhash_t VERTEX_STREAM_BONE_WEIGHTS  = dmHashString64("bone_weights");
-    static const dmhash_t VERTEX_STREAM_BONE_INDICES  = dmHashString64("bone_indices");
+    static const dmhash_t VERTEX_STREAM_POSITION        = dmHashString64("position");
+    static const dmhash_t VERTEX_STREAM_NORMAL          = dmHashString64("normal");
+    static const dmhash_t VERTEX_STREAM_TANGENT         = dmHashString64("tangent");
+    static const dmhash_t VERTEX_STREAM_COLOR           = dmHashString64("color");
+    static const dmhash_t VERTEX_STREAM_TEXCOORD0       = dmHashString64("texcoord0");
+    static const dmhash_t VERTEX_STREAM_TEXCOORD1       = dmHashString64("texcoord1");
+    static const dmhash_t VERTEX_STREAM_PAGE_INDEX      = dmHashString64("page_index");
+    static const dmhash_t VERTEX_STREAM_WORLD_MATRIX    = dmHashString64("mtx_world");
+    static const dmhash_t VERTEX_STREAM_NORMAL_MATRIX   = dmHashString64("mtx_normal");
+    static const dmhash_t VERTEX_STREAM_BONE_WEIGHTS    = dmHashString64("bone_weights");
+    static const dmhash_t VERTEX_STREAM_BONE_INDICES    = dmHashString64("bone_indices");
+    static const dmhash_t VERTEX_STREAM_ANIMATION_DATA  = dmHashString64("animation_data");
 
     typedef struct RenderTargetSetup*       HRenderTargetSetup;
     typedef uint64_t                        HRenderType;
