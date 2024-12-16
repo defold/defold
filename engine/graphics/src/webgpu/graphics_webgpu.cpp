@@ -374,13 +374,13 @@ static void WebGPURealizeTexture(WebGPUTexture* texture, TextureFormat format, W
         desc.format                = texture->m_Format;
         desc.mipLevelCount         = texture->m_MipMapCount;
 
-        if (IsTextureFormatCompressed(format))
-        {
-            uint32_t block_w, block_h;
-            WebGPUGetCompressedBlockDimensions(format, &block_w, &block_h);
-            desc.size.width  = (uint32_t)((texture->m_Width  + block_w - 1) / block_w) * block_w;
-            desc.size.height = (uint32_t)((texture->m_Height + block_h - 1) / block_h) * block_h;
-        }
+        // if (IsTextureFormatCompressed(format))
+        // {
+        //     uint32_t block_w, block_h;
+        //     WebGPUGetCompressedBlockDimensions(format, &block_w, &block_h);
+        //     desc.size.width  = (uint32_t)((texture->m_Width  + block_w - 1) / block_w) * block_w;
+        //     desc.size.height = (uint32_t)((texture->m_Height + block_h - 1) / block_h) * block_h;
+        // }
 
         texture->m_Texture = wgpuDeviceCreateTexture(g_WebGPUContext->m_Device, &desc);
     }
@@ -477,8 +477,8 @@ static void WebGPUSetTextureInternal(WebGPUTexture* texture, const TextureParams
             {
                 uint32_t block_w, block_h;
                 WebGPUGetCompressedBlockDimensions(params.m_Format, &block_w, &block_h);
-                extent.width       = (extent.width + block_w - 1) / block_w * block_w;
-                extent.height      = (extent.height + block_h - 1) / block_h * block_h;
+                // extent.width       = (extent.width + block_w - 1) / block_w * block_w;
+                // extent.height      = (extent.height + block_h - 1) / block_h * block_h;
                 layout.bytesPerRow = ((layout.bytesPerRow + block_w - 1) / block_w) * WebGPUCompressedBlockByteSize(params.m_Format);
             }
             else

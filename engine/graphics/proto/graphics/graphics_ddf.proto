@@ -214,6 +214,7 @@ message TextureImage
         optional CompressionType compression_type = 9 [default = COMPRESSION_TYPE_DEFAULT];
         optional uint64 compression_flags         = 10;
         repeated uint32 mip_map_size_compressed   = 11;
+        repeated uint32 mip_map_dimensions        = 12; // w0, h0, w1, h1, ...
     }
 
     repeated Image alternatives = 1;

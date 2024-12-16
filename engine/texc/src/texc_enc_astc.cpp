@@ -104,16 +104,22 @@ namespace dmTexc
         int aligned_width = ((settings->m_Width + block_x - 1) / block_x) * block_x;
         int aligned_height = ((settings->m_Height + block_y - 1) / block_y) * block_y;
 
-        uint8_t* padded_data = (unsigned char*) malloc(aligned_width * aligned_height * 4);
-        memset(padded_data, 0, aligned_width * aligned_height * 4);
+        uint8_t* padded_data = settings->m_Data;
+        bool create_padded_data = aligned_width != settings->m_Width || aligned_height != settings->m_Height;
 
-        // Copy the input image to create a pagged ASTC output
-        for (int y = 0; y < settings->m_Height; ++y) {
-            memcpy(
-                &padded_data[y * aligned_width * 4],
-                &settings->m_Data[y * settings->m_Width * 4],
-                settings->m_Width * 4
-            );
+        if (create_padded_data)
+        {
+            padded_data = (unsigned char*) malloc(aligned_width * aligned_height * 4);
+            memset(padded_data, 0, aligned_width * aligned_height * 4);
+
+            // Copy the input image to create a pagged ASTC output
+            for (int y = 0; y < settings->m_Height; ++y) {
+                memcpy(
+                    &padded_data[y * aligned_width * 4],
+                    &settings->m_Data[y * settings->m_Width * 4],
+                    settings->m_Width * 4
+                );
+            }
         }
 
         // Compress the image
@@ -129,7 +135,12 @@ namespace dmTexc
         uint8_t* comp_data = new uint8_t[comp_len];
 
         status = astcenc_compress_image(context, &image, &swizzle, comp_data, comp_len, 0);
-        free(padded_data);
+
+        if (create_padded_data)
+        {
+            free(padded_data);
+        }
+
         if (status != ASTCENC_SUCCESS)
         {
             dmLogError("ERROR: Codec compress failed: %s", astcenc_get_error_string(status));
