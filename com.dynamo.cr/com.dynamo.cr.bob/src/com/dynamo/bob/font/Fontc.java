@@ -32,6 +32,7 @@ import java.awt.font.GlyphVector;
 import java.awt.geom.AffineTransform;
 import java.awt.geom.FlatteningPathIterator;
 import java.awt.geom.PathIterator;
+import java.awt.geom.Rectangle2D;
 import java.awt.image.BufferedImage;
 import java.awt.image.ColorModel;
 import java.awt.image.ConvolveOp;
@@ -60,7 +61,8 @@ import javax.imageio.ImageIO;
 import org.apache.commons.io.FilenameUtils;
 import com.sun.jna.Pointer;
 
-import com.dynamo.bob.TexcLibrary;
+import com.dynamo.bob.pipeline.Texc;
+import com.dynamo.bob.pipeline.TexcLibraryJni;
 
 import com.dynamo.bob.pipeline.BuilderUtil;
 import com.dynamo.bob.pipeline.TextureGeneratorException;
@@ -315,17 +317,21 @@ public class Fontc {
             }
         }
 
-        BufferedImage image = new BufferedImage(1024, 1024, BufferedImage.TYPE_3BYTE_BGR);
+        BufferedImage image = new BufferedImage(256, 256, BufferedImage.TYPE_3BYTE_BGR);
         Graphics2D g        = image.createGraphics();
         g.setBackground(Color.BLACK);
         g.clearRect(0, 0, image.getWidth(), image.getHeight());
         setHighQuality(g);
 
         FontMetrics fontMetrics = g.getFontMetrics(font);
-        int maxAscent           = fontMetrics.getMaxAscent();
-        int maxDescent          = fontMetrics.getMaxDescent();
-        glyphBankBuilder.setMaxAscent(maxAscent)
-                      .setMaxDescent(maxDescent);
+
+        Rectangle2D rect = fontMetrics.getMaxCharBounds(g);
+
+        glyphBankBuilder.setMaxAscent(fontMetrics.getMaxAscent())
+                        .setMaxDescent(fontMetrics.getMaxDescent())
+                        .setMaxAdvance(fontMetrics.getMaxAdvance())
+                        .setMaxWidth((float)rect.getWidth())
+                        .setMaxHeight((float)rect.getHeight());
     }
 
 
@@ -391,9 +397,10 @@ public class Fontc {
         return sdfLimitValue * (1.0f - sdf_edge) + sdf_edge;
     }
 
-    private ByteBuffer toByteArray(BufferedImage image, int width, int height, int bpp, int targetBpp) throws IOException {
+    private byte[] toByteArray(BufferedImage image, int width, int height, int bpp, int targetBpp) throws IOException {
         int dataSize = width * height * bpp;
-        ByteBuffer buffer = ByteBuffer.allocateDirect(dataSize);
+        byte[] tmp = new byte[dataSize];
+        int cursor = 0;
 
         int[] rasterData = new int[width * height * 4];
         image.getRaster().getPixels(0, 0, width, height, rasterData);
@@ -413,17 +420,18 @@ public class Fontc {
                 if (bpp > 3)
                     alpha = rasterData[i + 3];
 
-                buffer.put((byte)(red & 0xFF));
+                tmp[cursor++] = (byte)(red & 0xFF);
                 if (targetBpp > 1)
-                    buffer.put((byte)(green & 0xFF));
+                    tmp[cursor++] = (byte)(green & 0xFF);
                 if (targetBpp > 2)
-                    buffer.put((byte)(blue & 0xFF));
+                    tmp[cursor++] = (byte)(blue & 0xFF);
                 if (targetBpp > 3)
-                    buffer.put((byte)(alpha & 0xFF));
+                    tmp[cursor++] = (byte)(alpha & 0xFF);
             }
         }
-        buffer.flip(); // limit is set to current position, and position is set to zero
-        return buffer;
+        byte[] out = new byte[cursor];
+        System.arraycopy(tmp, 0, out, 0, cursor);
+        return out;
     }
 
     private int getPadding() {
@@ -567,6 +575,11 @@ public class Fontc {
             cell_max_descent = Math.max(cell_max_descent, descent);
         }
 
+        // Make sure it fits future glyphs (provided at runtime)
+        cell_max_ascent  = (int)Math.ceil(Math.max(cell_max_ascent, glyphBankBuilder.getMaxAscent()));
+        cell_max_descent = (int)Math.ceil(Math.max(cell_max_descent, glyphBankBuilder.getMaxDescent()));
+        cell_width = (int)Math.ceil(Math.max(cell_width, glyphBankBuilder.getMaxWidth()));
+
         cell_height       = cell_max_ascent + cell_max_descent + padding * 2 + cell_padding * 2;
         cell_max_ascent  += padding;
 
@@ -673,51 +686,30 @@ public class Fontc {
                     paddedGlyphImage.setRGB(x, py, clearData);
                 }
 
-                Pointer compressedTexture = null;
                 try {
                     int width = paddedGlyphImage.getWidth();
                     int height = paddedGlyphImage.getHeight();
 
-                    ByteBuffer paddedBuffer = toByteArray(paddedGlyphImage, width, height, 4, channelCount);
+                    byte[] uncompressedBytes = toByteArray(paddedGlyphImage, width, height, 4, channelCount);
 
-                    compressedTexture = TexcLibrary.TEXC_CompressBuffer(paddedBuffer, paddedBuffer.limit());
-                    int texcBufferSize = TexcLibrary.TEXC_GetTotalBufferDataSize(compressedTexture);
-                    ByteBuffer compressedBuffer = ByteBuffer.allocateDirect(texcBufferSize);
-                    TexcLibrary.TEXC_GetBufferData(compressedTexture, compressedBuffer, texcBufferSize);
+                    Texc.Buffer compressedBuffer = TexcLibraryJni.CompressBuffer(uncompressedBytes);
+                    byte[] compressedBytes = compressedBuffer.data;
 
-                    byte[] uncompressedBytes = new byte[paddedBuffer.limit()];
-                    paddedBuffer.get(uncompressedBytes);
-
-                    byte[] compressedBytes = new byte[compressedBuffer.limit()];
-                    compressedBuffer.get(compressedBytes);
-
-                    // If the uncompressed size is smaller we write uncompressed
-                    // bytes instead
+                    // If the uncompressed size is smaller we write uncompressed bytes instead
                     // Note that when writing the uncompressed bytes we need to
                     // also write the initial byte/flag telling the consumer if
                     // the glyph is compressed or not.
-                    // - In the case of an uncompressed glyph we write a 0.
-                    // - In the case of a compressed glyph this information is
-                    // included in the compressedBytes array so we don't need to
-                    // bother with specifically writing the compressed flag.
-                    if (uncompressedBytes.length <= compressedBytes.length) {
-                        glyph.cache_entry_offset = dataOffset;
-                        glyph.cache_entry_size = 1 + uncompressedBytes.length;
-                        dataOffset += glyph.cache_entry_size;
-                        glyphDataBank.write(0); // uncompressed
-                        glyphDataBank.write(uncompressedBytes);
-                    }
-                    else {
-                        glyph.cache_entry_offset = dataOffset;
-                        glyph.cache_entry_size = compressedBytes.length;
-                        dataOffset += glyph.cache_entry_size;
-                        glyphDataBank.write(compressedBytes);
-                    }
+                    boolean useCompressed = compressedBuffer.isCompressed && compressedBytes.length < uncompressedBytes.length;
+                    byte[] bytes = useCompressed ? compressedBytes : uncompressedBytes;
 
+                    glyphDataBank.write(useCompressed ? 1 : 0); // the "header"
+                    glyphDataBank.write(bytes);
+
+                    glyph.cache_entry_offset = dataOffset;
+                    glyph.cache_entry_size = 1 + bytes.length;
+                    dataOffset += glyph.cache_entry_size;
                 } catch(IOException e) {
                     throw new TextureGeneratorException(String.format("Failed to generate font texture: %s", e.getMessage()));
-                } finally {
-                    TexcLibrary.TEXC_DestroyBuffer(compressedTexture);
                 }
             }
         }
@@ -1119,12 +1111,20 @@ public class Fontc {
             FontMap.Builder fontMapBuilder = FontMap.newBuilder();
             fontMapBuilder.setMaterial(BuilderUtil.replaceExt(fontDesc.getMaterial(), ".material", ".materialc"));
             fontMapBuilder.setGlyphBank(glyphBankProjectStr);
+
+            fontMapBuilder.setSize(fontDesc.getSize());
+            fontMapBuilder.setAntialias(fontDesc.getAntialias());
             fontMapBuilder.setShadowX(fontDesc.getShadowX());
             fontMapBuilder.setShadowY(fontDesc.getShadowY());
+            fontMapBuilder.setShadowBlur(fontDesc.getShadowBlur());
+            fontMapBuilder.setShadowAlpha(fontDesc.getShadowAlpha());
             fontMapBuilder.setAlpha(fontDesc.getAlpha());
             fontMapBuilder.setOutlineAlpha(fontDesc.getOutlineAlpha());
-            fontMapBuilder.setShadowAlpha(fontDesc.getShadowAlpha());
+            fontMapBuilder.setOutlineWidth(fontDesc.getOutlineWidth());
             fontMapBuilder.setLayerMask(GetFontMapLayerMask(fontDesc));
+
+            fontMapBuilder.setOutputFormat(fontDesc.getOutputFormat());
+            fontMapBuilder.setRenderMode(fontDesc.getRenderMode());
 
             fontMapBuilder.build().writeTo(fontMapOutputStream);
 

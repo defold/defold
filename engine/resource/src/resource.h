@@ -256,15 +256,6 @@ namespace dmResource
     Result GetExtensionFromType(HFactory factory, HResourceType type, const char** extension);
 
     /**
-     * Get resource descriptor from resource (name)
-     * @param factory Factory handle
-     * @param name Resource name
-     * @param descriptor Returned resource descriptor
-     * @return RESULT_OK on success
-     */
-    Result GetDescriptor(HFactory factory, const char* name, HResourceDescriptor* descriptor);
-
-    /**
      * Get resource descriptor from resource (hash) with supplied extensions
      * @param factory Factory handle
      * @param hashed_name Resource name hash
@@ -420,7 +411,15 @@ namespace dmResource
     // load with default internal buffer and its management, returns buffer ptr in 'buffer'
     Result LoadResource(HFactory factory, const char* path, const char* original_name, void** buffer, uint32_t* resource_size);
     // load with own buffer
-    Result LoadResourceFromBuffer(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size, LoadBufferType* buffer);
+    Result LoadResourceToBuffer(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size, LoadBufferType* buffer);
+
+    // *****************************************************************************
+    // Streaming api
+
+    // In the callback, use ResourceDescriptorGetData to retrieve the data
+    typedef int (*FPreloadDataCallback)(HFactory factory, void* cbk_ctx, HResourceDescriptor resource, uint32_t nread, uint8_t* buffer);
+
+    Result PreloadData(HFactory factory, const char* path, uint32_t offset, uint32_t size, FPreloadDataCallback cbk, void* cbk_ctx);
 }
 
 #endif // DM_RESOURCE_H

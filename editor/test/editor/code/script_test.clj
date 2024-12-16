@@ -245,7 +245,16 @@
     ["             "]
 
     ["go.property('name', hash())"]
-    ["                           "]
+    ["                    hash() "]
+
+    ["go.property('name',hash())"]
+    ["                   hash() "]
+
+    ["go.property('name', hash(\"value\"))"]
+    ["                    hash(\"value\") "]
+
+    ["go.property('name',hash(\"value\"))"]
+    ["                   hash(\"value\") "]
 
     ["go.property('name', resource.texture('/image.png'))"]
     ["                                                   "]

@@ -204,14 +204,17 @@
     {"tile_set" :deprecated}} ; Replaced with 'textures'; Migration tested in integration.save-data-test/silent-migrations-test.
 
    'dmGraphics.VertexAttribute
-   {[["particlefx" "emitters" "[*]" "attributes"]
+   {:default
+    {"element_count" :deprecated} ; Migration tested in integration.save-data-test/silent-migrations-test.
+
+    [["particlefx" "emitters" "[*]" "attributes"]
      ["sprite" "attributes"]
      ["model" "materials" "attributes"]]
     {"coordinate_space" :unused
      "data_type" :unused
-     "element_count" :unused
      "normalize" :unused
-     "semantic_type" :unused}}
+     "semantic_type" :unused
+     "step_function" :unused}}
 
    ['dmGraphics.VertexAttribute "[TYPE_FLOAT]"]
    {:default
@@ -489,7 +492,7 @@
 
    'dmRenderDDF.RenderPrototypeDesc
    {:default
-    {"materials" :deprecated}}
+    {"materials" :deprecated}} ; Migration tested in integration.save-data-test/silent-migrations-test.
 
    'dmRenderDDF.RenderTargetDesc.DepthStencilAttachment
    {:default
@@ -670,7 +673,23 @@
                  :name "normal"
                  :wrap-u :wrap-mode-clamp-to-edge
                  :wrap-v :wrap-mode-clamp-to-edge}]
-               (g/node-value legacy-textures-material :samplers)))))
+               (g/node-value legacy-textures-material :samplers))))
+      (let [legacy-element-count-material (project/get-resource-node project "/silently_migrated/legacy_vertex_attribute_element_count.material")
+            legacy-attributes (g/node-value legacy-element-count-material :attributes)
+            vector-types-by-attribute-name (into (sorted-map)
+                                                 (map (fn [attribute]
+                                                        (pair (:name attribute)
+                                                              (select-keys attribute [:vector-type :values]))))
+                                                 legacy-attributes)]
+        (is (= {"legacy_count_1" {:vector-type :vector-type-scalar
+                                  :values [1.1]}
+                "legacy_count_2" {:vector-type :vector-type-vec2
+                                  :values [1.1 1.2]}
+                "legacy_count_3" {:vector-type :vector-type-vec3
+                                  :values [1.1 1.2 1.3]}
+                "legacy_count_4" {:vector-type :vector-type-vec4
+                                  :values [1.1 1.2 1.3 1.4]}}
+               vector-types-by-attribute-name))))
 
     (testing "render"
       (let [legacy-render-prototype (project/get-resource-node project "/silently_migrated/legacy_render_prototype.render")]
@@ -1285,7 +1304,7 @@
   ;; being overridden from a template node in one of the root-level files in the
   ;; save data test project. If you add a field to the NodeDesc protobuf
   ;; message, you'll either need to add a template override for it (we suggest
-  ;; you add it to `checked02.gui`, which hosts the majority of the template
+  ;; you add it to `checked01.gui`, which hosts the majority of the template
   ;; overrides), or add a field ignore rule to the `pb-ignored-fields` map at
   ;; the top of this file.
   (test-util/with-loaded-project project-path
@@ -1313,7 +1332,7 @@
   (test-util/with-loaded-project project-path
     (test-util/clear-cached-save-data! project)
     (doseq [save-data (project->save-datas project)]
-      (test-util/check-save-data-disk-equivalence! save-data))))
+      (test-util/check-save-data-disk-equivalence! save-data project-path))))
 
 (deftest save-value-is-equivalent-to-source-value-test
   ;; This test is intended to verify that the saved data contains all the same
@@ -1382,7 +1401,7 @@
                 (is (not (:dirty save-data))
                     "Unsaved changes detected after saving.")
                 (when (:dirty save-data)
-                  (test-util/check-save-data-disk-equivalence! save-data))))))))))
+                  (test-util/check-save-data-disk-equivalence! save-data project-path))))))))))
 
 (deftest resource-save-data-retention-test
   ;; This test is intended to verify that the system cache is populated with the

@@ -118,6 +118,9 @@ namespace dmPlatform
     void PollEvents(HWindow window)
     {}
 
+    void SwapBuffers(HWindow window)
+    {}
+
     void SetDeviceState(HWindow window, DeviceState state, bool op1)
     {
         SetDeviceState(window, state, op1, false);

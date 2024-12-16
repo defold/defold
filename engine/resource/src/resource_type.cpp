@@ -35,6 +35,11 @@ void* ResourceTypeContextGetContextByHash(HResourceTypeContext ctx, dmhash_t nam
 }
 
 /////////////////////////////////////////////////////////////////////
+void ResourceTypeReset(HResourceType type)
+{
+    memset(type, 0, sizeof(ResourceType));
+    type->m_PreloadSize = RESOURCE_INVALID_PRELOAD_SIZE;
+}
 
 void ResourceTypeSetContext(HResourceType type, void* ctx)
 {
@@ -81,6 +86,20 @@ void ResourceTypeSetRecreateFn(HResourceType type, FResourceRecreate fn)
     type->m_RecreateFunction = fn;
 }
 
+void ResourceTypeSetStreaming(HResourceType type, uint32_t preload_size)
+{
+    type->m_PreloadSize = preload_size;
+}
+
+bool ResourceTypeIsStreaming(HResourceType type)
+{
+    return type->m_PreloadSize != RESOURCE_INVALID_PRELOAD_SIZE;
+}
+
+uint32_t ResourceTypeGetPreloadSize(HResourceType type)
+{
+    return type->m_PreloadSize;
+}
 
 TypeCreatorDesc* g_ResourceTypeCreatorDescFirst = 0;
 
@@ -172,7 +191,6 @@ Result DeregisterTypes(HFactory factory, dmHashTable64<void*>* contexts)
             ctx.m_Contexts = contexts;
 
             HResourceType type = dmResource::FindResourceType(factory, desc->m_Name);
-
             Result result = (Result)desc->m_DeregisterFn(&ctx, type);
             if (result != RESULT_OK)
             {

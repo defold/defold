@@ -15,10 +15,10 @@
 # common utility functions for all bindings generators
 import re
 
-re_1d_array = re.compile("^(?:const )?\w*\s*\*?\[\d*\]$")
-re_2d_array = re.compile("^(?:const )?\w*\s*\*?\[\d*\]\[\d*\]$")
-re_dmarray = re.compile("^\s*dmArray\s*<(.*)>.*$")
-re_ptr_type = re.compile("^(const )?\s*([\w0-9]+)\s*(\*+)$")
+re_1d_array = re.compile(r"^(?:const )?\w*\s*\*?\[\d*\]$")
+re_2d_array = re.compile(r"^(?:const )?\w*\s*\*?\[\d*\]\[\d*\]$")
+re_dmarray = re.compile(r"^\s*dmArray\s*<(.*)>.*$")
+re_ptr_type = re.compile(r"^(const )?\s*([\w0-9]+)\s*(\*+)$")
 
 def is_1d_array_type(s):
     return re_1d_array.match(s) is not None

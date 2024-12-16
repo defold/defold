@@ -34,7 +34,7 @@ def build(bld):
                   includes = ['.', '../proto'],
                   target = 'particle_shared',
                   protoc_includes = '../proto',
-                  use = 'DDF_NOASAN DLIB_NOASAN SOCKET PROFILE_NULL_NOASAN GRAPHICS_PROTO_NOASAN',
+                  use = 'DDF_NOASAN DLIB_NOASAN SOCKET PROFILE_NULL_NOASAN PLATFORM_NULL GRAPHICS_NULL_NOASAN',
                   source = 'particle.cpp ../proto/particle/particle_ddf.proto')
 
     bld.install_files('${PREFIX}/include/particle', 'particle.h')

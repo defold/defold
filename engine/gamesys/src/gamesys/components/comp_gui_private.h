@@ -144,6 +144,7 @@ namespace dmGameSystem
         dmGraphics::VertexAttributeInfos         m_ParticleAttributeInfos;
         uint32_t                                 m_MaxParticleFXCount;
         uint32_t                                 m_MaxParticleCount;
+        uint32_t                                 m_MaxParticleBufferCount;
         uint32_t                                 m_RenderedParticlesSize;
         uint32_t                                 m_MaxAnimationCount;
         float                                    m_DT;

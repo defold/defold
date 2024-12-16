@@ -45,6 +45,7 @@ namespace dmPlatform
         PLATFORM_GRAPHICS_API_OPENGL = 1,
         PLATFORM_GRAPHICS_API_VULKAN = 2,
         PLATFORM_GRAPHICS_API_VENDOR = 3,
+        PLATFORM_GRAPHICS_API_WEBGPU = 4,
     };
 
     enum DeviceState
@@ -140,6 +141,9 @@ namespace dmPlatform
         bool                    m_HighDPI;
         // Window background color, RGB 0x00BBGGRR
         uint32_t                m_BackgroundColor;
+        // OpenGL specific settings
+        uint8_t                 m_OpenGLVersionHint        : 7; // I.e: 33, 40-46, 0 (use highest available)
+        uint8_t                 m_OpenGLUseCoreProfileHint : 1;
     };
 
     struct TouchData
@@ -172,6 +176,7 @@ namespace dmPlatform
     void           GetMousePosition(HWindow window, int32_t* x, int32_t* y);
     uint32_t       GetTouchData(HWindow window, TouchData* touch_data, uint32_t touch_data_count);
     bool           GetAcceleration(HWindow window, float* x, float* y, float* z);
+
     const char*    GetJoystickDeviceName(HWindow window, uint32_t joystick_index);
     uint32_t       GetJoystickAxes(HWindow window, uint32_t joystick_index, float* values, uint32_t values_capacity);
     uint32_t       GetJoystickHats(HWindow window, uint32_t joystick_index, uint8_t* values, uint32_t values_capacity);

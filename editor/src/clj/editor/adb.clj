@@ -15,15 +15,15 @@
 (ns editor.adb
   (:require [clojure.string :as string]
             [editor.fs :as fs]
+            [editor.os :as os]
             [editor.prefs :as prefs]
-            [editor.process :as process]
-            [editor.util :as util]))
+            [editor.process :as process]))
 
 (defmacro attempt [expr]
   `(try ~expr (catch Exception _#)))
 
 (defn- infer-adb-location! []
-  (case (util/os)
+  (case (os/os)
     :macos (or
              (some-> (fs/evaluate-path "$ANDROID_HOME/platform-tools/adb") fs/existing-path)
              (some-> (attempt (process/exec! "which" "adb")) fs/existing-path)
@@ -46,7 +46,7 @@
 
   Performs file IO"
   [prefs]
-  (if-let [prefs-path (not-empty (prefs/get-prefs prefs "adb-path" nil))]
+  (if-let [prefs-path (not-empty (prefs/get prefs [:tools :adb-path]))]
     (or (fs/existing-path prefs-path)
         (throw (ex-info (str "ADB path defined in preferences does not exist: '" prefs-path "'")
                         {:path prefs-path})))

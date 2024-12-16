@@ -85,7 +85,7 @@ public:
         self->m_Headers[key] = value;
     }
 
-    static void HttpContent(dmHttpClient::HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length)
+    static void HttpContent(dmHttpClient::HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length, const char* method)
     {
         dmHttpClientTest* self = (dmHttpClientTest*) user_data;
         self->m_StatusCode = status_code;
@@ -473,7 +473,7 @@ struct HttpStressHelper
         dmHttpClient::Delete(m_Client);
     }
 
-    static void HttpContent(dmHttpClient::HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length)
+    static void HttpContent(dmHttpClient::HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length, const char* method)
     {
         HttpStressHelper* self = (HttpStressHelper*) user_data;
         self->m_StatusCode = status_code;
@@ -993,9 +993,9 @@ TEST_P(dmHttpClientTestSSL, FailedSSLHandshake)
         uint64_t timeout = 130 * 1000;
         dmHttpClient::SetOptionInt(m_Client, dmHttpClient::OPTION_REQUEST_TIMEOUT, timeout); // microseconds
 
-        uint64_t timestart = dmTime::GetTime();
+        uint64_t timestart = dmTime::GetMonotonicTime();
         dmHttpClient::Result r = dmHttpClient::Get(m_Client, "/sleep/5000"); // milliseconds
-        uint64_t timeend = dmTime::GetTime();
+        uint64_t timeend = dmTime::GetMonotonicTime();
 
         ASSERT_NE(dmHttpClient::RESULT_OK, r);
         ASSERT_NE(dmHttpClient::RESULT_NOT_200_OK, r);

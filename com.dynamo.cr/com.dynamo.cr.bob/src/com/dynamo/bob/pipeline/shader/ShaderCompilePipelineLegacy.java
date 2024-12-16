@@ -16,13 +16,13 @@ package com.dynamo.bob.pipeline.shader;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 
 import com.dynamo.bob.Bob;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.Platform;
 import com.dynamo.bob.fs.IResource;
+import com.dynamo.bob.pipeline.ShadercJni;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.FileUtil;
 import com.dynamo.bob.pipeline.ShaderUtil;
@@ -38,7 +38,7 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
         public SPIRVReflector reflector;
     }
 
-    protected class ShaderModuleLegacy extends ShaderCompilePipeline.ShaderModule {
+    protected static class ShaderModuleLegacy extends ShaderCompilePipeline.ShaderModule {
         public SPIRVCompileResult spirvResult;
 
         public ShaderModuleLegacy(String source, ShaderDesc.ShaderType type) {
@@ -46,8 +46,13 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
         }
     }
 
-	public ShaderCompilePipelineLegacy(String pipelineName) {
+    private static String glslangExe = null;
+    private static String spirvOptExe = null;
+
+    public ShaderCompilePipelineLegacy(String pipelineName) throws IOException {
         super(pipelineName);
+        if (glslangExe == null) glslangExe = Bob.getExe(Platform.getHostPlatform(), "glslang");
+        if (spirvOptExe == null) spirvOptExe = Bob.getExe(Platform.getHostPlatform(), "spirv-opt");
     }
 
     static private void checkResult(String result_string, IResource resource, String resourceOutput) throws CompileExceptionError {
@@ -73,7 +78,18 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
         return null;
     }
 
-    static private SPIRVCompileResult compileGLSLToSPIRV(String shaderSource, ShaderDesc.ShaderType shaderType, String resourceOutput, String targetProfile, boolean isDebug, boolean soft_fail)  throws IOException, CompileExceptionError {
+    static private String compileSPIRVToWGSL(byte[] shaderSource, String resourceOutput)  throws IOException, CompileExceptionError {
+        File file_in_spv = File.createTempFile(FilenameUtils.getName(resourceOutput), ".spv");
+        FileUtil.deleteOnExit(file_in_spv);
+        FileUtils.writeByteArrayToFile(file_in_spv, shaderSource);
+
+        File file_out_wgsl = File.createTempFile(FilenameUtils.getName(resourceOutput), ".wgsl");
+        FileUtil.deleteOnExit(file_out_wgsl);
+        generateWGSL(file_in_spv.getAbsolutePath(), file_out_wgsl.getAbsolutePath());
+        return FileUtils.readFileToString(file_out_wgsl);
+    }
+
+    private SPIRVCompileResult compileGLSLToSPIRV(String shaderSource, ShaderDesc.ShaderType shaderType, String resourceOutput, String targetProfile, boolean softFail, boolean splitTextureSamplers)  throws IOException, CompileExceptionError {
         SPIRVCompileResult res = new SPIRVCompileResult();
 
         Exec.Result result;
@@ -83,7 +99,7 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
 
             int version = 430;
 
-            ShaderUtil.ES2ToES3Converter.Result es3Result = ShaderUtil.ES2ToES3Converter.transform(shaderSource, shaderType, targetProfile, version, true);
+            ShaderUtil.ES2ToES3Converter.Result es3Result = ShaderUtil.ES2ToES3Converter.transform(shaderSource, shaderType, targetProfile, version, true, splitTextureSamplers);
 
             File file_in_compute = File.createTempFile(FilenameUtils.getName(resourceOutput), ".cp");
             FileUtil.deleteOnExit(file_in_compute);
@@ -92,9 +108,10 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
             file_out_spv = File.createTempFile(FilenameUtils.getName(resourceOutput), ".spv");
             FileUtil.deleteOnExit(file_out_spv);
 
-            result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "glslang"),
+            result = Exec.execResult(glslangExe,
                     "-w",
                     "-V",
+                    "--entry-point", "main",
                     "--auto-map-bindings",
                     "--auto-map-locations",
                     "-Os",
@@ -112,7 +129,7 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
             // If the shader already has a version, we expect it to be already written in valid GLSL for that version
             if (shaderInfo == null) {
                 // Convert to ES3 (or GL 140+)
-                ShaderUtil.ES2ToES3Converter.Result es3Result = ShaderUtil.ES2ToES3Converter.transform(shaderSource, shaderType, targetProfile, version, true);
+                ShaderUtil.ES2ToES3Converter.Result es3Result = ShaderUtil.ES2ToES3Converter.transform(shaderSource, shaderType, targetProfile, version, true, splitTextureSamplers);
 
                 // Update version for SPIR-V (GLES >= 310, Core >= 140)
                 es3Result.shaderVersion = es3Result.shaderVersion.isEmpty() ? "0" : es3Result.shaderVersion;
@@ -134,9 +151,10 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
             FileUtil.deleteOnExit(file_out_spv);
 
             String spirvShaderStage = (shaderType == ShaderDesc.ShaderType.SHADER_TYPE_VERTEX ? "vert" : "frag");
-            result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "glslang"),
+            result = Exec.execResult(glslangExe,
                     "-w",
                     "-V",
+                    "--entry-point", "main",
                     "--auto-map-bindings",
                     "--auto-map-locations",
                     "--resource-set-binding", "frag", "1",
@@ -147,7 +165,7 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
         }
 
         String resultString = getResultString(result);
-        if (soft_fail && resultString != null) {
+        if (softFail && resultString != null) {
             res.compile_warnings.add("\nCompatability issue: " + resultString);
             return res;
         } else {
@@ -158,39 +176,21 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
         FileUtil.deleteOnExit(file_out_spv_opt);
 
         // Run optimization pass
-        result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "spirv-opt"),
+        result = Exec.execResult(spirvOptExe,
                 "-O",
                 file_out_spv.getAbsolutePath(),
                 "-o", file_out_spv_opt.getAbsolutePath());
 
         resultString = getResultString(result);
-        if (soft_fail && resultString != null) {
+        if (softFail && resultString != null) {
             res.compile_warnings.add("\nOptimization pass failed: " + resultString);
             return res;
         } else {
             checkResult(resultString, null, resourceOutput);
         }
 
-        // Generate reflection data
-        File file_out_refl = File.createTempFile(FilenameUtils.getName(resourceOutput), ".json");
-        FileUtil.deleteOnExit(file_out_refl);
-
-        result = Exec.execResult(Bob.getExe(Platform.getHostPlatform(), "spirv-cross"),
-                file_out_spv_opt.getAbsolutePath(),
-                "--output",file_out_refl.getAbsolutePath(),
-                "--reflect");
-
-        resultString = getResultString(result);
-        if (soft_fail && resultString != null) {
-            res.compile_warnings.add("\nUnable to get reflection data: " + resultString);
-            return res;
-        } else {
-            checkResult(resultString, null, resourceOutput);
-        }
-
-        String result_json = FileUtils.readFileToString(file_out_refl, StandardCharsets.UTF_8);
-
-        res.reflector = new SPIRVReflector(result_json);
+        this.spirvContext = ShadercJni.NewShaderContext(FileUtils.readFileToByteArray(file_out_spv));
+        res.reflector = new SPIRVReflector(this.spirvContext);
         res.source = FileUtils.readFileToByteArray(file_out_spv);
 
         return res;
@@ -214,7 +214,7 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
     protected void prepare() throws IOException, CompileExceptionError {
         // Generate spirv for each shader module so we can utilize the reflection from it
         for (ShaderModule module : this.shaderModules) {
-            SPIRVCompileResult result = compileGLSLToSPIRV(module.source, module.type, this.pipelineName, "", false, false);
+            SPIRVCompileResult result = compileGLSLToSPIRV(module.source, module.type, this.pipelineName, "", false, this.options.splitTextureSamplers);
 
             ShaderModuleLegacy moduleLegacy = (ShaderModuleLegacy) module;
             moduleLegacy.spirvResult = result;
@@ -223,7 +223,7 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
     }
 
     @Override
-    public byte[] crossCompile(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage) throws CompileExceptionError {
+    public byte[] crossCompile(ShaderDesc.ShaderType shaderType, ShaderDesc.Language shaderLanguage) throws CompileExceptionError, IOException {
         ShaderModuleLegacy module = getShaderModule(shaderType);
         if (module == null) {
             throw new CompileExceptionError("No module found for " + shaderType);
@@ -233,8 +233,13 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
 
         if (shaderLanguage == ShaderDesc.Language.LANGUAGE_SPIRV) {
             return module.spirvResult.source;
+        } else if(shaderLanguage == ShaderDesc.Language.LANGUAGE_WGSL) {
+            String result = compileSPIRVToWGSL(module.spirvResult.source, this.pipelineName);
+            return result.getBytes();
+        } else if(shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL) {
+            return this.generateCrossCompiledShader(shaderType, shaderLanguage, 50);
         } else if (canBeCrossCompiled(shaderLanguage)) {
-            String result = ShaderUtil.Common.compileGLSL(module.source, shaderType, shaderLanguage, false);
+            String result = ShaderUtil.Common.compileGLSL(module.source, shaderType, shaderLanguage, false, false, this.options.splitTextureSamplers);
             return result.getBytes();
         }
 

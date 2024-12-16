@@ -212,7 +212,10 @@ namespace dmProfile
         va_list lst;
         va_start(lst, format);
         int n = vsnprintf(buffer, DM_PROFILE_TEXT_LENGTH, format, lst);
-        buffer[n < DM_PROFILE_TEXT_LENGTH ? n : (DM_PROFILE_TEXT_LENGTH-1)] = 0;
+        if (n < 0)
+        {
+            buffer[DM_PROFILE_TEXT_LENGTH-1] = '\0';
+        }
         va_end(lst);
 
         rmt_LogText(buffer);

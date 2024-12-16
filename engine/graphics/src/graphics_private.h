@@ -34,9 +34,10 @@ namespace dmGraphics
     #define UNIFORM_LOCATION_GET_FS(loc)        ((loc & (UNIFORM_LOCATION_MAX << 32)) >> 32)
     #define UNIFORM_LOCATION_GET_FS_MEMBER(loc) ((loc & (UNIFORM_LOCATION_MAX << 48)) >> 48)
 
-    const static uint8_t MAX_BINDINGS_PER_SET_COUNT = 16;
+    const static uint8_t MAX_BINDINGS_PER_SET_COUNT = 32;
     const static uint8_t MAX_SET_COUNT              = 4;
     const static uint8_t MAX_STORAGE_BUFFERS        = 4;
+    const static uint8_t MAX_VERTEX_BUFFERS         = 3;
 
     enum ShaderStageFlag
     {
@@ -56,29 +57,9 @@ namespace dmGraphics
 
     struct VertexStreamDeclaration
     {
-        VertexStream m_Streams[MAX_VERTEX_STREAM_COUNT];
-        uint8_t      m_StreamCount;
-    };
-
-    struct VertexDeclaration
-    {
-        struct Stream
-        {
-            dmhash_t m_NameHash;
-            int16_t  m_Location;
-            uint16_t m_Size;
-            uint16_t m_Offset;
-            Type     m_Type;
-            bool     m_Normalize;
-        };
-
-        Stream             m_Streams[MAX_VERTEX_STREAM_COUNT];
-        dmhash_t           m_PipelineHash; // Vulkan
-        uint16_t           m_StreamCount;
-        uint16_t           m_Stride;
+        VertexStream       m_Streams[MAX_VERTEX_STREAM_COUNT];
         VertexStepFunction m_StepFunction;
-        HProgram           m_BoundForProgram;     // OpenGL
-        uint32_t           m_ModificationVersion; // OpenGL
+        uint8_t            m_StreamCount;
     };
 
     struct ShaderResourceType
@@ -117,13 +98,19 @@ namespace dmGraphics
             BINDING_FAMILY_TEXTURE        = 3,
         };
 
+        union BindingInfo
+        {
+            uint16_t m_BlockSize;
+            uint16_t m_SamplerTextureIndex;
+        };
+
         char*                       m_Name;
         dmhash_t                    m_NameHash;
         ShaderResourceType          m_Type;
         BindingFamily               m_BindingFamily;
         uint16_t                    m_Set;
         uint16_t                    m_Binding;
-        uint16_t                    m_BlockSize;
+        BindingInfo                 m_BindingInfo;
     };
 
     struct ShaderMeta
@@ -156,6 +143,7 @@ namespace dmGraphics
         uint32_t m_UniformBufferCount;
         uint32_t m_StorageBufferCount;
         uint32_t m_TextureCount;
+        uint32_t m_SamplerCount;
         uint32_t m_TotalUniformCount;
         uint32_t m_UniformDataSize;
         uint32_t m_UniformDataSizeAligned;
@@ -192,6 +180,7 @@ namespace dmGraphics
     bool                 IsUniformTextureSampler(ShaderDesc::ShaderDataType uniform_type);
     bool                 IsUniformStorageBuffer(ShaderDesc::ShaderDataType uniform_type);
     void                 RepackRGBToRGBA(uint32_t num_pixels, uint8_t* rgb, uint8_t* rgba);
+    bool                 IsTextureFormatASTC(TextureFormat format);
     const char*          TextureFormatToString(TextureFormat format);
     ShaderDesc::Language GetShaderProgramLanguage(HContext context);
     uint32_t             GetShaderTypeSize(ShaderDesc::ShaderDataType type);

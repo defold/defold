@@ -16,8 +16,9 @@
   (:require [clojure.string :as str]
             [dynamo.graph :as g]
             [editor.protobuf :as protobuf]
-            [editor.util :as util])
-  (:import [com.dynamo.graphics.proto Graphics$PlatformProfile$OS Graphics$TextureFormatAlternative$CompressionLevel Graphics$TextureImage$CompressionType Graphics$TextureImage$TextureFormat Graphics$TextureProfiles]
+            [editor.util :as util]
+            [util.fn :as fn])
+  (:import [com.dynamo.graphics.proto Graphics$PlatformProfile Graphics$PlatformProfile$OS Graphics$TextureFormatAlternative$CompressionLevel Graphics$TextureImage$CompressionType Graphics$TextureImage$TextureFormat Graphics$TextureProfiles]
            [com.dynamo.input.proto Input$Gamepad Input$GamepadMaps Input$GamepadType Input$InputBinding Input$Key Input$Mouse Input$Text Input$Touch]))
 
 (set! *warn-on-reflection* true)
@@ -48,7 +49,12 @@
 
 (defn make-options [enum-values]
   (let [prefix-size (longest-prefix-size enum-values)]
-    (map (juxt first #(display-name-or-default % prefix-size)) enum-values)))
+    (mapv (juxt first #(display-name-or-default % prefix-size)) enum-values)))
+
+(defn- make-enum-options-raw [^Class pb-enum-class]
+  (make-options (protobuf/enum-values pb-enum-class)))
+
+(def make-enum-options (fn/memoize make-enum-options-raw))
 
 (defn- default-form-ops [node-id]
   {:form-ops {:user-data {:node-id node-id}
@@ -224,12 +230,26 @@
     :texture-format-rgba-bc3
     :texture-format-rgba-bc7
     :texture-format-rgba-etc2
-    :texture-format-rgba-astc-4x4})
+    :texture-format-rgba-astc-4x4
+    :texture-format-rgba-astc-5x4
+    :texture-format-rgba-astc-5x5
+    :texture-format-rgba-astc-6x5
+    :texture-format-rgba-astc-6x6
+    :texture-format-rgba-astc-8x5
+    :texture-format-rgba-astc-8x6
+    :texture-format-rgba-astc-8x8
+    :texture-format-rgba-astc-10x5
+    :texture-format-rgba-astc-10x6
+    :texture-format-rgba-astc-10x8
+    :texture-format-rgba-astc-10x10
+    :texture-format-rgba-astc-12x10
+    :texture-format-rgba-astc-12x12})
 
 (def texture-profiles-unsupported-compressions
   #{:compression-type-webp
     :compression-type-webp-lossy
-    :compression-type-basis-etc1s})
+    :compression-type-basis-etc1s
+    :compression-type-astc})
 
 (defmethod protobuf-form-data Graphics$TextureProfiles [_node-id pb _def]
   (let [os-values (protobuf/enum-values Graphics$PlatformProfile$OS)
@@ -296,12 +316,12 @@
                                           {:path [:max-texture-size]
                                            :type :integer
                                            :label "Max texture size"
-                                           :default 0
+                                           :default (protobuf/default Graphics$PlatformProfile :max-texture-size)
                                            :optional true}
                                           {:path [:premultiply-alpha]
                                            :type :boolean
                                            :label "Premultiply alpha"
-                                           :default true
+                                           :default (protobuf/default Graphics$PlatformProfile :premultiply-alpha)
                                            :optional true}]}]}}]}]}}]}]}))
 
 (defn produce-form-data

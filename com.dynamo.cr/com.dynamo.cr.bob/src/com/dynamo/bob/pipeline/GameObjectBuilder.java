@@ -133,7 +133,7 @@ public class GameObjectBuilder extends ProtoBuilder<PrototypeDesc.Builder> {
                 genResource.setContent(data);
                 uniqueResources.put(hash, genResource);
             }
-            Boolean isStatic = ComponentsCounter.ifStaticFactoryAddProtoAsInput(ec, genResource, taskBuilder, input);
+            Boolean isStatic = ComponentsCounter.ifStaticFactoryAddProtoAsInput(ec, genResource, data, taskBuilder, input);
             if (isStatic != null) {
                 ifObjectHasDynamicFactory |= !isStatic;
             }

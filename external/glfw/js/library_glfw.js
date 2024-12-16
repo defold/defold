@@ -688,6 +688,8 @@ var LibraryGLFW = {
     GLFW.params[0x00050003] = 2; // GLFW_BUTTONS
     GLFW.params[0x00020019] = 0; // GLFW_WINDOW_HIGH_DPI
 
+    GLFW.dpi = 1;
+
     GLFW.keys = new Array();
 
     GLFW.GLFW_PHASE_BEGAN = 0;
@@ -733,35 +735,39 @@ var LibraryGLFW = {
       throw "Invalid glfwOpenWindow mode.";
     }
 
-    var contextAttributes = {
-      antialias: (GLFW.params[0x00020013] > 1), // GLFW_FSAA_SAMPLES
-      depth: (GLFW.params[0x00020009] > 0), // GLFW_DEPTH_BITS
-      stencil: (GLFW.params[0x0002000A] > 0) // GLFW_STENCIL_BITS
-    };
+    var useWebGL = GLFW.params[0x0002001A] > 0; // Use WebGL when we are told to based on GLFW_CLIENT_API
+    if(useWebGL) {
+        var contextAttributes = {
+            antialias: (GLFW.params[0x00020013] > 1), // GLFW_FSAA_SAMPLES
+            depth: (GLFW.params[0x00020009] > 0), // GLFW_DEPTH_BITS
+            stencil: (GLFW.params[0x0002000A] > 0), // GLFW_STENCIL_BITS
+            alpha: (GLFW.params[0x0002000A] > 0) // GLFW_ALPHA_BITS
+        };
 
-    // iOS < 15.2 has issues with WebGl 2.0 contexts. It's created without issues but doesn't work.
-    var iOSVersion = false;
-    try {
-      iOSVersion = parseFloat(('' + (/CPU.*OS ([0-9_]{1,5})|(CPU like).*AppleWebKit.*Mobile/i.exec(navigator.userAgent) || [0,''])[1]) .replace('undefined', '3_2').replace('_', '.').replace('_', '')) || false;
-    } catch (e) {}
+        // iOS < 15.2 has issues with WebGl 2.0 contexts. It's created without issues but doesn't work.
+        var iOSVersion = false;
+        try {
+            iOSVersion = parseFloat(('' + (/CPU.*OS ([0-9_]{1,5})|(CPU like).*AppleWebKit.*Mobile/i.exec(navigator.userAgent) || [0,''])[1]) .replace('undefined', '3_2').replace('_', '.').replace('_', '')) || false;
+        } catch (e) {}
 
-    if (iOSVersion && iOSVersion < 15.2)
-    {
-      contextAttributes.majorVersion = 1;
+        if (iOSVersion && iOSVersion < 15.2)
+        {
+            contextAttributes.majorVersion = 1;
+        }
+
+        // Browser.createContext: https://github.com/emscripten-core/emscripten/blob/master/src/library_browser.js#L312
+        Module.ctx = Browser.createContext(Module['canvas'], true, true, contextAttributes);
+        if (Module.ctx == null) {
+            contextAttributes.majorVersion = 1; // Try WebGL 1
+            Module.ctx = Browser.createContext(Module['canvas'], true, true, contextAttributes);
+        }
     }
-
-    // Browser.createContext: https://github.com/emscripten-core/emscripten/blob/master/src/library_browser.js#L312
-    Module.ctx = Browser.createContext(Module['canvas'], true, true, contextAttributes);
-    if (Module.ctx == null) {
-      contextAttributes.majorVersion = 1; // Try WebGL 1
-      Module.ctx = Browser.createContext(Module['canvas'], true, true, contextAttributes);
-    }
-
     return 1; // GL_TRUE
   },
 
   glfwOpenWindowHint: function(target, hint) {
     GLFW.params[target] = hint;
+
     // if display._high_dpi flag is on in game.project
     // we get information about the current pixel ratio from browser
     if (target == 0x00020019) { //GLFW_WINDOW_HIGH_DPI
@@ -772,12 +778,11 @@ var LibraryGLFW = {
     }
   },
 
-  glfwCloseWindow__deps: ['$Browser'],
   glfwCloseWindow: function() {
     if (GLFW.closeFunc) {
       {{{ makeDynCall('i', 'GLFW.closeFunc') }}}();
     }
-    Module.ctx = Browser.destroyContext(Module['canvas'], true, true);
+    delete Module.ctx;
   },
 
   glfwSetWindowTitle: function(title) {
@@ -1121,11 +1126,11 @@ var LibraryGLFW = {
   glfwAccelerometerEnable: function() {
   },
 
-  glfwSetWindowBackgroundColor: function() {
+  glfwSetWindowBackgroundColor: function(color) {
   },
 
   glfwGetDisplayScaleFactor: function() {
-    return 1;
+    return GLFW.dpi;
   }
 };
 

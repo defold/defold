@@ -100,6 +100,7 @@ namespace dmGameSystem
         dmResource::HFactory m_Factory;
         dmRender::HRenderContext m_RenderContext;
         uint32_t m_MaxParticleFXCount;
+        uint32_t m_MaxParticleBufferCount;
         uint32_t m_MaxParticleCount;
         uint32_t m_MaxEmitterCount;
         bool m_Debug;

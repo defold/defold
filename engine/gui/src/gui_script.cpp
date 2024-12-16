@@ -398,7 +398,7 @@ namespace dmGui
         }
         else
         {
-            lua_pushstring(L,"<foreign scene node>");
+            lua_pushliteral(L, "<foreign scene node>");
         }
 
         return 1;
@@ -549,6 +549,48 @@ namespace dmGui
         assert(top + 1 == lua_gettop(L));
 
         return 1;
+    }
+
+    /*# gets the node type
+     *
+     * @name gui.get_type
+     * @param node [type:node] node from which to get the type
+     * @return type [type:constant] type
+     *
+     * - `gui.TYPE_BOX`
+     * - `gui.TYPE_TEXT`
+     * - `gui.TYPE_PIE`
+     * - `gui.TYPE_PARTICLEFX`
+     * - `gui.TYPE_CUSTOM`
+     * 
+     * @return subtype [type:integer|nil] id of the custom type
+     */
+    static int LuaGetType(lua_State* L)
+    {
+        int top = lua_gettop(L);
+        (void) top;
+
+        dmGui::HScene scene = dmGui::GuiScriptInstance_Check(L);
+
+        HNode hnode;
+        LuaCheckNodeInternal(L, 1, &hnode);
+
+        dmGui::NodeType type = dmGui::GetNodeType(scene, hnode);
+        lua_pushnumber(L, type);
+
+        if (type == NODE_TYPE_CUSTOM)
+        {
+            uint32_t subtype = dmGui::GetNodeCustomType(scene, hnode);
+            lua_pushnumber(L, (lua_Number) subtype);
+        }
+        else
+        {
+            lua_pushnil(L);
+        }
+
+        assert(top + 2 == lua_gettop(L));
+
+        return 2;
     }
 
     /*# sets the id of the specified node
@@ -3976,7 +4018,7 @@ namespace dmGui
      *
      * @name gui.get_rotation
      * @param node [type:node] node to get the rotation from
-     * @return rotation [type:quat] node rotation
+     * @return rotation [type:quaternion] node rotation
      */
 
     /*# sets the node rotation
@@ -3985,7 +4027,7 @@ namespace dmGui
      *
      * @name gui.set_rotation
      * @param node [type:node] node to set the rotation for
-     * @param rotation [type:quat|vector4] new rotation
+     * @param rotation [type:quaternion|vector4] new rotation
      */
 
     /*# gets the node rotation
@@ -4813,6 +4855,7 @@ namespace dmGui
         {"get_node",        LuaGetNode},
         {"get_id",          LuaGetId},
         {"set_id",          LuaSetId},
+        {"get_type",        LuaGetType},
         {"get",             LuaGet},
         {"set",             LuaSet},
         {"get_index",       LuaGetIndex},
@@ -5123,6 +5166,32 @@ namespace dmGui
      * @variable
      */
 
+    /*# box type
+     *
+     * @name gui.TYPE_BOX
+     * @variable
+     */
+    /*# text type
+     *
+     * @name gui.TYPE_TEXT
+     * @variable
+     */
+    /*# pie type
+     *
+     * @name gui.TYPE_PIE
+     * @variable
+     */
+    /*# particlefx type
+     *
+     * @name gui.TYPE_PARTICLEFX
+     * @variable
+     */
+    /*# custom type
+     *
+     * @name gui.TYPE_CUSTOM
+     * @variable
+     */
+
     /*# fit adjust mode
      * Adjust mode is used when the screen resolution differs from the project settings.
      * The fit mode ensures that the entire node is visible in the adjusted gui scene.
@@ -5222,6 +5291,18 @@ namespace dmGui
         SETPROP(slice9, SLICE9)
 
 #undef SETPROP
+
+#define SETTYPE(name) \
+    lua_pushnumber(L, (lua_Number) NODE_TYPE_##name); \
+    lua_setfield(L, -2, "TYPE_"#name);\
+
+    SETTYPE(BOX)
+    SETTYPE(TEXT)
+    SETTYPE(PIE)
+    SETTYPE(PARTICLEFX)
+    SETTYPE(CUSTOM)
+
+#undef SETTYPE
 
 // For backwards compatibility
 #define SETEASINGOLD(name, easing) \

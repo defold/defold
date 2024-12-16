@@ -34,7 +34,6 @@ namespace dmGraphics
     const static uint8_t DM_MAX_TEXTURE_UNITS          = 32;
     const static uint8_t DM_RENDERTARGET_BACKBUFFER_ID = 0;
     const static uint8_t DM_MAX_FRAMES_IN_FLIGHT       = 2; // In flight frames - number of concurrent frames being processed
-    const static uint8_t MAX_VERTEX_BUFFERS            = 2;
 
     enum VulkanResourceType
     {
@@ -382,6 +381,7 @@ namespace dmGraphics
 
         VkPhysicalDeviceFragmentShaderInterlockFeaturesEXT m_FragmentShaderInterlockFeatures;
 
+
         // Main device rendering constructs
         dmArray<VkFramebuffer>          m_MainFrameBuffers;
         dmArray<VkCommandBuffer>        m_MainCommandBuffers;
@@ -399,6 +399,7 @@ namespace dmGraphics
         HRenderTarget                   m_CurrentRenderTarget;
         DeviceBuffer*                   m_CurrentVertexBuffer[MAX_VERTEX_BUFFERS];
         VertexDeclaration*              m_CurrentVertexDeclaration[MAX_VERTEX_BUFFERS];
+        uint32_t                        m_CurrentVertexBufferOffset[MAX_VERTEX_BUFFERS];
         StorageBufferBinding            m_CurrentStorageBuffers[MAX_STORAGE_BUFFERS];
         Program*                        m_CurrentProgram;
         Pipeline*                       m_CurrentPipeline;
@@ -413,8 +414,8 @@ namespace dmGraphics
         VulkanTexture*                  m_DefaultTexture2D32UI;
         VulkanTexture*                  m_DefaultStorageImage2D;
         VulkanTexture                   m_ResolveTexture;
-
         uint64_t                        m_TextureFormatSupport;
+
         uint32_t                        m_Width;
         uint32_t                        m_Height;
         uint32_t                        m_WindowWidth;
@@ -428,6 +429,7 @@ namespace dmGraphics
         uint32_t                        m_CullFaceChanged      : 1;
         uint32_t                        m_UseValidationLayers  : 1;
         uint32_t                        m_RenderDocSupport     : 1;
+        uint32_t                        m_ASTCSupport          : 1;
     };
 
     // Implemented in graphics_vulkan_context.cpp

@@ -15,18 +15,19 @@
 (ns editor.engine
   (:require [clojure.java.io :as io]
             [clojure.string :as str]
+            [editor.code.util :refer [split-lines]]
             [editor.engine.native-extensions :as native-extensions]
             [editor.fs :as fs]
-            [editor.process :as process]
             [editor.prefs :as prefs]
+            [editor.process :as process]
             [editor.process :as process]
             [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.system :as system])
   (:import [com.dynamo.bob Platform]
-           [com.dynamo.resource.proto Resource$Reload]
            [com.dynamo.render.proto Render$Resize]
-           [java.io BufferedReader File InputStream IOException]
+           [com.dynamo.resource.proto Resource$Reload]
+           [java.io BufferedReader File IOException InputStream]
            [java.net HttpURLConnection InetSocketAddress Socket URI]
            [java.util.zip ZipEntry ZipFile]))
 
@@ -84,11 +85,11 @@
       (finally
         (.disconnect conn)))))
 
-(defn apply-simulated-resolution! [prefs workspace target]
-  (let [data (prefs/get-prefs prefs (prefs/make-project-specific-key "simulated-resolution" workspace) nil)]
+(defn apply-simulated-resolution! [prefs target]
+  (let [data (prefs/get prefs [:run :simulated-resolution])]
     (when data
       (change-resolution! target (:width data) (:height data)
-                          (prefs/get-prefs prefs (prefs/make-project-specific-key "simulate-rotated-device" workspace) false)))))
+                          (prefs/get prefs [:run :simulate-rotated-device])))))
 
 (defn reboot! [target local-url debug?]
   (let [uri (URI. (format "%s/post/@system/reboot" (:url target)))
@@ -177,7 +178,7 @@
         engine (io/file path)]
     {:id {:type :bundled :path (.getCanonicalPath engine)} :dmengine engine :platform platform}))
 
-(def custom-engine-pref-key "dev-custom-engine")
+(def custom-engine-pref-key [:dev :custom-engine])
 
 (defn current-platform []
   (.getPair (Platform/getHostPlatform)))
@@ -185,7 +186,7 @@
 (defn- dev-custom-engine
   [prefs platform]
   (when (system/defold-dev?)
-    (when-some [custom-engine (prefs/get-prefs prefs custom-engine-pref-key nil)]
+    (when-some [custom-engine (prefs/get prefs custom-engine-pref-key)]
       (when-not (str/blank? custom-engine)
         (assert (= platform (current-platform)) "Can't use custom engine for platform other than current")
         (let [engine (io/file custom-engine)]
@@ -234,8 +235,8 @@
             (io/copy stream saveFile)))))))
 
 (def ^:private dmengine-dependencies
-  {"x86_64-win32" #{"OpenAL32.dll" "wrap_oal.dll"}
-   "x86-win32"    #{"OpenAL32.dll" "wrap_oal.dll"}})
+  ; Mapping between platform name and list of file names: {"x86_64-win32" #{"OpenAL32.dll" "wrap_oal.dll"}}
+  {})
 
 (defn- copy-dmengine-dependencies!
   [unpack-dir extender-platform]
@@ -263,11 +264,12 @@
       (copy-dmengine-dependencies! engine-dir extender-platform)
       engine-file)))
 
-(defn launch! [^File engine project-directory prefs workspace debug? instance-index]
+(defn launch! [^File engine project-directory prefs debug? instance-index]
   (let [defold-log-dir (some-> (System/getProperty "defold.log.dir")
                                (File.)
                                (.getAbsolutePath))
         command (.getAbsolutePath engine)
+        engine-arguments (prefs/get prefs [:run :engine-arguments])
         args (cond-> []
                      defold-log-dir
                      (into ["--config=project.write_log=1"
@@ -277,9 +279,12 @@
                      (into ["--config=bootstrap.debug_init_script=/_defold/debugger/start.luac"])
 
                      (> instance-index 0)
-                     (into [(format "--config=project.instance_index=%d" instance-index)]))
+                     (into [(format "--config=project.instance_index=%d" instance-index)])
+
+                     (not (str/blank? engine-arguments))
+                     (into (remove str/blank?) (split-lines engine-arguments)))
         env {"DM_SERVICE_PORT" "dynamic"
-             "DM_QUIT_ON_ESC" (if (prefs/get-prefs prefs "general-quit-on-esc" false)
+             "DM_QUIT_ON_ESC" (if (prefs/get prefs [:run :quit-on-escape])
                                 "1" "0")
              ;; Windows only. Sets the correct symbol search path, since we're also setting the cwd (https://docs.microsoft.com/en-us/windows/win32/debug/symbol-paths)
              "_NT_ALT_SYMBOL_PATH" (.getAbsolutePath (.getParentFile engine))

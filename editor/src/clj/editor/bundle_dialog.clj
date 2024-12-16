@@ -17,26 +17,22 @@
             [clojure.java.io :as io]
             [clojure.set :as set]
             [clojure.string :as string]
-            [dynamo.graph :as g]
             [editor.bundle :as bundle]
             [editor.dialogs :as dialogs]
             [editor.fs :as fs]
             [editor.fxui :as fxui]
             [editor.handler :as handler]
             [editor.prefs :as prefs]
-            [editor.system :as system]
             [editor.ui :as ui])
-  (:import [java.io File]
+  (:import [com.defold.control DefoldStringConverter]
+           [java.io File]
            [javafx.scene Scene]
            [javafx.scene.control Button CheckBox ChoiceBox Label Separator TextField]
            [javafx.scene.input KeyCode]
            [javafx.scene.layout ColumnConstraints GridPane HBox Priority VBox]
-           [javafx.stage DirectoryChooser Window]
-           [javafx.util StringConverter]))
+           [javafx.stage DirectoryChooser Window]))
 
 (set! *warn-on-reflection* true)
-
-(defonce ^:private os-32-bit? (= (system/os-arch) "x86"))
 
 (defn- query-directory!
   ^File [title ^File initial-directory ^Window owner-window]
@@ -183,11 +179,11 @@
 
 (defn- get-string-pref
   ^String [prefs key]
-  (some-> (prefs/get-prefs prefs key nil) not-empty))
+  (some-> (prefs/get prefs key) not-empty))
 
 (defn- set-string-pref!
   [prefs key ^String string]
-  (prefs/set-prefs prefs key (not-empty string)))
+  (prefs/set! prefs key string))
 
 (defn- get-file-pref
   ^File [prefs key]
@@ -195,7 +191,7 @@
 
 (defn- set-file-pref!
   [prefs key ^File file]
-  (set-string-pref! prefs key (when file (.getPath file))))
+  (set-string-pref! prefs key (if file (.getPath file) "")))
 
 ;; -----------------------------------------------------------------------------
 ;; Generic
@@ -230,11 +226,7 @@
         labels-by-value (set/map-invert values-by-label)]
     (doto (ChoiceBox. (ui/observable-list (map second label-value-pairs)))
       (ui/on-action! refresh!)
-      (.setConverter (proxy [StringConverter] []
-                       (toString [value]
-                         (labels-by-value value))
-                       (fromString [label]
-                         (values-by-label label)))))))
+      (.setConverter (DefoldStringConverter. labels-by-value values-by-label)))))
 
 (defn- make-generic-controls [refresh! variant-choices compression-choices]
   (assert (fn? refresh!))
@@ -257,21 +249,21 @@
 
 (defn- load-generic-prefs! [prefs view]
   (ui/with-controls view [variant-choice-box compression-choice-box generate-debug-symbols-check-box generate-build-report-check-box publish-live-update-content-check-box bundle-contentless-check-box]
-    (ui/value! variant-choice-box (prefs/get-prefs prefs "bundle-variant" "debug"))
-    (ui/value! compression-choice-box (prefs/get-prefs prefs "bundle-texture-compression" "enabled"))
-    (ui/value! generate-debug-symbols-check-box (prefs/get-prefs prefs "bundle-generate-debug-symbols?" true))
-    (ui/value! generate-build-report-check-box (prefs/get-prefs prefs "bundle-generate-build-report?" false))
-    (ui/value! publish-live-update-content-check-box (prefs/get-prefs prefs "bundle-publish-live-update-content?" false))
-    (ui/value! bundle-contentless-check-box (prefs/get-prefs prefs "bundle-contentless?" false))))
+    (ui/value! variant-choice-box (prefs/get prefs [:bundle :variant]))
+    (ui/value! compression-choice-box (prefs/get prefs [:bundle :texture-compression]))
+    (ui/value! generate-debug-symbols-check-box (prefs/get prefs [:bundle :debug-symbols]))
+    (ui/value! generate-build-report-check-box (prefs/get prefs [:bundle :build-report]))
+    (ui/value! publish-live-update-content-check-box (prefs/get prefs [:bundle :liveupdate]))
+    (ui/value! bundle-contentless-check-box (prefs/get prefs [:bundle :contentless]))))
 
 (defn- save-generic-prefs! [prefs view]
   (ui/with-controls view [variant-choice-box compression-choice-box generate-debug-symbols-check-box generate-build-report-check-box publish-live-update-content-check-box bundle-contentless-check-box]
-    (prefs/set-prefs prefs "bundle-variant" (ui/value variant-choice-box))
-    (prefs/set-prefs prefs "bundle-texture-compression" (ui/value compression-choice-box))
-    (prefs/set-prefs prefs "bundle-generate-debug-symbols?" (ui/value generate-debug-symbols-check-box))
-    (prefs/set-prefs prefs "bundle-generate-build-report?" (ui/value generate-build-report-check-box))
-    (prefs/set-prefs prefs "bundle-publish-live-update-content?" (ui/value publish-live-update-content-check-box))
-    (prefs/set-prefs prefs "bundle-contentless?" (ui/value bundle-contentless-check-box))))
+    (prefs/set! prefs [:bundle :variant] (ui/value variant-choice-box))
+    (prefs/set! prefs [:bundle :texture-compression] (ui/value compression-choice-box))
+    (prefs/set! prefs [:bundle :debug-symbols] (ui/value generate-debug-symbols-check-box))
+    (prefs/set! prefs [:bundle :build-report] (ui/value generate-build-report-check-box))
+    (prefs/set! prefs [:bundle :liveupdate] (ui/value publish-live-update-content-check-box))
+    (prefs/set! prefs [:bundle :contentless] (ui/value bundle-contentless-check-box))))
 
 (defn- get-generic-options [view]
   (ui/with-controls view [variant-choice-box compression-choice-box generate-debug-symbols-check-box generate-build-report-check-box publish-live-update-content-check-box bundle-contentless-check-box]
@@ -340,17 +332,17 @@
   (assert (keyword? platform))
   (assert (not= :default platform))
   (assert (some? (get-method bundle-options-presenter platform)))
-  (str "bundle-" (name platform) "-platform"))
+  [:bundle platform :platform])
 
-(defn- load-platform-prefs! [prefs view platform default]
+(defn- load-platform-prefs! [prefs view platform]
   (ui/with-controls view [platform-choice-box]
     (let [prefs-key (get-bundle-platform-prefs-key platform)]
-      (ui/value! platform-choice-box (prefs/get-prefs prefs prefs-key default)))))
+      (ui/value! platform-choice-box (prefs/get prefs prefs-key)))))
 
 (defn- save-platform-prefs! [prefs view platform]
   (ui/with-controls view [platform-choice-box]
     (let [prefs-key (get-bundle-platform-prefs-key platform)]
-      (prefs/set-prefs prefs prefs-key (ui/value platform-choice-box)))))
+      (prefs/set! prefs prefs-key (ui/value platform-choice-box)))))
 
 (defn- get-platform-options [view]
   (ui/with-controls view [platform-choice-box]
@@ -360,7 +352,7 @@
   (ui/with-controls view [platform-choice-box]
     (ui/value! platform-choice-box (:platform options))))
 
-(deftype SelectablePlatformBundleOptionsPresenter [workspace view title platform bob-platform-choices bob-platform-default variant-choices compression-choices]
+(deftype SelectablePlatformBundleOptionsPresenter [workspace view title platform bob-platform-choices variant-choices compression-choices]
   BundleOptionsPresenter
   (make-views [this _owner-window]
     (let [refresh! (make-presenter-refresher this)]
@@ -369,7 +361,7 @@
             (make-generic-controls refresh! variant-choices compression-choices))))
   (load-prefs! [_this prefs]
     (load-generic-prefs! prefs view)
-    (load-platform-prefs! prefs view platform bob-platform-default))
+    (load-platform-prefs! prefs view platform))
   (save-prefs! [_this prefs]
     (save-generic-prefs! prefs view)
     (save-platform-prefs! prefs view platform))
@@ -391,8 +383,8 @@
         keystore-pass-file-field (make-file-field "keystore-pass-text-field" "Choose Keystore password" [["Keystore password" "*.txt"]])
         key-pass-file-field (make-file-field "key-pass-text-field" "Choose Key password" [["Key password" "*.txt"]])
         architecture-controls (doto (VBox.)
-                                    (ui/children! [(make-labeled-check-box "32-bit (armv7)" "architecture-32bit-check-box" true refresh!)
-                                                   (make-labeled-check-box "64-bit (arm64)" "architecture-64bit-check-box" true refresh!)]))]
+                                (ui/children! [(make-labeled-check-box "32-bit (armv7)" "architecture-32bit-check-box" true refresh!)
+                                               (make-labeled-check-box "64-bit (arm64)" "architecture-64bit-check-box" true refresh!)]))]
     (doto (VBox.)
       (ui/add-style! "settings")
       (ui/add-style! "android")
@@ -401,7 +393,7 @@
                      (labeled! "Key Password" key-pass-file-field)
                      (labeled! "Architectures" architecture-controls)
                      (labeled! "Bundle Format" (doto (make-choice-box refresh! [["APK" "apk"] ["AAB" "aab"] ["APK+AAB", "apk,aab"]])
-                                                (.setId "bundle-format-choice-box")))]))))
+                                                 (.setId "bundle-format-choice-box")))]))))
 
 (defn- android-post-bundle-controls [refresh!]
   (doto (VBox.)
@@ -423,14 +415,14 @@
                           bundle-format-choice-box
                           install-app-check-box
                           launch-app-check-box]
-    (ui/value! keystore-text-field (get-string-pref prefs "bundle-android-keystore"))
-    (ui/value! keystore-pass-text-field (get-string-pref prefs "bundle-android-keystore-pass"))
-    (ui/value! key-pass-text-field (get-string-pref prefs "bundle-android-key-pass"))
-    (ui/value! architecture-32bit-check-box (prefs/get-prefs prefs "bundle-android-architecture-32bit?" true))
-    (ui/value! architecture-64bit-check-box (prefs/get-prefs prefs "bundle-android-architecture-64bit?" false))
-    (ui/value! bundle-format-choice-box (prefs/get-prefs prefs "bundle-android-bundle-format" "apk"))
-    (ui/value! install-app-check-box (prefs/get-prefs prefs "bundle-android-install-app?" false))
-    (ui/value! launch-app-check-box (prefs/get-prefs prefs "bundle-android-launch-app?" false))))
+    (ui/value! keystore-text-field (get-string-pref prefs [:bundle :android :keystore]))
+    (ui/value! keystore-pass-text-field (get-string-pref prefs [:bundle :android :keystore-pass]))
+    (ui/value! key-pass-text-field (get-string-pref prefs [:bundle :android :key-pass]))
+    (ui/value! architecture-32bit-check-box (prefs/get prefs [:bundle :android :architecture :armv7-android]))
+    (ui/value! architecture-64bit-check-box (prefs/get prefs [:bundle :android :architecture :arm64-android]))
+    (ui/value! bundle-format-choice-box (prefs/get prefs [:bundle :android :format]))
+    (ui/value! install-app-check-box (prefs/get prefs [:bundle :android :install]))
+    (ui/value! launch-app-check-box (prefs/get prefs [:bundle :android :launch]))))
 
 (defn- save-android-prefs! [prefs view]
   (ui/with-controls view [keystore-text-field
@@ -441,14 +433,14 @@
                           bundle-format-choice-box
                           install-app-check-box
                           launch-app-check-box]
-    (set-string-pref! prefs "bundle-android-keystore" (ui/value keystore-text-field))
-    (set-string-pref! prefs "bundle-android-keystore-pass" (ui/value keystore-pass-text-field))
-    (set-string-pref! prefs "bundle-android-key-pass" (ui/value key-pass-text-field))
-    (prefs/set-prefs prefs "bundle-android-architecture-32bit?" (ui/value architecture-32bit-check-box))
-    (prefs/set-prefs prefs "bundle-android-architecture-64bit?" (ui/value architecture-64bit-check-box))
-    (set-string-pref! prefs "bundle-android-bundle-format" (ui/value bundle-format-choice-box))
-    (prefs/set-prefs prefs "bundle-android-install-app?" (ui/value install-app-check-box))
-    (prefs/set-prefs prefs "bundle-android-launch-app?" (ui/value launch-app-check-box))))
+    (set-string-pref! prefs [:bundle :android :keystore] (ui/value keystore-text-field))
+    (set-string-pref! prefs [:bundle :android :keystore-pass] (ui/value keystore-pass-text-field))
+    (set-string-pref! prefs [:bundle :android :key-pass] (ui/value key-pass-text-field))
+    (prefs/set! prefs [:bundle :android :architecture :armv7-android] (ui/value architecture-32bit-check-box))
+    (prefs/set! prefs [:bundle :android :architecture :arm64-android] (ui/value architecture-64bit-check-box))
+    (set-string-pref! prefs [:bundle :android :format] (ui/value bundle-format-choice-box))
+    (prefs/set! prefs [:bundle :android :install] (ui/value install-app-check-box))
+    (prefs/set! prefs [:bundle :android :launch] (ui/value launch-app-check-box))))
 
 (defn- get-android-options [view]
   (ui/with-controls view [architecture-32bit-check-box
@@ -605,13 +597,13 @@
 
 (defn- load-macos-prefs! [prefs view]
   (ui/with-controls view [architecture-x86_64-check-box architecture-arm64-check-box]
-    (ui/value! architecture-x86_64-check-box (prefs/get-prefs prefs "bundle-macos-architecture-x86_64?" true))
-    (ui/value! architecture-arm64-check-box (prefs/get-prefs prefs "bundle-macos-architecture-arm64?" true))))
+    (ui/value! architecture-x86_64-check-box (prefs/get prefs [:bundle :macos :architecture :x86_64-macos]))
+    (ui/value! architecture-arm64-check-box (prefs/get prefs [:bundle :macos :architecture :arm64-macos]))))
 
 (defn- save-macos-prefs! [prefs view]
   (ui/with-controls view [architecture-x86_64-check-box architecture-arm64-check-box]
-    (prefs/set-prefs prefs "bundle-macos-architecture-x86_64?" (ui/value architecture-x86_64-check-box))
-    (prefs/set-prefs prefs "bundle-macos-architecture-arm64?" (ui/value architecture-arm64-check-box))))
+    (prefs/set! prefs [:bundle :macos :architecture :x86_64-macos] (ui/value architecture-x86_64-check-box))
+    (prefs/set! prefs [:bundle :macos :architecture :arm64-macos] (ui/value architecture-arm64-check-box))))
 
 (defn- get-macos-options [view]
   (ui/with-controls view [architecture-x86_64-check-box architecture-arm64-check-box]
@@ -673,11 +665,9 @@
                                            (.setId "code-signing-identity-choice-box")
                                            (.setFocusTraversable false)
                                            (.setMaxWidth Double/MAX_VALUE) ; Required to fill available space.
-                                           (.setConverter (proxy [StringConverter] []
-                                                            (toString [value]
-                                                              (if (some? value) value no-identity-label))
-                                                            (fromString [label]
-                                                              (if (= no-identity-label label) nil label)))))
+                                           (.setConverter (DefoldStringConverter.
+                                                            #(if (some? %) % no-identity-label)
+                                                            #(if (= no-identity-label %) nil %))))
         architecture-controls (doto (VBox.)
                                 (ui/children! [(make-labeled-check-box "64-bit (arm64)" "architecture-64bit-check-box" true refresh!)
                                                (make-labeled-check-box "Simulator (x86_64)" "architecture-simulator-check-box" false refresh!)]))]
@@ -712,17 +702,15 @@
                           architecture-simulator-check-box
                           install-app-check-box
                           launch-app-check-box]
-    (ui/value! sign-app-check-box (prefs/get-prefs prefs "bundle-ios-sign-app?" true))
+    (ui/value! sign-app-check-box (prefs/get prefs [:bundle :ios :sign]))
     (ui/value! code-signing-identity-choice-box (or ((set code-signing-identity-names)
-                                                     (or (get-string-pref prefs "bundle-ios-code-signing-identity")
-                                                         (second (prefs/get-prefs prefs "last-identity" [nil nil]))))
+                                                     (get-string-pref prefs [:bundle :ios :code-signing-identity]))
                                                     (first code-signing-identity-names)))
-    (ui/value! provisioning-profile-text-field (or (get-string-pref prefs "bundle-ios-provisioning-profile")
-                                                   (get-string-pref prefs "last-provisioning-profile")))
-    (ui/value! architecture-64bit-check-box (prefs/get-prefs prefs "bundle-ios-architecture-64bit?" true))
-    (ui/value! architecture-simulator-check-box (prefs/get-prefs prefs "bundle-ios-architecture-simulator?" false))
-    (ui/value! install-app-check-box (prefs/get-prefs prefs "bundle-ios-install-app?" false))
-    (ui/value! launch-app-check-box (prefs/get-prefs prefs "bundle-ios-launch-app?" false))))
+    (ui/value! provisioning-profile-text-field (get-string-pref prefs [:bundle :ios :provisioning-profile]))
+    (ui/value! architecture-64bit-check-box (prefs/get prefs [:bundle :ios :architecture :arm64-ios]))
+    (ui/value! architecture-simulator-check-box (prefs/get prefs [:bundle :ios :architecture :x86_64-ios]))
+    (ui/value! install-app-check-box (prefs/get prefs [:bundle :ios :install]))
+    (ui/value! launch-app-check-box (prefs/get prefs [:bundle :ios :launch]))))
 
 (defn- save-ios-prefs! [prefs view]
   (ui/with-controls view [sign-app-check-box
@@ -732,13 +720,13 @@
                           architecture-simulator-check-box
                           install-app-check-box
                           launch-app-check-box]
-    (prefs/set-prefs prefs "bundle-ios-sign-app?" (ui/value sign-app-check-box))
-    (set-string-pref! prefs "bundle-ios-code-signing-identity" (ui/value code-signing-identity-choice-box))
-    (set-string-pref! prefs "bundle-ios-provisioning-profile" (ui/value provisioning-profile-text-field))
-    (prefs/set-prefs prefs "bundle-ios-architecture-64bit?" (ui/value architecture-64bit-check-box))
-    (prefs/set-prefs prefs "bundle-ios-architecture-simulator?" (ui/value architecture-simulator-check-box))
-    (prefs/set-prefs prefs "bundle-ios-install-app?" (ui/value install-app-check-box))
-    (prefs/set-prefs prefs "bundle-ios-launch-app?" (ui/value launch-app-check-box))))
+    (prefs/set! prefs [:bundle :ios :sign] (ui/value sign-app-check-box))
+    (set-string-pref! prefs [:bundle :ios :code-signing-identity] (or (ui/value code-signing-identity-choice-box) ""))
+    (set-string-pref! prefs [:bundle :ios :provisioning-profile] (ui/value provisioning-profile-text-field))
+    (prefs/set! prefs [:bundle :ios :architecture :arm64-ios] (ui/value architecture-64bit-check-box))
+    (prefs/set! prefs [:bundle :ios :architecture :x86_64-ios] (ui/value architecture-simulator-check-box))
+    (prefs/set! prefs [:bundle :ios :install] (ui/value install-app-check-box))
+    (prefs/set! prefs [:bundle :ios :launch] (ui/value launch-app-check-box))))
 
 (defn- get-ios-options [view]
   (ui/with-controls view [sign-app-check-box
@@ -868,13 +856,13 @@
 
 (defn- load-html5-prefs! [prefs view]
   (ui/with-controls view [architecture-js-web-check-box architecture-wasm-web-check-box]
-    (ui/value! architecture-js-web-check-box (prefs/get-prefs prefs "bundle-html5-architecture-js-web?" false))
-    (ui/value! architecture-wasm-web-check-box (prefs/get-prefs prefs "bundle-html5-architecture-wasm-web?" true))))
+    (ui/value! architecture-js-web-check-box (prefs/get prefs [:bundle :html5 :architecture :js-web]))
+    (ui/value! architecture-wasm-web-check-box (prefs/get prefs [:bundle :html5 :architecture :wasm-web]))))
 
 (defn- save-html5-prefs! [prefs view]
   (ui/with-controls view [architecture-js-web-check-box architecture-wasm-web-check-box]
-    (prefs/set-prefs prefs "bundle-html5-architecture-js-web?" (ui/value architecture-js-web-check-box))
-    (prefs/set-prefs prefs "bundle-html5-architecture-wasm-web?" (ui/value architecture-wasm-web-check-box))))
+    (prefs/set! prefs [:bundle :html5 :architecture :js-web] (ui/value architecture-js-web-check-box))
+    (prefs/set! prefs [:bundle :html5 :architecture :wasm-web] (ui/value architecture-wasm-web-check-box))))
 
 (defn- get-html5-options [view]
   (ui/with-controls view [architecture-js-web-check-box architecture-wasm-web-check-box]
@@ -908,7 +896,7 @@
     (let [refresh! (make-presenter-refresher this)]
       (into [(make-generic-headers "Bundle HTML5 Application")
              (make-html5-controls refresh! owner-window)]
-             (make-generic-controls refresh! variant-choices compression-choices))))
+            (make-generic-controls refresh! variant-choices compression-choices))))
   (load-prefs! [_this prefs]
     (load-generic-prefs! prefs view)
     (load-html5-prefs! prefs view))
@@ -922,7 +910,7 @@
   (set-options! [_this options]
     (let [issues (get-html5-issues options)]
       (set-generic-options! view options workspace)
-      (set-html5-options! view options issues )
+      (set-html5-options! view options issues)
       (set-generic-headers! view issues [:architecture]))))
 
 ;; -----------------------------------------------------------------------------
@@ -936,6 +924,10 @@
                                     ["Disabled" "disabled"]
                                     ["Use Editor Preference" "editor"]])
 
+;; If you are adding another options presenter with a selectable platform
+;; (i.e. using SelectablePlatformBundleOptionsPresenter), don't forget to add a
+;; schema definition in editor.prefs for the [:bundle platform-kw :platform]
+;; preference path
 (defmulti bundle-options-presenter (fn [_workspace _view platform] platform))
 (defmethod bundle-options-presenter :default [_workspace _view platform] (throw (IllegalArgumentException. (str "Unsupported platform: " platform))))
 (defmethod bundle-options-presenter :android [workspace view _platform] (AndroidBundleOptionsPresenter. workspace view common-variants common-compressions))
@@ -943,7 +935,7 @@
 (defmethod bundle-options-presenter :ios     [workspace view _platform] (IOSBundleOptionsPresenter. workspace view common-variants common-compressions))
 (defmethod bundle-options-presenter :linux   [workspace view _platform] (GenericBundleOptionsPresenter. workspace view "Bundle Linux Application" "x86_64-linux" desktop-variants common-compressions))
 (defmethod bundle-options-presenter :macos   [workspace view _platform] (MacOSBundleOptionsPresenter. workspace view desktop-variants common-compressions))
-(defmethod bundle-options-presenter :windows [workspace view _platform] (SelectablePlatformBundleOptionsPresenter. workspace view "Bundle Windows Application" :windows [["32-bit" "x86-win32"] ["64-bit" "x86_64-win32"]] (if os-32-bit? "x86-win32" "x86_64-win32") desktop-variants common-compressions))
+(defmethod bundle-options-presenter :windows [workspace view _platform] (SelectablePlatformBundleOptionsPresenter. workspace view "Bundle Windows Application" :windows [["32-bit" "x86-win32"] ["64-bit" "x86_64-win32"]] desktop-variants common-compressions))
 
 (handler/defhandler ::close :bundle-dialog
   (run [stage]
@@ -953,7 +945,7 @@
   (run [bundle! prefs presenter stage workspace]
     (save-prefs! presenter prefs)
     (let [bundle-options (get-options presenter)
-          output-prefs-key (prefs/make-project-specific-key "bundle-output-directory" workspace)
+          output-prefs-key [:bundle :output-directory]
           initial-directory (get-file-pref prefs output-prefs-key)]
       (assert (string? (not-empty (:platform bundle-options))))
       (when-let [output-directory (query-directory! "Output Directory" initial-directory stage)]

@@ -41,11 +41,6 @@
 #include <resource/resource_util.h>     // BytesToHexString for debug printing
 #include <resource/providers/provider.h>
 
-#if defined(_WIN32)
-#include <malloc.h>
-#define alloca(_SIZE) _alloca(_SIZE)
-#endif
-
 namespace dmLiveUpdate
 {
     const char* LIVEUPDATE_LEGACY_MOUNT_NAME        = "liveupdate"; // By not prefixing it with '_', the user may then remove it

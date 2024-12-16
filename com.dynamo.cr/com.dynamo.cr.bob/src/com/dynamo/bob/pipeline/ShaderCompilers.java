@@ -31,7 +31,7 @@ public class ShaderCompilers {
             this.platform = platform;
         }
 
-        private ArrayList<ShaderDesc.Language> getPlatformShaderLanguages(ShaderDesc.ShaderType shaderType, boolean outputSpirvRequested) {
+        private ArrayList<ShaderDesc.Language> getPlatformShaderLanguages(ShaderDesc.ShaderType shaderType, boolean outputSpirvRequested, boolean outputWGSLRequested) {
             ArrayList<ShaderDesc.Language> shaderLanguages = new ArrayList<>();
             boolean spirvSupported = true;
 
@@ -45,6 +45,7 @@ public class ShaderCompilers {
                 case X86Win32:
                 case X86_64Win32:
                 case X86Linux:
+                case Arm64Linux:
                 case X86_64Linux: {
                     if (shaderType == ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE) {
                         shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM430);
@@ -71,6 +72,8 @@ public class ShaderCompilers {
                         shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
                         shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);
                     }
+                    if (outputWGSLRequested)
+                        shaderLanguages.add(ShaderDesc.Language.LANGUAGE_WGSL);
                     spirvSupported = false;
                 } break;
                 case Arm64NX64:
@@ -85,20 +88,28 @@ public class ShaderCompilers {
             return shaderLanguages;
         }
 
-        public ShaderProgramBuilder.ShaderCompileResult compile(String shaderSource, ShaderDesc.ShaderType shaderType, String resourceOutputPath, boolean outputSpirv) throws IOException, CompileExceptionError {
-            ShaderCompilePipeline pipeline = ShaderProgramBuilder.getShaderPipelineFromShaderSource(shaderType, resourceOutputPath, shaderSource);
+        public ShaderProgramBuilder.ShaderCompileResult compile(String shaderSource, ShaderDesc.ShaderType shaderType, String resourceOutputPath, boolean outputSpirv, boolean outputWGSL) throws IOException, CompileExceptionError {
+
+            ShaderCompilePipeline.Options opts = new ShaderCompilePipeline.Options();
+            opts.splitTextureSamplers = outputWGSL;
+
+            ShaderCompilePipeline pipeline = ShaderProgramBuilder.newShaderPipelineFromShaderSource(shaderType, resourceOutputPath, shaderSource, opts);
             ArrayList<ShaderProgramBuilder.ShaderBuildResult> shaderBuildResults = new ArrayList<>();
-            ArrayList<ShaderDesc.Language> shaderLanguages = getPlatformShaderLanguages(shaderType, outputSpirv);
+            ArrayList<ShaderDesc.Language> shaderLanguages = getPlatformShaderLanguages(shaderType, outputSpirv, outputWGSL);
 
             assert shaderLanguages != null;
             for (ShaderDesc.Language shaderLanguage : shaderLanguages) {
-                ShaderDesc.Shader.Builder builder = ShaderProgramBuilder.makeShaderBuilder(shaderLanguage, pipeline.crossCompile(shaderType, shaderLanguage));
+                byte[] shaderBytes = pipeline.crossCompile(shaderType, shaderLanguage);
+                ShaderDesc.Shader.Builder builder = ShaderProgramBuilder.makeShaderBuilder(shaderLanguage, shaderBytes);
                 shaderBuildResults.add(new ShaderProgramBuilder.ShaderBuildResult(builder));
             }
 
             ShaderProgramBuilder.ShaderCompileResult compileResult = new ShaderProgramBuilder.ShaderCompileResult();
             compileResult.shaderBuildResults = shaderBuildResults;
             compileResult.reflector = pipeline.getReflectionData();
+
+            ShaderCompilePipeline.destroyShaderPipeline(pipeline);
+
             return compileResult;
         }
     }

@@ -170,13 +170,13 @@ namespace dmCrash
             lua_pushnumber(L, i+1);
 
             lua_newtable(L);
-            lua_pushstring(L, "name");
+            lua_pushliteral(L, "name");
             lua_pushstring(L, name);
             lua_settable(L, -3);
 
             char str[64];
             sprintf(str, "%p", addr);
-            lua_pushstring(L, "address");
+            lua_pushliteral(L, "address");
             lua_pushstring(L, str);
             lua_settable(L, -3);
 

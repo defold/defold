@@ -105,6 +105,11 @@ void RenderProfiler(dmProfile::HProfile profile, dmGraphics::HContext graphics_c
 
         dmProfileRender::UpdateRenderProfile(gRenderProfile, g_ProfilerCurrentFrame);
 
+        // Enable alpha blending
+        dmGraphics::PipelineState ps_before = dmGraphics::GetPipelineState(graphics_context);
+        dmGraphics::EnableState(graphics_context, dmGraphics::STATE_BLEND);
+        dmGraphics::SetBlendFunc(graphics_context, dmGraphics::BLEND_FACTOR_ONE, dmGraphics::BLEND_FACTOR_ONE_MINUS_SRC_ALPHA);
+
         dmRender::RenderListBegin(render_context);
         dmProfileRender::Draw(gRenderProfile, render_context, system_font_map);
         dmRender::RenderListEnd(render_context);
@@ -112,6 +117,13 @@ void RenderProfiler(dmProfile::HProfile profile, dmGraphics::HContext graphics_c
         dmRender::SetProjectionMatrix(render_context, dmVMath::Matrix4::orthographic(0.0f, dmGraphics::GetWindowWidth(graphics_context), 0.0f, dmGraphics::GetWindowHeight(graphics_context), 1.0f, -1.0f));
         dmRender::DrawRenderList(render_context, 0, 0, 0);
         dmRender::ClearRenderObjects(render_context);
+
+        // Restore blend state
+        if (!ps_before.m_BlendEnabled)
+        {
+            dmGraphics::DisableState(graphics_context, dmGraphics::STATE_BLEND);
+        }
+        dmGraphics::SetBlendFunc(graphics_context, (dmGraphics::BlendFactor) ps_before.m_BlendSrcFactor, (dmGraphics::BlendFactor) ps_before.m_BlendDstFactor);
     }
 
     if (g_ProfilerCurrentFrame)
@@ -236,7 +248,6 @@ static int EnableProfilerUI(lua_State* L)
  * You can also use the `view_recorded_frame` function to display a recorded frame. Doing so stops the recording as well.
  *
  * Every time you switch to recording mode the recording buffer is cleared.
- * The recording buffer is also cleared when setting the `MODE_SHOW_PEAK_FRAME` mode.
  *
  * @examples
  * ```lua
@@ -585,7 +596,7 @@ static void SampleTreeCallback(void* _ctx, const char* thread_name, dmProfile::H
     DM_MUTEX_SCOPED_LOCK(g_ProfilerMutex);
 
     dmProfileRender::ProfilerFrame* frame = (dmProfileRender::ProfilerFrame*)_ctx;
-    frame->m_Time = dmTime::GetTime();
+    frame->m_Time = dmTime::GetMonotonicTime();
 
     // Prune old profiler threads
     dmProfileRender::PruneProfilerThreads(frame, frame->m_Time - 150000);
@@ -724,6 +735,9 @@ static dmExtension::Result FinalizeProfiler(dmExtension::Params* params)
 
 static dmExtension::Result AppInitializeProfiler(dmExtension::AppParams* params)
 {
+    // Note that the callback might come from a different thread!
+    g_ProfilerMutex = dmMutex::New();
+
     g_ProfilerPort = dmConfigFile::GetInt(params->m_ConfigFile, "profiler.port", 0);
 
     g_ProfilerCurrentFrame = new dmProfileRender::ProfilerFrame;
@@ -739,11 +753,10 @@ static dmExtension::Result AppInitializeProfiler(dmExtension::AppParams* params)
     {
         delete g_ProfilerCurrentFrame;
         g_ProfilerCurrentFrame = 0;
+        dmMutex::Delete(g_ProfilerMutex);
+        g_ProfilerMutex = 0;
         return dmExtension::RESULT_OK;
     }
-
-    // Note that the callback might come from a different thread!
-    g_ProfilerMutex = dmMutex::New();
 
     g_ProfilerThreadSortOrder.SetCapacity(7, 8);
     g_ProfilerThreadSortOrder.Put(dmHashString64("Main"), 0);

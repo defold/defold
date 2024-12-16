@@ -164,9 +164,10 @@ namespace dmScript
         const char* key = luaL_checkstring(L, 2);
         if (strcmp("socket", key) == 0)
         {
-            if (IsHash(L, 3))
+            dmhash_t* phash = dmScript::ToHash(L, 3);
+            if (phash != 0)
             {
-                url->m_Socket = *(dmhash_t*)lua_touserdata(L, 3);
+                url->m_Socket = *phash;
             }
             else if (lua_isstring(L, 3))
             {
@@ -203,13 +204,17 @@ namespace dmScript
             {
                 url->m_Path = 0;
             }
-            else if (IsHash(L, 3))
-            {
-                url->m_Path = CheckHash(L, 3);
-            }
             else
             {
-                return luaL_error(L, "Invalid type for path, must be hash, string or nil.");
+                dmhash_t* phash = dmScript::ToHash(L, 3);
+                if (phash != 0)
+                {
+                    url->m_Path = *phash;
+                }
+                else
+                {
+                    return luaL_error(L, "Invalid type for path, must be hash, string or nil.");
+                }
             }
         }
         else if (strcmp("fragment", key) == 0)
@@ -222,13 +227,17 @@ namespace dmScript
             {
                 url->m_Fragment = 0;
             }
-            else if (IsHash(L, 3))
-            {
-                url->m_Fragment = *(dmhash_t*)lua_touserdata(L, 3);
-            }
             else
             {
-                return luaL_error(L, "Invalid type for fragment, must be hash, string or nil.");
+                dmhash_t* phash = dmScript::ToHash(L, 3);
+                if (phash != 0)
+                {
+                    url->m_Fragment = *phash;
+                }
+                else
+                {
+                    return luaL_error(L, "Invalid type for fragment, must be hash, string or nil.");
+                }
             }
         }
         else
@@ -348,9 +357,10 @@ namespace dmScript
             }
             if (!lua_isnil(L, 1))
             {
-                if (IsHash(L, 1))
+                dmhash_t* phash = dmScript::ToHash(L, 1);
+                if (phash != 0)
                 {
-                    url.m_Socket = *(dmhash_t*)lua_touserdata(L, 1);
+                    url.m_Socket = *phash;
                 }
                 else
                 {
@@ -754,15 +764,19 @@ namespace dmScript
                     }
                 }
             }
-            else if (IsHash(L, index))
-            {
-                out_url->m_Socket = default_url.m_Socket;
-                out_url->m_Path = *(dmhash_t*)lua_touserdata(L, index);
-                out_url->m_Fragment = 0;
-            }
             else
             {
-                return luaL_typerror(L, index, SCRIPT_TYPE_NAME_URL);
+                dmhash_t* phash = dmScript::ToHash(L, index);
+                if (phash != 0)
+                {
+                    out_url->m_Socket = default_url.m_Socket;
+                    out_url->m_Path = *phash;
+                    out_url->m_Fragment = 0;
+                }
+                else
+                {
+                    return luaL_typerror(L, index, SCRIPT_TYPE_NAME_URL);
+                }
             }
         }
         return 0;

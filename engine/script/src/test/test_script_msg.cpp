@@ -750,7 +750,7 @@ TEST_F(ScriptMsgTest, TestURLCreateBeforeSocket)
 
 TEST_F(ScriptMsgTest, TestPerf)
 {
-    uint64_t time = dmTime::GetTime();
+    uint64_t time = dmTime::GetMonotonicTime();
     uint32_t count = 10000;
     char program[256];
     dmSnPrintf(program, 256,
@@ -760,7 +760,7 @@ TEST_F(ScriptMsgTest, TestPerf)
         "end\n",
         count);
     ASSERT_TRUE(dmScriptTest::RunString(L, program));
-    time = dmTime::GetTime() - time;
+    time = dmTime::GetMonotonicTime() - time;
     printf("Time per post: %.4f\n", time / (double)count);
 }
 
@@ -781,6 +781,8 @@ TEST_F(ScriptMsgTest, TestPostDeletedSocket)
 
 int main(int argc, char **argv)
 {
+    dmHashEnableReverseHash(true);
+
     TestMainPlatformInit();
     dmLog::LogParams params;
     dmLog::LogInitialize(&params);

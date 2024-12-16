@@ -17,11 +17,11 @@
             [dynamo.graph :as g]
             [editor.handler :as handler]
             [editor.keymap :as keymap]
+            [editor.os :as os]
             [editor.system :as system]
             [editor.types :as types]
             [editor.ui :as ui]
             [editor.ui.popup :as popup]
-            [editor.util :as util]
             [internal.util :as iutil]
             [schema.core :as s])
   (:import [javafx.geometry Insets Point2D Pos]
@@ -46,7 +46,10 @@
            {:label "Spine Scenes" :tag :spine}
            {:label "Sprites" :tag :sprite}
            {:label "Text" :tag :text}
-           {:label "Tile Maps" :tag :tilemap}]
+           {:label "Tile Maps" :tag :tilemap}
+           {:label :separator}
+           {:label "Component Guides" :tag :outline :command :toggle-component-guides :always-enabled true}
+           {:label "Grid" :tag :grid :always-enabled true}]
 
           (system/defold-dev?)
           (into [{:label :separator}
@@ -61,9 +64,7 @@
         renderable-tag-toggles-info))
 
 (defn filters-appear-active?
-  "Returns true if some parts of the scene are hidden due to visibility filters.
-  Does not consider scene elements that you'd not typically expect to be there,
-  such as debug rendering of bounding volumes, etc."
+  "Returns true if some parts of the scene are hidden due to visibility filters."
   ([scene-visibility]
    (g/with-auto-evaluation-context evaluation-context
      (filters-appear-active? scene-visibility evaluation-context)))
@@ -280,7 +281,7 @@
     (ui/add-style! check-box "slide-switch")
     (HBox/setHgrow label Priority/ALWAYS)
     (ui/add-style! label "slide-switch-label")
-    (when (util/is-mac-os?)
+    (when (os/is-mac-os?)
       (.setStyle acc "-fx-font-family: 'Lucida Grande';"))
     (ui/add-style! acc "accelerator-label")
     (let [hbox (doto (HBox.)
@@ -310,20 +311,27 @@
   (g/update-property! scene-visibility :visibility-filters-enabled? not))
 
 (defn- make-visibility-toggles-list
-  ^Region [scene-visibility]
-  (let [make-control
-        (fn [{:keys [label tag]}]
+  ^Region [app-view scene-visibility]
+  (let [keymap (g/node-value app-view :keymap)
+        command->shortcut (keymap/command->shortcut keymap)
+        command->display-text (fn [command]
+                                (let [shortcut (get command->shortcut command)]
+                                  (if shortcut
+                                    (keymap/key-combo->display-text shortcut)
+                                    "")))
+        make-control
+        (fn [{:keys [label tag command always-enabled]}]
           (if (= :separator label)
             [(Separator.) nil]
             (let [[control update-fn]
                   (make-toggle {:label label
-                                :acc ""
+                                :acc (if command (command->display-text command) "")
                                 :on-change (fn [checked]
                                              (set-tag-visibility! scene-visibility tag checked))})
                   update-from-hidden-tags
                   (fn [hidden-tags enabled]
                     (let [checked (not (contains? hidden-tags tag))]
-                      (update-fn checked enabled)))]
+                      (update-fn checked (or always-enabled enabled))))]
               [control update-from-hidden-tags])))
 
         tag-toggles (mapv make-control renderable-tag-toggles-info)
@@ -336,7 +344,7 @@
 
         [filters-enabled-control filters-enabled-update-fn]
         (make-toggle {:label "Visibility Filters"
-                      :acc (keymap/key-combo->display-text "Shift+Shortcut+I")
+                      :acc (command->display-text :toggle-visibility-filters)
                       :on-change (fn [checked]
                                    (set-filters-enabled! scene-visibility checked))})
 
@@ -366,10 +374,10 @@
     (Point2D. (- (.getMaxX container-screen-bounds) width 10)
               (+ (.getMaxY container-screen-bounds) y-gap))))
 
-(defn show-visibility-settings! [^Parent owner scene-visibility]
+(defn show-visibility-settings! [app-view ^Parent owner scene-visibility]
   (if-let [popup ^PopupControl (ui/user-data owner ::popup)]
     (.hide popup)
-    (let [[^Region toggles update-fn] (make-visibility-toggles-list scene-visibility)
+    (let [[^Region toggles update-fn] (make-visibility-toggles-list app-view scene-visibility)
           popup (popup/make-popup owner toggles)
           anchor (pref-popup-position owner (.getMinWidth toggles) -5)
           refresh-timer (ui/->timer 13 "refresh-tag-filters" (fn [_ _ _] (update-fn)))]

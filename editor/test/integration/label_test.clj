@@ -25,7 +25,8 @@
             [editor.resource :as resource]
             [editor.scene :as scene]
             [editor.workspace :as workspace]
-            [integration.test-util :as test-util])
+            [integration.test-util :as test-util]
+            [util.fn :as fn])
   (:import [editor.types Region]))
 
 (deftest label-validation-test
@@ -72,7 +73,7 @@
     (into {}
           (keep (fn [pass]
                   (let [render-args (scene/pass-render-args (Region. 0 100 0 100) camera pass)
-                        calls (test-util/with-logged-calls [label/render-lines label/render-tris]
+                        calls (fn/with-logged-calls [label/render-lines label/render-tris]
                                 (let [patched-renderables (walk/postwalk-replace {old-render-lines label/render-lines
                                                                                   old-render-tris label/render-tris}
                                                                                  renderables)]

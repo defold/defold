@@ -24,8 +24,7 @@ Macros currently mean no foreseeable performance gain, however."
             [clojure.string :as string]
             [editor.system :as system]
             [editor.util :as util]
-            [editor.workspace :as workspace]
-            [internal.java :as j]
+            [internal.java :as java]
             [util.coll :as coll :refer [pair]]
             [util.digest :as digest]
             [util.fn :as fn]
@@ -66,7 +65,7 @@ Macros currently mean no foreseeable performance gain, however."
       (TextFormat/escapeBytes)))
 
 (defn- default-instance-raw [^Class cls]
-  (j/invoke-no-arg-class-method cls "getDefaultInstance"))
+  (java/invoke-no-arg-class-method cls "getDefaultInstance"))
 
 (def ^:private default-instance (fn/memoize default-instance-raw))
 
@@ -77,7 +76,7 @@ Macros currently mean no foreseeable performance gain, however."
 
 (defn- new-builder
   ^Message$Builder [^Class cls]
-  (j/invoke-no-arg-class-method cls "newBuilder"))
+  (java/invoke-no-arg-class-method cls "newBuilder"))
 
 (defn- field-name->key-raw [^String field-name]
   (keyword (if (re-find upper-pattern field-name)
@@ -157,7 +156,7 @@ Macros currently mean no foreseeable performance gain, however."
       (into {}
             (map (fn [^Method m]
                    (pair (.getName m) m)))
-            (j/get-declared-methods class)))))
+            (java/get-declared-methods class)))))
 
 (defn- lookup-method
   ^Method [^Class class method-name]
@@ -251,18 +250,18 @@ Macros currently mean no foreseeable performance gain, however."
     (let [count-method-name (str "get" java-name "Count")
           count-method (lookup-method cls count-method-name)]
       (fn repeated-field-has-value? [pb]
-        (pos? (.invoke count-method pb j/no-args-array))))
+        (pos? (.invoke count-method pb java/no-args-array))))
     (let [has-method-name (str "has" java-name)
           has-method (lookup-method cls has-method-name)]
       (fn field-has-value? [pb]
         ;; Wrapped in boolean because reflection will produce unique Boolean
         ;; instances that cannot evaluate to false in if-expressions.
-        (boolean (.invoke has-method pb j/no-args-array))))))
+        (boolean (.invoke has-method pb java/no-args-array))))))
 
 (defn pb-class->descriptor
   ^Descriptors$Descriptor [^Class cls]
   {:pre [(pb-class? cls)]}
-  (j/invoke-no-arg-class-method cls "getDescriptor"))
+  (java/invoke-no-arg-class-method cls "getDescriptor"))
 
 (defn- field-infos-raw [^Class cls]
   (let [desc (pb-class->descriptor cls)]
@@ -374,11 +373,11 @@ Macros currently mean no foreseeable performance gain, however."
                  (cond
                    (resource-field? field-info)
                    (case (:field-rule field-info)
-                     :repeated [ [[key]] ]
-                     :required [ [key] ]
+                     :repeated [[[key]]]
+                     :required [[key]]
                      :optional (if-some [field-default (declared-default class key)]
-                                 [ [{key field-default}] ]
-                                 [ [key] ]))
+                                 [[{key field-default}]]
+                                 [[key]]))
 
                    (message-field? field-info)
                    (let [sub-paths (resource-field-path-specs (:type field-info))]
@@ -510,21 +509,21 @@ Macros currently mean no foreseeable performance gain, however."
                             default-field-value (default-message (:type field-info) default-included-field-rules)]
                         (fn pb->field-clj-value [pb]
                           (if (field-has-value? pb)
-                            (let [field-pb-value (.invoke field-get-method pb j/no-args-array)]
+                            (let [field-pb-value (.invoke field-get-method pb java/no-args-array)]
                               (pb-value->clj field-pb-value))
                             default-field-value)))
 
                       (or repeated
                           include-defaults)
                       (fn pb->field-clj-value-or-default [pb]
-                        (let [field-pb-value (.invoke field-get-method pb j/no-args-array)]
+                        (let [field-pb-value (.invoke field-get-method pb java/no-args-array)]
                           (pb-value->clj field-pb-value)))
 
                       :else
                       (let [field-has-value? (field-has-value-fn class java-name repeated)]
                         (fn pb->field-clj-value [pb]
                           (when (field-has-value? pb)
-                            (let [field-pb-value (.invoke field-get-method pb j/no-args-array)]
+                            (let [field-pb-value (.invoke field-get-method pb java/no-args-array)]
                               (pb-value->clj field-pb-value)))))))))
           (field-infos class))))
 
@@ -649,7 +648,7 @@ Macros currently mean no foreseeable performance gain, however."
                                      (->CamelCase (FilenameUtils/getBaseName (.getName file))))
                          inner-cls (desc-name desc)]
                      (str package "." outer-cls "$" inner-cls)))]
-    (workspace/load-class! cls-name)))
+    (java/load-class! cls-name)))
 
 (defn val->pb-enum [^Class enum-class val]
   (Enum/valueOf enum-class (keyword->enum-name val)))
@@ -688,7 +687,7 @@ Macros currently mean no foreseeable performance gain, however."
 
 (defn- pb-builder-raw [^Class class]
   (let [desc (pb-class->descriptor class)
-        ^Method new-builder-method (j/get-declared-method class "newBuilder" [])
+        ^Method new-builder-method (java/get-declared-method class "newBuilder" [])
         builder-class (.getReturnType new-builder-method)
         ;; All methods relevant to us
         methods (into {}
@@ -699,7 +698,7 @@ Macros currently mean no foreseeable performance gain, however."
                                                             (.endsWith (.getName first-arg-class) "$Builder")))]
                                 (when (not set-via-builder?)
                                   (pair m-name m)))))
-                      (j/get-declared-methods builder-class))
+                      (java/get-declared-methods builder-class))
         field-descs (.getFields desc)
         setters (into {}
                       (map (fn [^Descriptors$FieldDescriptor fd]
@@ -1095,10 +1094,10 @@ Macros currently mean no foreseeable performance gain, however."
     (with-open [reader (StringReader. str)]
       (read-pb cls reader))))
 
-(defonce ^:private single-byte-array-args [j/byte-array-class])
+(defonce ^:private single-byte-array-args [java/byte-array-class])
 
 (defn- parser-fn-raw [^Class cls]
-  (let [^Method parse-method (j/get-declared-method cls "parseFrom" single-byte-array-args)]
+  (let [^Method parse-method (java/get-declared-method cls "parseFrom" single-byte-array-args)]
     (fn parser-fn [^bytes bytes]
       (.invoke parse-method nil (object-array [bytes])))))
 
@@ -1121,20 +1120,23 @@ Macros currently mean no foreseeable performance gain, however."
         parser
         pb->map-without-defaults)))
 
-(defn- enum-values-raw [^Class cls]
-  (let [^Method values-method (j/get-declared-method cls "values" [])
-        values (.invoke values-method nil (object-array 0))]
-    (mapv (fn [^ProtocolMessageEnum value]
-            [(pb-enum->val value)
-             {:display-name (-> (.getValueDescriptor value) (.getOptions) (.getExtension DdfExtensions/displayName))}])
-          values)))
+(defn- protocol-message-enums-raw [^Class enum-class]
+  (vec (java/invoke-no-arg-class-method enum-class "values")))
+
+(def protocol-message-enums (fn/memoize protocol-message-enums-raw))
+
+(defn- enum-values-raw [^Class enum-class]
+  (mapv (fn [^ProtocolMessageEnum value]
+          (pair (pb-enum->val value)
+                {:display-name (-> (.getValueDescriptor value) (.getOptions) (.getExtension DdfExtensions/displayName))}))
+        (protocol-message-enums enum-class)))
 
 (def enum-values (fn/memoize enum-values-raw))
 
-(defn- valid-enum-values-raw [^Class cls]
+(defn- valid-enum-values-raw [^Class enum-class]
   (into (sorted-set)
-        (map first)
-        (enum-values cls)))
+        (map pb-enum->val)
+        (protocol-message-enums enum-class)))
 
 (def valid-enum-values (fn/memoize valid-enum-values-raw))
 
@@ -1238,7 +1240,7 @@ Macros currently mean no foreseeable performance gain, however."
                                   {:key key
                                    :pb-class cls})))))))))
 
-(def ^:private without-defaults-xform (fn/memoize without-defaults-xform-raw))
+(def without-defaults-xform (fn/memoize without-defaults-xform-raw))
 
 (defn make-map-without-defaults [^Class cls & kvs]
   (into {}
@@ -1260,21 +1262,27 @@ Macros currently mean no foreseeable performance gain, however."
   (pb->map-without-defaults
     (read-pb cls input)))
 
-(defn assign [pb-map field-kw value]
-  {:pre [(map? pb-map)
-         (keyword? field-kw)]}
-  (if (or (nil? value)
-          (and (map? value)
-               (coll/empty? value)))
-    (dissoc pb-map field-kw)
-    (assoc pb-map field-kw value)))
+(defn assign
+  ([pb-map field-kw value]
+   {:pre [(map? pb-map)
+          (keyword? field-kw)]}
+   (if (or (nil? value)
+           (and (map? value)
+                (coll/empty? value)))
+     (dissoc pb-map field-kw)
+     (assoc pb-map field-kw value)))
+  ([pb-map field-kw value & kvs]
+   (coll/reduce-partitioned 2 assign (assign pb-map field-kw value) kvs)))
 
-(defn assign-repeated [pb-map field-kw items]
-  {:pre [(map? pb-map)
-         (keyword? field-kw)]}
-  (if (coll/empty? items)
-    (dissoc pb-map field-kw)
-    (assoc pb-map field-kw (vec items))))
+(defn assign-repeated
+  ([pb-map field-kw items]
+   {:pre [(map? pb-map)
+          (keyword? field-kw)]}
+   (if (coll/empty? items)
+     (dissoc pb-map field-kw)
+     (assoc pb-map field-kw (vec items))))
+  ([pb-map field-kw items & kvs]
+   (coll/reduce-partitioned 2 assign-repeated (assign-repeated pb-map field-kw items) kvs)))
 
 (defn sanitize
   ([pb-map field-kw]

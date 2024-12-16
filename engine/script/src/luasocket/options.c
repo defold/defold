@@ -158,12 +158,12 @@ int opt_set_linger(lua_State *L, p_socket ps)
 {
     struct linger li;                      /* obj, name, table */
     if (!lua_istable(L, 3)) auxiliar_typeerror(L,3,lua_typename(L, LUA_TTABLE));
-    lua_pushstring(L, "on");
+    lua_pushliteral(L, "on");
     lua_gettable(L, 3);
     if (!lua_isboolean(L, -1)) 
         luaL_argerror(L, 3, "boolean 'on' field expected");
     li.l_onoff = (u_short) lua_toboolean(L, -1);
-    lua_pushstring(L, "timeout");
+    lua_pushliteral(L, "timeout");
     lua_gettable(L, 3);
     if (!lua_isnumber(L, -1)) 
         luaL_argerror(L, 3, "number 'timeout' field expected");
@@ -208,7 +208,7 @@ int opt_get_ip_multicast_if(lua_State *L, p_socket ps)
     socklen_t len = sizeof(val);
     if (getsockopt(*ps, IPPROTO_IP, IP_MULTICAST_IF, (char *) &val, &len) < 0) {
         lua_pushnil(L);
-        lua_pushstring(L, "getsockopt failed");
+        lua_pushliteral(L, "getsockopt failed");
         return 2;
     }
     lua_pushstring(L, inet_ntoa(val));
@@ -254,13 +254,13 @@ static int opt_setmembership(lua_State *L, p_socket ps, int level, int name)
 {
     struct ip_mreq val;                   /* obj, name, table */
     if (!lua_istable(L, 3)) auxiliar_typeerror(L,3,lua_typename(L, LUA_TTABLE));
-    lua_pushstring(L, "multiaddr");
+    lua_pushliteral(L, "multiaddr");
     lua_gettable(L, 3);
     if (!lua_isstring(L, -1)) 
         luaL_argerror(L, 3, "string 'multiaddr' field expected");
     if (!inet_aton(lua_tostring(L, -1), &val.imr_multiaddr)) 
         luaL_argerror(L, 3, "invalid 'multiaddr' ip address");
-    lua_pushstring(L, "interface");
+    lua_pushliteral(L, "interface");
     lua_gettable(L, 3);
     if (!lua_isstring(L, -1)) 
         luaL_argerror(L, 3, "string 'interface' field expected");
@@ -277,13 +277,13 @@ static int opt_ip6_setmembership(lua_State *L, p_socket ps, int level, int name)
     struct ipv6_mreq val;                   /* obj, opt-name, table */
     memset(&val, 0, sizeof(val));
     if (!lua_istable(L, 3)) auxiliar_typeerror(L,3,lua_typename(L, LUA_TTABLE));
-    lua_pushstring(L, "multiaddr");
+    lua_pushliteral(L, "multiaddr");
     lua_gettable(L, 3);
     if (!lua_isstring(L, -1)) 
         luaL_argerror(L, 3, "string 'multiaddr' field expected");
     if (!inet_pton(AF_INET6, lua_tostring(L, -1), &val.ipv6mr_multiaddr)) 
         luaL_argerror(L, 3, "invalid 'multiaddr' ip address");
-    lua_pushstring(L, "interface");
+    lua_pushliteral(L, "interface");
     lua_gettable(L, 3);
     /* By default we listen to interface on default route
      * (sigh). However, interface= can override it. We should 
@@ -305,7 +305,7 @@ int opt_get(lua_State *L, p_socket ps, int level, int name, void *val, int* len)
     socklen_t socklen = *len;
     if (getsockopt(*ps, level, name, (char *) val, &socklen) < 0) {
         lua_pushnil(L);
-        lua_pushstring(L, "getsockopt failed");
+        lua_pushliteral(L, "getsockopt failed");
         return 2;
     }
     *len = socklen;
@@ -315,9 +315,15 @@ int opt_get(lua_State *L, p_socket ps, int level, int name, void *val, int* len)
 static 
 int opt_set(lua_State *L, p_socket ps, int level, int name, void *val, int len)
 {
-    if (setsockopt(*ps, level, name, (char *) val, len) < 0) {
+/// DEFOLD BEGIN
+    if (1
+#if !defined(__EMSCRIPTEN__)
+        && setsockopt(*ps, level, name, (char *) val, len) < 0
+#endif
+        ) {
+/// DEFOLD END
         lua_pushnil(L);
-        lua_pushstring(L, "setsockopt failed");
+        lua_pushliteral(L, "setsockopt failed");
         return 2;
     }
     lua_pushnumber(L, 1);
@@ -341,7 +347,7 @@ int opt_get_error(lua_State *L, p_socket ps)
     socklen_t len = sizeof(val);
     if (getsockopt(*ps, SOL_SOCKET, SO_ERROR, (char *) &val, &len) < 0) {
         lua_pushnil(L);
-        lua_pushstring(L, "getsockopt failed");
+        lua_pushliteral(L, "getsockopt failed");
         return 2;
     }
     lua_pushstring(L, socket_strerror(val));

@@ -18,6 +18,29 @@
 namespace dmPlatform
 {
     int32_t OpenGLGetDefaultFramebufferId();
+
+    static inline bool OpenGLGetVersion(int32_t version, uint32_t* major, uint32_t* minor)
+    {
+        uint32_t tmp_major = version / 10;
+        uint32_t tmp_minor = version % 10;
+
+        bool use_highest_version_supported = true;
+
+        // Osx doesn't support using the "highest version available"
+    #ifdef __MACH__
+        use_highest_version_supported = false;
+    #endif
+
+        if ((version == 0 && use_highest_version_supported) ||   // Highest available
+            (tmp_major == 3 && tmp_minor == 3) ||              // Only 3.3 is supported from 3.x
+            (tmp_major == 4 && tmp_minor >= 0 && *minor <= 6)) // Only 4.0 - 4.6 are proper versions
+        {
+            *major = tmp_major;
+            *minor = tmp_minor;
+            return true;
+        }
+        return false;
+    }
 }
 
 #endif // DM_PLATFORM_WINDOW_OPENGL_H

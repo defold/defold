@@ -109,11 +109,25 @@ namespace dmRender
         return 1;
     }
 
+    /*# get enabled
+    *
+    * @name camera.get_enabled
+    * @param camera [type:url|handle|nil] camera id
+    * @return flag [type:bool] true if the camera is enabled
+    */
+    static int RenderScriptCamera_GetEnabled(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        RenderCamera* camera = CheckRenderCamera(L, 1, g_RenderScriptCameraModule.m_RenderContext);
+        lua_pushboolean(L, camera->m_Enabled);
+        return 1;
+    }
+
     /*# get projection matrix
     *
     * @name camera.get_projection
     * @param camera [type:url|handle|nil] camera id
-    * @return projection [type:vmath.matrix4] the projection matrix.
+    * @return projection [type:matrix4] the projection matrix.
     */
     static int RenderScriptCamera_GetProjection(lua_State* L)
     {
@@ -127,7 +141,7 @@ namespace dmRender
     *
     * @name camera.get_view
     * @param camera [type:url|handle|nil] camera id
-    * @return view [type:vmath.matrix4] the view matrix.
+    * @return view [type:matrix4] the view matrix.
     */
     static int RenderScriptCamera_GetView(lua_State* L)
     {
@@ -246,6 +260,7 @@ namespace dmRender
         // READ-ONLY
         {"get_projection",          RenderScriptCamera_GetProjection},
         {"get_view",                RenderScriptCamera_GetView},
+        {"get_enabled",             RenderScriptCamera_GetEnabled},
 
         // READ-WRITE
         {"get_aspect_ratio",        RenderScriptCamera_GetAspectRatio},

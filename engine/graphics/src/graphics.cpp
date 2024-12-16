@@ -22,6 +22,7 @@
 #include <string.h>
 #include <assert.h>
 #include <dlib/profile.h>
+#include <dlib/math.h>
 
 DM_PROPERTY_GROUP(rmtp_Graphics, "Graphics");
 DM_PROPERTY_U32(rmtp_DrawCalls, 0, FrameReset, "# vertices", &rmtp_Graphics);
@@ -107,6 +108,8 @@ namespace dmGraphics
             return ADAPTER_FAMILY_OPENGL;
         if (dmStrCaseCmp("vulkan", adapter_name) == 0)
             return ADAPTER_FAMILY_VULKAN;
+        if (dmStrCaseCmp("webgpu", adapter_name) == 0)
+            return ADAPTER_FAMILY_WEBGPU;
         if (dmStrCaseCmp("vendor", adapter_name) == 0)
             return ADAPTER_FAMILY_VENDOR;
         assert(0 && "Adapter type not supported?");
@@ -124,6 +127,7 @@ namespace dmGraphics
             GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_OPENGL);
             GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_VULKAN);
             GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_VENDOR);
+            GRAPHICS_ENUM_TO_STR_CASE(ADAPTER_FAMILY_WEBGPU);
             default:break;
         }
         return "<unknown dmGraphics::AdapterFamily>";
@@ -212,7 +216,6 @@ namespace dmGraphics
             GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1);
             GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGB_ETC1);
             GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ETC2);
-            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_4x4);
             GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGB_BC1);
             GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_BC3);
             GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_R_BC4);
@@ -227,6 +230,21 @@ namespace dmGraphics
             GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_R32F);
             GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RG32F);
             GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA32UI);
+
+            // ASTC
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_4x4);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_5x5);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_6x5);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_6x6);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_8x5);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_8x6);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_8x8);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_10x5);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_10x6);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_10x8);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_10x10);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_12x10);
+            GRAPHICS_ENUM_TO_STR_CASE(TEXTURE_FORMAT_RGBA_ASTC_12x12);
             default:break;
         }
         return "<unknown dmGraphics::TextureFormat>";
@@ -248,6 +266,7 @@ namespace dmGraphics
             SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_GLSL_SM330);
             SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_SPIRV);
             SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_PSSL);
+            SHADERDESC_ENUM_TO_STR_CASE(LANGUAGE_WGSL);
             default:break;
         }
         return "<unknown ShaderDesc::Language>";
@@ -395,15 +414,6 @@ namespace dmGraphics
         {
             return 4 * 4 * 4;
         }
-        else if (type == TYPE_SAMPLER_2D ||
-                 type == TYPE_SAMPLER_CUBE ||
-                 type == TYPE_SAMPLER_2D_ARRAY ||
-                 type == TYPE_IMAGE_2D)
-        {
-            return 0;
-        }
-
-        assert(0 && "Invalid/unsupported type");
         return 0;
     }
 
@@ -426,68 +436,6 @@ namespace dmGraphics
             default: break;
         }
         return 0;
-    }
-
-    void GetAttributeValues(const dmGraphics::VertexAttribute& attribute, const uint8_t** data_ptr, uint32_t* data_size)
-    {
-        *data_ptr  = attribute.m_Values.m_BinaryValues.m_Data;
-        *data_size = attribute.m_Values.m_BinaryValues.m_Count;
-    }
-
-    uint8_t* WriteAttribute(const VertexAttributeInfos* attribute_infos, uint8_t* write_ptr, uint32_t vertex_index, const dmVMath::Matrix4* world_transform, const dmVMath::Point3& p, const dmVMath::Point3& p_local, const dmVMath::Vector4* color, float** uvs, uint32_t* page_indices, uint32_t num_textures)
-    {
-        uint32_t num_texcoords = 0;
-        uint32_t num_page_indices = 0;
-
-        for (int i = 0; i < attribute_infos->m_NumInfos; ++i)
-        {
-            const VertexAttributeInfo& info = attribute_infos->m_Infos[i];
-
-            switch(info.m_SemanticType)
-            {
-                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION:
-                {
-                    if (info.m_CoordinateSpace == dmGraphics::COORDINATE_SPACE_WORLD && world_transform)
-                    {
-                        dmVMath::Vector4 wp = *world_transform * p;
-                        memcpy(write_ptr, &wp, info.m_ValueByteSize);
-                    }
-                    else
-                    {
-                        memcpy(write_ptr, &p_local, info.m_ValueByteSize);
-                    }
-                } break;
-                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD:
-                {
-                    uint32_t unit = num_texcoords++;
-                    if (unit >= num_textures || !uvs[unit])
-                        unit = 0;
-                    memcpy(write_ptr, uvs[unit] + vertex_index * 2, info.m_ValueByteSize);
-                } break;
-                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR:
-                {
-                    if (color)
-                        memcpy(write_ptr, color, info.m_ValueByteSize);
-                    else
-                        memcpy(write_ptr, info.m_ValuePtr, info.m_ValueByteSize);
-                } break;
-                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_PAGE_INDEX:
-                {
-                    uint32_t unit = num_page_indices++;
-                    float page_index = (float) page_indices[unit];
-                    memcpy(write_ptr, &page_index, info.m_ValueByteSize);
-                } break;
-                default:
-                {
-                    assert(info.m_ValuePtr);
-                    memcpy(write_ptr, info.m_ValuePtr, info.m_ValueByteSize);
-                } break;
-            }
-
-            write_ptr += info.m_ValueByteSize;
-        }
-
-        return write_ptr;
     }
 
     dmGraphics::Type GetGraphicsType(dmGraphics::VertexAttribute::DataType data_type)
@@ -519,10 +467,14 @@ namespace dmGraphics
             case ShaderDesc::SHADER_TYPE_MAT2:            return TYPE_FLOAT_MAT2;
             case ShaderDesc::SHADER_TYPE_MAT3:            return TYPE_FLOAT_MAT3;
             case ShaderDesc::SHADER_TYPE_MAT4:            return TYPE_FLOAT_MAT4;
+            case ShaderDesc::SHADER_TYPE_SAMPLER:         return TYPE_SAMPLER;
             case ShaderDesc::SHADER_TYPE_SAMPLER2D:       return TYPE_SAMPLER_2D;
             case ShaderDesc::SHADER_TYPE_SAMPLER_CUBE:    return TYPE_SAMPLER_CUBE;
             case ShaderDesc::SHADER_TYPE_SAMPLER2D_ARRAY: return TYPE_SAMPLER_2D_ARRAY;
             case ShaderDesc::SHADER_TYPE_IMAGE2D:         return TYPE_IMAGE_2D;
+            case ShaderDesc::SHADER_TYPE_TEXTURE2D:       return TYPE_TEXTURE_2D;
+            case ShaderDesc::SHADER_TYPE_TEXTURE2D_ARRAY: return TYPE_TEXTURE_2D_ARRAY;
+            case ShaderDesc::SHADER_TYPE_TEXTURE_CUBE:    return TYPE_TEXTURE_CUBE;
             default: break;
         }
 
@@ -534,6 +486,13 @@ namespace dmGraphics
     {
         VertexStreamDeclaration* sd = new VertexStreamDeclaration();
         memset(sd, 0, sizeof(*sd));
+        return sd;
+    }
+
+    HVertexStreamDeclaration NewVertexStreamDeclaration(HContext context, VertexStepFunction step_function)
+    {
+        VertexStreamDeclaration* sd = NewVertexStreamDeclaration(context);
+        sd->m_StepFunction = step_function;
         return sd;
     }
 
@@ -600,7 +559,12 @@ namespace dmGraphics
 
     uint32_t GetVertexDeclarationStride(HVertexDeclaration vertex_declaration)
     {
-        return vertex_declaration->m_Stride;
+        return vertex_declaration ? vertex_declaration->m_Stride : 0;
+    }
+
+    uint32_t GetVertexDeclarationStreamCount(HVertexDeclaration vertex_declaration)
+    {
+        return vertex_declaration ? vertex_declaration->m_StreamCount : 0;
     }
 
     #define DM_TEXTURE_FORMAT_TO_STR_CASE(x) case TEXTURE_FORMAT_##x: return #x;
@@ -642,6 +606,24 @@ namespace dmGraphics
     }
     #undef DM_TEXTURE_FORMAT_TO_STR_CASE
 
+    bool IsTextureFormatASTC(TextureFormat format)
+    {
+        return format == TEXTURE_FORMAT_RGBA_ASTC_4x4 ||
+               format == TEXTURE_FORMAT_RGBA_ASTC_5x4 ||
+               format == TEXTURE_FORMAT_RGBA_ASTC_5x5 ||
+               format == TEXTURE_FORMAT_RGBA_ASTC_6x5 ||
+               format == TEXTURE_FORMAT_RGBA_ASTC_6x6 ||
+               format == TEXTURE_FORMAT_RGBA_ASTC_8x5 ||
+               format == TEXTURE_FORMAT_RGBA_ASTC_8x6 ||
+               format == TEXTURE_FORMAT_RGBA_ASTC_8x8 ||
+               format == TEXTURE_FORMAT_RGBA_ASTC_10x5 ||
+               format == TEXTURE_FORMAT_RGBA_ASTC_10x6 ||
+               format == TEXTURE_FORMAT_RGBA_ASTC_10x8 ||
+               format == TEXTURE_FORMAT_RGBA_ASTC_10x10 ||
+               format == TEXTURE_FORMAT_RGBA_ASTC_12x10 ||
+               format == TEXTURE_FORMAT_RGBA_ASTC_12x12;
+    }
+
     // For estimating resource size
     uint32_t GetTextureFormatBitsPerPixel(TextureFormat format)
     {
@@ -657,7 +639,6 @@ namespace dmGraphics
         case TEXTURE_FORMAT_R_ETC2:             return 8;
         case TEXTURE_FORMAT_RG_ETC2:            return 8;
         case TEXTURE_FORMAT_RGBA_ETC2:          return 8;
-        case TEXTURE_FORMAT_RGBA_ASTC_4x4:      return 8;
         case TEXTURE_FORMAT_RGB_BC1:            return 4;
         case TEXTURE_FORMAT_RGBA_BC3:           return 4;
         case TEXTURE_FORMAT_R_BC4:              return 8;
@@ -680,10 +661,15 @@ namespace dmGraphics
         case TEXTURE_FORMAT_RGBA32UI:           return 128;
         case TEXTURE_FORMAT_BGRA8U:             return 32;
         case TEXTURE_FORMAT_R32UI:              return 32;
-        default:
-            assert(false && "Unknown texture format");
-            return TEXTURE_FORMAT_COUNT;
+        default: break;
         }
+
+        // Not straight-forward to return a BPP value here.
+        if (IsTextureFormatASTC(format))
+            return 0;
+
+        assert(false && "Unknown texture format");
+        return TEXTURE_FORMAT_COUNT;
     }
 
     uint32_t GetGraphicsTypeDataSize(Type type)
@@ -756,7 +742,6 @@ namespace dmGraphics
             case dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:
             case dmGraphics::TEXTURE_FORMAT_RGB_ETC1:
             case dmGraphics::TEXTURE_FORMAT_RGBA_ETC2:
-            case dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_4x4:
             case dmGraphics::TEXTURE_FORMAT_RGB_BC1:
             case dmGraphics::TEXTURE_FORMAT_RGBA_BC3:
             case dmGraphics::TEXTURE_FORMAT_R_BC4:
@@ -764,7 +749,8 @@ namespace dmGraphics
             case dmGraphics::TEXTURE_FORMAT_RGBA_BC7:
                 return true;
             default:
-                return false;
+                // Lastly check if it's one of the ASTC formats
+                return IsTextureFormatASTC(format);
         }
     }
 
@@ -776,13 +762,13 @@ namespace dmGraphics
             case dmGraphics::TEXTURE_FORMAT_RGBA32UI:
             case dmGraphics::TEXTURE_FORMAT_RGBA_BC7:
             case dmGraphics::TEXTURE_FORMAT_RGBA_BC3:
-            case dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_4x4:
             case dmGraphics::TEXTURE_FORMAT_RGBA_ETC2:
             case dmGraphics::TEXTURE_FORMAT_RGBA_PVRTC_4BPPV1:
             case dmGraphics::TEXTURE_FORMAT_RGBA_16BPP:
                 return true;
             default:
-                return false;
+                // Lastly check if it's one of the ASTC formats
+                return IsTextureFormatASTC(format);
         }
     }
 
@@ -967,9 +953,13 @@ namespace dmGraphics
             res.m_NameHash             = bindings[i].m_NameHash;
             res.m_Binding              = bindings[i].m_Binding;
             res.m_Set                  = bindings[i].m_Set;
-            res.m_BlockSize            = bindings[i].m_BlockSize;
             res.m_Type.m_UseTypeIndex  = bindings[i].m_Type.m_UseTypeIndex;
             res.m_BindingFamily        = family;
+
+            if (res.m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_SAMPLER)
+                res.m_BindingInfo.m_SamplerTextureIndex = bindings[i].m_Bindinginfo.m_SamplerTextureIndex;
+            else
+                res.m_BindingInfo.m_BlockSize = bindings[i].m_Bindinginfo.m_BlockSize;
 
             if (res.m_Type.m_UseTypeIndex)
                 res.m_Type.m_TypeIndex = bindings[i].m_Type.m_Type.m_TypeIndex;
@@ -1264,6 +1254,10 @@ namespace dmGraphics
     {
         g_functions.m_SetVertexBufferSubData(buffer, offset, size, data);
     }
+    uint32_t GetVertexBufferSize(HVertexBuffer buffer)
+    {
+        return g_functions.m_GetVertexBufferSize(buffer);
+    }
     uint32_t GetMaxElementsVertices(HContext context)
     {
         return g_functions.m_GetMaxElementsVertices(context);
@@ -1284,6 +1278,10 @@ namespace dmGraphics
     {
         g_functions.m_SetIndexBufferSubData(buffer, offset, size, data);
     }
+    uint32_t GetIndexBufferSize(HIndexBuffer buffer)
+    {
+        return g_functions.m_GetIndexBufferSize(buffer);
+    }
     bool IsIndexBufferFormatSupported(HContext context, IndexBufferFormat format)
     {
         return g_functions.m_IsIndexBufferFormatSupported(context, format);
@@ -1300,9 +1298,9 @@ namespace dmGraphics
     {
         return g_functions.m_NewVertexDeclarationStride(context, stream_declaration, stride);
     }
-    void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, uint32_t binding_index, HProgram program)
+    void EnableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration, uint32_t binding_index, uint32_t base_offset, HProgram program)
     {
-        g_functions.m_EnableVertexDeclaration(context, vertex_declaration, binding_index, program);
+        g_functions.m_EnableVertexDeclaration(context, vertex_declaration, binding_index, base_offset, program);
     }
     void DisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration)
     {
@@ -1316,13 +1314,13 @@ namespace dmGraphics
     {
         g_functions.m_DisableVertexBuffer(context, vertex_buffer);
     }
-    void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
+    void DrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer, uint32_t instance_count)
     {
-        g_functions.m_DrawElements(context, prim_type, first, count, type, index_buffer);
+        g_functions.m_DrawElements(context, prim_type, first, count, type, index_buffer, instance_count);
     }
-    void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count)
+    void Draw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count)
     {
-        g_functions.m_Draw(context, prim_type, first, count);
+        g_functions.m_Draw(context, prim_type, first, count, instance_count);
     }
     void DispatchCompute(HContext context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z)
     {
@@ -1634,6 +1632,10 @@ namespace dmGraphics
     {
         assert(asset_handle <= MAX_ASSET_HANDLE_VALUE);
         return g_functions.m_IsAssetHandleValid(context, asset_handle);
+    }
+    void InvalidateGraphicsHandles(HContext context)
+    {
+        g_functions.m_InvalidateGraphicsHandles(context);
     }
     HComputeProgram NewComputeProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {

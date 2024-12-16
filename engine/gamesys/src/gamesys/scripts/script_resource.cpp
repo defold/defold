@@ -32,6 +32,7 @@
 #include "../gamesys.h"
 #include "../gamesys_private.h"
 #include "../resources/res_buffer.h"
+#include "../resources/res_font.h"
 #include "../resources/res_texture.h"
 #include "../resources/res_textureset.h"
 #include "../resources/res_render_target.h"
@@ -1762,6 +1763,14 @@ static void CheckAtlasArguments(lua_State* L, uint32_t* num_geometries_out, uint
             VALIDATE_GEOMETRY_STREAM("indices",  3);
             #undef VALIDATE_GEOMETRY_STREAM
 
+            // these _should_ be required, but were added late after the api was introduced.
+            CheckFieldValue<int>(L, -1, "width", 0);
+            CheckFieldValue<int>(L, -1, "height",  0);
+
+            // Non-required fields
+            CheckFieldValue<float>(L,  -1, "pivot_x", 0);
+            CheckFieldValue<float>(L,  -1, "pivot_y", 0);
+
             lua_pop(L, 1);
 
             num_geometries++;
@@ -1905,16 +1914,30 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
             lua_pop(L, 1);
             texture_set_ddf->m_ImageNameHashes[i] = id_hash;
 
-            lua_pop(L, 1);
+            float geo_width = (float)CheckFieldValue<int>(L, -1, "width", 0);
+            float geo_height = (float)CheckFieldValue<int>(L, -1, "height",  0);
 
-            // Calculate extents so that we can transform to -0.5 .. 0.5 based
-            // on the middle of the sprite
-            float geo_width = 0.0f;
-            float geo_height = 0.0f;
-            for (int j = 0; j < geometry.m_Vertices.m_Count; j += 2)
+            // pivot in unit space, where (0,0) is top left of image, (1,1) is bottom right
+            float pivot_x = CheckFieldValue<float>(L, -1, "pivot_x", 0.5f);
+            float pivot_y = CheckFieldValue<float>(L, -1, "pivot_y", 0.5f);
+
+            lua_pop(L, 1);
+            // End of lua table interaction
+
+            // default SpriteGeometry pivot is (0,0) which is middle of image.
+            geometry.m_PivotX =        pivot_x - 0.5f;
+            geometry.m_PivotY = 1.0f - pivot_y - 0.5f;
+
+            // Legacy, we should have required the user to specify width/height from the start
+            if (geo_width == 0 || geo_height == 0)
             {
-                geo_width  = dmMath::Max(geo_width, geometry.m_Vertices.m_Data[j]);
-                geo_height = dmMath::Max(geo_height, geometry.m_Vertices.m_Data[j+1]);
+                // Calculate extents so that we can transform to -0.5 .. 0.5 based
+                // on the middle of the sprite
+                for (int j = 0; j < geometry.m_Vertices.m_Count; j += 2)
+                {
+                    geo_width  = dmMath::Max(geo_width, geometry.m_Vertices.m_Data[j]);
+                    geo_height = dmMath::Max(geo_height, geometry.m_Vertices.m_Data[j+1]);
+                }
             }
 
             geometry.m_Width  = geo_width;
@@ -2143,11 +2166,23 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
  * * `id`
  * : [type:string] The name of the geometry. Used when matching animations between multiple atlases
  *
+ * * `width`
+ * : [type:number] The width of the image the sprite geometry represents
+ *
+ * * `height`
+ * : [type:number] The height of the image the sprite geometry represents
+ *
+ * * `pivot_x`
+ * : [type:number] The pivot x value of the image in unit coords. (0,0) is upper left corner, (1,1) is bottom right. Default is 0.5.
+ *
+ * * `pivot_y`
+ * : [type:number] The pivot y value of the image in unit coords. (0,0) is upper left corner, (1,1) is bottom right. Default is 0.5.
+ *
  * * `vertices`
- * : [type:table] a list of the vertices in texture space of the geometry in the form {px0, py0, px1, py1, ..., pxn, pyn}
+ * : [type:table] a list of the vertices in image space of the geometry in the form {px0, py0, px1, py1, ..., pxn, pyn}
  *
  * * `uvs`
- * : [type:table] a list of the uv coordinates in texture space of the geometry in the form of {u0, v0, u1, v1, ..., un, vn}
+ * : [type:table] a list of the uv coordinates in image space of the geometry in the form of {u0, v0, u1, v1, ..., un, vn}.
  *
  * * `indices`
  * : [type:table] a list of the indices of the geometry in the form {i0, i1, i2, ..., in}. Each tripe in the list represents a triangle.
@@ -2189,6 +2224,10 @@ static void MakeTextureSetFromLua(lua_State* L, dmhash_t texture_path_hash, dmGr
  *         geometries = {
  *             {
  *                 id = 'idle0',
+ *                 width = 128,
+ *                 height = 128,
+ *                 pivot_x = 64,
+ *                 pivot_y = 64,
  *                 vertices  = {
  *                     0,   0,
  *                     0,   128,
@@ -2518,8 +2557,6 @@ static int GetAtlas(lua_State* L)
         lua_rawset(L, -3);
     }
 
-    #undef SET_LUA_TABLE_FIELD
-
     lua_rawset(L, -3);
 
     {
@@ -2541,6 +2578,12 @@ static int GetAtlas(lua_State* L)
                 assert(geom.m_Vertices.m_Count % 2 == 0);
                 assert(geom.m_Uvs.m_Count      % 2 == 0);
                 assert(geom.m_Indices.m_Count  % 3 == 0);
+
+                SET_LUA_TABLE_FIELD(lua_pushnumber, "width",    geom.m_Width);
+                SET_LUA_TABLE_FIELD(lua_pushnumber, "height",   geom.m_Height);
+                // Transform back to image space (0,0) is top left corner, (1,1) is bottom right
+                SET_LUA_TABLE_FIELD(lua_pushnumber, "pivot_x",          geom.m_PivotX + 0.5);
+                SET_LUA_TABLE_FIELD(lua_pushnumber, "pivot_y",  1.0f - (geom.m_PivotY + 0.5f));
 
                 lua_pushliteral(L, "vertices");
                 lua_newtable(L);
@@ -2581,6 +2624,8 @@ static int GetAtlas(lua_State* L)
         }
         lua_rawset(L, -3);
     }
+
+    #undef SET_LUA_TABLE_FIELD
 
     return 1;
 }
@@ -3080,7 +3125,7 @@ static int GetTextMetrics(lua_State* L)
     size_t len = 0;
     const char* text = luaL_checklstring(L, 2, &len);
 
-    dmRender::HFontMap font_map = (dmRender::HFontMap)CheckResource(L, g_ResourceModule.m_Factory, path_hash, "fontc");;
+    dmGameSystem::FontResource* font = (dmGameSystem::FontResource*)CheckResource(L, g_ResourceModule.m_Factory, path_hash, "fontc");;
 
     bool line_break = false;
     float leading = 1.0f;
@@ -3096,8 +3141,14 @@ static int GetTextMetrics(lua_State* L)
         line_break = CheckTableBoolean(L, table_index, "line_break", line_break);
     }
 
+    dmRender::TextMetricsSettings settings;
+    settings.m_Width = width;
+    settings.m_LineBreak = line_break;
+    settings.m_Leading = leading;
+    settings.m_Tracking = tracking;
+
     dmRender::TextMetrics metrics;
-    dmRender::GetTextMetrics(font_map, text, width, line_break, leading, tracking, &metrics);
+    dmRender::GetTextMetrics(dmGameSystem::ResFontGetHandle(font), text, &settings, &metrics);
     PushTextMetricsTable(L, &metrics);
     return 1;
 }

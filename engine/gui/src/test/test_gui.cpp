@@ -717,6 +717,16 @@ TEST_F(dmGuiTest, DynamicTexture)
     r = dmGui::SetDynamicTextureData(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_RGB, false, data, sizeof(data));
     ASSERT_EQ(r, dmGui::RESULT_INVAL_ERROR);
 
+    // test create same texture twice
+    // https://github.com/defold/defold/issues/9893
+    r = dmGui::NewDynamicTexture(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_RGB, false, data, sizeof(data));
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+    r = dmGui::NewDynamicTexture(m_Scene, dmHashString64("t1"), width, height, dmImage::TYPE_RGB, false, data, sizeof(data));
+    ASSERT_EQ(r, dmGui::RESULT_TEXTURE_ALREADY_EXISTS);
+    r = dmGui::DeleteDynamicTexture(m_Scene, dmHashString64("t1"));
+    ASSERT_EQ(r, dmGui::RESULT_OK);
+
+
     dmGui::DeleteNode(m_Scene, node, true);
 
     dmGui::RenderScene(m_Scene, rp, &count);
@@ -5441,6 +5451,15 @@ TEST_F(dmGuiTest, SetGetScreenPosition)
     ASSERT_EQ(dmGui::RESULT_OK, r);
 }
 
+TEST_F(dmGuiTest, ZeroMaxDynamicTextures)
+{
+    dmGui::NewSceneParams params;
+    params.m_UserData = (void*)this;
+    params.m_MaxDynamicTextures = 0;
+    dmGui::HScene scene = dmGui::NewScene(m_Context, &params);
+    ASSERT_NE((void*)scene, (void*)0x0);
+    dmGui::DeleteScene(scene);
+}
 
 int main(int argc, char **argv)
 {

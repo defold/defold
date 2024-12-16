@@ -42,6 +42,8 @@ namespace dmPlatform
         void*                         m_DeviceChangedCallbackUserData;
         double                        m_MouseScrollX;
         double                        m_MouseScrollY;
+        float                         m_XScale;
+        float                         m_YScale;
         int32_t                       m_Width;
         int32_t                       m_Height;
         int32_t                       m_WidthScreen;

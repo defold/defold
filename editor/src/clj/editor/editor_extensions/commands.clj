@@ -115,7 +115,7 @@
                                :display-output! display-output!
                                :label (str label "'s \"active\" in " path)
                                :catch false
-                               (rt/->clj rt coerce/to-boolean (rt/invoke-immediate (:rt state) active (rt/->lua opts) (:evaluation-context env)))))))
+                               (rt/->clj rt coerce/to-boolean (rt/invoke-immediate-1 (:rt state) active (rt/->lua opts) (:evaluation-context env)))))))
 
                   (and (not active) query)
                   (assoc :active? (lua-fn->env-fn (constantly true)))
@@ -125,7 +125,7 @@
                          (lua-fn->env-fn
                            (fn [_ opts]
                              (let [error-label (str label "'s \"run\" in " path)]
-                               (-> (rt/invoke-suspending rt run (rt/->lua opts))
+                               (-> (rt/invoke-suspending-1 rt run (rt/->lua opts))
                                    (future/then
                                      (fn [lua-result]
                                        (when-not (rt/coerces-to? rt coerce/null lua-result)

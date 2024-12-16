@@ -1506,9 +1506,10 @@
            (and (active-tile-map app-view evaluation-context)
                 (active-scene-view app-view evaluation-context)))
   (enabled? [app-view selection evaluation-context]
-    (and (selection->layer selection)
-         (-> (active-tile-map app-view evaluation-context)
-             (g/node-value :tile-source-resource evaluation-context))))
+            (and (selection->layer selection)
+                 (let [active-tile (active-tile-map app-view evaluation-context)]
+                   (and (g/node-value active-tile :tile-source-resource evaluation-context)
+                        (not (g/error-value? (g/node-value active-tile :gpu-texture evaluation-context)))))))
   (run [app-view] (tile-map-palette-handler (-> (active-scene-view app-view) scene-view->tool-controller))))
 
 (defn- transform-brush! [app-view transform-brush-fn]

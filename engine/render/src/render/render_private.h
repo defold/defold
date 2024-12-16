@@ -37,6 +37,9 @@ namespace dmRender
 {
     using namespace dmVMath;
 
+    struct FontRenderBackend;
+    typedef FontRenderBackend* HFontRenderBackend;
+
 #define DEBUG_3D_NAME "_debug3d"
 #define DEBUG_2D_NAME "_debug2d"
 
@@ -86,7 +89,10 @@ namespace dmRender
         dmGraphics::HProgram                    m_Program;
         dmGraphics::HVertexProgram              m_VertexProgram;
         dmGraphics::HFragmentProgram            m_FragmentProgram;
-        dmGraphics::HVertexDeclaration          m_VertexDeclaration;
+        dmGraphics::HVertexDeclaration          m_VertexDeclarationShared;
+        dmGraphics::HVertexDeclaration          m_VertexDeclarationPerVertex;
+        dmGraphics::HVertexDeclaration          m_VertexDeclarationPerInstance;
+        dmGraphics::VertexAttributeInfoMetadata m_VertexAttributeInfoMetadata;
         dmHashTable64<dmGraphics::HUniformLocation> m_NameHashToLocation;
         dmArray<dmGraphics::VertexAttribute>    m_VertexAttributes;
         dmArray<MaterialAttribute>              m_MaterialAttributes;
@@ -97,6 +103,7 @@ namespace dmRender
         uint64_t                                m_UserData1;  // used for hot reloading. stores shader name
         uint64_t                                m_UserData2;  // --||–-
         dmRenderDDF::MaterialDesc::VertexSpace  m_VertexSpace;
+        uint8_t                                 m_InstancingSupported : 1;
     };
 
     struct ComputeProgram
@@ -177,6 +184,7 @@ namespace dmRender
         dmGraphics::HVertexBuffer           m_VertexBuffer;
         void*                               m_ClientBuffer;
         dmGraphics::HVertexDeclaration      m_VertexDecl;
+        HFontRenderBackend                  m_FontRenderBackend;
         uint32_t                            m_RenderObjectIndex;
         uint32_t                            m_VertexIndex;
         uint32_t                            m_MaxVertexCount;
@@ -259,7 +267,8 @@ namespace dmRender
 
         RenderCameraData m_Data;
         uint8_t          m_UseFrustum : 1;
-        uint8_t          m_Dirty : 1;
+        uint8_t          m_Dirty      : 1;
+        uint8_t          m_Enabled    : 1;
     };
 
     struct RenderContext
@@ -270,6 +279,7 @@ namespace dmRender
         RenderScriptContext         m_RenderScriptContext;
         dmArray<RenderObject*>      m_RenderObjects;
         dmScript::ScriptWorld*      m_ScriptWorld;
+        dmScript::LuaCallbackInfo*  m_CallbackInfo;
 
         dmArray<RenderListEntry>    m_RenderList;
         dmArray<RenderListDispatch> m_RenderListDispatch;
@@ -297,6 +307,7 @@ namespace dmRender
         uint32_t                    m_StencilBufferCleared          : 1;
         uint32_t                    m_MultiBufferingRequired        : 1;
         uint32_t                    m_CurrentRenderCameraUseFrustum : 1;
+        uint32_t                    m_IsRenderPaused                : 1;
     };
 
     struct BufferedRenderBuffer
@@ -343,7 +354,6 @@ namespace dmRender
     void    DispatchCompute(HRenderContext render_context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z, HNamedConstantBuffer constant_buffer);
     void    ApplyComputeProgramConstants(HRenderContext render_context, HComputeProgram compute_program);
     int32_t GetComputeProgramSamplerIndex(HComputeProgram program, dmhash_t name_hash);
-    bool    GetComputeProgramConstant(HComputeProgram compute_program, dmhash_t name_hash, HConstant& out_value);
 
     // Render camera
     RenderCamera* GetRenderCameraByUrl(HRenderContext render_context, const dmMessage::URL& camera_url);
@@ -371,12 +381,20 @@ namespace dmRender
     };
 
     typedef void (*RangeCallback)(void* ctx, uint32_t val, size_t start, size_t count);
+    typedef void (*ContextEventCallback)(void* ctx, RenderContextEvent event_type);
 
     // Invokes the callback for each range. Two ranges are not guaranteed to preceed/succeed one another.
     void FindRenderListRanges(uint32_t* first, size_t offset, size_t size, RenderListEntry* entries, FindRangeComparator& comp, void* ctx, RangeCallback callback );
 
     bool FindTagListRange(RenderListRange* ranges, uint32_t num_ranges, uint32_t tag_list_key, RenderListRange& range);
 
+    /*
+    * Possible event_type see in dmRender::RenderContextEvent enum.
+    * Values matches "context_lost"/"context_restored" events from JS code.
+    */
+    void OnContextEvent(void* context, RenderContextEvent event_type);
+    void SetupContextEventCallback(void* context, ContextEventCallback callback);
+    void PlatformSetupContextEventCallback(void* context, ContextEventCallback callback);
 
     // ******************************************************************************************************
 

@@ -19,6 +19,10 @@
 #include <dlib/path.h>
 #include <stdarg.h>
 
+#if defined(__EMSCRIPTEN__)
+#include <emscripten.h>
+#endif
+
 #if !defined(DM_HOSTFS)
     #define DM_HOSTFS ""
 #endif
@@ -55,8 +59,31 @@ const char* GetIpFromConfig(dmConfigFile::HConfig config, char* ip, uint32_t ipl
     return ip;
 }
 
+static void SetupFS()
+{
+    static int first = 1;
+    if (!first)
+        return;
+    first = 0;
+
+#if defined(__EMSCRIPTEN__)
+  // mount the current folder as a NODEFS instance inside of emscripten
+  EM_ASM(
+    try {
+        FS.mkdir('/node_vfs'); // Not yet sure how to use DM_HOSTFS directly
+        FS.mount(NODEFS, { root: '.' }, '/node_vfs');
+    } catch (err) {
+        console.log("Error", err)
+    }
+  );
+#endif
+
+}
+
 const char* MakeHostPath(char* dst, uint32_t dst_len, const char* path)
 {
+    SetupFS();
+
     int len = dmStrlCpy(dst, DM_HOSTFS, dst_len);
     if (len > 0 && dst[len-1] != '/')
         len = dmStrlCat(dst+len, "/", dst_len-len);
@@ -68,19 +95,15 @@ const char* MakeHostPath(char* dst, uint32_t dst_len, const char* path)
 
 const char* MakeHostPathf(char* dst, uint32_t dst_len, const char* path_format, ...)
 {
+    SetupFS();
+
     int len = dmStrlCpy(dst, DM_HOSTFS, dst_len);
     if (len > 0 && dst[len-1] != '/')
         len += dmStrlCat(dst+len, "/", dst_len-len);
 
     va_list argp;
     va_start(argp, path_format);
-
-#if defined(_WIN32)
-    int result = _vsnprintf_s(dst+len, dst_len-len, _TRUNCATE, path_format, argp);
-#else
-    int result = vsnprintf(dst+len, dst_len-len, path_format, argp);
-#endif
-    (void)result;
+    vsnprintf(dst+len, dst_len-len, path_format, argp);
     va_end(argp);
 
     dmPath::Normalize(dst, dst, dst_len);
@@ -89,6 +112,8 @@ const char* MakeHostPathf(char* dst, uint32_t dst_len, const char* path_format, 
 
 uint8_t* ReadFile(const char* path, uint32_t* file_size)
 {
+    SetupFS();
+
     FILE* f = fopen(path, "rb");
     if (!f)
     {
@@ -130,6 +155,8 @@ uint8_t* ReadFile(const char* path, uint32_t* file_size)
 
 uint8_t* ReadHostFile(const char* path, uint32_t* file_size)
 {
+    SetupFS();
+
     char path_buffer1[256];
     const char* file_path = dmTestUtil::MakeHostPath(path_buffer1, sizeof(path_buffer1), path);
     return dmTestUtil::ReadFile(file_path, file_size);

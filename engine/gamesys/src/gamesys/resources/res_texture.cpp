@@ -27,6 +27,11 @@ namespace dmGameSystem
 {
     static const uint32_t MAX_MIPMAP_COUNT = 15; // 2^14 => 16384 (+1 for base mipmap)
 
+    TextureResource::TextureResource()
+    {
+        memset(this, 0, sizeof(*this));
+    }
+
     struct ImageDesc
     {
         dmGraphics::TextureImage* m_DDFImage;
@@ -66,7 +71,6 @@ namespace dmGameSystem
             CASE_TF(RGBA_PVRTC_4BPPV1);
             CASE_TF(RGB_ETC1);
             CASE_TF(RGBA_ETC2);
-            CASE_TF(RGBA_ASTC_4x4);
             CASE_TF(RGB_BC1);
             CASE_TF(RGBA_BC3);
             CASE_TF(R_BC4);
@@ -80,13 +84,34 @@ namespace dmGameSystem
             CASE_TF(RG16F);
             CASE_TF(R32F);
             CASE_TF(RG32F);
+            // ASTC
+            CASE_TF(RGBA_ASTC_4x4);
+            CASE_TF(RGBA_ASTC_5x4);
+            CASE_TF(RGBA_ASTC_5x5);
+            CASE_TF(RGBA_ASTC_6x5);
+            CASE_TF(RGBA_ASTC_6x6);
+            CASE_TF(RGBA_ASTC_8x5);
+            CASE_TF(RGBA_ASTC_8x6);
+            CASE_TF(RGBA_ASTC_8x8);
+            CASE_TF(RGBA_ASTC_10x5);
+            CASE_TF(RGBA_ASTC_10x6);
+            CASE_TF(RGBA_ASTC_10x8);
+            CASE_TF(RGBA_ASTC_10x10);
+            CASE_TF(RGBA_ASTC_12x10);
+            CASE_TF(RGBA_ASTC_12x12);
             default: assert(0);
 #undef CASE_TF
         }
         return (dmGraphics::TextureFormat)-1;
     }
 
-    bool SynchronizeTexture(dmGraphics::HTexture texture, bool wait)
+    static void DestroyTexture(TextureResource* resource)
+    {
+        dmGraphics::DeleteTexture(resource->m_Texture);
+        delete resource;
+    }
+
+    static bool SynchronizeTexture(dmGraphics::HTexture texture, bool wait)
     {
         while(dmGraphics::GetTextureStatusFlags(texture) & dmGraphics::TEXTURE_STATUS_DATA_PENDING)
         {
@@ -127,14 +152,14 @@ namespace dmGameSystem
             {
                 num_mips = MAX_MIPMAP_COUNT;
                 output_format = dmGraphics::GetSupportedCompressionFormat(context, output_format, image->m_Width, image->m_Height);
-                bool result = dmGraphics::Transcode(path, image, image_desc->m_DDFImage->m_Count, output_format, image_desc->m_DecompressedData, image_desc->m_DecompressedDataSize, &num_mips);
-                if (!result)
+                if (!dmGraphics::Transcode(path, image, image_desc->m_DDFImage->m_Count, output_format, image_desc->m_DecompressedData, image_desc->m_DecompressedDataSize, &num_mips))
                 {
                     dmLogError("Failed to transcode %s", path);
                     continue;
                 }
             }
-            else if (!dmGraphics::IsTextureFormatSupported(context, original_format))
+
+            if (!dmGraphics::IsTextureFormatSupported(context, output_format))
             {
                 continue;
             }
@@ -247,11 +272,10 @@ namespace dmGameSystem
                         params.m_DataSize = image_desc->m_DecompressedDataSize[i];
                     }
 
-                    params.m_MipMap   = i;
-                    dmGraphics::SetTextureAsync(texture, params, 0, 0);
+                    params.m_MipMap = i;
+                    params.m_Width  = image->m_MipMapDimensions[i * 2];
+                    params.m_Height = image->m_MipMapDimensions[i * 2 + 1];
 
-                    params.m_Width >>= 1;
-                    params.m_Height >>= 1;
                     if (params.m_Width == 0)
                     {
                         params.m_Width = 1;
@@ -260,6 +284,8 @@ namespace dmGameSystem
                     {
                         params.m_Height = 1;
                     }
+
+                    dmGraphics::SetTextureAsync(texture, params, 0, 0);
                 }
             }
             break;
@@ -339,11 +365,18 @@ namespace dmGameSystem
         // Poll state of texture async texture processing and return state. RESULT_PENDING indicates we need to poll again.
         TextureResource* texture_res = (TextureResource*) dmResource::GetResource(params->m_Resource);
 
+        if (texture_res->m_DelayDelete)
+        {
+            DestroyTexture(texture_res);
+            return dmResource::RESULT_OK;
+        }
+
         if(!SynchronizeTexture(texture_res->m_Texture, false))
         {
             return dmResource::RESULT_PENDING;
         }
 
+        texture_res->m_Uploading = 0;
         ImageDesc* image_desc = (ImageDesc*) params->m_PreloadData;
         dmDDF::FreeMessage(image_desc->m_DDFImage);
         DestroyImage(image_desc);
@@ -355,18 +388,21 @@ namespace dmGameSystem
     {
         ResTextureUploadParams upload_params = {};
         dmGraphics::HContext graphics_context = (dmGraphics::HContext) params->m_Context;
-        dmGraphics::HTexture texture;
-
         ImageDesc* image_desc = (ImageDesc*) params->m_PreloadData;
+
+        TextureResource* texture_res = new TextureResource();
 
         if (image_desc->m_DDFImage->m_Alternatives.m_Count > 0)
         {
-            dmResource::Result r = AcquireResources(params->m_Filename, graphics_context, image_desc, upload_params, 0, &texture);
+            texture_res->m_Uploading = 1;
+            dmResource::Result r = AcquireResources(params->m_Filename, graphics_context, image_desc, upload_params, 0, &texture_res->m_Texture);
             if (r == dmResource::RESULT_OK)
             {
-                TextureResource* texture_res = new TextureResource();
-                texture_res->m_Texture = texture;
                 dmResource::SetResource(params->m_Resource, texture_res);
+            }
+            else
+            {
+                delete texture_res;
             }
             return r;
         }
@@ -375,7 +411,6 @@ namespace dmGameSystem
             // This allows us to create a texture resource that can contain an empty texture handle,
             // which is needed in some cases where we don't want to have to create a small texture that then
             // has to be removed, e.g render target resources.
-            TextureResource* texture_res  = new TextureResource();
             texture_res->m_Texture        = 0;
             dmResource::SetResource(params->m_Resource, texture_res);
         }
@@ -386,8 +421,15 @@ namespace dmGameSystem
     dmResource::Result ResTextureDestroy(const dmResource::ResourceDestroyParams* params)
     {
         TextureResource* texture_res = (TextureResource*) dmResource::GetResource(params->m_Resource);
-        dmGraphics::DeleteTexture(texture_res->m_Texture);
-        delete texture_res;
+
+        if (texture_res->m_Uploading)
+        {
+            // The job is currently in flight
+            texture_res->m_DelayDelete = 1;
+            return dmResource::RESULT_OK;
+        }
+
+        DestroyTexture(texture_res);
         return dmResource::RESULT_OK;
     }
 

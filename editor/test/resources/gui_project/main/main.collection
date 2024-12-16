@@ -1,0 +1,10 @@
+name: "main"
+scale_along_z: 0
+embedded_instances {
+  id: "panel"
+  data: "components {\n"
+  "  id: \"panel\"\n"
+  "  component: \"/gui/template/panel.gui\"\n"
+  "}\n"
+  ""
+}

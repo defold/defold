@@ -23,15 +23,15 @@
             [editor.handler :as handler]
             [editor.icons :as icons]
             [editor.math :as math]
+            [editor.os :as os]
             [editor.progress :as progress]
-            [editor.util :as eutil]
             [internal.util :as util]
             [service.log :as log]
             [service.smoke-log :as slog]
             [util.profiler :as profiler])
   (:import [com.defold.control ListCell]
            [com.defold.control LongField]
-           [com.defold.control TreeCell]
+           [com.defold.control DefoldStringConverter TreeCell]
            [com.sun.javafx.application PlatformImpl]
            [com.sun.javafx.event DirectEvent]
            [java.awt Desktop Desktop$Action]
@@ -55,7 +55,7 @@
            [javafx.scene.layout AnchorPane HBox Pane]
            [javafx.scene.shape SVGPath]
            [javafx.stage Modality PopupWindow Stage StageStyle Window]
-           [javafx.util Callback Duration StringConverter]))
+           [javafx.util Callback Duration]))
 
 (set! *warn-on-reflection* true)
 
@@ -217,7 +217,7 @@
     ;; provides the .app icon when bundling and child windows are rendered
     ;; as miniatures when minimized, so there is no need to assign an icon
     ;; to each window on macOS unless we want the icon in the title bar.
-    (when-not (eutil/is-mac-os?)
+    (when-not (os/is-mac-os?)
       (.. stage getIcons (add application-icon-image)))
     stage))
 
@@ -605,7 +605,7 @@
   (on-edit! node (fn [_old _new]
                    (user-data! node ::auto-commit true))))
 
-(defn- clear-auto-commit! [^Node node]
+(defn clear-auto-commit! [^Node node]
   ;; Clear the auto-commit flag. You should call this whenever data has been
   ;; synced with the graph while the field still has focus. This ensures the
   ;; unedited value will not be committed to the graph unnecessarily after the
@@ -1357,7 +1357,7 @@
       (doto (.getStyleClass menu-item)
         (.addAll style-classes)))
     (.setDisable menu-item (not enabled?))
-    (if (eutil/is-mac-os?)
+    (if (os/is-mac-os?)
       ;; On macOS, there is no way to prevent a shortcut handled by a
       ;; scene accelerator from also triggering a MenuItem with the
       ;; same accelerator. To avoid invoking the command twice, we use
@@ -1758,7 +1758,7 @@
     ;; The system menu bar on osx seems to handle consecutive
     ;; separators and using .setVisible to hide a SeparatorMenuItem
     ;; makes the entire containing submenu appear empty.
-    (when-not (and (eutil/is-mac-os?)
+    (when-not (and (os/is-mac-os?)
                    (.isUseSystemMenuBar menubar))
       (refresh-separator-visibility (.getItems m)))
     (refresh-menu-item-styles (.getItems m)))
@@ -1803,9 +1803,7 @@
                                                  (let [hbox (doto (HBox.)
                                                               (add-style! "cell"))
                                                        cb (doto (ChoiceBox.)
-                                                            (.setConverter (proxy [StringConverter] []
-                                                                             (fromString [str] (some #{str} (map :label opts)))
-                                                                             (toString [v] (:label v)))))]
+                                                            (.setConverter (DefoldStringConverter. :label #(some #{%} (map :label opts)))))]
                                                    (.setAll (.getItems cb) ^Collection opts)
                                                    (observe (.valueProperty cb) (fn [this old new]
                                                                                   (when new
@@ -1901,7 +1899,7 @@
     (when-let [md (user-data root ::menubar)]
       (let [^MenuBar menu-bar (:control md)
             menu (cond-> (handler/realize-menu (:menu-id md))
-                         (eutil/is-mac-os?)
+                         (os/is-mac-os?)
                          (menu-data-without-icons))]
         (cond
           (refresh-menubar? menu-bar menu visible-command-contexts)
@@ -2105,7 +2103,7 @@
 
 (defn- show-dialog-stage [^Stage stage show-fn]
   (.setOnShown stage (event-handler _ (slog/smoke-log "show-dialog")))
-  (if (and (eutil/is-mac-os?)
+  (if (and (os/is-mac-os?)
            (= (.getOwner stage) (main-stage)))
     (let [scene (.getScene stage)
           root-pane ^Pane (.getRoot scene)

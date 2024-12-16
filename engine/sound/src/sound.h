@@ -163,6 +163,7 @@ namespace dmSound
     struct DeviceInfo
     {
         uint32_t m_MixRate;
+        uint32_t m_FrameCount; // If != 0, the max size of the audio buffer
     };
 
     /**
@@ -210,6 +211,13 @@ namespace dmSound
         uint32_t (*m_FreeBufferSlots)(HDevice device);
 
         /**
+         * The available number of frames in the free buffer
+         * @param device
+         * @return number of frames available for write
+         */
+        uint32_t (*m_GetAvailableFrames)(HDevice device);
+
+        /**
          * Get device info
          * @param device
          * @param info
@@ -251,13 +259,14 @@ namespace dmSound
     /**
      * Declare a new sound device
      */
-    #define DM_DECLARE_SOUND_DEVICE(symbol, name, open, close, queue, free_buffer_slots, device_info, enable, disable) \
+    #define DM_DECLARE_SOUND_DEVICE(symbol, name, open, close, queue, free_buffer_slots, get_available_frames, device_info, enable, disable) \
             dmSound::DeviceType DM_SOUND_PASTE2(symbol, __LINE__) = { \
                     name, \
                     open, \
                     close, \
                     queue, \
                     free_buffer_slots, \
+                    get_available_frames, \
                     device_info, \
                     enable, \
                     disable, \
