@@ -1183,15 +1183,15 @@ namespace dmGameSystem
 
                 instance_write_ptr = dmGraphics::WriteAttributes(instance_write_ptr, 0, params);
             }
-            else if (component->m_RigInstance && render_item->m_Buffers->m_RigModelVertexFormat == RIG_MODEL_VERTEX_FORMAT_SKINNED)
+            else if (instance_component->m_RigInstance && render_item->m_Buffers->m_RigModelVertexFormat == RIG_MODEL_VERTEX_FORMAT_SKINNED)
             {
                 assert(dmGraphics::GetVertexDeclarationStride(world->m_InstanceVertexDeclarationSkinned) == sizeof(ModelSkinnedInstanceData));
                 ModelSkinnedInstanceData* instance_data         = (ModelSkinnedInstanceData*) instance_write_ptr;
                 instance_data->m_InstanceData.m_WorldTransform  = instance_render_item->m_World;
                 instance_data->m_InstanceData.m_NormalTransform = dmRender::GetNormalMatrix(render_context, instance_data->m_InstanceData.m_WorldTransform);
 
-                instance_data->m_AnimationData.setX((float) component->m_BindPoseCacheAnimationIndex); // Animation start
-                instance_data->m_AnimationData.setY((float) GetBoneCount(component->m_RigInstance)); // Bone count
+                instance_data->m_AnimationData.setX((float) instance_component->m_BindPoseCacheAnimationIndex); // Animation start
+                instance_data->m_AnimationData.setY((float) GetBoneCount(instance_component->m_RigInstance)); // Bone count
                 instance_data->m_AnimationData.setZ(dmGraphics::GetTextureWidth(world->m_BindPoseCacheTexture)); // Inv cache W
                 instance_data->m_AnimationData.setW(dmGraphics::GetTextureHeight(world->m_BindPoseCacheTexture)); // Inv cache H
 
