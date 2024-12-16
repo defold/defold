@@ -76,7 +76,7 @@ public class ComputeBuilderTest extends AbstractProtoBuilderTest {
         src.append("  filter_mag: FILTER_MODE_MAG_NEAREST\n");
         src.append("}\n");
 
-        ComputeDesc compute = (ComputeDesc) build("/test.compute", src.toString()).get(0);
+        ComputeDesc compute = getMessage(build("/test.compute", src.toString()), ComputeDesc.class);
         assertEquals(2, compute.getSamplersCount());
         assertEquals(2, compute.getConstantsCount());
 

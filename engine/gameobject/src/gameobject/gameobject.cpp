@@ -386,7 +386,7 @@ namespace dmGameObject
                 params.m_Context = regist->m_ComponentTypes[i].m_Context;
                 params.m_ComponentIndex = i;
                 params.m_MaxComponentInstances = GetMaxComponentInstances(regist->m_ComponentTypes[i].m_NameHash, collection_desc);
-                params.m_MaxInstances = instances_in_collection;
+                params.m_MaxInstances = max_instances;
                 params.m_World = &collection->m_ComponentWorlds[i];
                 regist->m_ComponentTypes[i].m_NewWorldFunction(params);
             }
@@ -969,8 +969,8 @@ namespace dmGameObject
     dmhash_t ConstructInstanceId(uint32_t index)
     {
         char buffer[16] = { 0 };
-        dmSnPrintf(buffer, sizeof(buffer), "%sinstance%d", ID_SEPARATOR, index);
-        return dmHashString64(buffer);
+        int length = dmSnPrintf(buffer, sizeof(buffer), "%sinstance%d", ID_SEPARATOR, index);
+        return dmHashBuffer64(buffer, (uint32_t)length);
     }
 
     uint32_t AcquireInstanceIndex(HCollection hcollection)

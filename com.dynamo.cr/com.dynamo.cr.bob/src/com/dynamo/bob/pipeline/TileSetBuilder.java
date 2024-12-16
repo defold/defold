@@ -93,7 +93,7 @@ public class TileSetBuilder extends ProtoBuilder<TileSet.Builder> {
             IOException {
 
         TextureProfile texProfile = TextureUtil.getTextureProfileByPath(this.project.getTextureProfiles(), task.firstInput().getPath());
-        logger.info("Compiling %s using profile %s", task.firstInput().getPath(), texProfile!=null?texProfile.getName():"<none>");
+        logger.fine("Compiling %s using profile %s", task.firstInput().getPath(), texProfile!=null?texProfile.getName():"<none>");
 
         TileSet.Builder builder = getSrcBuilder(task.firstInput());
         TileSet tileSet = builder.build();

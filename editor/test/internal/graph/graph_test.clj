@@ -14,6 +14,7 @@
 
 (ns internal.graph.graph-test
   (:require [clojure.core.cache :as cc]
+            [clojure.string :as string]
             [clojure.test :refer :all]
             [dynamo.graph :as g]
             [internal.graph :as ig]
@@ -430,7 +431,10 @@
             (catch Exception exception
               (let [ex-message (ex-message exception)
                     ex-data (ex-data exception)]
-                (is (= "Evaluation produced an ErrorValue." ex-message))
+                (is (string/includes? ex-message (name (in/type-name PassthroughNode))))
+                (is (string/includes? ex-message (str consumer-node)))
+                (is (string/includes? ex-message (str :str-out)))
+                (is (string/includes? ex-message "produced an ErrorValue"))
                 (when (is (map? ex-data))
                   (is (= :internal.graph.graph-test/PassthroughNode (:node-type-kw ex-data)))
                   (is (= :str-out (:label ex-data)))

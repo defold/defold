@@ -241,5 +241,6 @@ namespace dmDeviceOpenAL
         }
     }
 
-    DM_DECLARE_SOUND_DEVICE(DefaultSoundDevice, "default", DeviceOpenALOpen, DeviceOpenALClose, DeviceOpenALQueue, DeviceOpenALFreeBufferSlots, DeviceOpenALDeviceInfo, DeviceOpenALStart, DeviceOpenALStop);
+    DM_DECLARE_SOUND_DEVICE(DefaultSoundDevice, "default", DeviceOpenALOpen, DeviceOpenALClose, DeviceOpenALQueue,
+                            DeviceOpenALFreeBufferSlots, 0, DeviceOpenALDeviceInfo, DeviceOpenALStart, DeviceOpenALStop);
 }

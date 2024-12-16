@@ -33,6 +33,7 @@ except:
 from google.protobuf import text_format
 import google.protobuf.message
 
+import lz4.block
 import binascii
 
 import gameobject.gameobject_ddf_pb2
@@ -275,7 +276,16 @@ if __name__ == "__main__":
 
     with open(path, 'rb') as f:
         content = f.read()
-        _, ext = os.path.splitext(path)
+        base, ext = os.path.splitext(path)
+        if ext == ".lz4":
+            base, ext = os.path.splitext(base)
+            decompressed_size = len(content) * 2
+            while True:
+                try:
+                    content = lz4.block.decompress(content, uncompressed_size=decompressed_size, return_bytearray=True)
+                    break
+                except lz4.block.LZ4BlockError:
+                    decompressed_size *= 2
         builder = BUILDERS.get(ext, None)
         if builder is None:
             print("No builder registered for filetype %s" %ext)

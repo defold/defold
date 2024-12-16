@@ -38,6 +38,7 @@
             [editor.resource-node :as resource-node]
             [editor.resource-update :as resource-update]
             [editor.settings-core :as settings-core]
+            [editor.texture.engine :as texture.engine]
             [editor.ui :as ui]
             [editor.workspace :as workspace]
             [internal.java :as java]
@@ -446,7 +447,8 @@
       ;; Disabled during tests to minimize log spam.
       (when (and (pos? (count migrated-proj-paths))
                  (not (Boolean/getBoolean "defold.tests")))
-        (log/info :message "Some files were migrated and will be saved in an updated format." :migrated-proj-paths migrated-proj-paths)))))
+        (log/info :message "Some files were migrated and will be saved in an updated format." :migrated-proj-paths migrated-proj-paths)))
+    node-load-infos))
 
 (defn- make-nodes! [project resources]
   (let [project-graph (graph project)
@@ -659,6 +661,8 @@
                 :command :rebuild}
                {:label "Build HTML5"
                 :command :build-html5}
+               {:label "Rebuild HTML5"
+                :command :rebuild-html5}
                {:label "Bundle"
                 :children (mapv (fn [[platform label]]
                                   {:label label
@@ -909,6 +913,7 @@
       (workspace/unpack-editor-plugins! workspace touched-resources)
       (code.preprocessors/reload-lua-preprocessors! code-preprocessors java/class-loader)
       (code.transpilers/reload-lua-transpilers! code-transpilers workspace java/class-loader)
+      (texture.engine/reload-texture-compressors! java/class-loader)
       (workspace/load-clojure-editor-plugins! workspace touched-resources))))
 
 (defn- handle-resource-changes [project changes render-progress!]
@@ -1240,12 +1245,15 @@
       (workspace/set-project-dependencies! workspace-id (library/current-library-state (workspace/project-path workspace-id) dependencies)))
 
     (render-progress! (swap! progress progress/advance 4 "Syncing resources..."))
-    (workspace/resource-sync! workspace-id [] (progress/nest-render-progress render-progress! @progress))
+    (du/log-time "Initial resource sync"
+      (workspace/resource-sync! workspace-id [] (progress/nest-render-progress render-progress! @progress)))
     (render-progress! (swap! progress progress/advance 1 "Loading project..."))
     (let [project (make-project graph workspace-id extensions)
-          populated-project (load-project project (g/node-value project :resources) (progress/nest-render-progress render-progress! @progress 8))]
+          populated-project (du/log-time "Project loading"
+                              (load-project project (g/node-value project :resources) (progress/nest-render-progress render-progress! @progress 8)))]
       ;; Prime the auto completion cache
       (g/node-value (script-intelligence project) :lua-completions)
+      (du/log-statistics! "Project loaded")
       populated-project)))
 
 (defn resource-setter [evaluation-context self old-value new-value & connections]

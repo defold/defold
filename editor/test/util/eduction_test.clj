@@ -17,13 +17,30 @@
             [util.eduction :as e])
   (:import [clojure.core Eduction]))
 
+(set! *warn-on-reflection* true)
+
 (defn- eduction? [value]
   (instance? Eduction value))
 
+(deftest cat-test
+  (is (= (sequence cat [(range 0 3) (range 3 5)])
+         (e/cat [(range 0 3) (range 3 5)])))
+  (is (eduction? (e/cat [(range 0 3) (range 3 5)]))))
+
 (deftest concat-test
-  (is (= (concat [1 2 3] [:a :b :c])
-         (e/concat [1 2 3] [:a :b :c])))
-  (is (eduction? (e/concat [1 2 3] [:a :b :c]))))
+  (is (= (concat)
+         (e/concat)))
+  (is (eduction? (e/concat)))
+  (let [single-arg (range 0 3)]
+    (is (identical? single-arg
+                    (e/concat single-arg))))
+  (let [ranges (partition-all 4 (range))]
+    (doseq [arg-count (range 2 20)]
+      (let [args (take arg-count ranges)
+            expected (apply concat args)
+            actual (apply e/concat args)]
+        (is (= expected actual))
+        (is (eduction? actual))))))
 
 (deftest dedupe-test
   (is (= (dedupe [1 2 1 1 2])

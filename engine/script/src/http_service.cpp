@@ -372,16 +372,16 @@ namespace dmHttpService
         Worker* worker = (Worker*) arg;
 
         uint64_t flush_period = 5 * 1000000U;
-        uint64_t next_flush = dmTime::GetTime() + flush_period;
+        uint64_t next_flush = dmTime::GetMonotonicTime() + flush_period;
         while (worker->m_Run)
         {
             dmMessage::DispatchBlocking(worker->m_Socket, &Dispatch, worker);
             if (!worker->m_Run)
                 break;
 
-            if (worker->m_CacheFlusher && dmTime::GetTime() > next_flush) {
+            if (worker->m_CacheFlusher && dmTime::GetMonotonicTime() > next_flush) {
                 dmHttpCache::Flush(worker->m_Service->m_HttpCache);
-                next_flush = dmTime::GetTime() + flush_period;
+                next_flush = dmTime::GetMonotonicTime() + flush_period;
             }
         }
     }

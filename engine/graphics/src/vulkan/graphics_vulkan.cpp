@@ -4999,6 +4999,8 @@ bail:
         assert(0); // Should not happen
     }
 
+    static void VulkanInvalidateGraphicsHandles(HContext context) { }
+
     static GraphicsAdapterFunctionTable VulkanRegisterFunctionTable()
     {
         GraphicsAdapterFunctionTable fn_table = {};

@@ -139,8 +139,6 @@ namespace dmParticle
         float                   m_StartDelay;
         /// Particle spawn rate spread, randomized on emitter creation and used for the duration of the emitter.
         float                   m_SpawnRateSpread;
-        /// If the user has been warned that all particles cannot be rendered.
-        uint16_t                m_RenderWarning : 1;
         /// If the user has been warned that the emitters animation could not be fetched
         uint16_t                m_FetchAnimWarning : 1;
         uint16_t                m_LastPositionSet : 1;

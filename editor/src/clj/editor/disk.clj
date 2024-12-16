@@ -117,6 +117,11 @@
 
 (def ^:private blocking-reload! (partial blocking-job! reload-job-atom start-reload-job!))
 
+(defn await-current-reload
+  "If a reload is in progress, blocks until done; otherwise returns immediately"
+  []
+  (some-> @reload-job-atom deref))
+
 ;; -----------------------------------------------------------------------------
 ;; Save
 ;; -----------------------------------------------------------------------------

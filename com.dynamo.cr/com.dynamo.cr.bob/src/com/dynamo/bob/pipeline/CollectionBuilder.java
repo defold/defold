@@ -388,7 +388,7 @@ public class CollectionBuilder extends ProtoBuilder<CollectionDesc.Builder> {
 
             // mergeSubCollections() embeds instances, but we want to count only "real" embeded instances
             if (embedIndex < countOfRealEmbededObjects) {
-                ComponentsCounter.countComponentsInEmbededObjects(project, genResource, compStorage);
+                ComponentsCounter.countComponentsInEmbededObjects(project, genResource, data, compStorage);
                 goCount++;
             }
 

@@ -321,33 +321,33 @@
 
 (deftest interactive-cancel-test
   (testing "Success"
-    (let [cancel-fn (test-util/make-call-logger (constantly {:type :success}))]
+    (let [cancel-fn (fn/make-call-logger (constantly {:type :success}))]
       (is (nil? (sync/interactive-cancel! cancel-fn)))
-      (is (= 1 (count (test-util/call-logger-calls cancel-fn))))))
+      (is (= 1 (count (fn/call-logger-calls cancel-fn))))))
 
   (testing "Error"
-    (let [cancel-fn (test-util/make-call-logger (constantly {:type :error :can-retry? false}))]
-      (with-redefs [dialogs/make-info-dialog (test-util/make-call-logger)]
+    (let [cancel-fn (fn/make-call-logger (constantly {:type :error :can-retry? false}))]
+      (with-redefs [dialogs/make-info-dialog (fn/make-call-logger)]
         (is (nil? (sync/interactive-cancel! cancel-fn)))
-        (is (= 1 (count (test-util/call-logger-calls cancel-fn))))
-        (is (= 1 (count (test-util/call-logger-calls dialogs/make-info-dialog)))))))
+        (is (= 1 (count (fn/call-logger-calls cancel-fn))))
+        (is (= 1 (count (fn/call-logger-calls dialogs/make-info-dialog)))))))
 
   (testing "Retryable error"
     (testing "Don't retry"
-      (let [cancel-fn (test-util/make-call-logger (constantly {:type :error :can-retry? true}))]
-        (with-redefs [dialogs/make-confirmation-dialog (test-util/make-call-logger fn/constantly-false)]
+      (let [cancel-fn (fn/make-call-logger (constantly {:type :error :can-retry? true}))]
+        (with-redefs [dialogs/make-confirmation-dialog (fn/make-call-logger fn/constantly-false)]
           (is (nil? (sync/interactive-cancel! cancel-fn)))
-          (is (= 1 (count (test-util/call-logger-calls cancel-fn))))
-          (is (= 1 (count (test-util/call-logger-calls dialogs/make-confirmation-dialog)))))))
+          (is (= 1 (count (fn/call-logger-calls cancel-fn))))
+          (is (= 1 (count (fn/call-logger-calls dialogs/make-confirmation-dialog)))))))
 
     (testing "Retry"
-      (let [cancel-fn (test-util/make-call-logger (constantly {:type :error :can-retry? true}))
+      (let [cancel-fn (fn/make-call-logger (constantly {:type :error :can-retry? true}))
             retry-responses (atom (list :unused true true false))
             answer-retry-query! (fn [_] (first (swap! retry-responses next)))]
-        (with-redefs [dialogs/make-confirmation-dialog (test-util/make-call-logger answer-retry-query!)]
+        (with-redefs [dialogs/make-confirmation-dialog (fn/make-call-logger answer-retry-query!)]
           (is (nil? (sync/interactive-cancel! cancel-fn)))
-          (is (= 3 (count (test-util/call-logger-calls cancel-fn))))
-          (is (= 3 (count (test-util/call-logger-calls dialogs/make-confirmation-dialog)))))))))
+          (is (= 3 (count (fn/call-logger-calls cancel-fn))))
+          (is (= 3 (count (fn/call-logger-calls dialogs/make-confirmation-dialog)))))))))
 
 (defn- valid-error-message? [message]
   (and (string? message)

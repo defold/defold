@@ -124,7 +124,7 @@ namespace dmJNI
         ScopedString(JNIEnv* env, jstring str)
         : m_Env(env)
         , m_JString(str)
-        , m_String(env->GetStringUTFChars(str, JNI_FALSE))
+        , m_String(str ? env->GetStringUTFChars(str, JNI_FALSE) : 0)
         {
         }
         ~ScopedString()
@@ -132,6 +132,28 @@ namespace dmJNI
             if (m_String)
             {
                 m_Env->ReleaseStringUTFChars(m_JString, m_String);
+            }
+        }
+    };
+
+    struct ScopedByteArray
+    {
+        JNIEnv*     m_Env;
+        jbyte*      m_Array;
+        jsize       m_ArraySize;
+        jbyteArray  m_JArray;
+        ScopedByteArray(JNIEnv* env, jbyteArray arr)
+        : m_Env(env)
+        , m_Array(arr ? env->GetByteArrayElements(arr, 0) : 0)
+        , m_ArraySize(arr ? env->GetArrayLength(arr) : 0)
+        , m_JArray(arr)
+        {
+        }
+        ~ScopedByteArray()
+        {
+            if (m_Array && m_JArray)
+            {
+                m_Env->ReleaseByteArrayElements(m_JArray, m_Array, JNI_ABORT);
             }
         }
     };

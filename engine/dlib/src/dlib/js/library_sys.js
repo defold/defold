@@ -66,11 +66,7 @@ var LibraryDmSys = {
             {
                 jstarget = "_self";
             }
-            if (window.open(jsurl, jstarget) == null) {
-                window.location = jsurl;
-            }
-
-            return true;
+            return window.open(jsurl, jstarget) != null;
         }
 };
 autoAddDeps(LibraryDmSys, '$DMSYS');

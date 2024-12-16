@@ -1,0 +1,13 @@
+local M = {}
+
+function M.get_prefs_schema()
+    -- Define preferences that may be used by the editor script
+    -- Learn more: https://defold.com/manuals/editor-scripts/#prefs
+    -- Remove this function if not needed
+    return {
+        ["test.only-in-a"] = editor.prefs.schema.string({default = "a"}),
+        ["test.conflict"] = editor.prefs.schema.string()
+    }
+end
+
+return M
