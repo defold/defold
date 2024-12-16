@@ -1,0 +1,63 @@
+// Copyright 2020-2024 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+//
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+//
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
+
+#ifndef DM_RESOURCE_CHUNK_CACHE_H
+#define DM_RESOURCE_CHUNK_CACHE_H
+
+#include <stdint.h>
+
+struct ResourceCacheChunk
+{
+    uint8_t* m_Data;
+    uint32_t m_Offset;
+    uint32_t m_Size;
+};
+
+typedef struct ResourceChunkCache* HResourceChunkCache;
+
+HResourceChunkCache ResourceChunkCacheCreate(uint32_t max_memory, uint32_t chunk_size);
+void                ResourceChunkCacheDestroy(HResourceChunkCache cache);
+
+// Get the chunk that contains the requested offset
+// Also updates the timestamp
+ResourceCacheChunk* ResourceChunkCacheGet(HResourceChunkCache cache, uint64_t path_hash, uint32_t offset);
+
+// Stores a new resoruce chunk. Returns true if successful, false if the operation failed
+bool ResourceChunkCachePut(HResourceChunkCache cache, uint64_t path_hash, ResourceCacheChunk* chunk);
+
+// Returns true if the cache is full
+bool ResourceChunkCacheFull(HResourceChunkCache cache);
+
+// Evicts the least recently used item from the cache
+void ResourceChunkCacheEvictOne(HResourceChunkCache cache);
+
+// Evicts the chunks associated with path_hash
+void ResourceChunkCacheEvictPathHash(HResourceChunkCache cache, uint64_t path_hash);
+
+// Returns number of bytes used by the cache
+uint32_t ResourceChunkCacheGetUsedMemory(HResourceChunkCache cache);
+
+// *************************************************************************************
+// Unit test functions
+
+// Returns number of chunks stored (unit test only)
+uint32_t ResourceChunkCacheGetNumChunks(HResourceChunkCache cache);
+
+// Verifies the stored chunks (unit test only)
+bool ResourceChunkCacheVerify(HResourceChunkCache cache);
+
+// Prints out all chunks
+void ResourceChunkCacheDebugChunks(HResourceChunkCache cache);
+
+#endif // DM_RESOURCE_CHUNK_CACHE_H
