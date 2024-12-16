@@ -16,6 +16,7 @@
 #define DM_RESOURCE_CHUNK_CACHE_H
 
 #include <stdint.h>
+#include <dlib/hash.h> // dmhash_t
 
 struct ResourceCacheChunk
 {
@@ -31,10 +32,10 @@ void                ResourceChunkCacheDestroy(HResourceChunkCache cache);
 
 // Get the chunk that contains the requested offset
 // Also updates the timestamp
-ResourceCacheChunk* ResourceChunkCacheGet(HResourceChunkCache cache, uint64_t path_hash, uint32_t offset);
+bool ResourceChunkCacheGet(HResourceChunkCache cache, dmhash_t path_hash, uint32_t offset, ResourceCacheChunk* out);
 
 // Stores a new resoruce chunk. Returns true if successful, false if the operation failed
-bool ResourceChunkCachePut(HResourceChunkCache cache, uint64_t path_hash, ResourceCacheChunk* chunk);
+bool ResourceChunkCachePut(HResourceChunkCache cache, dmhash_t path_hash, ResourceCacheChunk* chunk);
 
 // Returns true if the cache is full
 bool ResourceChunkCacheFull(HResourceChunkCache cache);
@@ -43,7 +44,7 @@ bool ResourceChunkCacheFull(HResourceChunkCache cache);
 void ResourceChunkCacheEvictOne(HResourceChunkCache cache);
 
 // Evicts the chunks associated with path_hash
-void ResourceChunkCacheEvictPathHash(HResourceChunkCache cache, uint64_t path_hash);
+void ResourceChunkCacheEvictPathHash(HResourceChunkCache cache, dmhash_t path_hash);
 
 // Returns number of bytes used by the cache
 uint32_t ResourceChunkCacheGetUsedMemory(HResourceChunkCache cache);

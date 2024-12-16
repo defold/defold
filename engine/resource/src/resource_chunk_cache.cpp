@@ -14,28 +14,33 @@
 
 #include "resource_chunk_cache.h"
 
+#include <dlib/static_assert.h>
 #include <dlib/array.h>
 #include <dlib/hash.h>
 #include <dlib/log.h>
-#include <dlib/time.h>
 
 #include <stdio.h>   // printf
 #include <algorithm> // lower_bound
 
-// struct ResourceCacheChunk
-// {
-//     uint8_t* m_Data;
-//     uint32_t m_Offset;
-//     uint32_t m_Size;
-// };
+struct DLListNode
+{
+    struct DLListNode* m_Prev;
+    struct DLListNode* m_Next;
+};
+
+struct DLList
+{
+    DLListNode m_Head;
+    DLListNode m_Tail;
+};
 
 struct ResourceInternalDataChunk
 {
-    uint64_t m_Time;    // Last timestamp when it was read
-    uint64_t m_PathHash;
-    uint32_t m_Size;    // Size of the chunk
-    uint32_t m_Offset;  // Offset into the file
+    DLListNode m_ListNode; // must be first in the struct
+
+    dmhash_t m_PathHash;
     uint8_t* m_Data;
+    uint32_t m_Offset;  // Offset into the file
 };
 
 struct ResourceChunkCache
@@ -46,29 +51,73 @@ struct ResourceChunkCache
     uint32_t m_CacheSize;    // The cache size for all streaming sounds
     uint32_t m_ChunkSize;    // The chunk size when streaming in more data
     uint32_t m_CacheSizeUsed;// The amount of cache currently used
+
+    DLList m_LRU; // head is MRU, tail is LRU
 };
 
 // **********************************************************************************
 
-static ResourceInternalDataChunk* AllocChunk(ResourceChunkCache* cache, uint64_t path_hash, uint8_t* data, uint32_t data_size, uint32_t offset)
+static void ListInit(DLList* list)
+{
+    list->m_Head.m_Prev = 0;
+    list->m_Tail.m_Next = 0;
+    list->m_Head.m_Next = &list->m_Tail;
+    list->m_Tail.m_Prev = &list->m_Head;
+}
+
+static bool ListEmpty(DLList* list)
+{
+    return list->m_Head.m_Next == list->m_Tail.m_Prev;
+}
+
+static void ListRemove(DLList* list, DLListNode* item)
+{
+    DLListNode* prev = item->m_Prev;
+    DLListNode* next = item->m_Next;
+    item->m_Prev = 0;
+    item->m_Next = 0;
+    prev->m_Next = next;
+    next->m_Prev = prev;
+}
+
+static void ListAdd(DLList* list, DLListNode* item)
+{
+    DLListNode* prev = &list->m_Head;
+    DLListNode* next = prev->m_Next;
+    item->m_Prev = prev;
+    item->m_Next = next;
+    prev->m_Next = item;
+    next->m_Prev = item;
+}
+
+static DLListNode* ListGetLast(DLList* list)
+{
+    DLListNode* last = list->m_Tail.m_Prev;
+    return last == &list->m_Head ? 0 : last;
+}
+
+// **********************************************************************************
+
+static ResourceInternalDataChunk* AllocChunk(ResourceChunkCache* cache, dmhash_t path_hash, uint8_t* data, uint32_t data_size, uint32_t offset)
 {
     ResourceInternalDataChunk* chunk = new ResourceInternalDataChunk;
     chunk->m_PathHash = path_hash;
-    chunk->m_Size   = data_size;
     chunk->m_Offset = offset;
     chunk->m_Data = new uint8_t[data_size];
     memcpy(chunk->m_Data, data, data_size);
 
-    cache->m_CacheSizeUsed += chunk->m_Size;
+    cache->m_CacheSizeUsed += data_size;
     return chunk;
 }
 
 static void FreeChunk(ResourceChunkCache* cache, ResourceInternalDataChunk* chunk)
 {
-    cache->m_CacheSizeUsed -= chunk->m_Size;
+    cache->m_CacheSizeUsed -= cache->m_ChunkSize;
     delete chunk->m_Data;
     delete chunk;
 }
+
+// **********************************************************************************
 
 static int ChunkComparePathOffsetFn(const void* a, const void* b)
 {
@@ -96,14 +145,15 @@ static void SortChunksOnPathAndOffset(ResourceChunkCache* cache)
     qsort(cache->m_Chunks.Begin(), cache->m_Chunks.Size(), sizeof(cache->m_Chunks[0]), ChunkComparePathOffsetFn);
 }
 
-static bool ChunkComparePathFn(const ResourceInternalDataChunk* chunk, const uint64_t path_hash)
+static bool ChunkComparePathFn(const ResourceInternalDataChunk* chunk, dmhash_t path_hash)
 {
     //printf(" cmp path: %s %llu == %s %llu \n", dmHashReverseSafe64(chunk->m_PathHash), chunk->m_PathHash, dmHashReverseSafe64(path_hash), path_hash);
     return chunk->m_PathHash < path_hash;
 }
 
-static void RemoveChunk(ResourceChunkCache* cache, ResourceInternalDataChunk* chunk)
+static void PrintChunk(ResourceChunkCache* cache, ResourceInternalDataChunk* chunk)
 {
+    printf("  chunk: '%s'  offset: %8u  size: %8u  data: %p\n", dmHashReverseSafe64(chunk->m_PathHash), chunk->m_Offset, cache->m_ChunkSize, chunk->m_Data);
 }
 
 void ResourceChunkCacheDebugChunks(ResourceChunkCache* cache)
@@ -113,7 +163,17 @@ void ResourceChunkCacheDebugChunks(ResourceChunkCache* cache)
     for (uint32_t i = 0; i < num_chunks; ++i)
     {
         ResourceInternalDataChunk* chunk = cache->m_Chunks[i];
-        printf("  chunk %4u: offset: %8u  size: %8u  data: %p '%s' %p\n", i, chunk->m_Offset, chunk->m_Size, chunk->m_Data, dmHashReverseSafe64(chunk->m_PathHash), chunk);
+        PrintChunk(cache, chunk);
+    }
+    printf("LRU:\n");
+    DLListNode* item = cache->m_LRU.m_Head.m_Next;
+    DLListNode* end = &cache->m_LRU.m_Tail;
+    while (item != end)
+    {
+        ResourceInternalDataChunk* chunk = (ResourceInternalDataChunk*)item;
+        PrintChunk(cache, chunk);
+
+        item = item->m_Next;
     }
 }
 
@@ -126,6 +186,8 @@ HResourceChunkCache ResourceChunkCacheCreate(uint32_t max_memory, uint32_t chunk
     cache->m_CacheSize = max_memory;
     cache->m_ChunkSize = chunk_size;
     cache->m_CacheSizeUsed = 0;
+
+    ListInit(&cache->m_LRU);
     return cache;
 }
 
@@ -141,7 +203,7 @@ void ResourceChunkCacheDestroy(HResourceChunkCache cache)
 
 // **********************************************************************************
 
-static ResourceInternalDataChunk* ResourceChunkCacheFind(ResourceChunkCache* cache, uint64_t path_hash, uint32_t offset)
+static ResourceInternalDataChunk* ResourceChunkCacheFind(ResourceChunkCache* cache, dmhash_t path_hash, uint32_t offset)
 {
     ResourceInternalDataChunk** begin = cache->m_Chunks.Begin();
     ResourceInternalDataChunk** end = cache->m_Chunks.End();
@@ -155,40 +217,77 @@ static ResourceInternalDataChunk* ResourceChunkCacheFind(ResourceChunkCache* cac
     return 0;
 }
 
-ResourceInternalDataChunk* ResourceChunkCacheGet(ResourceChunkCache* cache, uint32_t path_hash, uint32_t offset)
+static uint32_t ResourceChunkCacheFindIndex(ResourceChunkCache* cache, ResourceInternalDataChunk* _chunk)
 {
+    dmhash_t path_hash = _chunk->m_PathHash;
+    uint32_t offset = _chunk->m_Offset;
+
     ResourceInternalDataChunk** begin = cache->m_Chunks.Begin();
     ResourceInternalDataChunk** end = cache->m_Chunks.End();
     ResourceInternalDataChunk** lbound = std::lower_bound(begin, end, path_hash, ChunkComparePathFn);
     if (lbound != end)
-        return 0;
+    {
+        uint32_t start_index = lbound - begin;
+
+        uint32_t num_chunks = cache->m_Chunks.Size();
+        for (uint32_t i = start_index; i < num_chunks; ++i)
+        {
+            ResourceInternalDataChunk* chunk = begin[i];
+            if (path_hash == chunk->m_PathHash && offset == chunk->m_Offset)
+            {
+                return i;
+            }
+        }
+    }
+    assert(false);
+    return cache->m_Chunks.Size();
+}
+
+
+bool ResourceChunkCacheGet(HResourceChunkCache cache, dmhash_t path_hash, uint32_t offset, ResourceCacheChunk* out)
+{
+    ResourceInternalDataChunk** begin = cache->m_Chunks.Begin();
+    ResourceInternalDataChunk** end = cache->m_Chunks.End();
+    ResourceInternalDataChunk** lbound = std::lower_bound(begin, end, path_hash, ChunkComparePathFn);
+    if (lbound == end)
+        return false;
 
     uint32_t start_index = lbound - begin;
+    uint32_t chunk_size = cache->m_ChunkSize;
 
     // We assume the array is sorted on path and offset in ascending order
     uint32_t num_chunks = cache->m_Chunks.Size();
     for (uint32_t i = start_index; i < num_chunks; ++i)
     {
         ResourceInternalDataChunk* chunk = begin[i];
-        uint32_t chunk_path_hash = chunk->m_PathHash;
+        dmhash_t chunk_path_hash = chunk->m_PathHash;
 
         if (path_hash < chunk_path_hash)
-            return 0;
+            return false;
 
         if (chunk_path_hash < path_hash)
             continue;
 
         // we got the correct file
         uint32_t chunk_offset = chunk->m_Offset;
-        uint32_t chunk_size = chunk->m_Size;
 
         if (offset < chunk_offset)
-            return 0; // We currently don't have the chunk in question, and need to request it
+            return false; // We currently don't have the chunk in question, and need to request it
 
+        // The offset is within the bounds of the chunk
         if (offset < (chunk_offset + chunk_size))
-            return chunk; // The offset is within the bounds of the chunk
+        {
+            out->m_Data = chunk->m_Data;
+            out->m_Offset = chunk->m_Offset;
+            out->m_Size = cache->m_ChunkSize;
+
+            // Update the LRU by placing the item first in the queue
+            ListRemove(&cache->m_LRU, (DLListNode*)chunk);
+            ListAdd(&cache->m_LRU, (DLListNode*)chunk);
+            return true;
+        }
     }
-    return 0;
+    return false;
 }
 
 // Stores a new resoruce chunk
@@ -204,13 +303,14 @@ bool ResourceChunkCachePut(HResourceChunkCache cache, uint64_t path_hash, Resour
     ResourceInternalDataChunk* prev = ResourceChunkCacheFind(cache, path_hash, _chunk->m_Offset);
     if (prev)
     {
-        dmLogError("Chunk already exists: '%s' size: %u, offset: %u", dmHashReverseSafe64(path_hash), prev->m_Size, prev->m_Offset);
+        dmLogError("Chunk already exists: '%s' size: %u, offset: %u", dmHashReverseSafe64(path_hash), cache->m_ChunkSize, prev->m_Offset);
         return false;
     }
 
     ResourceInternalDataChunk* chunk = AllocChunk(cache, path_hash, _chunk->m_Data, _chunk->m_Size, _chunk->m_Offset);
     cache->m_Chunks.Push(chunk);
     SortChunksOnPathAndOffset(cache);
+    ListAdd(&cache->m_LRU, (DLListNode*)chunk); // add it first in the LRU
     return true;
 }
 
@@ -232,14 +332,35 @@ uint32_t ResourceChunkCacheGetNumChunks(HResourceChunkCache cache)
     return cache->m_Chunks.Size();
 }
 
-// Evicts the least recently used item from the cache
-void ChunkCacheEvictOne(HResourceChunkCache cache)
+static void RemoveChunks(HResourceChunkCache cache, uint32_t index, uint32_t count)
 {
-    assert(false);
+    uint32_t num_chunks = cache->m_Chunks.Size();
+    ResourceInternalDataChunk** begin = cache->m_Chunks.Begin();
+
+    // Shift the elements in the array
+    uint32_t num_to_move = num_chunks - (index + count);
+    memmove(begin + index, begin + index + num_to_move, num_to_move * sizeof(ResourceInternalDataChunk*));
+    cache->m_Chunks.SetSize(num_chunks - count);
+}
+
+// Evicts the least recently used item from the cache
+void ResourceChunkCacheEvictOne(HResourceChunkCache cache)
+{
+    DLListNode* last = ListGetLast(&cache->m_LRU);
+    if (!last)
+        return;
+
+    ListRemove(&cache->m_LRU, last);
+    ResourceInternalDataChunk* chunk = (ResourceInternalDataChunk*)last;
+
+    uint32_t index = ResourceChunkCacheFindIndex(cache, chunk);
+    RemoveChunks(cache, index, 1);
+
+    FreeChunk(cache, chunk);
 }
 
 // Evicts the chunks associated with path_hash
-void ChunkCacheEvictPathHash(HResourceChunkCache cache, uint64_t path_hash)
+void ResourceChunkCacheEvictPathHash(HResourceChunkCache cache, uint64_t path_hash)
 {
     ResourceInternalDataChunk** begin = cache->m_Chunks.Begin();
     ResourceInternalDataChunk** end = cache->m_Chunks.End();
@@ -253,21 +374,23 @@ void ChunkCacheEvictPathHash(HResourceChunkCache cache, uint64_t path_hash)
     for (uint32_t i = start_index; i < num_chunks; ++i)
     {
         ResourceInternalDataChunk* chunk = begin[i];
-        uint32_t chunk_path_hash = chunk->m_PathHash;
+        dmhash_t chunk_path_hash = chunk->m_PathHash;
         if (chunk_path_hash != path_hash)
             break;
 
+        ++count;
+        ListRemove(&cache->m_LRU, (DLListNode*)chunk);
         FreeChunk(cache, chunk);
     }
 
-    // Shift the elements in the array
-    uint32_t num_to_move = num_chunks - (start_index + count);
-    memmove(begin + start_index + count, begin + start_index, num_to_move * sizeof(ResourceInternalDataChunk*));
+    RemoveChunks(cache, start_index, count);
 }
 
 // Unit test only
 bool ResourceChunkCacheVerify(HResourceChunkCache cache)
 {
+    DM_STATIC_ASSERT(offsetof(ResourceInternalDataChunk, m_ListNode) == 0, "m_ListNode must be first in struct!");
+
     // Verify the sorting of the chunks
     ResourceInternalDataChunk** chunks = cache->m_Chunks.Begin();
     uint32_t num_chunks = cache->m_Chunks.Size();

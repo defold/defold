@@ -31,6 +31,7 @@ TEST(ResourceChunkCache, Small)
     ResourceCacheChunk chunk2 = {(uint8_t*)data + 8, 8, 8};
     ResourceCacheChunk chunk3 = {(uint8_t*)data +16, 16, 8};
     uint64_t path_hash1 = dmHashString64("fileA");
+    ResourceCacheChunk getter;
 
     HResourceChunkCache cache = ResourceChunkCacheCreate(24, 8);
 
@@ -46,17 +47,46 @@ TEST(ResourceChunkCache, Small)
     ASSERT_FALSE(ResourceChunkCacheFull(cache));
     ASSERT_TRUE(ResourceChunkCacheVerify(cache));
 
+    // Read chunk 1
+    memset(&getter, 0, sizeof(getter));
+    ASSERT_TRUE(ResourceChunkCacheGet(cache, path_hash1, 0, &getter));
+    ASSERT_EQ(0u, getter.m_Offset);
+    ASSERT_EQ(8u, getter.m_Size);
+    ASSERT_STREQ("Chunk 1", (const char*)getter.m_Data);
+
+    ASSERT_TRUE(ResourceChunkCacheGet(cache, path_hash1, 7, &getter));
+    ASSERT_EQ(0u, getter.m_Offset);
+    ASSERT_EQ(8u, getter.m_Size);
+    ASSERT_STREQ("Chunk 1", (const char*)getter.m_Data);
+
+    ASSERT_FALSE(ResourceChunkCacheGet(cache, path_hash1, 8, &getter));
+    ASSERT_FALSE(ResourceChunkCacheGet(cache, path_hash1, 16, &getter));
+
     // Second chunk
     ASSERT_TRUE(ResourceChunkCachePut(cache, path_hash1, &chunk2));
     ASSERT_EQ(2u, ResourceChunkCacheGetNumChunks(cache));
     ASSERT_FALSE(ResourceChunkCacheFull(cache));
     ASSERT_TRUE(ResourceChunkCacheVerify(cache));
 
+    memset(&getter, 0, sizeof(getter));
+    ASSERT_TRUE(ResourceChunkCacheGet(cache, path_hash1, 8, &getter));
+    ASSERT_EQ(8u, getter.m_Offset);
+    ASSERT_EQ(8u, getter.m_Size);
+    ASSERT_STREQ("Chunk 2", (const char*)getter.m_Data);
+
+    ASSERT_FALSE(ResourceChunkCacheGet(cache, path_hash1, 16, &getter));
+
     // Third chunk
     ASSERT_TRUE(ResourceChunkCachePut(cache, path_hash1, &chunk3));
     ASSERT_EQ(3u, ResourceChunkCacheGetNumChunks(cache));
     ASSERT_TRUE(ResourceChunkCacheFull(cache));
     ASSERT_TRUE(ResourceChunkCacheVerify(cache));
+
+    memset(&getter, 0, sizeof(getter));
+    ASSERT_TRUE(ResourceChunkCacheGet(cache, path_hash1, 16, &getter));
+    ASSERT_EQ(16u, getter.m_Offset);
+    ASSERT_EQ(8u, getter.m_Size);
+    ASSERT_STREQ("Chunk 3", (const char*)getter.m_Data);
 
     // Same chunk
     ASSERT_FALSE(ResourceChunkCachePut(cache, path_hash1, &chunk3));
@@ -66,7 +96,31 @@ TEST(ResourceChunkCache, Small)
 
     ResourceChunkCacheDebugChunks(cache);
 
-    // Second chunk
+    // ************************************************************************
+    // Evict one
+
+    // touch chunk 1 and 3
+    ASSERT_TRUE(ResourceChunkCacheGet(cache, path_hash1, 16, &getter));
+    ASSERT_TRUE(ResourceChunkCacheGet(cache, path_hash1, 0, &getter));
+
+    // -> should evict chunk 2
+    ResourceChunkCacheEvictOne(cache);
+
+    ASSERT_FALSE(ResourceChunkCacheGet(cache, path_hash1, 8, &getter));
+    ASSERT_EQ(2u, ResourceChunkCacheGetNumChunks(cache));
+    ASSERT_TRUE(ResourceChunkCacheVerify(cache));
+
+    // ************************************************************************
+    // Evict with path
+
+    ResourceChunkCacheEvictPathHash(cache, path_hash1);
+
+    ASSERT_FALSE(ResourceChunkCacheGet(cache, path_hash1, 0, &getter));
+    ASSERT_FALSE(ResourceChunkCacheGet(cache, path_hash1, 16, &getter));
+    ASSERT_EQ(0u, ResourceChunkCacheGetNumChunks(cache));
+    ASSERT_TRUE(ResourceChunkCacheVerify(cache));
+
+    // Shutdown
     ASSERT_TRUE(ResourceChunkCacheVerify(cache));
     ResourceChunkCacheDestroy(cache);
 }
