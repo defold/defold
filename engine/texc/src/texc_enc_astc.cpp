@@ -84,10 +84,6 @@ namespace dmTexc
             ASTCENC_SWZ_A
         };
 
-        // Compute the number of ASTC blocks in each dimension
-        uint32_t block_count_x = (settings->m_Width + block_x - 1) / block_x;
-        uint32_t block_count_y = (settings->m_Height + block_y - 1) / block_y;
-
         astcenc_config config;
         astcenc_error status = astcenc_config_init(profile, block_x, block_y, block_z, settings->m_QualityLevel, 0, &config);
         if (status != ASTCENC_SUCCESS)
@@ -105,20 +101,46 @@ namespace dmTexc
             return false;
         }
 
+        int aligned_width = ((settings->m_Width + block_x - 1) / block_x) * block_x;
+        int aligned_height = ((settings->m_Height + block_y - 1) / block_y) * block_y;
+
+        uint8_t* padded_data = settings->m_Data;
+        bool create_padded_data = aligned_width != settings->m_Width || aligned_height != settings->m_Height;
+
+        if (create_padded_data)
+        {
+            padded_data = (unsigned char*) malloc(aligned_width * aligned_height * 4);
+            memset(padded_data, 0, aligned_width * aligned_height * 4);
+
+            // Copy the input image to create a pagged ASTC output
+            for (int y = 0; y < settings->m_Height; ++y) {
+                memcpy(
+                    &padded_data[y * aligned_width * 4],
+                    &settings->m_Data[y * settings->m_Width * 4],
+                    settings->m_Width * 4
+                );
+            }
+        }
+
         // Compress the image
         astcenc_image image = {};
-        image.dim_x         = settings->m_Width;
-        image.dim_y         = settings->m_Height;
+        image.dim_x         = aligned_width;
+        image.dim_y         = aligned_height;
         image.dim_z         = 1;
         image.data_type     = ASTCENC_TYPE_U8;
-        uint8_t* slices     = settings->m_Data;
-        image.data          = reinterpret_cast<void**>(&slices);
+        image.data          = reinterpret_cast<void**>(&padded_data);
 
         // Space needed for 16 bytes of output per compressed block
-        size_t comp_len     = block_count_x * block_count_y * 16;
-        uint8_t* comp_data  = new uint8_t[comp_len];
+        size_t comp_len    = aligned_width * aligned_height * 16 / (block_x * block_y); // Approximate size
+        uint8_t* comp_data = new uint8_t[comp_len];
 
         status = astcenc_compress_image(context, &image, &swizzle, comp_data, comp_len, 0);
+
+        if (create_padded_data)
+        {
+            free(padded_data);
+        }
+
         if (status != ASTCENC_SUCCESS)
         {
             dmLogError("ERROR: Codec compress failed: %s", astcenc_get_error_string(status));
