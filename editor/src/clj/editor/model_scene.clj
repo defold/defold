@@ -32,7 +32,8 @@
             [editor.scene-picking :as scene-picking]
             [editor.workspace :as workspace]
             [internal.graph.error-values :as error-values]
-            [util.coll :as coll])
+            [util.coll :as coll]
+            [util.num :as num])
   (:import [com.google.protobuf ByteString]
            [com.jogamp.opengl GL GL2]
            [editor.gl.vertex2 VertexBuffer]
@@ -112,7 +113,7 @@
       :indexbuffer-format-16
       (let [short-buffer (.asShortBuffer byte-buffer)]
         (dotimes [i num-indices]
-          (aset out-indices i (int (.get short-buffer i)))))
+          (aset out-indices i (int (num/ushort->long (.get short-buffer i))))))
 
       :indexbuffer-format-32
       (let [int-buffer (.asIntBuffer byte-buffer)]
