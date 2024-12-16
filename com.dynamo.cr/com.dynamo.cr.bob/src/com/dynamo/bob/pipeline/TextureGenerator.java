@@ -296,6 +296,21 @@ public class TextureGenerator {
 
         try {
 
+            ITextureCompressor textureCompressor = TextureCompression.getCompressor(compressorName);
+
+            if (textureCompressor == null) {
+                if (!compressorName.equals(TextureCompressorDefault.TextureCompressorName)) {
+                    logger.warning(String.format("Texture compressor '%s' not found, using the default texture compressor.", compressorName));
+                }
+                textureCompressor = getDefaultTextureCompressor();
+                compressorPresetName = "DEFAULT";
+            }
+
+            TextureCompressorPreset textureCompressorPreset = TextureCompression.getPreset(compressorPresetName);
+            if (textureCompressorPreset == null) {
+                throw new TextureGeneratorException("Texture compressor preset not found.");
+            }
+
             int newWidth  = image.getWidth();
             int newHeight = image.getHeight();
 
@@ -335,6 +350,9 @@ public class TextureGenerator {
                 TimeProfiler.stop();
             }
 
+            newWidth = textureCompressor.getAlignedWidth(textureFormat, newWidth);
+            newHeight = textureCompressor.getAlignedWidth(textureFormat, newHeight);
+
             // Resize to POT if necessary
             if (width != newWidth || height != newHeight) {
                 TimeProfiler.start("Resize");
@@ -362,19 +380,6 @@ public class TextureGenerator {
                     throw new TextureGeneratorException("could not dither image");
                 }
                 TimeProfiler.stop();
-            }
-
-            ITextureCompressor textureCompressor = TextureCompression.getCompressor(compressorName);
-
-            if (textureCompressor == null) {
-                logger.warning(String.format("Texture compressor '%s' not found, using the default texture compressor.", compressorName));
-                textureCompressor = getDefaultTextureCompressor();
-                compressorPresetName = "DEFAULT";
-            }
-
-            TextureCompressorPreset textureCompressorPreset = TextureCompression.getPreset(compressorPresetName);
-            if (textureCompressorPreset == null) {
-                throw new TextureGeneratorException("Texture compressor preset not found.");
             }
 
             // Generate output images for builder
@@ -408,6 +413,8 @@ public class TextureGenerator {
                 builder.addMipMapOffset(offset);
                 builder.addMipMapSize(compressedData.length);
                 builder.addMipMapSizeCompressed(compressedData.length);
+                builder.addMipMapDimensions(textureCompressor.getAlignedWidth(textureFormat, mipWidth));
+                builder.addMipMapDimensions(textureCompressor.getAlignedHeight(textureFormat, mipHeight));
 
                 offset += compressedData.length;
                 mipMapLevel++;

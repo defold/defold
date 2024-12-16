@@ -26,6 +26,7 @@ namespace dmGameSystem
         uint32_t* mip_map_sizes              = new uint32_t[params.m_MaxMipMaps];
         uint32_t* mip_map_offsets            = new uint32_t[params.m_MaxMipMaps];
         uint32_t* mip_map_offsets_compressed = new uint32_t[1];
+        uint32_t* mip_map_dimensions         = new uint32_t[2];
         uint8_t layer_count                  = GetLayerCount(params.m_Type);
 
         uint32_t data_size = 0;
@@ -67,6 +68,9 @@ namespace dmGameSystem
         //       so we only need a pointer here for the data offset.
         mip_map_offsets_compressed[0] = image_data_size;
 
+        mip_map_dimensions[0] = params.m_Width;
+        mip_map_dimensions[1] = params.m_Height;
+
         dmGraphics::TextureImage::Image* image = new dmGraphics::TextureImage::Image();
         texture_image->m_Alternatives.m_Data   = image;
         texture_image->m_Alternatives.m_Count  = 1;
@@ -90,6 +94,9 @@ namespace dmGameSystem
         image->m_MipMapSize.m_Count   = params.m_MaxMipMaps;
         image->m_MipMapSizeCompressed.m_Data  = mip_map_offsets_compressed;
         image->m_MipMapSizeCompressed.m_Count = 1;
+
+        image->m_MipMapDimensions.m_Data  = mip_map_dimensions;
+        image->m_MipMapDimensions.m_Count = 2;
     }
 
     void DestroyTextureImage(dmGraphics::TextureImage& texture_image, bool destroy_image_data)
@@ -100,8 +107,9 @@ namespace dmGameSystem
             delete[] image.m_MipMapOffset.m_Data;
             delete[] image.m_MipMapSize.m_Data;
             delete[] image.m_MipMapSizeCompressed.m_Data;
-            //if (destroy_image_data)
-            //    delete[] image.m_Data.m_Data;
+            delete[] image.m_MipMapDimensions.m_Data;
+            if (destroy_image_data)
+                delete[] image.m_Data.m_Data;
         }
         delete[] texture_image.m_Alternatives.m_Data;
     }
@@ -134,6 +142,7 @@ namespace dmGameSystem
             GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RG16F);
             GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_R32F);
             GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(TEXTURE_FORMAT_RG32F);
+            default:break;
         };
     #undef GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE
         return (dmGraphics::TextureImage::TextureFormat) -1;
@@ -199,6 +208,10 @@ namespace dmGameSystem
         image.m_CompressionFlags     = 0;
         // image.m_Data.m_Data          = (uint8_t*) params.m_Data;
         // image.m_Data.m_Count         = params.m_DataSize;
+
+        uint32_t mip_map_dimensions[]    = {params.m_Width, params.m_Height};
+        image.m_MipMapDimensions.m_Data  = mip_map_dimensions;
+        image.m_MipMapDimensions.m_Count = 2;
 
         // Note: When uploading cubemap faces on OpenGL, we expect that the "data size" is **per** slice
         //       and not the entire data size of the buffer. For vulkan we don't look at this value but instead

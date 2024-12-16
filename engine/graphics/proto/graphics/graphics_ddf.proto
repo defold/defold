@@ -215,6 +215,7 @@ message TextureImage
         repeated uint32 mip_map_size_compressed   = 10;
         required uint32 data_offset               = 11; // Offset into the "payload" data area, i.e after the protobuf message
         required uint32 data_size                 = 12; // Size of the image data
+        repeated uint32 mip_map_dimensions        = 13; // w0, h0, w1, h1, ...
     }
 
     repeated Image alternatives = 1;
