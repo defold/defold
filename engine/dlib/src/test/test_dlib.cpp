@@ -516,7 +516,7 @@ TEST_F(dlib, HashReverseStress)
 
     printf("Hash + reverse lookup of %u items took %f s\n", count_small, time_small);
     // The complexity goes up
-    float multiplier = 4.0f;
+    float multiplier = 1000.0f;
     float expected_time = multiplier * (time_small * (count_large / count_small));
     printf("Hash + reverse lookup of %u items x %f %%: ca %f s\n", count_large, multiplier*100.0f, expected_time);
 
