@@ -20,6 +20,7 @@ import static org.junit.Assert.assertTrue;
 
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.URISyntaxException;
@@ -36,6 +37,7 @@ import com.dynamo.bob.archive.publisher.NullPublisher;
 import com.dynamo.bob.archive.publisher.PublisherSettings;
 import com.dynamo.bob.fs.DefaultFileSystem;
 import com.dynamo.bob.fs.IFileSystem;
+import com.dynamo.bob.util.BobProjectProperties;
 
 public class JarTest {
 
@@ -100,9 +102,21 @@ public class JarTest {
 
     @Test
     public void testSettings() throws Exception {
-        String[] args = new String[] {"--settings=./test/proj/settings/settings.ini"};
+        File absoluteSettings = new File("abssettings/absolute.ini");
+        String absPath = absoluteSettings.getAbsolutePath();
+
+        String[] args = new String[] {"--settings=./test/proj/settings/settings.ini", "--settings", absPath};
         int result = bob(args, "");
         assertEquals(0, result);
+
+        File projectSettings = new File("test/proj/build/default/game.projectc");
+        assertTrue(projectSettings.exists());
+
+        BobProjectProperties properties = new BobProjectProperties();
+        properties.load(new FileInputStream(projectSettings));
+
+        assertEquals(1, (int)properties.getIntValue("test", "value", 0));
+        assertEquals(2, (int)properties.getIntValue("test", "absolute", 0));
     }
 
     /**
