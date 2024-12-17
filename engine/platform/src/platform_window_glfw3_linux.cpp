@@ -14,7 +14,7 @@
 
 #include <glfw/glfw3.h>
 
-// TODO: Wayland?
+// TODO: Wayland support.
 #define GLFW_EXPOSE_NATIVE_X11
 #define GLFW_EXPOSE_NATIVE_GLX
 #include <glfw/glfw3native.h>

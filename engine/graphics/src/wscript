@@ -102,7 +102,7 @@ def build(bld):
         obj.source = [x for x in obj.source if not x.abspath().endswith(os.path.join('vulkan','graphics_native.cpp'))]
         obj.source.append(_get_native_source(build_util.get_target_os(), 'vulkan'))
 
-        if bld.env.PLATFORM in ('x86_64-macos','arm64-macos', 'x86_64-win32', 'win32', 'x86_64-linux'):
+        if bld.env.PLATFORM in ('x86_64-macos','arm64-macos', 'x86_64-win32', 'win32', 'x86_64-linux', 'arm64-linux'):
             obj.source.append('vulkan/desktop/graphics_vulkan_surface.cpp')
 
             if bld.env.PLATFORM in ('x86_64-macos', 'arm64-macos'):
@@ -114,8 +114,6 @@ def build(bld):
         elif bld.env.PLATFORM in ['armv7-android', 'arm64-android']:
             obj.source.append('vulkan/android/graphics_vulkan_android_surface.cpp')
             obj.source.append('vulkan/android/graphics_vulkan_android.cpp')
-        elif bld.env.PLATFORM in ['x86_64-linux', 'arm64-linux']:
-            obj.source.append('vulkan/linux/graphics_vulkan_linux_surface.cpp')
 
         bld.add_group()
 
