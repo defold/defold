@@ -30,7 +30,9 @@
     #include "alloca_vendor.h"
 #elif defined(_WIN32)
     #include <malloc.h>
-    #define alloca(_SIZE) _alloca(_SIZE)
+    #if !defined(alloca)
+        #define alloca(_SIZE) _alloca(_SIZE) // done in malloc.h if _CRT_INTERNAL_NONSTDC_NAMES is non-zero
+    #endif
 #else
     #include <alloca.h>
 #endif

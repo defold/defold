@@ -993,9 +993,9 @@ TEST_P(dmHttpClientTestSSL, FailedSSLHandshake)
         uint64_t timeout = 130 * 1000;
         dmHttpClient::SetOptionInt(m_Client, dmHttpClient::OPTION_REQUEST_TIMEOUT, timeout); // microseconds
 
-        uint64_t timestart = dmTime::GetTime();
+        uint64_t timestart = dmTime::GetMonotonicTime();
         dmHttpClient::Result r = dmHttpClient::Get(m_Client, "/sleep/5000"); // milliseconds
-        uint64_t timeend = dmTime::GetTime();
+        uint64_t timeend = dmTime::GetMonotonicTime();
 
         ASSERT_NE(dmHttpClient::RESULT_OK, r);
         ASSERT_NE(dmHttpClient::RESULT_NOT_200_OK, r);

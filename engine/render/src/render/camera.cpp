@@ -137,6 +137,15 @@ namespace dmRender
         }
     }
 
+    void SetRenderCameraEnabled(HRenderContext render_context, HRenderCamera camera, bool value)
+    {
+        RenderCamera* c = render_context->m_RenderCameras.Get(camera);
+        if (c)
+        {
+            c->m_Enabled = value;
+        }
+    }
+
     // render_private.h
     RenderCamera* GetRenderCameraByUrl(HRenderContext render_context, const dmMessage::URL& camera_url)
     {

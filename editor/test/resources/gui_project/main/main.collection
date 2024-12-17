@@ -4,7 +4,7 @@ embedded_instances {
   id: "panel"
   data: "components {\n"
   "  id: \"panel\"\n"
-  "  component: \"/main/panel.gui\"\n"
+  "  component: \"/gui/template/panel.gui\"\n"
   "}\n"
   ""
 }

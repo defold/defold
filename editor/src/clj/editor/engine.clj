@@ -235,8 +235,8 @@
             (io/copy stream saveFile)))))))
 
 (def ^:private dmengine-dependencies
-  {"x86_64-win32" #{"OpenAL32.dll" "wrap_oal.dll"}
-   "x86-win32"    #{"OpenAL32.dll" "wrap_oal.dll"}})
+  ; Mapping between platform name and list of file names: {"x86_64-win32" #{"OpenAL32.dll" "wrap_oal.dll"}}
+  {})
 
 (defn- copy-dmengine-dependencies!
   [unpack-dir extender-platform]

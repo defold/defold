@@ -13,7 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.handler-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.test :refer :all :exclude [run-test]]
             [dynamo.graph :as g]
             [editor.handler :as handler]
             [editor.core :as core]

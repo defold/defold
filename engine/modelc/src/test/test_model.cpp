@@ -293,7 +293,7 @@ TEST(ModelSkinnedTopNodes, MultipleModels)
 
 static int TestStandalone(const char* path)
 {
-    uint64_t tstart = dmTime::GetTime();
+    uint64_t tstart = dmTime::GetMonotonicTime();
 
     dmModelImporter::Options options;
     dmModelImporter::Scene* scene = LoadScene(path, options);
@@ -301,7 +301,7 @@ static int TestStandalone(const char* path)
     if (!scene)
         return 1;
 
-    uint64_t tend = dmTime::GetTime();
+    uint64_t tend = dmTime::GetMonotonicTime();
     printf("Model %s loaded in %.3f seconds.\n", path, float(tend-tstart)/1000000.0f);
 
     dmModelImporter::DebugScene(scene);

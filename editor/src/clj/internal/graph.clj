@@ -1051,9 +1051,10 @@
   [graphs]
   (MultigraphBasis. graphs))
 
-(defn make-override [root-id traverse-fn]
+(defn make-override [root-id traverse-fn init-props-fn]
   {:root-id root-id
-   :traverse-fn traverse-fn})
+   :traverse-fn traverse-fn
+   :init-props-fn init-props-fn})
 
 (defn override-traverse-fn [basis override-id]
   (let [graph-id (gt/override-id->graph-id override-id)]

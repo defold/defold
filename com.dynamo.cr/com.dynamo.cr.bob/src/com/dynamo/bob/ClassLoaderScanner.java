@@ -48,7 +48,9 @@ public class ClassLoaderScanner implements IClassScanner {
     private static void scanDir(File dir, String packageName, Set<String> classes) {
         File[] files = dir.listFiles();
         for (File file : files) {
-            if (file.getName().endsWith(".class")) {
+            if (file.isDirectory()) {
+                scanDir(file, packageName + "." + file.getName(), classes);
+            } else if (file.getName().endsWith(".class")) {
                 String name = file.getName();
                 name = name.replace("/", ".").replace("\\", ".");
                 name = name.substring(0, name.length() - 6);
