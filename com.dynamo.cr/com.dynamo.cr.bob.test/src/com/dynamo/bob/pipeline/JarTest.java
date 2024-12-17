@@ -98,6 +98,13 @@ public class JarTest {
         assertEquals(1337, result);
     }
 
+    @Test
+    public void testSettings() throws Exception {
+        String[] args = new String[] {"--settings=./test/proj/settings/settings.ini"};
+        int result = bob(args, "");
+        assertEquals(0, result);
+    }
+
     /**
      * The purpose with this test is to be as close as possible to testBuild, but make debugging easier by running the same JVM.
      * @throws Exception
