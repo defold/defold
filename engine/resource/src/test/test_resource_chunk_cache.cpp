@@ -126,6 +126,96 @@ TEST(ResourceChunkCache, Small)
 }
 
 
+
+TEST(ResourceChunkCache, Multiple)
+{
+    const uint32_t num_files = 3;
+    const uint32_t num_chunks_per_file = 3;
+    uint32_t chunk_size = 16;
+
+    // Each data segment is 16 bytes for easy verification
+
+    const char* data1 = "File1: Chunk: 1\0File1: Chunk: 2\0File1: Chunk: 3\0";
+    ResourceCacheChunk f1ch1 = {(uint8_t*)data1 +chunk_size*0, chunk_size*0, chunk_size};
+    ResourceCacheChunk f1ch2 = {(uint8_t*)data1 +chunk_size*1, chunk_size*1, chunk_size};
+    ResourceCacheChunk f1ch3 = {(uint8_t*)data1 +chunk_size*2, chunk_size*2, chunk_size};
+    uint64_t path_hash1 = dmHashString64("file1");
+
+    const char* data2 = "File2: Chunk: 1\0File2: Chunk: 2\0File2: Chunk: 3\0";
+    ResourceCacheChunk f2ch1 = {(uint8_t*)data2 +chunk_size*0, chunk_size*0, chunk_size};
+    ResourceCacheChunk f2ch2 = {(uint8_t*)data2 +chunk_size*1, chunk_size*1, chunk_size};
+    ResourceCacheChunk f2ch3 = {(uint8_t*)data2 +chunk_size*2, chunk_size*2, chunk_size};
+    uint64_t path_hash2 = dmHashString64("file2");
+
+    const char* data3 = "File3: Chunk: 1\0File3: Chunk: 2\0File3: Chunk: 3\0";
+    ResourceCacheChunk f3ch1 = {(uint8_t*)data3 +chunk_size*0, chunk_size*0, chunk_size};
+    ResourceCacheChunk f3ch2 = {(uint8_t*)data3 +chunk_size*1, chunk_size*1, chunk_size};
+    ResourceCacheChunk f3ch3 = {(uint8_t*)data3 +chunk_size*2, chunk_size*2, chunk_size};
+    uint64_t path_hash3 = dmHashString64("file3");
+
+
+    // Let's only fit 3 chunks at the same time
+    HResourceChunkCache cache = ResourceChunkCacheCreate(num_files*chunk_size, chunk_size);
+    ASSERT_NE((HResourceChunkCache)0, cache);
+
+    ResourceCacheChunk* expected_chunks[num_files][num_chunks_per_file] = {
+        {&f1ch1, &f1ch2, &f1ch3},
+        {&f2ch1, &f2ch2, &f2ch3},
+        {&f3ch1, &f3ch2, &f3ch3},
+    };
+
+    dmhash_t path_hashes[] = {path_hash1, path_hash2, path_hash3};
+
+    // We basically want to add chunks in a looping
+    // fashion, and check that the collected data is the correct one
+    for (uint32_t i = 0; i < 30; ++i)
+    {
+        uint32_t file_index = i % num_files;
+        uint32_t chunk_index = (i / num_files) % num_chunks_per_file;
+
+        dmhash_t path_hash = path_hashes[file_index];
+
+        printf("********************************************\n");
+        printf("LOOP: %u  file: %s  chunk: %u\n", i, dmHashReverseSafe64(path_hash), chunk_index);
+
+        if (i < num_files)
+            ASSERT_FALSE(ResourceChunkCacheFull(cache));
+        else
+        {
+            ASSERT_TRUE(ResourceChunkCacheFull(cache));
+
+            ResourceChunkCacheEvictOne(cache);
+
+            ASSERT_FALSE(ResourceChunkCacheFull(cache));
+        }
+
+        ResourceCacheChunk* expected_chunk = expected_chunks[file_index][chunk_index];
+        ASSERT_TRUE(ResourceChunkCachePut(cache, path_hash, expected_chunk));
+
+        ResourceChunkCacheDebugChunks(cache);
+
+        uint32_t expected_num_chunks = i < num_files ? i+1 : num_files;
+        ASSERT_EQ(expected_num_chunks, ResourceChunkCacheGetNumChunks(cache));
+
+        if (expected_num_chunks == 3)
+            ASSERT_TRUE(ResourceChunkCacheFull(cache));
+        else
+            ASSERT_FALSE(ResourceChunkCacheFull(cache));
+
+        ResourceCacheChunk getter = {0};
+
+        ASSERT_TRUE(ResourceChunkCacheGet(cache, path_hash, expected_chunk->m_Offset, &getter));
+        ASSERT_EQ(expected_chunk->m_Offset, getter.m_Offset);
+        ASSERT_EQ(expected_chunk->m_Size, getter.m_Size);
+        ASSERT_STREQ((const char*)expected_chunk->m_Data, (const char*)getter.m_Data);
+    }
+
+    // Shutdown
+    ASSERT_TRUE(ResourceChunkCacheVerify(cache));
+    ResourceChunkCacheDestroy(cache);
+}
+
+
 extern "C" void dmExportedSymbols();
 
 int main(int argc, char **argv)

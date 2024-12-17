@@ -65,11 +65,6 @@ static void ListInit(DLList* list)
     list->m_Tail.m_Prev = &list->m_Head;
 }
 
-static bool ListEmpty(DLList* list)
-{
-    return list->m_Head.m_Next == list->m_Tail.m_Prev;
-}
-
 static void ListRemove(DLList* list, DLListNode* item)
 {
     DLListNode* prev = item->m_Prev;
@@ -336,10 +331,9 @@ static void RemoveChunks(HResourceChunkCache cache, uint32_t index, uint32_t cou
 {
     uint32_t num_chunks = cache->m_Chunks.Size();
     ResourceInternalDataChunk** begin = cache->m_Chunks.Begin();
-
     // Shift the elements in the array
     uint32_t num_to_move = num_chunks - (index + count);
-    memmove(begin + index, begin + index + num_to_move, num_to_move * sizeof(ResourceInternalDataChunk*));
+    memmove(begin + index, begin + index + count, num_to_move * sizeof(ResourceInternalDataChunk*));
     cache->m_Chunks.SetSize(num_chunks - count);
 }
 
@@ -355,7 +349,6 @@ void ResourceChunkCacheEvictOne(HResourceChunkCache cache)
 
     uint32_t index = ResourceChunkCacheFindIndex(cache, chunk);
     RemoveChunks(cache, index, 1);
-
     FreeChunk(cache, chunk);
 }
 
@@ -399,6 +392,7 @@ bool ResourceChunkCacheVerify(HResourceChunkCache cache)
     for (uint32_t i = 0; i < num_chunks; ++i)
     {
         ResourceInternalDataChunk* chunk = chunks[i];
+        assert(chunk);
         uint64_t chunk_path_hash = chunk->m_PathHash;
         uint32_t chunk_offset = chunk->m_Offset;
         if (prev_hash != chunk_path_hash)
