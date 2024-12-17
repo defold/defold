@@ -2435,6 +2435,38 @@ namespace dmGameSystem
         return found;
     }
 
+    uint32_t CompModelGetMeshCount(ModelComponent* component)
+    {
+        return component->m_RenderItems.Size();
+    }
+
+    bool CompModelGetMeshAABB(ModelComponent* component, dmhash_t mesh_id, dmVMath::Vector3& out_min, dmVMath::Vector3& out_max)
+    {
+        for (uint32_t i = 0; i < component->m_RenderItems.Size(); ++i)
+        {
+            MeshRenderItem& item = component->m_RenderItems[i];
+            if (item.m_Model->m_Id == mesh_id)
+            {
+                out_min = item.m_AabbMin;
+                out_max = item.m_AabbMax;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    void CompModelGetMeshAABB(ModelComponent* component, uint32_t mesh_idx, dmhash_t& out_mesh_id, dmVMath::Vector3& out_min, dmVMath::Vector3& out_max)
+    {
+        if (mesh_idx >= component->m_RenderItems.Size())
+        {
+            return;
+        }
+        MeshRenderItem& item = component->m_RenderItems[mesh_idx];
+        out_min = item.m_AabbMin;
+        out_max = item.m_AabbMax;
+        out_mesh_id = item.m_Model->m_Id;
+    }
+
     static bool CompModelIterPropertiesGetNext(dmGameObject::SceneNodePropertyIterator* pit)
     {
         ModelWorld* world = (ModelWorld*)pit->m_Node->m_ComponentWorld;

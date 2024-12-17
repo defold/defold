@@ -610,18 +610,84 @@ namespace dmGameSystem
         return 1;
     }
 
+    /*# get the AABB of the meshes
+     * Get AABB of the meshes. If `mesh_id` would be passed as a second argument - return AABB only for that mesh.
+     * AABB information return as a table with `min` and `max` fields, where `min` and `max` has type `vmath.vector4`.
+     *
+     * @name model.get_aabb
+     * @param url [type:string|hash|url] the model
+     * @param mesh_id [type:string|hash|url|nil] the id of the mesh (optional)
+     * @return aabb [type:table] A table containing info about all AABB or only one AABB if `mesh_id` was passed
+     * @examples
+     *
+     * ```lua
+     * model.get_aabb("#model") -> { hash("Sword") = { min = vmath.vector3(-0.5, -0.5, 0), max = vmath.vector3(0.5, 0.5, 0) }, hash("Shield") = { min = vmath.vector3(-0.5, -0.5, -0.5), max = vmath.vector3(0.5, 0.5, 0.5) } }
+     * model.get_aabb("#model", "Sword") -> { min = vmath.vector3(-0.5, -0.5, 0), max = vmath.vector3(0.5, 0.5, 0) }
+     * model.get_aabb("#model", hash("Shield")) -> { min = vmath.vector3(-0.5, -0.5, -0.5), max = vmath.vector3(0.5, 0.5, 0.5) }
+     * ```
+     */
+    static int LuaModelComp_GetAabb(lua_State* L)
+    {
+        DM_LUA_STACK_CHECK(L, 1);
+        ModelComponent* component = 0;
+        dmGameObject::HInstance sender_instance = CheckGoInstance(L);
+        dmGameObject::HCollection collection = dmGameObject::GetCollection(sender_instance);
+        dmGameObject::GetComponentFromLua(L, 1, collection, MODEL_EXT, (dmGameObject::HComponent*)&component, 0, 0);
+        if (!component)
+        {
+            return luaL_error(L, "the component '%s' could not be found", lua_tostring(L, 1));
+        }
+        // if no mesh_id was passed - return AABB of all 
+        if (lua_gettop(L) > 1)
+        {
+            dmhash_t mesh_id = dmScript::CheckHashOrString(L, 2);
+            dmVMath::Vector3 min, max;
+            if (CompModelGetMeshAABB(component, mesh_id, min, max))
+            {
+                lua_newtable(L);
+                dmScript::PushVector3(L, min);
+                lua_setfield(L, -2, "min");
+                dmScript::PushVector3(L, max);
+                lua_setfield(L, -2, "max");
+            }
+        }
+        else
+        {
+            lua_newtable(L);
+
+            uint32_t mesh_count = CompModelGetMeshCount(component);
+            for (uint32_t idx = 0; idx < mesh_count; ++idx)
+            {
+                dmVMath::Vector3 min, max;
+                dmhash_t mesh_id;
+                CompModelGetMeshAABB(component, idx, mesh_id, min, max);
+                dmScript::PushHash(L, mesh_id);
+
+                lua_newtable(L);
+                dmScript::PushVector3(L, min);
+                lua_setfield(L, -2, "min");
+                dmScript::PushVector3(L, max);
+                lua_setfield(L, -2, "max");
+
+                lua_settable(L, -3);
+            }
+        }
+        return 1;
+    }
+
     static const luaL_reg MODEL_COMP_FUNCTIONS[] =
     {
-            {"play",    LuaModelComp_Play}, // Deprecated
-            {"play_anim", LuaModelComp_PlayAnim},
-            {"cancel",  LuaModelComp_Cancel},
-            {"get_go",  LuaModelComp_GetGO},
-            {"set_constant",    LuaModelComp_SetConstant},
-            {"reset_constant",  LuaModelComp_ResetConstant},
+        {"play",    LuaModelComp_Play}, // Deprecated
+        {"play_anim", LuaModelComp_PlayAnim},
+        {"cancel",  LuaModelComp_Cancel},
+        {"get_go",  LuaModelComp_GetGO},
+        {"set_constant",    LuaModelComp_SetConstant},
+        {"reset_constant",  LuaModelComp_ResetConstant},
 
-            {"set_mesh_enabled",  LuaModelComp_SetMeshEnabled},
-            {"get_mesh_enabled",  LuaModelComp_GetMeshEnabled},
-            {0, 0}
+        {"set_mesh_enabled",  LuaModelComp_SetMeshEnabled},
+        {"get_mesh_enabled",  LuaModelComp_GetMeshEnabled},
+        {"get_aabb",          LuaModelComp_GetAabb},
+        {0, 0}
     };
 
     static dmExtension::Result ScriptModelInitialize(dmExtension::Params* params)

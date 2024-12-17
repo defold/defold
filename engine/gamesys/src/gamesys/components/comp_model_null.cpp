@@ -106,6 +106,19 @@ namespace dmGameSystem
         return false;
     }
 
+    uint32_t CompModelGetMeshCount(ModelComponent* component)
+    {
+        return 0;
+    }
+
+    bool CompModelGetMeshAABB(ModelComponent* component, dmhash_t mesh_id, dmVMath::Vector3& out_min, dmVMath::Vector3& out_max)
+    { 
+        return false;
+    }
+
+    void CompModelGetMeshAABB(ModelComponent* component, uint32_t mesh_idx, dmhash_t& out_mesh_id, dmVMath::Vector3& out_min, dmVMath::Vector3& out_max)
+    { }
+
     void CompModelIterProperties(dmGameObject::SceneNodePropertyIterator* pit, dmGameObject::SceneNode* node)
     { }
 }
