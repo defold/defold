@@ -762,11 +762,17 @@
 
       (testing "Introduce missing referenced layer in template scene"
         (with-open [_ (make-restore-point!)]
-          (is (nil? (g/node-value (:pie template-shapes) :layer-index)))
-          (is (nil? (g/node-value (:pie shapes) :layer-index)))
-          (add-layer! template-scene (g/node-value (:pie template-shapes) :layer) 0)
-          (is (= 0 (g/node-value (:pie template-shapes) :layer-index)))
-          (is (= 0 (g/node-value (:pie shapes) :layer-index)))))
+          (let [template-pie (:pie template-shapes)
+                imported-pie (:pie shapes)
+                template-layer (g/node-value template-pie :layer)]
+            (is (= template-layer (g/node-value imported-pie :layer))) ; Layer property is inherited from template.
+            (is (nil? (g/node-value template-pie :layer-index)))
+            (is (nil? (g/node-value imported-pie :layer-index)))
+            (add-layer! template-scene template-layer 0)
+            (is (= 0 (g/node-value template-pie :layer-index)))
+            (is (nil? (g/node-value imported-pie :layer-index))) ; Layers are isolated between scenes. The imported pie inherits the layer property, but there is still no matching layer in its scene.
+            (add-layer! scene template-layer 0)
+            (is (= 0 (g/node-value imported-pie :layer-index))))))
 
       (testing "Introduce missing referenced texture in template scene"
         (with-open [_ (make-restore-point!)]

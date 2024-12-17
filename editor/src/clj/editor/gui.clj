@@ -396,14 +396,11 @@
 ;; /////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 (def gui-node-parent-attachments
-  [[:basic-gui-scene-info :basic-gui-scene-info]
-   [:costly-gui-scene-info :costly-gui-scene-info]
-
-   [:id :parent]
-   [:layer->index :layer->index]
-
+  [[:id :parent]
    [:id-prefix :id-prefix]
-   [:current-layout :current-layout]])
+   [:current-layout :current-layout]
+   [:basic-gui-scene-info :basic-gui-scene-info]
+   [:costly-gui-scene-info :costly-gui-scene-info]])
 
 (def gui-node-attachments
   [[:_node-id :nodes]
@@ -494,6 +491,8 @@
 ;; You might want to enable these before making drastic changes to Gui nodes.
 
 (s/def ^:private TNames [s/Str])
+(s/def ^:private TNameIntMap {s/Str s/Int})
+(def ^:private TNameIndices TNameIntMap)
 
 (s/def ^:private TMaterialInfo {(s/optional-key :max-page-count) s/Int})
 
@@ -521,6 +520,23 @@
                                                   :spine-scene-scene (s/maybe {s/Keyword s/Any})
                                                   :spine-scene-pb (s/maybe {s/Keyword s/Any})}})
 (s/def ^:private TParticleFXInfos s/Any #_{s/Str {:particlefx-scene (s/maybe {s/Keyword s/Any})}})
+(s/def ^:private TBasicGuiSceneInfo {(s/optional-key :font-names) TGuiResourceNames
+                                     (s/required-key :layer->index) TNameIndices
+                                     (s/optional-key :layer-names) TGuiResourceNames
+                                     (s/optional-key :layout-names) TGuiResourceNames
+                                     (s/optional-key :material-infos) TGuiResourceMaterialInfos
+                                     (s/optional-key :particlefx-resource-names) TGuiResourceNames
+                                     (s/optional-key :spine-scene-element-ids) TSpineSceneElementIds
+                                     (s/optional-key :spine-scene-names) TGuiResourceNames
+                                     (s/optional-key :texture-names) TGuiResourceNames
+                                     (s/optional-key :texture-resource-names) TGuiResourceNames})
+(s/def ^:private TCostlyGuiSceneInfo {(s/optional-key :font-datas) TFontDatas
+                                      (s/optional-key :font-shaders) TGuiResourceShaders
+                                      (s/optional-key :material-shaders) TGuiResourceShaders
+                                      (s/optional-key :particlefx-infos) TParticleFXInfos
+                                      (s/optional-key :spine-scene-infos) TSpineSceneInfos
+                                      (s/optional-key :texture-gpu-textures) TGuiResourceTextures
+                                      (s/optional-key :texture-infos) TGuiResourceTextureInfos})
 
 ;; SDK api
 (g/deftype GuiResourceNames TGuiResourceNames)
@@ -536,30 +552,17 @@
 (g/deftype ^:private ParticleFXInfos TParticleFXInfos)
 (g/deftype ^:private GuiResourceTypeNames {TGuiResourceType TGuiResourceNames})
 
-(g/deftype NameCounts {s/Str s/Int}) ;; SDK api
-(g/deftype ^:private IDMap {s/Str s/Int})
+(g/deftype NameCounts TNameIntMap) ;; SDK api
+(g/deftype ^:private NameIndices TNameIndices)
+(g/deftype ^:private NameNodeIds TNameIntMap)
 (g/deftype ^:private TemplateData {:resource  (s/maybe (s/protocol resource/Resource))
                                    :overrides {s/Str s/Any}})
 
 (g/deftype ^:private NodeIndex [(s/one s/Int "node-id") (s/one s/Int "index")])
 (g/deftype ^:private NameIndex [(s/one s/Str "name") (s/one s/Int "index")])
 
-(g/deftype BasicGuiSceneInfo {(s/optional-key :font-names) TGuiResourceNames
-                              (s/optional-key :layer-names) TGuiResourceNames
-                              (s/optional-key :layout-names) TGuiResourceNames
-                              (s/optional-key :material-infos) TGuiResourceMaterialInfos
-                              (s/optional-key :particlefx-resource-names) TGuiResourceNames
-                              (s/optional-key :spine-scene-element-ids) TSpineSceneElementIds
-                              (s/optional-key :spine-scene-names) TGuiResourceNames
-                              (s/optional-key :texture-names) TGuiResourceNames
-                              (s/optional-key :texture-resource-names) TGuiResourceNames})
-(g/deftype CostlyGuiSceneInfo {(s/optional-key :font-datas) TFontDatas
-                               (s/optional-key :font-shaders) TGuiResourceShaders
-                               (s/optional-key :material-shaders) TGuiResourceShaders
-                               (s/optional-key :particlefx-infos) TParticleFXInfos
-                               (s/optional-key :spine-scene-infos) TSpineSceneInfos
-                               (s/optional-key :texture-gpu-textures) TGuiResourceTextures
-                               (s/optional-key :texture-infos) TGuiResourceTextureInfos})
+(g/deftype BasicGuiSceneInfo TBasicGuiSceneInfo)
+(g/deftype CostlyGuiSceneInfo TCostlyGuiSceneInfo)
 
 (g/defnk override-node? [_this] (g/node-override? _this))
 (g/defnk not-override-node? [_this] (not (g/node-override? _this)))
@@ -991,22 +994,21 @@
             (value (layout-property-getter enabled))
             (set (layout-property-setter enabled)))
   (property layer g/Str (default (protobuf/default Gui$NodeDesc :layer))
-            (dynamic edit-type (g/fnk [basic-gui-scene-info layer->index]
-                                 (let [layer-names (:layer-names basic-gui-scene-info)]
+            (dynamic edit-type (g/fnk [basic-gui-scene-info]
+                                 (let [layer->index (:layer->index basic-gui-scene-info)
+                                       layer-names (:layer-names basic-gui-scene-info)]
                                    (wrap-layout-property-edit-type layer (optional-gui-resource-choicebox layer-names (partial sort-by layer->index))))))
             (dynamic error (g/fnk [_node-id layer basic-gui-scene-info]
                              (let [layer-names (:layer-names basic-gui-scene-info)]
                                (validate-layer true _node-id layer-names layer))))
             (value (layout-property-getter layer))
             (set (layout-property-setter layer)))
-  (output layer-index g/Any :cached
-          (g/fnk [layer layer->index] (layer->index layer)))
+  (output layer-index g/Any
+          (g/fnk [basic-gui-scene-info layer]
+            (let [layer->index (:layer->index basic-gui-scene-info)]
+              (layer->index layer))))
 
   (input parent g/Str)
-
-  (input layer->index g/Any)
-  (output layer->index g/Any (gu/passthrough layer->index))
-
   (input child-scenes g/Any :array)
   (input child-indices NodeIndex :array)
   (output node-outline-link resource/Resource (g/constantly nil))
@@ -1076,9 +1078,9 @@
                                        (seq scene-children)
                                        (update :children coll/into-vector scene-children))))
 
-  (input node-ids IDMap :array)
+  (input node-ids NameNodeIds :array)
   (output id g/Str (g/fnk [id-prefix id] (str id-prefix id)))
-  (output node-ids IDMap (g/fnk [_node-id id node-ids] (reduce merge {id _node-id} node-ids)))
+  (output node-ids NameNodeIds (g/fnk [_node-id id node-ids] (reduce merge {id _node-id} node-ids)))
 
   (input node-overrides g/Any :array)
   (output node-overrides g/Any :cached (g/fnk [node-overrides id _overridden-properties]
@@ -1958,7 +1960,7 @@
                                                                         (when (in/inherits? node-type GuiNode)
                                                                           override-gui-node-init-props))
                                                        :properties-by-node-id properties-by-node-id}
-                                           (fn [evaluation-context id-mapping]
+                                           (fn [_evaluation-context id-mapping]
                                              (let [or-scene (get id-mapping scene-node)]
                                                (concat
                                                  (for [[from to] [[:node-ids :node-ids]
@@ -1970,13 +1972,10 @@
                                                                   [:node-msgs :scene-node-msgs]
                                                                   [:node-overrides :template-overrides]]]
                                                    (g/connect or-scene from self to))
-                                                 (for [[from to] [[:basic-gui-scene-info :aux-basic-gui-scene-info]
-                                                                  [:costly-gui-scene-info :aux-costly-gui-scene-info]
-
-                                                                  #_[:layer->index :layer->index] ; TODO: Should this be here?
-
+                                                 (for [[from to] [[:template-prefix :id-prefix]
                                                                   [:current-layout :current-layout]
-                                                                  [:template-prefix :id-prefix]]]
+                                                                  [:basic-gui-scene-info :aux-basic-gui-scene-info]
+                                                                  [:costly-gui-scene-info :aux-costly-gui-scene-info]]]
                                                    (g/connect self from or-scene to)))))))))))))))
 
   (display-order (into base-display-order [:enabled :template]))
@@ -2476,11 +2475,9 @@
                                               (mapv #(dissoc % :child-index)))))
   (input node-overrides g/Any :array)
   (output node-overrides g/Any :cached (g/fnk [node-overrides] (into {} node-overrides)))
-  (input node-ids IDMap :array)
-  (output node-ids IDMap :cached (g/fnk [node-ids] (reduce merge {} node-ids)))
+  (input node-ids NameNodeIds :array)
+  (output node-ids NameNodeIds :cached (g/fnk [node-ids] (reduce merge {} node-ids)))
 
-  (input layer->index g/Any)
-  (output layer->index g/Any (gu/passthrough layer->index))
   (input id-prefix g/Str)
   (output id-prefix g/Str (gu/passthrough id-prefix))
   (input current-layout g/Str)
@@ -2695,8 +2692,10 @@
   (input layer-msgs g/Any :array)
   (output layer-msgs g/Any :cached (g/fnk [layer-msgs] (flatten layer-msgs)))
 
-  (output layer->index g/Any :cached (g/fnk [ordered-layer-names]
-                                       (zipmap ordered-layer-names (range))))
+  (output layer->index NameIndices :cached
+          (g/fnk [ordered-layer-names]
+            (coll/transfer ordered-layer-names {}
+              (map-indexed coll/flipped-pair))))
   (input child-indices NodeIndex :array)
   (output node-outline outline/OutlineData :cached
           (gen-outline-fnk "Layers" "Layers" 3 true [{:node-type LayerNode
@@ -3198,8 +3197,8 @@
   (output layer-msgs g/Any (g/fnk [layer-msgs] (mapv #(dissoc % :child-index) (sort-by :child-index layer-msgs))))
   (input particlefx-resource-msgs g/Any :array)
   (input resource-msgs g/Any :array)
-  (input node-ids IDMap)
-  (output node-ids IDMap (gu/passthrough node-ids))
+  (input node-ids NameNodeIds)
+  (output node-ids NameNodeIds (gu/passthrough node-ids))
 
   (input own-layout-names g/Any)
   (output own-layout-names g/Any
@@ -3234,8 +3233,7 @@
             (into (sorted-set) font-names)))
 
   (input own-layer-names GuiResourceNames)
-  (input layer->index g/Any)
-  (output layer->index g/Any (gu/passthrough layer->index))
+  (input layer->index NameIndices)
 
   (input spine-scene-element-ids SpineSceneElementIds :array)
   (input spine-scene-infos SpineSceneInfos :array)
@@ -3309,8 +3307,9 @@
 
   (input aux-basic-gui-scene-info BasicGuiSceneInfo)
   (output own-basic-gui-scene-info BasicGuiSceneInfo :cached
-          (g/fnk [own-font-names own-layer-names own-layout-names own-material-infos own-particlefx-resource-names own-spine-scene-names own-texture-names own-texture-resource-names spine-scene-element-ids]
+          (g/fnk [own-font-names layer->index own-layer-names own-layout-names own-material-infos own-particlefx-resource-names own-spine-scene-names own-texture-names own-texture-resource-names spine-scene-element-ids]
             {:font-names own-font-names
+             :layer->index layer->index
              :layer-names own-layer-names
              :layout-names own-layout-names
              :material-infos own-material-infos
@@ -3325,6 +3324,9 @@
             ;; covered up by the layer configuration of the referencing scene.
             {:font-names (coll/merge (:font-names aux-basic-gui-scene-info)
                                      (:font-names own-basic-gui-scene-info))
+             :layer->index (if aux-basic-gui-scene-info
+                             (:layer->index aux-basic-gui-scene-info)
+                             (:layer->index own-basic-gui-scene-info))
              :layer-names (if aux-basic-gui-scene-info
                             (:layer-names aux-basic-gui-scene-info)
                             (:layer-names own-basic-gui-scene-info))
@@ -3668,13 +3670,10 @@
                                      [:build-errors :build-errors]
                                      [:template-build-targets :template-build-targets]]]
                       (g/connect node-tree from self to))
-                    (for [[from to] [[:basic-gui-scene-info :basic-gui-scene-info]
-                                     [:costly-gui-scene-info :costly-gui-scene-info]
-
-                                     [:layer->index :layer->index]
-
-                                     [:id-prefix :id-prefix]
-                                     [:current-layout :current-layout]]]
+                    (for [[from to] [[:id-prefix :id-prefix]
+                                     [:current-layout :current-layout]
+                                     [:basic-gui-scene-info :basic-gui-scene-info]
+                                     [:costly-gui-scene-info :costly-gui-scene-info]]]
                       (g/connect self from node-tree to))
                     ;; Note that the child-index used below is
                     ;; not "local" to the parent but a global ordering of nodes.
