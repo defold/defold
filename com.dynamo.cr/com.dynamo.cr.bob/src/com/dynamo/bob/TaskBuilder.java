@@ -152,16 +152,16 @@ public class TaskBuilder {
         taskResult.setResult(Result.SUCCESS);
         taskResult.setProfilingScope(TimeProfiler.getCurrentScope());
 
-        final List<IResource> outputResources = task.getOutputs();
-        // check if all outputs already exist
-        final boolean allOutputsExist = checkIfResourcesExist(outputResources);
-
-        // compare all task signature. current task signature between previous
-        // signature from state on disk
-        final byte[] taskSignature = task.calculateSignature();
-        final boolean allSigsEquals = compareAllSignatures(taskSignature, outputResources);
-
         try {
+            final List<IResource> outputResources = task.getOutputs();
+            // check if all outputs already exist
+            final boolean allOutputsExist = checkIfResourcesExist(outputResources);
+
+            // compare all task signature. current task signature between previous
+            // signature from state on disk
+            final byte[] taskSignature = task.calculateSignature();
+            final boolean allSigsEquals = compareAllSignatures(taskSignature, outputResources);
+
             Builder builder = task.getBuilder();
             Map<IResource, String> outputResourceToCacheKey = new HashMap<IResource, String>();
             

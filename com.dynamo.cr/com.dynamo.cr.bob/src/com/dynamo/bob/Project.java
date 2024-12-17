@@ -683,9 +683,13 @@ public class Project {
             if (!path.isAbsolute()) {
                 Path rootDir = Paths.get(getRootDirectory()).normalize().toAbsolutePath();
                 Path settingsFile = path.normalize().toAbsolutePath();
-                path = rootDir.relativize(settingsFile);
+                Path relativePath = rootDir.relativize(settingsFile);
+                resources.add(fileSystem.get(relativePath.toString()));
             }
-            resources.add(fileSystem.get(path.getFileName().toString()));
+            else
+            {
+                resources.add(fileSystem.get(path.getFileName().toString()));
+            }
         }
         return resources;
     }
@@ -734,8 +738,13 @@ public class Project {
      */
     public void mount(IResourceScanner resourceScanner) throws IOException, CompileExceptionError {
         this.fileSystem.clearMountPoints();
-        Set<String> mounts = new HashSet<>();
         this.fileSystem.addMountPoint(new ClassLoaderMountPoint(this.fileSystem, "builtins/**", resourceScanner));
+
+        // This code is a quick way to allow for settings files from outside of a project
+        // Those settings files are required to be using absolute paths.
+        // Caveat is that we're mounting the folder, which may contain other files
+        // TODO: Add way to insert specific (or virtual) files into the file system
+        Set<String> mounts = new HashSet<>();
         for (String propertyFile : propertyFiles) {
             Path path = Paths.get(propertyFile);
             if (path.isAbsolute()) {
