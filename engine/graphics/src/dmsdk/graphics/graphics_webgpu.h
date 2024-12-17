@@ -18,10 +18,11 @@
 #include <dmsdk/graphics/graphics.h>
 
 #ifdef __EMSCRIPTEN__
-	#include <webgpu/webgpu.h>
+    #include <webgpu/webgpu.h>
 #else
-	typedef int WGPUQueue;
-	typedef int WGPUDevice;
+    typedef int WGPUQueue;
+    typedef int WGPUDevice;
+    typedef int WGPUTextureView;
 #endif
 
 /*# Graphics API documentation
@@ -36,8 +37,10 @@
 
 namespace dmGraphics
 {
-	WGPUDevice WebGPUGetDevice(HContext context);
-    WGPUQueue  WebGPUGetQueue(HContext context);
+    WGPUDevice      WebGPUGetDevice(HContext context);
+    WGPUQueue       WebGPUGetQueue(HContext context);
+    WGPUTextureView WebGPUGetTextureView(HContext context, HTexture texture);
+    HTexture        WebGPUGetActiveSwapChainTexture(HContext context);
 }
 
 #endif

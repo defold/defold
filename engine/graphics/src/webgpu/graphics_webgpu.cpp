@@ -3130,6 +3130,23 @@ WGPUQueue dmGraphics::WebGPUGetQueue(HContext context)
     return ((WebGPUContext*)context)->m_Queue;
 }
 
+WGPUTextureView dmGraphics::WebGPUGetTextureView(HContext _context, HTexture _texture)
+{
+    WebGPUContext* context = (WebGPUContext*) _context;
+    WebGPUTexture* texture = GetAssetFromContainer<WebGPUTexture>(context->m_AssetHandleContainer, _texture);
+    assert(texture);
+    return texture->m_TextureView;
+}
+
+HTexture dmGraphics::WebGPUGetActiveSwapChainTexture(HContext _context)
+{
+    WebGPUContext* context = (WebGPUContext*) _context;
+    if (context->m_MainRenderTarget->m_Multisample == 1)
+        return context->m_MainRenderTarget->m_TextureColor[0];
+    else
+        return context->m_MainRenderTarget->m_TextureResolve[0];
+}
+
 static GraphicsAdapterFunctionTable WebGPURegisterFunctionTable()
 {
     GraphicsAdapterFunctionTable fn_table = {};
