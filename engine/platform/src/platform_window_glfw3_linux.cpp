@@ -41,17 +41,6 @@ namespace dmPlatform
 
     void CenterWindowNative(HWindow wnd, GLFWmonitor* monitor)
     {
-        /*
-        if (!monitor)
-            return;
-
-        const GLFWvidmode* video_mode = glfwGetVideoMode(monitor);
-        if (!video_mode)
-            return;
-
-        int32_t x = video_mode->width/2 - wnd->m_Width/2;
-        int32_t y = video_mode->height/2 - wnd->m_Height/2;
-        glfwSetWindowPos(wnd->m_Window, x, y);
-        */
+        // NOP
     }
 }
