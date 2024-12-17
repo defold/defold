@@ -1005,5 +1005,7 @@ public class AndroidBundler implements IBundler {
         if (!bundleFormat.contains("aab") && !bundleFormat.contains("apk")) {
             throw new CompileExceptionError("Unknown bundle format: " + bundleFormat);
         }
+
+        BundleHelper.moveBundleIfNeed(project, bundleDir);
     }
 }

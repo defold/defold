@@ -442,6 +442,7 @@ public class HTML5Bundler implements IBundler {
                 FileUtils.copyFile(splashImage, new File(appDir, splashImage.getName()));
             }
         }
+        BundleHelper.moveBundleIfNeed(project, appDir);
     }
 
     private void createSplitFiles(Project project, File buildDir, File targetDir) throws IOException {

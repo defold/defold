@@ -97,6 +97,7 @@ public class TexcLibraryJni {
 
     // Part of the basisu compressor api
     public static native byte[] BasisUEncode(Texc.BasisUEncodeSettings input);
+    public static native byte[] ASTCEncode(Texc.ASTCEncodeSettings input);
     public static native byte[] DefaultEncode(Texc.DefaultEncodeSettings input);
 
     // For font glyphs
@@ -375,7 +376,9 @@ public class TexcLibraryJni {
         Texc.ColorSpace colorSpace = Texc.ColorSpace.CS_SRGB;
         Texc.CompressionLevel texcCompressionLevel = Texc.CompressionLevel.CL_BEST;
         //Texc.CompressionType texcCompressionType = Texc.CompressionType.CT_DEFAULT;
-        Texc.CompressionType texcCompressionType = Texc.CompressionType.CT_BASIS_UASTC;
+        //Texc.CompressionType texcCompressionType = Texc.CompressionType.CT_BASIS_UASTC;
+
+        Texc.CompressionType texcCompressionType = Texc.CompressionType.CT_ASTC;
 
         if (premulAlpha && !ColorModel.getRGBdefault().isAlphaPremultiplied()) {
             System.out.printf("-----------------\n");
@@ -482,6 +485,35 @@ public class TexcLibraryJni {
 
                 timeEnd = System.currentTimeMillis();
 
+            }
+            else if (Texc.CompressionType.CT_ASTC == texcCompressionType) {
+                System.out.printf("    -----------------\n");
+                System.out.printf("    ASTCEncode\n");
+
+                Texc.ASTCEncodeSettings settings = new Texc.ASTCEncodeSettings();
+                settings.path = path;
+                settings.width = image_width;
+                settings.height = image_height;
+
+                settings.pixelFormat = pixelFormat;
+                //settings.outPixelFormat = outPixelFormat;
+                settings.colorSpace = colorSpace;
+
+                // settings.numThreads = maxThreads;
+                // settings.debug = false;
+
+                DebugPrintObject(settings, 1);
+
+                settings.data = uncompressed;
+
+                timeStart = System.currentTimeMillis();
+
+                encoded = TexcLibraryJni.ASTCEncode(settings);
+                if (encoded == null || encoded.length == 0) {
+                    throw new Exception("Could not encode");
+                }
+
+                timeEnd = System.currentTimeMillis();
             }
             else if (Texc.CompressionType.CT_DEFAULT == texcCompressionType) {
                 System.out.printf("    -----------------\n");

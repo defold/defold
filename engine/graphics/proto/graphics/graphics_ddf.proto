@@ -141,6 +141,8 @@ message TextureImage
         COMPRESSION_TYPE_BASIS_UASTC = 3;
         // Basis ETC1S
         COMPRESSION_TYPE_BASIS_ETC1S = 4;
+        // ASTC
+        COMPRESSION_TYPE_ASTC = 5;
     }
 
     enum CompressionFlags
@@ -182,6 +184,21 @@ message TextureImage
         TEXTURE_FORMAT_RG16F             = 23;
         TEXTURE_FORMAT_R32F              = 24;
         TEXTURE_FORMAT_RG32F             = 25;
+
+        // ASTC Formats
+        TEXTURE_FORMAT_RGBA_ASTC_5x4     = 26;
+        TEXTURE_FORMAT_RGBA_ASTC_5x5     = 27;
+        TEXTURE_FORMAT_RGBA_ASTC_6x5     = 28;
+        TEXTURE_FORMAT_RGBA_ASTC_6x6     = 29;
+        TEXTURE_FORMAT_RGBA_ASTC_8x5     = 30;
+        TEXTURE_FORMAT_RGBA_ASTC_8x6     = 31;
+        TEXTURE_FORMAT_RGBA_ASTC_8x8     = 32;
+        TEXTURE_FORMAT_RGBA_ASTC_10x5    = 33;
+        TEXTURE_FORMAT_RGBA_ASTC_10x6    = 34;
+        TEXTURE_FORMAT_RGBA_ASTC_10x8    = 35;
+        TEXTURE_FORMAT_RGBA_ASTC_10x10   = 36;
+        TEXTURE_FORMAT_RGBA_ASTC_12x10   = 37;
+        TEXTURE_FORMAT_RGBA_ASTC_12x12   = 38;
     }
 
     message Image
@@ -197,6 +214,7 @@ message TextureImage
         optional CompressionType compression_type = 9 [default = COMPRESSION_TYPE_DEFAULT];
         optional uint64 compression_flags         = 10;
         repeated uint32 mip_map_size_compressed   = 11;
+        repeated uint32 mip_map_dimensions        = 12; // w0, h0, w1, h1, ...
     }
 
     repeated Image alternatives = 1;
