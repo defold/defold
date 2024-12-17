@@ -18,7 +18,10 @@
 #include <dmsdk/graphics/graphics.h>
 
 #ifdef __EMSCRIPTEN__
-#include <webgpu/webgpu.h>
+	#include <webgpu/webgpu.h>
+#else
+	typedef int WGPUQueue;
+	typedef int WGPUDevice;
 #endif
 
 /*# Graphics API documentation
