@@ -354,13 +354,22 @@ namespace dmGameSystem
         uint8_t* message_bytes = (uint8_t*) params->m_Buffer;
         int32_t header_size    = ((int32_t*) message_bytes)[0];
         void* buffer           = (void*) (message_bytes + sizeof(int32_t));
-        uint8_t* image_payload = message_bytes + header_size + sizeof(int32_t);
 
         dmGraphics::TextureImage* texture_image;
         dmDDF::Result e = dmDDF::LoadMessage<dmGraphics::TextureImage>(buffer, header_size, (&texture_image));
         if ( e != dmDDF::RESULT_OK )
         {
             return dmResource::RESULT_FORMAT_ERROR;
+        }
+
+        uint8_t* image_payload;
+        if (texture_image->m_ImageDataAddress)
+        {
+            image_payload = (uint8_t*) texture_image->m_ImageDataAddress;
+        }
+        else
+        {
+            image_payload = message_bytes + header_size + sizeof(int32_t);
         }
 
         ImageDesc* image_desc = CreateImage((dmGraphics::HContext) params->m_Context, texture_image, image_payload);

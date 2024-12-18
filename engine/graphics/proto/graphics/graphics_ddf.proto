@@ -211,11 +211,9 @@ message TextureImage
         repeated uint32 mip_map_offset            = 6;
         repeated uint32 mip_map_size              = 7; // always uncompressed (native) size
         optional CompressionType compression_type = 8 [default = COMPRESSION_TYPE_DEFAULT];
-        optional uint64 compression_flags         = 9;
-        repeated uint32 mip_map_size_compressed   = 10;
-        required uint32 data_offset               = 11; // Offset into the "payload" data area, i.e after the protobuf message
-        required uint32 data_size                 = 12; // Size of the image data
-        repeated uint32 mip_map_dimensions        = 13; // w0, h0, w1, h1, ...
+        repeated uint32 mip_map_size_compressed   = 9;
+        repeated uint32 mip_map_dimensions        = 10; // w0, h0, w1, h1, ...
+        optional uint32 data_size                 = 11;
     }
 
     repeated Image alternatives = 1;
@@ -223,7 +221,14 @@ message TextureImage
     // When count > 1 count mipmaps are laid out contiguously in memory and
     // the mip_map_offset should reflect that, e.g. times 6 for cubemaps
     required uint32 count       = 3;
-    optional uint32 usage_flags = 4 [default = 1];
+
+    // Runtime only, used for specifying how the texture should be used.
+    // Possible values are specified in dmsdk/graphics.h
+    optional uint32 usage_flags = 4 [(runtime_only) = true, default = 1];
+    // Runtime only, when creating textures in runtime we want to avoid
+    // making a copy of the texture data just to create the resource.
+    // This field can instead be used to store a pointer to the actual data.
+    optional uint64 image_data_address = 5 [(runtime_only) = true];
 }
 
 // We encapsulate the texture format in its own message due

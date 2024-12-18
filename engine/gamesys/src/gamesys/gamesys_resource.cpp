@@ -77,21 +77,18 @@ namespace dmGameSystem
         texture_image->m_Type                  = params.m_TextureType;
         texture_image->m_Count                 = layer_count;
         texture_image->m_UsageFlags            = params.m_UsageFlags;
+        texture_image->m_ImageDataAddress      = (uint64_t) image_data;
 
-        image->m_Width                = params.m_Width;
-        image->m_Height               = params.m_Height;
-        image->m_OriginalWidth        = params.m_Width;
-        image->m_OriginalHeight       = params.m_Height;
-        image->m_Format               = params.m_TextureFormat;
-        image->m_CompressionType      = params.m_CompressionType;
-        image->m_CompressionFlags     = 0;
-        // image->m_Data.m_Data          = image_data;
-        // image->m_Data.m_Count         = image_data_size;
-
-        image->m_MipMapOffset.m_Data  = mip_map_offsets;
-        image->m_MipMapOffset.m_Count = params.m_MaxMipMaps;
-        image->m_MipMapSize.m_Data    = mip_map_sizes;
-        image->m_MipMapSize.m_Count   = params.m_MaxMipMaps;
+        image->m_Width                        = params.m_Width;
+        image->m_Height                       = params.m_Height;
+        image->m_OriginalWidth                = params.m_Width;
+        image->m_OriginalHeight               = params.m_Height;
+        image->m_Format                       = params.m_TextureFormat;
+        image->m_CompressionType              = params.m_CompressionType;
+        image->m_MipMapOffset.m_Data          = mip_map_offsets;
+        image->m_MipMapOffset.m_Count         = params.m_MaxMipMaps;
+        image->m_MipMapSize.m_Data            = mip_map_sizes;
+        image->m_MipMapSize.m_Count           = params.m_MaxMipMaps;
         image->m_MipMapSizeCompressed.m_Data  = mip_map_offsets_compressed;
         image->m_MipMapSizeCompressed.m_Count = 1;
 
@@ -108,8 +105,8 @@ namespace dmGameSystem
             delete[] image.m_MipMapSize.m_Data;
             delete[] image.m_MipMapSizeCompressed.m_Data;
             delete[] image.m_MipMapDimensions.m_Data;
-            if (destroy_image_data)
-                delete[] image.m_Data.m_Data;
+            //if (destroy_image_data)
+            //    delete[] image.m_Data.m_Data;
         }
         delete[] texture_image.m_Alternatives.m_Data;
     }
@@ -198,6 +195,7 @@ namespace dmGameSystem
         texture_image.m_Alternatives.m_Count   = 1;
         texture_image.m_Type                   = GraphicsTextureTypeToImageType(params.m_TextureType);
         texture_image.m_Count                  = 1;
+        texture_image.m_ImageDataAddress       = (uint64_t) params.m_Data;
 
         image.m_Width                = params.m_Width;
         image.m_Height               = params.m_Height;
@@ -205,9 +203,6 @@ namespace dmGameSystem
         image.m_OriginalHeight       = params.m_Height;
         image.m_Format               = GraphicsTextureFormatToImageFormat(params.m_TextureFormat);
         image.m_CompressionType      = params.m_CompressionType;
-        image.m_CompressionFlags     = 0;
-        // image.m_Data.m_Data          = (uint8_t*) params.m_Data;
-        // image.m_Data.m_Count         = params.m_DataSize;
 
         uint32_t mip_map_dimensions[]    = {params.m_Width, params.m_Height};
         image.m_MipMapDimensions.m_Data  = mip_map_dimensions;

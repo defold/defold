@@ -606,12 +606,11 @@ public class TextureGenerator {
                         TextureImage.Image.Builder imageBuilder = TextureImage.Image.newBuilder();
                         byte[] imageData = generateFromColorAndFormat(imageBuilder, image, colorModel, textureFormat, textureCompressor, textureCompressorPreset, platformProfile.getMipmaps(), platformProfile.getMaxTextureSize(), platformProfile.getPremultiplyAlpha(), flipAxis);
                         imageBuilder.setCompressionType(compressionType);
-                        imageBuilder.setDataOffset(currentDataOffset);
                         textureBuilder.addAlternatives(imageBuilder);
 
                         result.imageDatas.add(imageData);
                         result.imageDataOffsets.add(currentDataOffset);
-                        currentDataOffset += imageBuilder.getDataSize();
+                        currentDataOffset += imageData.length;
 
                     } catch (TextureGeneratorException e) {
                         throw e;
@@ -635,7 +634,6 @@ public class TextureGenerator {
 
             byte[] imageData = generateFromColorAndFormat(imageBuilder, image, colorModel, textureFormat, "Default", "DEFAULT", true, 0, true, flipAxis);
             imageBuilder.setCompressionType(TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT);
-            imageBuilder.setDataOffset(currentDataOffset);
             textureBuilder.addAlternatives(imageBuilder);
             textureBuilder.setCount(1);
 
