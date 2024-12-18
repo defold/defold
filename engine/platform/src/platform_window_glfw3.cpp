@@ -333,6 +333,7 @@ namespace dmPlatform
             window->m_Samples                 = params.m_Samples;
             window->m_Fullscreen              = params.m_Fullscreen;
             window->m_Title                   = params.m_Title;
+            window->m_GraphicsApi             = params.m_GraphicsApi;
             window->m_WindowOpened            = 1;
         }
 
@@ -517,6 +518,9 @@ namespace dmPlatform
     {
         if (window->m_Fullscreen == value)
             return;
+        window->m_Fullscreen = value;
+
+        GLFWwindow* current_window = window->m_Window;
 
         if (value)
         {
@@ -527,15 +531,21 @@ namespace dmPlatform
             GLFWmonitor* monitor = glfwGetPrimaryMonitor();
             const GLFWvidmode* mode = glfwGetVideoMode(monitor);
 
-            glfwDestroyWindow(window->m_Window);
-
-            window->m_Window = glfwCreateWindow(mode->width, mode->height, window->m_Title, monitor, NULL);
+            window->m_Window = glfwCreateWindow(mode->width, mode->height, window->m_Title, monitor, current_window);
             assert(window->m_Window);
         }
         else
         {
-
+            window->m_Window = glfwCreateWindow(window->m_Width, window->m_Height, window->m_Title, NULL, current_window);
+            assert(window->m_Window);
         }
+
+        if (window->m_GraphicsApi == PLATFORM_GRAPHICS_API_OPENGL)
+        {
+            glfwMakeContextCurrent(window->m_Window);
+        }
+
+        glfwDestroyWindow(current_window);
     }
 
     const char* GetJoystickDeviceName(HWindow window, uint32_t gamepad_index)

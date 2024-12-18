@@ -25,6 +25,7 @@ namespace dmPlatform
     {
         GLFWwindow*                   m_Window;
         GLFWwindow*                   m_AuxWindow;
+        PlatformGraphicsApi           m_GraphicsApi;
         const char*                   m_Title;
         WindowResizeCallback          m_ResizeCallback;
         void*                         m_ResizeCallbackUserData;
