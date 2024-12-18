@@ -185,6 +185,8 @@ static WebGPUTexture* WebGPUNewTextureInternal(const TextureCreationParams& para
         texture->m_UsageFlags |= WGPUTextureUsage_TextureBinding;
     if (params.m_UsageHintBits & TEXTURE_USAGE_FLAG_STORAGE)
         texture->m_UsageFlags |= WGPUTextureUsage_StorageBinding;
+    if (params.m_UsageHintBits & TEXTURE_USAGE_FLAG_COLOR)
+        texture->m_UsageFlags |= WGPUTextureUsage_RenderAttachment;
     texture->m_UsageHintFlags = params.m_UsageHintBits;
 
     if (params.m_OriginalWidth == 0)
