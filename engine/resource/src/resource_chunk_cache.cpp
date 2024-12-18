@@ -40,6 +40,7 @@ struct ResourceInternalDataChunk
 
     dmhash_t m_PathHash;
     uint8_t* m_Data;
+    uint32_t m_Size;    // Size of data
     uint32_t m_Offset;  // Offset into the file
 };
 
@@ -49,10 +50,8 @@ struct ResourceChunkCache
     dmArray<ResourceInternalDataChunk*> m_Chunks;
 
     uint32_t m_CacheSize;    // The cache size for all streaming sounds
-    uint32_t m_ChunkSize;    // The chunk size when streaming in more data
     uint32_t m_CacheSizeUsed;// The amount of cache currently used
-
-    DLList m_LRU; // head is MRU, tail is LRU
+    DLList   m_LRU; // head is MRU, tail is LRU
 };
 
 // **********************************************************************************
@@ -98,6 +97,7 @@ static ResourceInternalDataChunk* AllocChunk(ResourceChunkCache* cache, dmhash_t
     ResourceInternalDataChunk* chunk = new ResourceInternalDataChunk;
     chunk->m_PathHash = path_hash;
     chunk->m_Offset = offset;
+    chunk->m_Size = data_size;
     chunk->m_Data = new uint8_t[data_size];
     memcpy(chunk->m_Data, data, data_size);
 
@@ -107,7 +107,7 @@ static ResourceInternalDataChunk* AllocChunk(ResourceChunkCache* cache, dmhash_t
 
 static void FreeChunk(ResourceChunkCache* cache, ResourceInternalDataChunk* chunk)
 {
-    cache->m_CacheSizeUsed -= cache->m_ChunkSize;
+    cache->m_CacheSizeUsed -= chunk->m_Size;
     delete chunk->m_Data;
     delete chunk;
 }
@@ -148,7 +148,7 @@ static bool ChunkComparePathFn(const ResourceInternalDataChunk* chunk, dmhash_t 
 
 static void PrintChunk(ResourceChunkCache* cache, ResourceInternalDataChunk* chunk)
 {
-    printf("  chunk: '%s'  offset: %8u  size: %8u  data: %p\n", dmHashReverseSafe64(chunk->m_PathHash), chunk->m_Offset, cache->m_ChunkSize, chunk->m_Data);
+    printf("  chunk: '%s'  offset: %8u  size: %8u  data: %p\n", dmHashReverseSafe64(chunk->m_PathHash), chunk->m_Offset, chunk->m_Size, chunk->m_Data);
 }
 
 void ResourceChunkCacheDebugChunks(ResourceChunkCache* cache)
@@ -174,12 +174,10 @@ void ResourceChunkCacheDebugChunks(ResourceChunkCache* cache)
 
 // **********************************************************************************
 
-HResourceChunkCache ResourceChunkCacheCreate(uint32_t max_memory, uint32_t chunk_size)
+HResourceChunkCache ResourceChunkCacheCreate(uint32_t max_memory)
 {
     ResourceChunkCache* cache = new ResourceChunkCache;
-    cache->m_Chunks.SetCapacity(max_memory / chunk_size);
     cache->m_CacheSize = max_memory;
-    cache->m_ChunkSize = chunk_size;
     cache->m_CacheSizeUsed = 0;
 
     ListInit(&cache->m_LRU);
@@ -248,7 +246,6 @@ bool ResourceChunkCacheGet(HResourceChunkCache cache, dmhash_t path_hash, uint32
         return false;
 
     uint32_t start_index = lbound - begin;
-    uint32_t chunk_size = cache->m_ChunkSize;
 
     // We assume the array is sorted on path and offset in ascending order
     uint32_t num_chunks = cache->m_Chunks.Size();
@@ -256,6 +253,7 @@ bool ResourceChunkCacheGet(HResourceChunkCache cache, dmhash_t path_hash, uint32
     {
         ResourceInternalDataChunk* chunk = begin[i];
         dmhash_t chunk_path_hash = chunk->m_PathHash;
+        uint32_t chunk_size = chunk->m_Size;
 
         if (path_hash < chunk_path_hash)
             return false;
@@ -274,7 +272,7 @@ bool ResourceChunkCacheGet(HResourceChunkCache cache, dmhash_t path_hash, uint32
         {
             out->m_Data = chunk->m_Data;
             out->m_Offset = chunk->m_Offset;
-            out->m_Size = cache->m_ChunkSize;
+            out->m_Size = chunk_size;
 
             // Update the LRU by placing the item first in the queue
             ListRemove(&cache->m_LRU, (DLListNode*)chunk);
@@ -289,17 +287,22 @@ bool ResourceChunkCacheGet(HResourceChunkCache cache, dmhash_t path_hash, uint32
 bool ResourceChunkCachePut(HResourceChunkCache cache, uint64_t path_hash, ResourceCacheChunk* _chunk)
 {
 //printf("put '%s': '%s' sz: %u  off: %u\n", dmHashReverseSafe64(path_hash), (const char*)_chunk->m_Data, _chunk->m_Size, _chunk->m_Offset);
-    if (ResourceChunkCacheFull(cache))
+    if (!ResourceChunkCacheCanFit(cache, _chunk->m_Size))
     {
-        dmLogWarning("Cache is full. Failed to add chunk: '%s' size: %u, offset: %u", dmHashReverseSafe64(path_hash), _chunk->m_Size, _chunk->m_Offset);
+        dmLogError("Cache is full. Failed to add chunk: '%s' size: %u, offset: %u", dmHashReverseSafe64(path_hash), _chunk->m_Size, _chunk->m_Offset);
         return false;
     }
 
     ResourceInternalDataChunk* prev = ResourceChunkCacheFind(cache, path_hash, _chunk->m_Offset);
     if (prev)
     {
-        dmLogError("Chunk already exists: '%s' size: %u, offset: %u", dmHashReverseSafe64(path_hash), cache->m_ChunkSize, prev->m_Offset);
+        dmLogError("Chunk already exists: '%s' size: %u, offset: %u", dmHashReverseSafe64(path_hash), prev->m_Size, prev->m_Offset);
         return false;
+    }
+
+    if (cache->m_Chunks.Full())
+    {
+        cache->m_Chunks.OffsetCapacity(16);
     }
 
     ResourceInternalDataChunk* chunk = AllocChunk(cache, path_hash, _chunk->m_Data, _chunk->m_Size, _chunk->m_Offset);
@@ -309,10 +312,11 @@ bool ResourceChunkCachePut(HResourceChunkCache cache, uint64_t path_hash, Resour
     return true;
 }
 
-// Returns true if the cache is full
-bool ResourceChunkCacheFull(HResourceChunkCache cache)
+// Returns true if the cache can fit the chunk
+bool ResourceChunkCacheCanFit(HResourceChunkCache cache, uint32_t size)
 {
-    return cache->m_Chunks.Full();
+    //printf("  size: %u  m_CacheSize: %u  m_CacheSizeUsed: %u  -> %d\n", size, cache->m_CacheSize, cache->m_CacheSizeUsed, size <= (cache->m_CacheSize - cache->m_CacheSizeUsed));
+    return size <= (cache->m_CacheSize - cache->m_CacheSizeUsed);
 }
 
 // Returns number of bytes used by the cache
@@ -350,6 +354,36 @@ void ResourceChunkCacheEvictOne(HResourceChunkCache cache)
     uint32_t index = ResourceChunkCacheFindIndex(cache, chunk);
     RemoveChunks(cache, index, 1);
     FreeChunk(cache, chunk);
+}
+
+bool ResourceChunkCacheEvictMemory(HResourceChunkCache cache, uint32_t size)
+{
+    uint32_t cache_size = cache->m_CacheSize;
+    uint32_t cache_size_used = cache->m_CacheSizeUsed;
+
+    if (size > cache_size_used)
+    {
+        dmLogError("Cannot insert an item larger than the cache size!");
+        return false;
+    }
+
+    while ((cache_size - cache_size_used) < size)
+    {
+        DLListNode* last = ListGetLast(&cache->m_LRU);
+        if (!last)
+            break;
+
+        ListRemove(&cache->m_LRU, last);
+        ResourceInternalDataChunk* chunk = (ResourceInternalDataChunk*)last;
+
+        uint32_t index = ResourceChunkCacheFindIndex(cache, chunk);
+        RemoveChunks(cache, index, 1);
+        FreeChunk(cache, chunk);
+
+        cache_size_used = cache->m_CacheSizeUsed;
+    }
+
+    return true;
 }
 
 // Evicts the chunks associated with path_hash

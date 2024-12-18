@@ -27,7 +27,7 @@ struct ResourceCacheChunk
 
 typedef struct ResourceChunkCache* HResourceChunkCache;
 
-HResourceChunkCache ResourceChunkCacheCreate(uint32_t max_memory, uint32_t chunk_size);
+HResourceChunkCache ResourceChunkCacheCreate(uint32_t max_memory);
 void                ResourceChunkCacheDestroy(HResourceChunkCache cache);
 
 // Get the chunk that contains the requested offset
@@ -38,10 +38,10 @@ bool ResourceChunkCacheGet(HResourceChunkCache cache, dmhash_t path_hash, uint32
 bool ResourceChunkCachePut(HResourceChunkCache cache, dmhash_t path_hash, ResourceCacheChunk* chunk);
 
 // Returns true if the cache is full
-bool ResourceChunkCacheFull(HResourceChunkCache cache);
+bool ResourceChunkCacheCanFit(HResourceChunkCache cache, uint32_t size);
 
-// Evicts the least recently used item from the cache
-void ResourceChunkCacheEvictOne(HResourceChunkCache cache);
+// Evicts the chunks until the requested size will fit
+bool ResourceChunkCacheEvictMemory(HResourceChunkCache cache, uint32_t size);
 
 // Evicts the chunks associated with path_hash
 void ResourceChunkCacheEvictPathHash(HResourceChunkCache cache, dmhash_t path_hash);
