@@ -111,6 +111,23 @@ namespace dmGameSystem
         delete[] texture_image.m_Alternatives.m_Data;
     }
 
+    void FillTextureResourceBuffer(const dmGraphics::TextureImage* texture_image, dmArray<uint8_t>& texture_resource_buffer)
+    {
+        dmArray<uint8_t> ddf_buffer;
+        dmDDF::Result ddf_result = dmDDF::SaveMessageToArray(texture_image, dmGraphics::TextureImage::m_DDFDescriptor, ddf_buffer);
+        assert(ddf_result == dmDDF::RESULT_OK);
+
+        // Construct the header size + message
+        const uint32_t TEXTURE_RES_MESSAGE_SIZE = sizeof(int32_t) + ddf_buffer.Size();
+
+        texture_resource_buffer.SetCapacity(TEXTURE_RES_MESSAGE_SIZE);
+        texture_resource_buffer.SetSize(TEXTURE_RES_MESSAGE_SIZE);
+
+        int32_t* texture_resource_header_size = (int32_t*) texture_resource_buffer.Begin();
+        *texture_resource_header_size = ddf_buffer.Size();
+        memcpy(texture_resource_buffer.Begin() + sizeof(int32_t), ddf_buffer.Begin(), ddf_buffer.Size());
+    }
+
     dmGraphics::TextureImage::TextureFormat GraphicsTextureFormatToImageFormat(dmGraphics::TextureFormat textureformat)
     {
     #define GRAPHCIS_TO_TEXTURE_IMAGE_ENUM_CASE(x) case dmGraphics::x: return dmGraphics::TextureImage::x
@@ -164,12 +181,11 @@ namespace dmGameSystem
         dmGraphics::TextureImage texture_image = {};
         MakeTextureImage(create_params, &texture_image);
 
-        dmArray<uint8_t> ddf_buffer;
-        dmDDF::Result ddf_result = dmDDF::SaveMessageToArray(&texture_image, dmGraphics::TextureImage::m_DDFDescriptor, ddf_buffer);
-        assert(ddf_result == dmDDF::RESULT_OK);
+        dmArray<uint8_t> texture_resource_buffer;
+        FillTextureResourceBuffer(&texture_image, texture_resource_buffer);
 
         void* resource = 0x0;
-        dmResource::Result res = dmResource::CreateResource(factory, create_params.m_Path, ddf_buffer.Begin(), ddf_buffer.Size(), &resource);
+        dmResource::Result res = dmResource::CreateResource(factory, create_params.m_Path, texture_resource_buffer.Begin(), texture_resource_buffer.Size(), &resource);
 
         DestroyTextureImage(texture_image, create_params.m_Buffer == 0 && create_params.m_Data == 0);
 

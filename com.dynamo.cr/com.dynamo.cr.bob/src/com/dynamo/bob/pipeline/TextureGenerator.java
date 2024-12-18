@@ -658,7 +658,8 @@ public class TextureGenerator {
         try (BufferedInputStream is = new BufferedInputStream(new FileInputStream(args[0]));
              BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream(args[1]))) {
             GenerateResult result = generate(is);
-            result.textureImage.writeTo(os);
+            byte[] textureBytes = TextureUtil.generateResultToByteArray(result);
+            os.write(textureBytes);
         }
     }
 }

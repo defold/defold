@@ -1050,12 +1050,11 @@ static int CreateTextureAsync(lua_State* L)
     dmGraphics::TextureImage texture_image = {};
     MakeTextureImage(create_texture_resource_params, &texture_image);
 
-    dmArray<uint8_t> ddf_buffer;
-    dmDDF::Result ddf_result = dmDDF::SaveMessageToArray(&texture_image, dmGraphics::TextureImage::m_DDFDescriptor, ddf_buffer);
-    assert(ddf_result == dmDDF::RESULT_OK);
+    dmArray<uint8_t> texture_resource_buffer;
+    FillTextureResourceBuffer(&texture_image, texture_resource_buffer);
 
     void* resource = 0x0;
-    dmResource::Result res = dmResource::CreateResource(g_ResourceModule.m_Factory, create_params.m_Path, ddf_buffer.Begin(), ddf_buffer.Size(), &resource);
+    dmResource::Result res = dmResource::CreateResource(g_ResourceModule.m_Factory, create_params.m_Path, texture_resource_buffer.Begin(), texture_resource_buffer.Size(), &resource);
     DestroyTextureImage(texture_image, create_params.m_Buffer == 0);
 
     if (res != dmResource::RESULT_OK)

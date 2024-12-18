@@ -463,11 +463,17 @@ namespace dmGameSystem
 
         if(!texture_image_raw)
         {
-            dmDDF::Result e = dmDDF::LoadMessage<dmGraphics::TextureImage>(params->m_Buffer, params->m_BufferSize, (&texture_image));
+            uint8_t* message_bytes = (uint8_t*) params->m_Buffer;
+            int32_t header_size    = ((int32_t*) message_bytes)[0];
+            void* buffer           = (void*) (message_bytes + sizeof(int32_t));
+
+            dmDDF::Result e = dmDDF::LoadMessage<dmGraphics::TextureImage>(buffer, header_size, (&texture_image));
             if ( e != dmDDF::RESULT_OK )
             {
                 return dmResource::RESULT_FORMAT_ERROR;
             }
+
+            texture_image->m_ImageDataAddress = (uint64_t) (message_bytes + header_size + sizeof(int32_t));
         }
         dmGraphics::HContext graphics_context = (dmGraphics::HContext) params->m_Context;
         TextureResource* texture_res = (TextureResource*) dmResource::GetResource(params->m_Resource);
@@ -475,7 +481,7 @@ namespace dmGameSystem
 
         // Create the image from the DDF data.
         // Note that the image desc for performance reasons keeps references to the DDF image, meaning they're invalid after the DDF message has been free'd!
-        ImageDesc* image_desc = CreateImage((dmGraphics::HContext) params->m_Context, texture_image, 0);
+        ImageDesc* image_desc = CreateImage((dmGraphics::HContext) params->m_Context, texture_image, (uint8_t*) texture_image->m_ImageDataAddress);
 
         ResTextureUploadParams upload_params = {};
 
