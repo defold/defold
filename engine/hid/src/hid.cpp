@@ -60,6 +60,11 @@ namespace dmHID
         context->m_Window = window;
     }
 
+    dmPlatform::HWindow GetWindow(HContext context)
+    {
+        return context->m_Window;
+    }
+
     void DeleteContext(HContext context)
     {
         delete context;

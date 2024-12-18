@@ -25,7 +25,7 @@ namespace dmPlatform
     {
         GLFWwindow*                   m_Window;
         GLFWwindow*                   m_AuxWindow;
-
+        const char*                   m_Title;
         WindowResizeCallback          m_ResizeCallback;
         void*                         m_ResizeCallbackUserData;
         WindowCloseCallback           m_CloseCallback;
@@ -48,10 +48,13 @@ namespace dmPlatform
         int32_t                       m_Height;
         int32_t                       m_WidthScreen;
         int32_t                       m_HeightScreen;
+        int32_t                       m_PositionX;
+        int32_t                       m_PositionY;
         uint32_t                      m_Samples               : 8;
         uint32_t                      m_HighDPI               : 1;
         uint32_t                      m_SwapIntervalSupported : 1;
         uint32_t                      m_WindowOpened          : 1;
+        uint32_t                      m_Fullscreen            : 1;
     };
 
     void FocusWindowNative(HWindow window);

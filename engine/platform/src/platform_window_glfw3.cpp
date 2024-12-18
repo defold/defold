@@ -306,6 +306,7 @@ namespace dmPlatform
             glfwSetWindowContentScaleCallback(window->m_Window, OnContentScaleCallback);
 
             glfwSetJoystickCallback(OnJoystick);
+            glfwGetWindowPos(window->m_Window, &window->m_PositionX, &window->m_PositionY);
 
             UpdateWindowSize(window);
 
@@ -330,6 +331,8 @@ namespace dmPlatform
             window->m_IconifyCallbackUserData = params.m_IconifyCallbackUserData;
             window->m_HighDPI                 = params.m_HighDPI;
             window->m_Samples                 = params.m_Samples;
+            window->m_Fullscreen              = params.m_Fullscreen;
+            window->m_Title                   = params.m_Title;
             window->m_WindowOpened            = 1;
         }
 
@@ -508,6 +511,31 @@ namespace dmPlatform
         }
         assert(0 && "Not supported.");
         return false;
+    }
+
+    void SetFullscreen(HWindow window, bool value)
+    {
+        if (window->m_Fullscreen == value)
+            return;
+
+        if (value)
+        {
+            // Save size and window position for later
+            UpdateWindowSize(window);
+            glfwGetWindowPos(window->m_Window, &window->m_PositionX, &window->m_PositionY);
+
+            GLFWmonitor* monitor = glfwGetPrimaryMonitor();
+            const GLFWvidmode* mode = glfwGetVideoMode(monitor);
+
+            glfwDestroyWindow(window->m_Window);
+
+            window->m_Window = glfwCreateWindow(mode->width, mode->height, window->m_Title, monitor, NULL);
+            assert(window->m_Window);
+        }
+        else
+        {
+
+        }
     }
 
     const char* GetJoystickDeviceName(HWindow window, uint32_t gamepad_index)

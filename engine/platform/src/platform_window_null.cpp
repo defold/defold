@@ -121,6 +121,9 @@ namespace dmPlatform
     void SwapBuffers(HWindow window)
     {}
 
+    void SetFullscreen(HWindow window, bool value)
+    {}
+
     void SetDeviceState(HWindow window, DeviceState state, bool op1)
     {
         SetDeviceState(window, state, op1, false);

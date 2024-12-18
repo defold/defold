@@ -201,6 +201,8 @@ namespace dmPlatform
     void*          AcquireAuxContext(HWindow window);
     void           UnacquireAuxContext(HWindow window, void* aux_context);
 
+    void           SetFullscreen(HWindow window, bool value);
+
     // For tests
     int32_t TriggerCloseCallback(HWindow window);
 };

@@ -128,6 +128,14 @@ namespace dmHID
     void SetWindow(HContext context, dmPlatform::HWindow window);
 
     /**
+     * Get the window handle.
+     *
+     * @param context context for which the window handle should be fetched
+     * @return window [type: dmPlatform::HWindow] the window handle
+     */
+    dmPlatform::HWindow GetWindow(HContext context);
+
+    /**
      * Initializes a hid context.
      *
      * @param context context to initialize

@@ -300,6 +300,17 @@ static int GetMouseLock(lua_State* L)
     return 1;
 }
 
+static int SetFullscreen(lua_State* L)
+{
+    DM_LUA_STACK_CHECK(L, 0);
+    bool fullscreen = dmScript::CheckBoolean(L, 1);
+
+    dmPlatform::HWindow window = dmHID::GetWindow(g_Window.m_HidContext);
+    dmPlatform::SetFullscreen(window, fullscreen);
+
+    return 0;
+}
+
 static const luaL_reg Module_methods[] =
 {
     {"set_listener",   SetListener},
@@ -308,6 +319,7 @@ static const luaL_reg Module_methods[] =
     {"get_dim_mode",   GetDimMode},
     {"get_size",       GetSize},
     {"get_mouse_lock", GetMouseLock},
+    {"set_fullscreen", SetFullscreen},
     {0, 0}
 };
 
