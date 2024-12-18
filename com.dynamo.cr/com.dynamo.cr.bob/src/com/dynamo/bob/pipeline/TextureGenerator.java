@@ -61,6 +61,12 @@ public class TextureGenerator {
     // specify what is maximum of threads TextureGenerator may use
     public static int maxThreads = Project.getDefaultMaxCpuThreads();
 
+    public static class GenerateResult {
+        public TextureImage textureImage;
+        public ArrayList<byte[]> imageDatas;
+        public ArrayList<Integer> imageDataOffsets;
+    };
+
     private static final HashMap<TextureFormat, Integer> pixelFormatLUT = new HashMap<>();
     static {
         pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_LUMINANCE, Texc.PixelFormat.PF_L8.getValue());
@@ -541,12 +547,6 @@ public class TextureGenerator {
         // TODO: This shouldn't be needed eventually, but right now we need a compression type in the engine.
         return TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT;
     }
-
-    public static class GenerateResult {
-        public TextureImage textureImage;
-        public ArrayList<byte[]> imageDatas;
-        public ArrayList<Integer> imageDataOffsets;
-    };
 
     // Main TextureGenerator.generate method that has all required arguments and the expected BufferedImage type for origImage.
     // Used by the editor

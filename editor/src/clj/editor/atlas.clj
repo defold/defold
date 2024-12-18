@@ -866,12 +866,13 @@
                                                      (types/->AABB (Point3d. 0 0 0) (Point3d. w h 0))))))
 
   (output gpu-texture      g/Any               :cached (g/fnk [_node-id packed-page-images texture-profile]
-                                                         (let [page-texture-images
+                                                         (let [page-texture-images+texture-bytes
                                                                (mapv #(tex-gen/make-preview-texture-image % texture-profile)
                                                                      packed-page-images)]
+                                                           (println page-texture-images+texture-bytes)
                                                            (texture/texture-images->gpu-texture
                                                              _node-id
-                                                             page-texture-images
+                                                             page-texture-images+texture-bytes
                                                              {:min-filter gl/nearest
                                                               :mag-filter gl/nearest}))))
 
