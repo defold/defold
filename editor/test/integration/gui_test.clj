@@ -886,7 +886,7 @@
     (let [make-restore-point! #(test-util/make-graph-reverter (project/graph project))
           scene (project/get-resource-node project "/gui/reorder.gui")
           id-map (scene-gui-node-map scene)
-          layouts (g/node-feeding-into scene :own-layout-names)
+          layouts (g/node-feeding-into scene :layout-names)
           [landscape portrait] (map first (g/sources-of layouts :names))]
 
       ;; sanity
@@ -979,7 +979,7 @@
 (defn- make-displayed-layout->node->data [gui-scene-node-id data-fn]
   {:pre [(g/node-id? gui-scene-node-id)
          (ifn? data-fn)]}
-  (let [layout-names (cons "" (g/node-value gui-scene-node-id :own-layout-names))
+  (let [layout-names (cons "" (g/node-value gui-scene-node-id :layout-names))
         gui-node-name->node-id (g/node-value gui-scene-node-id :node-ids)]
     (coll/transfer layout-names (sorted-map)
       (map (fn [layout-name]

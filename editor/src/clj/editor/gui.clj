@@ -2727,7 +2727,7 @@
 (g/defnode LayoutsNode
   (inherits outline/OutlineNode)
   (input names g/Str :array)
-  (output names g/Any (gu/passthrough names))
+  (output names GuiResourceNames :cached (g/fnk [names] (into (sorted-set) names)))
   (input unused-display-profiles g/Any)
   (output name-counts NameCounts :cached (g/fnk [names] (frequencies names)))
   (input build-errors g/Any :array)
@@ -2875,7 +2875,7 @@
     :particlefxs particlefx-resource-msgs
     :resources resource-msgs))
 
-(g/defnk produce-save-value [own-layout-names node-msgs pb-msg]
+(g/defnk produce-save-value [layout-names node-msgs pb-msg]
   ;; Any Gui$NodeDescs in the resulting SceneDesc or its LayoutDescs should be
   ;; sparsely stored. Only field values that deviate from their originals should
   ;; be included, but ultimately it is the fields listed as :overridden-fields
@@ -2885,7 +2885,7 @@
   ;; overridden value matches the protobuf field default.
   (let [layout-descs
         (mapv #(make-layout-desc % node-msgs)
-              own-layout-names)
+              layout-names)
 
         node-descs
         (coll/transfer node-msgs []
@@ -3010,7 +3010,7 @@
                                   (node-desc->rt-node-desc))
                               (protobuf/clear-defaults Gui$NodeDesc)))))))))
 
-(g/defnk produce-build-targets [_node-id build-errors resource pb-msg dep-build-targets template-build-targets own-layout-names node-msgs]
+(g/defnk produce-build-targets [_node-id build-errors resource pb-msg dep-build-targets template-build-targets layout-names node-msgs]
   ;; Built Gui$NodeDescs should be fully-formed, since no additional merging of
   ;; overridden properties will be done by the runtime. A corresponding NodeDesc
   ;; in a LayoutDesc will fully replace its original NodeDesc, if present in the
@@ -3019,7 +3019,7 @@
   (g/precluding-errors build-errors
     (let [template-build-targets (flatten template-build-targets)
           rt-layout-descs (mapv #(make-rt-layout-desc % node-msgs)
-                                own-layout-names)
+                                layout-names)
           rt-node-descs (coll/transfer node-msgs []
                           (keep
                             (fn [decorated-node-msg]
@@ -3200,26 +3200,26 @@
   (input node-ids NameNodeIds)
   (output node-ids NameNodeIds (gu/passthrough node-ids))
 
-  (input own-layout-names g/Any)
-  (output own-layout-names g/Any
-          (g/fnk [own-layout-names]
+  (input layout-names GuiResourceNames)
+  (output layout-names GuiResourceNames
+          (g/fnk [layout-names]
             (into (sorted-set)
-                  own-layout-names)))
+                  layout-names)))
 
   (input texture-names Names :array)
-  (output own-texture-names GuiResourceNames :cached
+  (output texture-names GuiResourceNames :cached
           (g/fnk [texture-names]
             (into (sorted-set)
                   cat
                   texture-names)))
 
-  (input own-texture-resource-names GuiResourceNames)
+  (input texture-resource-names GuiResourceNames)
   (input texture-gpu-textures GuiResourceTextures :array)
   (input texture-infos GuiResourceTextureInfos :array)
   (input material-shaders GuiResourceShaders :array)
 
   (input material-infos GuiResourceMaterialInfos :array)
-  (output own-material-infos GuiResourceMaterialInfos
+  (output material-infos GuiResourceMaterialInfos
           (g/fnk [material-infos material-max-page-count]
             (into (sorted-map "" {:max-page-count material-max-page-count})
                   cat
@@ -3228,23 +3228,23 @@
   (input font-shaders GuiResourceShaders :array)
   (input font-datas FontDatas :array)
   (input font-names g/Str :array)
-  (output own-font-names GuiResourceNames :cached
+  (output font-names GuiResourceNames :cached
           (g/fnk [font-names]
             (into (sorted-set) font-names)))
 
-  (input own-layer-names GuiResourceNames)
+  (input layer-names GuiResourceNames)
   (input layer->index NameIndices)
 
   (input spine-scene-element-ids SpineSceneElementIds :array)
   (input spine-scene-infos SpineSceneInfos :array)
   (input spine-scene-names g/Str :array)
-  (output own-spine-scene-names GuiResourceNames :cached
+  (output spine-scene-names GuiResourceNames :cached
           (g/fnk [spine-scene-names]
             (into (sorted-set) spine-scene-names)))
   (input particlefx-infos ParticleFXInfos :array)
 
   (input particlefx-resource-names g/Str :array)
-  (output own-particlefx-resource-names GuiResourceNames :cached
+  (output particlefx-resource-names GuiResourceNames :cached
           (g/fnk [particlefx-resource-names]
             (into (sorted-set) particlefx-resource-names)))
 
@@ -3300,50 +3300,38 @@
                                                 {:width w :height h}))))
   (input id-prefix g/Str)
   (output id-prefix g/Str (gu/passthrough id-prefix))
-  (output unused-display-profiles g/Any (g/fnk [own-layout-names display-profiles]
+  (output unused-display-profiles g/Any (g/fnk [layout-names display-profiles]
                                           (coll/transfer display-profiles []
                                             (map :name)
-                                            (remove own-layout-names))))
+                                            (remove layout-names))))
 
   (input aux-basic-gui-scene-info BasicGuiSceneInfo)
   (output own-basic-gui-scene-info BasicGuiSceneInfo :cached
-          (g/fnk [own-font-names layer->index own-layer-names own-layout-names own-material-infos own-particlefx-resource-names own-spine-scene-names own-texture-names own-texture-resource-names spine-scene-element-ids]
-            {:font-names own-font-names
+          (g/fnk [font-names layer->index layer-names layout-names material-infos particlefx-resource-names spine-scene-names texture-names texture-resource-names spine-scene-element-ids]
+            {:font-names font-names
              :layer->index layer->index
-             :layer-names own-layer-names
-             :layout-names own-layout-names
-             :material-infos own-material-infos
-             :particlefx-resource-names own-particlefx-resource-names
+             :layer-names layer-names
+             :layout-names layout-names
+             :material-infos material-infos
+             :particlefx-resource-names particlefx-resource-names
              :spine-scene-element-ids (reduce coll/merge spine-scene-element-ids)
-             :spine-scene-names own-spine-scene-names
-             :texture-names own-texture-names
-             :texture-resource-names own-texture-resource-names}))
+             :spine-scene-names spine-scene-names
+             :texture-names texture-names
+             :texture-resource-names texture-resource-names}))
   (output basic-gui-scene-info BasicGuiSceneInfo :cached
           (g/fnk [aux-basic-gui-scene-info own-basic-gui-scene-info]
             ;; Note: The layer configurations of any template sources are
             ;; covered up by the layer configuration of the referencing scene.
-            {:font-names (coll/merge (:font-names aux-basic-gui-scene-info)
-                                     (:font-names own-basic-gui-scene-info))
-             :layer->index (if aux-basic-gui-scene-info
-                             (:layer->index aux-basic-gui-scene-info)
-                             (:layer->index own-basic-gui-scene-info))
-             :layer-names (if aux-basic-gui-scene-info
-                            (:layer-names aux-basic-gui-scene-info)
-                            (:layer-names own-basic-gui-scene-info))
-             :layout-names (coll/merge (:layout-names aux-basic-gui-scene-info)
-                                       (:layout-names own-basic-gui-scene-info))
-             :material-infos (coll/merge (:material-infos aux-basic-gui-scene-info)
-                                         (:material-infos own-basic-gui-scene-info))
-             :particlefx-resource-names (coll/merge (:particlefx-resource-names aux-basic-gui-scene-info)
-                                                    (:particlefx-resource-names own-basic-gui-scene-info))
-             :spine-scene-element-ids (coll/merge (:spine-scene-element-ids aux-basic-gui-scene-info)
-                                                  (:spine-scene-element-ids own-basic-gui-scene-info))
-             :spine-scene-names (coll/merge (:spine-scene-names aux-basic-gui-scene-info)
-                                            (:spine-scene-names own-basic-gui-scene-info))
-             :texture-names (coll/merge (:texture-names aux-basic-gui-scene-info)
-                                        (:texture-names own-basic-gui-scene-info))
-             :texture-resource-names (coll/merge (:texture-resource-names aux-basic-gui-scene-info)
-                                                 (:texture-resource-names own-basic-gui-scene-info))}))
+            (coll/merge-entries-with
+              (fn [[key :as aux-entry] own-entry]
+                (case key
+                  (:layer->index :layer-names) aux-entry ; Covered, not merged.
+                  (let [aux-value (val aux-entry)
+                        own-value (val own-entry)
+                        value (coll/merge aux-value own-value)]
+                    (pair key value))))
+              aux-basic-gui-scene-info
+              own-basic-gui-scene-info)))
 
   (input aux-costly-gui-scene-info CostlyGuiSceneInfo)
   (output own-costly-gui-scene-info CostlyGuiSceneInfo :cached
@@ -3357,7 +3345,7 @@
              :texture-infos (reduce coll/merge texture-infos)}))
   (output costly-gui-scene-info CostlyGuiSceneInfo :cached
           (g/fnk [aux-costly-gui-scene-info own-costly-gui-scene-info]
-            (merge-with coll/merge aux-costly-gui-scene-info own-costly-gui-scene-info))))
+            (coll/merge-with coll/merge aux-costly-gui-scene-info own-costly-gui-scene-info))))
 
 (defn- tx-create-node? [tx-entry]
   (= :create-node (:type tx-entry)))
@@ -3601,7 +3589,7 @@
                     (g/connect textures-node :build-errors self :build-errors)
                     (g/connect textures-node :node-outline self :child-outlines)
                     (g/connect textures-node :add-handler-info self :handler-infos)
-                    (g/connect textures-node :texture-resource-names self :own-texture-resource-names)
+                    (g/connect textures-node :texture-resource-names self :texture-resource-names)
                     (attach-texture self textures-node no-texture true)
                     (for [texture-desc (:textures scene)
                           :let [resource (resolve-resource (:texture texture-desc))]]
@@ -3642,7 +3630,7 @@
                     (g/connect layers-node :_node-id self :layers-node) ; for the tests :/
                     (g/connect layers-node :_node-id self :nodes)
                     (g/connect layers-node :layer-msgs self :layer-msgs)
-                    (g/connect layers-node :layer-names self :own-layer-names)
+                    (g/connect layers-node :layer-names self :layer-names)
                     (g/connect layers-node :layer->index self :layer->index)
                     (g/connect layers-node :build-errors self :build-errors)
                     (g/connect layers-node :node-outline self :child-outlines)
@@ -3709,7 +3697,7 @@
                     (g/connect layouts-node :_node-id self :layouts-node) ; for the tests :/
                     (g/connect layouts-node :_node-id self :nodes)
                     (g/connect self :unused-display-profiles layouts-node :unused-display-profiles)
-                    (g/connect layouts-node :names self :own-layout-names)
+                    (g/connect layouts-node :names self :layout-names)
                     (g/connect layouts-node :build-errors self :build-errors)
                     (g/connect layouts-node :node-outline self :child-outlines)
                     (g/connect layouts-node :add-handler-info self :handler-infos)
@@ -3916,7 +3904,7 @@
   (options [project active-resource user-data]
            (when-not user-data
              (when-let [scene (resource->gui-scene project active-resource)]
-               (let [layout-names (g/node-value scene :own-layout-names)
+               (let [layout-names (g/node-value scene :layout-names)
                      layouts (cons "" layout-names)]
                  (for [l layouts]
                    {:label (if (empty? l) "Default" l)

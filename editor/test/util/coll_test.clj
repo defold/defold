@@ -429,7 +429,8 @@
                        (PairAB. 11 22)))))
 
   (testing "Returns nil when called with no maps."
-    (is (nil? (coll/merge))))
+    (is (nil? (coll/merge)))
+    (is (nil? (core/merge))))
 
   (testing "Returns original when there is nothing to merge."
     (let [original-map {:a 1
@@ -476,6 +477,232 @@
     (let [result (coll/merge nil nil (hash-set) nil nil (hash-set) nil nil (sorted-set :a) #{:b})]
       (is (= (sorted-set :a :b) result))
       (is (instance? PersistentTreeSet result)))))
+
+(deftest merge-with-test
+  (testing "Merges conflicting values using supplied function."
+    (is (= {:a 11
+            :b 22}
+           (coll/merge-with +
+                            {:a 1
+                             :b 2}
+                            {:a 10
+                             :b 20})
+           (core/merge-with +
+                            {:a 1
+                             :b 2}
+                            {:a 10
+                             :b 20}))))
+
+  (testing "Adds entries."
+    (is (= {:a 1
+            :b 2
+            :c 3}
+           (coll/merge-with +
+                            {:a 1}
+                            {:b 2
+                             :c 3})
+           (core/merge-with +
+                            {:a 1}
+                            {:b 2
+                             :c 3}))))
+
+  (testing "Multiple collections."
+    (is (= {:a 1
+            :b 2
+            :c 3}
+           (coll/merge-with +
+                            {:a 1}
+                            {:b 2}
+                            {:c 3})
+           (core/merge-with +
+                            {:a 1}
+                            {:b 2}
+                            {:c 3}))))
+
+  (testing "Nil values."
+    (is (= {:a nil
+            :b nil
+            :c nil}
+           (coll/merge-with (fn [_a b] b)
+                            {:a 1
+                             :b nil}
+                            {:a nil}
+                            {:c nil})
+           (core/merge-with (fn [_a b] b)
+                            {:a 1
+                             :b nil}
+                            {:a nil}
+                            {:c nil}))))
+
+  (testing "Vector values."
+    (is (= {:a [1]
+            :b [2]
+            :c [3]}
+           (coll/merge-with (fn [_a b] b)
+                            {:a [nil nil]
+                             :b [2]}
+                            {:a [1]}
+                            {:c [3]})
+           (core/merge-with (fn [_a b] b)
+                            {:a [nil nil]
+                             :b [2]}
+                            {:a [1]}
+                            {:c [3]}))))
+
+  (testing "Maps in RHS position merge into records in LHS position."
+    (is (= (PairAB. 1 22)
+           (coll/merge-with +
+                            (PairAB. 1 2)
+                            {:b 20})
+           (core/merge-with +
+                            (PairAB. 1 2)
+                            {:b 20})))
+    (is (instance? PairAB
+                   (coll/merge-with +
+                                    (PairAB. 1 2)
+                                    {:b 20}))))
+
+  (testing "Records in RHS position merge into maps in LHS position."
+    (is (= {:a 11 :b 22 :c 3}
+           (coll/merge-with +
+                            {:a 1 :b 2 :c 3}
+                            (PairAB. 10 20))
+           (core/merge-with +
+                            {:a 1 :b 2 :c 3}
+                            (PairAB. 10 20)))))
+
+  (testing "Returns nil when called with no maps."
+    (is (nil? (coll/merge-with +)))
+    (is (nil? (core/merge-with +))))
+
+  (testing "Returns original when there is nothing to merge."
+    (let [original-map {:a 1
+                        :m {:a 1
+                            :m {:a 1}}}]
+      (is (identical? original-map (coll/merge-with + original-map)))
+      (is (identical? original-map (coll/merge-with + original-map nil)))
+      (is (identical? original-map (coll/merge-with + original-map {})))
+      (is (identical? original-map (coll/merge-with + nil original-map)))
+      (is (identical? original-map (coll/merge-with + {} original-map)))))
+
+  (testing "Preserves metadata."
+    (let [original-meta {:meta-key "meta-value"}]
+      (doseq [map-fn [array-map hash-map sorted-map]]
+        (let [original-map (with-meta (map-fn :a 1) original-meta)
+              merged-map (coll/merge-with + original-map {:a 2})]
+          (is (= {:a 3} merged-map))
+          (is (identical? original-meta (meta merged-map)))))))
+
+  (testing "Returns same type as first non-empty collection."
+    (let [result (coll/merge-with + nil nil (hash-map) nil nil (sorted-map) nil nil (array-map :a 1) {:b 2})]
+      (is (= (array-map :a 1 :b 2) result))
+      (is (instance? PersistentArrayMap result)))
+    (let [result (coll/merge-with + nil nil (array-map) nil nil (sorted-map) nil nil (hash-map :a 1) {:b 2})]
+      (is (= (hash-map :a 1 :b 2) result))
+      (is (instance? PersistentHashMap result)))
+    (let [result (coll/merge-with + nil nil (array-map) nil nil (hash-map) nil nil (sorted-map :a 1) {:b 2})]
+      (is (= (sorted-map :a 1 :b 2) result))
+      (is (instance? PersistentTreeMap result)))))
+
+(deftest merge-entries-with-test
+  (letfn [(add-entry-values [a b]
+            (coll/pair (key a)
+                       (+ (long (val a))
+                          (long (val b)))))]
+    (testing "Merges conflicting values using supplied function."
+      (is (= {:a 11
+              :b 22}
+             (coll/merge-entries-with add-entry-values
+                                      {:a 1
+                                       :b 2}
+                                      {:a 10
+                                       :b 20}))))
+
+    (testing "Adds entries."
+      (is (= {:a 1
+              :b 2
+              :c 3}
+             (coll/merge-entries-with add-entry-values
+                                      {:a 1}
+                                      {:b 2
+                                       :c 3}))))
+
+    (testing "Multiple collections."
+      (is (= {:a 1
+              :b 2
+              :c 3}
+             (coll/merge-entries-with add-entry-values
+                                      {:a 1}
+                                      {:b 2}
+                                      {:c 3}))))
+
+    (testing "Nil values."
+      (is (= {:a nil
+              :b nil
+              :c nil}
+             (coll/merge-entries-with (fn [_a b] b)
+                                      {:a 1
+                                       :b nil}
+                                      {:a nil}
+                                      {:c nil}))))
+
+    (testing "Vector values."
+      (is (= {:a [1]
+              :b [2]
+              :c [3]}
+             (coll/merge-entries-with (fn [_a b] b)
+                                      {:a [nil nil]
+                                       :b [2]}
+                                      {:a [1]}
+                                      {:c [3]}))))
+
+    (testing "Maps in RHS position merge into records in LHS position."
+      (is (= (PairAB. 1 22)
+             (coll/merge-entries-with add-entry-values
+                                      (PairAB. 1 2)
+                                      {:b 20})))
+      (is (instance? PairAB
+                     (coll/merge-entries-with add-entry-values
+                                              (PairAB. 1 2)
+                                              {:b 20}))))
+
+    (testing "Records in RHS position merge into maps in LHS position."
+      (is (= {:a 11 :b 22 :c 3}
+             (coll/merge-entries-with add-entry-values
+                                      {:a 1 :b 2 :c 3}
+                                      (PairAB. 10 20)))))
+
+    (testing "Returns nil when called with no maps."
+      (is (nil? (coll/merge-entries-with add-entry-values))))
+
+    (testing "Returns original when there is nothing to merge."
+      (let [original-map {:a 1
+                          :m {:a 1
+                              :m {:a 1}}}]
+        (is (identical? original-map (coll/merge-entries-with add-entry-values original-map)))
+        (is (identical? original-map (coll/merge-entries-with add-entry-values original-map nil)))
+        (is (identical? original-map (coll/merge-entries-with add-entry-values original-map {})))
+        (is (identical? original-map (coll/merge-entries-with add-entry-values nil original-map)))
+        (is (identical? original-map (coll/merge-entries-with add-entry-values {} original-map)))))
+
+    (testing "Preserves metadata."
+      (let [original-meta {:meta-key "meta-value"}]
+        (doseq [map-fn [array-map hash-map sorted-map]]
+          (let [original-map (with-meta (map-fn :a 1) original-meta)
+                merged-map (coll/merge-entries-with add-entry-values original-map {:a 2})]
+            (is (= {:a 3} merged-map))
+            (is (identical? original-meta (meta merged-map)))))))
+
+    (testing "Returns same type as first non-empty collection."
+      (let [result (coll/merge-entries-with add-entry-values nil nil (hash-map) nil nil (sorted-map) nil nil (array-map :a 1) {:b 2})]
+        (is (= (array-map :a 1 :b 2) result))
+        (is (instance? PersistentArrayMap result)))
+      (let [result (coll/merge-entries-with add-entry-values nil nil (array-map) nil nil (sorted-map) nil nil (hash-map :a 1) {:b 2})]
+        (is (= (hash-map :a 1 :b 2) result))
+        (is (instance? PersistentHashMap result)))
+      (let [result (coll/merge-entries-with add-entry-values nil nil (array-map) nil nil (hash-map) nil nil (sorted-map :a 1) {:b 2})]
+        (is (= (sorted-map :a 1 :b 2) result))
+        (is (instance? PersistentTreeMap result))))))
 
 (deftest deep-merge-test
   (testing "Replaces entries."
