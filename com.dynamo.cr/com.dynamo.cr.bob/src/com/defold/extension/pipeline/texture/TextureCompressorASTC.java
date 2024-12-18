@@ -16,6 +16,9 @@ package com.defold.extension.pipeline.texture;
 
 import com.dynamo.bob.pipeline.Texc;
 import com.dynamo.bob.pipeline.TexcLibraryJni;
+import com.dynamo.graphics.proto.Graphics.TextureImage;
+
+import java.util.HashMap;
 
 /**
  * Implementation of our base texture compressor, using ASTC encoding
@@ -54,6 +57,49 @@ public class TextureCompressorASTC implements ITextureCompressor {
 
     public String getName() {
         return TextureCompressorName;
+    }
+
+    private static final HashMap<TextureImage.TextureFormat, int[]> pixelFormatToBlockSize = new HashMap<>();
+
+    static {
+        pixelFormatToBlockSize.put(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_4x4, new int[] {4,4});
+        pixelFormatToBlockSize.put(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_5x4, new int[] {5,4});
+        pixelFormatToBlockSize.put(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_5x5, new int[] {5,5});
+        pixelFormatToBlockSize.put(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_6x5, new int[] {6,5});
+        pixelFormatToBlockSize.put(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_6x6, new int[] {6,6});
+        pixelFormatToBlockSize.put(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_8x5, new int[] {8,5});
+        pixelFormatToBlockSize.put(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_8x6, new int[] {8,6});
+        pixelFormatToBlockSize.put(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_8x8, new int[] {8,8});
+        pixelFormatToBlockSize.put(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_10x5, new int[] {10,5});
+        pixelFormatToBlockSize.put(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_10x6, new int[] {10,6});
+        pixelFormatToBlockSize.put(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_10x8, new int[] {10,8});
+        pixelFormatToBlockSize.put(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_10x10, new int[] {10,10});
+        pixelFormatToBlockSize.put(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_12x10, new int[] {12,10});
+        pixelFormatToBlockSize.put(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_12x12, new int[] {12,12});
+    }
+
+    public int getAlignedWidth(TextureImage.TextureFormat format, int width) {
+        int[] blockSizes = pixelFormatToBlockSize.get(format);
+
+        if (blockSizes == null) {
+            System.err.println("Format " + format + " is not an ASTC format.");
+            return 0;
+        }
+
+        int blockSizeX = blockSizes[0];
+        return ((width + blockSizeX - 1) / blockSizeX) * blockSizeX;
+    }
+
+    public int getAlignedHeight(TextureImage.TextureFormat format, int height) {
+        int[] blockSizes = pixelFormatToBlockSize.get(format);
+
+        if (blockSizes == null) {
+            System.err.println("Format " + format + " is not an ASTC format.");
+            return 0;
+        }
+
+        int blockSizeY = blockSizes[1];
+        return ((height + blockSizeY - 1) / blockSizeY) * blockSizeY;
     }
 
     public byte[] compress(TextureCompressorPreset preset, TextureCompressorParams params, byte[] input)

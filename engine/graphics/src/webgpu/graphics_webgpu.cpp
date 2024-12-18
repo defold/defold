@@ -373,7 +373,8 @@ static void WebGPURealizeTexture(WebGPUTexture* texture, WGPUTextureFormat forma
         desc.sampleCount           = sampleCount;
         desc.format                = texture->m_Format;
         desc.mipLevelCount         = texture->m_MipMapCount;
-        texture->m_Texture         = wgpuDeviceCreateTexture(g_WebGPUContext->m_Device, &desc);
+
+        texture->m_Texture = wgpuDeviceCreateTexture(g_WebGPUContext->m_Device, &desc);
     }
     {
         WGPUTextureViewDescriptor desc = {};
@@ -465,9 +466,13 @@ static void WebGPUSetTextureInternal(WebGPUTexture* texture, const TextureParams
             dest.texture = texture->m_Texture;
             layout.bytesPerRow = extent.width;
             if(IsTextureFormatCompressed(params.m_Format))
+            {
                 layout.bytesPerRow = ceil(float(layout.bytesPerRow) / WebGPUCompressedBlockWidth(params.m_Format)) * WebGPUCompressedBlockByteSize(params.m_Format);
+            }
             else
+            {
                 layout.bytesPerRow *= ceil(GetTextureFormatBitsPerPixel(params.m_Format) / 8.0f);
+            }
             extent.depthOrArrayLayers = depth;
             wgpuQueueWriteTexture(g_WebGPUContext->m_Queue, &dest, params.m_Data, layout.bytesPerRow * layout.rowsPerImage * depth, &layout, &extent);
         }

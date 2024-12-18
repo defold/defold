@@ -272,11 +272,10 @@ namespace dmGameSystem
                         params.m_DataSize = image_desc->m_DecompressedDataSize[i];
                     }
 
-                    params.m_MipMap   = i;
-                    dmGraphics::SetTextureAsync(texture, params, 0, 0);
+                    params.m_MipMap = i;
+                    params.m_Width  = image->m_MipMapDimensions[i * 2];
+                    params.m_Height = image->m_MipMapDimensions[i * 2 + 1];
 
-                    params.m_Width >>= 1;
-                    params.m_Height >>= 1;
                     if (params.m_Width == 0)
                     {
                         params.m_Width = 1;
@@ -285,6 +284,8 @@ namespace dmGameSystem
                     {
                         params.m_Height = 1;
                     }
+
+                    dmGraphics::SetTextureAsync(texture, params, 0, 0);
                 }
             }
             break;
