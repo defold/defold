@@ -147,8 +147,7 @@ namespace dmPlatform
     #endif
 
     #if defined(__linux__) && !defined(ANDROID)
-        // TODO (at some point):
-        // glfwInitHint(GLFW_WAYLAND_LIBDECOR, GLFW_WAYLAND_PREFER_LIBDECOR);
+        glfwInitHint(GLFW_WAYLAND_LIBDECOR, GLFW_WAYLAND_PREFER_LIBDECOR);
         glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_X11);
     #endif
 
