@@ -13,7 +13,7 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns util.coll
-  (:refer-clojure :exclude [bounded-count empty? mapcat not-empty some])
+  (:refer-clojure :exclude [bounded-count empty? mapcat merge merge-with not-empty some])
   (:import [clojure.lang Cons IEditableCollection MapEntry]
            [java.util ArrayList]))
 
@@ -211,6 +211,91 @@
    (into {}
          (map (pair-fn key-fn value-fn))
          coll)))
+
+(defn merge
+  "Like core.merge, but makes use of transients for efficiency, and ignores
+  empty collections (even in LHS position!). Also works with sets."
+  ([] nil)
+  ([a] a)
+  ([a b]
+   (cond
+     (empty? a) b
+     (empty? b) a
+     :else (into a b)))
+  ([a b & maps]
+   (reduce merge
+           (merge a b)
+           maps)))
+
+(defn merge-with
+  "Like core.merge-with, but makes use of transients for efficiency, and ignores
+  empty collections (even in LHS position!)."
+  ([_f] nil)
+  ([_f a] a)
+  ([f a b]
+   (cond
+     (empty? a) b
+     (empty? b) a
+
+     :else
+     (letfn [(merged-value [b-key b-value]
+               (let [a-value (get a b-key ::not-found)]
+                 (case a-value
+                   ::not-found b-value
+                   (f a-value b-value))))]
+       (if (supports-transient? a)
+         (-> (reduce (fn [result [b-key b-value]]
+                       (assoc! result b-key (merged-value b-key b-value)))
+                     (transient a)
+                     b)
+             (persistent!)
+             (with-meta (meta a)))
+         (reduce (fn [result [b-key b-value]]
+                   (assoc result b-key (merged-value b-key b-value)))
+                 a
+                 b)))))
+  ([f a b & maps]
+   (reduce #(merge-with f %1 %2)
+           (merge-with f a b)
+           maps)))
+
+(defn merge-entries-with
+  "Similar to merge-with, but the conflict function is called with the
+  conflicting MapEntries instead of the values."
+  ([_f] nil)
+  ([_f a] a)
+  ([f a b]
+   (cond
+     (empty? a) b
+     (empty? b) a
+
+     :else
+     (letfn [(merged-entry [b-key b-entry]
+               (if-let [a-entry (find a b-key)]
+                 (let [merged-entry (f a-entry b-entry)]
+                   (assert (map-entry? merged-entry))
+                   (when-not (identical? a-entry merged-entry)
+                     merged-entry))
+                 b-entry))]
+       (if (supports-transient? a)
+         (-> (reduce (fn [result [b-key :as b-entry]]
+                       (if-let [merged-entry (merged-entry b-key b-entry)]
+                         (assoc! result b-key (val merged-entry))
+                         result))
+                     (transient a)
+                     b)
+             (persistent!)
+             (with-meta (meta a)))
+         (reduce (fn [result [b-key :as b-entry]]
+                   (if-let [merged-entry (merged-entry b-key b-entry)]
+                     (assoc result b-key (val merged-entry))
+                     result))
+                 a
+                 b)))))
+  ([f a b & maps]
+   (reduce #(merge-with f %1 %2)
+           (merge-with f a b)
+           maps)))
 
 (defn deep-merge
   "Deep-merge the supplied maps. Values from later maps will overwrite values in
