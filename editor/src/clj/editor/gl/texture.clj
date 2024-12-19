@@ -20,6 +20,7 @@
             [editor.scene-cache :as scene-cache]
             [internal.util :as util])
   (:import [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$Image Graphics$TextureImage$TextureFormat]
+           [com.dynamo.bob.pipeline TextureGenerator$GenerateResult]
            [com.jogamp.opengl GL GL2 GL3 GLProfile]
            [com.jogamp.opengl.util.awt ImageUtil]
            [com.jogamp.opengl.util.texture Texture TextureData TextureIO]
@@ -241,25 +242,29 @@ If supplied, the unit is the offset of GL_TEXTURE0, i.e. 0 => GL_TEXTURE0. The d
   (first (filter #(format->gl-format (.getFormat ^Graphics$TextureImage$Image %))
                  (.getAlternativesList texture-image))))
 
+(def my-atom (atom 0))
+
 (defn- image->mipmap-buffers
-  ^"[Ljava.nio.Buffer;" [^Graphics$TextureImage$Image image]
+  ^"[Ljava.nio.Buffer;" [^Graphics$TextureImage$Image image image-bytes]
   (assert (= (.getMipMapSizeCount image) (.getMipMapOffsetCount image)))
   (let [mipmap-count (.getMipMapSizeCount image)
-        data (.toByteArray (.getData image))
         ^"[Ljava.nio.Buffer;" bufs (make-array Buffer mipmap-count)]
+    (reset! my-atom image-bytes)
     (loop [i 0]
       (if (< i mipmap-count)
-        (let [buf (ByteBuffer/wrap data (.getMipMapOffset image i) (.getMipMapSize image i))]
+        (let [buf (ByteBuffer/wrap (nth image-bytes i))]
           (aset bufs i buf)
           (recur (inc i)))
         bufs))))
 
 (defn- texture-image->texture-data
-  ^TextureData [^Graphics$TextureImage texture-image]
-  (let [image            (select-texture-image-image texture-image)
-        gl-profile       (GLProfile/getGL2GL3)
-        gl-format        (int (format->gl-format (.getFormat image)))
-        mipmap-buffers   (image->mipmap-buffers image)]
+  ^TextureData [^TextureGenerator$GenerateResult texture-generate-result]
+  (let [^Graphics$TextureImage texture-image (.textureImage texture-generate-result)
+        image-bytes                          (.imageDatas texture-generate-result)
+        image                                (select-texture-image-image texture-image)
+        gl-profile                           (GLProfile/getGL2GL3)
+        gl-format                            (int (format->gl-format (.getFormat image)))
+        mipmap-buffers                       (image->mipmap-buffers image image-bytes)]
     (TextureData. gl-profile
                   gl-format
                   (.getWidth image)

@@ -113,15 +113,18 @@ public class AtlasBuilder extends ProtoBuilder<Atlas.Builder> {
         logger.fine("Compiling %s using profile %s", task.input(0).getPath(), texProfile!=null?texProfile.getName():"<none>");
 
         boolean compress = project.option("texture-compression", "false").equals("true");
-        TextureImage texture = null;
+        TextureGenerator.GenerateResult generateResult = null;
         try {
-            texture = TextureUtil.createMultiPageTexture(result.images, textureImageType, texProfile, compress);
+            generateResult = TextureUtil.createMultiPageTexture(result.images, textureImageType, texProfile, compress);
+
         } catch (TextureGeneratorException e) {
             throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
         }
 
+        byte[] texturePayload = TextureUtil.generateResultToByteArray(generateResult);
+
         task.output(0).setContent(textureSet.toByteArray());
-        task.output(1).setContent(texture.toByteArray());
+        task.output(1).setContent(texturePayload);
     }
 
     public static void main(String[] args) throws IOException, CompileExceptionError, TextureGeneratorException {
@@ -139,6 +142,10 @@ public class AtlasBuilder extends ProtoBuilder<Atlas.Builder> {
         String textureSetOutPath = args[1];
         String textureOutPath    = args[2];
         String baseDir           = args[3];
+
+        System.out.println("AtlasBuilder");
+        System.out.println(atlasInPath);
+        System.out.println(textureOutPath);
 
         final File inFile           = new File(atlasInPath);
         FileInputStream inputStream = new FileInputStream(inFile);
@@ -161,14 +168,14 @@ public class AtlasBuilder extends ProtoBuilder<Atlas.Builder> {
         TextureSet textureSet = result.builder.setPageCount(getPageCount(result.images, textureImageType))
                                         .setTexture(textureProjectStr)
                                         .build();
-        TextureImage texture = TextureUtil.createMultiPageTexture(result.images, textureImageType, null, false);
+        TextureGenerator.GenerateResult generateResult = TextureUtil.createMultiPageTexture(result.images, textureImageType, null, false);
 
         FileOutputStream textureSetOutStream = new FileOutputStream(textureSetOutPath);
         textureSet.writeTo(textureSetOutStream);
         textureSetOutStream.close();
 
         FileOutputStream textureOutStream = new FileOutputStream(textureOutPath);
-        texture.writeTo(textureOutStream);
+        textureOutStream.write(TextureUtil.generateResultToByteArray(generateResult));
         textureOutStream.close();
     }
 }
