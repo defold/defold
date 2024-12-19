@@ -1725,7 +1725,7 @@ static void WebGPUDisableVertexDeclaration(HContext _context, HVertexDeclaration
 
 static void WebGPUUpdateBindGroups(WebGPUContext* context)
 {
-    for (int set = 0; set < context->m_CurrentProgram->m_MaxSet; ++set)
+    for (int set = 0; set < context->m_CurrentProgram->m_BaseProgram.m_MaxSet; ++set)
     {
         if (!context->m_CurrentProgram->m_BindGroupLayouts[set] || context->m_CurrentProgram->m_BindGroups[set])
             continue;
@@ -1737,9 +1737,9 @@ static void WebGPUUpdateBindGroups(WebGPUContext* context)
 
         WGPUBindGroupDescriptor desc = {};
         WGPUBindGroupEntry entries[MAX_BINDINGS_PER_SET_COUNT];
-        for (int binding = 0; binding < context->m_CurrentProgram->m_MaxBinding; ++binding)
+        for (int binding = 0; binding < context->m_CurrentProgram->m_BaseProgram.m_MaxBinding; ++binding)
         {
-            ProgramResourceBinding& pgm_res = context->m_CurrentProgram->m_ResourceBindings[set][binding];
+            ProgramResourceBinding& pgm_res = context->m_CurrentProgram->m_BaseProgram.m_ResourceBindings[set][binding];
             if (pgm_res.m_Res == NULL)
                 continue;
             entries[desc.entryCount]         = {};
@@ -1871,7 +1871,7 @@ static void WebGPUSetupComputePipeline(WebGPUContext* context)
     }
 
     // Set the bind groups
-    for (int set = 0; set < context->m_CurrentProgram->m_MaxSet; ++set)
+    for (int set = 0; set < context->m_CurrentProgram->m_BaseProgram.m_MaxSet; ++set)
     {
         if (context->m_CurrentProgram->m_BindGroups[set])
             wgpuComputePassEncoderSetBindGroup(context->m_CurrentComputePass.m_Encoder, set, context->m_CurrentProgram->m_BindGroups[set], 0, 0);
@@ -1913,7 +1913,7 @@ static void WebGPUSetupRenderPipeline(WebGPUContext* context, WebGPUBuffer* inde
     }
 
     // Set the bind groups
-    for (int set = 0; set < context->m_CurrentProgram->m_MaxSet; ++set)
+    for (int set = 0; set < context->m_CurrentProgram->m_BaseProgram.m_MaxSet; ++set)
     {
         if (context->m_CurrentProgram->m_BindGroups[set] && context->m_CurrentProgram->m_BindGroups[set] != context->m_CurrentRenderPass.m_BindGroups[set])
         {
@@ -2022,7 +2022,7 @@ static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* 
         {
             binding.binding = res.m_Binding;
 
-            ProgramResourceBinding& program_resource_binding = program->m_ResourceBindings[res.m_Set][res.m_Binding];
+            ProgramResourceBinding& program_resource_binding = program->m_BaseProgram.m_ResourceBindings[res.m_Set][res.m_Binding];
             program_resource_binding.m_Res                   = &res;
             program_resource_binding.m_TypeInfos             = &stage_type_infos;
 
@@ -2066,7 +2066,6 @@ static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* 
                     }
                     program_resource_binding.m_TextureUnit = info.m_TextureCount;
                     info.m_TextureCount++;
-                    info.m_TotalUniformCount++;
                     break;
                 case ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER: {
                     assert(false);
@@ -2075,7 +2074,6 @@ static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* 
 
                     program_resource_binding.m_StorageBufferUnit = info.m_StorageBufferCount;
                     info.m_StorageBufferCount++;
-                    info.m_TotalUniformCount++;
                     break;
                 }
                 case ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER: {
@@ -2087,9 +2085,8 @@ static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* 
                     program_resource_binding.m_DynamicOffsetIndex = info.m_UniformBufferCount;
 
                     info.m_UniformBufferCount++;
-                    info.m_UniformDataSize += res.m_BindingInfo.m_BlockSize;
+                    info.m_UniformDataSize        += res.m_BindingInfo.m_BlockSize;
                     info.m_UniformDataSizeAligned += DM_ALIGN(res.m_BindingInfo.m_BlockSize, ubo_alignment);
-                    info.m_TotalUniformCount += stage_type_infos[res.m_Type.m_TypeIndex].m_Members.Size();
                     break;
                 }
                 case ShaderResourceBinding::BINDING_FAMILY_GENERIC:
@@ -2137,13 +2134,12 @@ static void WebGPUUpdateProgramLayouts(WebGPUContext* context, WebGPUProgram* pr
     program->m_UniformBufferCount     = binding_info.m_UniformBufferCount;
     program->m_StorageBufferCount     = binding_info.m_StorageBufferCount;
     program->m_TextureSamplerCount    = binding_info.m_TextureCount;
-    program->m_TotalUniformCount      = binding_info.m_TotalUniformCount;
     program->m_TotalResourcesCount    = binding_info.m_UniformBufferCount + binding_info.m_TextureCount + binding_info.m_StorageBufferCount; // num actual descriptors
-    program->m_MaxSet                 = binding_info.m_MaxSet;
-    program->m_MaxBinding             = binding_info.m_MaxBinding;
+    program->m_BaseProgram.m_MaxSet     = binding_info.m_MaxSet;
+    program->m_BaseProgram.m_MaxBinding = binding_info.m_MaxBinding;
 
     // create bind group layout
-    for (int set = 0; set < program->m_MaxSet; ++set)
+    for (int set = 0; set < program->m_BaseProgram.m_MaxSet; ++set)
     {
         WGPUBindGroupLayoutDescriptor desc = {};
         WGPUBindGroupLayoutEntry entries[MAX_BINDINGS_PER_SET_COUNT];
@@ -2163,6 +2159,8 @@ static void WebGPUUpdateProgramLayouts(WebGPUContext* context, WebGPUProgram* pr
         desc.bindGroupLayoutCount         = binding_info.m_MaxSet;
         program->m_PipelineLayout         = wgpuDeviceCreatePipelineLayout(context->m_Device, &desc);
     }
+
+    BuildUniforms(&program->m_BaseProgram);
 }
 
 static void WebGPUCreateComputeProgram(WebGPUContext* context, WebGPUProgram* program, WebGPUShaderModule* compute_module)
@@ -2366,104 +2364,6 @@ static void WebGPUGetAttribute(HProgram _program, uint32_t index, dmhash_t* name
     *element_count = GetShaderTypeSize(attr.m_Type.m_ShaderType) / sizeof(float);
 }
 
-static uint32_t WebGPUGetUniformCount(HProgram _program)
-{
-    TRACE_CALL;
-    WebGPUProgram* program = (WebGPUProgram*)_program;
-    return program->m_TotalUniformCount;
-}
-
-static uint32_t WebGPUGetUniformName(HProgram _program, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size)
-{
-    TRACE_CALL;
-    WebGPUProgram* program = (WebGPUProgram*)_program;
-    uint32_t search_index  = 0;
-    for (int set = 0; set < program->m_MaxSet; ++set)
-    {
-        for (int binding = 0; binding < program->m_MaxBinding; ++binding)
-        {
-            ProgramResourceBinding& pgm_res = program->m_ResourceBindings[set][binding];
-            if (pgm_res.m_Res == NULL)
-                continue;
-
-            if (pgm_res.m_Res->m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_TEXTURE ||
-                pgm_res.m_Res->m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER)
-            {
-                if (search_index == index)
-                {
-                    ShaderResourceBinding* res = pgm_res.m_Res;
-                    *type                      = ShaderDataTypeToGraphicsType(res->m_Type.m_ShaderType);
-                    *size                      = 1;
-                    return (uint32_t)dmStrlCpy(buffer, res->m_Name, buffer_size);
-                }
-                search_index++;
-            }
-            else if (pgm_res.m_Res->m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER)
-            {
-                // TODO: Generic type lookup is not supported yet!
-                // We can only support one level of indirection here right now
-                assert(pgm_res.m_Res->m_Type.m_UseTypeIndex);
-                const dmArray<ShaderResourceTypeInfo>& type_infos = *pgm_res.m_TypeInfos;
-                const ShaderResourceTypeInfo& type_info           = type_infos[pgm_res.m_Res->m_Type.m_TypeIndex];
-
-                const uint32_t num_members = type_info.m_Members.Size();
-                for (int i = 0; i < num_members; ++i)
-                {
-                    if (search_index == index)
-                    {
-                        const ShaderResourceMember& member = type_info.m_Members[i];
-                        *type                              = ShaderDataTypeToGraphicsType(member.m_Type.m_ShaderType);
-                        *size                              = dmMath::Max((uint32_t)1, member.m_ElementCount);
-                        return (uint32_t)dmStrlCpy(buffer, member.m_Name, buffer_size);
-                    }
-                    search_index++;
-                }
-            }
-        }
-    }
-    return 0;
-}
-
-static HUniformLocation WebGPUGetUniformLocation(HProgram _program, const char* name)
-{
-    TRACE_CALL;
-    WebGPUProgram* program   = (WebGPUProgram*)_program;
-    const dmhash_t name_hash = dmHashString64(name);
-    for (int set = 0; set < program->m_MaxSet; ++set)
-    {
-        for (int binding = 0; binding < program->m_MaxBinding; ++binding)
-        {
-            ProgramResourceBinding& pgm_res = program->m_ResourceBindings[set][binding];
-            if (pgm_res.m_Res == NULL)
-                continue;
-
-            if (pgm_res.m_Res->m_NameHash == name_hash)
-            {
-                return set | binding << 16;
-            }
-            if (pgm_res.m_Res->m_Type.m_UseTypeIndex)
-            {
-                // TODO: Generic type lookup is not supported yet!
-                // We can only support one level of indirection here right now
-                const dmArray<ShaderResourceTypeInfo>& type_infos = *pgm_res.m_TypeInfos;
-                const ShaderResourceTypeInfo& type_info           = type_infos[pgm_res.m_Res->m_Type.m_TypeIndex];
-                const uint32_t num_members                        = type_info.m_Members.Size();
-                for (int i = 0; i < num_members; ++i)
-                {
-                    const ShaderResourceMember& member = type_info.m_Members[i];
-
-                    if (member.m_NameHash == name_hash)
-                    {
-                        return set | binding << 16 | ((uint64_t)i) << 32;
-                    }
-                }
-            }
-        }
-    }
-
-    return INVALID_UNIFORM_LOCATION;
-}
-
 static void WebGPUSetConstantV4(HContext _context, const Vector4* data, int count, HUniformLocation base_location)
 {
     TRACE_CALL;
@@ -2472,20 +2372,17 @@ static void WebGPUSetConstantV4(HContext _context, const Vector4* data, int coun
     assert(context->m_CurrentProgram);
     assert(base_location != INVALID_UNIFORM_LOCATION);
 
-    const uint32_t set     = UNIFORM_LOCATION_GET_VS(base_location);
-    const uint32_t binding = UNIFORM_LOCATION_GET_VS_MEMBER(base_location);
-    const uint32_t member  = UNIFORM_LOCATION_GET_FS(base_location);
+    const uint32_t set           = UNIFORM_LOCATION_GET_OP0(base_location);
+    const uint32_t binding       = UNIFORM_LOCATION_GET_OP1(base_location);
+    const uint32_t buffer_offset = UNIFORM_LOCATION_GET_OP2(base_location);
     assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
 
-    const ProgramResourceBinding& pgm_res   = context->m_CurrentProgram->m_ResourceBindings[set][binding];
-    const ShaderResourceTypeInfo& type_info = (*pgm_res.m_TypeInfos)[pgm_res.m_Res->m_Type.m_TypeIndex];
-    if (memcmp(context->m_CurrentProgram->m_UniformData + pgm_res.m_DataOffset + type_info.m_Members[member].m_Offset,
-               (uint8_t*)data,
-               sizeof(dmVMath::Vector4) * count))
+    const ProgramResourceBinding& pgm_res = context->m_CurrentProgram->m_BaseProgram.m_ResourceBindings[set][binding];
+    uint8_t* write_ptr = context->m_CurrentProgram->m_UniformData + pgm_res.m_DataOffset + buffer_offset;
+
+    if (memcpy(write_ptr, (uint8_t*) data, sizeof(dmVMath::Vector4) * count))
     {
-        memcpy(context->m_CurrentProgram->m_UniformData + pgm_res.m_DataOffset + type_info.m_Members[member].m_Offset,
-               (uint8_t*)data,
-               sizeof(dmVMath::Vector4) * count);
+        memcpy(write_ptr, (uint8_t*)data, sizeof(dmVMath::Vector4) * count);
         context->m_CurrentProgram->m_BindGroups[set] = NULL;
     }
 }
@@ -2498,20 +2395,17 @@ static void WebGPUSetConstantM4(HContext _context, const Vector4* data, int coun
     assert(context->m_CurrentProgram);
     assert(base_location != INVALID_UNIFORM_LOCATION);
 
-    const uint32_t set     = UNIFORM_LOCATION_GET_VS(base_location);
-    const uint32_t binding = UNIFORM_LOCATION_GET_VS_MEMBER(base_location);
-    const uint32_t member  = UNIFORM_LOCATION_GET_FS(base_location);
+    const uint32_t set           = UNIFORM_LOCATION_GET_OP0(base_location);
+    const uint32_t binding       = UNIFORM_LOCATION_GET_OP1(base_location);
+    const uint32_t buffer_offset = UNIFORM_LOCATION_GET_OP2(base_location);
     assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
 
-    const ProgramResourceBinding& pgm_res   = context->m_CurrentProgram->m_ResourceBindings[set][binding];
-    const ShaderResourceTypeInfo& type_info = (*pgm_res.m_TypeInfos)[pgm_res.m_Res->m_Type.m_TypeIndex];
-    if (memcmp(context->m_CurrentProgram->m_UniformData + pgm_res.m_DataOffset + type_info.m_Members[member].m_Offset,
-               (uint8_t*)data,
-               sizeof(dmVMath::Vector4) * 4 * count))
+    const ProgramResourceBinding& pgm_res = context->m_CurrentProgram->m_BaseProgram.m_ResourceBindings[set][binding];
+    uint8_t* write_ptr = context->m_CurrentProgram->m_UniformData + pgm_res.m_DataOffset + buffer_offset;
+
+    if (memcmp(write_ptr, (uint8_t*) data, sizeof(dmVMath::Vector4) * 4 * count))
     {
-        memcpy(context->m_CurrentProgram->m_UniformData + pgm_res.m_DataOffset + type_info.m_Members[member].m_Offset,
-               (uint8_t*)data,
-               sizeof(dmVMath::Vector4) * 4 * count);
+        memcpy(write_ptr, (uint8_t*) data, sizeof(dmVMath::Vector4) * 4 * count);
         context->m_CurrentProgram->m_BindGroups[set] = NULL;
     }
 }
@@ -2523,13 +2417,13 @@ static void WebGPUSetSampler(HContext _context, HUniformLocation location, int32
     assert(context->m_CurrentProgram);
     assert(location != INVALID_UNIFORM_LOCATION);
 
-    const uint32_t set     = UNIFORM_LOCATION_GET_VS(location);
-    const uint32_t binding = UNIFORM_LOCATION_GET_VS_MEMBER(location);
+    const uint32_t set     = UNIFORM_LOCATION_GET_OP0(location);
+    const uint32_t binding = UNIFORM_LOCATION_GET_OP1(location);
     assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
 
-    if (context->m_CurrentProgram->m_ResourceBindings[set][binding].m_TextureUnit != unit)
+    if (context->m_CurrentProgram->m_BaseProgram.m_ResourceBindings[set][binding].m_TextureUnit != unit)
     {
-        context->m_CurrentProgram->m_ResourceBindings[set][binding].m_TextureUnit = unit;
+        context->m_CurrentProgram->m_BaseProgram.m_ResourceBindings[set][binding].m_TextureUnit = unit;
         context->m_CurrentProgram->m_BindGroups[set]                              = NULL;
     }
 }
@@ -2647,16 +2541,16 @@ static void WebGPUEnableTexture(HContext _context, uint32_t unit, uint8_t id_ind
         context->m_CurrentTextureUnits[unit] = texture;
         if (context->m_CurrentProgram)
         {
-            for (int set = 0; set < context->m_CurrentProgram->m_MaxSet; ++set)
+            for (int set = 0; set < context->m_CurrentProgram->m_BaseProgram.m_MaxSet; ++set)
             {
                 if (!context->m_CurrentProgram->m_BindGroups[set])
                     continue;
-                for (int binding = 0; binding < context->m_CurrentProgram->m_MaxBinding; ++binding)
+                for (int binding = 0; binding < context->m_CurrentProgram->m_BaseProgram.m_MaxBinding; ++binding)
                 {
-                    ProgramResourceBinding& pgm_res = context->m_CurrentProgram->m_ResourceBindings[set][binding];
+                    ProgramResourceBinding& pgm_res = context->m_CurrentProgram->m_BaseProgram.m_ResourceBindings[set][binding];
                     if (pgm_res.m_Res == NULL)
                         continue;
-                    if (context->m_CurrentProgram->m_ResourceBindings[set][binding].m_TextureUnit == unit)
+                    if (context->m_CurrentProgram->m_BaseProgram.m_ResourceBindings[set][binding].m_TextureUnit == unit)
                     {
                         context->m_CurrentProgram->m_BindGroups[set] = NULL;
                         break;
