@@ -13,7 +13,7 @@
 # specific language governing permissions and limitations under the License.
 
 # USAGE:
-# Make sure you have $DYNAMO_HOME setup and built bob-light.jar, then run:
+# Make sure you have $DYNAMO_HOME setup and built bob.jar, then run:
 # ./create_prebuilts.sh
 #
 # It will build the project and copy+rename the Spine files needed by the tests.
@@ -21,11 +21,16 @@
 # Move to mesh project directory
 cd mesh_prebuilt_project/
 
-# Build project using bob-light
-java -jar $DYNAMO_HOME/share/java/bob-light.jar build
+# Build project using bob
+java -jar $DYNAMO_HOME/share/java/bob.jar build
 
 # Copy and rename prebuilt files to test folder
 cp build/default/mesh/no_data.bufferc ../mesh/no_data.prebuilt_bufferc
 cp build/default/mesh/no_data.meshc ../mesh/no_data.prebuilt_meshc
 cp build/default/mesh/triangle.bufferc ../mesh/triangle.prebuilt_bufferc
 cp build/default/mesh/triangle.meshc ../mesh/triangle.prebuilt_meshc
+cp build/default/model/aabb_model.modelc ../model/aabb_model.prebuilt_modelc
+cp build/default/model/aabb_model.rigscenec ../model/aabb_model.prebuilt_rigscenec
+cp build/default/model/aabb_model_generated_0.animationsetc ../model/aabb_model_generated_0.prebuilt_animationsetc
+cp build/default/model/aabb_model.meshsetc ../model/aabb_model.prebuilt_meshsetc
+cp build/default/model/aabb_model.skeletonc ../model/aabb_model.prebuilt_skeletonc
