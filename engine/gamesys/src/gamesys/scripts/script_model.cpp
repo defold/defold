@@ -640,11 +640,11 @@ namespace dmGameSystem
         // if no mesh_id was passed - return AABB of all 
         if (lua_gettop(L) > 1)
         {
+            lua_newtable(L);
             dmhash_t mesh_id = dmScript::CheckHashOrString(L, 2);
             dmVMath::Vector3 min, max;
             if (CompModelGetMeshAABB(component, mesh_id, min, max))
             {
-                lua_newtable(L);
                 dmScript::PushVector3(L, min);
                 lua_setfield(L, -2, "min");
                 dmScript::PushVector3(L, max);
