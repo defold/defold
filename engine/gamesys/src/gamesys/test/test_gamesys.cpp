@@ -725,7 +725,11 @@ TEST_F(ComponentTest, ConsumeInputInCollectionProxy)
     dmGameObject::HInstance go_consume_no = Spawn(m_Factory, m_Collection, path_consume_no, hash_go_consume_no, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go_consume_no);
 
-    // Iteration 1: Handle proxy enable and input acquire messages from input_consume_no.script
+    // Iteration 1: Let script send the "enable" message
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    // Iteration 2: Handle proxy enable and input acquire messages from input_consume_sink.script
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 

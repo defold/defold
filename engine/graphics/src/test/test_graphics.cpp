@@ -1876,7 +1876,13 @@ TEST_F(dmGraphicsTest, TestTextureFormatBPP)
 {
     for(uint32_t i = 0; i < dmGraphics::TEXTURE_FORMAT_COUNT; ++i)
     {
-        ASSERT_NE(0, dmGraphics::GetTextureFormatBitsPerPixel((dmGraphics::TextureFormat) i));
+        dmGraphics::TextureFormat format = (dmGraphics::TextureFormat) i;
+        // ASTC doesn't have a "bits per pixel" value.
+        if (dmGraphics::IsTextureFormatASTC(format))
+        {
+            continue;
+        }
+        ASSERT_NE(0, dmGraphics::GetTextureFormatBitsPerPixel(format));
     }
 }
 

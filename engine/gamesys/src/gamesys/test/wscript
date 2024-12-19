@@ -58,18 +58,22 @@ def build(bld):
         excl_pattern.append('**/*.cp')
         excl_pattern.append('**/*.compute')
 
-    exported_symbols = ['ResourceTypeGameObject',
-                        'ResourceTypeCollection',
-                        'ResourceTypeLua',
-                        'ResourceTypeScript',
-                        'ResourceProviderFile',
-                        'ComponentTypeScript',
-                        'ResourceTypeAnim',
-                        'ComponentTypeAnim',
-                        'ResourceTypeAnimationSet',
+    exported_symbols = ['ComponentTypeAnim',
                         'ComponentTypeGui',
                         'ComponentTypeMesh',
-                        'ResourceTypeGui','ResourceTypeGuiScript',
+                        'ComponentTypeScript',
+                        'ComponentTypeSound',
+                        'ResourceProviderFile',
+                        'ResourceTypeAnim',
+                        'ResourceTypeAnimationSet',
+                        'ResourceTypeCollection',
+                        'ResourceTypeGameObject',
+                        'ResourceTypeLua',
+                        'ResourceTypeScript',
+                        'ResourceTypeGui',
+                        'ResourceTypeGuiScript',
+                        'ResourceTypeOgg',
+                        'ResourceTypeWav',
                         'GraphicsAdapterNull',
                         'ScriptImageExt']
 

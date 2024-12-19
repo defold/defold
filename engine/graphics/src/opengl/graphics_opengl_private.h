@@ -178,8 +178,8 @@ namespace dmGraphics
         uint32_t                m_MultiTargetRenderingSupport      : 1;
         uint32_t                m_ComputeSupport                   : 1;
         uint32_t                m_StorageBufferSupport             : 1;
-        uint32_t                m_RenderDocSupport                 : 1;
         uint32_t                m_InstancingSupport                : 1;
+        uint32_t                m_ASTCSupport                      : 1;
     };
 }
 #endif // __GRAPHICS_DEVICE_OPENGL__

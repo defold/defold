@@ -483,7 +483,7 @@ var GameArchiveLoader = {
         try {
             json = JSON.parse(text);
             if (EngineLoader.arc_sha1) {
-                const digest = await window.crypto.subtle.digest("SHA-1", text);
+                const digest = await window.crypto.subtle.digest("SHA-1", (new TextEncoder()).encode(text));
                 const sha1 = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
                 if (sha1 != EngineLoader.arc_sha1) {
                     throw new Error(`Unexpected hash ${sha1} wanted ${EngineLoader.arc_sha1}`);
@@ -904,6 +904,22 @@ var Module = {
         return { stack:stack, message:message };
     },
 
+    hasWebGPUSupport: function() {
+        var webgpu_support = false;
+        try {
+            var canvas = document.createElement("canvas");
+            var webgpu = canvas.getContext("webgpu");
+            if (webgpu && webgpu instanceof GPUCanvasContext) {
+                webgpu_support = true;
+            }
+        } catch (error) {
+            console.log("An error occurred while detecting WebGPU support: " + error);
+            webgpu_support = false;
+        }
+
+        return webgpu_support;
+    },
+
     hasWebGLSupport: function() {
         var webgl_support = false;
         try {
@@ -948,7 +964,7 @@ var Module = {
         }
         Module.fullScreenContainer = fullScreenContainer || Module.canvas;
 
-        if (Module.hasWebGLSupport()) {
+        if (Module.hasWebGLSupport() || Module.hasWebGPUSupport()) {
             Module.canvas.focus();
 
             Module.canvas.addEventListener("webglcontextlost", function(event) {

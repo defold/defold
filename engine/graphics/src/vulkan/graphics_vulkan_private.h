@@ -413,8 +413,8 @@ namespace dmGraphics
         VulkanTexture*                  m_DefaultTexture2D32UI;
         VulkanTexture*                  m_DefaultStorageImage2D;
         VulkanTexture                   m_ResolveTexture;
-
         uint64_t                        m_TextureFormatSupport;
+
         uint32_t                        m_Width;
         uint32_t                        m_Height;
         uint32_t                        m_WindowWidth;
@@ -428,6 +428,7 @@ namespace dmGraphics
         uint32_t                        m_CullFaceChanged      : 1;
         uint32_t                        m_UseValidationLayers  : 1;
         uint32_t                        m_RenderDocSupport     : 1;
+        uint32_t                        m_ASTCSupport          : 1;
     };
 
     // Implemented in graphics_vulkan_context.cpp

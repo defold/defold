@@ -436,7 +436,7 @@
 
         attribute-properties
         (when-not (g/error-value? material-attribute-infos)
-          (graphics/attribute-property-entries _node-id material-attribute-infos vertex-attribute-overrides))]
+          (graphics/attribute-property-entries _node-id material-attribute-infos 0 vertex-attribute-overrides))]
 
     (-> _declared-properties
         (update :properties (fn [props]
@@ -615,7 +615,7 @@
   (output build-targets g/Any :cached produce-build-targets)
   (output _properties g/Properties :cached produce-properties)
   (output vertex-attribute-bytes g/Any :cached (g/fnk [_node-id material-attribute-infos vertex-attribute-overrides]
-                                                 (graphics/attribute-bytes-by-attribute-key _node-id material-attribute-infos vertex-attribute-overrides))))
+                                                 (graphics/attribute-bytes-by-attribute-key _node-id material-attribute-infos 0 vertex-attribute-overrides))))
 
 (def ^:private default-material-proj-path (protobuf/default Sprite$SpriteDesc :material))
 

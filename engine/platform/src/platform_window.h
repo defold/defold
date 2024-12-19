@@ -20,8 +20,9 @@
 
 namespace dmPlatform
 {
-    struct Window;
-    typedef Window* HWindow;
+    struct dmWindow;
+    typedef dmWindow* HWindow;
+
     typedef void (*WindowResizeCallback)(void* user_data, uint32_t width, uint32_t height);
     typedef void (*WindowFocusCallback)(void* user_data, uint32_t focus);
     typedef void (*WindowIconifyCallback)(void* user_data, uint32_t iconified);

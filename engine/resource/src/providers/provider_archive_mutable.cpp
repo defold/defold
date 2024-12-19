@@ -438,6 +438,12 @@ namespace dmResourceProviderArchiveMutable
         return dmResourceProvider::RESULT_OK;
     }
 
+    static dmResourceProvider::Result ReadFilePartial(dmResourceProvider::HArchiveInternal internal, dmhash_t path_hash, const char* path, uint32_t offset, uint32_t size, uint8_t* buffer, uint32_t* nread)
+    {
+        // Streaming not enabled for old archive formats
+        return dmResourceProvider::RESULT_IO_ERROR;
+    }
+
     static dmResourceProvider::Result VerifyResource(const dmResource::HManifest manifest, const uint8_t* expected, uint32_t expected_length, const uint8_t* data, uint32_t data_length)
     {
         if (manifest == 0x0 || data == 0x0)
@@ -569,14 +575,15 @@ namespace dmResourceProviderArchiveMutable
 
     static void SetupArchiveLoader(dmResourceProvider::ArchiveLoader* loader)
     {
-        loader->m_CanMount      = MatchesUri;
-        loader->m_Mount         = Mount;
-        loader->m_Unmount       = Unmount;
-        loader->m_GetManifest   = GetManifest;
-        loader->m_SetManifest   = SetManifest;
-        loader->m_GetFileSize   = GetFileSize;
-        loader->m_ReadFile      = ReadFile;
-        loader->m_WriteFile     = WriteFile;
+        loader->m_CanMount          = MatchesUri;
+        loader->m_Mount             = Mount;
+        loader->m_Unmount           = Unmount;
+        loader->m_GetManifest       = GetManifest;
+        loader->m_SetManifest       = SetManifest;
+        loader->m_GetFileSize       = GetFileSize;
+        loader->m_ReadFile          = ReadFile;
+        loader->m_ReadFilePartial   = ReadFilePartial;
+        loader->m_WriteFile         = WriteFile;
     }
 
     DM_DECLARE_ARCHIVE_LOADER(ResourceProviderArchiveMutable, "mutable", SetupArchiveLoader);

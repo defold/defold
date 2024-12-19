@@ -544,7 +544,6 @@ static void LogFrameBufferError(GLenum status)
         memset(this, 0, sizeof(*this));
         m_ModificationVersion     = 1;
         m_VerifyGraphicsCalls     = params.m_VerifyGraphicsCalls;
-        m_RenderDocSupport        = params.m_RenderDocSupport;
         m_PrintDeviceInfo         = params.m_PrintDeviceInfo;
         m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
         m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
@@ -1273,7 +1272,7 @@ static void LogFrameBufferError(GLenum status)
             OpenGLIsExtensionSupported(context, "OES_texture_compression_astc") ||
             OpenGLIsExtensionSupported(context, "WEBGL_compressed_texture_astc"))
         {
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_ASTC_4x4;
+            context->m_ASTCSupport = 1;
         }
 
         // Check if we're using a recent enough OpenGL version
@@ -1328,15 +1327,22 @@ static void LogFrameBufferError(GLenum status)
             glGetIntegerv(GL_COMPRESSED_TEXTURE_FORMATS, pCompressedFormats);
             for (int i = 0; i < iNumCompressedFormats; i++)
             {
-                switch (pCompressedFormats[i])
+                // If 4x4 is supported, all ASTC formats should be supported.
+                if (pCompressedFormats[i] == DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_4x4_KHR)
                 {
-                    #define CASE(_NAME1,_NAME2) case _NAME1 : context->m_TextureFormatSupport |= 1 << _NAME2; break;
-                    CASE(DMGRAPHICS_TEXTURE_FORMAT_RGBA8_ETC2_EAC, TEXTURE_FORMAT_RGBA_ETC2);
-                    CASE(DMGRAPHICS_TEXTURE_FORMAT_R11_EAC, TEXTURE_FORMAT_R_ETC2);
-                    CASE(DMGRAPHICS_TEXTURE_FORMAT_RG11_EAC, TEXTURE_FORMAT_RG_ETC2);
-                    CASE(DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_4x4_KHR, TEXTURE_FORMAT_RGBA_ASTC_4x4);
-                    #undef CASE
-                default: break;
+                    context->m_ASTCSupport = 1;
+                }
+                else 
+                {
+                    switch (pCompressedFormats[i])
+                    {
+                        #define CASE(_NAME1,_NAME2) case _NAME1 : context->m_TextureFormatSupport |= 1 << _NAME2; break;
+                        CASE(DMGRAPHICS_TEXTURE_FORMAT_RGBA8_ETC2_EAC, TEXTURE_FORMAT_RGBA_ETC2);
+                        CASE(DMGRAPHICS_TEXTURE_FORMAT_R11_EAC, TEXTURE_FORMAT_R_ETC2);
+                        CASE(DMGRAPHICS_TEXTURE_FORMAT_RG11_EAC, TEXTURE_FORMAT_RG_ETC2);
+                        #undef CASE
+                    default: break;
+                    }
                 }
             }
             delete[] pCompressedFormats;
@@ -3697,9 +3703,10 @@ static void LogFrameBufferError(GLenum status)
         ApplyRenderTargetAttachments(g_Context, rt, true);
     }
 
-    static bool OpenGLIsTextureFormatSupported(HContext context, TextureFormat format)
+    static bool OpenGLIsTextureFormatSupported(HContext _context, TextureFormat format)
     {
-        return (((OpenGLContext*) context)->m_TextureFormatSupport & (1 << format)) != 0;
+        OpenGLContext* context = (OpenGLContext*) _context;
+        return (context->m_TextureFormatSupport & (1 << format)) != 0 || (context->m_ASTCSupport && IsTextureFormatASTC(format));
     }
 
     static uint32_t OpenGLGetMaxTextureSize(HContext context)
@@ -4082,7 +4089,22 @@ static void LogFrameBufferError(GLenum status)
         case TEXTURE_FORMAT_R_ETC2:             gl_format = DMGRAPHICS_TEXTURE_FORMAT_R11_EAC; break;
         case TEXTURE_FORMAT_RG_ETC2:            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RG11_EAC; break;
         case TEXTURE_FORMAT_RGBA_ETC2:          gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA8_ETC2_EAC; break;
+
         case TEXTURE_FORMAT_RGBA_ASTC_4x4:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_4x4_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_5x4:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_5x4_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_5x5:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_5x5_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_6x5:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_6x5_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_6x6:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_6x6_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_8x5:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_8x5_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_8x6:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_8x6_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_8x8:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_8x8_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_10x5:     gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_10x5_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_10x6:     gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_10x6_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_10x8:     gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_10x8_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_10x10:    gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_10x10_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_12x10:    gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_12x10_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_12x12:    gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_12x12_KHR; break;
+
         case TEXTURE_FORMAT_RGB_BC1:            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB_DXT1; break;
         case TEXTURE_FORMAT_RGBA_BC3:           gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_DXT5; break;
         case TEXTURE_FORMAT_R_BC4:              gl_format = DMGRAPHICS_TEXTURE_FORMAT_RED_RGTC1; break;
@@ -4326,6 +4348,19 @@ static void LogFrameBufferError(GLenum status)
             case TEXTURE_FORMAT_RG_ETC2:
             case TEXTURE_FORMAT_RGBA_ETC2:
             case TEXTURE_FORMAT_RGBA_ASTC_4x4:
+            case TEXTURE_FORMAT_RGBA_ASTC_5x4:
+            case TEXTURE_FORMAT_RGBA_ASTC_5x5:
+            case TEXTURE_FORMAT_RGBA_ASTC_6x5:
+            case TEXTURE_FORMAT_RGBA_ASTC_6x6:
+            case TEXTURE_FORMAT_RGBA_ASTC_8x5:
+            case TEXTURE_FORMAT_RGBA_ASTC_8x6:
+            case TEXTURE_FORMAT_RGBA_ASTC_8x8:
+            case TEXTURE_FORMAT_RGBA_ASTC_10x5:
+            case TEXTURE_FORMAT_RGBA_ASTC_10x6:
+            case TEXTURE_FORMAT_RGBA_ASTC_10x8:
+            case TEXTURE_FORMAT_RGBA_ASTC_10x10:
+            case TEXTURE_FORMAT_RGBA_ASTC_12x10:
+            case TEXTURE_FORMAT_RGBA_ASTC_12x12:
             case TEXTURE_FORMAT_RGB_BC1:
             case TEXTURE_FORMAT_RGBA_BC3:
             case TEXTURE_FORMAT_R_BC4:

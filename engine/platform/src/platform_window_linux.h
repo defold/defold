@@ -18,10 +18,12 @@
 #include <X11/Xlib.h>
 #include <GL/glx.h>
 
+#include "platform_window.h"
+
 namespace dmPlatform
 {
-    Window     GetX11Window();
-    GLXContext GetX11GLXContext();
+    Window     GetX11Window(HWindow window);
+    GLXContext GetX11GLXContext(HWindow window);
 }
 
 #endif // DM_PLATFORM_WINDOW_LINUX_H
