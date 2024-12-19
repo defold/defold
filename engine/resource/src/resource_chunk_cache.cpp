@@ -45,6 +45,10 @@ struct ResourceInternalDataChunk
     uint32_t m_Offset;  // Offset into the file
 };
 
+#if __cplusplus >= 201103L
+    DM_STATIC_ASSERT(offsetof(ResourceInternalDataChunk, m_ListNode) == 0, "m_ListNode must be first in struct!");
+#endif
+
 struct ResourceChunkCache
 {
     // The array is sorted on (path_hash, offset)
@@ -417,8 +421,6 @@ void ResourceChunkCacheEvictPathHash(HResourceChunkCache cache, uint64_t path_ha
 // Unit test only
 bool ResourceChunkCacheVerify(HResourceChunkCache cache)
 {
-    DM_STATIC_ASSERT(offsetof(ResourceInternalDataChunk, m_ListNode) == 0, "m_ListNode must be first in struct!");
-
     // Verify the sorting of the chunks
     ResourceInternalDataChunk** chunks = cache->m_Chunks.Begin();
     uint32_t num_chunks = cache->m_Chunks.Size();
