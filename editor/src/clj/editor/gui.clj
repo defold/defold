@@ -1080,7 +1080,7 @@
 
   (input node-ids NameNodeIds :array)
   (output id g/Str (g/fnk [id-prefix id] (str id-prefix id)))
-  (output node-ids NameNodeIds (g/fnk [_node-id id node-ids] (reduce merge {id _node-id} node-ids)))
+  (output node-ids NameNodeIds (g/fnk [_node-id id node-ids] (reduce coll/merge {id _node-id} node-ids)))
 
   (input node-overrides g/Any :array)
   (output node-overrides g/Any :cached (g/fnk [node-overrides id _overridden-properties]
@@ -1106,7 +1106,7 @@
                       prop->value-for-default-layout
                       (cond->> (make-prop->value-for-default-layout _this)
                                prop->value-for-default-layout-in-original
-                               (merge prop->value-for-default-layout-in-original))
+                               (coll/merge prop->value-for-default-layout-in-original))
 
                       introduced-layout-names
                       (if original-layout-names
@@ -1115,7 +1115,7 @@
 
                   (-> (reduce
                         (fn [layout->prop->value introduced-layout-name]
-                          (update layout->prop->value introduced-layout-name merge prop->value-for-default-layout))
+                          (update layout->prop->value introduced-layout-name coll/merge prop->value-for-default-layout))
                         layout->prop->value-for-original
                         introduced-layout-names)
                       (assoc "" prop->value-for-default-layout)
@@ -1152,22 +1152,25 @@
                               introduces-current-layout (and (contains? layout-names current-layout)
                                                              (not (contains? layout-names-for-original current-layout)))]
                           (if introduces-current-layout
-                            (merge (make-recursive-prop->value-for-default-layout basis node-id)
-                                   prop->value)
+                            (coll/merge
+                              (make-recursive-prop->value-for-default-layout basis node-id)
+                              prop->value)
                             (let [layout->prop->override-for-original (g/node-value original-node-id :layout->prop->override _evaluation-context)]
                               (if (g/error-value? layout->prop->override-for-original)
                                 layout->prop->override-for-original
                                 (recur original-node-id
                                        layout-names-for-original
-                                       (merge (get layout->prop->override-for-original current-layout)
-                                              prop->value))))))))
+                                       (coll/merge
+                                         (get layout->prop->override-for-original current-layout)
+                                         prop->value))))))))
 
                     ;; We've reached the override root. Anything not overridden
                     ;; for the current-layout by this point will use values from
                     ;; our default layout.
                     (let [node (g/node-by-id basis node-id)]
-                      (merge (make-prop->value-for-default-layout node)
-                             prop->value))))))))
+                      (coll/merge
+                        (make-prop->value-for-default-layout node)
+                        prop->value))))))))
   (output _properties g/Properties :cached
           (g/fnk [_declared-properties current-layout layout->prop->override]
             ;; For layout properties, the :original-value of each property is
@@ -2476,7 +2479,7 @@
   (input node-overrides g/Any :array)
   (output node-overrides g/Any :cached (g/fnk [node-overrides] (into {} node-overrides)))
   (input node-ids NameNodeIds :array)
-  (output node-ids NameNodeIds :cached (g/fnk [node-ids] (reduce merge {} node-ids)))
+  (output node-ids NameNodeIds :cached (g/fnk [node-ids] (reduce coll/merge {} node-ids)))
 
   (input id-prefix g/Str)
   (output id-prefix g/Str (gu/passthrough id-prefix))

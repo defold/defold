@@ -228,7 +228,7 @@
            maps)))
 
 (defn merge-with
-  "Like core.merge, but makes use of transients for efficiency, and ignores
+  "Like core.merge-with, but makes use of transients for efficiency, and ignores
   empty collections (even in LHS position!)."
   ([_f] nil)
   ([_f a] a)
