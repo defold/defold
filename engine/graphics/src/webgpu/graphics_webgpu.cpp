@@ -368,33 +368,58 @@ static void WebGPURealizeTexture(WebGPUTexture* texture, WGPUTextureFormat forma
     {
         WGPUTextureDescriptor desc = {};
         desc.usage                 = texture->m_UsageFlags | usage;
-        desc.dimension             = WGPUTextureDimension_2D;
         desc.size                  = { texture->m_Width, texture->m_Height, depth };
         desc.sampleCount           = sampleCount;
         desc.format                = texture->m_Format;
         desc.mipLevelCount         = texture->m_MipMapCount;
+        switch (texture->m_Type)
+        {
+        case TEXTURE_TYPE_2D:
+        case TEXTURE_TYPE_IMAGE_2D:
+        case TEXTURE_TYPE_2D_ARRAY:
+        case TEXTURE_TYPE_TEXTURE_2D:
+        case TEXTURE_TYPE_TEXTURE_2D_ARRAY:
+            desc.dimension = WGPUTextureDimension_2D;
+            break;
+        case TEXTURE_TYPE_CUBE_MAP:
+        case TEXTURE_TYPE_TEXTURE_CUBE:
+            desc.dimension               = WGPUTextureDimension_2D;
+            desc.size.depthOrArrayLayers = 6;
+            break;
+        case TEXTURE_TYPE_SAMPLER:
+            dmLogError("Unable to realize texture, unsupported type (%s).", GetTextureTypeLiteral(texture->m_Type));
+            return;
+        }
 
         texture->m_Texture = wgpuDeviceCreateTexture(g_WebGPUContext->m_Device, &desc);
     }
     {
         WGPUTextureViewDescriptor desc = {};
-        desc.format                    = texture->m_Format;
+        desc.format            = texture->m_Format;
+        desc.mipLevelCount     = texture->m_MipMapCount;
+        desc.aspect            = WGPUTextureAspect_All;
         switch (texture->m_Type)
         {
-            case TEXTURE_TYPE_2D_ARRAY:
-                desc.dimension = WGPUTextureViewDimension_2DArray;
-                break;
-            case TEXTURE_TYPE_CUBE_MAP:
-            case TEXTURE_TYPE_TEXTURE_CUBE:
-                desc.dimension = WGPUTextureViewDimension_Cube;
-                break;
-            default:
-                desc.dimension = WGPUTextureViewDimension_2D;
-                break;
+        case TEXTURE_TYPE_2D_ARRAY:
+        case TEXTURE_TYPE_TEXTURE_2D_ARRAY:
+            desc.dimension       = WGPUTextureViewDimension_2DArray;
+            desc.arrayLayerCount = depth;
+            break;
+        case TEXTURE_TYPE_CUBE_MAP:
+        case TEXTURE_TYPE_TEXTURE_CUBE:
+            desc.dimension       = WGPUTextureViewDimension_Cube;
+            desc.arrayLayerCount = 6;
+            break;
+        case TEXTURE_TYPE_2D:
+        case TEXTURE_TYPE_IMAGE_2D:
+        case TEXTURE_TYPE_TEXTURE_2D:
+            desc.dimension       = WGPUTextureViewDimension_2D;
+            desc.arrayLayerCount = 1;
+            break;
+        case TEXTURE_TYPE_SAMPLER:
+            dmLogError("Unable to realize texture view, unsupported type (%s).", GetTextureTypeLiteral(texture->m_Type));
+            return;
         }
-        desc.mipLevelCount     = texture->m_MipMapCount;
-        desc.arrayLayerCount   = depth;
-        desc.aspect            = WGPUTextureAspect_All;
         texture->m_TextureView = wgpuTextureCreateView(texture->m_Texture, &desc);
     }
 }
