@@ -20,6 +20,7 @@
 #include <dlib/log.h>
 
 #include <stdio.h>   // printf
+#include <stddef.h>  // offsetof
 #include <algorithm> // lower_bound
 
 struct DLListNode
