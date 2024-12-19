@@ -18,14 +18,11 @@ import java.io.IOException;
 import java.io.File;
 import java.io.InputStream;
 import java.io.FileInputStream;
-import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 
 import com.dynamo.bob.archive.ArchiveEntry;
 import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.fs.IResource;
 
 public abstract class Publisher {
 
@@ -48,6 +45,8 @@ public abstract class Publisher {
     public String getSupportedVersions() {
         return this.settings.getSupportedVersions();
     }
+
+    public boolean shouldBeMovedIntoBundleFolder() { return this.settings.getSaveZipInBundleFolder(); }
 
     protected final PublisherSettings getPublisherSettings() {
         return this.settings;

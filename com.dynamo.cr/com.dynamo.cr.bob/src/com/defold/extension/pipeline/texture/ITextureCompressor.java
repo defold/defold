@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 package com.defold.extension.pipeline.texture;
+import com.dynamo.graphics.proto.Graphics.TextureImage;
 
 /**
  * Interface for compressing a texture using settings
@@ -23,4 +24,8 @@ public interface ITextureCompressor {
     public String getName();
 
     public byte[] compress(TextureCompressorPreset preset, TextureCompressorParams params, byte[] input);
+
+    public default int getAlignedWidth(TextureImage.TextureFormat format, int width) { return width; }
+
+    public default int getAlignedHeight(TextureImage.TextureFormat format, int height) { return height; }
 }

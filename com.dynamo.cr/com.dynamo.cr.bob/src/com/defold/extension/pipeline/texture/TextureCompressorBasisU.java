@@ -22,10 +22,12 @@ import com.dynamo.bob.pipeline.TexcLibraryJni;
  */
 public class TextureCompressorBasisU implements ITextureCompressor {
 
+    public static String TextureCompressorName = "BasisU";
+
     public TextureCompressorBasisU() {
         // TODO: These should be read from config files!
         {
-            TextureCompressorPreset preset = new TextureCompressorPreset("BASISU_BEST", "1. BasisU Best", "BasisU");
+            TextureCompressorPreset preset = new TextureCompressorPreset("BASISU_BEST", "1. BasisU Best", TextureCompressorName);
             preset.setOptionInt("rdo_uastc", 1);
             preset.setOptionInt("pack_uastc_flags", 0);
             preset.setOptionInt("rdo_uastc_dict_size", 4096);
@@ -35,7 +37,7 @@ public class TextureCompressorBasisU implements ITextureCompressor {
         }
 
         {
-            TextureCompressorPreset preset = new TextureCompressorPreset("BASISU_HIGH", "2. BasisU High", "BasisU");
+            TextureCompressorPreset preset = new TextureCompressorPreset("BASISU_HIGH", "2. BasisU High", TextureCompressorName);
             preset.setOptionInt("rdo_uastc", 1);
             preset.setOptionInt("pack_uastc_flags", 1);  // cPackUASTCLevelFaster = 1 from basisu_uastc_enc.h
             preset.setOptionInt("rdo_uastc_dict_size", 8192);
@@ -45,7 +47,7 @@ public class TextureCompressorBasisU implements ITextureCompressor {
         }
 
         {
-            TextureCompressorPreset preset = new TextureCompressorPreset("BASISU_NORMAL", "3. BasisU Normal", "BasisU");
+            TextureCompressorPreset preset = new TextureCompressorPreset("BASISU_NORMAL", "3. BasisU Normal", TextureCompressorName);
             preset.setOptionInt("rdo_uastc", 0);
             preset.setOptionInt("pack_uastc_flags", 2); // cPackUASTCLevelDefault = 2 from basisu_uastc_enc.h
 
@@ -53,7 +55,7 @@ public class TextureCompressorBasisU implements ITextureCompressor {
         }
 
         {
-            TextureCompressorPreset preset = new TextureCompressorPreset("BASISU_FAST", "4. BasisU Fast", "BasisU");
+            TextureCompressorPreset preset = new TextureCompressorPreset("BASISU_FAST", "4. BasisU Fast", TextureCompressorName);
             preset.setOptionInt("rdo_uastc", 0);
             preset.setOptionInt("pack_uastc_flags", 1); // cPackUASTCLevelFaster = 1 from basisu_uastc_enc.h
 
@@ -62,7 +64,7 @@ public class TextureCompressorBasisU implements ITextureCompressor {
     }
 
     public String getName() {
-        return "BasisU";
+        return TextureCompressorName;
     }
 
     public byte[] compress(TextureCompressorPreset preset, TextureCompressorParams params, byte[] input)

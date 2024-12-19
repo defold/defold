@@ -239,6 +239,32 @@ static WGPUTextureFormat WebGPUFormatFromTextureFormat(TextureFormat format)
             return WGPUTextureFormat_ETC2RGBA8Unorm;
         case TEXTURE_FORMAT_RGBA_ASTC_4x4:
             return WGPUTextureFormat_ASTC4x4Unorm;
+        case TEXTURE_FORMAT_RGBA_ASTC_5x4:
+            return WGPUTextureFormat_ASTC5x4Unorm;
+        case TEXTURE_FORMAT_RGBA_ASTC_5x5:
+            return WGPUTextureFormat_ASTC5x5Unorm;
+        case TEXTURE_FORMAT_RGBA_ASTC_6x5:
+            return WGPUTextureFormat_ASTC6x5Unorm;
+        case TEXTURE_FORMAT_RGBA_ASTC_6x6:
+            return WGPUTextureFormat_ASTC6x6Unorm;
+        case TEXTURE_FORMAT_RGBA_ASTC_8x5:
+            return WGPUTextureFormat_ASTC8x5Unorm;
+        case TEXTURE_FORMAT_RGBA_ASTC_8x6:
+            return WGPUTextureFormat_ASTC8x6Unorm;
+        case TEXTURE_FORMAT_RGBA_ASTC_8x8:
+            return WGPUTextureFormat_ASTC8x8Unorm;
+        case TEXTURE_FORMAT_RGBA_ASTC_10x5:
+            return WGPUTextureFormat_ASTC10x5Unorm;
+        case TEXTURE_FORMAT_RGBA_ASTC_10x6:
+            return WGPUTextureFormat_ASTC10x6Unorm;
+        case TEXTURE_FORMAT_RGBA_ASTC_10x8:
+            return WGPUTextureFormat_ASTC10x8Unorm;
+        case TEXTURE_FORMAT_RGBA_ASTC_10x10:
+            return WGPUTextureFormat_ASTC10x10Unorm;
+        case TEXTURE_FORMAT_RGBA_ASTC_12x10:
+            return WGPUTextureFormat_ASTC12x10Unorm;
+        case TEXTURE_FORMAT_RGBA_ASTC_12x12:
+            return WGPUTextureFormat_ASTC12x12Unorm;
         case TEXTURE_FORMAT_RGB_BC1:
             return WGPUTextureFormat_Undefined;
         case TEXTURE_FORMAT_RGBA_BC3:
@@ -284,6 +310,19 @@ static size_t WebGPUCompressedBlockWidth(TextureFormat format)
     case TEXTURE_FORMAT_RGB_ETC1:           return 4;
     case TEXTURE_FORMAT_RGBA_ETC2:          return 4;
     case TEXTURE_FORMAT_RGBA_ASTC_4x4:      return 4;
+    case TEXTURE_FORMAT_RGBA_ASTC_5x4:      return 5;
+    case TEXTURE_FORMAT_RGBA_ASTC_5x5:      return 5;
+    case TEXTURE_FORMAT_RGBA_ASTC_6x5:      return 6;
+    case TEXTURE_FORMAT_RGBA_ASTC_6x6:      return 6;
+    case TEXTURE_FORMAT_RGBA_ASTC_8x5:      return 8;
+    case TEXTURE_FORMAT_RGBA_ASTC_8x6:      return 8;
+    case TEXTURE_FORMAT_RGBA_ASTC_8x8:      return 8;
+    case TEXTURE_FORMAT_RGBA_ASTC_10x5:     return 10;
+    case TEXTURE_FORMAT_RGBA_ASTC_10x6:     return 10;
+    case TEXTURE_FORMAT_RGBA_ASTC_10x8:     return 10;
+    case TEXTURE_FORMAT_RGBA_ASTC_10x10:    return 10;
+    case TEXTURE_FORMAT_RGBA_ASTC_12x10:    return 12;
+    case TEXTURE_FORMAT_RGBA_ASTC_12x12:    return 12;
     case TEXTURE_FORMAT_RGB_BC1:            return 4;
     case TEXTURE_FORMAT_RGBA_BC3:           return 4;
     case TEXTURE_FORMAT_RGBA_BC7:           return 4;
@@ -299,7 +338,19 @@ static size_t WebGPUCompressedBlockByteSize(TextureFormat format)
     case TEXTURE_FORMAT_RGB_ETC1:           return 8;
     case TEXTURE_FORMAT_RGBA_ETC2:          return 8;
     case TEXTURE_FORMAT_RGBA_ASTC_4x4:      return 16;
-    case TEXTURE_FORMAT_RGB_BC1:            return 8;
+    case TEXTURE_FORMAT_RGBA_ASTC_5x4:      return 16;
+    case TEXTURE_FORMAT_RGBA_ASTC_5x5:      return 16;
+    case TEXTURE_FORMAT_RGBA_ASTC_6x5:      return 16;
+    case TEXTURE_FORMAT_RGBA_ASTC_6x6:      return 16;
+    case TEXTURE_FORMAT_RGBA_ASTC_8x5:      return 16;
+    case TEXTURE_FORMAT_RGBA_ASTC_8x6:      return 16;
+    case TEXTURE_FORMAT_RGBA_ASTC_8x8:      return 16;
+    case TEXTURE_FORMAT_RGBA_ASTC_10x5:     return 16;
+    case TEXTURE_FORMAT_RGBA_ASTC_10x6:     return 16;
+    case TEXTURE_FORMAT_RGBA_ASTC_10x8:     return 16;
+    case TEXTURE_FORMAT_RGBA_ASTC_10x10:    return 16;
+    case TEXTURE_FORMAT_RGBA_ASTC_12x10:    return 16;
+    case TEXTURE_FORMAT_RGBA_ASTC_12x12:    return 16;
     case TEXTURE_FORMAT_RGBA_BC3:           return 16;
     case TEXTURE_FORMAT_RGBA_BC7:           return 16;
     default:                                return 0;
@@ -322,7 +373,8 @@ static void WebGPURealizeTexture(WebGPUTexture* texture, WGPUTextureFormat forma
         desc.sampleCount           = sampleCount;
         desc.format                = texture->m_Format;
         desc.mipLevelCount         = texture->m_MipMapCount;
-        texture->m_Texture         = wgpuDeviceCreateTexture(g_WebGPUContext->m_Device, &desc);
+
+        texture->m_Texture = wgpuDeviceCreateTexture(g_WebGPUContext->m_Device, &desc);
     }
     {
         WGPUTextureViewDescriptor desc = {};
@@ -410,17 +462,19 @@ static void WebGPUSetTextureInternal(WebGPUTexture* texture, const TextureParams
                 assert(texture->m_Texture && texture->m_TextureView);
                 texture->m_GraphicsFormat = params.m_Format;
             }
-            const uint8_t bpp     = ceil(GetTextureFormatBitsPerPixel(params.m_Format) / 8.0f);
-            const size_t dataSize = bpp * params.m_Width * params.m_Height * depth;
 
             dest.texture = texture->m_Texture;
             layout.bytesPerRow = extent.width;
             if(IsTextureFormatCompressed(params.m_Format))
-                layout.bytesPerRow = (layout.bytesPerRow / WebGPUCompressedBlockWidth(params.m_Format)) * WebGPUCompressedBlockByteSize(params.m_Format);
+            {
+                layout.bytesPerRow = ceil(float(layout.bytesPerRow) / WebGPUCompressedBlockWidth(params.m_Format)) * WebGPUCompressedBlockByteSize(params.m_Format);
+            }
             else
-                layout.bytesPerRow *= bpp;
+            {
+                layout.bytesPerRow *= ceil(GetTextureFormatBitsPerPixel(params.m_Format) / 8.0f);
+            }
             extent.depthOrArrayLayers = depth;
-            wgpuQueueWriteTexture(g_WebGPUContext->m_Queue, &dest, params.m_Data, dataSize, &layout, &extent);
+            wgpuQueueWriteTexture(g_WebGPUContext->m_Queue, &dest, params.m_Data, layout.bytesPerRow * layout.rowsPerImage * depth, &layout, &extent);
         }
     }
 
@@ -921,6 +975,19 @@ static bool InitializeWebGPUContext(WebGPUContext* context, const ContextParams&
     if (wgpuAdapterHasFeature(context->m_Adapter, WGPUFeatureName_TextureCompressionASTC))
     {
         context->m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_ASTC_4x4;
+        context->m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_ASTC_5x4;
+        context->m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_ASTC_5x5;
+        context->m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_ASTC_6x5;
+        context->m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_ASTC_6x6;
+        context->m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_ASTC_8x5;
+        context->m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_ASTC_8x6;
+        context->m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_ASTC_8x8;
+        context->m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_ASTC_10x5;
+        context->m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_ASTC_10x6;
+        context->m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_ASTC_10x8;
+        context->m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_ASTC_10x10;
+        context->m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_ASTC_12x10;
+        context->m_TextureFormatSupport |= 1ULL << TEXTURE_FORMAT_RGBA_ASTC_12x12;
     }
     if (wgpuAdapterHasFeature(context->m_Adapter, WGPUFeatureName_TextureCompressionBC))
     {
@@ -1658,7 +1725,7 @@ static void WebGPUDisableVertexDeclaration(HContext _context, HVertexDeclaration
 
 static void WebGPUUpdateBindGroups(WebGPUContext* context)
 {
-    for (int set = 0; set < context->m_CurrentProgram->m_MaxSet; ++set)
+    for (int set = 0; set < context->m_CurrentProgram->m_BaseProgram.m_MaxSet; ++set)
     {
         if (!context->m_CurrentProgram->m_BindGroupLayouts[set] || context->m_CurrentProgram->m_BindGroups[set])
             continue;
@@ -1670,9 +1737,9 @@ static void WebGPUUpdateBindGroups(WebGPUContext* context)
 
         WGPUBindGroupDescriptor desc = {};
         WGPUBindGroupEntry entries[MAX_BINDINGS_PER_SET_COUNT];
-        for (int binding = 0; binding < context->m_CurrentProgram->m_MaxBinding; ++binding)
+        for (int binding = 0; binding < context->m_CurrentProgram->m_BaseProgram.m_MaxBinding; ++binding)
         {
-            ProgramResourceBinding& pgm_res = context->m_CurrentProgram->m_ResourceBindings[set][binding];
+            ProgramResourceBinding& pgm_res = context->m_CurrentProgram->m_BaseProgram.m_ResourceBindings[set][binding];
             if (pgm_res.m_Res == NULL)
                 continue;
             entries[desc.entryCount]         = {};
@@ -1804,7 +1871,7 @@ static void WebGPUSetupComputePipeline(WebGPUContext* context)
     }
 
     // Set the bind groups
-    for (int set = 0; set < context->m_CurrentProgram->m_MaxSet; ++set)
+    for (int set = 0; set < context->m_CurrentProgram->m_BaseProgram.m_MaxSet; ++set)
     {
         if (context->m_CurrentProgram->m_BindGroups[set])
             wgpuComputePassEncoderSetBindGroup(context->m_CurrentComputePass.m_Encoder, set, context->m_CurrentProgram->m_BindGroups[set], 0, 0);
@@ -1846,7 +1913,7 @@ static void WebGPUSetupRenderPipeline(WebGPUContext* context, WebGPUBuffer* inde
     }
 
     // Set the bind groups
-    for (int set = 0; set < context->m_CurrentProgram->m_MaxSet; ++set)
+    for (int set = 0; set < context->m_CurrentProgram->m_BaseProgram.m_MaxSet; ++set)
     {
         if (context->m_CurrentProgram->m_BindGroups[set] && context->m_CurrentProgram->m_BindGroups[set] != context->m_CurrentRenderPass.m_BindGroups[set])
         {
@@ -1955,7 +2022,7 @@ static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* 
         {
             binding.binding = res.m_Binding;
 
-            ProgramResourceBinding& program_resource_binding = program->m_ResourceBindings[res.m_Set][res.m_Binding];
+            ProgramResourceBinding& program_resource_binding = program->m_BaseProgram.m_ResourceBindings[res.m_Set][res.m_Binding];
             program_resource_binding.m_Res                   = &res;
             program_resource_binding.m_TypeInfos             = &stage_type_infos;
 
@@ -1999,7 +2066,6 @@ static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* 
                     }
                     program_resource_binding.m_TextureUnit = info.m_TextureCount;
                     info.m_TextureCount++;
-                    info.m_TotalUniformCount++;
                     break;
                 case ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER: {
                     assert(false);
@@ -2008,7 +2074,6 @@ static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* 
 
                     program_resource_binding.m_StorageBufferUnit = info.m_StorageBufferCount;
                     info.m_StorageBufferCount++;
-                    info.m_TotalUniformCount++;
                     break;
                 }
                 case ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER: {
@@ -2020,9 +2085,8 @@ static void WebGPUUpdateBindGroupLayouts(WebGPUContext* context, WebGPUProgram* 
                     program_resource_binding.m_DynamicOffsetIndex = info.m_UniformBufferCount;
 
                     info.m_UniformBufferCount++;
-                    info.m_UniformDataSize += res.m_BindingInfo.m_BlockSize;
+                    info.m_UniformDataSize        += res.m_BindingInfo.m_BlockSize;
                     info.m_UniformDataSizeAligned += DM_ALIGN(res.m_BindingInfo.m_BlockSize, ubo_alignment);
-                    info.m_TotalUniformCount += stage_type_infos[res.m_Type.m_TypeIndex].m_Members.Size();
                     break;
                 }
                 case ShaderResourceBinding::BINDING_FAMILY_GENERIC:
@@ -2070,13 +2134,12 @@ static void WebGPUUpdateProgramLayouts(WebGPUContext* context, WebGPUProgram* pr
     program->m_UniformBufferCount     = binding_info.m_UniformBufferCount;
     program->m_StorageBufferCount     = binding_info.m_StorageBufferCount;
     program->m_TextureSamplerCount    = binding_info.m_TextureCount;
-    program->m_TotalUniformCount      = binding_info.m_TotalUniformCount;
     program->m_TotalResourcesCount    = binding_info.m_UniformBufferCount + binding_info.m_TextureCount + binding_info.m_StorageBufferCount; // num actual descriptors
-    program->m_MaxSet                 = binding_info.m_MaxSet;
-    program->m_MaxBinding             = binding_info.m_MaxBinding;
+    program->m_BaseProgram.m_MaxSet     = binding_info.m_MaxSet;
+    program->m_BaseProgram.m_MaxBinding = binding_info.m_MaxBinding;
 
     // create bind group layout
-    for (int set = 0; set < program->m_MaxSet; ++set)
+    for (int set = 0; set < program->m_BaseProgram.m_MaxSet; ++set)
     {
         WGPUBindGroupLayoutDescriptor desc = {};
         WGPUBindGroupLayoutEntry entries[MAX_BINDINGS_PER_SET_COUNT];
@@ -2096,6 +2159,8 @@ static void WebGPUUpdateProgramLayouts(WebGPUContext* context, WebGPUProgram* pr
         desc.bindGroupLayoutCount         = binding_info.m_MaxSet;
         program->m_PipelineLayout         = wgpuDeviceCreatePipelineLayout(context->m_Device, &desc);
     }
+
+    BuildUniforms(&program->m_BaseProgram);
 }
 
 static void WebGPUCreateComputeProgram(WebGPUContext* context, WebGPUProgram* program, WebGPUShaderModule* compute_module)
@@ -2299,104 +2364,6 @@ static void WebGPUGetAttribute(HProgram _program, uint32_t index, dmhash_t* name
     *element_count = GetShaderTypeSize(attr.m_Type.m_ShaderType) / sizeof(float);
 }
 
-static uint32_t WebGPUGetUniformCount(HProgram _program)
-{
-    TRACE_CALL;
-    WebGPUProgram* program = (WebGPUProgram*)_program;
-    return program->m_TotalUniformCount;
-}
-
-static uint32_t WebGPUGetUniformName(HProgram _program, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size)
-{
-    TRACE_CALL;
-    WebGPUProgram* program = (WebGPUProgram*)_program;
-    uint32_t search_index  = 0;
-    for (int set = 0; set < program->m_MaxSet; ++set)
-    {
-        for (int binding = 0; binding < program->m_MaxBinding; ++binding)
-        {
-            ProgramResourceBinding& pgm_res = program->m_ResourceBindings[set][binding];
-            if (pgm_res.m_Res == NULL)
-                continue;
-
-            if (pgm_res.m_Res->m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_TEXTURE ||
-                pgm_res.m_Res->m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER)
-            {
-                if (search_index == index)
-                {
-                    ShaderResourceBinding* res = pgm_res.m_Res;
-                    *type                      = ShaderDataTypeToGraphicsType(res->m_Type.m_ShaderType);
-                    *size                      = 1;
-                    return (uint32_t)dmStrlCpy(buffer, res->m_Name, buffer_size);
-                }
-                search_index++;
-            }
-            else if (pgm_res.m_Res->m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER)
-            {
-                // TODO: Generic type lookup is not supported yet!
-                // We can only support one level of indirection here right now
-                assert(pgm_res.m_Res->m_Type.m_UseTypeIndex);
-                const dmArray<ShaderResourceTypeInfo>& type_infos = *pgm_res.m_TypeInfos;
-                const ShaderResourceTypeInfo& type_info           = type_infos[pgm_res.m_Res->m_Type.m_TypeIndex];
-
-                const uint32_t num_members = type_info.m_Members.Size();
-                for (int i = 0; i < num_members; ++i)
-                {
-                    if (search_index == index)
-                    {
-                        const ShaderResourceMember& member = type_info.m_Members[i];
-                        *type                              = ShaderDataTypeToGraphicsType(member.m_Type.m_ShaderType);
-                        *size                              = dmMath::Max((uint32_t)1, member.m_ElementCount);
-                        return (uint32_t)dmStrlCpy(buffer, member.m_Name, buffer_size);
-                    }
-                    search_index++;
-                }
-            }
-        }
-    }
-    return 0;
-}
-
-static HUniformLocation WebGPUGetUniformLocation(HProgram _program, const char* name)
-{
-    TRACE_CALL;
-    WebGPUProgram* program   = (WebGPUProgram*)_program;
-    const dmhash_t name_hash = dmHashString64(name);
-    for (int set = 0; set < program->m_MaxSet; ++set)
-    {
-        for (int binding = 0; binding < program->m_MaxBinding; ++binding)
-        {
-            ProgramResourceBinding& pgm_res = program->m_ResourceBindings[set][binding];
-            if (pgm_res.m_Res == NULL)
-                continue;
-
-            if (pgm_res.m_Res->m_NameHash == name_hash)
-            {
-                return set | binding << 16;
-            }
-            if (pgm_res.m_Res->m_Type.m_UseTypeIndex)
-            {
-                // TODO: Generic type lookup is not supported yet!
-                // We can only support one level of indirection here right now
-                const dmArray<ShaderResourceTypeInfo>& type_infos = *pgm_res.m_TypeInfos;
-                const ShaderResourceTypeInfo& type_info           = type_infos[pgm_res.m_Res->m_Type.m_TypeIndex];
-                const uint32_t num_members                        = type_info.m_Members.Size();
-                for (int i = 0; i < num_members; ++i)
-                {
-                    const ShaderResourceMember& member = type_info.m_Members[i];
-
-                    if (member.m_NameHash == name_hash)
-                    {
-                        return set | binding << 16 | ((uint64_t)i) << 32;
-                    }
-                }
-            }
-        }
-    }
-
-    return INVALID_UNIFORM_LOCATION;
-}
-
 static void WebGPUSetConstantV4(HContext _context, const Vector4* data, int count, HUniformLocation base_location)
 {
     TRACE_CALL;
@@ -2405,20 +2372,17 @@ static void WebGPUSetConstantV4(HContext _context, const Vector4* data, int coun
     assert(context->m_CurrentProgram);
     assert(base_location != INVALID_UNIFORM_LOCATION);
 
-    const uint32_t set     = UNIFORM_LOCATION_GET_VS(base_location);
-    const uint32_t binding = UNIFORM_LOCATION_GET_VS_MEMBER(base_location);
-    const uint32_t member  = UNIFORM_LOCATION_GET_FS(base_location);
+    const uint32_t set           = UNIFORM_LOCATION_GET_OP0(base_location);
+    const uint32_t binding       = UNIFORM_LOCATION_GET_OP1(base_location);
+    const uint32_t buffer_offset = UNIFORM_LOCATION_GET_OP2(base_location);
     assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
 
-    const ProgramResourceBinding& pgm_res   = context->m_CurrentProgram->m_ResourceBindings[set][binding];
-    const ShaderResourceTypeInfo& type_info = (*pgm_res.m_TypeInfos)[pgm_res.m_Res->m_Type.m_TypeIndex];
-    if (memcmp(context->m_CurrentProgram->m_UniformData + pgm_res.m_DataOffset + type_info.m_Members[member].m_Offset,
-               (uint8_t*)data,
-               sizeof(dmVMath::Vector4) * count))
+    const ProgramResourceBinding& pgm_res = context->m_CurrentProgram->m_BaseProgram.m_ResourceBindings[set][binding];
+    uint8_t* write_ptr = context->m_CurrentProgram->m_UniformData + pgm_res.m_DataOffset + buffer_offset;
+
+    if (memcpy(write_ptr, (uint8_t*) data, sizeof(dmVMath::Vector4) * count))
     {
-        memcpy(context->m_CurrentProgram->m_UniformData + pgm_res.m_DataOffset + type_info.m_Members[member].m_Offset,
-               (uint8_t*)data,
-               sizeof(dmVMath::Vector4) * count);
+        memcpy(write_ptr, (uint8_t*)data, sizeof(dmVMath::Vector4) * count);
         context->m_CurrentProgram->m_BindGroups[set] = NULL;
     }
 }
@@ -2431,20 +2395,17 @@ static void WebGPUSetConstantM4(HContext _context, const Vector4* data, int coun
     assert(context->m_CurrentProgram);
     assert(base_location != INVALID_UNIFORM_LOCATION);
 
-    const uint32_t set     = UNIFORM_LOCATION_GET_VS(base_location);
-    const uint32_t binding = UNIFORM_LOCATION_GET_VS_MEMBER(base_location);
-    const uint32_t member  = UNIFORM_LOCATION_GET_FS(base_location);
+    const uint32_t set           = UNIFORM_LOCATION_GET_OP0(base_location);
+    const uint32_t binding       = UNIFORM_LOCATION_GET_OP1(base_location);
+    const uint32_t buffer_offset = UNIFORM_LOCATION_GET_OP2(base_location);
     assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
 
-    const ProgramResourceBinding& pgm_res   = context->m_CurrentProgram->m_ResourceBindings[set][binding];
-    const ShaderResourceTypeInfo& type_info = (*pgm_res.m_TypeInfos)[pgm_res.m_Res->m_Type.m_TypeIndex];
-    if (memcmp(context->m_CurrentProgram->m_UniformData + pgm_res.m_DataOffset + type_info.m_Members[member].m_Offset,
-               (uint8_t*)data,
-               sizeof(dmVMath::Vector4) * 4 * count))
+    const ProgramResourceBinding& pgm_res = context->m_CurrentProgram->m_BaseProgram.m_ResourceBindings[set][binding];
+    uint8_t* write_ptr = context->m_CurrentProgram->m_UniformData + pgm_res.m_DataOffset + buffer_offset;
+
+    if (memcmp(write_ptr, (uint8_t*) data, sizeof(dmVMath::Vector4) * 4 * count))
     {
-        memcpy(context->m_CurrentProgram->m_UniformData + pgm_res.m_DataOffset + type_info.m_Members[member].m_Offset,
-               (uint8_t*)data,
-               sizeof(dmVMath::Vector4) * 4 * count);
+        memcpy(write_ptr, (uint8_t*) data, sizeof(dmVMath::Vector4) * 4 * count);
         context->m_CurrentProgram->m_BindGroups[set] = NULL;
     }
 }
@@ -2456,13 +2417,13 @@ static void WebGPUSetSampler(HContext _context, HUniformLocation location, int32
     assert(context->m_CurrentProgram);
     assert(location != INVALID_UNIFORM_LOCATION);
 
-    const uint32_t set     = UNIFORM_LOCATION_GET_VS(location);
-    const uint32_t binding = UNIFORM_LOCATION_GET_VS_MEMBER(location);
+    const uint32_t set     = UNIFORM_LOCATION_GET_OP0(location);
+    const uint32_t binding = UNIFORM_LOCATION_GET_OP1(location);
     assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
 
-    if (context->m_CurrentProgram->m_ResourceBindings[set][binding].m_TextureUnit != unit)
+    if (context->m_CurrentProgram->m_BaseProgram.m_ResourceBindings[set][binding].m_TextureUnit != unit)
     {
-        context->m_CurrentProgram->m_ResourceBindings[set][binding].m_TextureUnit = unit;
+        context->m_CurrentProgram->m_BaseProgram.m_ResourceBindings[set][binding].m_TextureUnit = unit;
         context->m_CurrentProgram->m_BindGroups[set]                              = NULL;
     }
 }
@@ -2470,7 +2431,7 @@ static void WebGPUSetSampler(HContext _context, HUniformLocation location, int32
 static bool WebGPUIsTextureFormatSupported(HContext context, TextureFormat format)
 {
     TRACE_CALL;
-    return (((WebGPUContext*)context)->m_TextureFormatSupport & (1 << format)) != 0;
+    return (((WebGPUContext*)context)->m_TextureFormatSupport & (1ULL << format)) != 0;
 }
 
 static uint32_t WebGPUGetMaxTextureSize(HContext context)
@@ -2580,16 +2541,16 @@ static void WebGPUEnableTexture(HContext _context, uint32_t unit, uint8_t id_ind
         context->m_CurrentTextureUnits[unit] = texture;
         if (context->m_CurrentProgram)
         {
-            for (int set = 0; set < context->m_CurrentProgram->m_MaxSet; ++set)
+            for (int set = 0; set < context->m_CurrentProgram->m_BaseProgram.m_MaxSet; ++set)
             {
                 if (!context->m_CurrentProgram->m_BindGroups[set])
                     continue;
-                for (int binding = 0; binding < context->m_CurrentProgram->m_MaxBinding; ++binding)
+                for (int binding = 0; binding < context->m_CurrentProgram->m_BaseProgram.m_MaxBinding; ++binding)
                 {
-                    ProgramResourceBinding& pgm_res = context->m_CurrentProgram->m_ResourceBindings[set][binding];
+                    ProgramResourceBinding& pgm_res = context->m_CurrentProgram->m_BaseProgram.m_ResourceBindings[set][binding];
                     if (pgm_res.m_Res == NULL)
                         continue;
-                    if (context->m_CurrentProgram->m_ResourceBindings[set][binding].m_TextureUnit == unit)
+                    if (context->m_CurrentProgram->m_BaseProgram.m_ResourceBindings[set][binding].m_TextureUnit == unit)
                     {
                         context->m_CurrentProgram->m_BindGroups[set] = NULL;
                         break;

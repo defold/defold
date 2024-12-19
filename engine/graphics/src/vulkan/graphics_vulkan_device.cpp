@@ -50,11 +50,6 @@ namespace dmGraphics
         memset(&m_Handle, 0, sizeof(m_Handle));
     }
 
-    Program::Program()
-    {
-        memset(this, 0, sizeof(*this));
-    }
-
     static inline VkFormat GetVertexAttributeFormat(Type type, uint16_t size, bool normalized)
     {
         if (type == TYPE_FLOAT)
@@ -315,7 +310,7 @@ namespace dmGraphics
         return RESOURCE_TYPE_TEXTURE;
     }
 
-    const VulkanResourceType Program::GetType()
+    const VulkanResourceType VulkanProgram::GetType()
     {
         return RESOURCE_TYPE_PROGRAM;
     }
@@ -1192,7 +1187,7 @@ bail:
         VK_COMPARE_OP_ALWAYS
     };
 
-    VkResult CreateComputePipeline(VkDevice vk_device, Program* program, Pipeline* pipelineOut)
+    VkResult CreateComputePipeline(VkDevice vk_device, VulkanProgram* program, Pipeline* pipelineOut)
     {
         assert(pipelineOut && *pipelineOut == VK_NULL_HANDLE);
 
@@ -1208,7 +1203,7 @@ bail:
     }
 
     VkResult CreateGraphicsPipeline(VkDevice vk_device, VkRect2D vk_scissor, VkSampleCountFlagBits vk_sample_count,
-        PipelineState pipelineState, Program* program, VertexDeclaration** vertexDeclarations, uint32_t vertexDeclarationCount,
+        PipelineState pipelineState, VulkanProgram* program, VertexDeclaration** vertexDeclarations, uint32_t vertexDeclarationCount,
         RenderTarget* render_target, Pipeline* pipelineOut)
     {
         assert(pipelineOut && *pipelineOut == VK_NULL_HANDLE);
@@ -1424,7 +1419,7 @@ bail:
         scratchBuffer->m_MappedDataCursor = 0;
     }
 
-    void DestroyProgram(VkDevice vk_device, Program::VulkanHandle* handle)
+    void DestroyProgram(VkDevice vk_device, VulkanProgram::VulkanHandle* handle)
     {
         assert(handle);
         if (handle->m_PipelineLayout != VK_NULL_HANDLE)

@@ -23,7 +23,6 @@ import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
 import java.util.Set;
 import java.util.HashSet;
-import java.util.zip.ZipFile;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -32,7 +31,6 @@ import org.apache.commons.io.IOUtils;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.archive.ArchiveEntry;
 import com.dynamo.bob.CompileExceptionError;
-import com.dynamo.bob.util.FileUtil;
 
 public class ZipPublisher extends Publisher {
 
@@ -69,7 +67,15 @@ public class ZipPublisher extends Publisher {
             if (this.filename != null) {
                 destZipName = this.filename;
             }
-            this.destZipFile = new File(this.getPublisherSettings().getZipFilepath(), destZipName);
+            PublisherSettings settings = this.getPublisherSettings();
+            String filename = settings.getZipFilename();
+            if (filename != null && !settings.getZipFilename().isEmpty()) {
+                destZipName = settings.getZipFilename();
+                if (!destZipName.endsWith(".zip")) {
+                    destZipName = destZipName + ".zip";
+                }
+            }
+            this.destZipFile = new File(settings.getZipFilepath(), destZipName);
             if (!destZipFile.isAbsolute())
             {
                 File cwd = new File(this.projectRoot);

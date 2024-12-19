@@ -125,8 +125,8 @@ namespace dmRender
 
     struct RenderConstant
     {
-        HConstant           m_Constant;
-        dmhash_t            m_ElementIds[4];
+        HConstant  m_Constant;
+        dmhash_t   m_ElementIdsName[4];
     };
 
     struct RenderContextParams
@@ -335,6 +335,8 @@ namespace dmRender
     HPredicate                      NewPredicate();
     void                            DeletePredicate(HPredicate predicate);
     Result                          AddPredicateTag(HPredicate predicate, dmhash_t tag);
+
+    HConstant                       NewConstant(dmhash_t name_hash);
 
     /** Buffered render buffers
      * A render buffer is a thin wrapper around vertex and index buffers that, depending on graphics context,

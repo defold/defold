@@ -57,7 +57,7 @@
                                (graphics/attribute-key->default-attribute-info)
                                (assoc :coordinate-space :coordinate-space-world))]
           vertex-description (graphics/make-vertex-description attribute-infos)
-          attribute-bytes (graphics/attribute-bytes-by-attribute-key node-id attribute-infos {})]
+          attribute-bytes (graphics/attribute-bytes-by-attribute-key node-id attribute-infos 0 {})]
       (testing "Sim sleeping"
                (is (plib/sleeping? sim))
                (plib/simulate sim 1/60 fetch-anim-fn transforms)

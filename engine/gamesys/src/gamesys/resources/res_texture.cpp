@@ -71,7 +71,6 @@ namespace dmGameSystem
             CASE_TF(RGBA_PVRTC_4BPPV1);
             CASE_TF(RGB_ETC1);
             CASE_TF(RGBA_ETC2);
-            CASE_TF(RGBA_ASTC_4x4);
             CASE_TF(RGB_BC1);
             CASE_TF(RGBA_BC3);
             CASE_TF(R_BC4);
@@ -85,6 +84,21 @@ namespace dmGameSystem
             CASE_TF(RG16F);
             CASE_TF(R32F);
             CASE_TF(RG32F);
+            // ASTC
+            CASE_TF(RGBA_ASTC_4x4);
+            CASE_TF(RGBA_ASTC_5x4);
+            CASE_TF(RGBA_ASTC_5x5);
+            CASE_TF(RGBA_ASTC_6x5);
+            CASE_TF(RGBA_ASTC_6x6);
+            CASE_TF(RGBA_ASTC_8x5);
+            CASE_TF(RGBA_ASTC_8x6);
+            CASE_TF(RGBA_ASTC_8x8);
+            CASE_TF(RGBA_ASTC_10x5);
+            CASE_TF(RGBA_ASTC_10x6);
+            CASE_TF(RGBA_ASTC_10x8);
+            CASE_TF(RGBA_ASTC_10x10);
+            CASE_TF(RGBA_ASTC_12x10);
+            CASE_TF(RGBA_ASTC_12x12);
             default: assert(0);
 #undef CASE_TF
         }
@@ -144,7 +158,8 @@ namespace dmGameSystem
                     continue;
                 }
             }
-            else if (!dmGraphics::IsTextureFormatSupported(context, original_format))
+
+            if (!dmGraphics::IsTextureFormatSupported(context, output_format))
             {
                 continue;
             }
@@ -257,11 +272,10 @@ namespace dmGameSystem
                         params.m_DataSize = image_desc->m_DecompressedDataSize[i];
                     }
 
-                    params.m_MipMap   = i;
-                    dmGraphics::SetTextureAsync(texture, params, 0, 0);
+                    params.m_MipMap = i;
+                    params.m_Width  = image->m_MipMapDimensions[i * 2];
+                    params.m_Height = image->m_MipMapDimensions[i * 2 + 1];
 
-                    params.m_Width >>= 1;
-                    params.m_Height >>= 1;
                     if (params.m_Width == 0)
                     {
                         params.m_Width = 1;
@@ -270,6 +284,8 @@ namespace dmGameSystem
                     {
                         params.m_Height = 1;
                     }
+
+                    dmGraphics::SetTextureAsync(texture, params, 0, 0);
                 }
             }
             break;

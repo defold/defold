@@ -392,22 +392,25 @@ namespace dmRender
         {
             RenderConstant& c = constants[i];
             dmhash_t constant_name_hash = GetConstantName(c.m_Constant);
+
             uint32_t num_values;
             dmVMath::Vector4* values = GetConstantValues(c.m_Constant, &num_values);
             (void)values;
+
             if (constant_name_hash == name_hash)
             {
-                *out_element_ids = c.m_ElementIds;
+                *out_element_ids = c.m_ElementIdsName;
                 *out_constant_id = constant_name_hash;
                 *out_array_size  = num_values;
                 return true;
             }
+
             for (uint32_t elem_i = 0; elem_i < 4; ++elem_i)
             {
-                if (c.m_ElementIds[elem_i] == name_hash)
+                if (c.m_ElementIdsName[elem_i] == name_hash)
                 {
-                    *out_element_index = elem_i;
                     *out_constant_id   = constant_name_hash;
+                    *out_element_index = elem_i;
                     *out_array_size    = num_values;
                     return true;
                 }
@@ -551,8 +554,7 @@ namespace dmRender
 
             if (graphics_attribute_in.m_Name != 0x0)
             {
-                dmStrlCpy(name_buffer, graphics_attribute_in.m_Name, name_buffer_size);
-                FillElementIds(name_buffer, name_buffer_size, material_attribute.m_ElementIds);
+                FillElementIds(graphics_attribute_in.m_Name, name_buffer, name_buffer_size, material_attribute.m_ElementIds);
             }
         }
 
