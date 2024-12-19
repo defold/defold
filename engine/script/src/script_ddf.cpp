@@ -576,34 +576,40 @@ namespace dmScript
         }
     }
 
-    void PushDDF(lua_State*L, const dmDDF::Descriptor* d, const char* data)
+    void PushDDFNoDecoder(lua_State* L, const dmDDF::Descriptor* d, const char* data, bool pointers_are_offsets)
     {
+        uintptr_t pointers_offset = 0;
+        if (pointers_are_offsets)
+            pointers_offset = (uintptr_t) data;
+
+        lua_newtable(L);
+        for (uint32_t i = 0; i < d->m_FieldCount; ++i)
+        {
+            const dmDDF::FieldDescriptor* f = &d->m_Fields[i];
+
+            lua_pushstring(L, f->m_Name);
+            DDFToLuaValue(L, &d->m_Fields[i], data, pointers_offset);
+            lua_rawset(L, -3);
+        }
+
+    }
+
+    void PushDDF(lua_State* L, const dmDDF::Descriptor* d, const char* data)
+    {
+        // TODO: Can/should we use the decoders here too?
         PushDDF(L, d, data, false);
     }
 
-    void PushDDF(lua_State*L, const dmDDF::Descriptor* d, const char* data, bool pointers_are_offsets)
+    void PushDDF(lua_State* L, const dmDDF::Descriptor* d, const char* data, bool pointers_are_offsets)
     {
         MessageDecoder* decoder = g_Decoders.Get((uintptr_t) d);
         if (decoder) {
-            Result r = (*decoder)(L, d, data);
+            Result r = (*decoder)(L, d, data); // May call PushDDFNoDecoder with different value on pointers_are_offsets
             if (r != RESULT_OK) {
                 luaL_error(L, "Failed to decode %s message (%d)", d->m_Name, r);
             }
         } else {
-            uintptr_t pointers_offset = 0;
-
-            if (pointers_are_offsets)
-                pointers_offset = (uintptr_t) data;
-
-            lua_newtable(L);
-            for (uint32_t i = 0; i < d->m_FieldCount; ++i)
-            {
-                const dmDDF::FieldDescriptor* f = &d->m_Fields[i];
-
-                lua_pushstring(L, f->m_Name);
-                DDFToLuaValue(L, &d->m_Fields[i], data, pointers_offset);
-                lua_rawset(L, -3);
-            }
+            PushDDFNoDecoder(L, d, data, pointers_are_offsets);
         }
     }
 
