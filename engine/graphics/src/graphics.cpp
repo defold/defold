@@ -1062,30 +1062,24 @@ namespace dmGraphics
         dmArray<Uniform>* uniforms = (dmArray<Uniform>*) user_data;
 
         Uniform uniform = {};
-        uniform.m_CanonicalName     = strdup(params.m_CanonicalName);
-        uniform.m_CanonicalNameHash = dmHashString64(uniform.m_CanonicalName);
 
         if (params.m_Member)
         {
             uint64_t buffer_offset = params.m_Member->m_Offset + params.m_BaseOffset;
-            uniform.m_Name         = params.m_Member->m_Name;
-            uniform.m_NameHash     = params.m_Member->m_NameHash;
+            uniform.m_Name         = strdup(params.m_CanonicalName);
+            uniform.m_NameHash     = dmHashString64(params.m_CanonicalName);
             uniform.m_Type         = ShaderDataTypeToGraphicsType(params.m_Member->m_Type.m_ShaderType);
             uniform.m_Count        = dmMath::Max((uint32_t) 1, params.m_Member->m_ElementCount);
             uniform.m_Location     = params.m_Resource->m_Res->m_Set | params.m_Resource->m_Res->m_Binding << 16 | buffer_offset << 32;
         }
         else
         {
-            uniform.m_Name     = params.m_Resource->m_Res->m_Name;
+            uniform.m_Name     = strdup(params.m_Resource->m_Res->m_Name);
             uniform.m_NameHash = dmHashString64(params.m_Resource->m_Res->m_Name);
             uniform.m_Type     = ShaderDataTypeToGraphicsType(params.m_Resource->m_Res->m_Type.m_ShaderType);
             uniform.m_Count    = 1;
             uniform.m_Location = params.m_Resource->m_Res->m_Set | params.m_Resource->m_Res->m_Binding << 16;
         }
-
-    #if 0
-        dmLogInfo("    Uniform: canonical_name=%s, name=%s", uniform.m_CanonicalName, uniform.m_Name);
-    #endif
 
         uniforms->Push(uniform);
     }
@@ -1227,11 +1221,14 @@ namespace dmGraphics
     {
         for (int i = 0; i < program->m_Uniforms.Size(); ++i)
         {
-            if (program->m_Uniforms[i].m_CanonicalName)
+            if (program->m_Uniforms[i].m_Name)
             {
-                free(program->m_Uniforms[i].m_CanonicalName);
+                free(program->m_Uniforms[i].m_Name);
             }
         }
+
+        program->m_Uniforms.SetCapacity(0);
+        program->m_Uniforms.SetSize(0);
     }
 
     void FillProgramResourceBindings(
@@ -1292,7 +1289,7 @@ namespace dmGraphics
                 info.m_MaxSet     = dmMath::Max(info.m_MaxSet, (uint32_t) (res.m_Set + 1));
                 info.m_MaxBinding = dmMath::Max(info.m_MaxBinding, (uint32_t) (res.m_Binding + 1));
 
-            #if 1
+            #if 0
                 dmLogInfo("    name=%s, set=%d, binding=%d, data_offset=%d, texture_unit=%d", res.m_Name, res.m_Set, res.m_Binding, program_resource_binding.m_DataOffset, program_resource_binding.m_TextureUnit);
             #endif
             }
@@ -1608,6 +1605,7 @@ namespace dmGraphics
     }
     void DeleteProgram(HContext context, HProgram program)
     {
+        DestroyProgram((Program*) program);
         g_functions.m_DeleteProgram(context, program);
     }
     bool ReloadVertexProgram(HVertexProgram prog, ShaderDesc* ddf)
@@ -1646,10 +1644,12 @@ namespace dmGraphics
     }
     bool ReloadProgram(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program)
     {
+        DestroyProgram((Program*) program);
         return g_functions.m_ReloadProgramGraphics(context, program, vert_program, frag_program);
     }
     bool ReloadProgram(HContext context, HProgram program, HComputeProgram compute_program)
     {
+        DestroyProgram((Program*) program);
         return g_functions.m_ReloadProgramCompute(context, program, compute_program);
     }
     bool ReloadComputeProgram(HComputeProgram prog, ShaderDesc* ddf)

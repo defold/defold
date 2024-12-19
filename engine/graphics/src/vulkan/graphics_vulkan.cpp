@@ -2714,15 +2714,12 @@ bail:
         }
 
         DestroyResourceDeferred(g_VulkanContext->m_MainResourcesToDestroy[g_VulkanContext->m_SwapChain->m_ImageIndex], program);
-
-        DestroyProgram(&program->m_BaseProgram);
     }
 
     static void VulkanDeleteProgram(HContext context, HProgram program)
     {
         assert(program);
         VulkanProgram* program_ptr = (VulkanProgram*) program;
-        DestroyProgram(context, program_ptr);
         delete program_ptr;
     }
 

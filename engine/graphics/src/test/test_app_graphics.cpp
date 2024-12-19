@@ -58,6 +58,22 @@ struct RunLoopParams
     EngineGetResultFn   m_EngineGetResult;
 };
 
+static dmGraphics::HUniformLocation GetUniformLocation(dmGraphics::HProgram program, const char* name)
+{
+    dmhash_t hash = dmHashString64(name);
+    for (int i = 0; i < dmGraphics::GetUniformCount(program); ++i)
+    {
+        dmGraphics::Uniform uniform;
+        dmGraphics::GetUniform(program, i, &uniform);
+
+        if (uniform.m_NameHash == hash)
+        {
+            return uniform.m_Location;
+        }
+    }
+    return dmGraphics::INVALID_UNIFORM_LOCATION;
+}
+
 // From engine_loop.cpp
 
 static int RunLoop(const RunLoopParams* params)

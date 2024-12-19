@@ -416,10 +416,8 @@ namespace dmGraphics
 
     struct Uniform
     {
-        char*            m_Name; // Global/short name, e.g "my_member"
+        char*            m_Name; // Name, e.g "my_member" or "some_struct.my_member"
         dmhash_t         m_NameHash;
-        char*            m_CanonicalName; // Full name, e.g "vsUniforms.some_struct.my_member"
-        dmhash_t         m_CanonicalNameHash;
         HUniformLocation m_Location;
         Type             m_Type;
         uint32_t         m_Count;

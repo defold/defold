@@ -2622,20 +2622,15 @@ static void LogFrameBufferError(GLenum status)
             }
 
             // These are temporary strings, we need copies of them.
-            char* base_uniform_name = GetBaseUniformName(uniform_name_buffer, uniform_name_length);
-            assert(base_uniform_name != 0);
-
             char* canonical_name = GetConstructedCanonicalName(canonical_paths_ctx, uniform_name_buffer, uniform_name_length, canonical_name_buffer, sizeof(canonical_name_buffer));
             assert(canonical_name != 0);
 
-            Uniform& uniform            = program->m_BaseProgram.m_Uniforms[i];
-            uniform.m_Name              = strdup(base_uniform_name);
-            uniform.m_NameHash          = dmHashString64(base_uniform_name);
-            uniform.m_CanonicalName     = strdup(canonical_name);
-            uniform.m_CanonicalNameHash = dmHashString64(canonical_name);
-            uniform.m_Location          = uniform_location;
-            uniform.m_Count             = uniform_size;
-            uniform.m_Type              = GetGraphicsType(uniform_type);
+            Uniform& uniform   = program->m_BaseProgram.m_Uniforms[i];
+            uniform.m_Name     = strdup(canonical_name);
+            uniform.m_NameHash = dmHashString64(canonical_name);
+            uniform.m_Location = uniform_location;
+            uniform.m_Count    = uniform_size;
+            uniform.m_Type     = GetGraphicsType(uniform_type);
 
         #if 0
             dmLogInfo("  Uniform[%d]: full-name: %s, canonical-name: %s", i, uniform_name_buffer, canonical_name);
@@ -2790,12 +2785,6 @@ static void LogFrameBufferError(GLenum status)
         OpenGLProgram* program_ptr = (OpenGLProgram*) program;
         glDeleteProgram(GetGLHandle(context, program_ptr->m_Id));
         CleanupGLHandle(context, program_ptr->m_Id);
-
-        for (int i = 0; i < program_ptr->m_BaseProgram.m_Uniforms.Size(); ++i)
-        {
-            free(program_ptr->m_BaseProgram.m_Uniforms[i].m_Name);
-            free(program_ptr->m_BaseProgram.m_Uniforms[i].m_CanonicalName);
-        }
 
         for (int i = 0; i < program_ptr->m_UniformBuffers.Size(); ++i)
         {

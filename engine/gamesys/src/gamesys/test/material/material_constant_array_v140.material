@@ -55,7 +55,7 @@ fragment_constants {
 }
 
 fragment_constants {
-  name: "leaf_value"
+  name: "nested.nested.leaf_value"
   type: CONSTANT_TYPE_USER
   value {
     x: 11.0

@@ -825,8 +825,6 @@ namespace dmGraphics
 
         delete[] program->m_UniformData;
 
-        DestroyProgram(&program->m_BaseProgram);
-
         delete program;
     }
 
@@ -1009,7 +1007,7 @@ namespace dmGraphics
         for (uint32_t i = 0; i < count; ++i)
         {
             Uniform& uniform = program->m_BaseProgram.m_Uniforms[i];
-            if (uniform.m_NameHash == name_hash || uniform.m_CanonicalNameHash == name_hash)
+            if (uniform.m_NameHash == name_hash)
             {
                 return &uniform;
             }

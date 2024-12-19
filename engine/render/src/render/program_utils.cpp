@@ -73,7 +73,7 @@ namespace dmRender
         uint32_t n = constants.Size();
         for (uint32_t i = 0; i < n; ++i)
         {
-            if (GetConstantName(constants[i].m_Constant) == name_hash || GetCanonicalConstantName(constants[i].m_Constant) == name_hash)
+            if (GetConstantName(constants[i].m_Constant) == name_hash)
             {
                 return &constants[i];
             }
@@ -200,11 +200,6 @@ namespace dmRender
             if (uniform_desc.m_Type == dmGraphics::TYPE_FLOAT_VEC4 || uniform_desc.m_Type == dmGraphics::TYPE_FLOAT_MAT4)
             {
                 constants_count++;
-
-                if (uniform_desc.m_NameHash != uniform_desc.m_CanonicalNameHash)
-                {
-                    constants_count++;
-                }
             }
             else if (dmGraphics::IsTypeTextureType(uniform_desc.m_Type))
             {
@@ -228,7 +223,6 @@ namespace dmRender
         uint32_t default_values_capacity = 0;
         dmVMath::Vector4* default_values = 0;
         uint32_t sampler_index = 0;
-        bool is_context_opengl = dmGraphics::GetInstalledAdapterFamily() == dmGraphics::ADAPTER_FAMILY_OPENGL;
 
         for (uint32_t i = 0; i < total_constants_count; ++i)
         {
@@ -259,14 +253,7 @@ namespace dmRender
 
             if (uniform_desc.m_Type == dmGraphics::TYPE_FLOAT_VEC4 || uniform_desc.m_Type == dmGraphics::TYPE_FLOAT_MAT4)
             {
-                // Add the full path to the lookup table.
-                // This is so that we can address nested structures in shaders.
-                if (uniform_desc.m_NameHash != uniform_desc.m_CanonicalNameHash)
-                {
-                    name_hash_to_location.Put(uniform_desc.m_CanonicalNameHash, uniform_desc.m_Location);
-                }
-
-                HConstant render_constant = dmRender::NewConstant(uniform_desc.m_NameHash, uniform_desc.m_CanonicalNameHash);
+                HConstant render_constant = dmRender::NewConstant(uniform_desc.m_NameHash);
                 dmRender::SetConstantLocation(render_constant, uniform_desc.m_Location);
 
                 if (uniform_desc.m_Type == dmGraphics::TYPE_FLOAT_MAT4)
@@ -291,14 +278,12 @@ namespace dmRender
                 if (uniform_desc.m_Type == dmGraphics::TYPE_FLOAT_VEC4)
                 {
                     FillElementIds(uniform_desc.m_Name, buffer, buffer_size, constant.m_ElementIdsName);
-                    FillElementIds(uniform_desc.m_CanonicalName, buffer, buffer_size, constant.m_ElementIdsCanonicalName);
                 }
                 else
                 {
                     // Clear element ids, otherwise we will compare against
                     // uninitialized values in GetMaterialProgramConstantInfo.
                     memset(constant.m_ElementIdsName, 0, sizeof(constant.m_ElementIdsName));
-                    memset(constant.m_ElementIdsCanonicalName, 0, sizeof(constant.m_ElementIdsCanonicalName));
                 }
                 constants.Push(constant);
             }

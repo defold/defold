@@ -93,9 +93,6 @@ local function test_single_nested()
     assert_constant(vmath.vector4(9,2,3,4), go.get("#constant_single_v140", "nested.tint"))
 
     -- The value is declared as nested.nested.leaf_value in the shader via two nested structs,
-    -- but is specified on a "global" level in the material. We can use either to search for it,
-    -- they should be identical!
-    assert_constant(vmath.vector4(1,3,3,7), go.get("#constant_single_v140", "leaf_value"))
     assert_constant(vmath.vector4(1,3,3,7), go.get("#constant_single_v140", "nested.nested.leaf_value"))
 
     -- The value is declared multiple times in the material file, but with different scope.
@@ -130,10 +127,7 @@ local function test_vector_nested()
     assert_constant_array({vmath.vector4(1,0,0,1),vmath.vector4(0,1,0,1)}, go.get("#constant_array_v140", "nested.tint"))
     assert_constant_array({vmath.vector4(1,0,0,1),vmath.vector4(0,1,0,1)}, go.get("#constant_array_v140", "nested.nested.tint"))
 
-    -- The value is declared as nested.nested.leaf_value in the shader via two nested structs,
-    -- but is specified on a "global" level in the material. We can use either to search for it,
-    -- they should be identical!
-    assert_constant(vmath.vector4(21,23,23,27), go.get("#constant_array_v140", "leaf_value", {index = 2}))
+    -- The value is declared as nested.nested.leaf_value in the shader via two nested structs
     assert_constant(vmath.vector4(21,23,23,27), go.get("#constant_array_v140", "nested.nested.leaf_value", {index = 2}))
 
     -- The value is declared multiple times in the material file, but with different scope.

@@ -353,12 +353,6 @@ static int FindRenderConstant(HComponentRenderConstants constants, dmhash_t name
         {
             return i;
         }
-
-        dmhash_t canonical_name_hash = GetCanonicalConstantName(constants->m_RenderConstants[i]);
-        if (canonical_name_hash == name_hash)
-        {
-            return i;
-        }
     }
     return -1;
 }

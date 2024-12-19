@@ -581,13 +581,8 @@ of GLSL strings and returns an object that satisfies GlBind and GlEnable."
             type (gl-uniform-type->uniform-type (aget out-type 0))
             count (aget out-count 0)
             ;; 1. strip brackets from uniform name, i.e "uniform_name[123]"
-            sanitized-name (string/replace name name-array-suffix-pattern "")
-            ;; 2. take the last part of the uniform name, in case it's
-            ;;    a uniform buffer so we can match it to constants.
-            ;;    I.e, "uniform_buffer.my_uniform" -> "my_uniform"
-            sanitized-name (last (string/split sanitized-name #"\."))]
+            sanitized-name (string/replace name name-array-suffix-pattern "")]
         {:name sanitized-name
-         :canonical-name name
          :index location
          :type type
          :count count}))))
@@ -612,7 +607,7 @@ of GLSL strings and returns an object that satisfies GlBind and GlEnable."
 
 (defn- strip-resource-namespace [uniform-info strip-resource-binding-namespace-regex]
   (if strip-resource-binding-namespace-regex
-    (assoc uniform-info :canonical-name (string/replace (:canonical-name uniform-info) strip-resource-binding-namespace-regex ""))
+    (assoc uniform-info :name (string/replace (:name uniform-info) strip-resource-binding-namespace-regex ""))
     uniform-info))
 
 (defn- make-shader-program [^GL2 gl [vertex-shader-source fragment-shader-source array-sampler-name->uniform-names strip-resource-binding-namespace-regex-str]]
@@ -632,10 +627,9 @@ of GLSL strings and returns an object that satisfies GlBind and GlEnable."
 
                 uniform-infos
                 (into {}
-                      (mapcat (fn [^long uniform-index]
-                                (let [uniform-info (strip-resource-namespace (uniform-info gl program uniform-index) strip-resource-binding-namespace-regex)]
-                                  [(pair (:name uniform-info) uniform-info)
-                                   (pair (:canonical-name uniform-info) uniform-info)])))
+                      (map (fn [^long uniform-index]
+                             (let [uniform-info (strip-resource-namespace (uniform-info gl program uniform-index) strip-resource-binding-namespace-regex)]
+                               [(:name uniform-info) uniform-info])))
                       (range (gl-shader-parameter gl program GL2/GL_ACTIVE_UNIFORMS)))
 
                 array-sampler-uniform-name?

@@ -256,7 +256,6 @@ namespace dmGraphics
     uint32_t             CountShaderResourceLeafMembers(const dmArray<ShaderResourceTypeInfo>& type_infos, ShaderResourceType type, uint32_t count = 0);
     void                 BuildUniforms(Program* program);
     void                 IterateUniforms(Program* program, bool prepend_instance_name, IterateUniformsCallback callback, void* user_data);
-    void                 DestroyProgram(Program* program);
 
     void FillProgramResourceBindings(Program& program,
         dmArray<ShaderResourceBinding>&       resources,

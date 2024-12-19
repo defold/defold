@@ -22,10 +22,9 @@ namespace dmRender
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 Constant::Constant() {}
-Constant::Constant(dmhash_t name_hash, dmhash_t canonical_name_hash, dmGraphics::HUniformLocation location)
+Constant::Constant(dmhash_t name_hash, dmGraphics::HUniformLocation location)
     : m_Values(0)
     , m_NameHash(name_hash)
-    , m_CanonicalNameHash(canonical_name_hash)
     , m_Type(dmRenderDDF::MaterialDesc::CONSTANT_TYPE_USER)
     , m_Location(location)
     , m_NumValues(0)
@@ -34,12 +33,7 @@ Constant::Constant(dmhash_t name_hash, dmhash_t canonical_name_hash, dmGraphics:
 
 HConstant NewConstant(dmhash_t name_hash)
 {
-    return new Constant(name_hash, 0, -1);
-}
-
-HConstant NewConstant(dmhash_t name_hash, dmhash_t canonical_name_hash)
-{
-    return new Constant(name_hash, canonical_name_hash, -1);
+    return new Constant(name_hash, -1);
 }
 
 void DeleteConstant(HConstant constant)
@@ -75,11 +69,6 @@ Result SetConstantValues(HConstant constant, dmVMath::Vector4* values, uint32_t 
 dmhash_t GetConstantName(HConstant constant)
 {
     return constant->m_NameHash;
-}
-
-dmhash_t GetCanonicalConstantName(HConstant constant)
-{
-    return constant->m_CanonicalNameHash;
 }
 
 void SetConstantName(HConstant constant, dmhash_t name)

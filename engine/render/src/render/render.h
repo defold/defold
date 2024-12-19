@@ -115,20 +115,18 @@ namespace dmRender
     {
         dmVMath::Vector4*                       m_Values;
         dmhash_t                                m_NameHash;
-        dmhash_t                                m_CanonicalNameHash;
         dmRenderDDF::MaterialDesc::ConstantType m_Type;         // TODO: Make this a uint16_t as well
         dmGraphics::HUniformLocation            m_Location;     // Vulkan encodes vs/fs location in the lower/upper bits
         uint16_t                                m_NumValues;
 
         Constant();
-        Constant(dmhash_t name_hash, dmhash_t canonical_name_hash, dmGraphics::HUniformLocation location);
+        Constant(dmhash_t name_hash, dmGraphics::HUniformLocation location);
     };
 
     struct RenderConstant
     {
         HConstant  m_Constant;
         dmhash_t   m_ElementIdsName[4];
-        dmhash_t   m_ElementIdsCanonicalName[4];
     };
 
     struct RenderContextParams
@@ -338,8 +336,7 @@ namespace dmRender
     void                            DeletePredicate(HPredicate predicate);
     Result                          AddPredicateTag(HPredicate predicate, dmhash_t tag);
 
-    HConstant                       NewConstant(dmhash_t name_hash, dmhash_t canonical_name_hash);
-    dmhash_t                        GetCanonicalConstantName(HConstant constant);
+    HConstant                       NewConstant(dmhash_t name_hash);
 
     /** Buffered render buffers
      * A render buffer is a thin wrapper around vertex and index buffers that, depending on graphics context,
