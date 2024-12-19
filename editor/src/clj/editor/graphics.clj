@@ -854,8 +854,8 @@
   {:pre [(keyword? name-key)]}
   (dissoc current-property-value name-key))
 
-(defn- attribute-key->property-key-raw [attribute-key]
-  (keyword (str "attribute_" (name attribute-key))))
+(defn- attribute-key->property-key-raw [attribute-key material-index]
+  (keyword (str "attribute_" material-index "_" (name attribute-key))))
 
 (def attribute-key->property-key (memoize attribute-key->property-key-raw))
 
@@ -881,7 +881,7 @@
     (first attribute-values) ; The widget expects a number, not a vector.
     (convert-double-values attribute-values semantic-type source-vector-type target-vector-type)))
 
-(defn attribute-property-entries [_node-id material-attribute-infos vertex-attribute-overrides]
+(defn attribute-property-entries [_node-id material-attribute-infos material-index vertex-attribute-overrides]
   (let [declared-material-attribute-key? (into #{} (map :name-key) material-attribute-infos)]
     (concat
       ;; Original and overridden vertex attributes with a match in the material.
@@ -900,7 +900,7 @@
                                              :semantic-type-color :vector-type-vec4
                                              (:vector-type material-attribute-info))
                       edit-type (attribute-override-property-edit-type material-attribute-info property-type)
-                      property-key (attribute-key->property-key attribute-key)
+                      property-key (attribute-key->property-key attribute-key material-index)
                       label (properties/keyword->name attribute-key)
                       value (attribute-property-value attribute-values property-type semantic-type attribute-values-vector-type property-vector-type)
                       error (when (some? override-values)
@@ -931,7 +931,7 @@
                                           :semantic-type semantic-type
                                           :vector-type vector-type}
                   property-type (attribute-property-type assumed-attribute-info)]]
-        [(attribute-key->property-key name-key)
+        [(attribute-key->property-key name-key material-index)
          {:node-id _node-id
           :value (attribute-property-value values property-type semantic-type vector-type vector-type)
           :label name
@@ -939,7 +939,7 @@
           :edit-type (attribute-override-property-edit-type assumed-attribute-info property-type)
           :original-value []}]))))
 
-(defn attribute-bytes-by-attribute-key [_node-id material-attribute-infos vertex-attribute-overrides]
+(defn attribute-bytes-by-attribute-key [_node-id material-attribute-infos material-index vertex-attribute-overrides]
   (let [vertex-attribute-bytes
         (into {}
               (map (fn [{:keys [name-key] :as attribute-info}]
@@ -955,7 +955,7 @@
                                                  [bytes error-message :as bytes+error-message] (attribute->bytes+error-message attribute-info converted-values)]
                                              (if (nil? error-message)
                                                bytes+error-message
-                                               (let [property-key (attribute-key->property-key name-key)
+                                               (let [property-key (attribute-key->property-key name-key material-index)
                                                      error (g/->error _node-id property-key :fatal override-values error-message)]
                                                  (pair bytes error)))))]
                        (pair name-key (or error bytes)))))
