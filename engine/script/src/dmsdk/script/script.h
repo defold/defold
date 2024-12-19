@@ -462,7 +462,7 @@ namespace dmScript
      * @param L [type: lua_State*] the Lua state
      * @param descriptor [type: const dmDDF::Descriptor*] field descriptor
      * @param data [type: const char*] the message data (i.e. the message struct)
-     * @param pointers_are_offets [type: bool] True if pointers are offsets
+     * @param pointers_are_offsets [type: bool] True if pointers are offsets
      */
     void PushDDF(lua_State*L, const dmDDF::Descriptor* descriptor, const char* data, bool pointers_are_offsets);
 
