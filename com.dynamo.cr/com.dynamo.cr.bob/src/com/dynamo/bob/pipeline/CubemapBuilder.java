@@ -74,7 +74,8 @@ public class CubemapBuilder extends ProtoBuilder<Cubemap.Builder> {
         TextureProfile texProfile = TextureUtil.getTextureProfileByPath(this.project.getTextureProfiles(), task.input(0).getPath());
         logger.fine("Compiling %s using profile %s", task.firstInput().getPath(), texProfile!=null?texProfile.getName():"<none>");
 
-        TextureImage[] textures = new TextureImage[6];
+        TextureGenerator.GenerateResult[] generateResults = new TextureGenerator.GenerateResult[6];
+
         try {
             for (int i = 0; i < 6; i++) {
                 ByteArrayInputStream is = new ByteArrayInputStream(task.input(i + 1).getContent());
@@ -89,19 +90,26 @@ public class CubemapBuilder extends ProtoBuilder<Cubemap.Builder> {
                 //    OpenGL behaviour of having the image origin in the lower left."
                 // Source: https://stackoverflow.com/a/11690553/129360
                 //
-                // So for cube map textures we don't flip on any axis, meaning the texture data begin at the
+                // So for cube map textures we don't flip on any axis, meaning the texture data begin in the
                 // upper left corner of the input image.
 
 
                 // NOTE: Setting the same input for more than one side will cause a NPE when generating!
-                TextureImage texture = TextureGenerator.generate(is, texProfile, compress, EnumSet.noneOf(Texc.FlipAxis.class));
-                textures[i] = texture;
+                generateResults[i] = TextureGenerator.generate(is, texProfile, compress, EnumSet.noneOf(Texc.FlipAxis.class));
             }
-            validate(task, textures);
 
-            TextureImage texture = TextureUtil.createCombinedTextureImage(textures, Type.TYPE_CUBEMAP);
+            // ??
+            // validate(task, textures);
+
+            TextureGenerator.GenerateResult cubeMapResult = TextureUtil.createCombinedTextureImage(generateResults, Type.TYPE_CUBEMAP);
+
             ByteArrayOutputStream out = new ByteArrayOutputStream(1024 * 1024);
-            texture.writeTo(out);
+
+            byte[] bytes = TextureUtil.generateResultToByteArray(cubeMapResult);
+            out.write(bytes);
+
+            // texture.writeTo(out);
+
             out.close();
             task.output(0).setContent(out.toByteArray());
         } catch (TextureGeneratorException e) {
