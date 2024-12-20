@@ -255,13 +255,13 @@ public class TextureUtil {
 
                 for (int k = 0; k < numTextures; k++) {
                     int mipSize = generateResults[k].textureImage.getAlternatives(i).getMipMapSize(j);
+                    alternativeImageBuilder.addMipMapSizeCompressed(mipSize);
 
                     ArrayList<byte[]> textureBytes = generateResults[k].imageDatas;
                     int byteIndex = getTextureGenerateResultByteIndex(generateResults[k].textureImage, i, j);
                     byte[] mipBytes = textureBytes.get(byteIndex);
 
                     resultOut.imageDatas.add(mipBytes);
-
                     byteSize += mipSize;
                 }
             }

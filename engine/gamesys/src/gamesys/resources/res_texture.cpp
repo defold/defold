@@ -139,12 +139,15 @@ namespace dmGameSystem
     {
         DM_PROFILE_DYN(path, 0);
 
+        uint32_t alternative_offset = 0;
         dmResource::Result result = dmResource::RESULT_FORMAT_ERROR;
         for (uint32_t i = 0; i < image_desc->m_DDFImage->m_Alternatives.m_Count; ++i)
         {
             dmGraphics::TextureImage::Image* image    = &image_desc->m_DDFImage->m_Alternatives[i];
             dmGraphics::TextureFormat original_format = TextureImageToTextureFormat(image->m_Format);
             dmGraphics::TextureFormat output_format   = original_format;
+            uint8_t* image_data_alternative           = image_desc->m_DDFImageBytes + alternative_offset;
+            alternative_offset                       += image->m_DataSize;
             uint32_t num_mips                         = image->m_MipMapOffset.m_Count;
             bool specific_mip_requested               = upload_params.m_UploadSpecificMipmap;
 
@@ -153,7 +156,7 @@ namespace dmGameSystem
                 num_mips = MAX_MIPMAP_COUNT;
                 output_format = dmGraphics::GetSupportedCompressionFormat(context, output_format, image->m_Width, image->m_Height);
 
-                if (!dmGraphics::Transcode(path, image, image_desc->m_DDFImage->m_Count, image_desc->m_DDFImageBytes, output_format, image_desc->m_DecompressedData, image_desc->m_DecompressedDataSize, &num_mips))
+                if (!dmGraphics::Transcode(path, image, image_desc->m_DDFImage->m_Count, image_data_alternative, output_format, image_desc->m_DecompressedData, image_desc->m_DecompressedDataSize, &num_mips))
                 {
                     dmLogError("Failed to transcode %s", path);
                     continue;
@@ -248,7 +251,7 @@ namespace dmGameSystem
             {
                 if (image_desc->m_DecompressedData[0] == 0)
                 {
-                    params.m_Data     = &image_desc->m_DDFImageBytes[image->m_MipMapOffset[0]];
+                    params.m_Data     = &image_data_alternative[image->m_MipMapOffset[0]];
                     params.m_DataSize = image->m_MipMapSize[0];
                 }
                 else
@@ -264,7 +267,7 @@ namespace dmGameSystem
                 {
                     if (image_desc->m_DecompressedData[i] == 0)
                     {
-                        params.m_Data     = &image_desc->m_DDFImageBytes[image->m_MipMapOffset[i]];
+                        params.m_Data     = &image_data_alternative[image->m_MipMapOffset[i]];
                         params.m_DataSize = image->m_MipMapSize[i];
                     }
                     else
