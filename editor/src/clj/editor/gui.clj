@@ -3325,14 +3325,11 @@
           (g/fnk [aux-basic-gui-scene-info own-basic-gui-scene-info]
             ;; Note: The layer configurations of any template sources are
             ;; covered up by the layer configuration of the referencing scene.
-            (coll/merge-entries-with
-              (fn [[key :as aux-entry] own-entry]
+            (coll/merge-with-kv
+              (fn [key aux-value own-value]
                 (case key
-                  (:layer->index :layer-names) aux-entry ; Covered, not merged.
-                  (let [aux-value (val aux-entry)
-                        own-value (val own-entry)
-                        value (coll/merge aux-value own-value)]
-                    (pair key value))))
+                  (:layer->index :layer-names) aux-value ; Covered, not merged.
+                  (coll/merge aux-value own-value)))
               aux-basic-gui-scene-info
               own-basic-gui-scene-info)))
 

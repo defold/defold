@@ -259,9 +259,9 @@
            (merge-with f a b)
            maps)))
 
-(defn merge-entries-with
-  "Similar to merge-with, but the conflict function is called with the
-  conflicting MapEntries instead of the values."
+(defn merge-with-kv
+  "Similar to merge-with, but the conflict function is called with three
+  arguments: The key, the value, and the conflicting value."
   ([_f] nil)
   ([_f a] a)
   ([f a b]
@@ -270,31 +270,25 @@
      (empty? b) a
 
      :else
-     (letfn [(merged-entry [b-key b-entry]
-               (if-let [a-entry (find a b-key)]
-                 (let [merged-entry (f a-entry b-entry)]
-                   (assert (map-entry? merged-entry))
-                   (when-not (identical? a-entry merged-entry)
-                     merged-entry))
-                 b-entry))]
+     (letfn [(merged-value [b-key b-value]
+               (let [a-value (get a b-key ::not-found)]
+                 (case a-value
+                   ::not-found b-value
+                   (f b-key a-value b-value))))]
        (if (supports-transient? a)
-         (-> (reduce (fn [result [b-key :as b-entry]]
-                       (if-let [merged-entry (merged-entry b-key b-entry)]
-                         (assoc! result b-key (val merged-entry))
-                         result))
+         (-> (reduce (fn [result [b-key b-value]]
+                       (assoc! result b-key (merged-value b-key b-value)))
                      (transient a)
                      b)
              (persistent!)
              (with-meta (meta a)))
-         (reduce (fn [result [b-key :as b-entry]]
-                   (if-let [merged-entry (merged-entry b-key b-entry)]
-                     (assoc result b-key (val merged-entry))
-                     result))
+         (reduce (fn [result [b-key b-value]]
+                   (assoc result b-key (merged-value b-key b-value)))
                  a
                  b)))))
   ([f a b & maps]
-   (reduce #(merge-with f %1 %2)
-           (merge-with f a b)
+   (reduce #(merge-with-kv f %1 %2)
+           (merge-with-kv f a b)
            maps)))
 
 (defn deep-merge
