@@ -98,32 +98,25 @@ public class CubemapBuilder extends ProtoBuilder<Cubemap.Builder> {
                 generateResults[i] = TextureGenerator.generate(is, texProfile, compress, EnumSet.noneOf(Texc.FlipAxis.class));
             }
 
-            // ??
-            // validate(task, textures);
+            validate(task, generateResults);
 
             TextureGenerator.GenerateResult cubeMapResult = TextureUtil.createCombinedTextureImage(generateResults, Type.TYPE_CUBEMAP);
 
-            ByteArrayOutputStream out = new ByteArrayOutputStream(1024 * 1024);
-
+            assert cubeMapResult != null;
             byte[] bytes = TextureUtil.generateResultToByteArray(cubeMapResult);
-            out.write(bytes);
-
-            // texture.writeTo(out);
-
-            out.close();
-            task.output(0).setContent(out.toByteArray());
+            task.output(0).setContent(bytes);
         } catch (TextureGeneratorException e) {
             throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
         }
     }
 
-    private void validate(Task task, TextureImage[] textures) throws CompileExceptionError {
+    private void validate(Task task, TextureGenerator.GenerateResult[] generateResults) throws CompileExceptionError {
         for (int i = 1; i < 6; i++) {
-            TextureImage t = textures[i];
+            TextureImage t = generateResults[i].textureImage;
             for (int j = 0; j < t.getAlternativesCount(); j++) {
                 Image im = t.getAlternatives(j);
 
-                Image compareTo = textures[0].getAlternatives(j);
+                Image compareTo = generateResults[0].textureImage.getAlternatives(j);
                 if (im.getWidth() != compareTo.getWidth() || im.getHeight() != compareTo.getHeight()) {
                     throw new CompileExceptionError(task.input(0), -1, "Cubemap sides must be of identical size", null);
                 }

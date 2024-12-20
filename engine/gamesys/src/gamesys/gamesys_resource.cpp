@@ -105,10 +105,13 @@ namespace dmGameSystem
             delete[] image.m_MipMapSize.m_Data;
             delete[] image.m_MipMapSizeCompressed.m_Data;
             delete[] image.m_MipMapDimensions.m_Data;
-            //if (destroy_image_data)
-            //    delete[] image.m_Data.m_Data;
         }
         delete[] texture_image.m_Alternatives.m_Data;
+
+        if (destroy_image_data)
+        {
+            delete[] (uint8_t*) texture_image.m_ImageDataAddress;
+        }
     }
 
     void FillTextureResourceBuffer(const dmGraphics::TextureImage* texture_image, dmArray<uint8_t>& texture_resource_buffer)

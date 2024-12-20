@@ -143,10 +143,6 @@ public class AtlasBuilder extends ProtoBuilder<Atlas.Builder> {
         String textureOutPath    = args[2];
         String baseDir           = args[3];
 
-        System.out.println("AtlasBuilder");
-        System.out.println(atlasInPath);
-        System.out.println(textureOutPath);
-
         final File inFile           = new File(atlasInPath);
         FileInputStream inputStream = new FileInputStream(inFile);
         InputStreamReader reader    = new InputStreamReader(inputStream);

@@ -248,7 +248,7 @@ namespace dmGameSystem
             {
                 if (image_desc->m_DecompressedData[0] == 0)
                 {
-                    params.m_Data     = &image_desc->m_DDFImageBytes[image->m_MipMapOffset[0]]; // &image->m_Data[image->m_MipMapOffset[0]];
+                    params.m_Data     = &image_desc->m_DDFImageBytes[image->m_MipMapOffset[0]];
                     params.m_DataSize = image->m_MipMapSize[0];
                 }
                 else

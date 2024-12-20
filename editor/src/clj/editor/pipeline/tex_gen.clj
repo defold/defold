@@ -90,11 +90,8 @@
     (util/map-vals #(TextureGenerator/generate ^BufferedImage % texture-profile-data ^boolean compress? flip-axis)
                    images)))
 
-(def my-atom (atom 0))
-
 (defn assemble-texture-images
   ^TextureGenerator$GenerateResult [texture-generator-results max-page-count]
-  (reset! my-atom texture-generator-results)
   (let [texture-type (if (pos? max-page-count)
                        Graphics$TextureImage$Type/TYPE_2D_ARRAY
                        Graphics$TextureImage$Type/TYPE_2D)]
