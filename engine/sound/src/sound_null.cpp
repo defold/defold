@@ -35,7 +35,8 @@ namespace dmSound
 
         // make sure it's the same size for both 32/64 bit. Makes it easier for tests
         #if defined(DM_PLATFORM_32BIT)
-        uint64_t _pad;
+        uint64_t _pad1;
+        uint64_t _pad2;
         #endif
     };
 

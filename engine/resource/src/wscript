@@ -38,6 +38,7 @@ def build(bld):
 
     bld.install_files('${PREFIX}/include/resource', 'resource.h')
     bld.install_files('${PREFIX}/include/resource', 'resource_archive.h')
+    bld.install_files('${PREFIX}/include/resource', 'resource_chunk_cache.h')
     bld.install_files('${PREFIX}/include/resource', 'resource_manifest.h')
     bld.install_files('${PREFIX}/include/resource', 'resource_mounts.h')
     bld.install_files('${PREFIX}/include/resource', 'resource_util.h')

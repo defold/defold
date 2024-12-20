@@ -17,6 +17,7 @@
 #include <dlib/mutex.h>
 #include <sound/sound.h>
 #include <resource/resource.h>
+#include <resource/resource_chunk_cache.h>
 #include "res_sound_data.h"
 
 #include <stdio.h> // printf
@@ -28,7 +29,9 @@ namespace dmGameSystem
 
     struct SoundDataContext
     {
-        dmMutex::HMutex m_Mutex;
+        dmMutex::HMutex         m_Mutex;
+        dmResource::HFactory    m_Factory;
+        HResourceChunkCache     m_Cache;
 
         // The cache size for all streaming sounds
         uint32_t m_CacheSize;
@@ -36,25 +39,17 @@ namespace dmGameSystem
         uint32_t m_ChunkSize;
     };
 
-    struct SoundDataChunk
-    {
-        uint8_t* m_Data;
-        uint32_t m_Size;
-        uint32_t m_Offset; // Offset into the file
-    };
-
     struct SoundDataResource
     {
-        dmSound::HSoundData       m_SoundData;
-        dmSound::SoundDataType    m_Type;
+        dmSound::HSoundData     m_SoundData;
+        dmSound::SoundDataType  m_Type;
 
         // For the streaming
-        SoundDataContext*         m_Context; // the global context for .oggc and .wavc respectively
-        dmResource::HFactory      m_Factory;
-        dmArray<SoundDataChunk*>  m_Chunks;
-        const char*               m_Path;
-        uint32_t                  m_FileSize:31;
-        uint32_t                  m_RequestInFlight:1;        // Have we already requested the next chunk?
+        SoundDataContext*       m_Context;
+        const char*             m_Path;
+        dmhash_t                m_PathHash;
+        uint32_t                m_FileSize:31;
+        uint32_t                m_RequestInFlight:1;        // Have we already requested the next chunk?
     };
 
     static SoundDataContext* g_SoundDataContext = 0;
@@ -105,69 +100,33 @@ namespace dmGameSystem
         dmSound::SetSoundDataCallback(resource->m_SoundData, 0, 0);
         dmSound::Result r = dmSound::DeleteSoundData(resource->m_SoundData);
 
+        if (resource->m_Context->m_Cache)
+            ResourceChunkCacheEvictPathHash(resource->m_Context->m_Cache, resource->m_PathHash);
+
         free((void*)resource->m_Path);
         delete resource;
 
         return dmSound::RESULT_OK == r ? dmResource::RESULT_OK : dmResource::RESULT_INVAL;
     }
 
-    static SoundDataChunk* AllocChunk(uint8_t* data, uint32_t data_size, uint32_t offset)
+    // Find the first chunk that contains the offset
+    static ResourceCacheChunk* FindChunk(SoundDataResource* resource, uint32_t offset, ResourceCacheChunk* out)
     {
-        SoundDataChunk* chunk = new SoundDataChunk;
-        chunk->m_Size   = data_size;
-        chunk->m_Offset = offset;
-        chunk->m_Data = new uint8_t[data_size];
-        memcpy(chunk->m_Data, data, data_size);
-        return chunk;
+        bool result = ResourceChunkCacheGet(resource->m_Context->m_Cache, resource->m_PathHash, offset, out);
+        return result ? out : 0;
     }
 
-    static void FreeChunk(SoundDataChunk* chunk)
+    static void AddChunk(HResourceChunkCache cache, dmhash_t path_hash, uint8_t* data, uint32_t size, uint32_t offset)
     {
-        delete chunk->m_Data;
-        delete chunk;
-    }
-
-    static void DebugChunks(SoundDataResource* resource)
-    {
-        uint32_t num_chunks = resource->m_Chunks.Size();
-        printf("NUM CHUNKS: %u\n", num_chunks);
-        for (uint32_t i = 0; i < num_chunks; ++i)
+        if (!ResourceChunkCacheCanFit(cache, size))
         {
-            SoundDataChunk* chunk = resource->m_Chunks[i];
-            assert(chunk != 0);
-            printf("  chunk %u: offset: %u  size: %u\n", i, chunk->m_Offset, chunk->m_Size);
+            ResourceChunkCacheEvictMemory(cache, size);
         }
-    }
-
-    static void InsertChunk(SoundDataResource* resource, SoundDataChunk* chunk)
-    {
-        uint32_t offset = chunk->m_Offset;
-        uint32_t num_chunks = resource->m_Chunks.Size();
-
-        if (resource->m_Chunks.Full())
-            resource->m_Chunks.OffsetCapacity(2);
-
-        //printf("INSERT chunk: offset: %u  size: %u\n", chunk->m_Offset, chunk->m_Size);
-
-        for (uint32_t i = 0; i < num_chunks; ++i)
-        {
-            SoundDataChunk* c = resource->m_Chunks[i];
-            if (offset < c->m_Offset)
-            {
-                // Insert the chunk into the array
-                memmove(resource->m_Chunks.Begin()+i, resource->m_Chunks.Begin()+i+1, (num_chunks - i) * sizeof(SoundDataChunk*));
-                resource->m_Chunks[i] = chunk;
-                resource->m_Chunks.SetSize(num_chunks+1);
-                return;
-            }
-        }
-
-        // it was the first entry
-        resource->m_Chunks.Push(chunk);
-    }
-
-    static void PruneChunks(SoundDataResource* resource, uint32_t time)
-    {
+        ResourceCacheChunk chunk;
+        chunk.m_Data = data,
+        chunk.m_Size = size,
+        chunk.m_Offset = offset;
+        ResourceChunkCachePut(cache, path_hash, &chunk);
     }
 
     // Called from the main or resource preloader thread
@@ -177,33 +136,9 @@ namespace dmGameSystem
         DM_MUTEX_SCOPED_LOCK(resource->m_Context->m_Mutex);
 
         //printf("%s: offset: %u  size: %u  %s\n", __FUNCTION__, offset, nread, resource->m_Path);
-
-        SoundDataChunk* chunk = AllocChunk(buffer, nread, offset);
-        InsertChunk(resource, chunk);
-        //DebugChunks(resource);
+        AddChunk(resource->m_Context->m_Cache, resource->m_PathHash, buffer, nread, offset);
         resource->m_RequestInFlight = 0;
         return 1;
-    }
-
-    // Find the first chunk that contains the offset
-    static SoundDataChunk* FindChunk(SoundDataResource* resource, uint32_t offset)
-    {
-        uint32_t num_chunks = resource->m_Chunks.Size();
-        for (uint32_t i = 0; i < num_chunks; ++i)
-        {
-            SoundDataChunk* chunk = resource->m_Chunks[i];
-
-            if (offset < chunk->m_Offset)
-            {
-                // We currently don't have the chunk in question, and need to request it
-                return 0;
-            }
-            else if (offset < (chunk->m_Offset + chunk->m_Size))
-            {
-                return chunk;
-            }
-        }
-        return 0;
     }
 
     // Called from the Sound thread
@@ -225,7 +160,8 @@ namespace dmGameSystem
         uint32_t request_size   = g_SoundDataContext->m_ChunkSize;
         uint32_t request_offset = uint32_t(offset / request_size) * request_size;
 
-        SoundDataChunk* chunk = FindChunk(resource, offset);
+        ResourceCacheChunk tmp = {0};
+        ResourceCacheChunk* chunk = FindChunk(resource, offset, &tmp);
         while (chunk)
         {
             uint32_t chunk_size = chunk->m_Size;
@@ -242,7 +178,7 @@ namespace dmGameSystem
             offset          += to_read;
 
             if (bytes_to_read > 0)
-                chunk = FindChunk(resource, offset);
+                chunk = FindChunk(resource, offset, &tmp);
             else
                 chunk = 0;
         }
@@ -257,7 +193,7 @@ namespace dmGameSystem
             request_offset = 0;
         }
 
-        SoundDataChunk* next_chunk = FindChunk(resource, next_chunk_offset);
+        ResourceCacheChunk* next_chunk = FindChunk(resource, next_chunk_offset, &tmp);
         if (next_chunk && next_chunk->m_Offset != next_chunk_offset)
         {
             next_chunk = 0; // we're actually missing the next chunk. Let's trigger a pre fetch
@@ -290,7 +226,7 @@ namespace dmGameSystem
         if (next_chunk == 0 && !resource->m_RequestInFlight)
         {
             resource->m_RequestInFlight = 1;
-            dmResource::PreloadData(resource->m_Factory, resource->m_Path, request_offset, request_size, StreamingPreloadCallback, (void*)resource);
+            dmResource::PreloadData(resource->m_Context->m_Factory, resource->m_Path, request_offset, request_size, StreamingPreloadCallback, (void*)resource);
         }
 
         return result;
@@ -308,21 +244,31 @@ namespace dmGameSystem
             type = dmSound::SOUND_DATA_TYPE_OGG_VORBIS;
         }
 
+        SoundDataContext* context = (SoundDataContext*)ResourceTypeGetContext(params->m_Type);
+        // Until we have a way to get the factory at the time of type creation
+        if (!context->m_Factory)
+        {
+            context->m_Factory = params->m_Factory;
+        }
+
         SoundDataResource* sound_data_res = new SoundDataResource();
         sound_data_res->m_Path = strdup(params->m_Filename);
+        sound_data_res->m_PathHash = ResourceDescriptorGetNameHash(params->m_Resource);
         sound_data_res->m_FileSize = params->m_FileSize;
-        sound_data_res->m_Factory = params->m_Factory;
         sound_data_res->m_RequestInFlight = 0;
-        sound_data_res->m_Context = (SoundDataContext*)ResourceTypeGetContext(params->m_Type);
+        sound_data_res->m_Context = context;
 
 //printf("MAWE: sound: '%s'  partial: %d  initial: %u %p\n", params->m_Filename, params->m_IsBufferPartial, params->m_BufferSize, sound_data_res);
 
         dmSound::Result r;
         if (params->m_IsBufferPartial)
         {
-            SoundDataChunk* chunk = AllocChunk((uint8_t*)params->m_Buffer, params->m_BufferSize, 0);
-            InsertChunk(sound_data_res, chunk);
-            //DebugChunks(sound_data_res);
+            if (!context->m_Cache)
+            {
+                context->m_Cache = ResourceChunkCacheCreate(context->m_CacheSize);
+            }
+
+            AddChunk(context->m_Cache, sound_data_res->m_PathHash, (uint8_t*)params->m_Buffer, params->m_BufferSize, 0);
 
             r = dmSound::NewSoundDataStreaming(SoundDataReadCallback, sound_data_res, type, &sound_data, dmResource::GetNameHash(params->m_Resource));
         }
@@ -378,12 +324,21 @@ namespace dmGameSystem
 
     static ResourceResult ResourceTypeSoundData_Register(HResourceTypeContext ctx, HResourceType type)
     {
-        SoundDataContext* context = new SoundDataContext;
-        context->m_Mutex = dmMutex::New();
-        context->m_CacheSize = SOUNDDATA_DEFAULT_CACHE_SIZE;
-        context->m_ChunkSize = SOUNDDATA_DEFAULT_CHUNK_SIZE;
+        // This function is called once for each file type
+        // But we only want to create one global chunk cache
+        if (g_SoundDataContext == 0)
+        {
+            SoundDataContext* context = new SoundDataContext;
+            memset(context, 0, sizeof(*context));
+            context->m_Mutex     = dmMutex::New();
+            context->m_CacheSize = SOUNDDATA_DEFAULT_CACHE_SIZE;
+            context->m_ChunkSize = SOUNDDATA_DEFAULT_CHUNK_SIZE;
+            context->m_Cache     = 0;
 
-        g_SoundDataContext = context;
+            g_SoundDataContext = context;
+        }
+        SoundDataContext* context = g_SoundDataContext;
+
         return (ResourceResult)dmResource::SetupType(ctx,
                                                        type,
                                                        context,
@@ -396,11 +351,13 @@ namespace dmGameSystem
 
     static ResourceResult ResourceTypeSoundData_Deregister(HResourceTypeContext ctx, HResourceType type)
     {
+        if (g_SoundDataContext)
+        {
+            if (g_SoundDataContext->m_Mutex)
+                dmMutex::Delete(g_SoundDataContext->m_Mutex);
+            delete g_SoundDataContext;
+        }
         g_SoundDataContext = 0;
-        SoundDataContext* context = (SoundDataContext*)ResourceTypeGetContext(type);
-        if (context->m_Mutex)
-            dmMutex::Delete(context->m_Mutex);
-        delete context;
         return RESOURCE_RESULT_OK;
     }
 }
