@@ -173,7 +173,13 @@ public class TextureGeneratorTest {
             offset += size;
             ++i;
         }
-        assertEquals(offset, result.imageDatas.get(0).length);
+
+        int resultLength = 0;
+        for (byte[] bytes : result.imageDatas) {
+            resultLength += bytes.length;
+        }
+
+        assertEquals(offset, resultLength);
     }
 
     @Test

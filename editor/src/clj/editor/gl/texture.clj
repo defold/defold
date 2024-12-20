@@ -242,14 +242,11 @@ If supplied, the unit is the offset of GL_TEXTURE0, i.e. 0 => GL_TEXTURE0. The d
   (first (filter #(format->gl-format (.getFormat ^Graphics$TextureImage$Image %))
                  (.getAlternativesList texture-image))))
 
-(def my-atom (atom 0))
-
 (defn- image->mipmap-buffers
   ^"[Ljava.nio.Buffer;" [^Graphics$TextureImage$Image image image-bytes]
-  (assert (= (.getMipMapSizeCount image) (.getMipMapOffsetCount image)))
+  (assert (= (.getMipMapSizeCount image) (.getMipMapOffsetCount image) (count image-bytes)))
   (let [mipmap-count (.getMipMapSizeCount image)
         ^"[Ljava.nio.Buffer;" bufs (make-array Buffer mipmap-count)]
-    (reset! my-atom image-bytes)
     (loop [i 0]
       (if (< i mipmap-count)
         (let [buf (ByteBuffer/wrap (nth image-bytes i))]

@@ -217,6 +217,17 @@ public class TextureUtil {
         return null;
     }
 
+    private static int getTextureGenerateResultByteIndex(TextureImage textureImage, int alternative, int mipMap) throws TextureGeneratorException {
+        int mipMapOffset = 0;
+        for (int i=0; i < textureImage.getAlternativesCount(); i++) {
+            if (i == alternative) {
+                return mipMapOffset + mipMap;
+            }
+            mipMapOffset += textureImage.getAlternatives(i).getMipMapOffsetCount();
+        }
+        throw new TextureGeneratorException("Invalid parameters");
+    }
+
     public static TextureGenerator.GenerateResult createCombinedTextureImage(TextureGenerator.GenerateResult[] generateResults, TextureImage.Type type) throws TextureGeneratorException {
         int numTextures = generateResults.length;
         if (numTextures == 0) {
@@ -244,32 +255,18 @@ public class TextureUtil {
 
                 for (int k = 0; k < numTextures; k++) {
                     int mipSize = generateResults[k].textureImage.getAlternatives(i).getMipMapSize(j);
+
                     ArrayList<byte[]> textureBytes = generateResults[k].imageDatas;
-                    byte[] mipBytes = textureBytes.get(i);
+                    int byteIndex = getTextureGenerateResultByteIndex(generateResults[k].textureImage, i, j);
+                    byte[] mipBytes = textureBytes.get(byteIndex);
 
-                    //resultOut.imageDatas.add(mipBytes);
-                    //byteSize += mipBytes.length;
-
-                    // ByteString data = textures[k].getAlternatives(i).getData();
-
-                    int mipOffset = alternativeImageBuilder.getMipMapOffset(j);
-                    alternativeImageBuilder.addMipMapSizeCompressed(mipSize);
-
-                    // Sizes can change between textures (maybe resize only if needed)
-                    byte[] buf = new byte[mipSize];
-                    System.arraycopy(mipBytes, mipOffset, buf, 0, mipSize);
-                    resultOut.imageDatas.add(buf);
+                    resultOut.imageDatas.add(mipBytes);
 
                     byteSize += mipSize;
-
-                    //data.copyTo(buf, mipOffset, 0, mipSize);
                 }
             }
 
             alternativeImageBuilder.setDataSize(byteSize);
-
-            //os.flush();
-            //alternativeImageBuilder.setData(ByteString.copyFrom(os.toByteArray()));
 
             for (int j = 0; j < alternativeImageBuilder.getMipMapSizeCount(); j++) {
                 alternativeImageBuilder.setMipMapOffset(j, alternativeImageBuilder.getMipMapOffset(j) * numTextures);

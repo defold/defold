@@ -64,7 +64,6 @@ public class TextureGenerator {
     public static class GenerateResult {
         public TextureImage textureImage;
         public ArrayList<byte[]> imageDatas;
-        public ArrayList<Integer> imageDataOffsets;
     };
 
     private static final HashMap<TextureFormat, Integer> pixelFormatLUT = new HashMap<>();
@@ -260,7 +259,7 @@ public class TextureGenerator {
         return images;
     }
 
-    private static byte[] generateFromColorAndFormat(TextureImage.Image.Builder builder,
+    private static List<byte[]> generateFromColorAndFormat(TextureImage.Image.Builder builder,
                                                      BufferedImage image,
                                                      ColorModel colorModel,
                                                      TextureFormat textureFormat,
@@ -426,26 +425,15 @@ public class TextureGenerator {
                 mipMapLevel++;
             }
 
-            // Copy each slice into the final byte buffer
-            // Offset == total size
-            byte[] textureData = new byte[offset];
-            int currentPos = 0;
-            for(byte[] mipImageData : compressedMipImageDatas) {
-                System.arraycopy(mipImageData, 0, textureData, currentPos, mipImageData.length);
-                currentPos += mipImageData.length;
-            }
-
-            builder.setDataSize(currentPos);
+            builder.setDataSize(offset);
+            builder.setFormat(textureFormat);
 
             // Cleanup the texture images
             for (Long mipImage : mipImages) {
                 TexcLibraryJni.DestroyImage(mipImage);
             }
 
-            // builder.setData(ByteString.copyFrom(textureData));
-            builder.setFormat(textureFormat);
-
-            return textureData;
+            return compressedMipImageDatas;
         } finally {
             TexcLibraryJni.DestroyImage(textureImage);
         }
@@ -568,7 +556,6 @@ public class TextureGenerator {
 
         GenerateResult result = new GenerateResult();
         result.imageDatas = new ArrayList<>();
-        result.imageDataOffsets = new ArrayList<>();
 
         int currentDataOffset = 0;
         if (texProfile != null) {
@@ -604,14 +591,11 @@ public class TextureGenerator {
 
                     try {
                         TextureImage.Image.Builder imageBuilder = TextureImage.Image.newBuilder();
-                        byte[] imageData = generateFromColorAndFormat(imageBuilder, image, colorModel, textureFormat, textureCompressor, textureCompressorPreset, platformProfile.getMipmaps(), platformProfile.getMaxTextureSize(), platformProfile.getPremultiplyAlpha(), flipAxis);
+                        List<byte[]> imageDatas = generateFromColorAndFormat(imageBuilder, image, colorModel, textureFormat, textureCompressor, textureCompressorPreset, platformProfile.getMipmaps(), platformProfile.getMaxTextureSize(), platformProfile.getPremultiplyAlpha(), flipAxis);
                         imageBuilder.setCompressionType(compressionType);
                         textureBuilder.addAlternatives(imageBuilder);
 
-                        result.imageDatas.add(imageData);
-                        result.imageDataOffsets.add(currentDataOffset);
-                        currentDataOffset += imageData.length;
-
+                        result.imageDatas.addAll(imageDatas);
                     } catch (TextureGeneratorException e) {
                         throw e;
                     }
@@ -632,13 +616,12 @@ public class TextureGenerator {
             TextureFormat textureFormat = pickOptimalFormat(componentCount, TextureFormat.TEXTURE_FORMAT_RGBA);
             TextureImage.Image.Builder imageBuilder = TextureImage.Image.newBuilder();
 
-            byte[] imageData = generateFromColorAndFormat(imageBuilder, image, colorModel, textureFormat, "Default", "DEFAULT", true, 0, true, flipAxis);
+            List<byte[]> imageDatas = generateFromColorAndFormat(imageBuilder, image, colorModel, textureFormat, "Default", "DEFAULT", true, 0, true, flipAxis);
             imageBuilder.setCompressionType(TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT);
             textureBuilder.addAlternatives(imageBuilder);
             textureBuilder.setCount(1);
 
-            result.imageDatas.add(imageData);
-            result.imageDataOffsets.add(currentDataOffset);
+            result.imageDatas.addAll(imageDatas);
         }
 
         textureBuilder.setType(Type.TYPE_2D);
