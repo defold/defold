@@ -65,8 +65,27 @@ namespace dmGameSystem
         SpriteResourceOverrides() : m_Material(0) {}
     };
 
+    const uint32_t MAX_TEXTURE_COUNT = dmRender::RenderObject::MAX_TEXTURE_COUNT;
+
+    struct TexturesData
+    {
+        TextureSetResource*             m_Resources[MAX_TEXTURE_COUNT];
+        dmGameSystemDDF::TextureSet*    m_TextureSets[MAX_TEXTURE_COUNT];
+        uint32_t                        m_NumTextures;
+
+        // Used after resolving info from all textures
+        dmhash_t                        m_AnimationID;                      // The animation of the driving atlas
+        uint32_t                        m_Frames[MAX_TEXTURE_COUNT];        // The resolved frame indices
+        float                           m_PageIndices[MAX_TEXTURE_COUNT];
+
+        const dmGameSystemDDF::TextureSetAnimation* m_Animations[MAX_TEXTURE_COUNT];
+        const dmGameSystemDDF::SpriteGeometry*      m_Geometries[MAX_TEXTURE_COUNT];
+        bool                                        m_UsesGeometries;
+    };
+
     struct SpriteComponent
     {
+        TexturesData                m_TexturesData; // store precalculated gemetry data that used in different places during the frame
         Matrix4                     m_World;
         Vector3                     m_Position;
         Quat                        m_Rotation;
@@ -109,8 +128,6 @@ namespace dmGameSystem
         uint16_t                    : 6;
     };
 
-    const uint32_t MAX_TEXTURE_COUNT = dmRender::RenderObject::MAX_TEXTURE_COUNT;
-
     struct SpriteWorld
     {
         dmObjectPool<SpriteComponent>       m_Components;
@@ -135,22 +152,6 @@ namespace dmGameSystem
         uint8_t*                            m_IndexBufferWritePtr;
         uint8_t                             m_Is16BitIndex : 1;
         uint8_t                             m_ReallocBuffers : 1;
-    };
-
-    struct TexturesData
-    {
-        TextureSetResource*             m_Resources[MAX_TEXTURE_COUNT];
-        dmGameSystemDDF::TextureSet*    m_TextureSets[MAX_TEXTURE_COUNT];
-        uint32_t                        m_NumTextures;
-
-        // Used after resolving info from all textures
-        dmhash_t                        m_AnimationID;                      // The animation of the driving atlas
-        uint32_t                        m_Frames[MAX_TEXTURE_COUNT];        // The resolved frame indices
-        float                           m_PageIndices[MAX_TEXTURE_COUNT];
-
-        const dmGameSystemDDF::TextureSetAnimation* m_Animations[MAX_TEXTURE_COUNT];
-        const dmGameSystemDDF::SpriteGeometry*      m_Geometries[MAX_TEXTURE_COUNT];
-        bool                                        m_UsesGeometries;
     };
 
     DM_GAMESYS_PROP_VECTOR3(SPRITE_PROP_SCALE, scale, false);
@@ -720,10 +721,10 @@ namespace dmGameSystem
         Vector4 slice9,
         uint32_t vertex_offset,
         uint32_t vertex_stride,
-        TexturesData* textures,
+        const TexturesData* textures,
         dmArray<float>* scratch_uvs,
         float* scratch_uv_ptrs[MAX_TEXTURE_COUNT],
-        float* scratch_pi_ptrs[MAX_TEXTURE_COUNT],
+        const float* scratch_pi_ptrs[MAX_TEXTURE_COUNT],
         dmArray<dmVMath::Vector4>* scratch_positions_world,
         dmArray<dmVMath::Vector4>* scratch_positions_local,
         bool flip_u,
@@ -1000,7 +1001,10 @@ namespace dmGameSystem
         data->m_UsesGeometries = uses_geometries;
     }
 
-    static void ResolveUVDataFromQuads(TexturesData* data, dmArray<float>* scratch_uvs, float* scratch_uv_ptrs[MAX_TEXTURE_COUNT], float* scratch_pi_ptrs[MAX_TEXTURE_COUNT], uint16_t flip_horizontal, uint16_t flip_vertical)
+    static void ResolveUVDataFromQuads(const TexturesData* data, dmArray<float>* scratch_uvs,
+        float* scratch_uv_ptrs[MAX_TEXTURE_COUNT],
+        const float* scratch_pi_ptrs[MAX_TEXTURE_COUNT],
+        uint16_t flip_horizontal, uint16_t flip_vertical)
     {
         static int tex_coord_order[] = {
             0,1,2,2,3,0,    // no flip
@@ -1096,11 +1100,11 @@ namespace dmGameSystem
     // Then, for each texture set, we map local vertex ([-0.5,0.5]) into a final UV for each image
     // It of course has some caveats:
     //   * The geometry may not map 1:1, and for polygon packed atlases, it may result in texture bleeding
-    static void ResolvePositionAndUVDataFromGeometry(TexturesData* data,
+    static void ResolvePositionAndUVDataFromGeometry(const TexturesData* data,
         dmArray<Vector4>& scratch_pos,
         dmArray<float>* scratch_uvs,
         float* scratch_uv_ptrs[MAX_TEXTURE_COUNT],
-        float* scratch_pi_ptrs[MAX_TEXTURE_COUNT],
+        const float* scratch_pi_ptrs[MAX_TEXTURE_COUNT],
         float scale_x, float scale_y, int reverse)
     {
         uint32_t num_vertices = data->m_Geometries[0]->m_Vertices.m_Count / 2;
@@ -1197,19 +1201,10 @@ namespace dmGameSystem
         uint32_t vertex_stride = material_attribute_info->m_VertexStride;
 
         uint32_t component_index = (uint32_t)buf[*begin].m_UserData;
-        const SpriteComponent* first = (const SpriteComponent*) &sprite_world->m_Components.GetRawObjects()[component_index];
 
         // The list of pointers to the scratch uvs and page indices
         float* scratch_uv_ptrs[MAX_TEXTURE_COUNT] = {};
-        float* scratch_pi_ptrs[MAX_TEXTURE_COUNT] = {};
-
-        TexturesData textures = {};
-        textures.m_NumTextures = GetNumTextures(first);
-        for (uint32_t i = 0; i < textures.m_NumTextures; ++i)
-        {
-            textures.m_Resources[i] = GetTextureSetByIndex(first, i);
-            textures.m_TextureSets[i] = textures.m_Resources[i]->m_TextureSet;
-        }
+        const float* scratch_pi_ptrs[MAX_TEXTURE_COUNT] = {};
 
         dmGraphics::VertexAttributeInfos sprite_attribute_info = {};
         dmGraphics::WriteAttributeParams write_params = {};
@@ -1218,13 +1213,11 @@ namespace dmGameSystem
         {
             uint32_t component_index         = (uint32_t)buf[*i].m_UserData;
             const SpriteComponent* component = (const SpriteComponent*) &components[component_index];
+            const TexturesData& textures     = component->m_TexturesData;
             const Matrix4& world_matrix      = component->m_World;
 
             float sp_width  = component->m_Size.getX();
             float sp_height = component->m_Size.getY();
-
-            // Get the correct animation frames, and other meta data
-            ResolveAnimationData(&textures, component->m_CurrentAnimation, component->m_CurrentAnimationFrame);
 
             // Fill in the custom sprite attributes (if specified), otherwise fallback to use the material attributes
             dmGraphics::VertexAttributeInfos* sprite_attribute_info_ptr = material_attribute_info;
@@ -1520,7 +1513,8 @@ namespace dmGameSystem
         ro.m_VertexCount = num_elements;
 
         HComponentRenderConstants constants = GetRenderConstants(first);
-        if (constants) {
+        if (constants)
+        {
             dmGameSystem::EnableRenderObjectConstants(&ro, constants);
         }
 
@@ -1567,13 +1561,15 @@ namespace dmGameSystem
         uint32_t n = components.Size();
 
         bool scale_along_z = false;
-        if (n > 0) {
+        if (n > 0)
+        {
             SpriteComponent* c = &components[0];
             scale_along_z = dmGameObject::ScaleAlongZ(dmGameObject::GetCollection(c->m_Instance));
         }
         // Note: We update all sprites, even though they might be disabled, or not added to update
 
-        if (scale_along_z) {
+        if (scale_along_z)
+        {
             for (uint32_t i = 0; i < n; ++i)
             {
                 SpriteComponent* c = &components[i];
@@ -1586,7 +1582,8 @@ namespace dmGameSystem
                 float radius_sq = dmVMath::LengthSqr((c->m_World.getCol(0).getXYZ() + c->m_World.getCol(1).getXYZ()) * 0.5f);
                 sprite_world->m_BoundingVolumes[i] = radius_sq;
             }
-        } else
+        }
+        else
         {
             for (uint32_t i = 0; i < n; ++i)
             {
@@ -1604,8 +1601,10 @@ namespace dmGameSystem
         }
 
         // The "sub_pixels" is set by default
-        if (!sub_pixels) {
-            for (uint32_t i = 0; i < n; ++i) {
+        if (!sub_pixels)
+        {
+            for (uint32_t i = 0; i < n; ++i)
+            {
                 SpriteComponent* c = &components[i];
                 Vector4 position = c->m_World.getCol3();
                 position.setX((int) position.getX());
@@ -1737,11 +1736,12 @@ namespace dmGameSystem
         }
     }
 
-    static void UpdateVertexAndIndexCount(SpriteWorld* sprite_world, dmRender::HRenderContext render_context)
+    static void UpdateTextureDataAndCounts(SpriteWorld* sprite_world, dmRender::HRenderContext render_context)
     {
-        DM_PROFILE("UpdateVertexAndIndexCount");
+        DM_PROFILE("UpdateTextureDataAndCounts");
 
         dmArray<SpriteComponent>& components = sprite_world->m_Components.GetRawObjects();
+
         uint32_t num_vertices    = 0;
         uint32_t num_indices     = 0;
         uint32_t vertex_memsize  = 0;
@@ -1762,10 +1762,19 @@ namespace dmGameSystem
             // We need to pad the buffer if the vertex stride doesn't start at an even byte offset from the start
             vertex_memsize += vertex_stride - vertex_memsize % vertex_stride;
 
-            TexturesData textures = {};
-            textures.m_NumTextures = GetNumTextures(component);
+            component->m_TexturesData = {};
+            component->m_TexturesData.m_NumTextures = GetNumTextures(component);
 
-            if (textures.m_NumTextures == 0)
+            for (uint32_t i = 0; i < component->m_TexturesData.m_NumTextures; ++i)
+            {
+                component->m_TexturesData.m_Resources[i] = GetTextureSetByIndex(component, i);
+                component->m_TexturesData.m_TextureSets[i] = component->m_TexturesData.m_Resources[i]->m_TextureSet;
+            }
+
+            // Get the correct animation frames, and other meta data
+            ResolveAnimationData(&component->m_TexturesData, component->m_CurrentAnimation, component->m_CurrentAnimationFrame);
+
+            if (component->m_TexturesData.m_NumTextures == 0)
             {
                 if (component->m_UseSlice9)
                 {
@@ -1782,16 +1791,7 @@ namespace dmGameSystem
                 continue;
             }
 
-            for (uint32_t i = 0; i < textures.m_NumTextures; ++i)
-            {
-                textures.m_Resources[i] = GetTextureSetByIndex(component, i);
-                textures.m_TextureSets[i] = textures.m_Resources[i]->m_TextureSet;
-            }
-
-            // Get the correct animation frames, and other meta data
-            ResolveAnimationData(&textures, component->m_CurrentAnimation, component->m_CurrentAnimationFrame);
-
-            if (!CanUseQuads(&textures))
+            if (!CanUseQuads(&component->m_TexturesData))
             {
                 TextureSetResource* texture_set                     = GetFirstTextureSet(component);
                 dmGameSystemDDF::TextureSet* texture_set_ddf        = texture_set->m_TextureSet;
@@ -1932,7 +1932,7 @@ namespace dmGameSystem
 
         UpdateTransforms(sprite_world, sprite_context->m_Subpixels); // TODO: Why is this not in the update function?
 
-        UpdateVertexAndIndexCount(sprite_world, render_context);
+        UpdateTextureDataAndCounts(sprite_world, render_context);
 
         dmArray<SpriteComponent>& components = sprite_world->m_Components.GetRawObjects();
         uint32_t sprite_count = components.Size();
@@ -1962,7 +1962,25 @@ namespace dmGameSystem
                 ReHash(&component);
             }
 
-            const Vector4 trans = component.m_World.getCol(3);
+            Matrix4 world_transform = component.m_World;
+            Vector4 trans;
+            if (CanUseQuads(&component.m_TexturesData) && component.m_TexturesData.m_NumTextures > 0)
+            {
+                    float pivot_x = 0.f;
+                    float pivot_y = 0.f;
+                    const dmGameSystemDDF::SpriteGeometry* geometry = component.m_TexturesData.m_Geometries[0];
+                    if (geometry)
+                    {
+                        pivot_x = geometry->m_PivotX;
+                        pivot_y = geometry->m_PivotY;
+                    }
+
+                    trans = world_transform * Point3(-pivot_x, -pivot_y, 0.0f);
+            }
+            else
+            {
+                trans = world_transform.getCol(3);
+            }
             write_ptr->m_WorldPosition = Point3(trans.getX(), trans.getY(), trans.getZ());
             write_ptr->m_UserData = i; // Assuming the object pool stays intact
             write_ptr->m_BatchKey = component.m_MixedHash;
