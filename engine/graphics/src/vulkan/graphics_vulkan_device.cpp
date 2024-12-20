@@ -671,7 +671,7 @@ namespace dmGraphics
         return vkAllocateCommandBuffers(vk_device, &vk_buffers_allocate_info, vk_command_buffers_out);
     }
 
-    VkResult CreateShaderModule(VkDevice vk_device, const void* source, uint32_t sourceSize, VkShaderStageFlagBits stage_flag, ShaderModule* shaderModuleOut)
+    VkResult CreateShaderModule(VkDevice vk_device, const void* source, uint32_t sourceSize, VkShaderStageFlagBits stage_flag, VulkanShaderModule* shaderModuleOut)
     {
         assert(shaderModuleOut);
 
@@ -1518,7 +1518,7 @@ bail:
         }
     }
 
-    void DestroyShaderModule(VkDevice vk_device, ShaderModule* shaderModule)
+    void DestroyShaderModule(VkDevice vk_device, VulkanShaderModule* shaderModule)
     {
         assert(shaderModule);
 

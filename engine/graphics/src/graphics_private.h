@@ -19,6 +19,7 @@
 #include <dlib/mutex.h>
 #include <dlib/index_pool.h>
 #include "graphics.h"
+#include "graphics_reflection.h"
 
 namespace dmGraphics
 {
@@ -70,32 +71,6 @@ namespace dmGraphics
         VertexStream       m_Streams[MAX_VERTEX_STREAM_COUNT];
         VertexStepFunction m_StepFunction;
         uint8_t            m_StreamCount;
-    };
-
-    struct ShaderResourceType
-    {
-        union
-        {
-            dmGraphics::ShaderDesc::ShaderDataType m_ShaderType;
-            uint32_t                               m_TypeIndex;
-        };
-        uint8_t m_UseTypeIndex : 1;
-    };
-
-    struct ShaderResourceMember
-    {
-        char*                       m_Name;
-        dmhash_t                    m_NameHash;
-        ShaderResourceType          m_Type;
-        uint32_t                    m_ElementCount;
-        uint16_t                    m_Offset;
-    };
-
-    struct ShaderResourceTypeInfo
-    {
-        char*                         m_Name;
-        dmhash_t                      m_NameHash;
-        dmArray<ShaderResourceMember> m_Members;
     };
 
     struct ShaderResourceBinding
@@ -183,6 +158,11 @@ namespace dmGraphics
         };
 
         uint8_t m_StageFlags;
+    };
+
+    struct ShaderModule
+    {
+        ShaderMeta m_ShaderMeta;
     };
 
     struct Program

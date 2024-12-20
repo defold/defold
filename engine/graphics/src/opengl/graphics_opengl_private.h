@@ -80,8 +80,8 @@ namespace dmGraphics
 
     struct OpenGLShader
     {
+        ShaderModule         m_BaseShaderModule;
         HOpenglID            m_Id;
-        ShaderMeta           m_ShaderMeta;
         ShaderDesc::Language m_Language;
         ShaderStageFlag      m_Stage;
     };

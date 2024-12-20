@@ -630,6 +630,7 @@ namespace dmGraphics
 
     bool                 IsShaderLanguageSupported(HContext _context, ShaderDesc::Language language, ShaderDesc::ShaderType shader_type);
     ShaderDesc::Language GetProgramLanguage(HProgram program);
+    bool                 HasProgramType(HProgram program, dmhash_t type);
 
     void                 EnableProgram(HContext context, HProgram program);
     void                 DisableProgram(HContext context);

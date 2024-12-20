@@ -965,6 +965,18 @@ namespace dmGameSystem
     }
     #endif
 
+    static void FillPBRConstants(ModelComponent* component, dmRender::HMaterial material)
+    {
+        dmGameSystem::PBRMaterialInfo pbr_info;
+        if (dmGameSystem::GetPBRMaterialInfo(material, pbr_info))
+        {
+            if (!component->m_RenderConstants)
+            {
+                component->m_RenderConstants = dmGameSystem::CreateRenderConstants();
+            }
+        }
+    }
+
     static void RenderBatchLocalVSInstanced(ModelWorld* world, dmRender::HRenderContext render_context,
         dmRender::HMaterial render_context_material, uint32_t material_index,
         ModelComponent* component, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end, dmGraphics::HVertexDeclaration inst_decl)
@@ -1111,6 +1123,8 @@ namespace dmGameSystem
 
         FillTextures(&ro, component, material_index);
 
+        FillPBRConstants(component, render_material);
+
         if (component->m_RenderConstants)
         {
             dmGameSystem::EnableRenderObjectConstants(&ro, component->m_RenderConstants);
@@ -1196,6 +1210,8 @@ namespace dmGameSystem
             }
 
             FillTextures(&ro, component, material_index);
+
+            FillPBRConstants(component, render_material);
 
             if (component->m_RenderConstants)
             {
@@ -1725,6 +1741,7 @@ namespace dmGameSystem
         const uint32_t max_elements_vertices = world->m_MaxElementsVertices;
         uint32_t minor_order = 0; // Will translate to vb index. (When we're generating vertex buffers on the fly, if material vertex space == world space)
         uint32_t vertex_count_total = 0;
+
         for (uint32_t i = 0; i < num_components; ++i)
         {
             ModelComponent& component = *components[i];

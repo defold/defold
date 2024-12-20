@@ -19,6 +19,8 @@
 #include "components/comp_private.h"
 #include <dmsdk/gamesys/render_constants.h>
 
+#include <graphics/graphics_reflection.h>
+
 namespace dmGameSystem
 {
     using namespace dmVMath;
@@ -633,5 +635,51 @@ namespace dmGameSystem
         }
 
         return dmGameObject::PROPERTY_RESULT_OK;
+    }
+
+    /*
+    struct PBRMaterialInfo
+    {
+        uint16_t m_HasPbrMetallicRoughness  : 1;
+        uint16_t m_HasPbrSpecularGlossiness : 1;
+        uint16_t m_HasClearCoat             : 1;
+        uint16_t m_HasTransmission          : 1;
+        uint16_t m_HasIor                   : 1;
+        uint16_t m_HasSpecular              : 1;
+        uint16_t m_HasVolume                : 1;
+        uint16_t m_HasEmissiveStrength      : 1;
+        uint16_t m_HasIridescence           : 1;
+    };
+    */
+
+    static const dmhash_t PBR_MATERIAL_TYPE = dmHashString64("PBRMaterial");
+
+    static bool FillPBRMaterialInfo(const dmGraphics::ShaderResourceTypeInfo* type_infos, uint32_t type_infos_count, PBRMaterialInfo& info)
+    {
+        bool has_pbr_material_type = false;
+        for (int i = 0; i < type_infos_count; ++i)
+        {
+            has_pbr_material_type &= type_infos[i].m_NameHash == PBR_MATERIAL_TYPE;
+        }
+        return has_pbr_material_type;
+    }
+
+    bool GetPBRMaterialInfo(dmRender::HMaterial material, PBRMaterialInfo& info)
+    {
+        memset(&info, 0, sizeof(PBRMaterialInfo));
+
+        dmGraphics::HVertexProgram vs_program = dmRender::GetMaterialVertexProgram(material);
+        dmGraphics::HFragmentProgram fs_program = dmRender::GetMaterialFragmentProgram(material);
+
+        const dmGraphics::ShaderResourceTypeInfo* vs_type_infos;
+        uint32_t vs_type_infos_count;
+        dmGraphics::GetShaderResourceTypes((dmGraphics::HShaderModule) vs_program, &vs_type_infos, &vs_type_infos_count);
+
+        const dmGraphics::ShaderResourceTypeInfo* fs_type_infos;
+        uint32_t fs_type_infos_count;
+        dmGraphics::GetShaderResourceTypes((dmGraphics::HShaderModule) fs_program, &fs_type_infos, &fs_type_infos_count);
+
+        return FillPBRMaterialInfo(vs_type_infos, vs_type_infos_count, info) ||
+               FillPBRMaterialInfo(fs_type_infos, fs_type_infos_count, info);
     }
 }

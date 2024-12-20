@@ -743,9 +743,9 @@ namespace dmGraphics
         uint32_t ssbo_alignment = 0;
 
         ProgramResourceBindingsInfo binding_info = {};
-        FillProgramResourceBindings(&program->m_BaseProgram, &vertex_module->m_ShaderMeta, bindings, ubo_alignment, ssbo_alignment, SHADER_STAGE_FLAG_VERTEX, binding_info);
-        FillProgramResourceBindings(&program->m_BaseProgram, &fragment_module->m_ShaderMeta, bindings, ubo_alignment, ssbo_alignment, SHADER_STAGE_FLAG_FRAGMENT, binding_info);
-        FillProgramResourceBindings(&program->m_BaseProgram, &compute_module->m_ShaderMeta, bindings, ubo_alignment, ssbo_alignment, SHADER_STAGE_FLAG_COMPUTE, binding_info);
+        FillProgramResourceBindings(&program->m_BaseProgram, &vertex_module->m_BaseShaderModule.m_ShaderMeta, bindings, ubo_alignment, ssbo_alignment, SHADER_STAGE_FLAG_VERTEX, binding_info);
+        FillProgramResourceBindings(&program->m_BaseProgram, &fragment_module->m_BaseShaderModule.m_ShaderMeta, bindings, ubo_alignment, ssbo_alignment, SHADER_STAGE_FLAG_FRAGMENT, binding_info);
+        FillProgramResourceBindings(&program->m_BaseProgram, &compute_module->m_BaseShaderModule.m_ShaderMeta, bindings, ubo_alignment, ssbo_alignment, SHADER_STAGE_FLAG_COMPUTE, binding_info);
 
         program->m_BaseProgram.m_MaxSet     = binding_info.m_MaxSet;
         program->m_BaseProgram.m_MaxBinding = binding_info.m_MaxBinding;
@@ -773,7 +773,7 @@ namespace dmGraphics
         memcpy(shader->m_Data, ddf_shader->m_Source.m_Data, ddf_shader->m_Source.m_Count);
         shader->m_Data[ddf_shader->m_Source.m_Count] = '\0';
 
-        CreateShaderMeta(&ddf->m_Reflection, &shader->m_ShaderMeta);
+        CreateShaderMeta(&ddf->m_Reflection, &shader->m_BaseShaderModule.m_ShaderMeta);
         return shader;
     }
 
@@ -794,7 +794,7 @@ namespace dmGraphics
     {
         NullShaderModule* p = (NullShaderModule*) prog;
         delete [] (char*) p->m_Data;
-        DestroyShaderMeta(p->m_ShaderMeta);
+        DestroyShaderMeta(p->m_BaseShaderModule.m_ShaderMeta);
         delete p;
     }
 
@@ -879,7 +879,7 @@ namespace dmGraphics
         assert(program);
         NullShaderModule* p = (NullShaderModule*)program;
         delete [] (char*) p->m_Data;
-        DestroyShaderMeta(p->m_ShaderMeta);
+        DestroyShaderMeta(p->m_BaseShaderModule.m_ShaderMeta);
         delete p;
     }
 
@@ -888,7 +888,7 @@ namespace dmGraphics
         assert(program);
         NullShaderModule* p = (NullShaderModule*)program;
         delete [] (char*) p->m_Data;
-        DestroyShaderMeta(p->m_ShaderMeta);
+        DestroyShaderMeta(p->m_BaseShaderModule.m_ShaderMeta);
         delete p;
     }
 
@@ -958,7 +958,7 @@ namespace dmGraphics
     static uint32_t NullGetAttributeCount(HProgram prog)
     {
         NullProgram* program_ptr = (NullProgram*) prog;
-        return program_ptr->m_VP->m_ShaderMeta.m_Inputs.Size();
+        return program_ptr->m_VP->m_BaseShaderModule.m_ShaderMeta.m_Inputs.Size();
     }
 
     static uint32_t GetElementCount(Type type)
@@ -992,7 +992,7 @@ namespace dmGraphics
     static void NullGetAttribute(HProgram prog, uint32_t index, dmhash_t* name_hash, Type* type, uint32_t* element_count, uint32_t* num_values, int32_t* location)
     {
         NullProgram* program        = (NullProgram*) prog;
-        ShaderResourceBinding& attr = program->m_VP->m_ShaderMeta.m_Inputs[index];
+        ShaderResourceBinding& attr = program->m_VP->m_BaseShaderModule.m_ShaderMeta.m_Inputs[index];
         *name_hash                  = attr.m_NameHash;
         *type                       = ShaderDataTypeToGraphicsType(attr.m_Type.m_ShaderType);
         *num_values                 = 1;

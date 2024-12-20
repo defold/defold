@@ -2191,7 +2191,7 @@ static void LogFrameBufferError(GLenum status)
                 break;
         }
 
-        CreateShaderMeta(&ddf->m_Reflection, &shader->m_ShaderMeta);
+        CreateShaderMeta(&ddf->m_Reflection, &shader->m_BaseShaderModule.m_ShaderMeta);
 
         return shader;
     }
@@ -2288,7 +2288,7 @@ static void LogFrameBufferError(GLenum status)
         for (uint32_t i = 0; i < num_shaders; ++i)
         {
             OpenGLShader* shader = shaders[i];
-            num_ubos += shader->m_ShaderMeta.m_UniformBuffers.Size();
+            num_ubos += shader->m_BaseShaderModule.m_ShaderMeta.m_UniformBuffers.Size();
         }
 
         program->m_UniformBuffers.SetCapacity(num_ubos);
@@ -2300,9 +2300,9 @@ static void LogFrameBufferError(GLenum status)
         {
             OpenGLShader* shader = shaders[i];
 
-            for (uint32_t j = 0; j < shader->m_ShaderMeta.m_UniformBuffers.Size(); ++j)
+            for (uint32_t j = 0; j < shader->m_BaseShaderModule.m_ShaderMeta.m_UniformBuffers.Size(); ++j)
             {
-                ShaderResourceBinding& res = shader->m_ShaderMeta.m_UniformBuffers[j];
+                ShaderResourceBinding& res = shader->m_BaseShaderModule.m_ShaderMeta.m_UniformBuffers[j];
                 GLuint program_handle = GetGLHandle(context, program->m_Id);
 
                 GLuint blockIndex = glGetUniformBlockIndex(program_handle, res.m_Name);
@@ -2718,7 +2718,7 @@ static void LogFrameBufferError(GLenum status)
         ProgramResourceBindingsInfo binding_info = {};
         for (int i = 0; i < num_shaders; ++i)
         {
-            FillProgramResourceBindings(&program->m_BaseProgram, &shaders[i]->m_ShaderMeta, bindings, 0, 0, shaders[i]->m_Stage, binding_info);
+            FillProgramResourceBindings(&program->m_BaseProgram, &shaders[i]->m_BaseShaderModule.m_ShaderMeta, bindings, 0, 0, shaders[i]->m_Stage, binding_info);
         }
         program->m_BaseProgram.m_MaxSet     = binding_info.m_MaxSet;
         program->m_BaseProgram.m_MaxBinding = binding_info.m_MaxBinding;
