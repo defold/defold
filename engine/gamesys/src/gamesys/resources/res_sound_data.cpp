@@ -122,7 +122,10 @@ namespace dmGameSystem
         {
             ResourceChunkCacheEvictMemory(cache, size);
         }
-        ResourceCacheChunk chunk = {.m_Data = data, .m_Size = size, .m_Offset = offset};
+        ResourceCacheChunk chunk;
+        chunk.m_Data = data,
+        chunk.m_Size = size,
+        chunk.m_Offset = offset;
         ResourceChunkCachePut(cache, path_hash, &chunk);
     }
 
