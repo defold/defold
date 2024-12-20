@@ -100,17 +100,8 @@ public class ParseUtil {
         parseMap.put("texturec", new IParser() {
             @Override
             public Message parse(byte[] content) throws InvalidProtocolBufferException {
-                // Read the header size (first 4 bytes)
-                ByteBuffer buffer = ByteBuffer.wrap(content);
-                ByteOrder currentOrder = buffer.order();
-                buffer.order(ByteOrder.LITTLE_ENDIAN);
-                int headerSize = buffer.getInt();
-                buffer.order(currentOrder);
-
-                byte[] header = new byte[headerSize];
-                System.arraycopy(content, 4, header, 0, headerSize);
-
-                return TextureImage.parseFrom(header);
+                byte[] textureImage = TextureUtil.byteArrayToTextureImage(content);
+                return TextureImage.parseFrom(textureImage);
             }
         });
         parseMap.put("texturesetc", new IParser() {

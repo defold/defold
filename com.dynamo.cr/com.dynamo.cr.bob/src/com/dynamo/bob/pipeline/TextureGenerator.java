@@ -421,8 +421,6 @@ public class TextureGenerator {
                 builder.addMipMapDimensions(textureCompressor.getAlignedWidth(textureFormat, mipWidth));
                 builder.addMipMapDimensions(textureCompressor.getAlignedHeight(textureFormat, mipHeight));
 
-                System.out.println("Compressed data size: " + compressedData.length);
-
                 offset += compressedData.length;
                 mipMapLevel++;
             }
@@ -574,8 +572,6 @@ public class TextureGenerator {
                     // For example we would rather have a texture format with 3 channels if the input
                     // image has 3 channels, even if the texture profile specified a format with 4 channels.
                     textureFormat = pickOptimalFormat(componentCount, textureFormat);
-
-                    System.out.println("Generating for format " + textureFormat);
 
                     // Legacy options
                     boolean hasCompressionLevel = platformProfile.getFormats(i).hasCompressionLevel();

@@ -324,6 +324,19 @@ public class TextureUtil {
         return concatenateArrays(byteParts);
     }
 
+    public static byte[] byteArrayToTextureImage(byte[] content) {
+        // Read the header size (first 4 bytes)
+        ByteBuffer buffer = ByteBuffer.wrap(content);
+        ByteOrder currentOrder = buffer.order();
+        buffer.order(ByteOrder.LITTLE_ENDIAN);
+        int headerSize = buffer.getInt();
+        buffer.order(currentOrder);
+
+        byte[] textureImage = new byte[headerSize];
+        System.arraycopy(content, 4, textureImage, 0, headerSize);
+        return textureImage;
+    }
+
     // Public api
     public static TextureGenerator.GenerateResult createMultiPageTexture(List<BufferedImage> images, TextureImage.Type textureType, TextureProfile texProfile, boolean compress) throws TextureGeneratorException {
         TextureGenerator.GenerateResult[] generateResults = new TextureGenerator.GenerateResult[images.size()];
