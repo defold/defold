@@ -57,7 +57,7 @@ namespace dmPlatform
         }
     }
 
-    void CenterWindowNative(Window* wnd, GLFWmonitor* monitor)
+    void CenterWindowNative(HWindow wnd, GLFWmonitor* monitor)
     {
         if (!monitor)
             return;
