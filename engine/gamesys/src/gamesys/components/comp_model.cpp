@@ -1409,7 +1409,7 @@ namespace dmGameSystem
                 }
                 else
                 {
-                    model_matrix = dmTransform::ToMatrix4(render_item->m_Model->m_Local);
+                    model_matrix = dmTransform::ToMatrix4(render_item->m_Model->m_World);
                 }
 
                 dmVMath::Matrix4 world_matrix     = c->m_World * model_matrix;
