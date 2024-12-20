@@ -17,16 +17,21 @@
             [clojure.java.io :as io]
             [editor.protobuf :as protobuf]
             [editor.pipeline.tex-gen :as tex-gen])
-  (:import [javax.imageio ImageIO]
+  (:import [com.dynamo.bob.util TextureUtil]
+           [javax.imageio ImageIO]
+           [com.dynamo.bob.pipeline TextureGenerator$GenerateResult]
            [com.dynamo.graphics.proto Graphics$TextureImage]))
 
 (deftest gen-bytes
   (let [img     (ImageIO/read (io/resource "test_project/graphics/ball.png"))
-        bytes   (protobuf/pb->bytes (tex-gen/make-texture-image img {:name      "test-profile"
-                                                                     :platforms [{:os      :os-id-generic
-                                                                                  :formats [{:format            :texture-format-rgba
-                                                                                             :compression-level :fast}]
-                                                                                  :mipmaps false}]}))
+        ^TextureGenerator$GenerateResult
+        generate-result (tex-gen/make-texture-image img {:name      "test-profile"
+                                                         :platforms [{:os      :os-id-generic
+                                                                      :formats [{:format            :texture-format-rgba
+                                                                                 :compression-level :fast}]
+                                                                      :mipmaps false}]})
+        protobuf-bytes (TextureUtil/generateResultToByteArray generate-result)
+        bytes   (TextureUtil/byteArrayToTextureImage protobuf-bytes)
         tex-img (Graphics$TextureImage/parseFrom bytes)
         alt     (.getAlternatives tex-img 0)]
     (is (= 64 (.getWidth alt)))
@@ -34,25 +39,8 @@
 
 (deftest make-texture-image-test
   (let [img     (ImageIO/read (io/resource "test_project/graphics/ball.png"))
-        tex-img (tex-gen/make-texture-image img {:name      "test-profile"
-                                                 :platforms [{:os                :os-id-generic
-                                                              :formats           [{:format            :texture-format-rgb
-                                                                                   :compression-level :best}
-                                                                                  {:format            :texture-format-rgba
-                                                                                   :compression-level :best}
-                                                                                  {:format            :texture-format-luminance
-                                                                                   :compression-level :best}]
-                                                              :mipmaps           false
-                                                              :premultiply-alpha true}]}
-                                            false)]
-    (is (= 3 (.getAlternativesCount tex-img)))
-    (is (= (* 3 32 64) (.. tex-img (getAlternatives 0) (getData) (size))))
-    (is (= (* 4 32 64) (.. tex-img (getAlternatives 1) (getData) (size))))
-    (is (= (* 1 32 64) (.. tex-img (getAlternatives 2) (getData) (size))))))
-
-(deftest make-preview-texture-image-test
-  (let [img     (ImageIO/read (io/resource "test_project/graphics/ball.png"))
-        tex-img (tex-gen/make-preview-texture-image img {:name      "test-profile"
+        ^TextureGenerator$GenerateResult
+        generate-result (tex-gen/make-texture-image img {:name      "test-profile"
                                                          :platforms [{:os                :os-id-generic
                                                                       :formats           [{:format            :texture-format-rgb
                                                                                            :compression-level :best}
@@ -61,9 +49,31 @@
                                                                                           {:format            :texture-format-luminance
                                                                                            :compression-level :best}]
                                                                       :mipmaps           false
-                                                                      :premultiply-alpha true}]})]
+                                                                      :premultiply-alpha true}]}
+                                                    false)
+        tex-img (.-textureImage generate-result)]
+    (is (= 3 (.getAlternativesCount tex-img)))
+    (is (= (* 3 32 64) (.. tex-img (getAlternatives 0) (getDataSize))))
+    (is (= (* 4 32 64) (.. tex-img (getAlternatives 1) (getDataSize))))
+    (is (= (* 1 32 64) (.. tex-img (getAlternatives 2) (getDataSize))))))
+
+(deftest make-preview-texture-image-test
+  (let [img     (ImageIO/read (io/resource "test_project/graphics/ball.png"))
+        ^TextureGenerator$GenerateResult
+        generator-result (tex-gen/make-preview-texture-image img {:name      "test-profile"
+                                                                  :platforms [{:os                :os-id-generic
+                                                                               :formats           [{:format            :texture-format-rgb
+                                                                                                    :compression-level :best}
+                                                                                                   {:format            :texture-format-rgba
+                                                                                                    :compression-level :best}
+                                                                                                   {:format            :texture-format-luminance
+                                                                                                    :compression-level :best}]
+                                                                               :mipmaps           false
+                                                                               :premultiply-alpha true}]})
+        ^Graphics$TextureImage tex-img (.-textureImage generator-result)
+        total-data-size (reduce + (map #(count %) (.-imageDatas generator-result)))]
     (is (= 1 (.getAlternativesCount tex-img)))
-    (is (= (* 3 32 64) (.. tex-img (getAlternatives 0) (getData) (size))))))
+    (is (= (* 3 32 64) total-data-size))))
 
 (deftest match-texture-profile-test
   (let [texture-profiles {:path-settings [{:path "/**/photos/*.png" :profile "Photo"}

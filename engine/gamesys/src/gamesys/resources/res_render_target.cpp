@@ -156,14 +156,14 @@ namespace dmGameSystem
 
     static dmResource::Result CreateAttachmentTexture(dmResource::HFactory factory,
         RenderTargetResource* rt_resource, dmGraphics::BufferType buffer_type, const char* path,
-        char* path_buffer, uint32_t path_buffer_size, dmArray<uint8_t>& ddf_buffer)
+        char* path_buffer, uint32_t path_buffer_size, dmArray<uint8_t>& buffer)
     {
         if (dmGraphics::IsColorBufferType(buffer_type))
         {
             uint32_t buffer_index = dmGraphics::GetBufferTypeIndex(buffer_type);
             assert(rt_resource->m_ColorAttachmentResources[buffer_index] == 0x0);
             FillTextureAttachmentResourcePath(path, buffer_type, path_buffer, path_buffer_size);
-            dmResource::Result res = dmResource::CreateResource(factory, path_buffer, ddf_buffer.Begin(), ddf_buffer.Size(), (void**) &rt_resource->m_ColorAttachmentResources[buffer_index]);
+            dmResource::Result res = dmResource::CreateResource(factory, path_buffer, buffer.Begin(), buffer.Size(), (void**) &rt_resource->m_ColorAttachmentResources[buffer_index]);
             if (res != dmResource::RESULT_OK)
             {
                 return res;
@@ -176,7 +176,7 @@ namespace dmGameSystem
         {
             assert(rt_resource->m_DepthAttachmentResource == 0x0);
             FillTextureAttachmentResourcePath(path, dmGraphics::BUFFER_TYPE_DEPTH_BIT, path_buffer, path_buffer_size);
-            dmResource::Result res = dmResource::CreateResource(factory, path_buffer, ddf_buffer.Begin(), ddf_buffer.Size(), (void**) &rt_resource->m_DepthAttachmentResource);
+            dmResource::Result res = dmResource::CreateResource(factory, path_buffer, buffer.Begin(), buffer.Size(), (void**) &rt_resource->m_DepthAttachmentResource);
             if (res != dmResource::RESULT_OK)
             {
                 return res;
@@ -193,14 +193,13 @@ namespace dmGameSystem
         // Create 'dummy' texture resources for each color buffer (and depth/stencil buffer)
         // so that each attachment can be used as a texture elsewhere in the engine.
         dmGraphics::TextureImage texture_image = {};
-        dmArray<uint8_t> ddf_buffer;
-        dmDDF::Result ddf_result = dmDDF::SaveMessageToArray(&texture_image, dmGraphics::TextureImage::m_DDFDescriptor, ddf_buffer);
-        assert(ddf_result == dmDDF::RESULT_OK);
+        dmArray<uint8_t> texture_resource_buffer;
+        FillTextureResourceBuffer(&texture_image, texture_resource_buffer);
 
         char path_buffer[256];
         for (int i = 0; i < num_color_textures; ++i)
         {
-            dmResource::Result res = CreateAttachmentTexture(factory, rt_resource, dmGraphics::GetBufferTypeFromIndex(i), path, path_buffer, sizeof(path_buffer), ddf_buffer);
+            dmResource::Result res = CreateAttachmentTexture(factory, rt_resource, dmGraphics::GetBufferTypeFromIndex(i), path, path_buffer, sizeof(path_buffer), texture_resource_buffer);
             if (res != dmResource::RESULT_OK)
             {
                 DestroyResources(factory, rt_resource);
@@ -210,7 +209,7 @@ namespace dmGameSystem
 
         if (depth_texture)
         {
-            dmResource::Result res = CreateAttachmentTexture(factory, rt_resource, dmGraphics::BUFFER_TYPE_DEPTH_BIT, path, path_buffer, sizeof(path_buffer), ddf_buffer);
+            dmResource::Result res = CreateAttachmentTexture(factory, rt_resource, dmGraphics::BUFFER_TYPE_DEPTH_BIT, path, path_buffer, sizeof(path_buffer), texture_resource_buffer);
             if (res != dmResource::RESULT_OK)
             {
                 DestroyResources(factory, rt_resource);

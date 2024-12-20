@@ -25,7 +25,9 @@
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace]
             [util.digestable :as digestable])
-  (:import [com.dynamo.bob.textureset TextureSetGenerator$UVTransform]
+  (:import [com.dynamo.bob.pipeline TextureGenerator$GenerateResult]
+           [com.dynamo.bob.textureset TextureSetGenerator$UVTransform]
+           [com.dynamo.bob.util TextureUtil]
            [java.awt.image BufferedImage]))
 
 (set! *warn-on-reflection* true)
@@ -37,9 +39,10 @@
         image ((:f content-generator) (:args content-generator))]
     (g/precluding-errors
       [image]
-      (let [texture-image (tex-gen/make-texture-image image texture-profile compress?)]
+      (let [texture-generator-result (tex-gen/make-texture-image image texture-profile compress?)
+            texture-protobuf-bytes (TextureUtil/generateResultToByteArray texture-generator-result)]
         {:resource resource
-         :content  (protobuf/pb->bytes texture-image)}))))
+         :content  texture-protobuf-bytes}))))
 
 (defn make-texture-build-target
   [workspace node-id image-generator texture-profile compress?]
@@ -57,10 +60,11 @@
         images ((:f content-generator) (:args content-generator))]
     (g/precluding-errors
       [images]
-      (let [texture-images (mapv #(tex-gen/make-texture-image % texture-profile compress?) images)
-            combined-texture-image (tex-gen/assemble-texture-images texture-images texture-page-count)]
+      (let [texture-generator-results (mapv #(tex-gen/make-texture-image % texture-profile compress?) images)
+            ^TextureGenerator$GenerateResult combined-texture-image (tex-gen/assemble-texture-images texture-generator-results texture-page-count)
+            combined-texture-protobuf-bytes (TextureUtil/generateResultToByteArray combined-texture-image)]
         {:resource resource
-         :content  (protobuf/pb->bytes combined-texture-image)}))))
+         :content  combined-texture-protobuf-bytes}))))
 
 (defn make-array-texture-build-target
   [workspace node-id array-images-generator texture-profile texture-page-count compress?]
