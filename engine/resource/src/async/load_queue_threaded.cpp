@@ -42,6 +42,7 @@ namespace dmLoadQueue
         const char*                m_Name;
         const char*                m_CanonicalPath;
         dmResource::LoadBufferType m_Buffer;
+        uint32_t                   m_ResourceSize;
         PreloadInfo                m_PreloadInfo;
         LoadResult                 m_Result;
     };
@@ -131,7 +132,7 @@ namespace dmLoadQueue
             if (current)
             {
                 // We use the temporary result object here to fill in the data so it can be written with the mutex held.
-                uint32_t size = 0;
+                uint32_t buffer_size = 0;
 
                 assert(current->m_Buffer.Size() == 0);
                 if (current->m_Buffer.Capacity() != DEFAULT_CAPACITY)
@@ -139,20 +140,30 @@ namespace dmLoadQueue
                     current->m_Buffer.SetCapacity(DEFAULT_CAPACITY);
                 }
 
-                result.m_LoadResult = dmResource::LoadResourceToBuffer(queue->m_Factory, current->m_CanonicalPath, current->m_Name, &size, &current->m_Buffer);
+                dmResource::HResourceType resource_type = current->m_PreloadInfo.m_Type;
+                uint32_t preload_size = RESOURCE_INVALID_PRELOAD_SIZE;
+                if (ResourceTypeIsStreaming(resource_type))
+                {
+                    preload_size = ResourceTypeGetPreloadSize(resource_type);
+                }
+
+                result.m_LoadResult = dmResource::LoadResourceToBuffer(queue->m_Factory, current->m_CanonicalPath, current->m_Name, preload_size, &current->m_ResourceSize, &buffer_size, &current->m_Buffer);
                 result.m_PreloadResult = dmResource::RESULT_PENDING;
                 result.m_PreloadData   = 0;
 
                 if (result.m_LoadResult == dmResource::RESULT_OK)
                 {
-                    assert(current->m_Buffer.Size() == size);
+                    assert(current->m_Buffer.Size() == buffer_size);
+                    assert(buffer_size <= current->m_ResourceSize);
                     if (current->m_PreloadInfo.m_CompleteFunction)
                     {
                         ResourcePreloadParams params;
                         params.m_Factory       = queue->m_Factory;
                         params.m_Context       = current->m_PreloadInfo.m_Context;
                         params.m_Buffer        = current->m_Buffer.Begin();
-                        params.m_BufferSize    = current->m_Buffer.Size();
+                        params.m_BufferSize    = buffer_size;
+                        params.m_FileSize      = current->m_ResourceSize;
+                        params.m_IsBufferPartial = buffer_size != current->m_ResourceSize;
                         params.m_HintInfo      = &current->m_PreloadInfo.m_HintInfo;
                         params.m_PreloadData   = &result.m_PreloadData;
                         result.m_PreloadResult = (dmResource::Result)current->m_PreloadInfo.m_CompleteFunction(&params);
@@ -218,6 +229,7 @@ namespace dmLoadQueue
         Request* req         = &queue->m_Request[(queue->m_Front++) % QUEUE_SLOTS];
         req->m_Name          = name;
         req->m_CanonicalPath = canonical_path;
+        req->m_ResourceSize  = 0;
 
         req->m_PreloadInfo         = *info;
         req->m_Result.m_LoadResult = dmResource::RESULT_PENDING;
@@ -225,15 +237,16 @@ namespace dmLoadQueue
         return req;
     }
 
-    Result EndLoad(HQueue queue, HRequest request, void** buf, uint32_t* size, LoadResult* load_result)
+    Result EndLoad(HQueue queue, HRequest request, void** buf, uint32_t* buffer_size, uint32_t* resource_size, LoadResult* load_result)
     {
         dmMutex::ScopedLock lk(queue->m_Mutex);
         if (request->m_Result.m_LoadResult == dmResource::RESULT_PENDING)
             return RESULT_PENDING;
 
-        *buf         = request->m_Buffer.Begin();
-        *size        = request->m_Buffer.Size();
-        *load_result = request->m_Result;
+        *buf            = request->m_Buffer.Begin();
+        *buffer_size    = request->m_Buffer.Size();
+        *resource_size  = request->m_ResourceSize;
+        *load_result    = request->m_Result;
 
         return RESULT_OK;
     }
