@@ -2757,7 +2757,6 @@ static int CreateSoundData(lua_State* L)
     // End options table
     //////////////////////////////////////////////////
 
-printf("CREATE  SOUND DATA: '%s' size: %u  filesize: %u  partial: %d\n", path, data_size, file_size, partial);
     void* resource = 0x0;
     dmResource::Result res = dmResource::CreateResourcePartial(g_ResourceModule.m_Factory, resource_type, path, data, data_size, file_size, &resource);
 
