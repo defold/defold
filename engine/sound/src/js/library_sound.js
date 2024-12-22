@@ -8,7 +8,7 @@ var LibrarySoundDevice =
          }
       }
    },
-   dmDeviceJSOpen: function(bufferCount) {
+   dmDeviceJSOpen: function(sampleRate, bufferCount) {
 
         // globally shared data        
         var shared = window._dmJSDeviceShared;
@@ -28,7 +28,12 @@ var LibrarySoundDevice =
                 var audioCtxCtor = window.AudioContext || window.webkitAudioContext;
                 try {
                     // The default sampleRate varies depending on the output device and can be less than 44100.
-                    shared.audioCtx = new audioCtxCtor({ sampleRate: 44100 });
+                    // Try the preferred sample rate first
+                    shared.audioCtx = new audioCtxCtor({ sampleRate: sampleRate });
+
+                    // 44100 is the most commonly supported (https://developer.mozilla.org/en-US/docs/Web/API/AudioContext/AudioContext#samplerate)
+                    if (!shared.audioCtx)
+                        shared.audioCtx = new audioCtxCtor({ sampleRate: 44100 });
                 } catch (e) {
                     // Fallback if the specified `sampleRate` isn't supported by the browser.
                     shared.audioCtx = new audioCtxCtor();

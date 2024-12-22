@@ -322,6 +322,9 @@ namespace dmSound
 
         HDevice device = 0;
         OpenDeviceParams device_params;
+        if (config)
+            device_params.m_MaxFrequency = dmConfigFile::GetInt(config, "sound.device_max_frequency", device_params.m_MaxFrequency);
+
         // TODO: m_BufferCount configurable?
         device_params.m_BufferCount = SOUND_OUTBUFFER_COUNT;
         device_params.m_FrameCount = params->m_FrameCount;
