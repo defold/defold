@@ -430,7 +430,7 @@ namespace dmGameSystem
 
     static inline SoundDataResource* GetSoundDataResource(const SoundComponent* component)
     {
-        return component->m_Resource ? component->m_SoundData : component->m_Resource->m_SoundDataRes;
+        return component->m_SoundData ? component->m_SoundData : component->m_Resource->m_SoundDataRes;
     }
 
     static dmGameObject::UpdateResult CompSoundOnMessage(const dmGameObject::ComponentOnMessageParams& params)
