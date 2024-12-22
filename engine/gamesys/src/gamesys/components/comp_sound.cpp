@@ -593,7 +593,6 @@ namespace dmGameSystem
         uint32_t index = *params.m_UserData;
         SoundComponent* component = &world->m_Components.Get(index);
 
-        printf("%s: %s \n", __FUNCTION__, dmHashReverseSafe64(params.m_Value.m_Hash));
         if (params.m_PropertyId == SOUND_PROP_SOUND)
         {
             return SetResourceProperty(dmGameObject::GetFactory(params.m_Instance), params.m_Value, (dmhash_t*)SOUND_EXT_HASHES, DM_ARRAY_SIZE(SOUND_EXT_HASHES), (void**)&component->m_SoundData);
