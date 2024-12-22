@@ -16,7 +16,6 @@
 #define DM_SOUND_DECODER_H
 
 #include "sound_codec.h"
-#include "sound_decoder.h"
 #include "sound.h"
 
 namespace dmSoundCodec

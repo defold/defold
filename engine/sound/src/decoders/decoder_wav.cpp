@@ -216,7 +216,7 @@ namespace dmSoundCodec
             }
         } else {
             const char* chunk = (const char*)&header.m_ChunkID;
-            dmLogWarning("Unknown header: chunk: %08x %c%c%c%c  format: %08x", header.m_ChunkID,
+            dmLogWarning("Wav: Unknown header: chunk: %08x %c%c%c%c  format: %08x", header.m_ChunkID,
                         (char)chunk[0], (char)chunk[1], (char)chunk[2], (char)chunk[3], header.m_Format);
             return RESULT_INVALID_FORMAT;
         }
