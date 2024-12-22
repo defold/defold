@@ -70,7 +70,7 @@ namespace dmGameSystem
         g_SoundDataContext->m_ChunkSize = chunk_size;
     }
 
-    static dmSound::SoundDataType TryToGetTypeFromBuffer(char* buffer, dmSound::SoundDataType default_type, uint32_t bufferSize)
+    static dmSound::SoundDataType TryToGetTypeFromBuffer(char* buffer, uint32_t bufferSize, dmSound::SoundDataType default_type)
     {
         dmSound::SoundDataType type = default_type;
         if (bufferSize < 3)
@@ -236,13 +236,7 @@ namespace dmGameSystem
     {
         dmSound::HSoundData sound_data;
 
-        dmSound::SoundDataType type = dmSound::SOUND_DATA_TYPE_WAV;
-
-        size_t filename_len = strlen(params->m_Filename);
-        if (filename_len > 5 && strcmp(params->m_Filename + filename_len - 5, ".oggc") == 0)
-        {
-            type = dmSound::SOUND_DATA_TYPE_OGG_VORBIS;
-        }
+        dmSound::SoundDataType type = TryToGetTypeFromBuffer((char*)params->m_Buffer, params->m_BufferSize, dmSound::SOUND_DATA_TYPE_WAV);
 
         SoundDataContext* context = (SoundDataContext*)ResourceTypeGetContext(params->m_Type);
         // Until we have a way to get the factory at the time of type creation
@@ -304,7 +298,7 @@ namespace dmGameSystem
         SoundDataResource* sound_data_res = (SoundDataResource*) dmResource::GetResource(params->m_Resource);
 
         dmSound::HSoundData sound_data;
-        dmSound::SoundDataType type = TryToGetTypeFromBuffer((char*)params->m_Buffer, (dmSound::SoundDataType)sound_data_res->m_Type, params->m_BufferSize);
+        dmSound::SoundDataType type = TryToGetTypeFromBuffer((char*)params->m_Buffer, params->m_BufferSize, (dmSound::SoundDataType)sound_data_res->m_Type);
         dmSound::Result r = dmSound::NewSoundData(params->m_Buffer, params->m_BufferSize, type, &sound_data, dmResource::GetNameHash(params->m_Resource));
 
         if (r != dmSound::RESULT_OK)

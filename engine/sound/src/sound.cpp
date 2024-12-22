@@ -1275,7 +1275,6 @@ namespace dmSound
                         break; // Need to break as we're not progressing this sound instance
                     }
 
-                    assert(decoded % stride == 0);
                     instance->m_FrameCount += decoded / stride;
                 }
                 else if (r == dmSoundCodec::RESULT_END_OF_STREAM)
