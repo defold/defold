@@ -18,6 +18,8 @@
 #include <stdint.h>
 #include <assert.h>
 
+#include <dlib/log.h>
+
 #include "sound_codec.h"
 #include "sound_decoder.h"
 

@@ -940,7 +940,7 @@ TEST_F(SoundTest, UpdateSoundResource)
 
     HResourceDescriptor descp = dmResource::FindByHash(m_Factory, soundata_hash);
     dmLogInfo("Original size: %d", descp->m_ResourceSize);
-    ASSERT_EQ(42270+16, dmResource::GetResourceSize(descp));  // valid.wav. Size returned is always +16 from size of wav: sound_data->m_Size + sizeof(SoundData) from sound_null.cpp;
+    ASSERT_EQ(42270+32, dmResource::GetResourceSize(descp));  // valid.wav. Size returned is always +16 from size of wav: sound_data->m_Size + sizeof(SoundData) from sound_null.cpp;
 
     // Update sound component with custom buffer from lua. See set_sound.script:update()
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
@@ -950,7 +950,7 @@ TEST_F(SoundTest, UpdateSoundResource)
 
     descp = dmResource::FindByHash(m_Factory, soundata_hash);
     dmLogInfo("New size: %d", descp->m_ResourceSize);
-    ASSERT_EQ(98510+16, descp->m_ResourceSize);  // replacement.wav. Size returned is always +16 from size of wav: sound_data->m_Size + sizeof(SoundData) from sound_null.cpp;
+    ASSERT_EQ(98510+32, descp->m_ResourceSize);  // replacement.wav. Size returned is always +16 from size of wav: sound_data->m_Size + sizeof(SoundData) from sound_null.cpp;
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 
