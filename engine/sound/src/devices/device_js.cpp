@@ -87,6 +87,7 @@ namespace dmDeviceJS
         assert(info);
         JSDevice *dev = (JSDevice*) device;
         info->m_MixRate = dmGetDeviceSampleRate(dev->devId);
+        info->m_FrameCount = info->m_MixRate * 0.025;
     }
 
     void DeviceJSStart(dmSound::HDevice device)
