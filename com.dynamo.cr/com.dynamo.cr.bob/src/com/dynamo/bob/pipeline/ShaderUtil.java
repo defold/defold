@@ -24,6 +24,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.dynamo.bob.CompileExceptionError;
+import com.dynamo.bob.pipeline.shader.SPIRVReflector;
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
 import org.antlr.v4.runtime.Token;
@@ -54,13 +55,19 @@ public class ShaderUtil {
 
         public static class GLSLCompileResult
         {
-            public String   source;
-            public String[] arraySamplers = new String[0];
+            public String         source;
+            public String[]       arraySamplers = new String[0];
+            public SPIRVReflector reflector = null;
 
             public GLSLCompileResult() {}
 
             public GLSLCompileResult(String source) {
                 this.source = source;
+            }
+
+            public GLSLCompileResult(String source, SPIRVReflector reflector) {
+                this.source = source;
+                this.reflector = reflector;
             }
         }
 

@@ -687,15 +687,14 @@ Result LoadResourceToBufferLocked(HFactory factory, const char* path, const char
     return RESULT_RESOURCE_NOT_FOUND;
 }
 
+// Called from the resource_preloader.cpp
 // Takes the lock.
-Result LoadResourceToBuffer(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size, LoadBufferType* buffer)
+Result LoadResourceToBuffer(HFactory factory, const char* path, const char* original_name, uint32_t preload_size, uint32_t* resource_size, uint32_t* buffer_size, LoadBufferType* buffer)
 {
     // Called from async queue so we wrap around a lock
     dmMutex::ScopedLock lk(factory->m_LoadMutex);
     uint32_t offset = 0;
-    uint32_t size = RESOURCE_INVALID_PRELOAD_SIZE;
-    uint32_t buffer_size;
-    return LoadResourceToBufferLocked(factory, path, original_name, offset, size, resource_size, &buffer_size, buffer);
+    return LoadResourceToBufferLocked(factory, path, original_name, offset, preload_size, resource_size, buffer_size, buffer);
 }
 
 // Assumes m_LoadMutex is already held
@@ -718,10 +717,9 @@ static Result LoadResource(HFactory factory, const char* path, const char* origi
     return r;
 }
 
-Result LoadResource(HFactory factory, const char* path, const char* original_name, void** buffer, uint32_t* resource_size)
+Result LoadResource(HFactory factory, const char* path, const char* original_name, void** buffer, uint32_t* buffer_size, uint32_t* resource_size)
 {
-    uint32_t buffer_size;
-    return LoadResource(factory, path, original_name, RESOURCE_INVALID_PRELOAD_SIZE, buffer, &buffer_size, resource_size);
+    return LoadResource(factory, path, original_name, RESOURCE_INVALID_PRELOAD_SIZE, buffer, buffer_size, resource_size);
 }
 
 const char* GetExtFromPath(const char* path)

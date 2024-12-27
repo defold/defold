@@ -30,7 +30,7 @@
 
 namespace dmPlatform
 {
-    struct Window
+    struct dmWindow
     {
         WindowResizeCallback          m_ResizeCallback;
         void*                         m_ResizeCallbackUserData;
@@ -59,7 +59,7 @@ namespace dmPlatform
     };
 
     // Needed by glfw2.7
-    static Window* g_Window = 0;
+    static dmWindow* g_Window = 0;
 
     static void OnWindowResize(int width, int height)
     {
@@ -138,8 +138,8 @@ namespace dmPlatform
     {
         if (g_Window == 0)
         {
-            Window* wnd = new Window;
-            memset(wnd, 0, sizeof(Window));
+            dmWindow* wnd = new dmWindow;
+            memset(wnd, 0, sizeof(dmWindow));
 
             if (glfwInit() == GL_FALSE)
             {
@@ -155,7 +155,7 @@ namespace dmPlatform
         return 0;
     }
 
-    static PlatformResult OpenWindowOpenGL(Window* wnd, const WindowParams& params)
+    static PlatformResult OpenWindowOpenGL(dmWindow* wnd, const WindowParams& params)
     {
         if (params.m_HighDPI)
         {
@@ -243,7 +243,7 @@ namespace dmPlatform
         return PLATFORM_RESULT_OK;
     }
 
-    static PlatformResult OpenWindowVulkan(Window* wnd, const WindowParams& params)
+    static PlatformResult OpenWindowVulkan(dmWindow* wnd, const WindowParams& params)
     {
         glfwOpenWindowHint(GLFW_CLIENT_API,   GLFW_NO_API);
         glfwOpenWindowHint(GLFW_FSAA_SAMPLES, params.m_Samples);

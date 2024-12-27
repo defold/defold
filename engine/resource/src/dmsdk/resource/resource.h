@@ -543,7 +543,7 @@ void ResourceRegisterTypeCreatorDesc(void* desc, uint32_t size, const char *name
  *     // ...
  * };
  *
- * static ResourceResult RegisterResourceTypeBlob(HResourceTypeRegisterContext ctx, HResourceType type)
+ * static ResourceResult RegisterResourceTypeBlob(HResourceTypeContext ctx, HResourceType type)
  * {
  *     // The engine.cpp creates the contexts for our built in types.
  *     // Here we register a custom type
@@ -555,10 +555,10 @@ void ResourceRegisterTypeCreatorDesc(void* desc, uint32_t size, const char *name
  *     ResourceTypeSetRecreateFn(type, MyResourceTypeScriptRecreate);
  * }
  *
- * static ResourceResult DeregisterResourceTypeBlob(HResourceTypeRegisterContext ctx)
+ * static ResourceResult DeregisterResourceTypeBlob(HResourceTypeContext ctx, HResourceType type)
  * {
- *     MyContext** context = (MyContext*)ResourceTypeGetContext(type);
- *     delete *context;
+ *     MyContext* context = (MyContext*)ResourceTypeGetContext(type);
+ *     delete context;
  * }
  *
  * DM_DECLARE_RESOURCE_TYPE(ResourceTypeBlob, "blobc", RegisterResourceTypeBlob, DeregisterResourceTypeBlob);

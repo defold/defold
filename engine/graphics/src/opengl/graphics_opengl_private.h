@@ -83,6 +83,7 @@ namespace dmGraphics
         HOpenglID            m_Id;
         ShaderMeta           m_ShaderMeta;
         ShaderDesc::Language m_Language;
+        ShaderStageFlag      m_Stage;
     };
 
     struct OpenGLBuffer
@@ -112,24 +113,13 @@ namespace dmGraphics
         uint8_t        m_Dirty : 1;
     };
 
-    struct OpenGLUniform
-    {
-        char*            m_Name;
-        dmhash_t         m_NameHash;
-        HUniformLocation m_Location;
-        GLint            m_Count;
-        GLenum           m_Type;
-        uint8_t          m_TextureUnit   : 7;
-        uint8_t          m_IsTextureType : 1;
-    };
-
     struct OpenGLProgram
     {
+        Program                        m_BaseProgram;
         uint32_t                       m_Id;
         ShaderDesc::Language           m_Language;
         dmArray<OpenGLVertexAttribute> m_Attributes;
         dmArray<OpenGLUniformBuffer>   m_UniformBuffers;
-        dmArray<OpenGLUniform>         m_Uniforms;
     };
 
     struct OpenGLContext
