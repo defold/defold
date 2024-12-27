@@ -15,13 +15,14 @@
 #ifndef DM_GRAPHICS_REFLECTION_H
 #define DM_GRAPHICS_REFLECTION_H
 
-#include "graphics.h"
+#include <dlib/hash.h>
+#include <graphics/graphics_ddf.h>
 
 namespace dmGraphics
 {
-	typedef struct ShaderModule* HShaderModule;
+    typedef struct ShaderModule* HShaderModule;
 
-	struct ShaderResourceType
+    struct ShaderResourceType
     {
         union
         {
@@ -47,7 +48,7 @@ namespace dmGraphics
         dmArray<ShaderResourceMember> m_Members;
     };
 
-	void GetShaderResourceTypes(HShaderModule shader, const ShaderResourceTypeInfo** types, uint32_t* count);
+    void GetShaderResourceTypes(HShaderModule shader, const ShaderResourceTypeInfo** types, uint32_t* count);
 }
 
 #endif // DM_GRAPHICS_REFLECTION_H

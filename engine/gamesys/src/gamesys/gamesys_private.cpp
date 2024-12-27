@@ -637,36 +637,82 @@ namespace dmGameSystem
         return dmGameObject::PROPERTY_RESULT_OK;
     }
 
-    /*
-    struct PBRMaterialInfo
-    {
-        uint16_t m_HasPbrMetallicRoughness  : 1;
-        uint16_t m_HasPbrSpecularGlossiness : 1;
-        uint16_t m_HasClearCoat             : 1;
-        uint16_t m_HasTransmission          : 1;
-        uint16_t m_HasIor                   : 1;
-        uint16_t m_HasSpecular              : 1;
-        uint16_t m_HasVolume                : 1;
-        uint16_t m_HasEmissiveStrength      : 1;
-        uint16_t m_HasIridescence           : 1;
-    };
-    */
+    static const dmhash_t PBR_MATERIAL_TYPE                 = dmHashString64("PbrMaterial");
+    static const dmhash_t PBR_MATERIAL_METALLIC_ROUGHNESS   = dmHashString64("PbrMetallicRoughness");
+    static const dmhash_t PBR_MATERIAL_SPECULAR_GLOSSINESS  = dmHashString64("PbrSpecularGlossiness");
+    static const dmhash_t PBR_MATERIAL_CLEARCOAT            = dmHashString64("ClearCoat");
+    static const dmhash_t PBR_MATERIAL_TRANSMISSION         = dmHashString64("Transmission");
+    static const dmhash_t PBR_MATERIAL_IOR                  = dmHashString64("Ior");
+    static const dmhash_t PBR_MATERIAL_SPECULAR             = dmHashString64("Specular");
+    static const dmhash_t PBR_MATERIAL_VOLUME               = dmHashString64("Volume");
+    static const dmhash_t PBR_MATERIAL_SHEEN                = dmHashString64("Sheen");
+    static const dmhash_t PBR_MATERIAL_EMISSIVE_STRENGTH    = dmHashString64("EmissiveStrength");
+    static const dmhash_t PBR_MATERIAL_IRIDESCENE           = dmHashString64("Iridescence");
 
-    static const dmhash_t PBR_MATERIAL_TYPE = dmHashString64("PBRMaterial");
-
-    static bool FillPBRMaterialInfo(const dmGraphics::ShaderResourceTypeInfo* type_infos, uint32_t type_infos_count, PBRMaterialInfo& info)
+    static bool FillPbrMaterialInfo(
+        const dmGraphics::Uniform& uniform,
+        const dmGraphics::ShaderResourceTypeInfo* vs_type_infos,
+        const dmGraphics::ShaderResourceTypeInfo* fs_type_infos,
+        PBRMaterialInfo* info)
     {
-        bool has_pbr_material_type = false;
-        for (int i = 0; i < type_infos_count; ++i)
+        if (!uniform.m_RootType.m_UseTypeIndex)
         {
-            has_pbr_material_type &= type_infos[i].m_NameHash == PBR_MATERIAL_TYPE;
+            return false;
         }
-        return has_pbr_material_type;
+
+        uint32_t type_index = uniform.m_RootType.m_TypeIndex;
+        const dmGraphics::ShaderResourceTypeInfo* type_infos;
+
+        if (uniform.m_StageFlags & dmGraphics::SHADER_STAGE_FLAG_VERTEX)
+        {
+            type_infos = vs_type_infos;
+        }
+        else if (uniform.m_StageFlags & dmGraphics::SHADER_STAGE_FLAG_FRAGMENT)
+        {
+            type_infos = fs_type_infos;
+        }
+        else
+        {
+            return false;
+        }
+
+        if (type_infos[type_index].m_NameHash != PBR_MATERIAL_TYPE)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < type_infos[type_index].m_Members.Size(); ++i)
+        {
+            // dmLogInfo("%s", type_infos[type_index].m_Members[i].m_Name);
+            const dmGraphics::ShaderResourceTypeInfo* member_type_info = &type_infos[type_infos[type_index].m_Members[i].m_Type.m_TypeIndex];
+
+            if (member_type_info->m_NameHash == PBR_MATERIAL_METALLIC_ROUGHNESS)
+            {
+                const char* member_name = strrchr(uniform.m_Name, '.');
+                if (!member_name)
+                {
+                    continue;
+                }
+
+                member_name++; // Skip over '.'
+
+                if (strcmp(member_name, "baseColorFactor") == 0)
+                {
+                    info->m_PbrMetallicRoughness_BaseColorFactor = uniform.m_NameHash;
+                }
+                else if (strcmp(member_name, "metallicAndRoughnessFactor") == 0)
+                {
+                    info->m_PbrMetallicRoughness_MetallicAndRoughnessFactor = uniform.m_NameHash;
+                }
+            }
+        }
+
+        return true;
     }
 
-    bool GetPBRMaterialInfo(dmRender::HMaterial material, PBRMaterialInfo& info)
+    bool GetPBRMaterialInfo(dmRender::HMaterial material, PBRMaterialInfo* info)
     {
-        memset(&info, 0, sizeof(PBRMaterialInfo));
+        memset(info, 0, sizeof(PBRMaterialInfo));
 
         dmGraphics::HVertexProgram vs_program = dmRender::GetMaterialVertexProgram(material);
         dmGraphics::HFragmentProgram fs_program = dmRender::GetMaterialFragmentProgram(material);
@@ -679,7 +725,18 @@ namespace dmGameSystem
         uint32_t fs_type_infos_count;
         dmGraphics::GetShaderResourceTypes((dmGraphics::HShaderModule) fs_program, &fs_type_infos, &fs_type_infos_count);
 
-        return FillPBRMaterialInfo(vs_type_infos, vs_type_infos_count, info) ||
-               FillPBRMaterialInfo(fs_type_infos, fs_type_infos_count, info);
+        dmGraphics::HProgram program = dmRender::GetMaterialProgram(material);
+
+        uint32_t uniform_count = dmGraphics::GetUniformCount(program);
+
+        bool has_pbr_uniforms = false;
+
+        for (int i = 0; i < uniform_count; ++i)
+        {
+            dmGraphics::Uniform uniform;
+            dmGraphics::GetUniform(program, i, &uniform);
+            has_pbr_uniforms |= FillPbrMaterialInfo(uniform, vs_type_infos, fs_type_infos, info);
+        }
+        return has_pbr_uniforms;
     }
 }

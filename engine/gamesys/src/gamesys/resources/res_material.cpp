@@ -28,6 +28,8 @@
 #include "res_fragment_program.h"
 #include "res_vertex_program.h"
 
+#include "gamesys_private.h"
+
 #include <dmsdk/dlib/hashtable.h>
 
 namespace dmGameSystem
@@ -116,10 +118,9 @@ namespace dmGameSystem
     {
         dmRender::HMaterial material = (dmRender::HMaterial) params->m_UserData;
 
-        uint64_t vertex_name_hash = dmRender::GetMaterialUserData1(material);
-        uint64_t fragment_name_hash = dmRender::GetMaterialUserData2(material);
+        MaterialResourceUserData* data = (MaterialResourceUserData*) dmRender::GetMaterialUserData(material);
 
-        if (params->m_FilenameHash == vertex_name_hash || params->m_FilenameHash == fragment_name_hash)
+        if (params->m_FilenameHash == data->m_VertexShaderNameHash || params->m_FilenameHash == data->m_FragmentShaderNameHash)
         {
             dmRender::HRenderContext render_context = dmRender::GetMaterialRenderContext(material);
             dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
@@ -269,16 +270,28 @@ namespace dmGameSystem
             return 0;
         }
 
+        MaterialResourceUserData* user_data = new MaterialResourceUserData();
+        user_data->m_PbrMaterialInfo = 0;
+
+        PBRMaterialInfo pbr_material_info;
+        if (GetPBRMaterialInfo(material, &pbr_material_info))
+        {
+            user_data->m_PbrMaterialInfo = new PBRMaterialInfo();
+            *user_data->m_PbrMaterialInfo = pbr_material_info;
+        }
+
         HResourceDescriptor desc;
         dmResource::Result factory_e;
 
         factory_e = dmResource::GetDescriptor(factory, ddf->m_VertexProgram, &desc);
         assert(factory_e == dmResource::RESULT_OK); // Should not fail at this point
-        dmRender::SetMaterialUserData1(material, ResourceDescriptorGetNameHash(desc));
+        user_data->m_VertexShaderNameHash = ResourceDescriptorGetNameHash(desc);
 
         factory_e = dmResource::GetDescriptor(factory, ddf->m_FragmentProgram, &desc);
         assert(factory_e == dmResource::RESULT_OK); // Should not fail at this point
-        dmRender::SetMaterialUserData2(material, ResourceDescriptorGetNameHash(desc));
+        user_data->m_FragmentShaderNameHash = ResourceDescriptorGetNameHash(desc);
+
+        dmRender::SetMaterialUserData(material, user_data);
 
         dmResource::RegisterResourceReloadedCallback(factory, ResourceReloadedCallback, material);
 

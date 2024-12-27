@@ -2373,6 +2373,9 @@ static void LogFrameBufferError(GLenum status)
             uint32_t m_OffsetNamespaceUsed     : 1;
             uint32_t m_OffsetInstanceName      : 31;
             uint32_t m_OffsetInstanceNameUsed  : 1;
+
+            ShaderResourceType m_RootType;
+            uint8_t            m_StageFlags;
         };
 
         char* CanonicalName(uint32_t i)
@@ -2409,6 +2412,9 @@ static void LogFrameBufferError(GLenum status)
         BuildCanonicalPathsCallbackContext* context = (BuildCanonicalPathsCallbackContext*) user_data;
 
         BuildCanonicalPathsCallbackContext::PathPointers path_pointers = {};
+
+        path_pointers.m_RootType   = *params.m_RootMemberType;
+        path_pointers.m_StageFlags = params.m_Resource->m_StageFlags;
 
         uint32_t increase_bytes        = 0;
         uint32_t canonical_name_length = 0;
@@ -2490,7 +2496,7 @@ static void LogFrameBufferError(GLenum status)
     // } my_material;
     // member 0: my_material.material.metallic;
     // member 1: my_material.material.roughness;
-    static char* GetConstructedCanonicalName(BuildCanonicalPathsCallbackContext& context, char* str, uint32_t str_len, char* canonical_name_buffer, uint32_t canonical_name_buffer_len)
+    static char* GetConstructedCanonicalName(BuildCanonicalPathsCallbackContext& context, char* str, uint32_t str_len, char* canonical_name_buffer, uint32_t canonical_name_buffer_len, ShaderResourceType* type_out, uint32_t* stage_flags_out)
     {
         int namespace_end = FindNamespace(str, str_len);
         if (namespace_end == -1)
@@ -2506,7 +2512,6 @@ static void LogFrameBufferError(GLenum status)
         {
             // These should be null-terminated
             char* namespace_path = context.Namespace(i);
-            uint32_t namespace_path_len = strlen(namespace_path);
 
             if (namespace_path && strcmp(namespace_path, canonical_name_buffer) == 0)
             {
@@ -2534,6 +2539,9 @@ static void LogFrameBufferError(GLenum status)
                     uint32_t canonical_name_len = strlen(canonical_name);
                     memcpy(write_ptr, canonical_name, canonical_name_len);
                     write_ptr[canonical_name_len] = 0;
+
+                    *type_out        = context.m_Paths[i].m_RootType;
+                    *stage_flags_out = context.m_Paths[i].m_StageFlags;
                     return canonical_name_buffer;
                 }
             }
@@ -2621,16 +2629,21 @@ static void LogFrameBufferError(GLenum status)
                 uniform_location = (HUniformLocation) glGetUniformLocation(program_handle, uniform_name_buffer);
             }
 
+            ShaderResourceType type_out;
+            uint32_t stage_flags_out;
+
             // These are temporary strings, we need copies of them.
-            char* canonical_name = GetConstructedCanonicalName(canonical_paths_ctx, uniform_name_buffer, uniform_name_length, canonical_name_buffer, sizeof(canonical_name_buffer));
+            char* canonical_name = GetConstructedCanonicalName(canonical_paths_ctx, uniform_name_buffer, uniform_name_length, canonical_name_buffer, sizeof(canonical_name_buffer), &type_out, &stage_flags_out);
             assert(canonical_name != 0);
 
-            Uniform& uniform   = program->m_BaseProgram.m_Uniforms[i];
-            uniform.m_Name     = strdup(canonical_name);
-            uniform.m_NameHash = dmHashString64(canonical_name);
-            uniform.m_Location = uniform_location;
-            uniform.m_Count    = uniform_size;
-            uniform.m_Type     = GetGraphicsType(uniform_type);
+            Uniform& uniform     = program->m_BaseProgram.m_Uniforms[i];
+            uniform.m_Name       = strdup(canonical_name);
+            uniform.m_NameHash   = dmHashString64(canonical_name);
+            uniform.m_Location   = uniform_location;
+            uniform.m_Count      = uniform_size;
+            uniform.m_Type       = GetGraphicsType(uniform_type);
+            uniform.m_RootType   = type_out;
+            uniform.m_StageFlags = stage_flags_out;
 
         #if 0
             dmLogInfo("  Uniform[%d]: full-name: %s, canonical-name: %s", i, uniform_name_buffer, canonical_name);

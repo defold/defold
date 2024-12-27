@@ -179,18 +179,11 @@ namespace dmGameSystem
     // PBR
     struct PBRMaterialInfo
     {
-        uint16_t m_HasPbrMetallicRoughness  : 1;
-        uint16_t m_HasPbrSpecularGlossiness : 1;
-        uint16_t m_HasClearCoat             : 1;
-        uint16_t m_HasTransmission          : 1;
-        uint16_t m_HasIor                   : 1;
-        uint16_t m_HasSpecular              : 1;
-        uint16_t m_HasVolume                : 1;
-        uint16_t m_HasEmissiveStrength      : 1;
-        uint16_t m_HasIridescence           : 1;
+        dmhash_t m_PbrMetallicRoughness_BaseColorFactor;
+        dmhash_t m_PbrMetallicRoughness_MetallicAndRoughnessFactor;
     };
 
-    bool GetPBRMaterialInfo(dmRender::HMaterial material, PBRMaterialInfo& info);
+    bool GetPBRMaterialInfo(dmRender::HMaterial material, PBRMaterialInfo* info);
 }
 
 #endif // DM_GAMESYS_PRIVER_H

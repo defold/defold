@@ -321,10 +321,8 @@ namespace dmRender
     HRenderContext                  GetMaterialRenderContext(HMaterial material);
     void                            SetMaterialVertexSpace(HMaterial material, dmRenderDDF::MaterialDesc::VertexSpace vertex_space);
 
-    uint64_t                        GetMaterialUserData1(HMaterial material);
-    void                            SetMaterialUserData1(HMaterial material, uint64_t user_data);
-    uint64_t                        GetMaterialUserData2(HMaterial material);
-    void                            SetMaterialUserData2(HMaterial material, uint64_t user_data);
+    void*                           GetMaterialUserData(HMaterial material);
+    void                            SetMaterialUserData(HMaterial material, void* user_data);
 
     void                            ApplyNamedConstantBuffer(dmRender::HRenderContext render_context, HMaterial material, HNamedConstantBuffer buffer);
     void                            ApplyNamedConstantBuffer(dmRender::HRenderContext render_context, HComputeProgram program, HNamedConstantBuffer buffer);

@@ -613,24 +613,14 @@ namespace dmRender
         return material->m_RenderContext;
     }
 
-    uint64_t GetMaterialUserData1(HMaterial material)
+    void* GetMaterialUserData(HMaterial material)
     {
-        return material->m_UserData1;
+        return material->m_UserData;
     }
 
-    void SetMaterialUserData1(HMaterial material, uint64_t user_data)
+    void SetMaterialUserData(HMaterial material, void* user_data)
     {
-        material->m_UserData1 = user_data;
-    }
-
-    uint64_t GetMaterialUserData2(HMaterial material)
-    {
-        return material->m_UserData2;
-    }
-
-    void SetMaterialUserData2(HMaterial material, uint64_t user_data)
-    {
-        material->m_UserData2 = user_data;
+        material->m_UserData = user_data;
     }
 
     void SetMaterialVertexSpace(HMaterial material, dmRenderDDF::MaterialDesc::VertexSpace vertex_space)

@@ -40,6 +40,7 @@ namespace dmGraphics
         char*                         m_InstanceName;
         const ProgramResourceBinding* m_Resource;
         const ShaderResourceMember*   m_Member;
+        const ShaderResourceType*     m_RootMemberType;
         uint32_t                      m_BaseOffset;
     };
 
@@ -49,13 +50,6 @@ namespace dmGraphics
     const static uint8_t MAX_SET_COUNT              = 4;
     const static uint8_t MAX_STORAGE_BUFFERS        = 4;
     const static uint8_t MAX_VERTEX_BUFFERS         = 3;
-
-    enum ShaderStageFlag
-    {
-        SHADER_STAGE_FLAG_VERTEX   = 0x1,
-        SHADER_STAGE_FLAG_FRAGMENT = 0x2,
-        SHADER_STAGE_FLAG_COMPUTE  = 0x4,
-    };
 
     struct VertexStream
     {

@@ -28,6 +28,8 @@
 
 #include <platform/platform_window.h>
 
+#include "graphics_reflection.h"
+
 namespace dmGraphics
 {
     /**
@@ -174,6 +176,13 @@ namespace dmGraphics
         CONTEXT_FEATURE_STORAGE_BUFFER         = 3,
         CONTEXT_FEATURE_VSYNC                  = 4,
         CONTEXT_FEATURE_INSTANCING             = 5,
+    };
+
+    enum ShaderStageFlag
+    {
+        SHADER_STAGE_FLAG_VERTEX   = 0x1,
+        SHADER_STAGE_FLAG_FRAGMENT = 0x2,
+        SHADER_STAGE_FLAG_COMPUTE  = 0x4,
     };
 
     // Translation table to translate RenderTargetAttachment to BufferType
@@ -416,11 +425,13 @@ namespace dmGraphics
 
     struct Uniform
     {
-        char*            m_Name; // Name, e.g "my_member" or "some_struct.my_member"
-        dmhash_t         m_NameHash;
-        HUniformLocation m_Location;
-        Type             m_Type;
-        uint32_t         m_Count;
+        char*              m_Name; // Name, e.g "my_member" or "some_struct.my_member"
+        dmhash_t           m_NameHash;
+        HUniformLocation   m_Location;
+        Type               m_Type;
+        ShaderResourceType m_RootType;
+        uint32_t           m_Count      : 30;
+        uint32_t           m_StageFlags : 2;
     };
 
     /** Creates a graphics context

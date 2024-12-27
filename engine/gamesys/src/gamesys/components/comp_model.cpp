@@ -965,14 +965,29 @@ namespace dmGameSystem
     }
     #endif
 
-    static void FillPBRConstants(ModelComponent* component, dmRender::HMaterial material)
+    static void FillPBRConstants(ModelComponent* component, dmRender::HMaterial material, uint32_t material_index)
     {
-        dmGameSystem::PBRMaterialInfo pbr_info;
-        if (dmGameSystem::GetPBRMaterialInfo(material, pbr_info))
+
+        MaterialResourceUserData* user_data = (MaterialResourceUserData*) dmRender::GetMaterialUserData(material);
+
+        if (user_data->m_PbrMaterialInfo)
         {
             if (!component->m_RenderConstants)
             {
                 component->m_RenderConstants = dmGameSystem::CreateRenderConstants();
+            }
+
+            const dmRigDDF::Material& material = component->m_Resource->m_RigScene->m_MeshSetRes->m_MeshSet->m_Materials[material_index];
+
+            if (user_data->m_PbrMaterialInfo->m_PbrMetallicRoughness_BaseColorFactor)
+            {
+                dmGameSystem::SetRenderConstant(component->m_RenderConstants, user_data->m_PbrMaterialInfo->m_PbrMetallicRoughness_BaseColorFactor, (dmVMath::Vector4*) &material.m_Pbrmetallicroughness.m_Basecolorfactor, 1);
+            }
+
+            if (user_data->m_PbrMaterialInfo->m_PbrMetallicRoughness_MetallicAndRoughnessFactor)
+            {
+                dmVMath::Vector4 metallic_roughness = dmVMath::Vector4(material.m_Pbrmetallicroughness.m_Metallicfactor, material.m_Pbrmetallicroughness.m_Roughnessfactor, 0.0f, 0.0f);
+                dmGameSystem::SetRenderConstant(component->m_RenderConstants, user_data->m_PbrMaterialInfo->m_PbrMetallicRoughness_MetallicAndRoughnessFactor, &metallic_roughness, 1);
             }
         }
     }
@@ -1123,7 +1138,7 @@ namespace dmGameSystem
 
         FillTextures(&ro, component, material_index);
 
-        FillPBRConstants(component, render_material);
+        FillPBRConstants(component, render_material, material_index);
 
         if (component->m_RenderConstants)
         {
@@ -1211,7 +1226,7 @@ namespace dmGameSystem
 
             FillTextures(&ro, component, material_index);
 
-            FillPBRConstants(component, render_material);
+            FillPBRConstants(component, render_material, material_index);
 
             if (component->m_RenderConstants)
             {
