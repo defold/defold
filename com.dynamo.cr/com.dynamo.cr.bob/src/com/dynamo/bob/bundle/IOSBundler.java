@@ -735,5 +735,7 @@ public class IOSBundler implements IBundler {
         BundleHelper.throwIfCanceled(canceled);
         Files.move( Paths.get(zipFileTmp.getAbsolutePath()), Paths.get(zipFile.getAbsolutePath()), StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
         logger.info("Finished ipa: " + getFileDescription(zipFile));
+
+        BundleHelper.moveBundleIfNeed(project, bundleDir);
     }
 }

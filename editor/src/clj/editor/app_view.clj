@@ -467,7 +467,7 @@
     (when-let [btn (some-> ^TabPane (g/node-value app-view :active-tab-pane)
                            (ui/selected-tab)
                            (.. getContent (lookup "#show-visibility-settings")))]
-      (scene-visibility/show-visibility-settings! btn scene-visibility)))
+      (scene-visibility/show-visibility-settings! app-view btn scene-visibility)))
   (state [app-view scene-visibility]
     (when-let [btn (some-> ^TabPane (g/node-value app-view :active-tab-pane)
                            (ui/selected-tab)
@@ -1047,8 +1047,8 @@
           (result-fn project-build-results)
           nil)
 
-        phase-6-await-lint!
-        (fn phase-6-await-lint! [project-build-results]
+        phase-7-await-lint!
+        (fn phase-7-await-lint! [project-build-results]
           (if lint
             (do
               (render-progress! (progress/make-indeterminate "Linting code..."))
@@ -1087,12 +1087,12 @@
                     (finish-with-result! project-build-results)))))
             (finish-with-result! project-build-results)))
 
-        phase-5-await-engine-build!
-        (fn phase-5-await-engine-build! [project-build-results]
+        phase-6-await-engine-build!
+        (fn phase-6-await-engine-build! [project-build-results]
           (assert (nil? (:error project-build-results)))
           (let [engine-build-future @engine-build-future-atom]
             (if (nil? engine-build-future)
-              (phase-6-await-lint! project-build-results)
+              (phase-7-await-lint! project-build-results)
               (do
                 (render-progress! (progress/make-indeterminate "Fetching engine..."))
                 (run-on-background-thread!
@@ -1100,15 +1100,15 @@
                     (deref engine-build-future))
                   (fn process-engine-build-results-on-ui-thread! [engine-or-exception]
                     (if (instance? Throwable engine-or-exception)
-                      (phase-6-await-lint!
+                      (phase-7-await-lint!
                         (assoc project-build-results
                           :error (g/with-auto-evaluation-context evaluation-context
                                    (engine-build-errors/exception->error-value engine-or-exception project evaluation-context))))
-                      (phase-6-await-lint!
+                      (phase-7-await-lint!
                         (assoc project-build-results :engine engine-or-exception)))))))))
 
-        phase-4-run-post-build-hook!
-        (fn phase-4-run-post-build-hook! [project-build-results]
+        phase-5-run-post-build-hook!
+        (fn phase-5-run-post-build-hook! [project-build-results]
           (render-progress! (progress/make-indeterminate "Executing post-build hooks..."))
           (let [platform (engine/current-platform)
                 project-build-successful (nil? (:error project-build-results))]
@@ -1120,11 +1120,11 @@
                                            :exception-policy :ignore))
               (fn process-post-build-hook-results-on-ui-thread! [_]
                 (if project-build-successful
-                  (phase-5-await-engine-build! (assoc project-build-results :project-build-successful true))
+                  (phase-6-await-engine-build! (assoc project-build-results :project-build-successful true))
                   (finish-with-result! project-build-results))))))
 
-        phase-3-build-project!
-        (fn phase-3-build-project! []
+        phase-4-build-project!
+        (fn phase-4-build-project! []
           ;; We're about to create an evaluation-context. Make sure it is
           ;; created from the main thread, so it makes sense to update the cache
           ;; from it after the project build concludes. Note that we selectively
@@ -1145,18 +1145,18 @@
                 (project/update-system-cache-build-targets! evaluation-context)
                 (project/log-cache-info! (g/cache) "Cached compiled build targets in system cache.")
                 (cond
-                  run-build-hooks (phase-4-run-post-build-hook! project-build-results)
-                  (nil? (:error project-build-results)) (phase-5-await-engine-build! project-build-results)
+                  run-build-hooks (phase-5-run-post-build-hook! project-build-results)
+                  (nil? (:error project-build-results)) (phase-6-await-engine-build! project-build-results)
                   :else (finish-with-result! project-build-results))))))
 
-        phase-2-start-all-build-processes!
-        (fn phase-2-start-all-build-processes! []
+        phase-3-start-all-build-processes!
+        (fn phase-3-start-all-build-processes! []
           (start-engine-build!)
           (start-lint!)
-          (phase-3-build-project!))
+          (phase-4-build-project!))
 
-        phase-1-run-pre-build-hook!
-        (fn phase-1-run-pre-build-hook! []
+        phase-2-run-pre-build-hook!
+        (fn phase-2-run-pre-build-hook! []
           (render-progress! (progress/make-indeterminate "Executing pre-build hooks..."))
           (let [platform (engine/current-platform)]
             (run-on-background-thread!
@@ -1178,7 +1178,17 @@
               (fn process-pre-build-hook-results-on-ui-thread! [extension-error]
                 (if (some? extension-error)
                   (finish-with-result! {:error extension-error})
-                  (phase-2-start-all-build-processes!))))))]
+                  (phase-3-start-all-build-processes!))))))
+
+        phase-1-await-current-reload!
+        (fn phase-1-await-current-reload! []
+          (run-on-background-thread!
+            disk/await-current-reload
+            (fn start-the-build-process-on-ui-thread! [_]
+              (if run-build-hooks
+                (phase-2-run-pre-build-hook!)
+                (phase-3-start-all-build-processes!)))))]
+
     ;; Trigger phase 1. Subsequent phases will be triggered as prior phases
     ;; finish without errors. Each phase will do some work on a background
     ;; thread, then process the results on the ui thread, and potentially
@@ -1186,9 +1196,7 @@
     ;; soon as they can.
     (assert (not @build-in-progress-atom))
     (reset! build-in-progress-atom true)
-    (if run-build-hooks
-      (phase-1-run-pre-build-hook!)
-      (phase-2-start-all-build-processes!))))
+    (phase-1-await-current-reload!)))
 
 (defn- handle-build-results! [workspace render-build-error! build-results]
   (let [{:keys [error warning artifact-map etags project-build-successful]} build-results
@@ -1312,23 +1320,32 @@ If you do not specifically require different script states, consider changing th
     (console/pipe-log-stream-to-console! in)
     (PipedOutputStream. in)))
 
+(defn- build-html5! [project prefs web-server build-errors-view changes-view main-stage tool-tab-pane bob-commands]
+  (let [main-scene (.getScene ^Stage main-stage)
+        render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
+        render-reload-progress! (make-render-task-progress :resource-sync)
+        render-save-progress! (make-render-task-progress :save-all)
+        render-build-progress! (make-render-task-progress :build)
+        task-cancelled? (make-task-cancelled-query :build)
+        bob-args (bob/build-html5-bob-options project prefs)
+        out (start-new-log-pipe!)]
+    (build-errors-view/clear-build-errors build-errors-view)
+    (disk/async-bob-build! render-reload-progress! render-save-progress! render-build-progress! out task-cancelled?
+                           render-build-error! bob-commands bob-args project changes-view
+                           (fn [successful?]
+                             (when successful?
+                               (ui/open-url (format "http://localhost:%d%s/index.html" (http-server/port web-server) bob/html5-url-prefix)))
+                             (.close out)))))
+
+(handler/defhandler :rebuild-html5 :global
+  (run [project prefs web-server build-errors-view changes-view main-stage tool-tab-pane]
+       (build-html5! project prefs web-server build-errors-view changes-view main-stage tool-tab-pane
+                     bob/rebuild-html5-bob-commands)))
+
 (handler/defhandler :build-html5 :global
   (run [project prefs web-server build-errors-view changes-view main-stage tool-tab-pane]
-    (let [main-scene (.getScene ^Stage main-stage)
-          render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
-          render-reload-progress! (make-render-task-progress :resource-sync)
-          render-save-progress! (make-render-task-progress :save-all)
-          render-build-progress! (make-render-task-progress :build)
-          task-cancelled? (make-task-cancelled-query :build)
-          bob-args (bob/build-html5-bob-options project prefs)
-          out (start-new-log-pipe!)]
-      (build-errors-view/clear-build-errors build-errors-view)
-      (disk/async-bob-build! render-reload-progress! render-save-progress! render-build-progress! out task-cancelled?
-                             render-build-error! bob/build-html5-bob-commands bob-args project changes-view
-                             (fn [successful?]
-                               (when successful?
-                                 (ui/open-url (format "http://localhost:%d%s/index.html" (http-server/port web-server) bob/html5-url-prefix)))
-                               (.close out))))))
+       (build-html5! project prefs web-server build-errors-view changes-view main-stage tool-tab-pane
+                     bob/build-html5-bob-commands)))
 
 (defn- updated-build-resource-proj-paths [old-etags new-etags]
   ;; We only want to return resources that were present in the old etags since
@@ -2663,6 +2680,7 @@ If you do not specifically require different script states, consider changing th
 (defn reload-extensions! [app-view project kind workspace changes-view build-errors-view prefs]
   (extensions/reload!
     project kind
+    :prefs prefs
     :reload-resources! (fn reload-resources! []
                          (let [f (future/make)]
                            (disk/async-reload! (make-render-task-progress :resource-sync)

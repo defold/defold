@@ -39,6 +39,7 @@ void ArchiveLoader::Verify()
     assert(m_Unmount != 0);
     assert(m_GetFileSize != 0);
     assert(m_ReadFile != 0);
+    assert(m_ReadFilePartial != 0);
 }
 
 void RegisterArchiveLoader(ArchiveLoader* loader)
@@ -133,6 +134,11 @@ Result GetFileSize(HArchive archive, dmhash_t path_hash, const char* path, uint3
 Result ReadFile(HArchive archive, dmhash_t path_hash, const char* path, uint8_t* buffer, uint32_t buffer_len)
 {
     return archive->m_Loader->m_ReadFile(archive->m_Internal, path_hash, path, buffer, buffer_len);
+}
+
+Result ReadFilePartial(HArchive archive, dmhash_t path_hash, const char* path, uint32_t offset, uint32_t size, uint8_t* buffer, uint32_t* nread)
+{
+    return archive->m_Loader->m_ReadFilePartial(archive->m_Internal, path_hash, path, offset, size, buffer, nread);
 }
 
 Result GetManifest(HArchive archive, dmResource::HManifest* out_manifest)

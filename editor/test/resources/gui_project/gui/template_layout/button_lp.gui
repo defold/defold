@@ -1,0 +1,30 @@
+fonts {
+  name: "font"
+  font: "/assets/vera_mo_bd.font"
+}
+nodes {
+  type: TYPE_TEXT
+  text: "button default"
+  font: "font"
+  id: "text"
+}
+material: "/builtins/materials/gui.material"
+layouts {
+  name: "Landscape"
+  nodes {
+    type: TYPE_TEXT
+    text: "button landscape"
+    id: "text"
+    overridden_fields: 8
+  }
+}
+layouts {
+  name: "Portrait"
+  nodes {
+    type: TYPE_TEXT
+    text: "button portrait"
+    id: "text"
+    overridden_fields: 8
+  }
+}
+adjust_reference: ADJUST_REFERENCE_PARENT

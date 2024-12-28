@@ -45,6 +45,7 @@ public class ShaderCompilers {
                 case X86Win32:
                 case X86_64Win32:
                 case X86Linux:
+                case Arm64Linux:
                 case X86_64Linux: {
                     if (shaderType == ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE) {
                         shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM430);
@@ -98,13 +99,17 @@ public class ShaderCompilers {
 
             assert shaderLanguages != null;
             for (ShaderDesc.Language shaderLanguage : shaderLanguages) {
-                ShaderDesc.Shader.Builder builder = ShaderProgramBuilder.makeShaderBuilder(shaderLanguage, pipeline.crossCompile(shaderType, shaderLanguage));
+                byte[] shaderBytes = pipeline.crossCompile(shaderType, shaderLanguage);
+                ShaderDesc.Shader.Builder builder = ShaderProgramBuilder.makeShaderBuilder(shaderLanguage, shaderBytes);
                 shaderBuildResults.add(new ShaderProgramBuilder.ShaderBuildResult(builder));
             }
 
             ShaderProgramBuilder.ShaderCompileResult compileResult = new ShaderProgramBuilder.ShaderCompileResult();
             compileResult.shaderBuildResults = shaderBuildResults;
             compileResult.reflector = pipeline.getReflectionData();
+
+            ShaderCompilePipeline.destroyShaderPipeline(pipeline);
+
             return compileResult;
         }
     }

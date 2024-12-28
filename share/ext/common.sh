@@ -366,17 +366,29 @@ function cmi_setup_cc() {
             export RANLIB=$DARWIN_TOOLCHAIN_ROOT/usr/bin/ranlib
             ;;
 
-        linux)
-            export CPPFLAGS="-m32 -fPIC"
-            export CXXFLAGS="${CXXFLAGS} -m32 -fPIC"
-            export CFLAGS="${CFLAGS} -m32 -fPIC"
-            export LDFLAGS="-m32"
-            ;;
 
         x86_64-linux)
-            export CFLAGS="${CFLAGS} -fPIC"
-            export CXXFLAGS="${CXXFLAGS} -fPIC"
-            export CPPFLAGS="${CPPFLAGS} -fPIC"
+            export CFLAGS="${CFLAGS} --target=x86_64-unknown-linux-gnu -fPIC"
+            export CXXFLAGS="${CXXFLAGS} --target=x86_64-unknown-linux-gnu -fPIC"
+            export CPPFLAGS="${CPPFLAGS} --target=x86_64-unknown-linux-gnu -fPIC"
+
+            export CC=$(which clang)
+            export CXX=$(which clang++)
+            export AR=$(which ar)
+            export RANLIB=$(which ranlib)
+            export CPP="${CC} -E"
+            ;;
+
+        arm64-linux)
+            export CFLAGS="${CFLAGS} --target=aarch64-unknown-linux-gnu -fPIC"
+            export CXXFLAGS="${CXXFLAGS} --target=aarch64-unknown-linux-gnu -fPIC"
+            export CPPFLAGS="${CPPFLAGS} --target=aarch64-unknown-linux-gnu -fPIC"
+
+            export CC=$(which clang)
+            export CXX=$(which clang++)
+            export AR=$(which ar)
+            export RANLIB=$(which ranlib)
+            export CPP="${CC} -E"
             ;;
 
         win32)
@@ -442,7 +454,7 @@ function cmi() {
             ;;
 
         # desktop
-        x86_64-macos|arm64-macos|x86_64-linux|win32|x86_64-win32)
+        x86_64-macos|arm64-macos|x86_64-linux|arm64-linux|win32|x86_64-win32)
             cmi_buildplatform $1
             ;;
 

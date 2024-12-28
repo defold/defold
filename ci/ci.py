@@ -45,10 +45,17 @@ def call(args, failonerror = True):
 
 def platform_from_host():
     system = platform.system()
+    machine = platform.machine()
     if system == "Linux":
-        return "x86_64-linux"
+        if machine == 'aarch64':
+            return "arm64-linux"
+        else:
+            return "x86_64-linux"
     elif system == "Darwin":
-        return "x86_64-macos"
+        if machine in ['aarch64', 'arm64']:
+            return "arm64-macos"
+        else:
+            return "x86_64-macos"
     else:
         return "x86_64-win32"
 
@@ -156,6 +163,7 @@ def install(args):
             "libtool",
             "libxi-dev",
             "libx11-xcb-dev",
+            "libxrandr-dev",
             "libopenal-dev",
             "libgl1-mesa-dev",
             "libglw1-mesa-dev",
@@ -190,16 +198,14 @@ def install(args):
         if args.keychain_cert:
             setup_keychain(args)
 
-
 def build_engine(platform, channel, with_valgrind = False, with_asan = False, with_ubsan = False, with_tsan = False,
                 with_vanilla_lua = False, skip_tests = False, skip_build_tests = False, skip_codesign = True,
                 skip_docs = False, skip_builtins = False, archive = False):
 
+    install_sdk = 'install_sdk'
     # for some platforms, we use the locally installed platform sdk
     if platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios', 'js-web', 'wasm-web'):
         install_sdk = ''
-    else:
-        install_sdk = 'install_sdk'
 
     args = ('python scripts/build.py distclean %s install_ext check_sdk' % install_sdk).split()
 

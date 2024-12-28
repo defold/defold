@@ -436,7 +436,7 @@
 
         attribute-properties
         (when-not (g/error-value? material-attribute-infos)
-          (graphics/attribute-property-entries _node-id material-attribute-infos vertex-attribute-overrides))]
+          (graphics/attribute-property-entries _node-id material-attribute-infos 0 vertex-attribute-overrides))]
 
     (-> _declared-properties
         (update :properties (fn [props]
@@ -592,19 +592,30 @@
 
   (input copied-nodes g/Any :array :cascade-delete)
 
-  (output aabb AABB (g/fnk [size]
+  (output aabb AABB (g/fnk [size ^:try scene-infos]
                       (let [[^double width ^double height ^double depth] size
+                            first-animation (when-not (g/error-value? scene-infos)
+                                              (:animation (first scene-infos)))
+                            anim-pivot (when first-animation
+                                         (get-in first-animation [:frames 0 :pivot]))
+                            [pivot-x pivot-y] (if anim-pivot
+                                                anim-pivot
+                                                [0.0 0.0])
                             half-width (* 0.5 width)
                             half-height (* 0.5 height)
-                            half-depth (* 0.5 depth)]
-                        (geom/make-aabb (Point3d. (- half-width) (- half-height) (- half-depth))
-                                        (Point3d. half-width half-height half-depth)))))
+                            half-depth (* 0.5 depth)
+
+                            ; Adjusted calculations for min-x and min-y
+                            min-x (- (* (- width) pivot-x) half-width)
+                            min-y (- (* (- height) pivot-y) half-height)]
+                        (geom/make-aabb (Point3d. min-x min-y (- half-depth))
+                                        (Point3d. (+ min-x width) (+ min-y height) half-depth)))))
   (output save-value g/Any produce-save-value)
   (output scene g/Any :cached produce-scene)
   (output build-targets g/Any :cached produce-build-targets)
   (output _properties g/Properties :cached produce-properties)
   (output vertex-attribute-bytes g/Any :cached (g/fnk [_node-id material-attribute-infos vertex-attribute-overrides]
-                                                 (graphics/attribute-bytes-by-attribute-key _node-id material-attribute-infos vertex-attribute-overrides))))
+                                                 (graphics/attribute-bytes-by-attribute-key _node-id material-attribute-infos 0 vertex-attribute-overrides))))
 
 (def ^:private default-material-proj-path (protobuf/default Sprite$SpriteDesc :material))
 

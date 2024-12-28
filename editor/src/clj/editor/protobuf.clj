@@ -1240,7 +1240,7 @@ Macros currently mean no foreseeable performance gain, however."
                                   {:key key
                                    :pb-class cls})))))))))
 
-(def ^:private without-defaults-xform (fn/memoize without-defaults-xform-raw))
+(def without-defaults-xform (fn/memoize without-defaults-xform-raw))
 
 (defn make-map-without-defaults [^Class cls & kvs]
   (into {}
@@ -1262,21 +1262,27 @@ Macros currently mean no foreseeable performance gain, however."
   (pb->map-without-defaults
     (read-pb cls input)))
 
-(defn assign [pb-map field-kw value]
-  {:pre [(map? pb-map)
-         (keyword? field-kw)]}
-  (if (or (nil? value)
-          (and (map? value)
-               (coll/empty? value)))
-    (dissoc pb-map field-kw)
-    (assoc pb-map field-kw value)))
+(defn assign
+  ([pb-map field-kw value]
+   {:pre [(map? pb-map)
+          (keyword? field-kw)]}
+   (if (or (nil? value)
+           (and (map? value)
+                (coll/empty? value)))
+     (dissoc pb-map field-kw)
+     (assoc pb-map field-kw value)))
+  ([pb-map field-kw value & kvs]
+   (coll/reduce-partitioned 2 assign (assign pb-map field-kw value) kvs)))
 
-(defn assign-repeated [pb-map field-kw items]
-  {:pre [(map? pb-map)
-         (keyword? field-kw)]}
-  (if (coll/empty? items)
-    (dissoc pb-map field-kw)
-    (assoc pb-map field-kw (vec items))))
+(defn assign-repeated
+  ([pb-map field-kw items]
+   {:pre [(map? pb-map)
+          (keyword? field-kw)]}
+   (if (coll/empty? items)
+     (dissoc pb-map field-kw)
+     (assoc pb-map field-kw (vec items))))
+  ([pb-map field-kw items & kvs]
+   (coll/reduce-partitioned 2 assign-repeated (assign-repeated pb-map field-kw items) kvs)))
 
 (defn sanitize
   ([pb-map field-kw]

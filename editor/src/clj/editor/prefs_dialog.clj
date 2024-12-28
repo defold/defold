@@ -21,7 +21,7 @@
   (:import [com.defold.control DefoldStringConverter LongField]
            [javafx.geometry VPos]
            [javafx.scene Parent Scene]
-           [javafx.scene.control CheckBox ChoiceBox ColorPicker Label Tab TabPane TextArea TextField]
+           [javafx.scene.control CheckBox ChoiceBox ColorPicker Label Tab TabPane TextArea TextField TextInputControl]
            [javafx.scene.input KeyCode KeyEvent]
            [javafx.scene.layout ColumnConstraints GridPane Priority]))
 
@@ -31,9 +31,8 @@
 
 (defn- create-generic [^Class class prefs grid desc]
   (let [control (.newInstance class)
-        commit (fn [] (prefs/set! prefs (:key desc) (ui/value control)))
-        value (prefs/get prefs (:key desc))]
-    (ui/value! control ((:replace desc {}) value value))
+        commit (fn [] (prefs/set! prefs (:key desc) (ui/value control)))]
+    (ui/value! control (prefs/get prefs (:key desc)))
     (ui/on-focus! control (fn [focus] (when-not focus (commit))))
     (when-not (:multi-line desc)
       (ui/on-action! control (fn [e] (commit))))
@@ -46,9 +45,11 @@
   (create-generic ColorPicker prefs grid desc))
 
 (defmethod create-control! :string [prefs grid desc]
-  (if (:multi-line desc)
-    (create-generic TextArea prefs grid desc)
-    (create-generic TextField prefs grid desc)))
+  (let [control (if (:multi-line desc)
+                  (create-generic TextArea prefs grid desc)
+                  (create-generic TextField prefs grid desc))]
+    (when (:prompt-value desc) (.setPromptText ^TextInputControl control (:prompt-value desc)))
+    control))
 
 (defmethod create-control! :long [prefs grid desc]
   (create-generic LongField prefs grid desc))
@@ -103,14 +104,17 @@
                     {:label "Escape Quits Game" :type :boolean :key [:run :quit-on-escape]}
                     {:label "Track Active Tab in Asset Browser" :type :boolean :key [:asset-browser :track-active-tab]}
                     {:label "Lint Code on Build" :type :boolean :key [:build :lint-code]}
-                    {:label "Path to Custom Keymap" :type :string :key [:input :keymap-path]}]}
+                    {:label "Path to Custom Keymap" :type :string :key [:input :keymap-path]}
+                    {:label "Engine Arguments" :type :string :key [:run :engine-arguments]  :multi-line true
+                     :prompt-value "One argument per line"
+                     :tooltip "Arguments that will be passed to the dmengine executables when the editor builds and runs.\n Use one argument per line. For example:\n--config=bootstrap.main_collection=/my dir/1.collectionc\n--verbose\n--graphics-adapter=vulkan"}]}
            {:name "Code"
             :prefs [{:label "Custom Editor" :type :string :key [:code :custom-editor]}
                     {:label "Open File" :type :string :key [:code :open-file]}
                     {:label "Open File at Line" :type :string :key [:code :open-file-at-line]}
                     {:label "Code Editor Font (Requires Restart)" :type :string :key [:code :font :name]}]}
            {:name  "Extensions"
-            :prefs [{:label "Build Server" :type :string :key [:extensions :build-server] :replace {"" native-extensions/defold-build-server-url}}
+            :prefs [{:label "Build Server" :type :string :key [:extensions :build-server] :prompt-value native-extensions/defold-build-server-url}
                     {:label "Build Server Headers" :type :string :key [:extensions :build-server-headers] :multi-line true}]}
            {:name "Tools"
             :prefs [{:label "ADB path" :type :string :key [:tools :adb-path] :tooltip "Path to ADB command that might be used to install and launch the Android app when it's bundled"}

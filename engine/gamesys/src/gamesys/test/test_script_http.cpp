@@ -215,7 +215,7 @@ TEST_F(ScriptHttpTest, TestGetPost)
     }
     lua_pop(L, 1);
 
-    uint64_t start = dmTime::GetTime();
+    uint64_t start = dmTime::GetMonotonicTime();
 
     while (1) {
         dmSys::PumpMessageQueue();
@@ -239,7 +239,7 @@ TEST_F(ScriptHttpTest, TestGetPost)
 
         dmTime::Sleep(10 * 1000);
 
-        uint64_t now = dmTime::GetTime();
+        uint64_t now = dmTime::GetMonotonicTime();
         uint64_t elapsed = now - start;
 
         if (elapsed / 1000000 > 8) {
@@ -287,7 +287,7 @@ TEST_F(ScriptHttpTest, TestTimeout)
     }
     lua_pop(L, 1);
 
-    uint64_t start = dmTime::GetTime();
+    uint64_t start = dmTime::GetMonotonicTime();
     while (1) {
         dmSys::PumpMessageQueue();
         dmMessage::Dispatch(m_DefaultURL.m_Socket, DispatchCallbackDDF, this);
@@ -307,7 +307,7 @@ TEST_F(ScriptHttpTest, TestTimeout)
 
         dmTime::Sleep(10 * 1000);
 
-        uint64_t now = dmTime::GetTime();
+        uint64_t now = dmTime::GetMonotonicTime();
         uint64_t elapsed = now - start;
         if (elapsed / 1000000 > 4) {
             dmLogError("The test timed out\n");

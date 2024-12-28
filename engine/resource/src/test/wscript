@@ -161,6 +161,16 @@ def build(bld):
                 source       = 'test_provider_multi.cpp',)
 
     # ******************************************************************************************************************************
+    # Resource cache tests
+
+    bld.program(features     = 'cxx test',
+                includes     = '.. ../../proto',
+                use          = 'TESTMAIN DDF DLIB PROFILE_NULL SOCKET THREAD LUA resource',
+                exported_symbols = ['ResourceProviderArchive'],
+                target       = 'test_resource_chunk_cache',
+                source       = 'test_resource_chunk_cache.cpp',)
+
+    # ******************************************************************************************************************************
     # Integration tests
 
     bld.program(features     = 'cxx embed test',

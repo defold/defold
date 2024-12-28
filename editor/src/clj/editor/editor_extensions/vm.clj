@@ -32,7 +32,7 @@
   (:require [clojure.java.io :as io])
   (:import [clojure.lang IReduceInit Named]
            [java.nio.charset StandardCharsets]
-           [java.util List Map]
+           [java.util List Map Set]
            [java.util.concurrent.locks ReentrantLock]
            [org.apache.commons.io.input CharSequenceInputStream]
            [org.luaj.vm2 Globals LuaBoolean LuaClosure LuaDouble LuaFunction LuaInteger LuaNil LuaString LuaTable LuaUserdata LuaValue Prototype Varargs]
@@ -160,6 +160,12 @@
                    (.rawset ret (int (inc i)) ^LuaValue (->lua v))))
                (recur (inc i))))
            ret))
+  Set (->lua [x]
+        (reduce
+          (fn [^LuaTable acc x]
+            (cond-> acc (some? x) (doto (.hashset (->lua x) LuaValue/TRUE))))
+          (LuaTable. 0 (count x))
+          x))
   Map (->lua [x]
         (reduce-kv
           (fn [^LuaTable acc k v]

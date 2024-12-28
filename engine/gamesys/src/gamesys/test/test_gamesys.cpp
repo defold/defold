@@ -155,8 +155,8 @@ TEST_P(ResourceTest, TestPreload)
     dmResource::HPreloader pr = dmResource::NewPreloader(m_Factory, resource_name);
     dmResource::Result r;
 
-    uint64_t stop_time = dmTime::GetTime() + 30*10e6;
-    while (dmTime::GetTime() < stop_time)
+    uint64_t stop_time = dmTime::GetMonotonicTime() + 30*10e6;
+    while (dmTime::GetMonotonicTime() < stop_time)
     {
         // Simulate running at 30fps
         r = dmResource::UpdatePreloader(pr, 0, 0, 33*1000);
@@ -258,11 +258,11 @@ static bool UpdateAndWaitUntilDone(
     uint32_t                           timeout_seconds = 1)
 {
     uint64_t timeout = timeout_seconds * 1000000; // microseconds
-    uint64_t stop_time = dmTime::GetTime() + timeout;
+    uint64_t stop_time = dmTime::GetMonotonicTime() + timeout;
     bool tests_done = false;
     while (!tests_done)
     {
-        if (dmTime::GetTime() >= stop_time)
+        if (dmTime::GetMonotonicTime() >= stop_time)
         {
             dmLogError("Test timed out after %f seconds", timeout / 1000000.0f);
             break;
@@ -725,7 +725,11 @@ TEST_F(ComponentTest, ConsumeInputInCollectionProxy)
     dmGameObject::HInstance go_consume_no = Spawn(m_Factory, m_Collection, path_consume_no, hash_go_consume_no, 0, Point3(0, 0, 0), Quat(0, 0, 0, 1), Vector3(1, 1, 1));
     ASSERT_NE((void*)0, go_consume_no);
 
-    // Iteration 1: Handle proxy enable and input acquire messages from input_consume_no.script
+    // Iteration 1: Let script send the "enable" message
+    ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
+    ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
+
+    // Iteration 2: Handle proxy enable and input acquire messages from input_consume_sink.script
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
     ASSERT_TRUE(dmGameObject::PostUpdate(m_Collection));
 
@@ -936,7 +940,7 @@ TEST_F(SoundTest, UpdateSoundResource)
 
     HResourceDescriptor descp = dmResource::FindByHash(m_Factory, soundata_hash);
     dmLogInfo("Original size: %d", descp->m_ResourceSize);
-    ASSERT_EQ(42270+16, dmResource::GetResourceSize(descp));  // valid.wav. Size returned is always +16 from size of wav: sound_data->m_Size + sizeof(SoundData) from sound_null.cpp;
+    ASSERT_EQ(42270+32, dmResource::GetResourceSize(descp));  // valid.wav. Size returned is always +16 from size of wav: sound_data->m_Size + sizeof(SoundData) from sound_null.cpp;
 
     // Update sound component with custom buffer from lua. See set_sound.script:update()
     ASSERT_TRUE(dmGameObject::Update(m_Collection, &m_UpdateContext));
@@ -946,7 +950,7 @@ TEST_F(SoundTest, UpdateSoundResource)
 
     descp = dmResource::FindByHash(m_Factory, soundata_hash);
     dmLogInfo("New size: %d", descp->m_ResourceSize);
-    ASSERT_EQ(98510+16, descp->m_ResourceSize);  // replacement.wav. Size returned is always +16 from size of wav: sound_data->m_Size + sizeof(SoundData) from sound_null.cpp;
+    ASSERT_EQ(98510+32, descp->m_ResourceSize);  // replacement.wav. Size returned is always +16 from size of wav: sound_data->m_Size + sizeof(SoundData) from sound_null.cpp;
 
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 
@@ -1807,8 +1811,8 @@ TEST_P(FactoryTest, Test)
     {
         go_pr = dmResource::NewPreloader(m_Factory, param.m_GOPath);
         dmResource::Result r;
-        uint64_t stop_time = dmTime::GetTime() + 30*10e6;
-        while (dmTime::GetTime() < stop_time)
+        uint64_t stop_time = dmTime::GetMonotonicTime() + 30*10e6;
+        while (dmTime::GetMonotonicTime() < stop_time)
         {
             r = dmResource::UpdatePreloader(go_pr, 0, 0, 16*1000);
             if (r != dmResource::RESULT_PENDING)
@@ -2003,8 +2007,8 @@ TEST_P(CollectionFactoryTest, Test)
     {
         go_pr = dmResource::NewPreloader(m_Factory, param.m_GOPath);
         dmResource::Result r;
-        uint64_t stop_time = dmTime::GetTime() + 30*10e6;
-        while (dmTime::GetTime() < stop_time)
+        uint64_t stop_time = dmTime::GetMonotonicTime() + 30*10e6;
+        while (dmTime::GetMonotonicTime() < stop_time)
         {
             r = dmResource::UpdatePreloader(go_pr, 0, 0, 16*1000);
             if (r != dmResource::RESULT_PENDING)
@@ -2994,10 +2998,10 @@ TEST_F(ComponentTest, DispatchBuffersTest)
             vs_format_a* written_sprite_a = (vs_format_a*) &gfx_vx_buffer->m_Buffer[0];
             vs_format_b* written_sprite_b = (vs_format_b*) &gfx_vx_buffer->m_Buffer[vertex_stride_a * vertex_count + vertex_padding];
 
-            for (int i = 0; i < vertex_count; ++i)
+            for (int j = 0; j < vertex_count; ++j)
             {
-                ASSERT_VTX_A_EQ(sprite_a[i], written_sprite_a[i]);
-                ASSERT_VTX_B_EQ(sprite_b[i], written_sprite_b[i]);
+                ASSERT_VTX_A_EQ(sprite_a[j], written_sprite_a[j]);
+                ASSERT_VTX_B_EQ(sprite_b[j], written_sprite_b[j]);
             }
         }
     }
@@ -3055,10 +3059,10 @@ TEST_F(ComponentTest, DispatchBuffersTest)
             vs_format_a* written_model_a = (vs_format_a*) &gfx_vx_buffer->m_Buffer[0];
             vs_format_b* written_model_b = (vs_format_b*) &gfx_vx_buffer->m_Buffer[vertex_stride_a * vertex_count + vertex_padding];
 
-            for (int i = 0; i < vertex_count; ++i)
+            for (int j = 0; j < vertex_count; ++j)
             {
-                ASSERT_VTX_A_EQ(model_a[i], written_model_a[i]);
-                ASSERT_VTX_B_EQ(model_b[i], written_model_b[i]);
+                ASSERT_VTX_A_EQ(model_a[j], written_model_a[j]);
+                ASSERT_VTX_B_EQ(model_b[j], written_model_b[j]);
             }
         }
     }
@@ -3074,7 +3078,7 @@ TEST_F(ComponentTest, DispatchBuffersTest)
 
         const uint32_t vertex_count   = 6;
         const uint32_t vertex_padding = vertex_stride_b - (vertex_stride_a * vertex_count) % vertex_stride_b;
-        const uint32_t buffer_size    = (vertex_stride_a + vertex_stride_b) * vertex_count + vertex_padding;
+        const uint32_t buffer_size    = vertex_stride_a * (vertex_count + 6) + vertex_stride_b * (vertex_count + 6); // we allocate for an extra particle
         uint8_t buffer[buffer_size];
 
         vs_format_a* pfx_a = (vs_format_a*) &buffer[0];
@@ -3109,10 +3113,10 @@ TEST_F(ComponentTest, DispatchBuffersTest)
             vs_format_a* written_pfx_a = (vs_format_a*) &gfx_vx_buffer->m_Buffer[0];
             vs_format_b* written_pfx_b = (vs_format_b*) &gfx_vx_buffer->m_Buffer[vertex_stride_a * vertex_count + vertex_padding];
 
-            for (int i = 0; i < vertex_count; ++i)
+            for (int j = 0; j < vertex_count; ++j)
             {
-                ASSERT_VTX_A_EQ(pfx_a[i], written_pfx_a[i]);
-                ASSERT_VTX_B_EQ(pfx_b[i], written_pfx_b[i]);
+                ASSERT_VTX_A_EQ(pfx_a[j], written_pfx_a[j]);
+                ASSERT_VTX_B_EQ(pfx_b[j], written_pfx_b[j]);
             }
         }
     }
@@ -5419,6 +5423,9 @@ TEST_F(MaterialTest, DynamicVertexAttributesCount)
     ASSERT_TRUE(dmGameObject::Final(m_Collection));
 }
 
+// Test setting material constants via go.set and go.get
+// for both single constants and array constants.
+// The test also tests for setting nested structs.
 TEST_F(MaterialTest, GoGetSetConstants)
 {
     ASSERT_TRUE(dmGameObject::Init(m_Collection));

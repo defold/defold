@@ -425,6 +425,15 @@ namespace dmGraphics
         uint32_t           m_ModificationVersion; // OpenGL
     };
 
+    struct Uniform
+    {
+        char*            m_Name; // Name, e.g "my_member" or "some_struct.my_member"
+        dmhash_t         m_NameHash;
+        HUniformLocation m_Location;
+        Type             m_Type;
+        uint32_t         m_Count;
+    };
+
     /** Creates a graphics context
      * Currently, there can only be one context active at a time.
      * @return New graphics context
@@ -649,9 +658,8 @@ namespace dmGraphics
     uint8_t*         WriteAttributes(uint8_t* write_ptr, uint32_t vertex_index, const WriteAttributeParams& params);
 
     // Uniforms
-    uint32_t         GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size);
     uint32_t         GetUniformCount(HProgram prog);
-    HUniformLocation GetUniformLocation(HProgram prog, const char* name);
+    void             GetUniform(HProgram prog, uint32_t index, Uniform* uniform);
 
     void SetConstantV4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);
     void SetConstantM4(HContext context, const dmVMath::Vector4* data, int count, HUniformLocation base_location);
@@ -904,6 +912,8 @@ namespace dmGraphics
         }
         return 0;
     }
+
+    void InvalidateGraphicsHandles(HContext context);
 
     /**
      * Get status of texture.

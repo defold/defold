@@ -1481,7 +1481,6 @@ TEST_F(ParticleTest, Animation)
         dmParticle::Update(m_Context, dt, FetchAnimationCallback);
         TestVertex* vb = vertex_buffer;
         uint32_t vertex_buffer_size = 0;
-        uint32_t vb_offs = 0;
         for (uint32_t type = 0; type < type_count; ++type)
         {
             dmParticle::GenerateVertexData(m_Context, dt, instance, type, m_AttributeInfos, Vector4(1,1,1,1), (void*)vertex_buffer, 6 * type_count * sizeof(TestVertex), &vertex_buffer_size);
@@ -1506,7 +1505,6 @@ TEST_F(ParticleTest, Animation)
                     VerifyVertexDims(vb, 1, 1.0f, 2, 3);
                 }
                 vb += 6;
-                vb_offs += 6;
             }
         }
         ASSERT_EQ((vb - vertex_buffer) * sizeof(TestVertex), vertex_buffer_size);

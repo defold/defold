@@ -101,16 +101,10 @@ public class Win32Bundler implements IBundler {
 
         BundleHelper.throwIfCanceled(canceled);
 
-        // Touch both OpenAL32.dll and wrap_oal.dll so they get included in the step below
-        String openal_dll = Bob.getLib(platform, "OpenAL32");
-        String wrap_oal_dll = Bob.getLib(platform, "wrap_oal");
-
         // Copy Executable and DLL:s
         String exeName = String.format("%s.exe", BundleHelper.projectNameToBinaryName(title));
         File exeOut = new File(appDir, exeName);
         FileUtils.copyFile(bundleExe, exeOut);
-        FileUtils.copyFileToDirectory(new File(openal_dll), appDir);
-        FileUtils.copyFileToDirectory(new File(wrap_oal_dll), appDir);
 
         // Copy debug symbols if they were generated
         String zipDir = FilenameUtils.concat(project.getBinaryOutputDirectory(), platform.getExtenderPair());
@@ -141,5 +135,7 @@ public class Win32Bundler implements IBundler {
                 throw new IOException("The icon does not exist: " + iconFile.getAbsolutePath());
             }
         }
+
+        BundleHelper.moveBundleIfNeed(project, bundleDir);
     }
 }

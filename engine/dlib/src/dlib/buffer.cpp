@@ -16,6 +16,7 @@
 #include <dlib/hash.h>
 #include <dmsdk/dlib/buffer.h>
 
+#include <dlib/dalloca.h>
 #include <dlib/log.h>
 #include <dlib/memory.h>
 #include <dlib/math.h>
@@ -27,10 +28,6 @@
 #include <string.h>
 #include <assert.h>
 #include <new>
-
-#if defined(_WIN32)
-#include <malloc.h>
-#endif
 
 #include <stdio.h>
 

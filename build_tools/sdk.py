@@ -52,9 +52,10 @@ VERSION_MACOSX_MIN="10.13"
 
 SWIFT_VERSION="5.5"
 
-VERSION_LINUX_CLANG="13.0.0"
-PACKAGES_LINUX_CLANG="clang-%s" % VERSION_LINUX_CLANG
-PACKAGES_LINUX_TOOLCHAIN="clang+llvm-%s-x86_64-linux-gnu-ubuntu-16.04" % VERSION_LINUX_CLANG
+VERSION_LINUX_CLANG="16.0.0"
+PACKAGES_LINUX_CLANG="clang-16.0.0"
+PACKAGES_LINUX_X86_64_TOOLCHAIN="clang+llvm-16.0.0-x86_64-linux-gnu-ubuntu-18.04"
+PACKAGES_LINUX_ARM64_TOOLCHAIN="clang+llvm-16.0.0-aarch64-linux-gnu"
 
 ## **********************************************************************************************
 # Android
@@ -117,6 +118,9 @@ defold_info['win10sdk']['pattern'] = "Win32/%s" % PACKAGES_WIN32_SDK_10
 
 defold_info['x86_64-linux']['version'] = VERSION_LINUX_CLANG
 defold_info['x86_64-linux']['pattern'] = 'linux/clang-%s' % VERSION_LINUX_CLANG
+
+defold_info['arm64-linux']['version'] = VERSION_LINUX_CLANG
+defold_info['arm64-linux']['pattern'] = 'linux/clang-%s' % VERSION_LINUX_CLANG
 
 ## **********************************************************************************************
 
@@ -502,11 +506,14 @@ def _get_local_emsdk_node():
 def _get_defold_path(sdkfolder, platform):
     return os.path.join(sdkfolder, defold_info[platform]['pattern'])
 
-def check_defold_sdk(sdkfolder, platform, verbose=False):
+def check_defold_sdk(sdkfolder, host_platform, platform, verbose=False):
     folders = []
     log_verbose(verbose, f"check_defold_sdk: {platform} {sdkfolder}")
 
-    if platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios'):
+    if sdk_vendor is not None and sdk_vendor.supports_platform(platform):
+        folders = sdk_vendor.get_defold_sdk_folders(platform)
+
+    elif platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios'):
         folders.append(_get_defold_path(sdkfolder, 'xcode'))
         folders.append(_get_defold_path(sdkfolder, platform))
 
@@ -518,8 +525,8 @@ def check_defold_sdk(sdkfolder, platform, verbose=False):
         folders.append(get_android_sdk_path(sdkfolder))
         folders.append(get_android_ndk_path(sdkfolder))
 
-    elif platform in ('x86_64-linux',):
-        folders.append(os.path.join(sdkfolder, "linux"))
+    elif platform in ('x86_64-linux','arm64-linux'):
+        folders.append(os.path.join(sdkfolder, host_platform))
 
     elif platform in ('wasm-web','js-web'):
         folders.append(get_defold_emsdk())
@@ -567,9 +574,13 @@ def check_local_sdk(platform, verbose=False):
     return True
 
 
-def _get_defold_sdk_info(sdkfolder, platform):
+def _get_defold_sdk_info(sdkfolder, host_platform, platform):
     info = {}
-    if platform in ('x86_64-macos', 'arm64-macos','x86_64-ios','arm64-ios'):
+
+    if sdk_vendor is not None and sdk_vendor.supports_platform(platform):
+        return sdk_vendor.get_sdk_info(platform)
+
+    elif platform in ('x86_64-macos', 'arm64-macos','x86_64-ios','arm64-ios'):
         info['xcode'] = {}
         info['xcode']['version'] = VERSION_XCODE
         info['xcode']['path'] = _get_defold_path(sdkfolder, 'xcode')
@@ -580,10 +591,11 @@ def _get_defold_sdk_info(sdkfolder, platform):
         info[platform]['version'] = defold_info[platform]['version']
         info[platform]['path'] = _get_defold_path(sdkfolder, platform) # what we use for sysroot
 
-    elif platform in ('x86_64-linux',):
+    elif platform in ('x86_64-linux','arm64-linux'):
         info[platform] = {}
         info[platform]['version'] = defold_info[platform]['version']
-        info[platform]['path'] = _get_defold_path(sdkfolder, platform)
+        # We download the package for the host platform, and rely on its ability cross compile
+        info[platform]['path'] = _get_defold_path(sdkfolder, host_platform)
 
     elif platform in ('win32', 'x86_64-win32'):
         windowsinfo = get_windows_packaged_sdk_info(sdkfolder, platform)
@@ -625,7 +637,7 @@ def _get_local_sdk_info(platform, verbose=False):
         if not os.path.exists(info['asan']['path']):
             print("sdk.py: Couldn't find '%s'" % info['asan']['path'], file=sys.stderr)
 
-    elif platform in ('x86_64-linux',):
+    elif platform in ('x86_64-linux','arm64-linux'):
         info[platform] = {}
         info[platform]['version'] = get_local_compiler_version()
         info[platform]['path'] = get_local_compiler_path()
@@ -654,16 +666,70 @@ def _get_local_sdk_info(platform, verbose=False):
 
     return info
 
+# ********************************************************************
+# vendor
+
+def dummy_check_vendor_sdk(sdkfolder, platform, verbose):
+    pass
+
+check_vendor_sdk = dummy_check_vendor_sdk
+
+try:
+    import sdk_vendor
+    sdk_vendor.SDKException = SDKException # give access to the esception
+    check_vendor_sdk = sdk_vendor.check_vendor_sdk
+except ModuleNotFoundError as e:
+    # Currently, the output is parsed by other scripts
+    if "No module named 'sdk_vendor'" in str(e):
+        pass
+    else:
+        raise e
+except Exception as e:
+    print("Failed to import sdk_vendor.py:")
+    raise e
+
+if 'sdk_vendor' not in sys.modules:
+    sdk_vendor = None
+
+# ********************************************************************
+
+def get_host_platform():
+    machine = platform.machine().lower()
+    if machine == 'amd64':
+        machine = 'x86_64'
+    is64bit = machine.endswith('64')
+
+    if sys.platform == 'linux':
+        if machine == 'aarch64':
+            machine = 'arm64'
+        return '%s-linux' % machine
+    elif sys.platform == 'win32':
+        return '%s-win32' % machine
+    elif sys.platform == 'darwin':
+        return '%s-macos' % machine
+
+    raise Exception("Unknown host platform: %s, %s" % (sys.platform, machine))
+
 # It's only cached for the duration of one build
 cached_platforms = defaultdict(defaultdict)
+
 
 def get_sdk_info(sdkfolder, platform, verbose=False):
     if platform in cached_platforms:
         return cached_platforms[platform]
 
+    host_platform = get_host_platform()
     try:
-        if check_defold_sdk(sdkfolder, platform, verbose):
-            result = _get_defold_sdk_info(sdkfolder, platform)
+        if check_vendor_sdk(sdkfolder, platform, verbose):
+            result = _get_defold_sdk_info(sdkfolder, host_platform, platform)
+            cached_platforms[platform] = result
+            return result
+    except SDKException as e:
+        log_verbose(verbose, e)
+
+    try:
+        if check_defold_sdk(sdkfolder, host_platform, platform, verbose):
+            result = _get_defold_sdk_info(sdkfolder, host_platform, platform)
             cached_platforms[platform] = result
             return result
     except SDKException as e:
@@ -682,21 +748,6 @@ def get_sdk_info(sdkfolder, platform, verbose=False):
 def get_toolchain_root(sdkinfo, platform):
     if platform in ('x86_64-macos','arm64-macos','x86_64-ios','arm64-ios'):
         return sdkinfo['xcode']['path']
-    if platform in ('x86_64-linux',):
-        return sdkinfo['x86_64-linux']['path']
+    if platform in ('x86_64-linux','arm64-linux'):
+        return sdkinfo[platform]['path']
     return None
-
-def get_host_platform():
-    machine = platform.machine().lower()
-    if machine == 'amd64':
-        machine = 'x86_64'
-    is64bit = machine.endswith('64')
-
-    if sys.platform == 'linux':
-        return '%s-linux' % machine
-    elif sys.platform == 'win32':
-        return '%s-win32' % machine
-    elif sys.platform == 'darwin':
-        return '%s-macos' % machine
-
-    raise Exception("Unknown host platform: %s, %s" % (sys.platform, machine))

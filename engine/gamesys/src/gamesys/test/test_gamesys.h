@@ -134,7 +134,6 @@ protected:
     dmGameSystem::ModelContext m_ModelContext;
     dmGameSystem::LabelContext m_LabelContext;
     dmGameSystem::TilemapContext m_TilemapContext;
-    dmGameSystem::SoundContext m_SoundContext;
     dmRig::HRigContext m_RigContext;
     dmGameObject::ModuleContext m_ModuleContext;
     dmHashTable64<void*> m_Contexts;
@@ -573,6 +572,7 @@ void GamesysTest<T>::SetUp()
     m_ParticleFXContext.m_RenderContext = m_RenderContext;
     m_ParticleFXContext.m_MaxParticleFXCount = 64;
     m_ParticleFXContext.m_MaxParticleCount = 256;
+    m_ParticleFXContext.m_MaxParticleBufferCount = 256;
     m_ParticleFXContext.m_MaxEmitterCount = 8;
 
     m_SpriteContext.m_RenderContext = m_RenderContext;
@@ -602,9 +602,6 @@ void GamesysTest<T>::SetUp()
 
     dmBuffer::NewContext(); // ???
 
-    m_SoundContext.m_MaxComponentCount = 32;
-    m_SoundContext.m_MaxSoundInstances = 256;
-
     m_PhysicsContext.m_MaxCollisionCount = 64;
     m_PhysicsContext.m_MaxContactPointCount = 128;
     m_PhysicsContext.m_MaxCollisionObjectCount = 512;
@@ -625,7 +622,9 @@ void GamesysTest<T>::SetUp()
 
     assert(dmGameObject::RESULT_OK == dmGameSystem::RegisterComponentTypes(m_Factory, m_Register, m_RenderContext, &m_PhysicsContext, &m_ParticleFXContext, &m_SpriteContext,
                                                                                                     &m_CollectionProxyContext, &m_FactoryContext, &m_CollectionFactoryContext,
-                                                                                                    &m_ModelContext, &m_LabelContext, &m_TilemapContext, &m_SoundContext));
+                                                                                                    &m_ModelContext, &m_LabelContext, &m_TilemapContext));
+
+    dmGameObject::SortComponentTypes(m_Register);
 
     // TODO: Investigate why the ConsumeInputInCollectionProxy test fails if the components are actually sorted (the way they're supposed to)
     //dmGameObject::SortComponentTypes(m_Register);
