@@ -72,7 +72,7 @@
 #endif
 
 #if defined(__linux__) && !defined(ANDROID)
-    #include <GL/glext.h>
+    // NOP
 #elif defined (ANDROID)
     #define GL_GLEXT_PROTOTYPES
     #include <GLES2/gl2ext.h>
@@ -1073,7 +1073,7 @@ static void LogFrameBufferError(GLenum status)
         context->m_IsGles3Version = 1; // 0 == gles 2, 1 == gles 3
         context->m_PipelineState  = GetDefaultPipelineState();
 
-#if defined(__EMSCRIPTEN__) || defined(__ANDROID__)
+#if defined(__EMSCRIPTEN__) || defined(__ANDROID__) || (defined(__linux__) && defined(__aarch64__))
         context->m_IsShaderLanguageGles = 1;
 
         const char* version = (char *) glGetString(GL_VERSION);

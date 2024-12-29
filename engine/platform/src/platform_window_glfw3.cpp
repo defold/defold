@@ -43,7 +43,7 @@ namespace dmPlatform
 
     static void OnError(int error, const char* description)
     {
-        dmLogError("GLFW Error: %s\n", description);
+        dmLogError("GLFW Error: %s", description);
     }
 
     static void OnWindowResize(GLFWwindow* glfw_window, int width, int height)
@@ -142,25 +142,34 @@ namespace dmPlatform
 
     HWindow NewWindow()
     {
+        glfwSetErrorCallback(OnError);
+
     #ifdef __MACH__
         glfwInitHint(GLFW_COCOA_CHDIR_RESOURCES, GLFW_FALSE);
     #endif
 
     #if defined(__linux__) && !defined(ANDROID)
-        glfwInitHint(GLFW_WAYLAND_LIBDECOR, GLFW_WAYLAND_PREFER_LIBDECOR);
         glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_X11);
-    #endif
-
+        if (glfwInit() == GL_FALSE)
+        {
+            glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_WAYLAND);
+            glfwInitHint(GLFW_WAYLAND_LIBDECOR, GLFW_WAYLAND_DISABLE_LIBDECOR);
+            if (glfwInit() == GL_FALSE)
+            {
+                dmLogError("Could not initialize glfw.");
+                return 0;
+            }
+        }
+    #else
         if (glfwInit() == GL_FALSE)
         {
             dmLogError("Could not initialize glfw.");
             return 0;
         }
+    #endif
 
         dmWindow* wnd = new dmWindow;
         memset(wnd, 0, sizeof(dmWindow));
-
-        glfwSetErrorCallback(OnError);
 
         // Reset context
         memset(&g_GLFW3Context, 0, sizeof(PlatformContext));
@@ -181,6 +190,33 @@ namespace dmPlatform
 
     static PlatformResult OpenWindowOpenGL(dmWindow* wnd, const WindowParams& params)
     {
+        glfwWindowHint(GLFW_SAMPLES, params.m_Samples);
+
+        GLFWmonitor* fullscreen_monitor = NULL;
+        if (params.m_Fullscreen)
+        {
+            fullscreen_monitor = glfwGetPrimaryMonitor();
+        }
+
+    #if defined(__linux__) && defined(__aarch64__) && !defined(ANDROID)
+        glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
+
+        const int supported_versions[] = { 3, 2, 3, 1, 3, 0, 2, 0 };
+        const int creation_api[] = { GLFW_EGL_CONTEXT_API, GLFW_NATIVE_CONTEXT_API };
+
+        for (int j = 0; j < sizeof(creation_api) / sizeof(creation_api[0]) && !wnd->m_Window; j++) {
+            const int api = creation_api[j];
+            glfwWindowHint(GLFW_CONTEXT_CREATION_API, api);
+            for (int i = 0; i < sizeof(supported_versions) / sizeof(supported_versions[0]) && !wnd->m_Window; i += 2) {
+                const int major = supported_versions[i];
+                const int minor = supported_versions[i + 1];
+                glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, major);
+                glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, minor);
+
+                wnd->m_Window = glfwCreateWindow(params.m_Width, params.m_Height, params.m_Title, fullscreen_monitor, NULL);
+            }
+        }
+    #else
         uint32_t major = 3, minor = 3;
         if (!OpenGLGetVersion(params.m_OpenGLVersionHint, &major, &minor))
         {
@@ -211,15 +247,8 @@ namespace dmPlatform
             }
         }
 
-        glfwWindowHint(GLFW_SAMPLES, params.m_Samples);
-
-        GLFWmonitor* fullscreen_monitor = NULL;
-        if (params.m_Fullscreen)
-        {
-            fullscreen_monitor = glfwGetPrimaryMonitor();
-        }
-
         wnd->m_Window = glfwCreateWindow(params.m_Width, params.m_Height, params.m_Title, fullscreen_monitor, NULL);
+    #endif
 
         if (!wnd->m_Window)
         {

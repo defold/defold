@@ -1881,8 +1881,10 @@ def detect(conf):
         conf.env['LIB_OPENGL'] = ['EGL', 'GLESv1_CM', 'GLESv2']
     elif platform in ('win32', 'x86_64-win32'):
         conf.env['LINKFLAGS_OPENGL'] = ['opengl32.lib', 'glu32.lib']
-    elif platform in ('x86_64-linux','arm64-linux'):
+    elif platform in ('x86_64-linux'):
         conf.env['LIB_OPENGL'] = ['GL', 'GLU']
+    elif platform in ('arm64-linux'):
+        conf.env['LIB_OPENGL'] = ['EGL', 'GLESv1_CM', 'GLESv2']
 
     if platform in ('x86_64-macos','arm64-macos'):
         conf.env['FRAMEWORK_OPENAL'] = ['OpenAL']
