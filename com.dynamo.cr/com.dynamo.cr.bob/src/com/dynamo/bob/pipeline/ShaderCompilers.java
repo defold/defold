@@ -45,12 +45,17 @@ public class ShaderCompilers {
                 case X86Win32:
                 case X86_64Win32:
                 case X86Linux:
-                case Arm64Linux:
                 case X86_64Linux: {
                     if (shaderType == ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE) {
                         shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM430);
                     } else {
                         shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLSL_SM140);
+                    }
+                } break;
+                case Arm64Linux: {
+                    if (shaderType != ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE) {
+                        shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM300);
+                        shaderLanguages.add(ShaderDesc.Language.LANGUAGE_GLES_SM100);
                     }
                 } break;
                 case Arm64Ios:
