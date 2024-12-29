@@ -190,14 +190,6 @@ namespace dmPlatform
 
     static PlatformResult OpenWindowOpenGL(dmWindow* wnd, const WindowParams& params)
     {
-        glfwWindowHint(GLFW_SAMPLES, params.m_Samples);
-
-        GLFWmonitor* fullscreen_monitor = NULL;
-        if (params.m_Fullscreen)
-        {
-            fullscreen_monitor = glfwGetPrimaryMonitor();
-        }
-
     #if defined(__linux__) && defined(__aarch64__) && !defined(ANDROID)
         glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
         glfwWindowHint(GLFW_CONTEXT_CREATION_API, GLFW_EGL_CONTEXT_API);
@@ -234,6 +226,14 @@ namespace dmPlatform
             }
         }
     #endif
+
+        glfwWindowHint(GLFW_SAMPLES, params.m_Samples);
+
+        GLFWmonitor* fullscreen_monitor = NULL;
+        if (params.m_Fullscreen)
+        {
+            fullscreen_monitor = glfwGetPrimaryMonitor();
+        }
 
         wnd->m_Window = glfwCreateWindow(params.m_Width, params.m_Height, params.m_Title, fullscreen_monitor, NULL);
         if (!wnd->m_Window)
