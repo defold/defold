@@ -200,22 +200,9 @@ namespace dmPlatform
 
     #if defined(__linux__) && defined(__aarch64__) && !defined(ANDROID)
         glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
-
-        const int supported_versions[] = { 3, 2, 3, 1, 3, 0, 2, 0 };
-        const int creation_api[] = { GLFW_EGL_CONTEXT_API, GLFW_NATIVE_CONTEXT_API };
-
-        for (int j = 0; j < sizeof(creation_api) / sizeof(creation_api[0]) && !wnd->m_Window; j++) {
-            const int api = creation_api[j];
-            glfwWindowHint(GLFW_CONTEXT_CREATION_API, api);
-            for (int i = 0; i < sizeof(supported_versions) / sizeof(supported_versions[0]) && !wnd->m_Window; i += 2) {
-                const int major = supported_versions[i];
-                const int minor = supported_versions[i + 1];
-                glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, major);
-                glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, minor);
-
-                wnd->m_Window = glfwCreateWindow(params.m_Width, params.m_Height, params.m_Title, fullscreen_monitor, NULL);
-            }
-        }
+        glfwWindowHint(GLFW_CONTEXT_CREATION_API, GLFW_EGL_CONTEXT_API);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 2);
+        glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
     #else
         uint32_t major = 3, minor = 3;
         if (!OpenGLGetVersion(params.m_OpenGLVersionHint, &major, &minor))
@@ -246,10 +233,9 @@ namespace dmPlatform
                 glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
             }
         }
-
-        wnd->m_Window = glfwCreateWindow(params.m_Width, params.m_Height, params.m_Title, fullscreen_monitor, NULL);
     #endif
 
+        wnd->m_Window = glfwCreateWindow(params.m_Width, params.m_Height, params.m_Title, fullscreen_monitor, NULL);
         if (!wnd->m_Window)
         {
             return PLATFORM_RESULT_WINDOW_OPEN_ERROR;
