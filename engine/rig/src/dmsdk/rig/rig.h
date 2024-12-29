@@ -189,6 +189,7 @@ namespace dmRig
     void             ResetPoseMatrixCache(HRigContext context);
     PoseMatrixCache* GetPoseMatrixCache(HRigContext context);
     uint16_t         AcquirePoseMatrixCacheIndex(HRigContext context, HRigInstance instance);
+    uint32_t         GetPoseMatrixCacheIndex(HRigContext context, uint16_t cache_index);
 
     Result PlayAnimation(HRigInstance instance, dmhash_t animation_id, RigPlayback playback, float blend_duration, float offset, float playback_rate);
     Result CancelAnimation(HRigInstance instance);

@@ -125,6 +125,17 @@ namespace dmGameSystem
         uint8_t                          : 4;
     };
 
+    struct ModelSkinnedAnimationData
+    {
+        HComponentRenderConstants        m_AnimationRenderConstants;
+        dmGraphics::HTexture             m_BindPoseCacheTexture;
+        uint8_t*                         m_BindPoseCacheBuffer;
+        uint16_t                         m_BindPoseCacheTextureMaxWidth;
+        uint16_t                         m_BindPoseCacheTextureMaxHeight;
+        uint16_t                         m_BindPoseCacheTextureCurrentWidth;
+        uint16_t                         m_BindPoseCacheTextureCurrentHeight;
+    };
+
     struct ModelWorld
     {
         dmObjectPool<ModelComponent*>    m_Components;
@@ -141,8 +152,7 @@ namespace dmGameSystem
         // Temporary scratch array for instances, only used during the creation phase of components
         dmArray<dmGameObject::HInstance> m_ScratchInstances;
         dmRig::HRigContext               m_RigContext;
-        dmGraphics::HTexture             m_BindPoseCacheTexture;
-        HComponentRenderConstants        m_AnimationRenderConstants;
+        ModelSkinnedAnimationData        m_SkinnedAnimationData;
 
         uint32_t                         m_MaxElementsVertices;
         uint32_t                         m_MaxBatchIndex;
@@ -184,6 +194,11 @@ namespace dmGameSystem
             return dmGameObject::CREATE_RESULT_UNKNOWN_ERROR;
         }
 
+        world->m_SkinnedAnimationData.m_BindPoseCacheTextureMaxWidth = context->m_MaxBoneMatrixTextureWidth;
+        world->m_SkinnedAnimationData.m_BindPoseCacheTextureMaxHeight = context->m_MaxBoneMatrixTextureHeight;
+        world->m_SkinnedAnimationData.m_BindPoseCacheTextureCurrentWidth = 0;
+        world->m_SkinnedAnimationData.m_BindPoseCacheTextureCurrentHeight = 0;
+
         world->m_Components.SetCapacity(comp_count);
         world->m_RenderObjects.SetCapacity(comp_count);
         // position, normal, tangent, color, texcoord0, texcoord1 * sizeof(float)
@@ -216,7 +231,7 @@ namespace dmGameSystem
         world->m_InstanceBufferLocalSpace  = dmRender::NewBufferedRenderBuffer(context->m_RenderContext, dmRender::RENDER_BUFFER_TYPE_VERTEX_BUFFER);
 
         dmGraphics::TextureCreationParams tp;
-        world->m_BindPoseCacheTexture = dmGraphics::NewTexture(graphics_context, tp);
+        world->m_SkinnedAnimationData.m_BindPoseCacheTexture = dmGraphics::NewTexture(graphics_context, tp);
 
         const uint8_t default_texture_data[4] = {};
         dmGraphics::TextureParams default_texture_params;
@@ -225,13 +240,13 @@ namespace dmGameSystem
         default_texture_params.m_Depth  = 1;
         default_texture_params.m_Data   = default_texture_data;
         default_texture_params.m_Format = dmGraphics::TEXTURE_FORMAT_RGBA;
-        dmGraphics::SetTexture(world->m_BindPoseCacheTexture, default_texture_params);
+        dmGraphics::SetTexture(world->m_SkinnedAnimationData.m_BindPoseCacheTexture, default_texture_params);
 
         world->m_CurrentFrameTick           = 0;
         world->m_VertexBuffers              = new dmRender::HBufferedRenderBuffer[VERTEX_BUFFER_MAX_BATCHES];
         world->m_VertexBufferData           = new dmArray<uint8_t>[VERTEX_BUFFER_MAX_BATCHES];
         world->m_VertexBufferDispatchCounts = new uint32_t[VERTEX_BUFFER_MAX_BATCHES];
-        world->m_AnimationRenderConstants   = dmGameSystem::CreateRenderConstants();
+        world->m_SkinnedAnimationData.m_AnimationRenderConstants = dmGameSystem::CreateRenderConstants();
 
         for(uint32_t i = 0; i < VERTEX_BUFFER_MAX_BATCHES; ++i)
         {
@@ -1021,6 +1036,17 @@ namespace dmGameSystem
     }
     #endif
 
+    static inline void EnsureBindPoseCacheBufferSize(ModelWorld* world, uint32_t max_width, uint32_t max_height)
+    {
+        if (world->m_SkinnedAnimationData.m_BindPoseCacheTextureCurrentWidth < max_width ||
+            world->m_SkinnedAnimationData.m_BindPoseCacheTextureCurrentHeight < max_height)
+        {
+            world->m_SkinnedAnimationData.m_BindPoseCacheBuffer = (uint8_t*) realloc(world->m_SkinnedAnimationData.m_BindPoseCacheBuffer, max_width * max_height * sizeof(dmVMath::Matrix4) );
+            world->m_SkinnedAnimationData.m_BindPoseCacheTextureCurrentWidth = max_width;
+            world->m_SkinnedAnimationData.m_BindPoseCacheTextureCurrentHeight = max_height;
+        }
+    }
+
     static inline dmGraphics::HVertexDeclaration GetBaseVertexDeclaration(ModelWorld* world, dmRender::HMaterial material, bool has_skin_data)
     {
         return has_skin_data && dmRender::GetMaterialHasSkinnedAttributes(material) ? world->m_VertexDeclarationSkinned : world->m_VertexDeclaration;
@@ -1185,16 +1211,19 @@ namespace dmGameSystem
                 instance_data->m_InstanceData.m_WorldTransform  = instance_render_item->m_World;
                 instance_data->m_InstanceData.m_NormalTransform = dmRender::GetNormalMatrix(render_context, instance_data->m_InstanceData.m_WorldTransform);
 
-                instance_data->m_AnimationData.setX((float) instance_component->m_BindPoseCacheAnimationIndex); // Animation start
+                // *4 = 4 vectors per matrix (RGBA)
+                uint32_t cache_offset = 4 * dmRig::GetPoseMatrixCacheIndex(world->m_RigContext, instance_component->m_BindPoseCacheAnimationIndex);
+
+                instance_data->m_AnimationData.setX((float) cache_offset); // Animation start
                 instance_data->m_AnimationData.setY((float) GetBoneCount(instance_component->m_RigInstance)); // Bone count
-                instance_data->m_AnimationData.setZ(dmGraphics::GetTextureWidth(world->m_BindPoseCacheTexture)); // Inv cache W
-                instance_data->m_AnimationData.setW(dmGraphics::GetTextureHeight(world->m_BindPoseCacheTexture)); // Inv cache H
+                instance_data->m_AnimationData.setZ(dmGraphics::GetTextureWidth(world->m_SkinnedAnimationData.m_BindPoseCacheTexture)); // Inv cache W
+                instance_data->m_AnimationData.setW(dmGraphics::GetTextureHeight(world->m_SkinnedAnimationData.m_BindPoseCacheTexture)); // Inv cache H
 
                 dmRender::SetMaterialSampler(ro.m_Material, DM_POSE_MATRIX_CACHE_HASH, first_free_index,
                 dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE,
                 dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, 0.0f);
 
-                ro.m_Textures[first_free_index] = world->m_BindPoseCacheTexture;
+                ro.m_Textures[first_free_index] = world->m_SkinnedAnimationData.m_BindPoseCacheTexture;
 
                 instance_write_ptr += sizeof(ModelSkinnedInstanceData);
             }
@@ -1308,15 +1337,18 @@ namespace dmGameSystem
                     dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE,
                     dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, 0.0f);
 
-                ro.m_Textures[first_free_index] = world->m_BindPoseCacheTexture;
+                ro.m_Textures[first_free_index] = world->m_SkinnedAnimationData.m_BindPoseCacheTexture;
 
-                constants = constants ? constants : world->m_AnimationRenderConstants;
+                constants = constants ? constants : world->m_SkinnedAnimationData.m_AnimationRenderConstants;
+
+                // *4 = 4 vectors per matrix (RGBA)
+                uint32_t cache_offset = 4 * dmRig::GetPoseMatrixCacheIndex(world->m_RigContext, component->m_BindPoseCacheAnimationIndex);
 
                 dmVMath::Vector4 animation_data;
-                animation_data.setX((float) component->m_BindPoseCacheAnimationIndex); // Animation start
+                animation_data.setX((float) cache_offset); // Animation start
                 animation_data.setY((float) GetBoneCount(component->m_RigInstance)); // Bone count
-                animation_data.setZ(dmGraphics::GetTextureWidth(world->m_BindPoseCacheTexture)); // Inv cache W
-                animation_data.setW(dmGraphics::GetTextureHeight(world->m_BindPoseCacheTexture)); // Inv cache H
+                animation_data.setZ(dmGraphics::GetTextureWidth(world->m_SkinnedAnimationData.m_BindPoseCacheTexture)); // Inv cache W
+                animation_data.setW(dmGraphics::GetTextureHeight(world->m_SkinnedAnimationData.m_BindPoseCacheTexture)); // Inv cache H
 
                 SetRenderConstant(constants, DM_ANIMATION_DATA_HASH, &animation_data, 1);
             }
@@ -1634,8 +1666,20 @@ namespace dmGameSystem
         if (pose_matrix_cache->m_MaxBoneCount == 0)
             return;
 
-        uint32_t num_animations = pose_matrix_cache->m_BoneCounts.Size();
+        uint32_t num_pose_matrices = pose_matrix_cache->m_PoseMatrices.Size();
+        uint32_t num_bone_pixels = num_pose_matrices * 4;
 
+        uint32_t max_width      = dmMath::Min(num_bone_pixels, (uint32_t) world->m_SkinnedAnimationData.m_BindPoseCacheTextureMaxWidth);
+        uint32_t max_height     = dmMath::Min(num_bone_pixels / world->m_SkinnedAnimationData.m_BindPoseCacheTextureMaxWidth + 1, (uint32_t) world->m_SkinnedAnimationData.m_BindPoseCacheTextureMaxHeight);
+
+        EnsureBindPoseCacheBufferSize(world, max_width, max_height);
+
+        dmVMath::Matrix4* animation_data_read_ptr = pose_matrix_cache->m_PoseMatrices.Begin();
+        dmVMath::Matrix4* animation_data_write_ptr = (dmVMath::Matrix4*) world->m_SkinnedAnimationData.m_BindPoseCacheBuffer;
+
+        memcpy(animation_data_write_ptr, animation_data_read_ptr, num_pose_matrices * sizeof(dmVMath::Matrix4));
+
+        /*
         void* texture_memory = malloc(num_animations * pose_matrix_cache->m_MaxBoneCount * sizeof(dmVMath::Matrix4));
         uint8_t* texture_memory_write_ptr = (uint8_t*) texture_memory;
 
@@ -1646,20 +1690,23 @@ namespace dmGameSystem
             texture_memory_write_ptr += pose_matrix_cache->m_MaxBoneCount * sizeof(dmVMath::Matrix4);
             animation_data_begin     += pose_matrix_cache->m_BoneCounts[i];
         }
+        */
+
+        //void* texture_memory = malloc();
 
         dmGraphics::TextureParams tp;
-        tp.m_Width     = pose_matrix_cache->m_MaxBoneCount * 4;
-        tp.m_Height    = num_animations;
+        tp.m_Width     = max_width; //pose_matrix_cache->m_MaxBoneCount * 4;
+        tp.m_Height    = max_height; //num_animations;
         tp.m_Depth     = 1;
         tp.m_Format    = dmGraphics::TEXTURE_FORMAT_RGBA32F;
-        tp.m_Data      = pose_matrix_cache->m_PoseMatrices.Begin();
+        tp.m_Data      = animation_data_write_ptr; // pose_matrix_cache->m_PoseMatrices.Begin();
         tp.m_MinFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
         tp.m_MagFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
-        dmGraphics::SetTexture(world->m_BindPoseCacheTexture, tp);
+        dmGraphics::SetTexture(world->m_SkinnedAnimationData.m_BindPoseCacheTexture, tp);
 
         dmRig::ResetPoseMatrixCache(world->m_RigContext);
 
-        free(texture_memory);
+        //free(texture_memory);
     }
 
     static void UpdateMeshTransforms(ModelComponent* component)

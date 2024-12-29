@@ -526,7 +526,7 @@ namespace dmRig
         EnsureSize(pose_matrices, current_size + bone_count);
 
         // We should store indices instead
-        pose_bone_count[instance->m_PoseMatrixCacheIndex] = bone_count;
+        pose_bone_count[instance->m_PoseMatrixCacheIndex] = current_size; //bone_count;
 
         Matrix4* pose_matrix_write_ptr = pose_matrices.Begin() + current_size;
         PoseToMatrix(instance->m_Pose, pose_matrix_write_ptr);
@@ -1208,7 +1208,16 @@ namespace dmRig
         context->m_PoseMatrixCache.m_BoneCounts.SetSize(next_index + 1);
 
         instance->m_PoseMatrixCacheIndex = next_index;
+
         return next_index;
+    }
+
+    uint32_t GetPoseMatrixCacheIndex(HRigContext context, uint16_t cache_index)
+    {
+        if (cache_index == INVALID_POSE_MATRIX_CACHE_INDEX) {
+            return INVALID_POSE_MATRIX_CACHE_INDEX;
+        }
+        return context->m_PoseMatrixCache.m_BoneCounts[cache_index];
     }
 
     uint8_t* GenerateVertexDataFromAttributes(dmRig::HRigContext context, dmRig::HRigInstance instance, dmRigDDF::Mesh* mesh, const dmVMath::Matrix4& world_matrix, const dmVMath::Matrix4& normal_matrix, const dmGraphics::VertexAttributeInfos* attribute_infos, uint32_t vertex_stride, uint8_t* vertex_data_out)
