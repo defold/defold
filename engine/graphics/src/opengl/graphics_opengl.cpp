@@ -1443,7 +1443,7 @@ static void LogFrameBufferError(GLenum status)
         #endif
         }
 
-#if defined(__ANDROID__) || defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__)
+#if defined(__ANDROID__) || defined(__arm__) || defined(__arm64__) || defined(__EMSCRIPTEN__) || (defined(__linux__) && defined(__aarch64__))
         if (OpenGLIsExtensionSupported(context, "GL_OES_element_index_uint") ||
             OpenGLIsExtensionSupported(context, "OES_element_index_uint"))
         {
