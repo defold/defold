@@ -167,7 +167,6 @@ def build(bld):
 
     bld.add_group()
 
-    """
     obj = bld(
         features = 'c cxx cprogram apk web extract_symbols',
         use = 'PROFILE_NULL PROFILEREXT_NULL GAMEOBJECT DDF LIVEUPDATE RESOURCE GAMESYS PHYSICS RECORD RENDER SOCKET SCRIPT LUA EXTENSION HID INPUT PARTICLE RIG DLIB GUI CRASH engine_release engine_service_null'.split() + graphics_lib + sound_lib + platform_lib + additional_libs,
@@ -186,7 +185,6 @@ def build(bld):
     if 'win32' in bld.env.PLATFORM:
         obj.source.append('engine.rc')
         obj.env.append_value('LINKFLAGS', ['/SUBSYSTEM:WINDOWS', '/ENTRY:mainCRTStartup', 'Psapi.lib'])
-    """
 
     additional_libs = []
     if bld.env['PLATFORM'] in ('armv7-android', 'arm64-android', 'x86_64-macos'):
@@ -201,7 +199,6 @@ def build(bld):
 
     bld.add_group()
 
-    """
     obj = bld(
         features = 'c cxx cprogram apk web extract_symbols',
         use = 'RECORD_NULL GAMEOBJECT DDF LIVEUPDATE GAMESYS RESOURCE PHYSICS RENDER SOCKET SCRIPT LUA EXTENSION HID_NULL INPUT PARTICLE PLATFORM_NULL RIG GUI CRASH DLIB SOUND_NULL engine engine_service'.split() + graphics_lib.split() + profile_lib + additional_libs,
@@ -222,7 +219,6 @@ def build(bld):
         bld.install_files('${PREFIX}/bin/${PLATFORM}', 'dmengine.nso')
         bld.install_files('${PREFIX}/bin/${PLATFORM}', 'dmengine_release.nso')
         bld.install_files('${PREFIX}/bin/${PLATFORM}', 'dmengine_headless.nso')
-    """
 
     if not waflib.Options.options.skip_build_tests:
         bld.recurse('test')
