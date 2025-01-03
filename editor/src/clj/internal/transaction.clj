@@ -865,23 +865,26 @@
 
 (defn- apply-tx
   [ctx actions]
-  (loop [ctx ctx
-         actions actions]
-    (if (seq actions)
-      (if-let [action (first actions)]
-        (if (sequential? action)
-          (recur (apply-tx ctx action) (next actions))
-          (recur (-> (try
-                       (du/measuring (:metrics ctx) (:type action) (metrics-key action)
-                         (perform ctx action))
-                       (catch Exception e
-                         (when *tx-debug*
-                           (println (txerrstr ctx "Transaction failed on " action)))
-                         (throw e)))
-                     (update :completed conj action))
-                 (next actions)))
-        (recur ctx (next actions)))
-      ctx)))
+  (reduce
+    (fn [ctx action]
+      (cond
+        (nil? action)
+        ctx
+
+        (sequential? action)
+        (apply-tx ctx action)
+
+        :else
+        (-> (try
+              (du/measuring (:metrics ctx) (:type action) (metrics-key action)
+                (perform ctx action))
+              (catch Exception e
+                (when *tx-debug*
+                  (println (txerrstr ctx "Transaction failed on " action)))
+                (throw e)))
+            (update :completed-action-count inc))))
+    ctx
+    actions))
 
 (defn- mark-nodes-modified
   [{:keys [nodes-affected] :as ctx}]
@@ -906,7 +909,7 @@
   "Makes the transacted graph the new value of the world-state graph."
   [{:keys [nodes-modified graphs-modified tx-data-context] :as ctx}]
   (-> (select-keys ctx tx-report-keys)
-      (assoc :status (if (empty? (:completed ctx)) :empty :ok)
+      (assoc :status (if (zero? (:completed-action-count ctx)) :empty :ok)
              :graphs-modified (into graphs-modified (map gt/node-id->graph-id nodes-modified))
              :tx-data-context-map (deref tx-data-context))))
 
@@ -925,7 +928,7 @@
    :successors-changed {}
    :node-id-generators node-id-generators
    :override-id-generator override-id-generator
-   :completed []
+   :completed-action-count 0
    :txid (new-txid)
    :tx-data-context (atom tx-data-context-map)
    :deferred-setters []
