@@ -30,22 +30,29 @@
    (let [batches (->> (io/resource "sorted_clojure_ns_list.edn")
                       (slurp)
                       (edn/read-string))
-         boot-loaded? (promise)
+         boot-loaded-promise (promise)
          loader (future
                   (try
                     (doseq [batch batches]
-                      (dorun (pmap #(do
-                                      (when print-to-stdout
-                                        (print (str "Loading namespace " % \newline))
-                                        (flush))
-                                      (require %))
-                                   batch))
-                      (when (contains? batch 'editor.boot)
-                        (deliver boot-loaded? true)))
+                      (let [boot-loaded
+                            (->> batch
+                                 (pmap (fn [ns-sym]
+                                         (when print-to-stdout
+                                           (print (str "Loading namespace " ns-sym \newline))
+                                           (flush))
+                                         (require ns-sym)
+                                         ns-sym))
+                                 (reduce (fn [boot-loaded ns-sym]
+                                           (case ns-sym
+                                             'editor.boot true
+                                             boot-loaded))
+                                         false))]
+                        (when boot-loaded
+                          (deliver boot-loaded-promise true))))
                     (catch Throwable t
-                      (deliver boot-loaded? t)
+                      (deliver boot-loaded-promise t)
                       (throw t))))]
-     (reset! load-info [loader boot-loaded?]))))
+     (reset! load-info [loader boot-loaded-promise]))))
 
 (defn wait-until-editor-boot-loaded
   []
