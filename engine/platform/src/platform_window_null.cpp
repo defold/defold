@@ -22,7 +22,7 @@
 
 namespace dmPlatform
 {
-    struct Window
+    struct dmWindow
     {
         WindowParams m_CreateParams;
         uint32_t     m_WindowWidth;
@@ -36,8 +36,8 @@ namespace dmPlatform
 
     HWindow NewWindow()
     {
-        Window* wnd = new Window();
-        memset(wnd, 0, sizeof(Window));
+        dmWindow* wnd = new dmWindow();
+        memset(wnd, 0, sizeof(dmWindow));
         return wnd;
     }
 
@@ -116,6 +116,9 @@ namespace dmPlatform
     {}
 
     void PollEvents(HWindow window)
+    {}
+
+    void SwapBuffers(HWindow window)
     {}
 
     void SetDeviceState(HWindow window, DeviceState state, bool op1)

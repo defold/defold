@@ -12,31 +12,25 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <string.h>
-#include <math.h>
-#include <float.h>
-#include <algorithm> // std::sort
+#include <assert.h>                 // for assert
+#include <string.h>                 // for memcpy
+#include <float.h>                  // for FLT_MAX
 
-#include <dlib/align.h>
-#include <dlib/memory.h>
-#include <dlib/static_assert.h>
-#include <dlib/array.h>
-#include <dlib/log.h>
-#include <dlib/math.h>
-#include <dlib/profile.h>
-#include <dlib/hashtable.h>
-#include <dlib/utf8.h>
-#include <dlib/zlib.h>
-#include <dmsdk/dlib/vmath.h>
-#include <dmsdk/dlib/intersection.h>
-#include <graphics/graphics_util.h>
+#include <dlib/memory.h>            // for dmMemory
+#include <dlib/hashtable.h>         // for dmHashTable32
+#include <dlib/log.h>               // for dmLogError, dmLogOnceError, dmLog...
+#include <dlib/profile.h>           // for DM_PROFILE, DM_PROPERTY_*
+#include <dlib/zlib.h>              // for InflateBuffer
+#include <dmsdk/dlib/intersection.h>// for dmIntersection
 
-#include "font_renderer.h"
-#include "font_renderer_private.h"
+#include <graphics/graphics.h>      // for TextureParams, TextureFilter, Tex...
+#include <graphics/graphics_util.h> // for PackRGBA
 
-#include "render_private.h"
-#include "render/font_ddf.h"
-#include "render.h"
+#include "font.h"
+#include "font_renderer_private.h"  // for FontMap, RenderLayerMask
+
+#include "font_renderer.h"       // for FontGlyphCompression
+#include "font_renderer_api.h"   // for the font renderer backend api
 
 DM_PROPERTY_EXTERN(rmtp_Render);
 DM_PROPERTY_U32(rmtp_FontCharacterCount, 0, FrameReset, "# glyphs", &rmtp_Render);
@@ -46,393 +40,19 @@ namespace dmRender
 {
     using namespace dmVMath;
 
-    // https://en.wikipedia.org/wiki/Delta_encoding
-    static void delta_decode(uint8_t* buffer, int length)
-    {
-        uint8_t last = 0;
-        for (int i = 0; i < length; i++)
-        {
-            uint8_t delta = buffer[i];
-            buffer[i] = delta + last;
-            last = buffer[i];
-        }
-    }
-
-    struct DM_ALIGNED(16) GlyphVertex
-    {
-        // NOTE: The struct *must* be 16-bytes aligned due to SIMD operations.
-        float m_Position[4];
-        float m_UV[2];
-        float m_FaceColor[4];
-        float m_OutlineColor[4];
-        float m_ShadowColor[4];
-        float m_SdfParams[4];
-        float m_LayerMasks[3];
-    };
-
-    enum RenderLayerMask
-    {
-        FACE    = 0x1,
-        OUTLINE = 0x2,
-        SHADOW  = 0x4
-    };
-
-    FontMapParams::FontMapParams()
-    : m_GetGlyph(0)
-    , m_GetGlyphData(0)
-    , m_NameHash(0)
-    , m_ShadowX(0.0f)
-    , m_ShadowY(0.0f)
-    , m_MaxAscent(0.0f)
-    , m_MaxDescent(0.0f)
-    , m_SdfSpread(1.0f)
-    , m_SdfOffset(0)
-    , m_SdfOutline(0)
-    , m_SdfShadow(0)
-    , m_CacheWidth(0)
-    , m_CacheHeight(0)
-    , m_CacheCellWidth(0)
-    , m_CacheCellHeight(0)
-    , m_GlyphChannels(1)
-    , m_CacheCellPadding(0)
-    , m_LayerMask(FACE)
-    , m_IsMonospaced(false)
-    , m_ImageFormat(dmRenderDDF::TYPE_BITMAP)
-    {
-
-    }
-
-    // We only store glyphs for our cache
-    struct CacheGlyph
-    {
-        dmRender::FontGlyph* m_Glyph;
-        uint32_t             m_Frame;
-        int16_t              m_X;
-        int16_t              m_Y;
-    };
-
-    struct FontMap
-    {
-        FontMap()
-        : m_UserData(0)
-        , m_Texture(0)
-        , m_Material(0)
-        , m_NameHash(0)
-        , m_GetGlyph(0)
-        , m_GetGlyphData(0)
-        , m_ShadowX(0.0f)
-        , m_ShadowY(0.0f)
-        , m_MaxAscent(0.0f)
-        , m_MaxDescent(0.0f)
-        , m_CellTempData(0)
-        , m_Cache(0)
-        , m_CacheIndices(0)
-        , m_CacheCursor(0)
-        , m_CacheWidth(0)
-        , m_CacheHeight(0)
-        , m_CacheCellWidth(0)
-        , m_CacheCellHeight(0)
-        , m_CacheCellMaxAscent(0)
-        , m_CacheColumns(0)
-        , m_CacheRows(0)
-        , m_CacheCellCount(0)
-        , m_CacheCellPadding(0)
-        , m_LayerMask(FACE)
-        , m_IsMonospaced(false)
-        , m_Padding(0)
-        {
-        }
-
-        ~FontMap()
-        {
-            free(m_CacheIndices);
-            m_CacheIndices = 0;
-
-            free(m_Cache);
-            m_Cache = 0;
-
-            free(m_CellTempData);
-            m_CellTempData = 0;
-
-            dmGraphics::DeleteTexture(m_Texture);
-        }
-
-        void*                   m_UserData; // The font map resources (see res_font.cpp)
-        dmGraphics::HTexture    m_Texture;
-        HMaterial               m_Material;
-        dmhash_t                m_NameHash;
-
-        FGetGlyph               m_GetGlyph;
-        FGetGlyphData           m_GetGlyphData;
-
-        float                   m_ShadowX;
-        float                   m_ShadowY;
-        float                   m_MaxAscent;
-        float                   m_MaxDescent;
-        float                   m_SdfSpread;
-        float                   m_SdfOffset;
-        float                   m_SdfOutline;
-        float                   m_SdfShadow;
-        float                   m_Alpha;
-        float                   m_OutlineAlpha;
-        float                   m_ShadowAlpha;
-
-        uint8_t*                m_CellTempData; // a temporary unpack buffer for the compressed glyphs
-
-        dmHashTable32<CacheGlyph*>  m_GlyphCache;   // Quick check what glyphs are in the cache
-        CacheGlyph*                 m_Cache;        // The data (i.e. the pool)
-        uint16_t*                   m_CacheIndices; // Indices into the cache array
-        uint32_t                    m_CacheCursor;
-
-        dmGraphics::TextureFormat m_CacheFormat;
-        dmGraphics::TextureFilter m_MinFilter;
-        dmGraphics::TextureFilter m_MagFilter;
-
-        uint32_t                m_CacheWidth;           // In texels
-        uint32_t                m_CacheHeight;          // In texels
-        uint32_t                m_CacheCellWidth;       // In texels
-        uint32_t                m_CacheCellHeight;      // In texels
-        uint32_t                m_CacheCellMaxAscent;   // In texels
-        uint32_t                m_CacheColumns;         // Number of cells in horizontal direction
-        uint32_t                m_CacheRows;            // Number of cells in horizontal direction
-        uint32_t                m_CacheCellCount;       // Number of cells in total
-        uint8_t                 m_CacheChannels;        // Number of channels
-        uint8_t                 m_CacheCellPadding;
-        uint8_t                 m_LayerMask;
-        uint8_t                 m_IsMonospaced:1;
-        uint8_t                 m_Padding:7;
-    };
-
-    static float GetLineTextMetrics(HFontMap font_map, float tracking, const char* text, int n, bool measure_trailing_space);
-
-    static void InitFontmap(FontMapParams& params, dmGraphics::TextureParams& tex_params, uint8_t init_val)
-    {
-        uint8_t bpp = params.m_GlyphChannels;
-        uint32_t data_size = tex_params.m_Width * tex_params.m_Height * bpp;
-        tex_params.m_Data = malloc(data_size);
-        tex_params.m_DataSize = data_size;
-        memset((void*)tex_params.m_Data, init_val, tex_params.m_DataSize);
-    }
-
-    static void CleanupFontmap(dmGraphics::TextureParams& tex_params)
-    {
-        free((void*)tex_params.m_Data);
-        tex_params.m_DataSize = 0;
-    }
-
-    // Font maps have no mips, so we need to make sure we use a supported min filter
-    static dmGraphics::TextureFilter ConvertMinTextureFilter(dmGraphics::TextureFilter filter)
-    {
-        if (filter == dmGraphics::TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST)
-        {
-            filter = dmGraphics::TEXTURE_FILTER_NEAREST;
-        }
-        else if (filter == dmGraphics::TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST)
-        {
-            filter = dmGraphics::TEXTURE_FILTER_LINEAR;
-        }
-
-        return filter;
-    }
-
-    static void SetupCache(HFontMap font_map, uint32_t texture_width, uint32_t texture_height,
-                                             uint32_t cell_width, uint32_t cell_height, uint32_t max_ascent)
-    {
-        if (font_map->m_Cache)
-        {
-            free(font_map->m_Cache);
-            free(font_map->m_CellTempData);
-            free(font_map->m_CacheIndices);
-            font_map->m_GlyphCache.Clear();
-        }
-
-        font_map->m_CacheCellWidth = cell_width;
-        font_map->m_CacheCellHeight = cell_height;
-        font_map->m_CacheCellMaxAscent = max_ascent;
-
-        font_map->m_CacheColumns = texture_width / cell_width;
-        font_map->m_CacheRows = texture_height / cell_height;
-        font_map->m_CacheCellCount = font_map->m_CacheColumns * font_map->m_CacheRows;
-
-        font_map->m_CellTempData = (uint8_t*)malloc(font_map->m_CacheCellWidth*font_map->m_CacheCellHeight*4);
-
-        font_map->m_CacheIndices = (uint16_t*)malloc(sizeof(uint16_t) * font_map->m_CacheCellCount);
-        memset(font_map->m_CacheIndices, 0, sizeof(uint16_t) * font_map->m_CacheCellCount);
-
-        font_map->m_Cache = (CacheGlyph*)malloc(sizeof(CacheGlyph) * font_map->m_CacheCellCount);
-        memset(font_map->m_Cache, 0, sizeof(CacheGlyph*) * font_map->m_CacheCellCount);
-        for (uint32_t i = 0; i < font_map->m_CacheCellCount; ++i)
-        {
-            font_map->m_CacheIndices[i] = i;
-
-            CacheGlyph* glyph = &font_map->m_Cache[i];
-            glyph->m_Glyph = 0;
-            glyph->m_Frame = 0;
-
-            // We calculate these only once
-            uint32_t col = i % font_map->m_CacheColumns;
-            uint32_t row = i / font_map->m_CacheColumns;
-            glyph->m_X = col * font_map->m_CacheCellWidth;
-            glyph->m_Y = row * font_map->m_CacheCellHeight;
-        }
-
-        uint32_t old_cap = font_map->m_GlyphCache.Capacity();
-        int new_cap = font_map->m_CacheCellCount;
-        if (new_cap > old_cap)
-        {
-            font_map->m_GlyphCache.SetCapacity((new_cap*3)/2, new_cap);
-        }
-    }
-
-    void SetFontMap(HFontMap font_map, dmGraphics::HContext graphics_context, FontMapParams& params)
-    {
-
-        assert(params.m_GetGlyph);
-        assert(params.m_GetGlyphData);
-
-        font_map->m_NameHash = params.m_NameHash;
-        font_map->m_GetGlyph = params.m_GetGlyph;
-        font_map->m_GetGlyphData = params.m_GetGlyphData;
-        font_map->m_ShadowX = params.m_ShadowX;
-        font_map->m_ShadowY = params.m_ShadowY;
-        font_map->m_MaxAscent = params.m_MaxAscent;
-        font_map->m_MaxDescent = params.m_MaxDescent;
-        font_map->m_SdfSpread = params.m_SdfSpread;
-        font_map->m_SdfOffset = params.m_SdfOffset;
-        font_map->m_SdfOutline = params.m_SdfOutline;
-        font_map->m_SdfShadow = params.m_SdfShadow;
-        font_map->m_Alpha = params.m_Alpha;
-        font_map->m_OutlineAlpha = params.m_OutlineAlpha;
-        font_map->m_ShadowAlpha = params.m_ShadowAlpha;
-        font_map->m_LayerMask = params.m_LayerMask;
-        font_map->m_IsMonospaced = params.m_IsMonospaced;
-        font_map->m_Padding = params.m_Padding;
-
-        font_map->m_CacheWidth = params.m_CacheWidth;
-        font_map->m_CacheHeight = params.m_CacheHeight;
-        font_map->m_CacheCellPadding = params.m_CacheCellPadding;
-        font_map->m_CacheChannels = params.m_GlyphChannels;
-
-        SetupCache(font_map, font_map->m_CacheWidth, font_map->m_CacheHeight,
-                                params.m_CacheCellWidth, params.m_CacheCellHeight, params.m_CacheCellMaxAscent);
-
-        switch (params.m_GlyphChannels)
-        {
-            case 1:
-                font_map->m_CacheFormat = dmGraphics::TEXTURE_FORMAT_LUMINANCE;
-            break;
-            case 3:
-                font_map->m_CacheFormat = dmGraphics::TEXTURE_FORMAT_RGB;
-            break;
-            case 4:
-                font_map->m_CacheFormat = dmGraphics::TEXTURE_FORMAT_RGBA;
-            break;
-            default:
-                dmLogError("Invalid channel count for glyph data: %u", params.m_GlyphChannels);
-                delete font_map;
-                return;
-        };
-
-        if (params.m_ImageFormat == dmRenderDDF::TYPE_BITMAP)
-        {
-            dmGraphics::GetDefaultTextureFilters(graphics_context, font_map->m_MinFilter, font_map->m_MagFilter);
-            // No mips for font cache
-            font_map->m_MinFilter = ConvertMinTextureFilter(font_map->m_MinFilter);
-        }
-        else // Distance-field font
-        {
-            font_map->m_MinFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
-            font_map->m_MagFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
-        }
-
-
-        // create new texture to be used as a cache
-        dmGraphics::TextureCreationParams tex_create_params;
-        dmGraphics::TextureParams tex_params;
-        tex_create_params.m_Width = params.m_CacheWidth;
-        tex_create_params.m_Height = params.m_CacheHeight;
-        tex_create_params.m_OriginalWidth = params.m_CacheWidth;
-        tex_create_params.m_OriginalHeight = params.m_CacheHeight;
-        tex_params.m_Format = font_map->m_CacheFormat;
-
-        tex_params.m_Data = 0;
-        tex_params.m_DataSize = 0;
-        tex_params.m_Width = params.m_CacheWidth;
-        tex_params.m_Height = params.m_CacheHeight;
-        tex_params.m_MinFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
-        tex_params.m_MagFilter = dmGraphics::TEXTURE_FILTER_LINEAR;
-
-        if (font_map->m_Texture)
-        {
-            dmGraphics::DeleteTexture(font_map->m_Texture);
-        }
-        font_map->m_Texture = dmGraphics::NewTexture(graphics_context, tex_create_params);
-
-        InitFontmap(params, tex_params, 0);
-        dmGraphics::SetTexture(font_map->m_Texture, tex_params);
-        CleanupFontmap(tex_params);
-    }
-
-    HFontMap NewFontMap(dmGraphics::HContext graphics_context, FontMapParams& params)
-    {
-        FontMap* font_map = new FontMap();
-        SetFontMap(font_map, graphics_context, params);
-        return font_map;
-    }
-
-    void SetFontMapCacheSize(HFontMap font_map, uint32_t cell_width, uint32_t cell_height, uint32_t max_ascent)
-    {
-        // TODO: DO we need to clear the texture?
-        SetupCache(font_map, font_map->m_CacheWidth, font_map->m_CacheWidth,
-                            cell_width, cell_height, max_ascent);
-    }
-
-    void GetFontMapCacheSize(HFontMap font_map, uint32_t* cell_width, uint32_t* cell_height, uint32_t* max_ascent)
-    {
-        *cell_width = font_map->m_CacheCellWidth;
-        *cell_height = font_map->m_CacheCellHeight;
-        *max_ascent = font_map->m_CacheCellMaxAscent;
-    }
-
-    void DeleteFontMap(HFontMap font_map)
-    {
-        delete font_map;
-    }
-
-    void SetFontMapUserData(HFontMap font_map, void* user_data)
-    {
-        font_map->m_UserData = user_data;
-    }
-
-    void* GetFontMapUserData(HFontMap font_map)
-    {
-        return font_map->m_UserData;
-    }
-
-    dmGraphics::HTexture GetFontMapTexture(HFontMap font_map)
-    {
-        return font_map->m_Texture;
-    }
-
-    void SetFontMapMaterial(HFontMap font_map, HMaterial material)
-    {
-        font_map->m_Material = material;
-    }
-
-    HMaterial GetFontMapMaterial(HFontMap font_map)
-    {
-        return font_map->m_Material;
-    }
-
     void InitializeTextContext(HRenderContext render_context, uint32_t max_characters, uint32_t max_batches)
     {
-        DM_STATIC_ASSERT(sizeof(GlyphVertex) % 16 == 0, Invalid_Struct_Size);
+        // TODO: Why does the vertex need to be 16-byte aligned?
+        //DM_STATIC_ASSERT(GetFontVertexSize() % 16 == 0, Invalid_Struct_Size);
+
         DM_STATIC_ASSERT( MAX_FONT_RENDER_CONSTANTS == MAX_TEXT_RENDER_CONSTANTS, Constant_Arrays_Must_Have_Same_Size );
 
         TextContext& text_context = render_context->m_TextContext;
 
+        text_context.m_FontRenderBackend = CreateFontRenderBackend();
+
         text_context.m_MaxVertexCount = max_characters * 6; // 6 vertices per character
-        uint32_t buffer_size = sizeof(GlyphVertex) * text_context.m_MaxVertexCount;
+        uint32_t buffer_size = GetFontVertexSize(text_context.m_FontRenderBackend) * text_context.m_MaxVertexCount;
         text_context.m_ClientBuffer = 0x0;
         text_context.m_VertexIndex = 0;
         text_context.m_VerticesFlushed = 0;
@@ -446,19 +66,8 @@ namespace dmRender
             return;
         }
 
-        dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(render_context->m_GraphicsContext);
-        dmGraphics::AddVertexStream(stream_declaration, "position", 4, dmGraphics::TYPE_FLOAT, false);
-        dmGraphics::AddVertexStream(stream_declaration, "texcoord0", 2, dmGraphics::TYPE_FLOAT, false);
-        dmGraphics::AddVertexStream(stream_declaration, "face_color", 4, dmGraphics::TYPE_FLOAT, true);
-        dmGraphics::AddVertexStream(stream_declaration, "outline_color", 4, dmGraphics::TYPE_FLOAT, true);
-        dmGraphics::AddVertexStream(stream_declaration, "shadow_color", 4, dmGraphics::TYPE_FLOAT, true);
-        dmGraphics::AddVertexStream(stream_declaration, "sdf_params", 4, dmGraphics::TYPE_FLOAT, false);
-        dmGraphics::AddVertexStream(stream_declaration, "layer_mask", 3, dmGraphics::TYPE_FLOAT, false);
-
-        text_context.m_VertexDecl = dmGraphics::NewVertexDeclaration(render_context->m_GraphicsContext, stream_declaration, sizeof(GlyphVertex));
+        text_context.m_VertexDecl = CreateVertexDeclaration(text_context.m_FontRenderBackend, render_context->m_GraphicsContext);
         text_context.m_VertexBuffer = dmGraphics::NewVertexBuffer(render_context->m_GraphicsContext, buffer_size, 0x0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
-
-        dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
 
         text_context.m_ConstantBuffers.SetCapacity(max_batches); // 1:1 index mapping with render object
         text_context.m_RenderObjects.SetCapacity(max_batches);
@@ -493,6 +102,8 @@ namespace dmRender
         dmMemory::AlignedFree(text_context.m_ClientBuffer);
         dmGraphics::DeleteVertexBuffer(text_context.m_VertexBuffer);
         dmGraphics::DeleteVertexDeclaration(text_context.m_VertexDecl);
+
+        DestroyFontRenderBackend(text_context.m_FontRenderBackend);
     }
 
     DrawTextParams::DrawTextParams()
@@ -516,17 +127,6 @@ namespace dmRender
     {
         m_StencilTestParams.Init();
     }
-
-    struct LayoutMetrics
-    {
-        HFontMap m_FontMap;
-        float m_Tracking;
-        LayoutMetrics(HFontMap font_map, float tracking) : m_FontMap(font_map), m_Tracking(tracking) {}
-        float operator()(const char* text, uint32_t n, bool measure_trailing_space)
-        {
-            return GetLineTextMetrics(m_FontMap, m_Tracking, text, n, measure_trailing_space);
-        }
-    };
 
     static dmhash_t g_TextureSizeRecipHash = dmHashString64("texture_size_recip");
 
@@ -615,10 +215,16 @@ namespace dmRender
         te.m_SourceBlendFactor = params.m_SourceBlendFactor;
         te.m_DestinationBlendFactor = params.m_DestinationBlendFactor;
 
+        TextMetricsSettings settings;
+        settings.m_Width = params.m_Width;
+        settings.m_LineBreak = params.m_LineBreak;
+        settings.m_Leading = params.m_Leading;
+        settings.m_Tracking = params.m_Tracking;
         TextMetrics metrics;
-        GetTextMetrics(font_map, params.m_Text, params.m_Width, params.m_LineBreak, params.m_Leading, params.m_Tracking, &metrics);
+        GetTextMetrics(text_context->m_FontRenderBackend, font_map, params.m_Text, &settings, &metrics);
 
         // find center and radius for frustum culling
+        // TODO: Calculate proper AABB
         dmVMath::Point3 centerpoint_local = CalcCenterPoint(font_map, te, metrics);
         dmVMath::Point3 cornerpoint_local(centerpoint_local.getX() + metrics.m_Width/2, centerpoint_local.getY() + metrics.m_Height/2, centerpoint_local.getZ());
         dmVMath::Vector4 centerpoint_world = te.m_Transform * centerpoint_local; // transform to world coordinates
@@ -633,504 +239,6 @@ namespace dmRender
         memcpy( te.m_RenderConstants, params.m_RenderConstants, params.m_NumRenderConstants * sizeof(dmRender::HConstant));
 
         text_context->m_TextEntries.Push(te);
-    }
-
-    // also used for test
-    dmRender::FontGlyph* GetGlyph(HFontMap font_map, uint32_t c)
-    {
-        dmRender::FontGlyph* glyph = font_map->m_GetGlyph(c, font_map->m_UserData);
-        if (!glyph)
-            glyph = font_map->m_GetGlyph(126U, font_map->m_UserData); // Fallback to ~
-
-        if (!glyph) {
-            //dmLogWarning("Character code %x not supported by font, nor is fallback '~'", c);
-        }
-        return glyph;
-    }
-
-    struct FontGlyphInflaterContext {
-        uint32_t m_Cursor;
-        uint8_t* m_Output;
-    };
-
-    static bool FontGlyphInflater(void* context, const void* data, uint32_t data_len)
-    {
-        FontGlyphInflaterContext* ctx = (FontGlyphInflaterContext*)context;
-        memcpy(ctx->m_Output + ctx->m_Cursor, data, data_len);
-        ctx->m_Cursor += data_len;
-        return true;
-    }
-
-    struct CompareCacheGlyphPred
-    {
-        CacheGlyph* m_Glyphs;
-        CompareCacheGlyphPred(CacheGlyph* glyphs)
-        : m_Glyphs(glyphs) {}
-
-        bool operator()(uint16_t ia, uint16_t ib) const
-        {
-            const CacheGlyph& a = m_Glyphs[ia];
-            const CacheGlyph& b = m_Glyphs[ib];
-            // Sort the oldest last (e.g. 0 is at the end)
-            return a.m_Frame > b.m_Frame;
-        }
-    };
-
-    static void SortCache(HFontMap font_map)
-    {
-        std::sort(font_map->m_CacheIndices, font_map->m_CacheIndices + font_map->m_CacheCursor, CompareCacheGlyphPred(font_map->m_Cache));
-    }
-
-    // Either get a free slot, or the oldest one
-    static CacheGlyph* AcquireFreeGlyphFromCache(HFontMap font_map, uint32_t c, uint32_t time)
-    {
-        uint32_t index;
-        if (font_map->m_CacheCursor < font_map->m_CacheCellCount)
-            index = font_map->m_CacheCursor++;      // Get the unused slot
-        else
-            index = font_map->m_CacheCellCount-1;   // Get the oldest slot
-
-        return &font_map->m_Cache[index];
-    }
-
-    static CacheGlyph* GetFromCache(HFontMap font_map, uint32_t c)
-    {
-        CacheGlyph** glyphp = font_map->m_GlyphCache.Get(c);
-        return glyphp ? *glyphp : 0;
-    }
-
-    static bool IsInCache(HFontMap font_map, uint32_t c)
-    {
-        return GetFromCache(font_map, c) != 0;
-    }
-
-    // static void DebugCache(HFontMap font_map)
-    // {
-    //     printf("Glyph cache:\n");
-    //     for (uint32_t i = 0; i < font_map->m_CacheCursor; ++i)
-    //     {
-    //         uint16_t index = font_map->m_CacheIndices[i];
-    //         CacheGlyph* g = &font_map->m_Cache[index];
-    //         printf("%d: '%c'  t: %u  x/y: %u, %u  is_in_cache: %d\n", i, g->m_Glyph->m_Character, g->m_Frame, g->m_X, g->m_Y, IsInCache(font_map, g->m_Glyph->m_Character));
-    //     }
-    // }
-
-    static void UpdateGlyphTexture(HFontMap font_map, dmRender::FontGlyph* g, int32_t x, int32_t y, int offset_y)
-    {
-        uint32_t glyph_data_compression; // E.g. FONT_GLYPH_COMPRESSION_NONE;
-        uint32_t glyph_data_size = 0;
-        uint32_t glyph_image_width = 0;
-        uint32_t glyph_image_height = 0;
-        uint8_t* glyph_data = (uint8_t*)font_map->m_GetGlyphData(g->m_Character, font_map->m_UserData, &glyph_data_size, &glyph_data_compression, &glyph_image_width, &glyph_image_height);
-
-        void* data = 0;
-        if (FONT_GLYPH_COMPRESSION_DEFLATE == glyph_data_compression)
-        {
-            // When if came to choosing between the different algorithms, here are some speed/compression tests
-            // Decoding 100 glyphs
-            // lz4:     0.1060 ms  compression: 72%
-            // deflate: 0.2190 ms  compression: 66%
-            // png:     0.6930 ms  compression: 67%
-            // webp:    1.5170 ms  compression: 55%
-            // further improvements (different test, Android, 92 glyphs)
-            // webp          2.9440 ms  compression: 55%
-            // deflate       0.7110 ms  compression: 66%
-            // deflate+delta 0.7680 ms  compression: 62%
-
-            FontGlyphInflaterContext deflate_context;
-            deflate_context.m_Output = font_map->m_CellTempData;
-            deflate_context.m_Cursor = 0;
-            dmZlib::Result zlib_result = dmZlib::InflateBuffer(glyph_data, glyph_data_size, &deflate_context, FontGlyphInflater);
-            if (zlib_result != dmZlib::RESULT_OK)
-            {
-                dmLogError("Failed to decompress glyph (%c) in font %s: %d", g->m_Character, dmHashReverseSafe64(font_map->m_NameHash), zlib_result);
-                return;
-            }
-
-            uint32_t uncompressed_size = deflate_context.m_Cursor;
-            delta_decode(font_map->m_CellTempData, uncompressed_size);
-
-            data = font_map->m_CellTempData;
-        }
-        else if (FONT_GLYPH_COMPRESSION_NONE == glyph_data_compression)
-        {
-            data = glyph_data;
-        }
-        else
-        {
-            dmLogOnceError("Unknown glyph compression: %u for glyph (%c) in font %s", glyph_data_compression, g->m_Character, dmHashReverseSafe64(font_map->m_NameHash));
-            return;
-        }
-
-        dmGraphics::TextureParams tex_params;
-        tex_params.m_SubUpdate = true;
-        tex_params.m_MipMap = 0;
-        tex_params.m_Format = font_map->m_CacheFormat;
-        tex_params.m_MinFilter = font_map->m_MinFilter;
-        tex_params.m_MagFilter = font_map->m_MagFilter;
-
-        tex_params.m_Width = glyph_image_width;
-        tex_params.m_Height = glyph_image_height;
-
-        tex_params.m_X = x;
-        tex_params.m_Y = y + offset_y;
-
-        tex_params.m_Data = data;
-
-        // Upload glyph data to GPU
-        dmGraphics::SetTexture(font_map->m_Texture, tex_params);
-    }
-
-    static void AddGlyphToCache(HFontMap font_map, uint32_t frame, dmRender::FontGlyph* g, int32_t g_offset_y)
-    {
-        // Locate a cache cell candidate
-        CacheGlyph* cache_glyph = AcquireFreeGlyphFromCache(font_map, g->m_Character, frame);
-
-        if (cache_glyph->m_Glyph && cache_glyph->m_Frame == frame)
-        {
-            // It means we've filled the entire cache with upload requests
-            // We might then just as well skip the next uploads until the next frame
-            dmLogWarning("Entire font glyph cache (%u x %u) is filled in a single frame %u ('%c' %u). Consider increasing the cache for %s", font_map->m_CacheWidth, font_map->m_CacheHeight, frame, g->m_Character < 255 ? g->m_Character : ' ', g->m_Character, dmHashReverseSafe64(font_map->m_NameHash));
-            return;
-        }
-
-        if (cache_glyph->m_Glyph) // It already existed in the cache
-        {
-            // Clear the old data from the cache
-            font_map->m_GlyphCache.Erase(cache_glyph->m_Glyph->m_Character);
-        }
-        cache_glyph->m_Glyph = g;
-
-        font_map->m_GlyphCache.Put(g->m_Character, cache_glyph);
-
-        // Sort the glyphs, so that if we need to add another one, the oldest is at the end, for fast access
-        cache_glyph->m_Frame = frame;
-        SortCache(font_map);
-
-        //DebugCache(font_map);
-
-        UpdateGlyphTexture(font_map, g, cache_glyph->m_X, cache_glyph->m_Y, g_offset_y);
-    }
-
-    static int CreateFontVertexDataInternal(TextContext& text_context, HFontMap font_map, const char* text, const TextEntry& te, float recip_w, float recip_h, GlyphVertex* vertices, uint32_t num_vertices)
-    {
-        float width = te.m_Width;
-        if (!te.m_LineBreak) {
-            width = FLT_MAX;
-        }
-        float line_height = font_map->m_MaxAscent + font_map->m_MaxDescent;
-        float leading = line_height * te.m_Leading;
-        float tracking = line_height * te.m_Tracking;
-
-        const uint32_t max_lines = 128;
-        TextLine lines[max_lines];
-
-        // Trailing space characters should be ignored when measuring and
-        // rendering multiline text.
-        // For single line text we still want to include spaces when the text
-        // layout is calculated (https://github.com/defold/defold/issues/5911)
-        bool measure_trailing_space = !te.m_LineBreak;
-
-        LayoutMetrics lm(font_map, tracking);
-        float layout_width;
-        int line_count = Layout(text, width, lines, max_lines, &layout_width, lm, measure_trailing_space);
-        float x_offset = OffsetX(te.m_Align, te.m_Width);
-        if (font_map->m_IsMonospaced)
-        {
-            x_offset -= font_map->m_Padding * 0.5f;
-        }
-        float y_offset = OffsetY(te.m_VAlign, te.m_Height, font_map->m_MaxAscent, font_map->m_MaxDescent, te.m_Leading, line_count);
-
-        const Vector4 face_color    = dmGraphics::UnpackRGBA(te.m_FaceColor);
-        const Vector4 outline_color = dmGraphics::UnpackRGBA(te.m_OutlineColor);
-        const Vector4 shadow_color  = dmGraphics::UnpackRGBA(te.m_ShadowColor);
-
-        // No support for non-uniform scale with SDF so just peek at the first
-        // row to extract scale factor. The purpose of this scaling is to have
-        // world space distances in the computation, for good 'anti aliasing' no matter
-        // what scale is being rendered in.
-        const Vector4 r0 = te.m_Transform.getRow(0);
-        const float sdf_edge_value = 0.75f;
-        float sdf_world_scale = sqrtf(r0.getX() * r0.getX() + r0.getY() * r0.getY());
-        float sdf_outline = font_map->m_SdfOutline;
-        float sdf_shadow  = font_map->m_SdfShadow;
-        // For anti-aliasing, 0.25 represents the single-axis radius of half a pixel.
-        float sdf_smoothing = 0.25f / (font_map->m_SdfSpread * sdf_world_scale);
-
-        uint32_t vertexindex        = 0;
-        uint32_t valid_glyph_count  = 0;
-        uint8_t  vertices_per_quad  = 6;
-        uint8_t  layer_count        = 1;
-        uint8_t  layer_mask         = font_map->m_LayerMask;
-
-        #define HAS_LAYER(mask,layer) ((mask & layer) == layer)
-
-        if (!HAS_LAYER(layer_mask, FACE))
-        {
-            dmLogError("Encountered invalid layer mask when rendering font!");
-            return 0;
-        }
-
-        // Vertex buffer consume strategy:
-        // * For single-layered approach, we do as per usual and consume vertices based on offset 0.
-        // * For the layered approach, we need to place vertices in sorted order from
-        //     back to front layer in the order of shadow -> outline -> face, where the offset of each
-        //     layer depends on how many glyphs we actually can place in the buffer. To get a valid count, we
-        //     do a dry run first over the input string and place glyphs in the cache if they are renderable.
-        if (HAS_LAYER(layer_mask,OUTLINE) || HAS_LAYER(layer_mask,SHADOW))
-        {
-            layer_count += HAS_LAYER(layer_mask,OUTLINE) + HAS_LAYER(layer_mask,SHADOW);
-
-            // Calculate number of valid glyphs
-            for (int line = 0; line < line_count; ++line)
-            {
-                TextLine& l = lines[line];
-                const char* cursor = &text[l.m_Index];
-                bool inner_break = false;
-
-                for (int j = 0; j < l.m_Count; ++j)
-                {
-                    uint32_t c = dmUtf8::NextChar(&cursor);
-                    dmRender::FontGlyph* g = GetGlyph(font_map, c);
-                    if (!g)
-                    {
-                        continue;
-                    }
-
-                    // If we get here, then it may be that c != glyph->m_Character
-                    c = g->m_Character;
-
-                    if ((vertexindex + vertices_per_quad) * layer_count > num_vertices)
-                    {
-                        inner_break = true;
-                        break;
-                    }
-
-                    if (g->m_Width > 0)
-                    {
-                        int16_t px_cell_offset_y = font_map->m_CacheCellMaxAscent - (int16_t)g->m_Ascent;
-
-                        // Prepare the cache here aswell since we only count glyphs we definitely will render.
-                        if (!IsInCache(font_map, c))
-                        {
-                            AddGlyphToCache(font_map, text_context.m_Frame, g, px_cell_offset_y);
-                        }
-
-                        CacheGlyph* cache_glyph = GetFromCache(font_map, c);
-                        if (cache_glyph)
-                        {
-                            valid_glyph_count++;
-
-                            vertexindex += vertices_per_quad;
-                        }
-                    }
-                }
-
-                if (inner_break)
-                {
-                    break;
-                }
-            }
-
-            vertexindex = 0;
-        }
-
-        for (int line = 0; line < line_count; ++line) {
-            TextLine& l = lines[line];
-            float x = x_offset - OffsetX(te.m_Align, l.m_Width);
-            float y = y_offset - line * leading;
-            const char* cursor = &text[l.m_Index];
-            int n = l.m_Count;
-            for (int j = 0; j < n; ++j)
-            {
-                uint32_t c = dmUtf8::NextChar(&cursor);
-
-                FontGlyph* glyph = GetGlyph(font_map, c);
-                if (!glyph) {
-                    continue;
-                }
-
-                // If we get here, then it may be that c != glyph->m_Character
-                c = glyph->m_Character;
-
-                // Look ahead and see if we can produce vertices for the next glyph or not
-                if ((vertexindex + vertices_per_quad) * layer_count > num_vertices)
-                {
-                    dmLogWarning("Character buffer exceeded (size: %d), increase the \"graphics.max_characters\" property in your game.project file.", num_vertices / 6);
-                    return vertexindex * layer_count;
-                }
-
-                if (glyph->m_Width > 0)
-                {
-                    int16_t width        = (int16_t) glyph->m_Width;
-                    int16_t descent      = (int16_t) glyph->m_Descent;
-                    int16_t ascent       = (int16_t) glyph->m_Ascent;
-                    int16_t left_bearing = (int16_t) glyph->m_LeftBearing;
-
-                    // Calculate y-offset in cache-cell space by moving glyphs down to baseline
-                    int16_t px_cell_offset_y = font_map->m_CacheCellMaxAscent - ascent;
-
-                    if (!IsInCache(font_map, c))
-                    {
-                        AddGlyphToCache(font_map, text_context.m_Frame, glyph, px_cell_offset_y);
-                    }
-
-                    CacheGlyph* cache_glyph = GetFromCache(font_map, c);
-                    if (cache_glyph)
-                    {
-                        uint32_t face_index = vertexindex + vertices_per_quad * valid_glyph_count * (layer_count-1);
-                        uint32_t tx = cache_glyph->m_X;
-                        uint32_t ty = cache_glyph->m_Y;
-
-                        // Set face vertices first, this will always hold since we can't have less than 1 layer
-                        GlyphVertex& v1_layer_face = vertices[face_index];
-                        GlyphVertex& v2_layer_face = vertices[face_index + 1];
-                        GlyphVertex& v3_layer_face = vertices[face_index + 2];
-                        GlyphVertex& v4_layer_face = vertices[face_index + 3];
-                        GlyphVertex& v5_layer_face = vertices[face_index + 4];
-                        GlyphVertex& v6_layer_face = vertices[face_index + 5];
-
-                        (Vector4&) v1_layer_face.m_Position = te.m_Transform * Vector4(x + left_bearing, y - descent, 0, 1);
-                        (Vector4&) v2_layer_face.m_Position = te.m_Transform * Vector4(x + left_bearing, y + ascent, 0, 1);
-                        (Vector4&) v3_layer_face.m_Position = te.m_Transform * Vector4(x + left_bearing + width, y - descent, 0, 1);
-                        (Vector4&) v6_layer_face.m_Position = te.m_Transform * Vector4(x + left_bearing + width, y + ascent, 0, 1);
-
-                        v1_layer_face.m_UV[0] = (tx + font_map->m_CacheCellPadding) * recip_w;
-                        v1_layer_face.m_UV[1] = (ty + font_map->m_CacheCellPadding + ascent + descent + px_cell_offset_y) * recip_h;
-
-                        v2_layer_face.m_UV[0] = (tx + font_map->m_CacheCellPadding) * recip_w;
-                        v2_layer_face.m_UV[1] = (ty + font_map->m_CacheCellPadding + px_cell_offset_y) * recip_h;
-
-                        v3_layer_face.m_UV[0] = (tx + font_map->m_CacheCellPadding + width) * recip_w;
-                        v3_layer_face.m_UV[1] = (ty + font_map->m_CacheCellPadding + ascent + descent + px_cell_offset_y) * recip_h;
-
-                        v6_layer_face.m_UV[0] = (tx + font_map->m_CacheCellPadding + width) * recip_w;
-                        v6_layer_face.m_UV[1] = (ty + font_map->m_CacheCellPadding + px_cell_offset_y) * recip_h;
-
-                        #define SET_VERTEX_FONT_PROPERTIES(v) \
-                            v.m_FaceColor[0]    = face_color[0]; \
-                            v.m_FaceColor[1]    = face_color[1]; \
-                            v.m_FaceColor[2]    = face_color[2]; \
-                            v.m_FaceColor[3]    = face_color[3]; \
-                            v.m_OutlineColor[0] = outline_color[0]; \
-                            v.m_OutlineColor[1] = outline_color[1]; \
-                            v.m_OutlineColor[2] = outline_color[2]; \
-                            v.m_OutlineColor[3] = outline_color[3]; \
-                            v.m_ShadowColor[0]  = shadow_color[0]; \
-                            v.m_ShadowColor[1]  = shadow_color[1]; \
-                            v.m_ShadowColor[2]  = shadow_color[2]; \
-                            v.m_ShadowColor[3]  = shadow_color[3]; \
-                            v.m_FaceColor[0]    = face_color[0]; \
-                            v.m_FaceColor[1]    = face_color[1]; \
-                            v.m_FaceColor[2]    = face_color[2]; \
-                            v.m_FaceColor[3]    = face_color[3]; \
-                            v.m_SdfParams[0]    = sdf_edge_value; \
-                            v.m_SdfParams[1]    = sdf_outline; \
-                            v.m_SdfParams[2]    = sdf_smoothing; \
-                            v.m_SdfParams[3]    = sdf_shadow;
-
-                        SET_VERTEX_FONT_PROPERTIES(v1_layer_face)
-                        SET_VERTEX_FONT_PROPERTIES(v2_layer_face)
-                        SET_VERTEX_FONT_PROPERTIES(v3_layer_face)
-                        SET_VERTEX_FONT_PROPERTIES(v6_layer_face)
-
-                        #undef SET_VERTEX_FONT_PROPERTIES
-
-                        v4_layer_face = v3_layer_face;
-                        v5_layer_face = v2_layer_face;
-
-                        #define SET_VERTEX_LAYER_MASK(v,f,o,s) \
-                            v.m_LayerMasks[0] = f; \
-                            v.m_LayerMasks[1] = o; \
-                            v.m_LayerMasks[2] = s;
-
-                        // Set outline vertices
-                        if (HAS_LAYER(layer_mask,OUTLINE))
-                        {
-                            uint32_t outline_index = vertexindex + vertices_per_quad * valid_glyph_count * (layer_count-2);
-
-                            GlyphVertex& v1_layer_outline = vertices[outline_index];
-                            GlyphVertex& v2_layer_outline = vertices[outline_index + 1];
-                            GlyphVertex& v3_layer_outline = vertices[outline_index + 2];
-                            GlyphVertex& v4_layer_outline = vertices[outline_index + 3];
-                            GlyphVertex& v5_layer_outline = vertices[outline_index + 4];
-                            GlyphVertex& v6_layer_outline = vertices[outline_index + 5];
-
-                            v1_layer_outline = v1_layer_face;
-                            v2_layer_outline = v2_layer_face;
-                            v3_layer_outline = v3_layer_face;
-                            v4_layer_outline = v4_layer_face;
-                            v5_layer_outline = v5_layer_face;
-                            v6_layer_outline = v6_layer_face;
-
-                            SET_VERTEX_LAYER_MASK(v1_layer_outline,0,1,0)
-                            SET_VERTEX_LAYER_MASK(v2_layer_outline,0,1,0)
-                            SET_VERTEX_LAYER_MASK(v3_layer_outline,0,1,0)
-                            SET_VERTEX_LAYER_MASK(v4_layer_outline,0,1,0)
-                            SET_VERTEX_LAYER_MASK(v5_layer_outline,0,1,0)
-                            SET_VERTEX_LAYER_MASK(v6_layer_outline,0,1,0)
-                        }
-
-                        // Set shadow vertices
-                        if (HAS_LAYER(layer_mask,SHADOW))
-                        {
-                            uint32_t shadow_index = vertexindex;
-                            float shadow_x        = font_map->m_ShadowX;
-                            float shadow_y        = font_map->m_ShadowY;
-
-                            GlyphVertex& v1_layer_shadow = vertices[shadow_index];
-                            GlyphVertex& v2_layer_shadow = vertices[shadow_index + 1];
-                            GlyphVertex& v3_layer_shadow = vertices[shadow_index + 2];
-                            GlyphVertex& v4_layer_shadow = vertices[shadow_index + 3];
-                            GlyphVertex& v5_layer_shadow = vertices[shadow_index + 4];
-                            GlyphVertex& v6_layer_shadow = vertices[shadow_index + 5];
-
-                            v1_layer_shadow = v1_layer_face;
-                            v2_layer_shadow = v2_layer_face;
-                            v3_layer_shadow = v3_layer_face;
-                            v6_layer_shadow = v6_layer_face;
-
-                            // Shadow offsets must be calculated since we need to offset in local space (before vertex transformation)
-                            (Vector4&) v1_layer_shadow.m_Position = te.m_Transform * Vector4(x + left_bearing + shadow_x, y - descent + shadow_y, 0, 1);
-                            (Vector4&) v2_layer_shadow.m_Position = te.m_Transform * Vector4(x + left_bearing + shadow_x, y + ascent + shadow_y, 0, 1);
-                            (Vector4&) v3_layer_shadow.m_Position = te.m_Transform * Vector4(x + left_bearing + shadow_x + width, y - descent + shadow_y, 0, 1);
-                            (Vector4&) v6_layer_shadow.m_Position = te.m_Transform * Vector4(x + left_bearing + shadow_x + width, y + ascent + shadow_y, 0, 1);
-
-                            v4_layer_shadow = v3_layer_shadow;
-                            v5_layer_shadow = v2_layer_shadow;
-
-                            SET_VERTEX_LAYER_MASK(v1_layer_shadow,0,0,1)
-                            SET_VERTEX_LAYER_MASK(v2_layer_shadow,0,0,1)
-                            SET_VERTEX_LAYER_MASK(v3_layer_shadow,0,0,1)
-                            SET_VERTEX_LAYER_MASK(v4_layer_shadow,0,0,1)
-                            SET_VERTEX_LAYER_MASK(v5_layer_shadow,0,0,1)
-                            SET_VERTEX_LAYER_MASK(v6_layer_shadow,0,0,1)
-                        }
-
-                        // If we only have one layer, we need to set the mask to (1,1,1)
-                        // so that we can use the same calculations for both single and multi.
-                        // The mask is set last for layer 1 since we copy the vertices to
-                        // all other layers to avoid re-calculating their data.
-                        uint8_t is_one_layer = layer_count > 1 ? 0 : 1;
-                        SET_VERTEX_LAYER_MASK(v1_layer_face,1,is_one_layer,is_one_layer)
-                        SET_VERTEX_LAYER_MASK(v2_layer_face,1,is_one_layer,is_one_layer)
-                        SET_VERTEX_LAYER_MASK(v3_layer_face,1,is_one_layer,is_one_layer)
-                        SET_VERTEX_LAYER_MASK(v4_layer_face,1,is_one_layer,is_one_layer)
-                        SET_VERTEX_LAYER_MASK(v5_layer_face,1,is_one_layer,is_one_layer)
-                        SET_VERTEX_LAYER_MASK(v6_layer_face,1,is_one_layer,is_one_layer)
-
-                        #undef SET_VERTEX_LAYER_MASK
-
-                        vertexindex += vertices_per_quad;
-                    }
-                }
-                x += glyph->m_Advance + tracking;
-            }
-        }
-
-        #undef HAS_LAYER
-
-        return vertexindex * layer_count;
     }
 
     static void CreateFontRenderBatch(HRenderContext render_context, dmRender::RenderListEntry *buf, uint32_t* begin, uint32_t* end)
@@ -1157,7 +265,8 @@ namespace dmRender
             cache_cell_height_ratio = ((float) font_map->m_CacheCellHeight) / cache_height;
         }
 
-        GlyphVertex* vertices = (GlyphVertex*)text_context.m_ClientBuffer;
+        uint32_t vertex_stride = GetFontVertexSize(text_context.m_FontRenderBackend);
+        uint8_t* vertices = (uint8_t*)text_context.m_ClientBuffer;
 
         if (text_context.m_RenderObjectIndex >= text_context.m_RenderObjects.Size()) {
             dmLogWarning("Fontrenderer: Render object count reached limit (%d). Increase the capacity with graphics.max_font_batches", text_context.m_RenderObjectIndex);
@@ -1190,8 +299,8 @@ namespace dmRender
             const TextEntry& te = *(TextEntry*) buf[*i].m_UserData;
             const char* text = &text_context.m_TextBuffer[te.m_StringOffset];
 
-            int num_indices = CreateFontVertexDataInternal(text_context, font_map, text, te, im_recip, ih_recip, &vertices[text_context.m_VertexIndex], text_context.m_MaxVertexCount - text_context.m_VertexIndex);
-            text_context.m_VertexIndex += num_indices;
+            uint32_t num_vertices = CreateFontVertexData(text_context.m_FontRenderBackend, font_map, text_context.m_Frame, text, te, im_recip, ih_recip, vertices + text_context.m_VertexIndex * vertex_stride, text_context.m_MaxVertexCount - text_context.m_VertexIndex);
+            text_context.m_VertexIndex += num_vertices;
         }
 
         ro->m_VertexCount = text_context.m_VertexIndex - ro->m_VertexStart;
@@ -1211,7 +320,8 @@ namespace dmRender
             case dmRender::RENDER_LIST_OPERATION_END:
                 if (text_context.m_VerticesFlushed != text_context.m_VertexIndex)
                 {
-                    uint32_t buffer_size = sizeof(GlyphVertex) * text_context.m_VertexIndex;
+                    uint32_t vertex_size = GetFontVertexSize(text_context.m_FontRenderBackend);
+                    uint32_t buffer_size = vertex_size * text_context.m_VertexIndex;
                     dmGraphics::SetVertexBufferData(text_context.m_VertexBuffer, 0, 0, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
                     dmGraphics::SetVertexBufferData(text_context.m_VertexBuffer, buffer_size, text_context.m_ClientBuffer, dmGraphics::BUFFER_USAGE_STREAM_DRAW);
 
@@ -1219,7 +329,7 @@ namespace dmRender
                     text_context.m_VerticesFlushed = text_context.m_VertexIndex;
 
                     DM_PROPERTY_ADD_U32(rmtp_FontCharacterCount, num_vertices / 6);
-                    DM_PROPERTY_ADD_U32(rmtp_FontVertexSize, num_vertices * sizeof(GlyphVertex));
+                    DM_PROPERTY_ADD_U32(rmtp_FontVertexSize, num_vertices * vertex_size);
                 }
                 break;
             case dmRender::RENDER_LIST_OPERATION_BATCH:
@@ -1296,90 +406,4 @@ namespace dmRender
         text_context.m_TextEntriesFlushed = text_context.m_TextEntries.Size();
     }
 
-    static float GetLineTextMetrics(HFontMap font_map, float tracking, const char* text, int n, bool measure_trailing_space)
-    {
-        float width = 0;
-        const char* cursor = text;
-        const FontGlyph* last = 0;
-        for (int i = 0; i < n; ++i)
-        {
-            uint32_t c = dmUtf8::NextChar(&cursor);
-            const FontGlyph* g = GetGlyph(font_map, c);
-            if (!g) {
-                continue;
-            }
-
-            last = g;
-            width += g->m_Advance + tracking;
-        }
-        if (n > 0 && 0 != last)
-        {
-            if (font_map->m_IsMonospaced) {
-                width += font_map->m_Padding;
-            }
-            else {
-                uint32_t last_width = (measure_trailing_space && last->m_Character == ' ') ? last->m_Advance : last->m_Width;
-                float last_end_point = last->m_LeftBearing + last_width;
-                float last_right_bearing = last->m_Advance - last_end_point;
-                width = width - last_right_bearing;
-            }
-            width -= tracking;
-        }
-
-        return width;
-    }
-
-    void GetTextMetrics(HFontMap font_map, const char* text, float width, bool line_break, float leading, float tracking, TextMetrics* metrics)
-    {
-        metrics->m_MaxAscent = font_map->m_MaxAscent;
-        metrics->m_MaxDescent = font_map->m_MaxDescent;
-
-        if (!line_break) {
-            width = FLT_MAX;
-        }
-
-        const uint32_t max_lines = 128;
-        dmRender::TextLine lines[max_lines];
-
-        float line_height = font_map->m_MaxAscent + font_map->m_MaxDescent;
-
-        // Trailing space characters should be ignored when measuring and
-        // rendering multiline text.
-        // For single line text we still want to include spaces when the text
-        // layout is calculated (https://github.com/defold/defold/issues/5911)
-        bool measure_trailing_space = !line_break;
-
-        LayoutMetrics lm(font_map, tracking * line_height);
-        float layout_width;
-        uint32_t num_lines = Layout(text, width, lines, max_lines, &layout_width, lm, measure_trailing_space);
-        metrics->m_Width = layout_width;
-        metrics->m_Height = num_lines * (line_height * leading) - line_height * (leading - 1.0f);
-        metrics->m_LineCount = num_lines;
-    }
-
-    uint32_t GetFontMapResourceSize(HFontMap font_map)
-    {
-        uint32_t size = sizeof(FontMap);
-        // The cache size
-        size += font_map->m_CacheCellCount*( (sizeof(CacheGlyph) * sizeof(uint32_t)) );
-        // The texture size
-        size += dmGraphics::GetTextureResourceSize(font_map->m_Texture);
-        return size;
-    }
-
-    // Test functions begin
-    bool VerifyFontMapMinFilter(dmRender::HFontMap font_map, dmGraphics::TextureFilter filter)
-    {
-        return font_map->m_MinFilter == filter;
-    }
-
-    bool VerifyFontMapMagFilter(dmRender::HFontMap font_map, dmGraphics::TextureFilter filter)
-    {
-        return font_map->m_MagFilter == filter;
-    }
-
-    const uint8_t* GetGlyphData(dmRender::HFontMap font_map, uint32_t codepoint, uint32_t* out_size, uint32_t* out_compression, uint32_t* out_width, uint32_t* out_height)
-    {
-        return (uint8_t*)font_map->m_GetGlyphData(codepoint, font_map->m_UserData, out_size, out_compression, out_width, out_height);
-    }
 }

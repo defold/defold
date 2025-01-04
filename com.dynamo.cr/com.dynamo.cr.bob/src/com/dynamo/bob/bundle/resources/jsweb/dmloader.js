@@ -132,7 +132,7 @@ var CUSTOM_PARAMETERS = {
         game_canvas.width = Math.floor(width * dpi);
         game_canvas.height = Math.floor(height * dpi);
     }
-}
+};
 
 // file downloader
 // wraps XMLHttpRequest and adds retry support and progress updates when the
@@ -230,15 +230,19 @@ var FileLoader = {
         };
         request.onretry = function(xhr, event, loadedSize, currentAttempt) {
             onretry(loadedSize, currentAttempt);
-        }
+        };
         request.send();
     }
 };
 
 
 var EngineLoader = {
+    {{#DEFOLD_ARCHIVE_SHA1}}arc_sha1: "{{DEFOLD_ARCHIVE_SHA1}}",{{/DEFOLD_ARCHIVE_SHA1}}
+    {{#DEFOLD_WASM_SHA1}}wasm_sha1: "{{DEFOLD_WASM_SHA1}}",{{/DEFOLD_WASM_SHA1}}
     wasm_size: {{ DEFOLD_WASM_SIZE }},
-    wasmjs_size: {{ DEFOLD_WASMJS_SIZE}},
+    {{#DEFOLD_WASMJS_SHA1}}wasmjs_sha1: "{{DEFOLD_WASMJS_SHA1}}",{{/DEFOLD_WASMJS_SHA1}}
+    wasmjs_size: {{ DEFOLD_WASMJS_SIZE }},
+    {{#ASMJS_SHA1}}asmjs_sha1: "{{ASMJS_SHA1}}",{{/ASMJS_SHA1}}
     asmjs_size: {{ ASMJS_SIZE }},
     wasm_instantiate_progress: 0,
 
@@ -255,9 +259,16 @@ var EngineLoader = {
                 ProgressUpdater.updateCurrent(delta);
             },
             function(error) { throw error; },
-            function(wasm) {
+            async function(wasm) {
                 if (wasm.byteLength != EngineLoader.wasm_size) {
                    console.warn("Unexpected wasm size: " + wasm.byteLength + ", expected: " + EngineLoader.wasm_size);
+                }
+                if (EngineLoader.wasm_sha1) {
+                    const digest = await window.crypto.subtle.digest("SHA-1", wasm);
+                    const sha1 = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+                    if (sha1 != EngineLoader.wasm_sha1) {
+                        console.warn("Unexpected wasm sha1: " + sha1 + ", expected: " + EngineLoader.wasm_sha1);
+                    }
                 }
                 var wasmInstantiate = WebAssembly.instantiate(new Uint8Array(wasm), imports).then(function(output) {
                     successCallback(output.instance);
@@ -316,21 +327,31 @@ var EngineLoader = {
             }
             return {}; // Compiling asynchronously, no exports.
         };
-        EngineLoader.loadAndRunScriptAsync(exeName + '_wasm.js');
+        EngineLoader.loadAndRunScriptAsync(exeName + '_wasm.js', EngineLoader.wasmjs_size, EngineLoader.wasmjs_sha1);
     },
 
     loadAsmJsAsync: function(exeName) {
-        EngineLoader.loadAndRunScriptAsync(exeName + '_asmjs.js');
+        EngineLoader.loadAndRunScriptAsync(exeName + '_asmjs.js', EngineLoader.asmjs_size, EngineLoader.asmjs_sha1);
     },
 
     // load and start engine script (asm.js or wasm.js)
-    loadAndRunScriptAsync: function(src) {
+    loadAndRunScriptAsync: function(src, expectedLength, expectedSHA1) {
         FileLoader.load(src, "text",
             function(delta) {
                 ProgressUpdater.updateCurrent(delta);
             },
             function(error) { throw error; },
-            function(response) {
+            async function(response) {
+                if (response.length != expectedLength) {
+                    console.warn("Unexpected JS size: " + response.length + ", expected: " + expectedLength);
+                }
+                if (expectedSHA1) {
+                    const digest = await window.crypto.subtle.digest("SHA-1", new TextEncoder().encode(response));
+                    const sha1 = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+                    if (sha1 != expectedSHA1) {
+                        throw new Error("Unexpected sha1: " + sha1 + ", expected: " + expectedSHA1);
+                    }
+                }
                 var tag = document.createElement("script");
                 tag.text = response;
                 document.body.appendChild(tag);
@@ -361,14 +382,14 @@ var EngineLoader = {
         // move resize callback setup here to make possible to override callback
         // from outside of dmloader.js
         if (typeof CUSTOM_PARAMETERS["resize_window_callback"] === "function") {
-            var callback = CUSTOM_PARAMETERS["resize_window_callback"]
+            var callback = CUSTOM_PARAMETERS["resize_window_callback"];
             callback();
             window.addEventListener('resize', callback, false);
             window.addEventListener('orientationchange', callback, false);
             window.addEventListener('focus', callback, false);
         }        
     }
-}
+};
 
 
 /* ********************************************************************* */
@@ -413,7 +434,7 @@ var GameArchiveLoader = {
         list.push(callback);
     },
     notifyListeners: function(list, data) {
-        for (i=0; i<list.length; ++i) {
+        for (let i=0; i<list.length; ++i) {
             list[i](data);
         }
     },
@@ -421,8 +442,8 @@ var GameArchiveLoader = {
     addFileDownloadErrorListener: function(callback) {
         this.addListener(this._onFileDownloadErrorListeners, callback);
     },
-    notifyFileDownloadError: function(url) {
-        this.notifyListeners(this._onFileDownloadErrorListeners, url);
+    notifyFileDownloadError: function(error) {
+        this.notifyListeners(this._onFileDownloadErrorListeners, error);
     },
 
     addFileLoadedListener: function(callback) {
@@ -450,14 +471,29 @@ var GameArchiveLoader = {
     loadArchiveDescription: function(descriptionUrl) {
         FileLoader.load(
             this._archiveLocationFilter(descriptionUrl),
-            "json",
+            "text",
             function (delta) { },
             function (error) { GameArchiveLoader.notifyFileDownloadError(descriptionUrl); },
-            function (json) { GameArchiveLoader.onReceiveDescription(json); },
+            function (text) { GameArchiveLoader.onReceiveDescription(text); },
             function (loadedDelta, currentAttempt) { });
     },
 
-    onReceiveDescription: function(json) {
+    onReceiveDescription: async function(text) {
+        let json;
+        try {
+            json = JSON.parse(text);
+            if (EngineLoader.arc_sha1) {
+                const digest = await window.crypto.subtle.digest("SHA-1", (new TextEncoder()).encode(text));
+                const sha1 = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
+                if (sha1 != EngineLoader.arc_sha1) {
+                    throw new Error(`Unexpected hash ${sha1} wanted ${EngineLoader.arc_sha1}`);
+                }
+            }
+        } catch (e) {
+            GameArchiveLoader.notifyFileDownloadError(e.toString());
+            return;
+        }
+
         var totalSize = json.total_size;
         var exeName = CUSTOM_PARAMETERS['exe_name'];
         this._files = json.content;
@@ -489,14 +525,14 @@ var GameArchiveLoader = {
             const path = `${DMSYS.GetUserPersistentDataRoot()}/${file.name}`;
             try { // see if already and stored
                 const stat = FS.stat(path);
-                if(stat) {
-                    let matches = (file.size == stat.size)
+                if (stat) {
+                    let matches = (file.size == stat.size);
                     if (matches && file.sha1) {
                         const stream = FS.open(path, "r");
-                        if(stream) {
+                        if (stream) {
                             try {
                                 const mmap = FS.mmap(stream, stat.size, 0, 0x01, 0x01); //PROT_READ, MAP_SHARED
-                                if(mmap) {
+                                if (mmap) {
                                     const digest = await window.crypto.subtle.digest("SHA-1", mmap);
                                     matches = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('') == file.sha1;
                                 }
@@ -568,7 +604,7 @@ var GameArchiveLoader = {
         } else if (1 == file.pieces.length) {
             file.data = piece.data;
         } else {
-            if(!file.data) {
+            if (!file.data) {
                file.data = new Uint8Array(file.size);
             }
             var start = piece.offset;
@@ -642,16 +678,16 @@ var GameArchiveLoader = {
                 }
             }
         }
-        if(file.sha1) {
+        if (file.sha1) {
             let data = file.data;
-            if(file.stream) {
+            if (file.stream) {
                 try {
                     data = FS.mmap(file.stream, file.size, 0, 0x01, 0x01); //PROT_READ, MAP_SHARED
                 } catch(e) { }
             }
             return window.crypto.subtle.digest("SHA-1", data).then((digest) => {
                 const sha1 = Array.from(new Uint8Array(digest)).map(b => b.toString(16).padStart(2, '0')).join('');
-                if(sha1 !== file.sha1)
+                if (sha1 !== file.sha1)
                     return Promise.reject(new Error(`Unexpected hash ${sha1} wanted ${file.sha1}`));
                 return;
             });
@@ -796,6 +832,7 @@ var Module = {
     _archiveLoaded: false,
     _preLoadDone: false,
     _isEngineLoaded: false,
+    _isMainCalled: false,
 
     // Persistent storage
     persistentStorage: true,
@@ -814,7 +851,7 @@ var Module = {
 
     isDMFSSupported: (function() {
         // DMFS is meant as a mount for FS to provide another way to acess resources, by default we just use IDBFS
-        if(typeof DMFS === "undefined")
+        if (typeof DMFS === "undefined")
             return false;
         return true;
     })(),
@@ -867,6 +904,22 @@ var Module = {
         return { stack:stack, message:message };
     },
 
+    hasWebGPUSupport: function() {
+        var webgpu_support = false;
+        try {
+            var canvas = document.createElement("canvas");
+            var webgpu = canvas.getContext("webgpu");
+            if (webgpu && webgpu instanceof GPUCanvasContext) {
+                webgpu_support = true;
+            }
+        } catch (error) {
+            console.log("An error occurred while detecting WebGPU support: " + error);
+            webgpu_support = false;
+        }
+
+        return webgpu_support;
+    },
+
     hasWebGLSupport: function() {
         var webgl_support = false;
         try {
@@ -896,6 +949,10 @@ var Module = {
     * Module.runApp - Starts the application given a canvas element id
     **/
     runApp: function(appCanvasId, _) {
+        window.addEventListener("error", (errorEvent) => {
+            var errorObject = Module.prepareErrorObject(errorEvent.message, errorEvent.filename, errorEvent.lineno, errorEvent.colno, errorEvent.error);
+            Module.ccall('JSWriteDump', 'null', ['string'], [JSON.stringify(errorObject.stack)]);
+        });
         Module._isEngineLoaded = true;
         Module.setupCanvas(appCanvasId);
 
@@ -907,7 +964,7 @@ var Module = {
         }
         Module.fullScreenContainer = fullScreenContainer || Module.canvas;
 
-        if (Module.hasWebGLSupport()) {
+        if (Module.hasWebGLSupport() || Module.hasWebGPUSupport()) {
             Module.canvas.focus();
 
             Module.canvas.addEventListener("webglcontextlost", function(event) {
@@ -1062,13 +1119,13 @@ var Module = {
 
     preRun: [function() {
         /* If archive is loaded, preload all its files */
-        if(Module._archiveLoaded) {
+        if (Module._archiveLoaded) {
             Module.preloadAll();
         }
     }],
 
     postRun: [function() {
-        if(Module._archiveLoaded) {
+        if (Module._archiveLoaded) {
             ProgressView.removeProgress();
         } else if (Module['isDMFSSupported']) {
             // kick off the content download now that we have FS access
@@ -1092,11 +1149,16 @@ var Module = {
     },
 
     _callMain: function(_, _) {
-        ProgressView.removeProgress();
-        if (Module.callMain === undefined) {
-            Module.noInitialRun = false;
+        if (!Module._isMainCalled) {
+            Module._isMainCalled = true;
+            ProgressView.removeProgress();
+            if (Module.callMain === undefined) {
+                Module.noInitialRun = false;
+            } else {
+                Module.callMain(Module.arguments);
+            }
         } else {
-            Module.callMain(Module.arguments);
+            console.warn("Main was called several times!");
         }
     },
     // Wrap IDBFS syncfs call with logic to avoid multiple syncs
@@ -1148,16 +1210,12 @@ Module["locateFile"] = function(path, scriptDirectory)
 };
 
 {{^DEFOLD_HAS_WASM_ENGINE}}
-Module["isWASMSupported"] = false; 
+Module["isWASMSupported"] = false;
 {{/DEFOLD_HAS_WASM_ENGINE}}
 
-window.onerror = function(err, url, line, column, errObj) {
-    if (typeof Module.ccall !== 'undefined') {
-        var errorObject = Module.prepareErrorObject(err, url, line, column, errObj);
-        Module.ccall('JSWriteDump', 'null', ['string'], [JSON.stringify(errorObject.stack)]);
-    }
+window.addEventListener("error", (errorEvent) => {
     Module.setStatus('Exception thrown, see JavaScript console');
     Module.setStatus = function(text) {
         if (text) Module.printErr('[post-exception status] ' + text);
     };
-};
+});

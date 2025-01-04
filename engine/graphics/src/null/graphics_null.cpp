@@ -736,217 +736,107 @@ namespace dmGraphics
         return g_DrawCount;
     }
 
-    struct ShaderBinding
+    static void CreateProgramResourceBindings(NullProgram* program, NullShaderModule* vertex_module, NullShaderModule* fragment_module, NullShaderModule* compute_module)
     {
-        ShaderBinding() : m_Name(0) {};
-        char*    m_Name;
-        uint32_t m_Index;
-        uint32_t m_Size;
-        uint32_t m_Stride;
-        Type     m_Type;
-    };
+        ResourceBindingDesc bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT] = {};
 
-    struct ShaderProgram
-    {
-        char*                  m_Data;
-        ShaderDesc::Language   m_Language;
-        dmArray<ShaderBinding> m_Uniforms;
-        dmArray<ShaderBinding> m_Attributes;
-    };
+        uint32_t ubo_alignment = UNIFORM_BUFFERS_ALIGNMENT;
+        uint32_t ssbo_alignment = 0;
 
-    static void PushBinding(dmArray<ShaderBinding>* binding_array, const char* name, uint32_t name_length, dmGraphics::Type type, uint32_t size)
-    {
-        if(binding_array->Full())
-        {
-            binding_array->OffsetCapacity(8);
-        }
+        ProgramResourceBindingsInfo binding_info = {};
+        FillProgramResourceBindings(&program->m_BaseProgram, &vertex_module->m_ShaderMeta, bindings, ubo_alignment, ssbo_alignment, SHADER_STAGE_FLAG_VERTEX, binding_info);
+        FillProgramResourceBindings(&program->m_BaseProgram, &fragment_module->m_ShaderMeta, bindings, ubo_alignment, ssbo_alignment, SHADER_STAGE_FLAG_FRAGMENT, binding_info);
+        FillProgramResourceBindings(&program->m_BaseProgram, &compute_module->m_ShaderMeta, bindings, ubo_alignment, ssbo_alignment, SHADER_STAGE_FLAG_COMPUTE, binding_info);
 
-        ShaderBinding binding;
-        name_length++;
-        binding.m_Name   = new char[name_length];
-        binding.m_Index  = binding_array->Size();
-        binding.m_Type   = type;
-        binding.m_Size   = size;
-        binding.m_Stride = GetTypeSize(type);
+        program->m_BaseProgram.m_MaxSet     = binding_info.m_MaxSet;
+        program->m_BaseProgram.m_MaxBinding = binding_info.m_MaxBinding;
+        program->m_UniformDataSize          = binding_info.m_UniformDataSize;
+        program->m_UniformData              = new uint8_t[binding_info.m_UniformDataSize];
+        memset(program->m_UniformData, 0, binding_info.m_UniformDataSize);
 
-        dmStrlCpy(binding.m_Name, name, name_length);
-        binding_array->Push(binding);
+        BuildUniforms(&program->m_BaseProgram);
     }
 
-    struct Program
-    {
-        Program(ShaderProgram* vp, ShaderProgram* fp)
-        {
-            m_Uniforms.SetCapacity(16);
-            m_Compute = 0;
-            m_VP      = vp;
-            m_FP      = fp;
-            if (m_VP != 0x0)
-            {
-                TransferUniforms(m_VP);
-                TransferAttributes(m_VP);
-                m_Language = m_VP->m_Language;
-            }
-            if (m_FP != 0x0)
-            {
-                TransferUniforms(m_FP);
-                m_Language = m_FP->m_Language;
-            }
-        }
-
-        Program(ShaderProgram* compute)
-        {
-            m_Uniforms.SetCapacity(16);
-            m_VP      = 0;
-            m_FP      = 0;
-            m_Compute = compute;
-
-            if (m_Compute != 0x0)
-            {
-                TransferUniforms(m_Compute);
-                m_Language = compute->m_Language;
-            }
-        }
-
-        void TransferUniforms(ShaderProgram* p)
-        {
-            for (int i = 0; i < p->m_Uniforms.Size(); ++i)
-            {
-                PushBinding(&m_Uniforms, p->m_Uniforms[i].m_Name, strlen(p->m_Uniforms[i].m_Name), p->m_Uniforms[i].m_Type, p->m_Uniforms[i].m_Size);
-            }
-        }
-
-        void TransferAttributes(ShaderProgram* p)
-        {
-            for (int i = 0; i < p->m_Attributes.Size(); ++i)
-            {
-                PushBinding(&m_Attributes, p->m_Attributes[i].m_Name, strlen(p->m_Attributes[i].m_Name), p->m_Attributes[i].m_Type, p->m_Attributes[i].m_Size);
-            }
-        }
-
-        ~Program()
-        {
-            for(uint32_t i = 0; i < m_Uniforms.Size(); ++i)
-                delete[] m_Uniforms[i].m_Name;
-            for(uint32_t i = 0; i < m_Attributes.Size(); ++i)
-                delete[] m_Attributes[i].m_Name;
-        }
-
-        ShaderDesc::Language   m_Language;
-
-        ShaderProgram*         m_VP;
-        ShaderProgram*         m_FP;
-        ShaderProgram*         m_Compute;
-
-        dmArray<ShaderBinding> m_Uniforms;
-        dmArray<ShaderBinding> m_Attributes;
-    };
-
-    static ShaderProgram* NewShaderProgramFromDDF(HContext context, ShaderDesc* ddf)
+    static NullShaderModule* NewShaderModuleFromDDF(HContext context, ShaderDesc* ddf)
     {
         assert(ddf);
 
-        ShaderDesc::Shader* shader = GetShaderProgram(context, ddf);
-        if (shader == 0x0)
+        ShaderDesc::Shader* ddf_shader = GetShaderProgram(context, ddf);
+        if (ddf_shader == 0x0)
         {
             return 0x0;
         }
 
-        ShaderProgram* p = new ShaderProgram();
-        p->m_Data = new char[shader->m_Source.m_Count+1];
-        memcpy(p->m_Data, shader->m_Source.m_Data, shader->m_Source.m_Count);
-        p->m_Data[shader->m_Source.m_Count] = '\0';
-        p->m_Language = shader->m_Language;
+        NullShaderModule* shader = new NullShaderModule();
+        shader->m_Data           = new char[ddf_shader->m_Source.m_Count+1];
+        shader->m_Language       = ddf_shader->m_Language;
 
-        ShaderDesc::ShaderReflection* reflection = &ddf->m_Reflection;
+        memcpy(shader->m_Data, ddf_shader->m_Source.m_Data, ddf_shader->m_Source.m_Count);
+        shader->m_Data[ddf_shader->m_Source.m_Count] = '\0';
 
-        for (int i = 0; i < reflection->m_Inputs.m_Count; ++i)
-        {
-            ShaderDesc::ResourceBinding& res = reflection->m_Inputs[i];
-            PushBinding(&p->m_Attributes, res.m_Name, strlen(res.m_Name), ShaderDataTypeToGraphicsType(res.m_Type.m_Type.m_ShaderType), 1);
-        }
-
-        for (int i = 0; i < reflection->m_UniformBuffers.m_Count; ++i)
-        {
-            ShaderDesc::ResourceBinding& res = reflection->m_UniformBuffers[i];
-
-            if (res.m_Type.m_UseTypeIndex)
-            {
-                ShaderDesc::ResourceTypeInfo& type = reflection->m_Types[res.m_Type.m_Type.m_TypeIndex];
-                for (int j = 0; j < type.m_Members.m_Count; ++j)
-                {
-                    uint32_t element_count = dmMath::Max(type.m_Members[j].m_ElementCount, 1u);
-                    PushBinding(&p->m_Uniforms, type.m_Members[j].m_Name, strlen(type.m_Members[j].m_Name), ShaderDataTypeToGraphicsType(type.m_Members[j].m_Type.m_Type.m_ShaderType), element_count);
-                }
-            }
-            else
-            {
-                PushBinding(&p->m_Uniforms, res.m_Name, strlen(res.m_Name), ShaderDataTypeToGraphicsType(res.m_Type.m_Type.m_ShaderType), 1);
-            }
-        }
-
-        for (int i = 0; i < reflection->m_StorageBuffers.m_Count; ++i)
-        {
-            ShaderDesc::ResourceBinding& res = reflection->m_StorageBuffers[i];
-            PushBinding(&p->m_Uniforms, res.m_Name, strlen(res.m_Name), ShaderDataTypeToGraphicsType(res.m_Type.m_Type.m_ShaderType), 1);
-        }
-
-        for (int i = 0; i < reflection->m_Textures.m_Count; ++i)
-        {
-            ShaderDesc::ResourceBinding& res = reflection->m_Textures[i];
-            PushBinding(&p->m_Uniforms, res.m_Name, strlen(res.m_Name), ShaderDataTypeToGraphicsType(res.m_Type.m_Type.m_ShaderType), 1);
-        }
-
-        return p;
+        CreateShaderMeta(&ddf->m_Reflection, &shader->m_ShaderMeta);
+        return shader;
     }
 
     static HComputeProgram NullNewComputeProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
-        return (HComputeProgram) NewShaderProgramFromDDF(context, ddf);
+        return (HComputeProgram) NewShaderModuleFromDDF(context, ddf);
     }
 
     static HProgram NullNewProgramFromCompute(HContext context, HComputeProgram compute_program)
     {
-        return (HProgram) new Program((ShaderProgram*) compute_program);
+        NullProgram* p = new NullProgram();
+        p->m_Compute = (NullShaderModule*) compute_program;
+        CreateProgramResourceBindings(p, 0x0, 0x0, p->m_Compute);
+        return (HProgram) p;
     }
 
     static void NullDeleteComputeProgram(HComputeProgram prog)
     {
-        ShaderProgram* p = (ShaderProgram*) prog;
-        delete [] (char*)p->m_Data;
-        for(uint32_t i = 0; i < p->m_Uniforms.Size(); ++i)
-            delete[] p->m_Uniforms[i].m_Name;
+        NullShaderModule* p = (NullShaderModule*) prog;
+        delete [] (char*) p->m_Data;
+        DestroyShaderMeta(p->m_ShaderMeta);
         delete p;
     }
 
     static HProgram NullNewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
     {
-        ShaderProgram* vertex   = 0x0;
-        ShaderProgram* fragment = 0x0;
+        NullShaderModule* vertex   = 0x0;
+        NullShaderModule* fragment = 0x0;
         if (vertex_program != INVALID_VERTEX_PROGRAM_HANDLE)
         {
-            vertex = (ShaderProgram*) vertex_program;
+            vertex = (NullShaderModule*) vertex_program;
         }
         if (fragment_program != INVALID_FRAGMENT_PROGRAM_HANDLE)
         {
-            fragment = (ShaderProgram*) fragment_program;
+            fragment = (NullShaderModule*) fragment_program;
         }
-        return (HProgram) new Program(vertex, fragment);
+
+        NullProgram* p = new NullProgram();
+        p->m_VP = vertex;
+        p->m_FP = fragment;
+
+        CreateProgramResourceBindings(p, vertex, fragment, 0x0);
+        return (HProgram) p;
     }
 
-    static void NullDeleteProgram(HContext context, HProgram program)
+    static void NullDeleteProgram(HContext context, HProgram _program)
     {
-        delete (Program*) program;
+        NullProgram* program = (NullProgram*) _program;
+
+        delete[] program->m_UniformData;
+
+        delete program;
     }
 
     static HVertexProgram NullNewVertexProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
-        return (HVertexProgram) NewShaderProgramFromDDF(context, ddf);
+        return (HVertexProgram) NewShaderModuleFromDDF(context, ddf);
     }
 
     static HFragmentProgram NullNewFragmentProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
-        return (HFragmentProgram) NewShaderProgramFromDDF(context, ddf);
+        return (HFragmentProgram) NewShaderModuleFromDDF(context, ddf);
     }
 
     static bool NullReloadVertexProgram(HVertexProgram prog, ShaderDesc* ddf)
@@ -960,8 +850,7 @@ namespace dmGraphics
             return false;
         }
 
-
-        ShaderProgram* p = (ShaderProgram*) prog;
+        NullShaderModule* p = (NullShaderModule*) prog;
         delete [] (char*)p->m_Data;
         p->m_Data = new char[shader->m_Source.m_Count];
         memcpy((char*)p->m_Data, shader->m_Source.m_Data, shader->m_Source.m_Count);
@@ -979,7 +868,7 @@ namespace dmGraphics
             return false;
         }
 
-        ShaderProgram* p = (ShaderProgram*)prog;
+        NullShaderModule* p = (NullShaderModule*)prog;
         delete [] (char*)p->m_Data;
         p->m_Data = new char[shader->m_Source.m_Count];
         memcpy((char*)p->m_Data, shader->m_Source.m_Data, shader->m_Source.m_Count);
@@ -989,26 +878,24 @@ namespace dmGraphics
     static void NullDeleteVertexProgram(HVertexProgram program)
     {
         assert(program);
-        ShaderProgram* p = (ShaderProgram*)program;
-        delete [] (char*)p->m_Data;
-        for(uint32_t i = 0; i < p->m_Uniforms.Size(); ++i)
-            delete[] p->m_Uniforms[i].m_Name;
+        NullShaderModule* p = (NullShaderModule*)program;
+        delete [] (char*) p->m_Data;
+        DestroyShaderMeta(p->m_ShaderMeta);
         delete p;
     }
 
     static void NullDeleteFragmentProgram(HFragmentProgram program)
     {
         assert(program);
-        ShaderProgram* p = (ShaderProgram*)program;
-        delete [] (char*)p->m_Data;
-        for(uint32_t i = 0; i < p->m_Uniforms.Size(); ++i)
-            delete[] p->m_Uniforms[i].m_Name;
+        NullShaderModule* p = (NullShaderModule*)program;
+        delete [] (char*) p->m_Data;
+        DestroyShaderMeta(p->m_ShaderMeta);
         delete p;
     }
 
     static ShaderDesc::Language NullGetProgramLanguage(HProgram program)
     {
-        return ((ShaderProgram*) program)->m_Language;
+        return ((NullShaderModule*) program)->m_Language;
     }
 
     static bool NullIsShaderLanguageSupported(HContext context, ShaderDesc::Language language, ShaderDesc::ShaderType shader_type)
@@ -1071,7 +958,8 @@ namespace dmGraphics
 
     static uint32_t NullGetAttributeCount(HProgram prog)
     {
-        return ((Program*) prog)->m_Attributes.Size();
+        NullProgram* program_ptr = (NullProgram*) prog;
+        return program_ptr->m_VP->m_ShaderMeta.m_Inputs.Size();
     }
 
     static uint32_t GetElementCount(Type type)
@@ -1104,45 +992,28 @@ namespace dmGraphics
 
     static void NullGetAttribute(HProgram prog, uint32_t index, dmhash_t* name_hash, Type* type, uint32_t* element_count, uint32_t* num_values, int32_t* location)
     {
-        Program* program       = (Program*) prog;
-        ShaderBinding& binding = program->m_Attributes[index];
-        *name_hash             = dmHashString64(binding.m_Name);
-        *type                  = binding.m_Type;
-        *element_count         = GetElementCount(binding.m_Type);
-        *num_values            = binding.m_Size;
-        *location              = binding.m_Index;
+        NullProgram* program        = (NullProgram*) prog;
+        ShaderResourceBinding& attr = program->m_VP->m_ShaderMeta.m_Inputs[index];
+        *name_hash                  = attr.m_NameHash;
+        *type                       = ShaderDataTypeToGraphicsType(attr.m_Type.m_ShaderType);
+        *num_values                 = 1;
+        *location                   = attr.m_Binding;
+        *element_count              = GetShaderTypeSize(attr.m_Type.m_ShaderType) / sizeof(float);
     }
 
-    static uint32_t NullGetUniformCount(HProgram prog)
+    const Uniform* GetUniform(HProgram prog, dmhash_t name_hash)
     {
-        return ((Program*)prog)->m_Uniforms.Size();
-    }
-
-    static uint32_t NullGetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size)
-    {
-        Program* program = (Program*)prog;
-        assert(index < program->m_Uniforms.Size());
-        ShaderBinding& uniform = program->m_Uniforms[index];
-        *buffer = '\0';
-        dmStrlCat(buffer, uniform.m_Name, buffer_size);
-        *type = uniform.m_Type;
-        *size = uniform.m_Size;
-        return (uint32_t)strlen(buffer);
-    }
-
-    static HUniformLocation NullGetUniformLocation(HProgram prog, const char* name)
-    {
-        Program* program = (Program*)prog;
-        uint32_t count = program->m_Uniforms.Size();
+        NullProgram* program = (NullProgram*)prog;
+        uint32_t count = program->m_BaseProgram.m_Uniforms.Size();
         for (uint32_t i = 0; i < count; ++i)
         {
-            ShaderBinding& uniform = program->m_Uniforms[i];
-            if (dmStrCaseCmp(uniform.m_Name, name)==0)
+            Uniform& uniform = program->m_BaseProgram.m_Uniforms[i];
+            if (uniform.m_NameHash == name_hash)
             {
-                return (int32_t)uniform.m_Index;
+                return &uniform;
             }
         }
-        return INVALID_UNIFORM_LOCATION;
+        return 0x0;
     }
 
     static void NullSetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
@@ -1156,7 +1027,24 @@ namespace dmGraphics
         assert(_context);
         NullContext* context = (NullContext*) _context;
         assert(context->m_Program != 0x0);
-        return context->m_ProgramRegisters[base_location];
+
+        uint32_t set           = UNIFORM_LOCATION_GET_OP0(base_location);
+        uint32_t binding       = UNIFORM_LOCATION_GET_OP1(base_location);
+        uint32_t buffer_offset = UNIFORM_LOCATION_GET_OP2(base_location);
+        assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
+
+        NullProgram* program            = (NullProgram*) context->m_Program;
+        ProgramResourceBinding& pgm_res = program->m_BaseProgram.m_ResourceBindings[set][binding];
+        uint32_t offset                 = pgm_res.m_DataOffset + buffer_offset;
+
+        Vector4* ptr = (Vector4*) (program->m_UniformData + offset);
+        return *ptr;
+    }
+
+    static inline void WriteConstantData(NullProgram* program, uint32_t offset, uint8_t* data_ptr, uint32_t data_size)
+    {
+        assert(offset + data_size <= program->m_UniformDataSize);
+        memcpy(program->m_UniformData + offset, data_ptr, data_size);
     }
 
     static void NullSetConstantV4(HContext _context, const Vector4* data, int count, HUniformLocation base_location)
@@ -1164,7 +1052,17 @@ namespace dmGraphics
         assert(_context);
         NullContext* context = (NullContext*) _context;
         assert(context->m_Program != 0x0);
-        memcpy(&context->m_ProgramRegisters[base_location], data, sizeof(Vector4) * count);
+
+        uint32_t set           = UNIFORM_LOCATION_GET_OP0(base_location);
+        uint32_t binding       = UNIFORM_LOCATION_GET_OP1(base_location);
+        uint32_t buffer_offset = UNIFORM_LOCATION_GET_OP2(base_location);
+        assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
+
+        NullProgram* program            = (NullProgram*) context->m_Program;
+        ProgramResourceBinding& pgm_res = program->m_BaseProgram.m_ResourceBindings[set][binding];
+        uint32_t offset                 = pgm_res.m_DataOffset + buffer_offset;
+
+        WriteConstantData(program, offset, (uint8_t*) data, sizeof(dmVMath::Vector4) * count);
     }
 
     static void NullSetConstantM4(HContext _context, const Vector4* data, int count, HUniformLocation base_location)
@@ -1172,7 +1070,17 @@ namespace dmGraphics
         assert(_context);
         NullContext* context = (NullContext*) _context;
         assert(context->m_Program != 0x0);
-        memcpy(&context->m_ProgramRegisters[base_location], data, sizeof(Vector4) * 4 * count);
+
+        uint32_t set           = UNIFORM_LOCATION_GET_OP0(base_location);
+        uint32_t binding       = UNIFORM_LOCATION_GET_OP1(base_location);
+        uint32_t buffer_offset = UNIFORM_LOCATION_GET_OP2(base_location);
+        assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
+
+        NullProgram* program            = (NullProgram*) context->m_Program;
+        ProgramResourceBinding& pgm_res = program->m_BaseProgram.m_ResourceBindings[set][binding];
+        uint32_t offset                 = pgm_res.m_DataOffset + buffer_offset;
+
+        WriteConstantData(program, offset, (uint8_t*) data, sizeof(dmVMath::Vector4) * 4 * count);
     }
 
     static void NullSetSampler(HContext context, HUniformLocation location, int32_t unit)

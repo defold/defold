@@ -1,0 +1,71 @@
+name: "sprite"
+tags: "tile"
+vertex_program: "/vertex_program/valid.vp"
+fragment_program: "/material/material_constant_single_v140.fp"
+vertex_space: VERTEX_SPACE_WORLD
+
+fragment_constants {
+  name: "tint"
+  type: CONSTANT_TYPE_USER
+  value {
+    x: 1.0
+    y: 1.0
+    z: 1.0
+    w: 1.0
+  }
+}
+
+fragment_constants {
+  name: "nested.nested.leaf_value"
+  type: CONSTANT_TYPE_USER
+  value {
+    x: 1.0
+    y: 3.0
+    z: 3.0
+    w: 7.0
+  }
+}
+
+fragment_constants {
+  name: "overridden_value"
+  type: CONSTANT_TYPE_USER
+  value {
+    x: 11.0
+    y: 12.0
+    z: 13.0
+    w: 14.0
+  }
+}
+
+fragment_constants {
+  name: "nested.overridden_value"
+  type: CONSTANT_TYPE_USER
+  value {
+    x: 21.0
+    y: 22.0
+    z: 23.0
+    w: 24.0
+  }
+}
+
+fragment_constants {
+  name: "nested.tint"
+  type: CONSTANT_TYPE_USER
+  value {
+    x: 1.0
+    y: 0.0
+    z: 0.0
+    w: 1.0
+  }
+}
+
+fragment_constants {
+  name: "nested.nested.tint"
+  type: CONSTANT_TYPE_USER
+  value {
+    x: 0.0
+    y: 1.0
+    z: 0.0
+    w: 1.0
+  }
+}

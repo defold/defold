@@ -15,11 +15,15 @@
 package com.dynamo.bob.pipeline;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.util.EnumSet;
 
+import com.defold.extension.pipeline.texture.*;
+import com.defold.extension.pipeline.texture.TestTextureCompressor;
+import org.junit.Before;
 import org.junit.Test;
 
 import com.dynamo.bob.util.TextureUtil;
@@ -40,7 +44,14 @@ public class TextureGeneratorTest {
     private static int pixelGreen = 0xFF002200;
     private static int pixelBlue  = 0xFF330000;
 
-    // Create a 2x2 image that will be easy to verfy after different flip operations.
+    @Before
+    public void setUp() throws Exception {
+        TextureCompression.registerCompressor(new TextureCompressorDefault()); // Thwarts console warnings
+        TextureCompression.registerCompressor(new TextureCompressorBasisU());
+        TextureCompression.registerCompressor(new TextureCompressorASTC());
+    }
+
+    // Create a 2x2 image that will be easy to verify after different flip operations.
     // +---+
     // |W|R|  W= White
     // +---+  R= Red
@@ -221,6 +232,60 @@ public class TextureGeneratorTest {
     }
 
     @Test
+    public void testTextureProfileCompressors() throws TextureGeneratorException, IOException {
+        BufferedImage srcImage = new BufferedImage(1, 1, BufferedImage.TYPE_4BYTE_ABGR);
+        // full transparent white pixel
+        int pixel = (0 << 24) | (255 << 16) | (255 << 8) | (255 << 0);
+        srcImage.setRGB(0, 0, pixel);
+
+        // Create the texture compressor + preset
+        TextureCompressorPreset presetOne = new TextureCompressorPreset("TestCompressorPresetOne", "Test Compressor One", "TestCompressor");
+        assertNotNull(presetOne);
+
+        presetOne.setOptionInt("test_int", 1337);
+        presetOne.setOptionFloat("test_float", 99.0f);
+        presetOne.setOptionString("test_string", "test_string");
+
+        TestTextureCompressor testCompressor = new TestTextureCompressor();
+        testCompressor.expectedOptionOne = 1337;
+        testCompressor.expectedOptionTwo = 99.0f;
+        testCompressor.expectedOptionThree = "test_string";
+        testCompressor.expectedBytes[0] = (byte) 32;
+        testCompressor.expectedBytes[1] = (byte) 64;
+        testCompressor.expectedBytes[2] = (byte) 128;
+        testCompressor.expectedBytes[3] = (byte) 255;
+
+        TextureCompression.registerCompressor(testCompressor);
+        TextureCompression.registerPreset(presetOne);
+
+        // Create a texture profile with texture compression
+        TextureProfile.Builder textureProfile = TextureProfile.newBuilder();
+        PlatformProfile.Builder platformProfile = PlatformProfile.newBuilder();
+        TextureFormatAlternative.Builder textureFormatAlt1 = TextureFormatAlternative.newBuilder();
+
+        textureFormatAlt1.setFormat(TextureFormat.TEXTURE_FORMAT_RGBA);
+        textureFormatAlt1.setCompressor("TestCompressor");
+        textureFormatAlt1.setCompressorPreset("TestCompressorPresetOne");
+
+        platformProfile.setOs(PlatformProfile.OS.OS_ID_GENERIC);
+        platformProfile.addFormats(textureFormatAlt1.build());
+        platformProfile.setMipmaps(false);
+        platformProfile.setMaxTextureSize(0);
+        platformProfile.setPremultiplyAlpha(false);
+
+        textureProfile.setName("Test Profile");
+        textureProfile.addPlatforms(platformProfile.build());
+
+        TextureImage texture = TextureGenerator.generate(srcImage, textureProfile.build(), true);
+
+        Image image = texture.getAlternatives(0);
+        assertEquals((byte) 32,   image.getData().byteAt(0));
+        assertEquals((byte) 64, image.getData().byteAt(1));
+        assertEquals((byte) 128, image.getData().byteAt(2));
+        assertEquals((byte) 255, image.getData().byteAt(3));
+    }
+
+    @Test
     public void testNoPreMultipliedAlpha() throws TextureGeneratorException, IOException {
     	BufferedImage srcImage = new BufferedImage(1, 1, BufferedImage.TYPE_4BYTE_ABGR);
         // full transparent white pixel
@@ -271,7 +336,7 @@ public class TextureGeneratorTest {
         textureProfile.setName("Test Profile");
         textureProfile.addPlatforms(platformProfile.build());
 
-        // Generate texture withput compression applied
+        // Generate texture without compression applied
         TextureImage texture = TextureGenerator.generate(getClass().getResourceAsStream("128_64_rgba.png"), textureProfile.build(), false);
 
         assertEquals(1, texture.getAlternativesCount());
@@ -298,7 +363,7 @@ public class TextureGeneratorTest {
         textureProfile.setName("Test Profile");
         textureProfile.addPlatforms(platformProfile.build());
 
-        // Generate texture withput compression applied
+        // Generate texture without compression applied
         TextureImage texture = TextureGenerator.generate(getClass().getResourceAsStream("128_64_rgba.png"), textureProfile.build(), false);
 
         assertEquals(1, texture.getAlternativesCount());

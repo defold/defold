@@ -136,16 +136,6 @@ namespace dmGameSystem
         uint32_t                    m_MaxModelCount;
     };
 
-    struct SoundContext
-    {
-        SoundContext()
-        {
-            memset(this, 0, sizeof(*this));
-        }
-        uint32_t                    m_MaxComponentCount;
-        uint32_t                    m_MaxSoundInstances;
-    };
-
     struct ScriptLibContext
     {
         ScriptLibContext();
@@ -213,8 +203,7 @@ namespace dmGameSystem
                                                   CollectionFactoryContext *collectionfactory_context,
                                                   ModelContext* model_context,
                                                   LabelContext* label_context,
-                                                  TilemapContext* tilemap_context,
-                                                  SoundContext* sound_context);
+                                                  TilemapContext* tilemap_context);
 
     void OnWindowFocus(bool focus);
     void OnWindowIconify(bool iconfiy);

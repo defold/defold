@@ -22,12 +22,25 @@ public class Texc {
         PF_R4G4B4A4(10),
         PF_L8A8(11),
         PF_RGBA_ETC2(12),
-        PF_RGBA_ASTC_4x4(13),
-        PF_RGB_BC1(14),
-        PF_RGBA_BC3(15),
-        PF_R_BC4(16),
-        PF_RG_BC5(17),
-        PF_RGBA_BC7(18);
+        PF_RGB_BC1(13),
+        PF_RGBA_BC3(14),
+        PF_R_BC4(15),
+        PF_RG_BC5(16),
+        PF_RGBA_BC7(17),
+        PF_RGBA_ASTC_4x4(18),
+        PF_RGBA_ASTC_5x4(19),
+        PF_RGBA_ASTC_5x5(20),
+        PF_RGBA_ASTC_6x5(21),
+        PF_RGBA_ASTC_6x6(22),
+        PF_RGBA_ASTC_8x5(23),
+        PF_RGBA_ASTC_8x6(24),
+        PF_RGBA_ASTC_8x8(25),
+        PF_RGBA_ASTC_10x5(26),
+        PF_RGBA_ASTC_10x6(27),
+        PF_RGBA_ASTC_10x8(28),
+        PF_RGBA_ASTC_10x10(29),
+        PF_RGBA_ASTC_12x10(30),
+        PF_RGBA_ASTC_12x12(31);
         private final int value;
         private PixelFormat(int value) {
             this.value = value;
@@ -90,7 +103,8 @@ public class Texc {
         CT_WEBP(1),
         CT_WEBP_LOSSY(2),
         CT_BASIS_UASTC(3),
-        CT_BASIS_ETC1S(4);
+        CT_BASIS_ETC1S(4),
+        CT_ASTC(5);
         private final int value;
         private CompressionType(int value) {
             this.value = value;
@@ -145,47 +159,56 @@ public class Texc {
         }
     };
 
-    public enum DitherType {
-        DT_NONE(0),
-        DT_DEFAULT(1);
-        private final int value;
-        private DitherType(int value) {
-            this.value = value;
-        }
-        public int getValue() {
-            return this.value;
-        }
-        static public DitherType fromValue(int value) throws IllegalArgumentException {
-            for (DitherType e : DitherType.values()) {
-                if (e.value == value)
-                    return e;
-            }
-            throw new IllegalArgumentException(String.format("Invalid value to DitherType: %d", value) );
-        }
-    };
-
-    public static class Header {
-        public int version = 0;
-        public int flags = 0;
-        public long pixelFormat = 0;
-        public int colourSpace = 0;
-        public int channelType = 0;
-        public int height = 0;
+    public static class Image {
+        public String path;
+        public byte[] data;
         public int width = 0;
-        public int depth = 0;
-        public int numSurfaces = 0;
-        public int numFaces = 0;
-        public int mipMapCount = 0;
-        public int metaDataSize = 0;
-    };
-    public static class Texture {
-        public long impl;
+        public int height = 0;
+        public PixelFormat pixelFormat = PixelFormat.PF_L8;
+        public ColorSpace colorSpace = ColorSpace.CS_LRGB;
     };
     public static class Buffer {
         public byte[] data;
         public int width = 0;
         public int height = 0;
         public boolean isCompressed = false;
+    };
+    public static class BasisUEncodeSettings {
+        public String path;
+        public int width = 0;
+        public int height = 0;
+        public PixelFormat pixelFormat = PixelFormat.PF_L8;
+        public ColorSpace colorSpace = ColorSpace.CS_LRGB;
+        public byte[] data;
+        public int numThreads = 0;
+        public boolean debug = false;
+        public PixelFormat outPixelFormat = PixelFormat.PF_L8;
+        public boolean rdo_uastc = false;
+        public int pack_uastc_flags = 0;
+        public int rdo_uastc_dict_size = 0;
+        public float rdo_uastc_quality_scalar = 0.0f;
+    };
+    public static class DefaultEncodeSettings {
+        public String path;
+        public int width = 0;
+        public int height = 0;
+        public PixelFormat pixelFormat = PixelFormat.PF_L8;
+        public ColorSpace colorSpace = ColorSpace.CS_LRGB;
+        public byte[] data;
+        public int numThreads = 0;
+        public boolean debug = false;
+        public PixelFormat outPixelFormat = PixelFormat.PF_L8;
+    };
+    public static class ASTCEncodeSettings {
+        public String path;
+        public int width = 0;
+        public int height = 0;
+        public PixelFormat pixelFormat = PixelFormat.PF_L8;
+        public ColorSpace colorSpace = ColorSpace.CS_LRGB;
+        public byte[] data;
+        public int numThreads = 0;
+        public float qualityLevel = 0.0f;
+        public PixelFormat outPixelFormat = PixelFormat.PF_L8;
     };
 }
 

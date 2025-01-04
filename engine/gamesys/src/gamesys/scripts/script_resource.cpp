@@ -3141,8 +3141,14 @@ static int GetTextMetrics(lua_State* L)
         line_break = CheckTableBoolean(L, table_index, "line_break", line_break);
     }
 
+    dmRender::TextMetricsSettings settings;
+    settings.m_Width = width;
+    settings.m_LineBreak = line_break;
+    settings.m_Leading = leading;
+    settings.m_Tracking = tracking;
+
     dmRender::TextMetrics metrics;
-    dmRender::GetTextMetrics(dmGameSystem::ResFontGetHandle(font), text, width, line_break, leading, tracking, &metrics);
+    dmRender::GetTextMetrics(dmGameSystem::ResFontGetHandle(font), text, &settings, &metrics);
     PushTextMetricsTable(L, &metrics);
     return 1;
 }

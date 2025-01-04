@@ -304,13 +304,20 @@ public abstract class ShaderProgramBuilder extends Builder {
         ShaderDesc.ResourceType.Builder typeBuilder = getResourceTypeBuilder(res.type);
         resourceBindingBuilder.setType(typeBuilder);
         resourceBindingBuilder.setName(res.name);
-        resourceBindingBuilder.setNameHash(MurmurHash.hash64(res.name));
+        resourceBindingBuilder.setNameHash(res.nameHash);
+        resourceBindingBuilder.setId(res.id);
         resourceBindingBuilder.setSet(res.set);
         resourceBindingBuilder.setBinding(res.binding);
 
         if (res.blockSize != 0) {
             resourceBindingBuilder.setBlockSize(res.blockSize);
         }
+
+        if (res.instanceName != null) {
+            resourceBindingBuilder.setInstanceName(res.instanceName);
+            resourceBindingBuilder.setInstanceNameHash(res.instanceNameHash);
+        }
+
         return resourceBindingBuilder;
     }
 

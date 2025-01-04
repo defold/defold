@@ -125,8 +125,8 @@ namespace dmRender
 
     struct RenderConstant
     {
-        HConstant           m_Constant;
-        dmhash_t            m_ElementIds[4];
+        HConstant  m_Constant;
+        dmhash_t   m_ElementIdsName[4];
     };
 
     struct RenderContextParams
@@ -336,6 +336,8 @@ namespace dmRender
     void                            DeletePredicate(HPredicate predicate);
     Result                          AddPredicateTag(HPredicate predicate, dmhash_t tag);
 
+    HConstant                       NewConstant(dmhash_t name_hash);
+
     /** Buffered render buffers
      * A render buffer is a thin wrapper around vertex and index buffers that, depending on graphics context,
      * can allocate more backing storage if needed. E.g for Vulkan and vendor adapters, we cannot reuse the same
@@ -382,6 +384,7 @@ namespace dmRender
     void                            GetRenderCameraProjection(HRenderContext render_context, HRenderCamera camera, dmVMath::Matrix4* mtx);
     void                            SetRenderCameraData(HRenderContext render_context, HRenderCamera camera, const RenderCameraData* data);
     void                            GetRenderCameraData(HRenderContext render_context, HRenderCamera camera, RenderCameraData* data);
+    void                            SetRenderCameraEnabled(HRenderContext render_context, HRenderCamera camera, bool value);
     void                            UpdateRenderCamera(HRenderContext render_context, HRenderCamera camera, const dmVMath::Point3* position, const dmVMath::Quat* rotation);
 
     static inline dmGraphics::TextureWrap WrapFromDDF(dmRenderDDF::MaterialDesc::WrapMode wrap_mode)

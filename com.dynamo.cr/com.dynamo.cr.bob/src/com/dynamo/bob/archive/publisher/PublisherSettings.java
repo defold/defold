@@ -29,7 +29,7 @@ import org.apache.commons.io.IOUtils;
 public class PublisherSettings {
 
     public enum PublishMode {
-        Amazon, Defold, Zip
+        Amazon, Zip
     };
 
     private Map<String, Map<String, String>> properties = new LinkedHashMap<String, Map<String, String>>();
@@ -39,24 +39,24 @@ public class PublisherSettings {
     }
     
     protected void setValue(String group, String key, String value) {
-    	if (group != null && group.length() > 0) {
-    		if (key != null && key.length() > 0) {
-    			if (value != null && value.length() > 0) {
-    				if (!this.properties.containsKey(group)) {
-    					this.properties.put(group, new LinkedHashMap<String, String>());
-    				}
-    				
-    				this.properties.get(group).put(key.toLowerCase(), value.trim());
-    			} else {
-    				if (this.properties.containsKey(group)) {
-    					this.properties.get(group).remove(key);
-    					if (this.properties.get(group).size() == 0) {
-    						this.properties.remove(group);
-    					}
-    				}
-    			}
-    		}
-    	}
+        if (group != null && group.length() > 0) {
+            if (key != null && key.length() > 0) {
+                if (value != null && value.length() > 0) {
+                    if (!this.properties.containsKey(group)) {
+                        this.properties.put(group, new LinkedHashMap<String, String>());
+                    }
+                    
+                    this.properties.get(group).put(key.toLowerCase(), value.trim());
+                } else {
+                    if (this.properties.containsKey(group)) {
+                        this.properties.get(group).remove(key);
+                        if (this.properties.get(group).size() == 0) {
+                            this.properties.remove(group);
+                        }
+                    }
+                }
+            }
+        }
     }
 
     protected String getValue(String group, String key) {
@@ -99,7 +99,7 @@ public class PublisherSettings {
     }
 
     public void setMode(PublishMode value) {
-    	this.setValue("liveupdate", "mode", value.toString());
+        this.setValue("liveupdate", "mode", value.toString());
     }
     
     public PublishMode getMode() {
@@ -108,15 +108,15 @@ public class PublisherSettings {
     }
     
     public void setAmazonCredentialProfile(String value) {
-    	this.setValue("liveupdate", "amazon-credential-profile", value);
+        this.setValue("liveupdate", "amazon-credential-profile", value);
     }
 
     public String getAmazonCredentialProfile() {
-    	return this.getValue("liveupdate", "amazon-credential-profile");
+        return this.getValue("liveupdate", "amazon-credential-profile");
     }
     
     public void setAmazonBucket(String value) {
-    	this.setValue("liveupdate", "amazon-bucket", value);
+        this.setValue("liveupdate", "amazon-bucket", value);
     }
     
     public String getAmazonBucket() {
@@ -124,7 +124,7 @@ public class PublisherSettings {
     }
 
     public void setAmazonPrefix(String value) {
-    	this.setValue("liveupdate", "amazon-prefix", value);
+        this.setValue("liveupdate", "amazon-prefix", value);
     }
     
     public String getAmazonPrefix() {
@@ -132,11 +132,28 @@ public class PublisherSettings {
     }
 
     public void setZipFilepath(String value) {
-    	this.setValue("liveupdate", "zip-filepath", value);
+        this.setValue("liveupdate", "zip-filepath", value);
     }
-    
+
     public String getZipFilepath() {
         return this.getValue("liveupdate", "zip-filepath");
+    }
+
+    public void setZipFilename(String value) {
+        this.setValue("liveupdate", "zip-filename", value);
+    }
+
+    public String getZipFilename() {
+        return this.getValue("liveupdate", "zip-filename");
+    }
+
+    public void setSaveZipInBundleFolder(String value) {
+        this.setValue("liveupdate", "save-zip-in-bundle-folder", value);
+    }
+
+    public Boolean getSaveZipInBundleFolder() {
+        String value = this.getValue("liveupdate", "save-zip-in-bundle-folder");
+        return value != null && value.equals("1");
     }
 
     private static PublisherSettings doLoad(InputStream in) throws IOException, ParseException {

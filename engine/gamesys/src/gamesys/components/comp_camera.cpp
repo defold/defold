@@ -175,6 +175,7 @@ namespace dmGameSystem
         *params.m_UserData = (uintptr_t) new_camera;
 
         CameraStackPush(w, new_camera);
+        dmRender::SetRenderCameraEnabled(render_context, camera.m_RenderCamera, true);
 
         return dmGameObject::CREATE_RESULT_OK;
     }
@@ -289,11 +290,13 @@ namespace dmGameSystem
             (dmDDF::Descriptor*)params.m_Message->m_Descriptor == dmGamesysDDF::AcquireCameraFocus::m_DDFDescriptor)
         {
             CameraStackPush(camera->m_World, camera);
+            dmRender::SetRenderCameraEnabled((dmRender::RenderContext*)params.m_Context, camera->m_RenderCamera, true);
         }
         else if (params.m_Message->m_Id == dmGameObjectDDF::Disable::m_DDFDescriptor->m_NameHash ||
             (dmDDF::Descriptor*)params.m_Message->m_Descriptor == dmGamesysDDF::ReleaseCameraFocus::m_DDFDescriptor)
         {
             CameraStackRemove(camera->m_World, camera);
+            dmRender::SetRenderCameraEnabled((dmRender::RenderContext*)params.m_Context, camera->m_RenderCamera, false);
         }
 
         return dmGameObject::UPDATE_RESULT_OK;
