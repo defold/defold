@@ -22,7 +22,7 @@
             [internal.util :as util]
             [schema.core :as s]
             [util.array :as array]
-            [util.coll :refer [pair]]
+            [util.coll :as coll :refer [pair]]
             [util.debug-util :as du]
             [util.eduction :as e])
   (:import [internal.graph.types Arc]))
@@ -384,9 +384,9 @@
                                      node-type (gt/node-type original-node)
                                      init-props (when init-props-fn
                                                   (init-props-fn basis original-node-id node-type))
-                                     properties (cond->> (properties-by-node-id original-node-id)
-                                                         (pos? (count init-props))
-                                                         (merge init-props))]
+                                     properties (coll/merge
+                                                  init-props
+                                                  (properties-by-node-id original-node-id))]
                                  (in/make-override-node override-id override-node-id node-type original-node-id properties)))
                              node-ids)
         override-node-ids (map gt/node-id override-nodes)
