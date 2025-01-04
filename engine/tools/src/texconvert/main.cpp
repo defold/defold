@@ -185,7 +185,7 @@ int DoEncode(EncodeParams params)
     int x,y,n;
     unsigned char *data = stbi_load(params.m_PathIn, &x, &y, &n, 0);
 
-    dmTexc::HTexture tex = dmTexc::Create(params.m_PathIn, x, y,
+    dmTexc::Texture* tex = dmTexc::CreateTexture(params.m_PathIn, x, y,
         GetPixelFormatFromChannels(n), params.m_ColorSpace, params.m_CompressionType, data);
 
     if (params.m_PremultiplyAlpha && !dmTexc::PreMultiplyAlpha(tex))
@@ -225,7 +225,7 @@ int DoEncode(EncodeParams params)
     void* out_data         = malloc(out_data_size);
     dmTexc::GetData(tex, out_data, out_data_size);
 
-    dmTexc::Destroy(tex);
+    dmTexc::DestroyTexture(tex);
 
     stbi_image_free(data);
 

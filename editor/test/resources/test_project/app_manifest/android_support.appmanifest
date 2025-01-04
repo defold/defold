@@ -18,6 +18,14 @@ platforms:
             libs: []
             linkFlags: []
 
+    arm64-linux:
+        context:
+            excludeLibs: []
+            excludeSymbols: []
+            symbols: []
+            libs: []
+            linkFlags: []
+
     js-web:
         context:
             excludeLibs: []

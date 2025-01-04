@@ -27,6 +27,14 @@ platforms:
             libs: ["physics_3d"]
             linkFlags: []
 
+    arm64-linux:
+        context:
+            excludeLibs: ["physics","Box2D","script_box2d"]
+            excludeSymbols: ["ScriptBox2DExt"]
+            symbols: []
+            libs: ["physics_3d"]
+            linkFlags: []
+
     js-web:
         context:
             excludeLibs: ["physics","Box2D","script_box2d"]

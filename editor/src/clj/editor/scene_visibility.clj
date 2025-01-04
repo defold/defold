@@ -17,11 +17,11 @@
             [dynamo.graph :as g]
             [editor.handler :as handler]
             [editor.keymap :as keymap]
+            [editor.os :as os]
             [editor.system :as system]
             [editor.types :as types]
             [editor.ui :as ui]
             [editor.ui.popup :as popup]
-            [editor.util :as util]
             [internal.util :as iutil]
             [schema.core :as s])
   (:import [javafx.geometry Insets Point2D Pos]
@@ -280,7 +280,7 @@
     (ui/add-style! check-box "slide-switch")
     (HBox/setHgrow label Priority/ALWAYS)
     (ui/add-style! label "slide-switch-label")
-    (when (util/is-mac-os?)
+    (when (os/is-mac-os?)
       (.setStyle acc "-fx-font-family: 'Lucida Grande';"))
     (ui/add-style! acc "accelerator-label")
     (let [hbox (doto (HBox.)

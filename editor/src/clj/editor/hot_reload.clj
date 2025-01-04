@@ -17,8 +17,9 @@
             [clojure.string :as string]
             [editor.workspace :as workspace]
             [util.http-util :as http-util])
-  (:import [java.io FileNotFoundException]
+  (:import [java.io IOException]
            [java.net URI]
+           [java.nio.file Paths Files]
            [org.apache.commons.io FilenameUtils IOUtils]))
 
 (set! *warn-on-reflection* true)
@@ -40,12 +41,16 @@
             remote-etag (first (get headers "If-None-Match"))
             is-cached (when remote-etag (= etag remote-etag))
             file (io/file full-path)
-            content-length (.length file) ; Returns zero if not found.
-            content (when (not is-cached)
+            content-length (if is-cached
+                             ;; The engine does not support a cached response
+                             ;; that contains a content-length other than zero.
+                             0
+                             ;; Returns zero if not found.
+                             (.length file))
+            content (when (and (= method "GET") (not is-cached))
                       (try
-                        (with-open [is (io/input-stream file)]
-                          (IOUtils/toByteArray is))
-                        (catch FileNotFoundException _
+                        (Files/readAllBytes (.toPath file))
+                        (catch IOException _
                           :not-found)))]
         (if (= content :not-found)
           http-util/not-found-response

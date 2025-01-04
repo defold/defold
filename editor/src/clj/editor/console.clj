@@ -59,7 +59,7 @@
 
 (defonce ^:const url-prefix "/console")
 
-(def ^:const console-filters-prefs-key "console-filters")
+(def ^:const console-filters-prefs-key [:console :filters])
 
 (def ^:private pending-atom
   ;; Implementation notes:
@@ -189,7 +189,7 @@
                               :index 0))))))
 
 (defn- save-filters! [prefs filters]
-  (prefs/set-prefs prefs console-filters-prefs-key filters)
+  (prefs/set! prefs console-filters-prefs-key filters)
   (set-filters! filters))
 
 ;; -----------------------------------------------------------------------------
@@ -298,7 +298,7 @@
               (save-filters! prefs (:filters new-state)))))
 
 (defn- init-console-filter! [filter-console-button prefs]
-  (let [filters (prefs/get-prefs prefs console-filters-prefs-key [])
+  (let [filters (prefs/get prefs console-filters-prefs-key)
         state (atom {:open false :text "" :filters filters})]
     (set-filters! filters)
     (fx/mount-renderer
@@ -659,6 +659,8 @@
                :name "console.reload.successful"}
               {:match #"^ERROR:.+?:"
                :name "console.error"}
+              {:match #"^FATAL:.+?:"
+               :name "console.fatal"}
               {:match #"^WARNING:.+?:"
                :name "console.warning"}
               {:match #"^INFO:.+?:"
@@ -672,6 +674,7 @@
     (view/make-color-scheme
       [["console.reload.successful" (Color/valueOf "#33CC33")]
        ["console.error" (Color/valueOf "#FF6161")]
+       ["console.fatal" (Color/valueOf "#FF6161")]
        ["console.warning" (Color/valueOf "#FF9A34")]
        ["console.info" (Color/valueOf "#CCCFD3")]
        ["console.debug" (Color/valueOf "#3B8CF8")]

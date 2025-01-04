@@ -7,7 +7,7 @@
     -fx-border-width: 1px 1px 1px 1px;
     -fx-border-color: -df-component-dark;
     -fx-text-fill: -df-text-light;
-    -fx-prompt-text-fill: -df-text;
+    -fx-prompt-text-fill: -df-text-dark;
     -fx-min-height: 26px;
     &:hover {
         -fx-border-color: -df-component-light;
@@ -35,5 +35,8 @@
             -fx-prompt-text-fill: -df-text;
             -fx-min-height: 26px;
         }
+    }
+    &:disabled {
+        -fx-opacity: 0.4;
     }
 }

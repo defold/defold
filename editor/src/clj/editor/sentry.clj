@@ -136,7 +136,7 @@
 
 (extend-protocol json/JSONWriter
   java.time.LocalDateTime
-  (-write [object out] (json/-write (str object) out)))
+  (-write [object out options] (json/-write (str object) out options)))
 
 (defn make-request-data
   [{:keys [project-id key secret]} event]
@@ -194,7 +194,7 @@
                                   (catch Exception e
                                     (log/error :exception e :msg (format "Error reporting exception to sentry: %s" (.getMessage e)))))
                                 (recur (System/currentTimeMillis))))
-                            (recur last-report))))) ]
+                            (recur last-report)))))]
     (doto (Thread. reporter-fn)
       (.setDaemon true)
       (.setName "sentry-reporter-thread")

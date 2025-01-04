@@ -373,7 +373,7 @@ struct SubPassTest : ITest
         dmGraphics::EnableTexture(engine->m_GraphicsContext, 0, 0, sub_pass_0_color);
 
         dmGraphics::EnableVertexDeclaration(engine->m_GraphicsContext, m_VertexDeclaration, m_VertexBuffer);
-        dmGraphics::Draw(engine->m_GraphicsContext, dmGraphics::PRIMITIVE_TRIANGLES, 0, 6);
+        dmGraphics::Draw(engine->m_GraphicsContext, dmGraphics::PRIMITIVE_TRIANGLES, 0, 6, 1);
 
         dmGraphics::SetRenderTarget(engine->m_GraphicsContext, 0, 0);
     }
@@ -507,12 +507,12 @@ struct StorageBufferTest : ITest
     {
         dmGraphics::EnableProgram(engine->m_GraphicsContext, m_Program);
         dmGraphics::EnableVertexBuffer(engine->m_GraphicsContext, m_VertexBuffer, 0);
-        dmGraphics::EnableVertexDeclaration(engine->m_GraphicsContext, m_VertexDeclaration, 0, m_Program);
+        dmGraphics::EnableVertexDeclaration(engine->m_GraphicsContext, m_VertexDeclaration, 0, 0, m_Program);
 
         dmGraphics::HUniformLocation loc = dmGraphics::GetUniformLocation(m_Program, "Test");
         dmGraphics::VulkanSetStorageBuffer(engine->m_GraphicsContext, m_StorageBuffer, 0, 0, loc);
 
-        dmGraphics::Draw(engine->m_GraphicsContext, dmGraphics::PRIMITIVE_TRIANGLES, 0, 6);
+        dmGraphics::Draw(engine->m_GraphicsContext, dmGraphics::PRIMITIVE_TRIANGLES, 0, 6, 1);
     }
 };
 
@@ -563,8 +563,9 @@ static void* EngineCreate(int argc, char** argv)
     engine->m_Test->Initialize(engine);
 
     engine->m_WasCreated++;
-    engine->m_TimeStart = dmTime::GetTime();
     engine->m_Running = 1;
+    engine->m_TimeStart = dmTime::GetMonotonicTime();
+
     return &g_EngineCtx;
 }
 
@@ -581,7 +582,7 @@ static UpdateResult EngineUpdate(void* _engine)
 {
     EngineCtx* engine = (EngineCtx*)_engine;
     engine->m_WasRun++;
-    uint64_t t = dmTime::GetTime();
+    uint64_t t = dmTime::GetMonotonicTime();
     float elapsed = (t - engine->m_TimeStart) / 1000000.0f;
     /*
     if (elapsed > 3.0f)
@@ -649,7 +650,7 @@ TEST(App, Run)
     ASSERT_EQ(0, ret);
 
 
-    uint64_t t = dmTime::GetTime();
+    uint64_t t = dmTime::GetMonotonicTime();
     float elapsed = (t - g_EngineCtx.m_TimeStart) / 1000000.0f;
     (void)elapsed;
 

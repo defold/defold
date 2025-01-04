@@ -14,6 +14,7 @@
 
 package com.dynamo.bob.pipeline;
 
+import static com.dynamo.bob.pipeline.ShaderProgramBuilder.resourceTypeToShaderDataType;
 import static org.junit.Assert.assertEquals;
 
 import java.util.ArrayList;
@@ -57,26 +58,28 @@ public class ShaderCompilePipelineTest {
                 """;
 
         ShaderCompilePipeline pipelineVertex = new ShaderCompilePipeline("testSimpleVertex");
-        ShaderCompilePipeline.createShaderPipeline(pipelineVertex, vsShader, ShaderDesc.ShaderType.SHADER_TYPE_VERTEX);
+        ShaderCompilePipeline.createShaderPipeline(pipelineVertex, vsShader, ShaderDesc.ShaderType.SHADER_TYPE_VERTEX, new ShaderCompilePipeline.Options());
 
-        SPIRVReflector reflector                     = pipelineVertex.getReflectionData();
-        ArrayList<SPIRVReflector.Resource> inputs    = reflector.getInputs();
-        ArrayList<SPIRVReflector.Resource> ubos      = reflector.getUBOs();
-        ArrayList<SPIRVReflector.ResourceType> types = reflector.getTypes();
+        SPIRVReflector reflector                  = pipelineVertex.getReflectionData();
+        ArrayList<Shaderc.ShaderResource> inputs  = reflector.getInputs();
+        ArrayList<Shaderc.ShaderResource> ubos    = reflector.getUBOs();
+        ArrayList<Shaderc.ResourceTypeInfo> types = reflector.getTypes();
 
         assertEquals("position", inputs.get(0).name);
         assertEquals("uniforms", ubos.get(0).name);
         assertEquals("uniforms", types.get(0).name);
 
-        assertEquals("view", types.get(0).members.get(0).name);
-        assertEquals("mat4", types.get(0).members.get(0).type);
+        assertEquals("view", types.get(0).members[0].name);
+        assertEquals(ShaderDesc.ShaderDataType.SHADER_TYPE_MAT4, resourceTypeToShaderDataType(types.get(0).members[0].type));
 
-        assertEquals("proj", types.get(0).members.get(1).name);
-        assertEquals("mat4", types.get(0).members.get(1).type);
+        assertEquals("proj", types.get(0).members[1].name);
+        assertEquals(ShaderDesc.ShaderDataType.SHADER_TYPE_MAT4, resourceTypeToShaderDataType(types.get(0).members[1].type));
 
         for (ShaderDesc.Language l : allLanguages) {
             pipelineVertex.crossCompile(ShaderDesc.ShaderType.SHADER_TYPE_VERTEX, l);
         }
+
+        ShaderCompilePipeline.destroyShaderPipeline(pipelineVertex);
 
         String fsShader =
                 """
@@ -95,7 +98,7 @@ public class ShaderCompilePipelineTest {
                 """;
 
         ShaderCompilePipeline pipelineFragment = new ShaderCompilePipeline("testSimpleFragment");
-        ShaderCompilePipeline.createShaderPipeline(pipelineFragment, fsShader, ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT);
+        ShaderCompilePipeline.createShaderPipeline(pipelineFragment, fsShader, ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT, new ShaderCompilePipeline.Options());
 
         reflector = pipelineFragment.getReflectionData();
         ubos      = reflector.getUBOs();
@@ -104,22 +107,24 @@ public class ShaderCompilePipelineTest {
         assertEquals("fs_uniforms", ubos.get(0).name);
         assertEquals("fs_uniforms", types.get(0).name);
 
-        assertEquals("tint", types.get(0).members.get(0).name);
-        assertEquals("vec4", types.get(0).members.get(0).type);
+        assertEquals("tint", types.get(0).members[0].name);
+        assertEquals(ShaderDesc.ShaderDataType.SHADER_TYPE_VEC4, resourceTypeToShaderDataType(types.get(0).members[0].type));
 
-        assertEquals("value", types.get(0).members.get(1).name);
-        assertEquals("float", types.get(0).members.get(1).type);
+        assertEquals("value", types.get(0).members[1].name);
+        assertEquals(ShaderDesc.ShaderDataType.SHADER_TYPE_FLOAT, resourceTypeToShaderDataType(types.get(0).members[1].type));
 
-        assertEquals("value_array", types.get(0).members.get(2).name);
-        assertEquals("vec4", types.get(0).members.get(2).type);
-        assertEquals(4, types.get(0).members.get(2).elementCount);
+        assertEquals("value_array", types.get(0).members[2].name);
+        assertEquals(ShaderDesc.ShaderDataType.SHADER_TYPE_VEC4, resourceTypeToShaderDataType(types.get(0).members[2].type));
+        assertEquals(4, types.get(0).members[2].type.arraySize);
 
-        assertEquals("value_mat", types.get(0).members.get(3).name);
-        assertEquals("mat4", types.get(0).members.get(3).type);
+        assertEquals("value_mat", types.get(0).members[3].name);
+        assertEquals(ShaderDesc.ShaderDataType.SHADER_TYPE_MAT4, resourceTypeToShaderDataType(types.get(0).members[3].type));
 
         for (ShaderDesc.Language l : allLanguages) {
             pipelineFragment.crossCompile(ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT, l);
         }
+
+        ShaderCompilePipeline.destroyShaderPipeline(pipelineFragment);
     }
 
     @Test
@@ -147,18 +152,20 @@ public class ShaderCompilePipelineTest {
                 """;
 
         ShaderCompilePipeline pipelineFragment = new ShaderCompilePipeline("testFragment");
-        ShaderCompilePipeline.createShaderPipeline(pipelineFragment, fsShader, ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT);
+        ShaderCompilePipeline.createShaderPipeline(pipelineFragment, fsShader, ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT, new ShaderCompilePipeline.Options());
 
-        SPIRVReflector reflector                     = pipelineFragment.getReflectionData();
-        ArrayList<SPIRVReflector.Resource> inputs    = reflector.getInputs();
-        ArrayList<SPIRVReflector.Resource> outputs   = reflector.getOutputs();
-        ArrayList<SPIRVReflector.Resource> ubos      = reflector.getUBOs();
+        SPIRVReflector reflector                    = pipelineFragment.getReflectionData();
+        ArrayList<Shaderc.ShaderResource> inputs    = reflector.getInputs();
+        ArrayList<Shaderc.ShaderResource> outputs   = reflector.getOutputs();
+        ArrayList<Shaderc.ShaderResource> ubos      = reflector.getUBOs();
 
         assertEquals(1, inputs.size());
         // Outputs are not optimized away, even if they are not written to by the shader
         assertEquals(2, outputs.size());
         assertEquals(1, ubos.size());
         assertEquals("fs_uniforms", ubos.get(0).name);
+
+        ShaderCompilePipeline.destroyShaderPipeline(pipelineFragment);
 
         // Do the same test, but with the legacy pipeline
         String fsShaderLegacy =
@@ -175,19 +182,21 @@ public class ShaderCompilePipelineTest {
                 """;
 
         ShaderCompilePipelineLegacy pipelineFragmentLegacy = new ShaderCompilePipelineLegacy("testFragment");
-        ShaderCompilePipeline.createShaderPipeline(pipelineFragmentLegacy, fsShaderLegacy, ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT);
+        ShaderCompilePipeline.createShaderPipeline(pipelineFragmentLegacy, fsShaderLegacy, ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT, new ShaderCompilePipeline.Options());
 
         reflector = pipelineFragmentLegacy.getReflectionData();
         inputs    = reflector.getInputs();
         outputs   = reflector.getOutputs();
         ubos      = reflector.getUBOs();
 
-        ArrayList<SPIRVReflector.ResourceType> types = reflector.getTypes();
+        ArrayList<Shaderc.ResourceTypeInfo> types = reflector.getTypes();
 
         assertEquals(1, inputs.size());
         assertEquals(1, outputs.size());
         assertEquals(1, ubos.size());
         assertEquals("_DMENGINE_GENERATED_UB_FS_0", ubos.get(0).name);
-        assertEquals("tint", types.get(0).members.get(0).name);
+        assertEquals("tint", types.get(0).members[0].name);
+
+        ShaderCompilePipeline.destroyShaderPipeline(pipelineFragmentLegacy);
     }
 }

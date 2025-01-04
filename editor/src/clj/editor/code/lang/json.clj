@@ -38,6 +38,5 @@
                :name "string.quoted.double.json"}]})
 
 (defn lines->json [lines & options]
-  (with-open [lines-reader (data/lines-reader lines)
-              pushback-reader (PushbackReader. lines-reader)]
-    (apply json/read pushback-reader options)))
+  (with-open [reader (data/lines-reader lines)]
+    (apply json/read reader options)))

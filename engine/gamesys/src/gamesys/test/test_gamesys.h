@@ -146,15 +146,31 @@ public:
     void SetUp()
     {
         GamesysTest::SetUp();
+        dmJobThread::JobThreadCreationParams job_thread_create_param;
+        job_thread_create_param.m_ThreadNames[0] = "test_gamesys_thread";
+        job_thread_create_param.m_ThreadCount    = 1;
+
         m_Scriptlibcontext.m_Factory         = m_Factory;
         m_Scriptlibcontext.m_Register        = m_Register;
         m_Scriptlibcontext.m_LuaState        = dmScript::GetLuaState(m_ScriptContext);
         m_Scriptlibcontext.m_GraphicsContext = m_GraphicsContext;
         m_Scriptlibcontext.m_ScriptContext   = m_ScriptContext;
+        m_Scriptlibcontext.m_JobThread = dmJobThread::Create(job_thread_create_param);
 
         dmGameSystem::InitializeScriptLibs(m_Scriptlibcontext);
     }
-    virtual ~ScriptBaseTest() {}
+
+    virtual void TearDown()
+    {
+        dmGameSystem::FinalizeScriptLibs(m_Scriptlibcontext);
+
+        dmJobThread::Destroy(m_Scriptlibcontext.m_JobThread);
+
+        GamesysTest::TearDown();
+    }
+
+    virtual ~ScriptBaseTest() { }
+
     dmGameSystem::ScriptLibContext m_Scriptlibcontext;
 };
 
@@ -438,7 +454,7 @@ public:
     virtual ~ShaderTest() {}
 };
 
-class SysTest : public GamesysTest<const char*>
+class SysTest : public ScriptBaseTest
 {
 public:
     virtual ~SysTest() {}
@@ -557,6 +573,7 @@ void GamesysTest<T>::SetUp()
     m_ParticleFXContext.m_RenderContext = m_RenderContext;
     m_ParticleFXContext.m_MaxParticleFXCount = 64;
     m_ParticleFXContext.m_MaxParticleCount = 256;
+    m_ParticleFXContext.m_MaxParticleBufferCount = 256;
     m_ParticleFXContext.m_MaxEmitterCount = 8;
 
     m_SpriteContext.m_RenderContext = m_RenderContext;

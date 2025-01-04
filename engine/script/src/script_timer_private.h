@@ -35,14 +35,9 @@ namespace dmScript
 
     typedef struct ScriptWorld* HScriptWorld;
 
-    void TimerNewScriptWorld(HScriptWorld script_world);
-    void TimerDeleteScriptWorld(HScriptWorld script_world);
-    void TimerUpdateScriptWorld(HScriptWorld script_world, float dt);
-
-    void TimerInitializeInstance(lua_State* L, HScriptWorld script_world);
-    void TimerFinalizeInstance(lua_State* L, HScriptWorld script_world);
-
     const HTimer INVALID_TIMER_HANDLE = 0xffffffffu;
+
+    const uint32_t MAX_TIMER_CAPACITY = 8000;  // Needs to be less that 65535 since 65535 is reserved for invalid index
 
     /**
      * Update the all the timers in the world. Any timers whose time is elapsed will be triggered

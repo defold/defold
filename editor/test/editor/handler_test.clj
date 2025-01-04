@@ -13,13 +13,13 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.handler-test
-  (:require [clojure.test :refer :all]
+  (:require [clojure.test :refer :all :exclude [run-test]]
             [dynamo.graph :as g]
             [editor.handler :as handler]
             [editor.core :as core]
-            [integration.test-util :as test-util]
             [support.test-support :refer [with-clean-system tx-nodes]]
-            [service.log :as log])
+            [service.log :as log]
+            [util.fn :as fn])
   (:import [clojure.lang Keyword]))
 
 (defn fixture [f]
@@ -131,8 +131,8 @@
 (deftest throwing-handler
   (with-clean-system
     (let [global (handler/->context :global {:global-context true} (->StaticSelection [:a]) {})
-          throwing-enabled? (test-util/make-call-logger (fn [selection] (throw (Exception. "Thrown from enabled?"))))
-          throwing-run (test-util/make-call-logger (fn [selection] (throw (Exception. "Thrown from run"))))]
+          throwing-enabled? (fn/make-call-logger (fn [selection] (throw (Exception. "Thrown from enabled?"))))
+          throwing-run (fn/make-call-logger (fn [selection] (throw (Exception. "Thrown from run"))))]
       (handler/enable-disabled-handlers!)
       (handler/defhandler :throwing :global
         (active? [selection] true)
@@ -142,18 +142,18 @@
         (testing "The enabled? function will not be called anymore if it threw an exception."
           (is (not (enabled? :throwing [global] {})))
           (is (not (enabled? :throwing [global] {})))
-          (is (= 1 (count (test-util/call-logger-calls throwing-enabled?)))))
+          (is (= 1 (count (fn/call-logger-calls throwing-enabled?)))))
         (testing "The command can be repeated even though an exception was thrown during run."
           (is (nil? (run :throwing [global] {})))
           (is (nil? (run :throwing [global] {})))
-          (is (= 2 (count (test-util/call-logger-calls throwing-run)))))
+          (is (= 2 (count (fn/call-logger-calls throwing-run)))))
         (testing "Disabled handlers can be re-enabled during development."
-          (is (= 1 (count (test-util/call-logger-calls throwing-enabled?))))
+          (is (= 1 (count (fn/call-logger-calls throwing-enabled?))))
           (enabled? :throwing [global] {})
-          (is (= 1 (count (test-util/call-logger-calls throwing-enabled?))))
+          (is (= 1 (count (fn/call-logger-calls throwing-enabled?))))
           (handler/enable-disabled-handlers!)
           (enabled? :throwing [global] {})
-          (is (= 2 (count (test-util/call-logger-calls throwing-enabled?)))))))))
+          (is (= 2 (count (fn/call-logger-calls throwing-enabled?)))))))))
 
 (defprotocol AProtocol)
 

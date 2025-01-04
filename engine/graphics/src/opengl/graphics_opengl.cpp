@@ -76,6 +76,11 @@
 #elif defined (ANDROID)
     #define GL_GLEXT_PROTOTYPES
     #include <GLES2/gl2ext.h>
+
+    #define glDrawArraysInstanced PFN_glDrawArraysInstanced
+    #define glDrawElementsInstanced PFN_glDrawElementsInstanced
+    #define glVertexAttribDivisor PFN_glVertexAttribDivisor
+
 #elif defined (__MACH__)
     // NOP
 #elif defined (_WIN32)
@@ -193,6 +198,9 @@
         PFNGLDRAWBUFFERSPROC glDrawBuffers = NULL;
         PFNGLGETFRAGDATALOCATIONPROC glGetFragDataLocation = NULL;
         PFNGLBINDFRAGDATALOCATIONPROC glBindFragDataLocation = NULL;
+        PFNGLDRAWARRAYSINSTANCEDPROC glDrawArraysInstanced = NULL;
+        PFNGLDRAWELEMENTSINSTANCEDPROC glDrawElementsInstanced = NULL;
+        PFNGLVERTEXATTRIBDIVISORPROC glVertexAttribDivisor = NULL;
     #endif
 #elif defined(__EMSCRIPTEN__)
     #include <GL/glext.h>
@@ -217,6 +225,11 @@
     #define GL_ARRAY_BUFFER_ARB GL_ARRAY_BUFFER
     #define GL_ELEMENT_ARRAY_BUFFER_ARB GL_ELEMENT_ARRAY_BUFFER
     #define GL_TEXTURE_CUBE_MAP_SEAMLESS 0x884F
+
+    #ifdef ANDROID
+        #define glBindVertexArray glBindVertexArrayOES
+        #define glGenVertexArrays glGenVertexArraysOES
+    #endif
 #endif
 
 DM_PROPERTY_EXTERN(rmtp_DrawCalls);
@@ -431,6 +444,15 @@ static void LogFrameBufferError(GLenum status)
     typedef void (* DM_PFNGLCOMPRESSEDTEXSUBIMAGE3DPROC) (GLenum target, GLint level, GLint xoffset, GLint yoffset, GLint zoffset, GLsizei width, GLsizei height, GLsizei depth, GLenum format, GLsizei imageSize, const void *data);
     DM_PFNGLCOMPRESSEDTEXSUBIMAGE3DPROC PFN_glCompressedTexSubImage3D = NULL;
 
+    typedef void (* DM_PFNGLDRAWARRAYSINSTANCEDPROC) (GLenum mode, GLint first, GLsizei count, GLsizei primcount);
+    DM_PFNGLDRAWARRAYSINSTANCEDPROC PFN_glDrawArraysInstanced = NULL;
+
+    typedef void (* DM_PFNGLDRAWELEMENTSINSTANCEDPROC) (GLenum mode, GLsizei count, GLenum type, const GLvoid *indices, GLsizei primcount);
+    DM_PFNGLDRAWELEMENTSINSTANCEDPROC PFN_glDrawElementsInstanced = NULL;
+
+    typedef void (* DM_PFNGLVERTEXATTRIBDIVISORPROC) (GLuint index, GLuint divisor);
+    DM_PFNGLVERTEXATTRIBDIVISORPROC PFN_glVertexAttribDivisor = NULL;
+
     typedef void (* DM_PFNGLMEMORYBARRIERPROC) (GLbitfield barriers);
     DM_PFNGLMEMORYBARRIERPROC glMemoryBarrier = NULL;
 
@@ -457,6 +479,64 @@ static void LogFrameBufferError(GLenum status)
 #endif
 
     OpenGLContext* g_Context = 0x0;
+
+    static void UpdateGLHandle(HContext context, HOpenglID idx, GLuint handle)
+    {
+        OpenGLContext* gl_context = (OpenGLContext*)context;
+        gl_context->m_AllGLHandles[idx] = handle;
+    }
+
+    static HOpenglID AddNewGLHandle(HContext context, GLuint handle)
+    {
+        OpenGLContext* gl_context = (OpenGLContext*)context;
+        HOpenglID result_idx = gl_context->m_AllGLHandles.Size();
+        if (!gl_context->m_FreeIndexes.Empty())
+        {
+            result_idx = gl_context->m_FreeIndexes.Back();
+            gl_context->m_FreeIndexes.Pop();
+        }
+        else
+        {
+            if (gl_context->m_AllGLHandles.Full())
+            {
+                gl_context->m_AllGLHandles.OffsetCapacity(32);
+            }
+            gl_context->m_AllGLHandles.Push(0);
+        }
+        
+        UpdateGLHandle(context, result_idx, handle);
+        return result_idx;
+    }
+
+    static bool IsGLHandleValid(HContext context, HOpenglID idx)
+    {
+        OpenGLContext* gl_context = (OpenGLContext*)context;
+        return idx < gl_context->m_AllGLHandles.Size() && gl_context->m_AllGLHandles[idx] != 0;
+    }
+
+    static GLuint GetGLHandle(HContext context, HOpenglID idx)
+    {
+        OpenGLContext* gl_context = (OpenGLContext*)context;
+        return gl_context->m_AllGLHandles[idx];
+    }
+
+    static GLuint* GetGLHandlePointer(HContext context, HOpenglID idx)
+    {
+        OpenGLContext* gl_context = (OpenGLContext*)context;
+        return &(gl_context->m_AllGLHandles[idx]);
+    }
+
+    static void CleanupGLHandle(HContext context, HOpenglID idx)
+    {
+        OpenGLContext* gl_context = (OpenGLContext*)context;
+        gl_context->m_AllGLHandles[idx] = 0;
+        if (gl_context->m_FreeIndexes.Full())
+        {
+            gl_context->m_FreeIndexes.OffsetCapacity(32);
+        }
+        gl_context->m_FreeIndexes.Push(idx);
+    }
+
 
     OpenGLContext::OpenGLContext(const ContextParams& params)
     {
@@ -488,6 +568,9 @@ static void LogFrameBufferError(GLenum status)
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB_16BPP;
         m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_16BPP;
         m_IndexBufferFormatSupport |= 1 << INDEXBUFFER_FORMAT_16;
+
+        m_AllGLHandles.SetCapacity(1024);
+        m_FreeIndexes.SetCapacity(256);
 
         DM_STATIC_ASSERT(sizeof(m_TextureFormatSupport) * 8 >= TEXTURE_FORMAT_COUNT, Invalid_Struct_Size );
     }
@@ -725,6 +808,7 @@ static void LogFrameBufferError(GLenum status)
             case CONTEXT_FEATURE_TEXTURE_ARRAY:          return context->m_TextureArraySupport;
             case CONTEXT_FEATURE_COMPUTE_SHADER:         return context->m_ComputeSupport;
             case CONTEXT_FEATURE_STORAGE_BUFFER:         return context->m_StorageBufferSupport;
+            case CONTEXT_FEATURE_INSTANCING:             return context->m_InstancingSupport;
         }
         return false;
     }
@@ -741,22 +825,31 @@ static void LogFrameBufferError(GLenum status)
             4) Optionally check as core function (if not GLES and core_name is set)
         */
         uintptr_t func = 0x0;
-        static const char* ext_name_prefix_str[] = {"GL_ARB_", "GL_EXT_", "GL_OES_"};
-        static const char* proc_name_postfix_str[] = {"ARB", "EXT", "OES"};
-        char proc_str[256];
-        for(uint32_t i = 0; i < sizeof(ext_name_prefix_str)/sizeof(*ext_name_prefix_str); ++i)
+
+        if (extension_name)
         {
-            // Check for extension name string AND process function pointer. Either may be disabled (by vendor) so both must be valid!
-            size_t l = dmStrlCpy(proc_str, ext_name_prefix_str[i], 8);
-            dmStrlCpy(proc_str + l, extension_name, 256-l);
-            if(!OpenGLIsExtensionSupported(context, proc_str))
-                continue;
-            l = dmStrlCpy(proc_str, name, 255);
-            dmStrlCpy(proc_str + l, proc_name_postfix_str[i], 256-l);
-            func = dmPlatform::GetProcAddress(window, proc_str);
-            if(func != 0x0)
+            static const char* ext_name_prefix_str[] = {"GL_ARB_", "GL_EXT_", "GL_OES_"};
+            static const char* proc_name_postfix_str[] = {"ARB", "EXT", "OES"};
+            char proc_str[256];
+            for(uint32_t i = 0; i < sizeof(ext_name_prefix_str)/sizeof(*ext_name_prefix_str); ++i)
             {
-                break;
+                // Check for extension name string AND process function pointer. Either may be disabled (by vendor) so both must be valid!
+                size_t l = dmStrlCpy(proc_str, ext_name_prefix_str[i], 8);
+                dmStrlCpy(proc_str + l, extension_name, 256-l);
+
+                if(!OpenGLIsExtensionSupported(context, proc_str))
+                {
+                    continue;
+                }
+
+                l = dmStrlCpy(proc_str, name, 255);
+                dmStrlCpy(proc_str + l, proc_name_postfix_str[i], 256-l);
+                func = dmPlatform::GetProcAddress(window, proc_str);
+
+                if(func != 0x0)
+                {
+                    break;
+                }
             }
         }
     #if !defined(__EMSCRIPTEN__)
@@ -799,9 +892,10 @@ static void LogFrameBufferError(GLenum status)
                 dmTime::Sleep(100);
             }
 
+            GLuint tex_handle = GetGLHandle(_context, tex->m_TextureIds[0]);
             DM_ALIGNED(16) uint8_t gpu_data[sizeof(data)];
             memset(gpu_data, 0x0, sizeof(gpu_data));
-            glBindTexture(GL_TEXTURE_2D, tex->m_TextureIds[0]);
+            glBindTexture(GL_TEXTURE_2D, tex_handle);
             CHECK_GL_ERROR;
 
             GLuint osfb;
@@ -810,7 +904,7 @@ static void LogFrameBufferError(GLenum status)
             glBindFramebuffer(GL_FRAMEBUFFER, osfb);
             CHECK_GL_ERROR;
 
-            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex->m_TextureIds[0], 0);
+            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex_handle, 0);
             if (glCheckFramebufferStatus(GL_FRAMEBUFFER) == GL_FRAMEBUFFER_COMPLETE)
             {
                 GLint vp[4];
@@ -966,6 +1060,9 @@ static void LogFrameBufferError(GLenum status)
         GET_PROC_ADDRESS(glDrawBuffers, "glDrawBuffers", PFNGLDRAWBUFFERSPROC);
         GET_PROC_ADDRESS(glGetFragDataLocation, "glGetFragDataLocation", PFNGLGETFRAGDATALOCATIONPROC);
         GET_PROC_ADDRESS(glBindFragDataLocation, "glBindFragDataLocation", PFNGLBINDFRAGDATALOCATIONPROC);
+        GET_PROC_ADDRESS(glDrawArraysInstanced, "glDrawArraysInstanced", PFNGLDRAWARRAYSINSTANCEDPROC);
+        GET_PROC_ADDRESS(glDrawElementsInstanced, "glDrawElementsInstanced", PFNGLDRAWELEMENTSINSTANCEDPROC);
+        GET_PROC_ADDRESS(glVertexAttribDivisor, "glVertexAttribDivisor", PFNGLVERTEXATTRIBDIVISORPROC);
     #endif
 
     #undef GET_PROC_ADDRESS
@@ -1099,22 +1196,23 @@ static void LogFrameBufferError(GLenum status)
         DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glInvalidateFramebuffer,   "glDiscardFramebuffer", "discard_framebuffer", "glInvalidateFramebuffer", DM_PFNGLINVALIDATEFRAMEBUFFERPROC, context);
         DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glDrawBuffers,             "glDrawBuffers",        "draw_buffers",        "glDrawBuffers",           DM_PFNGLDRAWBUFFERSPROC, context);
     #ifdef ANDROID
-        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glTexSubImage3D,           "glTexSubImage3D",           "texture_array", "glTexSubImage3D",           DM_PFNGLTEXSUBIMAGE3DPROC, context);
-        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glTexImage3D,              "glTexImage3D",              "texture_array", "glTexImage3D",              DM_PFNGLTEXIMAGE3DPROC, context);
-        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glCompressedTexSubImage3D, "glCompressedTexSubImage3D", "texture_array", "glCompressedTexSubImage3D", DM_PFNGLCOMPRESSEDTEXSUBIMAGE3DPROC, context);
-        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glCompressedTexImage3D,    "glCompressedTexImage3D",    "texture_array", "glCompressedTexImage3D",    DM_PFNGLCOMPRESSEDTEXIMAGE3DPROC, context);
-
-        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glMemoryBarrier,    "glMemoryBarrier",    "shader_image_load_store", "glMemoryBarrier",    DM_PFNGLMEMORYBARRIERPROC,    context);
-        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glBindImageTexture, "glBindImageTexture", "shader_image_load_store", "glBindImageTexture", DM_PFNGLBINDIMAGETEXTUREPROC, context);
-        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glDispatchCompute,  "glDispatchCompute",  "compute_shader",          "glDispatchCompute",  DM_PFNGLDISPATCHCOMPUTEPROC,  context);
-
-        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glBindBufferBase,           "glBindBufferBase",           "", "glBindBufferBase",           DM_PFNGLBINDBUFFERBASEPROC,   context);
-        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glGetUniformBlockIndex,     "glGetUniformBlockIndex",     "", "glGetUniformBlockIndex",     DM_PFNGLGETUNIFORMBLOCKINDEXPROC,  context);
-        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glGetActiveUniformBlockiv,  "glGetActiveUniformBlockiv",  "", "glGetActiveUniformBlockiv",  DM_PFNGLGETACTIVEUNIFORMBLOCKIVPROC,  context);
-        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glGetActiveUniformsiv,      "glGetActiveUniformsiv",      "", "glGetActiveUniformsiv",      DM_PFNGLGETACTIVEUNIFORMSIVPROC,  context);
-        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glUniformBlockBinding,      "glUniformBlockBinding",      "", "glUniformBlockBinding",      DM_PFNGLUNIFORMBLOCKBINDINGPROC,  context);
-
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glTexSubImage3D,           "glTexSubImage3D",           "texture_array",           "glTexSubImage3D",           DM_PFNGLTEXSUBIMAGE3DPROC,           context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glTexImage3D,              "glTexImage3D",              "texture_array",           "glTexImage3D",              DM_PFNGLTEXIMAGE3DPROC,              context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glCompressedTexSubImage3D, "glCompressedTexSubImage3D", "texture_array",           "glCompressedTexSubImage3D", DM_PFNGLCOMPRESSEDTEXSUBIMAGE3DPROC, context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glCompressedTexImage3D,    "glCompressedTexImage3D",    "texture_array",           "glCompressedTexImage3D",    DM_PFNGLCOMPRESSEDTEXIMAGE3DPROC,    context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glDrawArraysInstanced,     "glDrawArraysInstanced",     NULL,                      "glDrawArraysInstanced",     DM_PFNGLDRAWARRAYSINSTANCEDPROC,     context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glDrawElementsInstanced,   "glDrawElementsInstanced",   NULL,                      "glDrawElementsInstanced",   DM_PFNGLDRAWELEMENTSINSTANCEDPROC,   context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(PFN_glVertexAttribDivisor,     "glVertexAttribDivisor",     NULL,                      "glVertexAttribDivisor",     DM_PFNGLVERTEXATTRIBDIVISORPROC,     context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glMemoryBarrier,               "glMemoryBarrier",           "shader_image_load_store", "glMemoryBarrier",           DM_PFNGLMEMORYBARRIERPROC,           context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glBindImageTexture,            "glBindImageTexture",        "shader_image_load_store", "glBindImageTexture",        DM_PFNGLBINDIMAGETEXTUREPROC,        context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glDispatchCompute,             "glDispatchCompute",         "compute_shader",          "glDispatchCompute",         DM_PFNGLDISPATCHCOMPUTEPROC,         context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glBindBufferBase,              "glBindBufferBase",           "",                       "glBindBufferBase",          DM_PFNGLBINDBUFFERBASEPROC,          context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glGetUniformBlockIndex,        "glGetUniformBlockIndex",     "",                       "glGetUniformBlockIndex",    DM_PFNGLGETUNIFORMBLOCKINDEXPROC,    context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glGetActiveUniformBlockiv,     "glGetActiveUniformBlockiv",  "",                       "glGetActiveUniformBlockiv", DM_PFNGLGETACTIVEUNIFORMBLOCKIVPROC, context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glGetActiveUniformsiv,         "glGetActiveUniformsiv",      "",                       "glGetActiveUniformsiv",     DM_PFNGLGETACTIVEUNIFORMSIVPROC,     context);
+        DMGRAPHICS_GET_PROC_ADDRESS_EXT(glUniformBlockBinding,         "glUniformBlockBinding",      "",                       "glUniformBlockBinding",     DM_PFNGLUNIFORMBLOCKBINDINGPROC,     context);
     #endif
+
     #undef DMGRAPHICS_GET_PROC_ADDRESS_EXT
 
         if (OpenGLIsExtensionSupported(context, "GL_IMG_texture_compression_pvrtc") ||
@@ -1186,6 +1284,14 @@ static void LogFrameBufferError(GLenum status)
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RG16F;
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_R32F;
             context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RG32F;
+
+            context->m_InstancingSupport = 1;
+
+        #ifdef ANDROID
+            context->m_InstancingSupport &= PFN_glDrawArraysInstanced   != 0;
+            context->m_InstancingSupport &= PFN_glDrawElementsInstanced != 0;
+            context->m_InstancingSupport &= PFN_glVertexAttribDivisor   != 0;
+        #endif
         }
         else
         {
@@ -1201,6 +1307,12 @@ static void LogFrameBufferError(GLenum status)
             {
                 context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGB32F;
                 context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA32F;
+            }
+
+            // https://registry.khronos.org/webgl/extensions/ANGLE_instanced_arrays/
+            if (OpenGLIsExtensionSupported(context, "ANGLE_instanced_arrays"))
+            {
+                context->m_InstancingSupport = 1;
             }
         }
 
@@ -1255,9 +1367,9 @@ static void LogFrameBufferError(GLenum status)
         context->m_DepthBufferBits = 16;
 #else
 
-#if defined(__MACH__)
+    #if defined(__MACH__)
         context->m_PackedDepthStencilSupport = 1;
-#endif
+    #endif
 
         if ((OpenGLIsExtensionSupported(context, "GL_OES_packed_depth_stencil")) || (OpenGLIsExtensionSupported(context, "GL_EXT_packed_depth_stencil")))
         {
@@ -1389,13 +1501,12 @@ static void LogFrameBufferError(GLenum status)
             }
         }
 
-#if !defined(GL_ES_VERSION_2_0)
+        if (glGenVertexArrays)
         {
-            GLuint vao;
-            glGenVertexArrays(1, &vao);
-            glBindVertexArray(vao);
+            GLuint handle;
+            glGenVertexArrays(1, &handle);
+            context->m_GlobalVAO = AddNewGLHandle(_context, handle);
         }
-#endif
 
         SetSwapInterval(_context, params.m_SwapInterval);
 
@@ -1554,30 +1665,41 @@ static void LogFrameBufferError(GLenum status)
 
     static HVertexBuffer OpenGLNewVertexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
-        uint32_t buffer = 0;
-        glGenBuffersARB(1, &buffer);
+        OpenGLBuffer* vertex_buffer = new OpenGLBuffer();
+        vertex_buffer->m_MemorySize = size;
+        GLuint handle = 0;
+        glGenBuffersARB(1, &handle);
+        vertex_buffer->m_Id = AddNewGLHandle(context, handle);
         CHECK_GL_ERROR;
-        SetVertexBufferData(buffer, size, data, buffer_usage);
-        return buffer;
+        SetVertexBufferData((HVertexBuffer) vertex_buffer, size, data, buffer_usage);
+        return (HVertexBuffer) vertex_buffer;
     }
 
     static void OpenGLDeleteVertexBuffer(HVertexBuffer buffer)
     {
         if (!buffer)
+        {
             return;
-        GLuint b = (GLuint) buffer;
-        glDeleteBuffersARB(1, &b);
+        }
+        OpenGLBuffer* vertex_buffer = (OpenGLBuffer*) buffer;
+        GLuint handle = GetGLHandle((HContext)g_Context, vertex_buffer->m_Id);
+        glDeleteBuffersARB(1, &handle);
+        CleanupGLHandle((HContext)g_Context, vertex_buffer->m_Id);
         CHECK_GL_ERROR;
+        delete vertex_buffer;
     }
 
     static void OpenGLSetVertexBufferData(HVertexBuffer buffer, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
         DM_PROFILE(__FUNCTION__);
         // NOTE: Android doesn't seem to like zero-sized vertex buffers
-        if (size == 0) {
+        if (size == 0)
+        {
             return;
         }
-        glBindBufferARB(GL_ARRAY_BUFFER_ARB, buffer);
+        OpenGLBuffer* vertex_buffer = (OpenGLBuffer*) buffer;
+        vertex_buffer->m_MemorySize = size;
+        glBindBufferARB(GL_ARRAY_BUFFER_ARB, GetGLHandle((HContext)g_Context, vertex_buffer->m_Id));
         CHECK_GL_ERROR
         glBufferDataARB(GL_ARRAY_BUFFER_ARB, size, data, GetOpenGLBufferUsage(buffer_usage));
         CHECK_GL_ERROR
@@ -1588,12 +1710,27 @@ static void LogFrameBufferError(GLenum status)
     static void OpenGLSetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
         DM_PROFILE(__FUNCTION__);
-        glBindBufferARB(GL_ARRAY_BUFFER_ARB, buffer);
+        if (!buffer)
+        {
+            return;
+        }
+        OpenGLBuffer* vertex_buffer = (OpenGLBuffer*) buffer;
+        glBindBufferARB(GL_ARRAY_BUFFER_ARB, GetGLHandle((HContext)g_Context, vertex_buffer->m_Id));
         CHECK_GL_ERROR;
         glBufferSubDataARB(GL_ARRAY_BUFFER_ARB, offset, size, data);
         CHECK_GL_ERROR;
         glBindBufferARB(GL_ARRAY_BUFFER_ARB, 0);
         CHECK_GL_ERROR;
+    }
+
+    static uint32_t OpenGLGetVertexBufferSize(HVertexBuffer buffer)
+    {
+        if (!buffer)
+        {
+            return 0;
+        }
+        OpenGLBuffer* vertex_buffer = (OpenGLBuffer*) buffer;
+        return vertex_buffer->m_MemorySize;
     }
 
     static uint32_t OpenGLGetMaxElementsVertices(HContext context)
@@ -1605,10 +1742,15 @@ static void LogFrameBufferError(GLenum status)
     {
         DM_PROFILE(__FUNCTION__);
         // NOTE: WebGl doesn't seem to like zero-sized vertex buffers (very poor performance)
-        if (size == 0) {
+        if (size == 0 || !buffer)
+        {
             return;
         }
-        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, buffer);
+
+        OpenGLBuffer* index_buffer = (OpenGLBuffer*) buffer;
+        index_buffer->m_MemorySize = size;
+
+        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, GetGLHandle((HContext)g_Context, index_buffer->m_Id));
         CHECK_GL_ERROR
         glBufferDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, size, data, GetOpenGLBufferUsage(buffer_usage));
         CHECK_GL_ERROR
@@ -1618,31 +1760,55 @@ static void LogFrameBufferError(GLenum status)
 
     static HIndexBuffer OpenGLNewIndexBuffer(HContext context, uint32_t size, const void* data, BufferUsage buffer_usage)
     {
-        uint32_t buffer = 0;
-        glGenBuffersARB(1, &buffer);
+        OpenGLBuffer* index_buffer = new OpenGLBuffer;
+        GLuint handle = 0;
+        glGenBuffersARB(1, &handle);
+        index_buffer->m_Id = AddNewGLHandle(context, handle);
         CHECK_GL_ERROR
-        OpenGLSetIndexBufferData(buffer, size, data, buffer_usage);
-        return buffer;
+        OpenGLSetIndexBufferData((HIndexBuffer) index_buffer, size, data, buffer_usage);
+        index_buffer->m_MemorySize = size;
+        return (HIndexBuffer) index_buffer;
     }
 
     static void OpenGLDeleteIndexBuffer(HIndexBuffer buffer)
     {
         if (!buffer)
+        {
             return;
-        GLuint b = (GLuint) buffer;
-        glDeleteBuffersARB(1, &b);
+        }
+
+        OpenGLBuffer* index_buffer = (OpenGLBuffer*) buffer;
+        GLuint handle = GetGLHandle((HContext)g_Context, index_buffer->m_Id);
+        glDeleteBuffersARB(1, &handle);
+        CleanupGLHandle((HContext)g_Context, index_buffer->m_Id);
         CHECK_GL_ERROR;
+        delete index_buffer;
     }
 
     static void OpenGLSetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
+        if (!buffer)
+        {
+            return;
+        }
         DM_PROFILE(__FUNCTION__);
-        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, buffer);
+        OpenGLBuffer* index_buffer = (OpenGLBuffer*) buffer;
+        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, GetGLHandle((HContext)g_Context, index_buffer->m_Id));
         CHECK_GL_ERROR;
         glBufferSubDataARB(GL_ELEMENT_ARRAY_BUFFER_ARB, offset, size, data);
         CHECK_GL_ERROR;
         glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER_ARB, 0);
         CHECK_GL_ERROR;
+    }
+
+    static uint32_t OpenGLGetIndexBufferSize(HIndexBuffer buffer)
+    {
+        if (!buffer)
+        {
+            return 0;
+        }
+        OpenGLBuffer* index_buffer = (OpenGLBuffer*) buffer;
+        return index_buffer->m_MemorySize;
     }
 
     static bool OpenGLIsIndexBufferFormatSupported(HContext context, IndexBufferFormat format)
@@ -1669,7 +1835,7 @@ static void LogFrameBufferError(GLenum status)
         memset(vd, 0, sizeof(VertexDeclaration));
 
         vd->m_Stride = 0;
-        for (uint32_t i=0; i<stream_declaration->m_StreamCount; i++)
+        for (uint32_t i = 0; i < stream_declaration->m_StreamCount; i++)
         {
             vd->m_Streams[i].m_NameHash  = stream_declaration->m_Streams[i].m_NameHash;
             vd->m_Streams[i].m_Location  = -1;
@@ -1681,7 +1847,7 @@ static void LogFrameBufferError(GLenum status)
             vd->m_Stride += stream_declaration->m_Streams[i].m_Size * GetTypeSize(stream_declaration->m_Streams[i].m_Type);
         }
         vd->m_StreamCount = stream_declaration->m_StreamCount;
-
+        vd->m_StepFunction = stream_declaration->m_StepFunction;
         return vd;
     }
 
@@ -1690,7 +1856,7 @@ static void LogFrameBufferError(GLenum status)
         OpenGLProgram* program_ptr = (OpenGLProgram*) program;
         uint32_t n = vertex_declaration->m_StreamCount;
         VertexDeclaration::Stream* streams = &vertex_declaration->m_Streams[0];
-        for (uint32_t i=0; i < n; i++)
+        for (uint32_t i = 0; i < n; i++)
         {
             int32_t location = -1;
             for (int j = 0; j < program_ptr->m_Attributes.Size(); ++j)
@@ -1719,9 +1885,10 @@ static void LogFrameBufferError(GLenum status)
         vertex_declaration->m_ModificationVersion = ((OpenGLContext*) context)->m_ModificationVersion;
     }
 
-    static void OpenGLEnableVertexBuffer(HContext context, HVertexBuffer vertex_buffer, uint32_t binding_index)
+    static void OpenGLEnableVertexBuffer(HContext context, HVertexBuffer buffer, uint32_t binding_index)
     {
-        glBindBufferARB(GL_ARRAY_BUFFER, vertex_buffer);
+        OpenGLBuffer* vertex_buffer = (OpenGLBuffer*) buffer;
+        glBindBufferARB(GL_ARRAY_BUFFER, GetGLHandle(context, vertex_buffer->m_Id));
         CHECK_GL_ERROR;
     }
 
@@ -1730,39 +1897,78 @@ static void LogFrameBufferError(GLenum status)
         // NOP
     }
 
-    static void OpenGLEnableVertexDeclaration(HContext _context, HVertexDeclaration vertex_declaration, uint32_t binding_index, HProgram program)
+    static inline uint32_t GetSubVectorBindCount(uint32_t size)
+    {
+        // Not sure if this supports mat2?
+        if (size == 9)       return 3;
+        else if (size == 16) return 4;
+        return 1;
+    }
+
+    static inline void SetVertexAttribute(OpenGLContext* context, int32_t loc, uint32_t component_count, GLenum opengl_type, bool normalize, uint32_t stride, uint32_t offset, VertexStepFunction step_function)
+    {
+    #if 0
+        dmLogInfo("Attribute: %d, %d, %d, %d, %d, %d", loc, component_count, opengl_type, normalize, stride, offset);
+    #endif
+
+        // TODO: We should cache these bindings and skip applying them if they haven't changed
+        glEnableVertexAttribArray(loc);
+        CHECK_GL_ERROR;
+
+        glVertexAttribPointer(
+            loc,
+            component_count,
+            opengl_type,
+            normalize,
+            stride,
+            (GLvoid*) (size_t) offset); // The starting point of the VBO, for the vertices
+        CHECK_GL_ERROR;
+
+        if (context->m_InstancingSupport)
+        {
+            glVertexAttribDivisor(loc, step_function);
+            CHECK_GL_ERROR;
+        }
+    }
+
+    static void OpenGLEnableVertexDeclaration(HContext _context, HVertexDeclaration vertex_declaration, uint32_t binding_index, uint32_t base_offset, HProgram program)
     {
         assert(_context);
         assert(vertex_declaration);
 
         OpenGLContext* context = (OpenGLContext*) _context;
 
-        if (!(context->m_ModificationVersion == vertex_declaration->m_ModificationVersion && vertex_declaration->m_BoundForProgram == ((OpenGLProgram*) program)->m_Id))
+        if (glBindVertexArray)
+            glBindVertexArray(GetGLHandle(context, context->m_GlobalVAO));
+
+        if (context->m_ModificationVersion != vertex_declaration->m_ModificationVersion || vertex_declaration->m_BoundForProgram != program)
         {
             BindVertexDeclarationProgram(context, vertex_declaration, program);
         }
 
-        #define BUFFER_OFFSET(i) ((char*)0x0 + (i))
-
-        for (uint32_t i=0; i<vertex_declaration->m_StreamCount; i++)
+        for (uint32_t i = 0; i < vertex_declaration->m_StreamCount; i++)
         {
             if (vertex_declaration->m_Streams[i].m_Location != -1)
             {
-                glEnableVertexAttribArray(vertex_declaration->m_Streams[i].m_Location);
-                CHECK_GL_ERROR;
-                glVertexAttribPointer(
-                        vertex_declaration->m_Streams[i].m_Location,
-                        vertex_declaration->m_Streams[i].m_Size,
-                        GetOpenGLType(vertex_declaration->m_Streams[i].m_Type),
-                        vertex_declaration->m_Streams[i].m_Normalize,
-                        vertex_declaration->m_Stride,
-                BUFFER_OFFSET(vertex_declaration->m_Streams[i].m_Offset) );   //The starting point of the VBO, for the vertices
+                uint32_t sub_vector_bind_count = GetSubVectorBindCount(vertex_declaration->m_Streams[i].m_Size);
+                uint32_t base_location = vertex_declaration->m_Streams[i].m_Location;
+                uint32_t stream_offset = base_offset + vertex_declaration->m_Streams[i].m_Offset;
+                uint32_t sub_vector_component_count = sub_vector_bind_count > 1 ? sub_vector_bind_count : vertex_declaration->m_Streams[i].m_Size;
 
-                CHECK_GL_ERROR;
+                for (uint32_t j = 0; j < sub_vector_bind_count; ++j)
+                {
+                    SetVertexAttribute(
+                        context,
+                        base_location + j,
+                        sub_vector_component_count,
+                        GetOpenGLType(vertex_declaration->m_Streams[i].m_Type),
+                                      vertex_declaration->m_Streams[i].m_Normalize,
+                                      vertex_declaration->m_Stride,
+                                      stream_offset + j * GetTypeSize(vertex_declaration->m_Streams[i].m_Type) * sub_vector_component_count,
+                                      vertex_declaration->m_StepFunction);
+                }
             }
         }
-
-        #undef BUFFER_OFFSET
     }
 
     static void OpenGLDisableVertexDeclaration(HContext context, HVertexDeclaration vertex_declaration)
@@ -1770,12 +1976,18 @@ static void LogFrameBufferError(GLenum status)
         assert(context);
         assert(vertex_declaration);
 
-        for (uint32_t i=0; i<vertex_declaration->m_StreamCount; i++)
+        for (uint32_t i = 0; i < vertex_declaration->m_StreamCount; i++)
         {
             if (vertex_declaration->m_Streams[i].m_Location != -1)
             {
-                glDisableVertexAttribArray(vertex_declaration->m_Streams[i].m_Location);
-                CHECK_GL_ERROR;
+                uint32_t sub_vector_count = GetSubVectorBindCount(vertex_declaration->m_Streams[i].m_Size);
+                int32_t base_location = vertex_declaration->m_Streams[i].m_Location;
+
+                for (int j = 0; j < sub_vector_count; ++j)
+                {
+                    glDisableVertexAttribArray(base_location + j);
+                    CHECK_GL_ERROR;
+                }
             }
         }
 
@@ -1798,12 +2010,12 @@ static void LogFrameBufferError(GLenum status)
 
                 if (ubo.m_ActiveUniforms > 0)
                 {
-                    glBindBufferBase(GL_UNIFORM_BUFFER, ubo.m_Binding, ubo.m_Id);
+                    glBindBufferBase(GL_UNIFORM_BUFFER, ubo.m_Binding, GetGLHandle((HContext)context, ubo.m_Id));
                     CHECK_GL_ERROR;
 
                     if (ubo.m_Dirty > 0)
                     {
-                        glBindBuffer(GL_UNIFORM_BUFFER, ubo.m_Id);
+                        glBindBuffer(GL_UNIFORM_BUFFER, GetGLHandle((HContext)context, ubo.m_Id));
                         CHECK_GL_ERROR;
                         glBufferData(GL_UNIFORM_BUFFER, ubo.m_BlockSize, ubo.m_BlockMemory, GL_STATIC_DRAW);
                         CHECK_GL_ERROR;
@@ -1814,31 +2026,52 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
-    static void OpenGLDrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
+    static void OpenGLDrawElements(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer buffer, uint32_t instance_count)
     {
         DM_PROFILE(__FUNCTION__);
         DM_PROPERTY_ADD_U32(rmtp_DrawCalls, 1);
         assert(context);
-        assert(index_buffer);
+        assert(buffer);
 
         DrawSetup((OpenGLContext*) context);
 
-        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER, index_buffer);
+        OpenGLBuffer* index_buffer = (OpenGLBuffer*) buffer;
+
+        glBindBufferARB(GL_ELEMENT_ARRAY_BUFFER, GetGLHandle(context, index_buffer->m_Id));
         CHECK_GL_ERROR;
 
-        glDrawElements(GetOpenGLPrimitiveType(prim_type), count, GetOpenGLType(type), (GLvoid*)(uintptr_t) first);
-        CHECK_GL_ERROR
+        OpenGLContext* context_ptr = (OpenGLContext*) context;
+        if (context_ptr->m_InstancingSupport)
+        {
+            glDrawElementsInstanced(GetOpenGLPrimitiveType(prim_type), count, GetOpenGLType(type), (GLvoid*)(uintptr_t) first, dmMath::Max((uint32_t) 1, instance_count));
+            CHECK_GL_ERROR;
+        }
+        else
+        {
+            glDrawElements(GetOpenGLPrimitiveType(prim_type), count, GetOpenGLType(type), (GLvoid*)(uintptr_t) first);
+            CHECK_GL_ERROR
+        }
     }
 
-    static void OpenGLDraw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count)
+    static void OpenGLDraw(HContext context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count)
     {
         DM_PROFILE(__FUNCTION__);
         DM_PROPERTY_ADD_U32(rmtp_DrawCalls, 1);
         assert(context);
 
         DrawSetup((OpenGLContext*) context);
-        glDrawArrays(GetOpenGLPrimitiveType(prim_type), first, count);
-        CHECK_GL_ERROR
+
+        OpenGLContext* context_ptr = (OpenGLContext*) context;
+        if (context_ptr->m_InstancingSupport)
+        {
+            glDrawArraysInstanced(GetOpenGLPrimitiveType(prim_type), first, count, dmMath::Max((uint32_t) 1, instance_count));
+            CHECK_GL_ERROR;
+        }
+        else
+        {
+            glDrawArrays(GetOpenGLPrimitiveType(prim_type), first, count);
+            CHECK_GL_ERROR
+        }
     }
 
     static void OpenGLDispatchCompute(HContext _context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z)
@@ -1861,7 +2094,7 @@ static void LogFrameBufferError(GLenum status)
     #endif
     }
 
-    static GLuint DoCreateShader(GLenum type, const void* program, uint32_t program_size, char* error_buffer, uint32_t error_buffer_size)
+    static GLuint DoCreateShader(HContext context, GLenum type, const void* program, uint32_t program_size, char* error_buffer, uint32_t error_buffer_size)
     {
         GLuint shader_id = glCreateShader(type);
         CHECK_GL_ERROR;
@@ -1925,13 +2158,13 @@ static void LogFrameBufferError(GLenum status)
             return 0x0;
         }
 
-        GLuint shader_id = DoCreateShader(type, ddf_shader->m_Source.m_Data, ddf_shader->m_Source.m_Count, error_buffer, error_buffer_size);
+        GLuint shader_id = DoCreateShader(context, type, ddf_shader->m_Source.m_Data, ddf_shader->m_Source.m_Count, error_buffer, error_buffer_size);
         if (!shader_id)
         {
             return 0;
         }
         OpenGLShader* shader = new OpenGLShader();
-        shader->m_Id         = shader_id;
+        shader->m_Id         = AddNewGLHandle(context, shader_id);
         shader->m_Language   = ddf_shader->m_Language;
 
         CreateShaderMeta(&ddf->m_Reflection, &shader->m_ShaderMeta);
@@ -1952,7 +2185,7 @@ static void LogFrameBufferError(GLenum status)
     static HComputeProgram OpenGLNewComputeProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
     #ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
-        return (HVertexProgram) CreateShader(context, DMGRAPHICS_TYPE_COMPUTE_SHADER, ddf, error_buffer, error_buffer_size);
+        return (HComputeProgram) CreateShader(context, DMGRAPHICS_TYPE_COMPUTE_SHADER, ddf, error_buffer, error_buffer_size);
     #else
         dmSnPrintf(error_buffer, error_buffer_size, "Compute Shaders are not supported for OpenGL on this platform.");
         return 0;
@@ -1962,7 +2195,8 @@ static void LogFrameBufferError(GLenum status)
     static void BuildAttributes(OpenGLProgram* program_ptr)
     {
         GLint num_attributes;
-        glGetProgramiv(program_ptr->m_Id, GL_ACTIVE_ATTRIBUTES, &num_attributes);
+        GLuint program_handle = GetGLHandle((HContext)g_Context, program_ptr->m_Id);
+        glGetProgramiv(program_handle, GL_ACTIVE_ATTRIBUTES, &num_attributes);
         CHECK_GL_ERROR;
 
         program_ptr->m_Attributes.SetCapacity(num_attributes);
@@ -1975,7 +2209,7 @@ static void LogFrameBufferError(GLenum status)
             GLsizei attr_len;
             GLint   attr_size;
             GLenum  attr_type;
-            glGetActiveAttrib(program_ptr->m_Id, i,
+            glGetActiveAttrib(program_handle, i,
                 sizeof(attribute_name),
                 &attr_len,
                 &attr_size,
@@ -1983,7 +2217,7 @@ static void LogFrameBufferError(GLenum status)
                 attribute_name);
             CHECK_GL_ERROR;
 
-            attr.m_Location = glGetAttribLocation(program_ptr->m_Id, attribute_name);
+            attr.m_Location = glGetAttribLocation(program_handle, attribute_name);
             attr.m_NameHash = dmHashString64(attribute_name);
             attr.m_Count    = attr_size;
             attr.m_Type     = attr_type;
@@ -2004,7 +2238,7 @@ static void LogFrameBufferError(GLenum status)
         return str;
     }
 
-    static void BuildUniformBuffers(OpenGLProgram* program, OpenGLShader** shaders, uint32_t num_shaders)
+    static void BuildUniformBuffers(HContext context, OpenGLProgram* program, OpenGLShader** shaders, uint32_t num_shaders)
     {
         uint32_t num_ubos = 0;
         uint32_t ubo_binding = 0;
@@ -2026,8 +2260,9 @@ static void LogFrameBufferError(GLenum status)
             for (uint32_t j = 0; j < shader->m_ShaderMeta.m_UniformBuffers.Size(); ++j)
             {
                 ShaderResourceBinding& res = shader->m_ShaderMeta.m_UniformBuffers[j];
+                GLuint program_handle = GetGLHandle(context, program->m_Id);
 
-                GLuint blockIndex = glGetUniformBlockIndex(program->m_Id, res.m_Name);
+                GLuint blockIndex = glGetUniformBlockIndex(program_handle, res.m_Name);
                 CHECK_GL_ERROR;
 
                 if (blockIndex == GL_INVALID_INDEX)
@@ -2036,15 +2271,15 @@ static void LogFrameBufferError(GLenum status)
                 }
 
                 GLint binding;
-                glGetActiveUniformBlockiv(program->m_Id, blockIndex, GL_UNIFORM_BLOCK_BINDING, &binding);
+                glGetActiveUniformBlockiv(program_handle, blockIndex, GL_UNIFORM_BLOCK_BINDING, &binding);
                 CHECK_GL_ERROR;
 
                 GLint blockSize;
-                glGetActiveUniformBlockiv(program->m_Id, blockIndex, GL_UNIFORM_BLOCK_DATA_SIZE, &blockSize);
+                glGetActiveUniformBlockiv(program_handle, blockIndex, GL_UNIFORM_BLOCK_DATA_SIZE, &blockSize);
                 CHECK_GL_ERROR;
 
                 GLint activeUniforms;
-                glGetActiveUniformBlockiv(program->m_Id, blockIndex, GL_UNIFORM_BLOCK_ACTIVE_UNIFORMS, &activeUniforms);
+                glGetActiveUniformBlockiv(program_handle, blockIndex, GL_UNIFORM_BLOCK_ACTIVE_UNIFORMS, &activeUniforms);
                 CHECK_GL_ERROR;
 
                 OpenGLUniformBuffer& ubo = program->m_UniformBuffers[blockIndex];
@@ -2059,23 +2294,25 @@ static void LogFrameBufferError(GLenum status)
                 ubo.m_BlockMemory    = new uint8_t[ubo.m_BlockSize];
                 memset(ubo.m_BlockMemory, 0, ubo.m_BlockSize);
 
-                glGetActiveUniformBlockiv(program->m_Id, blockIndex, GL_UNIFORM_BLOCK_ACTIVE_UNIFORM_INDICES, ubo.m_Indices.Begin());
+                glGetActiveUniformBlockiv(program_handle, blockIndex, GL_UNIFORM_BLOCK_ACTIVE_UNIFORM_INDICES, ubo.m_Indices.Begin());
                 CHECK_GL_ERROR;
-                glGetActiveUniformsiv(program->m_Id, activeUniforms, (GLuint*) ubo.m_Indices.Begin(), GL_UNIFORM_OFFSET, ubo.m_Offsets.Begin());
+                glGetActiveUniformsiv(program_handle, activeUniforms, (GLuint*) ubo.m_Indices.Begin(), GL_UNIFORM_OFFSET, ubo.m_Offsets.Begin());
                 CHECK_GL_ERROR;
 
                 // Create a handle for the UBO and link it to the program
-                glGenBuffers(1, &ubo.m_Id);
+                GLuint buffer_handle = 0;
+                glGenBuffers(1, &buffer_handle);
+                ubo.m_Id = AddNewGLHandle(context, buffer_handle);
                 CHECK_GL_ERROR;
-                glBindBuffer(GL_UNIFORM_BUFFER, ubo.m_Id);
+                glBindBuffer(GL_UNIFORM_BUFFER, buffer_handle);
                 CHECK_GL_ERROR;
 
                 glBufferData(GL_UNIFORM_BUFFER, blockSize, ubo.m_BlockMemory, GL_STATIC_DRAW);
                 CHECK_GL_ERROR;
 
-                glBindBufferBase(GL_UNIFORM_BUFFER, ubo.m_Binding, ubo.m_Id);
+                glBindBufferBase(GL_UNIFORM_BUFFER, ubo.m_Binding, buffer_handle);
                 CHECK_GL_ERROR;
-                glUniformBlockBinding(program->m_Id, blockIndex, ubo.m_Binding);
+                glUniformBlockBinding(program_handle, blockIndex, ubo.m_Binding);
                 CHECK_GL_ERROR;
                 glBindBuffer(GL_UNIFORM_BUFFER, 0);
                 CHECK_GL_ERROR;
@@ -2087,14 +2324,15 @@ static void LogFrameBufferError(GLenum status)
     {
         if (context->m_IsGles3Version)
         {
-            BuildUniformBuffers(program, shaders, num_shaders);
+            BuildUniformBuffers((HContext)context, program, shaders, num_shaders);
         }
 
         uint32_t texture_unit = 0;
         char uniform_name_buffer[256];
 
         GLint num_uniforms;
-        glGetProgramiv(program->m_Id, GL_ACTIVE_UNIFORMS, &num_uniforms);
+        GLuint program_handle = GetGLHandle((HContext)context, program->m_Id);
+        glGetProgramiv(program_handle, GL_ACTIVE_UNIFORMS, &num_uniforms);
         CHECK_GL_ERROR;
 
         program->m_Uniforms.SetCapacity(num_uniforms);
@@ -2105,7 +2343,7 @@ static void LogFrameBufferError(GLenum status)
             GLint uniform_size;
             GLenum uniform_type;
             GLsizei uniform_name_length;
-            glGetActiveUniform(program->m_Id, i,
+            glGetActiveUniform(program_handle, i,
                 sizeof(uniform_name_buffer),
                 &uniform_name_length,
                 &uniform_size,
@@ -2116,7 +2354,7 @@ static void LogFrameBufferError(GLenum status)
             GLint uniform_block_index = -1;
             if (context->m_IsGles3Version)
             {
-                glGetActiveUniformsiv(program->m_Id, 1, (GLuint*)&i, GL_UNIFORM_BLOCK_INDEX, &uniform_block_index);
+                glGetActiveUniformsiv(program_handle, 1, (GLuint*)&i, GL_UNIFORM_BLOCK_INDEX, &uniform_block_index);
             }
 
             char* uniform_name = GetBaseUniformName(uniform_name_buffer, uniform_name_length);
@@ -2140,7 +2378,7 @@ static void LogFrameBufferError(GLenum status)
             }
             else
             {
-                uniform_location = (HUniformLocation) glGetUniformLocation(program->m_Id, uniform_name_buffer);
+                uniform_location = (HUniformLocation) glGetUniformLocation(program_handle, uniform_name_buffer);
             }
 
             OpenGLUniform& uniform  = program->m_Uniforms[i];
@@ -2213,7 +2451,7 @@ static void LogFrameBufferError(GLenum status)
         CHECK_GL_ERROR;
 
         OpenGLShader* compute_shader = (OpenGLShader*) compute_program;
-        GLuint compute_shader_id     = compute_shader->m_Id;
+        GLuint compute_shader_id     = GetGLHandle(context, compute_shader->m_Id);
 
         glAttachShader(p, compute_shader_id);
         CHECK_GL_ERROR;
@@ -2226,7 +2464,7 @@ static void LogFrameBufferError(GLenum status)
             return 0;
         }
 
-        program->m_Id       = p;
+        program->m_Id       = AddNewGLHandle(context, p);
         program->m_Language = compute_shader->m_Language;
 
         BuildUniforms((OpenGLContext*) context, program, &compute_shader, 1);
@@ -2251,8 +2489,8 @@ static void LogFrameBufferError(GLenum status)
         OpenGLShader* vertex_shader   = (OpenGLShader*) vertex_program;
         OpenGLShader* fragment_shader = (OpenGLShader*) fragment_program;
 
-        GLuint vertex_id   = vertex_shader->m_Id;
-        GLuint fragment_id = fragment_shader->m_Id;
+        GLuint vertex_id   = GetGLHandle(context, vertex_shader->m_Id);
+        GLuint fragment_id = GetGLHandle(context, fragment_shader->m_Id);
 
         glAttachShader(p, vertex_id);
         CHECK_GL_ERROR;
@@ -2279,7 +2517,7 @@ static void LogFrameBufferError(GLenum status)
             return 0;
         }
 
-        program->m_Id       = p;
+        program->m_Id       = AddNewGLHandle(context, p);
         program->m_Language = vertex_shader->m_Language;
 
         OpenGLShader* shaders[] = { vertex_shader, fragment_shader };
@@ -2293,7 +2531,8 @@ static void LogFrameBufferError(GLenum status)
     {
         (void) context;
         OpenGLProgram* program_ptr = (OpenGLProgram*) program;
-        glDeleteProgram(program_ptr->m_Id);
+        glDeleteProgram(GetGLHandle(context, program_ptr->m_Id));
+        CleanupGLHandle(context, program_ptr->m_Id);
 
         for (int i = 0; i < program_ptr->m_Uniforms.Size(); ++i)
         {
@@ -2359,7 +2598,7 @@ static void LogFrameBufferError(GLenum status)
 
         if (success)
         {
-            GLuint id = ((OpenGLShader*) prog)->m_Id;
+            GLuint id = GetGLHandle((HContext)g_Context, ((OpenGLShader*) prog)->m_Id);
             glShaderSource(id, 1, (const GLchar**) &ddf_shader->m_Source.m_Data, (GLint*) &ddf_shader->m_Source.m_Count);
             CHECK_GL_ERROR;
             glCompileShader(id);
@@ -2387,7 +2626,7 @@ static void LogFrameBufferError(GLenum status)
 
         if (success)
         {
-            GLuint id = ((OpenGLShader*) prog)->m_Id;
+            GLuint id = GetGLHandle((HContext)g_Context, ((OpenGLShader*) prog)->m_Id);
             glShaderSource(id, 1, (const GLchar**) &ddf_shader->m_Source.m_Data, (GLint*) &ddf_shader->m_Source.m_Count);
             CHECK_GL_ERROR;
             glCompileShader(id);
@@ -2401,8 +2640,9 @@ static void LogFrameBufferError(GLenum status)
     {
         if (shader)
         {
-            glDeleteShader(shader->m_Id);
+            glDeleteShader(GetGLHandle((HContext)g_Context, shader->m_Id));
             CHECK_GL_ERROR;
+            CleanupGLHandle((HContext)g_Context, shader->m_Id);
             delete shader;
         }
     }
@@ -2451,7 +2691,7 @@ static void LogFrameBufferError(GLenum status)
         OpenGLContext* context = (OpenGLContext*) _context;
         OpenGLProgram* program = (OpenGLProgram*) _program;
         context->m_CurrentProgram = program;
-        glUseProgram(program->m_Id);
+        glUseProgram(GetGLHandle(_context, program->m_Id));
         CHECK_GL_ERROR;
     }
 
@@ -2500,7 +2740,7 @@ static void LogFrameBufferError(GLenum status)
 
     static bool OpenGLReloadProgramGraphics(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program)
     {
-        GLuint ids[] = { ((OpenGLShader*) vert_program)->m_Id, ((OpenGLShader*) frag_program)->m_Id };
+        GLuint ids[] = { GetGLHandle(context, ((OpenGLShader*) vert_program)->m_Id), GetGLHandle(context, ((OpenGLShader*) frag_program)->m_Id) };
 
         if (!TryLinkProgram(ids, 2))
         {
@@ -2509,7 +2749,7 @@ static void LogFrameBufferError(GLenum status)
 
         OpenGLProgram* program_ptr = (OpenGLProgram*) program;
 
-        glLinkProgram(program_ptr->m_Id);
+        glLinkProgram(GetGLHandle(context, program_ptr->m_Id));
         CHECK_GL_ERROR;
 
         BuildAttributes(program_ptr);
@@ -2518,13 +2758,14 @@ static void LogFrameBufferError(GLenum status)
 
     static bool OpenGLReloadProgramCompute(HContext context, HProgram program, HComputeProgram compute_program)
     {
-        if (!TryLinkProgram(&((OpenGLShader*) compute_program)->m_Id, 1))
+        GLuint shader_handle = GetGLHandle(context, ((OpenGLShader*) compute_program)->m_Id);
+        if (!TryLinkProgram(&shader_handle, 1))
         {
             return false;
         }
 
         OpenGLProgram* program_ptr = (OpenGLProgram*) program;
-        glLinkProgram(program_ptr->m_Id);
+        glLinkProgram(GetGLHandle(context, program_ptr->m_Id));
         CHECK_GL_ERROR;
         
         return true;
@@ -2548,7 +2789,7 @@ static void LogFrameBufferError(GLenum status)
 
         if (success)
         {
-            GLuint id = ((OpenGLShader*) prog)->m_Id;
+            GLuint id = GetGLHandle((HContext)g_Context, ((OpenGLShader*) prog)->m_Id);
             glShaderSource(id, 1, (const GLchar**) &ddf_shader->m_Source.m_Data, (GLint*) &ddf_shader->m_Source.m_Count);
             CHECK_GL_ERROR;
             glCompileShader(id);
@@ -2771,9 +3012,13 @@ static void LogFrameBufferError(GLenum status)
         switch(type)
         {
             case ATTACHMENT_TYPE_BUFFER:
-                glGenRenderbuffers(1, &attachment.m_Buffer);
+            {
+                GLuint handle = 0;
+                glGenRenderbuffers(1, &handle);
+                attachment.m_Buffer = AddNewGLHandle((HContext)context, handle);
                 CHECK_GL_ERROR;
                 break;
+            }
             case ATTACHMENT_TYPE_TEXTURE:
                 attachment.m_Texture = NewTexture(context, creation_params);
                 break;
@@ -2794,7 +3039,7 @@ static void LogFrameBufferError(GLenum status)
         {
             for (int i = 0; i < num_attachment_targets; ++i)
             {
-                glFramebufferRenderbuffer(GL_FRAMEBUFFER, attachment_targets[i], GL_RENDERBUFFER, attachment.m_Buffer);
+                glFramebufferRenderbuffer(GL_FRAMEBUFFER, attachment_targets[i], GL_RENDERBUFFER, GetGLHandle((HContext) context, attachment.m_Buffer));
                 CHECK_GL_ERROR;
                 CHECK_GL_FRAMEBUFFER_ERROR;
             }
@@ -2804,7 +3049,7 @@ static void LogFrameBufferError(GLenum status)
             OpenGLTexture* attachment_tex = GetAssetFromContainer<OpenGLTexture>(context->m_AssetHandleContainer, attachment.m_Texture);
             for (int i = 0; i < num_attachment_targets; ++i)
             {
-                glFramebufferTexture2D(GL_FRAMEBUFFER, attachment_targets[i], GL_TEXTURE_2D, attachment_tex->m_TextureIds[0], 0);
+                glFramebufferTexture2D(GL_FRAMEBUFFER, attachment_targets[i], GL_TEXTURE_2D, GetGLHandle((HContext) context, attachment_tex->m_TextureIds[0]), 0);
                 CHECK_GL_ERROR;
                 CHECK_GL_FRAMEBUFFER_ERROR;
             }
@@ -2831,7 +3076,7 @@ static void LogFrameBufferError(GLenum status)
         {
             if (rt->m_DepthStencilAttachment.m_Type == ATTACHMENT_TYPE_BUFFER)
             {
-                glBindRenderbuffer(GL_RENDERBUFFER, rt->m_DepthStencilAttachment.m_Buffer);
+                glBindRenderbuffer(GL_RENDERBUFFER, GetGLHandle((HContext) context, rt->m_DepthStencilAttachment.m_Buffer));
                 glRenderbufferStorage(GL_RENDERBUFFER, DMGRAPHICS_RENDER_BUFFER_FORMAT_DEPTH_STENCIL, rt->m_DepthStencilAttachment.m_Params.m_Width, rt->m_DepthStencilAttachment.m_Params.m_Height);
                 CHECK_GL_ERROR;
     #ifdef GL_DEPTH_STENCIL_ATTACHMENT
@@ -2851,7 +3096,7 @@ static void LogFrameBufferError(GLenum status)
 
                 // JG: This is a workaround! We can't use SetTexture here since there is no compound format for depth+stencil, and I don't want to introduce one *right now* just for OpenGL..
 
-                glBindTexture(GL_TEXTURE_2D, attachment_tex->m_TextureIds[0]);
+                glBindTexture(GL_TEXTURE_2D, GetGLHandle((HContext) context, attachment_tex->m_TextureIds[0]));
                 CHECK_GL_ERROR;
 
                  // The data type (DMGRAPHICS_TYPE_UNSIGNED_INT_24_8) might change later when we introduce 32f depth formats
@@ -2880,7 +3125,7 @@ static void LogFrameBufferError(GLenum status)
         {
             if (rt->m_DepthAttachment.m_Type == ATTACHMENT_TYPE_BUFFER)
             {
-                glBindRenderbuffer(GL_RENDERBUFFER, rt->m_DepthAttachment.m_Buffer);
+                glBindRenderbuffer(GL_RENDERBUFFER, GetGLHandle((HContext) context, rt->m_DepthAttachment.m_Buffer));
                 glRenderbufferStorage(GL_RENDERBUFFER, GetDepthBufferFormat(context), rt->m_DepthAttachment.m_Params.m_Width, rt->m_DepthAttachment.m_Params.m_Height);
                 CHECK_GL_ERROR;
 
@@ -2899,7 +3144,7 @@ static void LogFrameBufferError(GLenum status)
 
             if (rt->m_StencilAttachment.m_Type == ATTACHMENT_TYPE_BUFFER)
             {
-                glBindRenderbuffer(GL_RENDERBUFFER, rt->m_StencilAttachment.m_Buffer);
+                glBindRenderbuffer(GL_RENDERBUFFER, GetGLHandle((HContext)context, rt->m_StencilAttachment.m_Buffer));
                 glRenderbufferStorage(GL_RENDERBUFFER, DMGRAPHICS_RENDER_BUFFER_FORMAT_STENCIL8, rt->m_StencilAttachment.m_Params.m_Width, rt->m_StencilAttachment.m_Params.m_Height);
                 CHECK_GL_ERROR;
 
@@ -2961,9 +3206,11 @@ static void LogFrameBufferError(GLenum status)
         OpenGLRenderTarget* rt = new OpenGLRenderTarget();
         rt->m_BufferTypeFlags  = buffer_type_flags;
 
-        glGenFramebuffers(1, &rt->m_Id);
+        GLuint handle = 0;
+        glGenFramebuffers(1, &handle);
+        rt->m_Id = AddNewGLHandle(_context, handle);
         CHECK_GL_ERROR;
-        glBindFramebuffer(GL_FRAMEBUFFER, rt->m_Id);
+        glBindFramebuffer(GL_FRAMEBUFFER, handle);
         CHECK_GL_ERROR;
 
         for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
@@ -3032,7 +3279,9 @@ static void LogFrameBufferError(GLenum status)
     {
         if (attachment.m_Type == ATTACHMENT_TYPE_BUFFER && attachment.m_Buffer)
         {
-            glDeleteRenderbuffers(1, &attachment.m_Buffer);
+            GLuint handle = GetGLHandle((HContext)g_Context, attachment.m_Buffer);
+            glDeleteRenderbuffers(1, &handle);
+            CleanupGLHandle((HContext)g_Context, attachment.m_Buffer);
             attachment.m_Buffer = 0;
         }
         else if (attachment.m_Type == ATTACHMENT_TYPE_TEXTURE && attachment.m_Texture)
@@ -3046,7 +3295,9 @@ static void LogFrameBufferError(GLenum status)
     {
         OpenGLRenderTarget* rt = GetAssetFromContainer<OpenGLRenderTarget>(g_Context->m_AssetHandleContainer, render_target);
 
-        glDeleteFramebuffers(1, &rt->m_Id);
+        GLuint handle = GetGLHandle((HContext)g_Context, rt->m_Id);
+        glDeleteFramebuffers(1, &handle);
+        CleanupGLHandle((HContext)g_Context, rt->m_Id);
 
         for (uint8_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; i++)
         {
@@ -3105,7 +3356,7 @@ static void LogFrameBufferError(GLenum status)
             context->m_FrameBufferInvalidateAttachments = rt != NULL;
 #endif
         }
-        glBindFramebuffer(GL_FRAMEBUFFER, rt == NULL ? dmPlatform::OpenGLGetDefaultFramebufferId() : rt->m_Id);
+        glBindFramebuffer(GL_FRAMEBUFFER, rt == NULL ? dmPlatform::OpenGLGetDefaultFramebufferId() : GetGLHandle(_context, rt->m_Id));
         CHECK_GL_ERROR;
 
     #if __EMSCRIPTEN__
@@ -3119,7 +3370,7 @@ static void LogFrameBufferError(GLenum status)
             uint32_t num_buffers = 0;
             GLuint buffers[MAX_BUFFER_COLOR_ATTACHMENTS] = {};
 
-            for (uint32_t i=0; i < MAX_BUFFER_COLOR_ATTACHMENTS; i++)
+            for (uint32_t i = 0; i < MAX_BUFFER_COLOR_ATTACHMENTS; i++)
             {
                 if (rt->m_ColorAttachments[i].m_Texture)
                 {
@@ -3250,13 +3501,19 @@ static void LogFrameBufferError(GLenum status)
             texture_type    = TEXTURE_TYPE_2D;
         }
 
+        HOpenglID* static_ids = (uint32_t*) malloc(num_texture_ids * sizeof(HOpenglID));
         GLuint* gl_texture_ids = (GLuint*) malloc(num_texture_ids * sizeof(GLuint));
         glGenTextures(num_texture_ids, gl_texture_ids);
         CHECK_GL_ERROR;
+        for (uint16_t idx = 0; idx < num_texture_ids; ++idx)
+        {
+            static_ids[idx] = AddNewGLHandle(_context, gl_texture_ids[idx]);
+        }
+        free(gl_texture_ids);
 
         OpenGLTexture* tex    = new OpenGLTexture();
         tex->m_Type           = texture_type;
-        tex->m_TextureIds     = gl_texture_ids;
+        tex->m_TextureIds     = static_ids;
         tex->m_Width          = params.m_Width;
         tex->m_Height         = params.m_Height;
         tex->m_Depth          = params.m_Depth;
@@ -3289,8 +3546,15 @@ static void LogFrameBufferError(GLenum status)
         // we can still end up in this state in very specific cases.
         if (tex != 0x0)
         {
-            glDeleteTextures(tex->m_NumTextureIds, tex->m_TextureIds);
+            GLuint* handles = (GLuint*) malloc(tex->m_NumTextureIds * sizeof(GLuint));
+            for (uint16_t idx = 0; idx < tex->m_NumTextureIds; ++idx)
+            {
+                handles[idx] = GetGLHandle((HContext) context, tex->m_TextureIds[idx]);
+                CleanupGLHandle((HContext) context, tex->m_TextureIds[idx]);
+            }
+            glDeleteTextures(tex->m_NumTextureIds, handles);
             CHECK_GL_ERROR;
+            free(handles);
             free(tex->m_TextureIds);
         }
 
@@ -3535,11 +3799,12 @@ static void LogFrameBufferError(GLenum status)
         OpenGLTexture* tex = GetAssetFromContainer<OpenGLTexture>(g_Context->m_AssetHandleContainer, texture);
         *out_handle = 0x0;
 
-        if (!texture) {
+        if (!texture)
+        {
             return HANDLE_RESULT_ERROR;
         }
 
-        *out_handle = &tex->m_TextureIds[0];
+        *out_handle = GetGLHandlePointer((HContext)g_Context, tex->m_TextureIds[0]);
 
         return HANDLE_RESULT_OK;
     }
@@ -3739,7 +4004,7 @@ static void LogFrameBufferError(GLenum status)
 
         for (int i = 0; i < tex->m_NumTextureIds; ++i)
         {
-            glBindTexture(type, tex->m_TextureIds[i]);
+            glBindTexture(type, GetGLHandle((HContext)g_Context, tex->m_TextureIds[i]));
             CHECK_GL_ERROR;
 
             if (!params.m_SubUpdate)
@@ -4026,7 +4291,7 @@ static void LogFrameBufferError(GLenum status)
                 // We need a valid texture regardless of bind/unbind
                 if (!do_unbind)
                 {
-                    id     = tex->m_TextureIds[id_index];
+                    id     = GetGLHandle((HContext) context, tex->m_TextureIds[id_index]);
                     access = tex->m_UsageHintFlags & TEXTURE_USAGE_FLAG_STORAGE ? DMGRAPHICS_READ_WRITE : DMGRAPHICS_READ_ONLY;
                 }
                 glBindImageTexture(unit, id, 0, GL_FALSE, 0, access, gl_internal_format);
@@ -4062,7 +4327,7 @@ static void LogFrameBufferError(GLenum status)
 
         if (bind_as_texture)
         {
-            glBindTexture(GetOpenGLTextureType(tex->m_Type), tex->m_TextureIds[id_index]);
+            glBindTexture(GetOpenGLTextureType(tex->m_Type), GetGLHandle(_context, tex->m_TextureIds[id_index]));
             CHECK_GL_ERROR;
             OpenGLSetTextureParams(texture, tex->m_Params.m_MinFilter, tex->m_Params.m_MagFilter, tex->m_Params.m_UWrap, tex->m_Params.m_VWrap, 1.0f);
         }
@@ -4388,6 +4653,21 @@ static void LogFrameBufferError(GLenum status)
             return GetAssetFromContainer<OpenGLRenderTarget>(context->m_AssetHandleContainer, asset_handle) != 0;
         }
         return false;
+    }
+
+    // DMSDK
+    uint32_t OpenGLGetRenderTargetId(HContext _context, HRenderTarget render_target)
+    {
+        OpenGLContext* context = (OpenGLContext*) _context;
+        OpenGLRenderTarget* rt = GetAssetFromContainer<OpenGLRenderTarget>(context->m_AssetHandleContainer, render_target);
+        return GetGLHandle(_context, rt->m_Id);
+    }
+
+    static void OpenGLInvalidateGraphicsHandles(HContext context)
+    {
+        OpenGLContext* gl_context = (OpenGLContext*) context;
+        // Set all handles to 0. It indicates that handles not valid.
+        memset(gl_context->m_AllGLHandles.Begin(), 0, (gl_context->m_AllGLHandles.End() - gl_context->m_AllGLHandles.Begin()) * sizeof(uint32_t));
     }
 
     GLenum TEXTURE_UNIT_NAMES[32] =

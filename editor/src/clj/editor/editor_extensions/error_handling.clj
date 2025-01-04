@@ -30,7 +30,7 @@
   to the console
 
   Leading kv-args:
-    :display-output!    require, 2-arg fn to display error output
+    :display-output!    required, 2-arg fn to display error output
     :label              optional, string error prefix, defaults to \"Extension\"
     :catch              optional, result value in case of exceptions (otherwise
                         the Exception is re-thrown)"

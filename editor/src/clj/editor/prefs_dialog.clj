@@ -18,13 +18,12 @@
             [editor.prefs :as prefs]
             [editor.system :as system]
             [editor.ui :as ui])
-  (:import [com.defold.control LongField]
+  (:import [com.defold.control DefoldStringConverter LongField]
            [javafx.geometry VPos]
            [javafx.scene Parent Scene]
-           [javafx.scene.control ColorPicker CheckBox ChoiceBox Label TextArea TextField Tab TabPane]
-           [javafx.scene.layout ColumnConstraints GridPane Priority]
+           [javafx.scene.control CheckBox ChoiceBox ColorPicker Label Tab TabPane TextArea TextField TextInputControl]
            [javafx.scene.input KeyCode KeyEvent]
-           [javafx.util StringConverter]))
+           [javafx.scene.layout ColumnConstraints GridPane Priority]))
 
 (set! *warn-on-reflection* true)
 
@@ -32,8 +31,9 @@
 
 (defn- create-generic [^Class class prefs grid desc]
   (let [control (.newInstance class)
-        commit (fn [] (prefs/set-prefs prefs (:key desc) (ui/value control)))]
-    (ui/value! control (prefs/get-prefs prefs (:key desc) (:default desc)))
+        commit (fn [] (prefs/set! prefs (:key desc) (ui/value control)))
+        value (prefs/get prefs (:key desc))]
+    (ui/value! control ((:replace desc {}) value value))
     (ui/on-focus! control (fn [focus] (when-not focus (commit))))
     (when-not (:multi-line desc)
       (ui/on-action! control (fn [e] (commit))))
@@ -46,9 +46,11 @@
   (create-generic ColorPicker prefs grid desc))
 
 (defmethod create-control! :string [prefs grid desc]
-  (if (:multi-line desc)
-    (create-generic TextArea prefs grid desc)
-    (create-generic TextField prefs grid desc)))
+  (let [control (if (:multi-line desc)
+                  (create-generic TextArea prefs grid desc)
+                  (create-generic TextField prefs grid desc))]
+    (when (:prompt-value desc) (.setPromptText ^TextInputControl control (:prompt-value desc)))
+    control))
 
 (defmethod create-control! :long [prefs grid desc]
   (create-generic LongField prefs grid desc))
@@ -58,17 +60,12 @@
         options (:options desc)
         options-map (apply hash-map (flatten options))
         inv-options-map (clojure.set/map-invert options-map)]
-    (.setConverter control
-      (proxy [StringConverter] []
-        (toString [value]
-          (get options-map value))
-        (fromString [s]
-          (inv-options-map s))))
+    (.setConverter control (DefoldStringConverter. options-map inv-options-map))
     (.addAll (.getItems control) ^java.util.Collection (map first options))
-    (.select (.getSelectionModel control) (prefs/get-prefs prefs (:key desc) (:default desc)))
+    (.select (.getSelectionModel control) (prefs/get prefs (:key desc)))
 
     (ui/observe (.valueProperty control) (fn [observable old-val new-val]
-                                           (prefs/set-prefs prefs (:key desc) new-val)))
+                                           (prefs/set! prefs (:key desc) new-val)))
     control))
 
 (defn- create-prefs-row! [prefs ^GridPane grid row desc]
@@ -102,28 +99,31 @@
 (defn- pref-pages
   []
   (cond-> [{:name  "General"
-            :prefs [{:label "Load External Changes on App Focus" :type :boolean :key "external-changes-load-on-app-focus" :default true}
-                    {:label "Open Bundle Target Folder" :type :boolean :key "open-bundle-target-folder" :default true}
-                    {:label "Enable Texture Compression" :type :boolean :key "general-enable-texture-compression" :default false}
-                    {:label "Escape Quits Game" :type :boolean :key "general-quit-on-esc" :default false}
-                    {:label "Track Active Tab in Asset Browser" :type :boolean :key "asset-browser-track-active-tab?" :default false}
-                    {:label "Lint Code on Build" :type :boolean :key "general-lint-on-build" :default true}
-                    {:label "Path to Custom Keymap" :type :string :key "custom-keymap-path" :default ""}]}
-           {:name  "Code"
-            :prefs [{:label "Custom Editor" :type :string :key "code-custom-editor" :default ""}
-                    {:label "Open File" :type :string :key "code-open-file" :default "{file}"}
-                    {:label "Open File at Line" :type :string :key "code-open-file-at-line" :default "{file}:{line}"}
-                    {:label "Code Editor Font (Requires Restart)" :type :string :key "code-editor-font-name" :default "Dejavu Sans Mono"}]}
+            :prefs [{:label "Load External Changes on App Focus" :type :boolean :key [:workflow :load-external-changes-on-app-focus]}
+                    {:label "Open Bundle Target Folder" :type :boolean :key [:bundle :open-output-directory]}
+                    {:label "Enable Texture Compression" :type :boolean :key [:build :texture-compression]}
+                    {:label "Escape Quits Game" :type :boolean :key [:run :quit-on-escape]}
+                    {:label "Track Active Tab in Asset Browser" :type :boolean :key [:asset-browser :track-active-tab]}
+                    {:label "Lint Code on Build" :type :boolean :key [:build :lint-code]}
+                    {:label "Path to Custom Keymap" :type :string :key [:input :keymap-path]}
+                    {:label "Engine Arguments" :type :string :key [:run :engine-arguments]  :multi-line true
+                     :prompt-value "One argument per line"
+                     :tooltip "Arguments that will be passed to the dmengine executables when the editor builds and runs.\n Use one argument per line. For example:\n--config=bootstrap.main_collection=/my dir/1.collectionc\n--verbose\n--graphics-adapter=vulkan"}]}
+           {:name "Code"
+            :prefs [{:label "Custom Editor" :type :string :key [:code :custom-editor]}
+                    {:label "Open File" :type :string :key [:code :open-file]}
+                    {:label "Open File at Line" :type :string :key [:code :open-file-at-line]}
+                    {:label "Code Editor Font (Requires Restart)" :type :string :key [:code :font :name]}]}
            {:name  "Extensions"
-            :prefs [{:label "Build Server" :type :string :key "extensions-server" :default native-extensions/defold-build-server-url}
-                    {:label "Build Server Headers" :type :string :key "extensions-server-headers" :default native-extensions/defold-build-server-headers :multi-line true}]}
-           {:name  "Tools"
-            :prefs [{:label "ADB path" :type :string :key "adb-path" :default "" :tooltip "Path to ADB command that might be used to install and launch the Android app when it's bundled"}
-                    {:label "ios-deploy path" :type :string :key "ios-deploy-path" :default "" :tooltip "Path to ios-deploy command that might be used to install and launch iOS app when it's bundled"}]}]
+            :prefs [{:label "Build Server" :type :string :key [:extensions :build-server] :replace {"" native-extensions/defold-build-server-url} :prompt-value "https://build.defold.com"}
+                    {:label "Build Server Headers" :type :string :key [:extensions :build-server-headers] :multi-line true}]}
+           {:name "Tools"
+            :prefs [{:label "ADB path" :type :string :key [:tools :adb-path] :tooltip "Path to ADB command that might be used to install and launch the Android app when it's bundled"}
+                    {:label "ios-deploy path" :type :string :key [:tools :ios-deploy-path] :tooltip "Path to ios-deploy command that might be used to install and launch iOS app when it's bundled"}]}]
 
     (system/defold-dev?)
     (conj {:name "Dev"
-           :prefs [{:label "Custom Engine" :type :string :key engine/custom-engine-pref-key :default ""}]})))
+           :prefs [{:label "Custom Engine" :type :string :key engine/custom-engine-pref-key}]})))
 
 (defn open-prefs [preferences]
   (let [root ^Parent (ui/load-fxml "prefs.fxml")

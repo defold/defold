@@ -78,6 +78,11 @@
         (pair (key-fn# ~'value)
               (value-fn# ~'value))))))
 
+(defn flip
+  "Given a pair, returns a new pair with the elements flipped."
+  [[a b]]
+  (MapEntry. b a))
+
 (defn flipped-pair
   "Constructs a two-element collection that implements IPersistentVector from
   the reversed arguments."
@@ -135,7 +140,8 @@
     (nil? coll)
     true
 
-    (counted? coll)
+    (or (counted? coll)
+        (.isArray (class coll)))
     (zero? (count coll))
 
     (instance? CharSequence coll)
@@ -207,6 +213,13 @@
        (let [finished (apply vector-of primitive-type (take partition-length in-progress))]
          (cons finished (partition-all-primitives primitive-type partition-length step (nthrest in-progress step))))))))
 
+(defn remove-index
+  "Removes an item at the specified position in a vector"
+  [coll ^long index]
+  (-> (into (subvec coll 0 index)
+            (subvec coll (inc index)))
+      (with-meta (meta coll))))
+
 (defn separate-by
   "Separates items in the supplied collection into two based on a predicate.
   Returns a pair of [true-items, false-items]. The resulting collections will
@@ -244,6 +257,41 @@
                         (conj (val result) item))))
               (pair empty-coll empty-coll)
               coll))))
+
+(defn aggregate-into
+  "Aggregate a sequence of key-value pairs into an associative collection. For
+  each key-value pair, we will look up the key in coll and run the accumulate-fn
+  on the existing value and the value from the key-value pair. The result will
+  be assoc:ed into coll. Optionally, an init value can be specified to use as
+  the first argument to the accumulate-fn when there is no existing value for
+  the key in coll. If no init value is supplied, the initial value will be
+  obtained by calling the accumulate-fn with no arguments at the start. If init
+  is a function, it will be called for each unseen key to produce an init
+  value for it."
+  ([coll accumulate-fn pairs]
+   (aggregate-into coll accumulate-fn (accumulate-fn) pairs))
+  ([coll accumulate-fn init pairs]
+   (if (empty? pairs)
+     coll
+     (let [use-transient (supports-transient? coll)
+           use-fn-init (fn? init)
+           assoc-fn (if use-transient assoc! assoc)
+           lookup-fn (if use-fn-init
+                       (fn lookup-fn [accumulated-by-key key]
+                         (let [accumulated (get accumulated-by-key key ::not-found)]
+                           (case accumulated
+                             ::not-found (init key)
+                             accumulated)))
+                       (fn lookup-fn [accumulated-by-key key]
+                         (get accumulated-by-key key init)))]
+       (cond-> (reduce (fn [accumulated-by-key [key value]]
+                         (let [accumulated (lookup-fn accumulated-by-key key)
+                               accumulated (accumulate-fn accumulated value)]
+                           (assoc-fn accumulated-by-key key accumulated)))
+                       (cond-> coll use-transient transient)
+                       pairs)
+               use-transient (-> (persistent!)
+                                 (with-meta (meta coll))))))))
 
 (defn mapcat-indexed
   "Returns the result of applying concat to the result of applying map-indexed

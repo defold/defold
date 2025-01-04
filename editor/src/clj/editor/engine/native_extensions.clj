@@ -69,7 +69,9 @@
    (.getPair Platform/X86_64Win32)  {:platform      "x86_64-win32"
                                      :library-paths #{"win32" "x86_64-win32"}}
    (.getPair Platform/X86_64Linux)  {:platform      "x86_64-linux"
-                                     :library-paths #{"linux" "x86_64-linux"}}})
+                                     :library-paths #{"linux" "x86_64-linux"}}
+   (.getPair Platform/Arm64Linux)   {:platform      "arm64-linux"
+                                     :library-paths #{"linux" "arm64-linux"}}})
 
 (def ^:private common-extension-paths
   [["ext.manifest"]
@@ -152,13 +154,14 @@
    (g/with-auto-evaluation-context evaluation-context
      (get-build-server-url prefs project evaluation-context)))
   (^String [prefs project evaluation-context]
-   (or (not-empty (string/trim (prefs/get-prefs prefs "extensions-server" ""))) ;; always trim because `get-prefs` does not return nil
+   (or (not-empty (string/trim (prefs/get prefs [:extensions :build-server]))) ;; always trim because `prefs/get` does not return nil
        (not-empty (some-> (shared-editor-settings/get-setting project ["extensions" "build_server"] evaluation-context) string/trim)) ;; use `some->` because `get-setting` may return nil
        defold-build-server-url)))
 
 (defn get-build-server-headers
-  ^String [prefs]
-  (prefs/get-prefs prefs "extensions-server-headers" defold-build-server-headers))
+  "Returns a (possibly empty) vector of header strings"
+  [prefs]
+  (into [] (remove string/blank?) (string/split-lines (prefs/get prefs [:extensions :build-server-headers]))))
 
 ;; Note: When we do bundling for Android via the editor, we need add
 ;;       [["android" "proguard"] "_app/app.pro"] to the returned table.
@@ -266,15 +269,14 @@
          :extender-platform extender-platform}
         (let [extender-client (ExtenderClient. build-server-url cache-directory)
               user-info (.getUserInfo (URI. build-server-url))
-              headers (into [] (remove string/blank?) (string/split-lines build-server-headers))
               destination-file (fs/create-temp-file! (str "build_" sdk-version) ".zip")
               log-file (fs/create-temp-file! (str "build_" sdk-version) ".txt")
               async true]
           (try
             (when (pos? (count user-info))
               (.setHeader extender-client "Authorization" (str "Basic " (.encodeToString (Base64/getEncoder) (.getBytes user-info StandardCharsets/UTF_8)))))
-            (when (pos? (count headers))
-              (.setHeaders extender-client headers))
+            (when (pos? (count build-server-headers))
+              (.setHeaders extender-client build-server-headers))
             (.build extender-client extender-platform sdk-version extender-resources destination-file log-file async)
             {:id {:type :custom :version cache-key}
              :engine-archive destination-file

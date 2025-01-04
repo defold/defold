@@ -28,7 +28,7 @@ import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.TextureUtil;
-import com.dynamo.bob.TexcLibrary.FlipAxis;
+import com.dynamo.bob.pipeline.Texc.FlipAxis;
 import com.dynamo.graphics.proto.Graphics.Cubemap;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.graphics.proto.Graphics.TextureImage.Image;
@@ -72,7 +72,7 @@ public class CubemapBuilder extends ProtoBuilder<Cubemap.Builder> {
     public void build(Task task) throws CompileExceptionError, IOException {
 
         TextureProfile texProfile = TextureUtil.getTextureProfileByPath(this.project.getTextureProfiles(), task.input(0).getPath());
-        logger.info("Compiling %s using profile %s", task.firstInput().getPath(), texProfile!=null?texProfile.getName():"<none>");
+        logger.fine("Compiling %s using profile %s", task.firstInput().getPath(), texProfile!=null?texProfile.getName():"<none>");
 
         TextureImage[] textures = new TextureImage[6];
         try {
@@ -94,7 +94,7 @@ public class CubemapBuilder extends ProtoBuilder<Cubemap.Builder> {
 
 
                 // NOTE: Setting the same input for more than one side will cause a NPE when generating!
-                TextureImage texture = TextureGenerator.generate(is, texProfile, compress, EnumSet.noneOf(FlipAxis.class));
+                TextureImage texture = TextureGenerator.generate(is, texProfile, compress, EnumSet.noneOf(Texc.FlipAxis.class));
                 textures[i] = texture;
             }
             validate(task, textures);

@@ -4,6 +4,20 @@
 
 ## Required Software
 
+### Platform SDK
+
+To make contributions easier, we detect local installations of the common platform SDK's:
+
+* macOS + iOS: [XCode](https://apps.apple.com/us/app/xcode/id497799835)
+* Linux: [Clang++](https://apt.llvm.org/)
+* Windows: [Visual Studio Community 2022](https://visualstudio.microsoft.com/vs/older-downloads/)
+  * We also require Clang:
+    * In Visual Studio Installer, under Individual components, select *C++ Clang Compiler for Windows* and *MSBuild support for LLVM (clang-cl) toolset*.
+    * Add clang to your PATH. For a default installation, the path to add will likely be C:\Program Files\Microsoft Visual Studio\2022\Community\VC\Tools\Llvm\bin
+* Android: [Android Studio](https://developer.android.com/studio)
+
+For consoles, we refer to each vendor's installation notes.
+
 ### Package managers
 
 <details><summary>Windows...</summary><p>
@@ -12,7 +26,9 @@
 
 Open a Command (cmd.exe) as administator and run:
 
-`@"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -InputFormat None -ExecutionPolicy Bypass -Command "[System.Net.ServicePointManager]::SecurityProtocol = 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))" && SET "PATH=%PATH%;%ALLUSERSPROFILE%\chocolatey\bin"`
+```sh
+@"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -InputFormat None -ExecutionPolicy Bypass -Command "[System.Net.ServicePointManager]::SecurityProtocol = 3072; iex ((New-Object System.Net.WebClient).DownloadString('https://community.chocolatey.org/install.ps1'))" && SET "PATH=%PATH%;%ALLUSERSPROFILE%\chocolatey\bin"
+```
 
 Once this is done, you can install new packages which are added to the PATH, by running:
 
@@ -21,12 +37,12 @@ choco install <package_name>
 ```
 </p></details>
 
-### Required Software - Java JDK 17
+### Required Software - Java JDK 21
 
-Download and install the latest JDK 17 (17.0.5 or later) release from either of these locations:
+Download and install the latest JDK 21 (21.0.5 or later) release from either of these locations:
 
-* [Adoptium/Temurin](https://github.com/adoptium/temurin17-binaries/releases) - The Adoptium Working Group promotes and supports high-quality runtimes and associated technology for use across the Java ecosystem
-* [Microsoft OpenJDK builds](https://docs.microsoft.com/en-us/java/openjdk/download#openjdk-17) - The Microsoft Build of OpenJDK is a no-cost distribution of OpenJDK that's open source and available for free for anyone to deploy anywhere
+* [Adoptium/Temurin](https://github.com/adoptium/temurin21-binaries/releases) - The Adoptium Working Group promotes and supports high-quality runtimes and associated technology for use across the Java ecosystem
+* [Microsoft OpenJDK builds](https://docs.microsoft.com/en-us/java/openjdk/download#openjdk-21) - The Microsoft Build of OpenJDK is a no-cost distribution of OpenJDK that's open source and available for free for anyone to deploy anywhere
 
 
 <details><summary>Windows...</summary><p>
@@ -34,10 +50,10 @@ Download and install the latest JDK 17 (17.0.5 or later) release from either of 
 Or install using Chocolatey:
 
 ```sh
-choco install openjdk17
+choco install temurin21
 ```
 
-*With choco, the install path is something like /c/Program\ Files/OpenJDK/openjdk-17.0.5_8*
+*With choco, the install path is something like /c/Program\ Files/OpenJDK/openjdk-21.0.5_11*
 </p></details>
 
 <details><summary>Linux...</summary><p>
@@ -45,7 +61,7 @@ choco install openjdk17
 Or install from apt-get:
 
 ```
-> sudo apt-get install openjdk-17-jdk
+> sudo apt install openjdk-21-jdk
 ```
 </p></details>
 
@@ -126,16 +142,14 @@ PowerShell (Windows):
 ```
 </p></details>
 
-
 ### Required Software
 
 <details><summary>macOS...</summary><p>
 
-You need the `dos2unix` command line tool to convert line endings of certain source files when building files in `share/ext`. You can install `dos2unix` using [Brew](https://brew.sh/):
+#### XCode
 
-```sh
-> brew install dos2unix
-```
+we use [XCode](https://apps.apple.com/us/app/xcode/id497799835) for building and debugging macOS + iOS targets.
+
 </p></details>
 
 <details><summary>Windows...</summary><p>
@@ -247,17 +261,18 @@ It is recommended but not required that you install the following software:
 
 <details><summary>macOS...</summary><p>
 
-* **wget** + **curl** - for downloading packages
+* **wget** + **curl** - for downloading packages (used for downloading packages in different scripts)
 * **7z** - for extracting packages (archives and binaries)
-* **ccache** - for faster compilations of source code
+* **ccache** - for faster compilations of source code (optional)
 * **cmake** for easier building of external projects
 * **patch** for easier patching on windows (when building external projects)
 * **ripgrep** for faster search
+* **dos2unix** tool to convert line endings of certain source files (e.g. when building files in `share/ext`)
 
 Quick and easy install:
 
 ```sh
-> brew install wget curl p7zip ccache ripgrep
+> brew install wget curl p7zip ccache ripgrep dos2unix
 ```
 
 Configure `ccache` by running ([source](https://ccache.samba.org/manual.html))
@@ -269,9 +284,9 @@ Configure `ccache` by running ([source](https://ccache.samba.org/manual.html))
 
 <details><summary>Windows...</summary><p>
 
-* **wget** + **curl** - for downloading packages
+* **wget** + **curl** - for downloading packages (used for downloading packages in different scripts)
 * **7z** - for extracting packages (archives and binaries)
-* **ccache** - for faster compilations of source code
+* **ccache** - for faster compilations of source code (optional)
 * **cmake** for easier building of external projects
 * **patch** for easier patching on windows (when building external projects)
 
@@ -296,9 +311,9 @@ Open a Command (cmd.exe) as administrator and run:
 
 <details><summary>Linux...</summary><p>
 
-* **wget** + **curl** - for downloading packages
+* **wget** + **curl** - for downloading packages (used for downloading packages in different scripts)
 * **7z** - for extracting packages (archives and binaries)
-* **ccache** - for faster compilations of source code
+* **ccache** - for faster compilations of source code (optional)
 * **cmake** for easier building of external projects
 * **patch** for easier patching on windows (when building external projects)
 * **snapd** for installing snap packages

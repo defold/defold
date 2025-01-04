@@ -17,6 +17,11 @@ def options(opt):
     opt.load('waf_dynamo')
 
 def configure(conf):
+    if os.environ['DYNAMO_HOME'] != conf.env.PREFIX:
+        if 'PREFIX' not in os.environ:
+            conf.env.PREFIX = os.environ['DYNAMO_HOME']
+            print("Setting PREFIX=$DYNAMO_HOME")
+
     conf.load('waf_dynamo')
     conf.env.append_unique('DEFINES', 'NDEBUG')
 
@@ -63,9 +68,7 @@ def build(bld):
                            target = 'LinearMath')
     linear_math.install_path = None
 
-    # for android
-    if bld.env.PLATFORM in ('armv7-android', 'arm64-android', 'x86_64-ps4', 'x86_64-ps5', 'js-web', 'wasm-web'):
-        linear_math.env.append_unique('CXXFLAGS', "-Wno-c++11-narrowing")
+    linear_math.env.append_unique('CXXFLAGS', "-Wno-c++11-narrowing")
 
     if bld.env.PLATFORM in ('win32', 'x86_64-win32'):
         bld.env.STLIB_ST         = 'lib%s.lib'
@@ -102,6 +105,8 @@ def create_package(self):
     target = os.path.normpath(os.path.join(os.environ['DYNAMO_HOME'], '..', '..', 'packages', name))
     shutil.copy2(source, target)
     print("Installed to", target)
+
+    shutil.rmtree(self.cwd)
 
 def package(self):
     pass

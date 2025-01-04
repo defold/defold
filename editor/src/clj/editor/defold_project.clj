@@ -30,6 +30,7 @@
             [editor.handler :as handler]
             [editor.library :as library]
             [editor.lsp :as lsp]
+            [editor.os :as os]
             [editor.placeholder-resource :as placeholder-resource]
             [editor.progress :as progress]
             [editor.resource :as resource]
@@ -38,8 +39,8 @@
             [editor.resource-update :as resource-update]
             [editor.settings-core :as settings-core]
             [editor.ui :as ui]
-            [editor.util :as util]
             [editor.workspace :as workspace]
+            [internal.java :as java]
             [internal.util :as iutil]
             [schema.core :as s]
             [service.log :as log]
@@ -445,7 +446,8 @@
       ;; Disabled during tests to minimize log spam.
       (when (and (pos? (count migrated-proj-paths))
                  (not (Boolean/getBoolean "defold.tests")))
-        (log/info :message "Some files were migrated and will be saved in an updated format." :migrated-proj-paths migrated-proj-paths)))))
+        (log/info :message "Some files were migrated and will be saved in an updated format." :migrated-proj-paths migrated-proj-paths)))
+    node-load-infos))
 
 (defn- make-nodes! [project resources]
   (let [project-graph (graph project)
@@ -642,7 +644,7 @@
 
 (def ^:private bundle-targets
   (into []
-        (concat (when (util/is-mac-os?) [[:ios "iOS Application..."]]) ; macOS is required to sign iOS ipa.
+        (concat (when (os/is-mac-os?) [[:ios "iOS Application..."]]) ; macOS is required to sign iOS ipa.
                 [[:android "Android Application..."]
                  [:macos   "macOS Application..."]
                  [:windows "Windows Application..."]
@@ -658,6 +660,8 @@
                 :command :rebuild}
                {:label "Build HTML5"
                 :command :build-html5}
+               {:label "Rebuild HTML5"
+                :command :rebuild-html5}
                {:label "Bundle"
                 :children (mapv (fn [[platform label]]
                                   {:label label
@@ -906,8 +910,8 @@
           code-preprocessors (workspace/code-preprocessors workspace evaluation-context)
           code-transpilers (code-transpilers project)]
       (workspace/unpack-editor-plugins! workspace touched-resources)
-      (code.preprocessors/reload-lua-preprocessors! code-preprocessors workspace/class-loader)
-      (code.transpilers/reload-lua-transpilers! code-transpilers workspace workspace/class-loader)
+      (code.preprocessors/reload-lua-preprocessors! code-preprocessors java/class-loader)
+      (code.transpilers/reload-lua-transpilers! code-transpilers workspace java/class-loader)
       (workspace/load-clojure-editor-plugins! workspace touched-resources))))
 
 (defn- handle-resource-changes [project changes render-progress!]
@@ -1239,12 +1243,15 @@
       (workspace/set-project-dependencies! workspace-id (library/current-library-state (workspace/project-path workspace-id) dependencies)))
 
     (render-progress! (swap! progress progress/advance 4 "Syncing resources..."))
-    (workspace/resource-sync! workspace-id [] (progress/nest-render-progress render-progress! @progress))
+    (du/log-time "Initial resource sync"
+      (workspace/resource-sync! workspace-id [] (progress/nest-render-progress render-progress! @progress)))
     (render-progress! (swap! progress progress/advance 1 "Loading project..."))
     (let [project (make-project graph workspace-id extensions)
-          populated-project (load-project project (g/node-value project :resources) (progress/nest-render-progress render-progress! @progress 8))]
+          populated-project (du/log-time "Project loading"
+                              (load-project project (g/node-value project :resources) (progress/nest-render-progress render-progress! @progress 8)))]
       ;; Prime the auto completion cache
       (g/node-value (script-intelligence project) :lua-completions)
+      (du/log-statistics! "Project loaded")
       populated-project)))
 
 (defn resource-setter [evaluation-context self old-value new-value & connections]

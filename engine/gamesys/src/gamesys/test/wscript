@@ -55,7 +55,7 @@ def build(bld):
             'vertex_program/*',
             'window/*']
 
-    excl_pattern = ['**/*.ttf', '**/*.basis', '**/*.psd']
+    excl_pattern = ['**/*.ttf', '**/*.basis', '**/*.psd', '**/*.DS_Store']
 
     if not platform_supports_feature(bld.env.PLATFORM, 'compute', None):
         excl_pattern.append('**/*.cp')
@@ -80,7 +80,7 @@ def build(bld):
                                includes = '../../../src ../../../proto',
                                use = 'TESTMAIN DMGLFW GAMEOBJECT DDF RESOURCE PHYSICS RENDER GRAPHICS_GAMESYS_TEST SOCKET APP PROFILE_NULL SCRIPT LUA EXTENSION INPUT PLATFORM_NULL HID_NULL PARTICLE RIG GUI SOUND_NULL LIVEUPDATE DLIB gamesys gamesys_rig gamesys_model',
                                exported_symbols = exported_symbols + ['ScriptModelExt'],
-                               web_libs = ['library_sys.js', 'library_script.js'],
+                               web_libs = ['library_sys.js', 'library_script.js', 'library_render.js'],
                                proto_gen_py = True,
                                content_root='../test',
                                source = bld.path.ant_glob('test_gamesys.cpp') + bld.path.ant_glob(dirs, excl=excl_pattern),

@@ -16,17 +16,17 @@
 #define DMSDK_GAMESYS_RES_LABEL_H
 
 #include <gamesys/label_ddf.h>
-#include <dmsdk/render/render.h>
 
 namespace dmGameSystem
 {
     struct MaterialResource;
+    struct FontResource;
 
     struct LabelResource
     {
         dmGameSystemDDF::LabelDesc* m_DDF;
         MaterialResource*           m_Material;
-        dmRender::HFontMap          m_FontMap;
+        FontResource*               m_Font;
     };
 }
 

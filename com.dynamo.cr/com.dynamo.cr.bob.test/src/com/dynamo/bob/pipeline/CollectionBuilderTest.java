@@ -555,8 +555,15 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
 
         CollectionDesc collection = getMessage(messages, CollectionDesc.class);
         List<ComponenTypeDesc> types = collection.getComponentTypesList();
-        Assert.assertEquals(1, types.size());
-        Assert.assertEquals(2, types.get(0).getMaxCount());
+        Assert.assertEquals(2, types.size());
+        for (ComponenTypeDesc type: types) {
+            if (type.getNameHash() == MurmurHash.hash64("spritec")) {
+                Assert.assertEquals(2, type.getMaxCount());
+            }
+            else if (type.getNameHash() == MurmurHash.hash64("goc")) {
+                Assert.assertEquals(1, type.getMaxCount());
+            }
+        }
     }
 
     /**
@@ -617,11 +624,15 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
 
         CollectionDesc collection = getMessage(mainColmsg, CollectionDesc.class);
         List<ComponenTypeDesc> types = collection.getComponentTypesList();
-        Assert.assertEquals(2, types.size());
+        Assert.assertEquals(3, types.size());
         for (ComponenTypeDesc type: types) {
             if (type.getNameHash() == MurmurHash.hash64("collectionfactoryc")) {
                 Assert.assertEquals(1, type.getMaxCount());
-            } else {
+            }
+            else if (type.getNameHash() == MurmurHash.hash64("spritec")) {
+                Assert.assertEquals((int)ComponentsCounter.DYNAMIC_VALUE, type.getMaxCount());
+            }
+            else if (type.getNameHash() == MurmurHash.hash64("goc")) {
                 Assert.assertEquals((int)ComponentsCounter.DYNAMIC_VALUE, type.getMaxCount());
             }
         }
@@ -677,11 +688,15 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
 
         CollectionDesc collection = getMessage(mainColmsg, CollectionDesc.class);
         List<ComponenTypeDesc> types = collection.getComponentTypesList();
-        Assert.assertEquals(2, types.size());
+        Assert.assertEquals(3, types.size());
         for (ComponenTypeDesc type: types) {
             if (type.getNameHash() == MurmurHash.hash64("factoryc")) {
                 Assert.assertEquals(1, type.getMaxCount());
-            } else {
+            }
+            else if (type.getNameHash() == MurmurHash.hash64("spritec")) {
+                Assert.assertEquals((int)ComponentsCounter.DYNAMIC_VALUE, type.getMaxCount());
+            }
+            else if (type.getNameHash() == MurmurHash.hash64("goc")) {
                 Assert.assertEquals((int)ComponentsCounter.DYNAMIC_VALUE, type.getMaxCount());
             }
         }
@@ -750,11 +765,15 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
 
         CollectionDesc collection = getMessage(mainColmsg, CollectionDesc.class);
         List<ComponenTypeDesc> types = collection.getComponentTypesList();
-        Assert.assertEquals(2, types.size());
+        Assert.assertEquals(3, types.size());
         for (ComponenTypeDesc type: types) {
             if (type.getNameHash() == MurmurHash.hash64("factoryc")) {
                 Assert.assertEquals(2, type.getMaxCount());
-            } else {
+            }
+            else if (type.getNameHash() == MurmurHash.hash64("spritec")) {
+                Assert.assertEquals((int)ComponentsCounter.DYNAMIC_VALUE, type.getMaxCount());
+            }
+            else if (type.getNameHash() == MurmurHash.hash64("goc")) {
                 Assert.assertEquals((int)ComponentsCounter.DYNAMIC_VALUE, type.getMaxCount());
             }
         }
@@ -884,11 +903,15 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
 
         CollectionDesc collection = getMessage(mainColmsg, CollectionDesc.class);
         List<ComponenTypeDesc> types = collection.getComponentTypesList();
-        Assert.assertEquals(2, types.size());
+        Assert.assertEquals(3, types.size());
         for (ComponenTypeDesc type: types) {
             if (type.getNameHash() == MurmurHash.hash64("collectionfactoryc")) {
                 Assert.assertEquals(1, type.getMaxCount());
-            } else {
+            }
+            else if (type.getNameHash() == MurmurHash.hash64("spritec")) {
+                Assert.assertEquals((int)ComponentsCounter.DYNAMIC_VALUE, type.getMaxCount());
+            }
+            else if (type.getNameHash() == MurmurHash.hash64("goc")) {
                 Assert.assertEquals((int)ComponentsCounter.DYNAMIC_VALUE, type.getMaxCount());
             }
         }
@@ -958,9 +981,12 @@ public class CollectionBuilderTest extends AbstractProtoBuilderTest {
         assertTrue(instances.containsKey("/subCol2/go"));
 
         List<ComponenTypeDesc> types = collection.getComponentTypesList();
-        Assert.assertEquals(1, types.size());
+        Assert.assertEquals(2, types.size());
         for (ComponenTypeDesc type: types) {
             if (type.getNameHash() == MurmurHash.hash64("spritec")) {
+                Assert.assertEquals(2, type.getMaxCount());
+            }
+            else if (type.getNameHash() == MurmurHash.hash64("goc")) {
                 Assert.assertEquals(2, type.getMaxCount());
             }
         }

@@ -31,8 +31,17 @@
 #define WIDTH 8u
 #define HEIGHT 4u
 
-using namespace dmVMath;
+#define ASSERT_VECF(exp, act, num_values) \
+    for (int i = 0; i < num_values; ++i) \
+        ASSERT_NEAR(exp[i], act[i], EPSILON);
 
+#define ASSERT_VEC(exp, act, num_values) \
+    for (int i = 0; i < num_values; ++i) \
+        ASSERT_EQ(exp[i], act[i]);
+
+const float EPSILON = 0.000001f;
+
+using namespace dmVMath;
 
 template<bool ASYNCHRONOUS>
 class dmGraphicsTestT : public jc_test_base_class
@@ -337,16 +346,16 @@ TEST_F(dmGraphicsTest, VertexDeclaration)
     dmGraphics::EnableVertexDeclaration(m_Context, vertex_declaration, 0);
 
     float p[] = { 0.0f, 1.0f, 2.0f, 5.0f, 6.0f, 7.0f };
-    ASSERT_EQ(sizeof(p) / 2, m_NullContext->m_VertexStreams[0].m_Size);
-    ASSERT_EQ(0, memcmp(p, m_NullContext->m_VertexStreams[0].m_Source, 3 * sizeof(float)));
+    ASSERT_EQ(sizeof(p) / 2, m_NullContext->m_VertexStreams[0][0].m_Size);
+    ASSERT_EQ(0, memcmp(p, m_NullContext->m_VertexStreams[0][0].m_Source, 3 * sizeof(float)));
     float uv[] = { 3.0f, 4.0f, 8.0f, 9.0f };
-    ASSERT_EQ(sizeof(uv) / 2, m_NullContext->m_VertexStreams[1].m_Size);
-    ASSERT_EQ(0, memcmp(uv, m_NullContext->m_VertexStreams[1].m_Source, 2 * sizeof(float)));
+    ASSERT_EQ(sizeof(uv) / 2, m_NullContext->m_VertexStreams[0][1].m_Size);
+    ASSERT_EQ(0, memcmp(uv, m_NullContext->m_VertexStreams[0][1].m_Source, 2 * sizeof(float)));
 
     dmGraphics::DisableVertexDeclaration(m_Context, vertex_declaration);
 
-    ASSERT_EQ(0u, m_NullContext->m_VertexStreams[0].m_Size);
-    ASSERT_EQ(0u, m_NullContext->m_VertexStreams[1].m_Size);
+    ASSERT_EQ(0u, m_NullContext->m_VertexStreams[0][0].m_Size);
+    ASSERT_EQ(0u, m_NullContext->m_VertexStreams[0][1].m_Size);
 
     dmGraphics::DeleteVertexDeclaration(vertex_declaration);
     dmGraphics::DeleteVertexBuffer(vertex_buffer);
@@ -369,15 +378,15 @@ TEST_F(dmGraphicsTest, Drawing)
     dmGraphics::EnableVertexBuffer(m_Context, vb, 0);
 
     dmGraphics::EnableVertexDeclaration(m_Context, vd, 0);
-    dmGraphics::DrawElements(m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 6, dmGraphics::TYPE_UNSIGNED_INT, ib);
+    dmGraphics::DrawElements(m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 6, dmGraphics::TYPE_UNSIGNED_INT, ib, 1);
     dmGraphics::DisableVertexDeclaration(m_Context, vd);
 
     dmGraphics::EnableVertexDeclaration(m_Context, vd, 0);
-    dmGraphics::DrawElements(m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 3, 6, dmGraphics::TYPE_UNSIGNED_INT, ib);
+    dmGraphics::DrawElements(m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 3, 6, dmGraphics::TYPE_UNSIGNED_INT, ib, 1);
     dmGraphics::DisableVertexDeclaration(m_Context, vd);
 
     dmGraphics::EnableVertexDeclaration(m_Context, vd, 0);
-    dmGraphics::Draw(m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 6);
+    dmGraphics::Draw(m_Context, dmGraphics::PRIMITIVE_TRIANGLES, 0, 6, 1);
     dmGraphics::DisableVertexDeclaration(m_Context, vd);
 
     dmGraphics::DisableVertexBuffer(m_Context, vb);
@@ -583,6 +592,645 @@ TEST_F(dmGraphicsTest, TestComputeProgram)
     dmGraphics::DeleteProgram(m_Context, program);
 }
 
+template <typename T>
+struct VectorTypeContainer
+{
+    T m_Scalar;
+    T m_Vec2[2];
+    T m_Vec3[3];
+    T m_Vec4[4];
+    T m_Mat2[4];
+    T m_Mat3[9];
+    T m_Mat4[16];
+};
+
+static inline void AddAttribute(dmGraphics::VertexAttributeInfos& infos,
+    float* values, uint32_t num_values,
+    dmGraphics::VertexAttribute::SemanticType semantic_type,
+    dmGraphics::VertexAttribute::DataType data_type,
+    dmGraphics::VertexAttribute::VectorType value_vector_type,
+    dmGraphics::VertexAttribute::VectorType vector_type)
+{
+    infos.m_Infos[infos.m_NumInfos].m_SemanticType    = semantic_type;
+    infos.m_Infos[infos.m_NumInfos].m_DataType        = data_type;
+    infos.m_Infos[infos.m_NumInfos].m_VectorType      = vector_type;
+    infos.m_Infos[infos.m_NumInfos].m_ValuePtr        = (uint8_t*) values;
+    infos.m_Infos[infos.m_NumInfos].m_ValueVectorType = value_vector_type;
+    infos.m_NumInfos++;
+}
+
+static void AssertVectorTypeContainerFloat(const VectorTypeContainer<float>& expected, const VectorTypeContainer<float>& actual)
+{
+    ASSERT_NEAR(expected.m_Scalar, actual.m_Scalar, EPSILON);
+    ASSERT_VECF(expected.m_Vec2, actual.m_Vec2, 2);
+    ASSERT_VECF(expected.m_Vec3, actual.m_Vec3, 3);
+    ASSERT_VECF(expected.m_Vec4, actual.m_Vec4, 4);
+    ASSERT_VECF(expected.m_Mat2, actual.m_Mat2, 4);
+    ASSERT_VECF(expected.m_Mat3, actual.m_Mat3, 9);
+    ASSERT_VECF(expected.m_Mat4, actual.m_Mat4, 16);
+}
+
+static void RunAllAttributeTest(float* values, uint32_t num_values, dmGraphics::VertexAttribute::SemanticType semantic_type, dmGraphics::VertexAttribute::DataType data_type, dmGraphics::VertexAttribute::VectorType value_vector_type, const VectorTypeContainer<float>& expected)
+{
+    dmGraphics::VertexAttributeInfos attribute_infos;
+    AddAttribute(attribute_infos, values, num_values, semantic_type, data_type, value_vector_type, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR);
+    AddAttribute(attribute_infos, values, num_values, semantic_type, data_type, value_vector_type, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2);
+    AddAttribute(attribute_infos, values, num_values, semantic_type, data_type, value_vector_type, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3);
+    AddAttribute(attribute_infos, values, num_values, semantic_type, data_type, value_vector_type, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4);
+    AddAttribute(attribute_infos, values, num_values, semantic_type, data_type, value_vector_type, dmGraphics::VertexAttribute::VECTOR_TYPE_MAT2);
+    AddAttribute(attribute_infos, values, num_values, semantic_type, data_type, value_vector_type, dmGraphics::VertexAttribute::VECTOR_TYPE_MAT3);
+    AddAttribute(attribute_infos, values, num_values, semantic_type, data_type, value_vector_type, dmGraphics::VertexAttribute::VECTOR_TYPE_MAT4);
+    attribute_infos.m_VertexStride = sizeof(expected);
+
+    dmGraphics::WriteAttributeParams params = {};
+    params.m_VertexAttributeInfos           = &attribute_infos;
+
+    VectorTypeContainer<float> actual;
+
+    dmGraphics::WriteAttributes((uint8_t*) &actual, 0, params);
+    AssertVectorTypeContainerFloat(expected, actual);
+}
+
+TEST_F(dmGraphicsTest, VertexAttributeDataTypeConversion)
+{
+    dmGraphics::VertexAttributeInfos attribute_infos;
+    AddAttribute(attribute_infos, 0, 0, dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION, dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4);
+
+    dmGraphics::WriteAttributeParams params = {};
+    params.m_VertexAttributeInfos = &attribute_infos;
+
+    // Unsigned byte
+    {
+        attribute_infos.m_Infos[0].m_DataType = dmGraphics::VertexAttribute::TYPE_UNSIGNED_BYTE;
+        attribute_infos.m_VertexStride = sizeof(uint8_t) * 4;
+        float position_values[] = {128.0, 255.0};
+        uint8_t expected[4]     = {128,   255, 0, 1};
+        uint8_t actual[4]       = {};
+
+        const float* position_values_channel[] = { position_values };
+        dmGraphics::SetWriteAttributeStreamDesc(&params.m_PositionsLocalSpace, position_values_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2, 1, false);
+        dmGraphics::WriteAttributes((uint8_t*) actual, 0, params);
+        ASSERT_VEC(expected, actual, 4);
+    }
+
+    // Signed byte
+    {
+        attribute_infos.m_Infos[0].m_DataType = dmGraphics::VertexAttribute::TYPE_BYTE;
+        attribute_infos.m_VertexStride        = sizeof(int8_t) * 4;
+        float position_values[]               = {-32.0, -16.0};
+        int8_t expected[4]                    = {-32,   -16, 0, 1};
+        int8_t actual[4]                      = {};
+
+        const float* position_values_channel[] = { position_values };
+        dmGraphics::SetWriteAttributeStreamDesc(&params.m_PositionsLocalSpace, position_values_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2, 1, false);
+
+        dmGraphics::WriteAttributes((uint8_t*) actual, 0, params);
+        ASSERT_VEC(expected, actual, 4);
+    }
+
+    // Unsigned short
+    {
+        attribute_infos.m_Infos[0].m_DataType = dmGraphics::VertexAttribute::TYPE_UNSIGNED_SHORT;
+        attribute_infos.m_VertexStride        = sizeof(uint16_t) * 4;
+        float position_values[]               = {32768.0, 65535.0};
+        uint16_t expected[4]                  = {32768,   65535, 0, 1};
+        uint16_t actual[4]                    = {};
+
+        const float* position_values_channel[] = { position_values };
+        dmGraphics::SetWriteAttributeStreamDesc(&params.m_PositionsLocalSpace, position_values_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2, 1, false);
+
+        dmGraphics::WriteAttributes((uint8_t*) actual, 0, params);
+        ASSERT_VEC(expected, actual, 4);
+    }
+
+    // Signed short
+    {
+        attribute_infos.m_Infos[0].m_DataType = dmGraphics::VertexAttribute::TYPE_SHORT;
+        attribute_infos.m_VertexStride        = sizeof(int16_t) * 4;
+        float position_values[]               = {-16384.0, -32768.0};
+        int16_t expected[4]                   = {-16384,   -32768, 0, 1};
+        int16_t actual[4]                     = {};
+
+        const float* position_values_channel[] = { position_values };
+        dmGraphics::SetWriteAttributeStreamDesc(&params.m_PositionsLocalSpace, position_values_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2, 1, false);
+
+        dmGraphics::WriteAttributes((uint8_t*) actual, 0, params);
+        ASSERT_VEC(expected, actual, 4);
+    }
+
+    // Unsigned int
+    {
+        attribute_infos.m_Infos[0].m_DataType = dmGraphics::VertexAttribute::TYPE_UNSIGNED_INT;
+        attribute_infos.m_VertexStride        = sizeof(uint32_t) * 4;
+        float position_values[]               = {128000.0, 13371337.0};
+        uint32_t expected[4]                  = {128000,   13371337, 0, 1};
+        uint32_t actual[4]                    = {};
+
+        const float* position_values_channel[] = { position_values };
+        dmGraphics::SetWriteAttributeStreamDesc(&params.m_PositionsLocalSpace, position_values_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2, 1, false);
+
+        dmGraphics::WriteAttributes((uint8_t*) actual, 0, params);
+        ASSERT_VEC(expected, actual, 4);
+    }
+
+    // Signed int
+    {
+        attribute_infos.m_Infos[0].m_DataType = dmGraphics::VertexAttribute::TYPE_INT;
+        attribute_infos.m_VertexStride        = sizeof(int32_t) * 4;
+        float position_values[]               = {-128000.0, -99999.0};
+        int32_t expected[4]                   = {-128000,   -99999, 0, 1};
+        int32_t actual[4]                     = {};
+
+        const float* position_values_channel[] = { position_values };
+        dmGraphics::SetWriteAttributeStreamDesc(&params.m_PositionsLocalSpace, position_values_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2, 1, false);
+
+        dmGraphics::WriteAttributes((uint8_t*) actual, 0, params);
+        ASSERT_VEC(expected, actual, 4);
+    }
+}
+
+TEST_F(dmGraphicsTest, VertexAttributeConversionRulesSemanticTypeNone)
+{
+    // Passing in no data
+    {
+        VectorTypeContainer<float> expected = {
+            // scalar + vector types
+            0.0,
+           {0.0, 0.0},
+           {0.0, 0.0, 0.0},
+           {0.0, 0.0, 0.0, 0.0},
+           // mat2
+           {1.0, 0.0,
+            0.0, 1.0},
+           // mat3
+           {1.0, 0.0, 0.0,
+            0.0, 1.0, 0.0,
+            0.0, 0.0, 1.0},
+           // mat4
+           {1.0, 0.0, 0.0, 0.0,
+            0.0, 1.0, 0.0, 0.0,
+            0.0, 0.0, 1.0, 0.0,
+            0.0, 0.0, 0.0, 1.0},
+        };
+
+        RunAllAttributeTest(0, 0,
+            dmGraphics::VertexAttribute::SEMANTIC_TYPE_NONE,
+            dmGraphics::VertexAttribute::TYPE_FLOAT,
+            dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR,
+            expected);
+    }
+
+    // Passing in scalar value should populate all elements of vectors and the diagonal of matrices
+    {
+        VectorTypeContainer<float> expected = {
+            // scalar + vector types
+            1.1,
+           {1.1, 1.1},
+           {1.1, 1.1, 1.1},
+           {1.1, 1.1, 1.1, 1.1},
+           // mat2
+           {1.1, 0.0,
+            0.0, 1.1},
+           // mat3
+           {1.1, 0.0, 0.0,
+            0.0, 1.1, 0.0,
+            0.0, 0.0, 1.1},
+           // mat4
+           {1.1, 0.0, 0.0, 0.0,
+            0.0, 1.1, 0.0, 0.0,
+            0.0, 0.0, 1.1, 0.0,
+            0.0, 0.0, 0.0, 1.1},
+        };
+
+        float values[] = { 1.1 };
+        RunAllAttributeTest(values, DM_ARRAY_SIZE(values),
+            dmGraphics::VertexAttribute::SEMANTIC_TYPE_NONE,
+            dmGraphics::VertexAttribute::TYPE_FLOAT,
+            dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR,
+            expected);
+    }
+
+    // Passing in vec2 should populate at most first two elements in scalars, vectors and matrices and then fill rest with zeroes
+    {
+        VectorTypeContainer<float> expected = {
+            // scalar + vector types
+            1.1,
+           {1.1, 1.2},
+           {1.1, 1.2, 0.0},
+           {1.1, 1.2, 0.0, 0.0},
+           // mat2
+           {1.1, 1.2,
+            0.0, 0.0},
+           // mat3
+           {1.1, 1.2, 0.0,
+            0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0},
+           // mat4
+           {1.1, 1.2, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0},
+        };
+
+        float values[] = { 1.1, 1.2 };
+        RunAllAttributeTest(values, DM_ARRAY_SIZE(values),
+            dmGraphics::VertexAttribute::SEMANTIC_TYPE_NONE,
+            dmGraphics::VertexAttribute::TYPE_FLOAT,
+            dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2,
+            expected);
+    }
+
+    // Passing in vec3 should populate at most first three elements in scalars, vectors and matrices and then fill rest with zeroes
+    {
+        VectorTypeContainer<float> expected = {
+            // scalar + vector types
+            1.1,
+           {1.1, 1.2},
+           {1.1, 1.2, 1.3},
+           {1.1, 1.2, 1.3, 0.0},
+           // mat2
+           {1.1, 1.2,
+            1.3, 0.0},
+           // mat3
+           {1.1, 1.2, 1.3,
+            0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0},
+           // mat4
+           {1.1, 1.2, 1.3, 0.0,
+            0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0},
+        };
+
+        float values[] = { 1.1, 1.2, 1.3 };
+        RunAllAttributeTest(values, DM_ARRAY_SIZE(values),
+            dmGraphics::VertexAttribute::SEMANTIC_TYPE_NONE,
+            dmGraphics::VertexAttribute::TYPE_FLOAT,
+            dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3,
+            expected);
+    }
+
+    // Passing in vec4 should populate at most first four elements in scalars, vectors and matrices and then fill rest with zeroes
+    {
+        VectorTypeContainer<float> expected = {
+            // scalar + vector types
+            1.1,
+           {1.1, 1.2},
+           {1.1, 1.2, 1.3},
+           {1.1, 1.2, 1.3, 4.4},
+           // mat2
+           {1.1, 1.2,
+            1.3, 4.4},
+           // mat3
+           {1.1, 1.2, 1.3,
+            4.4, 0.0, 0.0,
+            0.0, 0.0, 0.0},
+           // mat4
+           {1.1, 1.2, 1.3, 4.4,
+            0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0,
+            0.0, 0.0, 0.0, 0.0},
+        };
+
+        float values[] = { 1.1, 1.2, 1.3, 4.4 };
+        RunAllAttributeTest(values, DM_ARRAY_SIZE(values),
+            dmGraphics::VertexAttribute::SEMANTIC_TYPE_NONE,
+            dmGraphics::VertexAttribute::TYPE_FLOAT,
+            dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4,
+            expected);
+    }
+
+    // Passing in mat2 should populate at most first four elements in scalars, vectors
+    // and as much of the top-level corner of matrices as possible and identity for the rest
+    {
+        VectorTypeContainer<float> expected = {
+            // scalar + vector types
+            1.1,
+           {1.1, 1.2},
+           {1.1, 1.2, 1.3},
+           {1.1, 1.2, 1.3, 1.4},
+           // mat2
+           {1.1, 1.2,
+            1.3, 1.4},
+           // mat3
+           {1.1, 1.2, 0.0,
+            1.3, 1.4, 0.0,
+            0.0, 0.0, 1.0},
+           // mat4
+           {1.1, 1.2, 0.0, 0.0,
+            1.3, 1.4, 0.0, 0.0,
+            0.0, 0.0, 1.0, 0.0,
+            0.0, 0.0, 0.0, 1.0},
+        };
+
+        float values[] = {
+            1.1, 1.2,
+            1.3, 1.4
+        };
+        RunAllAttributeTest(values, DM_ARRAY_SIZE(values),
+            dmGraphics::VertexAttribute::SEMANTIC_TYPE_NONE,
+            dmGraphics::VertexAttribute::TYPE_FLOAT,
+            dmGraphics::VertexAttribute::VECTOR_TYPE_MAT2,
+            expected);
+    }
+
+    // Passing in mat3 should populate at most first four elements in scalars, vectors and mat2
+    // and as much of the top-level corner of mat4 matrices as possible and identity for the rest
+    {
+        VectorTypeContainer<float> expected = {
+            // scalar + vector types
+            1.1,
+           {1.1, 1.2},
+           {1.1, 1.2, 1.3},
+           {1.1, 1.2, 1.3, 1.4},
+           // mat2
+           {1.1, 1.2,
+            1.4, 1.5},
+           // mat3
+           {1.1, 1.2, 1.3,
+            1.4, 1.5, 1.6,
+            1.7, 1.8, 1.9},
+           // mat4
+           {1.1, 1.2, 1.3, 0.0,
+            1.4, 1.5, 1.6, 0.0,
+            1.7, 1.8, 1.9, 0.0,
+            0.0, 0.0, 0.0, 1.0},
+        };
+
+        float values[] = {
+            1.1, 1.2, 1.3,
+            1.4, 1.5, 1.6,
+            1.7, 1.8, 1.9
+        };
+        RunAllAttributeTest(values, DM_ARRAY_SIZE(values),
+            dmGraphics::VertexAttribute::SEMANTIC_TYPE_NONE,
+            dmGraphics::VertexAttribute::TYPE_FLOAT,
+            dmGraphics::VertexAttribute::VECTOR_TYPE_MAT3,
+            expected);
+    }
+
+    // Passing in mat4 should populate at most first four elements in scalars, vectors, mat2 and mat3
+    {
+        VectorTypeContainer<float> expected = {
+            // scalar + vector types
+            1.1,
+           {1.1, 1.2},
+           {1.1, 1.2, 1.3},
+           {1.1, 1.2, 1.3, 1.4},
+           // mat2
+           {1.1, 1.2,
+            1.5, 1.6},
+           // mat3
+           {1.1, 1.2, 1.3,
+            1.5, 1.6, 1.7,
+            1.9, 2.0, 2.1},
+           // mat4
+           {1.1, 1.2, 1.3, 1.4,
+            1.5, 1.6, 1.7, 1.8,
+            1.9, 2.0, 2.1, 2.2,
+            2.3, 2.4, 2.5, 2.6},
+        };
+
+        float values[] = {
+            1.1, 1.2, 1.3, 1.4,
+            1.5, 1.6, 1.7, 1.8,
+            1.9, 2.0, 2.1, 2.2,
+            2.3, 2.4, 2.5, 2.6
+        };
+        RunAllAttributeTest(values, DM_ARRAY_SIZE(values),
+            dmGraphics::VertexAttribute::SEMANTIC_TYPE_NONE,
+            dmGraphics::VertexAttribute::TYPE_FLOAT,
+            dmGraphics::VertexAttribute::VECTOR_TYPE_MAT4,
+            expected);
+    }
+}
+
+// Test multiple channels for engine provided vertex attributes
+TEST_F(dmGraphicsTest, VertexAttributeEngineProvidedData)
+{
+    float attribute_0_data[] = {  1.1,  1.2,  1.3,  1.4 };
+    float attribute_1_data[] = { -1.1, -1.2, -1.3, -1.4 };
+
+    dmGraphics::VertexAttributeInfos attribute_infos;
+    AddAttribute(attribute_infos, attribute_0_data, 4, dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION, dmGraphics::VertexAttribute::TYPE_FLOAT, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4);
+    AddAttribute(attribute_infos, attribute_1_data, 4, dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION, dmGraphics::VertexAttribute::TYPE_FLOAT, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4);
+    AddAttribute(attribute_infos,                0, 0, dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION, dmGraphics::VertexAttribute::TYPE_FLOAT, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4);
+    attribute_infos.m_VertexStride = sizeof(float) * 4 * 3;
+
+    dmGraphics::WriteAttributeParams params = {};
+    params.m_VertexAttributeInfos = &attribute_infos;
+
+    // Provide no position channels at all!
+    {
+        float expected[3][4] = {
+            {  1.1,  1.2,  1.3,  1.4 },
+            { -1.1, -1.2, -1.3, -1.4 },
+            {  0.0,  0.0,  0.0,  1.0 }, // <- the attribute has no data source, so it will be constructed with a 1.0 as W!
+        };
+        float actual[3][4] = {};
+
+        dmGraphics::WriteAttributes((uint8_t*) actual, 0, params);
+
+        ASSERT_VECF(expected[0], actual[0], 4);
+        ASSERT_VECF(expected[1], actual[1], 4);
+        ASSERT_VECF(expected[2], actual[2], 4);
+    }
+
+    // Provide a single position data channel from the engine
+    {
+        float position_values[] = {2.1, 2.2, 2.3};
+        float expected[3][4] = {
+            {  2.1,  2.2,  2.3,  1.0 },
+            { -1.1, -1.2, -1.3, -1.4 },
+            {  0.0,  0.0,  0.0,  1.0 }, // <- the attribute has no data source, so it will be constructed with a 1.0 as W!
+        };
+        float actual[3][4] = {};
+
+        // We provide one channel of data, which means the other two should be filled with the fallback data
+        const float* position_values_channel[] = { position_values };
+        dmGraphics::SetWriteAttributeStreamDesc(&params.m_PositionsLocalSpace, position_values_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3, 1, false);
+
+        dmGraphics::WriteAttributes((uint8_t*) actual, 0, params);
+
+        ASSERT_VECF(expected[0], actual[0], 4);
+        ASSERT_VECF(expected[1], actual[1], 4);
+        ASSERT_VECF(expected[2], actual[2], 4);
+    }
+
+    // Provide two position data channel
+    {
+        float position_values_0[] = {2.1, 2.2, 2.3};
+        float position_values_1[] = {3.1, 3.2, 3.3};
+
+        float expected[3][4] = {
+            {2.1, 2.2, 2.3, 1.0},
+            {3.1, 3.2, 3.3, 1.0}, // <- this has changed
+            {0.0, 0.0, 0.0, 1.0 }, // <- the attribute has no data source, so it will be constructed with a 1.0 as W!
+        };
+        float actual[3][4] = {};
+
+        // We provide TWO channel of data, which means whatever channels comes after will get data from channel 0
+        const float* position_values_channel[] = { position_values_0, position_values_1 };
+        dmGraphics::SetWriteAttributeStreamDesc(&params.m_PositionsLocalSpace, position_values_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3, 2, false);
+
+        dmGraphics::WriteAttributes((uint8_t*) actual, 0, params);
+
+        ASSERT_VECF(expected[0], actual[0], 4);
+        ASSERT_VECF(expected[1], actual[1], 4);
+        ASSERT_VECF(expected[2], actual[2], 4);
+    }
+}
+
+// position, color and tangent should have one as W, if there is not enough source data to copy from
+TEST_F(dmGraphicsTest, VertexAttributeConversionRulesSemanticTypeOneAsW)
+{
+    // Position semantic
+    {
+        dmGraphics::VertexAttributeInfos attribute_infos;
+        AddAttribute(attribute_infos, 0, 0, dmGraphics::VertexAttribute::SEMANTIC_TYPE_POSITION, dmGraphics::VertexAttribute::TYPE_FLOAT, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4);
+        attribute_infos.m_VertexStride = sizeof(float) * 4;
+
+        dmGraphics::WriteAttributeParams params = {};
+        params.m_VertexAttributeInfos = &attribute_infos;
+
+        // No values available whatsoever
+        {
+            float expected[4] = {0.0, 0.0, 0.0, 1.0};
+            float actual[4]   = {};
+
+            dmGraphics::WriteAttributes((uint8_t*) actual, 0, params);
+            ASSERT_VECF(expected, actual, 4);
+        }
+
+        // Vec2 values
+        {
+            float position_values[] = {1.1, 1.2};
+            float expected[4]       = {1.1, 1.2, 0.0, 1.0};
+            float actual[4]         = {};
+
+            const float* position_values_channel[] = { position_values };
+            dmGraphics::SetWriteAttributeStreamDesc(&params.m_PositionsLocalSpace, position_values_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2, 1, false);
+
+            dmGraphics::WriteAttributes((uint8_t*) actual, 0, params);
+            ASSERT_VECF(expected, actual, 4);
+        }
+
+        // Vec3 values
+        {
+            float position_values[] = {1.1, 1.2, 1.3};
+            float expected[4]       = {1.1, 1.2, 1.3, 1.0};
+            float actual[4]         = {};
+
+            const float* position_values_channel[] = { position_values };
+            dmGraphics::SetWriteAttributeStreamDesc(&params.m_PositionsLocalSpace, position_values_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3, 1, false);
+
+            dmGraphics::WriteAttributes((uint8_t*) actual, 0, params);
+            ASSERT_VECF(expected, actual, 4);
+        }
+    }
+
+    // Color semantic
+    {
+        // No values available whatsoever
+        {
+            dmGraphics::VertexAttributeInfos attribute_infos;
+            AddAttribute(attribute_infos, 0, 0, dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR, dmGraphics::VertexAttribute::TYPE_FLOAT, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR);
+            AddAttribute(attribute_infos, 0, 0, dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR, dmGraphics::VertexAttribute::TYPE_FLOAT, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2);
+            AddAttribute(attribute_infos, 0, 0, dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR, dmGraphics::VertexAttribute::TYPE_FLOAT, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3);
+            AddAttribute(attribute_infos, 0, 0, dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR, dmGraphics::VertexAttribute::TYPE_FLOAT, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4);
+            attribute_infos.m_VertexStride = sizeof(float) * (1 + 2 + 3 + 4);
+
+            dmGraphics::WriteAttributeParams params = {};
+            params.m_VertexAttributeInfos = &attribute_infos;
+
+            VectorTypeContainer<float> actual = {};
+            VectorTypeContainer<float> expected = {
+                1.0,
+                {1.0, 1.0},
+                {1.0, 1.0, 1.0},
+                {1.0, 1.0, 1.0, 1.0}
+            };
+
+            dmGraphics::WriteAttributes((uint8_t*) &actual, 0, params);
+            AssertVectorTypeContainerFloat(expected, actual);
+        }
+
+        dmGraphics::VertexAttributeInfos attribute_infos;
+        AddAttribute(attribute_infos, 0, 0, dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR, dmGraphics::VertexAttribute::TYPE_FLOAT, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4);
+        attribute_infos.m_VertexStride = sizeof(float) * 4;
+
+        dmGraphics::WriteAttributeParams params = {};
+        params.m_VertexAttributeInfos = &attribute_infos;
+
+        // Vec2 values
+        {
+            float color_values[] = {1.1, 1.2};
+            float expected[4]    = {1.1, 1.2, 0.0, 1.0};
+            float actual[4]      = {};
+
+            const float* color_values_channel[] = { color_values };
+            dmGraphics::SetWriteAttributeStreamDesc(&params.m_Colors, color_values_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2, 1, false);
+            dmGraphics::WriteAttributes((uint8_t*) actual, 0, params);
+            ASSERT_VECF(expected, actual, 4);
+        }
+
+        // Vec3 values
+        {
+            float color_values[] = {1.1, 1.2, 1.3};
+            float expected[4]    = {1.1, 1.2, 1.3, 1.0};
+            float actual[4]      = {};
+
+            const float* color_values_channel[] = { color_values };
+            dmGraphics::SetWriteAttributeStreamDesc(&params.m_Colors, color_values_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3, 1, false);
+            dmGraphics::WriteAttributes((uint8_t*) actual, 0, params);
+            ASSERT_VECF(expected, actual, 4);
+        }
+    }
+
+    // Tangent semantic
+    {
+        dmGraphics::VertexAttributeInfos attribute_infos;
+        AddAttribute(attribute_infos, 0, 0, dmGraphics::VertexAttribute::SEMANTIC_TYPE_TANGENT, dmGraphics::VertexAttribute::TYPE_FLOAT, dmGraphics::VertexAttribute::VECTOR_TYPE_SCALAR, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC4);
+        attribute_infos.m_VertexStride = sizeof(float) * 4;
+
+        dmGraphics::WriteAttributeParams params = {};
+        params.m_VertexAttributeInfos = &attribute_infos;
+
+        // No values available whatsoever
+        {
+            float expected[4] = {0.0, 0.0, 0.0, 1.0};
+            float actual[4]   = {};
+
+            dmGraphics::WriteAttributes((uint8_t*) actual, 0, params);
+            ASSERT_VECF(expected, actual, 4);
+        }
+
+        // Vec2 values
+        {
+            float tangent_values[]  = {1.1, 1.2};
+            float expected[4]       = {1.1, 1.2, 0.0, 1.0};
+            float actual[4]         = {};
+
+            const float* tangent_values_channel[] = { tangent_values };
+            dmGraphics::SetWriteAttributeStreamDesc(&params.m_Tangents, tangent_values_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC2, 1, false);
+            dmGraphics::WriteAttributes((uint8_t*) actual, 0, params);
+            ASSERT_VECF(expected, actual, 4);
+        }
+
+        // Vec3 values
+        {
+            float tangent_values[]  = {1.1, 1.2, 1.3};
+            float expected[4]       = {1.1, 1.2, 1.3, 1.0};
+            float actual[4]         = {};
+
+            const float* tangent_values_channel[] = { tangent_values };
+            dmGraphics::SetWriteAttributeStreamDesc(&params.m_Tangents, tangent_values_channel, dmGraphics::VertexAttribute::VECTOR_TYPE_VEC3, 1, false);
+            dmGraphics::WriteAttributes((uint8_t*) actual, 0, params);
+            ASSERT_VECF(expected, actual, 4);
+        }
+    }
+}
+
 TEST_F(dmGraphicsTest, TestVertexAttributesGL3)
 {
     const char* vertex_data = ""
@@ -696,6 +1344,8 @@ TEST_F(dmGraphicsTest, TestTexture)
     dmGraphics::DeleteTexture(texture);
 }
 
+#if defined(DM_HAS_THREADS)
+
 static void TestTextureAsyncCallback(dmGraphics::HTexture texture, void* user_data)
 {
     assert(dmGraphics::GetOpaqueHandle(texture) != INVALID_OPAQUE_HANDLE);
@@ -736,8 +1386,8 @@ TEST_F(dmGraphicsTest, TestTextureAsync)
         dmGraphics::SetTextureAsync(textures[i], params, TestTextureAsyncCallback, (void*) (values + i));
     }
 
-    uint64_t stop_time = dmTime::GetTime() + 1*1e6; // 1 second
-    while(!all_complete && dmTime::GetTime() < stop_time)
+    uint64_t stop_time = dmTime::GetMonotonicTime() + 1*1e6; // 1 second
+    while(!all_complete && dmTime::GetMonotonicTime() < stop_time)
     {
         dmJobThread::Update(m_JobThread);
         all_complete = true;
@@ -766,8 +1416,8 @@ TEST_F(dmGraphicsTest, TestTextureAsync)
     }
 
     all_complete = false;
-    stop_time = dmTime::GetTime() + 1*1e6; // 1 second
-    while(!all_complete && dmTime::GetTime() < stop_time)
+    stop_time = dmTime::GetMonotonicTime() + 1*1e6; // 1 second
+    while(!all_complete && dmTime::GetMonotonicTime() < stop_time)
     {
         dmJobThread::Update(m_JobThread);
         all_complete = true;
@@ -797,8 +1447,8 @@ enum SyncronizedWaitCondition
 static bool WaitUntilSyncronizedTextures(dmGraphics::HContext graphics_context, dmJobThread::HContext job_thread, dmGraphics::HTexture* textures, uint32_t texture_count, SyncronizedWaitCondition cond)
 {
     bool all_complete = false;
-    uint64_t stop_time = dmTime::GetTime() + 1*1e6; // 1 second
-    while(!all_complete && dmTime::GetTime() < stop_time)
+    uint64_t stop_time = dmTime::GetMonotonicTime() + 1*1e6; // 1 second
+    while(!all_complete && dmTime::GetMonotonicTime() < stop_time)
     {
         dmJobThread::Update(job_thread);
         all_complete = true;
@@ -896,6 +1546,7 @@ TEST_F(dmGraphicsTest, TestTextureAsyncDelete)
 
     m_NullContext->m_UseAsyncTextureLoad = tmp_async_load;
 }
+#endif // DM_HAS_THREADS
 
 TEST_F(dmGraphicsSynchronousTest, TestSetTextureBounds)
 {
@@ -1146,7 +1797,6 @@ TEST_F(dmGraphicsTest, TestRTDepthStencilTexture)
         ASSERT_EQ(dmGraphics::HANDLE_RESULT_OK, res);
         ASSERT_NE((float*)0x0, texture_data);
 
-        const float EPSILON = 0.000001f;
         for (int i = 0; i < WIDTH * HEIGHT; ++i)
         {
             ASSERT_NEAR(depth_value, texture_data[i], EPSILON);

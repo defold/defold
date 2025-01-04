@@ -53,7 +53,7 @@ def _exec_command(arg_list, **kwargs):
                 break
 
     if process.wait() != 0:
-        raise ExecException(process.returncode, output)
+        raise Exception(f"Command failed with return code {process.returncode}\nOutput: {output}")
 
     return output
 
