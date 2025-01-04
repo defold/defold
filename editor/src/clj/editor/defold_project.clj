@@ -89,23 +89,13 @@
         error-value (resource-io/invalid-content-error node-id nil :fatal resource exception)]
     (g/mark-defective node-id node-type error-value)))
 
-(def ^:private ^:dynamic *transpiler-txs-fn*
-  (fn transpiler-txs [project node-id resource]
-    (code.transpilers/load-build-file-transaction-step (code-transpilers project) node-id resource)))
-
-(defmacro with-transpiler-txs-fn [project & body]
-  `(let [f# (code.transpilers/load-build-file-transaction-step (code-transpilers ~project))]
-     (binding [*transpiler-txs-fn* (fn [~'_ node-id# resource#]
-                                     (f# node-id# resource#))]
-       ~@body)))
-
-(defn- load-resource-node [project resource-node-id resource source-value]
+(defn- load-resource-node [project resource-node-id resource source-value transpiler-tx-data-fn]
   (try
     ;; TODO(save-value-cleanup): This shouldn't be able to happen anymore. Remove this check after some time in the wild.
     (assert (and (not= :folder (resource/source-type resource))
                  (resource/exists? resource)))
     (let [{:keys [read-fn load-fn] :as resource-type} (resource/resource-type resource)
-          transpiler-tx-steps (*transpiler-txs-fn* project resource-node-id resource)]
+          transpiler-tx-data (transpiler-tx-data-fn resource-node-id resource)]
       (cond-> []
 
               load-fn
@@ -119,8 +109,8 @@
                    (:auto-connect-save-data? resource-type))
               (into (g/connect resource-node-id :save-data project :save-data))
 
-              transpiler-tx-steps
-              (into transpiler-tx-steps)
+              transpiler-tx-data
+              (into transpiler-tx-data)
 
               :always
               not-empty))
@@ -226,13 +216,13 @@
                   batch
                   node-id->dependency-node-ids)))))))
 
-(defn- node-load-info-tx-data [{:keys [node-id read-error resource] :as node-load-info} project]
+(defn- node-load-info-tx-data [{:keys [node-id read-error resource] :as node-load-info} project transpiler-tx-data-fn]
   ;; At this point, the node-id refers to a created node in the graph.
   (if read-error
     (let [node-type (resource-node-type resource)]
       (g/mark-defective node-id node-type read-error))
     (let [source-value (:source-value node-load-info)]
-      (load-resource-node project node-id resource source-value))))
+      (load-resource-node project node-id resource source-value transpiler-tx-data-fn))))
 
 (defn- sort-node-load-infos-for-loading [node-load-infos old-resource-node-ids-by-proj-path old-resource-node-dependencies]
   {:pre [(map? old-resource-node-ids-by-proj-path)
@@ -273,7 +263,14 @@
           (fn [resource-path]
             (let [end-time (System/nanoTime)
                   ^long start-time @resource-metrics-load-timer]
-              (du/update-metrics resource-metrics resource-path :process-load-tx-data (- end-time start-time)))))]
+              (du/update-metrics resource-metrics resource-path :process-load-tx-data (- end-time start-time)))))
+
+        transpiler-tx-data-fn
+        (g/with-auto-evaluation-context evaluation-context
+          (let [basis (:basis evaluation-context)
+                code-transpilers (code-transpilers basis project)]
+            (code.transpilers/make-resource-load-tx-data-fn code-transpilers evaluation-context)))]
+
     (e/concat
       (coll/transfer node-load-infos :eduction
         (coll/mapcat-indexed
@@ -285,7 +282,7 @@
                 (du/when-metrics
                   (g/callback start-resource-metrics-load-timer!))
                 (du/measuring resource-metrics proj-path :generate-load-tx-data
-                  (node-load-info-tx-data node-load-info project))
+                  (node-load-info-tx-data node-load-info project transpiler-tx-data-fn))
                 (du/when-metrics
                   (g/callback stop-resource-metrics-load-timer! proj-path)))))))
       (g/callback progress-loading! (progress/make-indeterminate "Finalizing...")))))
@@ -381,8 +378,7 @@
     (log-cache-info! (g/cache) "Cached loaded save data in system cache.")))
 
 (defn- load-nodes-into-graph! [node-load-infos project progress-loading! resource-metrics transaction-metrics]
-  (let [tx-data (with-transpiler-txs-fn project
-                  (load-tx-data node-load-infos project progress-loading! resource-metrics))
+  (let [tx-data (load-tx-data node-load-infos project progress-loading! resource-metrics)
         tx-opts (du/when-metrics {:metrics transaction-metrics})
         tx-result (g/transact tx-opts tx-data)
         basis (:basis tx-result)]
