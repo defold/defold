@@ -206,10 +206,6 @@ public class ShaderCompilePipeline {
             case SHADER_TYPE_FRAGMENT -> opts.stage = Shaderc.ShaderStage.SHADER_STAGE_FRAGMENT;
             case SHADER_TYPE_COMPUTE -> opts.stage = Shaderc.ShaderStage.SHADER_STAGE_COMPUTE;
         }
-        else if (shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL) {
-            generateHLSL(pathFileInSpv, pathFileOut);
-            return;
-        }
 
         if (shaderLanguage == ShaderDesc.Language.LANGUAGE_GLES_SM100 || shaderLanguage == ShaderDesc.Language.LANGUAGE_GLSL_SM120) {
             opts.glslEmitUboAsPlainUniforms = 1;

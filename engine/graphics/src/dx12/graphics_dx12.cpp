@@ -33,8 +33,6 @@
 
 #include <platform/platform_window_win32.h>
 
-#include <graphics/glfw/glfw_native.h>
-
 #include "../graphics_private.h"
 #include "../graphics_native.h"
 #include "../graphics_adapter.h"
@@ -800,6 +798,40 @@ namespace dmGraphics
         }
     }
 
+    static inline void CreateOneTimeCommandList(ID3D12Device* device, DX12OneTimeCommandList* cmd_list)
+    {
+        HRESULT hr = device->CreateCommandAllocator(D3D12_COMMAND_LIST_TYPE_DIRECT, IID_PPV_ARGS(&cmd_list->m_CommandAllocator));
+        CHECK_HR_ERROR(hr);
+
+        hr = device->CreateCommandList(0, D3D12_COMMAND_LIST_TYPE_DIRECT, cmd_list->m_CommandAllocator, NULL, IID_PPV_ARGS(&cmd_list->m_CommandList));
+        CHECK_HR_ERROR(hr);
+
+        hr = device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&cmd_list->m_Fence));
+        CHECK_HR_ERROR(hr);
+    }
+
+    static inline void ResetOneTimeCommandList(DX12OneTimeCommandList* cmd_list)
+    {
+        cmd_list->m_Fence->Release();
+        cmd_list->m_CommandAllocator->Reset();
+        cmd_list->m_CommandList->Reset(cmd_list->m_CommandAllocator, 0);
+    }
+
+    static inline void SyncronizeOneTimeCommandList(ID3D12Device* device, ID3D12CommandQueue* queue, DX12OneTimeCommandList* cmd_list)
+    {
+        UINT64 fence_value = FENCE_VALUE_SYNCRONIZE_UPLOAD;
+        HANDLE fence_event = CreateEvent(nullptr, FALSE, FALSE, nullptr);
+        device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(&cmd_list->m_Fence));
+
+        queue->Signal(cmd_list->m_Fence, fence_value);
+        if (cmd_list->m_Fence->GetCompletedValue() != fence_value)
+        {
+            cmd_list->m_Fence->SetEventOnCompletion(fence_value, fence_event);
+            WaitForSingleObject(fence_event, INFINITE);
+        }
+        CloseHandle(fence_event);
+    }
+
     static void TextureBufferUploadHelper(DX12Context* context, DX12Texture* texture, TextureFormat format_dst, TextureFormat format_src, const TextureParams& params, uint8_t* pixels)
     {
         uint64_t slice_upload_size = 0;
@@ -843,15 +875,19 @@ namespace dmGraphics
 
         CopyTextureData(params, format_dst, format_src, fp[0], num_rows, 1, 1, &mipmap_pitch, pixels, upload_data);
 
+        ID3D12GraphicsCommandList* cmd_list = context->m_CommandList;
+
+        // May be used
+        DX12OneTimeCommandList one_time_cmd_list = {};
         if (!context->m_FrameBegun)
         {
-            hr = context->m_CommandList->Reset(context->m_FrameResources[0].m_CommandAllocator, NULL); // Second argument is a pipeline object (TODO)
-            CHECK_HR_ERROR(hr);
+            CreateOneTimeCommandList(context->m_Device, &one_time_cmd_list);
+            cmd_list = one_time_cmd_list.m_CommandList;
         }
 
         if (texture->m_ResourceStates[params.m_MipMap] != D3D12_RESOURCE_STATE_COPY_DEST)
         {
-            context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(texture->m_Resource, texture->m_ResourceStates[params.m_MipMap], D3D12_RESOURCE_STATE_COPY_DEST, (UINT) params.m_MipMap));
+            cmd_list->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(texture->m_Resource, texture->m_ResourceStates[params.m_MipMap], D3D12_RESOURCE_STATE_COPY_DEST, (UINT) params.m_MipMap));
             texture->m_ResourceStates[params.m_MipMap] = D3D12_RESOURCE_STATE_COPY_DEST;
         }
 
@@ -874,19 +910,23 @@ namespace dmGraphics
         box.back   = 1;
 
         // The box acts like a clip box, which indicates where from the source we should take the data from
-        context->m_CommandList->CopyTextureRegion(&copy_dst, params.m_X, params.m_Y, 0, &copy_src, &box);
+        cmd_list->CopyTextureRegion(&copy_dst, params.m_X, params.m_Y, 0, &copy_src, &box);
 
         if (texture->m_ResourceStates[params.m_MipMap] != D3D12_RESOURCE_STATE_GENERIC_READ)
         {
-            context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(texture->m_Resource, texture->m_ResourceStates[params.m_MipMap], D3D12_RESOURCE_STATE_GENERIC_READ, (UINT) params.m_MipMap));
+            cmd_list->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(texture->m_Resource, texture->m_ResourceStates[params.m_MipMap], D3D12_RESOURCE_STATE_GENERIC_READ, (UINT) params.m_MipMap));
             texture->m_ResourceStates[params.m_MipMap] = D3D12_RESOURCE_STATE_GENERIC_READ;
         }
 
         if (!context->m_FrameBegun)
         {
-            context->m_CommandList->Close(); // THis might be wrong!
-            ID3D12CommandList* execute_cmd_lists[] = { context->m_CommandList };
+            cmd_list->Close();
+            ID3D12CommandList* execute_cmd_lists[] = { cmd_list };
             context->m_CommandQueue->ExecuteCommandLists(DM_ARRAY_SIZE(execute_cmd_lists), execute_cmd_lists);
+
+            SyncronizeOneTimeCommandList(context->m_Device, context->m_CommandQueue, &one_time_cmd_list);
+
+            ResetOneTimeCommandList(&one_time_cmd_list);
         }
     }
 
@@ -941,22 +981,29 @@ namespace dmGraphics
         vx_data.RowPitch   = data_size; // size of all our vertex data
         vx_data.SlicePitch = data_size; // also the size of our vertex data
 
+        ID3D12GraphicsCommandList* cmd_list = context->m_CommandList;
+
+        DX12OneTimeCommandList one_time_cmd_list = {};
         if (!context->m_FrameBegun)
         {
-            hr = context->m_CommandList->Reset(context->m_FrameResources[0].m_CommandAllocator, NULL); // Second argument is a pipeline object (TODO)
-            CHECK_HR_ERROR(hr);
+            CreateOneTimeCommandList(context->m_Device, &one_time_cmd_list);
+            cmd_list = one_time_cmd_list.m_CommandList;
         }
 
-        UpdateSubresources(context->m_CommandList, device_buffer->m_Resource, upload_heap, 0, 0, 1, &vx_data);
+        UpdateSubresources(cmd_list, device_buffer->m_Resource, upload_heap, 0, 0, 1, &vx_data);
 
         // transition the vertex buffer data from copy destination state to vertex buffer state
-        context->m_CommandList->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(device_buffer->m_Resource, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER));
+        cmd_list->ResourceBarrier(1, &CD3DX12_RESOURCE_BARRIER::Transition(device_buffer->m_Resource, D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER));
 
         if (!context->m_FrameBegun)
         {
-            context->m_CommandList->Close(); // THis might be wrong!
-            ID3D12CommandList* execute_cmd_lists[] = { context->m_CommandList };
+            cmd_list->Close();
+            ID3D12CommandList* execute_cmd_lists[] = { cmd_list };
             context->m_CommandQueue->ExecuteCommandLists(DM_ARRAY_SIZE(execute_cmd_lists), execute_cmd_lists);
+
+            SyncronizeOneTimeCommandList(context->m_Device, context->m_CommandQueue, &one_time_cmd_list);
+
+            ResetOneTimeCommandList(&one_time_cmd_list);
         }
 
         device_buffer->m_DataSize = data_size;
@@ -1002,6 +1049,16 @@ namespace dmGraphics
     static void DX12SetVertexBufferSubData(HVertexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
         assert(0);
+    }
+
+    static uint32_t DX12GetVertexBufferSize(HVertexBuffer buffer)
+    {
+        if (!buffer)
+        {
+            return 0;
+        }
+        DX12VertexBuffer* buffer_ptr = (DX12VertexBuffer*) buffer;
+        return buffer_ptr->m_DeviceBuffer.m_DataSize;
     }
 
     static uint32_t DX12GetMaxElementsVertices(HContext context)
@@ -1051,6 +1108,16 @@ namespace dmGraphics
     static void DX12SetIndexBufferSubData(HIndexBuffer buffer, uint32_t offset, uint32_t size, const void* data)
     {
         assert(0);
+    }
+
+    static uint32_t DX12GetIndexBufferSize(HIndexBuffer buffer)
+    {
+        if (!buffer)
+        {
+            return 0;
+        }
+        DX12IndexBuffer* buffer_ptr = (DX12IndexBuffer*) buffer;
+        return buffer_ptr->m_DeviceBuffer.m_DataSize;
     }
 
     static bool DX12IsIndexBufferFormatSupported(HContext context, IndexBufferFormat format)
@@ -1108,7 +1175,7 @@ namespace dmGraphics
         }
     }
 
-    static void DX12EnableVertexDeclaration(HContext _context, HVertexDeclaration vertex_declaration, uint32_t binding_index, HProgram program)
+    static void DX12EnableVertexDeclaration(HContext _context, HVertexDeclaration vertex_declaration, uint32_t binding_index, uint32_t base_offset, HProgram program)
     {
         DX12Context* context            = (DX12Context*) _context;
         DX12ShaderProgram* program_ptr  = (DX12ShaderProgram*) program;
@@ -1120,6 +1187,9 @@ namespace dmGraphics
         context->m_MainVertexDeclaration[binding_index].m_PipelineHash = vertex_declaration->m_PipelineHash;
 
         context->m_CurrentVertexDeclaration[binding_index]             = &context->m_MainVertexDeclaration[binding_index];
+
+        // TODO
+        // context->m_CurrentVertexBufferOffset[binding_index]            = base_offset;
 
         uint32_t stream_ix = 0;
         uint32_t num_inputs = vertex_shader->m_ShaderMeta.m_Inputs.Size();
@@ -1418,11 +1488,11 @@ namespace dmGraphics
 
         uint32_t texture_unit_start = program->m_UniformBufferCount;
 
-        for (int set = 0; set < program->m_MaxSet; ++set)
+        for (int set = 0; set < program->m_BaseProgram.m_MaxSet; ++set)
         {
-            for (int binding = 0; binding < program->m_MaxBinding; ++binding)
+            for (int binding = 0; binding < program->m_BaseProgram.m_MaxBinding; ++binding)
             {
-                ProgramResourceBinding& pgm_res = program->m_ResourceBindings[set][binding];
+                ProgramResourceBinding& pgm_res = program->m_BaseProgram.m_ResourceBindings[set][binding];
 
                 if (pgm_res.m_Res == 0x0)
                     continue;
@@ -1506,7 +1576,7 @@ namespace dmGraphics
         CommitUniforms(context, frame_resources);
     }
 
-    static void DX12DrawElements(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer)
+    static void DX12DrawElements(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, Type type, HIndexBuffer index_buffer, uint32_t instance_count)
     {
         DM_PROFILE(__FUNCTION__);
         DM_PROPERTY_ADD_U32(rmtp_DrawCalls, 1);
@@ -1522,10 +1592,10 @@ namespace dmGraphics
         uint32_t index_offset        = first / (type == TYPE_UNSIGNED_SHORT ? 2 : 4);
 
         context->m_CommandList->IASetIndexBuffer(&view);
-        context->m_CommandList->DrawIndexedInstanced(count, 1, index_offset, 0, 0); // draw first quad
+        context->m_CommandList->DrawIndexedInstanced(count, dmMath::Max((uint32_t) 1, instance_count), index_offset, 0, 0); // draw first quad
     }
 
-    static void DX12Draw(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count)
+    static void DX12Draw(HContext _context, PrimitiveType prim_type, uint32_t first, uint32_t count, uint32_t instance_count)
     {
         DM_PROFILE(__FUNCTION__);
         DM_PROPERTY_ADD_U32(rmtp_DrawCalls, 1);
@@ -1533,7 +1603,7 @@ namespace dmGraphics
         DX12Context* context = (DX12Context*) _context;
         DrawSetup(context, prim_type);
 
-        context->m_CommandList->DrawInstanced(count, 1, first, 0);
+        context->m_CommandList->DrawInstanced(count, dmMath::Max((uint32_t) 1, instance_count), first, 0);
     }
 
     static void DX12DispatchCompute(HContext _context, uint32_t group_count_x, uint32_t group_count_y, uint32_t group_count_z)
@@ -1587,12 +1657,7 @@ namespace dmGraphics
         return D3D12_SHADER_VISIBILITY_ALL;
     }
 
-    struct ResourceBindingDesc
-    {
-        uint16_t m_Binding;
-        uint8_t  m_Taken;
-    };
-
+    /*
     static void FillProgramResourceBindings(
         DX12ShaderProgram*               program,
         dmArray<ShaderResourceBinding>&  resources,
@@ -1607,7 +1672,7 @@ namespace dmGraphics
         {
             ShaderResourceBinding& res   = resources[i];
             ResourceBindingDesc& binding = bindings[res.m_Set][res.m_Binding];
-            ProgramResourceBinding& program_resource_binding = program->m_ResourceBindings[res.m_Set][res.m_Binding];
+            ProgramResourceBinding& program_resource_binding = program->m_BaseProgram.m_ResourceBindings[res.m_Set][res.m_Binding];
 
             if (!binding.m_Taken)
             {
@@ -1668,6 +1733,7 @@ namespace dmGraphics
             }
         }
     }
+    */
 
     static void ResolveSamplerTextureUnits(DX12ShaderProgram* program, const dmArray<ShaderResourceBinding>& texture_resources)
     {
@@ -1676,36 +1742,17 @@ namespace dmGraphics
             const ShaderResourceBinding& shader_res = texture_resources[i];
             assert(shader_res.m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_TEXTURE);
 
-            ProgramResourceBinding& shader_pgm_res = program->m_ResourceBindings[shader_res.m_Set][shader_res.m_Binding];
+            ProgramResourceBinding& shader_pgm_res = program->m_BaseProgram.m_ResourceBindings[shader_res.m_Set][shader_res.m_Binding];
 
             if (shader_res.m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_SAMPLER)
             {
                 const ShaderResourceBinding& texture_shader_res = texture_resources[shader_pgm_res.m_Res->m_BindingInfo.m_SamplerTextureIndex];
-                const ProgramResourceBinding& texture_pgm_res   = program->m_ResourceBindings[texture_shader_res.m_Set][texture_shader_res.m_Binding];
+                const ProgramResourceBinding& texture_pgm_res   = program->m_BaseProgram.m_ResourceBindings[texture_shader_res.m_Set][texture_shader_res.m_Binding];
                 shader_pgm_res.m_TextureUnit                    = texture_pgm_res.m_TextureUnit;
             #if 0 // Debug
                 dmLogInfo("Resolving sampler at %d, %d to texture unit %d", shader_res.m_Set, shader_res.m_Binding, shader_pgm_res.m_TextureUnit);
             #endif
             }
-        }
-    }
-
-    static void FillProgramResourceBindings(
-        DX12ShaderProgram*           program,
-        DX12ShaderModule*            module,
-        ResourceBindingDesc          bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT],
-        uint32_t                     ubo_alignment,
-        uint32_t                     ssbo_alignment,
-        ShaderStageFlag              stage_flag,
-        ProgramResourceBindingsInfo& info)
-    {
-        if (program && module)
-        {
-            FillProgramResourceBindings(program, module->m_ShaderMeta.m_UniformBuffers, module->m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, stage_flag, info);
-            FillProgramResourceBindings(program, module->m_ShaderMeta.m_StorageBuffers, module->m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, stage_flag, info);
-            FillProgramResourceBindings(program, module->m_ShaderMeta.m_Textures, module->m_ShaderMeta.m_TypeInfos, bindings, ubo_alignment, ssbo_alignment, stage_flag, info);
-
-            ResolveSamplerTextureUnits(program, module->m_ShaderMeta.m_Textures);
         }
     }
 
@@ -1717,9 +1764,22 @@ namespace dmGraphics
         uint32_t ssbo_alignment = 0; // TODO
 
         ProgramResourceBindingsInfo binding_info = {};
-        FillProgramResourceBindings(program, vertex_module, bindings, ubo_alignment, ssbo_alignment, SHADER_STAGE_FLAG_VERTEX, binding_info);
-        FillProgramResourceBindings(program, fragment_module, bindings, ubo_alignment, ssbo_alignment, SHADER_STAGE_FLAG_FRAGMENT, binding_info);
-        FillProgramResourceBindings(program, compute_module, bindings, ubo_alignment, ssbo_alignment, SHADER_STAGE_FLAG_COMPUTE, binding_info);
+
+        if (compute_module)
+        {
+            FillProgramResourceBindings(&program->m_BaseProgram, &compute_module->m_ShaderMeta, bindings, ubo_alignment, ssbo_alignment, SHADER_STAGE_FLAG_COMPUTE, binding_info);
+            ResolveSamplerTextureUnits(program, compute_module->m_ShaderMeta.m_Textures);
+        }
+        else
+        {
+            FillProgramResourceBindings(&program->m_BaseProgram, &vertex_module->m_ShaderMeta, bindings, ubo_alignment, ssbo_alignment, SHADER_STAGE_FLAG_VERTEX, binding_info);
+            FillProgramResourceBindings(&program->m_BaseProgram, &fragment_module->m_ShaderMeta, bindings, ubo_alignment, ssbo_alignment, SHADER_STAGE_FLAG_FRAGMENT, binding_info);
+            ResolveSamplerTextureUnits(program, vertex_module->m_ShaderMeta.m_Textures);
+            ResolveSamplerTextureUnits(program, fragment_module->m_ShaderMeta.m_Textures);
+        }
+
+        program->m_BaseProgram.m_MaxSet     = binding_info.m_MaxSet;
+        program->m_BaseProgram.m_MaxBinding = binding_info.m_MaxBinding;
 
         program->m_UniformData = new uint8_t[binding_info.m_UniformDataSize];
         memset(program->m_UniformData, 0, binding_info.m_UniformDataSize);
@@ -1728,10 +1788,9 @@ namespace dmGraphics
         program->m_UniformBufferCount     = binding_info.m_UniformBufferCount;
         program->m_StorageBufferCount     = binding_info.m_StorageBufferCount;
         program->m_TextureSamplerCount    = binding_info.m_TextureCount + binding_info.m_SamplerCount;
-        program->m_TotalUniformCount      = binding_info.m_TotalUniformCount;
         program->m_TotalResourcesCount    = binding_info.m_UniformBufferCount + binding_info.m_TextureCount + binding_info.m_SamplerCount + binding_info.m_StorageBufferCount; // num actual descriptors
-        program->m_MaxSet                 = binding_info.m_MaxSet;
-        program->m_MaxBinding             = binding_info.m_MaxBinding;
+
+        BuildUniforms(&program->m_BaseProgram);
     }
 
     static HProgram DX12NewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
@@ -1751,11 +1810,11 @@ namespace dmGraphics
         uint32_t texture_ix         = 0;
         uint32_t ubo_ix             = 0;
 
-        for (int set = 0; set < program->m_MaxSet; ++set)
+        for (int set = 0; set < program->m_BaseProgram.m_MaxSet; ++set)
         {
-            for (int binding = 0; binding < program->m_MaxBinding; ++binding)
+            for (int binding = 0; binding < program->m_BaseProgram.m_MaxBinding; ++binding)
             {
-                ProgramResourceBinding& pgm_res = program->m_ResourceBindings[set][binding];
+                ProgramResourceBinding& pgm_res = program->m_BaseProgram.m_ResourceBindings[set][binding];
 
                 if (pgm_res.m_Res == 0x0)
                     continue;
@@ -1767,7 +1826,10 @@ namespace dmGraphics
 
                         if (pgm_res.m_Res->m_Type.m_ShaderType == ShaderDesc::SHADER_TYPE_SAMPLER)
                         {
-                            CD3DX12_DESCRIPTOR_RANGE sampler_range(D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER, 1, pgm_res.m_Res->m_Binding);
+                            // Match the sampler to a resolved texture unit
+                            uint32_t texture_binding = pgm_res.m_TextureUnit;
+
+                            CD3DX12_DESCRIPTOR_RANGE sampler_range(D3D12_DESCRIPTOR_RANGE_TYPE_SAMPLER, 1, texture_binding);
                             root_parameter_descs[ix].InitAsDescriptorTable(1, &sampler_range, GetShaderVisibilityFromStage(pgm_res.m_StageFlags));
                         }
                         else
@@ -1928,118 +1990,6 @@ namespace dmGraphics
         *element_count = GetShaderTypeSize(attr.m_Type.m_ShaderType) / sizeof(float);
     }
 
-    static uint32_t DX12GetUniformCount(HProgram prog)
-    {
-        DX12ShaderProgram* program_ptr = (DX12ShaderProgram*) prog;
-        return program_ptr->m_TotalUniformCount;
-    }
-
-    // MOVE TO graphics.cpp
-    static uint32_t GetUniformName(const ProgramResourceBinding bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT], uint8_t max_set, uint8_t max_binding, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size)
-    {
-        uint32_t search_index = 0;
-        for (int set = 0; set < max_set; ++set)
-        {
-            for (int binding = 0; binding < max_binding; ++binding)
-            {
-                const ProgramResourceBinding& pgm_res = bindings[set][binding];
-
-                if (pgm_res.m_Res == 0x0)
-                    continue;
-
-                if (pgm_res.m_Res->m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_TEXTURE ||
-                    pgm_res.m_Res->m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_STORAGE_BUFFER)
-                {
-                    if (search_index == index)
-                    {
-                        ShaderResourceBinding* res = pgm_res.m_Res;
-                        *type = ShaderDataTypeToGraphicsType(res->m_Type.m_ShaderType);
-                        *size = 1;
-                        return (uint32_t)dmStrlCpy(buffer, res->m_Name, buffer_size);
-                    }
-                    search_index++;
-                }
-                else if (pgm_res.m_Res->m_BindingFamily == ShaderResourceBinding::BINDING_FAMILY_UNIFORM_BUFFER)
-                {
-                    // TODO: Generic type lookup is not supported yet!
-                    // We can only support one level of indirection here right now
-                    assert(pgm_res.m_Res->m_Type.m_UseTypeIndex);
-                    const dmArray<ShaderResourceTypeInfo>& type_infos = *pgm_res.m_TypeInfos;
-                    const ShaderResourceTypeInfo& type_info = type_infos[pgm_res.m_Res->m_Type.m_TypeIndex];
-
-                    const uint32_t num_members = type_info.m_Members.Size();
-                    for (int i = 0; i < num_members; ++i)
-                    {
-                        if (search_index == index)
-                        {
-                            const ShaderResourceMember& member = type_info.m_Members[i];
-                            *type = ShaderDataTypeToGraphicsType(member.m_Type.m_ShaderType);
-                            *size = dmMath::Max((uint32_t) 1, member.m_ElementCount);
-                            return (uint32_t)dmStrlCpy(buffer, member.m_Name, buffer_size);
-                        }
-                        search_index++;
-                    }
-                }
-            }
-        }
-        return 0;
-    }
-
-    static HUniformLocation GetUniformLocation(const ProgramResourceBinding bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT], uint8_t max_set, uint8_t max_binding, dmhash_t name_hash)
-    {
-        for (int set = 0; set < max_set; ++set)
-        {
-            for (int binding = 0; binding < max_binding; ++binding)
-            {
-                const ProgramResourceBinding& pgm_res = bindings[set][binding];
-
-                if (pgm_res.m_Res == 0x0)
-                    continue;
-
-                if (pgm_res.m_Res->m_NameHash == name_hash)
-                {
-                    return set | binding << 16;
-                }
-                else if (pgm_res.m_Res->m_Type.m_UseTypeIndex)
-                {
-                    // TODO: Generic type lookup is not supported yet!
-                    // We can only support one level of indirection here right now
-                    const dmArray<ShaderResourceTypeInfo>& type_infos = *pgm_res.m_TypeInfos;
-                    const ShaderResourceTypeInfo& type_info = type_infos[pgm_res.m_Res->m_Type.m_TypeIndex];
-
-                    const uint32_t num_members = type_info.m_Members.Size();
-                    for (int i = 0; i < num_members; ++i)
-                    {
-                        const ShaderResourceMember& member = type_info.m_Members[i];
-
-                        if (member.m_NameHash == name_hash)
-                        {
-                            return set | binding << 16 | ((uint64_t) i) << 32;
-                        }
-                    }
-                }
-            }
-        }
-
-        return INVALID_UNIFORM_LOCATION;
-    }
-
-    static uint32_t DX12GetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size)
-    {
-        assert(prog);
-        DX12ShaderProgram* program = (DX12ShaderProgram*) prog;
-        return GetUniformName(program->m_ResourceBindings, program->m_MaxSet, program->m_MaxBinding, index, buffer, buffer_size, type, size);
-    }
-
-    static HUniformLocation DX12GetUniformLocation(HProgram prog, const char* name)
-    {
-        assert(prog);
-        DX12ShaderProgram* program = (DX12ShaderProgram*) prog;
-        dmhash_t name_hash = dmHashString64(name);
-
-        return GetUniformLocation(program->m_ResourceBindings, program->m_MaxSet, program->m_MaxBinding, name_hash);
-    }
-
     static inline void WriteConstantData(uint32_t offset, uint8_t* uniform_data_ptr, uint8_t* data_ptr, uint32_t data_size)
     {
         memcpy(&uniform_data_ptr[offset], data_ptr, data_size);
@@ -2052,16 +2002,14 @@ namespace dmGraphics
         assert(base_location != INVALID_UNIFORM_LOCATION);
 
         DX12ShaderProgram* program = (DX12ShaderProgram*) context->m_CurrentProgram;
-        uint32_t set               = UNIFORM_LOCATION_GET_VS(base_location);
-        uint32_t binding           = UNIFORM_LOCATION_GET_VS_MEMBER(base_location);
-        uint32_t member            = UNIFORM_LOCATION_GET_FS(base_location);
+        uint32_t set               = UNIFORM_LOCATION_GET_OP0(base_location);
+        uint32_t binding           = UNIFORM_LOCATION_GET_OP1(base_location);
+        uint32_t buffer_offset     = UNIFORM_LOCATION_GET_OP2(base_location);
         assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
 
-        ProgramResourceBinding& pgm_res          = program->m_ResourceBindings[set][binding];
-        const dmArray<ShaderResourceTypeInfo>& type_infos = *pgm_res.m_TypeInfos;
-        const ShaderResourceTypeInfo&           type_info = type_infos[pgm_res.m_Res->m_Type.m_TypeIndex];
+        ProgramResourceBinding& pgm_res = program->m_BaseProgram.m_ResourceBindings[set][binding];
 
-        uint32_t offset = pgm_res.m_DataOffset + type_info.m_Members[member].m_Offset;
+        uint32_t offset = pgm_res.m_DataOffset + buffer_offset;
         WriteConstantData(offset, program->m_UniformData, (uint8_t*) data, sizeof(dmVMath::Vector4) * count);
     }
 
@@ -2072,16 +2020,14 @@ namespace dmGraphics
         assert(base_location != INVALID_UNIFORM_LOCATION);
 
         DX12ShaderProgram* program = (DX12ShaderProgram*) context->m_CurrentProgram;
-        uint32_t set               = UNIFORM_LOCATION_GET_VS(base_location);
-        uint32_t binding           = UNIFORM_LOCATION_GET_VS_MEMBER(base_location);
-        uint32_t member            = UNIFORM_LOCATION_GET_FS(base_location);
+        uint32_t set            = UNIFORM_LOCATION_GET_OP0(base_location);
+        uint32_t binding        = UNIFORM_LOCATION_GET_OP1(base_location);
+        uint32_t buffer_offset  = UNIFORM_LOCATION_GET_OP2(base_location);
         assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
 
-        ProgramResourceBinding& pgm_res          = program->m_ResourceBindings[set][binding];
-        const dmArray<ShaderResourceTypeInfo>& type_infos = *pgm_res.m_TypeInfos;
-        const ShaderResourceTypeInfo&           type_info = type_infos[pgm_res.m_Res->m_Type.m_TypeIndex];
+        ProgramResourceBinding& pgm_res = program->m_BaseProgram.m_ResourceBindings[set][binding];
 
-        uint32_t offset = pgm_res.m_DataOffset + type_info.m_Members[member].m_Offset;
+        uint32_t offset = pgm_res.m_DataOffset + buffer_offset;
         WriteConstantData(offset, program->m_UniformData, (uint8_t*) data, sizeof(dmVMath::Vector4) * 4 * count);
      }
 
@@ -2092,18 +2038,13 @@ namespace dmGraphics
         assert(location != INVALID_UNIFORM_LOCATION);
 
         DX12ShaderProgram* program = (DX12ShaderProgram*) context->m_CurrentProgram;
-        uint32_t set         = UNIFORM_LOCATION_GET_VS(location);
-        uint32_t binding     = UNIFORM_LOCATION_GET_VS_MEMBER(location);
+        uint32_t set         = UNIFORM_LOCATION_GET_OP0(location);
+        uint32_t binding     = UNIFORM_LOCATION_GET_OP1(location);
         assert(!(set == UNIFORM_LOCATION_MAX && binding == UNIFORM_LOCATION_MAX));
 
-        // TODO: Compute shaders does not have samplers, but does support texture storage
-        //       which is not the same thing.
-        assert(program->m_ComputeModule == 0x0);
-
-        assert(program->m_ResourceBindings[set][binding].m_Res);
-        program->m_ResourceBindings[set][binding].m_TextureUnit = unit;
+        assert(program->m_BaseProgram.m_ResourceBindings[set][binding].m_Res);
+        program->m_BaseProgram.m_ResourceBindings[set][binding].m_TextureUnit = unit;
     }
-
 
     static HRenderTarget DX12NewRenderTarget(HContext _context, uint32_t buffer_type_flags, const RenderTargetCreationParams params)
     {
@@ -2179,11 +2120,6 @@ namespace dmGraphics
         return HANDLE_RESULT_OK;
     }
 
-    static float GetMaxAnisotrophyClamped(float max_anisotropy_requested)
-    {
-        return dmMath::Min(max_anisotropy_requested, 32.0f); // TODO: What's the max limit here?
-    }
-
     static int16_t GetTextureSamplerIndex(DX12Context* context, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, uint8_t maxLod, float max_anisotropy)
     {
         if (minfilter == TEXTURE_FILTER_DEFAULT)
@@ -2206,6 +2142,11 @@ namespace dmGraphics
         }
 
         return -1;
+    }
+
+    static inline float GetMaxAnisotrophyClamped(float max_anisotropy_requested)
+    {
+        return dmMath::Min(max_anisotropy_requested, 32.0f); // TODO: What's the max limit here?
     }
 
     static int16_t CreateTextureSampler(DX12Context* context, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, uint8_t maxLod, float max_anisotropy)
@@ -2692,6 +2633,11 @@ namespace dmGraphics
             return GetAssetFromContainer<DX12RenderTarget>(context->m_AssetHandleContainer, asset_handle) != 0;
         }
         return false;
+    }
+
+    static void DX12InvalidateGraphicsHandles(HContext context)
+    {
+        // NOP
     }
 
     static GraphicsAdapterFunctionTable DX12RegisterFunctionTable()

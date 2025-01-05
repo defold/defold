@@ -606,12 +606,12 @@ public class Bob {
                 // debug options
                 opt(null, "debug-ne-upload", ZERO, "Outputs the files sent to build server as upload.zip", false),
                 opt(null, "debug-output-spirv", ONE, "Force build SPIR-V shaders", false),
-                opt(null, "debug-output-wgsl", ONE, "Force build WGSL shaders", false)
+                opt(null, "debug-output-wgsl", ONE, "Force build WGSL shaders", false),
                 opt(null, "debug-output-hlsl", ONE, "Force build HLSL shaders", false)
         );
     }
 
-    private static CommandLine parse(String[] args) {
+    private static CommandLine parse(String[] args) throws OptionValidationException {
         Options options = new Options();
         getCommandLineOptions().forEach(opt -> options.addOption(opt.shortOpt, opt.longOpt, opt.argCount != ZERO, opt.description));
 

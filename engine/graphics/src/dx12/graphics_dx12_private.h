@@ -26,9 +26,10 @@
 
 namespace dmGraphics
 {
-    const static uint8_t MAX_FRAMES_IN_FLIGHT       = 2;
-    const static uint8_t MAX_FRAMEBUFFERS           = 3;
-    const static uint32_t UNIFORM_BUFFERS_ALIGNMENT = 256;
+    const static uint8_t MAX_FRAMES_IN_FLIGHT          = 2;
+    const static uint8_t MAX_FRAMEBUFFERS              = 3;
+    const static uint32_t UNIFORM_BUFFERS_ALIGNMENT    = 256;
+    const static uint8_t FENCE_VALUE_SYNCRONIZE_UPLOAD = 2;
 
     typedef ID3D12PipelineState*          DX12Pipeline;
     typedef dmHashTable64<DX12Pipeline>   DX12PipelineCache;
@@ -97,16 +98,12 @@ namespace dmGraphics
 
     struct DX12ShaderProgram
     {
-        ProgramResourceBinding m_ResourceBindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT];
-
+        Program                m_BaseProgram;
         uint8_t*               m_UniformData;
-
         ID3D12RootSignature*   m_RootSignature;
-
         DX12ShaderModule*      m_VertexModule;
         DX12ShaderModule*      m_FragmentModule;
         DX12ShaderModule*      m_ComputeModule;
-
         ShaderDesc::Language   m_Language;
         uint32_t               m_UniformDataSizeAligned;
         uint16_t               m_UniformBufferCount;
@@ -114,8 +111,6 @@ namespace dmGraphics
         uint16_t               m_TextureSamplerCount;
         uint16_t               m_TotalResourcesCount;
         uint16_t               m_TotalUniformCount;
-        uint8_t                m_MaxSet;
-        uint8_t                m_MaxBinding;
     };
 
     struct DX12RenderTarget
@@ -174,6 +169,13 @@ namespace dmGraphics
         uint64_t                m_FenceValue;
 
         dmArray<ID3D12Resource*> m_ResourcesToDestroy;
+    };
+
+    struct DX12OneTimeCommandList
+    {
+        ID3D12CommandAllocator*    m_CommandAllocator;
+        ID3D12GraphicsCommandList* m_CommandList;
+        ID3D12Fence*               m_Fence;
     };
 
     struct DX12Context

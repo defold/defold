@@ -60,7 +60,7 @@ namespace dmGraphics
     // Fence values to indicate frame ready or in-use state
     enum RenderContextState
     {
-        RENDER_CONTEXT_STATE_FREE = 0,
+        RENDER_CONTEXT_STATE_FREE   = 0,
         RENDER_CONTEXT_STATE_IN_USE = 1,
     };
 
