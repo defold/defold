@@ -68,10 +68,10 @@ namespace dmGraphics
     static const uint8_t  MAX_BUFFER_TYPE_COUNT   = 2 + MAX_BUFFER_COLOR_ATTACHMENTS;
     const static uint8_t  MAX_VERTEX_STREAM_COUNT = 8;
 
-    const static uint8_t DM_GRAPHICS_STATE_WRITE_R = 0x1;
-    const static uint8_t DM_GRAPHICS_STATE_WRITE_G = 0x2;
-    const static uint8_t DM_GRAPHICS_STATE_WRITE_B = 0x4;
-    const static uint8_t DM_GRAPHICS_STATE_WRITE_A = 0x8;
+    const static uint8_t DM_GRAPHICS_STATE_WRITE_R   = 0x1;
+    const static uint8_t DM_GRAPHICS_STATE_WRITE_G   = 0x2;
+    const static uint8_t DM_GRAPHICS_STATE_WRITE_B   = 0x4;
+    const static uint8_t DM_GRAPHICS_STATE_WRITE_A   = 0x8;
 
     static const HVertexProgram   INVALID_VERTEX_PROGRAM_HANDLE   = ~0u;
     static const HFragmentProgram INVALID_FRAGMENT_PROGRAM_HANDLE = ~0u;

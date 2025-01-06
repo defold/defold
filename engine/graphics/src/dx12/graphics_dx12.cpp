@@ -357,10 +357,13 @@ namespace dmGraphics
         hr = context->m_Device->CreateCommandQueue(&cmd_queue_desc, IID_PPV_ARGS(&context->m_CommandQueue));
         CHECK_HR_ERROR(hr);
 
+        uint32_t window_width = dmPlatform::GetWindowWidth(context->m_Window);
+        uint32_t window_height = dmPlatform::GetWindowHeight(context->m_Window);
+
         // Create swapchain
         DXGI_MODE_DESC back_buffer_desc = {};
-        back_buffer_desc.Width          = context->m_Width;
-        back_buffer_desc.Height         = context->m_Height;
+        back_buffer_desc.Width          = window_width;
+        back_buffer_desc.Height         = window_height;
         back_buffer_desc.Format         = DXGI_FORMAT_R8G8B8A8_UNORM;
 
         DXGI_SAMPLE_DESC sample_desc = {};
@@ -1007,6 +1010,9 @@ namespace dmGraphics
         }
 
         device_buffer->m_DataSize = data_size;
+
+        // TODO: Release the heap buffer deferred(?)
+        // DeviceBuffer wrapped_heap_buffer();
     }
 
     static HVertexBuffer DX12NewVertexBuffer(HContext _context, uint32_t size, const void* data, BufferUsage buffer_usage)
@@ -1356,6 +1362,52 @@ namespace dmGraphics
         return D3D12_CULL_MODE_NONE;
     }
 
+    static inline D3D12_COMPARISON_FUNC GetDepthTestFunc(const PipelineState& state)
+    {
+        if (state.m_DepthTestEnabled)
+        {
+            switch(state.m_DepthTestFunc)
+            {
+                case COMPARE_FUNC_NEVER:    return D3D12_COMPARISON_FUNC_NEVER;
+                case COMPARE_FUNC_LESS:     return D3D12_COMPARISON_FUNC_LESS;
+                case COMPARE_FUNC_LEQUAL:   return D3D12_COMPARISON_FUNC_LESS_EQUAL;
+                case COMPARE_FUNC_GREATER:  return D3D12_COMPARISON_FUNC_GREATER;
+                case COMPARE_FUNC_GEQUAL:   return D3D12_COMPARISON_FUNC_GREATER_EQUAL;
+                case COMPARE_FUNC_EQUAL:    return D3D12_COMPARISON_FUNC_EQUAL;
+                case COMPARE_FUNC_NOTEQUAL: return D3D12_COMPARISON_FUNC_NOT_EQUAL;
+                case COMPARE_FUNC_ALWAYS:   return D3D12_COMPARISON_FUNC_ALWAYS;
+                default:break;
+            }
+        }
+        return D3D12_COMPARISON_FUNC_NONE;
+    }
+
+    static inline D3D12_BLEND GetBlendFactor(BlendFactor factor)
+    {
+        switch(factor)
+        {
+            case BLEND_FACTOR_ZERO:                 return D3D12_BLEND_ZERO;
+            case BLEND_FACTOR_ONE:                  return D3D12_BLEND_ONE;
+            case BLEND_FACTOR_SRC_COLOR:            return D3D12_BLEND_SRC_COLOR;
+            case BLEND_FACTOR_ONE_MINUS_SRC_COLOR:  return D3D12_BLEND_INV_SRC_COLOR;
+            case BLEND_FACTOR_DST_COLOR:            return D3D12_BLEND_DEST_COLOR;
+            case BLEND_FACTOR_ONE_MINUS_DST_COLOR:  return D3D12_BLEND_INV_DEST_COLOR;
+            case BLEND_FACTOR_SRC_ALPHA:            return D3D12_BLEND_SRC_ALPHA;
+            case BLEND_FACTOR_ONE_MINUS_SRC_ALPHA:  return D3D12_BLEND_INV_SRC_ALPHA;
+            case BLEND_FACTOR_DST_ALPHA:            return D3D12_BLEND_DEST_ALPHA;
+            case BLEND_FACTOR_ONE_MINUS_DST_ALPHA:  return D3D12_BLEND_INV_DEST_ALPHA;
+            case BLEND_FACTOR_SRC_ALPHA_SATURATE:   return D3D12_BLEND_SRC_ALPHA_SAT;
+
+            // No idea about these.
+            // case BLEND_FACTOR_CONSTANT_COLOR:           return ;
+            // case BLEND_FACTOR_ONE_MINUS_CONSTANT_COLOR: return ;
+            // case BLEND_FACTOR_CONSTANT_ALPHA:           return ;
+            // case BLEND_FACTOR_ONE_MINUS_CONSTANT_ALPHA: return ;
+            default: break;
+        }
+        return D3D12_BLEND_ZERO;
+    }
+
     static void CreatePipeline(DX12Context* context, DX12RenderTarget* rt, DX12Pipeline* pipeline)
     {
         D3D12_SHADER_BYTECODE vs_byte_code = {};
@@ -1408,6 +1460,33 @@ namespace dmGraphics
             0,                                          // forcedSampleCount
             D3D12_CONSERVATIVE_RASTERIZATION_MODE_OFF); // conservativeRaster
 
+        D3D12_DEPTH_STENCIL_DESC depthStencilDesc = {};
+        depthStencilDesc.DepthEnable      = context->m_PipelineState.m_DepthTestEnabled;
+        depthStencilDesc.DepthWriteMask   = (D3D12_DEPTH_WRITE_MASK) context->m_PipelineState.m_WriteDepth; // D3D12_DEPTH_WRITE_MASK_ZERO or D3D12_DEPTH_WRITE_MASK_ALL
+        depthStencilDesc.DepthFunc        = GetDepthTestFunc(context->m_PipelineState);
+        depthStencilDesc.StencilEnable    = context->m_PipelineState.m_StencilEnabled;
+        depthStencilDesc.StencilReadMask  = D3D12_DEFAULT_STENCIL_READ_MASK; // TODO
+        depthStencilDesc.StencilWriteMask = D3D12_DEFAULT_STENCIL_WRITE_MASK; // TODO
+
+        // TODO
+        const D3D12_DEPTH_STENCILOP_DESC defaultStencilOp = { D3D12_STENCIL_OP_KEEP, D3D12_STENCIL_OP_KEEP, D3D12_STENCIL_OP_KEEP, D3D12_COMPARISON_FUNC_ALWAYS };
+        depthStencilDesc.FrontFace = defaultStencilOp;
+        depthStencilDesc.BackFace  = defaultStencilOp;
+
+        D3D12_BLEND_DESC blendDesc = {};
+        blendDesc.AlphaToCoverageEnable                 = false;
+        blendDesc.IndependentBlendEnable                = false;
+        blendDesc.RenderTarget[0].BlendEnable           = context->m_PipelineState.m_BlendEnabled;
+        blendDesc.RenderTarget[0].LogicOpEnable         = false;
+        blendDesc.RenderTarget[0].SrcBlend              = GetBlendFactor((BlendFactor) context->m_PipelineState.m_BlendSrcFactor);
+        blendDesc.RenderTarget[0].DestBlend             = GetBlendFactor((BlendFactor) context->m_PipelineState.m_BlendDstFactor);
+        blendDesc.RenderTarget[0].BlendOp               = D3D12_BLEND_OP_ADD;
+        blendDesc.RenderTarget[0].SrcBlendAlpha         = GetBlendFactor((BlendFactor) context->m_PipelineState.m_BlendSrcFactor);
+        blendDesc.RenderTarget[0].DestBlendAlpha        = GetBlendFactor((BlendFactor) context->m_PipelineState.m_BlendDstFactor);
+        blendDesc.RenderTarget[0].BlendOpAlpha          = D3D12_BLEND_OP_ADD;
+        blendDesc.RenderTarget[0].LogicOp               = D3D12_LOGIC_OP_NOOP;
+        blendDesc.RenderTarget[0].RenderTargetWriteMask = context->m_PipelineState.m_WriteColorMask;
+
         D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = {}; // a structure to define a pso
         psoDesc.InputLayout           = inputLayoutDesc; // the structure describing our input layout
         psoDesc.pRootSignature        = context->m_CurrentProgram->m_RootSignature;
@@ -1417,8 +1496,9 @@ namespace dmGraphics
         psoDesc.RTVFormats[0]         = rt->m_Format;
         psoDesc.SampleDesc            = rt->m_SampleDesc; // must be the same sample description as the swapchain and depth/stencil buffer
         psoDesc.SampleMask            = UINT_MAX; // TODO: sample mask has to do with multi-sampling. 0xffffffff means point sampling is done
-        psoDesc.RasterizerState       = CD3DX12_RASTERIZER_DESC(D3D12_DEFAULT); // TODO? rasterizerState;
-        psoDesc.BlendState            = CD3DX12_BLEND_DESC(D3D12_DEFAULT); // TODO
+        psoDesc.RasterizerState       = rasterizerState; // TODO? rasterizerState;
+        psoDesc.BlendState            = blendDesc; // TODO
+        psoDesc.DepthStencilState     = depthStencilDesc;
         psoDesc.NumRenderTargets      = 1; // TODO
 
         HRESULT hr = context->m_Device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(pipeline));
@@ -2342,7 +2422,7 @@ namespace dmGraphics
             dxgi_format   = GetDXGIFormatFromTextureFormat(format_actual);
 
             uint32_t data_pixel_count = params.m_Width * params.m_Height * tex_layer_count;
-            uint8_t bpp_new           = 32;
+            uint8_t bpp_new           = 4;
             uint8_t* data_new         = new uint8_t[data_pixel_count * bpp_new];
 
             RepackRGBToRGBA(data_pixel_count, (uint8_t*) tex_data_ptr, data_new);
