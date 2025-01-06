@@ -217,9 +217,9 @@ namespace dmGameSystem
         }
 
         dmSound::Result result = dmSound::RESULT_PARTIAL_DATA;
-        if (offset >= resource->m_FileSize)
+        if (offset >= resource->m_FileSize && nread == 0)
         {
-            // we just read the last chunk
+            // we cannot return any data as we reached the end of the resource
             result = dmSound::RESULT_END_OF_STREAM;
         }
 
