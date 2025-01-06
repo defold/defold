@@ -73,8 +73,8 @@ namespace dmGraphics
 #endif
 
 #if defined(__linux__) && !defined(ANDROID)
-    Window GetNativeX11Window()             { return dmPlatform::GetX11Window(); }
-    GLXContext GetNativeX11GLXContext()     { return dmPlatform::GetX11GLXContext(); }
+    Window GetNativeX11Window()             { return dmPlatform::GetX11Window(GetWindow(GetInstalledContext())); }
+    GLXContext GetNativeX11GLXContext()     { return dmPlatform::GetX11GLXContext(GetWindow(GetInstalledContext())); }
 #else
     Window GetNativeX11Window()             { return 0; }
     GLXContext GetNativeX11GLXContext()     { return 0; }

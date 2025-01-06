@@ -43,6 +43,7 @@ namespace dmSound
     enum Result
     {
         RESULT_OK                 =  0,    //!< RESULT_OK
+        RESULT_PARTIAL_DATA       =  1,    //!< RESULT_PARTIAL_DATA
         RESULT_OUT_OF_SOURCES     = -1,    //!< RESULT_OUT_OF_SOURCES
         RESULT_EFFECT_NOT_FOUND   = -2,    //!< RESULT_EFFECT_NOT_FOUND
         RESULT_OUT_OF_INSTANCES   = -3,    //!< RESULT_OUT_OF_INSTANCES
@@ -60,8 +61,7 @@ namespace dmSound
         RESULT_INIT_ERROR         = -15,   //!< RESULT_INIT_ERROR
         RESULT_FINI_ERROR         = -16,   //!< RESULT_FINI_ERROR
         RESULT_NO_DATA            = -17,   //!< RESULT_NO_DATA
-        RESULT_PARTIAL_DATA       = -18,   //!< RESULT_PAARTIAL_DATA
-        RESULT_END_OF_STREAM      = -19,   //!< RESULT_END_OF_STREAM
+        RESULT_END_OF_STREAM      = -18,   //!< RESULT_END_OF_STREAM
         RESULT_UNKNOWN_ERROR      = -1000, //!< RESULT_UNKNOWN_ERROR
     };
 
@@ -104,13 +104,17 @@ namespace dmSound
     // Pauses the (threaded) sound system
     Result Pause(bool pause);
 
+    typedef Result (*FSoundDataGetData)(void* context, uint32_t offset, uint32_t size, void* out, uint32_t* out_size);
+
     // Thread safe
     Result NewSoundData(const void* sound_buffer, uint32_t sound_buffer_size, SoundDataType type, HSoundData* sound_data, dmhash_t name);
+    Result NewSoundDataStreaming(FSoundDataGetData cbk, void* cbk_ctx, SoundDataType type, HSoundData* sound_data, dmhash_t name);
     Result SetSoundData(HSoundData sound_data, const void* sound_buffer, uint32_t sound_buffer_size);
+    Result SetSoundDataCallback(HSoundData sound_data, FSoundDataGetData cbk, void* cbk_ctx);
     uint32_t GetSoundResourceSize(HSoundData sound_data);
     Result DeleteSoundData(HSoundData sound_data);
 
-    Result SoundDataRead(HSoundData sound_data, uint32_t offset, uint32_t size, void* out, uint32_t* out_size = nullptr);
+    Result SoundDataRead(HSoundData sound_data, uint32_t offset, uint32_t size, void* out, uint32_t* out_size);
 
     Result NewSoundInstance(HSoundData sound_data, HSoundInstance* sound_instance);
     Result DeleteSoundInstance(HSoundInstance sound_instance);

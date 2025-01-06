@@ -141,6 +141,8 @@ message TextureImage
         COMPRESSION_TYPE_BASIS_UASTC = 3;
         // Basis ETC1S
         COMPRESSION_TYPE_BASIS_ETC1S = 4;
+        // ASTC
+        COMPRESSION_TYPE_ASTC = 5;
     }
 
     enum CompressionFlags
@@ -182,6 +184,21 @@ message TextureImage
         TEXTURE_FORMAT_RG16F             = 23;
         TEXTURE_FORMAT_R32F              = 24;
         TEXTURE_FORMAT_RG32F             = 25;
+
+        // ASTC Formats
+        TEXTURE_FORMAT_RGBA_ASTC_5x4     = 26;
+        TEXTURE_FORMAT_RGBA_ASTC_5x5     = 27;
+        TEXTURE_FORMAT_RGBA_ASTC_6x5     = 28;
+        TEXTURE_FORMAT_RGBA_ASTC_6x6     = 29;
+        TEXTURE_FORMAT_RGBA_ASTC_8x5     = 30;
+        TEXTURE_FORMAT_RGBA_ASTC_8x6     = 31;
+        TEXTURE_FORMAT_RGBA_ASTC_8x8     = 32;
+        TEXTURE_FORMAT_RGBA_ASTC_10x5    = 33;
+        TEXTURE_FORMAT_RGBA_ASTC_10x6    = 34;
+        TEXTURE_FORMAT_RGBA_ASTC_10x8    = 35;
+        TEXTURE_FORMAT_RGBA_ASTC_10x10   = 36;
+        TEXTURE_FORMAT_RGBA_ASTC_12x10   = 37;
+        TEXTURE_FORMAT_RGBA_ASTC_12x12   = 38;
     }
 
     message Image
@@ -197,6 +214,7 @@ message TextureImage
         optional CompressionType compression_type = 9 [default = COMPRESSION_TYPE_DEFAULT];
         optional uint64 compression_flags         = 10;
         repeated uint32 mip_map_size_compressed   = 11;
+        repeated uint32 mip_map_dimensions        = 12; // w0, h0, w1, h1, ...
     }
 
     repeated Image alternatives = 1;
@@ -356,22 +374,26 @@ message ShaderDesc
 
     message ResourceBinding
     {
-        required string         name          = 1;
-        required uint64         name_hash     = 2;
-        required ResourceType   type          = 3;
-        optional uint32         set           = 4;
-        optional uint32         binding       = 5;
+        required string         name               = 1;
+        required uint64         name_hash          = 2;
+        required ResourceType   type               = 3;
+        optional uint32         id                 = 4;
+        optional string         instance_name      = 5;
+        optional uint64         instance_name_hash = 6;
+        optional uint32         set                = 7;
+        optional uint32         binding            = 8;
+        optional uint32         element_count      = 9;
 
         oneof BindingInfo
         {
             // Uniform buffer block size
-            uint32 block_size = 6;
+            uint32 block_size = 10;
             // Sampler object index
             // Since we split combined samplers into
             // a texture + sampler object we need to
             // keep track of which of the textures
             // the sampler originally is pointing to.
-            uint32 sampler_texture_index = 7;
+            uint32 sampler_texture_index = 11;
         }
     }
 

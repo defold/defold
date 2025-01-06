@@ -365,7 +365,7 @@ namespace dmLiveUpdate
         if (name[0] == '_')
             return DM_LUA_ERROR("Name must not start with '_': %s", name);
 
-        // options at #4
+        // options at #5
 
         dmLiveUpdate::Result res = dmLiveUpdate::AddMountAsync(name, uri, priority, Callback_AddMount, cbk);
         if (dmLiveUpdate::RESULT_OK != res)

@@ -135,5 +135,7 @@ public class Win32Bundler implements IBundler {
                 throw new IOException("The icon does not exist: " + iconFile.getAbsolutePath());
             }
         }
+
+        BundleHelper.moveBundleIfNeed(project, bundleDir);
     }
 }

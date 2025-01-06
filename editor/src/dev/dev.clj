@@ -34,6 +34,7 @@
             [editor.fxui :as fxui]
             [editor.game-object :as game-object]
             [editor.gl.vertex2 :as vtx]
+            [editor.graph-util :as gu]
             [editor.math :as math]
             [editor.outline-view :as outline-view]
             [editor.pipeline.bob :as bob]
@@ -136,6 +137,27 @@
        first))
 
 (def sel (comp first selection))
+
+(defn node-info
+  ([node-id]
+   {:pre [(some? node-id)
+          (g/node-id? node-id)]}
+   (g/with-auto-evaluation-context evaluation-context
+     (node-info node-id evaluation-context)))
+  ([node-id evaluation-context]
+   {:pre [(some? node-id)
+          (g/node-id? node-id)]}
+   (let [basis (:basis evaluation-context)
+         original-node-id (g/override-original basis node-id)
+         override-node-ids (g/overrides basis node-id)]
+     (cond-> (into (array-map :node-id node-id)
+                   (gu/node-debug-info node-id evaluation-context))
+
+             (some? original-node-id)
+             (assoc :original-node-id original-node-id)
+
+             (coll/not-empty override-node-ids)
+             (assoc :override-node-ids override-node-ids)))))
 
 (defn node-outline [node-id & outline-labels]
   {:pre [(not (g/error? node-outline))

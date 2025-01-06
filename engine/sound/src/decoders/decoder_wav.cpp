@@ -130,8 +130,16 @@ namespace dmSoundCodec
         bool fmt_found = false;
         bool data_found = false;
 
-        dmSound::Result res = dmSound::SoundDataRead(sound_data, 0, sizeof(header), &header);
-        if (res != dmSound::RESULT_OK) {
+        uint32_t nread;
+        dmSound::Result res = dmSound::SoundDataRead(sound_data, 0, sizeof(header), &header, &nread);
+        if (res < dmSound::RESULT_OK)
+        {
+            dmLogError("Failed to read riff header: %d", res);
+            return RESULT_INVALID_FORMAT;
+        }
+
+        if (nread < sizeof(header))
+        {
             dmLogWarning("Available data size too small for riff header");
             return RESULT_INVALID_FORMAT;
         }
@@ -143,11 +151,19 @@ namespace dmSoundCodec
             do {
                 CommonHeader header, org_header;
 
-                res = dmSound::SoundDataRead(sound_data, current_offset, sizeof(org_header), &org_header);
-                if (res != dmSound::RESULT_OK) {
+                res = dmSound::SoundDataRead(sound_data, current_offset, sizeof(org_header), &org_header, &nread);
+                if (res < dmSound::RESULT_OK)
+                {
+                    dmLogError("Failed to read common header: %d", res);
+                    break;
+                }
+
+                if (nread < sizeof(org_header))
+                {
                     // not enough bytes left for a full header. just ignore this.
                     break;
                 }
+
                 memcpy(&header, &org_header, sizeof(header));
                 header.SwapHeader();
 
@@ -155,9 +171,10 @@ namespace dmSoundCodec
                     FmtChunk fmt;
 
                     memcpy(&fmt, &org_header, sizeof(CommonHeader));
-                    res = dmSound::SoundDataRead(sound_data, current_offset + sizeof(CommonHeader), sizeof(fmt) - sizeof(CommonHeader), (void*)((uintptr_t)&fmt + sizeof(CommonHeader)));
-                    if (res != dmSound::RESULT_OK) {
-                        dmLogWarning("WAV sound data seems corrupt or truncated");
+                    res = dmSound::SoundDataRead(sound_data, current_offset + sizeof(CommonHeader), sizeof(fmt) - sizeof(CommonHeader), (void*)((uintptr_t)&fmt + sizeof(CommonHeader)), &nread);
+                    if (res < dmSound::RESULT_OK)
+                    {
+                        dmLogError("WAV sound data seems corrupt or truncated: %d", res);
                         return RESULT_INVALID_FORMAT;
                     }
                     fmt.Swap();
@@ -165,7 +182,7 @@ namespace dmSoundCodec
 
                     if( fmt.m_AudioFormat != 1 )
                     {
-                        dmLogWarning("Only wav-files with 8 or 16 bit PCM format (format=1) supported, got format=%d and bitdepth=%d", fmt.m_AudioFormat, fmt.m_BitsPerSample);
+                        dmLogError("Only wav-files with 8 or 16 bit PCM format (format=1) supported, got format=%d and bitdepth=%d", fmt.m_AudioFormat, fmt.m_BitsPerSample);
                         return RESULT_INVALID_FORMAT;
                     }
                     streamTemp.m_Info.m_Rate = fmt.m_SampleRate;

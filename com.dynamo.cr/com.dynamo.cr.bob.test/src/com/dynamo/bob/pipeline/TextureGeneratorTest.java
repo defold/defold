@@ -15,13 +15,14 @@
 package com.dynamo.bob.pipeline;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
 
 import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.util.EnumSet;
 
 import com.defold.extension.pipeline.texture.*;
-import com.defold.extension.pipeline.texture.TestTextureProfileCompressor;
+import com.defold.extension.pipeline.texture.TestTextureCompressor;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -47,6 +48,7 @@ public class TextureGeneratorTest {
     public void setUp() throws Exception {
         TextureCompression.registerCompressor(new TextureCompressorDefault()); // Thwarts console warnings
         TextureCompression.registerCompressor(new TextureCompressorBasisU());
+        TextureCompression.registerCompressor(new TextureCompressorASTC());
     }
 
     // Create a 2x2 image that will be easy to verify after different flip operations.
@@ -238,11 +240,22 @@ public class TextureGeneratorTest {
 
         // Create the texture compressor + preset
         TextureCompressorPreset presetOne = new TextureCompressorPreset("TestCompressorPresetOne", "Test Compressor One", "TestCompressor");
-        presetOne.setOptionInt("option_one", 1337);
-        presetOne.setOptionFloat("option_two", 99.0f);
-        presetOne.setOptionString("option_three", "option_three");
+        assertNotNull(presetOne);
 
-        TextureCompression.registerCompressor(new TestTextureProfileCompressor());
+        presetOne.setOptionInt("test_int", 1337);
+        presetOne.setOptionFloat("test_float", 99.0f);
+        presetOne.setOptionString("test_string", "test_string");
+
+        TestTextureCompressor testCompressor = new TestTextureCompressor();
+        testCompressor.expectedOptionOne = 1337;
+        testCompressor.expectedOptionTwo = 99.0f;
+        testCompressor.expectedOptionThree = "test_string";
+        testCompressor.expectedBytes[0] = (byte) 32;
+        testCompressor.expectedBytes[1] = (byte) 64;
+        testCompressor.expectedBytes[2] = (byte) 128;
+        testCompressor.expectedBytes[3] = (byte) 255;
+
+        TextureCompression.registerCompressor(testCompressor);
         TextureCompression.registerPreset(presetOne);
 
         // Create a texture profile with texture compression
@@ -323,7 +336,7 @@ public class TextureGeneratorTest {
         textureProfile.setName("Test Profile");
         textureProfile.addPlatforms(platformProfile.build());
 
-        // Generate texture withput compression applied
+        // Generate texture without compression applied
         TextureImage texture = TextureGenerator.generate(getClass().getResourceAsStream("128_64_rgba.png"), textureProfile.build(), false);
 
         assertEquals(1, texture.getAlternativesCount());

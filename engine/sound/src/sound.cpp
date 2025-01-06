@@ -151,12 +151,10 @@ namespace dmSound
         return ramp;
     }
 
-    typedef Result (*FGetData)(void* context, uint32_t offset, uint32_t size, void* out, uint32_t* out_size);
-
     struct SoundDataCallbacks
     {
-        void*       m_Context;
-        FGetData    m_GetData;
+        void*               m_Context;
+        FSoundDataGetData   m_GetData;
     };
 
     struct SoundData
@@ -495,7 +493,9 @@ namespace dmSound
         return RESULT_OK;
     }
 
-    Result NewSoundData(const void* sound_buffer, uint32_t sound_buffer_size, SoundDataType type, HSoundData* sound_data, dmhash_t name)
+    static Result NewSoundDataInternal(const void* sound_buffer, uint32_t sound_buffer_size,
+                                        FSoundDataGetData cbk, void* cbk_ctx,
+                                        SoundDataType type, HSoundData* sound_data, dmhash_t name)
     {
         SoundSystem* sound = g_SoundSystem;
 
@@ -518,23 +518,47 @@ namespace dmSound
         sd->m_Index = index;
         sd->m_Data = 0;
         sd->m_Size = 0;
-        sd->m_DataCallbacks.m_Context = 0;
-        sd->m_DataCallbacks.m_GetData = 0;
+        sd->m_DataCallbacks.m_Context = cbk_ctx;
+        sd->m_DataCallbacks.m_GetData = cbk;
         sd->m_RefCount = 1;
 
-        Result result = SetSoundDataNoLock(sd, sound_buffer, sound_buffer_size);
-        if (result == RESULT_OK)
+        Result result = RESULT_OK;
+        if (sound_buffer != 0)
+        {
+            result = SetSoundDataNoLock(sd, sound_buffer, sound_buffer_size);
+        }
+        if (RESULT_OK == result)
             *sound_data = sd;
         else
             DeleteSoundData(sd);
-
         return result;
+    }
+
+    Result NewSoundData(const void* sound_buffer, uint32_t sound_buffer_size, SoundDataType type, HSoundData* sound_data, dmhash_t name)
+    {
+        assert(sound_buffer);
+        return NewSoundDataInternal(sound_buffer, sound_buffer_size, 0, 0, type, sound_data, name);
+    }
+
+    Result NewSoundDataStreaming(FSoundDataGetData cbk, void* cbk_ctx, SoundDataType type, HSoundData* sound_data, dmhash_t name)
+    {
+        assert(cbk);
+        assert(cbk_ctx);
+        return NewSoundDataInternal(0, 0, cbk, cbk_ctx, type, sound_data, name);
     }
 
     Result SetSoundData(HSoundData sound_data, const void* sound_buffer, uint32_t sound_buffer_size)
     {
         DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_SoundSystem->m_Mutex);
         return SetSoundDataNoLock(sound_data, sound_buffer, sound_buffer_size);
+    }
+
+    Result SetSoundDataCallback(HSoundData sound_data, FSoundDataGetData cbk, void* cbk_ctx)
+    {
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_SoundSystem->m_Mutex);
+        sound_data->m_DataCallbacks.m_Context = cbk_ctx;
+        sound_data->m_DataCallbacks.m_GetData = cbk;
+        return RESULT_OK;
     }
 
     uint32_t GetSoundResourceSize(HSoundData sound_data)
@@ -562,11 +586,10 @@ namespace dmSound
         return RESULT_OK;
     }
 
+    // Called by the decoders in the context of a dmSound update loop (MixInstances), the the mutex acquired
     Result SoundDataRead(HSoundData sound_data, uint32_t offset, uint32_t size, void* out, uint32_t* out_size)
     {
         assert(sound_data);
-
-        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_SoundSystem->m_Mutex);
 
         if (sound_data->m_DataCallbacks.m_GetData)
         {
@@ -1230,58 +1253,75 @@ namespace dmSound
 
             const uint32_t stride = info.m_Channels * (info.m_BitsPerSample / 8);
 
-            while(instance->m_FrameCount < mixed_instance_FrameCount && instance->m_EndOfStream == 0) {
+            while(instance->m_FrameCount < mixed_instance_FrameCount && instance->m_EndOfStream == 0)
+            {
                 uint32_t n = mixed_instance_FrameCount - instance->m_FrameCount; // if the result contains a fractional part and we don't ceil(), we'll end up with a smaller number. Later, when deciding the mix_count in Mix(), a smaller value (integer) will be produced. This will result in leaving a small gap in the mix buffer resulting in sound crackling when the chunk changes.
 
+                char* buffer = ((char*) instance->m_Frames) + instance->m_FrameCount * stride;
+                uint32_t buffer_size = n * stride;
                 if (!is_muted)
                 {
-                    r = dmSoundCodec::Decode(sound->m_CodecContext,
-                                            instance->m_Decoder,
-                                            ((char*) instance->m_Frames) + instance->m_FrameCount * stride,
-                                            n * stride,
-                                            &decoded);
+                    r = dmSoundCodec::Decode(sound->m_CodecContext, instance->m_Decoder, buffer, buffer_size, &decoded);
                 }
                 else
                 {
-                    r = dmSoundCodec::Skip(sound->m_CodecContext, instance->m_Decoder, n * stride, &decoded);
-                    memset(((char*) instance->m_Frames) + instance->m_FrameCount * stride, 0x00, n * stride);
+                    r = dmSoundCodec::Skip(sound->m_CodecContext, instance->m_Decoder, buffer_size, &decoded);
+                    memset(buffer, 0x00, buffer_size);
                 }
 
-                if (r == dmSoundCodec::RESULT_OK) {
+                if (r == dmSoundCodec::RESULT_OK)
+                {
+                    if (decoded == 0) // we might be streaming and didn't get any content
+                    {
+                        memset(buffer, 0x00, buffer_size);
+                        break; // Need to break as we're not progressing this sound instance
+                    }
+
                     assert(decoded % stride == 0);
                     instance->m_FrameCount += decoded / stride;
-                } else if (r == dmSoundCodec::RESULT_END_OF_STREAM) {
-                    if (instance->m_Looping && instance->m_Loopcounter != 0) {
+                }
+                else if (r == dmSoundCodec::RESULT_END_OF_STREAM)
+                {
+                    if (instance->m_Looping && instance->m_Loopcounter != 0)
+                    {
                         dmSoundCodec::Reset(sound->m_CodecContext, instance->m_Decoder);
-                        if ( instance->m_Loopcounter > 0 ) {
+                        if ( instance->m_Loopcounter > 0 )
+                        {
                             instance->m_Loopcounter --;
                         }
-                    } else {
-
-                        if  (instance->m_FrameCount < instance->m_Speed) {
+                    }
+                    else
+                    {
+                        if  (instance->m_FrameCount < instance->m_Speed)
+                        {
                             // since this is the last mix and no more frames will be added, trailing frames will linger on forever
                             // if they are less than m_Speed. We will truncate them to avoid this.
                             instance->m_FrameCount = 0;
                         }
                         instance->m_EndOfStream = 1;
                     }
-                } else {
+                }
+                else
+                {
                     // error case
                     break;
                 }
             }
 
-            if (r != dmSoundCodec::RESULT_OK && r != dmSoundCodec::RESULT_END_OF_STREAM) {
+            if (r != dmSoundCodec::RESULT_OK && r != dmSoundCodec::RESULT_END_OF_STREAM)
+            {
                 dmLogWarning("Unable to decode file '%s'. Result %d", GetSoundName(sound, instance), r);
                 instance->m_Playing = 0;
                 return;
             }
 
-            if (instance->m_FrameCount > 0) {
+            if (instance->m_FrameCount > 0)
+            {
                 Mix(mix_context, instance, &info);
             }
 
-            if (instance->m_FrameCount <= instance->m_Speed && instance->m_EndOfStream) {
+            if (instance->m_FrameCount <= instance->m_Speed && instance->m_EndOfStream)
+            {
                 // NOTE: Due to round-off errors, e.g 32000 -> 44100,
                 // the last frame might be partially sampled and
                 // used in the *next* buffer. We truncate such scenarios to 0
