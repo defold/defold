@@ -81,7 +81,7 @@ namespace dmSoundCodec
     static uint64_t Read64Bit(const uint8_t* src)
     {
         return            src[0]        | ((uint64_t)src[1] <<  8) | ((uint64_t)src[2] << 16) | ((uint64_t)src[3] << 24) |
-               ((uint64_t)src[4] << 32) | ((uint64_t)src[5] << 40) | ((uint64_t)src[2] << 48) | ((uint64_t)src[3] << 56);
+               ((uint64_t)src[4] << 32) | ((uint64_t)src[5] << 40) | ((uint64_t)src[6] << 48) | ((uint64_t)src[7] << 56);
     }
 
     static bool ReadPageHeader(DecodeStreamInfo *streamInfo, dmSound::HSoundData sound_data, uint8_t& flags, uint32_t& streamSerial, uint32_t& pageSize, uint8_t& numPageSegments, uint8_t lacingTable[255])
@@ -145,7 +145,7 @@ namespace dmSoundCodec
         return false;
     }
 
-//OPT: to simplify the usage we do copy data for the next packet as needed, BUT: we could also onlyl return a pointer to it if...
+//OPT: to simplify the usage we do copy data for the next packet as needed, BUT: we could also only return a pointer to it if...
 // a) it does not cross a page boundary
 // b) the read buffer does not get reconfigured before the data is used in the decoder
     static bool ReadNextPacket(DecodeStreamInfo *streamInfo, dmSound::HSoundData sound_data, uint8_t* outBuffer, uint32_t& outBytes)
