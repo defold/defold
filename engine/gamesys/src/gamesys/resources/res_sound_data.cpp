@@ -70,7 +70,7 @@ namespace dmGameSystem
         g_SoundDataContext->m_ChunkSize = chunk_size;
     }
 
-    static dmSound::SoundDataType TryToGetTypeFromBuffer(char* buffer, dmSound::SoundDataType default_type, uint32_t bufferSize)
+    static dmSound::SoundDataType TryToGetTypeFromBuffer(char* buffer, uint32_t bufferSize, dmSound::SoundDataType default_type)
     {
         dmSound::SoundDataType type = default_type;
         if (bufferSize < 3)
@@ -95,10 +95,16 @@ namespace dmGameSystem
 
     static dmResource::Result DestroyResource(SoundDataResource* resource)
     {
+        dmSound::Result r = dmSound::RESULT_OK;
+
         // The sound data is reference counted
         // The references are held here and also by any playing voices (e.g. like a long playing music track)
-        dmSound::SetSoundDataCallback(resource->m_SoundData, 0, 0);
-        dmSound::Result r = dmSound::DeleteSoundData(resource->m_SoundData);
+        if (resource->m_SoundData)
+        {
+            dmSound::SetSoundDataCallback(resource->m_SoundData, 0, 0);
+            r = dmSound::DeleteSoundData(resource->m_SoundData);
+            resource->m_SoundData = 0;
+        }
 
         if (resource->m_Context->m_Cache)
             ResourceChunkCacheEvictPathHash(resource->m_Context->m_Cache, resource->m_PathHash);
@@ -135,7 +141,6 @@ namespace dmGameSystem
         SoundDataResource* resource = (SoundDataResource*)cbk_ctx;
         DM_MUTEX_SCOPED_LOCK(resource->m_Context->m_Mutex);
 
-        //printf("%s: offset: %u  size: %u  %s\n", __FUNCTION__, offset, nread, resource->m_Path);
         AddChunk(resource->m_Context->m_Cache, resource->m_PathHash, buffer, nread, offset);
         resource->m_RequestInFlight = 0;
         return 1;
@@ -199,8 +204,6 @@ namespace dmGameSystem
             next_chunk = 0; // we're actually missing the next chunk. Let's trigger a pre fetch
         }
 
-        //printf("  nread: %u  off: %u  next off: %u  next_chunk: %p  in flight: %u\n", nread, offset, next_chunk_offset, next_chunk, resource->m_RequestInFlight);
-
         *out_size = nread;
 
         // Last resort:
@@ -234,15 +237,7 @@ namespace dmGameSystem
 
     dmResource::Result ResSoundDataCreate(const dmResource::ResourceCreateParams* params)
     {
-        dmSound::HSoundData sound_data;
-
-        dmSound::SoundDataType type = dmSound::SOUND_DATA_TYPE_WAV;
-
-        size_t filename_len = strlen(params->m_Filename);
-        if (filename_len > 5 && strcmp(params->m_Filename + filename_len - 5, ".oggc") == 0)
-        {
-            type = dmSound::SOUND_DATA_TYPE_OGG_VORBIS;
-        }
+        dmSound::SoundDataType type = TryToGetTypeFromBuffer((char*)params->m_Buffer, params->m_BufferSize, dmSound::SOUND_DATA_TYPE_WAV);
 
         SoundDataContext* context = (SoundDataContext*)ResourceTypeGetContext(params->m_Type);
         // Until we have a way to get the factory at the time of type creation
@@ -252,14 +247,14 @@ namespace dmGameSystem
         }
 
         SoundDataResource* sound_data_res = new SoundDataResource();
+        memset(sound_data_res, 0, sizeof(*sound_data_res));
         sound_data_res->m_Path = strdup(params->m_Filename);
         sound_data_res->m_PathHash = ResourceDescriptorGetNameHash(params->m_Resource);
         sound_data_res->m_FileSize = params->m_FileSize;
         sound_data_res->m_RequestInFlight = 0;
         sound_data_res->m_Context = context;
 
-//printf("MAWE: sound: '%s'  partial: %d  initial: %u %p\n", params->m_Filename, params->m_IsBufferPartial, params->m_BufferSize, sound_data_res);
-
+        dmSound::HSoundData sound_data = 0;
         dmSound::Result r;
         if (params->m_IsBufferPartial)
         {
@@ -304,7 +299,7 @@ namespace dmGameSystem
         SoundDataResource* sound_data_res = (SoundDataResource*) dmResource::GetResource(params->m_Resource);
 
         dmSound::HSoundData sound_data;
-        dmSound::SoundDataType type = TryToGetTypeFromBuffer((char*)params->m_Buffer, (dmSound::SoundDataType)sound_data_res->m_Type, params->m_BufferSize);
+        dmSound::SoundDataType type = TryToGetTypeFromBuffer((char*)params->m_Buffer, params->m_BufferSize, (dmSound::SoundDataType)sound_data_res->m_Type);
         dmSound::Result r = dmSound::NewSoundData(params->m_Buffer, params->m_BufferSize, type, &sound_data, dmResource::GetNameHash(params->m_Resource));
 
         if (r != dmSound::RESULT_OK)

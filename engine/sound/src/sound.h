@@ -103,6 +103,8 @@ namespace dmSound
     // Pauses the (threaded) sound system
     Result Pause(bool pause);
 
+    const char* ResultToString(Result result);
+
     typedef Result (*FSoundDataGetData)(void* context, uint32_t offset, uint32_t size, void* out, uint32_t* out_size);
 
     // Thread safe
