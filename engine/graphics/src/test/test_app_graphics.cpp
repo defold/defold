@@ -58,6 +58,22 @@ struct RunLoopParams
     EngineGetResultFn   m_EngineGetResult;
 };
 
+static dmGraphics::HUniformLocation GetUniformLocation(dmGraphics::HProgram program, const char* name)
+{
+    dmhash_t hash = dmHashString64(name);
+    for (int i = 0; i < dmGraphics::GetUniformCount(program); ++i)
+    {
+        dmGraphics::Uniform uniform;
+        dmGraphics::GetUniform(program, i, &uniform);
+
+        if (uniform.m_NameHash == hash)
+        {
+            return uniform.m_Location;
+        }
+    }
+    return dmGraphics::INVALID_UNIFORM_LOCATION;
+}
+
 // From engine_loop.cpp
 
 static int RunLoop(const RunLoopParams* params)
@@ -174,54 +190,6 @@ struct ClearBackbufferTest : ITest
     }
 };
 
-struct CopyToBufferTest : ITest
-{
-    dmGraphics::HTexture      m_CopyBufferToTextureTexture;
-    dmGraphics::HVertexBuffer m_CopyBufferToTextureBuffer;
-
-    void Initialize(EngineCtx* engine) override
-    {
-        dmGraphics::TextureCreationParams tp = {};
-        tp.m_Width                           = 128;
-        tp.m_Height                          = 128;
-        tp.m_OriginalWidth                   = 128;
-        tp.m_OriginalHeight                  = 128;
-        m_CopyBufferToTextureTexture = dmGraphics::NewTexture(engine->m_GraphicsContext, tp);
-
-        dmGraphics::TextureParams p = {};
-        p.m_Width    = 128;
-        p.m_Height   = 128;
-        p.m_Format   = dmGraphics::TEXTURE_FORMAT_RGBA;
-        dmGraphics::SetTexture(m_CopyBufferToTextureTexture, p);
-
-        m_CopyBufferToTextureBuffer = dmGraphics::NewVertexBuffer(engine->m_GraphicsContext, 128 * 128 * 4, 0, dmGraphics::BUFFER_USAGE_TRANSFER);
-
-        uint8_t* pixels = (uint8_t*) dmGraphics::VulkanMapVertexBuffer(engine->m_GraphicsContext, m_CopyBufferToTextureBuffer, dmGraphics::BUFFER_ACCESS_READ_WRITE);
-
-        for (int i = 0; i < 128; i++)
-        {
-            for (int j = 0; j < 128; j++)
-            {
-                float u = ((float) j) / (float) 128;
-                float v = ((float) i) / (float) 128;
-
-                uint32_t ix = (i * 128 + j) * 4;
-                pixels[ix + 0] = (uint8_t) (u * 255.0f);
-                pixels[ix + 1] = 0;
-                pixels[ix + 2] = (uint8_t) (v * 255.0f);
-                pixels[ix + 3] = 255;
-            }
-        }
-
-        dmGraphics::VulkanUnmapVertexBuffer(engine->m_GraphicsContext, m_CopyBufferToTextureBuffer);
-    }
-
-    void Execute(EngineCtx* engine) override
-    {
-        dmGraphics::VulkanCopyBufferToTexture(engine->m_GraphicsContext, m_CopyBufferToTextureBuffer, m_CopyBufferToTextureTexture, dmGraphics::GetTextureWidth(m_CopyBufferToTextureTexture), dmGraphics::GetTextureHeight(m_CopyBufferToTextureTexture));
-    }
-};
-
 struct ReadPixelsTest : ITest
 {
     uint8_t m_Buffer[512 * 512 * 4];
@@ -249,131 +217,6 @@ struct ReadPixelsTest : ITest
 
         dmGraphics::ReadPixels(engine->m_GraphicsContext, m_Buffer, 512 * 512 * 4);
         dmLogInfo("%d, %d, %d, %d", m_Buffer[0], m_Buffer[1], m_Buffer[2], m_Buffer[3]);
-    }
-};
-
-struct SubPassTest : ITest
-{
-    dmGraphics::HRenderTarget      m_Rendertarget;
-    dmGraphics::HProgram           m_ShaderProgram;
-    dmGraphics::HVertexDeclaration m_VertexDeclaration;
-    dmGraphics::HVertexBuffer      m_VertexBuffer;
-
-    void Initialize(EngineCtx* engine) override
-    {
-        const float vertex_data_no_index[] = {
-            -0.5f, -0.5f,
-             0.5f, -0.5f,
-            -0.5f,  0.5f,
-             0.5f, -0.5f,
-             0.5f,  0.5f,
-            -0.5f,  0.5f,
-        };
-
-        m_VertexBuffer = dmGraphics::NewVertexBuffer(engine->m_GraphicsContext, sizeof(vertex_data_no_index), (void*) vertex_data_no_index, dmGraphics::BUFFER_USAGE_STATIC_DRAW);
-
-        dmGraphics::HVertexStreamDeclaration stream_declaration = dmGraphics::NewVertexStreamDeclaration(engine->m_GraphicsContext);
-        dmGraphics::AddVertexStream(stream_declaration, "pos", 2, dmGraphics::TYPE_FLOAT, false);
-
-        dmGraphics::ShaderDesc vs_desc = {};
-        dmGraphics::ShaderDesc fs_desc = {};
-
-        AddShader(&vs_desc, dmGraphics::ShaderDesc::LANGUAGE_SPIRV, (uint8_t*) graphics_assets::spirv_vertex_program, sizeof(graphics_assets::spirv_vertex_program));
-        AddShaderResource(&vs_desc, "pos", dmGraphics::ShaderDesc::ShaderDataType::SHADER_TYPE_VEC2, 0, 0, BINDING_TYPE_INPUT);
-
-        AddShader(&fs_desc, dmGraphics::ShaderDesc::LANGUAGE_SPIRV, (uint8_t*) graphics_assets::spirv_fragment_program, sizeof(graphics_assets::spirv_fragment_program));
-        AddShaderResource(&fs_desc, "inputColor", dmGraphics::ShaderDesc::SHADER_TYPE_RENDER_PASS_INPUT, 0, 0, BINDING_TYPE_TEXTURE);
-
-        dmGraphics::HVertexProgram vs_program   = dmGraphics::NewVertexProgram(engine->m_GraphicsContext, &vs_desc, 0, 0);
-        dmGraphics::HFragmentProgram fs_program = dmGraphics::NewFragmentProgram(engine->m_GraphicsContext, &fs_desc, 0, 0);
-
-        DeleteShaderDesc(&vs_desc);
-        DeleteShaderDesc(&fs_desc);
-
-        m_ShaderProgram     = dmGraphics::NewProgram(engine->m_GraphicsContext, vs_program, fs_program);
-        m_VertexDeclaration = dmGraphics::NewVertexDeclaration(engine->m_GraphicsContext, stream_declaration);
-
-        //////////// RENDER TARGET ////////////
-        dmGraphics::RenderTargetCreationParams p = {};
-
-        for (int i = 0; i < dmGraphics::MAX_BUFFER_COLOR_ATTACHMENTS; ++i)
-        {
-            p.m_ColorBufferCreationParams[i].m_Type           = dmGraphics::TEXTURE_TYPE_2D;
-            p.m_ColorBufferCreationParams[i].m_Width          = 512;
-            p.m_ColorBufferCreationParams[i].m_Height         = 512;
-            p.m_ColorBufferCreationParams[i].m_OriginalWidth  = 512;
-            p.m_ColorBufferCreationParams[i].m_OriginalHeight = 512;
-
-            p.m_ColorBufferParams[i].m_Format = dmGraphics::TEXTURE_FORMAT_RGBA;
-            p.m_ColorBufferParams[i].m_Width  = 512;
-            p.m_ColorBufferParams[i].m_Height = 512;
-        }
-
-        p.m_ColorBufferCreationParams[0].m_UsageHintBits = dmGraphics::TEXTURE_USAGE_FLAG_INPUT | dmGraphics::TEXTURE_USAGE_FLAG_MEMORYLESS;
-
-        m_Rendertarget = dmGraphics::NewRenderTarget(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT | dmGraphics::BUFFER_TYPE_COLOR1_BIT, p);
-
-        //////////// RENDER PASS ////////////
-        uint8_t sub_pass_0_color_attachments[] = { 0 };
-        uint8_t sub_pass_1_color_attachments[] = { 1 };
-        uint8_t sub_pass_1_input_attachments[] = { 0 };
-
-        dmGraphics::CreateRenderPassParams rp = {};
-        rp.m_SubPassCount = 2;
-
-        rp.m_SubPasses[0].m_ColorAttachmentIndices      = sub_pass_0_color_attachments;
-        rp.m_SubPasses[0].m_ColorAttachmentIndicesCount = DM_ARRAY_SIZE(sub_pass_0_color_attachments);
-
-        rp.m_SubPasses[1].m_ColorAttachmentIndices      = sub_pass_1_color_attachments;
-        rp.m_SubPasses[1].m_ColorAttachmentIndicesCount = DM_ARRAY_SIZE(sub_pass_1_color_attachments);
-
-        rp.m_SubPasses[1].m_InputAttachmentIndices      = sub_pass_1_input_attachments;
-        rp.m_SubPasses[1].m_InputAttachmentIndicesCount = DM_ARRAY_SIZE(sub_pass_1_input_attachments);
-
-        rp.m_DependencyCount = 3;
-        rp.m_Dependencies[0].m_Src = dmGraphics::SUBPASS_EXTERNAL;
-        rp.m_Dependencies[0].m_Dst = 0;
-
-        rp.m_Dependencies[1].m_Src = 0;
-        rp.m_Dependencies[1].m_Dst = 1;
-
-        rp.m_Dependencies[2].m_Src = 1;
-        rp.m_Dependencies[2].m_Dst = dmGraphics::SUBPASS_EXTERNAL;
-
-        dmGraphics::VulkanCreateRenderPass(engine->m_GraphicsContext, m_Rendertarget, rp);
-    }
-
-    void Execute(EngineCtx* engine) override
-    {
-        dmGraphics::HTexture sub_pass_0_color = dmGraphics::GetRenderTargetTexture(m_Rendertarget, dmGraphics::BUFFER_TYPE_COLOR0_BIT);
-
-        dmGraphics::SetRenderTarget(engine->m_GraphicsContext, m_Rendertarget, 0);
-
-        dmGraphics::SetViewport(engine->m_GraphicsContext, 0, 0, 512, 512);
-
-        static uint8_t color_r = 0;
-        static uint8_t color_g = 80;
-        static uint8_t color_b = 140;
-        static uint8_t color_a = 255;
-
-        dmGraphics::Clear(engine->m_GraphicsContext, dmGraphics::BUFFER_TYPE_COLOR0_BIT,
-                                    (float)color_r,
-                                    (float)color_g,
-                                    (float)color_b,
-                                    (float)color_a,
-                                    1.0f, 0);
-
-        dmGraphics::VulkanNextRenderPass(engine->m_GraphicsContext, m_Rendertarget);
-
-        dmGraphics::EnableProgram(engine->m_GraphicsContext, m_ShaderProgram);
-        dmGraphics::DisableState(engine->m_GraphicsContext, dmGraphics::STATE_DEPTH_TEST);
-
-        dmGraphics::EnableTexture(engine->m_GraphicsContext, 0, 0, sub_pass_0_color);
-
-        dmGraphics::EnableVertexDeclaration(engine->m_GraphicsContext, m_VertexDeclaration, m_VertexBuffer);
-        dmGraphics::Draw(engine->m_GraphicsContext, dmGraphics::PRIMITIVE_TRIANGLES, 0, 6, 1);
-
-        dmGraphics::SetRenderTarget(engine->m_GraphicsContext, 0, 0);
     }
 };
 
@@ -410,7 +253,7 @@ struct ComputeTest : ITest
 
         m_Program = dmGraphics::NewProgram(engine->m_GraphicsContext, compute_program);
 
-        m_UniformLoc = dmGraphics::GetUniformLocation(m_Program, "buf");
+        m_UniformLoc = GetUniformLocation(m_Program, "buf");
     }
 
     void Execute(EngineCtx* engine) override
@@ -425,6 +268,9 @@ struct ComputeTest : ITest
     }
 };
 
+// Note: the vulkan dmsdk doens't contain these functions anymore, but since SSBOs is something we want eventually,
+//       we can leave this test code here for later.
+#if 0
 struct StorageBufferTest : ITest
 {
     dmGraphics::HProgram           m_Program;
@@ -500,12 +346,13 @@ struct StorageBufferTest : ITest
         dmGraphics::EnableVertexBuffer(engine->m_GraphicsContext, m_VertexBuffer, 0);
         dmGraphics::EnableVertexDeclaration(engine->m_GraphicsContext, m_VertexDeclaration, 0, 0, m_Program);
 
-        dmGraphics::HUniformLocation loc = dmGraphics::GetUniformLocation(m_Program, "Test");
+        dmGraphics::HUniformLocation loc = GetUniformLocation(m_Program, "Test");
         dmGraphics::VulkanSetStorageBuffer(engine->m_GraphicsContext, m_StorageBuffer, 0, 0, loc);
 
         dmGraphics::Draw(engine->m_GraphicsContext, dmGraphics::PRIMITIVE_TRIANGLES, 0, 6, 1);
     }
 };
+#endif
 
 static bool OnWindowClose(void* user_data)
 {
@@ -554,7 +401,7 @@ static void* EngineCreate(int argc, char** argv)
     engine->m_Test->Initialize(engine);
 
     engine->m_WasCreated++;
-    engine->m_TimeStart = dmTime::GetTime();
+    engine->m_TimeStart = dmTime::GetMonotonicTime();
     return &g_EngineCtx;
 }
 
@@ -571,7 +418,7 @@ static UpdateResult EngineUpdate(void* _engine)
 {
     EngineCtx* engine = (EngineCtx*)_engine;
     engine->m_WasRun++;
-    uint64_t t = dmTime::GetTime();
+    uint64_t t = dmTime::GetMonotonicTime();
     float elapsed = (t - engine->m_TimeStart) / 1000000.0f;
     /*
     if (elapsed > 3.0f)
@@ -634,7 +481,7 @@ TEST(App, Run)
     ASSERT_EQ(0, ret);
 
 
-    uint64_t t = dmTime::GetTime();
+    uint64_t t = dmTime::GetMonotonicTime();
     float elapsed = (t - g_EngineCtx.m_TimeStart) / 1000000.0f;
     (void)elapsed;
 

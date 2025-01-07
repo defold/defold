@@ -120,6 +120,9 @@ public abstract class LuaBuilder extends Builder {
                 luaScanner.setDebug();
             }
             luaScanner.parse(script);
+            for(LuaScanner.LuaScannerException e: luaScanner.exceptions) {
+                throw new CompileExceptionError(resource, e.getLineNumber(), e.getErrorMessage());
+            }
         }
         return luaScanner;
     }
@@ -155,6 +158,15 @@ public abstract class LuaBuilder extends Builder {
         for (String module : scanner.getModules()) {
             String module_file = String.format("/%s.lua", module.replaceAll("\\.", "/"));
             createSubTask(module_file, "Lua module", taskBuilder);
+        }
+
+        // Create obfuscators if some exists.
+        if (luaObfuscators == null) {
+            luaObfuscators = PluginScanner.getOrCreatePlugins("com.defold.extension.pipeline", ILuaObfuscator.class);
+
+            if (luaObfuscators == null) {
+                luaObfuscators = new ArrayList<ILuaObfuscator>(0);
+            }
         }
 
         // check if the platform is using Lua 5.1 or LuaJIT
@@ -482,15 +494,7 @@ public abstract class LuaBuilder extends Builder {
         builder.setProperties(propertiesMsg);
         builder.addAllPropertyResources(propertyResources);
 
-        // Create and run obfuscators if some exists.
-        if (luaObfuscators == null) {
-            luaObfuscators = PluginScanner.getOrCreatePlugins("com.defold.extension.pipeline", ILuaObfuscator.class);
-
-            if (luaObfuscators == null) {
-                luaObfuscators = new ArrayList<ILuaObfuscator>(0);
-            }
-        }
-
+        // apply obfuscation
         final IResource sourceResource = task.firstInput();
         final String sourcePath = sourceResource.getAbsPath();
         final String variant = project.option("variant", Bob.VARIANT_RELEASE);

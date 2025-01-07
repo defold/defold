@@ -129,8 +129,8 @@ namespace dmSocket
         ctx->m_Finished = 0;
 
         dmThread::Thread t = dmThread::New(&GetHostByNameThreadWorker, THREAD_STACK_SIZE, ctx, "GetHostByName");
-        uint64_t tend = timeout ? dmTime::GetTime() + timeout : 0xFFFFFFFFFFFFFFFF;
-        while (tend > dmTime::GetTime())
+        uint64_t tend = timeout ? dmTime::GetMonotonicTime() + timeout : 0xFFFFFFFFFFFFFFFF;
+        while (tend > dmTime::GetMonotonicTime())
         {
             if (dmAtomicAdd32(&ctx->m_Finished, 0) == 1) // the thread has finished
             {

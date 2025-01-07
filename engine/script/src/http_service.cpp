@@ -101,6 +101,7 @@ namespace dmHttpService
         h.Push('\n');
     }
 
+    // Called from the http thread(s)
     void HttpContent(dmHttpClient::HResponse response, void* user_data, int status_code, const void* content_data, uint32_t content_data_size, int32_t content_length, const char* method)
     {
         Worker* worker = (Worker*) user_data;
@@ -135,6 +136,7 @@ namespace dmHttpService
             dmHttpDDF::HttpRequestProgress progress = {};
             progress.m_BytesReceived                = bytes_received;
             progress.m_BytesTotal                   = content_length;
+            progress.m_Url                          = worker->m_Request->m_Url;
             worker->m_Service->m_ReportProgressCallback(&progress, &worker->m_CurrentRequesterURL, worker->m_ResponseUserData2);
         }
     }
@@ -207,6 +209,7 @@ namespace dmHttpService
     static void SendResponse(const dmMessage::URL* requester, uintptr_t userdata1, uintptr_t userdata2, int status,
                              const char* headers, uint32_t headers_length,
                              const char* response, uint32_t response_length,
+                             const char* url,
                              const char* filepath)
     {
         dmHttpDDF::HttpResponse resp;
@@ -219,6 +222,7 @@ namespace dmHttpService
         resp.m_Response = (uint64_t) malloc(response_length);
         memcpy((void*) resp.m_Response, response, response_length);
         resp.m_Path = filepath;
+        resp.m_Url = url;
 
         if (dmMessage::RESULT_OK != dmMessage::Post(0, requester, dmHttpDDF::HttpResponse::m_DDFHash, userdata1, userdata2, (uintptr_t) dmHttpDDF::HttpResponse::m_DDFDescriptor, &resp, sizeof(resp), MessageDestroyCallback) )
         {
@@ -236,7 +240,7 @@ namespace dmHttpService
         dmURI::Result ur =  dmURI::Parse(request->m_Url, &url);
         if (ur != dmURI::RESULT_OK)
         {
-            SendResponse(requester, 0, 0, 0, 0, 0, 0, 0, 0);
+            SendResponse(requester, 0, 0, 0, 0, 0, 0, 0, worker->m_Request->m_Url, 0);
             return;
         }
         if (url.m_Path[0] == '\0') {
@@ -290,15 +294,15 @@ namespace dmHttpService
             dmHttpClient::Result r = dmHttpClient::Request(worker->m_Client, request->m_Method, url.m_Path);
 
             if (r == dmHttpClient::RESULT_OK || r == dmHttpClient::RESULT_NOT_200_OK) {
-                SendResponse(requester, userdata1, userdata2, worker->m_Status, worker->m_Headers.Begin(), worker->m_Headers.Size(), worker->m_Response.Begin(), worker->m_Response.Size(), worker->m_Filepath);
+                SendResponse(requester, userdata1, userdata2, worker->m_Status, worker->m_Headers.Begin(), worker->m_Headers.Size(), worker->m_Response.Begin(), worker->m_Response.Size(), worker->m_Request->m_Url, worker->m_Filepath);
             } else {
                 // TODO: Error codes to lua?
                 dmLogError("HTTP request to '%s' failed (http result: %d  socket result: %d)", request->m_Url, r, GetLastSocketResult(worker->m_Client));
-                SendResponse(requester, userdata1, userdata2, 0, worker->m_Headers.Begin(), worker->m_Headers.Size(), worker->m_Response.Begin(), worker->m_Response.Size(), worker->m_Filepath);
+                SendResponse(requester, userdata1, userdata2, 0, worker->m_Headers.Begin(), worker->m_Headers.Size(), worker->m_Response.Begin(), worker->m_Response.Size(), worker->m_Request->m_Url, worker->m_Filepath);
             }
         } else {
             // TODO: Error codes to lua?
-            SendResponse(requester, userdata1, userdata2, 0, worker->m_Headers.Begin(), worker->m_Headers.Size(), worker->m_Response.Begin(), worker->m_Response.Size(), worker->m_Filepath);
+            SendResponse(requester, userdata1, userdata2, 0, worker->m_Headers.Begin(), worker->m_Headers.Size(), worker->m_Response.Begin(), worker->m_Response.Size(), worker->m_Request->m_Url, worker->m_Filepath);
             dmLogError("Unable to create HTTP connection to '%s'. No route to host?", request->m_Url);
         }
     }
@@ -372,16 +376,16 @@ namespace dmHttpService
         Worker* worker = (Worker*) arg;
 
         uint64_t flush_period = 5 * 1000000U;
-        uint64_t next_flush = dmTime::GetTime() + flush_period;
+        uint64_t next_flush = dmTime::GetMonotonicTime() + flush_period;
         while (worker->m_Run)
         {
             dmMessage::DispatchBlocking(worker->m_Socket, &Dispatch, worker);
             if (!worker->m_Run)
                 break;
 
-            if (worker->m_CacheFlusher && dmTime::GetTime() > next_flush) {
+            if (worker->m_CacheFlusher && dmTime::GetMonotonicTime() > next_flush) {
                 dmHttpCache::Flush(worker->m_Service->m_HttpCache);
-                next_flush = dmTime::GetTime() + flush_period;
+                next_flush = dmTime::GetMonotonicTime() + flush_period;
             }
         }
     }

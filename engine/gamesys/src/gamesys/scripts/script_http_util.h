@@ -32,7 +32,6 @@ namespace dmGameSystem
             return false;
         }
         size_t nwritten = fwrite(data, 1, data_len, f);
-        fflush(f);
         fclose(f);
         if (nwritten != data_len)
         {
@@ -79,6 +78,12 @@ namespace dmGameSystem
             lua_setfield(L, -2, "response");
         }
 
+        if (resp->m_Url)
+        {
+            lua_pushstring(L, resp->m_Url);
+            lua_setfield(L, -2, "url");
+        }
+
         lua_pushliteral(L, "headers");
         lua_newtable(L);
         if (resp->m_HeadersLength > 0) {
@@ -112,6 +117,12 @@ namespace dmGameSystem
         }
         lua_rawset(L, -3);
 
+        return dmScript::RESULT_OK;
+    }
+
+    dmScript::Result HttpRequestProgressDecoder(lua_State* L, const dmDDF::Descriptor* desc, const char* data)
+    {
+        dmScript::PushDDFNoDecoder(L, desc, (const char*)data, false);
         return dmScript::RESULT_OK;
     }
 }

@@ -754,7 +754,8 @@
                     (ui/add-styles! ["clear-button" "button-small"])
                     (ui/on-action! (fn [_]
                                      (properties/clear-override! (property-fn key))
-                                     (.requestFocus control))))
+                                     (ui/clear-auto-commit! control)
+                                     (.requestFocus label))))
 
         label-box (let [box (GridPane.)]
                     (GridPane/setFillWidth label true)

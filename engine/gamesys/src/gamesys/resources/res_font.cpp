@@ -152,11 +152,15 @@ namespace dmGameSystem
         uint8_t* data = (uint8_t*)glyph_bank->m_GlyphData.m_Data;
         uint8_t* glyph_data = GetPointer(data, glyph->m_GlyphDataOffset);
 
-        *out_size = glyph->m_GlyphDataSize;
+        // Currently the header is just a single byte
+        uint8_t compression_type = glyph_data[0];
+        uint32_t header_size = 1;
+
+        *out_size = glyph->m_GlyphDataSize - header_size; // return the size of the payload
         *out_width = glyph->m_Width + resource->m_CacheCellPadding*2;
         *out_height = glyph->m_Ascent + glyph->m_Descent + resource->m_CacheCellPadding*2;
-        *out_compression = glyph_data[0];
-        return glyph_data + 1;
+        *out_compression = compression_type;
+        return glyph_data + header_size;
     }
 
     static dmResource::Result AcquireResources(dmResource::HFactory factory, dmRender::HRenderContext context,
@@ -218,11 +222,11 @@ namespace dmGameSystem
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(context);
         if (font_map->m_FontMap == 0)
         {
-            font_map->m_FontMap = dmRender::NewFontMap(graphics_context, params);
+            font_map->m_FontMap = dmRender::NewFontMap(context, graphics_context, params);
         }
         else
         {
-            dmRender::SetFontMap(font_map->m_FontMap, graphics_context, params);
+            dmRender::SetFontMap(font_map->m_FontMap, context, graphics_context, params);
             ReleaseResources(factory, font_map);
         }
 

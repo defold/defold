@@ -321,7 +321,7 @@ namespace dmHttpClient
             return true;
         if( client->m_RequestTimeout == 0 )
             return false;
-        uint64_t currenttime = dmTime::GetTime();
+        uint64_t currenttime = dmTime::GetMonotonicTime();
         return int(currenttime - client->m_RequestStart) >= client->m_RequestTimeout;
     }
 
@@ -1101,7 +1101,7 @@ bail:
     Result Get(HClient client, const char* path)
     {
         dmSnPrintf(client->m_URI, sizeof(client->m_URI), "%s://%s:%d/%s", client->m_Secure ? "https" : "http", client->m_Hostname, (int) client->m_Port, path);
-        client->m_RequestStart = dmTime::GetTime();
+        client->m_RequestStart = dmTime::GetMonotonicTime();
 
         Result r;
 
@@ -1139,7 +1139,7 @@ bail:
                 // Try again
                 if (i < client->m_MaxGetRetries - 1) {
                     client->m_Statistics.m_Reconnections++;
-                    client->m_RequestStart = dmTime::GetTime();
+                    client->m_RequestStart = dmTime::GetMonotonicTime();
                     dmLogInfo("HTTPCLIENT: Connection lost, reconnecting. (%d/%d)", i + 1, client->m_MaxGetRetries - 1);
                 }
             }
@@ -1162,7 +1162,7 @@ bail:
             return Get(client, path);
         } else {
             dmSnPrintf(client->m_URI, sizeof(client->m_URI), "%s://%s:%d/%s", client->m_Secure ? "https" : "http", client->m_Hostname, (int) client->m_Port, path);
-            client->m_RequestStart = dmTime::GetTime();
+            client->m_RequestStart = dmTime::GetMonotonicTime();
             Result r = DoRequest(client, path, method);
             return r;
         }

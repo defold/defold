@@ -24,6 +24,8 @@
 
 namespace dmGraphics
 {
+    typedef uint32_t HOpenglID;
+
     enum AttachmentType
     {
         ATTACHMENT_TYPE_UNUSED  = 0,
@@ -41,7 +43,7 @@ namespace dmGraphics
     {
         TextureParams     m_Params;
         TextureType       m_Type;
-        GLuint*           m_TextureIds;
+        HOpenglID*        m_TextureIds;
         uint32_t          m_ResourceSize; // For Mip level 0. We approximate each mip level is 1/4th. Or MipSize0 * 1.33
         int32_atomic_t    m_DataState; // data state per mip-map (mipX = bitX). 0=ok, 1=pending
         uint16_t          m_NumTextureIds;
@@ -59,8 +61,8 @@ namespace dmGraphics
         TextureParams m_Params;
         union
         {
-            HTexture m_Texture;
-            GLuint   m_Buffer;
+            HTexture  m_Texture;
+            HOpenglID m_Buffer;
         };
         AttachmentType m_Type;
         bool           m_Attached;
@@ -72,20 +74,21 @@ namespace dmGraphics
         OpenGLRenderTargetAttachment m_DepthAttachment;
         OpenGLRenderTargetAttachment m_StencilAttachment;
         OpenGLRenderTargetAttachment m_DepthStencilAttachment;
-        GLuint                       m_Id;
+        HOpenglID                    m_Id;
         uint32_t                     m_BufferTypeFlags;
     };
 
     struct OpenGLShader
     {
-        GLuint               m_Id;
+        HOpenglID            m_Id;
         ShaderMeta           m_ShaderMeta;
         ShaderDesc::Language m_Language;
+        ShaderStageFlag      m_Stage;
     };
 
     struct OpenGLBuffer
     {
-        GLuint           m_Id;
+        HOpenglID        m_Id;
         DeviceBufferType m_Type;
         uint32_t         m_MemorySize;
     };
@@ -103,31 +106,20 @@ namespace dmGraphics
         dmArray<GLint> m_Indices;
         dmArray<GLint> m_Offsets;
         uint8_t*       m_BlockMemory;
-        GLuint         m_Id;
+        HOpenglID      m_Id;
         GLint          m_Binding;
         GLint          m_BlockSize;
         GLint          m_ActiveUniforms;
         uint8_t        m_Dirty : 1;
     };
 
-    struct OpenGLUniform
-    {
-        char*            m_Name;
-        dmhash_t         m_NameHash;
-        HUniformLocation m_Location;
-        GLint            m_Count;
-        GLenum           m_Type;
-        uint8_t          m_TextureUnit   : 7;
-        uint8_t          m_IsTextureType : 1;
-    };
-
     struct OpenGLProgram
     {
-        GLuint                         m_Id;
+        Program                        m_BaseProgram;
+        uint32_t                       m_Id;
         ShaderDesc::Language           m_Language;
         dmArray<OpenGLVertexAttribute> m_Attributes;
         dmArray<OpenGLUniformBuffer>   m_UniformBuffers;
-        dmArray<OpenGLUniform>         m_Uniforms;
     };
 
     struct OpenGLContext
@@ -146,10 +138,18 @@ namespace dmGraphics
         OpenGLProgram*          m_CurrentProgram;
 
         dmOpaqueHandleContainer<uintptr_t> m_AssetHandleContainer;
+        /*
+        * Store all allocated OpenGL handles in one array.
+        * All other abstractions should use index of handles inside that array instead of direct use of GL handle.
+        * It helps to avoid changing relationship between resource/component and graphical handle.
+        * But it enables to recreate all underlying handles without changes of external connection.
+        */
+        dmArray<GLuint>         m_AllGLHandles;
+        dmArray<HOpenglID>      m_FreeIndexes; /// contains indexes that can be reused in m_AllGLHandles
 
         PipelineState           m_PipelineState;
 
-        GLuint                  m_GlobalVAO;
+        HOpenglID               m_GlobalVAO;
 
         uint32_t                m_Width;
         uint32_t                m_Height;
@@ -178,8 +178,8 @@ namespace dmGraphics
         uint32_t                m_MultiTargetRenderingSupport      : 1;
         uint32_t                m_ComputeSupport                   : 1;
         uint32_t                m_StorageBufferSupport             : 1;
-        uint32_t                m_RenderDocSupport                 : 1;
         uint32_t                m_InstancingSupport                : 1;
+        uint32_t                m_ASTCSupport                      : 1;
     };
 }
 #endif // __GRAPHICS_DEVICE_OPENGL__

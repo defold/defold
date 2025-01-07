@@ -72,7 +72,6 @@ struct PropertyCtx
 
 // *******************************************************************************
 // Samples
-/*
 static void ProcessSample(SampleCtx* ctx, dmProfile::HSample sample)
 {
     TestSample out;
@@ -112,7 +111,6 @@ static void SampleTreeCallback(void* _ctx, const char* thread_name, dmProfile::H
     printf("Thread: %s\n", thread_name);
     TraverseSampleTree(ctx, 1, root);
 }
-*/
 
 // *******************************************************************************
 // Properties
@@ -168,15 +166,6 @@ TEST(dmProfile, SmallTest)
     dmProfile::Finalize();
 }
 
-#if 0
-// This test is currently disabled until we can figure out a good way to test it.
-// It is currentlyu very tricky to do due to its threadeded mechanic.
-
-// TODO
-// 100 msec, which is in fact much higher than the expected time of the profiler
-// On OSX, the time is usually a few microseconds, but once in a while the time spikes to ~0.5 ms
-// On Linux CI, the time can be as high as 16 msec
-// The timings (dmTime::BusyWait) is based around dmTime::GetTime, this issue is a revisit to improve the expected granularity: DEF-2013
 #define TOL 0.1
 
 TEST(dmProfile, Profile)
@@ -262,8 +251,6 @@ TEST(dmProfile, Profile)
 
     dmMutex::Delete(ctx.m_Mutex);
 }
-
-#endif // Disable
 
 
 DM_PROPERTY_GROUP(prop_TestGroup1, "");

@@ -301,7 +301,7 @@ HResourceType   ResourceDescriptorGetType(HResourceDescriptor rd);
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Type functions
 
-void*  ResourceTypeContextGetContextByHash(HResourceTypeContext, dmhash_t extension_hash);
+void*   ResourceTypeContextGetContextByHash(HResourceTypeContext, dmhash_t extension_hash);
 
 typedef ResourceResult (*FResourceTypeRegister)(HResourceTypeContext ctx, HResourceType type);
 typedef ResourceResult (*FResourceTypeDeregister)(HResourceTypeContext ctx, HResourceType type);
@@ -320,8 +320,14 @@ void ResourceTypeSetCreateFn(HResourceType type, FResourceCreate fn);
 void ResourceTypeSetPostCreateFn(HResourceType type, FResourcePostCreate fn);
 void ResourceTypeSetDestroyFn(HResourceType type, FResourceDestroy fn);
 void ResourceTypeSetRecreateFn(HResourceType type, FResourceRecreate fn);
+// Enables streaming for a resource
+void        ResourceTypeSetStreaming(HResourceType type, uint32_t preload_size);
+bool        ResourceTypeIsStreaming(HResourceType type);
+uint32_t    ResourceTypeGetPreloadSize(HResourceType type);
 
 // internal
+void ResourceTypeReset(HResourceType type);
+
 ResourceResult ResourceRegisterType(HResourceFactory factory,
                                    const char* extension,
                                    void* context,
@@ -348,6 +354,8 @@ struct ResourcePreloadParams
     const char*              m_Filename;
     const void*              m_Buffer;
     uint32_t                 m_BufferSize;
+    uint32_t                 m_FileSize:31;
+    uint32_t                 m_IsBufferPartial:1;
     HResourcePreloadHintInfo m_HintInfo;
     void**                   m_PreloadData;
     HResourceType            m_Type;
@@ -372,6 +380,8 @@ struct ResourceCreateParams
     const char*         m_Filename;
     const void*         m_Buffer;
     uint32_t            m_BufferSize;
+    uint32_t            m_FileSize:31;
+    uint32_t            m_IsBufferPartial:1;
     void*               m_PreloadData;
     HResourceDescriptor m_Resource;
     HResourceType       m_Type;
@@ -419,6 +429,8 @@ struct ResourceRecreateParams
     const char*         m_Filename;
     const void*         m_Buffer;
     uint32_t            m_BufferSize;
+    uint32_t            m_FileSize:31;
+    uint32_t            m_IsBufferPartial:1;
     const void*         m_Message;
     HResourceDescriptor m_Resource;
     HResourceType       m_Type;
@@ -531,7 +543,7 @@ void ResourceRegisterTypeCreatorDesc(void* desc, uint32_t size, const char *name
  *     // ...
  * };
  *
- * static ResourceResult RegisterResourceTypeBlob(HResourceTypeRegisterContext ctx, HResourceType type)
+ * static ResourceResult RegisterResourceTypeBlob(HResourceTypeContext ctx, HResourceType type)
  * {
  *     // The engine.cpp creates the contexts for our built in types.
  *     // Here we register a custom type
@@ -543,10 +555,10 @@ void ResourceRegisterTypeCreatorDesc(void* desc, uint32_t size, const char *name
  *     ResourceTypeSetRecreateFn(type, MyResourceTypeScriptRecreate);
  * }
  *
- * static ResourceResult DeregisterResourceTypeBlob(ResourceTypeRegisterContext& ctx)
+ * static ResourceResult DeregisterResourceTypeBlob(HResourceTypeContext ctx, HResourceType type)
  * {
- *     MyContext** context = (MyContext*)ResourceTypeGetContext(type);
- *     delete *context;
+ *     MyContext* context = (MyContext*)ResourceTypeGetContext(type);
+ *     delete context;
  * }
  *
  * DM_DECLARE_RESOURCE_TYPE(ResourceTypeBlob, "blobc", RegisterResourceTypeBlob, DeregisterResourceTypeBlob);

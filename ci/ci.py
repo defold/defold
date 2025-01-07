@@ -163,6 +163,7 @@ def install(args):
             "libtool",
             "libxi-dev",
             "libx11-xcb-dev",
+            "libxrandr-dev",
             "libopenal-dev",
             "libgl1-mesa-dev",
             "libglw1-mesa-dev",

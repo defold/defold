@@ -276,6 +276,8 @@ namespace dmGameSystem
      * - If an object is hit, the result will be reported via a [ref:ray_cast_response] message.
      * - If there is no object hit, the result will be reported via a [ref:ray_cast_missed] message.
      *
+     * NOTE: Ray casts will ignore collision objects that contain the starting point of the ray. This is a limitation in Box2D.
+     *
      * @name physics.raycast_async
      * @param from [type:vector3] the world position of the start of the ray
      * @param to [type:vector3] the world position of the end of the ray
@@ -387,6 +389,8 @@ namespace dmGameSystem
      * do not intersect with ray casts.
      * Which collision objects to hit is filtered by their collision groups and can be configured
      * through `groups`.
+     *
+     * NOTE: Ray casts will ignore collision objects that contain the starting point of the ray. This is a limitation in Box2D.
      *
      * @name physics.raycast
      * @param from [type:vector3] the world position of the start of the ray

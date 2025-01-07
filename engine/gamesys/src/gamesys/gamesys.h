@@ -100,6 +100,7 @@ namespace dmGameSystem
         dmResource::HFactory m_Factory;
         dmRender::HRenderContext m_RenderContext;
         uint32_t m_MaxParticleFXCount;
+        uint32_t m_MaxParticleBufferCount;
         uint32_t m_MaxParticleCount;
         uint32_t m_MaxEmitterCount;
         bool m_Debug;
@@ -133,16 +134,6 @@ namespace dmGameSystem
         dmRender::HRenderContext    m_RenderContext;
         dmResource::HFactory        m_Factory;
         uint32_t                    m_MaxModelCount;
-    };
-
-    struct SoundContext
-    {
-        SoundContext()
-        {
-            memset(this, 0, sizeof(*this));
-        }
-        uint32_t                    m_MaxComponentCount;
-        uint32_t                    m_MaxSoundInstances;
     };
 
     struct ScriptLibContext
@@ -212,8 +203,7 @@ namespace dmGameSystem
                                                   CollectionFactoryContext *collectionfactory_context,
                                                   ModelContext* model_context,
                                                   LabelContext* label_context,
-                                                  TilemapContext* tilemap_context,
-                                                  SoundContext* sound_context);
+                                                  TilemapContext* tilemap_context);
 
     void OnWindowFocus(bool focus);
     void OnWindowIconify(bool iconfiy);

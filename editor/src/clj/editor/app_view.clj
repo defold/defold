@@ -467,7 +467,7 @@
     (when-let [btn (some-> ^TabPane (g/node-value app-view :active-tab-pane)
                            (ui/selected-tab)
                            (.. getContent (lookup "#show-visibility-settings")))]
-      (scene-visibility/show-visibility-settings! btn scene-visibility)))
+      (scene-visibility/show-visibility-settings! app-view btn scene-visibility)))
   (state [app-view scene-visibility]
     (when-let [btn (some-> ^TabPane (g/node-value app-view :active-tab-pane)
                            (ui/selected-tab)
@@ -1320,23 +1320,32 @@ If you do not specifically require different script states, consider changing th
     (console/pipe-log-stream-to-console! in)
     (PipedOutputStream. in)))
 
+(defn- build-html5! [project prefs web-server build-errors-view changes-view main-stage tool-tab-pane bob-commands]
+  (let [main-scene (.getScene ^Stage main-stage)
+        render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
+        render-reload-progress! (make-render-task-progress :resource-sync)
+        render-save-progress! (make-render-task-progress :save-all)
+        render-build-progress! (make-render-task-progress :build)
+        task-cancelled? (make-task-cancelled-query :build)
+        bob-args (bob/build-html5-bob-options project prefs)
+        out (start-new-log-pipe!)]
+    (build-errors-view/clear-build-errors build-errors-view)
+    (disk/async-bob-build! render-reload-progress! render-save-progress! render-build-progress! out task-cancelled?
+                           render-build-error! bob-commands bob-args project changes-view
+                           (fn [successful?]
+                             (when successful?
+                               (ui/open-url (format "http://localhost:%d%s/index.html" (http-server/port web-server) bob/html5-url-prefix)))
+                             (.close out)))))
+
+(handler/defhandler :rebuild-html5 :global
+  (run [project prefs web-server build-errors-view changes-view main-stage tool-tab-pane]
+       (build-html5! project prefs web-server build-errors-view changes-view main-stage tool-tab-pane
+                     bob/rebuild-html5-bob-commands)))
+
 (handler/defhandler :build-html5 :global
   (run [project prefs web-server build-errors-view changes-view main-stage tool-tab-pane]
-    (let [main-scene (.getScene ^Stage main-stage)
-          render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
-          render-reload-progress! (make-render-task-progress :resource-sync)
-          render-save-progress! (make-render-task-progress :save-all)
-          render-build-progress! (make-render-task-progress :build)
-          task-cancelled? (make-task-cancelled-query :build)
-          bob-args (bob/build-html5-bob-options project prefs)
-          out (start-new-log-pipe!)]
-      (build-errors-view/clear-build-errors build-errors-view)
-      (disk/async-bob-build! render-reload-progress! render-save-progress! render-build-progress! out task-cancelled?
-                             render-build-error! bob/build-html5-bob-commands bob-args project changes-view
-                             (fn [successful?]
-                               (when successful?
-                                 (ui/open-url (format "http://localhost:%d%s/index.html" (http-server/port web-server) bob/html5-url-prefix)))
-                               (.close out))))))
+       (build-html5! project prefs web-server build-errors-view changes-view main-stage tool-tab-pane
+                     bob/build-html5-bob-commands)))
 
 (defn- updated-build-resource-proj-paths [old-etags new-etags]
   ;; We only want to return resources that were present in the old etags since
