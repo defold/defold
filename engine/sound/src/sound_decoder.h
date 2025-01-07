@@ -16,7 +16,6 @@
 #define DM_SOUND_DECODER_H
 
 #include "sound_codec.h"
-#include "sound_decoder.h"
 #include "sound.h"
 
 namespace dmSoundCodec
@@ -49,7 +48,7 @@ namespace dmSoundCodec
         /**
          * Open a stream for decoding
          */
-        Result (*m_OpenStream)(const void* buffer, const uint32_t size, HDecodeStream* out);
+        Result (*m_OpenStream)(dmSound::HSoundData sound_data, HDecodeStream* out);
 
         /**
          * Close and free decoding resources

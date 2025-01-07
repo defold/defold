@@ -30,6 +30,8 @@
 #include "../graphics_adapter.h"
 #include "graphics_webgpu_private.h"
 
+#include "../dmsdk/graphics/graphics_webgpu.h"
+
 #if defined(__EMSCRIPTEN__)
 #include <emscripten/html5.h>
 #endif
@@ -183,6 +185,8 @@ static WebGPUTexture* WebGPUNewTextureInternal(const TextureCreationParams& para
         texture->m_UsageFlags |= WGPUTextureUsage_TextureBinding;
     if (params.m_UsageHintBits & TEXTURE_USAGE_FLAG_STORAGE)
         texture->m_UsageFlags |= WGPUTextureUsage_StorageBinding;
+    if (params.m_UsageHintBits & TEXTURE_USAGE_FLAG_COLOR)
+        texture->m_UsageFlags |= WGPUTextureUsage_RenderAttachment;
     texture->m_UsageHintFlags = params.m_UsageHintBits;
 
     if (params.m_OriginalWidth == 0)
@@ -368,33 +372,58 @@ static void WebGPURealizeTexture(WebGPUTexture* texture, WGPUTextureFormat forma
     {
         WGPUTextureDescriptor desc = {};
         desc.usage                 = texture->m_UsageFlags | usage;
-        desc.dimension             = WGPUTextureDimension_2D;
         desc.size                  = { texture->m_Width, texture->m_Height, depth };
         desc.sampleCount           = sampleCount;
         desc.format                = texture->m_Format;
         desc.mipLevelCount         = texture->m_MipMapCount;
+        switch (texture->m_Type)
+        {
+        case TEXTURE_TYPE_2D:
+        case TEXTURE_TYPE_IMAGE_2D:
+        case TEXTURE_TYPE_2D_ARRAY:
+        case TEXTURE_TYPE_TEXTURE_2D:
+        case TEXTURE_TYPE_TEXTURE_2D_ARRAY:
+            desc.dimension = WGPUTextureDimension_2D;
+            break;
+        case TEXTURE_TYPE_CUBE_MAP:
+        case TEXTURE_TYPE_TEXTURE_CUBE:
+            desc.dimension               = WGPUTextureDimension_2D;
+            desc.size.depthOrArrayLayers = 6;
+            break;
+        case TEXTURE_TYPE_SAMPLER:
+            dmLogError("Unable to realize texture, unsupported type (%s).", GetTextureTypeLiteral(texture->m_Type));
+            return;
+        }
 
         texture->m_Texture = wgpuDeviceCreateTexture(g_WebGPUContext->m_Device, &desc);
     }
     {
         WGPUTextureViewDescriptor desc = {};
-        desc.format                    = texture->m_Format;
+        desc.format            = texture->m_Format;
+        desc.mipLevelCount     = texture->m_MipMapCount;
+        desc.aspect            = WGPUTextureAspect_All;
         switch (texture->m_Type)
         {
-            case TEXTURE_TYPE_2D_ARRAY:
-                desc.dimension = WGPUTextureViewDimension_2DArray;
-                break;
-            case TEXTURE_TYPE_CUBE_MAP:
-            case TEXTURE_TYPE_TEXTURE_CUBE:
-                desc.dimension = WGPUTextureViewDimension_Cube;
-                break;
-            default:
-                desc.dimension = WGPUTextureViewDimension_2D;
-                break;
+        case TEXTURE_TYPE_2D_ARRAY:
+        case TEXTURE_TYPE_TEXTURE_2D_ARRAY:
+            desc.dimension       = WGPUTextureViewDimension_2DArray;
+            desc.arrayLayerCount = depth;
+            break;
+        case TEXTURE_TYPE_CUBE_MAP:
+        case TEXTURE_TYPE_TEXTURE_CUBE:
+            desc.dimension       = WGPUTextureViewDimension_Cube;
+            desc.arrayLayerCount = 6;
+            break;
+        case TEXTURE_TYPE_2D:
+        case TEXTURE_TYPE_IMAGE_2D:
+        case TEXTURE_TYPE_TEXTURE_2D:
+            desc.dimension       = WGPUTextureViewDimension_2D;
+            desc.arrayLayerCount = 1;
+            break;
+        case TEXTURE_TYPE_SAMPLER:
+            dmLogError("Unable to realize texture view, unsupported type (%s).", GetTextureTypeLiteral(texture->m_Type));
+            return;
         }
-        desc.mipLevelCount     = texture->m_MipMapCount;
-        desc.arrayLayerCount   = depth;
-        desc.aspect            = WGPUTextureAspect_All;
         texture->m_TextureView = wgpuTextureCreateView(texture->m_Texture, &desc);
     }
 }
@@ -892,13 +921,14 @@ static void requestDeviceCallback(WGPURequestDeviceStatus status, WGPUDevice dev
         }
         context->m_Format = wgpuSurfaceGetPreferredFormat(context->m_Surface, context->m_Adapter);
         WebGPUCreateSwapchain(context, context->m_OriginalWidth, context->m_OriginalHeight);
-        context->m_InitComplete = true;
+
+        dmLogInfo("WebGPU: Created device");
     }
     else
     {
         dmLogError("WebGPU: Unable to create device %s", message);
-        context->m_InitComplete = true;
     }
+    context->m_InitComplete = true;
 }
 
 static void instanceRequestAdapterCallback(WGPURequestAdapterStatus status, WGPUAdapter adapter, const char* message, void* userdata)
@@ -3006,6 +3036,37 @@ static void WebGPUCloseWindow(HContext _context)
 }
 
 static void WebGPUInvalidateGraphicsHandles(HContext context) { }
+
+///////////////////////////////////
+// dmsdk / graphics_webgpu.h impls:
+///////////////////////////////////
+
+WGPUDevice dmGraphics::WebGPUGetDevice(HContext context)
+{
+    return ((WebGPUContext*)context)->m_Device;
+}
+
+WGPUQueue dmGraphics::WebGPUGetQueue(HContext context)
+{
+    return ((WebGPUContext*)context)->m_Queue;
+}
+
+WGPUTextureView dmGraphics::WebGPUGetTextureView(HContext _context, HTexture _texture)
+{
+    WebGPUContext* context = (WebGPUContext*) _context;
+    WebGPUTexture* texture = GetAssetFromContainer<WebGPUTexture>(context->m_AssetHandleContainer, _texture);
+    assert(texture);
+    return texture->m_TextureView;
+}
+
+HTexture dmGraphics::WebGPUGetActiveSwapChainTexture(HContext _context)
+{
+    WebGPUContext* context = (WebGPUContext*) _context;
+    if (context->m_MainRenderTarget->m_Multisample == 1)
+        return context->m_MainRenderTarget->m_TextureColor[0];
+    else
+        return context->m_MainRenderTarget->m_TextureResolve[0];
+}
 
 static GraphicsAdapterFunctionTable WebGPURegisterFunctionTable()
 {
