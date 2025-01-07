@@ -560,7 +560,7 @@ public class Bob {
                 opt(null, "with-symbols", ZERO, "Generate the symbol file (if applicable)", false),
 
                 opt("tp", "texture-profiles", ONE, "DEPRECATED! Use --texture-compression instead", true),
-                opt("tc", "texture-compression", ONE, "Use texture compression as specified in texture profiles", true),
+                opt("tc", "texture-compression", ZERO, "Use texture compression as specified in texture profiles", true),
 
                 opt(null, "exclude-build-folder", ONE, "DEPRECATED! Use '.defignore' file instead", true),
 
