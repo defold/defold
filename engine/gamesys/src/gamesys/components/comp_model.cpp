@@ -60,7 +60,6 @@ namespace dmGameSystem
     using namespace dmGameSystemDDF;
 
     static const uint16_t ATTRIBUTE_RENDER_DATA_INDEX_UNUSED = 0xffff;
-    static const uint16_t BIND_POSE_INDEX_UNUSED             = 0xffff;
 
     struct ModelInstanceData
     {
@@ -172,8 +171,7 @@ namespace dmGameSystem
     static const dmhash_t PROP_CURSOR        = dmHashString64("cursor");
     static const dmhash_t PROP_PLAYBACK_RATE = dmHashString64("playback_rate");
 
-    const dmhash_t DM_POSE_MATRIX_CACHE_HASH = dmHashString64("dm_pose_matrix_cache");
-    const dmhash_t DM_ANIMATION_DATA_HASH    = dmHashString64("dm_animation_data");
+    static const dmhash_t NAME_POSE_MATRIX_CACHE = dmHashString64("pose_matrix_cache");
 
     static void ResourceReloadedCallback(const dmResource::ResourceReloadedParams* params);
     static void DestroyComponent(ModelWorld* world, uint32_t index);
@@ -279,6 +277,13 @@ namespace dmGameSystem
         dmResource::UnregisterResourceReloadedCallback(((ModelContext*)params.m_Context)->m_Factory, ResourceReloadedCallback, world);
 
         dmRig::DeleteContext(world->m_RigContext);
+
+        if (world->m_SkinnedAnimationData.m_BindPoseCacheBuffer)
+            free(world->m_SkinnedAnimationData.m_BindPoseCacheBuffer);
+        if (world->m_SkinnedAnimationData.m_BindPoseCacheTexture)
+            dmGraphics::DeleteTexture(world->m_SkinnedAnimationData.m_BindPoseCacheTexture);
+        if (world->m_SkinnedAnimationData.m_AnimationRenderConstants)
+            dmGameSystem::DestroyRenderConstants(world->m_SkinnedAnimationData.m_AnimationRenderConstants);
 
         delete [] world->m_VertexBufferData;
         delete [] world->m_VertexBufferDispatchCounts;
@@ -387,12 +392,14 @@ namespace dmGameSystem
                 case dmGraphics::VertexAttribute::SEMANTIC_TYPE_COLOR:
                     return name_hash == dmRender::VERTEX_STREAM_COLOR;
                 case dmGraphics::VertexAttribute::SEMANTIC_TYPE_TEXCOORD:
-                    return name_hash == dmRender::VERTEX_STREAM_TEXCOORD0 || name_hash == dmRender::VERTEX_STREAM_TEXCOORD1;
+                    return name_hash == dmRender::VERTEX_STREAM_TEXCOORD0 ||
+                           name_hash == dmRender::VERTEX_STREAM_TEXCOORD1;
+                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_BONE_WEIGHTS:
+                    return name_hash == dmRender::VERTEX_STREAM_BONE_WEIGHTS;
+                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_BONE_INDICES:
+                    return name_hash == dmRender::VERTEX_STREAM_BONE_INDICES;
                 default:break;
             }
-
-            return name_hash == dmRender::VERTEX_STREAM_BONE_WEIGHTS ||
-                   name_hash == dmRender::VERTEX_STREAM_BONE_INDICES;
         }
         else if (step_function == dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE)
         {
@@ -402,12 +409,14 @@ namespace dmGameSystem
                     return name_hash == dmRender::VERTEX_STREAM_WORLD_MATRIX;
                 case dmGraphics::VertexAttribute::SEMANTIC_TYPE_NORMAL_MATRIX:
                     return name_hash == dmRender::VERTEX_STREAM_NORMAL_MATRIX;
+                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_BONE_WEIGHTS:
+                    return name_hash == dmRender::VERTEX_STREAM_BONE_WEIGHTS;
+                case dmGraphics::VertexAttribute::SEMANTIC_TYPE_BONE_INDICES:
+                    return name_hash == dmRender::VERTEX_STREAM_BONE_INDICES;
                 default:break;
             }
 
-            return name_hash == dmRender::VERTEX_STREAM_BONE_WEIGHTS ||
-                   name_hash == dmRender::VERTEX_STREAM_BONE_INDICES ||
-                   name_hash == dmRender::VERTEX_STREAM_ANIMATION_DATA;
+            return name_hash == dmRender::VERTEX_STREAM_ANIMATION_DATA;
         }
         return false;
     }
@@ -461,11 +470,11 @@ namespace dmGameSystem
         return texture_res;
     }
 
-    static uint32_t FillTextures(dmRender::RenderObject* ro, const ModelComponent* component, uint32_t material_index)
+    static int32_t FillTextures(dmRender::RenderObject* ro, const ModelComponent* component, uint32_t material_index)
     {
         MaterialResource* material = GetMaterialResource(component, component->m_Resource, material_index);
 
-        uint32_t first_free_index = 0;
+        int32_t first_free_index = -1;
         bool first_free_index_set = false;
 
         for(uint32_t i = 0; i < material->m_NumTextures; ++i)
@@ -1120,7 +1129,7 @@ namespace dmGameSystem
         dmGraphics::VertexAttributeInfos material_infos;
         dmGraphics::VertexAttributeInfos attribute_infos;
 
-        uint32_t first_free_index = FillTextures(&ro, component, material_index);
+        int32_t first_free_index = FillTextures(&ro, component, material_index);
 
         for (uint32_t *i=begin;i!=end;i++)
         {
@@ -1219,11 +1228,27 @@ namespace dmGameSystem
                 instance_data->m_AnimationData.setZ(dmGraphics::GetTextureWidth(world->m_SkinnedAnimationData.m_BindPoseCacheTexture)); // Inv cache W
                 instance_data->m_AnimationData.setW(dmGraphics::GetTextureHeight(world->m_SkinnedAnimationData.m_BindPoseCacheTexture)); // Inv cache H
 
-                dmRender::SetMaterialSampler(ro.m_Material, DM_POSE_MATRIX_CACHE_HASH, first_free_index,
-                dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE,
-                dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, 0.0f);
-
-                ro.m_Textures[first_free_index] = world->m_SkinnedAnimationData.m_BindPoseCacheTexture;
+                if (first_free_index >= 0)
+                {
+                    if (dmRender::SetMaterialSampler(ro.m_Material,
+                        NAME_POSE_MATRIX_CACHE, first_free_index,
+                        dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE,
+                        dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, 0.0f))
+                    {
+                        ro.m_Textures[first_free_index] = world->m_SkinnedAnimationData.m_BindPoseCacheTexture;
+                    }
+                    else
+                    {
+                        dmLogOnceError("Unable to bind bone matrix cache texture for component '%s', does the shader(s) have a sampler named '%s'?",
+                            dmHashReverseSafe64(dmGameObject::GetIdentifier(instance_component->m_Instance)),
+                            dmHashReverseSafe64(NAME_POSE_MATRIX_CACHE));
+                    }
+                }
+                else
+                {
+                    dmLogOnceError("Unable to bind bone matrix cache texture for component '%s', no free texture slot available.",
+                        dmHashReverseSafe64(dmGameObject::GetIdentifier(instance_component->m_Instance)));
+                }
 
                 instance_write_ptr += sizeof(ModelSkinnedInstanceData);
             }
@@ -1327,17 +1352,24 @@ namespace dmGameSystem
                 }
             }
 
-            uint32_t first_free_index = FillTextures(&ro, component, material_index);
+            int32_t first_free_index = FillTextures(&ro, component, material_index);
 
             HComponentRenderConstants constants = component->m_RenderConstants;
 
             if (component->m_RigInstance && render_item->m_Buffers->m_RigModelVertexFormat == RIG_MODEL_VERTEX_FORMAT_SKINNED)
             {
-                dmRender::SetMaterialSampler(ro.m_Material, DM_POSE_MATRIX_CACHE_HASH, first_free_index,
-                    dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE,
-                    dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, 0.0f);
-
-                ro.m_Textures[first_free_index] = world->m_SkinnedAnimationData.m_BindPoseCacheTexture;
+                if (first_free_index >= 0)
+                {
+                    dmRender::SetMaterialSampler(ro.m_Material, NAME_POSE_MATRIX_CACHE, first_free_index,
+                        dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE, dmGraphics::TEXTURE_WRAP_CLAMP_TO_EDGE,
+                        dmGraphics::TEXTURE_FILTER_NEAREST, dmGraphics::TEXTURE_FILTER_NEAREST, 0.0f);
+                    ro.m_Textures[first_free_index] = world->m_SkinnedAnimationData.m_BindPoseCacheTexture;
+                }
+                else
+                {
+                    dmLogOnceError("Unable to bind bone matrix cache texture for component '%s', no free texture slot available.",
+                        dmHashReverseSafe64(dmGameObject::GetIdentifier(component->m_Instance)));
+                }
 
                 constants = constants ? constants : world->m_SkinnedAnimationData.m_AnimationRenderConstants;
 
@@ -1350,7 +1382,7 @@ namespace dmGameSystem
                 animation_data.setZ(dmGraphics::GetTextureWidth(world->m_SkinnedAnimationData.m_BindPoseCacheTexture)); // Inv cache W
                 animation_data.setW(dmGraphics::GetTextureHeight(world->m_SkinnedAnimationData.m_BindPoseCacheTexture)); // Inv cache H
 
-                SetRenderConstant(constants, DM_ANIMATION_DATA_HASH, &animation_data, 1);
+                SetRenderConstant(constants, dmRender::VERTEX_STREAM_ANIMATION_DATA, &animation_data, 1);
             }
 
             if (constants)
@@ -1669,8 +1701,8 @@ namespace dmGameSystem
         uint32_t num_pose_matrices = pose_matrix_cache->m_PoseMatrices.Size();
         uint32_t num_bone_pixels = num_pose_matrices * 4;
 
-        uint32_t max_width      = dmMath::Min(num_bone_pixels, (uint32_t) world->m_SkinnedAnimationData.m_BindPoseCacheTextureMaxWidth);
-        uint32_t max_height     = dmMath::Min(num_bone_pixels / world->m_SkinnedAnimationData.m_BindPoseCacheTextureMaxWidth + 1, (uint32_t) world->m_SkinnedAnimationData.m_BindPoseCacheTextureMaxHeight);
+        uint32_t max_width  = dmMath::Min(num_bone_pixels, (uint32_t) world->m_SkinnedAnimationData.m_BindPoseCacheTextureMaxWidth);
+        uint32_t max_height = dmMath::Min(num_bone_pixels / world->m_SkinnedAnimationData.m_BindPoseCacheTextureMaxWidth + 1, (uint32_t) world->m_SkinnedAnimationData.m_BindPoseCacheTextureMaxHeight);
 
         EnsureBindPoseCacheBufferSize(world, max_width, max_height);
 
@@ -1679,34 +1711,17 @@ namespace dmGameSystem
 
         memcpy(animation_data_write_ptr, animation_data_read_ptr, num_pose_matrices * sizeof(dmVMath::Matrix4));
 
-        /*
-        void* texture_memory = malloc(num_animations * pose_matrix_cache->m_MaxBoneCount * sizeof(dmVMath::Matrix4));
-        uint8_t* texture_memory_write_ptr = (uint8_t*) texture_memory;
-
-        dmVMath::Matrix4* animation_data_begin = pose_matrix_cache->m_PoseMatrices.Begin();
-        for (int i = 0; i < num_animations; ++i)
-        {
-            memcpy(texture_memory_write_ptr, animation_data_begin, pose_matrix_cache->m_BoneCounts[i] * sizeof(dmVMath::Matrix4));
-            texture_memory_write_ptr += pose_matrix_cache->m_MaxBoneCount * sizeof(dmVMath::Matrix4);
-            animation_data_begin     += pose_matrix_cache->m_BoneCounts[i];
-        }
-        */
-
-        //void* texture_memory = malloc();
-
         dmGraphics::TextureParams tp;
-        tp.m_Width     = max_width; //pose_matrix_cache->m_MaxBoneCount * 4;
-        tp.m_Height    = max_height; //num_animations;
+        tp.m_Width     = max_width;
+        tp.m_Height    = max_height;
         tp.m_Depth     = 1;
         tp.m_Format    = dmGraphics::TEXTURE_FORMAT_RGBA32F;
-        tp.m_Data      = animation_data_write_ptr; // pose_matrix_cache->m_PoseMatrices.Begin();
+        tp.m_Data      = animation_data_write_ptr;
         tp.m_MinFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
         tp.m_MagFilter = dmGraphics::TEXTURE_FILTER_NEAREST;
         dmGraphics::SetTexture(world->m_SkinnedAnimationData.m_BindPoseCacheTexture, tp);
 
         dmRig::ResetPoseMatrixCache(world->m_RigContext);
-
-        //free(texture_memory);
     }
 
     static void UpdateMeshTransforms(ModelComponent* component)
@@ -1820,7 +1835,7 @@ namespace dmGameSystem
                 ReHash(&component);
             }
 
-            component.m_BindPoseCacheAnimationIndex = BIND_POSE_INDEX_UNUSED;
+            component.m_BindPoseCacheAnimationIndex = dmRig::INVALID_POSE_MATRIX_CACHE_INDEX;
             if (RequiresBindPoseCaching(component))
             {
                 // TODO: Error handling

@@ -79,7 +79,7 @@ namespace dmRig
     }
 
     template <typename T>
-    static void EnsureSize(T& array, uint32_t size)
+    static inline void EnsureSize(T& array, uint32_t size)
     {
         if (array.Capacity() < size) {
             array.OffsetCapacity(size - array.Capacity());
@@ -525,8 +525,7 @@ namespace dmRig
         uint32_t current_size = pose_matrices.Size();
         EnsureSize(pose_matrices, current_size + bone_count);
 
-        // We should store indices instead
-        pose_bone_count[instance->m_PoseMatrixCacheIndex] = current_size; //bone_count;
+        pose_bone_count[instance->m_PoseMatrixCacheIndex] = current_size;
 
         Matrix4* pose_matrix_write_ptr = pose_matrices.Begin() + current_size;
         PoseToMatrix(instance->m_Pose, pose_matrix_write_ptr);

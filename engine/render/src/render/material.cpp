@@ -93,6 +93,15 @@ namespace dmRender
             attribute->m_SemanticType    = dmGraphics::VertexAttribute::SEMANTIC_TYPE_TANGENT;
             attribute->m_CoordinateSpace = dmGraphics::COORDINATE_SPACE_DEFAULT;
         }
+        else if (name_hash == VERTEX_STREAM_BONE_WEIGHTS)
+        {
+            attribute->m_SemanticType = dmGraphics::VertexAttribute::SEMANTIC_TYPE_BONE_WEIGHTS;
+        }
+        else if (name_hash == VERTEX_STREAM_BONE_INDICES)
+        {
+            attribute->m_SemanticType = dmGraphics::VertexAttribute::SEMANTIC_TYPE_BONE_INDICES;
+        }
+        // Instancing attributes
         else if (name_hash == VERTEX_STREAM_WORLD_MATRIX)
         {
             attribute->m_SemanticType = dmGraphics::VertexAttribute::SEMANTIC_TYPE_WORLD_MATRIX;
@@ -111,7 +120,7 @@ namespace dmRender
         }
         else if (name_hash == VERTEX_STREAM_ANIMATION_DATA)
         {
-            // attribute->m_SemanticType = dmGraphics::VertexAttribute::SEMANTIC_TYPE_ANIMATION_DATA;
+            // Internal attribute used for instancing, does not have a semantic type.
             if (instancing_supported)
             {
                 attribute->m_StepFunction = dmGraphics::VERTEX_STEP_FUNCTION_INSTANCE;

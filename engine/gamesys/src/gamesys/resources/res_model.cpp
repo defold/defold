@@ -364,18 +364,6 @@ namespace dmGameSystem
             return result;
         }
 
-        /*
-        // TODO
-        if(resource->m_RigScene->m_AnimationSetRes || resource->m_RigScene->m_SkeletonRes)
-        {
-            if (!AreAllMaterialsWorldSpace(resource))
-            {
-                dmLogError("Failed to create Model component. Material vertex space option VERTEX_SPACE_LOCAL does not support skinning.");
-                return dmResource::RESULT_NOT_SUPPORTED;
-            }
-        }
-        */
-
         return result;
     }
 
