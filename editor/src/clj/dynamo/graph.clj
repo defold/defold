@@ -27,6 +27,7 @@
             [internal.util :as util]
             [potemkin.namespaces :as namespaces]
             [schema.core :as s]
+            [service.log :as log]
             [util.coll :as coll]
             [util.fn :as fn])
   (:import [internal.graph.error_values ErrorValue]
@@ -1557,7 +1558,10 @@
   "Set up the initial system including graphs, caches, and disposal queues"
   [config]
   (reset! *the-system* (is/make-system config))
-  (low-memory/add-callback! clear-system-cache!))
+  (low-memory/add-callback!
+    (fn low-memory-callback! []
+      (log/info :message "Clearing the system cache in desperation due to low-memory conditions.")
+      (clear-system-cache!))))
 
 (defn make-graph!
   "Create a new graph in the system with optional values of `:history` and `:volatility`. If no
