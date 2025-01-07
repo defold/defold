@@ -608,8 +608,20 @@ public class Bob {
                 opt(null, "debug-output-spirv", ONE, "Force build SPIR-V shaders", false),
                 opt(null, "debug-output-wgsl", ONE, "Force build WGSL shaders", false)
         );
+    }
 
-
+    private static String[] migrateInvalidArguments(String[] args) {
+        ArrayList<String> migratedArguments = new ArrayList<>();
+        for (String arg : args) {
+            // Migrate texture compression argument
+            boolean argIsTextureCompression = arg.startsWith("--tc") || arg.startsWith("--texture-compression");
+            if (argIsTextureCompression && arg.contains("=false")) {
+                System.out.println("Warning: --texture-compression and --tc no longer accepts an argument. To disable texture compression, remove the argument.");
+            } else {
+                migratedArguments.add(arg);
+            }
+        }
+        return migratedArguments.toArray(new String[0]);
     }
 
     private static CommandLine parse(String[] args) throws OptionValidationException {
@@ -618,6 +630,9 @@ public class Bob {
 
         CommandLineParser parser = new PosixParser();
         CommandLine cmd;
+
+        args = migrateInvalidArguments(args);
+
         try {
             cmd = parser.parse(options, args);
         } catch (ParseException e) {
@@ -941,7 +956,7 @@ public class Bob {
                 System.out.println("WARNING option 'texture-profiles' is deprecated, use option 'texture-compression' instead.");
                 String texCompression = cmd.getOptionValue("texture-profiles");
                 if (cmd.hasOption("texture-compression")) {
-                    texCompression = cmd.getOptionValue("texture-compression");
+                    texCompression = "true";
                 }
                 project.setOption("texture-compression", texCompression);
             }

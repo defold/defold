@@ -1725,6 +1725,9 @@ public class Project {
         }
 
         boolean texture_compress = this.option("texture-compression", "false").equals("true");
+
+        System.out.println("Has texture compression? " + texture_compress);
+
         if (texture_compress)
         {
             registerTextureCompressors();
