@@ -600,6 +600,8 @@ namespace dmEngine
         return (dmPlatform::PlatformGraphicsApi) -1;
     }
 
+    // TODO: Can this be moved from engine.cpp to res_sound_data.cpp?
+    // Probably need to allow access to HConfigFile first
     static void SetupStreamingResourceTypes(HEngine engine)
     {
         // Setup streaming if wanted

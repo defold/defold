@@ -187,6 +187,19 @@ namespace dmResource
     Result CreateResource(HFactory factory, const char* name, void* data, uint32_t data_size, void** resource);
 
     /**
+     * Creates and inserts a resource into the factory
+     * @param factory Factory handle
+     * @param type The resource type. May be null, and then the path suffix will be used as a lookup.
+     * @param path Path of the resource
+     * @param data Resource data
+     * @param data_size Partial resource data size
+     * @param file_size Full resource size
+     * @param resource Will contain a pointer to the resource after this function has completed
+     * @return RESULT_OK on success
+     */
+    Result CreateResourcePartial(HFactory factory, HResourceType type, const char* path, void* data, uint32_t data_size, uint32_t file_size, void** resource);
+
+    /**
      * Get a resource extension from a path, i.e resource.ext will return .ext. Note the included dot in the output.
      * @param path The path to the resource
      * @return Pointer to extension string if success (same as buffer), 0 otherwise
