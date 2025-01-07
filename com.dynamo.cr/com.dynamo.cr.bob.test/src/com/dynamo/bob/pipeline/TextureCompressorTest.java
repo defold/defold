@@ -20,7 +20,7 @@ import com.dynamo.graphics.proto.Graphics;
 import org.junit.Before;
 import org.junit.Test;
 
-import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.*;
 
 public class TextureCompressorTest extends AbstractProtoBuilderTest {
 
@@ -37,6 +37,19 @@ public class TextureCompressorTest extends AbstractProtoBuilderTest {
         src.append("  image: \"/test.png\"");
         src.append("}");
         build("/test.atlas", src.toString());
+    }
+
+    @Test
+    public void testDefaultCompressorExists() {
+        ITextureCompressor defaultCompressor = TextureCompression.getCompressor(TextureCompressorDefault.TextureCompressorName);
+        assertNotNull(defaultCompressor);
+        assertEquals(defaultCompressor.getName(), TextureCompressorDefault.TextureCompressorName);
+    }
+
+    @Test
+    public void testCompressorNotExists() {
+        ITextureCompressor notFound = TextureCompression.getCompressor("not_installed");
+        assertNull(notFound);
     }
 
     @Test

@@ -29,7 +29,6 @@ import java.nio.file.Paths;
 import com.defold.extension.pipeline.texture.TextureCompression;
 import com.defold.extension.pipeline.texture.TextureCompressorASTC;
 import com.defold.extension.pipeline.texture.TextureCompressorBasisU;
-import com.defold.extension.pipeline.texture.TextureCompressorDefault;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.ProtoBuilder;
