@@ -13,7 +13,8 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns util.debug-util
-  (:require [service.log :as log])
+  (:require [clojure.repl :as repl]
+            [service.log :as log])
   (:import [java.util Locale]))
 
 (set! *warn-on-reflection* true)
@@ -71,6 +72,22 @@
                   (time-string hours "h")
                   (let [days (nanos->days nanos)]
                     (time-string days "d")))))))))))
+
+(defn stack-trace
+  "Returns a human-readable stack trace as a vector of strings. Elements are
+  ordered from the stack-trace function call site towards the outermost stack
+  frame of the current Thread. Optionally, a different Thread can be specified."
+  ([]
+   (stack-trace (Thread/currentThread)))
+  ([^Thread thread]
+   (let [own-class-name (.getName (class stack-trace))]
+     (into []
+           (comp (drop 1)
+                 (drop-while (fn [^StackTraceElement stack-trace-element]
+                               (= own-class-name
+                                  (.getClassName stack-trace-element))))
+                 (map repl/stack-element-str))
+           (.getStackTrace thread)))))
 
 (defn release-build?
   "Returns true if we're running a release build of the editor."
