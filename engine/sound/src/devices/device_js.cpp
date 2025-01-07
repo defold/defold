@@ -25,7 +25,7 @@
 
 extern "C" {
     // Implementation in library_sound.js
-    int dmDeviceJSOpen(int buffers);
+    int dmDeviceJSOpen(int sample_rate, int buffers);
     int dmGetDeviceSampleRate(int device);
     void dmDeviceJSQueue(int device, const int16_t* samples, uint32_t sample_count);
     int dmDeviceJSFreeBufferSlots(int device);
@@ -45,7 +45,7 @@ namespace dmDeviceJS
         assert(params);
         assert(device);
         JSDevice *dev = new JSDevice();
-        int deviceId = dmDeviceJSOpen(params->m_BufferCount);
+        int deviceId = dmDeviceJSOpen(params->m_MaxFrequency, params->m_BufferCount);
         if (deviceId < 0)
         {
             return dmSound::RESULT_DEVICE_NOT_FOUND;
