@@ -56,7 +56,8 @@ namespace dmSoundCodec
         info->m_bEOS = (res == dmSound::RESULT_END_OF_STREAM);
         info->m_Cursor += read;
 
-        return read;
+        // Return the count of objects vs. bytes (just like C's stdio)
+        return read / size;
     }
 
     static int OggSeek(void *datasource, long long offset, int whence)
@@ -155,8 +156,22 @@ namespace dmSoundCodec
         // shutdown & restart the decoder as we cannot seek anywhere if we do not hand it a seek call on the file IO level
         ov_clear(&streamInfo->m_File);
 
+        ov_callbacks cb;
+        cb.read_func = OggRead;
+        cb.close_func = OggClose;
+        cb.seek_func = OggSeek;
+        cb.tell_func = OggTell;
+
         streamInfo->m_bEOS = false;
         streamInfo->m_Cursor = 0;
+
+        int res = ov_open_callbacks(streamInfo, &streamInfo->m_File, 0, 0, cb);
+        if (res)
+        {
+            delete streamInfo;
+            return RESULT_INVALID_FORMAT;
+        }
+
         return RESULT_OK;
     }
 
