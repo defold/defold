@@ -16,12 +16,12 @@ package com.defold.extension.pipeline.texture;
 
 public class TestTextureCompressor implements ITextureCompressor {
 
-    public int expectedOptionOne;
-    public float expectedOptionTwo;
-    public String expectedOptionThree;
-    public byte[] expectedBytes = new byte[4];
+    public static int expectedOptionOne;
+    public static float expectedOptionTwo;
+    public static String expectedOptionThree;
+    public static byte[] expectedBytes = new byte[4];
 
-    public boolean didRun = false;
+    public static boolean didRun = false;
 
     @Override
     public String getName() {
