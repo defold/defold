@@ -827,8 +827,7 @@ static Result DoCreateResource(HFactory factory, ResourceType* resource_type, co
     }
 }
 
-// Assumes m_LoadMutex is already held
-static Result PrepareResourceCreation(HFactory factory, const char* canonical_path, dmhash_t canonical_path_hash, void** resource_out, HResourceType* resource_type_out)
+static Result CheckAndGetResourceFromPath(HFactory factory, dmhash_t canonical_path_hash, void** resource_out)
 {
     *resource_out = 0;
 
@@ -848,6 +847,11 @@ static Result PrepareResourceCreation(HFactory factory, const char* canonical_pa
         return RESULT_OUT_OF_RESOURCES;
     }
 
+    return RESULT_RESOURCE_NOT_FOUND;
+}
+
+static Result CheckAndGetResourceTypeFromPath(HFactory factory, const char* canonical_path, HResourceType* resource_type_out)
+{
     const char* ext = GetExtFromPath(canonical_path);
 
     if (!ext)
@@ -872,6 +876,16 @@ static Result PrepareResourceCreation(HFactory factory, const char* canonical_pa
 }
 
 // Assumes m_LoadMutex is already held
+static Result CheckAndGetResourceAndType(HFactory factory, const char* canonical_path, dmhash_t canonical_path_hash, void** resource_out, HResourceType* resource_type_out)
+{
+    Result r = CheckAndGetResourceFromPath(factory, canonical_path_hash, resource_out);
+    // If we found the resource, or if the result was anything other than "resource not exists", let's return
+    if (RESULT_OK == r || RESULT_RESOURCE_NOT_FOUND != r)
+        return r;
+    return CheckAndGetResourceTypeFromPath(factory, canonical_path, resource_type_out);
+}
+
+// Assumes m_LoadMutex is already held
 static Result CreateAndLoadResource(HFactory factory, const char* name, void** resource)
 {
     assert(name);
@@ -884,7 +898,7 @@ static Result CreateAndLoadResource(HFactory factory, const char* name, void** r
     dmhash_t canonical_path_hash = dmHashBuffer64(canonical_path, strlen(canonical_path));
 
     ResourceType* resource_type;
-    Result res = PrepareResourceCreation(factory, canonical_path, canonical_path_hash, resource, &resource_type);
+    Result res = CheckAndGetResourceAndType(factory, canonical_path, canonical_path_hash, resource, &resource_type);
     if (res != RESULT_OK)
     {
         return res;
@@ -915,7 +929,7 @@ static Result CreateAndLoadResource(HFactory factory, const char* name, void** r
                                 buffer, buffer_size, resource_size, resource);
 }
 
-Result CreateResource(HFactory factory, const char* name, void* data, uint32_t data_size, void** resource)
+Result CreateResourcePartial(HFactory factory, HResourceType type, const char* name, void* data, uint32_t data_size, uint32_t file_size, void** resource)
 {
     assert(name);
     assert(resource);
@@ -928,20 +942,29 @@ Result CreateResource(HFactory factory, const char* name, void* data, uint32_t d
     GetCanonicalPath(name, canonical_path);
     dmhash_t canonical_path_hash = dmHashBuffer64(canonical_path, strlen(canonical_path));
 
-    ResourceType* resource_type;
-    Result res = PrepareResourceCreation(factory, canonical_path, canonical_path_hash, resource, &resource_type);
-
-    if (res != RESULT_OK)
+    Result res = CheckAndGetResourceFromPath(factory, canonical_path_hash, resource);
+    // If we found the resource, or if the result was anything other than "resource not exists", let's return
+    if (RESULT_OK == res || RESULT_RESOURCE_NOT_FOUND != res)
     {
         return res;
     }
-    else if (*resource != 0x0)
+
+    ResourceType* resource_type = type;
+    if (resource_type == 0)
     {
-        // Resource already created
-        return RESULT_OK;
+        res = CheckAndGetResourceTypeFromPath(factory, canonical_path, &resource_type);
+        if (res != RESULT_OK)
+        {
+            return res;
+        }
     }
 
-    return DoCreateResource(factory, resource_type, name, canonical_path, canonical_path_hash, data, data_size, data_size, resource);
+    return DoCreateResource(factory, resource_type, name, canonical_path, canonical_path_hash, data, data_size, file_size, resource);
+}
+
+Result CreateResource(HFactory factory, const char* name, void* data, uint32_t data_size, void** resource)
+{
+    return CreateResourcePartial(factory, 0, name, data, data_size, data_size, resource);
 }
 
 Result Get(HFactory factory, const char* name, void** resource)
