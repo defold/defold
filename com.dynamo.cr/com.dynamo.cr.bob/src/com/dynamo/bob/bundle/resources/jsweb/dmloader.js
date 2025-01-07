@@ -261,7 +261,7 @@ var EngineLoader = {
             function(error) { throw error; },
             async function(wasm) {
                 if (wasm.byteLength != EngineLoader.wasm_size) {
-                   console.warn("Unexpected wasm size: " + wasm.byteLength + ", expected: " + EngineLoader.wasm_size);
+                   console.warn(" wasm size: " + wasm.byteLength + ", expected: " + EngineLoader.wasm_size);
                 }
                 if (EngineLoader.wasm_sha1) {
                     const digest = await window.crypto.subtle.digest("SHA-1", wasm);
@@ -653,7 +653,7 @@ var GameArchiveLoader = {
             actualSize += file.pieces[i].dataLength;
         }
         if (actualSize != file.size) {
-            return Promise.reject(new Error("Unexpected data size: " + file.name + ", expected size: " + file.size + ", actual size: " + actualSize));
+            console.warn("Unexpected data size: " + file.name + ", expected size: " + file.size + ", actual size: " + actualSize);
         }
 
         // verify the pieces
@@ -682,7 +682,7 @@ var GameArchiveLoader = {
             let data = file.data;
             if (file.stream) {
                 try {
-                    data = FS.mmap(file.stream, file.size, 0, 0x01, 0x01); //PROT_READ, MAP_SHARED
+                    data = FS.mmap(file.stream, actualSize, 0, 0x01, 0x01); //PROT_READ, MAP_SHARED
                 } catch(e) { }
             }
             return window.crypto.subtle.digest("SHA-1", data).then((digest) => {
