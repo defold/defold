@@ -320,7 +320,6 @@ namespace dmGraphics
         for (int i = 0; i < image_count * max_mipmap_count; ++i)
         {
             uint32_t size = image->m_MipMapSizeCompressed[i];
-            // uint8_t* ptr  = &image->m_Data.m_Data[slice_data_offset];
             uint8_t* ptr  = &image_bytes[slice_data_offset];
 
             if (!TranscodeInitializeState(path, image_transcoders[i], ptr, size, transcoder_format))
