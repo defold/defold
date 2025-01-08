@@ -261,7 +261,7 @@ var EngineLoader = {
             function(error) { throw error; },
             async function(wasm) {
                 if (wasm.byteLength != EngineLoader.wasm_size) {
-                   console.warn(" wasm size: " + wasm.byteLength + ", expected: " + EngineLoader.wasm_size);
+                   console.warn("Unexpected wasm size: " + wasm.byteLength + ", expected: " + EngineLoader.wasm_size);
                 }
                 if (EngineLoader.wasm_sha1) {
                     const digest = await window.crypto.subtle.digest("SHA-1", wasm);
