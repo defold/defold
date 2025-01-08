@@ -92,10 +92,6 @@ public class ZipMountPoint implements IMountPoint {
             boolean isDir = entry.isDirectory();
             return !isDir;
         }
-        @Override
-        public byte[] sha1() throws IOException {
-            return sha1(true);
-        }
     }
 
     public ZipMountPoint(IFileSystem fileSystem, String archivePath) {
