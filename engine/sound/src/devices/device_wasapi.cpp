@@ -39,7 +39,6 @@ namespace dmDeviceWasapi
         HANDLE              m_ClientBufferEvent;
 
         uint32_t            m_Format;
-        uint32_t            m_NumChannels;
         uint32_t            m_FrameCount;
 
         SoundDevice()
@@ -332,13 +331,19 @@ namespace dmDeviceWasapi
             return dmSound::RESULT_OUT_OF_BUFFERS;
         }
 
+        const int channels_in = 2;
+        const int channels_out = device->m_MixFormat->nChannels;
         for (int i = 0; i < frames_available; ++i)
         {
             if (device->m_Format == WAVE_FORMAT_IEEE_FLOAT)
             {
                 float* fout = (float*)out;
-                fout[i*2+0] = samples[i*2+0]/32768.0f;
-                fout[i*2+1] = samples[i*2+1]/32768.0f;
+                fout[i*channels_out+0] = samples[i*channels_in+0]/32768.0f;
+                fout[i*channels_out+1] = samples[i*channels_in+1]/32768.0f;
+                for (int c = channels_in; c < channels_out; ++c)
+                {
+                    fout[i*channels_out+c] = 0;
+                }
             }
         }
 
