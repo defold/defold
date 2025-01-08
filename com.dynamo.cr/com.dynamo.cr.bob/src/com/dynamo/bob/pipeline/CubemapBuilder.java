@@ -36,7 +36,7 @@ import com.dynamo.graphics.proto.Graphics.TextureImage.Type;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
 
 @ProtoParams(srcClass = Cubemap.class, messageClass = Cubemap.class)
-@BuilderParams(name = "Cubemap", inExts = {".cubemap"}, outExt = ".cubemapc")
+@BuilderParams(name = "Cubemap", inExts = {".cubemap"}, outExt = ".cubemapc", isCacheble = true)
 public class CubemapBuilder extends ProtoBuilder<Cubemap.Builder> {
 
     private static Logger logger = Logger.getLogger(CubemapBuilder.class.getName());

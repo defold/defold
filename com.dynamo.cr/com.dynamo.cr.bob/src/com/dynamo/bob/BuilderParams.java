@@ -44,4 +44,10 @@ public @interface BuilderParams {
      * @return input extension(s)
      */
     String[] inExts();
+
+    /**
+     * Get bool that shows if tasks can be cached
+     * @return if task should be cached
+     */
+    boolean isCacheble() default false;
 }

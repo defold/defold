@@ -123,7 +123,7 @@ public interface IResource {
     IResource disableCache();
 
     /**
-     * Check if this resource should can be cached
+     * Check if this resource can be cached
      * @return True if resource can be cached. Defaults to true
      */
     boolean isCacheable();

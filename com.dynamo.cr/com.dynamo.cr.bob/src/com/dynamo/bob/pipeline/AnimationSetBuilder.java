@@ -39,7 +39,7 @@ import com.google.protobuf.TextFormat;
 
 import javax.xml.stream.XMLStreamException;
 
-@BuilderParams(name="AnimationSet", inExts=".animationset", outExt=".animationsetc")
+@BuilderParams(name="AnimationSet", inExts=".animationset", outExt=".animationsetc", isCacheble = true)
 public class AnimationSetBuilder extends Builder  {
 
     public static void collectAnimations(Task.TaskBuilder taskBuilder, Project project, IResource owner, AnimationSetDesc.Builder animSetDescBuilder) throws IOException, CompileExceptionError  {
