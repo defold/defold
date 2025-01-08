@@ -19,6 +19,7 @@ package com.defold.extension.pipeline.texture;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.pipeline.TextureGenerator;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 
 /**
@@ -52,6 +53,22 @@ public class TextureCompression {
             }
         }
         return compressor;
+    }
+
+    // Called from the editor to show selectable compressors
+    public static String[] getInstalledCompressors() {
+        return compressors.keySet().toArray(new String[0]);
+    }
+
+    // Called from the editor to show selectable presets for a given compressor
+    public static String[] getPresetsForCompressor(String compressor) {
+        ArrayList<String> compressorPresets = new ArrayList<>();
+        for (TextureCompressorPreset preset : presets.values()) {
+            if (preset.getCompressorName().equals(compressor)) {
+                compressorPresets.add(preset.getName());
+            }
+        }
+        return compressorPresets.toArray(new String[0]);
     }
 
     public static void registerPreset(TextureCompressorPreset preset) {

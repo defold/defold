@@ -18,7 +18,8 @@
             [editor.protobuf :as protobuf]
             [editor.util :as util]
             [util.fn :as fn])
-  (:import [com.dynamo.graphics.proto Graphics$PlatformProfile Graphics$PlatformProfile$OS Graphics$TextureFormatAlternative$CompressionLevel Graphics$TextureImage$CompressionType Graphics$TextureImage$TextureFormat Graphics$TextureProfiles]
+  (:import [com.defold.extension.pipeline.texture TextureCompression TextureCompressorDefault]
+           [com.dynamo.graphics.proto Graphics$PlatformProfile Graphics$PlatformProfile$OS Graphics$TextureFormatAlternative$CompressionLevel Graphics$TextureImage$CompressionType Graphics$TextureImage$TextureFormat Graphics$TextureProfiles]
            [com.dynamo.input.proto Input$Gamepad Input$GamepadMaps Input$GamepadType Input$InputBinding Input$Key Input$Mouse Input$Text Input$Touch]))
 
 (set! *warn-on-reflection* true)
@@ -245,19 +246,10 @@
     :texture-format-rgba-astc-12x10
     :texture-format-rgba-astc-12x12})
 
-(def texture-profiles-unsupported-compressions
-  #{:compression-type-webp
-    :compression-type-webp-lossy
-    :compression-type-basis-etc1s
-    :compression-type-astc})
-
 (defmethod protobuf-form-data Graphics$TextureProfiles [_node-id pb _def]
   (let [os-values (protobuf/enum-values Graphics$PlatformProfile$OS)
         format-values (protobuf/enum-values Graphics$TextureImage$TextureFormat)
         format-values-filtered (filterv (fn [fmt] (not (contains? texture-profiles-unsupported-formats (first fmt)))) format-values)
-        compression-values (protobuf/enum-values Graphics$TextureFormatAlternative$CompressionLevel)
-        compression-types (protobuf/enum-values Graphics$TextureImage$CompressionType)
-        compression-types-filtered (filterv (fn [fmt] (not (contains? texture-profiles-unsupported-compressions (first fmt)))) compression-types)
         profile-options (mapv #(do [% %]) (map :name (:profiles pb)))]
     {:navigation false
      :sections
@@ -294,22 +286,28 @@
                                        [{:fields
                                          [{:path [:formats]
                                            :label "Formats"
-                                           :type :table
-                                           :columns [{:path [:format]
-                                                      :label "Format"
-                                                      :type :choicebox
-                                                      :options (sort-by first (make-options format-values-filtered))
-                                                      :default (ffirst format-values-filtered)}
-                                                     {:path [:compression-level]
-                                                      :label "Compression"
-                                                      :type :choicebox
-                                                      :options (make-options compression-values) ; Unsorted.
-                                                      :default (ffirst compression-values)}
-                                                     {:path [:compression-type]
-                                                      :label "Type"
-                                                      :type :choicebox
-                                                      :options (make-options compression-types-filtered) ; Unsorted.
-                                                      :default (ffirst compression-types-filtered)}]}
+                                           :type :2panel
+                                           :panel-key {:path [:format]
+                                                       :label "Format"
+                                                       :type :choicebox
+                                                       :options (sort-by first (make-options format-values-filtered))
+                                                       :default (ffirst format-values-filtered)}
+                                           :panel-form-fn
+                                           (fn panel-form-fn [selected-format]
+                                             (let [available-compressors (mapv #(vector % %) (TextureCompression/getInstalledCompressors))
+                                                   available-presets-for-compressor (mapv #(vector % %) (TextureCompression/getPresetsForCompressor (:compressor selected-format)))]
+                                               {:sections
+                                                [{:fields
+                                                  [{:path [:compressor]
+                                                    :label "Compressor"
+                                                    :type :choicebox
+                                                    :options (make-options available-compressors) ; Unsorted.
+                                                    :default (TextureCompressorDefault/TextureCompressorName)}
+                                                   {:path [:compressor-preset]
+                                                    :label "Compressor Preset"
+                                                    :type :choicebox
+                                                    :options (make-options available-presets-for-compressor) ; Unsorted.
+                                                    :default (ffirst available-presets-for-compressor)}]}]}))}
                                           {:path [:mipmaps]
                                            :type :boolean
                                            :label "Mipmaps"}

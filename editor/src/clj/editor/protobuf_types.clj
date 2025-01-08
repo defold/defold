@@ -13,18 +13,73 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.protobuf-types
-  (:require [dynamo.graph :as g]
+  (:require [clojure.string :as str]
+            [dynamo.graph :as g]
             [editor.build-target :as bt]
             [editor.protobuf :as protobuf]
             [editor.protobuf-forms :as protobuf-forms]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace])
-  (:import [com.dynamo.gamesys.proto GameSystem$LightDesc]
+  (:import [com.defold.extension.pipeline.texture TextureCompressorASTC TextureCompressorBasisU TextureCompressorDefault]
+           [com.dynamo.gamesys.proto GameSystem$LightDesc]
            [com.dynamo.gamesys.proto Physics$ConvexShape]
            [com.dynamo.graphics.proto Graphics$TextureProfiles]
            [com.dynamo.input.proto Input$GamepadMaps Input$InputBinding]))
 
 (set! *warn-on-reflection* true)
+
+(defn- migrate-texture-profile-format [compression-type compression-level]
+  (let [compression-level-uppercase-str (when compression-level (str/upper-case (name compression-level)))]
+    (case compression-type
+          :compression-type-webp
+          {:compressor TextureCompressorDefault/TextureCompressorName
+           :compressor-preset "DEFAULT"}
+
+          :compression-type-webp-lossy
+          {:compressor TextureCompressorBasisU/TextureCompressorName
+           :compressor-preset (str "BASISU_" compression-level-uppercase-str)}
+
+          :compression-type-basis-etc1s
+          {:compressor TextureCompressorBasisU/TextureCompressorName
+           :compressor-preset (str "BASISU_" compression-level-uppercase-str)}
+
+          :compression-type-astc
+          {:compressor TextureCompressorASTC/TextureCompressorName
+           :compressor-preset (str "ASTC_" compression-level-uppercase-str)}
+
+          {:compressor TextureCompressorDefault/TextureCompressorName
+           :compressor-preset "DEFAULT"})))
+
+(def my-atom (atom 0))
+
+(defn- sanitize-texture-profile-format [format]
+  (reset! my-atom format)
+  (let [compression-level (:compression-level format)
+        compression-type (:compression-type format)
+        compressor (:compressor format)
+        compressor-preset (:compressor-preset format)
+        migrated-format (if (and compressor compressor-preset)
+                          format
+                          (merge format (migrate-texture-profile-format compression-type compression-level)))
+        migrated-format-out (dissoc migrated-format :compression-level :compression-type)
+        ]
+    (println "migrated format" format migrated-format-out)
+    ;; Remove deprecated fields
+    (dissoc migrated-format-out :compression-level :compression-type)))
+(defn- sanitize-texture-profile [desc]
+  (update desc :profiles
+          (fn [profiles]
+            (mapv
+              (fn [profile]
+                (update profile :platforms
+                        (fn [platforms]
+                          (mapv
+                            (fn [platform]
+                              (update platform :formats
+                                      (fn [formats]
+                                        (mapv sanitize-texture-profile-format formats))))
+                            platforms))))
+              profiles))))
 
 (def pb-defs [{:ext "input_binding"
                :icon "icons/32/Icons_35-Inputbinding.png"
@@ -54,7 +109,8 @@
                :view-types [:cljfx-form-view :text]
                :icon "icons/32/Icons_37-Texture-profile.png"
                :icon-class :property
-               :pb-class Graphics$TextureProfiles}])
+               :pb-class Graphics$TextureProfiles
+               :sanitize-fn sanitize-texture-profile}])
 
 (defn- build-pb [resource dep-resources user-data]
   {:resource resource :content (protobuf/map->bytes (:pb-class user-data) (:pb user-data))})
@@ -108,6 +164,7 @@
         :icon-class (:icon-class def)
         :view-types (:view-types def)
         :view-opts (:view-opts def)
+        :sanitize-fn (:sanitize-fn def)
         :tags (:tags def)
         :tag-opts (:tag-opts def)
         :template (:template def)))))
