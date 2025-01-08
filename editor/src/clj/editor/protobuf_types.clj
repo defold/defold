@@ -50,22 +50,17 @@
           {:compressor TextureCompressorDefault/TextureCompressorName
            :compressor-preset "DEFAULT"})))
 
-(def my-atom (atom 0))
-
 (defn- sanitize-texture-profile-format [format]
-  (reset! my-atom format)
   (let [compression-level (:compression-level format)
         compression-type (:compression-type format)
         compressor (:compressor format)
         compressor-preset (:compressor-preset format)
         migrated-format (if (and compressor compressor-preset)
                           format
-                          (merge format (migrate-texture-profile-format compression-type compression-level)))
-        migrated-format-out (dissoc migrated-format :compression-level :compression-type)
-        ]
-    (println "migrated format" format migrated-format-out)
+                          (merge format (migrate-texture-profile-format compression-type compression-level)))]
     ;; Remove deprecated fields
-    (dissoc migrated-format-out :compression-level :compression-type)))
+    (dissoc migrated-format :compression-level :compression-type)))
+
 (defn- sanitize-texture-profile [desc]
   (update desc :profiles
           (fn [profiles]
@@ -113,7 +108,9 @@
                :sanitize-fn sanitize-texture-profile}])
 
 (defn- build-pb [resource dep-resources user-data]
-  {:resource resource :content (protobuf/map->bytes (:pb-class user-data) (:pb user-data))})
+  (println resource)
+  (let []
+    {:resource resource :content (protobuf/map->bytes (:pb-class user-data) (:pb user-data))}))
 
 (g/defnk produce-build-targets [_node-id resource pb def]
   [(bt/with-content-hash

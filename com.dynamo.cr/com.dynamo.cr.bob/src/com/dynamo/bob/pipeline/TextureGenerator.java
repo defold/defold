@@ -569,22 +569,20 @@ public class TextureGenerator {
                     TextureImage.CompressionType compressionType;
 
                     // We pick a "new" format based on the input image component count and a "target" format.
-                    // For example we would rather have a texture format with 3 channels if the input
+                    // For example, we would rather have a texture format with 3 channels if the input
                     // image has 3 channels, even if the texture profile specified a format with 4 channels.
                     textureFormat = pickOptimalFormat(componentCount, textureFormat);
 
-                    // Legacy options
-                    boolean hasCompressionLevel = platformProfile.getFormats(i).hasCompressionLevel();
-                    boolean hasCompressionType = platformProfile.getFormats(i).hasCompressionType();
-
                     if (compress) {
-                        if (hasCompressionType) {
+                        // If the textureCompressor field is empty, we use the leagcy settings
+                        if (textureCompressor.isEmpty()) {
                             compressionType = textureFormatToSupportedCompressionTypeOrDefault(textureFormat, platformProfile.getFormats(i).getCompressionType());
                         } else {
                             compressionType = textureCompressorToCompressionType(textureCompressor);
                         }
 
-                        if (hasCompressionLevel) {
+                        // If the textureCompressorPreset field is empty, we use the leagcy pipeline
+                        if (textureCompressorPreset.isEmpty()) {
                             TextureFormatAlternative.CompressionLevel compressionLevel = platformProfile.getFormats(i).getCompressionLevel();
                             textureCompressor = compressionTypeToTextureCompressor(compressionType);
                             textureCompressorPreset = compressionLevelToTextureCompressorPreset(compressionType, compressionLevel);

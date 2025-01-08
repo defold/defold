@@ -36,13 +36,32 @@
    :texture-format-rgb-16bpp         :texture-format-rgb
    :texture-format-rgba-16bpp        :texture-format-rgba
 
+   ;; ASTC formats
+   :texture-format-rgba-astc-4x4     :texture-format-rgba
+   :texture-format-rgba-astc-5x4     :texture-format-rgba
+   :texture-format-rgba-astc-5x5     :texture-format-rgba
+   :texture-format-rgba-astc-6x5     :texture-format-rgba
+   :texture-format-rgba-astc-6x6     :texture-format-rgba
+   :texture-format-rgba-astc-8x5     :texture-format-rgba
+   :texture-format-rgba-astc-8x6     :texture-format-rgba
+   :texture-format-rgba-astc-8x8     :texture-format-rgba
+   :texture-format-rgba-astc-10x5    :texture-format-rgba
+   :texture-format-rgba-astc-10x6    :texture-format-rgba
+   :texture-format-rgba-astc-10x8    :texture-format-rgba
+   :texture-format-rgba-astc-10x10   :texture-format-rgba
+   :texture-format-rgba-astc-12x10   :texture-format-rgba
+   :texture-format-rgba-astc-12x12   :texture-format-rgba
+
    ;; This is incorrect, but it seems like jogl does not define or
    ;; support a pixelformat of L8A8. So we use RGBA instead to at
    ;; least previewing with alpha.
    :texture-format-luminance-alpha   :texture-format-rgba})
 
+(def my-atom (atom 0))
+
 (defn match-texture-profile-pb
   ^Graphics$TextureProfile [texture-profiles ^String path]
+  (reset! my-atom texture-profiles)
   (let [texture-profiles-data (some->> texture-profiles (protobuf/map->pb Graphics$TextureProfiles))
         path (if (.startsWith path "/") (subs path 1) path)]
     (TextureUtil/getTextureProfileByPath texture-profiles-data path)))
@@ -60,7 +79,7 @@
   (^Graphics$TextureImage [^BufferedImage image texture-profile compress? flip-y?]
    (let [^Graphics$TextureProfile texture-profile-data (some->> texture-profile (protobuf/map->pb Graphics$TextureProfile))]
      (println "compress?" compress?)
-     (println "profile-data?" texture-profile-data)
+     (println "profile-data?" texture-profile texture-profile-data)
      (TextureGenerator/generate image texture-profile-data ^boolean compress? (if ^boolean flip-y? (EnumSet/of Texc$FlipAxis/FLIP_AXIS_Y) (EnumSet/noneOf Texc$FlipAxis))))))
 
 (defn- make-preview-profile

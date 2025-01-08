@@ -230,26 +230,15 @@
     :texture-format-rgb-pvrtc-4bppv1
     :texture-format-rgba-bc3
     :texture-format-rgba-bc7
-    :texture-format-rgba-etc2
-    :texture-format-rgba-astc-4x4
-    :texture-format-rgba-astc-5x4
-    :texture-format-rgba-astc-5x5
-    :texture-format-rgba-astc-6x5
-    :texture-format-rgba-astc-6x6
-    :texture-format-rgba-astc-8x5
-    :texture-format-rgba-astc-8x6
-    :texture-format-rgba-astc-8x8
-    :texture-format-rgba-astc-10x5
-    :texture-format-rgba-astc-10x6
-    :texture-format-rgba-astc-10x8
-    :texture-format-rgba-astc-10x10
-    :texture-format-rgba-astc-12x10
-    :texture-format-rgba-astc-12x12})
+    :texture-format-rgba-etc2})
 
 (defmethod protobuf-form-data Graphics$TextureProfiles [_node-id pb _def]
   (let [os-values (protobuf/enum-values Graphics$PlatformProfile$OS)
         format-values (protobuf/enum-values Graphics$TextureImage$TextureFormat)
-        format-values-filtered (filterv (fn [fmt] (not (contains? texture-profiles-unsupported-formats (first fmt)))) format-values)
+        format-values-filtered (filterv
+                                 (fn [fmt]
+                                   (not (contains? texture-profiles-unsupported-formats (first fmt))))
+                                 format-values)
         profile-options (mapv #(do [% %]) (map :name (:profiles pb)))]
     {:navigation false
      :sections
