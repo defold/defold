@@ -1082,6 +1082,7 @@ namespace dmEngine
 #else
         sound_params.m_UseThread = dmConfigFile::GetInt(engine->m_Config, "sound.use_thread", 1) != 0;
 #endif
+        sound_params.m_FrameCount = dmConfigFile::GetInt(engine->m_Config, "sound.frame_count", 0);
         dmSound::Result soundInit = dmSound::Initialize(engine->m_Config, &sound_params);
         if (dmSound::RESULT_OK == soundInit) {
             dmLogInfo("Initialised sound device '%s'", sound_params.m_OutputDevice);

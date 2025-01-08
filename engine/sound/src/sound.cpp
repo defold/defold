@@ -263,7 +263,6 @@ namespace dmSound
         params->m_MaxSources = 16;
         params->m_MaxBuffers = 32;
         params->m_BufferSize = 12 * 4096;
-        params->m_FrameCount = 768;
         params->m_MaxInstances = 256;
         params->m_UseThread = true;
     }
@@ -366,7 +365,11 @@ namespace dmSound
         }
 
         sound->m_MixRate = device_info.m_MixRate;
-        sound->m_DeviceFrameCount = device_info.m_FrameCount ? device_info.m_FrameCount : params->m_FrameCount;
+        sound->m_DeviceFrameCount = params->m_FrameCount ? params->m_FrameCount : device_info.m_FrameCount;
+        if (!sound->m_DeviceFrameCount)
+        {
+            sound->m_DeviceFrameCount = 768;
+        }
         sound->m_Instances.SetCapacity(max_instances);
         sound->m_Instances.SetSize(max_instances);
         sound->m_InstancesPool.SetCapacity(max_instances);

@@ -437,6 +437,10 @@
    :default true,
    :path ["sound" "use_thread"]}
   {:type :integer,
+   :help "number of sound frames to process in a single update, 0 to use the default value depending on the platform",
+   :default 0,
+   :path ["sound" "frame_count"]}
+  {:type :integer,
    :help "max number of sprites, 128 by default",
    :default 128,
    :path ["sprite" "max_count"]}
