@@ -20,8 +20,8 @@ int main(int argc, char *argv[])
     // normalize tap's factors
     float w = (float)num_taps / filter->taps_per_phase;
 
-    printf("static _pfb_num_phases = %d;\n", filter->num_phases);
-    printf("static _pfb_num_taps = %d;\n", filter->taps_per_phase);
+    printf("static int32_t _pfb_num_phases = %d;\n", filter->num_phases);
+    printf("static int32_t _pfb_num_taps = %d;\n", filter->taps_per_phase);
     printf("static float _pfb[]={\n");
     for(int p=0; p<filter->num_phases; ++p) {
         printf("    ");
