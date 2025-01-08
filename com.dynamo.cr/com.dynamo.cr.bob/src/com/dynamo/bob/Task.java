@@ -160,7 +160,7 @@ public class Task {
             }
         });
         for (IResource r : sortedResources) {
-            digest.update(r.sha1(true));
+            digest.update(r.sha1());
         }
     }
 

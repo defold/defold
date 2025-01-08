@@ -46,7 +46,6 @@ public class TextureGeneratorTest {
 
     @Before
     public void setUp() throws Exception {
-        TextureCompression.registerCompressor(new TextureCompressorDefault()); // Thwarts console warnings
         TextureCompression.registerCompressor(new TextureCompressorBasisU());
         TextureCompression.registerCompressor(new TextureCompressorASTC());
     }
@@ -673,5 +672,39 @@ public class TextureGeneratorTest {
         assertEquals(128*64*2, texture.getAlternatives(0).getData().toByteArray().length);
         assertEquals(TextureFormat.TEXTURE_FORMAT_RGBA_16BPP, texture.getAlternatives(1).getFormat());
         assertEquals(128*64*2, texture.getAlternatives(1).getData().toByteArray().length);
+    }
+
+    @Test
+    public void testHavingProfileWithNoCompression() throws TextureGeneratorException, IOException {
+        // Create a texture profile with texture compression
+        TextureProfile.Builder textureProfile = TextureProfile.newBuilder();
+        PlatformProfile.Builder platformProfile = PlatformProfile.newBuilder();
+        TextureFormatAlternative.Builder textureFormatAlt1 = TextureFormatAlternative.newBuilder();
+        TextureFormatAlternative.Builder textureFormatAlt2 = TextureFormatAlternative.newBuilder();
+
+        textureFormatAlt1.setFormat(TextureFormat.TEXTURE_FORMAT_LUMINANCE);
+        textureFormatAlt1.setCompressionLevel(CompressionLevel.FAST);
+        textureFormatAlt1.setCompressionType(TextureImage.CompressionType.COMPRESSION_TYPE_BASIS_UASTC);
+
+        textureFormatAlt2.setFormat(TextureFormat.TEXTURE_FORMAT_RGB);
+        textureFormatAlt2.setCompressionLevel(CompressionLevel.FAST);
+        textureFormatAlt2.setCompressionType(TextureImage.CompressionType.COMPRESSION_TYPE_BASIS_UASTC);
+
+        platformProfile.setOs(PlatformProfile.OS.OS_ID_GENERIC);
+        platformProfile.addFormats(textureFormatAlt1.build());
+        platformProfile.addFormats(textureFormatAlt2.build());
+        platformProfile.setMipmaps(false);
+        platformProfile.setMaxTextureSize(0);
+
+        textureProfile.setName("Test Profile");
+        textureProfile.addPlatforms(platformProfile.build());
+
+        // Run the generator WITHOUT compression so we force a default profile
+        TextureImage texture = TextureGenerator.generate(getClass().getResourceAsStream("128_64_rgba.png"), textureProfile.build(), false);
+
+        assertEquals(TextureFormat.TEXTURE_FORMAT_LUMINANCE, texture.getAlternatives(0).getFormat());
+        assertEquals(128*64, texture.getAlternatives(0).getData().toByteArray().length);
+        assertEquals(TextureFormat.TEXTURE_FORMAT_RGB, texture.getAlternatives(1).getFormat());
+        assertEquals(128*64*3, texture.getAlternatives(1).getData().toByteArray().length);
     }
 }

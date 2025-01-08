@@ -42,8 +42,15 @@ public class TextureCompression {
 
     public static ITextureCompressor getCompressor(String name) {
         ITextureCompressor compressor = compressors.getOrDefault(name, null);
-        if (compressor == null)
-            logger.warning(String.format("No such compressor: '%s'", name));
+        if (compressor == null) {
+            // There should always be a default compressor availale.
+            if (name.equals(TextureCompressorDefault.TextureCompressorName)) {
+                compressor = new TextureCompressorDefault();
+                registerCompressor(compressor);
+            } else {
+                logger.warning(String.format("No such compressor: '%s'", name));
+            }
+        }
         return compressor;
     }
 
