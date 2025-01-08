@@ -15,7 +15,8 @@
 (ns util.debug-util
   (:require [clojure.repl :as repl]
             [service.log :as log])
-  (:import [java.util Locale]))
+  (:import [java.util Locale]
+           [org.apache.commons.lang3.time DurationFormatUtils]))
 
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
@@ -23,10 +24,8 @@
 (def ^:private ^:const nanos-per-ms 1000000.0)
 (def ^:private ^:const nanos-per-second 1000000000.0)
 (def ^:private ^:const nanos-per-minute (* nanos-per-second 60.0))
-(def ^:private ^:const nanos-per-hour (* nanos-per-minute 60.0))
-(def ^:private ^:const nanos-per-day (* nanos-per-hour 24.0))
 
-(defn- time-string
+(defn- decimal-string
   ^String [num ^String unit]
   (String/format Locale/ROOT "%.2f %s" (to-array [num unit])))
 
@@ -45,33 +44,19 @@
   ^double [^long nanos]
   (/ (double nanos) nanos-per-minute))
 
-(defn nanos->hours
-  "Converts a nanosecond value into a double in hours."
-  ^double [^long nanos]
-  (/ (double nanos) nanos-per-hour))
-
-(defn nanos->days
-  "Converts a nanosecond value into a double in days."
-  ^double [^long nanos]
-  (/ (double nanos) nanos-per-day))
-
 (defn nanos->string
   "Converts a nanosecond value into a human-readable duration string."
   ^String [^long nanos]
   (let [ms (nanos->millis nanos)]
     (if (> 1000.0 ms)
-      (time-string ms "ms")
+      (decimal-string ms "ms")
       (let [seconds (nanos->seconds nanos)]
         (if (> 60.0 seconds)
-          (time-string seconds "s")
+          (decimal-string seconds "s")
           (let [minutes (nanos->minutes nanos)]
             (if (> 60.0 minutes)
-              (time-string minutes "min")
-              (let [hours (nanos->hours nanos)]
-                (if (> 24.0 hours)
-                  (time-string hours "h")
-                  (let [days (nanos->days nanos)]
-                    (time-string days "d")))))))))))
+              (DurationFormatUtils/formatDuration ms "m:ss")
+              (DurationFormatUtils/formatDuration ms "H:mm:ss"))))))))
 
 (defn stack-trace
   "Returns a human-readable stack trace as a vector of strings. Elements are
