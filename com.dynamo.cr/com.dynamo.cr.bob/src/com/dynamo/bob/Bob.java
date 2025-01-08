@@ -613,7 +613,7 @@ public class Bob {
     private static String[] migrateInvalidArguments(String[] args) {
         ArrayList<String> migratedArguments = new ArrayList<>();
         for (String arg : args) {
-            // Migrate texture compression argument
+            // Migrate texture compression argument. Deprecated in 1.9.7 (https://github.com/defold/defold/pull/10000)
             boolean argIsTextureCompression = arg.startsWith("--tc") || arg.startsWith("--texture-compression");
             if (argIsTextureCompression && arg.contains("=false")) {
                 System.out.println("Warning: --texture-compression and --tc no longer accepts an argument. To disable texture compression, remove the argument.");
