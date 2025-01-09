@@ -509,9 +509,9 @@ namespace dmPlatform
         return glfwGetMouseButton(button);
     }
 
-    int32_t GetMouseWheel(HWindow window)
+    double GetMouseWheel(HWindow window)
     {
-        return glfwGetMouseWheel();
+        return (double) glfwGetMouseWheel();
     }
 
     void GetMousePosition(HWindow window, int32_t* x, int32_t* y)

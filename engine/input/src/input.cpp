@@ -719,7 +719,7 @@ namespace dmInput
                 for (uint32_t i = 0; i < triggers.Size(); ++i)
                 {
                     const MouseTrigger& trigger = triggers[i];
-                    float v = 0.0f;
+                    double v = 0.0;
                     switch (trigger.m_Input)
                     {
                     case dmInputDDF::MOUSE_WHEEL_UP:
@@ -727,12 +727,12 @@ namespace dmInput
                         {
                             if (packet->m_Wheel > 0)
                             {
-                                v = (float) (packet->m_Wheel - prev_packet->m_Wheel);
+                                v = packet->m_Wheel - prev_packet->m_Wheel;
                             }
                         }
                         else
                         {
-                            v = (float) (packet->m_Wheel - prev_packet->m_Wheel);
+                            v = packet->m_Wheel - prev_packet->m_Wheel;
                         }
                         break;
                     case dmInputDDF::MOUSE_WHEEL_DOWN:
@@ -740,25 +740,31 @@ namespace dmInput
                         {
                             if (packet->m_Wheel < 0)
                             {
-                                v = (float) -(packet->m_Wheel - prev_packet->m_Wheel);
+                                v = -(packet->m_Wheel - prev_packet->m_Wheel);
                             }
                         }
                         else
                         {
-                            v = (float) -(packet->m_Wheel - prev_packet->m_Wheel);
+                            v = -(packet->m_Wheel - prev_packet->m_Wheel);
                         }
                         break;
                     default:
-                        v = dmHID::GetMouseButton(packet, MOUSE_BUTTON_MAP[trigger.m_Input]) ? 1.0f : 0.0f;
+                        v = dmHID::GetMouseButton(packet, MOUSE_BUTTON_MAP[trigger.m_Input]) ? 1.0 : 0.0;
                         break;
                     }
-                    v = dmMath::Clamp(v, 0.0f, 1.0f);
+                    v = dmMath::Clamp(v, 0.0, 1.0);
+
                     Action* action = binding->m_Actions.Get(trigger.m_ActionId);
                     if (action != 0x0)
                     {
+                        if (v != 0.0)
+                        {
+                            dmLogInfo("V: %f, abs-v: %f, abs-action: %f, take it? %d", v, dmMath::Abs(v), dmMath::Abs(action->m_Value), (int) dmMath::Abs(action->m_Value) < dmMath::Abs(v));
+                        }
+
                         if (dmMath::Abs(action->m_Value) < dmMath::Abs(v))
                         {
-                            action->m_Value = v;
+                            action->m_Value = (float) v;
                         }
                     }
                 }

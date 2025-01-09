@@ -118,6 +118,8 @@ namespace dmPlatform
         HWindow window = (HWindow) glfwGetWindowUserPointer(glfw_window);
         window->m_MouseScrollX = xoffset;
         window->m_MouseScrollY = yoffset;
+
+        dmLogInfo("OnMouseScroll, %f, %f", window->m_MouseScrollX, window->m_MouseScrollY);
     }
 
     static void OnJoystick(int id, int event)
@@ -453,6 +455,7 @@ namespace dmPlatform
             case WINDOW_STATE_SAMPLE_COUNT: return window->m_Samples;
             case WINDOW_STATE_HIGH_DPI:     return window->m_HighDPI;
             case WINDOW_STATE_AUX_CONTEXT:  return window->m_AuxWindow ? 1 : 0;
+            default: break;
         }
 
         return glfwGetWindowAttrib(window->m_Window, WindowStateToGLFW(state));
@@ -477,9 +480,9 @@ namespace dmPlatform
         return glfwGetKey(window->m_Window, code);
     }
 
-    int32_t GetMouseWheel(HWindow window)
+    double GetMouseWheel(HWindow window)
     {
-        return (int32_t) window->m_MouseScrollY;
+        return window->m_MouseScrollY;
     }
 
     int32_t GetMouseButton(HWindow window, int32_t button)
