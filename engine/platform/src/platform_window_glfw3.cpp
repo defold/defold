@@ -293,7 +293,7 @@ namespace dmPlatform
         if (res == PLATFORM_RESULT_OK)
         {
             FocusWindowNative(window);
-            SetWindowsIconNative(HWindow window);
+            SetWindowsIconNative(window);
 
         #ifdef __MACH__
             // Set size from settings
