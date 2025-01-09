@@ -32,7 +32,7 @@ import com.dynamo.bob.font.Fontc;
 import com.dynamo.bob.font.Fontc.FontResourceResolver;
 import com.dynamo.render.proto.Font.FontDesc;
 
-@BuilderParams(name = "Glyph Bank", inExts = ".glyph_bank", outExt = ".glyph_bankc")
+@BuilderParams(name = "Glyph Bank", inExts = ".glyph_bank", outExt = ".glyph_bankc", isCacheble = true)
 public class GlyphBankBuilder extends Builder {
 
     @Override

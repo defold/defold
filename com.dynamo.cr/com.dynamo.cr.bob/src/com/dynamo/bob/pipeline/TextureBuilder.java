@@ -29,7 +29,7 @@ import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
 
-@BuilderParams(name = "Texture", inExts = {".png", ".jpg"}, outExt = ".texturec")
+@BuilderParams(name = "Texture", inExts = {".png", ".jpg"}, outExt = ".texturec", isCacheble = true)
 public class TextureBuilder extends Builder {
 
     private static Logger logger = Logger.getLogger(TextureBuilder.class.getName());
