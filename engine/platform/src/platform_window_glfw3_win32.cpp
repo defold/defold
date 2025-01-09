@@ -24,6 +24,9 @@
 #include "platform_window_glfw3_private.h"
 #include "platform_window_win32.h"
 
+// Specified in engine.rc that is applied to the exe.
+// A custom icon will replace the defold.ico file via the iconExe.java when bundling,
+// so it should be fine as long as this number is the same as the entry specified in the .rc file!
 #define IDI_APPICON 100
 
 namespace dmPlatform
@@ -43,7 +46,7 @@ namespace dmPlatform
         return GetWindowsHWND(window) == GetForegroundWindow();
     }
 
-    static void RepackColors(uint32_t num_pixels, uint32_t bit_depth, uint8_t* pixels_in, uint8_t* pixels_out)
+    static void RepackBGRPixels(uint32_t num_pixels, uint32_t bit_depth, uint8_t* pixels_in, uint8_t* pixels_out)
     {
         for(uint32_t px=0; px < num_pixels; px++)
         {
@@ -70,11 +73,6 @@ namespace dmPlatform
 
     static const char* HICONToGLFWImage(HICON hIcon, GLFWimage* image)
     {
-        // HDC hdc;
-        // uint8_t* pixels;
-        // uint8_t* convertedPixels;
-        // int rowSize, convertedRowSize;
-
         // Get icon information
         ICONINFO icon_info;
         if (!GetIconInfo(hIcon, &icon_info))
@@ -138,7 +136,7 @@ namespace dmPlatform
         // "The image data is 32-bit, little-endian, non-premultiplied RGBA, i.e. eight bits per channel with the red channel first.
         // The pixels are arranged canonically as sequential rows, starting from the top-left corner."
         uint8_t* pixels_rgba = (uint8_t*) malloc(bm.bmWidth * bm.bmHeight * 4);
-        RepackColors(bm.bmWidth * bm.bmHeight, bm.bmBitsPixel, pixels, pixels_rgba);
+        RepackBGRPixels(bm.bmWidth * bm.bmHeight, bm.bmBitsPixel, pixels, pixels_rgba);
         free(pixels);
         image->pixels = pixels_rgba;
 
@@ -147,15 +145,13 @@ namespace dmPlatform
 
     void SetWindowsIconNative(HWindow window)
     {
-        HWND hwnd = GetWindowsHWND(window);
-
+        HWND hwnd           = GetWindowsHWND(window);
         HINSTANCE hInstance = (HINSTANCE) GetWindowLongPtr(hwnd, GWLP_HINSTANCE);
-
-        HICON hIcon = (HICON) LoadImageW(hInstance, MAKEINTRESOURCE(IDI_APPICON), IMAGE_ICON, 0, 0, LR_DEFAULTSIZE | LR_SHARED);
+        HICON hIcon         = (HICON) LoadImageW(hInstance, MAKEINTRESOURCE(IDI_APPICON), IMAGE_ICON, 0, 0, LR_DEFAULTSIZE | LR_SHARED);
 
         if (!hIcon)
         {
-            dmLogWarning("No icon found!");
+            dmLogWarning("Unable to set windows application icon: No icon found!");
             return;
         }
 
@@ -164,7 +160,7 @@ namespace dmPlatform
 
         if (err_msg_or_null)
         {
-            dmLogWarning("Unable to convert HICON to GLFWIcon: %s", err_msg_or_null);
+            dmLogWarning("Unable to set windows application icon: %s", err_msg_or_null);
             return;
         }
 
