@@ -28,43 +28,34 @@ def _exec_command(arg_list, **kwargs):
         arg_str = ' '.join(arg_list)
     _log('[exec] %s' % arg_str)
 
-    attempts = 3
-    process = None
-    output = ''
-    for attempt in range(attempts):
-        _log(f"Attempt {attempt + 1} of {attempts}")
-        
-        if sys.stdout.isatty():
-            # If not on CI, we want the colored output, and we get the output as it runs, in order to preserve the colors
-            if not 'stdout' in kwargs:
-                kwargs['stdout'] = subprocess.PIPE # Only way to get output from the command
-            process = subprocess.Popen(arg_list, **kwargs)
-            output = process.communicate()[0]
-            if process.returncode != 0:
-                _log(output)
-        else:
-            # On the CI machines, we make sure we produce a steady stream of output
-            # However, this also makes us lose the color information
-            if 'stdout' in kwargs:
-                del kwargs['stdout']
-            process = subprocess.Popen(arg_list, stdout = subprocess.PIPE, stderr = subprocess.STDOUT, **kwargs)
+    if sys.stdout.isatty():
+        # If not on CI, we want the colored output, and we get the output as it runs, in order to preserve the colors
+        if not 'stdout' in kwargs:
+            kwargs['stdout'] = subprocess.PIPE # Only way to get output from the command
+        process = subprocess.Popen(arg_list, **kwargs)
+        output = process.communicate()[0]
+        if process.returncode != 0:
+            _log(output)
+    else:
+        # On the CI machines, we make sure we produce a steady stream of output
+        # However, this also makes us lose the color information
+        if 'stdout' in kwargs:
+            del kwargs['stdout']
+        process = subprocess.Popen(arg_list, stdout = subprocess.PIPE, stderr = subprocess.STDOUT, **kwargs)
 
-            output = ''
-            while True:
-                line = process.stdout.readline().decode()
-                if line != '':
-                    output += line
-                    _log(line.rstrip())
-                else:
-                    break
+        output = ''
+        while True:
+            line = process.stdout.readline().decode()
+            if line != '':
+                output += line
+                _log(line.rstrip())
+            else:
+                break
 
-            if process.wait() == 0:
-                return output
+    if process.wait() != 0:
+        raise Exception(f"Command failed with return code {process.returncode}\nOutput: {output}")
 
-        _log(f"Attempt {attempt + 1} failed\nReturn code:{process.returncode}\nOutput:{output}.\nRetrying...")
-
-    # If we exhausted all attempts
-    raise Exception(f"Command failed after {attempts} attempts with return code {process.returncode}\nOutput: {output}")
+    return output
 
 
 def get_status(uuid, notarization_username, notarization_password, notarization_team_id = None):
