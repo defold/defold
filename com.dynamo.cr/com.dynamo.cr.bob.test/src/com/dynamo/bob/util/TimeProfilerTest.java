@@ -29,7 +29,7 @@ public class TimeProfilerTest {
                 "--root", cwd + "/test/time_profiler_project",
                 "--build-report-json", jsonReport.toString(),
                 "--build-report-html", htmlReport.toString(),
-                "--texture-compression", "true",
+                "--texture-compression",
                 "--strip-executable",
                 "--verbose",
                 "--variant", "release",
