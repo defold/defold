@@ -758,6 +758,39 @@ namespace dmGraphics
 
         const D3D12_PLACED_SUBRESOURCE_FOOTPRINT& subResourceLayout = layout; // layouts[subResourceIndex];
 
+        /*
+        for (uint64_t array = 0; array < array_count; array++) {
+            for (uint64_t mipmap = 0; mipmap < mipmap_count; mipmap++) {
+                const uint64_t subResourceIndex = mipmap + (array * mipmap_count);
+                const D3D12_PLACED_SUBRESOURCE_FOOTPRINT& subResourceLayout = layout; // layouts[subResourceIndex];
+                const uint64_t subResourceHeight = num_rows[subResourceIndex];
+                const uint64_t subResourcePitch = DM_ALIGN(subResourceLayout.Footprint.RowPitch, D3D12_TEXTURE_DATA_PITCH_ALIGNMENT);
+                const uint64_t subResourceDepth = subResourceLayout.Footprint.Depth;
+                uint8_t* destinationSubResourceMemory = upload_data + subResourceLayout.Offset;
+
+                const uint8_t* sourceSubResourceMemory = pixels; //  + CalculateSourceOffset(array, mipmap, params, format_src);
+
+                uint64_t row_pitch = (uint64_t) slice_row_pitch[mipmap];
+
+                for (uint64_t slice = 0; slice < subResourceDepth; slice++) {
+                    if (params.m_SubUpdate) {
+                        for (int y = params.m_Y; y < (params.m_Y + params.m_Height); ++y) {
+                            uint8_t* dest_row = destinationSubResourceMemory + subResourcePitch * y;
+                            const uint8_t* src_row = sourceSubResourceMemory + row_pitch * y;
+                            memcpy(dest_row + bpp_dst * params.m_X, src_row + bpp_src * params.m_X, bpp_src * params.m_Width);
+                        }
+                    } else {
+                        for (uint64_t height = 0; height < subResourceHeight; height++) {
+                            memcpy(destinationSubResourceMemory, sourceSubResourceMemory, std::min(subResourcePitch, row_pitch));
+                            destinationSubResourceMemory += subResourcePitch;
+                            sourceSubResourceMemory += row_pitch;
+                        }
+                    }
+                }
+            }
+        }
+        */
+
         for (uint64_t array = 0; array < array_count; array++)
         {
             for (uint64_t mipmap = 0; mipmap < mipmap_count; mipmap++)
@@ -876,7 +909,7 @@ namespace dmGraphics
         hr = upload_heap->Map(0, NULL, (void**) &upload_data);
         CHECK_HR_ERROR(hr);
 
-        CopyTextureData(params, format_dst, format_src, fp[0], num_rows, 1, 1, &mipmap_pitch, pixels, upload_data);
+        CopyTextureData(params, format_dst, format_dst, fp[0], num_rows, 1, 1, &mipmap_pitch, pixels, upload_data);
 
         ID3D12GraphicsCommandList* cmd_list = context->m_CommandList;
 
@@ -2229,6 +2262,61 @@ namespace dmGraphics
         return dmMath::Min(max_anisotropy_requested, 32.0f); // TODO: What's the max limit here?
     }
 
+    static inline D3D12_FILTER GetSamplerFilter(TextureFilter minfilter, TextureFilter magfilter)
+    {
+        if (magfilter == TEXTURE_FILTER_NEAREST)
+        {
+            if (minfilter == TEXTURE_FILTER_NEAREST || minfilter == TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST)
+            {
+                return D3D12_FILTER_MIN_MAG_MIP_POINT;
+            }
+            else if (minfilter == TEXTURE_FILTER_LINEAR)
+            {
+                return D3D12_FILTER_MIN_LINEAR_MAG_MIP_POINT;
+            }
+            else if (minfilter == TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST)
+            {
+                return D3D12_FILTER_MIN_LINEAR_MAG_MIP_POINT;
+            }
+            else if (minfilter == TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR)
+            {
+                return D3D12_FILTER_MIN_LINEAR_MAG_POINT_MIP_LINEAR;
+            }
+        }
+        else if (magfilter == TEXTURE_FILTER_LINEAR)
+        {
+            if (minfilter == TEXTURE_FILTER_NEAREST || minfilter == TEXTURE_FILTER_NEAREST_MIPMAP_NEAREST)
+            {
+                return D3D12_FILTER_MIN_POINT_MAG_LINEAR_MIP_POINT;
+            }
+            else if (minfilter == TEXTURE_FILTER_LINEAR || minfilter == TEXTURE_FILTER_LINEAR_MIPMAP_NEAREST)
+            {
+                return D3D12_FILTER_MIN_MAG_LINEAR_MIP_POINT;
+            }
+            else if (minfilter == TEXTURE_FILTER_LINEAR_MIPMAP_LINEAR)
+            {
+                return D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+            }
+        }
+
+        assert(0);
+        return D3D12_FILTER_MIN_MAG_MIP_POINT;
+    }
+
+    static inline D3D12_TEXTURE_ADDRESS_MODE GetAddressMode(TextureWrap mode)
+    {
+        switch(mode)
+        {
+            case TEXTURE_WRAP_CLAMP_TO_BORDER:  return D3D12_TEXTURE_ADDRESS_MODE_BORDER;
+            case TEXTURE_WRAP_CLAMP_TO_EDGE:    return D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+            case TEXTURE_WRAP_MIRRORED_REPEAT:  return D3D12_TEXTURE_ADDRESS_MODE_MIRROR;
+            case TEXTURE_WRAP_REPEAT:           return D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+            default:break;
+        }
+        assert(0);
+        return D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+    }
+
     static int16_t CreateTextureSampler(DX12Context* context, TextureFilter minfilter, TextureFilter magfilter, TextureWrap uwrap, TextureWrap vwrap, uint8_t maxLod, float max_anisotropy)
     {
         DX12TextureSampler new_sampler  = {};
@@ -2246,14 +2334,14 @@ namespace dmGraphics
         }
 
         D3D12_SAMPLER_DESC desc  = {};
-        desc.Filter              = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
-        desc.AddressU            = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-        desc.AddressV            = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+        desc.Filter              = GetSamplerFilter(minfilter, magfilter);
+        desc.AddressU            = GetAddressMode(uwrap);
+        desc.AddressV            = GetAddressMode(vwrap);
         desc.AddressW            = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
         desc.MinLOD              = 0;
         desc.MaxLOD              = D3D12_FLOAT32_MAX;
         desc.MipLODBias          = 0.0f;
-        desc.MaxAnisotropy       = 1;
+        desc.MaxAnisotropy       = max_anisotropy;
         desc.ComparisonFunc      = D3D12_COMPARISON_FUNC_ALWAYS;
 
         CD3DX12_CPU_DESCRIPTOR_HANDLE  desc_handle(context->m_SamplerPool.m_DescriptorHeap->GetCPUDescriptorHandleForHeapStart(), sampler_index, context->m_Device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER));
