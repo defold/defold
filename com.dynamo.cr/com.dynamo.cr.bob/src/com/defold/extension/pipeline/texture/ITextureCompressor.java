@@ -28,4 +28,6 @@ public interface ITextureCompressor {
     public default int getAlignedWidth(TextureImage.TextureFormat format, int width) { return width; }
 
     public default int getAlignedHeight(TextureImage.TextureFormat format, int height) { return height; }
+
+    public default boolean supportsTextureFormat(TextureImage.TextureFormat format) { return true; }
 }

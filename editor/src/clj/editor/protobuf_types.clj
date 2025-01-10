@@ -51,13 +51,9 @@
            :compressor-preset "DEFAULT"})))
 
 (defn- sanitize-texture-profile-format [format]
-  (let [compression-level (:compression-level format)
-        compression-type (:compression-type format)
-        compressor (:compressor format)
-        compressor-preset (:compressor-preset format)
-        migrated-format (if (and compressor compressor-preset)
+  (let [migrated-format (if (and (:compressor format) (:compressor-preset format))
                           format
-                          (merge format (migrate-texture-profile-format compression-type compression-level)))]
+                          (merge format (migrate-texture-profile-format (:compression-type format) (:compression-level format))))]
     ;; Remove deprecated fields
     (dissoc migrated-format :compression-level :compression-type)))
 
@@ -108,9 +104,7 @@
                :sanitize-fn sanitize-texture-profile}])
 
 (defn- build-pb [resource dep-resources user-data]
-  (println resource)
-  (let []
-    {:resource resource :content (protobuf/map->bytes (:pb-class user-data) (:pb user-data))}))
+  {:resource resource :content (protobuf/map->bytes (:pb-class user-data) (:pb user-data))})
 
 (g/defnk produce-build-targets [_node-id resource pb def]
   [(bt/with-content-hash
