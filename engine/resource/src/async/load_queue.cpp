@@ -33,6 +33,14 @@ dmResource::Result DoLoadResource(dmResource::HFactory factory, HRequest request
 
     if (result->m_LoadResult == dmResource::RESULT_OK)
     {
+        if (request->m_BufferSize == 0)
+        {
+            // Only happens for unit tests, the buffer must not be null
+            // We only check it, but we don't use it
+            buffer->SetCapacity(1);
+            buffer->SetSize(0);
+        }
+
         assert(buffer->Size() == request->m_BufferSize);
         assert(request->m_BufferSize <= request->m_ResourceSize);
         if (request->m_PreloadInfo.m_CompleteFunction)
