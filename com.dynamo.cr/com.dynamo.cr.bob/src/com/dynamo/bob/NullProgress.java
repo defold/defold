@@ -38,4 +38,8 @@ public class NullProgress implements IProgress {
         return false;
     }
 
+    @Override
+    public void setCanceled(boolean canceled) {
+    }
+
 }
