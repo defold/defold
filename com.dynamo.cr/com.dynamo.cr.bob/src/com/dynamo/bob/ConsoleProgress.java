@@ -23,6 +23,7 @@ public class ConsoleProgress implements IProgress {
     private float ticks;
     private float scale = 1;
     private Boolean isATTY = false;
+    private boolean canceled = false;
 
     public ConsoleProgress() {
         reportTo = this;
@@ -96,7 +97,14 @@ public class ConsoleProgress implements IProgress {
 
     @Override
     public boolean isCanceled() {
-        return false;
+        if (reportTo != null) {
+            return reportTo.canceled || canceled;
+        }
+        return canceled;
     }
 
+    @Override
+    public void setCanceled(boolean canceled) {
+        this.canceled = canceled;
+    }
 }

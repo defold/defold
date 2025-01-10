@@ -96,6 +96,7 @@
    (reify IProgress
      (isCanceled [_this]
        (task-cancelled?))
+     (setCanceled [_this canceled])
      (subProgress [_this _work-claimed-from-this]
        (->progress render-progress! task-cancelled? msg-stack-atom))
      (beginTask [_this name _steps]
