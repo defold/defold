@@ -149,6 +149,7 @@ namespace dmSoundCodec
         return (got_bytes == 0 && streamInfo->m_bEOS) ? RESULT_END_OF_STREAM : RESULT_OK;
     }
 
+    // Called both when looping, and when deleting the decoder (!)
     static Result TremoloResetStream(HDecodeStream stream)
     {
         DecodeStreamInfo *streamInfo = (DecodeStreamInfo*) stream;
@@ -156,15 +157,25 @@ namespace dmSoundCodec
         // shutdown & restart the decoder as we cannot seek anywhere if we do not hand it a seek call on the file IO level
         ov_clear(&streamInfo->m_File);
 
+        streamInfo->m_bEOS = false;
+        streamInfo->m_Cursor = 0;
+
+        if (!dmSound::IsSoundDataValid(streamInfo->m_SoundData))
+        {
+            // Due to the decoupled decoding in relation to the resource system
+            // it is possible that the data has been removed, so we cannot actually restart the stream (nor do we want to)
+            // TODO: See if we can avoid doing the "reset" stream when stopping a sound?
+            //       It should probably be done on the "play" instead.
+            return RESULT_OK;
+        }
+
         ov_callbacks cb;
         cb.read_func = OggRead;
         cb.close_func = OggClose;
         cb.seek_func = OggSeek;
         cb.tell_func = OggTell;
 
-        streamInfo->m_bEOS = false;
-        streamInfo->m_Cursor = 0;
-
+        // The ov_clear call is done internally
         int res = ov_open_callbacks(streamInfo, &streamInfo->m_File, 0, 0, cb);
         if (res)
         {
