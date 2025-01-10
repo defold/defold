@@ -113,7 +113,7 @@ sourceSets {
 task copyDependencies {
     doLast {
         exec {
-            commandLine 'python', "${project.bobDir}/engine_version_generator.py"
+            commandLine project.python, "${project.bobDir}/engine_version_generator.py"
         }
         def includeJars = ['dlib.jar', 'modelimporter.jar', 'texturecompiler.jar', 'shaderc.jar']
         copy {
