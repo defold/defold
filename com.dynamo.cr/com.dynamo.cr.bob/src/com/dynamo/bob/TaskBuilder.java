@@ -340,8 +340,10 @@ public class TaskBuilder {
                 }
             }
             catch (Exception e) {
-                logger.severe("Exception");
-                e.printStackTrace(new java.io.PrintStream(System.out));
+                if (!monitor.isCanceled()) {
+                    logger.severe("Exception");
+                    e.printStackTrace(new java.io.PrintStream(System.out));
+                }
                 abort = true;
             }
         }
