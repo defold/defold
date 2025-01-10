@@ -512,6 +512,7 @@
 (s/def ^:private TGuiResourceTextures s/Any #_{s/Str TextureLifecycle})
 (s/def ^:private TGuiResourceShaders s/Any #_{s/Str ShaderLifecycle})
 (s/def ^:private TGuiResourceMaterialInfos s/Any #_{s/Str TMaterialInfo})
+(s/def ^:private TGuiResourcePageCounts s/Any #_{s/Str (s/maybe s/Int)})
 (s/def ^:private TGuiResourceTextureInfos s/Any #_{s/Str TTextureInfo})
 (s/def ^:private TFontDatas s/Any #_{s/Str {s/Keyword s/Any}})
 (s/def ^:private TSpineSceneElementIds s/Any #_{s/Str {:spine-anim-ids (s/constrained #{s/Str} sorted?)
@@ -529,7 +530,7 @@
                                      (s/optional-key :particlefx-resource-names) TGuiResourceNames
                                      (s/optional-key :spine-scene-element-ids) TSpineSceneElementIds
                                      (s/optional-key :spine-scene-names) TGuiResourceNames
-                                     (s/optional-key :texture-page-counts) TNameIntMap
+                                     (s/optional-key :texture-page-counts) TGuiResourcePageCounts
                                      (s/optional-key :texture-resource-names) TGuiResourceNames})
 (s/def ^:private TCostlyGuiSceneInfo {(s/optional-key :font-datas) TFontDatas
                                       (s/optional-key :font-shaders) TGuiResourceShaders
@@ -547,6 +548,7 @@
 (g/deftype ^:private GuiResourceTextures TGuiResourceTextures)
 (g/deftype ^:private GuiResourceShaders TGuiResourceShaders)
 (g/deftype ^:private GuiResourceMaterialInfos TGuiResourceMaterialInfos)
+(g/deftype ^:private GuiResourcePageCounts TGuiResourcePageCounts)
 (g/deftype ^:private GuiResourceTextureInfos TGuiResourceTextureInfos)
 (g/deftype ^:private FontDatas TFontDatas)
 (g/deftype ^:private SpineSceneElementIds TSpineSceneElementIds)
@@ -2141,7 +2143,7 @@
   (property name g/Str)
   (property gpu-texture TextureLifecycle)
   (output texture-infos GuiResourceTextureInfos (g/fnk [name] (sorted-map name {})))
-  (output texture-page-counts NameCounts (g/fnk [name] (sorted-map name texture/non-paged-page-count)))
+  (output texture-page-counts GuiResourcePageCounts (g/fnk [name] (sorted-map name nil))) ; Use a nil texture-page-count to disable validation against the material page count.
   (output texture-gpu-textures GuiResourceTextures (g/fnk [name gpu-texture] {name gpu-texture})))
 
 (g/defnk produce-texture-gpu-textures [_node-id texture-names gpu-texture default-tex-params samplers]
@@ -2187,6 +2189,9 @@
           anim-ids)))
 
 (g/defnk produce-texture-page-counts [texture-names texture-page-count]
+  ;; The texture-page-count can be nil, which will disable validation against
+  ;; the material page count. We still want an entry in the map since the keys
+  ;; are used to validate the texture names.
   (into (sorted-map)
         (map (fn [texture-name]
                (pair texture-name texture-page-count)))
@@ -2217,10 +2222,10 @@
   (input name-counts NameCounts)
   (input default-tex-params g/Any)
   (input texture-resource resource/Resource)
-  (input image BufferedImage :substitute (constantly nil))
+  (input image BufferedImage :substitute nil)
   (input gpu-texture g/Any :substitute nil)
   (input texture-page-count g/Int :substitute nil)
-  (input anim-data g/Any :substitute (constantly nil))
+  (input anim-data g/Any :substitute nil)
   (input anim-ids g/Any :substitute nil)
   (input samplers [g/KeywordMap] :substitute (constantly []))
 
@@ -2241,7 +2246,7 @@
   (output texture-gpu-textures GuiResourceTextures :cached produce-texture-gpu-textures)
   (output texture-infos GuiResourceTextureInfos :cached produce-texture-infos)
   (output texture-names NameSet :cached produce-texture-names)
-  (output texture-page-counts NameCounts :cached produce-texture-page-counts)
+  (output texture-page-counts GuiResourcePageCounts :cached produce-texture-page-counts)
   (output build-errors g/Any (g/fnk [_node-id name name-counts texture]
                                (g/package-errors _node-id
                                                  (prop-unique-id-error _node-id :name name name-counts "Name")
@@ -3222,10 +3227,12 @@
             (into (sorted-set)
                   layout-names)))
 
-  (input texture-page-counts NameCounts :array)
-  (output texture-page-counts NameCounts :cached
+  (input texture-page-counts GuiResourcePageCounts :array)
+  (output texture-page-counts GuiResourcePageCounts :cached
           (g/fnk [texture-page-counts]
-            (reduce coll/merge texture-page-counts)))
+            (into (sorted-map)
+                  cat
+                  texture-page-counts)))
 
   (input texture-resource-names GuiResourceNames)
   (input texture-gpu-textures GuiResourceTextures :array)
