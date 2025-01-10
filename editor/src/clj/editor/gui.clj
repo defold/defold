@@ -491,6 +491,7 @@
 ;; You might want to enable these before making drastic changes to Gui nodes.
 
 (s/def ^:private TNames [s/Str])
+(s/def ^:private TNameSet #{s/Str})
 (s/def ^:private TNameIntMap {s/Str s/Int})
 (def ^:private TNameIndices TNameIntMap)
 
@@ -542,6 +543,7 @@
 (g/deftype GuiResourceNames TGuiResourceNames)
 
 (g/deftype ^:private Names TNames)
+(g/deftype ^:private NameSet TNameSet)
 (g/deftype ^:private GuiResourceTextures TGuiResourceTextures)
 (g/deftype ^:private GuiResourceShaders TGuiResourceShaders)
 (g/deftype ^:private GuiResourceMaterialInfos TGuiResourceMaterialInfos)
@@ -2142,47 +2144,53 @@
   (output texture-page-counts NameCounts (g/fnk [name] (sorted-map name texture/non-paged-page-count)))
   (output texture-gpu-textures GuiResourceTextures (g/fnk [name gpu-texture] {name gpu-texture})))
 
-(g/defnk produce-texture-gpu-textures [_node-id anim-ids name gpu-texture default-tex-params samplers]
+(g/defnk produce-texture-gpu-textures [_node-id texture-names gpu-texture default-tex-params samplers]
   ;; If the referenced texture-resource is missing, we don't return an entry.
   ;; This will cause every usage to fall back on the no-texture entry for "".
-  (when (and (some? anim-ids) (some? gpu-texture))
+  (when (some? gpu-texture)
     (let [gpu-texture (let [params (material/sampler->tex-params (first samplers) default-tex-params)]
                         (texture/set-params gpu-texture params))]
-      ;; If the texture does not contain animations, we emit an entry for the "texture" name only.
-      (if (coll/empty? anim-ids)
-        {name gpu-texture}
-        (into {}
-              (map (fn [anim-id]
-                     (pair (format "%s/%s" name anim-id)
-                           gpu-texture)))
-              anim-ids)))))
+      (into {}
+            (map (fn [texture-name]
+                   (pair texture-name gpu-texture)))
+            texture-names))))
 
-(g/defnk produce-texture-infos [anim-data name]
+(definline ^:private make-texture-name [texture-name anim-id]
+  `(str ~texture-name \/ ~anim-id))
+
+(g/defnk produce-texture-infos [anim-data texture-names name]
   ;; The anim-data may be nil if the referenced texture is missing or defective.
-  (let [has-animations (not (coll/empty? anim-data))
-        texture-info (cond-> {}
-                             has-animations (assoc :anim-data anim-data))]
+  (let [has-animations (not (coll/empty? anim-data))]
     ;; If the texture does not contain animations, we emit an entry for the
     ;; "texture" name only.
     (if-not has-animations
-      (sorted-map name texture-info)
+      (sorted-map name {})
       (into (sorted-map)
             (map (fn [[anim-id anim-data]]
-                   (let [texture-id (if anim-id (format "%s/%s" name anim-id) name)
-                         texture-info (assoc texture-info :anim-data anim-data)]
-                     (pair texture-id texture-info))))
+                   ;; Use the existing texture-name string to save memory.
+                   (let [texture-name (if-not anim-id
+                                        name
+                                        (let [texture-name (make-texture-name name anim-id)]
+                                          (get texture-names texture-name texture-name)))
+                         texture-info {:anim-data anim-data}]
+                     (pair texture-name texture-info))))
             anim-data))))
 
-(g/defnk produce-texture-page-counts [anim-ids name texture-page-count]
+(g/defnk produce-texture-names [anim-ids name]
   ;; If the texture does not contain animations, we emit an entry for the
   ;; "texture" name only.
   (if (coll/empty? anim-ids)
-    (sorted-map name texture-page-count)
-    (into (sorted-map)
+    (sorted-set name)
+    (into (sorted-set)
           (map (fn [anim-id]
-                 (pair (format "%s/%s" name anim-id)
-                       texture-page-count)))
+                 (make-texture-name name anim-id)))
           anim-ids)))
+
+(g/defnk produce-texture-page-counts [texture-names texture-page-count]
+  (into (sorted-map)
+        (map (fn [texture-name]
+               (pair texture-name texture-page-count)))
+        texture-names))
 
 (g/defnode TextureNode
   (inherits outline/OutlineNode)
@@ -2232,6 +2240,7 @@
                            :texture (resource/resource->proj-path texture-resource))))
   (output texture-gpu-textures GuiResourceTextures :cached produce-texture-gpu-textures)
   (output texture-infos GuiResourceTextureInfos :cached produce-texture-infos)
+  (output texture-names NameSet :cached produce-texture-names)
   (output texture-page-counts NameCounts :cached produce-texture-page-counts)
   (output build-errors g/Any (g/fnk [_node-id name name-counts texture]
                                (g/package-errors _node-id
