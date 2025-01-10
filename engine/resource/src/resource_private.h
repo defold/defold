@@ -102,6 +102,11 @@ namespace dmResource
 
     Result CheckSuppliedResourcePath(const char* name);
 
+#if !defined(DM_HAS_THREADS)
+    // Only use for single threaded loading! (used in load_queue_sync.cpp)
+    LoadBufferType* GetGlobalLoadBuffer(HFactory factory);
+#endif
+
     // load with default internal buffer and its management, returns buffer ptr in 'buffer'
     Result LoadResource(HFactory factory, const char* path, const char* original_name, void** buffer, uint32_t* resource_size);
 

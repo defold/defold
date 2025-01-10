@@ -366,13 +366,7 @@ bool ResourceChunkCacheEvictMemory(HResourceChunkCache cache, uint32_t size)
     uint32_t cache_size = cache->m_CacheSize;
     uint32_t cache_size_used = cache->m_CacheSizeUsed;
 
-    if (size > cache_size_used)
-    {
-        dmLogError("Cannot insert an item larger than the cache size!");
-        return false;
-    }
-
-    while ((cache_size - cache_size_used) < size)
+    while (!ResourceChunkCacheCanFit(cache, size))
     {
         DLListNode* last = ListGetLast(&cache->m_LRU);
         if (!last)
@@ -388,7 +382,7 @@ bool ResourceChunkCacheEvictMemory(HResourceChunkCache cache, uint32_t size)
         cache_size_used = cache->m_CacheSizeUsed;
     }
 
-    return true;
+    return ResourceChunkCacheCanFit(cache, size);
 }
 
 // Evicts the chunks associated with path_hash
