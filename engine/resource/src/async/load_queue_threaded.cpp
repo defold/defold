@@ -15,14 +15,15 @@
 #include "resource.h"
 #include "resource_private.h"
 #include "load_queue.h"
+#include "load_queue_private.h" // Request
 
+#include <dlib/array.h>
+#include <dlib/condition_variable.h>
 #include <dlib/dstrings.h>
 #include <dlib/log.h>
-#include <dlib/array.h>
-#include <dlib/thread.h>
 #include <dlib/mutex.h>
+#include <dlib/thread.h>
 #include <dlib/time.h>
-#include <dlib/condition_variable.h>
 
 namespace dmLoadQueue
 {
@@ -36,16 +37,6 @@ namespace dmLoadQueue
     // This sets the bandwidth of the loader.
     const uint64_t MAX_PENDING_DATA = 4 * 1024 * 1024;
     const uint32_t QUEUE_SLOTS      = 16;
-
-    struct Request
-    {
-        const char*                m_Name;
-        const char*                m_CanonicalPath;
-        dmResource::LoadBufferType m_Buffer;
-        uint32_t                   m_ResourceSize;
-        PreloadInfo                m_PreloadInfo;
-        LoadResult                 m_Result;
-    };
 
     struct Queue
     {
@@ -132,47 +123,7 @@ namespace dmLoadQueue
             if (current)
             {
                 // We use the temporary result object here to fill in the data so it can be written with the mutex held.
-                uint32_t buffer_size = 0;
-
-                assert(current->m_Buffer.Size() == 0);
-                if (current->m_Buffer.Capacity() != DEFAULT_CAPACITY)
-                {
-                    current->m_Buffer.SetCapacity(DEFAULT_CAPACITY);
-                }
-
-                dmResource::HResourceType resource_type = current->m_PreloadInfo.m_Type;
-                uint32_t preload_size = RESOURCE_INVALID_PRELOAD_SIZE;
-                if (ResourceTypeIsStreaming(resource_type))
-                {
-                    preload_size = ResourceTypeGetPreloadSize(resource_type);
-                }
-
-                result.m_LoadResult = dmResource::LoadResourceToBuffer(queue->m_Factory, current->m_CanonicalPath, current->m_Name, preload_size, &current->m_ResourceSize, &buffer_size, &current->m_Buffer);
-                result.m_PreloadResult = dmResource::RESULT_PENDING;
-                result.m_PreloadData   = 0;
-
-                if (result.m_LoadResult == dmResource::RESULT_OK)
-                {
-                    assert(current->m_Buffer.Size() == buffer_size);
-                    assert(buffer_size <= current->m_ResourceSize);
-                    if (current->m_PreloadInfo.m_CompleteFunction)
-                    {
-                        ResourcePreloadParams params;
-                        params.m_Factory       = queue->m_Factory;
-                        params.m_Context       = current->m_PreloadInfo.m_Context;
-                        params.m_Buffer        = current->m_Buffer.Begin();
-                        params.m_BufferSize    = buffer_size;
-                        params.m_FileSize      = current->m_ResourceSize;
-                        params.m_IsBufferPartial = buffer_size != current->m_ResourceSize;
-                        params.m_HintInfo      = &current->m_PreloadInfo.m_HintInfo;
-                        params.m_PreloadData   = &result.m_PreloadData;
-                        result.m_PreloadResult = (dmResource::Result)current->m_PreloadInfo.m_CompleteFunction(&params);
-                    }
-                    else
-                    {
-                        result.m_PreloadResult = dmResource::RESULT_OK;
-                    }
-                }
+                DoLoadResource(queue->m_Factory, current, &current->m_Buffer, &result);
             }
         }
     }
