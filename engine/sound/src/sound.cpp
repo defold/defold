@@ -655,7 +655,7 @@ namespace dmSound
 
             dmSoundCodec::Result r = dmSoundCodec::NewDecoder(ss->m_CodecContext, codec_format, sound_data, &decoder);
             if (r != dmSoundCodec::RESULT_OK) {
-                dmLogError("Failed to decode sound (%d)", r);
+                dmLogError("Failed to decode sound %s: (%d)", dmHashReverseSafe64(sound_data->m_NameHash), r);
                 return RESULT_INVALID_STREAM_DATA;
             }
 

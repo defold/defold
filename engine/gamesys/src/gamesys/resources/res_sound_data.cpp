@@ -13,6 +13,7 @@
 // specific language governing permissions and limitations under the License.
 
 #include <string.h>
+#include <dlib/log.h>
 #include <dlib/math.h>
 #include <dlib/mutex.h>
 #include <sound/sound.h>
@@ -124,15 +125,20 @@ namespace dmGameSystem
 
     static void AddChunk(HResourceChunkCache cache, dmhash_t path_hash, uint8_t* data, uint32_t size, uint32_t offset)
     {
+        int flags = offset == 0 ? RESOURCE_CHUNK_CACHE_NO_EVICT : RESOURCE_CHUNK_CACHE_DEFAULT;
         if (!ResourceChunkCacheCanFit(cache, size))
         {
-            ResourceChunkCacheEvictMemory(cache, size);
+            if (!ResourceChunkCacheEvictMemory(cache, size))
+            {
+                dmLogError("Cannot fit sound data chunk of size %u. Update the sound.stream_cache_size to larger size\n", size);
+                return;
+            }
         }
         ResourceCacheChunk chunk;
         chunk.m_Data = data,
         chunk.m_Size = size,
         chunk.m_Offset = offset;
-        ResourceChunkCachePut(cache, path_hash, &chunk);
+        ResourceChunkCachePut(cache, path_hash, flags, &chunk);
     }
 
     // Called from the main or resource preloader thread
