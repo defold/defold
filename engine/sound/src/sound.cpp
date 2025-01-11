@@ -1232,7 +1232,6 @@ namespace dmSound
 
     static void MixInstance(const MixContext* mix_context, SoundInstance* instance) {
         SoundSystem* sound = g_SoundSystem;
-        uint32_t decoded = 0;
 
         dmSoundCodec::Info info;
         dmSoundCodec::GetInfo(sound->m_CodecContext, instance->m_Decoder, &info);
@@ -1267,6 +1266,7 @@ namespace dmSound
 
                 char* buffer = ((char*) instance->m_Frames) + instance->m_FrameCount * stride;
                 uint32_t buffer_size = n * stride;
+                uint32_t decoded = 0;
                 if (!is_muted)
                 {
                     r = dmSoundCodec::Decode(sound->m_CodecContext, instance->m_Decoder, buffer, buffer_size, &decoded);
