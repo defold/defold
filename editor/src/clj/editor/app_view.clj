@@ -28,7 +28,6 @@
             [editor.build :as build]
             [editor.build-errors-view :as build-errors-view]
             [editor.bundle-dialog :as bundle-dialog]
-            [editor.changes-view :as changes-view]
             [editor.code.data :as data :refer [CursorRange->line-number]]
             [editor.console :as console]
             [editor.debug-view :as debug-view]
@@ -72,7 +71,6 @@
             [editor.scene-visibility :as scene-visibility]
             [editor.search-results-view :as search-results-view]
             [editor.shared-editor-settings :as shared-editor-settings]
-            [editor.sync :as sync]
             [editor.system :as system]
             [editor.targets :as targets]
             [editor.types :as types]
@@ -728,8 +726,7 @@
 
 (defn- can-async-reload? []
   (and (disk-availability/available?)
-       (not (build-in-progress?))
-       (not (sync/sync-dialog-open?))))
+       (not (build-in-progress?))))
 
 (defn async-reload!
   [app-view changes-view workspace moved-files]
@@ -1621,9 +1618,6 @@ If you do not specifically require different script states, consider changing th
                {:label "Load External Changes"
                 :id ::async-reload
                 :command :async-reload}
-               {:label "Synchronize..."
-                :id ::synchronize
-                :command :synchronize}
                {:label "Save All"
                 :id ::save-all
                 :command :save-all}
@@ -2245,30 +2239,6 @@ If you do not specifically require different script states, consider changing th
                              (ui/open-url "https://www.defold.com/manuals/version-control/"))}
                {:fx/type fx.text/lifecycle
                 :text "."}]}))
-
-(handler/defhandler :synchronize :global
-  (enabled? [] (disk-availability/available?))
-  (run [changes-view project workspace app-view]
-       (if (changes-view/project-is-git-repo? changes-view)
-
-         ;; The project is a Git repo.
-         ;; Check if there are locked files below the project folder before proceeding.
-         ;; If so, we abort the sync and notify the user, since this could cause problems.
-         (when (changes-view/ensure-no-locked-files! changes-view)
-           (async-save! app-view changes-view project project/dirty-save-data
-                        (fn [successful? render-reload-progress! _render-save-progress!]
-                          (when (and successful?
-                                     (changes-view/regular-sync! changes-view))
-                            (disk/async-reload! render-reload-progress! workspace [] changes-view)))))
-
-         ;; The project is not a Git repo.
-         ;; Show a dialog with info about how to set this up.
-         (dialogs/make-info-dialog
-           {:title "Version Control"
-            :size :default
-            :icon :icon/git
-            :header "This project does not use Version Control"
-            :content (make-version-control-info-dialog-content)}))))
 
 (handler/defhandler :save-all :global
   (enabled? [] (not (bob/build-in-progress?)))
