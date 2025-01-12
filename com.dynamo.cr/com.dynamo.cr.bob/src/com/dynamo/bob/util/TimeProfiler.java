@@ -263,6 +263,9 @@ public class TimeProfiler {
     }
 
     public static void addScopeToCurrentThread(ProfilingScope scope) {
+        if (scope == null) {
+            return;
+        }
         ProfilingScope currentScope = getCurrentScope();
         if (currentScope != null) {
             if (currentScope.children == null) {
