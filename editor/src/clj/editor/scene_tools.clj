@@ -98,6 +98,7 @@
     :move-xz [0.0 1.0 0.0]
     :move-yz [1.0 0.0 0.0]
     :move-screen [0.0 0.0 1.0]
+    :move-pivot-xy [0.0 0.0 1.0]
     :rot-x [1.0 0.0 0.0]
     :rot-y [0.0 1.0 0.0]
     :rot-z [0.0 0.0 1.0]
@@ -123,7 +124,7 @@
       (.transform view dir)
       (case manip
         (:move-x :move-y :move-z :scale-x :scale-y :scale-z) (< (Math/abs (.z dir)) 0.99)
-        (:move-xy :move-xz :move-yz :scale-xy :scale-xz :scale-yz) (> (Math/abs (.z dir)) 0.06)
+        (:move-xy :move-xz :move-yz :scale-xy :scale-xz :scale-yz :move-pivot-xy) (> (Math/abs (.z dir)) 0.06)
         true))))
 
 (defn- get-manip-rotation
@@ -239,6 +240,7 @@
     :move-xz #{:move-x :move-z}
     :move-yz #{:move-y :move-z}
     :move-screen #{}
+    :move-pivot-xy #{}
     :rot-x #{}
     :rot-y #{}
     :rot-z #{}
@@ -259,6 +261,7 @@
    :move-xz colors/defold-green
    :move-yz colors/defold-red
    :move-screen colors/defold-blue
+   :move-pivot-xy colors/defold-turquoise
    :rot-x colors/defold-red
    :rot-y colors/defold-green
    :rot-z colors/defold-blue
@@ -294,6 +297,7 @@
     :move-xz (AxisAngle4d. (Vector3d. 1.0 0.0 0.0) (* 0.5 (Math/PI)))
     :move-yz (AxisAngle4d. (Vector3d. 0.0 1.0 0.0) (- (* 0.5 (Math/PI))))
     :move-screen (AxisAngle4d.)
+    :move-pivot-xy (AxisAngle4d.)
     :rot-x (AxisAngle4d. (Vector3d. 0.0 1.0 0.0) (- (* 0.5 (Math/PI))))
     :rot-y (AxisAngle4d. (Vector3d. 1.0 0.0 0.0) (- (* 0.5 (Math/PI))))
     :rot-z (AxisAngle4d.)
@@ -306,7 +310,7 @@
     :scale-yz (AxisAngle4d. (Vector3d. 0.0 1.0 0.0) (- (* 0.5 (Math/PI))))
     :scale-uniform (AxisAngle4d.)))
 
-(defn- manip-enabled? [manip active-manip tool-active?]
+(defn- manip-enabled? [manip active-manip tool-active? single-selection?]
   (if (#{:rot-x :rot-y :rot-z :rot-xy :rot-xz :rot-yz :rot-screen} manip)
     true
     (if tool-active?
@@ -315,26 +319,42 @@
                 (or (= active-manip :move-screen) (contains? (manip->sub-manips active-manip) manip)))
            (and (#{:scale-x :scale-y :scale-z} manip)
                 (#{:scale-xy :scale-xz :scale-yz :scale-uniform} active-manip)))
-       true)))
+       (or (not= manip :move-pivot-xy) single-selection?))))
 
-(let [move (gen-arrow 10)
-      move-plane (vtx-add [65.0 65.0 0.0] (vtx-scale [7.0 7.0 1.0] (gen-square true true)))
-      move-screen (concat
-                    (vtx-scale [7.0 7.0 1.0] (gen-square true true))
-                    (gen-point))
-      rot (vtx-scale [axis-rotation-radius axis-rotation-radius 1.0] (gen-circle 64))
-      rot-screen (vtx-scale [screen-rotation-radius screen-rotation-radius 1.0] (gen-circle 64))
-      scale (vtx-add [85 0 0] (vtx-scale [7 7 7] (gen-cube false true)))
-      scale-uniform (vtx-scale [7 7 7] (gen-cube false true))]
-  (def ^:private manip->vertices
-    {:move-x move :move-y move :move-z move
-     :move-xy move-plane :move-xz move-plane :move-yz move-plane
-     :scale-xy move-plane :scale-xz move-plane :scale-yz move-plane
-     :move-screen move-screen
-     :rot-x rot :rot-y rot :rot-z rot
-     :rot-screen rot-screen
-     :scale-x scale :scale-y scale :scale-z scale
-     :scale-uniform scale-uniform}))
+(defn- move-pivot
+  [reference-renderable scale]
+  (let [node-id (:node-id reference-renderable)
+        pivot-x (g/node-value node-id :pivot-x)
+        pivot-y (g/node-value node-id :pivot-y)
+        rect (-> reference-renderable :user-data :rect)
+        position [(/ (+ (:x rect) (* pivot-x (:width rect)) 0) scale)
+                  (/ (+ (:y rect) (* pivot-y (:height rect)) 0) scale)
+                  0.0]]
+    (concat
+     (vtx-add position (vtx-scale [7.0 7.0 1.0] (gen-circle 64)))
+     (vtx-add position (gen-point)))))
+
+(defn ^:private manip->vertices
+  [manip reference-renderable scale]
+  (let [move (gen-arrow 10)
+        move-plane (vtx-add [65.0 65.0 0.0] (vtx-scale [7.0 7.0 1.0] (gen-square true true)))
+        move-screen (concat
+                     (vtx-scale [7.0 7.0 1.0] (gen-square true true))
+                     (gen-point))
+        rot (vtx-scale [axis-rotation-radius axis-rotation-radius 1.0] (gen-circle 64))
+        rot-screen (vtx-scale [screen-rotation-radius screen-rotation-radius 1.0] (gen-circle 64))
+        scale-all (vtx-add [85 0 0] (vtx-scale [7 7 7] (gen-cube false true)))
+        scale-uniform (vtx-scale [7 7 7] (gen-cube false true))]
+    (case manip
+      :move-x move :move-y move :move-z move
+      :move-xy move-plane :move-xz move-plane :move-yz move-plane
+      :move-pivot-xy (move-pivot reference-renderable scale)
+      :scale-xy move-plane :scale-xz move-plane :scale-yz move-plane
+      :move-screen move-screen
+      :rot-x rot :rot-y rot :rot-z rot
+      :rot-screen rot-screen
+      :scale-x scale-all :scale-y scale-all :scale-z scale-all
+      :scale-uniform scale-uniform)))
 
 (defn- gen-manip-renderable [id manip manip-space manip-world-rotation ^Matrix4d manip-world-transform ^AxisAngle4d rotation vertices color ^Matrix4d inv-view]
   (let [vertices-by-mode (reduce (fn [m [mode vs]] (merge-with concat m {mode vs})) {} vertices)
@@ -401,8 +421,9 @@
               world-transform (manip-world-transform reference-renderable manip-space scale)
               rotation-fn #(manip->rotation %)
               color-fn #(manip->color % active-manip hot-manip tool-active)
-              filter-fn #(manip-enabled? % active-manip tool-active)
-              vertices-fn #(manip->vertices %)
+              single-selection? (not (second selected-renderables))
+              filter-fn #(manip-enabled? % active-manip tool-active single-selection?)
+              vertices-fn #(manip->vertices % reference-renderable scale)
               manips (supported-manips active-tool (map :node-id selected-renderables))
               inv-view (doto (c/camera-view-matrix camera) (.invert))
               renderables (vec (map #(gen-manip-renderable _node-id % manip-space world-rotation world-transform (rotation-fn %) (vertices-fn %) (color-fn %) inv-view)
@@ -425,7 +446,7 @@
 (defn- manip->project-fn [manip camera viewport]
   (case manip
     (:move-x :move-y :move-z :scale-x :scale-y :scale-z) math/project-lines
-    (:move-xy :move-xz :move-yz :move-screen :scale-xy :scale-xz :scale-yz) math/line-plane-intersection
+    (:move-xy :move-xz :move-yz :move-screen :scale-xy :scale-xz :scale-yz :move-pivot-xy) math/line-plane-intersection
     (:rot-x :rot-y :rot-z :rot-screen)
     (fn [pos dir manip-pos manip-dir]
       (let [scale (scale-factor camera viewport manip-pos)
@@ -438,7 +459,7 @@
 
 (defn- manip->apply-fn [manip-opts evaluation-context manip manip-pos original-values]
   (case manip
-    (:move-x :move-y :move-z :move-xy :move-xz :move-yz :move-screen)
+    (:move-x :move-y :move-z :move-xy :move-xz :move-yz :move-screen :move-pivot-xy)
     (let [move-snap-fn (or (:move-snap-fn manip-opts) identity)]
       (fn [start-pos pos]
         (let [manip-delta (doto (Vector3d.) (.sub pos start-pos))

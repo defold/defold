@@ -40,6 +40,7 @@
             [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
             [editor.scene-picking :as scene-picking]
+            [editor.scene-tools :as scene-tools]
             [editor.texture-set :as texture-set]
             [editor.types :as types]
             [editor.validation :as validation]
@@ -1109,3 +1110,24 @@
                               node-child-index (.indexOf children node-id)]
                           (< node-child-index (dec (.size children)))))
   (run [selection] (move-node! (selection->image selection) 1)))
+
+(defmethod scene-tools/manip-move-manips ::AtlasImage [_node-id] [:move-pivot-xy])
+
+(defmethod scene-tools/manip-movable? ::AtlasImage [node-id] true)
+
+(defn snap-pivot
+  [pivot]
+  (let [snap-values [0.0 0.5 1.0]
+        snap-threshold 0.1]
+    (mapv #(or (some (fn [^double snap-value]
+                       (when (< (Math/abs (- % snap-value)) snap-threshold)
+                         snap-value)) snap-values) %) pivot)))
+
+(defmethod scene-tools/manip-move ::AtlasImage
+  [evaluation-context node-id ^Vector3d delta]
+  (let [[pivot-x pivot-y] (g/node-value node-id :pivot evaluation-context)
+        [width height] (g/node-value node-id :size evaluation-context)]
+    [(g/set-property node-id :pivot (snap-pivot
+                                     (properties/round-vec-coarse
+                                      [(+ pivot-x (/ (.x delta) width))
+                                       (+ pivot-y (/ (.y delta) height))])))]))
