@@ -387,13 +387,22 @@ public class AndroidBundler implements IBundler {
 
                         File f = new File(FilenameUtils.concat(extenderExeDir, FilenameUtils.concat(architecture.getExtenderPair(), name)));
                         if (!f.exists())
-                        break;
+                            break;
                         classesDex.add(f);
                     }
                 }
             }
         }
         return classesDex;
+    }
+
+    private static File getMetaInfFolder(Project project) throws IOException {
+        List<File> result = new ArrayList<>();
+        final String binDir = project.getBinaryOutputDirectory();
+        // take here only one platform because for META-INF doesn't matter which platform is used for build native part
+        Platform platform = getFirstPlatform(project);
+        String archFolder = FilenameUtils.concat(binDir, platform.getExtenderPair());
+        return Path.of(archFolder, "META-INF").toFile();
     }
 
     private static List<String> trim(List<String> strings) {
@@ -565,7 +574,13 @@ public class AndroidBundler implements IBundler {
                 BundleHelper.throwIfCanceled(canceled);
             }
 
-            // copy extension and bundle resoources
+            // copy META-INF files
+            File metaInfFolder = getMetaInfFolder(project);
+            if (metaInfFolder.exists()) {
+                FileUtils.copyDirectoryToDirectory(metaInfFolder, rootDir);
+            }
+
+            // copy extension and bundle resources
             Map<String, IResource> bundleResources = ExtenderUtil.collectBundleResources(project, getArchitectures(project));
             final String assetsPath = "assets/";
             final String libPath = "lib/";
