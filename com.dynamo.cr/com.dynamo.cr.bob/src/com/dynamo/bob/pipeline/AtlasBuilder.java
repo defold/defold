@@ -29,7 +29,6 @@ import java.nio.file.Paths;
 import com.defold.extension.pipeline.texture.TextureCompression;
 import com.defold.extension.pipeline.texture.TextureCompressorASTC;
 import com.defold.extension.pipeline.texture.TextureCompressorBasisU;
-import com.defold.extension.pipeline.texture.TextureCompressorDefault;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.ProtoBuilder;
@@ -49,7 +48,7 @@ import com.dynamo.gamesys.proto.AtlasProto.AtlasImage;
 import com.google.protobuf.TextFormat;
 
 @ProtoParams(srcClass = Atlas.class, messageClass = TextureSet.class)
-@BuilderParams(name = "Atlas", inExts = {".atlas"}, outExt = ".a.texturesetc")
+@BuilderParams(name = "Atlas", inExts = {".atlas"}, outExt = ".a.texturesetc", isCacheble = true)
 public class AtlasBuilder extends ProtoBuilder<Atlas.Builder> {
 
     private static final Logger logger = Logger.getLogger(AtlasBuilder.class.getName());

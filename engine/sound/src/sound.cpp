@@ -561,6 +561,16 @@ namespace dmSound
         return RESULT_OK;
     }
 
+    bool IsSoundDataValid(HSoundData sound_data)
+    {
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_SoundSystem->m_Mutex);
+        if (sound_data->m_DataCallbacks.m_GetData)
+            return true;
+        if (sound_data->m_Data)
+            return true;
+        return false;
+    }
+
     uint32_t GetSoundResourceSize(HSoundData sound_data)
     {
         return sound_data->m_Size + sizeof(SoundData);
@@ -1222,7 +1232,6 @@ namespace dmSound
 
     static void MixInstance(const MixContext* mix_context, SoundInstance* instance) {
         SoundSystem* sound = g_SoundSystem;
-        uint32_t decoded = 0;
 
         dmSoundCodec::Info info;
         dmSoundCodec::GetInfo(sound->m_CodecContext, instance->m_Decoder, &info);
@@ -1257,6 +1266,7 @@ namespace dmSound
 
                 char* buffer = ((char*) instance->m_Frames) + instance->m_FrameCount * stride;
                 uint32_t buffer_size = n * stride;
+                uint32_t decoded = 0;
                 if (!is_muted)
                 {
                     r = dmSoundCodec::Decode(sound->m_CodecContext, instance->m_Decoder, buffer, buffer_size, &decoded);
@@ -1275,7 +1285,6 @@ namespace dmSound
                         break; // Need to break as we're not progressing this sound instance
                     }
 
-                    assert(decoded % stride == 0);
                     instance->m_FrameCount += decoded / stride;
                 }
                 else if (r == dmSoundCodec::RESULT_END_OF_STREAM)
@@ -1308,7 +1317,7 @@ namespace dmSound
 
             if (r != dmSoundCodec::RESULT_OK && r != dmSoundCodec::RESULT_END_OF_STREAM)
             {
-                dmLogWarning("Unable to decode file '%s'. Result %d", GetSoundName(sound, instance), r);
+                dmLogWarning("Unable to decode file '%s': %s %d", GetSoundName(sound, instance), dmSoundCodec::ResultToString(r), r);
                 instance->m_Playing = 0;
                 return;
             }
@@ -1622,6 +1631,39 @@ namespace dmSound
         if (sound) {
             sound->m_HasWindowFocus = focus;
         }
+    }
+
+    const char* ResultToString(Result result)
+    {
+        switch(result)
+        {
+#define RESULT_CASE(_NAME) \
+    case _NAME: return #_NAME
+
+            RESULT_CASE(RESULT_OK);
+            RESULT_CASE(RESULT_PARTIAL_DATA);
+            RESULT_CASE(RESULT_OUT_OF_SOURCES);
+            RESULT_CASE(RESULT_EFFECT_NOT_FOUND);
+            RESULT_CASE(RESULT_OUT_OF_INSTANCES);
+            RESULT_CASE(RESULT_RESOURCE_LEAK);
+            RESULT_CASE(RESULT_OUT_OF_BUFFERS);
+            RESULT_CASE(RESULT_INVALID_PROPERTY);
+            RESULT_CASE(RESULT_UNKNOWN_SOUND_TYPE);
+            RESULT_CASE(RESULT_INVALID_STREAM_DATA);
+            RESULT_CASE(RESULT_OUT_OF_MEMORY);
+            RESULT_CASE(RESULT_UNSUPPORTED);
+            RESULT_CASE(RESULT_DEVICE_NOT_FOUND);
+            RESULT_CASE(RESULT_OUT_OF_GROUPS);
+            RESULT_CASE(RESULT_NO_SUCH_GROUP);
+            RESULT_CASE(RESULT_NOTHING_TO_PLAY);
+            RESULT_CASE(RESULT_INIT_ERROR);
+            RESULT_CASE(RESULT_FINI_ERROR);
+            RESULT_CASE(RESULT_NO_DATA);
+            RESULT_CASE(RESULT_END_OF_STREAM);
+            RESULT_CASE(RESULT_UNKNOWN_ERROR);
+            default: return "Unknown";
+        }
+#undef RESULT_CASE
     }
 
     // Unit tests

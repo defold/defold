@@ -83,6 +83,7 @@ namespace dmSound
         memset(sd, 0, sizeof(*sd));
         sd->m_GetData = cbk;
         sd->m_GetDataCtx = cbk_ctx;
+        *sound_data = sd;
         return RESULT_OK;
     }
 

@@ -1361,7 +1361,16 @@ public class Project {
 
                 long tstart = System.currentTimeMillis();
 
-                buildEngine(monitor, architectures, appmanifestOptions);
+                try {
+                    buildEngine(monitor, architectures, appmanifestOptions);
+                }
+                catch (Exception e) {
+                    if ((e instanceof MultipleCompileException) ||
+                        (e instanceof CompileExceptionError)) {
+                        monitor.setCanceled(true);
+                    }
+                    throw  e;
+                }
 
                 long tend = System.currentTimeMillis();
                 logger.info("Engine build took %f s", (tend-tstart)/1000.0);
@@ -1772,32 +1781,40 @@ public class Project {
                         }
                     }
                     TimeProfiler.stop();
-
-                    if (shouldBuildProject) {
-                        result = createAndRunTasks(monitor);
-                    }
-
-                    if (remoteBuildFuture != null) {
-                        // get the result from the remote build and catch
-                        // if an exception was thrown in buildRemoteEngine() the
-                        // original exception is included in the ExecutionException
-                        try {
-                            remoteBuildFuture.get();
-                        }
-                        catch (ExecutionException|InterruptedException e) {
-                            Throwable cause = e.getCause();
-                            if ((cause instanceof MultipleCompileException) ||
-                                (cause instanceof CompileExceptionError)) {
-                                throw cause;
-                            }
-                            else {
-                                throw new CompileExceptionError(cause);
-                            }
+                    boolean resourceBuildingFailed = false;
+                    try {
+                        if (shouldBuildProject) {
+                            result = createAndRunTasks(monitor);
                         }
                     }
-
-                    if (anyFailing(result)) {
-                        break loop;
+                    catch(Exception e) {
+                        if (!monitor.isCanceled()) {
+                            resourceBuildingFailed = true;
+                            throw e;
+                        }
+                    }
+                    finally {
+                        if (remoteBuildFuture != null && !resourceBuildingFailed) {
+                            // get the result from the remote build and catch
+                            // if an exception was thrown in buildRemoteEngine() the
+                            // original exception is included in the ExecutionException
+                            try {
+                                remoteBuildFuture.get();
+                            }
+                            catch (ExecutionException|InterruptedException e) {
+                                Throwable cause = e.getCause();
+                                if ((cause instanceof MultipleCompileException) ||
+                                    (cause instanceof CompileExceptionError)) {
+                                    throw cause;
+                                }
+                                else {
+                                    throw new CompileExceptionError(cause);
+                                }
+                            }
+                        }
+                        if (anyFailing(result)) {
+                            break loop;
+                        }
                     }
                     break;
                 }

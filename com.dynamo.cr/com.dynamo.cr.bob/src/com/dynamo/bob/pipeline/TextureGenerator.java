@@ -210,12 +210,7 @@ public class TextureGenerator {
     }
 
     private static ITextureCompressor getDefaultTextureCompressor() {
-        ITextureCompressor defaultCompressor = TextureCompression.getCompressor("Default");
-        if (defaultCompressor == null) {
-            defaultCompressor = new TextureCompressorDefault();
-            TextureCompression.registerCompressor(defaultCompressor);
-        }
-        return defaultCompressor;
+        return TextureCompression.getCompressor(TextureCompressorDefault.TextureCompressorName);
     }
 
     private static List<Long> GenerateImages(long image, int width, int height, boolean generateMipChain) throws TextureGeneratorException {
@@ -582,16 +577,24 @@ public class TextureGenerator {
                     boolean hasCompressionLevel = platformProfile.getFormats(i).hasCompressionLevel();
                     boolean hasCompressionType = platformProfile.getFormats(i).hasCompressionType();
 
-                    if (hasCompressionType) {
-                        compressionType = textureFormatToSupportedCompressionTypeOrDefault(textureFormat, platformProfile.getFormats(i).getCompressionType());
-                    } else {
-                        compressionType = textureCompressorToCompressionType(textureCompressor);
-                    }
+                    if (compress) {
+                        if (hasCompressionType) {
+                            compressionType = textureFormatToSupportedCompressionTypeOrDefault(textureFormat, platformProfile.getFormats(i).getCompressionType());
+                        } else {
+                            compressionType = textureCompressorToCompressionType(textureCompressor);
+                        }
 
-                    if (hasCompressionLevel) {
-                        TextureFormatAlternative.CompressionLevel compressionLevel = platformProfile.getFormats(i).getCompressionLevel();
+                        if (hasCompressionLevel) {
+                            TextureFormatAlternative.CompressionLevel compressionLevel = platformProfile.getFormats(i).getCompressionLevel();
+                            textureCompressor = compressionTypeToTextureCompressor(compressionType);
+                            textureCompressorPreset = compressionLevelToTextureCompressorPreset(compressionType, compressionLevel);
+                        }
+                    } else {
+                        // If there has been no compression requested, we still need to produce alternatives since
+                        // there are other settings that control how textures are produced (e.g pixel format)
+                        compressionType = TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT;
                         textureCompressor = compressionTypeToTextureCompressor(compressionType);
-                        textureCompressorPreset = compressionLevelToTextureCompressorPreset(compressionType, compressionLevel);
+                        textureCompressorPreset = compressionLevelToTextureCompressorPreset(compressionType, TextureFormatAlternative.CompressionLevel.NORMAL);
                     }
 
                     try {

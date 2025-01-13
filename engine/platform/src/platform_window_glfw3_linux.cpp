@@ -43,4 +43,9 @@ namespace dmPlatform
     {
         // NOP
     }
+
+    void SetWindowsIconNative(HWindow window)
+    {
+        // NOP
+    }
 }
