@@ -1948,11 +1948,11 @@
                                            (let [node-ids-by-id (g/node-value scene-node :node-ids evaluation-context)]
                                              (when (and (not (g/error-value? node-ids-by-id))
                                                         (coll/not-empty node-ids-by-id))
-                                               (comp properties-by-id
-                                                     (into {}
-                                                           (map (fn [[id node-id]]
-                                                                  (pair node-id id)))
-                                                           node-ids-by-id))))))
+                                               (into {}
+                                                     (keep (fn [[id node-id]]
+                                                             (when-some [properties (coll/not-empty (properties-by-id id))]
+                                                               (pair node-id properties))))
+                                                     node-ids-by-id)))))
                                        {})]
                                ;; TODO: Check if we can filter based on connection label instead of source-node-id to be able to share :traverse-fn with other overrides.
                                (g/override scene-node {:traverse-fn (g/make-override-traverse-fn

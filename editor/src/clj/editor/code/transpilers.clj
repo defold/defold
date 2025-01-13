@@ -249,17 +249,13 @@
     (catch Exception e
       (report-error! (ex-message e) (:faulty-class-names (ex-data e))))))
 
-(defn load-build-file-transaction-step
-  ([code-transpilers]
-   (if-let [f (g/node-value code-transpilers :build-file-proj-path->transpiler-node-id)]
-     (fn [resource-node-id resource]
-       (when-let [transpiler-node-id (f (resource/proj-path resource))]
-         (g/connect resource-node-id :save-data transpiler-node-id :build-file-save-data)))
-     (fn [_ _])))
-  ([code-transpilers resource-node-id resource]
-   (when-let [f (g/node-value code-transpilers :build-file-proj-path->transpiler-node-id)]
-     (when-let [transpiler-node-id (f (resource/proj-path resource))]
-       (g/connect resource-node-id :save-data transpiler-node-id :build-file-save-data)))))
+(defn make-resource-load-tx-data-fn [code-transpilers evaluation-context]
+  (if-let [build-file-proj-path->transpiler-node-id (g/node-value code-transpilers :build-file-proj-path->transpiler-node-id evaluation-context)]
+    (fn [resource-node-id resource]
+      (when-let [proj-path (resource/proj-path resource)]
+        (when-let [transpiler-node-id (build-file-proj-path->transpiler-node-id proj-path)]
+          (g/connect resource-node-id :save-data transpiler-node-id :build-file-save-data))))
+    (fn [_ _])))
 
 (defn build-output [code-transpilers evaluation-context]
   (g/node-value code-transpilers :build-output evaluation-context))
