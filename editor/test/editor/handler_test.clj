@@ -23,7 +23,7 @@
   (:import [clojure.lang Keyword]))
 
 (defn fixture [f]
-  (with-redefs [handler/state-atom (atom {})]
+  (with-redefs [handler/state-atom (atom handler/empty-state)]
     (f)))
 
 (use-fixtures :each fixture)
@@ -346,7 +346,7 @@
                      :children [{:label "Erase Tile"}]}])
 
 (deftest main-menu
-  (with-redefs [handler/state-atom (atom {})]
+  (with-redefs [handler/state-atom (atom handler/empty-state)]
     (handler/register-menu! ::menubar main-menu-data)
     (handler/register-menu! ::edit scene-menu-data)
     (handler/register-menu! ::scene-end tile-map-data)

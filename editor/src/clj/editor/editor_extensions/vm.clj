@@ -29,13 +29,18 @@
   locking is only needed to prevent 2 editor threads from interacting with Lua
   VM simultaneously."
   (:refer-clojure :exclude [read])
-  (:require [clojure.java.io :as io])
+  (:require [clojure.java.io :as io]
+            [editor.resource :as resource]
+            editor.workspace)
   (:import [clojure.lang IReduceInit Named]
+           [editor.resource FileResource ZipResource MemoryResource]
+           [editor.workspace BuildResource]
+           [java.net URI]
            [java.nio.charset StandardCharsets]
            [java.util List Map Set]
            [java.util.concurrent.locks ReentrantLock]
            [org.apache.commons.io.input CharSequenceInputStream]
-           [org.luaj.vm2 Globals LuaBoolean LuaClosure LuaDouble LuaFunction LuaInteger LuaNil LuaString LuaTable LuaUserdata LuaValue Prototype Varargs]
+           [org.luaj.vm2 Globals LuaBoolean LuaClosure LuaDouble LuaError LuaFunction LuaInteger LuaNil LuaString LuaTable LuaUserdata LuaValue Prototype Varargs]
            [org.luaj.vm2.compiler LuaC]))
 
 (set! *warn-on-reflection* true)
@@ -171,7 +176,12 @@
           (fn [^LuaTable acc k v]
             (cond-> acc (and (some? k) (some? v)) (doto (.hashset (->lua k) (->lua v)))))
           (LuaTable. 0 (count x))
-          x)))
+          x))
+  URI (->lua [x] (LuaString/valueOf (str x)))
+  FileResource (->lua [x] (LuaString/valueOf (resource/proj-path x)))
+  ZipResource (->lua [x] (LuaString/valueOf (resource/proj-path x)))
+  BuildResource (->lua [x] (LuaString/valueOf (resource/proj-path x)))
+  MemoryResource (->lua [_] (throw (LuaError. "Cannot represent memory resource in Lua"))))
 
 (extend-protocol ->Varargs
   ;; all lua values are singleton varargs

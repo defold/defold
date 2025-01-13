@@ -172,12 +172,6 @@
 (defn- main-menu-id ^MenuBar []
   (:menu-id (user-data (main-root) ::menubar)))
 
-(defn node-with-id ^Node [id nodes]
-  (some (fn [^Node node]
-          (when (= id (.getId node))
-            node))
-        nodes))
-
 (defn closest-node-where
   ^Node [pred ^Node leaf-node]
   (cond
@@ -1347,7 +1341,7 @@
 
     (user-data! menu-item ::menu-item-id id)
     (when command
-      (.setId menu-item (name command)))
+      (user-data! menu-item ::command command))
     (when (and (some? key-combo) (nil? user-data))
       (.setAccelerator menu-item key-combo))
     (when icon
@@ -1728,7 +1722,7 @@
 
     CheckMenuItem
     (let [^CheckMenuItem check-menu-item menu-item
-          command (keyword (.getId check-menu-item))
+          command (user-data check-menu-item ::command)
           user-data (user-data check-menu-item ::menu-user-data)
           handler-ctx (handler/active command command-contexts user-data evaluation-context)]
       (doto check-menu-item
@@ -1736,7 +1730,7 @@
         (.setSelected (boolean (handler/state handler-ctx)))))
 
     MenuItem
-    (let [handler-ctx (handler/active (keyword (.getId menu-item))
+    (let [handler-ctx (handler/active (user-data menu-item ::command)
                                       command-contexts
                                       (user-data menu-item ::menu-user-data)
                                       evaluation-context)
@@ -1830,7 +1824,7 @@
                                                                           (execute-command (contexts scene) command user-data))))
                                                    button)))]
                           (when command
-                            (.setId child (name command)))
+                            (user-data! child ::command command))
                           (user-data! child ::menu-user-data user-data)
                           child)))
            children (if (instance? Separator (last children))
@@ -1842,11 +1836,9 @@
 (defn- refresh-toolbar-state [^Pane toolbar command-contexts evaluation-context]
   (let [nodes (.getChildren toolbar)]
     (doseq [^Node n nodes
-            :let [user-data (user-data n ::menu-user-data)
-                  handler-ctx (handler/active (keyword (.getId n))
-                                              command-contexts
-                                              user-data
-                                              evaluation-context)]]
+            :let [command (user-data n ::command)
+                  user-data (user-data n ::menu-user-data)
+                  handler-ctx (handler/active command command-contexts user-data evaluation-context)]]
       (disable! n (not (handler/enabled? handler-ctx evaluation-context)))
       (when (instance? ToggleButton n)
         (if (handler/state handler-ctx)
@@ -2172,13 +2164,6 @@
 (defn selected-tab
   ^Tab [^TabPane tab-pane]
   (.. tab-pane getSelectionModel getSelectedItem))
-
-(defn select-tab!
-  [^TabPane tab-pane tab-id]
-  (when-some [tab (->> (.getTabs tab-pane)
-                       (filter (fn [^Tab tab] (= tab-id (.getId tab))))
-                       first)]
-    (.. tab-pane getSelectionModel (select tab))))
 
 (defn inside-hidden-tab? [^Node node]
   (let [tab-content-area (closest-node-with-style "tab-content-area" node)]

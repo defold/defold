@@ -643,15 +643,6 @@
     (g/redo! project-graph)
     (lsp/check-if-polled-resources-are-modified! (lsp/get-graph-lsp project-graph))))
 
-(def ^:private bundle-targets
-  (into []
-        (concat (when (os/is-mac-os?) [[:ios "iOS Application..."]]) ; macOS is required to sign iOS ipa.
-                [[:android "Android Application..."]
-                 [:macos   "macOS Application..."]
-                 [:windows "Windows Application..."]
-                 [:linux   "Linux Application..."]
-                 [:html5   "HTML5 Application..."]])))
-
 (handler/register-menu! ::menubar :editor.app-view/view
   [{:label "Project"
     :id ::project
@@ -664,11 +655,7 @@
                {:label "Rebuild HTML5"
                 :command :rebuild-html5}
                {:label "Bundle"
-                :children (mapv (fn [[platform label]]
-                                  {:label label
-                                   :command :bundle
-                                   :user-data {:platform platform}})
-                                bundle-targets)}
+                :command :bundle}
                {:label "Rebundle"
                 :command :rebundle}
                {:label "Fetch Libraries"

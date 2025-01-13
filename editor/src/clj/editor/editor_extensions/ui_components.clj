@@ -494,6 +494,7 @@
     {:fx/type ext-with-extra-check-box-props
      :desc (-> {:fx/type fx.check-box/lifecycle
                 :style-class ["check-box" "ext-check-box"]
+                :mnemonic-parsing false
                 :alignment :center-left
                 :min-width :use-pref-size
                 :min-height :use-pref-size

@@ -231,6 +231,14 @@
                       :object-of {"foo" "bar"}}}
              (prefs/get p []))))))
 
+(deftest set?-test
+  (with-schemas {::test {:type :string}}
+    (let [p (prefs/make :scopes {:global (fs/create-temp-file! "is-set-test" "test.editor_settings")}
+                        :schemas [::test])]
+      (is (false? (prefs/set? p [])))
+      (prefs/set! p [] "new-string")
+      (is (true? (prefs/set? p []))))))
+
 (deftest get-unregistered-key-test
   (with-schemas {::unregistered-key {:type :object :properties {:name {:type :string}}}}
     (let [p (prefs/make :scopes {:global (fs/create-temp-file! "global" "test.editor_settings")}
