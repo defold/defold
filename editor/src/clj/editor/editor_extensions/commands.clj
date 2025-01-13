@@ -82,53 +82,58 @@
     (fn [acc k v]
       (case k
         :selection (gen-selection-query v acc project)
+        :argument (gen-query acc [env cont] (cont assoc :argument (:user-data env)))
         acc))
     (fn [lua-fn]
       (fn [env]
         (lua-fn env {})))
     q))
 
-(defn command->dynamic-handler [{:keys [label query active run locations]} path project state]
+(defn command->dynamic-handler [{:keys [label query active id run locations]} path project state]
   (let [{:keys [rt display-output!]} state
         lua-fn->env-fn (compile-query query project)
         contexts (into #{}
                        (map {"Assets" :asset-browser
+                             "Bundle" :global
                              "Outline" :outline
                              "Edit" :global
                              "View" :global})
                        locations)
         locations (into #{}
                         (map {"Assets" :editor.asset-browser/context-menu-end
+                              "Bundle" :editor.bundle/menu
                               "Outline" :editor.outline-view/context-menu-end
                               "Edit" :editor.app-view/edit-end
                               "View" :editor.app-view/view-end})
                         locations)]
-    {:context-definition contexts
-     :menu-item {:label label}
-     :locations locations
-     :fns (cond-> {}
-                  active
-                  (assoc :active?
-                         (lua-fn->env-fn
-                           (fn [env opts]
-                             (error-handling/try-with-extension-exceptions
-                               :display-output! display-output!
-                               :label (str label "'s \"active\" in " path)
-                               :catch false
-                               (rt/->clj rt coerce/to-boolean (rt/invoke-immediate-1 (:rt state) active (rt/->lua opts) (:evaluation-context env)))))))
+    (cond-> {:contexts contexts
+             :label label
+             :locations locations}
+            id
+            (assoc :command id)
 
-                  (and (not active) query)
-                  (assoc :active? (lua-fn->env-fn (constantly true)))
+            active
+            (assoc :active?
+                   (lua-fn->env-fn
+                     (fn [env opts]
+                       (error-handling/try-with-extension-exceptions
+                         :display-output! display-output!
+                         :label (str label "'s \"active\" in " path)
+                         :catch false
+                         (rt/->clj rt coerce/to-boolean (rt/invoke-immediate-1 (:rt state) active (rt/->lua opts) (:evaluation-context env)))))))
 
-                  run
-                  (assoc :run
-                         (lua-fn->env-fn
-                           (fn [_ opts]
-                             (let [error-label (str label "'s \"run\" in " path)]
-                               (-> (rt/invoke-suspending-1 rt run (rt/->lua opts))
-                                   (future/then
-                                     (fn [lua-result]
-                                       (when-not (rt/coerces-to? rt coerce/null lua-result)
-                                         (lsp.async/with-auto-evaluation-context evaluation-context
-                                           (actions/perform! lua-result project state evaluation-context)))))
-                                   (future/catch #(error-handling/display-script-error! display-output! error-label %))))))))}))
+            (and (not active) query)
+            (assoc :active? (lua-fn->env-fn (constantly true)))
+
+            run
+            (assoc :run
+                   (lua-fn->env-fn
+                     (fn [_ opts]
+                       (let [error-label (str label "'s \"run\" in " path)]
+                         (-> (rt/invoke-suspending-1 rt run (rt/->lua opts))
+                             (future/then
+                               (fn [lua-result]
+                                 (when-not (rt/coerces-to? rt coerce/null lua-result)
+                                   (lsp.async/with-auto-evaluation-context evaluation-context
+                                     (actions/perform! lua-result project state evaluation-context)))))
+                             (future/catch #(error-handling/display-script-error! display-output! error-label %))))))))))

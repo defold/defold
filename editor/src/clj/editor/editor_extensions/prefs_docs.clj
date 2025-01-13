@@ -193,6 +193,15 @@
                         :types ["any"]
                         :doc "current pref value or default if a schema for the key path exists, nil otherwise"}]
         :description "Get preference value\n\nThe schema for the preference value should be defined beforehand."}
+       {:name "editor.prefs.is_set"
+        :type :function
+        :parameters [{:name "key"
+                      :types ["string"]
+                      :doc "dot-separated preference key path"}]
+        :returnvalues [{:name "value"
+                        :types ["boolean"]
+                        :doc "flag indicating if the value is explicitly set"}]
+        :description "Check if preference value is explicitly set\n\nThe schema for the preference value should be defined beforehand."}
        {:name "editor.prefs.set"
         :type :function
         :parameters [{:name "key"
