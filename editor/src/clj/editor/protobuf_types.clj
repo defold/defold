@@ -20,10 +20,10 @@
             [editor.protobuf-forms :as protobuf-forms]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace])
-  (:import [com.defold.extension.pipeline.texture TextureCompressorASTC TextureCompressorBasisU TextureCompressorDefault]
+  (:import [com.defold.extension.pipeline.texture TextureCompression TextureCompressorASTC TextureCompressorBasisU TextureCompressorDefault]
            [com.dynamo.gamesys.proto GameSystem$LightDesc]
            [com.dynamo.gamesys.proto Physics$ConvexShape]
-           [com.dynamo.graphics.proto Graphics$TextureProfiles]
+           [com.dynamo.graphics.proto Graphics$TextureImage$TextureFormat Graphics$TextureProfiles]
            [com.dynamo.input.proto Input$GamepadMaps Input$InputBinding]))
 
 (set! *warn-on-reflection* true)
@@ -33,7 +33,7 @@
     (case compression-type
           :compression-type-webp
           {:compressor TextureCompressorDefault/TextureCompressorName
-           :compressor-preset "DEFAULT"}
+           :compressor-preset TextureCompressorDefault/TextureCompressorDefaultPresetName}
 
           :compression-type-webp-lossy
           {:compressor TextureCompressorBasisU/TextureCompressorName
@@ -48,7 +48,7 @@
            :compressor-preset (str "ASTC_" compression-level-uppercase-str)}
 
           {:compressor TextureCompressorDefault/TextureCompressorName
-           :compressor-preset "DEFAULT"})))
+           :compressor-preset TextureCompressorDefault/TextureCompressorDefaultPresetName})))
 
 (defn- sanitize-texture-profile-format [format]
   (let [migrated-format (if (and (:compressor format) (:compressor-preset format))
@@ -57,8 +57,8 @@
     ;; Remove deprecated fields
     (dissoc migrated-format :compression-level :compression-type)))
 
-(defn- sanitize-texture-profile [desc]
-  (update desc :profiles
+(defn- sanitize-texture-profiles [texture-profiles]
+  (update texture-profiles :profiles
           (fn [profiles]
             (mapv
               (fn [profile]
@@ -71,6 +71,23 @@
                                         (mapv sanitize-texture-profile-format formats))))
                             platforms))))
               profiles))))
+
+(defn- texture-profiles-errors-fn [node-id resource texture-profiles]
+  (let [all-format-entries (->> (:profiles texture-profiles)
+                         (mapcat :platforms)
+                         (mapcat :formats)
+                         (into []))]
+    (mapv (fn [format]
+            (let [texture-compressor (TextureCompression/getCompressor (:compressor format))
+                  texture-compression-preset (TextureCompression/getPreset (:compressor-preset format))
+                  texture-format (when (:format format)
+                                  (protobuf/val->pb-enum Graphics$TextureImage$TextureFormat (:format format)))
+                  format-is-supported? (.supportsTextureFormat texture-compressor texture-format)
+                  preset-is-supported? (.supportsTextureCompressorPreset texture-compressor texture-compression-preset)]
+              (println resource format-is-supported? preset-is-supported?)
+              [(when-not format-is-supported? (g/->error node-id :pb :fatal resource "Texture format is not supported by the texture compressor"))
+               (when-not preset-is-supported? (g/->error node-id :pb :fatal resource "Texture preset is not supported by the texture compressor"))]))
+          all-format-entries)))
 
 (def pb-defs [{:ext "input_binding"
                :icon "icons/32/Icons_35-Inputbinding.png"
@@ -101,18 +118,22 @@
                :icon "icons/32/Icons_37-Texture-profile.png"
                :icon-class :property
                :pb-class Graphics$TextureProfiles
-               :sanitize-fn sanitize-texture-profile}])
+               :pb-errors-fn texture-profiles-errors-fn
+               :sanitize-fn sanitize-texture-profiles}])
 
 (defn- build-pb [resource dep-resources user-data]
   {:resource resource :content (protobuf/map->bytes (:pb-class user-data) (:pb user-data))})
 
 (g/defnk produce-build-targets [_node-id resource pb def]
-  [(bt/with-content-hash
-     {:node-id _node-id
-      :resource (workspace/make-build-resource resource)
-      :build-fn build-pb
-      :user-data {:pb pb
-                  :pb-class (:pb-class def)}})])
+  (g/precluding-errors
+    (when-some [pb-errors-fn (:pb-errors-fn def)]
+      (pb-errors-fn _node-id resource pb))
+    [(bt/with-content-hash
+       {:node-id _node-id
+        :resource (workspace/make-build-resource resource)
+        :build-fn build-pb
+        :user-data {:pb pb
+                    :pb-class (:pb-class def)}})]))
 
 (g/defnk produce-form-data [_node-id pb def]
   (protobuf-forms/produce-form-data _node-id pb def))

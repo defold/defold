@@ -83,7 +83,6 @@ public class TextureGenerator {
         pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_BC7, Texc.PixelFormat.PF_RGBA_BC7.getValue());
 
         // ASTC formats
-        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_4x4, Texc.PixelFormat.PF_RGBA_ASTC_4x4.getValue());
         pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_4X4, Texc.PixelFormat.PF_RGBA_ASTC_4x4.getValue());
         pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_5X5, Texc.PixelFormat.PF_RGBA_ASTC_5x5.getValue());
         pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_5X4, Texc.PixelFormat.PF_RGBA_ASTC_5x4.getValue());
@@ -159,11 +158,6 @@ public class TextureGenerator {
                 if (componentCount < 4)
                     return TextureFormat.TEXTURE_FORMAT_RGB_BC1;
                 return TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_4X4;
-            }
-            case TEXTURE_FORMAT_RGBA_ASTC_4x4 -> {
-                if (componentCount < 4)
-                    return TextureFormat.TEXTURE_FORMAT_RGB_BC1;
-                return TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_4x4;
             }
             case TEXTURE_FORMAT_RGBA_BC3 -> {
                 if (componentCount < 4)
@@ -304,16 +298,20 @@ public class TextureGenerator {
                     logger.warning(String.format("Texture compressor '%s' not found, using the default texture compressor.", compressorName));
                 }
                 textureCompressor = getDefaultTextureCompressor();
-                compressorPresetName = "DEFAULT";
+                compressorPresetName = TextureCompressorDefault.TextureCompressorDefaultPresetName;
             }
 
             TextureCompressorPreset textureCompressorPreset = TextureCompression.getPreset(compressorPresetName);
             if (textureCompressorPreset == null) {
-                throw new TextureGeneratorException("Texture compressor preset not found.");
+                throw new TextureGeneratorException("Texture compressor preset '" + compressorPresetName + "' not found.");
             }
 
             if (!textureCompressor.supportsTextureFormat(textureFormat)) {
                 throw new TextureGeneratorException("Texture compressor doesn't support the texture format " + textureFormat);
+            }
+
+            if (!textureCompressor.supportsTextureCompressorPreset(textureCompressorPreset)) {
+                throw new TextureGeneratorException("Texture compressor doesn't support the texture compressor preset " + compressorPresetName);
             }
 
             int newWidth  = image.getWidth();
@@ -533,7 +531,7 @@ public class TextureGenerator {
         } else if (type == TextureImage.CompressionType.COMPRESSION_TYPE_ASTC) {
             return "ASTC_" + level.toString();
         } else if (type == TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT) {
-            return "DEFAULT";
+            return TextureCompressorDefault.TextureCompressorDefaultPresetName;
         }
         return null;
     }
@@ -627,7 +625,7 @@ public class TextureGenerator {
 
             // Guess texture format based on number color components of input image
             TextureFormat textureFormat = pickOptimalFormat(componentCount, TextureFormat.TEXTURE_FORMAT_RGBA);
-            TextureImage.Image.Builder imageBuilder = generateFromColorAndFormat(null, image, colorModel, textureFormat, "Default", "DEFAULT", true, 0, true, flipAxis);
+            TextureImage.Image.Builder imageBuilder = generateFromColorAndFormat(null, image, colorModel, textureFormat, TextureCompressorDefault.TextureCompressorName, TextureCompressorDefault.TextureCompressorDefaultPresetName, true, 0, true, flipAxis);
             imageBuilder.setCompressionType(TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT);
             textureBuilder.addAlternatives(imageBuilder);
             textureBuilder.setCount(1);

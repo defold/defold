@@ -16,15 +16,30 @@ package com.defold.extension.pipeline.texture;
 
 import com.dynamo.bob.pipeline.Texc;
 import com.dynamo.bob.pipeline.TexcLibraryJni;
+import com.dynamo.graphics.proto.Graphics;
+import com.dynamo.graphics.proto.Graphics.TextureImage.TextureFormat;
+
+import java.util.ArrayList;
 
 /**
  * Implementation of our base texture compressor, with NO compression
  */
 public class TextureCompressorDefault implements ITextureCompressor {
-    public static String TextureCompressorName = "Default";
+    public static String TextureCompressorName = "Uncompressed";
+    public static String TextureCompressorDefaultPresetName = "UNCOMPRESSED";
+
+    private static final ArrayList<TextureFormat> supportedTextureFormats = new ArrayList<>();
+    static {
+        supportedTextureFormats.add(TextureFormat.TEXTURE_FORMAT_LUMINANCE);
+        supportedTextureFormats.add(TextureFormat.TEXTURE_FORMAT_RGB);
+        supportedTextureFormats.add(TextureFormat.TEXTURE_FORMAT_RGBA);
+        supportedTextureFormats.add(TextureFormat.TEXTURE_FORMAT_RGB_16BPP);
+        supportedTextureFormats.add(TextureFormat.TEXTURE_FORMAT_RGBA_16BPP);
+        supportedTextureFormats.add(TextureFormat.TEXTURE_FORMAT_LUMINANCE_ALPHA);
+    }
 
     public TextureCompressorDefault() {
-        TextureCompression.registerPreset(new TextureCompressorPreset("DEFAULT", "Default (no compression)", TextureCompressorName));
+        TextureCompression.registerPreset(new TextureCompressorPreset(TextureCompressorDefaultPresetName, "Uncompressed (no compression)", TextureCompressorName));
     }
 
     @Override
@@ -49,5 +64,19 @@ public class TextureCompressorDefault implements ITextureCompressor {
         settings.data = input;
 
         return TexcLibraryJni.DefaultEncode(settings);
+    }
+
+    @Override
+    public boolean supportsTextureFormat(Graphics.TextureImage.TextureFormat format) {
+        if (format == null) {
+            return false;
+        }
+        return supportedTextureFormats.contains(format);
+    }
+
+    @Override
+    public boolean supportsTextureCompressorPreset(TextureCompressorPreset preset) {
+        // Presets are not used for the default compressor
+        return true;
     }
 }

@@ -18,7 +18,7 @@
             [editor.protobuf :as protobuf]
             [editor.util :as util]
             [util.fn :as fn])
-  (:import [com.defold.extension.pipeline.texture TextureCompression TextureCompressorDefault]
+  (:import [com.defold.extension.pipeline.texture ITextureCompressor TextureCompression TextureCompressorDefault]
            [com.dynamo.graphics.proto Graphics$PlatformProfile Graphics$PlatformProfile$OS Graphics$TextureImage$TextureFormat Graphics$TextureProfiles]
            [com.dynamo.input.proto Input$Gamepad Input$GamepadMaps Input$GamepadType Input$InputBinding Input$Key Input$Mouse Input$Text Input$Touch]))
 
@@ -239,7 +239,9 @@
                                  (fn [fmt]
                                    (not (contains? texture-profiles-unsupported-formats (first fmt))))
                                  format-values)
-        profile-options (mapv #(do [% %]) (map :name (:profiles pb)))]
+        profile-options (mapv #(do [% %]) (map :name (:profiles pb)))
+        ;; name + compressor instance
+        available-compressors (mapv #(vector % (TextureCompression/getCompressor %)) (TextureCompression/getInstalledCompressorNames))]
     {:navigation false
      :sections
      [{:title "Texture Profiles"
@@ -283,22 +285,27 @@
                                                        :default (ffirst format-values-filtered)}
                                            :panel-form-fn
                                            (fn panel-form-fn [selected-format]
-                                             (let [available-compressors (mapv #(vector % %) (TextureCompression/getInstalledCompressors))
+                                             (let [texture-format (when (:format selected-format)
+                                                                    (protobuf/val->pb-enum Graphics$TextureImage$TextureFormat (:format selected-format)))
+                                                   available-compressors-for-format (keep (fn [[compressor-name compressor-instance]]
+                                                                                            (when (.supportsTextureFormat ^ITextureCompressor compressor-instance texture-format)
+                                                                                              [compressor-name compressor-name]))
+                                                                                          available-compressors)
                                                    available-presets-for-compressor (mapv
                                                                                       (fn [preset-name]
                                                                                         [preset-name (.getDisplayName (TextureCompression/getPreset preset-name))])
-                                                                                      (TextureCompression/getPresetsForCompressor (:compressor selected-format)))]
+                                                                                      (TextureCompression/getPresetNamesForCompressor (:compressor selected-format)))]
                                                {:sections
                                                 [{:fields
                                                   [{:path [:compressor]
                                                     :label "Compressor"
                                                     :type :choicebox
-                                                    :options (make-options available-compressors) ; Unsorted.
+                                                    :options (make-options available-compressors-for-format) ; Unsorted.
                                                     :default (TextureCompressorDefault/TextureCompressorName)}
                                                    {:path [:compressor-preset]
                                                     :label "Compressor Preset"
                                                     :type :choicebox
-                                                    :options available-presets-for-compressor ; (make-options available-presets-for-compressor) ; Unsorted.
+                                                    :options available-presets-for-compressor ; Unsorted.
                                                     :default (ffirst available-presets-for-compressor)}]}]}))}
                                           {:path [:mipmaps]
                                            :type :boolean

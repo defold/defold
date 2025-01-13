@@ -153,6 +153,8 @@ message TextureImage
 
     enum TextureFormat
     {
+        option allow_alias = true;
+
         TEXTURE_FORMAT_LUMINANCE         = 0;
         TEXTURE_FORMAT_RGB               = 1;
         TEXTURE_FORMAT_RGBA              = 2;
@@ -168,7 +170,9 @@ message TextureImage
         TEXTURE_FORMAT_LUMINANCE_ALPHA   = 10;
 
         TEXTURE_FORMAT_RGBA_ETC2         = 11;
-        TEXTURE_FORMAT_RGBA_ASTC_4x4     = 12;
+
+        TEXTURE_FORMAT_RGBA_ASTC_4X4     = 12;
+        TEXTURE_FORMAT_RGBA_ASTC_4x4     = 12; // Deprecated!
 
         TEXTURE_FORMAT_RGB_BC1           = 13;
         TEXTURE_FORMAT_RGBA_BC3          = 14;
@@ -199,7 +203,6 @@ message TextureImage
         TEXTURE_FORMAT_RGBA_ASTC_10X10   = 36;
         TEXTURE_FORMAT_RGBA_ASTC_12X10   = 37;
         TEXTURE_FORMAT_RGBA_ASTC_12X12   = 38;
-        TEXTURE_FORMAT_RGBA_ASTC_4X4     = 39;
     }
 
     message Image

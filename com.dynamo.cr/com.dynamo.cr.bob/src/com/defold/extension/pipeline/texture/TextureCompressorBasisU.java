@@ -16,6 +16,9 @@ package com.defold.extension.pipeline.texture;
 
 import com.dynamo.bob.pipeline.Texc;
 import com.dynamo.bob.pipeline.TexcLibraryJni;
+import com.dynamo.graphics.proto.Graphics;
+
+import java.util.ArrayList;
 
 /**
  * Implementation of our base texture compressor, using BasisU
@@ -23,6 +26,16 @@ import com.dynamo.bob.pipeline.TexcLibraryJni;
 public class TextureCompressorBasisU implements ITextureCompressor {
 
     public static String TextureCompressorName = "BasisU";
+
+    private static final ArrayList<Graphics.TextureImage.TextureFormat> supportedTextureFormats = new ArrayList<>();
+    static {
+        supportedTextureFormats.add(Graphics.TextureImage.TextureFormat.TEXTURE_FORMAT_LUMINANCE);
+        supportedTextureFormats.add(Graphics.TextureImage.TextureFormat.TEXTURE_FORMAT_RGB);
+        supportedTextureFormats.add(Graphics.TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA);
+        supportedTextureFormats.add(Graphics.TextureImage.TextureFormat.TEXTURE_FORMAT_RGB_16BPP);
+        supportedTextureFormats.add(Graphics.TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA_16BPP);
+        supportedTextureFormats.add(Graphics.TextureImage.TextureFormat.TEXTURE_FORMAT_LUMINANCE_ALPHA);
+    }
 
     public TextureCompressorBasisU() {
         // TODO: These should be read from config files!
@@ -99,6 +112,21 @@ public class TextureCompressorBasisU implements ITextureCompressor {
         }
 
         return TexcLibraryJni.BasisUEncode(settings);
+    }
+
+    @Override
+    public boolean supportsTextureFormat(Graphics.TextureImage.TextureFormat format) {
+        if (format == null) {
+            return false;
+        }
+        return supportedTextureFormats.contains(format);
+    }
+
+    @Override
+    public boolean supportsTextureCompressorPreset(TextureCompressorPreset preset) {
+        Integer rdo_uastc = preset.getOptionInt("rdo_uastc");
+        Integer pack_uastc_flags = preset.getOptionInt("pack_uastc_flags");
+        return rdo_uastc != null && pack_uastc_flags != null;
     }
 }
 

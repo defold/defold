@@ -56,12 +56,12 @@ public class TextureCompression {
     }
 
     // Called from the editor to show selectable compressors
-    public static String[] getInstalledCompressors() {
+    public static String[] getInstalledCompressorNames() {
         return compressors.keySet().toArray(new String[0]);
     }
 
     // Called from the editor to show selectable presets for a given compressor
-    public static String[] getPresetsForCompressor(String compressor) {
+    public static String[] getPresetNamesForCompressor(String compressor) {
         ArrayList<String> compressorPresets = new ArrayList<>();
         for (TextureCompressorPreset preset : presets.values()) {
             if (preset.getCompressorName().equals(compressor)) {

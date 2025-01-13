@@ -85,21 +85,21 @@ namespace dmGameSystem
             CASE_TF(R32F);
             CASE_TF(RG32F);
             // ASTC
-            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_ASTC_4x4:
-            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_ASTC_4X4: return dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_4x4;
-            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_ASTC_5X4: return dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_5x4;
-            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_ASTC_5X5: return dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_5x5;
-            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_ASTC_6X5: return dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_6x5;
-            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_ASTC_6X6: return dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_6x6;
-            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_ASTC_8X5: return dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_8x5;
-            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_ASTC_8X6: return dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_8x6;
-            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_ASTC_8X8: return dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_8x8;
-            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_ASTC_10X5: return dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_10x5;
-            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_ASTC_10X6: return dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_10x6;
-            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_ASTC_10X8: return dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_10x8;
-            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_ASTC_10X10: return dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_10x10;
-            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_ASTC_12X10: return dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_12x10;
-            case dmGraphics::TextureImage::TEXTURE_FORMAT_RGBA_ASTC_12X12: return dmGraphics::TEXTURE_FORMAT_RGBA_ASTC_12x12;
+            CASE_TF(RGBA_ASTC_4X4);
+            CASE_TF(RGBA_ASTC_5X4);
+            CASE_TF(RGBA_ASTC_5X5);
+            CASE_TF(RGBA_ASTC_6X5);
+            CASE_TF(RGBA_ASTC_6X6);
+            CASE_TF(RGBA_ASTC_8X5);
+            CASE_TF(RGBA_ASTC_8X6);
+            CASE_TF(RGBA_ASTC_8X8);
+            CASE_TF(RGBA_ASTC_10X5);
+            CASE_TF(RGBA_ASTC_10X6);
+            CASE_TF(RGBA_ASTC_10X8);
+            CASE_TF(RGBA_ASTC_10X10);
+            CASE_TF(RGBA_ASTC_12X10);
+            CASE_TF(RGBA_ASTC_12X12);
+
             default: assert(0);
 #undef CASE_TF
         }

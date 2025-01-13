@@ -26,31 +26,32 @@ import java.util.HashMap;
 public class TextureCompressorASTC implements ITextureCompressor {
 
     public static String TextureCompressorName = "ASTC";
+    private static final String TexturePresetQualityKey = "astc_quality";
 
     public TextureCompressorASTC() {
 
         // Note: Quality levels are taken from astcenc.h
         {
             TextureCompressorPreset preset = new TextureCompressorPreset("ASTC_FAST", "Fast (Quality=10.0)", TextureCompressorName);
-            preset.setOptionFloat("astc_quality", 10);
+            preset.setOptionFloat(TexturePresetQualityKey, 10);
             TextureCompression.registerPreset(preset);
         }
 
         {
             TextureCompressorPreset preset = new TextureCompressorPreset("ASTC_NORMAL", "Normal (Quality=60.0)", TextureCompressorName);
-            preset.setOptionFloat("astc_quality", 60);
+            preset.setOptionFloat(TexturePresetQualityKey, 60);
             TextureCompression.registerPreset(preset);
         }
 
         {
             TextureCompressorPreset preset = new TextureCompressorPreset("ASTC_HIGH", "High (Quality=98.0)", TextureCompressorName);
-            preset.setOptionFloat("astc_quality", 98);
+            preset.setOptionFloat(TexturePresetQualityKey, 98);
             TextureCompression.registerPreset(preset);
         }
 
         {
             TextureCompressorPreset preset = new TextureCompressorPreset("ASTC_BEST", "Best (Quality=100.0)", TextureCompressorName);
-            preset.setOptionFloat("astc_quality", 100);
+            preset.setOptionFloat(TexturePresetQualityKey, 100);
             TextureCompression.registerPreset(preset);
         }
     }
@@ -62,7 +63,6 @@ public class TextureCompressorASTC implements ITextureCompressor {
     private static final HashMap<TextureImage.TextureFormat, int[]> pixelFormatToBlockSize = new HashMap<>();
 
     static {
-        pixelFormatToBlockSize.put(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_4x4, new int[] {4,4});
         pixelFormatToBlockSize.put(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_4X4, new int[] {4,4});
         pixelFormatToBlockSize.put(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_5X4, new int[] {5,4});
         pixelFormatToBlockSize.put(TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_5X5, new int[] {5,5});
@@ -80,7 +80,15 @@ public class TextureCompressorASTC implements ITextureCompressor {
     }
 
     public boolean supportsTextureFormat(TextureImage.TextureFormat format) {
+        if (format == null) {
+            return false;
+        }
         return pixelFormatToBlockSize.containsKey(format);
+    }
+
+    public boolean supportsTextureCompressorPreset(TextureCompressorPreset preset) {
+        Float f = preset.getOptionFloat(TexturePresetQualityKey);
+        return f != null;
     }
 
     public int getAlignedWidth(TextureImage.TextureFormat format, int width) {
@@ -123,7 +131,7 @@ public class TextureCompressorASTC implements ITextureCompressor {
         settings.outPixelFormat = Texc.PixelFormat.fromValue(params.getPixelFormatOut());
 
         // ASTC specifics
-        settings.qualityLevel = preset.getOptionFloat("astc_quality");
+        settings.qualityLevel = preset.getOptionFloat(TexturePresetQualityKey);
 
         return TexcLibraryJni.ASTCEncode(settings);
     }
