@@ -327,8 +327,12 @@
         pivot-x (g/node-value node-id :pivot-x)
         pivot-y (g/node-value node-id :pivot-y)
         rect (-> reference-renderable :user-data :rect)
-        position [(/ (+ (:x rect) (* pivot-x (:width rect)) 0) scale)
-                  (/ (+ (:y rect) (* pivot-y (:height rect)) 0) scale)
+        rotated? (-> rect :geometry :rotated)
+        x (* (if rotated? pivot-y pivot-x) (:width rect))
+        y (* (if rotated? (- pivot-x) pivot-y) (:height rect))
+        position [(/ (+ (:x rect) x) scale)
+                  (/ (cond-> (+ (:y rect) y)
+                       rotated? (+ (:height rect))) scale)
                   0.0]]
     (concat
      (vtx-add position (vtx-scale [7.0 7.0 1.0] (gen-circle 64)))

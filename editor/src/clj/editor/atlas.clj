@@ -1125,9 +1125,13 @@
 
 (defmethod scene-tools/manip-move ::AtlasImage
   [evaluation-context node-id ^Vector3d delta]
-  (let [[pivot-x pivot-y] (g/node-value node-id :pivot evaluation-context)
+  (let [scene (g/node-value node-id :scene evaluation-context)
+        rotated? (-> scene :renderable :user-data :rect :geometry :rotated)
+        [pivot-x pivot-y] (g/node-value node-id :pivot evaluation-context)
+        delta-x (if rotated? (- (.y delta)) (.x delta))
+        delta-y (if rotated? (.x delta) (.y delta))
         [width height] (g/node-value node-id :size evaluation-context)]
-    [(g/set-property node-id :pivot (snap-pivot
-                                     (properties/round-vec-coarse
-                                      [(+ pivot-x (/ (.x delta) width))
-                                       (+ pivot-y (/ (.y delta) height))])))]))
+    (g/set-property node-id :pivot (snap-pivot
+                                    (properties/round-vec-coarse
+                                     [(+ pivot-x (/ delta-x width))
+                                      (+ pivot-y (/ delta-y height))])))))
