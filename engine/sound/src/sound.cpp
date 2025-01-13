@@ -45,6 +45,8 @@ namespace dmSound
     #define SOUND_MAX_MIX_CHANNELS (2)
     #define SOUND_OUTBUFFER_COUNT (6)
     #define SOUND_MAX_SPEED (5)
+    #define SOUND_MAX_FRONTOFFSET (8)
+    #define SOUND_MAX_REAROFFSET (8)
 
     // TODO: How many bits?
     const uint32_t RESAMPLE_FRACTION_BITS = 31;
@@ -172,6 +174,7 @@ namespace dmSound
     struct SoundInstance
     {
         dmSoundCodec::HDecoder m_Decoder;
+        void*       m_FramesAlloc;
         void*       m_Frames;
         dmhash_t    m_Group;
 
@@ -376,9 +379,10 @@ namespace dmSound
             memset(instance, 0, sizeof(*instance));
             instance->m_Index = 0xffff;
             instance->m_SoundDataIndex = 0xffff;
-            // NOTE: +1 for "over-fetch" when up-sampling
+            // NOTE: "over-fetch" when resampling (actual overreach depends on resampler - polyphase will also access data "before" start of buffer)
             // NOTE: and x SOUND_MAX_SPEED for potential pitch range
-            instance->m_Frames = malloc((sound->m_DeviceFrameCount * SOUND_MAX_SPEED + 1) * sizeof(int16_t) * SOUND_MAX_MIX_CHANNELS);
+            instance->m_FramesAlloc = malloc((sound->m_DeviceFrameCount * SOUND_MAX_SPEED + SOUND_MAX_FRONTOFFSET + SOUND_MAX_REAROFFSET) * sizeof(int16_t) * SOUND_MAX_MIX_CHANNELS);
+            instance->m_Frames = (void*)((uintptr_t)instance->m_FramesAlloc + SOUND_MAX_FRONTOFFSET * sizeof(uint16_t) * SOUND_MAX_MIX_CHANNELS);
             instance->m_FrameCount = 0;
             instance->m_Speed = 1.0f;
         }
@@ -446,7 +450,7 @@ namespace dmSound
                 SoundInstance* instance = &sound->m_Instances[i];
                 instance->m_Index = 0xffff;
                 instance->m_SoundDataIndex = 0xffff;
-                free(instance->m_Frames);
+                free(instance->m_FramesAlloc);
                 memset(instance, 0, sizeof(*instance));
             }
 
@@ -1311,19 +1315,19 @@ namespace dmSound
                 instance->m_Playing = 0;
                 return;
             }
+        }
 
-            if (instance->m_FrameCount > 0)
-            {
-                Mix(mix_context, instance, &info);
-            }
+        if (instance->m_FrameCount > 0)
+        {
+            Mix(mix_context, instance, &info);
+        }
 
-            if (instance->m_FrameCount <= instance->m_Speed && instance->m_EndOfStream)
-            {
-                // NOTE: Due to round-off errors, e.g 32000 -> 44100,
-                // the last frame might be partially sampled and
-                // used in the *next* buffer. We truncate such scenarios to 0
-                instance->m_FrameCount = 0;
-            }
+        if (instance->m_FrameCount <= instance->m_Speed && instance->m_EndOfStream)
+        {
+            // NOTE: Due to round-off errors, e.g 32000 -> 44100,
+            // the last frame might be partially sampled and
+            // used in the *next* buffer. We truncate such scenarios to 0
+            instance->m_FrameCount = 0;
         }
     }
 
