@@ -3403,6 +3403,17 @@
 (defn add-gui-node-handler [project {:keys [scene parent node-type custom-type]} select-fn]
   (add-gui-node! project scene parent node-type custom-type select-fn))
 
+(defn add-template-gui-node-handler [project {:keys [scene parent node-type custom-type]} select-fn]
+  (when-let [template-resources (resource-dialog/make (project/workspace project) project {:ext "gui"
+                                                                                           :accept-fn (fn [r] (not= r (g/node-value (node->gui-scene parent) :resource)))})]
+    (let [template-resource (first template-resources)
+          template-id (resource->id template-resource)
+          node-type-info (get-registered-node-type-info node-type custom-type)
+          default-props (:defaults node-type-info)
+          props (assoc default-props :template {:resource template-resource :overrides {}}
+                                     :id template-id)]
+    (add-gui-node-with-props! scene parent node-type custom-type props select-fn))))
+
 (defn- make-add-handler [scene parent label icon handler-fn user-data]
   {:label label :icon icon :command :add
    :user-data (merge {:handler-fn handler-fn :scene scene :parent parent} user-data)})
@@ -3429,8 +3440,11 @@
                                       node)]
                          (mapv (fn [info]
                                  (if-not (:deprecated info)
-                                   (make-add-handler scene parent (:display-name info) (:icon info)
-                                                     add-gui-node-handler (into {} info))))
+                                   (let [add-handler (if (= (:node-type info) :type-template)
+                                                       add-template-gui-node-handler
+                                                       add-gui-node-handler)]
+                                     (make-add-handler scene parent (:display-name info) (:icon info)
+                                                       add-handler (into {} info)))))
                                type-infos))
 
                        :else
