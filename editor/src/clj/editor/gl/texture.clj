@@ -243,25 +243,25 @@ If supplied, the unit is the offset of GL_TEXTURE0, i.e. 0 => GL_TEXTURE0. The d
                  (.getAlternativesList texture-image))))
 
 (defn- image->mipmap-buffers
-  ^"[Ljava.nio.Buffer;" [^Graphics$TextureImage$Image image image-bytes]
-  (assert (= (.getMipMapSizeCount image) (.getMipMapOffsetCount image) (count image-bytes)))
+  ^"[Ljava.nio.Buffer;" [^Graphics$TextureImage$Image image mip-image-byte-arrays]
+  (assert (= (.getMipMapSizeCount image) (.getMipMapOffsetCount image) (count mip-image-byte-arrays)))
   (let [mipmap-count (.getMipMapSizeCount image)
         ^"[Ljava.nio.Buffer;" bufs (make-array Buffer mipmap-count)]
     (loop [i 0]
       (if (< i mipmap-count)
-        (let [buf (ByteBuffer/wrap (nth image-bytes i))]
+        (let [buf (ByteBuffer/wrap (nth mip-image-byte-arrays i))]
           (aset bufs i buf)
           (recur (inc i)))
         bufs))))
 
 (defn- texture-image->texture-data
   ^TextureData [^TextureGenerator$GenerateResult texture-generate-result]
-  (let [^Graphics$TextureImage texture-image (.textureImage texture-generate-result)
-        image-bytes                          (.imageDatas texture-generate-result)
-        image                                (select-texture-image-image texture-image)
-        gl-profile                           (GLProfile/getGL2GL3)
-        gl-format                            (int (format->gl-format (.getFormat image)))
-        mipmap-buffers                       (image->mipmap-buffers image image-bytes)]
+  (let [texture-image (.textureImage texture-generate-result)
+        mip-image-byte-arrays (.imageDatas texture-generate-result)
+        image (select-texture-image-image texture-image)
+        gl-profile (GLProfile/getGL2GL3)
+        gl-format (int (format->gl-format (.getFormat image)))
+        mipmap-buffers (image->mipmap-buffers image mip-image-byte-arrays)]
     (TextureData. gl-profile
                   gl-format
                   (.getWidth image)

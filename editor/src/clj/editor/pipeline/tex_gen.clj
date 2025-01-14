@@ -59,7 +59,7 @@
    (make-texture-image image texture-profile compress? true))
   (^TextureGenerator$GenerateResult [^BufferedImage image texture-profile compress? flip-y?]
    (let [^Graphics$TextureProfile texture-profile-data (some->> texture-profile (protobuf/map->pb Graphics$TextureProfile))
-         ^TextureGenerator$GenerateResult texture-generate-result (TextureGenerator/generate image texture-profile-data ^boolean compress? (if ^boolean flip-y? (EnumSet/of Texc$FlipAxis/FLIP_AXIS_Y) (EnumSet/noneOf Texc$FlipAxis)))]
+         texture-generate-result (TextureGenerator/generate image texture-profile-data ^boolean compress? (if ^boolean flip-y? (EnumSet/of Texc$FlipAxis/FLIP_AXIS_Y) (EnumSet/noneOf Texc$FlipAxis)))]
      texture-generate-result)))
 
 (defn- make-preview-profile
