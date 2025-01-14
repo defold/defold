@@ -301,6 +301,18 @@ namespace dmGraphics
         params.m_DataSize = 0;
     }
 
+    static inline uint32_t GetNextRenderTargetId()
+    {
+        static uint32_t next_id = 1;
+
+        // DM_RENDERTARGET_BACKBUFFER_ID is taken for the main framebuffer
+        if (next_id == DM_RENDERTARGET_BACKBUFFER_ID)
+        {
+            next_id = DM_RENDERTARGET_BACKBUFFER_ID + 1;
+        }
+        return next_id++;
+    }
+
     template <typename T>
     static inline HAssetHandle StoreAssetInContainer(dmOpaqueHandleContainer<uintptr_t>& container, T* asset, AssetType type)
     {

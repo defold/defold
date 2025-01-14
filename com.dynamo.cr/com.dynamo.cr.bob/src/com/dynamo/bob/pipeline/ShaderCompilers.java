@@ -97,7 +97,7 @@ public class ShaderCompilers {
         public ShaderProgramBuilder.ShaderCompileResult compile(String shaderSource, ShaderDesc.ShaderType shaderType, String resourceOutputPath, boolean outputSpirv, boolean outputHlsl, boolean outputWGSL) throws IOException, CompileExceptionError {
 
             ShaderCompilePipeline.Options opts = new ShaderCompilePipeline.Options();
-            opts.splitTextureSamplers = outputWGSL;
+            opts.splitTextureSamplers = outputWGSL || outputHlsl;
 
             ShaderCompilePipeline pipeline = ShaderProgramBuilder.newShaderPipelineFromShaderSource(shaderType, resourceOutputPath, shaderSource, opts);
             ArrayList<ShaderProgramBuilder.ShaderBuildResult> shaderBuildResults = new ArrayList<>();

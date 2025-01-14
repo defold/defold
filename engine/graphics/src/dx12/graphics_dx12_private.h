@@ -86,6 +86,7 @@ namespace dmGraphics
     {
         ID3DBlob*  m_ShaderBlob;
         ShaderMeta m_ShaderMeta;
+        uint64_t   m_Hash;
     };
 
     struct DX12Viewport
@@ -104,7 +105,7 @@ namespace dmGraphics
         DX12ShaderModule*      m_VertexModule;
         DX12ShaderModule*      m_FragmentModule;
         DX12ShaderModule*      m_ComputeModule;
-        ShaderDesc::Language   m_Language;
+        uint64_t               m_Hash;
         uint32_t               m_UniformDataSizeAligned;
         uint16_t               m_UniformBufferCount;
         uint16_t               m_StorageBufferCount;
@@ -115,11 +116,21 @@ namespace dmGraphics
 
     struct DX12RenderTarget
     {
-        ID3D12Resource*  m_Resource;
-        DXGI_FORMAT      m_Format;
-        DXGI_SAMPLE_DESC m_SampleDesc;
-        uint16_t         m_Id;
-        uint32_t         m_IsBound : 1;
+        ID3D12Resource*       m_Resource;
+        ID3D12DescriptorHeap* m_ColorAttachmentDescriptorHeap;
+        ID3D12DescriptorHeap* m_DepthStencilAttachmentDescriptorHeap;
+
+        TextureParams         m_ColorTextureParams[MAX_BUFFER_COLOR_ATTACHMENTS];
+        TextureParams         m_DepthStencilTextureParams;
+
+        HTexture              m_TextureColor[MAX_BUFFER_COLOR_ATTACHMENTS];
+        HTexture              m_TextureDepthStencil;
+
+        DXGI_FORMAT           m_Format;
+        DXGI_SAMPLE_DESC      m_SampleDesc;
+
+        uint16_t              m_Id;
+        uint32_t              m_IsBound : 1;
     };
 
     struct DX12DescriptorPool
