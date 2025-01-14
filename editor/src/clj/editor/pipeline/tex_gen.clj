@@ -36,6 +36,22 @@
    :texture-format-rgb-16bpp         :texture-format-rgb
    :texture-format-rgba-16bpp        :texture-format-rgba
 
+   ;; ASTC formats
+   :texture-format-rgba-astc-4x4     :texture-format-rgba
+   :texture-format-rgba-astc-5x4     :texture-format-rgba
+   :texture-format-rgba-astc-5x5     :texture-format-rgba
+   :texture-format-rgba-astc-6x5     :texture-format-rgba
+   :texture-format-rgba-astc-6x6     :texture-format-rgba
+   :texture-format-rgba-astc-8x5     :texture-format-rgba
+   :texture-format-rgba-astc-8x6     :texture-format-rgba
+   :texture-format-rgba-astc-8x8     :texture-format-rgba
+   :texture-format-rgba-astc-10x5    :texture-format-rgba
+   :texture-format-rgba-astc-10x6    :texture-format-rgba
+   :texture-format-rgba-astc-10x8    :texture-format-rgba
+   :texture-format-rgba-astc-10x10   :texture-format-rgba
+   :texture-format-rgba-astc-12x10   :texture-format-rgba
+   :texture-format-rgba-astc-12x12   :texture-format-rgba
+
    ;; This is incorrect, but it seems like jogl does not define or
    ;; support a pixelformat of L8A8. So we use RGBA instead to at
    ;; least previewing with alpha.

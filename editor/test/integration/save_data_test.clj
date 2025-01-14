@@ -614,6 +614,24 @@
   (is (s/valid? ::pb-ignore-key->pb-filter->pb-path-token->ignore-reason pb-ignored-fields)
       (s/explain-str ::pb-ignore-key->pb-filter->pb-path-token->ignore-reason pb-ignored-fields)))
 
+(def texture-profile-format-combinations
+  (let [formats [:texture-format-luminance
+                 :texture-format-luminance-alpha
+                 :texture-format-rgb
+                 :texture-format-rgb-16bpp
+                 :texture-format-rgba
+                 :texture-format-rgba-16bpp]
+        compressors [{:compressor "Uncompressed"
+                      :presets ["UNCOMPRESSED"]}
+                     {:compressor "BasisU"
+                      :presets ["BASISU_LOW" "BASISU_MEDIUM" "BASISU_HIGH" "BASISU_HIGHEST"]}]]
+    (for [format formats
+          {:keys [compressor presets]} compressors
+          preset presets]
+      {:format format
+       :compressor compressor
+       :compressor-preset preset})))
+
 (deftest silent-migrations-test
   ;; This test is intended to verify that certain silent data migrations are
   ;; performed correctly. A silent migration typically involves a :sanitize-fn
@@ -721,7 +739,14 @@
             embedded-sprite (test-util/to-component-resource-node-id embedded-component)]
         (is (= [{:sampler "texture_sampler"
                  :texture (workspace/find-resource workspace "/checked.atlas")}]
-               (g/node-value embedded-sprite :textures)))))))
+               (g/node-value embedded-sprite :textures)))))
+
+    (testing "texture_profiles"
+      (let [legacy-texture-profiles (project/get-resource-node project "/silently_migrated/legacy_texture_profile_formats.texture_profiles")
+            legacy-texture-profiles-save-value (g/node-value legacy-texture-profiles :save-value)
+            legacy-texture-profiles-formats (set (get-in legacy-texture-profiles-save-value [:profiles 0 :platforms 0 :formats]))
+            all-format-combinations (set texture-profile-format-combinations)]
+        (is (= legacy-texture-profiles-formats all-format-combinations))))))
 
 (defn- coll-value-comparator
   "The standard comparison will order shorter vectors above longer ones.
