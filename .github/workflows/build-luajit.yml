@@ -5,6 +5,9 @@ on:
 
 jobs:
   build-linux:
+    strategy:
+      matrix:
+        arch: [x86_64-linux, arm64-linux]
     runs-on: ubuntu-20.04
     steps:
     - name: Checkout repo
@@ -13,7 +16,7 @@ jobs:
     - name: Build
       run: |
         cd share/ext/luajit
-        ./build_luajit.sh x86_64-linux
+        ./build_luajit.sh ${{ matrix.arch }}
 
     - name: Archive results
       uses: actions/upload-artifact@v4
@@ -70,7 +73,7 @@ jobs:
   build-windows:
     strategy:
       matrix:
-        arch: [x64, amd64_x86]
+        arch: [win32, x86_64-win32]
     runs-on: windows-latest
     steps:
     - name: Checkout repo
@@ -89,12 +92,12 @@ jobs:
       shell: cmd
       run: |
         cd share/ext/luajit
-        ./build_win32.bat
+        ./build_win32.bat ${{ matrix.arch }}
 
     - name: Archive results
       uses: actions/upload-artifact@v4
       with:
-        name: ${{ matrix.arch }}-win32-luajit-${{ github.sha }}
+        name: ${{ matrix.arch }}-luajit-${{ github.sha }}
         path: |
           ${{ github.workspace }}\\share\\ext\\luajit\\package\\luajit*.tar.gz
 
