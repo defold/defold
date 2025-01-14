@@ -50,7 +50,7 @@ MACOS_ASAN_PATH="usr/lib/clang/%s/lib/darwin/libclang_rt.asan_osx_dynamic.dylib"
 VERSION_IPHONEOS_MIN="11.0"
 VERSION_MACOSX_MIN="10.13"
 
-SWIFT_VERSION="5.5"
+SWIFT_VERSION="6.0"
 
 VERSION_LINUX_CLANG="16.0.0"
 PACKAGES_LINUX_CLANG="clang-16.0.0"
