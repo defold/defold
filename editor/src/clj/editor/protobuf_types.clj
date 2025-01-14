@@ -63,16 +63,15 @@
     (dissoc migrated-format :compression-level :compression-type)))
 
 (defn- sanitize-texture-profiles [pb]
-  (protobuf/sanitize-repeated pb :profiles
-                              (fn [profile]
-                                (update profile :platforms
-                                        (fn [platforms]
-                                          (mapv
-                                            (fn [platform]
-                                              (update platform :formats
-                                                      (fn [formats]
-                                                        (mapv sanitize-texture-profile-format formats))))
-                                            platforms))))))
+  (protobuf/sanitize-repeated
+    pb :profiles
+    (fn [profile]
+      (protobuf/sanitize-repeated
+        profile :platforms
+        (fn [platform]
+          (protobuf/sanitize-repeated
+            platform :formats
+            sanitize-texture-profile-format))))))
 
 (defn- texture-profiles-errors-fn [node-id resource texture-profiles]
   (let [all-format-entries (->> (:profiles texture-profiles)
