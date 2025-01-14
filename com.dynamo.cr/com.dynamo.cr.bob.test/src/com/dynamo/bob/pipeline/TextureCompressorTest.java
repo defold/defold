@@ -20,7 +20,7 @@ import com.dynamo.graphics.proto.Graphics;
 import org.junit.Before;
 import org.junit.Test;
 
-import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.*;
 
 public class TextureCompressorTest extends AbstractProtoBuilderTest {
 
@@ -37,6 +37,19 @@ public class TextureCompressorTest extends AbstractProtoBuilderTest {
         src.append("  image: \"/test.png\"");
         src.append("}");
         build("/test.atlas", src.toString());
+    }
+
+    @Test
+    public void testDefaultCompressorExists() {
+        ITextureCompressor defaultCompressor = TextureCompression.getCompressor(TextureCompressorDefault.TextureCompressorName);
+        assertNotNull(defaultCompressor);
+        assertEquals(defaultCompressor.getName(), TextureCompressorDefault.TextureCompressorName);
+    }
+
+    @Test
+    public void testCompressorNotExists() {
+        ITextureCompressor notFound = TextureCompression.getCompressor("not_installed");
+        assertNull(notFound);
     }
 
     @Test
@@ -59,9 +72,9 @@ public class TextureCompressorTest extends AbstractProtoBuilderTest {
     @Test
     public void testTextureCompressionPresetsGettingUsed() throws Exception {
         TestTextureCompressor testCompressor = new TestTextureCompressor();
-        testCompressor.expectedOptionOne = 1234;
-        testCompressor.expectedOptionTwo = 8080.0f;
-        testCompressor.expectedOptionThree = "test_default_param";
+        TestTextureCompressor.expectedOptionOne = 1234;
+        TestTextureCompressor.expectedOptionTwo = 8080.0f;
+        TestTextureCompressor.expectedOptionThree = "test_default_param";
 
         Graphics.TextureProfile.Builder textureProfile = Graphics.TextureProfile.newBuilder();
         Graphics.PlatformProfile.Builder platformProfile = Graphics.PlatformProfile.newBuilder();
@@ -85,11 +98,12 @@ public class TextureCompressorTest extends AbstractProtoBuilderTest {
         Graphics.TextureProfiles.Builder texProfilesBuilder = Graphics.TextureProfiles.newBuilder();
         texProfilesBuilder.addProfiles(textureProfile.build()).addPathSettings(genericPath);
 
+        this.getProject().setOption("texture-compression", "true");
         this.getProject().setTextureProfiles(texProfilesBuilder.build());
 
         TextureCompression.registerCompressor(testCompressor);
         ensureBuildProject();
 
-        assert(testCompressor.didRun);
+        assert(TestTextureCompressor.didRun);
     }
 }

@@ -49,7 +49,6 @@ public class DefaultResource extends AbstractResource<DefaultFileSystem> {
 
     @Override
     public void setContent(byte[] content) throws IOException {
-        super.setContent(content);
         File f = new File(getAbsPath());
         if (!f.exists()) {
             String dir = FilenameUtils.getFullPath(getAbsPath());

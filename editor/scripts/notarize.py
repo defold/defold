@@ -136,4 +136,20 @@ if __name__ == '__main__':
         _log("You must provide an app, username and password")
         sys.exit(1)
 
-    notarize(app, username, password, team_id)
+    max_retries = 3
+    attempt = 0
+
+    while attempt < max_retries:
+        try:
+            _log(f"Notarization attempt {attempt + 1} of {max_retries}")
+            notarize(app, username, password, team_id)
+            _log("Notarization succeeded")
+            break  # Exit the loop if notarization is successful
+        except Exception as e:
+            _log(f"Notarization failed on attempt {attempt + 1}: {e}")
+            attempt += 1
+            if attempt >= max_retries:
+                _log("Max retries reached. Notarization failed.")
+                sys.exit(1)
+            else:
+                _log("Retrying notarization...")

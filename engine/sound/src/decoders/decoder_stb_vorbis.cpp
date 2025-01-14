@@ -200,7 +200,7 @@ namespace dmSoundCodec
 
         *decoded = done_frames * streamInfo->m_Info.m_Channels * sizeof(int16_t);
 
-        return bEOS ? RESULT_END_OF_STREAM : RESULT_OK;
+        return (done_frames == 0 && bEOS) ? RESULT_END_OF_STREAM : RESULT_OK;
     }
 
     static Result StbVorbisResetStream(HDecodeStream stream)

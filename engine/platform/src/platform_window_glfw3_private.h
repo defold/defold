@@ -56,6 +56,7 @@ namespace dmPlatform
 
     void FocusWindowNative(HWindow window);
     void CenterWindowNative(HWindow wnd, GLFWmonitor* monitor);
+    void SetWindowsIconNative(HWindow window);
 }
 
 #endif // DM_PLATFORM_WINDOW_GLFW3_PRIVATE_H
