@@ -194,7 +194,7 @@ task compileBobLight(dependsOn: [getGitRevision, compileSrc, createLuaJitShareZi
 
         tarFiles.forEach { platform, includePattern ->
             copy {
-                from tarTree(resources.gzip(file("../../packages/luajit-2.1.0-04dca79-${platform}.tar.gz")))
+                from tarTree(resources.gzip(file("../../packages/luajit-2.1.0-a4f56a4-${platform}.tar.gz")))
                 into "${project.bobDir}/libexec/${platform}"
                 eachFile { fileCopyDetails ->
                     fileCopyDetails.path = fileCopyDetails.path.replaceFirst("^bin/$platform/", "")
