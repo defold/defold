@@ -7,7 +7,7 @@ jobs:
   build-linux:
     strategy:
       matrix:
-        arch: [x86_64-linux, arm64-linux]
+        arch: [x86_64-linux] # arm64-linux
     runs-on: ubuntu-20.04
     steps:
     - name: Checkout repo
