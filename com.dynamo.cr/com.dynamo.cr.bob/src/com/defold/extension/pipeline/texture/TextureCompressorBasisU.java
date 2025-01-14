@@ -37,10 +37,21 @@ public class TextureCompressorBasisU implements ITextureCompressor {
         supportedTextureFormats.add(Graphics.TextureImage.TextureFormat.TEXTURE_FORMAT_LUMINANCE_ALPHA);
     }
 
+    public static String GetMigratedCompressionPreset(Graphics.TextureFormatAlternative.CompressionLevel level) {
+        if (level == null)
+            level = Graphics.TextureFormatAlternative.CompressionLevel.FAST;
+        return switch (level) {
+            case FAST -> "BASISU_LOW";
+            case NORMAL -> "BASISU_MEDIUM";
+            case HIGH -> "BASISU_HIGH";
+            case BEST -> "BASISU_HIGHEST";
+        };
+    }
+
     public TextureCompressorBasisU() {
         // TODO: These should be read from config files!
         {
-            TextureCompressorPreset preset = new TextureCompressorPreset("BASISU_BEST", "BasisU Best", TextureCompressorName);
+            TextureCompressorPreset preset = new TextureCompressorPreset("BASISU_HIGHEST", "BasisU Highest", TextureCompressorName);
             preset.setOptionInt("rdo_uastc", 1);
             preset.setOptionInt("pack_uastc_flags", 0);
             preset.setOptionInt("rdo_uastc_dict_size", 4096);
@@ -60,7 +71,7 @@ public class TextureCompressorBasisU implements ITextureCompressor {
         }
 
         {
-            TextureCompressorPreset preset = new TextureCompressorPreset("BASISU_NORMAL", "BasisU Normal", TextureCompressorName);
+            TextureCompressorPreset preset = new TextureCompressorPreset("BASISU_MEDIUM", "BasisU Medium", TextureCompressorName);
             preset.setOptionInt("rdo_uastc", 0);
             preset.setOptionInt("pack_uastc_flags", 2); // cPackUASTCLevelDefault = 2 from basisu_uastc_enc.h
 
@@ -68,7 +79,7 @@ public class TextureCompressorBasisU implements ITextureCompressor {
         }
 
         {
-            TextureCompressorPreset preset = new TextureCompressorPreset("BASISU_FAST", "BasisU Fast", TextureCompressorName);
+            TextureCompressorPreset preset = new TextureCompressorPreset("BASISU_LOW", "BasisU Low", TextureCompressorName);
             preset.setOptionInt("rdo_uastc", 0);
             preset.setOptionInt("pack_uastc_flags", 1); // cPackUASTCLevelFaster = 1 from basisu_uastc_enc.h
 

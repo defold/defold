@@ -210,7 +210,7 @@ public class TextureGenerator {
     }
 
     private static ITextureCompressor getDefaultTextureCompressor() {
-        return TextureCompression.getCompressor(TextureCompressorDefault.TextureCompressorName);
+        return TextureCompression.getCompressor(TextureCompressorUncompressed.TextureCompressorName);
     }
 
     private static List<Long> GenerateImages(long image, int width, int height, boolean generateMipChain) throws TextureGeneratorException {
@@ -294,11 +294,11 @@ public class TextureGenerator {
             ITextureCompressor textureCompressor = TextureCompression.getCompressor(compressorName);
 
             if (textureCompressor == null) {
-                if (!compressorName.equals(TextureCompressorDefault.TextureCompressorName)) {
+                if (!compressorName.equals(TextureCompressorUncompressed.TextureCompressorName)) {
                     logger.warning(String.format("Texture compressor '%s' not found, using the default texture compressor.", compressorName));
                 }
                 textureCompressor = getDefaultTextureCompressor();
-                compressorPresetName = TextureCompressorDefault.TextureCompressorDefaultPresetName;
+                compressorPresetName = TextureCompressorUncompressed.TextureCompressorUncompressedPresetName;
             }
 
             TextureCompressorPreset textureCompressorPreset = TextureCompression.getPreset(compressorPresetName);
@@ -516,7 +516,7 @@ public class TextureGenerator {
     private static String compressionTypeToTextureCompressor(TextureImage.CompressionType type) {
         return switch (type) {
             case COMPRESSION_TYPE_DEFAULT,
-                 COMPRESSION_TYPE_WEBP -> TextureCompressorDefault.TextureCompressorName;
+                 COMPRESSION_TYPE_WEBP -> TextureCompressorUncompressed.TextureCompressorName;
             case COMPRESSION_TYPE_BASIS_ETC1S,
                  COMPRESSION_TYPE_BASIS_UASTC,
                  COMPRESSION_TYPE_WEBP_LOSSY -> TextureCompressorBasisU.TextureCompressorName;
@@ -527,17 +527,17 @@ public class TextureGenerator {
     private static String compressionLevelToTextureCompressorPreset(TextureImage.CompressionType type, TextureFormatAlternative.CompressionLevel level) {
         // Convert from basis to basis preset
         if (type == TextureImage.CompressionType.COMPRESSION_TYPE_BASIS_UASTC || type == TextureImage.CompressionType.COMPRESSION_TYPE_BASIS_ETC1S) {
-            return "BASISU_" + level.toString();
+            return TextureCompressorBasisU.GetMigratedCompressionPreset(level);
         } else if (type == TextureImage.CompressionType.COMPRESSION_TYPE_ASTC) {
-            return "ASTC_" + level.toString();
+            return TextureCompressorASTC.GetMigratedCompressionPreset(level);
         } else if (type == TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT) {
-            return TextureCompressorDefault.TextureCompressorDefaultPresetName;
+            return TextureCompressorUncompressed.GetMigratedCompressionPreset();
         }
         return null;
     }
 
     private static TextureImage.CompressionType textureCompressorToCompressionType(String compressor) {
-        if (compressor.equals(TextureCompressorDefault.TextureCompressorName)) {
+        if (compressor.equals(TextureCompressorUncompressed.TextureCompressorName)) {
             return TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT;
         } else if (compressor.equals(TextureCompressorBasisU.TextureCompressorName)) {
             return TextureImage.CompressionType.COMPRESSION_TYPE_BASIS_UASTC;
@@ -625,7 +625,7 @@ public class TextureGenerator {
 
             // Guess texture format based on number color components of input image
             TextureFormat textureFormat = pickOptimalFormat(componentCount, TextureFormat.TEXTURE_FORMAT_RGBA);
-            TextureImage.Image.Builder imageBuilder = generateFromColorAndFormat(null, image, colorModel, textureFormat, TextureCompressorDefault.TextureCompressorName, TextureCompressorDefault.TextureCompressorDefaultPresetName, true, 0, true, flipAxis);
+            TextureImage.Image.Builder imageBuilder = generateFromColorAndFormat(null, image, colorModel, textureFormat, TextureCompressorUncompressed.TextureCompressorName, TextureCompressorUncompressed.TextureCompressorUncompressedPresetName, true, 0, true, flipAxis);
             imageBuilder.setCompressionType(TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT);
             textureBuilder.addAlternatives(imageBuilder);
             textureBuilder.setCount(1);

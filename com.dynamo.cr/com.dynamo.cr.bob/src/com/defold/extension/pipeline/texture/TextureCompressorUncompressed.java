@@ -24,9 +24,9 @@ import java.util.ArrayList;
 /**
  * Implementation of our base texture compressor, with NO compression
  */
-public class TextureCompressorDefault implements ITextureCompressor {
+public class TextureCompressorUncompressed implements ITextureCompressor {
     public static String TextureCompressorName = "Uncompressed";
-    public static String TextureCompressorDefaultPresetName = "UNCOMPRESSED";
+    public static String TextureCompressorUncompressedPresetName = "UNCOMPRESSED";
 
     private static final ArrayList<TextureFormat> supportedTextureFormats = new ArrayList<>();
     static {
@@ -38,8 +38,12 @@ public class TextureCompressorDefault implements ITextureCompressor {
         supportedTextureFormats.add(TextureFormat.TEXTURE_FORMAT_LUMINANCE_ALPHA);
     }
 
-    public TextureCompressorDefault() {
-        TextureCompression.registerPreset(new TextureCompressorPreset(TextureCompressorDefaultPresetName, "Uncompressed (no compression)", TextureCompressorName));
+    public static String GetMigratedCompressionPreset() {
+        return TextureCompressorUncompressedPresetName;
+    }
+
+    public TextureCompressorUncompressed() {
+        TextureCompression.registerPreset(new TextureCompressorPreset(TextureCompressorUncompressedPresetName, "Uncompressed", TextureCompressorName));
     }
 
     @Override

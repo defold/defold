@@ -16,6 +16,7 @@ package com.defold.extension.pipeline.texture;
 
 import com.dynamo.bob.pipeline.Texc;
 import com.dynamo.bob.pipeline.TexcLibraryJni;
+import com.dynamo.graphics.proto.Graphics;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
 
 import java.util.HashMap;
@@ -28,29 +29,40 @@ public class TextureCompressorASTC implements ITextureCompressor {
     public static String TextureCompressorName = "ASTC";
     private static final String TexturePresetQualityKey = "astc_quality";
 
+    public static String GetMigratedCompressionPreset(Graphics.TextureFormatAlternative.CompressionLevel level) {
+        if (level == null)
+            level = Graphics.TextureFormatAlternative.CompressionLevel.FAST;
+        return switch (level) {
+            case FAST -> "ASTC_QUALITY_10";
+            case NORMAL -> "ASTC_QUALITY_60";
+            case HIGH -> "ASTC_QUALITY_98";
+            case BEST -> "ASTC_QUALITY_100";
+        };
+    }
+
     public TextureCompressorASTC() {
 
         // Note: Quality levels are taken from astcenc.h
         {
-            TextureCompressorPreset preset = new TextureCompressorPreset("ASTC_FAST", "Fast (Quality=10.0)", TextureCompressorName);
+            TextureCompressorPreset preset = new TextureCompressorPreset("ASTC_QUALITY_10", "Low (Quality=10.0)", TextureCompressorName);
             preset.setOptionFloat(TexturePresetQualityKey, 10);
             TextureCompression.registerPreset(preset);
         }
 
         {
-            TextureCompressorPreset preset = new TextureCompressorPreset("ASTC_NORMAL", "Normal (Quality=60.0)", TextureCompressorName);
+            TextureCompressorPreset preset = new TextureCompressorPreset("ASTC_QUALITY_60", "Medium (Quality=60.0)", TextureCompressorName);
             preset.setOptionFloat(TexturePresetQualityKey, 60);
             TextureCompression.registerPreset(preset);
         }
 
         {
-            TextureCompressorPreset preset = new TextureCompressorPreset("ASTC_HIGH", "High (Quality=98.0)", TextureCompressorName);
+            TextureCompressorPreset preset = new TextureCompressorPreset("ASTC_QUALITY_98", "High (Quality=98.0)", TextureCompressorName);
             preset.setOptionFloat(TexturePresetQualityKey, 98);
             TextureCompression.registerPreset(preset);
         }
 
         {
-            TextureCompressorPreset preset = new TextureCompressorPreset("ASTC_BEST", "Best (Quality=100.0)", TextureCompressorName);
+            TextureCompressorPreset preset = new TextureCompressorPreset("ASTC_QUALITY_100", "Highest (Quality=100.0)", TextureCompressorName);
             preset.setOptionFloat(TexturePresetQualityKey, 100);
             TextureCompression.registerPreset(preset);
         }

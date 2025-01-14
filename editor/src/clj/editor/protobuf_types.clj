@@ -20,57 +20,59 @@
             [editor.protobuf-forms :as protobuf-forms]
             [editor.resource-node :as resource-node]
             [editor.workspace :as workspace])
-  (:import [com.defold.extension.pipeline.texture TextureCompression TextureCompressorASTC TextureCompressorBasisU TextureCompressorDefault]
+  (:import [com.defold.extension.pipeline.texture TextureCompression TextureCompressorASTC TextureCompressorBasisU TextureCompressorUncompressed]
            [com.dynamo.gamesys.proto GameSystem$LightDesc]
            [com.dynamo.gamesys.proto Physics$ConvexShape]
-           [com.dynamo.graphics.proto Graphics$TextureImage$TextureFormat Graphics$TextureProfiles]
+           [com.dynamo.graphics.proto Graphics$TextureFormatAlternative$CompressionLevel Graphics$TextureImage$TextureFormat Graphics$TextureProfiles]
            [com.dynamo.input.proto Input$GamepadMaps Input$InputBinding]))
 
 (set! *warn-on-reflection* true)
 
 (defn- migrate-texture-profile-format [compression-type compression-level]
-  (let [compression-level-uppercase-str (when compression-level (str/upper-case (name compression-level)))]
-    (case compression-type
-          :compression-type-webp
-          {:compressor TextureCompressorDefault/TextureCompressorName
-           :compressor-preset TextureCompressorDefault/TextureCompressorDefaultPresetName}
+  (let [compression-level-pb (when compression-level
+                               (protobuf/val->pb-enum Graphics$TextureFormatAlternative$CompressionLevel compression-level))]
+   (case compression-type
+    :compression-type-webp
+    {:compressor TextureCompressorUncompressed/TextureCompressorName
+     :compressor-preset (TextureCompressorUncompressed/GetMigratedCompressionPreset)}
 
-          :compression-type-webp-lossy
-          {:compressor TextureCompressorBasisU/TextureCompressorName
-           :compressor-preset (str "BASISU_" compression-level-uppercase-str)}
+    :compression-type-webp-lossy
+    {:compressor TextureCompressorBasisU/TextureCompressorName
+     :compressor-preset (TextureCompressorBasisU/GetMigratedCompressionPreset compression-level-pb)}
 
-          :compression-type-basis-etc1s
-          {:compressor TextureCompressorBasisU/TextureCompressorName
-           :compressor-preset (str "BASISU_" compression-level-uppercase-str)}
+    :compression-type-basis-uastc
+    {:compressor TextureCompressorBasisU/TextureCompressorName
+     :compressor-preset (TextureCompressorBasisU/GetMigratedCompressionPreset compression-level-pb)}
 
-          :compression-type-astc
-          {:compressor TextureCompressorASTC/TextureCompressorName
-           :compressor-preset (str "ASTC_" compression-level-uppercase-str)}
+    :compression-type-basis-etc1s
+    {:compressor TextureCompressorBasisU/TextureCompressorName
+     :compressor-preset (TextureCompressorBasisU/GetMigratedCompressionPreset compression-level-pb)}
 
-          {:compressor TextureCompressorDefault/TextureCompressorName
-           :compressor-preset TextureCompressorDefault/TextureCompressorDefaultPresetName})))
+    :compression-type-astc
+    {:compressor TextureCompressorASTC/TextureCompressorName
+     :compressor-preset (TextureCompressorASTC/GetMigratedCompressionPreset compression-level-pb)}
 
-(defn- sanitize-texture-profile-format [format]
-  (let [migrated-format (if (and (:compressor format) (:compressor-preset format))
-                          format
-                          (merge format (migrate-texture-profile-format (:compression-type format) (:compression-level format))))]
+    {:compressor TextureCompressorUncompressed/TextureCompressorName
+     :compressor-preset (TextureCompressorUncompressed/GetMigratedCompressionPreset)})))
+
+(defn- sanitize-texture-profile-format [texture-format]
+  (let [migrated-format (if (and (:compressor texture-format) (:compressor-preset texture-format))
+                          texture-format
+                          (merge texture-format (migrate-texture-profile-format (:compression-type texture-format) (:compression-level texture-format))))]
     ;; Remove deprecated fields
     (dissoc migrated-format :compression-level :compression-type)))
 
-(defn- sanitize-texture-profiles [texture-profiles]
-  (update texture-profiles :profiles
-          (fn [profiles]
-            (mapv
-              (fn [profile]
-                (update profile :platforms
-                        (fn [platforms]
-                          (mapv
-                            (fn [platform]
-                              (update platform :formats
-                                      (fn [formats]
-                                        (mapv sanitize-texture-profile-format formats))))
-                            platforms))))
-              profiles))))
+(defn- sanitize-texture-profiles [pb]
+  (protobuf/sanitize-repeated pb :profiles
+                              (fn [profile]
+                                (update profile :platforms
+                                        (fn [platforms]
+                                          (mapv
+                                            (fn [platform]
+                                              (update platform :formats
+                                                      (fn [formats]
+                                                        (mapv sanitize-texture-profile-format formats))))
+                                            platforms))))))
 
 (defn- texture-profiles-errors-fn [node-id resource texture-profiles]
   (let [all-format-entries (->> (:profiles texture-profiles)
@@ -84,7 +86,6 @@
                                   (protobuf/val->pb-enum Graphics$TextureImage$TextureFormat (:format format)))
                   format-is-supported? (.supportsTextureFormat texture-compressor texture-format)
                   preset-is-supported? (.supportsTextureCompressorPreset texture-compressor texture-compression-preset)]
-              (println resource format-is-supported? preset-is-supported?)
               [(when-not format-is-supported? (g/->error node-id :pb :fatal resource "Texture format is not supported by the texture compressor"))
                (when-not preset-is-supported? (g/->error node-id :pb :fatal resource "Texture preset is not supported by the texture compressor"))]))
           all-format-entries)))

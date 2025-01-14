@@ -18,7 +18,7 @@
             [editor.protobuf :as protobuf]
             [editor.util :as util]
             [util.fn :as fn])
-  (:import [com.defold.extension.pipeline.texture ITextureCompressor TextureCompression TextureCompressorDefault]
+  (:import [com.defold.extension.pipeline.texture ITextureCompressor TextureCompression TextureCompressorUncompressed]
            [com.dynamo.graphics.proto Graphics$PlatformProfile Graphics$PlatformProfile$OS Graphics$TextureImage$TextureFormat Graphics$TextureProfiles]
            [com.dynamo.input.proto Input$Gamepad Input$GamepadMaps Input$GamepadType Input$InputBinding Input$Key Input$Mouse Input$Text Input$Touch]))
 
@@ -301,7 +301,7 @@
                                                     :label "Compressor"
                                                     :type :choicebox
                                                     :options (make-options available-compressors-for-format) ; Unsorted.
-                                                    :default (TextureCompressorDefault/TextureCompressorName)}
+                                                    :default (TextureCompressorUncompressed/TextureCompressorName)}
                                                    {:path [:compressor-preset]
                                                     :label "Compressor Preset"
                                                     :type :choicebox
