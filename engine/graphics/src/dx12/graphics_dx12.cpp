@@ -337,6 +337,8 @@ namespace dmGraphics
 
         HRESULT hr = S_OK;
 
+        bool has_debug_layer = false;
+
         // This needs to be created before the device
         // if (context->m_UseValidationLayers)
         if (true)
@@ -344,7 +346,10 @@ namespace dmGraphics
             hr = D3D12GetDebugInterface(IID_PPV_ARGS(&context->m_DebugInterface));
             CHECK_HR_ERROR(hr);
 
-            context->m_DebugInterface->EnableDebugLayer(); // TODO: Release
+            context->m_DebugInterface->EnableDebugLayer();
+            context->m_DebugInterface->Release();
+
+            has_debug_layer = true;
         }
 
         IDXGIFactory4* factory = CreateDXGIFactory();
@@ -456,6 +461,34 @@ namespace dmGraphics
         {
             dmLogInfo("Device: DirectX 12");
         }
+
+        if (has_debug_layer)
+        {
+            // We install a custom message filter here to avoid the spam that occurs when issuing clear commands
+            // that contains colors that ARE NOT the same as the values that was used when the RT was created.
+            // This will be slower, but we would have to change the API to fix it..
+            ID3D12InfoQueue* infoQueue = nullptr;
+            if (SUCCEEDED(context->m_Device->QueryInterface(IID_PPV_ARGS(&infoQueue))))
+            {
+                // Define the warning to suppress
+                D3D12_MESSAGE_ID messageId = D3D12_MESSAGE_ID_CLEARRENDERTARGETVIEW_MISMATCHINGCLEARVALUE;
+
+                // Set up a filter to ignore the warning
+                D3D12_MESSAGE_SEVERITY severities[] = { D3D12_MESSAGE_SEVERITY_WARNING };
+                D3D12_MESSAGE_ID denyIds[] = { messageId };
+
+                D3D12_INFO_QUEUE_FILTER filter = {};
+                filter.DenyList.NumSeverities = _countof(severities);
+                filter.DenyList.pSeverityList = severities;
+                filter.DenyList.NumIDs = _countof(denyIds);
+                filter.DenyList.pIDList = denyIds;
+
+                // Apply the filter
+                infoQueue->PushStorageFilter(&filter);
+                infoQueue->Release();
+            }
+        }
+
         return true;
     }
 
