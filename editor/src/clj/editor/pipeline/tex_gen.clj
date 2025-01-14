@@ -57,11 +57,8 @@
    ;; least previewing with alpha.
    :texture-format-luminance-alpha   :texture-format-rgba})
 
-(def my-atom (atom 0))
-
 (defn match-texture-profile-pb
   ^Graphics$TextureProfile [texture-profiles ^String path]
-  (reset! my-atom texture-profiles)
   (let [texture-profiles-data (some->> texture-profiles (protobuf/map->pb Graphics$TextureProfiles))
         path (if (.startsWith path "/") (subs path 1) path)]
     (TextureUtil/getTextureProfileByPath texture-profiles-data path)))
