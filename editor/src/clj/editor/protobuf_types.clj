@@ -82,7 +82,7 @@
             (let [texture-compressor (TextureCompression/getCompressor (:compressor format))
                   texture-compression-preset (TextureCompression/getPreset (:compressor-preset format))
                   texture-format (when (:format format)
-                                  (protobuf/val->pb-enum Graphics$TextureImage$TextureFormat (:format format)))
+                                   (protobuf/val->pb-enum Graphics$TextureImage$TextureFormat (:format format)))
                   format-is-supported? (.supportsTextureFormat texture-compressor texture-format)
                   preset-is-supported? (.supportsTextureCompressorPreset texture-compressor texture-compression-preset)]
               [(when-not format-is-supported? (g/->error node-id :pb :fatal resource "Texture format is not supported by the texture compressor"))
