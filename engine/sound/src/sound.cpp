@@ -565,6 +565,16 @@ namespace dmSound
         return RESULT_OK;
     }
 
+    bool IsSoundDataValid(HSoundData sound_data)
+    {
+        DM_MUTEX_OPTIONAL_SCOPED_LOCK(g_SoundSystem->m_Mutex);
+        if (sound_data->m_DataCallbacks.m_GetData)
+            return true;
+        if (sound_data->m_Data)
+            return true;
+        return false;
+    }
+
     uint32_t GetSoundResourceSize(HSoundData sound_data)
     {
         return sound_data->m_Size + sizeof(SoundData);
@@ -1226,7 +1236,6 @@ namespace dmSound
 
     static void MixInstance(const MixContext* mix_context, SoundInstance* instance) {
         SoundSystem* sound = g_SoundSystem;
-        uint32_t decoded = 0;
 
         dmSoundCodec::Info info;
         dmSoundCodec::GetInfo(sound->m_CodecContext, instance->m_Decoder, &info);
@@ -1261,6 +1270,7 @@ namespace dmSound
 
                 char* buffer = ((char*) instance->m_Frames) + instance->m_FrameCount * stride;
                 uint32_t buffer_size = n * stride;
+                uint32_t decoded = 0;
                 if (!is_muted)
                 {
                     r = dmSoundCodec::Decode(sound->m_CodecContext, instance->m_Decoder, buffer, buffer_size, &decoded);

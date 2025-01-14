@@ -39,7 +39,6 @@ public class Task {
     private final HashSet<IResource> inputLookup = new HashSet<IResource>();
 
     private final Builder builder;
-    private boolean cacheable = true;
 
     /**
      * Task builder for create a {@link Task}.
@@ -58,11 +57,6 @@ public class Task {
 
         public TaskBuilder<T> setName(String name) {
             task.name = name;
-            return this;
-        }
-
-        public TaskBuilder<T> disableCache() {
-            task.cacheable = false;
             return this;
         }
 
@@ -146,7 +140,7 @@ public class Task {
     }
 
     public boolean isCacheable() {
-        return cacheable;
+        return builder.params != null ? builder.params.isCacheble() : false;
     }
 
     /**
@@ -166,7 +160,7 @@ public class Task {
             }
         });
         for (IResource r : sortedResources) {
-            digest.update(r.sha1(true));
+            digest.update(r.sha1());
         }
     }
 

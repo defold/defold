@@ -70,7 +70,9 @@
         ;; dependencies already loaded from loading editor.boot.
         [boot-batches available] (make-load-batches-for-ns graph 'editor.boot #{})
         [boot-open-project-batches _] (make-load-batches-for-ns graph 'editor.boot-open-project available)
-        batches (into [] (concat boot-batches boot-open-project-batches))]
+        batches (into []
+                      (map #(vec (sort %))) ; Sort entries inside batches so load order is consistent.
+                      (concat boot-batches boot-open-project-batches))]
     (spit to (with-out-str (pprint/pprint batches)))
     (when (not= batches (edn/read-string (slurp to)))
       (throw (Exception. (format "Batch file %s was not correctly generated." to))))))

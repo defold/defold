@@ -687,6 +687,14 @@ Result LoadResourceToBufferLocked(HFactory factory, const char* path, const char
     return RESULT_RESOURCE_NOT_FOUND;
 }
 
+#if !defined(DM_HAS_THREADS)
+// Only used on single threaded systems (load_queue_sync.cpp)
+LoadBufferType* GetGlobalLoadBuffer(HFactory factory)
+{
+    return &factory->m_Buffer;
+}
+#endif
+
 // Called from the resource_preloader.cpp
 // Takes the lock.
 Result LoadResourceToBuffer(HFactory factory, const char* path, const char* original_name, uint32_t preload_size, uint32_t* resource_size, uint32_t* buffer_size, LoadBufferType* buffer)

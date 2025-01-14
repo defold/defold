@@ -422,7 +422,8 @@
                          :text (:message progress)}
                         {:fx/type fx.progress-bar/lifecycle
                          :max-width Double/MAX_VALUE
-                         :progress (progress/fraction progress)}]}
+                         :progress (or (progress/fraction progress)
+                                       -1.0)}]} ; Indeterminate.
    :footer {:fx/type dialog-buttons
             :children [{:fx/type fxui/button
                         :disable true
