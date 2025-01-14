@@ -206,7 +206,6 @@ case $1 in
 			echo "****************************************************"
 			file $PREFIX/bin/$CONF_TARGET/luajit-${DEFOLD_ARCH}
 			echo "****************************************************"
-			exit 1
 
 			if [ "arm64-linux" == "$1" ]; then
 				XCFLAGS="-DLUAJIT_TARGET=LUAJIT_ARCH_ARM64 ${XCFLAGS}"
