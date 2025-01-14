@@ -37,7 +37,14 @@ CONDITIONS OF ANY KIND, either express or implied. See the License for the
 specific language governing permissions and limitations under the License.''') % YEAR
 
 def license(comment):
-    return "\n".join([comment + line for line in LICENSE.split("\n")])
+    license = ""
+    for line in LICENSE.split("\n"):
+        if len(line.strip()) == 0:
+            license = license + comment.strip() + "\n"
+        else:
+            license = license + comment + line + "\n"
+    return license.strip()
+    # return "\n".join([comment + line for line in LICENSE.split("\n")])
 
 # map extensions to strings with the commented license
 ext_to_license = {
