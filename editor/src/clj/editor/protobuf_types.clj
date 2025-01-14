@@ -75,9 +75,9 @@
 
 (defn- texture-profiles-errors-fn [node-id resource texture-profiles]
   (let [all-format-entries (->> (:profiles texture-profiles)
-                         (mapcat :platforms)
-                         (mapcat :formats)
-                         (into []))]
+                                (mapcat :platforms)
+                                (mapcat :formats)
+                                (into []))]
     (mapv (fn [format]
             (let [texture-compressor (TextureCompression/getCompressor (:compressor format))
                   texture-compression-preset (TextureCompression/getPreset (:compressor-preset format))
