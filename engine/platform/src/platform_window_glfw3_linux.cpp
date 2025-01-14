@@ -12,21 +12,40 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-#include <glfw/glfw.h>
+#include <glfw/glfw3.h>
 
-#include <glfw/glfw_native.h>
+// TODO: Wayland support.
+#define GLFW_EXPOSE_NATIVE_X11
+#define GLFW_EXPOSE_NATIVE_GLX
+#include <glfw/glfw3native.h>
 
 #include "platform_window_linux.h"
+#include "platform_window_glfw3_private.h"
 
 namespace dmPlatform
 {
-    Window GetX11Window()
+    Window GetX11Window(HWindow window)
     {
-    	return glfwGetX11Window();
+    	return glfwGetX11Window(window->m_Window);
     }
 
-    GLXContext GetX11GLXContext()
+    GLXContext GetX11GLXContext(HWindow window)
     {
-    	return glfwGetX11GLXContext();
+    	return glfwGetGLXContext(window->m_Window);
+    }
+
+    void FocusWindowNative(HWindow window)
+    {
+        glfwFocusWindow(window->m_Window);
+    }
+
+    void CenterWindowNative(HWindow wnd, GLFWmonitor* monitor)
+    {
+        // NOP
+    }
+
+    void SetWindowsIconNative(HWindow window)
+    {
+        // NOP
     }
 }

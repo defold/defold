@@ -222,11 +222,11 @@ namespace dmGameSystem
         dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(context);
         if (font_map->m_FontMap == 0)
         {
-            font_map->m_FontMap = dmRender::NewFontMap(graphics_context, params);
+            font_map->m_FontMap = dmRender::NewFontMap(context, graphics_context, params);
         }
         else
         {
-            dmRender::SetFontMap(font_map->m_FontMap, graphics_context, params);
+            dmRender::SetFontMap(font_map->m_FontMap, context, graphics_context, params);
             ReleaseResources(factory, font_map);
         }
 

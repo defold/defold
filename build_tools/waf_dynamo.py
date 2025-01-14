@@ -89,7 +89,7 @@ def transform_runnable_path(platform, path):
     return waf_dynamo_vendor.transform_runnable_path(platform, path)
 
 def platform_glfw_version(platform):
-    if platform in ['x86_64-macos', 'arm64-macos', 'x86_64-win32', 'win32']:
+    if platform in ['x86_64-macos', 'arm64-macos', 'x86_64-win32', 'win32', 'x86_64-linux', 'arm64-linux']:
         return 3
     return 2
 
@@ -560,7 +560,7 @@ def default_flags(self):
         hostfs = self.env['DM_HOSTFS']
     self.env.append_unique('DEFINES', 'DM_HOSTFS=\"%s\"' % hostfs)
 
-    if Options.options.with_iwyu and 'IWYU' in self.env:
+    if 'IWYU' in self.env: # enabled during configure step
         wrapper = build_util.get_dynamo_home('..', '..', 'scripts', 'iwyu-clang.sh')
         for f in ['CC', 'CXX']:
             self.env[f] = [wrapper, self.env[f][0]]

@@ -600,6 +600,33 @@ namespace dmEngine
         return (dmPlatform::PlatformGraphicsApi) -1;
     }
 
+    // TODO: Can this be moved from engine.cpp to res_sound_data.cpp?
+    // Probably need to allow access to HConfigFile first
+    static void SetupStreamingResourceTypes(HEngine engine)
+    {
+        // Setup streaming if wanted
+        int32_t sound_streaming_enabled = dmConfigFile::GetInt(engine->m_Config, "sound.stream_enabled", 0);
+        if (sound_streaming_enabled)
+        {
+            // We currently use size (as opposed to time), as that doesn't require us to know anything about the sound file itself
+            int32_t sound_streaming_preload_size = dmConfigFile::GetInt(engine->m_Config, "sound.stream_preload_size", 0);
+
+            const char* extensions[] = {"oggc", "wavc"};
+            for (int i = 0; i < DM_ARRAY_SIZE(extensions); ++i)
+            {
+                dmResource::HResourceType type;
+                dmResource::Result result = dmResource::GetTypeFromExtension(engine->m_Factory, extensions[i], &type);
+                if (dmResource::RESULT_OK != result)
+                {
+                    dmLogWarning("Failed to find resource type %s, couldn't enable for streaming", extensions[i]);
+                    continue;
+                }
+
+                ResourceTypeSetStreaming(type, sound_streaming_preload_size);
+            }
+        }
+    }
+
     /*
      The game.projectc is located using the following scheme:
 
@@ -1228,9 +1255,6 @@ namespace dmEngine
         engine->m_TilemapContext.m_MaxTilemapCount  = dmConfigFile::GetInt(engine->m_Config, "tilemap.max_count", 16);
         engine->m_TilemapContext.m_MaxTileCount     = dmConfigFile::GetInt(engine->m_Config, "tilemap.max_tile_count", 2048);
 
-        engine->m_SoundContext.m_MaxComponentCount  = dmConfigFile::GetInt(engine->m_Config, "sound.max_component_count", 32);
-        engine->m_SoundContext.m_MaxSoundInstances  = dmConfigFile::GetInt(engine->m_Config, "sound.max_sound_instances", 256);
-
         engine->m_CollectionProxyContext.m_Factory = engine->m_Factory;
         engine->m_CollectionProxyContext.m_MaxCollectionProxyCount = dmConfigFile::GetInt(engine->m_Config, dmGameSystem::COLLECTION_PROXY_MAX_COUNT_KEY, 8);
 
@@ -1278,8 +1302,7 @@ namespace dmEngine
 
         go_result = dmGameSystem::RegisterComponentTypes(engine->m_Factory, engine->m_Register, engine->m_RenderContext, &engine->m_PhysicsContext, &engine->m_ParticleFXContext, &engine->m_SpriteContext,
                                                                                                 &engine->m_CollectionProxyContext, &engine->m_FactoryContext, &engine->m_CollectionFactoryContext,
-                                                                                                &engine->m_ModelContext, &engine->m_LabelContext, &engine->m_TilemapContext,
-                                                                                                &engine->m_SoundContext);
+                                                                                                &engine->m_ModelContext, &engine->m_LabelContext, &engine->m_TilemapContext);
         if (go_result != dmGameObject::RESULT_OK)
             goto bail;
 
@@ -1391,6 +1414,9 @@ namespace dmEngine
             if (!dmGameSystem::InitializeScriptLibs(script_lib_context))
                 goto bail;
         }
+
+        // setup streaming for resource types, before we load the first collection
+        SetupStreamingResourceTypes(engine);
 
         fact_result = dmResource::Get(engine->m_Factory, dmConfigFile::GetString(engine->m_Config, "bootstrap.main_collection", "/logic/main.collectionc"), (void**) &engine->m_MainCollection);
         if (fact_result != dmResource::RESULT_OK)

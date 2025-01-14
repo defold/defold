@@ -574,8 +574,13 @@ namespace dmGameSystem
     {
         LabelResource* resource = component->m_Resource;
         dmRender::HFontMap font_map = GetFontMap(component, resource);
-        dmRender::GetTextMetrics(font_map, component->m_Text, component->m_Size.getX(),
-                                    component->m_LineBreak, component->m_Leading, component->m_Tracking, &metrics);
+
+        dmRender::TextMetricsSettings settings;
+        settings.m_Width = component->m_Size.getX();
+        settings.m_LineBreak = component->m_LineBreak;
+        settings.m_Leading = component->m_Leading;
+        settings.m_Tracking = component->m_Tracking;
+        dmRender::GetTextMetrics(font_map, component->m_Text, &settings, &metrics);
 
         metrics.m_Width      = metrics.m_Width;
         metrics.m_Height     = metrics.m_Height;

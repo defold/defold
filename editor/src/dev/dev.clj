@@ -18,7 +18,6 @@
             [cljfx.fx.progress-bar :as fx.progress-bar]
             [cljfx.fx.v-box :as fx.v-box]
             [clojure.pprint :as pprint]
-            [clojure.repl :as repl]
             [clojure.string :as string]
             [dynamo.graph :as g]
             [editor.asset-browser :as asset-browser]
@@ -34,6 +33,7 @@
             [editor.fxui :as fxui]
             [editor.game-object :as game-object]
             [editor.gl.vertex2 :as vtx]
+            [editor.graph-util :as gu]
             [editor.math :as math]
             [editor.outline-view :as outline-view]
             [editor.pipeline.bob :as bob]
@@ -58,8 +58,10 @@
             [lambdaisland.deep-diff2.printer-impl :as deep-diff.printer-impl]
             [lambdaisland.deep-diff2.puget.color :as puget.color]
             [lambdaisland.deep-diff2.puget.printer :as puget.printer]
+            [potemkin.namespaces :as namespaces]
             [service.log :as log]
             [util.coll :as coll :refer [pair]]
+            [util.debug-util]
             [util.diff :as diff]
             [util.eduction :as e]
             [util.fn :as fn])
@@ -83,20 +85,7 @@
 (set! *warn-on-reflection* true)
 (set! *unchecked-math* :warn-on-boxed)
 
-(defn stack-trace
-  "Returns a human-readable stack trace as a vector of strings. Elements are
-  ordered from the stack-trace function call site towards the outermost stack
-  frame of the current Thread. Optionally, a different Thread can be specified."
-  ([]
-   (stack-trace (Thread/currentThread)))
-  ([^Thread thread]
-   (into []
-         (comp (drop 1)
-               (drop-while (fn [^StackTraceElement stack-trace-element]
-                             (= "dev$stack_trace"
-                                (.getClassName stack-trace-element))))
-               (map repl/stack-element-str))
-         (.getStackTrace thread))))
+(namespaces/import-vars [util.debug-util stack-trace])
 
 (defn javafx-tree [obj]
   (jfx/info-tree obj))
@@ -136,6 +125,27 @@
        first))
 
 (def sel (comp first selection))
+
+(defn node-info
+  ([node-id]
+   {:pre [(some? node-id)
+          (g/node-id? node-id)]}
+   (g/with-auto-evaluation-context evaluation-context
+     (node-info node-id evaluation-context)))
+  ([node-id evaluation-context]
+   {:pre [(some? node-id)
+          (g/node-id? node-id)]}
+   (let [basis (:basis evaluation-context)
+         original-node-id (g/override-original basis node-id)
+         override-node-ids (g/overrides basis node-id)]
+     (cond-> (into (array-map :node-id node-id)
+                   (gu/node-debug-info node-id evaluation-context))
+
+             (some? original-node-id)
+             (assoc :original-node-id original-node-id)
+
+             (coll/not-empty override-node-ids)
+             (assoc :override-node-ids override-node-ids)))))
 
 (defn node-outline [node-id & outline-labels]
   {:pre [(not (g/error? node-outline))

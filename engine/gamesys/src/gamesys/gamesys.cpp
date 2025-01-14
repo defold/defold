@@ -40,7 +40,6 @@
 #include "resources/res_compute.h"
 #include "resources/res_compute_shader.h"
 #include "resources/res_gui.h"
-#include "resources/res_sound_data.h"
 #include "resources/res_sound.h"
 #include "resources/res_camera.h"
 #include "resources/res_input_binding.h"
@@ -68,7 +67,6 @@
 #include "components/comp_model.h"
 #include "components/comp_mesh.h"
 #include "components/comp_gui.h"
-#include "components/comp_sound.h"
 #include "components/comp_camera.h"
 #include "components/comp_factory.h"
 #include "components/comp_collection_factory.h"
@@ -112,8 +110,6 @@ namespace dmGameSystem
         // guic: res_gui.cpp
         // gui_scriptc: res_gui_script.cpp
         REGISTER_RESOURCE_TYPE("glyph_bankc", 0, ResGlyphBankPreload, ResGlyphBankCreate, 0, ResGlyphBankDestroy, ResGlyphBankRecreate);
-        REGISTER_RESOURCE_TYPE("wavc", 0, 0, ResSoundDataCreate, 0, ResSoundDataDestroy, ResSoundDataRecreate);
-        REGISTER_RESOURCE_TYPE("oggc", 0, 0, ResSoundDataCreate, 0, ResSoundDataDestroy, ResSoundDataRecreate);
         REGISTER_RESOURCE_TYPE("soundc", 0, ResSoundPreload, ResSoundCreate, 0, ResSoundDestroy, ResSoundRecreate);
         REGISTER_RESOURCE_TYPE("camerac", 0, 0, ResCameraCreate, 0, ResCameraDestroy, ResCameraRecreate);
         REGISTER_RESOURCE_TYPE("input_bindingc", input_context, 0, ResInputBindingCreate, 0, ResInputBindingDestroy, ResInputBindingRecreate);
@@ -149,8 +145,7 @@ namespace dmGameSystem
                                                 CollectionFactoryContext *collectionfactory_context,
                                                 ModelContext* model_context,
                                                 LabelContext* label_context,
-                                                TilemapContext* tilemap_context,
-                                                SoundContext* sound_context)
+                                                TilemapContext* tilemap_context)
     {
         HResourceType type;
         dmGameObject::ComponentType component_type;
@@ -233,14 +228,6 @@ namespace dmGameSystem
                 &CompCameraOnReload, CompCameraGetProperty, CompCameraSetProperty,
                 0, 0,
                 1);
-
-        REGISTER_COMPONENT_TYPE("soundc", 600, sound_context,
-                CompSoundNewWorld, CompSoundDeleteWorld,
-                CompSoundCreate, CompSoundDestroy, 0, 0, CompSoundAddToUpdate, CompSoundGetComponent,
-                CompSoundUpdate, 0, 0, 0, CompSoundOnMessage, 0,
-                0, CompSoundGetProperty, CompSoundSetProperty,
-                0, 0,
-                0);
 
         REGISTER_COMPONENT_TYPE("modelc", 700, model_context,
                 CompModelNewWorld, CompModelDeleteWorld,

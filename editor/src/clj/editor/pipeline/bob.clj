@@ -96,6 +96,7 @@
    (reify IProgress
      (isCanceled [_this]
        (task-cancelled?))
+     (setCanceled [_this canceled])
      (subProgress [_this _work-claimed-from-this]
        (->progress render-progress! task-cancelled? msg-stack-atom))
      (beginTask [_this name _steps]
@@ -285,21 +286,21 @@
               (.isDirectory output-directory)))
   (assert (string? (not-empty platform)))
   (let [build-server-url (native-extensions/get-build-server-url prefs project)
-        editor-texture-compression (if (prefs/get prefs [:build :texture-compression]) "true" "false")
+        editor-texture-compression? (prefs/get prefs [:build :texture-compression])
         build-report-path (.getAbsolutePath (io/file output-directory "report.html"))
         bundle-output-path (.getAbsolutePath output-directory)
         defold-sdk-sha1 (or (system/defold-engine-sha1) "")
-        strip-executable? (= "release" variant)]
+        strip-executable? (= "release" variant)
+        texture-compression? (case texture-compression
+                               "enabled" true
+                               "disabled" false
+                               "editor" editor-texture-compression?)]
     (cond-> {"platform" platform
              "variant" variant
 
              ;; From AbstractBundleHandler
              (if bundle-contentless? "exclude-archive" "archive") true
              "bundle-output" bundle-output-path
-             "texture-compression" (case texture-compression
-                                     "enabled" "true"
-                                     "disabled" "false"
-                                     "editor" editor-texture-compression)
 
              ;; From BundleGenericHandler
              "build-server" build-server-url
@@ -313,6 +314,7 @@
              "auth" ""}
 
             strip-executable? (assoc "strip-executable" true)
+            texture-compression? (assoc "texture-compression" true)
 
             ;; From BundleGenericHandler
             generate-debug-symbols? (assoc "with-symbols" true)

@@ -765,7 +765,7 @@
 (g/defnk produce-properties [_node-id _declared-properties material-attribute-infos vertex-attribute-overrides]
   (let [attribute-properties
         (when-not (g/error-value? material-attribute-infos)
-          (graphics/attribute-property-entries _node-id material-attribute-infos vertex-attribute-overrides))]
+          (graphics/attribute-property-entries _node-id material-attribute-infos 0 vertex-attribute-overrides))]
     (-> _declared-properties
         (update :properties into attribute-properties)
         (update :display-order into (map first) attribute-properties))))
@@ -935,7 +935,7 @@
                  :frame-indices frame-indices-buffer}))))
   (output _properties g/Properties :cached produce-properties)
   (output vertex-attribute-bytes g/Any :cached (g/fnk [_node-id material-attribute-infos vertex-attribute-overrides]
-                                                 (graphics/attribute-bytes-by-attribute-key _node-id material-attribute-infos vertex-attribute-overrides))))
+                                                 (graphics/attribute-bytes-by-attribute-key _node-id material-attribute-infos 0 vertex-attribute-overrides))))
 
 (defn- build-pb [resource dep-resources user-data]
   (let [pb  (:pb user-data)

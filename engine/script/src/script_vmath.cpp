@@ -2538,7 +2538,7 @@ namespace dmScript
      * @param min [type:number|vector3|vector4] Min value(s) border
      * @param max [type:number|vector3|vector4] Max value(s) border
      * @return clamped_value [type:number|vector3|vector4] Clamped value or vector
-     * @example
+     * @examples
      * 
      * ```lua
      * local value1 = 56
@@ -2645,7 +2645,7 @@ namespace dmScript
      * @return x [type:number] euler angle x in degrees
      * @return y [type:number] euler angle y in degrees
      * @return z [type:number] euler angle z in degrees
-     * @example
+     * @examples
      * 
      * ```lua
      * local q = vmath.quat_rotation_z(math.rad(90))
@@ -2677,7 +2677,7 @@ namespace dmScript
      * @param y [type:number] rotation around y-axis in degrees
      * @param z [type:number] rotation around z-axis in degrees
      * @return q [type:quaternion] quaternion describing an equivalent rotation (231 (YZX) rotation sequence)
-     * @example
+     * @examples
      * 
      * ```lua
      * local q = vmath.euler_to_quat(0, 45, 90)

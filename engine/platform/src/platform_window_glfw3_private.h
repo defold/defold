@@ -21,7 +21,7 @@
 
 namespace dmPlatform
 {
-    struct Window
+    struct dmWindow
     {
         GLFWwindow*                   m_Window;
         GLFWwindow*                   m_AuxWindow;
@@ -55,7 +55,8 @@ namespace dmPlatform
     };
 
     void FocusWindowNative(HWindow window);
-    void CenterWindowNative(Window* wnd, GLFWmonitor* monitor);
+    void CenterWindowNative(HWindow wnd, GLFWmonitor* monitor);
+    void SetWindowsIconNative(HWindow window);
 }
 
 #endif // DM_PLATFORM_WINDOW_GLFW3_PRIVATE_H

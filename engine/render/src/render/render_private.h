@@ -37,6 +37,9 @@ namespace dmRender
 {
     using namespace dmVMath;
 
+    struct FontRenderBackend;
+    typedef FontRenderBackend* HFontRenderBackend;
+
 #define DEBUG_3D_NAME "_debug3d"
 #define DEBUG_2D_NAME "_debug2d"
 
@@ -181,6 +184,7 @@ namespace dmRender
         dmGraphics::HVertexBuffer           m_VertexBuffer;
         void*                               m_ClientBuffer;
         dmGraphics::HVertexDeclaration      m_VertexDecl;
+        HFontRenderBackend                  m_FontRenderBackend;
         uint32_t                            m_RenderObjectIndex;
         uint32_t                            m_VertexIndex;
         uint32_t                            m_MaxVertexCount;
@@ -333,7 +337,7 @@ namespace dmRender
     HSampler GetProgramSampler(const dmArray<Sampler>& samplers, uint32_t unit);
     void     ApplyProgramSampler(dmRender::HRenderContext render_context, HSampler sampler, uint8_t unit, dmGraphics::HTexture texture);
 
-    void FillElementIds(char* buffer, uint32_t buffer_size, dmhash_t element_ids[4]);
+    void FillElementIds(const char* name, char* buffer, uint32_t buffer_size, dmhash_t element_ids[4]);
 
     // Return true if the predicate tags all exist in the material tag list
     bool                            MatchMaterialTags(uint32_t material_tag_count, const dmhash_t* material_tags, uint32_t tag_count, const dmhash_t* tags);

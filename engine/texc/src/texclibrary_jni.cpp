@@ -227,6 +227,39 @@ JNIEXPORT jobject JNICALL Java_TexcLibraryJni_BasisUEncode(JNIEnv* env, jclass c
     return obj;
 }
 
+JNIEXPORT jobject JNICALL Java_TexcLibraryJni_ASTCEncode(JNIEnv* env, jclass cls, jobject settings)
+{
+    jobject obj = 0;
+    DM_JNI_GUARD_SCOPE_BEGIN();
+        dmTexc::jni::ScopedContext jni_scope(env);
+        dmTexc::jni::TypeInfos* types = &jni_scope.m_TypeInfos;
+
+        dmTexc::ASTCEncodeSettings input;
+        bool result = J2C_CreateASTCEncodeSettings(env, types, settings, &input);
+        if (!result)
+        {
+            dmLogError("%s: J2C_CreateASTCEncodeSettings. settings == %p", __FUNCTION__, settings);
+            return 0;
+        }
+
+        uint8_t* out = 0;
+        uint32_t out_size = 0;
+        result = dmTexc::ASTCEncode(&input, &out, &out_size);
+        if (!result)
+        {
+            dmLogError("%s: dmTexc::ASTCEncode failed", __FUNCTION__);
+            return 0;
+        }
+
+        obj = dmJNI::C2J_CreateUByteArray(env, out, out_size);
+
+        if (out)
+            free(out);
+
+    DM_JNI_GUARD_SCOPE_END(return 0;);
+    return obj;
+}
+
 JNIEXPORT jobject JNICALL Java_TexcLibraryJni_DefaultEncode(JNIEnv* env, jclass cls, jobject settings)
 {
     jobject obj = 0;
@@ -310,6 +343,7 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved)
 
         // Compressor api
         JNIFUNC(BasisUEncode,           "(L" CLASS_NAME "$BasisUEncodeSettings;)[B"),
+        JNIFUNC(ASTCEncode,             "(L" CLASS_NAME "$ASTCEncodeSettings;)[B"),
         JNIFUNC(DefaultEncode,          "(L" CLASS_NAME "$DefaultEncodeSettings;)[B"),
     };
     #undef JNIFUNC

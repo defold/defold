@@ -263,6 +263,57 @@ TEST(dmSys, LoadResource)
     ASSERT_GT(size, 0);
 }
 
+TEST(dmSys, LoadResourcePartial)
+{
+    char path[128];
+    uint8_t buffer[1024 * 100];
+    dmSys::Result r;
+    uint32_t nread;
+
+    // Checking errors
+    r = dmSys::LoadResourcePartial(dmTestUtil::MakeHostPath(path, sizeof(path), "does_not_exists"), 0, sizeof(buffer), buffer, &nread);
+    ASSERT_EQ(dmSys::RESULT_NOENT, r);
+    r = dmSys::ResourceSize(dmTestUtil::MakeHostPath(path, sizeof(path), "does_not_exists"), &nread);
+    ASSERT_EQ(dmSys::RESULT_NOENT, r);
+
+    r = dmSys::LoadResourcePartial(dmTestUtil::MakeHostPath(path, sizeof(path), "."), 0, sizeof(buffer), buffer, &nread);
+    ASSERT_EQ(dmSys::RESULT_NOENT, r);
+    r = dmSys::ResourceSize(dmTestUtil::MakeHostPath(path, sizeof(path), "does_not_exists"), &nread);
+    ASSERT_EQ(dmSys::RESULT_NOENT, r);
+
+    r = dmSys::LoadResourcePartial(dmTestUtil::MakeHostPath(path, sizeof(path), "wscript"), 0, 0, 0, &nread);
+    ASSERT_EQ(dmSys::RESULT_INVAL, r);
+
+    // Create a test file
+    const char* datapath = dmTestUtil::MakeHostPath(path, sizeof(path), "testdata");
+
+    uint8_t testdata[256];
+    uint32_t testdatasize = sizeof(testdata);
+    for (uint32_t i = 0; i < testdatasize; ++i)
+        testdata[i] = (uint8_t)i;
+
+    {
+        FILE* f = fopen(datapath, "wb");
+        ASSERT_NE((FILE*)0, f);
+        fwrite(testdata, 1, testdatasize, f);
+        fclose(f);
+    }
+
+    // Check reads of the file
+    uint32_t chunk_size = 70; // 256 is not evenly divisible by 70
+    uint32_t offset = 0;
+    while (offset < testdatasize)
+    {
+        r = dmSys::LoadResourcePartial(datapath, offset, chunk_size, buffer, &nread);
+        ASSERT_EQ(dmSys::RESULT_OK, r);
+
+        ASSERT_ARRAY_EQ_LEN(&testdata[offset], buffer, nread);
+
+        offset += nread;
+    }
+    ASSERT_EQ(testdatasize, offset);
+}
+
 int main(int argc, char **argv)
 {
     g_Argc = argc;
