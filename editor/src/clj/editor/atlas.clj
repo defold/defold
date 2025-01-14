@@ -1115,23 +1115,25 @@
 
 (defmethod scene-tools/manip-movable? ::AtlasImage [node-id] true)
 
-(defn snap-pivot
+(defn- snap-pivot
   [pivot]
   (let [snap-values [0.0 0.5 1.0]
-        snap-threshold 0.1]
+        threshold 0.1]
     (mapv #(or (some (fn [^double snap-value]
-                       (when (< (Math/abs (- % snap-value)) snap-threshold)
+                       (when (< (Math/abs (- % snap-value)) threshold)
                          snap-value)) snap-values) %) pivot)))
 
 (defmethod scene-tools/manip-move ::AtlasImage
   [evaluation-context node-id ^Vector3d delta]
   (let [scene (g/node-value node-id :scene evaluation-context)
-        rotated? (-> scene :renderable :user-data :rect :geometry :rotated)
+        rect (-> scene :renderable :user-data :rect)
+        {:keys [geometry width height]} rect
         [pivot-x pivot-y] (g/node-value node-id :pivot evaluation-context)
-        delta-x (if rotated? (- (.y delta)) (.x delta))
-        delta-y (if rotated? (.x delta) (.y delta))
-        [width height] (g/node-value node-id :size evaluation-context)]
-    (g/set-property node-id :pivot (snap-pivot
-                                    (properties/round-vec-coarse
-                                     [(+ pivot-x (/ delta-x width))
-                                      (+ pivot-y (/ delta-y height))])))))
+        delta-x (/ (.x delta) width)
+        delta-y (/ (.y delta) height)
+        updated-pivot (if (:rotated geometry)
+                        [(+ pivot-x (- delta-y)) (+ pivot-y delta-x)]
+                        [(+ pivot-x delta-x) (+ pivot-y delta-y)])]
+    (g/set-property node-id :pivot (-> updated-pivot
+                                       properties/round-vec-coarse
+                                       snap-pivot))))
