@@ -125,6 +125,9 @@ namespace dmGameSystem
 
     static void AddChunk(HResourceChunkCache cache, dmhash_t path_hash, uint8_t* data, uint32_t size, uint32_t offset)
     {
+        // Offset==0 means the initial chunk of a file (the part that contains the header of a file)
+        // We have no way for the decoders to ask for it themselves, so we need to keep it in the cache or
+        // the decoder will fail when start playing the sound
         int flags = offset == 0 ? RESOURCE_CHUNK_CACHE_NO_EVICT : RESOURCE_CHUNK_CACHE_DEFAULT;
         if (!ResourceChunkCacheCanFit(cache, size))
         {
