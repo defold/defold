@@ -1132,8 +1132,8 @@
         delta-x (/ (.x delta) width)
         delta-y (/ (.y delta) height)
         updated-pivot (if (:rotated geometry)
-                        [(+ pivot-x (- delta-y)) (+ pivot-y delta-x)]
-                        [(+ pivot-x delta-x) (+ pivot-y delta-y)])]
+                        [(+ pivot-x delta-y) (+ pivot-y delta-x)]
+                        [(+ pivot-x delta-x) (- pivot-y delta-y)])]
     (g/set-property node-id :pivot (-> updated-pivot
                                        properties/round-vec-coarse
                                        snap-pivot))))

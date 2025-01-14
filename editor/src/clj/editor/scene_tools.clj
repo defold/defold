@@ -325,12 +325,11 @@
   [reference-renderable scale]
   (let [{:keys [geometry x y width height]} (-> reference-renderable :user-data :rect)
         {:keys [pivot-x pivot-y rotated]} geometry
-        pivot-x-px (* (+ (if rotated pivot-y pivot-x) 0.5) width)
-        pivot-y-px (* (- (if rotated pivot-x pivot-y) 0.5) height)
-        position-x (if rotated (+ (- x pivot-x-px) width) (+ x pivot-x-px))
-        position-y (- y pivot-y-px)
-        position (->> [position-x position-y 0.0]
-                      (mapv #(/ % scale)))]
+        absolute-pivot-x (* (+ (if rotated pivot-y pivot-x) 0.5) width)
+        absolute-pivot-y (* (+ (if rotated pivot-x pivot-y) 0.5) height)
+        x (if rotated (+ (- x absolute-pivot-x) width) (+ x absolute-pivot-x))
+        y (+ y absolute-pivot-y)
+        position (conj (mapv #(/ % scale) [x y]) 0.0)]
     (concat
      (vtx-add position (vtx-scale [7.0 7.0 1.0] (gen-circle 64)))
      (vtx-add position (gen-point)))))
