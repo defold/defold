@@ -5,6 +5,9 @@ on:
 
 jobs:
   build-linux:
+    strategy:
+      matrix:
+        arch: [x86_64-linux, arm64-linux]
     runs-on: ubuntu-20.04
     steps:
     - name: Checkout repo
@@ -13,12 +16,12 @@ jobs:
     - name: Build
       run: |
         cd share/ext/luajit
-        ./build_luajit.sh x86_64-linux
+        ./build_luajit.sh ${{ matrix.arch }}
 
     - name: Archive results
       uses: actions/upload-artifact@v4
       with:
-        name: x86_64-linux-luajit-${{ github.sha }}
+        name: ${{ matrix.arch }}-luajit-${{ github.sha }}
         path: |
           ${{ github.workspace }}/share/ext/build/luajit*.tar.gz
 
