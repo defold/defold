@@ -109,6 +109,7 @@
     (cond-> {:contexts contexts
              :label label
              :locations locations}
+
             id
             (assoc :command id)
 

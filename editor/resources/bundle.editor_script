@@ -11,9 +11,9 @@ local linux_bundle_dialog = editor.ui.component(function(props)
     })
 end)
 
-local function bundle_linux(requested_dialog)
-    local config = editor.bundle.config(requested_dialog, "bundle.linux", linux_bundle_dialog)
-    local output_directory = editor.bundle.output_directory(requested_dialog, "x86_64-linux")
+local function bundle_linux(show_dialog)
+    local config = editor.bundle.config(show_dialog, "bundle.linux", linux_bundle_dialog)
+    local output_directory = editor.bundle.output_directory(show_dialog, "x86_64-linux")
     editor.bundle.create(config, output_directory, {platform = "x86_64-linux"})
 end
 
@@ -39,12 +39,12 @@ local macos_bundle_dialog = editor.ui.component(function(props)
     })
 end)
 
-local function bundle_macos(requested_dialog)
-    local config = editor.bundle.config(requested_dialog, "bundle.macos", macos_bundle_dialog, macos_errors)
+local function bundle_macos(show_dialog)
+    local config = editor.bundle.config(show_dialog, "bundle.macos", macos_bundle_dialog, macos_errors)
     local arm64 = config.architectures["arm64-macos"]
     local x86_64 = config.architectures["x86_64-macos"]
     local output_subdir = (arm64 and x86_64 and "universal-macos") or (arm64 and "arm64-macos") or "x86_64-macos"
-    local output_directory = editor.bundle.output_directory(requested_dialog, output_subdir)
+    local output_directory = editor.bundle.output_directory(show_dialog, output_subdir)
     local architectures = (arm64 and x86_64 and "arm64-macos,x86_64-macos") or (arm64 and "arm64-macos") or "x86_64-macos"
     editor.bundle.create(config, output_directory, {platform = "x86_64-macos", architectures = architectures})
 end
@@ -71,12 +71,12 @@ local html5_bundle_dialog = editor.ui.component(function(props)
     })
 end)
 
-local function bundle_html5(requested_dialog)
-    local config = editor.bundle.config(requested_dialog, "bundle.html5", html5_bundle_dialog, html5_errors)
+local function bundle_html5(show_dialog)
+    local config = editor.bundle.config(show_dialog, "bundle.html5", html5_bundle_dialog, html5_errors)
     local js = config.architectures["js-web"]
     local wasm = config.architectures["wasm-web"]
     local output_subdir = (js and wasm and "universal-web") or (js and "js-web") or "wasm-web"
-    local output_directory = editor.bundle.output_directory(requested_dialog, output_subdir)
+    local output_directory = editor.bundle.output_directory(show_dialog, output_subdir)
     local architectures = (js and wasm and "js-web,wasm-web") or (js and "js-web") or "wasm-web"
     editor.bundle.create(config, output_directory, {platform = "js-web", architectures = architectures})
 end
@@ -95,9 +95,9 @@ local windows_bundle_dialog = editor.ui.component(function(props)
     })
 end)
 
-local function bundle_windows(requested_dialog)
-    local config = editor.bundle.config(requested_dialog, "bundle.windows", windows_bundle_dialog)
-    local output_directory = editor.bundle.output_directory(requested_dialog, config.platform)
+local function bundle_windows(show_dialog)
+    local config = editor.bundle.config(show_dialog, "bundle.windows", windows_bundle_dialog)
+    local output_directory = editor.bundle.output_directory(show_dialog, config.platform)
     editor.bundle.create(config, output_directory, {platform = config.platform, architectures = config.platform})
 end
 
@@ -133,7 +133,6 @@ local function find_existing_path(paths)
     return nil
 end
 
----@return string cmd ios-deploy command path
 local function get_ios_deploy_command()
     local prefs_path = editor.prefs.get("tools.ios-deploy-path")
     if #prefs_path > 0 then
@@ -153,7 +152,6 @@ local function get_ios_deploy_command()
     end
 end
 
----@return {id: string, label:string}
 local function get_ios_device(ios_deploy)
     local success, output = pcall(editor.execute, ios_deploy, "--detect", "--json", "--timeout", "1", {reload_resources = false, out = "capture"})
     if not success then
@@ -189,7 +187,7 @@ end
 
 local identity_to_string = editor.bundle.make_to_string_lookup({[""] = "None"})
 
-local function bundle_ios(requested_dialog)
+local function bundle_ios(show_dialog)
     local identities_string = editor.execute("security", "find-identity", "-v", "-p", "codesigning", {
         reload_resources = false,
         out = "capture"
@@ -278,13 +276,13 @@ local function bundle_ios(requested_dialog)
         })
     end)
 
-    local config = editor.bundle.config(requested_dialog, "bundle.ios", ios_dialog, ios_errors)
+    local config = editor.bundle.config(show_dialog, "bundle.ios", ios_dialog, ios_errors)
 
     local arm64 = config.architectures["arm64-ios"]
     local x86_64 = config.architectures["x86_64-ios"]
     local output_subdir = (arm64 and x86_64 and "universal-ios") or (arm64 and "arm64-ios") or "x86_64-ios"
 
-    local output_directory = editor.bundle.output_directory(requested_dialog, output_subdir)
+    local output_directory = editor.bundle.output_directory(show_dialog, output_subdir)
 
     editor.bundle.create(config, output_directory, {
         platform = "arm64-ios",
@@ -313,7 +311,6 @@ local function bundle_ios(requested_dialog)
 end
 
 --- ANDROID
-
 
 local function android_errors(config)
     local errors = {}
@@ -441,7 +438,6 @@ local function get_adb_command()
     end
 end
 
----@return {id:string, label:string}
 local function get_android_device(adb)
     local devices_output = editor.execute(adb, "devices", "-l", {reload_resources = false, out = "capture"})
     local id, kvs = devices_output:match("\n(%S+)%s+device%s([^\n]+)")
@@ -472,13 +468,13 @@ local function launch_android_app(adb, device_id, package)
     end
 end
 
-local function bundle_android(requested_dialog)
-    local config = editor.bundle.config(requested_dialog, "bundle.android", android_dialog, android_errors)
+local function bundle_android(show_dialog)
+    local config = editor.bundle.config(show_dialog, "bundle.android", android_dialog, android_errors)
 
     local armv7 = config.architectures["armv7-android"]
     local arm64 = config.architectures["arm64-android"]
     local output_subdir = (armv7 and arm64 and "universal-android") or (armv7 and "armv7-android") or "arm64-android"
-    local output_directory = editor.bundle.output_directory(requested_dialog, output_subdir)
+    local output_directory = editor.bundle.output_directory(show_dialog, output_subdir)
 
     local apk = config.bundle_format.apk
     local aab = config.bundle_format.aab
@@ -514,10 +510,12 @@ end
 
 --- EDITOR EXTENSIONS
 
+local is_macos = editor.platform:sub(-#"macos") == "macos"
+
 function M.get_commands()
     return {
         editor.bundle.command("iOS Application...", "bundle-ios", bundle_ios, {
-            active = function() return editor.platform:sub(-#"macos") == "macos" end
+            active = function() return is_macos end
         }),
         editor.bundle.command("Android Application...", "bundle-android", bundle_android),
         editor.bundle.command("macOS Application...", "bundle-macos", bundle_macos),

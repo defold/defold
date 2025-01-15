@@ -79,7 +79,6 @@
             [internal.util :refer [first-where]]
             [service.log :as log]
             [service.smoke-log :as slog]
-            [util.eduction :as e]
             [util.http-server :as http-server]
             [util.profiler :as profiler]
             [util.thread-util :as thread-util])
@@ -2531,16 +2530,16 @@ If you do not specifically require different script states, consider changing th
   (options [user-data _context]
     (when-not user-data
       (let [contexts [_context]]
-        (->> (handler/realize-menu :editor.bundle/menu)
-             (e/keep
-               (fn [{:keys [command]}]
-                 (when command
-                   (when-let [handler+context (handler/active command contexts true)]
-                     {:command :bundle
-                      :label (handler/label handler+context)
-                      :user-data {:command command
-                                  :handler+context handler+context}}))))
-             (into [])))))
+        (into []
+              (keep
+                (fn [{:keys [command]}]
+                  (when command
+                    (when-let [handler+context (handler/active command contexts true)]
+                      {:command :bundle
+                       :label (handler/label handler+context)
+                       :user-data {:command command
+                                   :handler+context handler+context}}))))
+              (handler/realize-menu :editor.bundle/menu)))))
   (run [prefs user-data]
     (let [{:keys [command handler+context]} user-data]
       (prefs/set! prefs [:bundle :last-bundle-command] (if (handler/synthetic-command? command) nil command))
