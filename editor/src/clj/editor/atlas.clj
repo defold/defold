@@ -1111,9 +1111,11 @@
                           (< node-child-index (dec (.size children)))))
   (run [selection] (move-node! (selection->image selection) 1)))
 
-(defmethod scene-tools/manip-move-manips ::AtlasImage [_node-id] [:move-pivot-xy])
+(defmethod scene-tools/manip-move-manips ::AtlasImage 
+  [_node-id] 
+  [:move-pivot-xy])
 
-(defmethod scene-tools/manip-movable? ::AtlasImage [node-id] true)
+(defmethod scene-tools/manip-movable? ::AtlasImage [_node-id] true)
 
 (defn- snap-pivot
   [pivot]
@@ -1132,7 +1134,7 @@
         delta-x (/ (.x delta) width)
         delta-y (/ (.y delta) height)
         updated-pivot (if (:rotated geometry)
-                        [(+ pivot-x delta-y) (+ pivot-y delta-x)]
+                        [(- pivot-x delta-y) (- pivot-y delta-x)]
                         [(+ pivot-x delta-x) (- pivot-y delta-y)])]
     (g/set-property node-id :pivot (-> updated-pivot
                                        properties/round-vec-coarse
