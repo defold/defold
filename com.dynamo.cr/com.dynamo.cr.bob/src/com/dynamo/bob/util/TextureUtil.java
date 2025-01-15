@@ -289,7 +289,7 @@ public class TextureUtil {
         return dimg;
     }
 
-    // Called from editor when building texture resources
+    // Called from bob and editor when building texture resources
     public static void writeGenerateResultToOutputStream(TextureGenerator.GenerateResult generateResult, OutputStream stream) throws IOException {
         byte[] header = generateResult.textureImage.toByteArray();
 
@@ -303,6 +303,7 @@ public class TextureUtil {
         for (byte[] imageData : generateResult.imageDatas) {
             stream.write(imageData);
         }
+        stream.flush();
     }
 
     public static void writeGenerateResultToResource(TextureGenerator.GenerateResult generateResult, IResource resource) throws IOException {

@@ -120,12 +120,8 @@ public class AtlasBuilder extends ProtoBuilder<Atlas.Builder> {
             throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
         }
 
-        // byte[] texturePayload = TextureUtil.generateResultToTextureResourceBytes(generateResult);
-
         task.output(0).setContent(textureSet.toByteArray());
         TextureUtil.writeGenerateResultToResource(generateResult, task.output(1));
-
-        // task.output(1).setContent(texturePayload);
     }
 
     public static void main(String[] args) throws IOException, CompileExceptionError, TextureGeneratorException {

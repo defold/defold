@@ -131,5 +131,6 @@
         (-> resource
             (io/output-stream)
             (digest/make-digest-output-stream "SHA-1"))]
+    ;; writeGenerateResultToOutputStream flushes the stream
     (TextureUtil/writeGenerateResultToOutputStream (:texture-generator-result user-data) digest-output-stream)
     (digest/completed-stream->hex digest-output-stream)))
