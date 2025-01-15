@@ -142,11 +142,7 @@ namespace dmGameSystem
         chunk.m_Data = data,
         chunk.m_Size = size,
         chunk.m_Offset = offset;
-        bool result = ResourceChunkCachePut(cache, path_hash, flags, &chunk);
-        if (!result)
-        {
-            ResourceChunkCacheDebugChunks(cache);
-        }
+        ResourceChunkCachePut(cache, path_hash, flags, &chunk);
     }
 
     // Called from the main or resource preloader thread
