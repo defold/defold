@@ -33,10 +33,12 @@
 
 (defmulti manip-pivot-movable? (fn [node-id] (g/node-type-kw node-id)))
 (defmethod manip-pivot-movable? :default [_] false)
+(defmulti manip-pivot-move (fn [evaluation-context node-id ^Vector3d delta snap-threshold]
+                             (g/node-type-kw (:basis evaluation-context) node-id)))
 
 (defmulti manip-movable? (fn [node-id] (g/node-type-kw node-id)))
 (defmethod manip-movable? :default [_] false)
-(defmulti manip-move (fn [evaluation-context node-id ^Vector3d delta snap-threshold]
+(defmulti manip-move (fn [evaluation-context node-id ^Vector3d delta]
                        (g/node-type-kw (:basis evaluation-context) node-id)))
 (defmulti manip-move-manips (fn [node-id] (g/node-type-kw node-id)))
 (defmethod manip-move-manips :default
@@ -463,16 +465,18 @@
 (defn- manip->apply-fn [manip-opts evaluation-context manip manip-pos original-values camera viewport]
   (case manip
     (:move-x :move-y :move-z :move-xy :move-xz :move-yz :move-screen :move-pivot-xy)
-    (let [move-snap-fn (or (:move-snap-fn manip-opts) identity)
-          scale (scale-factor camera viewport manip-pos)
-          snap-threshold (* 0.1 scale)]
+    (let [move-snap-fn (or (:move-snap-fn manip-opts) identity)]
       (fn [start-pos pos]
         (let [manip-delta (doto (Vector3d.) (.sub pos start-pos))
               snapped-delta (move-snap-fn manip-delta)]
           (for [{:keys [node-id parent-world-transform]} original-values
                 :let [world->local (math/inverse parent-world-transform)
                       local-delta (math/transform-vector world->local snapped-delta)]]
-            (manip-move evaluation-context node-id local-delta snap-threshold)))))
+            (if (= manip :move-pivot-xy)
+              (let [scale (scale-factor camera viewport manip-pos)
+                    snap-threshold (* 0.1 scale)]
+                (manip-pivot-move evaluation-context node-id local-delta snap-threshold))
+              (manip-move evaluation-context node-id local-delta))))))
     (:rot-x :rot-y :rot-z :rot-screen)
     (fn [start-pos pos]
       (let [[start-dir dir] (map #(doto (Vector3d.) (.sub % manip-pos) (.normalize)) [start-pos pos])

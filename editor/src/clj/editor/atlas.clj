@@ -1124,7 +1124,7 @@
                        (when (< (Math/abs (- % snap-value)) threshold)
                          snap-value)) snap-values) %) pivot)))
 
-(defmethod scene-tools/manip-move ::AtlasImage
+(defmethod scene-tools/manip-pivot-move ::AtlasImage
   [evaluation-context node-id ^Vector3d delta snap-threshold]
   (let [scene (g/node-value node-id :scene evaluation-context)
         rect (-> scene :renderable :user-data :rect)
