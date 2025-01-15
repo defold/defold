@@ -335,7 +335,7 @@ function editor.bundle.create(config, output_directory, extra_bob_opts)
 
     if not editor.external_file_attributes(output_directory).exists then
         if editor.platform:sub(-#"win32") == "win32" then
-            editor.execute("cmd.exe", "/c", "mkdir", output_directory, {reload_resources = false})
+            editor.execute("cmd.exe", "/c", "mkdir", output_directory:gsub("/", "\\"), {reload_resources = false})
         else
             editor.execute("mkdir", "-p", output_directory, {reload_resources = false})
         end
