@@ -34,6 +34,7 @@
             [editor.validation :as validation]
             [editor.workspace :as workspace])
   (:import [com.dynamo.graphics.proto Graphics$Cubemap]
+           [com.dynamo.bob.util TextureUtil]
            [com.jogamp.opengl GL GL2]
            [java.awt.image BufferedImage]))
 
@@ -143,9 +144,10 @@
     (g/precluding-errors
       (vals images)
       (let [texture-images (tex-gen/make-cubemap-texture-images images texture-profile compress?)
-            cubemap-texture-image (tex-gen/assemble-cubemap-texture-images texture-images)]
+            cubemap-texture-image (tex-gen/assemble-cubemap-texture-images texture-images)
+            combined-texture-protobuf-bytes (TextureUtil/generateResultToTextureResourceBytes cubemap-texture-image)]
         {:resource resource
-         :content (protobuf/pb->bytes cubemap-texture-image)}))))
+         :content combined-texture-protobuf-bytes}))))
 
 (def ^:private cubemap-dir->property
   {:px :right

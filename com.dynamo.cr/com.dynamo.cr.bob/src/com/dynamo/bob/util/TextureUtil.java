@@ -17,11 +17,8 @@ package com.dynamo.bob.util;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
-import java.awt.Image;
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.lang.reflect.Array;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
@@ -31,7 +28,6 @@ import java.util.HashMap;
 
 import javax.imageio.ImageIO;
 
-import com.google.protobuf.ByteString;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.TextureGenerator;
@@ -40,6 +36,7 @@ import com.dynamo.graphics.proto.Graphics.PathSettings;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
 import com.dynamo.graphics.proto.Graphics.TextureProfiles;
+import com.google.protobuf.InvalidProtocolBufferException;
 
 public class TextureUtil {
     public static int closestPOT(int i) {
@@ -217,7 +214,7 @@ public class TextureUtil {
         return null;
     }
 
-    private static int getTextureGenerateResultByteIndex(TextureImage textureImage, int alternative, int mipMap) throws TextureGeneratorException {
+    private static int getTextureGenerateResultImageDatasIndex(TextureImage textureImage, int alternative, int mipMap) throws TextureGeneratorException {
         int mipMapOffset = 0;
         for (int i=0; i < textureImage.getAlternativesCount(); i++) {
             if (i == alternative) {
@@ -257,9 +254,9 @@ public class TextureUtil {
                     int mipSize = generateResults[k].textureImage.getAlternatives(i).getMipMapSize(j);
                     alternativeImageBuilder.addMipMapSizeCompressed(mipSize);
 
-                    ArrayList<byte[]> textureBytes = generateResults[k].imageDatas;
-                    int byteIndex = getTextureGenerateResultByteIndex(generateResults[k].textureImage, i, j);
-                    byte[] mipBytes = textureBytes.get(byteIndex);
+                    ArrayList<byte[]> imageMipmapDatas = generateResults[k].imageDatas;
+                    int mipImageIndex = getTextureGenerateResultImageDatasIndex(generateResults[k].textureImage, i, j);
+                    byte[] mipBytes = imageMipmapDatas.get(mipImageIndex);
 
                     resultOut.imageDatas.add(mipBytes);
                     byteSize += mipSize;
@@ -309,7 +306,7 @@ public class TextureUtil {
         return result;
     }
 
-    public static byte[] generateResultToByteArray(TextureGenerator.GenerateResult generateResult) {
+    public static byte[] generateResultToTextureResourceBytes(TextureGenerator.GenerateResult generateResult) {
         byte[] header = generateResult.textureImage.toByteArray();
 
         ByteBuffer buffer = ByteBuffer.allocate(4);
@@ -324,7 +321,7 @@ public class TextureUtil {
         return concatenateArrays(byteParts);
     }
 
-    public static byte[] byteArrayToTextureImage(byte[] content) {
+    public static TextureImage textureResourceBytesToTextureImage(byte[] content) throws InvalidProtocolBufferException {
         // Read the header size (first 4 bytes)
         ByteBuffer buffer = ByteBuffer.wrap(content);
         ByteOrder currentOrder = buffer.order();
@@ -334,7 +331,8 @@ public class TextureUtil {
 
         byte[] textureImage = new byte[headerSize];
         System.arraycopy(content, 4, textureImage, 0, headerSize);
-        return textureImage;
+
+        return TextureImage.parseFrom(textureImage);
     }
 
     // Public api

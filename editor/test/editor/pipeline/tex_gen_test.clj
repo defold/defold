@@ -13,26 +13,21 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.pipeline.tex-gen-test
-  (:require [clojure.test :refer :all]
-            [clojure.java.io :as io]
-            [editor.protobuf :as protobuf]
+  (:require [clojure.java.io :as io]
+            [clojure.test :refer :all]
             [editor.pipeline.tex-gen :as tex-gen])
-  (:import [com.dynamo.bob.util TextureUtil]
-           [javax.imageio ImageIO]
-           [com.dynamo.bob.pipeline TextureGenerator$GenerateResult]
-           [com.dynamo.graphics.proto Graphics$TextureImage]))
+  (:import [com.dynamo.bob.pipeline TextureGenerator$GenerateResult]
+           [com.dynamo.graphics.proto Graphics$TextureImage]
+           [javax.imageio ImageIO]))
 
 (deftest gen-bytes
   (let [img     (ImageIO/read (io/resource "test_project/graphics/ball.png"))
-        ^TextureGenerator$GenerateResult
         generate-result (tex-gen/make-texture-image img {:name      "test-profile"
                                                          :platforms [{:os      :os-id-generic
                                                                       :formats [{:format            :texture-format-rgba
                                                                                  :compression-level :fast}]
                                                                       :mipmaps false}]})
-        protobuf-bytes (TextureUtil/generateResultToByteArray generate-result)
-        bytes   (TextureUtil/byteArrayToTextureImage protobuf-bytes)
-        tex-img (Graphics$TextureImage/parseFrom bytes)
+        tex-img (.textureImage generate-result)
         alt     (.getAlternatives tex-img 0)]
     (is (= 64 (.getWidth alt)))
     (is (= 32 (.getHeight alt)))))

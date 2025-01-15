@@ -100,7 +100,7 @@
     (make-texture-image image preview-profile false)))
 
 (defn make-cubemap-texture-images
-  ^Graphics$TextureImage [images texture-profile compress?]
+  ^TextureGenerator$GenerateResult [images texture-profile compress?]
   (let [^Graphics$TextureProfile texture-profile-data (some->> texture-profile (protobuf/map->pb Graphics$TextureProfile))
         flip-axis (EnumSet/noneOf Texc$FlipAxis)]
     (util/map-vals #(TextureGenerator/generate ^BufferedImage % texture-profile-data ^boolean compress? flip-axis)
@@ -114,12 +114,12 @@
     (TextureUtil/createCombinedTextureImage (into-array texture-generator-results) texture-type)))
 
 (defn assemble-cubemap-texture-images
-  ^Graphics$TextureImage [side->texture-image]
+  ^TextureGenerator$GenerateResult [side->texture-image]
   (let [texture-images (into-array ((juxt :px :nx :py :ny :pz :nz) side->texture-image))
         type Graphics$TextureImage$Type/TYPE_CUBEMAP]
     (TextureUtil/createCombinedTextureImage texture-images type)))
 
 (defn make-preview-cubemap-texture-images
-  ^Graphics$TextureImage [images texture-profile]
+  ^TextureGenerator$GenerateResult [images texture-profile]
   (let [preview-profile (make-preview-profile texture-profile)]
     (make-cubemap-texture-images images preview-profile false)))

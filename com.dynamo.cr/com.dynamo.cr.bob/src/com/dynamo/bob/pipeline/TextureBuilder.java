@@ -15,7 +15,6 @@
 package com.dynamo.bob.pipeline;
 
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
 import com.dynamo.bob.Builder;
@@ -26,7 +25,6 @@ import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.TextureUtil;
-import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
 
 @BuilderParams(name = "Texture", inExts = {".png", ".jpg"}, outExt = ".texturec", isCacheble = true)
@@ -69,7 +67,7 @@ public class TextureBuilder extends Builder {
             throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
         }
 
-        byte[] resultBytes = TextureUtil.generateResultToByteArray(generateResult);
+        byte[] resultBytes = TextureUtil.generateResultToTextureResourceBytes(generateResult);
         task.output(0).setContent(resultBytes);
     }
 

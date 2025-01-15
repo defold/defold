@@ -23,6 +23,7 @@ import java.util.EnumSet;
 
 import com.defold.extension.pipeline.texture.*;
 import com.defold.extension.pipeline.texture.TestTextureCompressor;
+import com.dynamo.graphics.proto.Graphics;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -688,11 +689,11 @@ public class TextureGeneratorTest {
 
         textureFormatAlt1.setFormat(TextureFormat.TEXTURE_FORMAT_LUMINANCE);
         textureFormatAlt1.setCompressionLevel(CompressionLevel.FAST);
-        textureFormatAlt1.setCompressionType(TextureImage.CompressionType.COMPRESSION_TYPE_BASIS_UASTC);
+        textureFormatAlt1.setCompressionType(Graphics.TextureImage.CompressionType.COMPRESSION_TYPE_BASIS_UASTC);
 
         textureFormatAlt2.setFormat(TextureFormat.TEXTURE_FORMAT_RGB);
         textureFormatAlt2.setCompressionLevel(CompressionLevel.FAST);
-        textureFormatAlt2.setCompressionType(TextureImage.CompressionType.COMPRESSION_TYPE_BASIS_UASTC);
+        textureFormatAlt2.setCompressionType(Graphics.TextureImage.CompressionType.COMPRESSION_TYPE_BASIS_UASTC);
 
         platformProfile.setOs(PlatformProfile.OS.OS_ID_GENERIC);
         platformProfile.addFormats(textureFormatAlt1.build());
@@ -704,11 +705,11 @@ public class TextureGeneratorTest {
         textureProfile.addPlatforms(platformProfile.build());
 
         // Run the generator WITHOUT compression so we force a default profile
-        TextureImage texture = TextureGenerator.generate(getClass().getResourceAsStream("128_64_rgba.png"), textureProfile.build(), false);
+        TextureGenerator.GenerateResult result = TextureGenerator.generate(getClass().getResourceAsStream("128_64_rgba.png"), textureProfile.build(), false);
 
-        assertEquals(TextureFormat.TEXTURE_FORMAT_LUMINANCE, texture.getAlternatives(0).getFormat());
-        assertEquals(128*64, texture.getAlternatives(0).getData().toByteArray().length);
-        assertEquals(TextureFormat.TEXTURE_FORMAT_RGB, texture.getAlternatives(1).getFormat());
-        assertEquals(128*64*3, texture.getAlternatives(1).getData().toByteArray().length);
+        assertEquals(TextureFormat.TEXTURE_FORMAT_LUMINANCE, result.textureImage.getAlternatives(0).getFormat());
+        assertEquals(128*64, result.textureImage.getAlternatives(0).getDataSize());
+        assertEquals(TextureFormat.TEXTURE_FORMAT_RGB, result.textureImage.getAlternatives(1).getFormat());
+        assertEquals(128*64*3, result.textureImage.getAlternatives(1).getDataSize());
     }
 }

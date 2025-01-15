@@ -100,8 +100,7 @@ public class ParseUtil {
         parseMap.put("texturec", new IParser() {
             @Override
             public Message parse(byte[] content) throws InvalidProtocolBufferException {
-                byte[] textureImage = TextureUtil.byteArrayToTextureImage(content);
-                return TextureImage.parseFrom(textureImage);
+                return TextureUtil.textureResourceBytesToTextureImage(content);
             }
         });
         parseMap.put("texturesetc", new IParser() {

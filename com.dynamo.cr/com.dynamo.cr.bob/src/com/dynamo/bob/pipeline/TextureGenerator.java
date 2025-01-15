@@ -24,7 +24,6 @@ import java.awt.image.DataBufferShort;
 import java.awt.image.DataBufferUShort;
 import java.awt.image.DataBufferInt;
 
-import java.lang.reflect.Array;
 import java.nio.ShortBuffer;
 import java.nio.IntBuffer;
 
@@ -624,7 +623,7 @@ public class TextureGenerator {
             // Guess texture format based on number color components of input image
             TextureFormat textureFormat = pickOptimalFormat(componentCount, TextureFormat.TEXTURE_FORMAT_RGBA);
             TextureImage.Image.Builder imageBuilder = TextureImage.Image.newBuilder();
-            List<byte[]> imageDatas = generateFromColorAndFormat(image, colorModel, textureFormat, TextureCompressorUncompressed.TextureCompressorName, TextureCompressorUncompressed.TextureCompressorUncompressedPresetName, true, 0, true, flipAxis);
+            List<byte[]> imageDatas = generateFromColorAndFormat(imageBuilder, image, colorModel, textureFormat, TextureCompressorUncompressed.TextureCompressorName, TextureCompressorUncompressed.TextureCompressorUncompressedPresetName, true, 0, true, flipAxis);
 
             imageBuilder.setCompressionType(TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT);
             textureBuilder.addAlternatives(imageBuilder);
@@ -650,7 +649,7 @@ public class TextureGenerator {
         try (BufferedInputStream is = new BufferedInputStream(new FileInputStream(args[0]));
              BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream(args[1]))) {
             GenerateResult result = generate(is);
-            byte[] textureBytes = TextureUtil.generateResultToByteArray(result);
+            byte[] textureBytes = TextureUtil.generateResultToTextureResourceBytes(result);
             os.write(textureBytes);
         }
     }

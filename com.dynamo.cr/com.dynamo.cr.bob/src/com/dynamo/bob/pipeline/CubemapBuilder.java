@@ -15,7 +15,6 @@
 package com.dynamo.bob.pipeline;
 
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.EnumSet;
 
@@ -28,7 +27,6 @@ import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.TextureUtil;
-import com.dynamo.bob.pipeline.Texc.FlipAxis;
 import com.dynamo.graphics.proto.Graphics.Cubemap;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.graphics.proto.Graphics.TextureImage.Image;
@@ -103,7 +101,7 @@ public class CubemapBuilder extends ProtoBuilder<Cubemap.Builder> {
             TextureGenerator.GenerateResult cubeMapResult = TextureUtil.createCombinedTextureImage(generateResults, Type.TYPE_CUBEMAP);
 
             assert cubeMapResult != null;
-            byte[] bytes = TextureUtil.generateResultToByteArray(cubeMapResult);
+            byte[] bytes = TextureUtil.generateResultToTextureResourceBytes(cubeMapResult);
             task.output(0).setContent(bytes);
         } catch (TextureGeneratorException e) {
             throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);

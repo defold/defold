@@ -19,7 +19,6 @@
             [editor.gl.texture :as texture]
             [editor.image-util :as image-util]
             [editor.pipeline.tex-gen :as tex-gen]
-            [editor.protobuf :as protobuf]
             [editor.resource :as resource]
             [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
@@ -40,9 +39,9 @@
     (g/precluding-errors
       [image]
       (let [texture-generator-result (tex-gen/make-texture-image image texture-profile compress?)
-            texture-protobuf-bytes (TextureUtil/generateResultToByteArray texture-generator-result)]
+            texture-resource-bytes (TextureUtil/generateResultToTextureResourceBytes texture-generator-result)]
         {:resource resource
-         :content  texture-protobuf-bytes}))))
+         :content  texture-resource-bytes}))))
 
 (defn make-texture-build-target
   [workspace node-id image-generator texture-profile compress?]
@@ -62,9 +61,9 @@
       [images]
       (let [texture-generator-results (mapv #(tex-gen/make-texture-image % texture-profile compress?) images)
             ^TextureGenerator$GenerateResult combined-texture-image (tex-gen/assemble-texture-images texture-generator-results texture-page-count)
-            combined-texture-protobuf-bytes (TextureUtil/generateResultToByteArray combined-texture-image)]
+            combined-texture-resource-bytes (TextureUtil/generateResultToTextureResourceBytes combined-texture-image)]
         {:resource resource
-         :content  combined-texture-protobuf-bytes}))))
+         :content  combined-texture-resource-bytes}))))
 
 (defn make-array-texture-build-target
   [workspace node-id array-images-generator texture-profile texture-page-count compress?]

@@ -34,7 +34,6 @@ import com.dynamo.bob.textureset.TextureSetGenerator.TextureSetResult;
 import com.dynamo.bob.tile.TileSetGenerator;
 import com.dynamo.bob.util.TextureUtil;
 import com.dynamo.bob.logging.Logger;
-import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
 import com.dynamo.gamesys.proto.TextureSetProto.TextureSet;
 import com.dynamo.gamesys.proto.Tile.TileSet;
@@ -148,7 +147,7 @@ public class TileSetBuilder extends ProtoBuilder<TileSet.Builder> {
             throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
         }
 
-        byte[] bytes = TextureUtil.generateResultToByteArray(generateResult);
+        byte[] bytes = TextureUtil.generateResultToTextureResourceBytes(generateResult);
         task.output(0).setContent(textureSet.toByteArray());
         task.output(1).setContent(bytes);
     }
