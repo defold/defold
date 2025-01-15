@@ -333,6 +333,14 @@ function editor.bundle.create(config, output_directory, extra_bob_opts)
     bob_opts.build_report_html = config.build_report and (output_directory .. "/report.html") or nil
     bob_opts.liveupdate = config.liveupdate and "yes" or nil
 
+    if not editor.external_file_attributes(output_directory).exists then
+        if editor.platform:sub(-#"win32") == "win32" then
+            editor.execute("mkdir", output_directory, {reload_resources = false})
+        else
+            editor.execute("mkdir", "-p", output_directory, {reload_resources = false})
+        end
+    end
+
     editor.bob(bob_opts, "distclean", "resolve", "build", "bundle")
 
     if editor.prefs.get("bundle.open-output-directory") then
