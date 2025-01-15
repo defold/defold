@@ -66,6 +66,24 @@ public class DefaultResource extends AbstractResource<DefaultFileSystem> {
         }
     }
 
+    public void appendContent(byte[] content) throws IOException {
+        File f = new File(getAbsPath());
+        if (!f.exists()) {
+            String dir = FilenameUtils.getFullPath(getAbsPath());
+            File dirFile = new File(dir);
+            if (!dirFile.exists()) {
+                dirFile.mkdirs();
+            }
+        }
+
+        BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream(f, true));
+        try {
+            os.write(content);
+        } finally {
+            os.close();
+        }
+    }
+
     @Override
     public void setContent(InputStream stream) throws IOException {
         File f = new File(getAbsPath());

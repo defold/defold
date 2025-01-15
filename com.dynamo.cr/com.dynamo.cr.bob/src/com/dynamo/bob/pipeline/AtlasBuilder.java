@@ -120,10 +120,12 @@ public class AtlasBuilder extends ProtoBuilder<Atlas.Builder> {
             throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
         }
 
-        byte[] texturePayload = TextureUtil.generateResultToTextureResourceBytes(generateResult);
+        // byte[] texturePayload = TextureUtil.generateResultToTextureResourceBytes(generateResult);
 
         task.output(0).setContent(textureSet.toByteArray());
-        task.output(1).setContent(texturePayload);
+        TextureUtil.writeGenerateResultToResource(generateResult, task.output(1));
+
+        // task.output(1).setContent(texturePayload);
     }
 
     public static void main(String[] args) throws IOException, CompileExceptionError, TextureGeneratorException {
@@ -170,7 +172,7 @@ public class AtlasBuilder extends ProtoBuilder<Atlas.Builder> {
         textureSetOutStream.close();
 
         FileOutputStream textureOutStream = new FileOutputStream(textureOutPath);
-        textureOutStream.write(TextureUtil.generateResultToTextureResourceBytes(generateResult));
+        TextureUtil.writeGenerateResultToOutputStream(generateResult, textureOutStream);
         textureOutStream.close();
     }
 }

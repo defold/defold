@@ -67,8 +67,7 @@ public class TextureBuilder extends Builder {
             throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
         }
 
-        byte[] resultBytes = TextureUtil.generateResultToTextureResourceBytes(generateResult);
-        task.output(0).setContent(resultBytes);
+        TextureUtil.writeGenerateResultToResource(generateResult, task.output(0));
     }
 
 }

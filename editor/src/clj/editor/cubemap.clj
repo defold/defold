@@ -144,10 +144,10 @@
     (g/precluding-errors
       (vals images)
       (let [texture-images (tex-gen/make-cubemap-texture-images images texture-profile compress?)
-            cubemap-texture-image (tex-gen/assemble-cubemap-texture-images texture-images)
-            combined-texture-protobuf-bytes (TextureUtil/generateResultToTextureResourceBytes cubemap-texture-image)]
+            cubemap-texture-image-generate-result (tex-gen/assemble-cubemap-texture-images texture-images)]
         {:resource resource
-         :content combined-texture-protobuf-bytes}))))
+         :build-fn tex-gen/build-texture-resource-fn
+         :user-data {:texture-generator-result cubemap-texture-image-generate-result}}))))
 
 (def ^:private cubemap-dir->property
   {:px :right

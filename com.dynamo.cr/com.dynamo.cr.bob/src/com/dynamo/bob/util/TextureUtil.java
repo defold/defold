@@ -19,6 +19,7 @@ import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.ArrayList;
@@ -37,6 +38,8 @@ import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
 import com.dynamo.graphics.proto.Graphics.TextureProfiles;
 import com.google.protobuf.InvalidProtocolBufferException;
+
+import static com.dynamo.bob.util.MiscUtil.concatenateArrays;
 
 public class TextureUtil {
     public static int closestPOT(int i) {
@@ -286,27 +289,8 @@ public class TextureUtil {
         return dimg;
     }
 
-    public static byte[] concatenateArrays(ArrayList<byte[]> arrays) {
-        // Calculate the total length of the new array
-        int totalLength = 0;
-        for (byte[] array : arrays) {
-            totalLength += array.length;
-        }
-
-        // Create a new array to hold all the data
-        byte[] result = new byte[totalLength];
-
-        // Copy each array into the result array
-        int currentIndex = 0;
-        for (byte[] array : arrays) {
-            System.arraycopy(array, 0, result, currentIndex, array.length);
-            currentIndex += array.length;
-        }
-
-        return result;
-    }
-
-    public static byte[] generateResultToTextureResourceBytes(TextureGenerator.GenerateResult generateResult) {
+    // Called from editor when building texture resources
+    public static void writeGenerateResultToOutputStream(TextureGenerator.GenerateResult generateResult, OutputStream stream) throws IOException {
         byte[] header = generateResult.textureImage.toByteArray();
 
         ByteBuffer buffer = ByteBuffer.allocate(4);
@@ -314,11 +298,27 @@ public class TextureUtil {
         buffer.putInt(header.length);
         byte[] headerSizeInBytes = buffer.array();
 
-        ArrayList<byte[]> byteParts = new ArrayList<>();
-        byteParts.add(headerSizeInBytes);
-        byteParts.add(header);
-        byteParts.addAll(generateResult.imageDatas);
-        return concatenateArrays(byteParts);
+        stream.write(headerSizeInBytes);
+        stream.write(header);
+        for (byte[] imageData : generateResult.imageDatas) {
+            stream.write(imageData);
+        }
+    }
+
+    public static void writeGenerateResultToResource(TextureGenerator.GenerateResult generateResult, IResource resource) throws IOException {
+        byte[] header = generateResult.textureImage.toByteArray();
+
+        ByteBuffer buffer = ByteBuffer.allocate(4);
+        buffer.order(ByteOrder.LITTLE_ENDIAN);
+        buffer.putInt(header.length);
+        byte[] headerSizeInBytes = buffer.array();
+
+        resource.setContent(headerSizeInBytes);
+        resource.appendContent(header);
+
+        for (byte[] imageData : generateResult.imageDatas) {
+            resource.appendContent(imageData);
+        }
     }
 
     public static TextureImage textureResourceBytesToTextureImage(byte[] content) throws InvalidProtocolBufferException {

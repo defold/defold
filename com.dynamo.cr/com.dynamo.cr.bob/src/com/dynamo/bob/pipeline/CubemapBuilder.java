@@ -99,10 +99,8 @@ public class CubemapBuilder extends ProtoBuilder<Cubemap.Builder> {
             validate(task, generateResults);
 
             TextureGenerator.GenerateResult cubeMapResult = TextureUtil.createCombinedTextureImage(generateResults, Type.TYPE_CUBEMAP);
-
             assert cubeMapResult != null;
-            byte[] bytes = TextureUtil.generateResultToTextureResourceBytes(cubeMapResult);
-            task.output(0).setContent(bytes);
+            TextureUtil.writeGenerateResultToResource(cubeMapResult, task.output(0));
         } catch (TextureGeneratorException e) {
             throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
         }

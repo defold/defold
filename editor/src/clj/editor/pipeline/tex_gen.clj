@@ -13,12 +13,14 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.pipeline.tex-gen
-  (:require [editor.protobuf :as protobuf]
-            [internal.util :as util])
+  (:require [clojure.java.io :as io]
+            [editor.protobuf :as protobuf]
+            [internal.util :as util]
+            [util.digest :as digest])
   (:import [com.dynamo.bob.pipeline Texc$FlipAxis]
            [com.dynamo.bob.pipeline TextureGenerator TextureGenerator$GenerateResult]
            [com.dynamo.bob.util TextureUtil]
-           [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$Type Graphics$TextureProfile Graphics$TextureProfiles]
+           [com.dynamo.graphics.proto Graphics$TextureImage$Type Graphics$TextureProfile Graphics$TextureProfiles]
            [java.awt.image BufferedImage]
            [java.util EnumSet]))
 
@@ -123,3 +125,11 @@
   ^TextureGenerator$GenerateResult [images texture-profile]
   (let [preview-profile (make-preview-profile texture-profile)]
     (make-cubemap-texture-images images preview-profile false)))
+
+(defn build-texture-resource-fn [resource user-data]
+  (let [digest-output-stream
+        (-> resource
+            (io/output-stream)
+            (digest/make-digest-output-stream "SHA-1"))]
+    (TextureUtil/writeGenerateResultToOutputStream (:texture-generator-result user-data) digest-output-stream)
+    (digest/completed-stream->hex digest-output-stream)))

@@ -151,21 +151,25 @@
       (and (.exists f) (= mtime (.lastModified f)) (= size (.length f))))))
 
 (defn- to-disk! [artifact content-hash]
-  (assert (some? (:content artifact)))
+  (assert (or (some? (:build-fn artifact)) (some? (:content artifact))))
   (fs/create-parent-directories! (io/as-file (:resource artifact)))
-  (let [^bytes content (:content artifact)]
-    (with-open [out (io/output-stream (:resource artifact))]
-      (.write out content))
+  (let [^bytes content (:content artifact)
+        build-fn (:build-fn artifact)
+        sha1-hash (if build-fn
+                    ;; The build-fn returns the hash of the content
+                    (build-fn (:resource artifact) (:user-data artifact))
+                    ;; otherwise, we write and hash the content
+                    (with-open [out (io/output-stream (:resource artifact))]
+                      (.write out content)
+                      (digest/sha1-hex content)))]
     (let [^File target-f (io/as-file (:resource artifact))
           mtime (.lastModified target-f)
           size (.length target-f)]
-      (-> artifact
-          (dissoc :content)
-          (assoc
-            :content-hash content-hash
-            :mtime mtime
-            :size size
-            :etag (digest/sha1-hex content))))))
+      {:resource (:resource artifact)
+       :content-hash content-hash
+       :mtime mtime
+       :size size
+       :etag sha1-hash})))
 
 (defn- prune-build-dir! [build-dir build-targets-by-content-hash]
   (let [targets (into #{}

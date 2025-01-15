@@ -22,8 +22,7 @@
             [editor.resource :as resource]
             [editor.resource-io :as resource-io]
             [editor.resource-node :as resource-node]
-            [editor.workspace :as workspace]
-            [util.digestable :as digestable])
+            [editor.workspace :as workspace])
   (:import [com.dynamo.bob.pipeline TextureGenerator$GenerateResult]
            [com.dynamo.bob.textureset TextureSetGenerator$UVTransform]
            [com.dynamo.bob.util TextureUtil]
@@ -38,10 +37,10 @@
         image ((:f content-generator) (:args content-generator))]
     (g/precluding-errors
       [image]
-      (let [texture-generator-result (tex-gen/make-texture-image image texture-profile compress?)
-            texture-resource-bytes (TextureUtil/generateResultToTextureResourceBytes texture-generator-result)]
+      (let [texture-generator-result (tex-gen/make-texture-image image texture-profile compress?)]
         {:resource resource
-         :content  texture-resource-bytes}))))
+         :build-fn tex-gen/build-texture-resource-fn
+         :user-data {:texture-generator-result texture-generator-result}}))))
 
 (defn make-texture-build-target
   [workspace node-id image-generator texture-profile compress?]
@@ -60,10 +59,10 @@
     (g/precluding-errors
       [images]
       (let [texture-generator-results (mapv #(tex-gen/make-texture-image % texture-profile compress?) images)
-            ^TextureGenerator$GenerateResult combined-texture-image (tex-gen/assemble-texture-images texture-generator-results texture-page-count)
-            combined-texture-resource-bytes (TextureUtil/generateResultToTextureResourceBytes combined-texture-image)]
+            ^TextureGenerator$GenerateResult combined-texture-image (tex-gen/assemble-texture-images texture-generator-results texture-page-count)]
         {:resource resource
-         :content  combined-texture-resource-bytes}))))
+         :build-fn tex-gen/build-texture-resource-fn
+         :user-data {:texture-generator-result combined-texture-image}}))))
 
 (defn make-array-texture-build-target
   [workspace node-id array-images-generator texture-profile texture-page-count compress?]

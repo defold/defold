@@ -147,8 +147,7 @@ public class TileSetBuilder extends ProtoBuilder<TileSet.Builder> {
             throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
         }
 
-        byte[] bytes = TextureUtil.generateResultToTextureResourceBytes(generateResult);
         task.output(0).setContent(textureSet.toByteArray());
-        task.output(1).setContent(bytes);
+        TextureUtil.writeGenerateResultToResource(generateResult, task.output(1));
     }
 }

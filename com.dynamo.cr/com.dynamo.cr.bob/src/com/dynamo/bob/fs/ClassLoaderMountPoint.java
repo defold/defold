@@ -63,7 +63,12 @@ public class ClassLoaderMountPoint implements IMountPoint {
 
         @Override
         public void setContent(InputStream stream) throws IOException {
-            throw new IOException("Zip resources can't be removed.");
+            throw new IOException("Zip resources can't be written to.");
+        }
+
+        @Override
+        public void appendContent(byte[] content) throws IOException {
+            throw new IOException("Zip resources can't be written to.");
         }
 
         @Override
