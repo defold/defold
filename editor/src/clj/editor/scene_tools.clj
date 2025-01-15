@@ -36,7 +36,7 @@
 
 (defmulti manip-movable? (fn [node-id] (g/node-type-kw node-id)))
 (defmethod manip-movable? :default [_] false)
-(defmulti manip-move (fn [evaluation-context node-id ^Vector3d delta]
+(defmulti manip-move (fn [evaluation-context node-id ^Vector3d delta snap-threshold]
                        (g/node-type-kw (:basis evaluation-context) node-id)))
 (defmulti manip-move-manips (fn [node-id] (g/node-type-kw node-id)))
 (defmethod manip-move-manips :default
@@ -460,17 +460,19 @@
         (math/project-line-circle pos dir manip-pos manip-dir radius)))
     :scale-uniform identity))
 
-(defn- manip->apply-fn [manip-opts evaluation-context manip manip-pos original-values]
+(defn- manip->apply-fn [manip-opts evaluation-context manip manip-pos original-values camera viewport]
   (case manip
     (:move-x :move-y :move-z :move-xy :move-xz :move-yz :move-screen :move-pivot-xy)
-    (let [move-snap-fn (or (:move-snap-fn manip-opts) identity)]
+    (let [move-snap-fn (or (:move-snap-fn manip-opts) identity)
+          scale (scale-factor camera viewport manip-pos)
+          snap-threshold (* 0.1 scale)]
       (fn [start-pos pos]
         (let [manip-delta (doto (Vector3d.) (.sub pos start-pos))
               snapped-delta (move-snap-fn manip-delta)]
           (for [{:keys [node-id parent-world-transform]} original-values
                 :let [world->local (math/inverse parent-world-transform)
                       local-delta (math/transform-vector world->local snapped-delta)]]
-            (manip-move evaluation-context node-id local-delta)))))
+            (manip-move evaluation-context node-id local-delta snap-threshold)))))
     (:rot-x :rot-y :rot-z :rot-screen)
     (fn [start-pos pos]
       (let [[start-dir dir] (map #(doto (Vector3d.) (.sub % manip-pos) (.normalize)) [start-pos pos])
@@ -511,11 +513,11 @@
         manip-rotation (get-manip-rotation manip-space world-rotation)
         lead-transform (if (or (manip->screen? manip) (= manip :scale-uniform))
                          (doto (c/camera-view-matrix camera) (.invert) (.setTranslation manip-origin))
-                         (doto (Matrix4d.) (.set manip-origin)))]
-    (let [proj-fn (manip->project-fn manip camera viewport)
-          apply-fn (manip->apply-fn manip-opts evaluation-context manip manip-origin original-values)
-          [start-pos pos] (map #(action->manip-pos % lead-transform manip manip-rotation proj-fn) [start-action action])]
-      (apply-fn start-pos pos))))
+                         (doto (Matrix4d.) (.set manip-origin)))
+        proj-fn (manip->project-fn manip camera viewport)
+        apply-fn (manip->apply-fn manip-opts evaluation-context manip manip-origin original-values camera viewport)
+        [start-pos pos] (map #(action->manip-pos % lead-transform manip manip-rotation proj-fn) [start-action action])]
+    (apply-fn start-pos pos)))
 
 (def ^:private original-values #(select-keys % [:node-id :world-rotation :world-transform :parent-world-transform]))
 

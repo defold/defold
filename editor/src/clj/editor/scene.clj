@@ -1642,7 +1642,7 @@
 
 (def manip-move-scene-node (partial manip-scene-node apply-move-delta :position))
 
-(defmethod scene-tools/manip-move ::SceneNode [evaluation-context node-id delta]
+(defmethod scene-tools/manip-move ::SceneNode [evaluation-context node-id delta snap-threshold]
   (manip-move-scene-node evaluation-context node-id delta))
 
 (defn apply-rotate-delta [old-clj-rotation vecmath-delta]

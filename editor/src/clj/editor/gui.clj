@@ -1226,7 +1226,7 @@
   ;; from disk during resource-sync. The id must be unique within the gui scene.
   (g/node-value node-id :id evaluation-context))
 
-(defmethod scene-tools/manip-move ::GuiNode [evaluation-context node-id delta]
+(defmethod scene-tools/manip-move ::GuiNode [evaluation-context node-id delta snap-threshold]
   (update-layout-property evaluation-context node-id :position scene/apply-move-delta delta))
 
 (defmethod scene-tools/manip-rotate ::GuiNode [evaluation-context node-id delta]
