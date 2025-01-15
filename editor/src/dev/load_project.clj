@@ -70,9 +70,8 @@
   (du/log-time "Project loading"
     (dev/run-with-progress "Loading Nodes..."
       (fn load-nodes-with-progress [render-progress!]
-        (with-bindings {#'project/*load-cache* (atom #{})}
-          (du/measuring process-metrics :load-new-nodes
-            (#'project/load-nodes! project resource-node-ids render-progress! {} resource-metrics transaction-metrics)))))))
+        (du/measuring process-metrics :load-new-nodes
+          (#'project/load-nodes! project resource-node-ids render-progress! {} resource-metrics transaction-metrics))))))
 
 (defonce load-metrics
   (du/when-metrics

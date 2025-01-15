@@ -16,6 +16,9 @@ package com.defold.extension.pipeline.texture;
 
 import com.dynamo.bob.pipeline.Texc;
 import com.dynamo.bob.pipeline.TexcLibraryJni;
+import com.dynamo.graphics.proto.Graphics;
+
+import java.util.ArrayList;
 
 /**
  * Implementation of our base texture compressor, using BasisU
@@ -24,10 +27,31 @@ public class TextureCompressorBasisU implements ITextureCompressor {
 
     public static String TextureCompressorName = "BasisU";
 
+    private static final ArrayList<Graphics.TextureImage.TextureFormat> supportedTextureFormats = new ArrayList<>();
+    static {
+        supportedTextureFormats.add(Graphics.TextureImage.TextureFormat.TEXTURE_FORMAT_LUMINANCE);
+        supportedTextureFormats.add(Graphics.TextureImage.TextureFormat.TEXTURE_FORMAT_RGB);
+        supportedTextureFormats.add(Graphics.TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA);
+        supportedTextureFormats.add(Graphics.TextureImage.TextureFormat.TEXTURE_FORMAT_RGB_16BPP);
+        supportedTextureFormats.add(Graphics.TextureImage.TextureFormat.TEXTURE_FORMAT_RGBA_16BPP);
+        supportedTextureFormats.add(Graphics.TextureImage.TextureFormat.TEXTURE_FORMAT_LUMINANCE_ALPHA);
+    }
+
+    public static String GetMigratedCompressionPreset(Graphics.TextureFormatAlternative.CompressionLevel level) {
+        if (level == null)
+            level = Graphics.TextureFormatAlternative.CompressionLevel.FAST;
+        return switch (level) {
+            case FAST -> "BASISU_LOW";
+            case NORMAL -> "BASISU_MEDIUM";
+            case HIGH -> "BASISU_HIGH";
+            case BEST -> "BASISU_HIGHEST";
+        };
+    }
+
     public TextureCompressorBasisU() {
         // TODO: These should be read from config files!
         {
-            TextureCompressorPreset preset = new TextureCompressorPreset("BASISU_BEST", "1. BasisU Best", TextureCompressorName);
+            TextureCompressorPreset preset = new TextureCompressorPreset("BASISU_HIGHEST", "BasisU Highest", TextureCompressorName);
             preset.setOptionInt("rdo_uastc", 1);
             preset.setOptionInt("pack_uastc_flags", 0);
             preset.setOptionInt("rdo_uastc_dict_size", 4096);
@@ -37,7 +61,7 @@ public class TextureCompressorBasisU implements ITextureCompressor {
         }
 
         {
-            TextureCompressorPreset preset = new TextureCompressorPreset("BASISU_HIGH", "2. BasisU High", TextureCompressorName);
+            TextureCompressorPreset preset = new TextureCompressorPreset("BASISU_HIGH", "BasisU High", TextureCompressorName);
             preset.setOptionInt("rdo_uastc", 1);
             preset.setOptionInt("pack_uastc_flags", 1);  // cPackUASTCLevelFaster = 1 from basisu_uastc_enc.h
             preset.setOptionInt("rdo_uastc_dict_size", 8192);
@@ -47,7 +71,7 @@ public class TextureCompressorBasisU implements ITextureCompressor {
         }
 
         {
-            TextureCompressorPreset preset = new TextureCompressorPreset("BASISU_NORMAL", "3. BasisU Normal", TextureCompressorName);
+            TextureCompressorPreset preset = new TextureCompressorPreset("BASISU_MEDIUM", "BasisU Medium", TextureCompressorName);
             preset.setOptionInt("rdo_uastc", 0);
             preset.setOptionInt("pack_uastc_flags", 2); // cPackUASTCLevelDefault = 2 from basisu_uastc_enc.h
 
@@ -55,7 +79,7 @@ public class TextureCompressorBasisU implements ITextureCompressor {
         }
 
         {
-            TextureCompressorPreset preset = new TextureCompressorPreset("BASISU_FAST", "4. BasisU Fast", TextureCompressorName);
+            TextureCompressorPreset preset = new TextureCompressorPreset("BASISU_LOW", "BasisU Low", TextureCompressorName);
             preset.setOptionInt("rdo_uastc", 0);
             preset.setOptionInt("pack_uastc_flags", 1); // cPackUASTCLevelFaster = 1 from basisu_uastc_enc.h
 
@@ -99,6 +123,21 @@ public class TextureCompressorBasisU implements ITextureCompressor {
         }
 
         return TexcLibraryJni.BasisUEncode(settings);
+    }
+
+    @Override
+    public boolean supportsTextureFormat(Graphics.TextureImage.TextureFormat format) {
+        if (format == null) {
+            return false;
+        }
+        return supportedTextureFormats.contains(format);
+    }
+
+    @Override
+    public boolean supportsTextureCompressorPreset(TextureCompressorPreset preset) {
+        Integer rdo_uastc = preset.getOptionInt("rdo_uastc");
+        Integer pack_uastc_flags = preset.getOptionInt("pack_uastc_flags");
+        return rdo_uastc != null && pack_uastc_flags != null;
     }
 }
 
