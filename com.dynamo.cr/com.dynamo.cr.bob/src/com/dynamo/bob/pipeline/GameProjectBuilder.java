@@ -228,18 +228,34 @@ public class GameProjectBuilder extends Builder {
         return resourcePadding;
     }
 
+    private boolean isSound(IResource resource)
+    {
+        String path = resource.getPath();
+        String suffix = path.substring(path.lastIndexOf(".") + 1);
+        return suffix.equals("wavc") || suffix.equals("oggc");
+    }
+
     private void createArchive(ArchiveBuilder archiveBuilder, Collection<IResource> resources, RandomAccessFile archiveIndex, RandomAccessFile archiveData, List<String> excludedResources) throws IOException, CompileExceptionError {
         TimeProfiler.start("createArchive");
         logger.info("GameProjectBuilder.createArchive");
         long tstart = System.currentTimeMillis();
 
         boolean doCompress = project.getProjectProperties().getBooleanValue("project", "compress_archive", true);
+        boolean soundStreaming = project.getProjectProperties().getBooleanValue("sound", "stream_enabled", false); // if no value set use old hardcoded path (backward compatability)
+        boolean compressSounds = soundStreaming ? false : doCompress; // We want to be able to read directly from the files as-is (without compression)
+
         HashMap<String, EnumSet<Project.OutputFlags>> outputs = project.getOutputs();
         for (IResource resource : resources) {
             String path = resource.getAbsPath();
             EnumSet<Project.OutputFlags> flags = outputs.get(path);
             boolean compress = (flags == null || !flags.contains(Project.OutputFlags.UNCOMPRESSED)) && doCompress;
             boolean encrypt = (flags != null && flags.contains(Project.OutputFlags.ENCRYPTED));
+
+            // TODO: Ideally, we'd have a .sounddata resource to do this for us, and for the user to be able to manually control settings
+            if (soundStreaming && isSound(resource)) {
+                compress = false;
+            }
+
             archiveBuilder.add(path, compress, encrypt);
         }
 
