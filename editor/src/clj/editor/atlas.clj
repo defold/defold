@@ -1115,7 +1115,7 @@
   [_node-id] 
   [:move-pivot-xy])
 
-(defmethod scene-tools/manip-movable? ::AtlasImage [_node-id] true)
+(defmethod scene-tools/manip-pivot-movable? ::AtlasImage [_node-id] true)
 
 (defn- snap-pivot
   [pivot]

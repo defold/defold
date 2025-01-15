@@ -31,6 +31,9 @@
 
 (set! *warn-on-reflection* true)
 
+(defmulti manip-pivot-movable? (fn [node-id] (g/node-type-kw node-id)))
+(defmethod manip-pivot-movable? :default [_] false)
+
 (defmulti manip-movable? (fn [node-id] (g/node-type-kw node-id)))
 (defmethod manip-movable? :default [_] false)
 (defmulti manip-move (fn [evaluation-context node-id ^Vector3d delta]
@@ -378,7 +381,7 @@
   {:move {:manips-fn manip-move-manips
           :manip-spaces #{:local :world}
           :label "Move"
-          :filter-fn manip-movable?}
+          :filter-fn #(or (manip-movable? %) (manip-pivot-movable? %))}
    :rotate {:manips-fn manip-rotate-manips
             :manip-spaces #{:local :world}
             :label "Rotate"

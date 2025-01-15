@@ -1671,6 +1671,4 @@
   (manip-scale-scene-node evaluation-context node-id delta))
 
 (defn selection->movable [selection]
-  (handler/selection->node-ids selection (fn [node-id] 
-                                           (and (scene-tools/manip-movable? node-id)
-                                                (g/maybe-node-value node-id :transform-properties)))))
+  (handler/selection->node-ids selection scene-tools/manip-movable?))
