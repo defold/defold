@@ -240,6 +240,7 @@ public class GameProjectBuilder extends Builder {
             EnumSet<Project.OutputFlags> flags = outputs.get(path);
             boolean compress = (flags == null || !flags.contains(Project.OutputFlags.UNCOMPRESSED)) && doCompress;
             boolean encrypt = (flags != null && flags.contains(Project.OutputFlags.ENCRYPTED));
+
             archiveBuilder.add(path, compress, encrypt);
         }
 
