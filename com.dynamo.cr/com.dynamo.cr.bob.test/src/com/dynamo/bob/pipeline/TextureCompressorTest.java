@@ -41,9 +41,9 @@ public class TextureCompressorTest extends AbstractProtoBuilderTest {
 
     @Test
     public void testDefaultCompressorExists() {
-        ITextureCompressor defaultCompressor = TextureCompression.getCompressor(TextureCompressorDefault.TextureCompressorName);
+        ITextureCompressor defaultCompressor = TextureCompression.getCompressor(TextureCompressorUncompressed.TextureCompressorName);
         assertNotNull(defaultCompressor);
-        assertEquals(defaultCompressor.getName(), TextureCompressorDefault.TextureCompressorName);
+        assertEquals(defaultCompressor.getName(), TextureCompressorUncompressed.TextureCompressorName);
     }
 
     @Test

@@ -32,7 +32,6 @@ local function create_buffer(data)
 
     for i = 1, size-1 do
         stream[i] = string.byte(data, i)
-        break
     end
     return buf
 end

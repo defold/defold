@@ -27,6 +27,7 @@ import com.dynamo.bob.CopyBuilder;
 import com.dynamo.bob.util.Exec;
 import com.dynamo.bob.util.Exec.Result;
 import com.dynamo.bob.Platform;
+import com.dynamo.bob.Project;
 import com.dynamo.bob.Task;
 import com.dynamo.bob.fs.IResource;
 
@@ -63,4 +64,16 @@ public class OggBuilder extends CopyBuilder{
         return super.create(input);
     }
 
+    @Override
+    public void build(Task task) throws IOException {
+        super.build(task);
+
+        boolean soundStreaming = project.getProjectProperties().getBooleanValue("sound", "stream_enabled", false); // if no value set use old hardcoded path (backward compatability)
+        boolean compressSounds = soundStreaming ? false : true; // We want to be able to read directly from the files as-is (without compression)
+        for(IResource res : task.getOutputs()) {
+            if (!compressSounds) {
+                project.addOutputFlags(res.getAbsPath(), Project.OutputFlags.UNCOMPRESSED);
+            }
+        }
+    }
 }

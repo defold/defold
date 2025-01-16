@@ -83,20 +83,20 @@ public class TextureGenerator {
         pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_BC7, Texc.PixelFormat.PF_RGBA_BC7.getValue());
 
         // ASTC formats
-        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_4x4, Texc.PixelFormat.PF_RGBA_ASTC_4x4.getValue());
-        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_5x4, Texc.PixelFormat.PF_RGBA_ASTC_5x4.getValue());
-        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_5x5, Texc.PixelFormat.PF_RGBA_ASTC_5x5.getValue());
-        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_6x5, Texc.PixelFormat.PF_RGBA_ASTC_6x5.getValue());
-        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_6x6, Texc.PixelFormat.PF_RGBA_ASTC_6x6.getValue());
-        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_8x5, Texc.PixelFormat.PF_RGBA_ASTC_8x5.getValue());
-        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_8x6, Texc.PixelFormat.PF_RGBA_ASTC_8x6.getValue());
-        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_8x8, Texc.PixelFormat.PF_RGBA_ASTC_8x8.getValue());
-        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_10x5, Texc.PixelFormat.PF_RGBA_ASTC_10x5.getValue());
-        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_10x6, Texc.PixelFormat.PF_RGBA_ASTC_10x6.getValue());
-        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_10x8, Texc.PixelFormat.PF_RGBA_ASTC_10x8.getValue());
-        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_10x10, Texc.PixelFormat.PF_RGBA_ASTC_10x10.getValue());
-        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_12x10, Texc.PixelFormat.PF_RGBA_ASTC_12x10.getValue());
-        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_12x12, Texc.PixelFormat.PF_RGBA_ASTC_12x12.getValue());
+        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_4X4, Texc.PixelFormat.PF_RGBA_ASTC_4x4.getValue());
+        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_5X5, Texc.PixelFormat.PF_RGBA_ASTC_5x5.getValue());
+        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_5X4, Texc.PixelFormat.PF_RGBA_ASTC_5x4.getValue());
+        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_6X5, Texc.PixelFormat.PF_RGBA_ASTC_6x5.getValue());
+        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_6X6, Texc.PixelFormat.PF_RGBA_ASTC_6x6.getValue());
+        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_8X5, Texc.PixelFormat.PF_RGBA_ASTC_8x5.getValue());
+        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_8X6, Texc.PixelFormat.PF_RGBA_ASTC_8x6.getValue());
+        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_8X8, Texc.PixelFormat.PF_RGBA_ASTC_8x8.getValue());
+        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_10X5, Texc.PixelFormat.PF_RGBA_ASTC_10x5.getValue());
+        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_10X6, Texc.PixelFormat.PF_RGBA_ASTC_10x6.getValue());
+        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_10X8, Texc.PixelFormat.PF_RGBA_ASTC_10x8.getValue());
+        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_10X10, Texc.PixelFormat.PF_RGBA_ASTC_10x10.getValue());
+        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_12X10, Texc.PixelFormat.PF_RGBA_ASTC_12x10.getValue());
+        pixelFormatLUT.put(TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_12X12, Texc.PixelFormat.PF_RGBA_ASTC_12x12.getValue());
     }
 
     private static BufferedImage convertImage(BufferedImage origImage, int type) {
@@ -154,10 +154,10 @@ public class TextureGenerator {
                     return TextureFormat.TEXTURE_FORMAT_RGB_BC1;
                 return TextureFormat.TEXTURE_FORMAT_RGBA_ETC2;
             }
-            case TEXTURE_FORMAT_RGBA_ASTC_4x4 -> {
+            case TEXTURE_FORMAT_RGBA_ASTC_4X4 -> {
                 if (componentCount < 4)
                     return TextureFormat.TEXTURE_FORMAT_RGB_BC1;
-                return TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_4x4;
+                return TextureFormat.TEXTURE_FORMAT_RGBA_ASTC_4X4;
             }
             case TEXTURE_FORMAT_RGBA_BC3 -> {
                 if (componentCount < 4)
@@ -210,7 +210,7 @@ public class TextureGenerator {
     }
 
     private static ITextureCompressor getDefaultTextureCompressor() {
-        return TextureCompression.getCompressor(TextureCompressorDefault.TextureCompressorName);
+        return TextureCompression.getCompressor(TextureCompressorUncompressed.TextureCompressorName);
     }
 
     private static List<Long> GenerateImages(long image, int width, int height, boolean generateMipChain) throws TextureGeneratorException {
@@ -294,16 +294,24 @@ public class TextureGenerator {
             ITextureCompressor textureCompressor = TextureCompression.getCompressor(compressorName);
 
             if (textureCompressor == null) {
-                if (!compressorName.equals(TextureCompressorDefault.TextureCompressorName)) {
+                if (!compressorName.equals(TextureCompressorUncompressed.TextureCompressorName)) {
                     logger.warning(String.format("Texture compressor '%s' not found, using the default texture compressor.", compressorName));
                 }
                 textureCompressor = getDefaultTextureCompressor();
-                compressorPresetName = "DEFAULT";
+                compressorPresetName = TextureCompressorUncompressed.TextureCompressorUncompressedPresetName;
             }
 
             TextureCompressorPreset textureCompressorPreset = TextureCompression.getPreset(compressorPresetName);
             if (textureCompressorPreset == null) {
-                throw new TextureGeneratorException("Texture compressor preset not found.");
+                throw new TextureGeneratorException("Texture compressor preset '" + compressorPresetName + "' not found.");
+            }
+
+            if (!textureCompressor.supportsTextureFormat(textureFormat)) {
+                throw new TextureGeneratorException("Texture compressor doesn't support the texture format " + textureFormat);
+            }
+
+            if (!textureCompressor.supportsTextureCompressorPreset(textureCompressorPreset)) {
+                throw new TextureGeneratorException("Texture compressor doesn't support the texture compressor preset " + compressorPresetName);
             }
 
             int newWidth  = image.getWidth();
@@ -508,7 +516,7 @@ public class TextureGenerator {
     private static String compressionTypeToTextureCompressor(TextureImage.CompressionType type) {
         return switch (type) {
             case COMPRESSION_TYPE_DEFAULT,
-                 COMPRESSION_TYPE_WEBP -> TextureCompressorDefault.TextureCompressorName;
+                 COMPRESSION_TYPE_WEBP -> TextureCompressorUncompressed.TextureCompressorName;
             case COMPRESSION_TYPE_BASIS_ETC1S,
                  COMPRESSION_TYPE_BASIS_UASTC,
                  COMPRESSION_TYPE_WEBP_LOSSY -> TextureCompressorBasisU.TextureCompressorName;
@@ -519,17 +527,17 @@ public class TextureGenerator {
     private static String compressionLevelToTextureCompressorPreset(TextureImage.CompressionType type, TextureFormatAlternative.CompressionLevel level) {
         // Convert from basis to basis preset
         if (type == TextureImage.CompressionType.COMPRESSION_TYPE_BASIS_UASTC || type == TextureImage.CompressionType.COMPRESSION_TYPE_BASIS_ETC1S) {
-            return "BASISU_" + level.toString();
+            return TextureCompressorBasisU.GetMigratedCompressionPreset(level);
         } else if (type == TextureImage.CompressionType.COMPRESSION_TYPE_ASTC) {
-            return "ASTC_" + level.toString();
+            return TextureCompressorASTC.GetMigratedCompressionPreset(level);
         } else if (type == TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT) {
-            return "DEFAULT";
+            return TextureCompressorUncompressed.GetMigratedCompressionPreset();
         }
         return null;
     }
 
     private static TextureImage.CompressionType textureCompressorToCompressionType(String compressor) {
-        if (compressor.equals(TextureCompressorDefault.TextureCompressorName)) {
+        if (compressor.equals(TextureCompressorUncompressed.TextureCompressorName)) {
             return TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT;
         } else if (compressor.equals(TextureCompressorBasisU.TextureCompressorName)) {
             return TextureImage.CompressionType.COMPRESSION_TYPE_BASIS_UASTC;
@@ -569,22 +577,20 @@ public class TextureGenerator {
                     TextureImage.CompressionType compressionType;
 
                     // We pick a "new" format based on the input image component count and a "target" format.
-                    // For example we would rather have a texture format with 3 channels if the input
+                    // For example, we would rather have a texture format with 3 channels if the input
                     // image has 3 channels, even if the texture profile specified a format with 4 channels.
                     textureFormat = pickOptimalFormat(componentCount, textureFormat);
 
-                    // Legacy options
-                    boolean hasCompressionLevel = platformProfile.getFormats(i).hasCompressionLevel();
-                    boolean hasCompressionType = platformProfile.getFormats(i).hasCompressionType();
-
                     if (compress) {
-                        if (hasCompressionType) {
+                        // If the textureCompressor field is empty, we use the leagcy settings
+                        if (textureCompressor.isEmpty()) {
                             compressionType = textureFormatToSupportedCompressionTypeOrDefault(textureFormat, platformProfile.getFormats(i).getCompressionType());
                         } else {
                             compressionType = textureCompressorToCompressionType(textureCompressor);
                         }
 
-                        if (hasCompressionLevel) {
+                        // If the textureCompressorPreset field is empty, we use the leagcy pipeline
+                        if (textureCompressorPreset.isEmpty()) {
                             TextureFormatAlternative.CompressionLevel compressionLevel = platformProfile.getFormats(i).getCompressionLevel();
                             textureCompressor = compressionTypeToTextureCompressor(compressionType);
                             textureCompressorPreset = compressionLevelToTextureCompressorPreset(compressionType, compressionLevel);
@@ -619,7 +625,7 @@ public class TextureGenerator {
 
             // Guess texture format based on number color components of input image
             TextureFormat textureFormat = pickOptimalFormat(componentCount, TextureFormat.TEXTURE_FORMAT_RGBA);
-            TextureImage.Image.Builder imageBuilder = generateFromColorAndFormat(null, image, colorModel, textureFormat, "Default", "DEFAULT", true, 0, true, flipAxis);
+            TextureImage.Image.Builder imageBuilder = generateFromColorAndFormat(null, image, colorModel, textureFormat, TextureCompressorUncompressed.TextureCompressorName, TextureCompressorUncompressed.TextureCompressorUncompressedPresetName, true, 0, true, flipAxis);
             imageBuilder.setCompressionType(TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT);
             textureBuilder.addAlternatives(imageBuilder);
             textureBuilder.setCount(1);

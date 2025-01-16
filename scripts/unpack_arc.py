@@ -57,7 +57,17 @@ def xtea_decryptCTR(key, data, n=32):
     return data
 
 if __name__ == "__main__":
-    usage = '''usage: %prog [options] input
+    usage = '''usage: %prog [options] input output_dir
+
+    input - May be either a directory containing game.arc* files or
+            a json file containing path mappings using these keys
+
+                "game.projectc"
+                "game.dmanifest"
+                "game.arcd"
+                "game.arci"
+
+    output_dir - A directory where all unpacked files end up
 '''
     parser = optparse.OptionParser(usage)
 
@@ -66,6 +76,10 @@ if __name__ == "__main__":
                       help = 'Whether to automatically uncompress files')
 
     options, args = parser.parse_args()
+
+    if len(args) < 2:
+        parser.print_help()
+        sys.exit(1)
 
     resources = args[0]
     output = args[1]
