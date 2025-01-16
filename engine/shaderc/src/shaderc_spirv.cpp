@@ -1,4 +1,19 @@
+// Copyright 2020-2025 The Defold Foundation
+// Copyright 2014-2020 King
+// Copyright 2009-2014 Ragnar Svensson, Christian Murray
+// Licensed under the Defold License version 1.0 (the "License"); you may not use
+// this file except in compliance with the License.
+//
+// You may obtain a copy of the License, together with FAQs at
+// https://www.defold.com/license
+//
+// Unless required by applicable law or agreed to in writing, software distributed
+// under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+// CONDITIONS OF ANY KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations under the License.
 
+#include <stdlib.h>
+#include <string.h>
 
 #include <dmsdk/dlib/array.h>
 
@@ -158,41 +173,5 @@ namespace dmShaderc
         result->m_Data.SetSize(compiler->m_SPIRVCodeSize);
         memcpy(result->m_Data.Begin(), compiler->m_SPIRVCode, compiler->m_SPIRVCodeSize);
         return result;
-    }
-
-    int DebugGetSPIRVResourceValue(HShaderContext context, ShaderCompilerSPIRV* compiler, ShaderCompilerSPIRV::RemapResourceEntry::Type requested_type, uint32_t binding)
-    {
-        uint32_t* source = (uint32_t*) compiler->m_SPIRVCode;
-        uint32_t num_words_total = compiler->m_SPIRVCodeSize / sizeof(uint32_t);
-        uint32_t spirv_header_size_in_words = 5; // 20 bytes
-
-        for (uint32_t i = spirv_header_size_in_words; i < num_words_total;)
-        {
-            uint32_t word_count = source[i] >> 16;
-            uint32_t opcode     = source[i] & 0xFFFF;
-
-            if (opcode == SpvOpDecorate)
-            {
-                uint32_t type = source[i + 2];
-                uint32_t value = source[i + 3];
-                ShaderCompilerSPIRV::RemapResourceEntry* entry = 0;
-
-                if ((type == SpvDecorationLocation && requested_type == ShaderCompilerSPIRV::RemapResourceEntry::TYPE_LOCATION) ||
-                    (type == SpvDecorationBinding && requested_type == ShaderCompilerSPIRV::RemapResourceEntry::TYPE_BINDING) ||
-                    (type == SpvDecorationDescriptorSet && requested_type == ShaderCompilerSPIRV::RemapResourceEntry::TYPE_SET))
-                {
-                    return value;
-                }
-
-                if (entry)
-                {
-                    return value;
-                }
-            }
-
-            i += word_count;
-        }
-
-        return -1;
     }
 }

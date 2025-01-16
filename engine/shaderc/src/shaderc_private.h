@@ -85,7 +85,6 @@ namespace dmShaderc
     void                 SetResourceBindingSPIRV(HShaderContext context, ShaderCompilerSPIRV* compiler, uint64_t name_hash, uint8_t binding);
     void                 SetResourceSetSPIRV(HShaderContext context, ShaderCompilerSPIRV* compiler, uint64_t name_hash, uint8_t set);
     ShaderCompileResult* CompileSPIRV(HShaderContext context, ShaderCompilerSPIRV* compiler, const ShaderCompilerOptions& options);
-    int                  DebugGetSPIRVResourceValue(HShaderContext context, ShaderCompilerSPIRV* compiler, ShaderCompilerSPIRV::RemapResourceEntry::Type requested_type, uint32_t binding);
 
     ShaderCompilerSPVC*  NewShaderCompilerSPVC(HShaderContext context, ShaderLanguage language);
     void                 DeleteShaderCompilerSPVC(ShaderCompilerSPVC* compiler);

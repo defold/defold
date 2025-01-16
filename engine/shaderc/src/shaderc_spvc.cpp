@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -481,11 +481,6 @@ namespace dmShaderc
         result->m_Data.SetSize(strlen(compile_result));
         memcpy(result->m_Data.Begin(), compile_result, result->m_Data.Size());
         return result;
-
-        // ShaderCompileResult compile_result;
-        // compile_result.m_Data = (const char*) result;
-        // compile_result.m_DataSize = strlen(result);
-        // return compile_result;
     }
 
     static const char* ResolveTypeName(const ShaderReflection* reflection, const ResourceType& type)
