@@ -27,7 +27,7 @@ import com.dynamo.bob.CompileExceptionError;
 public abstract class Publisher {
 
     private final PublisherSettings settings;
-    private final Map<File, ArchiveEntry> entries = new HashMap<File, ArchiveEntry>();
+    private final Map<String, ArchiveEntry> entries = new HashMap<String, ArchiveEntry>();
     protected String platform = "";
 
     public Publisher(PublisherSettings settings) {
@@ -52,7 +52,7 @@ public abstract class Publisher {
         return this.settings;
     }
 
-    public final Map<File, ArchiveEntry> getEntries() {
+    public final Map<String, ArchiveEntry> getEntries() {
         return this.entries;
     }
     

@@ -145,6 +145,7 @@ public class ZipPublisher extends Publisher {
         final String archiveEntryHexdigest = entry.getHexDigest();
         final String archiveEntryName = entry.getName();
         final String zipEntryName = (archiveEntryHexdigest != null) ? archiveEntryHexdigest : archiveEntryName;
+        getEntries().put(archiveEntryName, entry);
         synchronized (zipEntries) {
             if (zipEntries.contains(zipEntryName)) {
                 return;
