@@ -2325,15 +2325,20 @@
 
 (defn handle-scroll! [view-node ^ScrollEvent event]
   (.consume event)
-  (when (set-properties! view-node :navigation
-                         (data/scroll (get-property view-node :lines)
-                                      (get-property view-node :scroll-x)
-                                      (get-property view-node :scroll-y)
-                                      (get-property view-node :layout)
-                                      (get-property view-node :gesture-start)
-                                      (.getDeltaX event)
-                                      (.getDeltaY event)))
-    (hide-suggestions! view-node)))
+  (when (if (or (.isControlDown event) 
+                (.isMetaDown event))
+          (-> (ui/contexts (ui/main-scene))
+              (ui/invoke-handler (cond (pos? (.getDeltaY event)) :zoom-in
+                                       (neg? (.getDeltaY event)) :zoom-out)))
+          (set-properties! view-node :navigation
+                           (data/scroll (get-property view-node :lines)
+                                        (get-property view-node :scroll-x)
+                                        (get-property view-node :scroll-y)
+                                        (get-property view-node :layout)
+                                        (get-property view-node :gesture-start)
+                                        (.getDeltaX event)
+                                        (.getDeltaY event))))
+      (hide-suggestions! view-node)))
 
 ;; -----------------------------------------------------------------------------
 
