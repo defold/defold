@@ -1304,12 +1304,24 @@ If you do not specifically require different script states, consider changing th
           (attach-debugger! workspace project prefs debug-view render-build-error!)
           (run-with-debugger! workspace project prefs debug-view render-build-error! web-server))))))
 
+(def ^:private rebuild-dialog-info
+  {:title "Rebuild Project?"
+   :icon :icon/circle-question
+   :header "Are you sure you want to rebuild the project?"
+   :buttons [{:text "Cancel"
+              :cancel-button true
+              :result false}
+             {:text "Rebuild"
+              :default-button true
+              :result true}]})
+
 (handler/defhandler :rebuild :global
   (enabled? [] (not (build-in-progress?)))
   (run [project workspace prefs web-server build-errors-view debug-view main-stage tool-tab-pane]
-    (debug-view/detach! debug-view)
-    (workspace/clear-build-cache! workspace)
-    (build-handler project workspace prefs web-server build-errors-view main-stage tool-tab-pane)))
+    (when (dialogs/make-confirmation-dialog rebuild-dialog-info)
+      (debug-view/detach! debug-view)
+      (workspace/clear-build-cache! workspace)
+      (build-handler project workspace prefs web-server build-errors-view main-stage tool-tab-pane))))
 
 (defn- start-new-log-pipe!
   ^PipedOutputStream []
@@ -1336,8 +1348,9 @@ If you do not specifically require different script states, consider changing th
 
 (handler/defhandler :rebuild-html5 :global
   (run [project prefs web-server build-errors-view changes-view main-stage tool-tab-pane]
-       (build-html5! project prefs web-server build-errors-view changes-view main-stage tool-tab-pane
-                     bob/rebuild-html5-bob-commands)))
+       (when (dialogs/make-confirmation-dialog rebuild-dialog-info)
+         (build-html5! project prefs web-server build-errors-view changes-view main-stage tool-tab-pane
+                       bob/rebuild-html5-bob-commands))))
 
 (handler/defhandler :build-html5 :global
   (run [project prefs web-server build-errors-view changes-view main-stage tool-tab-pane]
