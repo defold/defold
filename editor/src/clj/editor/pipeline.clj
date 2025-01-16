@@ -151,13 +151,13 @@
       (and (.exists f) (= mtime (.lastModified f)) (= size (.length f))))))
 
 (defn- to-disk! [artifact content-hash]
-  (assert (or (some? (:build-fn artifact)) (some? (:content artifact))))
+  (assert (or (some? (:write-content-fn artifact)) (some? (:content artifact))))
   (fs/create-parent-directories! (io/as-file (:resource artifact)))
   (let [^bytes content (:content artifact)
-        build-fn (:build-fn artifact)
-        sha1-hash (if build-fn
-                    ;; The build-fn returns the hash of the content
-                    (build-fn (:resource artifact) (:user-data artifact))
+        write-content-fn (:write-content-fn artifact)
+        sha1-hash (if write-content-fn
+                    ;; The write-content-fn returns the hash of the content
+                    (write-content-fn (:resource artifact) (:user-data artifact))
                     ;; otherwise, we write and hash the content
                     (with-open [out (io/output-stream (:resource artifact))]
                       (.write out content)

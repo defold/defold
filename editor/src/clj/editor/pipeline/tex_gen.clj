@@ -126,7 +126,7 @@
   (let [preview-profile (make-preview-profile texture-profile)]
     (make-cubemap-texture-images images preview-profile false)))
 
-(defn build-texture-resource-fn [resource user-data]
+(defn write-texturec-content-fn [resource user-data]
   (let [digest-output-stream
         (-> resource
             (io/output-stream)

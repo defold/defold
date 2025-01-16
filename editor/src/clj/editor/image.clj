@@ -39,7 +39,7 @@
       [image]
       (let [texture-generator-result (tex-gen/make-texture-image image texture-profile compress?)]
         {:resource resource
-         :build-fn tex-gen/build-texture-resource-fn
+         :write-content-fn tex-gen/write-texturec-content-fn
          :user-data {:texture-generator-result texture-generator-result}}))))
 
 (defn make-texture-build-target
@@ -61,7 +61,7 @@
       (let [texture-generator-results (mapv #(tex-gen/make-texture-image % texture-profile compress?) images)
             ^TextureGenerator$GenerateResult combined-texture-image (tex-gen/assemble-texture-images texture-generator-results texture-page-count)]
         {:resource resource
-         :build-fn tex-gen/build-texture-resource-fn
+         :write-content-fn tex-gen/write-texturec-content-fn
          :user-data {:texture-generator-result combined-texture-image}}))))
 
 (defn make-array-texture-build-target

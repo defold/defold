@@ -146,7 +146,7 @@
       (let [texture-images (tex-gen/make-cubemap-texture-images images texture-profile compress?)
             cubemap-texture-image-generate-result (tex-gen/assemble-cubemap-texture-images texture-images)]
         {:resource resource
-         :build-fn tex-gen/build-texture-resource-fn
+         :write-content-fn tex-gen/write-texturec-content-fn
          :user-data {:texture-generator-result cubemap-texture-image-generate-result}}))))
 
 (def ^:private cubemap-dir->property
