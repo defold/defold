@@ -297,6 +297,10 @@ namespace dmShaderc
         ShaderContext* context = (ShaderContext*) malloc(sizeof(ShaderContext));
         memset(context, 0, sizeof(ShaderContext));
 
+        context->m_ShaderCode = (uint8_t*) malloc(source_size);
+        context->m_ShaderCodeSize = source_size;
+        memcpy(context->m_ShaderCode, source, source_size);
+
         SpvId* as_spv_ptr = (SpvId*) source;
         size_t word_count = source_size / sizeof(SpvId);
 
@@ -316,6 +320,7 @@ namespace dmShaderc
     void DeleteShaderContext(HShaderContext context)
     {
         spvc_context_destroy(context->m_SPVCContext);
+        free(context->m_ShaderCode);
         free(context);
     }
 
@@ -416,7 +421,7 @@ namespace dmShaderc
         SetBindingOrSetForType(compiler->m_SPVCCompiler, context->m_Resources, SPVC_RESOURCE_TYPE_SEPARATE_SAMPLERS, name_hash, 0, &set);
     }
 
-    const char* CompileSPVC(HShaderContext context, ShaderCompilerSPVC* compiler, const ShaderCompilerOptions& options)
+    ShaderCompileResult* CompileSPVC(HShaderContext context, ShaderCompilerSPVC* compiler, const ShaderCompilerOptions& options)
     {
         spvc_compiler_options spv_options = NULL;
         spvc_compiler_create_compiler_options(compiler->m_SPVCCompiler, &spv_options);
@@ -469,7 +474,14 @@ namespace dmShaderc
 
         const char *result = NULL;
         spvc_compiler_compile(compiler->m_SPVCCompiler, &result);
-        return result;
+
+
+        return 0;
+
+        // ShaderCompileResult compile_result;
+        // compile_result.m_Data = (const char*) result;
+        // compile_result.m_DataSize = strlen(result);
+        // return compile_result;
     }
 
     static const char* ResolveTypeName(const ShaderReflection* reflection, const ResourceType& type)

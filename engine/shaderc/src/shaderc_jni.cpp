@@ -82,16 +82,16 @@ static jbyteArray Compile(JNIEnv* env, jclass cls, jlong context, jlong compiler
     dmShaderc::ShaderCompilerOptions shader_options;
     dmShaderc::jni::J2C_CreateShaderCompilerOptions(env, types, options, &shader_options);
 
-    const char* res = dmShaderc::Compile(shader_ctx, shader_compiler, shader_options);
+    dmShaderc::ShaderCompileResult* res = dmShaderc::Compile(shader_ctx, shader_compiler, shader_options);
 
-    if (!res)
+    if (!res->m_Data.Size())
     {
         dmLogError("Failed to compile shader");
         return 0;
     }
 
-    jbyteArray result = env->NewByteArray((jsize) strlen(res));
-    env->SetByteArrayRegion(result, 0, (jsize) strlen(res), (jbyte*) res);
+    jbyteArray result = env->NewByteArray((jsize) res->m_Data.Size());
+    env->SetByteArrayRegion(result, 0, (jsize) res->m_Data.Size(), (jbyte*) res->m_Data.Begin());
 
     return result;
 }

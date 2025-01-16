@@ -23,6 +23,9 @@ namespace dmShaderc
 {
     struct ShaderContext
     {
+        uint8_t*       m_ShaderCode;
+        uint32_t       m_ShaderCodeSize;
+
         spvc_context   m_SPVCContext;
         spvc_parsed_ir m_ParsedIR;
 
@@ -45,7 +48,35 @@ namespace dmShaderc
 
     struct ShaderCompilerSPIRV
     {
-        ShaderCompiler m_BaseCompiler;
+        struct RemapResourceEntry
+        {
+            uint64_t m_NameHash;
+
+            union Value
+            {
+                uint8_t m_Location;
+                uint8_t m_Binding;
+                uint8_t m_Set;
+                uint8_t m_Value;
+            };
+
+            enum Type
+            {
+                TYPE_LOCATION,
+                TYPE_BINDING,
+                TYPE_SET,
+            };
+
+            Type     m_Type;
+            uint32_t m_Id;
+            Value    m_OldValue;
+            Value    m_NewValue;
+        };
+
+        ShaderCompiler              m_BaseCompiler;
+        dmArray<RemapResourceEntry> m_RemapResources;
+        uint8_t*                    m_SPIRVCode;
+        uint32_t                    m_SPIRVCodeSize;
     };
 
     ShaderCompilerSPIRV* NewShaderCompilerSPIRV(HShaderContext context);
@@ -53,14 +84,15 @@ namespace dmShaderc
     void                 SetResourceLocationSPIRV(HShaderContext context, ShaderCompilerSPIRV* compiler, uint64_t name_hash, uint8_t location);
     void                 SetResourceBindingSPIRV(HShaderContext context, ShaderCompilerSPIRV* compiler, uint64_t name_hash, uint8_t binding);
     void                 SetResourceSetSPIRV(HShaderContext context, ShaderCompilerSPIRV* compiler, uint64_t name_hash, uint8_t set);
-    const char*          CompileSPIRV(HShaderContext context, ShaderCompilerSPIRV* compiler, const ShaderCompilerOptions& options);
+    ShaderCompileResult* CompileSPIRV(HShaderContext context, ShaderCompilerSPIRV* compiler, const ShaderCompilerOptions& options);
+    int                  DebugGetSPIRVResourceValue(HShaderContext context, ShaderCompilerSPIRV* compiler, ShaderCompilerSPIRV::RemapResourceEntry::Type requested_type, uint32_t binding);
 
     ShaderCompilerSPVC*  NewShaderCompilerSPVC(HShaderContext context, ShaderLanguage language);
     void                 DeleteShaderCompilerSPVC(ShaderCompilerSPVC* compiler);
     void                 SetResourceLocationSPVC(HShaderContext context, ShaderCompilerSPVC* compiler, uint64_t name_hash, uint8_t location);
     void                 SetResourceBindingSPVC(HShaderContext context, ShaderCompilerSPVC* compiler, uint64_t name_hash, uint8_t binding);
     void                 SetResourceSetSPVC(HShaderContext context, ShaderCompilerSPVC* compiler, uint64_t name_hash, uint8_t set);
-    const char*          CompileSPVC(HShaderContext context, ShaderCompilerSPVC* compiler, const ShaderCompilerOptions& options);
+    ShaderCompileResult* CompileSPVC(HShaderContext context, ShaderCompilerSPVC* compiler, const ShaderCompilerOptions& options);
 
 }
 

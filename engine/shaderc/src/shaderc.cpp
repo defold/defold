@@ -65,7 +65,7 @@ namespace dmShaderc
         }
     }
 
-    const char* Compile(HShaderContext context, HShaderCompiler compiler, const ShaderCompilerOptions& options)
+    ShaderCompileResult* Compile(HShaderContext context, HShaderCompiler compiler, const ShaderCompilerOptions& options)
     {
         if (compiler->m_Language == SHADER_LANGUAGE_SPIRV)
         {

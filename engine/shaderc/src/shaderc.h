@@ -207,6 +207,10 @@ namespace dmShaderc
         dmArray<ResourceTypeInfo> m_Types;
     };
 
+    struct ShaderCompileResult
+    {
+        dmArray<uint8_t> m_Data;
+    };
 
     // Shader context
     extern "C" DM_DLLEXPORT HShaderContext          NewShaderContext(const void* source, uint32_t source_size);
@@ -219,7 +223,7 @@ namespace dmShaderc
     extern "C" DM_DLLEXPORT void                    SetResourceLocation(HShaderContext context, HShaderCompiler compiler, uint64_t name_hash, uint8_t location);
     extern "C" DM_DLLEXPORT void                    SetResourceBinding(HShaderContext context, HShaderCompiler compiler, uint64_t name_hash, uint8_t binding);
     extern "C" DM_DLLEXPORT void                    SetResourceSet(HShaderContext context, HShaderCompiler compiler, uint64_t name_hash, uint8_t set);
-    extern "C" DM_DLLEXPORT const char*             Compile(HShaderContext context, HShaderCompiler compiler, const ShaderCompilerOptions& options);
+    extern "C" DM_DLLEXPORT ShaderCompileResult*    Compile(HShaderContext context, HShaderCompiler compiler, const ShaderCompilerOptions& options);
 
     void DebugPrintReflection(const ShaderReflection* reflection);
 }
