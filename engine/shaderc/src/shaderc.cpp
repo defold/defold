@@ -76,4 +76,9 @@ namespace dmShaderc
             return CompileSPVC(context, (ShaderCompilerSPVC*) compiler, options);
         }
     }
+
+    void FreeShaderCompileResult(ShaderCompileResult* result)
+    {
+        free(result);
+    }
 }

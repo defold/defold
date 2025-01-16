@@ -147,16 +147,14 @@ TEST(Shaderc, ModifyBindings)
     options.m_Version = 460;
 
     dmShaderc::ShaderCompileResult* dst = dmShaderc::Compile(shader_ctx, compiler, options);
-    /*
-    ASSERT_NE((void*) 0, dst.m_Data);
+    ASSERT_NE((void*) 0, dst->m_Data.Begin());
 
-    ASSERT_NE((const char*) 0, FindFirstOccurance((const char*) dst.m_Data, "layout(location = 3) in vec4 position;"));
-    ASSERT_NE((const char*) 0, FindFirstOccurance((const char*) dst.m_Data, "layout(location = 4) in vec3 normal;"));
-    ASSERT_NE((const char*) 0, FindFirstOccurance((const char*) dst.m_Data, "layout(location = 5) in vec2 tex_coord;"));
+    ASSERT_NE((const char*) 0, FindFirstOccurance((const char*) dst->m_Data.Begin(), "layout(location = 3) in vec4 position;"));
+    ASSERT_NE((const char*) 0, FindFirstOccurance((const char*) dst->m_Data.Begin(), "layout(location = 4) in vec3 normal;"));
+    ASSERT_NE((const char*) 0, FindFirstOccurance((const char*) dst->m_Data.Begin(), "layout(location = 5) in vec2 tex_coord;"));
 
-    ASSERT_NE((const char*) 0, FindFirstOccurance((const char*) dst.m_Data, "layout(binding = 3, std140) uniform matrices"));
-    ASSERT_NE((const char*) 0, FindFirstOccurance((const char*) dst.m_Data, "layout(binding = 4, std140) uniform extra"));
-    */
+    ASSERT_NE((const char*) 0, FindFirstOccurance((const char*) dst->m_Data.Begin(), "layout(binding = 3, std140) uniform matrices"));
+    ASSERT_NE((const char*) 0, FindFirstOccurance((const char*) dst->m_Data.Begin(), "layout(binding = 4, std140) uniform extra"));
 
     dmShaderc::DeleteShaderCompiler(compiler);
     dmShaderc::DeleteShaderContext(shader_ctx);
@@ -173,12 +171,10 @@ TEST(Shaderc, TestCompilerSPIRV)
 
     dmShaderc::ShaderCompilerOptions options;
     dmShaderc::ShaderCompileResult* dst = dmShaderc::Compile(shader_ctx, compiler, options);
-    /*
-    ASSERT_NE((void*) 0, dst.m_Data);
+    ASSERT_NE((void*) 0, dst->m_Data.Begin());
 
-    ASSERT_EQ(data_size, dst.m_DataSize);
-    ASSERT_EQ(0, memcmp(data, dst.m_Data, data_size));
-    */
+    ASSERT_EQ(data_size, dst->m_Data.Size());
+    ASSERT_EQ(0, memcmp(data, dst->m_Data.Begin(), data_size));
 
     dmShaderc::DeleteShaderCompiler(compiler);
     dmShaderc::DeleteShaderContext(shader_ctx);
@@ -202,12 +198,10 @@ TEST(Shaderc, ModifyBindingsSPIRV)
     dmShaderc::ShaderCompilerOptions options = {};
 
     dmShaderc::ShaderCompileResult* dst = dmShaderc::Compile(shader_ctx, compiler, options);
-    /*
-    ASSERT_NE((void*) 0, dst.m_Data);
+    ASSERT_NE((void*) 0, dst->m_Data.Begin());
 
-    // NOTE: dst.m_Data is only valid as long as the context is valid
     {
-        dmShaderc::HShaderContext spirv_shader_ctx = dmShaderc::NewShaderContext(dst.m_Data, dst.m_DataSize);
+        dmShaderc::HShaderContext spirv_shader_ctx = dmShaderc::NewShaderContext(dst->m_Data.Begin(), dst->m_Data.Size());
         const dmShaderc::ShaderReflection* spirv_reflection = dmShaderc::GetReflection(spirv_shader_ctx);
         ASSERT_NE((void*) 0, reflection);
 
@@ -221,7 +215,6 @@ TEST(Shaderc, ModifyBindingsSPIRV)
 
         dmShaderc::DeleteShaderContext(spirv_shader_ctx);
     }
-    */
 
     dmShaderc::DeleteShaderCompiler(compiler);
     dmShaderc::DeleteShaderContext(shader_ctx);

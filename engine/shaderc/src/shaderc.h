@@ -224,6 +224,7 @@ namespace dmShaderc
     extern "C" DM_DLLEXPORT void                    SetResourceBinding(HShaderContext context, HShaderCompiler compiler, uint64_t name_hash, uint8_t binding);
     extern "C" DM_DLLEXPORT void                    SetResourceSet(HShaderContext context, HShaderCompiler compiler, uint64_t name_hash, uint8_t set);
     extern "C" DM_DLLEXPORT ShaderCompileResult*    Compile(HShaderContext context, HShaderCompiler compiler, const ShaderCompilerOptions& options);
+    extern "C" DM_DLLEXPORT void                    FreeShaderCompileResult(ShaderCompileResult* result);
 
     void DebugPrintReflection(const ShaderReflection* reflection);
 }

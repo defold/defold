@@ -472,11 +472,15 @@ namespace dmShaderc
 
         spvc_compiler_build_combined_image_samplers(compiler->m_SPVCCompiler);
 
-        const char *result = NULL;
-        spvc_compiler_compile(compiler->m_SPVCCompiler, &result);
+        const char *compile_result = NULL;
+        spvc_compiler_compile(compiler->m_SPVCCompiler, &compile_result);
 
 
-        return 0;
+        ShaderCompileResult* result = (ShaderCompileResult*) malloc(sizeof(ShaderCompileResult));
+        result->m_Data.SetCapacity(strlen(compile_result));
+        result->m_Data.SetSize(strlen(compile_result));
+        memcpy(result->m_Data.Begin(), compile_result, result->m_Data.Size());
+        return result;
 
         // ShaderCompileResult compile_result;
         // compile_result.m_Data = (const char*) result;

@@ -93,6 +93,8 @@ static jbyteArray Compile(JNIEnv* env, jclass cls, jlong context, jlong compiler
     jbyteArray result = env->NewByteArray((jsize) res->m_Data.Size());
     env->SetByteArrayRegion(result, 0, (jsize) res->m_Data.Size(), (jbyte*) res->m_Data.Begin());
 
+    dmShaderc::FreeShaderCompileResult(res);
+
     return result;
 }
 

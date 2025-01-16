@@ -153,12 +153,11 @@ namespace dmShaderc
             i += word_count;
         }
 
-        return 0;
-
-        // ShaderCompileResult result;
-        // result.m_Data     = (const char*) source;
-        // result.m_DataSize = compiler->m_SPIRVCodeSize;
-        // return result;
+        ShaderCompileResult* result = (ShaderCompileResult*) malloc(sizeof(ShaderCompileResult));
+        result->m_Data.SetCapacity(compiler->m_SPIRVCodeSize);
+        result->m_Data.SetSize(compiler->m_SPIRVCodeSize);
+        memcpy(result->m_Data.Begin(), compiler->m_SPIRVCode, compiler->m_SPIRVCodeSize);
+        return result;
     }
 
     int DebugGetSPIRVResourceValue(HShaderContext context, ShaderCompilerSPIRV* compiler, ShaderCompilerSPIRV::RemapResourceEntry::Type requested_type, uint32_t binding)
