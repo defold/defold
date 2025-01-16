@@ -25,7 +25,8 @@ jobs:
         path: |
           ${{ github.workspace }}/share/ext/build/luajit*.tar.gz
 
-  build-linux:
+
+  build-linux-arm:
     strategy:
       matrix:
         arch: [arm64-linux]
