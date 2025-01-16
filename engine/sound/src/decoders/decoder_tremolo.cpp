@@ -199,7 +199,8 @@ namespace dmSoundCodec
             (*skipped) += decoded;
             bytes -= decoded;
         }
-        return ret;
+
+        return (ret == RESULT_END_OF_STREAM && bytes != 0) ? RESULT_OK : ret;
     }
 
     static void TremoloCloseStream(HDecodeStream stream)
