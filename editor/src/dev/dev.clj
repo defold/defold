@@ -1252,7 +1252,7 @@
 
                                   :always
                                   (assoc :bytes (transduce (map (fn [^Graphics$TextureImage$Image image]
-                                                                  (.size (.getData image))))
+                                                                  (.getDataSize image)))
                                                            +
                                                            alternatives))))))}]
 

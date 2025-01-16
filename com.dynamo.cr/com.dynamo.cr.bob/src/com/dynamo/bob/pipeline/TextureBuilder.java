@@ -15,7 +15,6 @@
 package com.dynamo.bob.pipeline;
 
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 
 import com.dynamo.bob.Builder;
@@ -26,7 +25,6 @@ import com.dynamo.bob.Task.TaskBuilder;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.logging.Logger;
 import com.dynamo.bob.util.TextureUtil;
-import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
 
 @BuilderParams(name = "Texture", inExts = {".png", ".jpg"}, outExt = ".texturec", isCacheble = true)
@@ -60,18 +58,16 @@ public class TextureBuilder extends Builder {
         logger.fine("Compiling %s using profile %s", task.firstInput().getPath(), texProfile!=null?texProfile.getName():"<none>");
 
         ByteArrayInputStream is = new ByteArrayInputStream(task.firstInput().getContent());
-        TextureImage texture;
+
+        TextureGenerator.GenerateResult generateResult;
         try {
             boolean compress = project.option("texture-compression", "false").equals("true");
-            texture = TextureGenerator.generate(is, texProfile, compress);
+            generateResult = TextureGenerator.generate(is, texProfile, compress);
         } catch (TextureGeneratorException e) {
             throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
         }
 
-        ByteArrayOutputStream out = new ByteArrayOutputStream(1024 * 1024);
-        texture.writeTo(out);
-        out.close();
-        task.output(0).setContent(out.toByteArray());
+        TextureUtil.writeGenerateResultToResource(generateResult, task.output(0));
     }
 
 }
