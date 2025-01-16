@@ -83,6 +83,7 @@ excluded_files = [
     "editor/resources/templates/template.gui_script",
     "editor/resources/templates/template.render_script",
     "editor/resources/templates/template.lua",
+    "editor/test/resources/transpile_teal_project/main/main.script",
     "engine/resource/src/test/empty.script",
     "engine/resource/src/test/archive_data/file5.script",
     "engine/resource/src/test/archive_data/liveupdate.file6.script",
