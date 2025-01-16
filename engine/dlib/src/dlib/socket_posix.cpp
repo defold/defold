@@ -24,6 +24,11 @@
 #include <linux/if.h>
 #endif
 
+#if defined(__EMSCRIPTEN__)
+/// used for dmStrCpy
+#include <dlib/dstrings.h>
+#endif
+
 #if defined(__linux__) || defined(__MACH__) || defined(__EMSCRIPTEN__)
 #include <unistd.h>
 #include <errno.h>
@@ -216,9 +221,13 @@ namespace dmSocket
 
     static Result SetSockoptBool(Socket socket, int level, int name, bool option)
     {
+#if defined(__EMSCRIPTEN__)
+        return NATIVETORESULT(DM_SOCKET_ERRNO);
+#else
         int on = (int) option;
         int ret = setsockopt(socket, level, name, (char *) &on, sizeof(on));
         return ret >= 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO);
+#endif
     }
 
     Result SetReuseAddress(Socket socket, bool reuse)
@@ -239,6 +248,9 @@ namespace dmSocket
 
     Result AddMembership(Socket socket, Address multi_addr, Address interface_addr, int ttl)
     {
+#if defined(__EMSCRIPTEN__)
+        return RESULT_AFNOSUPPORT;
+#else
         int result = -1;
         if (IsSocketIPv4(socket))
         {
@@ -264,10 +276,14 @@ namespace dmSocket
         }
 
         return result == 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO);
+#endif
     }
 
     Result SetMulticastIf(Socket socket, Address address)
     {
+#if defined(__EMSCRIPTEN__)
+        return RESULT_AFNOSUPPORT;
+#else
         int result = -1;
         if (IsSocketIPv4(socket))
         {
@@ -291,6 +307,7 @@ namespace dmSocket
         }
 
         return result == 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO);
+#endif
     }
 
     Result Delete(Socket socket)
@@ -631,10 +648,15 @@ namespace dmSocket
 
     Result GetHostname(char* hostname, int hostname_length)
     {
+#if defined(__EMSCRIPTEN__)
+        dmStrlCpy(hostname, "emscripten", hostname_length);
+        return RESULT_OK;
+#else
         int r = gethostname(hostname, hostname_length);
         if (hostname_length > 0)
             hostname[hostname_length - 1] = '\0';
         return r == 0 ? RESULT_OK : NATIVETORESULT(DM_SOCKET_ERRNO);
+#endif
     }
 
 #if !defined(__APPLE__)
@@ -779,6 +801,9 @@ namespace dmSocket
 
     static Result SetSockoptTime(Socket socket, int level, int name, uint64_t time)
     {
+#if defined(__EMSCRIPTEN__)
+        return NATIVETORESULT(DM_SOCKET_ERRNO);
+#else
 #ifdef WIN32
         DWORD timeval = time / 1000;
         if (time > 0 && timeval == 0) {
@@ -799,6 +824,7 @@ namespace dmSocket
         {
             return RESULT_OK;
         }
+#endif
     }
 
     Result SetSendTimeout(Socket socket, uint64_t timeout)

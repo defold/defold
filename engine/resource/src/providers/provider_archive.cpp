@@ -234,6 +234,19 @@ namespace dmResourceProviderArchive
         return dmResourceProvider::RESULT_NOT_FOUND;
     }
 
+    static dmResourceProvider::Result ReadFilePartial(dmResourceProvider::HArchiveInternal internal, dmhash_t path_hash, const char* path, uint32_t offset, uint32_t size, uint8_t* buffer, uint32_t* nread)
+    {
+        GameArchiveFile* archive = (GameArchiveFile*)internal;
+        EntryInfo* entry = archive->m_EntryMap.Get(path_hash);
+        if (entry)
+        {
+            dmResourceArchive::ReadEntryPartial(archive->m_ArchiveIndex, entry->m_ArchiveInfo, offset, size, buffer, nread);
+            return dmResourceProvider::RESULT_OK;
+        }
+
+        return dmResourceProvider::RESULT_NOT_FOUND;
+    }
+
     static dmResourceProvider::Result GetManifest(dmResourceProvider::HArchiveInternal internal, dmResource::HManifest* out_manifest)
     {
         GameArchiveFile* archive = (GameArchiveFile*)internal;
@@ -247,12 +260,13 @@ namespace dmResourceProviderArchive
 
     static void SetupArchiveLoader(dmResourceProvider::ArchiveLoader* loader)
     {
-        loader->m_CanMount      = MatchesUri;
-        loader->m_Mount         = Mount;
-        loader->m_Unmount       = Unmount;
-        loader->m_GetManifest   = GetManifest;
-        loader->m_GetFileSize   = GetFileSize;
-        loader->m_ReadFile      = ReadFile;
+        loader->m_CanMount          = MatchesUri;
+        loader->m_Mount             = Mount;
+        loader->m_Unmount           = Unmount;
+        loader->m_GetManifest       = GetManifest;
+        loader->m_GetFileSize       = GetFileSize;
+        loader->m_ReadFile          = ReadFile;
+        loader->m_ReadFilePartial   = ReadFilePartial;
     }
 
     DM_DECLARE_ARCHIVE_LOADER(ResourceProviderArchive, "archive", SetupArchiveLoader);

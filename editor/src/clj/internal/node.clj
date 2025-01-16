@@ -89,7 +89,7 @@
 
 (defprotocol NodeType)
 
-(defn- node-type-deref? [x] (satisfies? NodeType x))
+(defn node-type-deref? [x] (satisfies? NodeType x))
 
 (defrecord NodeTypeRef [k]
   Ref
@@ -320,7 +320,7 @@
   gt/OverrideNode
   (clear-property [this basis property]
     (throw (ex-info (str "Not possible to clear property " property
-                         " of node type " (:name node-type)
+                         " of node type " (:name @node-type)
                          " since the node is not an override")
                     {:label property :node-type node-type})))
 
@@ -664,7 +664,7 @@
 
 (defn- all-available-arguments
   [description]
-  (set/union #{:_this}
+  (set/union #{:_this :_evaluation-context}
              (util/key-set (:input description))
              (util/key-set (:property description))
              (util/key-set (:output description))))
@@ -1315,7 +1315,6 @@
                   (pair
                     argument
                     (condp = argument
-                      :_node-id `(gt/node-id ~node-sym)
                       label `(gt/get-property ~node-sym (:basis ~evaluation-context-sym) ~label)
                       (fnk-argument-form description label argument node-sym node-id-sym evaluation-context-sym)))))
               arguments)
@@ -1326,14 +1325,18 @@
       `(let [~arguments-sym ~argument-forms]
          ~(argument-error-aggregate-form checked-arguments node-id-sym label arguments-sym `(~runtime-fnk-expr ~arguments-sym))))))
 
+(defn- collect-raw-property-value-form
+  [property-label-sym node-sym node-id-sym evaluation-context-sym]
+  (with-tracer-calls-form node-id-sym property-label-sym evaluation-context-sym :raw-property
+    (check-dry-run-form evaluation-context-sym `(gt/get-property ~node-sym (:basis ~evaluation-context-sym) ~property-label-sym))))
+
 (defn- collect-property-value-form
   [description property-label node-sym node-id-sym evaluation-context-sym]
   (let [property-definition (get-in description [:property property-label])
         default? (not (:value property-definition))
         output-fn (get-in description [:property property-label :value :fn])]
     (if default?
-      (with-tracer-calls-form node-id-sym property-label evaluation-context-sym :raw-property
-        (check-dry-run-form evaluation-context-sym `(gt/get-property ~node-sym (:basis ~evaluation-context-sym) ~property-label)))
+      (collect-raw-property-value-form property-label node-sym node-id-sym evaluation-context-sym)
       (with-tracer-calls-form node-id-sym property-label evaluation-context-sym :property
         (call-with-error-checked-fnky-arguments-form description property-label node-sym node-id-sym evaluation-context-sym
                                                      (get-in property-definition [:value :arguments])
@@ -1344,15 +1347,36 @@
                                                                            `(var ~(dollar-name (:name description) [:property property-label :value])))
                                                                          `(constantly nil)))))))
 
+(defn- desc-raw-argument? [description output argument]
+  {:pre [(keyword? output) (keyword? argument)]}
+  (boolean (-> description :output output :annotations argument :raw)))
+
 (defn- desc-try-argument? [description output argument]
   {:pre [(keyword? output) (keyword? argument)]}
   (boolean (-> description :output output :annotations argument :try)))
 
+(defn- desc-unsafe-argument? [description output argument]
+  {:pre [(keyword? output) (keyword? argument)]}
+  (boolean (-> description :output output :annotations argument :unsafe)))
+
 (defn- fnk-argument-form
   [description output argument node-sym node-id-sym evaluation-context-sym]
   (cond
+    (= :_node-id argument)
+    node-id-sym
+
     (= :_this argument)
     node-sym
+
+    (= :_evaluation-context argument)
+    (if (desc-unsafe-argument? description output argument)
+      evaluation-context-sym
+      (assert false (str "A production function for " (:name description) " " output " uses argument " argument ", which must be tagged as ^:unsafe")))
+
+    (desc-raw-argument? description output argument)
+    (if (desc-has-property? description argument)
+      (collect-raw-property-value-form argument node-sym node-id-sym evaluation-context-sym)
+      (assert false (str "A production function for " (:name description) " " output " tags argument " argument " as ^:raw, but there is no property called " (pr-str argument))))
 
     (and (= output argument)
          (desc-has-property? description argument)
@@ -1421,8 +1445,7 @@
      ; desc-has-property? this is implied if we're evaluating an output and default? holds
     (assert (or (not default?) (desc-has-property? description label)))
     (if default?
-      (with-tracer-calls-form node-id-sym label-sym evaluation-context-sym :raw-property
-        (check-dry-run-form evaluation-context-sym `(gt/get-property ~node-sym (:basis ~evaluation-context-sym) ~label-sym)))
+      (collect-raw-property-value-form label-sym node-sym node-id-sym evaluation-context-sym)
       forms)))
 
 (defn- node-type-name [node-id evaluation-context]
@@ -1481,10 +1504,9 @@
          (trace-expr-result ~node-id-sym ~label-sym ~evaluation-context-sym :cache (cached-nil->nil ~result-sym))
          ~forms))))
 
-(defn- gather-arguments-form [description label node-sym node-id-sym evaluation-context-sym arguments-sym schema-sym forms]
+(defn- gather-arguments-form [description label node-sym node-id-sym evaluation-context-sym arguments-sym forms]
   (let [arg-names (get-in description [:output label :arguments])
-        argument-forms (zipmap arg-names (map #(fnk-argument-form description label % node-sym node-id-sym evaluation-context-sym) arg-names))
-        argument-forms (assoc argument-forms :_node-id node-id-sym)]
+        argument-forms (zipmap arg-names (map #(fnk-argument-form description label % node-sym node-id-sym evaluation-context-sym) arg-names))]
     (list `let
           [arguments-sym argument-forms]
           forms)))
@@ -1573,7 +1595,6 @@
           evaluation-context-sym 'evaluation-context
           node-id-sym 'node-id
           arguments-sym 'arguments
-          schema-sym 'schema
           result-sym 'result]
       `(fn [~node-sym ~label-sym ~evaluation-context-sym]
          (let [~node-id-sym (gt/node-id ~node-sym)]
@@ -1582,7 +1603,7 @@
                 (mark-in-production-form node-id-sym label-sym evaluation-context-sym
                   (check-caches-form description label node-id-sym label-sym evaluation-context-sym
                     (with-tracer-calls-form node-id-sym label-sym evaluation-context-sym tracer-label-type
-                      (gather-arguments-form description label node-sym node-id-sym evaluation-context-sym arguments-sym schema-sym
+                      (gather-arguments-form description label node-sym node-id-sym evaluation-context-sym arguments-sym
                         (call-production-function-form description label node-id-sym label-sym evaluation-context-sym arguments-sym result-sym
                           (schema-check-result-form description label node-id-sym label-sym evaluation-context-sym result-sym
                             (cache-result-form description label node-id-sym label-sym evaluation-context-sym result-sym
@@ -1727,11 +1748,23 @@
                   ;; produced property to set the :original-value here.
                   props-with-overrides-and-original-values
                   (reduce-kv (fn [props prop-kw orig-prop]
-                               (let [original-value (:value orig-prop)]
-                                 (if (or (contains? properties prop-kw)
-                                         (and (not (declared? prop-kw))
-                                              (get-in props [prop-kw :assoc-original-value?])))
-                                   (update props prop-kw assoc :original-value original-value)
+                               (let [prop (get props prop-kw)
+
+                                     assoc-original-value
+                                     (cond
+                                       (nil? prop)
+                                       false
+
+                                       (contains? properties prop-kw)
+                                       (:assoc-original-value? prop true)
+
+                                       (not (declared? prop-kw))
+                                       (:assoc-original-value? prop false)
+
+                                       :else
+                                       false)]
+                                 (if assoc-original-value
+                                   (update props prop-kw assoc :original-value (:value orig-prop))
                                    props)))
                              props-with-override-values
                              orig-props)]

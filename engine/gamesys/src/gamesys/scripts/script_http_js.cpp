@@ -54,6 +54,7 @@ namespace dmGameSystem
         dmMessage::URL  m_Requester;
         void*           m_RequestData;
         const char*     m_Path;
+        const char*     m_Url;  // The request url
         int             m_Callback;
     };
 
@@ -87,10 +88,8 @@ namespace dmGameSystem
         dmHttpDDF::HttpResponse* response = (dmHttpDDF::HttpResponse*)message->m_Data;
         free((void*) response->m_Headers);
         free((void*) response->m_Response);
-        if (response->m_Path)
-        {
-            free((void*) response->m_Path);
-        }
+        free((void*) response->m_Path);
+        free((void*) response->m_Url);
     }
 
     static void SendResponse(const RequestContext* ctx, int status,
@@ -104,6 +103,7 @@ namespace dmGameSystem
         resp.m_Response = (uint64_t) response;
         resp.m_ResponseLength = response_length;
         resp.m_Path = ctx->m_Path;
+        resp.m_Url = ctx->m_Url;
 
         resp.m_Headers = (uint64_t) malloc(headers_length);
         memcpy((void*) resp.m_Headers, headers, headers_length);
@@ -114,10 +114,8 @@ namespace dmGameSystem
         {
             free((void*) resp.m_Headers);
             free((void*) resp.m_Response);
-            if (resp.m_Path)
-            {
-                free((void*) resp.m_Path);
-            }
+            free((void*) resp.m_Path);
+            free((void*) resp.m_Url);
             dmLogWarning("Failed to return http-response. Requester deleted?");
         }
     }
@@ -229,15 +227,8 @@ namespace dmGameSystem
             ctx->m_Callback = callback;
             ctx->m_Requester = sender;
             ctx->m_RequestData = request_params.m_SendData;
-            ctx->m_Path = 0;
-            if (path)
-            {
-                size_t length = strlen(path) + 1;
-                char *path_val = (char *)malloc(length);
-                memcpy(path_val, path, length);
-                path_val[length] = '\0';
-                ctx->m_Path = path_val;
-            }
+            ctx->m_Path = path ? strdup(path) : 0;
+            ctx->m_Url = request_params.m_Url ? strdup(request_params.m_Url) : 0;
 
             request_params.m_Args = ctx;
 

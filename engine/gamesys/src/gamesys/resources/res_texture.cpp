@@ -71,7 +71,6 @@ namespace dmGameSystem
             CASE_TF(RGBA_PVRTC_4BPPV1);
             CASE_TF(RGB_ETC1);
             CASE_TF(RGBA_ETC2);
-            CASE_TF(RGBA_ASTC_4x4);
             CASE_TF(RGB_BC1);
             CASE_TF(RGBA_BC3);
             CASE_TF(R_BC4);
@@ -85,6 +84,22 @@ namespace dmGameSystem
             CASE_TF(RG16F);
             CASE_TF(R32F);
             CASE_TF(RG32F);
+            // ASTC
+            CASE_TF(RGBA_ASTC_4X4);
+            CASE_TF(RGBA_ASTC_5X4);
+            CASE_TF(RGBA_ASTC_5X5);
+            CASE_TF(RGBA_ASTC_6X5);
+            CASE_TF(RGBA_ASTC_6X6);
+            CASE_TF(RGBA_ASTC_8X5);
+            CASE_TF(RGBA_ASTC_8X6);
+            CASE_TF(RGBA_ASTC_8X8);
+            CASE_TF(RGBA_ASTC_10X5);
+            CASE_TF(RGBA_ASTC_10X6);
+            CASE_TF(RGBA_ASTC_10X8);
+            CASE_TF(RGBA_ASTC_10X10);
+            CASE_TF(RGBA_ASTC_12X10);
+            CASE_TF(RGBA_ASTC_12X12);
+
             default: assert(0);
 #undef CASE_TF
         }
@@ -138,14 +153,14 @@ namespace dmGameSystem
             {
                 num_mips = MAX_MIPMAP_COUNT;
                 output_format = dmGraphics::GetSupportedCompressionFormat(context, output_format, image->m_Width, image->m_Height);
-                bool result = dmGraphics::Transcode(path, image, image_desc->m_DDFImage->m_Count, output_format, image_desc->m_DecompressedData, image_desc->m_DecompressedDataSize, &num_mips);
-                if (!result)
+                if (!dmGraphics::Transcode(path, image, image_desc->m_DDFImage->m_Count, output_format, image_desc->m_DecompressedData, image_desc->m_DecompressedDataSize, &num_mips))
                 {
                     dmLogError("Failed to transcode %s", path);
                     continue;
                 }
             }
-            else if (!dmGraphics::IsTextureFormatSupported(context, original_format))
+
+            if (!dmGraphics::IsTextureFormatSupported(context, output_format))
             {
                 continue;
             }
@@ -258,11 +273,10 @@ namespace dmGameSystem
                         params.m_DataSize = image_desc->m_DecompressedDataSize[i];
                     }
 
-                    params.m_MipMap   = i;
-                    dmGraphics::SetTextureAsync(texture, params, 0, 0);
+                    params.m_MipMap = i;
+                    params.m_Width  = image->m_MipMapDimensions[i * 2];
+                    params.m_Height = image->m_MipMapDimensions[i * 2 + 1];
 
-                    params.m_Width >>= 1;
-                    params.m_Height >>= 1;
                     if (params.m_Width == 0)
                     {
                         params.m_Width = 1;
@@ -271,6 +285,8 @@ namespace dmGameSystem
                     {
                         params.m_Height = 1;
                     }
+
+                    dmGraphics::SetTextureAsync(texture, params, 0, 0);
                 }
             }
             break;

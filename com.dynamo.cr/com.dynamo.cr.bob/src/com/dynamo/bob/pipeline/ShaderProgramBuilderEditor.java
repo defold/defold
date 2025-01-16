@@ -17,24 +17,12 @@ public class ShaderProgramBuilderEditor {
         }
 
         /*
-
-        // Make sure we have the correct output language
-        ShaderCompilePipeline pipeline;
-        ShaderCompilePipeline.Options options = new ShaderCompilePipeline.Options();
-        try {
-            pipeline = ShaderProgramBuilder.newShaderPipelineFromShaderSource(shaderType, "variant-texture-array", source, options);
-        } catch (Exception e) {
-            // We don't have a graceful way to handle shader errors in the editor except for building/bundling
-            return new ShaderUtil.Common.GLSLCompileResult(source);
+        if (variantCompileResult != null) {
+            variantCompileResult.reflector = pipeline.getReflectionData();
+            return variantCompileResult;
+        } else {
+            return new ShaderUtil.Common.GLSLCompileResult(compiledSource, pipeline.getReflectionData());
         }
-
-        byte[] result = pipeline.crossCompile(shaderType, shaderLanguage);
-        String compiledSource = new String(result);
-
-        ShaderUtil.Common.GLSLCompileResult variantCompileResult = ShaderUtil.VariantTextureArrayFallback.transform(compiledSource, maxPageCount);
-
-        // If the variant transformation didn't do anything, we pass the original source but without array samplers
-        return Objects.requireNonNullElseGet(variantCompileResult, () -> new ShaderUtil.Common.GLSLCompileResult(compiledSource));
          */
         return null;
     }

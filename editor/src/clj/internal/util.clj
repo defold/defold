@@ -147,9 +147,9 @@
   [pred m]
   (into {} (filter pred m)))
 
-(defn key-set
-  [m]
-  (set (keys m)))
+(defmacro key-set [m]
+  ;; TODO: Replace all calls so we can get rid of this macro.
+  `(coll/key-set ~m))
 
 (defn map-keys
   [f m]

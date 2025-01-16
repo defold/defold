@@ -45,7 +45,12 @@ namespace dmPlatform
         glfwFocusWindow(window->m_Window);
     }
 
-    void CenterWindowNative(Window* wnd, GLFWmonitor* monitor)
+    void CenterWindowNative(HWindow wnd, GLFWmonitor* monitor)
+    {
+        // NOP
+    }
+
+    void SetWindowsIconNative(HWindow window)
     {
         // NOP
     }

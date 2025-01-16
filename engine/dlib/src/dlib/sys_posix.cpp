@@ -618,7 +618,9 @@ namespace dmSys
     {
         memset(info, 0, sizeof(*info));
         struct utsname uts;
+#if !defined(__EMSCRIPTEN__)
         uname(&uts);
+#endif
 
 #if defined(__EMSCRIPTEN__)
         dmStrlCpy(info->m_SystemName, "HTML5", sizeof(info->m_SystemName));
@@ -907,6 +909,62 @@ namespace dmSys
         }
     }
 
+    Result LoadResourcePartial(const char* path, uint32_t offset, uint32_t size, void* buffer, uint32_t* nread)
+    {
+        if (buffer == 0 || size == 0)
+            return RESULT_INVAL;
+
+#ifdef __ANDROID__
+        const char* asset_path = FixAndroidResourcePath(path);
+
+        AAssetManager* am = g_AndroidApp->activity->assetManager;
+        // NOTE: Is AASSET_MODE_BUFFER is much faster than AASSET_MODE_RANDOM.
+        AAsset* asset = AAssetManager_open(am, asset_path, AASSET_MODE_BUFFER);
+        if (asset) {
+            int result = AAsset_seek(asset, offset, SEEK_SET);
+            if (result < 0)
+            {
+                return RESULT_INVAL;
+            }
+            uint32_t nmemb = (uint32_t)AAsset_read(asset, buffer, size);
+            AAsset_close(asset);
+            *nread = nmemb;
+            return RESULT_OK;
+        }
+#endif
+        struct stat file_stat;
+        if (stat(path, &file_stat) == 0) {
+            if (!S_ISREG(file_stat.st_mode)) {
+                return RESULT_NOENT;
+            }
+
+            FILE* f = fopen(path, "rb");
+            if (!f)
+            {
+                return RESULT_NOENT;
+            }
+
+            int result = fseek(f, offset, SEEK_SET);
+            if (result < 0)
+            {
+                fclose(f);
+                return ErrnoToResult(errno);
+            }
+
+            size_t nmemb = fread(buffer, 1, size, f);
+            if (ferror(f))
+            {
+                fclose(f);
+                return ErrnoToResult(errno);
+            }
+            fclose(f);
+
+            *nread = (uint32_t)nmemb;
+        } else {
+            return ErrnoToResult(errno);
+        }
+        return RESULT_OK;
+    }
 
     Result Rmdir(const char* path)
     {

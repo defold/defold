@@ -16,6 +16,8 @@ import java.lang.reflect.Method;
 import java.lang.reflect.InvocationTargetException;
 import java.util.Arrays;
 import java.util.EnumSet;
+import java.util.ArrayList;
+import java.util.List;
 
 import java.awt.image.BufferedImage;
 import java.awt.image.ColorModel;
@@ -81,21 +83,22 @@ public class TexcLibraryJni {
         }
     }
 
-    public static native long CreateTexture(String name, int width, int height, int pixelFormat, int colorSpace, int compressionType, byte[] data);
-    public static native void DestroyTexture(long texture);
+    // Used by the TextureGenerator.java
+    public static native long CreateImage(String name, int width, int height, int pixelFormat, int colorSpace, byte[] data);
+    public static native void DestroyImage(long image);
+    public static native byte[] GetData(long image);
 
-    public static native Texc.Header GetHeader(long texture);
-    public static native int GetDataSizeCompressed(long texture, int mipMap);
-    public static native int GetDataSizeUncompressed(long texture, int mipMap);
-    public static native byte[] GetData(long texture);
-    public static native int GetCompressionFlags(long texture);
+    public static native int GetWidth(long image);
+    public static native int GetHeight(long image);
+    public static native long Resize(long image, int width, int height); // Creates a new image. Call DestroyImage
+    public static native boolean PreMultiplyAlpha(long image);
+    public static native boolean Flip(long image, int flipAxis);
+    public static native boolean Dither(long image, int pixelFormat);
 
-    public static native boolean Resize(long texture, int width, int height);
-    public static native boolean PreMultiplyAlpha(long texture);
-    public static native boolean GenMipMaps(long texture);
-    public static native boolean Flip(long texture, int flipAxis);
-
-    public static native boolean Encode(long texture, int pixelFormat, int colorSpace, int compressionLevel, int compressionType, boolean mipmaps, int num_threads);
+    // Part of the basisu compressor api
+    public static native byte[] BasisUEncode(Texc.BasisUEncodeSettings input);
+    public static native byte[] ASTCEncode(Texc.ASTCEncodeSettings input);
+    public static native byte[] DefaultEncode(Texc.DefaultEncodeSettings input);
 
     // For font glyphs
     public static native Texc.Buffer CompressBuffer(byte[] data);
@@ -276,39 +279,9 @@ public class TexcLibraryJni {
             return;
         }
 
-        String path = args[0];
-        System.out.printf("Loading '%s'\n", path);
-
-        long timeStart = System.currentTimeMillis();
-
-        BufferedImage image = null;
-        try {
-            image = ImageIO.read(new FileInputStream(path));
-        } catch (Exception e) {
-            System.out.printf("Failed to load image '%s': %s\n", path, e);
-            return;
-        }
-
-        ByteBuffer byteBuffer = getByteBuffer(image);
-        byte[] bytes = byteBuffer.array();
-        long timeEnd = System.currentTimeMillis();
-
-        System.out.printf("Loaded '%s' in %d ms\n", path, timeEnd - timeStart);
-
-        timeStart = System.currentTimeMillis();
-        long texture = TexcLibraryJni.CreateTexture(path, image.getWidth(), image.getHeight(),
-                                                        Texc.PixelFormat.PF_A8B8G8R8.getValue(),
-                                                        Texc.ColorSpace.CS_SRGB.getValue(),
-                                                        Texc.CompressionType.CT_DEFAULT.getValue(),
-                                                        bytes);
-
-        timeEnd = System.currentTimeMillis();
-        if (texture == 0) {
-            System.out.printf("Failed to create texture for '%s'\n", path);
-            return;
-        }
-
-        System.out.printf("Created texture in %d ms\n", timeEnd - timeStart);
+        int maxThreads = 4;
+        boolean premulAlpha = true;
+        boolean generateMipMaps = true;
 
         for (int i = 0; i < args.length; ++i)
         {
@@ -319,45 +292,110 @@ public class TexcLibraryJni {
             // }
         }
 
-        Texc.Header header = TexcLibraryJni.GetHeader(texture);
-        System.out.printf("-----------------\nHeader\n");
-        DebugPrintObject(header, 1);
+        String path = args[0];
+        System.out.printf("Loading '%s'\n", path);
 
-        int width = image.getWidth();
-        int height = image.getHeight();
+        long timeStart = System.currentTimeMillis();
 
-        int maxThreads = 4;
-        boolean premulAlpha = true;
-        boolean generateMipMaps = true;
+        BufferedImage srcimage = null;
+        try {
+            srcimage = ImageIO.read(new FileInputStream(path));
+        } catch (Exception e) {
+            System.out.printf("Failed to load image '%s': %s\n", path, e);
+            return;
+        }
+
+        int width = srcimage.getWidth();
+        int height = srcimage.getHeight();
+
+        ByteBuffer byteBuffer = getByteBuffer(srcimage);
+        byte[] bytes = byteBuffer.array();
+        long timeEnd = System.currentTimeMillis();
+
+        System.out.printf("Loaded '%s' in %d ms\n", path, timeEnd - timeStart);
+
+        List<Long> images = new ArrayList<>();
+        int w = width;
+        int h = height;
+        int mipLevel = 0;
+        long firstImage = 0;
+        long prevImage = 0;
+
+        System.out.printf("-----------------\n");
+        System.out.printf("Generate mip levels\n");
+
+        while (w != 0 || h != 0) {
+            w = Math.max(w, 1);
+            h = Math.max(h, 1);
+
+            long image = 0;
+            if (firstImage == 0)
+            {
+                timeStart = System.currentTimeMillis();
+
+                firstImage = TexcLibraryJni.CreateImage(path, width, height,
+                                            Texc.PixelFormat.PF_A8B8G8R8.getValue(),
+                                            Texc.ColorSpace.CS_SRGB.getValue(),
+                                            bytes);
+
+                timeEnd = System.currentTimeMillis();
+
+                image = firstImage;
+            }
+            else
+            {
+                timeStart = System.currentTimeMillis();
+
+                image = TexcLibraryJni.Resize(prevImage, w, h);
+
+                timeEnd = System.currentTimeMillis();
+            }
+
+            if (image == 0) {
+                System.out.printf("Failed to create texture for '%s'\n", path);
+                return;
+            }
+
+            images.add(image);
+            prevImage = image;
+
+            if (!generateMipMaps)
+                break;
+
+            System.out.printf(" mip %2d in %4d ms  (%d x %d)\n", mipLevel, w, h, timeEnd - timeStart);
+
+            mipLevel++;
+            w /= 2;
+            h /= 2;
+        }
+
         Texc.PixelFormat pixelFormat = Texc.PixelFormat.PF_R8G8B8A8;
+        Texc.PixelFormat outPixelFormat = pixelFormat;
+        outPixelFormat = Texc.PixelFormat.PF_R4G4B4A4;
+
+        Texc.ColorSpace colorSpace = Texc.ColorSpace.CS_SRGB;
         Texc.CompressionLevel texcCompressionLevel = Texc.CompressionLevel.CL_BEST;
         //Texc.CompressionType texcCompressionType = Texc.CompressionType.CT_DEFAULT;
-        Texc.CompressionType texcCompressionType = Texc.CompressionType.CT_BASIS_UASTC;
+        //Texc.CompressionType texcCompressionType = Texc.CompressionType.CT_BASIS_UASTC;
 
-        // Premultiply before scale so filtering cannot introduce colour artefacts.
+        Texc.CompressionType texcCompressionType = Texc.CompressionType.CT_ASTC;
+
         if (premulAlpha && !ColorModel.getRGBdefault().isAlphaPremultiplied()) {
             System.out.printf("-----------------\n");
             System.out.printf("PreMultiplyAlpha\n");
-            timeStart = System.currentTimeMillis();
-            if (!TexcLibraryJni.PreMultiplyAlpha(texture)) {
-                throw new Exception("could not premultiply alpha");
-            }
-            timeEnd = System.currentTimeMillis();
-            System.out.printf("PreMultiplyAlpha took %d ms\n", timeEnd - timeStart);
-        }
 
-        int newWidth = width / 2;
-        int newHeight = height / 2;
+            mipLevel = 0;
+            for (long image : images)
+            {
+                timeStart = System.currentTimeMillis();
+                if (!TexcLibraryJni.PreMultiplyAlpha(image)) {
+                    throw new Exception("could not premultiply alpha");
+                }
+                timeEnd = System.currentTimeMillis();
+                System.out.printf("  mip %2d took %3d ms\n", mipLevel, timeEnd - timeStart);
 
-        if (width != newWidth || height != newHeight) {
-            System.out.printf("-----------------\n");
-            System.out.printf("Resize to %dx%d from %dx%d\n", newWidth, newHeight, width, height);
-            timeStart = System.currentTimeMillis();
-            if (!TexcLibraryJni.Resize(texture, newWidth, newHeight)) {
-                throw new Exception("could not resize texture to POT");
+                mipLevel++;
             }
-            timeEnd = System.currentTimeMillis();
-            System.out.printf("Resize took %d ms\n", timeEnd - timeStart);
         }
 
         // Loop over all axis that should be flipped.
@@ -365,121 +403,176 @@ public class TexcLibraryJni {
         for (Texc.FlipAxis flip : flipAxis) {
             System.out.printf("-----------------\n");
             System.out.printf("Flip %s\n", flip.toString());
-            timeStart = System.currentTimeMillis();
-            if (!TexcLibraryJni.Flip(texture, flip.getValue())) {
-                throw new Exception("could not flip on " + flip.toString());
-            }
-            timeEnd = System.currentTimeMillis();
-            System.out.printf("Flip took %d ms\n", timeEnd - timeStart);
-        }
 
-
-        if (generateMipMaps) {
-            System.out.printf("-----------------\n");
-            System.out.printf("GenMipMaps\n");
-            timeStart = System.currentTimeMillis();
-            if (!TexcLibraryJni.GenMipMaps(texture)) {
-                throw new Exception("could not generate mip-maps");
-            }
-            timeEnd = System.currentTimeMillis();
-            System.out.printf("GenMipMaps took %d ms\n", timeEnd - timeStart);
-        }
-
-        {
-            System.out.printf("-----------------\n");
-            System.out.printf("Encode\n");
-            timeStart = System.currentTimeMillis();
-            if (!TexcLibraryJni.Encode(texture, pixelFormat.getValue(),
-                                                Texc.ColorSpace.CS_SRGB.getValue(),
-                                                texcCompressionLevel.getValue(),
-                                                texcCompressionType.getValue(),
-                                                generateMipMaps, maxThreads)) {
-                throw new Exception("could not encode");
-            }
-            timeEnd = System.currentTimeMillis();
-            System.out.printf("Encode took %d ms\n", timeEnd - timeStart);
-        }
-
-        {
-            System.out.printf("-----------------\n");
-            System.out.printf("GetData\n");
-            timeStart = System.currentTimeMillis();
-
-            byte[] data = TexcLibraryJni.GetData(texture);
-
-            timeEnd = System.currentTimeMillis();
-            System.out.printf("GetData of %d bytes took %d ms\n", data.length, timeEnd - timeStart);
-
-            boolean texcBasisCompression = false;
-
-            // If we're writing a .basis file, we don't actually store each mip map separately
-            // In this case, we pretend that there's only one mip level
-            if (texcCompressionType == Texc.CompressionType.CT_BASIS_UASTC ||
-                texcCompressionType == Texc.CompressionType.CT_BASIS_ETC1S )
+            mipLevel = 0;
+            for (long image : images)
             {
-                generateMipMaps = false;
-                texcBasisCompression = true;
+                timeStart = System.currentTimeMillis();
+                if (!TexcLibraryJni.Flip(image, flip.getValue())) {
+                    throw new Exception("could not flip on " + flip.toString());
+                }
+                timeEnd = System.currentTimeMillis();
+                System.out.printf("  Flip mip %2d took %3d ms\n", mipLevel, timeEnd - timeStart);
+                mipLevel++;
             }
+        }
 
+        if (outPixelFormat == Texc.PixelFormat.PF_R4G4B4A4 || outPixelFormat == Texc.PixelFormat.PF_R5G6B5) {
             System.out.printf("-----------------\n");
-            System.out.printf("Get mip maps\n");
+            System.out.printf("Dither\n");
 
-            int w = newWidth;
-            int h = newHeight;
-            int offset = 0;
-            int mipMap = 0;
-            while (w != 0 || h != 0) {
-                w = Math.max(w, 1);
-                h = Math.max(h, 1);
-
-                System.out.printf("Mip: %d:  offset %d\n", mipMap, offset);
-
-                int size_uncompressed = TexcLibraryJni.GetDataSizeUncompressed(texture, mipMap);
-                int size_compressed = size_uncompressed;
-
-                // For basis the GetDataSizeCompressed and GetDataSizeUncompressed will always return 0,
-                // so we use this hack / workaround to calculate offsets in the engine..
-                if (texcBasisCompression)
-                {
-                    size_uncompressed   = data.length;
-                    size_compressed     = data.length;
-                }
-                else
-                {
-                    size_compressed = TexcLibraryJni.GetDataSizeCompressed(texture, mipMap);
-                }
-
-                size_compressed = size_compressed != 0 ? size_compressed : size_uncompressed;
-
-                System.out.printf("  uncompressed size: %d\n", size_uncompressed);
-                System.out.printf("    compressed size: %d\n", size_compressed);
-
-                offset += size_compressed;
-                w >>= 1;
-                h >>= 1;
-                mipMap += 1;
-
-                if (!generateMipMaps) // Run section only once for non-mipmaps
-                    break;
-            }
-
+            mipLevel = 0;
+            for (long image : images)
             {
-                System.out.printf("-----------------\n");
-                System.out.printf("CompressBuffer\n");
+                timeStart = System.currentTimeMillis();
+                if (!TexcLibraryJni.Dither(image, outPixelFormat.getValue())) {
+                    throw new Exception("could not dither image");
+                }
+                timeEnd = System.currentTimeMillis();
+                System.out.printf("  Dither mip %2d took %d ms\n", mipLevel, timeEnd - timeStart);
+                mipLevel++;
+            }
+        }
+
+        System.out.printf("-----------------\n");
+        System.out.printf("Encode type: %s\n", texcCompressionType.toString());
+
+        mipLevel = 0;
+
+        List<byte[]> encodedMips = new ArrayList<>();
+        for (long image : images)
+        {
+            byte[]  uncompressed = TexcLibraryJni.GetData(image);
+            int     image_width  = TexcLibraryJni.GetWidth(image);
+            int     image_height = TexcLibraryJni.GetHeight(image);
+
+            System.out.printf("  -----------------\n");
+            System.out.printf("  Encode mip level: %d  %d x %d  %d bytes\n", mipLevel, image_width, image_height, uncompressed.length);
+
+            byte[] encoded = null;
+            if (Texc.CompressionType.CT_BASIS_UASTC == texcCompressionType) {
+                System.out.printf("    -----------------\n");
+                System.out.printf("    BasisUEncode\n");
+
+                Texc.BasisUEncodeSettings settings = new Texc.BasisUEncodeSettings();
+                settings.path = path;
+                settings.width = image_width;
+                settings.height = image_height;
+
+                settings.pixelFormat = pixelFormat;
+                settings.outPixelFormat = outPixelFormat;
+                settings.colorSpace = colorSpace;
+
+                settings.numThreads = maxThreads;
+                settings.debug = false;
+
+                // CL_BEST
+                settings.rdo_uastc = true;
+                settings.pack_uastc_flags = 0;
+                settings.rdo_uastc_dict_size = 4096;
+                settings.rdo_uastc_quality_scalar = 3.0f;
+
+                DebugPrintObject(settings, 1);
+
+                settings.data = uncompressed;
+
                 timeStart = System.currentTimeMillis();
 
-                // Just for testing the compress function
-                Texc.Buffer buffer = TexcLibraryJni.CompressBuffer(data);
+                encoded = TexcLibraryJni.BasisUEncode(settings);
+                if (encoded == null || encoded.length == 0) {
+                    throw new Exception("Could not encode");
+                }
 
                 timeEnd = System.currentTimeMillis();
-                System.out.printf("CompressBuffer of %d bytes took %d ms\n", data.length, timeEnd - timeStart);
-                System.out.printf("  uncompressed size: %d\n", data.length);
-                System.out.printf("    compressed size: %d\n", buffer.data.length);
-                System.out.printf("      is compressed: %b\n", buffer.isCompressed);
+
             }
+            else if (Texc.CompressionType.CT_ASTC == texcCompressionType) {
+                System.out.printf("    -----------------\n");
+                System.out.printf("    ASTCEncode\n");
+
+                Texc.ASTCEncodeSettings settings = new Texc.ASTCEncodeSettings();
+                settings.path = path;
+                settings.width = image_width;
+                settings.height = image_height;
+
+                settings.pixelFormat = pixelFormat;
+                //settings.outPixelFormat = outPixelFormat;
+                settings.colorSpace = colorSpace;
+
+                // settings.numThreads = maxThreads;
+                // settings.debug = false;
+
+                DebugPrintObject(settings, 1);
+
+                settings.data = uncompressed;
+
+                timeStart = System.currentTimeMillis();
+
+                encoded = TexcLibraryJni.ASTCEncode(settings);
+                if (encoded == null || encoded.length == 0) {
+                    throw new Exception("Could not encode");
+                }
+
+                timeEnd = System.currentTimeMillis();
+            }
+            else if (Texc.CompressionType.CT_DEFAULT == texcCompressionType) {
+                System.out.printf("    -----------------\n");
+                System.out.printf("    DefaultEncode\n");
+
+                Texc.DefaultEncodeSettings settings = new Texc.DefaultEncodeSettings();
+                settings.path = path;
+                settings.width = image_width;
+                settings.height = image_height;
+
+                settings.pixelFormat = pixelFormat;
+                settings.outPixelFormat = outPixelFormat;
+                settings.colorSpace = colorSpace;
+
+                settings.numThreads = maxThreads;
+                settings.debug = false;
+
+                DebugPrintObject(settings, 1);
+
+                settings.data = uncompressed;
+
+                timeStart = System.currentTimeMillis();
+
+                encoded = TexcLibraryJni.DefaultEncode(settings);
+                if (encoded == null || encoded.length == 0) {
+                    throw new Exception("Could not encode");
+                }
+
+                timeEnd = System.currentTimeMillis();
+            }
+
+            encodedMips.add(encoded);
+
+            System.out.printf("Encode mip level %d: %d bytes took %d ms\n", mipLevel, encoded.length, timeEnd - timeStart);
+            mipLevel++;
+
         }
 
-        TexcLibraryJni.DestroyTexture(texture);
+        System.out.printf("-----------------\n");
+        System.out.printf("Destroying images\n");
+        for (long image : images)
+        {
+            TexcLibraryJni.DestroyImage(image);
+        }
+
+        {
+            System.out.printf("-----------------\n");
+            System.out.printf("CompressBuffer\n");
+            timeStart = System.currentTimeMillis();
+
+            // Just for testing the compress function
+            Texc.Buffer buffer = TexcLibraryJni.CompressBuffer(bytes);
+
+            timeEnd = System.currentTimeMillis();
+            System.out.printf("CompressBuffer of %d bytes took %d ms\n", bytes.length, timeEnd - timeStart);
+            System.out.printf("  uncompressed size: %d\n", bytes.length);
+            System.out.printf("    compressed size: %d\n", buffer.data.length);
+            System.out.printf("      is compressed: %b\n", buffer.isCompressed);
+        }
 
         System.out.printf("-----------------\n");
         System.out.printf("Done\n");

@@ -28,6 +28,7 @@
 #include "render/render_ddf.h"
 
 #include "../../../graphics/src/null/graphics_null_private.h"
+#include "../../../graphics/src/test/test_graphics_util.h"
 
 using namespace dmVMath;
 
@@ -50,26 +51,6 @@ namespace
     }
 }
 
-static inline dmGraphics::ShaderDesc::Shader MakeDDFShader(const char* data, uint32_t count, dmGraphics::ShaderDesc::Language language)
-{
-    dmGraphics::ShaderDesc::Shader ddf;
-    memset(&ddf,0,sizeof(ddf));
-    ddf.m_Source.m_Data  = (uint8_t*)data;
-    ddf.m_Source.m_Count = count;
-    ddf.m_Language = language;
-    return ddf;
-}
-
-static inline dmGraphics::ShaderDesc MakeDDFShaderDesc(dmGraphics::ShaderDesc::Shader* shader, dmGraphics::ShaderDesc::ShaderType type)
-{
-    dmGraphics::ShaderDesc ddf;
-    memset(&ddf,0,sizeof(ddf));
-    ddf.m_Shaders.m_Data = shader;
-    ddf.m_Shaders.m_Count = 1;
-    ddf.m_ShaderType = type;
-    return ddf;
-}
-
 static dmRender::FontGlyph* GetGlyph(uint32_t utf8, void* user_ctx)
 {
     dmRender::FontGlyph* glyphs = (dmRender::FontGlyph*)user_ctx;
@@ -80,7 +61,6 @@ static void* GetGlyphData(uint32_t codepoint, void* user_ctx, uint32_t* out_size
 {
     return 0;
 }
-
 
 class dmRenderScriptTest : public jc_test_base_class
 {
@@ -128,7 +108,7 @@ protected:
         font_map_params.m_GetGlyph = GetGlyph;
         font_map_params.m_GetGlyphData = GetGlyphData;
 
-        m_SystemFontMap = dmRender::NewFontMap(m_GraphicsContext, font_map_params);
+        m_SystemFontMap = dmRender::NewFontMap(m_Context, m_GraphicsContext, font_map_params);
 
         memset(m_Glyphs, 0, sizeof(m_Glyphs));
         for (uint32_t i = 0; i < DM_ARRAY_SIZE(m_Glyphs); ++i)
@@ -147,9 +127,9 @@ protected:
         params.m_MaxBatches = 128;
         m_Context = dmRender::NewRenderContext(m_GraphicsContext, params);
 
-        dmGraphics::ShaderDesc::Shader shader_ddf = MakeDDFShader("foo", 3, dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140);
-        dmGraphics::ShaderDesc vs_desc            = MakeDDFShaderDesc(&shader_ddf, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX);
-        dmGraphics::ShaderDesc fs_desc            = MakeDDFShaderDesc(&shader_ddf, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT);
+        dmGraphics::ShaderDesc::Shader shader_ddf = dmGraphics::MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, "foo", 3);
+        dmGraphics::ShaderDesc vs_desc            = dmGraphics::MakeDDFShaderDesc(&shader_ddf, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, 0, 0, 0, 0, 0, 0, 0, 0);
+        dmGraphics::ShaderDesc fs_desc            = dmGraphics::MakeDDFShaderDesc(&shader_ddf, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, 0, 0, 0, 0, 0, 0, 0, 0);
 
         m_VertexProgram = dmGraphics::NewVertexProgram(m_GraphicsContext, &vs_desc, 0, 0);
         m_FragmentProgram = dmGraphics::NewFragmentProgram(m_GraphicsContext, &fs_desc, 0, 0);
@@ -162,8 +142,8 @@ protected:
             "uniform vec4 tint;\n"
             "uniform sampler2D texture_sampler\n";
 
-        dmGraphics::ShaderDesc::Shader compute_shader_ddf = MakeDDFShader(compute_program_src, strlen(compute_program_src), dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430);
-        dmGraphics::ShaderDesc compute_desc = MakeDDFShaderDesc(&compute_shader_ddf, dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE);
+        dmGraphics::ShaderDesc::Shader compute_shader_ddf = dmGraphics::MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM430, compute_program_src, strlen(compute_program_src));
+        dmGraphics::ShaderDesc compute_desc = dmGraphics::MakeDDFShaderDesc(&compute_shader_ddf, dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE, 0, 0, 0, 0, 0, 0, 0, 0);
         m_ComputeProgram = dmGraphics::NewComputeProgram(m_GraphicsContext, &compute_desc, 0, 0);
     }
 
@@ -1110,6 +1090,49 @@ TEST_F(dmRenderScriptTest, DeltaTime)
     dmRender::DeleteRenderScript(m_Context, render_script);
 }
 
+TEST_F(dmRenderScriptTest, TestLuaConstantBuffers_NestedStructs)
+{
+    /////////////////////////////
+    // MATERIAL
+    /////////////////////////////
+    const char* shader_src = "foo";
+
+    dmGraphics::ShaderDesc::ResourceTypeInfo types[2] = {};
+
+    dmGraphics::ShaderDesc::ResourceMember ubo_members[2] = {};
+    ubo_members[0].m_Name                     = "color";
+    ubo_members[0].m_NameHash                 = dmHashString64(ubo_members[0].m_Name);
+    ubo_members[0].m_Type.m_Type.m_ShaderType = dmGraphics::ShaderDesc::SHADER_TYPE_VEC4;
+
+    ubo_members[1].m_Name                     = "nested";
+    ubo_members[1].m_NameHash                 = dmHashString64(ubo_members[0].m_Name);
+    ubo_members[1].m_Offset                   = 4 * sizeof(float);
+    ubo_members[1].m_Type.m_UseTypeIndex      = 1;
+    ubo_members[1].m_Type.m_Type.m_TypeIndex  = 1;
+
+    // Configure type list
+    dmGraphics::FillShaderResourceWithMembers(&types[0], "ubo", ubo_members, 2);
+    dmGraphics::FillShaderResourceWithSingleTypeMember(&types[1], "color", dmGraphics::ShaderDesc::SHADER_TYPE_VEC4);
+
+    dmGraphics::ShaderDesc::ResourceBinding fs_uniforms[1] = {};
+    FillResourceBindingTypeIndex(&fs_uniforms[0], "ubo", 0, 0);
+
+    dmGraphics::ShaderDesc::Shader shader = dmGraphics::MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, shader_src, strlen(shader_src));
+    dmGraphics::ShaderDesc vp_desc        = dmGraphics::MakeDDFShaderDesc(&shader, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, 0, 0, 0, 0, 0, 0, types, 2);
+    dmGraphics::ShaderDesc fp_desc        = dmGraphics::MakeDDFShaderDesc(&shader, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, 0, 0, fs_uniforms, 1, 0, 0, types, 2);
+    dmGraphics::HVertexProgram vp         = dmGraphics::NewVertexProgram(m_GraphicsContext, &vp_desc, 0, 0);
+    dmGraphics::HFragmentProgram fp       = dmGraphics::NewFragmentProgram(m_GraphicsContext, &fp_desc, 0, 0);
+    dmRender::HMaterial material          = dmRender::NewMaterial(m_Context, vp, fp);
+
+    dmRender::HConstant constant;
+    ASSERT_TRUE(dmRender::GetMaterialProgramConstant(material, dmHashString64("color"), constant));
+    ASSERT_TRUE(dmRender::GetMaterialProgramConstant(material, dmHashString64("nested.color"), constant));
+
+    dmRender::DeleteMaterial(m_Context, material);
+    dmGraphics::DeleteFragmentProgram(fp);
+    dmGraphics::DeleteVertexProgram(vp);
+}
+
 TEST_F(dmRenderScriptTest, TestLuaConstantBuffers_Baseline)
 {
     const char* script =
@@ -1468,9 +1491,9 @@ TEST_F(dmRenderScriptTest, TestRenderResourceTable)
                              "uniform lowp sampler2D texture_sampler_2;\n"
                              "uniform lowp sampler2D texture_sampler_3;\n";
 
-    dmGraphics::ShaderDesc::Shader shader = MakeDDFShader(shader_src, strlen(shader_src), dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140);
-    dmGraphics::ShaderDesc vp_desc        = MakeDDFShaderDesc(&shader, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX);
-    dmGraphics::ShaderDesc fp_desc        = MakeDDFShaderDesc(&shader, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT);
+    dmGraphics::ShaderDesc::Shader shader = dmGraphics::MakeDDFShader(dmGraphics::ShaderDesc::LANGUAGE_GLSL_SM140, shader_src, strlen(shader_src));
+    dmGraphics::ShaderDesc vp_desc        = dmGraphics::MakeDDFShaderDesc(&shader, dmGraphics::ShaderDesc::SHADER_TYPE_VERTEX, 0, 0, 0, 0, 0, 0, 0, 0);
+    dmGraphics::ShaderDesc fp_desc        = dmGraphics::MakeDDFShaderDesc(&shader, dmGraphics::ShaderDesc::SHADER_TYPE_FRAGMENT, 0, 0, 0, 0, 0, 0, 0, 0);
     dmGraphics::HVertexProgram vp         = dmGraphics::NewVertexProgram(m_GraphicsContext, &vp_desc, 0, 0);
     dmGraphics::HFragmentProgram fp       = dmGraphics::NewFragmentProgram(m_GraphicsContext, &fp_desc, 0, 0);
     dmRender::HMaterial material          = dmRender::NewMaterial(m_Context, vp, fp);

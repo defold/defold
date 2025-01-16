@@ -30,7 +30,6 @@ public abstract class CopyBuilder extends Builder {
     public Task create(IResource input) throws IOException, CompileExceptionError {
         Task task = Task.newBuilder(this)
                 .setName(params.name())
-                .disableCache()
                 .addInput(input)
                 .addOutput(input.changeExt(params.outExt()))
                 .build();

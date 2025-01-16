@@ -116,6 +116,18 @@
             :path (throw (LuaError. (str "No schema defined for prefs path '" path-str "'")))
             (throw e)))))))
 
+(defn- make-is-set-fn [prefs]
+  (rt/lua-fn ext-is-set
+    [{:keys [rt]} lua-path]
+    (let [path-str (rt/->clj rt coerce/string lua-path)
+          path (parse-dot-separated-path path-str)]
+      (try
+        (prefs/set? prefs path)
+        (catch Exception e
+          (case (::prefs/error (ex-data e))
+            :path (throw (LuaError. (str "No schema defined for prefs path '" path-str "'")))
+            (throw e)))))))
+
 (defn- make-set-fn [prefs]
   (rt/lua-fn ext-set [{:keys [rt]} lua-path lua-value]
     (let [path-str (rt/->clj rt coerce/string lua-path)
@@ -171,5 +183,6 @@
   (merge
     {"get" (make-get-fn prefs)
      "set" (make-set-fn prefs)
+     "is_set" (make-is-set-fn prefs)
      "schema" schema-lua-env}
     enum-env))

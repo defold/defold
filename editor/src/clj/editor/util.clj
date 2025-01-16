@@ -109,6 +109,9 @@
                   (compare a-cp b-cp))))))
         (compare a b)))))
 
+(defn natural-order-sort [coll]
+  (sort natural-order coll))
+
 (defn comparator-chain
   ([^Comparator c1 ^Comparator c2]
    (reify Comparator

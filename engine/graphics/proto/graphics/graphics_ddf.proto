@@ -141,6 +141,8 @@ message TextureImage
         COMPRESSION_TYPE_BASIS_UASTC = 3;
         // Basis ETC1S
         COMPRESSION_TYPE_BASIS_ETC1S = 4;
+        // ASTC
+        COMPRESSION_TYPE_ASTC = 5;
     }
 
     enum CompressionFlags
@@ -151,6 +153,8 @@ message TextureImage
 
     enum TextureFormat
     {
+        option allow_alias = true;
+
         TEXTURE_FORMAT_LUMINANCE         = 0;
         TEXTURE_FORMAT_RGB               = 1;
         TEXTURE_FORMAT_RGBA              = 2;
@@ -166,7 +170,9 @@ message TextureImage
         TEXTURE_FORMAT_LUMINANCE_ALPHA   = 10;
 
         TEXTURE_FORMAT_RGBA_ETC2         = 11;
-        TEXTURE_FORMAT_RGBA_ASTC_4x4     = 12;
+
+        TEXTURE_FORMAT_RGBA_ASTC_4X4     = 12;
+        TEXTURE_FORMAT_RGBA_ASTC_4x4     = 12; // Deprecated!
 
         TEXTURE_FORMAT_RGB_BC1           = 13;
         TEXTURE_FORMAT_RGBA_BC3          = 14;
@@ -182,6 +188,21 @@ message TextureImage
         TEXTURE_FORMAT_RG16F             = 23;
         TEXTURE_FORMAT_R32F              = 24;
         TEXTURE_FORMAT_RG32F             = 25;
+
+        // ASTC Formats
+        TEXTURE_FORMAT_RGBA_ASTC_5X4     = 26;
+        TEXTURE_FORMAT_RGBA_ASTC_5X5     = 27;
+        TEXTURE_FORMAT_RGBA_ASTC_6X5     = 28;
+        TEXTURE_FORMAT_RGBA_ASTC_6X6     = 29;
+        TEXTURE_FORMAT_RGBA_ASTC_8X5     = 30;
+        TEXTURE_FORMAT_RGBA_ASTC_8X6     = 31;
+        TEXTURE_FORMAT_RGBA_ASTC_8X8     = 32;
+        TEXTURE_FORMAT_RGBA_ASTC_10X5    = 33;
+        TEXTURE_FORMAT_RGBA_ASTC_10X6    = 34;
+        TEXTURE_FORMAT_RGBA_ASTC_10X8    = 35;
+        TEXTURE_FORMAT_RGBA_ASTC_10X10   = 36;
+        TEXTURE_FORMAT_RGBA_ASTC_12X10   = 37;
+        TEXTURE_FORMAT_RGBA_ASTC_12X12   = 38;
     }
 
     message Image
@@ -197,6 +218,7 @@ message TextureImage
         optional CompressionType compression_type = 9 [default = COMPRESSION_TYPE_DEFAULT];
         optional uint64 compression_flags         = 10;
         repeated uint32 mip_map_size_compressed   = 11;
+        repeated uint32 mip_map_dimensions        = 12; // w0, h0, w1, h1, ...
     }
 
     repeated Image alternatives = 1;
@@ -219,9 +241,11 @@ message TextureFormatAlternative
         BEST    = 3;
     }
 
-    required TextureImage.TextureFormat format  = 1;
-    required CompressionLevel compression_level = 2;
-    optional TextureImage.CompressionType compression_type = 3 [default = COMPRESSION_TYPE_DEFAULT];
+    required TextureImage.TextureFormat format             = 1;
+    optional CompressionLevel compression_level            = 2;                                      // DEPRECATED, use compressor + compressor_preset instead
+    optional TextureImage.CompressionType compression_type = 3 [default = COMPRESSION_TYPE_DEFAULT]; // DEPRECATED, use compressor + compressor_preset instead
+    optional string compressor                             = 4;
+    optional string compressor_preset                      = 5;
 }
 
 message PathSettings
@@ -271,15 +295,16 @@ message ShaderDesc
 {
     enum Language
     {
-        LANGUAGE_GLSL_SM120 = 1; // OpenGL 2 compatible
-        LANGUAGE_GLSL_SM140 = 2; // OpenGL 3 compatible
-        LANGUAGE_GLES_SM100 = 3; // OpenGLES 2 / WebGL 1
-        LANGUAGE_GLES_SM300 = 4; // OpenGLES 3 / WebGL 2
-        LANGUAGE_SPIRV      = 5; // Vulkan / MoltenVK
-        LANGUAGE_PSSL       = 6; // Playstation
-        LANGUAGE_GLSL_SM430 = 7; // OpenGL 4.3+ compatible
-        LANGUAGE_GLSL_SM330 = 8; // OpenGL 3.3 (used for macos)
-        LANGUAGE_WGSL       = 9; // WebGPU
+        LANGUAGE_GLSL_SM120 = 1;  // OpenGL 2 compatible
+        LANGUAGE_GLSL_SM140 = 2;  // OpenGL 3 compatible
+        LANGUAGE_GLES_SM100 = 3;  // OpenGLES 2 / WebGL 1
+        LANGUAGE_GLES_SM300 = 4;  // OpenGLES 3 / WebGL 2
+        LANGUAGE_SPIRV      = 5;  // Vulkan / MoltenVK
+        LANGUAGE_PSSL       = 6;  // Playstation
+        LANGUAGE_GLSL_SM430 = 7;  // OpenGL 4.3+ compatible
+        LANGUAGE_GLSL_SM330 = 8;  // OpenGL 3.3 (used for macos)
+        LANGUAGE_WGSL       = 9;  // WebGPU
+        LANGUAGE_HLSL       = 10; // HLSL
     }
 
     enum ShaderType
@@ -353,22 +378,26 @@ message ShaderDesc
 
     message ResourceBinding
     {
-        required string         name          = 1;
-        required uint64         name_hash     = 2;
-        required ResourceType   type          = 3;
-        optional uint32         set           = 4;
-        optional uint32         binding       = 5;
+        required string         name               = 1;
+        required uint64         name_hash          = 2;
+        required ResourceType   type               = 3;
+        optional uint32         id                 = 4;
+        optional string         instance_name      = 5;
+        optional uint64         instance_name_hash = 6;
+        optional uint32         set                = 7;
+        optional uint32         binding            = 8;
+        optional uint32         element_count      = 9;
 
         oneof BindingInfo
         {
             // Uniform buffer block size
-            uint32 block_size = 6;
+            uint32 block_size = 10;
             // Sampler object index
             // Since we split combined samplers into
             // a texture + sampler object we need to
             // keep track of which of the textures
             // the sampler originally is pointing to.
-            uint32 sampler_texture_index = 7;
+            uint32 sampler_texture_index = 11;
         }
     }
 

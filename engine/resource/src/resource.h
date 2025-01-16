@@ -25,6 +25,8 @@ struct ResourceDescriptor;
 
 #include <dmsdk/resource/resource.h>
 
+static const uint32_t RESOURCE_INVALID_PRELOAD_SIZE = 0xFFFFFFFF;
+
 typedef struct ResourcePreloader* HResourcePreloader;
 
 namespace dmResourceArchive
@@ -183,6 +185,19 @@ namespace dmResource
      * @return RESULT_OK on success
      */
     Result CreateResource(HFactory factory, const char* name, void* data, uint32_t data_size, void** resource);
+
+    /**
+     * Creates and inserts a resource into the factory
+     * @param factory Factory handle
+     * @param type The resource type. May be null, and then the path suffix will be used as a lookup.
+     * @param path Path of the resource
+     * @param data Resource data
+     * @param data_size Partial resource data size
+     * @param file_size Full resource size
+     * @param resource Will contain a pointer to the resource after this function has completed
+     * @return RESULT_OK on success
+     */
+    Result CreateResourcePartial(HFactory factory, HResourceType type, const char* path, void* data, uint32_t data_size, uint32_t file_size, void** resource);
 
     /**
      * Get a resource extension from a path, i.e resource.ext will return .ext. Note the included dot in the output.
@@ -408,10 +423,21 @@ namespace dmResource
      */
     const char* ResultToString(Result result);
 
+    // *****************************************************************************
+    // Preloader api
+
     // load with default internal buffer and its management, returns buffer ptr in 'buffer'
-    Result LoadResource(HFactory factory, const char* path, const char* original_name, void** buffer, uint32_t* resource_size);
+    Result LoadResource(HFactory factory, const char* path, const char* original_name, void** buffer, uint32_t* buffer_size, uint32_t* resource_size);
     // load with own buffer
-    Result LoadResourceFromBuffer(HFactory factory, const char* path, const char* original_name, uint32_t* resource_size, LoadBufferType* buffer);
+    Result LoadResourceToBuffer(HFactory factory, const char* path, const char* original_name, uint32_t preload_size, uint32_t* resource_size, uint32_t* buffer_size, LoadBufferType* buffer);
+
+    // *****************************************************************************
+    // Streaming api
+
+    // In the callback, use ResourceDescriptorGetData to retrieve the data
+    typedef int (*FPreloadDataCallback)(HFactory factory, void* cbk_ctx, HResourceDescriptor resource, uint32_t offset, uint32_t nread, uint8_t* buffer);
+
+    Result PreloadData(HFactory factory, const char* path, uint32_t offset, uint32_t size, FPreloadDataCallback cbk, void* cbk_ctx);
 }
 
 #endif // DM_RESOURCE_H

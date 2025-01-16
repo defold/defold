@@ -503,11 +503,12 @@ static void LogFrameBufferError(GLenum status)
             }
             gl_context->m_AllGLHandles.Push(0);
         }
-        
+
         UpdateGLHandle(context, result_idx, handle);
         return result_idx;
     }
 
+    // Unused?
     static bool IsGLHandleValid(HContext context, HOpenglID idx)
     {
         OpenGLContext* gl_context = (OpenGLContext*)context;
@@ -543,7 +544,6 @@ static void LogFrameBufferError(GLenum status)
         memset(this, 0, sizeof(*this));
         m_ModificationVersion     = 1;
         m_VerifyGraphicsCalls     = params.m_VerifyGraphicsCalls;
-        m_RenderDocSupport        = params.m_RenderDocSupport;
         m_PrintDeviceInfo         = params.m_PrintDeviceInfo;
         m_DefaultTextureMinFilter = params.m_DefaultTextureMinFilter;
         m_DefaultTextureMagFilter = params.m_DefaultTextureMagFilter;
@@ -809,6 +809,8 @@ static void LogFrameBufferError(GLenum status)
             case CONTEXT_FEATURE_COMPUTE_SHADER:         return context->m_ComputeSupport;
             case CONTEXT_FEATURE_STORAGE_BUFFER:         return context->m_StorageBufferSupport;
             case CONTEXT_FEATURE_INSTANCING:             return context->m_InstancingSupport;
+            case CONTEXT_FEATURE_VSYNC:
+                break;
         }
         return false;
     }
@@ -1270,7 +1272,7 @@ static void LogFrameBufferError(GLenum status)
             OpenGLIsExtensionSupported(context, "OES_texture_compression_astc") ||
             OpenGLIsExtensionSupported(context, "WEBGL_compressed_texture_astc"))
         {
-            context->m_TextureFormatSupport |= 1 << TEXTURE_FORMAT_RGBA_ASTC_4x4;
+            context->m_ASTCSupport = 1;
         }
 
         // Check if we're using a recent enough OpenGL version
@@ -1325,15 +1327,22 @@ static void LogFrameBufferError(GLenum status)
             glGetIntegerv(GL_COMPRESSED_TEXTURE_FORMATS, pCompressedFormats);
             for (int i = 0; i < iNumCompressedFormats; i++)
             {
-                switch (pCompressedFormats[i])
+                // If 4x4 is supported, all ASTC formats should be supported.
+                if (pCompressedFormats[i] == DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_4x4_KHR)
                 {
-                    #define CASE(_NAME1,_NAME2) case _NAME1 : context->m_TextureFormatSupport |= 1 << _NAME2; break;
-                    CASE(DMGRAPHICS_TEXTURE_FORMAT_RGBA8_ETC2_EAC, TEXTURE_FORMAT_RGBA_ETC2);
-                    CASE(DMGRAPHICS_TEXTURE_FORMAT_R11_EAC, TEXTURE_FORMAT_R_ETC2);
-                    CASE(DMGRAPHICS_TEXTURE_FORMAT_RG11_EAC, TEXTURE_FORMAT_RG_ETC2);
-                    CASE(DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_4x4_KHR, TEXTURE_FORMAT_RGBA_ASTC_4x4);
-                    #undef CASE
-                default: break;
+                    context->m_ASTCSupport = 1;
+                }
+                else 
+                {
+                    switch (pCompressedFormats[i])
+                    {
+                        #define CASE(_NAME1,_NAME2) case _NAME1 : context->m_TextureFormatSupport |= 1 << _NAME2; break;
+                        CASE(DMGRAPHICS_TEXTURE_FORMAT_RGBA8_ETC2_EAC, TEXTURE_FORMAT_RGBA_ETC2);
+                        CASE(DMGRAPHICS_TEXTURE_FORMAT_R11_EAC, TEXTURE_FORMAT_R_ETC2);
+                        CASE(DMGRAPHICS_TEXTURE_FORMAT_RG11_EAC, TEXTURE_FORMAT_RG_ETC2);
+                        #undef CASE
+                    default: break;
+                    }
                 }
             }
             delete[] pCompressedFormats;
@@ -1343,7 +1352,7 @@ static void LogFrameBufferError(GLenum status)
 #if defined (__EMSCRIPTEN__)
         // Workaround for some old phones which don't work with ASTC in glCompressedTexImage3D
         // see https://github.com/defold/defold/issues/8030
-        if (context->m_IsGles3Version && OpenGLIsTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_4x4)) {
+        if (context->m_IsGles3Version && OpenGLIsTextureFormatSupported(context, TEXTURE_FORMAT_RGBA_ASTC_4X4)) {
             unsigned char fakeZeroBuffer[] = {
                 0x63, 0xae, 0x88, 0xc8, 0xa6, 0x0b, 0x45, 0x35, 0x8d, 0x27, 0x7c, 0xb5,0x63,
                 0x2a, 0xcc, 0x90, 0x01, 0x04, 0x04, 0x01, 0x04, 0x04, 0x01, 0x04, 0x04, 0x01,
@@ -1357,7 +1366,7 @@ static void LogFrameBufferError(GLenum status)
             GLint err = glGetError();
             if (err != 0)
             {
-                context->m_TextureFormatSupport &= ~(1 << TEXTURE_FORMAT_RGBA_ASTC_4x4);
+                context->m_TextureFormatSupport &= ~(1 << TEXTURE_FORMAT_RGBA_ASTC_4X4);
             }
             glDeleteTextures(1, &texture);
         }
@@ -2167,6 +2176,21 @@ static void LogFrameBufferError(GLenum status)
         shader->m_Id         = AddNewGLHandle(context, shader_id);
         shader->m_Language   = ddf_shader->m_Language;
 
+        switch(type)
+        {
+            case GL_VERTEX_SHADER:
+                shader->m_Stage = SHADER_STAGE_FLAG_VERTEX;
+                break;
+            case GL_FRAGMENT_SHADER:
+                shader->m_Stage = SHADER_STAGE_FLAG_FRAGMENT;
+                break;
+            case DMGRAPHICS_TYPE_COMPUTE_SHADER:
+                shader->m_Stage = SHADER_STAGE_FLAG_COMPUTE;
+                break;
+            default:
+                break;
+        }
+
         CreateShaderMeta(&ddf->m_Reflection, &shader->m_ShaderMeta);
 
         return shader;
@@ -2230,12 +2254,31 @@ static void LogFrameBufferError(GLenum status)
         char* ptr = str;
         for (int i = len - 1; i >= 0; i--)
         {
-            if (ptr[i] == '.')
+            // For arrays, OpenGL returns the name as `name[0]`
+            if (ptr[i] == '[')
+            {
+                ptr[i] = 0;
+            }
+            else if (ptr[i] == '.')
             {
                 return &ptr[i+1];
             }
         }
+
         return str;
+    }
+
+    static inline int FindNamespace(char* str, uint32_t len)
+    {
+        // Look for the first dot in the string
+        for (int i = 0; i < len; ++i)
+        {
+            if (str[i] == '.')
+            {
+                return i;
+            }
+        }
+        return -1;
     }
 
     static void BuildUniformBuffers(HContext context, OpenGLProgram* program, OpenGLShader** shaders, uint32_t num_shaders)
@@ -2320,23 +2363,222 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
-    static void BuildUniforms(OpenGLContext* context, OpenGLProgram* program, OpenGLShader** shaders, uint32_t num_shaders)
+    struct BuildCanonicalPathsCallbackContext
+    {
+        struct PathPointers
+        {
+            uint32_t m_OffsetCanonicalName     : 31;
+            uint32_t m_OffsetCanonicalNameUsed : 1;
+            uint32_t m_OffsetNamespace         : 31;
+            uint32_t m_OffsetNamespaceUsed     : 1;
+            uint32_t m_OffsetInstanceName      : 31;
+            uint32_t m_OffsetInstanceNameUsed  : 1;
+        };
+
+        char* CanonicalName(uint32_t i)
+        {
+            if (!m_Paths[i].m_OffsetCanonicalNameUsed)
+            {
+                return 0;
+            }
+            return m_Buffer.Begin() + m_Paths[i].m_OffsetCanonicalName;
+        }
+        char* Namespace(uint32_t i)
+        {
+            if (!m_Paths[i].m_OffsetNamespaceUsed)
+            {
+                return 0;
+            }
+            return m_Buffer.Begin() + m_Paths[i].m_OffsetNamespace;
+        }
+        char* InstanceName(uint32_t i)
+        {
+            if (!m_Paths[i].m_OffsetInstanceNameUsed)
+            {
+                return 0;
+            }
+            return m_Buffer.Begin() + m_Paths[i].m_OffsetInstanceName;
+        }
+
+        dmArray<char>         m_Buffer;
+        dmArray<PathPointers> m_Paths;
+    };
+
+    static void BuildCanonicalPathsCallback(const CreateUniformLeafMembersCallbackParams& params, void* user_data)
+    {
+        BuildCanonicalPathsCallbackContext* context = (BuildCanonicalPathsCallbackContext*) user_data;
+
+        BuildCanonicalPathsCallbackContext::PathPointers path_pointers = {};
+
+        uint32_t increase_bytes        = 0;
+        uint32_t canonical_name_length = 0;
+        uint32_t namespace_length      = 0;
+        uint32_t instance_name_length  = 0;
+
+        if (params.m_CanonicalName)
+        {
+            canonical_name_length = strlen(params.m_CanonicalName);
+            increase_bytes += canonical_name_length + 1;
+        }
+        if (params.m_Namespace)
+        {
+            namespace_length = strlen(params.m_Namespace);
+            increase_bytes += namespace_length + 1;
+        }
+        if (params.m_InstanceName)
+        {
+            instance_name_length = strlen(params.m_InstanceName);
+            increase_bytes += instance_name_length + 1;
+        }
+
+        context->m_Buffer.OffsetCapacity(increase_bytes);
+        uint32_t buffer_offset = context->m_Buffer.Size();
+
+        char* write_ptr   = context->m_Buffer.Begin() + buffer_offset;
+        char* write_begin = write_ptr;
+
+        if (params.m_CanonicalName)
+        {
+            memcpy(write_ptr, params.m_CanonicalName, canonical_name_length);
+            path_pointers.m_OffsetCanonicalName     = buffer_offset + write_ptr - write_begin;
+            path_pointers.m_OffsetCanonicalNameUsed = 1;
+            write_ptr[canonical_name_length]        = 0;
+            write_ptr                              += canonical_name_length + 1;
+        }
+        if (params.m_Namespace)
+        {
+            memcpy(write_ptr, params.m_Namespace, namespace_length);
+            path_pointers.m_OffsetNamespace     = buffer_offset + write_ptr - write_begin;
+            path_pointers.m_OffsetNamespaceUsed = 1;
+            write_ptr[namespace_length]         = 0;
+            write_ptr                          += namespace_length + 1;
+        }
+        if (params.m_InstanceName)
+        {
+            memcpy(write_ptr, params.m_InstanceName, instance_name_length);
+            path_pointers.m_OffsetInstanceName     = buffer_offset + write_ptr - write_begin;
+            path_pointers.m_OffsetInstanceNameUsed = 1;
+            write_ptr[instance_name_length]        = 0;
+            write_ptr                             += instance_name_length + 1;
+        }
+
+        context->m_Buffer.SetSize(context->m_Buffer.Capacity());
+
+        context->m_Paths.OffsetCapacity(1);
+        context->m_Paths.Push(path_pointers);
+    }
+
+    // Create a canonical path for all leaf members in uniform buffers, e.g:
+    //
+    // Case 1:
+    // struct PBRMaterial
+    // {
+    //     float metallic;
+    //     float roughness;
+    //     ...
+    // };
+    // uniform fs_uniforms {
+    //     PBRMaterial material;
+    // };
+    // member 0: fs_uniforms.material.metallic;
+    // member 1: fs_uniforms.material.roughness;
+    //
+    // Case 2:
+    // We have the same, but we also use an "instance member" to rename the uniform (will also be useful later for arrayed uniforms):
+    // uniform fs_uniforms {
+    //     PBRMaterial material;
+    // } my_material;
+    // member 0: my_material.material.metallic;
+    // member 1: my_material.material.roughness;
+    static char* GetConstructedCanonicalName(BuildCanonicalPathsCallbackContext& context, char* str, uint32_t str_len, char* canonical_name_buffer, uint32_t canonical_name_buffer_len)
+    {
+        int namespace_end = FindNamespace(str, str_len);
+        if (namespace_end == -1)
+        {
+            // Texture uniforms doesn't have namespaces
+            return str;
+        }
+
+        memcpy(canonical_name_buffer, str, namespace_end);
+        canonical_name_buffer[namespace_end] = 0;
+
+        for (int i = 0; i < context.m_Paths.Size(); ++i)
+        {
+            // These should be null-terminated
+            char* namespace_path = context.Namespace(i);
+            uint32_t namespace_path_len = strlen(namespace_path);
+
+            if (namespace_path && strcmp(namespace_path, canonical_name_buffer) == 0)
+            {
+                // Matching namespace found
+                char* canonical_name = context.CanonicalName(i);
+                assert(canonical_name);
+
+                char* str_without_namespace = str + namespace_end + 1;
+
+                // Found a match, we now write either the name without the namespace,
+                // or the instance + name without namespace
+                if (strcmp(canonical_name, str_without_namespace) == 0)
+                {
+                    char* instance_name = context.InstanceName(i);
+                    char* write_ptr = canonical_name_buffer;
+
+                    if (instance_name && instance_name[0] != 0)
+                    {
+                        uint32_t instance_name_len = strlen(instance_name);
+                        memcpy(write_ptr, instance_name, instance_name_len);
+                        write_ptr[instance_name_len] = '.';
+                        write_ptr += instance_name_len + 1;
+                    }
+
+                    uint32_t canonical_name_len = strlen(canonical_name);
+                    memcpy(write_ptr, canonical_name, canonical_name_len);
+                    write_ptr[canonical_name_len] = 0;
+                    return canonical_name_buffer;
+                }
+            }
+        }
+
+        return str;
+    }
+
+    static void OpenGLBuildUniforms(OpenGLContext* context, OpenGLProgram* program, OpenGLShader** shaders, uint32_t num_shaders)
     {
         if (context->m_IsGles3Version)
         {
             BuildUniformBuffers((HContext)context, program, shaders, num_shaders);
         }
 
-        uint32_t texture_unit = 0;
         char uniform_name_buffer[256];
+        char canonical_name_buffer[256];
 
         GLint num_uniforms;
         GLuint program_handle = GetGLHandle((HContext)context, program->m_Id);
         glGetProgramiv(program_handle, GL_ACTIVE_UNIFORMS, &num_uniforms);
         CHECK_GL_ERROR;
 
-        program->m_Uniforms.SetCapacity(num_uniforms);
-        program->m_Uniforms.SetSize(num_uniforms);
+        // The OpenGL reflect will not return the instance name of a uniform block,
+        // so we need to look at the reflection data to get the actual canonical path for a uniform.
+        // I.e, if a uniform is specified as:
+        //
+        // uniform fs_uniforms {
+        //     PBRMaterial material;
+        // } my_material;
+        //
+        // OpenGL will yield the following binding:
+        // fs_uniforms.material
+        //
+        // But what we actually want is:
+        // my_material.material
+
+        const bool prepend_instance_name = false;
+
+        // Create a list of all canonical leaf paths from reflected uniforms
+        BuildCanonicalPathsCallbackContext canonical_paths_ctx;
+        IterateUniforms(&program->m_BaseProgram, prepend_instance_name, BuildCanonicalPathsCallback, &canonical_paths_ctx);
+
+        program->m_BaseProgram.m_Uniforms.SetCapacity(num_uniforms);
+        program->m_BaseProgram.m_Uniforms.SetSize(num_uniforms);
 
         for (int i = 0; i < num_uniforms; ++i)
         {
@@ -2356,8 +2598,6 @@ static void LogFrameBufferError(GLenum status)
             {
                 glGetActiveUniformsiv(program_handle, 1, (GLuint*)&i, GL_UNIFORM_BLOCK_INDEX, &uniform_block_index);
             }
-
-            char* uniform_name = GetBaseUniformName(uniform_name_buffer, uniform_name_length);
 
             HUniformLocation uniform_location = INVALID_UNIFORM_LOCATION;
 
@@ -2381,22 +2621,20 @@ static void LogFrameBufferError(GLenum status)
                 uniform_location = (HUniformLocation) glGetUniformLocation(program_handle, uniform_name_buffer);
             }
 
-            OpenGLUniform& uniform  = program->m_Uniforms[i];
-            uniform.m_Location      = uniform_location;
-            uniform.m_Name          = strdup(uniform_name);
-            uniform.m_NameHash      = dmHashString64(uniform_name);
-            uniform.m_Count         = uniform_size;
-            uniform.m_Type          = uniform_type;
-            uniform.m_IsTextureType = IsTypeTextureType(GetGraphicsType(uniform_type));
+            // These are temporary strings, we need copies of them.
+            char* canonical_name = GetConstructedCanonicalName(canonical_paths_ctx, uniform_name_buffer, uniform_name_length, canonical_name_buffer, sizeof(canonical_name_buffer));
+            assert(canonical_name != 0);
+
+            Uniform& uniform   = program->m_BaseProgram.m_Uniforms[i];
+            uniform.m_Name     = strdup(canonical_name);
+            uniform.m_NameHash = dmHashString64(canonical_name);
+            uniform.m_Location = uniform_location;
+            uniform.m_Count    = uniform_size;
+            uniform.m_Type     = GetGraphicsType(uniform_type);
 
         #if 0
-            dmLogInfo("Uniform[%d]: %s, %llu", i, uniform.m_Name, uniform.m_Location);
+            dmLogInfo("  Uniform[%d]: full-name: %s, canonical-name: %s", i, uniform_name_buffer, canonical_name);
         #endif
-
-            if (uniform.m_IsTextureType)
-            {
-                uniform.m_TextureUnit = texture_unit++;
-            }
 
             // JG: Original code did this, but I'm not sure why.
             if (uniform.m_Location == -1)
@@ -2467,12 +2705,23 @@ static void LogFrameBufferError(GLenum status)
         program->m_Id       = AddNewGLHandle(context, p);
         program->m_Language = compute_shader->m_Language;
 
-        BuildUniforms((OpenGLContext*) context, program, &compute_shader, 1);
+        OpenGLBuildUniforms((OpenGLContext*) context, program, &compute_shader, 1);
         return (HProgram) program;
     #else
         dmLogInfo("Compute Shaders are not supported for OpenGL on this platform.");
         return 0;
     #endif
+    }
+
+    static void CreateProgramResourceBindings(OpenGLProgram* program, ResourceBindingDesc bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT], OpenGLShader** shaders, uint32_t num_shaders)
+    {
+        ProgramResourceBindingsInfo binding_info = {};
+        for (int i = 0; i < num_shaders; ++i)
+        {
+            FillProgramResourceBindings(&program->m_BaseProgram, &shaders[i]->m_ShaderMeta, bindings, 0, 0, shaders[i]->m_Stage, binding_info);
+        }
+        program->m_BaseProgram.m_MaxSet     = binding_info.m_MaxSet;
+        program->m_BaseProgram.m_MaxBinding = binding_info.m_MaxBinding;
     }
 
     // TODO: Rename to graphicsprogram instead of newprogram
@@ -2522,7 +2771,10 @@ static void LogFrameBufferError(GLenum status)
 
         OpenGLShader* shaders[] = { vertex_shader, fragment_shader };
 
-        BuildUniforms((OpenGLContext*) context, program, shaders, DM_ARRAY_SIZE(shaders));
+        ResourceBindingDesc bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT] = {};
+        CreateProgramResourceBindings(program, bindings, shaders, DM_ARRAY_SIZE(shaders));
+
+        OpenGLBuildUniforms((OpenGLContext*) context, program, shaders, DM_ARRAY_SIZE(shaders));
         BuildAttributes(program);
         return (HProgram) program;
     }
@@ -2533,11 +2785,6 @@ static void LogFrameBufferError(GLenum status)
         OpenGLProgram* program_ptr = (OpenGLProgram*) program;
         glDeleteProgram(GetGLHandle(context, program_ptr->m_Id));
         CleanupGLHandle(context, program_ptr->m_Id);
-
-        for (int i = 0; i < program_ptr->m_Uniforms.Size(); ++i)
-        {
-            free(program_ptr->m_Uniforms[i].m_Name);
-        }
 
         for (int i = 0; i < program_ptr->m_UniformBuffers.Size(); ++i)
         {
@@ -2767,7 +3014,7 @@ static void LogFrameBufferError(GLenum status)
         OpenGLProgram* program_ptr = (OpenGLProgram*) program;
         glLinkProgram(GetGLHandle(context, program_ptr->m_Id));
         CHECK_GL_ERROR;
-        
+
         return true;
     }
 
@@ -2845,37 +3092,6 @@ static void LogFrameBufferError(GLenum status)
         *element_count              = GetElementCount(attr.m_Type);
     }
 
-    static uint32_t OpenGLGetUniformCount(HProgram prog)
-    {
-        OpenGLProgram* program_ptr = (OpenGLProgram*) prog;
-        return program_ptr->m_Uniforms.Size();
-    }
-
-    static uint32_t OpenGLGetUniformName(HProgram prog, uint32_t index, char* buffer, uint32_t buffer_size, Type* type, int32_t* size)
-    {
-        OpenGLProgram* program_ptr = (OpenGLProgram*) prog;
-        *type = GetGraphicsType(program_ptr->m_Uniforms[index].m_Type);
-        *size = program_ptr->m_Uniforms[index].m_Count;
-        return dmStrlCpy(buffer, program_ptr->m_Uniforms[index].m_Name, buffer_size);
-    }
-
-    static HUniformLocation OpenGLGetUniformLocation(HProgram prog, const char* name)
-    {
-        OpenGLProgram* program_ptr = (OpenGLProgram*) prog;
-        dmhash_t name_hash         = dmHashString64(name);
-        uint32_t num_uniforms      = program_ptr->m_Uniforms.Size();
-
-        for (int i = 0; i < num_uniforms; ++i)
-        {
-            if (program_ptr->m_Uniforms[i].m_NameHash == name_hash)
-            {
-                return program_ptr->m_Uniforms[i].m_Location;
-            }
-        }
-        
-        return INVALID_UNIFORM_LOCATION;
-    }
-
     static void OpenGLSetViewport(HContext context, int32_t x, int32_t y, int32_t width, int32_t height)
     {
         assert(context);
@@ -2886,12 +3102,12 @@ static void LogFrameBufferError(GLenum status)
 
     static void OpenGLSetConstantV4(HContext context, const Vector4* data, int count, HUniformLocation base_location)
     {
-        uint32_t block_member = UNIFORM_LOCATION_GET_FS(base_location);
+        uint32_t block_member = UNIFORM_LOCATION_GET_OP2(base_location);
 
         if (block_member)
         {
-            uint32_t block_index = UNIFORM_LOCATION_GET_VS(base_location);
-            uint32_t member_index = UNIFORM_LOCATION_GET_VS_MEMBER(base_location);
+            uint32_t block_index = UNIFORM_LOCATION_GET_OP0(base_location);
+            uint32_t member_index = UNIFORM_LOCATION_GET_OP1(base_location);
             OpenGLUniformBuffer& ubo = ((OpenGLContext*) context)->m_CurrentProgram->m_UniformBuffers[block_index];
 
             uint8_t* data_ptr = ubo.m_BlockMemory + ubo.m_Offsets[member_index];
@@ -2907,12 +3123,12 @@ static void LogFrameBufferError(GLenum status)
 
     static void OpenGLSetConstantM4(HContext context, const Vector4* data, int count, HUniformLocation base_location)
     {
-        uint32_t block_member = UNIFORM_LOCATION_GET_FS(base_location);
+        uint32_t block_member = UNIFORM_LOCATION_GET_OP2(base_location);
 
         if (block_member)
         {
-            uint32_t block_index = UNIFORM_LOCATION_GET_VS(base_location);
-            uint32_t member_index = UNIFORM_LOCATION_GET_VS_MEMBER(base_location);
+            uint32_t block_index = UNIFORM_LOCATION_GET_OP0(base_location);
+            uint32_t member_index = UNIFORM_LOCATION_GET_OP1(base_location);
             OpenGLUniformBuffer& ubo = ((OpenGLContext*) context)->m_CurrentProgram->m_UniformBuffers[block_index];
 
             uint8_t* data_ptr = ubo.m_BlockMemory + ubo.m_Offsets[member_index];
@@ -3477,9 +3693,10 @@ static void LogFrameBufferError(GLenum status)
         ApplyRenderTargetAttachments(g_Context, rt, true);
     }
 
-    static bool OpenGLIsTextureFormatSupported(HContext context, TextureFormat format)
+    static bool OpenGLIsTextureFormatSupported(HContext _context, TextureFormat format)
     {
-        return (((OpenGLContext*) context)->m_TextureFormatSupport & (1 << format)) != 0;
+        OpenGLContext* context = (OpenGLContext*) _context;
+        return (context->m_TextureFormatSupport & (1 << format)) != 0 || (context->m_ASTCSupport && IsTextureFormatASTC(format));
     }
 
     static uint32_t OpenGLGetMaxTextureSize(HContext context)
@@ -3862,7 +4079,22 @@ static void LogFrameBufferError(GLenum status)
         case TEXTURE_FORMAT_R_ETC2:             gl_format = DMGRAPHICS_TEXTURE_FORMAT_R11_EAC; break;
         case TEXTURE_FORMAT_RG_ETC2:            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RG11_EAC; break;
         case TEXTURE_FORMAT_RGBA_ETC2:          gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA8_ETC2_EAC; break;
-        case TEXTURE_FORMAT_RGBA_ASTC_4x4:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_4x4_KHR; break;
+
+        case TEXTURE_FORMAT_RGBA_ASTC_4X4:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_4x4_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_5X4:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_5x4_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_5X5:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_5x5_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_6X5:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_6x5_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_6X6:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_6x6_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_8X5:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_8x5_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_8X6:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_8x6_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_8X8:      gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_8x8_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_10X5:     gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_10x5_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_10X6:     gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_10x6_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_10X8:     gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_10x8_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_10X10:    gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_10x10_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_12X10:    gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_12x10_KHR; break;
+        case TEXTURE_FORMAT_RGBA_ASTC_12X12:    gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_ASTC_12x12_KHR; break;
+
         case TEXTURE_FORMAT_RGB_BC1:            gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGB_DXT1; break;
         case TEXTURE_FORMAT_RGBA_BC3:           gl_format = DMGRAPHICS_TEXTURE_FORMAT_RGBA_DXT5; break;
         case TEXTURE_FORMAT_R_BC4:              gl_format = DMGRAPHICS_TEXTURE_FORMAT_RED_RGTC1; break;
@@ -4105,7 +4337,20 @@ static void LogFrameBufferError(GLenum status)
             case TEXTURE_FORMAT_R_ETC2:
             case TEXTURE_FORMAT_RG_ETC2:
             case TEXTURE_FORMAT_RGBA_ETC2:
-            case TEXTURE_FORMAT_RGBA_ASTC_4x4:
+            case TEXTURE_FORMAT_RGBA_ASTC_4X4:
+            case TEXTURE_FORMAT_RGBA_ASTC_5X4:
+            case TEXTURE_FORMAT_RGBA_ASTC_5X5:
+            case TEXTURE_FORMAT_RGBA_ASTC_6X5:
+            case TEXTURE_FORMAT_RGBA_ASTC_6X6:
+            case TEXTURE_FORMAT_RGBA_ASTC_8X5:
+            case TEXTURE_FORMAT_RGBA_ASTC_8X6:
+            case TEXTURE_FORMAT_RGBA_ASTC_8X8:
+            case TEXTURE_FORMAT_RGBA_ASTC_10X5:
+            case TEXTURE_FORMAT_RGBA_ASTC_10X6:
+            case TEXTURE_FORMAT_RGBA_ASTC_10X8:
+            case TEXTURE_FORMAT_RGBA_ASTC_10X10:
+            case TEXTURE_FORMAT_RGBA_ASTC_12X10:
+            case TEXTURE_FORMAT_RGBA_ASTC_12X12:
             case TEXTURE_FORMAT_RGB_BC1:
             case TEXTURE_FORMAT_RGBA_BC3:
             case TEXTURE_FORMAT_R_BC4:
@@ -4252,16 +4497,19 @@ static void LogFrameBufferError(GLenum status)
 #ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
     static bool GetTextureUniform(OpenGLContext* context, uint32_t unit, int32_t* index, Type* type)
     {
-        uint32_t num_uniforms = context->m_CurrentProgram->m_Uniforms.Size();
+        uint32_t num_uniforms = context->m_CurrentProgram->m_BaseProgram.m_Uniforms.Size();
+        uint32_t texture_unit = 0;
         for (int i = 0; i < num_uniforms; ++i)
         {
-            if (context->m_CurrentProgram->m_Uniforms[i].m_IsTextureType &&
-                context->m_CurrentProgram->m_Uniforms[i].m_TextureUnit == unit)
+            if (IsTypeTextureType(context->m_CurrentProgram->m_BaseProgram.m_Uniforms[i].m_Type))
             {
-                *index = i;
-                *type = GetGraphicsType(context->m_CurrentProgram->m_Uniforms[i].m_Type);
-
-                return true;
+                if (texture_unit == unit)
+                {
+                    *index = i;
+                    *type = GetGraphicsType(context->m_CurrentProgram->m_BaseProgram.m_Uniforms[i].m_Type);
+                    return true;
+                }
+                texture_unit++;
             }
         }
         return false;

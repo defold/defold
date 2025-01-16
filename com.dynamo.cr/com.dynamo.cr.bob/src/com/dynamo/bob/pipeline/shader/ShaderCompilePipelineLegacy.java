@@ -239,6 +239,8 @@ public class ShaderCompilePipelineLegacy extends ShaderCompilePipeline {
         } else if(shaderLanguage == ShaderDesc.Language.LANGUAGE_WGSL) {
             String result = compileSPIRVToWGSL(module.spirvResult.source, this.pipelineName);
             return result.getBytes();
+        } else if(shaderLanguage == ShaderDesc.Language.LANGUAGE_HLSL) {
+            return this.generateCrossCompiledShader(shaderType, shaderLanguage, 50);
         } else if (canBeCrossCompiled(shaderLanguage)) {
             String result = ShaderUtil.Common.compileGLSL(module.desc.source, shaderType, shaderLanguage, false, false, this.options.splitTextureSamplers);
             return result.getBytes();

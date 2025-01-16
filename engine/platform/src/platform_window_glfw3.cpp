@@ -104,8 +104,9 @@ namespace dmPlatform
 
     static void OnContentScaleCallback(GLFWwindow* glfw_window, float xscale, float yscale)
     {
-        (void)xscale;
-        (void)yscale;
+        HWindow window = (HWindow) glfwGetWindowUserPointer(glfw_window);
+        window->m_XScale = xscale;
+        window->m_YScale = yscale;
 
         int width, height;
         glfwGetWindowSize(glfw_window, &width, &height);
@@ -145,14 +146,19 @@ namespace dmPlatform
         glfwInitHint(GLFW_COCOA_CHDIR_RESOURCES, GLFW_FALSE);
     #endif
 
+    #if defined(__linux__) && !defined(ANDROID)
+        glfwInitHint(GLFW_WAYLAND_LIBDECOR, GLFW_WAYLAND_PREFER_LIBDECOR);
+        glfwInitHint(GLFW_PLATFORM, GLFW_PLATFORM_X11);
+    #endif
+
         if (glfwInit() == GL_FALSE)
         {
             dmLogError("Could not initialize glfw.");
             return 0;
         }
 
-        Window* wnd = new Window;
-        memset(wnd, 0, sizeof(Window));
+        dmWindow* wnd = new dmWindow;
+        memset(wnd, 0, sizeof(dmWindow));
 
         glfwSetErrorCallback(OnError);
 
@@ -173,7 +179,7 @@ namespace dmPlatform
         return 0;
     }
 
-    static PlatformResult OpenWindowOpenGL(Window* wnd, const WindowParams& params)
+    static PlatformResult OpenWindowOpenGL(dmWindow* wnd, const WindowParams& params)
     {
         uint32_t major = 3, minor = 3;
         if (!OpenGLGetVersion(params.m_OpenGLVersionHint, &major, &minor))
@@ -233,7 +239,7 @@ namespace dmPlatform
         return PLATFORM_RESULT_OK;
     }
 
-    static PlatformResult OpenWindowVulkan(Window* wnd, const WindowParams& params)
+    static PlatformResult OpenWindowVulkan(dmWindow* wnd, const WindowParams& params)
     {
         glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
         glfwWindowHint(GLFW_SAMPLES, params.m_Samples);
@@ -287,12 +293,14 @@ namespace dmPlatform
         if (res == PLATFORM_RESULT_OK)
         {
             FocusWindowNative(window);
+            SetWindowsIconNative(window);
 
         #ifdef __MACH__
             // Set size from settings
             glfwSetWindowSize(window->m_Window, params.m_Width, params.m_Height);
         #endif
 
+            glfwGetWindowContentScale(window->m_Window, &window->m_XScale, &window->m_YScale);
             glfwSetWindowUserPointer(window->m_Window, (void*) window);
             glfwSetWindowSizeCallback(window->m_Window, OnWindowResize);
             glfwSetWindowCloseCallback(window->m_Window, OnWindowClose);
@@ -399,7 +407,7 @@ namespace dmPlatform
 
     float GetDisplayScaleFactor(HWindow window)
     {
-        return dmMath::Max(window->m_Width / window->m_WidthScreen, window->m_Height / window->m_HeightScreen);
+        return dmMath::Max(window->m_XScale, window->m_YScale);
     }
 
     void* AcquireAuxContext(HWindow window)

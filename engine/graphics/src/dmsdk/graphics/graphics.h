@@ -224,6 +224,7 @@ namespace dmGraphics
         TEXTURE_FORMAT_RG_ETC2              = 14,
         TEXTURE_FORMAT_RGBA_ETC2            = 15,
         TEXTURE_FORMAT_RGBA_ASTC_4x4        = 16,
+        TEXTURE_FORMAT_RGBA_ASTC_4X4        = 16,
         TEXTURE_FORMAT_RGB_BC1              = 17,
         TEXTURE_FORMAT_RGBA_BC3             = 18,
         TEXTURE_FORMAT_R_BC4                = 19,
@@ -242,6 +243,21 @@ namespace dmGraphics
         TEXTURE_FORMAT_RGBA32UI             = 30,
         TEXTURE_FORMAT_BGRA8U               = 31,
         TEXTURE_FORMAT_R32UI                = 32,
+
+        // ASTC Formats
+        TEXTURE_FORMAT_RGBA_ASTC_5X4        = 33,
+        TEXTURE_FORMAT_RGBA_ASTC_5X5        = 34,
+        TEXTURE_FORMAT_RGBA_ASTC_6X5        = 35,
+        TEXTURE_FORMAT_RGBA_ASTC_6X6        = 36,
+        TEXTURE_FORMAT_RGBA_ASTC_8X5        = 37,
+        TEXTURE_FORMAT_RGBA_ASTC_8X6        = 38,
+        TEXTURE_FORMAT_RGBA_ASTC_8X8        = 39,
+        TEXTURE_FORMAT_RGBA_ASTC_10X5       = 40,
+        TEXTURE_FORMAT_RGBA_ASTC_10X6       = 41,
+        TEXTURE_FORMAT_RGBA_ASTC_10X8       = 42,
+        TEXTURE_FORMAT_RGBA_ASTC_10X10      = 43,
+        TEXTURE_FORMAT_RGBA_ASTC_12X10      = 44,
+        TEXTURE_FORMAT_RGBA_ASTC_12X12      = 45,
 
         TEXTURE_FORMAT_COUNT
     };

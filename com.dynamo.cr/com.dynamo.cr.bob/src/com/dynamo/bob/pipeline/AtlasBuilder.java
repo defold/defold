@@ -26,6 +26,9 @@ import java.util.List;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
+import com.defold.extension.pipeline.texture.TextureCompression;
+import com.defold.extension.pipeline.texture.TextureCompressorASTC;
+import com.defold.extension.pipeline.texture.TextureCompressorBasisU;
 import com.dynamo.bob.BuilderParams;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.ProtoBuilder;
@@ -45,10 +48,10 @@ import com.dynamo.gamesys.proto.AtlasProto.AtlasImage;
 import com.google.protobuf.TextFormat;
 
 @ProtoParams(srcClass = Atlas.class, messageClass = TextureSet.class)
-@BuilderParams(name = "Atlas", inExts = {".atlas"}, outExt = ".a.texturesetc")
+@BuilderParams(name = "Atlas", inExts = {".atlas"}, outExt = ".a.texturesetc", isCacheble = true)
 public class AtlasBuilder extends ProtoBuilder<Atlas.Builder> {
 
-    private static Logger logger = Logger.getLogger(AtlasBuilder.class.getName());
+    private static final Logger logger = Logger.getLogger(AtlasBuilder.class.getName());
 
     private static TextureImage.Type getTexureType(Atlas.Builder builder) {
         // We can't just look at result of texture generation to decide the image type,
@@ -128,6 +131,9 @@ public class AtlasBuilder extends ProtoBuilder<Atlas.Builder> {
             System.exit(1);
         }
 
+        TextureCompression.registerCompressor(new TextureCompressorBasisU());
+        TextureCompression.registerCompressor(new TextureCompressorASTC());
+
         String atlasInPath       = args[0];
         String textureSetOutPath = args[1];
         String textureOutPath    = args[2];
@@ -144,13 +150,7 @@ public class AtlasBuilder extends ProtoBuilder<Atlas.Builder> {
         TextureImage.Type textureImageType = getTexureType(builder);
 
         Atlas atlas = builder.build();
-        TextureSetResult result = AtlasUtil.generateTextureSet(atlas, new AtlasUtil.PathTransformer() {
-            @Override
-            public String transform(String path) {
-                String outPath = baseDir + path;
-                return outPath;
-            }
-        });
+        TextureSetResult result = AtlasUtil.generateTextureSet(atlas, path -> baseDir + path);
 
         Path basedirAbsolutePath = Paths.get(baseDir).toAbsolutePath();
         Path textureProjectPath  = Paths.get(inFile.getAbsolutePath().replace(".atlas", ".texturec"));

@@ -99,6 +99,10 @@ RUN \
     libxkbcommon-dev:amd64 \
     libwayland-dev \
     libwayland-dev:amd64 \
+    libxcursor-dev \
+    libxcursor-dev:amd64 \
+    libxinerama-dev \
+    libxinerama-dev:amd64 \
     libxrandr-dev \
     libxrandr-dev:amd64 \
     # for python+ctypes

@@ -27,6 +27,7 @@
             [internal.util :as util]
             [potemkin.namespaces :as namespaces]
             [schema.core :as s]
+            [service.log :as log]
             [util.coll :as coll]
             [util.fn :as fn])
   (:import [internal.graph.error_values ErrorValue]
@@ -382,11 +383,14 @@
   optional. _producer_ may be a var that names an fn, or fnk.  It may
   also be a function tail as [arglist] + forms.
 
-  In the arglist, you can specify ^:try metadata on arguments to allow
-  the computation of the output even when some of its arguments are
-  errors. Note that adding ^:try metadata on an array input will never
-  supply an error value to the output fnk; instead, it will provide
-  an array where some items might be errors.
+  In the arglist, you can specify ^:raw or ^:try metadata tags on arguments to
+  control how dependencies are evaluated. Tagging a property argument with ^:raw
+  will bypass any (value _getter_) declared for the property, and instead
+  produce the raw value assigned to the property map in the node or its override
+  chain. Tagging an argument with ^:try allows the computation of the output
+  even when some of its arguments are errors. Note that adding ^:try metadata on
+  an :array input will not supply an ErrorValue to the fnk; instead, it will
+  provide an array where some items might be ErrorValues.
 
   Values produced on an output with the :cached flag will be cached in
   memory until the node is affected by some change in inputs or
@@ -740,6 +744,18 @@
   (assert node-id)
   (it/invalidate node-id))
 
+(defn invalidate-output
+  "Creates a transaction step to invalidate the specified output of the node.
+  It will take effect when the transaction is applied in a transact call.
+
+   Example:
+
+   `(transact (invalidate-output node-id :output-label))`"
+  [node-id output-label]
+  {:pre [(node-id? node-id)
+         (keyword? output-label)]}
+  (it/invalidate-output node-id output-label))
+
 (defn mark-defective
   "Creates the transaction step to mark a node as _defective_.
   This means that all the outputs of the node will be replace by the defective value.
@@ -921,12 +937,18 @@
      (valid-node-value node-id label evaluation-context)))
   ([node-id label evaluation-context]
    (let [value (node-value node-id label evaluation-context)]
-     (if (error? value)
-       (throw (ex-info "Evaluation produced an ErrorValue."
-                       {:node-type-kw (node-type-kw (:basis evaluation-context) node-id)
-                        :label label
-                        :error value}))
-       value))))
+     (if-not (error? value)
+       value
+       (let [node-type-kw (node-type-kw (:basis evaluation-context) node-id)]
+         (throw
+           (ex-info
+             (format "Evaluation produced an ErrorValue from %s on %s %d."
+                     label
+                     (symbol node-type-kw)
+                     node-id)
+             {:node-type-kw node-type-kw
+              :label label
+              :error value})))))))
 
 (defn maybe-node-value
   "Like the node-value function, but returns nil if evaluation produced an
@@ -1389,10 +1411,10 @@
   ([root-id opts]
    (override root-id opts default-override-init-fn))
   ([root-id opts init-fn]
-   (let [{:keys [traverse-fn properties-by-node-id]
+   (let [{:keys [traverse-fn init-props-fn properties-by-node-id]
           :or {traverse-fn always-override-traverse-fn
                properties-by-node-id default-override-properties-by-node-id}} opts]
-     (it/override root-id traverse-fn init-fn properties-by-node-id))))
+     (it/override root-id traverse-fn init-props-fn init-fn properties-by-node-id))))
 
 (defn transfer-overrides [from-id->to-id]
   (it/transfer-overrides from-id->to-id))
@@ -1536,7 +1558,10 @@
   "Set up the initial system including graphs, caches, and disposal queues"
   [config]
   (reset! *the-system* (is/make-system config))
-  (low-memory/add-callback! clear-system-cache!))
+  (low-memory/add-callback!
+    (fn low-memory-callback! []
+      (log/info :message "Clearing the system cache in desperation due to low-memory conditions.")
+      (clear-system-cache!))))
 
 (defn make-graph!
   "Create a new graph in the system with optional values of `:history` and `:volatility`. If no

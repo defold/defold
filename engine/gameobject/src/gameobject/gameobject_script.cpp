@@ -2084,6 +2084,11 @@ namespace dmGameObject
     int Script_Exists(lua_State* L)
     {
         DM_LUA_STACK_CHECK(L, 1);
+        int top = lua_gettop(L);
+        if (top == 1 && lua_isnil(L, 1))
+        {
+            return luaL_error(L, "The url shouldn't be `nil`");
+        }
         ScriptInstance* i = ScriptInstance_Check(L);
         Instance* instance = i->m_Instance;
         dmMessage::URL sender;

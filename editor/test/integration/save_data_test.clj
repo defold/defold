@@ -614,6 +614,24 @@
   (is (s/valid? ::pb-ignore-key->pb-filter->pb-path-token->ignore-reason pb-ignored-fields)
       (s/explain-str ::pb-ignore-key->pb-filter->pb-path-token->ignore-reason pb-ignored-fields)))
 
+(def texture-profile-format-combinations
+  (let [formats [:texture-format-luminance
+                 :texture-format-luminance-alpha
+                 :texture-format-rgb
+                 :texture-format-rgb-16bpp
+                 :texture-format-rgba
+                 :texture-format-rgba-16bpp]
+        compressors [{:compressor "Uncompressed"
+                      :presets ["UNCOMPRESSED"]}
+                     {:compressor "BasisU"
+                      :presets ["BASISU_LOW" "BASISU_MEDIUM" "BASISU_HIGH" "BASISU_HIGHEST"]}]]
+    (for [format formats
+          {:keys [compressor presets]} compressors
+          preset presets]
+      {:format format
+       :compressor compressor
+       :compressor-preset preset})))
+
 (deftest silent-migrations-test
   ;; This test is intended to verify that certain silent data migrations are
   ;; performed correctly. A silent migration typically involves a :sanitize-fn
@@ -721,7 +739,14 @@
             embedded-sprite (test-util/to-component-resource-node-id embedded-component)]
         (is (= [{:sampler "texture_sampler"
                  :texture (workspace/find-resource workspace "/checked.atlas")}]
-               (g/node-value embedded-sprite :textures)))))))
+               (g/node-value embedded-sprite :textures)))))
+
+    (testing "texture_profiles"
+      (let [legacy-texture-profiles (project/get-resource-node project "/silently_migrated/legacy_texture_profile_formats.texture_profiles")
+            legacy-texture-profiles-save-value (g/node-value legacy-texture-profiles :save-value)
+            legacy-texture-profiles-formats (set (get-in legacy-texture-profiles-save-value [:profiles 0 :platforms 0 :formats]))
+            all-format-combinations (set texture-profile-format-combinations)]
+        (is (= legacy-texture-profiles-formats all-format-combinations))))))
 
 (defn- coll-value-comparator
   "The standard comparison will order shorter vectors above longer ones.
@@ -1304,7 +1329,7 @@
   ;; being overridden from a template node in one of the root-level files in the
   ;; save data test project. If you add a field to the NodeDesc protobuf
   ;; message, you'll either need to add a template override for it (we suggest
-  ;; you add it to `checked02.gui`, which hosts the majority of the template
+  ;; you add it to `checked01.gui`, which hosts the majority of the template
   ;; overrides), or add a field ignore rule to the `pb-ignored-fields` map at
   ;; the top of this file.
   (test-util/with-loaded-project project-path
@@ -1332,7 +1357,7 @@
   (test-util/with-loaded-project project-path
     (test-util/clear-cached-save-data! project)
     (doseq [save-data (project->save-datas project)]
-      (test-util/check-save-data-disk-equivalence! save-data))))
+      (test-util/check-save-data-disk-equivalence! save-data project-path))))
 
 (deftest save-value-is-equivalent-to-source-value-test
   ;; This test is intended to verify that the saved data contains all the same
@@ -1401,7 +1426,7 @@
                 (is (not (:dirty save-data))
                     "Unsaved changes detected after saving.")
                 (when (:dirty save-data)
-                  (test-util/check-save-data-disk-equivalence! save-data))))))))))
+                  (test-util/check-save-data-disk-equivalence! save-data project-path))))))))))
 
 (deftest resource-save-data-retention-test
   ;; This test is intended to verify that the system cache is populated with the

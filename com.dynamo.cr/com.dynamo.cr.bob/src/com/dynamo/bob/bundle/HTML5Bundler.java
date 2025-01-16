@@ -55,10 +55,14 @@ public class HTML5Bundler implements IBundler {
     private static final String SplitFileDir = "archive";
     private static final String SplitFileJson = "archive_files.json";
     private static int SplitFileSegmentSize = 2 * 1024 * 1024;
+    private static String SplitFileSHA1 = "";
 
     // previously it was hardcoded in dmloader.js
+    private String WasmSHA1 = "";
     private long WasmSize = 2000000;
+    private String WasmjsSHA1 = "";
     private long WasmjsSize = 250000;
+    private String AsmjsSHA1 = "";
     private long AsmjsSize = 4000000;
     public static final String MANIFEST_NAME = "engine_template.html";
 
@@ -96,8 +100,12 @@ public class HTML5Bundler implements IBundler {
             }
         }
         properties.put("DEFOLD_HEAP_SIZE", customHeapSize);
+        properties.put("DEFOLD_ARCHIVE_SHA1", SplitFileSHA1);
+        properties.put("DEFOLD_WASM_SHA1", WasmSHA1);
         properties.put("DEFOLD_WASM_SIZE", WasmSize);
+        properties.put("DEFOLD_WASMJS_SHA1", WasmjsSHA1);
         properties.put("DEFOLD_WASMJS_SIZE", WasmjsSize);
+        properties.put("ASMJS_SHA1", AsmjsSHA1);
         properties.put("ASMJS_SIZE", AsmjsSize);
 
         String splashImage = projectProperties.getStringValue("html5", "splash_image", null);
@@ -267,6 +275,29 @@ public class HTML5Bundler implements IBundler {
         }
     }
 
+    private static String calculateSHA1(File file) throws IOException {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-1");
+            BufferedInputStream is = new BufferedInputStream(new FileInputStream(file));
+            byte[] buffer = new byte[1024];
+            int n = is.read(buffer);
+            while (n != -1) {
+                md.update(buffer, 0, n);
+                n = is.read(buffer);
+            }
+            is.close();
+            String sha1 = new BigInteger(1, md.digest()).toString(16);
+            while (sha1.length() < 40) {
+                sha1 = "0" + sha1;
+            }
+            return sha1;
+        } catch (IOException e) {
+            return null;
+        } catch (NoSuchAlgorithmException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
     URL getResource(String name) {
         return getClass().getResource(String.format("resources/jsweb/%s", name));
     }
@@ -348,6 +379,9 @@ public class HTML5Bundler implements IBundler {
                     if (binExtension.equals("js")) {
                         FileUtils.copyFile(bin, new File(appDir, enginePrefix + "_asmjs.js"));
                         AsmjsSize = bin.length();
+                        if (project.hasOption("with-sha1")) {
+                            AsmjsSHA1 = HTML5Bundler.calculateSHA1(bin);
+                        }
                     } else {
                         throw new RuntimeException("Unknown extension '" + binExtension + "' of engine binary.");
                     }
@@ -376,9 +410,15 @@ public class HTML5Bundler implements IBundler {
                     if (binExtension.equals("js")) {
                         FileUtils.copyFile(bin, new File(appDir, enginePrefix + "_wasm.js"));
                         WasmjsSize = bin.length();
+                        if (project.hasOption("with-sha1")) {
+                            WasmjsSHA1 = HTML5Bundler.calculateSHA1(bin);
+                        }
                     } else if (binExtension.equals("wasm")) {
                         FileUtils.copyFile(bin, new File(appDir, enginePrefix + ".wasm"));
                         WasmSize = bin.length();
+                        if (project.hasOption("with-sha1")) {
+                            WasmSHA1 = HTML5Bundler.calculateSHA1(bin);
+                        }
                     } else {
                         throw new RuntimeException("Unknown extension '" + binExtension + "' of engine binary.");
                     }
@@ -402,6 +442,7 @@ public class HTML5Bundler implements IBundler {
                 FileUtils.copyFile(splashImage, new File(appDir, splashImage.getName()));
             }
         }
+        BundleHelper.moveBundleIfNeed(project, appDir);
     }
 
     private void createSplitFiles(Project project, File buildDir, File targetDir) throws IOException {
@@ -411,15 +452,15 @@ public class HTML5Bundler implements IBundler {
             toSplit.performSplit(targetDir);
             splitFiles.add(toSplit);
         }
-        createSplitFilesJson(splitFiles, targetDir);
+        createSplitFilesJson(splitFiles, targetDir, project.hasOption("with-sha1"));
     }
 
-    private void createSplitFilesJson(ArrayList<SplitFile> splitFiles, File targetDir) throws IOException {
+    private void createSplitFilesJson(ArrayList<SplitFile> splitFiles, File targetDir, boolean sha1) throws IOException {
+        File descFile = new File(targetDir, SplitFileJson);
         BufferedWriter writer = null;
         JsonGenerator generator = null;
         long totalSize = 0;
         try {
-            File descFile = new File(targetDir, SplitFileJson);
             writer = new BufferedWriter(new FileWriter(descFile));
             generator = (new JsonFactory()).createJsonGenerator(writer);
 
@@ -440,6 +481,9 @@ public class HTML5Bundler implements IBundler {
                 generator.close();
             }
             IOUtils.closeQuietly(writer);
+            if (sha1) {
+                SplitFileSHA1 = HTML5Bundler.calculateSHA1(descFile);
+            }
         }
     }
 }

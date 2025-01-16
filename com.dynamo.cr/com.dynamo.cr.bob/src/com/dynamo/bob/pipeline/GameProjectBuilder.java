@@ -129,7 +129,6 @@ public class GameProjectBuilder extends Builder {
         project.createPublisher(shouldPublish);
         TaskBuilder builder = Task.newBuilder(this)
                 .setName(params.name())
-                .disableCache()
                 .addInput(input)
                 .addOutput(input.changeExt(".projectc").disableCache());
 
@@ -241,6 +240,7 @@ public class GameProjectBuilder extends Builder {
             EnumSet<Project.OutputFlags> flags = outputs.get(path);
             boolean compress = (flags == null || !flags.contains(Project.OutputFlags.UNCOMPRESSED)) && doCompress;
             boolean encrypt = (flags != null && flags.contains(Project.OutputFlags.ENCRYPTED));
+
             archiveBuilder.add(path, compress, encrypt);
         }
 

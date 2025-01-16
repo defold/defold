@@ -309,6 +309,7 @@ namespace dmGameSystem
 
             g_Service = dmHttpService::New(&params);
             dmScript::RegisterDDFDecoder(dmHttpDDF::HttpResponse::m_DDFDescriptor, &HttpResponseDecoder);
+            dmScript::RegisterDDFDecoder(dmHttpDDF::HttpRequestProgress::m_DDFDescriptor, &HttpRequestProgressDecoder);
         }
 
         if (config_file)
