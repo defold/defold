@@ -49,6 +49,14 @@ public interface IResource {
     void setContent(byte[] content) throws IOException;
 
     /**
+     * Append content for resource. #
+     * @note only valid operation for output-resources, see {@link IResource#output()}
+     * @param content content to append to resource
+     * @throws IOException
+     */
+    void appendContent(byte[] content) throws IOException;
+
+    /**
      * Get sha1 checksum for resource
      * @return sha1 checksum
      * @throws IOException

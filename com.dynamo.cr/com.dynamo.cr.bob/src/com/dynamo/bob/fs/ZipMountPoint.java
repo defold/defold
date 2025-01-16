@@ -68,6 +68,11 @@ public class ZipMountPoint implements IMountPoint {
         }
 
         @Override
+        public void appendContent(byte[] content) throws IOException {
+            throw new IOException("Zip resources can't be written to.");
+        }
+
+        @Override
         public boolean exists() {
             return true;
         }

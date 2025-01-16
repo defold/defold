@@ -1,0 +1,6 @@
+right: "/cubemap/cubemap_right.png"
+left: "/cubemap/cubemap_left.png"
+top: "/cubemap/cubemap_top.png"
+bottom: "/cubemap/cubemap_bottom.png"
+front: "/cubemap/cubemap_front.png"
+back: "/cubemap/cubemap_back.png"
