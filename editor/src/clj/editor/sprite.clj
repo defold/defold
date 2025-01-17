@@ -356,7 +356,7 @@
                                          (g/error-value? anim-data) (dissoc :anim-data)
                                          (g/error-value? anim-ids) (dissoc :anim-ids)
                                          (g/error-value? texture-page-count) (dissoc :texture-page-count))))
-  (output texture-binding-save-value (g/fnk [sampler texture :as info] info))
+  (output texture-binding-save-value g/Any (g/fnk [sampler texture :as info] info))
   (output scene-info g/Any (g/fnk [sampler gpu-texture anim-data :as info] info))
   (input build-targets g/Any :array)
   (output build-targets g/Any (gu/passthrough build-targets)))
@@ -567,6 +567,10 @@
                                         (if (g/error-value? material-samplers)
                                           texture-binding-infos
                                           (detect-and-apply-renames texture-binding-infos material-samplers))))
+  (output texture-binding-save-values g/Any (g/fnk [texture-binding-save-values ^:try material-samplers]
+                                              (if (g/error-value? material-samplers)
+                                                texture-binding-save-values
+                                                (util/detect-and-apply-renames texture-binding-save-values :sampler material-samplers :name))))
   (output primary-texture-binding-info g/Any (g/fnk [texture-binding-infos ^:try material-samplers]
                                                (if (g/error-value? material-samplers)
                                                  (first texture-binding-infos)
