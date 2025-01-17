@@ -194,22 +194,6 @@ def install(args):
         call("update-alternatives --display clang-cpp")
         call("update-alternatives --display llvm-ar")
 
-        def testpath(path):
-            print("MAWE", path, ":", os.path.exists(path))
-
-        call("ls -la /usr/bin/clang")
-        call("ls -la /usr/bin/clang++")
-        call("ls -la /usr/bin/clang-cpp")
-        call("ls -la /usr/bin/llvm-ar")
-
-        testpath(os.path.join("/usr/bin", f'clang'))
-        testpath(os.path.join("/usr/bin", f'clang++'))
-        testpath(os.path.join("/usr/bin", f'clang-cpp'))
-        testpath(os.path.join("/usr/bin", f'llvm-ar'))
-
-        call("clang --version")
-        call("clang++ --version")
-
         packages = [
             "autoconf",
             "automake",
@@ -299,10 +283,6 @@ def build_engine(platform, channel, with_valgrind = False, with_asan = False, wi
         waf_opts.append('--with-tsan')
     if with_vanilla_lua:
         waf_opts.append('--use-vanilla-lua')
-
-    waf_opts.append('-v')
-    waf_opts.append('-v')
-    waf_opts.append('-v')
 
     if platform == 'x86_64-linux':
         args.append('build_sdk_headers') # gather headers after a successful build

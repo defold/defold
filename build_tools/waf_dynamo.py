@@ -1714,7 +1714,6 @@ def detect(conf):
 
     elif 'linux' == build_util.get_target_os():
         bin_dir=os.path.join(sdk.get_toolchain_root(sdkinfo, build_util.get_target_platform()),'bin')
-        print("MAWE", "bin_dir", bin_dir)
 
         conf.find_program('clang', var='CLANG', mandatory = False, path_list=[bin_dir])
 
@@ -1733,8 +1732,6 @@ def detect(conf):
             conf.env.CC = "clang"
             conf.env.CPP = "clang -E"
             # llvm-ar or ar are found when loading compiler_c/compiler_cxx
-
-        print(conf.env)
 
     platform_setup_tools(conf, build_util)
 
