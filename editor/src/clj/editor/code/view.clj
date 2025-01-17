@@ -2325,11 +2325,11 @@
 
 (defn handle-scroll! [view-node ^ScrollEvent event]
   (.consume event)
-  (when (if (or (.isControlDown event)
-                (.isMetaDown event))
-          (-> (g/node-value view-node :canvas)
-              (ui/run-command (cond (pos? (.getDeltaY event)) :zoom-in
-                                    (neg? (.getDeltaY event)) :zoom-out)))
+  (when (if (.isShortcutDown event)
+          (do (-> (g/node-value view-node :canvas)
+                  (ui/run-command (cond (pos? (.getDeltaY event)) :zoom-in
+                                        (neg? (.getDeltaY event)) :zoom-out)))
+              true)
           (set-properties! view-node :navigation
                            (data/scroll (get-property view-node :lines)
                                         (get-property view-node :scroll-x)
@@ -2338,7 +2338,7 @@
                                         (get-property view-node :gesture-start)
                                         (.getDeltaX event)
                                         (.getDeltaY event))))
-      (hide-suggestions! view-node)))
+    (hide-suggestions! view-node)))
 
 ;; -----------------------------------------------------------------------------
 
