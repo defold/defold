@@ -332,6 +332,7 @@ function editor.bundle.create(config, output_directory, extra_bob_opts)
     bob_opts.with_symbols = config.with_symbols
     bob_opts.build_report_html = config.build_report and (output_directory .. "/report.html") or nil
     bob_opts.liveupdate = config.liveupdate and "yes" or nil
+    bob_opts.output = "build/default_bundle/"
 
     if not editor.external_file_attributes(output_directory).exists then
         if editor.platform:sub(-#"win32") == "win32" then
