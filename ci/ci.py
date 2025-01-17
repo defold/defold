@@ -164,7 +164,7 @@ def install(args):
         if not os.path.exists(clang_exe):
             print(f"{clang_exe} not found. Installing LLVM + CLANG {clang_version} ...")
 
-            call(f"https://apt.llvm.org/llvm.sh")
+            call(f"wget https://apt.llvm.org/llvm.sh")
             call(f"chmod +x ./llvm.sh")
             call(f"./llvm.sh {clang_version}")
             call(f"rm ./llvm.sh")
