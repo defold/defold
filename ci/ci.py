@@ -174,19 +174,17 @@ def install(args):
 
             clang_path = f"/usr/lib/llvm-{clang_version}/bin"
 
+            # Add and select the correct version
             call(f"sudo update-alternatives --install /usr/bin/clang clang {clang_path}/clang-16 {clang_priority}")
             call(f"sudo update-alternatives --install /usr/bin/clang++ clang++ {clang_path}/clang++ {clang_priority}")
 
         else:
+            # Add and select the correct version
             call(f"sudo update-alternatives --install /usr/bin/clang clang {clang_path}/clang-{clang_version} {clang_priority}")
             call(f"sudo update-alternatives --install /usr/bin/clang++ clang++ {clang_path}/clang++-{clang_version} {clang_priority}")
 
         call("update-alternatives --display clang")
         call("update-alternatives --display clang++")
-
-        # select our desired version
-        call(f"sudo update-alternatives --set clang /usr/bin/clang-{clang_version}")
-        call(f"sudo update-alternatives --set clang++ /usr/bin/clang++-{clang_version}")
 
         def testpath(path):
             print("MAWE", path, ":", os.path.exists(path))
