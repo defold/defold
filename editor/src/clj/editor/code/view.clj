@@ -2325,11 +2325,11 @@
 
 (defn handle-scroll! [view-node ^ScrollEvent event]
   (.consume event)
-  (when (if (or (.isControlDown event) 
+  (when (if (or (.isControlDown event)
                 (.isMetaDown event))
-          (-> (ui/contexts (ui/main-scene))
-              (ui/invoke-handler (cond (pos? (.getDeltaY event)) :zoom-in
-                                       (neg? (.getDeltaY event)) :zoom-out)))
+          (-> (g/node-value view-node :canvas)
+              (ui/run-command  (cond (pos? (.getDeltaY event)) :zoom-in
+                                     (neg? (.getDeltaY event)) :zoom-out)))
           (set-properties! view-node :navigation
                            (data/scroll (get-property view-node :lines)
                                         (get-property view-node :scroll-x)
