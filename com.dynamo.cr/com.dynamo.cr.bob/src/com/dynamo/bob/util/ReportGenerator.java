@@ -168,9 +168,9 @@ public class ReportGenerator {
 
 
     private void parseFromPublisher(Publisher p) {
-        Map<File, ArchiveEntry> entries = p.getEntries();
-        for (File file : entries.keySet()) {
-            ArchiveEntry archiveEntry = entries.get(file);
+        Map<String, ArchiveEntry> entries = p.getEntries();
+        for (String fileName : entries.keySet()) {
+            ArchiveEntry archiveEntry = entries.get(fileName);
             long compressedSize = archiveEntry.isCompressed() ? archiveEntry.getCompressedSize() : archiveEntry.getSize();
             boolean encrypted = archiveEntry.isEncrypted();
             boolean excluded = true;
