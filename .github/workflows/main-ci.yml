@@ -252,7 +252,7 @@ jobs:
       }]
 
   build-sdk:
-    needs: [bld-eng-darwin, bld-eng-windows, bld-eng-linux, bld-eng-android, bld-eng-web, bld-eng-switch, bld-eng-ps]
+    needs: [bld-eng-darwin, bld-eng-windows, bld-eng-linux-x64, bld-eng-linux-arm64, bld-eng-android, bld-eng-web, bld-eng-switch, bld-eng-ps]
     runs-on: ubuntu-20.04
     steps: [
       { name: 'Checkout', uses: actions/checkout@b4ffde65f46336ab88eb53be808477a3936bae11, with: { ref: '${{env.BUILD_BRANCH}}' } },
