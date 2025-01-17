@@ -2328,8 +2328,8 @@
   (when (if (or (.isControlDown event)
                 (.isMetaDown event))
           (-> (g/node-value view-node :canvas)
-              (ui/run-command  (cond (pos? (.getDeltaY event)) :zoom-in
-                                     (neg? (.getDeltaY event)) :zoom-out)))
+              (ui/run-command (cond (pos? (.getDeltaY event)) :zoom-in
+                                    (neg? (.getDeltaY event)) :zoom-out)))
           (set-properties! view-node :navigation
                            (data/scroll (get-property view-node :lines)
                                         (get-property view-node :scroll-x)
