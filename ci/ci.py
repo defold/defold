@@ -180,17 +180,19 @@ def install(args):
             call(f"sudo update-alternatives --install /usr/bin/clang clang {clang_path}/clang-{clang_version} {clang_priority}")
             call(f"sudo update-alternatives --install /usr/bin/clang++ clang++ {clang_path}/clang++ {clang_priority}")
             call(f"sudo update-alternatives --install /usr/bin/clang-cpp clang-cpp {clang_path}/clang-cpp {clang_priority}")
-            call(f"sudo update-alternatives --install /usr/bin/ar ar {clang_path}/llvm-ar {clang_priority}")
+            call(f"sudo update-alternatives --install /usr/bin/ar llvm-ar {clang_path}/llvm-ar {clang_priority}")
 
         else:
             # Add and select the correct version
             call(f"sudo update-alternatives --install /usr/bin/clang clang {clang_path}/clang-{clang_version} {clang_priority}")
             call(f"sudo update-alternatives --install /usr/bin/clang++ clang++ {clang_path}/clang++-{clang_version} {clang_priority}")
             call(f"sudo update-alternatives --install /usr/bin/clang-cpp clang-cpp {clang_path}/clang-cpp-{clang_version} {clang_priority}")
+            call(f"sudo update-alternatives --install /usr/bin/llvm-ar llvm-ar {clang_path}/llvm-ar-{clang_version} {clang_priority}")
 
         call("update-alternatives --display clang")
         call("update-alternatives --display clang++")
         call("update-alternatives --display clang-cpp")
+        call("update-alternatives --display llvm-ar")
 
         def testpath(path):
             print("MAWE", path, ":", os.path.exists(path))
@@ -298,7 +300,9 @@ def build_engine(platform, channel, with_valgrind = False, with_asan = False, wi
     if with_vanilla_lua:
         waf_opts.append('--use-vanilla-lua')
 
-    waf_opts.append('--verbose')
+    waf_opts.append('-v')
+    waf_opts.append('-v')
+    waf_opts.append('-v')
 
     if platform == 'x86_64-linux':
         args.append('build_sdk_headers') # gather headers after a successful build
