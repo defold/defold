@@ -101,6 +101,10 @@ void InitializeJNITypes(JNIEnv* env, TypeInfos* infos) {
         GET_FLD_ARRAY(textures, "ShaderResource");
         GET_FLD_ARRAY(types, "ResourceTypeInfo");
     }
+    {
+        SETUP_CLASS(ShaderCompileResultJNI, "ShaderCompileResult");
+        GET_FLD_TYPESTR(data, "[B");
+    }
     #undef GET_FLD
     #undef GET_FLD_ARRAY
     #undef GET_FLD_TYPESTR
@@ -113,6 +117,7 @@ void FinalizeJNITypes(JNIEnv* env, TypeInfos* infos) {
     env->DeleteLocalRef(infos->m_ResourceTypeInfoJNI.cls);
     env->DeleteLocalRef(infos->m_ShaderResourceJNI.cls);
     env->DeleteLocalRef(infos->m_ShaderReflectionJNI.cls);
+    env->DeleteLocalRef(infos->m_ShaderCompileResultJNI.cls);
 }
 
 
@@ -194,6 +199,13 @@ jobject C2J_CreateShaderReflection(JNIEnv* env, TypeInfos* types, const ShaderRe
     dmJNI::SetObjectDeref(env, obj, types->m_ShaderReflectionJNI.storageBuffers, C2J_CreateShaderResourceArray(env, types, src->m_StorageBuffers.Begin(), src->m_StorageBuffers.Size()));
     dmJNI::SetObjectDeref(env, obj, types->m_ShaderReflectionJNI.textures, C2J_CreateShaderResourceArray(env, types, src->m_Textures.Begin(), src->m_Textures.Size()));
     dmJNI::SetObjectDeref(env, obj, types->m_ShaderReflectionJNI.types, C2J_CreateResourceTypeInfoArray(env, types, src->m_Types.Begin(), src->m_Types.Size()));
+    return obj;
+}
+
+jobject C2J_CreateShaderCompileResult(JNIEnv* env, TypeInfos* types, const ShaderCompileResult* src) {
+    if (src == 0) return 0;
+    jobject obj = env->AllocObject(types->m_ShaderCompileResultJNI.cls);
+    dmJNI::SetObjectDeref(env, obj, types->m_ShaderCompileResultJNI.data, dmJNI::C2J_CreateUByteArray(env, src->m_Data.Begin(), src->m_Data.Size()));
     return obj;
 }
 
@@ -312,6 +324,26 @@ jobjectArray C2J_CreateShaderReflectionPtrArray(JNIEnv* env, TypeInfos* types, c
     jobjectArray arr = env->NewObjectArray(src_count, types->m_ShaderReflectionJNI.cls, 0);
     for (uint32_t i = 0; i < src_count; ++i) {
         jobject obj = C2J_CreateShaderReflection(env, types, src[i]);
+        env->SetObjectArrayElement(arr, i, obj);
+        env->DeleteLocalRef(obj);
+    }
+    return arr;
+}
+jobjectArray C2J_CreateShaderCompileResultArray(JNIEnv* env, TypeInfos* types, const ShaderCompileResult* src, uint32_t src_count) {
+    if (src == 0 || src_count == 0) return 0;
+    jobjectArray arr = env->NewObjectArray(src_count, types->m_ShaderCompileResultJNI.cls, 0);
+    for (uint32_t i = 0; i < src_count; ++i) {
+        jobject obj = C2J_CreateShaderCompileResult(env, types, &src[i]);
+        env->SetObjectArrayElement(arr, i, obj);
+        env->DeleteLocalRef(obj);
+    }
+    return arr;
+}
+jobjectArray C2J_CreateShaderCompileResultPtrArray(JNIEnv* env, TypeInfos* types, const ShaderCompileResult* const* src, uint32_t src_count) {
+    if (src == 0 || src_count == 0) return 0;
+    jobjectArray arr = env->NewObjectArray(src_count, types->m_ShaderCompileResultJNI.cls, 0);
+    for (uint32_t i = 0; i < src_count; ++i) {
+        jobject obj = C2J_CreateShaderCompileResult(env, types, src[i]);
         env->SetObjectArrayElement(arr, i, obj);
         env->DeleteLocalRef(obj);
     }
@@ -454,6 +486,20 @@ bool J2C_CreateShaderReflection(JNIEnv* env, TypeInfos* types, jobject obj, Shad
             uint32_t tmp_count;
             ResourceTypeInfo* tmp = J2C_CreateResourceTypeInfoArray(env, types, (jobjectArray)field_object, &tmp_count);
             out->m_Types.Set(tmp, tmp_count, tmp_count, false);
+            env->DeleteLocalRef(field_object);
+        }
+    }
+    return true;
+}
+
+bool J2C_CreateShaderCompileResult(JNIEnv* env, TypeInfos* types, jobject obj, ShaderCompileResult* out) {
+    if (out == 0) return false;
+    {
+        jobject field_object = env->GetObjectField(obj, types->m_ShaderCompileResultJNI.data);
+        if (field_object) {
+            uint32_t tmp_count;
+            uint8_t* tmp = dmJNI::J2C_CreateUByteArray(env, (jbyteArray)field_object, &tmp_count);
+            out->m_Data.Set(tmp, tmp_count, tmp_count, false);
             env->DeleteLocalRef(field_object);
         }
     }
@@ -703,6 +749,47 @@ ShaderReflection** J2C_CreateShaderReflectionPtrArray(JNIEnv* env, TypeInfos* ty
     jsize len = env->GetArrayLength(arr);
     ShaderReflection** out = new ShaderReflection*[len];
     J2C_CreateShaderReflectionPtrArrayInPlace(env, types, arr, out, len);
+    *out_count = (uint32_t)len;
+    return out;
+}
+void J2C_CreateShaderCompileResultArrayInPlace(JNIEnv* env, TypeInfos* types, jobjectArray arr, ShaderCompileResult* dst, uint32_t dst_count) {
+    jsize len = env->GetArrayLength(arr);
+    if (len != dst_count) {
+        printf("Number of elements mismatch. Expected %u, but got %u\n", dst_count, len);
+    }
+    if (len > dst_count)
+        len = dst_count;
+    for (uint32_t i = 0; i < len; ++i) {
+        jobject obj = env->GetObjectArrayElement(arr, i);
+        J2C_CreateShaderCompileResult(env, types, obj, &dst[i]);
+        env->DeleteLocalRef(obj);
+    }
+}
+ShaderCompileResult* J2C_CreateShaderCompileResultArray(JNIEnv* env, TypeInfos* types, jobjectArray arr, uint32_t* out_count) {
+    jsize len = env->GetArrayLength(arr);
+    ShaderCompileResult* out = new ShaderCompileResult[len];
+    J2C_CreateShaderCompileResultArrayInPlace(env, types, arr, out, len);
+    *out_count = (uint32_t)len;
+    return out;
+}
+void J2C_CreateShaderCompileResultPtrArrayInPlace(JNIEnv* env, TypeInfos* types, jobjectArray arr, ShaderCompileResult** dst, uint32_t dst_count) {
+    jsize len = env->GetArrayLength(arr);
+    if (len != dst_count) {
+        printf("Number of elements mismatch. Expected %u, but got %u\n", dst_count, len);
+    }
+    if (len > dst_count)
+        len = dst_count;
+    for (uint32_t i = 0; i < len; ++i) {
+        jobject obj = env->GetObjectArrayElement(arr, i);
+        dst[i] = new ShaderCompileResult();
+        J2C_CreateShaderCompileResult(env, types, obj, dst[i]);
+        env->DeleteLocalRef(obj);
+    }
+}
+ShaderCompileResult** J2C_CreateShaderCompileResultPtrArray(JNIEnv* env, TypeInfos* types, jobjectArray arr, uint32_t* out_count) {
+    jsize len = env->GetArrayLength(arr);
+    ShaderCompileResult** out = new ShaderCompileResult*[len];
+    J2C_CreateShaderCompileResultPtrArrayInPlace(env, types, arr, out, len);
     *out_count = (uint32_t)len;
     return out;
 }

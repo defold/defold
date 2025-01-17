@@ -85,6 +85,10 @@ public class ShadercJni {
 
     public static native Shaderc.ShaderReflection GetReflection(long context);
 
+    public static native void SetResourceLocation(long context, long compiler, long nameHash, int location);
+    public static native void SetResourceBinding(long context, long compiler, long nameHash, int binding);
+    public static native void SetResourceSet(long context, long compiler, long nameHash, int set);
+
     public static native byte[] Compile(long context, long compiler, Shaderc.ShaderCompilerOptions options);
 
     public static byte[] ReadFile(File file) throws IOException
