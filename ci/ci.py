@@ -169,7 +169,7 @@ def install(args):
             call(f"sudo ./llvm.sh {clang_version}")
             call(f"rm ./llvm.sh")
 
-            clang_path = f"usr/lib/llvm-{clang_version}/bin"
+            clang_path = f"/usr/lib/llvm-{clang_version}/bin"
 
         s =  f"sudo update-alternatives"
         s += f"    --install /usr/bin/clang                 clang                 {clang_path}/clang-{clang_version} {clang_priority}"
