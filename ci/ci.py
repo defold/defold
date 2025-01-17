@@ -171,12 +171,22 @@ def install(args):
 
             clang_path = f"/usr/lib/llvm-{clang_version}/bin"
 
+        def testpath(path):
+            print("MAWE", path, ":", os.path.exist(path))
+
+        testpath(os.path.join(clang_path, f'clang-{clang_version}'))
+        testpath(os.path.join(clang_path, f'clang++-{clang_version}'))
+        testpath(os.path.join(clang_path, f'clang-cl-{clang_version}'))
+        testpath(os.path.join(clang_path, f'clang-cpp-{clang_version}'))
+
         s =  f"sudo update-alternatives"
         s += f"    --install /usr/bin/clang                 clang                 {clang_path}/clang-{clang_version} {clang_priority}"
         s += f"    --slave   /usr/bin/clang++               clang++               {clang_path}/clang++-{clang_version}"
         s += f"    --slave   /usr/bin/clang-cl              clang-cl              {clang_path}/clang-cl-{clang_version}"
         s += f"    --slave   /usr/bin/clang-cpp             clang-cpp             {clang_path}/clang-cpp-{clang_version}"
         call(s)
+
+        call("ls /usr/bin/clang*")
 
         packages = [
             "autoconf",
