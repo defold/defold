@@ -172,7 +172,7 @@ def install(args):
             clang_path = f"/usr/lib/llvm-{clang_version}/bin"
 
         def testpath(path):
-            print("MAWE", path, ":", os.path.exist(path))
+            print("MAWE", path, ":", os.path.exists(path))
 
         testpath(os.path.join(clang_path, f'clang-{clang_version}'))
         testpath(os.path.join(clang_path, f'clang++-{clang_version}'))
