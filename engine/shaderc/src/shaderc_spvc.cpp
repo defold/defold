@@ -474,9 +474,10 @@ namespace dmShaderc
 
         const char *compile_result = NULL;
         spvc_compiler_compile(compiler->m_SPVCCompiler, &compile_result);
-
+        uint32_t result_size = strlen(compile_result);
 
         ShaderCompileResult* result = (ShaderCompileResult*) malloc(sizeof(ShaderCompileResult));
+        memset(result, 0, sizeof(ShaderCompileResult));
         result->m_Data.SetCapacity(strlen(compile_result));
         result->m_Data.SetSize(strlen(compile_result));
         memcpy(result->m_Data.Begin(), compile_result, result->m_Data.Size());
