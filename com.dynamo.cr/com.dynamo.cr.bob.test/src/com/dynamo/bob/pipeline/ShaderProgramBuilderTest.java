@@ -18,9 +18,6 @@ import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.assertFalse;
-import static org.junit.Assert.assertNull;
-
-import java.util.ArrayList;
 import java.util.List;
 
 import com.dynamo.bob.util.MurmurHash;
@@ -116,8 +113,8 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
     private void doTest(boolean expectSpirv) throws Exception {
         // Test GL vp
-        List<Message> outputs = build("/test_shader.vp", vp);
-        ShaderDesc shader = (ShaderDesc)outputs.get(0);
+        ShaderDesc shader = addAndBuildShaderDesc("/test_shader.vp", "/test_shader.shbundle", vp);
+
         assertNotNull(shader.getShaders(0).getSource());
         assertEquals(getPlatformGLSLLanguage(), shader.getShaders(0).getLanguage());
 
@@ -130,8 +127,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         }
 
         // Test GL fp
-        outputs = build("/test_shader.fp", fp);
-        shader = (ShaderDesc)outputs.get(0);
+        shader = addAndBuildShaderDesc("/test_shader.fp", "/test_shader.shbundle", fp);
         assertNotNull(shader.getShaders(0).getSource());
         assertEquals(getPlatformGLSLLanguage(), shader.getShaders(0).getLanguage());
 
@@ -143,35 +139,31 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             assertEquals(1, shader.getShadersCount());
         }
 
+        shader = addAndBuildShaderDesc("/test_shader.vp", "/test_shader.shbundle", vpEs3);
+
         // Test GLES vp
         if (expectSpirv) {
             if (isHostPlatformDesktop()) {
                 // If we have requested Spir-V, we have to test a ready-made ES3 version
                 // Since we will not process the input shader if the #version preprocessor exists
-                outputs = build("/test_shader.vp", vpEs3);
-                shader = (ShaderDesc)outputs.get(0);
                 assertEquals(2, shader.getShadersCount());
                 assertNotNull(shader.getShaders(1).getSource());
                 assertEquals(ShaderDesc.Language.LANGUAGE_SPIRV, shader.getShaders(1).getLanguage());
             }
         } else {
-            outputs = build("/test_shader.vp", vpEs3);
-            shader = (ShaderDesc)outputs.get(0);
             assertEquals(1, shader.getShadersCount());
         }
+
+        shader = addAndBuildShaderDesc("/test_shader.fp", "/test_shader.shbundle", fpEs3);
 
         // Test GLES fp
         if (expectSpirv) {
             if (isHostPlatformDesktop()) {
-                outputs = build("/test_shader.fp", fpEs3);
-                shader = (ShaderDesc)outputs.get(0);
                 assertEquals(2, shader.getShadersCount());
                 assertNotNull(shader.getShaders(1).getSource());
                 assertEquals(ShaderDesc.Language.LANGUAGE_SPIRV, shader.getShaders(1).getLanguage());
             }
         } else {
-            outputs = build("/test_shader.fp", fpEs3);
-            shader = (ShaderDesc)outputs.get(0);
             assertEquals(1, shader.getShadersCount());
         }
     }
@@ -253,8 +245,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
                 "    gl_FragColor = u_lights[0].color + u_lights[3].color; \n" +
                 "} \n";
 
-            List<Message> outputs = build("/reflection_0.fp", fs_src);
-            ShaderDesc shaderDesc = (ShaderDesc) outputs.get(0);
+            ShaderDesc shaderDesc = addAndBuildShaderDesc("/reflection_0.fp", "/reflection_0.shbundle", fs_src);
 
             assertTrue(shaderDesc.getShadersCount() > 0);
             ShaderDesc.Shader shader = getShaderByLanguage(shaderDesc, ShaderDesc.Language.LANGUAGE_SPIRV);
@@ -307,8 +298,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
                 "    color_out = my_data_one.member1 + my_data_two[0].member1; \n" +
                 "} \n";
 
-            List<Message> outputs = build("/reflection_1.fp", fs_src);
-            ShaderDesc shaderDesc = (ShaderDesc) outputs.get(0);
+            ShaderDesc shaderDesc = addAndBuildShaderDesc("/reflection_1.fp", "/reflection_1.shbundle", fs_src);
 
             assertTrue(shaderDesc.getShadersCount() > 0);
             ShaderDesc.Shader shader = getShaderByLanguage(shaderDesc, ShaderDesc.Language.LANGUAGE_SPIRV);
@@ -356,8 +346,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
         // Test non-split samplers
         {
-            List<Message> outputs = build("/reflection_2.fp", fs_sampler_type_src);
-            ShaderDesc shaderDesc = (ShaderDesc) outputs.get(0);
+            ShaderDesc shaderDesc = addAndBuildShaderDesc("/reflection_2.fp", "/reflection_2.shbundle", fs_sampler_type_src);
 
             assertTrue(shaderDesc.getShadersCount() > 0);
             ShaderDesc.Shader shader = getShaderByLanguage(shaderDesc, ShaderDesc.Language.LANGUAGE_SPIRV);
@@ -390,8 +379,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         {
             getProject().getProjectProperties().putBooleanValue("shader", "output_wgsl", true);
 
-            List<Message> outputs = build("/reflection_3.fp", fs_sampler_type_src);
-            ShaderDesc shaderDesc = (ShaderDesc) outputs.get(0);
+            ShaderDesc shaderDesc = addAndBuildShaderDesc("/reflection_3.fp", "/reflection_3.shbundle", fs_sampler_type_src);
 
             assertTrue(shaderDesc.getShadersCount() > 0);
             assertNotNull(getShaderByLanguage(shaderDesc, ShaderDesc.Language.LANGUAGE_SPIRV));
@@ -473,8 +461,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
         // Test include a valid shader from the same folder
         {
-            List<Message> outputs = build("/test_glsl_same_folder.fp", String.format(shader_base, "glsl_same_folder.glsl"));
-            ShaderDesc shader     = (ShaderDesc)outputs.get(0);
+            ShaderDesc shader = addAndBuildShaderDesc("/test_glsl_same_folder.fp", "/test_glsl_same_folder.shbundle", String.format(shader_base, "glsl_same_folder.glsl"));
             testOutput(String.format(expected_base,
                 "const float same_folder = 0.0;\n"),
                 shader.getShaders(0).getSource().toStringUtf8());
@@ -482,8 +469,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
         // Test include a valid shader from a subfolder
         {
-            List<Message> outputs = build("/test_glsl_sub_folder_includes.fp", String.format(shader_base, "shader_includes/glsl_sub_include.glsl"));
-            ShaderDesc shader     = (ShaderDesc)outputs.get(0);
+            ShaderDesc shader = addAndBuildShaderDesc("/test_glsl_sub_folder_includes.fp", "/test_glsl_sub_folder_includes.shbundle", String.format(shader_base, "shader_includes/glsl_sub_include.glsl"));
             testOutput(String.format(expected_base,
                 "const float sub_include = 0.0;\n"),
                 shader.getShaders(0).getSource().toStringUtf8());
@@ -491,8 +477,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
         // Test include a valid shader from a subfolder that includes other files
         {
-            List<Message> outputs = build("/test_glsl_sub_folder_multiple_includes.fp", String.format(shader_base, "shader_includes/glsl_sub_include_multi.glsl"));
-            ShaderDesc shader     = (ShaderDesc)outputs.get(0);
+            ShaderDesc shader = addAndBuildShaderDesc("/test_glsl_sub_folder_multiple_includes.fp", "/test_glsl_sub_folder_multiple_includes.shbundle", String.format(shader_base, "shader_includes/glsl_sub_include_multi.glsl"));
             testOutput(String.format(expected_base,
                 "const float sub_include = 0.0;\n" +
                 "\n" +
@@ -504,7 +489,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         {
             boolean didFail = false;
             try {
-                List<Message> outputs = build("/test_glsl_missing.fp", String.format(shader_base, "path-doesnt-exist.glsl"));
+                addAndBuildShaderDesc("/test_glsl_missing.fp", "/test_glsl_missing.shbundle", String.format(shader_base, "path-doesnt-exist.glsl"));
             } catch (CompileExceptionError e) {
                 didFail = true;
             }
@@ -515,7 +500,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         {
             boolean didFail = false;
             try {
-                List<Message> outputs = build("/test_glsl_outside_of_project.fp", String.format(shader_base, "../path-doesnt-exist.glsl"));
+                addAndBuildShaderDesc("/test_glsl_outside_of_project.fp", "/test_glsl_outside_of_project.shbundle", String.format(shader_base, "../path-doesnt-exist.glsl"));
             } catch (CompileExceptionError e) {
                 didFail = true;
                 assertTrue(e.getMessage().contains("includes file from outside of project root"));
@@ -527,7 +512,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         {
             boolean didFail = false;
             try {
-                List<Message> outputs = build("/test_glsl_self_include.fp", String.format(shader_base, "shader_includes/glsl_self_include.glsl"));
+                addAndBuildShaderDesc("/test_glsl_self_include.fp", "/test_glsl_self_include.shbundle", String.format(shader_base, "shader_includes/glsl_self_include.glsl"));
             } catch (CompileExceptionError e) {
                 didFail = true;
             }
@@ -538,7 +523,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         {
             boolean didFail = false;
             try {
-                List<Message> outputs = build("/test_glsl_cyclic_include.fp", String.format(shader_base, "shader_includes/glsl_cyclic_include.glsl"));
+                addAndBuildShaderDesc("/test_glsl_cyclic_include.fp", "/test_glsl_cyclic_include.shbundle", String.format(shader_base, "shader_includes/glsl_cyclic_include.glsl"));
             } catch (CompileExceptionError e) {
                 didFail = true;
             }
@@ -655,6 +640,17 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
         return null;
     }
 
+    private ShaderDesc addAndBuildShaderDesc(String shaderPath, String shaderBundlePath, String shaderSource) throws Exception {
+
+        addFile(shaderPath, shaderSource);
+
+        ShaderProgramBuilderBundle.ModuleBundle modules = ShaderProgramBuilderBundle.createBundle();
+        modules.add(shaderPath);
+
+        List<Message> outputs = build(shaderBundlePath, modules.toBase64String());
+        return (ShaderDesc) outputs.get(0);
+    }
+
     @Test
     public void testUniformBuffers() throws Exception {
         String vp =
@@ -673,8 +669,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
         getProject().getProjectProperties().putBooleanValue("shader", "output_spirv", true);
 
-        List<Message> outputs = build("/test_shader.vp", vp);
-        ShaderDesc shaderDesc = (ShaderDesc) outputs.get(0);
+        ShaderDesc shaderDesc = addAndBuildShaderDesc("/test_shader.vp", "/test_shader.shbundle", vp);
 
         assertTrue(shaderDesc.getShadersCount() > 0);
 
@@ -711,12 +706,11 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
 
         getProject().getProjectProperties().putBooleanValue("shader", "output_spirv", true);
 
-        List<Message> outputs = build("/test_compute.cp", source_no_version);
-        ShaderDesc shaderDesc = (ShaderDesc) outputs.get(0);
+        ShaderDesc shaderDesc = addAndBuildShaderDesc("/test_compute.cp", "/test_compute.shbundle", source_no_version);
 
         assertTrue(shaderDesc.getShadersCount() > 0);
         assertNotNull(getShaderByLanguage(shaderDesc, ShaderDesc.Language.LANGUAGE_SPIRV));
-        assertEquals(ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE, shaderDesc.getShaderType());
+        assertEquals(ShaderDesc.ShaderType.SHADER_TYPE_COMPUTE, shaderDesc.getShaders(0).getShaderType());
 
         // Compute not supported for OSX on GL contexts
         if (Platform.getHostPlatform() == Platform.X86_64Win32 || Platform.getHostPlatform() == Platform.X86_64Win32) {
@@ -768,8 +762,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             "   gl_FragColor = vec4(1.0); \r\n" +
             "}\r\n";
 
-        List<Message> outputs = build("/test_shader_cr.fp", src);
-        ShaderDesc shaderDesc = (ShaderDesc) outputs.get(0);
+        ShaderDesc shaderDesc = addAndBuildShaderDesc("/test_shader_cr.fp", "/test_shader_cr.shbundle", src);
         assertTrue(shaderDesc.getShadersCount() > 0);
     }
 
@@ -790,8 +783,8 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             }
             """;
 
-        List<Message> outputs = build("/test_new_pipeline.fp", shaderNewPipeline);
-        ShaderDesc shaderDesc = (ShaderDesc) outputs.get(0);
+        ShaderDesc shaderDesc = addAndBuildShaderDesc("/test_new_pipeline.fp", "/test_new_pipeline.shbundle", shaderNewPipeline);
+
         assertTrue(shaderDesc.getShadersCount() > 0);
 
         ShaderDesc.ShaderReflection s = shaderDesc.getReflection();
@@ -810,8 +803,7 @@ public class ShaderProgramBuilderTest extends AbstractProtoBuilderTest {
             }
             """;
 
-        outputs = build("/test_old_pipeline.fp", shaderLegacyPipeline);
-        shaderDesc = (ShaderDesc) outputs.get(0);
+        shaderDesc = addAndBuildShaderDesc("/test_old_pipeline.fp", "/test_old_pipeline.shbundle", shaderLegacyPipeline);
         assertTrue(shaderDesc.getShadersCount() > 0);
 
         s = shaderDesc.getReflection();

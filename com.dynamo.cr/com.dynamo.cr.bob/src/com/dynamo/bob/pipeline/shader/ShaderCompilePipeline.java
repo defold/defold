@@ -14,6 +14,7 @@
 
 package com.dynamo.bob.pipeline.shader;
 
+import java.lang.reflect.Array;
 import java.nio.charset.StandardCharsets;
 import java.io.File;
 import java.io.IOException;
@@ -289,6 +290,12 @@ public class ShaderCompilePipeline {
 
     public SPIRVReflector getReflectionData() {
         return this.spirvReflector;
+    }
+
+    public static ShaderCompilePipeline createShaderPipeline(ShaderCompilePipeline pipeline, ShaderModuleDesc desc, Options options) throws IOException, CompileExceptionError {
+        ArrayList<ShaderModuleDesc> descs = new ArrayList<>();
+        descs.add(desc);
+        return createShaderPipeline(pipeline, descs, options );
     }
 
     public static ShaderCompilePipeline createShaderPipeline(ShaderCompilePipeline pipeline, ArrayList<ShaderModuleDesc> descs, Options options) throws IOException, CompileExceptionError {

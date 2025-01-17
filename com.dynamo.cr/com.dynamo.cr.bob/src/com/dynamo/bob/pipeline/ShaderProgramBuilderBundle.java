@@ -22,13 +22,15 @@ import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.util.ComponentsCounter;
 
 import java.io.*;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.Base64;
 
 public class ShaderProgramBuilderBundle extends Builder {
     public static final String EXT = ".shbundle";
     public static final String EXT_OUT = ".shbundlec";
 
-    public static class ModuleBundle implements Serializable {
+    public static class  ModuleBundle implements Serializable {
         private static final long serialVersionUID = 1L;
         private ArrayList<String> modules = new ArrayList<>();
 
@@ -48,20 +50,50 @@ public class ShaderProgramBuilderBundle extends Builder {
             return bos.toByteArray();
         }
 
-        public static ModuleBundle load(IResource resource) throws IOException {
+        public String toBase64String() throws IOException {
+            return Base64.getEncoder().encodeToString(toByteArray());
+        }
+
+        public static ModuleBundle fromBase64String(String content) throws IOException, ClassNotFoundException {
+            byte[] data = Base64.getDecoder().decode(content);
+            ObjectInputStream ois = new ObjectInputStream(new ByteArrayInputStream(data));
+            return (ModuleBundle) ois.readObject();
+        }
+
+        private static ModuleBundle loadFromBytes(byte[] content) {
+            try {
+                ObjectInputStream is = new ObjectInputStream(new ByteArrayInputStream(content));
+                return (ModuleBundle) is.readObject();
+            } catch (Throwable ignored) {}
+            return null;
+        }
+
+        private static ModuleBundle loadFromBase64Bytes(byte[] content) {
+            String contentB64String = new String(content, StandardCharsets.UTF_8);
+            try {
+                return fromBase64String(contentB64String);
+            } catch (Throwable ignored) {}
+            return null;
+        }
+
+        public static ModuleBundle load(IResource resource) throws IOException, CompileExceptionError {
             byte[] content = resource.getContent();
+
             if (content == null) {
                 return new ModuleBundle();
             } else {
-                try {
-                    ObjectInputStream is = new ObjectInputStream(new ByteArrayInputStream(content));
-                    ModuleBundle bundle = (ModuleBundle) is.readObject();
-                    return bundle;
-                } catch (Throwable e) {
-                    System.err.println("Unable to load module bundle");
-                    e.printStackTrace();
-                    return new ModuleBundle();
+
+                ModuleBundle fromBytes = loadFromBytes(content);
+                if (fromBytes != null) {
+                    return fromBytes;
                 }
+
+                ModuleBundle fromB64Bytes = loadFromBase64Bytes(content);
+                if (fromB64Bytes != null) {
+                    return fromB64Bytes;
+                }
+
+                throw new CompileExceptionError("Unable to load module bundle");
             }
         }
     }

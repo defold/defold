@@ -20,6 +20,7 @@ import java.io.BufferedOutputStream;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 
+import java.lang.reflect.Array;
 import java.nio.charset.StandardCharsets;
 
 import java.util.ArrayList;
@@ -39,7 +40,7 @@ import com.dynamo.bob.pipeline.shader.SPIRVReflector;
 
 import com.dynamo.graphics.proto.Graphics.ShaderDesc;
 
-@BuilderParams(name="ShaderProgramBuilder", inExts=".shbundlec", outExt=".spc")
+@BuilderParams(name="ShaderProgramBuilder", inExts=".shbundle", outExt=".spc")
 public class ShaderProgramBuilder extends Builder {
 
     static public class ShaderBuildResult {
@@ -518,37 +519,16 @@ public class ShaderProgramBuilder extends Builder {
             ShaderPreprocessor shaderPreprocessor = new ShaderPreprocessor(project, resourcePath, source);
             String finalShaderSource              = shaderPreprocessor.getCompiledSource();
 
-            //ShaderCompileResult shaderCompilerResult = shaderCompiler.compile(finalShaderSource, shaderType, outputPath, true, true);
-            //ShaderDescBuildResult shaderDescResult = buildResultsToShaderDescBuildResults(shaderCompilerResult, shaderType);
-            //shaderDescResult.shaderDesc.writeTo(os);
+            ShaderCompilePipeline.ShaderModuleDesc desc = new ShaderCompilePipeline.ShaderModuleDesc();
+            desc.type = shaderType;
+            desc.source = finalShaderSource;
+
+            ArrayList<ShaderCompilePipeline.ShaderModuleDesc> modules = new ArrayList<>();
+            modules.add(desc);
+
+            ShaderCompileResult shaderCompilerResult = shaderCompiler.compile(modules, outputPath, true, true);
+            ShaderDescBuildResult shaderDescResult = buildResultsToShaderDescBuildResults(shaderCompilerResult);
+            shaderDescResult.shaderDesc.writeTo(os);
         }
     }
 }
-
-/*
-public abstract class ShaderProgramBuilder extends Builder {
-
-    ShaderPreprocessor shaderPreprocessor;
-
-    public ShaderDescBuildResult makeShaderDesc(String resourceOutputPath, ShaderPreprocessor shaderPreprocessor, ShaderDesc.ShaderType shaderType, String platform, boolean outputSpirv, boolean outputWGSL) throws IOException, CompileExceptionError {
-        Platform platformKey = Platform.get(platform);
-        if(platformKey == null) {
-            throw new CompileExceptionError("Unknown platform for shader program '" + resourceOutputPath + "'': " + platform);
-        }
-
-        String finalShaderSource                 = shaderPreprocessor.getCompiledSource();
-        IShaderCompiler shaderCompiler           = project.getShaderCompiler(platformKey);
-        ShaderCompileResult shaderCompilerResult = shaderCompiler.compile(finalShaderSource, shaderType, resourceOutputPath, outputSpirv, outputWGSL);
-        return buildResultsToShaderDescBuildResults(shaderCompilerResult, shaderType);
-    }
-
-    public ShaderDesc getCompiledShaderDesc(Task task, ShaderDesc.ShaderType shaderType) throws IOException, CompileExceptionError {
-        boolean outputSpirv                   = getOutputSpirvFlag();
-        boolean outputWGSL                    = getOutputWGSLFlag();
-        String resourceOutputPath             = task.getOutputs().get(0).getPath();
-        ShaderDescBuildResult shaderDescBuildResult = makeShaderDesc(resourceOutputPath, shaderPreprocessor, shaderType, this.project.getPlatformStrings()[0], outputSpirv, outputWGSL);
-        handleShaderDescBuildResult(shaderDescBuildResult, resourceOutputPath);
-        return shaderDescBuildResult.shaderDesc;
-    }
-}
-*/

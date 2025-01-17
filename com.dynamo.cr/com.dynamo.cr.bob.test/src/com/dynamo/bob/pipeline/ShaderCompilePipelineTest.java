@@ -57,8 +57,12 @@ public class ShaderCompilePipelineTest {
                 }
                 """;
 
+        ShaderCompilePipeline.ShaderModuleDesc vsDesc = new ShaderCompilePipeline.ShaderModuleDesc();
+        vsDesc.type = ShaderDesc.ShaderType.SHADER_TYPE_VERTEX;
+        vsDesc.source = vsShader;
+
         ShaderCompilePipeline pipelineVertex = new ShaderCompilePipeline("testSimpleVertex");
-        ShaderCompilePipeline.createShaderPipeline(pipelineVertex, vsShader, ShaderDesc.ShaderType.SHADER_TYPE_VERTEX, new ShaderCompilePipeline.Options());
+        ShaderCompilePipeline.createShaderPipeline(pipelineVertex, vsDesc, new ShaderCompilePipeline.Options());
 
         SPIRVReflector reflector                  = pipelineVertex.getReflectionData();
         ArrayList<Shaderc.ShaderResource> inputs  = reflector.getInputs();
@@ -96,9 +100,12 @@ public class ShaderCompilePipelineTest {
                     color = vec4(1.0) + tint + value_array[2];
                 }
                 """;
+        ShaderCompilePipeline.ShaderModuleDesc fsDesc = new ShaderCompilePipeline.ShaderModuleDesc();
+        fsDesc.source = fsShader;
+        fsDesc.type = ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT;
 
         ShaderCompilePipeline pipelineFragment = new ShaderCompilePipeline("testSimpleFragment");
-        ShaderCompilePipeline.createShaderPipeline(pipelineFragment, fsShader, ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT, new ShaderCompilePipeline.Options());
+        ShaderCompilePipeline.createShaderPipeline(pipelineFragment, fsDesc, new ShaderCompilePipeline.Options());
 
         reflector = pipelineFragment.getReflectionData();
         ubos      = reflector.getUBOs();
@@ -151,8 +158,12 @@ public class ShaderCompilePipelineTest {
                 }
                 """;
 
+        ShaderCompilePipeline.ShaderModuleDesc fsDesc = new ShaderCompilePipeline.ShaderModuleDesc();
+        fsDesc.source = fsShader;
+        fsDesc.type = ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT;
+
         ShaderCompilePipeline pipelineFragment = new ShaderCompilePipeline("testFragment");
-        ShaderCompilePipeline.createShaderPipeline(pipelineFragment, fsShader, ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT, new ShaderCompilePipeline.Options());
+        ShaderCompilePipeline.createShaderPipeline(pipelineFragment, fsDesc, new ShaderCompilePipeline.Options());
 
         SPIRVReflector reflector                    = pipelineFragment.getReflectionData();
         ArrayList<Shaderc.ShaderResource> inputs    = reflector.getInputs();
@@ -181,8 +192,12 @@ public class ShaderCompilePipelineTest {
                 }
                 """;
 
+        ShaderCompilePipeline.ShaderModuleDesc fsDescLegacy = new ShaderCompilePipeline.ShaderModuleDesc();
+        fsDescLegacy.source = fsShaderLegacy;
+        fsDescLegacy.type = ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT;
+
         ShaderCompilePipelineLegacy pipelineFragmentLegacy = new ShaderCompilePipelineLegacy("testFragment");
-        ShaderCompilePipeline.createShaderPipeline(pipelineFragmentLegacy, fsShaderLegacy, ShaderDesc.ShaderType.SHADER_TYPE_FRAGMENT, new ShaderCompilePipeline.Options());
+        ShaderCompilePipeline.createShaderPipeline(pipelineFragmentLegacy, fsDescLegacy, new ShaderCompilePipeline.Options());
 
         reflector = pipelineFragmentLegacy.getReflectionData();
         inputs    = reflector.getInputs();
