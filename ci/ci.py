@@ -155,11 +155,27 @@ def install(args):
 
         clang_priority = 160
         clang_version = 16
+        clang_path = "/usr/bin"
+        clang_exe = f"/usr/bin/clang-{clang_version}"
+
+        # On older ubuntu 20 clang-16 isn't available
+        # Also note that this is before the install_sdk step
+        # if we had to install it ourselves, let's use the correct path
+        if not os.path.exists(clang_exe):
+            print(f"{clang_exe} not found. Installing LLVM + CLANG {clang_version} ...")
+
+            call(f"https://apt.llvm.org/llvm.sh")
+            call(f"chmod +x ./llvm.sh")
+            call(f"./llvm.sh {clang_version}")
+            call(f"rm ./llvm.sh")
+
+            clang_path = f"usr/lib/llvm-{clang_version}/bin"
+
         s =  f"sudo update-alternatives"
-        s += f"    --install /usr/bin/clang                 clang                 /usr/bin/clang-{clang_version} {clang_priority}"
-        s += f"    --slave   /usr/bin/clang++               clang++               /usr/bin/clang++-{clang_version}"
-        s += f"    --slave   /usr/bin/clang-cl              clang-cl              /usr/bin/clang-cl-{clang_version}"
-        s += f"    --slave   /usr/bin/clang-cpp             clang-cpp             /usr/bin/clang-cpp-{clang_version}"
+        s += f"    --install /usr/bin/clang                 clang                 {clang_path}/clang-{clang_version} {clang_priority}"
+        s += f"    --slave   /usr/bin/clang++               clang++               {clang_path}/clang++-{clang_version}"
+        s += f"    --slave   /usr/bin/clang-cl              clang-cl              {clang_path}/clang-cl-{clang_version}"
+        s += f"    --slave   /usr/bin/clang-cpp             clang-cpp             {clang_path}/clang-cpp-{clang_version}"
         call(s)
 
         packages = [
@@ -194,6 +210,7 @@ def install(args):
             call("echo steam steam/question select 'I AGREE' | sudo debconf-set-selections")
             call("echo steam steam/license note '' | sudo debconf-set-selections")
             packages = [
+                "lib32z1",
                 "steamcmd",
                 "lib32gcc1",
                 "hfsprogs"   # for mounting DMG files
@@ -211,7 +228,7 @@ def build_engine(platform, channel, with_valgrind = False, with_asan = False, wi
 
     install_sdk = 'install_sdk'
     # for some platforms, we use the locally installed platform sdk
-    if platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios', 'js-web', 'wasm-web', 'arm64-linux'):
+    if platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios', 'js-web', 'wasm-web', 'arm64-linux', 'x86_64-linux'):
         install_sdk = ''
 
     args = ('python scripts/build.py distclean %s install_ext check_sdk' % install_sdk).split()
