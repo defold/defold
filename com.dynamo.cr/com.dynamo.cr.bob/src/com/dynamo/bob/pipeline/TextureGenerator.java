@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -54,12 +54,16 @@ import com.dynamo.graphics.proto.Graphics.TextureImage.TextureFormat;
 import com.dynamo.graphics.proto.Graphics.TextureFormatAlternative;
 import com.dynamo.graphics.proto.Graphics.TextureImage.Type;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
-import com.google.protobuf.ByteString;
 
 public class TextureGenerator {
 
     // specify what is maximum of threads TextureGenerator may use
     public static int maxThreads = Project.getDefaultMaxCpuThreads();
+
+    public static class GenerateResult {
+        public TextureImage textureImage;
+        public ArrayList<byte[]> imageDatas;
+    };
 
     private static final HashMap<TextureFormat, Integer> pixelFormatLUT = new HashMap<>();
     static {
@@ -249,16 +253,16 @@ public class TextureGenerator {
         return images;
     }
 
-    private static TextureImage.Image.Builder generateFromColorAndFormat(String name,
-                                                                BufferedImage image,
-                                                                ColorModel colorModel,
-                                                                TextureFormat textureFormat,
-                                                                String compressorName,
-                                                                String compressorPresetName,
-                                                                boolean generateMipMaps,
-                                                                int maxTextureSize,
-                                                                boolean premulAlpha,
-                                                                EnumSet<Texc.FlipAxis> flipAxis) throws TextureGeneratorException {
+    private static List<byte[]> generateFromColorAndFormat(TextureImage.Image.Builder builder,
+                                                     BufferedImage image,
+                                                     ColorModel colorModel,
+                                                     TextureFormat textureFormat,
+                                                     String compressorName,
+                                                     String compressorPresetName,
+                                                     boolean generateMipMaps,
+                                                     int maxTextureSize,
+                                                     boolean premulAlpha,
+                                                     EnumSet<FlipAxis> flipAxis) throws TextureGeneratorException {
 
         int width = image.getWidth();
         int height = image.getHeight();
@@ -280,7 +284,7 @@ public class TextureGenerator {
         byte[] bytes = byteBuffer.array();
 
         TimeProfiler.start("CreateTexture");
-        long textureImage = TexcLibraryJni.CreateImage(name, width, height,
+        long textureImage = TexcLibraryJni.CreateImage(null, width, height,
                                                         Texc.PixelFormat.PF_A8B8G8R8.getValue(),
                                                         Texc.ColorSpace.CS_SRGB.getValue(), bytes);
 
@@ -386,8 +390,7 @@ public class TextureGenerator {
             }
 
             // Generate output images for builder
-            TextureImage.Image.Builder builder = TextureImage.Image.newBuilder()
-                    .setWidth(newWidth)
+            builder.setWidth(newWidth)
                     .setHeight(newHeight)
                     .setOriginalWidth(width)
                     .setOriginalHeight(height)
@@ -404,11 +407,7 @@ public class TextureGenerator {
                 byte[] uncompressed = TexcLibraryJni.GetData(mipImage);
                 int mipWidth        = TexcLibraryJni.GetWidth(mipImage);
                 int mipHeight       = TexcLibraryJni.GetHeight(mipImage);
-
-                String paramsName = name;
-                if (paramsName == null) {
-                    paramsName = "MipMap_" + mipMapLevel;
-                }
+                String paramsName   = "MipMap_" + mipMapLevel;
 
                 TextureCompressorParams params = new TextureCompressorParams(paramsName, mipMapLevel, mipWidth, mipHeight, 0, componentCount, Texc.PixelFormat.PF_R8G8B8A8.getValue(), pixelFormat, Texc.ColorSpace.CS_SRGB.getValue());
                 byte[] compressedData = textureCompressor.compress(textureCompressorPreset, params, uncompressed);
@@ -428,24 +427,15 @@ public class TextureGenerator {
                 mipMapLevel++;
             }
 
-            // Copy each slice into the final byte buffer
-            // Offset == total size
-            byte[] textureData = new byte[offset];
-            int currentPos = 0;
-            for(byte[] mipImageData : compressedMipImageDatas) {
-                System.arraycopy(mipImageData, 0, textureData, currentPos, mipImageData.length);
-                currentPos += mipImageData.length;
-            }
+            builder.setDataSize(offset);
+            builder.setFormat(textureFormat);
 
             // Cleanup the texture images
             for (Long mipImage : mipImages) {
                 TexcLibraryJni.DestroyImage(mipImage);
             }
 
-            builder.setData(ByteString.copyFrom(textureData));
-            builder.setFormat(textureFormat);
-
-            return builder;
+            return compressedMipImageDatas;
         } finally {
             TexcLibraryJni.DestroyImage(textureImage);
         }
@@ -454,7 +444,7 @@ public class TextureGenerator {
     // For convenience, some methods without the flipAxis and/or compress argument.
     // It will always try to flip on Y axis since this is the byte order that OpenGL expects for regular/most textures,
     // for those methods without this argument.
-    public static TextureImage generate(InputStream inputStream) throws TextureGeneratorException, IOException {
+    public static GenerateResult generate(InputStream inputStream) throws TextureGeneratorException, IOException {
         TimeProfiler.start("Read Input Stream");
         BufferedImage origImage = ImageIO.read(inputStream);
         inputStream.close();
@@ -462,7 +452,7 @@ public class TextureGenerator {
         return generate(origImage, null, false, EnumSet.of(FlipAxis.FLIP_AXIS_Y));
     }
 
-    public static TextureImage generate(InputStream inputStream, TextureProfile texProfile) throws TextureGeneratorException, IOException {
+    public static GenerateResult generate(InputStream inputStream, TextureProfile texProfile) throws TextureGeneratorException, IOException {
         TimeProfiler.start("Read Input Stream");
         BufferedImage origImage = ImageIO.read(inputStream);
         inputStream.close();
@@ -470,7 +460,7 @@ public class TextureGenerator {
         return generate(origImage, texProfile, false, EnumSet.of(FlipAxis.FLIP_AXIS_Y));
     }
 
-    public static TextureImage generate(InputStream inputStream, TextureProfile texProfile, boolean compress) throws TextureGeneratorException, IOException {
+    public static GenerateResult generate(InputStream inputStream, TextureProfile texProfile, boolean compress) throws TextureGeneratorException, IOException {
         TimeProfiler.start("Read Input Stream");
         BufferedImage origImage = ImageIO.read(inputStream);
         inputStream.close();
@@ -481,7 +471,7 @@ public class TextureGenerator {
         return generate(origImage, texProfile, compress, EnumSet.of(FlipAxis.FLIP_AXIS_Y));
     }
 
-    public static TextureImage generate(InputStream inputStream, TextureProfile texProfile, boolean compress, EnumSet<FlipAxis> flipAxis) throws TextureGeneratorException, IOException {
+    public static GenerateResult generate(InputStream inputStream, TextureProfile texProfile, boolean compress, EnumSet<FlipAxis> flipAxis) throws TextureGeneratorException, IOException {
         TimeProfiler.start("Read Input Stream");
         BufferedImage origImage = ImageIO.read(inputStream);
         inputStream.close();
@@ -489,7 +479,7 @@ public class TextureGenerator {
         return generate(origImage, texProfile, compress, flipAxis);
     }
 
-    public static TextureImage generate(BufferedImage origImage, TextureProfile texProfile, boolean compress) throws TextureGeneratorException, IOException {
+    public static GenerateResult generate(BufferedImage origImage, TextureProfile texProfile, boolean compress) throws TextureGeneratorException, IOException {
         return generate(origImage, texProfile, compress, EnumSet.of(FlipAxis.FLIP_AXIS_Y));
     }
 
@@ -550,7 +540,7 @@ public class TextureGenerator {
 
     // Main TextureGenerator.generate method that has all required arguments and the expected BufferedImage type for origImage.
     // Used by the editor
-    public static TextureImage generate(BufferedImage origImage, TextureProfile texProfile, boolean compress, EnumSet<FlipAxis> flipAxis) throws TextureGeneratorException {
+    public static GenerateResult generate(BufferedImage origImage, TextureProfile texProfile, boolean compress, EnumSet<FlipAxis> flipAxis) throws TextureGeneratorException {
         // Convert image into readable format
         // Always convert to ABGR since the texc lib demands that for resizing etc
         TimeProfiler.start("generateTexture");
@@ -566,6 +556,10 @@ public class TextureGenerator {
         int componentCount = colorModel.getNumComponents();
         TextureImage.Builder textureBuilder = TextureImage.newBuilder();
 
+        GenerateResult result = new GenerateResult();
+        result.imageDatas = new ArrayList<>();
+
+        int currentDataOffset = 0;
         if (texProfile != null) {
 
             // Generate an image for each format specified in the profile
@@ -604,9 +598,12 @@ public class TextureGenerator {
                     }
 
                     try {
-                        TextureImage.Image.Builder imageBuilder = generateFromColorAndFormat(null, image, colorModel, textureFormat, textureCompressor, textureCompressorPreset, platformProfile.getMipmaps(), platformProfile.getMaxTextureSize(), platformProfile.getPremultiplyAlpha(), flipAxis);
+                        TextureImage.Image.Builder imageBuilder = TextureImage.Image.newBuilder();
+                        List<byte[]> imageDatas = generateFromColorAndFormat(imageBuilder, image, colorModel, textureFormat, textureCompressor, textureCompressorPreset, platformProfile.getMipmaps(), platformProfile.getMaxTextureSize(), platformProfile.getPremultiplyAlpha(), flipAxis);
                         imageBuilder.setCompressionType(compressionType);
                         textureBuilder.addAlternatives(imageBuilder);
+
+                        result.imageDatas.addAll(imageDatas);
                     } catch (TextureGeneratorException e) {
                         throw e;
                     }
@@ -625,17 +622,21 @@ public class TextureGenerator {
 
             // Guess texture format based on number color components of input image
             TextureFormat textureFormat = pickOptimalFormat(componentCount, TextureFormat.TEXTURE_FORMAT_RGBA);
-            TextureImage.Image.Builder imageBuilder = generateFromColorAndFormat(null, image, colorModel, textureFormat, TextureCompressorUncompressed.TextureCompressorName, TextureCompressorUncompressed.TextureCompressorUncompressedPresetName, true, 0, true, flipAxis);
+            TextureImage.Image.Builder imageBuilder = TextureImage.Image.newBuilder();
+            List<byte[]> imageDatas = generateFromColorAndFormat(imageBuilder, image, colorModel, textureFormat, TextureCompressorUncompressed.TextureCompressorName, TextureCompressorUncompressed.TextureCompressorUncompressedPresetName, true, 0, true, flipAxis);
+
             imageBuilder.setCompressionType(TextureImage.CompressionType.COMPRESSION_TYPE_DEFAULT);
             textureBuilder.addAlternatives(imageBuilder);
             textureBuilder.setCount(1);
+
+            result.imageDatas.addAll(imageDatas);
         }
 
         textureBuilder.setType(Type.TYPE_2D);
-        TextureImage textureImage = textureBuilder.build();
-        TimeProfiler.stop();
-        return textureImage;
+        result.textureImage = textureBuilder.build();
 
+        TimeProfiler.stop();
+        return result;
     }
 
     public static void main(String[] args) throws IOException, TextureGeneratorException {
@@ -647,8 +648,8 @@ public class TextureGenerator {
 
         try (BufferedInputStream is = new BufferedInputStream(new FileInputStream(args[0]));
              BufferedOutputStream os = new BufferedOutputStream(new FileOutputStream(args[1]))) {
-            TextureImage texture = generate(is);
-            texture.writeTo(os);
+            GenerateResult result = generate(is);
+            TextureUtil.writeGenerateResultToOutputStream(result, os);
         }
     }
 }

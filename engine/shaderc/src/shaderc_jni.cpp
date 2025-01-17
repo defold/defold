@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -82,16 +82,18 @@ static jbyteArray Compile(JNIEnv* env, jclass cls, jlong context, jlong compiler
     dmShaderc::ShaderCompilerOptions shader_options;
     dmShaderc::jni::J2C_CreateShaderCompilerOptions(env, types, options, &shader_options);
 
-    const char* res = dmShaderc::Compile(shader_ctx, shader_compiler, shader_options);
+    dmShaderc::ShaderCompileResult* res = dmShaderc::Compile(shader_ctx, shader_compiler, shader_options);
 
-    if (!res)
+    if (!res->m_Data.Size())
     {
         dmLogError("Failed to compile shader");
         return 0;
     }
 
-    jbyteArray result = env->NewByteArray((jsize) strlen(res));
-    env->SetByteArrayRegion(result, 0, (jsize) strlen(res), (jbyte*) res);
+    jbyteArray result = env->NewByteArray((jsize) res->m_Data.Size());
+    env->SetByteArrayRegion(result, 0, (jsize) res->m_Data.Size(), (jbyte*) res->m_Data.Begin());
+
+    dmShaderc::FreeShaderCompileResult(res);
 
     return result;
 }
@@ -164,6 +166,36 @@ JNIEXPORT jobject JNICALL Java_ShadercJni_GetReflection(JNIEnv* env, jclass cls,
     return reflection;
 }
 
+// void SetResourceLocation(HShaderContext context, HShaderCompiler compiler, uint64_t name_hash, uint8_t location);
+JNIEXPORT void JNICALL Java_ShadercJni_SetResourceLocation(JNIEnv* env, jclass cls, jlong context, jlong compiler, jlong name_hash, jint location)
+{
+    DM_JNI_GUARD_SCOPE_BEGIN();
+    {
+        dmShaderc::SetResourceLocation((dmShaderc::HShaderContext) context, (dmShaderc::HShaderCompiler) compiler, (uint64_t) name_hash, (uint8_t) location);
+    }
+    DM_JNI_GUARD_SCOPE_END();
+}
+
+// void SetResourceBinding(HShaderContext context, HShaderCompiler compiler, uint64_t name_hash, uint8_t binding);
+JNIEXPORT void JNICALL Java_ShadercJni_SetResourceBinding(JNIEnv* env, jclass cls, jlong context, jlong compiler, jlong name_hash, jint binding)
+{
+    DM_JNI_GUARD_SCOPE_BEGIN();
+    {
+        dmShaderc::SetResourceBinding((dmShaderc::HShaderContext) context, (dmShaderc::HShaderCompiler) compiler, (uint64_t) name_hash, (uint8_t) binding);
+    }
+    DM_JNI_GUARD_SCOPE_END();
+}
+
+// void SetResourceSet(HShaderContext context, HShaderCompiler compiler, uint64_t name_hash, uint8_t set);
+JNIEXPORT void JNICALL Java_ShadercJni_SetResourceSet(JNIEnv* env, jclass cls, jlong context, jlong compiler, jlong name_hash, jint set)
+{
+    DM_JNI_GUARD_SCOPE_BEGIN();
+    {
+        dmShaderc::SetResourceSet((dmShaderc::HShaderContext) context, (dmShaderc::HShaderCompiler) compiler, (uint64_t) name_hash, (uint8_t) set);
+    }
+    DM_JNI_GUARD_SCOPE_END();
+}
+
 JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved)
 {
     dmLogDebug("JNI_OnLoad ->");
@@ -193,6 +225,9 @@ JNIEXPORT jint JNI_OnLoad(JavaVM* vm, void* reserved)
         { (char*) "DeleteShaderCompiler", (char*) "(J)V", reinterpret_cast<void*>(Java_ShadercJni_DeleteShaderCompiler)},
         { (char*) "Compile", (char*) "(JJL" CLASS_NAME "$ShaderCompilerOptions;)[B", reinterpret_cast<void*>(Java_ShadercJni_Compile)},
         { (char*) "GetReflection", (char*) "(J)L" CLASS_NAME "$ShaderReflection;", reinterpret_cast<void*>(Java_ShadercJni_GetReflection)},
+        { (char*) "SetResourceLocation", (char*) "(JJJI)V", reinterpret_cast<void*>(Java_ShadercJni_SetResourceLocation)},
+        { (char*) "SetResourceBinding", (char*) "(JJJI)V", reinterpret_cast<void*>(Java_ShadercJni_SetResourceBinding)},
+        { (char*) "SetResourceSet", (char*) "(JJJI)V", reinterpret_cast<void*>(Java_ShadercJni_SetResourceSet)},
     };
     int rc = env->RegisterNatives(c, methods, sizeof(methods)/sizeof(JNINativeMethod));
     env->DeleteLocalRef(c);

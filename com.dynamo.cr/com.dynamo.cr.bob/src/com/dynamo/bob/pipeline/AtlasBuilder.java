@@ -1,4 +1,4 @@
-// Copyright 2020-2024 The Defold Foundation
+// Copyright 2020-2025 The Defold Foundation
 // Copyright 2014-2020 King
 // Copyright 2009-2014 Ragnar Svensson, Christian Murray
 // Licensed under the Defold License version 1.0 (the "License"); you may not use
@@ -112,15 +112,16 @@ public class AtlasBuilder extends ProtoBuilder<Atlas.Builder> {
         logger.fine("Compiling %s using profile %s", task.input(0).getPath(), texProfile!=null?texProfile.getName():"<none>");
 
         boolean compress = project.option("texture-compression", "false").equals("true");
-        TextureImage texture = null;
+        TextureGenerator.GenerateResult generateResult = null;
         try {
-            texture = TextureUtil.createMultiPageTexture(result.images, textureImageType, texProfile, compress);
+            generateResult = TextureUtil.createMultiPageTexture(result.images, textureImageType, texProfile, compress);
+
         } catch (TextureGeneratorException e) {
             throw new CompileExceptionError(task.input(0), -1, e.getMessage(), e);
         }
 
         task.output(0).setContent(textureSet.toByteArray());
-        task.output(1).setContent(texture.toByteArray());
+        TextureUtil.writeGenerateResultToResource(generateResult, task.output(1));
     }
 
     public static void main(String[] args) throws IOException, CompileExceptionError, TextureGeneratorException {
@@ -160,14 +161,14 @@ public class AtlasBuilder extends ProtoBuilder<Atlas.Builder> {
         TextureSet textureSet = result.builder.setPageCount(getPageCount(result.images, textureImageType))
                                         .setTexture(textureProjectStr)
                                         .build();
-        TextureImage texture = TextureUtil.createMultiPageTexture(result.images, textureImageType, null, false);
+        TextureGenerator.GenerateResult generateResult = TextureUtil.createMultiPageTexture(result.images, textureImageType, null, false);
 
         FileOutputStream textureSetOutStream = new FileOutputStream(textureSetOutPath);
         textureSet.writeTo(textureSetOutStream);
         textureSetOutStream.close();
 
         FileOutputStream textureOutStream = new FileOutputStream(textureOutPath);
-        texture.writeTo(textureOutStream);
+        TextureUtil.writeGenerateResultToOutputStream(generateResult, textureOutStream);
         textureOutStream.close();
     }
 }
