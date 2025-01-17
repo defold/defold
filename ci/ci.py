@@ -200,14 +200,14 @@ def install(args):
         call("ls -la /usr/bin/clang")
         call("ls -la /usr/bin/clang++")
         call("ls -la /usr/bin/clang-cpp")
+        call("ls -la /usr/bin/llvm-ar")
 
         testpath(os.path.join("/usr/bin", f'clang'))
         testpath(os.path.join("/usr/bin", f'clang++'))
         testpath(os.path.join("/usr/bin", f'clang-cpp'))
+        testpath(os.path.join("/usr/bin", f'llvm-ar'))
 
-        call("which clang")
         call("clang --version")
-        call("which clang++")
         call("clang++ --version")
 
         packages = [

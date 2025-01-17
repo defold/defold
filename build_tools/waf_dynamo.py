@@ -1731,8 +1731,8 @@ def detect(conf):
             # Fallback to default compiler
             conf.env.CXX = "clang++"
             conf.env.CC = "clang"
-            conf.env.AR = "llvm-ar"
             conf.env.CPP = "clang -E"
+            # llvm-ar or ar are found when loading compiler_c/compiler_cxx
 
         print(conf.env)
 
