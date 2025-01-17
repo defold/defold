@@ -534,45 +534,6 @@ namespace dmGraphics
         return context->m_Height;
     }
 
-    /*
-    void VulkanSetWindowSize(HContext _context, uint32_t width, uint32_t height)
-    {
-        VulkanContext* context = (VulkanContext*) _context;
-
-        if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
-        {
-            context->m_Width  = width;
-            context->m_Height = height;
-
-            dmPlatform::SetWindowSize(context->m_Window, width, height);
-
-            context->m_WindowWidth  = dmPlatform::GetWindowWidth(context->m_Window);
-            context->m_WindowHeight = dmPlatform::GetWindowHeight(context->m_Window);
-
-            SwapChainChanged(g_VulkanContext, &context->m_WindowWidth, &context->m_WindowHeight, 0, 0);
-        }
-    }
-
-    /*
-    HRESULT ResizeBuffers(
-  UINT        BufferCount,
-  UINT        Width,
-  UINT        Height,
-  DXGI_FORMAT NewFormat,
-  UINT        SwapChainFlags
-);
-*/
-    /*
-    void VulkanResizeWindow(HContext _context, uint32_t width, uint32_t height)
-    {
-        VulkanContext* context = (VulkanContext*) _context;
-        if (dmPlatform::GetWindowStateParam(context->m_Window, dmPlatform::WINDOW_STATE_OPENED))
-        {
-            VulkanSetWindowSize(_context, width, height);
-        }
-    }
-    */
-
     static void DX12SetWindowSize(HContext _context, uint32_t width, uint32_t height)
     {
         assert(_context);
