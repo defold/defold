@@ -181,6 +181,10 @@ def install(args):
             call(f"sudo update-alternatives --install /usr/bin/clang clang {clang_path}/clang-{clang_version} {clang_priority}")
             call(f"sudo update-alternatives --install /usr/bin/clang++ clang++ {clang_path}/clang++-{clang_version} {clang_priority}")
 
+        call("update-alternatives --display clang")
+        call("update-alternatives --display clang++")
+
+        # select our desired version
         call(f"sudo update-alternatives --set clang /usr/bin/clang-{clang_version}")
         call(f"sudo update-alternatives --set clang++ /usr/bin/clang++-{clang_version}")
 
@@ -192,6 +196,10 @@ def install(args):
         testpath(os.path.join(clang_path, f'clang'))
         testpath(os.path.join(clang_path, f'clang++'))
         testpath(os.path.join(clang_path, f'clang-cpp'))
+
+        testpath(os.path.join(/"/usr/bin", f'clang'))
+        testpath(os.path.join(/"/usr/bin", f'clang++'))
+        testpath(os.path.join(/"/usr/bin", f'clang-cpp'))
 
         call("which clang")
         call("clang --version")
