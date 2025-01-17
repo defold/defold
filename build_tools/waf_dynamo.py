@@ -1730,6 +1730,7 @@ def detect(conf):
             # Fallback to default compiler
             conf.env.CXX = "clang++"
             conf.env.CC = "clang"
+            conf.env.AR = "ar"
             conf.env.CPP = "clang -E"
 
         print(conf.env)

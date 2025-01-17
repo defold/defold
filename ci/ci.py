@@ -149,6 +149,8 @@ def install(args):
         call("sudo apt-get install -y software-properties-common")
 
         call("ls /usr/bin/clang*")
+        call("ls /usr/bin/ar*")
+        call("ls /usr/bin/llvm-ar*")
 
         call("update-alternatives --display clang")
         call("update-alternatives --display clang++")
@@ -178,6 +180,7 @@ def install(args):
             call(f"sudo update-alternatives --install /usr/bin/clang clang {clang_path}/clang-{clang_version} {clang_priority}")
             call(f"sudo update-alternatives --install /usr/bin/clang++ clang++ {clang_path}/clang++ {clang_priority}")
             call(f"sudo update-alternatives --install /usr/bin/clang-cpp clang-cpp {clang_path}/clang-cpp {clang_priority}")
+            call(f"sudo update-alternatives --install /usr/bin/ar ar {clang_path}/llvm-ar {clang_priority}")
 
         else:
             # Add and select the correct version
@@ -202,7 +205,8 @@ def install(args):
 
         call("which clang")
         call("clang --version")
-        call("clang -dM -E -") # print the defines
+        call("which clang++")
+        call("clang++ --version")
 
         packages = [
             "autoconf",
