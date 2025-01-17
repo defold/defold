@@ -20,7 +20,7 @@
 
 namespace dmRender
 {
-    HComputeProgram NewComputeProgram(HRenderContext render_context, dmGraphics::HComputeProgram shader)
+    HComputeProgram NewComputeProgram(HRenderContext render_context, dmGraphics::HProgram compute_program)
     {
         if (!dmGraphics::IsContextFeatureSupported(render_context->m_GraphicsContext, dmGraphics::CONTEXT_FEATURE_COMPUTE_SHADER))
         {
@@ -30,8 +30,8 @@ namespace dmRender
 
         ComputeProgram* program        = new ComputeProgram();
         program->m_RenderContext       = render_context;
-        program->m_Shader              = shader;
-        program->m_Program             = dmGraphics::NewProgram(render_context->m_GraphicsContext, shader);
+        //program->m_Shader              = shader;
+        program->m_Program             = compute_program; // dmGraphics::NewProgram(render_context->m_GraphicsContext, shader);
         uint32_t total_constants_count = dmGraphics::GetUniformCount(program->m_Program);
 
         uint32_t constants_count = 0;
@@ -109,10 +109,12 @@ namespace dmRender
         return GetProgramSampler(program->m_Samplers, unit);
     }
 
+    /*
     dmGraphics::HComputeProgram GetComputeProgramShader(HComputeProgram program)
     {
         return program->m_Shader;
     }
+    */
 
     dmGraphics::HProgram GetComputeProgram(HComputeProgram program)
     {

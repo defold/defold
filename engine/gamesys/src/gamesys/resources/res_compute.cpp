@@ -22,9 +22,9 @@ namespace dmGameSystem
 {
     struct ComputeProgramResources
     {
-        dmGraphics::HComputeProgram m_ComputeProgram;
-        TextureResource*            m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
-        dmhash_t                    m_SamplerNames[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+        dmGraphics::HProgram m_ComputeProgram;
+        TextureResource*     m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
+        dmhash_t             m_SamplerNames[dmRender::RenderObject::MAX_TEXTURE_COUNT];
     };
 
     static void ReleaseTextures(dmResource::HFactory factory, TextureResource** textures)
@@ -173,13 +173,14 @@ namespace dmGameSystem
         dmRender::HComputeProgram program       = resource->m_Program;
         dmRender::HRenderContext render_context = dmRender::GetProgramRenderContext(program);
         dmGraphics::HContext graphics_context   = dmRender::GetGraphicsContext(render_context);
-        dmGraphics::HComputeProgram shader      = GetComputeProgramShader(program);
         dmGraphics::HProgram gfx_program        = GetComputeProgram(program);
 
-        if (!dmGraphics::ReloadProgram(graphics_context, gfx_program, shader))
+        /*
+        if (!dmGraphics::ReloadProgram(graphics_context, gfx_program))
         {
             dmLogWarning("Reloading the compute program failed.");
         }
+        */
     }
 
     dmResource::Result ResComputeCreate(const dmResource::ResourceCreateParams* params)
@@ -187,6 +188,9 @@ namespace dmGameSystem
         dmRender::HRenderContext render_context = (dmRender::HRenderContext) params->m_Context;
         dmRenderDDF::ComputeDesc* ddf   = (dmRenderDDF::ComputeDesc*)params->m_PreloadData;
 
+        return dmResource::RESULT_OK;
+
+        /*
         ComputeProgramResources resources = {};
         dmResource::Result r = AcquireResources(params->m_Factory, ddf, &resources);
         if (r == dmResource::RESULT_OK)
@@ -209,10 +213,12 @@ namespace dmGameSystem
         }
         dmDDF::FreeMessage(ddf);
         return r;
+        */
     }
 
     dmResource::Result ResComputeDestroy(const dmResource::ResourceDestroyParams* params)
     {
+        /*
         ComputeResource* resource               = (ComputeResource*) dmResource::GetResource(params->m_Resource);
         dmRender::HRenderContext render_context = (dmRender::HRenderContext) params->m_Context;
         dmRender::HComputeProgram program       = resource->m_Program;
@@ -225,11 +231,16 @@ namespace dmGameSystem
         dmRender::DeleteComputeProgram(render_context, program);
 
         delete resource;
+        */
+
+
         return dmResource::RESULT_OK;
     }
 
     dmResource::Result ResComputeRecreate(const dmResource::ResourceRecreateParams* params)
     {
+        return dmResource::RESULT_OK;
+        /*
         dmRenderDDF::ComputeDesc* ddf;
         dmDDF::Result e = dmDDF::LoadMessage<dmRenderDDF::ComputeDesc>(params->m_Buffer, params->m_BufferSize, &ddf);
         if (e != dmDDF::RESULT_OK)
@@ -253,10 +264,12 @@ namespace dmGameSystem
         }
         dmDDF::FreeMessage(ddf);
         return r;
+        */
     }
 
     dmResource::Result ResComputePreload(const dmResource::ResourcePreloadParams* params)
     {
+        /*
         dmRenderDDF::ComputeDesc* ddf;
         dmDDF::Result e = dmDDF::LoadMessage<dmRenderDDF::ComputeDesc>(params->m_Buffer, params->m_BufferSize, &ddf);
         if (e != dmDDF::RESULT_OK)
@@ -266,6 +279,7 @@ namespace dmGameSystem
 
         dmResource::PreloadHint(params->m_HintInfo, ddf->m_ComputeProgram);
         *params->m_PreloadData = ddf;
+        */
         return dmResource::RESULT_OK;
     }
 }

@@ -2411,6 +2411,7 @@ bail:
         return true;
     }
 
+/*
     static HVertexProgram VulkanNewVertexProgram(HContext _context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
         ShaderDesc::Shader* ddf_shader = GetShaderProgram(_context, ddf);
@@ -2462,6 +2463,7 @@ bail:
 
         return (HFragmentProgram) shader;
     }
+    */
 
     static inline VkDescriptorType GetDescriptorType(const ShaderResourceBinding& res)
     {
@@ -2699,12 +2701,14 @@ bail:
         CreateProgramResourceBindings(context, program);
     }
 
+/*
     static HProgram VulkanNewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
     {
         VulkanProgram* program = new VulkanProgram;
         CreateGraphicsProgram((VulkanContext*) context, program, (ShaderModule*) vertex_program, (ShaderModule*) fragment_program);
         return (HProgram) program;
     }
+    */
 
     static void DestroyProgram(HContext context, VulkanProgram* program)
     {
@@ -2759,6 +2763,17 @@ bail:
         return false;
     }
 
+    static HProgram VulkanNewProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
+    {
+        return 0;
+    }
+
+    static bool VulkanReloadProgram(HContext context, HProgram program, ShaderDesc* ddf)
+    {
+        return true;
+    }
+
+/*
     static bool VulkanReloadVertexProgram(HVertexProgram prog, ShaderDesc* ddf)
     {
         return ReloadShader((ShaderModule*) prog, ddf, VK_SHADER_STAGE_VERTEX_BIT);
@@ -2782,6 +2797,7 @@ bail:
         DestroyShader(shader);
         delete shader;
     }
+    */
 
     static bool VulkanIsShaderLanguageSupported(HContext context, ShaderDesc::Language language, ShaderDesc::ShaderType shader_type)
     {
@@ -2803,6 +2819,7 @@ bail:
         g_VulkanContext->m_CurrentProgram = 0;
     }
 
+    /*
     static bool VulkanReloadProgramGraphics(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program)
     {
         VulkanProgram* program_ptr = (VulkanProgram*) program;
@@ -2823,6 +2840,7 @@ bail:
     {
         return ReloadShader((ShaderModule*) prog, ddf, VK_SHADER_STAGE_COMPUTE_BIT);
     }
+    */
 
     static uint32_t VulkanGetAttributeCount(HProgram prog)
     {
@@ -4232,6 +4250,7 @@ bail:
         return false;
     }
 
+/*
     static HComputeProgram VulkanNewComputeProgram(HContext _context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
         ShaderDesc::Shader* ddf_shader = GetShaderProgram(_context, ddf);
@@ -4270,6 +4289,7 @@ bail:
         DestroyShader(shader);
         delete shader;
     }
+    */
 
     static void VulkanInvalidateGraphicsHandles(HContext context)
     {

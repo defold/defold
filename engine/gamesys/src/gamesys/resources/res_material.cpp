@@ -41,10 +41,15 @@ namespace dmGameSystem
 
     struct MaterialResources
     {
-        MaterialResources() : m_FragmentProgram(0), m_VertexProgram(0) {}
+        MaterialResources()
+        {
+            memset(this, 0, sizeof(*this));
+        }
 
-        dmGraphics::HFragmentProgram    m_FragmentProgram;
-        dmGraphics::HVertexProgram      m_VertexProgram;
+        //dmGraphics::HFragmentProgram    m_FragmentProgram;
+        //dmGraphics::HVertexProgram      m_VertexProgram;
+
+        dmGraphics::HProgram            m_Program;
         TextureResource*                m_Textures[dmRender::RenderObject::MAX_TEXTURE_COUNT];
         dmhash_t                        m_SamplerNames[dmRender::RenderObject::MAX_TEXTURE_COUNT];
     };
@@ -61,12 +66,14 @@ namespace dmGameSystem
 
     static void ReleaseResources(dmResource::HFactory factory, MaterialResources* resources)
     {
+        /*
         if (resources->m_FragmentProgram)
             dmResource::Release(factory, (void*)resources->m_FragmentProgram);
         resources->m_FragmentProgram = 0;
         if (resources->m_VertexProgram)
             dmResource::Release(factory, (void*)resources->m_VertexProgram);
         resources->m_VertexProgram = 0;
+        */
 
         ReleaseTextures(factory, resources->m_Textures);
     }
@@ -77,6 +84,8 @@ namespace dmGameSystem
         memset(resources->m_SamplerNames, 0, sizeof(resources->m_SamplerNames));
 
         dmResource::Result factory_e;
+
+        /*
         factory_e = dmResource::Get(factory, ddf->m_VertexProgram, (void**) &resources->m_VertexProgram);
         if ( factory_e != dmResource::RESULT_OK)
         {
@@ -90,6 +99,7 @@ namespace dmGameSystem
             ReleaseResources(factory, resources);
             return factory_e;
         }
+        */
 
         // Later, in the render.cpp, we do a mapping between the sampler's location and the texture unit.
         // We assume that the textures[8] are always sorted in the sampler appearance.
@@ -124,6 +134,7 @@ namespace dmGameSystem
             dmRender::HRenderContext render_context = dmRender::GetMaterialRenderContext(material);
             dmGraphics::HContext graphics_context = dmRender::GetGraphicsContext(render_context);
             dmGraphics::HProgram program = dmRender::GetMaterialProgram(material);
+            /*
             dmGraphics::HVertexProgram vert_program = dmRender::GetMaterialVertexProgram(material);
             dmGraphics::HFragmentProgram frag_program = dmRender::GetMaterialFragmentProgram(material);
 
@@ -131,6 +142,7 @@ namespace dmGameSystem
             {
                 dmLogWarning("Reloading the material failed, some shaders might not have been correctly linked.");
             }
+            */
         }
     }
 
@@ -261,17 +273,17 @@ namespace dmGameSystem
 
     static dmRender::HMaterial CreateAndInitializeRenderMaterial(dmResource::HFactory factory, dmRender::HRenderContext render_context, const MaterialResources& resources, const dmRenderDDF::MaterialDesc* ddf)
     {
-        dmRender::HMaterial material = dmRender::NewMaterial(render_context, resources.m_VertexProgram, resources.m_FragmentProgram);
+        dmRender::HMaterial material = dmRender::NewMaterial(render_context, resources.m_Program);
         if (!material)
         {
-            dmResource::Release(factory, (void*)resources.m_VertexProgram);
-            dmResource::Release(factory, (void*)resources.m_FragmentProgram);
+            dmResource::Release(factory, (void*)resources.m_Program);
             return 0;
         }
 
         HResourceDescriptor desc;
         dmResource::Result factory_e;
 
+        /*
         factory_e = dmResource::GetDescriptor(factory, ddf->m_VertexProgram, &desc);
         assert(factory_e == dmResource::RESULT_OK); // Should not fail at this point
         dmRender::SetMaterialUserData1(material, ResourceDescriptorGetNameHash(desc));
@@ -279,6 +291,7 @@ namespace dmGameSystem
         factory_e = dmResource::GetDescriptor(factory, ddf->m_FragmentProgram, &desc);
         assert(factory_e == dmResource::RESULT_OK); // Should not fail at this point
         dmRender::SetMaterialUserData2(material, ResourceDescriptorGetNameHash(desc));
+        */
 
         dmResource::RegisterResourceReloadedCallback(factory, ResourceReloadedCallback, material);
 
@@ -319,8 +332,11 @@ namespace dmGameSystem
         dmRender::HMaterial material = resource->m_Material;
         dmResource::UnregisterResourceReloadedCallback(factory, ResourceReloadedCallback, material);
 
+        /*
         dmResource::Release(factory, (void*)dmRender::GetMaterialFragmentProgram(material));
         dmResource::Release(factory, (void*)dmRender::GetMaterialVertexProgram(material));
+        */
+
         dmRender::DeleteMaterial(render_context, material);
     }
 

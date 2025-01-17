@@ -19,6 +19,7 @@
 
 namespace dmGameSystem
 {
+    /*
     static dmResource::Result AcquireResources(dmGraphics::HContext context, dmResource::HFactory factory, const char* filename, dmGraphics::ShaderDesc* ddf, dmGraphics::HVertexProgram* program)
     {
         char error_buffer[1024] = {};
@@ -89,5 +90,5 @@ namespace dmGameSystem
         dmDDF::FreeMessage(ddf);
         return res;
     }
-
+    */
 }

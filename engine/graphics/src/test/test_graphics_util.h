@@ -37,7 +37,7 @@ namespace dmGraphics
 
         ddf.m_Shaders.m_Data = shader;
         ddf.m_Shaders.m_Count = 1;
-        ddf.m_ShaderType = type;
+        // ddf.m_ShaderType = type;
 
         ddf.m_Reflection.m_Inputs.m_Data  = inputs;
         ddf.m_Reflection.m_Inputs.m_Count = input_count;

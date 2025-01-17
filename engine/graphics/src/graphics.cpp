@@ -318,6 +318,7 @@ namespace dmGraphics
         assert(shader_desc);
         ShaderDesc::Shader* selected_shader = 0x0;
 
+        /*
         for(uint32_t i = 0; i < shader_desc->m_Shaders.m_Count; ++i)
         {
             ShaderDesc::Shader* shader = &shader_desc->m_Shaders.m_Data[i];
@@ -338,6 +339,7 @@ namespace dmGraphics
                 }
             }
         }
+        */
 
         if (selected_shader == 0)
         {
@@ -1615,7 +1617,6 @@ namespace dmGraphics
     {
         g_functions.m_DisableProgram(context);
     }
-
     bool ReloadProgram(HContext context, HProgram program, ShaderDesc* ddf)
     {
         DestroyProgram((Program*) program);
@@ -1854,19 +1855,6 @@ namespace dmGraphics
     void InvalidateGraphicsHandles(HContext context)
     {
         g_functions.m_InvalidateGraphicsHandles(context);
-    }
-    HComputeProgram NewComputeProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
-    {
-        assert(ddf->m_ShaderType == dmGraphics::ShaderDesc::SHADER_TYPE_COMPUTE);
-        return g_functions.m_NewComputeProgram(context, ddf, error_buffer, error_buffer_size);
-    }
-    HProgram NewProgram(HContext context, HComputeProgram compute_program)
-    {
-        return g_functions.m_NewProgramFromCompute(context, compute_program);
-    }
-    void DeleteComputeProgram(HComputeProgram prog)
-    {
-        return g_functions.m_DeleteComputeProgram(prog);
     }
 
 #if defined(DM_PLATFORM_IOS)

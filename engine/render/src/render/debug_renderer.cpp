@@ -55,6 +55,7 @@ namespace dmRender
 
         dmGraphics::DeleteVertexStreamDeclaration(stream_declaration);
 
+        /*
         dmGraphics::HVertexProgram vertex_program = dmGraphics::INVALID_VERTEX_PROGRAM_HANDLE;
         dmGraphics::ShaderDesc* shader_desc;
         if (vp_desc_size > 0)
@@ -116,6 +117,7 @@ namespace dmRender
         debug_renderer.m_2dPredicate.m_Tags[0] = dmHashString64(DEBUG_2D_NAME);
         debug_renderer.m_2dPredicate.m_TagCount = 1;
         debug_renderer.m_RenderBatchVersion = 0;
+        */
     }
 
     void FinalizeDebugRenderer(HRenderContext context)
@@ -125,12 +127,14 @@ namespace dmRender
         DebugRenderer& debug_renderer = context->m_DebugRenderer;
         HMaterial material = debug_renderer.m_TypeData[DEBUG_RENDER_TYPE_FACE_3D].m_RenderObject.m_Material;
 
+        /*
         dmGraphics::HVertexProgram vp = GetMaterialVertexProgram(material);
         if (vp != dmGraphics::INVALID_VERTEX_PROGRAM_HANDLE)
             dmGraphics::DeleteVertexProgram(vp);
         dmGraphics::HFragmentProgram fp = GetMaterialFragmentProgram(material);
         if (fp != dmGraphics::INVALID_FRAGMENT_PROGRAM_HANDLE)
             dmGraphics::DeleteFragmentProgram(fp);
+            */
 
         DeleteMaterial(context, material);
         material = debug_renderer.m_TypeData[DEBUG_RENDER_TYPE_FACE_2D].m_RenderObject.m_Material;

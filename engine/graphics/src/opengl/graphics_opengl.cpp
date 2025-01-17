@@ -2196,6 +2196,7 @@ static void LogFrameBufferError(GLenum status)
         return shader;
     }
 
+    /*
     static HVertexProgram OpenGLNewVertexProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
         return (HVertexProgram) CreateShader(context, GL_VERTEX_SHADER, ddf, error_buffer, error_buffer_size);
@@ -2215,6 +2216,7 @@ static void LogFrameBufferError(GLenum status)
         return 0;
     #endif
     }
+    */
 
     static void BuildAttributes(OpenGLProgram* program_ptr)
     {
@@ -2677,6 +2679,7 @@ static void LogFrameBufferError(GLenum status)
         return true;
     }
 
+    /*
     static HProgram OpenGLNewProgramFromCompute(HContext context, HComputeProgram compute_program)
     {
     #ifdef DM_HAVE_PLATFORM_COMPUTE_SUPPORT
@@ -2712,6 +2715,7 @@ static void LogFrameBufferError(GLenum status)
         return 0;
     #endif
     }
+    */
 
     static void CreateProgramResourceBindings(OpenGLProgram* program, ResourceBindingDesc bindings[MAX_SET_COUNT][MAX_BINDINGS_PER_SET_COUNT], OpenGLShader** shaders, uint32_t num_shaders)
     {
@@ -2724,6 +2728,17 @@ static void LogFrameBufferError(GLenum status)
         program->m_BaseProgram.m_MaxBinding = binding_info.m_MaxBinding;
     }
 
+    static HProgram OpenGLNewProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
+    {
+        return 0;
+    }
+
+    static bool OpenGLReloadProgram(HContext context, HProgram program, ShaderDesc* ddf)
+    {
+        return true;
+    }
+
+    /*
     // TODO: Rename to graphicsprogram instead of newprogram
     static HProgram OpenGLNewProgram(HContext context, HVertexProgram vertex_program, HFragmentProgram fragment_program)
     {
@@ -2778,6 +2793,7 @@ static void LogFrameBufferError(GLenum status)
         BuildAttributes(program);
         return (HProgram) program;
     }
+    */
 
     static void OpenGLDeleteProgram(HContext context, HProgram program)
     {
@@ -2827,6 +2843,7 @@ static void LogFrameBufferError(GLenum status)
         return true;
     }
 
+    /*
     static bool OpenGLReloadVertexProgram(HVertexProgram prog, ShaderDesc* ddf)
     {
         assert(prog);
@@ -2882,6 +2899,7 @@ static void LogFrameBufferError(GLenum status)
 
         return success;
     }
+    */
 
     static void OpenGLDeleteShader(OpenGLShader* shader)
     {
@@ -2894,6 +2912,7 @@ static void LogFrameBufferError(GLenum status)
         }
     }
 
+    /*
     static void OpenGLDeleteVertexProgram(HVertexProgram program)
     {
         OpenGLDeleteShader((OpenGLShader*) program);
@@ -2908,6 +2927,7 @@ static void LogFrameBufferError(GLenum status)
     {
         OpenGLDeleteShader((OpenGLShader*) program);
     }
+    */
 
     static ShaderDesc::Language OpenGLGetProgramLanguage(HProgram program)
     {
@@ -2985,6 +3005,7 @@ static void LogFrameBufferError(GLenum status)
         return success;
     }
 
+    /*
     static bool OpenGLReloadProgramGraphics(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program)
     {
         GLuint ids[] = { GetGLHandle(context, ((OpenGLShader*) vert_program)->m_Id), GetGLHandle(context, ((OpenGLShader*) frag_program)->m_Id) };
@@ -3046,6 +3067,7 @@ static void LogFrameBufferError(GLenum status)
 
         return success;
     }
+    */
 
     static uint32_t OpenGLGetAttributeCount(HProgram prog)
     {

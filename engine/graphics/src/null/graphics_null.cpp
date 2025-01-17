@@ -777,6 +777,22 @@ namespace dmGraphics
         return shader;
     }
 
+    static HProgram NullNewProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
+    {
+        return 0;
+    }
+
+    static void NullDeleteProgram(HContext context, HProgram program)
+    {
+
+    }
+
+    static bool NullReloadProgram(HContext context, HProgram program, ShaderDesc* ddf)
+    {
+        return true;
+    }
+
+    /*
     static HComputeProgram NullNewComputeProgram(HContext context, ShaderDesc* ddf, char* error_buffer, uint32_t error_buffer_size)
     {
         return (HComputeProgram) NewShaderModuleFromDDF(context, ddf);
@@ -891,6 +907,7 @@ namespace dmGraphics
         DestroyShaderMeta(p->m_ShaderMeta);
         delete p;
     }
+    */
 
     static ShaderDesc::Language NullGetProgramLanguage(HProgram program)
     {
@@ -934,6 +951,7 @@ namespace dmGraphics
         ((NullContext*) context)->m_Program = 0x0;
     }
 
+    /*
     static bool NullReloadProgramGraphics(HContext context, HProgram program, HVertexProgram vert_program, HFragmentProgram frag_program)
     {
         (void) context;
@@ -954,6 +972,7 @@ namespace dmGraphics
         (void)prog;
         return true;
     }
+    */
 
     static uint32_t NullGetAttributeCount(HProgram prog)
     {

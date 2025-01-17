@@ -219,51 +219,20 @@ def model_file(self, node):
     task.set_outputs([out_model, out_rigscene])
 
 
-waflib.Task.task_factory('vertexshader', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.VertexProgramBuilder ${SRC} ${TGT} ${PLATFORM}',
+waflib.Task.task_factory('shaderbuilder', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.ShaderProgramBuilder ${SRC} ${TGT} ${PLATFORM}',
                       color='PINK',
                       after='proto_gen_py',
                       before='c cxx',
                       shell=False)
 
-@extension('.vp')
+@extension('.vp', '.fp', '.cp')
 def vertexprogram_file(self, node):
     classpath = [self.env['DYNAMO_HOME'] + '/share/java/bob-light.jar'] + self.env['PLATFORM_SHADER_COMPILER_PLUGIN_JAR']
-    shader = self.create_task('vertexshader')
+    shader = self.create_task('shaderbuilder')
     shader.env['CLASSPATH'] = os.pathsep.join(classpath)
     shader.set_inputs(node)
-    obj_ext = '.vpc'
-    out = node.change_ext(obj_ext)
-    shader.set_outputs(out)
-
-waflib.Task.task_factory('fragmentshader', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.FragmentProgramBuilder ${SRC} ${TGT} ${PLATFORM}',
-                      color='PINK',
-                      after='proto_gen_py',
-                      before='c cxx',
-                      shell=False)
-
-@extension('.fp')
-def fragmentprogram_file(self, node):
-    classpath = [self.env['DYNAMO_HOME'] + '/share/java/bob-light.jar'] + self.env['PLATFORM_SHADER_COMPILER_PLUGIN_JAR']
-    shader = self.create_task('fragmentshader')
-    shader.env['CLASSPATH'] = os.pathsep.join(classpath)
-    shader.set_inputs(node)
-    obj_ext = '.fpc'
-    out = node.change_ext(obj_ext)
-    shader.set_outputs(out)
-
-waflib.Task.task_factory('computeshader', '${JAVA} -classpath ${CLASSPATH} com.dynamo.bob.pipeline.ComputeProgramBuilder ${SRC} ${TGT} ${PLATFORM}',
-                      color='PINK',
-                      after='proto_gen_py',
-                      before='c cxx',
-                      shell=False)
-
-@extension('.cp')
-def fragmentprogram_file(self, node):
-    classpath = [self.env['DYNAMO_HOME'] + '/share/java/bob-light.jar'] + self.env['PLATFORM_SHADER_COMPILER_PLUGIN_JAR']
-    shader = self.create_task('computeshader')
-    shader.env['CLASSPATH'] = os.pathsep.join(classpath)
-    shader.set_inputs(node)
-    obj_ext = '.cpc'
+    _, ext = os.path.splitext(node.abspath())
+    obj_ext = ext + "c"
     out = node.change_ext(obj_ext)
     shader.set_outputs(out)
 
