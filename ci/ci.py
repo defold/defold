@@ -150,13 +150,16 @@ def install(args):
 
         call("ls /usr/bin/clang*")
 
+        call("update-alternatives --display clang")
+        call("update-alternatives --display clang++")
+
         call("sudo update-alternatives --remove-all clang")
         call("sudo update-alternatives --remove-all clang++")
 
         clang_priority = 160
         clang_version = 16
         clang_path = "/usr/bin"
-        clang_exe = f"/usr/bin/clang-{clang_version}"
+        clang_exe = f"/usr/bin/clang-{clang_version}" # installed on the recent GA runners
 
         # On older ubuntu 20 clang-16 isn't available
         # Also note that this is before the install_sdk step
@@ -174,19 +177,22 @@ def install(args):
         def testpath(path):
             print("MAWE", path, ":", os.path.exists(path))
 
-        testpath(os.path.join(clang_path, f'clang-{clang_version}'))
-        testpath(os.path.join(clang_path, f'clang++-{clang_version}'))
-        testpath(os.path.join(clang_path, f'clang-cl-{clang_version}'))
-        testpath(os.path.join(clang_path, f'clang-cpp-{clang_version}'))
+        call("ls /usr/bin/clang*")
+
+        testpath(os.path.join(clang_path, f'clang'))
+        testpath(os.path.join(clang_path, f'clang++'))
+        testpath(os.path.join(clang_path, f'clang-cpp'))
 
         s =  f"sudo update-alternatives"
-        s += f"    --install /usr/bin/clang                 clang                 {clang_path}/clang-{clang_version} {clang_priority}"
-        s += f"    --slave   /usr/bin/clang++               clang++               {clang_path}/clang++-{clang_version}"
-        s += f"    --slave   /usr/bin/clang-cl              clang-cl              {clang_path}/clang-cl-{clang_version}"
-        s += f"    --slave   /usr/bin/clang-cpp             clang-cpp             {clang_path}/clang-cpp-{clang_version}"
+        s += f"    --install /usr/bin/clang                 clang                 {clang_path}/clang {clang_priority}"
+        s += f"    --slave   /usr/bin/clang++               clang++               {clang_path}/clang++"
+        s += f"    --slave   /usr/bin/clang-cpp             clang-cpp             {clang_path}/clang-cpp"
         call(s)
 
-        call("ls /usr/bin/clang*")
+        call("which clang")
+
+        call("clang -dM -E -") # print the defines
+
 
         packages = [
             "autoconf",
