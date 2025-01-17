@@ -805,8 +805,6 @@ TEST_P(dmHttpClientTest, Post)
         ASSERT_EQ(sum, atoi(m_Content.c_str()));
     }
 }
-#endif
-
 
 TEST_P(dmHttpClientTest, PostLarge)
 {
@@ -834,6 +832,7 @@ TEST_P(dmHttpClientTest, PostLarge)
         ASSERT_EQ(sum, atoi(m_Content.c_str()));
     }
 }
+#endif
 
 TEST_P(dmHttpClientTest, Cache)
 {
