@@ -35,7 +35,7 @@ from threading import Thread, Event
 from queue import Queue
 from configparser import ConfigParser
 
-BASE_PLATFORMS = [  'x86_64-linux', #'arm64-linux',
+BASE_PLATFORMS = [  'x86_64-linux', 'arm64-linux',
                     'x86_64-macos', 'arm64-macos',
                     'win32', 'x86_64-win32',
                     'x86_64-ios', 'arm64-ios',
