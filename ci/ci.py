@@ -180,7 +180,7 @@ def install(args):
             call(f"sudo update-alternatives --install /usr/bin/clang clang {clang_path}/clang-{clang_version} {clang_priority}")
             call(f"sudo update-alternatives --install /usr/bin/clang++ clang++ {clang_path}/clang++ {clang_priority}")
             call(f"sudo update-alternatives --install /usr/bin/clang-cpp clang-cpp {clang_path}/clang-cpp {clang_priority}")
-            call(f"sudo update-alternatives --install /usr/bin/ar llvm-ar {clang_path}/llvm-ar {clang_priority}")
+            call(f"sudo update-alternatives --install /usr/bin/llvm-ar llvm-ar {clang_path}/llvm-ar {clang_priority}")
 
         else:
             # Add and select the correct version
