@@ -166,7 +166,7 @@ def install(args):
 
             call(f"wget https://apt.llvm.org/llvm.sh")
             call(f"chmod +x ./llvm.sh")
-            call(f"./llvm.sh {clang_version}")
+            call(f"sudo ./llvm.sh {clang_version}")
             call(f"rm ./llvm.sh")
 
             clang_path = f"usr/lib/llvm-{clang_version}/bin"
