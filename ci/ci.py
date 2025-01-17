@@ -175,7 +175,6 @@ def install(args):
             "libopenal-dev",
             "libgl1-mesa-dev",
             "libglw1-mesa-dev",
-            "lib32z1",
             "openssl",
             "tofrodos",
             "tree",
