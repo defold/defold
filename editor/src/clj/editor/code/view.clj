@@ -2935,7 +2935,7 @@
 
 ;; -----------------------------------------------------------------------------
 
-(handler/register-menu! ::menubar :editor.app-view/edit-end
+(handler/register-menu! ::menubar-edit :editor.app-view/edit-end
   [{:command :find-text :label "Find..."}
    {:command :find-next :label "Find Next"}
    {:command :find-prev :label "Find Previous"}
@@ -2970,7 +2970,7 @@
    {:command :toggle-breakpoint :label "Toggle Breakpoint"}
    {:command :edit-breakpoint :label "Edit Breakpoint"}])
 
-(handler/register-menu! ::menubar :editor.app-view/view-end
+(handler/register-menu! ::menubar-view :editor.app-view/view-end
   [{:command :toggle-minimap :label "Minimap" :check true}
    {:command :toggle-indentation-guides :label "Indentation Guides" :check true}
    {:command :toggle-visible-whitespace :label "Visible Whitespace" :check true}

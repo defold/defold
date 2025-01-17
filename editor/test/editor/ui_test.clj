@@ -30,7 +30,7 @@
     stage))
 
 (defn fixture [f]
-  (with-redefs [handler/state-atom (atom {})
+  (with-redefs [handler/state-atom (atom handler/empty-state)
                 ui/*main-stage* (atom (ui/run-now (make-fake-stage)))]
     (f)))
 

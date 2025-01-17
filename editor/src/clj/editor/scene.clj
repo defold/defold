@@ -1111,7 +1111,7 @@
   (state [prefs] (scene-tools/move-whole-pixels? prefs))
   (run [prefs] (scene-tools/set-move-whole-pixels! prefs (not (scene-tools/move-whole-pixels? prefs)))))
 
-(handler/register-menu! ::menubar :editor.app-view/edit-end
+(handler/register-menu! ::menubar-edit :editor.app-view/edit-end
   [{:label :separator}
    {:label "World Space"
     :command :set-manip-space
@@ -1126,7 +1126,7 @@
     :command :toggle-move-whole-pixels
     :check true}])
 
-(handler/register-menu! ::menubar :editor.app-view/view-end
+(handler/register-menu! ::menubar-view :editor.app-view/view-end
   [{:label "Toggle Visibility Filters"
     :command :toggle-visibility-filters}
    {:label "Toggle Component Guides"

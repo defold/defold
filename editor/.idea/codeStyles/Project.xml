@@ -46,6 +46,7 @@
           <entry key="editor.gui/layout-property-edit-type" value="-1" />
           <entry key="editor.gui/wrap-layout-property-edit-type" value="-1" />
           <entry key="editor.handler/defhandler" value="-1" />
+          <entry key="editor.handler/register!" value="-1" />
           <entry key="editor.handler/register-dynamic!" value="-1" />
           <entry key="editor.handler/register-menu!" value="-1" />
           <entry key="editor.lsp.async/with-auto-evaluation-context" value="-1" />

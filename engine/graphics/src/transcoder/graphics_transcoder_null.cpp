@@ -22,11 +22,12 @@ namespace dmGraphics
         return false;
     }
 
-    bool Transcode(const char* path, TextureImage::Image* image, uint8_t image_count, TextureFormat format, uint8_t** images, uint32_t* sizes, uint32_t* num_transcoded_mips)
+    bool Transcode(const char* path, TextureImage::Image* image, uint8_t image_count, uint8_t* image_bytes, TextureFormat format, uint8_t** images, uint32_t* sizes, uint32_t* num_transcoded_mips)
     {
         (void)path;
         (void)image;
         (void)image_count;
+        (void)image_bytes;
         (void)format;
         (void)images;
         (void)sizes;

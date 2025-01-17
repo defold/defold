@@ -32,9 +32,12 @@
             [integration.test-util :refer [with-loaded-project] :as test-util]
             [support.test-support :refer [with-clean-system]]
             [util.murmur :as murmur])
-  (:import [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
+  (:import [com.dynamo.bob.pipeline CubemapBuilder]
+           [com.dynamo.bob.util TextureUtil]
+           [com.dynamo.gameobject.proto GameObject$CollectionDesc GameObject$PrototypeDesc]
            [com.dynamo.gamesys.proto GameSystem$CollectionProxyDesc]
            [com.dynamo.gamesys.proto TextureSetProto$TextureSet]
+           [com.dynamo.graphics.proto Graphics$TextureImage]
            [com.dynamo.render.proto Font$FontMap Font$GlyphBank]
            [com.dynamo.particle.proto Particle$ParticleFX]
            [com.dynamo.gamesys.proto Sound$SoundDesc]
@@ -490,6 +493,18 @@
             _                 (g/set-property! resource-node :margin -42)
             build-results     (project-build project resource-node (g/make-evaluation-context))]
         (is (instance? internal.graph.error_values.ErrorValue (:error build-results)))))))
+
+(deftest build-cubemap
+  (testing "Building cubemap"
+    (with-build-results "/cubemap/cubemap.cubemap"
+      (let [content (get content-by-source "/cubemap/cubemap.cubemap")
+            desc (protobuf/pb->map-with-defaults (TextureUtil/textureResourceBytesToTextureImage content))
+            first-alternative (first (:alternatives desc))]
+        (is (= 6 (:count desc)))
+        (is (= :type-cubemap (:type desc)))
+        (is (= 6 (count (:mip-map-size-compressed first-alternative))))
+        ;; six sides, where each side is 2x2 RGBA
+        (is (= (* 6 2 2 4) (:data-size first-alternative)))))))
 
 (deftest build-font
   (testing "Building TTF font"

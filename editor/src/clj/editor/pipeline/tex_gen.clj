@@ -13,12 +13,14 @@
 ;; specific language governing permissions and limitations under the License.
 
 (ns editor.pipeline.tex-gen
-  (:require [editor.protobuf :as protobuf]
-            [internal.util :as util])
+  (:require [clojure.java.io :as io]
+            [editor.protobuf :as protobuf]
+            [internal.util :as util]
+            [util.digest :as digest])
   (:import [com.dynamo.bob.pipeline Texc$FlipAxis]
-           [com.dynamo.bob.pipeline TextureGenerator]
+           [com.dynamo.bob.pipeline TextureGenerator TextureGenerator$GenerateResult]
            [com.dynamo.bob.util TextureUtil]
-           [com.dynamo.graphics.proto Graphics$TextureImage Graphics$TextureImage$Type Graphics$TextureProfile Graphics$TextureProfiles]
+           [com.dynamo.graphics.proto Graphics$TextureImage$Type Graphics$TextureProfile Graphics$TextureProfiles]
            [java.awt.image BufferedImage]
            [java.util EnumSet]))
 
@@ -69,13 +71,14 @@
     (protobuf/pb->map-with-defaults texture-profile)))
 
 (defn make-texture-image
-  (^Graphics$TextureImage [^BufferedImage image texture-profile]
+  (^TextureGenerator$GenerateResult [^BufferedImage image texture-profile]
    (make-texture-image image texture-profile false))
-  (^Graphics$TextureImage [^BufferedImage image texture-profile compress?]
+  (^TextureGenerator$GenerateResult [^BufferedImage image texture-profile compress?]
    (make-texture-image image texture-profile compress? true))
-  (^Graphics$TextureImage [^BufferedImage image texture-profile compress? flip-y?]
-   (let [^Graphics$TextureProfile texture-profile-data (some->> texture-profile (protobuf/map->pb Graphics$TextureProfile))]
-     (TextureGenerator/generate image texture-profile-data ^boolean compress? (if ^boolean flip-y? (EnumSet/of Texc$FlipAxis/FLIP_AXIS_Y) (EnumSet/noneOf Texc$FlipAxis))))))
+  (^TextureGenerator$GenerateResult [^BufferedImage image texture-profile compress? flip-y?]
+   (let [^Graphics$TextureProfile texture-profile-data (some->> texture-profile (protobuf/map->pb Graphics$TextureProfile))
+         texture-generate-result (TextureGenerator/generate image texture-profile-data ^boolean compress? (if ^boolean flip-y? (EnumSet/of Texc$FlipAxis/FLIP_AXIS_Y) (EnumSet/noneOf Texc$FlipAxis)))]
+     texture-generate-result)))
 
 (defn- make-preview-profile
   "Given a texture-profile, return a simplified texture-profile that can be used
@@ -94,32 +97,40 @@
                     :premultiply-alpha (:premultiply-alpha platform-profile)}]})))
 
 (defn make-preview-texture-image
-  ^Graphics$TextureImage [^BufferedImage image texture-profile]
+  ^TextureGenerator$GenerateResult [^BufferedImage image texture-profile]
   (let [preview-profile (make-preview-profile texture-profile)]
     (make-texture-image image preview-profile false)))
 
 (defn make-cubemap-texture-images
-  ^Graphics$TextureImage [images texture-profile compress?]
+  ^TextureGenerator$GenerateResult [images texture-profile compress?]
   (let [^Graphics$TextureProfile texture-profile-data (some->> texture-profile (protobuf/map->pb Graphics$TextureProfile))
         flip-axis (EnumSet/noneOf Texc$FlipAxis)]
     (util/map-vals #(TextureGenerator/generate ^BufferedImage % texture-profile-data ^boolean compress? flip-axis)
                    images)))
 
 (defn assemble-texture-images
-  ^Graphics$TextureImage [texture-images max-page-count]
-  (let [texture-images (into-array Graphics$TextureImage texture-images)
-        texture-type (if (pos? max-page-count)
+  ^TextureGenerator$GenerateResult [texture-generator-results max-page-count]
+  (let [texture-type (if (pos? max-page-count)
                        Graphics$TextureImage$Type/TYPE_2D_ARRAY
                        Graphics$TextureImage$Type/TYPE_2D)]
-    (TextureUtil/createCombinedTextureImage texture-images texture-type)))
+    (TextureUtil/createCombinedTextureImage (into-array texture-generator-results) texture-type)))
 
 (defn assemble-cubemap-texture-images
-  ^Graphics$TextureImage [side->texture-image]
+  ^TextureGenerator$GenerateResult [side->texture-image]
   (let [texture-images (into-array ((juxt :px :nx :py :ny :pz :nz) side->texture-image))
         type Graphics$TextureImage$Type/TYPE_CUBEMAP]
     (TextureUtil/createCombinedTextureImage texture-images type)))
 
 (defn make-preview-cubemap-texture-images
-  ^Graphics$TextureImage [images texture-profile]
+  ^TextureGenerator$GenerateResult [images texture-profile]
   (let [preview-profile (make-preview-profile texture-profile)]
     (make-cubemap-texture-images images preview-profile false)))
+
+(defn write-texturec-content-fn [resource user-data]
+  (let [digest-output-stream
+        (-> resource
+            (io/output-stream)
+            (digest/make-digest-output-stream "SHA-1"))]
+    ;; writeGenerateResultToOutputStream flushes the stream
+    (TextureUtil/writeGenerateResultToOutputStream (:texture-generator-result user-data) digest-output-stream)
+    (digest/completed-stream->hex digest-output-stream)))

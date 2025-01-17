@@ -15,9 +15,12 @@
 package com.dynamo.bob.pipeline;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.HashMap;
 import java.util.Map;
 
+import com.dynamo.bob.util.TextureUtil;
 import org.apache.commons.io.FilenameUtils;
 
 import com.dynamo.bob.fs.IResource;
@@ -97,7 +100,7 @@ public class ParseUtil {
         parseMap.put("texturec", new IParser() {
             @Override
             public Message parse(byte[] content) throws InvalidProtocolBufferException {
-                return TextureImage.parseFrom(content);
+                return TextureUtil.textureResourceBytesToTextureImage(content);
             }
         });
         parseMap.put("texturesetc", new IParser() {

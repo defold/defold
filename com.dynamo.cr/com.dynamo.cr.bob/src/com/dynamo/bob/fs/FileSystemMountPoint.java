@@ -81,6 +81,11 @@ public class FileSystemMountPoint implements IMountPoint {
         }
 
         @Override
+        public void appendContent(byte[] content) throws IOException {
+            resource.appendContent(content);
+        }
+
+        @Override
         public byte[] sha1() throws IOException {
             return resource.sha1();
         }

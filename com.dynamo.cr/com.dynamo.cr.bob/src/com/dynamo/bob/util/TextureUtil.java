@@ -17,10 +17,11 @@ package com.dynamo.bob.util;
 import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
-import java.awt.Image;
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.ByteBuffer;
+import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -28,7 +29,6 @@ import java.util.HashMap;
 
 import javax.imageio.ImageIO;
 
-import com.google.protobuf.ByteString;
 import com.dynamo.bob.CompileExceptionError;
 import com.dynamo.bob.fs.IResource;
 import com.dynamo.bob.pipeline.TextureGenerator;
@@ -37,6 +37,9 @@ import com.dynamo.graphics.proto.Graphics.PathSettings;
 import com.dynamo.graphics.proto.Graphics.TextureImage;
 import com.dynamo.graphics.proto.Graphics.TextureProfile;
 import com.dynamo.graphics.proto.Graphics.TextureProfiles;
+import com.google.protobuf.InvalidProtocolBufferException;
+
+import static com.dynamo.bob.util.MiscUtil.concatenateArrays;
 
 public class TextureUtil {
     public static int closestPOT(int i) {
@@ -214,8 +217,19 @@ public class TextureUtil {
         return null;
     }
 
-    public static TextureImage createCombinedTextureImage(TextureImage[] textures, TextureImage.Type type) throws TextureGeneratorException {
-        int numTextures = textures.length;
+    private static int getTextureGenerateResultImageDatasIndex(TextureImage textureImage, int alternative, int mipMap) throws TextureGeneratorException {
+        int mipMapOffset = 0;
+        for (int i=0; i < textureImage.getAlternativesCount(); i++) {
+            if (i == alternative) {
+                return mipMapOffset + mipMap;
+            }
+            mipMapOffset += textureImage.getAlternatives(i).getMipMapOffsetCount();
+        }
+        throw new TextureGeneratorException("Invalid parameters");
+    }
+
+    public static TextureGenerator.GenerateResult createCombinedTextureImage(TextureGenerator.GenerateResult[] generateResults, TextureImage.Type type) throws TextureGeneratorException {
+        int numTextures = generateResults.length;
         if (numTextures == 0) {
             return null;
         }
@@ -225,35 +239,34 @@ public class TextureUtil {
             numTextures = 1;
         }
 
-        TextureImage.Builder combinedImageBuilder = TextureImage.newBuilder(textures[0]);
+        TextureGenerator.GenerateResult resultOut = new TextureGenerator.GenerateResult();
+        resultOut.imageDatas = new ArrayList<>();
+
+        TextureImage.Builder combinedImageBuilder = TextureImage.newBuilder(generateResults[0].textureImage);
 
         for (int i = 0; i < combinedImageBuilder.getAlternativesCount(); i++) {
-            TextureImage.Image.Builder alternativeImageBuilder = TextureImage.Image.newBuilder(textures[0].getAlternatives(i));
-
+            TextureImage.Image.Builder alternativeImageBuilder = TextureImage.Image.newBuilder(generateResults[0].textureImage.getAlternatives(i));
             alternativeImageBuilder.clearMipMapSizeCompressed();
 
-            try {
-                ByteArrayOutputStream os = new ByteArrayOutputStream(1024 * 4);
-                for (int j = 0; j < alternativeImageBuilder.getMipMapSizeCount(); j++) {
+            int mipMapCount = alternativeImageBuilder.getMipMapSizeCount();
+            int byteSize = 0;
 
-                    for (int k = 0; k < numTextures; k++) {
-                        int mipSize = textures[k].getAlternatives(i).getMipMapSize(j);
-                        ByteString data = textures[k].getAlternatives(i).getData();
-                        int mipOffset = alternativeImageBuilder.getMipMapOffset(j);
-                        alternativeImageBuilder.addMipMapSizeCompressed(mipSize);
+            for (int j = 0; j < mipMapCount; j++) {
 
-                        // Sizes can change between textures (maybe resize only if needed)
-                        byte[] buf = new byte[mipSize];
-                        data.copyTo(buf, mipOffset, 0, mipSize);
-                        os.write(buf);
-                    }
+                for (int k = 0; k < numTextures; k++) {
+                    int mipSize = generateResults[k].textureImage.getAlternatives(i).getMipMapSize(j);
+                    alternativeImageBuilder.addMipMapSizeCompressed(mipSize);
+
+                    ArrayList<byte[]> imageMipmapDatas = generateResults[k].imageDatas;
+                    int mipImageIndex = getTextureGenerateResultImageDatasIndex(generateResults[k].textureImage, i, j);
+                    byte[] mipBytes = imageMipmapDatas.get(mipImageIndex);
+
+                    resultOut.imageDatas.add(mipBytes);
+                    byteSize += mipSize;
                 }
-                os.flush();
-                alternativeImageBuilder.setData(ByteString.copyFrom(os.toByteArray()));
-
-            } catch (IOException e) {
-                throw new TextureGeneratorException(e.getMessage());
             }
+
+            alternativeImageBuilder.setDataSize(byteSize);
 
             for (int j = 0; j < alternativeImageBuilder.getMipMapSizeCount(); j++) {
                 alternativeImageBuilder.setMipMapOffset(j, alternativeImageBuilder.getMipMapOffset(j) * numTextures);
@@ -263,7 +276,9 @@ public class TextureUtil {
 
         combinedImageBuilder.setCount(numTextures);
         combinedImageBuilder.setType(type);
-        return combinedImageBuilder.build();
+
+        resultOut.textureImage = combinedImageBuilder.build();
+        return resultOut;
     }
 
     public static BufferedImage Resize(BufferedImage img, int newW, int newH, int type) {
@@ -274,19 +289,64 @@ public class TextureUtil {
         return dimg;
     }
 
-    // Public api
-    public static TextureImage createMultiPageTexture(List<BufferedImage> images, TextureImage.Type textureType, TextureProfile texProfile, boolean compress) throws TextureGeneratorException {
-        TextureImage textureImages[] = new TextureImage[images.size()];
+    // Called from bob and editor when building texture resources
+    public static void writeGenerateResultToOutputStream(TextureGenerator.GenerateResult generateResult, OutputStream stream) throws IOException {
+        byte[] header = generateResult.textureImage.toByteArray();
 
-        // Since external tools may provide pages of verying sizes, we need to make sure
+        ByteBuffer buffer = ByteBuffer.allocate(4);
+        buffer.order(ByteOrder.LITTLE_ENDIAN);
+        buffer.putInt(header.length);
+        byte[] headerSizeInBytes = buffer.array();
+
+        stream.write(headerSizeInBytes);
+        stream.write(header);
+        for (byte[] imageData : generateResult.imageDatas) {
+            stream.write(imageData);
+        }
+        stream.flush();
+    }
+
+    public static void writeGenerateResultToResource(TextureGenerator.GenerateResult generateResult, IResource resource) throws IOException {
+        byte[] header = generateResult.textureImage.toByteArray();
+
+        ByteBuffer buffer = ByteBuffer.allocate(4);
+        buffer.order(ByteOrder.LITTLE_ENDIAN);
+        buffer.putInt(header.length);
+        byte[] headerSizeInBytes = buffer.array();
+
+        resource.setContent(headerSizeInBytes);
+        resource.appendContent(header);
+
+        for (byte[] imageData : generateResult.imageDatas) {
+            resource.appendContent(imageData);
+        }
+    }
+
+    public static TextureImage textureResourceBytesToTextureImage(byte[] content) throws InvalidProtocolBufferException {
+        // Read the header size (first 4 bytes)
+        ByteBuffer buffer = ByteBuffer.wrap(content);
+        ByteOrder currentOrder = buffer.order();
+        buffer.order(ByteOrder.LITTLE_ENDIAN);
+        int headerSize = buffer.getInt();
+        buffer.order(currentOrder);
+
+        byte[] textureImage = new byte[headerSize];
+        System.arraycopy(content, 4, textureImage, 0, headerSize);
+
+        return TextureImage.parseFrom(textureImage);
+    }
+
+    // Public api
+    public static TextureGenerator.GenerateResult createMultiPageTexture(List<BufferedImage> images, TextureImage.Type textureType, TextureProfile texProfile, boolean compress) throws TextureGeneratorException {
+        TextureGenerator.GenerateResult[] generateResults = new TextureGenerator.GenerateResult[images.size()];
+
+        // Since external tools may provide pages of varying sizes, we need to make sure
         // our output is of the correct dimensions (as we're using a texture array)
         int maxWidth = 0;
         int maxHeight = 0;
         int firstType = -1;
 
-        for (int i = 0; i < images.size(); i++)
-        {
-            BufferedImage image = images.get(i);
+        for (BufferedImage image : images) {
             maxWidth = Math.max(maxWidth, image.getWidth());
             maxHeight = Math.max(maxHeight, image.getHeight());
 
@@ -306,12 +366,13 @@ public class TextureUtil {
                     image = Resize(image, maxWidth, maxHeight, firstType);
                 }
 
-                textureImages[i] = TextureGenerator.generate(image, texProfile, compress);
+                generateResults[i] = TextureGenerator.generate(image, texProfile, compress);
             } catch (IOException e) {
                 throw new TextureGeneratorException(e.getMessage());
             }
         }
-        return TextureUtil.createCombinedTextureImage(textureImages, textureType);
+
+        return TextureUtil.createCombinedTextureImage(generateResults, textureType);
     }
 
     // Public api

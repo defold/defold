@@ -24,10 +24,8 @@
             [clojure.java.io :as io]
             [clojure.string :as string]
             [dynamo.graph :as g]
-            [editor.adb :as adb]
             [editor.build :as build]
             [editor.build-errors-view :as build-errors-view]
-            [editor.bundle-dialog :as bundle-dialog]
             [editor.code.data :as data :refer [CursorRange->line-number]]
             [editor.console :as console]
             [editor.debug-view :as debug-view]
@@ -50,7 +48,6 @@
             [editor.handler :as handler]
             [editor.hot-reload :as hot-reload]
             [editor.icons :as icons]
-            [editor.ios-deploy :as ios-deploy]
             [editor.keymap :as keymap]
             [editor.live-update-settings :as live-update-settings]
             [editor.lsp :as lsp]
@@ -88,12 +85,10 @@
   (:import [com.defold.editor Editor]
            [com.defold.editor UIUtil]
            [com.dynamo.bob Platform]
-           [com.dynamo.bob.bundle BundleHelper]
            [com.sun.javafx PlatformUtil]
            [com.sun.javafx.scene NodeHelper]
-           [java.io File OutputStream PipedInputStream PipedOutputStream PrintWriter]
+           [java.io File PipedInputStream PipedOutputStream]
            [java.net URL]
-           [java.nio.charset StandardCharsets]
            [java.util Collection List]
            [java.util.concurrent ExecutionException]
            [javafx.beans.value ChangeListener]
@@ -393,7 +388,7 @@
                                                             title (tab-title resource dirty)]]
                                                 (ui/text! tab title)))))
   (output keymap g/Any :cached (g/fnk [keymap-config]
-                                 (keymap/make-keymap keymap-config {:valid-command? (set (handler/available-commands))})))
+                                 (keymap/make-keymap keymap-config {:valid-command? (handler/available-commands)})))
   (output debugger-execution-locations g/Any (gu/passthrough debugger-execution-locations)))
 
 (defn- selection->openable-resources [selection]
@@ -446,17 +441,14 @@
   (ui/user-data! app-scene ::ui/refresh-requested? true))
 
 (handler/defhandler :move-tool :workbench
-  (enabled? [app-view] true)
   (run [app-view] (g/transact (g/set-property app-view :active-tool :move)))
   (state [app-view] (= (g/node-value app-view :active-tool) :move)))
 
 (handler/defhandler :scale-tool :workbench
-  (enabled? [app-view] true)
   (run [app-view] (g/transact (g/set-property app-view :active-tool :scale)))
   (state [app-view]  (= (g/node-value app-view :active-tool) :scale)))
 
 (handler/defhandler :rotate-tool :workbench
-  (enabled? [app-view] true)
   (run [app-view] (g/transact (g/set-property app-view :active-tool :rotate)))
   (state [app-view]  (= (g/node-value app-view :active-tool) :rotate)))
 
@@ -521,7 +513,6 @@
 (def ^:const prefs-hidden-panes [:window :hidden-panes])
 
 (handler/defhandler :quit :global
-  (enabled? [] true)
   (run []
     (let [^Stage main-stage (ui/main-stage)]
       (.fireEvent main-stage (WindowEvent. main-stage WindowEvent/WINDOW_CLOSE_REQUEST)))))
@@ -1234,7 +1225,6 @@
     (build-handler project workspace prefs web-server build-errors-view main-stage tool-tab-pane)))
 
 (handler/defhandler :set-instance-count :global
-  (enabled? [] true)
   (run [prefs user-data]
        (let [count (:instance-count user-data)]
          (prefs/set! prefs [:run :instance-count] count)))
@@ -1304,12 +1294,24 @@ If you do not specifically require different script states, consider changing th
           (attach-debugger! workspace project prefs debug-view render-build-error!)
           (run-with-debugger! workspace project prefs debug-view render-build-error! web-server))))))
 
+(def ^:private rebuild-dialog-info
+  {:title "Rebuild Project?"
+   :icon :icon/circle-question
+   :header "Are you sure you want to rebuild the project?"
+   :buttons [{:text "Cancel"
+              :cancel-button true
+              :result false}
+             {:text "Rebuild"
+              :default-button true
+              :result true}]})
+
 (handler/defhandler :rebuild :global
   (enabled? [] (not (build-in-progress?)))
   (run [project workspace prefs web-server build-errors-view debug-view main-stage tool-tab-pane]
-    (debug-view/detach! debug-view)
-    (workspace/clear-build-cache! workspace)
-    (build-handler project workspace prefs web-server build-errors-view main-stage tool-tab-pane)))
+    (when (dialogs/make-confirmation-dialog rebuild-dialog-info)
+      (debug-view/detach! debug-view)
+      (workspace/clear-build-cache! workspace)
+      (build-handler project workspace prefs web-server build-errors-view main-stage tool-tab-pane))))
 
 (defn- start-new-log-pipe!
   ^PipedOutputStream []
@@ -1336,8 +1338,9 @@ If you do not specifically require different script states, consider changing th
 
 (handler/defhandler :rebuild-html5 :global
   (run [project prefs web-server build-errors-view changes-view main-stage tool-tab-pane]
-       (build-html5! project prefs web-server build-errors-view changes-view main-stage tool-tab-pane
-                     bob/rebuild-html5-bob-commands)))
+       (when (dialogs/make-confirmation-dialog rebuild-dialog-info)
+         (build-html5! project prefs web-server build-errors-view changes-view main-stage tool-tab-pane
+                       bob/rebuild-html5-bob-commands))))
 
 (handler/defhandler :build-html5 :global
   (run [project prefs web-server build-errors-view changes-view main-stage tool-tab-pane]
@@ -2536,116 +2539,33 @@ If you do not specifically require different script states, consider changing th
           show-search-results-tab! (partial show-search-results! main-scene tool-tab-pane)]
       (search-results-view/show-search-in-files-dialog! search-results-view project prefs show-search-results-tab!))))
 
-(defn- adb-post-bundle! [prefs output-directory project ^OutputStream out launch]
-  (g/with-auto-evaluation-context evaluation-context
-    (let [game-project (project/get-resource-node project "/game.project" evaluation-context)
-          package (game-project/get-setting game-project ["android" "package"] evaluation-context)
-          project-title (game-project/get-setting game-project ["project" "title"] evaluation-context)
-          binary-name (BundleHelper/projectNameToBinaryName project-title)
-          apk-path (io/file output-directory binary-name (str binary-name ".apk"))]
-      ;; Do the actual work asynchronously because adb commands are blocking.
-      (future
-        (error-reporting/catch-all!
-          ;; We should close the out when we are done here
-          (with-open [writer (PrintWriter. out true StandardCharsets/UTF_8)]
-            (try
-              (.println writer "Resolving ADB location...")
-              (let [adb-path (adb/get-adb-path prefs)
-                    _ (.println writer (format "Resolved to '%s'" adb-path))
-                    _ (.println writer "Listing devices...")
-                    device (or (first (adb/list-devices! adb-path))
-                               (throw (ex-info "No devices are connected" {:adb adb-path})))]
-                (.println writer (format "Installing `%s` on '%s'..." apk-path (:label device)))
-                (adb/install! adb-path device apk-path out)
-                (when launch
-                  (.println writer (format "Launching %s..." package))
-                  (adb/launch! adb-path device package out))
-                (.println writer (format "Install%s done." (if launch " and launch" ""))))
-              (catch Throwable e
-                (.println writer (.getMessage e))))))))))
-
-(defn- ios-post-bundle! [prefs output-directory project ^OutputStream out launch]
-  (g/with-auto-evaluation-context evaluation-context
-    (let [game-project (project/get-resource-node project "/game.project" evaluation-context)
-          project-title (game-project/get-setting game-project ["project" "title"] evaluation-context)
-          app-path (io/file output-directory (str project-title ".app"))]
-      (future
-        (error-reporting/catch-all!
-          (with-open [writer (PrintWriter. out true StandardCharsets/UTF_8)]
-            (try
-              (.println writer "Resolving ios-deploy location...")
-              (let [ios-deploy-path (ios-deploy/get-ios-deploy-path prefs)
-                    _ (.println writer (format "Resolved to '%s'" ios-deploy-path))
-                    _ (.println writer "Listing devices...")
-                    device (or (first (ios-deploy/list-devices! ios-deploy-path))
-                               (throw (ex-info "No devices are connected" {:ios-deploy-path ios-deploy-path})))]
-                (.println writer (format "Installing on '%s'" (:label device)))
-                (ios-deploy/install! ios-deploy-path device app-path out)
-                (when launch
-                  (.println writer (format "Launching %s..." project-title))
-                  (ios-deploy/launch! ios-deploy-path device app-path out))
-                (.println writer (format "Install%s done." (if launch " and launch" ""))))
-              (catch Throwable e
-                (.println writer (.getMessage e))))))))))
-
-(defn- bundle! [main-stage tool-tab-pane changes-view build-errors-view project prefs platform bundle-options]
-  (g/user-data! project :last-bundle-options (assoc bundle-options :platform-key platform))
-  (let [main-scene (.getScene ^Stage main-stage)
-        output-directory ^File (:output-directory bundle-options)
-        render-build-error! (make-render-build-error main-scene tool-tab-pane build-errors-view)
-        render-reload-progress! (make-render-task-progress :resource-sync)
-        render-save-progress! (make-render-task-progress :save-all)
-        render-build-progress! (make-render-task-progress :build)
-        task-cancelled? (make-task-cancelled-query :build)
-        bob-args (bob/bundle-bob-options prefs project platform bundle-options)
-        out (start-new-log-pipe!)]
-    (when-not (.exists output-directory)
-      (fs/create-directories! output-directory))
-    (build-errors-view/clear-build-errors build-errors-view)
-    (disk/async-bob-build! render-reload-progress! render-save-progress! render-build-progress! out task-cancelled?
-                           render-build-error! bob/bundle-bob-commands bob-args project changes-view
-                           (fn [successful?]
-                             (if successful?
-                               (if (some-> output-directory .isDirectory)
-                                 (do
-                                   (when (prefs/get prefs [:bundle :open-output-directory])
-                                     (ui/open-file output-directory))
-                                   (cond
-                                     (and (= :android platform)
-                                          (:adb-install bundle-options)
-                                          (string/includes? (:bundle-format bundle-options) "apk"))
-                                     ;; will eventually close the output
-                                     (adb-post-bundle! prefs output-directory project out (:adb-launch bundle-options))
-
-                                     (and (= :ios platform)
-                                          (:ios-deploy-install bundle-options))
-                                     ;; will eventually close the output
-                                     (ios-post-bundle! prefs output-directory project out (:ios-deploy-launch bundle-options))
-
-                                     :else
-                                     (.close out)))
-                                 (.close out))
-                               (do
-                                 (.close out)
-                                 (dialogs/make-info-dialog
-                                   {:title "Bundle Failed"
-                                    :icon :icon/triangle-error
-                                    :size :large
-                                    :header "Failed to bundle project, please fix build errors and try again"})))))))
-
 (handler/defhandler :bundle :global
-  (run [user-data workspace project prefs app-view changes-view build-errors-view main-stage tool-tab-pane]
-    (let [owner-window (g/node-value app-view :stage)
-          platform (:platform user-data)
-          bundle! (partial bundle! main-stage tool-tab-pane changes-view build-errors-view project prefs platform)]
-      (bundle-dialog/show-bundle-dialog! workspace platform prefs owner-window bundle!))))
+  (options [user-data _context]
+    (when-not user-data
+      (let [contexts [_context]]
+        (into []
+              (keep
+                (fn [{:keys [command]}]
+                  (when command
+                    (when-let [handler+context (handler/active command contexts true)]
+                      {:command :bundle
+                       :label (handler/label handler+context)
+                       :user-data {:command command
+                                   :handler+context handler+context}}))))
+              (handler/realize-menu :editor.bundle/menu)))))
+  (run [prefs user-data]
+    (let [{:keys [command handler+context]} user-data]
+      (prefs/set! prefs [:bundle :last-bundle-command] (if (handler/synthetic-command? command) nil command))
+      (when (handler/enabled? handler+context)
+        (handler/run handler+context)))))
 
 (handler/defhandler :rebundle :global
-  (enabled? [project] (some? (g/user-data project :last-bundle-options)))
-  (run [workspace project prefs app-view changes-view build-errors-view main-stage tool-tab-pane]
-    (let [last-bundle-options (g/user-data project :last-bundle-options)
-          platform (:platform-key last-bundle-options)]
-      (bundle! main-stage tool-tab-pane changes-view build-errors-view project prefs platform last-bundle-options))))
+  (enabled? [evaluation-context prefs]
+    (keyword? (prefs/get prefs [:bundle :last-bundle-command])))
+  (run [prefs _context]
+    (let [command (prefs/get prefs [:bundle :last-bundle-command])]
+      (when-let [handler+context (handler/active command [_context] false)]
+        (handler/run handler+context)))))
 
 (defn reload-extensions! [app-view project kind workspace changes-view build-errors-view prefs]
   (extensions/reload!

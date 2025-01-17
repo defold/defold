@@ -14,6 +14,7 @@
 
 (ns editor.editor-extensions
   (:require [cljfx.api :as fx]
+            [clojure.data.json :as json]
             [clojure.java.io :as io]
             [clojure.set :as set]
             [clojure.stacktrace :as stacktrace]
@@ -27,6 +28,7 @@
             [editor.editor-extensions.commands :as commands]
             [editor.editor-extensions.error-handling :as error-handling]
             [editor.editor-extensions.graph :as graph]
+            [editor.editor-extensions.prefs-docs :as prefs-docs]
             [editor.editor-extensions.prefs-functions :as prefs-functions]
             [editor.editor-extensions.runtime :as rt]
             [editor.editor-extensions.ui-components :as ui-components]
@@ -45,9 +47,11 @@
             [editor.workspace :as workspace]
             [util.eduction :as e])
   (:import [com.dynamo.bob Platform]
+           [com.dynamo.bob.bundle BundleHelper]
+           [java.io PushbackReader]
            [java.net URI]
            [java.nio.file FileAlreadyExistsException Files NotDirectoryException Path]
-           [org.luaj.vm2 LuaError Prototype]))
+           [org.luaj.vm2 LuaError LuaString Prototype]))
 
 (set! *warn-on-reflection* true)
 
@@ -368,6 +372,58 @@
           (catch Throwable e
             (throw (LuaError. ^String (ex-message e)))))))))
 
+(def ext-open-external-file-fn
+  (rt/suspendable-lua-fn open-external-file [{:keys [rt]} lua-string]
+    (let [file-name (rt/->clj rt coerce/string lua-string)]
+      (future/io
+        (try
+          (.open ui/desktop (io/file file-name))
+          (catch Throwable e
+            (throw (LuaError. ^String (ex-message e)))))))))
+
+;; region json
+
+(def json-decode-options-coercer
+  (coerce/hash-map :opt {:all coerce/boolean}))
+
+(def ext-json-decode
+  (letfn [(decode [^LuaString lua-string opts]
+            (with-open [r (-> lua-string .toInputStream io/reader (PushbackReader. 64))]
+              (if (:all opts)
+                (let [eof-value r]
+                  (loop [acc (transient [])]
+                    (let [ret (json/read r :eof-error? false :eof-value eof-value)]
+                      (if (identical? ret eof-value)
+                        (persistent! acc)
+                        (recur (conj! acc ret))))))
+                (json/read r))))]
+    (rt/lua-fn ext-json-decode
+      ([_ lua-string]
+       (decode lua-string nil))
+      ([{:keys [rt]} lua-string lua-options]
+       (decode lua-string (rt/->clj rt json-decode-options-coercer lua-options))))))
+
+(def json-value-coercer
+  (coerce/recursive
+    #(coerce/one-of
+       coerce/null
+       coerce/boolean
+       coerce/number
+       coerce/string
+       (coerce/vector-of % :min-count 1)
+       (coerce/map-of coerce/string %))))
+
+(def ext-json-encode
+  (rt/lua-fn ext-json-decode
+    ([{:keys [rt]} lua-value]
+     (json/write-str (rt/->clj rt json-value-coercer lua-value)))))
+
+;; endregion
+
+(def ext-project-binary-name
+  (rt/lua-fn ext-project-binary-name [{:keys [rt]} lua-string]
+    (BundleHelper/projectNameToBinaryName (rt/->clj rt coerce/string lua-string))))
+
 ;; endregion
 
 ;; region language servers
@@ -418,19 +474,22 @@
     (coerce/hash-map
       :req {:label coerce/string
             :locations (coerce/vector-of
-                         (coerce/enum "Edit" "View" "Assets" "Outline")
+                         (coerce/enum "Edit" "View" "Assets" "Outline" "Bundle")
                          :distinct true
                          :min-count 1)}
       :opt {:query (coerce/hash-map
                      :opt {:selection (coerce/hash-map
                                         :req {:type (coerce/enum :resource :outline)
-                                              :cardinality (coerce/enum :one :many)})})
+                                              :cardinality (coerce/enum :one :many)})
+                           :argument (coerce/const true)})
+            :id prefs-docs/serializable-keyword-coercer
             :active coerce/function
             :run coerce/function})))
 
 (defn- reload-commands! [project state evaluation-context]
   (let [{:keys [display-output! rt]} state]
-    (handler/register-dynamic! ::commands
+    (handler/register! ::commands
+      :handlers
       (into []
             (mapcat
               (fn [[path lua-ret]]
@@ -498,10 +557,15 @@
                          :on_target_launched coerce/function
                          :on_target_terminated coerce/function}))
 
+(def ^:private bundle-editor-script-prototype
+  (rt/read (io/resource "bundle.editor_script") "bundle.editor_script"))
+
 (defn- re-create-ext-state [initial-state evaluation-context]
   (let [{:keys [rt display-output!]} initial-state]
-    (->> [:library-prototypes :project-prototypes]
-         (eduction (mapcat initial-state))
+    (->> (e/concat
+           (:library-prototypes initial-state)
+           (:project-prototypes initial-state)
+           [bundle-editor-script-prototype])
          (reduce
            (fn [acc x]
              (cond
@@ -601,7 +665,8 @@
                                 (future/then (reload-resources!) rt/and-refresh-context))
                :out (line-writer #(display-output! :out %))
                :err (line-writer #(display-output! :err %))
-               :env {"editor" {"get" (make-ext-get-fn project)
+               :env {"editor" {"bundle" {"project_binary_name" ext-project-binary-name} ;; undocumented, hidden API!
+                               "get" (make-ext-get-fn project)
                                "can_get" (make-ext-can-get-fn project)
                                "can_set" (make-ext-can-set-fn project)
                                "create_directory" (make-ext-create-directory-fn project reload-resources!)
@@ -611,6 +676,7 @@
                                "execute" (make-ext-execute-fn project-path display-output! reload-resources!)
                                "bob" (make-ext-bob-fn invoke-bob!)
                                "browse" ext-browse-fn
+                               "open_external_file" ext-open-external-file-fn
                                "platform" (.getPair (Platform/getHostPlatform))
                                "prefs" (prefs-functions/env prefs)
                                "save" (make-ext-save-fn save!)
@@ -622,6 +688,8 @@
                                "version" (system/defold-version)
                                "engine_sha1" (system/defold-engine-sha1)
                                "editor_sha1" (system/defold-editor-sha1)}
+                     "json" {"decode" ext-json-decode
+                             "encode" ext-json-encode}
                      "io" {"tmpfile" nil}
                      "os" {"execute" nil
                            "exit" nil

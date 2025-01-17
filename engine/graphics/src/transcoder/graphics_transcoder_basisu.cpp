@@ -287,7 +287,7 @@ namespace dmGraphics
         return true;
     }
 
-    bool Transcode(const char* path, dmGraphics::TextureImage::Image* image, uint8_t image_count, dmGraphics::TextureFormat format,
+    bool Transcode(const char* path, dmGraphics::TextureImage::Image* image, uint8_t image_count, uint8_t* image_bytes, dmGraphics::TextureFormat format,
                     uint8_t** images, uint32_t* sizes, uint32_t* num_transcoded_mips)
     {
         DM_PROFILE(__FUNCTION__);
@@ -320,7 +320,7 @@ namespace dmGraphics
         for (int i = 0; i < image_count * max_mipmap_count; ++i)
         {
             uint32_t size = image->m_MipMapSizeCompressed[i];
-            uint8_t* ptr  = &image->m_Data.m_Data[slice_data_offset];
+            uint8_t* ptr  = &image_bytes[slice_data_offset];
 
             if (!TranscodeInitializeState(path, image_transcoders[i], ptr, size, transcoder_format))
             {
