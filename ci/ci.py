@@ -197,9 +197,9 @@ def install(args):
         testpath(os.path.join(clang_path, f'clang++'))
         testpath(os.path.join(clang_path, f'clang-cpp'))
 
-        testpath(os.path.join(/"/usr/bin", f'clang'))
-        testpath(os.path.join(/"/usr/bin", f'clang++'))
-        testpath(os.path.join(/"/usr/bin", f'clang-cpp'))
+        testpath(os.path.join("/usr/bin", f'clang'))
+        testpath(os.path.join("/usr/bin", f'clang++'))
+        testpath(os.path.join("/usr/bin", f'clang-cpp'))
 
         call("which clang")
         call("clang --version")
