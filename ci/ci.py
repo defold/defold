@@ -158,22 +158,8 @@ def install(args):
         s =  f"sudo update-alternatives"
         s += f"    --install /usr/bin/clang                 clang                 /usr/bin/clang-{clang_version} {clang_priority}"
         s += f"    --slave   /usr/bin/clang++               clang++               /usr/bin/clang++-{clang_version}"
-        s += f"    --slave   /usr/bin/asan_symbolize        asan_symbolize        /usr/bin/asan_symbolize-{clang_version}"
-        s += f"    --slave   /usr/bin/c-index-test          c-index-test          /usr/bin/c-index-test-{clang_version}"
-        s += f"    --slave   /usr/bin/clang-check           clang-check           /usr/bin/clang-check-{clang_version}"
         s += f"    --slave   /usr/bin/clang-cl              clang-cl              /usr/bin/clang-cl-{clang_version}"
         s += f"    --slave   /usr/bin/clang-cpp             clang-cpp             /usr/bin/clang-cpp-{clang_version}"
-        s += f"    --slave   /usr/bin/clang-format          clang-format          /usr/bin/clang-format-{clang_version}"
-        s += f"    --slave   /usr/bin/clang-format-diff     clang-format-diff     /usr/bin/clang-format-diff-{clang_version}"
-        s += f"    --slave   /usr/bin/clang-import-test     clang-import-test     /usr/bin/clang-import-test-{clang_version}"
-        s += f"    --slave   /usr/bin/clang-include-fixer   clang-include-fixer   /usr/bin/clang-include-fixer-{clang_version}"
-        s += f"    --slave   /usr/bin/clang-offload-bundler clang-offload-bundler /usr/bin/clang-offload-bundler-{clang_version}"
-        s += f"    --slave   /usr/bin/clang-query           clang-query           /usr/bin/clang-query-{clang_version}"
-        s += f"    --slave   /usr/bin/clang-rename          clang-rename          /usr/bin/clang-rename-{clang_version}"
-        s += f"    --slave   /usr/bin/clang-reorder-fields  clang-reorder-fields  /usr/bin/clang-reorder-fields-{clang_version}"
-        s += f"    --slave   /usr/bin/clang-tidy            clang-tidy            /usr/bin/clang-tidy-{clang_version}"
-        s += f"    --slave   /usr/bin/lldb                  lldb                  /usr/bin/lldb-{clang_version}"
-        s += f"    --slave   /usr/bin/lldb-server           lldb-server           /usr/bin/lldb-server-{clang_version}"
         call(s)
 
         packages = [
@@ -226,7 +212,7 @@ def build_engine(platform, channel, with_valgrind = False, with_asan = False, wi
 
     install_sdk = 'install_sdk'
     # for some platforms, we use the locally installed platform sdk
-    if platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios', 'js-web', 'wasm-web', 'arm64-linux', 'x86_64-linux'):
+    if platform in ('x86_64-macos', 'arm64-macos', 'arm64-ios', 'x86_64-ios', 'js-web', 'wasm-web', 'arm64-linux'):
         install_sdk = ''
 
     args = ('python scripts/build.py distclean %s install_ext check_sdk' % install_sdk).split()
