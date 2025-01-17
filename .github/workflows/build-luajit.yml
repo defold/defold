@@ -32,15 +32,6 @@ jobs:
         arch: [arm64-linux]
     runs-on: ubuntu-22.04-arm
     steps:
-    - name: Update apt and install GCC Multilib
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y gcc-multilib
-        
-    - name: Verify GCC Multilib
-      run: |
-        gcc -m32 --version
-          
     - name: Checkout repo
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
 
