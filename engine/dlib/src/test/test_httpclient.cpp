@@ -779,9 +779,6 @@ TEST_P(dmHttpClientTest, Test404)
     }
 }
 
-// For some reason, the arm64-linux runner fail on this test
-// Let's disable it for now
-#if !(defined(__linux__) && defined(GITHUB_CI))
 TEST_P(dmHttpClientTest, Post)
 {
     for (int i = 0; i < 27; ++i)
@@ -791,9 +788,9 @@ TEST_P(dmHttpClientTest, Post)
         m_ToPost = "";
 
         for (int j = 0; j < n; ++j) {
-            char buf[2] = { (char)((rand() % 255) - 128), 0 };
-            m_ToPost.append(buf);
+            int8_t buf[2] = { (int8_t)((rand() % 255) - 128), 0 };
             sum += buf[0];
+            m_ToPost.append((char*)buf);
         }
 
         dmHttpClient::Result r;
@@ -815,8 +812,8 @@ TEST_P(dmHttpClientTest, PostLarge)
         m_ToPost = "";
 
         for (int j = 0; j < n; ++j) {
-            char buf[2] = { (char)((rand() % 255) - 128), 0 };
-            m_ToPost.append(buf);
+            int8_t buf[2] = { (int8_t)((rand() % 255) - 128), 0 };
+            m_ToPost.append((char*)buf);
             sum += buf[0];
         }
 
@@ -832,7 +829,6 @@ TEST_P(dmHttpClientTest, PostLarge)
         ASSERT_EQ(sum, atoi(m_Content.c_str()));
     }
 }
-#endif
 
 TEST_P(dmHttpClientTest, Cache)
 {
