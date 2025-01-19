@@ -20,7 +20,6 @@ from waflib.Logs import error
 from waflib.Task import RUN_ME
 from BuildUtility import BuildUtility, BuildUtilityException, create_build_utility
 import sdk
-import run
 
 if not 'DYNAMO_HOME' in os.environ:
     print ("You must define DYNAMO_HOME. Have you run './script/build.py shell' ?", file=sys.stderr)
@@ -1761,14 +1760,8 @@ def detect(conf):
     else:
         conf.options.check_c_compiler = 'clang gcc'
         conf.options.check_cxx_compiler = 'clang++ g++'
-        try:
-            conf.load('compiler_c')
-            conf.load('compiler_cxx')
-        except Exception as e:
-            path = "/home/runner/work/defold/defold/engine/testmain/build/config.log"
-            run.shell_command("echo DUMP LOG")
-            run.shell_command(f"cat {path}")
-            raise e
+        conf.load('compiler_c')
+        conf.load('compiler_cxx')
 
     # Since we're using an old waf version, we remove unused arguments
     remove_flag(conf.env['shlib_CFLAGS'], '-compatibility_version', 1)

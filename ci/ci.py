@@ -148,15 +148,8 @@ def install(args):
 
         call("sudo apt-get install -y software-properties-common")
 
-        call("ls /usr/bin/clang*")
-        call("ls /usr/bin/ar*")
-        call("ls /usr/bin/llvm-ar*")
-
         call("update-alternatives --display clang")
         call("update-alternatives --display clang++")
-
-        # call("sudo update-alternatives --remove-all clang")
-        # call("sudo update-alternatives --remove-all clang++")
 
         clang_priority = 200 # GA runner has clang at prio 100, so let's add a higher prio
         clang_version = 16
