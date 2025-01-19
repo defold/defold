@@ -32,14 +32,18 @@ jobs:
         arch: [arm64-linux]
     runs-on: ubuntu-24.04-arm
     steps:
-    - name: Set up ARM64 architecture
+    - name: Enable ARM64 architecture and install dependencies
       run: |
         sudo dpkg --add-architecture arm64
         sudo apt update
+        sudo apt install -y libc6-dev:arm64 gcc-aarch64-linux-gnu g++-aarch64-linux-gnu
 
-    - name: Install dependencies
+    - name: Check installed packages
       run: |
-        sudo apt install -y libc6-dev:arm64 gcc:arm64
+        dpkg --print-architecture
+        dpkg --print-foreign-architectures
+        gcc --version
+        aarch64-linux-gnu-gcc --version
         
     - name: Checkout repo
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
